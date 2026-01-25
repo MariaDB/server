@@ -314,7 +314,7 @@ create table t1 (i int) with system versioning
 partition by system_time interval 6 day limit 98;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'limit 98' at line 2
 create or replace table t1 (pk int) with system versioning
-partition by system_time interval 10 year partitions 3;
+partition by system_time interval 10 year partitions 4;
 ERROR 22003: TIMESTAMP value is out of range in 'INTERVAL'
 # INTERVAL and ALTER TABLE
 create or replace table t1 (i int) with system versioning
@@ -327,7 +327,7 @@ partition_name	partition_ordinal_position	partition_method	timediff(partition_de
 p0	1	SYSTEM_TIME	00:00:00.000000
 pn	2	SYSTEM_TIME	NULL
 Warnings:
-Warning	1292	Incorrect time value: 'CURRENT'
+Warning	1292	Incorrect time value: 'CURRENT' for column `information_schema`.`(temporary)`.`PARTITION_DESCRIPTION` at row 2
 alter table t1 add partition (partition p1 history, partition p2 history);
 select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 partition_name	partition_ordinal_position	partition_method	timediff(partition_description, @ts)
@@ -336,7 +336,7 @@ p1	2	SYSTEM_TIME	01:00:00.000000
 p2	3	SYSTEM_TIME	02:00:00.000000
 pn	4	SYSTEM_TIME	NULL
 Warnings:
-Warning	1292	Incorrect time value: 'CURRENT'
+Warning	1292	Incorrect time value: 'CURRENT' for column `information_schema`.`(temporary)`.`PARTITION_DESCRIPTION` at row 4
 alter table t1 drop partition p0;
 select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 partition_name	partition_ordinal_position	partition_method	timediff(partition_description, @ts)
@@ -344,7 +344,7 @@ p1	1	SYSTEM_TIME	01:00:00.000000
 p2	2	SYSTEM_TIME	02:00:00.000000
 pn	3	SYSTEM_TIME	NULL
 Warnings:
-Warning	1292	Incorrect time value: 'CURRENT'
+Warning	1292	Incorrect time value: 'CURRENT' for column `information_schema`.`(temporary)`.`PARTITION_DESCRIPTION` at row 3
 alter table t1 drop partition p2;
 ERROR HY000: Can only drop oldest partitions when rotating by INTERVAL
 select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
@@ -353,7 +353,7 @@ p1	1	SYSTEM_TIME	01:00:00.000000
 p2	2	SYSTEM_TIME	02:00:00.000000
 pn	3	SYSTEM_TIME	NULL
 Warnings:
-Warning	1292	Incorrect time value: 'CURRENT'
+Warning	1292	Incorrect time value: 'CURRENT' for column `information_schema`.`(temporary)`.`PARTITION_DESCRIPTION` at row 3
 set timestamp=unix_timestamp('2001-02-03 10:20:30');
 create or replace table t1 (i int) with system versioning
 partition by system_time interval 1 day
@@ -3521,8 +3521,103 @@ partition ver_p1 history,
 partition ver_p2 history,
 partition ver_pn current);
 alter table `t1` partition by system_time interval 7 year ;
-ERROR 22003: TIMESTAMP value is out of range in 'INTERVAL'
 drop table t1;
+#
+# MDEV-29114 ALTER puts row into different partition for system_time
+#            interval partitioning
+#
+# CREATE case
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour (
+partition p0 history, partition p1 history, partition pn current);
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 00:10:00');
+update t1 set x= 1;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= 2;
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+update t1 set x= 3;
+# CREATE result: row 1 got into p1
+select *, row_start, row_end from t1 partition (p0);
+x	row_start	row_end
+0	2000-01-01 00:00:00.000000	2000-01-01 00:10:00.000000
+select *, row_start, row_end from t1 partition (p1);
+x	row_start	row_end
+1	2000-01-01 00:10:00.000000	2000-01-01 01:00:00.000000
+2	2000-01-01 01:00:00.000000	2000-01-01 01:30:00.000000
+flush tables;
+# For CREATE pruning is affected by current timestamp, but SELECT works
+# in any case since row 1 got into p1
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+explain partitions select * from t1 for system_time as of '2000-01-01 00:59:59';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,p1,pn	ALL	NULL	NULL	NULL	NULL	4	Using where
+select * from t1 for system_time as of '2000-01-01 00:59:59';
+x
+1
+set timestamp= unix_timestamp('2020-01-01 00:00:00');
+explain partitions select * from t1 for system_time as of '2000-01-01 00:59:59';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,p1,pn	ALL	NULL	NULL	NULL	NULL	4	Using where
+select * from t1 for system_time as of '2000-01-01 00:59:59';
+x
+1
+# ALTER case
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+alter table t1
+partition by system_time interval 1 hour (
+partition p0 history, partition p1 history, partition pn current);
+# ALTER result: row 1 got into p1
+Select *, row_start, row_end from t1 partition (p0);
+x	row_start	row_end
+0	2000-01-01 00:00:00.000000	2000-01-01 00:10:00.000000
+Select *, row_start, row_end from t1 partition (p1);
+x	row_start	row_end
+1	2000-01-01 00:10:00.000000	2000-01-01 01:00:00.000000
+2	2000-01-01 01:00:00.000000	2000-01-01 01:30:00.000000
+flush tables;
+Explain partitions select * from t1 for system_time as of '2000-01-01 00:59:59';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,p1,pn	ALL	NULL	NULL	NULL	NULL	4	Using where
+Select * from t1 for system_time as of '2000-01-01 00:59:59';
+x
+1
+drop table t1;
+#
+# MDEV-33289 INTERVAL partitioning by system time does not work close to
+#            the end of timestamp range
+#
+set timestamp= unix_timestamp('2024-01-21 00:00:00');
+create or replace table t (a int) with system versioning
+partition by system_time interval 10 year auto;
+insert into t values (0);
+set timestamp= unix_timestamp('2034-01-20 23:59:59');
+update t set a= 1;
+set timestamp= unix_timestamp('2034-01-20 00:00:00');
+update t set a= 2;
+set timestamp= unix_timestamp('2035-01-21 00:00:00');
+update t set a= 3;
+select * from t partition (p0);
+a
+0
+select * from t partition (p1);
+a
+2
+select * from t partition (pn);
+a
+3
+select * from t for system_time as of '2035-01-20 00:00:00';
+a
+2
+drop tables t;
+create or replace table t (a int) with system versioning
+partition by system_time interval 10 year partitions 10;
+ERROR 22003: TIMESTAMP value is out of range in 'INTERVAL'
+create or replace table t (a int) with system versioning
+partition by system_time interval 10 year;
+drop table t;
 #
 # End of 10.11 tests
 #

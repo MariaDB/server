@@ -6842,12 +6842,12 @@ wsrep_store_key_val_for_row(
 						 wsrep_thd_query(thd));
 					true_len = buff_space;
 				}
+				memcpy(buff, normalized, true_len);
 				buff       += true_len;
 				buff_space -= true_len;
 			} else {
 				buff += key_len;
 			}
-			memcpy(buff, normalized, true_len);
 		} else {
 			/* Here we handle all other data types except the
 			true VARCHAR, BLOB and TEXT. Note that the column

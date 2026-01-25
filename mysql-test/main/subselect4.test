@@ -2693,6 +2693,45 @@ drop table t1,t2,t3;
 
 CREATE TABLE t(c INT);
 SELECT (SELECT 0 GROUP BY c HAVING (SELECT c)) FROM t GROUP BY c;
+
+--echo #
+--echo # MDEV-31632 Unresolvable outer reference causes null pointer exception
+--echo #
+
+--error ER_BAD_FIELD_ERROR
+SELECT 1 union select 2 UNION SELECT 1 from t JOIN t b ON
+  (SELECT 1 FROM dual WHERE AAA);
+
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-38476 Wrong Result (Empty Set) with derived_merge=on using AVG() on text column in HAVING clause
+--echo #
+
+CREATE TABLE t1(c1 TEXT);
+INSERT INTO t1(c1) VALUES ('a'),('ab'),('cc');
+SELECT MAX(ca1) FROM (SELECT c1 AS ca1 FROM t1) AS ta1
+  GROUP BY ca1
+  HAVING AVG(ca1) RLIKE (TRUE & CHARACTER_LENGTH(ca1));
+
+TRUNCATE t1;
+INSERT INTO t1 (c1) VALUES (NULL), ('abc');
+SELECT ca1 FROM (SELECT c1 AS ca1, c1 AS ca2 FROM t1) AS ta1
+  GROUP BY ca2
+  HAVING (ca2 = ANY (SELECT c1 FROM t1)) IS NOT TRUE;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-38626 Unexpected `Data too long` error on subselect as a multiplication argument
+--echo #
+
+CREATE TABLE t0 AS SELECT 1;
+CREATE TABLE t1 AS
+  SELECT CONCAT((SELECT 9 FROM t0) * (SELECT 9 FROM t0)) AS c1,
+  CONCAT(9 * 9) AS c2;
+SHOW CREATE TABLE t1;
+DROP TABLE t0, t1;
+
 
 --echo # End of 10.11 tests

@@ -7087,7 +7087,13 @@ public:
     new_item->m_share_field= 1;
     return new_item;
   }
-  Item* do_build_clone(THD *thd) const override { return get_copy(thd); }
+  Item* do_build_clone(THD *thd) const override
+  {
+    Item_default_value *copy= (Item_default_value *) get_copy(thd);
+    if (!copy || (arg && !(copy->arg= arg->build_clone(thd))))
+      return NULL;
+    return copy;
+  }
 private:
   bool tie_field(THD *thd);
 };

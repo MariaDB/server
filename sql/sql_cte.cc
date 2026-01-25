@@ -100,6 +100,19 @@ bool LEX::check_dependencies_in_with_clauses()
 }
 
 
+bool LEX::prepare_unreferenced_in_with_clauses()
+{
+  for (With_clause *with_clause= with_clauses_list;
+       with_clause;
+       with_clause= with_clause->next_with_clause)
+  {
+    if (with_clause->prepare_unreferenced_elements(thd))
+      return true;
+  }
+  return false;
+}
+
+
 /**
   @brief
     Resolve table references to CTE from a sub-chain of table references
@@ -527,7 +540,8 @@ void With_element::check_dependencies_in_select(st_select_lex *sl,
     if (is_spec_select)
     {
       With_clause *with_clause= sl->master_unit()->with_clause;
-      if (with_clause)
+      /* Non-recursive CTE cannot SELECT from itself */
+      if (with_clause && with_clause->with_recursive)
         tbl->with= with_clause->find_table_def(tbl, NULL, NULL);
       if (!tbl->with)
         tbl->with= owner->find_table_def(tbl,

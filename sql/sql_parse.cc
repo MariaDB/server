@@ -1607,6 +1607,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
   NET *net= &thd->net;
   bool error= 0;
   bool do_end_of_statement= true;
+  bool log_slow_done= false;
   DBUG_ENTER("dispatch_command");
   DBUG_PRINT("info", ("command: %d %s", command,
                       (command_name[command].str != 0 ?
@@ -1833,6 +1834,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
   case COM_STMT_BULK_EXECUTE:
   {
     mysqld_stmt_bulk_execute(thd, packet, packet_length);
+    log_slow_done= true;
 #ifdef WITH_WSREP
     if (WSREP(thd))
     {
@@ -1844,6 +1846,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
   case COM_STMT_EXECUTE:
   {
     mysqld_stmt_execute(thd, packet, packet_length);
+    log_slow_done= true;
 #ifdef WITH_WSREP
     if (WSREP(thd))
     {
@@ -2020,6 +2023,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
       mysql_parse(thd, beginning_of_next_stmt, length, &parser_state);
 
     }
+    log_slow_done= thd->lex->sql_command == SQLCOM_EXECUTE;
 
     DBUG_PRINT("info",("query ready"));
     break;
@@ -2473,22 +2477,19 @@ resume:
   if (likely(!thd->is_error() && !thd->killed_errno()))
     mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_RESULT, 0, 0);
 
-  mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
-                      thd->get_stmt_da()->is_error() ?
-                      thd->get_stmt_da()->sql_errno() : 0,
-                      command_name[command].str);
+  if (!log_slow_done)
+    mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
+                        thd->get_stmt_da()->is_error() ?
+                        thd->get_stmt_da()->sql_errno() : 0,
+                        command_name[command].str);
 
   thd->update_all_stats();
 
   /*
-    Write to slow query log only those statements that received via the text
-    protocol except the EXECUTE statement. The reason we do that way is
-    that for statements received via binary protocol and for the EXECUTE
-    statement, the slow statements have been already written to slow query log
-    inside the method Prepared_statement::execute().
+    for backward compatibility we only log COM_QUERY here,
+    as if COM_STMT_PREPARE or COM_FIELD_LIST couldn't be slow.
   */
-  if(command == COM_QUERY &&
-     thd->lex->sql_command != SQLCOM_EXECUTE)
+  if (command == COM_QUERY && !log_slow_done)
     log_slow_statement(thd);
   else
     delete_explain_query(thd->lex);
@@ -3285,6 +3286,24 @@ static bool prepare_db_action(THD *thd, privilege_t want_access,
 #endif
   return check_access(thd, want_access, dbname->str, NULL, NULL, 1, 0);
 }
+
+
+#ifndef DBUG_OFF
+bool Sql_cmd_show_routine_code::execute(THD *thd)
+{
+  sp_head *sp;
+  if (m_handler->sp_cache_routine(thd, m_name, &sp))
+    return true;
+  if (!sp || sp->show_routine_code(thd))
+  {
+    /* We don't distinguish between errors for now */
+    my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
+             m_handler->type_str(), m_name->m_name.str);
+    return true;
+  }
+  return false;
+}
+#endif // DBUG_OFF
 
 
 bool Sql_cmd_call::execute(THD *thd)
@@ -5966,34 +5985,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         goto error;
       break;
     }
-  case SQLCOM_SHOW_PROC_CODE:
-  case SQLCOM_SHOW_FUNC_CODE:
-  case SQLCOM_SHOW_PACKAGE_BODY_CODE:
-    {
-#ifndef DBUG_OFF
-      Database_qualified_name pkgname(&null_clex_str, &null_clex_str);
-      sp_head *sp;
-      const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
-      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
-      if (sph->sp_resolve_package_routine(thd, thd->lex->sphead,
-                                          lex->spname, &sph, &pkgname))
-        return true;
-      if (sph->sp_cache_routine(thd, lex->spname, &sp))
-        goto error;
-      if (!sp || sp->show_routine_code(thd))
-      {
-        /* We don't distinguish between errors for now */
-        my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-                 sph->type_str(), lex->spname->m_name.str);
-        goto error;
-      }
-      break;
-#else
-      my_error(ER_FEATURE_DISABLED, MYF(0),
-               "SHOW PROCEDURE|FUNCTION CODE", "--with-debug");
-      goto error;
-#endif // ifndef DBUG_OFF
-    }
   case SQLCOM_SHOW_CREATE_TRIGGER:
     {
       if (check_ident_length(&lex->spname->m_name))
@@ -6198,6 +6189,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_SIGNAL:
   case SQLCOM_RESIGNAL:
   case SQLCOM_GET_DIAGNOSTICS:
+  case SQLCOM_SHOW_PROC_CODE:
+  case SQLCOM_SHOW_FUNC_CODE:
+  case SQLCOM_SHOW_PACKAGE_BODY_CODE:
   case SQLCOM_CALL:
   case SQLCOM_REVOKE:
   case SQLCOM_GRANT:
@@ -8507,7 +8501,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   lex->add_to_query_tables(ptr);
 
   // Pure table aliases do not need to be locked:
-  if (ptr->db.str && !(table_options & TL_OPTION_ALIAS))
+  if (!ptr->is_pure_alias())
   {
     MDL_REQUEST_INIT(&ptr->mdl_request, MDL_key::TABLE, ptr->db.str,
                      ptr->table_name.str, mdl_type, MDL_TRANSACTION);

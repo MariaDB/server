@@ -3372,5 +3372,48 @@ drop table t1,t2,t3;
 CREATE TABLE t(c INT);
 SELECT (SELECT 0 GROUP BY c HAVING (SELECT c)) FROM t GROUP BY c;
 (SELECT 0 GROUP BY c HAVING (SELECT c))
+#
+# MDEV-31632 Unresolvable outer reference causes null pointer exception
+#
+SELECT 1 union select 2 UNION SELECT 1 from t JOIN t b ON
+(SELECT 1 FROM dual WHERE AAA);
+ERROR 42S22: Unknown column 'AAA' in 'WHERE'
 DROP TABLE t;
+#
+# MDEV-38476 Wrong Result (Empty Set) with derived_merge=on using AVG() on text column in HAVING clause
+#
+CREATE TABLE t1(c1 TEXT);
+INSERT INTO t1(c1) VALUES ('a'),('ab'),('cc');
+SELECT MAX(ca1) FROM (SELECT c1 AS ca1 FROM t1) AS ta1
+GROUP BY ca1
+HAVING AVG(ca1) RLIKE (TRUE & CHARACTER_LENGTH(ca1));
+MAX(ca1)
+ab
+cc
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: 'ab'
+Warning	1292	Truncated incorrect DOUBLE value: 'cc'
+TRUNCATE t1;
+INSERT INTO t1 (c1) VALUES (NULL), ('abc');
+SELECT ca1 FROM (SELECT c1 AS ca1, c1 AS ca2 FROM t1) AS ta1
+GROUP BY ca2
+HAVING (ca2 = ANY (SELECT c1 FROM t1)) IS NOT TRUE;
+ca1
+NULL
+DROP TABLE t1;
+#
+# MDEV-38626 Unexpected `Data too long` error on subselect as a multiplication argument
+#
+CREATE TABLE t0 AS SELECT 1;
+CREATE TABLE t1 AS
+SELECT CONCAT((SELECT 9 FROM t0) * (SELECT 9 FROM t0)) AS c1,
+CONCAT(9 * 9) AS c2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(3) DEFAULT NULL,
+  `c2` varchar(3) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t0, t1;
 # End of 10.11 tests

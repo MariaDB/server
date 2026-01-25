@@ -6303,6 +6303,7 @@ LEX::create_unit(SELECT_LEX *first_sel)
     DBUG_RETURN(NULL);
 
   unit->register_select_chain(first_sel);
+  /* TODO: Why this condition? Explain in comment */
   if (first_sel->next_select())
   {
     unit->reset_distinct();
@@ -6485,22 +6486,29 @@ Name_resolution_context *LEX::pop_context()
 }
 
 
-SELECT_LEX *LEX::create_priority_nest(SELECT_LEX *first_in_nest)
+SELECT_LEX *LEX::create_priority_nest(SELECT_LEX *first_in_nest, SELECT_LEX *attach_to)
 {
   DBUG_ENTER("LEX::create_priority_nest");
   DBUG_ASSERT(first_in_nest->first_nested);
   enum sub_select_type wr_unit_type= first_in_nest->get_linkage();
   bool wr_distinct= first_in_nest->distinct;
-  SELECT_LEX *attach_to= first_in_nest->first_nested;
-  attach_to->cut_next();
+  if (attach_to)
+    attach_to->cut_next();
   SELECT_LEX *wrapper= wrap_select_chain_into_derived(first_in_nest);
   if (wrapper)
   {
     first_in_nest->first_nested= NULL;
     wrapper->set_linkage_and_distinct(wr_unit_type, wr_distinct);
-    wrapper->first_nested= attach_to->first_nested;
-    wrapper->set_master_unit(attach_to->master_unit());
-    attach_to->link_neighbour(wrapper);
+    if (attach_to)
+    {
+      wrapper->first_nested= attach_to->first_nested;
+      wrapper->set_master_unit(attach_to->master_unit());
+      attach_to->link_neighbour(wrapper);
+    }
+    else
+    {
+      wrapper->first_nested= wrapper;
+    }
   }
   DBUG_RETURN(wrapper);
 }
@@ -9382,6 +9390,27 @@ bool LEX::add_create_view(THD *thd, DDL_options_st ddl,
 }
 
 
+bool LEX::show_routine_code_start(THD *thd, enum_sql_command cmd, sp_name *name)
+{
+#ifdef DBUG_OFF
+  my_error(ER_FEATURE_DISABLED, MYF(0),
+           "SHOW PROCEDURE|FUNCTION CODE", "--with-debug");
+  return true;
+#else
+  sql_command= cmd;
+  Database_qualified_name pkgname;
+  const Sp_handler *sph= Sp_handler::handler(cmd);
+  if (sph->sp_resolve_package_routine(thd, thd->lex->sphead,
+                                      name, &sph, &pkgname))
+    return true;
+  if (!(m_sql_cmd= new (thd->mem_root) Sql_cmd_show_routine_code(name, sph,
+                                                                 cmd)))
+    return true;
+  return false;
+#endif
+}
+
+
 bool LEX::call_statement_start(THD *thd, sp_name *name)
 {
   Database_qualified_name pkgname(&null_clex_str, &null_clex_str);
@@ -10412,11 +10441,30 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_start(SELECT_LEX *s1, SELECT_LEX *s2,
   sel1->link_neighbour(sel2);
   sel2->set_linkage_and_distinct(unit_type, distinct);
   sel2->first_nested= sel1->first_nested= sel1;
+  const bool oracle= (thd->variables.sql_mode & IS_OR_WAS_ORACLE);
+  if (oracle &&
+      /*
+         Recursive CTE must have anchor defined as non-recursive set attached
+         via UNION, such anchor would be lost in wrapping. But in recursive CTE
+         all set operations either distinct or non-distinct
+         (see ER_NOT_SUPPORTED_YET limitation in st_select_lex_unit::prepare()),
+         so explicit prioritization via wrapping is not required.
+
+         Test: compat/oracle.func_concat
+      */
+      !(curr_with_clause && curr_with_clause->with_recursive) &&
+      !(sel1= create_priority_nest(sel1, NULL)))
+  {
+      return NULL;
+  }
   res= create_unit(sel1);
   if (res == NULL)
     return NULL;
   res->pre_last_parse= sel1;
-  push_select(res->fake_select_lex);
+  if (oracle)
+    push_select(sel1);
+  else
+    push_select(res->fake_select_lex);
   return res;
 }
 
@@ -10446,7 +10494,8 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_cont(SELECT_LEX_UNIT *unit,
     if (first_in_nest->first_nested != first_in_nest)
     {
       /* There is a priority jump starting from first_in_nest */
-      if ((last= create_priority_nest(first_in_nest)) == NULL)
+      if ((last= create_priority_nest(first_in_nest,
+                                      first_in_nest->first_nested)) == NULL)
         return NULL;
       unit->fix_distinct();
     }
@@ -10496,7 +10545,7 @@ LEX::add_primary_to_query_expression_body(SELECT_LEX_UNIT *unit,
 {
   return
     add_primary_to_query_expression_body(unit, sel, unit_type, distinct,
-                                         thd->variables.sql_mode & MODE_ORACLE);
+                                         thd->variables.sql_mode & IS_OR_WAS_ORACLE);
 }
 
 /**
@@ -10543,7 +10592,7 @@ bool LEX::parsed_multi_operand_query_expression_body(SELECT_LEX_UNIT *unit)
   if (first_in_nest->first_nested != first_in_nest)
   {
     /* There is a priority jump starting from first_in_nest */
-    if (create_priority_nest(first_in_nest) == NULL)
+    if (create_priority_nest(first_in_nest, first_in_nest->first_nested) == NULL)
       return true;
     unit->fix_distinct();
   }
@@ -10768,8 +10817,7 @@ void LEX::relink_hack(st_select_lex *select_lex)
 {
   if (!select_stack_top) // Statements of the second type
   {
-    if (!select_lex->outer_select() &&
-        !builtin_select.first_inner_unit())
+    if (!select_lex->outer_select())
     {
       builtin_select.register_unit(select_lex->master_unit(),
                                    &builtin_select.context);

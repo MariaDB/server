@@ -7135,12 +7135,17 @@ longlong Item_func_nextval::val_int()
   longlong value;
   int error;
   const char *key;
+  DBUG_ENTER("Item_func_nextval::val_int");
+  if (table_list->is_pure_alias())
+  {
+    my_error(ER_NOT_SEQUENCE2, MYF(0), table_list->alias.str);
+    DBUG_RETURN(0);
+  }
   uint length= get_table_def_key(table_list, &key);
   THD *thd;
   SEQUENCE_LAST_VALUE *entry;
   char buff[80];
   String key_buff(buff,sizeof(buff), &my_charset_bin);
-  DBUG_ENTER("Item_func_nextval::val_int");
   update_table();
   DBUG_ASSERT(table);
   DBUG_ASSERT(table->s->sequence);

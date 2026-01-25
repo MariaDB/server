@@ -299,3 +299,45 @@ SELECT SETVAL (v,0);
 UNLOCK TABLES;
 DROP VIEW v;
 --disable_ps2_protocol
+
+--echo #
+--echo # MDEV-28650 Server crashes in Item_func_nextval::val_int after select from view
+--echo #
+create sequence s;
+create table t1 (a int not null default nextval(s));
+insert into t1 values(),();
+flush tables;
+select default(a) from t1;
+
+create algorithm=merge view v1 as select default(a) from t1;
+select * from v1;
+Select * from v1;
+prepare ps from 'SELECT * from v1';
+execute ps; Execute ps;
+drop prepare ps;
+
+create or replace algorithm=temptable view v1 as select default(a) from t1;
+select * from v1;
+Select * from v1;
+prepare ps from 'SELECT * from v1';
+execute ps; Execute ps;
+drop prepare ps;
+
+# cleanup
+drop view v1;
+drop table t1;
+drop sequence s;
+
+--echo #
+--echo # MDEV-33985 Server crashes at Item_func_nextval::val_int
+--echo #
+--error ER_NO_SUCH_TABLE
+select * from (select 1 as a) x where (nextval(x));
+--error ER_NOT_SEQUENCE2
+select (with x(x) as (select 1) select * from x where (nextval(x)));
+create sequence s;
+--error ER_NO_SUCH_TABLE
+select next value for s1 from s as s1;
+drop sequence s;
+
+--echo # End of 10.11 tests

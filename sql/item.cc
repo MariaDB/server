@@ -5782,8 +5782,6 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
       DBUG_ASSERT((*select_ref)->fixed());
       return &select->ref_pointer_array[counter];
     }
-    if (group_by_ref && (*group_by_ref)->type() == Item::REF_ITEM)
-      return ((Item_ref*)(*group_by_ref))->ref;
     if (group_by_ref)
       return group_by_ref;
     DBUG_ASSERT(FALSE);
@@ -5922,10 +5920,19 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     select= outer_context->select_lex;
     Item_subselect *prev_subselect_item=
       last_checked_context->select_lex->master_unit()->item;
+    /*
+      We have merged to the top select and this field is no longer outer,
+      or we have reached the outermost select without resolution
+    */
+    bool at_top= !prev_subselect_item;
     last_checked_context= outer_context;
     upward_lookup= TRUE;
 
-    place= prev_subselect_item->parsing_place;
+    if (!at_top)
+      place= prev_subselect_item->parsing_place;
+    else
+      place= NO_MATTER;
+
     /*
       If outer_field is set, field was already found by first call
       to find_field_in_tables(). Only need to find appropriate context.
@@ -5980,8 +5987,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         }
         if (*from_field != view_ref_found)
         {
-          prev_subselect_item->used_tables_cache|= (*from_field)->table->map;
-          prev_subselect_item->const_item_cache= 0;
+          if (!at_top)
+          {
+            prev_subselect_item->used_tables_cache|= (*from_field)->table->map;
+            prev_subselect_item->const_item_cache= 0;
+          }
           set_field(*from_field);
           if (!last_checked_context->select_lex->having_fix_field &&
               select->group_list.elements &&
@@ -6030,7 +6040,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         else
         {
           Item::Type ref_type= (*reference)->type();
-          prev_subselect_item->used_tables_and_const_cache_join(*reference);
+          if (!at_top)
+            prev_subselect_item->used_tables_and_const_cache_join(*reference);
           mark_as_dependent(thd, last_checked_context->select_lex,
                             context->select_lex, this,
                             ((ref_type == REF_ITEM || ref_type == FIELD_ITEM) ?
@@ -6063,8 +6074,24 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         return -1; /* Some error occurred (e.g. ambiguous names). */
       if (ref != not_found_item)
       {
-        DBUG_ASSERT(*ref && (*ref)->fixed());
-        prev_subselect_item->used_tables_and_const_cache_join(*ref);
+        DBUG_ASSERT(*ref);
+
+        /*
+          If this item isn't yet fixed, it is an Item_outer_ref, wrapping an
+          item. If that item is fixed, we can fix this wrapper now.  Otherwise
+          it will need to wait until the fix_inner_refs() in JOIN::prepare()
+        */
+        if (!(*ref)->fixed() &&
+             (*ref)->type() == Item::REF_ITEM)
+        {
+          Item_ref *item_ref= static_cast<Item_ref *>(*ref);
+          Item *refref= *(item_ref->ref);
+          if (refref->fixed())
+            (*ref)->fix_fields_if_needed( thd, reference);
+        }
+        if (!at_top && (*ref)->fixed())
+          prev_subselect_item->used_tables_and_const_cache_join(*ref);
+
         break;
       }
     }
@@ -6074,8 +6101,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       outer select (or we just trying to find wrong identifier, in this
       case it does not matter which used tables bits we set)
     */
-    prev_subselect_item->used_tables_cache|= OUTER_REF_TABLE_BIT;
-    prev_subselect_item->const_item_cache= 0;
+    if (!at_top)
+    {
+      prev_subselect_item->used_tables_cache|= OUTER_REF_TABLE_BIT;
+      prev_subselect_item->const_item_cache= 0;
+    }
   }
 
   DBUG_ASSERT(ref != 0);
@@ -6105,8 +6135,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     Item *save;
     Item_ref *rf;
 
-    /* Should have been checked in resolve_ref_in_select_and_group(). */
-    DBUG_ASSERT(*ref && (*ref)->fixed());
+    DBUG_ASSERT(*ref);
     /*
       Here, a subset of actions performed by Item_ref::set_properties
       is not enough. So we pass ptr to NULL into Item_[direct]_ref
@@ -10123,7 +10152,8 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
 
   Item_field *field_arg= (Item_field *)arg;
 
-  if (field_arg->field->table->insert_values)
+  if (field_arg->field->table->insert_values &&
+      thd->where != THD_WHERE::VALUES_CLAUSE)
   {
     Field *def_field= (Field*) thd->alloc(field_arg->field->size_of());
     if (!def_field)

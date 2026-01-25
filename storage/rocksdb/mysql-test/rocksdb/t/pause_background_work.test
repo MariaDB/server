@@ -1,0 +1,13 @@
+--echo #
+--echo # MDEV-38110 Sever shutdown prevented by RocksDB setting rocksdb_pause_background_work
+--echo #
+
+install soname 'ha_rocksdb';
+
+set global rocksdb_pause_background_work=1;
+
+source include/restart_mysqld.inc;
+
+select 'ok';
+
+--echo # End of 10.11 tests

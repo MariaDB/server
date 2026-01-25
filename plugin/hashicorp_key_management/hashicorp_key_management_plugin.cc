@@ -161,7 +161,7 @@ static clock_t cache_max_ver_time;
   Convert milliseconds to timer ticks with rounding
   to nearest integer:
 */
-static clock_t ms_to_ticks (long ms)
+static clock_t ms_to_ticks (long long ms)
 {
   long long ticks_1000 = ms * (long long) CLOCKS_PER_SEC;
   clock_t ticks = (clock_t) (ticks_1000 / 1000);
@@ -343,9 +343,11 @@ static int timeout;
 static int max_retries;
 static char caching_enabled;
 static char check_kv_version;
-static long cache_timeout;              // for KEY_MAP key_info_cache
-static long cache_version_timeout;      // for VER_MAP latest_version_cache
+#if MYSQL_VERSION_ID < 130300
+static long long cache_timeout;         // for KEY_MAP key_info_cache
 static char use_cache_on_timeout;
+#endif
+static long cache_version_timeout;      // for VER_MAP latest_version_cache
 
 static MYSQL_SYSVAR_STR(vault_ca, vault_ca,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -391,15 +393,15 @@ static void cache_timeout_update (MYSQL_THD thd,
                                   void *var_ptr,
                                   const void *save)
 {
-  long timeout = * (long *) save;
-  * (long *) var_ptr = timeout;
+  long long timeout = * (long long *) save;
+  * (long long *) var_ptr = timeout;
   cache_max_time = ms_to_ticks(timeout);
 }
 
-static MYSQL_SYSVAR_LONG(cache_timeout, cache_timeout,
-  PLUGIN_VAR_RQCMDARG,
+static MYSQL_SYSVAR_LONGLONG(cache_timeout, cache_timeout,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "Cache timeout for key data (in milliseconds)",
-  NULL, cache_timeout_update, 24*60*60*1000, 0, LONG_MAX, 1);
+  NULL, cache_timeout_update, INT64_MAX, 0, INT64_MAX, 1);
 
 static void
   cache_version_timeout_update (MYSQL_THD thd,
@@ -418,10 +420,10 @@ static MYSQL_SYSVAR_LONG(cache_version_timeout, cache_version_timeout,
   NULL, cache_version_timeout_update, 60*1000, 0, LONG_MAX, 1);
 
 static MYSQL_SYSVAR_BOOL(use_cache_on_timeout, use_cache_on_timeout,
-  PLUGIN_VAR_RQCMDARG,
-  "In case of timeout (when accessing the vault server) "
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
+  "In case of an error when accessing the vault server "
   "use the value taken from the cache",
-  NULL, NULL, 0);
+  NULL, NULL, 1);
 
 static struct st_mysql_sys_var *settings[] = {
   MYSQL_SYSVAR(vault_url),
@@ -532,7 +534,7 @@ int HCData::curl_run (const char *url, std::string *response,
                                      &http_code)) != CURLE_OK)
   {
     curl_easy_cleanup(curl);
-    if (soft_timeout && curl_res == CURLE_OPERATION_TIMEDOUT)
+    if (soft_timeout)
     {
       return OPERATION_TIMEOUT;
     }

@@ -20,6 +20,7 @@
 */
 
 #include "mariadb.h"
+#include "sql_class.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_rename.h"
@@ -51,6 +52,7 @@ static bool rename_tables(THD *thd, TABLE_LIST *table_list,
   the new name.
 */
 
+
 bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
                           bool if_exists)
 {
@@ -60,6 +62,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
   int to_table;
   const char *rename_log_table[2]= {NULL, NULL};
   DDL_LOG_STATE ddl_log_state;
+  Postponed_error_handler postponed_handler(thd->mem_root);
   DBUG_ENTER("mysql_rename_tables");
 
   /*
@@ -162,6 +165,15 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
     An exclusive lock on table names is satisfactory to ensure
     no other thread accesses this table.
   */
+
+  /*
+    Do not emit errors which may occur during the sequence of renamings,
+    because they will raise the 'thd->is_error()' flag, and `ddl_log_revert()`
+    may fail due to this. Instead, capture and collect errors and warnings
+    and emit them only after the renaming and possible reversion are complete.
+  */
+  thd->push_internal_handler(&postponed_handler);
+
   error= rename_tables(thd, table_list, &ddl_log_state,
                        0, if_exists, &force_if_exists);
 
@@ -192,15 +204,18 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
       my_ok(thd);
   }
 
+  thd->pop_internal_handler();
   if (likely(!error))
   {
     query_cache_invalidate3(thd, table_list, 0);
     ddl_log_complete(&ddl_log_state);
+    DBUG_ASSERT(!postponed_handler.has_errors());
   }
   else
   {
     /* Revert the renames of normal tables with the help of the ddl log */
     ddl_log_revert(thd, &ddl_log_state);
+    postponed_handler.emit_errors();
   }
 
 err:

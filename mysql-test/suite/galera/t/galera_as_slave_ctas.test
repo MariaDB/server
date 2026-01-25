@@ -66,10 +66,13 @@ DROP TABLE target;
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'target';
 --source include/wait_condition.inc
+call mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on");
+call mtr.add_suppression("WSREP: Failed to apply write set: gtid:");
 
 --connection node_1
 STOP SLAVE;
 RESET SLAVE ALL;
+call mtr.add_suppression("WSREP: unexpected async replication event: 0");
 
 --connection node_3
 RESET MASTER;

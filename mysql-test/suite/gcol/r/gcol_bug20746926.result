@@ -11,22 +11,22 @@ c timestamp generated always as ((a not in (b,b))) stored
 insert t1(a) values(7777777777);
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
-Warning	1292	Truncated incorrect datetime value: '0'
+Warning	1292	Incorrect datetime value: '0' for column `test`.`t1`.`b` at row 1
 show warnings;
 Level	Code	Message
 Warning	1265	Data truncated for column 'a' at row 1
-Warning	1292	Truncated incorrect datetime value: '0'
+Warning	1292	Incorrect datetime value: '0' for column `test`.`t1`.`b` at row 1
 disconnect con1;
 connect con2,localhost,root,,;
 set sql_mode='';
 insert t1(a) values(6666666666);
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
-Warning	1292	Truncated incorrect datetime value: '0'
+Warning	1292	Incorrect datetime value: '0' for column `test`.`t1`.`b` at row 1
 show warnings;
 Level	Code	Message
 Warning	1265	Data truncated for column 'a' at row 1
-Warning	1292	Truncated incorrect datetime value: '0'
+Warning	1292	Incorrect datetime value: '0' for column `test`.`t1`.`b` at row 1
 drop table t1;
 disconnect con2;
 connection default;

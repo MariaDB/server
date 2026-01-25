@@ -178,7 +178,7 @@ drop table mysql.user;
 rename table mysql.user1 to mysql.user;
 source include/switch_to_mysql_global_priv.inc;
 
---echo End of 5.5 tests
+--echo # End of 5.5 tests
 
 --echo #
 --echo # Additional coverage for refactoring which is made as part
@@ -223,9 +223,6 @@ check table mysqltest_db1.t1;
 --echo # Otherwise info about such repair will be missing from its result-set.
 --error ER_TABLEACCESS_DENIED_ERROR
 repair table mysqltest_db1.t1, mysqltest_db1.t2;
---echo # The same is true for CHECK TABLE statement.
---error ER_TABLEACCESS_DENIED_ERROR
-check table mysqltest_db1.t1, mysqltest_db1.t2;
 check table mysqltest_db1.t1;
 repair table mysqltest_db1.t1;
 

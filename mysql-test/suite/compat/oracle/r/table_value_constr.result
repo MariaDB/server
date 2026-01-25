@@ -247,16 +247,16 @@ except
 select 1,2
 union values (1,2);
 1	2
-1	2
 3	4
+1	2
 values (1,2),(3,4)
 except
 values (1,2)
 union
 values (1,2);
 1	2
-1	2
 3	4
+1	2
 values (1,2),(3,4)
 except
 values (1,2)
@@ -278,16 +278,16 @@ select 1,2
 union all
 values (1,2);
 1	2
-1	2
 3	4
+1	2
 values (1,2),(3,4)
 except
 values (1,2)
 union all
 values (1,2);
 1	2
-1	2
 3	4
+1	2
 values (1,2),(3,4)
 except
 values (1,2)
@@ -774,23 +774,24 @@ explain extended select * from t1
 where a in (values (1) union select 2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-4	DEPENDENT SUBQUERY	<derived2>	ref	key0	key0	4	func	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	4	test.t1.a	1	100.00	FirstMatch(t1)
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union4,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#4 */ select "tvc_0"."1" from (values (1)) "tvc_0" where <cache>("test"."t1"."a") = "tvc_0"."1" union /* select#3 */ select 2 having <cache>("test"."t1"."a") = <ref_null_helper>(2))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((values (1) union /* select#3 */ select 2 AS "2") "__4") where "__4"."1" = "test"."t1"."a"
 explain extended select * from t1
 where a in (select * from (values (1)) as tvc_0 union 
 select 2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	<derived3>	ref	key0	key0	4	func	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	4	test.t1.a	1	100.00	FirstMatch(t1)
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-4	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#2 */ select "tvc_0"."1" from (values (1)) "tvc_0" where <cache>("test"."t1"."a") = "tvc_0"."1" union /* select#4 */ select 2 having <cache>("test"."t1"."a") = <ref_null_helper>(2))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((/* select#2 */ select "tvc_0"."1" AS "1" from (values (1)) "tvc_0" union /* select#4 */ select 2 AS "2") "__5") where "__5"."1" = "test"."t1"."a"
 # IN-subquery with VALUES structure(s) : UNION with VALUES on the second place
 select * from t1
 where a in (select 2 union values (1));
@@ -809,23 +810,24 @@ explain extended select * from t1
 where a in (select 2 union values (1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-4	DEPENDENT UNION	<derived3>	ref	key0	key0	4	func	2	100.00	
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived2>	ref	key0	key0	4	test.t1.a	1	100.00	FirstMatch(t1)
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#2 */ select 2 having <cache>("test"."t1"."a") = <ref_null_helper>(2) union /* select#4 */ select "tvc_0"."1" from (values (1)) "tvc_0" where <cache>("test"."t1"."a") = "tvc_0"."1")))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((/* select#2 */ select 2 AS "2" union values (1)) "__4") where "__4"."2" = "test"."t1"."a"
 explain extended select * from t1
 where a in (select 2 union 
 select * from (values (1)) tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	<derived4>	ref	key0	key0	4	func	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	4	test.t1.a	1	100.00	FirstMatch(t1)
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#2 */ select 2 having <cache>("test"."t1"."a") = <ref_null_helper>(2) union /* select#3 */ select "tvc_0"."1" from (values (1)) "tvc_0" where <cache>("test"."t1"."a") = "tvc_0"."1")))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((/* select#2 */ select 2 AS "2" union /* select#3 */ select "tvc_0"."1" AS "1" from (values (1)) "tvc_0") "__5") where "__5"."2" = "test"."t1"."a"
 # IN-subquery with VALUES structure(s) : UNION ALL
 select * from t1
 where a in (values (1) union all select b from t1);
@@ -846,21 +848,22 @@ explain extended select * from t1
 where a in (values (1) union all select b from t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-4	DEPENDENT SUBQUERY	<derived2>	ref	key0	key0	4	func	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	100.00	FirstMatch(t1)
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#4 */ select "tvc_0"."1" from (values (1)) "tvc_0" where <cache>("test"."t1"."a") = "tvc_0"."1" union all /* select#3 */ select "test"."t1"."b" from "test"."t1" where <cache>("test"."t1"."a") = "test"."t1"."b")))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((values (1) union all /* select#3 */ select "test"."t1"."b" AS "b" from "test"."t1") "__4") where "__4"."1" = "test"."t1"."a"
 explain extended select * from t1
 where a in (select * from (values (1)) as tvc_0 union all 
 select b from t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	<derived3>	ref	key0	key0	4	func	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	100.00	FirstMatch(t1)
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-4	DEPENDENT UNION	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+4	UNION	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#2 */ select "tvc_0"."1" from (values (1)) "tvc_0" where <cache>("test"."t1"."a") = "tvc_0"."1" union all /* select#4 */ select "test"."t1"."b" from "test"."t1" where <cache>("test"."t1"."a") = "test"."t1"."b")))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((/* select#2 */ select "tvc_0"."1" AS "1" from (values (1)) "tvc_0" union all /* select#4 */ select "test"."t1"."b" AS "b" from "test"."t1") "__5") where "__5"."1" = "test"."t1"."a"
 # NOT IN subquery with VALUES structure(s) : simple case
 select * from t1 
 where a not in (values (1),(2));
@@ -908,23 +911,24 @@ explain extended select * from t1
 where a not in (values (1) union select 2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-4	DEPENDENT SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+4	DEPENDENT SUBQUERY	<derived2>	index_subquery	key0	key0	4	func	1	100.00	Using where; Full scan on NULL key
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union4,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#4 */ select "tvc_0"."1" from (values (1)) "tvc_0" where trigcond(<cache>("test"."t1"."a") = "tvc_0"."1") union /* select#3 */ select 2 having trigcond(<cache>("test"."t1"."a") = <ref_null_helper>(2)))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(<index_lookup>(<cache>("test"."t1"."a") in (temporary) on key0 where trigcond(<cache>("test"."t1"."a") = "__4"."1")))))
 explain extended select * from t1
 where a not in (select * from (values (1)) as tvc_0 union 
 select 2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+5	DEPENDENT SUBQUERY	<derived2>	index_subquery	key0	key0	4	func	1	100.00	Using where; Full scan on NULL key
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-4	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#2 */ select "tvc_0"."1" from (values (1)) "tvc_0" where trigcond(<cache>("test"."t1"."a") = "tvc_0"."1") union /* select#4 */ select 2 having trigcond(<cache>("test"."t1"."a") = <ref_null_helper>(2)))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(<index_lookup>(<cache>("test"."t1"."a") in (temporary) on key0 where trigcond(<cache>("test"."t1"."a") = "__5"."1")))))
 # NOT IN subquery with VALUES structure(s) : UNION with VALUES on the second place
 select * from t1
 where a not in (select 2 union values (1));
@@ -943,23 +947,24 @@ explain extended select * from t1
 where a not in (select 2 union values (1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-4	DEPENDENT UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+4	DEPENDENT SUBQUERY	<derived2>	index_subquery	key0	key0	4	func	1	100.00	Using where; Full scan on NULL key
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#2 */ select 2 having trigcond(<cache>("test"."t1"."a") = <ref_null_helper>(2)) union /* select#4 */ select "tvc_0"."1" from (values (1)) "tvc_0" where trigcond(<cache>("test"."t1"."a") = "tvc_0"."1"))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(<index_lookup>(<cache>("test"."t1"."a") in (temporary) on key0 where trigcond(<cache>("test"."t1"."a") = "__4"."2")))))
 explain extended select * from t1
 where a not in (select 2 union 
 select * from (values (1)) as tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+5	DEPENDENT SUBQUERY	<derived2>	index_subquery	key0	key0	4	func	1	100.00	Using where; Full scan on NULL key
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#2 */ select 2 having trigcond(<cache>("test"."t1"."a") = <ref_null_helper>(2)) union /* select#3 */ select "tvc_0"."1" from (values (1)) "tvc_0" where trigcond(<cache>("test"."t1"."a") = "tvc_0"."1"))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where !<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(<index_lookup>(<cache>("test"."t1"."a") in (temporary) on key0 where trigcond(<cache>("test"."t1"."a") = "__5"."2")))))
 # ANY-subquery with VALUES structure(s) : simple case
 select * from t1 
 where a = any (values (1),(2));
@@ -1009,23 +1014,24 @@ explain extended select * from t1
 where a = any (values (1) union select 2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-4	DEPENDENT SUBQUERY	<derived2>	ref	key0	key0	4	func	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	4	test.t1.a	1	100.00	FirstMatch(t1)
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union4,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#4 */ select "tvc_0"."1" from (values (1)) "tvc_0" where <cache>("test"."t1"."a") = "tvc_0"."1" union /* select#3 */ select 2 having <cache>("test"."t1"."a") = <ref_null_helper>(2))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((values (1) union /* select#3 */ select 2 AS "2") "__4") where "__4"."1" = "test"."t1"."a"
 explain extended select * from t1
 where a = any (select * from (values (1)) as tvc_0 union 
 select 2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	<derived3>	ref	key0	key0	4	func	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	4	test.t1.a	1	100.00	FirstMatch(t1)
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-4	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#2 */ select "tvc_0"."1" from (values (1)) "tvc_0" where <cache>("test"."t1"."a") = "tvc_0"."1" union /* select#4 */ select 2 having <cache>("test"."t1"."a") = <ref_null_helper>(2))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((/* select#2 */ select "tvc_0"."1" AS "1" from (values (1)) "tvc_0" union /* select#4 */ select 2 AS "2") "__5") where "__5"."1" = "test"."t1"."a"
 # ANY-subquery with VALUES structure(s) : UNION with VALUES on the second place
 select * from t1
 where a = any (select 2 union values (1));
@@ -1044,23 +1050,24 @@ explain extended select * from t1
 where a = any (select 2 union values (1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-4	DEPENDENT UNION	<derived3>	ref	key0	key0	4	func	2	100.00	
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived2>	ref	key0	key0	4	test.t1.a	1	100.00	FirstMatch(t1)
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#2 */ select 2 having <cache>("test"."t1"."a") = <ref_null_helper>(2) union /* select#4 */ select "tvc_0"."1" from (values (1)) "tvc_0" where <cache>("test"."t1"."a") = "tvc_0"."1")))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((/* select#2 */ select 2 AS "2" union values (1)) "__4") where "__4"."2" = "test"."t1"."a"
 explain extended select * from t1
 where a = any (select 2 union 
 select * from (values (1)) as tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	<derived4>	ref	key0	key0	4	func	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	4	test.t1.a	1	100.00	FirstMatch(t1)
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#2 */ select 2 having <cache>("test"."t1"."a") = <ref_null_helper>(2) union /* select#3 */ select "tvc_0"."1" from (values (1)) "tvc_0" where <cache>("test"."t1"."a") = "tvc_0"."1")))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((/* select#2 */ select 2 AS "2" union /* select#3 */ select "tvc_0"."1" AS "1" from (values (1)) "tvc_0") "__5") where "__5"."2" = "test"."t1"."a"
 # ALL-subquery with VALUES structure(s) : simple case
 select * from t1 
 where a = all (values (1));
@@ -1106,21 +1113,22 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
 4	DEPENDENT SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union4,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <not>(<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#4 */ select "tvc_0"."1" from (values (1)) "tvc_0" where trigcond(<cache>("test"."t1"."a") <> "tvc_0"."1") union /* select#3 */ select 1 having trigcond(<cache>("test"."t1"."a") <> <ref_null_helper>(1))))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <not>(<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#4 */ select "__4"."1" from (values (1) union /* select#3 */ select 1 AS "1") "__4" where trigcond(<cache>("test"."t1"."a") <> "__4"."1")))))
 explain extended select * from t1
 where a = all (select * from (values (1)) as tvc_0 union 
 select 1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+5	DEPENDENT SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-4	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <not>(<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#2 */ select "tvc_0"."1" from (values (1)) "tvc_0" where trigcond(<cache>("test"."t1"."a") <> "tvc_0"."1") union /* select#4 */ select 1 having trigcond(<cache>("test"."t1"."a") <> <ref_null_helper>(1))))))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <not>(<expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#5 */ select "__5"."1" from (/* select#2 */ select "tvc_0"."1" AS "1" from (values (1)) "tvc_0" union /* select#4 */ select 1 AS "1") "__5" where trigcond(<cache>("test"."t1"."a") <> "__5"."1")))))
 # ALL-subquery with VALUES structure(s) : UNION with VALUES on the second place
 select * from t1
 where a = any (select 1 union values (1));
@@ -1137,23 +1145,24 @@ explain extended select * from t1
 where a = any (select 1 union values (1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-4	DEPENDENT UNION	<derived3>	ref	key0	key0	4	func	2	100.00	
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived2>	ref	key0	key0	4	test.t1.a	1	100.00	FirstMatch(t1)
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#2 */ select 1 having <cache>("test"."t1"."a") = <ref_null_helper>(1) union /* select#4 */ select "tvc_0"."1" from (values (1)) "tvc_0" where <cache>("test"."t1"."a") = "tvc_0"."1")))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((/* select#2 */ select 1 AS "1" union values (1)) "__4") where "__4"."1" = "test"."t1"."a"
 explain extended select * from t1
 where a = any (select 1 union 
 select * from (values (1)) as tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	<derived4>	ref	key0	key0	4	func	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	4	test.t1.a	1	100.00	FirstMatch(t1)
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" where <expr_cache><"test"."t1"."a">(<in_optimizer>("test"."t1"."a",<exists>(/* select#2 */ select 1 having <cache>("test"."t1"."a") = <ref_null_helper>(1) union /* select#3 */ select "tvc_0"."1" from (values (1)) "tvc_0" where <cache>("test"."t1"."a") = "tvc_0"."1")))
+Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" semi join ((/* select#2 */ select 1 AS "1" union /* select#3 */ select "tvc_0"."1" AS "1" from (values (1)) "tvc_0") "__5") where "__5"."1" = "test"."t1"."a"
 # prepare statement that uses VALUES structure(s): single VALUES structure
 prepare stmt1 from '
 values (1,2);
@@ -1321,132 +1330,183 @@ select 1,2
 union
 values (1,2),(3,4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
-explain
-values (1,2),(3,4)
-union
-select 1,2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
-explain
-values (5,6)
-union
-values (1,2),(3,4);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
-explain format=json
-select 1,2
-union
-values (1,2),(3,4);
-EXPLAIN
-{
-  "query_block": {
-    "union_result": {
-      "table_name": "<union1,2>",
-      "access_type": "ALL",
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        }
-      ]
-    }
-  }
-}
-explain format=json
-values (1,2),(3,4)
-union
-select 1,2;
-EXPLAIN
-{
-  "query_block": {
-    "union_result": {
-      "table_name": "<union1,2>",
-      "access_type": "ALL",
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        }
-      ]
-    }
-  }
-}
-explain format=json
-values (5,6)
-union
-values (1,2),(3,4);
-EXPLAIN
-{
-  "query_block": {
-    "union_result": {
-      "table_name": "<union1,2>",
-      "access_type": "ALL",
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        }
-      ]
-    }
-  }
-}
-explain
-select 1,2
-union
-values (3,4)
-union
-values (1,2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain
+values (1,2),(3,4)
+union
+select 1,2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain
+values (5,6)
+union
+values (1,2),(3,4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json
+select 1,2
+union
+values (1,2),(3,4);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json
+values (1,2),(3,4)
+union
+select 1,2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json
+values (5,6)
+union
+values (1,2),(3,4);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain
+select 1,2
+union
+values (3,4)
+union
+values (1,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	3	
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+5	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json
 select 1,2
 union
@@ -1456,38 +1516,78 @@ values (1,2);
 EXPLAIN
 {
   "query_block": {
-    "union_result": {
-      "table_name": "<union1,2,3>",
-      "access_type": "ALL",
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 3,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived4>",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union4,5>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived2>",
+                            "access_type": "ALL",
+                            "rows": 2,
+                            "filtered": 100,
+                            "materialized": {
+                              "query_block": {
+                                "union_result": {
+                                  "table_name": "<union2,3>",
+                                  "access_type": "ALL",
+                                  "query_specifications": [
+                                    {
+                                      "query_block": {
+                                        "select_id": 2,
+                                        "table": {
+                                          "message": "No tables used"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "query_block": {
+                                        "select_id": 3,
+                                        "operation": "UNION",
+                                        "table": {
+                                          "message": "No tables used"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 5,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 # explain query that uses VALUES structure(s): UNION ALL with VALUES structure(s)
@@ -1496,23 +1596,26 @@ select 1,2
 union
 values (1,2),(3,4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
 explain
 values (1,2),(3,4)
 union all
 select 1,2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 explain
 values (1,2)
 union all
 values (1,2),(3,4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 explain format=json
 values (1,2),(3,4)
 union all
@@ -1520,27 +1623,42 @@ select 1,2;
 EXPLAIN
 {
   "query_block": {
-    "union_result": {
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 explain format=json
@@ -1550,29 +1668,44 @@ values (1,2),(3,4);
 EXPLAIN
 {
   "query_block": {
-    "union_result": {
-      "table_name": "<union1,2>",
-      "access_type": "ALL",
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 explain format=json
@@ -1582,27 +1715,42 @@ values (1,2),(3,4);
 EXPLAIN
 {
   "query_block": {
-    "union_result": {
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 explain
@@ -1612,9 +1760,11 @@ values (3,4)
 union all
 values (1,2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	3	
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+5	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 explain format=json
 select 1,2
 union all
@@ -1624,36 +1774,74 @@ values (1,2);
 EXPLAIN
 {
   "query_block": {
-    "union_result": {
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 3,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived4>",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived2>",
+                            "access_type": "ALL",
+                            "rows": 2,
+                            "filtered": 100,
+                            "materialized": {
+                              "query_block": {
+                                "union_result": {
+                                  "query_specifications": [
+                                    {
+                                      "query_block": {
+                                        "select_id": 2,
+                                        "table": {
+                                          "message": "No tables used"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "query_block": {
+                                        "select_id": 3,
+                                        "operation": "UNION",
+                                        "table": {
+                                          "message": "No tables used"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 5,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 # analyze query that uses VALUES structure(s): single VALUES structure
@@ -1689,147 +1877,219 @@ select 1,2
 union
 values (1,2),(3,4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	2.00	NULL	NULL	
-analyze
-values (1,2),(3,4)
-union
-select 1,2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	2.00	NULL	NULL	
-analyze
-values (5,6)
-union
-values (1,2),(3,4);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	3.00	NULL	NULL	
-analyze format=json
-select 1,2
-union
-values (1,2),(3,4);
-ANALYZE
-{
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
-  "query_block": {
-    "union_result": {
-      "table_name": "<union1,2>",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "r_rows": 2,
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        }
-      ]
-    }
-  }
-}
-analyze format=json
-values (1,2),(3,4)
-union
-select 1,2;
-ANALYZE
-{
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
-  "query_block": {
-    "union_result": {
-      "table_name": "<union1,2>",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "r_rows": 2,
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        }
-      ]
-    }
-  }
-}
-analyze format=json
-values (5,6)
-union
-values (1,2),(3,4);
-ANALYZE
-{
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
-  "query_block": {
-    "union_result": {
-      "table_name": "<union1,2>",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "r_rows": 3,
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        }
-      ]
-    }
-  }
-}
-analyze
-select 1,2
-union
-values (3,4)
-union
-values (1,2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	2.00	100.00	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	2.00	NULL	NULL	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	2.00	NULL	NULL	
+analyze
+values (1,2),(3,4)
+union
+select 1,2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	2.00	100.00	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	2.00	NULL	NULL	
+analyze
+values (5,6)
+union
+values (1,2),(3,4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	3.00	NULL	NULL	
+analyze format=json
+select 1,2
+union
+values (1,2),(3,4);
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 2,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "r_loops": 1,
+                "r_rows": 2,
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+analyze format=json
+values (1,2),(3,4)
+union
+select 1,2;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 2,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "r_loops": 1,
+                "r_rows": 2,
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+analyze format=json
+values (5,6)
+union
+values (1,2),(3,4);
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 3,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "r_loops": 1,
+                "r_rows": 3,
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+analyze
+select 1,2
+union
+values (3,4)
+union
+values (1,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	3	2.00	100.00	100.00	
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	2.00	100.00	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	2.00	NULL	NULL	
+5	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL	2.00	NULL	NULL	
 analyze format=json
 select 1,2
 union
@@ -1842,40 +2102,96 @@ ANALYZE
     "r_total_time_ms": "REPLACED"
   },
   "query_block": {
-    "union_result": {
-      "table_name": "<union1,2,3>",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "r_rows": 2,
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 3,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived4>",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 2,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union4,5>",
+                "access_type": "ALL",
+                "r_loops": 1,
+                "r_rows": 2,
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "r_loops": 1,
+                      "r_total_time_ms": "REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived2>",
+                            "access_type": "ALL",
+                            "r_loops": 1,
+                            "rows": 2,
+                            "r_rows": 2,
+                            "r_table_time_ms": "REPLACED",
+                            "r_other_time_ms": "REPLACED",
+                            "filtered": 100,
+                            "r_filtered": 100,
+                            "materialized": {
+                              "query_block": {
+                                "union_result": {
+                                  "table_name": "<union2,3>",
+                                  "access_type": "ALL",
+                                  "r_loops": 1,
+                                  "r_rows": 2,
+                                  "query_specifications": [
+                                    {
+                                      "query_block": {
+                                        "select_id": 2,
+                                        "table": {
+                                          "message": "No tables used"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "query_block": {
+                                        "select_id": 3,
+                                        "operation": "UNION",
+                                        "table": {
+                                          "message": "No tables used"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 5,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 # analyze query that uses VALUES structure(s): UNION ALL with VALUES structure(s)
@@ -1884,23 +2200,26 @@ select 1,2
 union
 values (1,2),(3,4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	2.00	NULL	NULL	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	2.00	100.00	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	2.00	NULL	NULL	
 analyze
 values (1,2),(3,4)
 union all
 select 1,2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 analyze
 values (1,2)
 union all
 values (1,2),(3,4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 analyze format=json
 values (1,2),(3,4)
 union all
@@ -1911,27 +2230,49 @@ ANALYZE
     "r_total_time_ms": "REPLACED"
   },
   "query_block": {
-    "union_result": {
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 3,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 analyze format=json
@@ -1944,31 +2285,53 @@ ANALYZE
     "r_total_time_ms": "REPLACED"
   },
   "query_block": {
-    "union_result": {
-      "table_name": "<union1,2>",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "r_rows": 2,
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 2,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "r_loops": 1,
+                "r_rows": 2,
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 analyze format=json
@@ -1981,27 +2344,49 @@ ANALYZE
     "r_total_time_ms": "REPLACED"
   },
   "query_block": {
-    "union_result": {
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 3,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 analyze
@@ -2011,9 +2396,11 @@ values (3,4)
 union all
 values (1,2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	2.00	100.00	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+5	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 analyze format=json
 select 1,2
 union all
@@ -2026,36 +2413,88 @@ ANALYZE
     "r_total_time_ms": "REPLACED"
   },
   "query_block": {
-    "union_result": {
-      "query_specifications": [
-        {
-          "query_block": {
-            "select_id": 1,
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 2,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
-            }
-          }
-        },
-        {
-          "query_block": {
-            "select_id": 3,
-            "operation": "UNION",
-            "table": {
-              "message": "No tables used"
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived4>",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 3,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "r_loops": 1,
+                      "r_total_time_ms": "REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived2>",
+                            "access_type": "ALL",
+                            "r_loops": 1,
+                            "rows": 2,
+                            "r_rows": 2,
+                            "r_table_time_ms": "REPLACED",
+                            "r_other_time_ms": "REPLACED",
+                            "filtered": 100,
+                            "r_filtered": 100,
+                            "materialized": {
+                              "query_block": {
+                                "union_result": {
+                                  "query_specifications": [
+                                    {
+                                      "query_block": {
+                                        "select_id": 2,
+                                        "table": {
+                                          "message": "No tables used"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "query_block": {
+                                        "select_id": 3,
+                                        "operation": "UNION",
+                                        "table": {
+                                          "message": "No tables used"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 5,
+                      "operation": "UNION",
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  }
+                ]
+              }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 # different number of values in TVC
@@ -2260,11 +2699,12 @@ select 2 union (values (5), (7), (1), (3), (4) limit 2);
 7
 explain extended select 2 union (values (5), (7), (1), (3), (4) limit 2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select 2 AS "2" union (values (5),(7),(1),(3),(4) limit 2)
+Note	1003	/* select#1 */ select "__3"."2" AS "2" from (/* select#2 */ select 2 AS "2" union (values (5),(7),(1),(3),(4) limit 2)) "__3"
 select 2 union (values (5), (7), (1), (3), (4) limit 2 offset 1);
 2
 2
@@ -2272,11 +2712,12 @@ select 2 union (values (5), (7), (1), (3), (4) limit 2 offset 1);
 1
 explain extended select 2 union (values (5), (7), (1), (3), (4) limit 2 offset 1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select 2 AS "2" union (values (5),(7),(1),(3),(4) limit 1,2)
+Note	1003	/* select#1 */ select "__3"."2" AS "2" from (/* select#2 */ select 2 AS "2" union (values (5),(7),(1),(3),(4) limit 1,2)) "__3"
 select 2 union (values (5), (7), (1), (3), (4) order by 1 limit 2);
 2
 2
@@ -2284,12 +2725,13 @@ select 2 union (values (5), (7), (1), (3), (4) order by 1 limit 2);
 3
 explain extended select 2 union (values (5), (7), (1), (3), (4) order by 1 limit 2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+4	UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select 2 AS "2" union (/* select#3 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)
+Note	1003	/* select#1 */ select "__3"."2" AS "2" from (/* select#2 */ select 2 AS "2" union (/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)) "__3"
 select 2 union (values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1);
 2
 2
@@ -2297,12 +2739,13 @@ select 2 union (values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1);
 4
 explain extended select 2 union (values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	100.00	
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+4	UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select 2 AS "2" union (/* select#3 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,2)
+Note	1003	/* select#1 */ select "__3"."2" AS "2" from (/* select#2 */ select 2 AS "2" union (/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,2)) "__3"
 (values (5), (7), (1), (3), (4) limit 2) union select 2;
 5
 5
@@ -2310,11 +2753,12 @@ Note	1003	/* select#1 */ select 2 AS "2" union (/* select#3 */ select "tvc_0"."5
 2
 explain extended (values (5), (7), (1), (3), (4) limit 2) union select 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	(values (5),(7),(1),(3),(4) limit 2) union /* select#2 */ select 2 AS "2"
+Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((values (5),(7),(1),(3),(4) limit 2) union /* select#3 */ select 2 AS "2") "__3"
 (values (5), (7), (1), (3), (4) limit 2 offset 1) union select 2;
 5
 7
@@ -2322,11 +2766,12 @@ Note	1003	(values (5),(7),(1),(3),(4) limit 2) union /* select#2 */ select 2 AS 
 2
 explain extended (values (5), (7), (1), (3), (4) limit 2 offset 1) union select 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	(values (5),(7),(1),(3),(4) limit 1,2) union /* select#2 */ select 2 AS "2"
+Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((values (5),(7),(1),(3),(4) limit 1,2) union /* select#3 */ select 2 AS "2") "__3"
 (values (5), (7), (1), (3), (4) order by 1 limit 2) union select 2;
 5
 1
@@ -2334,12 +2779,13 @@ Note	1003	(values (5),(7),(1),(3),(4) limit 1,2) union /* select#2 */ select 2 A
 2
 explain extended (values (5), (7), (1), (3), (4) order by 1 limit 2) union select 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union4,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	(/* select#1 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2) union /* select#2 */ select 2 AS "2"
+Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2) union /* select#3 */ select 2 AS "2") "__3"
 (values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1) union select 2;
 5
 3
@@ -2347,12 +2793,13 @@ Note	1003	(/* select#1 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3)
 2
 explain extended (values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1) union select 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	100.00	
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union4,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	(/* select#1 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,2) union /* select#2 */ select 2 AS "2"
+Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,2) union /* select#3 */ select 2 AS "2") "__3"
 select 3 union all (values (5), (7), (1), (3), (4) limit 2 offset 3);
 3
 3
@@ -2360,10 +2807,11 @@ select 3 union all (values (5), (7), (1), (3), (4) limit 2 offset 3);
 4
 explain extended select 3 union all (values (5), (7), (1), (3), (4) limit 2 offset 3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select 3 AS "3" union all (values (5),(7),(1),(3),(4) limit 3,2)
+Note	1003	/* select#1 */ select "__3"."3" AS "3" from (/* select#2 */ select 3 AS "3" union all (values (5),(7),(1),(3),(4) limit 3,2)) "__3"
 (values (5), (7), (1), (3), (4) limit 2 offset 3) union all select 3;
 5
 3
@@ -2371,10 +2819,11 @@ Note	1003	/* select#1 */ select 3 AS "3" union all (values (5),(7),(1),(3),(4) l
 3
 explain extended (values (5), (7), (1), (3), (4) limit 2 offset 3) union all select 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	(values (5),(7),(1),(3),(4) limit 3,2) union all /* select#2 */ select 3 AS "3"
+Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((values (5),(7),(1),(3),(4) limit 3,2) union all /* select#3 */ select 3 AS "3") "__3"
 select 3 union all (values (5), (7), (1), (3), (4) order by 1 limit 2);
 3
 3
@@ -2382,12 +2831,13 @@ select 3 union all (values (5), (7), (1), (3), (4) order by 1 limit 2);
 3
 explain extended select 3 union all (values (5), (7), (1), (3), (4) order by 1 limit 2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+4	UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select 3 AS "3" union all (/* select#3 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)
+Note	1003	/* select#1 */ select "__3"."3" AS "3" from (/* select#2 */ select 3 AS "3" union all (/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)) "__3"
 (values (5), (7), (1), (3), (4) order by 1 limit 2) union all select 3;
 5
 1
@@ -2395,29 +2845,31 @@ Note	1003	/* select#1 */ select 3 AS "3" union all (/* select#3 */ select "tvc_0
 3
 explain extended (values (5), (7), (1), (3), (4) order by 1 limit 2) union all select 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union4,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2) union all /* select#3 */ select 3 AS "3") "__3"
+( values (5), (7), (1), (3), (4) limit 2 offset 1 )
+union
+( values (5), (7), (1), (3), (4) order by 1 limit 2 );
+5
+7
+1
+3
+explain extended ( values (5), (7), (1), (3), (4) limit 2 offset 1 )
+union
+( values (5), (7), (1), (3), (4) order by 1 limit 2 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	7	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+4	UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	(/* select#1 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2) union all /* select#2 */ select 3 AS "3"
-( values (5), (7), (1), (3), (4) limit 2 offset 1 )
-union
-( values (5), (7), (1), (3), (4) order by 1 limit 2 );
-5
-7
-1
-3
-explain extended ( values (5), (7), (1), (3), (4) limit 2 offset 1 )
-union
-( values (5), (7), (1), (3), (4) order by 1 limit 2 );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
-Warnings:
-Note	1003	(values (5),(7),(1),(3),(4) limit 1,2) union (/* select#3 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)
+Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((values (5),(7),(1),(3),(4) limit 1,2) union (/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)) "__3"
 ( values (5), (7), (1), (3), (4) limit 2 offset 1 )
 union all
 ( values (5), (7), (1), (3), (4) order by 1 limit 2 );
@@ -2430,12 +2882,13 @@ explain extended ( values (5), (7), (1), (3), (4) limit 2 offset 1 )
 union all
 ( values (5), (7), (1), (3), (4) order by 1 limit 2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	7	100.00	
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+4	UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	(values (5),(7),(1),(3),(4) limit 1,2) union all (/* select#3 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)
+Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((values (5),(7),(1),(3),(4) limit 1,2) union all (/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 2)) "__3"
 (values (5), (7), (1), (3), (4) limit 2 offset 3) union all select 3 order by 1;
 5
 3
@@ -2443,11 +2896,11 @@ Note	1003	(values (5),(7),(1),(3),(4) limit 1,2) union all (/* select#3 */ selec
 4
 explain extended (values (5), (7), (1), (3), (4) limit 2 offset 3) union all select 3 order by 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	(values (5),(7),(1),(3),(4) limit 3,2) union all /* select#2 */ select 3 AS "3" order by 1
+Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((values (5),(7),(1),(3),(4) limit 3,2) union all /* select#3 */ select 3 AS "3") "__3" order by 1
 (values (5), (7), (1), (3), (4) order by 1 limit 3 offset 1) union all select 3 order by 1;
 5
 3
@@ -2456,12 +2909,13 @@ Note	1003	(values (5),(7),(1),(3),(4) limit 3,2) union all /* select#2 */ select
 5
 explain extended (values (5), (7), (1), (3), (4) order by 1 limit 3 offset 1) union all select 3 order by 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	Using filesort
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union4,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	(/* select#1 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,3) union all /* select#2 */ select 3 AS "3" order by 1
+Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,3) union all /* select#3 */ select 3 AS "3") "__3" order by 1
 (values (5), (7), (1), (3), (4) order by 1 limit 3 offset 1) union all select 3
 order by 1 limit 2 offset 1;
 5
@@ -2470,12 +2924,13 @@ order by 1 limit 2 offset 1;
 explain extended (values (5), (7), (1), (3), (4) order by 1 limit 3 offset 1) union all select 3
 order by 1 limit 2 offset 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	Using filesort
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union4,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	(/* select#1 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,3) union all /* select#2 */ select 3 AS "3" order by 1 limit 1,2
+Note	1003	/* select#1 */ select "__3"."5" AS "5" from ((/* select#4 */ select "tvc_0"."5" AS "5" from (values (5),(7),(1),(3),(4)) "tvc_0" order by 1 limit 1,3) union all /* select#3 */ select 3 AS "3") "__3" order by 1 limit 1,2
 values (5,90), (7,20), (1,70), (3,50), (4,10) order by 3;
 ERROR 42S22: Unknown column '3' in 'ORDER BY'
 create view v1 as values (5), (7), (1), (3), (4) order by 1 limit 2;
@@ -2493,7 +2948,7 @@ union
 ( values (5), (7), (1), (3), (4) order by 1 limit 2 );
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE VIEW "v1" AS (values (5),(7),(1),(3),(4) limit 1,2) union (values (5),(7),(1),(3),(4) order by 1 limit 2)	latin1	latin1_swedish_ci
+v1	CREATE VIEW "v1" AS select "__4"."5" AS "5" from (select "__5"."5" AS "5" from ((values (5),(7),(1),(3),(4) limit 1,2) union (values (5),(7),(1),(3),(4) order by 1 limit 2)) "__5") "__4"	latin1	latin1_swedish_ci
 select * from v1;
 5
 7

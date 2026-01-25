@@ -2804,3 +2804,15 @@ explain select * from t1 force index(r) order by a,b limit 20;
 explain select * from t1 force index(r) order by a desc,b limit 20;
         select * from t1 force index(r) order by a desc,b limit 20;
 drop table t1;
+
+--echo #
+--echo # MDEV-38087 Unexpected error `Unknown column '???' in 'GROUP BY'`
+--echo #
+--error ER_BAD_FIELD_ERROR
+SELECT 1 FROM (select 1) dt GROUP BY -1;
+--error ER_BAD_FIELD_ERROR
+SELECT 1 FROM (select 1) dt order BY -5;
+--error ER_BAD_FIELD_ERROR
+SELECT 1 FROM (select 1) dt order BY 50;
+
+--echo # End of 10.11 tests

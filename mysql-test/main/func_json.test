@@ -2025,4 +2025,11 @@ COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
 SELECT * FROM json_table(@JSON, '$.SZ[1].OFFERS[1]' 
 COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
 
+--echo #
+--echo # MDEV-25148: Unexpected success and result set upon erroneous
+--echo # JSON_VALUE call
+--echo #
+
+SELECT JSON_VALUE('{"a":[1,2]}', '$.a[*]');
+
 --echo # End of 10.11 Test

@@ -1645,10 +1645,6 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     }
   }
 
-  With_clause *with_clause=select_lex->get_with_clause();
-  if (with_clause && with_clause->prepare_unreferenced_elements(thd))
-    DBUG_RETURN(1);
-
   With_element *with_elem= select_lex->get_with_element();
   if (with_elem &&
       select_lex->check_unrestricted_recursive(
@@ -5265,6 +5261,10 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   }
 
   thd->get_stmt_da()->reset_current_row_for_warning(1);
+
+  if (thd->lex->prepare_unreferenced_in_with_clauses())
+    goto err;
+
   /* Look for a table owned by an engine with the select_handler interface */
   select_lex->pushdown_select= find_select_handler(thd, select_lex);
 
@@ -27208,15 +27208,15 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
 
   if (order_item->is_order_clause_position() && !from_window_spec)
   {						/* Order by position */
-    uint count;
+    int count;
     if (order->counter_used)
       count= order->counter; // counter was once resolved
     else
       count= (uint) order_item->val_int();
-    if (!count || count > fields.elements)
+    if (count <= 0 || count > (int)fields.elements)
     {
-      my_error(ER_BAD_FIELD_ERROR, MYF(0),
-               order_item->full_name(), thd_where(thd));
+      char buf[64];
+      my_error(ER_BAD_FIELD_ERROR, MYF(0), llstr(count, buf), thd_where(thd));
       return TRUE;
     }
     thd->change_item_tree((Item **)&order->item, (Item *)&ref_pointer_array[count - 1]);

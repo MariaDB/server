@@ -1572,7 +1572,21 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
     part_info->range_int_array[el->id]= el->range_value=
       my_tz_OFFSET0->TIME_to_gmt_sec(&ltime, &error);
     if (error)
-      goto err;
+    {
+      if (error == ER_WARN_DATA_OUT_OF_RANGE)
+      {
+        /* Partial interval partition must be last history partition */
+        if (el->id < hist_parts - 1)
+          goto err;
+        /* range_value is open endpoint (less than TIMESTAMP_MAX_VALUE) */
+        part_info->range_int_array[el->id]= el->range_value= TIMESTAMP_MAX_VALUE;
+        vers_info->hist_part= el;
+        el= it++;
+        break;
+      }
+      else
+        goto err;
+    }
     if (vers_info->hist_part->range_value <= thd->query_start())
       vers_info->hist_part= el;
   }
@@ -3511,13 +3525,14 @@ int vers_get_partition_id(partition_info *part_info, uint32 *part_id,
       goto done; // fastpath
 
     ts= row_end->get_timestamp(&unused);
-    if ((loc_hist_id == 0 || range_value[loc_hist_id - 1] < ts) &&
-        (loc_hist_id == max_hist_id || range_value[loc_hist_id] >= ts))
+    if ((loc_hist_id == 0 || range_value[loc_hist_id - 1] <= ts) &&
+        (loc_hist_id == max_hist_id || ts < range_value[loc_hist_id]))
       goto done; // fastpath
 
     while (max_hist_id > min_hist_id)
     {
       loc_hist_id= (max_hist_id + min_hist_id) / 2;
+      /* Left boundary is closed */
       if (range_value[loc_hist_id] <= ts)
         min_hist_id= loc_hist_id + 1;
       else
@@ -5466,6 +5481,7 @@ that are reorganised.
           partition_element *part_elem= alt_it++;
           if (*fast_alter_table)
             part_elem->part_state= PART_TO_BE_ADDED;
+          part_elem->id= tab_part_info->partitions.elements;
           if (unlikely(tab_part_info->partitions.push_back(part_elem,
                                                            thd->mem_root)))
             goto err;
