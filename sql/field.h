@@ -948,7 +948,7 @@ public:
   */
   virtual bool memcpy_field_possible(const Field *from) const= 0;
   virtual bool make_empty_rec_store_default_value(THD *thd, Item *item);
-  virtual void make_empty_rec_reset(THD *thd)
+  virtual void make_empty_rec_reset()
   {
     reset();
   }
@@ -4838,12 +4838,12 @@ public:
   }
   bool memcpy_field_possible(const Field *from) const override
   { return false; }
-  void make_empty_rec_reset(THD *) override
+  void make_empty_rec_reset() override
   {
     if (flags & NOT_NULL_FLAG)
     {
       set_notnull();
-      store((longlong) 1, true);
+      store(1LL, true);
     }
     else
       reset();
@@ -4918,9 +4918,9 @@ public:
     {
       flags=(flags & ~ENUM_FLAG) | SET_FLAG;
     }
-  void make_empty_rec_reset(THD *thd) override
+  void make_empty_rec_reset() override
   {
-    Field::make_empty_rec_reset(thd);
+    Field::make_empty_rec_reset();
   }
 
   int  store_field(Field *from) override { return from->save_in_field(this); }
