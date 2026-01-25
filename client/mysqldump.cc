@@ -492,7 +492,7 @@ static struct my_option my_long_options[] =
   {"max_allowed_packet", 0,
    "The maximum packet length to send to or receive from server.",
     &opt_max_allowed_packet, &opt_max_allowed_packet, 0,
-    GET_ULONG, REQUIRED_ARG, 24*1024*1024, 4096,
+    GET_ULONG, REQUIRED_ARG, 1024LL*1024*1024, 4096,
    (longlong) 2L*1024L*1024L*1024L, 0, 1024, 0},
   {"max-statement-time", 0,
    "Max statement execution time. If unset, overrides server default with 0.",
