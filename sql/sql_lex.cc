@@ -3623,6 +3623,8 @@ uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
   if (!order_group_num)
     order_group_num= order_group_num_arg;
 
+  const uint winfunc_factor= window_funcs.elements ? 2 * window_funcs.elements : 1;
+
   /*
     find_order_in_list() may need some extra space,
     so multiply order_group_num by 2
@@ -3632,8 +3634,8 @@ uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
           item_list.elements +
           select_n_reserved +
           select_n_having_items +
-          select_n_where_fields +
-          order_group_num * 2 +
+          select_n_where_fields * winfunc_factor +
+          order_group_num * 2 * winfunc_factor +
           hidden_bit_fields +
           fields_in_window_functions;
 

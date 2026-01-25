@@ -75,3 +75,111 @@ DROP TABLE t1;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-32317 ref_ptrs exhaust on multiple ORDER by func from winfunc
+#
+select row_number() over () x;
+x
+1
+select row_number() over (order by 1) x;
+x
+1
+select row_number() over (order by 1, 1) x;
+x
+1
+select row_number() over (partition by 1) x;
+x
+1
+select row_number() over (partition by 1, 1) x;
+x
+1
+select row_number() over (partition by 1 order by 1) x;
+x
+1
+select row_number() over (partition by 1, 2) x;
+x
+1
+select row_number() over (partition by 1, 2 order by 1, 1) x;
+x
+1
+select row_number() over () x order by x;
+x
+1
+select row_number() over () order by 1;
+row_number() over ()
+1
+select row_number() over (order by 1) order by 1;
+row_number() over (order by 1)
+1
+select row_number() over (order by 1, 1) order by 1;
+row_number() over (order by 1, 1)
+1
+select row_number() over (order by 1) order by 1, 1;
+row_number() over (order by 1)
+1
+select row_number() over (order by 1, 1) order by 1, 1;
+row_number() over (order by 1, 1)
+1
+select row_number() over (partition by 1, 2 order by 1, 1) order by 1;
+row_number() over (partition by 1, 2 order by 1, 1)
+1
+select row_number() over (partition by 1, 2 order by 1, 1) order by 1, 1;
+row_number() over (partition by 1, 2 order by 1, 1)
+1
+select nullif(1, 0) order by 1;
+nullif(1, 0)
+1
+select nullif(1, 0) order by 1, 1;
+nullif(1, 0)
+1
+select nullif(avg(1) over (), 0) order by 1;
+nullif(avg(1) over (), 0)
+1.0000
+select nullif(avg(1) over (order by 1), 0) order by 1;
+nullif(avg(1) over (order by 1), 0)
+1.0000
+select nullif(avg(1) over (order by 1, 1), 0) order by 1;
+nullif(avg(1) over (order by 1, 1), 0)
+1.0000
+select nullif(avg(1) over (partition by 1), 0) order by 1;
+nullif(avg(1) over (partition by 1), 0)
+1.0000
+select nullif(avg(1) over (partition by 1, 2), 0) order by 1;
+nullif(avg(1) over (partition by 1, 2), 0)
+1.0000
+select nullif(avg(1) over (), 0) order by 1, 1;
+nullif(avg(1) over (), 0)
+1.0000
+select nullif(avg(1) over (partition by 1, 2), 0) order by 1, 1;
+nullif(avg(1) over (partition by 1, 2), 0)
+1.0000
+select nullif(avg(1) over (partition by 1, 2), 0) order by 1, 1, 1;
+nullif(avg(1) over (partition by 1, 2), 0)
+1.0000
+select nullif(avg(1) over (partition by 1, 2), avg(1) over ()) order by 1, 1, 1;
+nullif(avg(1) over (partition by 1, 2), avg(1) over ())
+NULL
+select avg ( 'x' ) over ( ) x where ( 1 , 1 , ( 1 , null ) ) in ( ( 1 , 1 , ( 1 , 1 ) ) ) order by x between 25 and ( ( x = x ) / x ) or x = x = avg ( null ) or x = 94 ;
+x
+0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1365	Division by 0
+select row_number() over () x order by x between 1 and (( x = x ) / x) or x = x = 1  ;
+x
+1
+select nullif(avg(1) over (order by 1), 0) order by 1, 1, 1;
+nullif(avg(1) over (order by 1), 0)
+1.0000
+select nullif(avg(1) over (order by 1, 1, 1, 1, 1, 1, 1), avg(2) over (order by 1, 1, 1, 1, 1, 1, 1)) order by 1, 1, 1, 1, 1, 1;
+nullif(avg(1) over (order by 1, 1, 1, 1, 1, 1, 1), avg(2) over (order by 1, 1, 1, 1, 1, 1, 1))
+1.0000
+select nullif(avg(1) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1), avg(2) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1)) order by 1, 1, 1, 1, 1, 1;
+nullif(avg(1) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1), avg(2) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1))
+1.0000
+select nullif(avg(1) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1), avg(2) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1)) x order by 1, 1, 1, 1, 1, 1, x between 1 and (( x = x ) / x) or x = x = 1  ;
+x
+1.0000
+#
+# End of 10.11 tests
+#
