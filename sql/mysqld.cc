@@ -3349,7 +3349,7 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
   DBUG_ASSERT((MyFlags & ~(ME_BELL | ME_ERROR_LOG | ME_ERROR_LOG_ONLY |
                            ME_NOTE | ME_WARNING | ME_FATAL)) == 0);
 
-  DBUG_ASSERT(str[strlen(str)-1] != '\n');
+  DBUG_ASSERT(str[strlen(str)-1] != '\n' || strlen(str) == MYSQL_ERRMSG_SIZE-1);
 
   if (MyFlags & ME_NOTE)
   {
