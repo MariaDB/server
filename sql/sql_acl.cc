@@ -2656,8 +2656,6 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
   SCOPE_CLEAR(thd->variables.sql_mode, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
-  grant_version++; /* Privileges updated */
-
   const Host_table& host_table= tables.host_table();
   init_sql_alloc(key_memory_acl_mem, &acl_memroot, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
   if (host_table.table_exists()) // "host" table may not exist (e.g. in MySQL 5.6.7+)
@@ -2940,6 +2938,10 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
   init_check_host();
 
+  if (thd->killed)
+    DBUG_RETURN(TRUE);
+
+  grant_version++;              // Privileges updated
   thd->bootstrap= !initialized; // keep FLUSH PRIVILEGES connection special
   initialized=1;
   DBUG_RETURN(FALSE);
