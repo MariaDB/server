@@ -1091,6 +1091,15 @@ a
 6
 7
 DROP TABLE t1;
-#
 # End of 10.3 tests
 #
+# MDEV-37326 Assertion failure upon update on versioned partitioned table with long unique under READ COMMITTED
+#
+set session transaction isolation level read committed;
+create table t (c text, unique(c)) engine=innodb with system versioning partition by system_time;
+insert into t values ('foo');
+flush tables;
+update t set c = 'bar';
+drop table t;
+set session transaction isolation level repeatable read;
+# End of 10.11 tests
