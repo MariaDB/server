@@ -232,3 +232,16 @@ UPDATE t SET t = '', s = 0;
 ERROR HY000: Cannot cast 'int' as 'geometry' in assignment of `test`.`t`.`s`
 ALTER TABLE t force;
 DROP TABLE t;
+#
+# MDEV-37341 Assertion failures `null_ptr < ptr' and `ptr - null_ptr <= (int)table->s->rec_buff_length' with BEFORE trigger and UPDATE
+#
+create table t (a int primary key, b int not null);
+insert into t values (1, 1);
+create trigger tr before update on t for each row set new.b=10;
+set sql_mode= simultaneous_assignment;
+update t set b=null, a=b;
+select * from t;
+a	b
+1	10
+drop table t;
+# End of 10.11 tests

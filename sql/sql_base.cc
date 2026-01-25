@@ -9063,8 +9063,8 @@ static void unwind_stored_field_offsets(const List<Item> &fields, Item_field *en
     if (f->stored_in_db())
     {
       TABLE *table= f->table;
-      f->move_field_offset((my_ptrdiff_t) (table->record[0] -
-                                           table->record[1]));
+      table->field[f->field_index]->move_field_offset(
+               (my_ptrdiff_t) (table->record[0] - table->record[1]));
     }
   }
 }
@@ -9163,8 +9163,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
         which contains row before update (see MDEV-13417)
       */
       if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
-        rfield->move_field_offset((my_ptrdiff_t) (table->record[1] -
-                                                  table->record[0]));
+        table->field[rfield->field_index]->move_field_offset(
+                 (my_ptrdiff_t) (table->record[1] - table->record[0]));
     }
   }
 
