@@ -696,6 +696,7 @@ static int rr_from_cache(READ_RECORD *info)
   int16 error;
   uchar *position,*ref_position,*record_pos;
   ulong record;
+  TABLE *table= info->table;
 
   for (;;)
   {
@@ -705,13 +706,14 @@ static int rr_from_cache(READ_RECORD *info)
       {
 	shortget(error,info->cache_pos);
 	if (info->print_error)
-	  info->table->file->print_error(error,MYF(0));
+	  table->file->print_error(error,MYF(0));
       }
       else
       {
 	error=0;
-        memcpy(info->record(), info->cache_pos,
-               (size_t) info->table->s->reclength);
+        memcpy(info->record(), info->cache_pos, table->s->reclength);
+        if (table->vfield)
+          table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
       }
       info->cache_pos+=info->reclength;
       return ((int) error);
@@ -746,8 +748,7 @@ static int rr_from_cache(READ_RECORD *info)
       record=uint3korr(position);
       position+=3;
       record_pos=info->cache+record*info->reclength;
-      if (unlikely((error= (int16) info->table->file->
-                    ha_rnd_pos(record_pos,info->ref_pos))))
+      if ((error= (int16) table->file->ha_rnd_pos(record_pos,info->ref_pos)))
       {
 	record_pos[info->error_offset]=1;
 	shortstore(record_pos,error);
