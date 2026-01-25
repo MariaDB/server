@@ -251,10 +251,10 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
 	!(table->file->ha_table_flags() & HA_FAST_KEY_READ) &&
 	(table->db_stat & HA_READ_ONLY ||
 	 table->reginfo.lock_type < TL_FIRST_WRITE) &&
-	(ulonglong) table->s->reclength* (table->file->stats.records+
-                                          table->file->stats.deleted) >
-	(ulonglong) MIN_FILE_LENGTH_TO_USE_ROW_CACHE &&
-	info->io_cache->end_of_file/info->ref_length * table->s->reclength >
+	(ulonglong) table->s->stored_rec_length *
+                  (table->file->stats.records + table->file->stats.deleted) >
+	MIN_FILE_LENGTH_TO_USE_ROW_CACHE &&
+	info->io_cache->end_of_file/info->ref_length * table->s->stored_rec_length >
 	(my_off_t) MIN_ROWS_TO_USE_TABLE_CACHE &&
 	!table->s->blob_fields &&
         info->ref_length <= MAX_REFLENGTH)
@@ -661,11 +661,11 @@ static int init_rr_cache(THD *thd, READ_RECORD *info)
   uint rec_cache_size, cache_records;
   DBUG_ENTER("init_rr_cache");
 
-  info->reclength= ALIGN_SIZE(info->table->s->reclength+1);
+  info->reclength= ALIGN_SIZE(info->table->s->stored_rec_length + 1);
   if (info->reclength < STRUCT_LENGTH)
     info->reclength= ALIGN_SIZE(STRUCT_LENGTH);
 
-  info->error_offset= info->table->s->reclength;
+  info->error_offset= info->table->s->stored_rec_length;
   cache_records= thd->variables.read_rnd_buff_size /
                  (info->reclength + STRUCT_LENGTH);
   rec_cache_size= cache_records * info->reclength;
@@ -711,7 +711,7 @@ static int rr_from_cache(READ_RECORD *info)
       else
       {
 	error=0;
-        memcpy(info->record(), info->cache_pos, table->s->reclength);
+        memcpy(info->record(), info->cache_pos, table->s->stored_rec_length);
         if (table->vfield)
           table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
       }
