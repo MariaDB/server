@@ -29,7 +29,7 @@ static constexpr float NEAREST = -1.0f;
 
 // Algorithm parameters
 static constexpr float alpha = 1.1f;
-static constexpr uint ef_construction= 10;
+// ef_construction is now a per-index option (see ha_index_option_struct)
 static constexpr uint max_ef= 10000;
 static constexpr size_t subdist_part= 192;
 static constexpr float subdist_margin= 1.05f;
@@ -110,10 +110,15 @@ static TYPELIB distances= CREATE_TYPELIB_FOR(distance_names);
 static MYSQL_THDVAR_ENUM(default_distance, PLUGIN_VAR_RQCMDARG,
        "Distance function to build the vector index for",
        nullptr, nullptr, EUCLIDEAN, &distances);
+static MYSQL_THDVAR_UINT(default_ef_construction, PLUGIN_VAR_RQCMDARG,
+       "Larger values mean slower INSERTs but more accurate index graph. "
+       "Controls the number of candidates considered during index construction",
+       nullptr, nullptr, 10, 1, 10000, 1);
 
 struct ha_index_option_struct
 {
   ulonglong M; // option struct does not support uint
+  ulonglong ef_construction;
   metric_type metric;
 };
 
@@ -508,12 +513,14 @@ public:
   const uint tref_len;
   const uint gref_len;
   const uint M;
+  const uint ef_construction;
   metric_type metric;
   bool use_subdist;
 
   MHNSW_Share(TABLE *t)
     : tref_len(t->file->ref_length), gref_len(t->hlindex->file->ref_length),
       M(static_cast<uint>(t->s->key_info[t->s->keys].option_struct->M)),
+      ef_construction(static_cast<uint>(t->s->key_info[t->s->keys].option_struct->ef_construction)),
       metric(t->s->key_info[t->s->keys].option_struct->metric)
   {
     mysql_rwlock_init(PSI_INSTRUMENT_ME, &commit_lock);
@@ -1300,7 +1307,7 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
   {
     skip_deleted= false;
     if (ef > 1)
-      ef= std::max(ef_construction, ef);
+      ef= std::max(p->ctx->ef_construction, ef);
   }
   else
   {
@@ -1761,6 +1768,7 @@ Item_func_vec_distance::distance_kind mhnsw_uses_distance(const TABLE *table, KE
 ha_create_table_option mhnsw_index_options[]=
 {
   HA_IOPTION_SYSVAR("m", M, default_m),
+  HA_IOPTION_SYSVAR("ef_construction", ef_construction, default_ef_construction),
   HA_IOPTION_SYSVAR("distance", metric, default_distance),
   HA_IOPTION_END
 };
@@ -1790,6 +1798,7 @@ static struct st_mysql_sys_var *mhnsw_sys_vars[]=
 {
   MYSQL_SYSVAR(max_cache_size),
   MYSQL_SYSVAR(default_m),
+  MYSQL_SYSVAR(default_ef_construction),
   MYSQL_SYSVAR(default_distance),
   MYSQL_SYSVAR(ef_search),
   NULL

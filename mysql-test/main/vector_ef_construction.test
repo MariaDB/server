@@ -1,0 +1,43 @@
+# Test for configurable ef_construction parameter in MHNSW vector index
+# MDEV-38284: Add configurable ef_construction for vector indexes
+
+# Test that the system variable exists and has proper default
+select @@mhnsw_default_ef_construction;
+set @old_ef_construction = @@mhnsw_default_ef_construction;
+
+# Test creating table with default ef_construction
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+replace_result InnoDB MyISAM;
+show create table t1;
+drop table t1;
+
+# Test creating table with custom ef_construction via system variable
+set mhnsw_default_ef_construction = 100;
+create table t2 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+replace_result InnoDB MyISAM;
+show create table t2;
+drop table t2;
+
+# Test creating table with custom ef_construction via index option
+set mhnsw_default_ef_construction = @old_ef_construction;
+create table t3 (id int auto_increment primary key, v vector(5) not null,
+  vector index (v) ef_construction=200);
+replace_result InnoDB MyISAM;
+show create table t3;
+drop table t3;
+
+# Test combining M and ef_construction options
+create table t4 (id int auto_increment primary key, v vector(5) not null,
+  vector index (v) m=10 ef_construction=150);
+replace_result InnoDB MyISAM;
+show create table t4;
+drop table t4;
+
+# Test boundary values
+set mhnsw_default_ef_construction = 1;
+select @@mhnsw_default_ef_construction;
+set mhnsw_default_ef_construction = 10000;
+select @@mhnsw_default_ef_construction;
+
+# Restore default
+set mhnsw_default_ef_construction = @old_ef_construction;

@@ -1,0 +1,57 @@
+select @@mhnsw_default_ef_construction;
+@@mhnsw_default_ef_construction
+10
+set @old_ef_construction = @@mhnsw_default_ef_construction;
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+set mhnsw_default_ef_construction = 100;
+create table t2 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`) `ef_construction`=100
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t2;
+set mhnsw_default_ef_construction = @old_ef_construction;
+create table t3 (id int auto_increment primary key, v vector(5) not null,
+vector index (v) ef_construction=200);
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`) `ef_construction`=200
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t3;
+create table t4 (id int auto_increment primary key, v vector(5) not null,
+vector index (v) m=10 ef_construction=150);
+show create table t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`) `M`=10 `ef_construction`=150
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t4;
+set mhnsw_default_ef_construction = 1;
+select @@mhnsw_default_ef_construction;
+@@mhnsw_default_ef_construction
+1
+set mhnsw_default_ef_construction = 10000;
+select @@mhnsw_default_ef_construction;
+@@mhnsw_default_ef_construction
+10000
+set mhnsw_default_ef_construction = @old_ef_construction;
