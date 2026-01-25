@@ -363,8 +363,6 @@ INSERT INTO t1 values (3,3);
 CREATE TEMPORARY TABLE t2 (primary key (a)) engine=innodb select * from t1;
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 ROLLBACK;
-Warnings:
-Warning	1196	Some non-transactional changed tables couldn't be rolled back
 DROP TABLE IF EXISTS t2;
 Warnings:
 Note	1051	Unknown table 'test.t2'

@@ -4685,7 +4685,8 @@ void select_insert::abort_result_set()
     finalize_replace(table, info.handle_duplicates, info.ignore);
     table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
-    table->file->extra(HA_EXTRA_ABORT_ALTER_COPY);
+    if (table->file->extra(HA_EXTRA_ABORT_ALTER_COPY) == HA_ERR_ROLLBACK)
+      thd->transaction_rollback_request= true;
     /*
       If at least one row has been inserted/modified and will stay in
       the table (the table doesn't have transactions) we must write to

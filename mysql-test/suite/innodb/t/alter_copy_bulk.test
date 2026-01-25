@@ -132,8 +132,7 @@ DROP TABLE IF EXISTS t2;
 --source include/restart_mysqld.inc
 
 --echo #
---echo #  MDEV-37296 ALTER TABLE allows adding unique hash key
---echo #		with duplicate values
+--echo #  MDEV-37296 ALTER TABLE allows adding unique hash key with duplicate values
 --echo #
 CREATE TABLE t (pk INT PRIMARY KEY, a INT, b TEXT) ENGINE=InnoDB;
 INSERT INTO t VALUES (5,3,'foo'), (1,NULL,'bar'), (3,3,'foo');
@@ -142,3 +141,20 @@ ALTER TABLE t ADD UNIQUE (a,b);
 SHOW CREATE TABLE t;
 SELECT * FROM t;
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-36787 Error 153: No savepoint with that name upon ROLLBACK TO SAVEPOINT, assertion failure
+--echo #
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+START TRANSACTION;
+SELECT * FROM t;
+SAVEPOINT A;
+select @@in_transaction;
+--error ER_WARN_DATA_OUT_OF_RANGE
+CREATE TEMPORARY TABLE tmp (a TINYINT) ENGINE=InnoDB AS SELECT 256 AS a;
+select @@in_transaction;
+--error ER_SP_DOES_NOT_EXIST
+ROLLBACK TO SAVEPOINT A;
+DROP TABLE t;
+
+--echo # End of 10.11 tests

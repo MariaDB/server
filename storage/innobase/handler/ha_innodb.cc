@@ -15938,6 +15938,7 @@ ha_innobase::extra(
 			trx = check_trx_exists(ha_thd());
 			m_prebuilt->table->skip_alter_undo = 0;
 			trx->rollback();
+			return(HA_ERR_ROLLBACK);
 		}
 		break;
 	default:/* Do nothing */
