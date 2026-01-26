@@ -2400,6 +2400,20 @@ bool Type_handler_assoc_array::
                                                                  const
 {
   const sp_type_def_composite2 *tdef;
+
+  if (type == COLUMN_DEFINITION_ROUTINE_PARAM)
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             def->type_handler()->name().ptr(), "<routine parameter>");
+    return true;
+  }
+  if (type == COLUMN_DEFINITION_FUNCTION_RETURN)
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             def->type_handler()->name().ptr(), "RETURN");
+    return true;
+  }
+
   /*
     Disallow wrong use of associative_array:
       CREATE TABLE t1 (a ASSOCIATIVE_ARRAY);
@@ -2412,7 +2426,7 @@ bool Type_handler_assoc_array::
     return true;
   }
 
-  if (unlikely(tdef->def(1).type_handler() == this))
+  if (unlikely(tdef->def(1).type_handler()->is_complex()))
   {
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
              tdef->def(1).type_handler()->name().ptr(),

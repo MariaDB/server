@@ -1,0 +1,237 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10152 Add support for TYPE .. IS REF CURSOR
+--echo #
+
+# Assigning from scalar data types raises an error
+
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  TYPE rec0_t IS RECORD (a INT, b TIME);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c0 cur0_t := 10;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  TYPE rec0_t IS RECORD (a INT, b TIME);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c0 cur0_t:= @a;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+SET @a=10;
+--error ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+CALL p1;
+SET @a='test';
+--error ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# Something meaningless: setting a REF CURSOR from a ROW
+
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  TYPE rec0_t IS RECORD (a INT, b TIME);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c0 cur0_t := ROW(1,TIME'10:20:30');
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# Setting a strong cursor from a weak cursor of a different row size
+
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  TYPE rec0_t IS RECORD (a INT, b TIME);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR;
+  c1 cur1_t;
+BEGIN
+  OPEN c1 FOR SELECT 1 AS a,TIME'10:20:30',10 AS b;
+  DECLARE
+    c0 cur0_t := c1;
+  BEGIN
+    NULL;
+  END;
+  CLOSE c1;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# Setting a strong cursor from a weak cursor
+# with an unassignable member (INET6 -> TIME)
+
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  TYPE rec0_t IS RECORD (a INT, b INET6);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR;
+  c0 cur0_t;
+  c1 cur1_t;
+BEGIN
+  OPEN c1 FOR SELECT 1 AS a,TIME'10:20:30' AS b;
+  DECLARE
+    c0 cur0_t := c1;
+  BEGIN
+    NULL;
+  END;
+  CLOSE c1;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# Setting a strong cursor from a compatible weak cursor
+
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  TYPE rec0_t IS RECORD (a INT, b TIME);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR;
+  c1 cur1_t;
+  v0a INT;
+  v0b TIME;
+BEGIN
+  OPEN c1 FOR SELECT 1 AS a,TIME'10:20:30' AS b;
+  DECLARE
+    c0 cur0_t := c1;
+  BEGIN
+    FETCH c0 INTO v0a, v0b;
+  END;
+  CLOSE c1;
+  SELECT v0a, v0b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# Setting a strong cursor from another strong cursor of a different row size
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b TIME, c VARCHAR(10));
+  TYPE rec1_t IS RECORD (a INT, b TIME);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+  c0 cur0_t;
+  a INT;
+BEGIN
+  OPEN c0 FOR SELECT 1 AS a, TIME'10:20:30' AS b, 'c' AS c;
+  DECLARE
+    c1 cur1_t:= c0;
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# Setting a strong cursor from another strong cursor
+# with an unassignable member (INET6 -> TIME)
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT,b INET6);
+  TYPE rec1_t IS RECORD (a INT, b TIME);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+  c0 cur0_t;
+  a INT;
+BEGIN
+  OPEN c0 FOR SELECT 1 AS a,CAST('::' AS INET6) AS b;
+  DECLARE
+    c1 cur1_t:= c0;
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# Setting a strong cursor from another strong cursor
+# with an unassignable member (UUID -> INET6)
+# using table%ROWTYPE
+
+CREATE TABLE t1 (a INT, b UUID);
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT,b INET6);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR RETURN t1%ROWTYPE;
+  c0 cur0_t;
+  a INT;
+BEGIN
+  OPEN c0 FOR SELECT 1 AS a, CAST('::' AS INET6) AS b;
+  DECLARE
+    c1 cur1_t:= c0;
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+# Setting a strong cursor from a compatible strong cursor
+
+DELIMITER $$;
+CREATE PROCEDURE p1 IS
+  TYPE rec0_t IS RECORD (a INT, b TIME);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c1 cur0_t;
+  v0a INT;
+  v0b TIME;
+BEGIN
+  OPEN c1 FOR SELECT 1 AS a,TIME'10:20:30' AS b;
+  DECLARE
+    c0 cur0_t:= c1;
+  BEGIN
+    FETCH c0 INTO v0a, v0b;
+  END;
+  CLOSE c1;
+  SELECT v0a, v0b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;

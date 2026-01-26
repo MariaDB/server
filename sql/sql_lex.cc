@@ -7181,24 +7181,17 @@ LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
                                                       Item *def,
                                                       const LEX_CSTRING &expr_str)
 {
-  const sp_pcursor *pcursor= spcont->find_cursor(offset);
-
   // Loop through all variables in the same declaration
   for (uint i= 0 ; i < (uint) nvars; i++)
   {
     sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
-
     spvar->field_def.set_cursor_rowtype_ref(offset);
-    sp_instr_cursor_copy_struct *instr=
-      new (thd->mem_root) sp_instr_cursor_copy_struct(sphead->instructions(),
-                                                      spcont, offset,
-                                                      pcursor->lex(),
-                                                      spvar->offset);
-    if (instr == NULL || sphead->add_instr(instr))
-     return true;
-
     sphead->fill_spvar_definition(thd, &spvar->field_def, &spvar->name);
   }
+  if (make_sp_instr_copy_struct_for_last_context_variables(thd,
+                                                           (uint) nvars,
+                                                           offset))
+    return true;
   if (unlikely(sp_variable_declarations_set_default(thd, nvars, def,
                                                     expr_str)))
     return true;
@@ -7762,8 +7755,32 @@ bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
   }
   if (check_variable_is_refcursor({STRING_WITH_LEN("OPEN")}, spv))
     return true;
+
+  /*
+    If the REF CURSOR declaration has the RETURN clause and
+    the query select list does not have asterisks, check
+    that the row sizes are equal.
+    A more thorough test (field-by-field assignability) is done
+    later, after the cursor has been opened.
+  */
+  const sp_type_def_ref* return_type_def=
+    dynamic_cast<const sp_type_def_ref*>(spv[0].field_def.
+                                           get_attr_const_generic_ptr(0));
+  const Row_definition_list *row_def_list=
+    return_type_def && return_type_def->def().is_row() ?
+    return_type_def->def().row_field_definitions() : nullptr;
+  if (!stmt->first_select_lex()->with_wild && row_def_list &&
+      row_def_list->elements != stmt->first_select_lex()->item_list.elements)
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+             RowTypeBuffer(row_def_list->elements).ptr(),
+             RowTypeBuffer(stmt->first_select_lex()->item_list.elements).ptr(),
+             "OPEN..FOR");
+    return true;
+  }
   auto *i= new (thd->mem_root) sp_instr_copen_by_ref(
                                  sphead->instructions(), spcont,
+                                 spv->name,
                                  sp_rcontext_ref(
                                    sp_rcontext_addr(rh, spv->offset),
                                    &sp_rcontext_handler_statement),
@@ -7805,6 +7822,30 @@ bool LEX::sp_close(THD *thd, const Lex_ident_sys_st &name)
   }
   my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
   return true;
+}
+
+
+bool LEX::make_sp_instr_copy_struct_for_last_context_variables(THD *thd,
+                                                            uint nvars,
+                                                            uint cursor_offset)
+{
+  DBUG_ASSERT(nvars <= spcont->context_var_count());
+  const sp_pcursor *pcursor= spcont->find_cursor(cursor_offset);
+  DBUG_ASSERT(pcursor);
+  for (uint i= 0; i < nvars; i++)
+  {
+    sp_variable *spvar= spcont->get_last_context_variable((uint)
+                                                          nvars - 1 - i);
+    sp_instr_cursor_copy_struct *instr=
+      new (thd->mem_root) sp_instr_cursor_copy_struct(sphead->instructions(),
+                                                      spcont,
+                                                      cursor_offset,
+                                                      pcursor->lex(),
+                                                      spvar->offset);
+    if (instr == NULL || sphead->add_instr(instr))
+      return true;
+  }
+  return false;
 }
 
 
@@ -13062,6 +13103,138 @@ bool LEX::declare_type_assoc_array(THD *thd,
   return def.type_handler()->
           Column_definition_set_attributes(thd, &def, ltype,
                                            COLUMN_DEFINITION_ROUTINE_LOCAL);
+}
+
+
+bool LEX::declare_type_ref_cursor(THD *thd,
+                                  const Lex_ident_sys_st &type_name,
+                                  const Lex_ident_sys_st &return_type_name,
+                                  const Qualified_column_ident *rowtype,
+                                  const Qualified_column_ident *vartype,
+                                  const Lex_ident_cli_st &syntax_error_token)
+{
+  const Lex_ident_plugin sr= "sys_refcursor"_Lex_ident_plugin;
+  const Type_handler *th= Type_handler::handler_by_name_or_error(thd, sr);
+  Spvar_definition return_def;
+  bool is_prepared= false;
+  if (unlikely(!th))
+    return true;
+
+  if (vartype)
+  {
+    if (vartype->db.length || vartype->table.length)
+    {
+      /*
+         Unknown declaration styles:
+           RETURN a.b.c%TYPE
+           RETURN a.b%TYPE
+      */
+      thd->parse_error(ER_SYNTAX_ERROR, syntax_error_token.str);
+      return true;
+    }
+    const Sp_rcontext_handler *rh;
+    const sp_variable *spvar= find_variable(&vartype->m_column, &rh);
+    if (!spvar)
+    {
+      my_error(ER_SP_UNDECLARED_VAR, MYF(0), vartype->m_column.str);
+      return true;
+    }
+    if (!dynamic_cast<const Type_handler_row*>(spvar->type_handler()))
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               spvar->type_handler()->name().ptr(), "REF CURSOR RETURN");
+      return true;
+    }
+
+    if (spvar->field_def.is_row() &&
+        check_ref_cursor_components(spvar->field_def.row_field_definitions()))
+      return true;
+
+    return_def= spvar->field_def;
+    is_prepared= true;
+  }
+  else if (rowtype)
+  {
+    if (rowtype->db.length)
+    {
+      // RETURN a.b.c%ROWTYPE; -- unknown declaration style
+      thd->parse_error(ER_SYNTAX_ERROR, syntax_error_token.str);
+      return true;
+    }
+    uint coffp;
+    const sp_pcursor *pcursor= rowtype->db.str || rowtype->table.str ? nullptr :
+                               spcont->find_cursor(&rowtype->m_column, &coffp,
+                                                   false);
+    if (pcursor)
+    {
+      // RETURN cursor1%ROWTYPE
+      sp_rcontext_addr cursor_ref(&sp_rcontext_handler_local, coffp);
+      return_def= Spvar_definition(nullptr, cursor_ref);
+    }
+    else
+    {
+      // RETURN [db1.]t1%ROWTYPE
+      Table_ident *ti= new (thd->mem_root) Table_ident(thd, &rowtype->table,
+                                                       &rowtype->m_column,
+                                                       false);
+      if (!ti)
+        return true; // EOM
+      return_def= Spvar_definition(ti, sp_rcontext_addr(nullptr, 0));
+    }
+  }
+  else if (!return_type_name.is_null())
+  {
+    /*
+      An explicit data type in the RETURN clause:
+        TYPE c0 IS REF CURSOR RETURN rec0_t;
+    */
+    const sp_type_def *rt= find_type_def(return_type_name);
+    if (!rt)
+    {
+      my_error(ER_UNKNOWN_DATA_TYPE, MYF(0), return_type_name.str);
+      return true;
+    }
+    if (!dynamic_cast<const Type_handler_row*>(rt->type_handler()))
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               return_type_name.str, "REF CURSOR RETURN");
+      return true;
+    }
+    Row_definition_list *row= static_cast<const sp_type_def_record*>(rt)->
+                                field->deep_copy(thd);
+    if (!row)
+      return true; // EOM
+
+    if (check_ref_cursor_components(row))
+      return true;
+
+    return_def= Spvar_definition(&type_handler_row, row);
+  }
+  sp_type_def_ref *tdef=
+    new (thd->mem_root) sp_type_def_ref(Lex_ident_column(type_name), th,
+                                        return_def, is_prepared);
+  if (unlikely(!tdef || spcont->type_defs_add(thd, tdef)))
+    return true; // EOM
+
+  return false;
+}
+
+
+bool LEX::check_ref_cursor_components(Row_definition_list *row) const
+{
+  DBUG_ASSERT(row);
+  List_iterator<Spvar_definition> it(*row);
+  const Spvar_definition *fielddef;
+  while ((fielddef= it++))
+  {
+    if (fielddef->type_handler()->is_complex())
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               fielddef->type_handler()->name().ptr(), "REF CURSOR RETURN");
+      return true;
+    }
+  }
+  return false;
 }
 
 

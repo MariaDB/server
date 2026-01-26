@@ -497,6 +497,21 @@ public:
     return m_vars.at(m_vars.elements() - i - 1);
   }
 
+  /*
+    Set data type for the last nvars context variables to "def".
+  */
+  void set_type_for_last_context_variables(const Column_definition &def,
+                                           uint nvars)
+  {
+    DBUG_ASSERT(nvars <= m_vars.elements());
+    for (uint i= 0 ; i < nvars; i++)
+    {
+      uint offset= (uint) nvars - 1 - i;
+      sp_variable *spvar= get_last_context_variable(offset);
+      spvar->field_def.set_type(def);
+      spvar->field_def.field_name= spvar->name;
+    }
+  }
   /// Add SP-variable to the parsing context.
   ///
   /// @param thd  Thread context.

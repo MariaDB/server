@@ -57,6 +57,64 @@ public:
 
 
 /*
+  A reference data type, e.g. REF CURSOR.
+*/
+class sp_type_def_ref : public sp_type_def,
+                        public Type_handler_hybrid_field_type
+{
+  /*
+    m_def - The definition (e.g. the structure) of the referenced data type.
+      - Can be empty when the structure of the referenced type is not set:
+         TYPE cur0_t IS REF CURSOR;
+      - Can be non-empty when the structure of the referenced type is set:
+         TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+         TYPE cur0_t IS REF CURSOR RETURNS rec0_t;
+  */
+  Spvar_definition m_def;
+  /*
+    m_is_prepared - helps to avoid double call of sp_prepare_create_field().
+
+    - If this is `REF CURSOR RETURN var%TYPE`
+      (where var is some RECORD variable), e.g.
+        TYPE r0_t IS RECORD(a INT, b VARCHAR(10));
+        r0 r0_t;                   -- this calls sp_prepare_create_field()
+        TYPE c0_t IS REF CURSOR RETURN r0%TYPE; -- get type from the var r0
+      then m_def was copied from the variable r0 definition
+      so sp_prepare_create_field() was called for it
+      during the variable `r0` declaration: `r0 r0_t;`
+    - If this is `REF CURSOR RETURN rec0_t`,
+      where r0_t is some RECORD data type, e.g.
+        TYPE r0_t IS RECORD(a INT, b VARCHAR(10));
+        TYPE c0_t IS REF CURSOR RETURN r0_t; -- get type from the type r0_t
+      then sp_prepare_create_field() has not been called for m_def yet.
+  */
+  bool m_is_prepared;
+public:
+  sp_type_def_ref(const Lex_ident_column &name_arg,
+                  const Type_handler *th,
+                  const Spvar_definition &def,
+                  bool is_prepared)
+   :sp_type_def(name_arg),
+    Type_handler_hybrid_field_type(th),
+    m_def(def),
+    m_is_prepared(is_prepared)
+  { }
+  const Type_handler *type_handler() const override
+  {
+    return Type_handler_hybrid_field_type::type_handler();
+  }
+  const Spvar_definition & def() const
+  {
+    return m_def;
+  }
+  bool is_prepared() const
+  {
+    return m_is_prepared;
+  }
+};
+
+
+/*
   This class represents 'DECLARE RECORD' statement.
 */
 class sp_type_def_record : public sp_type_def

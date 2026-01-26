@@ -646,6 +646,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> REAL                          /* SQL-2003-R */
 %token  <kwd> RECURSIVE_SYM
 %token  <kwd> REFERENCES                    /* SQL-2003-R */
+%token  <kwd> REF_SYM
 %token  <kwd> REF_SYSTEM_ID_SYM
 %token  <kwd> REGEXP
 %token  <kwd> RELEASE_SYM                   /* SQL-2003-R */
@@ -16358,6 +16359,7 @@ keyword_ident:
 %ifdef ORACLE
         | TYPE_SYM
 %endif
+        | REF_SYM
         ;
 
 keyword_sysvar_name:
@@ -17097,6 +17099,7 @@ reserved_keyword_udt_not_param_type:
         | READ_SYM
         | READ_WRITE_SYM
         | RECURSIVE_SYM
+        | REF_SYM
         | REF_SYSTEM_ID_SYM
         | REFERENCES
         | REGEXP
@@ -19023,7 +19026,7 @@ sf_returned_type_clause:
         ;
 
 sf_return_type:
-          field_type
+          field_type_all_with_typedefs
           {
             if (unlikely(Lex->sf_return_fill_definition($1)))
               MYSQL_YYABORT;
@@ -19230,7 +19233,7 @@ sp_param_name_and_mode:
         ;
 
 sp_param_init_vars:
-          sp_param_name_and_mode_init_vars field_type
+          sp_param_name_and_mode_init_vars field_type_all_with_typedefs
           {
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
@@ -19522,7 +19525,7 @@ sf_returned_type_clause:
         ;
 
 sf_return_type:
-          field_type
+          field_type_all_with_typedefs // TODO: add tests for all typedef types
           {
             if (unlikely(Lex->sf_return_fill_definition($1)))
               MYSQL_YYABORT;
@@ -20150,7 +20153,7 @@ sp_param_name_and_mode:
         ;
 
 sp_param_init_vars:
-          sp_param_name_and_mode_init_vars field_type
+          sp_param_name_and_mode_init_vars field_type_all_with_typedefs
           {
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
@@ -20456,7 +20459,7 @@ sp_decl_type:
           {
             if (unlikely(Lex->declare_type_record(thd, $1, $4)))
               MYSQL_YYABORT;
-            $$.vars= $$.conds= $$.hndlrs= $$.curs= 0;
+            $$.init();
           }
         | typed_ident IS TABLE_SYM OF_SYM assoc_array_table_types
           {
@@ -20471,7 +20474,39 @@ sp_decl_type:
             auto def= static_cast<Spvar_definition*>(Lex->last_field);
             if (unlikely(Lex->declare_type_assoc_array(thd, $1, def, $5)))
               MYSQL_YYABORT;
-            $$.vars= $$.conds= $$.hndlrs= $$.curs= 0;
+            $$.init();
+          }
+        | typed_ident IS REF_SYM CURSOR_SYM
+          {
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, Lex_ident_sys(),
+                                                      nullptr, nullptr, $4)))
+              MYSQL_YYABORT;
+            $$.init();
+          }
+        | typed_ident IS REF_SYM CURSOR_SYM RETURN_ORACLE_SYM sp_decl_ident
+          {
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, $6,
+                                                      nullptr, nullptr, $5)))
+              MYSQL_YYABORT;
+            $$.init();
+          }
+        | typed_ident IS REF_SYM CURSOR_SYM RETURN_ORACLE_SYM
+          optionally_qualified_column_ident
+          PERCENT_ORACLE_SYM TYPE_SYM
+          {
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, Lex_ident_sys(),
+                                                      nullptr, $6, $8)))
+              MYSQL_YYABORT;
+            $$.init();
+          }
+        | typed_ident IS REF_SYM CURSOR_SYM RETURN_ORACLE_SYM
+          optionally_qualified_column_ident
+          PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
+          {
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, Lex_ident_sys(),
+                                                      $6, nullptr, $8)))
+              MYSQL_YYABORT;
+            $$.init();
           }
         ;
 

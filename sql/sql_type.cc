@@ -2755,13 +2755,7 @@ Type_handler::sp_variable_declarations_finalize(THD *thd,
   if (lex->sphead->fill_spvar_definition(thd, &tmp))
     return true;
 
-  for (uint i= 0 ; i < (uint) nvars; i++)
-  {
-    uint offset= (uint) nvars - 1 - i;
-    sp_variable *spvar= lex->spcont->get_last_context_variable(offset);
-    spvar->field_def.set_type(tmp);
-    spvar->field_def.field_name= spvar->name;
-  }
+  lex->spcont->set_type_for_last_context_variables(tmp, (int) nvars);
   return false;
 }
 
@@ -9682,6 +9676,16 @@ bool Type_handler::can_return_extract_source(interval_type int_type) const
 {
   return type_collection() == &type_collection_std;
 }
+
+
+bool Type_handler::Spvar_definition_resolve_type_refs(THD *thd,
+                                                      Spvar_definition *def)
+                                                                       const
+{
+  return def->is_column_type_ref() &&
+         def->column_type_ref()->resolve_type_ref(thd, def);
+}
+
 
 /***************************************************************************/
 

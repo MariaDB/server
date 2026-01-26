@@ -809,3 +809,45 @@ t1	CREATE TABLE "t1" (
 )
 DROP PACKAGE pkg1;
 # End of 12.2 tests
+#
+# Records in routine parameters and RETURN
+#
+SET sql_mode=ORACLE;
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1();
+PROCEDURE p2();
+END;
+CREATE PACKAGE BODY pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(2), c INT);
+FUNCTION private_f1() RETURN rec0_t AS
+BEGIN
+RETURN rec0_t(1,'   ',2);
+END;
+PROCEDURE private_p1(pr0 rec0_t) AS
+BEGIN
+SELECT pr0.a || pr0.b || pr0.c;
+END;
+PROCEDURE p1() AS
+r0 rec0_t;
+BEGIN
+r0:= private_f1();
+SELECT r0.a || r0.b || r0.c;
+END;
+PROCEDURE p2 AS
+r0 rec0_t := (1,'   ',2);
+BEGIN
+private_p1(r0);
+END;
+END;
+$$
+CALL pkg1.p1;
+r0.a || r0.b || r0.c
+1  2
+Warnings:
+Note	1265	Data truncated for column 'b' at row 0
+CALL pkg1.p2;
+pr0.a || pr0.b || pr0.c
+1  2
+Warnings:
+Note	1265	Data truncated for column 'b' at row 0
+DROP PACKAGE pkg1;
