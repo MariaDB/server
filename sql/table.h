@@ -1914,7 +1914,7 @@ public:
   bool vcol_fix_expr(THD *thd);
   bool vcol_cleanup_expr(THD *thd);
   Field *find_field_by_name(const LEX_CSTRING *str) const;
-  bool export_structure(THD *thd, class Row_definition_list *defs);
+  bool export_structure(THD *thd, class Row_definition_list *defs) const;
   bool is_splittable() { return spl_opt_info != NULL; }
   void set_spl_opt_info(SplM_opt_info *spl_info);
   void deny_splitting();

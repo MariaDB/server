@@ -4233,6 +4233,15 @@ public:
                                             CHARSET_INFO *cs) const
   { return this; }
   /*
+    Resolve data type references in variable declarations:
+      var1 t1.col1%TYPE;
+      var2 ROW(a t1.col1%TYPE, b t1.col2.TYPE);
+    and in TYPE declarations:
+      TYPE rec0_t (a t1.col1%TYPE, b t1.col2.TYPE);
+  */
+  virtual bool Spvar_definition_resolve_type_refs(THD *thd,
+                                                  Spvar_definition *def) const;
+  /*
     Check if an Spvar_definition instance is of a complex data type,
     or contains a complex data type in its components (e.g. a ROW member).
   */

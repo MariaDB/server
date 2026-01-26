@@ -1,0 +1,222 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+FUNCTION f1 RETURN cur0_t AS
+BEGIN
+RETURN 10;
+END;
+PROCEDURE p1 AS
+BEGIN
+SELECT f1();
+END;
+END;
+$$
+CALL pkg1.p1;
+ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `f1()` for operation SET
+DROP PACKAGE pkg1;
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+FUNCTION f1 RETURN cur0_t AS
+BEGIN
+RETURN @a;
+END;
+PROCEDURE p1 AS
+BEGIN
+SELECT f1();
+END;
+END;
+$$
+SET @a=10;
+CALL pkg1.p1;
+ERROR HY000: Cannot cast 'bigint' as 'sys_refcursor' in assignment of `f1()` for operation SET
+SET @a='test';
+CALL pkg1.p1;
+ERROR HY000: Cannot cast 'longblob' as 'sys_refcursor' in assignment of `f1()` for operation SET
+DROP PACKAGE pkg1;
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+FUNCTION f1 RETURN cur0_t AS
+BEGIN
+RETURN ROW(1,2); -- this raises the error
+END;
+PROCEDURE p1 AS
+BEGIN
+SELECT f1();
+END;
+END;
+$$
+CALL pkg1.p1;
+ERROR HY000: Cannot cast 'row' as 'sys_refcursor' in assignment of `f1()` for operation SET
+DROP PACKAGE pkg1;
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE cur1_t IS REF CURSOR;
+FUNCTION f1 RETURN cur0_t AS
+c1 cur1_t;
+BEGIN
+OPEN c1 FOR SELECT 1 AS a, 2 AS b, 3 AS c;
+RETURN c1;
+END;
+PROCEDURE p1 AS
+BEGIN
+SELECT f1();
+END;
+END;
+$$
+CALL pkg1.p1;
+ERROR HY000: Cannot cast 'row<3>' as 'row<2>' in assignment of `f1()` for operation SET
+DROP PACKAGE pkg1;
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE cur1_t IS REF CURSOR;
+FUNCTION f1 RETURN cur0_t AS
+c1 cur1_t;
+BEGIN
+OPEN c1 FOR SELECT 1 AS a, CAST('::' AS INET6) AS b;
+RETURN c1;
+END;
+PROCEDURE p1 AS
+BEGIN
+SELECT f1();
+END;
+END;
+$$
+CALL pkg1.p1;
+ERROR HY000: Cannot cast 'inet6' as 'time' in assignment of `f1()`.`b` for operation SET
+DROP PACKAGE pkg1;
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE cur1_t IS REF CURSOR;
+FUNCTION f1 RETURN cur0_t AS
+c1 cur1_t;
+BEGIN
+OPEN c1 FOR SELECT 1 AS a, '10:20:30 ' AS b;
+RETURN c1;
+END;
+PROCEDURE p1 AS
+c0 cur0_t;
+r0 rec0_t;
+BEGIN
+c0:= f1();
+FETCH c0 INTO r0;
+SELECT CONCAT('<',r0.a,'><',r0.b,'>') AS line;
+CLOSE c0;
+END;
+END;
+$$
+CALL pkg1.p1;
+line
+<1><10:20:30>
+DROP PACKAGE pkg1;
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE rec1_t IS RECORD (a INT, b TIME, c VARCHAR(10));
+TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+FUNCTION f1 RETURN cur0_t AS
+c1 cur1_t;
+BEGIN
+OPEN c1 FOR SELECT 1 AS a, '10:20:30' AS b, 'c1' AS c;
+RETURN c1;
+END;
+PROCEDURE p1 AS
+BEGIN
+SELECT f1();
+END;
+END;
+$$
+CALL pkg1.p1;
+ERROR HY000: Cannot cast 'row<3>' as 'row<2>' in assignment of `f1()` for operation SET
+DROP PACKAGE pkg1;
+CREATE TABLE t1 (a INT, b TIME);
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b INET6);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE cur1_t IS REF CURSOR RETURN t1%ROWTYPE;
+FUNCTION f1 RETURN cur0_t AS
+c1 cur1_t;
+BEGIN
+OPEN c1 FOR SELECT 1 AS a, TIME'10:20:30' AS b;
+RETURN c1;
+END;
+PROCEDURE p1 AS
+BEGIN
+SELECT f1();
+END;
+END;
+$$
+CALL pkg1.p1;
+ERROR HY000: Cannot cast 'time' as 'inet6' in assignment of `f1()`.`b` for operation SET
+DROP PACKAGE pkg1;
+DROP TABLE t1;
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(64));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE rec1_t IS RECORD (a INT, b VARCHAR(128));
+TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+FUNCTION f1 RETURN cur0_t AS
+c1 cur1_t;
+BEGIN
+OPEN c1 FOR SELECT 1 AS a, 'b1' AS b;
+RETURN c1;
+END;
+PROCEDURE p1 AS
+c1 cur1_t;
+r1 rec1_t;
+BEGIN
+c1:= f1();
+FETCH c1 INTO r1;
+SELECT CONCAT('<',r1.a,'><',r1.b,'>') AS line;
+CLOSE c1;
+END;
+END;
+$$
+CALL pkg1.p1;
+line
+<1><b1>
+DROP PACKAGE pkg1;

@@ -2243,7 +2243,8 @@ sp_instr_cpush::exec_core(THD *thd, uint *nextp)
   const Lex_ident_sys &ps_name= m_lex_keeper.lex()->get_lex_for_cursor()->
                                   get_ps_name();
 
-  return ps_name.is_null() ? c->open(thd) : c->open_from_ps(thd, ps_name);
+  return ps_name.is_null() ? c->open(thd, Lex_ident_column(), nullptr) :
+                             c->open_from_ps(thd, ps_name);
 }
 
 void
@@ -2451,7 +2452,7 @@ sp_instr_cfetch::execute(THD *thd, uint *nextp)
   int res;
   DBUG_ENTER("sp_instr_cfetch::execute");
 
-  res= c ? c->fetch(thd, &m_fetch_target_list, m_error_on_no_data) : -1;
+  res= c ? c->fetch(thd, NULL, &m_fetch_target_list, m_error_on_no_data) : -1;
 
   *nextp= m_ip+1;
   DBUG_RETURN(res);
@@ -2547,10 +2548,7 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cursor_copy_struct::exec_core");
   int ret= 0;
-  Item_field_row *row= (Item_field_row*) thd->spcont->get_variable(m_var);
-  DBUG_ASSERT(row->type_handler() == &type_handler_row);
-  DBUG_ASSERT(row->field);
-  DBUG_ASSERT(dynamic_cast<Field_row*>(row->field));
+  Item_field *var= thd->spcont->get_variable(m_var);
 
   /*
     Copy structure only once. If the cursor%ROWTYPE variable is declared
@@ -2559,13 +2557,12 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
     It we recreated the structure on every iteration, we would get
     potential memory leaks, and it would be less efficient.
   */
-  if (!row->arguments())
+  if (!var->field->virtual_tmp_table())
   {
     sp_cursor tmp(thd, true);
     // Open the cursor without copying data
-    if (!(ret= tmp.open(thd)))
+    if (!(ret= tmp.open(thd, Lex_ident_column(), nullptr)))
     {
-      Row_definition_list defs;
       /*
         Create row elements on the caller arena.
         It's the same arena that was used during sp_rcontext::create().
@@ -2581,9 +2578,7 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
       */
       Query_arena current_arena;
       thd->set_n_backup_active_arena(thd->spcont->callers_arena, &current_arena);
-      ret= tmp.export_structure(thd, &defs) ||
-           static_cast<Field_row*>(row->field)->row_create_fields(thd, &defs) ||
-           row->add_array_of_item_field(thd, *row->field->virtual_tmp_table());
+      ret= var->resolve_spvar_cursor_rowtype(thd, tmp);
       thd->restore_active_arena(thd->spcont->callers_arena, &current_arena);
       tmp.close(thd);
     }
@@ -2649,6 +2644,14 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
   uint set_placeholder_first_ip= set_placeholder_first ?
                                  set_placeholder_first->m_ip : 0;
   sp_cursor *cursor;
+
+  /*
+    REF variables cannot be declared in PACKAGE/PACKAGE BODY
+    So they can only reside in the local spcont:
+  */
+  Item_field *tmp= thd->spcont->get_variable(m_offset);
+  Virtual_tmp_table *return_type= tmp->field->virtual_tmp_table();
+
   if (thd->open_cursors_counter() < thd->variables.max_open_cursors)
   {
     // The limit allows to open new cursors
@@ -2669,7 +2672,7 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
     // TODO: check with DmitryS if hiding ROOT_FLAG_READ_ONLY is OK:
     auto flags_backup= thd->lex->query_arena()->mem_root->flags;
     thd->lex->query_arena()->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
-    int rc= !code ? cursor->open(thd) :
+    int rc= !code ? cursor->open(thd, m_cursor_name, return_type) :
                     cursor->open_from_dynamic_string(thd,
                                             set_placeholder_first_ip,
                                             m_set_ps_placeholder_count);
@@ -2696,7 +2699,8 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
     DBUG_RETURN(-1);
   }
   cursor->reset_for_reopen(thd);
-  DBUG_RETURN(!code ? cursor->open(thd, false/*don't check max_open_cursors*/) :
+  DBUG_RETURN(!code ? cursor->open(thd, m_cursor_name, return_type,
+                                   false/*don't check max_open_cursors*/) :
               cursor->open_from_dynamic_string(thd, set_placeholder_first_ip,
                                                m_set_ps_placeholder_count));
 }
@@ -2709,6 +2713,32 @@ sp_instr_copen_by_ref::print(String *str)
   print_cmd_and_array_element(str, instr,
                               m_deref_rcontext_handler->get_name_prefix()[0],
                               cursor_str, m_offset);
+  const sp_variable *var= m_rcontext_handler->get_pvariable(m_ctx, m_offset);
+  const sp_type_def_ref *attr= dynamic_cast<const sp_type_def_ref*>
+                                 (var->field_def.get_attr_const_generic_ptr(0));
+  if (attr)
+  {
+    const Spvar_definition &def= attr->def();
+    str->append(" return "_LEX_CSTRING);
+    if (def.is_row())
+    {
+      str->append(RowTypeBuffer(def.row_field_definitions()->elements).
+                    to_lex_cstring());
+    }
+    if (def.is_cursor_rowtype_ref())
+    {
+      const LEX_CSTRING *name= m_ctx->find_cursor(def.cursor_rowtype_offset());
+      str->append(name);
+      str->append('@');
+      str->append_ulonglong(def.cursor_rowtype_offset());
+      str->append("%ROWTYPE"_LEX_CSTRING);
+    }
+    if (def.is_table_rowtype_ref())
+    {
+      str->append(def.table_rowtype_ref()->table);
+      str->append("%ROWTYPE"_LEX_CSTRING);
+    }
+  }
 }
 
 
@@ -2756,7 +2786,9 @@ sp_instr_cfetch_by_ref::execute(THD *thd, uint *nextp)
   sp_cursor *cursor= Sp_rcontext_handler::get_open_cursor_or_error(thd, *this);
   if (!cursor)
     DBUG_RETURN(-1);
-  int res= cursor->fetch(thd, &m_fetch_target_list, m_error_on_no_data);
+  Item_field *item_field= thd->spcont->get_variable(m_offset);
+  Virtual_tmp_table *vtable= item_field->field->virtual_tmp_table();
+  int res= cursor->fetch(thd, vtable, &m_fetch_target_list, m_error_on_no_data);
   *nextp= m_ip + 1;
   DBUG_RETURN(res);
 }

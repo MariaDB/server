@@ -1,0 +1,175 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10152 Add support for TYPE .. IS REF CURSOR
+--echo #
+
+#
+# Various tests with data truncation happening because the data type
+# in SELECT list is wider than the data type in cursor's RETURN
+#
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(2));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c0 cur0_t;
+  v0, v1 TEXT;
+BEGIN
+  OPEN c0 FOR SELECT 1,space(3);
+  FETCH c0 INTO v0, v1;
+  SELECT v0, v1, length(v1);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(2));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c0 cur0_t;
+  r0 ROW(a INT, b VARCHAR(2));
+BEGIN
+  OPEN c0 FOR SELECT 1,space(3);
+  FETCH c0 INTO r0;
+  SELECT r0.a, r0.b, length(r0.b);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+CREATE TABLE t1 (a INT, b VARCHAR(2));
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR cursor_example IS SELECT * FROM t1;
+  TYPE cur0_t IS REF CURSOR RETURN cursor_example%ROWTYPE;
+  c0 cur0_t;
+  v0, v1 TEXT;
+BEGIN
+  OPEN c0 FOR SELECT 1,space(3);
+  FETCH c0 INTO v0, v1;
+  SELECT v0, v1, length(v1);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT, b VARCHAR(2));
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE cur0_t IS REF CURSOR RETURN t1%ROWTYPE;
+  c0 cur0_t;
+  v0, v1 TEXT;
+BEGIN
+  OPEN c0 FOR SELECT 1,space(3);
+  FETCH c0 INTO v0, v1;
+  SELECT v0, v1, length(v1);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT, b VARCHAR(2));
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b t1.b%TYPE);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c0 cur0_t;
+  v0, v1 TEXT;
+BEGIN
+  OPEN c0 FOR SELECT 1,space(3);
+  FETCH c0 INTO v0, v1;
+  SELECT v0, v1, length(v1);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(2));
+  r0 rec0_t;
+  TYPE cur0_t IS REF CURSOR RETURN r0%TYPE;
+  c0 cur0_t;
+  v0, v1 TEXT;
+BEGIN
+  OPEN c0 FOR SELECT 1,space(3);
+  FETCH c0 INTO v0, v1;
+  SELECT v0, v1, length(v1);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD(a INT, b VARCHAR(2));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  PROCEDURE p20 (c0 cur0_t) AS
+    r0 rec0_t;
+  BEGIN
+    FETCH c0 INTO r0;
+    SELECT r0.a, r0.b, length(r0.b);
+  END;
+  PROCEDURE p1 AS
+    c0 cur0_t;
+  BEGIN
+    OPEN c0 FOR SELECT 1 AS a, space(3) AS b;
+    CALL p20(c0);
+    CLOSE c0;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD(a INT, b VARCHAR(2));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  FUNCTION f1() RETURN cur0_t AS
+    c0 cur0_t;
+  BEGIN
+    OPEN c0 FOR SELECT 1 AS a, space(3) AS b;
+    RETURN c0;
+  END;
+  PROCEDURE p1 AS
+    c0 cur0_t;
+    r0 rec0_t;
+  BEGIN
+    c0:= f1();
+    FETCH c0 INTO r0;
+    SELECT r0.a, r0.b, length(r0.b);
+    CLOSE c0;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.p1;
+DROP PACKAGE pkg1;

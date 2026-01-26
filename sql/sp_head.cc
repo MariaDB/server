@@ -3901,6 +3901,7 @@ bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
 
 
 bool sp_head::add_open_cursor_for_stmt(THD *thd, sp_pcontext *spcont,
+                                      const Lex_ident_column &cursor_name,
                                       const sp_rcontext_ref &cursor_ref,
                                       sp_lex_cursor *stmt,
                                       List<sp_assignment_lex> *using_clause)
@@ -3914,7 +3915,8 @@ bool sp_head::add_open_cursor_for_stmt(THD *thd, sp_pcontext *spcont,
   DBUG_ASSERT(instructions() >= set_ps_placeholder_count);
 
   auto *i= new (thd->mem_root) sp_instr_copen_by_ref(instructions(),
-                                                     spcont, cursor_ref, stmt,
+                                                     spcont, cursor_name,
+                                                     cursor_ref, stmt,
                                                      set_ps_placeholder_count);
   return !i || add_instr(i);
 }

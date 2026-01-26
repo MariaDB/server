@@ -12388,3 +12388,7 @@ ER_SLAVE_INCOMPATIBLE_TABLE_DEF
         eng "Table structure for binlog event is not compatible with the table definition on this slave: %s"
 ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
         eng "Data type '%-.64s' doesn't support %s attribute."
+ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+        eng "Cannot cast '%s' as '%s' in assignment of %sQ for operation %s"
+ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION
+        eng "Cannot cast '%s' as '%s' in assignment of %sQ.%sQ for operation %s"

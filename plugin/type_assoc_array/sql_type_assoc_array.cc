@@ -2425,7 +2425,11 @@ bool Type_handler_assoc_array::
     return true;
   }
 
-  if (unlikely(tdef->def(1).type_handler() == this))
+  /*
+    Disallow complex types such as assoc array, ref cursors
+    as assoc array elements.
+  */
+  if (unlikely(tdef->def(1).type_handler()->is_complex()))
   {
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
              tdef->def(1).type_handler()->name().ptr(),

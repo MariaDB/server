@@ -2496,6 +2496,27 @@ public:
   bool sp_find_field_by_name_or_error(uint *idx,
                                       const LEX_CSTRING &var_name,
                                       const LEX_CSTRING &field_name) const;
+
+  /**
+    Check if the Item list has a compatible structure with "this"
+    in terms of assignability.
+  */
+  bool check_assignability_from(const List<Item> &items,
+                                const char *spvar_name,
+                                const char *op) const;
+
+  /**
+    Check if the table has a compatible structure with "this"
+    in terms of assignability.
+  */
+  bool check_assignability_from(const TABLE &table,
+                                const char *spvar_name,
+                                const char *op) const;
+
+  bool sp_set_from_select_list(THD *thd, const List<Item> &items);
+
+  bool sp_save_in_vtable(THD *thd, Virtual_tmp_table *to) const;
+  bool sp_save_in_target_list(THD *thd, const List<sp_fetch_target> &to) const;
 };
 
 
