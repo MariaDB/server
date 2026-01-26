@@ -3284,6 +3284,12 @@ public:
                                                               stmt_arena;
   }
 
+  /**
+   Check if the statement arena is marked as READ ONLY
+   */
+  inline bool is_read_only_arena() const
+  { return stmt_arena->mem_root->flags & ROOT_FLAG_READ_ONLY; }
+
   void *bulk_param;
 
   /*

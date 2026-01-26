@@ -52,3 +52,40 @@ BEGIN NOT ATOMIC
 END;
 $$
 DELIMITER ;$$
+
+--echo #
+--echo # MDEV-37109: Assertion in alloc_root fails when calling stored procedure with view
+--echo #
+
+create function f1() returns int
+  return 42;
+
+create view v1 as select f1();
+
+delimiter //;
+
+create procedure sp1()
+begin
+  declare a int;
+  set a = (select * from v1);
+end;
+//
+
+create function f2() returns int
+begin
+  call sp1();
+  return 42;
+end;
+//
+
+delimiter ;//
+
+select f2();
+call sp1();
+
+drop view v1;
+drop function f1;
+drop function f2;
+drop procedure sp1;
+
+--echo # End of 10.6 tests

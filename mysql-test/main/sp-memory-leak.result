@@ -40,3 +40,30 @@ $$
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ';
 CLOSE cur;
 END' at line 3
+#
+# MDEV-37109: Assertion in alloc_root fails when calling stored procedure with view
+#
+create function f1() returns int
+return 42;
+create view v1 as select f1();
+create procedure sp1()
+begin
+declare a int;
+set a = (select * from v1);
+end;
+//
+create function f2() returns int
+begin
+call sp1();
+return 42;
+end;
+//
+select f2();
+f2()
+42
+call sp1();
+drop view v1;
+drop function f1;
+drop function f2;
+drop procedure sp1;
+# End of 10.6 tests

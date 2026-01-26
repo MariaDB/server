@@ -5024,9 +5024,27 @@ bool DML_prelocking_strategy::handle_view(THD *thd,
   {
     *need_prelocking= TRUE;
 
+    Query_arena backup_arena, *save_arena= thd->stmt_arena;
+    bool arena_swapped= false;
+
+    if (thd->is_read_only_arena())
+    {
+        Query_arena common_arena(thd->mem_root,
+                                 Query_arena::STMT_CONVENTIONAL_EXECUTION);
+        thd->stmt_arena= &common_arena;
+        thd->set_n_backup_active_arena(&common_arena, &backup_arena);
+        arena_swapped= true;
+    }
+
     sp_update_stmt_used_routines(thd, prelocking_ctx,
-                                 &table_list->view->sroutines_list,
-                                 table_list->top_table());
+                                  &table_list->view->sroutines_list,
+                                  table_list->top_table());
+
+    if (arena_swapped)
+    {
+      thd->restore_active_arena(save_arena, &backup_arena);
+      thd->stmt_arena= save_arena;
+    }
   }
 
   /*
