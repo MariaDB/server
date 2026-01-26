@@ -3612,29 +3612,26 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
     };);
 #endif
 
-  /*
-    TODO : This would probably be good to have in some new function, shared
-    between serial and parallel code, to check if some given Log_event is valid
-    to be applied in the current state (and then we can refactor the code to
-    use this for existing checks, e.g. when finding a GTID if the last event
-    group never finished).
-  */
-  if (rgi->assembler && ev->get_type_code() != PARTIAL_ROW_DATA_EVENT)
+  if (reason == Log_event::EVENT_SKIP_NOT)
   {
-    rgi->rli->report(
-        ERROR_LEVEL, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM, rgi->gtid_info(),
-        ER_THD(rgi->thd, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM),
-        ev->get_type_str(), rgi->assembler->last_fragment_seen + 1,
-        rgi->assembler->total_fragments);
-    exec_res= ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM;
+    if (rgi->assembler && ev->get_type_code() != PARTIAL_ROW_DATA_EVENT &&
+        !ev->is_artificial_event() && !ev->is_relay_log_event())
+    {
+      rgi->rli->report(
+          ERROR_LEVEL, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM, rgi->gtid_info(),
+          ER_THD(rgi->thd, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM),
+          ev->get_type_str(), rgi->assembler->last_fragment_seen + 1,
+          rgi->assembler->total_fragments);
+      exec_res= ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM;
 
-    rgi->assembler->~Rows_log_event_assembler();
-    my_free(rgi->assembler);
-    rgi->assembler= NULL;
+      rgi->assembler->~Rows_log_event_assembler();
+      my_free(rgi->assembler);
+      rgi->assembler= NULL;
+    }
+
+    if (!exec_res)
+      exec_res= ev->apply_event(rgi);
   }
-
-  if (!exec_res && reason == Log_event::EVENT_SKIP_NOT)
-    exec_res= ev->apply_event(rgi);
 
 #ifdef WITH_WSREP
   if (WSREP(thd)) {
