@@ -22,6 +22,7 @@
 #include "mysql/plugin_function.h"
 #include "sp_instr.h"
 #include "sql_type.h"
+#include "sql_select.h"         // Virtual_tmp_table
 
 
 static constexpr LEX_CSTRING sys_refcursor_str=
@@ -121,11 +122,38 @@ public:
 };
 
 
+class Type_generic_attributes_sys_refcursor: public Type_generic_attributes
+{
+public:
+  /*
+    m_return_type represents the RETURN clause of a REF CURSOR variable.
+    If the REF CURSOR variable does not have a RETURN clause,
+    or is this is a SYS_REFCURSOR variable, then m_table is nullptr.
+  */
+  class Virtual_tmp_table *m_return_type;
+  Type_generic_attributes_sys_refcursor(Virtual_tmp_table *return_type)
+   :m_return_type(return_type)
+  { }
+  const Type_handler *type_handler() const override;
+};
 
 
 class Field_sys_refcursor final :public Field_short,
                                  public Sys_refcursor_traits
 {
+  Type_generic_attributes_sys_refcursor m_generic_attr;
+
+  bool check_assignability_from(const Type_handler *from,
+                                bool prefer_warning_not_error) const override
+  {
+    if (from == type_handler() ||
+        from == &type_handler_null)
+      return false;
+    my_error(ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION, MYF(0),
+             from->name().ptr(), type_handler()->name().ptr(),
+             field_name.str, "SET");
+    return false;
+  }
 
   int update_to_null(bool no_conversion)
   {
@@ -146,10 +174,38 @@ class Field_sys_refcursor final :public Field_short,
     DBUG_RETURN(0);
   }
 
+  /*
+    Check if the structure of m_statement_cursors(ref) is compatible
+    for assignment with "this".
+  */
+  bool check_assignability_from_ref(THD *thd, ulonglong ref)
+  {
+    DBUG_ENTER("Field_sys_refcursor::check_assignability_from");
+    if (!m_generic_attr.m_return_type)
+      DBUG_RETURN(false); // Weak cursor (no RETURN clause)
+
+    sp_cursor *sc= ref < thd->statement_cursors()->size() ?
+                   &thd->statement_cursors()->at(ref) :
+                   nullptr;
+    if (!sc)
+    {
+      DBUG_ASSERT(0);
+      DBUG_RETURN(false); // Should not happen
+    }
+    if (!sc->is_open())
+      DBUG_RETURN(false); // We're in sp_instr_copen_by_ref::exec_core()
+    if (sc->check_assignability_to(m_generic_attr.m_return_type,
+                                   field_name.str, "SET"))
+      DBUG_RETURN(true);
+    DBUG_RETURN(false);
+  }
+
   int update_to_not_null_ref(ulonglong ref)
   {
     DBUG_ENTER("Field_sys_refcursor::update_to_not_null");
     THD *thd= get_thd();
+    if (check_assignability_from_ref(thd, ref))
+      DBUG_RETURN(-1);
     const Type_ref_null old_value= val_ref(thd);
     set_notnull();
     int rc= store((longlong) ref, true/*unsigned*/);
@@ -160,15 +216,22 @@ class Field_sys_refcursor final :public Field_short,
 
 public:
   Field_sys_refcursor(const LEX_CSTRING &name, const Record_addr &addr,
+                      Virtual_tmp_table *return_type,
                       enum utype unireg_check_arg, uint32 len_arg)
     :Field_short(addr.ptr(), len_arg, addr.null_ptr(), addr.null_bit(),
-                 Field::NONE, &name, false/*zerofill*/, true/*unsigned*/)
+                 Field::NONE, &name, false/*zerofill*/, true/*unsigned*/),
+     m_generic_attr(return_type)
   {}
   void sql_type(String &res) const override
   {
     res.set_ascii(sys_refcursor_str.str, sys_refcursor_str.length);
   }
   const Type_handler *type_handler() const override;
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return Type_extra_attributes(&m_generic_attr);
+  }
+
   /*
     Field_sys_refcursor has a side effect.
     Cannot use memcpy when copying data from another field.
@@ -274,7 +337,45 @@ public:
     return nullptr;
   }
 
+  Virtual_tmp_table *virtual_tmp_table() const override
+  {
+    return m_generic_attr.m_return_type;
+  }
+
+  Item_field *make_item_field_spvar(THD *thd, const Spvar_definition &def)
+                                                                  override;
+
+  bool resolve_spvar_cursor_rowtype(THD *thd, const sp_cursor &cursor)
+  {
+    Row_definition_list defs;
+    return cursor.export_structure(thd, &defs) ||
+           !(m_generic_attr.m_return_type= create_virtual_tmp_table(thd, defs));
+  }
+
 };
+
+
+
+// An Item_field wrapper for an SP variable
+class Item_field_refcursor final: public Item_field
+{
+  using Item_field::Item_field;
+public:
+  bool resolve_spvar_cursor_rowtype(THD *thd, const sp_cursor &cursor) override
+  {
+    Field_sys_refcursor *fc= dynamic_cast<Field_sys_refcursor*>(field);
+    DBUG_ASSERT(fc);
+    return fc->resolve_spvar_cursor_rowtype(thd, cursor);
+  }
+};
+
+
+Item_field *Field_sys_refcursor::make_item_field_spvar(THD *thd,
+                                                   const Spvar_definition &def)
+{
+  return new (thd->mem_root) Item_field_refcursor(thd, this);
+}
+
 
 
 class Type_handler_sys_refcursor final: public Type_handler_int_result,
@@ -393,6 +494,22 @@ public:
 
   /*** Field and SP variable related methods ***/
 
+  /*
+    This method resolve type references in the returned record:
+      TYPE rec0_t IS RECORD (a t1.a%TYPE, b t1.b%TYPE); -- Notice references
+      TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+      c0 cur0_t;
+  */
+  bool Spvar_definition_resolve_type_refs(THD *thd, Spvar_definition *def)
+                                                            const override
+  {
+    const sp_type_def_ref *gattr= dynamic_cast<const sp_type_def_ref *>
+                                       (def->get_attr_const_generic_ptr(0));
+    if (!gattr || !gattr->def().is_row())
+      return false;
+    return gattr->def().row_field_definitions()->resolve_type_refs(thd);
+  }
+
   bool Spvar_definition_with_complex_data_types(Spvar_definition *def)
                                                         const override
   {
@@ -407,19 +524,185 @@ public:
                 item->save_int_in_field(field, no_conversions);
   }
 
+
+private:
+  /*
+    Return a Column_definition prepared up to stage1 for the cases when
+    cdef has an explicit record type in the RETURN clause
+    (not table%ROWTYPE, not cursor%ROWTYPE).
+
+    Return an empty Column_definition on error.
+
+    @param thd  - current THD
+    @param lex  - the LEX to get sphead from
+    @param cdef - a REF CURSOR variable definition with
+
+    This method covers the following cases:
+
+      (a) `RETURN record_t` clause, e.g.
+            TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+            TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+            c0 cur0_t;
+          In this case cdef is not prepared.
+
+      (b) `RETURN record_var%TYPE`, e.g.
+            TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+            r0 record0_t;
+            TYPE cur0_t REF CURSOR RETURN r0%TYPE;
+            c0 cur0_t;
+          In this case cdef is already fully prepared.
+  */
+  Column_definition definition_row_stage1(THD *thd, LEX *lex,
+                                          const Column_definition &cdef)
+                                                                  const
+  {
+    const sp_type_def_ref *gattr= dynamic_cast<const sp_type_def_ref *>
+                                    (cdef.get_attr_const_generic_ptr(0));
+    DBUG_ASSERT(gattr && gattr->def().is_row());
+    DBUG_ASSERT(gattr->type_handler() == this);
+    DBUG_ASSERT(gattr->def().type_handler() == &type_handler_row);
+    Row_definition_list *row= gattr->def().row_field_definitions()->
+                                             deep_copy(thd);
+    if (!row)
+      return Column_definition(); // EOM
+    if (!gattr->is_prepared() &&
+        thd->lex->sphead->row_fill_field_definitions(thd, row))
+      return Column_definition(); // Error
+
+    Column_definition cdef2(cdef);
+    Spvar_definition gattr2_def(gattr->def().type_handler(), row);
+    sp_type_def_ref *gattr2=
+      new (thd->mem_root) sp_type_def_ref(gattr->get_name(),
+                                          gattr->type_handler(),
+                                          gattr2_def, true/*is_prepared*/);
+    if (!gattr2)
+      return Column_definition(); // EOM
+    cdef2.set_attr_const_generic_ptr(0, gattr2);
+    DBUG_ASSERT(cdef.type_handler() == cdef2.type_handler());
+    DBUG_ASSERT(gattr->type_handler() == gattr2->type_handler());
+    DBUG_ASSERT(gattr->def().type_handler() == gattr2->def().type_handler());
+    if (!gattr->is_prepared())
+      cdef2.prepare_stage1_simple(&my_charset_bin);
+    return cdef2;
+  }
+
+
+  bool sp_variable_declarations_finalize_simple(THD *thd, LEX *lex, int nvars,
+                                                const Column_definition &cdef)
+                                                                        const
+  {
+    Column_definition tmp(cdef);
+    if (lex->sphead->fill_spvar_definition(thd, &tmp))
+      return true;
+    lex->spcont->set_type_for_last_context_variables(tmp, (uint) nvars);
+    return false;
+  }
+
+
+public:
+  bool Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        column_definition_type_t type,
+                                        const Column_derived_attributes
+                                              *derived_attr) const override
+  {
+    const sp_type_def_ref *gattr= dynamic_cast<const sp_type_def_ref *>
+                                    (def->get_attr_const_generic_ptr(0));
+    if (gattr && gattr->def().is_row())
+    {
+      Column_definition cdef2= definition_row_stage1(thd, thd->lex, *def);
+      if (cdef2.type_handler() == &type_handler_null)
+        return true; // Error
+      *def= cdef2;
+      return false;
+    }
+    def->prepare_stage1_simple(&my_charset_bin);
+    return false;
+  }
+
+  bool sp_variable_declarations_finalize(THD *thd,
+                                         LEX *lex, int nvars,
+                                         const Column_definition &cdef)
+                                                         const override
+  {
+    const sp_type_def_ref *gattr= dynamic_cast<const sp_type_def_ref *>
+                                    (cdef.get_attr_const_generic_ptr(0));
+
+    if (!gattr)
+    {
+      // c0 SYS_REFCURSOR;
+      return sp_variable_declarations_finalize_simple(thd, lex, nvars, cdef);
+    }
+
+    if (gattr->def().is_table_rowtype_ref())
+    {
+      lex->sphead->m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
+      return sp_variable_declarations_finalize_simple(thd, lex, nvars, cdef);
+    }
+    if (gattr->def().is_cursor_rowtype_ref())
+    {
+      uint cursor_offset= gattr->def().cursor_rowtype_offset();
+      if (lex->make_sp_instr_copy_struct_for_last_context_variables(thd,
+                                                                (uint) nvars,
+                                                                cursor_offset))
+        return true;
+      lex->sphead->m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
+      return sp_variable_declarations_finalize_simple(thd, lex, nvars, cdef);
+    }
+    if (gattr->def().is_row())
+    {
+      Column_definition cdef2= definition_row_stage1(thd, lex, cdef);
+      if (cdef2.type_handler() == &type_handler_null ||
+          cdef2.prepare_stage2(nullptr, HA_CAN_GEOMETRY))
+        return true; // Error
+      cdef2.pack_flag|= FIELDFLAG_MAYBE_NULL;
+      lex->spcont->set_type_for_last_context_variables(cdef2, (uint) nvars);
+      return false;
+    }
+    /*
+      TYPE cur0_t IS REF CURSOR; -- No RETURN clause
+      c0 cur0_t;
+    */
+    return sp_variable_declarations_finalize_simple(thd, lex, nvars, cdef);
+  }
+
   Field *make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *root,
                                    const LEX_CSTRING *name,
                                    const Record_addr &rec, const Bit_addr &bit,
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const override
   {
+    Virtual_tmp_table *return_type= nullptr;
+    const sp_type_def_ref *gattr= dynamic_cast<const sp_type_def_ref *>
+                                        (attr->get_attr_const_generic_ptr(0));
+    if (gattr && gattr->def().is_row())
+    {
+      // A REF CURSOR RETURN variable with an explicit RECORD
+      if (!(return_type= create_virtual_tmp_table(current_thd,
+                                       *gattr->def().row_field_definitions())))
+        return nullptr;
+    }
+
+    if (gattr && gattr->def().is_table_rowtype_ref())
+    {
+      // A REF CURSOR RETURN t1%ROWTYPE variable
+      Row_definition_list defs;
+      if (gattr->def().table_rowtype_ref()->resolve_table_rowtype_ref(
+                                                                   current_thd,
+                                                                   defs))
+        return nullptr;
+      if (!(return_type= create_virtual_tmp_table(current_thd, defs)))
+        return nullptr;
+    }
     /*
       Create a Field as a storage for an SP variable.
       Note, creating a field for a real table is prevented in these methods:
       - make_table_field()
       - Column_definition_set_attributes()
     */
-    return new (root) Field_sys_refcursor(*name, rec, attr->unireg_check,
+    return new (root) Field_sys_refcursor(*name, rec, return_type,
+                                          attr->unireg_check,
                                           (uint32) attr->length);
   }
 
@@ -542,9 +825,53 @@ public:
                                        Item **items, uint nitems) const override
   {
     /*
-      Suppress the inherited behavior which converts the data type
-      from *INT to NEWDECIMAL if arguments have different signess.
+      Override to:
+      - Suppress the inherited behavior which converts the data type
+        from *INT to NEWDECIMAL if arguments have different signess, and
+      - Aggregate the RETURN type
     */
+    DBUG_ASSERT(nitems > 0);
+    DBUG_ASSERT(func->type_extra_attributes_addr());
+    bool refcursor_found= false;
+    for (uint i= 0; i < nitems; i++)
+    {
+      if (items[i]->type_handler() == &type_handler_null)
+        continue;
+      // The below assert is garantied by Type_handler_cursor::aggregate_common
+      DBUG_ASSERT(items[i]->type_handler() == this);
+
+      if (!refcursor_found)
+      {
+        /*
+          The first REF CURSOR after optional explicit NULLs
+            COALESCE(NULL, ref_cursor)
+        */
+        *func->type_extra_attributes_addr()= items[i]->type_extra_attributes();
+        refcursor_found= true;
+        continue;
+      }
+      const Type_generic_attributes_sys_refcursor *attr0=
+        dynamic_cast<const Type_generic_attributes_sys_refcursor*>
+          (func->type_extra_attributes().get_attr_const_generic_ptr(0));
+      const Type_generic_attributes_sys_refcursor *attr1=
+        dynamic_cast<const Type_generic_attributes_sys_refcursor*>
+          (items[i]->type_extra_attributes().get_attr_const_generic_ptr(0));
+      if (attr0 && attr1)
+      {
+        /*
+          attrX->m_return_type contain the structure of the cursors' RETURN
+          data types. If either of them is NULL, we have a weak cursor
+          (without the RETURN clause).
+          If both are not NULL, check their compatibility:
+            COALESCE(strong_cursor1, strong_cursor2)
+        */
+        if (attr0->m_return_type && attr1->m_return_type &&
+            attr0->m_return_type->check_assignability_from(
+              attr1->m_return_type[0], nullptr, name.str))
+          return true;
+      }
+    }
+    DBUG_ASSERT(refcursor_found);
     return false;
   }
 
@@ -806,6 +1133,12 @@ const Type_handler *Type_handler_sys_refcursor::singleton()
 }
 
 const Type_handler *Field_sys_refcursor::type_handler() const
+{
+  return &type_handler_sys_refcursor;
+}
+
+const Type_handler *
+Type_generic_attributes_sys_refcursor::type_handler() const
 {
   return &type_handler_sys_refcursor;
 }

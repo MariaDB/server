@@ -1,0 +1,207 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+#
+# RETURN var%TYPE - bad qualified identifiers
+#
+CREATE PROCEDURE p1 AS
+TYPE cur0_t IS REF CURSOR RETURN cat1.db1.t1.v0%TYPE;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.v0%TYPE;
+BEGIN
+NULL;
+END' at line 2
+CREATE PROCEDURE p1 AS
+TYPE cur0_t IS REF CURSOR RETURN db1.t1.v0%TYPE;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TYPE;
+BEGIN
+NULL;
+END' at line 2
+CREATE PROCEDURE p1 AS
+TYPE cur0_t IS REF CURSOR RETURN t1.v0%TYPE;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TYPE;
+BEGIN
+NULL;
+END' at line 2
+#
+# RETURN var%TYPE - wrong data types
+#
+CREATE PROCEDURE p1 AS
+TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: Undeclared variable: v0
+CREATE PROCEDURE p1 AS
+v0 INT;
+TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type int for operation 'REF CURSOR RETURN'
+CREATE PROCEDURE p1 AS
+TYPE rec0_t IS RECORD (a INT, b SYS_REFCURSOR);
+v0 rec0_t;
+TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'REF CURSOR RETURN'
+#
+# Non-Oracle style: %TYPE of an explicit ROW variable
+#
+CREATE PROCEDURE p1 IS
+v0 ROW(a INT, b VARCHAR(10));
+TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+c0 cur0_t;
+BEGIN
+OPEN c0 FOR SELECT 1,'2 ' FROM DUAL;
+FETCH c0 INTO v0;
+SELECT LENGTH(v0.a) || ' ' || LENGTH(v0.b) || ' <'|| v0.a || '><'|| v0.b || '>' AS line;
+CLOSE c0;
+END;
+$$
+CALL p1;
+line
+1 2 <1><2 >
+DROP PROCEDURE p1;
+#
+# TYPE cur0_t IS REF CURSOR RETURN v0%TYPE
+# where v0 is of an explicit RECORD
+#
+CREATE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+v0 rec0_t;
+TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+c0 cur0_t;
+BEGIN
+OPEN c0 FOR SELECT 1,'2 ' FROM DUAL;
+FETCH c0 INTO v0;
+SELECT LENGTH(v0.a) || ' ' || LENGTH(v0.b) || ' <'|| v0.a || '><'|| v0.b || '>' AS line;
+CLOSE c0;
+END;
+$$
+CALL p1;
+line
+1 2 <1><2 >
+DROP PROCEDURE p1;
+#
+# TYPE cur0_t IS REF CURSOR RETURN v1%TYPE
+# where v1 is of v0%TYPE where v0 is an explicit RECORD
+#
+CREATE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+v0 rec0_t;
+v1 v0%TYPE;
+TYPE cur0_t IS REF CURSOR RETURN v1%TYPE;
+c0 cur0_t;
+BEGIN
+OPEN c0 FOR SELECT 1,'2 ' FROM DUAL;
+FETCH c0 INTO v0;
+SELECT LENGTH(v0.a) || ' ' || LENGTH(v0.b) || ' <'|| v0.a || '><'|| v0.b || '>' AS line;
+CLOSE c0;
+END;
+$$
+CALL p1;
+line
+1 2 <1><2 >
+DROP PROCEDURE p1;
+#
+# TYPE cur0_t IS REF CURSOR RETURN v0%TYPE
+# where v0 is table%ROWTYPE
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1, '2 ');
+CREATE PROCEDURE p1 IS
+v0 t1%ROWTYPE;
+TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+c0 cur0_t;
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0;
+SELECT LENGTH(v0.a) || ' ' || LENGTH(v0.b) || ' <'|| v0.a || '><'|| v0.b || '>' AS line;
+CLOSE c0;
+END;
+$$
+CALL p1;
+line
+1 2 <1><2 >
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(2));
+CREATE PROCEDURE p1 AS
+r0 t1%ROWTYPE;
+TYPE cur0_t IS REF CURSOR RETURN r0%TYPE;
+c0 cur0_t;
+v0, v1 TEXT;
+BEGIN
+OPEN c0 FOR SELECT 1,space(3);
+FETCH c0 INTO v0, v1;
+SELECT v0, v1, length(v1);
+END;
+$$
+CALL p1;
+v0	v1	length(v1)
+1	  	2
+Warnings:
+Note	1265	Data truncated for column 'b' at row 1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# TYPE cur0_t IS REF CURSOR RETURN v0%TYPE
+# where v0 is cursor%ROWTYPE
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1, '2 ');
+CREATE PROCEDURE p1 IS
+CURSOR cursor_sample IS SELECT * FROM t1;
+v0 cursor_sample%ROWTYPE;
+TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+c0 cur0_t;
+BEGIN
+OPEN c0 FOR SELECT * FROM t1;
+FETCH c0 INTO v0;
+SELECT LENGTH(v0.a) || ' ' || LENGTH(v0.b) || ' <'|| v0.a || '><'|| v0.b || '>' AS line;
+CLOSE c0;
+END;
+$$
+CALL p1;
+line
+1 2 <1><2 >
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(2));
+CREATE PROCEDURE p1 AS
+CURSOR cursor_example IS SELECT * FROM t1;
+r0 cursor_example%ROWTYPE;
+TYPE cur0_t IS REF CURSOR RETURN r0%TYPE;
+c0 cur0_t;
+v0, v1 TEXT;
+BEGIN
+OPEN c0 FOR SELECT 1,space(3);
+FETCH c0 INTO v0, v1;
+SELECT v0, v1, length(v1);
+END;
+$$
+CALL p1;
+v0	v1	length(v1)
+1	  	2
+Warnings:
+Note	1265	Data truncated for column 'b' at row 1
+DROP PROCEDURE p1;
+DROP TABLE t1;

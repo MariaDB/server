@@ -1,0 +1,158 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0 cur0_t;
+BEGIN
+c0:= 10;
+END;
+$$
+CALL p1;
+ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `c0` for operation SET
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0 cur0_t;
+BEGIN
+c0:= @a;
+END;
+$$
+SET @a=10;
+CALL p1;
+ERROR HY000: Cannot cast 'bigint' as 'sys_refcursor' in assignment of `c0` for operation SET
+SET @a='test';
+CALL p1;
+ERROR HY000: Cannot cast 'longblob' as 'sys_refcursor' in assignment of `c0` for operation SET
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0 cur0_t;
+BEGIN
+c0:= ROW(1,TIME'10:20:30');
+END;
+$$
+CALL p1;
+ERROR HY000: Cannot cast 'row' as 'sys_refcursor' in assignment of `c0` for operation SET
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE cur1_t IS REF CURSOR;
+c0 cur0_t;
+c1 cur1_t;
+BEGIN
+OPEN c1 FOR SELECT 1 AS a,TIME'10:20:30',10 AS b;
+c0:= c1;
+CLOSE c1;
+END;
+$$
+CALL p1;
+ERROR HY000: Cannot cast 'row<3>' as 'row<2>' in assignment of `c0` for operation SET
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b INET6);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE cur1_t IS REF CURSOR;
+c0 cur0_t;
+c1 cur1_t;
+BEGIN
+OPEN c1 FOR SELECT 1 AS a,TIME'10:20:30' AS b;
+c0:= c1;
+CLOSE c1;
+END;
+$$
+CALL p1;
+ERROR HY000: Cannot cast 'time' as 'inet6' in assignment of `c0`.`b` for operation SET
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE cur1_t IS REF CURSOR;
+c0 cur0_t;
+c1 cur1_t;
+v0a INT;
+v0b TIME;
+BEGIN
+OPEN c1 FOR SELECT 1 AS a,TIME'10:20:30' AS b;
+c0:= c1;
+FETCH c0 INTO v0a, v0b;
+CLOSE c1;
+SELECT v0a, v0b;
+END;
+$$
+CALL p1;
+v0a	v0b
+1	10:20:30
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE rec0_t IS RECORD (a INT, b TIME, c VARCHAR(10));
+TYPE rec1_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+c0 cur0_t;
+c1 cur1_t;
+a INT;
+BEGIN
+OPEN c0 FOR SELECT 1 AS a, TIME'10:20:30' AS b, 'c' AS c;
+c1:= c0;
+END;
+$$
+CALL p1;
+ERROR HY000: Cannot cast 'row<3>' as 'row<2>' in assignment of `c1` for operation SET
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE rec0_t IS RECORD (a INT,b INET6);
+TYPE rec1_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+c0 cur0_t;
+c1 cur1_t;
+a INT;
+BEGIN
+OPEN c0 FOR SELECT 1 AS a,CAST('::' AS INET6) AS b;
+c1:= c0;
+END;
+$$
+CALL p1;
+ERROR HY000: Cannot cast 'inet6' as 'time' in assignment of `c1`.`b` for operation SET
+DROP PROCEDURE p1;
+CREATE TABLE t1 (a INT, b UUID);
+CREATE PROCEDURE p1 AS
+TYPE rec0_t IS RECORD (a INT,b INET6);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE cur1_t IS REF CURSOR RETURN t1%ROWTYPE;
+c0 cur0_t;
+c1 cur1_t;
+a INT;
+BEGIN
+OPEN c0 FOR SELECT 1 AS a, CAST('::' AS INET6) AS b;
+c1:= c0;
+END;
+$$
+CALL p1;
+ERROR HY000: Cannot cast 'inet6' as 'uuid' in assignment of `c1`.`b` for operation SET
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0, c1 cur0_t;
+v0a INT;
+v0b TIME;
+BEGIN
+OPEN c1 FOR SELECT 1 AS a,TIME'10:20:30' AS b;
+c0:= c1;
+FETCH c0 INTO v0a, v0b;
+CLOSE c1;
+SELECT v0a, v0b;
+END;
+$$
+CALL p1;
+v0a	v0b
+1	10:20:30
+DROP PROCEDURE p1;
