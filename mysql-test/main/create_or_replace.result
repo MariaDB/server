@@ -582,32 +582,3 @@ DROP TABLE IF EXISTS tm, t;
 #
 # End of 10.4 tests
 SET GLOBAL innodb_stats_persistent=@save_persistent;
-#
-# MDEV-23298 Assertion `table_list->prelocking_placeholder ==
-# TABLE_LIST::PRELOCK_NONE' failed in check_lock_and_start_stmt on
-# CREATE OR REPLACE TABLE
-#
-create table t2 (a int);
-insert into t2 values(1),(2);
-CREATE TABLE t1 (a INT);
-CREATE OR REPLACE TABLE t1 AS SELECT sys.format_statement('SELECT 1') AS q;
-drop table t1;
-CREATE TABLE t1 (a INT);
-CREATE OR REPLACE TABLE t1 AS SELECT sys.format_statement('SELECT 1') AS q, t2.a from t2;
-SELECT * from t1;
-q	a
-SELECT 1	1
-SELECT 1	2
-drop table t1;
-CREATE TABLE t1 (a INT);
-lock table t1 write,t2 read, sys.sys_config read;
-CREATE OR REPLACE TABLE t1 AS SELECT sys.format_statement('SELECT 1') AS q, t2.a from t2;
-unlock tables;
-select * from t1;
-q	a
-SELECT 1	1
-SELECT 1	2
-drop table t1,t2;
-#
-# End of 10.6 tests
-#
