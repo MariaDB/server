@@ -164,6 +164,12 @@ explain update t set c=1 where exists (
 select * union select * from t order by c=row_number() over t;
 explain update t set c=1 where exists (
   select * union select * from t order by c=row_number() over t);
+explain update t set c=1 where exists (
+  select * union select nullif(avg(1) over (order by 1), avg(1) over (order by 1)) x
+  from t order by x=row_number() over t);
+explain update t set c=1 where exists (
+  select * union select nullif(avg(1) over (order by 1), avg(1) over (order by 1)) x
+  from t order by x=avg(row_number() over t));
 drop table t;
 
 --echo #
