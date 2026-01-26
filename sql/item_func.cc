@@ -783,21 +783,21 @@ void Item_udf_func::fix_num_length_and_dec()
 #endif
 
 
+static void signal_log_domain_error(uint sql_errno)
+{
+  THD *thd= current_thd;
+  if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, sql_errno,
+                 ER_THD(thd, sql_errno));
+}
+
+
 void Item_func::signal_divide_by_null()
 {
   THD *thd= current_thd;
   if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO,
                  ER_THD(thd, ER_DIVISION_BY_ZERO));
-  null_value= 1;
-}
-
-void Item_func::signal_log_domain_error(uint sql_errno)
-{
-  THD *thd= current_thd;
-  if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, sql_errno,
-                 ER_THD(thd, sql_errno));
   null_value= 1;
 }
 
@@ -2031,6 +2031,7 @@ double Item_func_ln::val_real()
   if (value <= 0.0)
   {
     signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LN);
+    null_value= 1;
     return 0.0;
   }
   return log(value);
@@ -2056,11 +2057,13 @@ double Item_func_log::val_real()
     if (base <= 0.0 || base == 1.0)
     {
       signal_log_domain_error(ER_INVALID_BASE_FOR_LOG);
+      null_value= 1;
       return 0.0;
     }
     if (value <= 0.0)
     {
       signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOG);
+      null_value= 1;
       return 0.0;
     }
     return log(value) / log(base);
@@ -2068,6 +2071,7 @@ double Item_func_log::val_real()
   if (base <= 0.0)
   {
     signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOG);
+    null_value= 1;
     return 0.0;
   }
   return log(base);
@@ -2083,6 +2087,7 @@ double Item_func_log2::val_real()
   if (value <= 0.0)
   {
     signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOG2);
+    null_value= 1;
     return 0.0;
   }
   return log(value) / M_LN2;
@@ -2097,6 +2102,7 @@ double Item_func_log10::val_real()
   if (value <= 0.0)
   {
     signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOG10);
+    null_value= 1;
     return 0.0;
   }
   return log10(value);
