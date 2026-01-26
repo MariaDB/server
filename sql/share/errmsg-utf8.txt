@@ -12402,3 +12402,7 @@ ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED
         eng "Failed to parse saved optimizer context: %s at offset %d."
 ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED
         eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in %s"
+ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+        eng "Cannot cast '%s' as '%s' in assignment of %sQ for operation %s"
+ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION
+        eng "Cannot cast '%s' as '%s' in assignment of %sQ.%sQ for operation %s"

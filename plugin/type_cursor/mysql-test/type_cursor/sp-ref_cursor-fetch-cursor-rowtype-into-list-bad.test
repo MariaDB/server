@@ -1,0 +1,19 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10152 Add support for TYPE .. IS REF CURSOR
+--echo #
+
+# Using cursor%ROWTYPE
+
+--let $decl_cursor_sample1=CURSOR cursor_sample1 IS SELECT * FROM t1;
+--let $decl_var_sample1=/*empty*/
+--let $return=cursor_sample1%ROWTYPE
+--source sp-ref_cursor-fetch-into-list-bad.inc
+
+# Using var%TYPE
+
+--let $decl_cursor_sample1=CURSOR cursor_sample IS SELECT * FROM t1;
+--let $decl_var_sample1=var_sample cursor_sample%ROWTYPE;
+--let $return=var_sample%TYPE
+--source sp-ref_cursor-fetch-into-list-bad.inc

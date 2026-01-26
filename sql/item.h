@@ -133,6 +133,7 @@ struct KEY_FIELD;
 struct SARGABLE_PARAM;
 class RANGE_OPT_PARAM;
 class SEL_TREE;
+class sp_cursor;
 
 enum precedence {
   LOWEST_PRECEDENCE,
@@ -3347,6 +3348,10 @@ public:
   Type type() const override { return m_type; }
   const Type_handler *type_handler() const override
   { return Type_handler_hybrid_field_type::type_handler(); }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return this_item()->type_extra_attributes();
+  }
   uint cols() const override { return this_item()->cols(); }
   Item* element_index(uint i) override
   { return this_item()->element_index(i); }
@@ -3831,6 +3836,18 @@ public:
   */
   Item_field(THD *thd, Field *field);
   Type type() const override { return FIELD_ITEM; }
+  /*
+    Resolve the data type from a cursor.
+    Example 1:
+      r0 cursor0%ROWTYPE;
+    Example 2:
+      c0 IS REF CURSOR RETURN cursor0%ROWTYPE;
+  */
+  virtual bool resolve_spvar_cursor_rowtype(THD *thd, const sp_cursor &cursor)
+  {
+    DBUG_ASSERT(0);
+    return false;
+  }
   bool eq(const Item *item, const Eq_config &config) const override;
   double val_real() override;
   longlong val_int() override;
@@ -4090,6 +4107,8 @@ public:
     }
     return false;
   }
+  virtual bool resolve_spvar_cursor_rowtype(THD *thd, const sp_cursor &cursor)
+                                                                     override;
 
 protected:
   Item *shallow_copy(THD *thd) const override
