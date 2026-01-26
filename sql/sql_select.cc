@@ -1553,10 +1553,20 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     }
   }
 
+#ifndef DBUG_OFF
+  uint dbug_elements= all_fields.elements;
+  DBUG_PRINT("ref_array", ("Parser requires %u elements", dbug_elements));
+#endif
+
   if (setup_fields(thd, ref_ptrs, fields_list, MARK_COLUMNS_READ,
                    &all_fields, &select_lex->pre_fix, 1))
     DBUG_RETURN(-1);
   thd->lex->current_select->context_analysis_place= save_place;
+
+#ifndef DBUG_OFF
+  DBUG_PRINT("ref_array", ("setup_fields() requires %u elements", all_fields.elements - dbug_elements));
+  dbug_elements= all_fields.elements;
+#endif
 
   if (setup_without_group(thd, ref_ptrs, tables_list,
                           select_lex->leaf_tables, fields_list,
@@ -1565,6 +1575,11 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
                           select_lex->window_funcs,
                           &hidden_group_fields))
     DBUG_RETURN(-1);
+
+#ifndef DBUG_OFF
+  DBUG_PRINT("ref_array", ("setup_without_group() requires %u elements", all_fields.elements - dbug_elements));
+  dbug_elements= all_fields.elements;
+#endif
 
   /*
     Permanently remove redundant parts from the query if
@@ -1599,6 +1614,10 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     }
     thd->lex->allow_sum_func= save_allow_sum_func;
     select_lex->order_list.empty();
+#ifndef DBUG_OFF
+    DBUG_PRINT("ref_array", ("find_order_in_list() requires %u elements", all_fields.elements - dbug_elements));
+    dbug_elements= all_fields.elements;
+#endif
   }
 
   if (having)
@@ -1707,6 +1726,11 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
        can produce a meaningful sorted set. */
     if (!requires_sorting)
       order= NULL;
+
+#ifndef DBUG_OFF
+    DBUG_PRINT("ref_array", ("ORDER requires %u elements", all_fields.elements - dbug_elements));
+    dbug_elements= all_fields.elements;
+#endif
   }
   else
   {
@@ -1719,8 +1743,14 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   }
 
   if (having && (having->with_sum_func() || having->with_rownum_func()))
+  {
     having->split_sum_func2(thd, ref_ptrs, all_fields,
                             &having, SPLIT_SUM_SKIP_REGISTERED);
+#ifndef DBUG_OFF
+    DBUG_PRINT("ref_array", ("HAVING requires %u elements", all_fields.elements - dbug_elements));
+    dbug_elements= all_fields.elements;
+#endif
+  }
   if (select_lex->inner_sum_func_list)
   {
     Item_sum *end=select_lex->inner_sum_func_list;
@@ -1731,11 +1761,22 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
       item_sum->split_sum_func2(thd, ref_ptrs,
                                 all_fields, item_sum->ref_by, 0);
     } while (item_sum != end);
+#ifndef DBUG_OFF
+    DBUG_PRINT("ref_array", ("inner_sum_func requires %u elements", all_fields.elements - dbug_elements));
+    dbug_elements= all_fields.elements;
+#endif
   }
 
-  if (select_lex->inner_refs_list.elements &&
-      fix_inner_refs(thd, all_fields, select_lex, ref_ptrs))
-    DBUG_RETURN(-1);
+  if (select_lex->inner_refs_list.elements)
+  {
+    if (fix_inner_refs(thd, all_fields, select_lex, ref_ptrs))
+      DBUG_RETURN(-1);
+#ifndef DBUG_OFF
+    DBUG_PRINT("ref_array", ("inner_refs requires %u elements", all_fields.elements - dbug_elements));
+    dbug_elements= all_fields.elements;
+#endif
+
+  }
 
   if (group_list)
   {
@@ -1759,7 +1800,13 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
         ord->item= &ref_ptrs[el];
       }
     }
+#ifndef DBUG_OFF
+    DBUG_PRINT("ref_array", ("group_list requires %u elements", all_fields.elements - dbug_elements));
+    dbug_elements= all_fields.elements;
+#endif
   }
+
+  DBUG_PRINT("ref_array", ("Total of %u elements used", all_fields.elements));
 
   /*
     Check if there are references to un-aggregated columns when computing 
