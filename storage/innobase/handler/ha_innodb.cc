@@ -1537,7 +1537,7 @@ static void innodb_drop_database(handlerton*, char *path)
       log_write_up_to(mtr.commit_lsn(), true);
   }
 
-  trx->free();
+  trx->clear_and_free();
   my_free(namebuf);
 }
 
@@ -1989,7 +1989,7 @@ fail:
 
 all_fail:
   mtr.commit();
-  trx->free();
+  trx->clear_and_free();
   ut_free(pcur.old_rec_buf);
   ut_d(purge_sys.resume_FTS());
 }
@@ -2684,6 +2684,7 @@ trx_deregister_from_2pc(
 {
   trx->is_registered= false;
   trx->active_commit_ordered= false;
+  trx->commit_lsn= 0;
   trx->active_prepare= false;
 }
 
@@ -2813,7 +2814,6 @@ static int innobase_rollback_by_xid(XID *xid) noexcept
     trx_deregister_from_2pc(trx);
     THD* thd= trx->mysql_thd;
     dberr_t err= trx_rollback_for_mysql(trx);
-    ut_ad(!trx->will_lock);
     trx->free();
     return convert_error_code_to_mysql(err, 0, thd);
   }
@@ -13255,7 +13255,7 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
           log_write_up_to(trx->commit_lsn, true);
         info.table()->release();
       }
-      trx->free();
+      trx->clear_and_free();
     }
   }
   else if (!error && m_prebuilt)
@@ -13700,6 +13700,7 @@ err_exit:
   for (pfs_os_file_t d : deleted)
     os_file_close(d);
   log_write_up_to(trx->commit_lsn, true);
+  trx->commit_lsn= 0;
   if (trx != parent_trx)
     trx->free();
   if (!fts)
@@ -13844,7 +13845,7 @@ int ha_innobase::truncate()
       m_prebuilt->stored_select_lock_type= stored_lock;
     }
 
-    trx->free();
+    trx->clear_and_free();
 
 #ifdef BTR_CUR_HASH_ADAPT
     if (UT_LIST_GET_LEN(ib_table->freed_indexes))
@@ -14007,7 +14008,7 @@ int ha_innobase::truncate()
     }
   }
 
-  trx->free();
+  trx->clear_and_free();
   if (!stats_failed)
     stats.close();
   mem_heap_free(heap);
@@ -14207,7 +14208,7 @@ ha_innobase::rename_table(
 		log_write_up_to(trx->commit_lsn, true);
 	}
 	trx->flush_log_later = false;
-	trx->free();
+	trx->clear_and_free();
 	if (!stats_fail) {
 		stats.close();
 	}
@@ -17313,7 +17314,6 @@ innobase_commit_by_xid(
 		innobase_commit_low(trx);
 		ut_ad(trx->mysql_thd == NULL);
 		trx_deregister_from_2pc(trx);
-		ut_ad(!trx->will_lock);    /* trx cache requirement */
 		trx->free();
 
 		return(XA_OK);

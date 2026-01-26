@@ -2554,7 +2554,7 @@ func_exit:
 		}
 	}
 
-	trx->free();
+	trx->clear_and_free();
 
 	return(error);
 }
@@ -2630,7 +2630,7 @@ fts_update_sync_doc_id(
 
 			fts_sql_rollback(trx);
 		}
-		trx->free();
+		trx->clear_and_free();
 	}
 
 	return(error);
@@ -2850,7 +2850,7 @@ fts_commit_table(
 
 	fts_sql_commit(trx);
 
-	trx->free();
+	trx->clear_and_free();
 
 	return(error);
 }
@@ -4022,7 +4022,7 @@ fts_sync_commit(
 
 	/* Avoid assertion in trx_t::free(). */
 	trx->dict_operation_lock_mode = false;
-	trx->free();
+	trx->clear_and_free();
 
 	return(error);
 }
@@ -4072,7 +4072,7 @@ fts_sync_rollback(
 
 	/* Avoid assertion in trx_t::free(). */
 	trx->dict_operation_lock_mode = false;
-	trx->free();
+	trx->clear_and_free();
 }
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
@@ -5685,7 +5685,7 @@ cleanup:
 			fts_sql_rollback(trx);
 		}
 
-		trx->free();
+		trx->clear_and_free();
 	}
 
 	if (!cache->stopword_info.cached_stopword) {

@@ -1027,9 +1027,8 @@ private:
   inline void commit_in_memory(mtr_t *mtr);
   /** Commit the transaction in the file system. */
   void commit_persist() noexcept;
-  /** Clean up the transaction after commit_in_memory()
-  @retval false (always) */
-  bool commit_cleanup() noexcept;
+  /** Clean up the transaction after commit_in_memory() */
+  void commit_cleanup() noexcept;
   /** Commit an empty transaction.
   @param mtr   mini-transaction */
   void commit_empty(mtr_t *mtr);
@@ -1040,9 +1039,8 @@ private:
   @param mtr   mini-transaction */
   inline void write_serialisation_history(mtr_t *mtr);
 public:
-  /** Commit the transaction.
-  @retval false (always) */
-  bool commit() noexcept;
+  /** Commit the transaction. */
+  void commit() noexcept;
 
   /** Try to drop a persistent table.
   @param table       persistent table
@@ -1103,8 +1101,10 @@ public:
   bool has_stats_table_lock() const;
 
   /** Free the memory to trx_pools */
-  void free();
+  void free() noexcept;
 
+  /** Clear commit_lsn and free the memory */
+  void clear_and_free() noexcept { ut_d(commit_lsn= 0;) free(); }
 
   void assert_freed() const
   {

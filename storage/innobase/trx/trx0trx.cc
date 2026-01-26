@@ -366,7 +366,7 @@ trx_t *trx_create()
 }
 
 /** Free the memory to trx_pools */
-void trx_t::free()
+void trx_t::free() noexcept
 {
   autoinc_locks.fake_defined();
 #ifdef HAVE_MEM_CHECK
@@ -394,8 +394,10 @@ void trx_t::free()
   ut_ad(magic_n == TRX_MAGIC_N);
   ut_ad(!read_only);
   ut_ad(!lock.wait_lock);
+  ut_ad(!commit_lsn);
 
   dict_operation= false;
+  commit_lsn= 0;
   trx_sys.deregister_trx(this);
   check_unique_secondary= true;
   check_foreigns= true;
@@ -1280,6 +1282,8 @@ static void trx_flush_log_if_needed(lsn_t lsn, trx_t *trx)
   if (log_sys.get_flushed_lsn(std::memory_order_relaxed) >= lsn)
     return;
 
+  ut_ad(!trx->mysql_thd || !trx->mysql_thd->tx_read_only);
+
   const bool flush= srv_flush_log_at_trx_commit & 1;
   if (!log_sys.is_mmap())
   {
@@ -1527,7 +1531,7 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(mtr_t *mtr)
   lock.was_chosen_as_deadlock_victim= false;
 }
 
-bool trx_t::commit_cleanup() noexcept
+void trx_t::commit_cleanup() noexcept
 {
   ut_ad(!dict_operation);
   ut_ad(!was_dict_operation);
@@ -1554,7 +1558,6 @@ bool trx_t::commit_cleanup() noexcept
   mutex.wr_unlock();
 
   ut_a(error_state == DB_SUCCESS);
-  return false;
 }
 
 /** Commit the transaction in the file system. */
@@ -1617,7 +1620,7 @@ TRANSACTIONAL_TARGET void trx_t::commit_persist() noexcept
 }
 
 
-bool trx_t::commit() noexcept
+void trx_t::commit() noexcept
 {
   ut_ad(!was_dict_operation);
   ut_d(was_dict_operation= dict_operation);
@@ -1628,7 +1631,7 @@ bool trx_t::commit() noexcept
     for (const auto &p : mod_tables) ut_ad(!p.second.is_dropped());
 #endif /* UNIV_DEBUG */
   ut_d(was_dict_operation= false);
-  return commit_cleanup();
+  commit_cleanup();
 }
 
 
@@ -1755,12 +1758,14 @@ void trx_commit_complete_for_mysql(trx_t *trx)
     return;
   switch (srv_flush_log_at_trx_commit) {
   case 0:
-    return;
+    goto func_exit;
   case 1:
     if (trx->active_commit_ordered && trx->active_prepare)
       return;
   }
   trx_flush_log_if_needed(lsn, trx);
+ func_exit:
+  trx->commit_lsn= 0;
 }
 
 /**********************************************************************//**
