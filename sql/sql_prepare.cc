@@ -5318,7 +5318,8 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor,
     general_log_write(thd, COM_STMT_EXECUTE, thd->query(), thd->query_length());
 
   if (open_cursor)
-    error= mysql_open_cursor(thd, result_arg, cursor_arg);
+    error= mysql_open_cursor(thd, result_arg, cursor_arg,
+                             Lex_ident_column(), nullptr);
   else
   {
     /*

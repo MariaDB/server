@@ -426,6 +426,7 @@ private:
   /// @return Pointer to valid object on success, or NULL in case of error.
   Item_cache *create_case_expr_holder(THD *thd, const Item *item) const;
 
+public:
   Virtual_tmp_table *virtual_tmp_table_for_row(uint idx);
 
 private:

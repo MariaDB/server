@@ -220,14 +220,14 @@ DECLARE c SYS_REFCURSOR;
 SET c=1;
 END;
 $$
-ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `c`
+ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `c` for operation SET
 BEGIN NOT ATOMIC
 DECLARE c SYS_REFCURSOR;
 DECLARE i INT;
 SET c=i;
 END;
 $$
-ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `c`
+ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `c` for operation SET
 BEGIN NOT ATOMIC
 DECLARE c SYS_REFCURSOR;
 DECLARE i INT;
@@ -248,7 +248,7 @@ FETCH p1c0 INTO p1c1;
 END;
 /
 CALL p1;
-ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `p1c1`
+ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `p1c1` for operation SET
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1()
 BEGIN
@@ -259,7 +259,7 @@ FETCH p1c0 INTO p1c1;
 END;
 /
 CALL p1;
-ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `p1c1`
+ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `p1c1` for operation SET
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1()
 BEGIN
