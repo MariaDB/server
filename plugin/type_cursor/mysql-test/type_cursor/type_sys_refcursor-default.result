@@ -36,7 +36,7 @@ BEGIN NOT ATOMIC
 DECLARE c SYS_REFCURSOR DEFAULT 0;
 END;
 $$
-ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `c`
+ERROR HY000: Cannot cast 'int' as 'sys_refcursor' in assignment of `c` for operation SET
 BEGIN NOT ATOMIC
 DECLARE c SYS_REFCURSOR DEFAULT IGNORE;
 END;

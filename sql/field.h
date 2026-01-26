@@ -928,7 +928,8 @@ public:
 
   bool is_unsigned() const { return flags & UNSIGNED_FLAG; }
 
-  bool check_assignability_from(const Type_handler *from, bool ignore) const;
+  virtual bool check_assignability_from(const Type_handler *from,
+                                        bool prefer_warning_nor_error) const;
   bool check_assignability_from(const Field *from, bool ignore) const
   {
     return check_assignability_from(from->type_handler(), ignore);
@@ -944,6 +945,7 @@ public:
   {
     return to->get_copy_func(this);
   }
+  int store_field_maybe_null(Field *from, bool no_conversions);
   /* Store functions returns 1 on overflow and -1 on fatal error */
   virtual int  store_field(Field *from) { return from->save_in_field(this); }
   virtual int  save_in_field(Field *to)= 0;
@@ -5787,6 +5789,24 @@ public:
      m_cursor_rowtype_ref(false),
      m_cursor_rowtype_offset(0),
      m_row_field_definitions(NULL)
+  { }
+  Spvar_definition(const Type_handler *th,
+                   Row_definition_list *row_field_definitions)
+   :m_column_type_ref(NULL),
+    m_table_rowtype_ref(NULL),
+    m_cursor_rowtype_ref(false),
+    m_cursor_rowtype_offset(0),
+    m_row_field_definitions(row_field_definitions)
+  {
+    set_handler(th);
+  }
+  Spvar_definition(Table_ident *table_rowtype_ref,
+                   const sp_rcontext_addr &cursor_ref)
+   :m_column_type_ref(NULL),
+    m_table_rowtype_ref(table_rowtype_ref),
+    m_cursor_rowtype_ref(cursor_ref.rcontext_handler() != nullptr),
+    m_cursor_rowtype_offset(cursor_ref.offset()),
+    m_row_field_definitions(NULL)
   { }
   const Type_handler *type_handler() const
   {

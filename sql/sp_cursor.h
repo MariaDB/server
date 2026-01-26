@@ -56,6 +56,17 @@ private:
   /// FETCH <cname> INTO <varlist>.
   class Select_fetch_into_spvars: public select_result_interceptor
   {
+    /*
+      m_return_type represents the RETURN clause of a REF CURSOR variable.
+      If the REF CURSOR variable does not have the RETURN clause, or
+      this cursor is a static CURSOR, then m_return_type is nullptr.
+      If m_return_type is not nullptr, then FETCH is done in two steps:
+        1. Fetch from the cursor into m_return_type
+        2. Copy from m_return_type into the target variable list
+           (or into the target ROW variable)
+      This effectively performs data type conversion.
+    */
+    Virtual_tmp_table *m_return_type;
     List<sp_fetch_target> *m_fetch_target_list;
     uint field_count;
     bool m_view_structure_only;
@@ -64,6 +75,8 @@ private:
   public:
     Select_fetch_into_spvars(THD *thd_arg, bool view_structure_only)
      :select_result_interceptor(thd_arg),
+      m_return_type(nullptr),
+      m_fetch_target_list(nullptr),
       m_view_structure_only(view_structure_only)
     {}
     void reset(THD *thd_arg)
@@ -73,13 +86,16 @@ private:
       field_count= 0;
     }
     uint get_field_count() { return field_count; }
-    void set_spvar_list(List<sp_fetch_target> *vars)
+    void set_spvar_list(Virtual_tmp_table *return_type,
+                        List<sp_fetch_target> *vars)
     {
+      m_return_type= return_type;
       m_fetch_target_list= vars;
     }
 
     bool send_eof() override { return FALSE; }
     int send_data(List<Item> &items) override;
+    bool send_data_with_return_type(List<Item> &items);
     int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
     bool view_structure_only() const override { return m_view_structure_only; }
 };
@@ -99,16 +115,24 @@ public:
 
   virtual sp_lex_keeper *get_lex_keeper() { return nullptr; }
 
-  int open(THD *thd, bool check_max_open_cursor_counter= true);
+  int open(THD *thd,
+           const Lex_ident_column &cursor_name,
+           const Virtual_tmp_table *expected_assignable_structure,
+           bool check_max_open_cursor_counter= true);
 
   int close(THD *thd);
 
   my_bool is_open() const
   { return MY_TEST(server_side_cursor); }
 
-  int fetch(THD *, List<sp_fetch_target> *vars, bool error_on_no_data);
+  int fetch(THD *, Virtual_tmp_table *return_type,
+            List<sp_fetch_target> *vars, bool error_on_no_data);
 
-  bool export_structure(THD *thd, Row_definition_list *list);
+  bool export_structure(THD *thd, Row_definition_list *list) const;
+
+  bool check_assignability_to(const Virtual_tmp_table *table,
+                              const char *spvar_name,
+                              const char *op) const;
 
   void reset(THD *thd_arg)
   {

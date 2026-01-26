@@ -11051,7 +11051,7 @@ Field *TABLE::find_field_by_name(const LEX_CSTRING *str) const
 }
 
 
-bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
+bool TABLE::export_structure(THD *thd, Row_definition_list *defs) const
 {
   for (Field **src= field; *src; src++)
   {

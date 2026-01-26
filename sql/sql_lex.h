@@ -4075,6 +4075,9 @@ public:
                                sp_lex_cursor *stmt);
   bool sp_close(THD *thd, const Lex_ident_sys_st &name);
 
+  bool make_sp_instr_copy_struct_for_last_context_variables(THD *thd,
+                                                            uint nvars,
+                                                            uint cursor_offset);
   Item_splocal *create_item_for_sp_var(const Lex_ident_cli_st *name,
                                        sp_variable *spvar);
 
@@ -4984,6 +4987,8 @@ public:
   void stmt_purge_to(const LEX_CSTRING &to);
   bool stmt_purge_before(Item *item);
 
+  bool check_ref_cursor_components(Row_definition_list *) const;
+
   SELECT_LEX *returning()
   { return &builtin_select; }
   bool has_returning()
@@ -5049,6 +5054,12 @@ public:
                                 const Lex_ident_sys_st &type_name,
                                 Spvar_definition *key,
                                 Spvar_definition *value);
+  bool declare_type_ref_cursor(THD *thd,
+                               const Lex_ident_sys_st &type_name,
+                               const Lex_ident_sys_st &return_type_name,
+                               const Qualified_column_ident *rowtype,
+                               const Qualified_column_ident *vartype,
+                               const Lex_ident_cli_st &syntax_error_token);
   bool set_field_type_typedef(Lex_field_type_st *type,
                               const LEX_CSTRING &name,
                               bool *is_typedef);

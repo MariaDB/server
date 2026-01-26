@@ -4204,6 +4204,8 @@ public:
   type_handler_adjusted_to_max_octet_length(uint max_octet_length,
                                             CHARSET_INFO *cs) const
   { return this; }
+  virtual bool Spvar_definition_resolve_type_refs(THD *thd,
+                                                  Spvar_definition *def) const;
   /*
     Check if an Spvar_definition instance is of a complex data type,
     or contains a complex data type in its components (e.g. a ROW member).

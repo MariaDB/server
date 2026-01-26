@@ -1723,10 +1723,12 @@ class sp_instr_copen_by_ref : public sp_lex_instr,
 
 public:
   sp_instr_copen_by_ref(uint ip, sp_pcontext *ctx,
+                        const Lex_ident_column &cursor_name,
                         const sp_rcontext_ref &ref,
                         sp_lex_cursor *lex)
    :sp_lex_instr(ip, ctx, lex, true),
     sp_rcontext_ref(ref),
+    m_cursor_name(cursor_name),
     m_metadata_changed(false),
     m_cursor_stmt(lex->get_expr_str())
   { }
@@ -1780,6 +1782,7 @@ public:
   }
 
 private:
+  const Lex_ident_column &m_cursor_name;
   bool m_metadata_changed;
   LEX_CSTRING m_cursor_stmt;
 

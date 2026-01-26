@@ -2088,6 +2088,40 @@ int Field::store_from_statistical_minmax_field(Field *stat_field, String *str,
 }
 
 
+/**
+  Set a field value from another field
+
+  @param from             Field to take the value from
+  @param no_conversions   How to deal with NULL value
+
+  @details
+  The method takes the value of the field 'from' and, if this value
+  is not null, it saves in 'this'. Otherwise 'this' is
+  set to null possibly with conversion.
+
+  @retval 0    OK
+  @retval !=0  Error or warning or note happened
+*/
+
+int Field::store_field_maybe_null(Field *from, bool no_conversions)
+{
+  int res;
+  DBUG_ENTER("Field::store_field_maybe_null");
+  if (from->is_null())
+    DBUG_RETURN(set_field_to_null_with_conversions(this, no_conversions));
+  set_notnull();
+  /*
+    If we're setting the same field as the one we're reading from there's
+    nothing to do. This can happen in 'SET x = x' type of scenarios.
+  */
+  if (this == from)
+    DBUG_RETURN(0);
+
+  res= field_conv(this, from);
+  DBUG_RETURN(res);
+}
+
+
 /*
   Same as above, but store the string in the statistics mem_root to make it
   easy to free everything by just freeing the mem_root.

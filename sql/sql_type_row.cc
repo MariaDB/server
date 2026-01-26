@@ -446,3 +446,25 @@ Item_field *Type_handler_row::get_item(THD *thd,
 Named_type_handler<Type_handler_row> type_handler_row_internal("row");
 const Type_handler_composite &type_handler_row=
   type_handler_row_internal;
+
+
+bool Item_field_row::resolve_spvar_cursor_rowtype(THD *thd,
+                                                  const sp_cursor &cursor)
+{
+  DBUG_ASSERT(type_handler() == &type_handler_row);
+  DBUG_ASSERT(field);
+  DBUG_ASSERT(dynamic_cast<Field_row*>(field));
+  Row_definition_list defs;
+  return cursor.export_structure(thd, &defs) ||
+         static_cast<Field_row*>(field)->row_create_fields(thd, &defs) ||
+         add_array_of_item_field(thd, *field->virtual_tmp_table());
+}
+
+
+bool Type_handler_row::Spvar_definition_resolve_type_refs(THD *thd,
+                                                      Spvar_definition *def)
+                                                                       const
+{
+  return def->is_row() &&
+         def->row_field_definitions()->resolve_type_refs(thd);
+}

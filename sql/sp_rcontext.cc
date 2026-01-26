@@ -426,17 +426,11 @@ bool Row_definition_list::resolve_type_refs(THD *thd)
   Spvar_definition *def;
   while ((def= it++))
   {
-    if (def->is_row())
-    {
-      if (def->row_field_definitions()->resolve_type_refs(thd))
-        return true;
-    }
-    else if (def->is_column_type_ref() &&
-        def->column_type_ref()->resolve_type_ref(thd, def))
+    if (def->type_handler()->Spvar_definition_resolve_type_refs(thd, def))
       return true;
   }
   return false;
-};
+}
 
 
 bool sp_rcontext::init_var_items(THD *thd,
@@ -842,7 +836,10 @@ bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
    0 in case of success, -1 otherwise
 */
 
-int sp_cursor::open(THD *thd, bool check_open_cursor_counter)
+int sp_cursor::open(THD *thd,
+                    const Lex_ident_column &cursor_name,
+                    const Virtual_tmp_table *expected_assignable_structure,
+                    bool check_open_cursor_counter)
 {
   if (server_side_cursor)
   {
@@ -860,7 +857,8 @@ int sp_cursor::open(THD *thd, bool check_open_cursor_counter)
     return -1;
   }
 
-  if (mysql_open_cursor(thd, &result, &server_side_cursor))
+  if (mysql_open_cursor(thd, &result, &server_side_cursor,
+                        cursor_name, expected_assignable_structure))
     return -1;
   thd->open_cursors_counter_increment();
   return 0;
@@ -889,7 +887,9 @@ void sp_cursor::destroy()
 }
 
 
-int sp_cursor::fetch(THD *thd, List<sp_fetch_target> *vars,
+int sp_cursor::fetch(THD *thd,
+                     Virtual_tmp_table *return_type,
+                     List<sp_fetch_target> *vars,
                      bool error_on_no_data)
 {
   if (! server_side_cursor)
@@ -913,7 +913,7 @@ int sp_cursor::fetch(THD *thd, List<sp_fetch_target> *vars,
                                ER_UNKNOWN_ERROR,
                                ER_THD(thd, ER_UNKNOWN_ERROR)););
 
-  result.set_spvar_list(vars);
+  result.set_spvar_list(return_type, vars);
 
   DBUG_ASSERT(!thd->is_error());
 
@@ -944,7 +944,7 @@ int sp_cursor::fetch(THD *thd, List<sp_fetch_target> *vars,
 }
 
 
-bool sp_cursor::export_structure(THD *thd, Row_definition_list *list)
+bool sp_cursor::export_structure(THD *thd, Row_definition_list *list) const
 {
   return server_side_cursor->export_structure(thd, list);
 }
@@ -993,6 +993,8 @@ bool sp_cursor::Select_fetch_into_spvars::
 
 int sp_cursor::Select_fetch_into_spvars::send_data(List<Item> &items)
 {
+  if (m_return_type)
+    return send_data_with_return_type(items);
   /*
     If we have only one variable in spvar_list, and this is a ROW variable,
     and the number of fields in the ROW variable matches the number of
@@ -1014,4 +1016,36 @@ int sp_cursor::Select_fetch_into_spvars::send_data(List<Item> &items)
     return rctx->set_variable_row(thd, target->offset(), items);
   }
   return send_data_to_variable_list(*m_fetch_target_list, items);
+}
+
+
+bool sp_cursor::Select_fetch_into_spvars::send_data_with_return_type(
+                                                             List<Item> &items)
+{
+  DBUG_ASSERT(m_return_type);
+  if (m_return_type->sp_set_from_select_list(thd, items))
+    return true;
+
+  const sp_fetch_target *target_head= m_fetch_target_list->head();
+  sp_rcontext *target_head_rctx= thd->get_rcontext(*target_head);
+  Item *target_head_item=
+    target_head_rctx->get_variable(target_head->offset());
+  if (m_fetch_target_list->elements == 1 &&
+      target_head_item &&
+      target_head_item->type_handler() == &type_handler_row &&
+      target_head_item->cols() == items.elements)
+  {
+    // Send to a ROW variable
+    Virtual_tmp_table *trg_table= target_head_rctx->
+                          virtual_tmp_table_for_row(target_head->offset());
+    if (m_return_type->sp_save_in_vtable(thd, trg_table))
+        return true;
+  }
+  else
+  {
+    // Send to a scalar variable list
+    if (m_return_type->sp_save_in_target_list(thd, *m_fetch_target_list))
+      return true;
+  }
+  return false;
 }

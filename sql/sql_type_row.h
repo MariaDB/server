@@ -24,6 +24,15 @@
 
 class Row_definition_list;
 
+
+class RowTypeBuffer: public CharBuffer<6 + MAX_BIGINT_WIDTH>
+{
+public:
+  RowTypeBuffer(uint sz)
+  { copy("row<"_LEX_CSTRING).append_ulonglong(sz).append_char('>'); }
+};
+
+
 /*
   Special handler for ROW
 */
@@ -34,6 +43,8 @@ public:
   const Type_collection *type_collection() const override;
   const Type_handler *type_handler_for_comparison() const override;
   bool has_null_predicate() const override { return false; }
+  bool Spvar_definition_resolve_type_refs(THD *thd,
+                                          Spvar_definition *def) const override;
   bool Spvar_definition_with_complex_data_types(Spvar_definition *def)
                                                        const override;
   bool Column_definition_prepare_stage1(THD *thd,

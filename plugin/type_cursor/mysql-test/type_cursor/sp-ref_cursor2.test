@@ -1,0 +1,399 @@
+SET sql_mode=ORACLE;
+
+#
+# Make sure SYS_REFCURSOR or REF CURSOR cannot be used
+# as an assoc array element
+#
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE PROCEDURE p1 AS
+  TYPE assoc0_t IS TABLE OF SYS_REFCURSOR INDEX BY INT;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE PROCEDURE p1 AS
+  TYPE cur0_t IS REF CURSOR;
+  TYPE assoc0_t IS TABLE OF cur0_t INDEX BY INT;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD(a INT, b VARCHAR(2));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE assoc0_t IS TABLE OF cur0_t INDEX BY INT;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+#
+# Make sure assoc array or RECORD cannot be used inside another RECORD
+# and thus cannot be used inside a REF CURSOR
+#
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE p1 AS
+  TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+  TYPE rec0_t IS RECORD (a INT, b assoc0_t);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(2));
+  TYPE rec1_t IS RECORD (a INT, b rec0_t);
+  TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+#
+# Make sure SYS_REFCURSOR or REF CURSOR cannot be used
+# inside another REF CURSOR
+#
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b SYS_REFCURSOR);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE p1 AS
+  TYPE cur0_t IS REF CURSOR;
+  TYPE rec0_t IS RECORD (a INT, b cur0_t); -- This fails: unknown type cur0_t
+  TYPE cur1_t IS REF CURSOR RETURN rec0_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(2));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE rec1_t IS RECORD (a INT, b cur0_t); -- This fails: unknown type cur0_t
+  TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+#
+# RETURN var%TYPE - qualified identifiers
+#
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  TYPE cur0_t IS REF CURSOR RETURN cat1.db1.t1.v0%TYPE;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  TYPE cur0_t IS REF CURSOR RETURN db1.t1.v0%TYPE;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  TYPE cur0_t IS REF CURSOR RETURN t1.v0%TYPE;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+#
+# RETURN var%TYPE - wrong data types
+#
+
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+CREATE PROCEDURE p1 AS
+  TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE PROCEDURE p1 AS
+  v0 INT;
+  TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b SYS_REFCURSOR);
+  v0 rec0_t;
+  TYPE cur0_t IS REF CURSOR RETURN v0%TYPE;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+#
+# RETURN var%TYPE - for table%ROWTYPE and cursor%ROWTYPE
+#
+
+DELIMITER $$;
+CREATE TABLE t1 (a INT, b VARCHAR(2));
+CREATE PROCEDURE p1 AS
+  r0 t1%ROWTYPE;
+  TYPE cur0_t IS REF CURSOR RETURN r0%TYPE;
+  c0 cur0_t;
+  v0, v1 TEXT;
+BEGIN
+  OPEN c0 FOR SELECT 1,space(3);
+  FETCH c0 INTO v0, v1;
+  SELECT v0, v1, length(v1);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+DELIMITER $$;
+CREATE TABLE t1 (a INT, b VARCHAR(2));
+CREATE PROCEDURE p1 AS
+  CURSOR cursor_example IS SELECT * FROM t1;
+  r0 cursor_example%ROWTYPE;
+  TYPE cur0_t IS REF CURSOR RETURN r0%TYPE;
+  c0 cur0_t;
+  v0, v1 TEXT;
+BEGIN
+  OPEN c0 FOR SELECT 1,space(3);
+  FETCH c0 INTO v0, v1;
+  SELECT v0, v1, length(v1);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+#
+# Other tests
+#
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(2));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c0 cur0_t;
+  v0, v1 TEXT;
+BEGIN
+  OPEN c0 FOR SELECT 1,space(3);
+  FETCH c0 INTO v0, v1;
+  SELECT v0, v1, length(v1);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(2));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c0 cur0_t;
+  r0 ROW(a INT, b VARCHAR(2));
+BEGIN
+  OPEN c0 FOR SELECT 1,space(3);
+  FETCH c0 INTO r0;
+  SELECT r0.a, r0.b, length(r0.b);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+CREATE TABLE t1 (a INT, b VARCHAR(2));
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR cursor_example IS SELECT * FROM t1;
+  TYPE cur0_t IS REF CURSOR RETURN cursor_example%ROWTYPE;
+  c0 cur0_t;
+  v0, v1 TEXT;
+BEGIN
+  OPEN c0 FOR SELECT 1,space(3);
+  FETCH c0 INTO v0, v1;
+  SELECT v0, v1, length(v1);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT, b VARCHAR(2));
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE cur0_t IS REF CURSOR RETURN t1%ROWTYPE;
+  c0 cur0_t;
+  v0, v1 TEXT;
+BEGIN
+  OPEN c0 FOR SELECT 1,space(3);
+  FETCH c0 INTO v0, v1;
+  SELECT v0, v1, length(v1);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT, b VARCHAR(2));
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b t1.b%TYPE);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c0 cur0_t;
+  v0, v1 TEXT;
+BEGIN
+  OPEN c0 FOR SELECT 1,space(3);
+  FETCH c0 INTO v0, v1;
+  SELECT v0, v1, length(v1);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(2));
+  r0 rec0_t;
+  TYPE cur0_t IS REF CURSOR RETURN r0%TYPE;
+  c0 cur0_t;
+  v0, v1 TEXT;
+BEGIN
+  OPEN c0 FOR SELECT 1,space(3);
+  FETCH c0 INTO v0, v1;
+  SELECT v0, v1, length(v1);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD(a INT, b VARCHAR(2));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  PROCEDURE p20 (c0 cur0_t) AS
+    r0 rec0_t;
+  BEGIN
+    FETCH c0 INTO r0;
+    SELECT r0.a, r0.b, length(r0.b);
+  END;
+  PROCEDURE p1 AS
+    c0 cur0_t;
+  BEGIN
+    OPEN c0 FOR SELECT 1 AS a, space(3) AS b;
+    CALL p20(c0);
+    CLOSE c0;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD(a INT, b VARCHAR(2));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  FUNCTION f1() RETURN cur0_t AS
+    c0 cur0_t;
+  BEGIN
+    OPEN c0 FOR SELECT 1 AS a, space(3) AS b;
+    RETURN c0;
+  END;
+  PROCEDURE p1 AS
+    c0 cur0_t;
+    r0 rec0_t;
+  BEGIN
+    c0:= f1();
+    FETCH c0 INTO r0;
+    SELECT r0.a, r0.b, length(r0.b);
+    CLOSE c0;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.p1;
+DROP PACKAGE pkg1;
