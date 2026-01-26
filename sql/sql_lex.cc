@@ -3636,6 +3636,31 @@ uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
           order_group_num * 2 +
           hidden_bit_fields +
           fields_in_window_functions;
+
+#ifndef DBUG_OFF
+    DBUG_PRINT("ref_array", ("ref_array reserves %u elements", n));
+    if (n_sum_items)
+      DBUG_PRINT("ref_array", ("n_sum_items: %u", n_sum_items));
+    if (n_child_sum_items)
+      DBUG_PRINT("ref_array", ("n_child_sum_items: %u", n_child_sum_items));
+    if (item_list.elements)
+      DBUG_PRINT("ref_array", ("item_list.elements: %u", item_list.elements));
+    if (select_n_reserved)
+      DBUG_PRINT("ref_array", ("select_n_reserved: %u", select_n_reserved));
+    if (select_n_having_items)
+      DBUG_PRINT("ref_array", ("select_n_having_items: %u", select_n_having_items));
+    if (select_n_where_fields)
+      DBUG_PRINT("ref_array", ("select_n_where_fields: %u", select_n_where_fields));
+    if (order_group_num)
+      DBUG_PRINT("ref_array", ("order_group_num: %u", order_group_num));
+    if (hidden_bit_fields)
+      DBUG_PRINT("ref_array", ("hidden_bit_fields: %u", hidden_bit_fields));
+    if (fields_in_window_functions)
+      DBUG_PRINT("ref_array", ("fields_in_window_functions: %u", fields_in_window_functions));
+    if (window_funcs.elements)
+      DBUG_PRINT("ref_array", ("window_funcs.elements: %u (winfunc_factor %u)", window_funcs.elements, winfunc_factor));
+#endif
+
   return n;
 }
 
