@@ -312,14 +312,14 @@ private:
 public:
   binlog_reader_innodb();
   virtual ~binlog_reader_innodb();
-  virtual int read_binlog_data(uchar *buf, uint32_t len) final;
-  virtual bool data_available() final;
-  virtual bool wait_available(THD *thd, const struct timespec *abstime) final;
+  virtual int read_binlog_data(uchar *buf, uint32_t len) override;
+  virtual bool data_available() override;
+  virtual bool wait_available(THD *thd, const struct timespec *abstime) override;
   virtual int init_gtid_pos(THD *thd, slave_connection_state *pos,
-                            rpl_binlog_state_base *state) final;
+                            rpl_binlog_state_base *state) override;
   virtual int init_legacy_pos(THD *thd, const char *filename,
-                              ulonglong offset) final;
-  virtual void enable_single_file() final;
+                              ulonglong offset) override;
+  virtual void enable_single_file() override;
   bool is_valid() { return page_buf != nullptr; }
   bool init_from_fd_pos(File fd, ulonglong start_position);
 };

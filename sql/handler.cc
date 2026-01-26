@@ -2235,16 +2235,23 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   {
     int err= 0;
     Ha_trx_info *binlog_ha_info= get_binlog_hton(ha_info);
-    if (binlog_ha_info &&
-        (err= binlog_commit(thd, all,
-                            is_ro_1pc_trans(thd, ha_info, all,
-                            is_real_trans))))
+    if (binlog_ha_info)
     {
-      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
-      error= 1;
-
-      goto err;
+      if ((err= binlog_commit(thd, all, is_ro_1pc_trans(thd, ha_info, all,
+                                                        is_real_trans))))
+      {
+        my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+        error= 1;
+        goto err;
+      }
     }
+#ifdef WITH_WSREP
+    else
+    {
+      if (wsrep_on(thd))
+        error= thd->binlog_flush_pending_rows_event(TRUE);
+    }
+#endif
     for (; ha_info; ha_info= ha_info_next)
     {
       transaction_participant *ht= ha_info->ht();

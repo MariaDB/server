@@ -68,7 +68,7 @@ struct chunk_data_base {
 struct chunk_data_flush : public chunk_data_base {
   ~chunk_data_flush() { }
 
-  virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final
+  virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) override final
   {
     memset(p, 0xff, max_len);
     return {max_len, true};

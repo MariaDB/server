@@ -132,7 +132,7 @@ struct binlog_oob_context {
                    uint64_t right_file_no, uint64_t right_offset,
                    const byte *data, size_t data_len);
     virtual ~chunk_data_oob() {};
-    virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final;
+    virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) override final;
   };
 
   bool binlog_node(uint32_t node, uint64_t new_idx,
@@ -302,14 +302,14 @@ public:
   ha_innodb_binlog_reader(bool wait_durable, uint64_t file_no= 0,
                           uint64_t offset= 0);
   ~ha_innodb_binlog_reader();
-  virtual int read_binlog_data(uchar *buf, uint32_t len) final;
-  virtual bool data_available() final;
-  virtual bool wait_available(THD *thd, const struct timespec *abstime) final;
+  virtual int read_binlog_data(uchar *buf, uint32_t len) override final;
+  virtual bool data_available() override final;
+  virtual bool wait_available(THD *thd, const struct timespec *abstime) override final;
   virtual int init_gtid_pos(THD *thd, slave_connection_state *pos,
-                            rpl_binlog_state_base *state) final;
+                            rpl_binlog_state_base *state) override final;
   virtual int init_legacy_pos(THD *thd, const char *filename,
-                              ulonglong offset) final;
-  virtual void enable_single_file() final;
+                              ulonglong offset) override final;
+  virtual void enable_single_file() override final;
   void seek_internal(uint64_t file_no, uint64_t offset);
 };
 
@@ -443,7 +443,7 @@ struct chunk_data_cache : public chunk_data_base {
   }
   ~chunk_data_cache() { }
 
-  virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final
+  virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) override final
   {
     uint32_t size= 0;
 
@@ -555,7 +555,7 @@ struct chunk_data_from_buf : public chunk_data_base {
     /* data_remain must be initialized in derived class constructor. */
   }
 
-  virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final
+  virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) override final
   {
     if (UNIV_UNLIKELY(data_remain <= 0))
       return {0, true};
@@ -628,7 +628,7 @@ struct chunk_data_xa_complete :
 
   chunk_data_xa_complete(const XID *xid, bool is_commit)
   {
-    buffer[0]= (is_commit ? IBB_FL_XA_TYPE_COMMIT : IBB_FL_XA_TYPE_ROLLBACK);
+    buffer[0]= (byte) (is_commit ? IBB_FL_XA_TYPE_COMMIT : IBB_FL_XA_TYPE_ROLLBACK);
     int4store(&buffer[1], xid->formatID);
     ut_a(xid->gtrid_length >= 0 && xid->gtrid_length <= 64);
     buffer[5]= (uchar)xid->gtrid_length;

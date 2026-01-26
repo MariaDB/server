@@ -2297,7 +2297,7 @@ public:
 
 	/** Column names packed in a character string
 	"name1\0name2\0...nameN\0". Until the string contains n_cols, it will
-	be allocated from a temporary heap. The final string will be allocated
+	be allocated from a temporary heap. The override final string will be allocated
 	from table->heap. */
 	const char*				col_names;
 
