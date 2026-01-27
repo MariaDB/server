@@ -488,6 +488,9 @@ flush logs;
 #
 # Test Case 3) Mysqlbinlog --database and --table filters work on
 # Partial_rows_log_events
+# Stop slave because it will be used for mysqlbinlog on the next test case
+connection server_2;
+include/stop_slave.inc
 connection server_1;
 create table t1 (a int primary key, b longtext, c int) engine=innodb;
 create table t2 (a int primary key, b longtext, c int) engine=innodb;
@@ -549,6 +552,25 @@ Partial_rows (4 / 4)
 # tables should not show any Partial_rows_log_events
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never --table=nonexistent
 NOT FOUND matches in binlog_filtering_frags.out
+# t1 and t2 are kept for the next test case
+#
+#
+# Test Case 4) Mysqlbinlog --read-from-remote-server when piped to a
+# mysql client should correctly apply the transaction
+#
+# Note: This test re-uses the binlog and tables/data from the last
+# test-case
+#
+# MYSQL_BINLOG binlog_filename --result-file=binlog_output_file --read-from-remote-server
+# MYSQL_SLAVE < binlog_output_file
+# Tables on master and slave should be equivalent after mysqlbinlog replay...
+include/diff_tables.inc [server_1:t1,server_2:t1]
+include/diff_tables.inc [server_1:t2,server_2:t2]
+# ..PASS
+connection server_2;
+CHANGE MASTER TO MASTER_DEMOTE_TO_SLAVE=1;
+include/start_slave.inc
+connection server_1;
 drop table t1, t2;
 #
 #

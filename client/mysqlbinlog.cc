@@ -220,8 +220,17 @@ static void free_annotate_event()
   }
 }
 
-Log_event* read_remote_annotate_event(uchar* net_buf, ulong event_len,
-                                      const char **error_msg)
+/**
+  The typical logic for an event read from a remote server is to register the
+  temp_buf of the net object to the event, such that each event will re-use
+  this same buffer. However, some events are re-referenced later, and their
+  memory/data is still needed. For example, Table_map_log_events are needed
+  for Partial_rows_log_events, as they are re-output for the last event in
+  the group.
+*/
+Log_event *read_self_managing_buffer_event_from_net(uchar *net_buf,
+                                                    ulong event_len,
+                                                    const char **error_msg)
 {
   uchar *event_buf;
   Log_event* event;
@@ -2692,12 +2701,15 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
   NET *net= &mysql->net;
   DBUG_ENTER("handle_event_text_mode");
 
-  if (net->read_pos[5] == ANNOTATE_ROWS_EVENT)
+  if (net->read_pos[5] == ANNOTATE_ROWS_EVENT ||
+      net->read_pos[5] == TABLE_MAP_EVENT)
   {
-    if (!(ev= read_remote_annotate_event(net->read_pos + 1, *len - 1,
-                                         &error_msg)))
+    if (!(ev= read_self_managing_buffer_event_from_net(net->read_pos + 1,
+                                                       *len - 1, &error_msg)))
     {
-      error("Could not construct annotate event object: %s", error_msg);
+      error("Could not construct %s event object: %s",
+            net->read_pos[5] == ANNOTATE_ROWS_EVENT ? "annotate" : "table_map",
+            error_msg);
       DBUG_RETURN(ERROR_STOP);
     }   
   }
