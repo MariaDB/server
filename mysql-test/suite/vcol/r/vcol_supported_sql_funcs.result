@@ -274,13 +274,13 @@ t1	CREATE TABLE `t1` (
 insert into t1 values (2,default);
 insert ignore into t1 values (-2,default);
 Warnings:
-Warning	1365	Division by 0
+Warning	4243	Passing non-positive argument to ln() makes the function's result undefined
 select * from t1;
 a	b
 2	0.693147
 -2	NULL
 Warnings:
-Warning	1365	Division by 0
+Warning	4243	Passing non-positive argument to ln() makes the function's result undefined
 drop table t1;
 set sql_warnings = 0;
 # LOG()
@@ -297,14 +297,14 @@ insert into t1 values (2,65536,default);
 insert ignore into t1 values (10,100,default);
 insert into t1 values (1,100,default);
 Warnings:
-Warning	1365	Division by 0
+Warning	4245	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
 select * from t1;
 a	b	c
 2	65536	16
 10	100	2
 1	100	NULL
 Warnings:
-Warning	1365	Division by 0
+Warning	4245	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
 drop table t1;
 set sql_warnings = 0;
 set sql_warnings = 1;
@@ -318,13 +318,13 @@ t1	CREATE TABLE `t1` (
 insert into t1 values (2,default);
 insert ignore into t1 values (-2,default);
 Warnings:
-Warning	1365	Division by 0
+Warning	4244	Passing non-positive argument to log() makes the function's result undefined
 select * from t1;
 a	b
 2	0.693147
 -2	NULL
 Warnings:
-Warning	1365	Division by 0
+Warning	4244	Passing non-positive argument to log() makes the function's result undefined
 drop table t1;
 set sql_warnings = 0;
 # LOG2()
@@ -339,13 +339,13 @@ t1	CREATE TABLE `t1` (
 insert into t1 values (65536,default);
 insert ignore into t1 values (-100,default);
 Warnings:
-Warning	1365	Division by 0
+Warning	4246	Passing non-positive argument to log2() makes the function's result undefined
 select * from t1;
 a	b
 65536	16
 -100	NULL
 Warnings:
-Warning	1365	Division by 0
+Warning	4246	Passing non-positive argument to log2() makes the function's result undefined
 drop table t1;
 set sql_warnings = 0;
 # LOG10()
@@ -361,14 +361,14 @@ insert into t1 values (2,default);
 insert ignore into t1 values (100,default);
 insert into t1 values (-100,default);
 Warnings:
-Warning	1365	Division by 0
+Warning	4247	Passing non-positive argument to log10() makes the function's result undefined
 select * from t1;
 a	b
 2	0.30103
 100	2
 -100	NULL
 Warnings:
-Warning	1365	Division by 0
+Warning	4247	Passing non-positive argument to log10() makes the function's result undefined
 drop table t1;
 set sql_warnings = 0;
 # -

@@ -45,9 +45,9 @@ select log(exp(10)),exp(log(sqrt(10))*2),log(-1),log(NULL),log(1,1),log(3,9),log
 log(exp(10))	exp(log(sqrt(10))*2)	log(-1)	log(NULL)	log(1,1)	log(3,9)	log(-1,2)	log(NULL,2)
 10	10.000000000000002	NULL	NULL	NULL	2	NULL	NULL
 Warnings:
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
+Warning	4244	Passing non-positive argument to log() makes the function's result undefined
+Warning	4245	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
+Warning	4245	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
 explain extended select log(exp(10)),exp(log(sqrt(10))*2),log(-1),log(NULL),log(1,1),log(3,9),log(-1,2),log(NULL,2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -57,8 +57,8 @@ select ln(exp(10)),exp(ln(sqrt(10))*2),ln(-1),ln(0),ln(NULL);
 ln(exp(10))	exp(ln(sqrt(10))*2)	ln(-1)	ln(0)	ln(NULL)
 10	10.000000000000002	NULL	NULL	NULL
 Warnings:
-Warning	1365	Division by 0
-Warning	1365	Division by 0
+Warning	4243	Passing non-positive argument to ln() makes the function's result undefined
+Warning	4243	Passing non-positive argument to ln() makes the function's result undefined
 explain extended select ln(exp(10)),exp(ln(sqrt(10))*2),ln(-1),ln(0),ln(NULL);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -68,8 +68,8 @@ select log2(8),log2(15),log2(-2),log2(0),log2(NULL);
 log2(8)	log2(15)	log2(-2)	log2(0)	log2(NULL)
 3	3.9068905956085187	NULL	NULL	NULL
 Warnings:
-Warning	1365	Division by 0
-Warning	1365	Division by 0
+Warning	4246	Passing non-positive argument to log2() makes the function's result undefined
+Warning	4246	Passing non-positive argument to log2() makes the function's result undefined
 explain extended select log2(8),log2(15),log2(-2),log2(0),log2(NULL);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -79,8 +79,8 @@ select log10(100),log10(18),log10(-4),log10(0),log10(NULL);
 log10(100)	log10(18)	log10(-4)	log10(0)	log10(NULL)
 2	1.255272505103306	NULL	NULL	NULL
 Warnings:
-Warning	1365	Division by 0
-Warning	1365	Division by 0
+Warning	4247	Passing non-positive argument to log10() makes the function's result undefined
+Warning	4247	Passing non-positive argument to log10() makes the function's result undefined
 explain extended select log10(100),log10(18),log10(-4),log10(0),log10(NULL);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -239,27 +239,27 @@ select ln(-1);
 ln(-1)
 NULL
 Warnings:
-Warning	1365	Division by 0
+Warning	4243	Passing non-positive argument to ln() makes the function's result undefined
 select log10(-1);
 log10(-1)
 NULL
 Warnings:
-Warning	1365	Division by 0
+Warning	4247	Passing non-positive argument to log10() makes the function's result undefined
 select log2(-1);
 log2(-1)
 NULL
 Warnings:
-Warning	1365	Division by 0
+Warning	4246	Passing non-positive argument to log2() makes the function's result undefined
 select log(2,-1);
 log(2,-1)
 NULL
 Warnings:
-Warning	1365	Division by 0
+Warning	4244	Passing non-positive argument to log() makes the function's result undefined
 select log(-2,1);
 log(-2,1)
 NULL
 Warnings:
-Warning	1365	Division by 0
+Warning	4245	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
 set sql_mode='';
 select round(111,-10);
 round(111,-10)
