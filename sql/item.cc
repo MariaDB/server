@@ -9839,6 +9839,21 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
   return find_matching_field_pair(this, sel->grouping_tmp_fields) != NULL;
 }
 
+Item_direct_view_ref::Item_direct_view_ref(THD *thd, Name_resolution_context *context_arg,
+                       Item **item,
+                       LEX_CSTRING &table_name_arg,
+                       LEX_CSTRING &field_name_arg,
+                       TABLE_LIST *view_arg):
+    Item_direct_ref(thd, context_arg, item, table_name_arg, field_name_arg),
+    item_equal(0), view(view_arg),
+    null_ref_table(NULL)
+  {
+    DBUG_ASSERT(thd->stmt_arena->state != Query_arena::STMT_EXECUTED);
+    if (fixed())
+      set_null_ref_table();
+  }
+
+
 
 bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
 {
