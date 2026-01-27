@@ -230,6 +230,7 @@ private:
 /* Order clause list element */
 
 typedef int (*fast_field_copier)(Field *to, Field *from);
+class Item_window_func;
 
 
 typedef struct st_order {
@@ -258,6 +259,7 @@ typedef struct st_order {
   char	 *buff;				/* If tmp-table group */
   table_map used; /* NOTE: the below is only set to 0 but is still used by eq_ref_table */
   table_map depend_map;
+  List<Item_window_func> window_funcs;
 } ORDER;
 
 /**

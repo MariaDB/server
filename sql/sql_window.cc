@@ -3253,10 +3253,13 @@ Window_funcs_computation::save_explain_plan(MEM_ROOT *mem_root,
 }
 
 
-bool st_select_lex::add_window_func(Item_window_func *win_func)
+bool st_select_lex::add_window_func(THD *thd, Item_window_func *win_func)
 {
   if (parsing_place != SELECT_LIST)
     fields_in_window_functions+= win_func->window_func()->argument_count();
+  /* We may use it later for other clauses, now just ORDER_CLAUSE */
+  if (thd->where == THD_WHERE::ORDER_CLAUSE)
+    parent_lex->clause_winfuncs.push_back(win_func, thd->mem_root);
   return window_funcs.push_back(win_func);
 }
 

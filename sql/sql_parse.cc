@@ -8331,7 +8331,10 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
   order->direction= (asc ? ORDER::ORDER_ASC : ORDER::ORDER_DESC);
   order->used=0;
   order->counter_used= 0;
-  order->fast_field_copier_setup= 0; 
+  order->fast_field_copier_setup= 0;
+  if (!thd->lex->clause_winfuncs.is_empty() &&
+      order->window_funcs.copy(&thd->lex->clause_winfuncs, thd->mem_root))
+    DBUG_RETURN(1);
   list.link_in_list(order, &order->next);
   DBUG_RETURN(0);
 }
