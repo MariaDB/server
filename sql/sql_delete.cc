@@ -490,6 +490,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       DBUG_RETURN(TRUE);
     }
   }
+  
+  if (optimize_constant_subqueries(select_lex))
+    DBUG_RETURN(TRUE);
 
   /* Apply the IN=>EXISTS transformation to all subqueries and optimize them. */
   if (select_lex->optimize_unflattened_subqueries(false))

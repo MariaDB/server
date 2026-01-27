@@ -540,6 +540,9 @@ int mysql_update(THD *thd,
   switch_to_nullable_trigger_fields(fields, table);
   switch_to_nullable_trigger_fields(values, table);
 
+  if (optimize_constant_subqueries(select_lex))
+    DBUG_RETURN(TRUE);
+
   /* Apply the IN=>EXISTS transformation to all subqueries and optimize them */
   if (select_lex->optimize_unflattened_subqueries(false))
     DBUG_RETURN(TRUE);

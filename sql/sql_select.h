@@ -1688,7 +1688,7 @@ public:
   bool alloc_func_list();
   bool flatten_subqueries();
   bool optimize_unflattened_subqueries();
-  bool optimize_constant_subqueries();
+  //bool optimize_constant_subqueries();
   bool make_range_rowid_filters();
   bool init_range_rowid_filters();
   bool make_sum_func_list(List<Item> &all_fields, List<Item> &send_fields,
@@ -1890,6 +1890,8 @@ private:
                                                  List<TABLE_LIST> *join_list,
                                                  Item_transformer transformer);
 };
+
+bool optimize_constant_subqueries(SELECT_LEX *select_lex);
 
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};
 enum enum_with_const_tables { WITH_CONST_TABLES, WITHOUT_CONST_TABLES};

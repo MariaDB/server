@@ -5703,7 +5703,7 @@ bool JOIN::optimize_unflattened_subqueries()
   @retval TRUE      error occurred.
 */
  
-bool JOIN::optimize_constant_subqueries()
+bool optimize_constant_subqueries(SELECT_LEX *select_lex)
 {
   ulonglong save_options= select_lex->options;
   bool res;

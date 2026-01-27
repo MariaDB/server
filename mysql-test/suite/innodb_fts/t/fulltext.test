@@ -821,3 +821,27 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1, t2;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-31255 Crash with Explain DELETE on fulltext search query
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE = InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+ 
+CREATE TABLE t2 (b CHAR(255), FULLTEXT(b)) ENGINE = InnoDB;
+INSERT INTO t2 VALUES ('foo'),('bar');
+
+EXPLAIN
+DELETE
+FROM t1
+WHERE EXISTS (
+  SELECT * FROM t2 WHERE MATCH (b) AGAINST ('qux' IN NATURAL LANGUAGE MODE)
+);
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
