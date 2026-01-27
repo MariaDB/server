@@ -37,26 +37,6 @@ typedef class st_select_lex SELECT_LEX;
 
 typedef struct st_lock_param_type ALTER_PARTITION_PARAM_TYPE;
 
-/*
-  This enumeration type is used only by the function find_item_in_list
-  to return the info on how an item has been resolved against a list
-  of possibly aliased items.
-  The item can be resolved:
-   - against an alias name of the list's element (RESOLVED_AGAINST_ALIAS)
-   - against non-aliased field name of the list  (RESOLVED_WITH_NO_ALIAS)
-   - against an aliased field name of the list   (RESOLVED_BEHIND_ALIAS)
-   - ignoring the alias name in cases when SQL requires to ignore aliases
-     (e.g. when the resolved field reference contains a table name or
-     when the resolved item is an expression)   (RESOLVED_IGNORING_ALIAS)
-*/
-enum enum_resolution_type {
-  NOT_RESOLVED=0,
-  RESOLVED_IGNORING_ALIAS,
-  RESOLVED_BEHIND_ALIAS,
-  RESOLVED_WITH_NO_ALIAS,
-  RESOLVED_AGAINST_ALIAS
-};
-
 /* Argument to flush_tables() of what to flush */
 enum flush_tables_type {
   FLUSH_ALL,

@@ -6312,14 +6312,18 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
   {
     if (!my_strcasecmp(system_charset_info, field_it.name()->str, name))
     {
-      if (register_tree_change)
-        arena= thd->activate_stmt_arena_if_needed(&backup);
+      /*
+        This must be allocated on statement memory to be preserved across
+        executions by find_order_in_list
+      */
+      arena= thd->activate_stmt_arena_if_needed(&backup);
       /*
         create_item() may, or may not create a new Item, depending on
         the column reference. See create_view_field() for details.
       */
       Item *item= field_it.create_item(thd);
-      thd->restore_active_arena(arena, &backup);
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
       
       if (!item)
         DBUG_RETURN(0);
@@ -6337,7 +6341,8 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
         if (thd->is_first_query_execution())
           arena= thd->activate_stmt_arena_if_needed(&backup);
         item->set_name(thd, (*ref)->name);
-        thd->restore_active_arena(arena, &backup);
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
       }
       if (item != *ref)
       {

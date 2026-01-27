@@ -166,6 +166,7 @@ void Item_subselect::cleanup()
   value_assigned= 0;
   expr_cache= 0;
   forced_const= FALSE;
+  const_item_cache= TRUE;
   DBUG_PRINT("info", ("exec_counter: %d", exec_counter));
 #ifndef DBUG_OFF
   exec_counter= 0;
@@ -1734,7 +1735,8 @@ bool Item_exists_subselect::fix_length_and_dec()
        */
       Query_arena backup, *arena= thd->activate_stmt_arena_if_needed(&backup);
       Item *item= new (thd->mem_root) Item_int(thd, (int32) 1);
-      thd->restore_active_arena(arena, &backup);
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
       if (!item)
         DBUG_RETURN(TRUE);
       unit->global_parameters()->limit_params.select_limit= item;
@@ -2209,15 +2211,6 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
 
     save_allow_sum_func= thd->lex->allow_sum_func;
     thd->lex->allow_sum_func.set_bit(thd->lex->current_select->nest_level);
-
-    /*
-      init_sum_func_check below has been restricted from resetting some
-      attributes as it is assumed that the item is allocated on statement
-      memory.  Here this assumption may be FALSE.
-      We override the check and force reset
-    */
-    item->init_sum_func_check(thd, TRUE);
-
     /*
       Item_sum_(max|min) can't substitute other item => we can use 0 as
       reference, also Item_sum_(max|min) can't be fixed after creation, so

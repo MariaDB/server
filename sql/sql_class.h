@@ -4718,8 +4718,6 @@ public:
 
   void change_item_tree(Item **place, Item *new_value)
   {
-    if (*place == new_value)
-      return;
     DBUG_ENTER("THD::change_item_tree");
     DBUG_PRINT("enter", ("Register: %p (%p) <- %p",
                        *place, place, new_value));

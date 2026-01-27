@@ -6283,7 +6283,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
           else
             thd->change_item_tree(reference, rf);
         }
-        thd->restore_active_arena(arena, &backup);
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
         if (!rf)
           return -1;
         /*

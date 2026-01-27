@@ -206,6 +206,7 @@ public:
   void make_const()
   { 
     used_tables_cache= 0;
+    const_item_cache= TRUE;
     forced_const= TRUE; 
   }
   virtual bool fix_length_and_dec();

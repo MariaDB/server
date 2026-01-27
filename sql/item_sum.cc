@@ -89,7 +89,7 @@ static void store_bit_fields_as_bigint_in_tempory_table(List<Item> *list)
     FALSE  otherwise
 */
  
-bool Item_sum::init_sum_func_check(THD *thd, bool force)
+bool Item_sum::init_sum_func_check(THD *thd)
 {
   SELECT_LEX *curr_sel= thd->lex->current_select;
   if (curr_sel && curr_sel->name_visibility_map.is_clear_all())
@@ -111,8 +111,7 @@ bool Item_sum::init_sum_func_check(THD *thd, bool force)
   /* Save a pointer to object to be used in items for nested set functions */
   thd->lex->in_sum_func= this;
   nest_level= thd->lex->current_select->nest_level;
-  if (force ||
-      (thd->stmt_arena->state != Query_arena::STMT_EXECUTED) ||
+  if ((thd->stmt_arena->state != Query_arena::STMT_EXECUTED) ||
       (thd->active_stmt_arena_to_use()->state ==
        Query_arena::STMT_SP_QUERY_ARGUMENTS))
   {

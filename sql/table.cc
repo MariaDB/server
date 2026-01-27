@@ -7199,6 +7199,8 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   Item *field= *field_ref;
   DBUG_ENTER("create_view_field");
 
+  DBUG_ASSERT(thd->stmt_arena->state != Query_arena::STMT_EXECUTED);
+
   if (view->schema_table_reformed)
   {
     /*
@@ -7226,9 +7228,6 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   {
     DBUG_RETURN(field);
   }
-
-  if (thd->stmt_arena->state == Query_arena::STMT_EXECUTED)
-    DBUG_RETURN(field);
 
   Name_resolution_context *context= (view->view ?
                                      &view->view->first_select_lex()->context:

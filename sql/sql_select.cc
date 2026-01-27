@@ -795,7 +795,8 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
                                              item_ref, ref->table_name,
                                              ref->field_name,
                                              ref->alias_name_used);
-      thd->restore_active_arena(arena, &backup);
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
       if (!new_ref)
         return TRUE;
       if (is_first_execution)
@@ -1699,6 +1700,13 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   if (res)
     DBUG_RETURN(res);
 
+  if (!thd->is_first_query_execution() &&
+      !thd->lex->is_ps_or_view_context_analysis())
+  {
+    select_lex->uncacheable= select_lex->save_uncacheable;
+    select_lex->master_unit()->uncacheable= select_lex->save_master_uncacheable;
+  }
+
   if (order)
   {
     bool requires_sorting= FALSE;
@@ -2359,6 +2367,9 @@ JOIN::optimize_inner()
 
     if (arena)
       thd->restore_active_arena(arena, &backup);
+
+    select_lex->save_uncacheable= select_lex->uncacheable;
+    select_lex->save_master_uncacheable= select_lex->master_unit()->uncacheable;
   }
 
   if (!allowed_top_level_tables)
@@ -27269,16 +27280,18 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
   // if this is the first real execution
   if (thd->stmt_arena->state != Query_arena::STMT_EXECUTED)
   {
-    order->orig_item= order_item;
     select_item= find_item_in_list(order_item,
                                    fields, &counter,
                                    REPORT_EXCEPT_NOT_FOUND, &resolution);
+    order->resolution= resolution;
+    order->select_item= select_item;
+    order->counter= counter;
   }
   else
   {
-    select_item= find_item_in_list(order->orig_item,
-                                   fields, &counter,
-                                   REPORT_EXCEPT_NOT_FOUND, &resolution);
+    resolution= order->resolution;
+    select_item= order->select_item;
+    counter= order->counter;
   }
 
   if (!select_item)
@@ -27308,20 +27321,35 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
     if ((is_group_field && order_item_type == Item::FIELD_ITEM) ||
         order_item_type == Item::REF_ITEM)
     {
-      from_field= find_field_in_tables(thd, (Item_ident*) order_item, tables,
-                                       NULL, ignored_tables_list_t(NULL),
-                                       &view_ref, IGNORE_ERRORS, FALSE, FALSE);
+      if (thd->stmt_arena->state != Query_arena::STMT_EXECUTED)
+      {
+        from_field= find_field_in_tables(thd, (Item_ident*) order_item,
+                                         tables, NULL,
+                                         ignored_tables_list_t(NULL),
+                                         &view_ref, IGNORE_ERRORS, FALSE,
+                                         FALSE);
+        order->view_ref= view_ref;                   // save for next execution
+        order->from_field= from_field;
+      }
+      else
+      {
+        if (order->view_ref)
+        {
+          view_ref= order->view_ref;
+          from_field= order->from_field;
+        }
+        else
+        {
+          from_field= find_field_in_tables(thd, (Item_ident*) order_item,
+                                           tables, NULL,
+                                           ignored_tables_list_t(NULL),
+                                           &view_ref, IGNORE_ERRORS, FALSE,
+                                           FALSE);
+        }
+      }
+
       if (!from_field)
         from_field= (Field*) not_found_field;
-
-      /*
-        for the 2nd execution, view_ref returned by create_view_field is wrong
-        view_ref needs to point to what we allocated on statement mem during
-        the first execution
-      */
-      if ((thd->stmt_arena->state == Query_arena::STMT_EXECUTED) &&
-          from_field == view_ref_found)
-        view_ref= ref_pointer_array[counter];
     }
 
     if (from_field == not_found_field ||
