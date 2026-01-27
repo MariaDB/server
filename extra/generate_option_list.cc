@@ -41,24 +41,6 @@ struct parsed
      __attribute__((no_sanitize("memory"))) /* we may run with uninstrumented std::string */
 #  endif
 #endif
-void escape_command(std::ostringstream &out, const char *command)
-{
-  out << '\"';
-  while (*command)
-  {
-    switch (*command) {
-    case '\"':
-    case '\\':
-    case '$':
-      out << '\\';
-      /* falls through */
-    default:
-      out << *command;
-    }
-    command++;
-  }
-  out << '\"';
-}
 
 std::string read_output(FILE *f)
 {
@@ -74,54 +56,6 @@ std::string read_output(FILE *f)
 }
 
 
-/* Link all plugins to a temporary directory so that MariaDB can use them */
-
-void link_plugins(const char *tmpdir, const char *plugin_dir, const char *path,
-                  std::ostringstream *command)
-{
-  struct fileinfo *ptr, *end;
-  uint first= 0;
-  char tmp_name[FN_REFLEN], org_name[FN_REFLEN], rel_path[FN_REFLEN];
-  char dir_sep[2];
-  MY_DIR *dir;
-
-  if (!(dir=my_dir(plugin_dir, MYF(MY_WME | MY_WANT_STAT))))
-    return;
-
-  dir_sep[0]= FN_LIBCHAR; dir_sep[1]= 0;
-
-  end= dir->dir_entry + dir->number_of_files;
-  for (ptr= dir->dir_entry ; ptr < end ; ptr++)
-  {
-    const char *ext;
-    if (ptr->mystat->st_mode & S_IFDIR)
-    {
-      strxnmov(tmp_name, sizeof(tmp_name)-1, plugin_dir, dir_sep, ptr->name,
-               NullS);
-      strxnmov(rel_path, sizeof(rel_path)-1, path, dir_sep, ptr->name, NullS);
-      link_plugins(tmpdir, tmp_name, rel_path, command);
-      continue;
-    }
-
-    ext= fn_ext(ptr->name);
-    if (!strcmp(ext, ".so") || !strcmp(ext, ".ddl"))
-    {
-      fn_format(tmp_name, ptr->name, tmpdir, "", MYF(MY_REPLACE_DIR));
-      fn_format(org_name, ptr->name, path, "", MYF(MY_REPLACE_DIR));
-
-      /* plugin found, symlink it to plugin_dir */
-      my_delete(tmp_name, MYF(MY_NOSYMLINKS));
-      my_symlink(org_name, tmp_name, MYF(0));
-
-      if (first++)
-        (*command) << ";";
-      (*command) << ptr->name;
-    }
-  }
-  my_dirend(dir);
-}
-
-
 #if defined(__has_feature)
 #  if __has_feature(memory_sanitizer)
      __attribute__((no_sanitize("memory"))) /* we may run with uninstrumented std::string */
@@ -129,54 +63,40 @@ void link_plugins(const char *tmpdir, const char *plugin_dir, const char *path,
 #endif
 
 
-std::string call_mariadbd(const char *mariadbd_path)
+std::string call_mariadbd(const char *mariadbd_path, const char *plugin_dir, const char *plugin_load)
 {
   std::string output;
   std::ostringstream command;
-  char plugin_dir[FN_REFLEN], plugin_tmp_dir[FN_REFLEN+20], *end;
-  size_t dir_length;
-
-  // command << "valgrind --leak-check=full ";
-  escape_command(command, mariadbd_path);
-  dirname_part(plugin_dir, mariadbd_path, &dir_length);
-
-  if (dir_length <= sizeof(plugin_dir)-20)
-  {
-    end= strmov(plugin_dir + dir_length, "..");
-    *end++= FN_LIBCHAR;
-    end= strmov(end, "plugin");
-  }
-  end= strmov(plugin_tmp_dir, plugin_dir);
-  *end++= FN_LIBCHAR;
-  strmov(end, "tmp");
-
-  my_rmtree(plugin_tmp_dir, MYF(MY_NOSYMLINKS));
-  my_mkdir(plugin_tmp_dir, 0777, MYF(MY_WME));
-
+#ifdef _WIN32
+  command << "\"";
+#endif
+  command << "\"" << mariadbd_path << "\"";
   command << " --no-defaults"
              " --silent-startup"
              " --plugin-maturity=unknown"
              " --plugin-dir=";
-  command << plugin_tmp_dir;
-  command << " --plugin-load=\"";
-
-  link_plugins(plugin_tmp_dir, plugin_dir, "..", &command);
-
-  command << "\""
-             " --verbose"
+  command << plugin_dir << "";
+  if (plugin_load[0] != ' ' || !plugin_load[0])
+  {
+    command << " \"--plugin-load=";
+    command << plugin_load;
+    command << "\"";
+  }
+  command << " --verbose"
              " --help";
-
+#ifdef _WIN32
+  command << "\"";
+#endif
+  std::cout << "Executing command: " << command.str() << '\n';
   FILE *f= my_popen(command.str().c_str(), "r");
   if (!f)
   {
     perror("failed to read mariadbd output");
     my_pclose(f);
-    my_rmtree(plugin_tmp_dir, MYF(MY_NOSYMLINKS | MY_WME));
     exit(1);
   }
   output= read_output(f);
   my_pclose(f);
-  my_rmtree(plugin_tmp_dir, MYF(MY_WME));
   return output;
 }
 
@@ -411,16 +331,15 @@ int main(int argc, const char *argv[])
   std::string mariadbd_output;
   struct parsed parsed_output;
 
-  if (argc != 3)
+  if (argc != 5)
   {
-    std::cerr << "usage: " << argv[0] << " <mariadbd_path> <output_path>\n";
+    std::cerr << "usage: " << argv[0] << " <mariadbd_path> <plugin_dir> <plugin_list> <output_path>\n";
     return 1;
   }
   MY_INIT(argv[0]);
-
-  mariadbd_output= call_mariadbd(argv[1]);
+  mariadbd_output= call_mariadbd(argv[1], argv[2], argv[3]);
   parsed_output= parse_output(mariadbd_output);
-  write_output(argv[2], parsed_output);
+  write_output(argv[4], parsed_output);
 
   my_end(0);
   exit(0);

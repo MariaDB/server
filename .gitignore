@@ -30,6 +30,7 @@ Docs/INFO_BIN
 Docs/INFO_SRC
 Makefile
 TAGS
+all_plugins/
 mariadb-plugin-columnstore.install.generated
 Testing/
 tmp/

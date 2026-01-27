@@ -2288,9 +2288,9 @@ sub environment_setup {
   # mariadb-migrate-config-file
   # ----------------------------------------------------
   my $exe_mariadb_migrate_config_file=
-    mtr_exe_exists("$bindir/extra$multiconfig/mariadb-migrate-config-file",
+    mtr_exe_maybe_exists("$bindir/extra$multiconfig/mariadb-migrate-config-file",
 		   "$path_client_bindir/mariadb-migrate-config-file");
-  $ENV{'MARIADB_MIGRATE_CONFIG_FILE'}= native_path($exe_mariadb_migrate_config_file);
+  $ENV{'MARIADB_MIGRATE_CONFIG_FILE'}= native_path($exe_mariadb_migrate_config_file) if $exe_mariadb_migrate_config_file;
 
   # ----------------------------------------------------
   # myisam tools

@@ -1,3 +1,9 @@
+--source include/not_windows.inc
+
+if (!$MARIADB_MIGRATE_CONFIG_FILE) {
+  --skip MARIADB_MIGRATE_CONFIG_FILE missing
+}
+
 let $MARIADBD_PATH=$MYSQL_BINDIR/sql;
 
 --echo #

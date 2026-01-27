@@ -2028,9 +2028,7 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
       list= NULL; /* terminate the loop */
       /* fall through */
     case ';':
-#ifndef _WIN32
-    case ':':     /* can't use this as delimiter as it may be drive letter */
-#endif
+    case ':':
       p[-1]= 0;
       if (str == &name)  // load all plugins in named module
       {
