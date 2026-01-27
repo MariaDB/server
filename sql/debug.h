@@ -36,4 +36,23 @@ bool debug_simulate_error(const char *keyword, uint error);
 #define debug_simulate_error(A, B) 0
 #endif
 
+/*
+  Functions intended for manual use in debugger. NOT thread-safe.
+*/
+
+/* Print various data structures */
+const char *dbug_print_item(Item *item);
+const char *dbug_print_select(SELECT_LEX *sl);
+const char *dbug_print_unit(SELECT_LEX_UNIT *un);
+const char *dbug_print_sel_arg(SEL_ARG *sel_arg);
+
+/* Print current table row */
+const char* dbug_print_table_row(TABLE *table);
+const char *dbug_print_row(TABLE *table, const uchar *rec);
+
+/* Check which MEM_ROOT the data is on */
+bool dbug_is_mem_on_mem_root(MEM_ROOT *mem_root, void *ptr);
+const char *dbug_which_mem_root(THD *thd, void *ptr);
+
+
 #endif /* DEBUG_INCLUDED */
