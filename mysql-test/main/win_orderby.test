@@ -82,9 +82,7 @@ FROM t1;
 
 DROP TABLE t1;
 
---echo #
 --echo # End of 10.3 tests
---echo #
 
 --echo #
 --echo # MDEV-32317 ref_ptrs exhaust on multiple ORDER by func from winfunc
@@ -137,18 +135,16 @@ select nullif(avg(1) over (partition by 1, 2), avg(1) over ()) order by 1, 1, 1;
 
 # Extinguishing tests, let's break the code
 # 17 elements (reserves 25)
-select avg ( 'x' ) over ( ) x where ( 1 , 1 , ( 1 , null ) ) in ( ( 1 , 1 , ( 1 , 1 ) ) ) order by x between 25 and ( ( x = x ) / x ) or x = x = avg ( null ) or x = 94 ;
+select avg ( '1' ) over ( ) x where ( 1 , 1 , ( 1 , null ) ) in ( ( 1 , 1 , ( 1 , 1 ) ) ) order by x between 25 and ( ( x = x ) / x ) or x = x = avg ( null ) or x = 94 ;
 # 14 elements (reserves 20)
 select row_number() over () x order by x between 1 and (( x = x ) / x) or x = x = 1  ;
 # 16 elements (reserves 20)
 select nullif(avg(1) over (order by 1), 0) order by 1, 1, 1;
 # 41 elements (reserves 72)
-select nullif(avg(1) over (order by 1, 1, 1, 1, 1, 1, 1), avg(2) over (order by 1, 1, 1, 1, 1, 1, 1)) order by 1, 1, 1, 1, 1, 1;
+select nullif(avg(1) over (order by 1, 1, 1, 1, 1, 1, 1), avg(2) over (order by 1, 1, 1, 1, 1, 1, 1)) x order by 1, 1, 1, 1, 1, 1;
 # 50 elements (reserves 92)
-select nullif(avg(1) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1), avg(2) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1)) order by 1, 1, 1, 1, 1, 1;
+select nullif(avg(1) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1), avg(2) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1)) x order by 1, 1, 1, 1, 1, 1;
 # 63 elements (reserves 124)
 select nullif(avg(1) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1), avg(2) over (partition by -1,1,0,2,3,4,5,6,7,8 order by 1, 1, 1, 1, 1, 1, 1)) x order by 1, 1, 1, 1, 1, 1, x between 1 and (( x = x ) / x) or x = x = 1  ;
 
---echo #
---echo # End of 10.11 tests
---echo #
+--echo # End of 10.6 tests
