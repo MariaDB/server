@@ -4550,7 +4550,7 @@ public:
      */
     Optional_metadata_fields(MEM_ROOT *root, uint master_cols,
                              uchar* optional_metadata,
-                             uint optional_metadata_len,
+                             size_t optional_metadata_len,
                              bool only_column_names);
   };
 
