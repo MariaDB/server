@@ -517,7 +517,19 @@ int sp_lex_keeper::validate_lex_and_exec_core(THD *thd, uint *nextp,
     m_first_execution= false;
 
     if (!rc)
+    {
+      /*
+       sp_lex_instr is re-parsed after the metadata change, which sets up a new
+       mem_root for reparsing. Once the sp_lex_instr is reparsed and re-executed
+       (via reset_lex_and_exec_core) it should be marked as read-only to enforce
+       sp memory root protection.
+       */
+#ifdef PROTECT_STATEMENT_MEMROOT
+      if (rerun_the_same_instr && instr->mem_root)
+        instr->mem_root->flags |= ROOT_FLAG_READ_ONLY;
+#endif
       break;
+    }
 
     /*
       Raise the error upper level in case:
