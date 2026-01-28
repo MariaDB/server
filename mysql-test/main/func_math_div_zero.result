@@ -54,77 +54,77 @@ SELECT LOG(-1);
 LOG(-1)
 NULL
 Warnings:
-Warning	4244	Passing non-positive argument to log() makes the function's result undefined
+Warning	4256	Passing non-positive argument to log() makes the function's result undefined
 SHOW WARNINGS;
 Level	Code	Message
-Warning	4244	Passing non-positive argument to log() makes the function's result undefined
+Warning	4256	Passing non-positive argument to log() makes the function's result undefined
 SELECT LOG(0);
 LOG(0)
 NULL
 Warnings:
-Warning	4244	Passing non-positive argument to log() makes the function's result undefined
+Warning	4256	Passing non-positive argument to log() makes the function's result undefined
 SHOW WARNINGS;
 Level	Code	Message
-Warning	4244	Passing non-positive argument to log() makes the function's result undefined
+Warning	4256	Passing non-positive argument to log() makes the function's result undefined
 SELECT LN(0);
 LN(0)
 NULL
 Warnings:
-Warning	4243	Passing non-positive argument to ln() makes the function's result undefined
+Warning	4255	Passing non-positive argument to ln() makes the function's result undefined
 SHOW WARNINGS;
 Level	Code	Message
-Warning	4243	Passing non-positive argument to ln() makes the function's result undefined
+Warning	4255	Passing non-positive argument to ln() makes the function's result undefined
 SELECT LN(-5);
 LN(-5)
 NULL
 Warnings:
-Warning	4243	Passing non-positive argument to ln() makes the function's result undefined
+Warning	4255	Passing non-positive argument to ln() makes the function's result undefined
 SHOW WARNINGS;
 Level	Code	Message
-Warning	4243	Passing non-positive argument to ln() makes the function's result undefined
+Warning	4255	Passing non-positive argument to ln() makes the function's result undefined
 SELECT LOG2(-1);
 LOG2(-1)
 NULL
 Warnings:
-Warning	4246	Passing non-positive argument to log2() makes the function's result undefined
+Warning	4258	Passing non-positive argument to log2() makes the function's result undefined
 SHOW WARNINGS;
 Level	Code	Message
-Warning	4246	Passing non-positive argument to log2() makes the function's result undefined
+Warning	4258	Passing non-positive argument to log2() makes the function's result undefined
 SELECT LOG10(-1);
 LOG10(-1)
 NULL
 Warnings:
-Warning	4247	Passing non-positive argument to log10() makes the function's result undefined
+Warning	4259	Passing non-positive argument to log10() makes the function's result undefined
 SHOW WARNINGS;
 Level	Code	Message
-Warning	4247	Passing non-positive argument to log10() makes the function's result undefined
+Warning	4259	Passing non-positive argument to log10() makes the function's result undefined
 # Two-argument LOG: invalid second argument
 SELECT LOG(2, -1);
 LOG(2, -1)
 NULL
 Warnings:
-Warning	4244	Passing non-positive argument to log() makes the function's result undefined
+Warning	4256	Passing non-positive argument to log() makes the function's result undefined
 SHOW WARNINGS;
 Level	Code	Message
-Warning	4244	Passing non-positive argument to log() makes the function's result undefined
+Warning	4256	Passing non-positive argument to log() makes the function's result undefined
 # Two-argument LOG: invalid base (negative)
 SELECT LOG(-2, 10);
 LOG(-2, 10)
 NULL
 Warnings:
-Warning	4245	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
+Warning	4257	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
 SHOW WARNINGS;
 Level	Code	Message
-Warning	4245	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
+Warning	4257	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
 # Two-argument LOG: base = 1 (invalid - would cause log(1)=0 in denominator)
 SELECT LOG(1, 10);
 LOG(1, 10)
 NULL
 Warnings:
-Warning	4245	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
+Warning	4257	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
 SHOW WARNINGS;
 Level	Code	Message
-Warning	4245	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
+Warning	4257	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
 #
 # Division operations should report ER_DIVISION_BY_ZERO (1365)
 #
