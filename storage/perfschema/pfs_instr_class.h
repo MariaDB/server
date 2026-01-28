@@ -625,6 +625,10 @@ PFS_socket_class *find_socket_class(PSI_socket_key key);
 PFS_socket_class *sanitize_socket_class(PFS_socket_class *unsafe);
 PFS_memory_class *find_memory_class(PSI_memory_key key);
 PFS_memory_class *sanitize_memory_class(PFS_memory_class *unsafe);
+const char *pfs_get_memory_class_name(PSI_memory_key key);
+#ifndef DBUG_OFF
+extern "C" void dbug_print_memroot_name(struct st_mem_root *root);
+#endif
 PFS_instr_class *find_idle_class(uint index);
 PFS_instr_class *sanitize_idle_class(PFS_instr_class *unsafe);
 PFS_instr_class *find_metadata_class(uint index);
