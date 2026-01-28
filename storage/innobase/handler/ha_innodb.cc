@@ -15261,7 +15261,7 @@ ha_innobase::check(
 	ut_a(m_prebuilt->trx == thd_to_trx(thd));
 	ut_ad(m_prebuilt->trx->mysql_thd == thd);
 
-	if (handler_flags || check_for_upgrade(check_opt)) {
+	if (handler_flags) {
 		/* The file was already checked and fixed as part of open */
 		print_check_msg(thd, table->s->db.str, table->s->table_name.str,
 				"check", "note",
@@ -15273,7 +15273,7 @@ ha_innobase::check(
 				" when the server is not in a read-only state"
 				: "Auto_increment checked and"
 				" .frm file version updated", 1);
-		if (handler_flags && (check_opt->sql_flags & TT_FOR_UPGRADE)) {
+		if (check_opt->sql_flags & TT_FOR_UPGRADE) {
 			/*
 			  No other issues found (as handler_flags was only
 			  set if there as not other problems with the table
