@@ -239,6 +239,22 @@ RESET SLAVE;
 --echo
 
 #
+# MDEV-38454: MASTER_HEARTBEAT_PERIOD should accept values with + sign
+#
+--echo *** MDEV-38454: MASTER_HEARTBEAT_PERIOD should accept + sign ***
+# Test with + sign (was broken before fix)
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root', MASTER_CONNECT_RETRY=$connect_retry, MASTER_HEARTBEAT_PERIOD=+60;
+SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
+RESET SLAVE;
+# Test without + sign (should still work)
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root', MASTER_CONNECT_RETRY=$connect_retry, MASTER_HEARTBEAT_PERIOD=60;
+SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
+RESET SLAVE;
+--echo
+
+#
 # Testing heartbeat 
 #
 
