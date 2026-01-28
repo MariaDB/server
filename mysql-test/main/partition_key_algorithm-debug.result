@@ -15,6 +15,7 @@ insert into t1 values
 (2, '2014-04-25'),
 (2, '2014-04-26'),
 (2, '2014-04-27');
+SET GLOBAL debug_dbug="+d,emulate_unknown_partition_algorithm";
 SET SESSION debug_dbug="+d,emulate_unknown_partition_algorithm";
 FLUSH TABLES;
 SELECT * FROM t1;
@@ -30,4 +31,5 @@ ALTER TABLE t1 REMOVE PARTITIONING;
 ERROR HY000: Incorrect PARTITION BY [LINEAR] KEY ALGORI value: 'CRC32C'
 FLUSH TABLES;
 DROP TABLE t1;
+SET GLOBAL debug_dbug=DEFAULT;
 SET SESSION debug_dbug=DEFAULT;
