@@ -4540,13 +4540,6 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #endif /* WITH_WSREP */
           DBUG_RETURN(1);
         }
-        /*
-          If we need to skip this event group (because the GTID was already
-          applied), then do it using the code for slave_skip_counter, which
-          is able to handle skipping until the end of the event group.
-        */
-        if (!res)
-          rli->slave_skip_counter= 1;
       }
     }
 
