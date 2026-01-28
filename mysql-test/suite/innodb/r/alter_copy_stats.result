@@ -103,3 +103,13 @@ n_rows	database_name	lower(table_name)
 # Test Cleanup.
 DROP TABLE t1;
 DROP TABLE t2;
+#
+# MDEV-38667 Assertion in diagnostics area on DDL stats timeout
+#
+set @lock_wait_timeout= @@global.innodb_lock_wait_timeout;
+SET innodb_lock_wait_timeout = 1;
+CREATE TABLE t ENGINE=InnoDB AS SELECT * FROM mysql.innodb_table_stats;
+Warnings:
+Warning	1088	Error updating stats for table after table rebuild: Lock wait timeout
+SET innodb_lock_wait_timeout = @lock_wait_timeout;
+DROP TABLE t;

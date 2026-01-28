@@ -122,6 +122,13 @@ GRANT ALL ON sa_db TO u2 IDENTIFIED BY "pwd-321";
 SET PASSWORD FOR u1 = PASSWORD('pwd 098');
 CREATE USER u3 IDENTIFIED BY '';
 ALTER USER u3 IDENTIFIED BY 'pwd-456';
+GRANT SELECT ON sa_db.* TO pwd_test1 IDENTIFIED BY 'grantpwd789';
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='repl', MASTER_PASSWORD='replsecret';
+CREATE SERVER pwd_server FOREIGN DATA WRAPPER mysql OPTIONS (HOST 'localhost', USER 'remote', PASSWORD 'serverpwd');
+ALTER SERVER pwd_server OPTIONS (PASSWORD 'newserverpwd');
+DROP USER pwd_test1;
+DROP SERVER pwd_server;
+RESET SLAVE ALL;
 drop user u1, u2, u3;
 set global server_audit_events='query_ddl';
 create table t1(id int);
@@ -177,6 +184,43 @@ select 2;
 /*comment*/ select 2;
 2
 2
+with foo as (select 1) select 6;
+6
+6
+values (7, 'a'), (8, 'b');
+7	a
+7	a
+8	b
+#
+# Certain usage of comments and control characters in query strings bypass audit
+# logging when filtering in QUERY_{DCL/DML/DDL} mode
+#
+-- A comment
+select 1;
+1
+1
+--A comment
+select 2;
+2
+2
+# A comment
+select 3;
+3
+3
+/*! SELECT 4 */;
+4
+4
+/*M! SELECT 5 */;
+5
+5
+/*!100100 SELECT 6 */;
+6
+6
+/*!999999 SELECT 'should not log' */;
+/*M!100100 SELECT 7 */;
+7
+7
+/*M!999999 SELECT 'should not log' */;
 drop table t1;
 set global server_audit_events='query_dcl';
 create table t1(id int);
@@ -424,6 +468,25 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER u3 IDENTIFIED BY ***
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'ALTER USER u3 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'GRANT SELECT ON sa_db.* TO pwd_test1 IDENTIFIED BY *****',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CHANGE MASTER TO MASTER_HOST=\'127.0.0.1\', MASTER_USER=\'repl\', MASTER_PASSWORD=*****',0
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,servers,
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE SERVER pwd_server FOREIGN DATA WRAPPER mysql OPTIONS (HOST \'localhost\', USER \'remote\', PASSWORD *****)',0
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,servers,
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'ALTER SERVER pwd_server OPTIONS (PASSWORD *****)',0
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,columns_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,procs_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'DROP USER pwd_test1',0
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,servers,
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'DROP SERVER pwd_server',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'RESET SLAVE ALL',0
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,columns_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,procs_priv,
@@ -448,6 +511,15 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'select 2',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'(select 2)',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'/*! select 2*/',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'/*comment*/ select 2',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'with foo as (select 1) select 6',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'values (7, \'a\'), (8, \'b\')',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'-- A comment\nselect 1',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'--A comment\nselect 2',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'# A comment\nselect 3',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'/*! SELECT 4 */',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'/*M! SELECT 5 */',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'/*!100100 SELECT 6 */',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'/*M!100100 SELECT 7 */',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER u1 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'GRANT ALL ON sa_db TO u2 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER u3 IDENTIFIED BY *****',0
