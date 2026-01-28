@@ -7246,8 +7246,9 @@ Natural_join_column::Natural_join_column(Field_translator *field_param,
 {
   DBUG_ASSERT(tab->field_translation);
   view_field= field_param;
-  table_field= NULL;
+  table_field= nullptr;
   table_ref= tab;
+  natural_full_join_field= nullptr;
   is_common= FALSE;
 }
 
@@ -7259,12 +7260,16 @@ Natural_join_column::Natural_join_column(Item_field *field_param,
   table_field= field_param;
   view_field= NULL;
   table_ref= tab;
+  natural_full_join_field= nullptr;
   is_common= FALSE;
 }
 
 
 const Lex_ident_column Natural_join_column::name()
 {
+  if (natural_full_join_field)
+    return natural_full_join_field->name;
+
   if (view_field)
   {
     DBUG_ASSERT(table_field == NULL);
@@ -7277,12 +7282,25 @@ const Lex_ident_column Natural_join_column::name()
 
 Item *Natural_join_column::create_item(THD *thd)
 {
+  if (natural_full_join_field)
+    return natural_full_join_field;
+
   if (view_field)
   {
     DBUG_ASSERT(table_field == NULL);
     return create_view_field(thd, table_ref, &view_field->item,
                              &view_field->name);
   }
+
+  return table_field;
+}
+
+
+Item *Natural_join_column::get_item()
+{
+  if (view_field)
+    return view_field->item;
+
   return table_field;
 }
 
