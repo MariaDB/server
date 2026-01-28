@@ -61,6 +61,7 @@ bool trx_t::rollback_finish() noexcept
   if (UNIV_LIKELY(error_state == DB_SUCCESS))
   {
     commit();
+    commit_lsn= 0;
     return true;
   }
 
@@ -82,6 +83,7 @@ bool trx_t::rollback_finish() noexcept
     undo= nullptr;
   }
   commit_low();
+  commit_lsn= 0;
   return commit_cleanup();
 }
 
