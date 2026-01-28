@@ -3277,6 +3277,14 @@ SELECT UNIX_TIMESTAMP(MAX(a)) AS a FROM t1;
 SET @@time_zone=DEFAULT;
 DROP TABLE t1;
 
---echo #
 --echo # End of 10.5 tests
+
 --echo #
+--echo # MDEV-38006 Inconsistent behaviors when casting into time
+--echo #
+create table t1 (c1 char(20), c2 mediumint unsigned);
+insert into t1 values (9430886, 9430886), (9430816, 9430816);
+select cast(c1 as time), cast(c2 as time) from t1;
+drop table t1;
+
+--echo # End of 10.11 tests

@@ -1,4 +1,4 @@
-/* Copyright 2008-2023 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2025 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -609,6 +609,8 @@ bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables);
  * @return true if error, otherwise false.
  */
 bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk);
+
+void wsrep_report_query_interrupted(const THD *thd, const char* file, const int line);
 
 #else /* !WITH_WSREP */
 

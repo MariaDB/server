@@ -278,7 +278,7 @@ partition by system_time interval 6 day limit 98;
 
 --error ER_DATA_OUT_OF_RANGE
 create or replace table t1 (pk int) with system versioning
-partition by system_time interval 10 year partitions 3;
+partition by system_time interval 10 year partitions 4;
 
 --echo # INTERVAL and ALTER TABLE
 create or replace table t1 (i int) with system versioning
@@ -2764,7 +2764,6 @@ partition by system_time interval 1 month (
     partition ver_p2 history,
     partition ver_pn current);
 
---error ER_DATA_OUT_OF_RANGE
 alter table `t1` partition by system_time interval 7 year ;
 drop table t1;
 
@@ -2813,6 +2812,35 @@ Explain partitions select * from t1 for system_time as of '2000-01-01 00:59:59';
 Select * from t1 for system_time as of '2000-01-01 00:59:59';
 
 drop table t1;
+
+--echo #
+--echo # MDEV-33289 INTERVAL partitioning by system time does not work close to
+--echo #            the end of timestamp range
+--echo #
+set timestamp= unix_timestamp('2024-01-21 00:00:00');
+create or replace table t (a int) with system versioning
+partition by system_time interval 10 year auto;
+insert into t values (0);
+set timestamp= unix_timestamp('2034-01-20 23:59:59');
+update t set a= 1;
+set timestamp= unix_timestamp('2034-01-20 00:00:00');
+update t set a= 2;
+set timestamp= unix_timestamp('2035-01-21 00:00:00');
+update t set a= 3;
+
+select * from t partition (p0);
+select * from t partition (p1);
+select * from t partition (pn);
+select * from t for system_time as of '2035-01-20 00:00:00';
+drop tables t;
+
+--error ER_DATA_OUT_OF_RANGE
+create or replace table t (a int) with system versioning
+partition by system_time interval 10 year partitions 10;
+
+create or replace table t (a int) with system versioning
+partition by system_time interval 10 year;
+drop table t;
 
 --echo #
 --echo # End of 10.11 tests

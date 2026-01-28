@@ -113,8 +113,7 @@ DROP TABLE t1;
 DROP TABLE IF EXISTS t2;
 # restart
 #
-#  MDEV-37296 ALTER TABLE allows adding unique hash key
-#		with duplicate values
+#  MDEV-37296 ALTER TABLE allows adding unique hash key with duplicate values
 #
 CREATE TABLE t (pk INT PRIMARY KEY, a INT, b TEXT) ENGINE=InnoDB;
 INSERT INTO t VALUES (5,3,'foo'), (1,NULL,'bar'), (3,3,'foo');
@@ -134,3 +133,23 @@ pk	a	b
 3	3	foo
 5	3	foo
 DROP TABLE t;
+#
+# MDEV-36787 Error 153: No savepoint with that name upon ROLLBACK TO SAVEPOINT, assertion failure
+#
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+START TRANSACTION;
+SELECT * FROM t;
+a
+SAVEPOINT A;
+select @@in_transaction;
+@@in_transaction
+1
+CREATE TEMPORARY TABLE tmp (a TINYINT) ENGINE=InnoDB AS SELECT 256 AS a;
+ERROR 22003: Out of range value for column 'a' at row 1
+select @@in_transaction;
+@@in_transaction
+0
+ROLLBACK TO SAVEPOINT A;
+ERROR 42000: SAVEPOINT A does not exist
+DROP TABLE t;
+# End of 10.11 tests

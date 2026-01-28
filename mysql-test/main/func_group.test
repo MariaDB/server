@@ -1802,6 +1802,16 @@ insert t1 values (1,2,3),(4,5,6),(1,7,8);
 select concat(a,":",group_concat(b)) from t1 group by a;
 drop table t1;
 
---echo #
 --echo # End of 10.3 tests
+
 --echo #
+--echo # MDEV-37888 unexpected type changing after changing AVG to MAX
+--echo #
+enable_metadata;
+disable_view_protocol;
+SELECT 1, MAX(1), AVG(1);
+SELECT 1, MAX(1), AVG(1) UNION ALL SELECT 'one', 'max', 'avg';
+enable_view_protocol;
+disable_metadata;
+
+--echo # End of 10.11 tests

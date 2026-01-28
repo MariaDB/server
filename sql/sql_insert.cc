@@ -4536,6 +4536,9 @@ bool select_insert::prepare_eof()
     DBUG_RETURN(1);
   if (error <= 0)
   {
+    /* Don't convert the warning to error in case
+    statistics updation fails */
+    Abort_on_warning_instant_set save_abort_on_warning(thd, false);
     error= table->file->extra(HA_EXTRA_END_ALTER_COPY);
     if (error == HA_ERR_FOUND_DUPP_KEY)
     {
@@ -4682,7 +4685,8 @@ void select_insert::abort_result_set()
     finalize_replace(table, info.handle_duplicates, info.ignore);
     table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
-    table->file->extra(HA_EXTRA_ABORT_ALTER_COPY);
+    if (table->file->extra(HA_EXTRA_ABORT_ALTER_COPY) == HA_ERR_ROLLBACK)
+      thd->transaction_rollback_request= true;
     /*
       If at least one row has been inserted/modified and will stay in
       the table (the table doesn't have transactions) we must write to
@@ -4839,6 +4843,14 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
 
     Create_field *cr_field= new (thd->mem_root)
                                   Create_field(thd, tmp_field, table_field);
+    /*
+      rather inconsistently we copy constant defaults and compression
+      from the original field, but not default expression or check constraint
+    */
+    if (table_field && table_field->default_value &&
+        !table_field->default_value->expr->const_item())
+      cr_field->default_value= 0;
+    cr_field->check_constraint= 0;
 
     if (!cr_field)
       DBUG_RETURN(NULL);

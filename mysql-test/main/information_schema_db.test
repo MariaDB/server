@@ -324,6 +324,42 @@ show index in t3;
 drop user u@localhost;
 drop database db;
 
---echo #
 --echo # End of 10.4 tests
+
 --echo #
+--echo # MDEV-38209 REFERENCES permission on particular schema is sometimes ignored
+--echo #
+
+create database db1;
+CREATE TABLE db1.author (
+  id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL
+) ENGINE = InnoDB;
+
+CREATE TABLE db1.book (
+  id MEDIUMINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(200) NOT NULL,
+  author_id SMALLINT UNSIGNED NOT NULL,
+  CONSTRAINT `fk_book_author`
+    FOREIGN KEY (author_id) REFERENCES db1.author (id)
+    ON DELETE CASCADE
+    ON UPDATE RESTRICT
+) ENGINE = InnoDB;
+
+grant select on *.* to u@localhost;
+grant select, references on db1.* to u@localhost;
+
+--connect u,localhost,u,,db1
+select user();
+show grants;
+--sorted_result
+select table_name,constraint_name from information_schema.referential_constraints;
+--sorted_result
+select table_name,constraint_name from information_schema.table_constraints;
+--disconnect u
+
+--connection default
+drop user u@localhost;
+drop database db1;
+
+--echo # End of 10.11 tests

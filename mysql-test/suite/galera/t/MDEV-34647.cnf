@@ -1,13 +1,16 @@
 !include ../galera_2nodes.cnf
 
 [mysqld]
+loose-mdev-34647
+
+[mysqld.1]
+auto-increment-increment=1
+auto-increment-offset=1
 log-bin
 log-slave-updates
 
-[mysqld.1]
-auto-increment-increment=2
-auto-increment-offset=1
-
 [mysqld.2]
 auto-increment-increment=2
-auto-increment-offset=2
+auto-increment-offset=1
+log-bin
+log-slave-updates

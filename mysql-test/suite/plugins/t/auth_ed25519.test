@@ -50,6 +50,9 @@ select current_user();
 disconnect con1;
 connection default;
 
+--echo # Executing 'mariadb-admin'
+--exec $MYSQLADMIN -u test1 -S $MASTER_MYSOCK -P $MASTER_MYPORT --password=secret ping
+
 drop user test1@localhost;
 uninstall plugin ed25519;
 error ER_CANT_INITIALIZE_UDF;

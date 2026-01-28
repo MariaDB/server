@@ -1,0 +1,15 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-35288: Assertion `!is_cond()' failed in
+--echo # virtual longlong Item_bool_func::val_int()
+--echo #
+
+CREATE TABLE t (a INT) ENGINE=INNODB;
+SELECT SUM(a), ROWNUM() AS r FROM t HAVING r=1;
+
+# Cleanup
+DROP TABLE t;
+
+
+--echo # End of 10.5 tests

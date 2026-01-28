@@ -1422,7 +1422,7 @@ err_exit:
                       ut_strerr(error));
       trx->rollback();
       row_mysql_unlock_data_dictionary(trx);
-      trx->free();
+      trx->clear_and_free();
       srv_file_per_table= srv_file_per_table_backup;
       return error;
     }
@@ -1461,7 +1461,7 @@ err_exit:
 
   trx->commit();
   row_mysql_unlock_data_dictionary(trx);
-  trx->free();
+  trx->clear_and_free();
   srv_file_per_table= srv_file_per_table_backup;
 
   lock(SRW_LOCK_CALL);

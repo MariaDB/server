@@ -23627,6 +23627,113 @@ a
 drop table t;
 # End of 10.5 tests
 #
+# MDEV-38487: Prevent aggregate functions cloning when pushing HAVING into WHERE
+#
+CREATE TABLE t (a INT, b INT);
+INSERT INTO t VALUES (1, 10), (1, 20), (2, 50), (3, 100);
+explain format=JSON SELECT * FROM (SELECT a, MAX(b) as max_b FROM t GROUP BY a) as dt WHERE dt.max_b > 25;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.010178738,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.010178738,
+          "filtered": 100,
+          "attached_condition": "dt.max_b > 25",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": 0.013196268,
+              "having_condition": "max_b > 25",
+              "filesort": {
+                "sort_key": "t.a",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 4,
+                        "cost": 0.01066122,
+                        "filtered": 100
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT * FROM (SELECT a, MAX(b) as max_b FROM t GROUP BY a) as dt WHERE dt.max_b > 25;
+a	max_b
+2	50
+3	100
+CREATE VIEW v AS SELECT a, MAX(b) as max_b FROM t GROUP BY a;
+explain format=JSON SELECT * FROM v where max_b > 25;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.010178738,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.010178738,
+          "filtered": 100,
+          "attached_condition": "v.max_b > 25",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": 0.013196268,
+              "having_condition": "max_b > 25",
+              "filesort": {
+                "sort_key": "t.a",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 4,
+                        "cost": 0.01066122,
+                        "filtered": 100
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT * FROM v where max_b > 25;
+a	max_b
+2	50
+3	100
+DROP VIEW v;
+DROP TABLE t;
+# End of 10.6 tests
+#
 # MDEV-28958: condition pushable into view after simplification
 #             contains constant TRUE/FALSE as subformula
 #
@@ -23643,3 +23750,14 @@ a	b
 drop view v1,v2;
 drop table t1,t2;
 # End of 10.7 tests
+#
+# MDEV-36686: Crash with DEFAULT() in WHERE clause with nested views
+#
+create table t1 (a varchar(128));
+create view v1 as select a, count(*) from t1 group by a;
+create view v2 as select * from v1;
+select * from v2 where greatest(a, default(a));
+a	count(*)
+drop view v2, v1;
+drop table t1;
+# End of 10.11 tests

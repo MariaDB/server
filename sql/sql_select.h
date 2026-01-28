@@ -1780,7 +1780,6 @@ public:
   bool alloc_func_list();
   bool flatten_subqueries();
   bool optimize_unflattened_subqueries();
-  bool optimize_constant_subqueries();
   bool make_range_rowid_filters();
   bool init_range_rowid_filters();
   bool make_sum_func_list(List<Item> &all_fields, List<Item> &send_fields,

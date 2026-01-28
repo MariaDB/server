@@ -2944,7 +2944,7 @@ free_and_exit:
 		trx->dict_operation_lock_mode = false;
 		dict_sys.unlock();
 unlocked_free_and_exit:
-		trx->free();
+		trx->clear_and_free();
 		stats.close();
 		return ret;
 	}

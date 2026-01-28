@@ -5542,12 +5542,6 @@ static bool check_lock_and_start_stmt(THD *thd,
   DBUG_ENTER("check_lock_and_start_stmt");
 
   /*
-    Prelocking placeholder is not set for TABLE_LIST that
-    are directly used by TOP level statement.
-  */
-  DBUG_ASSERT(table_list->prelocking_placeholder == TABLE_LIST::PRELOCK_NONE);
-
-  /*
     TL_WRITE_DEFAULT and TL_READ_DEFAULT are supposed to be parser only
     types of locks so they should be converted to appropriate other types
     to be passed to storage engine. The exact lock type passed to the
@@ -6387,7 +6381,13 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
        the replacing item.
       */
       if (*ref && (*ref)->is_explicit_name())
+      {
+        if (arena) // We've activated and deactivated stmt arena above
+          arena= thd->activate_stmt_arena_if_needed(&backup);
         item->set_name(thd, (*ref)->name);
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
+      }
       if (register_tree_change)
         thd->change_item_tree(ref, item);
       else
@@ -9118,8 +9118,8 @@ static void unwind_stored_field_offsets(const List<Item> &fields, Item_field *en
     if (f->stored_in_db())
     {
       TABLE *table= f->table;
-      f->move_field_offset((my_ptrdiff_t) (table->record[0] -
-                                           table->record[1]));
+      table->field[f->field_index]->move_field_offset(
+               (my_ptrdiff_t) (table->record[0] - table->record[1]));
     }
   }
 }
@@ -9218,8 +9218,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
         which contains row before update (see MDEV-13417)
       */
       if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
-        rfield->move_field_offset((my_ptrdiff_t) (table->record[1] -
-                                                  table->record[0]));
+        table->field[rfield->field_index]->move_field_offset(
+                 (my_ptrdiff_t) (table->record[1] - table->record[0]));
     }
   }
 

@@ -2912,6 +2912,22 @@ server_option:
           }
         | PORT_SYM ulong_num
           {
+            /*
+              We especially don't want this to happen:
+
+              The value of $2 is ULONG_MAX, causing
+              server_options.port to be -1, which means "default
+              port".
+
+              Because we are doing a check here, we may as well check
+              against the SQL data type in one go rather than just the
+              C++ type here and SQL type later in sql_servers.cc.
+            */
+            if ($2 > INT32_MAX)
+            {
+              my_error(ER_DATA_OUT_OF_RANGE, myf(0), "port", "INT");
+              MYSQL_YYABORT;
+            }
             Lex->server_options.port= $2;
           }
         ;
@@ -6425,7 +6441,7 @@ field_type_lob:
           { $$.set(&type_handler_medium_blob, $2); }
         | JSON_SYM opt_compressed
           {
-            $$.set(&type_handler_long_blob_json, &my_charset_utf8mb4_bin);
+            $$.set(&type_handler_long_blob_json, &MY_CHARSET_UTF8MB4_BIN);
           }
         ;
 
@@ -11528,8 +11544,12 @@ table_ref:
           table_factor     { $$= $1; }
         | join_table
           {
-            LEX *lex= Lex;
-            if (unlikely(!($$= lex->current_select->nest_last_join(thd))))
+            if (Lex->current_select->table_list.elements > MAX_TABLES)
+            {
+              my_error(ER_TOO_MANY_TABLES, MYF(0), static_cast<int>(MAX_TABLES));
+              MYSQL_YYABORT;
+            }
+            if (!($$= Lex->current_select->nest_last_join(thd)))
             {
               thd->parse_error();
               MYSQL_YYABORT;
@@ -14216,23 +14236,25 @@ show_param:
           }
         | PROCEDURE_SYM CODE_SYM sp_name
           {
-            Lex->sql_command= SQLCOM_SHOW_PROC_CODE;
-            Lex->spname= $3;
+            if (Lex->show_routine_code_start(thd, SQLCOM_SHOW_PROC_CODE, $3))
+              MYSQL_YYABORT;
           }
         | FUNCTION_SYM CODE_SYM sp_name
           {
-            Lex->sql_command= SQLCOM_SHOW_FUNC_CODE;
-            Lex->spname= $3;
+            if (Lex->show_routine_code_start(thd, SQLCOM_SHOW_FUNC_CODE, $3))
+              MYSQL_YYABORT;
           }
         | PACKAGE_MARIADB_SYM BODY_MARIADB_SYM CODE_SYM sp_name
           {
-            Lex->sql_command= SQLCOM_SHOW_PACKAGE_BODY_CODE;
-            Lex->spname= $4;
+            if (Lex->show_routine_code_start(thd, SQLCOM_SHOW_PACKAGE_BODY_CODE,
+                                             $4))
+              MYSQL_YYABORT;
           }
         | PACKAGE_ORACLE_SYM BODY_ORACLE_SYM CODE_SYM sp_name
           {
-            Lex->sql_command= SQLCOM_SHOW_PACKAGE_BODY_CODE;
-            Lex->spname= $4;
+            if (Lex->show_routine_code_start(thd, SQLCOM_SHOW_PACKAGE_BODY_CODE,
+                                             $4))
+              MYSQL_YYABORT;
           }
         | CREATE EVENT_SYM sp_name
           {
@@ -14435,15 +14457,19 @@ explain_for_connection:
             SHOW EXPLAIN FOR command. It was introduced for compatibility
             with MySQL which implements EXPLAIN FOR CONNECTION command
           */
-          describe_command opt_format_json FOR_SYM CONNECTION_SYM expr
+          describe_command opt_format_json
           {
-            LEX *lex=Lex;
-            lex->wild=0;
+            LEX *lex= Lex;
+            lex->wild= 0;
             lex->ident= null_clex_str;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
             lex->init_select();
             lex->current_select->parsing_place= SELECT_LIST;
+          }
+          FOR_SYM CONNECTION_SYM expr
+          {
+            LEX *lex= Lex;
             lex->create_info.init();
             Select->parsing_place= NO_MATTER;
             Lex->pop_select(); //main select
@@ -14451,7 +14477,7 @@ explain_for_connection:
             if (unlikely(prepare_schema_table(thd, Lex, 0,
                 Lex->explain_json ? SCH_EXPLAIN_JSON : SCH_EXPLAIN_TABULAR)))
               MYSQL_YYABORT;
-            add_value_to_list(thd, $5);
+            add_value_to_list(thd, $6);
           }
         ;
 

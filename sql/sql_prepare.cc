@@ -5096,7 +5096,6 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
       thd->used|= m_prepare_time_thd_used_flags;
       error= mysql_execute_command(thd, true);
       MYSQL_QUERY_EXEC_DONE(error);
-      thd->update_server_status();
     }
     else
     {
@@ -5105,6 +5104,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
       thd->update_stats();
       qc_executed= TRUE;
     }
+    thd->update_server_status();
   }
 
   /*

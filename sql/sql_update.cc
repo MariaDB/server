@@ -420,9 +420,20 @@ bool Sql_cmd_update::update_single_table(THD *thd)
     table->mark_default_fields_for_write(false);
 
   switch_to_nullable_trigger_fields(*fields, table);
-  switch_to_nullable_trigger_fields(*values, table);
+  if (!(thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT))
+    switch_to_nullable_trigger_fields(*values, table);
 
-  /* Apply the IN=>EXISTS transformation to all subqueries and optimize them */
+  /*
+    Apply the IN=>EXISTS and other transformations to all subqueries and
+    optimize them.
+
+    Constant subqueries are treated in a special way here: they can be
+    evaluated even in EXPLAIN statement, so their query plan must be
+    fully initialized for computation.
+  */
+  if (select_lex->optimize_constant_subqueries())
+    DBUG_RETURN(TRUE);
+
   if (select_lex->optimize_unflattened_subqueries(false))
     DBUG_RETURN(TRUE);
 
@@ -1922,7 +1933,8 @@ int multi_update::prepare(List<Item> &not_used_values,
     {
       TABLE *table= ((Item_field*)(fields_for_table[i]->head()))->field->table;
       switch_to_nullable_trigger_fields(*fields_for_table[i], table);
-      switch_to_nullable_trigger_fields(*values_for_table[i], table);
+      if (!(thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT))
+        switch_to_nullable_trigger_fields(*values_for_table[i], table);
     }
   }
   copy_field= new (thd->mem_root) Copy_field[max_fields];
@@ -3091,7 +3103,18 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
   {
     List_iterator_fast<Item> fs(select_lex->item_list), vs(lex->value_list);
     while (Item *f= fs++)
-      vs++->associate_with_target_field(thd, static_cast<Item_field*>(f));
+    {
+      /*
+        note that if `f` is a non-updatable view field, it may be not
+        inherited from Item_field, and the cast below will essentially
+        produce garbage. But ER_NONUPDATEABLE_COLUMN will happen before it's
+        ever dereferenced.
+      */
+#ifndef DBUG_OFF
+      if (!dynamic_cast<Item_field*>(f)) f= (Item_field*)0x01; // let it crash
+#endif
+      vs++->associate_with_target_field(thd, reinterpret_cast<Item_field*>(f));
+    }
   }
 
   free_join= false;

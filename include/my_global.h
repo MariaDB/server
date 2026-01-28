@@ -444,11 +444,10 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 /*
    Suppress uninitialized variable warning without generating code.
 */
-#if defined(__GNUC__) && !defined(WITH_UBSAN)
+#if defined(__GNUC__) && !defined(__clang__)
 /*
   GCC specific self-initialization which inhibits the warning.
-  clang and static analysis will complain loudly about this
-  so compile those under WITH_UBSAN.
+  clang and static analysis will complain loudly about this.
 */
 #define UNINIT_VAR(x) x= x
 #elif defined(FORCE_INIT_OF_VARS)

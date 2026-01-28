@@ -1451,8 +1451,7 @@ send_result_message:
   }
   thd->resume_subsequent_commits(suspended_wfc);
   DBUG_EXECUTE_IF("inject_analyze_table_sleep", my_sleep(500000););
-  if (is_table_modified && is_cmd_replicated &&
-      (!opt_readonly || thd->slave_thread) && !thd->lex->no_write_to_binlog)
+  if (is_table_modified && is_cmd_replicated && !thd->lex->no_write_to_binlog)
   {
     thd->get_stmt_da()->set_overwrite_status(true);
     auto res= write_bin_log(thd, true, thd->query(), thd->query_length());
@@ -1589,9 +1588,14 @@ bool Sql_cmd_check_table::execute(THD *thd)
   bool res= TRUE;
   DBUG_ENTER("Sql_cmd_check_table::execute");
 
-  if (check_table_access(thd, SELECT_ACL, first_table,
-                         TRUE, UINT_MAX, FALSE))
+  if (check_some_access(thd, TABLE_ACLS, first_table))
+  {
+    my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "CHECK TABLE",
+            thd->security_ctx->priv_user,
+            thd->security_ctx->host_or_ip,
+            first_table->db.str, first_table->table_name.str);
     goto error; /* purecov: inspected */
+  }
 
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, &msg_check,
                          lock_type, 0, 0, HA_OPEN_FOR_REPAIR, 0,

@@ -139,7 +139,7 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
 #define OPT_SYSTEM_STATS 32
 #define OPT_SYSTEM_TIMEZONES 64
 static const char *opt_system_type_values[]=
-  {"all", "users", "plugins",  "udfs", "servers", "stats", "timezones"};
+  {"all", "users", "plugins",  "udfs", "servers", "stats", "timezones", NullS};
 static TYPELIB opt_system_types=CREATE_TYPELIB_FOR(opt_system_type_values);
 static ulonglong opt_system= 0ULL;
 static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0,
@@ -4324,6 +4324,11 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       fprintf(md_result_file,"/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;\n");
       check_io(md_result_file);
     }
+    if (opt_autocommit)
+    {
+      fprintf(md_result_file, "SET @OLD_AUTOCOMMIT=@@AUTOCOMMIT, @@AUTOCOMMIT=0;\n");
+      check_io(md_result_file);
+    }
     if (opt_lock)
     {
       fprintf(md_result_file,"LOCK TABLES %s WRITE;\n", opt_quoted_table);
@@ -4344,11 +4349,6 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     if (opt_xml)
       print_xml_tag(md_result_file, "\t", "\n", "table_data", "name=", table,
               NullS);
-    if (opt_autocommit)
-    {
-      fprintf(md_result_file, "set autocommit=0;\n");
-      check_io(md_result_file);
-    }
 
     while ((row= mysql_fetch_row(res)))
     {
@@ -4618,7 +4618,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     }
     if (opt_autocommit)
     {
-      fprintf(md_result_file, "commit;\n");
+      fprintf(md_result_file, "COMMIT;\nSET AUTOCOMMIT=@OLD_AUTOCOMMIT;\n");
       check_io(md_result_file);
     }
     if (versioned && !opt_xml && opt_dump_history)

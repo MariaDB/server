@@ -2381,7 +2381,7 @@ JOIN::optimize_inner()
   if (!allowed_top_level_tables)
     calc_allowed_top_level_tables(select_lex);
 
-  if (optimize_constant_subqueries())
+  if (select_lex->optimize_constant_subqueries())
     DBUG_RETURN(1);
 
   if (conds && conds->with_subquery())
@@ -19475,7 +19475,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
   if (can_change_cond_ref_to_const(func, right_item, left_item,
                                    field_value_owner, field, value))
   {
-    Item *tmp=value->clone_item(thd);
+    Item *tmp=value->clone_constant(thd);
     if (tmp)
     {
       tmp->collation.set(right_item->collation);
@@ -19505,7 +19505,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
   else if (can_change_cond_ref_to_const(func, left_item, right_item,
                                         field_value_owner, field, value))
   {
-    Item *tmp= value->clone_item(thd);
+    Item *tmp= value->clone_constant(thd);
     if (tmp)
     {
       tmp->collation.set(left_item->collation);
@@ -28505,15 +28505,15 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
 
   if (order_item->is_order_clause_position() && !from_window_spec)
   {						/* Order by position */
-    uint count;
+    int count;
     if (order->counter_used)
       count= order->counter; // counter was once resolved
     else
       count= (uint) order_item->val_int();
-    if (!count || count > fields.elements)
+    if (count <= 0 || count > (int)fields.elements)
     {
-      my_error(ER_BAD_FIELD_ERROR, MYF(0),
-               order_item->full_name(), thd_where(thd));
+      char buf[64];
+      my_error(ER_BAD_FIELD_ERROR, MYF(0), llstr(count, buf), thd_where(thd));
       return TRUE;
     }
     thd->change_item_tree((Item **)&order->item, (Item *)&ref_pointer_array[count - 1]);

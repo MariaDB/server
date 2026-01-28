@@ -88,7 +88,7 @@ COUNT(*) = 5
 1
 CREATE TABLE t1 AS SELECT * FROM t2;
 connection node_1;
-ERROR 70100: Query execution was interrupted
+Got one of the listed errors
 SET GLOBAL DEBUG_DBUG = '';
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1, t2;
