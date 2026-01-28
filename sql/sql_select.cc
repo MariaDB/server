@@ -19855,12 +19855,6 @@ static void rewrite_full_to_left(TABLE_LIST *left_table,
 
   // Only the right table in a LEFT JOIN has the naming context in the grammar
   left_table->on_context= nullptr;
-
-  if (!(right_table->outer_join & JOIN_TYPE_NATURAL))
-  {
-    DBUG_ASSERT((right_table->on_expr->base_flags &
-                 item_base_t::IS_COND) == item_base_t::IS_COND);
-  }
 }
 
 

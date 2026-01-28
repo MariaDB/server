@@ -2297,12 +2297,14 @@ struct Field_translator
   Field (for tables), or a Field_translator (for views).
 */
 
+class Item_func_coalesce;
 class Natural_join_column: public Sql_alloc
 {
 public:
   Field_translator *view_field;  /* Column reference of merge view. */
   Item_field       *table_field; /* Column reference of table or temp view. */
   TABLE_LIST *table_ref; /* Original base table/view reference. */
+  Item_func_coalesce *natural_full_join_field;
   /*
     True if a common join column of two NATURAL/USING join operands. Notice
     that when we have a hierarchy of nested NATURAL/USING joins, a column can
@@ -2316,6 +2318,7 @@ public:
   Natural_join_column(Item_field *field_param, TABLE_LIST *tab);
   const Lex_ident_column name();
   Item *create_item(THD *thd);
+  Item *get_item();
   Field *field();
   const Lex_ident_table safe_table_name() const;
   const Lex_ident_db safe_db_name() const;
