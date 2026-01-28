@@ -1489,6 +1489,34 @@ public:
 };
 
 
+class Item_func_dbmssql_open_cursor :public Item_long_func
+{
+  longlong value;
+
+public:
+  Item_func_dbmssql_open_cursor(THD *thd): Item_long_func(thd)
+  {
+    unsigned_flag= 1;
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("open_cursor") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  bool fix_fields(THD *thd, Item **ref) override;
+  longlong val_int() override { DBUG_ASSERT(fixed()); return value; }
+  bool is_cursor_existent(THD *thd, int cursor_id);
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(func_name(), "()", arg,
+                                     VCOL_SESSION_FUNC);
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_dbmssql_open_cursor>(thd, this); }
+};
+
+
 class Item_func_signed :public Item_int_func
 {
 public:
@@ -2722,6 +2750,57 @@ public:
   void print(String *str, enum_query_type query_type) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_locate>(thd, this); }
+};
+
+
+class Item_func_dbmssql_parse :public Item_long_func
+{
+  bool check_arguments() const override
+  {
+    return check_argument_types_can_return_str(0, 2) ||
+        (arg_count > 2 && args[2]->check_type_can_return_int(
+        func_name_cstring()));
+  }
+  String stmt_cmd_value;
+  THD* thd;
+public:
+  Item_func_dbmssql_parse(THD *thd, Item *a, Item *b)
+   :Item_long_func(thd, a, b), thd(thd) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("parse") };
+    return name;
+  }
+  longlong val_int() override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_dbmssql_parse>(thd, this); }
+};
+
+
+class Item_func_dbmssql_close_cursor :public Item_long_func
+{
+  bool check_arguments() const override
+  {
+    return (arg_count > 1 && args[1]->check_type_can_return_int(
+        func_name_cstring()));
+  }
+  THD* thd;
+public:
+  Item_func_dbmssql_close_cursor(THD *thd, Item *a)
+   :Item_long_func(thd, a), thd(thd) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("close_cursor") };
+    return name;
+  }
+  longlong val_int() override;
+  bool fix_length_and_dec(THD *thd) override
+  {
+    max_length= MY_INT32_NUM_DECIMAL_DIGITS;
+    return false;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_dbmssql_close_cursor>(thd, this); }
 };
 
 

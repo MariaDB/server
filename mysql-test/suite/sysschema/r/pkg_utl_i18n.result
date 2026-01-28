@@ -1,0 +1,52 @@
+#
+# MDEV-34331: System package SYS.UTL_I18N
+#
+SET sql_mode= oracle;
+SET NAMES ujis;
+#
+# Test assigning ANY_CS charset to a local variable
+#
+CREATE FUNCTION f1 () RETURN VARCHAR2(10) AS
+BEGIN
+DECLARE
+b VARCHAR2(10) CHARACTER SET ANY_CS DEFAULT 'a';
+BEGIN
+RETURN b;
+END;
+END;
+/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ANY_CS DEFAULT 'a';
+BEGIN
+RETURN b;
+END;
+END' at line 4
+#
+# Test assigning ANY_CS charset to a local variable of row type
+#
+DROP PROCEDURE IF EXISTS p1;
+Warnings:
+Note	1305	PROCEDURE test.p1 does not exist
+CREATE PROCEDURE p1 AS
+rec ROW(a INT, b VARCHAR2(32) CHARACTER SET ANY_CS);
+BEGIN
+END;
+/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ANY_CS);
+BEGIN
+END' at line 2
+DROP PROCEDURE IF EXISTS p1;
+Warnings:
+Note	1305	PROCEDURE test.p1 does not exist
+#
+# Test row type as SP parameter
+#
+CREATE PROCEDURE p2(r ROW(a INT, b VARCHAR2(32) CHARACTER SET ANY_CS)) AS
+BEGIN
+END;
+/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ANY_CS)) AS
+BEGIN
+END' at line 1
+DROP PROCEDURE IF EXISTS p2;
+Warnings:
+Note	1305	PROCEDURE test.p2 does not exist

@@ -673,10 +673,25 @@ uint sp_rcontext::exit_handler(Diagnostics_area *da)
 }
 
 
+void sp_rcontext::fix_anycs_collation(
+    uint idx, Item **value
+)
+{
+  Item_field *item_field= get_variable(idx);
+  item_field->collation.collation= (*value)->collation.collation;
+  Field_str *string_field= dynamic_cast<Field_str *>(m_var_table->field[idx]);
+  if (string_field)
+    string_field->change_charset((*value)->collation);
+}
+
+
 int sp_rcontext::set_variable(THD *thd, uint idx, Item **value)
 {
   DBUG_ENTER("sp_rcontext::set_variable");
   DBUG_ASSERT(value);
+  if (m_var_table->field[idx]->flags & ANYCS_COLLATION_FLAG)
+    fix_anycs_collation(idx, value);
+  
 
   auto handler= get_variable(idx)->type_handler()->to_composite();
   DBUG_RETURN(thd->sp_eval_expr(m_var_table->field[idx], value) ||

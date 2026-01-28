@@ -1,0 +1,1114 @@
+#
+# MDEV-34331: System package SYS.UTL_I18N
+#
+#
+# transliterate Tests with ujis
+#
+SET sql_mode= oracle;
+SET NAMES ujis;
+#
+# Test transliterate with valid input
+#
+SET collation_connection=ujis_japanese_ci;
+CREATE TABLE t1 (b VARCHAR(2));
+INSERT INTO t1 VALUES ('0'),('1'),('2'),('3'),('4'),('5'),('6'),('7');
+INSERT INTO t1 VALUES ('8'),('9'),('A'),('B'),('C'),('D'),('E'),('F');
+CREATE TEMPORARY TABLE head AS SELECT CONCAT(b1.b, b2.b) AS head FROM t1 b1, t1 b2;
+CREATE TEMPORARY TABLE tail AS SELECT CONCAT(b1.b, b2.b) AS tail FROM t1 b1, t1 b2;
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT 'XXXXXX' AS code, ' ' AS a LIMIT 0;
+INSERT IGNORE INTO t1 (code) SELECT CONCAT('8E', head) FROM head
+WHERE (head BETWEEN 'A1' AND 'DD') ORDER BY head;
+Warnings:
+Warning	1364	Field 'a' doesn't have a default value
+INSERT IGNORE INTO t1 (code) SELECT CONCAT('A4', head) FROM head
+WHERE (head BETWEEN 'A1' AND 'F3') ORDER BY head;
+Warnings:
+Warning	1364	Field 'a' doesn't have a default value
+INSERT IGNORE INTO t1 (code) SELECT CONCAT('A5', head) FROM head
+WHERE (head BETWEEN 'A1' AND 'F6') ORDER BY head;
+Warnings:
+Warning	1364	Field 'a' doesn't have a default value
+DROP TEMPORARY TABLE head, tail;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "code" varchar(6) CHARACTER SET ujis COLLATE ujis_japanese_ci NOT NULL,
+  "a" varchar(1) CHARACTER SET ujis COLLATE ujis_japanese_ci NOT NULL
+)
+UPDATE IGNORE t1 SET a=UNHEX(code) ORDER BY code;
+SELECT GROUP_CONCAT(a) FROM t1 WHERE (code BETWEEN '8eA1' AND '8eDD') INTO @hw_char_arr;
+SELECT GROUP_CONCAT(a) FROM t1 WHERE (code BETWEEN 'a5a1' AND 'a5f6') INTO @fw_char_arr;
+SELECT GROUP_CONCAT(a) FROM t1 WHERE (code BETWEEN 'a4a1' AND 'a4f3') INTO @hi_char_arr;
+DROP TABLE t1;
+SET NAMES ujis;
+SET collation_connection=ujis_japanese_ci;
+CREATE PROCEDURE f1 (array_string VARCHAR2(255) CHARACTER SET ujis)
+AS
+BEGIN
+DECLARE
+array_length INT;
+element VARCHAR2(255) CHARACTER SET ujis;
+temp_string VARCHAR2(255) CHARACTER SET ujis;
+BEGIN
+SET array_length = (LENGTH(array_string) - LENGTH(REPLACE(array_string, ',', ''))) + 1;
+SET temp_string = array_string;
+<<la>>
+FOR ia IN 1 .. array_length
+LOOP
+SET element = SUBSTRING_INDEX(SUBSTRING_INDEX(temp_string, ',', 1), ',', -1);
+SELECT element;
+SELECT sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana');
+SET temp_string = SUBSTRING(temp_string, LENGTH(element) + 2);
+END LOOP la;
+END;
+END;
+/
+#
+# Test transliterate function with all EUC-JP halfwidth katakana characters
+#
+CALL f1(@hw_char_arr);
+element
+｡
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+。
+element
+｢
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+「
+element
+｣
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+」
+element
+､
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+、
+element
+･
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+．
+element
+ｦ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ヲ
+element
+ｧ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ァ
+element
+ｨ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ィ
+element
+ｩ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ゥ
+element
+ｪ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ェ
+element
+ｫ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ォ
+element
+ｬ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ャ
+element
+ｭ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ュ
+element
+ｮ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ョ
+element
+ｯ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ッ
+element
+ｰ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ー
+element
+ｱ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ア
+element
+ｲ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+イ
+element
+ｳ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ウ
+element
+ｴ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+エ
+element
+ｵ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+オ
+element
+ｶ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+カ
+element
+ｷ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+キ
+element
+ｸ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ク
+element
+ｹ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ケ
+element
+ｺ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+コ
+element
+ｻ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+サ
+element
+ｼ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+シ
+element
+ｽ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ス
+element
+ｾ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+セ
+element
+ｿ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ソ
+element
+ﾀ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+タ
+element
+ﾁ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+チ
+element
+ﾂ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ツ
+element
+ﾃ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+テ
+element
+ﾄ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ト
+element
+ﾅ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ナ
+element
+ﾆ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ニ
+element
+ﾇ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ヌ
+element
+ﾈ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ネ
+element
+ﾉ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ノ
+element
+ﾊ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ハ
+element
+ﾋ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ヒ
+element
+ﾌ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+フ
+element
+ﾍ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ヘ
+element
+ﾎ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ホ
+element
+ﾏ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+マ
+element
+ﾐ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ミ
+element
+ﾑ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ム
+element
+ﾒ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+メ
+element
+ﾓ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+モ
+element
+ﾔ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ヤ
+element
+ﾕ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ユ
+element
+ﾖ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ヨ
+element
+ﾗ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ラ
+element
+ﾘ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+リ
+element
+ﾙ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ル
+element
+ﾚ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+レ
+element
+ﾛ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ロ
+element
+ﾜ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ワ
+element
+ﾝ
+sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana')
+ン
+Warnings:
+Note	1585	This function 'transliterate' has the same name as a native function
+Note	1585	This function 'transliterate' has the same name as a native function
+Note	1246	Converting column 'dst_charset' from VARCHAR to TEXT
+Note	1246	Converting column 'sourced_jc' from VARCHAR to TEXT
+Note	1246	Converting column 'targeted_sourced_jc' from VARCHAR to TEXT
+DROP PROCEDURE f1;
+CREATE PROCEDURE f2 (array_string VARCHAR2(255) CHARACTER SET ujis)
+AS
+BEGIN
+DECLARE
+array_length INT;
+element VARCHAR2(255) CHARACTER SET ujis;
+temp_string VARCHAR2(255) CHARACTER SET ujis;
+BEGIN
+SET array_length = (LENGTH(array_string) - LENGTH(REPLACE(array_string, ',', ''))) + 1;
+SET temp_string = array_string;
+<<la>>
+FOR ia IN 1 .. array_length
+LOOP
+SET element = SUBSTRING_INDEX(SUBSTRING_INDEX(temp_string, ',', 1), ',', -1);
+SELECT element;
+SELECT sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana');
+SET temp_string = SUBSTRING(temp_string, LENGTH(element) + 2);
+END LOOP la;
+END;
+END;
+/
+#
+# Test transliterate function with all EUC-JP fullwidth katakana characters
+#
+CALL f2(@fw_char_arr);
+element
+ァ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｧ
+element
+ア
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｱ
+element
+ィ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｨ
+element
+イ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｲ
+element
+ゥ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｩ
+element
+ウ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｳ
+element
+ェ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｪ
+element
+エ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｴ
+element
+ォ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｫ
+element
+オ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｵ
+element
+カ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｶ
+element
+ガ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｶﾞ
+element
+キ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｷ
+element
+ギ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｷﾞ
+element
+ク
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｸ
+element
+グ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｸﾞ
+element
+ケ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｹ
+element
+ゲ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｹﾞ
+element
+コ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｺ
+element
+ゴ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｺﾞ
+element
+サ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｻ
+element
+ザ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｻﾞ
+element
+シ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｼ
+element
+ジ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｼﾞ
+element
+ス
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｽ
+element
+ズ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｽﾞ
+element
+セ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｾ
+element
+ゼ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｾﾞ
+element
+ソ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｿ
+element
+ゾ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｿﾞ
+element
+タ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾀ
+element
+ダ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾀﾞ
+element
+チ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾁ
+element
+ヂ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾁﾞ
+element
+ッ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｯ
+element
+ツ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾂ
+element
+ヅ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾂﾞ
+element
+テ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾃ
+element
+デ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾃﾞ
+element
+ト
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾄ
+element
+ド
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾄﾞ
+element
+ナ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾅ
+element
+ニ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾆ
+element
+ヌ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾇ
+element
+ネ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾈ
+element
+ノ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾉ
+element
+ハ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾊ
+element
+バ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾊﾞ
+element
+パ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾊﾟ
+element
+ヒ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾋ
+element
+ビ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾋﾞ
+element
+ピ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾋﾟ
+element
+フ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾌ
+element
+ブ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾌﾞ
+element
+プ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾌﾟ
+element
+ヘ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾍ
+element
+ベ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾍﾞ
+element
+ペ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾍﾟ
+element
+ホ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾎ
+element
+ボ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾎﾞ
+element
+ポ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾎﾟ
+element
+マ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾏ
+element
+ミ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾐ
+element
+ム
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾑ
+element
+メ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾒ
+element
+モ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾓ
+element
+ャ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｬ
+element
+ヤ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾔ
+element
+ュ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｭ
+element
+ユ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾕ
+element
+ョ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｮ
+element
+ヨ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾖ
+element
+ラ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾗ
+element
+リ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾘ
+element
+ル
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾙ
+element
+レ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾚ
+element
+ロ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾛ
+element
+ヮ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾜ
+element
+ワ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾜ
+element
+ヰ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｲ
+element
+ヱ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｴ
+element
+ヲ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｦ
+element
+ン
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾝ
+element
+ヴ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｳﾞ
+element
+ヵ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｶ
+element
+ヶ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｹ
+Warnings:
+Note	1585	This function 'transliterate' has the same name as a native function
+Note	1585	This function 'transliterate' has the same name as a native function
+Note	1246	Converting column 'dst_charset' from VARCHAR to TEXT
+Note	1246	Converting column 'sourced_jc' from VARCHAR to TEXT
+Note	1246	Converting column 'targeted_sourced_jc' from VARCHAR to TEXT
+#
+# Test transliterate function with all EUC-JP hiragana characters
+#
+CALL f2(@hi_char_arr);
+element
+ぁ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｧ
+element
+あ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｱ
+element
+ぃ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｨ
+element
+い
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｲ
+element
+ぅ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｩ
+element
+う
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｳ
+element
+ぇ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｪ
+element
+え
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｴ
+element
+ぉ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｫ
+element
+お
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｵ
+element
+か
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｶ
+element
+が
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｶﾞ
+element
+き
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｷ
+element
+ぎ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｷﾞ
+element
+く
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｸ
+element
+ぐ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｸﾞ
+element
+け
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｹ
+element
+げ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｹﾞ
+element
+こ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｺ
+element
+ご
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｺﾞ
+element
+さ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｻ
+element
+ざ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｻﾞ
+element
+し
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｼ
+element
+じ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｼﾞ
+element
+す
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｽ
+element
+ず
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｽﾞ
+element
+せ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｾ
+element
+ぜ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｾﾞ
+element
+そ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｿ
+element
+ぞ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｿﾞ
+element
+た
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾀ
+element
+だ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾀﾞ
+element
+ち
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾁ
+element
+ぢ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾁﾞ
+element
+っ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｯ
+element
+つ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾂ
+element
+づ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾂﾞ
+element
+て
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾃ
+element
+で
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾃﾞ
+element
+と
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾄ
+element
+ど
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾄﾞ
+element
+な
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾅ
+element
+に
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾆ
+element
+ぬ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾇ
+element
+ね
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾈ
+element
+の
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾉ
+element
+は
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾊ
+element
+ば
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾊﾞ
+element
+ぱ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾊﾟ
+element
+ひ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾋ
+element
+び
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾋﾞ
+element
+ぴ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾋﾟ
+element
+ふ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾌ
+element
+ぶ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾌﾞ
+element
+ぷ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾌﾟ
+element
+へ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾍ
+element
+べ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾍﾞ
+element
+ぺ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾍﾟ
+element
+ほ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾎ
+element
+ぼ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾎﾞ
+element
+ぽ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾎﾟ
+element
+ま
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾏ
+element
+み
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾐ
+element
+む
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾑ
+element
+め
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾒ
+element
+も
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾓ
+element
+ゃ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｬ
+element
+や
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾔ
+element
+ゅ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｭ
+element
+ゆ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾕ
+element
+ょ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｮ
+element
+よ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾖ
+element
+ら
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾗ
+element
+り
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾘ
+element
+る
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾙ
+element
+れ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾚ
+element
+ろ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾛ
+element
+ゎ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾜ
+element
+わ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾜ
+element
+ゐ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｲ
+element
+ゑ
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｴ
+element
+を
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ｦ
+element
+ん
+sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana')
+ﾝ
+DROP PROCEDURE f2;
+#
+# Test combination of fullwidth, hiragana & halfwidth characters with the 'fwkatakana_hwkatakana' (mode) name
+#
+SELECT sys.UTL_I18N.TRANSLITERATE('アあｱ', 'fwkatakana_hwkatakana');
+sys.UTL_I18N.TRANSLITERATE('アあｱ', 'fwkatakana_hwkatakana')
+ｱあｱ
+#
+# Test Latin 'a' character with the 'kana_hwkatakana' (mode) name
+#
+SELECT sys.UTL_I18N.TRANSLITERATE('a', 'kana_hwkatakana');
+sys.UTL_I18N.TRANSLITERATE('a', 'kana_hwkatakana')
+a
+#
+# Test Latin 'a' character with the 'hwkatakana_fwkatakana' (mode) name
+#
+SELECT sys.UTL_I18N.TRANSLITERATE('a', 'hwkatakana_fwkatakana');
+sys.UTL_I18N.TRANSLITERATE('a', 'hwkatakana_fwkatakana')
+a
+#
+# Test the 'kana_hwkatakana' (mode) name
+#
+SELECT sys.UTL_I18N.TRANSLITERATE('あ', 'kana_hwkatakana');
+sys.UTL_I18N.TRANSLITERATE('あ', 'kana_hwkatakana')
+ｱ
+#
+# Test the 'hwkatakana_fwkatakana' (mode) name
+#
+SELECT sys.UTL_I18N.TRANSLITERATE('ｱ', 'hwkatakana_fwkatakana');
+sys.UTL_I18N.TRANSLITERATE('ｱ', 'hwkatakana_fwkatakana')
+ア
+#
+# Test the 'hwkatakana_fwkatakana' (mode) name
+#
+SELECT sys.UTL_I18N.TRANSLITERATE('ア1', 'hwkatakana_fwkatakana');
+sys.UTL_I18N.TRANSLITERATE('ア1', 'hwkatakana_fwkatakana')
+ア1
+#
+# Test input string with introducer
+#
+SELECT sys.UTL_I18N.TRANSLITERATE(_ujis'あ', 'kana_hwkatakana');
+sys.UTL_I18N.TRANSLITERATE(_ujis'あ', 'kana_hwkatakana')
+ｱ
+#
+# Test input string with collate clause
+#
+SELECT sys.UTL_I18N.TRANSLITERATE('あ' COLLATE ujis_japanese_ci, 'kana_hwkatakana');
+sys.UTL_I18N.TRANSLITERATE('あ' COLLATE ujis_japanese_ci, 'kana_hwkatakana')
+ｱ
+#
+# Test input string with introducer & collate clause
+#
+SELECT sys.UTL_I18N.TRANSLITERATE(_ujis'あ' COLLATE ujis_japanese_ci, 'kana_hwkatakana');
+sys.UTL_I18N.TRANSLITERATE(_ujis'あ' COLLATE ujis_japanese_ci, 'kana_hwkatakana')
+ｱ
+#
+# Test with blank (mode) name
+#
+SELECT sys.UTL_I18N.TRANSLITERATE('ｱ', ' ');
+ERROR HY000: Invalid argument error: This features was not implemented. in function transliterate.
+#
+# Test with empty input string
+#
+SELECT sys.UTL_I18N.TRANSLITERATE('', 'hwkatakana_fwkatakana');
+sys.UTL_I18N.TRANSLITERATE('', 'hwkatakana_fwkatakana')
+
+#
+# Test TRANSLITERATE with empty name
+#
+SELECT sys.UTL_I18N.TRANSLITERATE('ｱ', '');
+ERROR HY000: Invalid argument error: This features was not implemented. in function transliterate.
+#
+# Test TRANSLITERATE with null name
+#
+SELECT sys.UTL_I18N.TRANSLITERATE(NULL, 'hwkatakana_fwkatakana');
+sys.UTL_I18N.TRANSLITERATE(NULL, 'hwkatakana_fwkatakana')
+NULL
+#
+# Test TRANSLITERATE with non sjis & EUC-JP characters
+#
+SELECT sys.UTL_I18N.TRANSLITERATE(_utf8'ｱ', 'hwkatakana_fwkatakana');
+ERROR HY000: Invalid argument error: wrong number or types of argument/s in function transliterate.

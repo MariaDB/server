@@ -189,6 +189,50 @@ DROP PACKAGE pkg1;
 DROP PACKAGE pkg2;
 DROP PROCEDURE p1;
 SHOW PACKAGE STATUS;
+Db	sys
+Name	dbms_random
+Type	PACKAGE
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	Collection of random routines
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
+Name	dbms_sql
+Type	PACKAGE
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	Collection of sql routines
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
+Name	dbms_utility
+Type	PACKAGE
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	Collection of utility routines
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
+Name	UTL_I18N
+Type	PACKAGE
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	Collection of routines to manipulate RAW data
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
 Db	test
 Name	pkg1
 Type	PACKAGE
@@ -212,6 +256,50 @@ character_set_client	latin1
 collation_connection	latin1_swedish_ci
 Database Collation	utf8mb4_uca1400_ai_ci
 SHOW PACKAGE BODY STATUS;
+Db	sys
+Name	dbms_random
+Type	PACKAGE BODY
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
+Name	dbms_sql
+Type	PACKAGE BODY
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
+Name	dbms_utility
+Type	PACKAGE BODY
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
+Name	UTL_I18N
+Type	PACKAGE BODY
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
 Db	test
 Name	pkg1
 Type	PACKAGE BODY

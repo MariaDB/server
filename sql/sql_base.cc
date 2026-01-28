@@ -3930,6 +3930,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
             }
           }
         }
+        thd->in_dbmssql_execute_dynamic_mode= false;
       }
       else
       {
@@ -5025,7 +5026,8 @@ bool DML_prelocking_strategy::handle_routine(THD *thd,
   if (rt != (Sroutine_hash_entry*)prelocking_ctx->sroutines_list.first ||
       rt->mdl_request.key.mdl_namespace() != MDL_key::PROCEDURE)
   {
-    *need_prelocking= TRUE;
+    if (!thd->in_dbmssql_execute_dynamic_mode)
+      *need_prelocking= TRUE;
     sp_update_stmt_used_routines(thd, prelocking_ctx, &sp->m_sroutines,
                                  rt->belong_to_view);
     (void)sp->add_used_tables_to_table_list(thd,

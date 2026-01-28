@@ -211,6 +211,9 @@ public:
                              Item **value);
   int set_variable_row(THD *thd, uint var_idx, List<Item> &items);
 
+  void fix_anycs_collation(
+      uint var_idx, Item **value);
+
   int set_variable_composite_field_by_key(THD *thd,
                                           uint var_idx,
                                           const LEX_CSTRING &elem_name,

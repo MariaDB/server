@@ -1,0 +1,355 @@
+-- source include/have_perfschema.inc
+
+--echo #
+--echo # MDEV-34330: System package SYS.DBMS_SQL
+--echo #
+
+SET sql_mode= oracle;
+
+SET SESSION note_verbosity = "";
+
+--disable_ps_protocol
+--echo #
+--echo # Test OPEN_CURSOR
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR();
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+
+CREATE TABLE test.t3 (a INT) ENGINE=InnoDB;
+
+
+--echo #
+--echo # Test PARSE, EXECUTE & CLOSE_CURSOR with an INSERT statement
+--echo #
+CALL sys.dbms_sql.parse(@cursor_id,
+    'INSERT INTO test.t3 VALUES (1)', 1);
+
+SELECT sys.dbms_sql.`EXECUTE`(@cursor_id);
+
+SELECT * FROM test.t3;
+
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+
+
+--echo #
+--echo # Test PARSE with leading whitespace on the input
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id,
+    ' INSERT INTO test.t3 VALUES (1)', 1);
+
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+
+SELECT * FROM test.t3;
+
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+
+
+--echo #
+--echo # Test PARSE with multiple leading whitespace on the input
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+
+CALL sys.dbms_sql.parse(@cursor_id,
+    '  INSERT INTO test.t3 VALUES (1)', 1);
+
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+
+SELECT * FROM test.t3;
+
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+
+
+--echo #
+--echo # Test CLOSE_CURSOR with an already-closed cursor
+--echo #
+--error ER_STD_INVALID_ARGUMENT
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN VARCHAR2(255) AS
+BEGIN
+  RETURN 'INSERT INTO test.t3 VALUES (3)';
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Test PARSE with SR func call output as 'input (code)'
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+
+CALL sys.dbms_sql.parse(@cursor_id, f1(), 1);
+
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+
+SELECT * FROM test.t3;
+
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+
+
+--echo #
+--echo # Test PARSE with native func call output as 'input (code)'
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+
+CALL sys.dbms_sql.parse(@cursor_id, CONCAT('INSERT INTO test.t3 VALUES (3)'), 1);
+
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+
+SELECT * FROM test.t3;
+
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+
+
+--echo #
+--echo # Test SP variable as 'input (code)'
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+
+DELIMITER $$;
+CREATE PROCEDURE p1(input VARCHAR2(255)) AS
+BEGIN
+  CALL sys.dbms_sql.parse(@cursor_id, input, 1);
+END;
+$$
+DELIMITER ;$$
+
+CALL p1('INSERT INTO test.t3 VALUES (3)');
+
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+
+SELECT * FROM test.t3;
+
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+
+
+
+--echo #
+--echo # Tests where OPEN_CURSOR, CLOSE_CURSOR etc are called within stored routines (functions/procedures)
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE start_whole_call() AS
+BEGIN
+  DECLARE
+    cursor_number INT;
+  BEGIN
+    SET cursor_number = sys.dbms_sql.OPEN_CURSOR();
+    CALL enclosed_parse_exec_and_close(cursor_number);
+  END;
+END;
+
+CREATE PROCEDURE enclosed_parse_exec_and_close(cursor_number INT) AS
+BEGIN
+  CALL sys.dbms_sql.parse(cursor_number,
+    'INSERT INTO test.t3 VALUES (1)', 1);
+  SELECT sys.dbms_sql.EXECUTE(cursor_number);
+  SELECT * FROM test.t3;
+  CALL sys.dbms_sql.close_cursor(cursor_number);
+END;
+$$
+DELIMITER ;$$
+
+CALL start_whole_call();
+
+DELIMITER $$;
+CREATE FUNCTION start_flow() RETURN INT AS
+BEGIN
+  RETURN sys.dbms_sql.OPEN_CURSOR();
+END;
+
+CREATE PROCEDURE enclosed_close(cursor_number INT) AS
+BEGIN
+  CALL sys.dbms_sql.close_cursor(cursor_number);
+END;
+$$
+DELIMITER ;$$
+
+SELECT start_flow() INTO @cursor_num;
+CALL sys.dbms_sql.parse(@cursor_num,
+  'INSERT INTO test.t3 VALUES (1)', 1);
+SELECT sys.dbms_sql.EXECUTE(@cursor_num);
+CALL enclosed_close(@cursor_num);
+SELECT * FROM test.t3;
+
+
+--echo #
+--echo # Test enclosing EXECUTE function name in backticks
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id,
+    ' INSERT INTO test.t3 VALUES (1)', 1);
+
+SELECT sys.dbms_sql.`EXECUTE`(@cursor_id);
+
+SELECT * FROM test.t3;
+
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+
+
+--echo #
+--echo # Test enclosing EXECUTE function name with "dbms_sql" package name in backticks
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id,
+    ' INSERT INTO test.t3 VALUES (1)', 1);
+
+SELECT sys.`dbms_sql`.`EXECUTE`(@cursor_id);
+
+SELECT * FROM test.t3;
+
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+
+
+--echo #
+--echo # Test with DELETE statement
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+
+CALL sys.dbms_sql.parse(@cursor_id,
+    'DELETE FROM test.t3 WHERE a=1', 1);
+
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+
+SELECT * FROM test.t3;
+
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+
+
+
+--echo #
+--echo # Test with UPDATE statement
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+
+CALL sys.dbms_sql.parse(@cursor_id,
+    'UPDATE test.t3 SET a=2', 1);
+
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+
+SELECT * FROM test.t3;
+
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+
+
+--echo #
+--echo # Test with ALTER statement
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+
+CALL sys.dbms_sql.parse(@cursor_id, 'ALTER TABLE test.t3 ADD b VARCHAR(40)', 1);
+
+SELECT * FROM test.t3;
+
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+
+
+--echo #
+--echo # Test showing no effect calling EXECUTE (again) on DDL statements
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+
+CALL sys.dbms_sql.parse(@cursor_id, 'ALTER TABLE test.t3 MODIFY b VARCHAR(32)', 1);
+
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+
+SELECT * FROM test.t3;
+
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+
+
+--echo #
+--echo # Test with ALTER statement that adds multiple columns
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+
+CALL sys.dbms_sql.parse(@cursor_id, 'ALTER TABLE test.t3 ADD c VARCHAR(40), ADD creation_date DATE', 1);
+
+SELECT * FROM test.t3;
+
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+
+
+--echo #
+--echo # Test with RENAME TABLE statement
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+
+CALL sys.dbms_sql.parse(@cursor_id, 'RENAME TABLE test.t3 TO test.t1', 1);
+
+SELECT * FROM test.t1;
+
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+
+
+--echo #
+--echo # Test with CREATE TABLE statement
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+
+CALL sys.dbms_sql.parse(@cursor_id, 'CREATE TABLE test.t2 (a INT) ENGINE=InnoDB', 1);
+
+SELECT * FROM test.t2;
+
+
+--echo #
+--echo # Test with RENAME TABLES statement
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+
+CALL sys.dbms_sql.parse(@cursor_id, 'RENAME TABLES test.t1 TO test.t3, test.t2 TO test.t4', 1);
+
+SELECT * FROM test.t3;
+SELECT * FROM test.t4;
+
+
+--echo #
+--echo # Test with DROP statement
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+
+CALL sys.dbms_sql.parse(@cursor_id, 'DROP TABLE test.t3', 1);
+
+--error ER_NO_SUCH_TABLE
+SELECT * FROM test.t3;
+
+
+--echo #
+--echo # Tests to ensure custom instruction cannot be used outside of the package
+--echo #
+
+--error ER_SP_DOES_NOT_EXIST
+CALL dbmssql_execute ('s0');
+
+DELIMITER $$;
+CREATE PROCEDURE p2() AS
+BEGIN
+  CALL dbmssql_execute ('s0');
+END;
+$$
+DELIMITER ;$$
+
+--error ER_SP_DOES_NOT_EXIST
+CALL p2();
+
+
+--echo #
+--echo # Test giving unsupported SQL statement as code to the PARSE procedure
+--echo #
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+
+--error ER_STD_INVALID_ARGUMENT
+CALL sys.dbms_sql.parse(@cursor_id, 'SET @old_sql_mode = @@session.sql_mode', 1);
+--enable_ps_protocol
+
+DROP TABLE test.t4;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE start_whole_call;
+DROP PROCEDURE enclosed_parse_exec_and_close;
+DROP FUNCTION start_flow;
+DROP PROCEDURE enclosed_close;

@@ -20,7 +20,6 @@
 #include "lex_charset.h"
 #include "mysqld_error.h"
 
-
 static void
 raise_ER_CONFLICTING_DECLARATIONS(const char *clause1,
                                   const char *name1,
@@ -484,6 +483,7 @@ CHARSET_INFO *Lex_exact_charset_extended_collation_attrs_st::
   case TYPE_EMPTY:
     return def;
   case TYPE_CHARACTER_SET:
+  case TYPE_CHARACTER_SET_ANY_CS:
   {
     DBUG_ASSERT(m_ci);
     return map.get_collation_for_charset(used, m_ci);
@@ -505,6 +505,13 @@ CHARSET_INFO *Lex_exact_charset_extended_collation_attrs_st::
 }
 
 
+Lex_exact_charset_extended_collation_attrs 
+    Lex_exact_charset_extended_collation_attrs::any_cs()
+{
+  return Lex_exact_charset_extended_collation_attrs(
+      &my_charset_utf8mb3_general_ci, TYPE_CHARACTER_SET_ANY_CS);
+}
+
 bool Lex_exact_charset_extended_collation_attrs_st::
        merge_exact_collation(const Lex_exact_collation &cl)
 {
@@ -517,6 +524,7 @@ bool Lex_exact_charset_extended_collation_attrs_st::
     *this= Lex_exact_charset_extended_collation_attrs(cl);
     return false;
   case TYPE_CHARACTER_SET:
+  case TYPE_CHARACTER_SET_ANY_CS:
     {
       // CHARACTER SET latin1 .. COLLATE latin1_swedish_ci
       Lex_exact_charset_opt_extended_collate tmp(m_ci, false);
@@ -560,6 +568,7 @@ bool Lex_exact_charset_extended_collation_attrs_st::
     *this= Lex_exact_charset_extended_collation_attrs(cl);
     return false;
   case TYPE_CHARACTER_SET:
+  case TYPE_CHARACTER_SET_ANY_CS:
     {
       // CHARACTER SET latin1 .. COLLATE DEFAULT
       Lex_exact_charset_opt_extended_collate tmp(m_ci, false);
@@ -654,6 +663,7 @@ bool Lex_exact_charset_extended_collation_attrs_st::
     return false;
 
   case TYPE_CHARACTER_SET:
+  case TYPE_CHARACTER_SET_ANY_CS:
     // CHARACTER SET cs1 .. CHARACTER SET cs2
     return Lex_exact_charset(m_ci).raise_if_not_equal(cs);
 
@@ -739,6 +749,7 @@ Lex_extended_charset_extended_collation_attrs_st::
   // With CHARACTER SET DEFAULT
   switch (type()) {
   case TYPE_EMPTY:
+  case TYPE_CHARACTER_SET_ANY_CS:
     // CHARACTER SET DEFAULT;
     return ctx.charset_default().charset().charset_info();
 

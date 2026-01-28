@@ -1,0 +1,71 @@
+#
+# MDEV-34330: System package SYS.DBMS_UTILITY
+#
+SET sql_mode= oracle;
+SET SESSION note_verbosity = "";
+SET NAMES utf8;
+SET lc_messages=ZH_CN;
+CREATE OR REPLACE PROCEDURE proc1
+IS
+BEGIN
+RAISE TOO_MANY_ROWS;
+END;
+//
+CREATE OR REPLACE PACKAGE pkg1
+IS
+PROCEDURE proc2;
+END pkg1;//
+CREATE OR REPLACE PACKAGE BODY pkg1
+IS
+PROCEDURE proc2
+IS
+BEGIN
+proc1_1;
+EXCEPTION
+WHEN OTHERS
+THEN
+RAISE DUP_VAL_ON_INDEX;
+END;
+END pkg1;//
+CREATE PROCEDURE proc3( )
+AS
+BEGIN
+pkg1.proc2;
+EXCEPTION
+WHEN DUP_VAL_ON_INDEX THEN
+SELECT sys.DBMS_UTILITY.FORMAT_ERROR_STACK();
+END;//
+SET @identifier := REPEAT('x', 500);
+#
+# Test FORMAT_ERROR_STACK with very long result string
+#
+CREATE OR REPLACE PROCEDURE cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc IS BEGIN proc1; EXCEPTION WHEN OTHERS THEN SIGNAL SQLSTATE 'HY000' SET MYSQL_ERRNO=3047, MESSAGE_TEXT=@identifier; END;//
+CREATE OR REPLACE PROCEDURE bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb IS BEGIN cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc; EXCEPTION WHEN OTHERS THEN SIGNAL SQLSTATE 'HY000' SET MYSQL_ERRNO=3047, MESSAGE_TEXT=@identifier; END;//
+CREATE OR REPLACE PROCEDURE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa IS BEGIN bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb; EXCEPTION WHEN OTHERS THEN SIGNAL SQLSTATE 'HY000' SET MYSQL_ERRNO=3047, MESSAGE_TEXT=@identifier; END;//
+CREATE OR REPLACE PROCEDURE proc1_1
+IS
+BEGIN
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+EXCEPTION
+WHEN OTHERS
+THEN
+SIGNAL SQLSTATE 'HY000' SET MYSQL_ERRNO=3047, MESSAGE_TEXT=@identifier;
+END;//
+CALL proc3( );
+sys.DBMS_UTILITY.FORMAT_ERROR_STACK()
+1062: 重复条目'%-.192sT'在索引%d
+4094: root.test.pkg1.proc2 at line 9
+3047: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+4094: root.test.proc1_1 at line 8
+3047: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+4094: root.test.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa at line 2
+3047: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+4094: root.test.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb at line 2
+3047: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+DROP PROCEDURE proc1;
+DROP PROCEDURE cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc;
+DROP PROCEDURE bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb;
+DROP PROCEDURE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+DROP PROCEDURE proc1_1;
+DROP PACKAGE pkg1;
+DROP PROCEDURE proc3;

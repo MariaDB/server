@@ -33,6 +33,12 @@
 
 #ifdef HAVE_CHARSET_ujis
 
+extern size_t
+my_halfwidth_fullwidth(CHARSET_INFO *cs, int to_hiragana, const char *src,
+    size_t srclen, char *dst, size_t dstlen);
+
+extern const MY_FULLWIDTH_HALFWIDTH_TUPLE my_halfwidth[];
+
 const char charset_name_ujis[]= "ujis";
 #define charset_name_ujis_length (sizeof(charset_name_ujis) - 1)
 
@@ -67145,6 +67151,64 @@ static MY_CASEFOLD_INFO my_casefold_info_ujis=
 };
 
 
+void from_fullwidth_and_hiragana(const char **src, char **dst, int offset)
+{
+  **dst= 0x8e;
+  (*dst)++;
+  **dst= my_halfwidth[offset - 0xa1].orig;
+  (*dst)++;
+  if (my_halfwidth[offset - 0xa1].mark)
+  {
+    **dst= 0x8e;
+    (*dst)++;
+    **dst= my_halfwidth[offset - 0xa1].mark;
+    (*dst)++;
+  }
+  (*src)+= 2;
+}
+
+
+static size_t
+my_fullwidth_halfwidth(CHARSET_INFO *cs, int from_fullwidth_only,
+    const char *src, size_t srclen, char *dst, 
+    size_t dstlen)
+{
+  const char *srcend= src + srclen;
+  char *dst0= dst;
+
+  while (src < srcend)
+  {
+    int page;
+    int offset;
+
+    /*
+      process fullwidth only for fwkatakana_hwkatakana mode but
+      process fullwidth katakana and hiragana for kana_hwkatakana mode
+    */
+    // Full width Katakana: [0xa5a1..0xa5f6] & hiragana: [0xa4a1..0xa4f3]
+    if ((from_fullwidth_only && (page= (uchar) *src) == 0xa5 &&
+        (offset= (uchar) src[1]) <= 0xf6 && offset >= 0xa1) ||
+        (!from_fullwidth_only &&
+        (((page= (uchar) *src) == 0xa5 && (offset= (uchar) src[1]) <= 0xf6) ||
+        (page == 0xa4 && (offset= (uchar) src[1]) <= 0xf3))&& offset >= 0xa1))
+    {
+      *dst++= 0x8e;
+      *dst++= my_halfwidth[offset - 0xa1].orig;
+      if (my_halfwidth[offset - 0xa1].mark)
+      {
+        *dst++= 0x8e;
+        *dst++= my_halfwidth[offset - 0xa1].mark;
+      }
+      src+= 2;
+    }
+    //let everything else pass through
+    else
+      *dst++= *src++;
+  }
+  return (size_t) (dst - dst0);
+}
+
+
 
 #endif /* HAVE_CHARSET_ujis */
 
@@ -67358,7 +67422,9 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_native_to_mb_ujis,
     my_wc_to_printable_generic,
     my_casefold_multiply_1,
-    my_casefold_multiply_2
+    my_casefold_multiply_2,
+    my_halfwidth_fullwidth,
+    my_fullwidth_halfwidth
 };
 
 

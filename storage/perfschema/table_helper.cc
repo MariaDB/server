@@ -547,6 +547,9 @@ void set_field_object_type(Field *f, enum_object_type object_type)
   case OBJECT_TYPE_SCHEMA:
     PFS_engine_table::set_field_varchar_utf8(f, "SCHEMA", 6);
     break;
+  case OBJECT_TYPE_PACKAGE:
+    PFS_engine_table::set_field_varchar_utf8(f, "PACKAGE", 7);
+    break;
   case OBJECT_TYPE_PACKAGE_BODY:
     PFS_engine_table::set_field_varchar_utf8(f, "PACKAGE BODY", 12);
     break;

@@ -1,0 +1,353 @@
+#
+# MDEV-34330: System package SYS.DBMS_SQL
+#
+SET sql_mode= oracle;
+SET SESSION note_verbosity = "";
+#
+# Test OPEN_CURSOR
+#
+SELECT sys.dbms_sql.OPEN_CURSOR();
+sys.dbms_sql.OPEN_CURSOR()
+0
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CREATE TABLE test.t3 (a INT) ENGINE=InnoDB;
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1266	Using storage engine MyISAM for table 't3'
+#
+# Test PARSE, EXECUTE & CLOSE_CURSOR with an INSERT statement
+#
+CALL sys.dbms_sql.parse(@cursor_id,
+'INSERT INTO test.t3 VALUES (1)', 1);
+SELECT sys.dbms_sql.`EXECUTE`(@cursor_id);
+sys.dbms_sql.`EXECUTE`(@cursor_id)
+1
+SELECT * FROM test.t3;
+a
+1
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+#
+# Test PARSE with leading whitespace on the input
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id,
+' INSERT INTO test.t3 VALUES (1)', 1);
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+sys.dbms_sql.EXECUTE(@cursor_id)
+1
+SELECT * FROM test.t3;
+a
+1
+1
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+#
+# Test PARSE with multiple leading whitespace on the input
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id,
+'  INSERT INTO test.t3 VALUES (1)', 1);
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+sys.dbms_sql.EXECUTE(@cursor_id)
+1
+SELECT * FROM test.t3;
+a
+1
+1
+1
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+#
+# Test CLOSE_CURSOR with an already-closed cursor
+#
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+ERROR HY000: Invalid argument error: DBMS_SQL access denied in function close_cursor.
+CREATE FUNCTION f1() RETURN VARCHAR2(255) AS
+BEGIN
+RETURN 'INSERT INTO test.t3 VALUES (3)';
+END;
+$$
+#
+# Test PARSE with SR func call output as 'input (code)'
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id, f1(), 1);
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+sys.dbms_sql.EXECUTE(@cursor_id)
+1
+SELECT * FROM test.t3;
+a
+1
+1
+1
+3
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+#
+# Test PARSE with native func call output as 'input (code)'
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id, CONCAT('INSERT INTO test.t3 VALUES (3)'), 1);
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+sys.dbms_sql.EXECUTE(@cursor_id)
+1
+SELECT * FROM test.t3;
+a
+1
+1
+1
+3
+3
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+#
+# Test SP variable as 'input (code)'
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CREATE PROCEDURE p1(input VARCHAR2(255)) AS
+BEGIN
+CALL sys.dbms_sql.parse(@cursor_id, input, 1);
+END;
+$$
+CALL p1('INSERT INTO test.t3 VALUES (3)');
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+sys.dbms_sql.EXECUTE(@cursor_id)
+1
+SELECT * FROM test.t3;
+a
+1
+1
+1
+3
+3
+3
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+#
+# Tests where OPEN_CURSOR, CLOSE_CURSOR etc are called within stored routines (functions/procedures)
+#
+CREATE PROCEDURE start_whole_call() AS
+BEGIN
+DECLARE
+cursor_number INT;
+BEGIN
+SET cursor_number = sys.dbms_sql.OPEN_CURSOR();
+CALL enclosed_parse_exec_and_close(cursor_number);
+END;
+END;
+CREATE PROCEDURE enclosed_parse_exec_and_close(cursor_number INT) AS
+BEGIN
+CALL sys.dbms_sql.parse(cursor_number,
+'INSERT INTO test.t3 VALUES (1)', 1);
+SELECT sys.dbms_sql.EXECUTE(cursor_number);
+SELECT * FROM test.t3;
+CALL sys.dbms_sql.close_cursor(cursor_number);
+END;
+$$
+CALL start_whole_call();
+sys.dbms_sql.EXECUTE(cursor_number)
+1
+a
+1
+1
+1
+3
+3
+3
+1
+CREATE FUNCTION start_flow() RETURN INT AS
+BEGIN
+RETURN sys.dbms_sql.OPEN_CURSOR();
+END;
+CREATE PROCEDURE enclosed_close(cursor_number INT) AS
+BEGIN
+CALL sys.dbms_sql.close_cursor(cursor_number);
+END;
+$$
+SELECT start_flow() INTO @cursor_num;
+CALL sys.dbms_sql.parse(@cursor_num,
+'INSERT INTO test.t3 VALUES (1)', 1);
+SELECT sys.dbms_sql.EXECUTE(@cursor_num);
+sys.dbms_sql.EXECUTE(@cursor_num)
+1
+CALL enclosed_close(@cursor_num);
+SELECT * FROM test.t3;
+a
+1
+1
+1
+3
+3
+3
+1
+1
+#
+# Test enclosing EXECUTE function name in backticks
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id,
+' INSERT INTO test.t3 VALUES (1)', 1);
+SELECT sys.dbms_sql.`EXECUTE`(@cursor_id);
+sys.dbms_sql.`EXECUTE`(@cursor_id)
+1
+SELECT * FROM test.t3;
+a
+1
+1
+1
+3
+3
+3
+1
+1
+1
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+#
+# Test enclosing EXECUTE function name with "dbms_sql" package name in backticks
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id,
+' INSERT INTO test.t3 VALUES (1)', 1);
+SELECT sys.`dbms_sql`.`EXECUTE`(@cursor_id);
+sys.`dbms_sql`.`EXECUTE`(@cursor_id)
+1
+SELECT * FROM test.t3;
+a
+1
+1
+1
+3
+3
+3
+1
+1
+1
+1
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+#
+# Test with DELETE statement
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id,
+'DELETE FROM test.t3 WHERE a=1', 1);
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+sys.dbms_sql.EXECUTE(@cursor_id)
+7
+SELECT * FROM test.t3;
+a
+3
+3
+3
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+#
+# Test with UPDATE statement
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id,
+'UPDATE test.t3 SET a=2', 1);
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+sys.dbms_sql.EXECUTE(@cursor_id)
+3
+SELECT * FROM test.t3;
+a
+2
+2
+2
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+#
+# Test with ALTER statement
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id, 'ALTER TABLE test.t3 ADD b VARCHAR(40)', 1);
+SELECT * FROM test.t3;
+a	b
+2	NULL
+2	NULL
+2	NULL
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+#
+# Test showing no effect calling EXECUTE (again) on DDL statements
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id, 'ALTER TABLE test.t3 MODIFY b VARCHAR(32)', 1);
+SELECT sys.dbms_sql.EXECUTE(@cursor_id);
+sys.dbms_sql.EXECUTE(@cursor_id)
+NULL
+SELECT * FROM test.t3;
+a	b
+2	NULL
+2	NULL
+2	NULL
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+#
+# Test with ALTER statement that adds multiple columns
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id, 'ALTER TABLE test.t3 ADD c VARCHAR(40), ADD creation_date DATE', 1);
+SELECT * FROM test.t3;
+a	b	c	creation_date
+2	NULL	NULL	NULL
+2	NULL	NULL	NULL
+2	NULL	NULL	NULL
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+#
+# Test with RENAME TABLE statement
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id, 'RENAME TABLE test.t3 TO test.t1', 1);
+SELECT * FROM test.t1;
+a	b	c	creation_date
+2	NULL	NULL	NULL
+2	NULL	NULL	NULL
+2	NULL	NULL	NULL
+CALL sys.dbms_sql.close_cursor(@cursor_id);
+#
+# Test with CREATE TABLE statement
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id, 'CREATE TABLE test.t2 (a INT) ENGINE=InnoDB', 1);
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1266	Using storage engine MyISAM for table 't2'
+SELECT * FROM test.t2;
+a
+#
+# Test with RENAME TABLES statement
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id, 'RENAME TABLES test.t1 TO test.t3, test.t2 TO test.t4', 1);
+SELECT * FROM test.t3;
+a	b	c	creation_date
+2	NULL	NULL	NULL
+2	NULL	NULL	NULL
+2	NULL	NULL	NULL
+SELECT * FROM test.t4;
+a
+#
+# Test with DROP statement
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id, 'DROP TABLE test.t3', 1);
+SELECT * FROM test.t3;
+ERROR 42S02: Table 'test.t3' doesn't exist
+#
+# Tests to ensure custom instruction cannot be used outside of the package
+#
+CALL dbmssql_execute ('s0');
+ERROR 42000: PROCEDURE test.dbmssql_execute does not exist
+CREATE PROCEDURE p2() AS
+BEGIN
+CALL dbmssql_execute ('s0');
+END;
+$$
+CALL p2();
+ERROR 42000: PROCEDURE test.dbmssql_execute does not exist
+#
+# Test giving unsupported SQL statement as code to the PARSE procedure
+#
+SELECT sys.dbms_sql.OPEN_CURSOR() INTO @cursor_id;
+CALL sys.dbms_sql.parse(@cursor_id, 'SET @old_sql_mode = @@session.sql_mode', 1);
+ERROR HY000: missing or invalid option
+DROP TABLE test.t4;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE start_whole_call;
+DROP PROCEDURE enclosed_parse_exec_and_close;
+DROP FUNCTION start_flow;
+DROP PROCEDURE enclosed_close;

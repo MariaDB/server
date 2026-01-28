@@ -1,0 +1,67 @@
+-- source include/have_perfschema.inc
+
+--echo #
+--echo # MDEV-34327: System package SYS.DBMS_RANDOM
+--echo #
+
+SET sql_mode= oracle;
+
+SET SESSION note_verbosity = "";
+
+SELECT SESSION_Value FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'rand_seed1' INTO @orig_seed1;
+SELECT SESSION_Value FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'rand_seed2' INTO @orig_seed2;
+
+--echo #
+--echo # Test INITIALIZE
+--echo #
+--disable_warnings
+CALL sys.DBMS_RANDOM.INITIALIZE(1);
+--enable_warnings
+
+--echo #
+--echo # Test INITIALIZE without an argument
+--echo #
+--error ER_SP_WRONG_NO_OF_ARGS
+CALL sys.DBMS_RANDOM.INITIALIZE();
+
+--disable_ps_protocol
+--echo #
+--echo # Test VALUE
+--echo #
+SELECT sys.DBMS_RANDOM.VALUE();
+SELECT sys.DBMS_RANDOM.VALUE();
+SELECT sys.DBMS_RANDOM.VALUE();
+
+--echo #
+--echo # Test VALUE with an argument
+--echo #
+--error ER_SP_WRONG_NO_OF_ARGS
+SELECT sys.DBMS_RANDOM.VALUE(1);
+
+--echo #
+--echo # Test RANDOM
+--echo #
+SELECT sys.DBMS_RANDOM.RANDOM();
+SELECT sys.DBMS_RANDOM.RANDOM();
+SELECT sys.DBMS_RANDOM.RANDOM();
+--enable_ps_protocol
+
+--echo #
+--echo # Test RANDOM with an argument
+--echo #
+--error ER_SP_WRONG_NO_OF_ARGS
+SELECT sys.DBMS_RANDOM.RANDOM(1);
+
+--echo #
+--echo # Test TERMINATE
+--echo #
+CALL sys.DBMS_RANDOM.TERMINATE();
+
+--echo #
+--echo # Test TERMINATE with an argument
+--echo #
+--error ER_SP_WRONG_NO_OF_ARGS
+CALL sys.DBMS_RANDOM.TERMINATE(1);
+
+SET SESSION rand_seed1 = CAST(@orig_seed1 AS INT);
+SET SESSION rand_seed2 = CAST(@orig_seed2 AS INT);

@@ -1,0 +1,194 @@
+-- source include/have_perfschema.inc
+
+--echo #
+--echo # MDEV-34331: System package SYS.UTL_I18N
+--echo #
+
+--echo #
+--echo # transliterate Tests with ujis
+--echo #
+
+SET sql_mode= oracle;
+SET NAMES ujis;
+
+--echo #
+--echo # Test transliterate with valid input
+--echo #
+SET collation_connection=ujis_japanese_ci;
+CREATE TABLE t1 (b VARCHAR(2));
+INSERT INTO t1 VALUES ('0'),('1'),('2'),('3'),('4'),('5'),('6'),('7');
+INSERT INTO t1 VALUES ('8'),('9'),('A'),('B'),('C'),('D'),('E'),('F');
+#
+# Populate tables head and tail with values '00'-'FF'
+#
+CREATE TEMPORARY TABLE head AS SELECT CONCAT(b1.b, b2.b) AS head FROM t1 b1, t1 b2;
+CREATE TEMPORARY TABLE tail AS SELECT CONCAT(b1.b, b2.b) AS tail FROM t1 b1, t1 b2;
+DROP TABLE t1;
+#
+# Populate table t1 with all ujis codes.
+# 
+#
+CREATE TABLE t1 AS SELECT 'XXXXXX' AS code, ' ' AS a LIMIT 0;
+#
+# Pupulate JIS-X-0201 range (Half Width Kana)
+#
+INSERT IGNORE INTO t1 (code) SELECT CONCAT('8E', head) FROM head
+WHERE (head BETWEEN 'A1' AND 'DD') ORDER BY head;
+#
+# Populate JIS-X-0208 Hiragana & Katakana ranges
+#
+INSERT IGNORE INTO t1 (code) SELECT CONCAT('A4', head) FROM head
+WHERE (head BETWEEN 'A1' AND 'F3') ORDER BY head;
+INSERT IGNORE INTO t1 (code) SELECT CONCAT('A5', head) FROM head
+WHERE (head BETWEEN 'A1' AND 'F6') ORDER BY head;
+DROP TEMPORARY TABLE head, tail;
+SHOW CREATE TABLE t1;
+
+UPDATE IGNORE t1 SET a=UNHEX(code) ORDER BY code;
+SELECT GROUP_CONCAT(a) FROM t1 WHERE (code BETWEEN '8eA1' AND '8eDD') INTO @hw_char_arr;
+SELECT GROUP_CONCAT(a) FROM t1 WHERE (code BETWEEN 'a5a1' AND 'a5f6') INTO @fw_char_arr;
+SELECT GROUP_CONCAT(a) FROM t1 WHERE (code BETWEEN 'a4a1' AND 'a4f3') INTO @hi_char_arr;
+
+DROP TABLE t1;
+
+SET NAMES ujis;
+SET collation_connection=ujis_japanese_ci;
+DELIMITER /;
+CREATE PROCEDURE f1 (array_string VARCHAR2(255) CHARACTER SET ujis)
+AS
+BEGIN
+  DECLARE
+    array_length INT;
+    element VARCHAR2(255) CHARACTER SET ujis;
+    temp_string VARCHAR2(255) CHARACTER SET ujis;
+  BEGIN
+    SET array_length = (LENGTH(array_string) - LENGTH(REPLACE(array_string, ',', ''))) + 1;
+    SET temp_string = array_string;
+    <<la>>
+    FOR ia IN 1 .. array_length
+    LOOP
+      SET element = SUBSTRING_INDEX(SUBSTRING_INDEX(temp_string, ',', 1), ',', -1);
+      SELECT element;
+      SELECT sys.UTL_I18N.TRANSLITERATE(element, 'hwkatakana_fwkatakana');
+      SET temp_string = SUBSTRING(temp_string, LENGTH(element) + 2);
+    END LOOP la;
+  END;
+END;
+/
+DELIMITER ;/
+
+--echo #
+--echo # Test transliterate function with all EUC-JP halfwidth katakana characters
+--echo #
+CALL f1(@hw_char_arr);
+DROP PROCEDURE f1;
+
+DELIMITER /;
+CREATE PROCEDURE f2 (array_string VARCHAR2(255) CHARACTER SET ujis)
+AS
+BEGIN
+  DECLARE
+    array_length INT;
+    element VARCHAR2(255) CHARACTER SET ujis;
+    temp_string VARCHAR2(255) CHARACTER SET ujis;
+  BEGIN
+    SET array_length = (LENGTH(array_string) - LENGTH(REPLACE(array_string, ',', ''))) + 1;
+    SET temp_string = array_string;
+    <<la>>
+    FOR ia IN 1 .. array_length
+    LOOP
+      SET element = SUBSTRING_INDEX(SUBSTRING_INDEX(temp_string, ',', 1), ',', -1);
+      SELECT element;
+      SELECT sys.UTL_I18N.TRANSLITERATE(element, 'kana_hwkatakana');
+      SET temp_string = SUBSTRING(temp_string, LENGTH(element) + 2);
+    END LOOP la;
+  END;
+END;
+/
+DELIMITER ;/
+
+--echo #
+--echo # Test transliterate function with all EUC-JP fullwidth katakana characters
+--echo #
+CALL f2(@fw_char_arr);
+
+--echo #
+--echo # Test transliterate function with all EUC-JP hiragana characters
+--echo #
+CALL f2(@hi_char_arr);
+DROP PROCEDURE f2;
+
+--echo #
+--echo # Test combination of fullwidth, hiragana & halfwidth characters with the 'fwkatakana_hwkatakana' (mode) name
+--echo #
+--disable_warnings
+SELECT sys.UTL_I18N.TRANSLITERATE('アあｱ', 'fwkatakana_hwkatakana');
+--enable_warnings
+
+--echo #
+--echo # Test Latin 'a' character with the 'kana_hwkatakana' (mode) name
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE('a', 'kana_hwkatakana');
+
+--echo #
+--echo # Test Latin 'a' character with the 'hwkatakana_fwkatakana' (mode) name
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE('a', 'hwkatakana_fwkatakana');
+
+--echo #
+--echo # Test the 'kana_hwkatakana' (mode) name
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE('あ', 'kana_hwkatakana');
+
+--echo #
+--echo # Test the 'hwkatakana_fwkatakana' (mode) name
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE('ｱ', 'hwkatakana_fwkatakana');
+
+--echo #
+--echo # Test the 'hwkatakana_fwkatakana' (mode) name
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE('ア1', 'hwkatakana_fwkatakana');
+
+--echo #
+--echo # Test input string with introducer
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE(_ujis'あ', 'kana_hwkatakana');
+
+--echo #
+--echo # Test input string with collate clause
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE('あ' COLLATE ujis_japanese_ci, 'kana_hwkatakana');
+
+--echo #
+--echo # Test input string with introducer & collate clause
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE(_ujis'あ' COLLATE ujis_japanese_ci, 'kana_hwkatakana');
+
+--echo #
+--echo # Test with blank (mode) name
+--echo #
+--error ER_STD_INVALID_ARGUMENT
+SELECT sys.UTL_I18N.TRANSLITERATE('ｱ', ' ');
+
+--echo #
+--echo # Test with empty input string
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE('', 'hwkatakana_fwkatakana');
+
+--echo #
+--echo # Test TRANSLITERATE with empty name
+--echo #
+--error ER_STD_INVALID_ARGUMENT
+SELECT sys.UTL_I18N.TRANSLITERATE('ｱ', '');
+
+--echo #
+--echo # Test TRANSLITERATE with null name
+--echo #
+SELECT sys.UTL_I18N.TRANSLITERATE(NULL, 'hwkatakana_fwkatakana');
+
+--echo #
+--echo # Test TRANSLITERATE with non sjis & EUC-JP characters
+--echo #
+--error ER_STD_INVALID_ARGUMENT
+SELECT sys.UTL_I18N.TRANSLITERATE(_utf8'ｱ', 'hwkatakana_fwkatakana');
