@@ -164,7 +164,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/opt_hints_parser.cc ../sql/opt_hints_parser.h
            ../sql/scan_char.h
            ../sql/opt_hints.cc ../sql/opt_hints.h
-	   ../sql/opt_trace_ddl_info.cc ../sql/opt_trace_ddl_info.h
+           ../sql/opt_store_replay_context.cc ../sql/opt_store_replay_context.h
+           ../sql/sql_json_lib.cc ../sql/sql_json_lib.h
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )

@@ -12382,3 +12382,7 @@ ER_BINLOG_POS_INVALID
 	eng "The binlog offset %llu is invalid"
 ER_READING_BINLOG_FILE
 	eng "Error reading from page number %u in binlog file (error code: %d)"
+ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED
+        eng "Failed to parse saved optimizer context: %s at offset %d."
+ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED
+        eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in %s"
