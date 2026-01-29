@@ -23,7 +23,6 @@ FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
 
 --connection con1
 reap;
---source include/show_binlog_events.inc
 
 --echo *** Now the same thing for RESET MASTER.
 --source include/reset_master.inc
