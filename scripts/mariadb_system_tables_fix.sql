@@ -887,7 +887,20 @@ IF 'BASE TABLE' = (select table_type from information_schema.tables where table_
   DROP TABLE user;
 END IF//
 
-IF 1 = (SELECT count(*) FROM information_schema.VIEWS WHERE TABLE_CATALOG = 'def' and TABLE_SCHEMA = 'mysql' and TABLE_NAME='user' and (DEFINER = 'root@localhost' or (DEFINER = 'mariadb.sys@localhost' and VIEW_DEFINITION LIKE "%'N' AS `password_expired`%"))) THEN
+IF 1 = (SELECT count(*) FROM information_schema.VIEWS
+        WHERE TABLE_CATALOG = 'def'
+          AND TABLE_SCHEMA = 'mysql'
+          AND TABLE_NAME = 'user'
+          AND (DEFINER = 'root@localhost'
+               OR (DEFINER = 'mariadb.sys@localhost'
+                   AND (VIEW_DEFINITION LIKE "%'N' AS `password_expired`%"
+                        OR CHARACTER_SET_CLIENT <> 'latin1'
+                        OR COLLATION_CONNECTION <> 'latin1_swedish_ci'
+                       )
+                  )
+              )
+       )
+THEN
   DROP VIEW IF EXISTS mysql.user;
 END IF//
 
