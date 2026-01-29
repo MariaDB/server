@@ -244,7 +244,7 @@ struct Master_info_file: Info_file
 
     bool load_from(IO_CACHE *file) override
     {
-      uint32_t count;
+      long count;
       size_t i;
       /// +1 for the terminating delimiter
       char buf[Int_IO_CACHE::BUF_SIZE<uint32_t> + 1];
@@ -257,22 +257,18 @@ struct Master_info_file: Info_file
         if (c == /* End of Line */ '\n' || c == /* End of Count */ ' ')
           break;
       }
-      /*
-        * std::from_chars() fails if `count` will overflow in any way.
-        * exclusive end index of the string = size
-      */
-      std::from_chars_result result= std::from_chars(buf, &buf[i], count);
+      char *end= str2int(buf, 10, 1, INT32_MAX, &count);
       // Reserve enough elements ahead of time.
-      if (result.ec != Int_IO_CACHE::ERRC_OK || allocate_dynamic(&array, count))
+      if (!end || allocate_dynamic(&array, count))
         return true;
       while (count--)
       {
-        uint32_t value;
+        long value;
         /*
           Check that the previous number ended with a ` `,
           not `\n` or anything else.
         */
-        if (*(result.ptr) != ' ')
+        if (*end != ' ')
           return true;
         for (i= 0; i < sizeof(buf); ++i)
         {
@@ -287,8 +283,8 @@ struct Master_info_file: Info_file
           if (c == /* End of Count */ ' ' || c == /* End of Line */ '\n')
             break;
         }
-        result= std::from_chars(buf, &buf[i], value);
-        if (result.ec != Int_IO_CACHE::ERRC_OK)
+        end= str2int(buf, 10, 1, INT32_MAX, &value);
+        if (!end)
           return true;
         ulong id= value;
         bool oom= insert_dynamic(&array, (uchar *)&id);
@@ -301,7 +297,7 @@ struct Master_info_file: Info_file
           return true;
       }
       // Check that the last number ended with a `\n`, not ` ` or anything else.
-      if (*(result.ptr) != '\n')
+      if (*end != '\n')
         return true;
       sort_dynamic(&array, change_master_id_cmp); // to be safe
       return false;
@@ -417,8 +413,8 @@ struct Master_info_file: Info_file
     }
     void save_to(IO_CACHE *file) override
     {
-      my_b_write_byte(file,
-        '0' + static_cast<unsigned char>(operator enum_master_use_gtid()));
+      my_b_write_byte(file, static_cast<uchar>(
+        '0' + static_cast<unsigned char>(operator enum_master_use_gtid())));
     }
   }
   /// Using_Gtid
@@ -473,25 +469,28 @@ struct Master_info_file: Info_file
         }
       };
       /*
-        The ideal use would work with `double`s, including the `*1000` step,
-        but disappointingly, the double interfaces of @ref decimal_t are
-        implemented by printing into a string and parsing that char array.
+        The ideal implementation would work with native `double`s as they are
+        sufficiently precise in this case; but decimal2double() is currently
+        implemented by printing into a string and parsing that char array,
+        which is an even larger overhead than `my_decimal` multiplication.
       */
       static const auto MAX_PERIOD= Decimal_from_str(STRING_WITH_LEN(MAX)),
                         THOUSAND  = Decimal_from_str(STRING_WITH_LEN("1000"));
-      ulonglong decimal_out;
+      [[maybe_unused]] ulonglong decimal_out;
       if (decimal.sign || decimal_cmp(&MAX_PERIOD, &decimal) < 0)
         return true; // ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
       overprecise= decimal.frac > 3;
       // decomposed from my_decimal2int() to reduce a bit of computations
       auto rounded= my_decimal(), product= my_decimal();
-      int unexpected_error=
-        decimal_round(&decimal, &rounded, 3, HALF_UP) |
-        decimal_mul(&rounded, &THOUSAND, &product) |
+      bool unexpected_error=
+        decimal_round(&decimal, &rounded, 3, HALF_UP) ||
+        decimal_mul(&rounded, &THOUSAND, &product) ||
         decimal2ulonglong(&product, &decimal_out);
       DBUG_ASSERT(!unexpected_error);
+      if (unexpected_error)
+        return true;
       result= static_cast<uint32_t>(decimal_out);
-      return unexpected_error;
+      return false;
     }
     /** Load from a '\0'-terminated string
       @param expected_end This function also checks that the exclusive end
@@ -532,18 +531,8 @@ struct Master_info_file: Info_file
       full advantage of the non-negative `DECIMAL(10,3)` format.
     */
     void save_to(IO_CACHE *file) override {
-      char buf[Int_IO_CACHE::BUF_SIZE<uint32_t> - /* decimal part */ 3];
       auto[integer_part, decimal_part]= div(operator uint32_t(), 1000);
-      std::to_chars_result result=
-        std::to_chars(buf, &buf[sizeof(buf)], integer_part);
-      DBUG_ASSERT(result.ec == Int_IO_CACHE::ERRC_OK);
-      my_b_write(file, reinterpret_cast<const uchar *>(buf), result.ptr - buf);
-      my_b_write_byte(file, '.');
-      result= std::to_chars(buf, &buf[sizeof(buf)], decimal_part);
-      DBUG_ASSERT(result.ec == Int_IO_CACHE::ERRC_OK);
-      for (ptrdiff_t digits= result.ptr - buf; digits < 3; ++digits)
-        my_b_write_byte(file, '0');
-      my_b_write(file, reinterpret_cast<const uchar *>(buf), result.ptr - buf);
+      my_b_printf(file, "%u.%03u", integer_part, decimal_part);
     }
   }
   /// `Slave_heartbeat_period` of SHOW ALL SLAVES STATUS
@@ -552,7 +541,7 @@ struct Master_info_file: Info_file
   /// }@
 
 
-  inline static Mem_fn::List VALUE_LIST= {
+  inline static const Mem_fn VALUE_LIST[] {
     &Master_info_file::master_log_file,
     &Master_info_file::master_log_pos,
     &Master_info_file::master_host,
@@ -587,7 +576,8 @@ struct Master_info_file: Info_file
     keys should match the corresponding old property name in @ref Master_info.
   */
   // C++ default allocator to match that `mysql_execute_command()` uses `new`
-  inline static const std::unordered_map<std::string_view, Mem_fn> VALUE_MAP= {
+  inline static
+  const std::unordered_map<std::string_view, const Mem_fn> VALUE_MAP= {
     /*
       These are here to annotate whether they are `DEFAULT`.
       They are repeated from @ref VALUE_LIST to enable bidirectional

@@ -2,11 +2,12 @@
 # Shared between rpl.rpl_heartbeat and binlog_in_engine.rpl_heartbeat.
 # 
 # Including:
-# - user interface, grammar, checking the range and warnings about 
-#   unreasonable values for the heartbeat period;
 # - no rotation of relay log if heartbeat is less that slave_net_timeout
 # - SHOW STATUS like 'Slave_received_heartbeats' action
 # - SHOW STATUS like 'Slave_heartbeat_period' report
+# 
+# `rpl.rpl_heartbeat_basic` tests the user interface, grammar, range,
+# and warnings about unreasonable values for the heartbeat period.
 
 connection slave;
 -- source include/stop_slave.inc

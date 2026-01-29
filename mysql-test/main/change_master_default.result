@@ -8,7 +8,7 @@ master_ssl_ca_path,
 master_ssl_cert,
 master_ssl_cipher,
 master_ssl_key,
-`master_ssl_verify_server_cert`, # MDEV-38194
+master_ssl_verify_server_cert,
 master_ssl_crl,
 master_ssl_crlpath,
 using_gtid,
