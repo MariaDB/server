@@ -3053,13 +3053,26 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
 uint32_t
 Gtid_log_event::get_size() const noexcept
 {
+  /*
+    The point of this function is to make it very clear from the code that
+    the calculation of the size follows the exact same logic and flags check
+    as done when serializing the event in Gtid_log_event::write().
+
+    However, clang MSAN, when used without -fno-sanitize-memory-param-retval,
+    complains that passing undefined value as function parameter is undefined
+    behaviour (even when value is not used by the function). So here we
+    break the pattern somehwat with fl_xa to work-around this overzealous use
+    of MSAN.
+  */
+  bool fl_xa= flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA);
   return get_gtid_event_size(flags2 & FL_GROUP_COMMIT_ID,
-                             flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA),
+                             fl_xa,
                              flags_extra > 0,
                              flags_extra & FL_EXTRA_MULTI_ENGINE_E1,
                              flags_extra & (FL_COMMIT_ALTER_E1 | FL_ROLLBACK_ALTER_E1),
                              flags_extra & FL_EXTRA_THREAD_ID,
-                             xid.bqual_length, xid.gtrid_length);
+                             (fl_xa ? xid.bqual_length : 0),
+                             (fl_xa ? xid.gtrid_length : 0));
 }
 
 
