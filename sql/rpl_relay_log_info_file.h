@@ -36,7 +36,7 @@ struct Relay_log_info_file: Info_file
   Int_value<uint32_t> sql_delay;
   /// }@
 
-  inline static const Mem_fn::List VALUE_LIST= {
+  inline static const Mem_fn VALUE_LIST[] {
     &Relay_log_info_file::relay_log_file,
     &Relay_log_info_file::relay_log_pos,
     &Relay_log_info_file::read_master_log_file,
@@ -50,8 +50,7 @@ struct Relay_log_info_file: Info_file
   }
   void save_to_file() override
   {
-    return Info_file::save_to_file(VALUE_LIST,
-                            VALUE_LIST.size() + /* line count line */ 1);
+    return Info_file::save_to_file(VALUE_LIST);
   }
 };
 

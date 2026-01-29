@@ -19,7 +19,6 @@
 #define RPL_INFO_FILE_H
 
 #include <cstdint>    // uintN_t
-#include <charconv>   // std::from/to_chars and other helpers
 #include <functional> // superclass of Info_file::Mem_fn
 #include <my_sys.h>   // IO_CACHE, FN_REFLEN, ...
 
@@ -36,7 +35,6 @@ namespace Int_IO_CACHE
   */
   template<typename I> static constexpr size_t BUF_SIZE=
     std::numeric_limits<I>::digits10 + 1 + std::numeric_limits<I>::is_signed;
-  static constexpr auto ERRC_OK= std::errc();
 
   /**
     @ref IO_CACHE (reading one line with the `\n`) version of std::from_chars()
@@ -45,19 +43,38 @@ namespace Int_IO_CACHE
   */
   template<typename I> static bool from_chars(IO_CACHE *file, I &value)
   {
+    int error;
     /**
-      +2 for the terminating `\n\0` (They are ignored by
-      std::from_chars(), but my_b_gets() includes them.)
+      +2 for the terminating `\n\0`
+      (They are ignored, but my_b_gets() includes them.)
     */
     char buf[BUF_SIZE<I> + 2];
     /// includes the `\n` but excludes the `\0`
     size_t length= my_b_gets(file, buf, sizeof(buf));
     if (!length) // EOF
       return true;
-    // SFINAE if `I` is not a numeric type
-    std::from_chars_result result= std::from_chars(buf, &(buf[length]), value);
-    // Return `true` if the conversion failed or if the number ended early
-    return result.ec != ERRC_OK || *(result.ptr) != '\n';
+    char *end= &(buf[length]);
+    longlong val= my_strtoll10(buf, &end, &error);
+    switch (error) {
+    case -1:
+      if (!std::numeric_limits<I>::is_signed)
+        return true;
+      [[fallthrough]];
+    case 0:
+      /*TODO
+        This upper range check is not needed when using type-
+        specific variants of a safe string-to-integer converter
+        (e.g., std::from_chars() when all platforms support it).
+      */
+      if (*end == '\n' && value <= std::numeric_limits<I>::max())
+      {
+        value= static_cast<I>(val);
+        return false;
+      }
+      [[fallthrough]];
+    default:
+      return true;
+    }
   }
   /**
     Convenience overload of from_chars(IO_CACHE *, I &) for `operator=` types
@@ -79,14 +96,19 @@ namespace Int_IO_CACHE
   */
   template<typename I> static void to_chars(IO_CACHE *file, I value)
   {
-    /**
-      my_b_printf() uses a buffer too,
-      so we might as well save on format parsing and buffer resizing
-    */
     char buf[BUF_SIZE<I>];
-    std::to_chars_result result= std::to_chars(buf, &buf[sizeof(buf)], value);
-    DBUG_ASSERT(result.ec == ERRC_OK);
-    my_b_write(file, reinterpret_cast<const uchar *>(buf), result.ptr - buf);
+    /*TODO:
+      * my_b_printf() needs updates and so doesn't
+        support `long long`s at the moment.
+      * We can avoid format parsing by expanding
+        int10_to_str() if not supporting std::to_chars().
+    */
+    int len= std::numeric_limits<I>::is_signed ?
+      snprintf(buf, BUF_SIZE<I>, "%lld", static_cast<long long>(value)) :
+      snprintf(buf, BUF_SIZE<I>, "%llu", static_cast<unsigned long long>(value))
+    ;
+    DBUG_ASSERT(len > 0);
+    my_b_write(file, reinterpret_cast<const uchar *>(buf), len);
   }
 };
 
@@ -209,7 +231,6 @@ protected:
   */
   struct Mem_fn: std::function<Persistent &(Info_file *self)>
   {
-    using List= const std::initializer_list<Mem_fn>;
     /// Null Constructor
     Mem_fn(std::nullptr_t null= nullptr):
       std::function<Persistent &(Info_file *)>(null) {}
@@ -242,36 +263,55 @@ protected:
       (either contains a `.` or is entirely empty) rather than an integer.
     @return `false` if the file has parsed successfully or `true` if error
   */
-  bool load_from_file(Mem_fn::List value_list, size_t default_line_count)
+  template<size_t size> bool load_from_file(
+    const Mem_fn (&value_list)[size],
+    size_t default_line_count= 0
+  ) { return load_from_file(value_list, size, default_line_count); }
+  /**
+    Flush the MySQL line-based section to the @ref file
+    @param value_list List of wrapped member pointers to values.
+    @param total_line_count
+      The number of lines to describe the file as on the first line of the file.
+      If this is larger than `value_list.size()`, suffix the file with empty
+      lines until the line count (including the line count line) is this many.
+      This reservation provides compatibility with MySQL,
+      who has added more old-style lines while MariaDB innovated.
+  */
+  template<size_t size> void save_to_file(
+    const Mem_fn (&value_list)[size],
+    size_t total_line_count= size + /* line count line */ 1
+  ) { return save_to_file(value_list, size, total_line_count); }
+
+private:
+  bool
+  load_from_file(const Mem_fn *values, size_t size, size_t default_line_count)
   {
+    long val;
     /**
       The first row is temporarily stored in the first value. If it is a line
       count and not a log name (new format), the second row will overwrite it.
     */
-    auto &line1= dynamic_cast<String_value<> &>((*(value_list.begin()))(this));
+    auto &line1= dynamic_cast<String_value<> &>(values[0](this));
     if (line1.load_from(&file))
       return true;
-    size_t line_count;
-    std::from_chars_result result= std::from_chars(
-      line1.buf, &line1.buf[sizeof(line1.buf)], line_count);
+    char *end= str2int(line1.buf, 10, 0, INT32_MAX, &val);
     /**
       If this first line was not a number - the line count,
       then it was the first value for real,
       so the for loop should then skip over it, the index 0 of the list.
     */
-    size_t i= result.ec != Int_IO_CACHE::ERRC_OK || *(result.ptr) != '\0';
+    size_t i= !end || *end != '\0';
     /*
       Set the default after parsing: While std::from_chars() does not replace
       the output if it failed, it does replace if the line is not fully spent.
     */
-    if (i)
-      line_count= default_line_count;
+    size_t line_count= i ? default_line_count: static_cast<size_t>(val);
     for (; i < line_count; ++i)
     {
       int c;
-      if (i < value_list.size()) // line known in the `value_list`
+      if (i < size) // line known in the `value_list`
       {
-        const Mem_fn &pm= value_list.begin()[i];
+        const Mem_fn &pm= values[i];
         if (pm)
         {
           if (pm(this).load_from(&file))
@@ -294,19 +334,9 @@ protected:
     return false;
   }
 
-  /**
-    Flush the MySQL line-based section to the @ref file
-    @param value_list List of wrapped member pointers to values.
-    @param total_line_count
-      The number of lines to describe the file as on the first line of the file.
-      If this is larger than `value_list.size()`, suffix the file with empty
-      lines until the line count (including the line count line) is this many.
-      This reservation provides compatibility with MySQL,
-      who has added more old-style lines while MariaDB innovated.
-  */
-  void save_to_file(Mem_fn::List value_list, size_t total_line_count)
+  void save_to_file(const Mem_fn *values, size_t size, size_t total_line_count)
   {
-    DBUG_ASSERT(total_line_count > value_list.size());
+    DBUG_ASSERT(total_line_count > size);
     my_b_seek(&file, 0);
     /*
       If the new contents take less space than the previous file contents,
@@ -316,8 +346,9 @@ protected:
     */
     Int_IO_CACHE::to_chars(&file, total_line_count);
     my_b_write_byte(&file, '\n');
-    for (const Mem_fn &pm: value_list)
+    for (size_t i= 0; i < size; ++i)
     {
+      const Mem_fn &pm= values[i];
       if (pm)
         pm(this).save_to(&file);
       my_b_write_byte(&file, '\n');
@@ -327,7 +358,7 @@ protected:
       (1 for the line count line + line count) inclusive -> max line inclusive
        = line count exclusive <- max line inclusive
     */
-    for (; total_line_count > value_list.size(); --total_line_count)
+    for (; total_line_count > size; --total_line_count)
       my_b_write_byte(&file, '\n');
   }
 
