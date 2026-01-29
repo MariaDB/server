@@ -1,5 +1,7 @@
 --source include/have_sequence.inc
 --source include/have_innodb.inc
+# Very CPU-intensive test, too slow to run in Valgrind.
+--source include/not_valgrind.inc
 --source include/master-slave.inc
 --source include/have_binlog_format_mixed.inc
 
