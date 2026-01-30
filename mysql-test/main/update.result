@@ -844,4 +844,14 @@ id	v
 44	444
 55	555
 drop table t1, t2, t3;
+#
+# MDEV-23500: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+# is_bulk_op())' failed in Diagnostics_area::set_ok_status upon
+# multi-table update
+#
+CREATE TABLE t (f INT NOT NULL);
+INSERT INTO t VALUES (0),(0);
+UPDATE t AS t1 LEFT JOIN t AS t2 ON t1.f <=> t2.f SET t2.f = NULL;
+ERROR 01000: Data truncated for column 'f' at row 4
+DROP TABLE t;
 # End of MariaDB 10.11 tests
