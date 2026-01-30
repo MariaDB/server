@@ -132,7 +132,7 @@ get_make_parallel_flag
 SSL_LIBRARY=--with-ssl=system
 
 if [ "x$warning_mode" = "xpedantic" ]; then
-  warnings="-W -Wall -ansi -pedantic -Wno-long-long -Wno-unused -D_POSIX_SOURCE"
+  warnings="-W -Wall -ansi -pedantic -Wno-long-long -Wno-unused -Wno-format-truncation -D_POSIX_SOURCE"
   c_warnings="$warnings"
   cxx_warnings="$warnings -std=c++98"
 # NOTE: warning mode should not influence optimize/debug mode.
