@@ -5066,7 +5066,7 @@ grn_ts_expr_bridge_node_filter(grn_ctx *ctx, grn_ts_expr_bridge_node *node,
 {
   size_t i, count;
   grn_ts_bool *values;
-  grn_ts_record *tmp;
+  grn_ts_record *tmp __attribute__((unused));
   grn_rc rc = grn_ts_expr_node_evaluate_to_buf(ctx, node->src, in, n_in,
                                                &node->bufs[0]);
   if (rc != GRN_SUCCESS) {
