@@ -24,6 +24,7 @@ extern MYSQL_PLUGIN_IMPORT const char *my_defaults_extra_file;
 extern const char *my_defaults_group_suffix;
 extern MYSQL_PLUGIN_IMPORT const char *my_defaults_file;
 extern my_bool my_defaults_mark_files;
+extern my_bool my_defaults_use_original_paths;
 
 extern int get_defaults_options(char **argv);
 extern int my_load_defaults(const char *conf_file, const char **groups,

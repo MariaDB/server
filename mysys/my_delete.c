@@ -202,6 +202,7 @@ error:
 
 /*
    Remove directory recursively.
+   Symlinks are deleted, not followed
 */
 int my_rmtree(const char *dir, myf MyFlags)
 {
@@ -210,7 +211,9 @@ int my_rmtree(const char *dir, myf MyFlags)
   int err = 0;
   size_t i;
 
-  MY_DIR *dir_info = my_dir(dir, MYF(MY_DONT_SORT | MY_WANT_STAT));
+  MY_DIR *dir_info = my_dir(dir,
+                            MYF(MY_DONT_SORT | MY_WANT_STAT |
+                                (MyFlags & (MY_NOSYMLINKS | MY_WME))));
   if (!dir_info)
     return 1;
 
@@ -225,7 +228,7 @@ int my_rmtree(const char *dir, myf MyFlags)
 
     if (!MY_S_ISDIR(file->mystat->st_mode))
     {
-      err = my_delete(path, MyFlags);
+      err = my_delete(path, (MyFlags & ~MY_NOSYMLINKS));
 #ifdef _WIN32
       /*
         On Windows, check and possible reset readonly attribute.

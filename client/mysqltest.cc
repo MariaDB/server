@@ -2157,15 +2157,16 @@ void log_msg(const char *fmt, ...)
   SYNOPSIS
   cat_file
   ds - pointer to dynamic string where to add the files content
-  filename - name of the file to read
-
+  filename  - name of the file to read
+  max_lines - number of lines to print. 0 == all
 */
 
-int cat_file(DYNAMIC_STRING* ds, const char* filename)
+int cat_file(DYNAMIC_STRING* ds, const char* filename, uint max_lines)
 {
   int fd;
   size_t len;
   char *buff;
+  uint line= 0;                             // Enough for mtr
 
   if ((fd= my_open(filename, O_RDONLY, MYF(0))) < 0)
     return 1;
@@ -2182,28 +2183,35 @@ int cat_file(DYNAMIC_STRING* ds, const char* filename)
   len= my_read(fd, (uchar*)buff, len, MYF(0));
   my_close(fd, MYF(0));
 
+  if (!max_lines)
+    max_lines= 10000;                           // Enough for mtr
+
+  char *p= buff, *start= buff, *end=buff+len;
+  while (p < end && line <= max_lines)
   {
-    char *p= buff, *start= buff,*end=buff+len;
-    while (p < end)
+    /* Convert cr/lf to lf */
+    if (*p == '\r' && p+1 < end && *(p+1)== '\n')
     {
-      /* Convert cr/lf to lf */
-      if (*p == '\r' && p+1 < end && *(p+1)== '\n')
-      {
-        /* Add fake newline instead of cr and output the line */
-        *p= '\n';
-        p++; /* Step past the "fake" newline */
-        *p= 0;
-        replace_dynstr_append_mem(ds, start, p-start);
-        p++; /* Step past the "fake" newline */
-        start= p;
-      }
-      else
-        p++;
+      /* Add fake newline instead of cr and output the line */
+      *p= '\n';
+      p++; /* Step past the "fake" newline */
+      *p= 0;
+      replace_dynstr_append_mem(ds, start, p-start);
+      p++; /* Step past the "fake" newline */
+      start= p;
+      line++;
     }
-    /* Output any chars that migh be left */
-    *p= 0;
-    replace_dynstr_append_mem(ds, start, p-start);
+    else
+    {
+      if (*p == '\n')
+        line++;
+      p++;
+    }
   }
+  /* Output any chars that migh be left */
+  *p= 0;
+  replace_dynstr_append_mem(ds, start, p-start);
+
   my_free(buff);
   return 0;
 }
@@ -2450,11 +2458,11 @@ void show_diff(DYNAMIC_STRING* ds,
     dynstr_append_mem(&ds_tmp, STRING_WITH_LEN(" --- "));
     dynstr_append_mem(&ds_tmp, filename1, strlen(filename1));
     dynstr_append_mem(&ds_tmp, STRING_WITH_LEN(" >>>\n"));
-    cat_file(&ds_tmp, filename1);
+    cat_file(&ds_tmp, filename1, 0);
     dynstr_append_mem(&ds_tmp, STRING_WITH_LEN("<<<\n --- "));
     dynstr_append_mem(&ds_tmp, filename1, strlen(filename1));
     dynstr_append_mem(&ds_tmp, STRING_WITH_LEN(" >>>\n"));
-    cat_file(&ds_tmp, filename2);
+    cat_file(&ds_tmp, filename2, 0);
     dynstr_append_mem(&ds_tmp, STRING_WITH_LEN("<<<<\n"));
   }
 
@@ -4851,9 +4859,11 @@ void do_append_file(struct st_command *command)
 void do_cat_file(struct st_command *command)
 {
   int error;
-  static DYNAMIC_STRING ds_filename;
+  static DYNAMIC_STRING ds_filename, ds_lines;
+  uint lines= 0;
   const struct command_arg cat_file_args[] = {
-    { "filename", ARG_STRING, TRUE, &ds_filename, "File to read from" }
+    { "filename", ARG_STRING, TRUE, &ds_filename, "File to read from" },
+    { "lines", ARG_STRING, FALSE, &ds_lines, "Number of lines to print"}
   };
   DBUG_ENTER("do_cat_file");
 
@@ -4865,9 +4875,13 @@ void do_cat_file(struct st_command *command)
 
   DBUG_PRINT("info", ("Reading from, file: %s", ds_filename.str));
 
-  error= cat_file(&ds_res, ds_filename.str);
+  if (ds_lines.length)
+    lines= atoi(ds_lines.str);
+
+  error= cat_file(&ds_res, ds_filename.str, lines);
   handle_command_error(command, error, my_errno);
   dynstr_free(&ds_filename);
+  dynstr_free(&ds_lines);
   DBUG_VOID_RETURN;
 }
 
@@ -13281,7 +13295,7 @@ int main(int argc, char **argv)
       case Q_DIFF_FILES: do_diff_files(command); break;
       case Q_SEND_QUIT: do_send_quit(command); break;
       case Q_CHANGE_USER: do_change_user(command); break;
-      case Q_CAT_FILE: do_cat_file(command); break;
+      case Q_CAT_FILE: do_cat_file(command); command_executed++; break;
       case Q_COPY_FILE: do_copy_file(command); break;
       case Q_MOVE_FILE: do_move_file(command); break;
       case Q_CHMOD_FILE: do_chmod_file(command); break;

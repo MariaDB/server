@@ -52,6 +52,8 @@
 */
 static char *file_marker= (char*)"----file-marker----";
 my_bool my_defaults_mark_files= FALSE;
+my_bool my_defaults_use_original_paths= FALSE;
+
 my_bool is_file_marker(const char* arg)
 {
   return arg == file_marker;
@@ -208,7 +210,7 @@ static int my_search_option_files(const char *conf_file,
       goto err;
     }
   }
-  else if (dirname_length(conf_file))
+  else if (dirname_length(conf_file) || !default_directories)
   {
     if ((error= search_default_file(ctx, NullS, conf_file)) < 0)
       goto err;
@@ -325,13 +327,15 @@ int get_defaults_options(char **argv)
   if (! my_defaults_group_suffix)
     my_defaults_group_suffix= getenv("MYSQL_GROUP_SUFFIX");
 
-  if (my_defaults_extra_file && my_defaults_extra_file != extra_file_buffer)
+  if (my_defaults_extra_file && my_defaults_extra_file != extra_file_buffer &&
+      ! my_defaults_use_original_paths)
   {
     my_realpath(extra_file_buffer, my_defaults_extra_file, MYF(0));
     my_defaults_extra_file= extra_file_buffer;
   }
 
-  if (my_defaults_file && my_defaults_file != file_buffer)
+  if (my_defaults_file && my_defaults_file != file_buffer &&
+      ! my_defaults_use_original_paths)
   {
     my_realpath(file_buffer, my_defaults_file, MYF(0));
     my_defaults_file= file_buffer;
@@ -401,6 +405,8 @@ int load_defaults(const char *conf_file, const char **groups,
      
      - 1 is returned if the given conf_file didn't exist. In this case, the
      value pointed to by default_directories is undefined.
+     - 4 is returned --print-defaults was used. The caller should just do exit(0)
+      in this ase
 */
 
 
