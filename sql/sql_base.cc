@@ -3659,7 +3659,8 @@ Open_table_context::recover_from_failed_open()
         on table which was discovered but preserve locks from previous statements
         in current transaction.
       */
-      m_thd->mdl_context.rollback_to_savepoint(start_of_statement_svp());
+      if (!result)
+        m_thd->mdl_context.rollback_to_savepoint(start_of_statement_svp());
       break;
     case OT_NO_ACTION:
       DBUG_ASSERT(0);
