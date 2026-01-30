@@ -724,7 +724,7 @@ String* Item_func_json_value::val_str(String *to)
 }
 
 
-bool Item_func_json_value::fix_length_and_dec()
+bool Item_func_json_value::fix_length_and_dec(THD *thd)
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
@@ -750,7 +750,7 @@ String* Item_func_json_query::val_str(String *to)
 }
 
 
-bool Item_func_json_query::fix_length_and_dec()
+bool Item_func_json_query::fix_length_and_dec(THD *thd)
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
@@ -766,6 +766,7 @@ bool Json_path_extractor::extract(json_engine_t *tmp_je, String *str, Item *item
   String *js= item_js->val_json(&tmp_js);
   int error= 0;
   int array_counters[JSON_DEPTH_LIMIT];
+  bool result= true;
 
   if (!parsed)
   {
@@ -801,13 +802,11 @@ continue_search:
       goto error_return;
     goto continue_search;
   }
-
-  return false;
+  result= false;
 
   error_return:
-  if (je.s.error)
-    *tmp_je= je;
-  return true;
+  *tmp_je= je;
+  return result;
 }
 
 

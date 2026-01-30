@@ -183,8 +183,12 @@ class Item_func_json_value: public Item_str_func,
 public:
   Item_func_json_value(THD *thd, Item *js, Item *i_path):
     Item_str_func(thd, js, i_path) {}
-  const char *func_name() const override { return "json_value"; }
-  bool fix_length_and_dec() override ;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("json_value") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override ;
   String *val_str(String *to) override;
   bool check_and_get_value(Json_engine_scan *je,
                            String *res, int *error) override
@@ -202,8 +206,12 @@ class Item_func_json_query: public Item_json_func,
 public:
   Item_func_json_query(THD *thd, Item *js, Item *i_path):
     Item_json_func(thd, js, i_path) {}
-  const char *func_name() const override { return "json_query"; } 
-  bool fix_length_and_dec() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("json_query") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *to) override;
   bool check_and_get_value(Json_engine_scan *je,
                            String *res, int *error) override
