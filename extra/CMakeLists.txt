@@ -13,7 +13,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include ${ZLIB_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include ${ZLIB_INCLUDE_DIRS} ${PCRE_INCLUDE_DIRS})
 
 # Default install component for the files is Server here
 SET(MYSQL_INSTALL_COMPONENT Server)
@@ -45,6 +45,67 @@ ADD_CUSTOM_TARGET(GenError
                   ALL
                   DEPENDS
                   ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp)
+
+IF(NOT CMAKE_CROSSCOMPILING AND TARGET mariadbd)
+  ADD_EXECUTABLE(generate_option_list generate_option_list.cc)
+  TARGET_LINK_LIBRARIES(generate_option_list mysys pcre2-8)
+  TARGET_INCLUDE_DIRECTORIES(generate_option_list PRIVATE ${PCRE_INCLUDE_DIRS})
+  GET_PROPERTY(dynamic_plugins GLOBAL PROPERTY SERVER_DYNAMIC_PLUGINS)
+  GET_PROPERTY(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+  IF(is_multi_config)
+    SET(my_plugin_dir "${CMAKE_BINARY_DIR}/all_plugins/$<CONFIG>")
+  ELSE()
+    SET(my_plugin_dir "${CMAKE_BINARY_DIR}/all_plugins")
+  ENDIF()
+
+  SET(populate_plugin_dir)
+  SET(plugin_load)
+  LIST(APPEND populate_plugin_dir
+    COMMAND ${CMAKE_COMMAND} -E rm -rf "${my_plugin_dir}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${my_plugin_dir}"
+  )
+  FOREACH(target ${dynamic_plugins})
+    LIST(APPEND plugin_load "$<TARGET_FILE_NAME:${target}>")
+     IF(WIN32)
+       SET(maybe_create_hardlink  || ${CMAKE_COMMAND} -E create_hardlink
+          $<TARGET_FILE:${target}>
+          "${my_plugin_dir}/$<TARGET_FILE_NAME:${target}>")
+     ENDIF()
+     LIST(APPEND populate_plugin_dir
+     COMMAND ${CMAKE_COMMAND} -E create_symlink
+     $<TARGET_FILE:${target}>
+     "${my_plugin_dir}/$<TARGET_FILE_NAME:${target}>"
+     ${maybe_create_hardlink})
+  ENDFOREACH()
+
+  IF(NOT plugin_load)
+    SET(plugin_load " ")
+  ENDIF()
+
+  STRING(REPLACE ";" ":" escaped_plugin_load "${plugin_load}")
+  SET(genhdr ${CMAKE_BINARY_DIR}/include/mariadbd_options.h)
+  ADD_CUSTOM_COMMAND(OUTPUT ${genhdr}
+   # COMMAND ${CMAKE_COMMAND} -E echo "Executing ${populate_plugin_dir}"
+   ${populate_plugin_dir}
+   #COMMAND ${CMAKE_COMMAND} -E echo "Executing generate_option_list $<TARGET_FILE:mariadbd> ${my_plugin_dir} ${escaped_plugin_load} ${genhdr}"
+   COMMAND generate_option_list "$<TARGET_FILE:mariadbd>" "${my_plugin_dir}" "${escaped_plugin_load}" "${genhdr}"
+   COMMAND_EXPAND_LISTS
+ )
+
+ ADD_CUSTOM_TARGET(gen_mariadbd_options_h
+   DEPENDS ${genhdr}
+
+ )
+
+ MYSQL_ADD_EXECUTABLE(mariadb-migrate-config-file
+   mariadb_migrate_config_file.c
+   ${genhdr}
+   COMPONENT Client)
+
+ # Make sure consumers cannot compile before the header exists:
+  SET_SOURCE_FILES_PROPERTIES("${genhdr}" PROPERTIES GENERATED TRUE)
+  TARGET_LINK_LIBRARIES(mariadb-migrate-config-file PRIVATE mysys)
+ENDIF()
 
 MYSQL_ADD_EXECUTABLE(my_print_defaults my_print_defaults.c COMPONENT Client)
 TARGET_LINK_LIBRARIES(my_print_defaults  mysys)

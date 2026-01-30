@@ -16,8 +16,6 @@
 #include "mysys_priv.h"
 #include <m_string.h>
 
-static char *find_file_in_path(char *to,const char *name);
-
 	/* Finds where program can find it's files.
 	   pre_pathname is found by first locking at progname (argv[0]).
 	   if progname contains path the path is returned.
@@ -82,7 +80,7 @@ char * my_path(char * to, const char *progname,
 #define PATH_SEP ':'
 #endif
 
-static char *find_file_in_path(char *to, const char *name)
+char *find_file_in_path(char *to, const char *name)
 {
   char *path,*pos,dir[2];
   const char *ext="";

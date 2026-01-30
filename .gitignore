@@ -30,6 +30,7 @@ Docs/INFO_BIN
 Docs/INFO_SRC
 Makefile
 TAGS
+all_plugins/
 mariadb-plugin-columnstore.install.generated
 Testing/
 tmp/
@@ -59,8 +60,10 @@ extra/comp_err
 extra/innochecksum
 extra/jemalloc/build/
 extra/jemalloc/tmp/
+extra/generate_option_list
 extra/mariabackup/mariabackup
 extra/mariabackup/mbstream
+extra/mariadb-migrate-config-file
 extra/my_print_defaults
 extra/mysql_waitpid
 extra/mysqld_safe_helper
@@ -72,6 +75,7 @@ extra/wolfssl/user_settings.h
 import_executables.cmake
 include/*.h.tmp
 include/config.h
+include/mariadbd_options.h
 include/my_config.h
 include/mysql_version.h
 include/mysqld_ername.h

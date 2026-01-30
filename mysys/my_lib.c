@@ -350,11 +350,19 @@ MY_STAT *my_stat(const char *path, MY_STAT *stat_area, myf my_flags)
   if ((m_used= (stat_area == NULL)))
     if (!(stat_area= (MY_STAT *) my_malloc(key_memory_MY_STAT, sizeof(MY_STAT),
                                            my_flags)))
-      goto error;
+      goto err;
 #ifndef _WIN32
-  if (!stat((char *) path, (struct stat *) stat_area))
   {
-    DBUG_RETURN(stat_area);
+    int error;
+    if (my_flags & MY_NOSYMLINKS)
+      error= lstat((char *) path, (struct stat *) stat_area);
+    else
+      error= stat((char *) path, (struct stat *) stat_area);
+
+    if (!error)
+    {
+      DBUG_RETURN(stat_area);
+    }
   }
 #else
   if (!my_win_stat(path, stat_area))
@@ -365,7 +373,7 @@ MY_STAT *my_stat(const char *path, MY_STAT *stat_area, myf my_flags)
   if (m_used)					/* Free if new area */
     my_free(stat_area);
 
-error:
+err:
   if (my_flags & (MY_FAE+MY_WME))
   {
     my_error(EE_STAT, MYF(ME_BELL), path, my_errno);
