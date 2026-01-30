@@ -23154,7 +23154,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
         bzero(table->record[0]+ share->reclength, MARIA_UNIQUE_HASH_LENGTH);
         bzero(share->default_values+ share->reclength,
               MARIA_UNIQUE_HASH_LENGTH);
-        share->reclength+= MARIA_UNIQUE_HASH_LENGTH;
+        share->stored_rec_length= share->reclength+= MARIA_UNIQUE_HASH_LENGTH;
       }
       else
       {
