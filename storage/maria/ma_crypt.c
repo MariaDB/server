@@ -375,7 +375,7 @@ my_bool ma_crypt_index_post_read_hook(int res,
 
   if (res ||
       page_used < share->keypage_header ||
-      page_used >= block_size - CRC_SIZE)
+      page_used > block_size - CRC_SIZE)
   {
     res= 1;
     my_errno= HA_ERR_DECRYPTION_FAILED;

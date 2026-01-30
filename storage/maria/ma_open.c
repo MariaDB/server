@@ -1286,7 +1286,7 @@ my_bool maria_read_crypt_data(File kfile, MARIA_SHARE *share)
                                 (key_segs + unique_key_parts)*HA_KEYSEG_SIZE+
                                 columns*(MARIA_COLUMNDEF_SIZE + 2));
   crypt_length= mi_uint2korr(share->state.header.header_length) - info_length;
-  if ((longlong) crypt_length < 0 || crypt_length > 1024)
+  if (crypt_length > 1024)
   {
     my_errno=HA_ERR_NOT_A_TABLE;
     DBUG_RETURN(1);

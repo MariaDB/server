@@ -190,11 +190,10 @@ uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base)
 /**
    @brief Copy an index block with re-read if checksum doesn't match
 
-   @param dfile       data file (.MAD)
+   @param kfile       index file (.MAI)
    @param cap         aria capabilities from aria_get_capabilities
    @param block       block number to read (0, 1, 2, 3...)
    @param buffer      read data to this buffer
-   @param bytes_read  number of bytes actually read (in case of end of file)
 
    @return 0 ok
    @return HA_ERR_END_OF_FILE  ; End of file
@@ -208,6 +207,7 @@ int aria_read_index(File kfile, ARIA_TABLE_CAPABILITIES *cap, ulonglong block,
 {
   MARIA_SHARE share;
   int retry= 0, error= 0;
+  void *alloca_ptr= 0;
   DBUG_ENTER("aria_read_index");
 
   share.keypage_header= cap->keypage_header;
@@ -220,21 +220,43 @@ int aria_read_index(File kfile, ARIA_TABLE_CAPABILITIES *cap, ulonglong block,
                           block * cap->block_size, MYF(0))) != cap->block_size)
     {
       if (length == 0)
-        DBUG_RETURN(HA_ERR_END_OF_FILE);
+      {
+        error= HA_ERR_END_OF_FILE;
+        goto end;
+      }
       if (length == (size_t) -1)
-        DBUG_RETURN(my_errno ? my_errno : -1);
+      {
+        error= my_errno ? my_errno : -1;
+        goto end;
+      }
       /* Assume we got a half read; Do a re-read */
     }
     /* If not transactional or key file header, there are no checksums */
     if (!cap->online_backup_safe ||
         block < cap->header_size/ cap->block_size)
-      DBUG_RETURN(length == cap->block_size ? 0 : HA_ERR_CRASHED);
+    {
+      error= length == cap->block_size ? 0 : HA_ERR_CRASHED;
+      goto end;
+    }
+
+    /*
+      skip an all-zero page. it can happen if the ma_checkpoint_background
+      thread flushes the later page before ever flushing this one.
+    */
+    if (!_ma_check_if_zero(buffer, share.block_size))
+    {
+      error= 0;
+      goto end;
+    }
 
     if (length == cap->block_size)
     {
       length= _ma_get_page_used(&share, buffer);
       if (length > cap->block_size - CRC_SIZE)
-        DBUG_RETURN(HA_ERR_CRASHED);
+      {
+        error= HA_ERR_CRASHED;
+        goto end;
+      }
 
       if (cap->encrypted)
       {
@@ -243,7 +265,9 @@ int aria_read_index(File kfile, ARIA_TABLE_CAPABILITIES *cap, ulonglong block,
         my_bool crypt_error;
         io_arg.data= (void*) &share;
         io_arg.page= buffer;
-        io_arg.crypt_buf= (uchar*) my_alloca(cap->block_size);
+        if (!alloca_ptr)
+          alloca_ptr= my_alloca(cap->block_size);
+        io_arg.crypt_buf= (uchar*) alloca_ptr;
         io_arg.pageno= block;
         share.crypt_data= cap->crypt_data;
         share.silence_encryption_errors= 1;
@@ -251,9 +275,11 @@ int aria_read_index(File kfile, ARIA_TABLE_CAPABILITIES *cap, ulonglong block,
         share.open_file_name.str= cap->filename;
 
         crypt_error= ma_crypt_index_post_read_hook(0, &io_arg);
-        my_afree(io_arg.crypt_buf);
         if (!crypt_error)
-          DBUG_RETURN(0);                       /* ok */
+        {
+          error= 0;
+          goto end;
+        }
         error= my_errno;
         if (error == HA_ERR_DECRYPTION_FAILED ||
             error == HA_ERR_WRONG_CRC)
@@ -265,7 +291,7 @@ int aria_read_index(File kfile, ARIA_TABLE_CAPABILITIES *cap, ulonglong block,
                                   MARIA_NO_CRC_NORMAL_PAGE,
                                   (int) length);
       if (error == 0)
-        DBUG_RETURN(0);
+        goto end;
       if ((error= my_errno) != HA_ERR_WRONG_CRC)
         break;
     }
@@ -281,6 +307,8 @@ int aria_read_index(File kfile, ARIA_TABLE_CAPABILITIES *cap, ulonglong block,
                   "Error %d reading index file %s  block %lld",
                   MYF(ME_FATAL|ME_ERROR_LOG),
                   error, cap->filename, block);
+end:
+  my_afree(alloca_ptr);
   DBUG_RETURN(error);
 }
 
