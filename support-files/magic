@@ -24,3 +24,7 @@
 >3      byte            x               Version %d
 0       belong&0xffffff00 0xfefe0b00    MariaDB DDL recovery log
 >3      byte            x               Version %d
+0       belong&0xffffff00 0xfefe0c00    MariaDB GTID index file
+>3      byte            x               Version %d
+0       belong&0xffffff00 0xfefe0d01    MariaDB InnoDB new binlog format
+>3      byte            x               Version %d

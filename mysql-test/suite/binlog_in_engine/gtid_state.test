@@ -1,0 +1,83 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+--echo *** Test large gtid_state record, > 1 page.
+
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 0);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+
+--connection master
+# Generate a large amount of domains, more than will fit in one page.
+# We use large domain_id/server_id so they will not compress to few bytes.
+--let $NUM= 8000
+--let $HALFWAY= `SELECT FLOOR($NUM/2)`
+--let $i = 1
+--disable_query_log
+while ($i <= $NUM) {
+  eval SET SESSION server_id= 4294967295 - $i;
+  eval SET SESSION gtid_domain_id= 4294967295 - $i;
+  eval INSERT INTO t1 VALUES ($i, 1);
+  if ($i == $HALFWAY) {
+    --let $gtid_mid= `SELECT @@gtid_binlog_pos`
+    --source include/save_master_gtid.inc
+    --enable_query_log
+    SELECT COUNT(*) AS midway_count FROM t1;
+    --disable_query_log
+  }
+  inc $i;
+}
+SET SESSION server_id= 1;
+SET SESSION gtid_domain_id= 0;
+--enable_query_log
+INSERT INTO t1 VALUES (-1, 2);
+
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (-2, 3);
+SELECT COUNT(*) AS full_count FROM t1;
+
+# Test that we can recover a large GTID state after server restart.
+--let $before_state= `SELECT @@gtid_binlog_state`
+--let $rpl_server_number= 1
+--source include/rpl_restart_server.inc
+--let $after_state= `SELECT @@gtid_binlog_state`
+if ($before_state == $after_state) {
+  --echo OK, binlog state preserved across server restart.
+}
+if ($before_state != $after_state) {
+  --echo NOT ok, binlog state NOT preserved across server restart.
+  --echo Before state:
+  --echo $before_state
+  --echo After state:
+  --echo $after_state
+  --die Test failed due to GTID state not preserved across server restart
+}
+
+--connection slave
+--disable_query_log
+eval START SLAVE UNTIL Master_gtid_pos='$gtid_mid';
+--enable_query_log
+--source include/sync_with_master_gtid.inc
+SELECT COUNT(*) FROM t1;
+--source include/wait_for_slave_to_stop.inc
+
+# Test that the dump thread can find the GTID position to start even when
+# the GTID state record spans multiple pages.
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT COUNT(*) FROM t1;
+
+
+# Cleanup.
+--connection master
+DROP TABLE t1;
+--source include/rpl_end.inc

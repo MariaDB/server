@@ -1,0 +1,15 @@
+#
+# MDEV-37785 Assertion `!mysql_bin_log.is_open()' failed in
+#            THD::mark_tmp_table_as_free_for_reuse on ALTER TABLE
+#            or TRUNCATE
+# 
+CREATE TEMPORARY TABLE t1 (y INT) ENGINE=InnoDB;
+CREATE TABLE t1 (x INT) ENGINE=InnoDB AS SELECT 0 'a';
+ALTER TABLE t1 DISCARD TABLESPACE;
+ERROR HY000: Cannot DISCARD/IMPORT tablespace associated with temporary table
+DROP TABLE t1;
+TRUNCATE TABLE t1;
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (c INT);
+SET SESSION binlog_format='ROW';
+TRUNCATE t1;

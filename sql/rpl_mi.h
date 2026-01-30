@@ -269,6 +269,8 @@ class Master_info : public Slave_reporting_capability
   bool dbug_do_disconnect;
   int dbug_event_counter;
 #endif
+  /* Whether the master is using --binlog-storage-engine. */
+  bool binlog_storage_engine;
   bool inited;
   volatile bool abort_slave;
   volatile uint slave_running;

@@ -1,0 +1,12 @@
+include/reset_master.inc
+#
+# MDEV-38432: Issues with mariabackup's binlog-directory option
+#
+create table t (a int) engine=InnoDB;
+flush binary logs;
+insert into t values (1);
+flush binary logs;
+binlog-000000.ibb
+binlog-000001.ibb
+binlog-000002.ibb
+drop table t;

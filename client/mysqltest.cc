@@ -309,6 +309,7 @@ struct Parser
 struct MasterPos
 {
   char file[FN_REFLEN];
+  char gtid[256];
   ulong pos;
 } master_pos;
 
@@ -4914,7 +4915,7 @@ void do_sync_with_master2(struct st_command *command, long offset,
   MYSQL_RES *res;
   MYSQL_ROW row;
   MYSQL *mysql= cur_con->mysql;
-  char query_buf[FN_REFLEN+128], query_buf2[120];
+  char query_buf[FN_REFLEN+128], query_buf2[256];
   int timeout= opt_wait_for_pos_timeout;
 
   if (!master_pos.file[0])
@@ -4948,23 +4949,34 @@ void do_sync_with_master2(struct st_command *command, long offset,
     /* master_pos_wait returned NULL or < 0 */
     fprintf(stderr, "analyze: sync_with_master\n");
 
-    sprintf(query_buf2, "show slave \"%s\" status", connection_name);
+    snprintf(query_buf2, sizeof(query_buf2)-1,
+             "select Relay_Master_Log_File, Read_Master_Log_Pos, Gtid_IO_Pos, "
+             "Gtid_Slave_Pos from information_schema.slave_status where "
+             "Connection_name='%.64s'", connection_name);
 
+    /* purify begin tested */
     if (!mysql_query(mysql, query_buf2))
     {
       if ((res= mysql_store_result(mysql)))
       {
         if ((row= mysql_fetch_row(res)))
         {
-          fprintf(stderr, "Slave position:  file: %s  position: %s\n",
+          fprintf(stderr, "Slave position:  file: %s  position: %s  "
+                  "Gtid_Slave_Pos:  %s  Gtid_IO_Pos: %s\n",
                   get_col_value(res, row, "Relay_Master_Log_File"),
-                  get_col_value(res, row, "Read_Master_Log_Pos"));
-          fprintf(stderr, "Master position: file: %s  position: %lld\n",
-                  master_pos.file, (longlong) (master_pos.pos + offset));
+                  get_col_value(res, row, "Read_Master_Log_Pos"),
+                  get_col_value(res, row, "Gtid_Slave_Pos"),
+                  get_col_value(res, row, "Gtid_IO_Pos"));
+          fprintf(stderr, "Master position: file: %s  position: %lld  "
+                  "Gtid_Master_Pos: %s\n",
+                  master_pos.file, (longlong) (master_pos.pos + offset),
+                  master_pos.gtid);
         }
         mysql_free_result(res);
       }
     }
+    /* purify end tested */
+
     if (!result_str)
     {
       /*
@@ -5042,8 +5054,9 @@ int do_save_master_pos()
     die("mysql_store_result() returned NULL for '%s'", query);
   if (!(row = mysql_fetch_row(res)))
     die("empty result in show master status");
-  strnmov(master_pos.file, row[0], sizeof(master_pos.file)-1);
-  master_pos.pos = strtoul(row[1], (char**) 0, 10);
+  strmake(master_pos.file, row[0], sizeof(master_pos.file)-1);
+  master_pos.pos= strtoul(row[1], (char**) 0, 10);
+  strmake(master_pos.gtid, row[4], sizeof(master_pos.gtid)-1);
   mysql_free_result(res);
   DBUG_RETURN(0);
 }

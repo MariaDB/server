@@ -18,6 +18,7 @@ include/stop_slave.inc
 connection server_1;
 INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (3);
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL gtid_slave_pos= 'OLD_GTID_POS';
 connection server_2;

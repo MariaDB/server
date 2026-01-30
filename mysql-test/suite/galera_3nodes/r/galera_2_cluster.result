@@ -75,27 +75,33 @@ RESET SLAVE;
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 SET GLOBAL wsrep_on = OFF;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 SET GLOBAL GTID_SLAVE_POS="";
 connection node_1;
 SET GLOBAL wsrep_on = OFF;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 connection node_2;
 SET GLOBAL wsrep_on = OFF;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 connection node_3;
 SET GLOBAL wsrep_on = OFF;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 connection node_5;
 SET GLOBAL wsrep_on = OFF;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 connection node_6;
 SET GLOBAL wsrep_on = OFF;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
 connection node_1;

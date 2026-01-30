@@ -111,7 +111,7 @@ public:
   /** @return the number of completed batches */
   ulint batches() const noexcept
   { mysql_mutex_assert_owner(&mutex); return writes_completed; }
-  /** @return the number of final pages written */
+  /** @return the number of override final pages written */
   ulint written() const noexcept
   { mysql_mutex_assert_owner(&mutex); return pages_written; }
   /** Release the mutex */

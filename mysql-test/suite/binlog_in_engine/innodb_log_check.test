@@ -1,0 +1,30 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb_binlog.inc
+
+--echo *** Test that binlogging throttles large writes, waiting for InnoDB checkpoints as needed
+
+CREATE TABLE t1 (a INT, b INT, c LONGTEXT, PRIMARY KEY(a, b)) ENGINE=InnoDB;
+
+# Do a large amount of binlogging in a single operation. The binlog write
+# must throttle the amount of data and wait for InnoDB checkpoints as
+# approrpiate to avoid overwriting the head of the cyclic InnoDB write-ahead
+# log. Otherwise it will cause an error in the error log that will make the
+# test fail:
+#
+#   [ERROR] InnoDB: Crash recovery is broken due to insufficient innodb_log_file_size
+
+SET @old_max_packet= @@GLOBAL.max_allowed_packet;
+SET GLOBAL max_allowed_packet=128*1024*1024;
+SET @old_max_binlog= @@GLOBAL.max_binlog_size;
+SET GLOBAL max_binlog_size= 16*1024*1024;
+
+--connect (con1,localhost,root)
+INSERT INTO t1 VALUES (1, 1, REPEAT('x', 64*1024*1024));
+--disconnect con1
+--connection default
+
+SELECT a, b, LENGTH(c) FROM t1 ORDER BY a, b;
+
+SET GLOBAL max_allowed_packet= @old_max_packet;
+SET GLOBAL max_binlog_size= @old_max_binlog;
+DROP TABLE t1;

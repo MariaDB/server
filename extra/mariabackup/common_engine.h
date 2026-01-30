@@ -28,6 +28,7 @@ class Backup {
 				bool no_lock, bool collect_log_and_stats);
 		bool copy_log_tables(bool finalize);
 		bool copy_stats_tables();
+		bool copy_engine_binlogs(const char *binlog_dir, lsn_t backup_lsn);
 		bool wait_for_finish();
 		bool close_log_tables();
 		void set_post_copy_table_hook(const post_copy_table_hook_t &hook);

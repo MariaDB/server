@@ -6,11 +6,13 @@ call mtr.add_suppression("Timeout waiting for reply of binlog");
 connection server_2;
 include/stop_slave.inc
 connection server_1;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 set @@session.gtid_domain_id=10;
 set @@global.rpl_semi_sync_master_enabled = 1;
 set @@global.rpl_semi_sync_master_wait_point=AFTER_SYNC;
 connection server_2;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 set @@session.gtid_domain_id=20;

@@ -1,0 +1,49 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT) ENGINE=InnoDB;
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 VALUES (1, 0, 0), (2, 3, 1), (3, 2, 5), (4, 10, 7), (5, 6, 5);
+SET SESSION gtid_seq_no= 99;
+INSERT INTO t2 SELECT * FROM t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=8;
+SET @old_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode= optimistic;
+SET @old_strict= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode= 1;
+connection master;
+SET @debug_crash_counter= 1;
+SET SESSION debug_dbug= '+d,ddl_log_alter_after_log';
+ALTER TABLE t1 ORDER BY b;
+Got one of the listed errors
+connection master1;
+connection server_1;
+connection default;
+connection master;
+include/rpl_reconnect.inc
+INSERT INTO t2 VALUES (10, 10, 10);
+UPDATE t2 SET c=c+1 WHERE a=4;
+UPDATE t2 SET c=20 WHERE a=1;
+ALTER TABLE t2 ORDER BY b;
+Warnings:
+Warning	1105	ORDER BY ignored as there is a user-defined clustered index in the table 't2'
+include/save_master_gtid.inc
+connection slave;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,rpl_parallel_delay_gtid_0_x_100_write';
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SET GLOBAL debug_dbug= @old_dbug;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= @old_parallel;
+SET GLOBAL slave_parallel_mode= @old_mode;
+SET GLOBAL gtid_strict_mode= @old_strict;
+include/start_slave.inc
+connection master;
+DROP TABLE t1, t2;
+include/rpl_end.inc

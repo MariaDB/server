@@ -20,6 +20,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(100), PRIMARY KEY (a,b)) ENGINE=innodb;
 # So concurrent insert won't happen on the table
 INSERT INTO t1 VALUES(9, "");
 let pos=`select $binlog_start_pos + 431`;
+--replace_column 5 <gtid>
 --replace_result $pos <pos>
 SHOW MASTER STATUS;
 --replace_result $pos <pos>
@@ -60,6 +61,7 @@ let pos=`select $binlog_start_pos + 974`;
 --replace_result $pos <pos>
 SHOW STATUS LIKE 'binlog_snapshot_%';
 let pos=`select $binlog_start_pos + 1350`;
+--replace_column 5 <gtid>
 --replace_result $pos <pos>
 SHOW MASTER STATUS;
 SELECT * FROM t2 ORDER BY a;
@@ -81,11 +83,13 @@ let pos=`select $binlog_start_pos + 974`;
 --replace_result $pos <pos>
 SHOW STATUS LIKE 'binlog_snapshot_%';
 let pos=`select $binlog_start_pos + 131`;
+--replace_column 5 <gtid>
 --replace_result $pos <pos>
 SHOW MASTER STATUS;
 COMMIT;
 --replace_result $pos <pos>
 SHOW STATUS LIKE 'binlog_snapshot_%';
+--replace_column 5 <gtid>
 --replace_result $pos <pos>
 SHOW MASTER STATUS;
 

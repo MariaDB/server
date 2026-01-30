@@ -1,0 +1,183 @@
+include/master-slave.inc
+[connection master]
+*** Test that the GTID state record is written correctly when inside a group commit.
+SELECT @@GLOBAL.max_binlog_size;
+@@GLOBAL.max_binlog_size
+262144
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL, c TEXT, PRIMARY KEY(a, b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0, REPEAT('0', 24000));
+INSERT INTO t1 VALUES (1, 1, REPEAT('1', 24000));
+INSERT INTO t1 VALUES (1, 2, REPEAT('2', 24000));
+INSERT INTO t1 VALUES (1, 3, REPEAT('3', 24000));
+INSERT INTO t1 VALUES (1, 4, REPEAT('4', 24000));
+INSERT INTO t1 VALUES (1, 5, REPEAT('5', 24000));
+INSERT INTO t1 VALUES (1, 6, REPEAT('6', 24000));
+INSERT INTO t1 VALUES (1, 7, REPEAT('7', 24000));
+INSERT INTO t1 VALUES (1, 8, REPEAT('8', 24000));
+INSERT INTO t1 VALUES (1, 9, REPEAT('9', 24000));
+*** Check that we are still in binlog file 0:
+binlog-000000.ibb
+*** Create a group commit that spans into file 1
+connection master;
+connect  con_$i,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont NO_CLEAR_EVENT';
+INSERT INTO t1 VALUES (2, 1, REPEAT(CHR(64 + 1), 400));
+connection master;
+SET debug_sync='now WAIT_FOR master_queued1';
+connect  con_$i,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2 WAIT_FOR master_cont NO_CLEAR_EVENT';
+INSERT INTO t1 VALUES (2, 2, REPEAT(CHR(64 + 2), 400));
+connection master;
+SET debug_sync='now WAIT_FOR master_queued2';
+connect  con_$i,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued3 WAIT_FOR master_cont NO_CLEAR_EVENT';
+INSERT INTO t1 VALUES (2, 3, REPEAT(CHR(64 + 3), 400));
+connection master;
+SET debug_sync='now WAIT_FOR master_queued3';
+connect  con_$i,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued4 WAIT_FOR master_cont NO_CLEAR_EVENT';
+INSERT INTO t1 VALUES (2, 4, REPEAT(CHR(64 + 4), 400));
+connection master;
+SET debug_sync='now WAIT_FOR master_queued4';
+connect  con_$i,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued5 WAIT_FOR master_cont NO_CLEAR_EVENT';
+INSERT INTO t1 VALUES (2, 5, REPEAT(CHR(64 + 5), 400));
+connection master;
+SET debug_sync='now WAIT_FOR master_queued5';
+connect  con_$i,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued6 WAIT_FOR master_cont NO_CLEAR_EVENT';
+INSERT INTO t1 VALUES (2, 6, REPEAT(CHR(64 + 6), 400));
+connection master;
+SET debug_sync='now WAIT_FOR master_queued6';
+connect  con_$i,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued7 WAIT_FOR master_cont NO_CLEAR_EVENT';
+INSERT INTO t1 VALUES (2, 7, REPEAT(CHR(64 + 7), 400));
+connection master;
+SET debug_sync='now WAIT_FOR master_queued7';
+connect  con_$i,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued8 WAIT_FOR master_cont NO_CLEAR_EVENT';
+INSERT INTO t1 VALUES (2, 8, REPEAT(CHR(64 + 8), 400));
+connection master;
+SET debug_sync='now WAIT_FOR master_queued8';
+connect  con_$i,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued9 WAIT_FOR master_cont NO_CLEAR_EVENT';
+INSERT INTO t1 VALUES (2, 9, REPEAT(CHR(64 + 9), 400));
+connection master;
+SET debug_sync='now WAIT_FOR master_queued9';
+connect  con_$i,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued10 WAIT_FOR master_cont NO_CLEAR_EVENT';
+INSERT INTO t1 VALUES (2, 10, REPEAT(CHR(64 + 10), 400));
+connection master;
+SET debug_sync='now WAIT_FOR master_queued10';
+SET debug_sync= 'now SIGNAL master_cont';
+connection con_1;
+connection master;
+disconnect con_1;
+connection con_2;
+connection master;
+disconnect con_2;
+connection con_3;
+connection master;
+disconnect con_3;
+connection con_4;
+connection master;
+disconnect con_4;
+connection con_5;
+connection master;
+disconnect con_5;
+connection con_6;
+connection master;
+disconnect con_6;
+connection con_7;
+connection master;
+disconnect con_7;
+connection con_8;
+connection master;
+disconnect con_8;
+connection con_9;
+connection master;
+disconnect con_9;
+connection con_10;
+connection master;
+disconnect con_10;
+SET debug_sync= 'RESET';
+*** Check that we are now in binlog file 1:
+binlog-000001.ibb
+SELECT a, b, LENGTH(c) FROM t1 ORDER BY a, b;
+a	b	LENGTH(c)
+1	0	24000
+1	1	24000
+1	2	24000
+1	3	24000
+1	4	24000
+1	5	24000
+1	6	24000
+1	7	24000
+1	8	24000
+1	9	24000
+2	1	400
+2	2	400
+2	3	400
+2	4	400
+2	5	400
+2	6	400
+2	7	400
+2	8	400
+2	9	400
+2	10	400
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+SELECT a, b, LENGTH(c) FROM t1 ORDER BY a, b;
+a	b	LENGTH(c)
+1	0	24000
+1	1	24000
+1	2	24000
+1	3	24000
+1	4	24000
+1	5	24000
+1	6	24000
+1	7	24000
+1	8	24000
+1	9	24000
+2	1	400
+2	2	400
+2	3	400
+2	4	400
+2	5	400
+2	6	400
+2	7	400
+2	8	400
+2	9	400
+2	10	400
+*** Stop and restart the slave.
+include/stop_slave.inc
+include/start_slave.inc
+*** Test FLUSH BINARY LOGS in parallel with GTID allocation.
+connection master;
+INSERT INTO t1 VALUES (10, 1, 'before race');
+connect  con1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET SESSION debug_dbug= '+d,flush_binlog_sleep_after_release_lock_log';
+FLUSH BINARY LOGS;
+connection master;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug= '+d,binlog_sleep_after_alloc_gtid';
+INSERT INTO t1 VALUES (10, 2, 'race?');
+connection con1;
+disconnect con1;
+connection master;
+SET SESSION debug_dbug= @old_dbug;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+*** Stop and restart the slave, 2.
+include/stop_slave.inc
+include/start_slave.inc
+connection master;
+INSERT INTO t1 VALUES (10, 3, 'check?');
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

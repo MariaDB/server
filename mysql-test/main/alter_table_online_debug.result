@@ -414,23 +414,23 @@ set debug_sync= 'now SIGNAL start_replication';
 set debug_sync= 'now WAIT_FOR applied';
 select stage, progress, examined_rows  from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 stage	progress	examined_rows
-3	53.390	0
+3	53.488	0
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 stage	progress	examined_rows
-3	63.559	1
+3	63.636	1
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 stage	progress	examined_rows
-3	71.610	2
+3	71.670	2
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 stage	progress	examined_rows
-3	81.780	3
+3	81.818	3
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 stage	progress	examined_rows
-3	89.831	4
+3	89.852	4
 set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
 select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
 stage	progress	examined_rows

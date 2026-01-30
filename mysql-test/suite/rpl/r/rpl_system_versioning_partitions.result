@@ -2,9 +2,15 @@ include/master-slave.inc
 [connection master]
 #
 # Initialize system-versioned and partitioned table and its data
+connection slave;
+include/stop_slave.inc
 connection master;
 SET timestamp=UNIX_TIMESTAMP('2025-01-01 01:00:00.000000');
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
+connection slave;
+include/start_slave.inc
+connection master;
 create table t1 (x int) engine=InnoDB with system versioning partition by system_time limit 3 partitions 5;
 insert into t1 values(1);
 insert into t1 values(2);

@@ -1,0 +1,131 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL, c TEXT, PRIMARY KEY(a, b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 0, 'Start');
+*** Test iteration, RESTART=0
+connection master;
+FLUSH BINARY LOGS;
+connection master1;
+*** Create a transaction with active OOB records (to be committed).
+connection default;
+*** Create a transaction with active OOB records (to be rolled back).
+connection master;
+FLUSH BINARY LOGS;
+*** Generating 10 large transactions in 5 interleaved connections
+connection master;
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (0 + 2, 0, "Park point 1 for dump thread");
+include/save_master_gtid.inc
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+122
+connection slave;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+122
+connection master;
+SET @old_dbug= @@global.debug_dbug;
+SET GLOBAL debug_dbug= "+d,dump_thread_wait_before_send_xid";
+INSERT INTO t1 VALUES (0 + 2, 1, "Transaction to pause dump thread");
+PURGE BINARY LOGS TO 'OOB1_START';
+PURGE BINARY LOGS TO 'OOB1_AFTER';
+ERROR HY000: A purgeable log is in use, will not purge
+PURGE BINARY LOGS TO 'OOB1_LATER';
+ERROR HY000: A purgeable log is in use, will not purge
+PURGE BINARY LOGS TO 'OOB1_CURRENT';
+ERROR HY000: A purgeable log is in use, will not purge
+connection master1;
+COMMIT;
+connection default;
+ROLLBACK;
+connection master;
+PURGE BINARY LOGS TO 'OOB1_CURRENT';
+ERROR HY000: A purgeable log is in use, will not purge
+*** Allow the dump thread to proceed, and see that purge is now possible.
+SET GLOBAL debug_dbug= @old_dbug;
+SET debug_sync= 'now SIGNAL signal.continue';
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (0 + 2, 2, 'Transaction to get dump thread to the next file');
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+134	120676	708	220262
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+134	120676	708	220262
+connection master;
+SET debug_sync= 'RESET';
+PURGE BINARY LOGS TO 'OOB1_START';
+PURGE BINARY LOGS TO 'OOB1_AFTER';
+PURGE BINARY LOGS TO 'OOB1_LATER';
+PURGE BINARY LOGS TO 'OOB1_CURRENT';
+*** Test iteration, RESTART=1
+connection master;
+FLUSH BINARY LOGS;
+connection master1;
+*** Create a transaction with active OOB records (to be committed).
+connection default;
+*** Create a transaction with active OOB records (to be rolled back).
+connection master;
+FLUSH BINARY LOGS;
+*** Generating 10 large transactions in 5 interleaved connections
+connection master;
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (100000 + 2, 0, "Park point 1 for dump thread");
+include/save_master_gtid.inc
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+255
+connection slave;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+255
+connection slave;
+include/stop_slave.inc
+connection master1;
+COMMIT;
+connection default;
+ROLLBACK;
+connection master;
+include/rpl_restart_server.inc [server_number=1 parameters: --skip-slave-start]
+connection master;
+SET @old_dbug= @@global.debug_dbug;
+SET GLOBAL debug_dbug= "+d,dump_thread_wait_before_send_xid";
+INSERT INTO t1 VALUES (100000 + 2, 1, "Transaction to pause dump thread");
+connection slave;
+include/start_slave.inc
+connection master;
+PURGE BINARY LOGS TO 'OOB1_START';
+PURGE BINARY LOGS TO 'OOB1_AFTER';
+ERROR HY000: A purgeable log is in use, will not purge
+PURGE BINARY LOGS TO 'OOB1_LATER';
+ERROR HY000: A purgeable log is in use, will not purge
+PURGE BINARY LOGS TO 'OOB1_CURRENT';
+ERROR HY000: A purgeable log is in use, will not purge
+*** Allow the dump thread to proceed, and see that purge is now possible.
+SET GLOBAL debug_dbug= @old_dbug;
+SET debug_sync= 'now SIGNAL signal.continue';
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (100000 + 2, 2, 'Transaction to get dump thread to the next file');
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+267	13541352	1416	440519
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+267	13541352	1416	440519
+connection master;
+SET debug_sync= 'RESET';
+PURGE BINARY LOGS TO 'OOB1_START';
+PURGE BINARY LOGS TO 'OOB1_AFTER';
+PURGE BINARY LOGS TO 'OOB1_LATER';
+PURGE BINARY LOGS TO 'OOB1_CURRENT';
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

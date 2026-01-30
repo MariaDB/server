@@ -5,13 +5,15 @@ source include/master-slave.inc;
 #
 # Semisync initialization
 #
+--connection slave
+source include/stop_slave.inc;
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --let $sav_enabled_master=`SELECT @@GLOBAL.rpl_semi_sync_master_enabled`
 SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
 
 --connection slave
-source include/stop_slave.inc;
 --let $sav_enabled_slave=`SELECT @@GLOBAL.rpl_semi_sync_slave_enabled`
 SET @@GLOBAL. rpl_semi_sync_slave_enabled = 1;
 source include/start_slave.inc;
@@ -46,6 +48,7 @@ INSERT INTO t1 SET a = 3;
 --source include/stop_slave_io.inc
 
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --eval SET @@global.gtid_binlog_state = '$resume_gtid'
 

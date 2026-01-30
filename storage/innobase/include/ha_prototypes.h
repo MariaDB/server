@@ -46,7 +46,6 @@ typedef struct mem_block_info_t mem_heap_t;
 // JAN: TODO missing features:
 #undef MYSQL_FT_INIT_EXT
 #undef MYSQL_PFS
-#undef MYSQL_STORE_FTS_DOC_ID
 
 /*******************************************************************//**
 Formats the raw data in "data" (in InnoDB on-disk format) that is of

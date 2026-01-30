@@ -1006,6 +1006,7 @@ SHOW TABLES LIKE 't_';
 Tables_in_test (t_)
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 include/start_slave.inc

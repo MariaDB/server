@@ -47,7 +47,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
 				my_rdtsc.c psi_noop.c
                                 my_atomic_writes.c my_cpu.c my_likely.c my_largepage.c
                                 file_logger.c my_dlerror.c   crc32/crc32c.cc
-                                my_timezone.cc  my_thread_name.cc
+                                my_timezone.cc my_compr_int.cc my_thread_name.cc
                                 my_virtual_mem.c)
 
 IF (WIN32)

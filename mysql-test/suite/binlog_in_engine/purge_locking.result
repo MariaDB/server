@@ -1,0 +1,20 @@
+*** Test a binlog write running concurrently with a FLUSH BINARY LOGS.
+include/reset_master.inc
+CREATE TABLE t1(a INT PRIMARY KEY, b LONGBLOB) ENGINE=InnoDB;
+connect con1,localhost,root,,;
+SET SESSION debug_dbug= '+d,pause_binlog_write_after_release_page';
+INSERT INTO t1 VALUES(0, REPEAT('#', 20000));
+connection default;
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+connection con1;
+*** Now the same thing for RESET MASTER.
+include/reset_master.inc
+connection con1;
+SET SESSION debug_dbug= '+d,pause_binlog_write_after_release_page';
+INSERT INTO t1 VALUES(1, REPEAT('#', 20000));
+connection default;
+RESET MASTER;
+connection con1;
+connection default;
+disconnect con1;
+DROP TABLE t1;

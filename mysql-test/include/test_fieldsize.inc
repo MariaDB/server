@@ -17,6 +17,7 @@ eval $test_table_slave;
 
 connection master;
 eval $test_table_master;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 eval $test_insert;
@@ -33,6 +34,7 @@ STOP SLAVE;
 --source include/reset_slave.inc
 
 connection master;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 connection slave;

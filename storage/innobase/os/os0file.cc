@@ -1560,6 +1560,12 @@ bool os_file_set_size(const char *name, os_file_t file, os_offset_t size,
 		return success;
 	}
 
+	DBUG_EXECUTE_IF(
+		"ib_alloc_file_disk_full",
+		errno = ENOSPC;
+		return(false);
+	);
+
 # ifdef HAVE_POSIX_FALLOCATE
 	int err;
 	os_offset_t current_size;

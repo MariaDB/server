@@ -9,6 +9,7 @@ RESET MASTER;
 RESET SLAVE;
 
 --connection server_1
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 # Create an empty binlog file, to check that empty binlog state is handled correctly.
 FLUSH LOGS;
@@ -113,6 +114,7 @@ RESET SLAVE ALL;
 RESET MASTER;
 
 --connection server_1
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --connection server_2
@@ -250,6 +252,7 @@ RESET MASTER;
 SET GLOBAL gtid_slave_pos="";
 
 --connection server_1
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 TRUNCATE TABLE t1;
 INSERT INTO t1 VALUES (10);   # Will be GTID 0-1-2
@@ -299,6 +302,7 @@ eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$MASTER_MYPORT, maste
 
 --connection server_1
 DROP TABLE t1;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 CREATE TABLE t1 (a INT PRIMARY KEY);

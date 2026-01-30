@@ -20,6 +20,7 @@ connection slave;
 include/stop_slave.inc
 include/reset_slave.inc
 connection master;
+include/kill_binlog_dump_threads.inc
 reset master;
 create table t2 (a timestamp, b int);
 show create table t2;
@@ -117,6 +118,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 reset master;
 create table t2 (a timestamp, b int);
 show create table t2;
@@ -211,6 +213,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 reset master;
 create table t2 (a timestamp, b int);
 show create table t2;

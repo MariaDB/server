@@ -522,12 +522,14 @@ CALL transaction_verifier(0, @con1_thread_id, 'transaction', 'ACTIVE', 0, '', ''
 --echo # STEP 9.4 - RELEASE SAVEPOINT 1
 --echo #
 --connection con1
+# Note that this implicitly releases savepoing SVP002 also, hence we expect
+# *2* savepoint releases below.
 RELEASE SAVEPOINT SVP001;
 
 --echo #
---echo ## Expect 1 active transaction with 3 savepoints, 1 rollback to savepoint, 1 release savepoint
+--echo ## Expect 1 active transaction with 3 savepoints, 1 rollback to savepoint, 2 release savepoint
 --connection default
-CALL transaction_verifier(0, @con1_thread_id, 'transaction', 'ACTIVE', 0, '', '', '', '', 'READ WRITE', '', 'NO', 3, 1, 1, 1);
+CALL transaction_verifier(0, @con1_thread_id, 'transaction', 'ACTIVE', 0, '', '', '', '', 'READ WRITE', '', 'NO', 3, 1, 2, 1);
 
 --echo #
 --echo # STEP 9.5 - COMMIT
@@ -536,9 +538,9 @@ CALL transaction_verifier(0, @con1_thread_id, 'transaction', 'ACTIVE', 0, '', ''
 COMMIT;
 
 --echo #
---echo ## Expect 1 committed transaction with 3 savepoints, 1 rollback to savepoint, 1 release savepoint
+--echo ## Expect 1 committed transaction with 3 savepoints, 1 rollback to savepoint, 2 release savepoint
 --connection default
-CALL transaction_verifier(1, @con1_thread_id, 'transaction', 'COMMITTED', 0, '', '', '', '', 'READ WRITE', '', 'NO', 3, 1, 1, 1);
+CALL transaction_verifier(1, @con1_thread_id, 'transaction', 'COMMITTED', 0, '', '', '', '', 'READ WRITE', '', 'NO', 3, 1, 2, 1);
 CALL clear_transaction_tables();
 
 --echo #

@@ -2261,6 +2261,57 @@ past_checksum:
     }
   }
 
+  /*
+    See if the master is using the new binlog format from
+    --binlog-storage-engine.
+  */
+  if (mysql_real_query(mysql,
+        STRING_WITH_LEN("SELECT @@GLOBAL.binlog_storage_engine")) ||
+      !(master_res= mysql_store_result(mysql)) ||
+      !(master_row= mysql_fetch_row(master_res)))
+  {
+    if (check_io_slave_killed(mi, NULL))
+      goto slave_killed_err;
+
+    err_code= mysql_errno(mysql);
+    if (is_network_error(err_code))
+    {
+      mi->report(ERROR_LEVEL, err_code, NULL,
+                 "Checking master binlog format failed with error: %s",
+                 mysql_error(mysql));
+      goto network_err;
+    }
+    else if (err_code == ER_UNKNOWN_SYSTEM_VARIABLE)
+    {
+      /*
+        The master is older than the slave and does not support
+        --binlog-storage-engine, so we know it is using the old format.
+      */
+      DBUG_PRINT("info", ("Old master, no --binlog-storage-engine"));
+      mi->binlog_storage_engine= false;
+    }
+    else
+    {
+      /* Fatal error */
+      errmsg= "The slave I/O thread stops because a fatal error is "
+        "encountered when it tries to query the value of "
+        "@@binlog_storage_engine.";
+      sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+      goto err;
+    }
+  }
+  else
+  {
+    mi->binlog_storage_engine= (master_row[0] != NULL);
+    DBUG_PRINT("info", ("Master using --binlog-storage-engine: %d",
+                        mi->binlog_storage_engine));
+  }
+  if (master_res)
+  {
+    mysql_free_result(master_res);
+    master_res= NULL;
+  }
+
   /* Announce MariaDB slave capabilities. */
   DBUG_EXECUTE_IF("simulate_slave_capability_none", goto after_set_capability;);
   {
@@ -3539,7 +3590,7 @@ sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
   Split out so that it can run with rli->data_lock held in non-parallel
   replication, but without the mutex held in the parallel case.
 */
-static int
+int
 apply_event_and_update_pos_setup(Log_event* ev, THD* thd, rpl_group_info *rgi)
 {
   DBUG_ENTER("apply_event_and_update_pos_setup");
@@ -3611,8 +3662,27 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
       DBUG_SET_INITIAL("-d,inject_slave_sql_before_apply_event");
     };);
 #endif
+
   if (reason == Log_event::EVENT_SKIP_NOT)
-    exec_res= ev->apply_event(rgi);
+  {
+    if (rgi->assembler && ev->get_type_code() != PARTIAL_ROW_DATA_EVENT &&
+        !ev->is_artificial_event() && !ev->is_relay_log_event())
+    {
+      rgi->rli->report(
+          ERROR_LEVEL, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM, rgi->gtid_info(),
+          ER_THD(rgi->thd, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM),
+          ev->get_type_str(), rgi->assembler->last_fragment_seen + 1,
+          rgi->assembler->total_fragments);
+      exec_res= ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM;
+
+      rgi->assembler->~Rows_log_event_assembler();
+      my_free(rgi->assembler);
+      rgi->assembler= NULL;
+    }
+
+    if (!exec_res)
+      exec_res= ev->apply_event(rgi);
+  }
 
 #ifdef WITH_WSREP
   if (WSREP(thd)) {
@@ -5825,8 +5895,9 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
       DBUG_SET("-d,corrupt_queue_event");
     }
   );
-                                              
-  if (event_checksum_test((uchar*) buf, event_len, checksum_alg))
+
+  if (event_checksum_test((uchar *) buf, static_cast<size_t>(event_len),
+                          checksum_alg))
   {
     error= ER_NETWORK_READ_EVENT_CHECKSUM_FAILURE;
     unlock_data_lock= FALSE;
@@ -6122,9 +6193,9 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
       goto err;
     }
     mi->received_heartbeats++;
-    /* 
+    /*
        compare local and event's versions of log_file, log_pos.
-       
+
        Heartbeat is sent only after an event corresponding to the coordinates
        the heartbeat carries.
 
@@ -6142,13 +6213,19 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
 
        Slave can have lower coordinates, if some event from master was omitted.
 
+       When the master is using new binlog format (--binlog-storage-engine),
+       then binlog coordinates are not meaningful (GTID is used always), the
+       slave does not track the master binlog coordinates, and the heartbeat
+       coordinates should just be ignored.
+
        TODO: handling `when' for SHOW SLAVE STATUS' seconds behind
 
        TODO: Extend heartbeat events to use GTIDs instead of binlog
          coordinates. This would alleviate the strange exceptions during log
          rotation.
     */
-    if (mi->master_log_pos &&
+    if (!mi->binlog_storage_engine &&
+        mi->master_log_pos &&
         !memcmp(mi->master_log_name, hb.get_log_ident(), hb.get_ident_len()) &&
         mi->master_log_pos > hb.log_pos)
     {
@@ -6721,9 +6798,12 @@ dbug_gtid_accept:
          (uchar)buf[EVENT_TYPE_OFFSET] != STOP_EVENT))
     {
       mi->master_log_pos+= inc_pos;
-      memcpy(rli->ign_master_log_name_end, mi->master_log_name, FN_REFLEN);
-      DBUG_ASSERT(rli->ign_master_log_name_end[0]);
-      rli->ign_master_log_pos_end= mi->master_log_pos;
+      if (!mi->binlog_storage_engine)
+      {
+        memcpy(rli->ign_master_log_name_end, mi->master_log_name, FN_REFLEN);
+        DBUG_ASSERT(rli->ign_master_log_name_end[0]);
+        rli->ign_master_log_pos_end= mi->master_log_pos;
+      }
       if (got_gtid_event)
         rli->ign_gtids.update(&event_gtid);
     }

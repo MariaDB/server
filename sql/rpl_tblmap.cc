@@ -179,4 +179,18 @@ void table_mapping::clear_tables()
   DBUG_VOID_RETURN;
 }
 
+void table_mapping::get_table_ids(ulonglong *table_ids, size_t n_table_ids)
+{
+  DBUG_ENTER("table_mapping::get_table_ids()");
+  DBUG_ASSERT(n_table_ids == m_table_ids.records);
+
+  for (uint i = 0; i < m_table_ids.records; i++)
+  {
+    entry *e = (entry *)my_hash_element(&m_table_ids, i);
+    table_ids[i] = e->table_id;
+  }
+
+  DBUG_VOID_RETURN;
+}
+
 #endif

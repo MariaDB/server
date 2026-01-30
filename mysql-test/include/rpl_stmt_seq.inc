@@ -81,7 +81,10 @@ if ($show_binlog)
   --let $binlog_file= master-bin.$_log_num_s
   --source include/show_binlog_events.inc
 }
-sync_slave_with_master;
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
 
 connection slave;
 # results before DDL(to be tested)
@@ -106,7 +109,10 @@ if ($show_binlog)
   --let $binlog_file= master-bin.$_log_num_s
   --source include/show_binlog_events.inc
 }
-sync_slave_with_master;
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
 
 connection slave;
 # results after DDL(to be tested)
@@ -139,7 +145,10 @@ if ($show_binlog)
   --let $binlog_file= master-bin.$_log_num_s
   --source include/show_binlog_events.inc
 }
-sync_slave_with_master;
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
 
 connection slave;
 # results after final ROLLBACK
@@ -173,7 +182,10 @@ connection master;
 flush logs;
 # sleep 1;
 # eval SHOW BINLOG EVENTS IN 'master-bin.$_log_num_s';
-sync_slave_with_master;
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
 
 connection slave;
 # the final content of the binary log

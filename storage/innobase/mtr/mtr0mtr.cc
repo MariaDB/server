@@ -35,6 +35,7 @@ Created 11/26/1995 Heikki Tuuri
 #include "btr0cur.h"
 #include "srv0start.h"
 #include "trx0trx.h"
+#include "fsp_binlog.h"
 #include "log.h"
 #include "my_cpu.h"
 
@@ -207,6 +208,7 @@ void mtr_t::start()
   m_user_space= nullptr;
   m_commit_lsn= 0;
   m_trim_pages= false;
+  m_binlog_page= nullptr;
 }
 
 /** Release the resources */
@@ -216,6 +218,11 @@ inline void mtr_t::release_resources()
   ut_ad(m_memo.empty());
   m_log.erase();
   ut_d(m_commit= true);
+  if (m_binlog_page)
+  {
+    fsp_binlog_release(m_binlog_page);
+    m_binlog_page= nullptr;
+  }
 }
 
 /** Handle any pages that were freed during the mini-transaction. */

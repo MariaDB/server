@@ -1,0 +1,8 @@
+!include ../my.cnf
+
+[mysqld.1]
+binlog_row_event_fragment_threshold=4096
+
+[mysqld.2]
+max_relay_log_size=8192
+log_slave_updates=1

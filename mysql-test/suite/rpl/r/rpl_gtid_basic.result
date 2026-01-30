@@ -197,6 +197,7 @@ connection server_1;
 SET @old_state= @@GLOBAL.gtid_binlog_state;
 SET GLOBAL gtid_binlog_state = '';
 ERROR HY000: This operation is not allowed if any GTID has been logged to the binary log. Run RESET MASTER first to erase the log
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL gtid_binlog_state = '';
 FLUSH LOGS;

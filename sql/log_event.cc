@@ -697,6 +697,7 @@ const char* Log_event::get_type_str(Log_event_type type)
   case WRITE_ROWS_COMPRESSED_EVENT_V1: return "Write_rows_compressed_v1";
   case UPDATE_ROWS_COMPRESSED_EVENT_V1: return "Update_rows_compressed_v1";
   case DELETE_ROWS_COMPRESSED_EVENT_V1: return "Delete_rows_compressed_v1";
+  case PARTIAL_ROW_DATA_EVENT: return "Partial_rows";
 
   default: return "Unknown";				/* impossible */
   }
@@ -974,7 +975,7 @@ err:
   constructors.
 */
 
-Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
+Log_event* Log_event::read_log_event(const uchar *buf, size_t event_len,
                                      const char **error,
                                      const Format_description_log_event *fdle,
                                      my_bool crc_check,
@@ -1093,6 +1094,64 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
          alg != BINLOG_CHECKSUM_ALG_OFF))
       event_len= event_len - BINLOG_CHECKSUM_LEN;
 
+    ev= Log_event::read_log_event_no_checksum(buf, event_len, error, fdle);
+  }
+
+  if (ev)
+  {
+#ifdef MYSQL_CLIENT
+    ev->read_checksum_alg= alg;
+    if (alg != BINLOG_CHECKSUM_ALG_OFF && alg != BINLOG_CHECKSUM_ALG_UNDEF)
+      ev->read_checksum_value= uint4korr(buf + (event_len));
+#endif
+  }
+
+  DBUG_RETURN(ev);
+}
+
+Log_event *Log_event::read_log_event_no_checksum(
+    const uchar *buf, size_t event_len, const char **error,
+    const Format_description_log_event *fdle)
+{
+  Log_event* ev;
+  DBUG_ENTER("Log_event::read_log_event_no_checksum(char*,...)");
+  DBUG_ASSERT(fdle != 0);
+  DBUG_PRINT("info", ("binlog_version: %d", fdle->binlog_version));
+  DBUG_DUMP_EVENT_BUF(buf, event_len);
+
+  *error= 0;
+  /*
+    Check the integrity; This is needed because handle_slave_io() doesn't
+    check if packet is of proper length.
+ */
+  if (event_len < EVENT_LEN_OFFSET)
+  {
+    *error="Sanity check failed";		// Needed to free buffer
+    DBUG_RETURN(NULL); // general sanity check - will fail on a partial read
+  }
+
+  uint event_type= buf[EVENT_TYPE_OFFSET];
+
+  /*
+    In some previuos versions (see comment in
+    Format_description_log_event::Format_description_log_event(char*,...)),
+    event types were assigned different id numbers than in the
+    present version. In order to replicate from such versions to the
+    present version, we must map those event type id's to our event
+    type id's.  The mapping is done with the event_type_permutation
+    array, which was set up when the Format_description_log_event
+    was read.
+  */
+  if (fdle->event_type_permutation)
+  {
+    int new_event_type= fdle->event_type_permutation[event_type];
+    DBUG_PRINT("info", ("converting event type %d to %d (%s)",
+                 event_type, new_event_type,
+                 get_type_str((Log_event_type)new_event_type)));
+    event_type= new_event_type;
+  }
+
+
     /*
       Create an object of Ignorable_log_event for unrecognized sub-class.
       So that SLAVE SQL THREAD will only update the position and continue.
@@ -1108,29 +1167,39 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
     }
     switch(event_type) {
     case QUERY_EVENT:
-      ev= new Query_log_event(buf, event_len, fdle, QUERY_EVENT);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Query_log_event(buf, static_cast<uint>(event_len), fdle,
+                              QUERY_EVENT);
       break;
     case QUERY_COMPRESSED_EVENT:
-      ev= new Query_compressed_log_event(buf, event_len, fdle,
-                                         QUERY_COMPRESSED_EVENT);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Query_compressed_log_event(buf, static_cast<uint>(event_len),
+                                         fdle, QUERY_COMPRESSED_EVENT);
       break;
     case ROTATE_EVENT:
-      ev= new Rotate_log_event(buf, event_len, fdle);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Rotate_log_event(buf, static_cast<uint>(event_len), fdle);
       break;
     case BINLOG_CHECKPOINT_EVENT:
-      ev= new Binlog_checkpoint_log_event(buf, event_len, fdle);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Binlog_checkpoint_log_event(buf, static_cast<uint>(event_len),
+                                          fdle);
       break;
     case GTID_EVENT:
-      ev= new Gtid_log_event(buf, event_len, fdle);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Gtid_log_event(buf, static_cast<uint>(event_len), fdle);
       break;
     case GTID_LIST_EVENT:
-      ev= new Gtid_list_log_event(buf, event_len, fdle);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Gtid_list_log_event(buf, static_cast<uint>(event_len), fdle);
       break;
     case APPEND_BLOCK_EVENT:
-      ev= new Append_block_log_event(buf, event_len, fdle);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Append_block_log_event(buf, static_cast<uint>(event_len), fdle);
       break;
     case DELETE_FILE_EVENT:
-      ev= new Delete_file_log_event(buf, event_len, fdle);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Delete_file_log_event(buf, static_cast<uint>(event_len), fdle);
       break;
     case STOP_EVENT:
       ev= new Stop_log_event(buf, fdle);
@@ -1148,10 +1217,13 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
       ev= new Rand_log_event(buf, fdle);
       break;
     case USER_VAR_EVENT:
-      ev= new User_var_log_event(buf, event_len, fdle);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new User_var_log_event(buf, static_cast<uint>(event_len), fdle);
       break;
     case FORMAT_DESCRIPTION_EVENT:
-      ev= new Format_description_log_event(buf, event_len, fdle);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Format_description_log_event(buf, static_cast<uint>(event_len),
+                                           fdle);
       break;
 #if defined(HAVE_REPLICATION) 
     case WRITE_ROWS_EVENT_V1:
@@ -1192,23 +1264,36 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
       break;
 
     case TABLE_MAP_EVENT:
-      ev= new Table_map_log_event(buf, event_len, fdle);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Table_map_log_event(buf, static_cast<uint>(event_len), fdle);
       break;
 #endif
+  case PARTIAL_ROW_DATA_EVENT:
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Partial_rows_log_event(buf, static_cast<uint>(event_len), fdle);
+      break;
     case BEGIN_LOAD_QUERY_EVENT:
-      ev= new Begin_load_query_log_event(buf, event_len, fdle);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Begin_load_query_log_event(buf, static_cast<uint>(event_len),
+                                         fdle);
       break;
     case EXECUTE_LOAD_QUERY_EVENT:
-      ev= new Execute_load_query_log_event(buf, event_len, fdle);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Execute_load_query_log_event(buf, static_cast<uint>(event_len),
+                                           fdle);
       break;
     case INCIDENT_EVENT:
-      ev= new Incident_log_event(buf, event_len, fdle);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Incident_log_event(buf, static_cast<uint>(event_len), fdle);
       break;
     case ANNOTATE_ROWS_EVENT:
-      ev= new Annotate_rows_log_event(buf, event_len, fdle);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Annotate_rows_log_event(buf, static_cast<uint>(event_len), fdle);
       break;
     case START_ENCRYPTION_EVENT:
-      ev= new Start_encryption_log_event(buf, event_len, fdle);
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Start_encryption_log_event(buf, static_cast<uint>(event_len),
+                                         fdle);
       break;
     case TRANSACTION_PAYLOAD_EVENT:             // MySQL 8.0
       *error=
@@ -1238,20 +1323,10 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
                           (uchar) buf[EVENT_TYPE_OFFSET]));
       ev= NULL;
       break;
-    }
   }
 exit:
 
-  if (ev)
-  {
-#ifdef MYSQL_CLIENT
-    ev->read_checksum_alg= alg;
-    if (alg != BINLOG_CHECKSUM_ALG_OFF && alg != BINLOG_CHECKSUM_ALG_UNDEF)
-      ev->read_checksum_value= uint4korr(buf + (event_len));
-#endif
-  }
-
-  DBUG_PRINT("read_event", ("%s(type_code: %u; event_len: %u)",
+  DBUG_PRINT("read_event", ("%s(type_code: %u; event_len: %zu)",
                             ev ? ev->get_type_str() : "<unknown>",
                             (uchar)buf[EVENT_TYPE_OFFSET],
                             event_len));
@@ -1288,6 +1363,72 @@ exit:
   DBUG_RETURN(ev);  
 }
 
+
+int handler_binlog_reader::read_log_event(String *packet, uint32_t ev_offset,
+                                          size_t max_allowed)
+{
+  uint32_t sofar= 0;
+  bool header_read= false;
+  uint32_t target_size= EVENT_LEN_OFFSET + 4;
+  int res;
+
+  if (unlikely(!buf))
+    return LOG_READ_MEM;
+
+  /*
+    Loop, first reading the "length" field, and then continuing to read data
+    until a full event has been placed in the packet.
+  */
+  for (;;)
+  {
+    if (buf_data_remain <= 0)
+    {
+      res= read_binlog_data(buf, BUF_SIZE);
+      if (res <= 0)
+      {
+        res= (res < 0 ? LOG_READ_IO : LOG_READ_EOF);
+        goto err;
+      }
+      buf_data_pos= 0;
+      buf_data_remain= res;
+    }
+    uint32_t amount= std::min(target_size - sofar, buf_data_remain);
+    packet->append((char *)buf + buf_data_pos, amount);
+    buf_data_pos+= amount;
+    buf_data_remain-= amount;
+    sofar+= amount;
+    if (target_size == sofar)
+    {
+      if (header_read)
+        break;
+      else
+      {
+        header_read= true;
+        target_size= uint4korr(&((*packet)[EVENT_LEN_OFFSET + ev_offset]));
+        if (target_size < LOG_EVENT_MINIMAL_HEADER_LEN)
+        {
+          res= LOG_READ_BOGUS;
+          goto err;
+        }
+	else if (target_size > max_allowed)
+        {
+          res= LOG_READ_TOO_LARGE;
+          goto err;
+        }
+	/*
+          Note that here we rely on the fact that all valid events have more
+          data after the length. This way we avoid conditional for the
+          (useless) special case where we don't need to read anything more
+          after having read the first part.
+        */
+        DBUG_ASSERT(LOG_EVENT_MINIMAL_HEADER_LEN > EVENT_LEN_OFFSET+4);
+      }
+    }
+  }
+  res= 0;  /* Success */
+err:
+  return res;
+}
 
 
 /* 2 utility functions for the next method */
@@ -2136,6 +2277,7 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver,
       post_header_len[WRITE_ROWS_COMPRESSED_EVENT_V1-1]=   ROWS_HEADER_LEN_V1;
       post_header_len[UPDATE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
       post_header_len[DELETE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
+      post_header_len[PARTIAL_ROW_DATA_EVENT-1]=  PARTIAL_ROWS_HEADER_LEN;
 
       // Sanity-check that all post header lengths are initialized.
       int i;
@@ -2343,7 +2485,7 @@ Format_description_log_event::is_version_before_checksum(const master_version_sp
             checksum-unaware (effectively no checksum) and the actual
             [1-254] range alg descriptor.
 */
-enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len)
+enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, size_t len)
 {
   enum_binlog_checksum_alg ret;
   char version[ST_SERVER_VER_LEN];
@@ -3074,7 +3216,7 @@ const uchar *sql_ex_info::init(const uchar *buf, const uchar *buf_end,
 **************************************************************************/
 
 
-Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
+Rows_log_event::Rows_log_event(const uchar *buf, size_t event_len,
                                const Format_description_log_event
                                *description_event)
   : Log_event(buf, description_event),
@@ -3101,7 +3243,7 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
   if (event_len < (uint)(common_header_len + post_header_len))
     DBUG_VOID_RETURN;
 
-  DBUG_PRINT("enter",("event_len: %u  common_header_len: %d  "
+  DBUG_PRINT("enter",("event_len: %zu  common_header_len: %d  "
 		      "post_header_len: %d",
 		      event_len, common_header_len,
 		      post_header_len));
@@ -3633,21 +3775,25 @@ static void parse_column_charset(std::vector<unsigned int> &vec,
 /**
    Parses COLUMN_NAME field.
 
-   @param[out] vec     stores column names extracted from field.
+   @param[in]  root    Allocate memory here
+   @param[out] name    Store column names extracted from field here
    @param[in]  field   COLUMN_NAME field in table_map_event.
    @param[in]  length  length of the field
  */
-static void parse_column_name(std::vector<std::string> &vec,
+static bool parse_column_name(MEM_ROOT *root, LEX_CSTRING *name,
                               unsigned char *field, unsigned int length)
 {
-  unsigned char* p= field;
-
-  while (p < field + length)
+  for (uchar *end= field+length; field < end ; name++)
   {
-    unsigned len= net_field_length(&p);
-    vec.push_back(std::string(reinterpret_cast<char *>(p), len));
-    p+= len;
+    uint name_length= net_field_length(&field);
+    if (!(name->str= strmake_root(root, (char*) field, name_length)))
+      return 1;
+    name->length= name_length;
+    field+= name_length;
   }
+
+  name->str= 0;                                 // End marker
+  return 0;
 }
 
 /**
@@ -3741,26 +3887,32 @@ static void parse_pk_with_prefix(std::vector<Table_map_log_event::
 }
 
 Table_map_log_event::Optional_metadata_fields::
-Optional_metadata_fields(unsigned char* optional_metadata,
-                         unsigned int optional_metadata_len)
+Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
+                         uchar* optional_metadata,
+                         size_t optional_metadata_len,
+                         bool only_column_names)
 {
-  unsigned char* field= optional_metadata;
+  unsigned int len;
+  uchar *metadata_end;
 
+  allocation_error= 0;
+  m_column_name= 0;
   if (optional_metadata == NULL)
     return;
 
-  while (field < optional_metadata + optional_metadata_len)
+  metadata_end= optional_metadata + optional_metadata_len;
+  for (uchar *field= optional_metadata ; field < metadata_end ; field+= len)
   {
-    unsigned int len;
     Optional_metadata_field_type type=
       static_cast<Optional_metadata_field_type>(field[0]);
 
     // Get length and move field to the value.
     field++;
     len= net_field_length(&field);
+    if (only_column_names && type != COLUMN_NAME)
+      continue;
 
-    switch(type)
-    {
+    switch(type) {
     case SIGNEDNESS:
       parse_signedness(m_signedness, field, len);
       break;
@@ -3771,7 +3923,12 @@ Optional_metadata_fields(unsigned char* optional_metadata,
       parse_column_charset(m_column_charset, field, len);
       break;
     case COLUMN_NAME:
-      parse_column_name(m_column_name, field, len);
+      if (!(m_column_name= (LEX_CSTRING*) alloc_root(root,
+                                                     sizeof(LEX_CSTRING) *
+                                                     (master_columns +1 ))))
+        goto error;
+      if (parse_column_name(root, m_column_name, field, len))
+        goto error;
       break;
     case SET_STR_VALUE:
       parse_set_str_value(m_set_str_value, field, len);
@@ -3797,9 +3954,12 @@ Optional_metadata_fields(unsigned char* optional_metadata,
     default:
       DBUG_ASSERT(0);
     }
-    // next field
-    field+= len;
   }
+  return;
+
+error:
+  allocation_error= 1;
+  return;
 }
 
 
@@ -3812,7 +3972,7 @@ Optional_metadata_fields(unsigned char* optional_metadata,
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Write_rows_log_event::Write_rows_log_event(const uchar *buf, uint event_len,
+Write_rows_log_event::Write_rows_log_event(const uchar *buf, size_t event_len,
                                            const Format_description_log_event
                                            *description_event)
 : Rows_log_event(buf, event_len, description_event)
@@ -3820,7 +3980,7 @@ Write_rows_log_event::Write_rows_log_event(const uchar *buf, uint event_len,
 }
 
 Write_rows_compressed_log_event::Write_rows_compressed_log_event(
-                                           const uchar *buf, uint event_len,
+                                           const uchar *buf, size_t event_len,
                                            const Format_description_log_event
                                            *description_event)
 : Write_rows_log_event(buf, event_len, description_event)
@@ -3838,7 +3998,7 @@ Write_rows_compressed_log_event::Write_rows_compressed_log_event(
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Delete_rows_log_event::Delete_rows_log_event(const uchar *buf, uint event_len,
+Delete_rows_log_event::Delete_rows_log_event(const uchar *buf, size_t event_len,
                                              const Format_description_log_event
                                              *description_event)
   : Rows_log_event(buf, event_len, description_event)
@@ -3846,7 +4006,7 @@ Delete_rows_log_event::Delete_rows_log_event(const uchar *buf, uint event_len,
 }
 
 Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
-                                           const uchar *buf, uint event_len,
+                                           const uchar *buf, size_t event_len,
                                            const Format_description_log_event
                                            *description_event)
   : Delete_rows_log_event(buf, event_len, description_event)
@@ -3869,19 +4029,17 @@ Update_rows_log_event::~Update_rows_log_event()
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Update_rows_log_event::Update_rows_log_event(const uchar *buf, uint event_len,
-                                             const
-                                             Format_description_log_event
-                                             *description_event)
-  : Rows_log_event(buf, event_len, description_event)
+Update_rows_log_event::Update_rows_log_event(
+    const uchar *buf, size_t event_len,
+    const Format_description_log_event *description_event)
+    : Rows_log_event(buf, event_len, description_event)
 {
 }
 
 Update_rows_compressed_log_event::Update_rows_compressed_log_event(
-                                             const uchar *buf, uint event_len,
-                                             const Format_description_log_event
-                                             *description_event)
-  : Update_rows_log_event(buf, event_len, description_event)
+    const uchar *buf, size_t event_len,
+    const Format_description_log_event *description_event)
+    : Update_rows_log_event(buf, event_len, description_event)
 {
   uncompress_buf();
 }
@@ -3933,6 +4091,111 @@ Incident_log_event::Incident_log_event(const uchar *buf, uint event_len,
   m_message.length= len;
   DBUG_PRINT("info", ("m_incident: %d", m_incident));
   DBUG_VOID_RETURN;
+}
+
+
+Partial_rows_log_event::Partial_rows_log_event(
+    const uchar *buf, uint event_len,
+    const Format_description_log_event *description_event)
+    : Log_event(buf, description_event), metadata_written(0), rows_event(NULL)
+{
+  DBUG_ENTER("Partial_rows_log_event::Partial_rows_log_even(const uchar*,uint,...)");
+
+  uint8 common_header_len= description_event->common_header_len;
+  uint8 post_header_len= description_event->post_header_len[PARTIAL_ROW_DATA_EVENT-1];
+  DBUG_PRINT("info",("event_len: %u  common_header_len: %d  post_header_len: %d",
+                     event_len, common_header_len, post_header_len));
+  DBUG_ASSERT(post_header_len == PARTIAL_ROWS_HEADER_LEN);
+
+	if (event_len < (uint)(common_header_len + post_header_len))
+		DBUG_VOID_RETURN;
+
+  start_offset= common_header_len + PARTIAL_ROWS_HEADER_LEN;
+  ev_buffer_base= buf;
+  end_offset= event_len;
+
+  /* Read the post-header */
+  const uchar *post_start= buf + common_header_len;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  total_fragments= uint4korr(post_start);
+  post_start+= 4;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  seq_no= uint4korr((post_start));
+  post_start+= 4;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+  DBUG_ASSERT(seq_no <= total_fragments);
+
+  flags2= *(post_start++);
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  if (flags2 & FL_ORIG_EVENT_SIZE)
+  {
+    DBUG_ASSERT(seq_no == 1);
+    original_event_size= uint8korr((post_start));
+    post_start+= 8;
+    start_offset+= 8;
+    VALIDATE_BYTES_READ(post_start, buf, event_len);
+    DBUG_ASSERT(original_event_size);
+  }
+
+  /*
+    post_start so far only has read header data, no data from the rows event
+    itself. Ensure there is still data for the rows event.
+  */
+  DBUG_ASSERT(static_cast<uint>(post_start - ev_buffer_base) < event_len);
+
+  DBUG_VOID_RETURN;
+}
+
+bool Partial_rows_log_event::is_valid() const {
+  bool is_first= seq_no == 1;
+  /*
+    There should be at least 2 fragments for the group, and the sequence
+    number of this instance should fall between 1 and the total number of
+    fragments.
+  */
+  bool has_valid_sequencing=
+      seq_no >= 1 && total_fragments >= 2 && seq_no <= total_fragments;
+
+  bool has_valid_orig_event_size=
+      ((flags2 & FL_ORIG_EVENT_SIZE) && is_first && original_event_size) ||
+      !(flags2 & FL_ORIG_EVENT_SIZE);
+
+  /*
+    To be valid from a fragmentation context, the following should hold true:
+      1) There should be a _valid_ Rows_log_event that is referenced
+      2) Start_offset and end_offset should be representative of the
+         fragment. If it is the first fragment, then start_offset should be
+         0. The end_offset should be after the start_offset.
+      3) If it is the first event, we should write metadata and the original
+         event size; otherwise, neither should be written.
+      4) ev_buffer_base should not be used
+  */
+  bool is_valid_for_fragmentation=
+      (rows_event && rows_event->is_valid()) &&
+      (((start_offset || is_first) && end_offset) &&
+       (end_offset > start_offset)) &&
+      ((is_first && metadata_written) || !metadata_written) &&
+      !ev_buffer_base;
+
+  /*
+    To be valid from an assembly context, the following should hold true:
+      1) ev_buffer_base should be set (referencing the read-in buffer)
+      2) start_offset should point beyond the Partial_rows_log_event header,
+         as it points to the start of the Rows_log_event content
+      3) end_offset should be non-zero (there should always be some content)
+      4) Neither rows_event nor metadata_written should be set
+  */
+  bool is_valid_for_assembly=
+      ev_buffer_base && start_offset > PARTIAL_ROWS_HEADER_LEN &&
+      end_offset && (!rows_event && !metadata_written);
+
+  bool is_valid= has_valid_sequencing && has_valid_orig_event_size &&
+                 (is_valid_for_fragmentation ^ is_valid_for_assembly);
+
+  return is_valid;
 }
 
 

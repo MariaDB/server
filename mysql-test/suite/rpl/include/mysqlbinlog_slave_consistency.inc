@@ -38,14 +38,14 @@ if (!$strict_mode)
 {
     --connection $con2
     set @@global.gtid_strict_mode=0;
-    --let $sql_input_file=include/sql_multisource.inc
+    --let $sql_input_file=suite/rpl/include/sql_multisource.inc
 }
 
 if ($strict_mode)
 {
     --connection $con2
     set @@global.gtid_strict_mode=1;
-    --let $sql_input_file=include/sql_out_of_order_gtid.inc
+    --let $sql_input_file=suite/rpl/include/sql_out_of_order_gtid.inc
 }
 
 --connection $con2
@@ -133,11 +133,12 @@ if (!$slave_sql_errno)
 
 --connection $con1
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --echo # MYSQL_BINLOG BINLOG_FILE_PARAM $msbl_args 2> MYSQLBINLOG_STDERR | MYSQL
 --exec $MYSQL_BINLOG $BINLOG_FILE_PARAM $msbl_args 2> $MYSQLBINLOG_STDERR | $MYSQL
 
---source include/rpl_check_table_consistency.inc
+--source suite/rpl/include/rpl_check_table_consistency.inc
 
 if ($strict_mode)
 {
@@ -164,13 +165,13 @@ set global gtid_slave_pos="";
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
 
 --connection $con1
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 --source include/save_master_gtid.inc
 
 --connection $con2
 --source include/start_slave.inc
---source include/wait_for_slave_to_start.inc
 --source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
 RESET SLAVE;
@@ -178,6 +179,7 @@ set global gtid_slave_pos="";
 RESET MASTER;
 
 --connection $con1
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --connection $con2

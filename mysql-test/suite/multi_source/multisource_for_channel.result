@@ -251,9 +251,9 @@ Slave_running	ON
 #
 SHOW RELAYLOG EVENTS for channel 'master1';
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-mysqld-relay-bin-master1.000003	4	Format_desc	3	256	Server ver: Version
-mysqld-relay-bin-master1.000003	256	Rotate	1	1358	master-bin.000002;pos=4
-mysqld-relay-bin-master1.000003	304	Rotate	3	366	mysqld-relay-bin-master1.000004;pos=4
+mysqld-relay-bin-master1.000003	4	Format_desc	3	257	Server ver: Version
+mysqld-relay-bin-master1.000003	257	Rotate	1	1359	master-bin.000002;pos=4
+mysqld-relay-bin-master1.000003	305	Rotate	3	367	mysqld-relay-bin-master1.000004;pos=4
 
 show slave status for channel 'master1'
 Master_Port = 'MYPORT_1'

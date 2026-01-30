@@ -1,0 +1,56 @@
+--source include/have_debug_sync.inc
+--source include/have_rocksdb.inc
+--source include/have_binlog_format_mixed.inc
+--source include/have_innodb_binlog.inc
+
+--source include/reset_master.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=RocksDB;
+
+--echo *** A simple multi-engine transaction.
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+BEGIN;
+INSERT INTO t1 VALUES (1, 0);
+INSERT INTO t2 VALUES (1, 0);
+COMMIT;
+--source include/show_binlog_events.inc
+
+--echo *** A couple multi-engine transactions where we crash in the middle.
+--connect con1,localhost,root,,
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+BEGIN;
+INSERT INTO t2 VALUES (2, 0);
+INSERT INTO t2 VALUES (20, 1);
+INSERT INTO t2 VALUES (21, 2);
+SET debug_sync= 'ibb_after_commit_redo_log SIGNAL con1_rdy WAIT_FOR crash';
+send /* a */ COMMIT;
+
+--connection default
+SET debug_sync= 'now WAIT_FOR con1_rdy';
+
+--connect con2,localhost,root,,
+BEGIN;
+INSERT INTO t1 VALUES (3, 0);
+INSERT INTO t2 VALUES (3, 0);
+SET debug_sync= 'ibb_after_group_commit_redo_log SIGNAL con2_rdy WAIT_FOR crash';
+send /* b */ COMMIT;
+
+--connection default
+SET debug_sync= 'now WAIT_FOR con2_rdy';
+
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+
+--disconnect con1
+--disconnect con2
+
+--connection default
+
+--source include/show_binlog_events.inc
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+
+DROP TABLE t1, t2;

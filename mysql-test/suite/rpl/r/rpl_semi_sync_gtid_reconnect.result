@@ -1,10 +1,12 @@
 include/master-slave.inc
 [connection master]
+connection slave;
+include/stop_slave.inc
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
 connection slave;
-include/stop_slave.inc
 SET @@GLOBAL. rpl_semi_sync_slave_enabled = 1;
 include/start_slave.inc
 connection master;
@@ -22,6 +24,7 @@ include/sync_slave_io_with_master.inc
 connection slave;
 include/stop_slave_io.inc
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET @@global.gtid_binlog_state = '0-1-2';
 connection slave;

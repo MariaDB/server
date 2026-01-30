@@ -7,6 +7,7 @@ call mtr.add_suppression("Both DO_DOMAIN_IDS & IGNORE_DOMAIN_IDS lists can't be 
 SET sql_log_bin=1;
 include/stop_slave.inc
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 include/start_slave.inc
@@ -1336,8 +1337,10 @@ ERROR HY000: Could not initialize master info structure for ''; more error messa
 RESET MASTER;
 set global gtid_slave_pos="";
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=();
-include/start_slave.inc
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
+connection slave;
+include/start_slave.inc
 include/rpl_end.inc
-# End of tests (rpl.rpl_mysqlbinlog_slave_consistency)
+# End of test rpl.rpl_mysqlbinlog_slave_consistency.test

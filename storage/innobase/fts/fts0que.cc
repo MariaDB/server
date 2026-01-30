@@ -1105,15 +1105,6 @@ fts_query_difference(
 
 	ut_a(query->oper == FTS_IGNORE);
 
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	{
-		ib::info	out;
-		out << "DIFFERENCE: Searching: '";
-		out.write(token->f_str, token->f_len);
-		out << "'";
-	}
-#endif
-
 	if (query->doc_ids) {
 		n_doc_ids = rbt_size(query->doc_ids);
 	}
@@ -1207,15 +1198,6 @@ fts_query_intersect(
 	dict_table_t*		table = query->index->table;
 
 	ut_a(query->oper == FTS_EXIST);
-
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	{
-		ib::info	out;
-		out << "INTERSECT: Searching: '";
-		out.write(token->f_str, token->f_len);
-		out << "'";
-	}
-#endif
 
 	/* If the words set is not empty and multi exist is true,
 	we know the intersection set is empty in advance. */
@@ -1397,15 +1379,6 @@ fts_query_union(
 
 	ut_a(query->oper == FTS_NONE || query->oper == FTS_DECR_RATING ||
 	     query->oper == FTS_NEGATE || query->oper == FTS_INCR_RATING);
-
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	{
-		ib::info	out;
-		out << "UNION: Searching: '";
-		out.write(token->f_str, token->f_len);
-		out << "'";
-	}
-#endif
 
 	if (query->doc_ids) {
 		n_doc_ids = rbt_size(query->doc_ids);
@@ -2550,10 +2523,6 @@ fts_query_search_phrase(
 	ut_a(get_doc.index_cache != NULL);
 
 	mysql_mutex_unlock(&cache->lock);
-
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	ib::info() << "Start phrase search";
-#endif
 
 	/* Read the document from disk and do the actual
 	match, matching documents will be added to the current

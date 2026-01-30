@@ -104,11 +104,15 @@ change master to master_use_gtid=slave_pos;
 --echo #
 --connection slave
 --source include/stop_slave.inc
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 set @@global.gtid_slave_pos="";
+--connection master
+--source include/kill_binlog_dump_threads.inc
+RESET MASTER;
+--connection slave
 --source include/start_slave.inc
 --connection master
-RESET MASTER;
 set @@global.gtid_slave_pos="";
 set session gtid_domain_id= 0;
 CREATE TABLE t1 (a int);
@@ -482,6 +486,7 @@ EOF
 --echo # Ensure MASTER_DEMOTE_TO_REPLICA aliases MASTER_DEMOTE_TO_SLAVE
 --echo #
 --connection slave
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --source include/reset_slave.inc
 CREATE TABLE t_mdev_31768 (a int);
@@ -505,6 +510,7 @@ RESET MASTER;
 
 --echo # Clear primary binlog state to match replica
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 

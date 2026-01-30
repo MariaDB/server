@@ -43,6 +43,8 @@
 #include "sql_priv.h"
 #include "sql_basic_types.h"
 #include <atomic>
+#include "handler_binlog_reader.h"
+#include "mysqlbinlog-engine.h"
 #include "log_event.h"
 #include "compat56.h"
 #include "sql_common.h"
@@ -108,7 +110,7 @@ static const char *load_groups[]=
 { "mysqlbinlog", "mariadb-binlog", "client", "client-server", "client-mariadb",
   0 };
 
-static void error(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
+void error(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 static void warning(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 
 static bool one_database=0, one_table=0, to_last_remote_log= 0, disable_log_bin= 0;
@@ -202,6 +204,14 @@ enum Exit_status {
   OK_EOF,
 };
 
+
+static enum Binlog_format {
+  ORIGINAL_BINLOG_FORMAT, INNODB_BINLOG_FORMAT
+} binlog_format= ORIGINAL_BINLOG_FORMAT;
+
+static handler_binlog_reader *engine_binlog_reader;
+
+
 /**
   Pointer to the last read Annotate_rows_log_event. Having read an
   Annotate_rows event, we should not print it immediately because all
@@ -220,8 +230,17 @@ static void free_annotate_event()
   }
 }
 
-Log_event* read_remote_annotate_event(uchar* net_buf, ulong event_len,
-                                      const char **error_msg)
+/**
+  The typical logic for an event read from a remote server is to register the
+  temp_buf of the net object to the event, such that each event will re-use
+  this same buffer. However, some events are re-referenced later, and their
+  memory/data is still needed. For example, Table_map_log_events are needed
+  for Partial_rows_log_events, as they are re-output for the last event in
+  the group.
+*/
+Log_event *read_self_managing_buffer_event_from_net(uchar *net_buf,
+                                                    ulong event_len,
+                                                    const char **error_msg)
 {
   uchar *event_buf;
   Log_event* event;
@@ -690,13 +709,15 @@ static bool print_base64(PRINT_EVENT_INFO *print_event_info, Log_event *ev)
 {
   /*
     These events must be printed in base64 format, if printed.
+    In the original binlog format (no --binlog-storage-engine),
     base64 format requires a FD event to be safe, so if no FD
     event has been printed, we give an error.  Except if user
     passed --short-form, because --short-form disables printing
     row events.
   */
 
-  if (!print_event_info->printed_fd_event && !short_form &&
+  if (binlog_format == ORIGINAL_BINLOG_FORMAT &&
+      !print_event_info->printed_fd_event && !short_form &&
       opt_base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
       opt_base64_output_mode != BASE64_OUTPUT_NEVER)
   {
@@ -710,6 +731,66 @@ static bool print_base64(PRINT_EVENT_INFO *print_event_info, Log_event *ev)
   }
 
   return ev->print(result_file, print_event_info);
+}
+
+static bool print_partial_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev)
+{
+  bool result= 0;
+  Partial_rows_log_event *prle= static_cast<Partial_rows_log_event *>(ev);
+  if (prle->seq_no == 1)
+  {
+    /*
+      First Partial_row_event in the group, we can get our Rows_log_event
+      header info here for filtering.
+    */
+    const uchar *rows_data_begin= prle->ev_buffer_base + prle->start_offset;
+    Log_event_type event_type= (Log_event_type)(uchar)rows_data_begin[EVENT_TYPE_OFFSET];
+    uint8 const post_header_len= glob_description_event->post_header_len[event_type-1];
+    const uchar *table_id_ptr= rows_data_begin +
+                               print_event_info->common_header_len +
+                               RW_MAPID_OFFSET;
+
+    ulonglong table_id;
+    if (post_header_len == 6)
+      table_id= uint4korr(table_id_ptr);
+    else
+      table_id= (ulonglong) uint6korr(table_id_ptr);
+
+    /*
+      Cache the flags of the Rows_log_event to use it for the last
+      Partial_rows_log_event in the group
+    */
+    uint32 rows_ev_flags=
+        uint2korr(rows_data_begin + print_event_info->common_header_len +
+                  post_header_len + RW_MAPID_OFFSET + RW_FLAGS_OFFSET);
+    print_event_info->partial_rows_rows_ev_flags= rows_ev_flags;
+
+    if (print_event_info->m_table_map_ignored.get_table(table_id))
+      print_event_info->deactivate_current_partial_rows_ev_group();
+  }
+
+  if (print_event_info->is_partial_rows_ev_group_active())
+    result= prle->print(result_file, print_event_info);
+
+  /* Last fragment */
+  if (prle->seq_no == prle->total_fragments)
+  {
+    /*
+      If this is the last Partial_rows_log_event in the group and the
+      underlying Rows_log_event is the last in the transaction, then it is safe
+      to clear the table_maps because they won't be used again.
+    */
+    if (print_event_info->partial_rows_rows_ev_flags &
+        Rows_log_event::STMT_END_F)
+      print_event_info->m_table_map_ignored.clear_tables();
+
+    /*
+      Active the next Partial_rows_log_event group as default
+    */
+    print_event_info->activate_current_partial_rows_ev_group();
+  }
+
+  return result;
 }
 
 
@@ -755,6 +836,10 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     /*
       Now is safe to clear ignored map (clear_tables will also
       delete original table map events stored in the map).
+
+      Note print_event_info->m_table_map is not cleared here because it is used
+      when printing the number of events in the Rows_log_event. Instead, this
+      map is cleared when a new transaction is started.
     */
     if (print_event_info->m_table_map_ignored.count() > 0)
       print_event_info->m_table_map_ignored.clear_tables();
@@ -897,7 +982,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   /*
     Run time estimation of the output window configuration.
 
-    Do not validate GLLE information is start position is provided as a file
+    Do not validate GLLE information if start position is provided as a file
     offset.
   */
   if (ev_type == GTID_LIST_EVENT && ev->when)
@@ -968,6 +1053,13 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       else
         print_event_info->deactivate_current_event_group();
     }
+
+    /*
+      Start a new GTID event with a fresh table map state. This is because
+      table maps are cached for each transaction, e.g. for
+      Partial_rows_log_event printing.
+    */
+    print_event_info->m_table_map.clear_tables();
 
     /*
       Where we always ensure the initial binlog state is valid, we only
@@ -1187,13 +1279,22 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     case TABLE_MAP_EVENT:
     {
       Table_map_log_event *map= ((Table_map_log_event *)ev);
+      destroy_evt= FALSE;
+
       if (shall_skip_database(map->get_db_name()) ||
           shall_skip_table(map->get_table_name()))
       {
         print_event_info->m_table_map_ignored.set_table(map->get_table_id(), map);
-        destroy_evt= FALSE;
         goto end;
       }
+
+      /*
+        Always keep the Table_map_log_event around in case a group of
+        Partial_rows_log_events is seen, where we will write the content of
+        the Table_map_log_event for the last fragment so it can be re-applied.
+      */
+      print_event_info->m_table_map.set_table(map->get_table_id(), map);
+
 #ifdef WHEN_FLASHBACK_REVIEW_READY
       /* Create review table for Flashback */
       if (opt_flashback_review)
@@ -1358,6 +1459,12 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         print_event_info->found_row_event= 0;
       else if (opt_flashback)
         destroy_evt= FALSE;
+      break;
+    }
+    case PARTIAL_ROW_DATA_EVENT:
+    {
+      if (print_partial_row_event(print_event_info, ev))
+        goto err;
       break;
     }
     case START_ENCRYPTION_EVENT:
@@ -1755,7 +1862,7 @@ static void error_or_warning(const char *format, va_list args, const char *msg)
   @param format Printf-style format string, followed by printf
   varargs.
 */
-static void error(const char *format,...)
+void error(const char *format,...)
 {
   va_list args;
   va_start(args, format);
@@ -1851,6 +1958,7 @@ static void cleanup()
     delete_dynamic(&binlog_events);
     delete_dynamic(&events_in_stmt);
   }
+  delete engine_binlog_reader;
   DBUG_VOID_RETURN;
 }
 
@@ -2458,6 +2566,8 @@ static Exit_status dump_log_entries(const char* logname)
   rc= (remote_opt ? dump_remote_log_entries(&print_event_info, logname) :
        dump_local_log_entries(&print_event_info, logname));
 
+  print_event_info.m_table_map.clear_tables();
+
   if (rc == ERROR_STOP)
     return rc;
 
@@ -2533,6 +2643,7 @@ static Exit_status check_master_version()
   if (position_gtid_filter &&
       position_gtid_filter->get_num_start_gtids() > 0)
   {
+    to_last_remote_log= TRUE;
     char str_buf[256];
     String query_str(str_buf, sizeof(str_buf), system_charset_info);
     query_str.length(0);
@@ -2605,12 +2716,15 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
   NET *net= &mysql->net;
   DBUG_ENTER("handle_event_text_mode");
 
-  if (net->read_pos[5] == ANNOTATE_ROWS_EVENT)
+  if (net->read_pos[5] == ANNOTATE_ROWS_EVENT ||
+      net->read_pos[5] == TABLE_MAP_EVENT)
   {
-    if (!(ev= read_remote_annotate_event(net->read_pos + 1, *len - 1,
-                                         &error_msg)))
+    if (!(ev= read_self_managing_buffer_event_from_net(net->read_pos + 1,
+                                                       *len - 1, &error_msg)))
     {
-      error("Could not construct annotate event object: %s", error_msg);
+      error("Could not construct %s event object: %s",
+            net->read_pos[5] == ANNOTATE_ROWS_EVENT ? "annotate" : "table_map",
+            error_msg);
       DBUG_RETURN(ERROR_STOP);
     }   
   }
@@ -2988,7 +3102,35 @@ static Exit_status check_header(IO_CACHE* file,
     error("Failed reading header; probably an empty file.");
     return ERROR_STOP;
   }
-  if (memcmp(header, BINLOG_MAGIC, sizeof(header)))
+  if (0 == memcmp(header, INNODB_BINLOG_MAGIC, sizeof(header)))
+  {
+    binlog_format= INNODB_BINLOG_FORMAT;
+    if (!engine_binlog_reader)
+    {
+      engine_binlog_reader= get_binlog_reader_innodb();
+      if (!engine_binlog_reader)
+      {
+        error("Out of memory setting up reader for InnoDB-implemented binlog.");
+        return ERROR_STOP;
+      }
+    }
+    /*
+      New engine-implemented binlog always does checksum verification on the
+      page level.
+    */
+    opt_verify_binlog_checksum= 0;
+    /*
+      New engine-implemented binlog does not contain format description
+      events.
+    */
+    goto end;
+  }
+  else if (header[0] == '\0' && !memcmp(header, header+1, sizeof(header)-1))
+  {
+    /* This is an empty InnoDB binlog file, pre-allocated but not yet used. */
+    return OK_EOF;
+  }
+  else if (memcmp(header, BINLOG_MAGIC, sizeof(header)))
   {
     error("File is not a binary log file.");
     return ERROR_STOP;
@@ -3098,6 +3240,7 @@ static Exit_status check_header(IO_CACHE* file,
         break;
     }
   }
+end:
   my_b_seek(file, pos);
   return OK_CONTINUE;
 }
@@ -3135,8 +3278,19 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       my_close(fd, MYF(MY_WME));
       return ERROR_STOP;
     }
-    if ((retval= check_header(file, print_event_info, logname)) != OK_CONTINUE)
+    retval= check_header(file, print_event_info, logname);
+    if (retval != OK_CONTINUE)
+    {
+      if (retval == OK_EOF)
+      {
+        /*
+          Empty InnoDB-implemented binlog file. Just skip it (but still
+          continue with any following files user specified).
+        */
+        retval= OK_CONTINUE;
+      }
       goto end;
+    }
   }
   else
   {
@@ -3162,8 +3316,13 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       error("Failed to init IO cache.");
       return ERROR_STOP;
     }
-    if ((retval= check_header(file, print_event_info, logname)) != OK_CONTINUE)
+    retval= check_header(file, print_event_info, logname);
+    if (retval != OK_CONTINUE)
+    {
+      if (retval == OK_EOF)
+        retval= OK_CONTINUE;
       goto end;
+    }
     if (start_position)
     {
       /* skip 'start_position' characters from stdin */
@@ -3192,15 +3351,56 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
     error("Failed reading from file.");
     goto err;
   }
+  if (binlog_format == INNODB_BINLOG_FORMAT)
+  {
+    if (open_engine_binlog(engine_binlog_reader, start_position, logname, file))
+      goto err;
+  }
   for (;;)
   {
     char llbuff[21];
     my_off_t old_off = my_b_tell(file);
     int read_error;
+    Log_event* ev;
 
-    Log_event* ev = Log_event::read_log_event(file, &read_error,
-                                              glob_description_event,
-                                              opt_verify_binlog_checksum);
+    if (binlog_format == INNODB_BINLOG_FORMAT)
+    {
+      String packet;
+      int res= engine_binlog_reader->read_log_event(&packet, 0, MAX_MAX_ALLOWED_PACKET);
+      if (res == LOG_READ_EOF)
+      {
+        ev= nullptr;
+        read_error= 0;
+      }
+      else if (res < 0)
+      {
+        ev= nullptr;
+        read_error= -1;
+      }
+      else
+      {
+        const char *errmsg= nullptr;
+        ev= Log_event::read_log_event((uchar *)packet.ptr(), packet.length(),
+                                      &errmsg, glob_description_event,
+                                      FALSE, FALSE);
+        if (!ev)
+        {
+          error("Error reading event: %s", errmsg);
+          read_error= -1;
+        }
+        else
+        {
+          ev->register_temp_buf((uchar *)packet.release(), true);
+          read_error= 0;
+        }
+      }
+    }
+    else
+    {
+      ev= Log_event::read_log_event(file, &read_error,
+                                    glob_description_event,
+                                    opt_verify_binlog_checksum);
+    }
     if (!ev)
     {
       /*
@@ -3226,6 +3426,7 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       the size of the event, unless the event is encrypted.
     */
     DBUG_ASSERT(
+        binlog_format == INNODB_BINLOG_FORMAT ||
         ((ev->get_type_code() == UNKNOWN_EVENT &&
           ((Unknown_log_event *) ev)->what == Unknown_log_event::ENCRYPTED)) ||
         old_off + ev->data_written == my_b_tell(file));

@@ -338,16 +338,16 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 RESET MASTER;
 RESET MASTER;
 SHOW MASTER STATUS;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	<pos>		
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000001	<pos>			
 RESET MASTER TO 100;
 SHOW MASTER STATUS;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000100	<pos>		
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000100	<pos>			
 RESET MASTER;
 SHOW MASTER STATUS;
-File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	<pos>		
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB	Gtid_Binlog_Pos
+master-bin.000001	<pos>			
 CREATE TABLE t1(a INT, b INT);
 CREATE TABLE IF NOT EXISTS t1(a INT, b INT);
 Warnings:

@@ -1,0 +1,22 @@
+--source include/have_binlog_format_statement.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-37785 Assertion `!mysql_bin_log.is_open()' failed in
+--echo #            THD::mark_tmp_table_as_free_for_reuse on ALTER TABLE
+--echo #            or TRUNCATE
+--echo # 
+
+CREATE TEMPORARY TABLE t1 (y INT) ENGINE=InnoDB;
+CREATE TABLE t1 (x INT) ENGINE=InnoDB AS SELECT 0 'a';
+--error ER_CANNOT_DISCARD_TEMPORARY_TABLE
+ALTER TABLE t1 DISCARD TABLESPACE;
+DROP TABLE t1;
+TRUNCATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TEMPORARY TABLE t1 (c INT);
+SET SESSION binlog_format='ROW';
+TRUNCATE t1;
+# Let's have close connection generate the drop of the tmp table
+# DROP TABLE t1;

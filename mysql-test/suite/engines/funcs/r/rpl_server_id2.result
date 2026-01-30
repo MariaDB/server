@@ -20,6 +20,7 @@ stop slave;
 include/wait_for_slave_to_stop.inc
 drop table t1;
 connection master;
+include/kill_binlog_dump_threads.inc
 reset master;
 create table t1(n int);
 create table t2(n int);

@@ -45,10 +45,11 @@ connection slave;
 connection master;
 create table t1 (n int);
 connection slave;
+stop slave;
 connection master;
+include/kill_binlog_dump_threads.inc
 reset master;
 connection slave;
-stop slave;
 include/reset_slave.inc
 connection master;
 connection slave;

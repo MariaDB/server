@@ -1,0 +1,98 @@
+--source include/master-slave.inc
+--source include/have_binlog_format_mixed.inc
+--source include/have_innodb_binlog.inc
+
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, c LONGTEXT) ENGINE=InnoDB;
+CREATE TABLE t2(a INT PRIMARY KEY, b INT, c LONGTEXT) ENGINE=Aria;
+
+--let $i= 0
+while ($i <= 3) {
+  if ($i == 0) {
+    SET @c= REPEAT('*', 20);
+  }
+  if ($i == 1) {
+    SET @c= REPEAT('%', 1024);
+  }
+  if ($i == 2) {
+    SET @c= REPEAT('.', 18000);
+  }
+  if ($i == 3) {
+    SET @c= REPEAT('.', 40000);
+  }
+
+  --let $f= 0
+  while ($f <= 1) {
+    if ($f == 0) {
+      SET SESSION binlog_format=statement;
+    }
+    if ($f == 1) {
+      SET SESSION binlog_format=row;
+    }
+
+    --let $s= 0
+    while ($s <= 1) {
+      --let $k = `SELECT $i*1000 + $f*100 + $s*10`
+      eval SET SESSION binlog_direct_non_transactional_updates= $s;
+
+      eval INSERT INTO t1 VALUES (1 + $k, 0, @c), (2 + $k, 0, @c), (3 + $k, 0, @c);
+      eval INSERT INTO t2 VALUES (1 + $k, 1, @c), (2 + $k, 1, @c), (3 + $k, 1, @c);
+
+      BEGIN;
+      eval UPDATE t1 SET b=2, c=CONCAT('!', c) WHERE a=1+$k;
+      eval UPDATE t2 SET b=2, c=CONCAT('!', c) WHERE a=2+$k;
+      eval UPDATE t1 SET b=2, c=CONCAT('!', c) WHERE a=3+$k;
+      eval INSERT INTO t2 VALUES (4 + $k, 2, @c);
+      COMMIT;
+      inc $s;
+    }
+    inc $f;
+  }
+  inc $i;
+}
+
+SELECT a, b, length(c) FROM t1 ORDER BY a;
+SELECT a, b, length(c) FROM t2 ORDER BY a;
+
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+SELECT a, b, length(c) FROM t1 ORDER BY a;
+SELECT a, b, length(c) FROM t2 ORDER BY a;
+
+# Test that master_pos_wait() is disabled when master is binlog-in-engine.
+--error ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG
+SELECT MASTER_POS_WAIT("binlog-000000.ibb", 4096);
+
+
+--echo *** Test CREATE TABLE ... SELECT binlogging when it uses ROW mode.
+--connection master
+# Rotate binlogs to a bigger size to make sure our SHOW BINLOG EVENTS output
+# fits in a single binlog file.
+SET @old_max_size= @@GLOBAL.max_binlog_size;
+SET GLOBAL max_binlog_size= 1048576;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+ALTER TABLE t1 FORCE;
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET binlog_format=MIXED;
+CREATE TABLE t3 AS SELECT * FROM t1 LIMIT 10;
+CREATE TABLE t4 AS SELECT * FROM t2 LIMIT 10;
+SET binlog_format=ROW;
+CREATE TABLE t5 AS SELECT * FROM t3;
+CREATE TABLE t6 AS SELECT * FROM t4;
+SET binlog_format=MIXED;
+CREATE TABLE t7 AS SELECT * FROM t3;
+CREATE TABLE t8 AS SELECT * FROM t4;
+--source include/show_binlog_events2.inc
+SET GLOBAL max_binlog_size= @old_max_size;
+
+DROP TABLE t3,t4,t5,t6,t7,t8;
+
+
+--connection master
+DROP TABLE t1, t2;
+
+CALL mtr.add_suppression('Statement is unsafe because it accesses a non-transactional table after accessing a transactional table');
+
+--source include/rpl_end.inc

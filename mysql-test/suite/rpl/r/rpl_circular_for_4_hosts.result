@@ -181,6 +181,7 @@ DELETE FROM t1 WHERE a = 6;
 include/start_slave.inc
 connection server_2;
 connection server_3;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection server_4;
 RESET SLAVE;

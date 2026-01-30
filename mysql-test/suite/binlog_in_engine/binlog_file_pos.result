@@ -1,0 +1,71 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+connection master;
+include/reset_master.inc
+connection slave;
+include/start_slave.inc
+connection master;
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(4096)) ENGINE=InnoDB;
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+Slave current file: binlog-000000.ibb / binlog-000000.ibb
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+Slave current file: binlog-000001.ibb / binlog-000001.ibb
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+Slave current file: binlog-000001.ibb / binlog-000001.ibb
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+Slave current file: binlog-000002.ibb / binlog-000002.ibb
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+Slave current file: binlog-000002.ibb / binlog-000002.ibb
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+Slave current file: binlog-000003.ibb / binlog-000003.ibb
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+Slave current file: binlog-000003.ibb / binlog-000003.ibb
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+Slave current file: binlog-000004.ibb / binlog-000004.ibb
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+Slave current file: binlog-000004.ibb / binlog-000004.ibb
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+Slave current file: binlog-000005.ibb / binlog-000005.ibb
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+300
+connection slave;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+300
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

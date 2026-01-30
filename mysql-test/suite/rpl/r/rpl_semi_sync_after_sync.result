@@ -21,7 +21,7 @@ include/reset_slave.inc
 set global rpl_semi_sync_master_enabled= 0;
 set global rpl_semi_sync_slave_enabled= 0;
 connection master;
-reset master;
+include/reset_master.inc
 set global rpl_semi_sync_master_enabled= 0;
 set global rpl_semi_sync_slave_enabled= 0;
 #
@@ -62,7 +62,7 @@ Rpl_semi_sync_master_status	OFF
 show status like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
 Rpl_semi_sync_master_yes_tx	0
-reset master;
+include/reset_master.inc
 connection slave;
 [ default state of semi-sync on slave should be OFF ]
 show variables like 'rpl_semi_sync_slave_enabled';
@@ -302,9 +302,10 @@ connection master;
 create table t1 (a int) engine = ENGINE_TYPE;
 drop table t1;
 connection slave;
+include/stop_slave.inc
 [ test reset master ]
 connection master;
-reset master;
+include/reset_master.inc
 show status like 'Rpl_semi_sync_master_status';
 Variable_name	Value
 Rpl_semi_sync_master_status	ON
@@ -315,7 +316,6 @@ show status like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
 Rpl_semi_sync_master_yes_tx	0
 connection slave;
-include/stop_slave.inc
 include/reset_slave.inc
 include/kill_binlog_dump_threads.inc
 connection slave;
@@ -350,7 +350,7 @@ connection slave;
 include/stop_slave.inc
 include/reset_slave.inc
 connection master;
-reset master;
+include/reset_master.inc
 include/kill_binlog_dump_threads.inc
 set sql_log_bin=0;
 grant replication slave on *.* to rpl@127.0.0.1 identified by 'rpl_password';

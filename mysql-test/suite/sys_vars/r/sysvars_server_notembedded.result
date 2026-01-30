@@ -412,6 +412,16 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BINLOG_DIRECTORY
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Directory path (absolute or relative to datadir) where binlog files are stored. If this is used, must not specify a directory path for --log-bin
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_DIRECT_NON_TRANSACTIONAL_UPDATES
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
@@ -532,6 +542,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BINLOG_ROW_EVENT_FRAGMENT_THRESHOLD
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	When a Rows_log_event exceeds this threshold, it will be fragmented into multiple Partial_rows_log_event events in the binary log, each of this configured maximum size. That is, all Partial_rows_log_events up to the last in the group will be this configured maximum size, and the last event will take the remaining size. This is relevant for events that would surpass slave_max_allowed_packet when sending to the slave, and thereby a sensible value would reflect the slave's configured slave_max_allowed_packet
+NUMERIC_MIN_VALUE	1024
+NUMERIC_MAX_VALUE	1073741824
+NUMERIC_BLOCK_SIZE	1024
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_ROW_EVENT_MAX_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
@@ -581,6 +601,16 @@ NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	4096
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BINLOG_STORAGE_ENGINE
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Use a more efficient binlog implementation integrated with the storage engine. Only available for supporting engines
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BLOCK_ENCRYPTION_MODE
 VARIABLE_SCOPE	SESSION
@@ -2919,7 +2949,7 @@ VARIABLE_COMMENT	Fine-tune the optimizer behavior
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,duplicateweedout,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,condition_pushdown_for_derived,split_materialized,condition_pushdown_for_subquery,rowid_filter,condition_pushdown_from_having,not_null_range_scan,hash_join_cardinality,cset_narrowing,sargable_casefold,default
+ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,duplicateweedout,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,condition_pushdown_for_derived,split_materialized,condition_pushdown_for_subquery,rowid_filter,condition_pushdown_from_having,not_null_range_scan,hash_join_cardinality,cset_narrowing,sargable_casefold,reorder_outer_joins,default
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_TRACE
@@ -4365,11 +4395,11 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_TYPE_CONVERSIONS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	SET
-VARIABLE_COMMENT	Set of slave type conversions that are enabled. If the variable is empty, no conversions are allowed and it is expected that the types match exactly
+VARIABLE_COMMENT	Set of slave type conversions that are enabled. If the variable is empty, no conversions are allowed and it is expected that the types match exactly. In this case one will also not get any warnings about missing columns on the slave
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	ALL_LOSSY,ALL_NON_LOSSY
+ENUM_VALUE_LIST	ALL_LOSSY,ALL_NON_LOSSY,ERROR_IF_MISSING_FIELD
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLOW_LAUNCH_TIME

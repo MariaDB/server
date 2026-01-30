@@ -17,6 +17,9 @@
 # Use wait_for_slave_to_(start|stop) for current connections
 let $keep_connection= 1;
 
+# This test does not configure domain_id, don't use GTID for syncing.
+--let $disable_gtid= 1
+
 # Set up circular ring and new names for servers
 --echo *** Set up circular replication on four servers *** 
 --let $rpl_topology= 1->2->3->4->1
@@ -197,6 +200,7 @@ DELETE FROM t1 WHERE a = 6;
 --source include/start_slave.inc
 --connection server_2
 --sync_slave_with_master server_3
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --let $file_d= query_get_value(SHOW MASTER STATUS, File, 1)
 --let $pos_d= query_get_value(SHOW MASTER STATUS, Position, 1)

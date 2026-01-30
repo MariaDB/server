@@ -16,6 +16,7 @@ start slave;
 
 --connection master
 insert into t1 values (1);
+--source include/kill_binlog_dump_threads.inc
 reset master;
 
 --connection slave

@@ -69,6 +69,7 @@ SET @old_debug= @@global.debug_dbug;
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 -- eval SELECT repeat('x',10) INTO OUTFILE '$load_file2'
 
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 -- echo ###################### TEST #1
@@ -436,6 +437,7 @@ call mtr.add_suppression("Can't generate a unique log-filename .*");
 ### clean up
 -- source include/stop_slave_sql.inc
 RESET SLAVE;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --remove_file $load_file
 --remove_file $load_file2

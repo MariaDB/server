@@ -1,0 +1,167 @@
+include/reset_master.inc
+*** Test XA PREPARE, COMMIT, ROLLBACK with crashes at various points.
+CREATE TABLE t1(a INT NOT NULL, b INT NOT NULL, c LONGBLOB, PRIMARY KEY(a, b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 1, '');
+INSERT INTO t1 VALUES (0, 2, '');
+INSERT INTO t1 VALUES (0, 3, '');
+*** x1: prepared in binlog but not in engine/tables.
+connect con1,localhost,root,,;
+XA BEGIN 'x1';
+INSERT INTO t1 VALUES (1, 1, '');
+INSERT INTO t1 VALUES (1, 2, REPEAT('<x1>', 10000));
+*** x2: prepared in binlog and engine.
+connect con2,localhost,root,,;
+XA BEGIN 'x2';
+INSERT INTO t1 VALUES (2, 1, REPEAT('<x2>', 10000));
+*** x3: committed in binlog, not in engine.
+connect con3,localhost,root,,;
+XA BEGIN 'x3';
+INSERT INTO t1 VALUES (3, 1, '');
+connection default;
+FLUSH BINARY LOGS;
+*** x4: committed in binlog and in engine.
+connect con4,localhost,root,,;
+XA BEGIN 'x4';
+INSERT INTO t1 VALUES (4, 1, REPEAT('<x4>', 10000));
+*** x5: rolled back in binlog, not in engine.
+connect con5,localhost,root,,;
+XA BEGIN 'x5';
+INSERT INTO t1 VALUES (5, 1, '');
+*** x6: rolled back in binlog and in engine.
+connect con6,localhost,root,,;
+XA BEGIN 'x6';
+INSERT INTO t1 VALUES (6, 1, REPEAT('<x4>', 10000));
+connection default;
+FLUSH BINARY LOGS;
+connection con3;
+INSERT INTO t1 VALUES (3, 2, '');
+XA END 'x3';
+XA PREPARE 'x3';
+SET debug_sync= 'ibb_after_commit_redo_log SIGNAL con3_rdy WAIT_FOR crash';
+XA COMMIT 'x3';
+connection default;
+SET debug_sync= 'now WAIT_FOR con3_rdy';
+connection con1;
+INSERT INTO t1 VALUES (1, 3, '');
+XA END 'x1';
+SET debug_sync= 'ibb_after_prepare_redo_log SIGNAL con1_rdy WAIT_FOR crash';
+XA PREPARE 'x1';
+connection default;
+SET debug_sync= 'now WAIT_FOR con1_rdy';
+connection con6;
+INSERT INTO t1 VALUES (6, 2, '');
+XA END 'x6';
+XA PREPARE 'x6';
+SET debug_sync= 'rollback_handlerton_after SIGNAL con6_rdy WAIT_FOR crash';
+XA ROLLBACK 'x6';
+connection default;
+SET debug_sync= 'now WAIT_FOR con6_rdy';
+connection con5;
+INSERT INTO t1 VALUES (5, 2, '');
+XA END 'x5';
+XA PREPARE 'x5';
+SET debug_sync= 'ibb_after_rollback_redo_log SIGNAL con5_rdy WAIT_FOR crash';
+XA ROLLBACK 'x5';
+connection default;
+SET debug_sync= 'now WAIT_FOR con5_rdy';
+FLUSH BINARY LOGS;
+connection con2;
+INSERT INTO t1 VALUES (2, 2, '');
+INSERT INTO t1 VALUES (2, 3, REPEAT('<x2>', 10001));
+XA END 'x2';
+SET debug_sync= 'at_unlog_xa_prepare SIGNAL con2_rdy WAIT_FOR crash';
+XA PREPARE 'x2';
+connection default;
+SET debug_sync= 'now WAIT_FOR con2_rdy';
+connection con4;
+INSERT INTO t1 VALUES (4, 2, '');
+XA END 'x4';
+XA PREPARE 'x4';
+SET debug_sync= 'commit_handlerton_after SIGNAL con4_rdy WAIT_FOR crash';
+XA COMMIT 'x4';
+connection default;
+SET debug_sync= 'now WAIT_FOR con4_rdy';
+# restart
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+connection default;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	2	0	x2
+XA COMMIT 'x2';
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000000.ibb	#	Gtid	#	#	GTID #-#-#
+binlog-000000.ibb	#	Query	#	#	use `test`; CREATE TABLE t1(a INT NOT NULL, b INT NOT NULL, c LONGBLOB, PRIMARY KEY(a, b)) ENGINE=InnoDB
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (0, 1, '')
+binlog-000000.ibb	#	Table_map	#	#	table_id: # (test.t1)
+binlog-000000.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Xid	#	#	COMMIT /* XID */
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (0, 2, '')
+binlog-000000.ibb	#	Table_map	#	#	table_id: # (test.t1)
+binlog-000000.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Xid	#	#	COMMIT /* XID */
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (0, 3, '')
+binlog-000000.ibb	#	Table_map	#	#	table_id: # (test.t1)
+binlog-000000.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Xid	#	#	COMMIT /* XID */
+include/show_binlog_events.inc
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000002.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000002.ibb	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (3, 1, '')
+binlog-000002.ibb	#	Table_map	#	#	table_id: # (test.t1)
+binlog-000002.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000002.ibb	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (3, 2, '')
+binlog-000002.ibb	#	Table_map	#	#	table_id: # (test.t1)
+binlog-000002.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000002.ibb	#	Query	#	#	COMMIT
+FLUSH BINARY LOGS;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000003.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000003.ibb	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (4, 1, REPEAT('<x4>', 10000))
+binlog-000003.ibb	#	Table_map	#	#	table_id: # (test.t1)
+binlog-000003.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000003.ibb	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (4, 2, '')
+binlog-000003.ibb	#	Table_map	#	#	table_id: # (test.t1)
+binlog-000003.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000003.ibb	#	Query	#	#	COMMIT
+binlog-000003.ibb	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+binlog-000003.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000003.ibb	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (2, 1, REPEAT('<x2>', 10000))
+binlog-000003.ibb	#	Table_map	#	#	table_id: # (test.t1)
+binlog-000003.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000003.ibb	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (2, 2, '')
+binlog-000003.ibb	#	Table_map	#	#	table_id: # (test.t1)
+binlog-000003.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000003.ibb	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (2, 3, REPEAT('<x2>', 10001))
+binlog-000003.ibb	#	Table_map	#	#	table_id: # (test.t1)
+binlog-000003.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000003.ibb	#	Query	#	#	COMMIT
+SELECT a, b, LENGTH(c) FROM t1 ORDER BY a, b;
+a	b	LENGTH(c)
+0	1	0
+0	2	0
+0	3	0
+2	1	40000
+2	2	0
+2	3	40004
+3	1	0
+3	2	0
+4	1	40000
+4	2	0
+*** Test that we can purge, no leaked XA/OOB refs.
+SET @old_min_slaves= @@GLOBAL.slave_connections_needed_for_purge;
+SET GLOBAL slave_connections_needed_for_purge= 0;
+FLUSH BINARY LOGS;
+PURGE BINARY LOGS TO 'binlog-000004.ibb';
+SET GLOBAL slave_connections_needed_for_purge= @old_min_slaves;
+DROP TABLE t1;

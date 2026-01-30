@@ -71,5 +71,6 @@ CALL mtr.add_suppression('You need to use --log-bin to make --binlog-format work
 
 --connection node_1
 set global wsrep_on=OFF;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 set global wsrep_on=ON;

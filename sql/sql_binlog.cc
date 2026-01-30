@@ -57,21 +57,6 @@ static int check_event_type(int type, Relay_log_info *rli)
   {
   case START_EVENT_V3:
   case FORMAT_DESCRIPTION_EVENT:
-    /*
-      We need a preliminary FD event in order to parse the FD event,
-      if we don't already have one.
-    */
-    if (!fd_event)
-      if (!(rli->relay_log.description_event_for_exec=
-            new Format_description_log_event(4)))
-      {
-        my_error(ER_OUTOFMEMORY, MYF(0), 1);
-        return 1;
-      }
-
-    /* It is always allowed to execute FD events. */
-    return 0;
-
   case QUERY_EVENT:
   case TABLE_MAP_EVENT:
   case WRITE_ROWS_EVENT_V1:
@@ -83,19 +68,8 @@ static int check_event_type(int type, Relay_log_info *rli)
   case PRE_GA_WRITE_ROWS_EVENT:
   case PRE_GA_UPDATE_ROWS_EVENT:
   case PRE_GA_DELETE_ROWS_EVENT:
-    /*
-      Row events are only allowed if a Format_description_event has
-      already been seen.
-    */
-    if (fd_event)
-      return 0;
-    else
-    {
-      my_error(ER_NO_FORMAT_DESCRIPTION_EVENT_BEFORE_BINLOG_STATEMENT,
-               MYF(0), Log_event::get_type_str((Log_event_type)type));
-      return 1;
-    }
-    break;
+  case PARTIAL_ROW_DATA_EVENT:
+    return 0;
 
   default:
     /*
@@ -273,6 +247,7 @@ void mysql_client_binlog_statement(THD* thd)
   const char *error= 0;
   Log_event *ev = 0;
   my_bool is_fragmented= FALSE;
+  my_bool keep_rgi= false;
   /*
     Out of memory check
   */
@@ -327,6 +302,19 @@ void mysql_client_binlog_statement(THD* thd)
     }
     else if (bytes_decoded == 0)
       break; // If no bytes where read, the string contained only whitespace
+
+    /*
+      Create a default format description event.
+      This is used to read the real Format_description_log_event, or to read
+      all events if there is none (as happens with --binlog-storage-engine).
+    */
+    if (!rli->relay_log.description_event_for_exec &&
+        !(rli->relay_log.description_event_for_exec=
+          new Format_description_log_event(4)))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      goto end;
+    }
 
     DBUG_ASSERT(bytes_decoded > 0);
     DBUG_ASSERT(endptr > strptr);
@@ -424,6 +412,16 @@ void mysql_client_binlog_statement(THD* thd)
         */
         LEX *backup_lex;
 
+        /*
+          If we are re-assembling a Rows_log_event from a group of
+          Partial_rows_log_events, the rgi houses the assembler, so we need
+          it around while we are re-constructing the event.
+        */
+        if (ev->get_type_code() == PARTIAL_ROW_DATA_EVENT &&
+            (((Partial_rows_log_event *) ev)->seq_no <
+             ((Partial_rows_log_event *) ev)->total_fragments))
+          keep_rgi= true;
+
         thd->backup_and_reset_current_lex(&backup_lex);
         err= save_restore_context_apply_event(ev, rgi);
         thd->restore_current_lex(backup_lex);
@@ -466,7 +464,11 @@ end:
   thd->variables.option_bits= thd_options;
   rgi->slave_close_thread_tables(thd);
   my_free(buf);
-  delete rgi;
-  rgi= thd->rgi_fake= NULL;
+
+  if (!keep_rgi)
+  {
+    delete rgi;
+    rgi= thd->rgi_fake= NULL;
+  }
   DBUG_VOID_RETURN;
 }
