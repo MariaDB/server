@@ -5374,6 +5374,13 @@ class BackupStages {
                                 return false;
                         }
 
+                        if (!backup_files_from_datadir(backup_datasinks.m_data,
+                                                       fil_path_to_mysql_datadir,
+                                                       "mariadb_upgrade_info")) {
+                                msg("Error on root data dir files backup");
+                                return false;
+                        }
+
 			if (has_rocksdb_plugin()) {
 				rocksdb_create_checkpoint();
 			}
