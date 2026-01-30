@@ -201,7 +201,7 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
                                              void *table_join_idx,
                                              bool do_substitution);
 static COND *simplify_joins(JOIN *join, List<TABLE_LIST> *join_list,
-                            COND *conds, bool top, bool in_sj);
+                            COND *conds, bool in_sj);
 static bool check_interleaving_with_nj(JOIN_TAB *next);
 static void restore_prev_nj_state(JOIN_TAB *last);
 static uint reset_nj_counters(JOIN *join, List<TABLE_LIST> *join_list);
@@ -2359,7 +2359,7 @@ JOIN::optimize_inner()
     sel->first_cond_optimization= 0;
 
     /* Convert all outer joins to inner joins if possible */
-    conds= simplify_joins(this, join_list, conds, TRUE, FALSE);
+    conds= simplify_joins(this, join_list, conds, FALSE);
 
     add_table_function_dependencies(join_list, table_map(-1), &error);
 
@@ -19892,7 +19892,6 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
   @param join        reference to the query info
   @param join_list   list representation of the join to be converted
   @param conds       conditions to add on expressions for converted joins
-  @param top         true <=> conds is the where condition
   @param in_sj       TRUE <=> processing semi-join nest's children
   @return
     - The new condition, if success
@@ -19900,8 +19899,7 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
 */
 
 static COND *
-simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
-               bool in_sj)
+simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
 {
   TABLE_LIST *table;
   NESTED_JOIN *nested_join;
@@ -19937,7 +19935,7 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
            the corresponding on expression is added to E. 
 	*/ 
         expr= simplify_joins(join, &nested_join->join_list,
-                             expr, FALSE, in_sj || table->sj_on_expr);
+                             expr, in_sj || table->sj_on_expr);
 
         if (!table->prep_on_expr || expr != table->on_expr)
         {
@@ -19949,7 +19947,7 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       }
       nested_join->used_tables= (table_map) 0;
       nested_join->not_null_tables=(table_map) 0;
-      conds= simplify_joins(join, &nested_join->join_list, conds, top, 
+      conds= simplify_joins(join, &nested_join->join_list, conds,
                             in_sj || table->sj_on_expr);
       used_tables= nested_join->used_tables;
       not_null_tables= nested_join->not_null_tables;  
