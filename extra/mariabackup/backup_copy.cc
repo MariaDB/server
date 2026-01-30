@@ -1926,6 +1926,29 @@ copy_back()
 
 	rocksdb_copy_back(ds_tmp);
 
+	if (ret) {
+		MY_STAT stat;
+
+		memset(&stat, 0, sizeof(stat));
+		stat.st_size = strlen(MYSQL_SERVER_VERSION);
+		stat.st_mtime = my_time(0);
+
+		ds_file_t *upgrade_info_file = ds_open(ds_tmp, "mariadb_upgrade_info", &stat);
+		if (!upgrade_info_file) {
+			msg("Warning: Failed to create mariadb_upgrade_info");
+			goto cleanup;
+		}
+
+		if (ds_write(upgrade_info_file, MYSQL_SERVER_VERSION,
+					 strlen(MYSQL_SERVER_VERSION)) != 0) {
+			msg("Warning: Failed to write mariadb_upgrade_info");
+			ds_close(upgrade_info_file);
+			goto cleanup;
+		}
+
+		ds_close(upgrade_info_file);
+	}
+
 cleanup:
 	if (it != NULL) {
 		datadir_iter_free(it);
