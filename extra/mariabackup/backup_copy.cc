@@ -1519,6 +1519,9 @@ ibx_copy_incremental_over_full()
 		    !(ret = backup_files_from_datadir(ds_data,
 						      xtrabackup_incremental_dir,
 						      "aria_log")) ||
+		    !(ret = backup_files_from_datadir(ds_data,
+						      xtrabackup_incremental_dir,
+						      "mariadb_upgrade_info")) ||
 		    !(ret = backup_mroonga_files_from_datadir(ds_data,
 						      xtrabackup_incremental_dir)))
 			goto cleanup;

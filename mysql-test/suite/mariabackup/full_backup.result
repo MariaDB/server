@@ -41,3 +41,19 @@ undo001
 undo002
 XA COMMIT 'zombie';
 DROP TABLE t;
+#
+# MDEV-34713: mariadb_upgrade_info should be backed up and restored
+#
+CREATE TABLE t2(i INT) ENGINE INNODB;
+INSERT INTO t2 VALUES(100);
+# xtrabackup backup
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart: --innodb_undo_tablespaces=0
+FOUND 1 /^[0-9]+\.[0-9]+\.[0-9]+/ in mariadb_upgrade_info
+SELECT * FROM t2;
+i
+100
+DROP TABLE t2;
