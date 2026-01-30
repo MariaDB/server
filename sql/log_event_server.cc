@@ -6005,6 +6005,12 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       goto err;
     }
 
+    DBUG_EXECUTE_IF("rows_log_event_after_open_table", {
+      const char action[]=
+          "now SIGNAL after_open_table WAIT_FOR continue_rows_ev";
+      DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(action)));
+    };);
+
     /*
       When the open and locking succeeded, we check all tables to
       ensure that they still have the correct type.
