@@ -172,6 +172,8 @@ and unique key errors. Only created if !srv_read_only_mode */
 FILE*	dict_foreign_err_file		= NULL;
 /* mutex protecting the foreign and unique error buffers */
 mysql_mutex_t dict_foreign_err_mutex;
+/** Number of foreign key constraint violations */
+ulint	dict_foreign_key_errors		= 0;
 
 /********************************************************************//**
 Checks if the database name in two table names is the same.

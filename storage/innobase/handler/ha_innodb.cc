@@ -73,6 +73,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "buf0flu.h"
 #include "buf0lru.h"
 #include "dict0boot.h"
+#include "dict0dict.h"
 #include "dict0load.h"
 #include "dict0crea.h"
 #include "dict0stats.h"
@@ -993,6 +994,7 @@ static SHOW_VAR innodb_status_variables[]= {
   {"dblwr_pages_written", &export_vars.innodb_dblwr_pages_written,SHOW_SIZE_T},
   {"dblwr_writes", &export_vars.innodb_dblwr_writes, SHOW_SIZE_T},
   {"deadlocks", &lock_sys.deadlocks, SHOW_SIZE_T},
+  {"foreign_key_errors", &dict_foreign_key_errors, SHOW_SIZE_T},
   {"history_list_length", &export_vars.innodb_history_list_length,SHOW_SIZE_T},
   {"log_waits", &log_sys.waits, SHOW_SIZE_T},
   {"log_write_requests", &log_sys.write_to_buf, SHOW_SIZE_T},

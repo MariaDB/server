@@ -1,0 +1,97 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-32688: Test innodb_foreign_key_errors status variable
+--echo #
+
+--echo # Setup
+CREATE TABLE parent (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE child (
+    id INT PRIMARY KEY,
+    parent_id INT,
+    FOREIGN KEY (parent_id) REFERENCES parent(id)
+) ENGINE=InnoDB;
+
+INSERT INTO parent VALUES (1), (2), (3);
+INSERT INTO child VALUES (1, 1), (2, 2);
+
+--echo # Counter starts at 0
+SHOW GLOBAL STATUS LIKE 'innodb_foreign_key_errors';
+
+--echo # Child-side violations (INSERT, UPDATE, REPLACE, INSERT...SELECT)
+--error ER_NO_REFERENCED_ROW_2
+INSERT INTO child VALUES (10, 999);
+
+--error ER_NO_REFERENCED_ROW_2
+UPDATE child SET parent_id = 888 WHERE id = 1;
+
+--error ER_NO_REFERENCED_ROW_2
+REPLACE INTO child VALUES (30, 777);
+
+--error ER_NO_REFERENCED_ROW_2
+INSERT INTO child (id, parent_id) SELECT 40, 555;
+
+--echo # Parent-side violations (DELETE, UPDATE)
+--error ER_ROW_IS_REFERENCED_2
+DELETE FROM parent WHERE id = 1;
+
+--error ER_ROW_IS_REFERENCED_2
+UPDATE parent SET id = 100 WHERE id = 1;
+
+--echo # Counter after 6 violations
+SHOW GLOBAL STATUS LIKE 'innodb_foreign_key_errors';
+
+--echo # Successful operations should NOT increment
+INSERT INTO child VALUES (50, 3);
+UPDATE child SET parent_id = 1 WHERE id = 50;
+DELETE FROM child WHERE id = 50;
+INSERT INTO child VALUES (60, NULL);
+DELETE FROM child WHERE id = 60;
+
+--echo # Counter unchanged after successful operations
+SHOW GLOBAL STATUS LIKE 'innodb_foreign_key_errors';
+
+--echo # FOREIGN_KEY_CHECKS=0 should NOT increment
+SET FOREIGN_KEY_CHECKS = 0;
+INSERT INTO child VALUES (70, 999);
+SET FOREIGN_KEY_CHECKS = 1;
+DELETE FROM child WHERE id = 70;
+
+--echo # Counter unchanged with FK checks disabled
+SHOW GLOBAL STATUS LIKE 'innodb_foreign_key_errors';
+
+--echo # CASCADE chain failure
+CREATE TABLE grandparent (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE parent_cascade (
+    id INT PRIMARY KEY,
+    gp_id INT,
+    FOREIGN KEY (gp_id) REFERENCES grandparent(id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+CREATE TABLE child_cascade (
+    id INT PRIMARY KEY,
+    parent_id INT,
+    FOREIGN KEY (parent_id) REFERENCES parent_cascade(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO grandparent VALUES (1);
+INSERT INTO parent_cascade VALUES (1, 1);
+INSERT INTO child_cascade VALUES (1, 1);
+
+--error ER_ROW_IS_REFERENCED_2
+DELETE FROM grandparent WHERE id = 1;
+
+--echo # Counter after CASCADE chain failure
+SHOW GLOBAL STATUS LIKE 'innodb_foreign_key_errors';
+
+DROP TABLE child_cascade;
+DROP TABLE parent_cascade;
+DROP TABLE grandparent;
+
+--echo # Counter resets after restart
+--source include/restart_mysqld.inc
+
+SHOW GLOBAL STATUS LIKE 'innodb_foreign_key_errors';
+
+--echo # Cleanup
+DROP TABLE child;
+DROP TABLE parent;
