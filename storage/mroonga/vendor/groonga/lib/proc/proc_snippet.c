@@ -174,7 +174,7 @@ func_snippet(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
                          default_open_tag, default_open_tag_length,
                          default_close_tag, default_close_tag_length, mapping);
     if (snip) {
-      grn_rc rc;
+      grn_rc rc __attribute__((unused));
       unsigned int i;
       if (!normalizer_name) {
         grn_snip_set_normalizer(ctx, snip, GRN_NORMALIZER_AUTO);
