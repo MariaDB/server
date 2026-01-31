@@ -4034,7 +4034,7 @@ row_search_idx_cond_check(
 	byte*			mysql_rec,	/*!< out: record
 						in MySQL format (invalid unless
 						prebuilt->idx_cond!=NULL and
-						we return ICP_MATCH) */
+						we return CHECK_POS) */
 	row_prebuilt_t*		prebuilt,	/*!< in/out: prebuilt struct
 						for the table handle */
 	const rec_t*		rec,		/*!< in: InnoDB record */

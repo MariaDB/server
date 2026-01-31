@@ -24,6 +24,7 @@ INSERT INTO t1 VALUES (1,'node_1');
 --connection node_2
 --error ER_LOCK_DEADLOCK
 INSERT INTO t1 VALUES (2, 'node_2');
+COMMIT;
 
 --let $wsrep_local_bf_aborts_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`
 
@@ -32,3 +33,4 @@ INSERT INTO t1 VALUES (2, 'node_2');
 --enable_query_log
 
 DROP TABLE t1;
+--source include/galera_end.inc

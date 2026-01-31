@@ -1175,7 +1175,7 @@ static bool make_empty_rec_store_default(THD *thd, Field *regfield,
     }
     return false;
   }
-  regfield->make_empty_rec_reset(thd);
+  regfield->make_empty_rec_reset();
   return false;
 }
 

@@ -1,0 +1,10 @@
+#
+# MDEV-35288: Assertion `!is_cond()' failed in
+# virtual longlong Item_bool_func::val_int()
+#
+CREATE TABLE t (a INT) ENGINE=INNODB;
+SELECT SUM(a), ROWNUM() AS r FROM t HAVING r=1;
+SUM(a)	r
+NULL	1
+DROP TABLE t;
+# End of 10.5 tests

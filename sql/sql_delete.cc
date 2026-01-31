@@ -160,11 +160,7 @@ bool Update_plan::save_explain_data_intern(THD *thd,
   /* Set jtype */
   if (select && select->quick)
   {
-    int quick_type= select->quick->get_type();
-    if ((quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE) ||
-        (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT) ||
-        (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT) ||
-        (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION))
+    if (is_index_merge(select->quick->get_type()))
       explain->jtype= JT_INDEX_MERGE;
     else
       explain->jtype= JT_RANGE;
@@ -474,13 +470,13 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     Apply the IN=>EXISTS transformation to all constant subqueries
     and optimize them.
 
-    It is too early to choose subquery optimization strategies without
-    an estimate of how many times the subquery will be executed so we
-    call optimize_unflattened_subqueries() with const_only= true, and
-    choose between materialization and in-to-exists later.
+    Constant subqueries are treated in a special way here: they can be
+    evaluated even in EXPLAIN statement, so their query plan must be
+    fully initialized for computation.
   */
-  if (select_lex->optimize_unflattened_subqueries(true))
+  if (select_lex->optimize_constant_subqueries())
     DBUG_RETURN(TRUE);
+
   optimize_subqueries= TRUE;
 
   const_cond= (!conds || conds->const_item());

@@ -226,6 +226,11 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
    */
   if ((ret || !wsrep_on(victim_thd)) && signal)
   {
+    WSREP_DEBUG("wsrep_thd_bf_abort thread %ld sending "
+                "KILL_QUERY_HARD to %ld ret=%d signal %d",
+                bf_thd->thread_id,
+                victim_thd->thread_id,
+                ret, signal);
     victim_thd->wsrep_aborter= bf_thd->thread_id;
     victim_thd->awake_no_mutex(KILL_QUERY_HARD);
   } else {

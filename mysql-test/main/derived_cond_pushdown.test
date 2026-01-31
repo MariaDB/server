@@ -4496,6 +4496,28 @@ drop table t;
 --echo # End of 10.5 tests
 
 --echo #
+--echo # MDEV-38487: Prevent aggregate functions cloning when pushing HAVING into WHERE
+--echo #
+
+CREATE TABLE t (a INT, b INT);
+INSERT INTO t VALUES (1, 10), (1, 20), (2, 50), (3, 100);
+
+# outer where to inner having pushdown
+let $q= SELECT * FROM (SELECT a, MAX(b) as max_b FROM t GROUP BY a) as dt WHERE dt.max_b > 25;
+eval explain format=JSON $q;
+eval $q;
+
+CREATE VIEW v AS SELECT a, MAX(b) as max_b FROM t GROUP BY a;
+let $q= SELECT * FROM v where max_b > 25;
+eval explain format=JSON $q;
+eval $q;
+
+DROP VIEW v;
+DROP TABLE t;
+
+--echo # End of 10.6 tests
+
+--echo #
 --echo # MDEV-28958: condition pushable into view after simplification
 --echo #             contains constant TRUE/FALSE as subformula
 --echo #
@@ -4515,3 +4537,18 @@ drop view v1,v2;
 drop table t1,t2;
 
 --echo # End of 10.7 tests
+
+--echo #
+--echo # MDEV-36686: Crash with DEFAULT() in WHERE clause with nested views
+--echo #
+
+create table t1 (a varchar(128));
+create view v1 as select a, count(*) from t1 group by a;
+create view v2 as select * from v1;
+
+select * from v2 where greatest(a, default(a));
+
+drop view v2, v1;
+drop table t1;
+
+--echo # End of 10.11 tests

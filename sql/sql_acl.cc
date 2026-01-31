@@ -2683,8 +2683,6 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
   SCOPE_CLEAR(thd->variables.sql_mode, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
-  grant_version++; /* Privileges updated */
-
   const Host_table& host_table= tables.host_table();
   init_sql_alloc(key_memory_acl_mem, &acl_memroot, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
   if (host_table.table_exists()) // "host" table may not exist (e.g. in MySQL 5.6.7+)
@@ -2972,6 +2970,10 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
   init_check_host();
 
+  if (thd->killed)
+    DBUG_RETURN(TRUE);
+
+  grant_version++;              // Privileges updated
   thd->bootstrap= !initialized; // keep FLUSH PRIVILEGES connection special
   initialized=1;
   DBUG_RETURN(FALSE);
@@ -7708,7 +7710,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
   thd->mem_root= old_root;
   mysql_mutex_unlock(&acl_cache->lock);
 
-  if (write_to_binlog)
+  if (write_to_binlog && !result)
   {
     if (write_bin_log(thd, FALSE, thd->query(), thd->query_length()))
       result= TRUE;
@@ -14255,24 +14257,30 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     Cast *passwd to an unsigned char, so that it doesn't extend the sign for
     *passwd > 127 and become 2**32-127+ after casting to uint.
   */
-  ulonglong len;
   size_t passwd_len;
 
   if (!(thd->client_capabilities & CLIENT_SECURE_CONNECTION))
-    len= strlen(passwd);
+  {
+    passwd_len= strlen(passwd);
+    db= thd->client_capabilities & CLIENT_CONNECT_WITH_DB ?
+      passwd + passwd_len + 1 : 0;  /* +1 to skip null terminator */
+  }
   else if (!(thd->client_capabilities & CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA))
-    len= (uchar)(*passwd++);
+  {
+    passwd_len= (uchar)(*passwd++);
+    db= thd->client_capabilities & CLIENT_CONNECT_WITH_DB ?
+      passwd + passwd_len : 0;
+  }
   else
   {
-    len= safe_net_field_length_ll((uchar**)&passwd,
+    ulonglong len= safe_net_field_length_ll((uchar**)&passwd,
                                       net->read_pos + pkt_len - (uchar*)passwd);
     if (len > pkt_len)
       return packet_error;
+    passwd_len= (size_t)len;
+    db= thd->client_capabilities & CLIENT_CONNECT_WITH_DB ?
+      passwd + passwd_len : 0;
   }
-
-  passwd_len= (size_t)len;
-  db= thd->client_capabilities & CLIENT_CONNECT_WITH_DB ?
-    db + passwd_len + 1 : 0;
 
   if (passwd == NULL ||
       passwd + passwd_len + MY_TEST(db) > (char*) net->read_pos + pkt_len)

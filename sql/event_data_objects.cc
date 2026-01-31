@@ -1476,8 +1476,9 @@ end:
       We must do it here since here we're under the right authentication
       ID of the event definer.
     */
-    sql_print_information("Event Scheduler: Dropping %s.%s",
-                          (const char *) dbname.str, (const char *) name.str);
+    if (global_system_variables.log_warnings > 2)
+      sql_print_information("Event Scheduler: Dropping %s.%s",
+                            dbname.str, name.str);
     /*
       Construct a query for the binary log, to ensure the event is dropped
       on the slave

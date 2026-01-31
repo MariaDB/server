@@ -88,7 +88,7 @@ void json_get_normalized_string(json_engine_t *je, String *res,
   }
   else if(je->value_type == JSON_VALUE_STRING)
   {
-    strncpy((char*)a_res.str, val.ptr(), je->value_len);
+    dynstr_set(&a_res, val.c_ptr());
     a_res.length= je->value_len;
   }
 

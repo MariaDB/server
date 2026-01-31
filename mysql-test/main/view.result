@@ -7096,8 +7096,18 @@ ERROR 22007: Truncated incorrect DECIMAL value: ''
 DROP VIEW v1;
 DROP TABLE t1, t2;
 #
-# End of 10.6 tests
+# MDEV-36888: Assertion `typeid(*copy) == typeid(*this)' in
+# Item_func_or_sum::do_build_clone
 #
+CREATE TABLE t (a INT default 1);
+INSERT INTO t VALUES (0),(2);
+CREATE ALGORITHM=TEMPTABLE VIEW v AS SELECT * FROM t;
+EXECUTE IMMEDIATE "SELECT * FROM v WHERE COERCIBILITY(VALUE(a)) > a";
+a
+0
+drop view v;
+drop table t;
+# End of 10.6 tests
 #
 # MDEV-29587: Allowing insert into a view with columns that
 # are not part the table
@@ -7142,6 +7152,10 @@ ERROR HY000: The target table view1 of the INSERT is not insertable-into
 DROP VIEW view1;
 DROP TABLE table1;
 #
-# End of 10.11 test
+# MDEV-37920 Out-of-Bounds memory access in File_parser::parse()
 #
+select * from v1;
+ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+drop view v1;
+# End of 10.11 test
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

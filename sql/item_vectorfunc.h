@@ -61,7 +61,7 @@ public:
     return NULL;
   }
   key_map part_of_sortkey() const override;
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_vec_distance>(thd, this); }
 };
 
@@ -82,7 +82,7 @@ public:
     static LEX_CSTRING name= { STRING_WITH_LEN("VEC_ToText") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_vec_totext>(thd, this); }
 };
 
@@ -99,7 +99,7 @@ public:
     static LEX_CSTRING name= { STRING_WITH_LEN("VEC_FromText") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_vec_fromtext>(thd, this); }
 };
 #endif

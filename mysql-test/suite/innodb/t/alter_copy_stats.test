@@ -88,3 +88,12 @@ FROM mysql.innodb_table_stats WHERE table_name LIKE '%t2%';
 --echo # Test Cleanup.
 DROP TABLE t1;
 DROP TABLE t2;
+
+--echo #
+--echo # MDEV-38667 Assertion in diagnostics area on DDL stats timeout
+--echo #
+set @lock_wait_timeout= @@global.innodb_lock_wait_timeout;
+SET innodb_lock_wait_timeout = 1;
+CREATE TABLE t ENGINE=InnoDB AS SELECT * FROM mysql.innodb_table_stats;
+SET innodb_lock_wait_timeout = @lock_wait_timeout;
+DROP TABLE t;

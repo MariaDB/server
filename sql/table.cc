@@ -3825,7 +3825,6 @@ bool Virtual_column_info::cleanup_session_expr()
 }
 
 
-
 class Vcol_expr_context
 {
   bool inited;

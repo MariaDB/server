@@ -296,15 +296,18 @@ public:
       str->append(tmp);
       str->append('\'');
     }
-    Item *do_get_copy(THD *thd) const override
-    { return get_item_copy<Item_literal_fbt>(thd, this); }
-    Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 
     // Non-overriding methods
     void set_value(const Fbt &value)
     {
       m_value= value;
     }
+
+  protected:
+    Item *shallow_copy(THD *thd) const override
+    { return get_item_copy<Item_literal_fbt>(thd, this); }
+    Item *deep_copy(THD *thd) const override
+    { return shallow_copy_with_checks(thd); }
   };
 
   class Field_fbt: public Field
@@ -876,9 +879,12 @@ public:
     {
       return Item::save_in_field(field, no_conversions);
     }
-    Item *do_get_copy(THD *thd) const override
+
+  protected:
+    Item *shallow_copy(THD *thd) const override
     { return get_item_copy<Item_copy_fbt>(thd, this); }
-    Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
+    Item *deep_copy(THD *thd) const override
+    { return shallow_copy_with_checks(thd); }
   };
 
   class Item_char_typecast_func_handler_fbt_to_binary:
@@ -990,7 +996,9 @@ public:
       Fbt_null tmp(Item_fbt_func::args[0]);
       return Item_fbt_func::null_value= tmp.is_null() || tmp.to_native(to);
     }
-    Item *do_get_copy(THD *thd) const override
+
+  protected:
+    Item *shallow_copy(THD *thd) const override
     { return get_item_copy<Item_typecast_fbt>(thd, this); }
   };
 
@@ -1000,9 +1008,6 @@ public:
   public:
     Item_cache_fbt(THD *thd)
      :Item_cache(thd, singleton()) { }
-    Item *do_get_copy(THD *thd) const override
-    { return get_item_copy<Item_cache_fbt>(thd, this); }
-    Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
     bool cache_value() override
     {
       if (!example)
@@ -1066,6 +1071,12 @@ public:
         return true;
       return to->copy(m_value.ptr(), m_value.length());
     }
+
+  protected:
+    Item *shallow_copy(THD *thd) const override
+    { return get_item_copy<Item_cache_fbt>(thd, this); }
+    Item *deep_copy(THD *thd) const override
+    { return shallow_copy_with_checks(thd); }
   };
 
   /* =[ methods ]=============================================== */
