@@ -660,8 +660,8 @@ Log_event::do_shall_skip(rpl_group_info *rgi)
                       rli->slave_skip_counter));
   if ((server_id == global_system_variables.server_id &&
        !(rli->replicate_same_server_id || (flags &  LOG_EVENT_ACCEPT_OWN_F))) ||
-      rgi->gtid_ignore_duplicate_state ==
-        rpl_group_info::GTID_DUPLICATE_IGNORE ||
+      (is_group_event(get_type_code()) && rgi->gtid_ignore_duplicate_state ==
+         rpl_group_info::GTID_DUPLICATE_IGNORE) ||
       (rli->slave_skip_counter == 1 && rli->is_in_group()) ||
       (flags & LOG_EVENT_SKIP_REPLICATION_F &&
        opt_replicate_events_marked_for_skip != RPL_SKIP_REPLICATE))
