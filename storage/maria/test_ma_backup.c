@@ -103,7 +103,7 @@ static int copy_table(const char *table_name, int stage)
                          O_RDONLY | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
                          MYF(MY_WME))) < 0)
     goto err;
-  if ((error= aria_get_capabilities(org_file, &cap)))
+  if ((error= aria_get_capabilities(org_file, table_name, &cap)))
   {
     fprintf(stderr, "aria_get_capabilities failed:  %d\n", error);
     goto err;

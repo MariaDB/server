@@ -3603,6 +3603,14 @@ create or replace table t (a int) with system versioning
 partition by system_time interval 10 year;
 drop table t;
 #
-# End of 10.11 tests
+# MDEV-38710 Assertion is_lock_owner on error returning from auto-create in mysql_admin_table
 #
+set timestamp=2147483647;
+create table t (x int) with system versioning partition by system_time interval 1 hour auto;
+repair table t;
+Table	Op	Msg_type	Msg_text
+test.t	repair	status	OK
+drop table t;
+set timestamp=default;
+# End of 10.11 tests
 set global innodb_stats_persistent= @save_persistent;
