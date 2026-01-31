@@ -498,7 +498,7 @@ SELECT DISTINCT POW(COUNT(distinct a), @a:=(SELECT 1 FROM t1 LEFT JOIN t1 AS t2 
 SELECT @a;
 DROP TABLE t1;
 
---echo End of 5.5 tests
+--echo # End of 5.5 tests
 
 --echo #
 --echo # Check that used memory extends if we set a variable
@@ -506,9 +506,9 @@ DROP TABLE t1;
 
 --disable_service_connection
 # Execute twice so number stablizes a bit
-let $tmp= `select memory_used from information_schema.processlist`;
+let $tmp= `select memory_used from information_schema.processlist where id=connection_id()`;
 set @var= repeat('a',30000);
-let $tmp2= `select memory_used from information_schema.processlist`;
+let $tmp2= `select memory_used from information_schema.processlist where id=connection_id()`;
 --disable_query_log
 --disable_column_names
 eval select $tmp < $tmp2;

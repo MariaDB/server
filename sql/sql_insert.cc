@@ -4539,6 +4539,9 @@ bool select_insert::prepare_eof()
     DBUG_RETURN(1);
   if (error <= 0)
   {
+    /* Don't convert the warning to error in case
+    statistics updation fails */
+    Abort_on_warning_instant_set save_abort_on_warning(thd, false);
     error= table->file->extra(HA_EXTRA_END_ALTER_COPY);
     if (error == HA_ERR_FOUND_DUPP_KEY)
     {

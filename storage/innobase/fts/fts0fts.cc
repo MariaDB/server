@@ -1485,17 +1485,15 @@ fts_rename_aux_tables(
 		}
 	}
 
-	fts_t*	fts = table->fts;
+	for (dict_index_t *index = dict_table_get_first_index(table);
+	     index; index = dict_table_get_next_index(index)) {
+		if (!(index->type & DICT_FTS)) {
+			continue;
+		}
 
-	/* Rename index specific auxiliary tables */
-	for (i = 0; fts->indexes != 0 && i < ib_vector_size(fts->indexes);
-	     ++i) {
-		dict_index_t*	index;
+		FTS_INIT_INDEX_TABLE(&fts_table, nullptr,
+				     FTS_INDEX_TABLE, index);
 
-		index = static_cast<dict_index_t*>(
-			ib_vector_getp(fts->indexes, i));
-
-		FTS_INIT_INDEX_TABLE(&fts_table, NULL, FTS_INDEX_TABLE, index);
 
 		for (ulint j = 0; j < FTS_NUM_AUX_INDEX; ++j) {
 			fts_table.suffix = fts_get_suffix(j);
@@ -2701,7 +2699,7 @@ func_exit:
 		}
 	}
 
-	trx->free();
+	trx->clear_and_free();
 
 	return(error);
 }
@@ -2777,7 +2775,7 @@ fts_update_sync_doc_id(
 
 			fts_sql_rollback(trx);
 		}
-		trx->free();
+		trx->clear_and_free();
 	}
 
 	return(error);
@@ -2997,7 +2995,7 @@ fts_commit_table(
 
 	fts_sql_commit(trx);
 
-	trx->free();
+	trx->clear_and_free();
 
 	return(error);
 }
@@ -4211,7 +4209,7 @@ fts_sync_commit(
 
 	/* Avoid assertion in trx_t::free(). */
 	trx->dict_operation_lock_mode = false;
-	trx->free();
+	trx->clear_and_free();
 
 	return(error);
 }
@@ -4261,7 +4259,7 @@ fts_sync_rollback(
 
 	/* Avoid assertion in trx_t::free(). */
 	trx->dict_operation_lock_mode = false;
-	trx->free();
+	trx->clear_and_free();
 }
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
@@ -5937,7 +5935,7 @@ cleanup:
 			fts_sql_rollback(trx);
 		}
 
-		trx->free();
+		trx->clear_and_free();
 	}
 
 	if (!cache->stopword_info.cached_stopword) {
