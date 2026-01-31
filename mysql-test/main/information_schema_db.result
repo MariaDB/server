@@ -378,6 +378,44 @@ disconnect con1;
 connection default;
 drop user u@localhost;
 drop database db;
-#
 # End of 10.4 tests
 #
+# MDEV-38209 REFERENCES permission on particular schema is sometimes ignored
+#
+create database db1;
+CREATE TABLE db1.author (
+id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(100) NOT NULL
+) ENGINE = InnoDB;
+CREATE TABLE db1.book (
+id MEDIUMINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+title VARCHAR(200) NOT NULL,
+author_id SMALLINT UNSIGNED NOT NULL,
+CONSTRAINT `fk_book_author`
+    FOREIGN KEY (author_id) REFERENCES db1.author (id)
+ON DELETE CASCADE
+ON UPDATE RESTRICT
+) ENGINE = InnoDB;
+grant select on *.* to u@localhost;
+grant select, references on db1.* to u@localhost;
+connect u,localhost,u,,db1;
+select user();
+user()
+u@localhost
+show grants;
+Grants for u@localhost
+GRANT SELECT ON *.* TO `u`@`localhost`
+GRANT SELECT, REFERENCES ON `db1`.* TO `u`@`localhost`
+select table_name,constraint_name from information_schema.referential_constraints;
+table_name	constraint_name
+book	fk_book_author
+select table_name,constraint_name from information_schema.table_constraints;
+table_name	constraint_name
+author	PRIMARY
+book	PRIMARY
+book	fk_book_author
+disconnect u;
+connection default;
+drop user u@localhost;
+drop database db1;
+# End of 10.11 tests

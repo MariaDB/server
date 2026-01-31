@@ -2281,6 +2281,9 @@ public:
       Item_ident::print(str, query_type);
   }
   Ref_Type ref_type() override final { return AGGREGATE_REF; }
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_aggregate_ref>(thd, this); }
 };
 
 
@@ -2777,7 +2780,7 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
    @retval 0 on a failure
 */
 
-Item* Item_func_or_sum::do_build_clone(THD *thd) const
+Item* Item_func_or_sum::deep_copy(THD *thd) const
 {
   Item *copy_tmp_args[2]= {0,0};
   Item **copy_args= copy_tmp_args;
@@ -2790,12 +2793,12 @@ Item* Item_func_or_sum::do_build_clone(THD *thd) const
   }
   for (uint i= 0; i < arg_count; i++)
   {
-    Item *arg_clone= args[i]->build_clone(thd);
+    Item *arg_clone= args[i]->deep_copy_with_checks(thd);
     if (unlikely(!arg_clone))
       return 0;
     copy_args[i]= arg_clone;
   }
-  Item_func_or_sum *copy= static_cast<Item_func_or_sum *>(get_copy(thd));
+  Item_func_or_sum *copy= static_cast<Item_func_or_sum *>(shallow_copy_with_checks(thd));
   if (unlikely(!copy))
     return 0;
   if (arg_count > 2)
@@ -3097,13 +3100,13 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
      0 if an error occurred
 */ 
 
-Item* Item_ref::do_build_clone(THD *thd) const
+Item* Item_ref::deep_copy(THD *thd) const
 {
-  Item_ref *copy= (Item_ref *) get_copy(thd);
+  Item_ref *copy= (Item_ref *) shallow_copy_with_checks(thd);
   if (unlikely(!copy) ||
       unlikely(!(copy->ref= (Item**) alloc_root(thd->mem_root,
                                                 sizeof(Item*)))) ||
-      unlikely(!(*copy->ref= (* ref)->build_clone(thd))))
+      unlikely(!(*copy->ref= (* ref)->deep_copy_with_checks(thd))))
     return 0;
   return copy;
 }
@@ -3928,7 +3931,7 @@ void Item_decimal::set_decimal_value(my_decimal *value_par)
 }
 
 
-Item *Item_decimal::clone_item(THD *thd) const
+Item *Item_decimal::clone_constant(THD *thd) const
 {
   return new (thd->mem_root) Item_decimal(thd, name.str, &decimal_value, decimals,
                                          max_length);
@@ -3949,7 +3952,7 @@ my_decimal *Item_float::val_decimal(my_decimal *decimal_value)
 }
 
 
-Item *Item_float::clone_item(THD *thd) const
+Item *Item_float::clone_constant(THD *thd) const
 {
   return new (thd->mem_root) Item_float(thd, name.str, value, decimals,
                                        max_length);
@@ -4121,7 +4124,7 @@ Item *Item_null::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   return this;
 }
 
-Item *Item_null::clone_item(THD *thd) const
+Item *Item_null::clone_constant(THD *thd) const
 {
   return new (thd->mem_root) Item_null(thd, name.str);
 }
@@ -4986,7 +4989,7 @@ Item *Item_param::value_clone_item(THD *thd) const
 /* see comments in the header file */
 
 Item *
-Item_param::clone_item(THD *thd) const
+Item_param::clone_constant(THD *thd) const
 {
   // There's no "default". See comments in Item_param::save_in_field().
   switch (state) {
@@ -5920,10 +5923,19 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     select= outer_context->select_lex;
     Item_subselect *prev_subselect_item=
       last_checked_context->select_lex->master_unit()->item;
+    /*
+      We have merged to the top select and this field is no longer outer,
+      or we have reached the outermost select without resolution
+    */
+    bool at_top= !prev_subselect_item;
     last_checked_context= outer_context;
     upward_lookup= TRUE;
 
-    place= prev_subselect_item->parsing_place;
+    if (!at_top)
+      place= prev_subselect_item->parsing_place;
+    else
+      place= NO_MATTER;
+
     /*
       If outer_field is set, field was already found by first call
       to find_field_in_tables(). Only need to find appropriate context.
@@ -5978,8 +5990,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         }
         if (*from_field != view_ref_found)
         {
-          prev_subselect_item->used_tables_cache|= (*from_field)->table->map;
-          prev_subselect_item->const_item_cache= 0;
+          if (!at_top)
+          {
+            prev_subselect_item->used_tables_cache|= (*from_field)->table->map;
+            prev_subselect_item->const_item_cache= 0;
+          }
           set_field(*from_field);
           if (!last_checked_context->select_lex->having_fix_field &&
               select->group_list.elements &&
@@ -6028,7 +6043,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         else
         {
           Item::Type ref_type= (*reference)->type();
-          prev_subselect_item->used_tables_and_const_cache_join(*reference);
+          if (!at_top)
+            prev_subselect_item->used_tables_and_const_cache_join(*reference);
           mark_as_dependent(thd, last_checked_context->select_lex,
                             context->select_lex, this,
                             ((ref_type == REF_ITEM || ref_type == FIELD_ITEM) ?
@@ -6076,7 +6092,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
           if (refref->fixed())
             (*ref)->fix_fields_if_needed( thd, reference);
         }
-        if ((*ref)->fixed())
+        if (!at_top && (*ref)->fixed())
           prev_subselect_item->used_tables_and_const_cache_join(*ref);
 
         break;
@@ -6088,8 +6104,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       outer select (or we just trying to find wrong identifier, in this
       case it does not matter which used tables bits we set)
     */
-    prev_subselect_item->used_tables_cache|= OUTER_REF_TABLE_BIT;
-    prev_subselect_item->const_item_cache= 0;
+    if (!at_top)
+    {
+      prev_subselect_item->used_tables_cache|= OUTER_REF_TABLE_BIT;
+      prev_subselect_item->const_item_cache= 0;
+    }
   }
 
   DBUG_ASSERT(ref != 0);
@@ -7133,7 +7152,7 @@ int Item_string::save_in_field(Field *field, bool no_conversions)
 }
 
 
-Item *Item_string::clone_item(THD *thd) const
+Item *Item_string::clone_constant(THD *thd) const
 {
   LEX_CSTRING val;
   str_value.get_value(&val);
@@ -7197,7 +7216,7 @@ int Item_int::save_in_field(Field *field, bool no_conversions)
 }
 
 
-Item *Item_int::clone_item(THD *thd) const
+Item *Item_int::clone_constant(THD *thd) const
 {
   return new (thd->mem_root) Item_int(thd, name.str, value, max_length, unsigned_flag);
 }
@@ -7226,7 +7245,7 @@ int Item_decimal::save_in_field(Field *field, bool no_conversions)
 }
 
 
-Item *Item_int_with_ref::clone_item(THD *thd) const
+Item *Item_int_with_ref::clone_constant(THD *thd) const
 {
   DBUG_ASSERT(ref->const_item());
   /*
@@ -7322,7 +7341,7 @@ Item *Item_uint::neg(THD *thd)
 }
 
 
-Item *Item_uint::clone_item(THD *thd) const
+Item *Item_uint::clone_constant(THD *thd) const
 {
   return new (thd->mem_root) Item_uint(thd, name.str, value, max_length);
 }
@@ -7560,7 +7579,7 @@ void Item_date_literal::print(String *str, enum_query_type query_type)
 }
 
 
-Item *Item_date_literal::clone_item(THD *thd) const
+Item *Item_date_literal::clone_constant(THD *thd) const
 {
   return new (thd->mem_root) Item_date_literal(thd, &cached_time);
 }
@@ -7585,7 +7604,7 @@ void Item_datetime_literal::print(String *str, enum_query_type query_type)
 }
 
 
-Item *Item_datetime_literal::clone_item(THD *thd) const
+Item *Item_datetime_literal::clone_constant(THD *thd) const
 {
   return new (thd->mem_root) Item_datetime_literal(thd, &cached_time, decimals);
 }
@@ -7610,7 +7629,7 @@ void Item_time_literal::print(String *str, enum_query_type query_type)
 }
 
 
-Item *Item_time_literal::clone_item(THD *thd) const
+Item *Item_time_literal::clone_constant(THD *thd) const
 {
   return new (thd->mem_root) Item_time_literal(thd, &cached_time, decimals);
 }
@@ -7867,6 +7886,8 @@ void Item::check_pushable_cond(Pushdown_checker checker, uchar *arg)
     In the case when this item is a multiple equality a checker method is
     called to find the equal fields to build a new equality that can be
     pushed down.
+    In case when this item is an aggregate function, we skip cloning because
+    they can not be pushed anyway.
   @note
     The built condition C is always implied by the condition cond
     (cond => C). The method tries to build the most restrictive such
@@ -7975,7 +7996,11 @@ Item *Item::build_pushable_cond(THD *thd,
     return new_cond;
   }
   else if (get_extraction_flag() != MARKER_NO_EXTRACTION)
-    return build_clone(thd);
+  {
+    if (with_sum_func())
+      return 0;
+    return deep_copy_with_checks(thd);
+  }
   return 0;
 }
 
@@ -8053,6 +8078,7 @@ Item *find_producing_item(Item *item, st_select_lex *sel)
 {
   DBUG_ASSERT(item->type() == Item::FIELD_ITEM ||
               item->type() == Item::TRIGGER_FIELD_ITEM ||
+              item->type() == Item::INSERT_VALUE_ITEM ||
               (item->type() == Item::REF_ITEM &&
                ((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF)); 
   Item_field *field_item= NULL;
@@ -8091,7 +8117,7 @@ Item *Item_field::derived_field_transformer_for_where(THD *thd, uchar *arg)
   Item *producing_item= find_producing_item(this, sel);
   if (producing_item)
   {
-    Item *producing_clone= producing_item->build_clone(thd);
+    Item *producing_clone= producing_item->deep_copy_with_checks(thd);
     if (producing_clone)
       producing_clone->marker|= MARKER_SUBSTITUTION;
     return producing_clone;
@@ -8109,7 +8135,7 @@ Item *Item_direct_view_ref::derived_field_transformer_for_where(THD *thd,
     st_select_lex *sel= (st_select_lex *)arg;
     Item *producing_item= find_producing_item(this, sel);
     DBUG_ASSERT (producing_item != NULL);
-    return producing_item->build_clone(thd);
+    return producing_item->deep_copy_with_checks(thd);
   }
   return (*ref);
 }
@@ -8122,7 +8148,7 @@ Item *Item_field::grouping_field_transformer_for_where(THD *thd, uchar *arg)
   if (gr_field)
   {
     Item *producing_clone=
-      gr_field->corresponding_item->build_clone(thd);
+      gr_field->corresponding_item->deep_copy_with_checks(thd);
     if (producing_clone)
       producing_clone->marker|= MARKER_SUBSTITUTION;
     return producing_clone;
@@ -8145,7 +8171,7 @@ Item_direct_view_ref::grouping_field_transformer_for_where(THD *thd,
   st_select_lex *sel= (st_select_lex *)arg;
   Field_pair *gr_field= find_matching_field_pair(this,
                                                  sel->grouping_tmp_fields);
-  return gr_field->corresponding_item->build_clone(thd);
+  return gr_field->corresponding_item->deep_copy_with_checks(thd);
 }
 
 void Item_field::print(String *str, enum_query_type query_type)
@@ -10609,7 +10635,7 @@ void Item_cache_temporal::store_packed(longlong val_arg, Item *example_arg)
 }
 
 
-Item *Item_cache_temporal::clone_item(THD *thd) const
+Item *Item_cache_temporal::clone_constant(THD *thd) const
 {
   Item_cache *tmp= type_handler()->Item_get_cache(thd, this);
   Item_cache_temporal *item= static_cast<Item_cache_temporal*>(tmp);

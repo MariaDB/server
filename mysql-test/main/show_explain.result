@@ -1442,3 +1442,11 @@ count(*) - count(*)
 connection default;
 disconnect con1;
 set debug_sync='RESET';
+#
+# MDEV-36353: Server crashes with EXPLAIN/DESC FOR CONNECTION 
+# instead of displaying an error.
+#
+EXPLAIN FOR CONNECTION INTERVAL TRUE IN (SELECT 1) YEAR_MONTH + FALSE=TRUE NOT IN (SELECT 1);
+ERROR HY000: You may only use constant expressions in this statement
+DESC FOR CONNECTION INTERVAL TRUE IN (SELECT 1) YEAR_MONTH + FALSE=TRUE NOT IN (SELECT 1);
+ERROR HY000: You may only use constant expressions in this statement

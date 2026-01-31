@@ -8501,7 +8501,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   lex->add_to_query_tables(ptr);
 
   // Pure table aliases do not need to be locked:
-  if (ptr->db.str && !(table_options & TL_OPTION_ALIAS))
+  if (!ptr->is_pure_alias())
   {
     MDL_REQUEST_INIT(&ptr->mdl_request, MDL_key::TABLE, ptr->db.str,
                      ptr->table_name.str, mdl_type, MDL_TRANSACTION);

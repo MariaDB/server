@@ -1222,9 +1222,12 @@ store_len:
 				columns that were updated. */
 
 				for (i = 0; i < update->n_fields; i++) {
+					const upd_field_t* fld =
+						upd_get_nth_field(update, i);
+					if (upd_fld_is_virtual_col(fld))
+						continue;
 					const ulint field_no
-						= upd_get_nth_field(update, i)
-						->field_no;
+						= fld->field_no;
 					if (field_no >= index->n_fields
 					    || dict_index_get_nth_field(
 						    index, field_no)->col
@@ -1524,7 +1527,7 @@ trx_undo_update_rec_get_update(
 				&field_no);
 			first_v_col = false;
 			/* This column could be dropped or no longer indexed */
-			if (field_no >= index->n_fields) {
+			if (field_no == FIL_NULL) {
 				/* Mark this is no longer needed */
 				upd_field->field_no = REC_MAX_N_FIELDS;
 

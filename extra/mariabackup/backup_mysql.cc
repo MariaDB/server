@@ -546,6 +546,7 @@ bool get_mysql_vars(MYSQL *connection)
     xb_load_list_string(ignore_db_dirs, ",", register_ignore_db_dirs_filter);
 
 out:
+  free_mysql_variables(mysql_vars);
 
   return (ret);
 }
@@ -1513,7 +1514,9 @@ write_galera_info(ds_ctxt *datasink, MYSQL *connection)
       domain_id ? domain_id : domain_id55);
 
 cleanup:
+  free_mysql_variables(vars);
   free_mysql_variables(status);
+  free_mysql_variables(value);
 
   return(result);
 }

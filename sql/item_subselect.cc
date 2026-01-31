@@ -3990,10 +3990,9 @@ bool subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
   set_handler(&type_handler_varchar);
   for (uint i= 0; (sel_item= li++); i++)
   {
-    item->max_length= sel_item->max_length;
     set_handler(sel_item->type_handler());
-    item->decimals= sel_item->decimals;
-    item->unsigned_flag= sel_item->unsigned_flag;
+    item->Type_std_attributes::operator=(
+      sel_item->type_handler()->Item_type_std_attributes_generic(sel_item));
     maybe_null= sel_item->maybe_null();
     if (!(row[i]= sel_item->get_cache(thd)))
       return TRUE;

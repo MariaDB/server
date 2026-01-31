@@ -7313,6 +7313,37 @@ Item_divisor_precision_increment_with_seconds(const Item *item) const
          TIME_SECOND_PART_DIGITS;
 }
 
+
+/***************************************************************************/
+Type_std_attributes
+Type_handler::Item_type_std_attributes_generic(const Item *item) const
+{
+  return *item;
+}
+
+
+Type_std_attributes
+Type_handler_int_result::Item_type_std_attributes_generic(const Item *item)
+                                                                      const
+{
+  /*
+    Item_int is a special item, it optimizes it's metadata to have
+    shorter strings in string contexts: CONCAT(1) -> VARCHAR(1).
+    When we want to convert its attributes to a generic non-optimized
+    Item (e.g. for subselect), we need to add one extra character for
+    a possible sign.
+    The code below works both for optimized Item_int and other item kinds.
+    It evaluates max_length from the precision and the optinal sign length.
+  */
+  DBUG_ASSERT(item->decimals == 0);
+  uint32 max_length= item->decimal_precision() + (item->unsigned_flag ? 0 : 1);
+  return Type_std_attributes(
+           Type_numeric_attributes(max_length, 0, item->unsigned_flag),
+           item->collation);
+  return *item;
+}
+
+
 /***************************************************************************/
 
 decimal_digits_t Type_handler_string_result::Item_decimal_precision(const Item *item) const

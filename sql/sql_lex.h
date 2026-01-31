@@ -1714,6 +1714,7 @@ public:
   TABLE_LIST *find_table(THD *thd,
                          const LEX_CSTRING *db_name,
                          const LEX_CSTRING *table_name);
+  bool optimize_constant_subqueries();
 };
 typedef class st_select_lex SELECT_LEX;
 
@@ -5316,6 +5317,13 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
                                 bool need_set_keyword= true);
 
 void mark_or_conds_to_avoid_pushdown(Item *cond);
+
+
+inline
+bool TABLE_LIST::is_pure_alias() const
+{
+  return !db.length || (table_options & TL_OPTION_ALIAS);
+}
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_LEX_INCLUDED */

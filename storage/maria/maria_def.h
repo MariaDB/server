@@ -1659,6 +1659,7 @@ int _ma_open_keyfile(MARIA_SHARE *share);
 void _ma_setup_functions(MARIA_SHARE *share);
 my_bool _ma_dynmap_file(MARIA_HA *info, my_off_t size);
 void _ma_remap_file(MARIA_HA *info, my_off_t size);
+my_bool maria_read_crypt_data(File kfile, MARIA_SHARE *share);
 
 MARIA_RECORD_POS _ma_write_init_default(MARIA_HA *info, const uchar *record);
 my_bool _ma_write_abort_default(MARIA_HA *info);

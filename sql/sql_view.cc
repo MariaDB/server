@@ -1720,6 +1720,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     if (lex->first_select_lex()->options & OPTION_TO_QUERY_CACHE)
       old_lex->first_select_lex()->options|= OPTION_TO_QUERY_CACHE;
 
+    old_lex->default_used= lex->default_used;
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (table->view_suid)
     {

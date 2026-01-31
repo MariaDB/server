@@ -1511,7 +1511,18 @@ static int mysql_test_update(Prepared_statement *stmt,
   {
     List_iterator_fast<Item> fs(select->item_list), vs(stmt->lex->value_list);
     while (Item *f= fs++)
-      vs++->associate_with_target_field(thd, static_cast<Item_field*>(f));
+    {
+      /*
+        note that if `f` is a non-updatable view field, it may be not
+        inherited from Item_field, and the cast below will essentially
+        produce garbage. But ER_NONUPDATEABLE_COLUMN will happen before it's
+        ever dereferenced.
+      */
+#ifndef DBUG_OFF
+      if (!dynamic_cast<Item_field*>(f)) f= (Item_field*)0x01; // let it crash
+#endif
+      vs++->associate_with_target_field(thd, reinterpret_cast<Item_field*>(f));
+    }
   }
   /* TODO: here we should send types of placeholders to the client. */
   DBUG_RETURN(0);
@@ -5298,7 +5309,6 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
                              (char *) thd->security_ctx->host_or_ip, 1);
       error= mysql_execute_command(thd, true);
       MYSQL_QUERY_EXEC_DONE(error);
-      thd->update_server_status();
     }
     else
     {
@@ -5307,6 +5317,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
       thd->update_stats();
       qc_executed= TRUE;
     }
+    thd->update_server_status();
   }
 
   /*

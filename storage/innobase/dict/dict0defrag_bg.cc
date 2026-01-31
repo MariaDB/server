@@ -242,7 +242,7 @@ dberr_t dict_stats_save_defrag_summary(dict_index_t *index, THD *thd)
     trx->rollback();
 
   row_mysql_unlock_data_dictionary(trx);
-  trx->free();
+  trx->clear_and_free();
   stats.close();
 
   return ret;
@@ -359,7 +359,7 @@ dict_stats_save_defrag_stats(
     trx->rollback();
 
   row_mysql_unlock_data_dictionary(trx);
-  trx->free();
+  trx->clear_and_free();
   stats.close();
 
   return ret;

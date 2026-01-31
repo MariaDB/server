@@ -1,0 +1,897 @@
+--echo # ----------------------------------------------------------------------------
+--echo # Test for MDEV-36107: Add expression evaluation support to mysqltest
+--echo # ----------------------------------------------------------------------------
+
+--source include/not_embedded.inc
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test backward compatibility (expressions are not evaluated without \$())
+--echo # ----------------------------------------------------------------------------
+
+let $old_math = 5 + 2;
+
+--echo # Backward compatibility - no evaluation
+--echo 5 + 2 (no evaluation) -> $old_math
+
+--echo # ----------------------------------------------------------------------------
+--echo # Basic arithmetic operations
+--echo # ----------------------------------------------------------------------------
+
+let $a = $(10 + 5);
+let $b = $(10 - 4);
+let $c = $(3 * 7);
+let $d = $(20 / 4);
+let $e = $(21 % 5);
+
+--echo # Basic arithmetic operations
+--echo 10 + 5 -> $a
+--echo 10 - 4 -> $b
+--echo 3 * 7 -> $c
+--echo 20 / 4 -> $d
+--echo 21 % 5 -> $e
+
+--echo # ----------------------------------------------------------------------------
+--echo # Negative numbers and unary minus
+--echo # ----------------------------------------------------------------------------
+
+let $neg1 = $(-5);
+let $neg2 = $(-1 + 3);
+let $neg3 = $(-(2 + 3));
+let $neg4 = $(-1 * -2);
+let $neg5 = $(-10 / 2);
+let $neg6 = $(-7 % 3);
+
+--echo # Negative numbers and unary minus
+--echo -5 -> $neg1
+--echo -1 + 3 -> $neg2
+--echo -(2 + 3) -> $neg3
+--echo -1 * -2 -> $neg4
+--echo -10 / 2 -> $neg5
+--echo -7 % 3 -> $neg6
+
+let $neg_complex1 = $(5 + -3);
+let $neg_complex2 = $(10 - -5);
+let $neg_complex3 = $(-2 * 3 + 1);
+
+--echo # Negative numbers in complex expressions
+--echo 5 + -3 -> $neg_complex1
+--echo 10 - -5 -> $neg_complex2
+--echo -2 * 3 + 1 -> $neg_complex3
+
+--echo # ----------------------------------------------------------------------------
+--echo # Operator precedence
+--echo # ----------------------------------------------------------------------------
+
+let $p1 = $(2 + 3 * 4 - 1);
+let $p2 = $(20 / 2 - 3);
+let $p3 = $(10 - 4 + 2);
+
+--echo # Operator precedence
+--echo 2 + 3 * 4 - 1 -> $p1
+--echo 20 / 2 - 3 -> $p2
+--echo 10 - 4 + 2 -> $p3
+
+--echo # ----------------------------------------------------------------------------
+--echo # Parentheses override precedence
+--echo # ----------------------------------------------------------------------------
+
+let $p4 = $((2 + 3) * 4);
+let $p5 = $(20 / (5 - 3));
+let $p6 = $(((2 + 3) * (4 + 1)));
+let $p7 = $((10 / (3 + 2)) + 1);
+
+--echo # Parentheses override precedence
+--echo (2 + 3) * 4 -> $p4
+--echo 20 / (5 - 3) -> $p5
+--echo ((2 + 3) * (4 + 1)) -> $p6
+--echo (10 / (3 + 2)) + 1 -> $p7
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test variables in expressions
+--echo # ----------------------------------------------------------------------------
+
+let $v1 = 100;
+let $v2 = 25;
+let $v_res = $($v1 / $v2 + 1);
+
+--echo # Variables in expressions
+--echo 100 / 25 + 1 = $v_res
+
+
+let $var_a = 10;
+let $var_b = 20;
+let $var_expr = $($var_a + $var_b == 30);
+
+--echo Variable substitution: 10 + 20 == 30 is $var_expr
+
+--echo # Test multiple variable references
+let $multi_var = $($var_a * $var_b / $var_a);
+--echo Multiple variables: 10 * 20 / 10 = $multi_var
+
+--echo # ----------------------------------------------------------------------------
+--echo # Overflow edge cases
+--echo # ----------------------------------------------------------------------------
+
+--echo -9223372036854775808 / -1 -> $(-9223372036854775808 / -1)
+--echo -9223372036854775808 % -1 -> $(-9223372036854775808 % -1)
+--echo -(-9223372036854775808) -> $(-(-9223372036854775808))
+--echo -4611686018427387904 * 2 -> $(-4611686018427387904 * 2)
+--echo -4611686018427387904 * 2 / -1 -> $(-4611686018427387904 * 2 / -1)
+--echo -4611686018427387904 * -2 / -1 -> $(-4611686018427387904 * -2 / -1)
+--echo 18446744073709551615 / 2 / -1 -> $(18446744073709551615 / 2 / -1)
+
+--echo # ----------------------------------------------------------------------------
+--echo # Comparison operators
+--echo # ----------------------------------------------------------------------------
+
+--echo # Comparison operators
+--echo 10 > 5 -> $(10 > 5)
+--echo 10 < 5 -> $(10 < 5)
+--echo 5 == 5 -> $(5 == 5)
+--echo 5 != 5 -> $(5 != 5)
+--echo 10 >= 10 -> $(10 >= 10)
+--echo 10 <= 9 -> $(10 <= 9)
+--echo 5 <= 5 -> $(5 <= 5)
+--echo 5 >= 5 -> $(5 >= 5)
+--echo 5 != 6 -> $(5 != 6)
+
+--echo 18446744073709551615 == -1 -> $(18446744073709551615 == -1)
+--echo 18446744073709551615 != -1 -> $(18446744073709551615 != -1)
+--echo 18446744073709551615 > -1 -> $(18446744073709551615 > -1)
+--echo 18446744073709551615 < -1 -> $(18446744073709551615 < -1)
+--echo 18446744073709551615 >= -1 -> $(18446744073709551615 >= -1)
+--echo 18446744073709551615 <= -1 -> $(18446744073709551615 <= -1)
+
+--echo # NULL comparisons
+--echo NULL > 5 -> $(NULL > 5)
+--echo NULL < 5 -> $(NULL < 5)
+--echo NULL == 5 -> $(NULL == 5)
+--echo NULL != 5 -> $(NULL != 5)
+--echo NULL >= 5 -> $(NULL >= 5)
+--echo NULL <= 5 -> $(NULL <= 5)
+--echo NULL > 5 -> $(NULL > 5)
+--echo NULL < 5 -> $(NULL < 5)
+--echo NULL == NULL -> $(NULL == NULL)
+--echo NULL != NULL -> $(NULL != NULL)
+
+--echo # ----------------------------------------------------------------------------
+--echo # Logical operators
+--echo # ----------------------------------------------------------------------------
+
+--echo # Logical operators and combinations
+--echo 1 && 1 -> $(1 && 1)
+--echo 1 && 0 -> $(1 && 0)
+--echo 0 && 1 -> $(0 && 1)
+--echo 0 && 0 -> $(0 && 0)
+--echo 2 && 3 -> $(2 && 3)
+--echo 2 && 0 -> $(2 && 0)
+--echo -1 && -2 -> $(-1 && -2)
+--echo -2 && 2 -> $(-2 && 2)
+
+--echo 1 || 1 -> $(1 || 1)
+--echo 1 || 0 -> $(1 || 0)
+--echo 0 || 1 -> $(0 || 1)
+--echo 0 || 0 -> $(0 || 0)
+--echo 2 || 3 -> $(2 || 3)
+--echo 2 || 0 -> $(2 || 0)
+--echo -1 || -2 -> $(-1 || -2)
+--echo -2 || 2 -> $(-2 || 2)
+
+--echo !0 -> $(!0)
+--echo !1 -> $(!1)
+--echo !-3 -> $(!-3)
+--echo !10 -> $(!10)
+--echo !-0 -> $(!-0)
+--echo 1 && 1 && 1 -> $(1 && 1 && 1)
+--echo 1 && 1 && 0 -> $(1 && 1 && 0)
+--echo 0 || 0 || 1 -> $(0 || 0 || 1)
+--echo 0 || 0 || 0 -> $(0 || 0 || 0)
+--echo !(5 > 10) -> $(!(5 > 10));
+--echo !(2 + 3 == 6) -> $(!(2 + 3 == 6))
+
+--echo # ----------------------------------------------------------------------------
+--echo # Expressions with spaces and formatting
+--echo # ----------------------------------------------------------------------------
+
+let $spaced = $(  10   +   5  );
+let $no_space = $(10+5);
+let $mixed_space = $( 10+ 5 );
+
+--echo # Expressions with varying spaces
+--echo 10 + 5 (with spaces) -> $spaced
+--echo 10+5 (no spaces) -> $no_space
+--echo 10+ 5 (mixed spaces) -> $mixed_space
+
+--echo # Test spacing in comparisons
+if ($(  5  ==  5  ))
+{
+  --echo Spaced comparison works
+}
+
+if ($(5< 7))
+{
+  --echo No space comparison works
+}
+
+if ($( 5 >= 5 ))
+{
+  --echo Mixed spacing works
+}
+
+--echo # ----------------------------------------------------------------------------
+--echo # Hex and Binary Literal Tests
+--echo # ----------------------------------------------------------------------------
+
+--echo # Basic hex and binary parsing
+let $hex1 = $(0x10);
+let $hex2 = $(0xFF);
+let $hex3 = $(0x0);
+let $bin1 = $(0b1010);
+let $bin2 = $(0b1111);
+let $bin3 = $(0b0);
+
+--echo 0x10 -> $hex1
+--echo 0xFF -> $hex2
+--echo 0x0 -> $hex3
+--echo 0b1010 -> $bin1
+--echo 0b1111 -> $bin2
+--echo 0b0 -> $bin3
+
+--echo # ----------------------------------------------------------------------------
+--echo # Hex and Binary Arithmetic
+--echo # ----------------------------------------------------------------------------
+
+--echo # Hex arithmetic operations
+let $hex_add = $(0x10 + 0x20);
+let $hex_sub = $(0xFF - 0x0F);
+let $hex_mul = $(0x10 * 0x2);
+let $hex_div = $(0x20 / 0x4);
+let $hex_mod = $(0x17 % 0x5);
+
+--echo 0x10 + 0x20 -> $hex_add
+--echo 0xFF - 0x0F -> $hex_sub
+--echo 0x10 * 0x2 -> $hex_mul
+--echo 0x20 / 0x4 -> $hex_div
+--echo 0x17 % 0x5 -> $hex_mod
+
+--echo # Binary arithmetic operations
+let $bin_add = $(0b1010 + 0b0101);
+let $bin_sub = $(0b1111 - 0b0011);
+let $bin_mul = $(0b110 * 0b10);
+let $bin_div = $(0b1000 / 0b10);
+let $bin_mod = $(0b1011 % 0b11);
+
+--echo 0b1010 + 0b0101 -> $bin_add
+--echo 0b1111 - 0b0011 -> $bin_sub
+--echo 0b110 * 0b10 -> $bin_mul
+--echo 0b1000 / 0b10 -> $bin_div
+--echo 0b1011 % 0b11 -> $bin_mod
+
+--echo # ----------------------------------------------------------------------------
+--echo # Mixed Base Arithmetic
+--echo # ----------------------------------------------------------------------------
+
+--echo # Mixed base arithmetic (hex + binary + decimal)
+let $mixed1 = $(0x10 + 0b1000 + 8);    # 16 + 8 + 8 = 32
+let $mixed2 = $(0xFF - 0b11111111);    # 255 - 255 = 0
+let $mixed3 = $(0x20 * 0b10 + 10);     # 32 * 2 + 10 = 74
+let $mixed4 = $((0x64 + 0b1100) / 4); # (100 + 12) / 4 = 28
+
+--echo 0x10 + 0b1000 + 8 -> $mixed1
+--echo 0xFF - 0b11111111 -> $mixed2
+--echo 0x20 * 0b10 + 5 -> $mixed3
+--echo (0x64 + 0b1100) / 4 -> $mixed4
+
+--echo # ----------------------------------------------------------------------------
+--echo # Hex and Binary Comparisons
+--echo # ----------------------------------------------------------------------------
+
+--echo # Hex vs decimal comparisons
+--echo 0x10 == 16 -> $(0x10 == 16)
+--echo 0xFF > 200 -> $(0xFF > 200)
+--echo 0x20 <= 32 -> $(0x20 <= 32)
+--echo 0xA != 11 -> $(0xA != 11)
+
+--echo # Binary vs decimal comparisons
+--echo 0b1010 == 10 -> $(0b1010 == 10)
+--echo 0b1111 > 14 -> $(0b1111 > 14)
+--echo 0b1000 <= 8 -> $(0b1000 <= 8)
+--echo 0b101 != 6 -> $(0b101 != 6)
+
+--echo # Hex vs binary comparisons
+--echo 0xFF == 0b11111111 -> $(0xFF == 0b11111111)
+--echo 0x10 > 0b1111 -> $(0x10 > 0b1111)
+--echo 0xA <= 0b1010 -> $(0xA <= 0b1010)
+--echo 0x5 != 0b101 -> $(0x5 != 0b101)
+
+--echo # ----------------------------------------------------------------------------
+--echo # Boolean Literal Tests
+--echo # ----------------------------------------------------------------------------
+
+--echo # Boolean literals
+let $bool1 = $(true);
+let $bool2 = $(false);
+let $bool3 = $(TRUE);
+let $bool4 = $(FALSE);
+
+--echo true -> $bool1
+--echo false -> $bool2
+--echo TRUE -> $bool3
+--echo FALSE -> $bool4
+
+--echo # Boolean operations
+--echo true && false -> $(true && false)
+--echo true || false -> $(true || false)
+--echo true && true -> $(true && true)
+--echo true || true -> $(true || true)
+--echo !true -> $(!true)
+--echo !false -> $(!false)
+
+--echo # Boolean comparisons
+--echo true == 1 -> $(true == 1)
+--echo false == 0 -> $(false == 0)
+--echo true == 10 -> $(true == 10)
+--echo false == 10 -> $(false == 10)
+--echo true == 1 -> $(true == 1)
+--echo false == 1 -> $(false == 1)
+--echo true == 0 -> $(true == 0)
+--echo false == 0 -> $(false == 0)
+--echo true == true -> $(true == true)
+--echo true == false -> $(true == false)
+--echo true != true -> $(true != true)
+--echo true != false -> $(true != false)
+--echo true > true -> $(true > true)
+--echo true > false -> $(true > false)
+--echo true < true -> $(true < true)
+--echo true < false -> $(true < false)
+--echo true >= true -> $(true >= true)
+--echo true >= false -> $(true >= false)
+--echo true <= true -> $(true <= true)
+--echo true <= false -> $(true <= false)
+
+--echo # ----------------------------------------------------------------------------
+--echo # Complex Mixed-Base Expressions
+--echo # ----------------------------------------------------------------------------
+
+--echo # Complex expressions with multiple bases
+let $complex1 = $(0x10 + 0b1000 == 0x18);          # 16 + 8 == 24
+let $complex3 = $(0x20 / 0b100 + 0b11 == 11);      # 32/4 + 3 == 11
+
+--echo 0x10 + 0b1000 == 0x18 -> $complex1
+--echo 0x20 / 0b100 + 0b11 == 11 -> $complex3
+
+--echo # ----------------------------------------------------------------------------
+--echo # Test string comparisons with spaces
+--echo # ----------------------------------------------------------------------------
+
+--echo # String comparisons with spaces
+--echo "hello' world" == hello world = $("hello' world" == hello world)
+--echo hello world != goodbye world = $(hello world != goodbye world)
+
+--echo # Basic equality: quoted vs quoted
+--echo "hello" == "hello" -> $("hello" == "hello")
+--echo 'hello' == 'hello' -> $('hello' == 'hello')
+--echo "hello" == 'hello' -> $("hello" == 'hello')
+--echo "" == "" -> $("" == "")
+--echo '' == '' -> $('' == '')
+--echo "" == '' -> $("" == '')
+
+--echo # Basic in-equality: quoted vs quoted
+--echo "hello" == "world" -> $("hello" == "world")
+--echo "hello" == "Hello" -> $("hello" == "Hello")
+--echo "hello" == "hello " -> $("hello" == "hello ")
+--echo "" == "a" -> $("" == "a")
+
+--echo # Unquoted vs quoted strings
+--echo hello == "hello" -> $(hello == "hello")
+--echo hello == 'hello' -> $(hello == 'hello')
+--echo   hello   == "hello" -> $(  hello   == "hello")
+--echo hello == "  hello  " -> $(hello == "  hello  ")
+--echo hello world == "hello world" -> $(hello world == "hello world")
+--echo   hello world   == "hello world" -> $(  hello world   == "hello world")
+--echo hello   world == "hello   world" -> $(hello   world == "hello   world")
+--echo hello world == "hello   world" -> $(hello world == "hello   world")
+--echo hello   world == "hello world" -> $(hello   world == "hello world")
+
+--echo # Unquoted vs unquoted strings
+--echo hello == hello -> $(hello == hello)
+--echo   hello == hello   -> $(  hello == hello  )
+--echo hello world == hello world -> $(hello world == hello world)
+--echo   hello   world   ==   hello world   -> $(  hello   world   ==   hello world  )
+
+--echo # Strings with special characters (inside quotes)
+--echo "'hello'" == "'hello'" -> $("'hello'" == "'hello'")
+--echo '"hello"' == '"hello"' -> $('"hello"' == '"hello"')
+--echo "a+b=c" == "a+b=c" -> $("a+b=c" == "a+b=c")
+--echo "a*b" == "a*b" -> $("a*b" == "a*b")
+--echo "a()b" == "a()b" -> $("a()b" == "a()b")
+--echo "a\\b" == "a\\b" -> $("a\\b" == "a\\b")
+
+
+--echo # Complex expressions with string equality
+--echo "a" == "a" && 1 == 1 -> $("a" == "a" && 1 == 1)
+--echo "a" == "b" || "c" == "c" -> $("a" == "b" || "c" == "c")
+--echo !("a" == "b") -> $(!("a" == "b"))
+--echo (1+2) == 3 && "x" == "x" -> $((1+2) == 3 && "x" == "x")
+--echo "x" == "y" || (5 > 3) -> $("x" == "y" || (5 > 3))
+
+--echo # Using variables
+let $s1 = "test string";
+let $s2 = 'test string';
+let $s3 = "another string";
+--echo $s1 == $s2 -> $($s1 == $s2)
+--echo $s1 == $s3 -> $($s1 == $s3)
+--echo $s1 != $s3 -> $($s1 != $s3)
+let $s_unquoted = test string;
+--echo $s1 == $s_unquoted -> $($s1 == $s_unquoted)
+
+--echo # Using results from SQL
+CREATE TABLE t1 (s VARCHAR(20));
+INSERT INTO t1 VALUES ('data');
+let $sql_res = `SELECT s FROM t1`;
+--echo $sql_res == "data" -> $($sql_res == "data")
+--echo $sql_res == data -> $($sql_res == data)
+--echo $sql_res == 'data' -> $($sql_res == 'data')
+DROP TABLE t1;
+
+--echo # Edge cases
+--echo "  " == " " -> $("  " == " ")
+--echo " " == "" -> $(" " == "")
+--echo "" == "" -> $("" == "")
+--echo '\))(' == "\))(" -> $('\))(' == "\))(")
+
+--echo # Numeric strings
+--echo "123" == 123 -> $("123" == 123)
+--echo 123 == "123" -> $(123 == "123")
+--echo "0" == 0 -> $("0" == 0)
+--echo 1 == "1.0" -> $(1 == "1.0")
+
+--echo # Mixed quotes in variables
+let $a = 'This is a "quoted" string';
+let $b = "This is a 'quoted' string";
+--echo $a == 'This is a "quoted" string' -> $($a == 'This is a "quoted" string')
+--echo $b == "This is a 'quoted' string" -> $($b == "This is a 'quoted' string")
+
+--echo # Mixed type comparisons
+--echo 0 != "string" -> $(0 != string)
+--echo 123 == "123" -> $(123 == "123")
+--echo "abc" == 123 -> $(abc == 123)
+--echo NULL == "string" -> $(NULL == "string")
+
+--echo # ----------------------------------------------------------------------------
+--echo # SQL Integration
+--echo # ----------------------------------------------------------------------------
+
+let $val1 = 7;
+let $val2 = 8;
+let $query_result = `SELECT $($val1 * $val2) as product`;
+
+--echo # Expression in SQL query
+--echo SQL with expression (7 * 8) -> $query_result
+
+--echo # Basic SQL result usage in expressions
+let $sql_val = `SELECT 15`;
+let $expr_with_sql = $($sql_val + 5);
+--echo Expression with SQL: SQL(15) + 5 -> $expr_with_sql
+
+--echo # Complex SQL queries in expressions
+let $count_result = `SELECT COUNT(*) FROM (SELECT 1 UNION SELECT 2 UNION SELECT 3) t`;
+if ($($count_result == 1 + 2))
+{
+  --echo SQL count matches expression -> $count_result
+}
+
+--echo # ----------------------------------------------------------------------------
+--echo # Control Flow Statements (if/while)
+--echo # ----------------------------------------------------------------------------
+
+--echo # Basic if statement conditions
+if ($(1)) {
+  --echo if (1) evaluates to true
+}
+
+if ($(0)) {
+  --echo This should not print - if (0) is false
+}
+
+if ($(-42))
+{
+  --echo Non-zero number is true
+}
+
+if ($(some_string))
+{
+  --echo Non-empty string is true
+}
+
+if ($(some string with spaces))
+{
+  --echo Non-empty string with spaces is true
+}
+
+--echo # Variable comparisons in if statements
+let $x = 5;
+if ($(($x * 2) == 10)) {
+  --echo Arithmetic in comparison: (5 * 2) == 10 is true
+}
+
+--echo # String comparisons in if statements
+if ($(hello == world)) {
+  --echo This should not print - strings don't match
+}
+
+if ($(hello != world)) {
+  --echo if (hello != world) evaluates to true
+}
+
+if ($(hello world == hello world)) {
+  --echo if (hello world == hello world) evaluates to true
+}
+
+--echo # While loop with expression condition
+let $i = 3;
+while ($($i > 0)) {
+  --echo While loop iteration: $i
+  --dec $i
+}
+
+if ($(0x10 > 0b1111))
+{
+  --echo 0x10 is greater than 0b1111
+}
+
+if ($(true && (0xFF == 255)))
+{
+  --echo Boolean and hex comparison works
+}
+
+let $counter = $(0x0);
+while ($($counter < 0b11))
+{
+  --echo Counter: $counter
+  --inc $counter
+}
+
+--echo # ----------------------------------------------------------------------------
+--echo # Bitwise operators
+--echo # ----------------------------------------------------------------------------
+
+--echo # Basic bitwise AND (&)
+let $and1 = $(12 & 10);
+let $and2 = $(15 & 7);
+let $and3 = $(255 & 128);
+let $and4 = $(0 & 15);
+
+--echo 12 & 10 -> $and1
+--echo 15 & 7 -> $and2
+--echo 255 & 128 -> $and3
+--echo 0 & 15 -> $and4
+
+--echo # Basic bitwise OR (|)
+let $or1 = $(12 | 10);
+let $or2 = $(8 | 4);
+let $or3 = $(1 | 2);
+let $or4 = $(0 | 15);
+
+--echo 12 | 10 -> $or1
+--echo 8 | 4 -> $or2
+--echo 1 | 2 -> $or3
+--echo 0 | 15 -> $or4
+
+--echo # Basic bitwise XOR (^)
+let $xor1 = $(12 ^ 10);
+let $xor2 = $(15 ^ 15);
+let $xor3 = $(5 ^ 3);
+let $xor4 = $(255 ^ 128);
+
+--echo 12 ^ 10 -> $xor1
+--echo 15 ^ 15 -> $xor2
+--echo 5 ^ 3 -> $xor3
+--echo 255 ^ 128 -> $xor4
+
+--echo # Basic bitwise NOT (~)
+let $not1 = $(~0);
+let $not2 = $(~1);
+let $not3 = $(~255);
+let $not4 = $(~(-1));
+
+--echo ~0 -> $not1
+--echo ~1 -> $not2
+--echo ~255 -> $not3
+--echo ~(-1) -> $not4
+
+--echo # Basic left shift (<<)
+let $lshift1 = $(1 << 3);
+let $lshift2 = $(5 << 2);
+let $lshift3 = $(8 << 1);
+let $lshift4 = $(0 << 5);
+
+--echo 1 << 3 -> $lshift1
+--echo 5 << 2 -> $lshift2
+--echo 8 << 1 -> $lshift3
+--echo 0 << 5 -> $lshift4
+
+--echo # Basic right shift (>>)
+let $rshift1 = $(8 >> 3);
+let $rshift2 = $(20 >> 2);
+let $rshift3 = $(16 >> 1);
+let $rshift4 = $(7 >> 3);
+
+--echo 8 >> 3 -> $rshift1
+--echo 20 >> 2 -> $rshift2
+--echo 16 >> 1 -> $rshift3
+--echo 7 >> 3 -> $rshift4
+
+--echo # ----------------------------------------------------------------------------
+--echo # Bitwise operations with hex and binary literals
+--echo # ----------------------------------------------------------------------------
+
+--echo # Bitwise operations with hex literals
+let $hex_and = $(0xFF & 0x0F);
+let $hex_or = $(0xF0 | 0x0F);
+let $hex_xor = $(0xFF ^ 0xAA);
+let $hex_not = $(~0xFF);
+let $hex_lshift = $(0x10 << 2);
+let $hex_rshift = $(0x80 >> 4);
+
+--echo 0xFF & 0x0F -> $hex_and
+--echo 0xF0 | 0x0F -> $hex_or
+--echo 0xFF ^ 0xAA -> $hex_xor
+--echo ~0xFF -> $hex_not
+--echo 0x10 << 2 -> $hex_lshift
+--echo 0x80 >> 4 -> $hex_rshift
+
+--echo # Bitwise operations with binary literals
+let $bin_and = $(0b1100 & 0b1010);
+let $bin_or = $(0b1000 | 0b0100);
+let $bin_xor = $(0b1111 ^ 0b1010);
+let $bin_not = $(~0b1111);
+let $bin_lshift = $(0b101 << 2);
+let $bin_rshift = $(0b10000 >> 2);
+
+--echo 0b1100 & 0b1010 -> $bin_and
+--echo 0b1000 | 0b0100 -> $bin_or
+--echo 0b1111 ^ 0b1010 -> $bin_xor
+--echo ~0b1111 -> $bin_not
+--echo 0b101 << 2 -> $bin_lshift
+--echo 0b10000 >> 2 -> $bin_rshift
+
+--echo # ----------------------------------------------------------------------------
+--echo # Mixed base bitwise operations
+--echo # ----------------------------------------------------------------------------
+
+--echo # Mixed base bitwise operations
+let $mixed_and = $(0xFF & 0b11110000);
+let $mixed_or = $(0x0F | 0b11110000);
+let $mixed_xor = $(255 ^ 0xAA);
+let $mixed_shift1 = $(0b1000 << 0x2);
+let $mixed_shift2 = $(0x40 >> 0b10);
+
+--echo 0xFF & 0b11110000 -> $mixed_and
+--echo 0x0F | 0b11110000 -> $mixed_or
+--echo 255 ^ 0xAA -> $mixed_xor
+--echo 0b1000 << 0x2 -> $mixed_shift1
+--echo 0x40 >> 0b10 -> $mixed_shift2
+
+--echo # ----------------------------------------------------------------------------
+--echo # Bitwise operator precedence
+--echo # ----------------------------------------------------------------------------
+
+--echo # Bitwise operator precedence
+let $prec1 = $(12 | 8 ^ 4);
+let $prec2 = $(12 ^ 8 | 4);
+let $prec3 = $(12 & 8 ^ 4);
+let $prec4 = $(12 ^ 8 & 4);
+let $prec5 = $(12 | 8 & 4);
+
+--echo 12 | 8 ^ 4 -> $prec1
+--echo 12 ^ 8 | 4 -> $prec2
+--echo 12 & 8 ^ 4 -> $prec3
+--echo 12 ^ 8 & 4 -> $prec4
+--echo 12 | 8 & 4 -> $prec5
+
+--echo # Parentheses override bitwise precedence
+let $paren1 = $((12 | 8) ^ 4);
+let $paren2 = $(12 | (8 ^ 4));
+let $paren3 = $((12 & 8) | 4);
+let $paren4 = $(12 & (8 | 4));
+
+--echo (12 | 8) ^ 4 -> $paren1
+--echo 12 | (8 ^ 4) -> $paren2
+--echo (12 & 8) | 4 -> $paren3
+--echo 12 & (8 | 4) -> $paren4
+
+--echo # ----------------------------------------------------------------------------
+--echo # Shift precedence with arithmetic operators
+--echo # ----------------------------------------------------------------------------
+
+--echo # Shift operators vs arithmetic
+let $shift_arith1 = $(2 + 3 << 1);
+let $shift_arith2 = $(8 >> 1 + 1);
+let $shift_arith3 = $(4 * 2 << 2);
+let $shift_arith4 = $(16 >> 2 * 1);
+
+--echo 2 + 3 << 1 -> $shift_arith1
+--echo 8 >> 1 + 1 -> $shift_arith2
+--echo 4 * 2 << 2 -> $shift_arith3
+--echo 16 >> 2 * 1 -> $shift_arith4
+
+--echo # ----------------------------------------------------------------------------
+--echo # Bitwise operations with negative numbers
+--echo # ----------------------------------------------------------------------------
+
+--echo # Bitwise operations with negative numbers (unsigned interpretation)
+let $neg_and = $(-1 & 15);
+let $neg_or = $(-16 | 7);
+let $neg_xor = $(-1 ^ 255);
+let $neg_lshift = $(-10 << 3);
+let $neg_rshift = $(-10 >> 3);
+
+--echo -1 & 15 -> $neg_and
+--echo -16 | 7 -> $neg_or
+--echo -1 ^ 255 -> $neg_xor
+--echo -10 << 3 -> $neg_lshift
+--echo -10 >> 3 -> $neg_rshift
+
+--echo # ----------------------------------------------------------------------------
+--echo # Complex bitwise expressions
+--echo # ----------------------------------------------------------------------------
+
+--echo # Complex bitwise expressions
+let $complex1 = $((0xFF & 0xF0) | (0x0F & 0x05));
+let $complex2 = $(~(~0xFF | 0x0F));
+let $complex3 = $((1 << 4) | (1 << 2) | (1 << 0));
+let $complex4 = $((255 >> 2) & (63 << 1));
+
+--echo (0xFF & 0xF0) | (0x0F & 0x05) -> $complex1
+--echo ~(~0xFF | 0x0F) -> $complex2
+--echo (1 << 4) | (1 << 2) | (1 << 0) -> $complex3
+--echo (255 >> 2) & (63 << 1) -> $complex4
+
+--echo # ----------------------------------------------------------------------------
+--echo # Bitwise operations in conditional expressions
+--echo # ----------------------------------------------------------------------------
+
+--echo # Bitwise operations in conditions
+if ($(15 & 8))
+{
+  --echo 15 & 8 is true (result is 8, non-zero)
+}
+
+if ($(12 ^ 12))
+{
+  --echo This should not print - 12 ^ 12 is 0
+}
+
+if ($(!(12 ^ 12)))
+{
+  --echo !(12 ^ 12) is true
+}
+
+if ($((1 << 5) == 32))
+{
+  --echo 1 << 5 equals 32
+}
+
+--echo # ----------------------------------------------------------------------------
+--echo # Bitwise operations with variables
+--echo # ----------------------------------------------------------------------------
+
+--echo # Bitwise operations with variables
+let $mask = 0xFF;
+let $value = 0xAB;
+let $shift_amount = 4;
+
+let $masked = $($value & $mask);
+let $shifted_left = $($value << $shift_amount);
+let $shifted_right = $($value >> $shift_amount);
+let $inverted = $(~$value);
+
+--echo $value & $mask -> $masked
+--echo $value << $shift_amount -> $shifted_left
+--echo $value >> $shift_amount -> $shifted_right
+--echo ~$value -> $inverted
+
+--echo # ----------------------------------------------------------------------------
+--echo # Bitwise error cases
+--echo # ----------------------------------------------------------------------------
+
+--echo # Testing bitwise error cases
+
+--echo # Shift by negative amount
+--error 1
+--exec echo "let \$invalid_shift1= \$(5 << -1);" | $MYSQL_TEST 2>&1
+
+--echo # Shift by too large amount (>= 64)
+--error 1
+--exec echo "let \$invalid_shift2= \$(5 << 64);" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$invalid_shift3= \$(100 >> 65);" | $MYSQL_TEST 2>&1
+
+--echo # ----------------------------------------------------------------------------
+--echo # Edge cases for shift operations
+--echo # ----------------------------------------------------------------------------
+
+--echo # Edge cases for shift operations
+let $edge_shift1 = $(1 << 0);
+let $edge_shift2 = $(1 << 63);
+let $edge_shift3 = $(8 >> 0);
+let $edge_shift4 = $(1 >> 63);
+
+--echo 1 << 0 -> $edge_shift1
+--echo 1 << 63 -> $edge_shift2
+--echo 8 >> 0 -> $edge_shift3
+--echo 1 >> 63 -> $edge_shift4
+
+--echo # ----------------------------------------------------------------------------
+--echo # Bitwise operations with large numbers
+--echo # ----------------------------------------------------------------------------
+
+--echo # Bitwise operations with large numbers
+let $large_and = $(0x7FFFFFFFFFFFFFFF & 0x7FFFFFFFFFFFFFFE);
+let $large_or  = $(0x7FFFFFFFFFFFFFFF | 0x7FFFFFFFFFFFFFFE);
+let $large_xor = $(0x7FFFFFFFFFFFFFFF ^ 0x7FFFFFFFFFFFFFFE);
+
+--echo 0x7FFFFFFFFFFFFFFF & 0x7FFFFFFFFFFFFFFE -> $large_and
+--echo 0x7FFFFFFFFFFFFFFF | 0x7FFFFFFFFFFFFFFE -> $large_or
+--echo 0x7FFFFFFFFFFFFFFF ^ 0x7FFFFFFFFFFFFFFE -> $large_xor
+
+--echo # ----------------------------------------------------------------------------
+--echo # Complex expressions with multiple operators
+--echo # ----------------------------------------------------------------------------
+
+--echo # Complex expressions
+--echo 2 + 3 * 4 > 10 -> $(2 + 3 * 4 > 10)
+--echo (5 + 5) == (2 * 5) -> $((5 + 5) == (2 * 5))
+--echo 1 + 2 + 3 + 4 == 10 -> $(1 + 2 + 3 + 4 == 10)
+--echo 3 + 2 > 4 && 5 > 2 -> $(3 + 2 > 4 && 5 > 2)
+--echo 2 * 3 + 1 << 1 & 15 ^ 8 | 4 > 2 -> $(2 * 3 + 1 << 1 & 15 ^ 8 | 4 > 2)
+--echo 1 + 2 * 3 / 2 % 5 << 1 ^ 7 & 15 | 8 > 4 -> $(1 + 2 * 3 / 2 % 5 << 1 ^ 7 & 15 | 8 > 4)
+--echo 4 + 3 * 2 >> 1 ^ 6 & 3 < 5 | ~1 - 1 % 2 -> $(4 + 3 * 2 >> 1 ^ 6 & 3 < 5 | ~1 - 1 % 2)
+--echo 5 * 3 + 7 << 1 ^ 12 >> 2 -> $(5 * 3 + 7 << 1 ^ 12 >> 2)
+--echo 8 * 2 / 4 + 3 % 2 << 1 > 2 ^ 1 & 1 | !0 - 2 -> $(8 * 2 / 4 + 3 % 2 << 1 > 2 ^ 1 & 1 | !0 - 2)
+--echo (!((6 + 3 * 2) > (14 / 2 - 1)) | ((8 << 1) & ~(5 ^ 3)) + (4 >= 2) * (3 <= 3) - (9 % 4 >> 1)) -> $(!((6 + 3 * 2) > (14 / 2 - 1)) | ((8 << 1) & ~(5 ^ 3)) + (4 >= 2) * (3 <= 3) - (9 % 4 >> 1))
+
+--echo # ----------------------------------------------------------------------------
+--echo # Error Handling (Syntax and Runtime)
+--echo # ----------------------------------------------------------------------------
+
+--echo # Test case: Empty unquoted string (illegal)
+--error 1
+--exec echo "let \$a = \$();" | $MYSQL_TEST 2>&1
+
+--echo # Test case: Empty unquoted string with only spaces (illegal)
+--error 1
+--exec echo "let \$a = \$(   );" | $MYSQL_TEST 2>&1
+
+--echo # Test case: Unmatched parenthesis
+--error 1
+--exec echo "let \$a = \$((1 + 2);" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$a = \$(((((((((1+3;" | $MYSQL_TEST 2>&1
+
+--echo # Test case: Expression evaluator not the entire condition
+--error 1
+--exec echo "if(\$(1 + 2) + 3) { echo 'error'; }" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$a=3; if (\$a > \$(1 + 2)) { echo 'error'; }" | $MYSQL_TEST 2>&1
+
+--echo # Test case: Division by zero
+--error 1
+--exec echo "let \$a = \$(5 / 0);" | $MYSQL_TEST 2>&1
+
+--echo # Test case: Modulo by zero
+--error 1
+--exec echo "let \$a = \$(5 % 0);" | $MYSQL_TEST 2>&1
+
+--echo # Test case: Overflow
+--error 1
+--exec echo "let \$a = \$(18446744073709551616);" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$a = \$(-18446744073709551616);" | $MYSQL_TEST 2>&1
+
+--echo # Expression evaluation tests completed successfully

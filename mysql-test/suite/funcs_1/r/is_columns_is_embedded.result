@@ -436,13 +436,13 @@ def	information_schema	TRIGGERS	ACTION_REFERENCE_NEW_ROW	16	NULL	NO	varchar	3	9	
 def	information_schema	TRIGGERS	ACTION_REFERENCE_NEW_TABLE	14	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)					NEVER	NULL
 def	information_schema	TRIGGERS	ACTION_REFERENCE_OLD_ROW	15	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)					NEVER	NULL
 def	information_schema	TRIGGERS	ACTION_REFERENCE_OLD_TABLE	13	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)					NEVER	NULL
-def	information_schema	TRIGGERS	ACTION_STATEMENT	10	NULL	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	longtext					NEVER	NULL
+def	information_schema	TRIGGERS	ACTION_STATEMENT	10	NULL	YES	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	longtext					NEVER	NULL
 def	information_schema	TRIGGERS	ACTION_TIMING	12	NULL	NO	varchar	6	18	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(6)					NEVER	NULL
 def	information_schema	TRIGGERS	CHARACTER_SET_CLIENT	20	NULL	NO	varchar	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(32)					NEVER	NULL
 def	information_schema	TRIGGERS	COLLATION_CONNECTION	21	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)					NEVER	NULL
 def	information_schema	TRIGGERS	CREATED	17	NULL	YES	datetime	NULL	NULL	NULL	NULL	2	NULL	NULL	datetime(2)					NEVER	NULL
 def	information_schema	TRIGGERS	DATABASE_COLLATION	22	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)					NEVER	NULL
-def	information_schema	TRIGGERS	DEFINER	19	NULL	NO	varchar	384	1152	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(384)					NEVER	NULL
+def	information_schema	TRIGGERS	DEFINER	19	NULL	YES	varchar	384	1152	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(384)					NEVER	NULL
 def	information_schema	TRIGGERS	EVENT_MANIPULATION	4	NULL	NO	varchar	6	18	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(6)					NEVER	NULL
 def	information_schema	TRIGGERS	EVENT_OBJECT_CATALOG	5	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)					NEVER	NULL
 def	information_schema	TRIGGERS	EVENT_OBJECT_SCHEMA	6	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)					NEVER	NULL
