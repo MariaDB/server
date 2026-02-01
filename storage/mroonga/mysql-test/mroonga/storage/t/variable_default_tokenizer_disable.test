@@ -1,0 +1,7 @@
+--source ../../include/mroonga/have_mroonga.inc
+
+SET GLOBAL mroonga_default_tokenizer = NULL;
+SHOW GLOBAL VARIABLES LIKE 'mroonga_default_tokenizer';
+SET GLOBAL mroonga_default_tokenizer = DEFAULT;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc
