@@ -938,6 +938,9 @@ static void mrn_default_tokenizer_update(THD *thd, struct st_mysql_sys_var *var,
   char **old_value_ptr = (char **)var_ptr;
   grn_ctx *ctx = &mrn_ctx;
 
+  if(!new_value) {
+    new_value = "off";
+  }
   mrn_change_encoding(ctx, system_charset_info);
   if (strcmp(*old_value_ptr, new_value) == 0) {
     GRN_LOG(ctx, GRN_LOG_NOTICE,
