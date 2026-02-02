@@ -1493,6 +1493,16 @@ my_ci_strnncollsp(CHARSET_INFO *ci,
   return (ci->coll->strnncollsp)(ci, a, alen, b, blen);
 }
 
+static inline int
+my_ci_strnncollsp_nchars(CHARSET_INFO *ci,
+                         const uchar *a, size_t alen,
+                         const uchar *b, size_t blen,
+                         size_t nchars,
+                         uint flags)
+{
+  return (ci->coll->strnncollsp_nchars)(ci, a, alen, b, blen, nchars, flags);
+}
+
 
 static inline my_bool
 my_ci_like_range(CHARSET_INFO *ci,
