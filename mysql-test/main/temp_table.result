@@ -721,3 +721,30 @@ pk
 0
 1
 DROP TABLE t;
+#
+# MDEV-38716: Server crashes in TABLE::evaluate_update_default_function
+#
+# Test case where ALTER doesn't add any new columns with default values
+CREATE TEMPORARY TABLE tmp_38716 (a timestamp null on update current_timestamp(6), b int);
+ALTER TABLE tmp_38716 FORCE;
+INSERT INTO tmp_38716 VALUES (NULL,1);
+UPDATE tmp_38716 SET b = 2;
+SELECT * from tmp_38716;
+a	b
+2001-01-01 10:20:30	2
+DROP TABLE tmp_38716;
+# Test case where ALTER adds a new column with a default value
+CREATE TEMPORARY TABLE tmp_38716_2 (a timestamp null on update current_timestamp(6), b int default 0);
+INSERT INTO tmp_38716_2 (b) VALUES (10);
+ALTER TABLE tmp_38716_2 ADD COLUMN c INT DEFAULT (b+1), FORCE;
+# Update should trigger ON UPDATE and set a to current timestamp where b=11
+UPDATE tmp_38716_2 SET b = 11;
+SELECT * from tmp_38716_2 where b=11;
+a	b	c
+2001-01-01 10:20:30	11	11
+# New row should have a=NULL and c=21
+INSERT INTO tmp_38716_2 (b) VALUES (20);
+SELECT * FROM tmp_38716_2 where b=20;
+a	b	c
+NULL	20	21
+DROP TABLE tmp_38716_2;

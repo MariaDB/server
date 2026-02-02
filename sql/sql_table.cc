@@ -12623,7 +12623,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   sql_mode_t save_sql_mode= thd->variables.sql_mode;
   ulonglong prev_insert_id, time_to_report_progress;
   Field **dfield_ptr= to->default_field;
-  uint save_to_s_default_fields= to->s->default_fields;
   bool make_versioned= !from->versioned() && to->versioned();
   bool make_unversioned= from->versioned() && !to->versioned();
   bool keep_versioned= from->versioned() && to->versioned();
@@ -12684,7 +12683,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   List_iterator<Create_field> it(alter_info->create_list);
   Create_field *def;
   copy_end=copy;
-  to->s->default_fields= 0;
   error= 1;
   if (to->s->table_type == TABLE_TYPE_SEQUENCE &&
       from->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT &&
@@ -12730,16 +12728,19 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         present in the set of autoupdate fields.
       */
       if ((*ptr)->default_value)
-      {
         *(dfield_ptr++)= *ptr;
-        ++to->s->default_fields;
-      }
     }
   }
+
+  /*
+    Mark the end of the default field list. Note that this is a temporary
+    state; fields with ON UPDATE defaults will be added back to this list
+    after the data copy is complete.
+  */
   if (dfield_ptr)
   {
     if (dfield_ptr == to->default_field)
-      to->default_field= 0; // No default fields left
+      to->default_field= NULL; // No default fields left
     else
       *dfield_ptr= NULL; // Mark end of default field pointers
   }
@@ -13021,6 +13022,56 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   cleanup_done= 1;
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
+  /*
+    To prevent this data copy from re-writing previously set default values,
+    this function previously has overridden to->default_fields to only account
+    for new fields added to the table (i.e those which should get new default
+    values). Now that the data copy is done, the to->default_field list needs
+    to be restored to include all fields that have default values to fill.
+
+    First, if to->default_field is NULL, it means it was nullified to prevent
+    trying to update any default values during the copy process because there
+    were no new fields added with default values to fill in. The list needs to
+    be restored to the original location so future records in this session can
+    get default values.
+
+    Then, because to->default_field was reset and now only considers new
+    fields, it is missing fields that have ON UPDATE clauses (i.e. TIMESTAMP
+    and DATETIME). So add those back in.
+
+    Notes:
+     * The code is similar to the dfield_ptr modification earlier in the
+       function
+     * This must be done before online alter execution, as it unpacks row
+       data, which requires the table's default_fields to be set up
+  */
+  if (!to->default_field)
+    to->default_field= dfield_ptr;
+#ifndef DBUG_OFF
+  else
+  {
+    /*
+      If to->default_field exists, dfield_ptr should point to the NULL list
+      terminator in the default_field list.
+    */
+    DBUG_ASSERT(dfield_ptr && !*dfield_ptr);
+  }
+#endif
+  if (dfield_ptr)
+  {
+    it.rewind();
+    for (Field **ptr= to->field; *ptr; ptr++)
+    {
+      def= it++;
+      if (def->field && def->field->has_update_default_function())
+        *(dfield_ptr++)= *ptr;
+    }
+    if (dfield_ptr == to->default_field)
+      to->default_field= NULL; // No default fields
+    else
+      *dfield_ptr= NULL; // Mark end of default field pointers
+  }
+
 #ifdef HAVE_REPLICATION
   if (online && error < 0)
   {
@@ -13145,7 +13196,6 @@ end:
   *copied= found_count;
   *deleted=delete_count;
   to->file->ha_release_auto_increment();
-  to->s->default_fields= save_to_s_default_fields;
 
   if (!cleanup_done)
   {
