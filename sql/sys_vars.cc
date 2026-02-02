@@ -6112,7 +6112,7 @@ static Sys_var_ulong Sys_opt_binlog_rows_event_max_size(
       VALID_RANGE(256, UINT_MAX32 - (UINT_MAX32 % 256)), DEFAULT(8192),
       BLOCK_SIZE(256));
 
-static Sys_var_ulong Sys_opt_binlog_partial_rows_event_max_size(
+static Sys_var_uint Sys_opt_binlog_partial_rows_event_max_size(
       "binlog_row_event_fragment_threshold",
       "When a Rows_log_event exceeds this threshold, it will be fragmented "
       "into multiple Partial_rows_log_event events in the binary log, each of "

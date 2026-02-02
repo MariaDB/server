@@ -8162,11 +8162,12 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
                       }
                     });
 
-    ulong rows_ev_metadata_len=
+    uint rows_ev_metadata_len=
         LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + BINLOG_CHECKSUM_LEN;
-    ulong max_rows_ev_len=
+    uint max_rows_ev_len=
         opt_binlog_row_event_fragment_threshold - rows_ev_metadata_len;
-    if (pending->rows_data_size_exceeds(max_rows_ev_len))
+    if (pending->rows_data_size_exceeds(
+            static_cast<ulonglong>(max_rows_ev_len)))
     {
       Rows_log_event_fragmenter fragmenter= Rows_log_event_fragmenter(
           thd, is_transactional, opt_binlog_row_event_fragment_threshold,

@@ -4796,9 +4796,9 @@ public:
     decide whether or not to fragment the event into multiple partial row log
     events when binlogging.
   */
-  my_bool rows_data_size_exceeds(ulong size_limit)
+  my_bool rows_data_size_exceeds(ulonglong size_limit)
   {
-    ulong const data_size= static_cast<ulong>(m_rows_cur - m_rows_buf);
+    ulonglong const data_size= static_cast<ulonglong>(m_rows_cur - m_rows_buf);
     return data_size > size_limit;
   }
 
