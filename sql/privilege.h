@@ -95,6 +95,44 @@ enum privilege_t: unsigned long long
   */
 };
 
+class access_t
+{
+  enum status_t
+  {
+    UNDEFINED,
+    ALLOW,
+    DENY
+  };
+
+private:
+  privilege_t m_allow;
+  privilege_t m_deny;
+public:
+  access_t(privilege_t allow, privilege_t deny): m_allow(allow), m_deny(deny)
+  {
+  }
+  static access_t combine (const access_t &a, const access_t &b)
+  {
+    return access_t((privilege_t)(a.m_allow | b.m_allow), (privilege_t)(a.m_deny | b.m_deny));
+  }
+  status_t check(privilege_t priv) const
+  {
+    if (m_deny & priv)
+      return DENY;
+    if ((m_allow & priv) == priv)
+      return ALLOW;
+    return UNDEFINED;
+  }
+  privilege_t allowed() const
+  {
+    return m_allow;
+  }
+  privilege_t denied() const
+  {
+    return m_deny;
+  }
+};
+
 constexpr static inline privilege_t ALL_KNOWN_BITS(privilege_t x)
 {
   return (privilege_t)(x | (x-1));
