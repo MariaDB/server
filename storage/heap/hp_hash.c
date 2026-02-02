@@ -415,41 +415,61 @@ int hp_rec_key_cmp(HP_KEYDEF *keydef, const uchar *rec1, const uchar *rec2)
     {
       uchar *pos1= (uchar*) rec1 + seg->start;
       uchar *pos2= (uchar*) rec2 + seg->start;
-      size_t char_length1, char_length2;
+      size_t len1, len2;
       size_t pack_length= seg->bit_start;
       CHARSET_INFO *cs= seg->charset;
       if (pack_length == 1)
       {
-        char_length1= (size_t) *(uchar*) pos1++;
-        char_length2= (size_t) *(uchar*) pos2++;
+        len1= (size_t) *(uchar*) pos1++;
+        len2= (size_t) *(uchar*) pos2++;
       }
       else
       {
-        char_length1= uint2korr(pos1);
-        char_length2= uint2korr(pos2);
+        len1= uint2korr(pos1);
+        len2= uint2korr(pos2);
         pos1+= 2;
         pos2+= 2;
       }
-      if (cs->mbmaxlen > 1)
+      /*
+        We're not using my_ci_strnncollsp_nchars() here for NOPAD collations
+        because some virtual implementations do not work correctly. For details see:
+        https://jira.mariadb.org/browse/MDEV-38712
+      */
+      if (cs->mbmaxlen > 1 && !(cs->state && MY_CS_NOPAD))
       {
-        size_t safe_length1= char_length1;
-        size_t safe_length2= char_length2;
-        size_t char_length= seg->length / cs->mbmaxlen;
-        char_length1= hp_charpos(cs, pos1, pos1 + char_length1, char_length);
-        set_if_smaller(char_length1, safe_length1);
-        char_length2= hp_charpos(cs, pos2, pos2 + char_length2, char_length);
-        set_if_smaller(char_length2, safe_length2);
+        size_t nchars= seg->length / cs->mbmaxlen;
+        if (my_ci_strnncollsp_nchars(cs, 
+                                     pos1, len1, 
+                                     pos2, len2, 
+                                     nchars,
+                                     MY_STRNNCOLLSP_NCHARS_EMULATE_TRIMMED_TRAILING_SPACES))
+          return 1;
       }
       else
       {
-        set_if_smaller(char_length1, seg->length);
-        set_if_smaller(char_length2, seg->length);
-      }
+        size_t char_length1= len1;
+        size_t char_length2= len2;
 
-      if (my_ci_strnncollsp(seg->charset,
-                            pos1, char_length1,
-                            pos2, char_length2))
-	return 1;
+        if (cs->mbmaxlen > 1)
+        {
+          size_t safe_length1= char_length1;
+          size_t safe_length2= char_length2;
+          size_t char_length= seg->length / cs->mbmaxlen;
+          char_length1= hp_charpos(cs, pos1, pos1 + char_length1, char_length);
+          set_if_smaller(char_length1, safe_length1);
+          char_length2= hp_charpos(cs, pos2, pos2 + char_length2, char_length);
+          set_if_smaller(char_length2, safe_length2);
+        }
+        else
+        {
+          set_if_smaller(char_length1, seg->length);
+          set_if_smaller(char_length2, seg->length);
+        }
+        if (my_ci_strnncollsp(seg->charset,
+                              pos1, char_length1,
+                              pos2, char_length2))
+          return 1;
+      }
     }
     else
     {
@@ -530,22 +550,35 @@ int hp_key_cmp(HP_KEYDEF *keydef, const uchar *rec, const uchar *key)
       size_t char_length_key= uint2korr(key);
       pos+= pack_length;
       key+= 2;                                  /* skip key pack length */
-      if (cs->mbmaxlen > 1)
+      if (cs->mbmaxlen > 1 && !(cs->state && MY_CS_NOPAD))
       {
-        size_t char_length1, char_length2;
-        char_length1= char_length2= seg->length / cs->mbmaxlen; 
-        char_length1= hp_charpos(cs, key, key + char_length_key, char_length1);
-        set_if_smaller(char_length_key, char_length1);
-        char_length2= hp_charpos(cs, pos, pos + char_length_rec, char_length2);
-        set_if_smaller(char_length_rec, char_length2);
+        size_t nchars= seg->length / cs->mbmaxlen; 
+        if (my_ci_strnncollsp_nchars(cs,
+                                     pos, char_length_rec,
+                                     key, char_length_key,
+                                     nchars,
+                                     MY_STRNNCOLLSP_NCHARS_EMULATE_TRIMMED_TRAILING_SPACES))
+          return 1;
       }
       else
-        set_if_smaller(char_length_rec, seg->length);
+      {
+        if (cs->mbmaxlen > 1)
+        {
+          size_t char_length1, char_length2;
+          char_length1= char_length2= seg->length / cs->mbmaxlen; 
+          char_length1= hp_charpos(cs, key, key + char_length_key, char_length1);
+          set_if_smaller(char_length_key, char_length1);
+          char_length2= hp_charpos(cs, pos, pos + char_length_rec, char_length2);
+          set_if_smaller(char_length_rec, char_length2);
+        }
+        else
+          set_if_smaller(char_length_rec, seg->length);
 
-      if (my_ci_strnncollsp(seg->charset,
-                            pos, char_length_rec,
-                            key, char_length_key))
-	return 1;
+        if (my_ci_strnncollsp(seg->charset,
+                              pos, char_length_rec,
+                              key, char_length_key))
+          return 1;
+      }
     }
     else
     {
