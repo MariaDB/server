@@ -1,0 +1,40 @@
+include/master-slave.inc
+[connection master]
+#
+# Initialize test data
+connection master;
+use test;
+create table test.t1 (a int) engine=innodb;
+create table test.t2 (a int) engine=innodb;
+create table test.t3 (a int) engine=innodb;
+insert into t1 values (1);
+create database ignored;
+create table ignored.ti (a int) engine=innodb;
+use test;
+CREATE FUNCTION f1() RETURNS INTEGER
+BEGIN
+INSERT INTO test.t1(a) values(10);
+INSERT INTO test.t2(a) values(20);
+RETURN 100;
+END//
+BEGIN;
+insert into ignored.ti values (f1());
+insert into t3 values (30);
+COMMIT;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+#
+# Cleanup
+connection master;
+drop table test.t1;
+drop table test.t2;
+drop table test.t3;
+drop table ignored.ti;
+drop database ignored;
+drop function f1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of rpl_filter_binlog_dump_function.test
