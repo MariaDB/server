@@ -7503,12 +7503,16 @@ bool ha_partition::can_skip_merging_scans()
   Field *part_field= NULL;
   uint i;
   m_unordered_prefix_len= 0;
+
   if (m_index_scan_type != partition_index_first &&
       m_index_scan_type != partition_index_last &&
       m_index_scan_type != partition_index_read &&
       m_index_scan_type != partition_read_range &&
       m_index_scan_type != partition_read_multi_range)
+  {
+    DBUG_ASSERT(0);
     return false;
+  }
   if (m_part_info->part_type != RANGE_PARTITION || m_is_sub_partitioned)
     return false;
   if (m_part_info->part_expr &&
