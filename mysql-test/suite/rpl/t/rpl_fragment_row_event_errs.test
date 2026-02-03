@@ -33,6 +33,7 @@ create table t1 (a int, b blob) engine=innodb;
 --connection master
 set @old_dbug= @@debug_dbug;
 set debug_dbug= "+d,oom_fragmenting_large_rows_ev";
+--replace_regex /needed [0-9]+ bytes/needed # bytes/
 --error ER_OUTOFMEMORY
 --eval insert into t1 values ($ins_num, repeat("a",1536))
 --inc $ins_num
@@ -141,7 +142,7 @@ set @@global.debug_dbug= "+d,oom_reassembling_large_rows_ev_buf";
 
 --connection slave
 --let $slave_sql_errno=1037
---let $show_slave_sql_error= 1
+--let $show_slave_sql_error= 0
 --let $slave_timeout=5
 --source include/wait_for_slave_sql_error.inc
 
