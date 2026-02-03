@@ -6193,8 +6193,7 @@ int ha_partition::common_first_last(uchar *buf)
     return error;
   if (!m_ordered_scan_ongoing)
   {
-    if (unlikely((error= handle_pre_scan(reverse_order,
-                                         check_parallel_search()))))
+    if (unlikely((error= handle_pre_scan(reverse_order, FALSE))))
       return error;
     return handle_unordered_scan_next_partition(buf, reverse_order);
   }
