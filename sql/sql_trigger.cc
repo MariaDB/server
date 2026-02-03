@@ -1124,7 +1124,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   /* Populate the trigger object */
 
   trigger->sql_mode= thd->variables.sql_mode;
-  trigger->sql_path= thd->variables.path.lex_cstring(thd, thd->mem_root);
+  trigger->sql_path= thd->variables.path.lex_cstring(thd->mem_root);
   build_trig_stmt_query(thd, tables, stmt_query, &trigger_definition,
                         &trigger->definer, trg_definer_holder);
 
@@ -1813,8 +1813,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         
         sql_path= ((trg_sql_path= it_paths++) ?
                     *trg_sql_path :
-                    global_system_variables.path.lex_cstring(thd,
-                                                             &table->mem_root));
+                    global_system_variables.path.lex_cstring(&table->mem_root));
 
         trg_create_time= it_create_times++;     // May be NULL if old file
         trg_definer= it_definer++;              // May be NULL if old file

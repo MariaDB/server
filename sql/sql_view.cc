@@ -1097,7 +1097,7 @@ static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
   view->definer.host= lex->definer->host;
   view->view_suid= lex->create_view->suid;
   view->with_check= lex->create_view->check;
-  view->m_sql_path= thd->variables.path.lex_cstring(thd, thd->mem_root);
+  view->m_sql_path= thd->variables.path.lex_cstring(thd->mem_root);
 
   DBUG_EXECUTE_IF("simulate_register_view_failure",
                   {

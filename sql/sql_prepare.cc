@@ -4142,7 +4142,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   }
 
   /* Store the current PATH */
-  m_sql_path= thd->variables.path.lex_cstring(thd, thd->mem_root);
+  m_sql_path= thd->variables.path.lex_cstring(thd->mem_root);
 
   /*
     We'd like to have thd->query to be set to the actual query
