@@ -319,7 +319,7 @@ public:
     by using for this set same objects that are used in 'sroutines' sets
     for statements of which this stored routine consists.
   */
-  HASH m_sroutines;
+  Sroutine_hash m_sroutines;
   // Pointers set during parsing
   const char *m_param_begin;
   const char *m_param_end;
@@ -658,7 +658,7 @@ public:
       initialized and linked. It gets automatically deleted
       by the Bison %destructor in sql_yacc.yy.
     */
-    LEX *oldlex= (LEX *) m_lex.pop();
+    LEX *oldlex= m_lex.pop();
     if (!oldlex)
       DBUG_RETURN(false); // Nothing to restore
     // This restores thd->lex and thd->stmt_lex

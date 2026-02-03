@@ -794,7 +794,7 @@ int check_embedded_connection(MYSQL *mysql, const char *db)
   result = 0;
   if (db && db[0])
   {
-    result = mysql_change_db(thd, &db_str, FALSE);
+    result = mysql_change_db(thd, db_str, FALSE);
     if (!result)
     {
       my_free(mysql->db);

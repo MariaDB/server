@@ -791,7 +791,7 @@ void push_warning_printf(THD *thd, Sql_condition::enum_warning_level level,
   DBUG_PRINT("enter",("warning: %u", code));
 
   va_start(args,format);
-  push_warning_printf_va_list(thd, level,code, format, args);
+  push_warning_vprintf(thd, level,code, format, args);
   va_end(args);
   DBUG_VOID_RETURN;
 }
@@ -802,9 +802,8 @@ void push_warning_printf(THD *thd, Sql_condition::enum_warning_level level,
   of format arguments.
 */
 
-void push_warning_printf_va_list(THD *thd,
-                                 Sql_condition::enum_warning_level level,
-                                 uint code, const char *format, va_list args)
+void push_warning_vprintf(THD *thd, Sql_condition::enum_warning_level level,
+                          uint code, const char *format, va_list args)
 {
   char warning[MYSQL_ERRMSG_SIZE];
 

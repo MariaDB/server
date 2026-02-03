@@ -22,6 +22,7 @@
 #include "sql_string.h"                         // LEX_STRING
 #include "sql_cmd.h"
 #include "mdl.h"
+#include "sql_hset.h"
 
 class Field;
 class Open_tables_backup;
@@ -677,16 +678,20 @@ public:
 
   int sp_cache_routine(THD *thd, sp_head **sp) const;
 };
+typedef Hash_set<Sroutine_hash_entry> Sroutine_hash;
 
+bool is_package_public_routine(THD *thd, const Lex_ident_db &db,
+                               const LEX_CSTRING &package,
+                               const LEX_CSTRING &routine, enum_sp_type type);
 
 bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
                          const MDL_key *key,
                          const Sp_handler *handler,
                          TABLE_LIST *belong_to_view);
 void sp_remove_not_own_routines(Query_tables_list *prelocking_ctx);
-bool sp_update_sp_used_routines(HASH *dst, HASH *src);
+bool sp_update_sp_used_routines(Sroutine_hash *dst, HASH *src);
 void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
-                                  HASH *src, TABLE_LIST *belong_to_view);
+                                  Sroutine_hash *src, TABLE_LIST *belong_to_view);
 void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
                                   SQL_I_List<Sroutine_hash_entry> *src,
                                   TABLE_LIST *belong_to_view);

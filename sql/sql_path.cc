@@ -5,7 +5,7 @@
 #include "sql_db.h"
 #include "sql_path.h"
 
-static constexpr LEX_CSTRING cur_schema= {STRING_WITH_LEN("CURRENT_SCHEMA")};
+static constexpr Lex_ident_ci cur_schema= {STRING_WITH_LEN("CURRENT_SCHEMA")};
 
 Sql_path::Sql_path() : m_count(0)
 {
@@ -19,16 +19,8 @@ Sql_path& Sql_path::operator=(const Sql_path &rhs)
 }
 
 
-bool
-is_package_public_routine(THD *thd,
-                          const Lex_ident_db &db,
-                          const LEX_CSTRING &package,
-                          const LEX_CSTRING &routine,
-                          enum_sp_type type);
-
-
-LEX_CSTRING Sql_path::resolve_current_schema(THD *thd, sp_head *caller,
-                                              const LEX_CSTRING &schema) const
+Lex_ident_db Sql_path::resolve_current_schema(THD *thd, sp_head *caller,
+                                              const Lex_ident_db &schema) const
 {
   /*
     Check if this is the CURRENT_SCHEMA token
@@ -36,20 +28,12 @@ LEX_CSTRING Sql_path::resolve_current_schema(THD *thd, sp_head *caller,
   if (!is_cur_schema(schema))
     return schema;
 
-  /*
-    Resolve CURRENT_SCHEMA to actual database name.
-  */
-  Lex_ident_db_normalized dbn;
+  /* Resolve CURRENT_SCHEMA to actual database name. */
   if (caller && caller->m_name.str)
-    dbn= thd->to_ident_db_normalized_with_error(caller->m_db);
-  else if (thd->db.str || thd->lex->sphead)
-    dbn= thd->copy_db_normalized();
-
-  // If neither condition is met or oom, dbn.str remains null
-  if (unlikely(!dbn.str))
-    return {nullptr, 0};
-
-  return {dbn.str, dbn.length};
+    return thd->to_ident_db_normalized_with_error(caller->m_db);
+  if (thd->db.str || thd->lex->sphead)
+    return thd->copy_db_normalized();
+  return {nullptr, 0};
 }
 
 
@@ -116,7 +100,8 @@ bool Sql_path::resolve(THD *thd, sp_head *caller, sp_name *name,
   if (name->m_explicit_name && strchr(name->m_name.str, '.'))
     return false;
 
-  if (!name->m_db.str || !name->m_explicit_name)
+  DBUG_ASSERT(!name->m_explicit_name || name->m_db.str);
+  if (!name->m_explicit_name)
   {
     // Implicit name
     if (caller && caller->m_name.str)
@@ -161,7 +146,7 @@ bool Sql_path::resolve(THD *thd, sp_head *caller, sp_name *name,
   bool resolved= false;
   for (size_t i= 0; i < m_count; i++)
   {
-    LEX_CSTRING schema= m_schemas[i];
+    Lex_ident_db schema= m_schemas[i];
     
     // Resolve CURRENT_SCHEMA if needed
     schema= resolve_current_schema(thd, caller, schema);
@@ -207,8 +192,7 @@ bool Sql_path::init()
 
 bool Sql_path::is_cur_schema(const LEX_CSTRING &schema) const
 {
-  return schema.length == cur_schema.length &&
-         !strncasecmp(schema.str, cur_schema.str, schema.length);
+  return cur_schema.streq(schema);
 }
 
 

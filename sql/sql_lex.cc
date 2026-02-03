@@ -8021,20 +8021,16 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
   sp_head *sp;
 
   /* Order is important here: new - reset - init */
-  if (likely((sp= sp_head::create(package, sph, agg_type,
-                                  thd->variables.sql_mode,
-                                  thd->variables.path,
-                                  sp_mem_root_ptr))))
+  if ((sp= sp_head::create(package, sph, agg_type, thd->variables.sql_mode,
+                                  thd->variables.path, sp_mem_root_ptr)))
   {
     sp->reset_thd_mem_root(thd);
     sp->init(this);
     if (name)
     {
       if (package)
-        sp->make_package_routine_name(sp->get_main_mem_root(),
-                                      package->m_db,
-                                      package->m_name,
-                                      name->m_name);
+        sp->make_package_routine_name(sp->get_main_mem_root(), package->m_db,
+                                      package->m_name, name->m_name);
       else
         sp->init_sp_name(name);
       if (!(sp->m_qname=
@@ -8065,10 +8061,9 @@ sp_head *LEX::make_sp_head_no_recursive(THD *thd, const sp_name *name,
   */
   if (package && package->m_is_cloning_routine)
     sph= sph->package_routine_handler();
-  if (!sphead ||
-      (package &&
-       (sph == &sp_handler_package_procedure ||
-        sph == &sp_handler_package_function)))
+  if (!sphead || (package &&
+                  (sph == &sp_handler_package_procedure ||
+                   sph == &sp_handler_package_function)))
     return make_sp_head(thd, name, sph, agg_type);
   my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0), sph->type_str());
   return NULL;
@@ -10189,10 +10184,8 @@ bool LEX::add_create_view(THD *thd, DDL_options_st ddl,
   if (unlikely(set_create_options_with_check(ddl)))
     return true;
   if (unlikely(!(create_view= new (thd->mem_root)
-                 Create_view_info(ddl.or_replace() ?
-                                  VIEW_CREATE_OR_REPLACE :
-                                  VIEW_CREATE_NEW,
-                                  algorithm, suid))))
+                 Create_view_info(ddl.or_replace() ? VIEW_CREATE_OR_REPLACE
+                                  : VIEW_CREATE_NEW, algorithm, suid))))
     return true;
   return create_or_alter_view_finalize(thd, table_ident);
 }
@@ -10202,15 +10195,11 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
 {
   Database_qualified_name pkgname;
   const Sp_handler *sph= &sp_handler_procedure;
-  Sql_cmd_call *cmd_call= nullptr;
   sql_command= SQLCOM_CALL;
   value_list.empty();
 
   thd->variables.path.resolve(thd, sphead, name, &sph, &pkgname);
 
-  if (unlikely(!(cmd_call= new (thd->mem_root) Sql_cmd_call(name, sph))))
-    return true;
-  
   // Only add to used routines if we have a valid database name
   if (name->m_db.str)
   {
@@ -10219,8 +10208,7 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
       sp_handler_package_body.add_used_routine(this, thd, &pkgname);
   }
 
-  m_sql_cmd= cmd_call;
-  return false;
+  return !(m_sql_cmd= new (thd->mem_root) Sql_cmd_call(name, sph));
 }
 
 

@@ -1711,7 +1711,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     if (unlikely(thd->copy_with_error(system_charset_info, (LEX_STRING*) &tmp,
                                       thd->charset(), packet, packet_length)))
       break;
-    if (!mysql_change_db(thd, &tmp, FALSE))
+    if (!mysql_change_db(thd, tmp, FALSE))
     {
       general_log_write(thd, command, thd->db.str, thd->db.length);
       my_ok(thd);
@@ -3245,8 +3245,7 @@ bool Sql_cmd_call::execute(THD *thd)
     This will cache all SP and SF and open and lock all tables
     required for execution.
   */
-  if (check_table_access(thd, SELECT_ACL, all_tables, FALSE,
-                         UINT_MAX, FALSE) ||
+  if (check_table_access(thd, SELECT_ACL, all_tables, FALSE, UINT_MAX, FALSE) ||
       open_and_lock_tables(thd, all_tables, TRUE, 0))
    return true;
 
@@ -3260,10 +3259,8 @@ bool Sql_cmd_call::execute(THD *thd)
       If the routine is not found, let's still check EXECUTE_ACL to decide
       whether to return "Access denied" or "Routine does not exist".
     */
-    if (check_routine_access(thd, EXECUTE_ACL, &m_name->m_db,
-                             &m_name->m_name,
-                             &sp_handler_procedure,
-                             false))
+    if (check_routine_access(thd, EXECUTE_ACL, &m_name->m_db, &m_name->m_name,
+                             &sp_handler_procedure, false))
       return true;
     /*
       sp_find_routine can have issued an ER_SP_RECURSION_LIMIT error.
@@ -4855,7 +4852,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 #endif
   case SQLCOM_CHANGE_DB:
   {
-    if (!mysql_change_db(thd, &select_lex->db, FALSE))
+    if (!mysql_change_db(thd, select_lex->db, FALSE))
       my_ok(thd);
 
     break;

@@ -15320,7 +15320,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   /* Change a database if necessary */
   if (mpvio.db.length)
   {
-    uint err = mysql_change_db(thd, &mpvio.db, FALSE);
+    uint err= mysql_change_db(thd, mpvio.db, FALSE);
     if(err)
     {
       if (err == ER_DBACCESS_DENIED_ERROR)

@@ -4809,7 +4809,7 @@ Prepared_statement::reprepare()
 
   status_var_increment(thd->status_var.com_stmt_reprepare);
 
-  if (unlikely(mysql_opt_change_db(thd, &stmt_db_name, &saved_cur_db_name,
+  if (unlikely(mysql_opt_change_db(thd, stmt_db_name, &saved_cur_db_name,
                                    TRUE, &cur_db_changed)))
     return TRUE;
 
@@ -4821,7 +4821,7 @@ Prepared_statement::reprepare()
           validate_metadata(&copy));
 
   if (cur_db_changed)
-    mysql_change_db(thd, (LEX_CSTRING*) &saved_cur_db_name, TRUE);
+    mysql_change_db(thd, saved_cur_db_name, TRUE);
 
   if (likely(!error))
   {
@@ -4940,7 +4940,7 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
   swap_variables(THD::used_t,
                  m_prepare_time_thd_used_flags,
                  copy->m_prepare_time_thd_used_flags);
-  
+
   swap_variables(LEX_CSTRING, m_sql_path, copy->m_sql_path);
 
   DBUG_ASSERT(param_count == copy->param_count);
@@ -4978,12 +4978,9 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
   Query_arena *old_stmt_arena;
   bool error= TRUE;
   bool qc_executed= FALSE;
-
-  char saved_cur_db_name_buf[SAFE_NAME_LEN+1];
-  LEX_STRING saved_cur_db_name=
-    { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
+  char saved_db_buf[SAFE_NAME_LEN+1];
+  LEX_STRING saved_db= { saved_db_buf, sizeof(saved_db_buf) };
   bool cur_db_changed;
-
   LEX_CSTRING stmt_db_name= db;
 
   if (check_charset_collation_map_version(thd, thd->m_reprepare_observer))
@@ -5040,8 +5037,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     selected).
   */
 
-  if (mysql_opt_change_db(thd, &stmt_db_name, &saved_cur_db_name, TRUE,
-                          &cur_db_changed))
+  if (mysql_opt_change_db(thd, stmt_db_name, &saved_db, TRUE, &cur_db_changed))
     goto error;
 
   /* Allocate query. */
@@ -5137,7 +5133,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
   */
 
   if (cur_db_changed)
-    mysql_change_db(thd, (LEX_CSTRING*) &saved_cur_db_name, TRUE);
+    mysql_change_db(thd, saved_db, TRUE);
 
   /* Assert that if an error, no cursor is open */
   DBUG_ASSERT(! (error && cursor));

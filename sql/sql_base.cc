@@ -3218,9 +3218,8 @@ check_and_update_table_version(THD *thd,
   @retval  FALSE success, version in Sroutine_hash_entry has been updated
 */
 
-static bool
-check_and_update_routine_version(THD *thd, Sroutine_hash_entry *rt,
-                                 sp_head *sp)
+static bool check_and_update_routine_version(THD *thd, Sroutine_hash_entry *rt,
+                                             sp_head *sp)
 {
   ulong spc_version= thd->sp_cache_version();
   /* sp is NULL if there is no such routine. */
@@ -3866,7 +3865,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
   switch (mdl_type)
   {
   case MDL_key::PACKAGE_BODY:
-    DBUG_ASSERT(rt != (Sroutine_hash_entry*)prelocking_ctx->sroutines_list.first);
+    DBUG_ASSERT(rt != prelocking_ctx->sroutines_list.first);
     /*
       No need to cache the package body itself.
       It gets cached during open_and_process_routine()
@@ -3887,7 +3886,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
         the binlog as only the statements in the called procedure show
         up there, not the CALL itself.
       */
-      if (rt != (Sroutine_hash_entry*)prelocking_ctx->sroutines_list.first ||
+      if (rt != prelocking_ctx->sroutines_list.first ||
           mdl_type != MDL_key::PROCEDURE)
       {
         /*

@@ -1810,9 +1810,8 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         */
         sql_mode= ((trg_sql_mode= itm++) ? *trg_sql_mode :
                    (ulonglong) global_system_variables.sql_mode);
-        
-        sql_path= ((trg_sql_path= it_paths++) ?
-                    *trg_sql_path :
+
+        sql_path= ((trg_sql_path= it_paths++) ? *trg_sql_path :
                     global_system_variables.path.lex_cstring(&table->mem_root));
 
         trg_create_time= it_create_times++;     // May be NULL if old file
@@ -1874,8 +1873,8 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         if (lex.sphead)
           lex.sphead->m_sql_mode= sql_mode;
 
-        if (unlikely(!(trigger= (new (&table->mem_root)
-                                 Trigger(trigger_list, lex.sphead)))))
+        trigger= new (&table->mem_root) Trigger(trigger_list, lex.sphead);
+        if (unlikely(!trigger))
           goto err_with_lex_cleanup;
         lex.sphead= NULL; /* Prevent double cleanup. */
 
@@ -1918,9 +1917,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
 
           trigger_list->add_trigger(lex.trg_chistics.events,
                                     lex.trg_chistics.action_time,
-                                    TRG_ORDER_NONE,
-                                    anchor_trg_name,
-                                    trigger);
+                                    TRG_ORDER_NONE, anchor_trg_name, trigger);
         }
 
         if (unlikely(parse_error))

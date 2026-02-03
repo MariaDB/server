@@ -578,6 +578,8 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
    m_modified(0),
    m_recursion_level(0),
    m_next_cached_sp(0),
+   m_sroutines(key_memory_sp_head_main_root, Lex_ident_routine::charset_info(),
+               0, 0, 0, sp_sroutine_key, 0, 0),
    m_param_begin(NULL),
    m_param_end(NULL),
    m_cpp_body_begin(NULL),
@@ -606,9 +608,6 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
                         sizeof(sp_instr *), 16, 8, MYF(0));
   my_hash_init(key_memory_sp_head_main_root, &m_sptabs,
                table_alias_charset, 0, 0, 0, sp_table_key, 0, 0);
-  my_hash_init(key_memory_sp_head_main_root, &m_sroutines,
-               Lex_ident_routine::charset_info(),
-               0, 0, 0, sp_sroutine_key, 0, 0);
 
   m_sql_path= sql_path;
 
@@ -833,7 +832,9 @@ sp_head::init_sp_name(const sp_name *spname)
 
   /* Must be initialized in the parser. */
 
-  DBUG_ASSERT(spname && spname->m_db.str && spname->m_db.length);
+  DBUG_ASSERT(spname);
+  DBUG_ASSERT(spname->m_db.str);
+  DBUG_ASSERT(spname->m_db.length);
 
   m_explicit_name= spname->m_explicit_name;
   /* We have to copy strings to get them into the right memroot. */
@@ -920,7 +921,6 @@ sp_head::~sp_head()
   unwind_aux_lexes_and_restore_original_lex();
 
   my_hash_free(&m_sptabs);
-  my_hash_free(&m_sroutines);
 
   sp_head::destroy(m_next_cached_sp);
 
@@ -1120,14 +1120,9 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
                m_first_instance->m_last_cached_sp == this) ||
               (m_recursion_level + 1 == m_next_cached_sp->m_recursion_level));
 
-  /*
-    NOTE: The SQL Standard does not specify the context that should be
-    preserved for stored routines. However, at SAP/Walldorf meeting it was
-    decided that current database should be preserved.
-  */
-
+  /* m_db is empty for sp-less compound statements. */
   if (m_db.length &&
-      (err_status= mysql_opt_change_db(thd, &m_db, &saved_cur_db_name, FALSE,
+      (err_status= mysql_opt_change_db(thd, m_db, &saved_cur_db_name, FALSE,
                                        &cur_db_changed)))
   {
     goto done;
@@ -1527,7 +1522,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       NULL. In this case, mysql_change_db() would generate an error.
     */
 
-    err_status|= mysql_change_db(thd, (LEX_CSTRING*)&saved_cur_db_name, TRUE) != 0;
+    err_status|= mysql_change_db(thd, saved_cur_db_name, TRUE) != 0;
   }
 
 #ifdef PROTECT_STATEMENT_MEMROOT
