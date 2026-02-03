@@ -1719,7 +1719,12 @@ ATTRIBUTE_COLD void mtr_t::index_lock_upgrade()
     return;
   ut_ad(slot.type == MTR_MEMO_SX_LOCK);
   index_lock *lock= static_cast<index_lock*>(slot.object);
-  lock->u_x_upgrade(SRW_LOCK_CALL);
+  if (!lock->u_x_upgrade_try())
+  {
+    lock->u_unlock();
+    ut_ad(!lock->have_any());
+    lock->x_lock(SRW_LOCK_CALL);
+  }
   slot.type= MTR_MEMO_X_LOCK;
 }
 
