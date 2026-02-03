@@ -4801,11 +4801,14 @@ static ulong xb_set_max_open_files(rlim_t max_file_limit)
 		goto end;
 	}
 
-	rlimit.rlim_cur = rlimit.rlim_max = max_file_limit;
+	rlimit.rlim_cur = max_file_limit;
 
 	if (setrlimit(RLIMIT_NOFILE, &rlimit)) {
 		/* Use original value */
 		max_file_limit = static_cast<ulong>(old_cur);
+
+		msg( "setrlimit failed %d %s limit S: %lu H: %lu",
+		     errno, strerror(errno), rlimit.rlim_cur, rlimit.rlim_max);
 	} else {
 
 		rlimit.rlim_cur = 0;	/* Safety if next call fails */
