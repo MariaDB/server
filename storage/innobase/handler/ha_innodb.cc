@@ -5032,6 +5032,7 @@ Ensure that indexed virtual columns will be computed.
 Needs to be done for indexes that are being added with inplace ALTER
 in a different thread, because from the server point of view these
 columns are not yet indexed.
+Also needed if the primary key is being updated.
 */
 void ha_innobase::column_bitmaps_signal()
 {
@@ -5039,7 +5040,25 @@ void ha_innobase::column_bitmaps_signal()
     return;
 
   dict_index_t* clust_index= dict_table_get_first_index(m_prebuilt->table);
-  if (!clust_index->online_log)
+  bool is_online_log= clust_index->online_log;
+
+  /*
+    Check if the clustered index is being updated.
+    If so, it is necessary to compute virtual columns that are part of
+    secondary indexes, to be able to re-compute those indexes.
+  */
+  bool upd_pk= false;
+  for (uint j= 0; j < clust_index->n_user_defined_cols; ++j)
+  {
+    dict_col_t *col= clust_index->fields[j].col;
+    if (bitmap_is_set(table->write_set, static_cast<uint>(col->ind)))
+    {
+      upd_pk= 1;
+      break;
+    }
+  }
+
+  if (!is_online_log && !upd_pk)
     return;
 
   uint num_v= 0;
@@ -5050,7 +5069,7 @@ void ha_innobase::column_bitmaps_signal()
 
     dict_col_t *col= &m_prebuilt->table->v_cols[num_v].m_col;
     if (col->ord_part ||
-        (dict_index_is_online_ddl(clust_index) &&
+        (is_online_log && dict_index_is_online_ddl(clust_index) &&
          row_log_col_is_indexed(clust_index, num_v)))
       table->mark_virtual_column_with_deps(table->vfield[j]);
     num_v++;
