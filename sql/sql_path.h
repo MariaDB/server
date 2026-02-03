@@ -64,28 +64,20 @@ public:
   /*
     Get the number of bytes needed to print the path variable
 
-    @param thd              The thread handle
-    @param resolve          If true, resolve current schema to
-                            the current database name
-
     @return The number of bytes needed
   */
-  size_t text_format_nbytes_needed(THD *thd, bool resolve) const;
+  size_t text_format_nbytes_needed() const;
   /*
     Print the path variable to a string
 
-    @param thd              The thread handle
-    @param resolve          If true, resolve current schema to
-                            the current database name
     @param dst              The destination buffer
     @param nbytes_available The number of bytes available in the buffer
 
     @return The number of bytes written
   */
-  size_t print(THD *thd, bool resolve,
-               char *dst, size_t nbytes_available) const;
+  size_t print(char *dst, size_t nbytes_available) const;
 
-  LEX_CSTRING lex_cstring(THD *thd, MEM_ROOT *mem_root) const;
+  LEX_CSTRING lex_cstring(MEM_ROOT *mem_root) const;
 
 protected:
   /*

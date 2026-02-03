@@ -6366,12 +6366,11 @@ String *Item_func_current_path::val_str(String *str)
   DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   
-  auto length= thd->variables.path.text_format_nbytes_needed(thd, false);
+  auto length= thd->variables.path.text_format_nbytes_needed();
   if (str->realloc(length))
     return NULL;
     
-  length= thd->variables.path.print(thd, false,
-                                    &(*str)[0], str->alloced_length());
+  length= thd->variables.path.print(&(*str)[0], str->alloced_length());
   str->length(length);
 
   null_value= 0;

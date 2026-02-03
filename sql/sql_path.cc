@@ -505,22 +505,13 @@ bool Sql_path::from_text(THD *thd, CHARSET_INFO *cs, const LEX_CSTRING &text)
 }
 
 
-size_t Sql_path::text_format_nbytes_needed(THD *thd, bool resolve) const
+size_t Sql_path::text_format_nbytes_needed() const
 {
   size_t nbytes= 0;
 
   for (size_t i= 0; i < m_count; i++)
   {
     LEX_CSTRING schema= m_schemas[i];
-    if (resolve && is_cur_schema(schema) && thd->db.str != nullptr)
-    {
-      /*
-        If the schema is the current schema, we need to replace it with
-        the current database name.
-      */
-      schema.str= thd->get_db();
-      schema.length= strlen(schema.str);
-    }
     size_t schema_length= schema.length;
     for (size_t j= 0; j < schema.length; j++)
     {
@@ -538,8 +529,7 @@ size_t Sql_path::text_format_nbytes_needed(THD *thd, bool resolve) const
 }
 
 
-size_t Sql_path::print(THD *thd, bool resolve,
-                       char *dst, size_t nbytes_available) const
+size_t Sql_path::print(char *dst, size_t nbytes_available) const
 {
   char *start= dst;
   bool seen= false;
@@ -547,20 +537,10 @@ size_t Sql_path::print(THD *thd, bool resolve,
   for (size_t i= 0; i < m_count; i++)
   {
     LEX_CSTRING schema= m_schemas[i];
-    if (resolve && is_cur_schema(schema) && thd->db.str != nullptr)
-    {
-      /*
-        If the schema is the current schema, we need to replace it with
-        the current database name.
-      */
-      schema.str= thd->get_db();
-      schema.length= strlen(schema.str);
-    }
-
     if (dst - start + schema.length + 3 > nbytes_available)
       break;
 
-    if (!resolve && !seen && is_cur_schema(schema))
+    if (!seen && is_cur_schema(schema))
     {
       memcpy(dst, schema.str, schema.length);
       dst+= schema.length;
@@ -590,15 +570,14 @@ size_t Sql_path::print(THD *thd, bool resolve,
 }
 
 
-LEX_CSTRING Sql_path::lex_cstring(THD *thd, MEM_ROOT *mem_root) const
+LEX_CSTRING Sql_path::lex_cstring(MEM_ROOT *mem_root) const
 {
   LEX_CSTRING res;
-  const bool resolve= false;
-  size_t nbytes_needed= text_format_nbytes_needed(thd, resolve);
+  size_t nbytes_needed= text_format_nbytes_needed();
   char *ptr= (char *) alloc_root(mem_root, nbytes_needed);
   if (ptr)
   {
-    res.length= print(thd, resolve, ptr, nbytes_needed);
+    res.length= print(ptr, nbytes_needed);
     res.str= ptr;
     DBUG_ASSERT(res.length < nbytes_needed);
   }
@@ -612,8 +591,7 @@ LEX_CSTRING Sql_path::lex_cstring(THD *thd, MEM_ROOT *mem_root) const
 }
 
 
-bool Sql_path_stack::push_path(CHARSET_INFO *cs,
-                               const LEX_CSTRING &path_str,
+bool Sql_path_stack::push_path(CHARSET_INFO *cs, const LEX_CSTRING &path_str,
                                bool *was_pushed)
 {
   if (!path_str.length)
