@@ -241,3 +241,36 @@ SET lc_messages=DEFAULT;
 --echo #
 --echo # End of 10.11 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-38520 Add month name formatting (%M shows month names in genitive case)
+--echo #
+
+SET lc_time_names=uk_UA;
+SELECT monthname('2001-10-01'), monthname('2001-02-15'), monthname('2001-03-30');
+SELECT date_format('2026-10-01','%d %M %Y'), date_format('2026-08-24','%d %M %Y'), date_format('2026-01-22','%d %M %Y');
+SELECT date_format('2026-10-01','%d %B %Y'), date_format('2026-08-24','%d %B %Y'), date_format('2026-01-22','%d %B %Y');
+
+SET lc_time_names=ru_UA;
+SELECT date_format('2026-08-24','%d %B %Y'), date_format('2026-01-22','%d %B %Y');
+
+SET lc_time_names=cs_CZ;
+SELECT date_format('2026-08-24','%d %B %Y'), date_format('2026-01-22','%d %B %Y');
+
+SET lc_time_names=be_BY;
+SELECT date_format('2026-10-01','%d %M %Y'), date_format('2026-08-24','%d %M %Y'), date_format('2026-01-22','%d %M %Y');
+
+SET lc_time_names=eu_ES;
+SELECT date_format('2026-04-16','%d %M %Y'), date_format('2026-08-24','%d %M %Y'), date_format('2026-01-22','%d %M %Y');
+
+SET lc_time_names=sr_RS;
+SELECT date_format('2026-04-16','%d %M %Y'), date_format('2026-08-24','%d %M %Y'), date_format('2026-01-22','%d %M %Y');
+
+SET lc_time_names=sr_Latn_RS;
+SELECT date_format('2026-04-16','%d %M %Y'), date_format('2026-08-24','%d %M %Y'), date_format('2026-01-22','%d %M %Y');
+
+SET lc_time_names=sr_Cyrl_RS;
+SELECT date_format('2026-04-16','%d %M %Y'), date_format('2026-08-24','%d %M %Y'), date_format('2026-01-22','%d %M %Y');
+
+SET lc_time_names=DEFAULT;

@@ -1103,6 +1103,13 @@ static bool make_date_time(THD *thd, const String *format,
       ptr+= mblen;
 
       switch (wc) {
+      case 'B':
+        if (type == MYSQL_TIMESTAMP_TIME || !l_time->month)
+          return 1;
+        str->append(locale->month_names_formatting->type_names[l_time->month-1],
+                    (uint) strlen(locale->month_names_formatting->type_names[l_time->month-1]),
+                    system_charset_info);
+        break;
       case 'M':
         if (type == MYSQL_TIMESTAMP_TIME || !l_time->month)
           return 1;

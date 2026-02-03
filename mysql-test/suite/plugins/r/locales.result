@@ -45,11 +45,11 @@ ID	NAME	DESCRIPTION	MAX_MONTH_NAME_LENGTH	MAX_DAY_NAME_LENGTH	DECIMAL_POINT	THOU
 41	pt_PT	Portuguese - Portugal	9	7	,		portuguese
 42	ro_RO	Romanian - Romania	10	8	,	.	romanian
 43	ru_RU	Russian - Russia	8	11	,	 	russian
-44	ru_UA	Russian - Ukraine	8	11	,	.	russian
+44	ru_UA	Russian - Ukraine	8	11	,	 	russian
 45	sk_SK	Slovak - Slovakia	9	8	,	 	slovak
 46	sl_SI	Slovenian - Slovenia	9	10	,	 	english
 47	sq_AL	Albanian - Albania	7	10	,	.	english
-48	sr_RS	Serbian - Serbia	9	10	.		serbian
+48	sr_RS	Serbian - Serbia	9	9	.		serbian
 49	ta_IN	Tamil - India	10	8	.	,	english
 50	te_IN	Telugu - India	10	9	.	,	english
 51	th_TH	Thai - Thailand	10	8	.	,	english
@@ -114,6 +114,8 @@ ID	NAME	DESCRIPTION	MAX_MONTH_NAME_LENGTH	MAX_DAY_NAME_LENGTH	DECIMAL_POINT	THOU
 110	rm_CH	Romansh - Switzerland	9	9	,	'	english
 111	ka_GE	Georgian - Georgia	10	9	,	 	georgian
 112	sw_KE	Swahili - Kenya	8	8	.	,	swahili
+113	sr_Latn_RS	Latin Serbian - Serbia	9	10	.		serbian
+114	sr_Cyrl_RS	Cyrillic Serbian - Serbia	9	9	.		serbian
 show locales;
 Id	Name	Description	Error_Message_Language
 0	en_US	English - United States	english
@@ -229,6 +231,8 @@ Id	Name	Description	Error_Message_Language
 110	rm_CH	Romansh - Switzerland	english
 111	ka_GE	Georgian - Georgia	georgian
 112	sw_KE	Swahili - Kenya	swahili
+113	sr_Latn_RS	Latin Serbian - Serbia	serbian
+114	sr_Cyrl_RS	Cyrillic Serbian - Serbia	serbian
 show locales like '%spanish%';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'like '%spanish%'' at line 1
 show locales where description like '%spanish%';
