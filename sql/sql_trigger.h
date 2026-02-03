@@ -62,7 +62,7 @@ static inline bool is_trg_event_on(uint8 trg_event_mask,
   that is set in the trigger's event mask
 */
 static inline bool is_the_right_most_event_bit(trg_event_set events,
-                                               trg_event_type event_type)
+                                               int event_type)
 {
   return (1 << event_type) == (events & ~((events - 1) & events));
 }

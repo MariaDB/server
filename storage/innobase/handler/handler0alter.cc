@@ -4375,8 +4375,11 @@ static void unlock_and_close_files(const std::vector<pfs_os_file_t> &deleted,
   row_mysql_unlock_data_dictionary(trx);
   for (pfs_os_file_t d : deleted)
     os_file_close(d);
-  if (trx->commit_lsn)
-    log_write_up_to(trx->commit_lsn, true);
+  if (lsn_t lsn= trx->commit_lsn)
+  {
+    trx->commit_lsn= 0;
+    log_write_up_to(lsn, true);
+  }
 }
 
 /** Commit a DDL transaction and unlink any deleted files. */
@@ -9297,6 +9300,7 @@ inline bool rollback_inplace_alter_table(Alter_inplace_info *ha_alter_info,
   {
 free_and_exit:
     DBUG_ASSERT(ctx->prebuilt == prebuilt);
+    ut_d(ctx->trx->commit_lsn= 0);
     ctx->trx->free();
     ctx->trx= nullptr;
 

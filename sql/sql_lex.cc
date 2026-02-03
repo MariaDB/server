@@ -1341,6 +1341,8 @@ void LEX::start(THD *thd_arg)
   needs_reprepare= false;
   opt_hints_global= 0;
 
+  has_returning_list= false;
+
   memset(&trg_chistics, 0, sizeof(trg_chistics));
   selects_for_hint_resolution.empty();
   DBUG_VOID_RETURN;
@@ -3723,6 +3725,8 @@ uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
   if (!order_group_num)
     order_group_num= order_group_num_arg;
 
+  const uint winfunc_factor= window_funcs.elements ? 2 * window_funcs.elements : 1;
+
   /*
     find_order_in_list() may need some extra space,
     so multiply order_group_num by 2
@@ -3732,8 +3736,8 @@ uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
           item_list.elements +
           select_n_reserved +
           select_n_having_items +
-          select_n_where_fields +
-          order_group_num * 2 +
+          select_n_where_fields * winfunc_factor +
+          order_group_num * 2 * winfunc_factor +
           hidden_bit_fields +
           fields_in_window_functions + 1;
   return n;
@@ -9878,7 +9882,7 @@ Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
     if (no_top_clones)
       return cond;
     cond->clear_extraction_flag();
-    return cond->build_clone(thd);
+    return cond->deep_copy_with_checks(thd);
   }
   if (cond->type() == Item::COND_ITEM)
   {
@@ -10193,6 +10197,27 @@ bool LEX::add_create_view(THD *thd, DDL_options_st ddl,
                                   algorithm, suid))))
     return true;
   return create_or_alter_view_finalize(thd, table_ident);
+}
+
+
+bool LEX::show_routine_code_start(THD *thd, enum_sql_command cmd, sp_name *name)
+{
+#ifdef DBUG_OFF
+  my_error(ER_FEATURE_DISABLED, MYF(0),
+           "SHOW PROCEDURE|FUNCTION CODE", "--with-debug");
+  return true;
+#else
+  sql_command= cmd;
+  Database_qualified_name pkgname;
+  const Sp_handler *sph= Sp_handler::handler(cmd);
+  if (sph->sp_resolve_package_routine(thd, thd->lex->sphead,
+                                      name, &sph, &pkgname))
+    return true;
+  if (!(m_sql_cmd= new (thd->mem_root) Sql_cmd_show_routine_code(name, sph,
+                                                                 cmd)))
+    return true;
+  return false;
+#endif
 }
 
 
@@ -11776,8 +11801,7 @@ void LEX::relink_hack(st_select_lex *select_lex)
 {
   if (!select_stack_top) // Statements of the second type
   {
-    if (!select_lex->outer_select() &&
-        !builtin_select.first_inner_unit())
+    if (!select_lex->outer_select())
     {
       builtin_select.register_unit(select_lex->master_unit(),
                                    &builtin_select.context);

@@ -129,7 +129,7 @@
   5. At the execution stage
        In the function sub_select() just before the first access of a join
        table s employing a range filter
-         The method JOIN_TAB::build_range_rowid_filter_if_needed() is called
+         The method JOIN_TAB::build_range_rowid_filter() is called
          The method fills the filter using the quick select created by
          JOIN::make_range_rowid_filters().
 

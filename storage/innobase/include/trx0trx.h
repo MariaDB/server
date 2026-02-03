@@ -1101,8 +1101,10 @@ public:
   bool has_stats_table_lock() const;
 
   /** Free the memory to trx_pools */
-  void free();
+  void free() noexcept;
 
+  /** Clear commit_lsn and free the memory */
+  void clear_and_free() noexcept { ut_d(commit_lsn= 0;) free(); }
 
   void assert_freed() const
   {

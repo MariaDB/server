@@ -119,10 +119,8 @@ public:
   }
 
   bool check_vcol_func_processor(void *arg) override {return FALSE; }
-  Item *do_get_copy(THD *thd) const override
-  { return get_item_copy<Item_row>(thd, this); }
-  Item *do_build_clone(THD *thd) const override;
 
+protected:
   bool ora_join_processor(void *arg) override
   {
     if (with_ora_join())
@@ -133,6 +131,9 @@ public:
     }
     return (FALSE);
   }
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_row>(thd, this); }
+  Item *deep_copy(THD *thd) const override;
 };
 
 #endif /* ITEM_ROW_INCLUDED */

@@ -50,7 +50,7 @@ static std::vector<MYSQL *> all_tp_connections;
 std::atomic<bool> aborting{false};
 static void kill_tp_connections(MYSQL *mysql);
 
-static void db_error_with_table(MYSQL *mysql, char *table);
+static void db_error_with_table(MYSQL *mysql, const char *table);
 static void db_error(MYSQL *mysql);
 static char *field_escape(char *to,const char *from,uint length);
 static char *add_load_option(char *ptr,const char *object,
@@ -82,12 +82,36 @@ static char **argv_to_free;
 static void safe_exit(int error, MYSQL *mysql);
 static void set_exitcode(int code);
 
+/*
+  Try to convert from filesystem-safe name escaping to string
+  in default character set.
+
+  @param name   Name to unescape
+  @param buf    Buffer to store result
+  @param sz     Size of buffer
+  @return       length of result string, or 0 on error or decodin
+                not needed
+*/
+static uint decode_fs_safe_name(const char *name, char *buf, size_t sz)
+{
+  if (!strchr(name, '@'))
+      return 0;
+   uint errors, len;
+   len= my_convert(buf, (uint32)(sz - 1),  default_charset_info, name, (uint32) strlen(name),
+                    &my_charset_filename, &errors);
+   if (errors || !len)
+     return 0;
+   buf[len]= 0;
+   return len;
+}
+
 struct table_load_params
 {
   std::string data_file; /* name of the file to load with LOAD DATA INFILE */
   std::string sql_file;  /* name of the file that contains CREATE TABLE or
                             CREATE VIEW */
   std::string dbname;    /* name of the database */
+  std::string tablename; /* name of the table */
   bool tz_utc= false;    /* true if the script sets the timezone to UTC */
   bool is_view= false;   /* true if the script is for a VIEW */
   std::vector<std::string> triggers; /* CREATE TRIGGER statements */
@@ -98,12 +122,21 @@ struct table_load_params
   table_load_params(const char* dfile, const char* sqlfile,
     const char* db, ulonglong data_size)
       : data_file(dfile), sql_file(sqlfile),
-        dbname(db), triggers(),
+        triggers(),
         size(data_size),
         sql_text(parse_sql_script(sqlfile, &tz_utc, &triggers)),
         ddl_info(sql_text)
   {
     is_view= ddl_info.table_name.empty();
+    /* Convert dbname from FS safe encoding if needed. */
+    char decoded_name[FN_REFLEN];
+    uint len= decode_fs_safe_name(db, decoded_name, sizeof(decoded_name));
+    dbname= len ? std::string(decoded_name, len) : std::string(db);
+
+    char raw_tblname[FN_REFLEN];
+    fn_format(raw_tblname, dfile, "", "", MY_REPLACE_DIR | MY_REPLACE_EXT);
+    len= decode_fs_safe_name(raw_tblname, decoded_name, sizeof(decoded_name));
+    tablename= len ? std::string(decoded_name, len) : std::string(raw_tblname);
   }
   int create_table_or_view(MYSQL *);
   int load_data(MYSQL *);
@@ -646,7 +679,7 @@ int table_load_params::create_table_or_view(MYSQL* mysql)
 
 int table_load_params::load_data(MYSQL *mysql)
 {
-  char tablename[FN_REFLEN], hard_path[FN_REFLEN],
+  char hard_path[FN_REFLEN],
        escaped_name[FN_REFLEN * 2 + 1],
        sql_statement[FN_REFLEN*16+256], *end;
   DBUG_ENTER("table_load_params::load");
@@ -666,23 +699,10 @@ int table_load_params::load_data(MYSQL *mysql)
   }
 
   const char *filename= data_file.c_str();
-
-  fn_format(tablename, filename, "", "", MYF(MY_REPLACE_DIR | MY_REPLACE_EXT));
-  if (strchr(tablename, '@'))
-  {
-    uint errors, len;
-    CHARSET_INFO *cs=
-        get_charset_by_csname(default_charset, MY_CS_PRIMARY, MYF(0));
-    len= my_convert(escaped_name, sizeof(escaped_name) - 1, cs, tablename,
-                    (uint32)strlen(tablename), &my_charset_filename, &errors);
-    if (!errors)
-      strmake(tablename, escaped_name, len);
-  }
-
   const char *db= current_db ? current_db : dbname.c_str();
   std::string full_tablename= quote_identifier(db);
   full_tablename+= ".";
-  full_tablename+= quote_identifier(tablename);
+  full_tablename+= quote_identifier(tablename.c_str());
 
   if (tz_utc && exec_sql(mysql, "SET TIME_ZONE='+00:00';"))
     DBUG_RETURN(1);
@@ -698,7 +718,7 @@ int table_load_params::load_data(MYSQL *mysql)
   if (opt_delete)
   {
     if (verbose)
-      fprintf(stdout, "Deleting the old data from table %s\n", tablename);
+      fprintf(stdout, "Deleting the old data from table %s\n", tablename.c_str());
     snprintf(sql_statement, FN_REFLEN * 16 + 256, "DELETE FROM %s",
              full_tablename.c_str());
     if (exec_sql(mysql, sql_statement))
@@ -723,7 +743,7 @@ int table_load_params::load_data(MYSQL *mysql)
   if (verbose)
   {
     fprintf(stdout, "Loading data from %s file: %s into %s\n",
-           (opt_local_file) ? "LOCAL" : "SERVER", hard_path, tablename);
+           (opt_local_file) ? "LOCAL" : "SERVER", hard_path, tablename.c_str());
   }
   mysql_real_escape_string(mysql, escaped_name, hard_path,
                            (unsigned long) strlen(hard_path));
@@ -757,14 +777,14 @@ int table_load_params::load_data(MYSQL *mysql)
 
   if (mysql_query(mysql, sql_statement))
   {
-    db_error_with_table(mysql, tablename);
+    db_error_with_table(mysql, tablename.c_str());
     DBUG_RETURN(1);
   }
   if (!silent)
   {
     const char *info= mysql_info(mysql);
     if (info) /* If NULL-pointer, print nothing */
-      fprintf(stdout, "%s.%s: %s\n", db, tablename, info);
+      fprintf(stdout, "%s.%s: %s\n", db, tablename.c_str(), info);
   }
 
 
@@ -879,9 +899,6 @@ static MYSQL *db_connect(char *host, char *database,
 
   if (opt_default_auth && *opt_default_auth)
     mysql_options(mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
-  if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
-    default_charset= (char *)my_default_csname();
-  my_set_console_cp(default_charset);
   mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset);
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
@@ -971,7 +988,7 @@ static void safe_exit(int error, MYSQL *mysql)
 
 
 
-static void db_error_with_table(MYSQL *mysql, char *table)
+static void db_error_with_table(MYSQL *mysql, const char *table)
 {
   if (aborting)
     return;
@@ -1273,6 +1290,12 @@ int main(int argc, char **argv)
     free_defaults(argv_to_free);
     return(1);
   }
+
+  if (!strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME))
+    default_charset= (char *) my_default_csname();
+  my_set_console_cp(default_charset);
+  default_charset_info= get_charset_by_csname(default_charset, MY_CS_PRIMARY, 0);
+
   if (opt_use_threads > MAX_THREADS)
   {
     fatal_error("Too many connections, max value for --parallel is %d\n",

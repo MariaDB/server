@@ -280,7 +280,7 @@ public:
     return false;
   }
 
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   {
     DBUG_ASSERT(0);
     return get_item_copy<Item_field_packable_row>(thd, this);
@@ -676,7 +676,7 @@ public:
     set_func_handler(&ha_str_key);
     return m_func_handler->fix_length_and_dec(this);
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_first>(thd, this); }
 };
 
@@ -696,7 +696,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_last>(thd, this); }
 };
 
@@ -716,7 +716,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_next>(thd, this); }
 };
 
@@ -736,7 +736,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_prior>(thd, this); }
 };
 
@@ -773,7 +773,7 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_count>(thd, this); }
 };
 
@@ -815,7 +815,7 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_exists>(thd, this); }
 };
 
@@ -866,7 +866,7 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_delete>(thd, this); }
 };
 
@@ -1784,7 +1784,7 @@ void Item_assoc_array::print(String *str, enum_query_type query_type)
 }
 
 
-Item *Item_assoc_array::do_build_clone(THD *thd) const
+Item *Item_assoc_array::deep_copy(THD *thd) const
 {
   Item **copy_args= static_cast<Item **>
     (alloc_root(thd->mem_root, sizeof(Item *) * arg_count));
@@ -1792,12 +1792,12 @@ Item *Item_assoc_array::do_build_clone(THD *thd) const
     return 0;
   for (uint i= 0; i < arg_count; i++)
   {
-    Item *arg_clone= args[i]->build_clone(thd);
+    Item *arg_clone= args[i]->deep_copy_with_checks(thd);
     if (!arg_clone)
       return 0;
     copy_args[i]= arg_clone;
   }
-  Item_assoc_array *copy= (Item_assoc_array *) get_copy(thd);
+  Item_assoc_array *copy= (Item_assoc_array *) shallow_copy_with_checks(thd);
   if (unlikely(!copy))
     return 0;
   copy->args= copy_args;

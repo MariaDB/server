@@ -880,7 +880,7 @@ public:
     const ULonglong_null count= cursor_array(thd)->ref_count(offset);
     return (null_value= count.is_null()) ? 0LL : (longlong) count.value();
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_cursor_ref_count>(thd, this); }
 };
 

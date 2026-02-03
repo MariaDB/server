@@ -1,0 +1,16 @@
+include/rpl_init.inc [topology=1->2]
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+CREATE TABLE t1 (a INT);
+connection server_2;
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
+MASTER_USE_GTID=CURRENT_POS;
+include/start_slave.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_1;
+DROP TABLE t1;
+include/rpl_end.inc

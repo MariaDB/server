@@ -187,8 +187,8 @@ row_merge_create_fts_sort_index(
 				is created */
 	dict_table_t*	table,	/*!< in,out: table that FTS index
 				is being created on */
-	ibool*		opt_doc_id_size);
-				/*!< out: whether to use 4 bytes
+	bool		opt_doc_id_size);
+				/*!< in: whether to use 4 bytes
 				instead of 8 bytes integer to
 				store Doc ID during sort */
 

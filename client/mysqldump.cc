@@ -142,7 +142,7 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
 #define OPT_SYSTEM_STATS 32
 #define OPT_SYSTEM_TIMEZONES 64
 static const char *opt_system_type_values[]=
-  {"all", "users", "plugins",  "udfs", "servers", "stats", "timezones"};
+  {"all", "users", "plugins",  "udfs", "servers", "stats", "timezones", NullS};
 static TYPELIB opt_system_types=CREATE_TYPELIB_FOR(opt_system_type_values);
 static ulonglong opt_system= 0ULL;
 static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0,
@@ -498,7 +498,7 @@ static struct my_option my_long_options[] =
   {"max_allowed_packet", 0,
    "The maximum packet length to send to or receive from server.",
     &opt_max_allowed_packet, &opt_max_allowed_packet, 0,
-    GET_ULONG, REQUIRED_ARG, 24*1024*1024, 4096,
+    GET_ULONG, REQUIRED_ARG, 1024LL*1024*1024, 4096,
    (longlong) 2L*1024L*1024L*1024L, 0, 1024, 0},
   {"max-statement-time", 0,
    "Max statement execution time. If unset, overrides server default with 0.",
@@ -1950,21 +1950,35 @@ static char *cover_definer_clause(const char *stmt_str,
 }
 
 
+static char *format_fs_safe_filename(const char *from, char *to, size_t to_size)
+{
+  if (check_if_legal_tablename(from))
+    strxnmov(to, to_size - 1, from , "@@@", NULL);
+  else
+  {
+    uint errors, len;
+    len= my_convert(to, (uint32)(to_size - 1), &my_charset_filename,
+     from, (uint32) strlen(from), charset_info, &errors);
+    to[len]= 0;
+  }
+  return to;
+}
+
+static void format_fs_safe_output_dir(const char *db, char *out_dir, size_t out_size)
+{
+  DBUG_ASSERT(opt_dir);
+  char fs_safe_db[FN_REFLEN];
+  format_fs_safe_filename(db, fs_safe_db, sizeof(fs_safe_db));
+  my_snprintf(out_dir, out_size, "%s/%s", opt_dir, fs_safe_db);
+}
+
 static const char* build_path_for_table(char *to, const char *dir,
                                         const char *table, const char *ext)
 {
   char filename[FN_REFLEN], tmp_path[FN_REFLEN];
   convert_dirname(tmp_path, dir, NULL);
   my_load_path(tmp_path, tmp_path, NULL);
-  if (check_if_legal_tablename(table))
-    strxnmov(filename, sizeof(filename) - 1, table, "@@@", NULL);
-  else
-  {
-    uint errors, len;
-    len= my_convert(filename, sizeof(filename) - 1, &my_charset_filename,
-                    table, (uint32)strlen(table), charset_info, &errors);
-    filename[len]= 0;
-  }
+  format_fs_safe_filename(table, filename, sizeof(filename));
   return fn_format(to, filename, tmp_path, ext, MYF(MY_UNPACK_FILENAME));
 }
 
@@ -1991,7 +2005,7 @@ static FILE* open_sql_file_for_table(const char *db, const char* table, int flag
   if (opt_dir)
   {
     out_dir= out_dir_buf;
-    my_snprintf(out_dir_buf, sizeof(out_dir_buf), "%s/%s", opt_dir, db);
+    format_fs_safe_output_dir(db, out_dir_buf, sizeof(out_dir_buf));
   }
 
   res= my_fopen(build_path_for_table(filename, out_dir, table, ".sql"),
@@ -4321,7 +4335,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     char *out_dir= path;
     if (!out_dir)
     {
-      my_snprintf(out_dir_buf, sizeof(out_dir_buf), "%s/%s", opt_dir, db);
+      format_fs_safe_output_dir(db, out_dir_buf, sizeof(out_dir_buf));
       out_dir= out_dir_buf;
     }
 
@@ -4482,6 +4496,11 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       fprintf(md_result_file,"/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;\n");
       check_io(md_result_file);
     }
+    if (no_autocommit)
+    {
+      fprintf(md_result_file, "SET @OLD_AUTOCOMMIT=@@AUTOCOMMIT, @@AUTOCOMMIT=0;\n");
+      check_io(md_result_file);
+    }
     if (opt_lock)
     {
       fprintf(md_result_file,"LOCK TABLES %s WRITE;\n", opt_quoted_table);
@@ -4502,11 +4521,6 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     if (opt_xml)
       print_xml_tag(md_result_file, "\t", "\n", "table_data", "name=", table,
               NullS);
-    if (no_autocommit)
-    {
-      fprintf(md_result_file, "set autocommit=0;\n");
-      check_io(md_result_file);
-    }
 
     while ((row= mysql_fetch_row(res)))
     {
@@ -4778,7 +4792,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     }
     if (no_autocommit)
     {
-      fprintf(md_result_file, "commit;\n");
+      fprintf(md_result_file, "COMMIT;\nSET AUTOCOMMIT=@OLD_AUTOCOMMIT;\n");
       check_io(md_result_file);
     }
     if (versioned && !opt_xml && opt_dump_history)
@@ -7398,7 +7412,7 @@ static void ensure_out_dir_exists(const char *db)
 {
   DBUG_ASSERT(opt_dir);
   char outdir[FN_REFLEN];
-  my_snprintf(outdir, sizeof(outdir), "%s/%s", opt_dir, db);
+  format_fs_safe_output_dir(db, outdir, sizeof(outdir));
   struct stat st;
   if (stat(outdir, &st) == 0)
   {

@@ -1605,7 +1605,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     */
     extracted_cond_copy= !sl->next_select() ?
                          extracted_cond :
-                         extracted_cond->build_clone(thd);
+                         extracted_cond->deep_copy_with_checks(thd);
     if (!extracted_cond_copy)
       continue;
 

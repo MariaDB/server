@@ -218,7 +218,9 @@ public:
     return name;
   }
   String *val_str(String *) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_geometry_from_text>(thd, this); }
 };
 
@@ -240,7 +242,9 @@ public:
     return name;
   }
   String *val_str(String *) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_geometry_from_wkb>(thd, this); }
 };
 
@@ -272,7 +276,9 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_geometry_from_json>(thd, this); }
 };
 
@@ -289,7 +295,9 @@ public:
   }
   String *val_str_ascii(String *) override;
   bool fix_length_and_dec(THD *thd) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_as_wkt>(thd, this); }
 };
 
@@ -314,7 +322,9 @@ public:
     set_maybe_null();
     return FALSE;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_as_wkb>(thd, this); }
 };
 
@@ -341,7 +351,9 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   String *val_str_ascii(String *) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_as_geojson>(thd, this); }
 };
 
@@ -364,7 +376,9 @@ public:
     set_maybe_null();
     return FALSE;
   };
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_geometry_type>(thd, this); }
 };
 
@@ -403,7 +417,9 @@ public:
     return name;
   }
   String *val_str(String *) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_convexhull>(thd, this); }
 };
 
@@ -423,7 +439,9 @@ public:
   {
     return &type_handler_point;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_centroid>(thd, this); }
 };
 
@@ -442,7 +460,9 @@ public:
   {
     return &type_handler_polygon;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_envelope>(thd, this); }
 };
 
@@ -480,7 +500,9 @@ public:
     return name;
   }
   String *val_str(String *) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_boundary>(thd, this); }
 };
 
@@ -503,7 +525,9 @@ public:
   {
     return &type_handler_point;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_point>(thd, this); }
 };
 
@@ -532,7 +556,9 @@ public:
     }
   }
   String *val_str(String *) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_decomp>(thd, this); }
 };
 
@@ -569,7 +595,9 @@ public:
     }
   }
   String *val_str(String *) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_decomp_n>(thd, this); }
 };
 
@@ -629,7 +657,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("geometrycollection") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_geometrycollection>(thd, this); }
 };
 
@@ -649,7 +679,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("linestring") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_linestring>(thd, this); }
 };
 
@@ -669,7 +701,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("polygon") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_polygon>(thd, this); }
 };
 
@@ -691,7 +725,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("multilinestring") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_multilinestring>(thd, this); }
 };
 
@@ -713,7 +749,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("multipoint") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_multipoint>(thd, this); }
 };
 
@@ -735,7 +773,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("multipolygon") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_multipolygon>(thd, this); }
 };
 
@@ -787,7 +827,7 @@ public:
                                       usable_tables, sargables, false);
   }
   bool need_parentheses_in_default() override { return false; }
-  Item *do_build_clone(THD *thd) const override { return nullptr; }
+  Item *deep_copy(THD *thd) const override { return nullptr; }
 };
 
 
@@ -799,7 +839,9 @@ public:
   { }
   bool val_bool() override;
   LEX_CSTRING func_name_cstring() const override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_mbr_rel>(thd, this); }
 };
 
@@ -815,7 +857,9 @@ public:
   { }
   bool val_bool() override;
   LEX_CSTRING func_name_cstring() const override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_precise_rel>(thd, this); }
 };
 
@@ -842,7 +886,9 @@ public:
     return name;
   }
   bool need_parentheses_in_default() override { return false; }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_relate>(thd, this); }
 };
 
@@ -879,7 +925,9 @@ public:
   {
     Item_func::print(str, query_type);
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_operation>(thd, this); }
 };
 
@@ -940,7 +988,9 @@ public:
     return name;
   }
   String *val_str(String *) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_buffer>(thd, this); }
 };
 
@@ -959,7 +1009,9 @@ public:
   bool fix_length_and_dec(THD *thd) override
   { set_maybe_null(); return FALSE; }
   bool need_parentheses_in_default() override { return false; }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_isempty>(thd, this); }
 };
 
@@ -977,7 +1029,9 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override { decimals=0; max_length=2; return FALSE; }
   decimal_digits_t decimal_precision() const override { return 1; }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_issimple>(thd, this); }
 };
 
@@ -1000,7 +1054,7 @@ public:
   {
     return &type_handler_geometry;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_simplify>(thd, this); }
 };
 
@@ -1017,7 +1071,9 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override { decimals=0; max_length=2; return FALSE; }
   decimal_digits_t decimal_precision() const override { return 1; }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_isclosed>(thd, this); }
 };
 
@@ -1031,7 +1087,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_isring") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_isring>(thd, this); }
 };
 
@@ -1046,7 +1104,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_isvalid") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_isvalid>(thd, this); }
 };
 
@@ -1066,7 +1124,7 @@ public:
   {
     return &type_handler_geometry;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_validate>(thd, this); }
 };
 
@@ -1083,7 +1141,9 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override
   { max_length= 10; set_maybe_null(); return FALSE; }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_dimension>(thd, this); }
 };
 
@@ -1105,7 +1165,9 @@ public:
     set_maybe_null();
     return FALSE;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_x>(thd, this); }
 };
 
@@ -1127,7 +1189,9 @@ public:
     set_maybe_null();
     return FALSE;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_y>(thd, this); }
 };
 
@@ -1145,7 +1209,9 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override
   { max_length= 10; set_maybe_null(); return FALSE; }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_numgeometries>(thd, this); }
 };
 
@@ -1163,7 +1229,9 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override
   { max_length= 10; set_maybe_null(); return FALSE; }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_numinteriorring>(thd, this); }
 };
 
@@ -1181,7 +1249,9 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override
   { max_length= 10; set_maybe_null(); return FALSE; }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_numpoints>(thd, this); }
 };
 
@@ -1203,7 +1273,9 @@ public:
     set_maybe_null();
     return FALSE;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_area>(thd, this); }
 };
 
@@ -1227,7 +1299,9 @@ public:
     set_maybe_null();
     return FALSE;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_glength>(thd, this); }
 };
 
@@ -1245,7 +1319,9 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override
   { max_length= 10; set_maybe_null(); return FALSE; }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_srid>(thd, this); }
 };
 
@@ -1266,7 +1342,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_distance") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_distance>(thd, this); }
 };
 
@@ -1284,7 +1362,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_distance_sphere") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_sphere_distance>(thd, this); }
 };
 
@@ -1316,7 +1396,7 @@ public:
     return name;
   }
   String *val_str_ascii(String *) override;
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_geohash>(thd, this); }
 };
 
@@ -1352,7 +1432,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_latfromgeohash") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_latfromgeohash>(thd, this); }
 };
 
@@ -1367,7 +1447,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_longfromgeohash") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_longfromgeohash>(thd, this); }
 };
 
@@ -1387,7 +1467,7 @@ public:
     return name;
   }
   String *val_str(String *) override;
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_pointfromgeohash>(thd, this); }
 };
 
@@ -1411,7 +1491,9 @@ public:
   {
     return &type_handler_point;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_pointonsurface>(thd, this); }
 };
 
@@ -1433,7 +1515,9 @@ class Item_func_gis_debug: public Item_long_func
     {
       return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
     }
-    Item *do_get_copy(THD *thd) const override
+
+protected:
+    Item *shallow_copy(THD *thd) const override
     { return get_item_copy<Item_func_gis_debug>(thd, this); }
 };
 #endif

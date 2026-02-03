@@ -1,27 +1,38 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source include/have_aria.inc
+--source include/force_restart.inc
 
+--connection node_1
+set global auto_increment_offset=1;
+set global auto_increment_increment=1;
+
+--connection node_2
+set global auto_increment_offset=2;
+set global auto_increment_increment=1;
+
+--connection node_1
+select @@auto_increment_increment,@@auto_increment_offset;
 create table t1(id serial, val varchar(100)) engine=myisam;
 insert into t1 values(null, 'a');
 insert into t1 values(null, 'b');
 insert into t1 select null, 'c';
 insert into t1 select null, 'd' from t1;
-select * from t1;
+select * from t1 order by id;
 
 create table t2(id serial, val varchar(100)) engine=aria;
 insert into t2 values(null, 'a');
 insert into t2 values(null, 'b');
 insert into t2 select null, 'c';
 insert into t2 select null, 'd' from t2;
-select * from t2;
+select * from t2 order by id;
 
 create table t3(id serial, val varchar(100)) engine=innodb;
 insert into t3 values(null, 'a');
 insert into t3 values(null, 'b');
 insert into t3 select null, 'c';
 insert into t3 select null, 'd' from t3;
-select * from t3;
+select * from t3 order by id;
 
 set global wsrep_mode='REPLICATE_MYISAM,REPLICATE_ARIA';
 
@@ -30,21 +41,27 @@ insert into t4 values(null, 'a');
 insert into t4 values(null, 'b');
 insert into t4 select null, 'c';
 insert into t4 select null, 'd' from t4;
-select * from t4;
+select * from t4 order by id;
 
 create table t5(id serial, val varchar(100)) engine=myisam;
 insert into t5 values(null, 'a');
 insert into t5 values(null, 'b');
 insert into t5 select null, 'c';
 insert into t5 select null, 'd' from t5;
-select * from t2;
+select * from t5 order by id;
 
 --connection node_2
-select * from t1;
-select * from t2;
-select * from t3;
-select * from t4;
-select * from t5;
+select @@auto_increment_increment,@@auto_increment_offset;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't5'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 6 FROM t5
+--source include/wait_condition.inc
+
+select * from t1 order by id;
+select * from t2 order by id;
+select * from t3 order by id;
+select * from t4 order by id;
+select * from t5 order by id;
 
 --connection node_1
 drop table t1,t2,t3,t4,t5;

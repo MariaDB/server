@@ -212,8 +212,11 @@ USE test;
 #       when binlogging is active, the master will not hit an
 #       assertion.
 #
-# ii) a test case that partially succeeds on the master will also
-#      partially succeed on the slave.
+# ii) (DISABLED) To pass, this test case took advantage of a vulnerability,
+#     MDEV-38506. Please uncomment this test case when MDEV-29848 is fixed.
+#
+#     test case that partially succeeds on the master will also
+#     partially succeed on the slave.
 #
 #     - The revoke statement that partially succeeds tries to revoke
 #       an EXECUTE grant for two users, and only one of the user has
@@ -242,6 +245,11 @@ DROP PROCEDURE p1;
 
 -- sync_slave_with_master
 
+--echo #
+--echo # TODO: Re-enable test-case after fixing MDEV-29848
+--echo #
+if (0)
+{
 -- echo ### ii) Test case in which REVOKE partially succeeds
 
 -- connection master
@@ -289,7 +297,7 @@ SHOW GRANTS FOR CURRENT_USER;
 
 -- echo #############################################################
 -- echo ### Showing grants for both users: root and user49119 (slave)
--- echo ### after revoke statement failure (should match 
+-- echo ### after revoke statement failure (should match)
 SHOW GRANTS FOR 'user49119'@'localhost';
 SHOW GRANTS FOR CURRENT_USER;
 -- echo ##############################################################
@@ -300,6 +308,7 @@ DROP PROCEDURE p1;
 DROP USER 'user49119'@'localhost';
 
 -- sync_slave_with_master
+}
 
 #
 # Bug #51987  	revoke privileges logs wrong error code

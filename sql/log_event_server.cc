@@ -5061,6 +5061,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         }
       };);
 #endif /* WITH_WSREP */
+
+    DBUG_EXECUTE_IF("rows_log_event_after_open_table", {
+      const char action[]=
+          "now SIGNAL after_open_table WAIT_FOR continue_rows_ev";
+      DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(action)));
+    };);
+
     /*
       When the open and locking succeeded, we check all tables to
       ensure that they still have the correct type.
@@ -7124,10 +7131,22 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #if defined(HAVE_REPLICATION)
 uint8 Write_rows_log_event::get_trg_event_map() const
 {
-  return trg2bit(TRG_EVENT_INSERT) | trg2bit(TRG_EVENT_UPDATE) |
-         trg2bit(TRG_EVENT_DELETE);
+  /*
+    In SLAVE_EXEC_MODE_IDEMPOTENT mode, Write_rows_log_event event is
+    implicitly a REPLACE, deleting all conflicting rows which can cause
+    foreign key constraint cascade operations on FK referencing table.
+
+    In SLAVE_EXEC_MODE_STRICT mode, the Write_rows_log_event is pure INSERT,
+    will never cause foreign key constraint cascade operations on foreign key
+    referencing tables.
+  */
+  if (slave_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
+    return trg2bit(TRG_EVENT_INSERT) | trg2bit(TRG_EVENT_DELETE);
+  else
+    return trg2bit(TRG_EVENT_INSERT);
 }
 #endif
+
 
 /**************************************************************************
 	Delete_rows_log_event member functions
