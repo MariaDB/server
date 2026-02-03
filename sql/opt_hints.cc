@@ -99,7 +99,7 @@ void push_warning_safe(THD *thd, Sql_condition::enum_warning_level level,
   va_start(args,format);
   bool save_abort_on_warning= thd->abort_on_warning;
   thd->abort_on_warning= false; // Don't escalate to the level of error
-  push_warning_printf_va_list(thd, level,code, format, args);
+  push_warning_vprintf(thd, level,code, format, args);
   va_end(args);
   thd->abort_on_warning= save_abort_on_warning;
   DBUG_VOID_RETURN;

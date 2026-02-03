@@ -655,7 +655,7 @@ bool st_sp_chistics::read_from_mysql_proc_row(THD *thd, TABLE *table)
   if (table->field[MYSQL_PROC_FIELD_COMMENT]->val_str_nopad(thd->mem_root,
                                                             &comment))
     return true;
-  
+
   return false;
 }
 
@@ -981,9 +981,8 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
 {
   LEX *old_lex= thd->lex, newlex;
   String defstr;
-  char saved_cur_db_name_buf[SAFE_NAME_LEN+1];
-  LEX_STRING saved_cur_db_name=
-    { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
+  char saved_cur_db_buf[SAFE_NAME_LEN+1];
+  LEX_STRING saved_cur_db= { saved_cur_db_buf, sizeof(saved_cur_db_buf) };
   bool cur_db_changed;
   Bad_db_error_handler db_not_exists_handler;
 
@@ -1017,7 +1016,7 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
     TODO: why do we force switch here?
   */
 
-  if (mysql_opt_change_db(thd, &name->m_db, &saved_cur_db_name, TRUE,
+  if (mysql_opt_change_db(thd, name->m_db, &saved_cur_db, TRUE,
                           &cur_db_changed))
   {
     ret= SP_INTERNAL_ERROR;
@@ -1041,9 +1040,7 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
       generate an error.
     */
 
-    if (cur_db_changed && mysql_change_db(thd,
-                                          (LEX_CSTRING*) &saved_cur_db_name,
-                                          TRUE))
+    if (cur_db_changed && mysql_change_db(thd, saved_cur_db, TRUE))
     {
       ret= SP_INTERNAL_ERROR;
       goto end;
@@ -2099,7 +2096,7 @@ Sp_handler::sp_clone_and_link_routine(THD *thd,
                                       const Database_qualified_name *name,
                                       sp_head *sp) const
 {
-  DBUG_ENTER("sp_link_routine");
+  DBUG_ENTER("sp_clone_and_link_routine");
   int rc;
   ulong level;
   sp_head *new_sp;
@@ -2475,8 +2472,7 @@ extern "C" const uchar *sp_sroutine_key(const void *ptr, size_t *plen, my_bool)
 */
 
 bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
-                         const MDL_key *key,
-                         const Sp_handler *handler,
+                         const MDL_key *key, const Sp_handler *handler,
                          TABLE_LIST *belong_to_view)
 {
   my_hash_init_opt(PSI_INSTRUMENT_ME, &prelocking_ctx->sroutines,
@@ -2852,17 +2848,14 @@ void sp_remove_not_own_routines(Query_tables_list *prelocking_ctx)
     @return FALSE Success
 */
 
-bool sp_update_sp_used_routines(HASH *dst, HASH *src)
+bool sp_update_sp_used_routines(Sroutine_hash *dst, HASH *src)
 {
   for (uint i=0 ; i < src->records ; i++)
   {
     Sroutine_hash_entry *rt= (Sroutine_hash_entry *)my_hash_element(src, i);
-    if (!my_hash_search(dst, (uchar *)rt->mdl_request.key.ptr(),
-                        rt->mdl_request.key.length()))
-    {
-      if (my_hash_insert(dst, (uchar *)rt))
-        return TRUE;
-    }
+    if (!dst->find(rt->mdl_request.key.ptr(), rt->mdl_request.key.length()) &&
+        dst->insert(rt))
+      return TRUE;
   }
   return FALSE;
 }
@@ -2884,19 +2877,17 @@ bool sp_update_sp_used_routines(HASH *dst, HASH *src)
 
 void
 sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
-                             HASH *src, TABLE_LIST *belong_to_view)
+                             Sroutine_hash *src, TABLE_LIST *belong_to_view)
 {
-  for (uint i=0 ; i < src->records ; i++)
+  Query_arena *arena __attribute__((unused))= thd->active_stmt_arena_to_use();
+  DBUG_ASSERT(src->is_empty() ||
+              arena->is_stmt_prepare_or_first_stmt_execute() ||
+              arena->is_conventional() ||
+              arena->state == Query_arena::STMT_SP_QUERY_ARGUMENTS);
+  for (Sroutine_hash_entry &rt: *src)
   {
-    Sroutine_hash_entry *rt= (Sroutine_hash_entry *)my_hash_element(src, i);
-    DBUG_ASSERT(thd->active_stmt_arena_to_use()->
-                  is_stmt_prepare_or_first_stmt_execute() ||
-                thd->active_stmt_arena_to_use()->
-                  is_conventional() ||
-                thd->active_stmt_arena_to_use()->state ==
-                  Query_arena::STMT_SP_QUERY_ARGUMENTS);
     (void)sp_add_used_routine(prelocking_ctx, thd->active_stmt_arena_to_use(),
-                              &rt->mdl_request.key, rt->m_handler,
+                              &rt.mdl_request.key, rt.m_handler,
                               belong_to_view);
   }
 }
@@ -2932,8 +2923,7 @@ void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
   prelocking until 'sp_name' is eradicated as a class.
 */
 
-int Sroutine_hash_entry::sp_cache_routine(THD *thd,
-                                          sp_head **sp) const
+int Sroutine_hash_entry::sp_cache_routine(THD *thd, sp_head **sp) const
 {
   char qname_buff[NAME_LEN*2+1+1];
   sp_name name(&mdl_request.key, qname_buff);
@@ -2941,7 +2931,7 @@ int Sroutine_hash_entry::sp_cache_routine(THD *thd,
     Check that we have an MDL lock on this routine, unless it's a top-level
     CALL. The assert below should be unambiguous: the first element
     in sroutines_list has an MDL lock unless it's a top-level call, or a
-    trigger, but triggers can't occur here (see the preceding assert).
+    trigger, but triggers can't occur here.
   */
   DBUG_ASSERT(mdl_request.ticket || this == thd->lex->sroutines_list.first);
 
@@ -2965,8 +2955,7 @@ int Sroutine_hash_entry::sp_cache_routine(THD *thd,
   @retval non-0  Error while loading routine from mysql,proc table.
 */
 
-int Sp_handler::sp_cache_routine(THD *thd,
-                                 const Database_qualified_name *name,
+int Sp_handler::sp_cache_routine(THD *thd, const Database_qualified_name *name,
                                  sp_head **sp) const
 {
   int ret= 0;
@@ -2983,7 +2972,7 @@ int Sp_handler::sp_cache_routine(THD *thd,
   {
     if ((*sp)->sp_cache_version() < thd->sp_cache_version())
       sp_cache_remove(spc, sp);
-    if (*sp)
+    else
       DBUG_RETURN(SP_OK);
   }
 

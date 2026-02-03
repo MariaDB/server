@@ -26,13 +26,10 @@ bool mysql_alter_db(THD *thd, const Lex_ident_db &db,
                     const Schema_specification_st *create);
 bool mysql_rm_db(THD *thd, const Lex_ident_db &db, bool if_exists);
 bool mysql_upgrade_db(THD *thd, const Lex_ident_db &old_db);
-uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
-                     bool force_switch);
+uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force);
 
-bool mysql_opt_change_db(THD *thd,
-                         const LEX_CSTRING *new_db_name,
-                         LEX_STRING *saved_db_name,
-                         bool force_switch,
+bool mysql_opt_change_db(THD *thd, const LEX_CSTRING &new_db_name,
+                         LEX_STRING *saved_db_name, bool force_switch,
                          bool *cur_db_changed);
 bool my_dboptions_cache_init(void);
 void my_dboptions_cache_free(void);

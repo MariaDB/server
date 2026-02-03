@@ -1377,10 +1377,9 @@ Event_job_data::execute(THD *thd, bool drop)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (event_sctx.change_security_context(thd, &definer_user, &definer_host,
                                          &dbname, &save_sctx) ||
-      mysql_change_db(thd, &dbname, false))
+      mysql_change_db(thd, dbname, FALSE))
   {
-    sql_print_error("Event Scheduler: "
-                    "[%s].[%s.%s] execution failed, "
+    sql_print_error("Event Scheduler: [%s].[%s.%s] execution failed, "
                     "failed to authenticate the user.",
                     definer.str, dbname.str, name.str);
     goto end;
@@ -1395,8 +1394,7 @@ Event_job_data::execute(THD *thd, bool drop)
       privilege is revoked from trigger definer,
       triggers are not executed.
     */
-    sql_print_error("Event Scheduler: "
-                    "[%s].[%s.%s] execution failed, "
+    sql_print_error("Event Scheduler: [%s].[%s.%s] execution failed, "
                     "user no longer has EVENT privilege.",
                     definer.str, dbname.str, name.str);
     goto end;

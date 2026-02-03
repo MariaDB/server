@@ -5014,8 +5014,7 @@ warn:
     -1 Table was used with IF NOT EXISTS and table existed (warning, not error)
 */
 
-int mysql_create_table_no_lock(THD *thd,
-                               DDL_LOG_STATE *ddl_log_state_create,
+int mysql_create_table_no_lock(THD *thd, DDL_LOG_STATE *ddl_log_state_create,
                                DDL_LOG_STATE *ddl_log_state_rm,
                                Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,

@@ -1335,9 +1335,8 @@ void push_warning_printf(THD *thd, Sql_condition::enum_warning_level level,
                          uint code, const char *format, ...)
                          ATTRIBUTE_FORMAT(printf, 4, 5);
 
-void push_warning_printf_va_list(THD *thd,
-                                 Sql_condition::enum_warning_level level,
-                                 uint code, const char *format, va_list args);
+void push_warning_vprintf(THD *thd, Sql_condition::enum_warning_level level,
+                          uint code, const char *format, va_list args);
 
 bool mysqld_show_warnings(THD *thd, ulong levels_to_show);
 

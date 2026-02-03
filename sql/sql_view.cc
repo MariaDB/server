@@ -1514,7 +1514,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
 
   {
     char old_db_buf[SAFE_NAME_LEN+1];
-    LEX_CSTRING old_db= { old_db_buf, sizeof(old_db_buf) };
+    LEX_STRING old_db= { old_db_buf, sizeof(old_db_buf) };
     bool dbchanged;
     Parser_state parser_state;
     if (parser_state.init(thd, view_table_alias->select_stmt.str,
@@ -1525,9 +1525,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
       Use view db name as thread default database, in order to ensure
       that the view is parsed and prepared correctly.
     */
-    if ((result= mysql_opt_change_db(thd, &view_table_alias->view_db,
-                                     (LEX_STRING*) &old_db, 1,
-                                     &dbchanged)))
+    if ((result= mysql_opt_change_db(thd, view_table_alias->view_db,
+                                     &old_db, true, &dbchanged)))
       goto end;
 
     lex_start(thd);
@@ -1550,7 +1549,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
         (parent_query_lex->sql_command == SQLCOM_SHOW_CREATE))
         view_query_lex->sql_command= parent_query_lex->sql_command;
 
-    if (dbchanged && mysql_change_db(thd, &old_db, TRUE))
+    if (dbchanged && mysql_change_db(thd, old_db, TRUE))
       goto err;
   }
   if (!parse_status)
