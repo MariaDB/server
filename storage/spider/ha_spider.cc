@@ -8309,7 +8309,8 @@ void ha_spider::check_pre_call(
       select_lex, &select_limit, &offset_limit);
     if (
       select_lex &&
-      (!select_lex->limit_params.explicit_limit || !select_limit)
+      (!select_lex->limit_params.explicit_limit || !select_limit) &&
+      !select_lex->with_sum_func
     ) {
       use_pre_call = TRUE;
     }

@@ -2,6 +2,7 @@
 --source include/have_sequence.inc
 --source include/no_view_protocol.inc
 --disable_ps2_protocol
+--disable_cursor_protocol
 
 --echo # Index scans with PARTITION BY RANGE
 
@@ -551,4 +552,5 @@ select json_extract(@js,'$**.partitions_index_scan_method');
 
 drop table t1;
 
+--enable_cursor_protocol
 --enable_ps2_protocol
