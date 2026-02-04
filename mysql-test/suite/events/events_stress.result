@@ -44,6 +44,11 @@ COUNT(*)
 0
 CREATE DATABASE events_conn1_test3;
 USE events_conn1_test3;
+# Suppress errors from events related to events_conn1_test4 as the
+# database is removed while events are scheduled. We intentionally
+# don't wait for events to finish, to test db removal when events
+# are running
+call mtr.add_suppression("events_conn1_test4");
 SET GLOBAL event_scheduler=on;
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_SCHEMA='events_conn1_test3';
 COUNT(*)
