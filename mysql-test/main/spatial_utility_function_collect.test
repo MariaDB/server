@@ -220,3 +220,12 @@ DROP TABLE t1;
 --echo #
 --error ER_INVALID_GROUP_FUNC_USE
 SELECT 1 FROM dual WHERE group_concat(1, 1);
+
+--echo # End of 12.0 tests
+
+--echo #
+--echo # MDEV-38755 ST_COLLECT(1) IS NULL is false
+--echo #
+select st_collect(1), st_collect(1) is null;
+
+--echo # End of 12.2 tests

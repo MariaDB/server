@@ -2223,6 +2223,7 @@ class Item_func_collect : public Item_sum_str
   {
     return true;
   }
+  bool is_null() override { update_null_value(); return null_value; }
 
   bool fix_fields_impl(THD *thd,Item **) override;
 
