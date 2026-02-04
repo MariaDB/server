@@ -28698,26 +28698,32 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
       count= order->counter; // counter was once resolved
     else
       count= (uint) order_item->val_int();
+
     /*
-      count == 0 (FALSE): fall through.
-      0 is not an ordinal number, so it's not a column position.
+      Boolean literal (FALSE) with count==0: fall through to expression handling.
+      Integer literal 0 or out-of-range: invalid position.
+      Otherwise: valid positional reference with deprecation warning.
     */
-    if (count > 0)
+    bool is_bool_false= (count == 0 && order_item->is_bool_literal());
+
+    if (!is_bool_false)
     {
-      warn_deprecated<1203>(thd, "Positional GROUP BY/ORDER BY");
-      if (count > fields.elements)
+      if (count == 0 || count > fields.elements)
       {
         my_error(ER_BAD_FIELD_ERROR, MYF(0),
                  order_item->full_name(), thd_where(thd));
         return TRUE;
       }
+      warn_deprecated<1203>(thd, "Positional GROUP BY/ORDER BY");
       thd->change_item_tree((Item **)&order->item, (Item *)&ref_pointer_array[count - 1]);
       order->in_field_list= 1;
       order->counter= count;
       order->counter_used= 1;
       return FALSE;
     }
+    /* is_bool_false: fall through to expression handling */
   }
+
   /* Lookup the current GROUP/ORDER field in the SELECT clause. */
   select_item= find_item_in_list(order_item, fields, &counter,
                                  REPORT_EXCEPT_NOT_FOUND, &resolution);
