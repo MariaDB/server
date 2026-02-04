@@ -1,9 +1,7 @@
+DROP TABLE IF EXISTS t1;
 #
 # SELECT using ror_merged scan fails with s3 tables
 #
-DROP TABLE IF EXISTS t1;
-Warnings:
-Note	1051	Unknown table 'test.t1'
 CREATE TABLE t1 (a INT, b INT, KEY(a), KEY(b)) ENGINE=Aria;
 INSERT INTO t1 VALUES (0,0),(0,10),(3,10);
 ALTER TABLE t1 ENGINE=S3;
