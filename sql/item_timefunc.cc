@@ -595,6 +595,9 @@ static bool make_date_time(THD *thd, const String *format,
       case 'f':
 	str->append_zerofill((uint) l_time->second_part, 6);
 	break;
+      case 'L':
+	str->append_zerofill((uint) (l_time->second_part / 1000), 3);
+	break;
       case 'H':
 	str->append_zerofill(l_time->hour, 2);
 	break;
@@ -706,6 +709,25 @@ static bool make_date_time(THD *thd, const String *format,
         str->append(curr_tz.seconds_offset < 0 ? '-' : '+');
         str->append(static_cast<char>('0' + diff_hr/10));
         str->append(static_cast<char>('0' + diff_hr%10));
+        str->append(static_cast<char>('0' + diff_min/10));
+        str->append(static_cast<char>('0' + diff_min%10));
+        break;
+      }
+      case 'o':
+      {
+        if (!curr_timezone)
+        {
+          curr_timezone= thd->variables.time_zone;
+          curr_timezone->get_timezone_information(&curr_tz, l_time);
+        }
+        long minutes= labs(curr_tz.seconds_offset)/60, diff_hr, diff_min;
+        diff_hr= minutes/60;
+        diff_min= minutes%60;
+
+        str->append(curr_tz.seconds_offset < 0 ? '-' : '+');
+        str->append(static_cast<char>('0' + diff_hr/10));
+        str->append(static_cast<char>('0' + diff_hr%10));
+        str->append(':');
         str->append(static_cast<char>('0' + diff_min/10));
         str->append(static_cast<char>('0' + diff_min%10));
         break;
@@ -1885,9 +1907,15 @@ uint Item_func_date_format::format_length(const String *format)
       case 'f': /* microseconds */
 	size += 6;
 	break;
+      case 'L': /* milliseconds */
+  size += 3;
+  break;
       case 'z': /* time zone offset */
-        size += 5;
-        break;
+  size += 5;
+  break;
+      case 'o': /* time zone offset with colon */
+  size += 6;
+  break;
       case 'w': /* day (of the week), numeric */
       case '%':
       default:
