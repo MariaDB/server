@@ -100,12 +100,6 @@ public:
 };
 
 
-#ifdef DBUG_OFF
-static inline const char *dbug_print_item(Item *item) { return NULL; }
-#else
-const char *dbug_print_item(Item *item);
-#endif
-
 class Virtual_tmp_table;
 class sp_head;
 class Protocol;
