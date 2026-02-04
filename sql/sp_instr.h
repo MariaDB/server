@@ -504,6 +504,15 @@ protected:
 
 private:
   /**
+    Buffer responsible for keeping the query text over the lifetime of
+    *this.  If reparsing is required, then this string is cleared and
+    replaced with the new text on reparse.  Allows for deferred hint
+    resolution when query hints are specified as part of the trigger
+    definition.
+   */
+  String sql_query_cache;
+
+  /**
     List of Item_trigger_field objects created on parsing of a SQL statement
     corresponding to this SP-instruction.
   */

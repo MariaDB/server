@@ -899,11 +899,10 @@ bool sp_lex_instr::setup_memroot_for_reparsing(sp_head *sphead,
 
 LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
 {
-  String sql_query;
+  sql_query_cache.free();
+  get_query(&sql_query_cache);
 
-  get_query(&sql_query);
-
-  if (sql_query.length() == 0)
+  if (sql_query_cache.length() == 0)
   {
     /**
       The instruction has returned zero-length query string. That means, the
@@ -953,7 +952,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   state= STMT_INITIALIZED_FOR_SP;
 
   /*
-    First, set up a men_root for the statement is going to re-compile.
+    First, set up a mem_root for the statement is going to re-compile.
   */
   bool mem_root_allocated;
   if (setup_memroot_for_reparsing(sp, &mem_root_allocated))
@@ -969,7 +968,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
 
   Parser_state parser_state;
 
-  if (parser_state.init(thd, sql_query.c_ptr(), sql_query.length()))
+  if (parser_state.init(thd, sql_query_cache.c_ptr(), sql_query_cache.length()))
     return nullptr;
 
   /*
@@ -1068,7 +1067,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
     the current statement being parsed.
   */
   const char *m_tmp_query_bak= sp->m_tmp_query;
-  sp->m_tmp_query= sql_query.c_ptr();
+  sp->m_tmp_query= sql_query_cache.c_ptr();
 
   /*
     Hint the parser that re-parsing of a failed SP instruction is in progress

@@ -8867,3 +8867,12 @@ SPECIFIC_NAME
 upper
 DROP FUNCTION upper;
 # End of 11.8 tests
+#
+# MDEV-38747:  ASAN errors in Optimizer_hint_parser::Identifier::to_ident_cli
+#
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+CREATE TEMPORARY TABLE tmp (b INT);
+CREATE TRIGGER tr AFTER DELETE ON t FOR EACH ROW CREATE OR REPLACE TEMPORARY TABLE tmp AS SELECT /*+ QB_NAME(xxxx) */ 1;
+DELETE FROM t;
+DROP TABLE t;
