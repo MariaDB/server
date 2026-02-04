@@ -288,9 +288,8 @@ remap:
       if (!stat("/dev/shm", &st))
       {
         is_pmem= st.st_dev == st_dev;
-        if (!is_pmem)
-          return ptr; /* MAP_FAILED */
-        goto remap;
+        if (is_pmem)
+          goto remap;
       }
     }
   }
