@@ -9618,3 +9618,14 @@ SELECT SPECIFIC_NAME FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_SCHEMA='t
 DROP FUNCTION upper;
 
 --echo # End of 11.8 tests
+
+--echo #
+--echo # MDEV-38747:  ASAN errors in Optimizer_hint_parser::Identifier::to_ident_cli
+--echo #
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+CREATE TEMPORARY TABLE tmp (b INT);
+# Can be SELECT ... old.a, or SELECT ... * FROM sometable, etc.
+CREATE TRIGGER tr AFTER DELETE ON t FOR EACH ROW CREATE OR REPLACE TEMPORARY TABLE tmp AS SELECT /*+ QB_NAME(xxxx) */ 1;
+DELETE FROM t;
+DROP TABLE t;
