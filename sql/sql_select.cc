@@ -671,7 +671,7 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
                         ER_QUERY_RESULT_INCOMPLETE,
                         ER_THD(thd, ER_QUERY_RESULT_INCOMPLETE),
                         "LIMIT ROWS EXAMINED",
-                        thd->lex->limit_rows_examined->val_uint());
+                        thd->lex->limit_rows_examined_cnt);
     thd->abort_on_warning= saved_abort_on_warning;
     thd->reset_killed();
   }
