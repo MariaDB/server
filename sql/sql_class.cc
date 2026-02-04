@@ -2379,7 +2379,7 @@ void THD::killed_for_exceeding_limit_rows()
                         ER_QUERY_RESULT_INCOMPLETE,
                         ER_THD(this, ER_QUERY_RESULT_INCOMPLETE),
                         "LIMIT ROWS EXAMINED",
-                        lex->limit_rows_examined->val_uint());
+                        lex->limit_rows_examined_cnt);
     abort_on_warning= saved_abort_on_warning;
   }
 }

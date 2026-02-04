@@ -2512,6 +2512,11 @@ resume:
   /* Check that some variables are reset properly */
   DBUG_ASSERT(thd->abort_on_warning == 0);
   thd->lex->restore_set_statement_var();
+  /*
+    Reset limit_rows_examined_cnt as it may be used by general_log_write()
+    before next lex::start() call.
+  */
+  thd->lex->limit_rows_examined_cnt= ULONGLONG_MAX;
   DBUG_RETURN(error?DISPATCH_COMMAND_CLOSE_CONNECTION: DISPATCH_COMMAND_SUCCESS);
 }
 
