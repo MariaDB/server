@@ -2886,28 +2886,13 @@ Item*
 Create_qfunc::create_func(THD *thd, const LEX_CSTRING *name,
                           List<Item> *item_list)
 {
-  if (unlikely(! thd->db.str && ! thd->lex->sphead))
+  Lex_ident_db_normalized db;
+  if (thd->lex->sphead || thd->db.str)
   {
-    /*
-      The proper error message should be in the lines of:
-        Can't resolve <name>() to a function call,
-        because this function:
-        - is not a native function,
-        - is not a user defined function,
-        - can not match a qualified (read: stored) function
-          since no database is selected.
-      Reusing ER_SP_DOES_NOT_EXIST have a message consistent with
-      the case when a default database exist, see Create_sp_func::create().
-    */
-    my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-             "FUNCTION", name->str);
-    return NULL;
+    db= thd->lex->copy_db_normalized();
+    if (!db.str)
+      return NULL; /*No db or EOM, error was already sent */
   }
-
-  Lex_ident_db_normalized db= thd->lex->copy_db_normalized();
-  if (!db.str)
-    return NULL; /*No db or EOM, error was already sent */
-
   return create_with_db(thd, db, Lex_ident_routine(*name), false, item_list);
 }
 
@@ -3058,12 +3043,19 @@ Create_sp_func::create_with_db(THD *thd,
     arg_count= item_list->elements;
 
   qname= new (thd->mem_root) sp_name(db, name, use_explicit_name);
-  if (unlikely(sph->sp_resolve_package_routine(thd, thd->lex->sphead,
-                                               qname, &sph, &pkgname)))
-    return NULL;
-  sph->add_used_routine(lex, thd, qname);
-  if (pkgname.m_name.length)
-    sp_handler_package_body.add_used_routine(lex, thd, &pkgname);
+  thd->variables.path.resolve(thd, lex->sphead, qname, &sph, &pkgname);
+  if (qname->m_db.str)
+  {
+    /*
+      Only add to used routine if m_db was resolved, we want to defer
+      error handling for ER_SP_DOES_NOT_EXIST until execution for error
+      message consistency
+    */ 
+    sph->add_used_routine(lex, thd, qname);
+    if (pkgname.m_name.length)
+      sp_handler_package_body.add_used_routine(lex, thd, &pkgname);
+  }
+  
   Name_resolution_context *ctx= lex->current_context();
   if (arg_count > 0)
     func= new (thd->mem_root) Item_func_sp(thd, ctx, qname, sph, *item_list);
