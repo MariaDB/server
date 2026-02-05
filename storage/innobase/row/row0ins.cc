@@ -3316,7 +3316,7 @@ row_ins_clust_index_entry(
 	   skip the undo log and record lock checking for
 	   insertion operation.
 	*/
-	if (index->table->skip_alter_undo) {
+	if (index->table->skip_alter_undo == dict_table_t::NO_UNDO) {
 		flags |= BTR_NO_UNDO_LOG_FLAG | BTR_NO_LOCKING_FLAG;
 	}
 

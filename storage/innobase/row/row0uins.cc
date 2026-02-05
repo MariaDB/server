@@ -435,7 +435,7 @@ close_table:
 		node->table = NULL;
 		return false;
 	} else {
-		ut_ad(!node->table->skip_alter_undo);
+		ut_ad(node->table->skip_alter_undo != dict_table_t::NO_UNDO);
 		clust_index = dict_table_get_first_index(node->table);
 
 		if (clust_index != NULL) {

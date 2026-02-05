@@ -15931,9 +15931,13 @@ ha_innobase::extra(
 			break;
 		}
 		goto stmt_boundary;
+	case HA_EXTRA_BEGIN_ALTER_IGNORE_COPY:
 	case HA_EXTRA_BEGIN_ALTER_COPY:
 		trx = check_trx_exists(thd);
-		m_prebuilt->table->skip_alter_undo = 1;
+		m_prebuilt->table->skip_alter_undo =
+			(operation == HA_EXTRA_BEGIN_ALTER_COPY)
+			? dict_table_t::NO_UNDO
+			: dict_table_t::IGNORE_UNDO;
 		if (m_prebuilt->table->is_temporary()
 		    || !m_prebuilt->table->versioned_by_id()) {
 			break;
@@ -15952,7 +15956,19 @@ ha_innobase::extra(
 			they could cause a severe performance regression. */
 			break;
 		}
-		m_prebuilt->table->skip_alter_undo = 0;
+
+		if (m_prebuilt->table->skip_alter_undo ==
+			dict_table_t::IGNORE_UNDO) {
+			/* Remove the last undo log from
+			transaction and does call commit_empty()
+			during commit process */
+			trx->undo_no = 0;
+			trx_undo_try_truncate(trx);
+		}
+
+		m_prebuilt->table->skip_alter_undo =
+			dict_table_t::NORMAL_UNDO;
+
 		if (dberr_t err= trx->bulk_insert_apply<TRX_DDL_BULK>()) {
 			trx->rollback();
 			return convert_error_code_to_mysql(
@@ -15985,7 +16001,8 @@ ha_innobase::extra(
 		if (m_prebuilt->table->skip_alter_undo &&
 		    !m_prebuilt->table->is_temporary()) {
 			trx = check_trx_exists(ha_thd());
-			m_prebuilt->table->skip_alter_undo = 0;
+			m_prebuilt->table->skip_alter_undo =
+				dict_table_t::NORMAL_UNDO;
 			trx->rollback();
 			return(HA_ERR_ROLLBACK);
 		}

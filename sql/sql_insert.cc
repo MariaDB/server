@@ -5253,8 +5253,10 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
       !table->s->long_unique_table && !table->s->hlindexes())
   {
     table->file->ha_start_bulk_insert((ha_rows) 0);
-    if (thd->lex->duplicates == DUP_ERROR && !thd->lex->ignore)
-      table->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
+    if (thd->lex->duplicates == DUP_ERROR)
+      table->file->extra(thd->lex->ignore
+		         ? HA_EXTRA_BEGIN_ALTER_IGNORE_COPY
+			 : HA_EXTRA_BEGIN_ALTER_COPY);
     table->file->extra(HA_EXTRA_WRITE_CACHE);
   }
   thd->abort_on_warning= !info.ignore && thd->is_strict_mode();

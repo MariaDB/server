@@ -557,6 +557,9 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
   case HA_EXTRA_ABORT_ALTER_COPY:
     inspected = "HA_EXTRA_ABORT_ALTER_COPY";
     break;
+  case HA_EXTRA_BEGIN_ALTER_IGNORE_COPY:
+    inspected = "HA_EXTRA_BEGIN_ALTER_IGNORE_COPY";
+    break;
 #ifdef MRN_HAVE_HA_EXTRA_EXPORT
   case HA_EXTRA_EXPORT:
     inspected = "HA_EXTRA_EXPORT";

@@ -2223,12 +2223,25 @@ public:
 	Use DICT_TF2_FLAG_IS_SET() to parse this flag. */
 	unsigned				flags2:DICT_TF2_BITS;
 
-	/** TRUE if the table is an intermediate table during copy alter
-	operation or a partition/subpartition which is required for copying
-	data and skip the undo log for insertion of row in the table.
-	This variable will be set and unset during extra(), or during the
+	/** Undo log handling modes for ALTER TABLE operations */
+	enum skip_alter_undo_t {
+		/** Normal mode - standard undo logging */
+		NORMAL_UNDO = 0,
+		/** ALTER mode - skip undo logging */
+		NO_UNDO = 1,
+		/** ALTER IGNORE mode - rewrite undo blocks to
+		maintain only latest insert undo log */
+		IGNORE_UNDO = 2
+	};
+
+	/** Mode for handling undo logs during ALTER TABLE operations.
+	Set during copy alter operations or partition/subpartition operations.
+	When set, controls undo log behavior for row operations in the table.
+	For ALTER IGNORE, this enables rewriting old insert undo blocks
+	to maintain only the latest insert undo log.
+	This variable is set and unset during extra(), or during the
 	process of altering partitions */
-	unsigned                                skip_alter_undo:1;
+	unsigned                                skip_alter_undo:2;
 
 	/** whether this is in a single-table tablespace and the .ibd file
 	is believed to be missing or page decryption failed and page is

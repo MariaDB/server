@@ -233,7 +233,10 @@ enum ha_extra_function {
   HA_EXTRA_END_ALTER_COPY,
   /** Abort of writing rows during ALTER TABLE..ALGORITHM=COPY or
   CREATE..SELCT */
-  HA_EXTRA_ABORT_ALTER_COPY
+  HA_EXTRA_ABORT_ALTER_COPY,
+  /** Overwrite the old undo log for each insert for
+  ALTER IGNORE TABLE .. ALGORITHM= COPY */
+  HA_EXTRA_BEGIN_ALTER_IGNORE_COPY
 };
 
 /* Compatible option, to be deleted in 6.0 */

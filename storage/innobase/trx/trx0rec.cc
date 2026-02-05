@@ -1906,6 +1906,8 @@ trx_undo_report_row_operation(
 	}
 
 	trx_undo_t*	undo	= *pundo;
+	bool ignore_ddl=
+	  (index->table->skip_alter_undo == dict_table_t::IGNORE_UNDO);
 	ut_ad((err == DB_SUCCESS) == (undo_block != NULL));
 	if (UNIV_UNLIKELY(undo_block == NULL)) {
 err_exit:
@@ -1914,6 +1916,22 @@ err_exit:
 	}
 
 	ut_ad(undo != NULL);
+
+	/* For ALTER IGNORE, implement undo log rewriting to maintain only
+	the latest insert undo record. This allows easy rollback of the
+	last inserted row on duplicate key errors. Before writing a new
+	undo record, rewind the undo log to the previous record position,
+	effectively discarding all intermediate
+	undo records and keeping only the most recent one. */
+	if (ignore_ddl && !undo->empty() &&
+	    undo->old_offset <= undo->top_offset) {
+
+		undo->top_offset = undo->old_offset;
+		undo->top_undo_no = 0;
+		mtr.write<2>(*undo_block,
+			     undo_block->page.frame + TRX_UNDO_PAGE_HDR +
+			     TRX_UNDO_PAGE_FREE, undo->old_offset);
+	}
 
 	do {
 		uint16_t offset = !rec
@@ -1989,6 +2007,13 @@ err_exit:
 			/* Success */
 			undo->top_page_no = undo_block->page.id().page_no();
 			mtr.commit();
+
+			/* For ALTER IGNORE, store the current record position
+			as the rollback point for the next operation */
+			if (ignore_ddl && undo->empty()) {
+				undo->old_offset = offset;
+			}
+
 			undo->top_offset  = offset;
 			undo->top_undo_no = trx->undo_no++;
 			undo->guess_block = undo_block;
