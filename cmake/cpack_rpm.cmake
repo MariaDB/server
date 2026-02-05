@@ -259,14 +259,6 @@ SETA(CPACK_RPM_server_PACKAGE_REQUIRES
   "MariaDB-common >= 10.6.1"
   "MariaDB-client >= 11.0.0")
 
-IF(WITH_WSREP)
-  SETA(CPACK_RPM_server_PACKAGE_REQUIRES
-    "galera-4" "rsync" "grep" "gawk" "iproute"
-    "coreutils" "findutils" "tar")
-  SETA(CPACK_RPM_server_PACKAGE_RECOMMENDS "lsof" "socat" "pv")
-  SETA(CPACK_RPM_test_PACKAGE_REQUIRES "${CPACK_RPM_PACKAGE_REQUIRES}" "socat")
-ENDIF()
-
 SET(CPACK_RPM_server_PRE_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-prein.sh)
 SET(CPACK_RPM_server_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-preun.sh)
 SET(CPACK_RPM_server_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-postin.sh)
@@ -322,8 +314,6 @@ ELSEIF(RPM MATCHES "(rhel|centos|rocky)")
   ALTERNATIVE_NAME("shared" "mariadb-connector-c" ${MARIADB_CONNECTOR_C_VERSION}-1)
   ALTERNATIVE_NAME("shared" "mariadb-connector-c-config" ${MARIADB_CONNECTOR_C_VERSION}-1)
   ALTERNATIVE_NAME("devel" "mariadb-connector-c-devel" ${MARIADB_CONNECTOR_C_VERSION}-1)
-  SETA(CPACK_RPM_client_PACKAGE_PROVIDES "mariadb-galera = 3:%{version}-%{release}")
-  SETA(CPACK_RPM_common_PACKAGE_PROVIDES "mariadb-galera-common = 3:%{version}-%{release}")
   SETA(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-shared")
 ELSEIF(RPM MATCHES "sles")
   ALTERNATIVE_NAME("server" "mariadb")
