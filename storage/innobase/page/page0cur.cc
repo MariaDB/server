@@ -1887,7 +1887,7 @@ static inline void page_zip_dir_add_slot(buf_block_t *block,
 
   if (!page_is_leaf(page_zip->data))
   {
-    ut_ad(!page_zip->n_blobs);
+    ut_ad(!page_zip->n_blobs());
     stored-= n_dense * REC_NODE_PTR_SIZE;
   }
   else if (index->is_clust())
@@ -1896,7 +1896,7 @@ static inline void page_zip_dir_add_slot(buf_block_t *block,
     columns DB_TRX_ID,DB_ROLL_PTR and the dense directory slot. */
 
     stored-= n_dense * (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
-    byte *externs= stored - page_zip->n_blobs * BTR_EXTERN_FIELD_REF_SIZE;
+    byte *externs= stored - page_zip->n_blobs() * BTR_EXTERN_FIELD_REF_SIZE;
     byte *dst= externs - PAGE_ZIP_CLUST_LEAF_SLOT_SIZE;
     ut_ad(!memcmp(dst, field_ref_zero, PAGE_ZIP_CLUST_LEAF_SLOT_SIZE));
     if (const ulint len = ulint(stored - externs))
@@ -1908,7 +1908,7 @@ static inline void page_zip_dir_add_slot(buf_block_t *block,
   }
   else
   {
-    stored-= page_zip->n_blobs * BTR_EXTERN_FIELD_REF_SIZE;
+    stored-= page_zip->n_blobs() * BTR_EXTERN_FIELD_REF_SIZE;
     ut_ad(!memcmp(stored - PAGE_ZIP_DIR_SLOT_SIZE, field_ref_zero,
                   PAGE_ZIP_DIR_SLOT_SIZE));
   }
@@ -2009,7 +2009,7 @@ page_cur_insert_rec_zip(
       return nullptr;
     }
 
-    if (page_zip->m_nonempty || page_has_garbage(page))
+    if (page_zip->is_nonempty() || page_has_garbage(page))
     {
       ulint pos= page_rec_get_n_recs_before(cursor->rec);
 
@@ -2453,11 +2453,7 @@ page_cur_delete_rec(
 	cur_dir_slot = page_dir_get_nth_slot(block->page.frame, cur_slot_no);
 	cur_n_owned = page_dir_slot_get_n_owned(cur_dir_slot);
 
-	/* The page gets invalid for btr_pcur_restore_pos().
-	We avoid invoking buf_block_modify_clock_inc(block) because its
-	consistency checks would fail for the dummy block that is being
-	used during IMPORT TABLESPACE. */
-	block->modify_clock++;
+	block->invalidate();
 
 	/* Find the next and the previous record. Note that the cursor is
 	left at the next record. */

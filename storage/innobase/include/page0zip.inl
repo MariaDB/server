@@ -93,53 +93,6 @@ In summary, the compressed page looks like this:
   - deleted records (free list) in link order
 */
 
-/**********************************************************************//**
-Determine the size of a compressed page in bytes.
-@return size in bytes */
-UNIV_INLINE
-ulint
-page_zip_get_size(
-/*==============*/
-	const page_zip_des_t*	page_zip)	/*!< in: compressed page */
-{
-	ulint	size;
-
-	if (!page_zip->ssize) {
-		return(0);
-	}
-
-	size = (UNIV_ZIP_SIZE_MIN >> 1) << page_zip->ssize;
-
-	ut_ad(size >= UNIV_ZIP_SIZE_MIN);
-	ut_ad(size <= srv_page_size);
-
-	return(size);
-}
-/**********************************************************************//**
-Set the size of a compressed page in bytes. */
-UNIV_INLINE
-void
-page_zip_set_size(
-/*==============*/
-	page_zip_des_t*	page_zip,	/*!< in/out: compressed page */
-	ulint		size)		/*!< in: size in bytes */
-{
-	if (size) {
-		unsigned	ssize;
-
-		ut_ad(ut_is_2pow(size));
-
-		for (ssize = 1; size > (512U << ssize); ssize++) {
-		}
-
-		page_zip->ssize = ssize & ((1U << PAGE_ZIP_SSIZE_BITS) - 1);
-	} else {
-		page_zip->ssize = 0;
-	}
-
-	ut_ad(page_zip_get_size(page_zip) == size);
-}
-
 /** Determine if a record is so big that it needs to be stored externally.
 @param[in]	rec_size	length of the record in bytes
 @param[in]	comp		nonzero=compact format
@@ -192,12 +145,12 @@ page_zip_simple_validate(
 {
 	ut_ad(page_zip);
 	ut_ad(page_zip->data);
-	ut_ad(page_zip->ssize <= PAGE_ZIP_SSIZE_MAX);
+	ut_ad(page_zip->ssize() <= PAGE_ZIP_SSIZE_MAX);
 	ut_ad(page_zip_get_size(page_zip)
 	      > PAGE_DATA + PAGE_ZIP_DIR_SLOT_SIZE);
 	ut_ad(page_zip->m_start <= page_zip->m_end);
 	ut_ad(page_zip->m_end < page_zip_get_size(page_zip));
-	ut_ad(page_zip->n_blobs
+	ut_ad(page_zip->n_blobs()
 	      < page_zip_get_size(page_zip) / BTR_EXTERN_FIELD_REF_SIZE);
 	return(TRUE);
 }
@@ -222,18 +175,18 @@ page_zip_get_trailer_len(
 	if (!page_is_leaf(page_zip->data)) {
 		uncompressed_size = PAGE_ZIP_DIR_SLOT_SIZE
 			+ REC_NODE_PTR_SIZE;
-		ut_ad(!page_zip->n_blobs);
+		ut_ad(!page_zip->n_blobs());
 	} else if (is_clust) {
 		uncompressed_size = PAGE_ZIP_DIR_SLOT_SIZE
 			+ DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
 	} else {
 		uncompressed_size = PAGE_ZIP_DIR_SLOT_SIZE;
-		ut_ad(!page_zip->n_blobs);
+		ut_ad(!page_zip->n_blobs());
 	}
 
 	return (ulint(page_dir_get_n_heap(page_zip->data)) - 2)
 		* uncompressed_size
-		+ ulint(page_zip->n_blobs) * BTR_EXTERN_FIELD_REF_SIZE;
+		+ ulint(page_zip->n_blobs()) * BTR_EXTERN_FIELD_REF_SIZE;
 }
 
 /**********************************************************************//**

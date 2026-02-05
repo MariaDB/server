@@ -117,8 +117,6 @@ struct buf_page_info_t{
 #endif /* BTR_CUR_HASH_ADAPT */
 	unsigned	is_old:1;	/*!< TRUE if the block is in the old
 					blocks in buf_pool.LRU_old */
-	unsigned	freed_page_clock:31; /*!< the value of
-					buf_pool.freed_page_clock */
 	unsigned	zip_ssize:PAGE_ZIP_SSIZE_BITS;
 					/*!< Compressed page size */
 	unsigned	compressed_only:1; /*!< ROW_FORMAT=COMPRESSED only */
@@ -3790,8 +3788,7 @@ i_s_innodb_buffer_page_fill(
 		OK(fields[IDX_BUFFER_PAGE_IS_OLD]->store(
 			   page_info->is_old, true));
 
-		OK(fields[IDX_BUFFER_PAGE_FREE_CLOCK]->store(
-			   page_info->freed_page_clock, true));
+		OK(fields[IDX_BUFFER_PAGE_FREE_CLOCK]->store(0, true));
 
 		OK(schema_table_store_record(thd, table));
 	}
@@ -3883,13 +3880,14 @@ i_s_innodb_buffer_page_get_info(
 
 		page_info->oldest_mod = bpage->oldest_modification();
 
-		page_info->access_time = bpage->access_time;
+		page_info->access_time = bpage->is_accessed();
 
-		page_info->zip_ssize = bpage->zip.ssize;
+		const auto s = bpage->zip.get_state();
 
-		page_info->is_old = bpage->old;
+		page_info->zip_ssize = bpage->zip.ssize(s)
+			& ((1U << PAGE_ZIP_SSIZE_BITS) - 1);
 
-		page_info->freed_page_clock = bpage->freed_page_clock;
+		page_info->is_old = bpage->zip.old(s);
 
 		if (page_info->state >= buf_page_t::READ_FIX
 		    && page_info->state < buf_page_t::WRITE_FIX) {
@@ -4227,8 +4225,7 @@ i_s_innodb_buf_page_lru_fill(
 		OK(fields[IDX_BUF_LRU_PAGE_IS_OLD]->store(
 			   page_info->is_old, true));
 
-		OK(fields[IDX_BUF_LRU_PAGE_FREE_CLOCK]->store(
-			   page_info->freed_page_clock, true));
+		OK(fields[IDX_BUF_LRU_PAGE_FREE_CLOCK]->store(0, true));
 
 		OK(schema_table_store_record(thd, table));
 	}

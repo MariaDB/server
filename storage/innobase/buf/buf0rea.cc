@@ -92,6 +92,15 @@ static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
     return reinterpret_cast<buf_page_t*>(uintptr_t(hash_page) | 1);
   }
 
+  zip_size&= ~1;
+  uint16_t ssize= 0;
+  if (zip_size)
+  {
+    for (ssize= 1; zip_size > (512U << ssize); ssize++) {}
+    ut_ad(ssize < 1U << PAGE_ZIP_SSIZE_BITS);
+    ut_ad(zip_size == 512U << ssize);
+  }
+
   if (UNIV_UNLIKELY(mysql_mutex_trylock(&buf_pool.mutex)))
   {
     hash_lock.unlock();
@@ -105,13 +114,11 @@ static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
     }
   }
 
-  zip_size&= ~1;
-
   if (UNIV_LIKELY(bpage != nullptr))
   {
     block= nullptr;
     reinterpret_cast<buf_block_t*>(bpage)->
-      initialise(page_id, zip_size & ~1, READ_BUF_FIX);
+      initialise(page_id, ssize, READ_BUF_FIX);
     /* x_unlock() will be invoked
     in buf_page_t::read_complete() by the io-handler thread. */
     bpage->lock.x_lock(true);
@@ -141,10 +148,11 @@ static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
   else
   {
     hash_lock.unlock();
-    /* The compressed page must be allocated before the
-    control block (bpage), in order to avoid the
-    invocation of buf_buddy_relocate_block() on
-    uninitialized data. */
+    ut_ad(ut_is_2pow(zip_size));
+
+    /* The ROW_FORMAT=COMPRESSED page must be allocated before the
+    block descriptor bpage in order to avoid the invocation of
+    buf_buddy_relocate_block() on uninitialized data. */
     bool lru= false;
     void *data= buf_buddy_alloc(zip_size, &lru);
 
@@ -167,16 +175,13 @@ static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
 
     bpage= static_cast<buf_page_t*>(ut_zalloc_nokey(sizeof *bpage));
 
-    page_zip_des_init(&bpage->zip);
-    page_zip_set_size(&bpage->zip, zip_size);
-    bpage->zip.data = (page_zip_t*) data;
-
     /* Because bpage is a compressed-only block descriptor, it cannot be
     passed to buf_pool.page_guess(), and therefore there is no risk of a
     a false match. Therefore, we can safely initialize bpage before
     acquiring hash_lock. */
     bpage->lock.init();
-    bpage->init(READ_BUF_FIX, page_id);
+    bpage->init(READ_BUF_FIX, page_id, ssize);
+    bpage->zip.data= static_cast<page_zip_t*>(data);
     bpage->lock.x_lock(true);
 
     hash_lock.lock();
@@ -451,8 +456,13 @@ ulint buf_read_ahead_random(const page_id_t page_id) noexcept
     transactional_shared_lock_guard<page_hash_latch> g
       {buf_pool.page_hash.lock_get(chain)};
     if (const buf_page_t *bpage= buf_pool.page_hash.get(i, chain))
-      if (bpage->is_accessed() && buf_page_peek_if_young(bpage) && !--count)
+    {
+      const auto state= bpage->zip.get_state();
+      if ((bpage->zip.is_accessed(state) ||
+           (!bpage->zip.old(state) && bpage->is_accessed())) &&
+          !--count)
         goto read_ahead;
+    }
   }
 
 no_read_ahead:

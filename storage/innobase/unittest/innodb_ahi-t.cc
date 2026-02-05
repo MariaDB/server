@@ -19,6 +19,7 @@ uint32_t srv_page_size_shift= 14;
 ulong srv_page_size= 1 << 14;
 dict_sys_t dict_sys;
 buf_pool_t buf_pool;
+bool buf_page_t::flag_accessed() noexcept { return false; }
 buf_block_t *buf_pool_t::block_from(const void *ptr) noexcept
 { return nullptr; }
 void buf_pool_t::clear_hash_index() noexcept {}

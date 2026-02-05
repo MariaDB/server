@@ -318,7 +318,7 @@ static buf_block_t* row_undo_rec_get(undo_node_t* node)
 		return nullptr;
 	}
 
-	buf_page_make_young_if_needed(&undo_page->page);
+	undo_page->page.flag_accessed();
 
 	uint16_t offset = undo->top_offset;
 

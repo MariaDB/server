@@ -50,11 +50,6 @@ The caller must hold buf_pool.mutex.
 bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
   MY_ATTRIBUTE((nonnull));
 
-/** Try to free a replaceable block.
-@param limit  maximum number of blocks to scan
-@return true if found and freed */
-bool buf_LRU_scan_and_free_block(ulint limit= ULINT_UNDEFINED);
-
 /** How to acquire a block */
 enum buf_LRU_get {
   /** The caller is not holding buf_pool.mutex */
@@ -113,14 +108,8 @@ buf_LRU_add_block(
 				start; if the LRU list is very short, added to
 				the start regardless of this parameter */
 
-/** Move a block to the start of the buf_pool.LRU list.
-@param bpage  buffer pool page */
+/** Move a block to the "recently used" end of buf_pool.LRU. */
 void buf_page_make_young(buf_page_t *bpage);
-/** Flag a page accessed in buf_pool and move it to the start of buf_pool.LRU
-if it is too old.
-@param bpage  buffer pool page
-@return whether this is not the first access */
-bool buf_page_make_young_if_needed(buf_page_t *bpage);
 
 /******************************************************************//**
 Adds a block to the LRU list of decompressed zip pages. */
@@ -178,10 +167,6 @@ The minimum must exceed
 #if BUF_LRU_OLD_RATIO_MAX > BUF_LRU_OLD_RATIO_DIV
 # error "BUF_LRU_OLD_RATIO_MAX > BUF_LRU_OLD_RATIO_DIV"
 #endif
-
-/** Move blocks to "new" LRU list only if the first access was at
-least this many milliseconds ago.  Not protected by any mutex or latch. */
-extern uint	buf_LRU_old_threshold_ms;
 /* @} */
 
 /** @brief Statistics for selecting the LRU list for eviction.
