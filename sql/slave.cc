@@ -4087,6 +4087,15 @@ apply_event_and_update_pos(Log_event* ev, THD* thd, rpl_group_info *rgi)
   Relay_log_info* rli= rgi->rli;
   mysql_mutex_assert_owner(&rli->data_lock);
   int reason= apply_event_and_update_pos_setup(ev, thd, rgi);
+  /*
+    This flag, set by the @ref GTID_EVENT case in exec_relay_log_event(),
+    skips events by `Relay_log_info::restart_gtid_pos` for serial replication.
+    Parrallel replication has a counterpart in `rpl_parallel::do_event()`,
+    so this check is here rather than in `Log_event::shall_skip()`.
+  */
+  if (rli->gtid_skip_flag && Log_event::is_group_event(ev->get_type_code()))
+    reason= Log_event::EVENT_SKIP_IGNORE;
+
   if (reason == Log_event::EVENT_SKIP_COUNT)
   {
     DBUG_ASSERT(rli->slave_skip_counter > 0);
@@ -4499,10 +4508,13 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       rli->last_trans_retry_count= serial_rgi->trans_retries;
       if (!rli->mi->using_gtid)
         break;
-      rli->slave_skip_counter= 0; // reset left-over skip flag (see below)
       rpl_gtid gtid= { gev->domain_id, gev->server_id, gev->seq_no };
-      if (!process_gtid_for_restart_pos(rli, &gtid))
+      if (process_gtid_for_restart_pos(rli, &gtid))
+      {
+        rli->gtid_skip_flag= GTID_SKIP_TRANSACTION;
         break;
+      }
+      rli->gtid_skip_flag= GTID_SKIP_NOT;
       if (opt_gtid_ignore_duplicates &&
           rli->mi->using_gtid != Master_info::USE_GTID_NO)
       {
@@ -4519,17 +4531,16 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #endif /* WITH_WSREP */
           DBUG_RETURN(1);
         }
-        if (res)
-          break;
-      }
         /*
           If we need to skip this event group (because the GTID was already
           applied), then do it using the code for slave_skip_counter, which
           is able to handle skipping until the end of the event group.
         */
+        if (!res)
           rli->slave_skip_counter= 1;
-        break;
       }
+      break;
+    }
     case GTID_LIST_EVENT:
     {
       auto gtid_list_event= static_cast<Gtid_list_log_event *>(ev);
@@ -5458,6 +5469,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   my_off_t saved_skip= 0;
   Master_info *mi= ((Master_info*)arg);
   Relay_log_info* rli = &mi->rli;
+  const char *group_relay_log_name= rli->group_relay_log_name;
   my_bool wsrep_node_dropped __attribute__((unused)) = FALSE;
   const char *errmsg;
   rpl_group_info *serial_rgi;
@@ -5588,42 +5600,41 @@ pthread_handler_t handle_slave_sql(void *arg)
   rli->last_seen_gtid= serial_rgi->current_gtid;
   /*
     In GTID mode,
+    * A crash would leave the `relay_log_pos` outdated.
     * Parallel replication may stop with worker
       threads at different positions in the relay log.
-    * A crash would leave the `relay_log_pos` outdated.
     In both cases, we don't know where the execution actually stopped;
     not even `@@relay_log_info_file` is reliable.
     To handle these situations when we restart the SQL thread,
-    we restart from the beginning of the relay log
-    (which is definitely before every not-yet-applied transaction in any domain)
+    we restart from a known safe place that's before every not-yet-applied
+    transaction in any domain (the beginning of the relay log, if we must),
     and reload the starting GTID position to skip already applied GTIDs.
   */
   if (mi->using_gtid)
   {
     if (rli->restart_gtid_pos.load(rpl_global_gtid_slave_state, nullptr, 0))
       goto err_before_start;
-    rli->group_relay_log_pos= BIN_LOG_HEADER_SIZE;
+    if (rli->restart_gtid_pos.count())
+    {
     /*
-      Since event groups can be split
+      In case of parallel replication previously, if we have a multi-domain GTID
+      position, we need to start some way back in the relay log and skip any
+      GTID that was already applied before. Since event groups can be split
       across multiple relay logs, this earlier starting point may be in the
       middle of an already applied event group, so we also need to skip any
       remaining part of such group.
     */
-    if (mi->using_parallel())
-    {
-  if (rli->restart_gtid_pos.count())
+      group_relay_log_name= nullptr;
+      rli->group_relay_log_pos= BIN_LOG_HEADER_SIZE;
     rli->gtid_skip_flag = GTID_SKIP_TRANSACTION;
+    }
   else
     rli->gtid_skip_flag = GTID_SKIP_NOT;
-    }
-    else
-      // `restart_gtid_pos` uses the same method as `@@gtid_ignore_duplicates`.
-      rli->slave_skip_counter= rli->restart_gtid_pos.count() ? 1 : 0;
   }
   mysql_mutex_lock(&rli->data_lock);
   if (init_relay_log_pos(rli,
                          // The function will write to `group_relay_log_xxx`
-                         mi->using_gtid ? nullptr : rli->group_relay_log_name,
+                         group_relay_log_name,
                          rli->group_relay_log_pos,
                          0 /*need data lock*/, &errmsg,
                          1 /*look for a description_event*/))
@@ -5739,7 +5750,7 @@ pthread_handler_t handle_slave_sql(void *arg)
     do not want to wait for next event in this case.
   */
   mysql_mutex_lock(&rli->data_lock);
-  if (rli->slave_skip_counter && !mi->using_gtid)
+  if (rli->slave_skip_counter)
   {
     strmake_buf(saved_log_name, rli->group_relay_log_name);
     strmake_buf(saved_master_log_name, rli->group_master_log_name);
