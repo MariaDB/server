@@ -83,4 +83,27 @@ select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
 from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-38273: Optimizer trace should have selectivities collected via sampling
+--echo #
+create table t1 (a int, b int, c varchar(32), d varchar(32));
+insert into t1
+select
+  seq, seq,
+  if(mod(seq, 10) < 4,'c-ccc-c', 'no-match'),
+  if(mod(seq, 10) < 3,'d-ddd-d', 'no-match')
+from seq_1_to_1000;
+
+analyze table t1 persistent for all;
+
+set statement optimizer_use_condition_selectivity=5 for
+explain select * from t1
+where a < 700 and b < 500 and c like '%ccc%' and d like '%ddd%';
+
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.rows_estimation[0]')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+drop table t1;
+
 set optimizer_trace='enabled=off';
