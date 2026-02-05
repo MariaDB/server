@@ -1,0 +1,50 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-34228: Underscores in numeric literals
+--echo #
+
+--echo # Standard integers
+SELECT 1_000;
+SELECT 1_234_567;
+SELECT +1_000, -1_000;
+
+--echo # Consecutive underscores -> Identifier
+CREATE TABLE t1 (1__000 INT);
+INSERT INTO t1 VALUES (5);
+SELECT 1__000 AS val FROM t1;
+DROP TABLE t1;
+
+--echo # Hexadecimal
+SELECT 0x_FF;
+SELECT 0x_FFFF_FFFF;
+SELECT 0x1_F;
+
+--echo # Binary
+SELECT 0b_1010;
+SELECT 0b_1111_0000;
+SELECT 0b1_0;
+
+--echo # Decimal
+SELECT 1_000.001;
+SELECT 1000.000_5;
+SELECT 1_000.000_001;
+
+--echo # Floating point
+SELECT 1_2.3_4e1_0;
+SELECT 1.2e+1_0;
+SELECT 1.2e-1_0;
+
+--echo # Digit start, contains letter -> Identifier
+CREATE TABLE t1 (1a INT);
+INSERT INTO t1 VALUES (3);
+SELECT 1a FROM t1;
+DROP TABLE t1;
+
+--echo # This should fail because 1_000 is now a number, not an identifier
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (1_000 INT);
+
+--echo # Mixed tests
+SELECT 1_000 + 0x_FF;
+SELECT 1_2.3_4e1 + 1_0;

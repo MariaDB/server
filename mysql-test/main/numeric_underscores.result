@@ -1,0 +1,78 @@
+#
+# MDEV-34228: Underscores in numeric literals
+#
+# Standard integers
+SELECT 1_000;
+1000
+1000
+SELECT 1_234_567;
+1234567
+1234567
+SELECT +1_000, -1_000;
+1000	-1_000
+1000	-1000
+# Consecutive underscores -> Identifier
+CREATE TABLE t1 (1__000 INT);
+INSERT INTO t1 VALUES (5);
+SELECT 1__000 AS val FROM t1;
+val
+5
+DROP TABLE t1;
+# Hexadecimal
+SELECT 0x_FF;
+0x_FF
+ÿ
+SELECT 0x_FFFF_FFFF;
+0x_FFFF_FFFF
+ÿÿÿÿ
+SELECT 0x1_F;
+0x1_F
+
+# Binary
+SELECT 0b_1010;
+0b_1010
+
+
+SELECT 0b_1111_0000;
+0b_1111_0000
+ð
+SELECT 0b1_0;
+0b1_0
+
+# Decimal
+SELECT 1_000.001;
+1000.001
+1000.001
+SELECT 1000.000_5;
+1000.0005
+1000.0005
+SELECT 1_000.000_001;
+1000.000001
+1000.000001
+# Floating point
+SELECT 1_2.3_4e1_0;
+12.34e10
+123400000000
+SELECT 1.2e+1_0;
+1.2e+10
+12000000000
+SELECT 1.2e-1_0;
+1.2e-10
+0.00000000012
+# Digit start, contains letter -> Identifier
+CREATE TABLE t1 (1a INT);
+INSERT INTO t1 VALUES (3);
+SELECT 1a FROM t1;
+1a
+3
+DROP TABLE t1;
+# This should fail because 1_000 is now a number, not an identifier
+CREATE TABLE t1 (1_000 INT);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1_000 INT)' at line 1
+# Mixed tests
+SELECT 1_000 + 0x_FF;
+1_000 + 0x_FF
+1255
+SELECT 1_2.3_4e1 + 1_0;
+1_2.3_4e1 + 1_0
+133.4
