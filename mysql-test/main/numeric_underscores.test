@@ -19,11 +19,13 @@ DROP TABLE t1;
 SELECT 0x_FF;
 SELECT 0x_FFFF_FFFF;
 SELECT 0x1_F;
+SELECT 0xABCD_EF01;
 
 --echo # Binary
 SELECT 0b_1010;
 SELECT 0b_1111_0000;
 SELECT 0b1_0;
+SELECT 0b1111_0000;
 
 --echo # Decimal
 SELECT 1_000.001;
@@ -48,3 +50,36 @@ CREATE TABLE t1 (1_000 INT);
 --echo # Mixed tests
 SELECT 1_000 + 0x_FF;
 SELECT 1_2.3_4e1 + 1_0;
+
+--echo #
+--echo # Boundary cases and negative tests
+--echo #
+
+--echo # Underscore adjacent to decimal point (should NOT be a single number)
+--error ER_PARSE_ERROR
+SELECT (1._0);
+--error ER_UNKNOWN_TABLE
+SELECT (1_.0);
+
+--echo # Hex and Binary prefixes (leading underscore is valid per T662)
+SELECT 0x_FF, 0b_1010;
+
+--echo # 1_e10 -> should be an identifier, so (1_e10) fails if no such column
+--error ER_BAD_FIELD_ERROR
+SELECT (1_e10);
+
+--echo # 1.0_e10 -> (1.0_e10) should fail as syntax error if split
+--error ER_PARSE_ERROR
+SELECT (1.0_e10);
+
+--echo # 1e_10 -> identifier or error
+--error ER_BAD_FIELD_ERROR
+SELECT (1e_10);
+
+--echo # Start with underscore
+--error ER_BAD_FIELD_ERROR,ER_UNKNOWN_TABLE
+SELECT _1.0;
+
+--echo # Valid cases for comparison
+SELECT 1_0.0_1e1_0;
+SELECT 0x1_F, 0b1_0;

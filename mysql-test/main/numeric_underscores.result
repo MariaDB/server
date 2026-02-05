@@ -28,6 +28,9 @@ SELECT 0x_FFFF_FFFF;
 SELECT 0x1_F;
 0x1_F
 
+SELECT 0xABCD_EF01;
+0xABCD_EF01
+«Íï
 # Binary
 SELECT 0b_1010;
 0b_1010
@@ -39,6 +42,9 @@ SELECT 0b_1111_0000;
 SELECT 0b1_0;
 0b1_0
 
+SELECT 0b1111_0000;
+0b1111_0000
+ð
 # Decimal
 SELECT 1_000.001;
 1000.001
@@ -76,3 +82,35 @@ SELECT 1_000 + 0x_FF;
 SELECT 1_2.3_4e1 + 1_0;
 1_2.3_4e1 + 1_0
 133.4
+#
+# Boundary cases and negative tests
+#
+# Underscore adjacent to decimal point (should NOT be a single number)
+SELECT (1._0);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '_0)' at line 1
+SELECT (1_.0);
+ERROR 42S02: Unknown table '1_' in SELECT
+# Hex and Binary prefixes (leading underscore is valid per T662)
+SELECT 0x_FF, 0b_1010;
+0x_FF	0b_1010
+ÿ	
+
+# 1_e10 -> should be an identifier, so (1_e10) fails if no such column
+SELECT (1_e10);
+ERROR 42S22: Unknown column '1_e10' in 'SELECT'
+# 1.0_e10 -> (1.0_e10) should fail as syntax error if split
+SELECT (1.0_e10);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '_e10)' at line 1
+# 1e_10 -> identifier or error
+SELECT (1e_10);
+ERROR 42S22: Unknown column '1e_10' in 'SELECT'
+# Start with underscore
+SELECT _1.0;
+Got one of the listed errors
+# Valid cases for comparison
+SELECT 1_0.0_1e1_0;
+10.01e10
+100100000000
+SELECT 0x1_F, 0b1_0;
+0x1_F	0b1_0
+	

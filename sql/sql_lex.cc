@@ -2247,26 +2247,17 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         c= yyGet();
         if (c == 'x')
         {
-          c= yyPeek();
-          if (c == '_')
-          {
-            yySkip();
-            if (my_isxdigit(cs, yyPeek()))
-            {
-              while (my_isxdigit(cs, (c= yyGet())) ||
-                     (c == '_' && my_isxdigit(cs, yyPeek()))) ;
-            }
-            else
-            {
-              yyUnget(); // Unget _
-              state= MY_LEX_IDENT_START;
-              break;
-            }
-          }
-          else
+          if (my_isxdigit(cs, (c= yyGet())) ||
+              (c == '_' && my_isxdigit(cs, yyPeek())))
           {
             while (my_isxdigit(cs, (c= yyGet())) ||
                    (c == '_' && my_isxdigit(cs, yyPeek()))) ;
+          }
+          else
+          {
+            yyUnget(); // Unget character
+            state= MY_LEX_IDENT_START;
+            break;
           }
           if ((yyLength() >= 3) && !ident_map[c])
           {
@@ -2280,26 +2271,17 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         }
         else if (c == 'b')
         {
-          c= yyPeek();
-          if (c == '_')
-          {
-            yySkip();
-            if ((c= yyPeek()) == '0' || c == '1')
-            {
-              while ((c= yyGet()) == '0' || c == '1' ||
-                     (c == '_' && ((c= yyPeek()) == '0' || c == '1'))) ;
-            }
-            else
-            {
-              yyUnget(); // Unget _
-              state= MY_LEX_IDENT_START;
-              break;
-            }
-          }
-          else
+          if ((c= yyGet()) == '0' || c == '1' ||
+              (c == '_' && ((c= yyPeek()) == '0' || c == '1')))
           {
             while ((c= yyGet()) == '0' || c == '1' ||
                    (c == '_' && ((c= yyPeek()) == '0' || c == '1'))) ;
+          }
+          else
+          {
+            yyUnget();
+            state= MY_LEX_IDENT_START;
+            break;
           }
           if ((yyLength() >= 3) && !ident_map[c])
           {
@@ -2376,8 +2358,11 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       }
       // fall through
     case MY_LEX_REAL:                           // Incomplete real number
-      while (my_isdigit(cs, (c= yyGet())) ||
-             (c == '_' && my_isdigit(cs, yyPeek()))) ;
+      if (my_isdigit(cs, (c= yyGet())))
+      {
+        while (my_isdigit(cs, (c= yyGet())) ||
+               (c == '_' && my_isdigit(cs, yyPeek()))) ;
+      }
 
       if (c == 'e' || c == 'E')
       {
