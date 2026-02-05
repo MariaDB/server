@@ -3873,6 +3873,7 @@ end_of_range_loop:
   if (*cond && check_rows > SELECTIVITY_SAMPLING_THRESHOLD &&
       thd->variables.optimizer_use_condition_selectivity > 4)
   {
+    Json_writer_array trace_sampled_sel(thd, "sampled_selectivity");
     find_selective_predicates_list_processor_data *dt=
       (find_selective_predicates_list_processor_data *)
       alloc_root(thd->mem_root,
@@ -3902,6 +3903,13 @@ end_of_range_loop:
                               (double)stat->positive / examined_rows));
           double selectivity= ((double)stat->positive) / examined_rows;
           table->multiply_cond_selectivity(selectivity);
+
+          if (unlikely(trace_sampled_sel.trace_started()))
+          {
+            Json_writer_object selectivity_for_cond(thd);
+            selectivity_for_cond.add("cond", stat->cond);
+            selectivity_for_cond.add("selectivity", selectivity);
+          }
           /*
             If a field is involved then we register its selectivity in case
             there in an equality with the field.
