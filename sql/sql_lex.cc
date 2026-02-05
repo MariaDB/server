@@ -1576,7 +1576,7 @@ LEX_CSTRING Lex_input_stream::get_numeric_token(uint skip, uint length)
 
 
 LEX_CSTRING Lex_input_stream::strip_underscores(const char *str,
-                                                size_t length)
+                                                uint length)
 {
   LEX_CSTRING res;
   char *to;
@@ -1594,7 +1594,7 @@ LEX_CSTRING Lex_input_stream::strip_underscores(const char *str,
     return res;
   }
   res.str= to;
-  for (size_t i= 0; i < length; i++)
+  for (uint i= 0; i < length; i++)
   {
     if (str[i] != '_')
       *to++= str[i];

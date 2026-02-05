@@ -68,18 +68,18 @@ delimiter ;|
 #
 create user 'mysqltest_1'@'localhost';
 grant all privileges on test.* to 'mysqltest_1'@'localhost';
-create procedure `15298_1` () sql security definer show grants for current_user;
-create procedure `15298_2` () sql security definer show grants;
+create procedure 15298__1 () sql security definer show grants for current_user;
+create procedure 15298__2 () sql security definer show grants;
 
 connect (con1,localhost,mysqltest_1,,test);
-call `15298_1`();
-call `15298_2`();
+call 15298__1();
+call 15298__2();
 
 connection default;
 disconnect con1;
 drop user mysqltest_1@localhost;
-drop procedure `15298_1`;
-drop procedure `15298_2`;
+drop procedure 15298__1;
+drop procedure 15298__2;
 
 #
 # Bug#29936 Stored Procedure DML ignores low_priority_updates setting

@@ -2792,7 +2792,7 @@ private:
   int find_keyword_qualified_special_func(Lex_ident_cli_st *str, uint len) const;
   LEX_CSTRING get_token(uint skip, uint length);
   LEX_CSTRING get_numeric_token(uint skip, uint length);
-  LEX_CSTRING strip_underscores(const char *str, size_t length);
+  LEX_CSTRING strip_underscores(const char *str, uint length);
   int scan_ident_start(THD *thd, Lex_ident_cli_st *str);
   int scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
                         CHARSET_INFO **cs, my_lex_states *);
