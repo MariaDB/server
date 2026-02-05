@@ -78,6 +78,7 @@ Slave_Transactional_Groups	0
 Replicate_Rewrite_DB	
 Connects_Tried	1
 Master_Retry_Count	100000
+Master_Bind	
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7
@@ -145,6 +146,7 @@ Slave_Transactional_Groups	0
 Replicate_Rewrite_DB	
 Connects_Tried	1
 Master_Retry_Count	100000
+Master_Bind	
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7

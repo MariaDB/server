@@ -1,0 +1,55 @@
+# Is `''` when not specified
+CHANGE MASTER 'named' TO master_host='example.com';
+CHANGE MASTER TO master_host='127.0.0.1', master_ssl_verify_server_cert=0;
+SELECT Connection_name, Master_Bind FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Bind
+	
+named	
+# Replace when specified
+CHANGE MASTER 'named' TO master_bind='localhost';
+CHANGE MASTER TO master_bind='127.0.0.1';
+SELECT Connection_name, Master_Bind FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Bind
+	127.0.0.1
+named	localhost
+# SHOW SLAVE STATUS also show the configuations
+Connection_name = ''
+Connection_name = 'named'
+Master_Bind = '127.0.0.1'
+Master_Bind = 'localhost'
+Master_Bind = '127.0.0.1'
+Master_Bind = 'localhost'
+# Restore specified config on restart
+# restart: --skip-slave-start
+SELECT Connection_name, Master_Bind FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Bind
+	127.0.0.1
+named	localhost
+# Keep specified config on RESET REPLICA
+RESET REPLICA 'named';
+RESET REPLICA;
+SELECT Connection_name, Master_Bind FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Bind
+	127.0.0.1
+named	localhost
+# Don't replace when not specified
+CHANGE MASTER TO master_user='root';
+CHANGE MASTER 'named' TO master_user='root';
+SELECT Connection_name, Master_Bind FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Bind
+	127.0.0.1
+named	localhost
+# Numeric
+CHANGE MASTER TO master_bind=10;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '10' at line 1
+CHANGE MASTER 'named' TO master_bind=11;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '11' at line 1
+# `''` also counts as specified
+CHANGE MASTER TO master_bind='';
+CHANGE MASTER 'named' TO master_bind='';
+SELECT Connection_name, Master_Bind FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Bind
+	
+named	
+# Cleanup
+RESET REPLICA 'named' ALL;

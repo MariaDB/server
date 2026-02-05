@@ -33,6 +33,7 @@ static void init_master_log_pos(Master_info* mi);
 Master_info::Master_info(LEX_CSTRING *connection_name_arg,
                          bool is_slave_recovery)
   :Slave_reporting_capability("I/O"),
+   bind_addr(""),
    ssl(1), ssl_verify_server_cert(1), fd(-1), io_thd(0),
    rli(is_slave_recovery), port(MYSQL_PORT),
    checksum_alg_before_fd(BINLOG_CHECKSUM_ALG_UNDEF),
@@ -547,13 +548,11 @@ file '%s')", fname);
       if (lines >= LINE_FOR_MASTER_HEARTBEAT_PERIOD &&
           init_floatvar_from_file(&master_heartbeat_period, &mi->file, 0.0))
         goto errwithmsg;
-      /*
-	Starting from MySQL Cluster 6.3 master_bind might be in the file
-	(this is just a reservation to avoid future upgrade problems) 
-       */
+      // Starting from 5.6.2 / Cluster 6.3 master_bind might be in the file
       if (lines >= LINE_FOR_MASTER_BIND &&
-	  init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
-	  goto errwithmsg;
+          init_strvar_from_file(mi->bind_addr, sizeof(mi->bind_addr),
+                                &mi->file, ""))
+        goto errwithmsg;
       /*
         Starting from 6.0 list of server_id of ignorable servers might be
         in the file
@@ -835,7 +834,7 @@ int flush_master_info(Master_info* mi,
               mi->password, mi->port, mi->connect_retry,
               (int)(mi->ssl), mi->ssl_ca, mi->ssl_capath, mi->ssl_cert,
               mi->ssl_cipher, mi->ssl_key, mi->ssl_verify_server_cert,
-              heartbeat_buf, "", ignore_server_ids_buf,
+              heartbeat_buf, mi->bind_addr, ignore_server_ids_buf,
               "", mi->retry_count,
               mi->ssl_crl, mi->ssl_crlpath, mi->using_gtid,
               do_domain_ids_buf, ignore_domain_ids_buf);
