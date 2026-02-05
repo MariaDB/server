@@ -1,0 +1,21 @@
+#
+# MDEV-37795 - MariaDB start up spits DDL_LOG: Got error 1033
+#
+connect ddl1, localhost, root;
+CREATE TABLE t1(v VECTOR(5) NOT NULL, VECTOR INDEX(v));
+SET debug_sync='writefile_after_create_before_write SIGNAL ready1 WAIT_FOR ever';
+ALTER TABLE t1 ADD COLUMN b INT, ALGORITHM=COPY;
+connect ddl2, localhost, root;
+SET debug_sync='writefile_after_create_before_write SIGNAL ready2 WAIT_FOR ever';
+CREATE TABLE t2(v VECTOR(5) NOT NULL, VECTOR INDEX(v));
+connection default;
+SET debug_sync='now WAIT_FOR ready1';
+SET debug_sync='now WAIT_FOR ready2';
+# restart
+DROP TABLE t1;
+DROP TABLE t2;
+ERROR 42S02: Unknown table 'test.t2'
+SET debug_sync='RESET';
+disconnect ddl1;
+disconnect ddl2;
+db.opt
