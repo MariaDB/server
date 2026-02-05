@@ -59,6 +59,9 @@ Created 10/25/1995 Heikki Tuuri
 #include "bzlib.h"
 #include "snappy-c.h"
 
+/* External buffer pool file name */
+const char *ext_bp_file_name= "ext_buffer_pool";
+
 ATTRIBUTE_COLD bool fil_space_t::set_corrupted() const noexcept
 {
   if (!is_stopping() && !is_corrupted.test_and_set())
@@ -497,7 +500,8 @@ pfs_os_file_t fil_node_t::detach() noexcept
 void fil_node_t::prepare_to_close_or_detach() noexcept
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  ut_ad(space->is_ready_to_close() || srv_operation == SRV_OPERATION_BACKUP ||
+  ut_ad(space->is_ready_to_close() ||
+        srv_operation == SRV_OPERATION_BACKUP ||
         srv_operation == SRV_OPERATION_RESTORE_DELTA);
   ut_a(is_open());
   ut_a(!being_extended);
@@ -1295,6 +1299,17 @@ void fil_system_t::close() noexcept
 
   if (is_initialised())
   {
+    if (ext_bp_file != OS_FILE_CLOSED)
+    {
+      int ret= os_file_close(ext_bp_file);
+      ut_a(ret);
+      ext_bp_file= OS_FILE_CLOSED;
+      char path[FN_REFLEN];
+      snprintf(path, sizeof(path), "%s" FN_ROOTDIR "%s",
+               ext_bp_path ? ext_bp_path : fil_path_to_mysql_datadir,
+               ext_bp_file_name);
+      os_file_delete(innodb_data_file_key, path);
+    }
     spaces.free();
     mysql_mutex_destroy(&mutex);
     fil_space_crypt_cleanup();
@@ -2917,18 +2932,113 @@ func_exit:
 	return {err, node};
 }
 
+bool fil_system_t::create_ext_file() noexcept
+{
+  char path[FN_REFLEN];
+  snprintf(path, sizeof(path), "%s" FN_ROOTDIR "%s",
+           ext_bp_path ? ext_bp_path : fil_path_to_mysql_datadir,
+           ext_bp_file_name);
+  bool ret;
+  ext_bp_file=
+      os_file_create(innodb_data_file_key, path, OS_FILE_OPEN_OR_CREATE,
+                     OS_DATA_FILE, false, &ret);
+  if (!ret)
+  {
+    sql_print_error("Cannot open/create extended buffer pool file '%s'", path);
+    /* Report OS error in error log */
+    std::ignore= os_file_get_last_error(true, false);
+    return false;
+  }
+  ut_ad(ext_bp_file != OS_FILE_CLOSED);
+#ifndef _WIN32 /* On Microsoft Windows, mandatory locking is used */
+  if (!my_disable_locking && os_file_lock(ext_bp_file.m_file, path))
+  {
+    os_file_close_func(ext_bp_file.m_file);
+    return false;
+  }
+#endif
+  ret= os_file_set_size(path, ext_bp_file.m_file, ext_bp_size);
+  if (!ret)
+  {
+    os_file_close_func(ext_bp_file.m_file);
+    sql_print_error("Cannot set extended buffer pool file '%s' size to %zum",
+                    path, ext_bp_size_non_atomic);
+    return false;
+  }
+  return true;
+}
+
+dberr_t fil_system_t::ext_bp_io(buf_page_t &bpage, ext_buf_page_t &ext_page,
+                                IORequest::Type io_request_type,
+                                buf_tmp_buffer_t *slot, size_t len,
+                                void *buf) noexcept
+{
+  ut_ad(len % 512 == 0); /* page_compressed */
+  ut_ad(io_request_type == IORequest::WRITE_ASYNC ||
+        io_request_type == IORequest::READ_SYNC ||
+        io_request_type == IORequest::READ_ASYNC) ;
+  /* Queue the aio request */
+  return os_aio(IORequest{&bpage, slot, &ext_page, io_request_type}, buf,
+                buf_pool.ext_page_offset(ext_page), len, ext_bp_file,
+                ext_bp_file_name);
+}
+
 #include <tpool.h>
 
 void IORequest::write_complete(int io_error) const noexcept
 {
   ut_ad(fil_validate_skip());
-  ut_ad(node);
-  fil_space_t *space= node->space;
+  ut_ad(node_ptr);
+  buf_page_t *buf_page= bpage();
   ut_ad(is_write());
 
-  if (!bpage)
+  fil_space_t *space;
+  if (ext_buf())
+  {
+    ut_d(fil_space_t *debug_space=) space=
+        fil_space_t::get(buf_page->id().space());
+    DBUG_EXECUTE_IF("ib_ext_bp_remove_space_on_write_complete",
+                    space= nullptr;);
+    if (!space)
+    {
+      if (slot)
+        slot->release();
+      ut_d(auto debug_page_no = buf_page->id().page_no());
+      /* We must hold buf_pool.mutex while releasing the block, so that
+      no other thread can access it before we have freed it.
+      FIXME: The logic was copied from the code in buf_page_write_complete()
+      for temporary tables. This would be an obvious performance bottleneck us
+      when there is some write activity to the external buffer pool going on.
+      Implement deferred, batched freeing, similar to the one we do in the
+      normal LRU flushing/eviction in the page cleaner thread. */
+      mysql_mutex_lock(&buf_pool.mutex);
+      buf_page->write_complete_release(buf_page->state());
+      buf_LRU_free_page(buf_page, true, ext_buf_page());
+      mysql_mutex_unlock(&buf_pool.mutex);
+      DBUG_EXECUTE_IF(
+          "ib_ext_bp_remove_space_on_write_complete", if (debug_space) {
+            sql_print_information(
+                "The page number " UINT32PF
+                " was freed after write completion to external "
+                "buffer pool file because the page's space was "
+                "removed.",
+                debug_page_no);
+            debug_space->release();
+          });
+      return;
+    }
+    DBUG_EXECUTE_IF(
+        "ib_ext_bp_write_io_error", if (ext_buf()) { io_error= 1; });
+    buf_page_write_complete(*this, io_error);
+    goto func_exit;
+  }
+  else
+    space= node_ptr->space;
+
+  if (!buf_page)
   {
     ut_ad(!srv_read_only_mode);
+    ut_ad(!ext_buf());
     if (type == IORequest::DBLWR_BATCH)
     {
       buf_dblwr.flush_buffered_writes_completed(*this);
@@ -2949,23 +3059,74 @@ void IORequest::write_complete(int io_error) const noexcept
 
 void IORequest::read_complete(int io_error) const noexcept
 {
+  buf_page_t *buf_page= bpage();
   ut_ad(fil_validate_skip());
-  ut_ad(node);
+  ut_ad(node_ptr);
   ut_ad(is_read());
-  ut_ad(bpage);
-  ut_d(auto s= bpage->state());
+  ut_ad(buf_page);
+  ut_d(auto s= buf_page->state());
   ut_ad(s > buf_page_t::READ_FIX);
   ut_ad(s <= buf_page_t::WRITE_FIX);
 
-  const page_id_t id(bpage->id());
+  fil_space_t *space;
+  if (ext_buf()) {
+    ut_ad(ext_buf_page()->id_ == buf_page->id());
+    mysql_mutex_lock(&buf_pool.mutex);
+    buf_pool.free_ext_page(*ext_buf_page());
+    mysql_mutex_unlock(&buf_pool.mutex);
+    /* The space will be released at the end of this function */
+    ut_d(fil_space_t *debug_space=) space=
+        fil_space_t::get(buf_page->id().space());
+    DBUG_EXECUTE_IF("ib_ext_bp_remove_space_on_read_complete",
+                    space= nullptr;);
+    if (!space) {
+      /* space is not holded for the duration of async IO for external buffer
+      pool pages, that's why if some space was wiped out, while it's page was
+      in the queue to external buffer pool file, it can't be considered as
+      error. We evict such page, but don't mark it as corrupted. */
+      buf_pool.corrupted_evict(buf_page, buf_page_t::READ_FIX + 1, false);
+      DBUG_EXECUTE_IF(
+          "ib_ext_bp_remove_space_on_read_complete", if (debug_space) {
+            sql_print_information(
+                "The page number " UINT32PF
+                " was freed after read completion to external "
+                "buffer pool file because the page's space was "
+                "removed.",
+                buf_page->id().page_no());
+            debug_space->release();
+          });
+      return;
+    }
+    ut_d(if (DBUG_IF("ib_ext_bp_count_io_only_for_t")) {
+      auto space_name= space->name();
+      if (space_name.data() &&
+          !strncmp(space_name.data(), "test/t.ibd", space_name.size()))
+      {
+        ++buf_pool.stat.n_pages_read_from_ebp;
+      }
+    } else)
+      ++buf_pool.stat.n_pages_read_from_ebp;
+  }
+  else
+    space= node_ptr->space;
+
+  const page_id_t id(buf_page->id());
   const bool in_recovery{recv_sys.recovery_on};
+
+  DBUG_EXECUTE_IF("ib_ext_bp_read_io_error", if (ext_buf()) { io_error= 1; });
 
   if (UNIV_UNLIKELY(io_error != 0))
   {
     sql_print_error("InnoDB: Read error %d of page " UINT32PF " in file %s",
-                    io_error, id.page_no(), node->name);
-    recv_sys.free_corrupted_page(id, *node);
-    buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX + 1);
+                    io_error, id.page_no(),
+                    ext_buf() ? "of external buffer pool, external buffer "
+                                "pool is disabled"
+                              : node_ptr->name);
+    if (ext_buf())
+      fil_system.ext_buf_pool_disable();
+    else
+      recv_sys.free_corrupted_page(id, *node_ptr);
+    buf_pool.corrupted_evict(buf_page, buf_page_t::READ_FIX + 1);
   corrupted:
     if (in_recovery && !srv_force_recovery)
     {
@@ -2974,12 +3135,14 @@ void IORequest::read_complete(int io_error) const noexcept
       mysql_mutex_unlock(&recv_sys.mutex);
     }
   }
-  else if (bpage->read_complete(*node, in_recovery))
+  else if (buf_page->read_complete(ext_buf() ? *UT_LIST_GET_FIRST(space->chain)
+                                             : *node_ptr,
+                                   in_recovery))
     goto corrupted;
   else
-    bpage->unfix();
+    buf_page->unfix();
 
-  node->space->release();
+  space->release();
 }
 
 /** Flush to disk the writes in file spaces of the given type

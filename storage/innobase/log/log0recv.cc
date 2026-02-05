@@ -3584,10 +3584,10 @@ func_exit:
 
 void IORequest::fake_read_complete(os_offset_t offset) const noexcept
 {
-  ut_ad(node);
+  ut_ad(!ext_buf() && node_ptr);
   ut_ad(is_read());
-  ut_ad(bpage);
-  ut_ad(bpage->frame);
+  ut_ad(bpage_ptr);
+  ut_ad(bpage_ptr->frame);
   ut_ad(recv_recovery_is_on());
   ut_ad(offset);
 
@@ -3595,30 +3595,30 @@ void IORequest::fake_read_complete(os_offset_t offset) const noexcept
   mtr.start();
   mtr.set_log_mode(MTR_LOG_NO_REDO);
 
-  ut_ad(bpage->frame);
+  ut_ad(bpage_ptr->frame);
   /* Move the ownership of the x-latch on the page to this OS thread,
   so that we can acquire a second x-latch on it. This is needed for
   the operations to the page to pass the debug checks. */
-  bpage->lock.claim_ownership();
-  bpage->lock.x_lock_recursive();
-  bpage->fix_on_recovery();
-  mtr.memo_push(reinterpret_cast<buf_block_t*>(bpage), MTR_MEMO_PAGE_X_FIX);
+  bpage_ptr->lock.claim_ownership();
+  bpage_ptr->lock.x_lock_recursive();
+  bpage_ptr->fix_on_recovery();
+  mtr.memo_push(reinterpret_cast<buf_block_t*>(bpage_ptr), MTR_MEMO_PAGE_X_FIX);
 
   page_recv_t &recs= *reinterpret_cast<page_recv_t*>(slot);
   ut_ad(recs.being_processed == 1);
   const lsn_t init_lsn{offset};
   ut_ad(init_lsn > 1);
 
-  if (recv_recover_page(reinterpret_cast<buf_block_t*>(bpage),
-                        mtr, recs, node->space, init_lsn))
+  if (recv_recover_page(reinterpret_cast<buf_block_t*>(bpage_ptr),
+                        mtr, recs, node()->space, init_lsn))
   {
-    ut_ad(bpage->oldest_modification() || bpage->is_freed());
-    bpage->lock.x_unlock(true);
+    ut_ad(bpage_ptr->oldest_modification() || bpage_ptr->is_freed());
+    bpage_ptr->lock.x_unlock(true);
   }
   recs.being_processed= -1;
   ut_ad(mtr.has_committed());
 
-  node->space->release();
+  node_ptr->space->release();
 }
 
 /** @return whether a page has been freed */
@@ -3982,9 +3982,12 @@ static void log_sort_flush_list() noexcept
     {
       os_aio_wait_until_no_pending_writes(false);
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
-      if (buf_pool.page_cleaner_active())
+      if (buf_pool.page_cleaner_active()) {
+        ++buf_pool.done_flush_list_waiters_count;
         my_cond_wait(&buf_pool.done_flush_list,
                      &buf_pool.flush_list_mutex.m_mutex);
+        --buf_pool.done_flush_list_waiters_count;
+      }
       else if (!os_aio_pending_writes())
         break;
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);

@@ -138,8 +138,9 @@ public:
     auto it= std::lower_bound(files_.begin(), files_.end(), fd);
     assert(it == files_.end() || *it != fd);
     files_.insert(it, fd);
-    return io_uring_register_files_update(&uring_, 0, files_.data(),
-                                          files_.size());
+    int err= io_uring_register_files_update(&uring_, 0, files_.data(),
+                                            files_.size());
+    return err < 0 ? err : 0;
   }
 
   int unbind(const native_file_handle &fd) final
