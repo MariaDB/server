@@ -68,6 +68,7 @@
 #endif /* WITH_WSREP */
 #include "opt_trace.h"
 #include <mysql/psi/mysql_transaction.h>
+#include <mysql/service_wsrep.h>
 
 #ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
@@ -3402,7 +3403,7 @@ bool select_send::send_eof()
     Don't send EOF if we're in error condition (which implies we've already
     sent or are sending an error)
   */
-  if (unlikely(thd->is_error()))
+  if (thd->is_error() || wsrep_thd_is_aborting(thd))
   {
     reset_for_next_ps_execution();
     return TRUE;
