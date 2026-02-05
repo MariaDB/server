@@ -5595,6 +5595,83 @@ bool Item_cond::excl_dep_on_grouping_fields(st_select_lex *sel)
 }
 
 
+/**
+  Compare two Item_cond expressions for equality.
+  
+  For AND/OR conditions, the order of arguments doesn't matter (commutative),
+  so we need to do a set-based comparison rather than order-based.
+  
+  @param item   The other Item to compare with
+  @param config Comparison configuration
+  
+  @return true if expressions are equivalent, false otherwise
+*/
+bool Item_cond::eq(const Item *item, const Eq_config &config) const
+{
+  /* Assume we don't have rtti */
+  if (this == item)
+    return true;
+  
+  /* Ensure we are comparing two condition items */
+  if (item->type() != COND_ITEM)
+    return false;
+  
+  const Item_cond *item_cond= (const Item_cond *) item;
+  
+  /* Must be same type (AND vs OR) */
+  if (functype() != item_cond->functype())
+    return false;
+  
+  /* Must have same number of arguments */
+  if (list.elements != item_cond->list.elements)
+    return false;
+  
+  /* For AND/OR conditions, order doesn't matter - do set-based comparison */
+  /* Check if every argument in this list has an equivalent in the other list */
+  List_iterator_fast<Item> li1(const_cast<List<Item>&>(list));
+  Item *arg1;
+  while ((arg1= li1++))
+  {
+    bool found_match= false;
+    List_iterator_fast<Item> li2(const_cast<List<Item>&>(item_cond->list));
+    Item *arg2;
+    while ((arg2= li2++))
+    {
+      if (arg1->eq(arg2, config))
+      {
+        found_match= true;
+        break;
+      }
+    }
+    if (!found_match)
+      return false;
+  }
+  
+  /* Also check the reverse - every argument in other list has equivalent in this list */
+  /* (This handles cases where there might be duplicates) */
+  List_iterator_fast<Item> li2(const_cast<List<Item>&>(item_cond->list));
+  Item *arg2;
+  while ((arg2= li2++))
+  {
+    bool found_match= false;
+    List_iterator_fast<Item> li1(const_cast<List<Item>&>(list));
+    Item *arg1;
+    while ((arg1= li1++))
+    {
+      if (arg2->eq(arg1, config))
+      {
+        found_match= true;
+        break;
+      }
+    }
+    if (!found_match)
+      return false;
+  }
+  
+  return true;
+}
+
+
 void Item_cond_and::mark_as_condition_AND_part(TABLE_LIST *embedding)
 {
   List_iterator<Item> li(list);
