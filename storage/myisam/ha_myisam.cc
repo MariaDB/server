@@ -388,6 +388,7 @@ int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
       /* reserve space for null bits */
       bzero((char*) recinfo_pos, sizeof(*recinfo_pos));
       recinfo_pos->type= FIELD_NORMAL;
+      recinfo_pos->fieldnr= MI_NO_FIELD_NR;
       recinfo_pos++->length= (uint16) (minpos - recpos);
     }
     if (!found)
@@ -433,6 +434,7 @@ int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
       recinfo_pos->null_bit= 0;
       recinfo_pos->null_pos= 0;
     }
+    recinfo_pos->fieldnr= found->field_index;
     (recinfo_pos++)->length= (uint16) length;
     recpos= minpos + length;
     DBUG_PRINT("loop", ("length: %d  type: %d",
@@ -724,6 +726,7 @@ ha_myisam::ha_myisam(handlerton *hton, TABLE_SHARE *table_arg)
   int_table_flags(HA_NULL_IN_KEY | HA_CAN_FULLTEXT | HA_CAN_SQL_HANDLER |
                   HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
                   HA_CAN_VIRTUAL_COLUMNS | HA_CAN_EXPORT |
+                  HA_CAN_NULL_ONLY |
                   HA_REQUIRES_KEY_COLUMNS_FOR_DELETE |
                   HA_DUPLICATE_POS | HA_CAN_INDEX_BLOBS | HA_AUTO_PART_KEY |
                   HA_FILE_BASED | HA_CAN_GEOMETRY | HA_NO_TRANSACTIONS |
@@ -749,6 +752,29 @@ static const char *ha_myisam_exts[] = {
   ".MYD",
   NullS
 };
+
+static void myisam_set_fieldnr_map(uint16 *dst, uint dst_count,
+                                   const MI_COLUMNDEF *dst_rec,
+                                   const MI_COLUMNDEF *src, uint src_count)
+{
+  uint i;
+  for (i= 0; i < dst_count; i++)
+    dst[i]= MI_NO_FIELD_NR;
+
+  if (!src || src_count != dst_count)
+    return;
+
+  for (i= 0; i < dst_count; i++)
+  {
+    if (dst_rec[i].type == src[i].type &&
+        dst_rec[i].length == src[i].length &&
+        dst_rec[i].null_bit == src[i].null_bit &&
+        dst_rec[i].null_pos == src[i].null_pos)
+    {
+      dst[i]= src[i].fieldnr;
+    }
+  }
+}
 
 ulong ha_myisam::index_flags(uint inx, uint part, bool all_parts) const
 {
@@ -816,18 +842,30 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
   file->s->chst_invalidator= query_cache_invalidate_by_MyISAM_filename_ref;
   /* Set external_ref, mainly for temporary tables */
   file->external_ref= (void*) table;            // For mi_killed()
+  file->null_set= 0;
+  file->fieldnr_map= 0;
+
+  if (!(file->fieldnr_map= (uint16*) my_malloc(PSI_INSTRUMENT_ME,
+                                               file->s->base.fields *
+                                               sizeof(uint16),
+                                               MYF(MY_WME))))
+  {
+    my_errno= HA_ERR_OUT_OF_MEM;
+    goto err;
+  }
+
+  if ((my_errno= table2myisam(table, &keyinfo, &recinfo, &recs)))
+  {
+    /* purecov: begin inspected */
+    DBUG_PRINT("error", ("Failed to convert TABLE object to MyISAM "
+                         "key and column definition"));
+    goto err;
+    /* purecov: end */
+  }
 
   /* No need to perform a check for tmp table or if it's already checked */
   if (!table->s->tmp_table && file->s->reopen == 1)
   {
-    if ((my_errno= table2myisam(table, &keyinfo, &recinfo, &recs)))
-    {
-      /* purecov: begin inspected */
-      DBUG_PRINT("error", ("Failed to convert TABLE object to MyISAM "
-                           "key and column definition"));
-      goto err;
-      /* purecov: end */
-    }
     if (check_definition(keyinfo, recinfo, table->s->keys, recs,
                          file->s->keyinfo, file->s->rec,
                          file->s->base.keys, file->s->base.fields,
@@ -839,6 +877,12 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
       /* purecov: end */
     }
   }
+
+  myisam_set_fieldnr_map(file->fieldnr_map, file->s->base.fields,
+                         file->s->rec, recinfo, recs);
+  if (table->s->tmp_table == NO_TMP_TABLE &&
+      !(file->s->options & HA_OPTION_COMPRESS_RECORD))
+    file->null_set= &table->null_set;
 
   DBUG_EXECUTE_IF("key",
     Debug_key_myisam::print_keys_myisam(table->in_use,
@@ -946,6 +990,11 @@ int ha_myisam::close(void)
   if (!tmp)
     return 0;
   file=0;
+  if (tmp->fieldnr_map)
+  {
+    my_free(tmp->fieldnr_map);
+    tmp->fieldnr_map= 0;
+  }
   return mi_close(tmp);
 }
 

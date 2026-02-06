@@ -1276,6 +1276,7 @@ uchar *mi_recinfo_read(uchar *ptr, MI_COLUMNDEF *recinfo)
    recinfo->length=mi_uint2korr(ptr);	ptr +=2;
    recinfo->null_bit= (uint8) *ptr++;
    recinfo->null_pos=mi_uint2korr(ptr); ptr +=2;
+   recinfo->fieldnr= MI_NO_FIELD_NR;
    return ptr;
 }
 

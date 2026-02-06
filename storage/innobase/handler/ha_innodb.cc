@@ -2920,6 +2920,7 @@ ha_innobase::ha_innobase(
 			  | HA_TABLE_SCAN_ON_INDEX
 			  | HA_CAN_FULLTEXT
 			  | HA_CAN_FULLTEXT_EXT
+			  | HA_CAN_NULL_ONLY
 		/* JAN: TODO: MySQL 5.7
 			  | HA_CAN_FULLTEXT_HINTS
 		*/
@@ -7087,6 +7088,17 @@ build_template_field(
 		templ->mysql_null_bit_mask = 0;
 	}
 
+	templ->null_only = false;
+	if (!templ->is_virtual
+	    && bitmap_is_set(&table->null_set, field->field_index)) {
+		templ->null_only = true;
+		if (prebuilt->template_type == ROW_MYSQL_WHOLE_ROW
+		    || prebuilt->select_lock_type == LOCK_X
+		    || prebuilt->pk_filter
+		    || prebuilt->in_fts_query) {
+			templ->null_only = false;
+		}
+	}
 
 	templ->mysql_col_offset = (ulint) get_field_offset(table, field);
 	templ->mysql_col_len = (ulint) field->pack_length();
@@ -7128,7 +7140,7 @@ build_template_field(
 			+ templ->mysql_col_len;
 	}
 
-	if (DATA_LARGE_MTYPE(templ->type)) {
+	if (DATA_LARGE_MTYPE(templ->type) && !templ->null_only) {
 		prebuilt->templ_contains_blob = TRUE;
 	}
 

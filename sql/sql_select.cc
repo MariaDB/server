@@ -21947,6 +21947,10 @@ setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps, uint field_count)
   my_bitmap_init(&table->cond_set,
                  (my_bitmap_map*) bitmaps, field_count);
   bitmaps+= bitmap_size;
+  my_bitmap_init(&table->null_set,
+                 (my_bitmap_map*) bitmaps, field_count);
+  bitmaps+= bitmap_size;
+  bitmap_clear_all(&table->null_set);
   my_bitmap_init(&table->has_value_set,
                  (my_bitmap_map*) bitmaps, field_count);
   /* write_set and all_set are copies of read_set */
@@ -22157,7 +22161,7 @@ TABLE *Create_tmp_table::start(THD *thd,
                         &tmpname, (uint) strlen(path)+1,
                         &m_group_buff, (m_group && ! m_using_unique_constraint ?
                                       param->group_length : 0),
-                        &m_bitmaps, bitmap_buffer_size(field_count)*6,
+                        &m_bitmaps, bitmap_buffer_size(field_count)*7,
                         &const_key_parts, sizeof(*const_key_parts),
                         NullS))
   {

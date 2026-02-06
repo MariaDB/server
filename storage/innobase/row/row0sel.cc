@@ -3221,6 +3221,46 @@ static bool row_sel_store_mysql_rec(
 			continue;
 		}
 
+		if (templ->null_only) {
+			const ulint field_no =
+				rec_clust
+				? templ->clust_rec_field_no
+				: templ->rec_field_no;
+			ulint len;
+
+			ut_ad(!templ->is_virtual);
+			rec_get_nth_cfield(rec, index, offsets, field_no, &len);
+
+			if (len == UNIV_SQL_NULL) {
+				if (templ->mysql_null_bit_mask) {
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 may need this here */
+#endif
+					mysql_rec[templ->mysql_null_byte_offset]
+						|= (byte) templ->mysql_null_bit_mask;
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
+				}
+				MEM_CHECK_DEFINED(prebuilt->default_rec
+						  + templ->mysql_col_offset,
+						  templ->mysql_col_len);
+				memcpy(mysql_rec + templ->mysql_col_offset,
+				       (const byte*) prebuilt->default_rec
+				       + templ->mysql_col_offset,
+				       templ->mysql_col_len);
+				continue;
+			}
+
+			if (templ->mysql_null_bit_mask) {
+				mysql_rec[templ->mysql_null_byte_offset]
+					&= static_cast<byte>
+					(~templ->mysql_null_bit_mask);
+			}
+			continue;
+		}
+
 		const ulint		field_no
 			= rec_clust
 			? templ->clust_rec_field_no
@@ -4065,6 +4105,44 @@ row_search_idx_cond_check(
 
 		/* Skip virtual columns */
 		if (templ->is_virtual) {
+			continue;
+		}
+
+		if (templ->null_only) {
+			const ulint	field_no = templ->icp_rec_field_no;
+			ulint		len;
+
+			ut_ad(field_no != ULINT_UNDEFINED);
+			rec_get_nth_cfield(rec, prebuilt->index, offsets,
+					   field_no, &len);
+
+			if (len == UNIV_SQL_NULL) {
+				if (templ->mysql_null_bit_mask) {
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 may need this here */
+#endif
+					mysql_rec[templ->mysql_null_byte_offset]
+						|= (byte) templ->mysql_null_bit_mask;
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
+				}
+				MEM_CHECK_DEFINED(prebuilt->default_rec
+						  + templ->mysql_col_offset,
+						  templ->mysql_col_len);
+				memcpy(mysql_rec + templ->mysql_col_offset,
+				       (const byte*) prebuilt->default_rec
+				       + templ->mysql_col_offset,
+				       templ->mysql_col_len);
+				continue;
+			}
+
+			if (templ->mysql_null_bit_mask) {
+				mysql_rec[templ->mysql_null_byte_offset]
+					&= static_cast<byte>
+					(~templ->mysql_null_bit_mask);
+			}
 			continue;
 		}
 

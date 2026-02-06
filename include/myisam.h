@@ -224,6 +224,8 @@ struct st_mi_bit_buff;
   type, length, null_bit and null_pos
 */
 
+#define MI_NO_FIELD_NR 0xFFFFU
+
 typedef struct st_columndef		/* column information */
 {
   enum en_fieldtype type;
@@ -231,6 +233,11 @@ typedef struct st_columndef		/* column information */
   uint32 offset;			/* Offset to position in row */
   uint8  null_bit;			/* If column may be 0 */
   uint16 null_pos;			/* position for null marker */
+  /*
+    SQL column number for this recinfo entry, when known.
+    Entries that only represent packed/null marker bytes are MI_NO_FIELD_NR.
+  */
+  uint16 fieldnr;
 
 #ifndef NOT_PACKED_DATABASES
   void (*unpack)(struct st_columndef *rec,struct st_mi_bit_buff *buff,

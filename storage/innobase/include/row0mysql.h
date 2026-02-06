@@ -447,6 +447,7 @@ struct mysql_row_templ_t {
 					type and this field is != 0, then
 					it is an unsigned integer type */
 	ulint	is_virtual;		/*!< if a column is a virtual column */
+	bool	null_only;		/*!< only NULL status is required */
 };
 
 #define MYSQL_FETCH_CACHE_SIZE		8

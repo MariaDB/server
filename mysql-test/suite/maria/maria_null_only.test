@@ -1,0 +1,61 @@
+--source include/have_maria.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t_dyn, t_page, t_v;
+--enable_warnings
+
+CREATE TABLE t_dyn (
+  id INT PRIMARY KEY,
+  b MEDIUMBLOB NULL,
+  c INT
+) ENGINE=Aria ROW_FORMAT=DYNAMIC TRANSACTIONAL=0;
+
+INSERT INTO t_dyn VALUES
+  (1, REPEAT('a', 200000), 1),
+  (2, NULL, 2),
+  (3, REPEAT('b', 200000), 3),
+  (4, NULL, 4);
+
+SELECT COUNT(*) FROM t_dyn WHERE b IS NULL;
+SELECT COUNT(*) FROM t_dyn WHERE b <=> NULL;
+SELECT id, IFNULL(LENGTH(b), -1) AS len
+  FROM t_dyn
+ WHERE b IS NULL OR c= 3
+ ORDER BY id;
+
+CREATE TABLE t_page (
+  id INT PRIMARY KEY,
+  b MEDIUMBLOB NULL,
+  c INT
+) ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=0;
+
+INSERT INTO t_page VALUES
+  (1, REPEAT('c', 200000), 1),
+  (2, NULL, 2),
+  (3, REPEAT('d', 200000), 3),
+  (4, NULL, 4);
+
+SELECT COUNT(*) FROM t_page WHERE b IS NULL;
+SELECT COUNT(*) FROM t_page WHERE b <=> NULL;
+SELECT id, IFNULL(LENGTH(b), -1) AS len
+  FROM t_page
+ WHERE b IS NULL OR c= 3
+ ORDER BY id;
+
+CREATE TABLE t_v (
+  id INT PRIMARY KEY,
+  b MEDIUMBLOB NULL,
+  v VARBINARY(1) AS (SUBSTR(b, 1, 1)) VIRTUAL
+) ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=0;
+
+INSERT INTO t_v (id, b) VALUES
+  (1, REPEAT('x', 200000)),
+  (2, NULL),
+  (3, REPEAT('y', 200000)),
+  (4, NULL);
+
+SELECT COUNT(*) FROM t_v WHERE v IS NULL;
+
+DROP TABLE t_v;
+DROP TABLE t_page;
+DROP TABLE t_dyn;

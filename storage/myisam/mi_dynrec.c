@@ -1220,6 +1220,7 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
 		     ulong found_length)
 {
   uint flag,bit,length,rec_length,min_pack_length;
+  uint rec_idx;
   enum en_fieldtype type;
   uchar *from_end,*to_end,*packpos;
   reg3 MI_COLUMNDEF *rec,*end_field;
@@ -1233,9 +1234,10 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
   from+= info->s->base.pack_bits;
   min_pack_length=info->s->base.min_pack_length - info->s->base.pack_bits;
 
-  for (rec=info->s->rec , end_field=rec+info->s->base.fields ;
-       rec < end_field ; to+= rec_length, rec++)
+  for (rec=info->s->rec, end_field=rec+info->s->base.fields, rec_idx= 0;
+       rec < end_field; to+= rec_length, rec++, rec_idx++)
   {
+    my_bool null_only= mi_is_null_only_field(info, rec_idx);
     rec_length=rec->length;
     if ((type = (enum en_fieldtype) rec->type) != FIELD_NORMAL &&
 	(type != FIELD_CHECK))
@@ -1248,18 +1250,22 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
           length= (uint) *(uchar*) from;
           if (length > rec_length-1)
             goto err;
-          *to= *from++;
+          if (!null_only)
+            *to= *from;
+          from++;
         }
         else
         {
           get_key_length(length, from);
           if (length > rec_length-2)
             goto err;
-          int2store(to,length);
+          if (!null_only)
+            int2store(to,length);
         }
         if (from+length > from_end)
           goto err;
-        memcpy(to+pack_length, from, length);
+        if (!null_only)
+          memcpy(to+pack_length, from, length);
         from+= length;
         min_pack_length--;
         continue;
@@ -1267,7 +1273,10 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
       if (flag & bit)
       {
 	if (type == FIELD_BLOB || type == FIELD_SKIP_ZERO)
-	  bzero((uchar*) to,rec_length);
+        {
+          if (!null_only)
+	    bzero((uchar*) to,rec_length);
+        }
 	else if (type == FIELD_SKIP_ENDSPACE ||
 		 type == FIELD_SKIP_PRESPACE)
 	{
@@ -1287,12 +1296,12 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
 	  if (length >= rec_length ||
 	      min_pack_length + length > (uint) (from_end - from))
 	    goto err;
-	  if (type == FIELD_SKIP_ENDSPACE)
+	  if (!null_only && type == FIELD_SKIP_ENDSPACE)
 	  {
 	    memcpy(to,(uchar*) from,(size_t) length);
 	    bfill((uchar*) to+length,rec_length-length,' ');
 	  }
-	  else
+	  else if (!null_only)
 	  {
 	    bfill((uchar*) to,rec_length-length,' ');
 	    memcpy(to+rec_length-length,(uchar*) from,(size_t) length);
@@ -1309,9 +1318,15 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
             from_left - size_length < blob_length ||
             from_left - size_length - blob_length < min_pack_length)
           goto err;
-	memcpy(to, from, (size_t) size_length);
+        if (!null_only)
+        {
+	  memcpy(to, from, (size_t) size_length);
+        }
 	from+=size_length;
-	memcpy(to+size_length, &from, sizeof(char*));
+        if (!null_only)
+        {
+	  memcpy(to+size_length, &from, sizeof(char*));
+        }
 	from+=blob_length;
       }
       else
@@ -1320,7 +1335,9 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
 	  min_pack_length--;
 	if (min_pack_length + rec_length > (uint) (from_end - from))
 	  goto err;
-	memcpy(to,(uchar*) from,(size_t) rec_length); from+=rec_length;
+        if (!null_only)
+	  memcpy(to,(uchar*) from,(size_t) rec_length);
+        from+=rec_length;
       }
       if ((bit= bit << 1) >= 256)
       {
@@ -1332,7 +1349,8 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
       if (min_pack_length > (uint) (from_end - from))
 	goto err;
       min_pack_length-=rec_length;
-      memcpy(to, (uchar*) from, (size_t) rec_length);
+      if (!null_only)
+        memcpy(to, (uchar*) from, (size_t) rec_length);
       from+=rec_length;
     }
   }

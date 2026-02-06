@@ -1432,6 +1432,7 @@ public:
   MY_BITMAP     def_rpl_write_set;
   MY_BITMAP     eq_join_set;         /* used to mark equi-joined fields */
   MY_BITMAP     cond_set;   /* used to mark fields from sargable conditions*/
+  MY_BITMAP     null_set;   /* used to mark fields used only for NULL checks */
   /* Active column sets */
   MY_BITMAP     *read_set, *write_set, *rpl_write_set;
   /* On INSERT: fields that the user specified a value for */

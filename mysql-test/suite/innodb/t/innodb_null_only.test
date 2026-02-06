@@ -1,0 +1,164 @@
+--source include/have_innodb.inc
+
+--disable_query_log
+--disable_warnings
+SET GLOBAL innodb_monitor_disable='module_buffer_page';
+SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
+SET GLOBAL innodb_monitor_enable='module_buffer_page';
+--enable_warnings
+
+CREATE TABLE t (
+  id INT PRIMARY KEY,
+  b MEDIUMBLOB NULL,
+  c INT
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+INSERT INTO t VALUES
+  (1, REPEAT('a', 100000), 1),
+  (2, NULL, 2),
+  (3, REPEAT('b', 100000), 3),
+  (4, NULL, 4);
+
+--let $restart_noprint=2
+--let $restart_parameters=--innodb-buffer-pool-load-at-startup=0 --innodb-buffer-pool-dump-at-shutdown=0
+--source include/restart_mysqld.inc
+--let $restart_parameters=
+--disable_query_log
+
+--disable_warnings
+SET GLOBAL innodb_monitor_disable='module_buffer_page';
+SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
+SET GLOBAL innodb_monitor_enable='module_buffer_page';
+--enable_warnings
+
+SELECT COUNT(*) FROM t WHERE b IS NULL;
+
+SELECT SUM(COUNT) AS blob_reads
+  FROM information_schema.innodb_metrics
+ WHERE NAME IN ('buffer_page_read_blob','buffer_page_read_zblob',
+                'buffer_page_read_zblob2');
+
+--disable_warnings
+SET GLOBAL innodb_monitor_disable='module_buffer_page';
+SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
+SET GLOBAL innodb_monitor_enable='module_buffer_page';
+--enable_warnings
+
+SELECT COUNT(*) FROM t WHERE b <=> NULL;
+
+SELECT SUM(COUNT) AS blob_reads
+  FROM information_schema.innodb_metrics
+ WHERE NAME IN ('buffer_page_read_blob','buffer_page_read_zblob',
+                'buffer_page_read_zblob2');
+
+--let $restart_parameters=--innodb-buffer-pool-load-at-startup=0 --innodb-buffer-pool-dump-at-shutdown=0
+--source include/restart_mysqld.inc
+--let $restart_parameters=
+--disable_query_log
+
+--disable_warnings
+SET GLOBAL innodb_monitor_disable='module_buffer_page';
+SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
+SET GLOBAL innodb_monitor_enable='module_buffer_page';
+--enable_warnings
+
+--disable_result_log
+SELECT SUM(CRC32(b)) FROM t WHERE b IS NULL OR c = 3;
+--enable_result_log
+
+SELECT SUM(COUNT) > 0 AS blob_reads
+  FROM information_schema.innodb_metrics
+ WHERE NAME IN ('buffer_page_read_blob','buffer_page_read_zblob',
+                'buffer_page_read_zblob2');
+
+--let $restart_parameters=--innodb-buffer-pool-load-at-startup=0 --innodb-buffer-pool-dump-at-shutdown=0
+--source include/restart_mysqld.inc
+--let $restart_parameters=
+--disable_query_log
+
+--disable_warnings
+SET GLOBAL innodb_monitor_disable='module_buffer_page';
+SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
+SET GLOBAL innodb_monitor_enable='module_buffer_page';
+--enable_warnings
+
+--disable_result_log
+SELECT c FROM t WHERE b IS NULL FOR UPDATE;
+--enable_result_log
+COMMIT;
+
+SELECT SUM(COUNT) > 0 AS blob_reads
+  FROM information_schema.innodb_metrics
+ WHERE NAME IN ('buffer_page_read_blob','buffer_page_read_zblob',
+                'buffer_page_read_zblob2');
+
+DROP TABLE t;
+
+CREATE TABLE t_red (
+  id INT PRIMARY KEY,
+  b MEDIUMBLOB NULL,
+  c INT
+) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+
+INSERT INTO t_red VALUES
+  (1, REPEAT('a', 100000), 1),
+  (2, NULL, 2),
+  (3, REPEAT('b', 100000), 3),
+  (4, NULL, 4);
+
+--let $restart_parameters=--innodb-buffer-pool-load-at-startup=0 --innodb-buffer-pool-dump-at-shutdown=0
+--source include/restart_mysqld.inc
+--let $restart_parameters=
+--disable_query_log
+
+--disable_warnings
+SET GLOBAL innodb_monitor_disable='module_buffer_page';
+SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
+SET GLOBAL innodb_monitor_enable='module_buffer_page';
+--enable_warnings
+
+SELECT COUNT(*) FROM t_red WHERE b IS NULL;
+
+SELECT SUM(COUNT) AS blob_reads
+  FROM information_schema.innodb_metrics
+ WHERE NAME IN ('buffer_page_read_blob','buffer_page_read_zblob',
+                'buffer_page_read_zblob2');
+
+DROP TABLE t_red;
+
+CREATE TABLE t_vcol (
+  id INT PRIMARY KEY,
+  b MEDIUMBLOB NULL,
+  v VARBINARY(1) AS (SUBSTR(b, 1, 1)) VIRTUAL
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+INSERT INTO t_vcol (id, b) VALUES
+  (1, REPEAT('a', 100000)),
+  (2, NULL),
+  (3, REPEAT('b', 100000)),
+  (4, NULL);
+
+--let $restart_parameters=--innodb-buffer-pool-load-at-startup=0 --innodb-buffer-pool-dump-at-shutdown=0
+--source include/restart_mysqld.inc
+--let $restart_parameters=
+--disable_query_log
+
+--disable_warnings
+SET GLOBAL innodb_monitor_disable='module_buffer_page';
+SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
+SET GLOBAL innodb_monitor_enable='module_buffer_page';
+--enable_warnings
+
+SELECT COUNT(*) FROM t_vcol WHERE v IS NULL;
+
+SELECT SUM(COUNT) > 0 AS blob_reads
+  FROM information_schema.innodb_metrics
+ WHERE NAME IN ('buffer_page_read_blob','buffer_page_read_zblob',
+                'buffer_page_read_zblob2');
+
+DROP TABLE t_vcol;
+
+--disable_warnings
+SET GLOBAL innodb_monitor_disable='module_buffer_page';
+SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
+--enable_warnings

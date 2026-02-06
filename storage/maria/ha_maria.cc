@@ -991,6 +991,7 @@ int_table_flags(HA_NULL_IN_KEY | HA_CAN_FULLTEXT | HA_CAN_SQL_HANDLER |
                 HA_FILE_BASED | HA_CAN_GEOMETRY | TRANSACTION_STATE |
                 HA_CAN_BIT_FIELD | HA_CAN_RTREEKEYS | HA_CAN_REPAIR |
                 HA_CAN_VIRTUAL_COLUMNS | HA_CAN_EXPORT |
+                HA_CAN_NULL_ONLY |
                 HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT |
                 HA_CAN_TABLES_WITHOUT_ROLLBACK),
 can_enable_indexes(0), bulk_insert_single_undo(BULK_INSERT_NONE)
@@ -1155,6 +1156,11 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
   file->s->chst_invalidator= query_cache_invalidate_by_MyISAM_filename_ref;
   /* Set external_ref, mainly for temporary tables */
   file->external_ref= (void*) table;            // For ma_killed()
+  file->null_set= 0;
+  if (table->s->tmp_table == NO_TMP_TABLE &&
+      (file->s->data_file_type == DYNAMIC_RECORD ||
+       file->s->data_file_type == BLOCK_RECORD))
+    file->null_set= &table->null_set;
 
   if (test_if_locked & (HA_OPEN_IGNORE_IF_LOCKED | HA_OPEN_TMP_TABLE))
     maria_extra(file, HA_EXTRA_NO_WAIT_LOCK, 0);
@@ -1229,6 +1235,7 @@ int ha_maria::close(void)
   /* Ensure we have no open transactions */
   DBUG_ASSERT(file->trn == 0 || file->trn == &dummy_transaction_object);
   DBUG_ASSERT(file->trn_next == 0 && file->trn_prev == 0);
+  tmp->null_set= 0;
   file= 0;
   return maria_close(tmp);
 }
