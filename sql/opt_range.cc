@@ -466,6 +466,11 @@ static void print_min_range_operator(String *out, const ha_rkey_function flag);
 static void print_max_range_operator(String *out, const ha_rkey_function flag);
 
 static bool is_field_an_unique_index(Field *field);
+static ha_rows hook_records_in_range(MEM_ROOT *mem_root, THD *thd,
+                                     TABLE *table,
+                                     const KEY_PART_INFO *key_part, uint keynr,
+                                     key_range *min_range,
+                                     key_range *max_range, page_range *pages);
 
 /*
   SEL_IMERGE is a list of possible ways to do index merge, i.e. it is
@@ -7238,8 +7243,11 @@ static double ror_scan_selectivity(const ROR_INTERSECT_INFO *info,
       }
       min_range.length= max_range.length= (uint) (key_ptr - key_val);
       min_range.keypart_map= max_range.keypart_map= keypart_map;
-      records= (info->param->table->file->
-                records_in_range(scan->keynr, &min_range, &max_range, &pages));
+
+      records= hook_records_in_range(info->param->old_root, info->param->thd,
+                                     info->param->table, key_part, scan->keynr,
+                                     &min_range, &max_range, &pages);
+
       if (cur_covered)
       {
         /* uncovered -> covered */
@@ -17728,4 +17736,30 @@ void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
       break;
   }
   out->append(STRING_WITH_LEN(")"));
+}
+
+static ha_rows hook_records_in_range(MEM_ROOT *mem_root, THD *thd,
+                                     TABLE *table,
+                                     const KEY_PART_INFO *key_part, uint keynr,
+                                     key_range *min_range,
+                                     key_range *max_range, page_range *pages)
+{
+  ha_rows records=
+      (table->file->records_in_range(keynr, min_range, max_range, pages));
+  String min;
+  String max;
+  print_key_value(&min, key_part, min_range->key, min_range->length);
+  print_key_value(&max, key_part, min_range->key, min_range->length);
+  if (thd->opt_ctx_replay)
+  {
+    thd->opt_ctx_replay->infuse_records_in_range(
+        table, keynr, min.c_ptr_safe(), max.c_ptr_safe(), &records);
+  }
+
+  if (Optimizer_context_recorder *recorder= get_opt_context_recorder(thd))
+  {
+    recorder->store_records_in_range_info(
+        mem_root, table, keynr, min.c_ptr_safe(), max.c_ptr_safe(), records);
+  }
+  return records;
 }

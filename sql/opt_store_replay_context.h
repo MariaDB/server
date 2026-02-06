@@ -74,6 +74,10 @@ public:
                               const ALL_READ_COST *cost);
   static const uchar *get_tbl_trace_ctx_key(const void *entry_, size_t *length,
                                             my_bool flags);
+  void store_records_in_range_info(MEM_ROOT *mem_root, const TABLE *tbl,
+                                   uint keynr, const char *min_key,
+                                   const char *max_key, ha_rows records);
+  void record_const_table_rows(MEM_ROOT *mem_root, TABLE *tbl);
 };
 
 /* Optionally create and get the statistics context recorder for this query */
@@ -90,6 +94,8 @@ class trace_table_context_read;
 class trace_index_context_read;
 class trace_range_context_read;
 class trace_irc_context_read;
+class trace_rir_context_read;
+
 class Saved_Table_stats;
 
 /*
@@ -124,6 +130,9 @@ public:
   bool infuse_index_read_cost(const TABLE *tbl, uint keynr, ha_rows records,
                               bool eq_ref, ALL_READ_COST *cost);
   void infuse_table_stats(TABLE *table);
+  bool infuse_records_in_range(const TABLE *tbl, uint keynr,
+                               const char *min_key, const char *max_key,
+                               ha_rows *records);
   void restore_modified_table_stats();
 };
 
