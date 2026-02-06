@@ -1301,5 +1301,102 @@ JSON_EQUALS(@saved_explain_output, @explain_output)
 1
 set optimizer_replay_context="";
 drop table t1;
+#
+# Index-Merge query on a single table having 2 indexes with overlapping keys
+#
+set optimizer_replay_context="";
+create table t1 (
+a int,
+b int,
+c int,
+index idx_ab(a, b),
+index idx_ac(a, c)
+) ENGINE=InnoDB;
+insert into t1 select seq%2, seq%3, seq%5 from seq_1_to_20;
+set optimizer_replay_context="";
+explain format=json select * from t1 where a=1 and b=1 and c=1
+set @trace= (select trace from information_schema.optimizer_trace);
+set @saved_opt_context=
+(select json_pretty(json_extract(
+json_extract(@trace, "$**.optimizer_context"),
+'$[0]'
+                      )
+));
+set @saved_opt_context_var_name='saved_opt_context';
+set @explain_output='$explain_output';
+set @explain_output= (select json_pretty(round_cost(@explain_output)));
+select @explain_output;
+@explain_output
+{
+    "query_block": 
+    {
+        "select_id": 1,
+        "cost": 0.0038076,
+        "nested_loop": 
+        [
+            {
+                "table": 
+                {
+                    "table_name": "t1",
+                    "access_type": "index_merge",
+                    "possible_keys": 
+                    [
+                        "idx_ab",
+                        "idx_ac"
+                    ],
+                    "key_length": "10,10",
+                    "index_merge": 
+                    {
+                        "intersect": 
+                        [
+                            {
+                                "range": 
+                                {
+                                    "key": "idx_ac",
+                                    "used_key_parts": 
+                                    [
+                                        "a",
+                                        "c"
+                                    ]
+                                }
+                            },
+                            {
+                                "range": 
+                                {
+                                    "key": "idx_ab",
+                                    "used_key_parts": 
+                                    [
+                                        "a",
+                                        "b"
+                                    ]
+                                }
+                            }
+                        ]
+                    },
+                    "loops": 1,
+                    "rows": 1,
+                    "cost": 0.0038076,
+                    "filtered": 100,
+                    "attached_condition": "t1.a = 1 and t1.b = 1 and t1.c = 1",
+                    "using_index": true
+                }
+            }
+        ]
+    }
+}
+set @saved_explain_output=@explain_output;
+set optimizer_replay_context="";
+delete from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_replay_context=@saved_opt_context_var_name;
+set @explain_output='$explain_output';
+set @explain_output= (select json_pretty(round_cost(@explain_output)));
+select JSON_EQUALS(@saved_explain_output, @explain_output);
+JSON_EQUALS(@saved_explain_output, @explain_output)
+1
+set optimizer_replay_context="";
+drop table t1;
 drop function round_cost;
 drop database db1;
