@@ -23,6 +23,7 @@
 #include "field.h"
 #include "sp_rcontext.h"
 #include "sp_type_def.h"
+#include "sp_head.h"
 
 
 class Type_collection_row: public Type_collection
@@ -205,6 +206,63 @@ bool Type_handler_row::Spvar_definition_with_complex_data_types(
     }
   }
   return false;
+}
+
+
+bool Type_handler_row::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        column_definition_type_t type,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const
+{
+  /*
+    This cannot be called for a table column.
+    So it's safe to cast "def" from Column_definition* to Spvar_definition*.
+  */
+  DBUG_ASSERT(type == COLUMN_DEFINITION_ROUTINE_PARAM ||
+              type == COLUMN_DEFINITION_ROUTINE_LOCAL ||
+              type == COLUMN_DEFINITION_FUNCTION_RETURN);
+  DBUG_ASSERT(thd->lex->sphead);
+  Spvar_definition *def2= static_cast<Spvar_definition*>(def);
+
+  /*
+    Note, in case of a record variable:
+      TYPE rec0_t IS RECORD(a INT, b VARCHAR(2));
+      r0 rec0_t;
+    the member Spvar_defunition::m_row_field_definitions is set as follows:
+    - COLUMN_DEFINITION_ROUTINE_PARAM - is not set
+    - COLUMN_DEFINITION_FUNCTION_RETURN - is not set
+    - COLUMN_DEFINITION_ROUTINE_LOCAL - has been already set and prepared by
+                                        sp_variable_declarations_row_finalize()
+                                        called from the code in sql_yacc.yy
+
+    When m_row_field_definitions is not set, the RECORD structure can
+    reside in get_attr_const_generic_ptr(0). We need to get this un-prepared
+    record structure from get_attr_const_generic_ptr(0), and put its
+    prepared copy into m_row_field_definitions.
+  */
+
+  const sp_type_def_record *rec= dynamic_cast<const sp_type_def_record*>
+                                    (def->get_attr_const_generic_ptr(0));
+  if (rec && !def2->row_field_definitions())
+  {
+    DBUG_ASSERT(rec->field);
+    DBUG_ASSERT(rec->field->elements);
+    DBUG_ASSERT(rec->field->head()->charset == nullptr); // Not prepared
+    Row_definition_list *row= rec->field->deep_copy(thd);
+    if (!row || thd->lex->sphead->row_fill_field_definitions(thd, row))
+      return true; // Error
+    def2->set_row_field_definitions(this, row);
+    DBUG_ASSERT(def2->is_row());
+  }
+
+  return Type_handler_composite::Column_definition_prepare_stage1(thd,
+                                                          mem_root,
+                                                          def, type,
+                                                          derived_attr);
 }
 
 
