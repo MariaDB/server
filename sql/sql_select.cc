@@ -22327,6 +22327,42 @@ bool Create_tmp_table::add_fields(THD *thd,
             new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
         }
       }
+
+      /*
+        If the aggregate has FILTER, materialize the predicate into the tmp table
+        and rewrite it to read from the tmp row (we compute aggregates later).
+      */
+      if (sum_item->has_filter())
+      {
+        Item *fexpr= *sum_item->get_filter();
+        if (!fexpr->const_item())
+        {
+          Item *tmp_item;
+          Field *new_field=
+            create_tmp_field(table, fexpr, &copy_func,
+                             tmp_from_field, &m_default_field[fieldnr],
+                             m_group != 0, not_all_columns,
+                             distinct_record_structure, false);
+          if (!new_field)
+            goto err;
+          tmp_from_field++;
+
+          thd->mem_root= mem_root_save;
+          if (!(tmp_item= new (thd->mem_root) Item_field(thd, new_field)))
+            goto err;
+          static_cast<Item_field*>(tmp_item)->set_refers_to_temp_table();
+          sum_item->set_filter(thd, tmp_item);
+          thd->mem_root= &table->mem_root;
+
+          uneven_delta= m_uneven_bit_length;
+          add_field(table, new_field, fieldnr++, param->force_not_null_cols);
+          m_field_count[current_counter]++;
+          m_uneven_bit[current_counter]+= (m_uneven_bit_length - uneven_delta);
+
+          if (!(new_field->flags & NOT_NULL_FLAG))
+            tmp_item->set_maybe_null();
+        }
+      }
     }
     else
     {
@@ -29198,6 +29234,19 @@ count_field_types(SELECT_LEX *select_lex, TMP_TABLE_PARAM *param,
               param->field_count++;
             else
               param->func_count++;
+          }
+
+          // Count FILTER so it can be stored in the GROUP BY temp table and read later
+          if (sum_item->has_filter())
+          {
+            Item *fexpr= *sum_item->get_filter();
+            if (!fexpr->const_item())
+            {
+              if (fexpr->real_item()->type() == Item::FIELD_ITEM)
+                param->field_count++;
+              else
+                param->func_count++;
+            }
           }
         }
         param->func_count++;

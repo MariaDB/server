@@ -499,6 +499,8 @@ Item_sum::Item_sum(THD *thd, Item_sum *item):
   with_distinct= item->with_distinct;
   if (item->aggr)
     set_aggregator(thd, item->aggr->Aggrtype());
+  if (item->has_filter())
+    set_filter(item->filter_expr);
 }
 
 
@@ -532,6 +534,12 @@ void Item_sum::print(String *str, enum_query_type query_type)
     pargs[i]->print(str, query_type);
   }
   str->append(')');
+  if (has_filter())
+  {
+    str->append(STRING_WITH_LEN(" FILTER(WHERE "));
+    filter_expr->print(str, query_type);
+    str->append(')');
+  }
 }
 
 void Item_sum::fix_num_length_and_dec()
@@ -568,6 +576,47 @@ void Item_sum::update_used_tables ()
         item->used_tables() == 0 && !item->const_item()
     */
   }
+  if (has_filter())
+  {
+    filter_expr->update_used_tables();
+    used_tables_cache|= filter_expr->used_tables();
+  }
+}
+
+
+bool Item_sum::filter_passed()
+{
+  if (!has_filter())
+    return true;
+  /* Skip filter check if we're in endup phase (processing distinct values
+     that already passed the filter during collection phase) */
+  if (aggr && aggr->is_in_endup_phase())
+    return true;
+  return filter_expr->val_int();
+}
+
+
+bool Item_sum::fix_filter(THD *thd)
+{
+  if (!has_filter())
+    return false;
+
+  if (filter_expr->fix_fields_if_needed_for_scalar(thd, &filter_expr))
+    return true;
+
+  if (filter_expr->with_sum_func())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "aggregate function", "FILTER");
+    return true;
+  }
+
+  if (filter_expr->with_window_func())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "window function", "FILTER");
+    return true;
+  }
+
+  return false;
 }
 
 
@@ -575,6 +624,11 @@ Item *Item_sum::set_arg(uint i, THD *thd, Item *new_val)
 {
   thd->change_item_tree(args + i, new_val);
   return new_val;
+}
+
+void Item_sum::set_filter(THD *thd, Item *new_filter_expr)
+{
+  thd->change_item_tree(&filter_expr, new_filter_expr);
 }
 
 
@@ -984,6 +1038,9 @@ bool Aggregator_distinct::add()
     if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
       return TRUE;
 
+    if (!item_sum->filter_passed())
+      return 0;
+
     for (Field **field=table->field ; *field ; field++)
       if ((*field)->is_real_null(0))
         return 0;					// Don't count NULL
@@ -1009,7 +1066,7 @@ bool Aggregator_distinct::add()
   else
   {
     item_sum->get_arg(0)->save_in_field(table->field[0], FALSE);
-    if (table->field[0]->is_null())
+    if (table->field[0]->is_null() || !item_sum->filter_passed())
       return 0;
     DBUG_ASSERT(tree);
     item_sum->null_value= 0;
@@ -1124,6 +1181,10 @@ Item_sum_num::fix_fields(THD *thd, Item **ref)
     /* We should ignore FIELD's in arguments to sum functions */
     with_flags|= (args[i]->with_flags & ~item_with_t::FIELD);
   }
+
+  if (fix_filter(thd))
+    return TRUE;
+
   result_field=0;
   max_length=float_length(decimals);
   null_value=1;
@@ -1154,6 +1215,9 @@ Item_sum_min_max::fix_fields(THD *thd, Item **ref)
   /* We should ignore FIELD's in arguments to sum functions */
   with_flags|= (args[0]->with_flags & ~item_with_t::FIELD);
   if (fix_length_and_dec(thd))
+    DBUG_RETURN(TRUE);
+
+  if (fix_filter(thd))
     DBUG_RETURN(TRUE);
 
   if (!is_window_func_sum_expr())
@@ -1383,6 +1447,10 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
   /* We should ignore FIELD's in arguments to sum functions */
     with_flags|= (args[i]->with_flags & ~item_with_t::FIELD);
   }
+
+  if (fix_filter(thd))
+    return TRUE;
+
   result_field= NULL;
   max_length= float_length(decimals);
   null_value= 1;
@@ -1437,6 +1505,8 @@ Item_sum_sp::execute()
 bool
 Item_sum_sp::add()
 {
+  if (!filter_passed())
+    return false;
   return execute_impl(current_thd, args, arg_count);
 }
 
@@ -1444,6 +1514,8 @@ Item_sum_sp::add()
 void
 Item_sum_sp::clear()
 {
+  if (!func_ctx)
+    return;
   delete func_ctx;
   func_ctx= NULL;
   sp_query_arena->free_items();
@@ -1653,7 +1725,7 @@ void Item_sum_sum::add_helper(bool perform_removal)
       direct_reseted_field= FALSE;
       my_decimal value;
       const my_decimal *val= aggr->arg_val_decimal(&value);
-      if (!aggr->arg_is_null(true))
+      if (!aggr->arg_is_null(true) && filter_passed())
       {
         if (perform_removal)
         {
@@ -1698,7 +1770,7 @@ void Item_sum_sum::add_helper(bool perform_removal)
         sum-= aggr->arg_val_real();
       else
         sum+= aggr->arg_val_real();
-      if (!aggr->arg_is_null(true))
+      if (!aggr->arg_is_null(true) && filter_passed())
       {
         if (perform_removal)
         {
@@ -1928,7 +2000,7 @@ bool Item_sum_count::add()
   else
   {
     direct_reseted_field= FALSE;
-    if (aggr->arg_is_null(false))
+    if (aggr->arg_is_null(false) || !filter_passed())
       DBUG_RETURN(0);
     count++;
   }
@@ -1943,7 +2015,7 @@ bool Item_sum_count::add()
 void Item_sum_count::remove()
 {
   DBUG_ASSERT(aggr->Aggrtype() == Aggregator::SIMPLE_AGGREGATOR);
-  if (aggr->arg_is_null(false))
+  if (aggr->arg_is_null(false) || !filter_passed())
     return;
   if (count > 0)
     count--;
@@ -2051,7 +2123,7 @@ bool Item_sum_avg::add()
 {
   if (Item_sum_sum::add())
     return TRUE;
-  if (!aggr->arg_is_null(true))
+  if (!aggr->arg_is_null(true) && filter_passed())
     count++;
   return FALSE;
 }
@@ -2059,7 +2131,7 @@ bool Item_sum_avg::add()
 void Item_sum_avg::remove()
 {
   Item_sum_sum::remove();
-  if (!aggr->arg_is_null(true))
+  if (!aggr->arg_is_null(true) && filter_passed())
   {
     if (count > 0)
       count--;
@@ -2299,7 +2371,7 @@ bool Item_sum_variance::add()
   */
   double nr= args[0]->val_real();
   
-  if (!args[0]->null_value)
+  if (!args[0]->null_value && filter_passed())
     m_stddev.recurrence_next(nr);
   return 0;
 }
@@ -2336,7 +2408,7 @@ void Item_sum_variance::reset_field()
 
   nr= args[0]->val_real();              /* sets null_value as side-effect */
 
-  if (args[0]->null_value)
+  if (args[0]->null_value || !filter_passed())
     bzero(res,Stddev::binary_size());
   else
     Stddev(nr).to_binary(res);
@@ -2367,7 +2439,7 @@ void Item_sum_variance::update_field()
 
   double nr= args[0]->val_real();       /* sets null_value as side-effect */
 
-  if (args[0]->null_value)
+  if (args[0]->null_value || !filter_passed())
     return;
 
   /* Serialize format is (double)m, (double)s, (longlong)count */
@@ -2552,7 +2624,7 @@ bool Item_sum_min::add()
   DBUG_PRINT("info", ("null_value: %s", null_value ? "TRUE" : "FALSE"));
   /* args[0] < value */
   arg_cache->cache_value();
-  if (!arg_cache->null_value &&
+  if (!arg_cache->null_value && filter_passed() &&
       (null_value || cmp->compare() < 0))
   {
     value->store(arg_cache);
@@ -2592,7 +2664,7 @@ bool Item_sum_max::add()
   /* args[0] > value */
   arg_cache->cache_value();
   DBUG_PRINT("info", ("null_value: %s", null_value ? "TRUE" : "FALSE"));
-  if (!arg_cache->null_value &&
+  if (!arg_cache->null_value && filter_passed() &&
       (null_value || cmp->compare() > 0))
   {
     value->store(arg_cache);
@@ -2641,7 +2713,7 @@ bool Item_sum_bit::clear_as_window()
 bool Item_sum_bit::remove_as_window(ulonglong value)
 {
   DBUG_ASSERT(as_window_function);
-  if (num_values_added == 0)
+  if (num_values_added == 0 || args[0]->null_value || !filter_passed())
     return 0; // Nothing to remove.
 
   for (int i= 0; i < NUM_BIT_COUNTERS; i++)
@@ -2687,7 +2759,7 @@ void Item_sum_or::set_bits_from_counters()
 bool Item_sum_or::add()
 {
   ulonglong value= (ulonglong) args[0]->val_int();
-  if (!args[0]->null_value)
+  if (!args[0]->null_value && filter_passed())
   {
     if (as_window_function)
       return add_as_window(value);
@@ -2715,7 +2787,7 @@ Item *Item_sum_xor::copy_or_same(THD* thd)
 bool Item_sum_xor::add()
 {
   ulonglong value= (ulonglong) args[0]->val_int();
-  if (!args[0]->null_value)
+  if (!args[0]->null_value && filter_passed())
   {
     if (as_window_function)
       return add_as_window(value);
@@ -2750,7 +2822,7 @@ Item *Item_sum_and::copy_or_same(THD* thd)
 bool Item_sum_and::add()
 {
   ulonglong value= (ulonglong) args[0]->val_int();
-  if (!args[0]->null_value)
+  if (!args[0]->null_value && filter_passed())
   {
     if (as_window_function)
       return add_as_window(value);
@@ -2784,7 +2856,7 @@ void Item_sum_min_max::reset_field()
     String tmp(buff,sizeof(buff),result_field->charset()),*res;
 
     res= arg0->val_str(&tmp);
-    if (arg0->null_value)
+    if (arg0->null_value || !filter_passed())
     {
       result_field->set_null();
       result_field->reset();
@@ -2802,7 +2874,7 @@ void Item_sum_min_max::reset_field()
 
     if (maybe_null())
     {
-      if (arg0->null_value)
+      if (arg0->null_value || !filter_passed())
       {
 	nr=0;
 	result_field->set_null();
@@ -2820,7 +2892,7 @@ void Item_sum_min_max::reset_field()
 
     if (maybe_null())
     {
-      if (arg0->null_value)
+      if (arg0->null_value || !filter_passed())
       {
 	nr=0.0;
 	result_field->set_null();
@@ -2837,7 +2909,7 @@ void Item_sum_min_max::reset_field()
 
     if (maybe_null())
     {
-      if (arg_dec.is_null())
+      if (arg_dec.is_null() || !filter_passed())
         result_field->set_null();
       else
         result_field->set_notnull();
@@ -2888,7 +2960,7 @@ void Item_sum_sum::reset_field()
     null_flag= direct_sum_is_null;
   }
   else
-    null_flag= args[0]->null_value;
+    null_flag= args[0]->null_value || !filter_passed();
 
   if (null_flag)
     result_field->set_null();
@@ -2910,7 +2982,7 @@ void Item_sum_count::reset_field()
     direct_counted= FALSE;
     direct_reseted_field= TRUE;
   }
-  else if (!args[0]->maybe_null() || !args[0]->is_null())
+  else if ((!args[0]->maybe_null() || !args[0]->is_null()) && filter_passed())
     nr= 1;
   DBUG_PRINT("info", ("nr: %lld", nr));
   int8store(res,nr);
@@ -2926,8 +2998,17 @@ void Item_sum_avg::reset_field()
   {
     longlong tmp;
     VDec value(args[0]);
-    tmp= value.is_null() ? 0 : 1;
-    value.to_binary(res, f_precision, f_scale);
+    if (value.is_null() || !filter_passed())
+    {
+      tmp= 0;
+      my_decimal_set_zero(dec_buffs);
+      dec_buffs[0].to_binary(res, f_precision, f_scale);
+    }
+    else
+    {
+      tmp= 1;
+      value.to_binary(res, f_precision, f_scale);
+    }
     res+= dec_bin_size;
     int8store(res, tmp);
   }
@@ -2935,7 +3016,7 @@ void Item_sum_avg::reset_field()
   {
     double nr= args[0]->val_real();
 
-    if (args[0]->null_value)
+    if (args[0]->null_value || !filter_passed())
       bzero(res,sizeof(double)+sizeof(longlong));
     else
     {
@@ -2987,12 +3068,12 @@ void Item_sum_sum::update_field()
     else
     {
       arg_val= args[0]->val_decimal(&value);
-      null_flag= args[0]->null_value;
+      null_flag= args[0]->null_value || !filter_passed();
     }
 
     if (!null_flag)
     {
-      if (!result_field->is_null())
+      if (!result_field->is_null() && filter_passed())
       {
         my_decimal field_value(result_field);
         my_decimal_add(E_DEC_FATAL_ERROR, dec_buffs, arg_val, &field_value);
@@ -3021,7 +3102,7 @@ void Item_sum_sum::update_field()
     else
     {
       nr= args[0]->val_real();
-      null_flag= args[0]->null_value;
+      null_flag= args[0]->null_value || !filter_passed();
     }
     if (!null_flag)
     {
@@ -3045,7 +3126,7 @@ void Item_sum_count::update_field()
     direct_counted= direct_reseted_field= FALSE;
     nr+= direct_count;
   }
-  else if (!args[0]->maybe_null() || !args[0]->is_null())
+  else if ((!args[0]->maybe_null() || !args[0]->is_null()) && filter_passed())
     nr++;
   DBUG_PRINT("info", ("nr: %lld", nr));
   int8store(res,nr);
@@ -3063,7 +3144,7 @@ void Item_sum_avg::update_field()
   if (result_type() == DECIMAL_RESULT)
   {
     VDec tmp(args[0]);
-    if (!tmp.is_null())
+    if (!tmp.is_null() && filter_passed())
     {
       binary2my_decimal(E_DEC_FATAL_ERROR, res,
                         dec_buffs + 1, f_precision, f_scale);
@@ -3080,7 +3161,7 @@ void Item_sum_avg::update_field()
     double nr;
 
     nr= args[0]->val_real();
-    if (!args[0]->null_value)
+    if (!args[0]->null_value && filter_passed())
     {
       double old_nr;
       float8get(old_nr, res);
@@ -3107,6 +3188,10 @@ Item *Item_sum_avg::result_item(THD *thd, Field *field)
 void Item_sum_min_max::update_field()
 {
   DBUG_ENTER("Item_sum_min_max::update_field");
+  if (!filter_passed())
+  {
+    DBUG_VOID_RETURN;
+  }
   Item *UNINIT_VAR(tmp_item);
   if (unlikely(direct_added))
   {
@@ -3554,6 +3639,9 @@ Item_sum_str::fix_fields(THD *thd, Item **ref)
                  func_name_cstring()))
       return true;
   }
+
+  if (fix_filter(thd))
+    return TRUE;
 
   if (fix_fields_impl(thd, ref))
       return TRUE;
@@ -4202,7 +4290,7 @@ bool Item_func_group_concat::repack_tree(THD *thd)
 
 bool Item_func_group_concat::add(bool exclude_nulls)
 {
-  if (always_null && exclude_nulls)
+  if ((always_null || !filter_passed()) && exclude_nulls)
     return 0;
   copy_fields(tmp_table_param);
   if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
@@ -4223,6 +4311,9 @@ bool Item_func_group_concat::add(bool exclude_nulls)
       if (field->is_null_in_record((const uchar*) table->record[0]) &&
           exclude_nulls)
         return 0;                    // Skip row if it contains null
+
+      if (!filter_passed() && !exclude_nulls)
+        field->set_null();
 
       buf.set_buffer_if_not_allocated(&my_charset_bin);
       if (tree && (res= field->val_str(&buf)))
@@ -4610,6 +4701,13 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
     row_limit->print(str, query_type);
   }
   str->append(STRING_WITH_LEN(")"));
+
+  if (has_filter())
+  {
+    str->append(STRING_WITH_LEN(" FILTER(WHERE "));
+    (*get_filter())->print(str, query_type);
+    str->append(')');
+  }
 }
 
 
@@ -4639,7 +4737,7 @@ bool Item_func_collect::add() {
   uint current_geometry_srid;
   has_cached_result= false;
 
-  if (tmp_arg[0]->null_value)
+  if (tmp_arg[0]->null_value || !filter_passed())
     return 0;
 
   if(is_distinct && list_contains_element(wkb))
@@ -4663,7 +4761,7 @@ void Item_func_collect::remove() {
   String *wkb= args[0]->val_str(&value);
   has_cached_result= false;
 
-  if (args[0]->null_value) return;
+  if (args[0]->null_value || !filter_passed()) return;
 
   List_iterator<String> geometries_iterator(geometries);
   String* temp_geometry;
@@ -4706,6 +4804,7 @@ Item_func_collect::Item_func_collect(THD *thd, bool is_distinct, Item *item_par)
   group_collect_max_len(thd->variables.group_concat_max_len)
 {
   quick_group= false;
+  has_cached_result= false;
 }
 
 
@@ -4716,6 +4815,7 @@ Item_func_collect::Item_func_collect(THD *thd, bool is_distinct, Item_func_colle
   group_collect_max_len(thd->variables.group_concat_max_len)
 {
   quick_group= false;
+  has_cached_result= false;
 }
 
 

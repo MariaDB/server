@@ -1,0 +1,611 @@
+#
+# Setup test table
+#
+#
+# Create custom aggregate function
+#
+#
+# Basic aggregates
+#
+avg_result	weighted_avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+137.5000	120.3056768558952	550	3	75	200	Novel	0	15	6	["Phone","Tablet",null,null,"Laptop",null,null,null]	{"item2":"Tablet", "item5":"Laptop"}	44.7214	54.1987	1100.0000	312.5000	MULTIPOINT(1 1,2 2,4 4,5 5,7 7,8 8)
+#
+# Aggregates with DISTINCT
+#
+avg_result	sum_result	count_result	min_result	max_result	group_concat_result	json_arrayagg_result	collect_result
+175.0000	525	1	75	200	Laptop,Phone,Tablet	[null,"Electronics"]	MULTIPOINT(2 2,4 4,8 8)
+#
+# Aggregates with WHERE (AND)
+#
+avg_result	weighted_avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+183.3333	156.04395604395606	250	5	75	200	Laptop,Phone,Tablet	0	15	9	[null,"Tablet",null,null,"Laptop",null,null,null]	{"item2":"Tablet", "item5":"Laptop"}	41.4578	35.3553	742.1875	NULL	MULTIPOINT(2 2,4 4,8 8)
+#
+# Aggregates with WHERE (OR)
+#
+avg_result	weighted_avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+137.5000	NULL	825	6	50	200	Guide,Novel,Pants,Phone,Shirt,Textbook	0	15	14	["Phone","Tablet",null,null,"Laptop","Shirt","Pants",null]	{"item1":"Phone", "item2":"Tablet", "item5":"Laptop"}	49.4764	54.1987	2447.9167	3541.6667	MULTIPOINT(1 1,2 2,3 3,4 4,5 5,7 7,8 8)
+#
+# Aggregates with WHERE (LIKE)
+#
+avg_result	weighted_avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+137.5000	NULL	350	5	100	100	Guide,Novel,Textbook	6	15	5	[null,"Tablet",null,null,null,"Shirt",null,null]	{"item2":"Tablet", "item6":"Shirt"}	12.5000	54.1987	2447.9167	312.5000	MULTIPOINT(1 1,2 2,3 3,4 4,5 5,7 7,8 8)
+#
+# Aggregates with (GROUP BY)
+#
+category	avg_result	weighted_avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+Books	200.0000	200	400	2	NULL	200	NULL	7	15	8	[null,null,null]	NULL	0.0000	0.0000	0.0000	NULL	MULTIPOINT(4 4,8 8)
+Clothing	75.0000	75	NULL	2	75	75	NULL	0	0	0	[null,null]	NULL	NULL	NULL	NULL	NULL	MULTIPOINT(7 7)
+Electronics	116.6667	120	150	3	100	100	Laptop,Phone,Tablet	0	15	1	[null,"Tablet","Laptop"]	{"item2":"Tablet", "item5":"Laptop"}	23.5702	28.8675	555.5556	NULL	MULTIPOINT(1 1,2 2,5 5)
+category	min_amount
+Books	24.99
+Clothing	50.00
+Electronics	100.00
+category	min_category
+Books	Books
+Clothing	Clothing
+Electronics	Electronics
+category	avg_value_0e0
+Books	31.666666666666668
+Clothing	45
+Electronics	27.5
+category	sum_value
+Books	95.00
+Clothing	90.00
+Electronics	65.00
+#
+# Aggregates with multiple GROUP BY columns
+#
+category	status	avg_result
+Books	active	200.0000
+Books	inactive	NULL
+Clothing	NULL	50.0000
+Clothing	active	75.0000
+Electronics	active	116.6667
+category	status	weighted_avg_result
+Books	active	200
+Books	inactive	200
+Clothing	NULL	50
+Clothing	active	75
+Electronics	active	120
+category	status	sum_result
+Books	active	400
+Books	inactive	NULL
+Clothing	NULL	50
+Clothing	active	75
+Electronics	active	350
+category	status	count_result
+Books	active	2
+Books	inactive	1
+Clothing	NULL	1
+Clothing	active	1
+Electronics	active	3
+category	status	min_result
+Books	active	200
+Books	inactive	NULL
+Clothing	NULL	NULL
+Clothing	active	75
+Electronics	active	100
+category	status	max_result
+Books	active	200
+Books	inactive	NULL
+Clothing	NULL	50
+Clothing	active	75
+Electronics	active	150
+category	status	group_concat_result
+Books	active	Guide,Textbook
+Books	inactive	Novel
+Clothing	NULL	Shirt
+Clothing	active	Pants
+Electronics	active	Laptop,Phone,Tablet
+category	status	bit_and_result
+Books	active	7
+Books	inactive	18446744073709551615
+Clothing	NULL	3
+Clothing	active	12
+Electronics	active	0
+category	status	bit_or_result
+Books	active	15
+Books	inactive	0
+Clothing	NULL	0
+Clothing	active	12
+Electronics	active	15
+category	status	bit_xor_result
+Books	active	8
+Books	inactive	0
+Clothing	NULL	3
+Clothing	active	12
+Electronics	active	9
+category	status	json_arrayagg_result
+Books	active	["Textbook","Guide"]
+Books	inactive	["Novel"]
+Clothing	NULL	["Shirt"]
+Clothing	active	["Pants"]
+Electronics	active	["Phone","Tablet","Laptop"]
+category	status	json_objectagg_result
+Books	active	{"item4":"Textbook", "item8":"Guide"}
+Books	inactive	{"item3":"Novel"}
+Clothing	NULL	{"item6":"Shirt"}
+Clothing	active	{"item7":"Pants"}
+Electronics	active	{"item1":"Phone", "item2":"Tablet", "item5":"Laptop"}
+category	status	std_result
+Books	active	0.0000
+Books	inactive	NULL
+Clothing	NULL	0.0000
+Clothing	active	0.0000
+Electronics	active	23.5702
+category	status	stddev_samp_result
+Books	active	0.0000
+Books	inactive	NULL
+Clothing	NULL	NULL
+Clothing	active	NULL
+Electronics	active	28.8675
+category	status	variance_result
+Books	active	0.0000
+Books	inactive	NULL
+Clothing	NULL	0.0000
+Clothing	active	0.0000
+Electronics	active	555.5556
+category	status	var_samp_result
+Books	active	NULL
+Books	inactive	NULL
+Clothing	NULL	NULL
+Clothing	active	NULL
+Electronics	active	NULL
+category	status	collect_result
+Books	active	MULTIPOINT(4 4,8 8)
+Books	inactive	NULL
+Clothing	NULL	NULL
+Clothing	active	MULTIPOINT(7 7)
+Electronics	active	MULTIPOINT(1 1,2 2,5 5)
+#
+# GROUP BY with HAVING on aggregates
+#
+category	avg_result	weighted_avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+Books	200.0000	200	400	2	NULL	200	Guide,Novel,Textbook	7	15	8	["Novel","Textbook","Guide"]	{"item3":"Novel", "item4":"Textbook", "item8":"Guide"}	0.0000	0.0000	0.0000	NULL	MULTIPOINT(4 4,8 8)
+#
+# HAVING with alias
+#
+category	avg_value	weighted_avg_value	sum_value	count_value	min_value	max_value
+Books	200.0000	200	400	2	NULL	200
+#
+# WHERE + GROUP BY + HAVING
+#
+category	avg_result	weighted_avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+Books	200.0000	200	400	2	NULL	200	Guide,Novel,Textbook	7	15	8	["Novel","Textbook","Guide"]	{"item3":"Novel", "item4":"Textbook", "item8":"Guide"}	0.0000	0.0000	0.0000	NULL	MULTIPOINT(4 4,8 8)
+Electronics	116.6667	120	150	3	100	100	Laptop,Phone,Tablet	0	15	9	["Phone","Tablet","Laptop"]	{"item1":"Phone", "item2":"Tablet", "item5":"Laptop"}	23.5702	28.8675	555.5556	NULL	MULTIPOINT(1 1,2 2,5 5)
+#
+# WHERE + multiple aggregates with FILTER
+#
+category	total_avg	total_weighted_avg	active_avg	active_weighted_avg	total_sum	active_sum	total_count	active_count	total_min	active_min	total_max	active_max
+Books	200.0000	NULL	200.0000	200	400	NULL	2	2	NULL	NULL	200	200
+Clothing	62.5000	66.07142857142857	75.0000	75	NULL	NULL	2	2	NULL	NULL	75	75
+Electronics	116.6667	120	116.6667	120	150	350	3	1	100	100	150	150
+#
+# WHERE + FILTER + HAVING
+#
+category	active_avg	active_weighted_avg	active_sum	active_count	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+Books	200.0000	200	400	0	Guide,Textbook	7	15	8	["Textbook","Guide"]	{"item4":"Textbook", "item8":"Guide"}	0.0000	0.0000	0.0000	NULL	MULTIPOINT(4 4,8 8)
+Clothing	75.0000	75	NULL	0	Pants,Shirt	0	12	15	["Shirt","Pants"]	{"item6":"Shirt", "item7":"Pants"}	12.5000	NULL	156.2500	NULL	MULTIPOINT(7 7)
+Electronics	116.6667	120	150	3	Laptop,Phone,Tablet	0	15	9	["Phone","Tablet","Laptop"]	{"item1":"Phone", "item2":"Tablet", "item5":"Laptop"}	23.5702	28.8675	555.5556	NULL	MULTIPOINT(1 1,2 2,5 5)
+#
+# WHERE + window function (OVER)
+#
+category	cat_avg	cat_sum	cat_count	cat_min	cat_max	bit_and_result	bit_or_result	bit_xor_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+Books	200.0000	400	2	NULL	200	7	15	8	0.0000	0.0000	0.0000	NULL	MULTIPOINT(4 4,8 8)
+Books	200.0000	400	2	NULL	200	7	15	8	0.0000	0.0000	0.0000	NULL	MULTIPOINT(4 4,8 8)
+Books	200.0000	400	2	NULL	200	7	15	8	0.0000	0.0000	0.0000	NULL	MULTIPOINT(4 4,8 8)
+Clothing	75.0000	NULL	2	75	75	0	12	15	12.5000	NULL	156.2500	NULL	MULTIPOINT(7 7)
+Clothing	75.0000	NULL	2	75	75	0	12	15	12.5000	NULL	156.2500	NULL	MULTIPOINT(7 7)
+Electronics	116.6667	150	3	100	100	0	15	9	23.5702	28.8675	555.5556	NULL	MULTIPOINT(1 1,2 2,5 5)
+Electronics	116.6667	150	3	100	100	0	15	9	23.5702	28.8675	555.5556	NULL	MULTIPOINT(1 1,2 2,5 5)
+Electronics	116.6667	150	3	100	100	0	15	9	23.5702	28.8675	555.5556	NULL	MULTIPOINT(1 1,2 2,5 5)
+#
+# WHERE + window function with ORDER BY
+#
+id	running_avg	running_sum	running_count	running_min	running_max	bit_and_result	bit_or_result	bit_xor_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+1	100.0000	100	1	100	100	6	6	0	0.0000	NULL	0.0000	NULL	MULTIPOINT(1 1)
+2	125.0000	250	2	100	150	6	14	0	25.0000	35.3553	625.0000	NULL	MULTIPOINT(1 1,2 2)
+3	125.0000	250	3	100	150	6	14	0	25.0000	35.3553	625.0000	NULL	MULTIPOINT(1 1,2 2)
+4	150.0000	450	4	100	200	6	15	7	40.8248	50.0000	1666.6667	NULL	MULTIPOINT(1 1,2 2,4 4)
+5	137.5000	550	5	100	200	0	15	14	41.4578	47.8714	1718.7500	NULL	MULTIPOINT(1 1,2 2,4 4,5 5)
+6	120.0000	550	6	100	200	0	15	13	50.9902	47.8714	2600.0000	NULL	MULTIPOINT(1 1,2 2,4 4,5 5)
+7	112.5000	625	7	75	200	0	15	1	49.4764	50.0000	2447.9167	NULL	MULTIPOINT(1 1,2 2,4 4,5 5,7 7)
+8	125.0000	825	8	75	200	0	15	14	55.0973	54.1987	3035.7143	NULL	MULTIPOINT(1 1,2 2,4 4,5 5,7 7,8 8)
+#
+# WHERE + window function with frame specification
+#
+id	windowed_avg	windowed_sum	windowed_count	windowed_min	windowed_max	bit_and_result	bit_or_result	bit_xor_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+1	125.0000	150	2	100	NULL	6	14	0	25.0000	35.3553	625.0000	NULL	MULTIPOINT(1 1,2 2)
+2	125.0000	150	2	100	NULL	6	14	0	25.0000	35.3553	625.0000	NULL	MULTIPOINT(1 1,2 2)
+3	175.0000	350	2	150	200	6	15	7	25.0000	35.3553	625.0000	NULL	MULTIPOINT(2 2,4 4)
+4	150.0000	200	2	100	200	1	15	14	50.0000	70.7107	2500.0000	NULL	MULTIPOINT(4 4,5 5)
+5	150.0000	200	3	100	200	1	15	13	62.3610	70.7107	3888.8889	NULL	MULTIPOINT(4 4,5 5)
+6	87.5000	NULL	3	75	100	0	13	6	20.4124	17.6777	416.6667	NULL	MULTIPOINT(5 5,7 7)
+7	137.5000	200	3	75	200	0	15	0	65.6167	88.3883	4305.5556	NULL	MULTIPOINT(7 7,8 8)
+8	137.5000	200	2	75	200	12	15	3	62.5000	88.3883	3906.2500	NULL	MULTIPOINT(7 7,8 8)
+#
+# Subquery with aggregates in WHERE
+#
+category	status	value	price	amount	name	key_name	value_col	bit_value	geom
+Books	inactive	NULL	19.99	19.99	Novel	item3	Novel	NULL	POINT(3 3)
+Books	active	200	29.99	29.99	Textbook	item4	Textbook	7	POINT(4 4)
+Books	active	200	24.99	24.99	Guide	item8	Guide	15	POINT(8 8)
+#
+# Correlated subquery with FILTER in SELECT list
+#
+category	filtered_sum	filtered_count
+Books	NULL	2
+Clothing	75	1
+Electronics	350	3
+#
+# Derived table (FROM subquery) with FILTER
+#
+category	filtered_avg	filtered_sum
+Books	200.0000	400
+Clothing	75.0000	NULL
+Electronics	116.6667	150
+#
+# Scalar subquery with FILTER
+#
+category	value	global_active_avg	diff_from_avg
+Electronics	100	137.5000	-37.5000
+Electronics	150	137.5000	12.5000
+Books	NULL	137.5000	NULL
+Books	200	137.5000	62.5000
+Electronics	100	137.5000	-37.5000
+Clothing	50	137.5000	-87.5000
+Clothing	75	137.5000	-62.5000
+Books	200	137.5000	62.5000
+avg_result
+183.3333
+#
+# IN subquery in FILTER WHERE
+#
+count_result
+8
+#
+# AVG with STD in subquery
+#
+AVG(x)
+12.02340868
+#
+# Aggregates with GROUP BY and ORDER BY
+#
+category	avg_val	weighted_avg_val	sum_val	count_val	min_val	max_val	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+Books	200.0000	200	400	2	NULL	200	Guide,Novel,Textbook	7	15	8	["Novel","Textbook","Guide"]	{"item3":"Novel", "item4":"Textbook", "item8":"Guide"}	0.0000	0.0000	0.0000	NULL	MULTIPOINT(4 4,8 8)
+Electronics	116.6667	120	150	3	100	100	Laptop,Phone,Tablet	0	15	9	["Phone","Tablet","Laptop"]	{"item1":"Phone", "item2":"Tablet", "item5":"Laptop"}	23.5702	28.8675	555.5556	NULL	MULTIPOINT(1 1,2 2,5 5)
+Clothing	75.0000	75	NULL	2	75	75	Pants,Shirt	0	12	15	["Shirt","Pants"]	{"item6":"Shirt", "item7":"Pants"}	12.5000	NULL	156.2500	NULL	MULTIPOINT(7 7)
+#
+# Complete query with WHERE, GROUP BY, HAVING, ORDER BY
+#
+category	avg_val	weighted_avg_val	sum_val	count_val	min_val	max_val	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+Books	200.0000	200	400	2	NULL	200	Guide,Textbook	7	15	8	["Textbook","Guide"]	{"item4":"Textbook", "item8":"Guide"}	0.0000	0.0000	0.0000	NULL	MULTIPOINT(4 4,8 8)
+Electronics	116.6667	120	150	3	100	100	Laptop,Phone,Tablet	0	15	9	["Phone","Tablet","Laptop"]	{"item1":"Phone", "item2":"Tablet", "item5":"Laptop"}	23.5702	28.8675	555.5556	NULL	MULTIPOINT(1 1,2 2,5 5)
+#
+# Aggregates with GROUP BY, ORDER BY, and LIMIT
+#
+category	avg_val	weighted_avg_val	sum_val	count_val	min_val	max_val	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+Books	200.0000	200	400	2	NULL	200	Guide,Novel,Textbook	7	15	8	["Novel","Textbook","Guide"]	{"item3":"Novel", "item4":"Textbook", "item8":"Guide"}	0.0000	0.0000	0.0000	NULL	MULTIPOINT(4 4,8 8)
+Electronics	116.6667	120	150	3	100	100	Laptop,Phone,Tablet	0	15	9	["Phone","Tablet","Laptop"]	{"item1":"Phone", "item2":"Tablet", "item5":"Laptop"}	23.5702	28.8675	555.5556	NULL	MULTIPOINT(1 1,2 2,5 5)
+#
+# Aggregates with ROLLUP
+#
+category	status	avg_val	weighted_avg_val	sum_val	count_val	min_val	max_val	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+Books	active	200.0000	200	400	2	NULL	200	Guide,Textbook	7	15	8	["Textbook","Guide"]	{"item4":"Textbook", "item8":"Guide"}	0.0000	0.0000	0.0000	NULL	MULTIPOINT(4 4,8 8)
+Books	inactive	NULL	200	NULL	0	NULL	NULL	Novel	18446744073709551615	0	0	["Novel"]	{"item3":"Novel"}	NULL	NULL	NULL	NULL	NULL
+Books	NULL	200.0000	200	400	2	NULL	200	Guide,Novel,Textbook	7	15	8	["Textbook","Guide","Novel"]	{"item4":"Textbook", "item8":"Guide", "item3":"Novel"}	0.0000	0.0000	0.0000	NULL	MULTIPOINT(4 4,8 8)
+Clothing	NULL	NULL	200	NULL	1	NULL	50	Shirt	3	0	3	["Shirt"]	{"item6":"Shirt"}	0.0000	NULL	0.0000	NULL	NULL
+Clothing	active	75.0000	75	NULL	1	75	75	Pants	12	12	12	["Pants"]	{"item7":"Pants"}	0.0000	NULL	0.0000	NULL	MULTIPOINT(7 7)
+Clothing	NULL	75.0000	75	NULL	2	75	75	Pants,Shirt	0	12	15	["Shirt","Pants"]	{"item6":"Shirt", "item7":"Pants"}	12.5000	NULL	156.2500	NULL	MULTIPOINT(7 7)
+Electronics	active	116.6667	120	150	3	100	100	Laptop,Phone,Tablet	0	15	9	["Phone","Tablet","Laptop"]	{"item1":"Phone", "item2":"Tablet", "item5":"Laptop"}	23.5702	28.8675	555.5556	NULL	MULTIPOINT(1 1,2 2,5 5)
+Electronics	NULL	116.6667	120	150	3	100	100	Laptop,Phone,Tablet	0	15	9	["Phone","Tablet","Laptop"]	{"item1":"Phone", "item2":"Tablet", "item5":"Laptop"}	23.5702	28.8675	555.5556	NULL	MULTIPOINT(1 1,2 2,5 5)
+NULL	NULL	137.5000	120.3056768558952	550	7	75	200	Guide,Laptop,Novel,Pants,Phone,Shirt,Tablet,Textbook	0	15	14	["Textbook","Guide","Novel","Shirt","Pants","Phone","Tablet","Laptop"]	{"item4":"Textbook", "item8":"Guide", "item3":"Novel", "item6":"Shirt", "item7":"Pants", "item1":"Phone", "item2":"Tablet", "item5":"Laptop"}	55.0973	54.1987	3035.7143	NULL	MULTIPOINT(4 4,8 8,7 7,1 1,2 2,5 5)
+#
+# COUNT with column names (not just *)
+#
+count_value	count_category	count_name
+6	3	3
+#
+# COUNT DISTINCT with multiple columns
+#
+count_distinct
+3
+#
+# FILTER on indexed column
+#
+# Create index on status column
+avg_result	weighted_avg_result	sum_result	count_result	min_result	max_result	bit_and_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+137.5000	120.3056768558952	350	3	75	150	0	49.4764	54.1987	3035.7143	NULL	MULTIPOINT(1 1,2 2,5 5)
+#
+# Empty result set (all rows filtered out)
+#
+avg_result	weighted_avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+NULL	NULL	NULL	0	NULL	NULL	NULL	18446744073709551615	0	0	[null,null,null,null,null,null,null,null]	NULL	NULL	NULL	NULL	NULL	NULL
+#
+# FILTER with NULL conditions
+#
+avg_result	weighted_avg_result	count_result	sum_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+NULL	NULL	0	NULL	NULL	NULL	NULL	18446744073709551615	0	0	[null,null,null,null,null,null,null,null]	NULL	NULL	NULL	NULL	NULL	NULL
+#
+# FILTER with JOINs
+#
+# Create second table for JOIN test
+category	avg_result	weighted_avg_result	sum_result	count_result
+Books	200.0000	NULL	200	2
+Electronics	150.0000	150	NULL	0
+#
+# FILTER with window functions - different partitions
+#
+category	status	cat_avg	status_avg	cat_count	status_count
+Books	active	200.0000	183.3333	2	4
+Books	active	200.0000	183.3333	2	4
+Books	inactive	200.0000	NULL	2	0
+Clothing	NULL	75.0000	NULL	2	0
+Clothing	active	75.0000	183.3333	2	4
+Electronics	active	116.6667	183.3333	3	4
+Electronics	active	116.6667	183.3333	3	4
+Electronics	active	116.6667	183.3333	3	4
+#
+# FILTER with empty table
+#
+# Create empty table
+avg_result	weighted_avg_result	sum_result	count_result	min_result	max_result	group_concat_result	bit_and_result	bit_or_result	bit_xor_result	json_arrayagg_result	json_objectagg_result	std_result	stddev_samp_result	variance_result	var_samp_result	collect_result
+NULL	NULL	NULL	0	NULL	NULL	NULL	18446744073709551615	0	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+#
+# FILTER with CASE in WHERE clause
+#
+avg_result	weighted_avg_result	sum_result	count_result
+137.5000	120.3056768558952	550	3
+#
+# ORDER BY with FILTER aggregates
+#
+category	avg_val	weighted_avg_val	sum_val
+Books	200.0000	200	400
+Electronics	116.6667	120	150
+Clothing	75.0000	75	NULL
+#
+# Aggregates on id column itself with FILTER
+#
+avg_id	weighted_avg_id	sum_id	count_id	min_id	max_id	distinct_count_id
+4.5000	3.7991266375545854	14	3	1	8	5
+#
+# Aggregates on id with GROUP BY and FILTER
+#
+category	avg_id	weighted_avg_id	sum_id	count_id	min_id	max_id
+Books	6.0000	5.818181818181818	12	2	NULL	8
+Clothing	6.5000	6.642857142857143	7	0	7	7
+Electronics	5.0000	5	8	1	1	5
+#
+# STORED AGGREGATE FUNCTION TESTS
+#
+# Multiple stored aggregates with different FILTER conditions
+category	active_weighted	inactive_weighted	high_value_weighted	low_value_weighted	electronics_weighted
+Books	200	NULL	200	NULL	NULL
+Clothing	75	NULL	200	66.07142857142857	NULL
+Electronics	120	NULL	150	100	120
+# Stored aggregate with subquery correlation and FILTER
+category	correlated_weighted_avg
+Books	150
+Books	150
+Clothing	75
+Clothing	75
+Electronics	150
+Electronics	150
+# Stored aggregate with all rows filtered out
+category	no_match_weighted
+Books	NULL
+Clothing	NULL
+Electronics	NULL
+# Stored aggregate with complex nested conditions in FILTER
+category	complex_filter_weighted
+Books	200
+Clothing	75
+Electronics	120
+#
+# SEQUENCE ENGINE TESTS
+#
+# COUNT with FILTER on sequence
+COUNT(*) FILTER (WHERE seq < 5)
+4
+# Verify FILTER and CASE produce same results
+filtered_count	case_count
+4	4
+# SUM with FILTER on sequence
+SUM(seq) FILTER (WHERE seq < 5)
+10
+# Verify FILTER and CASE produce same results
+filtered_sum	case_sum
+10	10
+# Multiple FILTER conditions on sequence
+count_le_3	count_gt_7	count_between	sum_even	sum_odd
+3	3	3	30	25
+# Mixed filtered and unfiltered aggregates on sequence
+unfiltered_count	filtered_count	unfiltered_sum	filtered_sum
+10	4	55	45
+# FILTER with different sequence ranges
+COUNT(*) FILTER (WHERE seq < 50)
+49
+SUM(seq) FILTER (WHERE seq BETWEEN 10 AND 20)
+165
+# AVG, MIN, MAX with FILTER on sequence
+total_avg	filtered_avg	filtered_min	filtered_max
+5.5000	3.0000	4	7
+# FILTER that matches no rows
+COUNT(*) FILTER (WHERE seq > 100)
+0
+SUM(seq) FILTER (WHERE seq < 0)
+NULL
+# FILTER that matches all rows
+COUNT(*) FILTER (WHERE seq > 0)
+10
+SUM(seq) FILTER (WHERE seq <= 10)
+55
+# Sequence with window functions and FILTER
+seq	filtered_total	even_count
+1	1	0
+2	3	1
+3	6	1
+4	6	2
+5	6	2
+#
+# FILTER with loose index scan (QUICK_GROUP_MIN_MAX_SELECT)
+#
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# t2 is the same as t1, but with some NULLs in the MIN/MAX column
+# add rows with NULL's in the MIN/MAX column
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+# Queries without WHERE clause - basic MIN/MAX with FILTER
+a1	MIN(a2) FILTER (WHERE a2 > 'a')
+a	b
+b	b
+c	b
+d	b
+a1	MAX(a2) FILTER (WHERE a2 < 'b')
+a	a
+b	a
+c	a
+d	a
+a1	a2	b	MIN(c) FILTER (WHERE c > 'b')	MAX(c) FILTER (WHERE c < 'n')
+a	a	a	b111	d111
+a	a	b	e112	h112
+a	b	a	i121	l121
+a	b	b	m122	m122
+b	a	a	b211	d211
+b	a	b	e212	h212
+b	b	a	i221	l221
+b	b	b	m222	m222
+c	a	a	b311	d311
+c	a	b	e312	h312
+c	b	a	i321	l321
+c	b	b	m322	m322
+d	a	a	b411	d411
+d	a	b	e412	h412
+d	b	a	i421	l421
+d	b	b	m422	m422
+# Queries with predicates over GROUP BY attributes
+a1	MAX(c) FILTER (WHERE c LIKE '%11%')
+a	d111
+a	h112
+a	NULL
+a	NULL
+b	d211
+b	NULL
+b	NULL
+b	NULL
+d	d411
+d	NULL
+d	NULL
+d	NULL
+a1	a2	b	MIN(c) FILTER (WHERE c > 'c')	MAX(c) FILTER (WHERE c < 'm')
+a	a	a	c111	d111
+a	a	b	e112	h112
+a	b	a	i121	l121
+a	b	b	m122	NULL
+b	a	a	c211	d211
+b	a	b	e212	h212
+b	b	a	i221	l221
+b	b	b	m222	NULL
+c	a	a	c311	d311
+c	a	b	e312	h312
+c	b	a	i321	l321
+c	b	b	m322	NULL
+a1	a2	b	MIN(c) FILTER (WHERE d != 'xy2')	MAX(c) FILTER (WHERE d != 'xy3')
+a	a	a	c111	d111
+a	a	b	e112	f112
+b	a	a	c211	d211
+b	a	b	e212	f212
+c	a	a	c311	d311
+c	a	b	e312	f312
+d	a	a	c411	d411
+d	a	b	e412	f412
+# IS NULL predicates
+a1	a2	b	MIN(c) FILTER (WHERE c > 'a5')
+a	a	NULL	a777
+c	a	NULL	c777
+# Mixed predicates
+a1	a2	b	MIN(c) FILTER (WHERE d LIKE 'xy%')	MAX(c) FILTER (WHERE d LIKE 'xy%')
+a	a	b	e112	h112
+b	a	b	e212	h212
+c	a	b	e312	h312
+c	b	b	m322	p322
+d	a	b	e412	h412
+d	b	b	m422	p422
+# Test with NULLs in MIN/MAX column
+a1	a2	b	MIN(c) FILTER (WHERE c > 'a5')	MAX(c) FILTER (WHERE c < 'z')
+a	a	NULL	a777	a999
+a	a	a	b111	d111
+a	a	b	e112	h112
+a	b	a	i121	l121
+a	b	b	m122	p122
+b	a	a	b211	d211
+b	a	b	e212	h212
+b	b	a	i221	l221
+b	b	b	m222	p222
+c	a	NULL	c777	c999
+c	a	a	b311	d311
+c	a	b	e312	h312
+c	b	a	i321	l321
+c	b	b	m322	p322
+d	a	a	b411	d411
+d	a	b	e412	h412
+d	b	a	i421	l421
+d	b	b	m422	p422
+# Test FILTER with HAVING clause
+a1	min_c
+a	b111
+b	b211
+c	b311
+d	b411
+#
+# Test large integer with FILTER (stolen from func_group.test :)
+#
+cast_min
+9223372036854775807
+9223372036854775807
+NULL
+#
+# ERROR CASES
+#
+# FILTER with RANK (should error - FILTER only works with aggregates)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FILTER (WHERE status = 'active') OVER (ORDER BY value) FROM test_aggregates' at line 1
+# FILTER with LAG (should error - FILTER only works with aggregates)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FILTER (WHERE status = 'active') OVER (ORDER BY id) FROM test_aggregates' at line 1
+# OVER clause before FILTER clause (should error - correct order is FILTER then OVER)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(WHERE status = 'active') FROM test_aggregates' at line 1
+# Regular scalar function (should error - FILTER only for aggregates)
+ERROR HY000: Incorrect usage of FILTER and NON-AGGREGATE FUNCTION
+# FILTER on plain column (should error - not a function)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(WHERE status = 'active') FROM test_aggregates' at line 1
+# Empty FILTER clause (should error - WHERE condition required)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') FROM test_aggregates' at line 1
+# Nested FILTER clauses (should error - cannot nest FILTER)
+ERROR HY000: Incorrect usage of aggregate function and FILTER
+# Multiple WHERE keywords (should error)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'WHERE value > 100) FROM test_aggregates' at line 1
+# Using column alias in FILTER WHERE (should error - alias not available)
+ERROR 42S22: Unknown column 'val' in 'SELECT'
+# Window function in FILTER WHERE condition (should error - not allowed)
+ERROR HY000: Incorrect usage of window function and FILTER
+ERROR HY000: Incorrect usage of window function and FILTER
+# This should error - aggregate in WHERE clause
+ERROR HY000: Incorrect usage of aggregate function and FILTER
+ERROR HY000: Incorrect usage of aggregate function and FILTER
+# Missing WHERE keyword (should error)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'status = 'active') FROM test_aggregates' at line 1
+# Missing parentheses (should error)
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'WHERE status = 'active' FROM test_aggregates' at line 1
+#
+# Illegal use of FILTER with non-aggregate stored function
+#
+# FILTER clause with non-aggregate stored function should fail
+ERROR HY000: Incorrect usage of FILTER and NON-AGGREGATE FUNCTION
+#
+# CLEANUP
+#
+#
+# End of aggregates FILTER test
+#

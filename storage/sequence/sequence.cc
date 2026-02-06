@@ -419,9 +419,10 @@ create_group_by_handler(THD *thd, Query *query)
     Field *field;
     if (item->type() != Item::SUM_FUNC_ITEM ||
         (((Item_sum*) item)->sum_func() != Item_sum::SUM_FUNC &&
-         ((Item_sum*) item)->sum_func() != Item_sum::COUNT_FUNC))
+         ((Item_sum*) item)->sum_func() != Item_sum::COUNT_FUNC) ||
+        ((Item_sum*) item)->has_filter())
 
-      return 0;                                  // Not a SUM() function
+      return 0; // Not a SUM() function or has FILTER
     arg0= ((Item_sum*) item)->get_arg(0);
     if (arg0->type() != Item::FIELD_ITEM)
     {
