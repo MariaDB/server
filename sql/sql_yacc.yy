@@ -19285,7 +19285,7 @@ sf_returned_type_clause:
         ;
 
 sf_return_type:
-          field_type
+          field_type_all_with_typedefs
           {
             if (unlikely(Lex->sf_return_fill_definition($1)))
               MYSQL_YYABORT;
@@ -19492,7 +19492,7 @@ sp_param_name_and_mode:
         ;
 
 sp_param_init_vars:
-          sp_param_name_and_mode_init_vars field_type
+          sp_param_name_and_mode_init_vars field_type_all_with_typedefs
           {
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
@@ -19783,7 +19783,7 @@ sf_returned_type_clause:
         ;
 
 sf_return_type:
-          field_type
+          field_type_all_with_typedefs
           {
             if (unlikely(Lex->sf_return_fill_definition($1)))
               MYSQL_YYABORT;
@@ -20411,7 +20411,7 @@ sp_param_name_and_mode:
         ;
 
 sp_param_init_vars:
-          sp_param_name_and_mode_init_vars field_type
+          sp_param_name_and_mode_init_vars field_type_all_with_typedefs
           {
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
