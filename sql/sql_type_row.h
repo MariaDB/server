@@ -36,6 +36,13 @@ public:
   bool has_null_predicate() const override { return false; }
   bool Spvar_definition_with_complex_data_types(Spvar_definition *def)
                                                        const override;
+  bool Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *c,
+                                        column_definition_type_t type,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const override;
   bool sp_variable_declarations_finalize(THD *thd,
                                          LEX *lex, int nvars,
                                          const Column_definition &def)
