@@ -23,45 +23,25 @@
 #include "table.h"
 #include "json_lib.h"
 
+/***************************************************************************
+ * Part 1: APIs for recording Optimizer Context.
+ ***************************************************************************/
+
 class SEL_ARG_RANGE_SEQ;
-
-class Range_list_recorder : public Sql_alloc
-{
-public:
-  void add_range(MEM_ROOT *mem_root, const char *range);
-};
-
+class Range_list_recorder;
 class trace_table_context;
 
-bool store_tables_context_in_trace(THD *thd);
-
 /*
-   This class is used to buffer the range stats for indexes,
-   while the range optimizer is in use,
-   so that entire tables/views contexts can be stored
-   at a single place in the trace.
+  Recorder is used to capture the environment during query optimization run.
+  When the optimization is finished, one can save the captured context
+  somewhere (currently, we write it into the Optimizer Trace)
 */
 class Optimizer_context_recorder
 {
-private:
-  /*
-     Hash of table contexts used for storing
-     all the ranges of indexes that are used
-     in the current query, into the trace.
-     full name of the table/view is used as the key.
-  */
-  HASH tbl_trace_ctx_hash;
-  trace_table_context *get_table_context(MEM_ROOT *mem_root,
-                                         const TABLE_LIST *tbl);
-
 public:
   Optimizer_context_recorder();
 
   ~Optimizer_context_recorder();
-
-  bool has_records();
-
-  trace_table_context *search(uchar *tbl_name, size_t tbl_name_len);
 
   Range_list_recorder *
   start_range_list_record(MEM_ROOT *mem_root, TABLE_LIST *tbl,
@@ -72,8 +52,33 @@ public:
   void record_cost_index_read(MEM_ROOT *mem_root, const TABLE_LIST *tbl,
                               uint key, ha_rows records, bool eq_ref,
                               const ALL_READ_COST *cost);
+  void record_records_in_range(MEM_ROOT *mem_root, const TABLE *tbl,
+                               const KEY_PART_INFO *key_part, uint keynr,
+                               const key_range *min_range,
+                               const key_range *max_range, ha_rows records);
+  void record_const_table_row(MEM_ROOT *mem_root, TABLE *tbl);
+
+  bool has_records();
+  trace_table_context *search(uchar *tbl_name, size_t tbl_name_len);
+
+private:
+  /*
+    Hash table mapping "dbname.table_name" -> pointer to trace_table_context.
+    Contains records for all tables for which we have captured data.
+  */
+  HASH tbl_trace_ctx_hash;
+
+  trace_table_context *get_table_context(MEM_ROOT *mem_root,
+                                         const TABLE_LIST *tbl);
   static const uchar *get_tbl_trace_ctx_key(const void *entry_, size_t *length,
                                             my_bool flags);
+};
+
+/* Interface to record range lists */
+class Range_list_recorder : public Sql_alloc
+{
+public:
+  void add_range(MEM_ROOT *mem_root, const char *range);
 };
 
 /* Optionally create and get the statistics context recorder for this query */
@@ -86,25 +91,70 @@ get_range_list_recorder(THD *thd, MEM_ROOT *mem_root, TABLE_LIST *tbl,
                         Cost_estimate *cost, ha_rows max_index_blocks,
                         ha_rows max_row_blocks);
 
+/* Save the collected context in optimizer trace */
+bool store_tables_context_in_trace(THD *thd);
+
+/***************************************************************************
+ * Part 2: APIs for loading previously saved Optimizer Context and replaying
+ *  it: making the optimizer work as if the environment was like it has been
+ *  at the time the context was recorded.
+ ***************************************************************************/
 class trace_table_context_read;
 class trace_index_context_read;
 class trace_range_context_read;
 class trace_irc_context_read;
+class trace_rir_context_read;
+
 class Saved_Table_stats;
 
 /*
   This class stores the parsed optimizer context information
   and then infuses read stats into the optimizer
+
+  Optimizer Context information that we've read from a JSON document.
+
+  The optimizer can use infuse_XXX() methods to get the saved values.
 */
 class Optimizer_context_replay
 {
+public:
+  Optimizer_context_replay(THD *thd);
+
+  /* Save table's statistics and replace it with data from the context.  */
+  void infuse_table_stats(TABLE *table);
+  /* Restore the saved statistics back (to be done at query end) */
+  void restore_modified_table_stats();
+
+  /*
+    "Infusion" functions.
+    When the optimizer needs some data, for example to call index_read_cost(),
+    it will call infuse_index_read_cost() and get the value from the context.
+  */
+  bool infuse_read_cost(const TABLE *tbl, IO_AND_CPU_COST *cost);
+  bool infuse_range_stats(TABLE *tbl, uint keynr, RANGE_SEQ_IF *seq_if,
+                          SEL_ARG_RANGE_SEQ *seq, Cost_estimate *cost,
+                          ha_rows *rows, ha_rows *max_index_blocks,
+                          ha_rows *max_row_blocks);
+  bool infuse_index_read_cost(const TABLE *tbl, uint keynr, ha_rows records,
+                              bool eq_ref, ALL_READ_COST *cost);
+  bool infuse_records_in_range(const TABLE *tbl, const KEY_PART_INFO *key_part,
+                               uint keynr, const key_range *min_range,
+                               const key_range *max_range, ha_rows *records);
+
 private:
   THD *thd;
-  List<Saved_Table_stats> saved_tablestats_list;
+  /*
+    Statistics that tables had before we've replaced them with values from
+    the saved context. To be used to restore the original values.
+  */
+  List<Saved_Table_stats> saved_table_stats;
+
+  /* Current database recorded in the saved Optimizer Context */
   char *db_name;
+
   List<trace_table_context_read> ctx_list;
-  bool has_records();
   bool parse();
+  bool has_records();
 #ifndef DBUG_OFF
   void dbug_print_read_stats();
 #endif
@@ -113,18 +163,7 @@ private:
   void store_range_contexts(const TABLE *tbl, const char *idx_name,
                             List<trace_range_context_read> *list);
   bool infuse_table_rows(const TABLE *tbl, ha_rows *rows);
-
-public:
-  Optimizer_context_replay(THD *thd);
-  bool infuse_read_cost(const TABLE *tbl, IO_AND_CPU_COST *cost);
-  bool infuse_range_stats(TABLE *tbl, uint keynr, RANGE_SEQ_IF *seq_if,
-                          SEL_ARG_RANGE_SEQ *seq, Cost_estimate *cost,
-                          ha_rows *rows, ha_rows *max_index_blocks,
-                          ha_rows *max_row_blocks);
-  bool infuse_index_read_cost(const TABLE *tbl, uint keynr, ha_rows records,
-                              bool eq_ref, ALL_READ_COST *cost);
-  void infuse_table_stats(TABLE *table);
-  void restore_modified_table_stats();
+  trace_table_context_read *find_trace_read_context(const char *name);
 };
 
 #endif
