@@ -19285,7 +19285,7 @@ sf_returned_type_clause:
         ;
 
 sf_return_type:
-          field_type
+          field_type_all_with_typedefs
           {
             if (unlikely(Lex->sf_return_fill_definition($1)))
               MYSQL_YYABORT;
@@ -19492,7 +19492,7 @@ sp_param_name_and_mode:
         ;
 
 sp_param_init_vars:
-          sp_param_name_and_mode_init_vars field_type
+          sp_param_name_and_mode_init_vars field_type_all_with_typedefs
           {
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
@@ -19783,7 +19783,7 @@ sf_returned_type_clause:
         ;
 
 sf_return_type:
-          field_type
+          field_type_all_with_typedefs
           {
             if (unlikely(Lex->sf_return_fill_definition($1)))
               MYSQL_YYABORT;
@@ -20411,7 +20411,7 @@ sp_param_name_and_mode:
         ;
 
 sp_param_init_vars:
-          sp_param_name_and_mode_init_vars field_type
+          sp_param_name_and_mode_init_vars field_type_all_with_typedefs
           {
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
@@ -20543,11 +20543,27 @@ create_routine:
                                                 Lex->sp_chistics))))
               MYSQL_YYABORT;
             Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
+            /*
+              Let's call sp_block_init_package_body() to create
+              m_pcont->child_context(0), which is used to search for
+              typedef types. This is to have the code searching for
+              typedef types symmetric in the package specification and
+              the package body.
+            */
+            Lex->sp_block_init_package_body(thd);
           }
           sp_tail_is
           opt_package_specification_element_list END
           remember_end_opt opt_trailing_sp_name
           {
+            /*
+              Package specifications do not have yet variables, conditions,
+              cursors. So let's make an empty Lex_spblock. This will
+              change when we implement package wide declarations (MDEV 13139).
+            */
+            Lex_spblock spblock;
+            if (unlikely(Lex->sp_block_finalize(thd, spblock)))
+              MYSQL_YYABORT;
             if (unlikely(Lex->create_package_finalize(thd, $5, $12, $11)))
               MYSQL_YYABORT;
           }

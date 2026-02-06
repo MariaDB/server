@@ -1,0 +1,9 @@
+--echo #
+--echo # MDEV-38883 Server crashes when creating a package with function with IN/OUT qualifier
+--echo #
+
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PACKAGE pkg FUNCTION func (a IN INT) RETURN INT;
+
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PACKAGE pkg FUNCTION func (a UNKNOWN) RETURN INT;
