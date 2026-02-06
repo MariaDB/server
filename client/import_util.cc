@@ -23,6 +23,7 @@
 */
 
 #include <string>
+#include <cstring>
 #include <vector>
 #include <pcre2posix.h>
 
@@ -58,9 +59,17 @@ std::string extract_first_create_table(const std::string &script)
 TableDDLInfo::TableDDLInfo(const std::string &create_table_stmt)
 {
   regex_t primary_key_regex, constraint_regex, index_regex, engine_regex,
-      table_name_regex;
+      table_name_regex, column_regex;
   constexpr size_t MAX_MATCHES= 10;
   regmatch_t match[10];
+
+  // Extract just the CREATE TABLE statement if the input contains other SQL
+  std::string actual_create_table = extract_first_create_table(create_table_stmt);
+  if (actual_create_table.empty())
+  {
+    // Input might already be just the CREATE TABLE statement
+    actual_create_table = create_table_stmt;
+  }
 
   regcomp(&primary_key_regex, "\\n\\s*(PRIMARY\\s+KEY\\s+(.*?)),?\\n",
           REG_EXTENDED);
@@ -73,8 +82,13 @@ TableDDLInfo::TableDDLInfo(const std::string &create_table_stmt)
   regcomp(&engine_regex, "\\bENGINE\\s*=\\s*(\\w+)", REG_EXTENDED);
   regcomp(&table_name_regex, "CREATE\\s+TABLE\\s+(`?(?:[^`]|``)+`?)\\s*\\(",
           REG_EXTENDED);
+  // Column regex: matches lines starting with column name followed by type
+  // Must be inside parentheses, not starting with constraint/key keywords
+  regcomp(&column_regex,
+          "\\n\\s*(`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*)\\s+([a-zA-Z]+[a-zA-Z0-9()]*)",
+          REG_EXTENDED);
 
-  const char *stmt= create_table_stmt.c_str();
+  const char *stmt= actual_create_table.c_str();
   const char *search_start= stmt;
 
   // Extract primary key
@@ -129,11 +143,97 @@ TableDDLInfo::TableDDLInfo(const std::string &create_table_stmt)
       }
     }
   }
+
+// Extract column definitions - find the column definition block
+  const char *col_start = strchr(stmt, '(');
+  if (col_start)
+  {
+    col_start++; // Move past the opening '('
+
+    // Find the matching closing parenthesis
+    int depth = 1;
+    const char *col_end = col_start;
+    bool in_string = false;
+    char string_delim = 0;
+
+    while (*col_end && depth > 0)
+    {
+      // Handle strings
+      if (!in_string && (*col_end == '\'' || *col_end == '"' || *col_end == '`'))
+      {
+        in_string = true;
+        string_delim = *col_end;
+      }
+      else if (in_string && *col_end == string_delim)
+      {
+        // Check for escaped delimiter
+        if (*(col_end + 1) == string_delim)
+          col_end++; // Skip escaped
+        else
+          in_string = false;
+      }
+      else if (!in_string)
+      {
+        if (*col_end == '(')
+          depth++;
+        else if (*col_end == ')')
+        {
+          depth--;
+          if (depth == 0)
+            break; // Found the matching closing paren
+        }
+      }
+      col_end++;
+    }
+
+    if (depth == 0 && col_end > col_start)
+    {
+      // col_end now points to the closing ')'
+      std::string columns_block(col_start, col_end - col_start);
+
+      // Now parse column definitions from this block only
+      // Pattern matches lines that start with whitespace + identifier + whitespace + type
+      regcomp(&column_regex,
+              "\\n[ \\t]*(`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*)[ \\t]+([a-zA-Z]+)",
+              REG_EXTENDED);
+
+      const char *block = columns_block.c_str();
+      search_start = block;
+
+      while (regexec(&column_regex, search_start, MAX_MATCHES, match, 0) == 0)
+      {
+        std::string col_name(search_start + match[1].rm_so,
+                             match[1].rm_eo - match[1].rm_so);
+        std::string col_type(search_start + match[2].rm_so,
+                             match[2].rm_eo - match[2].rm_so);
+
+        // Remove backticks
+        if (!col_name.empty() && col_name.front() == '`' && col_name.back() == '`')
+          col_name = col_name.substr(1, col_name.length() - 2);
+
+        // Convert to uppercase for comparison
+        std::string col_name_upper = col_name;
+        for (char &c : col_name_upper) c = toupper(c);
+
+        // Skip constraint/key lines
+        if (col_name_upper != "PRIMARY" && col_name_upper != "CONSTRAINT" &&
+            col_name_upper != "KEY" && col_name_upper != "INDEX" &&
+            col_name_upper != "UNIQUE" && col_name_upper != "FULLTEXT" &&
+            col_name_upper != "SPATIAL" && col_name_upper != "VECTOR")
+        {
+          columns.push_back({col_name, col_type});
+        }
+
+        search_start += match[0].rm_eo - 1;
+      }
+    }
+  }
   regfree(&primary_key_regex);
   regfree(&constraint_regex);
   regfree(&index_regex);
   regfree(&engine_regex);
   regfree(&table_name_regex);
+  regfree(&column_regex);
 }
 
 /**
