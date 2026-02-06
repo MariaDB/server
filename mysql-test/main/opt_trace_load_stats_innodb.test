@@ -433,6 +433,30 @@ let $table_update_query=delete from t1;
 
 drop table t1;
 
+--echo #
+--echo # Index-Merge query on a single table having 2 indexes with overlapping keys
+--echo #
+
+set optimizer_replay_context="";
+
+create table t1 (
+    a int,
+    b int,
+    c int,
+    index idx_ab(a, b),
+    index idx_ac(a, c)
+) ENGINE=InnoDB;
+
+insert into t1 select seq%2, seq%3, seq%5 from seq_1_to_20;
+
+let $explain_query=explain format=json select * from t1 where a=1 and b=1 and c=1;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+drop table t1;
+
 drop function round_cost;
 
 drop database db1;

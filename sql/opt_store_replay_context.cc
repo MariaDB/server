@@ -29,6 +29,8 @@
 #include "sql_json_lib.h"
 #include "opt_histogram_json.h"
 
+using namespace json_reader;
+
 /**
   @file
 
@@ -126,6 +128,18 @@ public:
 };
 
 /*
+   A record to hold one records_in_range() call:
+*/
+class records_in_range_call_record : public Sql_alloc
+{
+public:
+  uint keynr;
+  char *min_key;
+  char *max_key;
+  ha_rows records;
+};
+
+/*
    structure to store all the index range records,
    and the cost for reading indexes, pertaining to a table
 */
@@ -140,6 +154,8 @@ public:
   size_t name_len;
   List<Multi_range_read_const_call_record> mrr_list;
   List<cost_index_read_call_record> irc_list;
+  List<records_in_range_call_record> rir_list;
+  List<char> const_tbl_ins_stmt_list;
 };
 
 static char *strdup_root(MEM_ROOT *root, String *buf);
@@ -155,8 +171,11 @@ static int parse_range_context(THD *thd, json_engine_t *je, String *err_buf,
 static int parse_index_read_cost_context(THD *thd, json_engine_t *je,
                                          String *err_buf,
                                          trace_irc_context_read *irc_ctx);
-static int parse_range_cost_estimate(THD *thd, json_engine_t *je,
-                                     String *err_buf, Cost_estimate *cost);
+static bool parse_range_cost_estimate(THD *thd, json_engine_t *je,
+                                      String *err_buf, Cost_estimate *cost);
+static int parse_records_in_range_context(THD *thd, json_engine_t *je,
+                                          String *err_buf,
+                                          trace_rir_context_read *rir_ctx);
 
 struct DDL_Key
 {
@@ -277,6 +296,25 @@ static void dump_index_read_cost_to_trace(THD *thd,
   }
 }
 
+static void dump_records_in_range_to_trace(THD *thd,
+                                           trace_table_context *context)
+{
+  if (!context)
+    return;
+
+  Json_writer_array list_irc_wrapper(thd, "list_records_in_range");
+  List_iterator rir_li(context->rir_list);
+
+  while (records_in_range_call_record *rir= rir_li++)
+  {
+    Json_writer_object rir_wrapper(thd);
+    rir_wrapper.add("key_number", rir->keynr);
+    rir_wrapper.add("min_key", rir->min_key);
+    rir_wrapper.add("max_key", rir->max_key);
+    rir_wrapper.add("num_records", rir->records);
+  }
+}
+
 static void dump_index_stats_to_trace(THD *thd, uchar *tbl_name,
                                       size_t tbl_name_len)
 {
@@ -288,6 +326,7 @@ static void dump_index_stats_to_trace(THD *thd, uchar *tbl_name,
 
   dump_range_stats_to_trace(thd, table_context);
   dump_index_read_cost_to_trace(thd, table_context);
+  dump_records_in_range_to_trace(thd, table_context);
 }
 
 /*
@@ -451,6 +490,18 @@ bool store_tables_context_in_trace(THD *thd)
 
     if (!tbl->is_view())
     {
+      trace_table_context *table_context= thd->opt_ctx_recorder->search(
+          (uchar *) ddl_key->name, ddl_key->name_len);
+      if (table_context)
+      {
+        Json_writer_array inserts_wrapper(thd, "const_table_inserts");
+        List_iterator inserts_li(table_context->const_tbl_ins_stmt_list);
+        while (char *stmt= inserts_li++)
+        {
+          inserts_wrapper.add(stmt, strlen(stmt));
+        }
+        inserts_wrapper.end();
+      }
       dump_table_stats_to_trace(thd, tbl, (uchar *) ddl_key->name,
                                 ddl_key->name_len, ctx_wrapper);
     }
@@ -617,6 +668,63 @@ const uchar *Optimizer_context_recorder::get_tbl_trace_ctx_key(
   return reinterpret_cast<const uchar *>(entry->name);
 }
 
+void Optimizer_context_recorder::record_records_in_range(
+    MEM_ROOT *mem_root, const TABLE *tbl, const KEY_PART_INFO *key_part,
+    uint keynr, const key_range *min_range, const key_range *max_range,
+    ha_rows records)
+{
+  records_in_range_call_record *rec_in_range_ctx=
+      new (mem_root) records_in_range_call_record;
+
+  if (unlikely(!rec_in_range_ctx))
+    return; // OOM
+
+  rec_in_range_ctx->keynr= keynr;
+  String min_key;
+  String max_key;
+  print_key_value(&min_key, key_part, min_range->key, min_range->length);
+  print_key_value(&max_key, key_part, min_range->key, min_range->length);
+
+  if (!(rec_in_range_ctx->min_key=
+            strdup_root(mem_root, min_key.c_ptr_safe())))
+    return; // OOM
+
+  if (!(rec_in_range_ctx->max_key=
+            strdup_root(mem_root, max_key.c_ptr_safe())))
+    return; // OOM
+
+  rec_in_range_ctx->records= records;
+
+  trace_table_context *table_ctx=
+      get_table_context(mem_root, tbl->pos_in_table_list);
+
+  if (unlikely(!table_ctx))
+    return; // OOM
+
+  table_ctx->rir_list.push_back(rec_in_range_ctx, mem_root);
+}
+
+void Optimizer_context_recorder::record_const_table_row(MEM_ROOT *mem_root,
+                                                        TABLE *tbl)
+{
+  StringBuffer<512> output;
+  output.append(STRING_WITH_LEN("REPLACE INTO "));
+  store_full_table_name(tbl->pos_in_table_list, &output);
+  format_and_store_row(tbl, tbl->record[1], true, " VALUES ", false, output);
+  trace_table_context *table_ctx=
+      get_table_context(mem_root, tbl->pos_in_table_list);
+
+  if (unlikely(!table_ctx))
+    return; // OOM
+
+  char *ins_stmt= strdup_root(mem_root, output.c_ptr_safe());
+
+  if (unlikely(!ins_stmt))
+    return; // OOM
+
+  table_ctx->const_tbl_ins_stmt_list.push_back(ins_stmt, mem_root);
+}
+
 static char *strdup_root(MEM_ROOT *root, String *buf)
 {
   return strdup_root(root, buf->c_ptr_safe());
@@ -715,6 +823,19 @@ public:
 
 /*
   This class is used to store the in-memory representation of
+  one records_in_range call cost i.e. read from json
+*/
+class trace_rir_context_read : public Sql_alloc
+{
+public:
+  uint keynr;
+  char *min_key;
+  char *max_key;
+  ha_rows records;
+};
+
+/*
+  This class is used to store the in-memory representation of
   a table context i.e. read from json.
   A list of index contexts, and range contexts are stored separately.
 */
@@ -733,6 +854,7 @@ public:
   List<trace_index_context_read> index_list;
   List<trace_range_context_read> ranges_list;
   List<trace_irc_context_read> irc_list;
+  List<trace_rir_context_read> rir_list;
 };
 
 /*
@@ -787,8 +909,8 @@ private:
   int after_read(int rc) { return rc > 0; }
 
 public:
-  int read_value(json_engine_t *je, const char *value_name,
-                 String *err_buf) override
+  bool read_value(json_engine_t *je, const char *value_name,
+                  String *err_buf) override
   {
     int rc= before_read(je, value_name, err_buf);
     if (rc <= 0)
@@ -810,8 +932,8 @@ public:
       : thd(thd_arg), ptr(ptr_arg)
   {
   }
-  int read_value(json_engine_t *je, const char *value_name,
-                 String *err_buf) override
+  bool read_value(json_engine_t *je, const char *value_name,
+                  String *err_buf) override
   {
     return parse_range_cost_estimate(thd, je, err_buf, ptr);
   }
@@ -831,6 +953,7 @@ public:
   {
     while (je->state != JST_ARRAY_END)
     {
+      using json_reader::read_ha_rows_and_check_limit;
       ha_rows temp_value;
       if (read_ha_rows_and_check_limit(je, "rec_per_key", err_buf, temp_value,
                                        ULONGLONG_MAX, "unsigned longlong",
@@ -973,7 +1096,7 @@ static int parse_context_obj_from_json_array(json_engine_t *je,
   if (int rc= parse_check_obj_start_in_array(je, err_buf, err_msg))
     return rc;
 
-  return read_all_elements(je, array, err_buf);
+  return json_read_object(je, array, err_buf);
 }
 
 /*
@@ -1013,6 +1136,10 @@ static int parse_table_context(THD *thd, json_engine_t *je, String *err_buf,
       {"list_index_read_costs",
        Read_list_of_context<trace_irc_context_read>(
            thd, &table_ctx->irc_list, parse_index_read_cost_context),
+       true},
+      {"list_records_in_range",
+       Read_list_of_context<trace_rir_context_read>(
+           thd, &table_ctx->rir_list, parse_records_in_range_context),
        true},
       {NULL, Read_double(NULL), true}};
 
@@ -1095,8 +1222,8 @@ static int parse_range_context(THD *thd, json_engine_t *je, String *err_buf,
     1  Parse Error
    -1  EOF
 */
-static int parse_range_cost_estimate(THD *thd, json_engine_t *je,
-                                     String *err_buf, Cost_estimate *cost)
+static bool parse_range_cost_estimate(THD *thd, json_engine_t *je,
+                                      String *err_buf, Cost_estimate *cost)
 {
   if (json_scan_next(je) || je->state != JST_OBJ_START)
   {
@@ -1118,7 +1245,7 @@ static int parse_range_cost_estimate(THD *thd, json_engine_t *je,
       {"row_cost_cpu", Read_double(&cost->row_cost.cpu), false},
       {NULL, Read_double(NULL), true}};
 
-  return read_all_elements(je, array, err_buf);
+  return json_read_object(je, array, err_buf);
 }
 
 /*
@@ -1164,11 +1291,41 @@ static int parse_index_read_cost_context(THD *thd, json_engine_t *je,
   return parse_context_obj_from_json_array(je, err_buf, err_msg, array);
 }
 
-Optimizer_context_replay::Optimizer_context_replay(THD *thd)
+/*
+  Parses the cost information for reading records_in_range
+  JSON structure of the optimizer context.
+  To be specific, single array element of list_records_in_range
+  is parsed in this method.
+  Refer to the file opt_context_schema.inc, and
+  the description at the start of this file.
+
+  @return
+    0  OK
+    1  Parse Error
+   -1  EOF
+*/
+static int parse_records_in_range_context(THD *thd, json_engine_t *je,
+                                          String *err_buf,
+                                          trace_rir_context_read *rir_ctx)
 {
-  this->thd= thd;
-  this->db_name= NULL;
-  this->parse();
+  const char *err_msg= "Expected an object in the records_in_range array";
+
+  Read_named_member array[]= {
+      {"key_number", Read_non_neg_integer<uint, UINT_MAX>(&rir_ctx->keynr),
+       false},
+      {"min_key", Read_string(thd, &rir_ctx->min_key), false},
+      {"max_key", Read_string(thd, &rir_ctx->max_key), false},
+      {"num_records",
+       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&rir_ctx->records), false},
+      {NULL, Read_double(NULL), true}};
+
+  return parse_context_obj_from_json_array(je, err_buf, err_msg, array);
+}
+
+Optimizer_context_replay::Optimizer_context_replay(THD *thd_arg)
+    : thd(thd_arg), db_name(nullptr)
+{
+  parse(); // TODO: error handling?
 }
 
 /*
@@ -1187,16 +1344,13 @@ bool Optimizer_context_replay::infuse_read_cost(const TABLE *tbl,
 
   String tbl_name;
   store_full_table_name(tbl->pos_in_table_list, &tbl_name);
-  List_iterator<trace_table_context_read> table_itr(this->ctx_list);
 
-  while (trace_table_context_read *tbl_ctx= table_itr++)
+  if (trace_table_context_read *tbl_ctx=
+          find_trace_read_context(tbl_name.c_ptr_safe()))
   {
-    if (strcmp(tbl_name.c_ptr_safe(), tbl_ctx->name) == 0)
-    {
-      cost->io= tbl_ctx->read_cost_io;
-      cost->cpu= tbl_ctx->read_cost_cpu;
-      return false;
-    }
+    cost->io= tbl_ctx->read_cost_io;
+    cost->cpu= tbl_ctx->read_cost_cpu;
+    return false;
   }
 
   push_warning_printf(
@@ -1319,21 +1473,18 @@ bool Optimizer_context_replay::infuse_index_read_cost(const TABLE *tbl,
 
   String tbl_name;
   store_full_table_name(tbl->pos_in_table_list, &tbl_name);
-  List_iterator<trace_table_context_read> table_itr(this->ctx_list);
 
-  while (trace_table_context_read *tbl_ctx= table_itr++)
+  if (trace_table_context_read *tbl_ctx=
+          find_trace_read_context(tbl_name.c_ptr_safe()))
   {
-    if (strcmp(tbl_name.c_ptr_safe(), tbl_ctx->name) == 0)
+    List_iterator<trace_irc_context_read> irc_itr(tbl_ctx->irc_list);
+    while (trace_irc_context_read *irc_ctx= irc_itr++)
     {
-      List_iterator<trace_irc_context_read> irc_itr(tbl_ctx->irc_list);
-      while (trace_irc_context_read *irc_ctx= irc_itr++)
+      if (irc_ctx->key == keynr && irc_ctx->records == records &&
+          irc_ctx->eq_ref == eq_ref)
       {
-        if (irc_ctx->key == keynr && irc_ctx->records == records &&
-            irc_ctx->eq_ref == eq_ref)
-        {
-          *cost= irc_ctx->cost;
-          return false;
-        }
+        *cost= irc_ctx->cost;
+        return false;
       }
     }
   }
@@ -1371,7 +1522,7 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
   saved_ts->table= table;
   saved_ts->original_rows= table->used_stat_records;
 
-  if (saved_tablestats_list.push_back(saved_ts))
+  if (saved_table_stats.push_back(saved_ts))
     return;
 
   ha_rows temp_rows;
@@ -1433,23 +1584,70 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
   }
 }
 
+bool Optimizer_context_replay::infuse_records_in_range(
+    const TABLE *tbl, const KEY_PART_INFO *key_part, uint keynr,
+    const key_range *min_range, const key_range *max_range, ha_rows *records)
+{
+  if (!has_records() || !is_base_table(tbl->pos_in_table_list))
+    return true;
+
+  String min_key;
+  String max_key;
+  String tbl_name;
+  print_key_value(&min_key, key_part, min_range->key, min_range->length);
+  print_key_value(&max_key, key_part, min_range->key, min_range->length);
+  store_full_table_name(tbl->pos_in_table_list, &tbl_name);
+
+  if (trace_table_context_read *tbl_ctx=
+          find_trace_read_context(tbl_name.c_ptr_safe()))
+  {
+    List_iterator<trace_rir_context_read> rir_itr(tbl_ctx->rir_list);
+    while (trace_rir_context_read *rir_ctx= rir_itr++)
+    {
+      if (rir_ctx->keynr == keynr &&
+          strcmp(rir_ctx->min_key, min_key.c_ptr_safe()) == 0 &&
+          strcmp(rir_ctx->max_key, max_key.c_ptr_safe()) == 0)
+      {
+        *records= rir_ctx->records;
+        return false;
+      }
+    }
+  }
+
+  String warn_msg;
+  warn_msg.append(tbl_name);
+  warn_msg.append(STRING_WITH_LEN(" with key_number:"));
+  warn_msg.append(keynr);
+  warn_msg.append(STRING_WITH_LEN(" with min_key:"));
+  warn_msg.append(min_key);
+  warn_msg.append(STRING_WITH_LEN(" with max_key:"));
+  warn_msg.append(max_key);
+  push_warning_printf(
+      thd, Sql_condition::WARN_LEVEL_WARN,
+      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
+      warn_msg.c_ptr_safe(), "list_records_in_range");
+  return true;
+}
+
 /*
   @brief
     restore the saved stats for the tables, and indexes that were
-    earlier recorded using set_table_stats_from_context()
+    earlier recorded using infuse_table_stats()
 */
 void Optimizer_context_replay::restore_modified_table_stats()
 {
-  List_iterator<Saved_Table_stats> table_li(saved_tablestats_list);
+  List_iterator<Saved_Table_stats> table_li(saved_table_stats);
   while (Saved_Table_stats *saved_ts= table_li++)
   {
     saved_ts->table->used_stat_records= saved_ts->original_rows;
     List_iterator<Saved_Index_stats> index_li(saved_ts->saved_indexstats_list);
     while (Saved_Index_stats *saved_is= index_li++)
     {
-      saved_is->key_info->is_statistics_from_stat_tables=
+      KEY *key= saved_is->key_info;
+      key->is_statistics_from_stat_tables=
           saved_is->original_is_statistics_from_stat_tables;
-      saved_is->key_info->read_stats= saved_is->original_read_stats;
+      key->read_stats= saved_is->original_read_stats;
     }
   }
 }
@@ -1483,10 +1681,10 @@ bool Optimizer_context_replay::parse()
   LEX_CSTRING varname= {var_name, strlen(var_name)};
 
   Read_named_member array[]= {
-      {"current_database", Read_string(this->thd, &this->db_name), false},
+      {"current_database", Read_string(thd, &db_name), false},
       {"list_contexts",
-       Read_list_of_context<trace_table_context_read>(
-           this->thd, &this->ctx_list, parse_table_context),
+       Read_list_of_context<trace_table_context_read>(thd, &ctx_list,
+                                                      parse_table_context),
        false},
       {NULL, Read_double(NULL), true}};
 
@@ -1524,7 +1722,7 @@ bool Optimizer_context_replay::parse()
     goto err;
   }
 
-  if (read_all_elements(&je, array, &err_buf))
+  if (json_read_object(&je, array, &err_buf))
     goto err;
 
 #ifndef DBUG_OFF
@@ -1548,8 +1746,8 @@ void Optimizer_context_replay::dbug_print_read_stats()
 {
   DBUG_ENTER("Optimizer_context_replay::print()");
   DBUG_PRINT("info", ("----------Printing Stored Context-------------"));
-  DBUG_PRINT("info", ("current_database : %s", this->db_name));
-  List_iterator<trace_table_context_read> table_itr(this->ctx_list);
+  DBUG_PRINT("info", ("current_database : %s", db_name));
+  List_iterator<trace_table_context_read> table_itr(ctx_list);
 
   while (trace_table_context_read *tbl_ctx= table_itr++)
   {
@@ -1656,15 +1854,12 @@ bool Optimizer_context_replay::infuse_table_rows(const TABLE *tbl,
 
   String tbl_name;
   store_full_table_name(tbl->pos_in_table_list, &tbl_name);
-  List_iterator<trace_table_context_read> table_itr(this->ctx_list);
 
-  while (trace_table_context_read *tbl_ctx= table_itr++)
+  if (trace_table_context_read *tbl_ctx=
+          find_trace_read_context(tbl_name.c_ptr_safe()))
   {
-    if (strcmp(tbl_name.c_ptr_safe(), tbl_ctx->name) == 0)
-    {
-      *rows= tbl_ctx->total_rows;
-      return false;
-    }
+    *rows= tbl_ctx->total_rows;
+    return false;
   }
 
   push_warning_printf(
@@ -1689,19 +1884,16 @@ Optimizer_context_replay::get_index_rec_per_key_list(const TABLE *tbl,
 
   String tbl_name;
   store_full_table_name(tbl->pos_in_table_list, &tbl_name);
-  List_iterator<trace_table_context_read> table_itr(this->ctx_list);
 
-  while (trace_table_context_read *tbl_ctx= table_itr++)
+  if (trace_table_context_read *tbl_ctx=
+          find_trace_read_context(tbl_name.c_ptr_safe()))
   {
-    if (strcmp(tbl_name.c_ptr_safe(), tbl_ctx->name) == 0)
+    List_iterator<trace_index_context_read> index_itr(tbl_ctx->index_list);
+    while (trace_index_context_read *idx_ctx= index_itr++)
     {
-      List_iterator<trace_index_context_read> index_itr(tbl_ctx->index_list);
-      while (trace_index_context_read *idx_ctx= index_itr++)
+      if (strcmp(idx_name, idx_ctx->idx_name) == 0)
       {
-        if (strcmp(idx_name, idx_ctx->idx_name) == 0)
-        {
-          return &idx_ctx->list_rec_per_key;
-        }
+        return &idx_ctx->list_rec_per_key;
       }
     }
   }
@@ -1733,20 +1925,17 @@ void Optimizer_context_replay::store_range_contexts(
 
   String tbl_name;
   store_full_table_name(tbl->pos_in_table_list, &tbl_name);
-  List_iterator<trace_table_context_read> table_itr(this->ctx_list);
 
-  while (trace_table_context_read *tbl_ctx= table_itr++)
+  if (trace_table_context_read *tbl_ctx=
+          find_trace_read_context(tbl_name.c_ptr_safe()))
   {
-    if (strcmp(tbl_name.c_ptr_safe(), tbl_ctx->name) == 0)
+    List_iterator<trace_range_context_read> range_ctx_itr(
+        tbl_ctx->ranges_list);
+    while (trace_range_context_read *range_ctx= range_ctx_itr++)
     {
-      List_iterator<trace_range_context_read> range_ctx_itr(
-          tbl_ctx->ranges_list);
-      while (trace_range_context_read *range_ctx= range_ctx_itr++)
+      if (strcmp(idx_name, range_ctx->index_name) == 0)
       {
-        if (strcmp(idx_name, range_ctx->index_name) == 0)
-        {
-          list->push_back(range_ctx);
-        }
+        list->push_back(range_ctx);
       }
     }
   }
@@ -1763,4 +1952,17 @@ void Optimizer_context_replay::store_range_contexts(
         ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
         name.c_ptr_safe(), "list of range contexts");
   }
+}
+
+trace_table_context_read *
+Optimizer_context_replay::find_trace_read_context(const char *name)
+{
+  List_iterator<trace_table_context_read> table_itr(ctx_list);
+
+  while (trace_table_context_read *tbl_ctx= table_itr++)
+  {
+    if (strcmp(name, tbl_ctx->name) == 0)
+      return tbl_ctx;
+  }
+  return nullptr;
 }
