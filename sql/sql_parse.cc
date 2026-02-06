@@ -994,7 +994,7 @@ int bootstrap(MYSQL_FILE *file)
   thd->bootstrap=1;
   my_net_init(&thd->net,(st_vio*) 0, thd, MYF(0));
   thd->max_client_packet_length= thd->net.max_packet;
-  thd->security_ctx->master_access= ALL_KNOWN_ACL;
+  thd->security_ctx->master_access= access_t(ALL_KNOWN_ACL);
 
 #ifndef EMBEDDED_LIBRARY
   mysql_thread_set_psi_id(thd->thread_id);
@@ -5296,7 +5296,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
     /* Conditionally writes to binlog */
-    if (!(res = mysql_revoke_all(thd, lex->users_list)))
+    if (!(res = mysql_revoke_all(thd, lex->users_list,false)))
       my_ok(thd);
     break;
   }

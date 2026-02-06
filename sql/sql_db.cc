@@ -60,7 +60,7 @@ static bool find_db_tables_and_rm_known_files(THD *, MY_DIR *,
 
 long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path);
 my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error);
-static void mysql_change_db_impl(THD *, LEX_CSTRING *, privilege_t,
+static void mysql_change_db_impl(THD *, LEX_CSTRING *, const access_t&,
                                  CHARSET_INFO *);
 static bool mysql_rm_db_internal(THD *thd, const Lex_ident_db &db,
                                  bool if_exists, bool silent);
@@ -1563,8 +1563,14 @@ err:
   @param new_db_charset Character set of the new database.
 */
 
+<<<<<<< HEAD
 static void mysql_change_db_impl(THD *thd, LEX_CSTRING *new_db_name,
                                  privilege_t new_db_access,
+=======
+static void mysql_change_db_impl(THD *thd,
+                                 LEX_CSTRING *new_db_name,
+                                 const access_t& new_db_access,
+>>>>>>> 1ff78dc5b87 (WIP)
                                  CHARSET_INFO *new_db_charset)
 {
   /* 1. Change current database in THD. */
@@ -1713,7 +1719,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
   LEX_CSTRING new_db_file_name;
 
   Security_context *sctx= thd->security_ctx;
-  privilege_t db_access(sctx->db_access);
+  access_t db_access(sctx->db_access);
   CHARSET_INFO *db_default_cl;
   DBUG_ENTER("mysql_change_db");
 
@@ -1781,7 +1787,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (test_all_bits(sctx->master_access, DB_ACLS))
   {
-    db_access= DB_ACLS;
+    db_access= access_t(DB_ACLS);
   }
   else
   {

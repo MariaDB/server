@@ -77,7 +77,7 @@ bool hostname_requires_resolving(const char *hostname);
 bool  acl_init(bool dont_read_acl_tables);
 bool acl_reload(THD *thd);
 void acl_free(bool end=0);
-privilege_t acl_get_all3(Security_context *sctx, const char *db,
+access_t acl_get_all3(Security_context *sctx, const char *db,
                          bool db_is_patern);
 bool acl_authenticate(THD *thd, uint com_change_user_pkt_len);
 bool acl_getroot(Security_context *sctx,
@@ -90,10 +90,10 @@ bool change_password(THD *thd, LEX_USER *user);
 bool mysql_grant_role(THD *thd, List<LEX_USER> &user_list, bool revoke);
 int mysql_table_grant(THD *thd, TABLE_LIST *table, List <LEX_USER> &user_list,
                        List <LEX_COLUMN> &column_list, privilege_t rights,
-                       bool revoke);
+                       bool revoke, bool is_deny);
 bool mysql_routine_grant(THD *thd, TABLE_LIST *table, const Sp_handler *sph,
                          List <LEX_USER> &user_list, privilege_t rights,
-                         bool revoke, bool write_to_binlog);
+                         bool revoke,  bool write_to_binlog, bool deny);
 bool grant_init();
 void grant_free(void);
 bool grant_reload(THD *thd);
@@ -134,7 +134,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role);
 bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role);
 bool mysql_rename_user(THD *thd, List <LEX_USER> &list);
 int mysql_alter_user(THD *thd, List <LEX_USER> &list);
-bool mysql_revoke_all(THD *thd, List <LEX_USER> &list);
+bool mysql_revoke_all(THD *thd, List <LEX_USER> &list, bool denies);
 void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
                                      const char *db, const char *table);
 bool sp_revoke_privileges(THD *thd,
@@ -284,10 +284,10 @@ bool acl_check_proxy_grant_access (THD *thd,
                                    const LEX_CSTRING &user,
                                    bool with_grant);
 int acl_setauthorization(THD *thd, const LEX_USER *user);
-int acl_setrole(THD *thd, const LEX_CSTRING &rolename, privilege_t access);
+int acl_setrole(THD *thd, const LEX_CSTRING &rolename, const access_t& access);
 int acl_check_setrole(THD *thd,
                       const LEX_CSTRING &rolename,
-                      privilege_t *access);
+                      access_t *access);
 int acl_check_set_default_role(THD *thd,
                                const LEX_CSTRING &host,
                                const LEX_CSTRING &user,

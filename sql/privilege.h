@@ -105,31 +105,65 @@ class access_t
   };
 
 private:
-  privilege_t m_allow;
-  privilege_t m_deny;
+  privilege_t m_allow_bits;
+  privilege_t m_deny_bits;
 public:
-  access_t(privilege_t allow, privilege_t deny): m_allow(allow), m_deny(deny)
+  access_t() {};
+  access_t(privilege_t allow, privilege_t deny=NO_ACL): m_allow_bits(allow), m_deny_bits(deny)
   {
   }
-  static access_t combine (const access_t &a, const access_t &b)
+  bool is_empty() const
   {
-    return access_t((privilege_t)(a.m_allow | b.m_allow), (privilege_t)(a.m_deny | b.m_deny));
+    return m_allow_bits == NO_ACL && m_deny_bits == NO_ACL;
   }
+  access_t& operator=(const privilege_t &)= delete;
+  access_t& operator |= (const access_t &other)
+  {
+    m_allow_bits= privilege_t(m_allow_bits| other.m_allow_bits);
+    m_deny_bits= privilege_t(m_deny_bits | other.m_deny_bits);
+    return *this;
+  }
+
+  access_t intersect(const access_t &other) const
+  {
+    return access_t((privilege_t) (m_allow_bits & other.m_allow_bits),
+                    (privilege_t) (m_deny_bits | other.m_deny_bits));
+  }
+  access_t combine(const access_t &other) const
+  {
+    return access_t((privilege_t) (m_allow_bits | other.m_allow_bits),
+                    (privilege_t) (m_deny_bits | other.m_deny_bits));
+  }
+  friend bool operator==(const access_t &x, const access_t &y)
+  {
+    return x.m_allow_bits == y.m_allow_bits && x.m_deny_bits == y.m_deny_bits;
+  }
+  friend bool operator!=(const access_t &x, const access_t &y) { return !(x == y); }
+
+  privilege_t effective_allowed() const
+  {
+    return (privilege_t)(m_allow_bits & ~m_deny_bits);
+  }
+  operator privilege_t() const
+  {
+    return effective_allowed();
+  }
+
   status_t check(privilege_t priv) const
   {
-    if (m_deny & priv)
+    if (m_deny_bits & priv)
       return DENY;
-    if ((m_allow & priv) == priv)
+    if ((m_allow_bits & priv) == priv)
       return ALLOW;
     return UNDEFINED;
   }
-  privilege_t allowed() const
+  privilege_t allow_bits() const
   {
-    return m_allow;
+    return m_allow_bits;
   }
-  privilege_t denied() const
+  privilege_t deny_bits() const
   {
-    return m_deny;
+    return m_deny_bits;
   }
 };
 

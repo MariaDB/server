@@ -16,7 +16,7 @@ GRANT SELECT on test.* to PUBLIC;
 GRANT SELECT on mysql.db to PUBLIC;
 select * from mysql.global_priv where user="PUBLIC" ;
 Host	User	Priv
-	PUBLIC	{"access":0,"version_id":VERSION,"is_role":true}
+	PUBLIC	{"access":0,"deny":0,"version_id":VERSION,"is_role":true}
 SHOW GRANTS FOR PUBLIC;
 Grants for PUBLIC
 GRANT SELECT ON `test`.* TO PUBLIC

@@ -143,7 +143,7 @@ static inline bool is_public(const LEX_USER *l) { return is_public(&l->user); }
 class ACL_ACCESS {
 public:
   ulonglong sort;
-  privilege_t access;
+  access_t access;
   ACL_ACCESS()
    :sort(0), access(NO_ACL)
   { }
@@ -228,7 +228,7 @@ class ACL_USER :public ACL_USER_BASE, public ACL_USER_PARAM
 {
 public:
   ACL_USER() = default;
-  ACL_USER(THD *, const LEX_USER &, const Account_options &, const privilege_t);
+  ACL_USER(THD *, const LEX_USER &, const Account_options &);
 
   ACL_USER *copy(MEM_ROOT *root)
   {
@@ -304,7 +304,7 @@ public:
     the ACL_USER::access field needs to be reset first. The field
     initial_role_access holds initial grants, as granted directly to the role
   */
-  privilege_t initial_role_access;
+  access_t initial_role_access;
   /*
     In subgraph traversal, when we need to traverse only a part of the graph
     (e.g. all direct and indirect grantees of a role X), the counter holds the
@@ -315,7 +315,7 @@ public:
   DYNAMIC_ARRAY parent_grantee; // array of backlinks to elements granted
 
   ACL_ROLE(ACL_USER *user);
-  ACL_ROLE(const char *rolename, privilege_t privileges, MEM_ROOT *mem);
+  ACL_ROLE(const char *rolename, const access_t& privileges, MEM_ROOT *mem);
 
 };
 
@@ -325,7 +325,7 @@ public:
   ACL_DB() :initial_access(NO_ACL) { }
   acl_host_and_ip host;
   const char *user,*db;
-  privilege_t initial_access; /* access bits present in the table */
+  access_t initial_access; /* access bits present in the table, populated with denies */
 
   const char *get_username() { return user; }
 };
@@ -355,9 +355,9 @@ static int show_routine_grants(THD *, const char *, const char *,
 
 static ACL_ROLE *acl_public= NULL;
 
-inline privilege_t public_access()
+inline access_t public_access()
 {
-  return (acl_public ? acl_public->access : NO_ACL);
+  return (acl_public ? acl_public->access : access_t(NO_ACL));
 }
 
 class Grant_tables;
@@ -575,7 +575,7 @@ public:
 class acl_entry :public hash_filo_element
 {
 public:
-  privilege_t access;
+  access_t access;
   uint16 length;
   char key[1];					// Key will be stored here
 };
@@ -873,7 +873,7 @@ class Grant_table_base
   /* Return the underlying TABLE handle. */
   TABLE* table() const { return m_table; }
 
-  privilege_t get_access() const
+  privilege_t get_access_allow_bits() const
   {
     ulonglong access_bits= 0, bit= 1;
     for (uint i = start_priv_columns; i < end_priv_columns; i++, bit<<=1)
@@ -950,8 +950,8 @@ class User_table: public Grant_table_base
   virtual LEX_CSTRING& name() const = 0;
   virtual int get_auth(THD *, MEM_ROOT *, ACL_USER *u) const= 0;
   virtual bool set_auth(const ACL_USER &u) const = 0;
-  virtual privilege_t get_access() const = 0;
-  virtual void set_access(const privilege_t rights, bool revoke) const = 0;
+  virtual access_t get_access() const = 0;
+  virtual void set_access(const privilege_t rights, bool revoke, bool is_deny) const = 0;
 
   char *get_host(MEM_ROOT *root) const
   { return ::get_field(root, m_table->field[0]); }
@@ -1070,9 +1070,9 @@ class User_table_tabular: public User_table
     return 0;
   }
 
-  privilege_t get_access() const override
+  access_t get_access() const override
   {
-    privilege_t access(Grant_table_base::get_access());
+    privilege_t access(Grant_table_base::get_access_allow_bits());
     if ((num_fields() <= 13) && (access & CREATE_ACL))
       access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL;
 
@@ -1129,11 +1129,13 @@ class User_table_tabular: public User_table
     if ((access & ALL_KNOWN_ACL_100304) == ALL_KNOWN_ACL_100304)
       access|= SHOW_CREATE_ROUTINE_ACL;
 
-    return access & GLOBAL_ACLS;
+    return access_t(access & GLOBAL_ACLS, NO_ACL);
   }
 
-  void set_access(const privilege_t rights, bool revoke) const override
+  void set_access(const privilege_t rights, bool revoke, bool is_deny) const override
   {
+    if (is_deny)
+      return; // not implemented for the old 'user' table
     ulonglong priv(SELECT_ACL);
     for (uint i= start_priv_columns; i < end_priv_columns; i++, priv <<= 1)
     {
@@ -1619,19 +1621,19 @@ class User_table_json: public User_table
     return access & ALL_KNOWN_ACL;
   }
 
-  privilege_t get_access() const override
+  access_t get_access() const override
   {
     ulonglong version_id= (ulonglong) get_int_value("version_id");
-    ulonglong access= (ulonglong) get_int_value("access");
-
+    ulonglong allow= (ulonglong) get_int_value("access");
+    ulonglong deny= (ulonglong) get_int_value("deny");
     /*
       Special case:
       mysql_system_tables_data.sql populates "ALL PRIVILEGES"
       for the super user this way:
             {"access":18446744073709551615}
     */
-    if (access == (ulonglong) ~0)
-      return GLOBAL_ACLS;
+    if (allow == (ulonglong) ~0)
+      return access_t(GLOBAL_ACLS, (privilege_t) deny);
 
     /*
       Reject obviously bad (negative and too large) version_id values.
@@ -1643,17 +1645,23 @@ class User_table_json: public User_table
       print_warning_bad_version_id(version_id);
       return NO_ACL;
     }
-    return adjust_access(version_id, access) & GLOBAL_ACLS;
+    allow= adjust_access(version_id, allow) & GLOBAL_ACLS;
+    deny= adjust_access(version_id, deny) & GLOBAL_ACLS;
+    return access_t(privilege_t(allow),privilege_t(deny));
   }
 
-  void set_access(const privilege_t rights, bool revoke) const override
+  void set_access(const privilege_t rights, bool revoke, bool is_deny) const override
   {
-    privilege_t access= get_access();
+    access_t acc= get_access();
+    longlong allow= acc.allow_bits();
+    longlong deny= acc.deny_bits();
+    longlong &bits= is_deny ? deny : allow;
     if (revoke)
-      access&= ~rights;
+      bits&= ~rights;
     else
-      access|= rights;
-    set_int_value("access", (longlong) (access & GLOBAL_ACLS));
+      bits|= rights;
+    set_int_value("access", allow & (longlong)GLOBAL_ACLS);
+    set_int_value("deny", deny & (longlong) GLOBAL_ACLS);
     set_int_value("version_id", (longlong) MYSQL_VERSION_ID);
   }
   const char *unsafe_str(const char *s) const
@@ -2251,7 +2259,7 @@ ACL_ROLE::ACL_ROLE(ACL_USER *user)
   flags= IS_ROLE;
 }
 
-ACL_ROLE::ACL_ROLE(const char *rolename, privilege_t privileges, MEM_ROOT *root)
+ACL_ROLE::ACL_ROLE(const char *rolename, const access_t &privileges, MEM_ROOT *root)
   : initial_role_access(privileges), counter(0)
 {
   this->access= initial_role_access;
@@ -2714,8 +2722,8 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       }
       else
         host.db= const_cast<char*>(host_not_specified.str);
-      host.access= host_table.get_access();
-      host.access= fix_rights_for_db(host.access);
+      /* There are no "deny" possible for the hosts*/
+      host.access= access_t(fix_rights_for_db(host_table.get_access_allow_bits()));
       host.sort= get_magic_sort("hd", host.host.hostname, host.db);
       if (opt_skip_name_resolve &&
           hostname_requires_resolving(host.host.hostname))
@@ -2875,8 +2883,10 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 		        db.db, db.user, safe_str(db.host.hostname));
       continue;
     }
-    db.access= db_table.get_access();
-    db.access=fix_rights_for_db(db.access);
+    privilege_t allow_bits=
+        fix_rights_for_db(db_table.get_access_allow_bits());
+    privilege_t deny_bits(NO_ACL); /* wlad DENY TODO*/
+    db.access= access_t(allow_bits, deny_bits);
     db.initial_access= db.access;
     db.sort=get_magic_sort("hdu", db.host.hostname, db.db, db.user);
 #ifndef TO_BE_REMOVED
@@ -2887,8 +2897,8 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     }
 #endif
     if (db_table.num_fields() <= 23)
-      if ((db.access | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL) == DB_ACLS)
-        db.access|= SHOW_CREATE_ROUTINE_ACL;
+      if ((db.access.allow_bits() | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL) == DB_ACLS)
+        db.access= access_t(db.access.allow_bits()|SHOW_CREATE_ROUTINE_ACL,db.access.deny_bits());
     acl_dbs.push(db);
   }
   end_read_record(&read_record_info);
@@ -3358,7 +3368,7 @@ bool acl_getroot(Security_context *sctx,
 
   mysql_mutex_lock(&acl_cache->lock);
 
-  sctx->db_access= NO_ACL;
+  sctx->db_access= access_t(NO_ACL);
 
   if (host.str[0]) // User, not Role
   {
@@ -3434,7 +3444,7 @@ static int check_user_can_set_role(THD *thd,
                                    const LEX_CSTRING &host,
                                    const LEX_CSTRING &ip,
                                    const LEX_CSTRING &rolename,
-                                   privilege_t *access)
+                                   access_t *access)
 {
   ACL_ROLE *role;
   ACL_USER_BASE *acl_user_base;
@@ -3489,7 +3499,7 @@ static int check_user_can_set_role(THD *thd,
   }
 
   if (access)
-    *access = acl_user->access | role->access;
+    *access = acl_user->access.combine(role->access);
 
 end:
   if (acl_public && access)
@@ -3555,7 +3565,7 @@ end:
 
 int acl_check_setrole(THD *thd,
                       const LEX_CSTRING &rolename,
-                      privilege_t *access)
+                      access_t *access)
 {
   if (!initialized)
   {
@@ -3571,7 +3581,7 @@ int acl_check_setrole(THD *thd,
 }
 
 
-int acl_setrole(THD *thd, const LEX_CSTRING &rolename, privilege_t access)
+int acl_setrole(THD *thd, const LEX_CSTRING &rolename, const access_t& access)
 {
   /* merge the privileges */
   Security_context *sctx= thd->security_ctx;
@@ -3600,7 +3610,7 @@ static const uchar *check_get_key(const void *buff_, size_t *length, my_bool)
 
 
 static void acl_update_role(const LEX_CSTRING &rolename,
-                            const privilege_t privileges)
+                            const access_t& privileges)
 {
   ACL_ROLE *role= find_acl_role(rolename, true);
   if (role)
@@ -3613,8 +3623,7 @@ static void acl_update_role(const LEX_CSTRING &rolename,
 
 
 ACL_USER::ACL_USER(THD *thd, const LEX_USER &combo,
-                   const Account_options &options,
-                   const privilege_t privileges)
+                   const Account_options &options)
 {
   mysql_mutex_assert_owner(&acl_cache->lock);
   user= safe_lexcstrdup_root(&acl_memroot, combo.user);
@@ -3630,7 +3639,7 @@ ACL_USER::ACL_USER(THD *thd, const LEX_USER &combo,
 static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
                            const LEX_USER &combo,
                            const Account_options &options,
-                           const privilege_t privileges)
+                           const access_t privileges)
 {
   ACL_USER_PARAM::AUTH *work_copy= NULL;
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -3733,7 +3742,7 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
 }
 
 
-static void acl_insert_role(const LEX_CSTRING &rolename, privilege_t privileges)
+static void acl_insert_role(const LEX_CSTRING &rolename, const access_t & privileges)
 {
   ACL_ROLE *entry;
   DBUG_ENTER("acl_insert_role");
@@ -3757,7 +3766,7 @@ static void acl_insert_role(const LEX_CSTRING &rolename, privilege_t privileges)
 
 
 static bool acl_update_db(const char *user, const char *host, const char *db,
-                          privilege_t privileges)
+                          const access_t& privileges)
 {
   mysql_mutex_assert_owner(&acl_cache->lock);
 
@@ -3809,7 +3818,7 @@ static bool acl_update_db(const char *user, const char *host, const char *db,
 */
 
 static void acl_insert_db(const char *user, const char *host, const char *db,
-                          const privilege_t privileges)
+                          const access_t & privileges)
 {
   ACL_DB acl_db;
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -3830,10 +3839,10 @@ static void acl_insert_db(const char *user, const char *host, const char *db,
   acl_cache is not used if db_is_pattern is set.
 */
 
-privilege_t acl_get(const char *host, const char *ip,
+access_t acl_get(const char *host, const char *ip,
                     const char *user, const char *db, my_bool db_is_pattern)
 {
-  privilege_t host_access(ALL_KNOWN_ACL), db_access(NO_ACL);
+  access_t host_access(ALL_KNOWN_ACL), db_access(NO_ACL);
   uint i;
   const char *tmp_db;
   acl_entry *entry;
@@ -3890,7 +3899,7 @@ privilege_t acl_get(const char *host, const char *ip,
   /*
     No host specified for user. Get hostdata from host table
   */
-  host_access= NO_ACL;                          // Host must be found
+  host_access= access_t(NO_ACL);                          // Host must be found
   for (i=0 ; i < acl_hosts.elements ; i++)
   {
     ACL_HOST *acl_host=dynamic_element(&acl_hosts,i,ACL_HOST*);
@@ -3910,7 +3919,7 @@ exit:
                                      sizeof(acl_entry) + key.length(),
                                      MYF(MY_WME))))
   {
-    entry->access=(db_access & host_access);
+    entry->access=db_access.intersect(host_access);
     DBUG_ASSERT(key.length() < 0xffff);
     entry->length= (uint16) key.length();
     memcpy((uchar*) entry->key, key.ptr(), key.length());
@@ -3925,10 +3934,10 @@ exit:
   Check if there is access for the host/user, role, public on the database
 */
 
-privilege_t acl_get_all3(Security_context *sctx, const char *db,
+access_t acl_get_all3(Security_context *sctx, const char *db,
                          bool db_is_patern)
 {
-  privilege_t access= acl_get(sctx->host, sctx->ip,
+  access_t access= acl_get(sctx->host, sctx->ip,
                               sctx->priv_user, db, db_is_patern);
   if (sctx->priv_role[0])
     access|= acl_get("", "", sctx->priv_role, db, db_is_patern);
@@ -4875,10 +4884,11 @@ static bool test_if_create_new_users(THD *thd)
 static USER_AUTH auth_no_password;
 
 static int replace_user_table(THD *thd, const User_table &user_table,
-                              LEX_USER * const combo, privilege_t rights,
+                              LEX_USER * const combo, const privilege_t rights,
                               const bool revoke_grant,
                               const bool can_create_user,
-                              const bool no_auto_create)
+                              const bool no_auto_create,
+                              bool is_deny)
 {
   int error = -1;
   uint nauth= 0;
@@ -4888,6 +4898,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   LEX *lex= thd->lex;
   TABLE *table= user_table.table();
   ACL_USER new_acl_user, *old_acl_user= 0;
+  access_t access;
   DBUG_ENTER("replace_user_table");
 
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -4964,8 +4975,8 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   }
 
   /* Update table columns with new privileges */
-  user_table.set_access(rights, revoke_grant);
-  rights= user_table.get_access();
+  user_table.set_access(rights, revoke_grant, is_deny);
+  access = user_table.get_access();
 
   if (handle_as_role)
   {
@@ -4991,9 +5002,9 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       goto end;
     }
     new_acl_user= old_row_exists ? *old_acl_user :
-                  ACL_USER(thd, *combo, lex->account_options, rights);
+                  ACL_USER(thd, *combo, lex->account_options);
     if (acl_user_update(thd, &new_acl_user, nauth,
-                        *combo, lex->account_options, rights))
+                        *combo, lex->account_options, access))
       goto end;
 
     if (user_table.set_auth(new_acl_user))
@@ -5101,9 +5112,9 @@ end:
     if (handle_as_role)
     {
       if (old_row_exists)
-        acl_update_role(combo->user, rights);
+        acl_update_role(combo->user, access);
       else
-        acl_insert_role(combo->user, rights);
+        acl_insert_role(combo->user, access);
     }
     else
     {
@@ -5135,17 +5146,20 @@ end:
 
 static int replace_db_table(TABLE *table, const char *db,
 			    const LEX_USER &combo,
-			    privilege_t rights, const bool revoke_grant)
+			    const privilege_t rights, const bool revoke_grant, const bool is_deny)
 {
   uint i;
   ulonglong priv;
   privilege_t store_rights(NO_ACL);
+  privilege_t allow_bits(NO_ACL);
+  access_t access(NO_ACL);
   bool old_row_exists=0;
   int error;
   char what= revoke_grant ? 'N' : 'Y';
   uchar user_key[MAX_KEY_LENGTH];
   DBUG_ENTER("replace_db_table");
 
+  DBUG_ASSERT(!is_deny);
   /* Check if there is such a user in user table in memory? */
   if (!find_user_wild(combo.host, combo.user))
   {
@@ -5196,16 +5210,16 @@ static int replace_db_table(TABLE *table, const char *db,
     if (priv & store_rights)			// do it if priv is chosen
       table->field [i]->store(&what,1, &my_charset_latin1);// set requested privileges
   }
-  rights=get_access(table,3);
-  rights=fix_rights_for_db(rights);
+  allow_bits=get_access(table,3);
+  allow_bits=fix_rights_for_db(allow_bits);
   if (table->s->fields <= 23)
-    if ((rights | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL) == DB_ACLS)
-      rights|= SHOW_CREATE_ROUTINE_ACL;
+    if ((allow_bits | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL) == DB_ACLS)
+      allow_bits|= SHOW_CREATE_ROUTINE_ACL;
 
   if (old_row_exists)
   {
     /* update old existing row */
-    if (rights)
+    if (allow_bits)
     {
       if (unlikely((error= table->file->ha_update_row(table->record[1],
                                                       table->record[0]))) &&
@@ -5218,7 +5232,7 @@ static int replace_db_table(TABLE *table, const char *db,
 	goto table_error;			/* purecov: deadcode */
     }
   }
-  else if (rights &&
+  else if (allow_bits &&
            (unlikely(error= table->file->ha_write_row(table->record[0]))))
   {
     if (table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
@@ -5226,9 +5240,10 @@ static int replace_db_table(TABLE *table, const char *db,
   }
 
   acl_cache->clear(1);				// Clear privilege cache
+  access= access_t(allow_bits, NO_ACL /*Wlad - deny bits necessary */);
   if (old_row_exists)
-    acl_update_db(combo.user.str,combo.host.str,db,rights);
-  else if (rights)
+    acl_update_db(combo.user.str,combo.host.str,db,allow_bits);
+  else if (allow_bits)
   {
     /*
        If we did not have an already existing row, for users, we must always
@@ -5907,13 +5922,19 @@ static int replace_column_table(GRANT_TABLE *g_t,
 				TABLE *table, const LEX_USER &combo,
 				List <LEX_COLUMN> &columns,
 				const char *db, const char *table_name,
-				privilege_t rights, bool revoke_grant)
+				privilege_t rights, bool revoke_grant, bool is_deny)
 {
   int result=0;
   uchar key[MAX_KEY_LENGTH];
   uint key_prefix_length;
   KEY_PART_INFO *key_part= table->key_info->key_part;
   DBUG_ENTER("replace_column_table");
+  
+  if (is_deny)
+  {
+    // wlad TODO, handle this case
+    DBUG_ASSERT(0);
+  }
 
   table->use_all_columns();
   table->field[0]->store(combo.host.str,combo.host.length,
@@ -6746,7 +6767,7 @@ typedef Hash_set<ACL_ROLE> role_hash_t;
 
 static bool merge_role_global_privileges(ACL_ROLE *grantee)
 {
-  privilege_t old= grantee->access;
+  access_t old= grantee->access;
   grantee->access= grantee->initial_role_access;
 
   DBUG_EXECUTE_IF("role_merge_stats", role_global_merges++;);
@@ -6779,7 +6800,7 @@ static int db_name_sort(const void *db1_, const void *db2_)
           2 - ACL_DB was added
           4 - ACL_DB was deleted
 */
-static int update_role_db(int merged, int first, privilege_t access,
+static int update_role_db(int merged, int first, access_t access,
                           const char *role)
 {
   if (first < 0)
@@ -6797,19 +6818,18 @@ static int update_role_db(int merged, int first, privilege_t access,
       1. it'll sort elements in the acl_dbs, so the pointers will become invalid
       2. we may need many of them, no need to sort every time
     */
-    DBUG_ASSERT(access);
     ACL_DB acl_db;
     acl_db.user= role;
     acl_db.host.hostname= const_cast<char*>("");
     acl_db.host.ip= acl_db.host.ip_mask= 0;
     acl_db.db= acl_dbs.at(first).db;
     acl_db.access= access;
-    acl_db.initial_access= NO_ACL;
+    acl_db.initial_access= access_t(NO_ACL);
     acl_db.sort= get_magic_sort("hdu", "", acl_db.db, role);
     acl_dbs.push(acl_db);
     return 2;
   }
-  else if (access == NO_ACL)
+  else if (access.is_empty())
   {
     /*
       there is ACL_DB but the role has no db privileges granted
@@ -6871,7 +6891,7 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
     is not necessarily the first and may be not present at all.
   */
   int first= -1, merged= -1;
-  privilege_t access(NO_ACL);
+  access_t access(NO_ACL);
   ulong update_flags= 0;
   for (int *p= dbs.front(); p <= dbs.back(); p++)
   {
@@ -6879,7 +6899,7 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
     { // new db name series
       update_flags|= update_role_db(merged, first, access, grantee->user.str);
       merged= -1;
-      access= NO_ACL;
+      access= access_t(NO_ACL);
       first= *p;
     }
     if (strcmp(acl_dbs.at(*p).user, grantee->user.str) == 0)
@@ -7350,7 +7370,7 @@ static bool copy_and_check_auth(LEX_USER *to, LEX_USER *from, THD *thd)
 int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 		      List <LEX_USER> &user_list,
 		      List <LEX_COLUMN> &columns, privilege_t rights,
-		      bool revoke_grant)
+		      bool revoke_grant, bool is_deny)
 {
   privilege_t column_priv(NO_ACL);
   int result, res;
@@ -7361,6 +7381,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
   Lex_ident_table table_name;
   DBUG_ENTER("mysql_table_grant");
 
+  DBUG_ASSERT(!is_deny); // wlad TODO
   if (rights & ~TABLE_ACLS)
   {
     my_message(ER_ILLEGAL_GRANT_FOR_TABLE,
@@ -7478,7 +7499,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
                                NO_ACL, revoke_grant, create_new_users,
                                MY_TEST(!is_public(Str) &&
                                        (thd->variables.sql_mode &
-                                        MODE_NO_AUTO_CREATE_USER)));
+                                        MODE_NO_AUTO_CREATE_USER)),is_deny);
     if (unlikely(error))
     {
       result= TRUE;				// Remember error
@@ -7561,7 +7582,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       if (replace_column_table(grant_table, tables.columns_priv_table().table(),
                                *Str, columns,
                                db_name.str, table_name.str, rights,
-                               revoke_grant))
+                               revoke_grant,is_deny))
 	result= TRUE;
     }
     if ((res= replace_table_table(thd, grant_table,
@@ -7615,7 +7636,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
                          const Sp_handler *sph,
 			 List <LEX_USER> &user_list, privilege_t rights,
-			 bool revoke_grant, bool write_to_binlog)
+			 bool revoke_grant, bool write_to_binlog, bool is_deny)
 {
   List_iterator <LEX_USER> str_list (user_list);
   LEX_USER *Str, *tmp_Str;
@@ -7624,6 +7645,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
   const char *db_name, *table_name;
   DBUG_ENTER("mysql_routine_grant");
 
+  DBUG_ASSERT(!is_deny); // wlad TODO
   if (rights & ~PROC_ACLS)
   {
     my_message(ER_ILLEGAL_GRANT_FOR_TABLE,
@@ -7666,7 +7688,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
         replace_user_table(thd, tables.user_table(), Str,
 			   NO_ACL, revoke_grant, create_new_users,
                            !is_public(Str) && (thd->variables.sql_mode &
-                                     MODE_NO_AUTO_CREATE_USER)))
+                                             MODE_NO_AUTO_CREATE_USER),is_deny))
     {
       result= TRUE;
       continue;
@@ -7941,7 +7963,8 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       if (copy_and_check_auth(&user_combo, &user_combo, thd) ||
           replace_user_table(thd, tables.user_table(), &user_combo, NO_ACL,
                              false, create_new_user,
-                             (!is_public(&user_combo) && no_auto_create_user)))
+                             (!is_public(&user_combo) && no_auto_create_user),
+                             false))
       {
         append_user(thd, &wrong_users, &username, &hostname);
         result= 1;
@@ -8059,7 +8082,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
 
 static
 bool mysql_grant(THD *thd, LEX_CSTRING db, List <LEX_USER> &list,
-                 privilege_t rights, bool revoke_grant, bool is_proxy)
+                 privilege_t rights, bool revoke_grant, bool is_proxy, bool is_deny)
 {
   List_iterator <LEX_USER> str_list (list);
   LEX_USER *Str, *tmp_Str, *proxied_user= NULL;
@@ -8120,7 +8143,7 @@ bool mysql_grant(THD *thd, LEX_CSTRING db, List <LEX_USER> &list,
                            revoke_grant, create_new_users,
                            MY_TEST(!is_public(Str) &&
                                    (thd->variables.sql_mode &
-                                    MODE_NO_AUTO_CREATE_USER))))
+                                    MODE_NO_AUTO_CREATE_USER)), is_deny))
       result= true;
     else if (db.str)
     {
@@ -8128,7 +8151,7 @@ bool mysql_grant(THD *thd, LEX_CSTRING db, List <LEX_USER> &list,
       if (db_rights  == rights)
       {
         if (replace_db_table(tables.db_table().table(), db.str,
-                             *Str, db_rights, revoke_grant))
+                             *Str, db_rights, revoke_grant, is_deny))
           result= true;
       }
       else
@@ -9901,7 +9924,7 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
                                    char *buff, size_t buffsize)
 {
   uint counter;
-  privilege_t want_access(NO_ACL);
+  access_t want_access(NO_ACL);
   Protocol *protocol= thd->protocol;
 
   String global(buff, buffsize, system_charset_info);
@@ -9925,7 +9948,7 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
   {
     bool found=0;
     ulonglong j;
-    privilege_t test_access(want_access & ~GRANT_ACL);
+    privilege_t test_access(privilege_t(want_access & ~GRANT_ACL));
     for (counter=0, j = SELECT_ACL;j <= GLOBAL_ACLS;counter++,j <<= 1)
     {
       if (test_access & j)
@@ -11308,7 +11331,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     }
 
     if (replace_user_table(thd, tables.user_table(), user_name,
-                           NO_ACL, 0, 1, 0))
+                           NO_ACL, 0, 1, 0, false))
     {
       append_user(thd, &wrong_users, user_name);
       result= TRUE;
@@ -11708,7 +11731,7 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
     LEX_USER* lex_user= get_current_user(thd, tmp_lex_user, false);
     if (!lex_user ||
         replace_user_table(thd, tables.user_table(), lex_user, NO_ACL,
-                           false, false, true))
+                           false, false, true,false))
     {
       thd->clear_error();
       append_user(thd, &wrong_users, tmp_lex_user);
@@ -11798,7 +11821,7 @@ mysql_revoke_sp_privs(THD *thd, Grant_tables *tables, const Sp_handler *sph,
     < 0         Error. Error message not yet sent.
 */
 
-bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
+bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list, bool is_deny)
 {
   uint counter, revoked;
   int result, res;
@@ -11836,7 +11859,7 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
     }
 
     if (replace_user_table(thd, tables.user_table(), lex_user,
-                           ALL_KNOWN_ACL, 1, 0, 0))
+                           ALL_KNOWN_ACL, 1, 0, 0, is_deny))
     {
       result= -1;
       continue;
@@ -11865,7 +11888,7 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
       /* TODO(cvicentiu) refactor replace_db_table to use
          Db_table instead of TABLE directly. */
 	  if (!replace_db_table(tables.db_table().table(), acl_db->db, *lex_user,
-                                ALL_KNOWN_ACL, 1))
+                                ALL_KNOWN_ACL, 1, is_deny))
 	  {
 	    /*
 	      Don't increment counter as replace_db_table deleted the
@@ -11901,7 +11924,7 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
 	    if (replace_column_table(grant_table,
                                      tables.columns_priv_table().table(),
                                      *lex_user, columns, grant_table->db,
-                                     grant_table->tname, ALL_KNOWN_ACL, 1))
+                                     grant_table->tname, ALL_KNOWN_ACL, 1,is_deny))
               result= -1;
 
           /* TODO(cvicentiu) refactor replace_db_table to use
@@ -12212,7 +12235,7 @@ bool sp_grant_privileges(THD *thd,
   */
   thd->push_internal_handler(&error_handler);
   result= mysql_routine_grant(thd, tables, sph, user_list,
-                              DEFAULT_CREATE_PROC_ACLS, FALSE, FALSE);
+                              DEFAULT_CREATE_PROC_ACLS, FALSE, FALSE, false);
   thd->pop_internal_handler();
   DBUG_RETURN(result);
 }
@@ -12466,13 +12489,13 @@ static bool set_user_salt_if_needed(ACL_USER *, int, plugin_ref)
 { return 0; }
 bool check_grant(THD *, privilege_t, TABLE_LIST *, bool, uint, bool)
 { return 0; }
-inline privilege_t public_access()
+inline access_t public_access()
 { return NO_ACL; }
 privilege_t get_column_grant(THD *, GRANT_INFO *, const char *, const char *,
                              const Lex_ident_column &)
 { return ALL_KNOWN_ACL; }
-int acl_check_setrole(THD *, const LEX_CSTRING &, privilege_t *) { return 0; }
-int acl_setrole(THD *, const LEX_CSTRING &, privilege_t) { return 0; }
+int acl_check_setrole(THD *, const LEX_CSTRING &, access_t *) { return 0; }
+int acl_setrole(THD *, const LEX_CSTRING &, const access_t&) { return 0; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */
 
 static int set_privs_on_login(THD *thd, const ACL_USER *acl_user)
@@ -12483,11 +12506,11 @@ static int set_privs_on_login(THD *thd, const ACL_USER *acl_user)
   if (acl_user->host.hostname)
     strmake_buf(sctx->priv_host, acl_user->host.hostname);
 
-  sctx->master_access= acl_user->access | public_access();
+  sctx->master_access= acl_user->access.combine(public_access());
 
   if (acl_user->default_rolename.length)
   {
-    privilege_t access(NO_ACL);
+    access_t access;
     int result= acl_check_setrole(thd, acl_user->default_rolename, &access);
     if (!result)
       result= acl_setrole(thd, acl_user->default_rolename, access);
@@ -12621,7 +12644,7 @@ bool Sql_cmd_grant_proxy::execute(THD *thd)
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   /* Conditionally writes to binlog */
   if (mysql_grant(thd, null_clex_str/*db*/, lex->users_list, m_grant_option,
-                  is_revoke(), true/*proxy*/))
+                  is_revoke(), true/*proxy*/,m_deny))
     return true;
 
   return !is_revoke() && user_list_reset_mqh(thd, lex->users_list);
@@ -12657,7 +12680,7 @@ bool Sql_cmd_grant_table::execute_exact_table(THD *thd, TABLE_LIST *table)
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   return mysql_table_grant(thd, lex->query_tables, lex->users_list,
                            m_columns, m_object_privilege,
-                           is_revoke());
+                           is_revoke(), m_deny);
 #ifdef WITH_WSREP
 wsrep_error_label:
   return true;
@@ -12690,7 +12713,7 @@ bool Sql_cmd_grant_sp::execute(THD *thd)
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   if (mysql_routine_grant(thd, lex->query_tables, &m_sph,
                           lex->users_list, grants,
-                          is_revoke(), true))
+                          is_revoke(), true,m_deny))
     return true;
   my_ok(thd);
   return false;
@@ -12722,7 +12745,7 @@ bool Sql_cmd_grant_table::execute_table_mask(THD *thd)
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   /* Conditionally writes to binlog */
   if (mysql_grant(thd, m_db, lex->users_list, m_object_privilege,
-                  is_revoke(), false/*not proxy*/))
+                  is_revoke(), false/*not proxy*/,m_deny))
     return true;
 
   return !is_revoke() && user_list_reset_mqh(thd, lex->users_list);
@@ -13057,7 +13080,7 @@ int fill_schema_user_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
         !thd->security_ctx->is_priv_user(user, host))
       continue;
 
-    privilege_t want_access(acl_user->access);
+    access_t want_access(acl_user->access);
     if (!(want_access & GRANT_ACL))
       is_grantable= "NO";
 

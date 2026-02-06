@@ -90,6 +90,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -99,6 +100,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -108,6 +110,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -141,6 +144,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -150,6 +154,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -159,6 +164,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -178,6 +184,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -187,6 +194,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -196,6 +204,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -237,6 +246,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 1,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -246,6 +256,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -255,6 +266,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -288,6 +300,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 1025,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -297,6 +310,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -306,6 +320,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -325,6 +340,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 1025,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -334,6 +350,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -343,6 +360,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -414,6 +432,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -423,6 +442,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -432,6 +452,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -498,6 +519,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -507,6 +529,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -516,6 +539,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -535,6 +559,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -544,6 +569,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -553,6 +579,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -579,6 +606,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -588,6 +616,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -597,6 +626,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -638,6 +668,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -647,6 +678,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
@@ -656,6 +688,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "deny": 0,
     "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",

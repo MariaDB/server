@@ -1934,8 +1934,8 @@ public:
   char   *external_user;
   /* points to host if host is available, otherwise points to ip */
   const char *host_or_ip;
-  privilege_t master_access;            /* Global privileges from mysql.user */
-  privilege_t db_access;                /* Privileges for current db */
+  access_t master_access;            /* Global privileges from mysql.user */
+  access_t db_access;                /* Privileges for current db */
 
   bool password_expired;
 

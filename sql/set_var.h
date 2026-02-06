@@ -379,7 +379,7 @@ public:
 class set_var_role: public set_var_base
 {
   LEX_CSTRING role;
-  privilege_t access;
+  access_t access;
 public:
   set_var_role(LEX_CSTRING role_arg) : role(role_arg), access(NO_ACL) {}
   int check(THD *thd) override;
