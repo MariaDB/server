@@ -1608,6 +1608,14 @@ public:
   virtual void sort_string(uchar *buff,uint length)=0;
   virtual bool optimize_range(uint idx, uint part) const;
   virtual void free() {}
+
+  /*
+    Creates a copy of this field which can be added to any table, and the
+    returned field is reset to a state respective of this. That is, any
+    information which is dependent on the original table is dropped (e.g. key
+    info, auto increment, etc). The information that is retained is that which
+    defines how to store, retrieve, or compare the field.
+  */
   virtual Field *make_new_field(MEM_ROOT *root, TABLE *new_table,
                                 bool keep_type);
   virtual Field *new_key_field(MEM_ROOT *root, TABLE *new_table,

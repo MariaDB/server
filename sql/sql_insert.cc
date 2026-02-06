@@ -3132,7 +3132,15 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     (*field)->invisible= (*org_field)->invisible;
     (*field)->orig_table= copy;			// Remove connection
     (*field)->move_field_offset(adjust_ptrs);	// Point at copy->record[0]
-    (*field)->flags|= ((*org_field)->flags & LONG_UNIQUE_HASH_FIELD);
+
+    /*
+      The Field* produced by Field::make_new_field is reset to a barebones
+      state. Flags that are dependent on the original table need to be
+      restored.
+    */
+    (*field)->flags|=
+        ((*org_field)->flags & (LONG_UNIQUE_HASH_FIELD | ON_UPDATE_NOW_FLAG));
+
     (*field)->invisible= (*org_field)->invisible;
     if (memdup_vcol(client_thd, (*field)->vcol_info))
       goto error;
