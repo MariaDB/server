@@ -9,9 +9,9 @@ SET NAMES utf8mb4;
 CREATE TABLE t1 (a ASSOCIATIVE_ARRAY);
 ERROR HY000: 'associative_array' is not allowed in this context
 CREATE FUNCTION f1() RETURN ASSOCIATIVE_ARRAY RETURN 0;
-ERROR HY000: 'associative_array' is not allowed in this context
+ERROR HY000: Illegal parameter data type associative_array for operation 'RETURN'
 CREATE FUNCTION f1(a ASSOCIATIVE_ARRAY) RETURN INT RETURN 0;
-ERROR HY000: 'associative_array' is not allowed in this context
+ERROR HY000: Illegal parameter data type associative_array for operation '<routine parameter>'
 CREATE FUNCTION f1(a ROW(a ASSOCIATIVE_ARRAY, b INT)) RETURN INT RETURN 0;
 ERROR HY000: 'associative_array' is not allowed in this context
 DECLARE
@@ -2894,3 +2894,46 @@ c1
 Warnings:
 Warning	1264	Out of range value for column 'i' at row 0
 DROP PROCEDURE p1;
+#
+# MDEV-38768 RECORD in routine parameters and function RETURN
+#
+# Disallow assoc array in RETURN
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(2), c INT);
+TYPE assoc0_t IS TABLE OF rec0_t INDEX BY INT;
+FUNCTION private_f1() RETURN assoc0_t AS
+BEGIN
+RETURN NULL;
+END;
+PROCEDURE p1() AS
+BEGIN
+NULL;
+END;
+END;
+$$
+ERROR HY000: Illegal parameter data type associative_array for operation 'RETURN'
+DROP PACKAGE pkg1;
+# Disallow assoc array in routine parameters
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(2), c INT);
+TYPE assoc0_t IS TABLE OF rec0_t INDEX BY INT;
+PROCEDURE private_p1(p0 assoc0_t) AS
+BEGIN
+RETURN NULL;
+END;
+PROCEDURE p1() AS
+BEGIN
+NULL;
+END;
+END;
+$$
+ERROR HY000: Illegal parameter data type associative_array for operation '<routine parameter>'
+DROP PACKAGE pkg1;

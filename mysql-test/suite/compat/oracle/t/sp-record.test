@@ -875,3 +875,42 @@ CALL pkg1.p1;
 DROP PACKAGE pkg1;
 
 --echo # End of 12.2 tests
+
+
+--echo #
+--echo # MDEV-38768 RECORD in routine parameters and function RETURN
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1();
+  PROCEDURE p2();
+END;
+CREATE PACKAGE BODY pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(2), c INT);
+  FUNCTION private_f1() RETURN rec0_t AS
+  BEGIN
+    RETURN rec0_t(1,'   ',2);
+  END;
+  PROCEDURE private_p1(pr0 rec0_t) AS
+  BEGIN
+    SELECT pr0.a || pr0.b || pr0.c;
+  END;
+  PROCEDURE p1() AS
+    r0 rec0_t;
+  BEGIN
+    r0:= private_f1();
+    SELECT r0.a || r0.b || r0.c;
+  END;
+  PROCEDURE p2 AS
+    r0 rec0_t := (1,'   ',2);
+  BEGIN
+    private_p1(r0);
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.p1;
+CALL pkg1.p2;
+DROP PACKAGE pkg1;
