@@ -2950,7 +2950,8 @@ static inline Field *null_predicate_field(Item *item)
 
 static inline bool mark_null_only_field(Field *field, void *arg)
 {
-  if (!field || !field->table || !field->table->file)
+  if (!field || !field->table || !field->table->file
+      || !field->real_maybe_null())
     return false;
   bitmap_set_bit(&field->table->null_set, field->field_index);
   if (arg)

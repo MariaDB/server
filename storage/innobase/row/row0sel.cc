@@ -3229,20 +3229,13 @@ static bool row_sel_store_mysql_rec(
 			ulint len;
 
 			ut_ad(!templ->is_virtual);
+			ut_ad(templ->mysql_null_bit_mask != 0);
 			rec_get_nth_cfield(rec, index, offsets, field_no, &len);
 
 			if (len == UNIV_SQL_NULL) {
-				if (templ->mysql_null_bit_mask) {
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
-# pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 may need this here */
-#endif
-					mysql_rec[templ->mysql_null_byte_offset]
-						|= (byte) templ->mysql_null_bit_mask;
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
-# pragma GCC diagnostic pop
-#endif
-				}
+				mysql_rec[templ->mysql_null_byte_offset]
+					|= static_cast<byte>(
+						templ->mysql_null_bit_mask);
 				MEM_CHECK_DEFINED(prebuilt->default_rec
 						  + templ->mysql_col_offset,
 						  templ->mysql_col_len);
@@ -3253,11 +3246,9 @@ static bool row_sel_store_mysql_rec(
 				continue;
 			}
 
-			if (templ->mysql_null_bit_mask) {
-				mysql_rec[templ->mysql_null_byte_offset]
-					&= static_cast<byte>
-					(~templ->mysql_null_bit_mask);
-			}
+			mysql_rec[templ->mysql_null_byte_offset]
+				&= static_cast<byte>(
+					~templ->mysql_null_bit_mask);
 			continue;
 		}
 
@@ -4113,21 +4104,14 @@ row_search_idx_cond_check(
 			ulint		len;
 
 			ut_ad(field_no != ULINT_UNDEFINED);
+			ut_ad(templ->mysql_null_bit_mask != 0);
 			rec_get_nth_cfield(rec, prebuilt->index, offsets,
 					   field_no, &len);
 
 			if (len == UNIV_SQL_NULL) {
-				if (templ->mysql_null_bit_mask) {
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
-# pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 may need this here */
-#endif
-					mysql_rec[templ->mysql_null_byte_offset]
-						|= (byte) templ->mysql_null_bit_mask;
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
-# pragma GCC diagnostic pop
-#endif
-				}
+				mysql_rec[templ->mysql_null_byte_offset]
+					|= static_cast<byte>(
+						templ->mysql_null_bit_mask);
 				MEM_CHECK_DEFINED(prebuilt->default_rec
 						  + templ->mysql_col_offset,
 						  templ->mysql_col_len);
@@ -4138,11 +4122,9 @@ row_search_idx_cond_check(
 				continue;
 			}
 
-			if (templ->mysql_null_bit_mask) {
-				mysql_rec[templ->mysql_null_byte_offset]
-					&= static_cast<byte>
-					(~templ->mysql_null_bit_mask);
-			}
+			mysql_rec[templ->mysql_null_byte_offset]
+				&= static_cast<byte>(
+					~templ->mysql_null_bit_mask);
 			continue;
 		}
 

@@ -1,6 +1,5 @@
---source include/have_innodb.inc
+--source innodb_default_row_format.inc
 
---disable_query_log
 --disable_warnings
 SET GLOBAL innodb_monitor_disable='module_buffer_page';
 SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
@@ -10,8 +9,8 @@ SET GLOBAL innodb_monitor_enable='module_buffer_page';
 CREATE TABLE t (
   id INT PRIMARY KEY,
   b MEDIUMBLOB NULL,
-  c INT
-) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+  c INT NOT NULL
+) ENGINE=InnoDB;
 
 INSERT INTO t VALUES
   (1, REPEAT('a', 100000), 1),
@@ -20,10 +19,10 @@ INSERT INTO t VALUES
   (4, NULL, 4);
 
 --let $restart_noprint=2
+--echo # Restart to flush buffer pool state before measuring blob page reads.
 --let $restart_parameters=--innodb-buffer-pool-load-at-startup=0 --innodb-buffer-pool-dump-at-shutdown=0
 --source include/restart_mysqld.inc
 --let $restart_parameters=
---disable_query_log
 
 --disable_warnings
 SET GLOBAL innodb_monitor_disable='module_buffer_page';
@@ -51,20 +50,13 @@ SELECT SUM(COUNT) AS blob_reads
  WHERE NAME IN ('buffer_page_read_blob','buffer_page_read_zblob',
                 'buffer_page_read_zblob2');
 
---let $restart_parameters=--innodb-buffer-pool-load-at-startup=0 --innodb-buffer-pool-dump-at-shutdown=0
---source include/restart_mysqld.inc
---let $restart_parameters=
---disable_query_log
-
 --disable_warnings
 SET GLOBAL innodb_monitor_disable='module_buffer_page';
 SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
 SET GLOBAL innodb_monitor_enable='module_buffer_page';
 --enable_warnings
 
---disable_result_log
 SELECT SUM(CRC32(b)) FROM t WHERE b IS NULL OR c = 3;
---enable_result_log
 
 SELECT SUM(COUNT) > 0 AS blob_reads
   FROM information_schema.innodb_metrics
@@ -72,9 +64,9 @@ SELECT SUM(COUNT) > 0 AS blob_reads
                 'buffer_page_read_zblob2');
 
 --let $restart_parameters=--innodb-buffer-pool-load-at-startup=0 --innodb-buffer-pool-dump-at-shutdown=0
+--echo # Restart to force disk reads for the FOR UPDATE guardrail check.
 --source include/restart_mysqld.inc
 --let $restart_parameters=
---disable_query_log
 
 --disable_warnings
 SET GLOBAL innodb_monitor_disable='module_buffer_page';
@@ -82,9 +74,7 @@ SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
 SET GLOBAL innodb_monitor_enable='module_buffer_page';
 --enable_warnings
 
---disable_result_log
 SELECT c FROM t WHERE b IS NULL FOR UPDATE;
---enable_result_log
 COMMIT;
 
 SELECT SUM(COUNT) > 0 AS blob_reads
@@ -94,43 +84,45 @@ SELECT SUM(COUNT) > 0 AS blob_reads
 
 DROP TABLE t;
 
-CREATE TABLE t_red (
+--echo # ICP check: c-range on leading key part and direct NULL predicate
+--echo # on second key part (d) should use index condition pushdown.
+CREATE TABLE t_icp (
   id INT PRIMARY KEY,
-  b MEDIUMBLOB NULL,
-  c INT
-) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+  c INT NOT NULL,
+  d VARCHAR(64) NULL,
+  payload INT NOT NULL,
+  KEY idx_cd (c, d)
+) ENGINE=InnoDB;
 
-INSERT INTO t_red VALUES
-  (1, REPEAT('a', 100000), 1),
-  (2, NULL, 2),
-  (3, REPEAT('b', 100000), 3),
-  (4, NULL, 4);
+INSERT INTO t_icp VALUES
+  (1, 1, 'x', 10),
+  (2, 2, NULL, 20),
+  (3, 3, 'y', 30),
+  (4, 4, NULL, 40);
 
---let $restart_parameters=--innodb-buffer-pool-load-at-startup=0 --innodb-buffer-pool-dump-at-shutdown=0
---source include/restart_mysqld.inc
---let $restart_parameters=
---disable_query_log
+SET optimizer_switch='index_condition_pushdown=on';
+FLUSH STATUS;
 
---disable_warnings
-SET GLOBAL innodb_monitor_disable='module_buffer_page';
-SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
-SET GLOBAL innodb_monitor_enable='module_buffer_page';
---enable_warnings
+--replace_column 1 # 7 # 8 # 9 #
+EXPLAIN SELECT payload
+  FROM t_icp FORCE INDEX (idx_cd)
+ WHERE c > 0 AND d IS NULL;
 
-SELECT COUNT(*) FROM t_red WHERE b IS NULL;
+SELECT SUM(payload)
+  FROM t_icp FORCE INDEX (idx_cd)
+ WHERE c > 0 AND d IS NULL;
 
-SELECT SUM(COUNT) AS blob_reads
-  FROM information_schema.innodb_metrics
- WHERE NAME IN ('buffer_page_read_blob','buffer_page_read_zblob',
-                'buffer_page_read_zblob2');
+SELECT VARIABLE_VALUE > 0 AS icp_used
+  FROM information_schema.session_status
+ WHERE VARIABLE_NAME='HANDLER_ICP_ATTEMPTS';
 
-DROP TABLE t_red;
+DROP TABLE t_icp;
 
 CREATE TABLE t_vcol (
   id INT PRIMARY KEY,
   b MEDIUMBLOB NULL,
   v VARBINARY(1) AS (SUBSTR(b, 1, 1)) VIRTUAL
-) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+) ENGINE=InnoDB;
 
 INSERT INTO t_vcol (id, b) VALUES
   (1, REPEAT('a', 100000)),
@@ -139,9 +131,9 @@ INSERT INTO t_vcol (id, b) VALUES
   (4, NULL);
 
 --let $restart_parameters=--innodb-buffer-pool-load-at-startup=0 --innodb-buffer-pool-dump-at-shutdown=0
+--echo # Restart to validate virtual-column guardrail with cold-page metrics.
 --source include/restart_mysqld.inc
 --let $restart_parameters=
---disable_query_log
 
 --disable_warnings
 SET GLOBAL innodb_monitor_disable='module_buffer_page';

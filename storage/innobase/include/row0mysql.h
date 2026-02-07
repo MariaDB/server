@@ -423,8 +423,9 @@ struct mysql_row_templ_t {
 					row format */
 	ulint	mysql_null_byte_offset;	/*!< MySQL NULL bit byte offset in a
 					MySQL record */
-	ulint	mysql_null_bit_mask;	/*!< bit mask to get the NULL bit,
+	byte	mysql_null_bit_mask;	/*!< bit mask to get the NULL bit,
 					zero if column cannot be NULL */
+	bool	null_only;		/*!< only NULL status is required */
 	ulint	type;			/*!< column type in Innobase mtype
 					numbers DATA_CHAR... */
 	ulint	mysql_type;		/*!< MySQL type code; this is always
@@ -447,7 +448,6 @@ struct mysql_row_templ_t {
 					type and this field is != 0, then
 					it is an unsigned integer type */
 	ulint	is_virtual;		/*!< if a column is a virtual column */
-	bool	null_only;		/*!< only NULL status is required */
 };
 
 #define MYSQL_FETCH_CACHE_SIZE		8
