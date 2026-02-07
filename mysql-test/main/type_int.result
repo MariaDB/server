@@ -2007,10 +2007,16 @@ Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: '2001-01-01 10:20:30'
 SELECT * FROM t1 WHERE indexed_col=DATE'2001-01-01';
 indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `bigint` = "DATE'2001-01-01'" of type `date`
 SELECT * FROM t1 WHERE indexed_col=TIME'10:20:30';
 indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `bigint` = "TIME'10:20:30'" of type `time`
 SELECT * FROM t1 WHERE indexed_col=TIMESTAMP'2001-01-01 10:20:30';
 indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `bigint` = "TIMESTAMP'2001-01-01 10:20:30'" of type `datetime`
 SELECT * FROM t1 WHERE indexed_col=0x00;
 indexed_col
 SELECT * FROM t1 WHERE indexed_col=_utf8mb3'0' COLLATE utf8mb3_bin;

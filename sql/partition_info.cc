@@ -832,7 +832,8 @@ bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
   }
   else if (vers_info->interval.is_set() &&
            /* Left boundary is closed */
-           vers_info->hist_part->range_value <= (longlong) thd->query_start())
+           vers_info->hist_part->range_value <= (longlong)thd->query_start() &&
+           vers_info->hist_part->range_value < TIMESTAMP_MAX_VALUE)
   {
     partition_element *next= NULL;
     bool error= true;

@@ -624,7 +624,6 @@ void ssux_lock::psi_u_wr_upgrade(const char *file, unsigned line) noexcept
     lock.u_wr_upgrade();
 }
 #else /* UNIV_PFS_RWLOCK */
-template void ssux_lock_impl<false>::rd_lock() noexcept;
 template void ssux_lock_impl<false>::rd_unlock() noexcept;
 template void ssux_lock_impl<false>::u_unlock() noexcept;
 template void ssux_lock_impl<false>::wr_unlock() noexcept;

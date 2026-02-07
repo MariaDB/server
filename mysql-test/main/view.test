@@ -5239,7 +5239,6 @@ DROP TABLE t1, t2;
 
 create view v1 as select 1;
 
---let $MYSQLD_DATADIR= `select @@datadir`
 --let SEARCH_FILE= $MYSQLD_DATADIR/test/v1.frm
 --let SEARCH_RANGE= 50000
 --let SEARCH_PATTERN=mariadb-version
@@ -6840,9 +6839,18 @@ DROP VIEW v1;
 DROP TABLE t1, t2;
 
 --echo #
---echo # End of 10.6 tests
+--echo # MDEV-36888: Assertion `typeid(*copy) == typeid(*this)' in
+--echo # Item_func_or_sum::do_build_clone
 --echo #
 
+CREATE TABLE t (a INT default 1);
+INSERT INTO t VALUES (0),(2);
+CREATE ALGORITHM=TEMPTABLE VIEW v AS SELECT * FROM t;
+EXECUTE IMMEDIATE "SELECT * FROM v WHERE COERCIBILITY(VALUE(a)) > a";
+drop view v;
+drop table t;
+
+--echo # End of 10.6 tests
 
 --echo #
 --echo # MDEV-29587: Allowing insert into a view with columns that
@@ -6891,6 +6899,19 @@ INSERT INTO view1(x1) VALUES (1);
 INSERT INTO view1(x1,x) VALUES (1,1);
 DROP VIEW view1;
 DROP TABLE table1;
+
+--echo #
+--echo # MDEV-37920 Out-of-Bounds memory access in File_parser::parse()
+--echo #
+
+--write_file $MYSQLD_DATADIR/test/v1.frm
+TYPE=VIEW
+query=select `0_________1_________2_________3_________4_________5____`
+ 
+EOF
+--error ER_VIEW_INVALID
+select * from v1;
+drop view v1;
 
 --echo # End of 10.11 test
 

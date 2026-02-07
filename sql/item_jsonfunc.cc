@@ -809,19 +809,16 @@ bool Json_path_extractor::extract(MEM_ROOT *mem_root, String *str,
                                   MEM_ROOT_DYNAMIC_ARRAY *array_counters,
                                   LEX_CSTRING *func_name_str)
 {
-String *js= item_js->val_json(&tmp_js);
+  String *js= item_js->val_json(&tmp_js);
   json_path_step_t *tmp_ptr= NULL;
   int error= 0;
 
   if (!parsed)
   {
     String *s_p= item_jp->val_str(&tmp_path);
-    if (s_p &&
-        json_path_setup(&p, s_p->charset(), (const uchar *) s_p->ptr(),
-                        (const uchar *) s_p->ptr() + s_p->length()))
-    {
+    if (s_p && path_setup_nwc(&p, s_p->charset(), (const uchar *) s_p->ptr(),
+                              (const uchar *) s_p->ptr() + s_p->length()))
       return true;
-    }
     parsed= constant;
   }
 

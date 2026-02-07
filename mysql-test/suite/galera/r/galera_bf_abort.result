@@ -12,6 +12,9 @@ connection node_2a;
 connection node_2;
 INSERT INTO t1 VALUES (2, 'node_2');
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+COMMIT;
 wsrep_local_aborts_increment
 1
 DROP TABLE t1;
+disconnect node_2;
+disconnect node_1;

@@ -632,8 +632,29 @@ extern "C" void thd_kill_timeout(void *thd_)
 {
   THD *thd= static_cast<THD *>(thd_);
   thd->status_var.max_statement_time_exceeded++;
-  /* Kill queries that can't cause data corruptions */
-  thd->awake(KILL_TIMEOUT);
+
+  if (thd->slave_thread)
+  {
+    /* Slave threads use ER_SLAVE_STATEMENT_TIMEOUT without custom message */
+    thd->awake(KILL_TIMEOUT);
+  }
+  else
+  {
+    char msg[256], timeout_str[32];
+    double timeout_sec= thd->query_timer.timeout / 1000000.0;
+    size_t len= my_snprintf(timeout_str, sizeof(timeout_str), "%g", timeout_sec);
+    /*
+      Ensure at least one decimal digit (e.g., "1" -> "1.0"),
+      but not for scientific notation
+    */
+    if (!strchr(timeout_str, '.') && !strchr(timeout_str, 'e'))
+      len+= my_snprintf(timeout_str + len, sizeof(timeout_str) - len, ".0");
+    my_snprintf(timeout_str + len, sizeof(timeout_str) - len, " sec");
+    my_snprintf(msg, sizeof(msg), ER_THD(thd, ER_STATEMENT_TIMEOUT), timeout_str);
+
+    /* Kill queries that can't cause data corruptions */
+    thd->awake(KILL_TIMEOUT, ER_STATEMENT_TIMEOUT, msg);
+  }
 }
 
 const char *thd_where(THD *thd)
@@ -1504,7 +1525,7 @@ void THD::update_all_stats()
   end_cpu_time= my_getcputime();
   end_utime=    microsecond_interval_timer();
   busy_time= end_utime - start_utime;
-  cpu_time=  end_cpu_time - start_cpu_time;
+  cpu_time=  (end_cpu_time - start_cpu_time+5)/10;
   /* In case there are bad values, 2629743 is the #seconds in a month. */
   if (cpu_time > 2629743000000ULL)
     cpu_time= 0;
@@ -2062,7 +2083,9 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
         NOT_KILLED is used to awake a thread for a slave
 */
 extern std::atomic<my_thread_id> shutdown_thread_id;
-void THD::awake_no_mutex(killed_state state_to_set)
+void THD::awake_no_mutex(killed_state state_to_set,
+                         int killed_errno_arg,
+                         const char *killed_err_msg_arg)
 {
   DBUG_ENTER("THD::awake_no_mutex");
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
@@ -2080,7 +2103,7 @@ void THD::awake_no_mutex(killed_state state_to_set)
   if (killed >= KILL_CONNECTION)
     state_to_set= killed;
 
-  set_killed_no_mutex(state_to_set);
+  set_killed_no_mutex(state_to_set, killed_errno_arg, killed_err_msg_arg);
 
   if (state_to_set >= KILL_CONNECTION || state_to_set == NOT_KILLED)
   {
@@ -2301,6 +2324,10 @@ int THD::killed_errno()
     DBUG_RETURN(ER_CONNECTION_KILLED);
   case KILL_QUERY:
   case KILL_QUERY_HARD:
+#ifdef WITH_WSREP
+  if (WSREP(this))
+    wsrep_report_query_interrupted(this, __FILE__, __LINE__);
+#endif /* WITH_WSREP */
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   case KILL_TIMEOUT:
   case KILL_TIMEOUT_HARD:
@@ -8579,6 +8606,10 @@ wait_for_commit::wait_for_prior_commit2(THD *thd, bool allow_kill)
     wakeup_error= ER_QUERY_INTERRUPTED;
   my_message(wakeup_error, ER_THD(thd, wakeup_error), MYF(0));
   thd->EXIT_COND(&old_stage);
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+    wsrep_report_query_interrupted(thd, __FILE__, __LINE__);
+#endif /* WITH_WSREP */
   /*
     Must do the DEBUG_SYNC() _after_ exit_cond(), as DEBUG_SYNC is not safe to
     use within enter_cond/exit_cond.

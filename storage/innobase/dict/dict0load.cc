@@ -2494,10 +2494,6 @@ corrupted:
 		}
 	}
 
-	/* Initialize table foreign_child value. Its value could be
-	changed when dict_load_foreigns() is called below */
-	table->fk_max_recusive_level = 0;
-
 	/* We will load the foreign key information only if
 	all indexes were loaded. */
 	if (!table->is_readable()) {
@@ -2516,7 +2512,6 @@ corrupted:
 			goto evict;
 		} else {
 			dict_mem_table_fill_foreign_vcol_set(table);
-			table->fk_max_recusive_level = 0;
 		}
 	}
 
@@ -3192,9 +3187,7 @@ load_next_index:
 	mtr.commit();
 
 	if ((sec_index = dict_table_get_next_index(sec_index))) {
-		/* Switch to scan index on REF_NAME, fk_max_recusive_level
-		already been updated when scanning FOR_NAME index, no need to
-		update again */
+		/* Switch to scan index on REF_NAME */
 		check_recursive = false;
 		goto start_load;
 	}

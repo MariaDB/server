@@ -8,7 +8,7 @@ SHOW STATUS LIKE "max_statement_time_exceeded";
 Variable_name	Value
 Max_statement_time_exceeded	0
 SET STATEMENT MAX_STATEMENT_TIME=1 FOR SELECT SLEEP(10);
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 1.0 sec exceeded
 SHOW STATUS LIKE "max_statement_time_exceeded";
 Variable_name	Value
 Max_statement_time_exceeded	1

@@ -1310,7 +1310,6 @@ bool mariadb_view_version_get(TABLE_SHARE *share)
              share->db.str, share->table_name.str);
     return TRUE;
   }
-  DBUG_ASSERT(share->tabledef_version.length == MICROSECOND_TIMESTAMP_BUFFER_SIZE-1);
 
   return FALSE;
 }
@@ -1427,11 +1426,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
                                       required_view_parameters,
                                       &file_parser_dummy_hook)))
     goto end;
-  DBUG_ASSERT(share->tabledef_version.length);
   if (!view_table_alias->tabledef_version.length)
-  {
     view_table_alias->set_view_def_version(&view_table_alias->hr_timestamp);
-  }
 
   /*
     check old format view .frm
@@ -1764,6 +1760,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
     /* move SQL_CACHE to whole query */
     if (view_query_lex->first_select_lex()->options & OPTION_TO_QUERY_CACHE)
       parent_query_lex->first_select_lex()->options|= OPTION_TO_QUERY_CACHE;
+
+    parent_query_lex->default_used= view_query_lex->default_used;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (view_table_alias->view_suid)

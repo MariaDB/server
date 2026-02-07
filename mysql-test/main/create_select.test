@@ -63,6 +63,19 @@ show create table t1;
 drop table t1;
 set sql_mode=default;
 
---echo #
 --echo # End of 10.4 tests
+
 --echo #
+--echo # MDEV-37998 (Column) CHECK constraints can cause CREATE TABLE (SELECT) queries to fail
+--echo #
+create table t1(
+  i int not null check(i > 0),
+  j int default (i+1),
+  primary key(i),
+  check (2*i>1)
+);
+create table t2 (select i as a,j from t1);
+show create table t2;
+drop table t1, t2;
+
+--echo # End of 12.1 tests

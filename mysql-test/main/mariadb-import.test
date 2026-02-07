@@ -235,3 +235,43 @@ use test;
 --exec $MYSQL_IMPORT --dir $MYSQLTEST_VARDIR/tmp/dump --parallel=300 2>&1
 
 --rmdir $MYSQLTEST_VARDIR/tmp/dump
+
+--echo # MDEV-37483 mariadb-dump --dir doesn't convert db names
+
+create database `con_schöne_grüße`;
+create table `con_schöne_grüße`.t(a int) select 1 as a;
+create database `com1`;
+create table `com1`.t(b int) select 2 as b;
+create database `con/bar`;
+create table `con/bar`.t select 3 as c;
+create database `con@fame`;
+create table `con@fame`.t (d int) select 4 as d;
+
+--mkdir $MYSQLTEST_VARDIR/tmp/dump
+--exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/tmp/dump --all-databases
+
+--move_file $MYSQLTEST_VARDIR/tmp/dump/con@0040fame $MYSQLTEST_VARDIR/tmp/dump/con@fame
+
+drop database `con_schöne_grüße`;
+drop database `com1`;
+drop database `con/bar`;
+drop database `con@fame`;
+
+--exec $MYSQL_IMPORT --dir $MYSQLTEST_VARDIR/tmp/dump --silent
+
+--lowercase_result
+--list_files $MYSQLTEST_VARDIR/tmp/dump co*
+
+--echo #
+--echo # Check if expected tables were correctly restored
+--echo #
+
+select * from `con_schöne_grüße`.t;
+select * from `com1`.t;
+select * from `con/bar`.t;
+select * from `con@fame`.t;
+
+drop database `con_schöne_grüße`;
+drop database `com1`;
+drop database `con/bar`;
+drop database `con@fame`;

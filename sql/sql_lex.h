@@ -1627,6 +1627,7 @@ public:
   TABLE_LIST *find_table(THD *thd,
                          const LEX_CSTRING *db_name,
                          const LEX_CSTRING *table_name);
+  bool optimize_constant_subqueries();
   void set_optimizer_hints(Optimizer_hint_parser_output *hl)
   { 
     parsed_optimizer_hints= hl;
@@ -3609,6 +3610,9 @@ public:
     Activates enforcement of the LIMIT ROWS EXAMINED clause, if present
     in the query.
   */
+
+  bool has_returning_list;
+
   void set_limit_rows_examined()
   {
     if (limit_rows_examined)
@@ -3976,6 +3980,7 @@ public:
                                const sp_name *name,
                                const sp_name *name2,
                                const char *cpp_body_end);
+  bool show_routine_code_start(THD *thd, enum_sql_command cmd, sp_name *name);
   bool call_statement_start(THD *thd, sp_name *name);
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name);
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name1,
@@ -5014,7 +5019,7 @@ public:
   SELECT_LEX *returning()
   { return &builtin_select; }
   bool has_returning()
-  { return !builtin_select.item_list.is_empty(); }
+  { return has_returning_list; }
 
 private:
   bool stmt_create_routine_start(const DDL_options_st &options)
@@ -5513,6 +5518,13 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
                                 bool need_set_keyword= true);
 
 void mark_or_conds_to_avoid_pushdown(Item *cond);
+
+
+inline
+bool TABLE_LIST::is_pure_alias() const
+{
+  return !db.length || (table_options & TL_OPTION_ALIAS);
+}
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_LEX_INCLUDED */

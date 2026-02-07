@@ -148,4 +148,26 @@ uninstall soname "ha_example";
 ERROR HY000: Cannot load from mysql.plugin. The table is probably corrupted
 drop table mysql.plugin;
 rename table mysql.plugin_save to mysql.plugin;
+#
+# MDEV-36230 SIGSEGV in store_server_fields on CREATE SERVER
+#
+## Error code depends on length of long
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 4294967295);
+ERROR 22003: port value is out of range in 'INT'
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 2147483647);
+select * from mysql.servers;
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+s					2147483647		mysql		{"HOST": "", "PORT": "2147483647"}
+ALTER SERVER s OPTIONS (PORT 4294967295);
+ERROR 22003: port value is out of range in 'INT'
+select * from mysql.servers;
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+s					2147483647		mysql		{"HOST": "", "PORT": "2147483647"}
+drop server s;
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 2147483648);
+ERROR 22003: port value is out of range in 'INT'
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 18446744073709551615);
+ERROR 22003: port value is out of range in 'INT'
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT -5);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-5)' at line 1
 # End of 10.11 tests

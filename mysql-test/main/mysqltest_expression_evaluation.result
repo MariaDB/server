@@ -1,0 +1,508 @@
+# ----------------------------------------------------------------------------
+# Test for MDEV-36107: Add expression evaluation support to mysqltest
+# ----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
+# Test backward compatibility (expressions are not evaluated without $())
+# ----------------------------------------------------------------------------
+# Backward compatibility - no evaluation
+5 + 2 (no evaluation) -> 5 + 2
+# ----------------------------------------------------------------------------
+# Basic arithmetic operations
+# ----------------------------------------------------------------------------
+# Basic arithmetic operations
+10 + 5 -> 15
+10 - 4 -> 6
+3 * 7 -> 21
+20 / 4 -> 5
+21 % 5 -> 1
+# ----------------------------------------------------------------------------
+# Negative numbers and unary minus
+# ----------------------------------------------------------------------------
+# Negative numbers and unary minus
+-5 -> -5
+-1 + 3 -> 2
+-(2 + 3) -> -5
+-1 * -2 -> 2
+-10 / 2 -> -5
+-7 % 3 -> -1
+# Negative numbers in complex expressions
+5 + -3 -> 2
+10 - -5 -> 15
+-2 * 3 + 1 -> -5
+# ----------------------------------------------------------------------------
+# Operator precedence
+# ----------------------------------------------------------------------------
+# Operator precedence
+2 + 3 * 4 - 1 -> 13
+20 / 2 - 3 -> 7
+10 - 4 + 2 -> 8
+# ----------------------------------------------------------------------------
+# Parentheses override precedence
+# ----------------------------------------------------------------------------
+# Parentheses override precedence
+(2 + 3) * 4 -> 20
+20 / (5 - 3) -> 10
+((2 + 3) * (4 + 1)) -> 25
+(10 / (3 + 2)) + 1 -> 3
+# ----------------------------------------------------------------------------
+# Test variables in expressions
+# ----------------------------------------------------------------------------
+# Variables in expressions
+100 / 25 + 1 = 5
+Variable substitution: 10 + 20 == 30 is 1
+# Test multiple variable references
+Multiple variables: 10 * 20 / 10 = 20
+# ----------------------------------------------------------------------------
+# Overflow edge cases
+# ----------------------------------------------------------------------------
+-9223372036854775808 / -1 -> -9223372036854775808
+-9223372036854775808 % -1 -> 0
+-(-9223372036854775808) -> -9223372036854775808
+-4611686018427387904 * 2 -> -9223372036854775808
+-4611686018427387904 * 2 / -1 -> -9223372036854775808
+-4611686018427387904 * -2 / -1 -> -9223372036854775808
+18446744073709551615 / 2 / -1 -> 0
+# ----------------------------------------------------------------------------
+# Comparison operators
+# ----------------------------------------------------------------------------
+# Comparison operators
+10 > 5 -> 1
+10 < 5 -> 0
+5 == 5 -> 1
+5 != 5 -> 0
+10 >= 10 -> 1
+10 <= 9 -> 0
+5 <= 5 -> 1
+5 >= 5 -> 1
+5 != 6 -> 1
+18446744073709551615 == -1 -> 0
+18446744073709551615 != -1 -> 1
+18446744073709551615 > -1 -> 1
+18446744073709551615 < -1 -> 0
+18446744073709551615 >= -1 -> 1
+18446744073709551615 <= -1 -> 0
+# NULL comparisons
+NULL > 5 -> 
+NULL < 5 -> 
+NULL == 5 -> 
+NULL != 5 -> 
+NULL >= 5 -> 
+NULL <= 5 -> 
+NULL > 5 -> 
+NULL < 5 -> 
+NULL == NULL -> 
+NULL != NULL -> 
+# ----------------------------------------------------------------------------
+# Logical operators
+# ----------------------------------------------------------------------------
+# Logical operators and combinations
+1 && 1 -> 1
+1 && 0 -> 0
+0 && 1 -> 0
+0 && 0 -> 0
+2 && 3 -> 1
+2 && 0 -> 0
+-1 && -2 -> 1
+-2 && 2 -> 1
+1 || 1 -> 1
+1 || 0 -> 1
+0 || 1 -> 1
+0 || 0 -> 0
+2 || 3 -> 1
+2 || 0 -> 1
+-1 || -2 -> 1
+-2 || 2 -> 1
+!0 -> 1
+!1 -> 0
+!-3 -> 0
+!10 -> 0
+!-0 -> 1
+1 && 1 && 1 -> 1
+1 && 1 && 0 -> 0
+0 || 0 || 1 -> 1
+0 || 0 || 0 -> 0
+!(5 > 10) -> 1;
+!(2 + 3 == 6) -> 1
+# ----------------------------------------------------------------------------
+# Expressions with spaces and formatting
+# ----------------------------------------------------------------------------
+# Expressions with varying spaces
+10 + 5 (with spaces) -> 15
+10+5 (no spaces) -> 15
+10+ 5 (mixed spaces) -> 15
+# Test spacing in comparisons
+Spaced comparison works
+No space comparison works
+Mixed spacing works
+# ----------------------------------------------------------------------------
+# Hex and Binary Literal Tests
+# ----------------------------------------------------------------------------
+# Basic hex and binary parsing
+0x10 -> 16
+0xFF -> 255
+0x0 -> 0
+0b1010 -> 10
+0b1111 -> 15
+0b0 -> 0
+# ----------------------------------------------------------------------------
+# Hex and Binary Arithmetic
+# ----------------------------------------------------------------------------
+# Hex arithmetic operations
+0x10 + 0x20 -> 48
+0xFF - 0x0F -> 240
+0x10 * 0x2 -> 32
+0x20 / 0x4 -> 8
+0x17 % 0x5 -> 3
+# Binary arithmetic operations
+0b1010 + 0b0101 -> 15
+0b1111 - 0b0011 -> 12
+0b110 * 0b10 -> 12
+0b1000 / 0b10 -> 4
+0b1011 % 0b11 -> 2
+# ----------------------------------------------------------------------------
+# Mixed Base Arithmetic
+# ----------------------------------------------------------------------------
+# Mixed base arithmetic (hex + binary + decimal)
+0x10 + 0b1000 + 8 -> 32
+0xFF - 0b11111111 -> 0
+0x20 * 0b10 + 5 -> 74
+(0x64 + 0b1100) / 4 -> 28
+# ----------------------------------------------------------------------------
+# Hex and Binary Comparisons
+# ----------------------------------------------------------------------------
+# Hex vs decimal comparisons
+0x10 == 16 -> 1
+0xFF > 200 -> 1
+0x20 <= 32 -> 1
+0xA != 11 -> 1
+# Binary vs decimal comparisons
+0b1010 == 10 -> 1
+0b1111 > 14 -> 1
+0b1000 <= 8 -> 1
+0b101 != 6 -> 1
+# Hex vs binary comparisons
+0xFF == 0b11111111 -> 1
+0x10 > 0b1111 -> 1
+0xA <= 0b1010 -> 1
+0x5 != 0b101 -> 0
+# ----------------------------------------------------------------------------
+# Boolean Literal Tests
+# ----------------------------------------------------------------------------
+# Boolean literals
+true -> 1
+false -> 0
+TRUE -> 1
+FALSE -> 0
+# Boolean operations
+true && false -> 0
+true || false -> 1
+true && true -> 1
+true || true -> 1
+!true -> 0
+!false -> 1
+# Boolean comparisons
+true == 1 -> 1
+false == 0 -> 1
+true == 10 -> 0
+false == 10 -> 0
+true == 1 -> 1
+false == 1 -> 0
+true == 0 -> 0
+false == 0 -> 1
+true == true -> 1
+true == false -> 0
+true != true -> 0
+true != false -> 1
+true > true -> 0
+true > false -> 1
+true < true -> 0
+true < false -> 0
+true >= true -> 1
+true >= false -> 1
+true <= true -> 1
+true <= false -> 0
+# ----------------------------------------------------------------------------
+# Complex Mixed-Base Expressions
+# ----------------------------------------------------------------------------
+# Complex expressions with multiple bases
+0x10 + 0b1000 == 0x18 -> 1
+0x20 / 0b100 + 0b11 == 11 -> 1
+# ----------------------------------------------------------------------------
+# Test string comparisons with spaces
+# ----------------------------------------------------------------------------
+# String comparisons with spaces
+"hello' world" == hello world = 0
+hello world != goodbye world = 1
+# Basic equality: quoted vs quoted
+"hello" == "hello" -> 1
+'hello' == 'hello' -> 1
+"hello" == 'hello' -> 1
+"" == "" -> 1
+'' == '' -> 1
+"" == '' -> 1
+# Basic in-equality: quoted vs quoted
+"hello" == "world" -> 0
+"hello" == "Hello" -> 0
+"hello" == "hello " -> 0
+"" == "a" -> 0
+# Unquoted vs quoted strings
+hello == "hello" -> 1
+hello == 'hello' -> 1
+hello   == "hello" -> 1
+hello == "  hello  " -> 0
+hello world == "hello world" -> 1
+hello world   == "hello world" -> 1
+hello   world == "hello   world" -> 1
+hello world == "hello   world" -> 0
+hello   world == "hello world" -> 0
+# Unquoted vs unquoted strings
+hello == hello -> 1
+hello == hello   -> 1
+hello world == hello world -> 1
+hello   world   ==   hello world   -> 0
+# Strings with special characters (inside quotes)
+"'hello'" == "'hello'" -> 1
+'"hello"' == '"hello"' -> 1
+"a+b=c" == "a+b=c" -> 1
+"a*b" == "a*b" -> 1
+"a()b" == "a()b" -> 1
+"a\b" == "a\b" -> 1
+# Complex expressions with string equality
+"a" == "a" && 1 == 1 -> 1
+"a" == "b" || "c" == "c" -> 1
+!("a" == "b") -> 1
+(1+2) == 3 && "x" == "x" -> 1
+"x" == "y" || (5 > 3) -> 1
+# Using variables
+"test string" == 'test string' -> 1
+"test string" == "another string" -> 0
+"test string" != "another string" -> 1
+"test string" == test string -> 1
+# Using results from SQL
+CREATE TABLE t1 (s VARCHAR(20));
+INSERT INTO t1 VALUES ('data');
+data == "data" -> 1
+data == data -> 1
+data == 'data' -> 1
+DROP TABLE t1;
+# Edge cases
+"  " == " " -> 0
+" " == "" -> 0
+"" == "" -> 1
+'\))(' == "\))(" -> 1
+# Numeric strings
+"123" == 123 -> 0
+123 == "123" -> 0
+"0" == 0 -> 0
+1 == "1.0" -> 0
+# Mixed quotes in variables
+'This is a "quoted" string' == 'This is a "quoted" string' -> 1
+"This is a 'quoted' string" == "This is a 'quoted' string" -> 1
+# Mixed type comparisons
+0 != "string" -> 1
+123 == "123" -> 0
+"abc" == 123 -> 0
+NULL == "string" -> 
+# ----------------------------------------------------------------------------
+# SQL Integration
+# ----------------------------------------------------------------------------
+# Expression in SQL query
+SQL with expression (7 * 8) -> 56
+# Basic SQL result usage in expressions
+Expression with SQL: SQL(15) + 5 -> 20
+# Complex SQL queries in expressions
+SQL count matches expression -> 3
+# ----------------------------------------------------------------------------
+# Control Flow Statements (if/while)
+# ----------------------------------------------------------------------------
+# Basic if statement conditions
+if (1) evaluates to true
+Non-zero number is true
+Non-empty string is true
+Non-empty string with spaces is true
+# Variable comparisons in if statements
+Arithmetic in comparison: (5 * 2) == 10 is true
+# String comparisons in if statements
+if (hello != world) evaluates to true
+if (hello world == hello world) evaluates to true
+# While loop with expression condition
+While loop iteration: 3
+While loop iteration: 2
+While loop iteration: 1
+0x10 is greater than 0b1111
+Boolean and hex comparison works
+Counter: 0
+Counter: 1
+Counter: 2
+# ----------------------------------------------------------------------------
+# Bitwise operators
+# ----------------------------------------------------------------------------
+# Basic bitwise AND (&)
+12 & 10 -> 8
+15 & 7 -> 7
+255 & 128 -> 128
+0 & 15 -> 0
+# Basic bitwise OR (|)
+12 | 10 -> 14
+8 | 4 -> 12
+1 | 2 -> 3
+0 | 15 -> 15
+# Basic bitwise XOR (^)
+12 ^ 10 -> 6
+15 ^ 15 -> 0
+5 ^ 3 -> 6
+255 ^ 128 -> 127
+# Basic bitwise NOT (~)
+~0 -> 18446744073709551615
+~1 -> 18446744073709551614
+~255 -> 18446744073709551360
+~(-1) -> 0
+# Basic left shift (<<)
+1 << 3 -> 8
+5 << 2 -> 20
+8 << 1 -> 16
+0 << 5 -> 0
+# Basic right shift (>>)
+8 >> 3 -> 1
+20 >> 2 -> 5
+16 >> 1 -> 8
+7 >> 3 -> 0
+# ----------------------------------------------------------------------------
+# Bitwise operations with hex and binary literals
+# ----------------------------------------------------------------------------
+# Bitwise operations with hex literals
+0xFF & 0x0F -> 15
+0xF0 | 0x0F -> 255
+0xFF ^ 0xAA -> 85
+~0xFF -> 18446744073709551360
+0x10 << 2 -> 64
+0x80 >> 4 -> 8
+# Bitwise operations with binary literals
+0b1100 & 0b1010 -> 8
+0b1000 | 0b0100 -> 12
+0b1111 ^ 0b1010 -> 5
+~0b1111 -> 18446744073709551600
+0b101 << 2 -> 20
+0b10000 >> 2 -> 4
+# ----------------------------------------------------------------------------
+# Mixed base bitwise operations
+# ----------------------------------------------------------------------------
+# Mixed base bitwise operations
+0xFF & 0b11110000 -> 240
+0x0F | 0b11110000 -> 255
+255 ^ 0xAA -> 85
+0b1000 << 0x2 -> 32
+0x40 >> 0b10 -> 16
+# ----------------------------------------------------------------------------
+# Bitwise operator precedence
+# ----------------------------------------------------------------------------
+# Bitwise operator precedence
+12 | 8 ^ 4 -> 12
+12 ^ 8 | 4 -> 4
+12 & 8 ^ 4 -> 12
+12 ^ 8 & 4 -> 4
+12 | 8 & 4 -> 12
+# Parentheses override bitwise precedence
+(12 | 8) ^ 4 -> 8
+12 | (8 ^ 4) -> 12
+(12 & 8) | 4 -> 12
+12 & (8 | 4) -> 12
+# ----------------------------------------------------------------------------
+# Shift precedence with arithmetic operators
+# ----------------------------------------------------------------------------
+# Shift operators vs arithmetic
+2 + 3 << 1 -> 10
+8 >> 1 + 1 -> 2
+4 * 2 << 2 -> 32
+16 >> 2 * 1 -> 4
+# ----------------------------------------------------------------------------
+# Bitwise operations with negative numbers
+# ----------------------------------------------------------------------------
+# Bitwise operations with negative numbers (unsigned interpretation)
+-1 & 15 -> 15
+-16 | 7 -> 18446744073709551607
+-1 ^ 255 -> 18446744073709551360
+-10 << 3 -> 18446744073709551536
+-10 >> 3 -> 2305843009213693950
+# ----------------------------------------------------------------------------
+# Complex bitwise expressions
+# ----------------------------------------------------------------------------
+# Complex bitwise expressions
+(0xFF & 0xF0) | (0x0F & 0x05) -> 245
+~(~0xFF | 0x0F) -> 240
+(1 << 4) | (1 << 2) | (1 << 0) -> 21
+(255 >> 2) & (63 << 1) -> 62
+# ----------------------------------------------------------------------------
+# Bitwise operations in conditional expressions
+# ----------------------------------------------------------------------------
+# Bitwise operations in conditions
+15 & 8 is true (result is 8, non-zero)
+!(12 ^ 12) is true
+1 << 5 equals 32
+# ----------------------------------------------------------------------------
+# Bitwise operations with variables
+# ----------------------------------------------------------------------------
+# Bitwise operations with variables
+0xAB & 0xFF -> 171
+0xAB << 4 -> 2736
+0xAB >> 4 -> 10
+~0xAB -> 18446744073709551444
+# ----------------------------------------------------------------------------
+# Bitwise error cases
+# ----------------------------------------------------------------------------
+# Testing bitwise error cases
+# Shift by negative amount
+mysqltest: At line 1: Evaluation error: Invalid shift amount
+# Shift by too large amount (>= 64)
+mysqltest: At line 1: Evaluation error: Invalid shift amount
+mysqltest: At line 1: Evaluation error: Invalid shift amount
+# ----------------------------------------------------------------------------
+# Edge cases for shift operations
+# ----------------------------------------------------------------------------
+# Edge cases for shift operations
+1 << 0 -> 1
+1 << 63 -> 9223372036854775808
+8 >> 0 -> 8
+1 >> 63 -> 0
+# ----------------------------------------------------------------------------
+# Bitwise operations with large numbers
+# ----------------------------------------------------------------------------
+# Bitwise operations with large numbers
+0x7FFFFFFFFFFFFFFF & 0x7FFFFFFFFFFFFFFE -> 9223372036854775806
+0x7FFFFFFFFFFFFFFF | 0x7FFFFFFFFFFFFFFE -> 9223372036854775807
+0x7FFFFFFFFFFFFFFF ^ 0x7FFFFFFFFFFFFFFE -> 1
+# ----------------------------------------------------------------------------
+# Complex expressions with multiple operators
+# ----------------------------------------------------------------------------
+# Complex expressions
+2 + 3 * 4 > 10 -> 1
+(5 + 5) == (2 * 5) -> 1
+1 + 2 + 3 + 4 == 10 -> 1
+3 + 2 > 4 && 5 > 2 -> 1
+2 * 3 + 1 << 1 & 15 ^ 8 | 4 > 2 -> 1
+1 + 2 * 3 / 2 % 5 << 1 ^ 7 & 15 | 8 > 4 -> 1
+4 + 3 * 2 >> 1 ^ 6 & 3 < 5 | ~1 - 1 % 2 -> 1
+5 * 3 + 7 << 1 ^ 12 >> 2 -> 45056
+8 * 2 / 4 + 3 % 2 << 1 > 2 ^ 1 & 1 | !0 - 2 -> 0
+(!((6 + 3 * 2) > (14 / 2 - 1)) | ((8 << 1) & ~(5 ^ 3)) + (4 >= 2) * (3 <= 3) - (9 % 4 >> 1)) -> 17
+# ----------------------------------------------------------------------------
+# Error Handling (Syntax and Runtime)
+# ----------------------------------------------------------------------------
+# Test case: Empty unquoted string (illegal)
+mysqltest: At line 1: Syntax error: invalid expression
+# Test case: Empty unquoted string with only spaces (illegal)
+mysqltest: At line 1: Syntax error: invalid expression
+# Test case: Unmatched parenthesis
+mysqltest: At line 1: Unmatched parenthesis in expression starting at '$((1 + 2)'
+mysqltest: At line 1: Unmatched parenthesis in expression starting at '$((((((((('
+# Test case: Expression evaluator not the entire condition
+mysqltest: At line 1: Expression evaluator $(...) must be the entire condition
+mysqltest: At line 1: Empty variable
+# Test case: Division by zero
+mysqltest: At line 1: Evaluation error: Division by zero
+# Test case: Modulo by zero
+mysqltest: At line 1: Evaluation error: Modulo by zero
+# Test case: Overflow
+mysqltest: At line 1: Range error: 18446744073709551616 value out of range for Integer type
+mysqltest: At line 1: Range error: 18446744073709551616 value out of range for Integer type
+# Expression evaluation tests completed successfully
