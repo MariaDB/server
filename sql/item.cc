@@ -7261,7 +7261,7 @@ Item *Item_float::neg(THD *thd)
     max_length++;
   else if (value < 0 && max_length)
     max_length--;
-  value= -value;
+  value = normalize_signed_zero(-value);
   if (presentation)
   {
     if (*presentation == '-')

@@ -1115,7 +1115,7 @@ double Item_func_plus::real_op()
   double value= args[0]->val_real() + args[1]->val_real();
   if ((null_value=args[0]->null_value || args[1]->null_value))
     return 0.0;
-  return check_float_overflow(value);
+  return normalize_signed_zero(check_float_overflow(value));
 }
 
 #if defined(__powerpc64__) && GCC_VERSION >= 6003 && GCC_VERSION <= 10002
@@ -1281,7 +1281,7 @@ double Item_func_minus::real_op()
   double value= args[0]->val_real() - args[1]->val_real();
   if ((null_value=args[0]->null_value || args[1]->null_value))
     return 0.0;
-  return check_float_overflow(value);
+  return normalize_signed_zero(check_float_overflow(value));
 }
 
 
@@ -1383,7 +1383,7 @@ double Item_func_mul::real_op()
   double value= args[0]->val_real() * args[1]->val_real();
   if ((null_value=args[0]->null_value || args[1]->null_value))
     return 0.0;
-  return check_float_overflow(value);
+  return normalize_signed_zero(check_float_overflow(value));
 }
 
 
@@ -1465,7 +1465,7 @@ double Item_func_div::real_op()
     signal_divide_by_null();
     return 0.0;
   }
-  return check_float_overflow(value/val2);
+  return normalize_signed_zero(check_float_overflow(value/val2));
 }
 
 
@@ -1655,7 +1655,7 @@ double Item_func_mod::real_op()
     signal_divide_by_null();
     return 0.0;
   }
-  return fmod(value,val2);
+  return normalize_signed_zero(fmod(value,val2));
 }
 
 
@@ -1768,7 +1768,7 @@ double Item_func_neg::real_op()
 {
   double value= args[0]->val_real();
   null_value= args[0]->null_value;
-  return -value;
+  return normalize_signed_zero(-value);
 }
 
 
@@ -1874,7 +1874,7 @@ double Item_func_abs::real_op()
 {
   double value= args[0]->val_real();
   null_value= args[0]->null_value;
-  return fabs(value);
+  return normalize_signed_zero(fabs(value));
 }
 
 
@@ -2352,7 +2352,7 @@ double Item_func_ceiling::real_op()
   */
   volatile double value= args[0]->val_real();
   null_value= args[0]->null_value;
-  return ceil(value);
+  return normalize_signed_zero(ceil(value));
 }
 
 
@@ -2416,7 +2416,7 @@ double Item_func_floor::real_op()
   */
   volatile double value= args[0]->val_real();
   null_value= args[0]->null_value;
-  return floor(value);
+  return normalize_signed_zero(floor(value));
 }
 
 
@@ -2684,7 +2684,7 @@ double Item_func_round::real_op()
   {
     longlong dec= args[1]->val_int();
     if (!(null_value= args[1]->null_value))
-      return my_double_round(value, dec, args[1]->unsigned_flag, truncate);
+      return normalize_signed_zero(my_double_round(value, dec, args[1]->unsigned_flag, truncate));
   }
   return 0.0;
 }
