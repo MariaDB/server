@@ -8530,7 +8530,8 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
   TABLE_LIST *first_not_own_table= thd->lex->first_not_own_table();
   Security_context *sctx= thd->security_ctx;
   uint i;
-  privilege_t original_want_access(want_access);
+  const privilege_t original_want_access(want_access);
+  privilege_t denied;
   bool locked= 0;
   DBUG_ENTER("check_grant");
   DBUG_ASSERT(number > 0);
@@ -8562,6 +8563,12 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     TABLE_LIST *const t_ref=
       tl->correspondent_table ? tl->correspondent_table : tl;
     sctx= t_ref->security_ctx ? t_ref->security_ctx : thd->security_ctx;
+    denied= sctx->master_access.is_denied(original_want_access);
+    if (denied)
+    {
+      want_access= denied;
+      goto err;
+    }
     privilege_t orig_want_access(original_want_access);
 
     /*

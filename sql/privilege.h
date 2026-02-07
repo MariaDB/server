@@ -157,6 +157,12 @@ public:
       return ALLOW;
     return UNDEFINED;
   }
+  /* return bits that are requested and denied */
+  privilege_t is_denied(privilege_t priv) const
+  {
+    return (privilege_t)(m_deny_bits & priv);
+  }
+
   privilege_t allow_bits() const
   {
     return m_allow_bits;

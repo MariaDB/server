@@ -1,0 +1,196 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # Test for Global DENY
+--echo #
+
+USE test;
+CREATE TABLE t1 (id INT, data VARCHAR(50));
+CREATE TABLE t2 (id INT, info VARCHAR(50));
+INSERT INTO t1 VALUES (1, 'data1'), (2, 'data2');
+INSERT INTO t2 VALUES (1, 'info1'), (2, 'info2');
+
+--echo #
+--echo # Global DENY SELECT - Direct access
+--echo #
+
+CREATE USER user1;
+GRANT ALL PRIVILEGES ON *.* TO user1;
+DENY SELECT ON *.* TO user1;
+
+connect (con1, localhost, user1,,test);
+
+--echo # Should FAIL - global DENY SELECT
+--error ER_DBACCESS_DENIED_ERROR
+SELECT * FROM t1;
+
+--echo # Should FAIL - in any database
+--error ER_DBACCESS_DENIED_ERROR
+SELECT * FROM mysql.user;
+
+--echo # Should SUCCEED - INSERT not denied
+INSERT INTO t1 VALUES (3, 'data3');
+
+--echo # Should SUCCEED - UPDATE not denied
+UPDATE t1 SET data='data';
+
+--echo # Should SUCCEED - DELETE not denied
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1, 'data1'), (2, 'data2');
+
+connection default;
+disconnect con1;
+DROP USER user1;
+
+
+
+--echo #
+--echo # Global DENY with VIEW - DEFINER is denied
+--echo #
+
+CREATE USER denied_definer;
+CREATE USER normal_user;
+
+GRANT ALL PRIVILEGES ON test.* TO denied_definer;
+DENY SELECT ON *.* TO denied_definer;
+GRANT SELECT ON test.* TO normal_user;
+
+connect (con1, localhost, denied_definer,,test);
+--echo # Can create view (doesn't require SELECT at CREATE time)
+CREATE SQL SECURITY DEFINER VIEW v2 AS SELECT * FROM t2;
+disconnect con1;
+
+connection default;
+GRANT SELECT ON test.v2 TO normal_user;
+
+connect (con1, localhost, normal_user,,test);
+
+--echo # Should FAIL - view uses denied_definer's context (which is denied)
+--error ER_DBACCESS_DENIED_ERROR
+SELECT * FROM v2;
+
+--echo # Should SUCCEED - direct table access works for normal_user
+SELECT * FROM t2;
+
+connection default;
+disconnect con1;
+DROP VIEW v2;
+DROP USER denied_definer;
+DROP USER normal_user;
+
+
+--echo #
+--echo # SHOW COLUMNS with global DENY (any_combination_will_do)
+--echo #
+
+CREATE USER show_user;
+GRANT ALL PRIVILEGES ON test.* TO show_user;
+DENY SELECT ON *.* TO show_user;
+
+connect (con1, localhost, show_user,,test);
+
+--echo # Should FAIL - SHOW COLUMNS requires column privileges
+--error ER_DBACCESS_DENIED_ERROR
+SHOW COLUMNS FROM t1;
+
+--echo # Should FAIL - DESCRIBE is same as SHOW COLUMNS
+--error ER_DBACCESS_DENIED_ERROR
+DESCRIBE t1;
+
+--echo # Should FAIL - SHOW INDEX
+--error ER_DBACCESS_DENIED_ERROR
+SHOW INDEX FROM t1;
+
+connection default;
+disconnect con1;
+DROP USER show_user;
+
+--echo #
+--echo # DENY precedence - DENY overrides GRANT
+--echo #
+
+CREATE USER prec_user;
+
+--echo # First GRANT, then DENY
+GRANT SELECT,INSERT ON *.* TO prec_user;
+DENY SELECT ON *.* TO prec_user;
+
+connect (con1, localhost, prec_user,,test);
+
+--error ER_DBACCESS_DENIED_ERROR
+SELECT * FROM t1;
+
+connection default;
+disconnect con1;
+
+--echo # Reverse order: DENY first, then GRANT
+REVOKE SELECT ON *.* FROM prec_user;
+DENY SELECT ON *.* TO prec_user;
+GRANT SELECT ON *.* TO prec_user;
+
+connect (con1, localhost, prec_user,,test);
+
+--echo # Should STILL FAIL - DENY takes precedence
+--error ER_DBACCESS_DENIED_ERROR
+SELECT * FROM t1;
+
+connection default;
+disconnect con1;
+DROP USER prec_user;
+
+--echo #
+--echo # Mixed operations - some denied, some allowed
+--echo #
+
+CREATE USER mixed_user;
+GRANT ALL PRIVILEGES ON test.* TO mixed_user;
+DENY SELECT, DELETE ON *.* TO mixed_user;
+
+connect (con1, localhost, mixed_user,,test);
+
+--error ER_DBACCESS_DENIED_ERROR
+SELECT * FROM t1;
+
+--error ER_DBACCESS_DENIED_ERROR
+DELETE FROM t1 WHERE id=1;
+
+--echo # Should SUCCEED
+INSERT INTO t1 VALUES (4, 'data4');
+
+
+# TODO - should be DBACCESS_DENIED below
+--echo # Denied because of WHERE clause in UPDATE
+--error ER_COLUMNACCESS_DENIED_ERROR
+UPDATE t1 SET data='modified' WHERE id=4;
+--echo # Should SUCCEED, no WHERE clause
+UPDATE t1 SET data='modified';
+
+connection default;
+disconnect con1;
+DROP USER mixed_user;
+
+--echo #
+--echo # DENY with subquery
+--echo #
+
+CREATE USER sub_user;
+GRANT ALL PRIVILEGES ON test.* TO sub_user;
+DENY SELECT ON *.* TO sub_user;
+
+connect (con1, localhost, sub_user,,test);
+
+--error ER_DBACCESS_DENIED_ERROR
+SELECT * FROM t1 WHERE id IN (SELECT id FROM t2);
+
+--error ER_DBACCESS_DENIED_ERROR
+SELECT * FROM (SELECT * FROM t1) AS dt;
+
+connection default;
+disconnect con1;
+DROP USER sub_user;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP TABLE t1, t2;

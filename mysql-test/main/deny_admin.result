@@ -1,0 +1,71 @@
+#
+# Test DENY for global administrative privileges
+#
+CREATE USER user1@localhost;
+CREATE USER user2@localhost;
+# Test RELOAD privilege
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+DENY RELOAD ON *.* TO user1@localhost;
+connect  con1, localhost, user1,,;
+FLUSH TABLES;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+FLUSH LOGS;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+connection default;
+disconnect con1;
+# Test SHUTDOWN privilege
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+DENY SHUTDOWN ON *.* TO user1@localhost;
+connect  con1, localhost, user1,,;
+SHUTDOWN;
+ERROR 42000: Access denied; you need (at least one of) the SHUTDOWN privilege(s) for this operation
+connection default;
+disconnect con1;
+# Test PROCESS privilege
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+DENY PROCESS ON *.* TO user1@localhost;
+connect  con1, localhost, user1,,;
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER <> 'user1';
+COUNT(*)
+0
+connection default;
+disconnect con1;
+# Test FILE privilege
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+DENY FILE ON *.* TO user1@localhost;
+connect  con1, localhost, user1,,;
+SELECT 'test' INTO OUTFILE '/tmp/test.txt';
+ERROR 42000: Access denied for user 'user1'@'localhost' to database '*any*'
+connection default;
+disconnect con1;
+# Test combination of DENY on multiple global privileges
+GRANT ALL PRIVILEGES ON *.* TO user2@localhost;
+DENY RELOAD, SHUTDOWN ON *.* TO user2@localhost;
+connect  con2, localhost, user2,,;
+FLUSH TABLES;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+SHUTDOWN;
+ERROR 42000: Access denied; you need (at least one of) the SHUTDOWN privilege(s) for this operation
+connection default;
+disconnect con2;
+# Cleanup
+DROP USER user1@localhost;
+DROP USER user2@localhost;
+#
+# Test CONNECTION ADMIN privilege behaviors with DENY
+#
+CREATE USER user_super@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user_super@localhost;
+DENY CONNECTION ADMIN ON *.* TO user_super@localhost;
+connect  con_super, localhost, user_super,,;
+# Should not be able to kill other connections
+connection default;
+connection con_super;
+KILL ID;
+ERROR HY000: You are not owner of thread ID
+# Should not be able to set global variables
+SET GLOBAL max_connections = 200;
+ERROR 42000: Access denied; you need (at least one of) the CONNECTION ADMIN privilege(s) for this operation
+connection default;
+disconnect con_super;
+DROP USER user_super@localhost;
