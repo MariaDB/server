@@ -7533,7 +7533,6 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     [intersect_scans,intersect_scans_best) will hold the best intersection
   */
   ROR_SCAN_INFO **intersect_scans; /* ROR scans used in index intersection */
-  const uint intersect_scan_count= tree->n_ror_scans;
   if (!(intersect_scans= (ROR_SCAN_INFO**)alloc_root(param->mem_root,
                                                      sizeof(ROR_SCAN_INFO*)*
                                                      tree->n_ror_scans)))
@@ -7643,7 +7642,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
 
   *are_all_covering= intersect->is_covering;
   uint best_num= (uint) (intersect_scans_best - intersect_scans);
-  DBUG_ASSERT(best_num <= intersect_scan_count);
+  DBUG_ASSERT(best_num <= tree->n_ror_scans);
   ror_intersect_cpy(intersect, intersect_best);
 
   /*

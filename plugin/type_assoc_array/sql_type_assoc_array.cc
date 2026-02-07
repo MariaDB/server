@@ -516,8 +516,7 @@ public:
     if (limit_clause_param)
       return str->append_ulonglong(T::val_uint());
 
-    Item_field *item=get_variable(thd->spcont);
-    DBUG_ASSERT(item);
+    DBUG_ASSERT(get_variable(thd->spcont));
 
     CHARSET_INFO *cs= thd->variables.character_set_client;
     StringBuffer<NAME_CHAR_LEN> tmp(cs);
