@@ -190,6 +190,8 @@ extern const char *relay_log_basename;
 int init_slave();
 int init_recovery(Master_info* mi, const char** errmsg);
 bool init_slave_skip_errors(const char* arg);
+bool check_slave_skip_errors(sys_var *self, THD *thd, set_var *var);
+bool update_slave_skip_errors(sys_var *self, THD *thd, enum_var_type type);
 bool init_slave_transaction_retry_errors(const char* arg);
 int register_slave_on_master(MYSQL* mysql);
 int terminate_slave_threads(Master_info* mi, int thread_mask,

@@ -1,0 +1,34 @@
+# MDEV-7394 test dynamic slave_skip_errors (writable when slaves stopped)
+include/master-slave.inc
+[connection master]
+connection master;
+CREATE TABLE t1 (id INT PRIMARY KEY);
+include/sync_slave_sql_with_master.inc
+connection slave;
+INSERT INTO t1 VALUES (2);
+connection master;
+INSERT INTO t1 VALUES (2);
+connection slave;
+SET GLOBAL slave_skip_errors = "1062";
+ERROR HY000: This operation cannot be performed as you have a running slave ''; run STOP SLAVE '' first
+STOP SLAVE;
+SET GLOBAL slave_skip_errors = "1062";
+SELECT @@global.slave_skip_errors;
+@@global.slave_skip_errors
+1062
+START SLAVE;
+include/wait_for_slave_to_start.inc
+connection master;
+INSERT INTO t1 VALUES (3);
+include/sync_slave_sql_with_master.inc
+connection slave;
+SELECT COUNT(*) FROM t1 WHERE id=3;
+COUNT(*)
+1
+STOP SLAVE;
+SET GLOBAL slave_skip_errors = "OFF";
+START SLAVE;
+connection master;
+DROP TABLE t1;
+include/sync_slave_sql_with_master.inc
+include/rpl_end.inc

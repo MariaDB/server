@@ -1,0 +1,41 @@
+--echo # MDEV-7394 test dynamic slave_skip_errors (writable when slaves stopped)
+
+--source include/master-slave.inc
+
+connection master;
+CREATE TABLE t1 (id INT PRIMARY KEY);
+--source include/sync_slave_sql_with_master.inc
+
+connection slave;
+INSERT INTO t1 VALUES (2);
+
+connection master;
+INSERT INTO t1 VALUES (2);
+
+connection slave;
+--error ER_SLAVE_MUST_STOP
+SET GLOBAL slave_skip_errors = "1062";
+
+STOP SLAVE;
+SET GLOBAL slave_skip_errors = "1062";
+SELECT @@global.slave_skip_errors;
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+
+
+connection master;
+INSERT INTO t1 VALUES (3);
+--source include/sync_slave_sql_with_master.inc
+
+connection slave;
+SELECT COUNT(*) FROM t1 WHERE id=3;
+
+STOP SLAVE;
+SET GLOBAL slave_skip_errors = "OFF";
+START SLAVE;
+
+connection master;
+DROP TABLE t1;
+--source include/sync_slave_sql_with_master.inc
+
+--source include/rpl_end.inc
