@@ -4772,7 +4772,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 
 #ifdef WITH_WSREP
     if (WSREP_NNULL(thd) && !lex->tmp_table() && wsrep_thd_is_local(thd) &&
-        (!thd->is_current_stmt_binlog_format_row() ||
+        (thd->is_current_stmt_binlog_format_stmt() ||
          wsrep_table_list_has_non_temp_tables(thd, all_tables)))
     {
       wsrep::key_array keys;

@@ -2867,7 +2867,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   else if (is_transactional && !is_tmp_table &&
            !(thd_arg->transaction->all.modified_non_trans_table &&
              thd->variables.binlog_direct_non_trans_update == 0 &&
-             !thd->is_current_stmt_binlog_format_row()))
+             thd->is_current_stmt_binlog_format_stmt()))
     flags2|= FL_TRANSACTIONAL;
   if (!(thd_arg->variables.option_bits & OPTION_RPL_SKIP_PARALLEL))
     flags2|= FL_ALLOW_PARALLEL;
