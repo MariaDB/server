@@ -1067,7 +1067,7 @@ int write_bin_log(THD *thd, bool clear_error,
                   char const *query, ulong query_length, bool is_trans)
 {
   int error= 0;                                // No logging of query
-  if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
+  if (thd->binlog_ready_no_wsrep())
   {
     int errcode= 0;
     thd_proc_info(thd, "Writing to binlog");
@@ -1968,7 +1968,7 @@ err:
     if (non_trans_tmp_table_deleted || trans_tmp_table_deleted)
       thd->transaction->stmt.mark_dropped_temp_table();
 
-    if (!dont_log_query && mysql_bin_log.is_open())
+    if (!dont_log_query && thd->binlog_ready())
     {
       debug_crash_here("ddl_log_drop_before_binlog");
       if (non_trans_tmp_table_deleted)
@@ -2097,7 +2097,7 @@ bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
   bool error= 0;
   DBUG_ENTER("log_drop_table");
 
-  if (mysql_bin_log.is_open() && table_was_deleted)
+  if (thd->binlog_ready_no_wsrep() && table_was_deleted)
   {
     query.length(0);
     query.append(STRING_WITH_LEN("DROP "));
@@ -10965,6 +10965,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   DDL_LOG_STATE ddl_log_state;
   Turn_errors_to_warnings_handler errors_to_warnings;
   HA_CHECK_OPT check_opt;
+  BINLOG_STATE binlog_state_save;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   bool partition_changed= false;
 #endif
@@ -11421,7 +11422,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   if (table->s->tmp_table == NO_TMP_TABLE)
     mysql_audit_alter_table(thd, table_list);
-  else if (table_creation_was_logged && mysql_bin_log.is_open())
+  else if (table_creation_was_logged && thd->binlog_ready_precheck())
   {
     /* Protect against MDL error in binary logging */
     MDL_request mdl_request;
@@ -11816,7 +11817,7 @@ do_continue:;
     }
   }
 
-  tmp_disable_binlog(thd);
+  thd->tmp_disable_binlog(&binlog_state_save, BINLOG_STATE_TMP_DISABLED);
   create_info->options|=HA_CREATE_TMP_ALTER;
   if (!(alter_info->flags & (ALTER_ADD_INDEX|ALTER_ADD_FOREIGN_KEY)) &&
       !alter_ctx.modified_primary_key)
@@ -11849,7 +11850,7 @@ do_continue:;
                            create_info, alter_info, C_ALTER_TABLE_FRM_ONLY,
                            NULL, &key_info, &key_count, &frm);
   thd->abort_on_warning= false;
-  reenable_binlog(thd);
+  thd->reenable_binlog(&binlog_state_save);
 
   debug_crash_here("ddl_log_alter_after_create_frm");
 
@@ -13872,7 +13873,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
       raise a warning, as it may cause problems
       (see 'NAME_CONST issues' in 'Binary Logging of Stored Programs')
      */
-    if (thd->query_name_consts && mysql_bin_log.is_open() &&
+    if (thd->query_name_consts && thd->binlog_ready_precheck() &&
         binlog_format == BINLOG_FORMAT_STMT &&
         !mysql_bin_log.is_query_in_union(thd, thd->query_id))
     {

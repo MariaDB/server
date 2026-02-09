@@ -1001,7 +1001,7 @@ cleanup:
   if (likely((error < 0) || thd->transaction->stmt.modified_non_trans_table ||
              thd->log_current_statement()))
   {
-    if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
+    if ((thd->binlog_ready_with_wsrep() || thd->binlog_evt_union.do_union) &&
         table->s->using_binlog())
     {
       int errcode= 0;
@@ -1486,7 +1486,7 @@ void multi_delete::abort_result_set()
     /*
        there is only side effects; to binlog with the error
     */
-    if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
+    if (thd->binlog_ready_with_wsrep() || thd->binlog_evt_union.do_union)
     {
       StatementBinlog stmt_binlog(thd, thd->binlog_need_stmt_format(transactional_tables));
       int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
@@ -1723,7 +1723,7 @@ bool multi_delete::send_eof()
              thd->transaction->stmt.modified_non_trans_table) ||
       thd->log_current_statement())
   {
-    if(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
+    if ((thd->binlog_ready_with_wsrep() || thd->binlog_evt_union.do_union))
     {
       int errcode= 0;
       if (likely(local_error == 0))

@@ -6726,10 +6726,13 @@ bool Rows_log_event::process_triggers(trg_event_type event,
   m_table->triggers->mark_fields_used(event);
   if (slave_run_triggers_for_rbr == SLAVE_RUN_TRIGGERS_FOR_RBR_YES)
   {
+    BINLOG_STATE save;
+    thd->tmp_disable_binlog(&save, BINLOG_STATE_TMP_DISABLED);
     result= m_table->triggers->process_triggers(thd, event,
                                                 time_type,
                                                 old_row_is_record1,
                                                 skip_row_indicator);
+    thd->reenable_binlog(&save);
   }
   else
     result= m_table->triggers->process_triggers(thd, event,

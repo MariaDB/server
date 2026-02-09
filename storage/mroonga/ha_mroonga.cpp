@@ -5839,7 +5839,7 @@ int ha_mroonga::wrapper_write_row(const uchar *buf)
 {
   int error = 0;
   THD *thd = ha_thd();
-
+  BINLOG_STATE save;
   MRN_DBUG_ENTER_METHOD();
 
   mrn::Operation operation(operations_,
@@ -5850,10 +5850,10 @@ int ha_mroonga::wrapper_write_row(const uchar *buf)
   operation.record_target(record_id);
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
   MRN_SET_WRAP_TABLE_KEY(this, table);
-  tmp_disable_binlog(thd);
+  thd->tmp_disable_binlog(&save, BINLOG_STATE_TMP_DISABLED);
   error = wrap_handler->ha_write_row(buf);
   insert_id_for_cur_row = wrap_handler->insert_id_for_cur_row;
-  reenable_binlog(thd);
+  thd->reenable_binlog(&save);
   MRN_SET_BASE_SHARE_KEY(share, table->s);
   MRN_SET_BASE_TABLE_KEY(this, table);
 
@@ -6479,6 +6479,7 @@ int ha_mroonga::wrapper_update_row(const uchar *old_data,
   MRN_DBUG_ENTER_METHOD();
 
   int error = 0;
+  BINLOG_STATE save;
   THD *thd = ha_thd();
 
   mrn::Operation operation(operations_,
@@ -6488,9 +6489,9 @@ int ha_mroonga::wrapper_update_row(const uchar *old_data,
 
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
   MRN_SET_WRAP_TABLE_KEY(this, table);
-  tmp_disable_binlog(thd);
+  thd->tmp_disable_binlog(&save, BINLOG_STATE_TMP_DISABLED);
   error = wrap_handler->ha_update_row(old_data, new_data);
-  reenable_binlog(thd);
+  thd->reenable_binlog(&save);
   MRN_SET_BASE_SHARE_KEY(share, table->s);
   MRN_SET_BASE_TABLE_KEY(this, table);
 
@@ -7018,6 +7019,7 @@ int ha_mroonga::wrapper_delete_row(const uchar *buf)
   MRN_DBUG_ENTER_METHOD();
 
   int error = 0;
+  BINLOG_STATE save;
   THD *thd= ha_thd();
 
   mrn::Operation operation(operations_,
@@ -7027,9 +7029,9 @@ int ha_mroonga::wrapper_delete_row(const uchar *buf)
 
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
   MRN_SET_WRAP_TABLE_KEY(this, table);
-  tmp_disable_binlog(thd);
+  thd->tmp_disable_binlog(&save, BINLOG_STATE_TMP_DISABLED);
   error = wrap_handler->ha_delete_row(buf);
-  reenable_binlog(thd);
+  thd->reenable_binlog(&save);
   MRN_SET_BASE_SHARE_KEY(share, table->s);
   MRN_SET_BASE_TABLE_KEY(this, table);
 

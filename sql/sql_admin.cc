@@ -53,6 +53,7 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list,
 {
   bool result_code;
   TABLE_LIST *save_next_global;
+  BINLOG_STATE save;
   DBUG_ENTER("admin_recreate_table");
 
   trans_rollback_stmt(thd);
@@ -70,14 +71,15 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list,
   table_list->mdl_request.ticket= NULL;
 
   DEBUG_SYNC(thd, "ha_admin_try_alter");
-  tmp_disable_binlog(thd); // binlogging is done by caller if wanted
+  // binlogging is done by caller if wanted
+  thd->tmp_disable_binlog(&save, BINLOG_STATE_TMP_DISABLED);
   /* Ignore if there is more than one table in the list */
   save_next_global= table_list->next_global;
   table_list->next_global= 0;
   result_code= thd->check_and_open_tmp_table(table_list) ||
                mysql_recreate_table(thd, table_list, recreate_info, table_copy);
   table_list->next_global= save_next_global;
-  reenable_binlog(thd);
+  thd->reenable_binlog(&save);
   /*
     mysql_recreate_table() can push OK or ERROR.
     Clear 'OK' status. If there is an error, keep it:
@@ -474,12 +476,13 @@ class Disable_wsrep_on_guard
     : m_thd(thd), m_orig_wsrep_on(thd->variables.wsrep_on)
   {
     if (disable)
-      thd->variables.wsrep_on= false;
+      thd->disable_wsrep();
   }
 
   ~Disable_wsrep_on_guard()
   {
-    m_thd->variables.wsrep_on= m_orig_wsrep_on;
+    if (m_orig_wsrep_on)
+      m_thd->enable_wsrep();
   }
  private:
   THD* m_thd;

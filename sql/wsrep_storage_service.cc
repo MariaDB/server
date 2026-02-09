@@ -34,11 +34,12 @@ public:
     : m_thd(thd)
     , m_wsrep_on(thd->variables.wsrep_on)
   {
-    thd->variables.wsrep_on= TRUE;
+    thd->enable_wsrep();
   }
   ~Wsrep_on()
   {
-    m_thd->variables.wsrep_on= m_wsrep_on;
+    if (!m_wsrep_on)
+      m_thd->disable_wsrep();
   }
 private:
   THD* m_thd;
@@ -62,7 +63,7 @@ Wsrep_storage_service::Wsrep_storage_service(THD* thd)
   thd->variables.tx_isolation = ISO_READ_COMMITTED;
 
   /* Keep wsrep on to enter commit ordering hooks */
-  thd->variables.wsrep_on= 1;
+  thd->enable_wsrep();
   thd->wsrep_skip_locking= true;
 
   wsrep_open(thd);

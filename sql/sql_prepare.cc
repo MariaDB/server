@@ -6310,7 +6310,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
       are loaded during the server start) or when some tables are locked
       with the current_thd already (that happens when INSTALL PLUGIN
       calls the plugin_init or with queries), we create the new THD for
-      the local connection. So queries with this MYSQL will be run with
+      the local connection. So queries with this MariaDB will be run with
       it rather than the current THD.
     */
 
@@ -6319,10 +6319,13 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
     new_thd->store_globals();
     new_thd->security_ctx->skip_grants();
     new_thd->query_cache_is_applicable= 0;
-    new_thd->variables.wsrep_on= 0;
     new_thd->client_capabilities= client_flag;
-    new_thd->variables.sql_log_bin= 0;
     new_thd->affected_rows= 0;
+
+    /* Ensure replication is turned off*/
+    new_thd->binlog_state= BINLOG_STATE_NONE;
+    new_thd->variables.wsrep_on= 0;
+    new_thd->variables.sql_log_bin= 0;
     new_thd->set_binlog_bit();
     /*
       TOSO: decide if we should turn the auditing off

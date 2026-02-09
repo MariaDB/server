@@ -579,7 +579,7 @@ bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
                                uint64 start_alter_id, bool if_exists)
 {
 #if defined(HAVE_REPLICATION)
-  if (thd->variables.option_bits & OPTION_BIN_TMP_LOG_OFF)
+  if (thd->binlog_state & BINLOG_STATE_TMP_DISABLED)
     return false;
 
   if (start_alter_id)
@@ -1763,7 +1763,7 @@ binlog_trans_log_savepos(THD *thd, my_off_t *pos)
   DBUG_ENTER("binlog_trans_log_savepos");
   DBUG_ASSERT(pos != NULL);
   binlog_cache_mngr *const cache_mngr= thd->binlog_setup_trx_data();
-  DBUG_ASSERT((WSREP(thd) && wsrep_emulate_bin_log) || mysql_bin_log.is_open());
+  DBUG_ASSERT(thd->binlog_state & BINLOG_STATE_ACTIVE_WSREP);
   *pos= cache_mngr->trx_cache.get_byte_position();
   DBUG_PRINT("return", ("*pos: %lu", (ulong) *pos));
   DBUG_VOID_RETURN;
@@ -7321,6 +7321,13 @@ MYSQL_BIN_LOG::check_strict_gtid_sequence(uint32 domain_id,
 }
 
 
+void log_write_error(THD *thd, const char *msg)
+{
+  my_error(ER_BINLOG_LOGGING_IMPOSSIBLE, MYF(ME_ERROR_LOG), msg, thd->query());
+  /* Don't use binary log anymore for this THD if binlog is closed */
+  thd->sync_binlog_state_with_binlog_open();
+}
+
 /**
   Write an event to the binary log. If with_annotate != NULL and
   *with_annotate = TRUE write also Annotate_rows before the event
@@ -7339,13 +7346,19 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
   DBUG_ENTER("MYSQL_BIN_LOG::write(Log_event *)");
 
   /*
+    We should only come here if Galara is active or binlogging should be done.
+    In case of commands like CREATE DATABASE, decide_logging_format() has
+    not been called and BINLOG_STATE_FILTER may be set for current database.
+  */
+  DBUG_ASSERT(thd->variables.wsrep_on || thd->binlog_ready_precheck() ||
+              thd->binlog_evt_union.do_union);
+
+  /*
     When binary logging is not enabled (--log-bin=0), wsrep-patch partially
     enables it without opening the binlog file (MYSQL_BIN_LOG::open().
     So, avoid writing to binlog file.
   */
-  if (direct &&
-      (wsrep_emulate_bin_log ||
-       (WSREP(thd) && !(thd->variables.option_bits & OPTION_BIN_LOG))))
+  if (direct && (wsrep_emulate_bin_log || !thd->binlog_ready_precheck()))
     DBUG_RETURN(0);
 
   if (thd->variables.option_bits &
@@ -7385,7 +7398,10 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
                         SQLCOM_SAVEPOINT) ? true :
     (thd->locked_tables_mode && thd->lex->requires_prelocking());
   if (thd->binlog_flush_pending_rows_event(end_stmt, using_trans))
-    DBUG_RETURN(error);
+  {
+    log_write_error(thd, "Error during flushing row events");
+    DBUG_RETURN(1);
+  }
 
   /*
      In most cases this is only called if 'is_open()' is true; in fact this is
@@ -7402,10 +7418,10 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       In the future we need to add to the following if tests like
       "do the involved tables match (to be implemented)
       binlog_[wild_]{do|ignore}_table?" (WL#1049)"
+      Note that local_db is not same as thd->db.str in case of CREATE DATABASE
     */
     const char *local_db= event_info->get_db();
-
-    bool option_bin_log_flag= (thd->variables.option_bits & OPTION_BIN_LOG);
+    bool option_bin_log_flag= !(thd->binlog_state & BINLOG_STATE_DISABLED);
 
     /*
       Log all updates to binlog cache so that they can get replicated to other
@@ -7437,7 +7453,11 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
                      MDL_EXPLICIT);
       if (thd->mdl_context.acquire_lock(&mdl_request,
                                         thd->variables.lock_wait_timeout))
+      {
+        log_write_error(thd, "Could not get backup commit lock");
+        /* acquire_lock has produced an error message */
         DBUG_RETURN(1);
+      }
       thd->backup_commit_lock= &mdl_request;
 
       if ((res= thd->wait_for_prior_commit()))
@@ -7445,6 +7465,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
         if (mdl_request.ticket)
           thd->mdl_context.release_lock(mdl_request.ticket);
         thd->backup_commit_lock= 0;
+        /* wait_for_prior_commit() has produced an error message */
         DBUG_RETURN(res);
       }
       file= &log_file;
@@ -7648,6 +7669,8 @@ err:
         cache_data->set_incident();
     }
   }
+  else
+    log_write_error(thd, "Binlog was unexpectedly closed");
 
   DBUG_RETURN(error);
 }
@@ -8498,11 +8521,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
     DBUG_RETURN(0);
   }
 
-  if (!(thd->variables.option_bits & OPTION_BIN_LOG)
-#ifdef WITH_WSREP
-      && !WSREP(thd)
-#endif
-      )
+  if (!thd->binlog_ready_with_wsrep())
   {
     cache_mngr->need_unlog= false;
     DBUG_RETURN(0);
@@ -9448,13 +9467,10 @@ int MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   bool has_xid= entry->end_event->get_type_code() == XID_EVENT;
 
   DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_or_stmt");
-#ifdef WITH_WSREP
-  if (WSREP(entry->thd) &&
-      !(entry->thd->variables.option_bits & OPTION_BIN_LOG))
+  if (IF_WSREP(!entry->thd->binlog_ready(),0))
   {
     DBUG_RETURN(0);
   }
-#endif /* WITH_WSREP */
 
   /*
     An error in the trx_cache will truncate the cache to the last good
@@ -9839,8 +9855,8 @@ void MYSQL_BIN_LOG::close(uint exiting)
       /*
         Restore position so that anything we have in the IO_cache is written
         to the correct position.
-        We need the seek here, as mysql_file_pwrite() is not guaranteed to keep the
-        original position on system that doesn't support pwrite().
+        We need the seek here, as mysql_file_pwrite() is not guaranteed to keep
+        the original position on system that doesn't support pwrite().
       */
       mysql_file_seek(log_file.file, org_position, MY_SEEK_SET, MYF(0));
     }

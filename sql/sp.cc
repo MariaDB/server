@@ -1531,7 +1531,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
   }
 
 log:
-  if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
+  if (thd->binlog_ready_no_wsrep())
   {
     thd->clear_error();
 

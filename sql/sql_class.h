@@ -2263,6 +2263,7 @@ public:
   ulong     tmp_tables_disk_used;
   ulong     query_plan_fsort_passes;
   ulong query_plan_flags; 
+  enum enum_binlog_state binlog_state;
   uint in_sub_stmt;    /* 0,  SUB_STMT_TRIGGER or SUB_STMT_FUNCTION */
   bool enable_slow_log;
   bool last_insert_id_used;
@@ -3057,6 +3058,16 @@ enum class THD_WHERE
 };
 
 
+/* Save binlog state */
+
+class BINLOG_STATE
+{
+public:
+  ulonglong option_bits;
+  enum_binlog_state binlog_state;
+};
+
+
 const char *thd_where(THD *thd);
 
 
@@ -3438,7 +3449,19 @@ public:
   bool binlog_write_annotated_row(Log_event_writer *writer);
   void binlog_prepare_for_row_logging();
   bool binlog_write_table_maps();
-
+  inline void tmp_disable_binlog(BINLOG_STATE *save, enum_binlog_state state)
+  {
+    save->binlog_state= binlog_state;
+    save->option_bits= variables.option_bits;
+    binlog_state|= BINLOG_STATE_BYPASS | state;
+    variables.option_bits&= ~OPTION_BIN_LOG;     // To be deleted
+  }
+  inline void reenable_binlog(BINLOG_STATE *save)
+  {
+    binlog_state= save->binlog_state;
+    variables.option_bits= ((variables.option_bits & ~OPTION_BIN_LOG) |
+                            (save->option_bits & OPTION_BIN_LOG));
+  }
   void set_server_id(uint32 sid) { variables.server_id = sid; }
 
   /*
@@ -3477,7 +3500,8 @@ public:
   int is_current_stmt_binlog_format_row() const
   {
     DBUG_ASSERT(current_stmt_binlog_format == BINLOG_FORMAT_STMT ||
-                current_stmt_binlog_format == BINLOG_FORMAT_ROW);
+                current_stmt_binlog_format == BINLOG_FORMAT_ROW ||
+                current_stmt_binlog_format == BINLOG_FORMAT_UNSPEC);
     return current_stmt_binlog_format == BINLOG_FORMAT_ROW;
   }
 
@@ -3514,15 +3538,14 @@ public:
   }
   /**
     Determine if binlogging is disabled for this session
-    @retval 0 if the current statement binlogging is disabled
+    @retval 1 if the current statement binlogging is disabled
               (could be because of binlog closed/binlog option
                is set to false).
-    @retval 1 if the current statement will be binlogged
+    @retval 0 if the current statement will be binlogged
   */
   inline bool is_current_stmt_binlog_disabled() const
   {
-    return (!(variables.option_bits & OPTION_BIN_LOG) ||
-            !mysql_bin_log.is_open());
+    return !binlog_ready_no_wsrep();
   }
 
   enum binlog_filter_state
@@ -3586,6 +3609,11 @@ private:
   enum_binlog_format current_stmt_binlog_format;
 
 public:
+  /*
+    Describe the current state of binary logging for the current statement.
+    Includes state of binary logging and also what disables it
+  */
+  enum_binlog_state binlog_state;
 
   /* 1 if binlog table maps has been written */
   bool binlog_table_maps;
@@ -3845,10 +3873,134 @@ public:
   inline void set_binlog_bit()
   {
     if (variables.sql_log_bin)
-      variables.option_bits |= OPTION_BIN_LOG;
-    else
+    {
+      variables.option_bits|= OPTION_BIN_LOG;
+      binlog_state= binlog_state & ~BINLOG_STATE_USER_DISABLED;
+      if ((binlog_state & BINLOG_STATE_DISABLED) == BINLOG_STATE_BYPASS)
+        binlog_state= binlog_state & ~BINLOG_STATE_BYPASS;
+    }
+    else if (!WSREP(this))      // sql_log_bin has no effect on Galera
+    {
       variables.option_bits &= ~OPTION_BIN_LOG;
+      binlog_state|= BINLOG_STATE_BYPASS | BINLOG_STATE_USER_DISABLED;
+    }
   }
+
+  /*
+    Return true if
+    (wsrep_emulate_bin_log && mysql_bin_log.is_open()) is
+    true and binary logging is not disabled
+
+    Note that if Galera is used witouth a binary log, some flags are
+    not ignored to ensure that all changes are sent to the other nodes
+    through the Galera protocol.  Disabling writing to binary log is
+    in this case happening in MYSQL_BIN_LOG::write()
+  */
+
+  inline bool binlog_ready() const
+  {
+    return ((binlog_state &
+             (variables.wsrep_on ?
+              (BINLOG_STATE_DISABLED_WSREP | BINLOG_STATE_ACTIVE) :
+              (BINLOG_STATE_DISABLED_WSREP | BINLOG_STATE_ACTIVE |
+               BINLOG_STATE_DISABLED))) ==
+            BINLOG_STATE_ACTIVE);
+   }
+
+  /*
+    Return true if
+    (WSREP_NNULL(thd) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()) is
+    true and binary logging is not disabled
+  */
+  inline bool binlog_ready_with_wsrep() const
+  {
+    return ((binlog_state &
+             (variables.wsrep_on ?
+              (BINLOG_STATE_DISABLED_WSREP | BINLOG_STATE_ACTIVE_WSREP) :
+              (BINLOG_STATE_DISABLED_WSREP | BINLOG_STATE_ACTIVE_WSREP |
+               BINLOG_STATE_DISABLED))) ==
+            BINLOG_STATE_ACTIVE_WSREP);
+  }
+
+   /* Same as above, but no check if Galara is using wsrep_emulate_bin_log */
+  inline bool binlog_ready_no_wsrep() const
+  {
+    return ((binlog_state &
+             (BINLOG_STATE_DISABLED_WSREP | BINLOG_STATE_DISABLED |
+              BINLOG_STATE_OPEN)) ==
+             BINLOG_STATE_OPEN);
+  }
+
+  /*
+    This can be used before decide_logging_format() is called.
+    It is not exact, but can be used as a precheck to see if
+    there is change that binary logging could happen.
+    In essence BINLOG_STATE_FILTER and BINLOG_STATE_READONLY are not checked
+  */
+  inline bool binlog_ready_precheck()
+  {
+    return ((binlog_state &
+             (BINLOG_STATE_DISABLED | BINLOG_STATE_ACTIVE)) ==
+             BINLOG_STATE_ACTIVE);
+  }
+
+  /*
+    Check if binlog will be used later for this statement with statement
+    logging. This is mainly relevant when we are in a sub statement
+    (where replication is disabled because of statement basee logging).
+    It use to decide things like if log auto increments start to
+    binlog. See handler::update_auto_increment().
+    We have to ignore states
+    BINLOG_STATE_TMP_DISABLED (used by sp_head::execute_function()) and
+    BINLOG_STATE_SUBSTMT_DISABLED (used by THD::reset_sub_statement_stat()).
+    It is ok to ignore BINLOG_STATE_BYPASS as even if miss to notice
+    it is set here, the action taken will not have any effect if
+    binlogging will not happen.
+  */
+  inline bool binlog_ready_later()
+  {
+    return (((binlog_state &
+              ((BINLOG_STATE_DISABLED &
+                ~(BINLOG_STATE_TMP_DISABLED | BINLOG_STATE_SUBSTMT_DISABLED |
+                  BINLOG_STATE_BYPASS)) |
+               BINLOG_STATE_ACTIVE)) ==
+             BINLOG_STATE_ACTIVE) &&
+            is_current_stmt_binlog_format_stmt());
+  }
+  inline void enable_wsrep()
+  {
+#ifdef WITH_WSREP
+    DBUG_ASSERT(WSREP_PROVIDER_EXISTS_ && WSREP_ON_);
+    variables.wsrep_on= 1;
+    if (binlog_state & BINLOG_STATE_WSREP)
+      binlog_state|= BINLOG_STATE_ACTIVE_WSREP;
+#endif
+  }
+
+  inline void disable_wsrep()
+  {
+#ifdef WITH_WSREP
+    variables.wsrep_on= 0;
+    if (!(binlog_state & BINLOG_STATE_OPEN))
+      binlog_state= binlog_state & ~BINLOG_STATE_ACTIVE_WSREP;
+#endif
+  }
+
+  inline void set_wsrep(int set)
+  {
+    if (set)
+      enable_wsrep();
+    else
+      disable_wsrep();
+  }
+
+  /* We come here if binlog open state has changed */
+  inline void sync_binlog_state_with_binlog_open()
+  {
+    if (mysql_bin_log.is_open() != (binlog_state & BINLOG_STATE_OPEN))
+      sync_binlog_state_with_binlog_open_part2();
+  }
+  void sync_binlog_state_with_binlog_open_part2();
 
   ulonglong  limit_found_rows;
 
@@ -5141,6 +5293,8 @@ public:
                                 enum_binlog_format current_format)
   {
     DBUG_ENTER("set_binlog_format");
+    DBUG_ASSERT((binlog_state & BINLOG_STATE_ACTIVE) ||
+                current_format == BINLOG_FORMAT_UNSPEC);
     variables.binlog_format= format;
     current_stmt_binlog_format= current_format;
     DBUG_VOID_RETURN;
@@ -5148,8 +5302,12 @@ public:
   inline void set_binlog_format_stmt()
   {
     DBUG_ENTER("set_binlog_format_stmt");
-    variables.binlog_format=    BINLOG_FORMAT_STMT;
-    current_stmt_binlog_format= BINLOG_FORMAT_STMT;
+    DBUG_ASSERT(binlog_state & BINLOG_STATE_ACTIVE);
+    if (binlog_state & BINLOG_STATE_ACTIVE)
+    {
+      variables.binlog_format=    BINLOG_FORMAT_STMT;
+      current_stmt_binlog_format= BINLOG_FORMAT_STMT;
+    }
     DBUG_VOID_RETURN;
   }
   /*
@@ -5184,27 +5342,37 @@ public:
 
   inline void set_current_stmt_binlog_format(enum_binlog_format format)
   {
-    current_stmt_binlog_format= format;
+    if (binlog_state & BINLOG_STATE_ACTIVE)
+      current_stmt_binlog_format= format;
   }
 
   inline void set_current_stmt_binlog_format_row()
   {
     DBUG_ENTER("set_current_stmt_binlog_format_row");
-    current_stmt_binlog_format= BINLOG_FORMAT_ROW;
+    if (binlog_state & BINLOG_STATE_ACTIVE)
+      current_stmt_binlog_format= BINLOG_FORMAT_ROW;
     DBUG_VOID_RETURN;
   }
+
+  inline void set_current_stmt_binlog_format_unspec()
+  {
+    current_stmt_binlog_format= BINLOG_FORMAT_UNSPEC;
+  }
+
   /* Set binlog format temporarily to statement. Returns old format */
   inline enum_binlog_format set_current_stmt_binlog_format_stmt()
   {
     enum_binlog_format orig_format= current_stmt_binlog_format;
     DBUG_ENTER("set_current_stmt_binlog_format_stmt");
-    current_stmt_binlog_format= BINLOG_FORMAT_STMT;
+    if (binlog_state & BINLOG_STATE_ACTIVE)
+      current_stmt_binlog_format= BINLOG_FORMAT_STMT;
     DBUG_RETURN(orig_format);
   }
   inline void restore_stmt_binlog_format(enum_binlog_format format)
   {
     DBUG_ENTER("restore_stmt_binlog_format");
-    DBUG_ASSERT(is_current_stmt_binlog_format_stmt());
+    DBUG_ASSERT((binlog_state & BINLOG_STATE_ACTIVE) ||
+                format == BINLOG_FORMAT_UNSPEC);
     current_stmt_binlog_format= format;
     DBUG_VOID_RETURN;
   }
@@ -5216,10 +5384,15 @@ public:
                 YESNO(in_sub_stmt), show_system_thread(system_thread)));
     if (in_sub_stmt == 0)
     {
-      if (wsrep_binlog_format(variables.binlog_format) == BINLOG_FORMAT_ROW)
+      if (binlog_state == BINLOG_STATE_NONE)
+      {
+        DBUG_ASSERT(current_stmt_binlog_format == BINLOG_FORMAT_UNSPEC);
+      }
+      else if (wsrep_binlog_format(variables.binlog_format) ==
+               BINLOG_FORMAT_ROW)
         set_current_stmt_binlog_format_row();
       else
-        set_current_stmt_binlog_format_stmt();
+        set_current_stmt_binlog_format_stmt();  // STMT or MIXED
     }
     DBUG_VOID_RETURN;
   }
@@ -6377,14 +6550,6 @@ my_eof(THD *thd)
 
   TRANSACT_TRACKER(add_trx_state(thd, TX_RESULT_SET));
 }
-
-#define tmp_disable_binlog(A)                                              \
-  {ulonglong tmp_disable_binlog__save_options= (A)->variables.option_bits; \
-  (A)->variables.option_bits&= ~OPTION_BIN_LOG;                            \
-  (A)->variables.option_bits|= OPTION_BIN_TMP_LOG_OFF;
-
-#define reenable_binlog(A)                                                  \
-  (A)->variables.option_bits= tmp_disable_binlog__save_options; }
 
 
 inline date_conv_mode_t sql_mode_for_dates(THD *thd)

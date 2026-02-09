@@ -4352,7 +4352,7 @@ bool change_password(THD *thd, LEX_USER *user)
   hostname_cache_refresh();                    // Clear locked hostname cache
   mysql_mutex_unlock(&acl_cache->lock);
   result= acl_cache_is_locked= 0;
-  if (mysql_bin_log.is_open())
+  if (thd->binlog_ready_no_wsrep())
   {
     query_length= sprintf(buff, "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
            user->user.str, safe_str(user->host.str), auth.auth_string.str);
@@ -4514,7 +4514,7 @@ int acl_set_default_role(THD *thd,
 
     mysql_mutex_unlock(&acl_cache->lock);
     result= 0;
-    if (mysql_bin_log.is_open())
+    if (thd->binlog_ready_no_wsrep())
     {
       DBUG_ASSERT(query_length);
       thd->clear_error();

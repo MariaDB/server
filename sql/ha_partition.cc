@@ -11163,12 +11163,13 @@ void ha_partition::get_auto_increment(ulonglong offset, ulonglong increment,
       all other generated values used by this statement were consecutive to
       this first one, we must exclusively lock the generator until the
       statement is done.
+      Note that galera will not take the lock as it does not use statement
+      based replication.
     */
     if (!auto_increment_safe_stmt_log_lock &&
         thd->lex->sql_command != SQLCOM_INSERT &&
-        mysql_bin_log.is_open() &&
-        thd->is_current_stmt_binlog_format_stmt() &&
-        (thd->variables.option_bits & OPTION_BIN_LOG))
+        thd->binlog_ready_no_wsrep() &&
+        thd->is_current_stmt_binlog_format_stmt())
     {
       DBUG_PRINT("info", ("locking auto_increment_safe_stmt_log_lock"));
       auto_increment_safe_stmt_log_lock= TRUE;

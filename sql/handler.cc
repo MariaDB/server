@@ -4486,9 +4486,7 @@ int handler::update_auto_increment()
                                           variables->auto_increment_increment);
     auto_inc_intervals_count++;
     /* Row-based replication does not need to store intervals in binlog */
-    if (((WSREP_NNULL(thd) && wsrep_emulate_bin_log) ||
-         mysql_bin_log.is_open()) &&
-        thd->is_current_stmt_binlog_format_stmt())
+    if (thd->binlog_ready_later())
       thd->auto_inc_intervals_in_cur_stmt_for_binlog.
         append(auto_inc_interval_for_cur_row.minimum(),
                auto_inc_interval_for_cur_row.values(),
@@ -7628,7 +7626,7 @@ bool handler::check_table_binlog_row_based_internal()
   return (table->s->can_do_row_logging &&
           table->s->using_binlog() &&
           !table->versioned(VERS_TRX_ID) &&
-          !(thd->variables.option_bits & OPTION_BIN_TMP_LOG_OFF) &&
+          !(thd->binlog_state & BINLOG_STATE_TMP_DISABLED) &&
           thd->is_current_stmt_binlog_format_row() &&
           /*
             Wsrep partially enables binary logging if it have not been
@@ -7638,20 +7636,14 @@ bool handler::check_table_binlog_row_based_internal()
             @@sql_log_bin as we want the events to make into the binlog
             cache only to filter them later before they make into binary log
             file.
-
-            However, we do return 'false' if binary logging was temporarily
-            turned off (see tmp_disable_binlog(A)).
-
             Otherwise, return 'true' if binary logging is on.
           */
-          IF_WSREP(((WSREP_EMULATE_BINLOG_NNULL(thd) &&
+          (IF_WSREP((WSREP_EMULATE_BINLOG(thd) &&
                      wsrep_thd_is_local(thd)) ||
-                    ((WSREP_NNULL(thd) ||
-                      (thd->variables.option_bits & OPTION_BIN_LOG)) &&
-                     mysql_bin_log.is_open())),
-                    (thd->variables.option_bits & OPTION_BIN_LOG) &&
-                    mysql_bin_log.is_open()));
+                    thd->binlog_ready_with_wsrep(),
+                    thd->binlog_ready_no_wsrep())));
 }
+
 
 static int binlog_log_row_to_binlog(TABLE* table,
                                     const uchar *before_record,
@@ -7661,16 +7653,13 @@ static int binlog_log_row_to_binlog(TABLE* table,
 {
   bool error= 0;
   THD *const thd= table->in_use;
-
   DBUG_ENTER("binlog_log_row_to_binlog");
 
-  if (!thd->binlog_table_maps &&
-      thd->binlog_write_table_maps())
+  if (!thd->binlog_table_maps && thd->binlog_write_table_maps())
     DBUG_RETURN(HA_ERR_RBR_LOGGING_FAILED);
 
   DBUG_ASSERT(thd->is_current_stmt_binlog_format_row());
-  DBUG_ASSERT((WSREP_NNULL(thd) && wsrep_emulate_bin_log)
-              || mysql_bin_log.is_open());
+  DBUG_ASSERT(thd->binlog_state & BINLOG_STATE_ACTIVE_WSREP);
 
   auto *cache_mngr= thd->binlog_setup_trx_data();
   if (cache_mngr == NULL)
@@ -7689,16 +7678,25 @@ static int binlog_log_row_to_binlog(TABLE* table,
   DBUG_RETURN(error ? HA_ERR_RBR_LOGGING_FAILED : 0);
 }
 
+
 int handler::binlog_log_row(const uchar *before_record,
                             const uchar *after_record,
                             Log_func *log_func)
 {
   DBUG_ENTER("handler::binlog_log_row");
 
-  int error = 0;
-  if (row_logging)
+  int error= 0;
+  /*
+    The check for binlog_state is needed for mroonga and spider
+    Can be deleted if mroonga/spider would instead mark their internal
+    tables with can_do_row_logging == 0) or would reset the row_logging
+    for their write calls
+  */
+  if (row_logging && !(table->in_use->binlog_state & BINLOG_STATE_DISABLED))
+  {
     error= binlog_log_row_to_binlog(table, before_record, after_record,
                                     log_func, row_logging_has_trans);
+  }
 
 #ifdef HAVE_REPLICATION
   if (unlikely(!error && table->s->online_alter_binlog && is_root_handler()))

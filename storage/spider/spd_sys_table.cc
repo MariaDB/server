@@ -159,11 +159,12 @@ extern Time_zone *spd_tz_system;
 inline int spider_write_sys_table_row(TABLE *table, bool do_handle_error = TRUE)
 {
   int error_num;
+  BINLOG_STATE save;
   THD *thd = table->in_use;
 
-  tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
+  thd->tmp_disable_binlog(&save, BINLOG_STATE_TMP_DISABLED);
   error_num = table->file->ha_write_row(table->record[0]);
-  reenable_binlog(thd);
+  thd->reenable_binlog(&save);
 
   if (error_num && do_handle_error)
     table->file->print_error(error_num, MYF(0));
@@ -184,11 +185,12 @@ inline int spider_write_sys_table_row(TABLE *table, bool do_handle_error = TRUE)
 inline int spider_update_sys_table_row(TABLE *table, bool do_handle_error = TRUE)
 {
   int error_num;
+  BINLOG_STATE save;
   THD *thd = table->in_use;
 
-  tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
+  thd->tmp_disable_binlog(&save, BINLOG_STATE_TMP_DISABLED);
   error_num = table->file->ha_update_row(table->record[1], table->record[0]);
-  reenable_binlog(thd);
+  thd->reenable_binlog(&save);
 
   if (error_num && do_handle_error)
   {
@@ -216,11 +218,12 @@ inline int spider_delete_sys_table_row(TABLE *table, int record_number = 0,
                                        bool do_handle_error = TRUE)
 {
   int error_num;
+  BINLOG_STATE save;
   THD *thd = table->in_use;
 
-  tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
+  thd->tmp_disable_binlog(&save, BINLOG_STATE_TMP_DISABLED);
   error_num = table->file->ha_delete_row(table->record[record_number]);
-  reenable_binlog(thd);
+  thd->reenable_binlog(&save);
 
   if (error_num && do_handle_error)
     table->file->print_error(error_num, MYF(0));

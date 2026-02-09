@@ -139,23 +139,24 @@ namespace Wsrep_schema_impl
 class binlog_off
 {
 public:
-  binlog_off(THD* thd)
+  binlog_off(THD *thd)
     : m_thd(thd)
-    , m_option_bits(thd->variables.option_bits)
-    , m_sql_log_bin(thd->variables.sql_log_bin)
   {
-    thd->variables.option_bits&= ~OPTION_BIN_LOG;
-    thd->variables.sql_log_bin= 0;
+    thd->tmp_disable_binlog(&save,  BINLOG_STATE_WSREP_DISABLED);
   }
   ~binlog_off()
   {
-    m_thd->variables.option_bits= m_option_bits;
-    m_thd->variables.sql_log_bin= m_sql_log_bin;
+    m_thd->reenable_binlog(&save);
+    /*
+      WSREP wants to restore all option flags, not only disable
+      logging states (may not be needed but was done in original
+      WSREP code.
+    */
+    m_thd->variables.option_bits= save.option_bits;
   }
 private:
-  THD* m_thd;
-  ulonglong m_option_bits;
-  my_bool m_sql_log_bin;
+  THD *m_thd;
+  BINLOG_STATE save;
 };
 
 class wsrep_off
@@ -165,11 +166,12 @@ public:
     : m_thd(thd)
     , m_wsrep_on(thd->variables.wsrep_on)
   {
-    thd->variables.wsrep_on= 0;
+    thd->disable_wsrep();
   }
   ~wsrep_off()
   {
-    m_thd->variables.wsrep_on= m_wsrep_on;
+    if (m_wsrep_on)
+      m_thd->enable_wsrep();
   }
 private:
   THD* m_thd;
@@ -724,10 +726,12 @@ static void wsrep_init_thd_for_schema(THD *thd)
   thd->prior_thr_create_utime= thd->start_utime= thd->thr_create_utime;
 
   /* No Galera replication */
-  thd->variables.wsrep_on= 0;
+  thd->disable_wsrep();
   /* No binlogging */
   thd->variables.sql_log_bin= 0;
+  thd->set_binlog_bit();
   thd->variables.option_bits&= ~OPTION_BIN_LOG;
+  thd->binlog_state= BINLOG_STATE_NONE;
   /* No safe updates */
   thd->variables.option_bits&= ~OPTION_SAFE_UPDATES;
   /* No general log */

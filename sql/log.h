@@ -1367,8 +1367,87 @@ enum enum_binlog_format {
   BINLOG_FORMAT_MIXED= 0, ///< statement if safe, otherwise row - autodetected
   BINLOG_FORMAT_STMT=  1, ///< statement-based
   BINLOG_FORMAT_ROW=   2, ///< row-based
-  BINLOG_FORMAT_UNSPEC=3  ///< thd_binlog_format() returns it when binlog is closed
+  /*
+    thd_binlog_format() returns it when binlog is closed. Also used by
+    current_stmt_binlog_format when no binary log is open and Galera
+    is not used
+  */
+  BINLOG_FORMAT_UNSPEC=3
 };
+
+/*
+  State of binary logging. Includes flags for if binary log file is in use,
+  Galera, wsrep_emulate_bin_log and also all options for disabling binary
+  logging.
+  Note that if binary logging is enabled, then one must set one or both
+  of BINARY_STATE_OPEN and BINARY_WSREP and also BINARY_STATE_ACTIVE
+  and BINARY_STATE_ACTIVE_WSREP. This is needed to simply testing
+  of logging state by the THD::binlog_ready...() functions.
+
+  All flags are tested for sanity in THD:decide_logging_format().
+*/
+
+enum enum_binlog_state
+{
+  BINLOG_STATE_NONE=       0,
+  BINLOG_STATE_OPEN=       (1<<0),   // Binlog open
+  BINLOG_STATE_WSREP=      (1<<1),   // wsrep_emulate_bin_log set
+  /*
+    TRUE if (BINLOG_STATE_OPEN | BINLOG_STATE_WSREP)
+    This allows us to to use BINLOG_STATE_ACTIVE to check if either
+    binary log is open or if Galera is using it's own 'binary
+    logging'.
+  */
+  BINLOG_STATE_ACTIVE=        (1<<2),
+  /*
+    TRUE if (BINLOG_STATE_OPEN | (BINLOG_STATE_WSREP && wsrep_on))
+  */
+  BINLOG_STATE_ACTIVE_WSREP=  (1<<3),
+  /*
+    This flag indicates that OPTION_BIN_LOG is not set
+    If BINLOG_STATE_BYPASS is set, then there must also be another
+    of the following bits set
+  */
+  BINLOG_STATE_BYPASS=        (1<<4),
+  // Database filtering used. Note that this does not set the BYPASS bit
+  BINLOG_STATE_FILTER=        (1<<5),
+  // set by tmp_disable_binlog(). Previously using OPTION_BIN_TMP_LOG_OFF
+  BINLOG_STATE_TMP_DISABLED=  (1<<6),
+  // sql_bin_log == 0, set in set_binlog_bit()
+  BINLOG_STATE_USER_DISABLED= (1<<7),
+  BINLOG_STATE_WSREP_DISABLED=(1<<8),  // binlog_off class in wsrep.
+  BINLOG_STATE_SUBSTMT_DISABLED= (1<<9),  // reset_sub_statement_state()
+  BINLOG_STATE_SLAVE_DISABLED= (1<<10),// !opt_log_slave_updates
+  BINLOG_STATE_READONLY=      (1<<11)  // Nothing to log (no writes)
+};
+
+static inline enum_binlog_state operator&(const enum_binlog_state a, const enum_binlog_state b)
+{
+  return (enum_binlog_state) (((uint) a) & ((uint) b));
+}
+
+static inline enum_binlog_state operator|(const enum_binlog_state a, const enum_binlog_state b)
+{
+  return (enum_binlog_state) (((uint) a) | ((uint) b));
+}
+
+static inline enum_binlog_state operator|=(enum_binlog_state &a, const enum_binlog_state b)
+{
+  a= (enum_binlog_state) (((uint) a) | ((uint) b));
+  return a;
+}
+
+static inline enum_binlog_state operator~(const enum_binlog_state a)
+{
+  return (enum_binlog_state) ~(uint) a;
+}
+
+#define BINLOG_STATE_ACTIVE_FLAGS (BINLOG_STATE_OPEN | BINLOG_STATE_WSREP | BINLOG_STATE_ACTIVE | BINLOG_STATE_ACTIVE_WSREP)
+
+/* Disabled stats honored by Galera */
+#define BINLOG_STATE_DISABLED_WSREP (BINLOG_STATE_READONLY)
+/* All disabled states for binary log */
+#define BINLOG_STATE_DISABLED (BINLOG_STATE_BYPASS | BINLOG_STATE_TMP_DISABLED | BINLOG_STATE_USER_DISABLED | BINLOG_STATE_WSREP_DISABLED | BINLOG_STATE_SUBSTMT_DISABLED | BINLOG_STATE_SLAVE_DISABLED)
 
 int query_error_code(THD *thd, bool not_killed);
 uint purge_log_get_error_code(int res);

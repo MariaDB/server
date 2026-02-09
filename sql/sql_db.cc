@@ -41,6 +41,7 @@
 #include "sql_handler.h"
 #include "sql_statistics.h"
 #include "ddl_log.h"                     // ddl_log functions
+#include "rpl_filter.h"                  // binlog_filter
 #include <my_dir.h>
 #include <m_ctype.h>
 #include "log.h"
@@ -850,7 +851,7 @@ not_silent:
     query_length= thd->query_length();
     DBUG_ASSERT(query);
 
-    if (mysql_bin_log.is_open())
+    if (thd->binlog_ready_precheck() && binlog_filter->db_ok(db.str))
     {
       int errcode= query_error_code(thd, TRUE);
       Query_log_event qinfo(thd, query, query_length, FALSE, TRUE,
@@ -934,7 +935,7 @@ mysql_alter_db_internal(THD *thd, const Lex_ident_db &db,
   ddl_log.org_database=     db;
   backup_log_ddl(&ddl_log);
 
-  if (mysql_bin_log.is_open())
+  if (thd->binlog_ready_precheck() && binlog_filter->db_ok(db.str))
   {
     int errcode= query_error_code(thd, TRUE); 
     Query_log_event qinfo(thd, thd->query(), thd->query_length(), FALSE, TRUE,
@@ -1029,12 +1030,13 @@ void drop_database_objects(THD *thd, const LEX_CSTRING *path,
 
   if (!rm_mysql_schema)
   {
-    tmp_disable_binlog(thd);
+    BINLOG_STATE save;
+    thd->tmp_disable_binlog(&save, BINLOG_STATE_TMP_DISABLED);
     (void) sp_drop_db_routines(thd, *db); /* @todo Do not ignore errors */
 #ifdef HAVE_EVENT_SCHEDULER
     Events::drop_schema_events(thd, *db);
 #endif
-    reenable_binlog(thd);
+    thd->reenable_binlog(&save);
   }
   debug_crash_here("ddl_log_drop_after_drop_db_routines");
 }
@@ -1204,7 +1206,7 @@ update_binlog:
     query_length= thd->query_length();
     DBUG_ASSERT(query);
 
-    if (mysql_bin_log.is_open())
+    if (thd->binlog_ready_precheck() && binlog_filter->db_ok(db.str))
     {
       int errcode= query_error_code(thd, TRUE);
       int res;
@@ -1239,7 +1241,8 @@ update_binlog:
     thd->server_status|= SERVER_STATUS_DB_DROPPED;
     my_ok(thd, deleted_tables);
   }
-  else if (mysql_bin_log.is_open() && !silent)
+  else if (thd->binlog_ready_precheck() && binlog_filter->db_ok(db.str) &&
+           !silent)
   {
     char *query, *query_pos, *query_end, *query_data_start;
     TABLE_LIST *tbl;
@@ -2104,7 +2107,7 @@ bool mysql_upgrade_db(THD *thd, const Lex_ident_db &old_db)
   error= mysql_rm_db_internal(thd, old_db, 0, true);
 
   /* Step8: logging */
-  if (mysql_bin_log.is_open())
+  if (thd->binlog_ready_precheck() && binlog_filter->db_ok(old_db.str))
   {
     int errcode= query_error_code(thd, TRUE);
     Query_log_event qinfo(thd, thd->query(), thd->query_length(),

@@ -114,8 +114,6 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
   {
     my_bool saved_wsrep_on= global_system_variables.wsrep_on;
 
-    thd->variables.wsrep_on= saved_wsrep_on;
-
     // If wsrep has not been inited we need to do it now
     if (!wsrep_inited &&
         saved_wsrep_on &&
@@ -145,7 +143,8 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
       mysql_mutex_lock(&LOCK_global_system_variables);
     }
 
-    thd->variables.wsrep_on= global_system_variables.wsrep_on= saved_wsrep_on;
+    global_system_variables.wsrep_on= saved_wsrep_on;
+    thd->set_wsrep(saved_wsrep_on);
   }
 
   wsrep_set_wsrep_on(thd);

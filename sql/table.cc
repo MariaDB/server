@@ -3669,6 +3669,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
 {
   CHARSET_INFO *old_cs= thd->variables.character_set_client;
   Parser_state parser_state;
+  BINLOG_STATE binlog_state_save;
   bool error;
   char *sql_copy;
   handler *file;
@@ -3696,7 +3697,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
 
   Sql_mode_instant_set sms(thd, MODE_NO_ENGINE_SUBSTITUTION | MODE_NO_DIR_IN_CREATE);
   thd->variables.character_set_client= system_charset_info;
-  tmp_disable_binlog(thd);
+  thd->tmp_disable_binlog(&binlog_state_save, BINLOG_STATE_TMP_DISABLED);
   old_lex= thd->lex;
   thd->lex= &tmp_lex;
 
@@ -3753,7 +3754,7 @@ ret:
   lex_end(&tmp_lex);
   thd->reset_db(&db_backup);
   thd->lex= old_lex;
-  reenable_binlog(thd);
+  thd->reenable_binlog(&binlog_state_save);
   thd->variables.character_set_client= old_cs;
   if (unlikely(thd->is_error() || error))
   {

@@ -3,6 +3,7 @@ call mtr.add_suppression("Log filename extension number exhausted:.");
 call mtr.add_suppression("Can't generate a unique log-filename");
 call mtr.add_suppression("MYSQL_BIN_LOG::open failed to generate new file name.");
 call mtr.add_suppression("Could not use master-bin for logging");
+call mtr.add_suppression("Binary logging not possible");
 "Test case verifies creation of binary log with max entension value."
 RESET MASTER TO 2147483647;
 show binary logs;
@@ -20,6 +21,7 @@ FOUND 1 /Turning logging off for the whole duration of the MariaDB server proces
 "Following CREATE DATABSE db2 command will not be present in binary log"
 "as binary log got closed due to ER_NO_UNIQUE_LOGFILE error."
 CREATE DATABASE db2;
+ERROR HY000: Binary logging not possible. Message: Binlog was unexpectedly closed
 "RESET MASTER command fails to generate a new binary log"
 "log-bin will be disabled and server needs to be restarted to"
 "re-enable the binary log."

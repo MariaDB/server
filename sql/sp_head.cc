@@ -1897,7 +1897,6 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
                           Field *return_value_fld, sp_rcontext **func_ctx,
                           Query_arena *call_arena)
 {
-  ulonglong UNINIT_VAR(binlog_save_options);
   bool need_binlog_call= FALSE;
   uint params= m_pcont->context_var_count();
   uint default_params= m_pcont->default_context_var_count();
@@ -1907,6 +1906,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   String binlog_buf(buf, sizeof(buf), &my_charset_bin);
   bool err_status= FALSE;
   Query_arena backup_arena;
+  BINLOG_STATE binlog_state_save;
   DBUG_ENTER("sp_head::execute_function");
   DBUG_PRINT("info", ("function %s", m_name.str));
 
@@ -1979,8 +1979,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     If row-based binlogging, we don't need to binlog the function's call, let
     each substatement be binlogged its way.
   */
-  need_binlog_call= mysql_bin_log.is_open() &&
-                    (thd->variables.option_bits & OPTION_BIN_LOG) &&
+  need_binlog_call= thd->binlog_ready_no_wsrep() &&
                     thd->is_current_stmt_binlog_format_stmt();
 
   /*
@@ -2042,8 +2041,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     */
     q= get_query_id();
     mysql_bin_log.start_union_events(thd, q + 1);
-    binlog_save_options= thd->variables.option_bits;
-    thd->variables.option_bits&= ~OPTION_BIN_LOG;
+    thd->tmp_disable_binlog(&binlog_state_save, BINLOG_STATE_TMP_DISABLED);
   }
 
   opt_trace_disable_if_no_stored_proc_func_access(thd, this);
@@ -2064,7 +2062,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   if (need_binlog_call)
   {
     mysql_bin_log.stop_union_events(thd);
-    thd->variables.option_bits= binlog_save_options;
+    thd->reenable_binlog(&binlog_state_save);
     if (thd->binlog_evt_union.unioned_events)
     {
       int errcode = query_error_code(thd, thd->killed == NOT_KILLED);
@@ -2074,8 +2072,8 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
           thd->binlog_evt_union.unioned_events_trans)
       {
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
-                     "Invoked ROUTINE modified a transactional table but MySQL "
-                     "failed to reflect this change in the binary log");
+                     "Invoked ROUTINE modified a transactional table but "
+                     "MariaDB failed to reflect this change in the binary log");
         err_status= TRUE;
       }
       reset_dynamic(&thd->user_var_events);
@@ -2380,8 +2378,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     If not insided a procedure and a function printing warning
     messsages.
   */ 
-  bool need_binlog_call= mysql_bin_log.is_open() &&
-                         (thd->variables.option_bits & OPTION_BIN_LOG) &&
+  bool need_binlog_call= thd->binlog_ready_no_wsrep() &&
                          thd->is_current_stmt_binlog_format_stmt();
   if (need_binlog_call && thd->spcont == NULL &&
       !thd->binlog_evt_union.do_union)
