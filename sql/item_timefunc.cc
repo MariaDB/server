@@ -551,9 +551,13 @@ static const char *ad_bc_names[]=
   "AD", "A.D.", "BC", "B.C.", NullS
 };
 
+static uint ad_bc_lengths[]= {
+  2, 4, 2, 4
+};
+
 static TYPELIB ad_bc_typelib=
 {
-  array_elements(ad_bc_names)-1,"", ad_bc_names, (uint[4]){2,4,2,4}, NULL
+  array_elements(ad_bc_names)-1, "", ad_bc_names, ad_bc_lengths, NULL
 };
 
 #define INVALID_CHARACTER(x) (((x) >= 'A' && (x) <= 'Z') || ((x) >= '0' && (x) <= '9') || (x) >= 127 || ((x) < 32))

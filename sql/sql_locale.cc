@@ -3639,7 +3639,7 @@ static void update_lengths_in_typelib(TYPELIB *typelib)
     lengths= typelib->type_lengths=
       (uint*)my_once_alloc(typelib->count*sizeof(uint), MYF(MY_FAE));
   for (uint i= 0; i < typelib->count ; i++)
-    (*lengths++)= strlen(*names++);
+    (*lengths++)= (uint)strlen(*names++);
 }
 
 
