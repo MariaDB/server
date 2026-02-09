@@ -1531,7 +1531,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
   }
 
 log:
-  if (mysql_bin_log.is_open())
+  if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
   {
     thd->clear_error();
 
@@ -1669,9 +1669,9 @@ Sp_handler::sp_drop_routine(THD *thd,
       write_bin_log(thd, TRUE, thd->query(), thd->query_length()))
     ret= SP_INTERNAL_ERROR;
   /*
-    This statement will be replicated as a statement, even when using
-    row-based replication.  The flag will be reset at the end of the
-    statement.
+    If replication is enabled, the statement will be replicated as a
+    statement, even when using row-based replication.  The flag will be
+    reset at the end of the statement.
   */
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
   DBUG_RETURN(ret);

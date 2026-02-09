@@ -3474,10 +3474,16 @@ public:
     @retval nonzero if the current statement will be logged in row
     format.
    */
-  int is_current_stmt_binlog_format_row() const {
+  int is_current_stmt_binlog_format_row() const
+  {
     DBUG_ASSERT(current_stmt_binlog_format == BINLOG_FORMAT_STMT ||
                 current_stmt_binlog_format == BINLOG_FORMAT_ROW);
     return current_stmt_binlog_format == BINLOG_FORMAT_ROW;
+  }
+
+  int is_current_stmt_binlog_format_stmt() const
+  {
+    return current_stmt_binlog_format == BINLOG_FORMAT_STMT;
   }
 
   int is_binlog_format_row() const
@@ -5198,7 +5204,7 @@ public:
   inline void restore_stmt_binlog_format(enum_binlog_format format)
   {
     DBUG_ENTER("restore_stmt_binlog_format");
-    DBUG_ASSERT(!is_current_stmt_binlog_format_row());
+    DBUG_ASSERT(is_current_stmt_binlog_format_stmt());
     current_stmt_binlog_format= format;
     DBUG_VOID_RETURN;
   }
@@ -5206,9 +5212,8 @@ public:
   {
     DBUG_ENTER("reset_current_stmt_binlog_format_row");
     DBUG_PRINT("debug",
-               ("temporary_tables: %s, in_sub_stmt: %s, system_thread: %s",
-                YESNO(has_temporary_tables()), YESNO(in_sub_stmt),
-                show_system_thread(system_thread)));
+               ("in_sub_stmt: %s  system_thread: %s",
+                YESNO(in_sub_stmt), show_system_thread(system_thread)));
     if (in_sub_stmt == 0)
     {
       if (wsrep_binlog_format(variables.binlog_format) == BINLOG_FORMAT_ROW)

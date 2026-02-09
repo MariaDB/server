@@ -639,7 +639,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
 #ifdef WITH_WSREP
   if (WSREP_NNULL(thd) && wsrep_thd_is_local(thd) &&
-      (!thd->is_current_stmt_binlog_format_row() ||
+      (thd->is_current_stmt_binlog_format_stmt() ||
        !thd->find_temporary_table(first_table)))
   {
     /*

@@ -5419,7 +5419,7 @@ bool select_create::send_eof()
     the CREATE TABLE will already be logged if we are not using row based
     replication.
   */
-  if (!thd->is_current_stmt_binlog_format_row())
+  if (thd->is_current_stmt_binlog_format_stmt())
   {
     if (ddl_log_state_create.is_active())       // Not temporary table
       ddl_log_update_phase(&ddl_log_state_create, DDL_CREATE_TABLE_PHASE_LOG);

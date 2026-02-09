@@ -456,6 +456,11 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   transactional_table= table->file->has_transactions_and_rollback();
   deleted= 0;
 
+  /*
+    We have to use !thd->is_current_stmt_binlog_format_row() here as
+    we want to use fast delete in all other cases, including when binary
+    log is not enabled.
+  */
   if (!returning && !using_limit && const_cond_result &&
       !thd->is_current_stmt_binlog_format_row() && !has_triggers &&
       !table->versioned(VERS_TIMESTAMP) && !table_list->has_period())
