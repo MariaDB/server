@@ -209,6 +209,7 @@ mysys/statement_timer	BACKGROUND
 root@localhost	FOREGROUND
 sql/main	BACKGROUND
 sql/manager	BACKGROUND
+sql/slave_deadlock_handler	BACKGROUND
 CALL sys.ps_setup_show_enabled(TRUE, TRUE);
 performance_schema_enabled
 1
@@ -240,6 +241,7 @@ mysys/statement_timer	BACKGROUND
 root@localhost	FOREGROUND
 sql/main	BACKGROUND
 sql/manager	BACKGROUND
+sql/slave_deadlock_handler	BACKGROUND
 enabled_instruments	timed
 idle	YES
 memory/performance_schema/accounts	NO
