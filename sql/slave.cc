@@ -479,7 +479,113 @@ end:
     plugin_unlock(NULL, engine);
 }
 
+static bool slave_deadlock_handler_thread_running;
+static bool slave_deadlock_handler_thread_stop;
 static bool slave_background_thread_gtid_loaded;
+
+struct slave_deadlock_kill_t {
+  slave_deadlock_kill_t *next;
+  THD *to_kill;
+} *slave_deadlock_kill_list;
+
+
+pthread_handler_t
+slave_deadlock_handler(void *arg __attribute__((unused)))
+{
+  bool stop;
+
+  my_thread_init();
+
+  mysql_mutex_lock(&LOCK_slave_deadlock_handler);
+  slave_deadlock_handler_thread_running= true;
+  mysql_cond_broadcast(&COND_slave_deadlock_handler);
+  do
+  {
+    slave_deadlock_kill_t *kill_list;
+
+    for (;;)
+    {
+      stop= abort_loop || slave_deadlock_handler_thread_stop;
+      kill_list= slave_deadlock_kill_list;
+      if (stop || kill_list)
+        break;
+      mysql_cond_wait(&COND_slave_deadlock_handler, &LOCK_slave_deadlock_handler);
+    }
+
+    slave_deadlock_kill_list= NULL;
+    mysql_mutex_unlock(&LOCK_slave_deadlock_handler);
+
+    while (kill_list)
+    {
+      slave_deadlock_kill_t *p = kill_list;
+      THD *to_kill= p->to_kill;
+      kill_list= p->next;
+
+      DBUG_EXECUTE_IF("rpl_delay_deadlock_kill", my_sleep(1500000););
+      to_kill->awake(KILL_CONNECTION);
+      mysql_mutex_lock(&to_kill->LOCK_wakeup_ready);
+      to_kill->rgi_slave->killed_for_retry=
+        rpl_group_info::RETRY_KILL_KILLED;
+      mysql_cond_broadcast(&to_kill->COND_wakeup_ready);
+      mysql_mutex_unlock(&to_kill->LOCK_wakeup_ready);
+      my_free(p);
+    }
+    mysql_mutex_lock(&LOCK_slave_deadlock_handler);
+  } while (!stop);
+
+  slave_deadlock_handler_thread_running= false;
+  mysql_cond_broadcast(&COND_slave_deadlock_handler);
+  mysql_mutex_unlock(&LOCK_slave_deadlock_handler);
+
+  my_thread_end();
+  return 0;
+}
+
+
+/*
+  Start the slave deadlock handler thread.
+
+  This thread is used to kill worker thread transactions during parallel
+  replication, when a storage engine attempts to take an errorneous
+  conflicting lock that would cause a deadlock. Killing is done
+  asynchroneously, as the kill may not be safe within the context of a
+  callback from inside storage engine locking code.
+*/
+static int
+start_slave_deadlock_handler_thread()
+{
+  pthread_t th;
+
+  mysql_mutex_lock(&LOCK_slave_deadlock_handler);
+  slave_deadlock_handler_thread_running= false;
+  slave_deadlock_handler_thread_stop= false;
+  if (mysql_thread_create(key_thread_slave_deadlock_handler,
+                          &th, &connection_attrib, slave_deadlock_handler,
+                          NULL))
+  {
+    sql_print_error("Failed to create thread while initialising slave");
+    return 1;
+  }
+
+  while (!slave_deadlock_handler_thread_running)
+    mysql_cond_wait(&COND_slave_deadlock_handler, &LOCK_slave_deadlock_handler);
+  mysql_mutex_unlock(&LOCK_slave_deadlock_handler);
+
+  return 0;
+}
+
+
+static void
+stop_slave_deadlock_handler_thread()
+{
+  mysql_mutex_lock(&LOCK_slave_deadlock_handler);
+  slave_deadlock_handler_thread_stop= true;
+  mysql_cond_broadcast(&COND_slave_deadlock_handler);
+  while (slave_deadlock_handler_thread_running)
+    mysql_cond_wait(&COND_slave_deadlock_handler, &LOCK_slave_deadlock_handler);
+  mysql_mutex_unlock(&LOCK_slave_deadlock_handler);
+}
+
 
 static void bg_rpl_load_gtid_slave_state(void *)
 {
@@ -501,24 +607,26 @@ static void bg_rpl_load_gtid_slave_state(void *)
   delete thd;
 }
 
-static void bg_slave_kill(void *victim)
-{
-  THD *to_kill= (THD *)victim;
-  DBUG_EXECUTE_IF("rpl_delay_deadlock_kill", my_sleep(1500000););
-  to_kill->awake(KILL_CONNECTION);
-  mysql_mutex_lock(&to_kill->LOCK_wakeup_ready);
-  to_kill->rgi_slave->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
-  mysql_cond_broadcast(&to_kill->COND_wakeup_ready);
-  mysql_mutex_unlock(&to_kill->LOCK_wakeup_ready);
-}
 
 void slave_background_kill_request(THD *to_kill)
 {
   if (to_kill->rgi_slave->killed_for_retry)
     return;                                     // Already deadlock killed.
-  to_kill->rgi_slave->killed_for_retry= rpl_group_info::RETRY_KILL_PENDING;
-  mysql_manager_submit(bg_slave_kill, to_kill);
+  slave_deadlock_kill_t *p= (slave_deadlock_kill_t *)
+    my_malloc(PSI_INSTRUMENT_ME, sizeof(*p), MYF(MY_WME));
+  if (p)
+  {
+    p->to_kill= to_kill;
+    to_kill->rgi_slave->killed_for_retry=
+      rpl_group_info::RETRY_KILL_PENDING;
+    mysql_mutex_lock(&LOCK_slave_deadlock_handler);
+    p->next= slave_deadlock_kill_list;
+    slave_deadlock_kill_list= p;
+    mysql_cond_signal(&COND_slave_deadlock_handler);
+    mysql_mutex_unlock(&LOCK_slave_deadlock_handler);
+  }
 }
+
 
 /*
   This function must only be called from a slave SQL thread (or worker thread),
@@ -563,6 +671,9 @@ int init_slave()
 #ifdef HAVE_PSI_INTERFACE
   init_slave_psi_keys();
 #endif
+
+  if (start_slave_deadlock_handler_thread())
+    return 1;
 
   if (global_rpl_thread_pool.init(opt_slave_parallel_threads))
     return 1;
@@ -1298,6 +1409,7 @@ void slave_prepare_for_shutdown()
   mysql_mutex_lock(&LOCK_active_mi);
   master_info_index->free_connections();
   mysql_mutex_unlock(&LOCK_active_mi);
+  stop_slave_deadlock_handler_thread();
   // It's safe to destruct worker pool now when
   // all driver threads are gone.
   global_rpl_thread_pool.deactivate();
@@ -1330,6 +1442,8 @@ void end_slave()
   master_info_index= 0;
   active_mi= 0;
   mysql_mutex_unlock(&LOCK_active_mi);
+
+  stop_slave_deadlock_handler_thread();
 
   global_rpl_thread_pool.destroy();
   free_all_rpl_filters();
