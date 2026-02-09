@@ -6798,10 +6798,16 @@ void start_new_trans::restore_old_transaction()
      than one engine is involved and at least one engine is
      self-logging.
 
-  For each error case above, the statement is prevented from being
+  For each error case above, the statement is prevented from beinge
   logged, we report an error, and roll back the statement.  For
   warnings, we set the thd->binlog_flags variable: the warning will be
   printed only if the statement is successfully logged.
+
+  Note that decide_logging_format() only changes binlog format from
+  STATEMENT or MIXED to ROW (or UNSPEC if no binlogging).
+  It will not change ROW to STATEMENT. Changing ROW back to STATEMENT only
+  happens for top level statements when THD::reset_for_next_command() calls
+  reset_current_stmt_binlog_format_row().
 
   @see THD::binlog_query
 
@@ -7002,10 +7008,11 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       if (!share->using_binlog())
       {
         /*
-          This is a temporary table which was not logged in the binary log.
+          This is a temporary table hich was not logged in the
+          binary log or a GTT table. GTT tables does not support stmt logging.
           Disable statement logging to enforce row level logging.
         */
-        DBUG_ASSERT(share->tmp_table);
+        DBUG_ASSERT(share->tmp_table || share->global_tmp_table());
         flags&= ~HA_BINLOG_STMT_CAPABLE;
         /* We can only use row logging */
         set_current_stmt_binlog_format_row();
@@ -7354,9 +7361,10 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                             table_names.c_ptr());
       }
     }
-
     if (is_write && is_current_stmt_binlog_format_row())
       binlog_prepare_for_row_logging();
+    DBUG_ASSERT(current_stmt_binlog_format == BINLOG_FORMAT_ROW ||
+                current_stmt_binlog_format == BINLOG_FORMAT_STMT);
   }
   else
   {

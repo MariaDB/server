@@ -7626,6 +7626,7 @@ bool handler::check_table_binlog_row_based_internal()
   }
 #endif
   return (table->s->can_do_row_logging &&
+          table->s->using_binlog() &&
           !table->versioned(VERS_TRX_ID) &&
           !(thd->variables.option_bits & OPTION_BIN_TMP_LOG_OFF) &&
           thd->is_current_stmt_binlog_format_row() &&

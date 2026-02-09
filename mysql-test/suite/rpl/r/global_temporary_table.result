@@ -1292,7 +1292,7 @@ unlock tables;
 truncate t2;
 drop table t2;
 drop table t3;
-
+# Test failing create or replace GTT table
 create table t1 (c int);
 lock tables t1 write;
 create or replace global temporary table t1 (c int) select 1/0 as c;
