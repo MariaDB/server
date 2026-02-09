@@ -711,7 +711,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   if (!res)
     tdc_remove_table(thd, view->db.str, view->table_name.str);
 
-  if (!res && mysql_bin_log.is_open())
+  if (!res && thd->binlog_ready_no_wsrep())
   {
     StringBuffer<128> buff(thd->variables.character_set_client);
     DBUG_ASSERT(buff.charset()->mbminlen == 1);

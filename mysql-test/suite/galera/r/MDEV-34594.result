@@ -33,10 +33,8 @@ Warning	1105	MariaDB Galera and flashback do not support binlog format: MIXED
 CREATE TABLE t1 (a INT UNIQUE) SELECT 1 AS a,2 AS b UNION SELECT 2 AS a,3 AS c;
 Warnings:
 Warning	1105	Galera does not support binlog_format = MIXED in CREATE TABLE [SELECT|REPLACE] forcing ROW
-Warning	1105	Galera does not support binlog_format = MIXED in CREATE TABLE [SELECT|REPLACE] forcing ROW
 CREATE TABLE t2 (a INT UNIQUE) REPLACE SELECT 1 AS a,2 AS b UNION SELECT 1 AS a,3 AS c;
 Warnings:
-Warning	1105	Galera does not support binlog_format = MIXED in CREATE TABLE [SELECT|REPLACE] forcing ROW
 Warning	1105	Galera does not support binlog_format = MIXED in CREATE TABLE [SELECT|REPLACE] forcing ROW
 SELECT * FROM t1;
 a	b
@@ -64,10 +62,8 @@ Warning	1105	MariaDB Galera and flashback do not support binlog format: STATEMEN
 CREATE TABLE t1 (a INT UNIQUE) SELECT 1 AS a,2 AS b UNION SELECT 2 AS a,3 AS c;
 Warnings:
 Warning	1105	Galera does not support binlog_format = MIXED in CREATE TABLE [SELECT|REPLACE] forcing ROW
-Warning	1105	Galera does not support binlog_format = MIXED in CREATE TABLE [SELECT|REPLACE] forcing ROW
 CREATE TABLE t2 (a INT UNIQUE) REPLACE SELECT 1 AS a,2 AS b UNION SELECT 1 AS a,3 AS c;
 Warnings:
-Warning	1105	Galera does not support binlog_format = MIXED in CREATE TABLE [SELECT|REPLACE] forcing ROW
 Warning	1105	Galera does not support binlog_format = MIXED in CREATE TABLE [SELECT|REPLACE] forcing ROW
 SELECT * FROM t1;
 a	b

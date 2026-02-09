@@ -53,6 +53,6 @@ extern ulong wsrep_forced_binlog_format;
 #define WSREP_NNULL(T) (0)
 #define WSREP_EMULATE_BINLOG(thd) (0)
 #define WSREP_EMULATE_BINLOG_NNULL(thd) (0)
-
+#define WSREP_PROVIDER_EXISTS_ false
 #endif
 #endif

@@ -697,7 +697,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    m_current_stage_key(0), m_psi(0), start_time(0), start_time_sec_part(0),
    in_sub_stmt(0), log_all_errors(0),
    binlog_unsafe_warning_flags(0),
-   current_stmt_binlog_format(BINLOG_FORMAT_MIXED),
    bulk_param(0),
    table_map_for_update(0),
    m_sent_row_count(0),
@@ -889,6 +888,10 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   transaction= &default_transaction;
   transaction->m_pending_rows_event= 0;
   transaction->on= 1;
+  /*
+    wt_thd_lazy_init does not change variables. It only remembers pointers
+    to them.
+  */
   wt_thd_lazy_init(&transaction->wt,
                    &variables.wt_deadlock_search_depth_short,
                    &variables.wt_timeout_short,
@@ -916,6 +919,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state();
 
+  /* Note that init() executes variables= global_system_variables */
   init();
   debug_sync_init_thread(this);
 #if defined(ENABLED_PROFILING)
@@ -1380,8 +1384,18 @@ void THD::init()
   tx_isolation= (enum_tx_isolation) variables.tx_isolation;
   tx_read_only= variables.tx_read_only;
   update_charset();             // plugin_thd_var() changed character sets
-  reset_current_stmt_binlog_format_row();
   reset_binlog_local_stmt_filter();
+
+  binlog_state= BINLOG_STATE_NONE;
+  sync_binlog_state_with_binlog_open_force();
+  current_stmt_binlog_format= ((binlog_state & BINLOG_STATE_ACTIVE) ?
+                               BINLOG_FORMAT_MIXED : BINLOG_FORMAT_UNSPEC);
+  reset_current_stmt_binlog_format_row();
+  // Set sql_log_bin to server default
+  variables.sql_log_bin= global_system_variables.sql_log_bin;
+  set_binlog_bit();
+  check_binlog_state();
+
   /* local_memory_used was setup in THD::THD() */
   set_status_var_init(clear_for_new_connection);
   status_var.max_local_memory_used= status_var.local_memory_used;
@@ -1424,8 +1438,6 @@ void THD::init()
   wsrep_desynced_backup_stage= false;
 #endif /* WITH_WSREP */
 
-  set_binlog_bit();
-
   select_commands= update_commands= other_commands= 0;
   /* Set to handle counting of aborted connections */
   userstat_running= opt_userstat_running;
@@ -1449,6 +1461,38 @@ void THD::init()
   gap_tracker_data.init();
   unit_results= NULL;
   DBUG_VOID_RETURN;
+}
+
+
+/*
+  Ensure that mysql_bin_log.is_open() is correctly reflected in
+  binlog_state.
+  We come here from sync_binlog_state_with_binlog_open() if
+  mysql_bin_log.is_open() and BINLOG_STATE_OPEN does not match or
+  when called directly, which has to be done if the state of
+  thd->variables.wsrep_on changes.
+*/
+
+void THD::sync_binlog_state_with_binlog_open_force()
+{
+  if (mysql_bin_log.is_open())
+    binlog_state|= (BINLOG_STATE_OPEN | BINLOG_STATE_ACTIVE |
+                    BINLOG_STATE_ACTIVE_WSREP);
+  else
+  {
+    /* binlog was unexpectedly closed. Update state */
+    binlog_state= (binlog_state & ~(BINLOG_STATE_OPEN |
+                                    BINLOG_STATE_ACTIVE |
+                                    BINLOG_STATE_ACTIVE_WSREP));
+    if (wsrep_emulate_bin_log)
+    {
+      binlog_state|= BINLOG_STATE_WSREP | BINLOG_STATE_ACTIVE;
+      if (variables.wsrep_on)
+        binlog_state|= BINLOG_STATE_ACTIVE_WSREP;
+    }
+    else
+      current_stmt_binlog_format= BINLOG_FORMAT_UNSPEC;
+  }
 }
 
 
@@ -2491,6 +2535,7 @@ void THD::cleanup_after_query()
     making this reset necessary.
   */
   reset_binlog_local_stmt_filter();
+  binlog_state= binlog_state & ~BINLOG_STATE_READONLY;
   if (first_successful_insert_id_in_cur_stmt > 0)
   {
     /* set what LAST_INSERT_ID() will return */
@@ -5415,9 +5460,7 @@ MYSQL_THD create_background_thd()
   thd->real_id= 0;
   thd->thread_id= 0;
   thd->query_id= 0;
-#ifdef WITH_WSREP
-  thd->variables.wsrep_on= FALSE;
-#endif /* WITH_WSREP */
+  thd->disable_wsrep_on();
   return thd;
 }
 
@@ -5944,13 +5987,13 @@ extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 
 extern "C" int thd_binlog_format(const MYSQL_THD thd)
 {
-  if (WSREP(thd))
+  if (WSREP_NNULL(thd))
   {
     /* for wsrep binlog format is meaningful also when binlogging is off */
     return (int) thd->wsrep_binlog_format(thd->variables.binlog_format);
   }
 
-  if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
+  if (thd->binlog_ready_no_wsrep())
     return (int) thd->variables.binlog_format;
   return BINLOG_FORMAT_UNSPEC;
 }
@@ -5963,6 +6006,10 @@ extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all)
 
 extern "C" bool thd_binlog_filter_ok(const MYSQL_THD thd)
 {
+  /*
+    TODO: Replace by binlog_state & BINLOG_FILTER) when BINLOG_FILTER
+    is set when thd->db.str changes value.
+  */
   return binlog_filter->db_ok(thd->db.str);
 }
 
@@ -6203,18 +6250,23 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
   backup->first_successful_insert_id_in_cur_stmt= 
     first_successful_insert_id_in_cur_stmt;
   backup->do_union= binlog_evt_union.do_union;
+  backup->binlog_state= binlog_state;
   store_slow_query_state(backup);
 
-  if ((!lex->requires_prelocking() || is_update_query(lex->sql_command)) &&
-      is_current_stmt_binlog_format_stmt())
+  if (is_current_stmt_binlog_format_stmt())
   {
-    variables.option_bits&= ~OPTION_BIN_LOG;
-  }
+    bool current_binlog_ready= binlog_ready_no_wsrep();
+    bool update_query= is_update_query(lex->sql_command);
 
-  if ((backup->option_bits & OPTION_BIN_LOG) &&
-       is_update_query(lex->sql_command) &&
-       is_current_stmt_binlog_format_stmt())
-    mysql_bin_log.start_union_events(this, this->query_id);
+    if (update_query || !lex->requires_prelocking())
+    {
+      variables.option_bits&= ~OPTION_BIN_LOG;
+      binlog_state|= BINLOG_STATE_BYPASS | BINLOG_STATE_SUBSTMT_DISABLED;
+    }
+
+    if (current_binlog_ready && update_query)
+      mysql_bin_log.start_union_events(this, this->query_id);
+  }
 
   /* Disable result sets */
   client_capabilities &= ~CLIENT_MULTI_RESULTS;
@@ -6265,6 +6317,7 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
     backup->first_successful_insert_id_in_cur_stmt;
   limit_found_rows= backup->limit_found_rows;
   client_capabilities= backup->client_capabilities;
+  binlog_state= backup->binlog_state;
 
   /* Restore statistic needed for slow log */
   add_slow_query_state(backup);
@@ -6691,7 +6744,7 @@ start_new_trans::start_new_trans(THD *thd)
   m_transaction_psi= thd->m_transaction_psi;
   thd->m_transaction_psi= 0;
   wsrep_on= thd->variables.wsrep_on;
-  thd->variables.wsrep_on= 0;
+  thd->disable_wsrep_on();
   thd->server_status&= ~(SERVER_STATUS_IN_TRANS |
                          SERVER_STATUS_IN_TRANS_READONLY);
   thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
@@ -6711,10 +6764,48 @@ void start_new_trans::restore_old_transaction()
   if (org_thd->m_transaction_psi)
     MYSQL_COMMIT_TRANSACTION(org_thd->m_transaction_psi);
   org_thd->m_transaction_psi= m_transaction_psi;
-  org_thd->variables.wsrep_on= wsrep_on;
+  if (wsrep_on)
+    org_thd->enable_wsrep_on();
   unhide_rgi_slave(org_thd->rgi_slave);
   org_thd= 0;
 }
+
+
+/*
+  Check that binlog_state is up to date
+  binlog_state can be BINLOG_STATE_NONE in case of
+  mysql_real_connect_local(), wsrep_init_thd_for_schema() or thd::thd()
+*/
+
+#ifndef DBUG_OFF
+void THD::check_binlog_state()
+{
+  if (binlog_state != BINLOG_STATE_NONE)
+  {
+    DBUG_ASSERT(mysql_bin_log.is_open() ==
+                (bool) (binlog_state & BINLOG_STATE_OPEN));
+    DBUG_ASSERT(((bool) wsrep_emulate_bin_log ==
+                 (bool) (binlog_state & BINLOG_STATE_WSREP)));
+    DBUG_ASSERT((mysql_bin_log.is_open() || wsrep_emulate_bin_log) ==
+                (bool) (binlog_state & BINLOG_STATE_ACTIVE));
+    DBUG_ASSERT((mysql_bin_log.is_open() ||
+                 (wsrep_emulate_bin_log && variables.wsrep_on)) ==
+                (bool) (binlog_state & BINLOG_STATE_ACTIVE_WSREP));
+    DBUG_ASSERT(!(bool) (variables.option_bits & OPTION_BIN_LOG) ==
+                (bool) (binlog_state & BINLOG_STATE_BYPASS));
+    DBUG_ASSERT(!(bool) variables.sql_log_bin ==
+                (bool) (binlog_state & BINLOG_STATE_USER_DISABLED));
+    DBUG_ASSERT((!(bool) (variables.option_bits & OPTION_BIN_LOG) ||
+                 variables.sql_log_bin == 0) ==
+                (bool) (binlog_state & BINLOG_STATE_DISABLED_FLAGS));
+    /* union can be used for without disabling binary logs */
+    DBUG_ASSERT((bool) (binlog_state & BINLOG_STATE_UNION_DISABLED) ?
+                (binlog_evt_union.do_union == 1) : 1);
+    DBUG_ASSERT((bool) (binlog_state & BINLOG_STATE_BYPASS) ==
+                (bool) (binlog_state & BINLOG_STATE_DISABLED_FLAGS));
+  }
+}
+#endif /* DBUG_ASSERT */
 
 
 /**
@@ -6784,7 +6875,7 @@ void start_new_trans::restore_old_transaction()
      at least one table uses a storage engine limited to
      statement-logging.
 
-  5. Error: Cannot execute statement: binlogging impossible since
+  5. Note: Cannot execute statement: binlogging impossible since
      BINLOG_FORMAT = STATEMENT and at least one table uses a storage
      engine limited to row-logging.
 
@@ -6820,23 +6911,36 @@ void start_new_trans::restore_old_transaction()
 
 int THD::decide_logging_format(TABLE_LIST *tables)
 {
+  ulong binlog_format;
+
   DBUG_ENTER("THD::decide_logging_format");
   DBUG_PRINT("info", ("Query: %.*s", (uint) query_length(), query()));
   DBUG_PRINT("info", ("binlog_format: %lu", (ulong) variables.binlog_format));
   DBUG_PRINT("info", ("current_stmt_binlog_format: %lu",
                       (ulong) current_stmt_binlog_format));
+  DBUG_PRINT("info", ("binlog_state: %d", binlog_state));
   DBUG_PRINT("info", ("lex->get_stmt_unsafe_flags(): 0x%x",
                       lex->get_stmt_unsafe_flags()));
 
-  reset_binlog_local_stmt_filter();
+  sync_binlog_state_with_binlog_open();
+  check_binlog_state();
+
+  if (!(binlog_state & (BINLOG_STATE_OPEN | BINLOG_STATE_WSREP)))
+  {
+    current_stmt_binlog_format= BINLOG_FORMAT_UNSPEC;
+    DBUG_RETURN(0);
+  }
+  /*
+    Strip the binlogging restrictions from the state that are calculated
+    later in this function
+  */
+  binlog_state= (binlog_state & ~(BINLOG_STATE_FILTER | BINLOG_STATE_READONLY));
+  /* We should have either binlog or wsrep_emulate_binlog active */
+  DBUG_ASSERT((binlog_state & BINLOG_STATE_ACTIVE) &&
+              binlog_state & (BINLOG_STATE_OPEN | BINLOG_STATE_WSREP));
 
   // Used binlog format
-  ulong binlog_format= wsrep_binlog_format(variables.binlog_format);
-  /*
-    We should not decide logging format if the binlog is closed or
-    binlogging is off, or if the statement is filtered out from the
-    binlog by filtering rules.
-  */
+  binlog_format= wsrep_binlog_format(variables.binlog_format);
 
 #ifdef WITH_WSREP
   if (WSREP_CLIENT_NNULL(this) &&
@@ -6873,7 +6977,6 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                             wsrep_forced_binlog_format == BINLOG_FORMAT_STMT ?
                             "STMT" : "MIXED");
       }
-      DBUG_ASSERT(current_stmt_binlog_format != BINLOG_FORMAT_UNSPEC);
       set_current_stmt_binlog_format_row();
     }
 
@@ -6895,10 +6998,17 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       set_current_stmt_binlog_format_row();
     }
   }
+
+  if (wsrep_emulate_bin_log)
+    DBUG_ASSERT((binlog_state & (BINLOG_STATE_WSREP | BINLOG_STATE_ACTIVE)) ==
+                (BINLOG_STATE_WSREP | BINLOG_STATE_ACTIVE));
 #endif /* WITH_WSREP */
 
+  if (binlog_format == BINLOG_FORMAT_STMT && !binlog_filter->db_ok(db.str))
+    binlog_state= binlog_state | BINLOG_STATE_FILTER;
+
   if (WSREP_EMULATE_BINLOG_NNULL(this) ||
-      binlog_table_should_be_logged(&db))
+      (binlog_ready_no_wsrep() && !(binlog_state & BINLOG_STATE_FILTER)))
   {
     if (is_bulk_op())
     {
@@ -6910,6 +7020,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         DBUG_RETURN(-1);
       }
     }
+    reset_binlog_local_stmt_filter();
+
     /*
       Compute one bit field with the union of all the engine
       capabilities, and one with the intersection of all the engine
@@ -7249,7 +7361,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                  sqlcom_can_generate_row_events(this))
         {
           /*
-            5. Error: Cannot modify table that uses a storage engine
+            5. Note: Cannot modify table that uses a storage engine
                limited to row-logging when binlog_format = STATEMENT, except
                if all tables that are updated are temporary tables
           */
@@ -7309,6 +7421,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       {
         DBUG_PRINT("info", ("decision: no logging, no replicated table affected"));
         set_binlog_local_stmt_filter();
+        binlog_state|= BINLOG_STATE_READONLY;
       }
       else
       {
@@ -7374,20 +7487,22 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     }
     if (is_write && is_current_stmt_binlog_format_row())
       binlog_prepare_for_row_logging();
-    DBUG_ASSERT(current_stmt_binlog_format == BINLOG_FORMAT_ROW ||
-                current_stmt_binlog_format == BINLOG_FORMAT_STMT);
   }
   else
   {
     DBUG_PRINT("info", ("decision: no logging since "
-                        "mysql_bin_log.is_open() = %d "
-                        "and (options & OPTION_BIN_LOG) = 0x%llx "
-                        "and binlog_format = %u "
-                        "and binlog_filter->db_ok(db) = %d",
+                        "mysql_bin_log.is_open(): %d   "
+                        "(options & OPTION_BIN_LOG): 0x%llx  "
+                        "binlog_format: %u  "
+                        "binlog_filter->db_ok(db): %d  "
+                        "binlog_status: %x",
                         mysql_bin_log.is_open(),
                         (variables.option_bits & OPTION_BIN_LOG),
                         (uint) binlog_format,
-                        binlog_filter->db_ok(db.str)));
+                        binlog_filter->db_ok(db.str),
+                        binlog_state));
+
+    /* TODO: Check if the following is really needed */
     if (WSREP_NNULL(this) && is_current_stmt_binlog_format_row())
       binlog_prepare_for_row_logging();
   }
@@ -7478,7 +7593,11 @@ exit:;
 
 #ifndef MYSQL_CLIENT
 /**
-  Check if we should log a table DDL to the binlog
+  Check if we should log a table DDL to the binlog.
+
+  This is called for create, drop and alter table.
+  Note that this function is called when decide_logging_format() has not been
+  called for this statement.
 
   @retval true  yes
   @retval false no
@@ -7486,8 +7605,7 @@ exit:;
 
 bool THD::binlog_table_should_be_logged(const LEX_CSTRING *db)
 {
-  return (mysql_bin_log.is_open() &&
-          (variables.option_bits & OPTION_BIN_LOG) &&
+  return (binlog_ready_no_wsrep() &&
           (wsrep_binlog_format(variables.binlog_format) != BINLOG_FORMAT_STMT ||
            binlog_filter->db_ok(db->str)));
 }
@@ -7842,7 +7960,7 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
     mode: it might be the case that we left row-based mode before
     flushing anything (e.g., if we have explicitly locked tables).
    */
-  if (!WSREP_EMULATE_BINLOG_NNULL(this) && !mysql_bin_log.is_open())
+  if (!(binlog_state & BINLOG_STATE_ACTIVE_WSREP))
     DBUG_RETURN(0);
 
   /* Ensure that all events in a GTID group are in the same cache */
@@ -7869,7 +7987,7 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
 */
 bool THD::binlog_for_noop_dml(bool transactional_table)
 {
-  if (mysql_bin_log.is_open() && log_current_statement())
+  if (binlog_ready_no_wsrep() && log_current_statement())
   {
     reset_unsafe_warnings();
     if (binlog_query(THD::STMT_QUERY_TYPE, query(), query_length(),
@@ -8141,15 +8259,7 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
                        show_query_type(qtype), (int) query_len, query_arg));
 
   DBUG_ASSERT(query_arg);
-  DBUG_ASSERT(WSREP_EMULATE_BINLOG_NNULL(this) || mysql_bin_log.is_open());
-
-  /* If this is withing a BEGIN ... COMMIT group, don't log it */
-  if (variables.option_bits & OPTION_GTID_BEGIN)
-  {
-    direct= 0;
-    is_trans= 1;
-  }
-  DBUG_PRINT("info", ("is_trans: %d  direct: %d", is_trans, direct));
+  DBUG_ASSERT(binlog_state & BINLOG_STATE_ACTIVE_WSREP);
 
   if (get_binlog_local_stmt_filter() == BINLOG_FILTER_SET)
   {
@@ -8159,6 +8269,14 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
     */
     DBUG_RETURN(-1);
   }
+
+  /* If this is withing a BEGIN ... COMMIT group, don't log it */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+  {
+    direct= 0;
+    is_trans= 1;
+  }
+  DBUG_PRINT("info", ("is_trans: %d  direct: %d", is_trans, direct));
 
   /*
     We should not flush row events for sub-statements, like a trigger or
@@ -8191,10 +8309,12 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
     Besides, we should not try to print these warnings if it is not
     possible to write statements to the binary log as it happens when
     the execution is inside a function, or generally speaking, when
-    the variables.option_bits & OPTION_BIN_LOG is false.
+    the thd->binlog_ready() is false.
     
   */
-  if ((variables.option_bits & OPTION_BIN_LOG) &&
+  DBUG_ASSERT((bool) !(binlog_state & BINLOG_STATE_BYPASS) ==
+              (bool) (variables.option_bits & OPTION_BIN_LOG));
+  if (!(binlog_state & BINLOG_STATE_BYPASS) &&
       spcont == NULL && !binlog_evt_union.do_union)
     issue_unsafe_warnings();
 
@@ -8292,6 +8412,7 @@ bool THD::binlog_current_query_unfiltered()
 
   reset_binlog_local_stmt_filter();
   clear_binlog_local_stmt_filter();
+  binlog_state= binlog_state & ~BINLOG_STATE_READONLY;
   return binlog_query(THD::STMT_QUERY_TYPE, query(), query_length(),
                       /* is_trans */     FALSE,
                       /* direct */       FALSE,

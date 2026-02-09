@@ -69,6 +69,10 @@
   The ddl_log.log file is created at startup and deleted when server goes down.
   After the final recovery phase is done, the file is truncated.
 
+  Note that in this file we test for mysql_bin_log.is_open() instead of
+  using thd->binlog_is_read(). This is because during recovery binlog
+  cannot be disabled for some particular commands.
+
   History:
   First version written in 2006 by Mikael Ronstrom
   Second version in 2020 by Monty
@@ -1022,7 +1026,7 @@ static void ddl_log_to_binary_log(THD *thd, String *query)
 */
 
 static bool ddl_log_drop_to_binary_log(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
-                                  String *query)
+                                       String *query)
 {
   DBUG_ENTER("ddl_log_drop_to_binary_log");
   if (mysql_bin_log.is_open())
@@ -1733,17 +1737,15 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
                           &ddl_log_entry->from_name);
         recovery_state.drop_table.append(&end_comment);
       }
-      if (mysql_bin_log.is_open())
-      {
-        mysql_mutex_unlock(&LOCK_gdl);
-        thd->db= ddl_log_entry->db;
-        (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
-                                 recovery_state.drop_table.ptr(),
-                                 recovery_state.drop_table.length(), TRUE, FALSE,
-                                 FALSE, 0);
-        thd->db= thd_db;
-        mysql_mutex_lock(&LOCK_gdl);
-      }
+
+      mysql_mutex_unlock(&LOCK_gdl);
+      thd->db= ddl_log_entry->db;
+      (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
+                               recovery_state.drop_table.ptr(),
+                               recovery_state.drop_table.length(), TRUE, FALSE,
+                               FALSE, 0);
+      thd->db= thd_db;
+      mysql_mutex_lock(&LOCK_gdl);
     }
     (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
     break;

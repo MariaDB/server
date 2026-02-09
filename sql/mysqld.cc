@@ -5077,7 +5077,7 @@ static int init_server_components()
   xid_cache_init();
 
   /*
-    Do not open binlong when doing bootstrap.
+    Do not open binlog when doing bootstrap.
     This ensures that rpl_load_gtid_slave_state() will not fail with an error
     as the mysql schema does not yet exists.
     This also ensures that we don't get an empty binlog file if the user has
@@ -5168,6 +5168,14 @@ static int init_server_components()
     }
     if (ln == buf)
       opt_bin_logname= my_once_strdup(buf, MYF(MY_WME));
+
+    /*
+      Prepare the server that mysql_bin_log will be opened.
+      This is needed to ensure that new THD's will get
+      the correct binlog_state reflecting the state when the server
+      will be complete up and running.
+    */
+    mysql_bin_log.prepare_for_later_open();
   }
 
   /*
@@ -5197,6 +5205,9 @@ static int init_server_components()
 
 #ifdef WITH_WSREP
   if (wsrep_init_server()) unireg_abort(1);
+
+  if (WSREP_ON && !opt_bin_log)
+    wsrep_emulate_bin_log= 1;
 
   if (WSREP_ON && !wsrep_recovery && !opt_abort)
   {
@@ -5574,11 +5585,6 @@ static int init_server_components()
   */
   if (wsrep_before_SE())
     wsrep_plugins_post_init();
-
-  if (WSREP_ON && !opt_bin_log)
-  {
-    wsrep_emulate_bin_log= 1;
-  }
 #endif
 
 #ifndef EMBEDDED_LIBRARY
@@ -6157,7 +6163,6 @@ int mysqld_main(int argc, char **argv)
     fclose(stdin);
   }
 #endif
-
 
   /* Signal threads waiting for server to be started */
   mysql_mutex_lock(&LOCK_server_started);

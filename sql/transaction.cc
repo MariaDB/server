@@ -737,13 +737,16 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
   thd->transaction->savepoints= sv;
 
   if (res)
+  {
     /* An error occurred during rollback; we cannot release any MDL */;
-  else if (thd->variables.sql_log_bin &&
-           (WSREP_EMULATE_BINLOG_NNULL(thd) || mysql_bin_log.is_open()))
+  }
+  else if (thd->binlog_ready())
+  {
     /* In some cases (such as with non-transactional tables) we may
     choose to preserve events that were added after the SAVEPOINT,
     delimiting them by SAVEPOINT and ROLLBACK TO SAVEPOINT statements.
     Prematurely releasing MDL on such objects would break replication. */;
+  }
   else if (ha_rollback_to_savepoint_can_release_mdl(thd))
     thd->mdl_context.rollback_to_savepoint(sv->mdl_savepoint);
 

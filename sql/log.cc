@@ -579,7 +579,7 @@ bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
                                uint64 start_alter_id, bool if_exists)
 {
 #if defined(HAVE_REPLICATION)
-  if (thd->variables.option_bits & OPTION_BIN_TMP_LOG_OFF)
+  if (thd->binlog_state & BINLOG_STATE_TMP_DISABLED)
     return false;
 
   if (start_alter_id)
@@ -1763,7 +1763,7 @@ binlog_trans_log_savepos(THD *thd, my_off_t *pos)
   DBUG_ENTER("binlog_trans_log_savepos");
   DBUG_ASSERT(pos != NULL);
   binlog_cache_mngr *const cache_mngr= thd->binlog_setup_trx_data();
-  DBUG_ASSERT((WSREP(thd) && wsrep_emulate_bin_log) || mysql_bin_log.is_open());
+  DBUG_ASSERT(thd->binlog_state & BINLOG_STATE_ACTIVE_WSREP);
   *pos= cache_mngr->trx_cache.get_byte_position();
   DBUG_PRINT("return", ("*pos: %lu", (ulong) *pos));
   DBUG_VOID_RETURN;
@@ -2102,7 +2102,7 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
   int error=0;
   DBUG_ENTER("binlog_truncate_trx_cache");
 
-  if(!WSREP_EMULATE_BINLOG_NNULL(thd) && !mysql_bin_log.is_open())
+  if(!thd->binlog_ready())
     DBUG_RETURN(0);
 
   DBUG_PRINT("info", ("thd->options={ %s %s}, transaction: %s",
@@ -6843,7 +6843,7 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
                                     binlog_cache_data *cache_data)
 {
   int error= 0;
-  auto *pending= cache_data->pending();
+  Rows_log_event *pending= cache_data->pending();
   if (pending)
   {
     /*
@@ -6923,6 +6923,7 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
                                             bool is_transactional)
 {
   DBUG_ENTER("Event_log::flush_and_set_pending_rows_event(event)");
+  /* Note that the is_open() is part of event, not mysql_bin_log */
   DBUG_ASSERT(WSREP_EMULATE_BINLOG(thd) || is_open());
   DBUG_PRINT("enter", ("event: %p", event));
 
@@ -7321,6 +7322,13 @@ MYSQL_BIN_LOG::check_strict_gtid_sequence(uint32 domain_id,
 }
 
 
+void log_write_error(THD *thd, const char *msg)
+{
+  my_error(ER_BINLOG_LOGGING_IMPOSSIBLE, MYF(ME_ERROR_LOG), msg, thd->query());
+  /* Don't use binary log anymore for this THD if binlog is closed */
+  thd->sync_binlog_state_with_binlog_open();
+}
+
 /**
   Write an event to the binary log. If with_annotate != NULL and
   *with_annotate = TRUE write also Annotate_rows before the event
@@ -7339,13 +7347,20 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
   DBUG_ENTER("MYSQL_BIN_LOG::write(Log_event *)");
 
   /*
+    We should only come here if Galara is active or binlogging should be done.
+    In case of commands like CREATE DATABASE, decide_logging_format() has
+    not been called and BINLOG_STATE_FILTER may be set for current database.
+  */
+  DBUG_ASSERT(thd->variables.wsrep_on || thd->binlog_ready_precheck() ||
+              thd->binlog_evt_union.do_union);
+
+  /*
     When binary logging is not enabled (--log-bin=0), wsrep-patch partially
     enables it without opening the binlog file (MYSQL_BIN_LOG::open().
     So, avoid writing to binlog file.
   */
-  if (direct &&
-      (wsrep_emulate_bin_log ||
-       (WSREP(thd) && !(thd->variables.option_bits & OPTION_BIN_LOG))))
+  if (direct && ((thd->binlog_state & BINLOG_STATE_WSREP) ||
+                 !thd->binlog_ready_precheck()))
     DBUG_RETURN(0);
 
   if (thd->variables.option_bits &
@@ -7385,7 +7400,10 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
                         SQLCOM_SAVEPOINT) ? true :
     (thd->locked_tables_mode && thd->lex->requires_prelocking());
   if (thd->binlog_flush_pending_rows_event(end_stmt, using_trans))
-    DBUG_RETURN(error);
+  {
+    log_write_error(thd, "Error during flushing row events");
+    DBUG_RETURN(1);
+  }
 
   /*
      In most cases this is only called if 'is_open()' is true; in fact this is
@@ -7402,10 +7420,10 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       In the future we need to add to the following if tests like
       "do the involved tables match (to be implemented)
       binlog_[wild_]{do|ignore}_table?" (WL#1049)"
+      Note that local_db is not same as thd->db.str in case of CREATE DATABASE
     */
     const char *local_db= event_info->get_db();
-
-    bool option_bin_log_flag= (thd->variables.option_bits & OPTION_BIN_LOG);
+    bool option_bin_log_flag= !(thd->binlog_state & BINLOG_STATE_DISABLED);
 
     /*
       Log all updates to binlog cache so that they can get replicated to other
@@ -7437,7 +7455,11 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
                      MDL_EXPLICIT);
       if (thd->mdl_context.acquire_lock(&mdl_request,
                                         thd->variables.lock_wait_timeout))
+      {
+        log_write_error(thd, "Could not get backup commit lock");
+        /* acquire_lock has produced an error message */
         DBUG_RETURN(1);
+      }
       thd->backup_commit_lock= &mdl_request;
 
       if ((res= thd->wait_for_prior_commit()))
@@ -7445,6 +7467,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
         if (mdl_request.ticket)
           thd->mdl_context.release_lock(mdl_request.ticket);
         thd->backup_commit_lock= 0;
+        /* wait_for_prior_commit() has produced an error message */
         DBUG_RETURN(res);
       }
       file= &log_file;
@@ -7648,7 +7671,19 @@ err:
         cache_data->set_incident();
     }
   }
-
+  else
+  {
+    if (!is_open() && (thd->binlog_state & BINLOG_STATE_OPEN))
+    {
+      /*
+        We only come here if binlog was open at start of statement and
+        was closed when we come here. This could be caused by a failed binlog
+        rotate or an error writing to the binlog file.
+      */
+      log_write_error(thd, "Binlog was unexpectedly closed");
+      thd->sync_binlog_state_with_binlog_open();
+    }
+  }
   DBUG_RETURN(error);
 }
 
@@ -8498,11 +8533,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
     DBUG_RETURN(0);
   }
 
-  if (!(thd->variables.option_bits & OPTION_BIN_LOG)
-#ifdef WITH_WSREP
-      && !WSREP(thd)
-#endif
-      )
+  if (!thd->binlog_ready())
   {
     cache_mngr->need_unlog= false;
     DBUG_RETURN(0);
@@ -9444,17 +9475,16 @@ int MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
                                              uint64 commit_id,
                                              bool commit_by_rotate)
 {
+  THD *thd= entry->thd;
   binlog_cache_mngr *mngr= entry->cache_mngr;
   bool has_xid= entry->end_event->get_type_code() == XID_EVENT;
-
   DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_or_stmt");
-#ifdef WITH_WSREP
-  if (WSREP(entry->thd) &&
-      !(entry->thd->variables.option_bits & OPTION_BIN_LOG))
+
+  /* Skip entries in the binlog that was only for internal WSREP usage */
+  if (IF_WSREP(WSREP_NNULL(thd) && !thd->binlog_ready_no_wsrep(),0))
   {
     DBUG_RETURN(0);
   }
-#endif /* WITH_WSREP */
 
   /*
     An error in the trx_cache will truncate the cache to the last good
@@ -9476,14 +9506,14 @@ int MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   */
   if (likely(!commit_by_rotate))
   {
-    if (write_gtid_event(entry->thd, is_prepared_xa(entry->thd),
+    if (write_gtid_event(thd, is_prepared_xa(thd),
                          entry->using_trx_cache, commit_id,
                          false /* commit_by_rotate */, has_xid, entry->ro_1pc))
       DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
 
   if (entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
-      write_cache(entry->thd, mngr->get_binlog_cache_data(FALSE)))
+      write_cache(thd, mngr->get_binlog_cache_data(FALSE)))
   {
     entry->error_cache= &mngr->stmt_cache.cache_log;
     DBUG_RETURN(ER_ERROR_ON_WRITE);
@@ -9493,7 +9523,7 @@ int MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   {
     DBUG_EXECUTE_IF("crash_before_writing_xid",
                     {
-                      if ((write_cache(entry->thd,
+                      if ((write_cache(thd,
                                        mngr->get_binlog_cache_data(TRUE))))
                         DBUG_PRINT("info", ("error writing binlog cache"));
                       else
@@ -9503,7 +9533,7 @@ int MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
                       DBUG_SUICIDE();
                     });
 
-    if (write_cache(entry->thd, mngr->get_binlog_cache_data(TRUE)))
+    if (write_cache(thd, mngr->get_binlog_cache_data(TRUE)))
     {
       entry->error_cache= &mngr->trx_cache.cache_log;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
@@ -9522,7 +9552,7 @@ int MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
     entry->error_cache= NULL;
     DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
-  status_var_add(entry->thd->status_var.binlog_bytes_written,
+  status_var_add(thd->status_var.binlog_bytes_written,
                  entry->end_event->data_written);
 
   if (entry->incident_event)
@@ -9839,8 +9869,8 @@ void MYSQL_BIN_LOG::close(uint exiting)
       /*
         Restore position so that anything we have in the IO_cache is written
         to the correct position.
-        We need the seek here, as mysql_file_pwrite() is not guaranteed to keep the
-        original position on system that doesn't support pwrite().
+        We need the seek here, as mysql_file_pwrite() is not guaranteed to keep
+        the original position on system that doesn't support pwrite().
       */
       mysql_file_seek(log_file.file, org_position, MY_SEEK_SET, MYF(0));
     }

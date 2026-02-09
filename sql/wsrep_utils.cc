@@ -509,10 +509,14 @@ thd::thd (my_bool ini, bool system_thread)
     wsrep_store_threadvars(ptr);
 
     ptr->variables.tx_isolation= ISO_READ_COMMITTED;
-    ptr->variables.sql_log_bin = 0;
     ptr->variables.option_bits &= ~OPTION_BIN_LOG; // disable binlog
-    ptr->variables.option_bits |=  OPTION_LOG_OFF; // disable general log
+    ptr->binlog_state|= BINLOG_STATE_BYPASS | BINLOG_STATE_USER_DISABLED;
     ptr->variables.wsrep_on = false;
+    ptr->sync_binlog_state_with_binlog_open_force();
+    ptr->variables.sql_log_bin = 0;
+    ptr->set_binlog_bit();
+    ptr->check_binlog_state();
+    ptr->variables.option_bits |=  OPTION_LOG_OFF; // disable general log
     ptr->security_context()->skip_grants();
 
     if (system_thread)

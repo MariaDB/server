@@ -2032,7 +2032,16 @@ public:
       s->table_creation_was_logged= 2;
     }
   }
-
+  bool disable_rowlogging()
+  {
+    bool state= file->row_logging;
+    file->row_logging= 0;
+    return state;
+  }
+  void reenable_rowlogging(bool old_state)
+  {
+    file->row_logging= old_state;
+  }
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
 };
