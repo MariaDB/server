@@ -1551,7 +1551,8 @@ bool wsrep_check_mode_before_cmd_execute (THD *thd)
 {
   bool ret= true;
   if (wsrep_check_mode(WSREP_MODE_BINLOG_ROW_FORMAT_ONLY) &&
-      !thd->is_current_stmt_binlog_format_row() && is_update_query(thd->lex->sql_command))
+      thd->is_current_stmt_binlog_format_stmt() &&
+      is_update_query(thd->lex->sql_command))
   {
     my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -4081,8 +4082,8 @@ void wsrep_commit_empty(THD* thd, bool all)
   {
 #ifndef DBUG_OFF
     const bool empty= !wsrep_has_changes(thd);
-    const bool create= thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
-      !thd->is_current_stmt_binlog_format_row();
+    const bool create= (thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+                        thd->is_current_stmt_binlog_format_stmt());
     const bool aborted= thd->wsrep_cs().transaction().state() == wsrep::transaction::s_aborted;
     const bool ddl_replay= ((sql_command_flags[thd->lex->sql_command] &
                   (CF_SCHEMA_CHANGE | CF_ADMIN_COMMAND)) &&

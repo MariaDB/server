@@ -6206,14 +6206,14 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
   store_slow_query_state(backup);
 
   if ((!lex->requires_prelocking() || is_update_query(lex->sql_command)) &&
-      !is_current_stmt_binlog_format_row())
+      is_current_stmt_binlog_format_stmt())
   {
     variables.option_bits&= ~OPTION_BIN_LOG;
   }
 
   if ((backup->option_bits & OPTION_BIN_LOG) &&
        is_update_query(lex->sql_command) &&
-       !is_current_stmt_binlog_format_row())
+       is_current_stmt_binlog_format_stmt())
     mysql_bin_log.start_union_events(this, this->query_id);
 
   /* Disable result sets */
@@ -6839,58 +6839,63 @@ int THD::decide_logging_format(TABLE_LIST *tables)
   */
 
 #ifdef WITH_WSREP
-  if (WSREP_CLIENT_NNULL(this) &&
-      wsrep_thd_is_local(this) &&
-      wsrep_is_active(this) &&
-      variables.wsrep_trx_fragment_size > 0)
+  if (WSREP_CLIENT_NNULL(this))
   {
-    if (!is_current_stmt_binlog_disabled() &&
-        !is_current_stmt_binlog_format_row())
+    if (wsrep_thd_is_local(this) &&
+        wsrep_is_active(this) &&
+        variables.wsrep_trx_fragment_size > 0)
     {
-      my_message(ER_NOT_SUPPORTED_YET,
-                 "Streaming replication not supported with "
-                 "binlog_format=STATEMENT", MYF(0));
-      DBUG_RETURN(-1);
+      if (!is_current_stmt_binlog_disabled() &&
+          is_current_stmt_binlog_format_stmt())
+      {
+        my_message(ER_NOT_SUPPORTED_YET,
+                   "Streaming replication not supported with "
+                   "binlog_format=STATEMENT", MYF(0));
+        DBUG_RETURN(-1);
+      }
     }
-  }
 
-  /*
-    If user has configured wsrep_forced_binlog_format to
-    STMT OR MIXED and used binlog_format would be same
-    and this is CREATE TABLE AS SELECT we will fall back
-    to ROW.
-  */
-  if (wsrep_forced_binlog_format < BINLOG_FORMAT_ROW &&
-      wsrep_ctas)
-  {
-    if (!get_stmt_da()->has_sql_condition(ER_UNKNOWN_ERROR))
+    /*
+      If user has configured wsrep_forced_binlog_format to
+      STMT OR MIXED and used binlog_format would be same
+      and this is CREATE TABLE AS SELECT we will fall back
+      to ROW.
+    */
+    if (unlikely(wsrep_ctas))
     {
-      push_warning_printf(this, Sql_condition::WARN_LEVEL_WARN,
-                          ER_UNKNOWN_ERROR,
-                          "Galera does not support wsrep_forced_binlog_format = %s "
-                          "in CREATE TABLE AS SELECT",
-                          wsrep_forced_binlog_format == BINLOG_FORMAT_STMT ?
-                          "STMT" : "MIXED");
+      if (wsrep_forced_binlog_format < BINLOG_FORMAT_ROW)
+      {
+        if (!get_stmt_da()->has_sql_condition(ER_UNKNOWN_ERROR))
+        {
+          push_warning_printf(this, Sql_condition::WARN_LEVEL_WARN,
+                              ER_UNKNOWN_ERROR,
+                              "Galera does not support wsrep_forced_binlog_format = %s "
+                              "in CREATE TABLE AS SELECT",
+                              wsrep_forced_binlog_format == BINLOG_FORMAT_STMT ?
+                              "STMT" : "MIXED");
+        }
+        DBUG_ASSERT(current_stmt_binlog_format != BINLOG_FORMAT_UNSPEC);
+        set_current_stmt_binlog_format_row();
+      }
+
+      /* If user has requested binlog_format STMT OR MIXED
+         in CREATE TABLE [SELECT|REPLACE] we will fall back
+         to ROW.
+
+         Note that we can't use local binlog_format variable
+         here because wsrep_binlog_format sets it to ROW.
+      */
+      if (variables.binlog_format != BINLOG_FORMAT_ROW)
+      {
+        push_warning_printf(this, Sql_condition::WARN_LEVEL_WARN,
+                            ER_UNKNOWN_ERROR,
+                            "Galera does not support binlog_format = %s "
+                            "in CREATE TABLE [SELECT|REPLACE] forcing ROW",
+                            binlog_format == BINLOG_FORMAT_STMT ?
+                            "STMT" : "MIXED");
+        set_current_stmt_binlog_format_row();
+      }
     }
-    set_current_stmt_binlog_format_row();
-  }
-
-  /* If user has requested binlog_format STMT OR MIXED
-     in CREATE TABLE [SELECT|REPLACE] we will fall back
-     to ROW.
-
-     Note that we can't use local binlog_format variable
-     here because wsrep_binlog_format sets it to ROW.
-  */
-  if (wsrep_ctas && variables.binlog_format != BINLOG_FORMAT_ROW)
-  {
-    push_warning_printf(this, Sql_condition::WARN_LEVEL_WARN,
-                        ER_UNKNOWN_ERROR,
-                        "Galera does not support binlog_format = %s "
-                        "in CREATE TABLE [SELECT|REPLACE] forcing ROW",
-                        binlog_format == BINLOG_FORMAT_STMT ?
-                        "STMT" : "MIXED");
-    set_current_stmt_binlog_format_row();
   }
 #endif /* WITH_WSREP */
 
@@ -7259,7 +7264,15 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                              wsrep_cs().mode() ==
                              wsrep::client_state::m_local),1))
 	  {
-            my_error((error= ER_BINLOG_STMT_MODE_AND_ROW_ENGINE), MYF(0), "");
+            if (is_current_stmt_binlog_format_stmt())
+            {
+              my_printf_error(ER_BINLOG_STMT_MODE_AND_ROW_ENGINE,
+                              "Statement cannot be logged as STATEMENT as at "
+                              "least one table is limited to row-based logging."
+                              " Switching temporarly to row format",
+                              MYF(ME_NOTE));
+              set_current_stmt_binlog_format_row();
+            }
 	  }
         }
         else if (is_write && (unsafe_flags= lex->get_stmt_unsafe_flags()) != 0)
@@ -7301,7 +7314,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       }
       else
       {
-        if (! is_current_stmt_binlog_format_row())
+        if (is_current_stmt_binlog_format_stmt())
         {
           my_error((error= ER_BINLOG_STMT_MODE_AND_NO_REPL_TABLES), MYF(0));
         }
@@ -7417,7 +7430,7 @@ void THD::reconsider_logging_format_for_iodup(TABLE *table)
   DBUG_ASSERT(lex->duplicates == DUP_UPDATE);
 
   if (bf <= BINLOG_FORMAT_STMT &&
-      !is_current_stmt_binlog_format_row())
+      is_current_stmt_binlog_format_stmt())
   {
     KEY *end= table->s->key_info + table->s->keys;
     uint unique_keys= 0;

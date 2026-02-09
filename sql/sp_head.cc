@@ -1981,7 +1981,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   */
   need_binlog_call= mysql_bin_log.is_open() &&
                     (thd->variables.option_bits & OPTION_BIN_LOG) &&
-                    !thd->is_current_stmt_binlog_format_row();
+                    thd->is_current_stmt_binlog_format_stmt();
 
   /*
     Remember the original arguments for unrolled replication of functions
@@ -2382,7 +2382,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
   */ 
   bool need_binlog_call= mysql_bin_log.is_open() &&
                          (thd->variables.option_bits & OPTION_BIN_LOG) &&
-                         !thd->is_current_stmt_binlog_format_row();
+                         thd->is_current_stmt_binlog_format_stmt();
   if (need_binlog_call && thd->spcont == NULL &&
       !thd->binlog_evt_union.do_union)
     thd->issue_unsafe_warnings();

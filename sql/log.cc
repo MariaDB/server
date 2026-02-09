@@ -2500,7 +2500,7 @@ static int binlog_rollback(THD *thd, bool all)
     */
     else if (is_ending_trans ||
              (!(thd->transaction->stmt.has_created_dropped_temp_table() &&
-                !thd->is_current_stmt_binlog_format_row()) &&
+                thd->is_current_stmt_binlog_format_stmt()) &&
               (!stmt_has_updated_non_trans_table(thd) ||
                binlog_format != BINLOG_FORMAT_STMT) &&
               (!thd->transaction->stmt.has_modified_non_trans_temp_table() ||
@@ -7504,7 +7504,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
     }
 
     {
-      if (!thd->is_current_stmt_binlog_format_row())
+      if (thd->is_current_stmt_binlog_format_stmt())
       {
         if (thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt)
         {

@@ -1067,7 +1067,7 @@ int write_bin_log(THD *thd, bool clear_error,
                   char const *query, ulong query_length, bool is_trans)
 {
   int error= 0;                                // No logging of query
-  if (mysql_bin_log.is_open())
+  if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
   {
     int errcode= 0;
     thd_proc_info(thd, "Writing to binlog");

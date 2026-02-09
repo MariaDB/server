@@ -876,7 +876,7 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
 
 #ifdef WITH_WSREP
   if (WSREP(thd) &&
-      (!thd->is_current_stmt_binlog_format_row() ||
+      (thd->is_current_stmt_binlog_format_stmt() ||
        !thd->find_temporary_table(first_table))  &&
       wsrep_to_isolation_begin(
           thd, first_table->db.str, first_table->table_name.str, NULL)
