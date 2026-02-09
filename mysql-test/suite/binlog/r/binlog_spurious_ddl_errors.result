@@ -18,8 +18,9 @@ ALTER TABLE t_row ADD COLUMN b INT;
 CREATE TRIGGER trig_row BEFORE INSERT ON t_row FOR EACH ROW INSERT INTO t_stmt VALUES (1);
 CREATE INDEX i ON t_row(a);
 CREATE TABLE t_row_new ENGINE = InnoDB SELECT * FROM t_row;
-ERROR HY000: Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = STATEMENT and at least one table uses a storage engine limited to row-based logging.
-DROP TABLE t_row;
+Warnings:
+Note	1665	Statement cannot be logged as STATEMENT as at least one table is limited to row-based logging. Switching temporarly to row format
+DROP TABLE t_row, t_row_new;
 
 
 ################################################################################

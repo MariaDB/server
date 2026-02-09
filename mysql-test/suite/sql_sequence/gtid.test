@@ -506,7 +506,6 @@ connection master;
 set session binlog_format=statement;
 select @@session.binlog_format;
 create sequence s1 cache 2;
---error ER_BINLOG_STMT_MODE_AND_ROW_ENGINE
 select next value for s1;
 
 set session binlog_format=row;

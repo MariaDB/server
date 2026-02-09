@@ -778,7 +778,7 @@ err:
 
 err_not_open:
   /* Mark that table was created earlier and thus should have been logged */
-  share->table_creation_was_logged= 1;
+  share->table_creation_was_logged= !share->global_tmp_table() ? 1 : 2;
 
   if (unlikely(share->error && !error_given))
   {
@@ -3763,7 +3763,7 @@ ret:
     DBUG_RETURN(HA_ERR_GENERIC);
   }
   /* Treat the table as normal table from binary logging point of view */
-  table_creation_was_logged= 1;
+  table_creation_was_logged= !global_tmp_table() ? 1 : 2;
   DBUG_RETURN(0);
 }
 

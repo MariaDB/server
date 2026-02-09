@@ -2089,14 +2089,15 @@ bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
                     const LEX_CSTRING *handler_name,
                     bool partitioned,
                     const LEX_CUSTRING *id,
-                    bool temporary_table)
+                    bool temporary_table,
+                    bool table_was_deleted)
 {
   char buff[NAME_LEN*2 + 80];
   String query(buff, sizeof(buff), system_charset_info);
   bool error= 0;
   DBUG_ENTER("log_drop_table");
 
-  if (mysql_bin_log.is_open())
+  if (mysql_bin_log.is_open() && table_was_deleted)
   {
     query.length(0);
     query.append(STRING_WITH_LEN("DROP "));
@@ -2116,7 +2117,7 @@ bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
     */
     error= thd->binlog_query(THD::STMT_QUERY_TYPE,
                              query.ptr(), query.length(),
-                             FALSE, FALSE, temporary_table, 0) > 0;
+                             FALSE, TRUE, temporary_table, 0) > 0;
   }
   if (!temporary_table)
   {
@@ -5413,7 +5414,8 @@ err:
         If create_info->table was not set, it's a normal table and
         table_creation_was_logged will be set when the share is created.
       */
-      create_info->table->s->table_creation_was_logged= 1;
+      create_info->table->s->table_creation_was_logged=
+        !create_info->table->s->global_tmp_table() ? 1 : 2;
     }
     thd->binlog_xid= thd->query_id;
     ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
@@ -6004,10 +6006,11 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 #endif
 
   /*
-    If src table was a temporary table that was not replicated we have to write the
-    full table definition to the binary log.
+    If src table was a temporary table that was not replicated or a GTT table
+    we have to write the full table definition to the binary log.
   */
-  force_generated_create|= !src_table->table->s->table_creation_was_logged;
+  force_generated_create|= (!src_table->table->s->table_creation_was_logged ||
+                            src_table->table->s->global_tmp_table());
 
   if (thd->is_binlog_format_row() || force_generated_create)
   {
@@ -6119,7 +6122,8 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
             goto err;
           }
           if (local_create_info.table && thd->tmp_table_binlog_handled)
-            local_create_info.table->s->table_creation_was_logged= 1;
+            local_create_info.table->s->table_creation_was_logged=
+              !local_create_info.table->s->global_tmp_table() ? 1 : 2;
 
           if (new_table)
           {
@@ -6157,7 +6161,8 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
           Remember that tmp table creation was logged so that we know if
           we should log a delete of it.
         */
-        local_create_info.table->s->table_creation_was_logged= 1;
+        local_create_info.table->s->table_creation_was_logged=
+          !local_create_info.table->s->global_tmp_table() ? 1 : 2;
         do_logging= TRUE;
       }
     }
@@ -6184,7 +6189,7 @@ err:
                      &create_info->org_storage_engine_name,
                      create_info->db_type == partition_hton,
                      &create_info->org_tabledef_version,
-                     create_info->tmp_table());
+                     create_info->tmp_table(), 1);
     }
     else if (res != 2)                         // Table was not dropped
     {
@@ -6326,7 +6331,7 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
       open_gtt_on_error(&global_table);
       return TRUE;
     }
-    share->table_creation_was_logged= 0;
+    share->table_creation_was_logged= 2;        // Force ROW LOGGING
     closefrm(&global_table);
   }
 
@@ -12291,7 +12296,7 @@ alter_copy:
       thd->binlog_xid= 0;
       if (tmp_error)
         goto err_cleanup;
-      new_table->s->table_creation_was_logged= 1;
+      new_table->s->table_creation_was_logged= table_creation_was_logged;
     }
     goto end_temporary;
   }
@@ -13911,7 +13916,10 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
       goto end_with_restore_list;
     }
 
-    res= open_and_lock_tables(thd, create_info, lex->query_tables, TRUE, 0);
+    /*  decide_logging_format() will be called by select_create::postlock() */
+    res= open_and_lock_tables(thd, create_info, lex->query_tables, TRUE,
+                              MYSQL_OPEN_IGNORE_LOGGING_FORMAT);
+
     if (unlikely(res))
     {
       /* Got error or warning. Set res to 1 if error */

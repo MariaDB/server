@@ -49,10 +49,9 @@ CREATE TRIGGER trig_row BEFORE INSERT ON t_row FOR EACH ROW INSERT INTO t_stmt V
 
 CREATE INDEX i ON t_row(a);
 
---error ER_BINLOG_STMT_MODE_AND_ROW_ENGINE
 CREATE TABLE t_row_new ENGINE = InnoDB SELECT * FROM t_row;
 
-DROP TABLE t_row;
+DROP TABLE t_row, t_row_new;
 
 --echo
 --echo

@@ -4774,9 +4774,10 @@ Field *Item::create_field_for_create_select(MEM_ROOT *root, TABLE *table)
 
 void select_create::recover_rm_table() const
 {
+  const LEX_CSTRING *table_name= table_case_name(create_info,
+                                                 &table_list->table_name);
   quick_rm_table(thd, create_info->db_type, &table_list->db,
-                 table_case_name(create_info, &table_list->table_name),
-                 QRMT_DEFAULT);
+                 table_name, QRMT_DEFAULT);
 }
 
 /**
@@ -4974,7 +4975,6 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       */
       if (open_table(thd, table_list, &ot_ctx))
       {
-        recover_rm_table();
         if (parent_global_tmp_table)
           drop_open_table(thd, parent_global_tmp_table,
                           &table_list->db,
@@ -5023,7 +5023,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     with temporary tables that will be logged later if needed.
   */
   save_table_creation_was_logged= table->s->table_creation_was_logged;
-  table->s->table_creation_was_logged= 1;
+  table->s->table_creation_was_logged= !table->s->global_tmp_table() ? 1 : 2;
 
   /*
     mysql_lock_tables() below should never fail with request to reopen table
@@ -5107,6 +5107,13 @@ int select_create::postlock(THD *thd, TABLE **tables)
   /*
     NOTE: for row format CREATE TABLE must be logged before row data.
   */
+
+  /*
+    We have to re-test decide_logging_format() as the previous
+    test was not using the final tables. For example we could
+    replace a GTT table with a normal one, in which case the
+    binlog format could change back to statement.
+  */
   int error;
   TABLE_LIST *save_next_global= table_list->next_global;
   table_list->next_global= select_tables;
@@ -5154,7 +5161,8 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
                      &create_info->org_storage_engine_name,
                      create_info->db_type == partition_hton,
                      &create_info->org_tabledef_version,
-                     thd->lex->tmp_table());
+                     thd->lex->tmp_table(),
+                     create_info->table_was_deleted);
     }
 
     /* abort() deletes table */
@@ -5261,26 +5269,28 @@ static int binlog_show_create_table(THD *thd, TABLE *table,
     schema that will do a close_thread_tables(), destroying the
     statement transaction cache.
   */
-  DBUG_ASSERT(thd->is_current_stmt_binlog_format_row() ||
-              table->s->global_tmp_table());
-  StringBuffer<2048> query(system_charset_info);
-  int result;
-  TABLE_LIST tmp_table_list;
-
-  tmp_table_list.reset();
-  tmp_table_list.table = table;
-
-  result= show_create_table(thd, &tmp_table_list, &query,
-                            create_info, WITH_DB_NAME);
-  DBUG_ASSERT(result == 0); /* show_create_table() always return 0 */
+  int result= 0;
 
   if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
   {
-    int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
+    DBUG_ASSERT(thd->is_current_stmt_binlog_format_row() ||
+                table->s->global_tmp_table());
+    StringBuffer<2048> query(system_charset_info);
+    TABLE_LIST tmp_table_list;
+    int errcode;
+
+    tmp_table_list.reset();
+    tmp_table_list.table = table;
+
+    result= show_create_table(thd, &tmp_table_list, &query,
+                              create_info, WITH_DB_NAME);
+    DBUG_ASSERT(result == 0); /* show_create_table() always return 0 */
+
+    errcode= query_error_code(thd, thd->killed == NOT_KILLED);
     result= thd->binlog_query(THD::STMT_QUERY_TYPE,
                               query.ptr(), query.length(),
                               /* is_trans */ TRUE,
-                              /* direct */ FALSE,
+                              /* direct */ table->s->global_tmp_table(),
                               /* suppress_use */ FALSE,
                               errcode) > 0;
   }
@@ -5691,7 +5701,7 @@ void select_create::abort_result_set()
                          &create_info->org_storage_engine_name,
                          create_info->db_type == partition_hton,
                          &create_info->tabledef_version,
-                         tmp_table);
+                         tmp_table, create_info->table_was_deleted);
           drop_table_was_logged= true;
           debug_crash_here("ddl_log_create_after_binlog");
           thd->binlog_xid= 0;

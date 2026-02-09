@@ -701,11 +701,17 @@ select @@session.binlog_format;
 STATEMENT
 create sequence s1 cache 2;
 select next value for s1;
-ERROR HY000: Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = STATEMENT and at least one table uses a storage engine limited to row-based logging.
+next value for s1
+1
+Warnings:
+Note	1665	Statement cannot be logged as STATEMENT as at least one table is limited to row-based logging. Switching temporarly to row format
 set session binlog_format=row;
 select next value for s1;
 next value for s1
-1
+2
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+3	1	9223372036854775806	1	1	2	0	0
 connection master;
 connection slave;
 select * from s1;
