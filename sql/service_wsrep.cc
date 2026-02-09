@@ -134,7 +134,7 @@ extern "C" my_bool wsrep_get_debug()
  */
 extern "C" my_bool wsrep_thd_is_local(const THD *thd)
 {
-  DBUG_ASSERT(WSREP_NNULL(thd));
+  // DBUG_ASSERT(WSREP_NNULL(thd));   QQ: Enforce the comment or fix the comment
   /*
     async replication IO and background threads have nothing to
     replicate in the cluster, marking them as non-local here to

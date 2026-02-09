@@ -3054,7 +3054,7 @@ static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
   }
   else
   {
-    thd->variables.wsrep_on= 0;
+    thd->disable_wsrep();
   }
   return 0;
 }
@@ -3067,7 +3067,7 @@ static void wsrep_RSU_end(THD *thd)
   {
     WSREP_WARN("Failed to end RSU, server may need to be restarted");
   }
-  thd->variables.wsrep_on= 1;
+  thd->enable_wsrep();
 }
 
 static inline bool is_replaying_connection(THD *thd)

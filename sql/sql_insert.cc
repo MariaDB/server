@@ -500,9 +500,10 @@ void upgrade_lock_type(THD *thd, thr_lock_type *lock_type,
       return;
     }
 
-    bool log_on= (thd->variables.option_bits & OPTION_BIN_LOG);
-    if (thd->wsrep_binlog_format(global_system_variables.binlog_format) == BINLOG_FORMAT_STMT &&
-        log_on && mysql_bin_log.is_open())
+    bool log_on= thd->binlog_ready_no_wsrep();
+    if (log_on &&
+        (thd->wsrep_binlog_format(global_system_variables.binlog_format) ==
+         BINLOG_FORMAT_STMT))
     {
       /*
         Statement-based binary logging does not work in this case, because:
@@ -751,7 +752,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     By default, both logs are enabled (this won't cause problems if the server
     runs without --log-bin).
   */
-  bool log_on= (thd->variables.option_bits & OPTION_BIN_LOG);
+  bool log_on= thd->binlog_ready_no_wsrep();
 #endif
   thr_lock_type lock_type;
   Item *unused_conds= 0;
@@ -1309,7 +1310,7 @@ values_loop_end:
 	was_insert_delayed)
     {
       bool binlogged= 0;
-      if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
+      if ((thd->binlog_ready_with_wsrep() || thd->binlog_evt_union.do_union) &&
           table->s->using_binlog())
       {
         int errcode= 0, skip_binlog= 0;
@@ -4576,7 +4577,7 @@ bool select_insert::prepare_eof(bool in_create_table)
     Temporary tables will be logged only on CREATE in STMT format
     or on INSERT if all changes to the table is in the binlog.
   */
-  if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
+  if ((thd->binlog_ready_with_wsrep() || thd->binlog_evt_union.do_union) &&
       (table->s->using_binlog() ||
        ((in_create_table &&
          (!table->s->tmp_table || thd->binlog_create_tmp_table()) &&
@@ -4729,7 +4730,7 @@ void select_insert::abort_result_set()
       if (!can_rollback_data())
         thd->transaction->all.modified_non_trans_table= TRUE;
 
-      if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
+      if (thd->binlog_ready())
       {
         StatementBinlog stmt_binlog(thd, !can_rollback_data() &&
                                     thd->binlog_need_stmt_format(transactional_table));
@@ -5271,7 +5272,7 @@ static int binlog_show_create_table(THD *thd, TABLE *table,
   */
   int result= 0;
 
-  if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
+  if (thd->binlog_ready_with_wsrep())
   {
     DBUG_ASSERT(thd->is_current_stmt_binlog_format_row() ||
                 table->s->global_tmp_table());
@@ -5604,7 +5605,7 @@ bool select_create::send_eof()
 
 void select_create::abort_result_set()
 {
-  ulonglong save_option_bits;
+  BINLOG_STATE save;
   DBUG_ENTER("select_create::abort_result_set");
 
   /* Avoid double calls, could happen in case of out of memory on cleanup */
@@ -5631,11 +5632,10 @@ void select_create::abort_result_set()
     create or replace table, then we must log the statement.
   */
 
-  save_option_bits= thd->variables.option_bits;
-  thd->variables.option_bits&= ~OPTION_BIN_LOG;
+  thd->tmp_disable_binlog(&save, BINLOG_STATE_TMP_DISABLED);
   select_insert::abort_result_set();
   thd->transaction->stmt.modified_non_trans_table= FALSE;
-  thd->variables.option_bits= save_option_bits;
+  thd->reenable_binlog(&save);
 
   /*
     In the error case, we remove any partially created table. So clear any

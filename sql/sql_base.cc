@@ -3339,7 +3339,7 @@ static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
   if (unlikely(entry->file->implicit_emptied))
   {
     entry->file->implicit_emptied= 0;
-    if (mysql_bin_log.is_open())
+    if (thd->binlog_ready_no_wsrep())
     {
       char query_buf[2*FN_REFLEN + 21];
       String query(query_buf, sizeof(query_buf), system_charset_info);
@@ -3787,12 +3787,11 @@ thr_lock_type read_lock_type_for_table(THD *thd,
 {
   /*
     In cases when this function is called for a sub-statement executed in
-    prelocked mode we can't rely on OPTION_BIN_LOG flag in THD::options
-    bitmap to determine that binary logging is turned on as this bit can
-    be cleared before executing sub-statement. So instead we have to look
-    at THD::variables::sql_log_bin member.
+    prelocked mode we can't checking all disabled flags in
+    thd->binlog_check to determine that binary logging should be done
+    as bits could be set as part of executing sub-statement.
   */
-  bool log_on= mysql_bin_log.is_open() && thd->variables.sql_log_bin;
+  bool log_on= thd->binlog_ready_later();
   if ((log_on == FALSE) ||
       (thd->wsrep_binlog_format(thd->variables.binlog_format) == BINLOG_FORMAT_ROW) ||
       (table_list->table->s->table_category == TABLE_CATEGORY_LOG) ||

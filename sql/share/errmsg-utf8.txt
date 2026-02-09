@@ -8306,12 +8306,12 @@ ER_SLAVE_MASTER_COM_FAILURE
         spa "El comando maestro (master) %s ha fallado: %s"
         sw "Amri ya mkubwa %s imeshindwa: %s"
 ER_BINLOG_LOGGING_IMPOSSIBLE
-        chi "二进制记录不可能。消息：%s"
-        eng "Binary logging not possible. Message: %s"
-        ger "Binärlogging nicht möglich. Meldung: %s"
-        geo "ბინარული ჟურნალი შეუძლებელია. შეტყობინება: %s"
-        spa "No es posible llevar historial (log) binario. Mensaje: %s"
-        sw "Uwekaji katika kumbukumbu ya mfumo wa jozi hauwezekani. Ujumbe: %s"
+        chi "二进制记录不可能。消息：%s  Query: %s"
+        eng "Binary logging not possible. Message: %s  Query: '%s'"
+        ger "Binärlogging nicht möglich. Meldung: %s  Query: '%s'"
+        geo "ბინარული ჟურნალი შეუძლებელია. შეტყობინება: %s  Query: '%s'"
+        spa "No es posible llevar historial (log) binario. Mensaje: %s  Consulta (query):'%s'"
+        sw "Uwekaji katika kumbukumbu ya mfumo wa jozi hauwezekani. Ujumbe: %s  Hoji: '%s'"
 ER_VIEW_NO_CREATION_CTX
         chi "View%sQ.%sQ没有创建上下文"
         eng "View %sQ.%sQ has no creation context"

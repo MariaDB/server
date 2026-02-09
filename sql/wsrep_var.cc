@@ -102,7 +102,10 @@ bool wsrep_refresh_provider_options()
 void wsrep_set_wsrep_on(THD* thd)
 {
   if (thd)
+  {
     thd->wsrep_was_on= WSREP_ON_;
+    thd->sync_binlog_state_with_binlog_open_force();
+  }
   WSREP_PROVIDER_EXISTS_= wsrep_provider && *wsrep_provider &&
     strcasecmp(wsrep_provider, WSREP_NONE);
   WSREP_ON_= global_system_variables.wsrep_on && WSREP_PROVIDER_EXISTS_;
@@ -113,8 +116,6 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
   if (var_type == OPT_GLOBAL)
   {
     my_bool saved_wsrep_on= global_system_variables.wsrep_on;
-
-    thd->variables.wsrep_on= saved_wsrep_on;
 
     // If wsrep has not been inited we need to do it now
     if (!wsrep_inited &&
@@ -145,7 +146,8 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
       mysql_mutex_lock(&LOCK_global_system_variables);
     }
 
-    thd->variables.wsrep_on= global_system_variables.wsrep_on= saved_wsrep_on;
+    global_system_variables.wsrep_on= saved_wsrep_on;
+    thd->set_wsrep(saved_wsrep_on);
   }
 
   wsrep_set_wsrep_on(thd);

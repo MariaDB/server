@@ -31,7 +31,7 @@ call mtr.add_suppression("Log filename extension number exhausted:.");
 call mtr.add_suppression("Can't generate a unique log-filename");
 call mtr.add_suppression("MYSQL_BIN_LOG::open failed to generate new file name.");
 call mtr.add_suppression("Could not use master-bin for logging");
-
+call mtr.add_suppression("Binary logging not possible");
 
 --echo "Test case verifies creation of binary log with max entension value."
 RESET MASTER TO 2147483647;
@@ -62,6 +62,7 @@ RESET MASTER TO 2147483648;
 
 --echo "Following CREATE DATABSE db2 command will not be present in binary log"
 --echo "as binary log got closed due to ER_NO_UNIQUE_LOGFILE error."
+--error ER_BINLOG_LOGGING_IMPOSSIBLE
 CREATE DATABASE db2;
 
 

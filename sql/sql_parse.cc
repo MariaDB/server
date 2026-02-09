@@ -1008,9 +1008,7 @@ int bootstrap(MYSQL_FILE *file)
 
   THD *thd= new THD(next_thread_id());
   char *buffer= new char[MAX_BOOTSTRAP_QUERY_SIZE];
-#ifdef WITH_WSREP
-  thd->variables.wsrep_on= 0;
-#endif
+  thd->disable_wsrep();
   thd->bootstrap=1;
   my_net_init(&thd->net,(st_vio*) 0, thd, MYF(0));
   thd->max_client_packet_length= thd->net.max_packet;
@@ -3746,9 +3744,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     privilege, system or statistic tables directly without the updates
     getting logged.
   */
-  if (!(sql_command_flags[lex->sql_command] &
-        (CF_CAN_GENERATE_ROW_EVENTS | CF_FORCE_ORIGINAL_BINLOG_FORMAT |
-         CF_STATUS_COMMAND)))
+  if ((!(sql_command_flags[lex->sql_command] &
+         (CF_CAN_GENERATE_ROW_EVENTS | CF_FORCE_ORIGINAL_BINLOG_FORMAT |
+          CF_STATUS_COMMAND))) &&
+      (thd->binlog_state & BINLOG_STATE_ACTIVE))
     thd->set_binlog_format_stmt();
 
   /*
@@ -5977,7 +5976,8 @@ finish:
 #endif
   if (!(sql_command_flags[lex->sql_command] &
         (CF_CAN_GENERATE_ROW_EVENTS | CF_FORCE_ORIGINAL_BINLOG_FORMAT |
-         CF_STATUS_COMMAND)))
+         CF_STATUS_COMMAND)) &&
+      (thd->binlog_state & BINLOG_STATE_ACTIVE))
     thd->set_binlog_format(orig_binlog_format,
                            orig_current_stmt_binlog_format);
 
@@ -7438,11 +7438,11 @@ void THD::reset_for_next_command(bool do_clear_error)
   DBUG_ASSERT(lex == &main_lex);
   main_lex.stmt_lex= &main_lex; main_lex.current_select_number= 0;
   /*
-    Those two lines below are theoretically unneeded as
-    THD::cleanup_after_query() should take care of this already.
+    The following variables should have been reset in
+    THD::cleanup_after_query()
   */
-  auto_inc_intervals_in_cur_stmt_for_binlog.empty();
-  stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
+  DBUG_ASSERT(auto_inc_intervals_in_cur_stmt_for_binlog.nb_elements() == 0);
+  DBUG_ASSERT(stmt_depends_on_first_successful_insert_id_in_prev_stmt == 0);
 
 #ifdef WITH_WSREP
   /*

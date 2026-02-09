@@ -1,5 +1,7 @@
 --source include/have_log_bin.inc
 
+call mtr.add_suppression("Binary logging not possible");
+
 --echo #
 --echo # MDEV-23843 Assertions in Diagnostics_area upon table operations under
 --echo # FTWRL
@@ -24,6 +26,7 @@ FLUSH TABLES WITH READ LOCK;
 SET lock_wait_timeout= 1;
 --error ER_LOCK_WAIT_TIMEOUT
 FLUSH TABLES;
+show warnings;
 --connection default
 --disconnect con1
 unlock tables;

@@ -316,6 +316,7 @@ static int
 gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_CSTRING *table_name)
 {
   int err;
+  BINLOG_STATE save;
   StringBuffer<sizeof(gtid_pos_table_definition1) +
                sizeof(gtid_pos_table_definition1) +
                2*FN_REFLEN> query;
@@ -328,13 +329,12 @@ gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_CSTRING *table_name)
 
   thd->set_db(&MYSQL_SCHEMA_NAME);
   thd->clear_error();
-  ulonglong thd_saved_option= thd->variables.option_bits;
-  /* This query should not be binlogged. */
-  thd->variables.option_bits&= ~(ulonglong)OPTION_BIN_LOG;
+  thd->tmp_disable_binlog(&save, BINLOG_STATE_TMP_DISABLED);
   thd->set_query_and_id(query.c_ptr(), query.length(), thd->charset(),
                         next_query_id());
   Parser_state parser_state;
   err= parser_state.init(thd, thd->query(), thd->query_length());
+  thd->reenable_binlog(&save);
   if (err)
     goto end;
   mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
@@ -348,7 +348,6 @@ gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_CSTRING *table_name)
                     "in lowercase.",
                     table_name->str);
 end:
-  thd->variables.option_bits= thd_saved_option;
   thd->reset_query();
   return err;
 }
@@ -360,7 +359,7 @@ static THD *new_bg_THD()
   thd->system_thread = SYSTEM_THREAD_SLAVE_BACKGROUND;
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);
-  thd->variables.wsrep_on= 0;
+  thd->disable_wsrep();
   return thd;
 }
 
@@ -3180,7 +3179,11 @@ void set_slave_thread_options(THD* thd)
   ulonglong options= (thd->variables.option_bits |
                       OPTION_BIG_SELECTS | OPTION_BIN_LOG);
   if (!opt_log_slave_updates)
+  {
     options&= ~OPTION_BIN_LOG;
+    thd->binlog_state|= BINLOG_STATE_BYPASS | BINLOG_STATE_SLAVE_DISABLED;
+  }
+
   /* For easier test in LOGGER::log_command */
   if (thd->variables.log_disabled_statements & LOG_DISABLE_SLAVE)
     options|= OPTION_LOG_OFF;
@@ -4531,7 +4534,8 @@ pthread_handler_t handle_slave_io(void *arg)
       goto err;
   }
 
-  thd->variables.wsrep_on= 0;
+  thd->disable_wsrep();
+
   repl_semisync_slave.slave_start(mi);
 
   if (!(mi->mysql = mysql = mysql_init(NULL)))

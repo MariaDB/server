@@ -1277,7 +1277,7 @@ update_end:
   if (likely(error < 0) || thd->transaction->stmt.modified_non_trans_table ||
       thd->log_current_statement())
   {
-    if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
+    if ((thd->binlog_ready_with_wsrep() || thd->binlog_evt_union.do_union) &&
         table->s->using_binlog())
     {
       int errcode= 0;
@@ -2568,7 +2568,7 @@ void multi_update::abort_result_set()
       The query has to binlog because there's a modified non-transactional table
       either from the query's list or via a stored routine: bug#13270,23333
     */
-    if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
+    if (thd->binlog_ready_with_wsrep() || thd->binlog_evt_union.do_union)
     {
       StatementBinlog stmt_binlog(thd, thd->binlog_need_stmt_format(transactional_tables));
       /*
@@ -2927,7 +2927,7 @@ bool multi_update::send_eof()
              thd->transaction->stmt.modified_non_trans_table) ||
       thd->log_current_statement())
   {
-    if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
+    if (thd->binlog_ready_with_wsrep() || thd->binlog_evt_union.do_union)
     {
       int errcode= 0;
       if (likely(local_error == 0))

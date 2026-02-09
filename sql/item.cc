@@ -3061,8 +3061,8 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
 
   if (unlikely(!m_sp->detistic() && !trust_function_creators &&
                (access == SP_CONTAINS_SQL || access == SP_MODIFIES_SQL_DATA) &&
-               (mysql_bin_log.is_open() &&
-                thd->variables.binlog_format == BINLOG_FORMAT_STMT)))
+               thd->binlog_ready_no_wsrep() &&
+               thd->variables.binlog_format == BINLOG_FORMAT_STMT))
   {
     my_error(ER_BINLOG_UNSAFE_ROUTINE, MYF(0));
     thd->security_ctx= save_security_ctx;

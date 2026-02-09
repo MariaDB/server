@@ -4915,7 +4915,8 @@ int log_loaded_block(IO_CACHE* file, uchar *Buffer, size_t Count)
   bool did_dbug_inject= false;
 #endif
 
-  if (lf_info->thd->is_current_stmt_binlog_format_row())
+  if (!lf_info->thd->binlog_ready() ||
+      !lf_info->thd->is_current_stmt_binlog_format_stmt())
     goto ret;
   if (lf_info->last_pos_in_file != HA_POS_ERROR &&
       lf_info->last_pos_in_file >= my_b_get_pos_in_file(file))
