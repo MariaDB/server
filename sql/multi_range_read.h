@@ -557,10 +557,11 @@ class DsMrr_impl
 public:
   typedef void (handler::*range_check_toggle_func_t)(bool on);
 
-  void init(handler *h_arg, TABLE *table_arg)
+  void init(handler *h_arg, TABLE *table_arg, ha_rows limit= HA_POS_ERROR)
   {
     primary_file= h_arg; 
     table= table_arg;
+    limit_hint= limit;
   }
   int dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs, 
                  void *seq_init_param, uint n_ranges, uint mode, 
@@ -576,6 +577,9 @@ public:
                            uint *flags, ha_rows limit, Cost_estimate *cost);
 
   int dsmrr_explain_info(uint mrr_mode, char *str, size_t size);
+  void set_limit(ha_rows limit) { limit_hint= limit; }
+  ha_rows get_limit() { return limit_hint; }
+
 private:
   /* Buffer to store (key, range_id) pairs */
   Lifo_buffer *key_buffer= nullptr;
@@ -635,7 +639,10 @@ private:
     is_mrr_assoc==FALSE
   */
   Forward_lifo_buffer rowid_buffer;
-  
+
+  /* LIMIT value */
+  ha_rows limit_hint= HA_POS_ERROR;
+
   bool choose_mrr_impl(uint keyno, ha_rows rows, uint *flags, uint *bufsz, 
                        Cost_estimate *cost);
   bool get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,

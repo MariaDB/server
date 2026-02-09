@@ -567,6 +567,12 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
   const lsn_t start_lsn= do_write().first;
   ut_d(m_log.erase());
 
+  /* Set STOPPING_READS flag to prevent read-ahead operations
+  during truncation. This prevents race condition where
+  buf_read_ahead_undo() could request pages beyond the new
+  truncated size. */
+  space.set_stopping_reads();
+
   fil_node_t *file= UT_LIST_GET_LAST(space.chain);
   mysql_mutex_lock(&fil_system.mutex);
   ut_ad(file->is_open());
@@ -656,6 +662,7 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
 
   release();
   release_resources();
+  space.clear_stopping_reads();
 }
 
 /** Commit a mini-transaction that is deleting or renaming a file.

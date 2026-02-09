@@ -144,7 +144,8 @@ row_search_mvcc(
 	page_cur_mode_t	mode,
 	row_prebuilt_t*	prebuilt,
 	ulint		match_mode,
-	ulint		direction)
+	ulint		direction,
+	mrr_readahead_ctx_t* mrr_ctx = nullptr)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**
