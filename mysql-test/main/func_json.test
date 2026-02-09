@@ -4242,3 +4242,14 @@ SELECT JSON_SCHEMA_VALID('{"properties": "a_string": {"pattern": "^[5-9]$"}}}', 
 select json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'));
 
 --echo # End of 11.4 Test
+
+--echo #
+--echo # MDEV-38702 Behaviour of IF() with boolean JSON_EXTRACT as expression is wrong
+--echo #
+SELECT JSON_TYPE(JSON_EXTRACT(x.val, '$.booleanValue')) AS json_type,
+       JSON_EXTRACT(x.val, '$.booleanValue') AS value,
+       IF(JSON_EXTRACT(x.val, '$.booleanValue'), 1, 0) AS value_if,
+       JSON_EXTRACT(x.val, '$.booleanValue') = true AS value_eq
+FROM (SELECT '{"booleanValue": true}' AS val UNION ALL SELECT '{"booleanValue": false}' AS val ) AS x;
+
+--echo # End of 11.8 Test

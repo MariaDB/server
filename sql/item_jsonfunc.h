@@ -320,6 +320,7 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *) override;
   longlong val_int() override;
+  bool val_bool() override;
   double val_real() override;
   my_decimal *val_decimal(my_decimal *) override;
   uint get_n_paths() const override { return arg_count - 1; }

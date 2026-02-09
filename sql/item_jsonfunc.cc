@@ -1342,6 +1342,36 @@ my_decimal *Item_func_json_extract::val_decimal(my_decimal *to)
 }
 
 
+bool Item_func_json_extract::val_bool()
+{
+  json_value_types type;
+  char *value;
+  int value_len;
+  longlong i= 0;
+
+  if (read_json(NULL, &type, &value, &value_len) != NULL)
+  {
+    switch (type)
+    {
+      case JSON_VALUE_NUMBER:
+      case JSON_VALUE_STRING:
+      {
+        char *end;
+        int err;
+        i= collation.collation->strntoll(value, value_len, 10, &end, &err);
+        break;
+      }
+      case JSON_VALUE_TRUE:
+        i= 1;
+        break;
+      default:
+        i= 0;
+        break;
+    };
+  }
+  return i != 0;
+}
+
 
 bool Item_func_json_contains::fix_length_and_dec(THD *thd)
 {

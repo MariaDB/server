@@ -755,9 +755,6 @@ create table t1(a double not null);
 insert into t1 values (2),(1);
 select 1 from t1 where json_extract(a,'$','$[81]');
 1
-Warnings:
-Warning	1292	Truncated incorrect BOOLEAN value: '[2]'
-Warning	1292	Truncated incorrect BOOLEAN value: '[1]'
 drop table t1;
 select json_extract('{"test":8.437e-5}','$.test');
 json_extract('{"test":8.437e-5}','$.test')
@@ -5411,3 +5408,15 @@ select json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'));
 json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'))
 0
 # End of 11.4 Test
+#
+# MDEV-38702 Behaviour of IF() with boolean JSON_EXTRACT as expression is wrong
+#
+SELECT JSON_TYPE(JSON_EXTRACT(x.val, '$.booleanValue')) AS json_type,
+JSON_EXTRACT(x.val, '$.booleanValue') AS value,
+IF(JSON_EXTRACT(x.val, '$.booleanValue'), 1, 0) AS value_if,
+JSON_EXTRACT(x.val, '$.booleanValue') = true AS value_eq
+FROM (SELECT '{"booleanValue": true}' AS val UNION ALL SELECT '{"booleanValue": false}' AS val ) AS x;
+json_type	value	value_if	value_eq
+BOOLEAN	true	1	1
+BOOLEAN	false	0	0
+# End of 11.8 Test
