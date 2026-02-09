@@ -282,7 +282,7 @@ JS
             {
                 "access_type": "range",
                 "resulting_rows": 5,
-                "cost": 6.83879845,
+                "cost": 6.666533161,
                 "chosen": true
             }
         ],
@@ -290,7 +290,7 @@ JS
         {
             "type": "range",
             "records": 5,
-            "cost": 6.83879845,
+            "cost": 6.666533161,
             "uses_join_buffering": false
         }
     }
