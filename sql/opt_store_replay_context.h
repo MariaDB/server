@@ -139,7 +139,7 @@ private:
     Statistics that tables had before we've replaced them with values from
     the saved context. To be used to restore the original values.
   */
-  List<Saved_Table_stats> saved_tablestats_list;
+  List<Saved_Table_stats> saved_table_stats;
 
   /* Current database recorded in the saved Optimizer Context */
   char *db_name;

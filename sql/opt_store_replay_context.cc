@@ -1503,6 +1503,7 @@ bool Optimizer_context_replay::infuse_index_read_cost(const TABLE *tbl,
   return true;
 }
 
+
 /*
   @brief
     Save the current stats of the table and its associated table.
@@ -1520,7 +1521,7 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
   saved_ts->table= table;
   saved_ts->original_rows= table->used_stat_records;
 
-  if (saved_tablestats_list.push_back(saved_ts))
+  if (saved_table_stats.push_back(saved_ts))
     return;
 
   ha_rows temp_rows;
@@ -1629,23 +1630,25 @@ bool Optimizer_context_replay::infuse_records_in_range(const TABLE *tbl,
   return true;
 }
 
+
 /*
   @brief
     restore the saved stats for the tables, and indexes that were
-    earlier recorded using set_table_stats_from_context()
+    earlier recorded using infuse_table_stats().
 */
 void Optimizer_context_replay::restore_modified_table_stats()
 {
-  List_iterator<Saved_Table_stats> table_li(saved_tablestats_list);
+  List_iterator<Saved_Table_stats> table_li(saved_table_stats);
   while (Saved_Table_stats *saved_ts= table_li++)
   {
     saved_ts->table->used_stat_records= saved_ts->original_rows;
     List_iterator<Saved_Index_stats> index_li(saved_ts->saved_indexstats_list);
     while (Saved_Index_stats *saved_is= index_li++)
     {
-      saved_is->key_info->is_statistics_from_stat_tables=
+      KEY *key= saved_is->key_info;
+      key->is_statistics_from_stat_tables=
           saved_is->original_is_statistics_from_stat_tables;
-      saved_is->key_info->read_stats= saved_is->original_read_stats;
+      key->read_stats= saved_is->original_read_stats;
     }
   }
 }
