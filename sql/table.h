@@ -380,7 +380,7 @@ typedef struct st_grant_info
 
   inline void refresh(const Security_context *sctx, const char *db,
                      const char *table);
-  inline privilege_t aggregate_privs();
+  inline access_t aggregate_privs();
   inline privilege_t aggregate_cols();
 
   /* OR table and all column privileges */

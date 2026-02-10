@@ -6544,7 +6544,7 @@ absent:
       sp_automatic_privileges && !opt_noacl &&
       sp_revoke_privileges(thd, lex->spname->m_db,
                            Lex_ident_routine(lex->spname->m_name),
-                           Sp_handler::handler(lex->sql_command)))
+                           Sp_handler::handler(lex->sql_command),false))
   {
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_PROC_AUTO_REVOKE_FAIL,

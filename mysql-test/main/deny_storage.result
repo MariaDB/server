@@ -1,14 +1,18 @@
 #
-# Test DENY for global administrative privileges
+# Test DENY representation as JSON in mysql.global_priv table
 #
+SET @q_show_denies =
+'SELECT User, Host,
+          JSON_PRETTY(JSON_EXTRACT(Priv, ''$.denies'')) AS denies_pretty
+   FROM mysql.global_priv
+   WHERE JSON_LENGTH(JSON_EXTRACT(Priv, ''$.denies'')) > 0
+   ORDER BY User, Host';
+PREPARE show_denies FROM @q_show_denies;
 CREATE USER u;
 CREATE DATABASE d;
 DENY SELECT,INSERT ON mysql.* TO u;
 DENY UPDATE on d.* to u;
-SELECT User, Host,
-JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
-FROM mysql.global_priv
-WHERE JSON_LENGTH(JSON_EXTRACT(Priv, '$.denies')) > 0;
+EXECUTE show_denies;
 User	Host	denies_pretty
 u	%	[
     {
@@ -23,10 +27,7 @@ u	%	[
     }
 ]
 REVOKE DENY SELECT  ON mysql.* FROM u;
-SELECT User, Host,
-JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
-FROM mysql.global_priv
-WHERE JSON_LENGTH(JSON_EXTRACT(Priv, '$.denies')) > 0;
+EXECUTE show_denies;
 User	Host	denies_pretty
 u	%	[
     {
@@ -41,10 +42,7 @@ u	%	[
     }
 ]
 REVOKE DENY INSERT  ON mysql.* FROM u;
-SELECT User, Host,
-JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
-FROM mysql.global_priv
-WHERE JSON_LENGTH(JSON_EXTRACT(Priv, '$.denies')) > 0;
+EXECUTE show_denies;
 User	Host	denies_pretty
 u	%	[
     {
@@ -54,10 +52,30 @@ u	%	[
     }
 ]
 REVOKE DENY UPDATE ON d.* FROM u;
-SELECT User, Host,
-JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
-FROM mysql.global_priv
-WHERE JSON_LENGTH(JSON_EXTRACT(Priv, '$.denies')) > 0;
+EXECUTE show_denies;
 User	Host	denies_pretty
+DENY SELECT,INSERT on mysql.global_priv to u;
+EXECUTE show_denies;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "table",
+        "db": "mysql",
+        "table": "global_priv",
+        "deny": 3
+    }
+]
+REVOKE DENY INSERT  ON mysql.global_priv FROM u;
+EXECUTE show_denies;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "table",
+        "db": "mysql",
+        "table": "global_priv",
+        "deny": 1
+    }
+]
+DEALLOCATE PREPARE show_denies;
 DROP USER u;
 DROP DATABASE d;
