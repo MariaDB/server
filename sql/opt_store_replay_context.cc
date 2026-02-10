@@ -666,7 +666,7 @@ const uchar *Optimizer_context_recorder::get_tbl_trace_ctx_key(
   return reinterpret_cast<const uchar *>(entry->name);
 }
 
-void Optimizer_context_recorder::store_records_in_range_info(
+void Optimizer_context_recorder::record_records_in_range(
     MEM_ROOT *mem_root, const TABLE *tbl, uint keynr, const char *min_key,
     const char *max_key, ha_rows records)
 {

@@ -17771,13 +17771,14 @@ static ha_rows hook_records_in_range(MEM_ROOT *mem_root, THD *thd,
 
   if (Optimizer_context_recorder *recorder= get_opt_context_recorder(thd))
   {
-    // TODO: move the printing down into store_records_in_range_info()
+    // TODO: move the printing down into record_records_in_range()
     String min;
     String max;
     print_key_value(&min, key_part, min_range->key, min_range->length);
     print_key_value(&max, key_part, min_range->key, min_range->length);
-    recorder->store_records_in_range_info(
-        mem_root, table, keynr, min.c_ptr_safe(), max.c_ptr_safe(), records);
+    recorder->record_records_in_range(mem_root, table, keynr,
+                                      min.c_ptr_safe(), max.c_ptr_safe(),
+                                      records);
   }
   return records;
 }
