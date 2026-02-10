@@ -695,6 +695,11 @@ struct row_prebuilt_t {
 	/** The MySQL table object */
 	TABLE*		m_mysql_table;
 
+  bool    full_table_scan; /*!< Whether the full table will need to be
+				  scanned. Set when the sql layer passes NULL cond in
+				  cond_push. Will cause to use X/S locks in select rather than
+				  IX/IS locks */
+
 	/** Get template by dict_table_t::cols[] number */
 	const mysql_row_templ_t* get_template_by_col(ulint col) const
 	{

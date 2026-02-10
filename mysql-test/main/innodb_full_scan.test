@@ -1,0 +1,175 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--echo #
+--echo # MDEV-24813 Locking full table scan fails to use table-level locking
+--echo #
+
+CREATE TABLE t (a INT PRIMARY KEY) ENGINE=InnoDB;
+insert into t values (42);
+
+--echo # SELECT
+set global innodb_monitor_enable="lock_rec_lock_created";
+BEGIN;
+SELECT * FROM t LOCK IN SHARE MODE;
+COMMIT;
+--echo ## +0, was +1
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+BEGIN;
+SELECT * FROM t for update;
+COMMIT;
+--echo ## +0, was +1
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+--echo ## SELECT without explicit transaction
+SELECT * FROM t;
+--echo ### +0, was +0
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+--echo # SELECT with a condition
+BEGIN;
+select * from t where a > 10 lock in share mode;
+COMMIT;
+--echo ### +1, was +1
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+BEGIN;
+SELECT * FROM t where a > 10 for update;
+COMMIT;
+--echo ## +1, was +1
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+--echo ## SELECT with a condition without explicit transaction
+SELECT * FROM t where a > 10;
+--echo ### +0, was +0
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+DROP TABLE t;
+
+--echo # INSERT INTO ... SELECT with UNION
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_100;
+create table t2 (a int, b int) engine=innodb;
+insert into t2
+  select * from t1 where t1.a = 10
+  UNION
+  select * from t1;
+--echo ## +1, was +3
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+insert into t2
+  select * from t1
+  UNION
+  select * from t1 where t1.a = 10;
+--echo ## +1, was +3
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+insert into t2
+  select * from t1 where t1.a > 10
+  UNION
+  select * from t1;
+--echo ## +1, was +1
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+insert into t2
+  select * from t1
+  UNION
+  select * from t1 where t1.a > 10;
+--echo ## +0, was +1
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+drop table t1, t2;
+
+--echo # CREATE ... SELECT with UNION
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_100;
+create table t2 (a int, b int) engine=innodb
+  select * from t1 where t1.a = 10
+  UNION
+  select * from t1;
+--echo ## +1, was +3
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+create or replace table t2 (a int, b int) engine=innodb
+  select * from t1
+  UNION
+  select * from t1 where t1.a = 10;
+--echo ## +1, was +3
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+create or replace table t2 (a int, b int) engine=innodb
+  select * from t1 where t1.a > 10
+  UNION
+  select * from t1;
+--echo ## +1, was +1
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+create or replace table t2 (a int, b int) engine=innodb
+  select * from t1
+  UNION
+  select * from t1 where t1.a > 10;
+--echo ## +0, was +1
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+drop table t1, t2;
+
+--echo # UPDATE
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_100;
+
+UPDATE t1 SET b = b + 3;
+--echo ## +0, was +1
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+UPDATE t1 SET b = b + 3 WHERE a = 10;
+--echo ## +1, was +1
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+UPDATE t1 SET b = b + 3 WHERE a > 10;
+--echo ## +1, was +1
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+--echo # DELETE
+DELETE FROM t1;
+--echo ## +0, was +1
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+DELETE FROM t1 WHERE a = 10;
+--echo ## +1, was +1
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+DELETE FROM t1 WHERE a > 10;
+--echo ## +1, was +1
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+drop table t1;
+
+--echo # JOIN
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_100;
+create table t2 (a int primary key, b int) engine=innodb;
+insert into t2 select seq, seq from seq_1_to_100;
+
+--disable_result_log
+begin;
+select * from t1 join t2 on t1.a = t2.a LOCK IN SHARE MODE;
+commit;
+--enable_result_log
+--echo ## +1, was +2
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+--disable_result_log
+begin;
+select * from t1 join t2 on t1.a = t2.b LOCK IN SHARE MODE;
+commit;
+--enable_result_log
+--echo ## +2, was +2
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+--disable_result_log
+begin;
+select * from t1 join t2 on t1.b = t2.b LOCK IN SHARE MODE;
+commit;
+--enable_result_log
+--echo ## +1, was +2
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+drop table t1, t2;
+
+set global innodb_monitor_enable=default;

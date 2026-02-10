@@ -231,6 +231,7 @@ enum ha_extra_function {
   /** Abort of writing rows during ALTER TABLE..ALGORITHM=COPY or
   CREATE..SELCT */
   HA_EXTRA_ABORT_ALTER_COPY
+  , HA_EXTRA_FULL_SCAN
 };
 
 /* Compatible option, to be deleted in 6.0 */

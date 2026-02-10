@@ -5811,4 +5811,5 @@ int get_select_field_pos(Alter_info *alter_info, int select_field_count,
 #ifndef DBUG_OFF
 String dbug_format_row(TABLE *table, const uchar *rec, bool print_names= true);
 #endif /* DBUG_OFF */
+void init_table_full_scan_if_needed(TABLE *table, Item *cond, ha_rows limit);
 #endif /* HANDLER_INCLUDED */

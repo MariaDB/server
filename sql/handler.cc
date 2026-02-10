@@ -8692,6 +8692,13 @@ int get_select_field_pos(Alter_info *alter_info, int select_field_count,
   return select_field_pos;
 }
 
+void init_table_full_scan_if_needed(TABLE *table, Item *cond, ha_rows limit)
+{
+  if (!cond)
+    table->file->extra_opt(HA_EXTRA_FULL_SCAN,
+                           limit < ULONG_MAX ? (ulong) limit : ULONG_MAX);
+}
+
 
 bool Table_scope_and_contents_source_st::vers_check_system_fields(
         THD *thd, Alter_info *alter_info, const Lex_table_name &table_name,
