@@ -1,0 +1,21 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+connection node_1;
+SELECT VARIABLE_VALUE AS expect_3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+expect_3
+3
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
+connection node_2;
+SELECT VARIABLE_VALUE AS expect_3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+expect_3
+3
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
+connection node_3;
+SELECT VARIABLE_VALUE AS expect_3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+expect_3
+3
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
