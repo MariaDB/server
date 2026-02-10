@@ -1028,7 +1028,7 @@ dberr_t ibuf_upgrade_needed()
   mtr_t mtr{nullptr};
   mtr.start();
   mtr.x_lock_space(fil_system.sys_space);
-  dberr_t err;
+  dberr_t err= DB_SUCCESS;
   const buf_block_t *header_page= recv_sys.recover(ibuf_header, &mtr, &err);
 
   if (!header_page)
