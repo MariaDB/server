@@ -13949,7 +13949,7 @@ int sql_delete_row(TABLE *table)
       unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                                  TRG_ACTION_BEFORE, FALSE,
                                                  &trg_skip_row)))
-    return trg_skip_row ? HA_ERR_GENERIC : 0;
+    return trg_skip_row ? HA_ERR_CASCADE_SQL : 0;
       
 
   error= table->file->ha_delete_row(table->record[0]);
@@ -13960,7 +13960,7 @@ int sql_delete_row(TABLE *table)
       unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                                  TRG_ACTION_AFTER, FALSE,
                                                  nullptr)))
-    return HA_ERR_GENERIC;
+    return HA_ERR_CASCADE_SQL;
 
   return 0;
 }
@@ -13988,7 +13988,7 @@ int sql_update_row(TABLE *table)
       if (unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                                      TRG_ACTION_BEFORE, TRUE,
                                                      &trg_skip_row)))
-        return trg_skip_row ? 0 : HA_ERR_GENERIC;
+        return trg_skip_row ? 0 : HA_ERR_CASCADE_SQL;
       // This is necessary for indexes that depend on virtual fields
       update_virtual_fields_for_rows(table);
   }
@@ -14001,7 +14001,7 @@ int sql_update_row(TABLE *table)
       unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                                  TRG_ACTION_AFTER, TRUE,
                                                  nullptr)))
-    return HA_ERR_GENERIC;
+    return HA_ERR_CASCADE_SQL;
 
   return 0;
 }

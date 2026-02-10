@@ -672,6 +672,7 @@ handle_new_error:
 	case DB_TABLE_NOT_FOUND:
 	case DB_DECRYPTION_FAILED:
 	case DB_COMPUTE_VALUE_FAILED:
+	case DB_SQL_ERROR:
 	rollback_to_savept:
 		DBUG_EXECUTE_IF("row_mysql_crash_if_error", {
 					log_buffer_flush_to_disk();

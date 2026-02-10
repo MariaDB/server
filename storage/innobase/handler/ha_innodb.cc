@@ -2223,6 +2223,8 @@ convert_error_code_to_mysql(
 		return(HA_ERR_TABLE_CORRUPT);
 	case DB_FTS_TOO_MANY_WORDS_IN_PHRASE:
 		return(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE);
+	case DB_SQL_ERROR:
+		return(HA_ERR_CASCADE_SQL);
 	case DB_COMPUTE_VALUE_FAILED:
 		return(HA_ERR_GENERIC); // impossible
 	}
@@ -2234,12 +2236,16 @@ convert_error_code_to_mysql(
   @return InnoDB error code
 */
 static dberr_t
-convert_sql_error_to_dberr(int sql_error)
+convert_sql_error_to_dberr(THD *thd, que_thr_t *thr, int sql_error)
 {
   switch (sql_error)
   {
   case 0:
     return DB_SUCCESS;
+  case HA_ERR_CASCADE_SQL:
+    // this error should be accessible with thd->get_stmt_da()->sql_errno()
+    ut_ad(thd->get_stmt_da()->is_error());
+    return DB_SQL_ERROR;
 
   case HA_ERR_GENERIC:
   default:
@@ -21503,8 +21509,8 @@ void alter_stats_rebuild(dict_table_t *table, trx_t *trx) noexcept
 }
 
 
-/**
-Fetch the MariaDB TABLE object corresponding to the InnoDB table
+/********************************************************************//**
+Fetches the MySQL TABLE object corresponding to the InnoDB table
 referenced in the given update node.
 @return Pointer to the TABLE object if found, or nullptr on error. */
 static
@@ -21603,5 +21609,5 @@ innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
 
   prebuilt->upd_node= upd_node;
   prebuilt->upd_graph= upd_graph;
-  return convert_sql_error_to_dberr(err);
+  return convert_sql_error_to_dberr(maria_table->in_use, thr, err);
 }
