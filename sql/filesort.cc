@@ -3024,12 +3024,13 @@ static uint make_packed_sortkey(Sort_param *param, uchar *to)
   return length;
 }
 
+
 /*
   @brief
     format the row record and store it in the output
     for eg: - if print_names, and reqd_table_alias are specified,
-    with a separator of "", the formatted row looks like
-    "t(col1,col2,...,coln)=(val1,val2,...,valn)"
+    with a separator of "=", the formatted row looks like
+    "tbl(col1,col2,...,coln)=(val1,val2,...,valn)"
 */
 void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
                           const char *separator, bool reqd_table_alias,

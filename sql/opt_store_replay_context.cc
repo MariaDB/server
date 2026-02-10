@@ -695,12 +695,11 @@ void Optimizer_context_recorder::store_records_in_range_info(
   table_ctx->rir_list.push_back(rec_in_range_ctx, mem_root);
 }
 
-void Optimizer_context_recorder::record_const_table_rows(MEM_ROOT *mem_root,
-                                                         TABLE *tbl)
+void Optimizer_context_recorder::record_const_table_row(MEM_ROOT *mem_root,
+                                                        TABLE *tbl)
 {
-  char output_buf[512];
-  String output(output_buf, sizeof(output_buf), system_charset_info);
-  output.length(0);
+  StringBuffer<512> output;
+
   output.append(STRING_WITH_LEN("REPLACE INTO "));
   store_full_table_name(tbl->pos_in_table_list, &output);
   format_and_store_row(tbl, tbl->record[1], true, " VALUES ", false, output);

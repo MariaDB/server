@@ -17738,6 +17738,17 @@ void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
   out->append(STRING_WITH_LEN(")"));
 }
 
+
+/*
+  @brief
+    Call records_in_range(). If necessary,
+    - Replace its return value from Optimizer Context, and/or
+    - Save its return value in the Optimizer Context we're recording.
+
+  @detail
+    Note that currently "pages" and min/max_range->flag are not hooked.
+*/
+
 static ha_rows hook_records_in_range(MEM_ROOT *mem_root, THD *thd,
                                      TABLE *table,
                                      const KEY_PART_INFO *key_part, uint keynr,
@@ -17746,20 +17757,28 @@ static ha_rows hook_records_in_range(MEM_ROOT *mem_root, THD *thd,
 {
   ha_rows records=
       (table->file->records_in_range(keynr, min_range, max_range, pages));
-  String min;
-  String max;
-  print_key_value(&min, key_part, min_range->key, min_range->length);
-  print_key_value(&max, key_part, min_range->key, min_range->length);
+
   if (thd->opt_ctx_replay)
   {
+    // TODO: move the printing down into infuse_records_in_range()
+    String min;
+    String max;
+    print_key_value(&min, key_part, min_range->key, min_range->length);
+    print_key_value(&max, key_part, min_range->key, min_range->length);
     thd->opt_ctx_replay->infuse_records_in_range(
         table, keynr, min.c_ptr_safe(), max.c_ptr_safe(), &records);
   }
 
   if (Optimizer_context_recorder *recorder= get_opt_context_recorder(thd))
   {
+    // TODO: move the printing down into store_records_in_range_info()
+    String min;
+    String max;
+    print_key_value(&min, key_part, min_range->key, min_range->length);
+    print_key_value(&max, key_part, min_range->key, min_range->length);
     recorder->store_records_in_range_info(
         mem_root, table, keynr, min.c_ptr_safe(), max.c_ptr_safe(), records);
   }
   return records;
 }
+
