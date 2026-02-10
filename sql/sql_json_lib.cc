@@ -16,6 +16,8 @@
 #include "mysql.h"
 #include "sql_select.h"
 
+namespace json_reader {
+
 /*
   check if the given read_elem_key can be read from the json_engine.
   if not, fill the err_buf with an error message
@@ -148,23 +150,38 @@ bool read_ha_rows_and_check_limit(json_engine_t *je, const char *read_elem_key,
   return false;
 }
 
+}; // namespace json_reader
+
 /*
-  function to read all the registered members in Read_named_member array
-  from json, and check if the value was assigned to them or not.
-  If any of the mandatory fields are not assigned a value, then the
-  function returns an error.
+  @brief
+    Read a JSON object. The members to read are described in *members array.
+
+  @detail
+   members is an array terminated by a member with (char*)NULL as a name.
+   Each element describes the element name, type and location where to store
+   the read value. See class Read_named_member for details.
+
+   In the JSON document, object members can come in any order. Non-mandatory
+   members may be absent.
+
+   TODO: check what happens if JSON document has a member which was not
+   requested to read. Do we skip it or report an error?
+
+  @seealso
+    class Read_named_member
+
   @return
     0  OK
     1  An Error occured
 */
-int read_all_elements(json_engine_t *je, Read_named_member *arr,
-                      String *err_buf)
+int json_read_object(json_engine_t *je, Read_named_member *members,
+                     String *err_buf)
 {
   int rc;
   while (!(rc= json_scan_next(je)) && je->state != JST_OBJ_END)
   {
     Json_saved_parser_state save1(je);
-    for (Read_named_member *memb= arr; memb->name; memb++)
+    for (Read_named_member *memb= members; memb->name; memb++)
     {
       Json_string js_name(memb->name);
       if (json_key_matches(je, js_name.get()))
@@ -179,7 +196,7 @@ int read_all_elements(json_engine_t *je, Read_named_member *arr,
   }
 
   /* Check if all members got values */
-  for (Read_named_member *memb= arr; memb->name; memb++)
+  for (Read_named_member *memb= members; memb->name; memb++)
   {
     if (!memb->is_optional && !memb->value_assigned)
     {

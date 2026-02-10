@@ -29,6 +29,8 @@
 #include "sql_json_lib.h"
 #include "opt_histogram_json.h"
 
+using namespace json_reader;
+
 /**
   @file
 
@@ -945,6 +947,7 @@ public:
   {
     while (je->state != JST_ARRAY_END)
     {
+      using json_reader::read_ha_rows_and_check_limit;
       ha_rows temp_value;
       if (read_ha_rows_and_check_limit(je, "rec_per_key", err_buf, temp_value,
                                        ULONGLONG_MAX, "unsigned longlong",
@@ -1087,7 +1090,7 @@ static int parse_context_obj_from_json_array(json_engine_t *je,
   if (int rc= parse_check_obj_start_in_array(je, err_buf, err_msg))
     return rc;
 
-  return read_all_elements(je, array, err_buf);
+  return json_read_object(je, array, err_buf);
 }
 
 /*
@@ -1236,7 +1239,7 @@ static int parse_range_cost_estimate(THD *thd, json_engine_t *je,
       {"row_cost_cpu", Read_double(&cost->row_cost.cpu), false},
       {NULL, Read_double(NULL), true}};
 
-  return read_all_elements(je, array, err_buf);
+  return json_read_object(je, array, err_buf);
 }
 
 /*
@@ -1723,7 +1726,7 @@ bool Optimizer_context_replay::parse()
     goto err;
   }
 
-  if (read_all_elements(&je, array, &err_buf))
+  if (json_read_object(&je, array, &err_buf))
     goto err;
 
 #ifndef DBUG_OFF

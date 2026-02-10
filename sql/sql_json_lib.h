@@ -84,17 +84,57 @@ bool json_unescape_to_string(const char *val, int val_len, String *out);
 */
 int json_escape_to_string(const String *str, String *out);
 
-bool read_ha_rows_and_check_limit(json_engine_t *je, const char *read_elem_key,
-                                  String *err_buf, ha_rows &value,
-                                  ha_rows LIMIT_VAL,
-                                  const char *limit_val_type,
-                                  bool unescape_required);
+namespace json_reader {
+class Read_value;
+};
+
+/*
+  Description of a JSON object member that is to be read by json_read_object().
+  Intended usage:
+
+    char *var1;
+    int var2;
+    Read_named_member memb[]= {
+        {"member1", Read_string(thd->mem_root, &var1), false},
+        {"member2", Read_double(&var2), false},
+        {NULL,      Read_double(NULL), true}
+    };
+    json_read_object(je, memb, err);
+*/
+
+class Read_named_member
+{
+public:
+  const char *name;       /* JSON object name */
+  /*
+    Reader object holding the datatype and place for the value.
+    It's an lvalue reference so we can have both inherited classes
+    and refer to unnamed objects on the stack.
+  */
+  json_reader::Read_value &&value;
+
+  const bool is_optional; /* Can this member be omitted in JSON? */
+
+  bool value_assigned= false; /* Filled and checked by json_read_object() */
+};
+
+/* Read an object from JSON according to description in *members */
+int json_read_object(json_engine_t *je, Read_named_member *members,
+                     String *err_buf);
+
+namespace json_reader { /* Things to use with Read_named_member */
 
 bool read_string(THD *thd, json_engine_t *je, const char *read_elem_key,
                  String *err_buf, char *&value);
 
 bool read_double(json_engine_t *je, const char *read_elem_key, String *err_buf,
                  double &value);
+
+bool read_ha_rows_and_check_limit(json_engine_t *je, const char *read_elem_key,
+                                  String *err_buf, ha_rows &value,
+                                  ha_rows LIMIT_VAL,
+                                  const char *limit_val_type,
+                                  bool unescape_required);
 
 /*
   Interface to read a value with value_name from Json,
@@ -111,8 +151,7 @@ public:
 class Read_string : public Read_value
 {
   char **ptr;
-  THD *thd;
-
+  THD *thd; /* The string will be allocated on thd->mem_root */
 public:
   Read_string(THD *thd_arg, char **ptr_arg) : ptr(ptr_arg), thd(thd_arg) {}
   int read_value(json_engine_t *je, const char *value_name,
@@ -189,22 +228,6 @@ public:
   }
 };
 
-/*
-  A place holder to keep track of the field, and its corresponding
-  Read_value class to be used for fetching the field value from Json.
-  It tracks whether the value was successfully read from the Json or not.
- */
-class Read_named_member
-{
-public:
-  const char *name;
-  Read_value &&value;
-  const bool is_optional;
-
-  bool value_assigned= false;
-};
-
-int read_all_elements(json_engine_t *je, Read_named_member *arr,
-                      String *err_buf);
+}; /* namespace json_reader */
 
 #endif
