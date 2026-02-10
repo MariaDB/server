@@ -15900,6 +15900,30 @@ ha_innobase::extra(
 	return(0);
 }
 
+int
+ha_innobase::extra_opt(
+/*===============*/
+	enum ha_extra_function operation,
+			   /*!< in: HA_EXTRA_FLUSH or some other flag */
+	ulong arg)
+{
+	bool handled = false;
+	switch (operation) {
+	case HA_EXTRA_FULL_SCAN:
+		handled = true;
+		if (!m_prebuilt->skip_locked)
+			m_prebuilt->full_table_scan = true;
+		break;
+	default:/* Do nothing */
+		;
+	}
+
+	if (!handled)
+		return extra(operation);
+
+	return(0);
+}
+
 /**
 MySQL calls this method at the end of each statement */
 int
@@ -15920,6 +15944,7 @@ ha_innobase::reset()
 	m_prebuilt->autoinc_last_value = 0;
 
 	m_prebuilt->skip_locked = false;
+	m_prebuilt->full_table_scan = false;
 	return(0);
 }
 

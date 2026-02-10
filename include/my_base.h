@@ -230,7 +230,13 @@ enum ha_extra_function {
   HA_EXTRA_END_ALTER_COPY,
   /** Abort of writing rows during ALTER TABLE..ALGORITHM=COPY or
   CREATE..SELCT */
-  HA_EXTRA_ABORT_ALTER_COPY
+  HA_EXTRA_ABORT_ALTER_COPY,
+  /*
+    Advice the engine that the next operation will be a full table or
+    full index scan. (InnoDB may decide to acquire a table-granularity
+    lock instead of getting per-row locks)
+  */
+  HA_EXTRA_FULL_SCAN
 };
 
 /* Compatible option, to be deleted in 6.0 */
