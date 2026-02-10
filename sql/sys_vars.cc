@@ -6353,9 +6353,10 @@ static Sys_var_mybool Sys_wsrep_load_data_splitting(
 
 static Sys_var_mybool Sys_wsrep_slave_FK_checks(
        "wsrep_slave_FK_checks", "Should slave thread do "
-       "foreign key constraint checks",
+       "foreign key constraint checks (deprecated, has no effect)",
        GLOBAL_VAR(wsrep_slave_FK_checks), 
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0), ON_UPDATE(0), DEPRECATED("")); // since 10.6.26
 
 static Sys_var_mybool Sys_wsrep_slave_UK_checks(
        "wsrep_slave_UK_checks", "Should slave thread do "
