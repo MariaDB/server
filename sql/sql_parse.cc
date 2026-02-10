@@ -6627,7 +6627,7 @@ check_access(THD *thd, privilege_t want_access,
   return false;
 #else
   Security_context *sctx= thd->security_ctx;
-  privilege_t db_access(NO_ACL);
+  access_t db_access(NO_ACL);
   privilege_t denied_access(NO_ACL);
   bool need_table_or_column_check;
 
@@ -6774,7 +6774,7 @@ check_access(THD *thd, privilege_t want_access,
     Save the union of User-table and the intersection between Db-table and
     Host-table privileges, with the already saved internal privileges.
   */
-  db_access= (db_access | sctx->master_access);
+  db_access= db_access.combine(sctx->master_access);
   *save_priv|= db_access;
 
   /*

@@ -1,0 +1,41 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # Test DENY for global administrative privileges
+--echo #
+
+CREATE USER u;
+CREATE DATABASE d;
+
+DENY SELECT,INSERT ON mysql.* TO u;
+DENY UPDATE on d.* to u;
+
+SELECT User, Host,
+       JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+FROM mysql.global_priv
+WHERE JSON_LENGTH(JSON_EXTRACT(Priv, '$.denies')) > 0;
+
+REVOKE DENY SELECT  ON mysql.* FROM u;
+
+SELECT User, Host,
+       JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+FROM mysql.global_priv
+WHERE JSON_LENGTH(JSON_EXTRACT(Priv, '$.denies')) > 0;
+
+REVOKE DENY INSERT  ON mysql.* FROM u;
+
+SELECT User, Host,
+       JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+FROM mysql.global_priv
+WHERE JSON_LENGTH(JSON_EXTRACT(Priv, '$.denies')) > 0;
+
+REVOKE DENY UPDATE ON d.* FROM u;
+
+SELECT User, Host,
+       JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+FROM mysql.global_priv
+WHERE JSON_LENGTH(JSON_EXTRACT(Priv, '$.denies')) > 0;
+
+DROP USER u;
+DROP DATABASE d;
+

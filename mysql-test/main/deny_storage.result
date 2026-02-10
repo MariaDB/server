@@ -1,0 +1,63 @@
+#
+# Test DENY for global administrative privileges
+#
+CREATE USER u;
+CREATE DATABASE d;
+DENY SELECT,INSERT ON mysql.* TO u;
+DENY UPDATE on d.* to u;
+SELECT User, Host,
+JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+FROM mysql.global_priv
+WHERE JSON_LENGTH(JSON_EXTRACT(Priv, '$.denies')) > 0;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "db",
+        "db": "mysql",
+        "deny": 3
+    },
+    {
+        "type": "db",
+        "db": "d",
+        "deny": 4
+    }
+]
+REVOKE DENY SELECT  ON mysql.* FROM u;
+SELECT User, Host,
+JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+FROM mysql.global_priv
+WHERE JSON_LENGTH(JSON_EXTRACT(Priv, '$.denies')) > 0;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "db",
+        "db": "mysql",
+        "deny": 2
+    },
+    {
+        "type": "db",
+        "db": "d",
+        "deny": 4
+    }
+]
+REVOKE DENY INSERT  ON mysql.* FROM u;
+SELECT User, Host,
+JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+FROM mysql.global_priv
+WHERE JSON_LENGTH(JSON_EXTRACT(Priv, '$.denies')) > 0;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "db",
+        "db": "d",
+        "deny": 4
+    }
+]
+REVOKE DENY UPDATE ON d.* FROM u;
+SELECT User, Host,
+JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+FROM mysql.global_priv
+WHERE JSON_LENGTH(JSON_EXTRACT(Priv, '$.denies')) > 0;
+User	Host	denies_pretty
+DROP USER u;
+DROP DATABASE d;

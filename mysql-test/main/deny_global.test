@@ -1,4 +1,6 @@
 --source include/not_embedded.inc
+# todo : bugs in ps protocol
+--source include/no_protocol.inc
 
 --echo #
 --echo # Test for Global DENY

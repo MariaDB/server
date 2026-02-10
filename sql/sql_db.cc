@@ -1563,14 +1563,9 @@ err:
   @param new_db_charset Character set of the new database.
 */
 
-<<<<<<< HEAD
-static void mysql_change_db_impl(THD *thd, LEX_CSTRING *new_db_name,
-                                 privilege_t new_db_access,
-=======
 static void mysql_change_db_impl(THD *thd,
                                  LEX_CSTRING *new_db_name,
                                  const access_t& new_db_access,
->>>>>>> 1ff78dc5b87 (WIP)
                                  CHARSET_INFO *new_db_charset)
 {
   /* 1. Change current database in THD. */

@@ -939,6 +939,259 @@ class Grant_table_base
   TABLE *m_table;
 };
 
+/**
+  Structure representing a hierarchical deny entry.
+  Can represent denies at database, table, column, routine, or package level.
+*/
+enum DenyType
+{
+  DENY_DB,
+  DENY_TABLE,
+  DENY_COLUMN,
+  DENY_ROUTINE,
+  DENY_PACKAGE
+};
+
+struct DENY_ENTRY
+{
+  DenyType type;
+  const char *db;
+  const char *table_or_routine;  // table name or routine name
+  const char *column;
+  privilege_t deny_bits;
+
+  DENY_ENTRY()
+    : type(DENY_DB), db(nullptr), table_or_routine(nullptr),
+      column(nullptr), deny_bits(NO_ACL)
+  {}
+
+  /**
+    Check if this entry matches another entry (excluding deny_bits).
+    @param other The entry to compare with
+    @return true if entries match (same type and fields), false otherwise
+  */
+  bool matches(const DENY_ENTRY &other) const
+  {
+    if (type != other.type)
+      return false;
+
+    // Database must always match
+    if (!db || !other.db || strcmp(db, other.db) != 0)
+      return false;
+
+    // Check table/routine field if present
+    if (table_or_routine || other.table_or_routine)
+    {
+      if (!table_or_routine || !other.table_or_routine)
+        return false;
+      if (strcmp(table_or_routine, other.table_or_routine) != 0)
+        return false;
+    }
+
+    // Check column field if present
+    if (column || other.column)
+    {
+      if (!column || !other.column)
+        return false;
+      if (strcmp(column, other.column) != 0)
+        return false;
+    }
+
+    return true;
+  }
+};
+
+typedef int (*Deny_entry_callback)(const DENY_ENTRY*, void*);
+static  bool append_str_value(String *to, const LEX_CSTRING &str)
+{
+  to->append('"');
+  to->reserve(str.length * 2);
+  int len=
+      json_escape(system_charset_info, (uchar *) str.str,
+                  (uchar *) str.str + str.length, to->charset(),
+                  (uchar *) to->end(), (uchar *) to->end() + str.length * 2);
+  if (len < 0)
+    return 1;
+  to->length(to->length() + len);
+  to->append('"');
+  return 0;
+}
+
+/**
+  Helper function to build JSON representation of a DENY_ENTRY
+  @param entry       The deny entry to serialize
+  @param json_buf    StringBuffer to append the JSON to
+
+  @retval 0  Success
+  @retval 1  Error
+*/
+static int deny_entry_to_json(const DENY_ENTRY &entry, StringBuffer<512> &json_buf)
+{
+  json_buf.length(0);
+  json_buf.append(STRING_WITH_LEN("{\"type\":"));
+  
+  const char *type_str= nullptr;
+  switch (entry.type)
+  {
+  case DENY_DB:       type_str= "\"db\""; break;
+  case DENY_TABLE:    type_str= "\"table\""; break;
+  case DENY_COLUMN:   type_str= "\"column\""; break;
+  case DENY_ROUTINE:  type_str= "\"routine\""; break;
+  case DENY_PACKAGE:  type_str= "\"package\""; break;
+  default:
+    return 1;
+  }
+  json_buf.append(type_str, strlen(type_str));
+  
+  if (entry.db)
+  {
+    json_buf.append(STRING_WITH_LEN(",\"db\":"));
+    if (append_str_value(&json_buf, Lex_cstring_strlen(entry.db)))
+      return 1;
+  }
+  
+  if (entry.table_or_routine)
+  {
+    const char *field= (entry.type == DENY_ROUTINE ||
+                       entry.type == DENY_PACKAGE) ? "routine" : "table";
+    json_buf.append(',');
+    json_buf.append('"');
+    json_buf.append(field, strlen(field));
+    json_buf.append(STRING_WITH_LEN("\":"));
+    if (append_str_value(&json_buf, Lex_cstring_strlen(entry.table_or_routine)))
+      return 1;
+  }
+  
+  if (entry.column)
+  {
+    json_buf.append(STRING_WITH_LEN(",\"column\":"));
+    if (append_str_value(&json_buf, Lex_cstring_strlen(entry.column)))
+      return 1;
+  }
+  
+  // Add deny bits
+  char deny_buf[MY_INT64_NUM_DECIMAL_DIGITS + 1];
+  size_t deny_len= snprintf(deny_buf, sizeof(deny_buf), "%llu",
+                            (unsigned long long) entry.deny_bits);
+  json_buf.append(STRING_WITH_LEN(",\"deny\":"));
+  json_buf.append(deny_buf, deny_len);
+  json_buf.append('}');
+
+  return 0;
+}
+
+/**
+  Helper function to parse JSON object into a DENY_ENTRY structure
+  
+  @param element       Pointer to the start of the JSON object
+  @param element_len   Length of JSON object
+  @param entry         DENY_ENTRY structure to populate
+  @param json_charset  Charset of the JSON field
+  @param db_buf        Buffer to store unescaped db name
+  @param db_buf_len    Length of db_buf
+  @param table_buf     Buffer to store unescaped table/routine name
+  @param table_buf_len Length of table_buf
+  @param column_buf    Buffer to store unescaped column name
+  @param column_buf_len Length of column_buf
+  
+  @retval 0  Success
+  @retval 1  Error
+*/
+static int deny_entry_from_json(const char *element, int element_len,
+                                DENY_ENTRY &entry, CHARSET_INFO *json_charset,
+                                char *db_buf, size_t db_buf_len,
+                                char *table_buf, size_t table_buf_len,
+                                char *column_buf, size_t column_buf_len)
+{
+  const char *field_val;
+  int field_len;
+
+  // Initialize entry
+  entry.type= DENY_DB;
+  entry.db= nullptr;
+  entry.table_or_routine= nullptr;
+  entry.column= nullptr;
+  entry.deny_bits= NO_ACL;
+
+  // Parse type
+  if (json_get_object_key(element, element + element_len, "type",
+                         &field_val, &field_len) == JSV_STRING)
+  {
+    if (strncmp(field_val, "db", field_len) == 0)
+      entry.type= DENY_DB;
+    else if (strncmp(field_val, "table", field_len) == 0)
+      entry.type= DENY_TABLE;
+    else if (strncmp(field_val, "column", field_len) == 0)
+      entry.type= DENY_COLUMN;
+    else if (strncmp(field_val, "routine", field_len) == 0)
+      entry.type= DENY_ROUTINE;
+    else if (strncmp(field_val, "package", field_len) == 0)
+      entry.type= DENY_PACKAGE;
+  }
+  
+  // Parse db
+  if (json_get_object_key(element, element + element_len, "db",
+                         &field_val, &field_len) == JSV_STRING)
+  { 
+    int len= json_unescape(json_charset,
+                          (const uchar*)field_val,
+                          (const uchar*)field_val + field_len,
+                          system_charset_info,
+                          (uchar*)db_buf, (uchar*)db_buf + db_buf_len);
+    if (len >= 0)
+    {
+      db_buf[len]= '\0';
+      entry.db= db_buf;
+    }
+  }
+  
+  // Parse table/routine
+  const char *table_key= (entry.type == DENY_ROUTINE ||
+                         entry.type == DENY_PACKAGE) ? "routine" : "table";
+  if (json_get_object_key(element, element + element_len, table_key,
+                         &field_val, &field_len) == JSV_STRING)
+  {
+    int len= json_unescape(json_charset,
+                          (const uchar*)field_val,
+                          (const uchar*)field_val + field_len,
+                          system_charset_info,
+                          (uchar*)table_buf, (uchar*)table_buf + table_buf_len);
+    if (len >= 0)
+    {
+      table_buf[len]= '\0';
+      entry.table_or_routine= table_buf;
+    }
+  }
+  
+  // Parse column if exists
+  if (json_get_object_key(element, element + element_len, "column",
+                         &field_val, &field_len) == JSV_STRING)
+  {
+    uchar *buf= (uchar*)column_buf;
+    int len= json_unescape(json_charset,
+                          (const uchar*)field_val,
+                          (const uchar*)field_val + field_len,
+                          system_charset_info,
+                          buf, buf + column_buf_len);
+    if (len >= 0)
+    {
+      buf[len]= '\0';
+      entry.column= (char *)buf;
+    }
+  }
+  // Parse deny bits
+  if (json_get_object_key(element, element + element_len, "deny",
+                         &field_val, &field_len) == JSV_NUMBER)
+  {
+    int err;
+    const char *end= field_val + field_len;
+    entry.deny_bits= privilege_t(my_strtoll10(field_val, (char**)&end, &err));
+    if (err)
+      return 1;
+  }
+  return 0;
+}
+
 class User_table: public Grant_table_base
 {
  public:
@@ -992,7 +1245,14 @@ class User_table: public Grant_table_base
   virtual int set_password_last_changed (my_time_t x) const = 0;
   virtual longlong get_password_lifetime () const = 0;
   virtual int set_password_lifetime (longlong x) const = 0;
-
+  virtual int update_deny_entry(const DENY_ENTRY &entry, privilege_t new_privs,
+                                bool revoke, privilege_t &out_privs) const = 0;
+  int get_deny_entry(const DENY_ENTRY &entry, privilege_t &out_privs) const
+  {
+    return update_deny_entry(entry, NO_ACL, false, out_privs);
+  }
+  virtual int enumerate_deny_entries(Deny_entry_callback cb, void *ctx) const = 0;
+  virtual int remove_all_deny_entries() const = 0;
   virtual ~User_table() = default;
  private:
   friend class Grant_tables;
@@ -1348,6 +1608,21 @@ class User_table_tabular: public User_table
     return 1;
   }
 
+  int update_deny_entry(const DENY_ENTRY &, privilege_t, bool, privilege_t &) const override
+  {
+    return 1;
+  }
+
+  int enumerate_deny_entries(Deny_entry_callback, void *) const override
+  {
+    return 0;
+  }
+
+  int remove_all_deny_entries() const override
+  {
+    return 0;
+  }
+
   ~User_table_tabular() override = default;
  private:
   friend class Grant_tables;
@@ -1484,18 +1759,7 @@ class User_table_json: public User_table
     return 1;
   }
 
-  bool append_str_value(String *to, const LEX_CSTRING &str) const
-  {
-    to->append('"');
-    to->reserve(str.length*2);
-    int len= json_escape(system_charset_info, (uchar*)str.str, (uchar*)str.str + str.length,
-                         to->charset(), (uchar*)to->end(), (uchar*)to->end() + str.length*2);
-    if (len < 0)
-      return 1;
-    to->length(to->length() + len);
-    to->append('"');
-    return 0;
-  }
+
 
   bool set_auth(const ACL_USER &u) const override
   {
@@ -1732,6 +1996,155 @@ class User_table_json: public User_table
   { return get_int_value("password_last_changed", -1) == 0; }
   int set_password_expired (bool x) const override
   { return x ? set_password_last_changed(0) : 0; }
+
+  int update_deny_entry(const DENY_ENTRY &entry, privilege_t new_privs,
+                        bool revoke, privilege_t &out_privs) const override
+  {
+    // Context for enumeration callback
+    struct Update_context
+    {
+      const DENY_ENTRY *target;
+      privilege_t new_privs;
+      bool revoke;
+      privilege_t &out_privs;
+      bool found;
+      StringBuffer<JSON_SIZE> *json;
+      bool first_entry;
+      Update_context(const DENY_ENTRY *t, privilege_t np, bool r, privilege_t &op,
+                    StringBuffer<JSON_SIZE> *j)
+        : target(t), new_privs(np), revoke(r), out_privs(op),
+          found(false), json(j), first_entry(true)
+      {}
+    };
+
+    String str, *res= m_table->field[2]->val_str(&str);
+    if (!res || !res->length())
+      (res= &str)->set(STRING_WITH_LEN("{}"), m_table->field[2]->charset());
+
+    StringBuffer<JSON_SIZE> json(m_table->field[2]->charset());
+    json.append('[');
+
+    Update_context ctx(&entry, new_privs, revoke, out_privs, &json);
+    // Enumerate all entries, modifying the matching one
+    enumerate_deny_entries([](const DENY_ENTRY *e, void *context) -> int {
+      Update_context *ctx= (Update_context*)context;
+      DENY_ENTRY entry_copy= *e;  // Make a copy to potentially modify
+      // Check if this entry matches the target
+      if (ctx->target->matches(*e))
+      {
+        ctx->found= true;
+        // Calculate new privileges
+        if (ctx->revoke)
+          ctx->out_privs= e->deny_bits & ~ctx->new_privs;
+        else
+          ctx->out_privs= e->deny_bits | ctx->new_privs;
+
+        // Skip entries that become NO_ACL (remove them)
+        if (ctx->out_privs == NO_ACL)
+          return 0;
+
+        // Update the copy with new privileges
+        entry_copy.deny_bits= ctx->out_privs;
+      }
+
+      // Add entry (either modified or original) to JSON
+      if (ctx->json->length() > 1)
+        ctx->json->append(',');
+      ctx->first_entry= false;
+
+      StringBuffer<512> entry_json(system_charset_info);
+      if (deny_entry_to_json(entry_copy, entry_json))
+        return -1;
+      ctx->json->append(entry_json.ptr(), entry_json.length());
+      return 0;
+    }, &ctx);
+
+    // If not found and not revoking, add new entry
+    if (!ctx.found)
+    {
+      if (revoke)
+      {
+        out_privs= NO_ACL;
+        return 0; // Nothing to revoke
+      }
+
+      out_privs= new_privs;
+
+      if (!ctx.first_entry)
+        json.append(',');
+
+      // Create entry with new privileges
+      DENY_ENTRY new_entry= entry;
+      new_entry.deny_bits= out_privs;
+
+      StringBuffer<512> entry_json(system_charset_info);
+      if (deny_entry_to_json(new_entry, entry_json))
+        return 1;
+      json.append(entry_json.ptr(), entry_json.length());
+    }
+    json.append(']');
+
+    // Update the JSON field
+    if (set_value("denies", json.ptr(), json.length(), false) == JSV_BAD_JSON)
+      return 1;
+
+    return 0;
+  }
+
+  int enumerate_deny_entries(Deny_entry_callback cb, void *context) const override
+  {
+    size_t array_len;
+    const char *array_start;
+
+    if (get_value("denies", JSV_ARRAY, &array_start, &array_len))
+      return 0; // No denies array exists
+    int count;
+    const char *element;
+    int element_len;
+
+    // Get array element count
+    if (json_get_array_item(array_start, array_start + array_len,
+                           (int)array_len, &element, &element_len) != JSV_NOTHING)
+      return 0;
+
+    count= element_len;
+
+    char db_buf[NAME_LEN + 1];
+    char table_buf[NAME_LEN + 1];
+    char column_buf[NAME_LEN + 1];
+    for (int i= 0; i < count; i++)
+    {
+      if (json_get_array_item(array_start, array_start + array_len, i,
+                             &element, &element_len) != JSV_OBJECT)
+        continue;
+      DENY_ENTRY entry;
+      if (deny_entry_from_json(element, element_len, entry,
+                              m_table->field[2]->charset(),
+                              db_buf,sizeof(db_buf),
+                              table_buf, sizeof(table_buf),
+                              column_buf, sizeof(column_buf)))
+        continue; // Skip malformed entries
+      // Invoke callback
+      if (cb(&entry, context) < 0)
+        return -1;
+    }
+
+    return count;
+  }
+
+  int remove_all_deny_entries() const override
+  {
+    size_t array_len;
+    const char *array_start;
+    String str, *res= m_table->field[2]->val_str(&str);
+    if (!res || !res->length())
+      return 0;
+    if (get_value("denies", JSV_ARRAY, &array_start, &array_len))
+      return 0;
+    if (set_value("denies", STRING_WITH_LEN("[]"), false) == JSV_BAD_JSON)
+      return 1;
+    return 0;
+  }
 
   User_table_json() { pk_parts= 2; }
   ~User_table_json() override = default;
@@ -2668,6 +3081,9 @@ static LEX_STRING make_and_check_db_name(MEM_ROOT *mem_root,
   return dbls; // Good name
 }
 
+static ACL_USER_BASE *find_acl_user_base(const LEX_CSTRING &user,
+                                         const LEX_CSTRING &host);
+
 
 /*
   Initialize structures responsible for user/db-level privilege checking
@@ -2753,6 +3169,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     DBUG_RETURN(true);
 
   allow_all_hosts=0;
+
   while (!(read_record_info.read_record()))
   {
     ACL_USER user;
@@ -2885,8 +3302,8 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     }
     privilege_t allow_bits=
         fix_rights_for_db(db_table.get_access_allow_bits());
-    privilege_t deny_bits(NO_ACL); /* wlad DENY TODO*/
-    db.access= access_t(allow_bits, deny_bits);
+
+    db.access= access_t(allow_bits, NO_ACL); // Wlad TODO
     db.initial_access= db.access;
     db.sort=get_magic_sort("hdu", db.host.hostname, db.db, db.user);
 #ifndef TO_BE_REMOVED
@@ -3766,7 +4183,7 @@ static void acl_insert_role(const LEX_CSTRING &rolename, const access_t & privil
 
 
 static bool acl_update_db(const char *user, const char *host, const char *db,
-                          const access_t& privileges)
+                          const privilege_t& privileges, bool is_deny)
 {
   mysql_mutex_assert_owner(&acl_cache->lock);
 
@@ -3784,12 +4201,12 @@ static bool acl_update_db(const char *user, const char *host, const char *db,
             (acl_db->db && !strcmp(db,acl_db->db)))
 
         {
-          if (privileges)
-          {
-            acl_db->access= privileges;
-            acl_db->initial_access= acl_db->access;
-          }
+          if (is_deny)
+            acl_db->access.set_deny_bits(privileges);
           else
+            acl_db->access.set_allow_bits(privileges);
+          acl_db->initial_access= acl_db->access;
+          if (acl_db->access.is_empty())
             acl_dbs.del(i);
           updated= true;
         }
@@ -3812,20 +4229,22 @@ static bool acl_update_db(const char *user, const char *host, const char *db,
     host		Host name
     db			Database name
     privileges		Bitmap of privileges
-
+    bool is_deny Whether the privileges are deny or allow
   NOTES
     acl_cache->lock must be locked when calling this
 */
 
 static void acl_insert_db(const char *user, const char *host, const char *db,
-                          const access_t & privileges)
+                          const privilege_t privileges, bool is_deny)
 {
   ACL_DB acl_db;
   mysql_mutex_assert_owner(&acl_cache->lock);
   acl_db.user=strdup_root(&acl_memroot,user);
   update_hostname(&acl_db.host, safe_strdup_root(&acl_memroot, host));
   acl_db.db=strdup_root(&acl_memroot,db);
-  acl_db.initial_access= acl_db.access= privileges;
+  acl_db.access = is_deny ? access_t(NO_ACL, privileges)
+                       : access_t(privileges, NO_ACL);
+  acl_db.initial_access= acl_db.access;
   acl_db.sort=get_magic_sort("hdu", acl_db.host.hostname, acl_db.db, acl_db.user);
   acl_dbs.push(acl_db);
   rebuild_acl_dbs();
@@ -5144,14 +5563,15 @@ end:
   change grants in the mysql.db table
 */
 
-static int replace_db_table(TABLE *table, const char *db,
-			    const LEX_USER &combo,
-			    const privilege_t rights, const bool revoke_grant, const bool is_deny)
+static int replace_db_table(const User_table &user_table, TABLE *table,
+                            const char *db, const LEX_USER &combo,
+                            const privilege_t rights, const bool revoke_grant,
+                            const bool is_deny)
 {
   uint i;
   ulonglong priv;
   privilege_t store_rights(NO_ACL);
-  privilege_t allow_bits(NO_ACL);
+  privilege_t allow_bits(NO_ACL), deny_bits(NO_ACL);
   access_t access(NO_ACL);
   bool old_row_exists=0;
   int error;
@@ -5159,7 +5579,6 @@ static int replace_db_table(TABLE *table, const char *db,
   uchar user_key[MAX_KEY_LENGTH];
   DBUG_ENTER("replace_db_table");
 
-  DBUG_ASSERT(!is_deny);
   /* Check if there is such a user in user table in memory? */
   if (!find_user_wild(combo.host, combo.user))
   {
@@ -5170,6 +5589,53 @@ static int replace_db_table(TABLE *table, const char *db,
                                               ER_PASSWORD_NO_MATCH), MYF(0));
       DBUG_RETURN(-1);
     }
+  }
+
+  if (is_deny)
+  {
+    // Find the user in the user table to read or update deny entries
+    user_table.table()->use_all_columns();
+    user_table.set_host(combo.host.str, combo.host.length);
+    user_table.set_user(combo.user.str, combo.user.length);
+
+    key_copy(user_key, user_table.table()->record[0],
+             user_table.table()->key_info,
+             user_table.table()->key_info->key_length);
+
+    old_row_exists= user_table.table()->file->ha_index_read_idx_map(
+                        user_table.table()->record[0], 0, user_key,
+                        HA_WHOLE_KEY, HA_READ_KEY_EXACT) == 0;
+    if (!old_row_exists && revoke_grant)
+    {
+      // User not found
+      my_error(ER_NONEXISTING_GRANT, MYF(0), combo.user.str, combo.host.str);
+      DBUG_RETURN(-1);
+    }
+
+    // Create DENY_ENTRY for database level
+    DENY_ENTRY entry;
+    entry.type= DENY_DB;
+    entry.db= db;
+
+    // Update the deny entry
+    if (user_table.update_deny_entry(entry, rights, revoke_grant, deny_bits))
+    {
+      DBUG_ASSERT(0);
+      DBUG_RETURN(-1);
+    }
+
+    store_record(user_table.table(), record[1]);
+    if (unlikely((error= user_table.table()->file->ha_update_row(
+                      user_table.table()->record[1],
+                      user_table.table()->record[0]))) &&
+        error != HA_ERR_RECORD_IS_THE_SAME)
+    {
+      user_table.table()->file->print_error(error, MYF(0));
+      DBUG_RETURN(-1);
+    }
+    if (!acl_update_db(combo.user.str, combo.host.str, db, deny_bits, true))
+      acl_insert_db(combo.user.str, combo.host.str, db, deny_bits, true);
+    DBUG_RETURN(0);
   }
 
   table->use_all_columns();
@@ -5240,9 +5706,8 @@ static int replace_db_table(TABLE *table, const char *db,
   }
 
   acl_cache->clear(1);				// Clear privilege cache
-  access= access_t(allow_bits, NO_ACL /*Wlad - deny bits necessary */);
   if (old_row_exists)
-    acl_update_db(combo.user.str,combo.host.str,db,allow_bits);
+    acl_update_db(combo.user.str,combo.host.str,db,allow_bits,false);
   else if (allow_bits)
   {
     /*
@@ -5253,9 +5718,9 @@ static int replace_db_table(TABLE *table, const char *db,
        existing entry, otherwise insert a new one.
     */
     if (!combo.is_role() ||
-        !acl_update_db(combo.user.str, combo.host.str, db, rights))
+        !acl_update_db(combo.user.str, combo.host.str, db, rights,false))
     {
-      acl_insert_db(combo.user.str,combo.host.str,db,rights);
+      acl_insert_db(combo.user.str,combo.host.str,db,rights, false);
     }
   }
   DBUG_RETURN(0);
@@ -5930,11 +6395,7 @@ static int replace_column_table(GRANT_TABLE *g_t,
   KEY_PART_INFO *key_part= table->key_info->key_part;
   DBUG_ENTER("replace_column_table");
   
-  if (is_deny)
-  {
-    // wlad TODO, handle this case
-    DBUG_ASSERT(0);
-  }
+  DBUG_ASSERT(!is_deny);
 
   table->use_all_columns();
   table->field[0]->store(combo.host.str,combo.host.length,
@@ -8150,7 +8611,7 @@ bool mysql_grant(THD *thd, LEX_CSTRING db, List <LEX_USER> &list,
       privilege_t db_rights(rights & DB_ACLS);
       if (db_rights  == rights)
       {
-        if (replace_db_table(tables.db_table().table(), db.str,
+        if (replace_db_table(tables.user_table(),tables.db_table().table(), db.str,
                              *Str, db_rights, revoke_grant, is_deny))
           result= true;
       }
@@ -11894,7 +12355,7 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list, bool is_deny)
 	{
       /* TODO(cvicentiu) refactor replace_db_table to use
          Db_table instead of TABLE directly. */
-	  if (!replace_db_table(tables.db_table().table(), acl_db->db, *lex_user,
+	  if (!replace_db_table(tables.user_table(),tables.db_table().table(), acl_db->db, *lex_user,
                                 ALL_KNOWN_ACL, 1, is_deny))
 	  {
 	    /*

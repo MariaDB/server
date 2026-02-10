@@ -116,6 +116,14 @@ public:
   {
     return m_allow_bits == NO_ACL && m_deny_bits == NO_ACL;
   }
+  void set_deny_bits(privilege_t deny)
+  {
+    m_deny_bits= deny;
+  }
+  void set_allow_bits(privilege_t allow)
+  {
+    m_allow_bits= allow;
+  }
   access_t& operator=(const privilege_t &)= delete;
   access_t& operator |= (const access_t &other)
   {
