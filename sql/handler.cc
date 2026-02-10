@@ -5269,6 +5269,10 @@ void handler::print_error(int error, myf errflag)
     SET_FATAL_ERROR;
     textno= ER_ROLLBACK_ONLY;
     break;
+  case HA_ERR_CASCADE_SQL:
+    // Cascade error should be already reported.
+    DBUG_ASSERT(table->in_use->get_stmt_da()->is_error());
+    DBUG_VOID_RETURN;
   default:
     {
       /* The error was "unknown" to this function.

@@ -418,6 +418,8 @@ ut_strerr(
 		return ("File system does not support punch hole (trim) operation.");
 	case DB_PAGE_CORRUPTED:
 		return("Page read from tablespace is corrupted.");
+	case DB_SQL_ERROR:
+		return("Error happened at sql layer.");
 	/* do not add default: in order to produce a warning if new code
 	is added to the enum but not added here */
 	}
