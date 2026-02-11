@@ -2397,11 +2397,14 @@ void foreach_file_in_db_dirs(
 	datadir_node_free(&node);
 }
 
-void foreach_file_in_datadir(
+bool
+foreach_file_in_datadir(
 	const char *dir_path, std::function<bool(const char *)> func)
 {
 	DBUG_ASSERT(dir_path);
 	os_file_dir_t dir = os_file_opendir(dir_path);
+	if (dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr))
+          return false;
 	os_file_stat_t info;
 	while (os_file_readdir_next_file(dir_path, dir, &info) == 0) {
 		if (info.type != OS_FILE_TYPE_FILE)
@@ -2413,4 +2416,5 @@ void foreach_file_in_datadir(
 			break;
 	}
 	os_file_closedir(dir);
+        return true;
 }
