@@ -2684,6 +2684,7 @@ static Exit_status check_master_version()
   case 10:
   case 11:
   case 12:
+  case 13:
     glob_description_event= new Format_description_log_event(4);
     break;
   default:
