@@ -823,12 +823,12 @@ static LEX_CSTRING events_to_string(const LEX_CSTRING base_event_names[],
 }
 
 
-static const LEX_CSTRING base_event_time[]= {
+static constexpr LEX_CSTRING base_event_time[]= {
   LEX_CSTRING{STRING_WITH_LEN("BEFORE")},
   LEX_CSTRING{STRING_WITH_LEN("AFTER")}
 };
 
-static const LEX_CSTRING base_event_names[]= {
+static constexpr LEX_CSTRING base_event_names[]= {
   LEX_CSTRING{STRING_WITH_LEN("SCHEDULE")},
   LEX_CSTRING{STRING_WITH_LEN("STARTUP")},
   LEX_CSTRING{STRING_WITH_LEN("SHUTDOWN")},
@@ -836,7 +836,7 @@ static const LEX_CSTRING base_event_names[]= {
   LEX_CSTRING{STRING_WITH_LEN("LOGOFF")}
 };
 
-static const int max_event_names_length =
+static constexpr size_t max_event_names_length =
   (base_event_names[0].length + 1) +
   (base_event_names[1].length + 1) +
   (base_event_names[2].length + 1) +
