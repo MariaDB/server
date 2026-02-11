@@ -683,25 +683,6 @@ bool mysql_drop_sys_or_ddl_trigger(THD *thd, bool *no_ddl_trigger_found)
     return true;
   }
 
-  *no_ddl_trigger_found= false;
-
-  /* Reset sql_mode during data dictionary operations. */
-  sql_mode_t saved_mode= thd->variables.sql_mode;
-  thd->variables.sql_mode= 0;
-
-  enum_binlog_format binlog_fmt= thd->set_current_stmt_binlog_format_stmt();
-  /*
-    Activate the guard to release mdl lock to the savepoint, commit
-    transaction and restore original binlog format binlog on any return path
-    from this function.
-  */
-  Transaction_Resources_Guard transaction_guard{thd, saved_mode, binlog_fmt};
-
-  /* Protect against concurrent create/drop */
-  if (lock_object_name(thd, MDL_key::TRIGGER, thd->lex->spname->m_db,
-                       thd->lex->spname->m_name))
-    return true;
-
   /*
     Check whether the trigger does exist. It is performed by a separate
     function that opens the table mysql.event on reading within
@@ -720,6 +701,25 @@ bool mysql_drop_sys_or_ddl_trigger(THD *thd, bool *no_ddl_trigger_found)
 
     return false;
   }
+
+  *no_ddl_trigger_found= false;
+
+  /* Reset sql_mode during data dictionary operations. */
+  sql_mode_t saved_mode= thd->variables.sql_mode;
+  thd->variables.sql_mode= 0;
+
+  enum_binlog_format binlog_fmt= thd->set_current_stmt_binlog_format_stmt();
+  /*
+    Activate the guard to release mdl lock to the savepoint, commit
+    transaction and restore original binlog format binlog on any return path
+    from this function.
+  */
+  Transaction_Resources_Guard transaction_guard{thd, saved_mode, binlog_fmt};
+
+  /* Protect against concurrent create/drop */
+  if (lock_object_name(thd, MDL_key::TRIGGER, thd->lex->spname->m_db,
+                       thd->lex->spname->m_name))
+    return true;
 
   /*
     The SUPER privilege is required to drop ON STARTUP/ON SHUTDOWN
