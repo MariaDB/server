@@ -6036,10 +6036,10 @@ class GRANT_COLUMN :public Sql_alloc
 {
 public:
   char *column;
-  privilege_t rights;
-  privilege_t init_rights;
+  access_t rights;
+  access_t init_rights;
   uint key_length;
-  GRANT_COLUMN(String &c, privilege_t y) :rights (y), init_rights(y)
+  GRANT_COLUMN(String &c, const access_t & y) :rights (y), init_rights(y)
   {
     column= (char*) memdup_root(&grant_memroot,c.ptr(), key_length=c.length());
   }
@@ -6392,7 +6392,7 @@ column_hash_search(GRANT_TABLE *t, const LEX_CSTRING &cname)
 }
 
 
-static int replace_column_table(GRANT_TABLE *g_t,
+static int replace_column_table(GRANT_TABLE *g_t, const User_table &user_table,
 				TABLE *table, const LEX_USER &combo,
 				List <LEX_COLUMN> &columns,
 				const char *db, const char *table_name,
@@ -6416,7 +6416,48 @@ static int replace_column_table(GRANT_TABLE *g_t,
         ("No columns specified for DENY, skipping column-level revoke"));
     DBUG_RETURN(0);
   }
-  DBUG_ASSERT(!is_deny);
+  if (is_deny)
+  {
+     DBUG_ASSERT(true);
+     privilege_t out_deny_bits;
+     List_iterator<LEX_COLUMN> iter(columns);
+     class LEX_COLUMN *column;
+     while ((column= iter++))
+     {
+       DBUG_ASSERT(column->rights != NO_ACL);
+       if (update_denies_in_user_table(user_table, combo, column->rights,
+                                       revoke_grant, DenyType::DENY_COLUMN,
+                                       db, table_name, column->column.c_ptr(),
+                                       out_deny_bits))
+       {
+         DBUG_RETURN(-1);
+       }
+       /* Update in-memory caches */
+       GRANT_COLUMN *grant_column=
+           column_hash_search(g_t, column->column.to_lex_cstring());
+       if (grant_column)
+       {
+         grant_column->rights.set_deny_bits(out_deny_bits);
+         if (grant_column->rights.is_empty())
+         {
+           if (my_hash_delete(&g_t->hash_columns, (uchar *) grant_column))
+           {
+             DBUG_RETURN(-1);
+           }
+         }
+       }
+       else
+       {
+         grant_column=
+             new GRANT_COLUMN(column->column, access_t(NO_ACL, out_deny_bits));
+         if (my_hash_insert(&g_t->hash_columns, (uchar *) grant_column))
+         {
+           DBUG_RETURN(-1);
+         }
+       }
+    }
+    DBUG_RETURN(0);
+  }
 
   table->use_all_columns();
   table->field[0]->store(combo.host.str,combo.host.length,
@@ -6512,8 +6553,8 @@ static int replace_column_table(GRANT_TABLE *g_t,
       grant_column= column_hash_search(g_t, column->column.to_lex_cstring());
       if (grant_column)  // Should always be true
       {
-        grant_column->rights= privileges;	// Update hash
-        grant_column->init_rights= privileges;
+        grant_column->rights.set_allow_bits(privileges);	// Update hash
+        grant_column->init_rights.set_allow_bits(privileges);
       }
     }
     else					// new grant
@@ -6583,8 +6624,8 @@ static int replace_column_table(GRANT_TABLE *g_t,
 	  }
 	  if (grant_column)
           {
-            grant_column->rights  = privileges; // Update hash
-            grant_column->init_rights = privileges;
+            grant_column->rights.set_allow_bits(privileges); // Update hash
+            grant_column->init_rights= grant_column->rights;
           }
 	}
 	else
@@ -8045,7 +8086,9 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
                                           column->column.to_lex_cstring());
         if (grant_column)
         {
-          grant_column->init_rights&= ~(column->rights | rights);
+          privilege_t p= grant_column->init_rights.allow_bits();
+          p&= ~(column->rights | rights);
+          grant_column->init_rights.set_allow_bits(p);
           // If this is a role, rights will need to be reconstructed.
           grant_column->rights= grant_column->init_rights;
         }
@@ -8056,7 +8099,9 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       {
         grant_column= (GRANT_COLUMN*)
           my_hash_element(&grant_table->hash_columns, idx);
-        grant_column->init_rights&= ~rights;  // Fix other columns
+        privilege_t p= grant_column->init_rights.allow_bits();
+        p&= ~rights;
+        grant_column->init_rights.set_allow_bits(p);  // Fix other columns
         grant_column->rights= grant_column->init_rights;
         column_priv|= grant_column->init_rights;
       }
@@ -8075,7 +8120,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     {
       /* TODO(cvicentiu) refactor replace_column_table to use Columns_priv_table
          instead of TABLE directly. */
-      if (replace_column_table(grant_table, tables.columns_priv_table().table(),
+      if (replace_column_table(grant_table, tables.user_table(),tables.columns_priv_table().table(),
                                *Str, columns,
                                db_name.str, table_name.str, rights,
                                revoke_grant,is_deny))
@@ -12426,7 +12471,8 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list, bool is_deny)
 	    List<LEX_COLUMN> columns;
             /* TODO(cvicentiu) refactor replace_db_table to use
                Db_table instead of TABLE directly. */
-	    if (replace_column_table(grant_table,
+            if (replace_column_table(
+                                     grant_table, tables.user_table(),
                                      tables.columns_priv_table().table(),
                                      *lex_user, columns, grant_table->db,
                                      grant_table->tname, ALL_KNOWN_ACL, 1,is_deny))

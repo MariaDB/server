@@ -76,6 +76,31 @@ u	%	[
         "deny": 1
     }
 ]
+DENY UPDATE(User,Host),SELECT(Host) on mysql.global_priv to u;
+EXECUTE show_denies;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "table",
+        "db": "mysql",
+        "table": "global_priv",
+        "deny": 1
+    },
+    {
+        "type": "column",
+        "db": "mysql",
+        "table": "global_priv",
+        "column": "User",
+        "deny": 4
+    },
+    {
+        "type": "column",
+        "db": "mysql",
+        "table": "global_priv",
+        "column": "Host",
+        "deny": 5
+    }
+]
 DEALLOCATE PREPARE show_denies;
 DROP USER u;
 DROP DATABASE d;

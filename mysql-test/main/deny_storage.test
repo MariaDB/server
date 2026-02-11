@@ -38,6 +38,9 @@ EXECUTE show_denies;
 REVOKE DENY INSERT  ON mysql.global_priv FROM u;
 EXECUTE show_denies;
 
+DENY UPDATE(User,Host),SELECT(Host) on mysql.global_priv to u;
+EXECUTE show_denies;
+
 DEALLOCATE PREPARE show_denies;
 DROP USER u;
 DROP DATABASE d;
