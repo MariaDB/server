@@ -1316,11 +1316,10 @@ static int parse_records_in_range_context(THD *thd, json_engine_t *je,
   return parse_context_obj_from_json_array(je, err_buf, err_msg, array);
 }
 
-Optimizer_context_replay::Optimizer_context_replay(THD *thd)
+Optimizer_context_replay::Optimizer_context_replay(THD *thd_arg) :
+  thd(thd_arg), db_name(nullptr)
 {
-  this->thd= thd;
-  this->db_name= NULL;
-  this->parse();
+  parse(); //TODO: error handling?
 }
 
 /*
@@ -1339,7 +1338,7 @@ bool Optimizer_context_replay::infuse_read_cost(const TABLE *tbl,
 
   String tbl_name;
   store_full_table_name(tbl->pos_in_table_list, &tbl_name);
-  List_iterator<trace_table_context_read> table_itr(this->ctx_list);
+  List_iterator<trace_table_context_read> table_itr(ctx_list);
 
   while (trace_table_context_read *tbl_ctx= table_itr++)
   {
@@ -1471,7 +1470,7 @@ bool Optimizer_context_replay::infuse_index_read_cost(const TABLE *tbl,
 
   String tbl_name;
   store_full_table_name(tbl->pos_in_table_list, &tbl_name);
-  List_iterator<trace_table_context_read> table_itr(this->ctx_list);
+  List_iterator<trace_table_context_read> table_itr(ctx_list);
 
   while (trace_table_context_read *tbl_ctx= table_itr++)
   {
@@ -1597,7 +1596,7 @@ bool Optimizer_context_replay::infuse_records_in_range(const TABLE *tbl,
 
   String tbl_name;
   store_full_table_name(tbl->pos_in_table_list, &tbl_name);
-  List_iterator<trace_table_context_read> table_itr(this->ctx_list);
+  List_iterator<trace_table_context_read> table_itr(ctx_list);
 
   while (trace_table_context_read *tbl_ctx= table_itr++)
   {
@@ -1685,10 +1684,10 @@ bool Optimizer_context_replay::parse()
   LEX_CSTRING varname= {var_name, strlen(var_name)};
 
   Read_named_member array[]= {
-      {"current_database", Read_string(this->thd, &this->db_name), false},
+      {"current_database", Read_string(thd, &this->db_name), false},
       {"list_contexts",
        Read_list_of_context<trace_table_context_read>(
-           this->thd, &this->ctx_list, parse_table_context),
+           thd, &this->ctx_list, parse_table_context),
        false},
       {NULL, Read_double(NULL), true}};
 
@@ -1751,7 +1750,7 @@ void Optimizer_context_replay::dbug_print_read_stats()
   DBUG_ENTER("Optimizer_context_replay::print()");
   DBUG_PRINT("info", ("----------Printing Stored Context-------------"));
   DBUG_PRINT("info", ("current_database : %s", this->db_name));
-  List_iterator<trace_table_context_read> table_itr(this->ctx_list);
+  List_iterator<trace_table_context_read> table_itr(ctx_list);
 
   while (trace_table_context_read *tbl_ctx= table_itr++)
   {
@@ -1858,7 +1857,7 @@ bool Optimizer_context_replay::infuse_table_rows(const TABLE *tbl,
 
   String tbl_name;
   store_full_table_name(tbl->pos_in_table_list, &tbl_name);
-  List_iterator<trace_table_context_read> table_itr(this->ctx_list);
+  List_iterator<trace_table_context_read> table_itr(ctx_list);
 
   while (trace_table_context_read *tbl_ctx= table_itr++)
   {
@@ -1891,7 +1890,7 @@ Optimizer_context_replay::get_index_rec_per_key_list(const TABLE *tbl,
 
   String tbl_name;
   store_full_table_name(tbl->pos_in_table_list, &tbl_name);
-  List_iterator<trace_table_context_read> table_itr(this->ctx_list);
+  List_iterator<trace_table_context_read> table_itr(ctx_list);
 
   while (trace_table_context_read *tbl_ctx= table_itr++)
   {
@@ -1935,7 +1934,7 @@ void Optimizer_context_replay::store_range_contexts(
 
   String tbl_name;
   store_full_table_name(tbl->pos_in_table_list, &tbl_name);
-  List_iterator<trace_table_context_read> table_itr(this->ctx_list);
+  List_iterator<trace_table_context_read> table_itr(ctx_list);
 
   while (trace_table_context_read *tbl_ctx= table_itr++)
   {

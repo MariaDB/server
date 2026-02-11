@@ -112,14 +112,25 @@ class Saved_Table_stats;
   This class stores the parsed optimizer context information
   and then infuses read stats into the optimizer
 
-  This is Optimizer Context that was previously saved into a JSON document.
-  Now, it's loaded in memory and the optimizer can use infuse_XXX() methods
-  to get the saved values.
+  Optimizer Context information that we've read from a JSON document.
+
+  The optimizer can use infuse_XXX() methods to get the saved values.
 */
 class Optimizer_context_replay
 {
 public:
   Optimizer_context_replay(THD *thd);
+
+  /* Save table's statistics and replace it with data from the context.  */
+  void infuse_table_stats(TABLE *table);
+  /* Restore the saved statistics back (to be done at query end) */
+  void restore_modified_table_stats();
+
+  /*
+    "Infusion" functions.
+    When the optimizer needs some data, for example to call index_read_cost(),
+    it will call infuse_index_read_cost() and get the value from the context.
+  */
   bool infuse_read_cost(const TABLE *tbl, IO_AND_CPU_COST *cost);
   bool infuse_range_stats(TABLE *tbl, uint keynr, RANGE_SEQ_IF *seq_if,
                           SEL_ARG_RANGE_SEQ *seq, Cost_estimate *cost,
@@ -127,11 +138,9 @@ public:
                           ha_rows *max_row_blocks);
   bool infuse_index_read_cost(const TABLE *tbl, uint keynr, ha_rows records,
                               bool eq_ref, ALL_READ_COST *cost);
-  void infuse_table_stats(TABLE *table);
   bool infuse_records_in_range(const TABLE *tbl, uint keynr,
                                const char *min_key, const char *max_key,
                                ha_rows *records);
-  void restore_modified_table_stats();
 
 private:
   THD *thd;
@@ -146,8 +155,8 @@ private:
 
   List<trace_table_context_read> ctx_list;
 
-  bool has_records();
   bool parse();
+  bool has_records();
 #ifndef DBUG_OFF
   void dbug_print_read_stats();
 #endif
