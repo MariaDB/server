@@ -1,0 +1,92 @@
+--source include/not_embedded.inc
+
+--source include/count_sessions.inc
+
+--echo #
+--echo # MDEV-30645: CREATE TRIGGER FOR { STARTUP | SHUTDOWN }
+--echo #
+--echo # Test 1: Check that AFTER STARTUP trigger and BEFORE SHUTDOWN trigger
+--echo #         are fired at right time
+CREATE TABLE t1 (a VARCHAR(100));
+CREATE TRIGGER IF NOT EXISTS trg1 AFTER STARTUP INSERT INTO t1 VALUES('Startup');
+--echo # BEFORE SHUTDOWN should be in action just after it has been created.
+--echo # So, after restarting the server the record about server shutdown should
+--echo # be inserted into the table t1.
+CREATE TRIGGER IF NOT EXISTS trg2 BEFORE SHUTDOWN INSERT INTO t1 VALUES('Shutdown');
+--source include/restart_mysqld.inc
+SELECT * FROM t1;
+--echo # Clean up
+DROP TABLE t1;
+DROP TRIGGER trg1;
+DROP TRIGGER trg2;
+
+--echo #
+--echo # Test 2: Check that ON STARTUP/ON SHUTDOWN can't be created
+--echo #         w/o the SUPER privilege
+--echo #
+
+--echo # Check that ON STARTUP/ON SHUTDOWN can be created w/o the SUPER privilege
+CREATE USER u1;
+GRANT SELECT ON test.* TO u1;
+--connect (con1, localhost, u1, , test)
+--echo # The following CREATE TRIGGER AFTER STARTUP statement should fail with
+--echo # the error ER_SPECIFIC_ACCESS_DENIED_ERROR since the user `u1` doesn't
+--echo # have the SUPER privilege
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE TRIGGER IF NOT EXISTS trg1 AFTER STARTUP SET @a=1;
+
+--echo # The following CREATE TRIGGER BEFORE SHUTDOWN statement should fail with
+--echo # the error ER_SPECIFIC_ACCESS_DENIED_ERROR since the user `u1` doesn't
+--echo # have the SUPER privilege
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE TRIGGER IF NOT EXISTS trg1 BEFORE SHUTDOWN SET @b=1;
+
+--connection default
+--disconnect con1
+--source include/wait_until_count_sessions.inc
+DROP USER u1;
+
+--echo #
+--echo # Test 3: Check that a user with the explicitly granted the SUPER privilege
+--echo #         can create a system trigger on STARTUP/on SHUTDOWN
+--echo #
+CREATE USER u1;
+GRANT SELECT ON test.* TO u1;
+GRANT SUPER ON *.* TO u1;
+
+--connect (con1, localhost, u1, , test)
+--echo # The following CREATE TRIGGER AFTER STARTUP statement and
+--echo # CREATE TRIGGER BEFORE SHUTDOWN statement should succeed
+--echo # since the SUPER privilege is granted to the user `u1`
+CREATE TRIGGER IF NOT EXISTS trg1 AFTER STARTUP INSERT INTO t1 VALUES('Startup');
+CREATE TRIGGER IF NOT EXISTS trg2 BEFORE SHUTDOWN INSERT INTO t1 VALUES('Shutdown');
+
+--connection default
+--disconnect con1
+--source include/wait_until_count_sessions.inc
+--echo # Clean up
+DROP TRIGGER trg1;
+DROP TRIGGER trg2;
+DROP USER u1;
+
+--echo #
+--echo # Test 4: Check that it is not possible to create a System trigger
+--echo #         and a DML trigger with the same name
+--echo #
+CREATE TABLE t1 (a INT);
+--echo # First check that DML trigger can 't be created with the same name
+--echo # as the existing system trigger
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET @a=1;
+--error ER_TRG_ALREADY_EXISTS
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+DROP TRIGGER trg1;
+
+--echo # And then check in reverse order: a system trigger can't be created
+--echo # on presence of DML trigger with the same name
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+--error ER_TRG_ALREADY_EXISTS
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET @a=1;
+
+--echo # Clean up
+DROP TRIGGER trg1;
+DROP TABLE t1;

@@ -44,16 +44,28 @@ enum trg_event_type
 
 typedef uint8 trg_event_set;
 
-static inline uint8 trg2bit(enum trg_event_type trg)
-{ return static_cast<uint8>(1 << static_cast<int>(trg)); }
+/**
+  Type covering a value of any event type used both in DML triggers and
+  system triggers. Values of this type is produced by the parser.
+    (@see LEX::st_trg_chistics.events)
+*/
+typedef uint32 trg_all_events_set;
+
+static inline trg_event_set trg2bit(enum trg_event_type trg)
+{ return static_cast<trg_event_set>(1 << static_cast<int>(trg)); }
 
 /**
-  Check whether the specified trigger event type is set in
+  Check whether the specified DML trigger event type is set in
   the trigger's event mask
 */
-static inline bool is_trg_event_on(uint8 trg_event_mask,
+static inline bool is_trg_event_on(trg_all_events_set trg_event_mask,
                                    enum trg_event_type event_type)
 {
+  /*
+    This function must be called only from places
+    where dml triggers are expected
+  */
+  DBUG_ASSERT((trg_event_mask & ~0x07) == 0);
   return (trg_event_mask & trg2bit(event_type)) != 0;
 }
 
@@ -75,6 +87,22 @@ static inline bool is_subset_of_trg_events(trg_event_set trg_events_mask,
 {
   return (trg_events_mask & trg_events) == trg_events;
 }
+
+static inline bool is_dml_trg_events(trg_all_events_set events)
+{
+  static const trg_all_events_set dml_events= trg_all_events_set(0) |
+                                              trg2bit(TRG_EVENT_INSERT) |
+                                              trg2bit(TRG_EVENT_UPDATE) |
+                                              trg2bit(TRG_EVENT_DELETE);
+  /*
+    Return true in case any of the bits excluding DML events are set.
+    Since a trigger can't be created for firing both on DML events and
+    system events, it is the correct way to check whether events is for
+    a dml trigger
+  */
+  return ((events & dml_events) != 0);
+}
+
 
 #include "table.h"                              /* GRANT_INFO */
 
@@ -434,15 +462,20 @@ bool add_table_for_trigger(THD *thd,
                            bool continue_if_not_exist,
                            TABLE_LIST **table);
 
-void build_trn_path(THD *thd, const sp_name *trg_name, LEX_STRING *trn_path);
+void build_trn_path(const sp_name *trg_name, LEX_STRING *trn_path);
 
 bool check_trn_exists(const LEX_CSTRING *trn_path);
+bool check_dml_trigger_exist(THD *thd, const sp_name *trg_name);
 
 bool load_table_name_for_trigger(THD *thd,
                                  const sp_name *trg_name,
                                  const LEX_CSTRING *trn_path,
                                  LEX_CSTRING *tbl_name);
+
 bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create);
+bool mysql_create_sys_trigger(THD *thd);
+bool mysql_drop_sys_or_ddl_trigger(THD *thd, bool *no_ddl_trigger_found);
+
 bool rm_trigname_file(char *path, const LEX_CSTRING *db,
                       const LEX_CSTRING *trigger_name, myf MyFlags);
 

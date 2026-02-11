@@ -40,6 +40,8 @@
 #include "wsrep_mysqld.h"
 #include <my_time.h>
 #include <mysql_time.h>
+#include "event_db_repository.h"
+#include "sql_sys_or_ddl_trigger.h"
 
 /*************************************************************************/
 
@@ -563,6 +565,12 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
 
     if (err_status)
       goto end;
+  }
+
+  if (find_sys_trigger_by_name(thd, thd->lex->spname))
+  {
+    report_trg_already_exist_error(thd->lex->spname);
+    goto end;
   }
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, tables);
@@ -2214,7 +2222,7 @@ static bool add_table_for_trigger_internal(THD *thd,
   LEX_CSTRING tbl_name= null_clex_str;
   DBUG_ENTER("add_table_for_trigger_internal");
 
-  build_trn_path(thd, trg_name, (LEX_STRING*) &trn_path);
+  build_trn_path(trg_name, (LEX_STRING*) &trn_path);
 
   if (check_trn_exists(&trn_path))
   {
@@ -3135,7 +3143,7 @@ process_unknown_string(const char *&unknown_key, uchar* base,
   @param trn_path[out]  Variable to store constructed path
 */
 
-void build_trn_path(THD *thd, const sp_name *trg_name, LEX_STRING *trn_path)
+void build_trn_path(const sp_name *trg_name, LEX_STRING *trn_path)
 {
   /* Construct path to the TRN-file. */
 
