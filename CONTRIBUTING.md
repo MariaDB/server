@@ -11,9 +11,7 @@ MariaDB Server has a vibrant community contributing in a wide range of areas. Th
 -   The MariaDB Foundation and MariaDB Corporation have a presence on Reddit, Twitter and Facebook. See the [social media page](https://mariadb.com/docs/general-resources/community/joining-the-community).
 
 ### Help document MariaDB
----
--   Contribute towards [documenting MariaDB Server](https://mariadb.com/docs/general-resources/about/readme/contributing-documentation) and its ecosystem by adding new content or improving existing content.
--   [Translate](https://mariadb.com/docs/general-resources/about/readme/contributing-documentation) existing documentation.
+-   Contribute towards [documenting MariaDB Server](https://mariadb.com/docs/general-resources/about/readme/contributing-documentation)  and its ecosystem by adding new content or improving existing content.
 
 ### Help develop MariaDB
 ---
@@ -34,14 +32,6 @@ You’re very welcome to support MariaDB Server as an individual, or talk your c
 ---
 -   Attend an event
     -   [Events and Conferences page](https://mariadb.org/events/)
-    -   [mariadb.meetup.com](https://mariadb.meetup.com/)
-
-### Live Q&A for beginner contributors
----
-MariaDB has a dedicated time each week when we answer new contributor questions live on Zulip.
-From 8:00 to 10:00 UTC on Mondays, and 10:00 to 12:00 UTC on Thursdays, anyone can ask any questions they’d like,
-and a live developer will be available to assist.
-New contributors can ask questions any time, but we will provide immediate feedback during that interval.
 
 ### Additional resources
 ----
