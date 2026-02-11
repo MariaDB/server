@@ -4675,6 +4675,9 @@ public:
   void clear_flags(flag_set flags_arg) { m_flags &= ~flags_arg; }
   flag_set get_flags(flag_set flags_arg) const { return m_flags & flags_arg; }
   void update_flags() { int2store(temp_buf + m_flags_pos, m_flags); }
+  
+  static bool has_stmt_end_flag(const uchar *buf, uint8 common_header_len,
+                                uint8 post_header_len, uint8 event_type);
 
   Log_event_type get_type_code() override { return m_type; } /* Specific type (_V1 etc) */
   enum_logged_status logged_status() override { return LOGGED_ROW_EVENT; }

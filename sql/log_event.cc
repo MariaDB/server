@@ -3337,6 +3337,16 @@ int Rows_log_event::get_data_size()
   return data_size; 
 }
 
+bool Rows_log_event::has_stmt_end_flag(const uchar *buf, 
+                                              uint8 common_header_len,
+                                              uint8 post_header_len,
+                                              uint8 event_type)
+{
+    const uchar *post_start= buf + common_header_len + RW_MAPID_OFFSET;
+    post_start+= (post_header_len == 6) ? 4 : RW_FLAGS_OFFSET;
+    uint16 m_flags= uint2korr(post_start);
+    return (m_flags & Rows_log_event::STMT_END_F);
+}
 
 /**************************************************************************
 	Annotate_rows_log_event member functions

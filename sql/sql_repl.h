@@ -46,6 +46,9 @@ extern int init_master_info(Master_info* mi);
 bool kill_zombie_dump_threads(THD *thd, uint32 slave_server_id);
 int check_binlog_magic(IO_CACHE* log, const char** errmsg);
 int compare_log_name(const char *log_1, const char *log_2);
+void clear_rows_event_payload(uchar *buf, uint8 common_header_len,
+                              uint8 post_header_len,
+                              enum_binlog_checksum_alg checksum_alg);
 
 struct LOAD_FILE_IO_CACHE : public IO_CACHE
 {

@@ -7822,12 +7822,12 @@ err:
       mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
       mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-        if (!(event_info->flags & LOG_EVENT_SKIP_REPLICATION_F) &&
-            repl_semisync_master.wait_after_sync(log_file_name, offset))
-        {
-          error=1;
-          /* error is already printed inside hook */
-        }
+      if (!(event_info->flags & LOG_EVENT_SKIP_REPLICATION_F) &&
+          repl_semisync_master.wait_after_sync(log_file_name, offset))
+      {
+        error=1;
+        /* error is already printed inside hook */
+      }
 #endif
 
       /*

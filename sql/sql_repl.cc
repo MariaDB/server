@@ -2273,9 +2273,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     bool is_gtid_event= (event_type == GTID_EVENT);
 
     if (is_gtid_event)
-    {
       info->sent_unfiltered_row_event= false; // reset per event group
-    }
     
     if ((event_flags & LOG_EVENT_SKIP_REPLICATION_F))
     {
@@ -2294,30 +2292,11 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
         return NULL;
       }
 
-      /*
-        Extract the STMT_END_F of the rows_event flag
-      */
       uint8 common_header_len= info->fdev->common_header_len;
-
       uint8 post_header_len= info->fdev->post_header_len[event_type-1];
 
-      const uchar *post_start= buf + common_header_len;
-
-      post_start+= RW_MAPID_OFFSET;
-
-      if (post_header_len == 6)
-      {
-          post_start+= 4;
-      }
-      else
-      {
-        // skip 6 bytes
-        post_start+= RW_FLAGS_OFFSET;
-      }
-
-      uint16 m_flags= uint2korr(post_start);
-
-      if (!(m_flags & Rows_log_event::STMT_END_F))
+      if (!Rows_log_event::has_stmt_end_flag(buf, common_header_len,
+                                            post_header_len, event_type))
       {
         return NULL;
       }
@@ -2328,39 +2307,9 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
           return NULL;
         }
 
-        size_t checksum_len= (info->current_checksum_alg 
-                              != BINLOG_CHECKSUM_ALG_OFF && 
-                              info->current_checksum_alg 
-                              != BINLOG_CHECKSUM_ALG_UNDEF) 
-                      ? BINLOG_CHECKSUM_LEN : 0;
-        size_t event_len= uint4korr(buf + EVENT_LEN_OFFSET);
-        uchar *data_start= (uchar*)buf + common_header_len;
-        size_t data_len= event_len - common_header_len - checksum_len;
-
-        /*
-          clear event's payload (including post headers , table_id and m_flags)
-          except for the STMT_END_F flag it should not be cleared since the
-          slave will be checking for it to make sure the event group ends with
-          this flag 
-          
-          After modifying the payload the checksum is recomputed
-        */
-        memset(data_start, 0, data_len);
-        uint16 new_m_flags= Rows_log_event::STMT_END_F;
-        int2store(post_start, new_m_flags);
-
-
-        if (checksum_len > 0) 
-        {
-          uint32 crc= my_checksum(0, buf,  event_len - BINLOG_CHECKSUM_LEN);
-          uchar *footer= (uchar*)buf + (event_len - BINLOG_CHECKSUM_LEN);
-          
-          int4store(footer, crc);
-        }
-
-        // reset per ROW_EVENT with stmt_f
+        clear_rows_event_payload((uchar*)buf, common_header_len, 
+                                post_header_len, info->current_checksum_alg);
         info->sent_unfiltered_row_event= false;
-       
       }
     }
     else if (is_rows_event) 
@@ -2444,6 +2393,31 @@ err:
   mysql_file_close(file, MYF(MY_WME));
   return info->error;
 }
+
+void clear_rows_event_payload(uchar *buf, uint8 common_header_len,
+                                     uint8 post_header_len, 
+                                     enum_binlog_checksum_alg checksum_alg)
+{
+  size_t checksum_len= (checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+                          checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
+                            ? BINLOG_CHECKSUM_LEN : 0;
+  size_t event_len= uint4korr(buf + EVENT_LEN_OFFSET);
+  uchar *data_start= buf + common_header_len;
+  size_t data_len= event_len -common_header_len - checksum_len;
+
+  uchar *post_start= buf + common_header_len + RW_MAPID_OFFSET;
+  post_start+= (post_header_len == 6) ? 4 : RW_FLAGS_OFFSET;
+
+  memset(data_start, 0, data_len);
+  int2store(post_start, Rows_log_event::STMT_END_F);
+
+  if (checksum_len > 0)
+  {
+      int4store(buf + event_len - BINLOG_CHECKSUM_LEN,
+                my_checksum(0, buf, event_len - BINLOG_CHECKSUM_LEN));
+  }
+}
+
 
 static int init_binlog_sender(binlog_send_info *info,
                               LOG_INFO *linfo,
