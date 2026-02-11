@@ -6405,6 +6405,7 @@ SELECT_LEX *LEX::wrap_select_chain_into_derived(SELECT_LEX *sel)
   SELECT_LEX *dummy_select;
   SELECT_LEX_UNIT *unit;
   Table_ident *ti;
+  Item *sel_item;
   DBUG_ENTER("LEX::wrap_select_chain_into_derived");
 
   if (!(dummy_select= alloc_select(TRUE)))
@@ -6422,6 +6423,19 @@ SELECT_LEX *LEX::wrap_select_chain_into_derived(SELECT_LEX *sel)
     DBUG_RETURN(NULL);
 
   /* add SELECT list*/
+  if (sel->item_list.elements)
+  {
+    List_iterator<Item> li(sel->item_list);
+    while ((sel_item= li++))
+    {
+      Item *item= new (thd->mem_root) Item_field(thd, context, sel_item->name);
+      if (item == NULL ||
+          add_item_to_list(thd, item))
+        goto err;
+    }
+    dummy_select->with_wild= sel->with_wild;
+  }
+  else
   {
     Item *item= new (thd->mem_root) Item_field(thd, context, star_clex_str);
     if (item == NULL)

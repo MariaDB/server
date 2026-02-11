@@ -147,3 +147,56 @@ set SQL_MODE=oracle;
 select * from t13 union select * from t234 intersect all select * from t12;
 ERROR 42S02: Table 'test.t13' doesn't exist
 set SQL_MODE=default;
+#
+# MDEV-38799 Some views are broken in Oracle mode after upgrade to Q1 2026
+#
+set sql_mode='';
+create view v as select 'foo' as a union select 'bar' as a;
+create view v2 as select 'foo' as a, 'baz' as b union select 'bar' as a, 'qux' as b;
+create view v3 as select * from (select 'foo' as a, 'baz' as b) s union select * from (select 'bar' as a, 'qux' as b) s2;
+create view v4 as select * from (select 'foo' as a) s union select * from (select 'bar' as a) s2;
+select a from v;
+a
+foo
+bar
+select a, b from v2;
+a	b
+foo	baz
+bar	qux
+select a, b from v3;
+a	b
+foo	baz
+bar	qux
+select a from v4;
+a
+foo
+bar
+set sql_mode=oracle;
+show create view v;
+View	Create View	character_set_client	collation_connection
+v	CREATE VIEW "v" AS select "__4"."a" AS "a" from (select 'foo' AS "a" union select 'bar' AS "a") "__4"	latin1	latin1_swedish_ci
+show create view v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE VIEW "v2" AS select "__4"."a" AS "a","__4"."b" AS "b" from (select 'foo' AS "a",'baz' AS "b" union select 'bar' AS "a",'qux' AS "b") "__4"	latin1	latin1_swedish_ci
+select a from v;
+a
+foo
+bar
+select a, b from v2;
+a	b
+foo	baz
+bar	qux
+select a, b from v3;
+a	b
+foo	baz
+bar	qux
+select a from v4;
+a
+foo
+bar
+drop view v;
+drop view v2;
+drop view v3;
+drop view v4;
+set sql_mode=default;
+# End of 10.11 tests
