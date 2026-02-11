@@ -2683,3 +2683,11 @@ cte as (select t1.a as t1a, t2.a as t2a from t as t1, t as t2 where t1.a=t2.a)
 select * from cte;
 ERROR 42S02: Table 'test.t' doesn't exist
 # End of 10.4 tests
+#
+# Start of 12.2 tests
+#
+#
+# MDEV-38099:  Assertion failed in st_select_lex::optimize_unflattened_subqueries
+#
+SELECT (WITH cte AS (SELECT RAND()) SELECT * FROM cte);
+# End of 12.2 tests
