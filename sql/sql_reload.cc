@@ -31,7 +31,6 @@
 #include "rpl_mi.h"      // Master_info::data_lock
 #include "sql_show.h"
 #include "debug_sync.h"
-#include "des_key_file.h"
 #include "transaction.h"
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
@@ -417,16 +416,6 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       result= 1;
     }
   }
-#endif
-#ifdef HAVE_des
-   if (options & REFRESH_DES_KEY_FILE)
-   {
-     if (des_key_file && load_des_key_file(des_key_file))
-     {
-       /* NOTE: my_error() has been already called by load_des_key_file(). */
-       result= 1;
-     }
-   }
 #endif
 #ifdef HAVE_REPLICATION
  if (options & REFRESH_SLAVE)

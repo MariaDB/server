@@ -1839,11 +1839,8 @@ struct my_option xb_client_options[]= {
      &opt_binlog_info, &opt_binlog_info, &binlog_info_typelib, GET_ENUM,
      OPT_ARG, BINLOG_INFO_AUTO, 0, 0, 0, 0, 0},
 
-    {"secure-auth", OPT_XB_SECURE_AUTH,
-     "Refuse client connecting to server if it"
-     " uses old (pre-4.1.1) protocol.",
-     &opt_secure_auth, &opt_secure_auth, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0,
-     0},
+    {"secure-auth", OPT_XB_SECURE_AUTH, "Unused",
+     0, 0, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
 
     {"log-innodb-page-corruption", OPT_XB_IGNORE_INNODB_PAGE_CORRUPTION,
      "Continue backup if innodb corrupted pages are found. The pages are "

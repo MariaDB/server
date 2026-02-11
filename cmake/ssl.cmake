@@ -53,7 +53,6 @@ MACRO (MYSQL_USE_BUNDLED_SSL)
   SET(HAVE_ERR_remove_thread_state ON CACHE INTERNAL "wolfssl doesn't have ERR_remove_thread_state")
   SET(HAVE_EncryptAes128Ctr ON CACHE INTERNAL "wolfssl does support AES-CTR")
   SET(HAVE_EncryptAes128Gcm OFF CACHE INTERNAL "wolfssl does not support AES-GCM")
-  SET(HAVE_des ON CACHE INTERNAL "wolfssl does support DES API")
   SET(HAVE_evp_pkey ON CACHE INTERNAL "wolfssl does support EVP_PKEY API")
   SET(HAVE_hkdf ON CACHE INTERNAL "wolfssl does support EVP_PKEY_HKDF API")
   CHANGE_SSL_SETTINGS("bundled")
@@ -136,8 +135,6 @@ MACRO (MYSQL_CHECK_SSL)
                           HAVE_EncryptAes128Ctr)
       CHECK_SYMBOL_EXISTS(EVP_aes_128_gcm "openssl/evp.h"
                           HAVE_EncryptAes128Gcm)
-      CHECK_SYMBOL_EXISTS(DES_set_key_unchecked "openssl/des.h"
-                          HAVE_des)
       CHECK_SYMBOL_EXISTS(EVP_PKEY_get_raw_public_key "openssl/evp.h"
                           HAVE_evp_pkey)
       CHECK_SYMBOL_EXISTS(EVP_PKEY_CTX_set_hkdf_md "string.h;stdarg.h;openssl/kdf.h"

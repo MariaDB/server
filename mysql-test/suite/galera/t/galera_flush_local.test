@@ -26,7 +26,6 @@ INSERT INTO x2 (f2) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
 --connection node_2
 --let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
 --connection node_1
-FLUSH LOCAL DES_KEY_FILE;
 FLUSH LOCAL HOSTS;
 FLUSH LOCAL QUERY CACHE;
 FLUSH LOCAL STATUS;
@@ -89,7 +88,6 @@ INSERT INTO x2 (f2) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
 --let $wsrep_last_committed_before2 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
 --connection node_1
 set wsrep_on=0;
-FLUSH DES_KEY_FILE;
 FLUSH HOSTS;
 FLUSH QUERY CACHE;
 FLUSH STATUS;

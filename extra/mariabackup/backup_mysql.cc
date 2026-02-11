@@ -163,11 +163,6 @@ xb_mysql_connect()
 	}
 #endif
 
-	if (!opt_secure_auth) {
-		mysql_options(connection, MYSQL_SECURE_AUTH,
-			      (char *) &opt_secure_auth);
-	}
-
 	if (xb_plugin_dir && *xb_plugin_dir){
 		mysql_options(connection, MYSQL_PLUGIN_DIR, xb_plugin_dir);
 	}

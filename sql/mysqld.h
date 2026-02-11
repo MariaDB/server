@@ -135,7 +135,6 @@ extern ulonglong slave_type_conversions_options;
 extern ulong read_only, opt_readonly;
 extern MYSQL_PLUGIN_IMPORT my_bool lower_case_file_system;
 extern my_bool opt_enable_named_pipe, opt_sync_frm, opt_allow_suspicious_udfs;
-extern my_bool opt_secure_auth;
 extern my_bool opt_require_secure_transport;
 extern const char *current_dbug_option;
 extern char* opt_secure_file_priv;
@@ -410,13 +409,6 @@ extern PSI_file_key key_file_relaylog, key_file_relaylog_index,
 extern PSI_socket_key key_socket_tcpip, key_socket_unix,
   key_socket_client_connection;
 extern PSI_file_key key_file_binlog_state, key_file_gtid_index;
-
-#ifdef HAVE_des
-extern char* des_key_file;
-extern PSI_file_key key_file_des_key_file;
-extern PSI_mutex_key key_LOCK_des_key_file;
-extern mysql_mutex_t LOCK_des_key_file;
-#endif
 
 #ifdef HAVE_PSI_INTERFACE
 void init_server_psi_keys();
@@ -816,7 +808,7 @@ enum options_mysqld
   OPT_SSL_KEY,
   OPT_WANT_CORE,
   OPT_MYSQL_COMPATIBILITY,
-  OPT_TLS_VERSION, OPT_SECURE_AUTH,
+  OPT_TLS_VERSION,
   OPT_MYSQL_TO_BE_IMPLEMENTED,
   OPT_SEQURE_FILE_PRIV,
   OPT_MASTER_HEARTBEAT_PERIOD,

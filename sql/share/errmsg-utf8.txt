@@ -5858,12 +5858,12 @@ ER_SLAVE_IGNORED_SSL_PARAMS
         sw "Vigezo vya SSL katika CHANGE MASTER vinapuuzwa kwa sababu mtumwa huyu wa MariaDB aliundwa bila usaidizi wa SSL; vinaweza kutumika baadaye ikiwa mtumwa wa MariaDB aliye na SSL ataanzishwa"
 ER_SERVER_IS_IN_SECURE_AUTH_MODE  
         chi "服务器在--secure-auth模式下运行，但'%s'@'%s'具有旧格式的密码;请将密码更改为新格式"
-        eng "Server is running in --secure-auth mode, but '%s'@'%s' has a password in the old format; please change the password to the new format"
-        ger "Server läuft im Modus --secure-auth, aber '%s'@'%s' hat ein Passwort im alten Format. Bitte Passwort ins neue Format ändern"
+        eng "User '%s'@'%s' has a password in the old format; please change the password to the new format"
+        ger "'%s'@'%s' hat ein Passwort im alten Format. Bitte Passwort ins neue Format ändern"
         geo "სერვერი --secure-auth რეჟიმშია გაშვებული, მაგრამ '%s'@'%s'-ის პაროლი ძველ ფორმატშია. შეცვალეთ პაროლი ახალი ფორმატით"
         jpn "サーバーは --secure-auth モードで稼働しています。しかし '%s'@'%s' は古い形式のパスワードを使用しています。新しい形式のパスワードに変更してください。"
         por "Servidor está rodando em --secure-auth modo, porêm '%s'@'%s' tem senha no formato antigo; por favor troque a senha para o novo formato"
-        rus "Сервер запущен в режиме --secure-auth (безопасной авторизации), но для пользователя '%s'@'%s' пароль сохранён в старом формате; необходимо обновить формат пароля"
+        rus "Пароль пользователя '%s'@'%s' сохранён в старом формате; необходимо обновить формат пароля"
         spa "El servidor se está ejecutando en modo --secure-auth, pero '%s'@'%s' tiene una contraseña con formato antiguo; por favor cambie la contraseña al nuevo formato"
         sw "Seva inafanya kazi katika --secure-auth mode, lakini '%s'@'%s' ina nenosiri katika umbizo la zamani; tafadhali badilisha nenosiri hadi umbizo jipya"
 ER_WARN_FIELD_RESOLVED  

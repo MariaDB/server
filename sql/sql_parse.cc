@@ -5344,9 +5344,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (lex->type & (
     REFRESH_GRANT                           |
     REFRESH_HOSTS                           |
-#ifdef HAVE_OPENSSL
-    REFRESH_DES_KEY_FILE                    |
-#endif
     /*
       Write all flush log statements except
       FLUSH LOGS

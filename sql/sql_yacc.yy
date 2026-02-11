@@ -868,7 +868,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  DEFINER_SYM
 %token  <kwd>  DELAYED_SYM
 %token  <kwd>  DELAY_KEY_WRITE_SYM
-%token  <kwd>  DES_KEY_FILE
 %token  <kwd>  DIAGNOSTICS_SYM               /* SQL-2003-N */
 %token  <kwd>  DIRECTORY_SYM
 %token  <kwd>  DISABLE_SYM
@@ -6757,9 +6756,10 @@ field_type_temporal:
             {
               if ($2.length() != 4)
               {
+                MYSQL_YYABORT_UNLESS(thd->variables.old_behavior & OLD_MODE_2_DIGIT_YEAR);
                 char buff[sizeof("YEAR()") + MY_INT64_NUM_DECIMAL_DIGITS + 1];
                 my_snprintf(buff, sizeof(buff), "YEAR(%u)", (uint) $2.length());
-                warn_deprecated<1007>(thd, buff, "YEAR(4)");
+                warn_deprecated<1300>(thd, buff, "YEAR(4)");
               }
             }
             $$.set(&type_handler_year, $2);
@@ -15445,8 +15445,6 @@ flush_option:
           }
         | MASTER_SYM
           { Lex->type|= REFRESH_MASTER; }
-        | DES_KEY_FILE
-          { Lex->type|= REFRESH_DES_KEY_FILE; }
         | RESOURCES
           { Lex->type|= REFRESH_USER_RESOURCES; }
         | SSL_SYM
@@ -16897,7 +16895,6 @@ keyword_func_sp_var_and_label:
         | DATABASE
         | DEFINER_SYM
         | DELAY_KEY_WRITE_SYM
-        | DES_KEY_FILE
         | DIAGNOSTICS_SYM
         | DISCARD
         | DIRECTORY_SYM
@@ -17978,6 +17975,7 @@ text_or_password:
             $$->auth_str.str= Item_func_password::alloc(thd,
                                    $3.str, $3.length, Item_func_password::OLD);
             $$->auth_str.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
+            warn_deprecated<1300>(thd, "OLD_PASSWORD()", "PASSWORD()");
           }
         ;
 

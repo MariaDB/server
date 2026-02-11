@@ -3043,7 +3043,7 @@ void Type_handler_year::
   {
     char buff[sizeof("YEAR()") + MY_INT64_NUM_DECIMAL_DIGITS + 1];
     my_snprintf(buff, sizeof(buff), "YEAR(%llu)", def->length);
-    warn_deprecated<1007>(thd, buff, "YEAR(4)");
+    warn_deprecated<1300>(thd, buff, "YEAR(4)");
   }
 }
 

@@ -214,7 +214,7 @@ enum enum_indicator_type
 
 #define REFRESH_QUERY_CACHE     (1ULL << 16) /* clear the query cache */
 #define REFRESH_QUERY_CACHE_FREE (1ULL << 17) /* pack query cache */
-#define REFRESH_DES_KEY_FILE    (1ULL << 18)
+/* unused                       (1ULL << 18) */
 #define REFRESH_USER_RESOURCES  (1ULL << 19)
 #define REFRESH_FOR_EXPORT      (1ULL << 20) /* FLUSH TABLES ... FOR EXPORT */
 #define REFRESH_SSL             (1ULL << 21)

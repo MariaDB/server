@@ -2934,29 +2934,6 @@ static Sys_var_ulong Sys_net_retry_count(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_net_retry_count));
 
-static bool set_old_mode (sys_var *self, THD *thd, enum_var_type type)
-{
-  if (thd->variables.old_mode)
-  {
-    thd->variables.old_behavior|= (OLD_MODE_NO_PROGRESS_INFO |
-                                   OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN |
-                                   OLD_MODE_COMPAT_5_1_CHECKSUM);
-  }
-  else
-  {
-    thd->variables.old_behavior&= ~(OLD_MODE_NO_PROGRESS_INFO|
-                                    OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN |
-                                    OLD_MODE_COMPAT_5_1_CHECKSUM);
-  }
-
-  return false;
-}
-
-static Sys_var_mybool Sys_old_mode(
-       "old", "Use compatible behavior from previous MariaDB version",
-       SESSION_VAR(old_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE), 0, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(set_old_mode), DEPRECATED(1009, "old_mode"));
-
 static Sys_var_mybool Sys_opt_allow_suspicious_udfs(
        "allow_suspicious_udfs",
        "Allows use of user-defined functions (UDFs) consisting of only one symbol xxx() without corresponding xxx_init() or xxx_deinit(). That also means that one can load any function from any library, for example exit() from libc.so",
@@ -2991,18 +2968,11 @@ static Sys_var_enum Sys_alter_algorithm(
         ON_CHECK(variable_is_ignored), ON_UPDATE(0),
         DEPRECATED(1105,""));
 
-
-static bool check_old_passwords(sys_var *self, THD *thd, set_var *var)
-{
-  return mysql_user_table_is_in_short_password_format;
-}
 static Sys_var_mybool Sys_old_passwords(
-       "old_passwords",
-       "Use old password encryption method (needed for 4.0 and older clients)",
+       "old_passwords", UNUSED_HELP,
        SESSION_VAR(old_passwords), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(check_old_passwords));
-export sys_var *Sys_old_passwords_ptr= &Sys_old_passwords; // for sql_acl.cc
+       ON_CHECK(variable_is_ignored), ON_UPDATE(0), DEPRECATED(1300, ""));
 
 static Sys_var_ulong Sys_open_files_limit(
        "open_files_limit",
@@ -3604,16 +3574,6 @@ static Sys_var_mybool Sys_query_cache_wlock_invalidate(
        SESSION_VAR(query_cache_wlock_invalidate), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE));
 
-static Sys_var_on_access_global<Sys_var_mybool,
-                                PRIV_SET_SYSTEM_GLOBAL_VAR_SECURE_AUTH>
-Sys_secure_auth(
-       "secure_auth",
-       "Disallow authentication for accounts that have old (pre-4.1) "
-       "passwords",
-       GLOBAL_VAR(opt_secure_auth), CMD_LINE(OPT_ARG, OPT_SECURE_AUTH),
-       DEFAULT(TRUE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED(1006, ""));
-
 static bool check_require_secure_transport(sys_var *self, THD *thd, set_var *var)
 {
 #ifndef _WIN32
@@ -4173,6 +4133,7 @@ static const char *old_mode_names[]=
   "LOCK_ALTER_TABLE_COPY",              // 7: deprecated since 11.3
   "OLD_FLUSH_STATUS",                   // 8: deprecated since 11.5
   "SESSION_USER_IS_USER",               // 9: deprecated since 11.7
+  "2_DIGIT_YEAR",                       // 10: deprecated since 13.0
   0
 };
 
@@ -4198,6 +4159,9 @@ static bool old_mode_deprecated(sys_var *self, THD *thd, set_var *var)
   for (; i <= 9; i++)
     if ((1ULL<<i) & v)
       warn_deprecated<1107>(thd, old_mode_names[i]);
+  for (; i <= 10; i++)
+    if ((1ULL<<i) & v)
+      warn_deprecated<1300>(thd, old_mode_names[i]);
   return false;
 }
 
@@ -5466,10 +5430,8 @@ static Sys_var_mybool Sys_show_slave_auth_info(
 static Sys_var_mybool Sys_keep_files_on_create(
        "keep_files_on_create",
        "Don't overwrite stale .MYD and .MYI even if no directory is specified",
-       SESSION_VAR(keep_files_on_create), CMD_LINE(OPT_ARG),
-       DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED_NO_REPLACEMENT(1008));
+       SESSION_VAR(keep_files_on_create), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0));
 
 static char *license;
 static Sys_var_charptr Sys_license(

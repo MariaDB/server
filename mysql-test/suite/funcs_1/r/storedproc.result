@@ -3120,10 +3120,6 @@ DROP FUNCTION timestamp;
 CREATE FUNCTION year(f1 year) returns year
 return f1;
 DROP FUNCTION year;
-CREATE FUNCTION year(3)(f1 year(3)) returns year(3)
-return f1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '3)(f1 year(3)) returns year(3)
-return f1' at line 1
 CREATE FUNCTION year(4)(f1 year(4)) returns year(4)
 return f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '4)(f1 year(4)) returns year(4)
@@ -3397,13 +3393,6 @@ DROP FUNCTION IF EXISTS fn1;
 CREATE FUNCTION fn1(f1 year ) returns year
 return f1;
 DROP FUNCTION IF EXISTS fn1;
-CREATE FUNCTION fn1(f1 year(f1 3) ) returns year(3)
-return f1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'f1 3) ) returns year(3)
-return f1' at line 1
-DROP FUNCTION IF EXISTS fn1;
-Warnings:
-Note	1305	FUNCTION db_storedproc.fn1 does not exist
 CREATE FUNCTION fn1(f1 year(f1 4) ) returns year(4)
 return f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'f1 4) ) returns year(4)
@@ -7497,19 +7486,6 @@ END//
 CALL sp1();
 x	y	z
 2005	2005	2005
-DROP PROCEDURE IF EXISTS sp1;
-CREATE PROCEDURE sp1( )
-BEGIN
-declare x, y, z year(3) default 2005;
-SELECT x, y, z;
-END//
-Warnings:
-Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
-CALL sp1();
-x	y	z
-2005	2005	2005
-Warnings:
-Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -14290,13 +14266,6 @@ DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN
 declare x year;
-SELECT f1 into x from t2 limit 1;
-END//
-CALL sp1();
-DROP PROCEDURE IF EXISTS sp1;
-CREATE PROCEDURE sp1()
-BEGIN
-declare x year(3);
 SELECT f1 into x from t2 limit 1;
 END//
 CALL sp1();

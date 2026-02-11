@@ -348,6 +348,8 @@ create user u7@h identified with 'mysql_old_password';
 set password for u7@h = 'pwd';
 ERROR HY000: Password hash should be a 41-digit hexadecimal number
 set password for u7@h = old_password('pwd');
+Warnings:
+Warning	1287	'OLD_PASSWORD()' is deprecated and will be removed in a future release. Please use 'PASSWORD()' instead
 create user u8@h identified with 'mysql_old_password';
 set password for u8@h = '78a302dd267f6044';
 select user as User,host as Host,plugin,authentication_string from mysql.user where host='h';

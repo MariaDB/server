@@ -317,6 +317,7 @@ SELECT NOT NOT NULLIF(2,3);
 --echo #
 --echo # MDEV-7146 NULLIF returns unexpected result with a YEAR field
 --echo #
+set old_mode=2_DIGIT_YEAR;
 --enable_prepare_warnings
 CREATE TABLE t1 (a YEAR(2));
 --disable_prepare_warnings
@@ -327,6 +328,7 @@ SELECT a,NULLIF(a,2000),NULLIF(2000,a) FROM t1;
 SELECT a,NULLIF(a,2001),NULLIF(2001,a) FROM t1;
 --enable_cursor_protocol
 DROP TABLE t1;
+set old_mode=DEFAULT;
 
 --echo #
 --echo # MDEV-7005 NULLIF does not work as documented

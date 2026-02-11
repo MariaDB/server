@@ -1,9 +1,7 @@
 ##### suite/funcs_1/include/memory_tb4.inc
 
---disable_warnings
-drop table if exists tb4 ;
---enable_warnings
 --enable_prepare_warnings
+set old_mode=2_digit_year;
 create table tb4 (
 f176 numeric (0) unsigned not null DEFAULT 9,
 f177 numeric (64) unsigned not null DEFAULT 9,
@@ -63,6 +61,7 @@ f238 varchar(25000) binary,
 f239 varbinary(0),
 f240 varchar(1200)
 ) engine = memory;
+set old_mode=default;
 
 --replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
 eval

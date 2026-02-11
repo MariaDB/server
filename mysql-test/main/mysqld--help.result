@@ -479,8 +479,7 @@ The following specify which files/extra groups are read (specified before remain
  while even numbers are used for linked buffers
  --keep-files-on-create 
  Don't overwrite stale .MYD and .MYI even if no directory
- is specified. Deprecated, will be removed in a future
- release.
+ is specified
  --key-buffer-size=# The size of the buffer used for index blocks for MyISAM
  tables. Increase this to get faster index handling
  --key-cache-age-threshold=# 
@@ -863,19 +862,15 @@ The following specify which files/extra groups are read (specified before remain
  Verbosity level for note-warnings given to the user. See
  also @@sql_notes. Any combination of: basic, 
  unusable_keys, explain, or ALL to set all combinations
- --old               Use compatible behavior from previous MariaDB version.
- Deprecated, will be removed in a future release. Please
- use --old-mode instead.
  --old-mode=name     Used to emulate old behavior from earlier MariaDB or
  MySQL versions. Any combination of: 
  NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
  ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3, 
  IGNORE_INDEX_ONLY_FOR_JOIN, COMPAT_5_1_CHECKSUM, 
  NO_NULL_COLLATION_IDS, LOCK_ALTER_TABLE_COPY, 
- OLD_FLUSH_STATUS, SESSION_USER_IS_USER, or ALL to set all
- combinations
- --old-passwords     Use old password encryption method (needed for 4.0 and
- older clients)
+ OLD_FLUSH_STATUS, SESSION_USER_IS_USER, 2_DIGIT_YEAR, or
+ ALL to set all combinations
+ --old-passwords     Unused. Deprecated, will be removed in a future release.
  --old-style-user-limits 
  Enable old-style user limits (before 5.0.3, user
  resources were counted per each user+host vs. per
@@ -1400,10 +1395,6 @@ The following specify which files/extra groups are read (specified before remain
  be removed in a future release.
  --safe-user-create  Don't allow new user creation by the user who has no
  write privileges to the mysql.user table
- --secure-auth       Disallow authentication for accounts that have old
- (pre-4.1) passwords. Deprecated, will be removed in a
- future release.
- (Defaults to on; use --skip-secure-auth to disable.)
  --secure-file-priv=name 
  Limit LOAD DATA, SELECT ... OUTFILE, and LOAD_FILE() to
  files within specified directory
@@ -1977,7 +1968,6 @@ net-retry-count 10
 net-write-timeout 60
 new-mode 
 note-verbosity basic,explain
-old FALSE
 old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
@@ -2113,7 +2103,6 @@ rpl-semi-sync-slave-enabled FALSE
 rpl-semi-sync-slave-kill-conn-timeout 5
 rpl-semi-sync-slave-trace-level 32
 safe-user-create FALSE
-secure-auth TRUE
 secure-file-priv (No default value)
 secure-timestamp NO
 server-id 1

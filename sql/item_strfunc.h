@@ -1082,50 +1082,6 @@ protected:
 };
 
 
-
-class Item_func_des_encrypt :public Item_str_binary_checksum_func
-{
-  String tmp_value,tmp_arg;
-public:
-  Item_func_des_encrypt(THD *thd, Item *a)
-   :Item_str_binary_checksum_func(thd, a) {}
-  Item_func_des_encrypt(THD *thd, Item *a, Item *b)
-   :Item_str_binary_checksum_func(thd, a, b) {}
-  String *val_str(String *) override;
-  bool fix_length_and_dec(THD *thd) override;
-  LEX_CSTRING func_name_cstring() const override
-  {
-    static LEX_CSTRING name= {STRING_WITH_LEN("des_encrypt") };
-    return name;
-  }
-
-protected:
-  Item *shallow_copy(THD *thd) const override
-  { return get_item_copy<Item_func_des_encrypt>(thd, this); }
-};
-
-class Item_func_des_decrypt :public Item_str_binary_checksum_func
-{
-  String tmp_value;
-public:
-  Item_func_des_decrypt(THD *thd, Item *a)
-   :Item_str_binary_checksum_func(thd, a) {}
-  Item_func_des_decrypt(THD *thd, Item *a, Item *b)
-   :Item_str_binary_checksum_func(thd, a, b) {}
-  String *val_str(String *) override;
-  bool fix_length_and_dec(THD *thd) override;
-  LEX_CSTRING func_name_cstring() const override
-  {
-    static LEX_CSTRING name= {STRING_WITH_LEN("des_decrypt") };
-    return name;
-  }
-
-protected:
-  Item *shallow_copy(THD *thd) const override
-  { return get_item_copy<Item_func_des_decrypt>(thd, this); }
-};
-
-
 /**
   QQ: Item_func_encrypt should derive from Item_str_ascii_checksum_func.
   However, it should be fixed to handle UCS2, UTF16, UTF32 properly first,

@@ -1,7 +1,4 @@
 connect old,localhost,root,,,,,auth=mysql_old_password:mysql_native_password;
-set global secure_auth=0;
-Warnings:
-Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 create user test_nopw;
 grant select on test.* to test_nopw;
 create user test_oldpw identified by password "09301740536db389";
@@ -15,10 +12,6 @@ change_user test_nopw,,;
 select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
 concat('<', user(), '>')	concat('<', current_user(), '>')	database()
 <test_nopw@localhost>	<test_nopw@%>	NULL
-change_user test_oldpw,oldpw,;
-select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
-concat('<', user(), '>')	concat('<', current_user(), '>')	database()
-<test_oldpw@localhost>	<test_oldpw@%>	NULL
 change_user test_newpw,newpw,;
 select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
 concat('<', user(), '>')	concat('<', current_user(), '>')	database()
@@ -31,10 +24,6 @@ change_user test_nopw,,test;
 select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
 concat('<', user(), '>')	concat('<', current_user(), '>')	database()
 <test_nopw@localhost>	<test_nopw@%>	test
-change_user test_oldpw,oldpw,test;
-select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
-concat('<', user(), '>')	concat('<', current_user(), '>')	database()
-<test_oldpw@localhost>	<test_oldpw@%>	test
 change_user test_newpw,newpw,test;
 select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
 concat('<', user(), '>')	concat('<', current_user(), '>')	database()
@@ -101,9 +90,6 @@ NULL
 FLUSH STATUS;
 change_user root,,test;
 Value of com_select did not change
-set global secure_auth=default;
-Warnings:
-Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release
 set timestamp=unix_timestamp('2010-10-10 10:10:10');
 select now();
 now()

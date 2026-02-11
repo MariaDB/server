@@ -220,6 +220,7 @@ enum enum_binlog_row_image {
 #define OLD_MODE_LOCK_ALTER_TABLE_COPY  (1 << 7)
 #define OLD_MODE_OLD_FLUSH_STATUS       (1 << 8)
 #define OLD_MODE_SESSION_USER_IS_USER   (1 << 9)
+#define OLD_MODE_2_DIGIT_YEAR           (1 << 10)
 
 #define OLD_MODE_DEFAULT_VALUE          OLD_MODE_UTF8_IS_UTF8MB3
 
@@ -908,7 +909,6 @@ typedef struct system_variables
   my_bool query_cache_wlock_invalidate;
   my_bool keep_files_on_create;
 
-  my_bool old_mode;
   my_bool old_passwords;
   my_bool only_standard_compliant_cte;
   my_bool query_cache_strip_comments;

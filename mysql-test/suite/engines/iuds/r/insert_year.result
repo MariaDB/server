@@ -1,3 +1,6 @@
+set old_mode=2_digit_year;
+Warnings:
+Warning	1287	'2_DIGIT_YEAR' is deprecated and will be removed in a future release
 CREATE TABLE t1(c1 YEAR(4) NOT NULL, c2 YEAR(4) NULL, c3 DATE, c4 DATETIME, PRIMARY KEY(c1), UNIQUE INDEX(c2));
 CREATE TABLE t2(c1 YEAR(4) NOT NULL, c2 YEAR(4) NULL, c3 DATE, c4 DATETIME, PRIMARY KEY(c1,c2));
 CREATE TABLE t3(c1 YEAR(4) NOT NULL, c2 YEAR(4) NULL, c3 DATE, c4 DATETIME, UNIQUE INDEX idx(c1,c2));

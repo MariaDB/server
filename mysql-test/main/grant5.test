@@ -308,7 +308,9 @@ eval create user u6@h identified with 'mysql_old_password' using '$p';
 create user u7@h identified with 'mysql_old_password';
 error ER_PASSWD_LENGTH;
 set password for u7@h = 'pwd';
+--enable_prepare_warnings
 set password for u7@h = old_password('pwd');
+--disable_prepare_warnings
 create user u8@h identified with 'mysql_old_password';
 eval set password for u8@h = '$p';
 sorted_result;

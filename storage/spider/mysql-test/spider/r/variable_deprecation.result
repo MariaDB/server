@@ -14,39 +14,15 @@ connection master_1;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
 # MDEV-28297 Deprecate spider_internal_offset
-SET spider_internal_offset = 1;
-Warnings:
-Warning	1287	'@@spider_internal_offset' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_internal_offset";
-Variable_name	Value
-spider_internal_offset	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='ios "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'ios' is deprecated and will be removed in a future release
+ERROR HY000: The connect info 'ios "1' is invalid
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='internal_offset "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'internal_offset' is deprecated and will be removed in a future release
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
+ERROR HY000: The connect info 'internal_offset "1' is invalid
 # MDEV-27981 Deprecate spider_internal_limit 
-SET spider_internal_limit = 1;
-Warnings:
-Warning	1287	'@@spider_internal_limit' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_internal_limit";
-Variable_name	Value
-spider_internal_limit	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='ilm "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'ilm' is deprecated and will be removed in a future release
+ERROR HY000: The connect info 'ilm "1' is invalid
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='internal_limit "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'internal_limit' is deprecated and will be removed in a future release
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
+ERROR HY000: The connect info 'internal_limit "1' is invalid
 # MDEV-28244 Deprecate spider_xa_register_mode
 SET spider_xa_register_mode = 0;
 Warnings:
@@ -80,155 +56,47 @@ SHOW VARIABLES LIKE "spider_load_crd_at_startup";
 Variable_name	Value
 spider_load_crd_at_startup	0
 # MDEV-28008 Deprecate spider_crd_mode and spider_sts_mode
-SET spider_crd_mode = 1;
-Warnings:
-Warning	1287	'@@spider_crd_mode' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_crd_mode";
-Variable_name	Value
-spider_crd_mode	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='cmd "3"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'cmd' is deprecated and will be removed in a future release
+ERROR HY000: The connect info 'cmd "3' is invalid
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='crd_mode "3"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'crd_mode' is deprecated and will be removed in a future release
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
-SET spider_sts_mode = 1;
-Warnings:
-Warning	1287	'@@spider_sts_mode' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_sts_mode";
-Variable_name	Value
-spider_sts_mode	1
+ERROR HY000: The connect info 'crd_mode "3' is invalid
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='smd "3"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'smd' is deprecated and will be removed in a future release
+ERROR HY000: The connect info 'smd "3' is invalid
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='sts_mode "3"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'sts_mode' is deprecated and will be removed in a future release
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
+ERROR HY000: The connect info 'sts_mode "3' is invalid
 # MDEV-28010 Deprecate spider_crd_type and spider_crd_weight
-SET spider_crd_type = 1;
-Warnings:
-Warning	1287	'@@spider_crd_type' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_crd_type";
-Variable_name	Value
-spider_crd_type	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='ctp "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'ctp' is deprecated and will be removed in a future release
+ERROR HY000: The connect info 'ctp "1' is invalid
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='crd_type "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'crd_type' is deprecated and will be removed in a future release
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
-SET spider_crd_weight = 1;
-Warnings:
-Warning	1287	'@@spider_crd_weight' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_crd_weight";
-Variable_name	Value
-spider_crd_weight	1
+ERROR HY000: The connect info 'crd_type "1' is invalid
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='cwg "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'cwg' is deprecated and will be removed in a future release
+ERROR HY000: The connect info 'cwg "1' is invalid
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='crd_weight "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'crd_weight' is deprecated and will be removed in a future release
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
+ERROR HY000: The connect info 'crd_weight "1' is invalid
 # MDEV-28560 Deprecate spider_buffer_size
-SET spider_buffer_size = 1;
-Warnings:
-Warning	1287	'@@spider_buffer_size' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_buffer_size";
-Variable_name	Value
-spider_buffer_size	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='bfz "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'bfz' is deprecated and will be removed in a future release
+ERROR HY000: The connect info 'bfz "1' is invalid
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='buffer_size "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'buffer_size' is deprecated and will be removed in a future release
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
+ERROR HY000: The connect info 'buffer_size "1' is invalid
 # MDEV-27926 Deprecate spider_init_sql_alloc_size
-SET spider_init_sql_alloc_size = 1;
-Warnings:
-Warning	1287	'@@spider_init_sql_alloc_size' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_init_sql_alloc_size";
-Variable_name	Value
-spider_init_sql_alloc_size	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='isa "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'isa' is deprecated and will be removed in a future release
+ERROR HY000: The connect info 'isa "1' is invalid
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='init_sql_alloc_size "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'init_sql_alloc_size' is deprecated and will be removed in a future release
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
+ERROR HY000: The connect info 'init_sql_alloc_size "1' is invalid
 # MDEV-28829 Deprecate spider_semi_table_lock and spider_semi_table_lock_connection
-SET spider_semi_table_lock = 1;
-Warnings:
-Warning	1287	'@@spider_semi_table_lock' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_semi_table_lock";
-Variable_name	Value
-spider_semi_table_lock	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='stl "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'stl' is deprecated and will be removed in a future release
+ERROR HY000: The connect info 'stl "1' is invalid
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='semi_table_lock "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'semi_table_lock' is deprecated and will be removed in a future release
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
-SET spider_semi_table_lock_connection = 0;
-Warnings:
-Warning	1287	'@@spider_semi_table_lock_connection' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_semi_table_lock_connection";
-Variable_name	Value
-spider_semi_table_lock_connection	0
+ERROR HY000: The connect info 'semi_table_lock "1' is invalid
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='stc "0"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'stc' is deprecated and will be removed in a future release
+ERROR HY000: The connect info 'stc "0' is invalid
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='semi_table_lock_connection "0"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'semi_table_lock_connection' is deprecated and will be removed in a future release
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
+ERROR HY000: The connect info 'semi_table_lock_connection "0' is invalid
 # MDEV-28795 Deprecate spider_bka_table_name_type
-SET spider_bka_table_name_type = 1;
-Warnings:
-Warning	1287	'@@spider_bka_table_name_type' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE "spider_bka_table_name_type";
-Variable_name	Value
-spider_bka_table_name_type	1
 CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='btt "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'btt' is deprecated and will be removed in a future release
+ERROR HY000: The connect info 'btt "1' is invalid
 CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='bka_table_name_type "1"';
-Warnings:
-Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	1287	'bka_table_name_type' is deprecated and will be removed in a future release
-DROP TABLE tbl_a;
-DROP TABLE tbl_b;
+ERROR HY000: The connect info 'bka_table_name_type "1' is invalid
 DROP DATABASE auto_test_local;
 for master_1
 for child2

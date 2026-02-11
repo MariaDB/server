@@ -1,3 +1,4 @@
+set old_mode=2_digit_year;
 # Create tables
 CREATE TABLE t1(c1 YEAR NOT NULL,c2 YEAR, PRIMARY KEY(c1));
 CREATE TABLE t2(c1 YEAR NOT NULL, c2 YEAR, UNIQUE INDEX idx(c1,c2));

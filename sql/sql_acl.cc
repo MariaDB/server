@@ -62,7 +62,6 @@
 
 #define MAX_SCRAMBLE_LENGTH 1024
 
-bool mysql_user_table_is_in_short_password_format= false;
 bool using_global_priv_table= true;
 
 // set that from field length in acl_load?
@@ -1382,42 +1381,11 @@ class User_table_tabular: public User_table
     {
       int password_length= password()->field_length /
                            password()->charset()->mbmaxlen;
-      if (password_length < SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
-      {
-        sql_print_error("Fatal error: mysql.user table is damaged or in "
-                        "unsupported 3.20 format.");
-        return 1;
-      }
-
-      mysql_mutex_lock(&LOCK_global_system_variables);
       if (password_length < SCRAMBLED_PASSWORD_CHAR_LENGTH)
       {
-        if (opt_secure_auth)
-        {
-          mysql_mutex_unlock(&LOCK_global_system_variables);
-          sql_print_error("Fatal error: mysql.user table is in old format, "
-                          "but server started with --secure-auth option.");
-          return 1;
-        }
-        mysql_user_table_is_in_short_password_format= true;
-        if (global_system_variables.old_passwords)
-          mysql_mutex_unlock(&LOCK_global_system_variables);
-        else
-        {
-          extern sys_var *Sys_old_passwords_ptr;
-          Sys_old_passwords_ptr->value_origin= sys_var::AUTO;
-          global_system_variables.old_passwords= 1;
-          mysql_mutex_unlock(&LOCK_global_system_variables);
-          sql_print_warning("mysql.user table is not updated to new password format; "
-                            "Disabling new password usage until "
-                            "mysql_fix_privilege_tables is run");
-        }
-        m_table->in_use->variables.old_passwords= 1;
-      }
-      else
-      {
-        mysql_user_table_is_in_short_password_format= false;
-        mysql_mutex_unlock(&LOCK_global_system_variables);
+        sql_print_error("Fatal error: mysql.user table is damaged or in "
+                        "unsupported format.");
+        return 1;
       }
     }
     return 0;
@@ -13934,9 +13902,6 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
 
 static bool secure_auth(THD *thd)
 {
-  if (!opt_secure_auth)
-    return 0;
-
   /*
     If the server is running in secure auth mode, short scrambles are
     forbidden. Extra juggling to report the same error as the old code.

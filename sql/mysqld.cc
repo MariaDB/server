@@ -48,7 +48,6 @@
 #include "sql_servers.h"  // servers_free, servers_init
 #include "init.h"         // unireg_init
 #include "derror.h"       // init_errmessage
-#include "des_key_file.h" // load_des_key_file
 #include "sql_manager.h"  // stop_handle_manager, start_handle_manager
 #include "sql_expression_cache.h" // subquery_cache_miss, subquery_cache_hit
 #include "sys_vars_shared.h"
@@ -433,7 +432,6 @@ ulong read_only= 0, opt_readonly= 0;
 my_bool use_temp_pool, relay_log_purge;
 my_bool relay_log_recovery;
 my_bool opt_sync_frm, opt_allow_suspicious_udfs;
-my_bool opt_secure_auth= 0;
 my_bool opt_require_secure_transport= 0;
 char* opt_secure_file_priv;
 my_bool lower_case_file_system= 0;
@@ -939,13 +937,6 @@ PSI_file_key key_file_relaylog, key_file_relaylog_index,
              key_file_relaylog_cache, key_file_relaylog_index_cache;
 PSI_file_key key_file_binlog_state, key_file_gtid_index;
 
-#ifdef HAVE_des
-char *des_key_file;
-PSI_file_key key_file_des_key_file;
-PSI_mutex_key key_LOCK_des_key_file;
-mysql_mutex_t LOCK_des_key_file;
-#endif /* HAVE_des */
-
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
 PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active, key_LOCK_pool,
@@ -1010,10 +1001,6 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_pool, "TC_LOG_MMAP::LOCK_pool", 0},
   { &key_LOCK_pool, "TC_LOG_MMAP::LOCK_pending_checkpoint", 0},
 #endif /* HAVE_MMAP */
-
-#ifdef HAVE_des
-  { &key_LOCK_des_key_file, "LOCK_des_key_file", PSI_FLAG_GLOBAL},
-#endif /* HAVE_des */
 
   { &key_BINLOG_LOCK_index, "MYSQL_BIN_LOG::LOCK_index", 0},
   { &key_BINLOG_LOCK_binlog_use, "MYSQL_BIN_LOG::LOCK_binlog_use", 0},
@@ -2171,9 +2158,6 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_global_table_stats);
   mysql_mutex_destroy(&LOCK_global_index_stats);
 #ifdef HAVE_OPENSSL
-#ifdef HAVE_des
-  mysql_mutex_destroy(&LOCK_des_key_file);
-#endif /* HAVE_des */
 #if defined(HAVE_OPENSSL10) && !defined(HAVE_WOLFSSL)
   for (int i= 0; i < CRYPTO_num_locks(); ++i)
     mysql_rwlock_destroy(&openssl_stdlocks[i].lock);
@@ -4575,10 +4559,6 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_temp_pool, &LOCK_temp_pool, MY_MUTEX_INIT_FAST);
 
 #ifdef HAVE_OPENSSL
-#ifdef HAVE_des
-  mysql_mutex_init(key_LOCK_des_key_file,
-                   &LOCK_des_key_file, MY_MUTEX_INIT_FAST);
-#endif /* HAVE_des */
 #if defined(HAVE_OPENSSL10) && !defined(HAVE_WOLFSSL)
   openssl_stdlocks= (openssl_lock_t*) OPENSSL_malloc(CRYPTO_num_locks() *
                                                      sizeof(openssl_lock_t));
@@ -4807,10 +4787,6 @@ static void init_ssl()
   {
     have_ssl= SHOW_OPTION_DISABLED;
   }
-#ifdef HAVE_des
-  if (des_key_file)
-    load_des_key_file(des_key_file);
-#endif /* HAVE_des */
 #endif /* HAVE_OPENSSL */
 #endif /* !EMBEDDED_LIBRARY */
 }
@@ -5553,6 +5529,11 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("big-tables"),
       MARIADB_REMOVED_OPTION("large-page-size"),
       MARIADB_REMOVED_OPTION("storage-engine"),
+
+      /* removed in 13.0 */
+      MARIADB_REMOVED_OPTION("des-key-file"),
+      MARIADB_REMOVED_OPTION("secure-auth"),
+      MARIADB_REMOVED_OPTION("old"),
       {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
     };
     /*
@@ -6923,12 +6904,6 @@ struct my_option my_long_options[]=
    &opt_debug_sync_timeout, 0,
    0, GET_UINT, OPT_ARG, 0, 0, UINT_MAX, 0, 0, 0},
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-#ifdef HAVE_des
-  {"des-key-file", 0,
-   "Load keys for des_encrypt() and des_encrypt from given file",
-   &des_key_file, &des_key_file, 0, GET_STR, REQUIRED_ARG,
-   0, 0, 0, 0, 0, 0},
-#endif /* HAVE_des */
 #ifdef HAVE_STACKTRACE
   {"stack-trace", 0 , "Print a symbolic stack trace on failure",
    &opt_stack_trace, &opt_stack_trace, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
@@ -8259,7 +8234,6 @@ static int mysql_init_variables(void)
   opt_log_basename= 0;
   opt_tc_log_file= (char *)"tc.log";      // no hostname in tc_log file name !
   opt_ddl_recovery_file= (char *) "ddl_recovery.log";
-  opt_secure_auth= 0;
   opt_bootstrap= opt_myisam_log= 0;
   disable_log_notes= 0;
   mqh_used= 0;
@@ -8401,9 +8375,6 @@ static int mysql_init_variables(void)
   libwrapName= NullS;
 #endif
 #ifdef HAVE_OPENSSL
-#ifdef HAVE_des
-  des_key_file = 0;
-#endif /* HAVE_des */
 #ifndef EMBEDDED_LIBRARY
   ssl_acceptor_fd= 0;
 #endif /* ! EMBEDDED_LIBRARY */
@@ -8555,9 +8526,6 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case 'T':
     test_flags= argument ? ((uint) atoi(argument) & ~TEST_BLOCKING) : 0;
     opt_endinfo=1;
-    break;
-  case OPT_SECURE_AUTH:
-    warn_deprecated<1006>("--secure-auth");
     break;
   case (int) OPT_ISAM_LOG:
     opt_myisam_log=1;
@@ -9106,13 +9074,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     between options, setting of multiple variables, etc.
     Do them here.
   */
-
-  if (global_system_variables.old_mode)
-  {
-    global_system_variables.old_behavior|= (OLD_MODE_NO_PROGRESS_INFO |
-                                           OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN |
-                                           OLD_MODE_COMPAT_5_1_CHECKSUM);
-  }
 
   if (global_system_variables.net_buffer_length > 
       global_system_variables.max_allowed_packet)
@@ -9762,9 +9723,6 @@ static PSI_file_info all_server_files[]=
   { &key_file_io_cache, "io_cache", 0},
   { &key_file_casetest, "casetest", 0},
   { &key_file_dbopt, "dbopt", 0},
-#ifdef HAVE_des
-  { &key_file_des_key_file, "des_key_file", 0},
-#endif
   { &key_file_ERRMSG, "ERRMSG", 0},
   { &key_select_to_file, "select_to_file", 0},
   { &key_file_fileparser, "file_parser", 0},

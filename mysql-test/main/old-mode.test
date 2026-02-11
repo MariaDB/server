@@ -2,6 +2,7 @@
 # Test 'old' mode
 #
 
+set old_mode=COMPAT_5_1_CHECKSUM;
 create table t1 (a int, b varchar(200), c text not null) checksum=1;
 create table t2 (a int, b varchar(200), c text not null) checksum=0;
 insert t1 values (1, "aaa", "bbb"), (NULL, "", "ccccc"), (0, NULL, "");
@@ -17,6 +18,7 @@ drop table t1,t2;
 let $count_sessions= 1;
 source include/wait_until_count_sessions.inc;
 
+set old_mode=NO_PROGRESS_INFO;
 --replace_column 1 <Id> 3 <Host> 6 <Time> 7 <State>
 # Embedded server is hardcoded to show "Writing to net" as STATE.
 # ps-protocol will have Execute not Query

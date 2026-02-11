@@ -3,6 +3,7 @@
 #
 
 --enable_prepare_warnings
+set old_mode=2_DIGIT_YEAR;
 
 create table t1 (y year,y2 year(2));
 insert into t1 values (0,0),(1999,1999),(2000,2000),(2001,2001),(70,70),(69,69);
@@ -174,7 +175,12 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (c1 YEAR(2), c2 YEAR(4));
 ALTER TABLE t1 MODIFY COLUMN c2 YEAR(2);
+SET OLD_MODE='';
+ALTER TABLE t1 MODIFY COLUMN c2 INT;
 DROP TABLE t1;
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (c1 YEAR(2), c2 YEAR(4));
+SET OLD_MODE=2_DIGIT_YEAR;
 
 --echo #
 --echo # End of 5.1 tests

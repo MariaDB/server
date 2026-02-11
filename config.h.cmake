@@ -493,7 +493,6 @@ this is the case with Microsoft Windows VirtualFree(MEM_DECOMMIT) */
 #cmakedefine HAVE_COMPRESS 1
 #cmakedefine HAVE_EncryptAes128Ctr 1
 #cmakedefine HAVE_EncryptAes128Gcm 1
-#cmakedefine HAVE_des 1
 #cmakedefine HAVE_hkdf 1
 
 /*

@@ -1,4 +1,3 @@
-drop table if exists t1,t2,t3,t4,t5,t6,t7;
 CREATE TABLE t1 (a blob, b text, c blob(250), d text(70000), e text(70000000));
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
@@ -899,6 +898,9 @@ CREATE TABLE b15776 (a char(4294967295));
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
 CREATE TABLE b15776 (a char(4294967296));
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
+set old_mode=2_DIGIT_YEAR;
+Warnings:
+Warning	1287	'2_DIGIT_YEAR' is deprecated and will be removed in a future release
 CREATE TABLE b15776 (a year(?));
 Warnings:
 Warning	1287	'YEAR(?)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
@@ -922,6 +924,7 @@ Warning	1287	'YEAR(0)' is deprecated and will be removed in a future release. Pl
 DROP TABLE b15776;
 CREATE TABLE b15776 (a year(-2));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-2))' at line 1
+set old_mode=default;
 CREATE TABLE b15776 (a timestamp(4294967294));
 ERROR 42000: Too big precision specified for 'a'. Maximum is 6
 CREATE TABLE b15776 (a timestamp(4294967295));
@@ -937,14 +940,7 @@ ERROR 42000: Display width out of range for 'a' (max = 255)
 CREATE TABLE b15776 (a char(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
 CREATE TABLE b15776 (a year(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
-Warnings:
-Warning	1287	'YEAR(4294967295)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
-SHOW CREATE TABLE b15776;
-Table	Create Table
-b15776	CREATE TABLE `b15776` (
-  `a` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-DROP TABLE b15776;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
 CREATE TABLE b15776 select cast(null as char(4294967295));
 show columns from b15776;
 Field	Type	Null	Key	Default	Extra

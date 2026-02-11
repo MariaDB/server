@@ -1,3 +1,4 @@
+set old_mode=2_digit_year;
 ######## Running INSERT tests for YEAR(4) ########
 
 # Create tables

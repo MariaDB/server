@@ -728,34 +728,6 @@ protected:
 };
 
 
-class Create_func_des_decrypt : public Create_native_func
-{
-public:
-  Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list) override;
-
-  static Create_func_des_decrypt s_singleton;
-
-protected:
-  Create_func_des_decrypt() = default;
-  ~Create_func_des_decrypt() override = default;
-};
-
-
-class Create_func_des_encrypt : public Create_native_func
-{
-public:
-  Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list) override;
-
-  static Create_func_des_encrypt s_singleton;
-
-protected:
-  Create_func_des_encrypt() = default;
-  ~Create_func_des_encrypt() override = default;
-};
-
-
 class Create_func_elt : public Create_native_func
 {
 public:
@@ -3800,80 +3772,6 @@ Create_func_degrees::create_1_arg(THD *thd, Item *arg1)
 }
 
 
-Create_func_des_decrypt Create_func_des_decrypt::s_singleton;
-
-Item*
-Create_func_des_decrypt::create_native(THD *thd, const LEX_CSTRING *name,
-                                       List<Item> *item_list)
-{
-  Item *func= NULL;
-  int arg_count= 0;
-
-  if (item_list != NULL)
-    arg_count= item_list->elements;
-
-  switch (arg_count) {
-  case 1:
-  {
-    Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_decrypt(thd, param_1);
-    break;
-  }
-  case 2:
-  {
-    Item *param_1= item_list->pop();
-    Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_decrypt(thd, param_1, param_2);
-    break;
-  }
-  default:
-  {
-    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
-    break;
-  }
-  }
-
-  return func;
-}
-
-
-Create_func_des_encrypt Create_func_des_encrypt::s_singleton;
-
-Item*
-Create_func_des_encrypt::create_native(THD *thd, const LEX_CSTRING *name,
-                                       List<Item> *item_list)
-{
-  Item *func= NULL;
-  int arg_count= 0;
-
-  if (item_list != NULL)
-    arg_count= item_list->elements;
-
-  switch (arg_count) {
-  case 1:
-  {
-    Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_encrypt(thd, param_1);
-    break;
-  }
-  case 2:
-  {
-    Item *param_1= item_list->pop();
-    Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_encrypt(thd, param_1, param_2);
-    break;
-  }
-  default:
-  {
-    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
-    break;
-  }
-  }
-
-  return func;
-}
-
-
 Create_func_elt Create_func_elt::s_singleton;
 
 Item*
@@ -6451,8 +6349,6 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("DEGREES") }, BUILDER(Create_func_degrees)},
   { { STRING_WITH_LEN("DECODE_HISTOGRAM") }, BUILDER(Create_func_decode_histogram)},
   { { STRING_WITH_LEN("DECODE_ORACLE") }, BUILDER(Create_func_decode_oracle)},
-  { { STRING_WITH_LEN("DES_DECRYPT") }, BUILDER(Create_func_des_decrypt)},
-  { { STRING_WITH_LEN("DES_ENCRYPT") }, BUILDER(Create_func_des_encrypt)},
   { { STRING_WITH_LEN("ELT") }, BUILDER(Create_func_elt)},
   { { STRING_WITH_LEN("ENCODE") }, BUILDER(Create_func_encode)},
   { { STRING_WITH_LEN("ENCRYPT") }, BUILDER(Create_func_encrypt)},

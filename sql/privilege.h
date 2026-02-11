@@ -335,7 +335,6 @@ constexpr privilege_t PRIV_REVEAL_MISSING_DEFINER= SET_USER_ACL;
 constexpr privilege_t PRIV_SUDO_CHANGE_USER= SET_USER_ACL;
 
 /* Actions that require only the SUPER privilege */
-constexpr privilege_t PRIV_DES_DECRYPT_ONE_ARG= SUPER_ACL;
 constexpr privilege_t PRIV_LOG_BIN_TRUSTED_SP_CREATOR= SUPER_ACL;
 constexpr privilege_t PRIV_DEBUG= SUPER_ACL;
 constexpr privilege_t PRIV_SET_GLOBAL_SYSTEM_VARIABLE= SUPER_ACL;
@@ -455,9 +454,6 @@ constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_PASSWORD_ERRORS=
   CONNECTION_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_PROXY_PROTOCOL_NETWORKS=
-  CONNECTION_ADMIN_ACL;
-// Was SUPER_ACL prior to 10.5.2
-constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SECURE_AUTH=
   CONNECTION_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLOW_LAUNCH_TIME=

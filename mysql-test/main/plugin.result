@@ -122,8 +122,8 @@ select @@global.example_ulong_var;
 @@global.example_ulong_var
 500
 set session sql_mode=@old_sql_mode;
-set session old=bla;
-ERROR 42000: Variable 'old' can't be set to the value of 'bla'
+set session old_mode=bla;
+ERROR 42000: Variable 'old_mode' can't be set to the value of 'bla'
 #legal values
 CREATE TABLE t1 ( a int complex='c,f,f,f' ) ENGINE=example ULL=10000 STR='dskj' one_or_two='one' YESNO=0;
 show create table t1;

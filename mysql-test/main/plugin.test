@@ -117,7 +117,7 @@ set session sql_mode=@old_sql_mode;
 # finally, show that conditions that already raised an error are not
 # adversely affected (error was already sent, do nothing)
 --error ER_WRONG_VALUE_FOR_VAR
-set session old=bla;
+set session old_mode=bla;
 
 ###############################################################
 # engine-specific clauses in the CREATE TABLE:
