@@ -2050,15 +2050,6 @@ convert_error_code_to_mysql(
 		return(HA_ERR_ABORTED_BY_USER);
 
 	case DB_FOREIGN_EXCEED_MAX_CASCADE:
-		ut_ad(thd);
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    HA_ERR_ROW_IS_REFERENCED,
-				    "InnoDB: Cannot delete/update "
-				    "rows with cascading foreign key "
-				    "constraints that exceed max "
-				    "depth of %d. Please "
-				    "drop extra constraints and try "
-				    "again", FK_MAX_CASCADE_DEL);
 		return(HA_ERR_FK_DEPTH_EXCEEDED);
 
 	case DB_CANT_CREATE_GEOMETRY_OBJECT:
@@ -2254,6 +2245,15 @@ convert_sql_error_to_dberr(THD *thd, que_thr_t *thr, int sql_error)
   case HA_ERR_ABORTED_BY_USER:
     return DB_INTERRUPTED;
   case HA_ERR_FK_DEPTH_EXCEEDED:
+    if (thr->fk_cascade_depth == 0)
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          HA_ERR_ROW_IS_REFERENCED,
+                          "InnoDB: Cannot delete/update "
+                          "rows with cascading foreign key "
+                          "constraints that exceed max "
+                          "depth of %d. Please "
+                          "drop extra constraints and try "
+                          "again", FK_MAX_CASCADE_DEL);
     return DB_FOREIGN_EXCEED_MAX_CASCADE;
   case HA_ERR_NULL_IN_SPATIAL:
     return DB_CANT_CREATE_GEOMETRY_OBJECT;
@@ -21544,6 +21544,7 @@ innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
 
   TABLE *maria_table= find_sql_table_for_update_node(node);
 
+  THD *thd= maria_table->in_use;
   ha_innobase *handler= (ha_innobase*)maria_table->file;
   row_prebuilt_t *prebuilt= handler->get_prebuilt(node->table);
   btr_pcur_t *pcur= node->pcur;
@@ -21594,7 +21595,7 @@ innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
   }
 
   if (handler->update_prebuilt_upd_buf())
-    return DB_ERROR;
+    return DB_OUT_OF_MEMORY;
 
   auto *upd_node= prebuilt->upd_node;
   auto *upd_graph= prebuilt->upd_graph;
@@ -21604,8 +21605,10 @@ innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
   btr_pcur_copy_stored_position(prebuilt->pcur, pcur);
   prebuilt->sql_stat_start = FALSE;
 
-  int err = is_delete ? sql_delete_row(maria_table)
-                      : sql_update_row(maria_table);
+  ++thr->fk_cascade_depth;
+  int err= is_delete ? sql_delete_row(maria_table)
+                     : sql_update_row(maria_table);
+  --thr->fk_cascade_depth;
 
   prebuilt->upd_node= upd_node;
   prebuilt->upd_graph= upd_graph;

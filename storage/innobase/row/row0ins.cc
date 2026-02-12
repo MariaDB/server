@@ -1106,16 +1106,16 @@ row_ins_foreign_check_on_constraint(
 			goto nonstandard_exit_func;
 		}
 	}
-
-	if (row_ins_cascade_n_ancestors(cascade) >= FK_MAX_CASCADE_DEL) {
-		err = DB_FOREIGN_EXCEED_MAX_CASCADE;
-
-		row_ins_foreign_report_err(
-			"Trying a too deep cascaded delete or update\n",
-			thr, foreign, btr_pcur_get_rec(pcur), entry);
-
-		goto nonstandard_exit_func;
+	/* Check fk_cascade_depth to limit the recursive call depth on
+	a single update/delete that affects multiple tables chained
+	together with foreign key relations.
+	fk_cascade_depth increments later, so we have to add 1 here. */
+	if (UNIV_UNLIKELY(thr->fk_cascade_depth + 1 >= FK_MAX_CASCADE_DEL))
+	{
+	  err= DB_FOREIGN_EXCEED_MAX_CASCADE;
+	  goto nonstandard_exit_func;
 	}
+	ut_ad(row_ins_cascade_n_ancestors(cascade) < FK_MAX_CASCADE_DEL);
 
 	index = pcur->index();
 

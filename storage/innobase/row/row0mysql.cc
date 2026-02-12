@@ -1919,7 +1919,6 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 			/* fall through */
 		default:
 			/* Other errors are handled for the parent node. */
-			thr->fk_cascade_depth = 0;
 			goto exit;
 
 		case DB_SUCCESS:
@@ -1945,14 +1944,6 @@ row_update_cascade_for_mysql(
                                 or set null operation */
         dict_table_t*   table)  /*!< in: table where we do the operation */
 {
-        /* Increment fk_cascade_depth to record the recursive call depth on
-        a single update/delete that affects multiple tables chained
-        together with foreign key relations. */
-
-        if (++thr->fk_cascade_depth > FK_MAX_CASCADE_DEL) {
-                return(DB_FOREIGN_EXCEED_MAX_CASCADE);
-        }
-
 	trx_t* trx = thr_get_trx(thr);
 
 	if (table->versioned()) {
@@ -1991,12 +1982,9 @@ row_update_cascade_for_mysql(
 
 			/* fall through */
 		default:
-			/* Other errors are handled for the parent node. */
-			thr->fk_cascade_depth = 0;
 			return trx->error_state;
 
 		case DB_SUCCESS:
-			thr->fk_cascade_depth = 0;
 			bool stats;
 
 			if (node->is_delete == PLAIN_DELETE) {

@@ -707,9 +707,9 @@ connection default;
 DELETE IGNORE FROM t1 WHERE b = 1;
 Warnings:
 Warning	152	InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15. Please drop extra constraints and try again
-Warning	1296	Got error 193 '`test`.`t1`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
+Warning	1030	Got error 193 "Foreign key cascade delete/update exceeds max depth" from storage engine InnoDB
 Warning	152	InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15. Please drop extra constraints and try again
-Warning	1296	Got error 193 '`test`.`t1`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
+Warning	1030	Got error 193 "Foreign key cascade delete/update exceeds max depth" from storage engine InnoDB
 SELECT a FROM t1 FORCE INDEX(a);
 a
 0
@@ -872,11 +872,11 @@ INSERT INTO t1 (a,b) VALUES
 (0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),
 (0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,1),(1,0);
 DELETE FROM t1 WHERE b = 1;
-ERROR HY000: Got error 193 '`test`.`t1`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
+ERROR HY000: Got error 193 "Foreign key cascade delete/update exceeds max depth" from storage engine InnoDB
 SHOW WARNINGS;
 Level	Code	Message
 Warning	152	InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15. Please drop extra constraints and try again
-Error	1296	Got error 193 '`test`.`t1`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
+Error	1030	Got error 193 "Foreign key cascade delete/update exceeds max depth" from storage engine InnoDB
 DROP TABLE t1;
 FOUND 1 /InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15.*/ in mysqld.1.err
 # End of 10.2 tests
