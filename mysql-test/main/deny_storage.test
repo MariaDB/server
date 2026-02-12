@@ -35,10 +35,10 @@ EXECUTE show_denies;
 #Table level
 DENY SELECT,INSERT on mysql.global_priv to u;
 EXECUTE show_denies;
-REVOKE DENY INSERT  ON mysql.global_priv FROM u;
+REVOKE DENY INSERT,SELECT  ON mysql.global_priv FROM u;
 EXECUTE show_denies;
 
-DENY UPDATE(User,Host),SELECT(Host) on mysql.global_priv to u;
+DENY UPDATE(User) on mysql.global_priv to u;
 EXECUTE show_denies;
 
 DEALLOCATE PREPARE show_denies;

@@ -2072,7 +2072,7 @@ class User_table_json: public User_table
       // Create entry with new privileges
       DENY_ENTRY new_entry= entry;
       new_entry.deny_bits= out_privs;
-
+      DBUG_ASSERT(new_entry.deny_bits);
       StringBuffer<512> entry_json(system_charset_info);
       if (deny_entry_to_json(new_entry, entry_json))
         return 1;
@@ -5563,6 +5563,8 @@ static int update_denies_in_user_table(const User_table &user_table,
   int error;
   uchar user_key[MAX_KEY_LENGTH];
   DBUG_ENTER("update_denies_in_user_table");
+  if (!rights) // Nothing to do
+    DBUG_RETURN(0);
   user_table.table()->use_all_columns();
   user_table.set_host(combo.host.str, combo.host.length);
   user_table.set_user(combo.user.str, combo.user.length);
