@@ -945,6 +945,7 @@ class Grant_table_base
 */
 enum DenyType
 {
+  DENY_GLOBAL,
   DENY_DB,
   DENY_TABLE,
   DENY_COLUMN,
@@ -974,6 +975,8 @@ struct DENY_ENTRY
   {
     if (type != other.type)
       return false;
+    if (type == DENY_GLOBAL)
+      return true; // Global entries match regardless of fields
 
     // Database must always match
     if (!db || !other.db || strcmp(db, other.db) != 0)
@@ -1033,6 +1036,7 @@ static int deny_entry_to_json(const DENY_ENTRY &entry, StringBuffer<512> &json_b
   const char *type_str= nullptr;
   switch (entry.type)
   {
+  case DENY_GLOBAL:   type_str= "\"global\"";  break;
   case DENY_DB:       type_str= "\"db\""; break;
   case DENY_TABLE:    type_str= "\"table\""; break;
   case DENY_COLUMN:   type_str= "\"column\""; break;
@@ -1117,7 +1121,9 @@ static int deny_entry_from_json(const char *element, int element_len,
   if (json_get_object_key(element, element + element_len, "type",
                          &field_val, &field_len) == JSV_STRING)
   {
-    if (strncmp(field_val, "db", field_len) == 0)
+    if (strncmp(field_val,"global", field_len) == 0)
+      entry.type = DENY_GLOBAL;
+    else if (strncmp(field_val, "db", field_len) == 0)
       entry.type= DENY_DB;
     else if (strncmp(field_val, "table", field_len) == 0)
       entry.type= DENY_TABLE;
@@ -1247,10 +1253,7 @@ class User_table: public Grant_table_base
   virtual int set_password_lifetime (longlong x) const = 0;
   virtual int update_deny_entry(const DENY_ENTRY &entry, privilege_t new_privs,
                                 bool revoke, privilege_t &out_privs) const = 0;
-  int get_deny_entry(const DENY_ENTRY &entry, privilege_t &out_privs) const
-  {
-    return update_deny_entry(entry, NO_ACL, false, out_privs);
-  }
+
   virtual int enumerate_deny_entries(Deny_entry_callback cb, void *ctx) const = 0;
   virtual int remove_all_deny_entries() const = 0;
   virtual ~User_table() = default;
@@ -1889,15 +1892,21 @@ class User_table_json: public User_table
   {
     ulonglong version_id= (ulonglong) get_int_value("version_id");
     ulonglong allow= (ulonglong) get_int_value("access");
-    ulonglong deny= (ulonglong) get_int_value("deny");
-    /*
-      Special case:
-      mysql_system_tables_data.sql populates "ALL PRIVILEGES"
-      for the super user this way:
-            {"access":18446744073709551615}
-    */
+    privilege_t deny= NO_ACL;
+
+    enumerate_deny_entries
+    (
+      [](const DENY_ENTRY *e, void *ctx) -> int {
+          if (e->type == DenyType::DENY_GLOBAL)
+          {
+            *static_cast<privilege_t *>(ctx)|= e->deny_bits;
+            return 1;
+          }
+          return 0;
+       }, &deny);
+
     if (allow == (ulonglong) ~0)
-      return access_t(GLOBAL_ACLS, (privilege_t) deny);
+      return access_t(GLOBAL_ACLS, deny);
 
     /*
       Reject obviously bad (negative and too large) version_id values.
@@ -1916,16 +1925,25 @@ class User_table_json: public User_table
 
   void set_access(const privilege_t rights, bool revoke, bool is_deny) const override
   {
-    access_t acc= get_access();
-    longlong allow= acc.allow_bits();
-    longlong deny= acc.deny_bits();
-    longlong &bits= is_deny ? deny : allow;
-    if (revoke)
-      bits&= ~rights;
-    else
-      bits|= rights;
-    set_int_value("access", allow & (longlong)GLOBAL_ACLS);
-    set_int_value("deny", deny & (longlong) GLOBAL_ACLS);
+    if (!is_deny)
+    {
+      access_t acc= get_access();
+      longlong allow= acc.allow_bits();
+      if (revoke)
+        allow&= ~rights;
+      else
+        allow|= rights;
+      set_int_value("access", allow & (longlong) GLOBAL_ACLS);
+    }
+    else if (rights)
+    {
+      // set_int_value("deny", deny & (longlong) GLOBAL_ACLS);
+      DENY_ENTRY entry;
+      entry.type= DenyType::DENY_GLOBAL;
+      entry.deny_bits= rights & GLOBAL_ACLS;
+      privilege_t out_privs;
+      update_deny_entry(entry, rights & GLOBAL_ACLS, revoke, out_privs);
+    }
     set_int_value("version_id", (longlong) MYSQL_VERSION_ID);
   }
   const char *unsafe_str(const char *s) const

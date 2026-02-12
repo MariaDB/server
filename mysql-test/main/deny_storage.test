@@ -41,6 +41,9 @@ EXECUTE show_denies;
 DENY UPDATE(User) on mysql.global_priv to u;
 EXECUTE show_denies;
 
+DENY SELECT on *.* to u;
+EXECUTE show_denies;
+
 DEALLOCATE PREPARE show_denies;
 DROP USER u;
 DROP DATABASE d;

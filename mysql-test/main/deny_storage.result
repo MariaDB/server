@@ -80,6 +80,22 @@ u	%	[
         "deny": 4
     }
 ]
+DENY SELECT on *.* to u;
+EXECUTE show_denies;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "column",
+        "db": "mysql",
+        "table": "global_priv",
+        "column": "User",
+        "deny": 4
+    },
+    {
+        "type": "global",
+        "deny": 1
+    }
+]
 DEALLOCATE PREPARE show_denies;
 DROP USER u;
 DROP DATABASE d;
