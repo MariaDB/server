@@ -172,4 +172,32 @@ SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_
 
 drop table t1, t2;
 
+--echo # Full index scan
+create table t10 (a int, b varchar(100), index(a)) engine=innodb;
+insert into t10 select seq, uuid() from seq_1_to_10000;
+create table t11(a int) engine=innodb;
+insert into t11 select a from t10;
+--echo ## +0, was +11
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+drop table t10, t11;
+
+create table t10 (a int, b varchar(100), index(a)) engine=innodb;
+insert into t10 select seq, uuid() from seq_1_to_10000;
+create table t11(a int) engine=innodb;
+insert into t11 select a from t10 order by a desc;
+--echo ## +0, was +11
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+drop table t10, t11;
+
+--echo # Range access
+create table t10 (a int, b varchar(100), index(a)) engine=innodb;
+insert into t10 select seq, uuid() from seq_1_to_10000;
+create table t11(a int) engine=innodb;
+explain
+insert into t11 select a from t10 where a > 30;
+insert into t11 select a from t10 where a > 30;
+--echo ## +11, was +11
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+drop table t10, t11;
+
 set global innodb_monitor_enable=default;

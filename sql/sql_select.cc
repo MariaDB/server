@@ -25464,6 +25464,9 @@ join_read_first(JOIN_TAB *tab)
   tab->table->status=0;
   tab->read_record.read_record_func= join_read_next;
   tab->read_record.table=table;
+  init_table_full_scan_if_needed(tab->table,
+                                 tab->select ? tab->select->cond : NULL,
+                                 tab->join->unit->lim.get_select_limit());
   if (!table->file->inited)
     error= table->file->ha_index_init(tab->index, tab->sorted);
   if (likely(!error))
@@ -25503,6 +25506,9 @@ join_read_last(JOIN_TAB *tab)
   tab->table->status=0;
   tab->read_record.read_record_func= join_read_prev;
   tab->read_record.table=table;
+  init_table_full_scan_if_needed(tab->table,
+                                 tab->select ? tab->select->cond : NULL,
+                                 tab->join->unit->lim.get_select_limit());
   if (!table->file->inited)
     error= table->file->ha_index_init(tab->index, 1);
   if (likely(!error))
