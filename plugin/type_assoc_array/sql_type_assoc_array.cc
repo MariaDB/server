@@ -280,7 +280,7 @@ public:
     return false;
   }
 
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   {
     DBUG_ASSERT(0);
     return get_item_copy<Item_field_packable_row>(thd, this);
@@ -516,8 +516,7 @@ public:
     if (limit_clause_param)
       return str->append_ulonglong(T::val_uint());
 
-    Item_field *item=get_variable(thd->spcont);
-    DBUG_ASSERT(item);
+    DBUG_ASSERT(get_variable(thd->spcont));
 
     CHARSET_INFO *cs= thd->variables.character_set_client;
     StringBuffer<NAME_CHAR_LEN> tmp(cs);
@@ -676,7 +675,7 @@ public:
     set_func_handler(&ha_str_key);
     return m_func_handler->fix_length_and_dec(this);
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_first>(thd, this); }
 };
 
@@ -696,7 +695,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_last>(thd, this); }
 };
 
@@ -716,7 +715,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_next>(thd, this); }
 };
 
@@ -736,7 +735,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_prior>(thd, this); }
 };
 
@@ -773,7 +772,7 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_count>(thd, this); }
 };
 
@@ -815,7 +814,7 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_exists>(thd, this); }
 };
 
@@ -866,7 +865,7 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_delete>(thd, this); }
 };
 
@@ -1784,7 +1783,7 @@ void Item_assoc_array::print(String *str, enum_query_type query_type)
 }
 
 
-Item *Item_assoc_array::do_build_clone(THD *thd) const
+Item *Item_assoc_array::deep_copy(THD *thd) const
 {
   Item **copy_args= static_cast<Item **>
     (alloc_root(thd->mem_root, sizeof(Item *) * arg_count));
@@ -1792,12 +1791,12 @@ Item *Item_assoc_array::do_build_clone(THD *thd) const
     return 0;
   for (uint i= 0; i < arg_count; i++)
   {
-    Item *arg_clone= args[i]->build_clone(thd);
+    Item *arg_clone= args[i]->deep_copy_with_checks(thd);
     if (!arg_clone)
       return 0;
     copy_args[i]= arg_clone;
   }
-  Item_assoc_array *copy= (Item_assoc_array *) get_copy(thd);
+  Item_assoc_array *copy= (Item_assoc_array *) shallow_copy_with_checks(thd);
   if (unlikely(!copy))
     return 0;
   copy->args= copy_args;
@@ -2554,13 +2553,13 @@ bool Type_handler_assoc_array::check_key_expression_type(Item *key)
     assoc_array_var(key)
     assoc_array_var(key).field
 */
-bool Type_handler_assoc_array::check_functor_args(THD *thd, List<Item> *args,
-                                                  const char *op)
+bool Type_handler_assoc_array::check_functor_args(List<Item> *args,
+                                                  const Qualified_ident &name)
 {
   if (!args || args->elements != 1 || !args->head())
   {
-    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), op,
-             ErrConvDQName(thd->lex->sphead).ptr(),
+    Database_qualified_name dqn(Lex_ident_db(name.part(1)), name.part(0));
+    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), ErrConvDQName(&dqn).ptr(), "",
              1, !args ? 0 : args->elements);
     return true;
   }
@@ -2578,7 +2577,7 @@ Type_handler_assoc_array::create_item_functor(THD *thd,
                                                                           const
 {
   DBUG_ASSERT(!varname.is_null());
-  if (check_functor_args(thd, args, "ASSOC_ARRAY_ELEMENT"))
+  if (check_functor_args(args, Qualified_ident(varname)))
     return nullptr;
 
   Item *key= args->head();
@@ -2625,7 +2624,7 @@ Type_handler_assoc_array::
     return nullptr;
   }
 
-  if (check_functor_args(thd, args, "ASSOC_ARRAY KEY"))
+  if (check_functor_args(args, ident))
     return nullptr;
 
   if (member.is_null())

@@ -1342,6 +1342,8 @@ void LEX::start(THD *thd_arg)
   needs_reprepare= false;
   opt_hints_global= 0;
 
+  has_returning_list= false;
+
   memset(&trg_chistics, 0, sizeof(trg_chistics));
   selects_for_hint_resolution.empty();
   DBUG_VOID_RETURN;
@@ -3724,6 +3726,8 @@ uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
   if (!order_group_num)
     order_group_num= order_group_num_arg;
 
+  const uint winfunc_factor= window_funcs.elements ? 2 * window_funcs.elements : 1;
+
   /*
     find_order_in_list() may need some extra space,
     so multiply order_group_num by 2
@@ -3733,8 +3737,8 @@ uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
           item_list.elements +
           select_n_reserved +
           select_n_having_items +
-          select_n_where_fields +
-          order_group_num * 2 +
+          select_n_where_fields * winfunc_factor +
+          order_group_num * 2 * winfunc_factor +
           hidden_bit_fields +
           fields_in_window_functions + 1;
   return n;
@@ -7192,6 +7196,14 @@ LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
 {
   const sp_pcursor *pcursor= spcont->find_cursor(offset);
 
+  if (!pcursor->lex()->get_ps_name().is_null())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0),
+             thd->variables.sql_mode & MODE_ORACLE ? "ROWTYPE" : "ROW TYPE OF",
+             "<dynamic cursor name>");
+    return true;
+  }
+
   // Loop through all variables in the same declaration
   for (uint i= 0 ; i < (uint) nvars; i++)
   {
@@ -7580,6 +7592,12 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
                pcursor->check_param_count_with_error(param_count)))
     DBUG_RETURN(true);
 
+  if (!pcursor->lex()->get_ps_name().is_null())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "FOR..IN", "<dynamic cursor name>");
+    DBUG_RETURN(true);
+  }
+
   if (!(loop->m_index= sp_add_for_loop_cursor_variable(thd, index,
                                                        pcursor, coffs,
                                                        bounds.m_index,
@@ -7707,6 +7725,21 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
     return true;
   }
 
+  if (!cursor_stmt->get_ps_name().is_null())
+  {
+    /*
+      This is a dynamic cursor declaration: DECLARE c CURSOR FOR stmt;
+      Reset sql_command to SQLCOM_EXECUTE to make "dynamic open cursor"
+      use the same command flags: sql_command_flags[SQLCOM_EXECUTE].
+      "dynamic open cursor" is very similar to EXECUTE.
+      This makes the reprepare observer related code work correcly in
+      Prepared_statement::execute_loop().
+    */
+    DBUG_ASSERT(cursor_stmt->sql_command == SQLCOM_END);
+    cursor_stmt->sql_command= SQLCOM_EXECUTE;
+    sphead->m_flags|= sp_head::CONTAINS_DYNAMIC_SQL;
+  }
+
   if (unlikely(spcont->add_cursor(name, param_ctx, cursor_stmt)))
     return true;
 
@@ -7723,13 +7756,15 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
 
 /**
   Generate an SP code for an "OPEN cursor_name" statement.
-  @param thd
-  @param name       - Name of the cursor
-  @param parameters - Cursor parameters, e.g. OPEN c(1,2,3)
-  @returns          - false on success, true on error
+  @param thd          - Current THD
+  @param name         - The cursor name.
+  @param parameters   - Typed cursor parameters, e.g. OPEN c(1,2,3)
+  @param using_clause - Using cursor parameters, e.g. OPEN c USING 1,2,3;
+  @returns            - false on success, true on error
 */
 bool LEX::sp_open_cursor(THD *thd, const LEX_CSTRING *name,
-                         List<sp_assignment_lex> *parameters)
+                         List_sp_assignment_lex *parameters,
+                         List_sp_assignment_lex *using_clause)
 {
   uint offset;
   const sp_pcursor *pcursor;
@@ -7737,7 +7772,8 @@ bool LEX::sp_open_cursor(THD *thd, const LEX_CSTRING *name,
   return !(pcursor= spcont->find_cursor_with_error(name, &offset, false)) ||
          pcursor->check_param_count_with_error(param_count) ||
          sphead->add_open_cursor(thd, spcont, offset,
-                                 pcursor->param_context(), parameters);
+                                 pcursor->param_context(),
+                                 parameters, using_clause);
 }
 
 
@@ -7747,14 +7783,20 @@ bool LEX::sp_open_cursor(THD *thd, const LEX_CSTRING *name,
   It's not supported for static cursors.
 */
 bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
-                                  sp_lex_cursor *stmt)
+                                  sp_lex_cursor *stmt,
+                                  List_sp_assignment_lex *using_clause)
 {
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
+
+  if (stmt->prepared_stmt.code() &&
+      stmt->stmt_prepare_validate("OPEN..FOR"))
+    goto error;
+
   if (!(spv= find_variable(name, &rh)))
   {
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
-    return true;
+    goto error;
   }
   if (spv->mode == sp_variable::MODE_IN &&
       spv->offset < sphead->get_parse_context()->context_var_count())
@@ -7765,17 +7807,31 @@ bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
       about "not supported *yet*". But we don't have a better message.
     */
     my_error(ER_NOT_SUPPORTED_YET, MYF(0), "OPEN IN_sp_parameter");
-    return true;
+    goto error;
   }
   if (check_variable_is_refcursor({STRING_WITH_LEN("OPEN")}, spv))
-    return true;
-  auto *i= new (thd->mem_root) sp_instr_copen_by_ref(
-                                 sphead->instructions(), spcont,
-                                 sp_rcontext_ref(
-                                   sp_rcontext_addr(rh, spv->offset),
-                                   &sp_rcontext_handler_statement),
-                                 stmt);
-  return i == NULL || sphead->add_instr(i);
+    goto error;
+
+  // `OPEN cursor_name FOR ps_name` is not allowed in the grammar
+  DBUG_ASSERT(stmt->get_ps_name().is_null());
+  if (stmt->prepared_stmt.code())
+  {
+    sphead->m_flags|= sp_head::CONTAINS_DYNAMIC_SQL;
+    DBUG_ASSERT(stmt->sql_command == SQLCOM_END);
+    stmt->sql_command= SQLCOM_EXECUTE;
+  }
+
+  if (!sphead->add_open_cursor_for_stmt(thd, spcont,
+                                        sp_rcontext_ref(
+                                          sp_rcontext_addr(rh, spv->offset),
+                                          &sp_rcontext_handler_statement),
+                                        stmt, using_clause))
+    return false;
+
+error:
+  delete stmt;
+  List_sp_assignment_lex::free_elements_not_in_use(using_clause);
+  return true;
 }
 
 
@@ -7931,15 +7987,15 @@ bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
 }
 
 
-sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name)
+sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name, bool with_db)
 {
-  sp_name *res;
   Lex_ident_db_normalized db;
-  if (unlikely(Lex_ident_routine::check_name_with_error(name)) ||
-      unlikely(!(db= copy_db_normalized()).str) ||
-      unlikely((!(res= new (thd->mem_root) sp_name(db, name, false)))))
+  if (Lex_ident_routine::check_name_with_error(name))
     return NULL;
-  return res;
+  if (with_db || thd->lex->sphead)
+    if (!(db= copy_db_normalized()).str)
+      return NULL;
+  return new (thd->mem_root) sp_name(db, name, false);
 }
 
 
@@ -7959,7 +8015,7 @@ sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name)
 sp_name *LEX::make_sp_name_package_routine(THD *thd,
                                            const Lex_ident_sys_st &name)
 {
-  sp_name *res= make_sp_name(thd, name);
+  sp_name *res= make_sp_name(thd, name, true);
   if (likely(res) && unlikely(strchr(res->m_name.str, '.')))
   {
     my_error(ER_SP_WRONG_NAME, MYF(0), res->m_name.str);
@@ -8021,19 +8077,16 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
   sp_head *sp;
 
   /* Order is important here: new - reset - init */
-  if (likely((sp= sp_head::create(package, sph, agg_type,
-                                  thd->variables.sql_mode,
-                                  sp_mem_root_ptr))))
+  if ((sp= sp_head::create(package, sph, agg_type, thd->variables.sql_mode,
+                                  thd->variables.path, sp_mem_root_ptr)))
   {
     sp->reset_thd_mem_root(thd);
     sp->init(this);
     if (name)
     {
       if (package)
-        sp->make_package_routine_name(sp->get_main_mem_root(),
-                                      package->m_db,
-                                      package->m_name,
-                                      name->m_name);
+        sp->make_package_routine_name(sp->get_main_mem_root(), package->m_db,
+                                      package->m_name, name->m_name);
       else
         sp->init_sp_name(name);
       if (!(sp->m_qname=
@@ -8064,10 +8117,9 @@ sp_head *LEX::make_sp_head_no_recursive(THD *thd, const sp_name *name,
   */
   if (package && package->m_is_cloning_routine)
     sph= sph->package_routine_handler();
-  if (!sphead ||
-      (package &&
-       (sph == &sp_handler_package_procedure ||
-        sph == &sp_handler_package_function)))
+  if (!sphead || (package &&
+                  (sph == &sp_handler_package_procedure ||
+                   sph == &sp_handler_package_function)))
     return make_sp_head(thd, name, sph, agg_type);
   my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0), sph->type_str());
   return NULL;
@@ -9879,7 +9931,7 @@ Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
     if (no_top_clones)
       return cond;
     cond->clear_extraction_flag();
-    return cond->build_clone(thd);
+    return cond->deep_copy_with_checks(thd);
   }
   if (cond->type() == Item::COND_ITEM)
   {
@@ -10188,12 +10240,31 @@ bool LEX::add_create_view(THD *thd, DDL_options_st ddl,
   if (unlikely(set_create_options_with_check(ddl)))
     return true;
   if (unlikely(!(create_view= new (thd->mem_root)
-                 Create_view_info(ddl.or_replace() ?
-                                  VIEW_CREATE_OR_REPLACE :
-                                  VIEW_CREATE_NEW,
-                                  algorithm, suid))))
+                 Create_view_info(ddl.or_replace() ? VIEW_CREATE_OR_REPLACE
+                                  : VIEW_CREATE_NEW, algorithm, suid))))
     return true;
   return create_or_alter_view_finalize(thd, table_ident);
+}
+
+
+bool LEX::show_routine_code_start(THD *thd, enum_sql_command cmd, sp_name *name)
+{
+#ifdef DBUG_OFF
+  my_error(ER_FEATURE_DISABLED, MYF(0),
+           "SHOW PROCEDURE|FUNCTION CODE", "--with-debug");
+  return true;
+#else
+  sql_command= cmd;
+  Database_qualified_name pkgname;
+  const Sp_handler *sph= Sp_handler::handler(cmd);
+  if (sph->sp_resolve_package_routine(thd, thd->lex->sphead,
+                                      name, &sph, &pkgname))
+    return true;
+  if (!(m_sql_cmd= new (thd->mem_root) Sql_cmd_show_routine_code(name, sph,
+                                                                 cmd)))
+    return true;
+  return false;
+#endif
 }
 
 
@@ -10203,21 +10274,24 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
   const Sp_handler *sph= &sp_handler_procedure;
   sql_command= SQLCOM_CALL;
   value_list.empty();
-  if (unlikely(sph->sp_resolve_package_routine(thd, thd->lex->sphead,
-                                               name, &sph, &pkgname)))
-    return true;
-  if (unlikely(!(m_sql_cmd= new (thd->mem_root) Sql_cmd_call(name, sph))))
-    return true;
-  sph->add_used_routine(this, thd, name);
-  if (pkgname.m_name.length)
-    sp_handler_package_body.add_used_routine(this, thd, &pkgname);
-  return false;
+
+  thd->variables.path.resolve(thd, sphead, name, &sph, &pkgname);
+
+  // Only add to used routines if we have a valid database name
+  if (name->m_db.str)
+  {
+    sph->add_used_routine(this, thd, name);
+    if (pkgname.m_name.length)
+      sp_handler_package_body.add_used_routine(this, thd, &pkgname);
+  }
+
+  return !(m_sql_cmd= new (thd->mem_root) Sql_cmd_call(name, sph));
 }
 
 
 bool LEX::call_statement_start(THD *thd, const Lex_ident_sys_st *name)
 {
-  sp_name *spname= make_sp_name(thd, *name);
+  sp_name *spname= make_sp_name(thd, *name, false);
   return unlikely(!spname) || call_statement_start(thd, spname);
 }
 
@@ -10416,6 +10490,7 @@ sp_package *LEX::create_package_start(THD *thd,
   }
   if (unlikely(!(pkg= sp_package::create(this, name_arg, sph,
                                          thd->variables.sql_mode,
+                                         thd->variables.path,
                                          sp_mem_root_ptr))))
     return NULL;
   pkg->reset_thd_mem_root(thd);
@@ -11777,8 +11852,7 @@ void LEX::relink_hack(st_select_lex *select_lex)
 {
   if (!select_stack_top) // Statements of the second type
   {
-    if (!select_lex->outer_select() &&
-        !builtin_select.first_inner_unit())
+    if (!select_lex->outer_select())
     {
       builtin_select.register_unit(select_lex->master_unit(),
                                    &builtin_select.context);
@@ -13080,30 +13154,74 @@ bool LEX::set_field_type_udt_or_typedef(Lex_field_type_st *type,
   if (is_typedef)
     return false;
 
-  return set_field_type_udt(type, name, attr);
+  return set_field_type_udt(type, name, attr,
+                            Lex_column_charset_collation_attrs());
 }
 
 
 bool LEX::set_field_type_udt(Lex_field_type_st *type,
                              const LEX_CSTRING &name,
-                             const Lex_length_and_dec_st &attr)
+                             const Lex_length_and_dec_st &attr,
+                             const Lex_column_charset_collation_attrs_st &coll)
 {
   const Type_handler *h;
+  uint column_attributes;
+
   if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
     return true;
-  type->set(h, attr, &my_charset_bin);
+
+  column_attributes= attr.has_explicit_length() ? Type_handler::ATTR_LENGTH :0;
+  column_attributes|= attr.has_explicit_dec() ? Type_handler::ATTR_DEC :0;
+  column_attributes|= coll.is_empty() ? 0 : Type_handler::ATTR_CHARSET;
+  column_attributes|= last_field->get_attr_uint32(0) ?
+                        Type_handler::ATTR_SRID : 0;
+
+  if ((column_attributes&= ~h->get_column_attributes()))
+  {
+    const char *attr_name= "UNKNOWN";
+    if (column_attributes & Type_handler::ATTR_LENGTH)
+      attr_name= "LENGTH";
+    else if (column_attributes & Type_handler::ATTR_DEC)
+      attr_name= "DECIMALS";
+    else if (column_attributes & Type_handler::ATTR_SRID)
+      attr_name= "REF_SYSTEM_ID";
+    else if (column_attributes & Type_handler::ATTR_CHARSET)
+      attr_name= "CHARACTER SET";
+
+    my_error(ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE, MYF(0),
+        ErrConvString(name.str, name.length,system_charset_info).ptr(),
+        attr_name);
+    return true;
+  }
+
+  type->set(h, attr, coll);
   return false;
 }
 
 
 bool LEX::set_cast_type_udt(Lex_cast_type_st *type,
-                             const LEX_CSTRING &name)
+                     const LEX_CSTRING &name,
+                     const Lex_exact_charset_extended_collation_attrs_st &coll)
+
 {
   const Type_handler *h;
   if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
     return true;
-  type->set(h);
-  return false;
+
+  if (!coll.is_empty() &&
+      (h->get_column_attributes() & Type_handler::ATTR_CHARSET) == 0)
+  {
+    my_error(ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE, MYF(0),
+        ErrConvString(name.str, name.length,system_charset_info).ptr(),
+        "CHARACTER SET");
+    return true;
+  }
+
+  Lex_length_and_dec_st length_and_dec;
+  length_and_dec.reset();
+  return type->set(h, length_and_dec, thd,
+                  thd->variables.character_set_collations, coll,
+                  thd->variables.collation_connection);
 }
 
 
@@ -13622,4 +13740,12 @@ bool LEX::discard_optimizer_hints_in_last_select()
     return true;
   }
   return false;
+}
+
+
+bool LEX::is_in_sf_or_trg()
+{
+  return sphead && (sphead->m_handler == &sp_handler_function ||
+                    sphead->m_handler == &sp_handler_trigger ||
+                    sphead->m_handler == &sp_handler_package_function);
 }

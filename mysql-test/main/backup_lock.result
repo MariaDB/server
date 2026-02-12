@@ -55,7 +55,7 @@ MDL_SHARED_WRITE	Table metadata lock	test	t1
 MDL_SHARED_UPGRADABLE	Table metadata lock	test	t1
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
 SET STATEMENT max_statement_time=1 FOR backup stage block_ddl;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 1.0 sec exceeded
 backup stage block_ddl;
 connection default;
 commit;

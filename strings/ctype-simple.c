@@ -142,22 +142,40 @@ my_strnxfrm_simple_nopad(CHARSET_INFO * cs,
 
 int my_strnncoll_simple(CHARSET_INFO * cs, const uchar *s, size_t slen, 
                         const uchar *t, size_t tlen,
-                        my_bool t_is_prefix)
+                        my_bool *t_is_prefix)
 {
   size_t len = ( slen > tlen ) ? tlen : slen;
   const uchar *map= cs->sort_order;
-  if (t_is_prefix && slen > tlen)
-    slen=tlen;
+  my_bool dummy;
+
+  if (t_is_prefix)
+  {
+    *t_is_prefix= 0;
+    if (slen > tlen)
+    {
+      *t_is_prefix= 1;
+      slen= tlen;
+    }
+  }
+  else
+    t_is_prefix= &dummy;
+
   while (len--)
   {
     if (map[*s++] != map[*t++])
+    {
+      *t_is_prefix= 0;
       return ((int) map[s[-1]] - (int) map[t[-1]]);
+    }
   }
   /*
     We can't use (slen - tlen) here as the result may be outside of the
     precision of a signed int
   */
-  return slen > tlen ? 1 : slen < tlen ? -1 : 0 ;
+  if (tlen == slen)
+    return 0;
+  *t_is_prefix= 0;
+  return slen > tlen ? 1 : -1;
 }
 
 
@@ -358,26 +376,21 @@ size_t my_snprintf_8bit(CHARSET_INFO *cs  __attribute__((unused)),
 }
 
 
-void my_hash_sort_simple_nopad(CHARSET_INFO *cs,
-			       const uchar *key, size_t len,
-			       ulong *nr1, ulong *nr2)
+void my_hash_sort_simple_nopad(my_hasher_st *hasher, CHARSET_INFO *cs,
+			       const uchar *key, size_t len)
 {
   register const uchar *sort_order=cs->sort_order;
   const uchar *end= key + len;
-  register ulong m1= *nr1, m2= *nr2;
   DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
   for (; key < (uchar*) end ; key++)
   {
-    MY_HASH_ADD(m1, m2, (uint) sort_order[(uint) *key]);
+    MY_HASH_ADD(hasher, (uint) sort_order[(uint) *key]);
   }
-  *nr1= m1;
-  *nr2= m2;
 }
 
 
-void my_hash_sort_simple(CHARSET_INFO *cs,
-                         const uchar *key, size_t len,
-                         ulong *nr1, ulong *nr2)
+void my_hash_sort_simple(my_hasher_st *hasher, CHARSET_INFO *cs,
+                         const uchar *key, size_t len)
 {
   register const uchar *sort_order=cs->sort_order;
   const uchar *end;
@@ -416,7 +429,7 @@ void my_hash_sort_simple(CHARSET_INFO *cs,
       break;
     }
   }
-  my_hash_sort_simple_nopad(cs, key, end - key, nr1, nr2);
+  my_hash_sort_simple_nopad(hasher, cs, key, end - key);
 }
 
 

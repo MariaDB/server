@@ -108,7 +108,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(20) NOT NULL,
   `name` varchar(32) NOT NULL DEFAULT ''
-) ENGINE=FEDERATED DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1'
+) ENGINE=FEDERATED DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `CONNECTION`='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1'
 INSERT INTO federated.t2 (id, name) VALUES (1, 'foo');
 INSERT INTO federated.t2 (id, name) VALUES (2, 'fee');
 SELECT * FROM federated.t2 ORDER BY id, name;
@@ -2249,7 +2249,7 @@ CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
 CREATE TABLE `t1` (
   `id` varchar(20) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=FEDERATED DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
+) ENGINE=FEDERATED DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `CONNECTION`='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE t1;
 connection slave;

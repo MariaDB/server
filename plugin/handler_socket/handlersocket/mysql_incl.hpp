@@ -22,7 +22,6 @@
 #include <my_global.h>
 #include <mysql_version.h>
 
-#if MYSQL_VERSION_ID >= 50505
 #include <my_pthread.h>
 #include <sql_priv.h>
 #include "sql_class.h"
@@ -43,10 +42,6 @@
 #define  pthread_mutex_unlock  mysql_mutex_unlock
 #define current_stmt_binlog_row_based  is_current_stmt_binlog_format_row
 #define clear_current_stmt_binlog_row_based  clear_current_stmt_binlog_format_row
-
-#else
-#include "mysql_priv.h"
-#endif
 
 #undef min
 #undef max

@@ -56,6 +56,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "scope.h"
 #include "srv0srv.h"
 
+bool is_update_query(enum enum_sql_command command);
+
 // MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
 // MYSQL_PLUGIN_IMPORT extern char mysql_unpacked_real_data_home[];
 
@@ -1989,7 +1991,7 @@ fail:
 
 all_fail:
   mtr.commit();
-  trx->free();
+  trx->clear_and_free();
   ut_free(pcur.old_rec_buf);
   ut_d(purge_sys.resume_FTS());
 }
@@ -2381,6 +2383,7 @@ static bool is_mysql_datadir_path(const char *path)
   convert_dirname(mysql_data_dir, mysql_unpacked_real_data_home, NullS);
   size_t mysql_data_home_len= dirname_length(mysql_data_dir);
   size_t path_len = dirname_length(path_dir);
+  my_bool part_matched;
 
   if (path_len < mysql_data_home_len)
     return true;
@@ -2391,7 +2394,7 @@ static bool is_mysql_datadir_path(const char *path)
   return(files_charset_info->strnncoll((uchar *) path_dir, path_len,
                                        (uchar *) mysql_data_dir,
                                        mysql_data_home_len,
-                                       TRUE));
+                                       &part_matched));
 }
 
 /*********************************************************************//**
@@ -2685,6 +2688,7 @@ trx_deregister_from_2pc(
   trx->is_registered= false;
   trx->active_commit_ordered= false;
   trx->active_prepare= false;
+  trx->commit_lsn= 0;
 }
 
 /**
@@ -2813,7 +2817,6 @@ static int innobase_rollback_by_xid(XID *xid) noexcept
     trx_deregister_from_2pc(trx);
     THD* thd= trx->mysql_thd;
     dberr_t err= trx_rollback_for_mysql(trx);
-    ut_ad(!trx->will_lock);
     trx->free();
     return convert_error_code_to_mysql(err, 0, thd);
   }
@@ -5808,6 +5811,7 @@ ha_innobase::open(const char* name, int, uint)
 		if (int err = prepare_create_stub_for_import(thd, norm_name,
 							     create_info))
 			DBUG_RETURN(err);
+                create_info.option_struct= option_struct;
 		create(norm_name, table, &create_info, true, nullptr);
 		DEBUG_SYNC(thd, "ib_after_create_stub_for_import");
 		ib_table = open_dict_table(name, norm_name, is_part,
@@ -10528,7 +10532,7 @@ create_table_info_t::create_table_def()
 	ulint		doc_id_col = 0;
 	ibool		has_doc_id_col = FALSE;
 	mem_heap_t*	heap;
-	ha_table_option_struct *options= m_form->s->option_struct;
+	ha_table_option_struct *options= m_create_info->option_struct;
 	dberr_t		err = DB_SUCCESS;
 
 	DBUG_ENTER("create_table_def");
@@ -10848,6 +10852,7 @@ create_index(
 	trx_t*		trx,		/*!< in: InnoDB transaction handle */
 	const TABLE*	form,		/*!< in: information on table
 					columns and indexes */
+        const ha_table_option_struct& o,
 	dict_table_t*	table,		/*!< in,out: table */
 	uint		key_num)	/*!< in: index number */
 {
@@ -10862,7 +10867,6 @@ create_index(
 
 	/* Assert that "GEN_CLUST_INDEX" cannot be used as non-primary index */
 	ut_a(!key->name.streq(GEN_CLUST_INDEX));
-	const ha_table_option_struct& o = *form->s->option_struct;
 
 	if (key->algorithm == HA_KEY_ALG_FULLTEXT ||
 	    key->algorithm == HA_KEY_ALG_RTREE) {
@@ -11222,7 +11226,7 @@ const char*
 create_table_info_t::check_table_options()
 {
 	enum row_type row_format = m_create_info->row_type;
-	const ha_table_option_struct *options= m_form->s->option_struct;
+        const ha_table_option_struct *options= m_create_info->option_struct;
 
 	switch (options->encryption) {
 	case FIL_ENCRYPTION_OFF:
@@ -11512,7 +11516,7 @@ bool create_table_info_t::innobase_table_flags()
 		ut_min(static_cast<ulint>(UNIV_PAGE_SSIZE_MAX),
 		       static_cast<ulint>(PAGE_ZIP_SSIZE_MAX));
 
-	ha_table_option_struct *options= m_form->s->option_struct;
+        ha_table_option_struct *options= m_create_info->option_struct;
 
 	m_flags = 0;
 	m_flags2 = 0;
@@ -12703,6 +12707,7 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 	int		error;
 	int		primary_key_no;
 	uint		i;
+        const ha_table_option_struct& o = *m_create_info->option_struct;
 
 	DBUG_ENTER("create_table");
 
@@ -12730,7 +12735,6 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 		dict_index_t* index = dict_mem_index_create(
 			m_table, GEN_CLUST_INDEX.str,
 			DICT_CLUSTERED, 0);
-		const ha_table_option_struct& o = *m_form->s->option_struct;
 		error = convert_error_code_to_mysql(
 			row_create_index_for_mysql(
 				index, m_trx, NULL,
@@ -12745,7 +12749,7 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 	if (primary_key_no != -1) {
 		/* In InnoDB the clustered index must always be created
 		first */
-		if ((error = create_index(m_trx, m_form, m_table,
+		if ((error = create_index(m_trx, m_form, o, m_table,
 					  (uint) primary_key_no))) {
 			DBUG_RETURN(error);
 		}
@@ -12802,7 +12806,7 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 
 	for (i = 0; i < m_form->s->keys; i++) {
 		if (i != uint(primary_key_no)
-		    && (error = create_index(m_trx, m_form, m_table, i))) {
+		    && (error = create_index(m_trx, m_form, o, m_table, i))) {
 			DBUG_RETURN(error);
 		}
 	}
@@ -13196,6 +13200,7 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
   DBUG_ASSERT(table_share->table_type == TABLE_TYPE_SEQUENCE ||
               table_share->table_type == TABLE_TYPE_NORMAL);
 
+  DBUG_ASSERT(option_struct == create_info->option_struct);
   create_table_info_t info(ha_thd(), form, create_info, file_per_table, trx);
 
   int error= info.initialize();
@@ -13255,7 +13260,7 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
           log_write_up_to(trx->commit_lsn, true);
         info.table()->release();
       }
-      trx->free();
+      trx->clear_and_free();
     }
   }
   else if (!error && m_prebuilt)
@@ -13700,6 +13705,7 @@ err_exit:
   for (pfs_os_file_t d : deleted)
     os_file_close(d);
   log_write_up_to(trx->commit_lsn, true);
+  trx->commit_lsn= 0;
   if (trx != parent_trx)
     trx->free();
   if (!fts)
@@ -13814,6 +13820,7 @@ int ha_innobase::truncate()
     info.row_type= ROW_TYPE_DYNAMIC;
     break;
   }
+  info.option_struct= option_struct;
 
   const auto stored_lock= m_prebuilt->stored_select_lock_type;
   trx_t *trx= innobase_trx_allocate(m_user_thd);
@@ -13844,7 +13851,7 @@ int ha_innobase::truncate()
       m_prebuilt->stored_select_lock_type= stored_lock;
     }
 
-    trx->free();
+    trx->clear_and_free();
 
 #ifdef BTR_CUR_HASH_ADAPT
     if (UT_LIST_GET_LEN(ib_table->freed_indexes))
@@ -14007,7 +14014,7 @@ int ha_innobase::truncate()
     }
   }
 
-  trx->free();
+  trx->clear_and_free();
   if (!stats_failed)
     stats.close();
   mem_heap_free(heap);
@@ -14207,7 +14214,7 @@ ha_innobase::rename_table(
 		log_write_up_to(trx->commit_lsn, true);
 	}
 	trx->flush_log_later = false;
-	trx->free();
+	trx->clear_and_free();
 	if (!stats_fail) {
 		stats.close();
 	}
@@ -15981,6 +15988,7 @@ ha_innobase::extra(
 			trx = check_trx_exists(ha_thd());
 			m_prebuilt->table->skip_alter_undo = 0;
 			trx->rollback();
+			return(HA_ERR_ROLLBACK);
 		}
 		break;
 	default:/* Do nothing */
@@ -16642,7 +16650,7 @@ ha_innobase::store_lock(
 
 	DBUG_ASSERT(EQ_CURRENT_THD(thd));
 	const bool in_lock_tables = thd_in_lock_tables(thd);
-	const int sql_command = thd_sql_command(thd);
+	const enum enum_sql_command sql_command = thd_sql_command(thd);
 
 	if (srv_read_only_mode
 	    && (sql_command == SQLCOM_UPDATE
@@ -16696,25 +16704,21 @@ ha_innobase::store_lock(
 
 	/* Check for LOCK TABLE t1,...,tn WITH SHARED LOCKS */
 	} else if ((lock_type == TL_READ && in_lock_tables)
-		   || (lock_type == TL_READ_HIGH_PRIORITY && in_lock_tables)
 		   || lock_type == TL_READ_WITH_SHARED_LOCKS
 		   || lock_type == TL_READ_SKIP_LOCKED
 		   || lock_type == TL_READ_NO_INSERT
-		   || (lock_type != TL_IGNORE
-		       && sql_command != SQLCOM_SELECT)) {
+		   || (lock_type != TL_IGNORE && is_update_query(sql_command))) {
 
 		/* The OR cases above are in this order:
-		1) MySQL is doing LOCK TABLES ... READ LOCAL, or we
-		are processing a stored procedure or function, or
-		2) (we do not know when TL_READ_HIGH_PRIORITY is used), or
-		3) this is a SELECT ... IN SHARE MODE, or
-		4) this is a SELECT ... IN SHARE MODE SKIP LOCKED, or
-		5) we are doing a complex SQL statement like
+		1) MySQL is doing LOCK TABLES ... READ LOCAL, or
+		2) this is a SELECT ... IN SHARE MODE, or
+		3) this is a SELECT ... IN SHARE MODE SKIP LOCKED, or
+		4) we are doing a complex SQL statement like
 		INSERT INTO ... SELECT ... and the logical logging (MySQL
 		binlog) requires the use of a locking read, or
 		MySQL is doing LOCK TABLES ... READ.
-		6) we let InnoDB do locking reads for all SQL statements that
-		are not simple SELECTs; note that select_lock_type in this
+		5) we let InnoDB do locking reads for all SQL statements that
+		may modify data; note that select_lock_type in this
 		case may get strengthened in ::external_lock() to LOCK_X.
 		Note that we MUST use a locking read in all data modifying
 		SQL statements, because otherwise the execution would not be
@@ -17313,7 +17317,6 @@ innobase_commit_by_xid(
 		innobase_commit_low(trx);
 		ut_ad(trx->mysql_thd == NULL);
 		trx_deregister_from_2pc(trx);
-		ut_ad(!trx->will_lock);    /* trx cache requirement */
 		trx->free();
 
 		return(XA_OK);
@@ -17407,7 +17410,7 @@ ha_innobase::check_if_incompatible_data(
 
 	/* Cache engine specific options */
 	param_new = info->option_struct;
-	param_old = table->s->option_struct;
+	param_old = option_struct;
 
 	m_prebuilt->table->stats_mutex_lock();
 	if (!m_prebuilt->table->stat_initialized()) {

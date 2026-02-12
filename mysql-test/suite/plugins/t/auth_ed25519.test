@@ -50,6 +50,9 @@ select current_user();
 disconnect con1;
 connection default;
 
+--echo # Executing 'mariadb-admin'
+--exec $MYSQLADMIN -u test1 -S $MASTER_MYSOCK -P $MASTER_MYPORT --password=secret ping
+
 create user test2@localhost identified via ed25519 using PASSWORD('');
 show grants for test2@localhost;
 connect con2, localhost, test2,;

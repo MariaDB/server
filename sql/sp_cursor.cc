@@ -20,6 +20,27 @@
 #include "sql_class.h"
 
 
+bool sp_cursor::check_for_open(THD *thd, bool check_open_cursor_counter) const
+{
+  if (server_side_cursor)
+  {
+    my_message(ER_SP_CURSOR_ALREADY_OPEN,
+               ER_THD(thd, ER_SP_CURSOR_ALREADY_OPEN),
+               MYF(0));
+    return true;
+  }
+
+  if (check_open_cursor_counter &&
+      thd->open_cursors_counter() >= thd->variables.max_open_cursors)
+  {
+    my_error(ER_TOO_MANY_OPEN_CURSORS, MYF(0),
+             thd->variables.max_open_cursors);
+    return true;
+  }
+  return false;
+}
+
+
 /*
   Append a new element into the array.
   @return  NULL Type_ref_null (with is_null()==true) on error (EOM).

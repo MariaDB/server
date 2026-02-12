@@ -72,35 +72,8 @@ INSERT INTO t4 VALUES (2,2,1234);
 
 --let $fk_parent_query = DROP TABLE t4
 --let $fk_child_query = INSERT INTO t1 VALUES (3,0)
---let $fk_mdl_lock_num = 3
---source galera_multi_level_foreign_key.inc
-
-
-#
-# Verify Foreign key for referenced table added.
-#
---connection node_1
---let assert_text= Foreign key referenced table found: 2 tables
---let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let assert_count= 2
---let assert_select= Foreign key referenced table found:
---let assert_only_after= CURRENT_TEST: galera.galera_multi_level_fk_ddl_insert
---source include/assert_grep.inc
-
---let assert_text= Foreign key referenced table found: test.t2
---let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let assert_count= 1
---let assert_select= Foreign key referenced table found: test.t2
---let assert_only_after= CURRENT_TEST: galera.galera_multi_level_fk_ddl_insert
---source include/assert_grep.inc
-
---let assert_text= Foreign key referenced table found: test.t3
---let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let assert_count= 1
---let assert_select= Foreign key referenced table found: test.t3
---let assert_only_after= CURRENT_TEST: galera.galera_multi_level_fk_ddl_insert
---source include/assert_grep.inc
-
+--let $fk_mdl_lock_num = 2
+--source galera_multi_level_foreign_key_insert.inc
 
 #
 # Verify insert and drop table has succeded.
@@ -191,41 +164,8 @@ INSERT INTO t4 VALUES (2,2,1234);
 # Issue a INSERT to table that references t1
 #
 --let $fk_child_query = INSERT INTO t1 VALUES (3,0)
---let $fk_mdl_lock_num = 4
---source galera_multi_level_foreign_key.inc
-
-
-#
-# Verify Foreign key for referenced table added.
-#
---connection node_1
---let assert_text= Foreign key referenced table found: 3 tables
---let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let assert_count= 5
---let assert_select= Foreign key referenced table found:
---let assert_only_after= CURRENT_TEST: galera.galera_multi_level_fk_ddl_insert
---source include/assert_grep.inc
-
---let assert_text= Foreign key referenced table found: test.t2
---let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let assert_count= 2
---let assert_select= Foreign key referenced table found: test.t2
---let assert_only_after= CURRENT_TEST: galera.galera_multi_level_fk_ddl_insert
---source include/assert_grep.inc
-
---let assert_text= Foreign key referenced table found: test.t3
---let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let assert_count= 2
---let assert_select= Foreign key referenced table found: test.t3
---let assert_only_after= CURRENT_TEST: galera.galera_multi_level_fk_ddl_insert
---source include/assert_grep.inc
-
---let assert_text= Foreign key referenced table found: test.t4
---let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let assert_count= 1
---let assert_select= Foreign key referenced table found: test.t4
---let assert_only_after= CURRENT_TEST: galera.galera_multi_level_fk_ddl_insert
---source include/assert_grep.inc
+--let $fk_mdl_lock_num = 2
+--source galera_multi_level_foreign_key_insert.inc
 
 
 #
@@ -296,42 +236,8 @@ INSERT INTO t3 VALUES (2,2,1234);
 
 --let $fk_parent_query = CREATE TABLE t4 (id INT PRIMARY KEY, t3_id INT NOT NULL, f2 INTEGER NOT NULL, KEY key_t3_id(t3_id), CONSTRAINT key_t3_id FOREIGN KEY (t3_id) REFERENCES t3 (id) ON UPDATE CASCADE ON DELETE CASCADE)
 --let $fk_child_query = INSERT INTO t1 VALUES (3,0)
---let $fk_mdl_lock_num = 4
---source galera_multi_level_foreign_key.inc
-
-
-#
-# Verify Foreign key for referenced table added.
-#
---connection node_1
---let assert_text= Foreign key referenced table found: 2 tables
---let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let assert_count= 8
---let assert_select= Foreign key referenced table found:
---let $assert_only_after = CURRENT_TEST:
---let assert_only_after= CURRENT_TEST: galera.galera_multi_level_fk_ddl_insert
---source include/assert_grep.inc
-
---let assert_text= Foreign key referenced table found: test.t2
---let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let assert_count= 3
---let assert_select= Foreign key referenced table found: test.t2
---let assert_only_after= CURRENT_TEST: galera.galera_multi_level_fk_ddl_insert
---source include/assert_grep.inc
-
---let assert_text= Foreign key referenced table found: test.t3
---let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let assert_count= 3
---let assert_select= Foreign key referenced table found: test.t3
---let assert_only_after= CURRENT_TEST: galera.galera_multi_level_fk_ddl_insert
---source include/assert_grep.inc
-
---let assert_text= Foreign key referenced table found: test.t4
---let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let assert_count= 2
---let assert_select= Foreign key referenced table found: test.t4
---let assert_only_after= CURRENT_TEST: galera.galera_multi_level_fk_ddl_insert
---source include/assert_grep.inc
+--let $fk_mdl_lock_num = 2
+--source galera_multi_level_foreign_key_insert.inc
 
 
 #
@@ -403,35 +309,8 @@ INSERT INTO t3 VALUES (2,2,1234);
 
 --let $fk_parent_query = OPTIMIZE TABLE t3
 --let $fk_child_query = INSERT INTO t1 VALUES (3,0)
---let $fk_mdl_lock_num = 3
---source galera_multi_level_foreign_key.inc
-
-
-#
-# Verify Foreign key for referenced table added.
-#
---connection node_1
---let assert_text= Foreign key referenced table found: 1 tables
---let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let assert_count= 10
---let assert_select= Foreign key referenced table found:
---let $assert_only_after = CURRENT_TEST:
---let assert_only_after= CURRENT_TEST: galera.galera_multi_level_fk_ddl_insert
---source include/assert_grep.inc
-
---let assert_text= Foreign key referenced table found: test.t2
---let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let assert_count= 4
---let assert_select= Foreign key referenced table found: test.t2
---let assert_only_after= CURRENT_TEST: galera.galera_multi_level_fk_ddl_insert
---source include/assert_grep.inc
-
---let assert_text= Foreign key referenced table found: test.t3
---let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let assert_count= 4
---let assert_select= Foreign key referenced table found: test.t3
---let assert_only_after= CURRENT_TEST: galera.galera_multi_level_fk_ddl_insert
---source include/assert_grep.inc
+--let $fk_mdl_lock_num = 2
+--source galera_multi_level_foreign_key_insert.inc
 
 
 #

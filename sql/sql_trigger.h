@@ -62,7 +62,7 @@ static inline bool is_trg_event_on(uint8 trg_event_mask,
   that is set in the trigger's event mask
 */
 static inline bool is_the_right_most_event_bit(trg_event_set events,
-                                               trg_event_type event_type)
+                                               int event_type)
 {
   return (1 << event_type) == (events & ~((events - 1) & events));
 }
@@ -158,6 +158,7 @@ public:
     base(base_arg), body(code),
     sql_mode{0},
     hr_create_time{(unsigned long long)-1},
+    sql_path{STRING_WITH_LEN("")},
     events{0},
     action_time{TRG_ACTION_MAX},
     updatable_columns{nullptr}
@@ -190,6 +191,7 @@ public:
   sql_mode_t sql_mode;
   /* Store create time. Can't be mysql_time_t as this holds also sub seconds */
   my_hrtime_t hr_create_time; // Create time timestamp in microseconds
+  LEX_CSTRING sql_path;
   /* Set of events this trigger object assigned to */
   trg_event_set events;
   trg_action_time_type action_time;
@@ -290,6 +292,11 @@ public:
   List<LEX_CSTRING> db_cl_names;
 
   /* End of character ser context. */
+
+  /**
+    List of paths for triggers
+  */
+  List<LEX_CSTRING>  sql_paths;
 
   Table_triggers_list(TABLE *table_arg)
     :record0_field(0), extra_null_bitmap(0), extra_null_bitmap_init(0),

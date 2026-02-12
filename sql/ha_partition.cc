@@ -82,6 +82,7 @@
                                         HA_CAN_TABLES_WITHOUT_ROLLBACK)
 
 static const char *ha_par_ext= PAR_EXT;
+List<partition_element> partition_element_iterator::empty;
 
 /*
   Index Condition Pushdown relies on invoking val_int() on the pushed index
@@ -401,7 +402,6 @@ void ha_partition::init_handler_variables()
   m_file_buffer= NULL;
   m_name_buffer_ptr= NULL;
   m_engine_array= NULL;
-  m_connect_string= NULL;
   m_file= NULL;
   m_file_tot_parts= 0;
   m_reorged_file= NULL;
@@ -801,8 +801,7 @@ int ha_partition::create(const char *name, TABLE *table_arg,
   Table_path_buffer name_lc_buff;
   char *name_buffer_ptr;
   const char *path;
-  uint i;
-  List_iterator_fast <partition_element> part_it(m_part_info->partitions);
+  partition_element_iterator part_it(m_part_info->partitions);
   partition_element *part_elem;
   handler **file, **abort_file;
   DBUG_ENTER("ha_partition::create");
@@ -850,48 +849,18 @@ int ha_partition::create(const char *name, TABLE *table_arg,
   */
   path= file[0]->get_canonical_filename(Lex_cstring_strlen(name),
                                         &name_lc_buff).str;
-  for (i= 0; i < m_part_info->num_parts; i++)
+  while ((part_elem= part_it++))
   {
-    part_elem= part_it++;
-    if (m_is_sub_partitioned)
-    {
-      uint j;
-      List_iterator_fast <partition_element> sub_it(part_elem->subpartitions);
-      for (j= 0; j < m_part_info->num_subparts; j++)
-      {
-        part_elem= sub_it++;
-        if (unlikely((error= create_partition_name(name_buff,
-                                                   sizeof(name_buff), path,
-                                                   name_buffer_ptr,
-                                                   NORMAL_PART_NAME, FALSE))))
-          goto create_error;
-        if (unlikely((error= set_up_table_before_create(table_arg, name_buff,
-                                                        create_info,
-                                                        part_elem)) ||
-                     ((error= (*file)->ha_create(name_buff, table_arg,
-                                                 create_info)))))
-          goto create_error;
+    if ((error= create_partition_name(name_buff, sizeof(name_buff), path,
+                                      name_buffer_ptr, NORMAL_PART_NAME, 0)))
+      goto create_error;
+    if ((error= set_up_table_before_create(table_arg, name_buff, create_info,
+                                           part_elem)) ||
+        (error= (*file)->ha_create(name_buff, table_arg, create_info)))
+      goto create_error;
 
-        name_buffer_ptr= strend(name_buffer_ptr) + 1;
-        file++;
-      }
-    }
-    else
-    {
-      if (unlikely((error= create_partition_name(name_buff, sizeof(name_buff),
-                                                 path, name_buffer_ptr,
-                                                 NORMAL_PART_NAME, FALSE))))
-        goto create_error;
-      if (unlikely((error= set_up_table_before_create(table_arg, name_buff,
-                                                      create_info,
-                                                      part_elem)) ||
-                   ((error= (*file)->ha_create(name_buff, table_arg,
-                                               create_info)))))
-        goto create_error;
-
-      name_buffer_ptr= strend(name_buffer_ptr) + 1;
-      file++;
-    }
+    name_buffer_ptr= strend(name_buffer_ptr) + 1;
+    file++;
   }
   DBUG_RETURN(0);
 
@@ -1738,8 +1707,6 @@ int ha_partition::prepare_new_partition(TABLE *tbl,
                                                   p_elem))))
     goto error_create;
 
-  if (!(file->ht->flags & HTON_CAN_READ_CONNECT_STRING_IN_PARTITION))
-    tbl->s->connect_string= p_elem->connect_string;
   create_info->options|= HA_CREATE_TMP_ALTER;
   if ((error= file->ha_create(part_name, tbl, create_info)))
   {
@@ -2329,9 +2296,6 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
   my_bool from_alter= (create_info->data_file_name == (const char*) -1);
   create_info->data_file_name= create_info->index_file_name= NULL;
 
-  if (!(m_file[0]->ht->flags & HTON_CAN_READ_CONNECT_STRING_IN_PARTITION))
-    create_info->connect_string= null_clex_str;
-
   /*
     We do not need to update the individual partition DATA DIRECTORY settings
     since they can be changed by ALTER TABLE ... REORGANIZE PARTITIONS.
@@ -2795,8 +2759,7 @@ register_query_cache_dependant_tables(THD *thd,
 */
 
 int ha_partition::set_up_table_before_create(TABLE *tbl,
-                    const char *partition_name_with_path,
-                    HA_CREATE_INFO *info,
+                    const char *partition_name_with_path, HA_CREATE_INFO *info,
                     partition_element *part_elem)
 {
   int error= 0;
@@ -2813,26 +2776,17 @@ int ha_partition::set_up_table_before_create(TABLE *tbl,
   part_name.str= strrchr(partition_name_with_path, FN_LIBCHAR)+1;
   part_name.length= strlen(part_name.str);
   if ((part_elem->index_file_name &&
-      (error= append_file_to_dir(thd,
-                                 (const char**)&part_elem->index_file_name,
+      (error= append_file_to_dir(thd, (const char**)&part_elem->index_file_name,
                                  &part_name))) ||
       (part_elem->data_file_name &&
-      (error= append_file_to_dir(thd,
-                                 (const char**)&part_elem->data_file_name,
+      (error= append_file_to_dir(thd, (const char**)&part_elem->data_file_name,
                                  &part_name))))
   {
     DBUG_RETURN(error);
   }
   info->index_file_name= part_elem->index_file_name;
   info->data_file_name= part_elem->data_file_name;
-  info->connect_string= part_elem->connect_string;
-  if (info->connect_string.length)
-    info->used_fields|= HA_CREATE_USED_CONNECTION;
-  tbl->s->connect_string= part_elem->connect_string;
-  if (part_elem->option_list)
-    tbl->s->option_list= part_elem->option_list;
-  if (part_elem->option_struct)
-    tbl->s->option_struct= part_elem->option_struct;
+  info->option_struct= part_elem->option_struct_part;
   DBUG_RETURN(0);
 }
 
@@ -2978,9 +2932,7 @@ bool ha_partition::create_handler_file(const char *name)
                               FN_REFLEN);
         tablename_to_filename(subpart_elem->partition_name.str, subpart_name,
                               FN_REFLEN);
-	name_buffer_ptr+= name_add(name_buffer_ptr,
-				   part_name,
-				   subpart_name);
+	name_buffer_ptr+= name_add(name_buffer_ptr, part_name, subpart_name);
         *engine_array= (uchar) ha_legacy_type(subpart_elem->engine_type);
         DBUG_PRINT("info", ("engine: %u", *engine_array));
 	engine_array++;
@@ -3008,23 +2960,6 @@ bool ha_partition::create_handler_file(const char *name)
   {
     result= mysql_file_write(file, (uchar *) file_buffer, tot_len_byte,
                              MYF(MY_WME | MY_NABP)) != 0;
-
-    /* Write connection information (for federatedx engine) */
-    part_it.rewind();
-    for (i= 0; i < num_parts && !result; i++)
-    {
-      uchar buffer[4];
-      part_elem= part_it++;
-      size_t length= part_elem->connect_string.length;
-      int4store(buffer, length);
-      if (my_write(file, buffer, 4, MYF(MY_WME | MY_NABP)) ||
-          my_write(file, (uchar *) part_elem->connect_string.str, length,
-                   MYF(MY_WME | MY_NABP)))
-      {
-        result= TRUE;
-        break;
-      }
-    }
     (void) mysql_file_close(file, MYF(0));
     if (result)
       mysql_file_delete(key_file_ha_partition_par, file_name, MYF(MY_WME));
@@ -3047,7 +2982,6 @@ void ha_partition::clear_handler_file()
   free_root(&m_mem_root, MYF(MY_KEEP_PREALLOC));
   m_file_buffer= NULL;
   m_engine_array= NULL;
-  m_connect_string= NULL;
 }
 
 
@@ -3231,33 +3165,6 @@ int ha_partition::read_par_file(const char *name)
     goto err2;
   m_file_buffer= file_buffer;          // Will be freed in clear_handler_file()
   m_name_buffer_ptr= (char*) (tot_name_len_offset + PAR_WORD_SIZE);
-
-  if (!(m_connect_string= (LEX_CSTRING*)
-        alloc_root(&m_mem_root, m_tot_parts * sizeof(LEX_CSTRING))))
-    goto err2;
-  bzero(m_connect_string, m_tot_parts * sizeof(LEX_CSTRING));
-
-  /* Read connection arguments (for federated X engine) */
-  for (i= 0; i < m_tot_parts; i++)
-  {
-    LEX_CSTRING connect_string;
-    uchar buffer[4];
-    char *tmp;
-    if (my_read(file, buffer, 4, MYF(MY_NABP)))
-    {
-      /* No extra options; Probably not a federatedx engine */
-      break;
-    }
-    connect_string.length= uint4korr(buffer);
-    connect_string.str= tmp= (char*) alloc_root(&m_mem_root,
-                                                connect_string.length+1);
-    if (my_read(file, (uchar*) connect_string.str, connect_string.length,
-                MYF(MY_NABP)))
-      break;
-    tmp[connect_string.length]= 0;
-    m_connect_string[i]= connect_string;
-  }
-
   (void) mysql_file_close(file, MYF(0));
   DBUG_RETURN(0);
 
@@ -5549,13 +5456,17 @@ void ha_partition::position(const uchar *record)
 {
   handler *file= m_file[m_last_part];
   size_t pad_length;
-  DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), m_last_part));
   DBUG_ENTER("ha_partition::position");
 
-  file->position(record);
   int2store(ref, m_last_part);
-  memcpy((ref + PARTITION_BYTES_IN_POS), file->ref, file->ref_length);
-  pad_length= m_ref_length - PARTITION_BYTES_IN_POS - file->ref_length;
+  if (bitmap_is_set(&(m_part_info->read_partitions), m_last_part))
+  {
+    file->position(record);
+    memcpy((ref + PARTITION_BYTES_IN_POS), file->ref, file->ref_length);
+    pad_length= m_ref_length - PARTITION_BYTES_IN_POS - file->ref_length;
+  }
+  else
+    pad_length= m_ref_length - PARTITION_BYTES_IN_POS;
   if (pad_length)
     memset((ref + PARTITION_BYTES_IN_POS + file->ref_length), 0, pad_length);
 
@@ -9243,6 +9154,7 @@ int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size)
   handler **file;
   char *name_buffer_ptr;
   int error= 0;
+  partition_element_iterator part_it(m_part_info->partitions);
 
   name_buffer_ptr= m_name_buffer_ptr;
   file= m_file;
@@ -9252,6 +9164,7 @@ int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size)
     int n_file= (int)(file-m_file);
     int is_open= bitmap_is_set(&m_opened_partitions, n_file);
     int should_be_open= bitmap_is_set(&m_part_info->read_partitions, n_file);
+    partition_element *part_elem= part_it++;
 
     /*
       TODO: we can close some opened partitions if they're not
@@ -9268,18 +9181,15 @@ int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size)
     */
     if (!is_open && should_be_open)
     {
-      LEX_CSTRING save_connect_string= table->s->connect_string;
       if (unlikely((error=
                     create_partition_name(name_buff, name_buff_size,
                                           table->s->normalized_path.str,
                                           name_buffer_ptr, NORMAL_PART_NAME,
                                           FALSE))))
         goto err_handler;
-      if (!((*file)->ht->flags & HTON_CAN_READ_CONNECT_STRING_IN_PARTITION))
-        table->s->connect_string= m_connect_string[(uint)(file-m_file)];
+      (*file)->option_struct= part_elem->option_struct_part;
       error= (*file)->ha_open(table, name_buff, m_mode,
                               m_open_test_lock | HA_OPEN_NO_PSI_CALL);
-      table->s->connect_string= save_connect_string;
       if (error)
         goto err_handler;
       bitmap_set_bit(&m_opened_partitions, n_file);
@@ -10508,6 +10418,89 @@ uint8 ha_partition::table_cache_type()
   DBUG_RETURN(get_open_file_sample()->table_cache_type());
 }
 
+extern my_hasher_st (*part_hashers[partition_info::KEY_ALGORITHM_END + 1])(void);
+
+/* Returns hash using the MYSQL51 algorithm. */
+static uint64 mysql51_hash(Hasher *hasher, Field **field_array)
+{
+  do
+  {
+    Field *field= *field_array;
+    switch (field->real_type()) {
+    case MYSQL_TYPE_TINY:
+    case MYSQL_TYPE_SHORT:
+    case MYSQL_TYPE_LONG:
+    case MYSQL_TYPE_FLOAT:
+    case MYSQL_TYPE_DOUBLE:
+    case MYSQL_TYPE_NEWDECIMAL:
+    case MYSQL_TYPE_TIMESTAMP:
+    case MYSQL_TYPE_LONGLONG:
+    case MYSQL_TYPE_INT24:
+    case MYSQL_TYPE_TIME:
+    case MYSQL_TYPE_DATETIME:
+    case MYSQL_TYPE_YEAR:
+    case MYSQL_TYPE_NEWDATE:
+      {
+        if (field->is_null())
+        {
+          hasher->add_null();
+          continue;
+        }
+        /* Force this to my_hash_sort_bin, which was used in 5.1! */
+        uint len= field->pack_length();
+        hasher->add(&my_charset_bin, field->ptr, len);
+        /* Done with this field, continue with next one. */
+        continue;
+      }
+    case MYSQL_TYPE_STRING:
+    case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_BIT:
+      /* Not affected, same in 5.1 and 5.5 */
+      break;
+    /*
+      ENUM/SET uses my_hash_sort_simple in 5.1 (i.e. my_charset_latin1)
+      and my_hash_sort_bin in 5.5!
+    */
+    case MYSQL_TYPE_ENUM:
+    case MYSQL_TYPE_SET:
+      {
+        if (field->is_null())
+        {
+          hasher->add_null();
+          continue;
+        }
+        /* Force this to my_hash_sort_bin, which was used in 5.1! */
+        uint len= field->pack_length();
+        hasher->add(&my_charset_latin1, field->ptr, len);
+        continue;
+      }
+    /* New types in mysql-5.6. */
+    case MYSQL_TYPE_DATETIME2:
+    case MYSQL_TYPE_TIME2:
+    case MYSQL_TYPE_TIMESTAMP2:
+      /* Not affected, 5.6+ only! */
+      break;
+
+    /* These types should not be allowed for partitioning! */
+    case MYSQL_TYPE_NULL:
+    case MYSQL_TYPE_DECIMAL:
+    case MYSQL_TYPE_DATE:
+    case MYSQL_TYPE_TINY_BLOB:
+    case MYSQL_TYPE_MEDIUM_BLOB:
+    case MYSQL_TYPE_LONG_BLOB:
+    case MYSQL_TYPE_BLOB:
+    case MYSQL_TYPE_VAR_STRING:
+    case MYSQL_TYPE_GEOMETRY:
+      /* fall through */
+    default:
+      DBUG_ASSERT(0);                    // New type?
+      /* Fall through for default hashing (5.5). */
+    }
+    /* fall through, use collation based hashing. */
+    field->hash(hasher);
+  } while (*(++field_array));
+  return hasher->finalize();
+}
 
 /**
   Calculate hash value for KEY partitioning using an array of fields.
@@ -10516,97 +10509,22 @@ uint8 ha_partition::table_cache_type()
 
   @return hash_value calculated
 
-  @note Uses the hash function on the character set of the field.
+  @note mysql5x hash use the hash function on the character set of the field.
   Integer and floating point fields use the binary character set by default.
 */
 
-uint32 ha_partition::calculate_key_hash_value(Field **field_array)
+uint64 ha_partition::calculate_key_hash_value(Field **field_array)
 {
-  Hasher hasher;
-  bool use_51_hash;
-  use_51_hash= MY_TEST((*field_array)->table->part_info->key_algorithm ==
-                       partition_info::KEY_ALGORITHM_51);
-
-  do
-  {
-    Field *field= *field_array;
-    if (use_51_hash)
-    {
-      switch (field->real_type()) {
-      case MYSQL_TYPE_TINY:
-      case MYSQL_TYPE_SHORT:
-      case MYSQL_TYPE_LONG:
-      case MYSQL_TYPE_FLOAT:
-      case MYSQL_TYPE_DOUBLE:
-      case MYSQL_TYPE_NEWDECIMAL:
-      case MYSQL_TYPE_TIMESTAMP:
-      case MYSQL_TYPE_LONGLONG:
-      case MYSQL_TYPE_INT24:
-      case MYSQL_TYPE_TIME:
-      case MYSQL_TYPE_DATETIME:
-      case MYSQL_TYPE_YEAR:
-      case MYSQL_TYPE_NEWDATE:
-        {
-          if (field->is_null())
-          {
-            hasher.add_null();
-            continue;
-          }
-          /* Force this to my_hash_sort_bin, which was used in 5.1! */
-          uint len= field->pack_length();
-          hasher.add(&my_charset_bin, field->ptr, len);
-          /* Done with this field, continue with next one. */
-          continue;
-        }
-      case MYSQL_TYPE_STRING:
-      case MYSQL_TYPE_VARCHAR:
-      case MYSQL_TYPE_BIT:
-        /* Not affected, same in 5.1 and 5.5 */
-        break;
-      /*
-        ENUM/SET uses my_hash_sort_simple in 5.1 (i.e. my_charset_latin1)
-        and my_hash_sort_bin in 5.5!
-      */
-      case MYSQL_TYPE_ENUM:
-      case MYSQL_TYPE_SET:
-        {
-          if (field->is_null())
-          {
-            hasher.add_null();
-            continue;
-          }
-          /* Force this to my_hash_sort_bin, which was used in 5.1! */
-          uint len= field->pack_length();
-          hasher.add(&my_charset_latin1, field->ptr, len);
-          continue;
-        }
-      /* New types in mysql-5.6. */
-      case MYSQL_TYPE_DATETIME2:
-      case MYSQL_TYPE_TIME2:
-      case MYSQL_TYPE_TIMESTAMP2:
-        /* Not affected, 5.6+ only! */
-        break;
-
-      /* These types should not be allowed for partitioning! */
-      case MYSQL_TYPE_NULL:
-      case MYSQL_TYPE_DECIMAL:
-      case MYSQL_TYPE_DATE:
-      case MYSQL_TYPE_TINY_BLOB:
-      case MYSQL_TYPE_MEDIUM_BLOB:
-      case MYSQL_TYPE_LONG_BLOB:
-      case MYSQL_TYPE_BLOB:
-      case MYSQL_TYPE_VAR_STRING:
-      case MYSQL_TYPE_GEOMETRY:
-        /* fall through */
-      default:
-        DBUG_ASSERT(0);                    // New type?
-        /* Fall through for default hashing (5.5). */
-      }
-      /* fall through, use collation based hashing. */
-    }
+  Field *field;
+  partition_info::enum_key_algorithm algo=
+    (*field_array)->table->part_info->key_algorithm;
+  Hasher hasher(part_hashers[algo]());
+  DBUG_ASSERT(algo < partition_info::KEY_ALGORITHM_END);
+  if (algo == partition_info::KEY_ALGORITHM_51)
+    return mysql51_hash(&hasher, field_array);
+  while ((field= *field_array++))
     field->hash(&hasher);
-  } while (*(++field_array));
-  return (uint32) hasher.finalize();
+  return hasher.finalize();
 }
 
 
@@ -10864,29 +10782,16 @@ bool ha_partition::check_if_incompatible_data(HA_CREATE_INFO *create_info,
     in mysql_alter_table (by fix_partition_func), so it is only up to
     the underlying handlers.
   */
-  List_iterator<partition_element> part_it(m_part_info->partitions);
+  partition_element_iterator part_it(m_part_info->partitions);
   HA_CREATE_INFO dummy_info= *create_info;
   uint i=0;
   while (partition_element *part_elem= part_it++)
   {
-    if (m_is_sub_partitioned)
-    {
-      List_iterator<partition_element> subpart_it(part_elem->subpartitions);
-      while (partition_element *sub_elem= subpart_it++)
-      {
-        dummy_info.data_file_name= sub_elem->data_file_name;
-        dummy_info.index_file_name= sub_elem->index_file_name;
-        if (m_file[i++]->check_if_incompatible_data(&dummy_info, table_changes))
-          return COMPATIBLE_DATA_NO;
-      }
-    }
-    else
-    {
-      dummy_info.data_file_name= part_elem->data_file_name;
-      dummy_info.index_file_name= part_elem->index_file_name;
-      if (m_file[i++]->check_if_incompatible_data(&dummy_info, table_changes))
-        return COMPATIBLE_DATA_NO;
-    }
+    dummy_info.data_file_name= part_elem->data_file_name;
+    dummy_info.index_file_name= part_elem->index_file_name;
+    dummy_info.option_struct= part_elem->option_struct_part;
+    if (m_file[i++]->check_if_incompatible_data(&dummy_info, table_changes))
+      return COMPATIBLE_DATA_NO;
   }
   return COMPATIBLE_DATA_YES;
 }
@@ -10931,7 +10836,7 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
 {
   uint index= 0;
   enum_alter_inplace_result result;
-  alter_table_operations orig_ops;
+  alter_table_operations orig_flags;
   ha_partition_inplace_ctx *part_inplace_ctx;
   bool first_is_set= false;
   THD *thd= ha_thd();
@@ -10958,6 +10863,7 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
   if (!part_inplace_ctx->handler_ctx_array)
     DBUG_RETURN(HA_ALTER_ERROR);
 
+  ha_table_option_struct *orig_opst= ha_alter_info->create_info->option_struct;
   do {
     result= HA_ALTER_INPLACE_NO_LOCK;
     /* Set all to NULL, including the terminating one. */
@@ -10965,9 +10871,11 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
        part_inplace_ctx->handler_ctx_array[index]= NULL;
 
     ha_alter_info->handler_flags |= ALTER_PARTITIONED;
-    orig_ops= ha_alter_info->handler_flags;
+    orig_flags= ha_alter_info->handler_flags;
+    partition_element_iterator part_it(m_part_info->partitions);
     for (index= 0; index < m_tot_parts; index++)
     {
+      ha_alter_info->create_info->option_struct= (part_it++)->option_struct_part;
       enum_alter_inplace_result p_result=
         m_file[index]->check_if_supported_inplace_alter(altered_table,
                                                         ha_alter_info);
@@ -10986,8 +10894,9 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
       if (result == HA_ALTER_ERROR)
         break;
     }
-  } while (orig_ops != ha_alter_info->handler_flags);
+  } while (orig_flags != ha_alter_info->handler_flags);
 
+  ha_alter_info->create_info->option_struct= orig_opst;
   ha_alter_info->handler_ctx= part_inplace_ctx;
   /*
     To indicate for future inplace calls that there are several

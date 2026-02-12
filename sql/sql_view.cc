@@ -840,7 +840,7 @@ static void make_view_filename(LEX_CSTRING *dir, char *dir_buff,
 }
 
 /* number of required parameters for making view */
-static const int required_view_parameters= 15;
+static const int required_view_parameters= 16;
 
 /*
   table of VIEW .frm field descriptors
@@ -890,6 +890,9 @@ static File_option view_parameters[]=
   FILE_OPTIONS_STRING},
  {{(char*) STRING_WITH_LEN("view_body_utf8")},
   my_offsetof(TABLE_LIST, view_body_utf8),
+  FILE_OPTIONS_ESTRING},
+ {{ STRING_WITH_LEN("sql_path")},
+  my_offsetof(TABLE_LIST, m_sql_path),
   FILE_OPTIONS_ESTRING},
  {{ STRING_WITH_LEN("mariadb-version")},
   my_offsetof(TABLE_LIST, mariadb_version),
@@ -1094,6 +1097,7 @@ static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
   view->definer.host= lex->definer->host;
   view->view_suid= lex->create_view->suid;
   view->with_check= lex->create_view->check;
+  view->m_sql_path= thd->variables.path.lex_cstring(thd->mem_root);
 
   DBUG_EXECUTE_IF("simulate_register_view_failure",
                   {
@@ -1306,7 +1310,6 @@ bool mariadb_view_version_get(TABLE_SHARE *share)
              share->db.str, share->table_name.str);
     return TRUE;
   }
-  DBUG_ASSERT(share->tabledef_version.length == MICROSECOND_TIMESTAMP_BUFFER_SIZE-1);
 
   return FALSE;
 }
@@ -1423,11 +1426,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
                                       required_view_parameters,
                                       &file_parser_dummy_hook)))
     goto end;
-  DBUG_ASSERT(share->tabledef_version.length);
   if (!view_table_alias->tabledef_version.length)
-  {
     view_table_alias->set_view_def_version(&view_table_alias->hr_timestamp);
-  }
 
   /*
     check old format view .frm
@@ -1510,7 +1510,10 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
 
   {
     char old_db_buf[SAFE_NAME_LEN+1];
-    LEX_CSTRING old_db= { old_db_buf, sizeof(old_db_buf) };
+    LEX_STRING old_db= { old_db_buf, sizeof(old_db_buf) };
+    LEX_CSTRING view_sql_path= view_table_alias->m_sql_path.str
+            ? view_table_alias->m_sql_path
+            : global_system_variables.path.lex_cstring(thd->mem_root);
     bool dbchanged;
     Parser_state parser_state;
     if (parser_state.init(thd, view_table_alias->select_stmt.str,
@@ -1521,15 +1524,16 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
       Use view db name as thread default database, in order to ensure
       that the view is parsed and prepared correctly.
     */
-    if ((result= mysql_opt_change_db(thd, &view_table_alias->view_db,
-                                     (LEX_STRING*) &old_db, 1,
-                                     &dbchanged)))
+    if ((result= mysql_opt_change_db(thd, view_table_alias->view_db,
+                                     &old_db, true, &dbchanged)))
       goto end;
 
     lex_start(thd);
     view_query_lex->stmt_lex= parent_query_lex;
 
     Sql_mode_save_for_frm_handling sql_mode_save(thd);
+    Sql_path_instant_set sql_path_save(thd, view_sql_path);
+
     /* Parse the query. */
 
     parse_status= parse_sql(thd, & parser_state, view_table_alias->view_creation_ctx);
@@ -1544,7 +1548,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
         (parent_query_lex->sql_command == SQLCOM_SHOW_CREATE))
         view_query_lex->sql_command= parent_query_lex->sql_command;
 
-    if (dbchanged && mysql_change_db(thd, &old_db, TRUE))
+    if (dbchanged && mysql_change_db(thd, old_db, TRUE))
       goto err;
   }
   if (!parse_status)
@@ -1756,6 +1760,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
     /* move SQL_CACHE to whole query */
     if (view_query_lex->first_select_lex()->options & OPTION_TO_QUERY_CACHE)
       parent_query_lex->first_select_lex()->options|= OPTION_TO_QUERY_CACHE;
+
+    parent_query_lex->default_used= view_query_lex->default_used;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (view_table_alias->view_suid)

@@ -23,6 +23,8 @@
 
 #include <my_attribute.h>
 #include <m_string.h>
+/* Provides portable uint64 type uint64_t */
+#include <stdint.h>
 
 enum loglevel {
    ERROR_LEVEL=       0,
@@ -504,13 +506,58 @@ typedef struct my_charset_loader_st
 
 extern int (*my_string_stack_guard)(int);
 
+typedef struct my_hasher_st
+{
+  union {
+    struct {
+      ulong m_nr1;                  /* mysql5x hash value */
+      ulong m_nr2;                  /* mysql5x aux value */
+    };
+    uint64_t m_nr;                  /* The hash value */
+  };
+  /* Whether a streaming algorithm has been in use */
+  my_bool m_streaming;
+  /* One-shot string hash function */
+  void (*m_hash_str)(struct my_hasher_st *hasher, const uchar* str,
+                     size_t len);
+  /*
+     Byte-streaming hash function, fallback to m_hash_str on one byte
+     if NULL
+  */
+  void (*m_hash_byte)(struct my_hasher_st *hasher, uchar value);
+  /*
+    One-shot number hash function. This is for backward compatibility:
+    mysql5x algorithms hashes numerical fields as if they are strings
+    (by using my_charset_latin1's hash_sort function), but new
+    algorithms should use the default my_hasher_hash_num which uses
+    my_charset_bin's hash_sort function
+  */
+  void (*m_hash_num)(struct my_hasher_st *hasher, const uchar* num,
+                     size_t binary_size);
+  /* Function to clean up and return the hash value */
+  uint64_t (*m_finalize)(struct my_hasher_st *hasher);
+  /* Custom pointer e.g. to a state */
+  void *m_specific;
+} my_hasher_st;
+
+/* Defined in hasher-xxx.c files */
+extern my_hasher_st my_hasher_mysql5x(void);
+extern my_hasher_st my_hasher_mysql5x_for_unique(void);
+extern my_hasher_st my_hasher_base31(void);
+extern my_hasher_st my_hasher_crc32c(void);
+extern my_hasher_st my_hasher_xxh32(void);
+extern my_hasher_st my_hasher_xxh3(void);
+
+#define MY_HASH_ADD_MARIADB(A, B, value) \
+  do { A^= (((A & 63)+B)*((value)))+ (A << 8); B+=3; } while(0)
+
 /* See strings/CHARSET_INFO.txt for information about this structure  */
 struct my_collation_handler_st
 {
   my_bool (*init)(struct charset_info_st *, MY_CHARSET_LOADER *);
   /* Collation routines */
   int     (*strnncoll)(CHARSET_INFO *,
-		       const uchar *, size_t, const uchar *, size_t, my_bool);
+		       const uchar *, size_t, const uchar *, size_t, my_bool*);
   int     (*strnncollsp)(CHARSET_INFO *,
                          const uchar *, size_t, const uchar *, size_t);
   /*
@@ -589,8 +636,8 @@ struct my_collation_handler_st
                 my_match_t *match, uint nmatch);
   
   /* Hash calculation */
-  void (*hash_sort)(CHARSET_INFO *cs, const uchar *key, size_t len,
-		    ulong *nr1, ulong *nr2); 
+  void (*hash_sort)(my_hasher_st *hasher, CHARSET_INFO *cs, const uchar *key,
+                    size_t len);
   my_bool (*propagate)(CHARSET_INFO *cs, const uchar *str, size_t len);
   /*
     Make minimum and maximum strings for the collation.
@@ -669,6 +716,7 @@ struct my_charset_handler_st
   size_t  (*numchars)(CHARSET_INFO *, const char *b, const char *e);
   size_t  (*charpos)(CHARSET_INFO *, const char *b, const char *e,
                      size_t pos);
+  /* Length without trailing space */
   size_t  (*lengthsp)(CHARSET_INFO *, const char *ptr, size_t length);
   size_t  (*numcells)(CHARSET_INFO *, const char *b, const char *e);
   
@@ -1099,22 +1147,23 @@ struct charset_info_st
   }
 
   int strnncoll(const LEX_CSTRING a, const LEX_CSTRING b,
-                my_bool b_is_prefix= FALSE) const
+                my_bool *b_is_prefix= 0) const
   {
     DBUG_ASSERT(is_valid_string(a));
     DBUG_ASSERT(is_valid_string(b));
     return (coll->strnncoll)(this,
                              (const uchar *) a.str, a.length,
-                             (const uchar *) b.str, b.length, b_is_prefix);
+                             (const uchar *) b.str, b.length,
+                             b_is_prefix);
   }
 
   int strnncoll(const uchar *a, size_t alen,
-                const uchar *b, size_t blen, my_bool b_is_prefix= FALSE) const
+                const uchar *b, size_t blen, my_bool *b_is_prefix= 0) const
   {
     return (coll->strnncoll)(this, a, alen, b, blen, b_is_prefix);
   }
   int strnncoll(const char *a, size_t alen,
-                const char *b, size_t blen, my_bool b_is_prefix= FALSE) const
+                const char *b, size_t blen, my_bool *b_is_prefix= 0) const
   {
     return (coll->strnncoll)(this,
                              (const uchar *) a, alen,
@@ -1191,9 +1240,9 @@ struct charset_info_st
     return (coll->instr)(this, b, b_length, s, s_length, match, nmatch);
   }
 
-  void hash_sort(const uchar *key, size_t len, ulong *nr1, ulong *nr2) const
+  void hash_sort(my_hasher_st *hasher, const uchar *key, size_t len) const
   {
-    (coll->hash_sort)(this, key, len, nr1, nr2);
+    (coll->hash_sort)(hasher, this, key, len);
   }
 
   my_bool propagate(const uchar *str, size_t len) const
@@ -1431,7 +1480,7 @@ static inline int
 my_ci_strnncoll(CHARSET_INFO *ci,
                 const uchar *a, size_t alen,
                 const uchar *b, size_t blen,
-                my_bool b_is_prefix)
+                my_bool *b_is_prefix)
 {
   return (ci->coll->strnncoll)(ci, a, alen, b, blen, b_is_prefix);
 }
@@ -1471,11 +1520,10 @@ my_ci_instr(CHARSET_INFO *ci,
 
 
 static inline void
-my_ci_hash_sort(CHARSET_INFO *ci,
-                const uchar *key, size_t len,
-                ulong *nr1, ulong *nr2)
+my_ci_hash_sort(my_hasher_st *hasher, CHARSET_INFO *ci,
+                const uchar *key, size_t len)
 {
-  (ci->coll->hash_sort)(ci, key, len, nr1, nr2);
+  (ci->coll->hash_sort)(hasher, ci, key, len);
 }
 
 
@@ -1589,22 +1637,24 @@ const uint16 *my_cs_contraction2_weight(CHARSET_INFO *cs, my_wc_t wc1,
 
 /* declarations for simple charsets */
 extern int  my_strnncoll_simple(CHARSET_INFO *, const uchar *, size_t,
-				const uchar *, size_t, my_bool);
+				const uchar *, size_t, my_bool*);
 
 extern int  my_strnncollsp_simple(CHARSET_INFO *, const uchar *, size_t,
                                   const uchar *, size_t);
 
-extern void my_hash_sort_simple(CHARSET_INFO *cs,
-				const uchar *key, size_t len,
-				ulong *nr1, ulong *nr2); 
+extern void my_hash_sort_simple(my_hasher_st *hasher,
+                                CHARSET_INFO *cs,
+                                const uchar *key, size_t len);
 
-extern void my_hash_sort_simple_nopad(CHARSET_INFO *cs,
-				      const uchar *key, size_t len,
-				      ulong *nr1, ulong *nr2);
+extern void my_hash_sort_simple_nopad(my_hasher_st *hasher,
+                                      CHARSET_INFO *cs,
+                                      const uchar *key, size_t len);
 
-extern void my_hash_sort_bin(CHARSET_INFO *cs,
-                             const uchar *key, size_t len, ulong *nr1,
-                             ulong *nr2);
+extern void my_hash_sort_bin(my_hasher_st *hasher, CHARSET_INFO *cs,
+                             const uchar *key, size_t len);
+
+extern void my_hasher_hash_num(struct my_hasher_st *hasher,
+                               const uchar* num, size_t binary_size);
 
 /**
   Compare a string to an array of spaces, for PAD SPACE comparison.
@@ -1770,12 +1820,13 @@ int my_wildcmp_mb_bin(CHARSET_INFO *cs,
                       const char *wildstr,const char *wildend,
                       int escape, int w_one, int w_many);
 
-void my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
-                         const uchar *key, size_t len,ulong *nr1, ulong *nr2);
+void my_hash_sort_mb_bin(my_hasher_st *hasher,
+                         CHARSET_INFO *cs __attribute__((unused)),
+                         const uchar *key, size_t len);
 
-void my_hash_sort_mb_nopad_bin(CHARSET_INFO *cs __attribute__((unused)),
-                               const uchar *key, size_t len,
-                               ulong *nr1, ulong *nr2);
+void my_hash_sort_mb_nopad_bin(my_hasher_st *hasher,
+                               CHARSET_INFO *cs __attribute__((unused)),
+                               const uchar *key, size_t len);
 
 
 extern my_bool my_parse_charset_xml(MY_CHARSET_LOADER *loader,

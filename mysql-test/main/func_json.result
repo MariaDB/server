@@ -675,7 +675,7 @@ JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path)
 "$.foo"
 SELECT JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]');
 JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]')
-bar
+NULL
 CREATE TABLE t1 (f INT NOT NULL);
 INSERT INTO t1 VALUES (0);
 SELECT JSON_KEYS(f) FROM t1 ORDER BY 1;
@@ -1057,9 +1057,6 @@ NULL
 SELECT JSON_EXTRACT('{"a":null, "b":10, "c":"null"}', '$.a');
 JSON_EXTRACT('{"a":null, "b":10, "c":"null"}', '$.a')
 null
-#
-# Start of 10.4 tests
-#
 #
 # MDEV-16351 JSON_OBJECT() treats hybrid functions with boolean arguments as numbers
 #
@@ -1472,7 +1469,7 @@ SET @old_collation_connection= @@COLLATION_CONNECTION;
 SET COLLATION_CONNECTION= ucs2_unicode_ci;
 SELECT JSON_VALUE('["foo"]', '$**[0]') AS f;
 f
-foo
+NULL
 SET @@COLLATION_CONNECTION= @old_collation_connection;
 #
 # MDEV-32587 JSON_VALID fail to validate integer zero in scientific notation
@@ -2400,7 +2397,7 @@ SET @json= '[
             ]';
 SELECT JSON_VALUE(@json, '$[0][1 to 2].key1');
 JSON_VALUE(@json, '$[0][1 to 2].key1')
-value1
+NULL
 SET @json='{
             "A": [0,
                   [1, 2, 3],
@@ -2417,7 +2414,7 @@ SET @json='{
            }';
 SELECT JSON_QUERY(@json, '$.A[-2][-3 to -1]');
 JSON_QUERY(@json, '$.A[-2][-3 to -1]')
-[13, 14]
+NULL
 SET @json= '[
              [1, {"key1": "value1"}, 3],
              [false, 5, 6],
@@ -2565,7 +2562,7 @@ SET @json1= '[
             ]';
 SELECT JSON_VALUE(@json1, '$[2][1 to 2].key1');
 JSON_VALUE(@json1, '$[2][1 to 2].key1')
-value7
+NULL
 SET @json= '[
              [1.1, {"key1": "value1"}, 3],
              [false, 5, 6],
@@ -2575,10 +2572,10 @@ SET @json= '[
             ]';
 SELECT JSON_VALUE(@json, '$[*][0]');
 JSON_VALUE(@json, '$[*][0]')
-1.1
+NULL
 SELECT JSON_VALUE(@json, '$[2 to 3][0]');
 JSON_VALUE(@json, '$[2 to 3][0]')
-7
+NULL
 #
 # MDEV-28072: JSON_EXTRACT has inconsistent behavior with '0' value in
 # json path (when range is used)
@@ -2768,7 +2765,7 @@ SET @JSON='
     }
   ]
 }
- 
+
 '
 ;
 # Should return EMPTY result
@@ -2780,6 +2777,13 @@ SELECT * FROM json_table(@JSON, '$.SZ[1].OFFERS[1]'
 COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
 NAME
 S1A1
+#
+# MDEV-25148: Unexpected success and result set upon erroneous
+# JSON_VALUE call
+#
+SELECT JSON_VALUE('{"a":[1,2]}', '$.a[*]');
+JSON_VALUE('{"a":[1,2]}', '$.a[*]')
+NULL
 # End of 10.11 Test
 #
 # MDEV-32007: JSON_VALUE and JSON_EXTRACT doesn't handle dash (-)
@@ -5162,6 +5166,7 @@ FROM JSON_TABLE(
 JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "key2":"val2"}', '$.key1.b[0]'), '$[*]'
     COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
 k	v	id
+# End of 11.2 test
 #
 # MDEV-26182: Implement json_array_intersect()
 #
@@ -5360,8 +5365,6 @@ JSON_OBJECT_FILTER_KEYS (@obj1,@arr1)
 NULL
 SET character_set_database=default;
 SET CHARACTER SET default;
-# End of 11.2 Test
-# Beginning of 11.4 Test
 #
 # MDEV-33149: JSON_ARRAY_INTERSECT function crashes the server when
 # called with empty json arrays, UBSAN runtime error: member access
@@ -5399,6 +5402,12 @@ result
 #
 SELECT JSON_SCHEMA_VALID('{"properties": "a_string": {"pattern": "^[5-9]$"}}}', '{"a_string": "8"}');
 ERROR HY000: Invalid value for keyword properties
+#
+# MDEV-38356 JSON_SCHEMA_VALID() crashes with a long enum
+#
+select json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'));
+json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'))
+0
 # End of 11.4 Test
 # Beginning of 12.3 Test
 #

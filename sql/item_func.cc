@@ -1762,22 +1762,22 @@ bool Item_func_mod::fix_length_and_dec(THD *thd)
   DBUG_RETURN(FALSE);
 }
 
-static void calc_hash_for_unique(ulong &nr1, ulong &nr2, String *str)
+static void calc_hash_for_unique(my_hasher_st *hasher, String *str)
 {
   CHARSET_INFO *cs;
   uchar l[4];
   int4store(l, str->length());
   cs= str->charset();
-  cs->hash_sort(l, sizeof(l), &nr1, &nr2);
+  cs->hash_sort(hasher, l, sizeof(l));
   cs= str->charset();
-  cs->hash_sort((uchar *)str->ptr(), str->length(), &nr1, &nr2);
+  cs->hash_sort(hasher, (uchar *)str->ptr(), str->length());
 }
 
 longlong  Item_func_hash_mariadb_100403::val_int()
 {
   DBUG_EXECUTE_IF("same_long_unique_hash", return 9;);
   unsigned_flag= true;
-  ulong nr1= 1,nr2= 4;
+  my_hasher_st hasher= my_hasher_mysql5x();
   String * str;
   for(uint i= 0;i<arg_count;i++)
   {
@@ -1787,10 +1787,10 @@ longlong  Item_func_hash_mariadb_100403::val_int()
       null_value= 1;
       return 0;
     }
-   calc_hash_for_unique(nr1, nr2, str);
+    calc_hash_for_unique(&hasher, str);
   }
   null_value= 0;
-  return   (longlong)nr1;
+  return   (longlong)hasher.m_nr1;
 }
 
 
@@ -7176,12 +7176,17 @@ longlong Item_func_nextval::val_int()
   longlong value;
   int error;
   const char *key;
+  DBUG_ENTER("Item_func_nextval::val_int");
+  if (table_list->is_pure_alias())
+  {
+    my_error(ER_NOT_SEQUENCE2, MYF(0), table_list->alias.str);
+    DBUG_RETURN(0);
+  }
   uint length= get_table_def_key(table_list, &key);
   THD *thd;
   SEQUENCE_LAST_VALUE *entry;
   char buff[80];
   String key_buff(buff,sizeof(buff), &my_charset_bin);
-  DBUG_ENTER("Item_func_nextval::val_int");
   update_table();
   DBUG_ASSERT(table);
   DBUG_ASSERT(table->s->sequence);

@@ -511,7 +511,7 @@ Lex_ident_routine::check_name_with_error(const LEX_CSTRING &ident)
  
 sp_head *sp_head::create(sp_package *parent, const Sp_handler *handler,
                          enum_sp_aggregate_type agg_type, sql_mode_t sql_mode,
-                         MEM_ROOT *sp_mem_root)
+                         const Sql_path &sql_path, MEM_ROOT *sp_mem_root)
 {
   MEM_ROOT own_root;
   if (!sp_mem_root)
@@ -521,7 +521,7 @@ sp_head *sp_head::create(sp_package *parent, const Sp_handler *handler,
     sp_mem_root= &own_root;
   }
   return new (sp_mem_root) sp_head(sp_mem_root, parent, handler,
-                                   agg_type, sql_mode);
+                                   agg_type, sql_mode, sql_path);
 }
 
 
@@ -548,7 +548,7 @@ void sp_head::destroy(sp_head *sp)
 
 sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
                  const Sp_handler *sph, enum_sp_aggregate_type agg_type,
-                 sql_mode_t sql_mode)
+                 sql_mode_t sql_mode, const Sql_path &sql_path)
   :Query_arena(NULL, STMT_INITIALIZED_FOR_SP),
    main_mem_root(*mem_root_arg),
 #ifdef PROTECT_STATEMENT_MEMROOT
@@ -578,6 +578,8 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
    m_modified(0),
    m_recursion_level(0),
    m_next_cached_sp(0),
+   m_sroutines(key_memory_sp_head_main_root, Lex_ident_routine::charset_info(),
+               0, 0, 0, sp_sroutine_key, 0, 0),
    m_param_begin(NULL),
    m_param_end(NULL),
    m_cpp_body_begin(NULL),
@@ -606,9 +608,8 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
                         sizeof(sp_instr *), 16, 8, MYF(0));
   my_hash_init(key_memory_sp_head_main_root, &m_sptabs,
                table_alias_charset, 0, 0, 0, sp_table_key, 0, 0);
-  my_hash_init(key_memory_sp_head_main_root, &m_sroutines,
-               Lex_ident_routine::charset_info(),
-               0, 0, 0, sp_sroutine_key, 0, 0);
+
+  m_sql_path= sql_path;
 
   DBUG_VOID_RETURN;
 }
@@ -616,7 +617,7 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
 
 sp_package *sp_package::create(LEX *top_level_lex, const sp_name *name,
                                const Sp_handler *sph, sql_mode_t sql_mode,
-                               MEM_ROOT *sp_mem_root)
+                               const Sql_path &sql_path, MEM_ROOT *sp_mem_root)
 {
   MEM_ROOT own_root;
   if (!sp_mem_root)
@@ -627,7 +628,7 @@ sp_package *sp_package::create(LEX *top_level_lex, const sp_name *name,
   }
   sp_package *sp;
   if (!(sp= new (sp_mem_root) sp_package(sp_mem_root, top_level_lex,
-                                         name, sph, sql_mode)))
+                                         name, sph, sql_mode, sql_path)))
     free_root(sp_mem_root, MYF(0));
 
   return sp;
@@ -638,8 +639,9 @@ sp_package::sp_package(MEM_ROOT *mem_root_arg,
                        LEX *top_level_lex,
                        const sp_name *name,
                        const Sp_handler *sph,
-                       sql_mode_t sql_mode)
- :sp_head(mem_root_arg, NULL, sph, DEFAULT_AGGREGATE, sql_mode),
+                       sql_mode_t sql_mode,
+                       const Sql_path &sql_path)
+ :sp_head(mem_root_arg, NULL, sph, DEFAULT_AGGREGATE, sql_mode, sql_path),
   m_current_routine(NULL),
   m_top_level_lex(top_level_lex),
   m_rcontext(NULL),
@@ -830,7 +832,9 @@ sp_head::init_sp_name(const sp_name *spname)
 
   /* Must be initialized in the parser. */
 
-  DBUG_ASSERT(spname && spname->m_db.str && spname->m_db.length);
+  DBUG_ASSERT(spname);
+  DBUG_ASSERT(spname->m_db.str);
+  DBUG_ASSERT(spname->m_db.length);
 
   m_explicit_name= spname->m_explicit_name;
   /* We have to copy strings to get them into the right memroot. */
@@ -917,7 +921,6 @@ sp_head::~sp_head()
   unwind_aux_lexes_and_restore_original_lex();
 
   my_hash_free(&m_sptabs);
-  my_hash_free(&m_sroutines);
 
   sp_head::destroy(m_next_cached_sp);
 
@@ -991,10 +994,10 @@ sp_head::create_result_field(uint field_max_length,
   */
   DBUG_ASSERT(field_max_length <= def.length ||
               def.type_handler()->cmp_type() == INT_RESULT ||
-              (current_thd->stmt_arena->is_stmt_execute() &&
-               def.length == 8 &&
-               (def.pack_flag &
-                (FIELDFLAG_BLOB|FIELDFLAG_GEOM))));
+              ((current_thd->stmt_arena->is_stmt_execute() ||
+                current_thd->stmt_arena->state == STMT_INITIALIZED_FOR_SP)
+                && def.length == 8 &&
+               (def.pack_flag & (FIELDFLAG_BLOB|FIELDFLAG_GEOM))));
 
   if (field_name && field_name->length)
     name= *field_name;
@@ -1117,14 +1120,9 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
                m_first_instance->m_last_cached_sp == this) ||
               (m_recursion_level + 1 == m_next_cached_sp->m_recursion_level));
 
-  /*
-    NOTE: The SQL Standard does not specify the context that should be
-    preserved for stored routines. However, at SAP/Walldorf meeting it was
-    decided that current database should be preserved.
-  */
-
+  /* m_db is empty for sp-less compound statements. */
   if (m_db.length &&
-      (err_status= mysql_opt_change_db(thd, &m_db, &saved_cur_db_name, FALSE,
+      (err_status= mysql_opt_change_db(thd, m_db, &saved_cur_db_name, FALSE,
                                        &cur_db_changed)))
   {
     goto done;
@@ -1524,7 +1522,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       NULL. In this case, mysql_change_db() would generate an error.
     */
 
-    err_status|= mysql_change_db(thd, (LEX_CSTRING*)&saved_cur_db_name, TRUE) != 0;
+    err_status|= mysql_change_db(thd, saved_cur_db_name, TRUE) != 0;
   }
 
 #ifdef PROTECT_STATEMENT_MEMROOT
@@ -3873,7 +3871,8 @@ sp_head::set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
 
 bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
                               sp_pcontext *param_spcont,
-                              List<sp_assignment_lex> *parameters)
+                              List<sp_assignment_lex> *parameters,
+                              List<sp_assignment_lex> *using_clause)
 {
   /*
     The caller must make sure that the number of formal parameters matches
@@ -3882,12 +3881,69 @@ bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
   DBUG_ASSERT((param_spcont ? param_spcont->context_var_count() :  0) ==
               (parameters ? parameters->elements : 0));
 
+  // Add instructions to set parameters: OPEN c(1);
   if (parameters &&
       add_set_cursor_param_variables(thd, param_spcont, parameters))
     return true;
 
+  // Add instructions to set placeholders: OPEN c USING 1;
+  const sp_rcontext_ref cursor_ref(sp_rcontext_addr(&sp_rcontext_handler_local,
+                                                    offset),
+                                   nullptr);
+  if (using_clause &&
+      add_set_cursor_placeholders(thd, spcont, cursor_ref, using_clause))
+    return true;
+
   sp_instr_copen *i= new (thd->mem_root)
                      sp_instr_copen(instructions(), spcont, offset);
+  return i == NULL || add_instr(i);
+}
+
+
+bool sp_head::add_open_cursor_for_stmt(THD *thd, sp_pcontext *spcont,
+                                      const sp_rcontext_ref &cursor_ref,
+                                      sp_lex_cursor *stmt,
+                                      List<sp_assignment_lex> *using_clause)
+{
+  // Add instructions to set placeholders: OPEN c USING 1;
+  if (using_clause &&
+      add_set_cursor_placeholders(thd, spcont, cursor_ref, using_clause))
+    return true;
+
+  uint set_ps_placeholder_count= using_clause ? using_clause->elements : 0;
+  DBUG_ASSERT(instructions() >= set_ps_placeholder_count);
+
+  auto *i= new (thd->mem_root) sp_instr_copen_by_ref(instructions(),
+                                                     spcont, cursor_ref, stmt,
+                                                     set_ps_placeholder_count);
+  return !i || add_instr(i);
+}
+
+
+/*
+  Generate an instruction to set one placeholder
+  from an actual parameter from the USING clause:
+    OPEN c USING 1,2,3;
+*/
+bool sp_head::add_set_cursor_placeholder(THD *thd,
+                                         sp_pcontext *spcont,
+                                         const sp_rcontext_ref &cur,
+                                         uint using_offset,
+                                         sp_assignment_lex *value)
+{
+  /*
+    Create the instruction in the way so it owns value->get_item()
+    and its free list, and is responsible for freeing it and clean it up.
+    See also add_set_cursor_typed_param_variable().
+  */
+  DBUG_ASSERT(m_thd->free_list == NULL);
+  m_thd->free_list= value->get_free_list();
+  sp_instr *i= new (thd->mem_root) sp_instr_set_ps_placeholder(instructions(),
+                                                               spcont, cur,
+                                                               using_offset,
+                                                               value);
+
+  value->set_item_and_free_list(NULL, NULL); // Avoid pointer aliasing
   return i == NULL || add_instr(i);
 }
 

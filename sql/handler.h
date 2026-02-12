@@ -1952,8 +1952,6 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 #define HTON_SUPPORTS_FOREIGN_KEYS   (1 << 0) //Foreign key constraint supported.
 
 #define HTON_CAN_MERGE               (1 <<11) //Merge type table
-// Engine needs to access the main connect string in partitions
-#define HTON_CAN_READ_CONNECT_STRING_IN_PARTITION (1 <<12)
 
 /* can be replicated by wsrep replication provider plugin */
 #define HTON_WSREP_REPLICATION (1 << 13)
@@ -2401,7 +2399,6 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   CHARSET_INFO *alter_table_convert_to_charset;
   LEX_CUSTRING tabledef_version;
   LEX_CUSTRING org_tabledef_version;            /* version of dropped table */
-  LEX_CSTRING connect_string;
   LEX_CSTRING comment;
   LEX_CSTRING alias;
   LEX_CSTRING org_storage_engine_name, new_storage_engine_name;
@@ -3438,6 +3435,7 @@ protected:
 
 public:
   handlerton *ht;               /* storage engine of this handler */
+  ha_table_option_struct *option_struct;         /* table options */
   OPTIMIZER_COSTS *costs;       /* Points to table->share->costs */
   uchar *ref;			/* Pointer to current row */
   uchar *dup_ref;		/* Pointer to duplicate row */
@@ -3650,7 +3648,7 @@ public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
     estimation_rows_to_insert(0),
-    ht(ht_arg), costs(0), ref(0), lookup_handler(this),
+    ht(ht_arg), option_struct(0), costs(0), ref(0), lookup_handler(this),
     lookup_buffer(NULL), handler_stats(NULL),
     end_range(NULL), implicit_emptied(0),
     mark_trx_read_write_done(0),

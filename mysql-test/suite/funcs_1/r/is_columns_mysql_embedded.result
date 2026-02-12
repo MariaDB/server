@@ -119,6 +119,7 @@ def	mysql	proc	language	5	'SQL'	NO	enum	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_gener
 def	mysql	proc	modified	14	'0000-00-00 00:00:00'	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp					NEVER	NULL	NO	NO
 def	mysql	proc	name	2	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(64)	PRI				NEVER	NULL	NO	NO
 def	mysql	proc	param_list	9	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob					NEVER	NULL	NO	NO
+def	mysql	proc	path	22	'CURRENT_SCHEMA'	NO	text	65535	65535	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	text					NEVER	NULL	NO	NO
 def	mysql	proc	returns	10	NULL	NO	longblob	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL	longblob					NEVER	NULL	NO	NO
 def	mysql	proc	security_type	8	'DEFINER'	NO	enum	7	21	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('INVOKER','DEFINER')					NEVER	NULL	NO	NO
 def	mysql	proc	specific_name	4	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(64)					NEVER	NULL	NO	NO
@@ -451,6 +452,7 @@ NULL	mysql	proc	modified	timestamp	NULL	NULL	NULL	NULL	timestamp
 3.0000	mysql	proc	db_collation	char	64	192	utf8mb3	utf8mb3_bin	char(64)
 1.0000	mysql	proc	body_utf8	longblob	4294967295	4294967295	NULL	NULL	longblob
 3.0000	mysql	proc	aggregate	enum	5	15	utf8mb3	utf8mb3_general_ci	enum('NONE','GROUP')
+1.0000	mysql	proc	path	text	65535	65535	utf8mb3	utf8mb3_bin	text
 3.0000	mysql	procs_priv	Host	char	255	765	utf8mb3	utf8mb3_bin	char(255)
 3.0000	mysql	procs_priv	Db	char	64	192	utf8mb3	utf8mb3_bin	char(64)
 3.0000	mysql	procs_priv	User	char	128	384	utf8mb3	utf8mb3_bin	char(128)

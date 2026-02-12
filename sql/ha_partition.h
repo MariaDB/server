@@ -308,7 +308,6 @@ private:
   handler **m_new_file;                 // Array of references to new handlers
   handler **m_reorged_file;             // Reorganised partitions
   handler **m_added_file;               // Added parts kept for errors
-  LEX_CSTRING *m_connect_string;
   partition_info *m_part_info;          // local reference to partition
   Field **m_part_field_array;           // Part field array locally to save acc
   uchar *m_ordered_rec_buffer;          // Row and key buffer for ord. idx scan
@@ -635,7 +634,6 @@ private:
                                  const char *partition_name_with_path,
                                  HA_CREATE_INFO *info,
                                  partition_element *p_elem);
-  partition_element *find_partition_element(uint part_id);
   bool insert_partition_name_in_hash(const char *name, uint part_id,
                                      bool is_subpart);
   bool populate_partition_name_hash();
@@ -1101,7 +1099,7 @@ public:
   ha_rows records() override;
 
   /* Calculate hash value for PARTITION BY KEY tables. */
-  static uint32 calculate_key_hash_value(Field **field_array);
+  static uint64 calculate_key_hash_value(Field **field_array);
 
   /*
     -------------------------------------------------------------------------

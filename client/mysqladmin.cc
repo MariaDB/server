@@ -285,9 +285,7 @@ get_one_option(const struct my_option *opt, const char *argument,
       opt_verbose= 0;
     break;
   case OPT_CHARSETS_DIR:
-#if MYSQL_VERSION_ID > 32300
     charsets_dir = argument;
-#endif
     break;
   case OPT_MYSQL_PROTOCOL:
     if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
@@ -1309,9 +1307,9 @@ static void usage(void)
   my_print_help(my_long_options);
   my_print_variables(my_long_options);
   puts("\nWhere command is a one or more of: (Commands may be shortened)\n\
-  create databasename	  Create a new database\n\
-  debug			  Instruct server to write debug information to log\n\
-  drop databasename	  Delete a database and all its tables\n\
+  create databasename     Create a new database\n\
+  debug                   Instruct server to write debug information to log\n\
+  drop databasename       Delete a database and all its tables\n\
   extended-status         Gives an extended status message from the server\n\
   flush-all-statistics    Flush all statistics tables\n\
   flush-all-status        Flush status and statistics\n\
@@ -1333,25 +1331,21 @@ static void usage(void)
   flush-threads           Flush the thread cache\n\
   flush-user-statistics   Flush user statistics\n\
   flush-user-resources    Flush user resources\n\
-  kill id,id,...	Kill mysql threads");
-#if MYSQL_VERSION_ID >= 32200
-  puts("\
+  kill id,id,...          Kill mysql threads\n\
   password [new-password] Change old password to new-password in current format\n\
-  old-password [new-password] Change old password to new-password in old format");
-#endif
-  puts("\
-  ping			Check if mysqld is alive\n\
-  processlist		Show list of active threads in server\n\
-  reload		Reload grant tables\n\
-  refresh		Flush all tables and close and open logfiles\n\
-  shutdown		Take server down\n\
-  status		Gives a short status message from the server\n\
-  start-all-slaves	Start all slaves\n\
-  start-slave		Start slave\n\
-  stop-all-slaves	Stop all slaves\n\
-  stop-slave		Stop slave\n\
+  old-password [new-password] Change old password to new-password in old format\n\
+  ping                  Check if mysqld is alive\n\
+  processlist           Show list of active threads in server\n\
+  reload                Reload grant tables\n\
+  refresh               Flush all tables and close and open logfiles\n\
+  shutdown              Take server down\n\
+  status                Gives a short status message from the server\n\
+  start-all-slaves      Start all slaves\n\
+  start-slave           Start slave\n\
+  stop-all-slaves       Stop all slaves\n\
+  stop-slave            Stop slave\n\
   variables             Prints variables available\n\
-  version		Get version info from server");
+  version               Get version info from server");
 }
 
 

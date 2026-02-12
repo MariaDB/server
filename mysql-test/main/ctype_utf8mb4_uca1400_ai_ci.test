@@ -48,5 +48,12 @@ SET NAMES utf8mb4 COLLATE uca1400_ai_ci;
 --source include/ctype_like_cond_propagation_utf8_german.inc
 
 --echo #
+--echo # MDEV-38608 TO_DATE: Server crash in my_uca_strnncoll_multilevel_generic
+--echo #
+
+CREATE TABLE t1 (f ENUM('foo','bar')) COLLATE uca1400_ai_cs;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.0 tests
 --echo #

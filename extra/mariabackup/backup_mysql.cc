@@ -557,6 +557,7 @@ bool get_mysql_vars(MYSQL *connection)
   free_opt_binlog_directory= true;
 
 out:
+  free_mysql_variables(mysql_vars);
 
   return (ret);
 }
@@ -1524,7 +1525,9 @@ write_galera_info(ds_ctxt *datasink, MYSQL *connection)
       domain_id ? domain_id : domain_id55);
 
 cleanup:
+  free_mysql_variables(vars);
   free_mysql_variables(status);
+  free_mysql_variables(value);
 
   return(result);
 }

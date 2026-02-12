@@ -10,15 +10,15 @@
 
 CREATE SEQUENCE seq NOCACHE ENGINE=InnoDB;
 
-SELECT NEXTVAL(seq) = 1;
+SELECT NEXTVAL(seq);
 
 --connection node_2
 
-SELECT NEXTVAL(seq) = 2;
+SELECT NEXTVAL(seq);
 
 --connection node_1
 
-SELECT NEXTVAL(seq) = 3;
+SELECT NEXTVAL(seq);
 
 
 # SETVAL
@@ -27,11 +27,11 @@ SELECT SETVAL(seq, 100);
 
 --connection node_2
 
-SELECT NEXTVAL(seq) = 101;
+SELECT NEXTVAL(seq);
 
 --connection node_1
 
-SELECT NEXTVAL(seq) = 102;
+SELECT NEXTVAL(seq);
 
 DROP SEQUENCE seq;
 
@@ -48,11 +48,11 @@ COMMIT;
 
 --connection node_2
 
-SELECT COUNT(*) = 2 FROM t1;
-SELECT NEXTVAL(seq_transaction) = 3;
+SELECT COUNT(*) FROM t1;
+SELECT NEXTVAL(seq_transaction);
 
 --connection node_1
-SELECT NEXTVAL(seq_transaction) = 4;
+SELECT NEXTVAL(seq_transaction);
 
 DROP SEQUENCE seq_transaction;
 DROP TABLE t1;

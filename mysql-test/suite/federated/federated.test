@@ -1,25 +1,35 @@
 source include/federated.inc;
 
 connection master;
-#
-# MDEV-388 Creating a federated table with a non-existing server returns a random error code
-#
+--echo #
+--echo # MDEV-388 Creating a federated table with a non-existing server returns a random error code
+--echo #
 --error 1
 CREATE TABLE t1 (a INT) ENGINE=FEDERATED CONNECTION='non_existing';
 --replace_result "Not owner" "Operation not permitted"
 SHOW WARNINGS;
 
-#
-# MDEV-4468 Assertion `error != 0' fails or timeout occurs on select from a FEDERATED table which points at a non-existent table
-#
+--echo #
+--echo # MDEV-4468 Assertion `error != 0' fails or timeout occurs on select from a FEDERATED table which points at a non-existent table
+--echo #
 
 create table t1 (a int);
 --replace_result $MASTER_MYPORT MASTER_PORT
 eval create table fed (a int) engine=Federated CONNECTION='mysql://root@127.0.0.1:$MASTER_MYPORT/test/t1';
 drop table t1;
---error 1146,1431
+--error ER_NO_SUCH_TABLE,ER_FOREIGN_DATA_SOURCE_DOESNT_EXIST
 select * from fed;
 drop table fed;
+
+--echo # End of 5.5 tests
+
+--echo #
+--echo # MDEV-38039 SIGSEGV in parse_url on CREATE TABLE ... FEDERATED with empty CONNECTION
+--echo #
+--error 1
+create table t1 (id int) engine=federated;
+
+--echo # End of 12.3 tests
 
 source include/federated_cleanup.inc;
 

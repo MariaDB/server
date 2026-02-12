@@ -192,7 +192,7 @@ sp_head *sp_cache_lookup(sp_cache **cp, const Database_qualified_name *name)
 {
   char buf[NAME_LEN * 2 + 2];
   sp_cache *c= *cp;
-  if (! c)
+  if (! c || !name->m_db.str)
     return NULL;
   return c->lookup(buf, name->to_identifier_chain2().
                           make_qname_casedn_part1(buf, sizeof(buf)));

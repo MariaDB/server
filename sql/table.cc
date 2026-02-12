@@ -1297,6 +1297,13 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
                                       &((*field_ptr)->default_value),
                                       error_reported);
+      if (vcol &&
+          field_ptr[0]->check_assignability_from(vcol->expr->type_handler(),
+                                                 false))
+      {
+        *error_reported= true;
+        goto end;
+      }
       *(dfield_ptr++)= *field_ptr;
       if (vcol && (vcol->flags & (VCOL_NON_DETERMINISTIC | VCOL_SESSION_FUNC)))
         table->s->non_determinstic_insert= true;
@@ -1880,6 +1887,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   extra2_fields extra2;
   bool extra_index_flags_present= FALSE;
   key_map sort_keys_in_use(0);
+  LEX_CSTRING connect_string= {0, 0};
+  static const Lex_ident_ci connect_keyword={ STRING_WITH_LEN("CONNECTION") };
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
 
   keyinfo= &first_keyinfo;
@@ -2069,15 +2078,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (buff_end >= frm_image_end)
       goto err;
 
-    share->connect_string.length= uint2korr(next_chunk);
-    if (!(share->connect_string.str= strmake_root(&share->mem_root,
-                                                  (char*) next_chunk + 2,
-                                                  share->connect_string.
-                                                  length)))
-    {
+    connect_string.length= uint2korr(next_chunk);
+    if (!(connect_string.str= strmake_root(thd->mem_root, (char*) next_chunk+2,
+                                           connect_string.length)))
       goto err;
-    }
-    next_chunk+= share->connect_string.length + 2;
+    next_chunk+= connect_string.length + 2;
     if (next_chunk + 2 < buff_end)
     {
       uint str_db_type_length= uint2korr(next_chunk);
@@ -3466,6 +3471,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (parse_engine_table_options(thd, handler_file->partition_ht(), share))
     goto err;
 
+  /* convert legacy CONNECTION option to engine option */
+  if (connect_string.length &&
+      add_as_engine_option(thd, handler_file->partition_ht(), &share->mem_root,
+                           connect_keyword, connect_string, TRUE,
+                           share->option_struct_table, &share->option_list))
+    goto err;
+  connect_string= null_clex_str;
+
   if (share->hlindexes())
   {
     DBUG_ASSERT(share->hlindexes() == 1);
@@ -3747,7 +3760,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   if (frm.str)
   {
     option_list= 0;             // cleanup existing options ...
-    option_struct= 0;           // ... if it's an assisted discovery
+    option_struct_table= 0;     // ... if it's an assisted discovery
     error= init_from_binary_frm_image(thd, write, frm.str, frm.length);
   }
 
@@ -4604,8 +4617,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
       thd->restore_active_arena(&part_func_arena, &backup_arena);
       goto partititon_err;
     }
-    if (parse_engine_part_options(thd, outparam))
-      goto err;
     outparam->part_info->is_auto_partitioned= share->auto_partitioned;
     DBUG_PRINT("info", ("autopartitioned: %u", share->auto_partitioned));
     /* 
@@ -4614,6 +4625,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     */
     if (!work_part_info_used)
       tmp= fix_partition_func(thd, outparam, is_create_table);
+    if (parse_engine_part_options(thd, outparam))
+      goto err;
     thd->stmt_arena= backup_stmt_arena_ptr;
     thd->restore_active_arena(&part_func_arena, &backup_arena);
     if (!tmp)
@@ -4694,6 +4707,7 @@ partititon_err:
     else
       ha_open_flags|= HA_OPEN_IGNORE_IF_LOCKED;
 
+    outparam->file->option_struct= share->option_struct_table;
     int ha_err= outparam->file->ha_open(outparam, share->normalized_path.str,
                                  (db_stat & HA_READ_ONLY ? O_RDONLY : O_RDWR),
                                  ha_open_flags, 0, partitions_to_open);

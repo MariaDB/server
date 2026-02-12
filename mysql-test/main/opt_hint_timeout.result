@@ -5,36 +5,36 @@ CREATE TABLE t1 (a INT);
 INSERT INTO t1 SELECT seq FROM seq_1_to_5000;
 # Correct hint usage
 SELECT /*+ MAX_EXECUTION_TIME(10) */* FROM t1 a, t1 b;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 0.01 sec exceeded
 EXPLAIN EXTENDED SELECT /*+ MAX_EXECUTION_TIME(0001490) */* FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5000	100.00	
 Warnings:
 Note	1003	select /*+ MAX_EXECUTION_TIME(0001490) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
 SELECT  /*+ MAX_EXECUTION_TIME(20) */ *, SLEEP(1) FROM t1 UNION SELECT 1, 2;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 0.02 sec exceeded
 (SELECT /*+ MAX_EXECUTION_TIME(300) */ *, SLEEP(1) FROM t1) UNION (SELECT 1, 2);
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 0.3 sec exceeded
 ((SELECT  /*+ MAX_EXECUTION_TIME(500) */ *, SLEEP(1) FROM t1));
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 0.5 sec exceeded
 # Make sure the hint overrides global/session/statement settings.
 # Global setting 30 seconds, won't be exceeded for sure
 SET @@max_statement_time = 30;
 SELECT /*+ MAX_EXECUTION_TIME(10)*/ count(*) FROM t1 a natural join t1 b natural join t1 c;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 0.01 sec exceeded
 # Session setting 30 seconds, too long to be exceeded
 SET SESSION max_statement_time = 30;
 SELECT /*+ MAX_EXECUTION_TIME(15) */ count(*) FROM t1 a natural join t1 b natural join t1 c;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 0.015 sec exceeded
 SET STATEMENT max_statement_time = 20 FOR
 SELECT /*+ MAX_EXECUTION_TIME(5)*/ count(*) FROM t1 a natural join t1 b natural join t1 c;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 0.005 sec exceeded
 # Check that prepared statements process the hint correctly
 PREPARE s FROM 'SELECT  /*+ MAX_EXECUTION_TIME(20) */ seq, SLEEP(1) FROM seq_1_to_10';
 EXECUTE s;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 0.02 sec exceeded
 EXECUTE s;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 0.02 sec exceeded
 # Hint duplication
 SELECT /*+ MAX_EXECUTION_TIME(50000) MAX_EXECUTION_TIME(100) */ count(*) FROM t1;
 count(*)
@@ -111,5 +111,5 @@ Warning	4172	'MAX_EXECUTION_TIME(30)' is not allowed in this context
 SELECT /*+ MAX_EXECUTION_TIME(20) */ count(*), SLEEP(1) FROM t1
 UNION
 SELECT count(*), SLEEP(1) FROM t1;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 0.02 sec exceeded
 DROP TABLE t1, t2;

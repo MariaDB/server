@@ -117,7 +117,6 @@ public:
   const char* data_file_name;
   const char* index_file_name;
   handlerton *engine_type;
-  LEX_CSTRING connect_string;
   enum partition_state part_state;
   uint16 nodegroup_id;
   bool has_null_value;
@@ -127,20 +126,20 @@ public:
   bool empty;
   elem_type_enum type;
 
-  engine_option_value *option_list;      // create options for partition
-  ha_table_option_struct *option_struct; // structure with parsed options
+  engine_option_value *option_list;           // create options for partition
+  ha_table_option_struct *option_struct_part; // structure with parsed options
 
   partition_element()
   : part_max_rows(0), part_min_rows(0), range_value(0),
     log_entry(NULL), part_comment(NULL),
     data_file_name(NULL), index_file_name(NULL),
-    engine_type(NULL), connect_string(null_clex_str), part_state(PART_NORMAL),
+    engine_type(NULL), part_state(PART_NORMAL),
     nodegroup_id(UNDEF_NODEGROUP), has_null_value(FALSE),
     signed_flag(FALSE), max_value(FALSE),
     id(UINT_MAX32),
     empty(true),
     type(CONVENTIONAL),
-    option_list(NULL), option_struct(NULL)
+    option_list(NULL), option_struct_part(NULL)
   {}
   partition_element(partition_element *part_elem)
   : part_max_rows(part_elem->part_max_rows),
@@ -151,7 +150,6 @@ public:
     data_file_name(part_elem->data_file_name),
     index_file_name(part_elem->index_file_name),
     engine_type(part_elem->engine_type),
-    connect_string(null_clex_str),
     part_state(part_elem->part_state),
     nodegroup_id(part_elem->nodegroup_id),
     has_null_value(FALSE),
@@ -161,7 +159,7 @@ public:
     empty(part_elem->empty),
     type(CONVENTIONAL),
     option_list(part_elem->option_list),
-    option_struct(part_elem->option_struct)
+    option_struct_part(part_elem->option_struct_part)
   {}
   ~partition_element() = default;
 

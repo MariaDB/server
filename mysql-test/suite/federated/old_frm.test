@@ -1,0 +1,44 @@
+source have_federatedx.inc;
+source include/not_embedded.inc;
+source include/have_partition.inc;
+let $datadir=`select @@datadir`;
+
+--echo #
+--echo # MDEV-37815 engine attributes in partitioning is broken
+--echo #
+# test pre-MDEV-37815 frm files, where CONNECTION was a hard-coded
+# table option, not an engine-defined attribute
+copy_file std_data/mdev-37815-myisam.MYD      $datadir/test/t1.MYD;
+copy_file std_data/mdev-37815-myisam.MYI      $datadir/test/t1.MYI;
+copy_file std_data/mdev-37815-myisam.frm      $datadir/test/t1.frm;
+copy_file std_data/mdev-37815-myisam.MYD      $datadir/test/t2#P#p0.MYD;
+copy_file std_data/mdev-37815-myisam.MYI      $datadir/test/t2#P#p0.MYI;
+copy_file std_data/mdev-37815-myisam.MYD      $datadir/test/t2#P#p1.MYD;
+copy_file std_data/mdev-37815-myisam.MYI      $datadir/test/t2#P#p1.MYI;
+copy_file std_data/mdev-37815-myisam-part.frm $datadir/test/t2.frm;
+copy_file std_data/mdev-37815-myisam-part.par $datadir/test/t2.par;
+copy_file std_data/mdev-37815-fedx.frm        $datadir/test/t3.frm;
+copy_file std_data/mdev-37815-fedx-part.frm   $datadir/test/t4.frm;
+copy_file std_data/mdev-37815-fedx-part.par   $datadir/test/t4.par;
+
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval create server server3 foreign data wrapper 'mysql' options
+  (HOST '127.0.0.1', DATABASE 'test', USER 'root', PORT $MASTER_MYPORT);
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval create server server4 foreign data wrapper 'mysql' options
+  (HOST '127.0.0.1', DATABASE 'test', USER 'root', PORT $MASTER_MYPORT);
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval create server server5 foreign data wrapper 'mysql' options
+  (HOST '127.0.0.1', DATABASE 'test', USER 'root', PORT $MASTER_MYPORT);
+
+
+show create table t1;
+show create table t2;
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+show create table t3;
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+show create table t4;
+drop table t1, t2, t3, t4;
+drop server server3;
+drop server server4;
+drop server server5;

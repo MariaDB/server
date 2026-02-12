@@ -4418,7 +4418,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   char saved_host[HOSTNAME_LENGTH + 1];
   uint saved_port;
   char saved_log_name[FN_REFLEN];
-  Master_info::enum_using_gtid saved_using_gtid;
+  enum_master_use_gtid saved_using_gtid;
   char master_info_file_tmp[FN_REFLEN];
   char relay_log_info_file_tmp[FN_REFLEN];
   my_off_t saved_log_pos;
@@ -4559,17 +4559,15 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   if (lex_mi->port)
     mi->port = lex_mi->port;
   if (lex_mi->connect_retry)
-    mi->connect_retry = lex_mi->connect_retry;
+    lex_mi->connect_retry(mi);
   if (lex_mi->retry_count)
   {
-    mi->retry_count= lex_mi->retry_count;
+    lex_mi->retry_count(mi);
+    // also reset the counter in case `connects_tried > master_retry_count`
     mi->connects_tried= 0;
   }
-  if (lex_mi->heartbeat_opt != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
-    mi->heartbeat_period = lex_mi->heartbeat_period;
-  else
-    mi->heartbeat_period= (float) MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD,
-                                      (slave_net_timeout/2.0));
+  if (lex_mi->heartbeat_period)
+    lex_mi->heartbeat_period(mi);
   mi->received_heartbeats= 0; // counter lives until master is CHANGEd
 
   /*
@@ -4596,30 +4594,28 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
                              &mi->ignore_server_ids);
   }
 
-  if (lex_mi->ssl != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
-    mi->ssl= (lex_mi->ssl == LEX_MASTER_INFO::LEX_MI_ENABLE);
+  if (lex_mi->ssl)
+    lex_mi->ssl(mi);
 
   if (lex_mi->sql_delay != -1)
     mi->rli.set_sql_delay(lex_mi->sql_delay);
 
-  if (lex_mi->ssl_verify_server_cert != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
-    mi->ssl_verify_server_cert=
-      (lex_mi->ssl_verify_server_cert == LEX_MASTER_INFO::LEX_MI_ENABLE);
-
+  if (lex_mi->ssl_verify_server_cert)
+    lex_mi->ssl_verify_server_cert(mi);
   if (lex_mi->ssl_ca)
-    strmake_buf(mi->ssl_ca, lex_mi->ssl_ca);
+    lex_mi->ssl_ca(mi);
   if (lex_mi->ssl_capath)
-    strmake_buf(mi->ssl_capath, lex_mi->ssl_capath);
+    lex_mi->ssl_capath(mi);
   if (lex_mi->ssl_cert)
-    strmake_buf(mi->ssl_cert, lex_mi->ssl_cert);
+    lex_mi->ssl_cert(mi);
   if (lex_mi->ssl_cipher)
-    strmake_buf(mi->ssl_cipher, lex_mi->ssl_cipher);
+    lex_mi->ssl_cipher(mi);
   if (lex_mi->ssl_key)
-    strmake_buf(mi->ssl_key, lex_mi->ssl_key);
+    lex_mi->ssl_key(mi);
   if (lex_mi->ssl_crl)
-    strmake_buf(mi->ssl_crl, lex_mi->ssl_crl);
+    lex_mi->ssl_crl(mi);
   if (lex_mi->ssl_crlpath)
-    strmake_buf(mi->ssl_crlpath, lex_mi->ssl_crlpath);
+    lex_mi->ssl_crlpath(mi);
 
 #ifndef HAVE_OPENSSL
   if (lex_mi->ssl || lex_mi->ssl_ca || lex_mi->ssl_capath ||
@@ -4645,22 +4641,17 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     mi->rli.group_relay_log_pos= mi->rli.event_relay_log_pos= lex_mi->relay_log_pos;
   }
 
-  if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_SLAVE_POS)
-    mi->using_gtid= Master_info::USE_GTID_SLAVE_POS;
-  else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_CURRENT_POS)
-    mi->using_gtid= Master_info::USE_GTID_CURRENT_POS;
-  else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_NO ||
+  if (lex_mi->use_gtid)
+    lex_mi->use_gtid(mi);
+  else if (
            lex_mi->log_file_name || lex_mi->pos ||
            lex_mi->relay_log_name || lex_mi->relay_log_pos)
   {
-    if (lex_mi->use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_NO)
-    {
       push_warning_printf(
           thd, Sql_condition::WARN_LEVEL_NOTE, WARN_OPTION_CHANGING,
           ER_THD(thd, WARN_OPTION_CHANGING), "CHANGE MASTER TO", "Using_Gtid",
           mi->using_gtid_astext(mi->using_gtid),
           mi->using_gtid_astext(Master_info::USE_GTID_NO));
-    }
     mi->using_gtid= Master_info::USE_GTID_NO;
   }
 

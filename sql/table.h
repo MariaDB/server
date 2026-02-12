@@ -756,7 +756,11 @@ struct TABLE_SHARE
   LEX_CUSTRING tabledef_version;
 
   engine_option_value *option_list;     /* text options for table */
-  ha_table_option_struct *option_struct; /* structure with parsed options */
+  /*
+    Structure with parsed options. Table-wide, engines should use
+    handler::option_struct, otherwise they won't see per-partition options.
+  */
+  ha_table_option_struct *option_struct_table;
 
   /* The following is copied to each TABLE on OPEN */
   Field **field;
@@ -804,7 +808,6 @@ struct TABLE_SHARE
   Lex_ident_table table_name;            /* Table name (for open) */
   LEX_CSTRING path;                	/* Path to .frm file (from datadir) */
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
-  LEX_CSTRING connect_string;
 
   /* 
      Set of keys in use, implemented as a Bitmap.
@@ -2577,8 +2580,7 @@ struct TABLE_LIST
           const LEX_CSTRING *table_name_arg, const LEX_CSTRING *alias_arg,
           enum thr_lock_type lock_type_arg, prelocking_types prelocking_type,
           TABLE_LIST *belong_to_view_arg, uint8 trg_event_map_arg,
-          TABLE_LIST ***last_ptr, my_bool insert_data,
-          my_bool override_fk_ignore_table= FALSE)
+          TABLE_LIST ***last_ptr, my_bool insert_data)
   {
     init_one_table(db_arg, table_name_arg, alias_arg, lock_type_arg);
     cacheable_table= 1;
@@ -2589,8 +2591,7 @@ struct TABLE_LIST
     belong_to_view= belong_to_view_arg;
     trg_event_map= trg_event_map_arg;
     /* MDL is enough for read-only FK checks, we don't need the table */
-    if (prelocking_type == PRELOCK_FK && lock_type < TL_FIRST_WRITE &&
-        !override_fk_ignore_table)
+    if (prelocking_type == PRELOCK_FK && lock_type < TL_FIRST_WRITE)
       open_strategy= OPEN_STUB;
 
     **last_ptr= this;
@@ -2841,6 +2842,7 @@ struct TABLE_LIST
   ulonglong	file_version;		/* version of file's field set */
   ulonglong	mariadb_version;	/* version of server on creation */
   ulonglong     updatable_view;         /* VIEW can be updated */
+  LEX_CSTRING m_sql_path;   /* The session PATH on creation */
   /** 
       @brief The declared algorithm, if this is a view.
       @details One of
@@ -3257,6 +3259,7 @@ struct TABLE_LIST
   bool is_active_sjm();
   bool is_sjm_scan_table();
   bool is_jtbm() { return MY_TEST(jtbm_subselect != NULL); }
+  bool is_pure_alias() const;
   st_select_lex_unit *get_unit();
   st_select_lex *get_single_select();
   void wrap_into_nested_join(List<TABLE_LIST> &join_list);

@@ -6,6 +6,7 @@ AS unified_parent_thread_id,
 `role`, instrumented
 FROM performance_schema.threads
 WHERE name LIKE 'thread/sql%'
+  AND (name != 'thread/sql/one_connection' OR processlist_id=connection_id())
 ORDER BY name;
 name	thread/sql/main
 type	BACKGROUND
@@ -42,6 +43,7 @@ AS unified_parent_thread_id,
 `role`, instrumented
 FROM performance_schema.threads
 WHERE name LIKE 'thread/sql%'
+  AND (name != 'thread/sql/one_connection' OR processlist_id=connection_id())
 ORDER BY name
 connection_type	Socket
 unified_parent_thread_id	unified parent_thread_id
@@ -114,6 +116,7 @@ FROM performance_schema.threads t1 INNER JOIN performance_schema.threads t2
 ON t1.parent_thread_id = t2.thread_id
 WHERE t1.name LIKE 'thread/sql%'
   AND t1.parent_thread_id IS NOT NULL
+AND (t1.name != 'thread/sql/one_connection' OR t1.processlist_id=connection_id())
 ORDER BY parent_thread_name, child_thread_name;
 parent_thread_name	child_thread_name
 thread/sql/event_scheduler	thread/sql/event_worker

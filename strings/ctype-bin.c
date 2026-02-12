@@ -83,11 +83,23 @@ my_coll_init_8bit_bin(struct charset_info_st *cs,
 static int my_strnncoll_binary(CHARSET_INFO * cs __attribute__((unused)),
                                const uchar *s, size_t slen,
                                const uchar *t, size_t tlen,
-                               my_bool t_is_prefix)
+                               my_bool *t_is_prefix)
 {
-  size_t len=MY_MIN(slen,tlen);
+  size_t len= MY_MIN(slen,tlen);
   int cmp= len ? memcmp(s, t, len) : 0;
-  return cmp ? cmp : (int)((t_is_prefix ? len : slen) - tlen);
+
+  if (!t_is_prefix)
+  {
+    if (cmp)
+      return cmp;
+    return (int) (slen - tlen);
+  }
+  if (cmp)
+  {
+    *t_is_prefix= 0;
+    return cmp;
+  }
+  return !(*t_is_prefix= tlen <= slen);
 }
 
 
@@ -144,11 +156,23 @@ static int my_strnncollsp_nchars_binary(CHARSET_INFO * cs __attribute__((unused)
 static int my_strnncoll_8bit_bin(CHARSET_INFO * cs __attribute__((unused)),
                                  const uchar *s, size_t slen,
                                  const uchar *t, size_t tlen,
-                                 my_bool t_is_prefix)
+                                 my_bool *t_is_prefix)
 {
-  size_t len=MY_MIN(slen,tlen);
+  size_t len= MY_MIN(slen,tlen);
   int cmp= len ? memcmp(s, t, len) : 0;
-  return cmp ? cmp : (int)((t_is_prefix ? len : slen) - tlen);
+
+  if (!t_is_prefix)
+  {
+    if (cmp)
+      return cmp;
+    return (int) (slen - tlen);
+  }
+  if (cmp)
+  {
+    *t_is_prefix= 0;
+    return cmp;
+  }
+  return !(*t_is_prefix= tlen <= slen);
 }
 
 
@@ -232,7 +256,7 @@ static int my_strnncollsp_8bit_nopad_bin(CHARSET_INFO * cs
                                          const uchar *a, size_t a_length,
                                          const uchar *b, size_t b_length)
 {
-  return my_strnncoll_8bit_bin(cs, a, a_length, b, b_length, FALSE);
+  return my_strnncoll_8bit_bin(cs, a, a_length, b, b_length, 0);
 }
 
 
@@ -274,27 +298,25 @@ int my_wc_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-void my_hash_sort_bin(CHARSET_INFO *cs __attribute__((unused)),
-                      const uchar *key, size_t len,ulong *nr1, ulong *nr2)
+void my_hash_sort_bin(my_hasher_st *hasher,
+                      CHARSET_INFO *cs __attribute__((unused)),
+                      const uchar *key, size_t len)
 {
-  const uchar *end = key + len;
-  ulong tmp1= *nr1;
-  ulong tmp2= *nr2;
   DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
+  MY_HASH_ADD_STR(hasher, key, len);
+}
 
-  for (; key < end ; key++)
-  {
-    MY_HASH_ADD(tmp1, tmp2, (uint) *key);
-  }
-
-  *nr1= tmp1;
-  *nr2= tmp2;
+/* Default my_hasher_st::m_hash_num implementation */
+void my_hasher_hash_num(struct my_hasher_st *hasher,
+                        const uchar* num, size_t binary_size)
+{
+  my_hash_sort_bin(hasher, NULL, num, binary_size);
 }
 
 
-void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
-                           const uchar *key, size_t len,
-                           ulong *nr1, ulong *nr2)
+void my_hash_sort_8bit_bin(my_hasher_st *hasher,
+                           CHARSET_INFO *cs __attribute__((unused)),
+                           const uchar *key, size_t len)
 {
   /*
      Remove trailing spaces. We have to do this to be able to compare
@@ -302,7 +324,7 @@ void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
   */
   const uchar *end= skip_trailing_space(key, len);
   DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
-  my_hash_sort_bin(cs, key, end - key, nr1, nr2);
+  my_hash_sort_bin(hasher, cs, key, end - key);
 }
 
 

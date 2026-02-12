@@ -137,7 +137,9 @@ public:
     return name;
   }
   String *val_str(String *) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_xml_extractvalue>(thd, this); }
 };
 
@@ -157,8 +159,14 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("updatexml") };
     return name;
   }
+  static const Type_handler *xml_handler;
+  const Type_handler *type_handler() const override;
+  bool fix_length_and_dec(THD *thd) override;
+
   String *val_str(String *) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_xml_update>(thd, this); }
 };
 
