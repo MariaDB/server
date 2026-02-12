@@ -40,6 +40,9 @@ Created 2011/09/02 Sunny Bains
 #include "mysql/plugin_ftparser.h"
 #include "lex_string.h"
 
+/* Forward declarations */
+class FTSQueryExecutor;
+
 /** "NULL" value of a document id. */
 #define FTS_NULL_DOC_ID			0
 
@@ -611,13 +614,12 @@ fts_create(
 	dict_table_t*	table);			/*!< out: table with FTS
 						indexes */
 
-/*********************************************************************//**
-Run OPTIMIZE on the given table.
-@return DB_SUCCESS if all OK */
+/** Run OPTIMIZE on the given table.
+@param table table to be optimized
+@param thd   thread
+@return DB_SUCCESS if all ok */
 dberr_t
-fts_optimize_table(
-/*===============*/
-	dict_table_t*	table);			/*!< in: table to optimiza */
+fts_optimize_table(dict_table_t *table, THD *thd);
 
 /**********************************************************************//**
 Startup the optimize thread and create the work queue. */
@@ -780,14 +782,6 @@ fts_tokenize_document_internal(
 	const char*			doc,	/*!< in: document to tokenize */
 	int			len);	/*!< in: document length */
 
-/*********************************************************************//**
-Fetch COUNT(*) from specified table.
-@return the number of rows in the table */
-ulint
-fts_get_rows_count(
-/*===============*/
-	fts_table_t*	fts_table);		/*!< in: fts table to read */
-
 /*************************************************************//**
 Get maximum Doc ID in a table if index "FTS_DOC_ID_INDEX" exists
 @return max Doc ID or 0 if index "FTS_DOC_ID_INDEX" does not exist */
@@ -804,32 +798,23 @@ fts_get_max_doc_id(
 CHARSET_INFO *fts_valid_stopword_table(const char *stopword_table_name,
                                        const char **row_end= NULL);
 
-/****************************************************************//**
-This function loads specified stopword into FTS cache
+/** This function loads specified stopword into FTS cache
+@param executor FTSQueryExecutor instance
+@param table table which has fts index
 @return true if success */
-bool
-fts_load_stopword(
-/*==============*/
-	const dict_table_t*
-			table,			/*!< in: Table with FTS */
-	trx_t*		trx,			/*!< in: Transaction */
-	const char*	session_stopword_table,	/*!< in: Session stopword table
-						name */
-	bool		stopword_is_on,		/*!< in: Whether stopword
-						option is turned on/off */
-	bool		reload);		/*!< in: Whether it is during
-						reload of FTS table */
+bool fts_load_stopword(FTSQueryExecutor* executor,
+                       const dict_table_t* table);
 
-/****************************************************************//**
-Read the rows from the FTS index
-@return DB_SUCCESS if OK */
-dberr_t
-fts_table_fetch_doc_ids(
-/*====================*/
-	trx_t*		trx,			/*!< in: transaction */
-	fts_table_t*	fts_table,		/*!< in: aux table */
-	fts_doc_ids_t*	doc_ids);		/*!< in: For collecting
-						doc ids */
+/** Read the rows from the fulltext index
+@param executor FTSQueryExecutor instance
+@param table    Fulltext table
+@param tbl_name table name
+@param doc_ids  collecting doc ids
+@return DB_SUCCESS or error code */
+dberr_t fts_table_fetch_doc_ids(FTSQueryExecutor *executor, 
+                                dict_table_t *table, const char *tbl_name,
+                                fts_doc_ids_t *doc_ids) noexcept;
+
 /****************************************************************//**
 This function brings FTS index in sync when FTS index is first
 used. There are documents that have not yet sync-ed to auxiliary
@@ -918,16 +903,56 @@ bool fts_check_aux_table(const char *name,
 
 /** Update the last document id. This function could create a new
 transaction to update the last document id.
-@param	table	table to be updated
-@param	doc_id	last document id
-@param	trx	update trx or null
+@param  executor	query executor
+@param  table		table to be updated
+@param  doc_id		last document id
 @retval DB_SUCCESS if OK */
 dberr_t
-fts_update_sync_doc_id(const dict_table_t *table,
-		       doc_id_t  doc_id,
-		       trx_t *trx)
-	MY_ATTRIBUTE((nonnull(1)));
+fts_update_sync_doc_id(FTSQueryExecutor *executor,
+		       const dict_table_t *table,
+                       doc_id_t doc_id);
 
 /** Sync the table during commit phase
 @param[in]	table	table to be synced */
 void fts_sync_during_ddl(dict_table_t* table);
+
+/** Tokenize a document.
+@param[in,out]  doc     document to tokenize
+@param[out]     result  tokenization result
+@param[in]      parser  pluggable parser */
+void fts_tokenize_document(
+        fts_doc_t*              doc,
+        fts_doc_t*              result,
+        st_mysql_ftparser*      parser);
+
+/** Continue to tokenize a document.
+@param[in,out]  doc     document to tokenize
+@param[in]      add_pos add this position to all tokens from this tokenization
+@param[out]     result  tokenization result
+@param[in]      parser  pluggable parser */
+void fts_tokenize_document_next(
+        fts_doc_t*              doc,
+        ulint                   add_pos,
+        fts_doc_t*              result,
+        st_mysql_ftparser*      parser);
+
+/** Get a character set based on precise type.
+@param prtype precise type
+@return the corresponding character set */
+CHARSET_INFO* fts_get_charset(ulint prtype);
+
+/** Load user defined stopword from designated user table
+@param fts              fulltext structure
+@param stopword_table   stopword table
+@param stopword_info    stopword information
+@return whether the operation is successful */
+bool fts_load_user_stopword(FTSQueryExecutor *executor, fts_t *fts,
+                            const char *stopword_table,
+                            fts_stopword_t *stopword_info);
+
+/****************************************************************//**
+This function loads the default InnoDB stopword list */
+void
+fts_load_default_stopword(
+/*======================*/
+	fts_stopword_t*		stopword_info);	/*!< in: stopword info */

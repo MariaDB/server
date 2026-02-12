@@ -28,10 +28,10 @@ Created 2011/09/02 Sunny Bains
 #define INNOBASE_FTS0PRIV_H
 
 #include "dict0dict.h"
-#include "pars0pars.h"
 #include "que0que.h"
 #include "que0types.h"
 #include "fts0types.h"
+#include "fts0exec.h"
 
 /* The various states of the FTS sub system pertaining to a table with
 FTS indexes defined on it. */
@@ -106,26 +106,6 @@ component.
 /** Maximum length of an integer stored in the config table value column. */
 #define FTS_MAX_INT_LEN			32
 
-/******************************************************************//**
-Parse an SQL string. %s is replaced with the table's id.
-@return query graph */
-que_t*
-fts_parse_sql(
-/*==========*/
-	fts_table_t*	fts_table,	/*!< in: FTS aux table */
-	pars_info_t*	info,		/*!< in: info struct, or NULL */
-	const char*	sql)		/*!< in: SQL string to evaluate */
-	MY_ATTRIBUTE((nonnull(3), malloc, warn_unused_result));
-/******************************************************************//**
-Evaluate a parsed SQL statement
-@return DB_SUCCESS or error code */
-dberr_t
-fts_eval_sql(
-/*=========*/
-	trx_t*		trx,		/*!< in: transaction */
-	que_t*		graph)		/*!< in: Parsed statement */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
 /** Construct the name of an internal FTS table for the given table.
 @param[in]	fts_table	metadata on fulltext-indexed table
 @param[out]	table_name	a name up to MAX_FULL_NAME_LEN
@@ -133,77 +113,15 @@ fts_eval_sql(
 void fts_get_table_name(const fts_table_t* fts_table, char* table_name,
 			bool dict_locked = false)
 	MY_ATTRIBUTE((nonnull));
-/******************************************************************//**
-Construct the column specification part of the SQL string for selecting the
-indexed FTS columns for the given table. Adds the necessary bound
-ids to the given 'info' and returns the SQL string. Examples:
 
-One indexed column named "text":
-
- "$sel0",
- info/ids: sel0 -> "text"
-
-Two indexed columns named "subject" and "content":
-
- "$sel0, $sel1",
- info/ids: sel0 -> "subject", sel1 -> "content",
-@return heap-allocated WHERE string */
-const char*
-fts_get_select_columns_str(
-/*=======================*/
-	dict_index_t*	index,		/*!< in: FTS index */
-	pars_info_t*	info,		/*!< in/out: parser info */
-	mem_heap_t*	heap)		/*!< in: memory heap */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/** define for fts_doc_fetch_by_doc_id() "option" value, defines whether
-we want to get Doc whose ID is equal to or greater or smaller than supplied
-ID */
-#define	FTS_FETCH_DOC_BY_ID_EQUAL	1
-#define	FTS_FETCH_DOC_BY_ID_LARGE	2
-#define	FTS_FETCH_DOC_BY_ID_SMALL	3
-
-/*************************************************************//**
-Fetch document (= a single row's indexed text) with the given
-document id.
-@return: DB_SUCCESS if fetch is successful, else error */
-dberr_t
-fts_doc_fetch_by_doc_id(
-/*====================*/
-	fts_get_doc_t*	get_doc,	/*!< in: state */
-	doc_id_t	doc_id,		/*!< in: id of document to fetch */
-	dict_index_t*	index_to_use,	/*!< in: caller supplied FTS index,
-					or NULL */
-	ulint		option,         /*!< in: search option, if it is
-                                        greater than doc_id or equal */
-	fts_sql_callback
-			callback,	/*!< in: callback to read
-					records */
-	void*		arg)		/*!< in: callback arg */
-	MY_ATTRIBUTE((nonnull(6)));
-
-/*******************************************************************//**
-Callback function for fetch that stores the text of an FTS document,
-converting each column to UTF-16.
-@return always FALSE */
-ibool
-fts_query_expansion_fetch_doc(
-/*==========================*/
-	void*		row,		/*!< in: sel_node_t* */
-	void*		user_arg)	/*!< in: fts_doc_t* */
-	MY_ATTRIBUTE((nonnull));
-/********************************************************************
-Write out a single word's data as new entry/entries in the INDEX table.
-@return DB_SUCCESS if all OK. */
-dberr_t
-fts_write_node(
-/*===========*/
-	trx_t*		trx,		/*!< in: transaction */
-	que_t**		graph,		/*!< in: query graph */
-	fts_table_t*	fts_table,	/*!< in: the FTS aux index */
-	fts_string_t*	word,		/*!< in: word in UTF-8 */
-	fts_node_t*	node)		/*!< in: node columns */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+/** Write out a single word's data as new entry/entries in the INDEX table.
+@param executor FTS Query Executor
+@param selected auxiliary index number
+@param aux_data auxiliary table data
+@return DB_SUCCESS if all OK or error code */
+dberr_t fts_write_node(FTSQueryExecutor *executor, uint8_t selected,
+                       const fts_aux_data_t *aux_data)
+                       MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Check if a fts token is a stopword or less than fts_min_token_size
 or greater than fts_max_token_size.
@@ -252,35 +170,36 @@ fts_word_free(
 /*==========*/
 	fts_word_t*	word)		/*!< in: instance to free.*/
 	MY_ATTRIBUTE((nonnull));
-/******************************************************************//**
-Read the rows from the FTS inde
-@return DB_SUCCESS or error code */
-dberr_t
-fts_index_fetch_nodes(
-/*==================*/
-	trx_t*		trx,		/*!< in: transaction */
-	que_t**		graph,		/*!< in: prepared statement */
-	fts_table_t*	fts_table,	/*!< in: FTS aux table */
-	const fts_string_t*
-			word,		/*!< in: the word to fetch */
-	fts_fetch_t*	fetch)		/*!< in: fetch callback.*/
-	MY_ATTRIBUTE((nonnull));
+
+/** Read the rows from FTS index
+@param trx          transaction
+@param index        fulltext index
+@param word         word to fetch
+@param user_arg     user argument
+@param processor    custom processor to filter the word from record
+@param compare_mode comparison mode for record matching
+@return error code or DB_SUCCESS */
+dberr_t fts_index_fetch_nodes(FTSQueryExecutor *executor, dict_index_t *index,
+                              const fts_string_t *word,
+                              void *user_arg,
+			      FTSRecordProcessor processor,
+                              AuxCompareMode compare_mode)
+                              MY_ATTRIBUTE((nonnull));
+
 #define fts_sql_commit(trx) trx_commit_for_mysql(trx)
 #define fts_sql_rollback(trx) (trx)->rollback()
-/******************************************************************//**
-Get value from config table. The caller must ensure that enough
-space is allocated for value to hold the column contents
+
+/** Get value from the config table. The caller must ensure that enough
+space is allocated for value to hold the column contents.
+@param trx      transaction
+@param table    Indexed fts table
+@param name     name of the key
+@param value    value of the key
 @return DB_SUCCESS or error code */
-dberr_t
-fts_config_get_value(
-/*=================*/
-	trx_t*		trx,		/* transaction */
-	fts_table_t*	fts_table,	/*!< in: the indexed FTS table */
-	const char*	name,		/*!< in: get config value for
-					this parameter name */
-	fts_string_t*	value)		/*!< out: value read from
-					config table */
-	MY_ATTRIBUTE((nonnull));
+dberr_t fts_config_get_value(FTSQueryExecutor *executor, const dict_table_t *table,
+                             const char *name, fts_string_t *value)
+                             MY_ATTRIBUTE((nonnull));
+
 /******************************************************************//**
 Get value specific to an FTS index from the config table. The caller
 must ensure that enough space is allocated for value to hold the
@@ -289,7 +208,7 @@ column contents.
 dberr_t
 fts_config_get_index_value(
 /*=======================*/
-	trx_t*		trx,		/*!< transaction */
+	FTSQueryExecutor* executor,	/*!< in: query executor */
 	dict_index_t*	index,		/*!< in: index */
 	const char*	param,		/*!< in: get config value for
 					this parameter name */
@@ -302,8 +221,8 @@ Set the value in the config table for name.
 dberr_t
 fts_config_set_value(
 /*=================*/
-	trx_t*		trx,		/*!< transaction */
-	fts_table_t*	fts_table,	/*!< in: the indexed FTS table */
+	FTSQueryExecutor* executor,	/*!< in: query executor */
+	const dict_table_t* table,	/*!< in: the indexed FTS table */
 	const char*	name,		/*!< in: get config value for
 					this parameter name */
 	const fts_string_t*
@@ -315,8 +234,8 @@ Set an ulint value in the config table.
 dberr_t
 fts_config_set_ulint(
 /*=================*/
-	trx_t*		trx,		/*!< in: transaction */
-	fts_table_t*	fts_table,	/*!< in: the indexed FTS table */
+	FTSQueryExecutor* executor,	/*!< in: query executor */
+	const dict_table_t*	table,	/*!< in: the indexed FTS table */
 	const char*	name,		/*!< in: param name */
 	ulint		int_value)	/*!< in: value */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
@@ -326,7 +245,7 @@ Set the value specific to an FTS index in the config table.
 dberr_t
 fts_config_set_index_value(
 /*=======================*/
-	trx_t*		trx,		/*!< transaction */
+	FTSQueryExecutor* executor,	/*!< in: query executor */
 	dict_index_t*	index,		/*!< in: index */
 	const char*	param,		/*!< in: get config value for
 					this parameter name */
@@ -340,8 +259,8 @@ Get an ulint value from the config table.
 dberr_t
 fts_config_get_ulint(
 /*=================*/
-	trx_t*		trx,		/*!< in: transaction */
-	fts_table_t*	fts_table,	/*!< in: the indexed FTS table */
+	FTSQueryExecutor* executor,	/*!< in: query executor */
+	const dict_table_t*	table,	/*!< in: the indexed FTS table */
 	const char*	name,		/*!< in: param name */
 	ulint*		int_value)	/*!< out: value */
 	MY_ATTRIBUTE((nonnull));
