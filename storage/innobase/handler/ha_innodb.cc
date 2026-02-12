@@ -2245,7 +2245,7 @@ convert_sql_error_to_dberr(THD *thd, que_thr_t *thr, int sql_error)
   case HA_ERR_ABORTED_BY_USER:
     return DB_INTERRUPTED;
   case HA_ERR_FK_DEPTH_EXCEEDED:
-    if (thr->fk_cascade_depth == 0)
+    if (thd->fk_cascade_depth == 0)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           HA_ERR_ROW_IS_REFERENCED,
                           "InnoDB: Cannot delete/update "
@@ -21605,10 +21605,10 @@ innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
   btr_pcur_copy_stored_position(prebuilt->pcur, pcur);
   prebuilt->sql_stat_start = FALSE;
 
-  ++thr->fk_cascade_depth;
+  ++thd->fk_cascade_depth;
   int err= is_delete ? sql_delete_row(maria_table)
                      : sql_update_row(maria_table);
-  --thr->fk_cascade_depth;
+  --thd->fk_cascade_depth;
 
   prebuilt->upd_node= upd_node;
   prebuilt->upd_graph= upd_graph;

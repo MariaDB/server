@@ -1110,7 +1110,8 @@ row_ins_foreign_check_on_constraint(
 	a single update/delete that affects multiple tables chained
 	together with foreign key relations.
 	fk_cascade_depth increments later, so we have to add 1 here. */
-	if (UNIV_UNLIKELY(thr->fk_cascade_depth + 1 >= FK_MAX_CASCADE_DEL))
+	if (UNIV_UNLIKELY(trx->mysql_thd->fk_cascade_depth + 1 >=
+							FK_MAX_CASCADE_DEL))
 	{
 	  err= DB_FOREIGN_EXCEED_MAX_CASCADE;
 	  goto nonstandard_exit_func;

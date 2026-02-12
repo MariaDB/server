@@ -255,9 +255,6 @@ struct que_thr_t{
 	UT_LIST_NODE_T(que_thr_t)
 			queue;		/*!< list of runnable thread nodes in
 					the server task queue */
-	ulint		fk_cascade_depth; /*!< maximum cascading call depth
-					supported for foreign key constraint
-					related delete/updates */
 	row_prebuilt_t*	prebuilt;	/*!< prebuilt structure processed by
 					the query thread */
 };

@@ -746,6 +746,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    derived_tables_processing(FALSE),
    waiting_on_group_commit(FALSE), has_waiter(FALSE),
    last_sql_command(SQLCOM_END), spcont(NULL),
+   fk_cascade_depth(0),
    m_parser_state(NULL),
 #ifndef EMBEDDED_LIBRARY
    audit_plugin_version(-1),
