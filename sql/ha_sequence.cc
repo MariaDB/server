@@ -85,6 +85,7 @@ int ha_sequence::open(const char *name, int mode, uint flags)
   DBUG_ASSERT(table->s == table_share && file);
 
   file->table= table;
+  file->option_struct= option_struct;
   if (likely(!(error= file->open(name, mode, flags))))
   {
     /*
@@ -185,6 +186,7 @@ int ha_sequence::create(const char *name, TABLE *form,
   DBUG_ASSERT(create_info->sequence);
   /* Sequence tables has one and only one row */
   create_info->max_rows= create_info->min_rows= 1;
+  file->option_struct= option_struct;
   return (file->create(name, form, create_info));
 }
 

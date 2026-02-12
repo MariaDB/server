@@ -79,7 +79,7 @@ ulonglong find_set(const TYPELIB *lib,
       else
         for (; pos != end && *pos != field_separator; pos++) ;
       var_len= (uint) (pos - start);
-      uint find= cs ? find_type2(lib, start, var_len, cs) :
+      uint find= cs ? find_type2(lib, start, var_len, 0, cs) :
                       find_type(lib, start, var_len, (bool) 0);
       if (unlikely(!find))
       {
@@ -146,25 +146,30 @@ uint find_type(const TYPELIB *lib, const char *find, size_t length,
 
   SYNOPSIS
    find_type2()
-   lib			TYPELIB (struct of pointer to values + count)
-   x			String to find
+   lib                  TYPELIB (struct of pointer to values + count)
+   x                    String to find
    length               String length
-   cs			Character set + collation to use for comparison
+   part_match           Allow prefix matching of typelib.
+   cs                   Character set + collation to use for comparison
 
   NOTES
 
   RETURN
     0	No matching value
-    >0  Offset+1 in typelib for matched string
+        *part_match will be set if there was multiple prefix matches.
+    >0  Offset+1 in typelib for matched string. *part_match has random value
 */
 
-uint find_type2(const TYPELIB *typelib, const char *x, size_t length,
-                CHARSET_INFO *cs)
+uint find_type2(const TYPELIB *typelib, const char *x,
+                size_t length, my_bool *part_match, CHARSET_INFO *cs)
 {
-  int pos;
+  int found_count= 0, found_pos= 0;
   const char *j;
   DBUG_ENTER("find_type2");
   DBUG_PRINT("enter",("x: '%.*s'  lib: %p", (int)length, x, typelib));
+
+  if (part_match)
+    *part_match= 0;
 
   if (!typelib->count)
   {
@@ -172,15 +177,21 @@ uint find_type2(const TYPELIB *typelib, const char *x, size_t length,
     DBUG_RETURN(0);
   }
 
-  for (pos=0 ; (j=typelib->type_names[pos]) ; pos++)
+  for (uint pos=0 ; (j=typelib->type_names[pos]) ; pos++)
   {
-    if (!cs->strnncoll(x, length,
-                       j, typelib->type_lengths[pos]))
-      DBUG_RETURN(pos+1);
+    if (!cs->strnncoll(j, typelib->type_lengths[pos], x, length, part_match))
+    {
+      if (!part_match)
+        DBUG_RETURN(pos+1);
+      found_count++;
+      found_pos= pos;
+    }
   }
-  DBUG_PRINT("exit",("Couldn't find type"));
-  DBUG_RETURN(0);
-} /* find_type */
+  if (!part_match)
+    DBUG_RETURN(0);
+  *part_match= found_count > 0;
+  DBUG_RETURN(found_count == 1 ? found_pos+1 : 0);
+} /* find_type2 */
 
 
 /*
@@ -242,7 +253,7 @@ uint check_word(TYPELIB *lib, const char *val, const char *end,
   int res;
   const char *ptr;
 
-  /* Fiend end of word */
+  /* Find end of word */
   for (ptr= val ; ptr < end && my_isalpha(&my_charset_latin1, *ptr) ; ptr++)
     ;
   if ((res=find_type(lib, val, (uint) (ptr - val), 1)) > 0)

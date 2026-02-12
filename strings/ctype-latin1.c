@@ -589,11 +589,13 @@ static const uchar combo2map[]={
 static int my_strnncoll_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
 				  const uchar *a, size_t a_length,
 				  const uchar *b, size_t b_length,
-                                  my_bool b_is_prefix)
+                                  my_bool *b_is_prefix)
 {
   const uchar *a_end= a + a_length;
   const uchar *b_end= b + b_length;
   uchar a_char, a_extend= 0, b_char, b_extend= 0;
+  if (b_is_prefix)
+    *b_is_prefix= 0;
 
   while ((a < a_end || a_extend) && (b < b_end || b_extend))
   {
@@ -622,7 +624,7 @@ static int my_strnncoll_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
     A simple test of string lengths won't work -- we test to see
     which string ran out first
   */
-  return ((a < a_end || a_extend) ? (b_is_prefix ? 0 : 1) :
+  return ((a < a_end || a_extend) ? (b_is_prefix ? (*b_is_prefix= 1, 0) : 1) :
 	  (b < b_end || b_extend) ? -1 : 0);
 }
 
@@ -710,12 +712,11 @@ my_strnxfrm_latin1_de(CHARSET_INFO *cs,
 }
 
 
-void my_hash_sort_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
-			    const uchar *key, size_t len,
-			    ulong *nr1, ulong *nr2)
+void my_hash_sort_latin1_de(my_hasher_st *hasher,
+                            CHARSET_INFO *cs __attribute__((unused)),
+                            const uchar *key, size_t len)
 {
   const uchar *end;
-  register ulong m1= *nr1, m2= *nr2;
   DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
 
   /*
@@ -727,14 +728,12 @@ void my_hash_sort_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
   for (; key < end ; key++)
   {
     uint X= (uint) combo1map[(uint) *key];
-    MY_HASH_ADD(m1, m2, X);
+    MY_HASH_ADD(hasher, X);
     if ((X= combo2map[*key]))
     {
-      MY_HASH_ADD(m1, m2, X);
+      MY_HASH_ADD(hasher, X);
     }
   }
-  *nr1= m1;
-  *nr2= m2;
 }
 
 

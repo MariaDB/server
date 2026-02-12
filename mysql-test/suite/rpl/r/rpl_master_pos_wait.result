@@ -5,7 +5,7 @@ select master_pos_wait('master-bin.999999',0,2);
 master_pos_wait('master-bin.999999',0,2)
 -1
 Warnings:
-Note	1105	Timeout waiting for master-bin.999999:4. Current pos is master-bin.000001:329
+Note	1105	Timeout waiting for master-bin.999999:4. Current pos is master-bin.000001:330
 explain extended select master_pos_wait('master-bin.999999',0,2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -39,7 +39,7 @@ select master_pos_wait('master-bin.000001',1000000,1);
 master_pos_wait('master-bin.000001',1000000,1)
 -1
 Warnings:
-Note	1105	Timeout waiting for master-bin.000001:1000000. Current pos is master-bin.000001:329
+Note	1105	Timeout waiting for master-bin.000001:1000000. Current pos is master-bin.000001:330
 set default_master_connection = '';
 # Call for non-existing anonymous connection -- works (expected NULL)
 select master_pos_wait('master-bin.000001',1000000,1);
@@ -50,12 +50,12 @@ select master_pos_wait('master-bin.000001',1000000,1,"my_slave");
 master_pos_wait('master-bin.000001',1000000,1,"my_slave")
 -1
 Warnings:
-Note	1105	Timeout waiting for master-bin.000001:1000000. Current pos is master-bin.000001:329
+Note	1105	Timeout waiting for master-bin.000001:1000000. Current pos is master-bin.000001:330
 select master_pos_wait('master-bin.000001',1000000,1,"MY_SLAVE");
 master_pos_wait('master-bin.000001',1000000,1,"MY_SLAVE")
 -1
 Warnings:
-Note	1105	Timeout waiting for master-bin.000001:1000000. Current pos is master-bin.000001:329
+Note	1105	Timeout waiting for master-bin.000001:1000000. Current pos is master-bin.000001:330
 STOP SLAVE 'my_slave';
 RESET SLAVE 'my_slave' ALL;
 change master to master_port=MASTER_MYPORT, master_host='127.0.0.1', master_user='root';

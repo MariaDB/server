@@ -2319,7 +2319,7 @@ bool check_duplicates_in_interval(const char *set_or_name,
     tmp.type_names++;
     tmp.type_lengths++;
     tmp.count--;
-    if (find_type2(&tmp, (const char*)*cur_value, *cur_length, cs))
+    if (find_type2(&tmp, (const char*)*cur_value, *cur_length, 0, cs))
     {
       THD *thd= current_thd;
       ErrConvString err(*cur_value, *cur_length, cs);
@@ -2693,7 +2693,7 @@ bool Column_definition::prepare_stage1_check_typelib_default()
     else /* MYSQL_TYPE_ENUM */
     {
       def->length(charset->lengthsp(def->ptr(), def->length()));
-      not_found= !find_type2(typelib(), def->ptr(), def->length(), charset);
+      not_found= !find_type2(typelib(), def->ptr(), def->length(), 0, charset);
     }
   }
   if (not_found)
@@ -3280,16 +3280,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   const CHARSET_INFO *scs= system_charset_info;
   DBUG_ENTER("mysql_prepare_create_table");
 
-  LEX_CSTRING* connstr = &create_info->connect_string;
-  if (connstr->length > CONNECT_STRING_MAXLEN &&
-      scs->charpos(connstr->str, connstr->str + connstr->length,
-                   CONNECT_STRING_MAXLEN) < connstr->length)
-  {
-    my_error(ER_WRONG_STRING_LENGTH, MYF(0), connstr->str, "CONNECTION",
-             CONNECT_STRING_MAXLEN);
-    DBUG_RETURN(TRUE);
-  }
-
   select_field_pos= get_select_field_pos(alter_info, create_info->versioned());
   null_fields= 0;
   create_info->varchar= 0;
@@ -3398,10 +3388,10 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       auto_increment++;
     extend_option_list(thd, create_info->db_type, !sql_field->field,
                        &sql_field->option_list,
-                       create_info->db_type->field_options);
+                       file->partition_ht()->field_options);
     if (parse_option_list(thd, &sql_field->option_struct,
                           &sql_field->option_list,
-                          create_info->db_type->field_options, FALSE,
+                          file->partition_ht()->field_options, FALSE,
                           thd->mem_root))
       DBUG_RETURN(TRUE);
     /*
@@ -3622,7 +3612,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     Create_field *auto_increment_key= 0;
     Key_part_spec *column;
     st_plugin_int *index_plugin= hton2plugin[create_info->db_type->slot];
-    ha_create_table_option *index_options= create_info->db_type->index_options;
+    ha_create_table_option *index_options= file->partition_ht()->index_options;
 
     if (key->type == Key::IGNORE_KEY)
     {
@@ -4884,10 +4874,12 @@ int create_table_impl(THD *thd,
     share.field= &no_fields;
     share.db_plugin= ha_lock_engine(thd, hton);
     share.option_list= create_info->option_list;
-    share.connect_string= create_info->connect_string;
 
     if (parse_engine_table_options(thd, hton, &share))
       goto err;
+
+    DBUG_ASSERT(!create_info->option_struct);
+    create_info->option_struct= share.option_struct_table;
 
     /*
       Log that we are going to do discovery. If things fails, any generated
@@ -5014,8 +5006,7 @@ warn:
     -1 Table was used with IF NOT EXISTS and table existed (warning, not error)
 */
 
-int mysql_create_table_no_lock(THD *thd,
-                               DDL_LOG_STATE *ddl_log_state_create,
+int mysql_create_table_no_lock(THD *thd, DDL_LOG_STATE *ddl_log_state_create,
                                DDL_LOG_STATE *ddl_log_state_rm,
                                Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,
@@ -8697,9 +8688,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   if (!(used_fields & HA_CREATE_USED_TRANSACTIONAL))
     create_info->transactional= table->s->transactional;
 
-  if (!(used_fields & HA_CREATE_USED_CONNECTION))
-    create_info->connect_string= table->s->connect_string;
-
   if (!(used_fields & HA_CREATE_USED_SEQUENCE))
     create_info->sequence= table->s->table_type == TABLE_TYPE_SEQUENCE;
 
@@ -8898,6 +8886,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
         else
         {
+          if (def->default_value != alter->default_value &&
+              def->has_default_now_unireg_check())
+            def->unireg_check= Field::NONE;
           if ((def->default_value= alter->default_value) ||
               !(def->flags & NOT_NULL_FLAG))
             def->flags&= ~NO_DEFAULT_VALUE_FLAG;
@@ -9532,7 +9523,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
         if (keep)
         {
-          Item *expr_copy= check->expr->get_copy(thd);
+          Item *expr_copy= check->expr->shallow_copy_with_checks(thd);
           check= new Virtual_column_info();
           check->name= share->period.constr_name;
           check->automatic_name= true;
@@ -12623,7 +12614,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   sql_mode_t save_sql_mode= thd->variables.sql_mode;
   ulonglong prev_insert_id, time_to_report_progress;
   Field **dfield_ptr= to->default_field;
-  uint save_to_s_default_fields= to->s->default_fields;
   bool make_versioned= !from->versioned() && to->versioned();
   bool make_unversioned= from->versioned() && !to->versioned();
   bool keep_versioned= from->versioned() && to->versioned();
@@ -12684,7 +12674,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   List_iterator<Create_field> it(alter_info->create_list);
   Create_field *def;
   copy_end=copy;
-  to->s->default_fields= 0;
   error= 1;
   if (to->s->table_type == TABLE_TYPE_SEQUENCE &&
       from->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT &&
@@ -12730,14 +12719,22 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         present in the set of autoupdate fields.
       */
       if ((*ptr)->default_value)
-      {
         *(dfield_ptr++)= *ptr;
-        ++to->s->default_fields;
-      }
     }
   }
+
+  /*
+    Mark the end of the default field list. Note that this is a temporary
+    state; fields with ON UPDATE defaults will be added back to this list
+    after the data copy is complete.
+  */
   if (dfield_ptr)
-    *dfield_ptr= NULL;
+  {
+    if (dfield_ptr == to->default_field)
+      to->default_field= NULL; // No default fields left
+    else
+      *dfield_ptr= NULL; // Mark end of default field pointers
+  }
 
   if (order)
   {
@@ -13016,6 +13013,56 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   cleanup_done= 1;
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
+  /*
+    To prevent this data copy from re-writing previously set default values,
+    this function previously has overridden to->default_fields to only account
+    for new fields added to the table (i.e those which should get new default
+    values). Now that the data copy is done, the to->default_field list needs
+    to be restored to include all fields that have default values to fill.
+
+    First, if to->default_field is NULL, it means it was nullified to prevent
+    trying to update any default values during the copy process because there
+    were no new fields added with default values to fill in. The list needs to
+    be restored to the original location so future records in this session can
+    get default values.
+
+    Then, because to->default_field was reset and now only considers new
+    fields, it is missing fields that have ON UPDATE clauses (i.e. TIMESTAMP
+    and DATETIME). So add those back in.
+
+    Notes:
+     * The code is similar to the dfield_ptr modification earlier in the
+       function
+     * This must be done before online alter execution, as it unpacks row
+       data, which requires the table's default_fields to be set up
+  */
+  if (!to->default_field)
+    to->default_field= dfield_ptr;
+#ifndef DBUG_OFF
+  else
+  {
+    /*
+      If to->default_field exists, dfield_ptr should point to the NULL list
+      terminator in the default_field list.
+    */
+    DBUG_ASSERT(dfield_ptr && !*dfield_ptr);
+  }
+#endif
+  if (dfield_ptr)
+  {
+    it.rewind();
+    for (Field **ptr= to->field; *ptr; ptr++)
+    {
+      def= it++;
+      if (def->field && def->field->has_update_default_function())
+        *(dfield_ptr++)= *ptr;
+    }
+    if (dfield_ptr == to->default_field)
+      to->default_field= NULL; // No default fields
+    else
+      *dfield_ptr= NULL; // Mark end of default field pointers
+  }
+
 #ifdef HAVE_REPLICATION
   if (online && error < 0)
   {
@@ -13140,7 +13187,6 @@ end:
   *copied= found_count;
   *deleted=delete_count;
   to->file->ha_release_auto_increment();
-  to->s->default_fields= save_to_s_default_fields;
 
   if (!cleanup_done)
   {

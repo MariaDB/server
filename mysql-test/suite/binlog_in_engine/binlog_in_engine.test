@@ -30,7 +30,7 @@ SELECT @@GLOBAL.binlog_checksum;
 # checks that the reported file and position is within some reasonable range
 # of the value left by current code.
 --replace_column 2 #
-SHOW MASTER STATUS;
+--source include/show_master_status.inc
 --let $binlog_file= binlog-000000.ibb
 --let $binlog_start= 0
 --source include/show_binlog_events.inc

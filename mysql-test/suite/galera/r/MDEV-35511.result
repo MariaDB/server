@@ -7,6 +7,7 @@ CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (1);
 connection node_2;
 # Now checking the audit log
+Line count in file: 9
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,test,'SET GLOBAL server_audit_logging=ON',0
 TIME,HOSTNAME,<wsrep_applier>,,ID,ID,CREATE,test,t1,
 TIME,HOSTNAME,<wsrep_applier>,,ID,ID,WRITE,test,t1,

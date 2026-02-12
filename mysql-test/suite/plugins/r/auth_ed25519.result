@@ -70,6 +70,8 @@ current_user()
 test1@localhost
 disconnect con1;
 connection default;
+# Executing 'mariadb-admin'
+mysqld is alive
 create user test2@localhost identified via ed25519 using PASSWORD('');
 show grants for test2@localhost;
 Grants for test2@localhost

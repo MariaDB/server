@@ -1668,7 +1668,7 @@ fts_optimize_free(
 	mem_heap_t*	heap = static_cast<mem_heap_t*>(optim->self_heap->arg);
 
 	trx_commit_for_mysql(optim->trx);
-	optim->trx->free();
+	optim->trx->clear_and_free();
 	optim->trx = NULL;
 
 	fts_doc_ids_free(optim->to_delete);

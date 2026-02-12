@@ -1565,7 +1565,21 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
     part_info->range_int_array[el->id]= el->range_value=
       my_tz_OFFSET0->TIME_to_gmt_sec(&ltime, &error);
     if (error)
-      goto err;
+    {
+      if (error == ER_WARN_DATA_OUT_OF_RANGE)
+      {
+        /* Partial interval partition must be last history partition */
+        if (el->id < hist_parts - 1)
+          goto err;
+        /* range_value is open endpoint (less than TIMESTAMP_MAX_VALUE) */
+        part_info->range_int_array[el->id]= el->range_value= TIMESTAMP_MAX_VALUE;
+        vers_info->hist_part= el;
+        el= it++;
+        break;
+      }
+      else
+        goto err;
+    }
     if (vers_info->hist_part->range_value <= (longlong) thd->query_start())
       vers_info->hist_part= el;
   }
@@ -2222,28 +2236,11 @@ static int add_server_part_options(String *str, partition_element *p_elem)
   }
   if (p_elem->part_comment)
     err+= add_keyword_string(str, "COMMENT", true, p_elem->part_comment);
-  if (p_elem->connect_string.length)
-    err+= add_keyword_string(str, "CONNECTION", true,
-                             p_elem->connect_string.str);
   err += add_keyword_string(str, "ENGINE", false,
                          ha_resolve_storage_engine_name(p_elem->engine_type));
   return err;
 }
 
-static int add_engine_part_options(String *str, partition_element *p_elem)
-{
-  engine_option_value *opt= p_elem->option_list;
-
-  for (; opt; opt= opt->next)
-  {
-    if (!opt->value.str)
-      continue;
-    if ((add_keyword_string(str, opt->name.str, opt->quoted_value,
-                                 opt->value.str)))
-      return 1;
-  }
-  return 0;
-}
 
 /*
   Find the given field's Create_field object using name of field
@@ -2470,10 +2467,30 @@ static int add_key_with_algorithm(String *str, const partition_info *part_info)
   int err= 0;
   err+= str->append(STRING_WITH_LEN("KEY "));
 
-  if (part_info->key_algorithm == partition_info::KEY_ALGORITHM_51)
+  if (part_info->key_algorithm != partition_info::KEY_ALGORITHM_NONE &&
+      part_info->key_algorithm != partition_info::KEY_ALGORITHM_55)
   {
     err+= str->append(STRING_WITH_LEN("ALGORITHM = "));
-    err+= str->append_longlong(part_info->key_algorithm);
+    switch (part_info->key_algorithm)
+    {
+      case partition_info::KEY_ALGORITHM_51:
+        err+= str->append(STRING_WITH_LEN("MYSQL51"));
+        break;
+      case partition_info::KEY_ALGORITHM_BASE31:
+        err+= str->append(STRING_WITH_LEN("BASE31"));
+        break;
+      case partition_info::KEY_ALGORITHM_CRC32C:
+        err+= str->append(STRING_WITH_LEN("CRC32C"));
+        break;
+      case partition_info::KEY_ALGORITHM_XXH32:
+        err+= str->append(STRING_WITH_LEN("XXH32"));
+        break;
+      case partition_info::KEY_ALGORITHM_XXH3:
+        err+= str->append(STRING_WITH_LEN("XXH3"));
+        break;
+      default:
+        DBUG_ASSERT(0 && "wrong part_info->key_algorithm");
+    }
     err+= str->append(' ');
   }
   return err;
@@ -2698,6 +2715,7 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
 
   if (!part_info->use_default_partitions)
   {
+    bool allow_bad= thd->variables.sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS;
     bool first= TRUE;
     err+= str.append(STRING_WITH_LEN("\n("));
     i= 0;
@@ -2720,7 +2738,8 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
           if (show_partition_options)
           {
             err+= add_server_part_options(&str, part_elem);
-            err+= add_engine_part_options(&str, part_elem);
+            append_create_options(thd, &str, part_elem->option_list,
+                            !allow_bad, part_elem->engine_type->table_options);
           }
         }
         else
@@ -2956,8 +2975,9 @@ static uint32 get_part_id_key(handler *file,
                               longlong *func_value)
 {
   DBUG_ENTER("get_part_id_key");
-  *func_value= ha_partition::calculate_key_hash_value(field_array);
-  DBUG_RETURN((uint32) (*func_value % num_parts));
+  uint64 hash= ha_partition::calculate_key_hash_value(field_array);
+  *func_value= (longlong) hash;
+  DBUG_RETURN((uint32) (hash % num_parts));
 }
 
 
@@ -2983,7 +3003,7 @@ static uint32 get_part_id_linear_key(partition_info *part_info,
 {
   DBUG_ENTER("get_part_id_linear_key");
 
-  *func_value= ha_partition::calculate_key_hash_value(field_array);
+  *func_value= (longlong) ha_partition::calculate_key_hash_value(field_array);
   DBUG_RETURN(get_part_id_from_linear_hash(*func_value,
                                            part_info->linear_hash_mask,
                                            num_parts));
@@ -5463,16 +5483,15 @@ that are reorganised.
           partition_element *part_elem= alt_it++;
           if (*fast_alter_table)
             part_elem->part_state= PART_TO_BE_ADDED;
-          if (unlikely(tab_part_info->partitions.push_back(part_elem,
-                                                           thd->mem_root)))
+          part_elem->id= tab_part_info->partitions.elements;
+          if (tab_part_info->partitions.push_back(part_elem, thd->mem_root))
             goto err;
         } while (++part_count < num_new_partitions);
         tab_part_info->num_parts+= num_new_partitions;
         if (tab_part_info->part_type == VERSIONING_PARTITION)
         {
           DBUG_ASSERT(now_part);
-          if (unlikely(tab_part_info->partitions.push_back(now_part,
-                                                           thd->mem_root)))
+          if (tab_part_info->partitions.push_back(now_part, thd->mem_root))
             goto err;
         }
       }

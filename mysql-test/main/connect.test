@@ -259,6 +259,9 @@ DROP USER mysqltest_u1@localhost;
 --echo # -- Bug#35074: max_used_connections is not correct.
 --echo
 
+let $count_sessions=1;
+--source include/wait_until_count_sessions.inc
+
 FLUSH GLOBAL STATUS;
 
 --echo

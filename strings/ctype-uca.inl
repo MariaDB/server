@@ -89,7 +89,7 @@ MY_FUNCTION_NAME(strnncoll_onelevel)(CHARSET_INFO *cs,
                                      const MY_UCA_WEIGHT_LEVEL *level,
                                      const uchar *s, size_t slen,
                                      const uchar *t, size_t tlen,
-                                     my_bool t_is_prefix)
+                                     my_bool *t_is_prefix)
 {
   my_uca_scanner sscanner;
   my_uca_scanner tscanner;
@@ -119,7 +119,12 @@ MY_FUNCTION_NAME(strnncoll_onelevel)(CHARSET_INFO *cs,
     t_res= MY_FUNCTION_NAME(scanner_next)(&tscanner, &param);
   } while ( s_res == t_res && s_res >0);
   
-  return  (t_is_prefix && t_res < 0) ? 0 : (s_res - t_res);
+  if (t_is_prefix)
+  {
+    if ((*t_is_prefix= s_res != t_res && t_res < 0))
+      return 0;
+  }
+  return (s_res - t_res);
 }
 
 
@@ -130,7 +135,7 @@ static int
 MY_FUNCTION_NAME(strnncoll)(CHARSET_INFO *cs,
                             const uchar *s, size_t slen,
                             const uchar *t, size_t tlen,
-                            my_bool t_is_prefix)
+                            my_bool *t_is_prefix)
 {
   return MY_FUNCTION_NAME(strnncoll_onelevel)(cs, &cs->uca->level[0],
                                               s, slen, t, tlen, t_is_prefix);
@@ -139,14 +144,19 @@ MY_FUNCTION_NAME(strnncoll)(CHARSET_INFO *cs,
 
 /*
   Multi-level, PAD SPACE.
+
+  Note that t_is_prefix is set from the last call to strnncoll_onelevel
 */
 static int
 MY_FUNCTION_NAME(strnncoll_multilevel)(CHARSET_INFO *cs,
                                        const uchar *s, size_t slen,
                                        const uchar *t, size_t tlen,
-                                       my_bool t_is_prefix)
+                                       my_bool *t_is_prefix)
 {
   uint i, level_flags= cs->levels_for_order;
+  if (t_is_prefix && *t_is_prefix)
+    *t_is_prefix= 0;
+
   for (i= 0; level_flags; i++, level_flags>>= 1)
   {
     int ret;
@@ -636,15 +646,13 @@ MY_FUNCTION_NAME(strnncollsp_nchars_multilevel)(CHARSET_INFO *cs,
 */
 
 static void
-MY_FUNCTION_NAME(hash_sort)(CHARSET_INFO *cs,
-                            const uchar *s, size_t slen,
-                            ulong *nr1, ulong *nr2)
+MY_FUNCTION_NAME(hash_sort)(my_hasher_st *hasher, CHARSET_INFO *cs,
+                            const uchar *s, size_t slen)
 {
   int   s_res;
   my_uca_scanner scanner;
   my_uca_scanner_param param;
   int space_weight= my_space_weight(&cs->uca->level[0]);
-  register ulong m1= *nr1, m2= *nr2;
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   my_uca_scanner_param_init(&param, cs, &cs->uca->level[0]);
@@ -662,7 +670,7 @@ MY_FUNCTION_NAME(hash_sort)(CHARSET_INFO *cs,
         if ((s_res= MY_FUNCTION_NAME(scanner_next)(&scanner, &param)) <= 0)
         {
           /* Skip strings at end of string */
-          goto end;
+          return;
         }
       }
       while (s_res == space_weight);
@@ -676,31 +684,26 @@ MY_FUNCTION_NAME(hash_sort)(CHARSET_INFO *cs,
           opposite way.  Changing this would cause old partitioned tables
           to fail.
         */
-        MY_HASH_ADD(m1, m2, space_weight >> 8);
-        MY_HASH_ADD(m1, m2, space_weight & 0xFF);
+        MY_HASH_ADD(hasher, space_weight >> 8);
+        MY_HASH_ADD(hasher, space_weight & 0xFF);
       }
       while (--count != 0);
 
     }
     /* See comment above why we can't use MY_HASH_ADD_16() */
-    MY_HASH_ADD(m1, m2, s_res >> 8);
-    MY_HASH_ADD(m1, m2, s_res & 0xFF);
+    MY_HASH_ADD(hasher, s_res >> 8);
+    MY_HASH_ADD(hasher, s_res & 0xFF);
   }
-end:
-  *nr1= m1;
-  *nr2= m2;
 }
 
 
 static void
-MY_FUNCTION_NAME(hash_sort_nopad)(CHARSET_INFO *cs,
-                                  const uchar *s, size_t slen,
-                                  ulong *nr1, ulong *nr2)
+MY_FUNCTION_NAME(hash_sort_nopad)(my_hasher_st *hasher, CHARSET_INFO *cs,
+                                  const uchar *s, size_t slen)
 {
   int   s_res;
   my_uca_scanner scanner;
   my_uca_scanner_param param;
-  register ulong m1= *nr1, m2= *nr2;
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   my_uca_scanner_param_init(&param, cs, &cs->uca->level[0]);
@@ -709,11 +712,9 @@ MY_FUNCTION_NAME(hash_sort_nopad)(CHARSET_INFO *cs,
   while ((s_res= MY_FUNCTION_NAME(scanner_next)(&scanner, &param)) >0)
   {
     /* See comment above why we can't use MY_HASH_ADD_16() */
-    MY_HASH_ADD(m1, m2, s_res >> 8);
-    MY_HASH_ADD(m1, m2, s_res & 0xFF);
+    MY_HASH_ADD(hasher, s_res >> 8);
+    MY_HASH_ADD(hasher, s_res & 0xFF);
   }
-  *nr1= m1;
-  *nr2= m2;
 }
 
 

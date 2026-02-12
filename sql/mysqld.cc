@@ -303,6 +303,10 @@ static TYPELIB tc_heuristic_recover_typelib=
   array_elements(tc_heuristic_recover_names)-1,"",
   tc_heuristic_recover_names, NULL, NULL
 };
+#ifdef HAVE_REPLICATION
+static TYPELIB master_use_gtid_typelib=
+  CREATE_TYPELIB_FOR(master_use_gtid_names);
+#endif
 
 const char *first_keyword= "first";
 const char *my_localhost= "localhost",
@@ -454,6 +458,7 @@ my_bool opt_noacl;
 my_bool sp_automatic_privileges= 1;
 
 ulong opt_binlog_rows_event_max_size;
+uint opt_binlog_row_event_fragment_threshold;
 ulong binlog_row_metadata;
 my_bool opt_binlog_gtid_index= TRUE;
 uint opt_binlog_gtid_index_page_size= 4096;
@@ -614,7 +619,7 @@ const double log_10[] = {
 time_t server_start_time;
 
 char mysql_home[FN_REFLEN], pidfile_name[FN_REFLEN], system_time_zone[30];
-char *default_tz_name;
+char *default_tz_name, *opt_path;
 char log_error_file[FN_REFLEN], glob_hostname[FN_REFLEN], *opt_log_basename;
 char mysql_real_data_home[FN_REFLEN],
      lc_messages_dir[FN_REFLEN], reg_ext[FN_EXTLEN],
@@ -789,8 +794,9 @@ File_parser_dummy_hook file_parser_dummy_hook;
 
 /* replication parameters */
 uint report_port= 0;
-ulong master_retry_count=100000;
 char *master_info_file;
+// Options do not reset to default if the default is `nullptr`, so use `auto`.
+char *master_heartbeat_period_str= autoset_my_option;
 char *relay_log_info_file, *report_user, *report_password, *report_host;
 char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
 char *opt_logname, *opt_slow_logname, *opt_bin_logname;
@@ -3378,7 +3384,7 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
   DBUG_ASSERT((MyFlags & ~(ME_BELL | ME_ERROR_LOG | ME_ERROR_LOG_ONLY |
                            ME_NOTE | ME_WARNING | ME_FATAL)) == 0);
 
-  DBUG_ASSERT(str[strlen(str)-1] != '\n');
+  DBUG_ASSERT(str[strlen(str)-1] != '\n' || strlen(str) == MYSQL_ERRMSG_SIZE-1);
 
   if (MyFlags & ME_NOTE)
   {
@@ -4004,6 +4010,7 @@ static int init_common_variables()
 
   my_tzset();
   my_tzname(system_time_zone, sizeof(system_time_zone));
+  init_oracle_data_locale();                    // For TO_DATE()
 
   /*
     We set SYSTEM time zone as reasonable default and
@@ -4417,6 +4424,11 @@ static int init_common_variables()
     make_default_log_name(&opt_logname, ".log", false);
   if (!opt_slow_logname || !*opt_slow_logname)
     make_default_log_name(&opt_slow_logname, "-slow.log", false);
+
+  String sqlpath(const_cast<const char*>(opt_path), strlen(opt_path),
+                 character_set_filesystem);
+  if (global_system_variables.path.from_text(global_system_variables, &sqlpath))
+    return 1;
 
 #if defined(ENABLED_DEBUG_SYNC)
   /* Initialize the debug sync facility. See debug_sync.cc. */
@@ -7007,11 +7019,86 @@ struct my_option my_long_options[]=
    "more than one storage engine, when binary log is disabled)",
    &opt_tc_log_file, &opt_tc_log_file, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"master-retry-count", 0,
-   "The number of tries the slave will make to connect to the master before giving up",
-   &master_retry_count, &master_retry_count, 0, GET_ULONG,
-   REQUIRED_ARG, static_cast<longlong>(master_retry_count), 0, 0, 0, 0, 0},
 #ifdef HAVE_REPLICATION
+  {"master-connect-retry", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_CONNECT_RETRY, "
+   "the interval in integer seconds between each try to connect to the master",
+   &master_connect_retry, nullptr, nullptr, GET_UINT,
+   REQUIRED_ARG, master_connect_retry, 0, 0, nullptr, 0, nullptr},
+  {"master-heartbeat-period", OPT_MASTER_HEARTBEAT_PERIOD,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_HEARTBEAT_PERIOD, "
+   "the interval in DECIMAL(10, 3) seconds between replication heartbeats; "
+   "the autoset value is @@slave_net_timeout/2 calculated on use",
+   /*TODO
+     Like the filters, it is easier to parse from a string than to implement
+     new option types. Compromises would not be necessary if the options
+     parser isn't stuck with the lack of heterogenous types back in your day,
+     let alone the (in)accessiblity to C++'s @std::optional.
+   */
+   &master_heartbeat_period_str, nullptr, nullptr, GET_STR|GET_AUTO,
+   REQUIRED_ARG, reinterpret_cast<longlong>(master_heartbeat_period_str),
+   /* ignored for @ref GET_STR */ 0, 0, nullptr, 0, nullptr},
+  {"master-use-gtid", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_USE_GTID, which "
+   "specifies which GTID record (or neither) to start replicating from; the "
+   "autoset value is Slave_Pos, or No if that master does not support GTIDs",
+   &master_use_gtid, nullptr,
+   &master_use_gtid_typelib, GET_ENUM|GET_AUTO, REQUIRED_ARG,
+   static_cast<longlong>(master_use_gtid), 0, 0, nullptr, 0, nullptr},
+  {"master-retry-count", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_RETRY_COUNT, "
+   "the number of tries to connect to the master before giving up",
+   &master_retry_count, nullptr, 0, GET_ULL, REQUIRED_ARG,
+   static_cast<longlong>(master_retry_count), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL, "
+   "which is whether to use TLS to connect to the master",
+   &master_ssl, nullptr, nullptr, GET_BOOL, NO_ARG,
+   master_ssl, 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-ca", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL_CA, "
+   "an optional path to a Certificate Authorities' "
+   "certificates file for TLS replication",
+   &master_ssl_ca, nullptr, nullptr, GET_STR, REQUIRED_ARG,
+   reinterpret_cast<longlong>(master_ssl_ca), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-capath", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL_CAPATH, "
+   "an optional path to a directory of Certificate Authority's "
+   "certificate files for TLS replication, ",
+   &master_ssl_capath, nullptr, nullptr, GET_STR, REQUIRED_ARG,
+   reinterpret_cast<longlong>(master_ssl_capath), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-cert", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL_CERT, "
+   "an optional path to the master's certificate for TLS replication",
+   &master_ssl_cert, nullptr, nullptr, GET_STR, REQUIRED_ARG,
+   reinterpret_cast<longlong>(master_ssl_cert), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-cipher", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL_CIPHER, "
+   "a list of permitted ciphers for TLS replication",
+   &master_ssl_cipher, nullptr, nullptr, GET_STR, REQUIRED_ARG,
+   reinterpret_cast<longlong>(master_ssl_cipher), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-crl", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL_CRL, "
+   "an optional path to a revoked certificates file for TLS replication",
+   &master_ssl_crl, nullptr, nullptr, GET_STR, REQUIRED_ARG,
+   reinterpret_cast<longlong>(master_ssl_crl), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-crlpath", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL_CRLPATH, "
+   "an optional path to a directory of revoked "
+   "certificate files for TLS replication",
+   &master_ssl_crlpath, nullptr, nullptr, GET_STR, REQUIRED_ARG,
+   reinterpret_cast<longlong>(master_ssl_crlpath), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-key", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL_KEY, "
+   "an optional path to the master's private key for TLS replication",
+   &master_ssl_key, nullptr, nullptr, GET_STR, REQUIRED_ARG,
+   reinterpret_cast<longlong>(master_ssl_key), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-verify-server-cert", 0,
+   "The DEFAULT value for the CHANGE MASTER "
+   "option MASTER_SSL_VERIFY_SERVER_CERT, "
+   "which is whether to validate the master's certificate in TLS replication",
+   &master_ssl_verify_server_cert, nullptr, nullptr, GET_BOOL, NO_ARG,
+   master_ssl_verify_server_cert, 0, 0, nullptr, 0, nullptr},
   {"init-rpl-role", 0, "Set the replication role",
    &rpl_status, &rpl_status, &rpl_role_typelib,
    GET_ENUM, REQUIRED_ARG, RPL_AUTH_MASTER, 0, 0, 0, 0, 0},
@@ -7186,6 +7273,9 @@ struct my_option my_long_options[]=
    "start", &wsrep_new_cluster, &wsrep_new_cluster, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
 #endif
+  {"path", 0, "Comma-separated list of schema names that defines the search "
+   "order for stored routines", &opt_path, &opt_path, 0,
+   GET_STR, REQUIRED_ARG, (longlong)(intptr)"CURRENT_SCHEMA", 0, 0, 0, 0, 0 },
 };
 
 static int show_queries(THD *thd, SHOW_VAR *var, void *,
@@ -7298,7 +7388,8 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, void *buff,
       get_master_info(&thd->variables.default_master_connection,
                       Sql_condition::WARN_LEVEL_NOTE))
   {
-    sprintf(static_cast<char*>(buff), "%.3f", mi->heartbeat_period);
+    sprintf(static_cast<char*>(buff), "%.3lf",
+            mi->master_heartbeat_period/1000.0);
     mi->release();
     var->type= SHOW_CHAR;
     var->value= buff;
@@ -8371,6 +8462,9 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     else
       var->value_origin= sys_var::COMMAND_LINE;
   }
+  // Handle `GET_AUTO` for `--master-heartbeat-period` and `--master-use-gtid`
+  if (argument == autoset_my_option)
+    my_getopt_init_one_value(opt, opt->value, opt->def_value);
 
   switch(opt->id) {
   case '#':
@@ -8608,6 +8702,31 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     }
     break;
   }
+  case OPT_MASTER_HEARTBEAT_PERIOD:
+    if (master_heartbeat_period_str == autoset_my_option)
+      master_heartbeat_period.reset();
+    else
+    {
+      bool overprecise;
+      if (Master_info_file::Heartbeat_period_value::from_chars(
+        master_heartbeat_period, master_heartbeat_period_str,
+        strchr(master_heartbeat_period_str, '\0'), overprecise, '\0')
+      )
+      {
+        sql_print_error(
+          "Bad value for master-heartbeat-period; "
+          "should be between 0 and %s seconds inclusive.",
+          Master_info_file::Heartbeat_period_value::MAX
+        );
+        return true;
+      }
+      if (unlikely(!*master_heartbeat_period && overprecise))
+        sql_print_warning(
+          "master-heartbeat-period rounded to 0, "
+          "meaning that heartbeating will effectively be disabled."
+        );
+    }
+    break;
 #endif /* HAVE_REPLICATION */
   case (int) OPT_SAFE:
     opt_specialflag|= SPECIAL_SAFE_MODE | SPECIAL_NO_NEW_FUNC;
@@ -9323,10 +9442,11 @@ bool is_secure_file_path(char *path)
   }
   else
   {
+    my_bool use_prefix;
     if (files_charset_info->strnncoll(buff2, strlen(buff2),
                                       opt_secure_file_priv,
                                       opt_secure_file_priv_len,
-                                      TRUE))
+                                      &use_prefix))
       return FALSE;
   }
   return TRUE;
@@ -9681,6 +9801,7 @@ PSI_stage_info stage_alter_inplace_prepare= { 0, "preparing for alter table", 0}
 PSI_stage_info stage_alter_inplace= { 0, "altering table", 0};
 PSI_stage_info stage_alter_inplace_commit= { 0, "Committing alter table to storage engine", 0};
 PSI_stage_info stage_apply_event= { 0, "Apply log event", 0};
+PSI_stage_info stage_buffer_partial_rows= { 0, "Buffering Partial_rows_log_event", 0};
 PSI_stage_info stage_changing_master= { 0, "Changing master", 0};
 PSI_stage_info stage_checking_master_version= { 0, "Checking master version", 0};
 PSI_stage_info stage_checking_permissions= { 0, "checking permissions", 0};
@@ -9689,6 +9810,7 @@ PSI_stage_info stage_checking_query_cache_for_query= { 0, "Checking query cache 
 PSI_stage_info stage_cleaning_up= { 0, "Reset for next command", 0};
 PSI_stage_info stage_closing_tables= { 0, "closing tables", 0};
 PSI_stage_info stage_connecting_to_master= { 0, "Connecting to master", 0};
+PSI_stage_info stage_constructing_rows_ev= { 0, "Constructing Rows_log_event from buffer of fragments", 0};
 PSI_stage_info stage_converting_heap_to_myisam= { 0, "Converting HEAP to " TMP_ENGINE_NAME, 0};
 PSI_stage_info stage_copying_to_group_table= { 0, "Copying to group table", 0};
 PSI_stage_info stage_copying_to_tmp_table= { 0, "Copying to tmp table", 0};
@@ -9926,6 +10048,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_binlog_processing_checkpoint_notify,
   & stage_binlog_stopping_background_thread,
   & stage_binlog_waiting_background_tasks,
+  & stage_buffer_partial_rows,
   & stage_changing_master,
   & stage_checking_master_version,
   & stage_checking_permissions,
@@ -9936,6 +10059,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_commit,
   & stage_commit_implicit,
   & stage_connecting_to_master,
+  & stage_constructing_rows_ev,
   & stage_converting_heap_to_myisam,
   & stage_copy_to_tmp_table,
   & stage_copying_to_group_table,

@@ -2881,7 +2881,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("to_number") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override { return nullptr; }
+  Item *shallow_copy(THD *thd) const override { return nullptr; }
 
   // Get an Item_func_to_number pointer from a Item_handled_func pointer.
   static Item_func_to_number *to_func_to_number(Item_handled_func *func)

@@ -456,6 +456,14 @@ public:
   bool handle_end(THD *thd) override;
 };
 
+class Multidelete_prelocking_strategy : public DML_prelocking_strategy
+{
+  bool done;
+public:
+  void reset(THD *thd) override;
+  bool handle_end(THD *thd) override;
+};
+
 
 /**
   A strategy for prelocking algorithm to be used for LOCK TABLES

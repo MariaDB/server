@@ -5445,7 +5445,7 @@ DROP PROCEDURE bug21414|
 #
 set names utf8|
 create database това_е_дълго_име_за_база_данни_нали|
-INSERT INTO mysql.proc VALUES ('това_е_дълго_име_за_база_данни_нали','това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго','PROCEDURE','това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго','SQL','CONTAINS_SQL','NO','DEFINER','','','bad_body','root@localhost',now(), now(),'','', 'utf8', 'utf8_general_ci', 'utf8_general_ci', 'n/a', 'NONE')|
+INSERT INTO mysql.proc VALUES ('това_е_дълго_име_за_база_данни_нали','това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго','PROCEDURE','това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго','SQL','CONTAINS_SQL','NO','DEFINER','','','bad_body','root@localhost',now(), now(),'','', 'utf8', 'utf8_general_ci', 'utf8_general_ci', 'n/a', 'NONE',DEFAULT)|
 --error ER_SP_PROC_TABLE_CORRUPT
 call това_е_дълго_име_за_база_данни_нали.това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго()|
 drop database това_е_дълго_име_за_база_данни_нали|
@@ -9571,10 +9571,6 @@ CREATE OR REPLACE FUNCTION ordinality(a VARCHAR(128)) RETURNS int RETURN LENGTH(
 SELECT ordinality('1');
 DROP FUNCTION ordinality;
 
-CREATE OR REPLACE FUNCTION path(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
-SELECT path('1');
-DROP FUNCTION path;
-
 CREATE OR REPLACE FUNCTION fast(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
 SELECT fast('1');
 DROP FUNCTION fast;
@@ -9618,3 +9614,14 @@ SELECT SPECIFIC_NAME FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_SCHEMA='t
 DROP FUNCTION upper;
 
 --echo # End of 11.8 tests
+
+--echo #
+--echo # MDEV-38747:  ASAN errors in Optimizer_hint_parser::Identifier::to_ident_cli
+--echo #
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+CREATE TEMPORARY TABLE tmp (b INT);
+# Can be SELECT ... old.a, or SELECT ... * FROM sometable, etc.
+CREATE TRIGGER tr AFTER DELETE ON t FOR EACH ROW CREATE OR REPLACE TEMPORARY TABLE tmp AS SELECT /*+ QB_NAME(xxxx) */ 1;
+DELETE FROM t;
+DROP TABLE t;

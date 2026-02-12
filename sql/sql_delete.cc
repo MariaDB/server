@@ -160,11 +160,7 @@ bool Update_plan::save_explain_data_intern(THD *thd,
   /* Set jtype */
   if (select && select->quick)
   {
-    int quick_type= select->quick->get_type();
-    if ((quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE) ||
-        (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT) ||
-        (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT) ||
-        (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION))
+    if (is_index_merge(select->quick->get_type()))
       explain->jtype= JT_INDEX_MERGE;
     else
       explain->jtype= JT_RANGE;
@@ -475,13 +471,13 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     Apply the IN=>EXISTS transformation to all constant subqueries
     and optimize them.
 
-    It is too early to choose subquery optimization strategies without
-    an estimate of how many times the subquery will be executed so we
-    call optimize_unflattened_subqueries() with const_only= true, and
-    choose between materialization and in-to-exists later.
+    Constant subqueries are treated in a special way here: they can be
+    evaluated even in EXPLAIN statement, so their query plan must be
+    fully initialized for computation.
   */
-  if (select_lex->optimize_unflattened_subqueries(true))
+  if (select_lex->optimize_constant_subqueries())
     DBUG_RETURN(TRUE);
+
   optimize_subqueries= TRUE;
 
   const_cond= (!conds || conds->const_item());
@@ -2208,3 +2204,47 @@ bool Sql_cmd_delete::execute_inner(THD *thd)
   status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
   return res;
 }
+
+
+void Multidelete_prelocking_strategy::reset(THD *thd)
+{
+  done= false;
+}
+
+
+/**
+  Call setup_tables() to populate lex->first_select_lex()->leaf_tables.
+  This is needed to properly cleanup the tables used in DELETE's top-level
+  select. See st_select_lex::cleanup().
+*/
+
+bool Multidelete_prelocking_strategy::handle_end(THD *thd)
+{
+  DBUG_ENTER("Multidelete_prelocking_strategy::handle_end");
+
+  if (done)
+    DBUG_RETURN(0);
+
+  LEX *lex= thd->lex;
+  SELECT_LEX *select_lex= lex->first_select_lex();
+  TABLE_LIST *table_list= lex->query_tables;
+
+  done= true;
+
+  /*
+    This is done to resolve other base tables within derived tables in the
+    outermost select.
+  */
+  if (mysql_handle_derived(lex, DT_INIT) ||
+      mysql_handle_derived(lex, DT_MERGE_FOR_INSERT) ||
+      mysql_handle_derived(lex, DT_PREPARE))
+    DBUG_RETURN(1);
+
+  if (setup_tables(thd, &select_lex->context, &select_lex->top_join_list,
+        table_list, select_lex->leaf_tables, false, true))
+    DBUG_RETURN(1);
+
+  DBUG_RETURN(0);
+}
+
+

@@ -246,6 +246,10 @@ ENDIF()
 OPTION(WITH_MSAN "Enable memory sanitizer" OFF)
 IF (WITH_MSAN)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE")
+  IF (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "20.0")
+    # workaround for https://github.com/llvm/llvm-project/issues/179605
+    SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O1")
+  ENDIF()
   IF(NOT (have_C__fsanitize_memory__fsanitize_memory_track_origins__U_FORTIFY_SOURCE
           AND have_CXX__fsanitize_memory__fsanitize_memory_track_origins__U_FORTIFY_SOURCE))
     MESSAGE(FATAL_ERROR "Compiler doesn't support -fsanitize=memory flags")

@@ -257,12 +257,14 @@ RPL_TABLE_LIST::RPL_TABLE_LIST(const LEX_CSTRING *db_arg,
                                bool master_had_trigers):
   TABLE_LIST(db_arg, table_name_arg, NULL, thr_lock_type),
   m_tabledef(event->m_coltype, event->m_colcnt, event->m_field_metadata,
-             event->m_field_metadata_size, event->m_null_bits, event->m_flags),
+             event->m_field_metadata_size, event->m_null_bits, event->m_flags,
+             event->m_optional_metadata, event->m_optional_metadata_len),
   m_conv_table(NULL),
   m_online_alter_copy_fields(NULL), m_online_alter_copy_fields_end(NULL),
   cached_key_nr(~0U), m_tabledef_valid(true),
   master_had_triggers(master_had_trigers)
 {
+  optional_metadata.length= 0;
 }
 
 
@@ -273,12 +275,14 @@ RPL_TABLE_LIST::RPL_TABLE_LIST(TABLE *table, thr_lock_type lock_type,
                                const Copy_field *online_alter_copy_fields_end):
   TABLE_LIST(table, lock_type),
   m_tabledef(event->m_coltype, event->m_colcnt, event->m_field_metadata,
-             event->m_field_metadata_size, event->m_null_bits, event->m_flags),
+             event->m_field_metadata_size, event->m_null_bits, event->m_flags,
+             event->m_optional_metadata, event->m_optional_metadata_len),
   m_conv_table(conv_table),
   m_online_alter_copy_fields(online_alter_copy_fields),
   m_online_alter_copy_fields_end(online_alter_copy_fields_end),
   cached_key_nr(~0U), m_tabledef_valid(true), master_had_triggers(false)
 {
+  optional_metadata.length= 0;
 }
 
 
@@ -804,7 +808,7 @@ int Log_event_writer::write_header(uchar *pos, size_t len)
   {
     uchar save=pos[FLAGS_OFFSET];
     pos[FLAGS_OFFSET]&= ~LOG_EVENT_BINLOG_IN_USE_F;
-    crc= my_checksum(0, pos, len);
+    crc= my_checksum(crc, pos, len);
     pos[FLAGS_OFFSET]= save;
   }
 
@@ -848,17 +852,28 @@ int Log_event_writer::write_footer()
     uchar checksum_buf[BINLOG_CHECKSUM_LEN];
     int4store(checksum_buf, crc);
     if ((this->*encrypt_or_write)(checksum_buf, BINLOG_CHECKSUM_LEN))
+    {
+      crc= 0;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
+    }
   }
   if (ctx)
   {
     uint dstlen;
     uchar dst[MY_AES_BLOCK_SIZE*2];
     if (encryption_ctx_finish(ctx, dst, &dstlen))
+    {
+      crc= 0;
       DBUG_RETURN(1);
+    }
     if (maybe_write_event_len(dst, dstlen) || write_internal(dst, dstlen))
+    {
+      crc= 0;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
+    }
   }
+
+  crc= 0;
   DBUG_RETURN(0);
 }
 
@@ -3038,13 +3053,26 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
 uint32_t
 Gtid_log_event::get_size() const noexcept
 {
+  /*
+    The point of this function is to make it very clear from the code that
+    the calculation of the size follows the exact same logic and flags check
+    as done when serializing the event in Gtid_log_event::write().
+
+    However, clang MSAN, when used without -fno-sanitize-memory-param-retval,
+    complains that passing undefined value as function parameter is undefined
+    behaviour (even when value is not used by the function). So here we
+    break the pattern somehwat with fl_xa to work-around this overzealous use
+    of MSAN.
+  */
+  bool fl_xa= flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA);
   return get_gtid_event_size(flags2 & FL_GROUP_COMMIT_ID,
-                             flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA),
+                             fl_xa,
                              flags_extra > 0,
                              flags_extra & FL_EXTRA_MULTI_ENGINE_E1,
                              flags_extra & (FL_COMMIT_ALTER_E1 | FL_ROLLBACK_ALTER_E1),
                              flags_extra & FL_EXTRA_THREAD_ID,
-                             xid.bqual_length, xid.gtrid_length);
+                             (fl_xa ? xid.bqual_length : 0),
+                             (fl_xa ? xid.gtrid_length : 0));
 }
 
 
@@ -4853,17 +4881,6 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
     DBUG_EXECUTE_IF("simulate_too_big_row_case4",
                      cur_size= UINT_MAX32 - (block_size * 10);
                      length= (block_size * 10) - block_size + 1;);
-    size_t remaining_space= UINT_MAX32 - cur_size;
-    /* Check that the new data fits within remaining space and we can add
-       block_size without wrapping.
-     */
-    if (cur_size > UINT_MAX32 || length > remaining_space ||
-        ((length + block_size) > remaining_space))
-    {
-      sql_print_error("The row data is greater than 4GB, which is too big to "
-                      "write to the binary log.");
-      DBUG_RETURN(ER_BINLOG_ROW_LOGGING_FAILED);
-    }
     size_t const new_alloc= 
         block_size * ((cur_size + length + block_size - 1) / block_size);
 
@@ -4912,15 +4929,55 @@ inline void restore_empty_query_table_list(LEX *lex)
 }
 
 
+/**
+  Updates a table's write_set to include slave-only fields that are
+  automatically filled in (either with a default or virtual column value). That
+  is, when replicating a rows log event, a table's write_set is initially
+  determined by the event's column bitmaps (in the case of an update rows
+  event, it is the after_image bitmap). However, if a field isn't present on
+  the master, the binlog event's column mapping won't be able to include it; so
+  we iterate through a table's fields which will be automatically populated,
+  and add them to the write_set.
+
+  @param table           Table to update the write_set for
+  @param field_start_ptr Pointer to the first automatically populatable field
+                         of the table (e.g. table->default_field or
+                         table->vfield).
+*/
+static void update_write_set_for_auto_filled_fields(TABLE *table,
+                                                    Field **field_start_ptr)
+{
+  DBUG_ENTER("update_write_set_for_auto_filled_fields");
+  DBUG_ASSERT(field_start_ptr && *field_start_ptr);
+
+  Field **field_ptr, *field;
+  for (field_ptr= field_start_ptr; *field_ptr; ++field_ptr)
+  {
+    field= *field_ptr;
+    /*
+      We only want to automatically populate the value of fields which don't
+      have values provided by the master; so we check that either no value was
+      provided, or the table's original write set accounts for the explicit
+      value.
+    */
+    DBUG_ASSERT(!field->has_explicit_value() ||
+                bitmap_is_set(table->write_set, field->field_index));
+    if (field->stored_in_db())
+      bitmap_set_bit(table->write_set, field->field_index);
+  }
+  DBUG_VOID_RETURN;
+}
+
 int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
   DBUG_ASSERT(rgi);
   Relay_log_info const *rli= rgi->rli;
   TABLE* table;
-  DBUG_ENTER("Rows_log_event::do_apply_event(Relay_log_info*)");
   int error= 0;
   LEX *lex= thd->lex;
   uint8 new_trg_event_map= get_trg_event_map();
+  DBUG_ENTER("Rows_log_event::do_apply_event(Relay_log_info*)");
+
   /*
     If m_table_id == UINT32_MAX, then we have a dummy event that does not
     contain any data.  In that case, we just remove all tables in the
@@ -5115,6 +5172,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         }
       };);
 #endif /* WITH_WSREP */
+
+    DBUG_EXECUTE_IF("rows_log_event_after_open_table", {
+      const char action[]=
+          "now SIGNAL after_open_table WAIT_FOR continue_rows_ev";
+      DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(action)));
+    };);
+
     /*
       When the open and locking succeeded, we check all tables to
       ensure that they still have the correct type.
@@ -5168,8 +5232,9 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         */
         RPL_TABLE_LIST *ptr= static_cast<RPL_TABLE_LIST*>(table_list_ptr);
         DBUG_ASSERT(ptr->m_tabledef_valid);
-        TABLE *conv_table;
-        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
+
+        ptr->create_column_mapping(rgi);
+        if (ptr->m_tabledef.compatible_with(thd, rgi, ptr))
         {
           DBUG_PRINT("debug", ("Table: %s.%s is not compatible with master",
                                ptr->table->s->db.str,
@@ -5183,11 +5248,6 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
           error= ERR_BAD_TABLE_DEF;
           goto err;
         }
-        DBUG_PRINT("debug", ("Table: %s.%s is compatible with master"
-                             " - conv_table: %p",
-                             ptr->table->s->db.str,
-                             ptr->table->s->table_name.str, conv_table));
-        ptr->m_conv_table= conv_table;
       }
     }
 
@@ -5205,8 +5265,9 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       Rows_log_event, we can invalidate the query cache for the
       associated table.
      */
-    TABLE_LIST *ptr= rgi->tables_to_lock;
-    for (uint i=0 ;  ptr && (i < rgi->tables_to_lock_count); ptr= ptr->next_global, i++)
+    RPL_TABLE_LIST *ptr= rgi->tables_to_lock;
+    for (uint i=0 ;  ptr && (i < rgi->tables_to_lock_count);
+         ptr= (RPL_TABLE_LIST*) ptr->next_global, i++)
     {
       /*
         Please see comment in above 'for' loop to know the reason
@@ -5276,43 +5337,124 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
 
     DBUG_PRINT_BITSET("debug", "Setting table's read_set from: %s", &m_cols);
-
-    bitmap_set_all(table->read_set);
-    bitmap_set_all(table->write_set);
-    table->rpl_write_set= table->write_set;
-
-    if (rpl_data.copy_fields)
-      /* always full rows, all bits set */;
-    else
-    if (get_general_type_code() == WRITE_ROWS_EVENT)
-      bitmap_copy(table->write_set, &m_cols); // for sequences
-    else // If online alter, leave all columns set (i.e. skip intersects)
-    if (!thd->slave_thread || !table->s->online_alter_binlog)
     {
-      bitmap_intersect(table->read_set,&m_cols);
-      if (get_general_type_code() == UPDATE_ROWS_EVENT)
+      RPL_TABLE_LIST *rpl_table= (RPL_TABLE_LIST*)table->pos_in_table_list;
+      Log_event_type type= get_general_type_code();
+      DBUG_ASSERT(rpl_table);
+      DBUG_ASSERT(rpl_table == rgi->get_table_data(table));
+
+      /*
+        For each field that is unpacked, it will be marked as having an
+        explicit value (via Field::set_has_explicit_value() in unpack_row()).
+        So we need to reset the table's internal tracking of fields with
+        explicit values provided to ensure the end state is consistent with
+        the fields that are actually unpacked.
+      */
+      table->reset_default_fields();
+
+      bitmap_set_all(table->read_set);
+      bitmap_set_all(table->write_set);
+      table->rpl_write_set= table->write_set;
+      if (rpl_data.is_online_alter())
       {
-        /* Must read also after-image columns to be able to update them. */
-        bitmap_union(m_table->read_set, &m_cols_ai);
-        bitmap_intersect(table->write_set, &m_cols_ai);
+        /*
+          We are executing online alter table. Always full rows, all bits set
+        */
       }
-      table->mark_columns_per_binlog_row_image();
-      if (table->vfield)
-        table->mark_virtual_columns_for_write(0);
-    }
+      else if (!table->s->online_alter_binlog)
+      {
+        if (!rpl_table->m_tabledef.optional_metadata.length)
+        {
+          /*
+            Master did not use binlog_row_metadata=FULL, so identify fields
+            using index number.
+          */
+          MY_BITMAP *after_image;
+          if (type == DELETE_ROWS_EVENT || type == UPDATE_ROWS_EVENT)
+          {
+            bitmap_intersect(table->read_set, &m_cols);
+            if (type == UPDATE_ROWS_EVENT)
+            {
+              bitmap_union(table->read_set, &m_cols_ai);
+              bitmap_intersect(table->write_set, &m_cols_ai);
+            }
+          }
 
-    if (table->versioned())
-    {
-      bitmap_set_bit(table->read_set, table->s->vers.start_fieldno);
-      bitmap_set_bit(table->write_set, table->s->vers.start_fieldno);
-      bitmap_set_bit(table->read_set, table->s->vers.end_fieldno);
-      bitmap_set_bit(table->write_set, table->s->vers.end_fieldno);
+          /* WRITE ROWS EVENTS store the bitmap in m_cols instead of m_cols_ai */
+          after_image= ((type == UPDATE_ROWS_EVENT) ? &m_cols_ai : &m_cols);
+          bitmap_intersect(table->write_set, after_image);
+          table->mark_columns_per_binlog_row_image();
+          if (type != WRITE_ROWS_EVENT && table->vfield)
+            table->mark_virtual_columns_for_write(0);
+        }
+        else
+        {
+          /*
+            The row event was logged with column names (i.e using
+            binlog_row_metadata=FULL) so fix the bitmaps to account for potential
+            column reorganizations on the slave using the master-to-slave
+            translations.
+          */
+          bitmap_clear_all(table->read_set);
+          bitmap_clear_all(table->write_set);
+
+          for (uint i= 0; i < m_cols.n_bits; i++)
+          {
+            if (bitmap_is_set(&m_cols, i) &&
+                !rpl_table->m_tabledef.master_to_slave_error[i])
+              bitmap_set_bit(table->read_set,
+                             rpl_table->m_tabledef.master_to_slave_map[i]);
+          }
+
+          if (type != UPDATE_ROWS_EVENT)
+            bitmap_copy(table->write_set, table->read_set);
+          else
+          {
+            /*
+              Update rows events can have disjoint read vs write sets in the
+              before/after images (e.g. when logged with
+              binlog_row_image=MINIMAL), so we explicitly set the write set
+              from the after image.
+            */
+            for (uint i= 0; i < m_cols_ai.n_bits; i++)
+            {
+              if (bitmap_is_set(&m_cols_ai, i) &&
+                  !rpl_table->m_tabledef.master_to_slave_error[i])
+                bitmap_set_bit(table->write_set,
+                               rpl_table->m_tabledef.master_to_slave_map[i]);
+            }
+          }
+        }
+      }
+
+      if (table->versioned())
+      {
+        bitmap_set_bit(table->read_set, table->s->vers.start_fieldno);
+        bitmap_set_bit(table->write_set, table->s->vers.start_fieldno);
+        bitmap_set_bit(table->read_set, table->s->vers.end_fieldno);
+        bitmap_set_bit(table->write_set, table->s->vers.end_fieldno);
+      }
+
+      if ((error= rpl_table->check_wrong_column_usage(rgi, &m_cols)))
+        goto err;
+
+      table->mark_columns_per_binlog_row_image();
+
+      if (table->default_field && *(table->default_field) &&
+          (rpl_data.is_online_alter() ||
+           LOG_EVENT_IS_WRITE_ROW(rgi->current_event->get_type_code())))
+        update_write_set_for_auto_filled_fields(table, table->default_field);
+
+      if (table->vfield && *(table->vfield))
+        update_write_set_for_auto_filled_fields(table, table->vfield);
+
+      if (!rpl_data.is_online_alter())
+        this->slave_exec_mode= (enum_slave_exec_mode) slave_exec_mode_options;
     }
-    m_table->mark_columns_per_binlog_row_image();
 
     COPY_INFO copy_info;
     Write_record write_record;
-    // Do event specific preparations
+    // Do event specific preparations 
     error= do_before_row_operations(rgi, &copy_info, &write_record);
 
     /*
@@ -5325,8 +5467,9 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
     sql_mode_t saved_sql_mode= thd->variables.sql_mode;
     if (!is_auto_inc_in_extra_columns())
-      thd->variables.sql_mode= (rpl_data.copy_fields ? saved_sql_mode : 0)
-                               | MODE_NO_AUTO_VALUE_ON_ZERO;
+      thd->variables.sql_mode=
+          (rpl_data.is_online_alter() ? saved_sql_mode : 0) |
+          MODE_NO_AUTO_VALUE_ON_ZERO;
 
     // row processing loop
 
@@ -5659,14 +5802,13 @@ bool Rows_log_event::write_data_header(Log_event_writer *writer)
   return write_data(writer, buf, ROWS_HEADER_LEN_V1);
 }
 
-bool Rows_log_event::write_data_body(Log_event_writer *writer)
+bool Rows_log_event::write_data_body_metadata(Log_event_writer *writer)
 {
   /*
      Note that this should be the number of *bits*, not the number of
      bytes.
   */
   uchar sbuf[MAX_INT_WIDTH];
-  my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
   bool res= false;
   uchar *const sbuf_end= net_store_length(sbuf, (size_t) m_width);
   uint bitmap_size= no_bytes_in_export_map(&m_cols);
@@ -5692,9 +5834,466 @@ bool Rows_log_event::write_data_body(Log_event_writer *writer)
     DBUG_DUMP("m_cols_ai", bitmap, bitmap_size);
     res= res || write_data(writer, bitmap, bitmap_size);
   }
-  DBUG_DUMP("rows", m_rows_buf, data_size);
-  res= res || write_data(writer, m_rows_buf, (size_t) data_size);
   my_afree(bitmap);
+
+  return res;
+}
+
+bool Rows_log_event::write_data_body_rows(Log_event_writer *writer,
+                                          uint64_t from_offset,
+                                          uint64_t len_to_write)
+{
+  uchar *from_ptr= m_rows_buf + from_offset;
+  my_ptrdiff_t const data_size= len_to_write ? len_to_write : m_rows_cur - m_rows_buf;
+  DBUG_DUMP("rows", from_ptr, data_size);
+  return write_data(writer, from_ptr, (size_t) data_size);
+}
+
+bool Rows_log_event::write_data_body(Log_event_writer *writer)
+{
+  bool res= write_data_body_metadata(writer);
+  res= res || write_data_body_rows(writer);
+  return res;
+}
+
+
+/**************************************************************************
+	Partial_rows_log_event member functions
+**************************************************************************/
+
+#ifdef HAVE_REPLICATION
+int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
+{
+  int res= 0;
+  DBUG_ASSERT(rgi);
+  DBUG_ASSERT(rgi->thd);
+  Rows_log_event_assembler *assembler;
+  PSI_stage_info org_stage;
+  rgi->thd->backup_stage(&org_stage);
+
+  if (!rgi->assembler)
+  {
+    rgi->assembler= (Rows_log_event_assembler *) my_malloc(
+        PSI_INSTRUMENT_ME, sizeof(Rows_log_event_assembler), MYF(MY_WME));
+    if (!rgi->assembler)
+    {
+      rgi->rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
+                       "Could not allocate Rows_log_event_assembler");
+      res= ER_OUTOFMEMORY;
+      goto end;
+    }
+    new (rgi->assembler) Rows_log_event_assembler(rgi, total_fragments);
+  }
+  assembler= rgi->assembler;
+
+  THD_STAGE_INFO(rgi->thd, stage_buffer_partial_rows);
+  if ((res= assembler->append(this)))
+  {
+    rgi->assembler->~Rows_log_event_assembler();
+    my_free(rgi->assembler);
+    rgi->assembler= NULL;
+    goto end;
+  }
+
+  if (assembler->all_fragments_assembled())
+  {
+    THD_STAGE_INFO(rgi->thd, stage_constructing_rows_ev);
+    Log_event *ev= assembler->create_rows_event(
+        rgi->rli->relay_log.description_event_for_exec);
+    rgi->assembler->~Rows_log_event_assembler();
+    my_free(rgi->assembler);
+    rgi->assembler= NULL;
+
+    if (!ev)
+    {
+      rgi->rli->report(
+          ERROR_LEVEL, ER_SLAVE_RELAY_LOG_READ_FAILURE, NULL,
+          ER_THD(thd, ER_SLAVE_RELAY_LOG_READ_FAILURE),
+          "Could not parse Rows_log_event re-assembled from "
+          "Partial_rows_log_events. The possible reasons are: the master's "
+          "binary log is corrupted (you can check this by running "
+          "'mysqlbinlog' on the binary log), the slave's relay log is "
+          "corrupted (you can check this by running 'mysqlbinlog' on the "
+          "relay log), a network problem, or a bug in the master's or slave's "
+          "MariaDB code. If you want to check the master's binary log or "
+          "slave's relay log, you will be able to know their names by issuing "
+          "'SHOW SLAVE STATUS' on this slave.");
+      res= 1;
+      goto end;
+    }
+
+    /*
+      We can safely ignore the return value of
+      apply_event_and_update_pos_setup(), which indicates if this event should
+      be skipped or not. Consider the two cases in which this is called:
+
+       1) This event is being applied by the SQL thread directly. In which
+          case, in apply_event_and_update_pos(), the ev->shall_skip() check is
+          performed on the encompassing Partial_rows_log_event(), which will
+          duplicate the value/behavior of this assembled Rows_log_event but at
+          an earlier time. In other words, if the Partial_rows_log_event is
+          skipped, execution could not be here.
+
+       2) This event is applied by a SQL BINLOG base-64 event, in which case,
+          the skip-logic is not performed and we don't care about the result.
+    */
+    apply_event_and_update_pos_setup(ev, thd, rgi);
+
+    res= ev->apply_event(rgi);
+    delete ev;
+  }
+
+end:
+  THD_STAGE_INFO(rgi->thd, org_stage);
+  return res;
+}
+#endif
+
+bool Partial_rows_log_event::write_data_body(Log_event_writer *writer)
+{
+  uint64_t cur_offset= start_offset;
+  uint64_t row_data_len_to_write= end_offset - start_offset;
+  /*
+    Write the width and cols bitmap for the first event. This shouldn't ever
+    extend beyond one fragment, so don't add checks to split these.
+  */
+  my_bool first_fragment= !cur_offset;
+  if (first_fragment)
+  {
+    rows_event->write_header(writer, rows_event->get_data_size());
+    rows_event->write_data_header(writer);
+    rows_event->write_data_body_metadata(writer);
+  }
+
+  return rows_event->write_data_body_rows(writer, start_offset,
+                                          row_data_len_to_write);
+}
+
+bool Partial_rows_log_event::write_data_header(Log_event_writer *writer)
+{
+  uchar buf[max_data_length];        // No need to init the buffer
+
+  /*
+    The length of the amount of data that will be written. This is also used
+    to track where to write optional fields.
+  */
+  size_t header_size= PARTIAL_ROWS_HEADER_LEN;
+
+  /*
+    Mandatory fields occuring in all Partial_rows_log_events
+  */
+  int4store(buf + PRW_TOTAL_SEQS_OFFSET, this->total_fragments);
+  int4store(buf + PRW_SELF_SEQ_OFFSET, this->seq_no);
+  buf[PRW_FLAGS_OFFSET]= this->flags2;
+
+  /*
+    Optional fields that may be written depending on flags2
+  */
+  if(flags2 & FL_ORIG_EVENT_SIZE)
+  {
+    DBUG_ASSERT(original_event_size && seq_no == 1);
+    int8store(buf + header_size, original_event_size);
+    header_size+= 8;
+  }
+
+  return write_data(writer, buf, header_size);
+}
+
+#if defined(HAVE_REPLICATION)
+void Partial_rows_log_event::pack_info(Protocol *protocol)
+{
+  char buf[256];
+  size_t bytes= my_snprintf(buf, sizeof(buf),
+                               "Fragment %u of %u", seq_no, total_fragments);
+  protocol->store(buf, bytes, &my_charset_bin);
+}
+#endif
+
+bool Rows_log_event_fragmenter::Fragmented_rows_log_event::write(
+    Log_event_writer *writer)
+{
+  for (uint32_t i= 0; i < n_fragments; i++)
+  {
+#ifndef DBUG_OFF
+    bool skip_writing_pev=
+        (DBUG_IF("partial_rows_skip_binlogging_first_fragment") && i == 0) ||
+        (DBUG_IF("partial_rows_skip_binlogging_middle_fragment") && i == 1) ||
+        (DBUG_IF("partial_rows_skip_binlogging_last_fragment") &&
+         i == n_fragments - 1);
+#endif
+
+    bool res=
+#ifndef DBUG_OFF
+        !skip_writing_pev &&
+#endif
+        writer->write(&fragments[i]);
+
+    if (res)
+      return res;
+  }
+  return 0;
+}
+
+bool Rows_log_event_fragmenter::Fragmented_rows_log_event::is_valid() const
+{
+  uint32_t last_fragment_seen= 0;
+  for (uint32_t i= 0; i < n_fragments; i++)
+  {
+    Partial_rows_log_event *frag= &fragments[i];
+    bool is_valid= (frag->total_fragments == n_fragments) &&
+                   (frag->seq_no == last_fragment_seen + 1) &&
+                   frag->is_valid();
+    if (!is_valid)
+      return false;
+    last_fragment_seen= frag->seq_no;
+  }
+  return true;
+}
+
+/*
+  Fragments a Rows_log_event into multiple Partial_rows_log_event fragments.
+  It is assumed that the Rows_log_event_fragmenter already has the source
+  Rows_log_event at this point. To fragment into a group of
+  Partial_rows_log_event, this function first allocates a chunk of memory to
+  hold all fragmented events. To calculate the size of memory required, the
+  total size of the Rows_log_event is divided by the amount of data that each
+  Partial_rows_log_event can hold. The first fragment also holds the original
+  size of the Rows event, and for the calculation, this size is aggregated into
+  the Rows_log_event total size, as it is only applicable to one event in the
+  group.
+
+  The group of Partial_rows_log_events therefore looks like:
+
+  Fragment 1:
+    1. Common header for the Partial_rows_log_event
+    2. Post-header for the Partial_rows_log_event
+      * Total number of fragments
+      * Sequence number of this event
+      * Original size of the Rows_log_event
+    3. Rows log event data
+      * Common header for the Rows_log_event
+      * Post-header for the Rows_log_event
+      * Metadata for the Rows_log_event (i.e. the width and columns bitmap)
+      * Rows data up to the end of the fragment (excluding the checksum)
+    4. Checksum for the Partial_rows_log_event
+
+  Fragment 2 through (n-1):
+    1. Common header for the Partial_rows_log_event
+    2. Post-header for the Partial_rows_log_event
+      * Total number of fragments
+      * Sequence number of this event
+    3. Rows log event data
+      * Rows data up to the end of the fragment (excluding the checksum)
+    4. Checksum for the Partial_rows_log_event
+
+  Fragment n (last fragment):
+    1. Common header for the Partial_rows_log_event
+    2. Post-header for the Partial_rows_log_event
+      * Total number of fragments
+      * Sequence number of this event
+    3. Rows log event data
+      * Remaining rows data
+    4. Checksum for the Partial_rows_log_event
+*/
+Rows_log_event_fragmenter::Fragmented_rows_log_event *
+Rows_log_event_fragmenter::fragment()
+{
+  Fragmented_rows_log_event *ev;
+  uchar width_tmp_buf[MAX_INT_WIDTH];
+  uchar *const width_tmp_buf_end=
+      net_store_length(width_tmp_buf, (size_t) rows_event->m_width);
+  uint32_t width_size=
+      static_cast<uint32_t>(width_tmp_buf_end - width_tmp_buf);
+
+  /*
+    Update row events write an extra bitmap
+  */
+  uint32_t cols_size=
+      no_bytes_in_export_map(&rows_event->m_cols) *
+      ((rows_event->get_general_type_code() == UPDATE_ROWS_EVENT) ? 2 : 1);
+
+
+  /**********************************************************************
+    Attributes about the length of the underlying Rows_log_event
+  **********************************************************************/
+  /*
+    The size of the Rows_log_event header and metadata (table width, column
+    bitmap)
+  */
+  uint32_t rows_ev_metadata_size=
+      LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + width_size + cols_size;
+
+  /* The size of the actual row data payload */
+  uint64_t rows_ev_data_size=
+      static_cast<uint64_t>(rows_event->m_rows_cur - rows_event->m_rows_buf);
+
+  /*
+    The total size of the original event that will be re-created on the slave
+  */
+  uint64_t rows_ev_total_size=
+      static_cast<uint64_t>(rows_ev_metadata_size) + rows_ev_data_size;
+  /*********************************************************************/
+
+
+  /**********************************************************************
+    Attributes to describe the encompassing Partial_rows_log_event group
+  **********************************************************************/
+  /*
+    Extra payload in the first fragment: the original Rows_log_event metadata
+    plus the 8-byte original event size field.
+  */
+  uint32_t first_ev_extra_size= rows_ev_metadata_size + 8 /* orig_event_size */;
+
+  /*
+    The total data stream to be fragmented, including the extra data for the
+    first fragment. The extra data is included into this variable because it
+    simplifies the calculation, as it is only added once.
+  */
+  uint64_t group_total_size=
+      static_cast<uint64_t>(first_ev_extra_size) + rows_ev_data_size;
+  /*********************************************************************/
+
+  /* The maximum amount of payload data each fragment can hold. */
+  uint32_t data_size_per_chunk= get_payload_size_per_chunk();
+
+  uint32_t last_chunk_size= (group_total_size % data_size_per_chunk);
+  uint8_t last_chunk= last_chunk_size ? 1 : 0;
+  uint32_t num_chunks=
+      static_cast<uint32_t>((group_total_size / data_size_per_chunk)) +
+      last_chunk;
+
+  fragments=
+      DBUG_IF("oom_fragmenting_large_rows_ev")
+          ? NULL
+          : (Partial_rows_log_event *) my_malloc(
+                PSI_INSTRUMENT_ME, sizeof(Partial_rows_log_event) * num_chunks,
+                MYF(MY_WME));
+  DBUG_EXECUTE("oom_fragmenting_large_rows_ev", my_errno= ENOMEM;);
+
+  if (!fragments)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), sizeof(Partial_rows_log_event)*num_chunks);
+    return NULL;
+  }
+
+
+  /*
+    Offset into the Rows_log_event data to start writing at, inclusive
+  */
+  uint64_t chunk_start;
+
+  /*
+    Offset into the Rows_log_event data to stop writing at, inclusive (?)
+  */
+  uint64_t chunk_end;
+
+  /*
+    First chunk
+  */
+  {
+    chunk_start= 0;
+    chunk_end= data_size_per_chunk - first_ev_extra_size;
+    new (&fragments[0]) Partial_rows_log_event(
+        thd, is_transactional, 1, num_chunks, rows_ev_total_size,
+        rows_ev_metadata_size, chunk_start, chunk_end,
+        Partial_rows_log_event::FL_ORIG_EVENT_SIZE, rows_event);
+  }
+
+  /*
+    The rest of the chunks
+  */
+  for (uint32 chunk_idx= 1; chunk_idx < num_chunks; chunk_idx++)
+  {
+    my_bool is_last_chunk= (chunk_idx == (num_chunks - 1));
+    chunk_start= ((chunk_idx * data_size_per_chunk) - first_ev_extra_size);
+    chunk_end= chunk_start +
+               (is_last_chunk ? (last_chunk_size) : (data_size_per_chunk));
+    new (&fragments[chunk_idx]) Partial_rows_log_event(
+        thd, is_transactional, chunk_idx + 1, num_chunks, 0, 0, chunk_start,
+        chunk_end, 0, rows_event);
+  }
+
+  ev= new Fragmented_rows_log_event(fragments, num_chunks);
+  return ev;
+}
+
+#ifdef HAVE_REPLICATION
+// Len of "%u / %u"
+#define PARTIAL_ROWS_EVENT_BAD_STREAM_ERRSTR_LEN (10 + 3 + 10 + 1)
+int Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
+{
+  if ((partial_ev->total_fragments != this->total_fragments) ||
+      (partial_ev->seq_no != this->last_fragment_seen + 1))
+  {
+    char buf[PARTIAL_ROWS_EVENT_BAD_STREAM_ERRSTR_LEN];
+    buf[PARTIAL_ROWS_EVENT_BAD_STREAM_ERRSTR_LEN - 1]= '\0';
+    my_snprintf(buf, sizeof(buf), "%u / %u", partial_ev->seq_no,
+                partial_ev->total_fragments);
+    rgi->rli->report(ERROR_LEVEL, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM,
+                     rgi->gtid_info(),
+                     ER_THD(rgi->thd, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM),
+                     buf, this->last_fragment_seen + 1, this->total_fragments);
+    return ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM;
+  }
+
+  if (this->last_fragment_seen == 0)
+  {
+    DBUG_ASSERT(partial_ev->seq_no == 1 &&
+                partial_ev->flags2 &
+                    Partial_rows_log_event::FL_ORIG_EVENT_SIZE &&
+                partial_ev->original_event_size);
+    rows_ev_buf_builder_ptr=
+        DBUG_IF("oom_reassembling_large_rows_ev_buf")
+            ? NULL
+            : (char *) my_malloc(PSI_INSTRUMENT_ME,
+                                 partial_ev->original_event_size, MYF(MY_WME));
+    DBUG_EXECUTE("oom_reassembling_large_rows_ev_buf", my_errno= ENOMEM;);
+    ev_len= 0;
+  }
+  if (!rows_ev_buf_builder_ptr)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), total_fragments*partial_ev->get_rows_size());
+    rgi->rli->report(
+        ERROR_LEVEL, rgi->thd->get_stmt_da()->get_sql_errno(),
+        rgi->gtid_info(),
+        "Could not append Partial_rows_log_event %u / %u to internal "
+        "Rows_log_event buffer: %s",
+        partial_ev->seq_no, partial_ev->total_fragments,
+        rgi->thd->get_stmt_da()->message());
+    return ER_OUTOFMEMORY;
+  }
+
+  memcpy(rows_ev_buf_builder_ptr + ev_len,
+         partial_ev->ev_buffer_base + partial_ev->start_offset,
+         partial_ev->get_rows_size());
+  ev_len+= partial_ev->get_rows_size();
+
+  last_fragment_seen= partial_ev->seq_no;
+
+  return 0;
+}
+#endif
+
+Log_event *Rows_log_event_assembler::create_rows_event(
+    const Format_description_log_event *fdle)
+{
+  const char *error= NULL;
+  Log_event *res= NULL;
+
+  if ((res=
+           DBUG_IF("fail_parsing_rows_ev_from_reassembly")
+               ? NULL
+               : Log_event::read_log_event_no_checksum(
+                     (uchar *) rows_ev_buf_builder_ptr, ev_len, &error, fdle)))
+  {
+    row_ev_created= true;
+    res->register_temp_buf((uchar *) rows_ev_buf_builder_ptr, true);
+  }
+  else
+  {
+    DBUG_EXECUTE("fail_parsing_rows_ev_from_reassembly", error= "test error";);
+    sql_print_error("Error in Log_event::read_log_event(): '%s'", error);
+  }
 
   return res;
 }
@@ -6066,7 +6665,6 @@ check_table_map(rpl_group_info *rgi, RPL_TABLE_LIST *table_list)
 
   DBUG_RETURN(res);
 }
-
 
 int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
 {
@@ -7003,7 +7601,7 @@ Write_rows_log_event::write_row(rpl_group_info *rgi,
   TABLE *table= m_table;  // pointer to event's table
   const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
 
-  prepare_record(table, m_width, true);
+  prepare_record(table);
 
   /* unpack row into table->record[0] */
   int error= unpack_current_row(rgi);
@@ -7178,10 +7776,22 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #if defined(HAVE_REPLICATION)
 uint8 Write_rows_log_event::get_trg_event_map() const
 {
-  return trg2bit(TRG_EVENT_INSERT) | trg2bit(TRG_EVENT_UPDATE) |
-         trg2bit(TRG_EVENT_DELETE);
+  /*
+    In SLAVE_EXEC_MODE_IDEMPOTENT mode, Write_rows_log_event event is
+    implicitly a REPLACE, deleting all conflicting rows which can cause
+    foreign key constraint cascade operations on FK referencing table.
+
+    In SLAVE_EXEC_MODE_STRICT mode, the Write_rows_log_event is pure INSERT,
+    will never cause foreign key constraint cascade operations on foreign key
+    referencing tables.
+  */
+  if (slave_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
+    return trg2bit(TRG_EVENT_INSERT) | trg2bit(TRG_EVENT_DELETE);
+  else
+    return trg2bit(TRG_EVENT_INSERT);
 }
 #endif
+
 
 /**************************************************************************
 	Delete_rows_log_event member functions
@@ -7604,7 +8214,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     Todo: fix wl3228 hld that requires defauls for all types of events
   */
   
-  prepare_record(table, m_width, FALSE);
+  restore_record(table, s->default_values);
   error= unpack_current_row(rgi);
 
   m_vers_from_plain= false;

@@ -8482,11 +8482,11 @@ ER_SLAVE_HEARTBEAT_FAILURE
         spa "Datos inesperados de latido (heartbeat) de maestro (master): %s"
         sw "Data isiyotarajiwa ya mapigo ya moyo ya bwana: %s"
 ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
-        chi "心跳周期的请求值是负的或超过允许的最大值（%u秒）"
-        eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%u seconds)"
-        geo "გულისცემის პერიოდის მოთოხვნილი მნიშვნელობა ან უარყოფითა, ან მაქსიმალურ დაშვებულ მნიშვნელობას (%u წამი) აჭარბებს"
-        spa "El valor requerido para el período de latido o es negativo o excede al máximo permitido (%u segundos)"
-        sw "Thamani iliyoombwa kwa kipindi cha mpigo wa moyo ni hasi au inazidi kiwango cha juu kinachoruhusiwa (sekunde %u)"
+        chi "心跳周期的请求值是负的或超过允许的最大值（%s秒）"
+        eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%s seconds)"
+        geo "გულისცემის პერიოდის მოთოხვნილი მნიშვნელობა ან უარყოფითა, ან მაქსიმალურ დაშვებულ მნიშვნელობას (%s წამი) აჭარბებს"
+        spa "El valor requerido para el período de latido o es negativo o excede al máximo permitido (%s segundos)"
+        sw "Thamani iliyoombwa kwa kipindi cha mpigo wa moyo ni hasi au inazidi kiwango cha juu kinachoruhusiwa (sekunde %s)"
 ER_UNUSED_14
         eng "You should never see it"
         geo "ამას ვერ უნდა ხედავდეთ"
@@ -9406,7 +9406,7 @@ ER_TABLE_HAS_NO_FT
         spa "La tabla no tiene índice FULLTEXT que soporte esta consulta (query)"
         sw "Jedwali halina faharasa ya FULLTEXT kuruhusisha utekelezaji wa hoja hii"
 
-ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRIGGER
+ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRG
         chi "无法在存储的函数或触发器中设置系统变量%.200s"
         eng "The system variable %.200s cannot be set in stored functions or triggers"
         geo "სისტემური ცვლადის %.200s მნიშვნელობას დამახსოვრებული ფუნქციებიდან და ტრიგერებიდან ვერ დააყენებთ"
@@ -10516,10 +10516,10 @@ ER_PLUGIN_INSTALLED
         spa "Ya instalado el enchufe (plugin) '%-.192s'"
         sw "Programu-jalizi '%-.192s' tayari imesakinishwa"
 ER_STATEMENT_TIMEOUT 70100
-        chi "查询执行中断（超出MAX_STATEMENT_TIME）"
-        eng "Query execution was interrupted (max_statement_time exceeded)"
-        sw "Utekelezaji wa hoja ulikatizwa (muda_wa_max_statement umepitwa)"
-        spa "Se ha interrumpido la ejecución de una consulta (query) (excedido max_statement_time)
+        chi "查询被中断：执行时间限制 %s 已超出"
+        eng "Query was interrupted: execution time limit %s exceeded"
+        sw "Hoja ilikatizwa: kikomo cha muda wa utekelezaji %s kimepitwa"
+        spa "Consulta interrumpida: límite de tiempo de ejecución %s excedido"
 ER_SUBQUERIES_NOT_SUPPORTED 42000
         chi "%s不支持子查询或存储的函数"
         eng "%s does not support subqueries or stored functions"
@@ -12382,3 +12382,9 @@ ER_BINLOG_POS_INVALID
 	eng "The binlog offset %llu is invalid"
 ER_READING_BINLOG_FILE
 	eng "Error reading from page number %u in binlog file (error code: %d)"
+ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM
+        eng "Broken Partial_rows_log_event stream. Found %s, expected Partial_rows_log_event %u / %u"
+ER_SLAVE_INCOMPATIBLE_TABLE_DEF
+        eng "Table structure for binlog event is not compatible with the table definition on this slave: %s"
+ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+        eng "Data type '%-.64s' doesn't support %s attribute."

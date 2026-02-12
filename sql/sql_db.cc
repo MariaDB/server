@@ -60,10 +60,8 @@ static bool find_db_tables_and_rm_known_files(THD *, MY_DIR *,
 
 long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path);
 my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error);
-static void mysql_change_db_impl(THD *thd,
-                                 LEX_CSTRING *new_db_name,
-                                 privilege_t new_db_access,
-                                 CHARSET_INFO *new_db_charset);
+static void mysql_change_db_impl(THD *, LEX_CSTRING *, privilege_t,
+                                 CHARSET_INFO *);
 static bool mysql_rm_db_internal(THD *thd, const Lex_ident_db &db,
                                  bool if_exists, bool silent);
 
@@ -1565,8 +1563,7 @@ err:
   @param new_db_charset Character set of the new database.
 */
 
-static void mysql_change_db_impl(THD *thd,
-                                 LEX_CSTRING *new_db_name,
+static void mysql_change_db_impl(THD *thd, LEX_CSTRING *new_db_name,
                                  privilege_t new_db_access,
                                  CHARSET_INFO *new_db_charset)
 {
@@ -1630,8 +1627,7 @@ static void mysql_change_db_impl(THD *thd,
                                   "length" is set to 0.
 */
 
-static void backup_current_db_name(THD *thd,
-                                   LEX_STRING *saved_db_name)
+static void backup_current_db_name(THD *thd, LEX_STRING *saved_db_name)
 {
   DBUG_ASSERT(saved_db_name->length >= SAFE_NAME_LEN +1);
   if (!thd->db.str)
@@ -1653,7 +1649,7 @@ static void backup_current_db_name(THD *thd,
 
   @param thd          thread handle
   @param new_db_name  database name
-  @param force_switch if force_switch is FALSE, then the operation will fail if
+  @param force        if force is FALSE, then the operation will fail if
 
                         - new_db_name is NULL or empty;
 
@@ -1664,7 +1660,7 @@ static void backup_current_db_name(THD *thd,
 
                         - OR new database does not exist;
 
-                      if force_switch is TRUE, then
+                      if force is TRUE, then
 
                         - if new_db_name is NULL or empty, the current
                           database will be NULL, @@collation_database will
@@ -1711,8 +1707,7 @@ static void backup_current_db_name(THD *thd,
     @retval >0  Error
 */
 
-uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
-                     bool force_switch)
+uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
 {
   DBNameBuffer new_db_buff;
   LEX_CSTRING new_db_file_name;
@@ -1722,9 +1717,9 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
   CHARSET_INFO *db_default_cl;
   DBUG_ENTER("mysql_change_db");
 
-  if (new_db_name->length == 0)
+  if (new_db_name.length == 0)
   {
-    if (force_switch)
+    if (force)
     {
       /*
         This can happen only if we're switching the current database back
@@ -1746,9 +1741,9 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
       DBUG_RETURN(ER_NO_DB_ERROR);
     }
   }
-  DBUG_PRINT("enter",("name: '%s'", new_db_name->str));
+  DBUG_PRINT("enter",("name: '%s'", new_db_name.str));
 
-  if (is_infoschema_db(new_db_name))
+  if (is_infoschema_db(&new_db_name))
   {
     /* Switch the current database to INFORMATION_SCHEMA. */
 
@@ -1759,8 +1754,8 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
 
   new_db_file_name= lower_case_table_names == 1 ?
                     new_db_buff.copy_casedn(&my_charset_utf8mb3_general_ci,
-                                            *new_db_name).to_lex_cstring() :
-                    *new_db_name;
+                                            new_db_name).to_lex_cstring() :
+                    new_db_name;
 
   /*
     NOTE: if Lex_ident_db::check_name() fails,
@@ -1775,7 +1770,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
 
   if (Lex_ident_db::check_name_with_error(new_db_file_name))
   {
-    if (force_switch)
+    if (force)
       mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
 
     DBUG_RETURN(ER_WRONG_DB_NAME);
@@ -1794,8 +1789,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     db_access|= sctx->master_access;
   }
 
-  if (!force_switch &&
-      !(db_access & DB_ACLS) &&
+  if (!force&& !(db_access & DB_ACLS) &&
       check_grant_db(thd, new_db_file_name.str))
   {
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
@@ -1812,7 +1806,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
 
   if (check_db_dir_existence(new_db_file_name.str))
   {
-    if (force_switch)
+    if (force)
     {
       /* Throw a warning and free new_db_file_name. */
 
@@ -1847,8 +1841,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     NOTE: in mysql_change_db_impl() new_db_file_name is assigned to THD
     attributes and will be freed in THD::~THD().
   */
-  if (const char *tmp= my_strndup(key_memory_THD_db,
-                                  new_db_file_name.str,
+  if (const char *tmp= my_strndup(key_memory_THD_db, new_db_file_name.str,
                                   new_db_file_name.length, MYF(MY_WME)))
   {
     LEX_CSTRING new_db_malloced({tmp, new_db_file_name.length});
@@ -1868,8 +1861,8 @@ done:
   Change the current database and its attributes if needed.
 
   @param          thd             thread handle
-  @param          new_db_name     database name
-  @param[in, out] saved_db_name   IN: "str" points to a buffer where to store
+  @param          new_db          database name
+  @param[in, out] saved_db        IN: "str" points to a buffer where to store
                                   the old database name, "length" contains the
                                   buffer size
                                   OUT: if the current (default) database is
@@ -1884,21 +1877,18 @@ done:
                                   the function suceeded)
 */
 
-bool mysql_opt_change_db(THD *thd,
-                         const LEX_CSTRING *new_db_name,
-                         LEX_STRING *saved_db_name,
-                         bool force_switch,
+bool mysql_opt_change_db(THD *thd, const LEX_CSTRING &new_db,
+                         LEX_STRING *saved_db, bool force_switch,
                          bool *cur_db_changed)
 {
-  *cur_db_changed= !cmp_db_names(Lex_ident_db(thd->db),
-                                 Lex_ident_db(*new_db_name));
+  *cur_db_changed= !cmp_db_names(Lex_ident_db(thd->db), Lex_ident_db(new_db));
 
   if (!*cur_db_changed)
     return FALSE;
 
-  backup_current_db_name(thd, saved_db_name);
+  backup_current_db_name(thd, saved_db);
 
-  return mysql_change_db(thd, new_db_name, force_switch);
+  return mysql_change_db(thd, new_db, force_switch);
 }
 
 
@@ -1973,9 +1963,8 @@ bool mysql_upgrade_db(THD *thd, const Lex_ident_db &old_db)
   }
 
   /* Step1: Create the new database */
-  if (unlikely((error= mysql_create_db_internal(thd, new_db,
-                                                DDL_options(), &create_info,
-                                                1))))
+  if (unlikely((error= mysql_create_db_internal(thd, new_db, DDL_options(),
+                                                &create_info, 1))))
     goto exit;
 
   /* Step2: Move tables to the new database */
@@ -2031,8 +2020,7 @@ bool mysql_upgrade_db(THD *thd, const Lex_ident_db &old_db)
       If some tables were left in the new directory, rmdir() will fail.
       It guarantees we never lose any tables.
     */
-    build_table_filename(path, sizeof(path)-1,
-                         new_db.str,"",MY_DB_OPT_FILE, 0);
+    build_table_filename(path, sizeof(path)-1, new_db.str,"",MY_DB_OPT_FILE, 0);
     mysql_file_delete(key_file_dbopt, path, MYF(MY_WME));
     length= build_table_filename(path, sizeof(path)-1, new_db.str, "", "", 0);
     if (length && path[length-1] == FN_LIBCHAR)
@@ -2113,7 +2101,7 @@ bool mysql_upgrade_db(THD *thd, const Lex_ident_db &old_db)
 
   /* Step9: Let's do "use newdb" if we renamed the current database */
   if (change_to_newdb)
-    error|= mysql_change_db(thd, & new_db, FALSE) != 0;
+    error|= mysql_change_db(thd, new_db, FALSE) != 0;
 
 exit:
   DBUG_RETURN(error);

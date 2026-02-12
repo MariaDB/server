@@ -703,6 +703,7 @@ proc	collation_connection	char(64)
 proc	db_collation	char(64)
 proc	body_utf8	longblob
 proc	aggregate	enum('NONE','GROUP')
+proc	path	text
 drop table t115;
 create procedure p108 () begin declare c cursor for select data_type
 from information_schema.columns;  open c; open c; end;//
@@ -1357,9 +1358,8 @@ CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH
 9	27
 drop table t1;
 use mysql;
-INSERT INTO `proc` VALUES ('test','','PROCEDURE','','SQL','CONTAINS_SQL',
-'NO','DEFINER','','','BEGIN\r\n  \r\nEND','root@%','2006-03-02 18:40:03',
-'2006-03-02 18:40:03','','','utf8','utf8_general_ci','utf8_general_ci','n/a', 'NONE');
+INSERT INTO `proc` (db,type,body,definer,created,modified,character_set_client, collation_connection, db_collation, body_utf8,param_list,returns,comment)
+VALUES ('test','PROCEDURE', 'BEGIN\r\n  \r\nEND','root@%','2006-03-02 18:40:03', '2006-03-02 18:40:03', 'utf8','utf8_general_ci','utf8_general_ci','n/a','','','');
 select routine_name from information_schema.routines where ROUTINE_SCHEMA='test';
 routine_name
 

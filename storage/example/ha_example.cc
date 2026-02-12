@@ -325,13 +325,11 @@ int ha_example::open(const char *name, int mode, uint test_if_locked)
   thr_lock_data_init(&share->lock,&lock,NULL);
 
 #ifndef DBUG_OFF
-  ha_table_option_struct *options= table->s->option_struct;
-
-  DBUG_ASSERT(options);
+  DBUG_ASSERT(option_struct);
   DBUG_PRINT("info", ("strparam: '%-.64s'  ullparam: %llu  enumparam: %u  "\
-                      "boolparam: %u",
-                      (options->strparam ? options->strparam : "<NULL>"),
-                      options->ullparam, options->enumparam, options->boolparam));
+                      "boolparam: %u", option_struct->strparam,
+                      option_struct->ullparam, option_struct->enumparam,
+                      option_struct->boolparam));
 #endif
 
   DBUG_RETURN(0);
@@ -876,17 +874,16 @@ int ha_example::create(const char *name, TABLE *table_arg,
                        HA_CREATE_INFO *create_info)
 {
 #ifndef DBUG_OFF
-  ha_table_option_struct *options= table_arg->s->option_struct;
   DBUG_ENTER("ha_example::create");
   /*
     This example shows how to support custom engine specific table and field
     options.
   */
-  DBUG_ASSERT(options);
+  DBUG_ASSERT(option_struct);
   DBUG_PRINT("info", ("strparam: '%-.64s'  ullparam: %llu  enumparam: %u  "\
-                      "boolparam: %u",
-                      (options->strparam ? options->strparam : "<NULL>"),
-                      options->ullparam, options->enumparam, options->boolparam));
+                      "boolparam: %u", option_struct->strparam,
+                      option_struct->ullparam, option_struct->enumparam,
+                      option_struct->boolparam));
   for (Field **field= table_arg->s->field; *field; field++)
   {
     ha_field_option_struct *field_options= (*field)->option_struct;
@@ -931,7 +928,7 @@ ha_example::check_if_supported_inplace_alter(TABLE* altered_table,
       options can be accessed from this function to be compared.
     */
     ha_table_option_struct *param_new= info->option_struct;
-    ha_table_option_struct *param_old= table->s->option_struct;
+    ha_table_option_struct *param_old= option_struct;
 
     /*
       check important parameters:

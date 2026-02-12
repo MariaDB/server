@@ -957,7 +957,7 @@ public:
   */
   virtual bool memcpy_field_possible(const Field *from) const= 0;
   virtual bool make_empty_rec_store_default_value(THD *thd, Item *item);
-  virtual void make_empty_rec_reset(THD *thd)
+  virtual void make_empty_rec_reset()
   {
     reset();
   }
@@ -1608,6 +1608,14 @@ public:
   virtual void sort_string(uchar *buff,uint length)=0;
   virtual bool optimize_range(uint idx, uint part) const;
   virtual void free() {}
+
+  /*
+    Creates a copy of this field which can be added to any table, and the
+    returned field is reset to a state respective of this. That is, any
+    information which is dependent on the original table is dropped (e.g. key
+    info, auto increment, etc). The information that is retained is that which
+    defines how to store, retrieve, or compare the field.
+  */
   virtual Field *make_new_field(MEM_ROOT *root, TABLE *new_table,
                                 bool keep_type);
   virtual Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
@@ -2246,6 +2254,13 @@ public:
   {
     DBUG_ASSERT(Field_num::type() == binlog_type());
     return Binlog_type_info(Field_num::type(), 0, 0, binlog_signedness());
+  }
+  void hash_not_null(Hasher *hasher) override
+  {
+    DBUG_ASSERT(marked_for_read());
+    DBUG_ASSERT(!is_null());
+    DBUG_ASSERT(hasher->m_hash_num);
+    hasher->m_hash_num(hasher, ptr, pack_length());
   }
 };
 
@@ -4948,12 +4963,12 @@ public:
   }
   bool memcpy_field_possible(const Field *from) const override
   { return false; }
-  void make_empty_rec_reset(THD *) override
+  void make_empty_rec_reset() override
   {
     if (flags & NOT_NULL_FLAG)
     {
       set_notnull();
-      store((longlong) 1, true);
+      store(1LL, true);
     }
     else
       reset();
@@ -5030,9 +5045,9 @@ public:
     {
       flags=(flags & ~ENUM_FLAG) | SET_FLAG;
     }
-  void make_empty_rec_reset(THD *thd) override
+  void make_empty_rec_reset() override
   {
-    Field::make_empty_rec_reset(thd);
+    Field::make_empty_rec_reset();
   }
 
   int  store_field(Field *from) override { return from->save_in_field(this); }

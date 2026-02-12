@@ -21,7 +21,10 @@ INSERT INTO t1 VALUES (1);
 --echo # Now checking the audit log
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 --replace_regex /\d* \d\d:\d\d:\d\d\,[^,]*\,/TIME,HOSTNAME,/ /\,[1-9]\d*\,/,1,/ /\,[1-9]\d*/,ID/ /:\d+,/:PORT,/
-cat_file $MYSQLD_DATADIR/server_audit.log;
+let SEARCH_COUNT= 9;
+let SEARCH_FILE= $MYSQLD_DATADIR/server_audit.log;
+source include/wait_for_line_count_in_file.inc;
+cat_file $SEARCH_FILE;
 
 --echo # resetting the test state
 SET GLOBAL server_audit_logging=DEFAULT;
@@ -31,4 +34,4 @@ DROP TABLE t1;
 
 #UNINSTALL PLUGIN server_audit;
 
-remove_file $MYSQLD_DATADIR/server_audit.log;
+remove_file $SEARCH_FILE;

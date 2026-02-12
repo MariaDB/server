@@ -47,7 +47,7 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_NON_DETERMINISTIC);
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_sys_guid>(thd, this); }
 };
 
@@ -85,7 +85,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("uuid") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_uuid>(thd, this); }
 };
 
@@ -99,7 +99,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("uuid_v4") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_uuid_v4>(thd, this); }
 };
 
@@ -112,7 +112,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("uuid_v7") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_uuid_v7>(thd, this); }
 };
 #endif // ITEM_UUIDFUNC_INCLUDED

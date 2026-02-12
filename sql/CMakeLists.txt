@@ -123,6 +123,7 @@ SET (SQL_SOURCE
                ../sql-common/pack.c parse_file.cc password.c procedure.cc
                protocol.cc records.cc repl_failsafe.cc rpl_filter.cc
                session_tracker.cc
+               sql_path.cc
                set_var.cc
                slave.cc sp.cc sp_cache.cc sp_head.cc sp_pcontext.cc
                sp_rcontext.cc sp_cursor.cc
@@ -421,6 +422,7 @@ ENDIF()
 IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
   ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc
    ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.hh)
+  TARGET_LINK_LIBRARIES(gen_lex_token mysys dbug) # required by `yy_mariadb.hh`
   ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
 ENDIF()
 

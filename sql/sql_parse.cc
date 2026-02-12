@@ -1711,7 +1711,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     if (unlikely(thd->copy_with_error(system_charset_info, (LEX_STRING*) &tmp,
                                       thd->charset(), packet, packet_length)))
       break;
-    if (!mysql_change_db(thd, &tmp, FALSE))
+    if (!mysql_change_db(thd, tmp, FALSE))
     {
       general_log_write(thd, command, thd->db.str, thd->db.length);
       my_ok(thd);
@@ -2512,6 +2512,11 @@ resume:
   /* Check that some variables are reset properly */
   DBUG_ASSERT(thd->abort_on_warning == 0);
   thd->lex->restore_set_statement_var();
+  /*
+    Reset limit_rows_examined_cnt as it may be used by general_log_write()
+    before next lex::start() call.
+  */
+  thd->lex->limit_rows_examined_cnt= ULONGLONG_MAX;
   DBUG_RETURN(error?DISPATCH_COMMAND_CLOSE_CONNECTION: DISPATCH_COMMAND_SUCCESS);
 }
 
@@ -3237,6 +3242,24 @@ static bool prepare_db_action(THD *thd, privilege_t want_access,
 }
 
 
+#ifndef DBUG_OFF
+bool Sql_cmd_show_routine_code::execute(THD *thd)
+{
+  sp_head *sp;
+  if (m_handler->sp_cache_routine(thd, m_name, &sp))
+    return true;
+  if (!sp || sp->show_routine_code(thd))
+  {
+    /* We don't distinguish between errors for now */
+    my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
+             m_handler->type_str(), m_name->m_name.str);
+    return true;
+  }
+  return false;
+}
+#endif // DBUG_OFF
+
+
 bool Sql_cmd_call::execute(THD *thd)
 {
   TABLE_LIST *all_tables= thd->lex->query_tables;
@@ -3245,8 +3268,7 @@ bool Sql_cmd_call::execute(THD *thd)
     This will cache all SP and SF and open and lock all tables
     required for execution.
   */
-  if (check_table_access(thd, SELECT_ACL, all_tables, FALSE,
-                         UINT_MAX, FALSE) ||
+  if (check_table_access(thd, SELECT_ACL, all_tables, FALSE, UINT_MAX, FALSE) ||
       open_and_lock_tables(thd, all_tables, TRUE, 0))
    return true;
 
@@ -3260,10 +3282,8 @@ bool Sql_cmd_call::execute(THD *thd)
       If the routine is not found, let's still check EXECUTE_ACL to decide
       whether to return "Access denied" or "Routine does not exist".
     */
-    if (check_routine_access(thd, EXECUTE_ACL, &m_name->m_db,
-                             &m_name->m_name,
-                             &sp_handler_procedure,
-                             false))
+    if (check_routine_access(thd, EXECUTE_ACL, &m_name->m_db, &m_name->m_name,
+                             &sp_handler_procedure, false))
       return true;
     /*
       sp_find_routine can have issued an ER_SP_RECURSION_LIMIT error.
@@ -4855,7 +4875,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 #endif
   case SQLCOM_CHANGE_DB:
   {
-    if (!mysql_change_db(thd, &select_lex->db, FALSE))
+    if (!mysql_change_db(thd, select_lex->db, FALSE))
       my_ok(thd);
 
     break;
@@ -5666,34 +5686,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         goto error;
       break;
     }
-  case SQLCOM_SHOW_PROC_CODE:
-  case SQLCOM_SHOW_FUNC_CODE:
-  case SQLCOM_SHOW_PACKAGE_BODY_CODE:
-    {
-#ifndef DBUG_OFF
-      Database_qualified_name pkgname;
-      sp_head *sp;
-      const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
-      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
-      if (sph->sp_resolve_package_routine(thd, thd->lex->sphead,
-                                          lex->spname, &sph, &pkgname))
-        return true;
-      if (sph->sp_cache_routine(thd, lex->spname, &sp))
-        goto error;
-      if (!sp || sp->show_routine_code(thd))
-      {
-        /* We don't distinguish between errors for now */
-        my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-                 sph->type_str(), lex->spname->m_name.str);
-        goto error;
-      }
-      break;
-#else
-      my_error(ER_FEATURE_DISABLED, MYF(0),
-               "SHOW PROCEDURE|FUNCTION CODE", "--with-debug");
-      goto error;
-#endif // ifndef DBUG_OFF
-    }
   case SQLCOM_SHOW_CREATE_TRIGGER:
     {
       if (check_ident_length(&lex->spname->m_name))
@@ -5897,6 +5889,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_SIGNAL:
   case SQLCOM_RESIGNAL:
   case SQLCOM_GET_DIAGNOSTICS:
+  case SQLCOM_SHOW_PROC_CODE:
+  case SQLCOM_SHOW_FUNC_CODE:
+  case SQLCOM_SHOW_PACKAGE_BODY_CODE:
   case SQLCOM_CALL:
   case SQLCOM_REVOKE:
   case SQLCOM_GRANT:
@@ -8242,7 +8237,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   lex->add_to_query_tables(ptr);
 
   // Pure table aliases do not need to be locked:
-  if (ptr->db.str && !(table_options & TL_OPTION_ALIAS))
+  if (!ptr->is_pure_alias())
   {
     MDL_REQUEST_INIT(&ptr->mdl_request, MDL_key::TABLE, ptr->db.str,
                      ptr->table_name.str, mdl_type, MDL_TRANSACTION);

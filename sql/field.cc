@@ -2530,7 +2530,9 @@ uint Field::fill_cache_field(CACHE_FIELD *copy)
 bool Field::get_date(MYSQL_TIME *to, date_mode_t mode)
 {
   StringBuffer<40> tmp;
-  Temporal::Warn_push warn(get_thd(), nullptr, nullptr, nullptr, to, mode);
+  Temporal::Warn_push warn(get_thd(), table ? table->s->db.str : nullptr,
+                           table ? table->s->table_name.str : nullptr,
+                           field_name.str, to, mode);
   Temporal_hybrid *t= new(to) Temporal_hybrid(get_thd(), &warn,
                                               val_str(&tmp), mode);
   return !t->is_valid_temporal();
@@ -9555,7 +9557,7 @@ int Field_enum::store(const char *from,size_t length,CHARSET_INFO *cs)
 
   /* Remove end space */
   length= (uint) field_charset()->lengthsp(from, length);
-  uint tmp=find_type2(m_typelib, from, length, field_charset());
+  uint tmp=find_type2(m_typelib, from, length, 0, field_charset());
   if (!tmp)
   {
     if (length < 6) // Can't be more than 99999 enums
@@ -11878,7 +11880,7 @@ Virtual_column_info* Virtual_column_info::clone(THD *thd)
     return NULL;
   if (expr)
   {
-    dst->expr= expr->build_clone(thd);
+    dst->expr= expr->deep_copy_with_checks(thd);
     if (!dst->expr)
       return NULL;
   }

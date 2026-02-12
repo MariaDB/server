@@ -81,13 +81,13 @@ flush status;
 let $tmp_usage2=`select variable_value from information_schema.global_status where variable_name="max_tmp_space_used"`;
 
 --disable_query_log
-if ($tmp_usage1 == $tmp_usage2)
+if ($tmp_usage1 <= $tmp_usage2)
 {
---echo # session.max_tmp_session_space_usage == global.max_tmp_session_space_usage
+--echo # session.max_tmp_session_space_usage <= global.max_tmp_session_space_usage
 }
 if ($tmp_usage1 != $tmp_usage2)
 {
---echo session.max_tmp_session_space_usage ($tmp_usage1) != global.max_tmp_session_space_usage ($tmp_usage2)
+--echo session.max_tmp_session_space_usage ($tmp_usage1) > global.max_tmp_session_space_usage ($tmp_usage2)
 }
 --enable_query_log
 

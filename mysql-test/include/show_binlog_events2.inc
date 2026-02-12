@@ -26,7 +26,7 @@ if ($binlog_start)
 }
 if (!$binlog_start)
 {
-  --let $_binlog_start=256
+  --let $_binlog_start=257
 }
 if ($binlog_file)
 {

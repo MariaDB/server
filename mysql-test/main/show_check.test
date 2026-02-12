@@ -607,7 +607,9 @@ show status like 'slow_queries';
 # Table scan query, to ensure that slow_queries does still get incremented
 # (mysqld is started with --log-queries-not-using-indexes)
 --disable_ps2_protocol
+--disable_cursor_protocol
 select 1 from information_schema.tables limit 1;
+--enable_cursor_protocol
 show status like 'slow_queries';
 --enable_ps2_protocol
 
@@ -909,6 +911,7 @@ DROP FUNCTION f1;
 # Bug#28808 log_queries_not_using_indexes variable dynamic change is ignored
 #
 --disable_ps2_protocol
+--disable_cursor_protocol
 flush status;
 show variables like "log_queries_not_using_indexes";
 select 1 from information_schema.tables limit 1;
@@ -921,6 +924,7 @@ set session log_queries_not_using_indexes=ON;
 show variables like "log_queries_not_using_indexes";
 select 1 from information_schema.tables limit 1;
 show status like 'slow_queries';
+--enable_cursor_protocol
 --enable_ps2_protocol
 
 #

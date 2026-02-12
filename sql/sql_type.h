@@ -219,28 +219,30 @@ static inline constexpr expr_event_t operator&(const expr_event_t a,
 }
 
 
-class Hasher
+class Hasher: public my_hasher_st
 {
-  ulong m_nr1;
-  ulong m_nr2;
 public:
-  Hasher(): m_nr1(1), m_nr2(4)
-  { }
+  Hasher() : my_hasher_st(my_hasher_mysql5x()) {}
+  Hasher(my_hasher_st hasher): my_hasher_st(hasher) {}
   void add_null()
   {
-    m_nr1^= (m_nr1 << 1) | 1;
+    if (m_hash_str)
+      m_hash_str(this, NULL, 0);
+    else                        /* mysql5x */
+      m_nr1^= (m_nr1 << 1) | 1;
   }
   void add(CHARSET_INFO *cs, const uchar *str, size_t length)
   {
-    cs->coll->hash_sort(cs, str, length, &m_nr1, &m_nr2);
+    cs->coll->hash_sort(this, cs, str, length);
   }
   void add(CHARSET_INFO *cs, const char *str, size_t length)
   {
     add(cs, (const uchar *) str, length);
   }
-  uint32 finalize() const
+  uint64 finalize()
   {
-    return (uint32) m_nr1;
+    DBUG_ASSERT(m_finalize);
+    return m_finalize(this);
   }
 };
 
@@ -3916,7 +3918,7 @@ protected:
 
   bool Item_func_or_sum_illegal_param(const LEX_CSTRING &name) const;
   bool Item_func_or_sum_illegal_param(const Item_func_or_sum *) const;
-  bool check_null(const Item *item, st_value *value) const;
+  void set_null_if_needed(const Item *item, st_value *value) const;
   bool Item_send_str(Item *item, Protocol *protocol, st_value *buf) const;
   bool Item_send_tiny(Item *item, Protocol *protocol, st_value *buf) const;
   bool Item_send_short(Item *item, Protocol *protocol, st_value *buf) const;
@@ -3943,6 +3945,17 @@ public:
   {
     FUNCTION,
     PROCEDURE
+  };
+
+  enum column_attributes
+  {
+    ATTR_NONE= 0,
+    ATTR_LENGTH= 1,
+    ATTR_DEC= 2,
+    ATTR_CHARSET= 4,
+    ATTR_SRID= 8,
+
+    ATTR_ALL= ATTR_LENGTH | ATTR_DEC | ATTR_CHARSET | ATTR_SRID
   };
 
   static const Type_handler *handler_by_name(THD *thd, const LEX_CSTRING &name);
@@ -3987,6 +4000,7 @@ public:
   virtual const Name version() const;
   virtual const Name &default_value() const= 0;
   virtual uint32 flags() const { return 0; }
+  virtual uint get_column_attributes() const { return ATTR_ALL; }
   virtual ulong KEY_pack_flags(uint column_nr) const { return 0; }
   bool is_unsigned() const { return flags() & UNSIGNED_FLAG; }
   virtual enum_field_types field_type() const= 0;
@@ -4226,6 +4240,8 @@ public:
   */
   virtual bool has_functors() const { return false; }
   virtual bool has_null_predicate() const { return true; }
+  virtual Type_std_attributes Item_type_std_attributes_generic(
+                                                       const Item *item) const;
   virtual decimal_digits_t Item_time_precision(THD *thd, Item *item) const;
   virtual decimal_digits_t Item_datetime_precision(THD *thd, Item *item) const;
   virtual decimal_digits_t Item_decimal_scale(const Item *item) const;
@@ -4497,7 +4513,7 @@ public:
   virtual uint32 calc_pack_length(uint32 length) const= 0;
   virtual uint calc_key_length(const Column_definition &def) const;
   virtual void Item_update_null_value(Item *item) const= 0;
-  virtual bool Item_save_in_value(THD *thd, Item *item, st_value *value) const= 0;
+  virtual void Item_save_in_value(THD *thd, Item *item, st_value *value) const= 0;
   virtual void Item_param_setup_conversion(THD *thd, Item_param *) const {}
   virtual void Item_param_set_param_func(Item_param *param,
                                          uchar **pos, ulong len) const;
@@ -4977,7 +4993,7 @@ public:
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                      Item *a, Item *b) const override;
   decimal_digits_t Item_decimal_precision(const Item *item) const override;
-  bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
+  void Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
   bool Item_param_set_from_value(THD *thd,
                                  Item_param *param,
                                  const Type_all_attributes *attr,
@@ -5106,7 +5122,7 @@ public:
     return va.ptr() && vb.ptr() && !va.cmp(vb);
   }
   decimal_digits_t Item_decimal_precision(const Item *item) const override;
-  bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
+  void Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const override;
   bool Item_param_set_from_value(THD *thd,
@@ -5387,8 +5403,10 @@ public:
                      bool binary_cmp) const override;
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                      Item *a, Item *b) const override;
+  Type_std_attributes Item_type_std_attributes_generic(
+                                              const Item *item) const override;
   decimal_digits_t Item_decimal_precision(const Item *item) const override;
-  bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
+  void Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
   bool Item_param_set_from_value(THD *thd,
                                  Item_param *param,
                                  const Type_all_attributes *attr,
@@ -5635,7 +5653,7 @@ public:
   }
   decimal_digits_t Item_decimal_precision(const Item *item) const override;
   void Item_update_null_value(Item *item) const override;
-  bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
+  void Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
   void Item_param_setup_conversion(THD *thd, Item_param *) const override;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const override;
@@ -6372,7 +6390,7 @@ public:
                                           const uchar *buffer,
                                           LEX_CUSTRING *gis_options)
                                           const override;
-  bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
+  void Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const override
   {
     return Item_send_time(item, protocol, buf);
@@ -6500,7 +6518,7 @@ public:
                      Item *a, Item *b) const override;
   int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
                                const override;
-  bool Item_save_in_value(THD *thd, Item *item, st_value *value)
+  void Item_save_in_value(THD *thd, Item *item, st_value *value)
                           const override;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const override
   {
@@ -7069,7 +7087,7 @@ public:
   uint32 calc_pack_length(uint32 length) const override { return 0; }
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                      bool binary_cmp) const override;
-  bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
+  void Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,

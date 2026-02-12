@@ -2392,7 +2392,7 @@ JOIN::optimize_inner()
   if (!allowed_top_level_tables)
     calc_allowed_top_level_tables(select_lex);
 
-  if (optimize_constant_subqueries())
+  if (select_lex->optimize_constant_subqueries())
     DBUG_RETURN(1);
 
   if (conds && conds->with_subquery())
@@ -14567,6 +14567,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         }
         tab->type= JT_RANGE;
         tab->use_quick=1;
+        if (is_index_merge(tab->quick->get_type()))
+          tab->clear_range_rowid_filter();
         tab->ref.key= -1;
 	tab->ref.key_parts=0;		// Don't use ref key.
 	join->best_positions[i].records_read= rows2double(tab->quick->records);
@@ -19662,7 +19664,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
   if (can_change_cond_ref_to_const(func, right_item, left_item,
                                    field_value_owner, field, value))
   {
-    Item *tmp=value->clone_item(thd);
+    Item *tmp=value->clone_constant(thd);
     if (tmp)
     {
       tmp->collation.set(right_item->collation);
@@ -19692,7 +19694,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
   else if (can_change_cond_ref_to_const(func, left_item, right_item,
                                         field_value_owner, field, value))
   {
-    Item *tmp= value->clone_item(thd);
+    Item *tmp= value->clone_constant(thd);
     if (tmp)
     {
       tmp->collation.set(left_item->collation);
@@ -20043,7 +20045,29 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       {
         /* If the ON expression is still there, it's an outer join */
         DBUG_ASSERT(prev_table->outer_join);
-        prev_table->dep_tables|= table->on_expr_dep_tables;
+
+        /*
+          Ok, we have "... table LEFT JOIN prev_table ON ... ". The old
+          optimizer would make prev_table dependent on all tables needed by
+          "table". For example, in the query:
+
+            SELECT *
+            FROM
+              t1
+              LEFT JOIN t2 ON t2.col1=t1.col1
+              LEFT JOIN t3 ON t3.col2=t1.col2
+
+          table t3 would be made also dependent on {t1, t2}.
+
+          Now, we removed the dependency. table t3 is already marked to depend
+          on the tables it has LEFT JOIN operation with and on tables that it
+          uses in the ON expression.
+        */
+        if (!optimizer_flag(join->thd, OPTIMIZER_SWITCH_REORDER_OUTER_JOINS))
+        {
+          /* Old behavior: mark the table as dependent on all previous */
+          prev_table->dep_tables|= table->on_expr_dep_tables;
+        }
         table_map prev_used_tables= prev_table->nested_join ?
 	                            prev_table->nested_join->used_tables :
 	                            prev_table->get_map();
@@ -22888,7 +22912,23 @@ bool Create_tmp_table::finalize(THD *thd,
     }
   }
   if (share->keys)
+  {
     keyinfo->index_flags= table->file->index_flags(0, 0, 1);
+
+    /*
+      We can end up with a zero-length index for
+      "SELECT * FROM (SELECT '' as col FROM t1) as DT".
+      Such indexes are not allowed for regular tables.
+      Query optimizer has at least one assertion that will fail for it.
+      Make sure the optimizer doesn't use zero-length index
+      by marking it as ignored.
+    */
+    if (!keyinfo->key_length)
+    {
+      table->keys_in_use_for_query.clear_bit(0);
+      share->ignored_indexes.set_bit(0);
+    }
+  }
 
   if (unlikely(thd->is_fatal_error))             // If end of memory
     goto err;					 /* purecov: inspected */
@@ -23314,7 +23354,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
         bzero(table->record[0]+ share->reclength, MARIA_UNIQUE_HASH_LENGTH);
         bzero(share->default_values+ share->reclength,
               MARIA_UNIQUE_HASH_LENGTH);
-        share->reclength+= MARIA_UNIQUE_HASH_LENGTH;
+        share->stored_rec_length= share->reclength+= MARIA_UNIQUE_HASH_LENGTH;
       }
       else
       {
@@ -27563,17 +27603,13 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
   }
   else if (select && select->quick)		// Range found by opt_range
   {
-    int quick_type= select->quick->get_type();
-    /* 
-      assume results are not ordered when index merge is used 
-      TODO: sergeyp: Results of all index merge selects actually are ordered 
+    /*
+      assume results are not ordered when index merge is used
+      TODO: sergeyp: Results of all index merge selects actually are ordered
       by clustered PK values.
     */
-  
-    if (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE ||
-        quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
-        quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
-        quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT)
+
+    if (is_index_merge(select->quick->get_type()))
     {
       /*
         we set ref_key=MAX_KEY instead of -1, because test_if_cheaper_ordering()
@@ -27814,10 +27850,7 @@ check_reverse_order:
         goto skipped_filesort;
 
       quick_type= select->quick->get_type();
-      if (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE ||
-          quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
-          quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT ||
-          quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION ||
+      if (is_index_merge(quick_type) ||
           quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
       {
         tab->limit= 0;
@@ -28671,15 +28704,15 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
 
   if (order_item->is_order_clause_position() && !from_window_spec)
   {						/* Order by position */
-    uint count;
+    int count;
     if (order->counter_used)
       count= order->counter; // counter was once resolved
     else
       count= (uint) order_item->val_int();
-    if (!count || count > fields.elements)
+    if (count <= 0 || count > (int)fields.elements)
     {
-      my_error(ER_BAD_FIELD_ERROR, MYF(0),
-               order_item->full_name(), thd_where(thd));
+      char buf[64];
+      my_error(ER_BAD_FIELD_ERROR, MYF(0), llstr(count, buf), thd_where(thd));
       return TRUE;
     }
     thd->change_item_tree((Item **)&order->item, (Item *)&ref_pointer_array[count - 1]);
@@ -31009,10 +31042,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   {
     cur_quick= tab_select->quick;
     quick_type= cur_quick->get_type();
-    if ((quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE) ||
-        (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT) ||
-        (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT) ||
-        (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION))
+    if (is_index_merge(quick_type))
       tab_type= type == JT_HASH ? JT_HASH_INDEX_MERGE : JT_INDEX_MERGE;
     else
       tab_type= type == JT_HASH ? JT_HASH_RANGE : JT_RANGE;
@@ -31214,10 +31244,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       eta->pushed_index_cond= cache_idx_cond;
     }
 
-    if (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
-        quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT ||
-        quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
-        quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE)
+    if (is_index_merge(quick_type))
     {
       eta->push_extra(ET_USING);
     }
@@ -34745,6 +34772,7 @@ err:
   DBUG_ASSERT(thd->is_error());
   DBUG_PRINT("info", ("report_error: %d", thd->is_error()));
 
+  free_underlaid_joins(thd, unit->first_select());
   (void)unit->cleanup();
 
   return true;
@@ -34840,6 +34868,7 @@ err:
   DBUG_ASSERT(thd->is_error() || thd->killed);
   MYSQL_DML_DONE(thd, 1, 0, 0);
   THD_STAGE_INFO(thd, stage_end);
+  free_underlaid_joins(thd, select_lex);      // tmp tables allocated in prepare
   (void)unit->cleanup();
   if (is_prepared())
     unprepare(thd);

@@ -17,7 +17,8 @@ INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
 DROP TABLE t2;
 InnoDB		0 transactions not purged
 # restart
-FOUND 1 /InnoDB: User table exists in the system tablespace/ in mysqld.1.err
+FOUND 1 /InnoDB: Found unexpected table in system tablespace: test\/t1/ in mysqld.1.err
+FOUND 1 /InnoDB: Unexpected table exists in the system tablespace/ in mysqld.1.err
 DROP TABLE t1;
 InnoDB		0 transactions not purged
 # restart: --debug_dbug=+d,fail_after_level_defragment

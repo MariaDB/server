@@ -161,4 +161,24 @@ uninstall soname "ha_example";
 drop table mysql.plugin;
 rename table mysql.plugin_save to mysql.plugin;
 
+
+--echo #
+--echo # MDEV-36230 SIGSEGV in store_server_fields on CREATE SERVER
+--echo #
+--echo ## Error code depends on length of long
+--error ER_DATA_OUT_OF_RANGE
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 4294967295);
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 2147483647);
+select * from mysql.servers;
+--error ER_DATA_OUT_OF_RANGE
+ALTER SERVER s OPTIONS (PORT 4294967295);
+select * from mysql.servers;
+drop server s;
+--error ER_DATA_OUT_OF_RANGE
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 2147483648);
+--error ER_DATA_OUT_OF_RANGE
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 18446744073709551615);
+--error ER_PARSE_ERROR
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT -5);
+
 --echo # End of 10.11 tests

@@ -3119,6 +3119,7 @@ export const char *optimizer_switch_names[]=
   "hash_join_cardinality",
   "cset_narrowing",
   "sargable_casefold",
+  "reorder_outer_joins",
   "default",
   NullS
 };
@@ -3757,17 +3758,18 @@ Slave_run_triggers_for_rbr(
        slave_run_triggers_for_rbr_names,
        DEFAULT(SLAVE_RUN_TRIGGERS_FOR_RBR_NO));
 
-static const char *slave_type_conversions_name[]= {"ALL_LOSSY", "ALL_NON_LOSSY", 0};
-static Sys_var_on_access_global<Sys_var_set,
-                              PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_TYPE_CONVERSIONS>
-Slave_type_conversions(
-       "slave_type_conversions",
-       "Set of slave type conversions that are enabled."
-       " If the variable is empty, no conversions are"
-       " allowed and it is expected that the types match exactly",
-       GLOBAL_VAR(slave_type_conversions_options), CMD_LINE(REQUIRED_ARG),
-       slave_type_conversions_name,
-       DEFAULT(0));
+static const char *slave_type_conversions_name[]=
+{"ALL_LOSSY", "ALL_NON_LOSSY", "ERROR_IF_MISSING_FIELD", 0 };
+static Sys_var_on_access_global<
+    Sys_var_set, PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_TYPE_CONVERSIONS>
+    Slave_type_conversions(
+        "slave_type_conversions",
+        "Set of slave type conversions that are enabled. If the variable is "
+        "empty, no conversions are allowed and it is expected that the types "
+        "match exactly. In this case one will also not get any warnings about "
+        "missing columns on the slave",
+        GLOBAL_VAR(slave_type_conversions_options), CMD_LINE(REQUIRED_ARG),
+        slave_type_conversions_name, DEFAULT(0));
 
 static Sys_var_on_access_global<Sys_var_mybool,
                            PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_SQL_VERIFY_CHECKSUM>
@@ -6110,6 +6112,20 @@ static Sys_var_ulong Sys_opt_binlog_rows_event_max_size(
       VALID_RANGE(256, UINT_MAX32 - (UINT_MAX32 % 256)), DEFAULT(8192),
       BLOCK_SIZE(256));
 
+static Sys_var_uint Sys_opt_binlog_partial_rows_event_max_size(
+      "binlog_row_event_fragment_threshold",
+      "When a Rows_log_event exceeds this threshold, it will be fragmented "
+      "into multiple Partial_rows_log_event events in the binary log, each of "
+      "this configured maximum size. That is, all Partial_rows_log_events up "
+      "to the last in the group will be this configured maximum size, and the "
+      "last event will take the remaining size. This is relevant for events "
+      "that would surpass slave_max_allowed_packet when sending to the slave, "
+      "and thereby a sensible value would reflect the slave's configured "
+      "slave_max_allowed_packet",
+      GLOBAL_VAR(opt_binlog_row_event_fragment_threshold),
+      CMD_LINE(REQUIRED_ARG), VALID_RANGE(1024, MAX_MAX_ALLOWED_PACKET),
+      DEFAULT(MAX_MAX_ALLOWED_PACKET), BLOCK_SIZE(1024));
+
 static Sys_var_on_access_global<Sys_var_uint,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_NET_TIMEOUT>
 Sys_slave_net_timeout(
@@ -7754,3 +7770,8 @@ static Sys_var_ulonglong Sys_binlog_large_commit_threshold(
   // Allow a smaller minimum value for debug builds to help with testing
   VALID_RANGE(IF_DBUG(100, 10240) * 1024, ULLONG_MAX),
   DEFAULT(128 * 1024 * 1024), BLOCK_SIZE(1));
+
+static Sys_var_path Sys_path(
+        "path", "Comma-separated list of schema names that defines the search "
+        "order for stored routines",
+        SESSION_VAR(path), NO_CMD_LINE, NOT_IN_BINLOG);

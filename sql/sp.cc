@@ -234,6 +234,11 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
     { STRING_WITH_LEN("aggregate") },
     { STRING_WITH_LEN("enum('NONE','GROUP')") },
     { NULL, 0 }
+  },
+  {
+    { STRING_WITH_LEN("path") },
+    { STRING_WITH_LEN("text") },
+    { STRING_WITH_LEN("utf8mb") }
   }
 };
 
@@ -697,10 +702,12 @@ Sp_handler::db_find_routine(THD *thd, const Database_qualified_name *name,
   longlong created;
   longlong modified;
   Sp_chistics chistics;
+  Sql_path sql_path;
   THD::used_t saved_time_zone_used= thd->used & THD::TIME_ZONE_USED;
   bool trans_commited= 0;
   sql_mode_t sql_mode;
   Stored_program_creation_ctx *creation_ctx;
+  StringBuffer<MAX_FIELD_WIDTH> sql_path_str;
   AUTHID definer;
   DBUG_ENTER("db_find_routine");
   DBUG_PRINT("enter", ("type: %s name: %.*s",
@@ -756,15 +763,19 @@ Sp_handler::db_find_routine(THD *thd, const Database_qualified_name *name,
   modified= table->field[MYSQL_PROC_FIELD_MODIFIED]->val_int();
   created= table->field[MYSQL_PROC_FIELD_CREATED]->val_int();
   sql_mode= (sql_mode_t) table->field[MYSQL_PROC_FIELD_SQL_MODE]->val_int();
+  if (!table->field[MYSQL_PROC_FIELD_PATH]->val_str(&sql_path_str))
+    sql_path_str.set(STRING_WITH_LEN("CURRENT_SCHEMA"), system_charset_info);
 
+  sql_path.from_text(thd->variables, &sql_path_str);
   creation_ctx= Stored_routine_creation_ctx::load_from_db(thd, name, table);
 
   trans_commited= 1;
   thd->commit_whole_transaction_and_close_tables();
   new_trans.restore_old_transaction();
 
-  ret= db_load_routine(thd, name, sphp, sql_mode, params, returns, body,
-                      chistics, definer, created, modified, NULL, creation_ctx);
+  ret= db_load_routine(thd, name, sphp, sql_mode, sql_path, params, returns,
+                       body, chistics, definer, created, modified, NULL,
+                       creation_ctx);
  done:
   /* 
     Restore the time zone flag as the timezone usage in proc table
@@ -958,6 +969,7 @@ int
 Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
                             sp_head **sphp,
                             sql_mode_t sql_mode,
+                            const Sql_path &sql_path,
                             const LEX_CSTRING &params,
                             const LEX_CSTRING &returns,
                             const LEX_CSTRING &body,
@@ -969,9 +981,8 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
 {
   LEX *old_lex= thd->lex, newlex;
   String defstr;
-  char saved_cur_db_name_buf[SAFE_NAME_LEN+1];
-  LEX_STRING saved_cur_db_name=
-    { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
+  char saved_cur_db_buf[SAFE_NAME_LEN+1];
+  LEX_STRING saved_cur_db= { saved_cur_db_buf, sizeof(saved_cur_db_buf) };
   bool cur_db_changed;
   Bad_db_error_handler db_not_exists_handler;
 
@@ -983,16 +994,16 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
   defstr.set_charset(creation_ctx->get_client_cs());
   defstr.set_thread_specific();
 
+  Sql_path_instant_set path_push(thd, sql_path);
+
   /*
     We have to add DEFINER clause and provide proper routine characteristics in
     routine definition statement that we build here to be able to use this
     definition for SHOW CREATE PROCEDURE later.
    */
 
-  if (show_create_sp(thd, &defstr,
-                     null_clex_str, name->m_name,
-                     params, returns, body,
-                     chistics, definer, DDL_options(), sql_mode))
+  if (show_create_sp(thd, &defstr, null_clex_str, name->m_name, params,
+                     returns, body, chistics, definer, DDL_options(), sql_mode))
   {
     ret= SP_INTERNAL_ERROR;
     goto end;
@@ -1005,7 +1016,7 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
     TODO: why do we force switch here?
   */
 
-  if (mysql_opt_change_db(thd, &name->m_db, &saved_cur_db_name, TRUE,
+  if (mysql_opt_change_db(thd, name->m_db, &saved_cur_db, TRUE,
                           &cur_db_changed))
   {
     ret= SP_INTERNAL_ERROR;
@@ -1029,9 +1040,7 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
       generate an error.
     */
 
-    if (cur_db_changed && mysql_change_db(thd,
-                                          (LEX_CSTRING*) &saved_cur_db_name,
-                                          TRUE))
+    if (cur_db_changed && mysql_change_db(thd, saved_cur_db, TRUE))
     {
       ret= SP_INTERNAL_ERROR;
       goto end;
@@ -1464,6 +1473,13 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
       store_failed= store_failed ||
         table->field[MYSQL_PROC_FIELD_COMMENT]->
           store(sp->comment(), system_charset_info);
+    }
+
+    {
+      LEX_CSTRING sql_path= sp->m_sql_path.lex_cstring(thd->mem_root);
+      store_failed= store_failed ||
+        table->field[MYSQL_PROC_FIELD_PATH]->
+          store(sql_path, system_charset_info);
     }
 
     if (type() == SP_TYPE_FUNCTION &&
@@ -2080,7 +2096,7 @@ Sp_handler::sp_clone_and_link_routine(THD *thd,
                                       const Database_qualified_name *name,
                                       sp_head *sp) const
 {
-  DBUG_ENTER("sp_link_routine");
+  DBUG_ENTER("sp_clone_and_link_routine");
   int rc;
   ulong level;
   sp_head *new_sp;
@@ -2166,7 +2182,8 @@ Sp_handler::sp_clone_and_link_routine(THD *thd,
 
 
   rc= db_load_routine(thd, &lname, &new_sp,
-                      sp->m_sql_mode, sp->m_params, returns,
+                      sp->m_sql_mode, sp->m_sql_path,
+                      sp->m_params, returns,
                       sp->m_body, sp->chistics(),
                       sp->m_definer,
                       sp->m_created, sp->m_modified,
@@ -2236,6 +2253,62 @@ Sp_handler::sp_find_routine(THD *thd, const Database_qualified_name *name,
   if (!cache_only)
     db_find_and_cache_routine(thd, name, &sp);
   DBUG_RETURN(sp);
+}
+
+
+/**
+  Determine the existence of a routine.
+
+  @param thd          thread context
+  @param name         name of routine
+
+  @retval
+    Non-0  routine does not exist
+  @retval
+    0      routine exists
+*/
+
+int
+Sp_handler::sp_routine_exists(THD *thd,
+                              const Database_qualified_name *name) const
+{
+  DBUG_ENTER("Sp_handler::sp_routine_exists");
+  DBUG_PRINT("enter", ("name:  %.*s.%.*s  type: %s",
+                       (int) name->m_db.length, name->m_db.str,
+                       (int) name->m_name.length, name->m_name.str,
+                       type_str()));
+
+  Parser_state *oldps= thd->m_parser_state;
+  thd->m_parser_state= NULL;
+
+  sp_cache **cp= get_cache(thd);
+  sp_head *sp;
+  if ((sp= sp_cache_lookup(cp, name)))
+  {
+    thd->m_parser_state= oldps;
+    DBUG_RETURN(SP_OK);
+  }
+
+  TABLE *table;
+  int ret;
+
+  start_new_trans new_trans(thd);
+
+  if (!(table= open_proc_table_for_read(thd)))
+  {
+    ret= SP_OPEN_TABLE_FAILED;
+    goto done;
+  }
+
+  ret= db_find_routine_aux(thd, name, table);
+done:
+  if (table)
+    thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
+
+  thd->m_parser_state= oldps;
+
+  DBUG_RETURN(ret);
 }
 
 
@@ -2399,8 +2472,7 @@ extern "C" const uchar *sp_sroutine_key(const void *ptr, size_t *plen, my_bool)
 */
 
 bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
-                         const MDL_key *key,
-                         const Sp_handler *handler,
+                         const MDL_key *key, const Sp_handler *handler,
                          TABLE_LIST *belong_to_view)
 {
   my_hash_init_opt(PSI_INSTRUMENT_ME, &prelocking_ctx->sroutines,
@@ -2478,7 +2550,7 @@ Sp_handler::sp_cache_routine_reentrant(THD *thd,
   unless a fatal error happens.
 */
 
-static bool
+bool
 is_package_public_routine(THD *thd,
                           const Lex_ident_db &db,
                           const LEX_CSTRING &package,
@@ -2776,17 +2848,14 @@ void sp_remove_not_own_routines(Query_tables_list *prelocking_ctx)
     @return FALSE Success
 */
 
-bool sp_update_sp_used_routines(HASH *dst, HASH *src)
+bool sp_update_sp_used_routines(Sroutine_hash *dst, HASH *src)
 {
   for (uint i=0 ; i < src->records ; i++)
   {
     Sroutine_hash_entry *rt= (Sroutine_hash_entry *)my_hash_element(src, i);
-    if (!my_hash_search(dst, (uchar *)rt->mdl_request.key.ptr(),
-                        rt->mdl_request.key.length()))
-    {
-      if (my_hash_insert(dst, (uchar *)rt))
-        return TRUE;
-    }
+    if (!dst->find(rt->mdl_request.key.ptr(), rt->mdl_request.key.length()) &&
+        dst->insert(rt))
+      return TRUE;
   }
   return FALSE;
 }
@@ -2808,19 +2877,17 @@ bool sp_update_sp_used_routines(HASH *dst, HASH *src)
 
 void
 sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
-                             HASH *src, TABLE_LIST *belong_to_view)
+                             Sroutine_hash *src, TABLE_LIST *belong_to_view)
 {
-  for (uint i=0 ; i < src->records ; i++)
+  Query_arena *arena __attribute__((unused))= thd->active_stmt_arena_to_use();
+  DBUG_ASSERT(src->is_empty() ||
+              arena->is_stmt_prepare_or_first_stmt_execute() ||
+              arena->is_conventional() ||
+              arena->state == Query_arena::STMT_SP_QUERY_ARGUMENTS);
+  for (Sroutine_hash_entry &rt: *src)
   {
-    Sroutine_hash_entry *rt= (Sroutine_hash_entry *)my_hash_element(src, i);
-    DBUG_ASSERT(thd->active_stmt_arena_to_use()->
-                  is_stmt_prepare_or_first_stmt_execute() ||
-                thd->active_stmt_arena_to_use()->
-                  is_conventional() ||
-                thd->active_stmt_arena_to_use()->state ==
-                  Query_arena::STMT_SP_QUERY_ARGUMENTS);
     (void)sp_add_used_routine(prelocking_ctx, thd->active_stmt_arena_to_use(),
-                              &rt->mdl_request.key, rt->m_handler,
+                              &rt.mdl_request.key, rt.m_handler,
                               belong_to_view);
   }
 }
@@ -2856,8 +2923,7 @@ void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
   prelocking until 'sp_name' is eradicated as a class.
 */
 
-int Sroutine_hash_entry::sp_cache_routine(THD *thd,
-                                          sp_head **sp) const
+int Sroutine_hash_entry::sp_cache_routine(THD *thd, sp_head **sp) const
 {
   char qname_buff[NAME_LEN*2+1+1];
   sp_name name(&mdl_request.key, qname_buff);
@@ -2865,7 +2931,7 @@ int Sroutine_hash_entry::sp_cache_routine(THD *thd,
     Check that we have an MDL lock on this routine, unless it's a top-level
     CALL. The assert below should be unambiguous: the first element
     in sroutines_list has an MDL lock unless it's a top-level call, or a
-    trigger, but triggers can't occur here (see the preceding assert).
+    trigger, but triggers can't occur here.
   */
   DBUG_ASSERT(mdl_request.ticket || this == thd->lex->sroutines_list.first);
 
@@ -2889,8 +2955,7 @@ int Sroutine_hash_entry::sp_cache_routine(THD *thd,
   @retval non-0  Error while loading routine from mysql,proc table.
 */
 
-int Sp_handler::sp_cache_routine(THD *thd,
-                                 const Database_qualified_name *name,
+int Sp_handler::sp_cache_routine(THD *thd, const Database_qualified_name *name,
                                  sp_head **sp) const
 {
   int ret= 0;
@@ -2907,7 +2972,7 @@ int Sp_handler::sp_cache_routine(THD *thd,
   {
     if ((*sp)->sp_cache_version() < thd->sp_cache_version())
       sp_cache_remove(spc, sp);
-    if (*sp)
+    else
       DBUG_RETURN(SP_OK);
   }
 

@@ -26,22 +26,13 @@
 
 #include <mysql_version.h>
 
-#if MYSQL_VERSION_ID>=50515
 #include "sql_class.h"
 #include "sql_array.h"
-#elif MYSQL_VERSION_ID>50100
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
-#include "../mysql_priv.h"
-#endif
 
 #include <mysys_err.h>
 #include <my_sys.h>
 
-#if MYSQL_VERSION_ID>=50120
 typedef uchar byte;
-#endif
 
 /// partially copy-pasted stuff that should be moved elsewhere
 
@@ -389,7 +380,6 @@ int CSphUrl::Connect()
 			int tmp_errno;
 			bool bError = false;
 
-#if MYSQL_VERSION_ID>=50515
 			struct addrinfo *hp = NULL;
 			tmp_errno = getaddrinfo ( m_sHost, NULL, NULL, &hp );
 			if ( !tmp_errno || !hp || !hp->ai_addr )
@@ -398,16 +388,6 @@ int CSphUrl::Connect()
 				if ( hp )
 					freeaddrinfo ( hp );
 			}
-#else
-			struct hostent tmp_hostent, *hp;
-			char buff2 [ GETHOSTBYNAME_BUFF_SIZE ];
-			hp = my_gethostbyname_r ( m_sHost, &tmp_hostent, buff2, sizeof(buff2), &tmp_errno );
-			if ( !hp )
-			{
-				my_gethostbyname_r_free();
-				bError = true;
-			}
-#endif
 
 			if ( bError )
 			{
@@ -418,13 +398,8 @@ int CSphUrl::Connect()
 				return -1;
 			}
 
-#if MYSQL_VERSION_ID>=50515
 			memcpy ( &sin.sin_addr, hp->ai_addr, Min ( sizeof(sin.sin_addr), (size_t)hp->ai_addrlen ) );
 			freeaddrinfo ( hp );
-#else
-			memcpy ( &sin.sin_addr, hp->h_addr, Min ( sizeof(sin.sin_addr), (size_t)hp->h_length ) );
-			my_gethostbyname_r_free();
-#endif
 		}
 	} else
 	{

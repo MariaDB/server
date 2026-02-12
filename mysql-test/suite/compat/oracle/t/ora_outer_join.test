@@ -366,6 +366,7 @@ insert into t4 values (3),(1),(20);
 create table t5 (e int);
 insert into t5 values (3),(2),(20);
 
+--sorted_result
 select t1.a, t2.b, t3.c, t4.d, t5.e  from t1, t2, t3, t4, t5 where t1.a = t2.b(+) and t2.b = t3.c(+) and t1.a = t4.d(+) and t4.d=t5.e(+) and t3.c=t5.e(+);
 select t1.a, t2.b, t3.c, t4.d, t5.e  from t1, t2, t3, t4, t5 where t1.a = t2.b(+) and t2.b = t3.c(+) and t1.a = t4.d(+) and t4.d=t5.e(+) and 1=t5.e(+);
 select t1.a, t2.b, t3.c, t4.d, t5.e  from t1, t2, t3, t4, t5 where t1.a = t2.b(+) and t2.b = t3.c(+) and t1.a = t4.d(+) and t4.d=t5.e(+) and 3=t5.e(+);

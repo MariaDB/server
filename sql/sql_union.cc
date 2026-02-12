@@ -2949,7 +2949,12 @@ bool st_select_lex::cleanup()
 
   cleanup_window_funcs(window_funcs);
 
-  if (join)
+  /*
+    In UPDATE/DELETE, it can be that leaf_tables has tables while the JOIN
+    object is not created yet (and then some error occurs and we get here).
+    In leaf_tables, recursive CTE references need cleanup.
+  */
+  if (leaf_tables.elements)
   {
     List_iterator<TABLE_LIST> ti(leaf_tables);
     TABLE_LIST *tbl;
@@ -2966,8 +2971,12 @@ bool st_select_lex::cleanup()
         error|= (bool) error | (uint) unit->cleanup();
       }
     }
+  }
+
+  if (join)
+  {
     DBUG_ASSERT((st_select_lex*)join->select_lex == this);
-    error= join->destroy();
+    error|= (bool)join->destroy();
     delete join;
     join= 0;
   }

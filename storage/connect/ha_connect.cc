@@ -601,7 +601,7 @@ ha_create_table_option connect_table_option_list[]=
   HA_TOPTION_STRING("TABLE_TYPE", type),
   HA_TOPTION_STRING("FILE_NAME", filename),
   HA_TOPTION_STRING("XFILE_NAME", optname),
-//HA_TOPTION_STRING("CONNECT_STRING", connect),
+  HA_TOPTION_STRING("CONNECTION", connect),
   HA_TOPTION_STRING("TABNAME", tabname),
   HA_TOPTION_STRING("TABLE_LIST", tablist),
   HA_TOPTION_STRING("DBNAME", dbname),
@@ -1363,7 +1363,7 @@ PTOS ha_connect::GetTableOptionStruct(TABLE_SHARE *s)
 	return (tsp && (!tsp->db_plugin || 
 		              !stricmp(plugin_name(tsp->db_plugin)->str, "connect") ||
 									!stricmp(plugin_name(tsp->db_plugin)->str, "partition")))
-									? tsp->option_struct : NULL;
+									? tsp->option_struct_table : NULL;
 } // end of GetTableOptionStruct
 
 /****************************************************************************/
@@ -1393,11 +1393,10 @@ PCSZ ha_connect::GetStringOption(PCSZ opname, PCSZ sdef)
   PTOS options= GetTableOptionStruct();
 
   if (!stricmp(opname, "Connect")) {
-    LEX_CSTRING cnc= (tshp) ? tshp->connect_string
-                           : table->s->connect_string;
+    const char *cnc= options->connect;
 
-    if (cnc.length)
-      opval= strz(xp->g, cnc);
+    if (cnc && *cnc)
+      opval= cnc;
 		else
 			opval= GetListOption(xp->g, opname, options->oplist);
 
@@ -5252,7 +5251,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
     }
     if (!got_error) {
       // Now we can work
-      if ((pos= share->option_struct)) {
+      if ((pos= share->option_struct_table)) {
         if (check_privileges(thd, pos, db))
           rc= HA_ERR_INTERNAL_ERROR;         // ???
         else
@@ -5498,7 +5497,7 @@ static int init_table_share(THD* thd,
                             String *sql)
 {
   bool oom= false;
-  PTOS topt= table_s->option_struct;
+  PTOS topt= table_s->option_struct_table;
 
   sql->length(sql->length()-1); // remove the trailing comma
   sql->append(')');
@@ -5554,18 +5553,6 @@ static int init_table_share(THD* thd,
       return HA_ERR_OUT_OF_MEM;
 
     } // endfor opt
-
-  if (create_info->connect_string.length) {
-    oom|= sql->append(' ');
-    oom|= sql->append(STRING_WITH_LEN("CONNECTION='"));
-    oom|= sql->append_for_single_quote(create_info->connect_string.str,
-                                       create_info->connect_string.length);
-    oom|= sql->append('\'');
-
-    if (oom)
-      return HA_ERR_OUT_OF_MEM;
-
-    } // endif string
 
   if (create_info->default_table_charset) {
     oom|= sql->append(' ');
@@ -5632,7 +5619,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   if (!g)
     return HA_ERR_INTERNAL_ERROR;
 
-  PTOS     topt= table_s->option_struct;
+  DBUG_ASSERT(IF_PARTITIONING(!table_s->partition_info_str,1));
+  PTOS     topt= table_s->option_struct_table;
   char     buf[1024];
   String   sql(buf, sizeof(buf), system_charset_info);
 
@@ -5785,7 +5773,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 		switch (ttp) {
 #if defined(ODBC_SUPPORT)
 			case TAB_ODBC:
-				dsn= strz(g, create_info->connect_string);
+				dsn= (char*)create_info->option_struct->connect;
 
 				if (fnc & (FNC_DSN | FNC_DRIVER)) {
 					ok= true;
@@ -5793,7 +5781,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				} else if (!stricmp(thd->main_security_ctx.host, "localhost")
 					&& cop == 1) {
 					if ((dsn= ODBCCheckConnection(g, dsn, cop)) != NULL) {
-						thd->make_lex_string(&create_info->connect_string, dsn, strlen(dsn));
+            create_info->option_struct->connect= thd->strdup(dsn);
 						ok= true;
 					} // endif dsn
 #endif   // PROMPT_OK
@@ -5818,7 +5806,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			case TAB_JDBC:
 				if (fnc & FNC_DRIVER) {
 					ok= true;
-				} else if (!(url= strz(g, create_info->connect_string))) {
+				} else if (!(url= (char*)create_info->option_struct->connect)) {
 					snprintf(g->Message, sizeof(g->Message), "Missing URL");
 				} else {
 					// Store JDBC additional parameters
@@ -5864,11 +5852,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			case TAB_MYSQL:
 				ok= true;
 
-				if (create_info->connect_string.str &&
-					create_info->connect_string.length) {
+				if (create_info->option_struct->connect &&
+					  create_info->option_struct->connect[0]) {
 					PMYDEF  mydef= new(g) MYSQLDEF();
 
-					dsn= strz(g, create_info->connect_string);
+					dsn= thd->strdup(create_info->option_struct->connect);
 					mydef->SetName(create_info->alias.str);
 
 					if (!mydef->ParseURL(g, dsn, false)) {
@@ -5933,7 +5921,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(BSON_SUPPORT)
       case TAB_BSON:
 #endif   // BSON_SUPPORT
-        dsn= strz(g, create_info->connect_string);
+        dsn= (char*)create_info->option_struct->connect;
 
 				if (!fn && !zfn && !mul && !dsn)
 					snprintf(g->Message, sizeof(g->Message), "Missing %s file name", topt->type);
@@ -6109,7 +6097,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // BSON_SUPPORT
 #if defined(JAVA_SUPPORT)
 				case TAB_MONGO:
-					url= strz(g, create_info->connect_string);
+					url= (char*)create_info->option_struct->connect;
 					qrp= MGOColumns(g, db, url, topt, fnc == FNC_COL);
 					break;
 #endif   // JAVA_SUPPORT
@@ -6443,7 +6431,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   TABTYPE type;
   TABLE  *st= table;                       // Probably unuseful
   THD    *thd= ha_thd();
-  LEX_CSTRING cnc= table_arg->s->connect_string;
+  const char *cnc= option_struct->connect;
   myf utf8_flag= thd->get_utf8_flag();
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
   partition_info *part_info= table_arg->part_info;
@@ -6507,7 +6495,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   inward= IsFileType(type) && !options->filename &&
-		     ((type != TAB_JSON && type != TAB_BSON) || !cnc.length);
+		     ((type != TAB_JSON && type != TAB_BSON) || !cnc || !*cnc);
 
   if (options->data_charset) {
     const CHARSET_INFO *data_charset;
@@ -6572,9 +6560,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         db= GetStringOption("database", NULL);
         port= atoi(GetListOption(g, "port", options->oplist, "0"));
 
-        if (create_info->connect_string.str &&
-            create_info->connect_string.length) {
-          char   *dsn= strz(g, create_info->connect_string);
+        if (create_info->option_struct->connect &&
+            create_info->option_struct->connect[0]) {
+          char   *dsn= (char*)create_info->option_struct->connect;
           PMYDEF  mydef= new(g) MYSQLDEF();
 
           mydef->SetName(create_info->alias.str);
@@ -7170,7 +7158,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
   int             sqlcom= thd_sql_command(thd);
   TABTYPE         newtyp, type= TAB_UNDEF;
   HA_CREATE_INFO *create_info= ha_alter_info->create_info;
-  PTOS            newopt, oldopt;
+  PTOS            newopt= create_info->option_struct, oldopt= option_struct;
   xp= GetUser(thd, xp);
   PGLOBAL         g= xp->g;
 
@@ -7178,9 +7166,6 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
     my_message(ER_UNKNOWN_ERROR, "Cannot check ALTER operations", MYF(0));
     DBUG_RETURN(HA_ALTER_ERROR);
     } // endif Xchk
-
-  newopt= altered_table->s->option_struct;
-  oldopt= table->s->option_struct;
 
   // If this is the start of a new query, cleanup the previous one
   if (xp->CheckCleanup()) {

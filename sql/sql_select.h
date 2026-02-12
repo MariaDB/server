@@ -1796,7 +1796,6 @@ public:
   bool alloc_func_list();
   bool flatten_subqueries();
   bool optimize_unflattened_subqueries();
-  bool optimize_constant_subqueries();
   bool make_range_rowid_filters();
   bool init_range_rowid_filters();
   bool make_sum_func_list(List<Item> &all_fields, List<Item> &send_fields,
@@ -2426,6 +2425,16 @@ public:
     @return true  - on error (e.g. could not allocate the record buffer).
   */
   bool open();
+
+  /*
+    Set pre-allocated field count to real field count
+    This can be used when the real number of fields used fields
+    are less than what was estimated at init
+  */
+  void fix_field_count()
+  {
+    m_alloced_field_count= s->fields;
+  }
 
   void set_all_fields_to_null()
   {

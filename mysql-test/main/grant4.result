@@ -107,7 +107,7 @@ Table	Op	Msg_type	Msg_text
 mysqltest_db1.t6	check	status	OK
 ** With no privileges access is naturally denied:
 CHECK TABLE t5;
-ERROR 42000: SELECT command denied to user 'mysqltest_u1'@'localhost' for table `mysqltest_db1`.`t5`
+ERROR 42000: CHECK TABLE command denied to user 'mysqltest_u1'@'localhost' for table `mysqltest_db1`.`t5`
 ** CHECKSUM TABLE requires SELECT privileges on the table. The following should fail:
 CHECKSUM TABLE t6;
 ERROR 42000: SELECT command denied to user 'mysqltest_u1'@'localhost' for table `mysqltest_db1`.`t6`
@@ -151,7 +151,7 @@ ERROR HY000: Cannot load from mysql.user. The table is probably corrupted
 drop table mysql.user;
 rename table mysql.user1 to mysql.user;
 # switching back from mysql.user to mysql.global_priv
-End of 5.5 tests
+# End of 5.5 tests
 #
 # Additional coverage for refactoring which is made as part
 # of fix for bug #27480 "Extend CREATE TEMPORARY TABLES privilege
@@ -193,9 +193,6 @@ mysqltest_db1.t1	check	error	Corrupt
 # Otherwise info about such repair will be missing from its result-set.
 repair table mysqltest_db1.t1, mysqltest_db1.t2;
 ERROR 42000: SELECT, INSERT command denied to user 'mysqltest_u1'@'localhost' for table `mysqltest_db1`.`t2`
-# The same is true for CHECK TABLE statement.
-check table mysqltest_db1.t1, mysqltest_db1.t2;
-ERROR 42000: SELECT command denied to user 'mysqltest_u1'@'localhost' for table `mysqltest_db1`.`t2`
 check table mysqltest_db1.t1;
 Table	Op	Msg_type	Msg_text
 mysqltest_db1.t1	check	warning	Table is marked as crashed

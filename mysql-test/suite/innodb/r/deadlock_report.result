@@ -1,0 +1,48 @@
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+call mtr.add_suppression("Transactions deadlock detected");
+SET @save = @@GLOBAL.innodb_print_all_deadlocks;
+SET GLOBAL innodb_print_all_deadlocks = ON;
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1), (2);
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+connect con1, localhost, root,,;
+connection default;
+BEGIN;
+UPDATE t2 SET a = a + 1;
+SELECT * FROM t1 WHERE id = 2 FOR UPDATE;
+id
+2
+connection con1;
+BEGIN;
+SELECT * FROM t1 WHERE id = 1 FOR UPDATE;
+id
+1
+connection default;
+SELECT * FROM t1 WHERE id = 1 FOR UPDATE;
+connection con1;
+SELECT * FROM t1 WHERE id = 2 FOR UPDATE;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SHOW WARNINGS;
+Level	Code	Message
+Note	1213	TIMESTAMP 0xTHD
+*** (1) TRANSACTION:
+TRANSACTION TRX_ID, ACTIVE N sec starting index read
+mysql tables in use 1, locked 1
+LOCK WAIT N lock struct(s), heap size N, N row lock(s)
+MariaDB thread id TID, OS thread handle TID, query id QID localhost root Statistics
+SELECT * FROM t1 WHERE id = 2 FOR UPDATE
+*** WAITING FOR THIS LOCK TO BE GRANTED:
+RECORD LOCKS space id ID page no N n bits N index PRIMARY of table `test`.`t1` trx id TRX_ID lock_mode X locks rec but not gap waiting
+Record lock, heap no 3 PHYSICAL RECORD: n_fields N; compact format; info bits N
+ 0: len 4; hex HEX; asc DATA;;
+
+*** WE ROLL BACK TRANSACTION (2)
+Error	1213	Deadlock found when trying to get lock; try restarting transaction
+connection default;
+id
+1
+COMMIT;
+disconnect con1;
+DROP TABLE t1, t2;
+SET GLOBAL innodb_print_all_deadlocks = @save;

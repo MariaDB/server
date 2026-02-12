@@ -78,7 +78,7 @@ select json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.key2")
 select json_contains_path('{ "a": true }', NULL, '$.a' ) as exp;
 select json_contains_path('{ "a": true }', 'all', NULL ) as exp;
 select json_contains_path('{"a":{"b":"c"}}', 'one', '$.a.*') as exp;
- 
+
 select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1") as exp;
 select json_extract('{"key1":"asd", "key2":[2,3]}', "$.keyX", "$.keyY") as exp;
 select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1", "$.key2") as exp;
@@ -208,7 +208,6 @@ drop table t2;
 --enable_cursor_protocol
 drop table t1;
 
-
 select json_object("a", json_object("b", "abcd"));
 #enable after fix MDEV-31554
 --disable_cursor_protocol
@@ -322,7 +321,6 @@ select json_object("a", repeat('a',1024),"b", repeat('a',1024)) as ex;
 set @@global.max_allowed_packet = @save_max_allowed_packet;
 set @@global.net_buffer_length = @save_net_buffer_length;
 --disconnect newconn
-
 
 #
 # MDEV-12262 Assertion `!null_value' failed in virtual bool Item::send on JSON_REMOVE.
@@ -597,7 +595,6 @@ SELECT
   CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DOUBLE) AS cf,
   CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DECIMAL) AS cd;
 
-
 --echo #
 --echo # MDEV-24585 Assertion `je->s.cs == nice_js->charset()' failed in json_nice.
 --echo #
@@ -689,13 +686,8 @@ SELECT JSON_VALUE('{"nulltest": null}', '$.nulltest');
 SELECT 1 + NULL;
 SELECT 1 + JSON_VALUE('{"nulltest": null}', '$.nulltest');
 
-
 SELECT NULL;
 SELECT JSON_EXTRACT('{"a":null, "b":10, "c":"null"}', '$.a');
-
---echo #
---echo # Start of 10.4 tests
---echo #
 
 --echo #
 --echo # MDEV-16351 JSON_OBJECT() treats hybrid functions with boolean arguments as numbers
@@ -738,7 +730,6 @@ SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=3) FROM t1))='{"
 SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=3) FROM t1))='{"x": false}' THEN a END;
 SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=2) FROM t1))='{"x": true}' THEN a END;
 SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=2) FROM t1))='{"x": false}' THEN a END;
-
 
 DROP TABLE t1;
 
@@ -941,7 +932,6 @@ insert into t200 values
   ]
 }');
 
-
 select JSON_DETAILED(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) as exp from t200;
 select JSON_PRETTY(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) as exp from t200;
 select JSON_LOOSE(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) as exp from t200;
@@ -956,7 +946,6 @@ SELECT JSON_LENGTH('{"a":"b"}','$','$', 'foo');
 SELECT JSON_LENGTH();
 
 --echo # MDEV-23187: Assorted assertion failures in json_find_path with certain collations
-
 
 SET @old_collation_connection= @@COLLATION_CONNECTION;
 
@@ -1107,10 +1096,10 @@ DROP TABLE t1;
 
 CREATE TABLE t1(id int primary key, name varchar(50));
 CREATE TABLE t2(id int, owner_id int);
- 
+
 INSERT INTO t1 VALUES (1, "name1"), (2, "name2"), (3, "name3");
 INSERT INTO t2 VALUES (1, 1), (2, 1), (3, 2), (4, 3);
- 
+
 SELECT t1.id, JSON_ARRAYAGG(JSON_OBJECT('id',t2.id) ORDER BY t2.id) as materials
   from t1 LEFT JOIN t2 on t1.id = t2.owner_id
   GROUP BY t1.id ORDER BY id;
@@ -1133,7 +1122,7 @@ CREATE TABLE arrNestTest (
     id VARCHAR(80) AS (JSON_COMPACT(JSON_EXTRACT(doc, "$._id"))) UNIQUE KEY,
     doc JSON, 
     CONSTRAINT id_not_null CHECK(id IS NOT NULL));
-    
+
 INSERT INTO test.arrNestTest (doc) VALUES ('{ "_id" : { "$oid" : "611c0a463b150154132f6636" }, "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : 1.0 } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] }');
 SELECT * FROM arrNestTest;
 DROP TABLE arrNestTest;
@@ -1156,13 +1145,11 @@ set names latin1;
 select json_arrayagg('ä'), json_objectagg(1, 'ä');
 --enable_service_connection
 
-
 --echo #
 --echo # MDEV-32287: JSON_EXTRACT not returning multiple values for same path
 --echo #
 
 select JSON_EXTRACT("[1, 2, [30, 40]]", '$[2][1]', '$[2][1]');
-
 
 --echo #
 --echo # MDEV-31402: SIGSEGV in json_get_path_next | Item_func_json_extract::read_json
@@ -1180,13 +1167,11 @@ DROP TABLE t;
 
 SELECT JSON_TYPE(json_value(JSON_OBJECT("id", 1, "name", 'Monty', "date", Cast('2019-01-01' as Date) ), '$.date')) as x;
 
-
 --echo #
 --echo # MDEV-22141: JSON_REMOVE returns NULL on valid arguments
 --echo #
 
 SELECT JSON_REMOVE('{"A": { "B": 1 }}', '$.A.B.C.D');
-
 
 
 --echo #
@@ -1201,7 +1186,6 @@ SELECT JSON_EXTRACT('{"a": 1,"b": 2}','$.a');
 --enable_service_connection
 
 SET @@collation_connection= @save_collation_connection;
-
 
 --echo # End of 10.5 tests
 
@@ -1226,18 +1210,15 @@ SELECT JSON_ARRAY_APPEND(JSON_ARRAY(l1, l2, l3, l4), '$[0]', 'k3'), JSON_ARRAY_I
 SELECT JSON_INSERT(JSON_OBJECT(l1, l2, l3, l4), '$.k3', 'v3'),JSON_SET(JSON_OBJECT(l1, l2, l3, l4), '$.k2', 'new v2'),JSON_REPLACE(JSON_OBJECT(l1, l2, l3, l4), '$.k2', 'new v2') from t;
 DROP TABLE t;
 
-
 --echo #
 --echo # MDEV-27412: JSON_TABLE doesn't properly unquote strings
 --echo #
-
 
 SET @data = '[{"Data": "<root language=\\"de\\"></root>"}]';
 
 SELECT
   data
 FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
-
 
 --echo #
 --echo # MDEV-21530: json_extract STILL crashes in Item_func_json_extract::read_json
@@ -1282,7 +1263,6 @@ DROP TABLE t1;
 --echo # MDEV-27677: Implement JSON_OVERLAPS()
 --echo #
 
-
 --echo # Testing scalar json datatypes
 
 --echo # Comparing scalar json datatypes with itself
@@ -1302,7 +1282,6 @@ SELECT JSON_OVERLAPS('"string1"', '"string2"');
 SELECT JSON_OVERLAPS('true','["abc", 1, 2, true, false]');
 SELECT JSON_OVERLAPS('true','["abc", 1, 2, [true]]');
 SELECT JSON_OVERLAPS('true','{"A":true}');
-
 
 --echo # Testing non-scalar json data types
 
@@ -1368,7 +1347,6 @@ SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
 SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
                      '{"C":3, "F":{"E":[5, 6, 7], "D":4}}') as exp;
 
-
 --echo # Comparing array with array (non-nested)
 SELECT JSON_OVERLAPS('[1, 2, true, false, null]',
                      '[3, 4, 1]') as exp;
@@ -1382,7 +1360,6 @@ SELECT JSON_OVERLAPS('[1, 2, true, false, null]',
 SELECT JSON_OVERLAPS('[1, 2, [true, false], null]',
                      '[[1], [true, false]]') as exp;
 SELECT JSON_OVERLAPS('[1, 2, 3, [4, 5, 6]]','[7, 8, 9, [6, 5, 4]]') as exp;
-
 
 --echo # Comparing one non-scalar json datatypes with another non-scalar
 --echo # json datatype
@@ -1675,7 +1652,6 @@ SELECT JSON_VALUE(@json,'$.x[last-0]');
 SELECT JSON_VALUE(@json,'$.x[-0]');
 SELECT JSON_VALUE(@json,'$.x[0]');
 
-
 --echo #
 --echo # MDEV-27911: Implement range notation for json path
 --echo #
@@ -1847,7 +1823,6 @@ SET @json1= '[
             ]';
 SELECT JSON_VALUE(@json1, '$[2][1 to 2].key1');
 
-
 SET @json= '[
              [1.1, {"key1": "value1"}, 3],
              [false, 5, 6],
@@ -1886,7 +1861,6 @@ SELECT JSON_EXISTS(@json, '$[2][2][1 to 2]');
 SELECT JSON_EXISTS(@json, '$[2][2][4 to 6]');
 SELECT JSON_EXISTS(@json, '$[2][2][1 to 4]');
 
-
 --echo #
 --echo # MDEV-28326: Server crashes in json_path_parts_compare
 --echo #
@@ -1907,7 +1881,7 @@ SELECT JSON_OVERLAPS(@json1, @json2);
 --echo #
 
 CREATE TABLE t1 ( j JSON );
- 
+
 INSERT INTO t1 (j) VALUES ('[{"key1": 1, "key2": 1}, {"key3": 1, "key4": 1}]');
 INSERT INTO t1 (j) VALUES ('[{"key1": 2, "key2": 2}, {"key3": 2, "key4": 2}, {"key5": 2, "key6": 2}]');
 INSERT INTO t1 (j) VALUES ('[{"key1": 3, "key2": 3}, {"key3": 3, "key4": 3}, {"key5": 3}]');
@@ -1928,7 +1902,6 @@ SELECT JSON_EXTRACT('{ "my-key": 1 }', '$.my-key');
 --echo # MDEV-23187: Assorted assertion failures in json_find_path with certain collations
 --echo #
 
-
 SET @save_collation_connection= @@collation_connection;
 
 SET @json='{ "A": [ [{"k":"v"},[1]],true],"B": {"C": 1} }';
@@ -1941,7 +1914,6 @@ SELECT JSON_VALUE(@json,'$.A[last-1][last-1].key1');
 SET @json='{ "A": [ [{"k":"v"},[15]],true],"B": {"C": 1} }';
 SET sql_mode=0,character_set_connection=utf32;
 SELECT JSON_VALUE(@json,'$.A[last-1][last-1].key1');
-
 
 SET @json='{ "A": [ [{"k":"v"},[15]],true],"B": {"C": 1} }';
 SET sql_mode=0,character_set_connection=utf32;
@@ -2025,17 +1997,24 @@ SET @JSON='
     }
   ]
 }
- 
+
 '
 ;
- 
+
 --echo # Should return EMPTY result
 SELECT * FROM json_table(@JSON, '$.SZ[0].OFFERS[1]' 
 COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
- 
+
 --echo # Should return S1A1
 SELECT * FROM json_table(@JSON, '$.SZ[1].OFFERS[1]' 
 COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
+
+--echo #
+--echo # MDEV-25148: Unexpected success and result set upon erroneous
+--echo # JSON_VALUE call
+--echo #
+
+SELECT JSON_VALUE('{"a":[1,2]}', '$.a[*]');
 
 --echo # End of 10.11 Test
 
@@ -2308,7 +2287,6 @@ SELECT JSON_SCHEMA_VALID(@string_schema, '"abc"');
 
 SET @schema_array= '{"type":"array"}';
 SELECT JSON_SCHEMA_VALID(@schema_array, '[1, 2, {"key1":"val1"}]');
-
 
 SET @schema_array= '{"type":"array",
                      "maxItems": 4,
@@ -2780,7 +2758,6 @@ INSERT INTO str_table VALUES('"abcdef"');
 INSERT INTO str_table VALUES('"fedcba"');
 SELECT * FROM str_table;
 
-
 INSERT INTO num_table values('15');
 --error ER_CONSTRAINT_FAILED
 INSERT INTO num_table values('25');
@@ -2956,7 +2933,6 @@ SET @schema_array= '{
 SELECT JSON_SCHEMA_VALID(@schema_array, '[5, "string1", "string2", "string3"]');
 SELECT JSON_SCHEMA_VALID(@schema_array, '[5, "string1", 1, 2]');
 
-
 SET @schema_array= '{
                        "type": "array",
                        "prefixItems": [
@@ -2988,9 +2964,7 @@ SET @schema_array= '{
                         }';
 SELECT JSON_SCHEMA_VALID(@schema_array, '[5, "string1", "string2", "string3"]');
 
-
 --echo # Removing prefixItems
-
 
 SET @schema_array= '{
                        "type": "array",
@@ -2999,7 +2973,6 @@ SET @schema_array= '{
                         "unevaluatedItems": {"type":"string"}
                         }';
 SELECT JSON_SCHEMA_VALID(@schema_array, '[5, 6,"2", "string"]');
-
 
 SET @schema_array= '{
                        "type": "array",
@@ -3076,7 +3049,6 @@ SET @schema_array= '{
                      }';
 SELECT JSON_SCHEMA_VALID(@schema_array, '["str1", "str2", 1]');
 
-
 --echo # checking that unevaluatedItems alone can have effect on schema validation
 
 SET @schema_array= '{
@@ -3098,7 +3070,6 @@ SET @schema_array= '{
 SELECT JSON_SCHEMA_VALID(@schema_array, '[1, "str1"]');
 SELECT JSON_SCHEMA_VALID(@schema_array, '[]');
 SELECT JSON_SCHEMA_VALID(@schema_array, '[1,2,3]');
-
 
 --echo # Object validation
 
@@ -3139,7 +3110,6 @@ SELECT JSON_SCHEMA_VALID(@object_schema, '{"key1":"val1", "key2": 10, "I_int":20
 --echo # removing patternProperties to check that validation falls back on additionalProperties and
 --echo # existence of unevaluatedProperties still does not change anything because of existence of additional
 --echo # properties
-
 
 SET @object_schema= '{
                        "type":"object",
@@ -3220,7 +3190,6 @@ SET @object_schema= '{
                         "additionalProperties": true
                      }';
 SELECT JSON_SCHEMA_VALID(@object_schema, '{"key1":"val1", "key2": 10, "I_int":20, "S_":"abc", "some_prop1":[1,2,3]}');
-
 
 --echo # Checking that in absence of additionalProperties, validation falls back on evaluatedProperties
 
@@ -3660,8 +3629,6 @@ SET @schema_reference= '{"$defs": "http://example.com/custom-email-validator.jso
 --error ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
 SELECT JSON_SCHEMA_VALID(@schema_reference, '{}');
 
-
-
 --echo #
 --echo # MDEV-30795: JSON_SCHEMA_VALID bugs mentioned in comment
 --echo #
@@ -3797,7 +3764,6 @@ SET @schema = '{
 --error ER_JSON_INVALID_VALUE_FOR_KEYWORD
 SELECT JSON_SCHEMA_VALID(@schema, '2');
 
-
 --echo #
 --echo # MDEV-30704: JSON_SCHEMA_VALID: multipleOf must be greater than zero
 --echo #
@@ -3835,7 +3801,6 @@ SELECT JSON_SCHEMA_VALID(@schema, '2');
 SET @schema= '{ "items" : ["str1"]}';
 --error ER_JSON_INVALID_VALUE_FOR_KEYWORD
 SELECT JSON_SCHEMA_VALID(@schema, '[]');
-
 
 --echo #
 --echo # MDEV-30705: JSON_SCHEMA_VALID: schema with multipleOf for big value always return 1
@@ -3882,7 +3847,6 @@ SELECT JSON_SCHEMA_VALID(@schema, '-#');
 --echo # MDEV-30689: JSON_SCHEMA_VALID for type=array return 1 for any string that starts with '['
 --echo #
 
-
 SET @schema_array= '{"type":"array"}';
 SELECT JSON_SCHEMA_VALID(@schema_array, '[');
 
@@ -3914,7 +3878,6 @@ PREPARE s FROM 'SELECT JSON_SCHEMA_VALID (?,''{}'') FROM DUAL';
 
 SET @a= NULL;
 SELECT JSON_SCHEMA_VALID(@a,'{}');
-
 
 --echo # End of 11.1 test
 
@@ -3973,7 +3936,6 @@ FROM JSON_TABLE(
 --echo # With array
 
 SELECT JSON_KEY_VALUE('[]', '[0]');
-
 
 SELECT JSON_KEY_VALUE('[1, 2, 3]', '$[0]');
 SELECT jt.*
@@ -4067,6 +4029,8 @@ FROM JSON_TABLE(
     JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "key2":"val2"}', '$.key1.b[0]'), '$[*]'
     COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
 
+--echo # End of 11.2 test
+
 --echo #
 --echo # MDEV-26182: Implement json_array_intersect()
 --echo #
@@ -4098,7 +4062,6 @@ select json_array_intersect(@obj1, @obj2);
 SET @obj1= '[null, true]';
 SET @obj2= '[false, null]';
 select json_array_intersect(@obj1, @obj2);
-
 
 --echo # array as elements
 
@@ -4140,7 +4103,6 @@ SET @obj1= '[1, 2, 3, 3, 3.0, "abc", true, true, {"key1":"val1"}]';
 SET @obj2= '[3.0, 3, 5, "abc", "abc", true, {"key2":"val2"}, {"key1":"val1"}, {"key1":"val2"}]';
 select json_array_intersect(@obj1, @obj2);
 
-
 --echo # Checking Syntax error for JSON_ARRAY_INTERSECT()
 SET @obj1= '[1, 2, 3, 3, 3.0, "abc", true, true, {"key1":"val1" ]';
 SET @obj2= '[3.0, 3, 5, "abc", "abc", true, {"key2":"val2"}, {"key1":"val1"}, {"key1":"val2"}]';
@@ -4158,7 +4120,6 @@ select json_array_intersect(@arr1, @num1);
 select json_array_intersect(@num1, @bool1);
 
 
-
 --echo # JSON_OBJECT_FILTER_KEYS()
 
 SET @obj1= '{ "a": 1, "b": 2, "c": 3}';
@@ -4169,11 +4130,9 @@ SET @obj1= '{ "a": 1, "b": {"key1": {"key2":"val2"}}, "c": [1, 2, 3] }';
 SET @obj2= '{"b" : 10, "c": 20, "d": 30}';
 SELECT JSON_OBJECT_FILTER_KEYS (@obj1, json_array_intersect(json_keys(@obj1), json_keys(@obj2)));
 
-
 SET @obj1= '{ "a": 1, "b": {"key1": {"key2":"val2"}}, "c": [1, 2, 3] }';
 SET @arr2='["x", "y", "z"]';
 SELECT JSON_OBJECT_FILTER_KEYS(@obj1, @arr2);
-
 
 SET @obj1= '{ "a": 1, "b": {"key1": {"key2":"val2"}}, "c": [1, 2, 3] }';
 SET @arr2='["key2", "key1", "b"]';
@@ -4199,7 +4158,6 @@ SET @arr2= '[ "key2", "key1", "b" ';
 SELECT JSON_OBJECT_FILTER_KEYS(@obj1, @arr1);
 
 
-
 --echo # JSON_OBJECT_TO_ARRAY()
 
 SET @obj1= '{ "a": [1, 2, 3], "b": { "key1":"val1", "key2": {"key3":"val3"} }, "c": 3, "d" : 1, "e": "xyz", "f": true, "g" : null}';
@@ -4217,7 +4175,6 @@ SELECT JSON_OBJECT_TO_ARRAY(@obj1);
 
 SET @arr1= '[1, 2, 3]';
 SELECT JSON_OBJECT_TO_ARRAY(@arr1);
-
 
 --echo #
 --echo # MDEV-31411: JSON_ARRAY_INTERSECT/JSON_OBJECT_FILTER_KEYS should fetch
@@ -4238,7 +4195,6 @@ SELECT JSON_ARRAY_INTERSECT(c1, c2) FROM t1;
 
 DROP TABLE t1;
 
-
 --echo #
 --echo # MDEV-31543: ASAN heap-buffer-overflow in strncpy when fetching keys using JSON_OBJECT_FILTER_KEYS function
 --echo #
@@ -4248,13 +4204,8 @@ SET character_set_database=ucs2;
 SET CHARACTER SET utf8;
 SET @obj1='{ "a": 1,"b": 2,"c": 3}';
 SELECT JSON_OBJECT_FILTER_KEYS (@obj1,@arr1);
-
 SET character_set_database=default;
 SET CHARACTER SET default;
-
---echo # End of 11.2 Test
-
---echo # Beginning of 11.4 Test
 
 --echo #
 --echo # MDEV-33149: JSON_ARRAY_INTERSECT function crashes the server when
@@ -4277,7 +4228,6 @@ SELECT ( WITH x AS ( WITH x ( x ) AS ( SELECT ( 1.000000 ) ) SELECT x FROM x ) S
 
 select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', '[["2","6"],["3","8"],["4","5"],["1","7"]]') as result from (values (1),(2),(3),(4),(5)) x;
 
-
 --echo #
 --echo # MDEV-33640: Server crashes at my_hash_free
 --echo #
@@ -4285,4 +4235,258 @@ select json_array_intersect('[["1", "7"], ["2", "6"], ["4", "5"], ["3", "8"]]', 
 --error ER_JSON_INVALID_VALUE_FOR_KEYWORD
 SELECT JSON_SCHEMA_VALID('{"properties": "a_string": {"pattern": "^[5-9]$"}}}', '{"a_string": "8"}');
 
+--echo #
+--echo # MDEV-38356 JSON_SCHEMA_VALID() crashes with a long enum
+--echo #
+select json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'));
+
 --echo # End of 11.4 Test
+
+--echo # Beginning of 12.3 Test
+
+--echo #
+--echo # MDEV-37072: Implement IS JSON predicate
+--echo #
+
+set names utf8mb4;
+
+--disable_view_protocol
+SELECT '[1, 2]' IS JSON;
+SELECT '{"key1":1, "key2":[2,3]}' IS JSON;
+SELECT '123' IS JSON;
+SELECT 'null' IS JSON;
+
+SELECT 'invalid' IS JSON;
+SELECT '{"key1":1, "key2":[2,3]' IS JSON;
+SELECT '[1, 2' IS JSON;
+SELECT 'NULL' IS JSON;
+
+SELECT 'invalid' IS NOT JSON;
+SELECT '{"key1":1, "key2":[2,3]' IS NOT JSON;
+SELECT '[1, 2]' IS NOT JSON;
+SELECT '{"key1":1, "key2":[2,3]}' IS NOT JSON;
+
+--echo # Type constraints
+
+SELECT js,
+  js IS JSON "json?",
+  js IS JSON VALUE "value?",
+  js IS JSON SCALAR "scalar?",
+  js IS JSON OBJECT "object?",
+  js IS JSON ARRAY "array?"
+FROM (VALUES
+      ('123'), ('"string"'), ('{"key":1}'), ('[1,2,3]'), ('[]'), ('{}'),
+      ('true'), ('false'), ('null')) foo(js);
+
+--echo # UNIQUE KEYS constraint
+
+SELECT '"a",1,1,2]' IS JSON WITH UNIQUE KEYS;
+SELECT '{"a": 42,"b": [{"c":1, "c":2}]}' IS JSON WITH UNIQUE KEYS;
+SELECT '{"a": 42,"b": [{"a": {"a": [{"a" : "a", "a" : "a" }]} }]}' IS JSON WITH UNIQUE KEYS;
+SELECT '{"a": 42,"b": [{"a": {"a": [{"a" : "a"}]} }]}' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":1}, {"a":1}]' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":1, "a":2}, {"b":1}]' IS JSON WITH UNIQUE KEYS;
+SELECT '{"a": {"b":1, "b":2}}' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":1}, [{"b":1, "b":2}]]' IS JSON WITH UNIQUE KEYS;
+SELECT '{"a": [{"b": {"c":1, "c":2}}]}' IS JSON WITH UNIQUE KEYS;
+SELECT '[{}]' IS JSON WITH UNIQUE KEYS;
+SELECT '[1, {"a":1}, 2, {"b":2}]' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":1}, 1, {"a":1, "a":2}, 2]' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":1}, [{"b":1}], {"c":1}]' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":1}, [{"b":1, "b":2}], {"c":1}]' IS JSON WITH UNIQUE KEYS;
+SELECT '[[[[{"a":1, "a":2}]]]]' IS JSON WITH UNIQUE KEYS;
+SELECT '[[[{"a":1}]], [[{"b":1}]]]' IS JSON WITH UNIQUE KEYS;
+SELECT '[[[{"a":1, "a":2}]], [[{"b":1}]]]' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":[{"b":1, "b":2}]}, {"c":[{"d":1}]}]' IS JSON WITH UNIQUE KEYS;
+SELECT '{"a":{"b":1, "c":2}, "d":{"b":1, "c":2}}' IS JSON WITH UNIQUE KEYS;
+SELECT '[{"a":[{"b":[{"c":1}]}]}, {"d":[{"e":[{"f":1, "f":2}]}]}]' IS JSON WITH UNIQUE KEYS;
+SELECT '[{}, {"a":{}}, [{}]]' IS JSON WITH UNIQUE KEYS;
+SELECT '{"a":{"b":{"b":1}}, "d":{"e":{"f":1}}}' IS JSON WITH UNIQUE KEYS;
+
+SELECT js,
+  js IS JSON OBJECT WITH UNIQUE KEYS "object_with_unique",
+  js IS JSON OBJECT WITHOUT UNIQUE KEYS "object_without_unique",
+  js IS JSON ARRAY WITH UNIQUE KEYS "array_with_unique",
+  js IS JSON ARRAY WITHOUT UNIQUE KEYS "array_without_unique"
+FROM (VALUES
+      ('{"a":1, "b":2, "c":3}'),
+      ('{"a":1, "a":2, "a":3}'),
+      ('[{"a":"1"},{"c":"2","c":"3"}]'),
+      ('[{"a":"1"},{"b":"2","c":"3"}]'),
+      ('[1,2,3]'), ('[1,1,1]'), ('[]'), ('123'),
+      ('"string"'), ('true'), ('null')) foo(js);
+
+--echo # Test with table data
+
+CREATE TABLE test_json (
+    json_col JSON,
+    text_col TEXT
+);
+
+INSERT INTO test_json VALUES 
+('{"name":"Alice", "age":25}', '{"name":"Alice", "age":25}'),
+('[1,2,3]', '[1,2,3]'),
+('42', '42'),
+('"hello"', '"hello"'),
+('true', 'true'),
+('null', 'null'),
+('"invalid"', 'invalid'),
+('{"key1":1, "key2":2}', '{"key1":1, "key2":2}'),
+('{"key1":1, "key1":2}', '{"key1":1, "key1":2}');
+
+SELECT 
+  json_col,
+  json_col IS JSON as is_json,
+  json_col IS JSON VALUE as is_value,
+  json_col IS JSON SCALAR as is_scalar,
+  json_col IS JSON OBJECT as is_object,
+  json_col IS JSON ARRAY as is_array,
+  json_col IS JSON OBJECT WITH UNIQUE KEYS as object_with_unique,
+  json_col IS JSON OBJECT WITHOUT UNIQUE KEYS as object_without_unique
+FROM test_json;
+
+SELECT 
+  text_col,
+  text_col IS JSON as is_json,
+  text_col IS JSON VALUE as is_value,
+  text_col IS JSON SCALAR as is_scalar,
+  text_col IS JSON OBJECT as is_object,
+  text_col IS JSON ARRAY as is_array
+FROM test_json;
+
+SELECT 
+  COUNT(*) as total_rows,
+  SUM(json_col IS JSON) as valid_json_count,
+  SUM(json_col IS JSON OBJECT) as object_count,
+  SUM(json_col IS JSON ARRAY) as array_count,
+  SUM(json_col IS JSON SCALAR) as scalar_count
+FROM test_json;
+
+--echo # Edge cases
+
+SELECT js,
+  js IS JSON "json?",
+  js IS JSON VALUE "value?",
+  js IS JSON SCALAR "scalar?",
+  js IS JSON OBJECT "object?",
+  js IS JSON ARRAY "array?"
+FROM (VALUES
+      (NULL), (''), ('   '), ('\n'), ('\t'),
+      ('{"key":1,}'), ('{"key":1, "key2":}'), ('{key:1}'),
+      ('{"emoji":"😊"}'), ('{"unicode":"\\u0041"}'),
+      (x'48656C6C6F'), ('2'), (CONCAT('{"a":', 1, '}')),
+      (JSON_OBJECT('a', 1, 'b', 2)), (JSON_ARRAY(1, 2, 3)), (JSON_QUOTE('hello'))) foo(js);
+--enable_view_protocol
+
+--echo # Large json object with unique keys
+
+DELIMITER |;
+CREATE PROCEDURE build_large_json()
+BEGIN
+  SET @json='{"key1":1';
+  SET @i=2;
+  WHILE @i <= 1000 DO
+    SET @json = CONCAT(@json, ',"key', @i, '":', @i);
+    SET @i = @i + 1;
+  END WHILE;
+  SET @json = CONCAT(@json, '}');
+END|
+CALL build_large_json()|
+SELECT @json IS JSON OBJECT WITH UNIQUE KEYS AS unique_keys|
+DROP PROCEDURE build_large_json|
+DELIMITER ;|
+
+DROP TABLE test_json;
+
+--echo # Generated columns
+
+CREATE TABLE test_generated_json (
+  j TEXT,
+  is_json BOOL GENERATED ALWAYS AS (j IS JSON) VIRTUAL,
+  is_not_json BOOL GENERATED ALWAYS AS (j IS NOT JSON) VIRTUAL,
+  is_array BOOL GENERATED ALWAYS AS (j IS JSON ARRAY) VIRTUAL,
+  is_object BOOL GENERATED ALWAYS AS (j IS JSON OBJECT) VIRTUAL,
+  is_scalar BOOL GENERATED ALWAYS AS (j IS JSON SCALAR) VIRTUAL,
+  with_unique_keys BOOL GENERATED ALWAYS AS (j IS JSON OBJECT WITH UNIQUE KEYS) VIRTUAL,
+  without_unique_keys BOOL GENERATED ALWAYS AS (j IS JSON OBJECT WITHOUT UNIQUE KEYS) VIRTUAL
+);
+
+INSERT INTO test_generated_json (j) VALUES 
+  ('[1, 2, 3]'),
+  ('{"key": "value"}'),
+  ('3'),
+  (NULL),
+  ('{}'),
+  ('invalid'),
+  ('{"key": "value", "key2": "value2"}'),
+  ('{"key": "value", "key": "value2"}');
+
+SELECT
+  j,
+  is_json,
+  is_not_json,
+  is_array,
+  is_object,
+  is_scalar,
+  with_unique_keys,
+  without_unique_keys
+FROM test_generated_json;
+
+DROP TABLE test_generated_json;
+
+--echo # CHECK constraints
+
+CREATE TABLE test_check_json (
+  j TEXT CHECK (j IS JSON),
+  j_array JSON CHECK (j_array IS JSON ARRAY),
+  j_object JSON CHECK (j_object IS JSON OBJECT),
+  j_object_with_unique_keys JSON CHECK (j_object_with_unique_keys IS JSON OBJECT WITH UNIQUE KEYS)
+);
+
+INSERT INTO test_check_json VALUES 
+  ('[1, 2, 3]', '[1, 2]', '{"key": "value"}', '{"key": "value"}'),
+  ('{"key": "value"}', '[1, 2]', '{"key": "value"}', '{"key": "value", "key2": "value2"}');
+
+--error ER_CONSTRAINT_FAILED
+INSERT INTO test_check_json VALUES ('[1, 2, 3]', '{1, 2}', '{"key": "value"}', 'invalid');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO test_check_json VALUES ('[1, 2, 3]', '[1, 2]', '{"key": "value"}', '{"key": "value", "key": "value2"}');
+
+DROP TABLE test_check_json;
+
+--echo # DEFAULT clauses
+
+CREATE TABLE test_default_json (
+  j TEXT,
+  is_json BOOL DEFAULT (j IS JSON),
+  is_not_json BOOL DEFAULT (j IS NOT JSON),
+  is_array BOOL DEFAULT (j IS JSON ARRAY),
+  is_object BOOL DEFAULT (j IS JSON OBJECT),
+  is_scalar BOOL DEFAULT (j IS JSON SCALAR),
+  with_unique_keys BOOL DEFAULT (j IS JSON OBJECT WITH UNIQUE KEYS),
+  without_unique_keys BOOL DEFAULT (j IS JSON OBJECT WITHOUT UNIQUE KEYS)
+);
+
+INSERT INTO test_default_json (j) VALUES 
+  ('[1, 2, 3]'),
+  ('{"key": "value"}'),
+  ('3'),
+  (NULL),
+  ('{}'),
+  ('{"key": "value", "key2": "value2"}'),
+  ('{"key": "value", "key": "value2"}');
+
+SELECT 
+  j,
+  is_json,
+  is_not_json,
+  is_array,
+  is_object,
+  is_scalar,
+  with_unique_keys,
+  without_unique_keys
+FROM test_default_json;
+
+DROP TABLE test_default_json;
+
+--echo # End of 12.3
