@@ -97,6 +97,17 @@ extern "C" const uchar *get_var_key(const void *entry_, size_t *length,
   return reinterpret_cast<const uchar *>(entry->name.str);
 }
 
+void THD::binlog_mark_fk_cascade_events()
+{
+  binlog_fk_cascade_events= true;
+
+  if (Rows_log_event *pending= binlog_get_pending_rows_event(FALSE))
+    pending->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F);
+
+  if (Rows_log_event *pending= binlog_get_pending_rows_event(TRUE))
+    pending->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F);
+}
+
 extern "C" void free_user_var(void *entry_)
 {
   user_var_entry *entry= static_cast<user_var_entry *>(entry_);
@@ -7221,6 +7232,9 @@ THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
     if (unlikely(!ev))
       DBUG_RETURN(NULL);
     ev->server_id= serv_id; // I don't like this, it's too easy to forget.
+
+    if (binlog_fk_cascade_events)
+      ev->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F);
     /*
       flush the pending event and replace it with the newly created
       event...

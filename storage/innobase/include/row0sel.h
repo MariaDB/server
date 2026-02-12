@@ -24,10 +24,11 @@ Select
 Created 12/19/1997 Heikki Tuuri
 *******************************************************/
 
-#pragma once
+#ifndef row0sel_h
+#define row0sel_h
 
 #include "data0data.h"
-#include "que0types.h"
+#include "dict0dict.h"
 #include "trx0types.h"
 #include "read0types.h"
 #include "row0types.h"
@@ -35,6 +36,16 @@ Created 12/19/1997 Heikki Tuuri
 #include "pars0sym.h"
 #include "btr0pcur.h"
 #include "row0mysql.h"
+
+MY_ATTRIBUTE((warn_unused_result))
+bool row_sel_store_mysql_rec(
+	byte*		mysql_rec,
+	row_prebuilt_t*	prebuilt,
+	const rec_t*	rec,
+	const dtuple_t*	vrow,
+	bool		rec_clust,
+	const dict_index_t* index,
+	const rec_offs*	offsets);
 
 /*********************************************************************//**
 Creates a select node struct.
@@ -433,24 +444,26 @@ function is row_mysql_store_col_in_innobase_format() in row0mysql.cc. */
 void
 row_sel_field_store_in_mysql_format_func(
 /*=====================================*/
-        byte*           dest,   /*!< in/out: buffer where to store; NOTE
-                                that BLOBs are not in themselves
-                                stored here: the caller must allocate
-                                and copy the BLOB into buffer before,
-                                and pass the pointer to the BLOB in
-                                'data' */
-        const mysql_row_templ_t* templ,
-                                /*!< in: MySQL column template.
-                                Its following fields are referenced:
-                                type, is_unsigned, mysql_col_len,
-                                mbminlen, mbmaxlen */
+	byte*		dest,	/*!< in/out: buffer where to store; NOTE
+					that BLOBs are not in themselves
+					stored here: the caller must allocate
+					and copy the BLOB into buffer before,
+					and pass the pointer to the BLOB in
+					'data' */
+	const mysql_row_templ_t* templ,
+					/*!< in: MySQL column template.
+					Its following fields are referenced:
+					type, is_unsigned, mysql_col_len,
+					mbminlen, mbmaxlen */
 #ifdef UNIV_DEBUG
-        const dict_index_t* index,
-                                /*!< in: InnoDB index */
-        ulint           field_no,
-                                /*!< in: templ->rec_field_no or
-                                templ->clust_rec_field_no or
-                                templ->icp_rec_field_no */
+	const dict_index_t* index,
+					/*!< in: InnoDB index */
+	ulint		field_no,
+					/*!< in: templ->rec_field_no or
+					templ->clust_rec_field_no or
+					templ->icp_rec_field_no */
 #endif /* UNIV_DEBUG */
-        const byte*     data,   /*!< in: data to store */
-        ulint           len);    /*!< in: length of the data */
+	const byte*	data,	/*!< in: data to store */
+	ulint		len);	/*!< in: length of the data */
+
+#endif /* row0sel_h */

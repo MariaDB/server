@@ -4781,6 +4781,9 @@ public:
   virtual int delete_table(const char *name);
   bool check_table_binlog_row_based();
   bool prepare_for_row_logging();
+
+  virtual void flush_pending_cascade_binlog() {}
+
   int prepare_for_insert(bool do_create);
   int binlog_log_row(TABLE *table,
                      const uchar *before_record,

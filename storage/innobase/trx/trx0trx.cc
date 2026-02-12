@@ -174,6 +174,9 @@ struct TrxFactory {
 
 		new(&trx->mod_tables) trx_mod_tables_t();
 
+		new(&trx->pending_cascade_binlog_row_events)
+			std::vector<trx_cascade_binlog_row_event>();
+
 		new(&trx->lock.table_locks) lock_list();
 
 		new(&trx->read_view) ReadView();
@@ -237,6 +240,8 @@ struct TrxFactory {
 		trx->autoinc_locks.~small_vector();
 
 		trx->mod_tables.~trx_mod_tables_t();
+
+		trx->pending_cascade_binlog_row_events.~vector();
 
 		ut_ad(!trx->read_view.is_open());
 
@@ -385,6 +390,8 @@ void trx_t::free() noexcept
   trx_sys.deregister_trx(this);
   check_unique_secondary= true;
   check_foreigns= true;
+
+  pending_cascade_binlog_row_events.clear();
   assert_freed();
   trx_sys.rw_trx_hash.put_pins(this);
   mysql_thd= nullptr;

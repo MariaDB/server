@@ -7904,6 +7904,14 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
     Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
     error= binlog_log_row(table, old_data, new_data, log_func);
   }
+
+  if (!error)
+  {
+    THD *thd_tmp= ha_thd();
+    if (thd_tmp->variables.rpl_use_binlog_events_for_fk_cascade ||
+        WSREP_EMULATE_BINLOG(thd_tmp))
+      flush_pending_cascade_binlog();
+  }
 #ifdef WITH_WSREP
   THD *thd= ha_thd();
   if (WSREP_NNULL(thd))
@@ -7980,6 +7988,14 @@ int handler::ha_delete_row(const uchar *buf)
     {
       Log_func *log_func= Delete_rows_log_event::binlog_row_logging_function;
       error= binlog_log_row(table, buf, 0, log_func);
+    }
+
+    if (!error)
+    {
+      THD *thd_tmp= ha_thd();
+      if (thd_tmp->variables.rpl_use_binlog_events_for_fk_cascade ||
+          WSREP_EMULATE_BINLOG(thd_tmp))
+        flush_pending_cascade_binlog();
     }
 #ifdef WITH_WSREP
     THD *thd= ha_thd();

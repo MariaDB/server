@@ -845,6 +845,7 @@ typedef struct system_variables
   my_bool sql_log_bin;
   my_bool binlog_annotate_row_events;
   my_bool binlog_direct_non_trans_update;
+  my_bool rpl_use_binlog_events_for_fk_cascade;
   my_bool column_compression_zlib_wrap;
 
   plugin_ref table_plugin;
@@ -3255,6 +3256,10 @@ public:
   /* 1 if binlog table maps has been written */
   bool binlog_table_maps;
 
+  bool binlog_fk_cascade_events;
+
+  void binlog_mark_fk_cascade_events();
+
   void issue_unsafe_warnings();
   void reset_unsafe_warnings()
   { binlog_unsafe_warning_flags= 0; }
@@ -3262,6 +3267,7 @@ public:
   void reset_binlog_for_next_statement()
   {
     binlog_table_maps= 0;
+    binlog_fk_cascade_events= false;
   }
   bool binlog_table_should_be_logged(const LEX_CSTRING *db);
 

@@ -8699,6 +8699,59 @@ func_exit:
 	DBUG_RETURN(err);
 }
 
+void
+ha_innobase::flush_pending_cascade_binlog()
+{
+	trx_t*	trx = thd_to_trx(m_user_thd);
+
+	if (!m_user_thd->variables.rpl_use_binlog_events_for_fk_cascade &&
+	    !wsrep_emulate_binlog(m_user_thd)) {
+		return;
+	}
+
+	if (trx == NULL || trx->pending_cascade_binlog_row_events.empty()) {
+		return;
+	}
+
+	m_user_thd->binlog_mark_fk_cascade_events();
+
+	for (auto& ev : trx->pending_cascade_binlog_row_events) {
+		if (ev.table == NULL || ev.table->file == NULL) {
+			if (ev.before_record) {
+				my_free(ev.before_record);
+			}
+			if (ev.after_record) {
+				my_free(ev.after_record);
+			}
+			continue;
+		}
+
+		MY_BITMAP* old_read_set = ev.table->read_set;
+		MY_BITMAP* old_write_set = ev.table->write_set;
+		MY_BITMAP* old_rpl_write_set = ev.table->rpl_write_set;
+
+		ev.table->column_bitmaps_set_no_signal(
+			&ev.table->s->all_set, &ev.table->s->all_set);
+		if (ev.table->rpl_write_set == NULL) {
+			ev.table->rpl_write_set = &ev.table->s->all_set;
+		}
+
+		Log_func* log_func = reinterpret_cast<Log_func*>(ev.log_func);
+		ev.table->file->binlog_log_row(ev.table,
+					     ev.before_record,
+					     ev.after_record,
+					     log_func);
+
+		ev.table->column_bitmaps_set_no_signal(old_read_set, old_write_set);
+		ev.table->rpl_write_set = old_rpl_write_set;
+
+		my_free(ev.before_record);
+		my_free(ev.after_record);
+	}
+
+	trx->pending_cascade_binlog_row_events.clear();
+}
+
 /**********************************************************************//**
 Deletes a row given as the parameter.
 @return error number or 0 */
