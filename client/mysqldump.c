@@ -138,10 +138,10 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
 #define OPT_SYSTEM_STATS 32
 #define OPT_SYSTEM_TIMEZONES 64
 static const char *opt_system_type_values[]=
-  {"all", "users", "plugins",  "udfs", "servers", "stats", "timezones"};
+  {"all", "users", "plugins",  "udfs", "servers", "stats", "timezones", NullS};
 static TYPELIB opt_system_types=
 {
-  array_elements(opt_system_type_values), "system dump options",
+  array_elements(opt_system_type_values) - 1, "system dump options",
   opt_system_type_values, NULL
 };
 static ulonglong opt_system= 0ULL;

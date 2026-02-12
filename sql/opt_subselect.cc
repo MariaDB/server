@@ -6996,7 +6996,7 @@ Item *Item_field::in_subq_field_transformer_for_where(THD *thd, uchar *arg)
   Item_in_subselect *subq_pred= ((Item *)arg)->get_IN_subquery();
   Item *producing_item= get_corresponding_item(thd, this, subq_pred);
   if (producing_item)
-    return producing_item->build_clone(thd);
+    return producing_item->deep_copy_with_checks(thd);
   return this;
 }
 
@@ -7009,7 +7009,7 @@ Item *Item_direct_view_ref::in_subq_field_transformer_for_where(THD *thd,
     Item_in_subselect *subq_pred= ((Item *)arg)->get_IN_subquery();
     Item *producing_item= get_corresponding_item(thd, this, subq_pred);
     DBUG_ASSERT (producing_item != NULL);
-    return producing_item->build_clone(thd);
+    return producing_item->deep_copy_with_checks(thd);
   }
   return this;
 }

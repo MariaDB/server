@@ -1240,21 +1240,28 @@ my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
 
   length= length2= MY_MIN(to_length, from_length);
 
-#if defined(__i386__) || defined(__x86_64__)
-  /*
-    Special loop for i386, it allows to refer to a
-    non-aligned memory block as UINT32, which makes
-    it possible to copy four bytes at once. This
-    gives about 10% performance improvement comparing
-    to byte-by-byte loop.
-  */
-  for ( ; length >= 4; length-= 4, from+= 4, to+= 4)
+#if SIZEOF_SIZE_T <= 8
+  for (size_t f; length >= sizeof f;
+       length-= sizeof f, from+= sizeof f, to+= sizeof f)
   {
-    if ((*(uint32*)from) & 0x80808080)
-      break;
-    *((uint32*) to)= *((const uint32*) from);
+    memcpy(&f, from, sizeof f);
+    if (f & (size_t) 0x8080808080808080ULL)
+      goto nonascii;
+    memcpy(to, from, sizeof f);
   }
-#endif /* __i386__ */
+# if SIZEOF_SIZE_T > 4
+  if (length >= 4)
+  {
+    uint32 f;
+    memcpy(&f, from, 4);
+    if (f & 0x80808080U)
+      goto nonascii;
+    memcpy(to, from, 4);
+    length-= 4, to+= 4, from+= 4;
+  }
+# endif
+ nonascii:
+#endif
 
   for (; ; *to++= *from++, length--)
   {

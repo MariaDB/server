@@ -70,6 +70,8 @@ current_user()
 test1@localhost
 disconnect con1;
 connection default;
+# Executing 'mariadb-admin'
+mysqld is alive
 drop user test1@localhost;
 uninstall plugin ed25519;
 select ed25519_password("foo");

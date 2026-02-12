@@ -1853,13 +1853,13 @@ bool Item_func_eq::val_bool()
 }
 
 
-Item *Item_func_eq::do_build_clone(THD *thd) const
+Item *Item_func_eq::deep_copy(THD *thd) const
 {
   /*
     Clone the parent and cast to the child class since there is nothing
     specific for Item_func_eq
   */
-  return (Item_func_eq*) Item_bool_rowready_func2::do_build_clone(thd);
+  return (Item_func_eq*) Item_bool_rowready_func2::deep_copy(thd);
 }
 
 
@@ -5551,16 +5551,16 @@ void Item_cond::neg_arguments(THD *thd)
      0 if an error occurred
 */ 
 
-Item *Item_cond::do_build_clone(THD *thd) const
+Item *Item_cond::deep_copy(THD *thd) const
 {
-  Item_cond *copy= (Item_cond *) get_copy(thd);
+  Item_cond *copy= (Item_cond *) shallow_copy_with_checks(thd);
   if (!copy)
     return 0;
   copy->list.empty();
 
   for (const Item &item : list)
   {
-    Item *arg_clone= item.build_clone(thd);
+    Item *arg_clone= item.deep_copy_with_checks(thd);
     if (!arg_clone)
       return 0;
     if (copy->list.push_back(arg_clone, thd->mem_root))
@@ -7903,9 +7903,9 @@ bool Item_equal::create_pushable_equalities(THD *thd,
   if (right_item)
   {
     Item_func_eq *eq= 0;
-    Item *left_item_clone= left_item->build_clone(thd);
+    Item *left_item_clone= left_item->deep_copy_with_checks(thd);
     Item *right_item_clone= !clone_const ?
-                            right_item : right_item->build_clone(thd);
+                            right_item : right_item->deep_copy_with_checks(thd);
     if (!left_item_clone || !right_item_clone)
       return true;
     eq= new (thd->mem_root) Item_func_eq(thd,
@@ -7932,8 +7932,8 @@ bool Item_equal::create_pushable_equalities(THD *thd,
     if (checker && !((item->*checker) (arg)))
       continue;
     Item_func_eq *eq= 0;
-    Item *left_item_clone= left_item->build_clone(thd);
-    Item *right_item_clone= item->build_clone(thd);
+    Item *left_item_clone= left_item->deep_copy_with_checks(thd);
+    Item *right_item_clone= item->deep_copy_with_checks(thd);
     if (!(left_item_clone && right_item_clone))
       return true;
     left_item_clone->set_item_equal(NULL);

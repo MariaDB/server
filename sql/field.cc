@@ -11743,7 +11743,7 @@ Virtual_column_info* Virtual_column_info::clone(THD *thd)
     return NULL;
   if (expr)
   {
-    dst->expr= expr->build_clone(thd);
+    dst->expr= expr->deep_copy_with_checks(thd);
     if (!dst->expr)
       return NULL;
   }

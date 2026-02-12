@@ -4294,3 +4294,25 @@ where cte1.a >= 1;
 drop table t;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-38487: Prevent aggregate functions cloning when pushing HAVING into WHERE
+--echo #
+
+CREATE TABLE t (a INT, b INT);
+INSERT INTO t VALUES (1, 10), (1, 20), (2, 50), (3, 100);
+
+# outer where to inner having pushdown
+let $q= SELECT * FROM (SELECT a, MAX(b) as max_b FROM t GROUP BY a) as dt WHERE dt.max_b > 25;
+eval explain format=JSON $q;
+eval $q;
+
+CREATE VIEW v AS SELECT a, MAX(b) as max_b FROM t GROUP BY a;
+let $q= SELECT * FROM v where max_b > 25;
+eval explain format=JSON $q;
+eval $q;
+
+DROP VIEW v;
+DROP TABLE t;
+
+--echo # End of 10.6 tests

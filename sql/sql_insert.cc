@@ -4382,7 +4382,14 @@ bool select_insert::prepare_eof()
   if (info.ignore || info.handle_duplicates != DUP_ERROR)
       if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
         table->file->ha_rnd_end();
+
+  /* Don't convert the warning to error in case
+  statistics updation fails */
+  bool save_abort_on_warning= thd->abort_on_warning;
+  thd->abort_on_warning= false;
   table->file->extra(HA_EXTRA_END_ALTER_COPY);
+  thd->abort_on_warning= save_abort_on_warning;
+
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
 
