@@ -244,7 +244,7 @@ SET lc_messages=DEFAULT;
 
 
 --echo #
---echo # MDEV-38520 Add month name formatting (%M shows month names in genitive case)
+--echo # MDEV-38520 Add formatting month's name (%B prints "formatting" months names, %M - "standalone" names)
 --echo #
 
 SET lc_time_names=uk_UA;
@@ -274,3 +274,12 @@ SET lc_time_names=sr_Cyrl_RS;
 SELECT date_format('2026-04-16','%d %M %Y'), date_format('2026-08-24','%d %M %Y'), date_format('2026-01-22','%d %M %Y');
 
 SET lc_time_names=DEFAULT;
+
+--echo #
+--echo # MDEV-38580 TO_DATE should check both formatting and standalone month name
+--echo #
+
+SELECT TO_DATE('16 април 2026','DD MONTH YYYY','NLS_DATE_LANGUAGE=''CYRILLIC SERBIAN''') AS x FROM DUAL;
+SELECT TO_DATE('15 april 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=''LATIN SERBIAN''') AS x FROM DUAL;
+SELECT TO_DATE('15 квітень 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=''UKRAINIAN''') AS x FROM DUAL;
+SELECT TO_DATE('15 квітня 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=''UKRAINIAN''') AS x FROM DUAL;

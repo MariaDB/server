@@ -3727,7 +3727,7 @@ struct ORACLE_DATE_LOCALE Oracle_date_locale[]=
   { "CATALAN"_Lex_ident_locale, &my_locale_ca_ES },
   { "CROATIAN"_Lex_ident_locale, &my_locale_hr_HR },
   //{ "CYRILLIC KAZAKH"_Lex_ident_locale, &my_locale_ckk },
-  { "CYRILLIC SERBIAN"_Lex_ident_locale, &my_locale_sr_RS },
+  { "CYRILLIC SERBIAN"_Lex_ident_locale, &my_locale_sr_Cyrl_RS },
   //{"CYRILLIC UZBEK"_Lex_ident_locale, &my_locale_cuz },
   { "CZECH"_Lex_ident_locale, &my_locale_cs_CZ },
   { "DANISH"_Lex_ident_locale, &my_locale_da_DK },
@@ -3757,7 +3757,7 @@ struct ORACLE_DATE_LOCALE Oracle_date_locale[]=
   //{ "LAO"_Lex_ident_locale, &my_locale_lo_LO },
   { "LATIN AMERICAN SPANISH"_Lex_ident_locale, &my_locale_es_ES },
   //{ "LATIN BOSNIAN"_Lex_ident_locale, &my_locale_lbs_LBS },
-  //{ "LATIN SERBIAN"_Lex_ident_locale, &my_locale_lsr_LSR },
+  { "LATIN SERBIAN"_Lex_ident_locale, &my_locale_sr_Latn_RS },
   //{ "LATIN UZBEK"_Lex_ident_locale, &my_locale_luz_LUZ },
   { "LATVIAN"_Lex_ident_locale, &my_locale_lv_LV },
   { "LITHUANIAN"_Lex_ident_locale, &my_locale_lt_LT },
@@ -3852,6 +3852,7 @@ void init_oracle_data_locale()
   for (locale= Oracle_date_locale; locale->locale ; locale++)
   {
     update_lengths_in_typelib(locale->locale->month_names);
+    update_lengths_in_typelib(locale->locale->month_names_formatting);
     update_lengths_in_typelib(locale->locale->ab_month_names);
     update_lengths_in_typelib(locale->locale->day_names);
     update_lengths_in_typelib(locale->locale->ab_day_names);
