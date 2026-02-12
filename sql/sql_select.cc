@@ -25149,6 +25149,11 @@ join_read_const(JOIN_TAB *tab)
       return -1;
     }
     store_record(table,record[1]);
+    if (Optimizer_context_recorder *recorder=
+            get_opt_context_recorder(tab->join->thd))
+    {
+      recorder->record_const_table_row(tab->join->thd->mem_root, table);
+    }
   }
   else if (!(table->status & ~STATUS_NULL_ROW))	// Only happens with left join
   {

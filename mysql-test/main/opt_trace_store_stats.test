@@ -183,4 +183,29 @@ select * from json_table(
 drop view view1;
 drop table t1;
 drop table t2;
+
+--echo #
+--echo # union query with const tables
+--echo # testing the INSERT statements
+--echo #
+set optimizer_record_context=OFF;
+
+create table t1 (a int not null auto_increment,
+                 b int,
+                 primary key (a)
+);
+
+insert into t1 select seq, seq%5 from seq_1_to_20;
+
+analyze table t1 persistent for all;
+
+set optimizer_record_context=ON;
+analyze select * from t1 where t1.a=5 and t1.b=0 union select * from t1 where t1.a=4 and t1.b=4;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @const_table_inserts= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.const_table_inserts')));
+select @const_table_inserts;
+select * from json_table(@const_table_inserts, '$[*][*]' columns(insert_stmt text path '$')) as jt;
+
+drop table t1;
 drop database db1;

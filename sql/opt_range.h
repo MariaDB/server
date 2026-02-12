@@ -2043,6 +2043,9 @@ bool eq_ranges_exceeds_limit(RANGE_SEQ_IF *seq, void *seq_init_param,
 void print_range(String *out, const KEY_PART_INFO *key_part,
                  KEY_MULTI_RANGE *range, uint n_key_parts);
 
+void print_key_value(String *out, const KEY_PART_INFO *key_part,
+                     const uchar *key, uint used_length);
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond);
 #endif
