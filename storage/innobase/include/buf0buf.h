@@ -1212,6 +1212,9 @@ public:
   /** The maximum allowed innodb_buffer_pool_size */
   size_t size_in_bytes_max;
 
+  /** To Do buf_pool_should_madvise */
+  bool buf_pool_should_madvise_dont_dump = true;
+
   /** @return the current size of the buffer pool, in bytes */
   size_t curr_pool_size() const noexcept { return size_in_bytes; }
 
@@ -1238,6 +1241,9 @@ public:
   static int madvise_do_dump() noexcept;
 #endif
 
+  int madvise_dont_dump() noexcept;
+  int madvise_dump() noexcept;
+  void madvise_update_dump();
   /** Hash cell chain in page_hash_table */
   struct hash_chain
   {
