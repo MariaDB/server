@@ -111,3 +111,14 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 # End of 10.11 tests
+#
+#  MDEV-38832 Assertion `!commit_lsn' failed in void trx_t::free()
+#
+CREATE DATABASE test_1;
+CREATE TABLE test_1.t1(f1 INT NOT NULL)Engine=InnoDB;
+SET GLOBAL innodb_stats_persistent=OFF;
+SET GLOBAL innodb_flush_log_at_trx_commit=0;
+DROP TABLE test_1.t1;
+DROP DATABASE test_1;
+SET GLOBAL innodb_stats_persistent=1;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;

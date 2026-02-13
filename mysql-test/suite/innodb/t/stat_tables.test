@@ -119,3 +119,17 @@ SET STATEMENT transaction_read_only=1 FOR ANALYZE TABLE t1;
 DROP TABLE t1;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo #  MDEV-38832 Assertion `!commit_lsn' failed in void trx_t::free()
+--echo #
+CREATE DATABASE test_1;
+CREATE TABLE test_1.t1(f1 INT NOT NULL)Engine=InnoDB;
+let $old_stats=`select @@global.innodb_stats_persistent`;
+let $flush_log_at_commit=`select @@global.innodb_flush_log_at_trx_commit`;
+SET GLOBAL innodb_stats_persistent=OFF;
+SET GLOBAL innodb_flush_log_at_trx_commit=0;
+DROP TABLE test_1.t1;
+DROP DATABASE test_1;
+eval SET GLOBAL innodb_stats_persistent=$old_stats;
+eval SET GLOBAL innodb_flush_log_at_trx_commit=$flush_log_at_commit;
