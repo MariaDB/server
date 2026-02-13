@@ -10626,27 +10626,6 @@ const char *online_alter_check_supported(THD *thd,
   if (!*online)
     return "BIGINT GENERATED ALWAYS AS ROW_START";
 
-  List<FOREIGN_KEY_INFO> fk_list;
-  table->file->get_foreign_key_list(thd, &fk_list);
-  for (auto &fk: fk_list)
-  {
-    if (fk_modifies_child(fk.delete_method) ||
-        fk_modifies_child(fk.update_method))
-    {
-      *online= false;
-      // Don't fall to a common unsupported case to avoid heavy string ops.
-      if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
-      {
-        return fk_modifies_child(fk.delete_method)
-               ? thd->strcat({STRING_WITH_LEN("ON DELETE ")},
-                             *fk_option_name(fk.delete_method)).str
-               : thd->strcat({STRING_WITH_LEN("ON UPDATE ")},
-                             *fk_option_name(fk.update_method)).str;
-      }
-      return NULL;
-    }
-  }
-
   for (auto &c: alter_info->create_list)
   {
     *online= c.field || !(c.flags & AUTO_INCREMENT_FLAG);
