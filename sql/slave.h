@@ -174,6 +174,8 @@ extern const char *relay_log_basename;
 int init_slave();
 int init_recovery(Master_info* mi, const char** errmsg);
 bool init_slave_skip_errors(const char* arg);
+bool init_slave_skip_errors_bitmap(const char* arg);
+void make_slave_skip_errors_printable(void);
 bool check_slave_skip_errors(sys_var *self, THD *thd, set_var *var);
 bool update_slave_skip_errors(sys_var *self, THD *thd, enum_var_type type);
 bool init_slave_transaction_retry_errors(const char* arg);

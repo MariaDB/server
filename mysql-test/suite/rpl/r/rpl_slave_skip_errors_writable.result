@@ -1,6 +1,13 @@
 # MDEV-7394 test dynamic slave_skip_errors (writable when slaves stopped)
 include/master-slave.inc
 [connection master]
+connection slave;
+STOP SLAVE;
+SET GLOBAL slave_skip_errors = "1062";
+START SLAVE;
+SELECT @@global.slave_skip_errors;
+@@global.slave_skip_errors
+1062
 connection master;
 CREATE TABLE t1 (id INT PRIMARY KEY);
 include/sync_slave_sql_with_master.inc
@@ -8,16 +15,34 @@ connection slave;
 INSERT INTO t1 VALUES (2);
 connection master;
 INSERT INTO t1 VALUES (2);
+include/sync_slave_sql_with_master.inc
 connection slave;
+include/check_slave_is_running.inc
+START SLAVE;
+Warnings:
+Note	1254	Slave is already running
+include/wait_for_slave_to_start.inc
 SET GLOBAL slave_skip_errors = "1062";
 ERROR HY000: This operation cannot be performed as you have a running slave ''; run STOP SLAVE '' first
 STOP SLAVE;
-SET GLOBAL slave_skip_errors = "1062";
+SET GLOBAL slave_skip_errors = "1050,1004,1104,1146";
+START SLAVE;
+# erros should be showed in sorted order
 SELECT @@global.slave_skip_errors;
 @@global.slave_skip_errors
-1062
-START SLAVE;
-include/wait_for_slave_to_start.inc
+1004,1050,1104,1146
+SET GLOBAL slave_ddl_exec_mode = STRICT;
+# test that mulitiple errors are set correctly  
+connection slave;
+include/stop_slave.inc
+CREATE TABLE t2 (id INT);
+include/start_slave.inc
+connection master;
+CREATE TABLE t2 (id INT);
+INSERT INTO t1 VALUES (4);
+connection slave;
+connection slave;
+include/check_slave_is_running.inc
 connection master;
 INSERT INTO t1 VALUES (3);
 include/sync_slave_sql_with_master.inc
@@ -30,5 +55,8 @@ SET GLOBAL slave_skip_errors = "OFF";
 START SLAVE;
 connection master;
 DROP TABLE t1;
+DROP TABLE t2;
 include/sync_slave_sql_with_master.inc
+connection slave;
+SET GLOBAL slave_ddl_exec_mode = DEFAULT;
 include/rpl_end.inc
