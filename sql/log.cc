@@ -3957,13 +3957,13 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       {
 #ifdef HAVE_REPLICATION
         /*
-          Restore `Gtid_IO_Pos` from the relay log, or `@@gtid_slave`/
-          `current_pos` if it somehow points after the log's end position.
+          Restore `Gtid_IO_Pos` from the relay log,
+          or `Gtid_Slave_Pos` if it somehow points after the log's end position.
           No need to load and scan in non-GTID mode,
           where `Gtid_IO_Pos` is void until switching to GTID mode,
-          which will (re)start it from `@@gtid_slave`/`current_pos`.
+          which will (re)start it from `Gtid_Slave_Pos`.
           No need to for `@@relay_log_recovery` either, which will restart
-          anew from just `@@gtid_slave`/`current_pos` in some later code.
+          anew from just `Gtid_Slave_Pos` in some later code.
         */
         if (mi->using_gtid && !mi->rli.is_relay_log_recovery)
         {
@@ -4802,6 +4802,18 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
       rpl_global_gtid_binlog_state.load(init_state, init_state_len);
     else
       rpl_global_gtid_binlog_state.reset();
+  }
+  else if (mi->using_gtid)
+  {
+    error= init_state ? mi->gtid_current_pos.load(init_state, init_state_len) :
+      rpl_load_gtid_state(&mi->gtid_current_pos,
+        mi->using_gtid == Master_info::USE_GTID_CURRENT_POS);
+    if (error)
+    {
+      sql_print_error("Failed rewinding `Gtid_IO_Pos`");
+      goto err;
+    }
+    mi->events_queued_since_last_gtid= 0;
   }
 
   /* Start logging with a new file */

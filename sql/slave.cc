@@ -672,6 +672,8 @@ err:
   
   Specifically, the following structures are updated:
  
+  0 - Purge the old relay logs to prevent accidentally seeking into a corruption
+    * mi->gtid_current_pos <-- rpl_global_gtid_slave_state
   1 - mi->master_log_pos  <-- rli->group_master_log_pos
   2 - mi->master_log_name <-- rli->group_master_log_name
   3 - It moves the relay log to the new relay log file, by
@@ -679,7 +681,6 @@ err:
       rli->event_relay_log_pos  <-- BIN_LOG_HEADER_SIZE;
       rli->group_relay_log_name <-- rli->relay_log.get_log_fname();
       rli->event_relay_log_name <-- rli->relay_log.get_log_fname();
-  4 - mi->gtid_current_pos <-- rpl_global_gtid_slave_state
   
    If there is an error, it returns (1), otherwise returns (0).
  */
@@ -688,6 +689,16 @@ int init_recovery(Master_info* mi, const char** errmsg)
   DBUG_ENTER("init_recovery");
  
   Relay_log_info *rli= &mi->rli;
+  if (mi->using_gtid)
+  {
+    sql_print_warning("Recovery with GTID.");
+    if (rli->relay_log.reset_logs(nullptr, /* keep open */ true, nullptr, 0, 0))
+    {
+      *errmsg= "Failed during log reset";
+      DBUG_RETURN(1);
+    }
+  }
+
   if (rli->group_master_log_name[0])
   {
     mi->master_log_pos= MY_MAX(BIN_LOG_HEADER_SIZE,
@@ -701,14 +712,6 @@ int init_recovery(Master_info* mi, const char** errmsg)
     strmake_buf(rli->event_relay_log_name, rli->relay_log.get_log_fname());
  
     rli->group_relay_log_pos= rli->event_relay_log_pos= BIN_LOG_HEADER_SIZE;
-  }
-
-  if (mi->using_gtid)
-  {
-    sql_print_warning("Recovery with GTID.");
-    if (rpl_load_gtid_state(&mi->gtid_current_pos,
-        mi->using_gtid == Master_info::USE_GTID_CURRENT_POS))
-      DBUG_RETURN(1);
   }
 
   DBUG_RETURN(0);
@@ -3793,9 +3796,8 @@ sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
   mysql_mutex_assert_owner(&rli->data_lock);
   DBUG_ASSERT(!rli->belongs_to_client());
 
-  int type= ev->get_type_code();
-  if (sql_delay && type != ROTATE_EVENT &&
-      type != FORMAT_DESCRIPTION_EVENT && type != START_EVENT_V3)
+  Log_event_type type= ev->get_type_code();
+  if (sql_delay && Log_event::is_group_event(type))
   {
     // The time when we should execute the event.
     time_t sql_delay_end=
@@ -5602,7 +5604,7 @@ pthread_handler_t handle_slave_sql(void *arg)
     In GTID mode,
     * A crash would leave the `relay_log_pos` outdated.
     * Parallel replication may stop with worker
-      threads at different positions in the relay log.
+      thread(s) at different position(s) in the relay log.
     In both cases, we don't know where the execution actually stopped;
     not even `@@relay_log_info_file` is reliable.
     To handle these situations when we restart the SQL thread,
@@ -5617,8 +5619,8 @@ pthread_handler_t handle_slave_sql(void *arg)
     if (rli->restart_gtid_pos.count())
     {
     /*
-      In case of parallel replication previously, if we have a multi-domain GTID
-      position, we need to start some way back in the relay log and skip any
+      In case the slave stopped from parallel replication,
+      we need to start some way back in the relay log and skip any
       GTID that was already applied before. Since event groups can be split
       across multiple relay logs, this earlier starting point may be in the
       middle of an already applied event group, so we also need to skip any
