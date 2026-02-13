@@ -5,6 +5,7 @@
 #include "my_dbug.h"
 #include "m_string.h"
 #include "my_global.h"
+#include "my_sys.h"
 #include "m_ctype.h"
 
 #define ER_OUT_OF_RESOURCES 1041 // from "mysqld_error.h"
@@ -44,18 +45,18 @@ public:
     if (!first.mark())
     {
       DBUG_ASSERT(hash_array);
-      free(hash_array);
+      my_free(hash_array);
     }
   }
 
 private:
   size_t _buffer_size() const
   {
-    return (size_t)1 << capacity_power;
+    return (size_t)1 << capacity_shift;
   }
   Hash_value_type to_index(const Hash_value_type &hash_value) const
   {
-    return hash_value & (((Hash_value_type)1 << capacity_power) - 1);
+    return hash_value & (((Hash_value_type)1 << capacity_shift) - 1);
   }
 
   Hash_value_type hash_from_value(const Value &value) const
@@ -63,22 +64,21 @@ private:
     return Key_trait::get_hash_value(get_key(value));
   }
 
-  bool insert_into_bucket(const Value &value)
+  void insert_into_bucket(const Value &value)
   {
     auto hash_val= to_index(hash_from_value(value));
 
     while (!is_empty(hash_array[hash_val]))
     {
       if (is_equal(hash_array[hash_val], value))
-        return true;
+        return;
       hash_val= to_index(hash_val + 1);
     }
 
     hash_array[hash_val]= value;
-    return true;
-  };
+  }
 
-  uint rehash_subsequence(uint i)
+  void rehash_subsequence(uint i)
   {
     for (uint j= to_index(i + 1); !is_empty(hash_array[j]); j= to_index(j + 1))
     {
@@ -88,8 +88,6 @@ private:
       hash_array[j]= EMPTY;
       insert_into_bucket(temp_el);
     }
-
-    return i;
   }
 
   bool erase_from_bucket(const Value &value)
@@ -110,16 +108,14 @@ private:
 
   bool grow(const uint new_capacity_power)
   {
-    DBUG_ASSERT(new_capacity_power > capacity_power);
+    DBUG_ASSERT(new_capacity_power > capacity_shift);
     size_t past_capacity= _buffer_size();
     size_t capacity= (size_t)1 << new_capacity_power;
-    capacity_power= new_capacity_power;
-    hash_array= (Value *) realloc(hash_array, capacity * sizeof(Value));
+    capacity_shift= new_capacity_power;
+    hash_array= (Value *)my_realloc(PSI_NOT_INSTRUMENTED, hash_array,
+                                    capacity * sizeof(Value), MYF(MY_WME));
     if (unlikely(!hash_array))
-    {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0));
       return false;
-    }
     bzero(hash_array + past_capacity,
           (capacity - past_capacity) * sizeof(Value*));
 
@@ -135,12 +131,12 @@ private:
     return true;
   }
 
-  void shrink(const uint new_capacity_power)
+  bool shrink(const uint new_capacity_power)
   {
-    DBUG_ASSERT(new_capacity_power < capacity_power);
+    DBUG_ASSERT(new_capacity_power < capacity_shift);
     size_t past_capacity= _buffer_size();
     size_t capacity= (size_t)1 << new_capacity_power;
-    capacity_power= new_capacity_power;
+    capacity_shift= new_capacity_power;
 
     for (size_t i= capacity; i < past_capacity; i++)
     {
@@ -151,7 +147,10 @@ private:
       }
     }
 
-    hash_array= (Value *) realloc(hash_array, capacity * sizeof(Value));
+    hash_array= (Value *)my_realloc(PSI_NOT_INSTRUMENTED,
+                                    hash_array, capacity * sizeof(Value),
+                                    MYF(MY_WME));
+    return hash_array;
   }
 
 
@@ -160,17 +159,15 @@ private:
     Value _first= first.ptr();
     Value _second= second;
 
-    capacity_power= CAPACITY_POWER_INITIAL;
-    hash_array= (Value*)calloc(_buffer_size(), sizeof (Value*));
-    _size= 0;
-
-    if (!insert_into_bucket(_first))
+    capacity_shift= CAPACITY_POWER_INITIAL;
+    hash_array= (Value *)my_malloc(PSI_NOT_INSTRUMENTED,
+                                   _buffer_size() * sizeof (Value *),
+                                   MYF(MY_ZEROFILL|MY_WME));
+    if (unlikely(!hash_array))
       return false;
-    _size++;
-    if (!insert_into_bucket(_second))
-      return false;
-    _size++;
-
+    _size= 2;
+    insert_into_bucket(_first);
+    insert_into_bucket(_second);
     return true;
   }
 
@@ -182,13 +179,13 @@ public:
   }
 
   template <typename Func>
-  Value find(const Key &key, const Func &elem_suits) const
+  Value find(const Key &key, const Func &match) const
   {
     if (first.mark())
     {
-      if (first.ptr() && elem_suits(first.ptr()))
+      if (first.ptr() && match(first.ptr()))
         return first.ptr();
-      if (!is_empty(second) && elem_suits(second))
+      if (!is_empty(second) && match(second))
         return second;
 
       return EMPTY;
@@ -197,7 +194,7 @@ public:
     for (auto idx= to_index(Key_trait::get_hash_value(&key));
          !is_empty(hash_array[idx]); idx= to_index(idx + 1))
     {
-      if (elem_suits(hash_array[idx]))
+      if (match(hash_array[idx]))
         return hash_array[idx];
     }
 
@@ -222,8 +219,10 @@ public:
     }
 
     const size_t capacity= _buffer_size();
-    if (unlikely(capacity > 7 && (_size - 1) * LOW_LOAD_FACTOR < capacity))
-      shrink(capacity_power - 1);
+    if (unlikely(capacity > 7 && (_size - 1) * LOW_LOAD_FACTOR < capacity) &&
+        !shrink(capacity_shift - 1))
+      return false;
+
 
     if (!erase_from_bucket(value))
       return false;
@@ -260,16 +259,15 @@ public:
     if (unlikely(_size == TABLE_SIZE_MAX))
       return false;
 
-    bool res= true;
     const size_t capacity= _buffer_size();
-    if (unlikely(((ulonglong)_size + 1) * MAX_LOAD_FACTOR > capacity))
-      res= grow(capacity_power + 1);
+    if (unlikely(((ulonglong)_size + 1) * MAX_LOAD_FACTOR > capacity) &&
+        !grow(capacity_shift + 1))
+      return false;
 
-    res= res && insert_into_bucket(value);
-    if (res)
-      _size++;
-    return res;
-  };
+    _size++;
+    insert_into_bucket(value);
+    return true;
+  }
 
   bool clear()
   {
@@ -282,8 +280,8 @@ public:
     if (!hash_array)
       return false;
 
-    free(hash_array);
-    capacity_power= CAPACITY_POWER_INITIAL;
+    my_free(hash_array);
+    capacity_shift= CAPACITY_POWER_INITIAL;
 
     first.set_mark(true);
     first.set_ptr(EMPTY);
@@ -363,7 +361,7 @@ private:
     struct
     {
       Value *hash_array;
-      uint capacity_power: 6;
+      uint capacity_shift: 6;
       size_t _size: SIZE_BITS;
     };
   };

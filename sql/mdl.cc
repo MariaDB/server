@@ -3232,17 +3232,19 @@ MDL_context::upgrade_shared_lock(MDL_ticket *mdl_ticket,
   mdl_ticket->m_lock->upgrade(mdl_ticket, new_type,
                     is_new_ticket ? mdl_xlock_request.ticket : nullptr);
 
+  bool success= true;
   if (is_new_ticket)
   {
-    bool success= ticket_hash.erase(mdl_xlock_request.ticket);
-    DBUG_ASSERT(success);
+    success= ticket_hash.erase(mdl_xlock_request.ticket);
+    DBUG_ASSERT(success || current_thd->is_error()); // only OOM
+    // We continue removing old data on failure.
     DBUG_ASSERT(ticket_hash.find(mdl_xlock_request.ticket) == NULL);
 
     m_tickets[MDL_TRANSACTION].remove(mdl_xlock_request.ticket);
     delete mdl_xlock_request.ticket;
   }
 
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(MY_TEST(!success));
 }
 
 

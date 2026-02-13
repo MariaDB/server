@@ -2515,10 +2515,10 @@ struct TABLE_LIST
     open_and_lock_tables
   */
   inline void reset() { bzero((void*)this, sizeof(*this)); }
-  inline void init_one_table_no_request(const LEX_CSTRING *db_arg,
-                                        const LEX_CSTRING *table_name_arg,
-                                        const LEX_CSTRING *alias_arg,
-                                        enum thr_lock_type lock_type_arg)
+  inline void init_one_table_no_mdl(const LEX_CSTRING *db_arg,
+                                    const LEX_CSTRING *table_name_arg,
+                                    const LEX_CSTRING *alias_arg,
+                                    enum thr_lock_type lock_type_arg)
   {
     reset();
     DBUG_ASSERT(!db_arg->str || strlen(db_arg->str) == db_arg->length);
@@ -2546,7 +2546,7 @@ struct TABLE_LIST
                              const LEX_CSTRING *alias_arg,
                              enum thr_lock_type lock_type_arg)
   {
-    init_one_table_no_request(db_arg, table_name_arg, alias_arg, lock_type_arg);
+    init_one_table_no_mdl(db_arg, table_name_arg, alias_arg, lock_type_arg);
 
     MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, db.str, table_name.str,
                      get_mdl_type(lock_type_arg), MDL_TRANSACTION);
@@ -2557,7 +2557,7 @@ struct TABLE_LIST
                                     enum thr_lock_type lock_type_arg,
                                     const MDL_key *mdl_key)
   {
-    init_one_table_no_request(db_arg, table_name_arg, alias_arg, lock_type_arg);
+    init_one_table_no_mdl(db_arg, table_name_arg, alias_arg, lock_type_arg);
 
     MDL_REQUEST_INIT_BY_KEY(&mdl_request, mdl_key, get_mdl_type(lock_type_arg),
                             MDL_TRANSACTION);
