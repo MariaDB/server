@@ -9,12 +9,50 @@ INSERT INTO t_dyn VALUES
 (2, NULL, 2),
 (3, REPEAT('b', 200000), 3),
 (4, NULL, 4);
+FLUSH STATUS;
 SELECT COUNT(*) FROM t_dyn WHERE b IS NULL;
 COUNT(*)
 2
+SELECT VARIABLE_VALUE > 0 AS null_only_used
+FROM information_schema.session_status
+WHERE VARIABLE_NAME='Handler_null_only_columns';
+null_only_used
+1
+FLUSH STATUS;
 SELECT COUNT(*) FROM t_dyn WHERE b <=> NULL;
 COUNT(*)
 2
+SELECT VARIABLE_VALUE > 0 AS null_only_used
+FROM information_schema.session_status
+WHERE VARIABLE_NAME='Handler_null_only_columns';
+null_only_used
+1
+FLUSH STATUS;
+SELECT COUNT(*)
+FROM t_dyn d1 JOIN t_dyn d2
+ON d1.id= d2.id AND d1.b IS NULL;
+COUNT(*)
+2
+SELECT VARIABLE_VALUE > 0 AS null_only_used
+FROM information_schema.session_status
+WHERE VARIABLE_NAME='Handler_null_only_columns';
+null_only_used
+1
+FLUSH STATUS;
+SELECT COUNT(*)
+FROM t_dyn outer_t
+WHERE EXISTS (SELECT 1
+FROM t_dyn inner_t
+WHERE inner_t.id= outer_t.id
+AND inner_t.b IS NULL);
+COUNT(*)
+2
+SELECT VARIABLE_VALUE > 0 AS null_only_used
+FROM information_schema.session_status
+WHERE VARIABLE_NAME='Handler_null_only_columns';
+null_only_used
+1
+FLUSH STATUS;
 SELECT id, IFNULL(LENGTH(b), -1) AS len
 FROM t_dyn
 WHERE b IS NULL OR c= 3
@@ -23,6 +61,11 @@ id	len
 2	-1
 3	200000
 4	-1
+SELECT VARIABLE_VALUE = 0 AS null_only_used
+FROM information_schema.session_status
+WHERE VARIABLE_NAME='Handler_null_only_columns';
+null_only_used
+1
 CREATE TABLE t_page (
 id INT PRIMARY KEY,
 b MEDIUMBLOB NULL,
@@ -33,12 +76,25 @@ INSERT INTO t_page VALUES
 (2, NULL, 2),
 (3, REPEAT('d', 200000), 3),
 (4, NULL, 4);
+FLUSH STATUS;
 SELECT COUNT(*) FROM t_page WHERE b IS NULL;
 COUNT(*)
 2
+SELECT VARIABLE_VALUE > 0 AS null_only_used
+FROM information_schema.session_status
+WHERE VARIABLE_NAME='Handler_null_only_columns';
+null_only_used
+1
+FLUSH STATUS;
 SELECT COUNT(*) FROM t_page WHERE b <=> NULL;
 COUNT(*)
 2
+SELECT VARIABLE_VALUE > 0 AS null_only_used
+FROM information_schema.session_status
+WHERE VARIABLE_NAME='Handler_null_only_columns';
+null_only_used
+1
+FLUSH STATUS;
 SELECT id, IFNULL(LENGTH(b), -1) AS len
 FROM t_page
 WHERE b IS NULL OR c= 3
@@ -47,6 +103,11 @@ id	len
 2	-1
 3	200000
 4	-1
+SELECT VARIABLE_VALUE = 0 AS null_only_used
+FROM information_schema.session_status
+WHERE VARIABLE_NAME='Handler_null_only_columns';
+null_only_used
+1
 CREATE TABLE t_v (
 id INT PRIMARY KEY,
 b MEDIUMBLOB NULL,

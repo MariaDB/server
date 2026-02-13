@@ -5626,6 +5626,18 @@ static void update_null_only_set(SELECT_LEX *select)
       (*order->item)->walk(&Item::clear_null_only_fields_processor, 0,
                            WALK_SUBQUERY | WALK_SKIP_NULL_PREDICATE_ARGS);
   }
+
+  ulong null_only_columns= 0;
+  ti.rewind();
+  while ((tl= ti++))
+  {
+    if (table_supports_null_only(tl))
+      null_only_columns+= bitmap_bits_set(&tl->table->null_set);
+  }
+
+  if (null_only_columns)
+    status_var_add(current_thd->status_var.ha_null_only_columns,
+                   null_only_columns);
 }
 
 void SELECT_LEX::update_used_tables()
