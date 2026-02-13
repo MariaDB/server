@@ -1979,13 +1979,13 @@ MY_LOCALE my_locale_uk_UA
 
 /***** LOCALE BEGIN ur_PK: Urdu - Pakistan *****/
 static const char *my_locale_month_names_ur_PK[13] = 
- {"جنوري","فروري","مارچ","اپريل","مٓی","جون","جولاي","اگست","ستمبر","اكتوبر","نومبر","دسمبر", NullS };
+ {"جنوری","فروری","مارچ","اپریل","مئی","جون","جولائی","اگست","ستمبر","اکتوبر","نومبر","دسمبر", NullS };
 static const char *my_locale_ab_month_names_ur_PK[13] = 
- {"جنوري","فروري","مارچ","اپريل","مٓی","جون","جولاي","اگست","ستمبر","اكتوبر","نومبر","دسمبر", NullS };
+ {"جنوری","فروری","مارچ","اپریل","مئی","جون","جولائی","اگست","ستمبر","اکتوبر","نومبر","دسمبر", NullS };
 static const char *my_locale_day_names_ur_PK[8] = 
- {"پير","منگل","بدھ","جمعرات","جمعه","هفته","اتوار", NullS };
+ {"پیر","منگل","بدھ","جمعرات","جمعہ","ہفتہ","اتوار", NullS };
 static const char *my_locale_ab_day_names_ur_PK[8] = 
- {"پير","منگل","بدھ","جمعرات","جمعه","هفته","اتوار", NullS };
+ {"پیر","منگل","بدھ","جمعرات","جمعہ","ہفتہ","اتوار", NullS };
 static TYPELIB my_locale_typelib_month_names_ur_PK = 
  CREATE_TYPELIB_FOR(my_locale_month_names_ur_PK);
 static TYPELIB my_locale_typelib_ab_month_names_ur_PK = 

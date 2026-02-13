@@ -53,5 +53,5 @@ sexta Sex janeiro Jan	quarta	dezembro
 SET @@session.lc_time_names = 'ur_PK';
 SELECT DATE_FORMAT('2010-01-01','%W %a %M %b'), DAYNAME('2010-05-05'),MONTHNAME('2010-12-12');
 DATE_FORMAT('2010-01-01','%W %a %M %b')	DAYNAME('2010-05-05')	MONTHNAME('2010-12-12')
-جمعه جمعه جنوري جنوري	بدھ	دسمبر
+جمعہ جمعہ جنوری جنوری	بدھ	دسمبر
 SET @@global.lc_time_names = "en_US";

@@ -1,0 +1,161 @@
+--echo #
+--echo # Urdu (Pakistan) TO_DATE  test
+--echo #
+SET lc_time_names='ur_PK';
+SET NAMES utf8mb4;
+
+SELECT TO_DATE('15 جنوری 2024', 'DD MONTH YYYY', 'NLS_DATE_LANGUAGE=URDU') AS jan;
+SELECT TO_DATE('15 فروری 2024', 'DD MONTH YYYY', 'NLS_DATE_LANGUAGE=URDU') AS feb;
+SELECT TO_DATE('15 مارچ 2024', 'DD MONTH YYYY', 'NLS_DATE_LANGUAGE=URDU') AS mar;
+SELECT TO_DATE('15 اپریل 2024', 'DD MONTH YYYY', 'NLS_DATE_LANGUAGE=URDU') AS apr;
+SELECT TO_DATE('15 مئی 2024', 'DD MONTH YYYY', 'NLS_DATE_LANGUAGE=URDU') AS may;
+SELECT TO_DATE('15 جون 2024', 'DD MONTH YYYY', 'NLS_DATE_LANGUAGE=URDU') AS jun;
+SELECT TO_DATE('15 جولائی 2024', 'DD MONTH YYYY', 'NLS_DATE_LANGUAGE=URDU') AS jul;
+SELECT TO_DATE('15 اگست 2024', 'DD MONTH YYYY', 'NLS_DATE_LANGUAGE=URDU') AS aug;
+SELECT TO_DATE('15 ستمبر 2024', 'DD MONTH YYYY', 'NLS_DATE_LANGUAGE=URDU') AS sep;
+SELECT TO_DATE('15 اکتوبر 2024', 'DD MONTH YYYY', 'NLS_DATE_LANGUAGE=URDU') AS oct;
+SELECT TO_DATE('15 نومبر 2024', 'DD MONTH YYYY', 'NLS_DATE_LANGUAGE=URDU') AS nov;
+SELECT TO_DATE('15 دسمبر 2024', 'DD MONTH YYYY', 'NLS_DATE_LANGUAGE=URDU') AS `dec`;
+
+
+--echo # Testing Monday (پیر)    date: 2026-02-09
+SELECT TO_DATE('09-02-2026 پیر', 'DD-MM-YYYY DAY', 'NLS_DATE_LANGUAGE=URDU') AS mon;
+
+--echo # Testing Tuesday (منگل)   date: 2026-02-10
+SELECT TO_DATE('10-02-2026 منگل', 'DD-MM-YYYY DAY', 'NLS_DATE_LANGUAGE=URDU') AS tue;
+
+--echo # Testing Wednesday (بدھ)    date: 2026-02-11
+SELECT TO_DATE('11-02-2026 بدھ', 'DD-MM-YYYY DAY', 'NLS_DATE_LANGUAGE=URDU') AS wed;
+
+--echo # Testing Thursday (جمعرات)  date: 2026-02-12
+SELECT TO_DATE('12-02-2026 جمعرات', 'DD-MM-YYYY DAY', 'NLS_DATE_LANGUAGE=URDU') AS thu;
+
+--echo # Testing Friday (جمعہ)   date: 2026-02-13
+SELECT TO_DATE('13-02-2026 جمعہ', 'DD-MM-YYYY DAY', 'NLS_DATE_LANGUAGE=URDU') AS fri;
+
+--echo # Testing Saturday (ہفتہ)   date: 2026-02-14
+SELECT TO_DATE('14-02-2026 ہفتہ', 'DD-MM-YYYY DAY', 'NLS_DATE_LANGUAGE=URDU') AS sat;
+
+--echo # Testing Sunday (اتوار)   date: 2026-02-15
+SELECT TO_DATE('15-02-2026 اتوار', 'DD-MM-YYYY DAY', 'NLS_DATE_LANGUAGE=URDU') AS sun;
+
+--echo # --- test hexa for days ---
+
+--let $c= `SELECT (HEX(DAYNAME('2026-02-09')) = 'D9BEDB8CD8B1')`
+if (!$c)
+{
+  --die "FAIL: Monday HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(DAYNAME('2026-02-10')) = 'D985D986DAAFD984')`
+if (!$c)
+{
+  --die "FAIL: Tuesday HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(DAYNAME('2026-02-11')) = 'D8A8D8AFDABE')`
+if (!$c)
+{
+  --die "FAIL: Wednesday HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(DAYNAME('2026-02-12')) = 'D8ACD985D8B9D8B1D8A7D8AA')`
+if (!$c)
+{
+  --die "FAIL: Thursday HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(DAYNAME('2026-02-13')) = 'D8ACD985D8B9DB81')`
+if (!$c)
+{
+  --die "FAIL: Friday HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(DAYNAME('2026-02-14')) = 'DB81D981D8AADB81')`
+if (!$c)
+{
+  --die "FAIL: Saturday HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(DAYNAME('2026-02-15')) = 'D8A7D8AAD988D8A7D8B1')`
+if (!$c)
+{
+  --die "FAIL: Sunday HEX mismatch"
+}
+
+--echo # --- test hexa for months ---
+
+--let $c= `SELECT (HEX(MONTHNAME('2024-01-01')) = 'D8ACD986D988D8B1DB8C')`
+if (!$c)
+{
+  --die "FAIL: January HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(MONTHNAME('2024-02-01')) = 'D981D8B1D988D8B1DB8C')`
+if (!$c)
+{
+  --die "FAIL: February HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(MONTHNAME('2024-03-01')) = 'D985D8A7D8B1DA86')`
+if (!$c)
+{
+  --die "FAIL: March HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(MONTHNAME('2024-04-01')) = 'D8A7D9BED8B1DB8CD984')`
+if (!$c)
+{
+  --die "FAIL: April HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(MONTHNAME('2024-05-01')) = 'D985D8A6DB8C')`
+if (!$c)
+{
+  --die "FAIL: May HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(MONTHNAME('2024-06-01')) = 'D8ACD988D986')`
+if (!$c)
+{
+  --die "FAIL: June HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(MONTHNAME('2024-07-01')) = 'D8ACD988D984D8A7D8A6DB8C')`
+if (!$c)
+{
+  --die "FAIL: July HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(MONTHNAME('2024-08-01')) = 'D8A7DAAFD8B3D8AA')`
+if (!$c)
+{
+  --die "FAIL: August HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(MONTHNAME('2024-09-01')) = 'D8B3D8AAD985D8A8D8B1')`
+if (!$c)
+{
+  --die "FAIL: September HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(MONTHNAME('2024-10-01')) = 'D8A7DAA9D8AAD988D8A8D8B1')`
+if (!$c)
+{
+  --die "FAIL: October HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(MONTHNAME('2024-11-01')) = 'D986D988D985D8A8D8B1')`
+if (!$c)
+{
+  --die "FAIL: November HEX mismatch"
+}
+
+--let $c= `SELECT (HEX(MONTHNAME('2024-12-01')) = 'D8AFD8B3D985D8A8D8B1')`
+if (!$c)
+{
+  --die "FAIL: December HEX mismatch"
+}
+
+
+--echo # Success: All Passes
