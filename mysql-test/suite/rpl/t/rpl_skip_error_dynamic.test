@@ -13,14 +13,16 @@ connection master;
 INSERT INTO t1 VALUES (2);
 
 connection slave;
---error ER_SLAVE_MUST_STOP
-SET GLOBAL slave_skip_errors = "1062";
+--let $slave_sql_errno= 1062
+--source include/wait_for_slave_sql_error.inc
 
-STOP SLAVE;
 SET GLOBAL slave_skip_errors = "1062";
 SELECT @@global.slave_skip_errors;
+
 START SLAVE;
 --source include/wait_for_slave_to_start.inc
+--error ER_SLAVE_MUST_STOP
+SET GLOBAL slave_skip_errors = "1062";
 
 
 connection master;

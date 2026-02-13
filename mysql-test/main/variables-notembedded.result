@@ -1,5 +1,6 @@
 ---- Init ----
 set @my_slave_net_timeout         =@@global.slave_net_timeout;
+set @my_slave_skip_errors         =@@global.slave_skip_errors;
 ---- Test ----
 set global slave_net_timeout=100;
 set global sql_slave_skip_counter=100;
@@ -11,7 +12,7 @@ Variable_name	Value
 slave_load_tmpdir	SLAVE_LOAD_TMPDIR
 show variables like 'slave_skip_errors';
 Variable_name	Value
-slave_skip_errors	0,3,100,137,643,1752
+slave_skip_errors	3,100,137,0,643,1752
 ---- Clean Up ----
 set global slave_net_timeout=default;
 set global sql_slave_skip_counter= 0;
@@ -137,16 +138,19 @@ ERROR HY000: Variable 'slave_load_tmpdir' is a read only variable
 #
 SHOW VARIABLES like 'slave_skip_errors';
 Variable_name	Value
-slave_skip_errors	0,3,100,137,643,1752
+slave_skip_errors	3,100,137,0,643,1752
 SELECT @@session.slave_skip_errors;
 ERROR HY000: Variable 'slave_skip_errors' is a GLOBAL variable
 SELECT @@global.slave_skip_errors;
 @@global.slave_skip_errors
-0,3,100,137,643,1752
+3,100,137,0,643,1752
 SET @@session.slave_skip_errors= 7;
-ERROR HY000: Variable 'slave_skip_errors' is a read only variable
-SET @@global.slave_skip_errors= 7;
-ERROR HY000: Variable 'slave_skip_errors' is a read only variable
+ERROR HY000: Variable 'slave_skip_errors' is a GLOBAL variable and should be set with SET GLOBAL
+SET @@global.slave_skip_errors= "7";
+SELECT @@global.slave_skip_errors;
+@@global.slave_skip_errors
+7
+SET @@global.slave_skip_errors= "OFF";
 #
 # Bug #11766769 : 59959: SMALL VALUES OF --MAX-ALLOWED-PACKET 
 #   ARE NOT BEING HONORED
@@ -191,3 +195,4 @@ FOUND 2 /old-mode='[0-9A-Z_]+' is deprecated and will be removed in a future rel
 #
 # End of 11.3 tests
 #
+set GLOBAL slave_skip_errors = @my_slave_skip_errors;
