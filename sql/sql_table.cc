@@ -13938,6 +13938,14 @@ void update_virtual_fields_for_rows(TABLE *table)
 int sql_delete_row(TABLE *table)
 {
   THD *thd= table->in_use;
+  bool delete_history= thd->lex->vers_conditions.delete_history;
+  thd->lex->vers_conditions.delete_history = false;
+  SCOPE_EXIT([thd, delete_history]
+  {
+    thd->lex->vers_conditions.delete_history= delete_history;
+  });
+  table->pos_in_table_list->trg_event_map = trg2bit(TRG_EVENT_DELETE);
+
   int error= 0;
   bool trg_skip_row= false;
   // This ensures that triggers can correctly read virtual field values
@@ -13952,7 +13960,7 @@ int sql_delete_row(TABLE *table)
     return trg_skip_row ? HA_ERR_CASCADE_SQL : 0;
       
 
-  error= table->file->ha_delete_row(table->record[0]);
+  error= table->delete_row();
   if (error != 0) 
     return error;
 
@@ -13979,6 +13987,8 @@ int sql_update_row(TABLE *table)
   bool trg_skip_row= false;
   table->column_bitmaps_set(&table->s->all_set, &table->s->all_set);
 
+  table->pos_in_table_list->trg_event_map = trg2bit(TRG_EVENT_UPDATE);
+
   // This ensures that triggers can correctly read virtual field values
   update_virtual_fields_for_rows(table);
 
@@ -13994,8 +14004,22 @@ int sql_update_row(TABLE *table)
   }
 
   int error= table->file->ha_update_row(table->record[1], table->record[0]);
+
+  bool record_was_same= error == HA_ERR_RECORD_IS_THE_SAME;
+  if (record_was_same)
+    error= 0;
   if (error != 0)
     return error;
+
+  if (table->versioned(VERS_TIMESTAMP))
+  {
+    store_record(table, record[2]);
+    table->mark_columns_per_binlog_row_image();
+    error= vers_insert_history_row(table);
+    restore_record(table, record[2]);
+    if (error)
+      return error;
+  }
 
   if (table->triggers &&
       unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
@@ -14005,4 +14029,3 @@ int sql_update_row(TABLE *table)
 
   return 0;
 }
-

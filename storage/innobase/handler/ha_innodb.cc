@@ -21540,7 +21540,7 @@ TABLE *find_sql_table_for_update_node(upd_node_t* node) {
 dberr_t 
 innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
 {
-  bool is_delete= (node->is_delete == PLAIN_DELETE);
+  bool is_delete= node->is_delete;
 
   TABLE *maria_table= find_sql_table_for_update_node(node);
 
@@ -21597,6 +21597,11 @@ innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
   if (handler->update_prebuilt_upd_buf())
     return DB_OUT_OF_MEMORY;
 
+  TABLE_LIST *tl = maria_table->pos_in_table_list;
+  uint8 old_trg_ops = tl->trg_event_map;
+  uint8 old_slave_fk_ops = tl->slave_fk_event_map;
+  tl->trg_event_map = tl->slave_fk_event_map = 0;
+
   auto *upd_node= prebuilt->upd_node;
   auto *upd_graph= prebuilt->upd_graph;
   prebuilt->upd_node= node;
@@ -21610,6 +21615,8 @@ innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
                      : sql_update_row(maria_table);
   --thd->fk_cascade_depth;
 
+  tl->slave_fk_event_map = old_slave_fk_ops;
+  tl->trg_event_map = old_trg_ops;
   prebuilt->upd_node= upd_node;
   prebuilt->upd_graph= upd_graph;
   return convert_sql_error_to_dberr(maria_table->in_use, thr, err);

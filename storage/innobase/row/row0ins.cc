@@ -1316,15 +1316,6 @@ row_ins_foreign_check_on_constraint(
 		}
 	}
 
-	if (table->versioned() && cascade->is_delete != PLAIN_DELETE
-	    && cascade->update->affects_versioned()) {
-		ut_ad(!cascade->historical_heap);
-		cascade->historical_heap = mem_heap_create(srv_page_size);
-		cascade->historical_row = row_build(
-			ROW_COPY_DATA, clust_index, clust_rec, NULL, table,
-			NULL, NULL, NULL, cascade->historical_heap);
-	}
-
 	/* Store pcur position and initialize or store the cascade node
 	pcur stored position */
 
