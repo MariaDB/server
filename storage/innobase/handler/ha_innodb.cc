@@ -1468,7 +1468,7 @@ static void innodb_drop_database(handlerton*, char *path)
       log_write_up_to(mtr.commit_lsn(), true);
   }
 
-  trx->free();
+  trx->clear_and_free();
   my_free(namebuf);
 }
 
