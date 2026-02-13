@@ -747,8 +747,8 @@ class Item_maxmin_subselect;
 
 class Item_func_trig_cond: public Item_bool_func
 {
-  bool *trig_var;
 public:
+  bool *trig_var;
   Item_func_trig_cond(THD *thd, Item *a, bool *f): Item_bool_func(thd, a)
   { trig_var= f; }
   bool val_bool() override { return *trig_var ? args[0]->val_bool() : true; }

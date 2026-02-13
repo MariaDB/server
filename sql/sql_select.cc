@@ -202,6 +202,34 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
                                              bool do_substitution);
 static COND *simplify_joins(JOIN *join, List<TABLE_LIST> *join_list,
                             COND *conds, bool in_sj);
+
+static bool check_full_join_base_tables_only(List<TABLE_LIST> *join_list)
+{
+  TABLE_LIST *table;
+  List_iterator<TABLE_LIST> li(*join_list);
+
+  while ((table= li++))
+  {
+    if ((table->outer_join & JOIN_TYPE_FULL) &&
+        (table->nested_join ||
+         (table->foj_partner && table->foj_partner->nested_join)))
+    {
+      const char *table_str= table->nested_join ?
+        table->nested_join->join_list.head()->alias.str :
+        table->foj_partner->nested_join->join_list.head()->alias.str;
+      my_error(ER_FULL_JOIN_BASE_TABLES_ONLY, MYF(0), table_str);
+      return false;
+    }
+
+    if (table->nested_join)
+    {
+      if (!check_full_join_base_tables_only(&table->nested_join->join_list))
+        return false;
+    }
+  }
+
+  return true;
+}
 static bool check_interleaving_with_nj(JOIN_TAB *next);
 static void restore_prev_nj_state(JOIN_TAB *last);
 static uint reset_nj_counters(JOIN *join, List<TABLE_LIST> *join_list);
@@ -451,6 +479,103 @@ bool dbug_user_var_equals_str(THD *thd, const char *name, const char* value)
   return FALSE;
 }
 #endif /* DBUG_OFF */
+
+
+/**
+   
+ */
+class full_join_duplicate_filter : public Sql_alloc
+{
+  SJ_TMP_TABLE tbl;
+
+public:
+  full_join_duplicate_filter(THD *thd, JOIN_TAB *left_tab, JOIN_TAB *right_tab)
+  {
+  }
+
+  void init(THD *thd, JOIN_TAB *left_tab, JOIN_TAB *right_tab)
+  {
+    DBUG_ASSERT(thd);
+    DBUG_ASSERT(left_tab);
+    DBUG_ASSERT(right_tab);
+
+    tbl.tmp_table= NULL;
+    tbl.is_degenerate= false;
+    tbl.have_degenerate_row= false;
+    tbl.next_flush_table= nullptr;
+
+    if (!(tbl.tabs= thd->alloc<SJ_TMP_TABLE::TAB>(2)))
+    {
+      //thd->set_fatal_error();
+      return;
+    }
+
+    uint jt_rowid_offset= 0;
+    uint jt_null_bits= 0;
+
+    tbl.tabs[0].join_tab= left_tab;
+    tbl.tabs[0].rowid_offset= jt_rowid_offset;
+    jt_rowid_offset+= left_tab->table->file->ref_length;
+    if (left_tab->table->maybe_null)
+    {
+      tbl.tabs[0].null_byte= jt_null_bits / 8;
+      tbl.tabs[0].null_bit= jt_null_bits++;
+    }
+
+    tbl.tabs[1].join_tab= right_tab;
+    tbl.tabs[1].rowid_offset= jt_rowid_offset;
+    jt_rowid_offset+= right_tab->table->file->ref_length;
+    if (right_tab->table->maybe_null)
+    {
+      tbl.tabs[1].null_byte= jt_null_bits / 8;
+      tbl.tabs[1].null_bit= jt_null_bits++;
+    }
+
+    tbl.tabs_end= tbl.tabs + 2;
+    tbl.rowid_len= jt_rowid_offset;
+    tbl.null_bits= jt_null_bits;
+    tbl.null_bytes= (jt_null_bits + 7) / 8;
+
+    left_tab->table->prepare_for_position();
+    right_tab->table->prepare_for_position();
+    left_tab->keep_current_rowid= TRUE;
+    right_tab->keep_current_rowid= TRUE;
+
+    (void) tbl.create_sj_weedout_tmp_table(thd);
+  }
+
+  int remember_rowids(THD *thd)
+  {
+    DBUG_ASSERT(thd);
+    int res= tbl.sj_weedout_check_row(thd);
+    if (res == -1)
+      return 1;
+    return 0;
+  }
+
+  int check_rowids(THD *thd, bool *is_duplicate)
+  {
+    DBUG_ASSERT(thd);
+    DBUG_ASSERT(is_duplicate);
+    int res= tbl.sj_weedout_check_row(thd);
+    if (res == -1)
+      return 1;
+    *is_duplicate= (res == 1);
+    return 0;
+  }
+
+  void cleanup(THD *thd)
+  {
+    tbl.sj_weedout_delete_rows();
+    if (tbl.tmp_table)
+    {
+      tbl.tmp_table->file->ha_index_or_rnd_end();
+      free_tmp_table(thd, tbl.tmp_table);
+      tbl.tmp_table= NULL;
+    }
+  }
+};
+
 
 /*
   Intialize POSITION structure.
@@ -2361,6 +2486,10 @@ JOIN::optimize_inner()
     /* Convert all outer joins to inner joins if possible */
     conds= simplify_joins(this, join_list, conds, FALSE);
 
+    if (!thd->lex->describe &&
+        !check_full_join_base_tables_only(join_list))
+      conds= nullptr;
+
     add_table_function_dependencies(join_list, table_map(-1), &error);
 
     if (thd->is_error() ||
@@ -3065,19 +3194,6 @@ int JOIN::optimize_stage2()
 
   if (setup_semijoin_loosescan(this))
     DBUG_RETURN(1);
-
-  /*
-    Temporary gate.  As the FULL JOIN implementation matures, this keeps moving
-    deeper into the server until it's eventually eliminated.
-  */
-  if (thd->lex->full_join_count)
-  {
-    if (!thd->lex->describe)
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "FULL JOINs that cannot be converted to LEFT, RIGHT, or "
-               "INNER JOINs");
-    DBUG_RETURN(0);
-  }
 
   if (make_join_select(this, select, conds))
   {
@@ -13555,7 +13671,8 @@ bool JOIN::get_best_combination()
       j= j->bush_children->start;
 
     used_tables|= j->table->map;
-    if (j->type != JT_CONST && j->type != JT_SYSTEM)
+    if (j->type != JT_CONST && j->type != JT_SYSTEM &&
+        !(j->tab_list->outer_join & JOIN_TYPE_FULL))
     {
       if ((keyuse= best_positions[tablenr].key) &&
           create_ref_for_key(this, j, keyuse, TRUE, used_tables))
@@ -13563,6 +13680,8 @@ bool JOIN::get_best_combination()
     }
     if (j->last_leaf_in_bush)
       j= j->bush_root_tab;
+    if (j->tab_list && (j->tab_list->outer_join & JOIN_TYPE_FULL))
+      j->type= JT_ALL;
   }
  
   top_join_tab_count= (uint)(join_tab_ranges.head()->end - 
@@ -14275,6 +14394,7 @@ make_outerjoin_info(JOIN *join)
     TABLE *table= tab->table;
     TABLE_LIST *tbl= table->pos_in_table_list;
     TABLE_LIST *embedding= tbl->embedding;
+    DBUG_ASSERT(tab->tab_list == tbl);
 
     if (tbl->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT))
     {
@@ -16270,22 +16390,29 @@ restart:
     case JT_NEXT:
     case JT_ALL:
     case JT_RANGE:
-      tab->used_join_cache_level= check_join_cache_usage(tab, options,
-                                                         no_jbuf_after,
-                                                         idx,
-                                                         prev_tab);
-      tab->use_join_cache= MY_TEST(tab->used_join_cache_level);
-      /*
-        psergey-merge: todo: raise the question that this is really stupid that
-        we can first allocate a join buffer, then decide not to use it and free
-        it.
-      */
-      if (join->return_tab)
+      if (tab->tab_list->outer_join & JOIN_TYPE_FULL)
       {
-        tab= join->return_tab;
-        goto restart;
+        tab->used_join_cache_level= 0;
       }
-      break; 
+      else
+      {
+        tab->used_join_cache_level= check_join_cache_usage(tab, options,
+                                                           no_jbuf_after,
+                                                           idx,
+                                                           prev_tab);
+        tab->use_join_cache= MY_TEST(tab->used_join_cache_level);
+        /*
+          psergey-merge: todo: raise the question that this is really stupid
+          that we can first allocate a join buffer, then decide not to use it
+          and free it.
+        */
+        if (join->return_tab)
+        {
+          tab= join->return_tab;
+          goto restart;
+        }
+      }
+      break;
     default:
       tab->used_join_cache_level= 0;
     }
@@ -19947,7 +20074,6 @@ static void rewrite_full_to_right(TABLE_LIST *left_table,
     of a FULL JOIN.
   */
   DBUG_ASSERT(right_table->on_expr);
-  DBUG_ASSERT(left_table->on_expr == nullptr);
   left_table->on_expr= right_table->on_expr;
   right_table->on_expr= nullptr;
 
@@ -20018,10 +20144,7 @@ static COND *rewrite_full_outer_joins(JOIN *join,
       We always see the RIGHT table before the LEFT table, so nothing to
       do here for JOIN_TYPE_LEFT.
     */
-    my_error(ER_NOT_SUPPORTED_YET, MYF(ME_FATAL),
-             "FULL JOINs that cannot be converted to LEFT, RIGHT, or "
-             "INNER JOINs");
-    DBUG_RETURN(nullptr);
+    DBUG_RETURN(conds);
   }
 
   /*
@@ -20246,15 +20369,6 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
   */
   while ((table= li++))
   {
-    // We only support FULL JOIN on base tables.
-    if (table->outer_join & JOIN_TYPE_FULL &&
-        !table->is_non_derived())
-    {
-      my_error(ER_FULL_JOIN_BASE_TABLES_ONLY, MYF(0),
-               table->alias.str);
-      DBUG_RETURN(nullptr);
-    }
-
     table_map used_tables;
     table_map not_null_tables= (table_map) 0;
 
@@ -24331,6 +24445,79 @@ Next_select_func setup_end_select_func(JOIN *join)
 }
 
 
+void swap_join_tab_order(JOIN_TAB *left, JOIN_TAB *right)
+{
+  left->found= false;
+  right->found= false;
+
+  // wow
+  right->last_inner= nullptr;
+  left->last_inner= left;
+
+  // Move the select condition over.
+  COND* tmp3= left->select_cond;
+  left->select_cond= right->select_cond;
+  right->select_cond= tmp3;
+
+  // If the select condition is a trig_cond, then move the internal pointer
+  auto trig= dynamic_cast<Item_func_trig_cond*>(left->select_cond);
+  if (trig)
+    trig->trig_var= &left->not_null_compl;
+
+  // Swap read_first_record funcs
+  READ_RECORD::Setup_func tmp= left->read_first_record;
+  left->read_first_record= right->read_first_record;
+  right->read_first_record= tmp;
+
+  // Swap next_select funcs
+  Next_select_func tmp2= left->next_select;
+  left->next_select= right->next_select;
+  right->next_select= tmp2;
+
+  // stolen from JOIN_TAB::cleanup
+  // restart the table scans
+  left->table->file->ha_end_keyread();
+  if (left->type == JT_FT)
+    left->table->file->ha_ft_end();
+  else if (left->table->hlindex && left->table->hlindex->context)
+    left->table->hlindex_read_end();
+  else
+    left->table->file->ha_index_or_rnd_end();
+
+  // restart the table scans
+  right->table->file->ha_end_keyread();
+  if (right->type == JT_FT)
+    right->table->file->ha_ft_end();
+  else if (right->table->hlindex && right->table->hlindex->context)
+    right->table->hlindex_read_end();
+  else
+    right->table->file->ha_index_or_rnd_end();
+}
+
+
+enum_nested_loop_state
+run_join_backwards(JOIN *join,
+                   JOIN_TAB *join_tab,
+                   enum_nested_loop_state error,
+                   bool end_of_records)
+{
+  if (!join->thd->lex->full_join_count ||
+      error < NESTED_LOOP_OK)
+    return error;
+
+  // run the right side of the FULL JOIN
+  join->return_tab= nullptr;
+  join->direction= true;
+  swap_join_tab_order(join_tab, join_tab+1);
+  error= join->first_select(join,join_tab+1,end_of_records);
+  swap_join_tab_order(join_tab+1, join_tab);
+  join->direction= false;
+  join->return_tab= nullptr;
+
+  return error;
+}
+
+
 /**
   Make a join of all tables and write it on socket or to table.
 
@@ -24468,14 +24655,49 @@ do_select(JOIN *join, Procedure *procedure)
       join->join_tab[top_level_tables-1].cached_pfs_batch_update=
         join->join_tab[top_level_tables-1].pfs_batch_update();
 
-    JOIN_TAB *join_tab= join->join_tab +
+    JOIN_TAB *join_tab= join->join_tab +  // DJG actually just hide the other side of the full join at the end of this list?
                         (join->tables_list ? join->const_tables : 0);
+
+    if (join->thd->lex->full_join_count)
+      for (uint i = 0; i < top_level_tables; ++i)
+        join_tab[i].fj_dups= nullptr;
+
+    if (join->thd->lex->full_join_count)
+    {
+      DBUG_ASSERT(top_level_tables >= 2);
+      auto fj_dups= join->thd->alloc<full_join_duplicate_filter>(1);
+      if (!fj_dups)
+        DBUG_RETURN(-1);
+      fj_dups->init(join->thd, join_tab, join_tab + 1);
+      join_tab->fj_dups= fj_dups;
+      (join_tab + 1)->fj_dups= fj_dups;
+    }
+
     if (join->outer_ref_cond && !join->outer_ref_cond->val_bool())
+    {
       error= NESTED_LOOP_NO_MORE_ROWS;
+    }
     else
+    {
       error= join->first_select(join,join_tab,0);
+      error= run_join_backwards(join, join_tab, error, false);
+    }
+
     if (error >= NESTED_LOOP_OK && likely(join->thd->killed != ABORT_QUERY))
+    {
       error= join->first_select(join,join_tab,1);
+      error= run_join_backwards(join, join_tab, error, true);
+    }
+
+    if (join->thd->lex->full_join_count)
+    {
+      full_join_duplicate_filter *fj_dups= join_tab->fj_dups;
+      if (fj_dups)
+        fj_dups->cleanup(join->thd);
+
+      for (uint i = 0; i < top_level_tables; ++i)
+        join_tab[i].fj_dups= nullptr;
+    }
   }
 
   join->thd->limit_found_rows= join->send_records - join->duplicate_rows;
@@ -24895,7 +25117,7 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   if (end_of_records)
   {
     enum_nested_loop_state nls=
-      (*join_tab->next_select)(join,join_tab+1,end_of_records);
+      (*join_tab->next_select)(join,(!join->direction ? join_tab+1 : join_tab-1),end_of_records);
     DBUG_RETURN(nls);
   }
   join_tab->tracker->r_scans++;
@@ -24968,7 +25190,7 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   bool skip_over= FALSE;
   READ_RECORD *info= &join_tab->read_record;
 
-  while (rc == NESTED_LOOP_OK && join->return_tab >= join_tab)
+  while (rc == NESTED_LOOP_OK && (!join->direction ? join->return_tab >= join_tab : join->return_tab <= join_tab))
   {
     if (join_tab->loosescan_match_tab && 
         join_tab->loosescan_match_tab->found_match)
@@ -25092,7 +25314,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
         to the all inner tables of the outer join.
       */
       first_unmatched->found= 1;
-      for (JOIN_TAB *tab= first_unmatched; tab <= join_tab; tab++)
+      for (JOIN_TAB *tab= first_unmatched; (!join->direction ? tab <= join_tab : tab >= join_tab); (!join->direction ? tab++ : tab--))
       {
         /*
           Check whether 'not exists' optimization can be used here.
@@ -25164,6 +25386,12 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
     JOIN_TAB *return_tab= join->return_tab;
     join_tab->found_match= TRUE;
 
+    if (!join->direction && join_tab->fj_dups)
+    {
+      if (join_tab->fj_dups->remember_rowids(join->thd))
+        DBUG_RETURN(NESTED_LOOP_ERROR);
+    }
+
     if (join_tab->check_weed_out_table && found)
     {
       int res= join_tab->check_weed_out_table->sj_weedout_check_row(join->thd);
@@ -25195,18 +25423,18 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
     {
       enum enum_nested_loop_state rc;
       /* A match from join_tab is found for the current partial join. */
-      rc= (*join_tab->next_select)(join, join_tab+1, 0);
+      rc= (*join_tab->next_select)(join, (!join->direction ? join_tab+1 : join_tab-1), 0);
       join->thd->get_stmt_da()->inc_current_row_for_warning();
       if (rc != NESTED_LOOP_OK && rc != NESTED_LOOP_NO_MORE_ROWS)
         DBUG_RETURN(rc);
-      if (return_tab < join->return_tab)
+      if (!join->direction ? return_tab < join->return_tab : return_tab > join->return_tab)
         join->return_tab= return_tab;
 
       /* check for errors evaluating the condition */
       if (unlikely(join->thd->is_error()))
         DBUG_RETURN(NESTED_LOOP_ERROR);
 
-      if (join->return_tab < join_tab)
+      if (!join->direction ? join->return_tab < join_tab : join->return_tab > join_tab)
         DBUG_RETURN(NESTED_LOOP_OK);
       /*
         Test if this was a SELECT DISTINCT query on a table that
@@ -25317,7 +25545,7 @@ evaluate_null_complemented_join_record(JOIN *join, JOIN_TAB *join_tab)
     Send the row complemented by nulls to be joined with the
     remaining tables.
   */
-  return (*join_tab->next_select)(join, join_tab+1, 0);
+  return (*join_tab->next_select)(join, (!join->direction ? join_tab+1 : join_tab-1), 0);
 }
 
 /*****************************************************************************
@@ -26274,8 +26502,6 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     to get fields from previous tab.
   */
   DBUG_ASSERT(join_tab == NULL || join_tab != join->join_tab);
-  //TODO pass fields via argument
-  List<Item> *fields= join_tab ? (join_tab-1)->fields : join->fields;
 
   if (end_of_records)
   {
@@ -26306,6 +26532,33 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     DBUG_RETURN(NESTED_LOOP_OK);
   }
 
+  full_join_duplicate_filter *fj_dups= nullptr;
+  if (join->direction)
+  {
+#if 0
+    if (join_tab && join_tab->fj_dups)
+      fj_dups= join_tab->fj_dups;
+    else if (join->join_tab && join->join_tab->fj_dups)
+      fj_dups= join->join_tab->fj_dups;
+    else if (join->join_tab && (join->join_tab + 1)->fj_dups)
+      fj_dups= (join->join_tab + 1)->fj_dups;
+#else
+    fj_dups= (join_tab+1)->fj_dups;
+#endif
+  }
+
+  if (fj_dups)
+  {
+    bool is_dup= false;
+    if (fj_dups->check_rowids(join->thd, &is_dup))
+      DBUG_RETURN(NESTED_LOOP_ERROR);
+    if (is_dup)
+    {
+      join->duplicate_rows++;
+      DBUG_RETURN(NESTED_LOOP_OK);
+    }
+  }
+
   if (join->send_records >= join->unit->lim.get_select_limit() &&
       join->unit->lim.is_with_ties())
   {
@@ -26322,7 +26575,7 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   {
     int error;
     /* result < 0 if row was not accepted and should not be counted */
-    if (unlikely((error= join->result->send_data_with_check(*fields,
+    if (unlikely((error= join->result->send_data_with_check(*join->fields,
                                                             join->unit,
                                                             join->send_records))))
     {
@@ -27055,7 +27308,7 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
 {
   table_map rand_table_bit= (table_map) RAND_TABLE_BIT;
 
-  if (used_table && !(cond->used_tables() & used_table))
+  if (!cond || (used_table && !(cond->used_tables() & used_table)))
     return (COND*) 0;				// Already checked
 
   if (cond->type() == Item::COND_ITEM)

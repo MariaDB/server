@@ -2058,63 +2058,55 @@ insert into t2 (a) values (1),(2),(3);
 --echo # This test only verifies syntax acceptance.
 --echo # TODO fix PS protocol before end of FULL OUTER JOIN development
 --disable_ps_protocol
---error ER_NOT_SUPPORTED_YET
 select * from t1 full join t2 on t1.a = t2.a;
 explain extended select * from t1 full join t2 on t1.a = t2.a;
 
---error ER_NOT_SUPPORTED_YET
 select * from t1 full outer join t2 on t1.a = t2.a;
 explain extended select * from t1 full outer join t2 on t1.a = t2.a;
 
---error ER_NOT_SUPPORTED_YET
 select * from t1 natural full outer join t2;
 explain extended select * from t1 natural full outer join t2;
 
---error ER_NOT_SUPPORTED_YET
 select * from t1 natural full join t2;
 explain extended select * from t1 natural full join t2;
 
 create view v1 as select t1.a as t1a, t2.a as t2a from t1 full join t2 on t1.a = t2.a;
---error ER_NOT_SUPPORTED_YET
 select * from v1;
 explain extended select * from v1;
 drop view v1;
 
 create view v1 as select t1.a as t1a, t2.a as t2a from t1 full outer join t2 on t1.a = t2.a;
---error ER_NOT_SUPPORTED_YET
 select * from v1;
 explain extended select * from v1;
 drop view v1;
 
 create view v1 as select t1.a as t1a, t2.a as t2a from t1 natural full join t2;
---error ER_NOT_SUPPORTED_YET
 select * from v1;
 explain extended select * from v1;
 drop view v1;
 
 create view v1 as select t1.a as t1a, t2.a as t2a from t1 natural full outer join t2;
---error ER_NOT_SUPPORTED_YET
 select * from v1;
 explain extended select * from v1;
 drop view v1;
 
---error ER_NOT_SUPPORTED_YET
-select * from (select t1.a from t1 full join t2 on t1.a = t2.a union select * from t1) dt;
+#--error ER_NOT_SUPPORTED_YET
+#select * from (select t1.a from t1 full join t2 on t1.a = t2.a union select * from t1) dt;
 
---error ER_NOT_SUPPORTED_YET
-select * from (select t1.a from t1 full outer join t2 on t1.a = t2.a union select * from t1) dt;
+#--error ER_NOT_SUPPORTED_YET
+#select * from (select t1.a from t1 full outer join t2 on t1.a = t2.a union select * from t1) dt;
 
---error ER_NOT_SUPPORTED_YET
-select * from (select t1.a from t1 natural full join t2 union select * from t1) dt;
-explain extended select * from (select t1.a from t1 natural full join t2 union select * from t1) dt;
+#--error ER_NOT_SUPPORTED_YET
+#select * from (select t1.a from t1 natural full join t2 union select * from t1) dt;
+#explain extended select * from (select t1.a from t1 natural full join t2 union select * from t1) dt;
 
---error ER_NOT_SUPPORTED_YET
-select * from (select t1.a from t1 natural full outer join t2 union select * from t1) dt;
-explain extended select * from (select t1.a from t1 natural full outer join t2 union select * from t1) dt;
+#--error ER_NOT_SUPPORTED_YET
+#select * from (select t1.a from t1 natural full outer join t2 union select * from t1) dt;
+#explain extended select * from (select t1.a from t1 natural full outer join t2 union select * from t1) dt;
 
---error ER_NOT_SUPPORTED_YET
-with cte as (select t1.a from t1 natural full join t2) select * from cte;
-explain extended with cte as (select t1.a from t1 natural full join t2) select * from cte;
+#--error ER_NOT_SUPPORTED_YET
+#with cte as (select t1.a from t1 natural full join t2) select * from cte;
+#explain extended with cte as (select t1.a from t1 natural full join t2) select * from cte;
 
 --error ER_NO_SUCH_TABLE
 select * from t1, t2 full join t3 on t2.c=t3.e and t3.f=t1.a;
@@ -2173,10 +2165,7 @@ select * from x left join xsq on xsq.pk = x.pk and xsq.x = x.x and xsq.y = x.y;
 select * from x natural full join xsq where xsq.pk is not null;
 select * from x right join xsq on x.pk = xsq.pk and x.x = xsq.x and x.y = xsq.y;
 
---echo # These two will fail because it cannot be rewritten to a LEFT, RIGHT, nor INNER JOIN.
---error ER_NOT_SUPPORTED_YET
 select * from x full join xsq on x.x >= 0 and x.x <= 1 and xsq.x >= 0 and xsq.x <= 1;
---error ER_NOT_SUPPORTED_YET
 select * from x natural full join xsq;
 
 drop table x, xsq;

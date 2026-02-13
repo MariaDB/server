@@ -249,6 +249,7 @@ class AGGR_OP;
 class Filesort;
 struct SplM_plan_info;
 class SplM_opt_info;
+class full_join_duplicate_filter;
 
 typedef struct st_join_table {
   TABLE		*table;        /**< pointer to table cursor */
@@ -485,6 +486,7 @@ typedef struct st_join_table {
   SJ_TMP_TABLE  *check_weed_out_table;
   /* for EXPLAIN only: */
   SJ_TMP_TABLE  *first_weedout_table;
+  full_join_duplicate_filter *fj_dups;
 
   /**
     reference to saved plan and execution statistics
@@ -1299,6 +1301,14 @@ public:
   void restore_query_plan(Join_plan_state *restore_from);
 
 public:
+  /**
+    JOIN_TAB scan direction.
+
+    false means left-to-right.
+     true means right-to-left.
+   */
+  bool direction{false};
+
   /**
     Used during check_interleaving_with_nj and restore_prev_nj_state, tracks
     expected tables participating in a FULL OUTER JOIN (if applicable) to
