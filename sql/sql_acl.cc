@@ -939,30 +939,65 @@ class Grant_table_base
   TABLE *m_table;
 };
 
+
+enum ACL_PRIV_TYPE
+{
+  PRIV_TYPE_GLOBAL,
+  PRIV_TYPE_DB,
+  PRIV_TYPE_TABLE,
+  PRIV_TYPE_COLUMN,
+  PRIV_TYPE_FUNCTION,
+  PRIV_TYPE_PROCEDURE,
+  PRIV_TYPE_PACKAGE,
+  PRIV_TYPE_PACKAGE_BODY,
+  PRIV_TYPE_MAX
+};
+
+
+
+static constexpr const LEX_CSTRING ACL_PRIV_TYPE_STR[]=
+{
+  {STRING_WITH_LEN("global")},
+  {STRING_WITH_LEN("db")},
+  {STRING_WITH_LEN("table")},
+  {STRING_WITH_LEN("column")},
+  {STRING_WITH_LEN("routine")},
+  {STRING_WITH_LEN("package")},
+  {STRING_WITH_LEN("package body")}
+};
+
+static inline const LEX_CSTRING &acl_priv_type_to_str(ACL_PRIV_TYPE type)
+{
+  DBUG_ASSERT(type >= 0 && type < PRIV_TYPE_MAX);
+  return ACL_PRIV_TYPE_STR[type];
+}
+
+/* note, here the string not necessarily null terminated */
+static inline ACL_PRIV_TYPE acl_priv_type_from_str(const char *s, size_t len)
+{
+  for (size_t i= 0; i < array_elements(ACL_PRIV_TYPE_STR); i++)
+  {
+    const LEX_CSTRING &type_str= ACL_PRIV_TYPE_STR[i];
+    if (len == type_str.length && !memcmp(s, type_str.str, len))
+      return static_cast<ACL_PRIV_TYPE>(i);
+  }
+  return static_cast<ACL_PRIV_TYPE>(-1); // Invalid type
+}
+
 /**
   Structure representing a hierarchical deny entry.
   Can represent denies at database, table, column, routine, or package level.
 */
-enum DenyType
-{
-  DENY_GLOBAL,
-  DENY_DB,
-  DENY_TABLE,
-  DENY_COLUMN,
-  DENY_ROUTINE,
-  DENY_PACKAGE
-};
-
 struct DENY_ENTRY
 {
-  DenyType type;
+  ACL_PRIV_TYPE type;
   const char *db;
   const char *table_or_routine;  // table name or routine name
   const char *column;
   privilege_t deny_bits;
 
   DENY_ENTRY()
-    : type(DENY_DB), db(nullptr), table_or_routine(nullptr),
+    : type(PRIV_TYPE_DB), db(nullptr), table_or_routine(nullptr),
       column(nullptr), deny_bits(NO_ACL)
   {}
 
@@ -975,7 +1010,7 @@ struct DENY_ENTRY
   {
     if (type != other.type)
       return false;
-    if (type == DENY_GLOBAL)
+    if (type == PRIV_TYPE_GLOBAL)
       return true; // Global entries match regardless of fields
 
     // Database must always match
@@ -1021,6 +1056,23 @@ static  bool append_str_value(String *to, const LEX_CSTRING &str)
 }
 
 /**
+  Helper for json parsing and generation to get the correct field name for a
+  given ACL_PRIV_TYPE
+*/
+LEX_CSTRING db_term_by_priv_type(ACL_PRIV_TYPE)
+{
+  return LEX_CSTRING{STRING_WITH_LEN("db")};
+}
+
+LEX_CSTRING table_or_routine_term_by_priv_type(ACL_PRIV_TYPE type)
+{
+  if (type == PRIV_TYPE_COLUMN)
+    return LEX_CSTRING{STRING_WITH_LEN("table")};
+  /* For table, the key is "table", for procedure "procedure" etc */
+  return acl_priv_type_to_str(type);
+}
+
+/**
   Helper function to build JSON representation of a DENY_ENTRY
   @param entry       The deny entry to serialize
   @param json_buf    StringBuffer to append the JSON to
@@ -1031,54 +1083,41 @@ static  bool append_str_value(String *to, const LEX_CSTRING &str)
 static int deny_entry_to_json(const DENY_ENTRY &entry, StringBuffer<512> &json_buf)
 {
   json_buf.length(0);
-  json_buf.append(STRING_WITH_LEN("{\"type\":"));
+  json_buf.append(STRING_WITH_LEN("{\"type\":\""));
   
-  const char *type_str= nullptr;
-  switch (entry.type)
-  {
-  case DENY_GLOBAL:   type_str= "\"global\"";  break;
-  case DENY_DB:       type_str= "\"db\""; break;
-  case DENY_TABLE:    type_str= "\"table\""; break;
-  case DENY_COLUMN:   type_str= "\"column\""; break;
-  case DENY_ROUTINE:  type_str= "\"routine\""; break;
-  case DENY_PACKAGE:  type_str= "\"package\""; break;
-  default:
-    return 1;
-  }
-  json_buf.append(type_str, strlen(type_str));
-  
-  if (entry.db)
-  {
-    json_buf.append(STRING_WITH_LEN(",\"db\":"));
-    if (append_str_value(&json_buf, Lex_cstring_strlen(entry.db)))
-      return 1;
-  }
-  
-  if (entry.table_or_routine)
-  {
-    const char *field= (entry.type == DENY_ROUTINE ||
-                       entry.type == DENY_PACKAGE) ? "routine" : "table";
-    json_buf.append(',');
-    json_buf.append('"');
-    json_buf.append(field, strlen(field));
-    json_buf.append(STRING_WITH_LEN("\":"));
-    if (append_str_value(&json_buf, Lex_cstring_strlen(entry.table_or_routine)))
-      return 1;
-  }
-  
-  if (entry.column)
-  {
-    json_buf.append(STRING_WITH_LEN(",\"column\":"));
-    if (append_str_value(&json_buf, Lex_cstring_strlen(entry.column)))
-      return 1;
-  }
-  
-  // Add deny bits
-  char deny_buf[MY_INT64_NUM_DECIMAL_DIGITS + 1];
-  size_t deny_len= snprintf(deny_buf, sizeof(deny_buf), "%llu",
-                            (unsigned long long) entry.deny_bits);
+  const LEX_CSTRING &type_str= acl_priv_type_to_str(entry.type);
+ 
+  json_buf.append(type_str.str, type_str.length);
+  json_buf.append('"');
+  if (entry.type == PRIV_TYPE_GLOBAL)
+    goto end;
+
+  DBUG_ASSERT(entry.db); // Non-global entries must have a db field
+  json_buf.append(STRING_WITH_LEN(","));
+  append_str_value(&json_buf,db_term_by_priv_type(entry.type));
+  json_buf.append(STRING_WITH_LEN(":"));
+  append_str_value(&json_buf, Lex_cstring_strlen(entry.db));
+  if (entry.type == PRIV_TYPE_DB)
+    goto end;
+
+  DBUG_ASSERT(entry.table_or_routine); // Table/routine/column level entries must have it
+  json_buf.append(STRING_WITH_LEN(","));
+  append_str_value(&json_buf,table_or_routine_term_by_priv_type(entry.type));
+  json_buf.append(STRING_WITH_LEN(":"));
+  append_str_value(&json_buf, Lex_cstring_strlen(entry.table_or_routine));
+
+  if (entry.type != PRIV_TYPE_COLUMN)
+    goto end;
+
+  DBUG_ASSERT(entry.column); // Column level entries must have column field
+  json_buf.append(STRING_WITH_LEN(",\"column\":"));
+  append_str_value(&json_buf, Lex_cstring_strlen(entry.column));
+
+end:
+  /* Add deny bits */
+  DBUG_ASSERT(entry.deny_bits);
   json_buf.append(STRING_WITH_LEN(",\"deny\":"));
-  json_buf.append(deny_buf, deny_len);
+  json_buf.append_ulonglong(entry.deny_bits);
   json_buf.append('}');
 
   return 0;
@@ -1111,7 +1150,7 @@ static int deny_entry_from_json(const char *element, int element_len,
   int field_len;
 
   // Initialize entry
-  entry.type= DENY_DB;
+  entry.type= PRIV_TYPE_DB;
   entry.db= nullptr;
   entry.table_or_routine= nullptr;
   entry.column= nullptr;
@@ -1121,22 +1160,33 @@ static int deny_entry_from_json(const char *element, int element_len,
   if (json_get_object_key(element, element + element_len, "type",
                          &field_val, &field_len) == JSV_STRING)
   {
-    if (strncmp(field_val,"global", field_len) == 0)
-      entry.type = DENY_GLOBAL;
-    else if (strncmp(field_val, "db", field_len) == 0)
-      entry.type= DENY_DB;
-    else if (strncmp(field_val, "table", field_len) == 0)
-      entry.type= DENY_TABLE;
-    else if (strncmp(field_val, "column", field_len) == 0)
-      entry.type= DENY_COLUMN;
-    else if (strncmp(field_val, "routine", field_len) == 0)
-      entry.type= DENY_ROUTINE;
-    else if (strncmp(field_val, "package", field_len) == 0)
-      entry.type= DENY_PACKAGE;
+    entry.type= acl_priv_type_from_str(field_val, field_len);
+    if (entry.type == static_cast<ACL_PRIV_TYPE>(-1))
+      return 1; // Invalid type
   }
-  
+   else
+    return 1; // Type is mandatory
+
+   // Parse deny
+   if (json_get_object_key(element, element + element_len, "deny", &field_val,
+                           &field_len) == JSV_NUMBER)
+   {
+     int err;
+     const char *end= field_val + field_len;
+     entry.deny_bits=
+         privilege_t(my_strtoll10(field_val, (char **) &end, &err));
+     if (err)
+       return 1;
+   }
+   else
+     return 1; // Deny value is mandatory
+
+  if (entry.type == PRIV_TYPE_GLOBAL)
+     return 0; // No more fields expected for global entries
+
   // Parse db
-  if (json_get_object_key(element, element + element_len, "db",
+   if (json_get_object_key(element, element + element_len,
+                           db_term_by_priv_type(entry.type).str,
                          &field_val, &field_len) == JSV_STRING)
   { 
     int len= json_unescape(json_charset,
@@ -1150,10 +1200,14 @@ static int deny_entry_from_json(const char *element, int element_len,
       entry.db= db_buf;
     }
   }
-  
+  else
+    return 1; // db field is mandatory for non-global entries
+
+  if (entry.type == PRIV_TYPE_DB)
+    return 0; // No more fields expected for db level entries
+
   // Parse table/routine
-  const char *table_key= (entry.type == DENY_ROUTINE ||
-                         entry.type == DENY_PACKAGE) ? "routine" : "table";
+  const char *table_key= table_or_routine_term_by_priv_type(entry.type).str;
   if (json_get_object_key(element, element + element_len, table_key,
                          &field_val, &field_len) == JSV_STRING)
   {
@@ -1168,8 +1222,14 @@ static int deny_entry_from_json(const char *element, int element_len,
       entry.table_or_routine= table_buf;
     }
   }
+  else
+    return 1; // table/routine field is mandatory for non-global, non-db
+              // entries
   
-  // Parse column if exists
+  if (entry.type != PRIV_TYPE_COLUMN)
+    return 0; // No more fields expected for routine/table level entries
+ 
+  // Parse column name (only for column level entries)
   if (json_get_object_key(element, element + element_len, "column",
                          &field_val, &field_len) == JSV_STRING)
   {
@@ -1184,17 +1244,10 @@ static int deny_entry_from_json(const char *element, int element_len,
       buf[len]= '\0';
       entry.column= (char *)buf;
     }
+    else
+      return 1; // Error unescaping column name
   }
-  // Parse deny bits
-  if (json_get_object_key(element, element + element_len, "deny",
-                         &field_val, &field_len) == JSV_NUMBER)
-  {
-    int err;
-    const char *end= field_val + field_len;
-    entry.deny_bits= privilege_t(my_strtoll10(field_val, (char**)&end, &err));
-    if (err)
-      return 1;
-  }
+ 
   return 0;
 }
 
@@ -1897,7 +1950,7 @@ class User_table_json: public User_table
     enumerate_deny_entries
     (
       [](const DENY_ENTRY *e, void *ctx) -> int {
-          if (e->type == DenyType::DENY_GLOBAL)
+          if (e->type == ACL_PRIV_TYPE::PRIV_TYPE_GLOBAL)
           {
             *static_cast<privilege_t *>(ctx)|= e->deny_bits;
             return 1;
@@ -1939,7 +1992,7 @@ class User_table_json: public User_table
     {
       // set_int_value("deny", deny & (longlong) GLOBAL_ACLS);
       DENY_ENTRY entry;
-      entry.type= DenyType::DENY_GLOBAL;
+      entry.type= ACL_PRIV_TYPE::PRIV_TYPE_GLOBAL;
       entry.deny_bits= rights & GLOBAL_ACLS;
       privilege_t out_privs;
       update_deny_entry(entry, rights & GLOBAL_ACLS, revoke, out_privs);
@@ -5575,7 +5628,7 @@ end:
 static int update_denies_in_user_table(const User_table &user_table,
                                     const LEX_USER &combo,
                                     const privilege_t rights, const bool revoke_grant,
-                                    DenyType type,   const char *db, const char *table_or_routine,
+                                    ACL_PRIV_TYPE type,   const char *db, const char *table_or_routine,
                                     const char *column, privilege_t& out_denies)
 {
   int error;
@@ -5653,7 +5706,7 @@ static int replace_db_table(const User_table &user_table, TABLE *table,
   if (is_deny)
   {
     if (update_denies_in_user_table(user_table, combo, rights, revoke_grant,
-                                    DenyType::DENY_DB, db, NULL, NULL, deny_bits))
+                                    ACL_PRIV_TYPE::PRIV_TYPE_DB, db, NULL, NULL, deny_bits))
       DBUG_RETURN(-1);
     // Fix in-memory ACL cache entry
     if (!acl_update_db(combo.user.str, combo.host.str, db, deny_bits, true))
@@ -6442,7 +6495,7 @@ static int replace_column_table(GRANT_TABLE *g_t, const User_table &user_table,
      {
        DBUG_ASSERT(column->rights != NO_ACL);
        if (update_denies_in_user_table(user_table, combo, column->rights,
-                                       revoke_grant, DenyType::DENY_COLUMN,
+                                       revoke_grant, ACL_PRIV_TYPE::PRIV_TYPE_COLUMN,
                                        db, table_name, column->column.c_ptr(),
                                        out_deny_bits))
        {
@@ -6727,7 +6780,7 @@ static int replace_table_table(THD *thd, const User_table& user_table,
   if (is_deny)
   {
     if (update_denies_in_user_table(user_table, combo, rights, revoke_grant,
-                                    DenyType::DENY_TABLE, db, table_name, NULL,
+                                    ACL_PRIV_TYPE::PRIV_TYPE_TABLE, db, table_name, NULL,
                                     deny_bits))
     {
       DBUG_RETURN(1);
