@@ -19,8 +19,11 @@
 /* drop and alter of tables */
 
 #include "mariadb.h"
+#include "my_dbug.h"
+#include "my_global.h"
 #include "sql_class.h"
 #include "sql_priv.h"
+#include "table.h"
 #include "unireg.h"
 #include "debug_sync.h"
 #include "sql_table.h"
@@ -13914,4 +13917,239 @@ bool HA_CREATE_INFO::
       return true;
   }
   return false;
+}
+
+
+bool TABLE_LIST::can_be_table(const Lex_ident_db db_name,
+                              const Lex_ident_table table_name)
+{
+  if (sequence)
+    return false;
+  if (table_name.length == 0)
+  {
+    DBUG_ASSERT(db_name.length == 0);
+    return true;
+  }
+  if (db_name.length != 0)
+    if (schema_table)
+    {
+      if (!Lex_ident_i_s_table(db_name).streq(db))
+        return false;
+    }
+    else
+    {
+      if (!db_name.streq(db))
+          return false;
+    }
+  else // no database name so it can be alias
+    if (alias.streq(table_name))
+      return true;
+
+  if (table_name.streq(table_name))
+    return true;
+  return false;
+}
+
+
+Name_resolution_result
+TABLE_LIST::resolve_column_name(Name_resolution_context *context,
+                                const Lex_ident_db db_name,
+                                const Lex_ident_table table_name,
+                                const Lex_ident_column field_name)
+{
+  DBUG_ENTER("TABLE_LIST::resolve_column_name");
+  DBUG_PRINT("enter",
+             ("Resolve %s.%s.%s in %p %s.%s context %p",
+              (db_name.length ? db_name.str : "<NULL>"),
+              (table_name.length ? table_name.str : "<NULL>"),
+              (field_name.length ? field_name.str : "<NULL>"),
+              this,
+              (this->db.str? this->db.str: "<NULL>"),
+              (this->table_name.str? this->table_name.str: "<NULL>"),
+              context));
+
+  if (!can_be_table(db_name, table_name))
+  {
+    DBUG_PRINT("info", ("wrong table"));
+    DBUG_RETURN(Name_resolution_result(NAME_NOT_FOUND));
+  }
+
+  Name_resolution_result result(NAME_NOT_FOUND);
+
+  if (field_translation)
+  {
+    DBUG_PRINT("info", ("View"));
+    //
+    // It is VIEW
+    //
+    Field_iterator_view field_it;
+    field_it.set(this);
+
+    for (; !field_it.end_of_fields(); field_it.next())
+    {
+      if (field_name.streq(field_it.name()))
+      {
+        result.result= NAME_RESOLVED_VIEW;
+        result.column.veiw_field= field_it.field_translator();
+        result.table= this;
+        DBUG_PRINT("info", ("Found %p %s %p",
+                            result.column.veiw_field,
+                            result.column.veiw_field->name.str,
+                            result.column.veiw_field->item));
+        DBUG_RETURN(result);
+      }
+    }
+    DBUG_PRINT("info", ("Not found"));
+    DBUG_RETURN(result);
+  }
+
+  if (!nested_join)
+  {
+    DBUG_PRINT("info", ("Table"));
+    //
+    // It is usual table
+    //
+    /* 'table_list' is a stored table. XXX TODO: WTF does it mean?*/
+    DBUG_ASSERT(table);
+    LEX_CSTRING nm= {(char *)field_name.str, field_name.length};
+    if ((result.column.field=
+         table->find_field_by_name(&nm)))
+    {
+        result.result= NAME_RESOLVED_FIELD;
+        result.table= this;
+        DBUG_PRINT("info", ("Found %p %s",
+                            result.column.field,
+                            result.column.field->field_name.str));
+    }
+    else
+      DBUG_PRINT("info", ("Not found"));
+    DBUG_RETURN(result);
+  }
+
+  if (table_name.length != 0)
+  {
+    DBUG_PRINT("info", ("Nested join with table"));
+    //
+    // It is nested join and table is mentioned
+    //
+    List_iterator<TABLE_LIST> it(nested_join->join_list);
+    TABLE_LIST *table;
+    while ((table= it++))
+    {
+      /*
+        Check if the table is in the ignore list. Only base tables can be in
+        the ignore list.
+      */
+      if (table->table &&
+          ignored_list_includes_table(context->ignored_tables, table))
+        continue;
+
+      result= table->resolve_column_name(context,
+                                           db_name, table_name,field_name);
+      if (result.result != NAME_NOT_FOUND)
+        DBUG_RETURN(result);
+    }
+    DBUG_RETURN(result);
+  }
+
+  {
+    DBUG_PRINT("info", ("Natural join or join with USING"));
+    //
+    // It is nested join and no table mentioned, so look for natural joins &
+    // Co (uning)
+    //
+
+    /*
+      Non-qualified field, search directly in the result columns of the
+      natural join. The condition of the outer IF is true for the top-most
+      natural join, thus if the field is not qualified, we will search
+      directly the top-most NATURAL/USING join.
+    */
+    List_iterator_fast<Natural_join_column> field_it(*(join_columns));
+    Natural_join_column *nj_col, *curr_nj_col;
+
+    for (nj_col= NULL, curr_nj_col= field_it++;
+         curr_nj_col;
+         curr_nj_col= field_it++)
+    {
+      if (field_name.streq(curr_nj_col->name()))
+      {
+        if (nj_col)
+        {
+          DBUG_PRINT("info", ("DUPLICATE!!!"));
+          DBUG_RETURN(Name_resolution_outcome(NAME_DUPLICATE));
+        }
+        nj_col= curr_nj_col;
+      }
+    }
+    if (!nj_col)
+    {
+      DBUG_PRINT("info", ("Not found"));
+      DBUG_RETURN(result);
+    }
+
+    if (nj_col->view_field)
+    {
+      DBUG_PRINT("info", ("View field"));
+      if (nj_col->table_ref->schema_table_reformed)
+      {
+        DBUG_PRINT("info", ("But IS table!!!"));
+        DBUG_ASSERT(0);
+
+        // XXX TODO: they probably are not fixed and allthis looks
+        //           suspiciouse
+        /*
+          Translation table items are always Item_fields and fixed
+          already('mysql_schema_table' function). So we can return
+          ->field. It is used only for 'show & where' commands.
+        */
+        result.result= NAME_RESOLVED_FIELD;
+        result.column.field= ((Item_field*) (nj_col->view_field->item))->field;
+        result.table= this;
+        DBUG_PRINT("info", ("Found schema table %p %s",
+                            result.column.field,
+                            result.column.field->field_name.str));
+        DBUG_RETURN(result);
+      }
+      result.result= NAME_RESOLVED_VIEW;
+      result.column.veiw_field= nj_col->view_field;
+      result.table= this;
+      DBUG_PRINT("info", ("Found view field %p %s %p",
+                          result.column.veiw_field,
+                          result.column.veiw_field->name.str,
+                          result.column.veiw_field->item));
+      DBUG_RETURN(result);
+    }
+    /* This is a base table. */
+
+    DBUG_ASSERT(0);
+#if 0
+    DBUG_ASSERT(nj_col->view_field == NULL);
+    Item *ref= 0;
+    /*
+      This fix_fields is not necessary (initially this item is fixed by
+      the Item_field constructor; after reopen_tables the Item_func_eq
+      calls fix_fields on that item), it's just a check during table
+      reopening for columns that was dropped by the concurrent connection.
+    */
+    if (nj_col->table_field->fix_fields_if_needed(thd, &ref))
+    {
+      DBUG_PRINT("info", ("column '%s' was dropped by the concurrent connection",
+                          nj_col->table_field->name.str));
+      DBUG_RETURN(NULL);
+    }
+    DBUG_ASSERT(ref == 0);                      // Should not have changed
+    DBUG_ASSERT(nj_col->table_ref->table == nj_col->table_field->field->table);
+    found_field= nj_col->table_field->field;
+    update_field_dependencies(thd, found_field, nj_col->table_ref->table);
+  }
+
+  *actual_table= nj_col->table_ref;
+
+  DBUG_RETURN(found_field);
+  Natural_join_column *nj_col, *curr_nj_col;
+  Field *UNINIT_VAR(found_field);
+#endif
+  }
+  DBUG_RETURN(result);
 }

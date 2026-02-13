@@ -5747,6 +5747,9 @@ bool open_and_lock_tables(THD *thd, const DDL_options_st &options,
   if (open_tables(thd, options, &tables, &counter, flags, prelocking_strategy))
     goto err;
 
+  if (thd->lex->unit.resolve_names(thd))
+    goto err;
+
   DBUG_EXECUTE_IF("sleep_open_and_lock_after_open", {
                   const char *old_proc_info= thd->proc_info;
                   thd->proc_info= "DBUG sleep";

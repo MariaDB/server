@@ -878,14 +878,19 @@ set_var::set_var(THD *thd, enum_var_type type_arg, sys_var *var_arg,
     If the set value is a field, change it to a string to allow things like
     SET table_type=MYISAM;
   */
-  if (value_arg && value_arg->type() == Item::FIELD_ITEM)
+  if (value_arg && value_arg->type() == Item::IDENT_PLACEHOLDER)
   {
-    Item_field *item= (Item_field*) value_arg;
+    Item_ident_placeholder *item= (Item_ident_placeholder*) value_arg;
     // names are utf8
     if (!(value= new (thd->mem_root) Item_string_sys(thd,
                                                      item->field_name.str,
                                                      (uint)item->field_name.length)))
       value=value_arg;                        /* Give error message later */
+    else
+    {
+      item->resolved_to= value;              // Kind of resolved
+      item->base_flags|= item_base_t::FIXED; // and should not be touched
+    }
   }
   else
     value=value_arg;

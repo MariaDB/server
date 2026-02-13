@@ -185,8 +185,8 @@ LEX::set_system_variable(enum enum_var_type var_type,
   if (spcont && sysvar == Sys_autocommit_ptr)
     sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
 
-  if (val && val->type() == Item::FIELD_ITEM &&
-      ((Item_field*)val)->table_name.str)
+  if (val && val->type() == Item::IDENT_PLACEHOLDER &&
+      ((Item_ident_placeholder*)val)->table_name.str)
   {
     my_error(ER_WRONG_TYPE_FOR_VAR, MYF(0), sysvar->name.str);
     return TRUE;
@@ -3098,6 +3098,7 @@ void st_select_lex::init_query()
   cur_pos_in_select_list= UNDEF_POS;
   having= prep_having= where= prep_where= 0;
   cond_pushed_into_where= cond_pushed_into_having= 0;
+  names_to_resolve.empty();
   attach_to_conds.empty();
   olap= UNSPECIFIED_OLAP_TYPE;
 
@@ -8882,10 +8883,15 @@ Item *LEX::create_item_ident_placeholder(THD *thd,
                                          const Lex_ident_column field)
 {
   DBUG_ENTER("LEX::create_item_ident_placeholder");
-  DBUG_PRINT("enter", ("New name to resolve %s.%s.%s",
+  DBUG_PRINT("enter", ("New name to resolve %s(%lld).%s(%lld).%s(%lld) add to %p(%d)",
                        (db.length ? db.str : "<NULL>"),
+                       (ulonglong)db.length,
                        (table.length ? table.str : "<NULL>"),
-                       (field.length ? field.str : "<NULL>")));
+                       (ulonglong)table.length,
+                       (field.length ? field.str : "<NULL>"),
+                       (ulonglong)field.length,
+                       ctx->select_lex,
+                       ctx->select_lex->select_number));
   Item_ident_placeholder *res=
    new(thd->mem_root) Item_ident_placeholder(thd, ctx, db, table, field);
   if (res)
@@ -13656,6 +13662,30 @@ bool SELECT_LEX_UNIT::is_derived_eliminated() const
   return derived->table->map & outer_select()->join->eliminated_tables;
 }
 
+bool st_select_lex_unit::resolve_names(THD *thd)
+{
+    for (st_select_lex *sl= first_select(); sl; sl=sl->next_select())
+      if (sl->resolve_names(thd))
+        return true;
+    return false;
+}
+
+bool st_select_lex::resolve_names(THD *thd)
+{
+  List_iterator_fast<Item_ident_placeholder> it(names_to_resolve);
+  Item_ident_placeholder *ident;
+
+  while ((ident= it++))
+  {
+    if (ident->resolve_name(thd))
+      return true;
+  }
+
+  for (SELECT_LEX_UNIT *u= first_inner_unit(); u; u= u->next_unit())
+    if (u->resolve_names(thd))
+      return true;
+  return false;
+}
 
 /*
   Parse optimizer hints and return as Hint_list allocated on thd->mem_root.

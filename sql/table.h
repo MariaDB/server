@@ -54,6 +54,7 @@
 /* Structs that defines the TABLE */
 
 class Item;				/* Needed by ORDER */
+class Item_ident_placeholder;
 typedef Item (*Item_ptr);
 class Item_subselect;
 class Item_field;
@@ -2291,6 +2292,35 @@ struct Field_translator
   Lex_ident_column name;
 };
 
+typedef enum enum_name_resolution_outcome
+{
+  NAME_NOT_FOUND,
+  NAME_DUPLICATE,
+  NAME_RESOLVED_FIELD,
+  NAME_RESOLVED_VIEW,
+  NAME_RESOLVED_SELECT_LIST,
+} Name_resolution_outcome;
+
+struct Name_resolution_result
+{
+
+  Name_resolution_outcome result;
+  union
+  {
+    Field *field;
+    Field_translator *veiw_field;
+    Item *item;
+  } column;
+  TABLE_LIST *table;
+
+  Name_resolution_result(Name_resolution_outcome res):
+    result(res),
+    column({0}),
+    table(0)
+  {}
+};
+
+
 
 /*
   Column reference of a NATURAL/USING join. Since column references in
@@ -3299,6 +3329,15 @@ struct TABLE_LIST
     tabledef_version.str= (const uchar *) version->str;
     tabledef_version.length= version->length;
   }
+
+   bool can_be_table(const Lex_ident_db db_name,
+                     const Lex_ident_table table_name);
+   Name_resolution_result
+   resolve_column_name(Name_resolution_context *context,
+                       const Lex_ident_db db_name,
+                       const Lex_ident_table table_name,
+                       const Lex_ident_column field_name);
+
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
   bool prep_where(THD *thd, Item **conds, bool no_where_clause);

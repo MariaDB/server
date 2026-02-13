@@ -40,6 +40,7 @@
 #include "sql_expression_cache.h"
 #include "sql_lex.h"                   // empty_clex_str
 #include "my_json_writer.h"            // for dbug_print_opt_trace()
+#include "table.h"
 
 const String my_null_string("NULL", 4, default_charset_info);
 const String my_default_string("DEFAULT", 7, default_charset_info);
@@ -671,21 +672,36 @@ Item_ident_placeholder::Item_ident_placeholder(THD *thd,
    context(context_arg),
    db_name(db_name_arg), table_name(table_name_arg),
    field_name(field_name_arg),
-   resolved_to(NULL)
+   resolved_to(NULL),
+   res(NAME_NOT_FOUND)
 {
-  // must be b.t.f or t.f or f
+  DBUG_ENTER("Item_ident_placeholder::Item_ident_placeholder");
+  DBUG_ASSERT(context);
+  base_flags&= ~item_base_t::FIXED;
+  parsing_place=context->select_lex->parsing_place;
+  DBUG_PRINT("enter",
+             ("Placeholder %p %s(%lld).%s(%lld).%s(%lld) cntx %p add to %p(%d) pl %d",
+              this,
+              (db_name.length ? db_name.str : "<NULL>"),
+              (ulonglong)db_name.length,
+              (table_name.length ? table_name.str : "<NULL>"),
+              (ulonglong)table_name.length,
+              (field_name.length ? field_name.str : "<NULL>"),
+              (ulonglong)field_name.length,
+              context,
+              context->select_lex,
+              context->select_lex->select_number,
+              parsing_place));
+  // must be d.t.f or t.f or f
   DBUG_ASSERT((db_name.length && table_name.length && field_name.length) ||
               (!db_name.length && table_name.length && field_name.length) ||
               (!db_name.length && !table_name.length && field_name.length));
+  DBUG_VOID_RETURN;
 }
 
-bool Item_ident_placeholder::resolve_name_in_tables(TABLE_LIST *first_table,
-                                                    TABLE_LIST *last_table)
-{
-  return false;
-}
 
-void Item_ident_placeholder::print(String *str, enum_query_type query_type)
+void
+Item_ident_placeholder::print(String *str, enum_query_type query_type)
 {
   THD *thd= current_thd;
   if (db_name.length)
@@ -708,12 +724,164 @@ void Item_ident_placeholder::print(String *str, enum_query_type query_type)
   }
 }
 
+bool Item_ident_placeholder::resolve_name(THD *thd)
+{
+  DBUG_ENTER("Item_ident_placeholder::resolve_name");
+  DBUG_PRINT("enter",
+             ("Placeholder %p cnt %p, %s.%s.%s",
+              this, context,
+              (db_name.length ? db_name.str : "<NULL>"),
+              (table_name.length ? table_name.str : "<NULL>"),
+              (field_name.length ? field_name.str : "<NULL>")));
+  if (resolved_to != 0)
+  {
+    // Already "resolved" as for example ident for set variable without ""
+    DBUG_PRINT("info", ("Already resolved"));
+    DBUG_RETURN(false);
+  }
+  if (context->mode == Name_resolution_context::RESOLVE_NOTHING)
+  {
+    DBUG_PRINT("info", ("Name resolution context: do not resolve"));
+    DBUG_RETURN(false);
+  }
+
+  if(parsing_place == IN_HAVING)
+  {
+    // resolve first in SELECT list  and make Item_ref
+    res= context->resolve_in_select_list(this);
+    if (res.result == NAME_NOT_FOUND)
+      res= context->resolve_in_table_list(this);
+  }
+  else
+  {
+    // all other places
+    res= context->resolve_in_table_list(this);
+    if (res.result == NAME_NOT_FOUND)
+      res= context->resolve_in_select_list(this);
+  }
+  {
+    Query_arena_stmt on_stmt_arena(thd);
+    switch(res.result)
+    {
+    case NAME_NOT_FOUND:
+      if ((context->mode != Name_resolution_context::RESOLVE_IF_POSSIBLE))
+        my_error(ER_BAD_FIELD_ERROR,  MYF(0), this->name, "XXX");
+      else
+        DBUG_PRINT("info",
+                   ("Name resolution context: not-reslolved is not a sin"));
+      break;
+    case NAME_DUPLICATE:
+      my_error(ER_DUP_FIELDNAME,  MYF(0), this->name);
+      break;
+    case NAME_RESOLVED_FIELD:
+      resolved_to= new (thd->mem_root)
+        Item_field(thd, context, res.column.field);
+      DBUG_PRINT("info", ("Table Field %p", resolved_to));
+      break;
+    case NAME_RESOLVED_VIEW:
+      {
+        LEX_CSTRING tb= {table_name.str, table_name.length};
+        LEX_CSTRING fl= {field_name.str, field_name.length};
+        resolved_to= new (thd->mem_root)
+          Item_direct_view_ref(thd, context, &res.column.veiw_field->item,
+                               tb, fl, res.table);
+        DBUG_PRINT("info", ("View Field %p", resolved_to));
+        break;
+      }
+    case NAME_RESOLVED_SELECT_LIST:
+      DBUG_ASSERT(0);
+      break;
+    }
+  }
+  DBUG_RETURN(!resolved_to);
+}
+
+
+Name_resolution_result
+Name_resolution_context::resolve_in_table_list(
+  const Item_ident_placeholder *ident) const
+{
+  DBUG_ENTER("Name_resolution_context::resolve_in_table_list");
+  Name_resolution_result result(NAME_NOT_FOUND);
+
+  for (TABLE_LIST *cur_table= first_name_resolution_table;
+       cur_table != last_name_resolution_table;
+       cur_table= cur_table->next_name_resolution_table)
+  {
+    if (cur_table->table &&
+        ignored_list_includes_table(ignored_tables, cur_table))
+      continue;
+
+    Name_resolution_result res(NAME_NOT_FOUND);
+    res= cur_table->resolve_column_name(ident->context,
+                                        ident->db_name, ident->table_name,
+                                        ident->field_name);
+    if (res.result != NAME_NOT_FOUND)
+    {
+      if (result.result == NAME_NOT_FOUND)
+      {
+        result= res;
+        result.table= cur_table;
+      }
+      else
+      {
+        result.result= NAME_DUPLICATE;
+        DBUG_RETURN(result);
+      }
+    }
+  }
+  DBUG_RETURN(result);
+}
+
+
+Name_resolution_result
+Name_resolution_context::resolve_in_select_list(
+  const Item_ident_placeholder *ident) const
+{
+  DBUG_ENTER("Name_resolution_context::resolve_in_table_list");
+  Name_resolution_result result(NAME_NOT_FOUND);
+  DBUG_RETURN(result);
+}
 
 bool Item_ident_placeholder::fix_fields(THD *thd, Item **ref)
 {
+  DBUG_ENTER("Item_ident_placeholder::fix_fields");
+  DBUG_ASSERT(! fixed());
+  if (context->mode != Name_resolution_context::RESOLVE_ALL &&
+      resolved_to == NULL)
+  {
+    // XXX TODO: check that it is correct to mark fixed
+    base_flags|= item_base_t::FIXED;
+    DBUG_RETURN(false);
+  }
   DBUG_ASSERT(resolved_to != NULL);
   *ref= resolved_to;
-  return false;
+  DBUG_PRINT("info", ("Replace %p", resolved_to));
+  bool res= resolved_to->fix_fields_if_needed_for_bool(thd, ref);
+  if (!res)
+    base_flags|= item_base_t::FIXED;
+  DBUG_RETURN(res);
+}
+
+
+bool Item_ident_placeholder::check_vcol_func_processor(void *arg)
+{
+  uint r= VCOL_FIELD_REF;
+  //context= 0;
+  vcol_func_processor_result *res= (vcol_func_processor_result *) arg;
+  DBUG_ENTER("Item_ident_placeholder::check_vcol_func_processor");
+  if (res->alter_info)
+    r|= res->alter_info->check_vcol_field(this);
+  else if (this->res.result == NAME_RESOLVED_FIELD)
+  {
+    if (this->res.column.field->unireg_check == Field::NEXT_NUMBER)
+      r|= VCOL_AUTO_INC;
+    if (this->res.column.field->vcol_info &&
+        (this->res.column.field->vcol_info->flags &
+         (VCOL_NOT_STRICTLY_DETERMINISTIC | VCOL_AUTO_INC)))
+      r|= VCOL_NON_DETERMINISTIC;
+  }
+  DBUG_RETURN(mark_unsupported_function(field_name.str, arg, r));
 }
 
 Item_ident::Item_ident(THD *thd, Name_resolution_context *context_arg,
@@ -1679,6 +1847,7 @@ bool mark_unsupported_function(const char *w1, const char *w2,
 
 bool Item_field::check_vcol_func_processor(void *arg)
 {
+  DBUG_ASSERT(0);
   uint r= VCOL_FIELD_REF;
   context= 0;
   vcol_func_processor_result *res= (vcol_func_processor_result *) arg;

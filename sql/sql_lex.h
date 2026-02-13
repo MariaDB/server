@@ -969,6 +969,8 @@ public:
 
   bool can_be_merged();
 
+  bool resolve_names(THD *thd);
+
   friend class st_select_lex;
 
 private:
@@ -1638,6 +1640,8 @@ public:
   uint subquery_strategies_allowed(THD *thd) const;
   bool semijoin_enabled(THD *thd) const;
   void update_available_semijoin_strategies(THD *thd);
+
+  bool resolve_names(THD *thd);
 };
 typedef class st_select_lex SELECT_LEX;
 

@@ -2634,6 +2634,8 @@ create:
             if (lex->main_select_push())
               MYSQL_YYABORT;
             lex->current_select->parsing_place= BEFORE_OPT_LIST;
+            lex->current_select->context.mode=
+              Name_resolution_context::RESOLVE_NOTHING;
             if (lex->set_command_with_check(SQLCOM_CREATE_TABLE, $2, $1 | $4))
                MYSQL_YYABORT;
           }
@@ -16303,27 +16305,67 @@ order_ident:
 simple_ident:
           ident_cli
           {
-            if (unlikely(!($$= Lex->create_item_ident(thd, &$1))))
+            Lex_ident_sys_st col;
+            if (unlikely(thd->to_ident_sys_alloc(&col, &$1)))
+              MYSQL_YYABORT;
+            if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
+                                      Lex->context_stack.head(),
+                                      Lex_ident_db(null_clex_str),
+                                      Lex_ident_table(null_clex_str),
+                                      Lex_ident_column(col)))))
               MYSQL_YYABORT;
           }
         | ident_cli '.' ident_cli
           {
-            if (unlikely(!($$= Lex->create_item_ident(thd, &$1, &$3))))
+            Lex_ident_sys_st col;
+            if (unlikely(thd->to_ident_sys_alloc(&col, &$1)))
+              MYSQL_YYABORT;
+            Lex_ident_sys_st tab;
+            if (unlikely(thd->to_ident_sys_alloc(&tab, &$3)))
+              MYSQL_YYABORT;
+            if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
+                                      Lex->context_stack.head(),
+                                      Lex_ident_db(null_clex_str),
+                                      Lex_ident_table(col),
+                                      Lex_ident_column(tab)))))
               MYSQL_YYABORT;
           }
         | '.' ident_cli '.' ident_cli
           {
-            Lex_ident_cli empty($2.pos(), 0);
-            if (unlikely(!($$= Lex->create_item_ident(thd, &empty, &$2, &$4))))
+            Lex_ident_sys_st col;
+            if (unlikely(thd->to_ident_sys_alloc(&col, &$2)))
+              MYSQL_YYABORT;
+            Lex_ident_sys_st tab;
+            if (unlikely(thd->to_ident_sys_alloc(&tab, &$4)))
+              MYSQL_YYABORT;
+            if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
+                                      Lex->context_stack.head(),
+                                      Lex_ident_db(),
+                                      Lex_ident_table(col),
+                                      Lex_ident_column(tab)))))
               MYSQL_YYABORT;
           }
         | ident_cli '.' ident_cli '.' ident_cli
           {
-            if (unlikely(!($$= Lex->create_item_ident(thd, &$1, &$3, &$5))))
+            Lex_ident_sys_st col;
+            if (unlikely(thd->to_ident_sys_alloc(&col, &$1)))
+              MYSQL_YYABORT;
+            Lex_ident_sys_st tab;
+            if (unlikely(thd->to_ident_sys_alloc(&tab, &$3)))
+              MYSQL_YYABORT;
+            Lex_ident_sys_st db;
+            if (unlikely(thd->to_ident_sys_alloc(&tab, &$5)))
+              MYSQL_YYABORT;
+            if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
+                                      Lex->context_stack.head(),
+                                      Lex_ident_db(col),
+                                      Lex_ident_table(tab),
+                                      Lex_ident_column(db)))))
               MYSQL_YYABORT;
           }
         | COLON_ORACLE_SYM ident_cli '.' ident_cli
           {
+            // XXX TODO:
             if (unlikely(!($$= Lex->make_item_colon_ident_ident(thd, &$2, &$4))))
               MYSQL_YYABORT;
           }
@@ -16350,13 +16392,12 @@ simple_ident_nospvar:
           }
         | COLON_ORACLE_SYM ident_cli '.' ident_cli
           {
+            // XXX TODO:
             if (unlikely(!($$= Lex->make_item_colon_ident_ident(thd, &$2, &$4))))
               MYSQL_YYABORT;
           }
         | '.' ident '.' ident
           {
-            Lex_ident_table tab($2);
-            Lex_ident_column col($4);
             if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
                                       Lex->context_stack.head(),
                                       Lex_ident_db(null_clex_str),
@@ -16366,9 +16407,6 @@ simple_ident_nospvar:
           }
         | ident '.' ident '.' ident
           {
-            Lex_ident_db db($1);
-            Lex_ident_table tab($3);
-            Lex_ident_column col($5);
             if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
                                       Lex->context_stack.head(),
                                       Lex_ident_db($1),

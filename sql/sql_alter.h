@@ -17,6 +17,7 @@
 #ifndef SQL_ALTER_TABLE_H
 #define SQL_ALTER_TABLE_H
 
+#include "item.h"
 class Alter_drop;
 class Alter_column;
 class Alter_rename_key;
@@ -327,6 +328,7 @@ public:
     return requested_algorithm == ALTER_TABLE_ALGORITHM_NONE;
   }
   uint check_vcol_field(Item_field *f) const;
+  uint check_vcol_field(Item_ident_placeholder *f) const;
 
   bool add_alter_list(THD *thd, LEX_CSTRING name, LEX_CSTRING new_name,
                       bool exists);

@@ -29,7 +29,7 @@
 
 #include "cset_narrowing.h"
 #include "sql_basic_types.h"
-
+#include "table.h"
 
 C_MODE_START
 #include <ma_dyncol.h>
@@ -273,13 +273,6 @@ struct Name_resolution_context: Sql_alloc
   void *error_processor_data= nullptr;
 
   /*
-    When TRUE items are resolved in this context both against the
-    SELECT list and this->table_list. If FALSE, items are resolved
-    only against this->table_list.
-  */
-  bool select_list_resolving= false;
-
-  /*
     Bitmap of tables that should be ignored when doing name resolution.
     Normally it is {0}. Non-zero values are used by table functions.
   */
@@ -290,6 +283,20 @@ struct Name_resolution_context: Sql_alloc
     and is non-zero only if the view is defined with SQL SECURITY DEFINER.
   */
   Security_context *security_ctx= nullptr;
+
+  /*
+    When TRUE items are resolved in this context both against the
+    SELECT list and this->table_list. If FALSE, items are resolved
+    only against this->table_list.
+  */
+  bool select_list_resolving= false;
+
+  /*
+    Sometimes like in CREATE or ALTER TABLE field can not and should not
+    be resolved.
+  */
+  enum resolving_mode {RESOLVE_ALL, RESOLVE_IF_POSSIBLE, RESOLVE_NOTHING};
+  enum resolving_mode mode;
 
   Name_resolution_context() = default;
 
@@ -307,6 +314,7 @@ struct Name_resolution_context: Sql_alloc
     ignored_tables= nullptr;
     first_name_resolution_table= nullptr;
     last_name_resolution_table= nullptr;
+    mode= RESOLVE_ALL;
   }
 
   void resolve_in_table_list_only(TABLE_LIST *tables)
@@ -326,9 +334,14 @@ struct Name_resolution_context: Sql_alloc
             NULL);
   }
 
+  /*
+  XXX TODO:  do we need it?
   Item* resolve_in_routine_variables(Item_ident_placeholder *ident);
-  Item* resolve_in_tables(Item_ident_placeholder *ident);
-  Item* resolve_in_select_list(Item_ident_placeholder *ident);
+  */
+  Name_resolution_result
+  resolve_in_table_list(const Item_ident_placeholder *ident) const;
+  Name_resolution_result
+  resolve_in_select_list(const Item_ident_placeholder *ident) const;
 };
 
 
@@ -863,7 +876,7 @@ public:
              FIELD_VARIANCE_ITEM, INSERT_VALUE_ITEM,
              SUBSELECT_ITEM, ROW_ITEM, CACHE_ITEM, TYPE_HOLDER,
              PARAM_ITEM, TRIGGER_FIELD_ITEM,
-             EXPR_CACHE_ITEM};
+             EXPR_CACHE_ITEM,   IDENT_PLACEHOLDER};
 
   enum cond_result { COND_UNDEF,COND_OK,COND_TRUE,COND_FALSE };
   enum traverse_order { POSTFIX, PREFIX };
@@ -3708,31 +3721,50 @@ public:
   const Lex_ident_table table_name;
   const Lex_ident_column field_name;
   Item *resolved_to;
+  Name_resolution_result res;
+  enum_parsing_place parsing_place; /* where we are parsing expression */
+
   Item_ident_placeholder(THD *thd,
                          Name_resolution_context *context_arg,
                          const Lex_ident_db db_name_arg,
                          const Lex_ident_table table_name_arg,
                          const Lex_ident_column field_name_arg);
 
-  bool resolve_name();
-  bool resolve_name_in_tables(TABLE_LIST *first_table, TABLE_LIST *last_table);
+  bool resolve_name(THD *thd);
 
   void print(String *str, enum_query_type query_type) override;
 
   bool fix_fields(THD *thd, Item **ref) override;
+  Type type() const override { return IDENT_PLACEHOLDER; }
 
+  bool check_vcol_func_processor(void *) override;
   /*
     Dummy things start
   */
   const Type_handler *type_handler() const override
     { DBUG_ASSERT(0); return NULL; };
-  Type type() const override { DBUG_ASSERT(0); return FIELD_ITEM; }
   double val_real() override { DBUG_ASSERT(0); null_value= 0; return 0.0;}
   longlong val_int() override { DBUG_ASSERT(0); null_value= 0; return 0;}
   String *val_str(String *str) override
     { DBUG_ASSERT(0); null_value= 0; return NULL;}
   my_decimal *val_decimal(my_decimal *) override
     { DBUG_ASSERT(0); null_value= 0; return NULL;}
+  bool val_bool() override
+    { DBUG_ASSERT(0); null_value= 0; return false;}
+  bool is_null() override
+    { DBUG_ASSERT(0); return is_null(); }
+  double  val_result() override
+    { DBUG_ASSERT(0); null_value= 0; return 0.0;}
+  longlong val_int_result() override
+    { DBUG_ASSERT(0); null_value= 0; return 0;}
+  String *str_result(String* tmp) override
+    { DBUG_ASSERT(0); null_value= 0; return NULL;}
+  my_decimal *val_decimal_result(my_decimal *val) override
+    { DBUG_ASSERT(0); null_value= 0; return NULL;}
+  bool val_bool_result() override
+    { DBUG_ASSERT(0); null_value= 0; return false;}
+  bool is_null_result() override
+    { DBUG_ASSERT(0); return is_null(); }
   bool get_date(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate) override
     {
       DBUG_ASSERT(0);
@@ -3748,7 +3780,7 @@ public:
   virtual Item* do_build_clone(THD *thd) const override
     { DBUG_ASSERT(0); return NULL;}
   /*
-    Dummy things start
+    Dummy things ends
   */
 };
 

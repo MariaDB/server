@@ -23,6 +23,7 @@
 #include "rpl_mi.h"
 #include "slave.h"
 #include "debug_sync.h"
+#include "table.h"
 #include "wsrep_mysqld.h"
 
 Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
@@ -313,6 +314,51 @@ uint Alter_info::check_vcol_field(Item_field *item) const
   return 0;
 }
 
+uint Alter_info::check_vcol_field(Item_ident_placeholder *item) const
+{
+  DBUG_ENTER("Alter_info::check_vcol_field");
+  /*
+    vcol->flags are modified in-place, so we'll need to reset them
+    if ALTER fails for any reason
+  */
+  if (item->res.result == NAME_RESOLVED_FIELD &&
+      !item->res.column.field->table->needs_reopen())
+    item->res.column.field->table->mark_table_for_reopen();
+
+  if (item->res.result != NAME_RESOLVED_FIELD &&
+      ((item->db_name.length && !db.streq(item->db_name)) ||
+       (item->table_name.length && !table_name.streq(item->table_name))))
+  {
+    // XXX TODO: this makes error messages better
+    //char *ptr= current_thd->alloc(item->db_name.length +
+    //                              item->table_name.length +
+    //                              item->field_name.length + 3);
+    //strxmov(ptr, safe_str(item->db_name.str), item->db_name.length ? "." : "",
+    //        item->table_name.str, ".", item->field_name.str, NullS);
+    //item->field_name.str= ptr;
+    DBUG_RETURN(VCOL_IMPOSSIBLE);
+  }
+  for (Key &k: key_list)
+  {
+    if (k.type != Key::FOREIGN_KEY)
+      continue;
+    Foreign_key *fk= (Foreign_key*) &k;
+    if (fk->update_opt < FK_OPTION_CASCADE &&
+        fk->delete_opt < FK_OPTION_SET_NULL)
+      continue;
+    for (Key_part_spec& kp: fk->columns)
+    {
+      if (item->field_name.streq(kp.field_name))
+        DBUG_RETURN(VCOL_NON_DETERMINISTIC);
+    }
+  }
+  for (Create_field &cf: create_list)
+  {
+    if (item->field_name.streq(cf.field_name))
+      DBUG_RETURN(cf.vcol_info ? cf.vcol_info->flags : 0);
+  }
+  DBUG_RETURN(0);
+}
 
 bool Alter_info::collect_renamed_fields(THD *thd)
 {
