@@ -712,8 +712,6 @@ static void make_slave_skip_errors_printable(void)
   DBUG_ASSERT(MAX_SLAVE_ERROR <= 999999); // 6 digits
 
 
-
-
   if (!use_slave_mask || bitmap_is_clear_all(&slave_error_mask))
   {
     /* purecov: begin tested */
