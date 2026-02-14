@@ -349,3 +349,4 @@ Event_db_repository_common::check_system_tables(THD *thd)
 }
 
 Table_check_intact_log_error Event_db_repository_common::table_intact;
+ulong Events_common::startup_state= Events_common::EVENTS_OFF;

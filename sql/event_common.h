@@ -62,4 +62,18 @@ public:
   static const TABLE_FIELD_DEF event_table_def;
 };
 
+class Events_common
+{
+public:
+  static ulong startup_state;
+
+  /*
+    the following block is to support --event-scheduler command line option
+    and the @@global.event_scheduler SQL variable.
+    See sys_var.cc
+  */
+  enum enum_opt_event_scheduler { EVENTS_OFF, EVENTS_ON, EVENTS_DISABLED,
+                                  EVENTS_ORIGINAL };
+};
+
 #endif
