@@ -340,4 +340,17 @@ create sequence s;
 select next value for s1 from s as s1;
 drop sequence s;
 
+--echo #
+--echo # MDEV-38815 Server crashes in Item_func_nextval::val_int upon update on a view
+--echo #
+create sequence s;
+create table t (a int default(nextval(s)));
+create view v as select * from t;
+insert into t values (1);
+update v set a= default;
+
+drop view v;
+drop table t;
+drop sequence s;
+
 --echo # End of 10.11 tests
