@@ -68,7 +68,19 @@ u	%	[
 REVOKE DENY INSERT,SELECT  ON mysql.global_priv FROM u;
 EXECUTE show_denies;
 User	Host	denies_pretty
-DENY UPDATE(User) on mysql.global_priv to u;
+DENY SELECT(USER) on mysql.global_priv to u;
+execute show_denies;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "column",
+        "db": "mysql",
+        "table": "global_priv",
+        "column": "USER",
+        "deny": 1
+    }
+]
+DENY UPDATE(user) on mysql.global_priv to u;
 EXECUTE show_denies;
 User	Host	denies_pretty
 u	%	[
@@ -76,8 +88,8 @@ u	%	[
         "type": "column",
         "db": "mysql",
         "table": "global_priv",
-        "column": "User",
-        "deny": 4
+        "column": "USER",
+        "deny": 5
     }
 ]
 DENY SELECT on *.* to u;
@@ -88,8 +100,8 @@ u	%	[
         "type": "column",
         "db": "mysql",
         "table": "global_priv",
-        "column": "User",
-        "deny": 4
+        "column": "USER",
+        "deny": 5
     },
     {
         "type": "global",

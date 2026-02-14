@@ -51,6 +51,19 @@ enum mysql_db_table_field
   MYSQL_DB_FIELD_COUNT
 };
 
+enum ACL_PRIV_TYPE
+{
+  PRIV_TYPE_GLOBAL,
+  PRIV_TYPE_DB,
+  PRIV_TYPE_TABLE,
+  PRIV_TYPE_COLUMN,
+  PRIV_TYPE_FUNCTION,
+  PRIV_TYPE_PROCEDURE,
+  PRIV_TYPE_PACKAGE,
+  PRIV_TYPE_PACKAGE_BODY,
+  PRIV_TYPE_MAX
+};
+
 extern const TABLE_FIELD_DEF mysql_db_table_def;
 
 extern LEX_CSTRING host_not_specified;

@@ -38,8 +38,13 @@ EXECUTE show_denies;
 REVOKE DENY INSERT,SELECT  ON mysql.global_priv FROM u;
 EXECUTE show_denies;
 
-DENY UPDATE(User) on mysql.global_priv to u;
+DENY SELECT(USER) on mysql.global_priv to u;
+execute show_denies;
+
+DENY UPDATE(user) on mysql.global_priv to u;
 EXECUTE show_denies;
+
+
 
 DENY SELECT on *.* to u;
 EXECUTE show_denies;
