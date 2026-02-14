@@ -1310,6 +1310,12 @@ bool buf_pool_t::create() noexcept
   allocated before innodb initialization */
   ut_ad(srv_operation >= SRV_OPERATION_RESTORE || !field_ref_zero);
 
+#if defined(__aarch64__)
+  mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
+#else
+  mysql_mutex_init(buf_pool_mutex_key, &mutex, nullptr);
+#endif
+
   if (!field_ref_zero)
   {
     if (auto b= aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096))
@@ -1405,7 +1411,11 @@ bool buf_pool_t::create() noexcept
     memory_unaligned= nullptr;
     goto oom;
   }
-  ut_dontdump(memory_unaligned, size_unaligned, true);
+#if defined __linux__ || defined __FreeBSD__
+  ut_d(mysql_mutex_lock(&mutex));
+  core_advise();
+  ut_d(mysql_mutex_unlock(&mutex));
+#endif
 #else
   update_malloc_size(actual_size, 0);
 #endif
@@ -1450,12 +1460,6 @@ bool buf_pool_t::create() noexcept
       ut_d(block->page.in_free_list= true);
     }
   }
-
-#if defined(__aarch64__)
-  mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
-#else
-  mysql_mutex_init(buf_pool_mutex_key, &mutex, nullptr);
-#endif
 
   UT_LIST_INIT(withdrawn, &buf_page_t::list);
   UT_LIST_INIT(LRU, &buf_page_t::LRU);
@@ -1962,9 +1966,11 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
       return;
     }
 
-    ut_dontdump(memory + old_size, size - old_size, true);
     size_in_bytes_requested= size;
     size_in_bytes= size;
+#if defined __linux__ || defined __FreeBSD__
+    core_advise();
+#endif
 
     {
       const size_t ssize= srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN;

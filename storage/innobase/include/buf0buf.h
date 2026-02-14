@@ -1250,6 +1250,15 @@ public:
   static int madvise_do_dump() noexcept;
 #endif
 
+#if defined __linux__ || defined __FreeBSD__
+  /** Include or exclude the buffer pool from core dump. */
+  void core_advise() noexcept
+  {
+    mysql_mutex_assert_owner(&mutex);
+    madvise(memory, size_in_bytes, in_core_dump ? MADV_DODUMP : MADV_DONTDUMP);
+  }
+#endif
+
   /** Hash cell chain in page_hash_table */
   struct hash_chain
   {
@@ -1828,6 +1837,13 @@ private:
   only modified by buf_flush_page_cleaner():
   set while holding mutex, cleared while holding flush_list_mutex */
   Atomic_relaxed<bool> LRU_warned;
+
+#if defined __linux__ || defined __FreeBSD__
+public:
+  /** The value of innodb_buffer_pool_in_core_dump */
+  my_bool in_core_dump;
+private:
+#endif
 
   /** withdrawn blocks during resize() */
   UT_LIST_BASE_NODE_T(buf_page_t) withdrawn;
