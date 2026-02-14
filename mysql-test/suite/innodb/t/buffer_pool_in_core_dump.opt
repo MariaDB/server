@@ -1,0 +1,2 @@
+--loose-skip-innodb-buffer-pool-in-core-dump
+--innodb-buffer-pool-size=128M
