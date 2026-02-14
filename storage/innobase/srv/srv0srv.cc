@@ -221,6 +221,9 @@ ulong	srv_io_capacity;
 /** innodb_io_capacity_max */
 ulong	srv_max_io_capacity;
 
+/** innodb_buffer_pool_in_core_file */
+my_bool	srv_buffer_pool_in_core_file;
+
 /* The InnoDB main thread tries to keep the ratio of modified pages
 in the buffer pool to all database pages in the buffer pool smaller than
 the following number. But it is not guaranteed that the value stays below
