@@ -18,6 +18,7 @@
 #include <my_bit.h>
 #include "rpl_utility.h"
 #include "log_event.h"
+#include "slave.h"
 
 #if defined(MYSQL_CLIENT)
 #error MYSQL_CLIENT must not be defined here
@@ -893,7 +894,6 @@ const Type_handler *table_def::field_type_handler(uint col) const
   return Type_handler::get_handler_by_real_type(typecode);
 }
 
-
 /**
   Is the definition compatible with a table?
 
@@ -918,13 +918,14 @@ const Type_handler *table_def::field_type_handler(uint col) const
   @param tmp_table_var[out]
   Virtual temporary table for performing conversions, if necessary.
 
-  @retval true Master table is compatible with slave table.
-  @retval false Master table is not compatible with slave table.
+  @retval 0 Master table is compatible with slave table.
+  @retval 1 Master table is not compatible with slave table and error is not
+  ignored, abort replication.
+  @retval 2 Master table is not compatible with slave table but error is
+  ignored, skip event.
 */
-bool
-table_def::compatible_with(THD *thd, rpl_group_info *rgi,
-                           TABLE *table, TABLE **conv_table_var)
-  const
+int table_def::compatible_with(THD *thd, rpl_group_info *rgi, TABLE *table,
+                               TABLE **conv_table_var) const
 {
   /*
     We only check the initial columns for the tables.
@@ -945,11 +946,11 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
                       field->table->s->db.str,
                       field->table->s->table_name.str,
                       field->field_name.str);
-      return false;
+      return 1;
     }
 
     if (!h)
-      return false; // An unknown data type found in the binary log
+      return 1; // An unknown data type found in the binary log
     Conv_source source(h, field_metadata(col), field->charset());
     enum_conv_type convtype= can_convert_field_to(field, source, rli,
                                                   Conv_param(m_flags));
@@ -970,7 +971,7 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
         */
         tmp_table= create_conversion_table(thd, rgi, table);
         if (tmp_table == NULL)
-            return false;
+          return 1;
         /*
           Clear all fields up to, but not including, this column.
         */
@@ -983,6 +984,14 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
     }
     else
     {
+      if (ignored_error_code(ER_SLAVE_CONVERSION_FAILED))
+      {
+        rli->report(WARNING_LEVEL, ER_SLAVE_CONVERSION_FAILED,
+                    rgi->gtid_info(), ER_THD(thd, ER_SLAVE_CONVERSION_FAILED),
+                    col, table->s->db.str, table->s->table_name.str,
+                    field->field_name.str);
+        return 2;
+      }
       DBUG_PRINT("debug", ("Checking column %d -"
                            " field '%s' can not be converted",
                            col, field->field_name.str));
@@ -1003,7 +1012,7 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
                   ER_THD(thd, ER_SLAVE_CONVERSION_FAILED),
                   col, db_name, tbl_name,
                   source_type.c_ptr_safe(), target_type.c_ptr_safe());
-      return false;
+      return 1;
     }
   }
 
@@ -1028,7 +1037,7 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
 #endif
 
   *conv_table_var= tmp_table;
-  return true;
+  return 0;
 }
 
 
