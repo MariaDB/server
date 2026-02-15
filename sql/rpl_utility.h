@@ -190,7 +190,7 @@ public:
     @retval 0  if the table definition is compatible with @c table
   */
 #ifndef MYSQL_CLIENT
-  bool compatible_with(THD *thd, rpl_group_info *rgi, TABLE *table,
+  int compatible_with(THD *thd, rpl_group_info *rgi, TABLE *table,
                       TABLE **conv_table_var) const;
 
   /**
