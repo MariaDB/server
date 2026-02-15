@@ -2711,7 +2711,7 @@ static const LEX_CSTRING *view_algorithm(TABLE_LIST *table)
 }
 
 
-static bool append_at_host(THD *thd, String *buffer, const LEX_CSTRING *host)
+bool append_at_host(THD *thd, String *buffer, const LEX_CSTRING *host)
 {
   if (!host->str || !host->str[0])
     return false;

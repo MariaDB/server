@@ -1,10 +1,10 @@
 #include "mariadb.h"              /* NO_EMBEDDED_ACCESS_CHECKS */
 
 #include <m_ctype.h>
+#include <m_string.h>
 #include <mysqld_error.h>
-
+#include "lex_string.h"
 #include "table.h"
-
 #include "event_common.h"         // Event_creation_ctx
 #include "event_data_objects.h"   // load_creating_context_for_sys_trg
 #include "event_db_repository.h"  // enum_events_table_field
@@ -866,7 +866,7 @@ static constexpr size_t max_event_names_length =
 
 static bool reconstruct_create_trigger_stmt(
   THD *thd, String *create_trg_stmt,
-  const LEX_STRING &trg_definer,
+  const LEX_CSTRING &trg_definer,
   const LEX_STRING &trg_name,
   Event_parse_data::enum_kind trg_kind,
   trg_action_time_type trg_when,
@@ -1399,6 +1399,37 @@ static bool send_show_create_trigger_result(
 }
 
 
+static LEX_CSTRING
+convert_to_quoted_definer(THD *thd, StringBuffer<1024> *quoted_definer,
+                          const LEX_CSTRING &definer)
+{
+  const char *delimiter= strchr(definer.str, '@');
+  if (delimiter)
+  {
+    if (delimiter > definer.str)
+    {
+      LEX_CSTRING orig_user{definer.str, size_t(delimiter - definer.str)};
+      append_identifier(thd, quoted_definer, &orig_user);
+      const size_t host_len= (definer.length -
+                              /* subtract the length of user part */
+                              (delimiter - definer.str) -
+                              /* subtract 1 for the symbol @ */
+                              1);
+      LEX_CSTRING orig_host{delimiter + 1, host_len};
+      append_at_host(thd, quoted_definer, &orig_host);
+    }
+    else
+    {
+      LEX_CSTRING orig_host{definer.str + 1, definer.length - 1};
+      append_at_host(thd, quoted_definer, &orig_host);
+    }
+  }
+  else
+    append_identifier(thd, quoted_definer, &definer);
+
+  return quoted_definer->to_lex_cstring();
+}
+
 /**
   Implementation of SHOW CREATE TRIGGER statement for system triggers
 
@@ -1458,10 +1489,17 @@ bool show_create_sys_trigger(THD *thd, const sp_name *trg_name)
                             &trg_body, &trg_definer, &sql_mode, &trg_when))
     return true;
 
+  /*
+    Convert a definer value to the quoted form `user`@`host` to align with
+    output of SHOW CREATE TRIGGER for DML triggers
+  */
+  StringBuffer<1024> quoted_definer;
+  convert_to_quoted_definer(thd, &quoted_definer, trg_definer);
 
   String create_trg_stmt;
 
-  if (reconstruct_create_trigger_stmt(thd, &create_trg_stmt, trg_definer,
+  if (reconstruct_create_trigger_stmt(thd, &create_trg_stmt,
+                                      quoted_definer.to_lex_cstring(),
                                       trigger_name, trg_kind, trg_when,
                                       trg_body))
     return true;
@@ -1567,10 +1605,11 @@ static bool store_sys_trigger(THD *thd, const LEX_CSTRING &trg_name,
   /* ACTION_CONDITION */
   table->field[8]->set_null();
   /* ACTION_STATEMENT */
+  table->field[9]->set_notnull();
   table->field[9]->store(trg_body, cs);
 
   /* ACTION_ORIENTATION */
-  table->field[10]->store(STRING_WITH_LEN("STATEMENT"), cs); // TODO: adjust
+  table->field[10]->store(STRING_WITH_LEN("STATEMENT"), cs);
   /* ACTION_TIMING (BEFORE, AFTER) */
   table->field[11]->store(trg_time, cs);
   /* ACTION_REFERENCE_OLD_TABLE */
@@ -1591,6 +1630,7 @@ static bool store_sys_trigger(THD *thd, const LEX_CSTRING &trg_name,
   /* SQL_MODE */
   table->field[17]->store(sql_mode_rep.str, sql_mode_rep.length, cs);
   /* DEFINER */
+  table->field[18]->set_notnull();
   table->field[18]->store(definer, cs);
   /* CHARACTER_SET_CLIENT */
   table->field[19]->store(&client_cs_name, cs);

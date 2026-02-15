@@ -90,3 +90,21 @@ CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET @a=1;
 --echo # Clean up
 DROP TRIGGER trg1;
 DROP TABLE t1;
+
+--echo #
+--echo # Test 5: SHOW TRIGGERS on a system trigger
+--echo #
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+--replace_column 6 #
+SHOW TRIGGERS;
+--echo # Clean up
+DROP TRIGGER trg1;
+
+--echo #
+--echo # Test 6: SHOW CREATE TRIGGER on a system trigger
+--echo #
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+--replace_column 7 #
+SHOW CREATE TRIGGER trg1;
+--echo # Clean up
+DROP TRIGGER trg1;

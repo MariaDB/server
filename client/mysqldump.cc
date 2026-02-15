@@ -47,6 +47,8 @@
 */
 #define FIRST_SEQUENCE_VERSION 100300
 
+#define FIRST_SYS_TRIGGER_VERSION 120301
+
 #include <my_global.h>
 #include <my_sys.h>
 #include <my_user.h>
@@ -133,7 +135,8 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_events= 0, opt_comments_used= 0,
                 opt_alltspcs=0, opt_notspcs= 0, opt_logging,
                 opt_header=0, opt_update_history= 0,
-                opt_drop_trigger= 0, opt_dump_history= 0, opt_wildcards= 0;
+                opt_drop_trigger= 0, opt_dump_history= 0, opt_wildcards= 0,
+                opt_dump_sys_triggers= 0;
 #define OPT_SYSTEM_ALL 1
 #define OPT_SYSTEM_USERS 2
 #define OPT_SYSTEM_PLUGINS 4
@@ -604,6 +607,9 @@ static struct my_option my_long_options[] =
   {"triggers", 0, "Dump triggers for each dumped table.",
    &opt_dump_triggers, &opt_dump_triggers, 0, GET_BOOL,
    NO_ARG, 1, 0, 0, 0, 0, 0},
+  {"sys_triggers", 0, "Dump system triggers.",
+    &opt_dump_sys_triggers, &opt_dump_sys_triggers, 0, GET_BOOL,
+    NO_ARG, 1, 0, 0, 0, 0, 0},
   {"tz-utc", 0,
    "Set connection time zone to UTC before commencing the dump and add "
    "SET TIME_ZONE=´+00:00´ to the top of the dump file.",
@@ -7625,6 +7631,44 @@ free_buf_and_exit:
   DBUG_VOID_RETURN;
 }
 
+static void dump_sys_triggers()
+{
+  char query_buff[QUERY_LENGTH];
+  MYSQL_RES *triggers_list_rs= nullptr;
+
+  my_snprintf(query_buff, sizeof(query_buff),
+              "SELECT name FROM mysql.event WHERE kind IN "
+              "('STARTUP', 'SHUTDOWN')");
+  if (mysql_query_with_error_report(mysql, &triggers_list_rs, query_buff))
+  {
+    mysql_free_result(triggers_list_rs);
+    return;
+  }
+
+  if (mysql_num_rows(triggers_list_rs))
+  {
+    MYSQL_ROW row;
+    while ((row= mysql_fetch_row(triggers_list_rs)))
+    {
+      MYSQL_RES *show_create_trigger_rs;
+      char       name_buff[NAME_LEN*4+3];
+
+      my_snprintf(query_buff, sizeof (query_buff), "SHOW CREATE TRIGGER %s",
+                  quote_name(row[0], name_buff, TRUE));
+
+      if (mysql_query_with_error_report(mysql, &show_create_trigger_rs,
+                                        query_buff))
+      {
+        mysql_free_result(triggers_list_rs);
+        maybe_exit(EX_MYSQLERR);
+      }
+      dump_trigger(md_result_file, show_create_trigger_rs, "", "");
+      mysql_free_result(show_create_trigger_rs);
+    }
+  }
+  mysql_free_result(triggers_list_rs);
+}
+
 
 int main(int argc, char **argv)
 {
@@ -7821,6 +7865,13 @@ int main(int argc, char **argv)
         dump_databases(argv);
       }
     }
+  }
+
+  if (opt_dump_sys_triggers &&
+      mysql_get_server_version(mysql) >= FIRST_SYS_TRIGGER_VERSION)
+  {
+    DBUG_PRINT("info", ("Dumping system trigger"));
+    dump_sys_triggers();
   }
 
   if (opt_system & OPT_SYSTEM_PLUGINS)

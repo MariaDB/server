@@ -77,3 +77,21 @@ ERROR HY000: Trigger 'test.trg1' already exists
 # Clean up
 DROP TRIGGER trg1;
 DROP TABLE t1;
+#
+# Test 5: SHOW TRIGGERS on a system trigger
+#
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+SHOW TRIGGERS;
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+trg1	STARTUP		SET @b=1	AFTER	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+# Clean up
+DROP TRIGGER trg1;
+#
+# Test 6: SHOW CREATE TRIGGER on a system trigger
+#
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+SHOW CREATE TRIGGER trg1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+trg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER trg1 AFTER STARTUP SET @b=1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
+# Clean up
+DROP TRIGGER trg1;
