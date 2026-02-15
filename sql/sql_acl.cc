@@ -5599,7 +5599,6 @@ end:
   DBUG_RETURN(error);
 }
 
-static void propagate_role_grants_all(ACL_ROLE *role);
 static int apply_single_deny_closure_to_cache(const LEX_USER &combo,
                                    const deny_entry_t &closure_entry);
   /**
@@ -7393,10 +7392,6 @@ static void propagate_role_grants(ACL_ROLE *role,
   traverse_role_graph_up(role, &data, NULL, merge_role_privileges);
 }
 
-static void propagate_role_grants_all(ACL_ROLE *role)
-{
-  propagate_role_grants(role, PRIVS_TO_MERGE::ALL, NULL, NULL);
-}
 
 // State of a node during a Depth First Search exploration
 struct NODE_STATE
