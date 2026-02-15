@@ -5675,7 +5675,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         TABLE *conv_table;
         int compatible=
             ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table);
-        if (compatible == 1)
+        if (compatible == table_def::TABLE_INCOMPATIBLE)
         {
           DBUG_PRINT("debug",
                      ("Table: %s.%s is not compatible with master",
@@ -5685,10 +5685,10 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
           error= ERR_BAD_TABLE_DEF;
           goto err;
         }
-        if (compatible == 2)
+        if (compatible == table_def::TABLE_INCOMPATIBLE_IGNORED)
         {
           DBUG_PRINT("debug",
-                     ("Table: %s.%s is not compatible with master but error "
+                     ("Table: %s.%s is not compatible with master. Error 1677 "
                       "is ignored, event is skipped",
                       ptr->table->s->db.str, ptr->table->s->table_name.str));
 
