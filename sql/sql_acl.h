@@ -126,11 +126,11 @@ bool check_grant_routine(THD *thd, privilege_t want_access,
 bool check_grant_db(THD *thd,const char *db);
 bool check_global_access(THD *thd, const privilege_t want_access, bool no_errors= false);
 bool check_access(THD *thd, privilege_t want_access,
-                  const char *db, privilege_t *save_priv,
+                  const char *db, access_t *save_priv,
                   GRANT_INTERNAL_INFO *grant_internal_info,
                   bool dont_check_global_grants, bool no_errors);
-privilege_t get_table_grant(THD *thd, TABLE_LIST *table);
-privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
+access_t get_table_grant(THD *thd, TABLE_LIST *table);
+access_t get_column_grant(THD *thd, GRANT_INFO *grant,
                              const char *db_name, const char *table_name,
                              const Lex_ident_column &field_name);
 bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,

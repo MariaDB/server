@@ -4246,7 +4246,7 @@ static bool acl_update_db(const char *user, const char *host, const char *db,
             acl_db->access.set_deny(privileges.deny_bits(),
                                     privileges.deny_subtree());
           else
-            acl_db->access.set_allow_bits(privileges);
+            acl_db->access.set_allow_bits(privileges.allow_bits());
           acl_db->initial_access= acl_db->access;
           if (acl_db->access.is_empty())
             acl_dbs.del(i);
@@ -4306,6 +4306,7 @@ access_t acl_get(const char *host, const char *ip,
   uint i;
   const char *tmp_db;
   acl_entry *entry;
+  access_t result;
   DBUG_ENTER("acl_get");
 
   // Key length, without the trailing '\0' byte
@@ -4335,7 +4336,7 @@ access_t acl_get(const char *host, const char *ip,
   {
     db_access=entry->access;
     mysql_mutex_unlock(&acl_cache->lock);
-    DBUG_PRINT("exit", ("access: 0x%llx",  (longlong) db_access));
+    DBUG_PRINT("exit", ("access: 0x%llx",  (longlong) db_access.allow_bits()));
     DBUG_RETURN(db_access);
   }
 
@@ -4374,20 +4375,21 @@ access_t acl_get(const char *host, const char *ip,
   }
 exit:
   /* Save entry in cache for quick retrieval */
+  result= db_access.intersect(host_access);
   if (!db_is_pattern &&
       (entry= (acl_entry*) my_malloc(key_memory_acl_cache,
                                      sizeof(acl_entry) + key.length(),
                                      MYF(MY_WME))))
   {
-    entry->access=db_access.intersect(host_access);
+    entry->access=result;
     DBUG_ASSERT(key.length() < 0xffff);
     entry->length= (uint16) key.length();
     memcpy((uchar*) entry->key, key.ptr(), key.length());
     acl_cache->add(entry);
   }
   mysql_mutex_unlock(&acl_cache->lock);
-  DBUG_PRINT("exit", ("access: 0x%llx", (longlong) (db_access & host_access)));
-  DBUG_RETURN(db_access & host_access);
+  DBUG_PRINT("exit", ("db_access: 0x%llx", result.allow_bits()));
+  DBUG_RETURN(result);
 }
 
 /*
@@ -4397,6 +4399,9 @@ exit:
 access_t acl_get_all3(Security_context *sctx, const char *db,
                          bool db_is_patern)
 {
+  if (!initialized)
+    return DB_ACLS;
+
   access_t access= acl_get(sctx->host, sctx->ip,
                               sctx->priv_user, db, db_is_patern);
   if (sctx->priv_role[0])
@@ -5322,7 +5327,7 @@ static bool test_if_create_new_users(THD *thd)
   if (!create_new_users)
   {
     TABLE_LIST tl;
-    privilege_t db_access(NO_ACL);
+    access_t db_access(NO_ACL);
     tl.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_TABLE_NAME[USER_TABLE],
                       NULL, TL_WRITE);
     create_new_users= 1;
@@ -6185,7 +6190,7 @@ public:
   ulonglong sort;
   size_t key_length;
   GRANT_NAME(const char *h, const char *d,const char *u,
-             const char *t, privilege_t p, bool is_routine);
+             const char *t, const access_t& p, bool is_routine);
   GRANT_NAME (TABLE *form, bool is_routine);
   virtual ~GRANT_NAME() = default;
   virtual bool ok() { return privs != access_t(NO_ACL); }
@@ -6209,7 +6214,7 @@ public:
   HASH hash_columns;
 
   GRANT_TABLE(const char *h, const char *d,const char *u,
-              const char *t, privilege_t p, privilege_t c);
+              const char *t, const access_t& p, privilege_t c);
   GRANT_TABLE (TABLE *form, TABLE *col_privs);
   ~GRANT_TABLE() override;
   bool ok() override { return privs != access_t(NO_ACL) || cols != NO_ACL; }
@@ -6222,12 +6227,18 @@ public:
 };
 
 
-privilege_t GRANT_INFO::all_privilege()
+access_t GRANT_INFO::all_privilege()
 {
-  return (grant_table_user ? grant_table_user->cols : NO_ACL) |
-         (grant_table_role ? grant_table_role->cols : NO_ACL) |
-         (grant_public ?  grant_public->cols : NO_ACL) |
-         privilege;
+  access_t acc(NO_ACL);
+  if (grant_table_user)
+    acc.set_allow_bits(grant_table_user->cols);
+  if (grant_table_role)
+    acc.set_allow_bits(grant_table_role->cols);
+  if (grant_public)
+   acc.set_allow_bits(grant_public->cols);
+  
+  acc|= privilege;
+  return acc;
 }
 
 
@@ -6261,14 +6272,14 @@ void GRANT_NAME::set_user_details(const char *h, const char *d,
 }
 
 GRANT_NAME::GRANT_NAME(const char *h, const char *d,const char *u,
-                       const char *t, privilege_t p, bool is_routine)
+                       const char *t, const access_t& p, bool is_routine)
   :db(0), tname(0), privs(p), init_privs(p)
 {
   set_user_details(h, d, u, t, is_routine);
 }
 
 GRANT_TABLE::GRANT_TABLE(const char *h, const char *d,const char *u,
-                         const char *t, privilege_t p, privilege_t c)
+                         const char *t, const access_t& p, privilege_t c)
   :GRANT_NAME(h,d,u,t,p, FALSE), cols(c), init_cols(c)
 {
   init_hash();
@@ -7805,7 +7816,7 @@ static int table_name_sort(const void *tbl1_, const void *tbl2_)
 static int update_role_columns(GRANT_TABLE *merged,
                                GRANT_TABLE **cur, GRANT_TABLE **last)
 {
-  privilege_t rights __attribute__((unused)) (NO_ACL);
+  access_t rights __attribute__((unused)) (NO_ACL);
   int changed= 0;
   if (!merged->cols)
   {
@@ -7891,7 +7902,7 @@ static int update_role_table_columns(GRANT_TABLE *merged,
       there's no GRANT_TABLE for this role (all table grants come from granted
       roles) we need to create it
     */
-    DBUG_ASSERT(privs | cols);
+    DBUG_ASSERT(!privs.is_empty() || cols);
     merged= new (&grant_memroot) GRANT_TABLE("", first[0]->db, role, first[0]->tname,
                                      privs, cols);
     merged->init_privs= access_t(NO_ACL); // all privs are inherited
@@ -7900,7 +7911,7 @@ static int update_role_table_columns(GRANT_TABLE *merged,
     column_priv_insert(merged);
     return 2;
   }
-  else if ((privs | cols) == NO_ACL)
+  else if (privs.is_empty() && !cols)
   {
     /*
       there is GRANT_TABLE object but the role has no table or column
@@ -7955,7 +7966,8 @@ static bool merge_role_table_and_column_privileges(ACL_ROLE *grantee,
   grants.sort(table_name_sort);
 
   GRANT_TABLE **first= NULL, *merged= NULL, **cur;
-  privilege_t privs(NO_ACL), cols(NO_ACL);
+  access_t privs(NO_ACL);
+  privilege_t cols(NO_ACL);
   ulong update_flags= 0;
   for (cur= grants.front(); cur <= grants.back(); cur++)
   {
@@ -7966,7 +7978,8 @@ static bool merge_role_table_and_column_privileges(ACL_ROLE *grantee,
       update_flags|= update_role_table_columns(merged, first, cur,
                                                privs, cols, grantee->user.str);
       merged= NULL;
-      privs= cols= NO_ACL;
+      privs= access_t(NO_ACL);
+      cols= NO_ACL;
       first= cur;
     }
     if (strcmp(cur[0]->user, grantee->user.str) == 0)
@@ -8024,7 +8037,7 @@ static int update_role_routines(GRANT_NAME *merged, GRANT_NAME **first,
       there's no GRANT_NAME for this role (all routine grants come from granted
       roles) we need to create it
     */
-    DBUG_ASSERT(privs);
+    DBUG_ASSERT(!privs.is_empty());
     merged= new (&grant_memroot) GRANT_NAME("", first[0]->db, role, first[0]->tname,
                                     privs, true);
     merged->init_privs= access_t(NO_ACL); // all privs are inherited
@@ -8368,11 +8381,12 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
         result= TRUE;
         continue;
       }
+      access_t r=is_deny?access_t(NO_ACL,rights):access_t(rights);
       grant_table= new (&grant_memroot) GRANT_TABLE(Str->host.str,
                                                     db_name.str,
                                                     Str->user.str,
                                                     table_name.str,
-                                                    rights,
+                                                    r,
                                                     column_priv);
       if (!grant_table ||
           column_priv_insert(grant_table))
@@ -8382,8 +8396,14 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       }
     }
 
-    /* If revoke_grant, calculate the new column privilege for tables_priv */
-    if (revoke_grant)
+    /*
+      If revoke_grant, calculate the new column privilege for tables_priv
+      
+      Note for deny,we skip it, deny calculates its own "closure"
+      that correctly handles all in-memory caches.
+      There is also no "column priv" for deny in the table
+    */
+    if (revoke_grant && !is_deny)
     {
       class LEX_COLUMN *column;
       List_iterator <LEX_COLUMN> column_iter(columns);
@@ -8413,7 +8433,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
         p&= ~rights;
         grant_column->init_rights.set_allow_bits(p);  // Fix other columns
         grant_column->rights= grant_column->init_rights;
-        column_priv|= grant_column->init_rights;
+        column_priv|= p;
       }
     }
     else
@@ -9482,11 +9502,14 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     if (access)
     {
-      switch(access->check(orig_want_access, &t_ref->grant.privilege,
-                           any_combination_will_do))
+      privilege_t p(t_ref->grant.privilege.allow_bits());
+      auto acc_check= access->check(orig_want_access, &p,
+                           any_combination_will_do);
+      t_ref->grant.privilege.set_allow_bits(p);
+      switch(acc_check)
       {
       case ACL_INTERNAL_ACCESS_GRANTED:
-        t_ref->grant.privilege|= orig_want_access;
+        t_ref->grant.privilege|= access_t(orig_want_access);
         t_ref->grant.want_privilege= NO_ACL;
         continue;
       case ACL_INTERNAL_ACCESS_DENIED:
@@ -9745,7 +9768,7 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
   if (table_ref->view || table_ref->field_translation)
   {
     /* View or derived information schema table. */
-    privilege_t view_privs(NO_ACL);
+    access_t view_privs(NO_ACL);
     grant= &(table_ref->grant);
     db_name= table_ref->view_db.str;
     table_name= table_ref->view_name.str;
@@ -9806,6 +9829,7 @@ bool check_grant_all_columns(THD *thd, privilege_t want_access_arg,
   GRANT_TABLE *UNINIT_VAR(grant_table);
   GRANT_TABLE *UNINIT_VAR(grant_table_role);
   GRANT_TABLE *UNINIT_VAR(grant_public);
+  privilege_t denied;
   /*
      Flag that gets set if privilege checking has to be performed on column
      level.
@@ -9826,6 +9850,12 @@ bool check_grant_all_columns(THD *thd, privilege_t want_access_arg,
       db_name= fields->get_db_name().str;
       grant= fields->grant();
       /* get a fresh one for each table */
+      denied= grant->privilege.is_denied(want_access_arg);
+      if (denied)
+      {
+        want_access= denied;
+        goto err;
+      }
       want_access= want_access_arg & ~grant->privilege;
       if (want_access)
       {
@@ -9842,7 +9872,7 @@ bool check_grant_all_columns(THD *thd, privilege_t want_access_arg,
 
     if (want_access)
     {
-      privilege_t have_access(NO_ACL);
+      access_t have_access(NO_ACL);
       if (grant_table)
       {
         GRANT_COLUMN *grant_column=
@@ -9866,7 +9896,7 @@ bool check_grant_all_columns(THD *thd, privilege_t want_access_arg,
 
       }
 
-      if (have_access)
+      if (have_access.certainly_allowed(ALL_KNOWN_ACL))
         using_column_privileges= TRUE;
       if (want_access & ~have_access)
         goto err;
@@ -10022,6 +10052,13 @@ bool check_grant_routine(THD *thd, privilege_t want_access,
   char *role= sctx->priv_role;
   DBUG_ENTER("check_grant_routine");
 
+  privilege_t denied= sctx->master_access.is_denied(want_access);
+  if (denied)
+  {
+    want_access= denied;
+    goto err;
+  }
+
   want_access&= ~sctx->master_access;
   if (!want_access)
     DBUG_RETURN(0);                             // ok
@@ -10047,6 +10084,12 @@ bool check_grant_routine(THD *thd, privilege_t want_access,
       table->grant.privilege|= grant_proc->privs;
     }
 
+    denied= table->grant.privilege.is_denied(want_access);
+    if (denied)
+    {
+      want_access= denied;
+      goto err;
+    }
     if (want_access & ~table->grant.privilege)
     {
       want_access &= ~table->grant.privilege;
@@ -10122,7 +10165,7 @@ bool check_routine_level_acl(THD *thd, privilege_t acl,
   Functions to retrieve the grant for a table/column  (for SHOW functions)
 *****************************************************************************/
 
-privilege_t get_table_grant(THD *thd, TABLE_LIST *table)
+access_t get_table_grant(THD *thd, TABLE_LIST *table)
 {
   Security_context *sctx= thd->security_ctx;
   const char *db = table->db.str ? table->db.str : thd->db.str;
@@ -10130,7 +10173,7 @@ privilege_t get_table_grant(THD *thd, TABLE_LIST *table)
   mysql_rwlock_rdlock(&LOCK_grant);
   table->grant.read(sctx, db, table->table_name.str);
   table->grant.privilege|= table->grant.aggregate_privs();
-  privilege_t privilege(table->grant.privilege);
+  access_t privilege(table->grant.privilege);
   mysql_rwlock_unlock(&LOCK_grant);
   return privilege;
 }
@@ -10154,7 +10197,7 @@ privilege_t get_table_grant(THD *thd, TABLE_LIST *table)
     The access priviliges for the field db_name.table_name.field_name
 */
 
-privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
+access_t get_column_grant(THD *thd, GRANT_INFO *grant,
                         const char *db_name, const char *table_name,
                         const Lex_ident_column &field_name)
 {
@@ -10162,7 +10205,7 @@ privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
   GRANT_TABLE *grant_table_role;
   GRANT_TABLE *grant_public;
   GRANT_COLUMN *grant_column;
-  privilege_t priv(NO_ACL);
+  access_t priv(NO_ACL);
 
   mysql_rwlock_rdlock(&LOCK_grant);
   /* reload table if someone has modified any grants */
@@ -10817,17 +10860,19 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
                                    char *buff, size_t buffsize)
 {
   uint counter;
-  access_t want_access(NO_ACL);
+  privilege_t want_access(NO_ACL);
   Protocol *protocol= thd->protocol;
+  access_t acc(NO_ACL);
 
   String global(buff, buffsize, system_charset_info);
   global.length(0);
   global.append(STRING_WITH_LEN("GRANT "));
 
   if (handle_as_role)
-    want_access= ((ACL_ROLE *)acl_entry)->initial_role_access;
+    acc= ((ACL_ROLE *)acl_entry)->initial_role_access;
   else
-    want_access= acl_entry->access;
+    acc=acl_entry->access;
+  want_access=acc.allow_bits();
 
   // suppress "GRANT USAGE ON *.* TO `PUBLIC`"
   if (!(want_access & ~GRANT_ACL) && acl_entry == acl_public)
@@ -10922,10 +10967,9 @@ static bool show_database_privileges(THD *thd, const char *username,
         do not print inherited access bits for roles,
         the role bits present in the table are what matters
       */
-      if (*hostname) // User
-        want_access=acl_db->access;
-      else // Role
-        want_access=acl_db->initial_access;
+      access_t acc= hostname[0] ? acl_db->access : acl_db->initial_access;
+      want_access= acc.allow_bits();
+
       if (want_access)
       {
         String db(buff, buffsize, system_charset_info);
@@ -11002,12 +11046,12 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
       privilege_t cols_access(NO_ACL);
       if (*hostname) // User
       {
-        table_access= grant_table->privs;
+        table_access= grant_table->privs.allow_bits();
         cols_access= grant_table->cols;
       }
       else // Role
       {
-        table_access= grant_table->init_privs;
+        table_access= grant_table->init_privs.allow_bits();
         cols_access= grant_table->init_cols;
       }
 
@@ -11050,8 +11094,10 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
                 {
                   GRANT_COLUMN *grant_column = (GRANT_COLUMN*)
                     my_hash_element(hash_columns,col_index);
-                  if (j & (*hostname ? grant_column->rights         // User
-                                     : grant_column->init_rights))  // Role
+                  const access_t &r= (*hostname ? grant_column->rights         // User
+                                 : grant_column->init_rights);     // Role
+
+                  if (r.allow_bits() & j)
                   {
                     if (!found_col)
                     {
@@ -11132,9 +11178,9 @@ static int show_routine_grants(THD* thd, const char *username,
     {
       privilege_t proc_access(NO_ACL);
       if (*hostname) // User
-        proc_access= grant_proc->privs;
+        proc_access= grant_proc->privs.allow_bits();
       else // Role
-        proc_access= grant_proc->init_privs;
+        proc_access= grant_proc->init_privs.allow_bits();
 
       if (proc_access != NO_ACL)
       {
@@ -13975,7 +14021,7 @@ int fill_schema_user_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
         !thd->security_ctx->is_priv_user(user, host))
       continue;
 
-    access_t want_access(acl_user->access);
+    privilege_t want_access= acl_user->access.allow_bits();
     if (!(want_access & GRANT_ACL))
       is_grantable= "NO";
 
@@ -14047,7 +14093,7 @@ int fill_schema_schema_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
         !thd->security_ctx->is_priv_user(user, host))
       continue;
 
-    privilege_t want_access(acl_db->access);
+    privilege_t want_access(acl_db->access.allow_bits());
     if (want_access)
     {
       if (!(want_access & GRANT_ACL))
@@ -14119,7 +14165,7 @@ int fill_schema_table_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
         !thd->security_ctx->is_priv_user(user, host))
       continue;
 
-    privilege_t table_access(grant_table->privs);
+    privilege_t table_access(grant_table->privs.allow_bits());
     if (table_access)
     {
       privilege_t test_access(table_access & ~GRANT_ACL);
@@ -14225,7 +14271,8 @@ int fill_schema_column_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
             {
               GRANT_COLUMN *grant_column = (GRANT_COLUMN*)
                 my_hash_element(&grant_table->hash_columns,col_index);
-              if ((grant_column->rights & j) && (table_access & j))
+              if ((grant_column->rights.allow_bits() & j) &&
+                  (table_access & j))
               {
                 if (update_schema_privilege(thd, table,
                                             grantee,
@@ -14372,15 +14419,15 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
   if (!initialized)
   {
     DBUG_PRINT("info", ("skip grants"));
-    grant->privilege= ALL_KNOWN_ACL;             // everything is allowed
-    DBUG_PRINT("info", ("privilege 0x%llx", (longlong) grant->privilege));
+    grant->privilege= access_t(ALL_KNOWN_ACL);             // everything is allowed
+    DBUG_PRINT("info", ("privilege 0x%llx", (longlong) grant->privilege.allow_bits()));
     DBUG_VOID_RETURN;
   }
 
   /* JSON_TABLE and other db detached table */
   if (db == any_db.str)
   {
-    grant->privilege= SELECT_ACL;
+    grant->privilege= access_t(SELECT_ACL);
     DBUG_VOID_RETURN;
   }
 
@@ -14414,7 +14461,7 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
   }
   mysql_rwlock_unlock(&LOCK_grant);
 
-  DBUG_PRINT("info", ("privilege 0x%llx", (longlong) grant->privilege));
+  DBUG_PRINT("info", ("privilege 0x%llx", (longlong) grant->privilege.allow_bits()));
   DBUG_VOID_RETURN;
 }
 
@@ -16196,7 +16243,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
               thd->client_capabilities, thd->max_client_packet_length,
               sctx->host_or_ip, sctx->user, sctx->priv_user,
               thd->password ? "yes": "no",
-              (longlong) sctx->master_access, mpvio.db.str));
+              (longlong) sctx->master_access.allow_bits(), mpvio.db.str));
 
   if (command == COM_CONNECT &&
       !(thd->main_security_ctx.master_access & PRIV_IGNORE_MAX_CONNECTIONS))

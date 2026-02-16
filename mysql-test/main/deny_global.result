@@ -131,8 +131,17 @@ SELECT * FROM t1 WHERE id IN (SELECT id FROM t2);
 ERROR 42000: Access denied for user 'sub_user'@'%' to database 'test'
 SELECT * FROM (SELECT * FROM t1) AS dt;
 ERROR 42000: Access denied for user 'sub_user'@'%' to database 'test'
-connection default;
 disconnect con1;
+connection default;
+#
+# Check that FLUSH PRIVILEGES retains DENYs
+#
+FLUSH PRIVILEGES;
+connect  con1, localhost, sub_user,,test;
+SELECT * FROM (SELECT * FROM t1) AS dt;
+ERROR 42000: Access denied for user 'sub_user'@'%' to database 'test'
+disconnect con1;
+connection default;
 DROP USER sub_user;
 #
 # Cleanup

@@ -95,105 +95,6 @@ enum privilege_t: unsigned long long
   */
 };
 
-class access_t
-{
-  enum status_t
-  {
-    UNDEFINED,
-    ALLOW,
-    DENY
-  };
-
-private:
-  privilege_t m_allow_bits;
-  privilege_t m_deny_bits;
-  privilege_t m_deny_subtree;
-public:
-  access_t() {};
-  access_t(privilege_t allow, privilege_t deny= NO_ACL, privilege_t deny_subtree= NO_ACL)
-      : m_allow_bits(allow), m_deny_bits(deny), m_deny_subtree(deny_subtree)
-  {
-  }
-  bool is_empty() const
-  {
-    return m_allow_bits == NO_ACL && m_deny_bits == NO_ACL && m_deny_subtree == NO_ACL;
-  }
-  void set_deny_bits(privilege_t deny)
-  {
-    m_deny_bits= deny;
-  }
-  void set_deny(privilege_t deny, privilege_t deny_subtree)
-  {
-    m_deny_bits= deny;
-    m_deny_subtree= deny_subtree;
-  }
-  void set_deny_subtree(privilege_t deny_subtree)
-  {
-    m_deny_subtree= deny_subtree;
-  }
-  void set_allow_bits(privilege_t allow)
-  {
-    m_allow_bits= allow;
-  }
-  access_t& operator=(const privilege_t &)= delete;
-  access_t& operator |= (const access_t &other)
-  {
-    m_allow_bits= privilege_t(m_allow_bits| other.m_allow_bits);
-    m_deny_bits= privilege_t(m_deny_bits | other.m_deny_bits);
-    m_deny_subtree= privilege_t(m_deny_subtree | other.m_deny_subtree);
-    return *this;
-  }
-
-  access_t intersect(const access_t &other) const
-  {
-    return access_t((privilege_t) (m_allow_bits & other.m_allow_bits),
-                    (privilege_t) (m_deny_bits | other.m_deny_bits),
-                    (privilege_t) (m_deny_subtree | other.m_deny_subtree));
-  }
-  access_t combine(const access_t &other) const
-  {
-    access_t ret= *this;
-    ret|= other;
-    return ret;
-  }
-  friend bool operator==(const access_t &x, const access_t &y)
-  {
-    return x.m_allow_bits == y.m_allow_bits 
-        && x.m_deny_bits == y.m_deny_bits
-        && x.m_deny_subtree == y.m_deny_subtree;
-  }
-  friend bool operator!=(const access_t &x, const access_t &y) { return !(x == y); }
-
-  privilege_t effective_allowed() const
-  {
-    DBUG_ASSERT(!m_deny_subtree);
-    return (privilege_t)(m_allow_bits & ~m_deny_bits);
-  }
-  operator privilege_t() const
-  {
-    return effective_allowed();
-  }
-
-  /* return bits that are requested and denied */
-  privilege_t is_denied(privilege_t priv) const
-  {
-    return (privilege_t)(m_deny_bits & priv);
-  }
-
-  privilege_t allow_bits() const
-  {
-    return m_allow_bits;
-  }
-  privilege_t deny_bits() const
-  {
-    return m_deny_bits;
-  }
-  privilege_t deny_subtree() const
-  {
-    return m_deny_subtree;
-  }
-};
-
 constexpr static inline privilege_t ALL_KNOWN_BITS(privilege_t x)
 {
   return (privilege_t)(x | (x-1));
@@ -766,6 +667,137 @@ constexpr privilege_t PRIV_STMT_SHOW_EXPLAIN= PROCESS_ACL;
 constexpr privilege_t PRIV_STMT_SHOW_ENGINE_STATUS= PROCESS_ACL;
 constexpr privilege_t PRIV_STMT_SHOW_ENGINE_MUTEX= PROCESS_ACL;
 constexpr privilege_t PRIV_STMT_SHOW_PROCESSLIST= PROCESS_ACL;
+
+class access_t
+{
+private:
+  privilege_t m_allow_bits;
+  privilege_t m_deny_bits;
+  privilege_t m_deny_subtree;
+
+public:
+  access_t() {};
+  access_t(privilege_t allow, privilege_t deny= NO_ACL,
+           privilege_t deny_subtree= NO_ACL)
+      : m_allow_bits(allow), m_deny_bits(deny), m_deny_subtree(deny_subtree)
+  {
+  }
+  bool is_empty() const
+  {
+    return m_allow_bits == NO_ACL && m_deny_bits == NO_ACL &&
+           m_deny_subtree == NO_ACL;
+  }
+  bool operator!() const { return is_empty(); }
+  void set_deny_bits(privilege_t deny) { m_deny_bits= deny; }
+  void set_deny(privilege_t deny, privilege_t deny_subtree)
+  {
+    m_deny_bits= deny;
+    m_deny_subtree= deny_subtree;
+  }
+  void set_deny_subtree(privilege_t deny_subtree)
+  {
+    m_deny_subtree= deny_subtree;
+  }
+  void set_allow_bits(privilege_t allow) { m_allow_bits= allow; }
+  access_t &operator=(const privilege_t &)= delete;
+  access_t &operator|=(const access_t &other)
+  {
+    m_allow_bits= privilege_t(m_allow_bits | other.m_allow_bits);
+    m_deny_bits= privilege_t(m_deny_bits | other.m_deny_bits);
+    m_deny_subtree= privilege_t(m_deny_subtree | other.m_deny_subtree);
+    return *this;
+  }
+
+  access_t intersect(const access_t &other) const
+  {
+    return access_t((privilege_t) (m_allow_bits & other.m_allow_bits),
+                    (privilege_t) (m_deny_bits | other.m_deny_bits),
+                    (privilege_t) (m_deny_subtree | other.m_deny_subtree));
+  }
+  access_t combine(const access_t &other) const
+  {
+    access_t ret= *this;
+    ret|= other;
+    return ret;
+  }
+  friend bool operator==(const access_t &x, const access_t &y)
+  {
+    return x.m_allow_bits == y.m_allow_bits &&
+           x.m_deny_bits == y.m_deny_bits &&
+           x.m_deny_subtree == y.m_deny_subtree;
+  }
+  friend bool operator!=(const access_t &x, const access_t &y)
+  {
+    return !(x == y);
+  }
+  friend access_t operator|(const access_t &x, const access_t &y)
+  {
+    access_t ret= x;
+    ret|= y;
+    return ret;
+  }
+  friend privilege_t operator&(const access_t &x, const privilege_t &y)
+  {
+    return x.certainly_allowed(y);
+  }
+  struct check_result
+  {
+    enum
+    {
+      OK,
+      DENIED,
+      OK_BUT_CHECK_SUBTREE,
+      UNDEFINED
+    } status;
+    privilege_t allow;
+    privilege_t deny;
+    privilege_t deny_subtree;
+  };
+
+  check_result check(privilege_t priv) const
+  {
+    check_result res;
+    res.allow= priv & m_allow_bits & ~m_deny_bits;
+    res.deny= priv & m_deny_bits;
+    res.deny_subtree= priv & m_deny_subtree;
+    if (res.deny)
+      res.status= check_result::DENIED;
+    else if (res.allow)
+      res.status= res.deny_subtree ?
+        check_result::OK_BUT_CHECK_SUBTREE : check_result::OK;
+    else
+     res.status=check_result::UNDEFINED;
+    return res;
+
+  }
+  privilege_t effective_allowed(privilege_t mask) const
+  {
+    DBUG_ASSERT((mask & m_deny_subtree) ==
+                NO_ACL); // do not use with hierarchical privileges
+    return (privilege_t) (mask & (m_allow_bits & ~m_deny_bits & ~m_deny_subtree));
+  }
+
+
+  privilege_t certainly_allowed(privilege_t priv) const
+  {
+    return (privilege_t) (priv & m_allow_bits & ~m_deny_bits & ~m_deny_subtree);
+  }
+
+  privilege_t operator&(privilege_t priv)
+  {
+    return privilege_t(certainly_allowed(priv));
+  }
+  ulonglong operator~() { return ~certainly_allowed(ALL_KNOWN_ACL); };
+  /* return bits that are requested and denied */
+  privilege_t is_denied(privilege_t priv) const
+  {
+    return (privilege_t) (m_deny_bits & priv);
+  }
+
+  privilege_t allow_bits() const { return m_allow_bits; }
+  privilege_t deny_bits() const { return m_deny_bits; }
+  privilege_t deny_subtree() const { return m_deny_subtree; }
+};
 
 
 /*

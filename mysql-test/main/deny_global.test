@@ -187,8 +187,19 @@ SELECT * FROM t1 WHERE id IN (SELECT id FROM t2);
 --error ER_DBACCESS_DENIED_ERROR
 SELECT * FROM (SELECT * FROM t1) AS dt;
 
-connection default;
 disconnect con1;
+connection default;
+
+--echo #
+--echo # Check that FLUSH PRIVILEGES retains DENYs
+--echo #
+FLUSH PRIVILEGES;
+connect (con1, localhost, sub_user,,test);
+--error ER_DBACCESS_DENIED_ERROR
+SELECT * FROM (SELECT * FROM t1) AS dt;
+disconnect con1;
+
+connection default;
 DROP USER sub_user;
 
 --echo #

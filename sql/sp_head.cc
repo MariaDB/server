@@ -2943,7 +2943,7 @@ bool check_db_routine_access(THD *thd, privilege_t privilege,
                              const Sp_handler *sph,
                              bool no_errors)
 {
-  privilege_t db_priv;
+  access_t db_priv;
   if (check_access(thd, privilege, db,
                    &db_priv, NULL, 0, no_errors))
     return 1;

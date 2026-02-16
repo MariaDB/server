@@ -6617,7 +6617,7 @@ wsrep_error_label:
 
 bool
 check_access(THD *thd, privilege_t want_access,
-             const char *db, privilege_t *save_priv,
+             const char *db, access_t *save_priv,
              GRANT_INTERNAL_INFO *grant_internal_info,
              bool dont_check_global_grants, bool no_errors)
 {
@@ -6641,19 +6641,19 @@ check_access(THD *thd, privilege_t want_access,
     set db_is_pattern according to 'dont_check_global_grants' value.
   */
   bool  db_is_pattern= ((want_access & GRANT_ACL) && dont_check_global_grants);
-  privilege_t dummy(NO_ACL);
+  access_t dummy(NO_ACL);
   DBUG_ENTER("check_access");
   DBUG_PRINT("enter",("db: %s  want_access: %llx  master_access: %llx",
-                      db ? db : "",
-                      (longlong) want_access,
-                      (longlong) sctx->master_access));
+                       db ? db : "",
+                       (longlong) want_access,
+                       (longlong) sctx->master_access.allow_bits()));
 
   if (save_priv)
-    *save_priv= NO_ACL;
+    *save_priv= access_t(NO_ACL);
   else
   {
     save_priv= &dummy;
-    dummy= NO_ACL;
+    dummy= access_t(NO_ACL);
   }
 
   /* check access may be called twice in a row. Don't change to same stage */
@@ -6674,7 +6674,10 @@ check_access(THD *thd, privilege_t want_access,
     access= get_cached_schema_access(grant_internal_info, db);
     if (access)
     {
-      switch (access->check(want_access, save_priv))
+      privilege_t p(save_priv->allow_bits());
+      auto res= access->check(want_access, &p);
+      save_priv->set_allow_bits(p);
+      switch (res)
       {
       case ACL_INTERNAL_ACCESS_GRANTED:
         /*
@@ -6768,7 +6771,7 @@ check_access(THD *thd, privilege_t want_access,
   else
     db_access= sctx->db_access;
   DBUG_PRINT("info",("db_access: %llx  want_access: %llx",
-                     (longlong) db_access, (longlong) want_access));
+              (longlong) db_access.allow_bits(), (longlong) want_access));
 
   /*
     Save the union of User-table and the intersection between Db-table and
@@ -6782,7 +6785,7 @@ check_access(THD *thd, privilege_t want_access,
     belongs to the bit set of .
   */
   need_table_or_column_check=
-    (want_access & (TABLE_ACLS | PROC_ACLS | db_access)) == want_access;
+    (want_access & (TABLE_ACLS | PROC_ACLS | db_access.certainly_allowed(want_access))) == want_access;
 
   /*
     Grant access if the requested access is in the intersection of
@@ -6919,7 +6922,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
     not always automatically grant SELECT but use the grant tables.
     See Bug#38837 need a way to disable information_schema for security
   */
-  table->grant.privilege= SELECT_ACL;
+  table->grant.privilege=access_t(SELECT_ACL);
 
   switch (get_schema_table_idx(table->schema_table)) {
   case SCH_SCHEMATA:
@@ -7109,7 +7112,7 @@ check_routine_access(THD *thd, privilege_t want_access, const LEX_CSTRING *db,
   */
   DBUG_ASSERT((want_access & CREATE_PROC_ACL) == NO_ACL);
   if ((thd->security_ctx->master_access & want_access) == want_access)
-    tables->grant.privilege= want_access;
+    tables->grant.privilege= access_t(want_access);
   else if (check_access(thd, want_access, db->str,
                         &tables->grant.privilege,
                         &tables->grant.m_internal,
@@ -7136,7 +7139,7 @@ check_routine_access(THD *thd, privilege_t want_access, const LEX_CSTRING *db,
 bool check_some_routine_access(THD *thd, const char *db, const char *name,
                                const Sp_handler *sph)
 {
-  privilege_t save_priv(NO_ACL);
+  access_t save_priv(NO_ACL);
   /*
     The following test is just a shortcut for check_access() (to avoid
     calculating db_access)
@@ -9513,7 +9516,7 @@ bool multi_update_precheck(THD *thd, TABLE_LIST *tables)
     if (table->is_jtbm())
       continue;
     if (table->derived)
-      table->grant.privilege= SELECT_ACL;
+      table->grant.privilege= access_t(SELECT_ACL);
     else if ((check_access(thd, UPDATE_ACL, table->db.str,
                            &table->grant.privilege,
                            &table->grant.m_internal,
