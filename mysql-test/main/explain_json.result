@@ -633,7 +633,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 10,
+          "rows": 5,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "tbl.cnt > 0",

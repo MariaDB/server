@@ -2490,7 +2490,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 10,
+          "rows": 5,
           "cost": "REPLACED",
           "filtered": 100,
           "attached_condition": "cte.c1 < 4 and cte.c2 > 1",

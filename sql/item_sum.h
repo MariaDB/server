@@ -806,6 +806,50 @@ public:
   }
 };
 
+/*
+  There are a bunch of assumptions going on here that are simply
+  inaccurate, but they are accurate enough for a ballpark figure of
+  selectivity.
+  Encapsulated here so we can make better work of it in the future if needed.
+
+  We have 
+  1) average group size from our grouping operation
+  2) a minimum value provided by the aggregation function
+  3) a maximum ""
+
+  Aggregation function
+    Item_sum_sum: min<-min*group_size, max<-max*group_size
+    Item_sum_min: max<-min
+    Item_sum_max: min<-max
+    Item_sum_count: min<-group_size, max<-group_size (TODO revisit)
+
+  we want something resembling a selectivity estimate
+
+  Current implementation, assume that the group size is the lambda of a
+    poisson distribution.
+
+  Pessimistically choose the minimum, maximum (or average?) so as to
+  give us the largest selectivity numeric result
+*/
+
+#include <math.h>
+
+class Expected_distribution
+{
+public:
+  double min_value;
+  double max_value;
+
+  // get the cumulative density of 0..n with lambda of poisson dist
+  double get_pdf(uint lambda, uint i);
+  double get_cdf(uint lambda, uint n);
+  double get_selectivity_lt(uint group_size, Item_literal *compare);
+  double get_selectivity_le(uint group_size, Item_literal *cmp);
+  double get_selectivity_gt(uint group_size, Item_literal *cmp);
+  double get_selectivity_ge(uint group_size, Item_literal *cmp);
+  double get_selectivity_eq(uint group_size, Item_literal *cmp);
+  double get_selectivity_ne( uint group_size, Item_literal *cmp );
+};
 
 class Item_sum_sum :public Item_sum_num,
                    public Type_handler_hybrid_field_type 
@@ -868,6 +912,7 @@ public:
   {
     return true;
   }
+  bool get_distribution(Expected_distribution *dist, uint group_size) override;
 
 private:
   void add_helper(bool perform_removal);
@@ -943,6 +988,7 @@ public:
   {
     return true;
   }
+  bool get_distribution(Expected_distribution *dist, uint group_size) override;
 };
 
 
@@ -1216,6 +1262,7 @@ public:
   Item *copy_or_same(THD* thd) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_min>(thd, this); }
+  bool get_distribution(Expected_distribution *dist, uint group_size) override;
 };
 
 
@@ -1235,6 +1282,7 @@ public:
   Item *copy_or_same(THD* thd) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_sum_max>(thd, this); }
+  bool get_distribution(Expected_distribution *dist, uint group_size) override;
 };
 
 

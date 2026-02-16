@@ -128,7 +128,11 @@ double estimate_distinct_cardinality(JOIN *join, TABLE_LIST *sj_nest,
 double estimate_post_group_cardinality(JOIN *join, double join_output_card)
 {
   Dynamic_array<Item*> group_cols(join->thd->mem_root);
-  ORDER *cur_group;
+  ORDER *cur_group= join->group_list;
+  double selectivity= 1;
+
+  if (join->group_list_for_estimates)
+    cur_group= join->group_list_for_estimates;
 
   /*
     Walk the GROUP BY list and put items into group_cols array. Array is
@@ -136,7 +140,7 @@ double estimate_post_group_cardinality(JOIN *join, double join_output_card)
     sub-arrays that refer to just one table.
     Also check that each item depends on just one table (if not, bail out).
   */
-  for (cur_group= join->group_list; cur_group; cur_group= cur_group->next)
+  for (; cur_group; cur_group= cur_group->next)
   {
     Item *item= *cur_group->item;
     table_map map= item->used_tables();
@@ -148,7 +152,34 @@ double estimate_post_group_cardinality(JOIN *join, double join_output_card)
     group_cols.append(item);
   }
   DBUG_ASSERT(group_cols.size());
-  return estimate_item_list_cardinality(join, group_cols, join_output_card);
+  if (join->having)
+  {
+    uint group_size= 1;
+    if (join->group_list && !join->group_list->next)
+    {
+      // there is only one element in the group list
+      Item *item= *join->group_list->item;
+      if (item->type() == Item::FIELD_ITEM)
+      {
+        Field *field= ((Item_field*)item)->field;
+        TABLE *table= field->table;
+
+        if (table->key_info)
+        {
+          for (uint i= 0; i < table->key_info->ext_key_parts; i++)
+          {
+            if (table->key_info->key_part[i].field == field)
+              group_size= table->key_info->actual_rec_per_key(i);
+          }
+        }
+      }
+    }
+
+    if (!join->having->selectivity_estimate(&selectivity, group_size))
+      selectivity= DEFAULT_HAVING_SELECTIVITY;
+  }
+  return selectivity *
+         estimate_item_list_cardinality(join, group_cols, join_output_card);
 }
 
 

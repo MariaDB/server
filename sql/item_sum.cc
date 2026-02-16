@@ -30,6 +30,7 @@
 #include "sp.h"
 #include "sql_parse.h"
 #include "sp_head.h"
+#include "sql_statistics.h"
 
 /**
   Calculate the affordable RAM limit for structures like TREE or Unique
@@ -4600,4 +4601,153 @@ Item_func_group_concat::~Item_func_group_concat()
 {
   if (!original && unique_filter)
     delete unique_filter;    
+}
+
+double Expected_distribution::get_pdf(uint lambda, uint i)
+{
+  return pow((double)lambda, (double)i)*exp(-(double)lambda)/
+          tgamma((double)i+1);
+}
+
+double Expected_distribution::get_cdf(uint lambda, uint n)
+{
+  double c= 0;
+
+  for( uint i= 0; i <=n; i++)
+    c+= get_pdf(lambda, i);
+  return c;
+}
+
+
+double Expected_distribution::get_selectivity_lt(uint group_size,
+                                                 Item_literal *cmp)
+{
+  double val= cmp->val_real();
+  double average= (min_value+max_value)/2;
+  /*
+    what group size is needed for the average of our distribution to exceed
+    what we are comparing
+  */
+  double exceeding_group_size= floor(val*group_size/average);
+  // return the probability of this exceeding group size
+  return get_cdf(group_size, exceeding_group_size);
+}
+
+
+double Expected_distribution::get_selectivity_le(uint group_size,
+                                                 Item_literal *cmp)
+{
+  return get_selectivity_lt(group_size, cmp) +
+         get_selectivity_eq(group_size, cmp);
+}
+
+
+double Expected_distribution::get_selectivity_gt(uint group_size,
+                                                 Item_literal *cmp)
+{
+  double r= 1-get_selectivity_le(group_size, cmp);
+  return (r > 0 ? r : 0);
+}
+
+
+double Expected_distribution::get_selectivity_ge(uint group_size,
+                                                 Item_literal *cmp)
+{
+  double r= 1-get_selectivity_lt(group_size, cmp);
+  return (r > 0 ? r : 0);
+}
+
+
+double Expected_distribution::get_selectivity_eq(uint group_size,
+                                                 Item_literal *cmp)
+{
+  double val= cmp->val_real();
+  double average= (min_value+max_value)/2;
+  double this_group_size= ceil(val*group_size/average);
+  return get_pdf(group_size, this_group_size);
+}
+
+
+double Expected_distribution::get_selectivity_ne(uint group_size,
+                                                 Item_literal *cmp)
+{
+  double r= 1-get_selectivity_eq(group_size, cmp);
+  return (r > 0 ? r : 0);
+}
+
+
+bool check_read_stats (Column_statistics *read_stats)
+{
+  if (!*read_stats->min_value->ptr)
+    return FALSE;
+  if (!*read_stats->max_value->ptr)
+    return FALSE;
+  return TRUE;
+}
+
+bool Item_sum_sum::get_distribution(Expected_distribution *dist,
+                                    uint group_size)
+{
+  if (args[0]->type() == Item::FIELD_ITEM)
+  {
+    Item_field *item= (Item_field*)args[0];
+    if (item->field->read_stats && check_read_stats(item->field->read_stats))
+    {
+      dist->min_value= item->field->read_stats->min_value->val_real()*group_size;
+      dist->max_value= item->field->read_stats->max_value->val_real()*group_size;
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
+bool Item_sum_min::get_distribution(Expected_distribution *dist,
+                                    uint group_size)
+{
+  if (args[0]->type() == Item::FIELD_ITEM)
+  {
+    Item_field *item= (Item_field*)args[0];
+    if (item->field->read_stats && check_read_stats(item->field->read_stats))
+    {
+      dist->min_value= item->field->read_stats->min_value->val_real()*group_size;
+      dist->max_value= item->field->read_stats->min_value->val_real()*group_size;
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
+bool Item_sum_max::get_distribution(Expected_distribution *dist,
+                                    uint group_size)
+{
+  if (args[0]->type() == Item::FIELD_ITEM)
+  {
+    Item_field *item= (Item_field*)args[0];
+    if (item->field->read_stats && check_read_stats(item->field->read_stats))
+    {
+      dist->min_value= item->field->read_stats->min_value->val_real()*group_size;
+      dist->max_value= item->field->read_stats->min_value->val_real()*group_size;
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
+bool Item_sum_count::get_distribution(Expected_distribution *dist,
+                                      uint group_size)
+{
+  if (args[0]->type() == Item::FIELD_ITEM)
+  {
+    Item_field *item= (Item_field*)args[0];
+    if (item->field->read_stats && check_read_stats(item->field->read_stats))
+    {
+      dist->min_value= group_size;
+      dist->max_value= group_size;
+      return TRUE;
+    }
+  }
+  return FALSE;
 }

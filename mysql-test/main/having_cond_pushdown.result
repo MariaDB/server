@@ -6347,33 +6347,18 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.021147833,
+    "cost": 0.021040491,
     "nested_loop": [
       {
         "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "loops": 1,
-          "rows": 2,
-          "cost": 0.01034841,
-          "filtered": 100,
-          "attached_condition": "t1.b = t1.a and t1.a is not null and t1.a is not null"
-        }
-      },
-      {
-        "table": {
           "table_name": "<subquery2>",
-          "access_type": "eq_ref",
+          "access_type": "ALL",
           "possible_keys": ["distinct_key"],
-          "key": "distinct_key",
-          "key_length": "12",
-          "used_key_parts": ["x", "COUNT(t2.y)"],
-          "ref": ["test.t1.a", "test.t1.a"],
-          "loops": 2,
+          "loops": 1,
           "rows": 1,
-          "cost": 0.010799423,
+          "cost": 0.010445483,
           "filtered": 100,
-          "attached_condition": "t1.a = `<subquery2>`.`COUNT(t2.y)`",
+          "attached_condition": "`<subquery2>`.x = `<subquery2>`.`COUNT(t2.y)`",
           "materialized": {
             "unique": 1,
             "materialization": {
@@ -6398,6 +6383,22 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "loops": 1,
+            "rows": 2,
+            "cost": 0.010595008,
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "152",
+          "join_type": "BNL",
+          "attached_condition": "t1.a = `<subquery2>`.x and t1.b = `<subquery2>`.x"
         }
       }
     ]
@@ -6408,33 +6409,18 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.021147833,
+    "cost": 0.021040491,
     "nested_loop": [
       {
         "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "loops": 1,
-          "rows": 2,
-          "cost": 0.01034841,
-          "filtered": 100,
-          "attached_condition": "t1.b = t1.a and t1.a is not null and t1.a is not null"
-        }
-      },
-      {
-        "table": {
           "table_name": "<subquery2>",
-          "access_type": "eq_ref",
+          "access_type": "ALL",
           "possible_keys": ["distinct_key"],
-          "key": "distinct_key",
-          "key_length": "12",
-          "used_key_parts": ["x", "COUNT(t2.y)"],
-          "ref": ["test.t1.a", "test.t1.a"],
-          "loops": 2,
+          "loops": 1,
           "rows": 1,
-          "cost": 0.010799423,
+          "cost": 0.010445483,
           "filtered": 100,
-          "attached_condition": "t1.a = `<subquery2>`.`COUNT(t2.y)`",
+          "attached_condition": "`<subquery2>`.x = `<subquery2>`.`COUNT(t2.y)`",
           "materialized": {
             "unique": 1,
             "materialization": {
@@ -6459,6 +6445,22 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "loops": 1,
+            "rows": 2,
+            "cost": 0.010595008,
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "152",
+          "join_type": "BNL",
+          "attached_condition": "t1.a = `<subquery2>`.x and t1.b = `<subquery2>`.x"
         }
       }
     ]

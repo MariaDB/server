@@ -861,6 +861,7 @@ static inline item_with_t operator~(const item_with_t a)
   return (item_with_t) ~(item_flags_t) a;
 }
 
+class Expected_distribution;
 
 class Item :public Value_source,
             public Type_all_attributes
@@ -2714,6 +2715,25 @@ public:
       is_expensive_cache= walk(&Item::is_expensive_processor, 0, NULL);
     return MY_TEST(is_expensive_cache);
   }
+
+  /**
+    Calculate an estimate of selectivity of this (sub)expression given
+    a group size.
+    Returns TRUE if we managed to guess something
+            FALSE if we have no idea
+  */
+  virtual bool selectivity_estimate(double *selectivity, uint group_size= 1,
+                                    Item_literal *comparator= nullptr)
+  {
+    /*
+    if (val_bool())
+    {
+      *selectivity= 1;
+      return TRUE;
+    }
+    */
+    return FALSE;
+  }
   String *check_well_formed_result(String *str, bool send_error= 0);
   bool eq_by_collation(Item *item, bool binary_cmp, CHARSET_INFO *cs); 
   bool too_big_for_varchar() const
@@ -2838,6 +2858,11 @@ public:
   {
     DBUG_ASSERT(fixed());
     return false;
+  }
+
+  virtual bool get_distribution(Expected_distribution *dist, uint group_size)
+  {
+    return FALSE;
   }
 
 protected:
@@ -8451,5 +8476,4 @@ inline void TABLE::use_all_stored_columns()
     for (; *vf; vf++)
       bitmap_clear_bit(read_set, (*vf)->field_index);
 }
-
 #endif /* SQL_ITEM_INCLUDED */

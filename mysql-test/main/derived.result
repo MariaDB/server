@@ -318,7 +318,7 @@ a	7.0000
 b	3.5000
 explain SELECT s.name, AVG(s.val) AS median FROM (SELECT x.name, x.val FROM t1 x, t1 y WHERE x.name=y.name GROUP BY x.name, x.val HAVING SUM(y.val <= x.val) >= COUNT(*)/2 AND SUM(y.val >= x.val) >= COUNT(*)/2) AS s GROUP BY s.name;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	17	Using temporary; Using filesort
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	8	Using temporary; Using filesort
 2	DERIVED	x	ALL	NULL	NULL	NULL	NULL	17	Using temporary; Using filesort
 2	DERIVED	y	ALL	NULL	NULL	NULL	NULL	17	Using where; Using join buffer (flat, BNL join)
 drop table t1;
@@ -2810,8 +2810,8 @@ select * from v1,v5,t2 where ((v1.a1=v5.f1) or (v1.a1=t2.c1)) and
 ((v5.f2<50) or (v5.f2=19)) and (v1.a3<300);
 a1	a2	a3	f1	f2	f3	c1	c2	c3
 1	2	3	1	2	3	7	8	9
-1	2	3	1	2	3	10	11	12
 4	5	6	4	5	6	7	8	9
+1	2	3	1	2	3	10	11	12
 4	5	6	4	5	6	10	11	12
 explain format=json select * from v1,v5,t2 where ((v1.a1=v5.f1) or (v1.a1=t2.c1)) and
 ((v5.f2<50) or (v5.f2=19)) and (v1.a3<300);
@@ -2835,33 +2835,18 @@ EXPLAIN
       {
         "block-nl-join": {
           "table": {
-            "table_name": "t2",
+            "table_name": "<derived5>",
             "access_type": "ALL",
             "loops": 2,
             "rows": 2,
             "cost": "COST_REPLACED",
-            "filtered": 100
-          },
-          "buffer_type": "flat",
-          "buffer_size": "173",
-          "join_type": "BNL"
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived5>",
-            "access_type": "ALL",
-            "loops": 4,
-            "rows": 4,
-            "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "d2.f2 < 50 or d2.f2 = 19"
           },
-          "buffer_type": "incremental",
-          "buffer_size": "217",
+          "buffer_type": "flat",
+          "buffer_size": "173",
           "join_type": "BNL",
-          "attached_condition": "(d2.f1 = t1.c1 or t2.c1 = t1.c1) and (d2.f2 < 50 or d2.f2 = 19)",
+          "attached_condition": "d2.f2 < 50 or d2.f2 = 19",
           "materialized": {
             "query_block": {
               "union_result": {
@@ -2923,6 +2908,22 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 4,
+            "rows": 2,
+            "cost": "COST_REPLACED",
+            "filtered": 100
+          },
+          "buffer_type": "incremental",
+          "buffer_size": "338",
+          "join_type": "BNL",
+          "attached_condition": "d2.f1 = t1.c1 or t2.c1 = t1.c1"
         }
       }
     ]

@@ -3858,7 +3858,7 @@ set @@optimizer_use_condition_selectivity=4;
 set @@use_stat_tables=PREFERABLY;
 explain extended SELECT a FROM t1 AS t1_outer WHERE a IN (SELECT max(b) FROM t1  GROUP BY a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	5	100.00	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	4	100.00	
 1	PRIMARY	t1_outer	ref	a	a	5	<subquery2>.max(b)	7	100.00	Using index
 2	MATERIALIZED	t1	range	NULL	a	5	NULL	5	100.00	Using index for group-by
 Warnings:
@@ -3867,7 +3867,7 @@ set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectiv
 set @@use_stat_tables=@save_use_stat_tables;
 explain extended SELECT a FROM t1 AS t1_outer WHERE a IN (SELECT max(b) FROM t1   GROUP BY a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	5	100.00	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	4	100.00	
 1	PRIMARY	t1_outer	ref	a	a	5	<subquery2>.max(b)	7	100.00	Using index
 2	MATERIALIZED	t1	range	NULL	a	5	NULL	5	100.00	Using index for group-by
 Warnings:

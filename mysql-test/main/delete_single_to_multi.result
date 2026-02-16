@@ -1383,7 +1383,7 @@ select c_name, c_acctbal from customer where c_custkey in (select o_custkey from
 where o_orderDATE between '1992-01-09' and '1992-03-08'
                       group by o_custkey having count(o_custkey) > 1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	28	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	0	
 1	PRIMARY	customer	eq_ref	PRIMARY	PRIMARY	4	<subquery2>.o_custkey	1	
 2	MATERIALIZED	orders	range	i_o_orderdate	i_o_orderdate	4	NULL	28	Using index condition; Using temporary
 explain format=json
@@ -1402,9 +1402,9 @@ EXPLAIN
           "access_type": "ALL",
           "possible_keys": ["distinct_key"],
           "loops": 1,
-          "rows": 28,
+          "rows": 0,
           "cost": "COST_REPLACED",
-          "filtered": 100,
+          "filtered": 0,
           "materialized": {
             "unique": 1,
             "materialization": {
@@ -1445,7 +1445,7 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["c_custkey"],
           "ref": ["<subquery2>.o_custkey"],
-          "loops": 28,
+          "loops": 1,
           "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100
@@ -1472,7 +1472,7 @@ delete from customer where c_custkey in (select o_custkey from orders
 where o_orderDATE between '1992-01-09' and '1992-03-08'
                       group by o_custkey having count(o_custkey) > 1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	28	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	0	
 1	PRIMARY	customer	eq_ref	PRIMARY	PRIMARY	4	<subquery2>.o_custkey	1	
 2	MATERIALIZED	orders	range	i_o_orderdate	i_o_orderdate	4	NULL	28	Using index condition; Using temporary
 explain format=json
@@ -1491,9 +1491,9 @@ EXPLAIN
           "access_type": "ALL",
           "possible_keys": ["distinct_key"],
           "loops": 1,
-          "rows": 28,
+          "rows": 0,
           "cost": "COST_REPLACED",
-          "filtered": 100,
+          "filtered": 0,
           "materialized": {
             "unique": 1,
             "materialization": {
@@ -1534,7 +1534,7 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["c_custkey"],
           "ref": ["<subquery2>.o_custkey"],
-          "loops": 28,
+          "loops": 1,
           "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100
@@ -1566,8 +1566,8 @@ select c_name, c_acctbal from customer where c_custkey in (select o_custkey from
 where o_orderDATE between '1992-01-09' and '1993-03-08'
                       group by o_custkey having count(o_custkey) > 5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	customer	ALL	PRIMARY	NULL	NULL	NULL	150	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	dbt3_s001.customer.c_custkey	1	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	0	
+1	PRIMARY	customer	eq_ref	PRIMARY	PRIMARY	4	<subquery2>.o_custkey	1	
 2	MATERIALIZED	orders	ALL	i_o_orderdate	NULL	NULL	NULL	1500	Using where; Using temporary
 select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
 where o_orderDATE between '1992-01-09' and '1993-03-08'
@@ -1591,8 +1591,8 @@ delete from customer where c_custkey in (select o_custkey from orders
 where o_orderDATE between '1992-01-09' and '1993-03-08'
                       group by o_custkey having count(o_custkey) > 5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	customer	ALL	PRIMARY	NULL	NULL	NULL	150	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	dbt3_s001.customer.c_custkey	1	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	0	
+1	PRIMARY	customer	eq_ref	PRIMARY	PRIMARY	4	<subquery2>.o_custkey	1	
 2	MATERIALIZED	orders	ALL	i_o_orderdate	NULL	NULL	NULL	1500	Using where; Using temporary
 delete from customer where c_custkey in (select o_custkey from orders
 where o_orderDATE between '1992-01-09' and '1993-03-08'
@@ -3353,11 +3353,11 @@ o_orderkey	o_totalprice
 324	26868.85
 1856	189361.42
 1221	117397.16
+4903	34363.63
+5607	24660.06
 1344	43809.37
 1925	146382.71
 3139	40975.96
-4903	34363.63
-5607	24660.06
 delete from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
 o_custkey in (select c_custkey from customer
 where c_nationkey in (1,2))
@@ -3397,11 +3397,11 @@ o_orderkey	o_totalprice
 324	26868.85
 1856	189361.42
 1221	117397.16
-3139	40975.96
+5607	24660.06
+4903	34363.63
 1344	43809.37
 1925	146382.71
-4903	34363.63
-5607	24660.06
+3139	40975.96
 delete from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
 o_custkey in (select c_custkey from customer
 where c_nationkey in (1,2));
