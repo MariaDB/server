@@ -1,0 +1,51 @@
+--source include/have_innodb.inc
+
+#
+# MDEV-27837: Disallow SET @@session.server_id within transaction
+#
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+
+--echo #
+--echo # Test that SET @@session.server_id fails inside explicit transaction
+--echo #
+
+BEGIN;
+INSERT INTO t1 VALUES (1);
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+SET @@session.server_id = 100;
+ROLLBACK;
+
+--echo #
+--echo # Test that SET @@session.server_id works outside transaction
+--echo #
+
+SET @@session.server_id = 100;
+SELECT @@session.server_id;
+
+--echo #
+--echo # Test that SET @@session.server_id fails with autocommit=0
+--echo #
+
+SET autocommit = 0;
+INSERT INTO t1 VALUES (2);
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+SET @@session.server_id = 200;
+ROLLBACK;
+
+SET autocommit = 1;
+
+--echo #
+--echo # Test that SET @@session.server_id works after COMMIT
+--echo #
+
+BEGIN;
+INSERT INTO t1 VALUES (3);
+COMMIT;
+SET @@session.server_id = 300;
+SELECT @@session.server_id;
+
+--echo #
+--echo # Cleanup
+--echo #
+DROP TABLE t1;
