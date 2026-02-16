@@ -115,7 +115,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (v1.max_c>214) and (t2.a>v1.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.max_c>214) and (t2.a>v1.a);
 EXPLAIN
@@ -140,7 +140,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.max_c > 214"
@@ -206,7 +206,7 @@ group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
@@ -239,7 +239,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.max_c > 300",
@@ -305,7 +305,7 @@ explain select * from v1,t2 where
 ((v1.max_c>400) and (t2.a>v1.a)) or ((v1.max_c<135) and (t2.a<v1.a));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 ((v1.max_c>400) and (t2.a>v1.a)) or ((v1.max_c<135) and (t2.a<v1.a));
@@ -331,7 +331,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.max_c > 400 or v1.max_c < 135"
@@ -390,7 +390,7 @@ explain select * from v1,t2 where
 ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
@@ -417,7 +417,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.max_c > 300 or v1.max_c < 135"
@@ -467,7 +467,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (v1.a>6) and (t2.b>v1.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.a>6) and (t2.b>v1.b);
 EXPLAIN
@@ -492,7 +492,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.a > 6"
@@ -552,7 +552,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v2,t2 where (v2.b>25) and (t2.a<v2.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v2,t2 where (v2.b>25) and (t2.a<v2.a);
 EXPLAIN
@@ -577,7 +577,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v2.b > 25"
@@ -657,7 +657,7 @@ explain select * from v1,t2 where
 ((v1.a>7) and (t2.c<v1.max_c)) or ((v1.a<2) and (t2.b<v1.b));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 ((v1.a>7) and (t2.c<v1.max_c)) or ((v1.a<2) and (t2.b<v1.b));
@@ -683,7 +683,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.a > 7 or v1.a < 2"
@@ -756,7 +756,7 @@ explain select * from v2,t2 where
 ((v2.a>7) and (t2.c<v2.max_c)) or ((v2.a>5) and (t2.b<v2.b));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v2,t2 where
 ((v2.a>7) and (t2.c<v2.max_c)) or ((v2.a>5) and (t2.b<v2.b));
@@ -782,7 +782,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v2.a > 7 or v2.a > 5"
@@ -840,7 +840,7 @@ explain select * from v1,t2 where
 ((v1.a<2) and (v1.max_c<t2.c) and (v1.max_c=t2.d));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 ((v1.a>4) and (v1.b>t2.b) and (v1.max_c=t2.d)) or
@@ -867,7 +867,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.a > 4 or v1.a < 2"
@@ -920,7 +920,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (v1.a<2) and (v1.max_c>400) and (t2.b>v1.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.a<2) and (v1.max_c>400) and (t2.b>v1.b);
 EXPLAIN
@@ -945,7 +945,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.a < 2 and v1.max_c > 400"
@@ -1184,7 +1184,7 @@ explain select * from v1,t2 where
 ((v1.a<4) and (v1.max_c<500) and (t2.b<v1.b));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 ((v1.a>7) and (v1.max_c>300) and (t2.c<v1.max_c)) or
@@ -1211,7 +1211,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.a > 7 and v1.max_c > 300 or v1.a < 4 and v1.max_c < 500"
@@ -1293,7 +1293,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where ((v1.a<2) and (v1.max_c>120)) or (v1.a>7);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where ((v1.a<2) and (v1.max_c>120)) or (v1.a>7);
 EXPLAIN
@@ -1318,7 +1318,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.a < 2 and v1.max_c > 120 or v1.a > 7"
@@ -1388,7 +1388,7 @@ explain select * from v1,t2 where
 ((v1.a<2) and (v1.max_c>120) and (v1.b=t2.b)) or (v1.a>7);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 ((v1.a<2) and (v1.max_c>120) and (v1.b=t2.b)) or (v1.a>7);
@@ -1414,7 +1414,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.a < 2 and v1.max_c > 120 or v1.a > 7"
@@ -1472,7 +1472,7 @@ explain select * from v1,t2 where
 ((v1.a>4) and (v1.max_c<500) and (t2.b<v1.b) and (v1.max_c=t2.c));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 ((v1.a<2) and (v1.max_c<200) and (t2.c>v1.max_c) and (v1.max_c=t2.d)) or
@@ -1499,7 +1499,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.a < 2 and v1.max_c < 200 or v1.a > 4"
@@ -1594,7 +1594,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.max_c > 400 or v1.max_c < 135"
@@ -1655,7 +1655,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.max_c > 400 or v1.max_c < 135"
@@ -1707,7 +1707,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (t2.a=v1.a) and (v1.b=t2.b) and (v1.a=1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where (t2.a=v1.a) and (v1.b=t2.b) and (v1.a=1);
 EXPLAIN
@@ -1737,7 +1737,7 @@ EXPLAIN
           "used_key_parts": ["b"],
           "ref": ["test.t2.b"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.a = 1",
@@ -1780,7 +1780,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (v1.a=5) and (v1.max_c=t2.d);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.d	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.d	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.a=5) and (v1.max_c=t2.d);
 EXPLAIN
@@ -1810,7 +1810,7 @@ EXPLAIN
           "used_key_parts": ["max_c"],
           "ref": ["test.t2.d"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.a = 5 and v1.max_c = t2.d",
@@ -1860,7 +1860,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (t2.a<5) and (v1.a=t2.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where (t2.a<5) and (v1.a=t2.a);
 EXPLAIN
@@ -1890,7 +1890,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -1930,7 +1930,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (v1.a=v1.b) and (v1.a=t2.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.a	2	
+1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.a	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.a=v1.b) and (v1.a=t2.a);
 EXPLAIN
@@ -1960,7 +1960,7 @@ EXPLAIN
           "used_key_parts": ["a", "b"],
           "ref": ["test.t2.a", "test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -2005,7 +2005,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (t2.c>150) and (v1.max_c=t2.c);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where (t2.c>150) and (v1.max_c=t2.c);
 EXPLAIN
@@ -2035,7 +2035,7 @@ EXPLAIN
           "used_key_parts": ["max_c"],
           "ref": ["test.t2.c"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -2076,7 +2076,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (v1.a=v1.b) and (v1.a=t2.a) and (v1.a=3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
 explain format=json select * from v1,t2 where (v1.a=v1.b) and (v1.a=t2.a) and (v1.a=3);
 EXPLAIN
@@ -2102,7 +2102,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.a = 3 and v1.b = 3"
@@ -2144,7 +2144,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (v1.a=1) and (v1.b=21) and (t2.a=2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
 explain format=json select * from v1,t2 where (v1.a=1) and (v1.b=21) and (t2.a=2);
 EXPLAIN
@@ -2170,7 +2170,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.a = 1 and v1.b = 21"
@@ -2216,7 +2216,7 @@ c	Harry	4	b	Harry	4
 explain select * from v_char as v,t2_char as t where
 (v.a='c') and (v.b<'Hermes') and ((v.b=t.b) or (v.max_c>20));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	12	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	6	Using where
 1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1_char	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
 explain format=json select * from v_char as v,t2_char as t where
@@ -2232,7 +2232,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 12,
+          "rows": 6,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v.a = 'c' and v.b < 'Hermes'",
@@ -2268,13 +2268,13 @@ EXPLAIN
           "table": {
             "table_name": "t",
             "access_type": "ALL",
-            "loops": 12,
+            "loops": 6,
             "rows": 12,
             "cost": "COST_REPLACED",
             "filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "220",
+          "buffer_size": "186",
           "join_type": "BNL",
           "attached_condition": "t.b = v.b or v.max_c > 20"
         }
@@ -2395,7 +2395,7 @@ explain select * from v1,t2
 where ((t2.a<4) and (v1.a=t2.a)) or ((t2.c>150) and (v1.max_c=t2.c));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2
 where ((t2.a<4) and (v1.a=t2.a)) or ((t2.c>150) and (v1.max_c=t2.c));
@@ -2422,7 +2422,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100
           },
@@ -2472,7 +2472,7 @@ explain select * from v1,t2
 where ((t2.a>5) and (v1.a=t2.a)) and ((t2.c>250) and (v1.max_c=t2.c));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.c	2	
+1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2
 where ((t2.a>5) and (v1.a=t2.a)) and ((t2.c>250) and (v1.max_c=t2.c));
@@ -2503,7 +2503,7 @@ EXPLAIN
           "used_key_parts": ["a", "max_c"],
           "ref": ["test.t2.a", "test.t2.c"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -2558,7 +2558,7 @@ group by a,b having max_c < 707) v1,
 t2 where (v1.a=8) and (v1.a=t2.a) and (v1.max_c=404);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
@@ -2587,7 +2587,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.a = 8 and v1.max_c = 404"
@@ -2638,7 +2638,7 @@ explain select * from v1,t2 where
 (v1.a>3) and (v1.max_c>200) and (t2.b<v1.b) and (t2.d=v1.max_c);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.d	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.d	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 (v1.a>3) and (v1.max_c>200) and (t2.b<v1.b) and (t2.d=v1.max_c);
@@ -2669,7 +2669,7 @@ EXPLAIN
           "used_key_parts": ["max_c"],
           "ref": ["test.t2.d"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.a > 3 and v1.max_c > 200 and t2.b < v1.b and t2.d = v1.max_c",
@@ -2912,7 +2912,7 @@ a	b	avg_c	a	b	c
 explain select * from v_decimal as v,t2_decimal as t where
 (((v.a>4) or (v.a=2)) or (v.b>3)) and (v.avg_c=13);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	Using where
 1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
 2	DERIVED	t1_decimal	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
 explain format=json select * from v_decimal as v,t2_decimal as t where
@@ -2928,7 +2928,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 9,
+          "rows": 4,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "(v.a > 4 or v.a = 2 or v.b > 3) and v.avg_c = 13",
@@ -2964,7 +2964,7 @@ EXPLAIN
           "table": {
             "table_name": "t",
             "access_type": "ALL",
-            "loops": 9,
+            "loops": 4,
             "rows": 9,
             "cost": "COST_REPLACED",
             "filtered": 100
@@ -2993,7 +2993,7 @@ where t1.a>5 group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300) and (v1.a=v1.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
@@ -3026,7 +3026,7 @@ EXPLAIN
           "used_key_parts": ["a", "b"],
           "ref": ["test.t2.a", "test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.max_c > 300",
@@ -3080,7 +3080,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (t2.a<2) and (t2.c>900);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where (t2.a<2) and (t2.c>900);
 EXPLAIN
@@ -3106,7 +3106,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100
           },
@@ -3155,7 +3155,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.b=t2.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.b	2	
+1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.b	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.b=t2.b);
 EXPLAIN
@@ -3185,7 +3185,7 @@ EXPLAIN
           "used_key_parts": ["a", "b"],
           "ref": ["test.t2.a", "test.t2.b"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -3243,7 +3243,7 @@ explain select * from v1,t2 where
 (t2.a=v1.a) or (v1.b=t2.b) and ((v1.a=1) or (v1.a=6));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 (t2.a=v1.a) or (v1.b=t2.b) and ((v1.a=1) or (v1.a=6));
@@ -3269,7 +3269,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100
           },
@@ -3357,7 +3357,7 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (v1.a=1) or (v1.b=21) or (t2.a=2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.a=1) or (v1.b=21) or (t2.a=2);
 EXPLAIN
@@ -3382,7 +3382,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100
           },
@@ -3441,7 +3441,7 @@ explain select * from v1,t2 where
 (t2.a<2) and (t2.c>900) and ((v1.a<t2.a) or (t2.a<11));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 (t2.a<2) and (t2.c>900) and ((v1.a<t2.a) or (t2.a<11));
@@ -3468,7 +3468,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100
           },
@@ -3524,8 +3524,8 @@ explain select * from v1,v2,t2 where
 (v1.a=v2.a) and (v1.a=t2.a) and (v2.b<50);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.a	2	
-1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.a	1	
+1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.a	1	Using where
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,v2,t2 where
@@ -3557,7 +3557,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -3595,8 +3595,8 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
-          "loops": 18,
-          "rows": 2,
+          "loops": 9,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v2.b < 50",
@@ -3667,8 +3667,8 @@ a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,v2,t2 where
 ((v1.a=v2.a) or (v1.a=t2.a)) and (t2.b<50) and (v1.b=v2.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	5	v1.b	2	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	5	v1.b	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
@@ -3685,7 +3685,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 20,
+          "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.b is not null",
@@ -3724,8 +3724,8 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["v1.b"],
-          "loops": 20,
-          "rows": 2,
+          "loops": 10,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -3760,14 +3760,14 @@ EXPLAIN
           "table": {
             "table_name": "t2",
             "access_type": "ALL",
-            "loops": 40,
+            "loops": 10,
             "rows": 9,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "t2.b < 50"
           },
           "buffer_type": "flat",
-          "buffer_size": "1Kb",
+          "buffer_size": "520",
           "join_type": "BNL",
           "attached_condition": "v2.a = v1.a or t2.a = v1.a"
         }
@@ -3793,8 +3793,8 @@ explain select * from v1,v2,t2 where
 ((v1.a=v2.a) and (v1.a=t2.a)) or ((v2.b>13) and (t2.c<115));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (incremental, BNL join)
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,v2,t2 where
@@ -3821,7 +3821,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100
           },
@@ -3860,13 +3860,13 @@ EXPLAIN
           "table": {
             "table_name": "<derived3>",
             "access_type": "ALL",
-            "loops": 180,
-            "rows": 20,
+            "loops": 90,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100
           },
           "buffer_type": "incremental",
-          "buffer_size": "4Kb",
+          "buffer_size": "2Kb",
           "join_type": "BNL",
           "attached_condition": "v1.a = t2.a and v2.a = t2.a or v2.b > 13 and t2.c < 115",
           "materialized": {
@@ -3921,8 +3921,8 @@ explain select * from v1,v2,t2 where ((v1.a=v2.a) or (v1.a=t2.a)) and
 ((v2.b<50) or (v2.b=19)) and (v1.max_c<300);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (incremental, BNL join)
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,v2,t2 where ((v1.a=v2.a) or (v1.a=t2.a)) and
@@ -3949,7 +3949,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.max_c < 300"
@@ -3988,14 +3988,14 @@ EXPLAIN
           "table": {
             "table_name": "<derived3>",
             "access_type": "ALL",
-            "loops": 180,
-            "rows": 20,
+            "loops": 90,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v2.b < 50 or v2.b = 19"
           },
           "buffer_type": "incremental",
-          "buffer_size": "4Kb",
+          "buffer_size": "2Kb",
           "join_type": "BNL",
           "attached_condition": "(v2.a = v1.a or v1.a = t2.a) and (v2.b < 50 or v2.b = 19)",
           "materialized": {
@@ -4041,8 +4041,8 @@ explain select * from v1,v2,t2 where
 (v1.a=t2.a) and (v1.a=v1.b) and (v1.a=v2.a) and (v2.max_c<300);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1	key1	10	test.t2.a,test.t2.a	2	
-1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key1	key1	10	test.t2.a,test.t2.a	1	
+1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.a	1	Using where
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,v2,t2 where
@@ -4074,7 +4074,7 @@ EXPLAIN
           "used_key_parts": ["a", "b"],
           "ref": ["test.t2.a", "test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -4113,8 +4113,8 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
-          "loops": 18,
-          "rows": 2,
+          "loops": 9,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v2.max_c < 300",
@@ -4158,8 +4158,8 @@ select * from v1,v2,t2 where (v1.a=1) and (v1.b>10) and (v1.b=v2.b);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,v2,t2 where (v1.a=1) and (v1.b>10) and (v1.b=v2.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	5	v1.b	2	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	5	v1.b	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
@@ -4175,7 +4175,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 20,
+          "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.a = 1 and v1.b > 10 and v1.b is not null",
@@ -4215,8 +4215,8 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["v1.b"],
-          "loops": 20,
-          "rows": 2,
+          "loops": 10,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -4251,13 +4251,13 @@ EXPLAIN
           "table": {
             "table_name": "t2",
             "access_type": "ALL",
-            "loops": 40,
+            "loops": 10,
             "rows": 9,
             "cost": "COST_REPLACED",
             "filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "1Kb",
+          "buffer_size": "520",
           "join_type": "BNL"
         }
       }
@@ -4286,7 +4286,7 @@ b	Vika	2	b	Harry	4
 explain select * from v_char as v,t2_char as t where
 (v.a=t.a) and (t.a='b') and ((v.b='Vika') or (v.b='Ali'));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	12	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	6	Using where
 1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1_char	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
 explain format=json select * from v_char as v,t2_char as t where
@@ -4302,7 +4302,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 12,
+          "rows": 6,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v.a = 'b' and (v.b = 'Vika' or v.b = 'Ali')",
@@ -4338,14 +4338,14 @@ EXPLAIN
           "table": {
             "table_name": "t",
             "access_type": "ALL",
-            "loops": 12,
+            "loops": 6,
             "rows": 12,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "t.a = 'b'"
           },
           "buffer_type": "flat",
-          "buffer_size": "220",
+          "buffer_size": "186",
           "join_type": "BNL"
         }
       }
@@ -4397,9 +4397,9 @@ explain select * from v1,v2,v3,t2 where
 and (v1.max_c<500) and (v3.a=t2.a) and (v2.max_c>300);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	test.t2.a	2	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived4>	ref	key0	key0	5	test.t2.a	1	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (incremental, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
@@ -4433,7 +4433,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v3.b < 50 or v3.b = 33",
@@ -4469,14 +4469,14 @@ EXPLAIN
           "table": {
             "table_name": "<derived2>",
             "access_type": "ALL",
-            "loops": 18,
-            "rows": 20,
+            "loops": 9,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.max_c < 500"
           },
           "buffer_type": "flat",
-          "buffer_size": "715",
+          "buffer_size": "411",
           "join_type": "BNL",
           "materialized": {
             "query_block": {
@@ -4509,14 +4509,14 @@ EXPLAIN
           "table": {
             "table_name": "<derived3>",
             "access_type": "ALL",
-            "loops": 360,
-            "rows": 20,
+            "loops": 90,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v2.max_c > 300"
           },
           "buffer_type": "incremental",
-          "buffer_size": "9Kb",
+          "buffer_size": "2Kb",
           "join_type": "BNL",
           "attached_condition": "v2.a = v1.a or v1.a = t2.a",
           "materialized": {
@@ -4573,8 +4573,8 @@ where t1.a>5 group by a,b having min_c < 707) v2,
 t2 where (v1.a=v2.a) and (v1.b=t2.b) and (v1.max_c>130) and (v2.min_c<130);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.b	2	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	5	v1.a	2	Using where
+1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.b	1	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	5	v1.a	1	Using where
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
@@ -4610,7 +4610,7 @@ EXPLAIN
           "used_key_parts": ["b"],
           "ref": ["test.t2.b"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.max_c > 130 and v1.a is not null",
@@ -4650,8 +4650,8 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["v1.a"],
-          "loops": 18,
-          "rows": 2,
+          "loops": 9,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v2.min_c < 130",
@@ -4736,9 +4736,9 @@ where t1.a<8 group by a,b) v3,
 t2 where (v1.a=v2.a) and (v1.b=v3.b) and ((v3.avg_c>170) or (v3.a<5))
 and ((v1.avg_c<400) or (v1.a>1)) and (v2.min_c<200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	5	v1.a	2	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	v1.b	2	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	5	v1.a	1	Using where
+1	PRIMARY	<derived4>	ref	key0	key0	5	v1.b	1	Using where
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
@@ -4763,7 +4763,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 20,
+          "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "(v1.avg_c < 400 or v1.a > 1) and v1.a is not null and v1.b is not null",
@@ -4803,8 +4803,8 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["v1.a"],
-          "loops": 20,
-          "rows": 2,
+          "loops": 10,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v2.min_c < 200",
@@ -4844,8 +4844,8 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["v1.b"],
-          "loops": 40,
-          "rows": 2,
+          "loops": 10,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v3.avg_c > 170 or v3.a < 5",
@@ -4881,13 +4881,13 @@ EXPLAIN
           "table": {
             "table_name": "t2",
             "access_type": "ALL",
-            "loops": 80,
+            "loops": 10,
             "rows": 9,
             "cost": "COST_REPLACED",
             "filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "4Kb",
+          "buffer_size": "639",
           "join_type": "BNL"
         }
       }
@@ -4930,7 +4930,7 @@ group by a,b having max_c < 707) v1,
 t2 where ((v1.a=1) or (v1.max_c<300)) and (v1.b>25);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
@@ -4958,7 +4958,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "(v1.a = 1 or v1.max_c < 300) and v1.b > 25"
@@ -5019,7 +5019,7 @@ where t1.a>5 group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300) and (v1.b<30);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
@@ -5052,7 +5052,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.max_c > 300 and v1.b < 30",
@@ -5106,10 +5106,10 @@ union
 select * from v1,t2 where (v1.max_c>100) and (v1.a>7) and (t2.d>800);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.b	2	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.b	1	Using where
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	UNION	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-2	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a<5) and (v1.b=t2.b) and (t2.c>800)
@@ -5148,7 +5148,7 @@ EXPLAIN
                   "used_key_parts": ["b"],
                   "ref": ["test.t2.b"],
                   "loops": 9,
-                  "rows": 2,
+                  "rows": 1,
                   "cost": "COST_REPLACED",
                   "filtered": 100,
                   "attached_condition": "v1.a < 5",
@@ -5205,7 +5205,7 @@ EXPLAIN
                     "table_name": "<derived4>",
                     "access_type": "ALL",
                     "loops": 9,
-                    "rows": 20,
+                    "rows": 10,
                     "cost": "COST_REPLACED",
                     "filtered": 100,
                     "attached_condition": "v1.max_c > 100 and v1.a > 7"
@@ -5286,10 +5286,10 @@ union
 select * from v1,t2 where ((v1.max_c>400) or (v1.avg_c>270)) and (v1.a<t2.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	UNION	t2	ALL	NULL	NULL	NULL	NULL	9	
-2	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a<5) and (v1.b=t2.b) and (v1.b=19)
@@ -5324,7 +5324,7 @@ EXPLAIN
                     "table_name": "<derived3>",
                     "access_type": "ALL",
                     "loops": 9,
-                    "rows": 20,
+                    "rows": 10,
                     "cost": "COST_REPLACED",
                     "filtered": 100,
                     "attached_condition": "v1.b = 19 and v1.a < 5"
@@ -5384,7 +5384,7 @@ EXPLAIN
                     "table_name": "<derived4>",
                     "access_type": "ALL",
                     "loops": 9,
-                    "rows": 20,
+                    "rows": 10,
                     "cost": "COST_REPLACED",
                     "filtered": 100,
                     "attached_condition": "v1.max_c > 400 or v1.avg_c > 270"
@@ -5476,10 +5476,10 @@ union
 select * from v1,t2 where ((v1.a>3) and (v1.b>27)) or (v1.max_c>550);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	UNION	t2	ALL	NULL	NULL	NULL	NULL	9	
-2	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where
@@ -5514,7 +5514,7 @@ EXPLAIN
                     "table_name": "<derived3>",
                     "access_type": "ALL",
                     "loops": 9,
-                    "rows": 20,
+                    "rows": 10,
                     "cost": "COST_REPLACED",
                     "filtered": 100,
                     "attached_condition": "v1.a = 1 or v1.a = 6"
@@ -5575,7 +5575,7 @@ EXPLAIN
                     "table_name": "<derived4>",
                     "access_type": "ALL",
                     "loops": 9,
-                    "rows": 20,
+                    "rows": 10,
                     "cost": "COST_REPLACED",
                     "filtered": 100,
                     "attached_condition": "v1.a > 3 and v1.b > 27 or v1.max_c > 550"
@@ -5661,13 +5661,13 @@ select * from v2,t2 where
 (v2.max_c=t2.c) and (v2.b<10);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	UNION	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-2	UNION	<derived5>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	UNION	<derived5>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	UNION	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-3	UNION	<derived6>	ref	key0	key0	5	test.t2.c	2	Using where
+3	UNION	<derived6>	ref	key0	key0	5	test.t2.c	1	Using where
 6	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 NULL	UNION RESULT	<union1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where
@@ -5707,7 +5707,7 @@ EXPLAIN
                     "table_name": "<derived4>",
                     "access_type": "ALL",
                     "loops": 9,
-                    "rows": 20,
+                    "rows": 10,
                     "cost": "COST_REPLACED",
                     "filtered": 100,
                     "attached_condition": "v1.a = 1 and (v1.max_c < 500 or v1.avg_c > 500)"
@@ -5769,7 +5769,7 @@ EXPLAIN
                     "table_name": "<derived5>",
                     "access_type": "ALL",
                     "loops": 9,
-                    "rows": 20,
+                    "rows": 10,
                     "cost": "COST_REPLACED",
                     "filtered": 100,
                     "attached_condition": "v2.b > 10"
@@ -5835,7 +5835,7 @@ EXPLAIN
                   "used_key_parts": ["max_c"],
                   "ref": ["test.t2.c"],
                   "loops": 9,
-                  "rows": 2,
+                  "rows": 1,
                   "cost": "COST_REPLACED",
                   "filtered": 100,
                   "attached_condition": "v2.b < 10",
@@ -5900,7 +5900,7 @@ a	b	c	a	b	c	d
 explain select * from v_union,t2 where (v_union.a<3) and (v_union.c>100);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	40	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -5927,7 +5927,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 40,
+            "rows": 20,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v_union.a < 3 and v_union.c > 100"
@@ -6032,7 +6032,7 @@ explain select * from v_union,t2 where
 ((v_union.a<2) or (v_union.c>800)) and (v_union.b>12);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	40	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -6060,7 +6060,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 40,
+            "rows": 20,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "(v_union.a < 2 or v_union.c > 800) and v_union.b > 12"
@@ -6153,7 +6153,7 @@ explain select * from v_union,t2 where
 (v_union.a=1) and (v_union.a=t2.a) and (v_union.c<200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	40	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -6183,7 +6183,7 @@ EXPLAIN
             "access_type": "ALL",
             "possible_keys": ["distinct_key"],
             "loops": 9,
-            "rows": 40,
+            "rows": 20,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v_union.a = 1 and v_union.c < 200"
@@ -6361,8 +6361,8 @@ explain select * from v_union,v1,t2 where
 and ((v_union.c>800) or (v1.max_c>200));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	40	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	20	Using where; Using join buffer (incremental, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
@@ -6393,7 +6393,7 @@ EXPLAIN
             "table_name": "<derived4>",
             "access_type": "ALL",
             "loops": 9,
-            "rows": 20,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.a = 1"
@@ -6434,14 +6434,14 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "possible_keys": ["distinct_key"],
-            "loops": 180,
-            "rows": 40,
+            "loops": 90,
+            "rows": 20,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v_union.a = 1"
           },
           "buffer_type": "incremental",
-          "buffer_size": "4Kb",
+          "buffer_size": "2Kb",
           "join_type": "BNL",
           "attached_condition": "v_union.c > 800 or v1.max_c > 200",
           "materialized": {
@@ -6536,7 +6536,7 @@ explain select * from v2_union as v,t2 where
 ((v.a=6) or (v.a=8)) and (v.c>200) and (v.a=t2.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	6	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 4	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
@@ -6570,7 +6570,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 6,
+          "rows": 3,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v.c > 200",
@@ -7101,7 +7101,7 @@ a	b	c	a	b	c	d
 explain select * from v4_union as v,t2 where (v.a=t2.a) and (v.b<20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	4	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -7133,7 +7133,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 4,
+          "rows": 3,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v.b < 20",
@@ -7233,7 +7233,7 @@ explain select * from v4_union as v,t2 where
 (v.a=t2.a) and ((t2.a<3) or (v.b<40)) and (v.c>500);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	4	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -7266,7 +7266,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 4,
+          "rows": 3,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "(t2.a < 3 or v.b < 40) and v.c > 500",
@@ -7367,10 +7367,10 @@ a	b	min_c	a	b	max_c	avg_c
 explain select * from v4,v1 where
 (v4.a<13) and (v1.a>5) and (v1.b>12);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v1 where
 (v4.a<13) and (v1.a>5) and (v1.b>12);
@@ -7385,7 +7385,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 20,
+          "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v4.a < 13",
@@ -7402,7 +7402,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 20,
+                        "rows": 10,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "v1.a < 15 and v1.a < 13",
@@ -7445,14 +7445,14 @@ EXPLAIN
           "table": {
             "table_name": "<derived4>",
             "access_type": "ALL",
-            "loops": 20,
-            "rows": 20,
+            "loops": 10,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.a > 5 and v1.b > 12"
           },
           "buffer_type": "flat",
-          "buffer_size": "333",
+          "buffer_size": "173",
           "join_type": "BNL",
           "materialized": {
             "query_block": {
@@ -7501,10 +7501,10 @@ explain select * from v4,v1,t2 where
 (v4.a=t2.a) and (v4.a=v1.a) and (v1.b>30);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.a	2	
-1	PRIMARY	<derived4>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.a	1	
+1	PRIMARY	<derived4>	ref	key0	key0	5	test.t2.a	1	Using where
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v1,t2 where
 (v4.a=t2.a) and (v4.a=v1.a) and (v1.b>30);
@@ -7535,7 +7535,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -7551,7 +7551,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 20,
+                        "rows": 10,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "v1.a < 15",
@@ -7598,8 +7598,8 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
-          "loops": 18,
-          "rows": 2,
+          "loops": 9,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.b > 30",
@@ -7652,10 +7652,10 @@ explain select * from v4,v1,t2 where
 (v4.a=t2.a) and (v4.a>1) and (v4.a=v1.a) and (v4.min_c>100) and (v1.b<30);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.a	2	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.a	1	Using where
+1	PRIMARY	<derived4>	ref	key0	key0	5	test.t2.a	1	Using where
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v1,t2 where
 (v4.a=t2.a) and (v4.a>1) and (v4.a=v1.a) and (v4.min_c>100) and (v1.b<30);
@@ -7686,7 +7686,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v4.min_c > 100",
@@ -7704,7 +7704,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 20,
+                        "rows": 10,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "v1.a < 15 and v1.a > 1",
@@ -7751,8 +7751,8 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
-          "loops": 18,
-          "rows": 2,
+          "loops": 9,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.b < 30",
@@ -7889,11 +7889,11 @@ a	b	min_c	a	b	max_c	avg_c	a	b	c	d
 explain select * from v4,v1,t2 where
 (((v4.b>10) and (v4.a>1)) or (v4.b<20)) and (v1.max_c>200) and (v1.a=v4.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	2	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	1	Using where
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v1,t2 where
 (((v4.b>10) and (v4.a>1)) or (v4.b<20)) and (v1.max_c>200) and (v1.a=v4.a);
@@ -7908,7 +7908,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 20,
+          "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "(v4.b > 10 and v4.a > 1 or v4.b < 20) and v4.a is not null",
@@ -7925,7 +7925,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 20,
+                        "rows": 10,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "v1.a < 15 and (v1.b > 10 and v1.a > 1 or v1.b < 20)",
@@ -7972,8 +7972,8 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["v4.a"],
-          "loops": 20,
-          "rows": 2,
+          "loops": 10,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.max_c > 200",
@@ -8008,13 +8008,13 @@ EXPLAIN
           "table": {
             "table_name": "t2",
             "access_type": "ALL",
-            "loops": 40,
+            "loops": 10,
             "rows": 9,
             "cost": "COST_REPLACED",
             "filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "1Kb",
+          "buffer_size": "433",
           "join_type": "BNL"
         }
       }
@@ -8034,10 +8034,10 @@ a	b	min_c	a	b	max_c	avg_c
 explain select * from v4,v2 where
 ((v4.a>12) and (v4.min_c<300) and (v4.b>13)) or (v4.a<1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v2 where
 ((v4.a>12) and (v4.min_c<300) and (v4.b>13)) or (v4.a<1);
@@ -8052,7 +8052,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 20,
+          "rows": 5,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v4.a > 12 and v4.min_c < 300 and v4.b > 13 or v4.a < 1",
@@ -8070,7 +8070,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 20,
+                        "rows": 10,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "v1.a < 15 and (v1.a > 12 and v1.b > 13 or v1.a < 1)",
@@ -8113,13 +8113,13 @@ EXPLAIN
           "table": {
             "table_name": "<derived4>",
             "access_type": "ALL",
-            "loops": 20,
-            "rows": 20,
+            "loops": 5,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "333",
+          "buffer_size": "173",
           "join_type": "BNL",
           "materialized": {
             "query_block": {
@@ -8165,10 +8165,10 @@ a	b	min_c	a	b	max_c	avg_c
 explain select * from v4,v2 where
 (v4.a=v2.b) and (v4.a=v4.b) and (v4.min_c<100);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	2	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	1	
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v2 where
 (v4.a=v2.b) and (v4.a=v4.b) and (v4.min_c<100);
@@ -8183,7 +8183,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 20,
+          "rows": 5,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v4.b = v4.a and v4.min_c < 100 and v4.a is not null",
@@ -8201,7 +8201,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 20,
+                        "rows": 10,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "v1.b = v1.a and v1.a < 15",
@@ -8248,8 +8248,8 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["v4.a"],
-          "loops": 20,
-          "rows": 2,
+          "loops": 5,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -8296,10 +8296,10 @@ a	b	min_c	a	b	max_c	avg_c
 explain select * from v4,v2 where
 (v4.a=v2.b) and (v4.a=v4.b) and (v2.b<30);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	2	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	1	
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v2 where
 (v4.a=v2.b) and (v4.a=v4.b) and (v2.b<30);
@@ -8314,7 +8314,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 20,
+          "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v4.b = v4.a and v4.a < 30 and v4.a is not null",
@@ -8331,7 +8331,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 20,
+                        "rows": 10,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "v1.b = v1.a and v1.a < 15 and v1.a < 30",
@@ -8378,8 +8378,8 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["v4.a"],
-          "loops": 20,
-          "rows": 2,
+          "loops": 10,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -8426,10 +8426,10 @@ a	b	min_c	a	b	max_c	avg_c
 explain select * from v4,v2 where
 (v4.a=v2.b) and (v4.a=v4.b) and ((v2.b<30) or (v4.a>2));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	2	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	1	
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v2 where
 (v4.a=v2.b) and (v4.a=v4.b) and ((v2.b<30) or (v4.a>2));
@@ -8444,7 +8444,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 20,
+          "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v4.b = v4.a and (v4.a < 30 or v4.a > 2) and v4.a is not null",
@@ -8461,7 +8461,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 20,
+                        "rows": 10,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "v1.b = v1.a and v1.a < 15 and (v1.a < 30 or v1.a > 2)",
@@ -8508,8 +8508,8 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["v4.a"],
-          "loops": 20,
-          "rows": 2,
+          "loops": 10,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -8563,10 +8563,10 @@ explain select * from v4,v2 where
 (((v4.a<12) and (v4.b>13)) or (v4.a>10)) and
 (v4.min_c=v2.max_c) and (v4.min_c>100);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	v4.min_c	2	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived4>	ref	key0	key0	5	v4.min_c	1	
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v2 where
 (((v4.a<12) and (v4.b>13)) or (v4.a>10)) and
@@ -8582,7 +8582,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 20,
+          "rows": 5,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "(v4.a < 12 and v4.b > 13 or v4.a > 10) and v4.min_c > 100 and v4.min_c is not null",
@@ -8600,7 +8600,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 20,
+                        "rows": 10,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "v1.a < 15 and (v1.a < 12 and v1.b > 13 or v1.a > 10)",
@@ -8647,8 +8647,8 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["max_c"],
           "ref": ["v4.min_c"],
-          "loops": 20,
-          "rows": 2,
+          "loops": 5,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -8701,10 +8701,10 @@ explain select * from v4,v2,t2 where
 (v4.min_c=t2.c) and (t2.c>100);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	Using where
-1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	Using where
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v2,t2 where
 (((v4.a<12) and (t2.b>13)) or (v4.a>10)) and
@@ -8736,7 +8736,7 @@ EXPLAIN
           "used_key_parts": ["min_c"],
           "ref": ["test.t2.c"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v4.a < 12 and t2.b > 13 or v4.a > 10",
@@ -8754,7 +8754,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 20,
+                        "rows": 10,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "v1.a < 15 and (v1.a < 12 or v1.a > 10)",
@@ -8797,13 +8797,13 @@ EXPLAIN
           "table": {
             "table_name": "<derived4>",
             "access_type": "ALL",
-            "loops": 18,
-            "rows": 20,
+            "loops": 9,
+            "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "715",
+          "buffer_size": "411",
           "join_type": "BNL",
           "materialized": {
             "query_block": {
@@ -9621,7 +9621,7 @@ EXPLAIN
                 "table_name": "<derived3>",
                 "access_type": "ALL",
                 "loops": 1,
-                "rows": 5,
+                "rows": 2,
                 "cost": "COST_REPLACED",
                 "filtered": 100,
                 "attached_condition": "v2.s < 50",
@@ -11281,7 +11281,7 @@ WHERE (v1.a=1) AND (v1.b=v1.a) AND
 (v1.a=t2.x) AND (v1.max_c>30);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
 EXPLAIN FORMAT=JSON SELECT *
 FROM t2,
@@ -11316,7 +11316,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 2,
-            "rows": 3,
+            "rows": 2,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.a = 1 and v1.b = 1 and v1.max_c > 30"
@@ -11374,7 +11374,7 @@ WHERE (v1.a=1) AND (v1.b=v1.a) AND (v1.b=v1.d) AND
 (v1.a=t2.x) AND (v1.max_c>30);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
 EXPLAIN FORMAT=JSON SELECT *
 FROM t2,
@@ -11409,7 +11409,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 2,
-            "rows": 3,
+            "rows": 2,
             "cost": "COST_REPLACED",
             "filtered": 100,
             "attached_condition": "v1.a = 1 and v1.b = 1 and v1.d = 1 and v1.max_c > 30"
@@ -11836,7 +11836,7 @@ GROUP BY d_tab.g
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.b	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using where; Using temporary
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.a,t1.b) IN
@@ -11894,7 +11894,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 5,
+                        "rows": 2,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "d_tab.max_f > 20",
@@ -11983,7 +11983,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 3,
+          "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "dt.a = 2",
@@ -12046,7 +12046,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 3,
+          "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "dt.a > 1",
@@ -12671,7 +12671,7 @@ EXPLAIN
           "table_name": "<derived3>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 3,
+          "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "case when tab2.max_a = 1 or tab2.max_a = 2 then 1 else 0 end = 1",
@@ -12734,7 +12734,7 @@ EXPLAIN
           "table_name": "<derived3>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 3,
+          "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "case when tab2.max_a = 1 or tab2.max_a > 2 and tab2.max_a < 4 then 1 else 0 end = 1",
@@ -12797,7 +12797,7 @@ EXPLAIN
           "table_name": "<derived3>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 3,
+          "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "case when tab2.max_a > 1 and (tab2.max_a = 2 or tab2.max_a > 2) then 1 else 0 end = 1",
@@ -13392,7 +13392,7 @@ a	f	g
 3	3	3
 explain extended select * from (select * from v1) as dt where a=f and a=g;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `v1`.`a` AS `a`,`v1`.`f` AS `f`,`v1`.`g` AS `g` from `test`.`v1` where `v1`.`a` = `v1`.`f` and `v1`.`a` = `v1`.`g`
@@ -13407,7 +13407,7 @@ a	f	g
 1	1	1
 explain extended select * from (select * from v2) as dt where a=f and a=g;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `v2`.`a` AS `a`,`v2`.`f` AS `f`,`v2`.`g` AS `g` from `test`.`v2` where `v2`.`a` = `v2`.`f` and `v2`.`a` = `v2`.`g`
@@ -13556,7 +13556,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 3,
+          "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v2.s + 1 > 10 and v2.a > 1 and v2.a2 > 123",
@@ -13612,29 +13612,14 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t4",
-          "access_type": "ALL",
-          "loops": 1,
-          "rows": 3,
-          "cost": "COST_REPLACED",
-          "filtered": 100,
-          "attached_condition": "t4.a + 1 > 10 and t4.b > 1 and t4.c > 123 and t4.a is not null and t4.b is not null and t4.c is not null"
-        }
-      },
-      {
-        "table": {
           "table_name": "<subquery2>",
-          "access_type": "eq_ref",
+          "access_type": "ALL",
           "possible_keys": ["distinct_key"],
-          "key": "distinct_key",
-          "key_length": "23",
-          "used_key_parts": ["a", "f1(a)", "sum(b)"],
-          "ref": ["test.t4.a", "test.t4.b", "test.t4.c"],
-          "loops": 3,
+          "loops": 1,
           "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "t4.c = `<subquery2>`.`sum(b)`",
+          "attached_condition": "`<subquery2>`.a + 1 > 10 and `<subquery2>`.`f1(a)` > 1",
           "materialized": {
             "unique": 1,
             "materialization": {
@@ -13660,6 +13645,23 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t4",
+            "access_type": "ALL",
+            "loops": 1,
+            "rows": 3,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "t4.c > 123"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "283",
+          "join_type": "BNL",
+          "attached_condition": "t4.a = `<subquery2>`.a and t4.b = `<subquery2>`.`f1(a)` and t4.c = `<subquery2>`.`sum(b)`"
         }
       }
     ]
@@ -13818,8 +13820,8 @@ a	b	c	a	b	c
 8	33	114	8	33	117
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a=8);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	9	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -13832,30 +13834,14 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2",
+          "table_name": "<derived2>",
           "access_type": "ALL",
+          "possible_keys": ["distinct_key"],
           "loops": 1,
           "rows": 9,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "t2.a = 8"
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived2>",
-            "access_type": "ALL",
-            "possible_keys": ["distinct_key"],
-            "loops": 9,
-            "rows": 18,
-            "cost": "COST_REPLACED",
-            "filtered": 100,
-            "attached_condition": "v1.a = 8"
-          },
-          "buffer_type": "flat",
-          "buffer_size": "173",
-          "join_type": "BNL",
+          "attached_condition": "v1.a = 8",
           "materialized": {
             "query_block": {
               "union_result": {
@@ -13917,6 +13903,22 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 9,
+            "rows": 9,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "t2.a = 8"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "173",
+          "join_type": "BNL"
         }
       }
     ]
@@ -13932,8 +13934,8 @@ a	b	c	a	b	c
 8	33	114	8	33	117
 explain select * from v1,t2 where (v1.a=t2.a) and (t2.a=8);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	9	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -13946,30 +13948,14 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2",
+          "table_name": "<derived2>",
           "access_type": "ALL",
+          "possible_keys": ["distinct_key"],
           "loops": 1,
           "rows": 9,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "t2.a = 8"
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived2>",
-            "access_type": "ALL",
-            "possible_keys": ["distinct_key"],
-            "loops": 9,
-            "rows": 18,
-            "cost": "COST_REPLACED",
-            "filtered": 100,
-            "attached_condition": "v1.a = 8"
-          },
-          "buffer_type": "flat",
-          "buffer_size": "173",
-          "join_type": "BNL",
+          "attached_condition": "v1.a = 8",
           "materialized": {
             "query_block": {
               "union_result": {
@@ -14031,6 +14017,22 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 9,
+            "rows": 9,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "t2.a = 8"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "173",
+          "join_type": "BNL"
         }
       }
     ]
@@ -14516,39 +14518,39 @@ set statement optimizer_switch='condition_pushdown_for_derived=off' for select *
 ((v1.a=1) and (v1.c<110));
 a	b	c	a	b	c
 1	21	101	2	3	207
+5	16	207	2	3	207
 1	21	101	1	16	909
 1	21	101	5	14	312
 1	21	101	5	33	207
+5	16	207	5	33	207
 1	21	101	6	20	211
 1	21	101	1	19	132
+5	27	132	1	19	132
 1	21	101	8	33	117
 1	21	101	3	21	231
 1	21	101	6	23	303
-5	16	207	2	3	207
-5	16	207	5	33	207
-5	27	132	1	19	132
 select * from v1,t2 where
 ((v1.a>3) and (t2.c>110) and (v1.c=t2.c)) or
 ((v1.a=1) and (v1.c<110));
 a	b	c	a	b	c
 1	21	101	2	3	207
+5	16	207	2	3	207
 1	21	101	1	16	909
 1	21	101	5	14	312
 1	21	101	5	33	207
+5	16	207	5	33	207
 1	21	101	6	20	211
 1	21	101	1	19	132
+5	27	132	1	19	132
 1	21	101	8	33	117
 1	21	101	3	21	231
 1	21	101	6	23	303
-5	16	207	2	3	207
-5	16	207	5	33	207
-5	27	132	1	19	132
 explain select * from v1,t2 where
 ((v1.a>3) and (t2.c>110) and (v1.c=t2.c)) or
 ((v1.a=1) and (v1.c<110));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14563,29 +14565,13 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2",
+          "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
           "rows": 9,
           "cost": "COST_REPLACED",
-          "filtered": 100
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived2>",
-            "access_type": "ALL",
-            "loops": 9,
-            "rows": 18,
-            "cost": "COST_REPLACED",
-            "filtered": 100,
-            "attached_condition": "v1.a > 3 or v1.a = 1 and v1.c < 110"
-          },
-          "buffer_type": "flat",
-          "buffer_size": "173",
-          "join_type": "BNL",
-          "attached_condition": "v1.c = t2.c and v1.a > 3 and t2.c > 110 or v1.a = 1 and v1.c < 110",
+          "filtered": 100,
+          "attached_condition": "v1.a > 3 and v1.c > 110 or v1.a = 1 and v1.c < 110",
           "materialized": {
             "query_block": {
               "union_result": {
@@ -14647,6 +14633,22 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 9,
+            "rows": 9,
+            "cost": "COST_REPLACED",
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "173",
+          "join_type": "BNL",
+          "attached_condition": "t2.c = v1.c and v1.a > 3 and v1.c > 110 or v1.a = 1 and v1.c < 110"
         }
       }
     ]
@@ -14964,8 +14966,8 @@ a	b	c	a	b	c
 6	20	315	6	23	303
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a=6);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	9	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14978,30 +14980,14 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2",
+          "table_name": "<derived2>",
           "access_type": "ALL",
+          "possible_keys": ["distinct_key"],
           "loops": 1,
           "rows": 9,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "t2.a = 6"
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived2>",
-            "access_type": "ALL",
-            "possible_keys": ["distinct_key"],
-            "loops": 9,
-            "rows": 18,
-            "cost": "COST_REPLACED",
-            "filtered": 100,
-            "attached_condition": "v1.a = 6"
-          },
-          "buffer_type": "flat",
-          "buffer_size": "173",
-          "join_type": "BNL",
+          "attached_condition": "v1.a = 6",
           "materialized": {
             "query_block": {
               "union_result": {
@@ -15063,6 +15049,22 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 9,
+            "rows": 9,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "t2.a = 6"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "173",
+          "join_type": "BNL"
         }
       }
     ]
@@ -15080,8 +15082,8 @@ a	b	c	a	b	c
 6	20	315	6	23	303
 explain select * from v1,t2 where (v1.a=t2.a) and (t2.a=6);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	9	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -15094,30 +15096,14 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2",
+          "table_name": "<derived2>",
           "access_type": "ALL",
+          "possible_keys": ["distinct_key"],
           "loops": 1,
           "rows": 9,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "t2.a = 6"
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived2>",
-            "access_type": "ALL",
-            "possible_keys": ["distinct_key"],
-            "loops": 9,
-            "rows": 18,
-            "cost": "COST_REPLACED",
-            "filtered": 100,
-            "attached_condition": "v1.a = 6"
-          },
-          "buffer_type": "flat",
-          "buffer_size": "173",
-          "join_type": "BNL",
+          "attached_condition": "v1.a = 6",
           "materialized": {
             "query_block": {
               "union_result": {
@@ -15179,6 +15165,22 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 9,
+            "rows": 9,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "t2.a = 6"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "173",
+          "join_type": "BNL"
         }
       }
     ]
@@ -15698,8 +15700,8 @@ explain select * from v1,t2 where
 ((v1.a>1) and (t2.c<500)) or
 ((v1.a=1) and (v1.c>500));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -15715,29 +15717,13 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2",
+          "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
           "rows": 9,
           "cost": "COST_REPLACED",
-          "filtered": 100
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived2>",
-            "access_type": "ALL",
-            "loops": 9,
-            "rows": 18,
-            "cost": "COST_REPLACED",
-            "filtered": 100,
-            "attached_condition": "v1.a > 1 or v1.a = 1 and v1.c > 500"
-          },
-          "buffer_type": "flat",
-          "buffer_size": "173",
-          "join_type": "BNL",
-          "attached_condition": "v1.c = t2.c and v1.a > 1 and t2.c < 500 or v1.a = 1 and v1.c > 500",
+          "filtered": 100,
+          "attached_condition": "v1.a > 1 and v1.c < 500 or v1.a = 1 and v1.c > 500",
           "materialized": {
             "query_block": {
               "union_result": {
@@ -15799,6 +15785,22 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 9,
+            "rows": 9,
+            "cost": "COST_REPLACED",
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "173",
+          "join_type": "BNL",
+          "attached_condition": "t2.c = v1.c and v1.a > 1 and v1.c < 500 or v1.a = 1 and v1.c > 500"
         }
       }
     ]
@@ -15997,9 +15999,9 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	18	Using where
+3	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	9	Using where
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 5	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -16032,7 +16034,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 3,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.c > 200",
@@ -16078,7 +16080,7 @@ EXPLAIN
                             "table_name": "<derived4>",
                             "access_type": "ALL",
                             "loops": 1,
-                            "rows": 18,
+                            "rows": 9,
                             "cost": "COST_REPLACED",
                             "filtered": 100,
                             "attached_condition": "__5.a > 5 and __5.c > 200",
@@ -16182,7 +16184,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 4	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -16215,7 +16217,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 3,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.c < 200",
@@ -16334,7 +16336,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 4	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -16367,7 +16369,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 3,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.c > 200",
@@ -16488,7 +16490,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 4	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -16521,7 +16523,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 3,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.c < 200",
@@ -16792,7 +16794,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
 1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	<derived4>	ALL	NULL	NULL	NULL	NULL	18	Using where
+3	EXCEPT	<derived4>	ALL	NULL	NULL	NULL	NULL	9	Using where
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 5	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -16871,7 +16873,7 @@ EXPLAIN
                             "table_name": "<derived4>",
                             "access_type": "ALL",
                             "loops": 1,
-                            "rows": 18,
+                            "rows": 9,
                             "cost": "COST_REPLACED",
                             "filtered": 100,
                             "attached_condition": "__5.a > 4 and __5.c < 130",
@@ -16974,9 +16976,9 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	<derived4>	ALL	NULL	NULL	NULL	NULL	18	Using where
+3	EXCEPT	<derived4>	ALL	NULL	NULL	NULL	NULL	9	Using where
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 5	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -17010,7 +17012,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 3,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.c < 130",
@@ -17056,7 +17058,7 @@ EXPLAIN
                             "table_name": "<derived4>",
                             "access_type": "ALL",
                             "loops": 1,
-                            "rows": 18,
+                            "rows": 9,
                             "cost": "COST_REPLACED",
                             "filtered": 100,
                             "attached_condition": "__6.a > 4 and __6.c < 130",
@@ -17186,7 +17188,7 @@ explain select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 4	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -17236,7 +17238,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 18,
+                        "rows": 9,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "v1.a < 7 and v1.a > 4",
@@ -17338,7 +17340,7 @@ explain select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 4	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -17388,7 +17390,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 18,
+                        "rows": 9,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "v1.a < 7 and v1.a > 4",
@@ -17860,7 +17862,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>1) and (v1.b > 12) and (v1.c>400);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 4	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -17893,7 +17895,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 3,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.b > 12 and v1.c > 400",
@@ -18227,7 +18229,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.b	2	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.b	1	Using where
 2	DERIVED	t3	range	i1	i1	5	NULL	1	Using index condition
 3	UNION	t3	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -18259,7 +18261,7 @@ EXPLAIN
           "used_key_parts": ["b"],
           "ref": ["test.t2.b"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.a < 3",
@@ -18749,7 +18751,7 @@ select 3 as n, a, c, sum(b) as s from t2 group by a
 ) as t
 where t.a > 2 and t.c in ('aa','bb','cc');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	48	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	40	Using where
 2	DERIVED	t2	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
 3	UNION	t2	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
 4	UNION	t2	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
@@ -18773,7 +18775,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 48,
+          "rows": 40,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "t.a > 2 and t.c in ('aa','bb','cc')",
@@ -23142,7 +23144,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 7,
+          "rows": 3,
           "cost": "REPLACED",
           "filtered": 100,
           "attached_condition": "dt.c2 > 5",
@@ -23224,7 +23226,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 7,
+          "rows": 3,
           "cost": "REPLACED",
           "filtered": 100,
           "attached_condition": "dt.c2 > 5",
@@ -23355,7 +23357,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 2,
-            "rows": 7,
+            "rows": 3,
             "cost": "REPLACED",
             "filtered": 100,
             "attached_condition": "dt.max_c > 6"
@@ -23451,7 +23453,7 @@ EXPLAIN
             "table_name": "<derived2>",
             "access_type": "ALL",
             "loops": 2,
-            "rows": 7,
+            "rows": 3,
             "cost": "REPLACED",
             "filtered": 100,
             "attached_condition": "dt.max_c > 6"

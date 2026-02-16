@@ -852,6 +852,8 @@ public:
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_eq>(thd, this); }
   Item *do_build_clone(THD *thd) const override;
+  virtual bool selectivity_estimate(double *selectivity, uint group_size= 1,
+                                    Item_literal *comparator= nullptr) override;
 };
 
 class Item_func_equal final :public Item_bool_rowready_func2
@@ -904,6 +906,8 @@ public:
   { return get_item_copy<Item_func_ge>(thd, this); }
   Item* date_conds_transformer(THD *thd, uchar *arg) override
   { return do_date_conds_transformation(thd, this); }
+  virtual bool selectivity_estimate(double *selectivity, uint group_size= 1,
+                                    Item_literal *comparator= nullptr) override;
 };
 
 
@@ -926,6 +930,8 @@ public:
   { return get_item_copy<Item_func_gt>(thd, this); }
   Item* date_conds_transformer(THD *thd, uchar *arg) override
   { return do_date_conds_transformation(thd, this); }
+  virtual bool selectivity_estimate(double *selectivity, uint group_size= 1,
+                                    Item_literal *comparator= nullptr) override;
 };
 
 
@@ -948,6 +954,8 @@ public:
   { return get_item_copy<Item_func_le>(thd, this); }
   Item* date_conds_transformer(THD *thd, uchar *arg) override
   { return do_date_conds_transformation(thd, this); }
+  virtual bool selectivity_estimate(double *selectivity, uint group_size= 1,
+                                    Item_literal *comparator= nullptr) override;
 };
 
 
@@ -970,6 +978,8 @@ public:
   { return get_item_copy<Item_func_lt>(thd, this); }
   Item* date_conds_transformer(THD *thd, uchar *arg) override
   { return do_date_conds_transformation(thd, this); }
+  virtual bool selectivity_estimate(double *selectivity, uint group_size= 1,
+                                    Item_literal *comparator= nullptr) override;
 };
 
 
@@ -995,6 +1005,8 @@ public:
                       table_map usable_tables, SARGABLE_PARAM **sargables) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_ne>(thd, this); }
+  virtual bool selectivity_estimate(double *selectivity, uint group_size= 1,
+                                    Item_literal *comparator= nullptr) override;
 };
 
 
@@ -3677,6 +3689,8 @@ public:
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cond_and>(thd, this); }
+  virtual bool selectivity_estimate(double *selectivity, uint group_size= 1,
+                                    Item_literal *comparator= nullptr) override;
 };
 
 inline bool is_cond_and(Item *item)
@@ -3705,6 +3719,8 @@ public:
   Item *neg_transformer(THD *thd) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cond_or>(thd, this); }
+  virtual bool selectivity_estimate(double *selectivity, uint group_size= 1,
+                                    Item_literal *comparator= nullptr) override;
 };
 
 class Item_func_dyncol_check :public Item_bool_func
