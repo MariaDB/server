@@ -2048,4 +2048,7 @@ extern String null_string;
 /* do not check if we are going check less then this number of records */
 #define SELECTIVITY_SAMPLING_THRESHOLD 10
 
+#define DEFAULT_HAVING_SELECTIVITY 0.5
+#define DEFAULT_LIKE_SELECTIVITY 0.5
+
 #endif

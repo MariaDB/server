@@ -8040,3 +8040,293 @@ Item *Item_equal::multiple_equality_transformer(THD *thd, uchar *arg)
   }
 }
 
+
+/*
+  Check for a FIELD_ITEM and a CONST_ITEM as our arguments
+*/
+
+bool const_and_field(Item *arg1, Item *arg2, Item **const_item,
+                      Item **variable_item, bool *swapped)
+{
+  *const_item= nullptr;
+  *variable_item= nullptr;
+  *swapped= FALSE;
+
+  if (arg1->type() == Item::CONST_ITEM)
+  {
+    *const_item= (Item_literal*)arg1;
+    *swapped= TRUE;
+    if (arg2->type() == Item::FIELD_ITEM)
+      *variable_item= arg2;
+    if (const_item && variable_item)
+      return TRUE;
+  }
+
+  if (arg2->type() == Item::CONST_ITEM)
+  {
+    *const_item= (Item_literal*)arg2;
+    *swapped= FALSE;
+    if (arg1->type() == Item::FIELD_ITEM)
+      *variable_item= arg1;
+    if (*const_item && *variable_item)
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
+
+/*
+  Check for a REF_ITEM and a CONST_ITEM as our arguments
+*/
+
+bool const_and_ref(Item *arg1, Item *arg2, Item **const_item,
+                      Item **variable_item, bool *swapped)
+{
+  *const_item= nullptr;
+  *variable_item= nullptr;
+  *swapped= FALSE;
+
+  if (arg1->type() == Item::CONST_ITEM)
+  {
+    *const_item= (Item_literal*)arg1;
+    *swapped= TRUE;
+    if (arg2->type() == Item::REF_ITEM)
+      *variable_item= arg2;
+    if (const_item && variable_item)
+      return TRUE;
+  }
+
+  if (arg2->type() == Item::CONST_ITEM)
+  {
+    *const_item= (Item_literal*)arg2;
+    *swapped= FALSE;
+    if (arg1->type() == Item::REF_ITEM)
+      *variable_item= arg1;
+    if (*const_item && *variable_item)
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
+
+bool Item_func_gt::selectivity_estimate(double *selectivity,
+                                        TABLE *table,
+                                        uint group_size,
+                                        Item_literal *comparator)
+{
+  Item *const_item, *variable_item;
+  bool swapped;
+
+  if (const_and_ref(args[0], args[1], &const_item, &variable_item, &swapped))
+  {
+    Expected_distribution dist;
+
+    if (variable_item->get_distribution(&dist, group_size))
+    {
+      *selectivity= swapped ? dist.get_selectivity_lt(group_size,
+                                                     (Item_literal*)const_item):
+                              dist.get_selectivity_gt(group_size,
+                                                     (Item_literal*)const_item);
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
+bool Item_func_lt::selectivity_estimate(double *selectivity,
+                                        TABLE *table,
+                                        uint group_size,
+                                        Item_literal *comparator)
+{
+  Item *const_item, *variable_item;
+  bool swapped;
+
+  if (const_and_ref(args[0], args[1], &const_item, &variable_item, &swapped))
+  {
+    Expected_distribution dist;
+
+    if (variable_item->get_distribution(&dist, group_size))
+    {
+      *selectivity= swapped ? dist.get_selectivity_gt(group_size,
+                                                    (Item_literal*)const_item):
+                              dist.get_selectivity_lt(group_size,
+                                                    (Item_literal*)const_item);
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
+bool Item_func_ge::selectivity_estimate(double *selectivity,
+                                        TABLE *table,
+                                        uint group_size,
+                                        Item_literal *comparator)
+{
+  Item *const_item, *variable_item;
+  bool swapped;
+
+  if (const_and_ref(args[0], args[1], &const_item, &variable_item, &swapped))
+  {
+    Expected_distribution dist;
+
+    if (variable_item->get_distribution(&dist, group_size))
+    {
+      *selectivity= swapped ? dist.get_selectivity_le(group_size,
+                                                    (Item_literal*) const_item):
+                              dist.get_selectivity_ge(group_size,
+                                                    (Item_literal*) const_item);
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
+bool Item_func_le::selectivity_estimate(double *selectivity,
+                                        TABLE *table,
+                                        uint group_size,
+                                        Item_literal *comparator)
+{
+  Item *const_item, *variable_item;
+  bool swapped;
+
+  if (const_and_ref(args[0], args[1], &const_item, &variable_item, &swapped))
+  {
+    Expected_distribution dist;
+
+    if (variable_item->get_distribution(&dist, group_size))
+    {
+      *selectivity= swapped ? dist.get_selectivity_ge(group_size,
+                                                    (Item_literal*) const_item):
+                              dist.get_selectivity_le(group_size,
+                                                    (Item_literal*) const_item);
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
+bool Item_func_eq::selectivity_estimate(double *selectivity,
+                                        TABLE *table,
+                                        uint group_size,
+                                        Item_literal *comparator)
+{
+  Item *const_item, *variable_item;
+  bool swapped;
+
+  if (const_and_ref(args[0], args[1], &const_item, &variable_item, &swapped))
+  {
+    Expected_distribution dist;
+
+    if (variable_item->get_distribution( &dist, group_size ))
+    {
+      *selectivity= dist.get_selectivity_eq(group_size,
+                                            (Item_literal*) const_item);
+      if (swapped)
+        *selectivity= (1-*selectivity);
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
+bool Item_func_ne::selectivity_estimate(double *selectivity,
+                                        TABLE *table,
+                                        uint group_size,
+                                        Item_literal *comparator)
+{
+  Item *const_item, *variable_item;
+  bool swapped;
+
+  if (const_and_ref(args[0], args[1], &const_item, &variable_item, &swapped))
+  {
+    Expected_distribution dist;
+
+    if (variable_item->get_distribution( &dist, group_size ))
+    {
+      *selectivity= dist.get_selectivity_ne(group_size,
+                                            (Item_literal*) const_item);
+      if (swapped)
+        *selectivity= (1-*selectivity);
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
+bool Item_cond_and::selectivity_estimate(double *selectivity,
+                                         TABLE *table,
+                                         uint group_size,
+                                         Item_literal *comparator)
+{
+  double local_selectivity= 1;
+
+  *selectivity= 1;
+  List_iterator<Item> li(list);
+  Item *item;
+  while ((item= li++))
+  {
+#if 0
+    if (!item->selectivity_estimate(&local_selectivity, table, group_size, comparator))
+      return FALSE;
+#else
+    local_selectivity= 1;
+    item->selectivity_estimate(&local_selectivity, table, group_size, comparator);
+#endif
+    *selectivity*= local_selectivity;
+  }
+  return TRUE;
+}
+
+
+bool Item_cond_or::selectivity_estimate(double *selectivity,
+                                        TABLE *table,
+                                        uint group_size,
+                                        Item_literal *comparator)
+{
+  double local_selectivity= 1;
+
+  *selectivity= 0;
+  List_iterator<Item> li(list);
+  Item *item;
+  while ((item= li++))
+  {
+#if 0
+    if (!item->selectivity_estimate(&local_selectivity, table, group_size, comparator))
+      return FALSE;
+#else
+    local_selectivity= 1;
+    item->selectivity_estimate(&local_selectivity, table, group_size, comparator);
+#endif
+    *selectivity+= local_selectivity;
+    if (*selectivity > 1)
+      *selectivity= 1;
+  }
+  return TRUE;
+}
+
+
+bool Item_func_like::selectivity_estimate(double *selectivity,
+                                          TABLE *table,
+                                          uint group_size,
+                                          Item_literal *comparator)
+{
+  Item *const_item, *variable_item;
+  bool swapped;
+
+  if (const_and_field(args[0], args[1], &const_item, &variable_item, &swapped))
+  {
+    Item_field *field= (Item_field*)variable_item;
+    if (field->field->table == table)
+      *selectivity= DEFAULT_LIKE_SELECTIVITY;
+  }
+ 
+  return TRUE;
+}

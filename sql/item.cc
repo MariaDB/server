@@ -2298,6 +2298,10 @@ public:
       Item_ident::print(str, query_type);
   }
   Ref_Type ref_type() override final { return AGGREGATE_REF; }
+  bool get_distribution(Expected_distribution *dist, uint group_size) override
+  {
+    return (*ref)->get_distribution(dist, group_size);
+  }
 };
 
 

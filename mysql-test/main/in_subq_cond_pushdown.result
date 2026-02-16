@@ -3135,7 +3135,7 @@ GROUP BY v2.e
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	6	Using where; Using temporary
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.c>3 AND
@@ -3191,7 +3191,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 12,
+                        "rows": 6,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "v2.e < 5",
@@ -3272,7 +3272,7 @@ GROUP BY v2.e
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	6	Using where; Using temporary
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.a>1 AND
@@ -3327,7 +3327,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 12,
+                        "rows": 6,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "v2.e < 5 and v2.e > 1",
@@ -3409,7 +3409,7 @@ GROUP BY v2.e
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	6	Using where; Using temporary
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.a>1 AND t1.c<100 AND
@@ -3465,7 +3465,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 12,
+                        "rows": 6,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "v2.e < 5 and v2.e > 1",
@@ -3564,7 +3564,7 @@ GROUP BY d_tab.e
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	6	Using where; Using temporary
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.a>1 AND
@@ -3625,7 +3625,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 12,
+                        "rows": 6,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "d_tab.e < 5 and d_tab.e > 1",
@@ -3742,7 +3742,7 @@ GROUP BY d_tab.e
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	6	Using where; Using temporary
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.a>1 AND
@@ -3803,7 +3803,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 12,
+                        "rows": 6,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "d_tab.e < 5 and d_tab.e > 1",
@@ -3921,7 +3921,7 @@ GROUP BY d_tab.e
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	6	Using where; Using temporary
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.a>1 AND
@@ -3982,7 +3982,7 @@ EXPLAIN
                         "table_name": "<derived3>",
                         "access_type": "ALL",
                         "loops": 1,
-                        "rows": 12,
+                        "rows": 6,
                         "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "d_tab.e < 5 and d_tab.e > 1",

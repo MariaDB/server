@@ -6193,6 +6193,17 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
       /* This will be updated in calculate_cond_selectivity_for_table() */
       s->table->set_cond_selectivity(1.0);
+      Item **sargable_cond= get_sargable_cond(join, s->table);
+#if 1
+      /*
+        this is a hack for the purposes of evaluating whether we can get away
+        with a simple selectivity estimate for Item_func_like (field, const)
+        instead of using optimizer_use_condition_selectivity
+      */
+      if (sargable_cond && *sargable_cond && s->table)
+        (*sargable_cond)->selectivity_estimate(&s->table->cond_selectivity,
+                                               s->table);
+#endif
       DBUG_ASSERT(s->table->used_stat_records == 0 ||
                   s->table->cond_selectivity <=
                   s->table->opt_range_condition_rows /
@@ -6217,7 +6228,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         bool impossible_range= FALSE;
         ha_rows records= HA_ROWS_MAX;
         SQL_SELECT *select= 0;
-        Item **sargable_cond= NULL;
+        sargable_cond= NULL;
         if (!s->const_keys.is_clear_all())
         {
           sargable_cond= get_sargable_cond(join, s->table);
