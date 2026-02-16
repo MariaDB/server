@@ -1816,3 +1816,14 @@ count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+#
+#  MDEV-38832 Assertion `!commit_lsn' failed in void trx_t::free()
+#
+CREATE DATABASE test_1;
+SET STATEMENT max_session_mem_used=8192 FOR
+CREATE TABLE test_1.t (a INT,b VECTOR (5) NOT NULL,
+VECTOR INDEX (b)) ENGINE=INNODB;
+ERROR HY000: Engine InnoDB failed to discover table `test_1`.`t` with 'CREATE TABLE i (                     layer tinyint not null,            tref varbinary(6),                vec blob not null,                 neighbors blob not null,           unique (tref),                     key (layer))                     '
+# Print the files exist in test_1 directory
+db.opt
+DROP DATABASE test_1;
