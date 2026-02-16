@@ -21555,6 +21555,25 @@ innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
           clust_index->n_core_fields,
           ULINT_UNDEFINED, &node->heap);
 
+  uint rec_length= maria_table->s->rec_buff_length;
+  uint rec_count= (is_delete ? 1 : 2);
+  uchar *saved_record{};
+  if (maria_table->used_in_cascade)
+  {
+    saved_record= new (std::align_val_t(ALIGN_MAX_UNIT))
+                      uchar[rec_length * rec_count];
+
+    ut_ad(maria_table->record[0] + rec_length == maria_table->record[1]);
+
+    MEM_MAKE_ADDRESSABLE(maria_table->record[0], rec_length*rec_count);
+    memcpy(saved_record, maria_table->record[0], rec_length * rec_count);
+    for (uint i= 0; i < rec_count; i++)
+      MEM_NOACCESS(maria_table->record[i] + maria_table->s->reclength,
+                   maria_table->s->rec_buff_length - maria_table->s->reclength);
+  }
+
+  maria_table->used_in_cascade= true;
+
   uint old_rec_idx= is_delete ? 0 : 1;
   row_sel_store_mysql_rec(maria_table->record[old_rec_idx], prebuilt, rec, NULL,
                           true, clust_index, offsets);
@@ -21594,6 +21613,8 @@ innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
                                        upd_offsets);
   }
 
+  node->row= nullptr; // keep the heap allocated.
+
   if (handler->update_prebuilt_upd_buf())
     return DB_OUT_OF_MEMORY;
 
@@ -21619,5 +21640,18 @@ innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
   tl->trg_event_map = old_trg_ops;
   prebuilt->upd_node= upd_node;
   prebuilt->upd_graph= upd_graph;
+
+  if (saved_record)
+  {
+    MEM_MAKE_ADDRESSABLE(maria_table->record[0], rec_length*rec_count);
+    memcpy(maria_table->record[0], saved_record, rec_length*rec_count);
+    for (uint i= 0; i < rec_count; i++)
+      MEM_NOACCESS(maria_table->record[i] + maria_table->s->reclength,
+                   maria_table->s->rec_buff_length - maria_table->s->reclength);
+    ::operator delete[](saved_record, std::align_val_t(ALIGN_MAX_UNIT));
+  }
+  else
+    maria_table->used_in_cascade= false;
+
   return convert_sql_error_to_dberr(maria_table->in_use, thr, err);
 }

@@ -461,4 +461,26 @@ id	pid
 14	13
 drop table t1;
 drop table t2;
+# Cascade deletes don't overwrite nested records.
+create table t1 (x int, y int, id int unique auto_increment,
+key(x), primary key(y),
+foreign key (x) references t1(y)
+on delete cascade) engine=innodb;
+insert t1(x, y) values (4,4), (4, 3), (3, 2), (2, 1), (1, 0);
+create table log (data int);
+create trigger tr after delete on t1
+for each row insert log values (old.id);
+delete from t1 where y = 4;
+select * from t1;
+x	y	id
+select * from log;
+data
+5
+4
+3
+2
+1
+drop trigger tr;
+drop table log;
+drop table t1;
 call mtr.add_suppression("InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15\\.");
