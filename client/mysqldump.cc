@@ -609,7 +609,7 @@ static struct my_option my_long_options[] =
    NO_ARG, 1, 0, 0, 0, 0, 0},
   {"sys_triggers", 0, "Dump system triggers.",
     &opt_dump_sys_triggers, &opt_dump_sys_triggers, 0, GET_BOOL,
-    NO_ARG, 1, 0, 0, 0, 0, 0},
+    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"tz-utc", 0,
    "Set connection time zone to UTC before commencing the dump and add "
    "SET TIME_ZONE=´+00:00´ to the top of the dump file.",
