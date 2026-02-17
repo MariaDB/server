@@ -13432,7 +13432,7 @@ bool check_grant(THD *, privilege_t, TABLE_LIST *, bool, uint, bool)
 { return 0; }
 inline access_t public_access()
 { return NO_ACL; }
-privilege_t get_column_grant(THD *, GRANT_INFO *, const char *, const char *,
+access_t get_column_grant(THD *, GRANT_INFO *, const char *, const char *,
                              const Lex_ident_column &)
 { return ALL_KNOWN_ACL; }
 int acl_check_setrole(THD *, const LEX_CSTRING &, access_t *) { return 0; }

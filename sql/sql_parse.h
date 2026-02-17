@@ -174,7 +174,7 @@ inline bool check_routine_access(THD *thd, privilege_t want_access,
 { return false; }
 inline bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table)
 {
-  table->grant.privilege= want_access;
+  table->grant.privilege= access_t(want_access);
   return false;
 }
 inline bool check_some_routine_access(THD *thd, const char *db,

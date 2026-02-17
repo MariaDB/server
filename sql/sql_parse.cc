@@ -6623,7 +6623,7 @@ check_access(THD *thd, privilege_t want_access,
 {
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
   if (save_priv)
-    *save_priv= GLOBAL_ACLS;
+    *save_priv= access_t(GLOBAL_ACLS);
   return false;
 #else
   Security_context *sctx= thd->security_ctx;
