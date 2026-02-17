@@ -10036,3 +10036,7 @@ ER_REMOVED_ORPHAN_TRIGGER
 ER_STORAGE_ENGINE_DISABLED
         eng "Storage engine %s is disabled"
         spa "El motor de almacenaje %s está desactivado"
+ER_CANT_SET_SERVER_ID_IN_TRANSACTION
+        eng "Cannot set @@session.server_id within a transaction"
+ER_CANT_SET_SERVER_ID_IN_SUBSTATEMENT
+        eng "Cannot set @@session.server_id within a trigger or stored program"

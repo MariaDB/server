@@ -9,36 +9,31 @@ CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 --echo #
 --echo # Test that SET @@session.server_id fails inside explicit transaction
 --echo #
-
 BEGIN;
 INSERT INTO t1 VALUES (1);
---error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+--error ER_CANT_SET_SERVER_ID_IN_TRANSACTION
 SET @@session.server_id = 100;
 ROLLBACK;
 
 --echo #
 --echo # Test that SET @@session.server_id works outside transaction
 --echo #
-
 SET @@session.server_id = 100;
 SELECT @@session.server_id;
 
 --echo #
 --echo # Test that SET @@session.server_id fails with autocommit=0
 --echo #
-
 SET autocommit = 0;
 INSERT INTO t1 VALUES (2);
---error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+--error ER_CANT_SET_SERVER_ID_IN_TRANSACTION
 SET @@session.server_id = 200;
 ROLLBACK;
-
 SET autocommit = 1;
 
 --echo #
 --echo # Test that SET @@session.server_id works after COMMIT
 --echo #
-
 BEGIN;
 INSERT INTO t1 VALUES (3);
 COMMIT;
@@ -46,6 +41,54 @@ SET @@session.server_id = 300;
 SELECT @@session.server_id;
 
 --echo #
+--echo # Test that SET @@session.server_id fails inside a trigger
+--echo #
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+CREATE TRIGGER tr1 BEFORE INSERT ON t2 FOR EACH ROW
+    SET @@session.server_id = 100;
+--error ER_CANT_SET_SERVER_ID_IN_SUBSTATEMENT
+INSERT INTO t2 VALUES (1);
+DROP TRIGGER tr1;
+DROP TABLE t2;
+
+--echo #
+--echo # Test that SET @@session.server_id fails inside a stored procedure
+--echo # called within a transaction
+--echo #
+--delimiter //
+
+CREATE PROCEDURE sp1()
+BEGIN
+  SET @@session.server_id = 100;
+END//
+
+--delimiter ;
+
+BEGIN;
+--error ER_CANT_SET_SERVER_ID_IN_TRANSACTION
+CALL sp1();
+ROLLBACK;
+DROP PROCEDURE sp1;
+
+--echo #
+--echo # Test that SET @@session.server_id fails inside a stored procedure
+--echo # that starts its own transaction
+--echo #
+--delimiter //
+CREATE PROCEDURE sp2()
+BEGIN
+  START TRANSACTION;
+  INSERT INTO t1 VALUES (1);
+  SET @@session.server_id = 100;
+  COMMIT;
+END//
+--delimiter ;
+--error ER_CANT_SET_SERVER_ID_IN_TRANSACTION
+CALL sp2();
+DROP PROCEDURE sp2;
+
+--echo #
 --echo # Cleanup
 --echo #
 DROP TABLE t1;
+
