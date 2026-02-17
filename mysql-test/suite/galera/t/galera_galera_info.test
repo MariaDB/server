@@ -1,0 +1,27 @@
+--source include/galera_cluster.inc
+--source include/have_sequence.inc
+
+--connection node_1
+CREATE TABLE t1(id int not null primary key auto_increment, b int) ENGINE=InnoDB;
+INSERT INTO t1(b) SELECT * from seq_1_to_100;
+INSERT INTO t1(b) SELECT * from seq_1_to_100;
+INSERT INTO t1(b) SELECT * from seq_1_to_100;
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+--echo # Execute mysqldump using new galera-info parameter
+--exec $MYSQL_DUMP -u root -S $NODE_MYSOCK_1 -P $NODE_MYPORT_1 --add-drop-database --add-drop-table --skip-add-locks --create-options --disable-keys --extended-insert --skip-lock-tables --quick --set-charset --skip-comments --flush-privileges --all-databases --events --galera-info > $MYSQLTEST_VARDIR/tmp/mysqldump.log
+
+--echo # Confirm that desired output is done
+--let $assert_text = wsrep_start_position
+--let $assert_select = wsrep_start_position
+--let $assert_count = 1
+--let $assert_file = $MYSQLTEST_VARDIR/tmp/mysqldump.log
+--source include/assert_grep.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqldump.log
+
+--connection node_1
+DROP TABLE t1;
+--disconnect node_1a
+--source include/galera_end.inc
