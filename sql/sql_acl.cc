@@ -3957,11 +3957,11 @@ static int check_user_can_set_role(THD *thd,
   }
 
   if (access)
-    *access = acl_user->access.combine(role->access);
+    *access = acl_user->access.merge_with_role(role->access);
 
 end:
   if (acl_public && access)
-    *access|= acl_public->access;
+    *access = access->merge_with_role(acl_public->access);
 
   mysql_mutex_unlock(&acl_cache->lock);
 
@@ -9585,7 +9585,7 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     if (any_combination_will_do)
       continue;
 
-    t_ref->grant.privilege|= t_ref->grant.aggregate_privs();
+    t_ref->grant.privilege= t_ref->grant.aggregate_privs().combine_with_parent(t_ref->grant.privilege);
     t_ref->grant.want_privilege= ((want_access & COL_ACLS) & ~t_ref->grant.privilege);
 
     if (!(~t_ref->grant.privilege & want_access))
@@ -9637,9 +9637,19 @@ static void check_grant_column_int(GRANT_TABLE *grant_table,
 
 inline access_t GRANT_INFO::aggregate_privs()
 {
-  return (grant_table_user ? grant_table_user->privs : access_t(NO_ACL)) |
-         (grant_table_role ? grant_table_role->privs : access_t(NO_ACL)) |
-         (grant_public ? grant_public->privs : access_t(NO_ACL));
+  // Start with user's privileges
+  access_t result=
+      grant_table_user ? grant_table_user->privs : access_t(NO_ACL);
+
+  // Merge with role privileges (horizontal merge at same level)
+  if (grant_table_role)
+    result= result.merge_with_role(grant_table_role->privs);
+
+  // Merge with PUBLIC privileges (horizontal merge at same level)
+  if (grant_public)
+    result= result.merge_with_role(grant_public->privs);
+
+  return result;
 }
 
 inline privilege_t GRANT_INFO::aggregate_cols()
@@ -13447,7 +13457,7 @@ static int set_privs_on_login(THD *thd, const ACL_USER *acl_user)
   if (acl_user->host.hostname)
     strmake_buf(sctx->priv_host, acl_user->host.hostname);
 
-  sctx->master_access= acl_user->access.combine(public_access());
+  sctx->master_access= acl_user->access.merge_with_role(public_access());
 
   if (acl_user->default_rolename.length)
   {

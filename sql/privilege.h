@@ -714,12 +714,41 @@ public:
                     (privilege_t) (m_deny_bits | other.m_deny_bits),
                     (privilege_t) (m_deny_subtree | other.m_deny_subtree));
   }
-  access_t combine(const access_t &other) const
+
+  /**
+    Combine child-level access with parent-level access (vertical hierarchy).
+    Used for: global -> database -> table -> column traversal
+
+    Rules:
+    - Inherit parent's allows, add child's allows, remove what child denies
+    - Denies accumulate (once denied, always denied)
+    - Use child's deny_subtree (we're going down that branch)
+  */
+  access_t combine_with_parent(const access_t &parent) const
   {
-    access_t ret= *this;
-    ret|= other;
-    return ret;
+    return access_t((privilege_t) ((m_allow_bits | parent.m_allow_bits) &
+                                   ~m_deny_bits),
+                    (privilege_t) (m_deny_bits | parent.m_deny_bits),
+                    m_deny_subtree);
   }
+
+  /**
+    Merge with access from a role/PUBLIC at the SAME level (horizontal).
+    Used for: user + PUBLIC + role1 + role2 merging at same level
+
+    Rules:
+    - Union of grants (granted by either user or role)
+    - Union of denies (denied by either user or role)
+    - Union of subtree denies (denies in either subtree)
+  */
+  access_t merge_with_role(const access_t &role_access) const
+  {
+    return access_t(
+        (privilege_t) (m_allow_bits | role_access.m_allow_bits),
+        (privilege_t) (m_deny_bits | role_access.m_deny_bits),
+        (privilege_t) (m_deny_subtree | role_access.m_deny_subtree));
+  }
+
   friend bool operator==(const access_t &x, const access_t &y)
   {
     return x.m_allow_bits == y.m_allow_bits &&
@@ -792,6 +821,25 @@ public:
   privilege_t is_denied(privilege_t priv) const
   {
     return (privilege_t) (m_deny_bits & priv);
+  }
+  /**
+   Check if privilege is explicitly denied at THIS level (deny_bits only).
+   Ignores deny_subtree - only checks explicit denies at this level.
+ */
+  bool is_explicitly_denied(privilege_t want_access) const
+  {
+    return (m_deny_bits & want_access) != NO_ACL;
+  }
+
+  /**
+    Check if fully satisfied with no denies below.
+    Safe for early return: has all allows, no denies here or below.
+  */
+  bool fully_satisfies(privilege_t want_access) const
+  {
+    return ((m_allow_bits & want_access) == want_access) &&
+           ((m_deny_bits & want_access) == NO_ACL) &&
+           ((m_deny_subtree & want_access) == NO_ACL);
   }
 
   privilege_t allow_bits() const { return m_allow_bits; }

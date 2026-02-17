@@ -1,0 +1,147 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # Test DENY privilege hierarchy: GLOBAL > DB > TABLE > COLUMN
+--echo #
+
+CREATE DATABASE testdb;
+USE testdb;
+CREATE TABLE t1 (id INT, name VARCHAR(50), salary INT);
+
+CREATE USER 'u1'@'localhost';
+
+--echo #
+--echo # Test 1: DB-level DENY blocks TABLE-level GRANT
+--echo #
+DENY SELECT ON testdb.* TO 'u1'@'localhost';
+GRANT SELECT ON testdb.t1 TO 'u1'@'localhost';
+
+connect (con1, localhost, u1,,);
+--error ER_DBACCESS_DENIED_ERROR
+SELECT * FROM testdb.t1;
+connection default;
+disconnect con1;
+
+REVOKE DENY SELECT ON testdb.* FROM 'u1'@'localhost';
+REVOKE SELECT ON testdb.t1 FROM 'u1'@'localhost';
+
+--echo #
+--echo # Test 2: GLOBAL DENY blocks DB and TABLE grants
+--echo #
+DENY UPDATE ON *.* TO 'u1'@'localhost';
+GRANT UPDATE ON testdb.* TO 'u1'@'localhost';
+GRANT UPDATE ON testdb.t1 TO 'u1'@'localhost';
+
+connect (con1, localhost, u1,,);
+--error ER_DBACCESS_DENIED_ERROR
+UPDATE testdb.t1 SET name='test' WHERE id=1;
+connection default;
+disconnect con1;
+
+REVOKE DENY UPDATE ON *.* FROM 'u1'@'localhost';
+REVOKE UPDATE ON testdb.* FROM 'u1'@'localhost';
+REVOKE UPDATE ON testdb.t1 FROM 'u1'@'localhost';
+
+--echo #
+--echo # Test 3: TABLE DENY blocks COLUMN grants
+--echo #
+DENY SELECT ON testdb.t1 TO 'u1'@'localhost';
+GRANT SELECT (name) ON testdb.t1 TO 'u1'@'localhost';
+
+connect (con1, localhost, u1,,);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT name FROM testdb.t1;
+connection default;
+disconnect con1;
+
+REVOKE DENY SELECT ON testdb.t1 FROM 'u1'@'localhost';
+REVOKE SELECT (name) ON testdb.t1 FROM 'u1'@'localhost';
+
+--echo #
+--echo # Test 4: Multiple DENY levels cumulative
+--echo #
+DENY SELECT ON *.* TO 'u1'@'localhost';
+DENY INSERT ON testdb.* TO 'u1'@'localhost';
+DENY UPDATE ON testdb.t1 TO 'u1'@'localhost';
+GRANT ALL PRIVILEGES ON testdb.t1 TO 'u1'@'localhost';
+
+connect (con1, localhost, u1,,);
+--error ER_DBACCESS_DENIED_ERROR
+SELECT * FROM testdb.t1;
+--error ER_DBACCESS_DENIED_ERROR
+INSERT INTO testdb.t1 VALUES (1, 'test', 1000);
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE testdb.t1 SET name='test';
+DELETE FROM testdb.t1 WHERE id=999; # Should work
+connection default;
+disconnect con1;
+
+REVOKE DENY SELECT ON *.* FROM 'u1'@'localhost';
+REVOKE DENY INSERT ON testdb.* FROM 'u1'@'localhost';
+REVOKE DENY UPDATE ON testdb.t1 FROM 'u1'@'localhost';
+REVOKE ALL PRIVILEGES ON testdb.t1 FROM 'u1'@'localhost';
+
+--echo #
+--echo # Test 5: REVOKE DENY restores access
+--echo #
+DENY SELECT ON testdb.* TO 'u1'@'localhost';
+GRANT SELECT ON testdb.t1 TO 'u1'@'localhost';
+
+connect (con1, localhost, u1,,);
+--error ER_DBACCESS_DENIED_ERROR
+SELECT * FROM testdb.t1;
+connection default;
+disconnect con1;
+
+REVOKE DENY SELECT ON testdb.* FROM 'u1'@'localhost';
+
+connect (con1, localhost, u1,,);
+SELECT * FROM testdb.t1; # Now works
+connection default;
+disconnect con1;
+
+REVOKE SELECT ON testdb.t1 FROM 'u1'@'localhost';
+
+--echo #
+--echo # Test 6: Cache invalidation on DENY change
+--echo #
+GRANT SELECT ON testdb.* TO 'u1'@'localhost';
+
+connect (con1, localhost, u1,,);
+SELECT * FROM testdb.t1; # Works
+connection default;
+
+DENY SELECT ON testdb.t1 TO 'u1'@'localhost';
+
+connection con1;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM testdb.t1; # Now fails (cache cleared)
+connection default;
+disconnect con1;
+
+REVOKE SELECT ON testdb.* FROM 'u1'@'localhost';
+REVOKE DENY SELECT ON testdb.t1 FROM 'u1'@'localhost';
+
+--echo #
+--echo # Test 7: DENY on one table, GRANT on another
+--echo #
+CREATE TABLE t2 (dept_id INT);
+DENY SELECT ON testdb.t1 TO 'u1'@'localhost';
+GRANT SELECT ON testdb.t2 TO 'u1'@'localhost';
+
+connect (con1, localhost, u1,,);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM testdb.t1;
+SELECT * FROM testdb.t2; # Works
+connection default;
+disconnect con1;
+
+REVOKE DENY SELECT ON testdb.t1 FROM 'u1'@'localhost';
+REVOKE SELECT ON testdb.t2 FROM 'u1'@'localhost';
+
+--echo #
+--echo # Cleanup
+--echo #
+DROP USER 'u1'@'localhost';
+DROP TABLE t1, t2;
+DROP DATABASE testdb;
