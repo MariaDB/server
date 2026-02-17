@@ -1,5 +1,5 @@
 /* Copyright (c) 2008, 2025, Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, 2025, MariaDB
+   Copyright (c) 2020, 2026, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4174,4 +4174,27 @@ void wsrep_report_query_interrupted(const THD *thd, const char *file, const int 
                         wsrep::provider::to_string(status).c_str(),
                         thd->killed);
   }
+}
+
+const std::string wsrep_get_server_uuid()
+{
+  std::string server_uuid;
+  const wsrep::gtid& gtid= Wsrep_server_state::instance().provider().last_committed_gtid();
+  std::ostringstream uuid_oss;
+  uuid_oss <<  gtid.id();
+  server_uuid= uuid_oss.str();
+  return server_uuid;
+}
+
+const std::string wsrep_get_checkpoint()
+{
+  const Wsrep_server_state& server_state= Wsrep_server_state::instance();
+  const wsrep::gtid& gtid= server_state.provider().last_committed_gtid();
+  std::ostringstream gtid_oss;
+  gtid_oss << gtid;
+
+  // Build checkpoint using wsrep_start_posistion format
+  std::string wsrep_checkpoint= gtid_oss.str();
+
+  return wsrep_checkpoint;
 }

@@ -57,6 +57,8 @@ wsrep_evs_repl_latency	#
 wsrep_evs_state	#
 wsrep_gcomm_uuid	#
 wsrep_gmcast_segment	#
+wsrep_checkpoint_position	#
+wsrep_se_checkpoint	#
 wsrep_applier_thread_count	#
 wsrep_cluster_capabilities	#
 wsrep_cluster_conf_id	#
