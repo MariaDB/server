@@ -3099,7 +3099,7 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
   /*
     No isolation for applier or replaying threads.
    */
-  if (!wsrep_thd_is_local(thd))
+  if (!(WSREP_NNULL(thd) && wsrep_thd_is_local(thd)))
   {
     if (wsrep_OSU_method_get(thd) == WSREP_OSU_TOI)
       WSREP_DEBUG("%s TOI Begin: %s",
@@ -3128,7 +3128,7 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
   }
   mysql_mutex_unlock(&thd->LOCK_thd_data);
 
-  DBUG_ASSERT(wsrep_thd_is_local(thd));
+
   DBUG_ASSERT(thd->wsrep_trx().ws_meta().seqno().is_undefined());
 
   if (Wsrep_server_state::instance().desynced_on_pause())
@@ -3170,7 +3170,7 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
     thd->variables.auto_increment_increment= 1;
   }
 
-  if (thd->variables.wsrep_on && wsrep_thd_is_local(thd))
+  if (WSREP_NNULL(thd) && wsrep_thd_is_local(thd))
   {
     switch (wsrep_OSU_method_get(thd)) {
     case WSREP_OSU_TOI:
@@ -4074,7 +4074,7 @@ void wsrep_commit_empty(THD* thd, bool all)
   DBUG_ENTER("wsrep_commit_empty");
 
   if (wsrep_is_real(thd, all) &&
-      wsrep_thd_is_local(thd) &&
+      WSREP_NNULL(thd) && wsrep_thd_is_local(thd) &&
       thd->wsrep_trx().active() &&
       !thd->internal_transaction() &&
       thd->wsrep_trx().state() != wsrep::transaction::s_committed)

@@ -125,7 +125,7 @@ bool trans_begin(THD *thd, uint flags)
     if (was_in_trans)
       trans_reset_one_shot_chistics(thd);
 #ifdef WITH_WSREP
-    if (wsrep_thd_is_local(thd))
+    if (WSREP_NNULL(thd) && wsrep_thd_is_local(thd))
     {
       res= res || wsrep_after_statement(thd);
     }
@@ -192,7 +192,7 @@ bool trans_begin(THD *thd, uint flags)
   }
 
 #ifdef WITH_WSREP
-  if (WSREP(thd) && wsrep_thd_is_local(thd))
+  if (WSREP_NNULL(thd) && wsrep_thd_is_local(thd))
   {
     if (wsrep_sync_wait(thd))
       DBUG_RETURN(TRUE);
