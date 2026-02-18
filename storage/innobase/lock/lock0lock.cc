@@ -1580,7 +1580,8 @@ TRANSACTIONAL_TARGET
 static void lock_rec_add_to_queue(unsigned type_mode, const hash_cell_t &cell,
                                   const page_id_t id, const page_t *page,
                                   ulint heap_no, dict_index_t *index,
-                                  trx_t *trx, bool caller_owns_trx_mutex)
+                                  trx_t *trx, bool caller_owns_trx_mutex,
+                                  bool report_waits= false)
 {
 	ut_d(lock_sys.hash_get(type_mode).assert_locked(id));
 	ut_ad(xtest() || caller_owns_trx_mutex == trx->mutex_is_owner());
@@ -1637,15 +1638,27 @@ static void lock_rec_add_to_queue(unsigned type_mode, const hash_cell_t &cell,
 	if (type_mode & LOCK_WAIT) {
 		goto create;
 	} else if (lock_t *first_lock = lock_sys_t::get_first(cell, id)) {
+		bool do_create= false;
 		for (lock_t* lock = first_lock;;) {
 			if (lock->is_waiting()
 			    && lock_rec_get_nth_bit(lock, heap_no)) {
-				goto create;
+#ifdef HAVE_REPLICATION
+				if (report_waits)
+				{
+					do_create= true;
+					thd_rpl_deadlock_check(lock->trx->mysql_thd,
+							       trx->mysql_thd);
+				}
+				else
+#endif
+					goto create;
 			}
 			if (!(lock = lock_rec_get_next_on_page(lock))) {
 				break;
 			}
 		}
+		if (do_create)
+			goto create;
 
 		/* Look for a similar record lock on the same page:
 		if one is found and there are no waiting lock requests,
@@ -1821,7 +1834,7 @@ lock_rec_lock(
         {
           /* Set the requested lock on the record. */
           lock_rec_add_to_queue(mode, g.cell(), id, block->page.frame, heap_no,
-                                index, trx, true);
+                                index, trx, true, true);
           err= DB_SUCCESS_LOCKED_REC;
         }
       }
