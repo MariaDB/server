@@ -4321,6 +4321,7 @@ class Item_param final :public Item_basic_value,
   };
 
   bool m_empty_string_is_null;
+  bool m_preserve_for_next_execute;
 
   class PValue_simple
   {
@@ -4699,6 +4700,11 @@ public:
     return false;
   }
   bool assign_default(Field *field);
+
+  void set_preserve_for_next_execute(bool value)
+  {
+    m_preserve_for_next_execute= value;
+  }
 
 private:
   Send_field *m_out_param_info;

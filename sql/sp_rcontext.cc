@@ -883,7 +883,8 @@ int sp_cursor::fetch(THD *thd, List<sp_fetch_target> *vars,
                MYF(0));
     return -1;
   }
-  if (vars->elements != result.get_field_count() &&
+  if (vars->elements &&
+      vars->elements != result.get_field_count() &&
       (vars->elements != 1 ||
        result.get_field_count() != thd->get_variable(*vars->head())->cols()))
   {
@@ -929,9 +930,25 @@ int sp_cursor::fetch(THD *thd, List<sp_fetch_target> *vars,
 }
 
 
+uint sp_cursor::cols() const
+{
+  return server_side_cursor->cols();
+}
+
+
 bool sp_cursor::export_structure(THD *thd, Row_definition_list *list)
 {
   return server_side_cursor->export_structure(thd, list);
+}
+
+
+bool sp_cursor::column_value(THD *thd, uint colno,
+                             Settable_routine_parameter *to) const
+{
+  DBUG_ASSERT(is_open());
+  if (!server_side_cursor->is_open())
+    return true;
+  return server_side_cursor->column_value(thd, colno, to);
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -978,6 +995,8 @@ bool sp_cursor::Select_fetch_into_spvars::
 
 int sp_cursor::Select_fetch_into_spvars::send_data(List<Item> &items)
 {
+  if (m_fetch_target_list->elements == 0)
+    return false; // FETCH c0;
   /*
     If we have only one variable in spvar_list, and this is a ROW variable,
     and the number of fields in the ROW variable matches the number of

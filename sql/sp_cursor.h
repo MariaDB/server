@@ -115,9 +115,13 @@ public:
   my_bool is_open() const
   { return MY_TEST(server_side_cursor); }
 
+  uint cols() const;
+
   int fetch(THD *, List<sp_fetch_target> *vars, bool error_on_no_data);
 
   bool export_structure(THD *thd, Row_definition_list *list);
+
+  bool column_value(THD *thd, uint colno, Settable_routine_parameter *to) const;
 
   void reset(THD *thd_arg)
   {

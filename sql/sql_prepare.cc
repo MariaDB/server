@@ -268,6 +268,44 @@ public:
     return item->save_in_param(thd, param_array[using_param_offset]);
   }
 
+  static Lex_ident_column ltrim_one_colon(const Lex_ident_column &str)
+  {
+    if (!str.length || str.str[0] != ':')
+      return str;
+    return Lex_ident_column(str.str + 1, str.length - 1);
+  }
+
+  bool set_placeholder_by_name(THD *thd, const Lex_ident_column &param_name,
+                               Item *item)
+  {
+    DBUG_ASSERT(item->fixed());
+    const Lex_ident_column param_name_no_colon= ltrim_one_colon(param_name);
+    for (uint i= 0 ; i < param_count; i++)
+    {
+      // TODO: check how Oracle handles duplicate parameter names
+      /*
+        Parameter names are case insensitive and can be passed to
+        DBMS_SQL_BIND_PARAM_BY_NAME without colons. These two calls are equal:
+          DBMS_SQL_BIND_PARAM_BY_NAME('ps', ':a', 10);
+          DBMS_SQL_BIND_PARAM_BY_NAME('ps', 'A', 10);
+      */
+      if (param_name_no_colon.streq(ltrim_one_colon(param_array[i]->name)))
+      {
+        if (item->save_in_param(thd, param_array[i]))
+          return true;
+        /*
+          Parameters set by DBMS_SQL_BIND_PARAM_BY_NAME() must preserve
+          their values for the next execution.
+        */
+        param_array[i]->set_preserve_for_next_execute(true);
+        return false;
+      }
+    }
+    my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0),
+             (int) param_name.length, param_name.str);
+    return true;
+  }
+
   bool set_placeholders_from_instr(const InstrSlice &instrs_set_placehorder)
   {
     DBUG_ENTER("Prepared_statement::set_placeholders_from_instr");
@@ -294,13 +332,24 @@ public:
     DBUG_RETURN(false);
   }
 
-  bool check_all_placeholders_set() const
+  uint count_set_placeholders() const
+  {
+    uint res= 0;
+    for (uint i= 0; i < param_count; i++)
+    {
+      if (param_array[i]->type() != Item_param::PARAM_ITEM)
+        res++;
+    }
+    return res;
+  }
+
+  bool check_all_placeholders_set(const char *op) const
   {
     for (uint i= 0; i < param_count; i++)
     {
       if (param_array[i]->type() == Item_param::PARAM_ITEM)
       {
-        my_error(ER_WRONG_ARGUMENTS, MYF(0), "OPEN");
+        my_error(ER_WRONG_ARGUMENTS, MYF(0), op);
         return true;
       }
     }
@@ -3030,6 +3079,18 @@ mysql_sql_stmt_set_placeholder(THD *thd, const Lex_ident_sys &ps_name,
 }
 
 
+bool
+mysql_sql_stmt_set_placeholder_by_name(THD *thd, const Lex_ident_sys &ps_name,
+                                       const Lex_ident_column &param_name,
+                                       Item *item_expr)
+{
+  Prepared_statement* stmt;
+  if (!(stmt= Prepared_statement::find_by_name_or_error(thd, ps_name, "OPEN")))
+    return true;
+  return stmt->set_placeholder_by_name(thd, param_name, item_expr);
+}
+
+
 /**
   Reinit prepared statement/stored procedure before execution.
 
@@ -3554,7 +3615,8 @@ bool mysql_sql_stmt_execute(THD *thd, const Lex_ident_sys &name,
 
   if (!open_dynamic_cursor)
   {
-    if (stmt->param_count != lex->prepared_stmt.param_count())
+    if (stmt->param_count != lex->prepared_stmt.param_count() &&
+        stmt->param_count > stmt->count_set_placeholders())
     {
       my_error(ER_WRONG_ARGUMENTS, MYF(0), cmd);
       DBUG_RETURN(true);
@@ -3575,7 +3637,7 @@ bool mysql_sql_stmt_execute(THD *thd, const Lex_ident_sys &name,
       Check if all placeholder parameters were set by the USING list:
         OPEN c USING expr1, expr2;
     */
-    if (stmt->check_all_placeholders_set())
+    if (stmt->check_all_placeholders_set("OPEN"))
       DBUG_RETURN(true);
   }
 
@@ -4552,8 +4614,12 @@ Prepared_statement::set_parameters(String *expanded_query,
         Dynamic cursors set placeholder values using a different way:
         with help of sp_instr_set_ps_placeholder instructions.
       */
-      res= set_params_from_actual_params(this, thd->lex->prepared_stmt.params(),
-                                         expanded_query);
+      if (thd->lex->prepared_stmt.params().elements)
+      {
+        res= set_params_from_actual_params(this,
+                                           thd->lex->prepared_stmt.params(),
+                                           expanded_query);
+      }
     }
     else
     {

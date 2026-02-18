@@ -2648,6 +2648,23 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
   DBUG_ASSERT(set_placeholder_first || !m_set_ps_placeholder_count);
   uint set_placeholder_first_ip= set_placeholder_first ?
                                  set_placeholder_first->m_ip : 0;
+
+  Lex_ident_sys ps_name;
+  const Item_string *code_item_string= dynamic_cast<const Item_string*>(code);
+  StringBuffer<64> ps_name_buffer, ps_name_conv_buffer;
+  if (code_item_string)
+  {
+    const LEX_CSTRING tmp= code_item_string->str_value.to_lex_cstring();
+    ps_name.convert(thd, &tmp, system_charset_info);
+    if (ps_name.length > 3 && !memcmp(ps_name.str, "PS:", 3))
+    {
+      ps_name.str+= 3;
+      ps_name.length-= 3;
+    }
+    else
+      ps_name= Lex_ident_sys();
+  }
+
   sp_cursor *cursor;
   if (thd->open_cursors_counter() < thd->variables.max_open_cursors)
   {
@@ -2669,7 +2686,8 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
     // TODO: check with DmitryS if hiding ROOT_FLAG_READ_ONLY is OK:
     auto flags_backup= thd->lex->query_arena()->mem_root->flags;
     thd->lex->query_arena()->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
-    int rc= !code ? cursor->open(thd) :
+    int rc= ps_name.length ? cursor->open_from_ps(thd, ps_name) :
+            !code ? cursor->open(thd) :
                     cursor->open_from_dynamic_string(thd,
                                             set_placeholder_first_ip,
                                             m_set_ps_placeholder_count);
@@ -2696,7 +2714,8 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
     DBUG_RETURN(-1);
   }
   cursor->reset_for_reopen(thd);
-  DBUG_RETURN(!code ? cursor->open(thd, false/*don't check max_open_cursors*/) :
+  DBUG_RETURN(ps_name.length ? cursor->open_from_ps(thd, ps_name) :
+              !code ? cursor->open(thd, false/*don't check max_open_cursors*/) :
               cursor->open_from_dynamic_string(thd, set_placeholder_first_ip,
                                                m_set_ps_placeholder_count));
 }

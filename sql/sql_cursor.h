@@ -46,11 +46,18 @@ public:
   {}
 
   virtual bool is_open() const= 0;
+  virtual uint cols() const= 0;
 
   virtual int open(JOIN *top_level_join)= 0;
   virtual void fetch(ulong num_rows)= 0;
   virtual void close()= 0;
   virtual bool export_structure(THD *thd, Row_definition_list *defs)
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  virtual bool column_value(THD *thd, uint idx, Settable_routine_parameter *to)
+                                                                          const
   {
     DBUG_ASSERT(0);
     return true;
@@ -86,6 +93,11 @@ public:
 
   int send_result_set_metadata(THD *thd, List<Item> &send_result_set_metadata);
   bool is_open() const override { return table != 0; }
+  uint cols() const override
+  {
+    //TODO: DBUG_ASSERT(is_open());
+    return item_list.elements;
+  }
   int open(JOIN *join __attribute__((unused))) override;
   void fetch(ulong num_rows) override;
   void close() override;
@@ -93,6 +105,9 @@ public:
   {
     return table->export_structure(thd, defs);
   }
+  bool column_value(THD *thd, uint idx, Settable_routine_parameter *to)
+                                                         const override;
+
   ~Materialized_cursor() override;
 
   void on_table_fill_finished();

@@ -4545,17 +4545,17 @@ sp_proc_stmt_open:
         ;
 
 sp_proc_stmt_fetch_head:
-          FETCH_SYM ident INTO
+          FETCH_SYM ident
           {
             if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$2))))
               MYSQL_YYABORT;
           }
-        | FETCH_SYM FROM ident INTO
+        | FETCH_SYM FROM ident
           {
             if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$3))))
               MYSQL_YYABORT;
           }
-       | FETCH_SYM NEXT_SYM FROM ident INTO
+       | FETCH_SYM NEXT_SYM FROM ident
           {
             if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$4))))
               MYSQL_YYABORT;
@@ -4563,9 +4563,13 @@ sp_proc_stmt_fetch_head:
         ;
 
 sp_proc_stmt_fetch:
-         sp_proc_stmt_fetch_head sp_fetch_list
+         sp_proc_stmt_fetch_head INTO sp_fetch_list
          {
-           $1->set_fetch_target_list($2);
+           $1->set_fetch_target_list($3);
+         }
+       | sp_proc_stmt_fetch_head
+         {
+           $1->set_fetch_target_list(nullptr);
          }
        | FETCH_SYM GROUP_SYM NEXT_SYM ROW_SYM
          {

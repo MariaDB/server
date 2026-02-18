@@ -92,6 +92,10 @@ void mysql_sql_stmt_execute_immediate(THD *thd);
 // Bind a dynamic cursor placeholder from an Item (from the USING clause)
 bool mysql_sql_stmt_set_placeholder(THD *thd, const Lex_ident_sys &ps_name,
                                     uint placeholder_offset, Item *value);
+bool mysql_sql_stmt_set_placeholder_by_name(THD *thd,
+                                            const Lex_ident_sys &ps_name,
+                                            const Lex_ident_column &prm_name,
+                                            Item *value);
 void mysql_sql_stmt_close(THD *thd);
 void mysqld_stmt_fetch(THD *thd, char *packet, uint packet_length);
 void mysqld_stmt_reset(THD *thd, char *packet);
