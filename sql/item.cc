@@ -4294,6 +4294,7 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
   Type_handler_hybrid_field_type(&type_handler_null),
   state(NO_VALUE),
   m_empty_string_is_null(false),
+  m_preserve_for_next_execute(false),
   indicator(STMT_INDICATOR_NONE),
   m_out_param_info(NULL),
   /*
@@ -4700,6 +4701,8 @@ bool Item_param::set_from_value(THD *thd, const st_value &value,
 void Item_param::reset()
 {
   DBUG_ENTER("Item_param::reset");
+  if (m_preserve_for_next_execute)
+    DBUG_VOID_RETURN;
   /* Shrink string buffer if it's bigger than max possible CHAR column */
   if (value.m_string.alloced_length() > MAX_CHAR_WIDTH)
     value.m_string.free();
