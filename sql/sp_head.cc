@@ -1304,7 +1304,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 #endif
 
 #ifdef WITH_WSREP
-    if (WSREP(thd))
+    if (WSREP_NNULL(thd))
     {
       if (((thd->wsrep_trx().state() == wsrep::transaction::s_executing || thd->in_sub_stmt) &&
            (thd->is_fatal_error || thd->killed)))

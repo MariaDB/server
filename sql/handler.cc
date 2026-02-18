@@ -7840,7 +7840,7 @@ static int wsrep_after_row(THD *thd)
   thd->wsrep_affected_rows++;
   if (wsrep_max_ws_rows &&
       thd->wsrep_affected_rows > wsrep_max_ws_rows &&
-      wsrep_thd_is_local(thd))
+      WSREP_NNULL(thd) && wsrep_thd_is_local(thd))
   {
     /*
       If we are inside stored function or trigger we should not commit or

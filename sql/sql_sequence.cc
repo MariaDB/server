@@ -1151,7 +1151,7 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
       DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
 #ifdef WITH_WSREP
-    if (WSREP(thd) && wsrep_thd_is_local(thd))
+    if (WSREP_NNULL(thd) && wsrep_thd_is_local(thd))
     {
       const bool used_engine= lex->create_info.used_fields & HA_CREATE_USED_ENGINE;
       if (wsrep_check_sequence(thd, new_seq, used_engine))

@@ -491,7 +491,7 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
     bool hton_can_recreate;
 
 #ifdef WITH_WSREP
-    if (WSREP(thd) && wsrep_thd_is_local(thd))
+    if (WSREP_NNULL(thd) && wsrep_thd_is_local(thd))
     {
       wsrep::key_array keys;
       /* Do not start TOI if table is not found */

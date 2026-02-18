@@ -271,7 +271,7 @@ int ha_sequence::write_row(const uchar *buf)
   }
 
 #ifdef WITH_WSREP
-  if (WSREP_ON && WSREP(thd) && wsrep_thd_is_local(thd))
+  if (WSREP_NNULL(thd) && wsrep_thd_is_local(thd))
   {
     if (sequence_locked &&
         (wsrep_thd_is_SR(thd) || wsrep_streaming_enabled(thd)))

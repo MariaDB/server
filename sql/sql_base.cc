@@ -4938,7 +4938,7 @@ restart:
        At this point we have SE associated with table so we can check wsrep_mode
        rules at this point.
     */
-    if (WSREP(thd) &&
+    if (WSREP_NNULL(thd) &&
         wsrep_thd_is_local(thd) &&
         tbl &&
         tables == *start &&

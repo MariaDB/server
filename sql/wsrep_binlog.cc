@@ -341,7 +341,7 @@ int wsrep_write_dummy_event(THD *orig_thd, const char *msg)
 bool wsrep_commit_will_write_binlog(THD *thd)
 {
   return (!wsrep_emulate_bin_log && /* binlog enabled*/
-          (wsrep_thd_is_local(thd) || /* local thd*/
+          ((WSREP_NNULL(thd) && wsrep_thd_is_local(thd)) || /* local thd*/
            (thd->wsrep_applier_service && /* applier and log-slave-updates */
             opt_log_slave_updates)));
 }
