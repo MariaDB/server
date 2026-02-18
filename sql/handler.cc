@@ -5519,11 +5519,14 @@ Alter_inplace_info::Alter_inplace_info(HA_CREATE_INFO *create_info_arg,
     : create_info(create_info_arg),
     alter_info(alter_info_arg),
     key_info_buffer(key_info_arg),
-    key_count(key_count_arg),
-    rename_keys(current_thd->mem_root),
     modified_part_info(modified_part_info_arg),
+    rename_keys(current_thd->mem_root),
+    key_count(key_count_arg),
+    online(false),
+    file_per_table(false),
     ignore(ignore_arg),
-    error_if_not_empty(error_non_empty)
+    error_if_not_empty(error_non_empty),
+    mdl_exclusive_after_prepare(false)
   {}
 
 void Alter_inplace_info::report_unsupported_error(const char *not_supported,
