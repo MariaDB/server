@@ -4369,7 +4369,7 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
    is_relay_log(0), relay_signal_cnt(0),
    checksum_alg_reset(BINLOG_CHECKSUM_ALG_UNDEF),
    relay_log_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
-   description_event_for_exec(0), description_event_for_queue(0),
+   description_event_for_sql_thread(0), description_event_for_queue(0),
    current_binlog_id(0), reset_master_count(0)
 {
   /*
@@ -4423,7 +4423,7 @@ void MYSQL_BIN_LOG::cleanup()
       close(LOG_CLOSE_INDEX|LOG_CLOSE_STOP_EVENT);
     mysql_mutex_unlock(&LOCK_log);
     delete description_event_for_queue;
-    delete description_event_for_exec;
+    delete description_event_for_sql_thread;
 
     while ((b= binlog_xid_count_list.get()))
     {

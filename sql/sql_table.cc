@@ -12509,7 +12509,7 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
   thd->push_internal_handler(&hdeh);
   do
   {
-    const auto *descr_event= rgi->rli->relay_log.description_event_for_exec;
+    const auto *descr_event= rgi->rli->relay_log.description_event_for_sql_thread;
     auto *ev= Log_event::read_log_event(log_file, &error, descr_event, 0, 1, ~0UL);
     error= log_file->error;
     if (unlikely(!ev))
@@ -12527,7 +12527,7 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
     if(likely(!error))
       ev->online_alter_update_row_count(found_rows);
 
-    if (ev != rgi->rli->relay_log.description_event_for_exec)
+    if (ev != rgi->rli->relay_log.description_event_for_sql_thread)
       delete ev;
     thd_progress_report(thd, my_b_tell(log_file), thd->progress.max_counter);
     DEBUG_SYNC(thd, "alter_table_online_progress");
@@ -13086,7 +13086,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     Cache_flip_event_log *binlog= from->s->online_alter_binlog;
     DBUG_ASSERT(binlog->is_open());
 
-    rli->relay_log.description_event_for_exec=
+    rli->relay_log.description_event_for_sql_thread=
                                             new Format_description_log_event(4);
 
     // We'll be filling from->record[0] from row events
