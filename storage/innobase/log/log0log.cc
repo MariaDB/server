@@ -1515,7 +1515,9 @@ wait_suspend_loop:
 
 	service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 				       "Free innodb buffer pool");
+	ut_d(mysql_mutex_lock(&buf_pool.mutex));
 	ut_d(buf_pool.assert_all_freed());
+	ut_d(mysql_mutex_unlock(&buf_pool.mutex));
 
 	ut_a(lsn == log_get_lsn()
 	     || srv_force_recovery == SRV_FORCE_NO_LOG_REDO);

@@ -18440,7 +18440,7 @@ buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
     os_aio_wait_until_no_pending_writes(true);
   }
   else
-    buf_flush_sync();
+    buf_flush_sync_batch(LSN_MAX);
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 

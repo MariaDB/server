@@ -4091,6 +4091,30 @@ static void log_sort_flush_list() noexcept
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 }
 
+/** Invalidate all pages in the buffer pool.
+All pages must be replaceable (not modified, latched, or io-fixed). */
+ATTRIBUTE_COLD static void buf_pool_invalidate() noexcept
+{
+  mysql_mutex_lock(&buf_pool.mutex);
+  ut_ad(!os_aio_pending_reads());
+  /* os_aio_pending_writes() may hold here if some write_io_callback()
+  did not release the slot yet. However, buf_flush_sync_batch() waited
+  for the page write itself to complete, which we will check below. */
+  ut_d(buf_pool.assert_all_freed());
+
+  while (UT_LIST_GET_LEN(buf_pool.LRU))
+    buf_LRU_scan_and_free_block();
+
+  ut_ad(UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0);
+
+  buf_pool.freed_page_clock= 0;
+  buf_pool.LRU_old= nullptr;
+  buf_pool.LRU_old_len= 0;
+  buf_pool.stat.init();
+  buf_refresh_io_stats();
+  mysql_mutex_unlock(&buf_pool.mutex);
+}
+
 /** Apply buffered log to persistent data pages.
 @param last_batch     whether it is possible to write more redo log */
 void recv_sys_t::apply(bool last_batch)

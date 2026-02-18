@@ -2698,9 +2698,14 @@ static bool innodb_init()
   }
 
   ut_ad(srv_force_recovery <= SRV_FORCE_IGNORE_CORRUPT);
+  mysql_mutex_lock(&recv_sys.mutex);
   ut_ad(recv_no_log_write);
-  buf_flush_sync();
+  if (recv_sys.recovery_on)
+    recv_sys.apply(true);
+  mysql_mutex_unlock(&recv_sys.mutex);
   recv_sys.debug_free();
+
+  buf_flush_sync_batch(LSN_MAX);
   ut_ad(!os_aio_pending_reads());
   ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
   ut_ad(!buf_pool.get_oldest_modification(0));
