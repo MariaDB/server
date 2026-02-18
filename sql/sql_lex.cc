@@ -7812,9 +7812,19 @@ bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
   if (check_variable_is_refcursor({STRING_WITH_LEN("OPEN")}, spv))
     goto error;
 
-  // `OPEN cursor_name FOR ps_name` is not allowed in the grammar
-  DBUG_ASSERT(stmt->get_ps_name().is_null());
-  if (stmt->prepared_stmt.code())
+
+  /*
+    It can be either of this:
+    1) OPEN c FOR SELECT..;
+    2) OPEN c FOR spvar;
+    3) OPEN c FOR PREPARE stmt;
+    But #2 and #3 cannot co-exist:
+  */
+  DBUG_ASSERT(stmt->prepared_stmt.code() == nullptr ||
+              stmt->get_ps_name().is_null());
+
+  if (stmt->prepared_stmt.code() ||    // OPEN cursor_name FOR 'SELECT 1';
+      !stmt->get_ps_name().is_null())  // OPEN cursor_name FOR PREPARE ps_name;
   {
     sphead->m_flags|= sp_head::CONTAINS_DYNAMIC_SQL;
     DBUG_ASSERT(stmt->sql_command == SQLCOM_END);
@@ -12794,13 +12804,12 @@ bool LEX::stmt_prepare_validate(const char *stmt_type)
 }
 
 
-bool LEX::stmt_prepare(const Lex_ident_sys_st &ident, Item *code)
+bool LEX::stmt_prepare(const Lex_sql_statement_name_st &ident, Item *code)
 {
   sql_command= SQLCOM_PREPARE;
   if (stmt_prepare_validate("PREPARE..FROM"))
     return true;
-  prepared_stmt.set(ident, code, NULL);
-  return false;
+  return prepared_stmt.set(this, ident, code, NULL);
 }
 
 
@@ -12815,18 +12824,19 @@ bool LEX::stmt_execute_immediate(Item *code, List<Item> *params)
 }
 
 
-bool LEX::stmt_execute(const Lex_ident_sys_st &ident, List<Item> *params)
+bool LEX::stmt_execute(const Lex_sql_statement_name_st &ident,
+                       List<Item> *params)
 {
   sql_command= SQLCOM_EXECUTE;
-  prepared_stmt.set(ident, NULL, params);
-  return stmt_prepare_validate("EXECUTE..USING");
+  return prepared_stmt.set(this, ident, NULL, params) ||
+         stmt_prepare_validate("EXECUTE..USING");
 }
 
 
-void LEX::stmt_deallocate_prepare(const Lex_ident_sys_st &ident)
+bool LEX::stmt_deallocate_prepare(const Lex_sql_statement_name_st &ident)
 {
   sql_command= SQLCOM_DEALLOCATE_PREPARE;
-  prepared_stmt.set(ident, NULL, NULL);
+  return prepared_stmt.set(this, ident, NULL, NULL);
 }
 
 

@@ -316,6 +316,19 @@ void Materialized_cursor::fetch(ulong num_rows)
 }
 
 
+bool Materialized_cursor::column_value(THD *thd, uint colno,
+                                       Settable_routine_parameter *to) const
+{
+  DBUG_ASSERT(colno < item_list.elements);
+  List<Item> list(item_list);
+  List_iterator<Item> it(list);
+  Item *item;
+  for (uint i= 0 ; (item= it++) && i < colno; i++)
+  { }
+  return to->set_value(thd, thd->spcont, &item);
+}
+
+
 void Materialized_cursor::close()
 {
   /* Free item_list items */
