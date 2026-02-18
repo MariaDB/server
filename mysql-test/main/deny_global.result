@@ -26,6 +26,13 @@ UPDATE t1 SET data='data';
 # Should SUCCEED - DELETE not denied
 DELETE FROM t1;
 INSERT INTO t1 VALUES (1, 'data1'), (2, 'data2');
+# Should SUCCEED, no db objects used
+SELECT 1;
+1
+1
+# Should SUCCEED, I_S tables are not GRANT/DENYable
+SELECT VARIABLE_NAME FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE 0;
+VARIABLE_NAME
 connection default;
 disconnect con1;
 DROP USER user1;

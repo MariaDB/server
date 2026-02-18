@@ -1787,7 +1787,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
   else
   {
     db_access= acl_get_all3(sctx, new_db_file_name.str, FALSE);
-    db_access|= sctx->master_access;
+    db_access= db_access.combine_with_parent(sctx->master_access);
   }
 
   if (!force&& !(db_access & DB_ACLS) &&

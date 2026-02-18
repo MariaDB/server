@@ -6659,9 +6659,6 @@ check_access(THD *thd, privilege_t want_access,
   if (thd->proc_info != stage_checking_permissions.m_name)
     THD_STAGE_INFO(thd, stage_checking_permissions);
 
-   /* Check DENIES(always, regardless of dont_check_global_grants) */
-  if (sctx->master_access.is_explicitly_denied(want_access))
-    goto error;
 
   if (unlikely((!db || !db[0]) && !thd->db.str && !dont_check_global_grants))
   {
@@ -6706,6 +6703,21 @@ check_access(THD *thd, privilege_t want_access,
         break;
       }
     }
+  }
+
+  /* Check DENIES */
+  if ((missing_privileges=sctx->master_access.is_denied(want_access)))
+  {
+    /*
+      *any* db is used for table-less SELECT (e.g., SELECT 1, SELECT @@version).
+      Since no actual database objects are accessed, DENY privileges should
+      not apply here just yet. Delay checks
+
+      [out] *save_privileges= 0
+    */
+    if (want_access != SELECT_ACL || db != any_db.str || dont_check_global_grants)
+      goto error;
+    want_access= missing_privileges;
   }
 
   if (sctx->master_access.fully_satisfies(want_access))
@@ -6775,8 +6787,11 @@ check_access(THD *thd, privilege_t want_access,
   DBUG_PRINT("info",("db_access: %llx  want_access: %llx",
               (longlong) db_access.allow_bits(), (longlong) want_access));
 
-  if (db_access.is_explicitly_denied(want_access))
+  if ((missing_privileges= db_access.is_denied(want_access)))
+  {
+    want_access= missing_privileges;
     goto error;
+  }
 
   /*
     Save the union of User-table and the intersection between Db-table and
@@ -6814,6 +6829,7 @@ check_access(THD *thd, privilege_t want_access,
       (e.g., SHUTDOWN_ACL, FILE_ACL, RELOAD_ACL are global-only).
       Access denied.
     */
+    want_access= missing_privileges;
     goto error;
   }
 

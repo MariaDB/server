@@ -9469,12 +9469,6 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     TABLE_LIST *const t_ref=
       tl->correspondent_table ? tl->correspondent_table : tl;
     sctx= t_ref->security_ctx ? t_ref->security_ctx : thd->security_ctx;
-    denied= sctx->master_access.is_denied(original_want_access);
-    if (denied)
-    {
-      want_access= denied;
-      goto err;
-    }
     privilege_t orig_want_access(original_want_access);
 
     /*
@@ -9509,7 +9503,9 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
       switch(acc_check)
       {
       case ACL_INTERNAL_ACCESS_GRANTED:
-        t_ref->grant.privilege|= access_t(orig_want_access);
+        /* Note, this wipes out DENY*/
+        t_ref->grant.privilege=
+            access_t(t_ref->grant.privilege.allow_bits() | orig_want_access);
         t_ref->grant.want_privilege= NO_ACL;
         continue;
       case ACL_INTERNAL_ACCESS_DENIED:
@@ -9522,9 +9518,9 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     want_access= orig_want_access;
     want_access&= ~sctx->master_access;
     if (!want_access)
-      continue;                                 // ok
+      continue; // ok
 
-    if (!(~t_ref->grant.privilege & want_access) ||
+   if (!(~t_ref->grant.privilege & want_access) ||
         t_ref->is_anonymous_derived_table() || t_ref->schema_table ||
         t_ref->table_function)
     {
@@ -9556,9 +9552,21 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
         Note that during creation of temporary table we still need to check
         if user has CREATE_TMP_ACL.
       */
-      t_ref->grant.privilege|= TMP_TABLE_ACLS;
+      access_t &p= t_ref->grant.privilege;
+
+      /* Note, we're overwriting DENY here*/
+      p= access_t(p.allow_bits() | TMP_TABLE_ACLS,
+                  p.deny_bits() & ~TMP_TABLE_ACLS,
+                  p.deny_subtree() & ~TMP_TABLE_ACLS);
       t_ref->grant.want_privilege= NO_ACL;
       continue;
+    }
+
+    denied = t_ref->grant.privilege.is_denied(want_access);
+    if (denied)
+    {
+      want_access=denied;
+      goto err;
     }
 
     if (!locked)
@@ -10258,6 +10266,7 @@ access_t get_column_grant(THD *thd, GRANT_INFO *grant,
     }
   }
   mysql_rwlock_unlock(&LOCK_grant);
+  priv.set_deny_subtree(NO_ACL); /* we're at the leaf level*/
   return priv;
 }
 
