@@ -134,6 +134,7 @@ extern "C" my_bool wsrep_get_debug()
  */
 extern "C" my_bool wsrep_thd_is_local(const THD *thd)
 {
+  DBUG_ASSERT(WSREP_NNULL(thd));
   /*
     async replication IO and background threads have nothing to
     replicate in the cluster, marking them as non-local here to
@@ -142,8 +143,7 @@ extern "C" my_bool wsrep_thd_is_local(const THD *thd)
     async replication SQL thread, applies client transactions from
     mariadb master and will be replicated into cluster
   */
-  return (
-          thd->system_thread != SYSTEM_THREAD_SLAVE_BACKGROUND &&
+  return (thd->system_thread != SYSTEM_THREAD_SLAVE_BACKGROUND &&
           thd->system_thread != SYSTEM_THREAD_SLAVE_IO &&
           thd->wsrep_cs().mode() == wsrep::client_state::m_local);
 }
@@ -362,7 +362,7 @@ extern "C" void wsrep_commit_ordered(THD *thd)
        thd->wsrep_trx().state() == wsrep::transaction::s_ordered_commit))
   {
     wsrep_gtid_server.signal_waiters(thd->wsrep_current_gtid_seqno, false);
-    if (wsrep_thd_is_local(thd))
+    if (WSREP_NNULL(thd) && wsrep_thd_is_local(thd))
     {
       thd->wsrep_last_written_gtid_seqno= thd->wsrep_current_gtid_seqno;
     }
@@ -411,7 +411,7 @@ extern "C" void wsrep_report_bf_lock_wait(const THD *thd,
                 wsrep_thd_transaction_state_str(thd),
                 wsrep_thd_is_applying(thd),
                 wsrep_thd_is_toi(thd),
-                wsrep_thd_is_local(thd),
+                WSREP_NNULL(thd) && wsrep_thd_is_local(thd),
                 wsrep_thd_query(thd));
   }
 }
@@ -431,6 +431,6 @@ extern "C" uint32 wsrep_get_domain_id()
 
 extern "C" my_bool wsrep_thd_is_local_transaction(const THD *thd)
 {
-  return (wsrep_thd_is_local(thd) &&
+  return (WSREP_NNULL(thd) && wsrep_thd_is_local(thd) &&
 	  thd->wsrep_cs().transaction().active());
 }

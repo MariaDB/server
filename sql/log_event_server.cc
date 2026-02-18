@@ -1604,7 +1604,7 @@ int Query_log_event::handle_split_alter_query_log_event(rpl_group_info *rgi,
       Write_log_with_flags wlwf(thd, Gtid_log_event::FL_START_ALTER_E1,
                                 true /* wsrep to isolation end */);
 #ifdef WITH_WSREP
-      if (WSREP(thd) && wsrep_thd_is_local(thd) &&
+      if (WSREP_NNULL(thd) && wsrep_thd_is_local(thd) &&
           // no need to supply other than db in this case
           wsrep_to_isolation_begin(thd, db, NULL,NULL,NULL,NULL,NULL))
         return -1;
@@ -1743,7 +1743,7 @@ write_binlog:
                               Gtid_log_event::FL_ROLLBACK_ALTER_E1,
                               true);
 #ifdef WITH_WSREP
-    if (WSREP(thd) && wsrep_thd_is_local(thd) &&
+    if (WSREP_NNULL(thd) && wsrep_thd_is_local(thd) &&
         wsrep_to_isolation_begin(thd, db, NULL,NULL,NULL,NULL,NULL))
       rc= -1;
 #endif
@@ -1865,7 +1865,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     DBUG_PRINT("query",("%s", thd->query()));
 
 #ifdef WITH_WSREP
-    if (WSREP(thd))
+    if (WSREP_NNULL(thd))
     {
       WSREP_DEBUG("Query_log_event thread=%llu for query=%s",
 		  thd_get_thread_id(thd), wsrep_thd_query(thd));
