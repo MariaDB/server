@@ -34,6 +34,7 @@ public:
   const Type_collection *type_collection() const override;
   const Type_handler *type_handler_for_comparison() const override;
   bool has_null_predicate() const override { return false; }
+  uint get_column_attributes() const override { return ATTR_NONE; }
   bool Spvar_definition_with_complex_data_types(Spvar_definition *def)
                                                        const override;
   bool Column_definition_prepare_stage1(THD *thd,
