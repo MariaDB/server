@@ -30,8 +30,8 @@ char *my_virtual_mem_reserve(size_t *size);
 char *my_virtual_mem_commit(char *ptr, size_t size);
 void my_virtual_mem_decommit(char *ptr, size_t size);
 void my_virtual_mem_release(char *ptr, size_t size);
-
+char *my_virtual_mem_alloc(PSI_memory_key key, size_t size, myf my_flags);
+int my_virtual_mem_free(void *ptr);
 #ifdef __cplusplus
 }
 #endif
-
