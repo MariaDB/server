@@ -174,9 +174,15 @@ fail:
     ut_ad(init_mtr.get_savepoint() == 1);
     ut_ad(init_mtr.m_memo[0].object == new_block);
     ut_ad(init_mtr.m_memo[0].type == MTR_MEMO_PAGE_X_MODIFY);
+    new_block->page.fix();
     init_mtr.m_memo[0].type= MTR_MEMO_PAGE_X_FIX;
     init_mtr.rollback_to_savepoint(0, 1);
     init_mtr.m_log.erase();
+    mysql_mutex_lock(&buf_pool.mutex);
+    new_block->page.unfix();
+    ut_d(bool freed=) buf_LRU_free_page(&new_block->page, true);
+    ut_ad(freed);
+    mysql_mutex_unlock(&buf_pool.mutex);
 
     if (i == size / 2)
       ut_a(id.page_no() == size);
@@ -202,11 +208,6 @@ fail:
   mtr.write<4>(*trx_sys_block, doublewrite + 24,
                TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N);
   mtr.commit();
-
-  buf_flush_wait_flushed(mtr.commit_lsn());
-
-  /* Remove doublewrite pages from LRU */
-  buf_pool_invalidate();
 
   sql_print_information("InnoDB: Doublewrite buffer created");
   goto start_again;

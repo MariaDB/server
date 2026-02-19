@@ -902,19 +902,36 @@ static Gcalc_heap::Info *new_eq_point(
 }
 
 
-void Gcalc_heap::Info::calc_xy(double *x, double *y) const
+void Gcalc_heap::Info::calc_intersection_xy(double *x, double *y) const
 {
+  GCALC_DBUG_ASSERT(type == nt_intersection);
   double b0_x= node.intersection.p2->node.shape.x - node.intersection.p1->node.shape.x;
   double b0_y= node.intersection.p2->node.shape.y - node.intersection.p1->node.shape.y;
   double b1_x= node.intersection.p4->node.shape.x - node.intersection.p3->node.shape.x;
   double b1_y= node.intersection.p4->node.shape.y - node.intersection.p3->node.shape.y;
   double b0xb1= b0_x * b1_y - b0_y * b1_x;
-  double t= (node.intersection.p3->node.shape.x - node.intersection.p1->node.shape.x) * b1_y - (node.intersection.p3->node.shape.y - node.intersection.p1->node.shape.y) * b1_x;
+  double t=(node.intersection.p3->node.shape.x -
+               node.intersection.p1->node.shape.x) * b1_y -
+            (node.intersection.p3->node.shape.y -
+               node.intersection.p1->node.shape.y) * b1_x;
 
   t/= b0xb1;
 
   *x= node.intersection.p1->node.shape.x + b0_x * t;
   *y= node.intersection.p1->node.shape.y + b0_y * t;
+}
+
+
+void Gcalc_heap::Info::get_xy(double *x, double *y) const
+{
+  if (type == nt_intersection)
+    calc_intersection_xy(x, y);
+  else
+  {
+    GCALC_DBUG_ASSERT(type == nt_shape_node);
+    *x= node.shape.x;
+    *y= node.shape.y;
+  }
 }
 
 
@@ -1925,7 +1942,8 @@ double Gcalc_scan_iterator::get_y() const
     Gcalc_coord2 t_a, t_b;
     Gcalc_coord3 a_tb, b_ta, y_exp;
     calc_t(t_a, t_b, dxa, dya,
-           state.pi->node.intersection.p1, state.pi->node.intersection.p2, state.pi->node.intersection.p3, state.pi->node.intersection.p4);
+           state.pi->node.intersection.p1, state.pi->node.intersection.p2,
+           state.pi->node.intersection.p3, state.pi->node.intersection.p4);
 
 
     gcalc_mul_coord(a_tb, GCALC_COORD_BASE3,
@@ -1971,14 +1989,12 @@ double Gcalc_scan_iterator::get_event_x() const
 double Gcalc_scan_iterator::get_h() const
 {
   double cur_y= get_y();
-  double next_y;
-  if (state.pi->type == Gcalc_heap::nt_intersection)
-  {
-    double x;
-    state.pi->calc_xy(&x, &next_y);
-  }
-  else
-    next_y= state.pi->next ? state.pi->get_next()->node.shape.y : 0.0;
+  double x, next_y;
+
+  GCALC_DBUG_ASSERT(m_cur_pi);
+
+  m_cur_pi->get_xy(&x, &next_y);
+
   return next_y - cur_y;
 }
 

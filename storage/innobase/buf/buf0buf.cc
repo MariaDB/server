@@ -3743,15 +3743,15 @@ ATTRIBUTE_COLD void buf_pool_t::clear_hash_index() noexcept
 @retval nullptr if all freed */
 void buf_pool_t::assert_all_freed() noexcept
 {
-  mysql_mutex_lock(&mutex);
+  mysql_mutex_assert_owner(&mutex);
 
-    for (char *extent= memory,
-           *end= memory + block_descriptors_in_bytes(n_blocks);
-         extent < end; extent+= innodb_buffer_pool_extent_size)
-      for (buf_block_t *block= reinterpret_cast<buf_block_t*>(extent),
-             *extent_end= block +
-             pages_in_extent[srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN];
-           block < extent_end && reinterpret_cast<char*>(block) < end; block++)
+  for (char *extent= memory,
+         *end= memory + block_descriptors_in_bytes(n_blocks);
+       extent < end; extent+= innodb_buffer_pool_extent_size)
+    for (buf_block_t *block= reinterpret_cast<buf_block_t*>(extent),
+           *extent_end= block +
+           pages_in_extent[srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN];
+         block < extent_end && reinterpret_cast<char*>(block) < end; block++)
     {
       if (!block->page.in_file())
         continue;
@@ -3781,8 +3781,6 @@ void buf_pool_t::assert_all_freed() noexcept
       fixed_or_dirty:
         ib::fatal() << "Page " << block->page.id() << " still fixed or dirty";
     }
-
-  mysql_mutex_unlock(&mutex);
 }
 #endif /* UNIV_DEBUG */
 
@@ -3791,33 +3789,6 @@ void buf_refresh_io_stats() noexcept
 {
 	buf_pool.last_printout_time = time(NULL);
 	buf_pool.old_stat = buf_pool.stat;
-}
-
-/** Invalidate all pages in the buffer pool.
-All pages must be in a replaceable state (not modified or latched). */
-void buf_pool_invalidate() noexcept
-{
-	/* It is possible that a write batch that has been posted
-	earlier is still not complete. For buffer pool invalidation to
-	proceed we must ensure there is NO write activity happening. */
-
-	os_aio_wait_until_no_pending_writes(false);
-	ut_d(buf_pool.assert_all_freed());
-	mysql_mutex_lock(&buf_pool.mutex);
-
-	while (UT_LIST_GET_LEN(buf_pool.LRU)) {
-		buf_LRU_scan_and_free_block();
-	}
-
-	ut_ad(UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0);
-
-	buf_pool.freed_page_clock = 0;
-	buf_pool.LRU_old = NULL;
-	buf_pool.LRU_old_len = 0;
-	buf_pool.stat.init();
-
-	buf_refresh_io_stats();
-	mysql_mutex_unlock(&buf_pool.mutex);
 }
 
 #ifdef UNIV_DEBUG

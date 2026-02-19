@@ -216,7 +216,8 @@ public:
     bool is_single_node() const
       { return is_bottom() && is_top(); }
 
-    void calc_xy(double *x, double *y) const;
+    void calc_intersection_xy(double *x, double *y) const;
+    void get_xy(double *x, double *y) const;
     int equal_pi(const Info *pi) const;
 #ifdef GCALC_CHECK_WITH_FLOAT
     void calc_xy_ld(long double *x, long double *y) const;

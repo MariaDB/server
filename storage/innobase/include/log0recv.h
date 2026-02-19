@@ -225,7 +225,10 @@ public:
 
   /** whether we are applying redo log records during crash recovery.
   This can be cleared when holding mutex, or when pages.empty() and
-  we are holding exclusive log_sys.latch. */
+  we are holding exclusive log_sys.latch. When this is set,
+  buf_flush_page_cleaner() will not invoke log_checkpoint_low(),
+  buf_pool.flush_list may be unsorted by buf_page_t::oldest_modification(),
+  and garbage_collect() replaces buf_pool_t::running_out(). */
   Atomic_relaxed<bool> recovery_on= false;
   /** whether recv_recover_page(), invoked from buf_page_t::read_complete(),
   should apply log records*/

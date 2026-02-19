@@ -373,10 +373,6 @@ buf_print_io(
 /** Refresh the statistics used to print per-second averages. */
 void buf_refresh_io_stats() noexcept;
 
-/** Invalidate all pages in the buffer pool.
-All pages must be in a replaceable state (not modified or latched). */
-void buf_pool_invalidate() noexcept;
-
 /*========================================================================
 --------------------------- LOWER LEVEL ROUTINES -------------------------
 =========================================================================*/

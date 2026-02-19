@@ -1825,7 +1825,7 @@ exp
 #
 SELECT ST_GEOMETRYTYPE(ST_PointOnSurface(ST_PolyFromText('POLYGON((-70.916 42.1002,-70.9468 42.0946,-70.9754 42.0875,-70.9749 42.0879,-70.9759 42.0897,-70.916 42.1002))'))) as exp;
 exp
-NULL
+POINT
 #
 # MDEV-7529 GIS: ST_Relate returns unexpected results for POINT relations
 #
@@ -5507,3 +5507,10 @@ ST_SRID(g1)	ST_SRID(ST_GeomFromWKB(g1, 4326))	ST_SRID(ST_GeomFromWKB(g1))	ST_AsT
 SELECT ST_DISTANCE_SPHERE(st_geomfromtext('linestring( 2 2, 2 8) '), ST_GeomFromText('POINT(18.413076 43.856258)')) ;
 ERROR HY000: Calling geometry function st_distance_sphere with unsupported types of arguments.
 # End of 10.5 tests
+#
+# MDEV-35766 ST_PointOnSurface returns NULL with Polygon in some case.
+#
+SELECT ST_ASTEXT(ST_POINTONSURFACE(ST_GeomFromText('POLYGON((-1 0, 1 2, 1 0, -1 0))'))) as T;
+T
+POINT(0.5 1)
+# End of 10.6 tests

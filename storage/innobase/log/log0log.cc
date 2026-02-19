@@ -1264,22 +1264,31 @@ void log_t::clear_mmap() noexcept
   ut_ad(write_lsn == get_lsn());
   ut_ad(write_lsn == get_flushed_lsn(std::memory_order_relaxed));
 
-  if (buf) /* this may be invoked while creating a new database */
   {
-    alignas(16) byte log_block[4096];
-    const size_t bs{write_size};
+    if (buf) /* this may be invoked while creating a new database */
     {
-      const size_t bf=
-        size_t(write_lsn - base_lsn.load(std::memory_order_relaxed));
-      memcpy_aligned<16>(log_block, buf + (bf & ~(bs - 1)), bs);
+      alignas(16) byte log_block[log_t::WRITE_SIZE_MAX];
+      const size_t bs{write_size};
+      {
+        ut_ad(write_lsn >= first_lsn);
+        uint64_t bf{write_lsn - first_lsn};
+        if (bf > capacity())
+          bf%= capacity();
+        bf+= START_OFFSET;
+        const size_t bs_1{bs - 1};
+        write_lsn_offset= bf & bs_1;
+        base_lsn.store(write_lsn - write_lsn_offset,
+                       std::memory_order_relaxed);
+        memcpy_aligned<16>(log_block, buf + (bf & ~uint64_t{bs_1}), bs);
+      }
+
+      close_file(false);
+      log_mmap= false;
+      ut_a(attach(log, file_size));
+      ut_ad(!is_mmap());
+
+      memcpy_aligned<16>(buf, log_block, bs);
     }
-
-    close_file(false);
-    log_mmap= false;
-    ut_a(attach(log, file_size));
-    ut_ad(!is_mmap());
-
-    memcpy_aligned<16>(buf, log_block, bs);
   }
   log_resize_release();
 }
@@ -1515,7 +1524,9 @@ wait_suspend_loop:
 
 	service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 				       "Free innodb buffer pool");
+	ut_d(mysql_mutex_lock(&buf_pool.mutex));
 	ut_d(buf_pool.assert_all_freed());
+	ut_d(mysql_mutex_unlock(&buf_pool.mutex));
 
 	ut_a(lsn == log_get_lsn()
 	     || srv_force_recovery == SRV_FORCE_NO_LOG_REDO);

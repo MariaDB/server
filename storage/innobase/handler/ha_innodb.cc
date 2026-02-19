@@ -3629,7 +3629,7 @@ static MYSQL_SYSVAR_SIZE_T(buffer_pool_size_max, buf_pool.size_in_bytes_max,
 static MYSQL_SYSVAR_UINT(log_write_ahead_size, log_sys.write_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Redo log write size to avoid read-on-write; must be a power of two",
-  nullptr, nullptr, 512, 512, 4096, 1);
+  nullptr, nullptr, 512, 512, log_sys.WRITE_SIZE_MAX, 1);
 
 /****************************************************************//**
 Gives the file extension of an InnoDB single-table tablespace. */
@@ -15885,7 +15885,8 @@ ha_innobase::extra(
 		alter_stats_rebuild(m_prebuilt->table, trx);
 		break;
 	case HA_EXTRA_ABORT_ALTER_COPY:
-		if (m_prebuilt->table->skip_alter_undo) {
+		if (m_prebuilt->table->skip_alter_undo &&
+		    !m_prebuilt->table->is_temporary()) {
 			trx = check_trx_exists(ha_thd());
 			m_prebuilt->table->skip_alter_undo = 0;
 			trx->rollback();
@@ -18368,7 +18369,7 @@ buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
     os_aio_wait_until_no_pending_writes(true);
   }
   else
-    buf_flush_sync();
+    buf_flush_sync_batch(LSN_MAX);
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 

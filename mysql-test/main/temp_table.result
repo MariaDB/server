@@ -700,3 +700,24 @@ DROP TABLE t1;
 #
 # End of 10.6 tests
 #
+#
+# Failed CREATE TEMPORARY ... SELECT must not roll back transaction
+#
+CREATE TABLE t (pk INT PRIMARY KEY) ENGINE=InnoDB;
+START TRANSACTION;
+INSERT INTO t VALUES (0);
+INSERT INTO t VALUES (1);
+CREATE TEMPORARY TABLE tmp2 (a INT) ENGINE=InnoDB SELECT 'x' AS a;
+ERROR 22007: Incorrect integer value: 'x' for column `test`.`tmp2`.`a` at row 1
+SELECT * FROM t ORDER BY pk;
+pk
+0
+1
+INSERT INTO t VALUES (1);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+COMMIT;
+SELECT * FROM t ORDER BY pk;
+pk
+0
+1
+DROP TABLE t;

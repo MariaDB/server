@@ -3515,3 +3515,10 @@ FROM (
 SELECT ST_DISTANCE_SPHERE(st_geomfromtext('linestring( 2 2, 2 8) '), ST_GeomFromText('POINT(18.413076 43.856258)')) ;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-35766 ST_PointOnSurface returns NULL with Polygon in some case.
+--echo #
+SELECT ST_ASTEXT(ST_POINTONSURFACE(ST_GeomFromText('POLYGON((-1 0, 1 2, 1 0, -1 0))'))) as T;
+
+--echo # End of 10.6 tests

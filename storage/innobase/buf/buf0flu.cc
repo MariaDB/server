@@ -2055,8 +2055,7 @@ log file. Use log_make_checkpoint() to flush also the pool.
 @retval false if a checkpoint write was already running */
 static bool log_checkpoint() noexcept
 {
-  if (recv_recovery_is_on())
-    recv_sys.apply(true);
+  ut_ad(!recv_recovery_is_on());
 
 #if defined HAVE_valgrind && !__has_feature(memory_sanitizer)
   /* The built-in scheduler in Valgrind may neglect some threads for a
@@ -2122,9 +2121,6 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn) noexcept
   ut_ad(sync_lsn < LSN_MAX);
   ut_ad(!srv_read_only_mode);
 
-  if (recv_recovery_is_on())
-    recv_sys.apply(true);
-
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
   if (buf_pool.get_oldest_modification(sync_lsn) < sync_lsn)
@@ -2180,9 +2176,6 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn) noexcept
 ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious) noexcept
 {
   ut_ad(!srv_read_only_mode);
-
-  if (recv_recovery_is_on())
-    recv_sys.apply(true);
 
   DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", return;);
 
@@ -2846,49 +2839,12 @@ ATTRIBUTE_COLD void buf_flush_buffer_pool() noexcept
 
 /** Synchronously flush dirty blocks during recv_sys_t::apply().
 NOTE: The calling thread is not allowed to hold any buffer page latches! */
-void buf_flush_sync_batch(lsn_t lsn) noexcept
+ATTRIBUTE_COLD void buf_flush_sync_batch(lsn_t lsn) noexcept
 {
   lsn= std::max(lsn, log_get_lsn());
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   buf_flush_wait(lsn);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-}
-
-/** Synchronously flush dirty blocks.
-NOTE: The calling thread is not allowed to hold any buffer page latches! */
-void buf_flush_sync() noexcept
-{
-  if (recv_recovery_is_on())
-  {
-    mysql_mutex_lock(&recv_sys.mutex);
-    recv_sys.apply(true);
-    mysql_mutex_unlock(&recv_sys.mutex);
-  }
-
-  thd_wait_begin(nullptr, THD_WAIT_DISKIO);
-  tpool::tpool_wait_begin();
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
-
-  for (lsn_t lsn= log_sys.get_lsn();;)
-  {
-    log_sys.latch.wr_unlock();
-    mysql_mutex_lock(&buf_pool.flush_list_mutex);
-    buf_flush_wait(lsn);
-    /* Wait for the page cleaner to be idle (for log resizing at startup) */
-    while (buf_flush_sync_lsn)
-      my_cond_wait(&buf_pool.done_flush_list,
-                   &buf_pool.flush_list_mutex.m_mutex);
-    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
-    lsn_t new_lsn= log_sys.get_lsn();
-    if (lsn == new_lsn)
-      break;
-    lsn= new_lsn;
-  }
-
-  log_sys.latch.wr_unlock();
-  tpool::tpool_wait_end();
-  thd_wait_end(nullptr);
 }
 
 ATTRIBUTE_COLD void buf_pool_t::print_flush_info() const noexcept

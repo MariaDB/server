@@ -268,6 +268,8 @@ private:
 public:
   /** current innodb_log_write_ahead_size */
   uint write_size;
+  /** maximum write_size */
+  static constexpr uint WRITE_SIZE_MAX{4096};
   /** format of the redo log: e.g., FORMAT_10_8 */
   uint32_t format;
   /** whether the memory-mapped interface is enabled for the log */

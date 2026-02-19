@@ -104,8 +104,4 @@ void buf_flush_validate() noexcept;
 
 /** Synchronously flush dirty blocks during recv_sys_t::apply().
 NOTE: The calling thread is not allowed to hold any buffer page latches! */
-void buf_flush_sync_batch(lsn_t lsn) noexcept;
-
-/** Synchronously flush dirty blocks.
-NOTE: The calling thread is not allowed to hold any buffer page latches! */
-void buf_flush_sync() noexcept;
+ATTRIBUTE_COLD void buf_flush_sync_batch(lsn_t lsn) noexcept;

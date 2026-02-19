@@ -2228,6 +2228,8 @@ ha_innobase::check_if_supported_inplace_alter(
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
 
+	ha_alter_info->file_per_table= !!srv_file_per_table;
+
 	if ((ha_alter_info->handler_flags
 	     & INNOBASE_ALTER_VERSIONED_REBUILD)
 	    && altered_table->versioned(VERS_TIMESTAMP)) {
@@ -2342,7 +2344,8 @@ innodb_instant_alter_column_allowed_reason:
 
 	switch (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
 	case ALTER_OPTIONS:
-		if ((srv_file_per_table && !m_prebuilt->table->space_id)
+		if ((ha_alter_info->file_per_table &&
+		     !m_prebuilt->table->space_id)
 		    || alter_options_need_rebuild(ha_alter_info, table)) {
 			reason_rebuild = my_get_err_msg(
 				ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD);
@@ -6621,7 +6624,7 @@ prepare_inplace_alter_table_dict(
 
 	create_table_info_t info(ctx->prebuilt->trx->mysql_thd, altered_table,
 				 ha_alter_info->create_info, NULL, NULL,
-				 srv_file_per_table);
+				 ha_alter_info->file_per_table);
 
 	/* The primary index would be rebuilt if a FTS Doc ID
 	column is to be added, and the primary index definition
@@ -8053,7 +8056,7 @@ ha_innobase::prepare_inplace_alter_table(
 				     ha_alter_info->create_info,
 				     NULL,
 				     NULL,
-				     srv_file_per_table);
+				     ha_alter_info->file_per_table);
 
 	info.set_tablespace_type(indexed_table->space != fil_system.sys_space);
 

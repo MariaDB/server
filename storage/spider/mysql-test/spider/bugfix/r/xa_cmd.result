@@ -36,6 +36,14 @@ INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 XA END 'test';
 XA PREPARE 'test';
 XA COMMIT 'test';
+# MDEV-35426 Stack smashing in spider_db_mbase::xa_end (opt), ASAN: stack-
+#  buffer-overflow in Binary_string::q_append, and Assertion
+#  `str.alloced_length() >= str.length() + data_len' failed in
+#  spider_string::q_append on SELECT.
+XA START 'xaaaaaaaaaaaaaaabbbbbbbbbbbbbbbccc1','xaaaaaaaaaaaaaaabbbbbbbbbbbbbbbccc2',1234567890;
+INSERT INTO tbl_a (pkey) VALUES (10);
+XA END 'xaaaaaaaaaaaaaaabbbbbbbbbbbbbbbccc1','xaaaaaaaaaaaaaaabbbbbbbbbbbbbbbccc2',1234567890;
+XA ROLLBACK 'xaaaaaaaaaaaaaaabbbbbbbbbbbbbbbccc1','xaaaaaaaaaaaaaaabbbbbbbbbbbbbbbccc2',1234567890;
 # MDEV-37829 XA COMMIT ONE PHASE fails with "This xid does not
 # exist" if a trigger references a SPIDER table
 #
@@ -105,6 +113,7 @@ connection child2_1;
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
 argument
 insert into `auto_test_remote`.`tbl_a`(`pkey`)values(0),(1),(2),(3),(4),(5),(6),(7),(8),(9)
+insert into `auto_test_remote`.`tbl_a`(`pkey`)values(10)
 insert into `auto_test_remote`.`tbl_a`(`pkey`)values(100)
 insert high_priority into `auto_test_remote`.`tbl_a`(`pkey`)values(101)
 insert high_priority into `auto_test_remote`.`tbl_a`(`pkey`)values(102)

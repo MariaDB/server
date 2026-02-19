@@ -1285,7 +1285,7 @@ inline int Gcalc_operation_reducer::get_single_result(res_point *res,
   if (res->intersection_point)
   {
     double x, y;
-    res->pi->calc_xy(&x, &y);
+    res->pi->calc_intersection_xy(&x, &y);
     if (storage->single_point(x,y))
       GCALC_DBUG_RETURN(1);
   }
@@ -1312,7 +1312,7 @@ int Gcalc_operation_reducer::get_result_thread(res_point *cur,
     {
       if (cur->intersection_point)
       {
-        cur->pi->calc_xy(&x, &y);
+        cur->pi->calc_intersection_xy(&x, &y);
       }
       else
       {

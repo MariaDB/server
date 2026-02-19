@@ -243,3 +243,23 @@ a	b
 1	1
 2	1
 DROP TABLE t1;
+#
+#  MDEV-37886 PAGE_COMPRESSED ALTER TABLE operations
+#    inconsistent with innodb_file_per_table setting
+#
+SET GLOBAL innodb_file_per_table=0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+SET DEBUG_SYNC='before_lock_tables_takes_lock SIGNAL stuck WAIT_FOR go';
+ALTER TABLE t1 PAGE_COMPRESSED=1, ALGORITHM=INSTANT;
+connect con1,localhost,root;
+SET DEBUG_SYNC='now WAIT_FOR stuck';
+SET GLOBAL innodb_file_per_table=1;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+SET DEBUG_SYNC='now SIGNAL go';
+disconnect con1;
+connection default;
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'PAGE_COMPRESSED'
+DROP TABLE t1;

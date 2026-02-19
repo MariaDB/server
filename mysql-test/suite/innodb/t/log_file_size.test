@@ -2,8 +2,7 @@
 --source include/innodb_page_size_small.inc
 # Embedded server tests do not support restarting
 --source include/not_embedded.inc
-# DBUG_EXECUTE_IF is needed
---source include/have_debug.inc
+--source include/maybe_debug.inc
 # This test is slow on buildbot.
 --source include/big_test.inc
 
@@ -19,6 +18,7 @@ call mtr.add_suppression("InnoDB: Expecting only ib_logfile0");
 FLUSH TABLES;
 --enable_query_log
 let MYSQLD_DATADIR= `select @@datadir`;
+SET GLOBAL innodb_file_per_table=0;
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 
 --source include/shutdown_mysqld.inc
@@ -88,6 +88,10 @@ INSERT INTO t1 VALUES (0),(123);
 let SEARCH_ABORT = NOT FOUND;
 
 BEGIN;
+if ($have_debug) {
+SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+INSERT INTO t1 VALUES (124),(125),(126),(127),(128),(129);
+}
 DELETE FROM t1 WHERE a>0;
 
 --echo # Persist the state of the above incomplete transaction by
@@ -107,12 +111,14 @@ SELECT * FROM t1;
 let SEARCH_PATTERN= syntax error in innodb_log_group_home_dir;
 --source include/search_pattern_in_file.inc
 
+if ($have_debug) {
 --let $restart_parameters= --debug-dbug=d,innodb_log_abort_1
 --source include/restart_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
 let SEARCH_PATTERN= InnoDB: Starting crash recovery from checkpoint LSN=.*;
 --source include/search_pattern_in_file.inc
+}
 
 --let $restart_parameters= --innodb-read-only
 --source include/restart_mysqld.inc
@@ -122,6 +128,7 @@ SELECT * FROM t1;
 let SEARCH_PATTERN= InnoDB: innodb_read_only prevents crash recovery;
 --source include/search_pattern_in_file.inc
 
+if ($have_debug) {
 --let $restart_parameters= --debug-dbug=d,innodb_log_abort_5
 --source include/restart_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
@@ -135,6 +142,7 @@ let SEARCH_PATTERN= redo log from 5\\.000MiB to [0-9.]*[KMGT]iB;
 SELECT * FROM t1;
 let SEARCH_PATTERN= InnoDB: innodb_read_only prevents crash recovery;
 --source include/search_pattern_in_file.inc
+}
 
 # Trigger an error in recovery.
 
