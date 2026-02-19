@@ -168,9 +168,16 @@ bool Master_info::shall_ignore_server_id(ulong s_id)
                    change_master_id_cmp) != NULL;
 }
 
+void Master_info::reset_master_server_id()
+{
+  master_id= 0;
+  prev_master_id= 0;
+}
+
 void Master_info::clear_in_memory_info(bool all)
 {
   init_master_log_pos(this);
+  reset_master_server_id();
   if (all)
   {
     port= MYSQL_PORT;
