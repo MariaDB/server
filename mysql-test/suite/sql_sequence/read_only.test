@@ -7,7 +7,8 @@
 
 create sequence s1 cache 2 engine=innodb;
 
---let $restart_parameters= --innodb-read-only
+--let $restart_parameters= --innodb-read-only --innodb-log-recovery-start=0
+
 --source include/restart_mysqld.inc
 
 connection default;

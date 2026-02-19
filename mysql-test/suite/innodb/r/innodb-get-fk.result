@@ -26,7 +26,7 @@ KEY `fk_crewRoleAssigned_roleCode` (`role_code`),
 CONSTRAINT `fk_crewRoleAssigned_crewId` FOREIGN KEY (`crew_id`) REFERENCES `repro`.`crew` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
 CONSTRAINT `fk_crewRoleAssigned_pilotId` FOREIGN KEY (`crew_id`) REFERENCES `repro`.`pilot` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB COMMENT="This is a comment about tables";
-# restart: --innodb-read-only
+# restart: --innodb-read-only --innodb-log-recovery-start=0
 ALTER TABLE `repro`.`crew_role_assigned` COMMENT = 'innodb_read_only';
 ERROR HY000: Table 'crew_role_assigned' is read only
 SHOW CREATE TABLE `repro`.`crew_role_assigned`;
@@ -58,7 +58,7 @@ crew_role_assigned	CREATE TABLE `crew_role_assigned` (
   CONSTRAINT `fk_crewRoleAssigned_crewId` FOREIGN KEY (`crew_id`) REFERENCES `crew` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_crewRoleAssigned_pilotId` FOREIGN KEY (`crew_id`) REFERENCES `pilot` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='This is a new comment about tables'
-# restart: --innodb-read-only
+# restart: --innodb-read-only --innodb-log-recovery-start=0
 SHOW CREATE TABLE `repro`.`crew_role_assigned`;
 Table	Create Table
 crew_role_assigned	CREATE TABLE `crew_role_assigned` (

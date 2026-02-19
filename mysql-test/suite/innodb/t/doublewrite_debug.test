@@ -7,6 +7,7 @@
 --source include/innodb_page_size.inc
 --source include/have_debug.inc
 --source include/not_embedded.inc
+--source include/no_checkpoint_prepare.inc
 --disable_query_log
 call mtr.add_suppression("InnoDB: Data file .* uses page size .* but the innodb_page_size start-up parameter is");
 call mtr.add_suppression("InnoDB: adjusting FSP_SPACE_FLAGS");
@@ -45,7 +46,7 @@ commit work;
 # Slow shutdown and restart to make sure ibuf merge is finished
 SET GLOBAL innodb_fast_shutdown = 0;
 let $shutdown_timeout=;
-let $restart_parameters=--debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0;
+let $restart_parameters=--debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0 --innodb-log-recovery-start=0;
 --source include/restart_mysqld.inc
 --source ../include/no_checkpoint_start.inc
 begin;
@@ -84,7 +85,7 @@ print FILE chr(0) x ($ENV{'INNODB_PAGE_SIZE'});
 close FILE;
 EOF
 
-let $restart_parameters=;
+let $restart_parameters=--innodb-log-recovery-start=0;
 --source include/start_mysqld.inc
 
 let SEARCH_PATTERN=InnoDB: Recovered page \\[page id: space=0, page number=0\\];
@@ -101,7 +102,7 @@ select f1, f2 from t1;
 --echo # Test Begin: Test if recovery works if 1st page of
 --echo # system tablespace is corrupted and 2nd page as corrupted.
 
-let $restart_parameters=--debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0;
+let $restart_parameters=--innodb-log-recovery-start=0 --debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0;
 --source include/restart_mysqld.inc
 --source ../include/no_checkpoint_start.inc
 begin;
@@ -132,7 +133,7 @@ print FILE chr(0) x ($ENV{'INNODB_PAGE_SIZE'}/2);
 close FILE;
 EOF
 
-let $restart_parameters=;
+let $restart_parameters=--innodb-log-recovery-start=0;
 --source include/start_mysqld.inc
 
 let SEARCH_PATTERN=InnoDB: Recovered page \\[page id: space=0, page number=0\\];
@@ -159,7 +160,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 
 --let $ibp=--innodb-log-group-home-dir=$bugdir --innodb-data-home-dir=$bugdir
---let $ibp=$ibp --innodb-undo-tablespaces=0
+--let $ibp=$ibp --innodb-undo-tablespaces=0 --innodb-log-recovery-start=0
 --let $ibp=$ibp --innodb-data-file-path=ibdata1:1M;ibdata2:1M:autoextend
 
 --let $restart_parameters= $ibp
@@ -167,10 +168,9 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 eval $check_no_innodb;
 --let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot create doublewrite buffer
 --source include/search_pattern_in_file.inc
---let $restart_parameters=
+--let $restart_parameters=--innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 
 --remove_file $bugdir/ibdata1
 --remove_file $bugdir/ibdata2
---remove_file $bugdir/ib_logfile0
 --rmdir $bugdir

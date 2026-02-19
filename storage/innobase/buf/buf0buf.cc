@@ -605,7 +605,7 @@ static bool buf_page_check_lsn(bool check_lsn, const byte *read_buf) noexcept
 
   sql_print_error("InnoDB: Your database may be corrupt or"
                   " you may have copied the InnoDB"
-                  " tablespace but not the ib_logfile0. %s",
+                  " tablespaces but not the log. %s",
                   FORCE_RECOVERY_MSG);
 
   return true;

@@ -8,7 +8,7 @@ WHERE NAME LIKE '%encrypt%';
 SELECT @encryption_threads_running;
 @encryption_threads_running
 4
-# restart: --innodb-read-only=1 --innodb-encrypt-tables=1
+# restart: --innodb-read-only=1 --innodb-encrypt-tables=1 --innodb-log-recovery-start=0
 SET GLOBAL innodb_encryption_threads=4;
 SET @encryption_threads_running=0;
 SELECT COUNT(*) INTO @encryption_threads_running

@@ -36,7 +36,7 @@ test.tz	check	status	OK
 test.tdd	check	status	OK
 test.tp	check	status	OK
 test.ti	check	status	OK
-# restart: --innodb-read-only
+# restart: --innodb-read-only --innodb-log-recovery-start=0
 CHECK TABLE tr,tc,td,tz,tdd,tp,ti;
 Table	Op	Msg_type	Msg_text
 test.tr	check	status	OK

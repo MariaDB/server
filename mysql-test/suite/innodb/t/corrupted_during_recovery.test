@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/no_checkpoint_prepare.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
@@ -12,23 +13,60 @@ call mtr.add_suppression("InnoDB: Page \\[page id: space=[1-9][0-9]*, page numbe
 call mtr.add_suppression("InnoDB: Your database may be corrupt");
 call mtr.add_suppression("InnoDB: MySQL-8\\.0 tablespace in .*test/t2\\.ibd");
 call mtr.add_suppression("InnoDB: Restart in MySQL for migration/recovery\\.");
+call mtr.add_suppression("InnoDB: Did not find innodb_log_recovery_start=");
+call mtr.add_suppression("InnoDB: cannot fulfill innodb_log_recovery_target=");
+# only issued for innodb_log_archive=OFF
+call mtr.add_suppression("InnoDB: innodb_log_recovery_start=\\d+ is after innodb_log_recovery_target");
 --enable_query_log
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 let ALGO=`select @@innodb_checksum_algorithm`;
-CREATE TABLE t1(a BIGINT PRIMARY KEY) ENGINE=InnoDB;
+let $before=`SELECT variable_value FROM information_schema.global_status
+WHERE variable_name='innodb_lsn_current'`;
+CREATE TABLE t1(a BIGINT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
 INSERT INTO t1 VALUES(1);
 # Force a redo log checkpoint.
 let $restart_noprint=2;
---source include/restart_mysqld.inc
+SET GLOBAL innodb_max_purge_lag_wait=0, innodb_log_checkpoint_now=ON;
 --source ../include/no_checkpoint_start.inc
+let $archived=`SELECT variable_value FROM information_schema.global_status
+WHERE variable_name='innodb_lsn_archived'`;
+
+connect stop_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+
 CREATE TABLE t2(a BIGINT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(2);
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
+let $after=`SELECT variable_value FROM information_schema.global_status
+WHERE variable_name='innodb_lsn_current'`;
 INSERT INTO t2 VALUES(1);
+let $future=`SELECT variable_value+1 FROM information_schema.global_status
+WHERE variable_name='innodb_lsn_current'`;
 
 --let CLEANUP_IF_CHECKPOINT=DROP TABLE t1,t2;
 --source ../include/no_checkpoint_end.inc
+disconnect stop_purge;
+
+--let $restart_parameters=--innodb-log-recovery-target=$before --innodb-log-recovery-start=0
+--source include/start_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE,ER_NO_SUCH_TABLE_IN_ENGINE
+SELECT * FROM t2;
+--let $restart_parameters=--innodb-log-recovery-target=$after --innodb-log-recovery-start=$before
+--source include/restart_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t2;
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=InnoDB: cannot fulfill innodb_log_recovery_target.*;
+--source include/search_pattern_in_file.inc
+--let $restart_parameters=--innodb-log-recovery-target=$before --innodb-log-recovery-start=$archived
+--source include/restart_mysqld.inc
+--error ER_OPEN_AS_READONLY,ER_UNKNOWN_STORAGE_ENGINE
+DELETE FROM t1;
+--error ER_OPEN_AS_READONLY,ER_NO_SUCH_TABLE_IN_ENGINE,ER_UNKNOWN_STORAGE_ENGINE
+DELETE FROM t2;
+--source include/shutdown_mysqld.inc
 
 --echo # Corrupt the pages
 
@@ -75,17 +113,16 @@ EOF
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
 
-let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
-let SEARCH_PATTERN=InnoDB: Page \\[page id: space=[1-9][0-9]*, page number=3\\] log sequence number 1311768467463790320 is in the future!;
---source include/search_pattern_in_file.inc
-
-let $restart_parameters=--innodb_force_recovery=1;
+let $restart_parameters=--innodb_force_recovery=1 --innodb-log-recovery-start=0;
 --source include/restart_mysqld.inc
 
 --error 0,ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT * FROM t1;
 SELECT * FROM t2;
 CHECK TABLE t2;
+
+let SEARCH_PATTERN=InnoDB: Page \\[page id: space=[1-9][0-9]*, page number=3\\] log sequence number 1311768467463790320 is in the future!.*;
+--source include/search_pattern_in_file.inc
 
 DROP TABLE t1, t2;
 
@@ -136,6 +173,13 @@ sysseek(FILE, $ps * 3, SEEK_SET) or die "seek";
 syswrite(FILE, $page);
 close FILE or die "close";
 EOF
+--let $restart_parameters=--innodb-log-recovery-start=$future
 --source include/start_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+let SEARCH_PATTERN=InnoDB: Did not find innodb_log_recovery_start=\d+ .*;
+--source include/search_pattern_in_file.inc
+--let $restart_parameters=
+--source include/restart_mysqld.inc
 SELECT * FROM t1;
 DROP TABLE t1;

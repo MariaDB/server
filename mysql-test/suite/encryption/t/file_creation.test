@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source ../../suite/innodb/include/no_checkpoint_prepare.inc
 --source include/have_example_key_management_plugin.inc
 let $restart_noprint=2;
 # embedded does not support restart

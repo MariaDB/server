@@ -1815,51 +1815,183 @@ static ulint buf_flush_LRU(ulint max_n) noexcept
 inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
+  ut_ad(archive ? file_size <= ~0U : next_checkpoint_lsn >= first_lsn);
   ut_ad(end_lsn >= next_checkpoint_lsn);
   ut_d(const lsn_t current_lsn{get_lsn()});
   ut_ad(end_lsn <= current_lsn);
   ut_ad(end_lsn + SIZE_OF_FILE_CHECKPOINT <= current_lsn ||
         srv_shutdown_state > SRV_SHUTDOWN_INITIATED);
+  ut_ad(this->end_lsn <= end_lsn);
+  ut_ad(checkpoint_buf != buf);
+  ut_ad(!checkpoint_buf || checkpoint_buf != resize_buf);
+  ut_ad(buf != resize_buf);
+  ut_ad(latch_have_wr());
 
   DBUG_PRINT("ib_log",
              ("checkpoint at " LSN_PF " written", next_checkpoint_lsn));
 
-  auto n= next_checkpoint_no;
-  const size_t offset{(n & 1) ? CHECKPOINT_2 : CHECKPOINT_1};
+  size_t offset;
   static_assert(CPU_LEVEL1_DCACHE_LINESIZE >= 64, "efficiency");
   static_assert(CPU_LEVEL1_DCACHE_LINESIZE <= 4096, "compatibility");
-  byte* c= my_assume_aligned<CPU_LEVEL1_DCACHE_LINESIZE>
-    (is_mmap() ? buf + offset : checkpoint_buf);
-  memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(c, 0, CPU_LEVEL1_DCACHE_LINESIZE);
+  lsn_t resizing{resize_lsn.load(std::memory_order_relaxed)};
+  byte *c= checkpoint_buf;
+  bool archive_header_was_reset{false};
+
+  if (archive)
+  {
+    ut_ad(!resizing);
+#ifdef HAVE_PMEM
+    ut_ad(!resize_buf || !checkpoint_buf);
+    ut_ad(!resize_buf || resize_log.is_opened());
+#else
+    ut_ad(!resize_buf);
+#endif
+    if (end_lsn >= first_lsn + (
+#ifdef HAVE_PMEM
+                                c && is_mmap() ? 0 :
+#endif
+                                capacity()))
+    {
+#ifdef HAVE_PMEM
+      if (resize_buf)
+      {
+        ut_ad(is_mmap());
+        /* @see archived_mmap_switch_complete() */
+        ut_ad(!c);
+        const lsn_t lsn{get_lsn()};
+        ut_ad(lsn == current_lsn);
+        persist(lsn);
+        checkpoint_buf= buf;
+        buf= resize_buf;
+        resize_buf= nullptr;
+        first_lsn+= capacity();
+        file_size= resize_target;
+        goto unmap_old_checkpoint;
+      }
+      else if (c && is_mmap())
+      {
+      unmap_old_checkpoint:
+        checkpoint_buf= nullptr;
+        my_munmap(c, lseek(resize_log.m_file, 0, SEEK_END));
+        goto first_checkpoint_in_new_archive;
+      }
+      else
+#endif
+      if (resize_log.is_opened())
+      {
+        first_lsn+= capacity();
+        file_size= resize_target;
+
+#ifdef HAVE_PMEM
+        ut_ad(!c == is_mmap());
+        if (!c)
+        {
+        first_checkpoint_in_new_archive:
+          c= buf;
+          ut_ad(!memcmp_aligned<512>(c, field_ref_zero, START_OFFSET));
+        }
+        else
+#endif
+          memset_aligned<512>(c, 0, write_size);
+
+        ut_ad(current_lsn >= first_lsn);
+        ut_ad(current_lsn < first_lsn + capacity());
+        circular_recovery_from_sequence_bit_0= false;
+        next_checkpoint_no= uint16_t(8 * is_encrypted());
+        archive_header_was_reset= true;
+
+        if (is_encrypted())
+          log_crypt_write_header(c);
+
+#ifdef HAVE_PMEM
+        c= checkpoint_buf;
+#endif
+      }
+    }
+
+    ut_ad(end_lsn >= first_lsn);
+    offset= next_checkpoint_no * 4;
+    ut_ad(offset >= 8 * is_encrypted());
+    if (UNIV_UNLIKELY(offset >= START_OFFSET))
+      /* In case all slots are filled up, overwrite the last slot. */
+      offset= START_OFFSET - 4, next_checkpoint_no= START_OFFSET / 4 - 1;
+    const lsn_t d{end_lsn - first_lsn + START_OFFSET};
+    ut_ad(d <= lsn_t{~uint32_t{0}});
+    ut_ad(c == checkpoint_buf);
+
+#ifdef HAVE_PMEM
+    if (!c)
+    {
+      ut_ad(is_mmap());
+      c= buf;
+      goto archived_mmap;
+    }
+    else if (is_mmap())
+    {
+    archived_mmap:
+      c+= offset;
+      ut_ad(next_checkpoint_no == uint16_t(8 * is_encrypted()) ||
+            (mach_read_from_4(c - 4) && mach_read_from_4(c - 4) < d));
+      ut_ad(!memcmp(c, field_ref_zero, 4));
+      mach_write_to_4(my_assume_aligned<4>(c), uint32_t(d));
+      c= reinterpret_cast<byte*>(uintptr_t(c) & ~63);
+      goto persist_checkpoint;
+    }
+    else
+#endif
+    {
+      const size_t o{offset & (write_size - 1)};
+      offset&= ~size_t(write_size - 1);
+      if (!o)
+        memset_aligned<512>(c, 0, write_size);
+      else
+        ut_ad(next_checkpoint_no == uint16_t(8 * is_encrypted()) ||
+              (mach_read_from_4(c + o - 4) &&
+               mach_read_from_4(c + o - 4) < d));
+      ut_ad(!memcmp(c + o, field_ref_zero, 4));
+      mach_write_to_4(my_assume_aligned<4>(c + o), uint32_t(d));
+      goto write_checkpoint;
+    }
+
+    goto wrote_checkpoint;
+  }
+
+  static_assert(CHECKPOINT_1 << 1 == CHECKPOINT_2, "");
+  offset= CHECKPOINT_1 << (next_checkpoint_no & 1);
+  c= is_mmap() ? buf + offset : checkpoint_buf;
+  circular_recovery_from_sequence_bit_0=
+    !get_sequence_bit(next_checkpoint_lsn);
+  memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(c, 0,
+                                             CPU_LEVEL1_DCACHE_LINESIZE);
   mach_write_to_8(my_assume_aligned<8>(c), next_checkpoint_lsn);
   mach_write_to_8(my_assume_aligned<8>(c + 8), end_lsn);
   mach_write_to_4(my_assume_aligned<4>(c + 60), my_crc32c(0, c, 60));
-
-  lsn_t resizing;
 
 #ifdef HAVE_PMEM
   if (is_mmap())
   {
     ut_ad(!is_opened());
-    resizing= resize_lsn.load(std::memory_order_relaxed);
-
     if (resizing > 1 && resizing <= next_checkpoint_lsn)
     {
       memcpy_aligned<64>(resize_buf + CHECKPOINT_1, c, 64);
       header_write(resize_buf, resizing, is_encrypted());
       pmem_persist(resize_buf, resize_target);
     }
+  persist_checkpoint:
     pmem_persist(c, 64);
   }
   else
 #endif
   {
+  write_checkpoint:
     ut_ad(!is_mmap());
     ut_ad(!checkpoint_pending);
     checkpoint_pending= true;
     latch.wr_unlock();
     log_write_and_flush_prepare();
     resizing= resize_lsn.load(std::memory_order_relaxed);
+    ut_ad(!resizing || !archive);
     ut_ad(ut_is_2pow(write_size));
     ut_ad(write_size >= 512);
     ut_ad(write_size <= 4096);
@@ -1882,10 +2014,33 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     resizing= resize_lsn.load(std::memory_order_relaxed);
   }
 
-  ut_ad(!checkpoint_pending);
+ wrote_checkpoint:
   next_checkpoint_no++;
+
+  ut_ad(!resizing || !archive);
+  ut_ad(!checkpoint_pending);
   const lsn_t checkpoint_lsn{next_checkpoint_lsn};
   last_checkpoint_lsn= checkpoint_lsn;
+  this->end_lsn= end_lsn;
+  if (!archive)
+    archived_lsn= end_lsn;
+  else if (archive_header_was_reset)
+  {
+    /* Make the previous archived log file read-only */
+#ifdef _WIN32
+    resize_log.close();
+    SetFileAttributesA(get_archive_path().c_str(),
+                       FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_ARCHIVE);
+#else
+    struct stat st;
+    if (!fstat(resize_log.m_file, &st))
+      st.st_mode&= 0444;
+    else
+      st.st_mode= 0444;
+    fchmod(resize_log.m_file, st.st_mode);
+    resize_log.close();
+#endif
+  }
 
   DBUG_PRINT("ib_log", ("checkpoint ended at " LSN_PF ", flushed to " LSN_PF,
                         checkpoint_lsn, get_flushed_lsn()));
@@ -1902,6 +2057,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 
   if (resizing > 1 && resizing <= checkpoint_lsn)
   {
+    ut_ad(!archive);
     ut_ad(is_mmap() == !resize_flush_buf);
     ut_ad(is_mmap() == !resize_log.is_opened());
 
@@ -1931,7 +2087,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
         ut_ad(!log.is_opened());
         bool success;
         log.m_file=
-          os_file_create_func(get_log_file_path().c_str(), OS_FILE_OPEN,
+          os_file_create_func(get_circular_path().c_str(), OS_FILE_OPEN,
                               OS_LOG_FILE, false, &success);
         ut_a(success);
         ut_a(log.is_opened());
@@ -1993,16 +2149,17 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
   ut_ad(log_sys.latch_have_wr());
   ut_ad(oldest_lsn <= end_lsn);
   ut_ad(end_lsn == log_sys.get_lsn());
 
-  if (oldest_lsn == log_sys.last_checkpoint_lsn ||
-      (oldest_lsn == end_lsn &&
-       !log_sys.resize_in_progress() &&
-       oldest_lsn == log_sys.last_checkpoint_lsn +
-       (log_sys.is_encrypted()
-        ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT)))
+  if (oldest_lsn == end_lsn && oldest_lsn != log_sys.get_first_lsn() &&
+      (oldest_lsn == log_sys.last_checkpoint_lsn ||
+       (!log_sys.resize_in_progress() &&
+        oldest_lsn == log_sys.last_checkpoint_lsn +
+        (log_sys.is_encrypted()
+         ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT))))
   {
     /* Do nothing, because nothing was logged (other than a
     FILE_CHECKPOINT record) since the previous checkpoint. */
@@ -2012,7 +2169,7 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
   }
 
   ut_ad(!recv_no_log_write);
-  ut_ad(oldest_lsn > log_sys.last_checkpoint_lsn);
+  ut_ad(oldest_lsn >= log_sys.last_checkpoint_lsn);
   /* Repeat the FILE_MODIFY records after the checkpoint, in case some
   log records between the checkpoint and log_sys.lsn need them.
   Finally, write a FILE_CHECKPOINT record. Redo log apply expects to
@@ -2029,7 +2186,8 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
   log_sys.latch.wr_unlock();
   log_write_up_to(flush_lsn, true);
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
-  if (log_sys.last_checkpoint_lsn >= oldest_lsn)
+  if (log_sys.last_checkpoint_lsn >= oldest_lsn &&
+      log_sys.last_checkpoint_lsn != log_sys.get_first_lsn())
     goto do_nothing;
 
   ut_ad(log_sys.get_flushed_lsn() >= flush_lsn);
@@ -2079,7 +2237,8 @@ static bool log_checkpoint() noexcept
 ATTRIBUTE_COLD void log_make_checkpoint() noexcept
 {
   buf_flush_wait_flushed(log_get_lsn());
-  while (!log_checkpoint());
+  if (!recv_sys.rpo)
+    while (!log_checkpoint());
 }
 
 /** Wait for all dirty pages up to an LSN to be written out.
@@ -2158,7 +2317,8 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn) noexcept
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
-  if (UNIV_UNLIKELY(log_sys.last_checkpoint_lsn < sync_lsn))
+  if (UNIV_UNLIKELY(log_sys.last_checkpoint_lsn < sync_lsn) &&
+      !recv_sys.rpo)
   {
     /* If the buffer pool was clean, no log write was guaranteed
     to happen until now. There could be an outstanding FILE_CHECKPOINT
@@ -2176,8 +2336,10 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn) noexcept
 ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious) noexcept
 {
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
 
-  DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", return;);
+  DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard",
+                  if (!log_sys.archive) return;);
 
   Atomic_relaxed<lsn_t> &limit= furious
     ? buf_flush_sync_lsn : buf_flush_async_lsn;
@@ -2218,6 +2380,7 @@ ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
 static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
   mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
 
   /* During furious flush, we need to keep generating free pages. Otherwise
@@ -2594,7 +2757,7 @@ static void buf_flush_page_cleaner() noexcept
         IF_DBUG(if (_db_keyword_(nullptr, "ib_log_checkpoint_avoid", 1) ||
                     _db_keyword_(nullptr, "ib_log_checkpoint_avoid_hard", 1))
                   continue,);
-        if (!recv_recovery_is_on() &&
+        if (!recv_recovery_is_on() && !recv_sys.rpo &&
             !srv_startup_is_before_trx_rollback_phase &&
             srv_operation <= SRV_OPERATION_EXPORT_RESTORED)
           log_checkpoint();

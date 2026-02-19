@@ -486,6 +486,7 @@ Note: this is done in a background thread. */
 void trx_rollback_all_recovered(void*)
 {
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	if (trx_sys.rw_trx_hash.size()) {
 		ib::info() << "Starting in background the rollback of"

@@ -25,7 +25,7 @@ insert into t2 values (1, repeat('secret',6000));
 insert into t3 values (1, repeat('secret',6000));
 
 --echo # Restart mysqld --file-key-management-filename=keys3.txt
--- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
+-- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt --innodb-log-recovery-start=0
 -- source include/restart_mysqld.inc
 
 --error ER_TABLE_CORRUPT

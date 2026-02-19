@@ -526,7 +526,7 @@ t7_restart#p#p1#sp#s3.ibd
 #
 # Start the server and show the tablespaces.
 #
-# restart
+# restart: --innodb-log-recovery-start=0
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
 innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
@@ -720,7 +720,7 @@ t77_restart#p#p1#sp#s3.ibd
 #
 # Restart the server
 #
-# restart
+# restart: --innodb-log-recovery-start=0
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
 innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
@@ -849,7 +849,7 @@ t77_restart#p#p1#sp#s3.ibd
 #
 # Start the server and check tablespaces.
 #
-# restart
+# restart: --innodb-log-recovery-start=0
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
 innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
@@ -982,7 +982,7 @@ t77_restart.par
 #
 # Start the server and check tablespaces.
 #
-# restart
+# restart: --innodb-log-recovery-start=0
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
 innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001

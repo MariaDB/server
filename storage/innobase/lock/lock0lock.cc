@@ -357,7 +357,7 @@ static bool lock_rec_validate_page(const buf_block_t *block, bool latched)
 lock_sys_t lock_sys;
 
 /** Only created if !srv_read_only_mode. Protected by lock_sys.latch. */
-static FILE *lock_latest_err_file;
+FILE *lock_latest_err_file;
 
 /*********************************************************************//**
 Reports that a transaction id is insensible, i.e., in the future. */
@@ -418,6 +418,7 @@ void lock_sys_t::create(ulint n_cells)
 {
   ut_ad(this == &lock_sys);
   ut_ad(!is_initialised());
+  ut_ad(srv_read_only_mode == !lock_latest_err_file);
 
   m_initialised= true;
 
@@ -435,12 +436,6 @@ void lock_sys_t::create(ulint n_cells)
   rec_hash.create(n_cells);
   prdt_hash.create(n_cells);
   prdt_page_hash.create(n_cells);
-
-  if (!srv_read_only_mode)
-  {
-    lock_latest_err_file= os_file_create_tmpfile();
-    ut_a(lock_latest_err_file);
-  }
 }
 
 #ifdef UNIV_PFS_RWLOCK
@@ -493,12 +488,6 @@ void lock_sys_t::close()
 
   if (!m_initialised)
     return;
-
-  if (lock_latest_err_file)
-  {
-    my_fclose(lock_latest_err_file, MYF(MY_WME));
-    lock_latest_err_file= nullptr;
-  }
 
   rec_hash.free();
   prdt_hash.free();

@@ -3112,9 +3112,15 @@ void fil_names_dirty(fil_space_t *space) noexcept
 {
 	ut_ad(log_sys.latch_have_wr());
 	ut_ad(recv_recovery_is_on());
+	ut_ad(!srv_read_only_mode);
 	ut_ad(log_sys.get_lsn() != 0);
 	ut_ad(space->max_lsn == 0);
 	ut_d(fil_space_validate_for_mtr_commit(space));
+
+	if (UNIV_UNLIKELY(recv_sys.rpo != 0)) {
+		/* The log is read-only; do not write to it */
+		return;
+	}
 
 	fil_system.named_spaces.push_back(*space);
 	space->max_lsn = log_sys.get_lsn();

@@ -42,6 +42,6 @@ while ($c)
 DROP TABLE t2, t1;
 SET GLOBAL innodb_fast_shutdown=0;
 SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
-let $restart_parameters=;
+let $restart_parameters=--innodb-log-recovery-start=0;
 --source include/restart_mysqld.inc
 SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;

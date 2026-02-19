@@ -16,7 +16,7 @@ insert into t1 values (1, repeat('secret',6000));
 insert into t2 values (1, repeat('secret',6000));
 insert into t3 values (1, repeat('secret',6000));
 # Restart mysqld --file-key-management-filename=keys3.txt
-# restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys3.txt
+# restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys3.txt --innodb-log-recovery-start=0
 select count(*) from t1 FORCE INDEX (b) where b like 'secret%';
 ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
 select count(*) from t2 FORCE INDEX (b) where b like 'secret%';

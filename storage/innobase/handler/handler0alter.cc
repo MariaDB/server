@@ -8002,6 +8002,7 @@ ha_innobase::prepare_inplace_alter_table(
 	DBUG_ASSERT(!ha_alter_info->handler_ctx);
 	DBUG_ASSERT(ha_alter_info->create_info);
 	DBUG_ASSERT(!srv_read_only_mode);
+	DBUG_ASSERT(!recv_sys.rpo);
 
 	/* Init online ddl status variables */
 	onlineddl_rowlog_rows = 0;
@@ -8872,6 +8873,7 @@ ha_innobase::inplace_alter_table(
 	bool			rebuild_templ = false;
 	DBUG_ENTER("inplace_alter_table");
 	DBUG_ASSERT(!srv_read_only_mode);
+	DBUG_ASSERT(!recv_sys.rpo);
 
 	DEBUG_SYNC(m_user_thd, "innodb_inplace_alter_table_enter");
 
@@ -11336,6 +11338,7 @@ ha_innobase::commit_inplace_alter_table(
 
 	DBUG_ENTER("commit_inplace_alter_table");
 	DBUG_ASSERT(!srv_read_only_mode);
+	DBUG_ASSERT(!recv_sys.rpo);
 	DBUG_ASSERT(!ctx0 || ctx0->prebuilt == m_prebuilt);
 	DBUG_ASSERT(!ctx0 || ctx0->old_table == m_prebuilt->table);
 

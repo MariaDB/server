@@ -1,6 +1,18 @@
 --source include/have_innodb.inc
+--source ../../suite/encryption/include/skip_innodb_log_archive.inc
 --source include/have_sequence.inc
 --source include/no_valgrind_without_big.inc
+
+call mtr.add_suppression("InnoDB: innodb_log_archive_start=1234567 is after innodb_log_recovery_start=12345");
+call mtr.add_suppression("InnoDB: innodb_log_archive=ON disallows innodb_log_file_size>4G");
+call mtr.add_suppression("InnoDB: innodb_log_archive=ON but .*/ib_logfile0 exists");
+call mtr.add_suppression("InnoDB: No matching file found for innodb_log_recovery_start=12290");
+call mtr.add_suppression("InnoDB: File .*/ib_logfile0 was not found");
+call mtr.add_suppression("InnoDB: innodb_log_archive_start=\\d+ is after innodb_log_recovery_start=\\d+");
+call mtr.add_suppression("InnoDB: Did not find innodb_log_recovery_start=\\d+ ");
+let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
 
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
 
@@ -16,7 +28,7 @@ ENGINE=INNODB;
 
 INSERT INTO t SELECT NULL, REPEAT('a', 255) FROM seq_1_to_20000;
 
---let $restart_parameters=--innodb-log-file-size=4194304
+--let $restart_parameters=--innodb-log-file-size=4194304 --skip-innodb-log-archive
 --source include/restart_mysqld.inc
 
 SELECT COUNT(*) FROM t;
@@ -41,10 +53,27 @@ let $ID= `SELECT @id := CONNECTION_ID()`;
 send SET GLOBAL innodb_log_file_size=7340032;
 --connection default
 let $ignore= `SELECT @id := $ID`;
+--error 0,ER_WRONG_USAGE
+SET GLOBAL innodb_log_archive=ON;
+--error 0,ER_WRONG_USAGE
+SET GLOBAL innodb_log_archive=OFF;
+
 KILL QUERY @id;
 --connection con1
 --error 0,ER_QUERY_INTERRUPTED
 reap;
+
+# When innodb_log_archive=ON, SET GLOBAL innodb_log_file_size is instantaneous
+# but will not reflect the file size.
+SET GLOBAL innodb_log_archive=ON, innodb_log_file_size=10485760;
+SELECT @@GLOBAL.innodb_log_file_size!=10485760;
+--error ER_CANT_CREATE_HANDLER_FILE
+SET GLOBAL innodb_log_file_size=4294971392;
+SELECT @@GLOBAL.innodb_log_file_size<=10485760;
+SET GLOBAL innodb_log_file_size=4294967296;
+SELECT @@GLOBAL.innodb_log_file_size<=10485760;
+
+SET GLOBAL innodb_log_archive=OFF;
 
 --connection default
 send SET GLOBAL innodb_log_file_size=5242880;
@@ -64,11 +93,69 @@ reap;
 --connection default
 
 --let $shutdown_timeout=0
+--let $restart_parameters=--innodb-log-recovery-start=12345 --innodb-log-archive-start=1234567
+--source include/restart_mysqld.inc
+--let $shutdown_timeout=
+evalp $check_no_innodb;
+
+let SEARCH_PATTERN = InnoDB: innodb_log_archive_start=1234567 is after innodb_log_recovery_start=12345;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters=--innodb-log-archive --innodb-log-file-size=5g
+--source include/restart_mysqld.inc
+evalp $check_no_innodb;
+
+let SEARCH_PATTERN = InnoDB: innodb_log_archive=ON disallows innodb_log_file_size>4G;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters=--innodb-log-archive --innodb-log-file-size=4g
+--source include/restart_mysqld.inc
+evalp $check_no_innodb;
+
+let SEARCH_PATTERN = InnoDB: innodb_log_archive=ON but .*/ib_logfile0 exists;
+--source include/search_pattern_in_file.inc
+
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 
 SELECT * FROM t WHERE a<10;
 SELECT COUNT(*),LENGTH(b) FROM t GROUP BY b;
+
+SET GLOBAL innodb_log_archive=ON;
+let $archive_start=`SELECT variable_value FROM information_schema.global_status
+WHERE variable_name='innodb_lsn_archived'`;
+let $archive_start_1=`SELECT $archive_start-1`;
+
+--let $restart_parameters= --innodb-log-recovery-start=12290
+--source include/restart_mysqld.inc
+
+evalp $check_no_innodb;
+let SEARCH_PATTERN = InnoDB: No matching file found for innodb_log_recovery_start=12290;
+--source include/search_pattern_in_file.inc
+
+--let $restart_noprint=1
+--let $restart_parameters= --innodb-log-archive-start=$archive_start --innodb-log-recovery-start=$archive_start_1
+--source include/restart_mysqld.inc
+
+evalp $check_no_innodb;
+
+let SEARCH_PATTERN = InnoDB: File .*/ib_logfile0 as not found;
+--source include/search_pattern_in_file.inc
+
+let SEARCH_PATTERN = InnoDB: innodb_log_archive_start=\\d+ is after innodb_log_recovery_start=\\d+;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= --innodb-log-recovery-start=$archive_start_1
+--source include/restart_mysqld.inc
+
+evalp $check_no_innodb;
+
+--let $restart_parameters= --innodb-log-recovery-start=$archive_start
+--source include/restart_mysqld.inc
+
+--let $restart_noprint=
+
+SET GLOBAL innodb_log_archive=OFF;
 
 SHOW VARIABLES LIKE 'innodb_log_file_size';
 SET GLOBAL innodb_log_file_size=6291456;
