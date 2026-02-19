@@ -6637,9 +6637,9 @@ field_type_all_with_typedefs:
           {
             Lex->map_data_type(Lex_ident_sys(), &($$= $1));
           }
-        | udt_name float_options srid_option
+        | udt_name float_options srid_option opt_binary
           {
-            if (unlikely(Lex->set_field_type_udt_or_typedef(&$$, $1, $2)))
+            if (unlikely(Lex->set_field_type_udt_or_typedef(&$$, $1, $2, $4)))
               MYSQL_YYABORT;
           }
         ;
