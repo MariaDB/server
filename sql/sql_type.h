@@ -4014,6 +4014,20 @@ public:
 
   void set_name(Name n) { DBUG_ASSERT(!m_name.ptr()); m_name= n; }
   const Name name() const { return m_name; }
+
+  /*
+    Check if the data type supports attributes (coming from the parser)
+    @param name           - requested name, e.g. as in TYPE (typedef)
+    @param length_and_dec - length and scale
+    @param coll           - character set and/or collation
+    @param srid           - SRID (spatial attribute)
+    @return true          - on error, SQL error is also raised to DA
+    @return false         - on success
+  */
+  bool check_data_type_attributes(const LEX_CSTRING &name,
+                              const Lex_length_and_dec_st &length_and_dec,
+                              const Lex_column_charset_collation_attrs_st &coll,
+                              uint32 srid) const;
   virtual const Name version() const;
   virtual const Name &default_value() const= 0;
   virtual uint32 flags() const { return 0; }

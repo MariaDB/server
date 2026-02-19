@@ -9715,6 +9715,41 @@ bool Type_handler::can_return_extract_source(interval_type int_type) const
   return type_collection() == &type_collection_std;
 }
 
+
+bool Type_handler::check_data_type_attributes(
+                            const LEX_CSTRING &name,
+                            const Lex_length_and_dec_st &attr,
+                            const Lex_column_charset_collation_attrs_st &coll,
+                            uint32 srid) const
+{
+  uint column_attributes;
+
+  column_attributes= attr.has_explicit_length() ? Type_handler::ATTR_LENGTH :0;
+  column_attributes|= attr.has_explicit_dec() ? Type_handler::ATTR_DEC :0;
+  column_attributes|= coll.is_empty() ? 0 : Type_handler::ATTR_CHARSET;
+  column_attributes|= srid ? Type_handler::ATTR_SRID : 0;
+
+  if ((column_attributes&= ~get_column_attributes()))
+  {
+    const char *attr_name= "UNKNOWN";
+    if (column_attributes & Type_handler::ATTR_LENGTH)
+      attr_name= "LENGTH";
+    else if (column_attributes & Type_handler::ATTR_DEC)
+      attr_name= "DECIMALS";
+    else if (column_attributes & Type_handler::ATTR_SRID)
+      attr_name= "REF_SYSTEM_ID";
+    else if (column_attributes & Type_handler::ATTR_CHARSET)
+      attr_name= "CHARACTER SET";
+
+    my_error(ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE, MYF(0),
+        ErrConvString(name.str, name.length,system_charset_info).ptr(),
+        attr_name);
+    return true;
+  }
+  return false;
+}
+
+
 /***************************************************************************/
 
 LEX_CSTRING Charset::collation_specific_name() const

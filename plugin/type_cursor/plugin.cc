@@ -283,6 +283,7 @@ class Type_handler_sys_refcursor final: public Type_handler_int_result,
 public:
   static const Type_handler *singleton();
 
+  uint get_column_attributes() const override { return ATTR_NONE; }
   /*
      Data type features determined by Sys_refcursor_traits.
      If we ever want to change the reference value storage type
