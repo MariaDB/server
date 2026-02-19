@@ -51,6 +51,16 @@ XA END 'test';
 XA PREPARE 'test';
 XA COMMIT 'test';
 
+--echo # MDEV-35426 Stack smashing in spider_db_mbase::xa_end (opt), ASAN: stack-
+--echo #  buffer-overflow in Binary_string::q_append, and Assertion
+--echo #  `str.alloced_length() >= str.length() + data_len' failed in
+--echo #  spider_string::q_append on SELECT.
+
+XA START 'xaaaaaaaaaaaaaaabbbbbbbbbbbbbbbccc1','xaaaaaaaaaaaaaaabbbbbbbbbbbbbbbccc2',1234567890;
+INSERT INTO tbl_a (pkey) VALUES (10);
+XA END 'xaaaaaaaaaaaaaaabbbbbbbbbbbbbbbccc1','xaaaaaaaaaaaaaaabbbbbbbbbbbbbbbccc2',1234567890;
+XA ROLLBACK 'xaaaaaaaaaaaaaaabbbbbbbbbbbbbbbccc1','xaaaaaaaaaaaaaaabbbbbbbbbbbbbbbccc2',1234567890;
+
 --echo # MDEV-37829 XA COMMIT ONE PHASE fails with "This xid does not
 --echo # exist" if a trigger references a SPIDER table
 --echo #

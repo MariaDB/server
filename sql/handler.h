@@ -2501,20 +2501,11 @@ public:
   */
   KEY  *key_info_buffer;
 
-  /** Size of key_info_buffer array. */
-  uint key_count;
-
-  /** Size of index_drop_buffer array. */
-  uint index_drop_count= 0;
-
   /**
      Array of pointers to KEYs to be dropped belonging to the TABLE instance
      for the old version of the table.
   */
   KEY  **index_drop_buffer= nullptr;
-
-  /** Size of index_add_buffer array. */
-  uint index_add_count= 0;
 
   /**
      Array of indexes into key_info_buffer for KEYs to be added,
@@ -2523,32 +2514,6 @@ public:
   uint *index_add_buffer= nullptr;
 
   KEY_PAIR  *index_altered_ignorability_buffer= nullptr;
-
-  /** Size of index_altered_ignorability_buffer array. */
-  uint index_altered_ignorability_count= 0;
-
-  /**
-     Old and new index names. Used for index rename.
-  */
-  struct Rename_key_pair
-  {
-    Rename_key_pair(const KEY *old_key, const KEY *new_key)
-        : old_key(old_key), new_key(new_key)
-    {
-    }
-    const KEY *old_key;
-    const KEY *new_key;
-  };
-  /**
-     Vector of key pairs from DROP/ADD index which can be renamed.
-  */
-  typedef Mem_root_array<Rename_key_pair, true> Rename_keys_vector;
-
-  /**
-     A list of indexes which should be renamed.
-     Index definitions stays the same.
-  */
-  Rename_keys_vector rename_keys;
 
   /**
      Context information to allow handlers to keep context between in-place
@@ -2576,9 +2541,6 @@ public:
   */
   alter_table_operations handler_flags= 0;
 
-  /* Alter operations involving parititons are strored here */
-  ulong partition_flags;
-
   /**
      Partition_info taking into account the partition changes to be performed.
      Contains all partitions which are present in the old version of the table
@@ -2586,12 +2548,6 @@ public:
      to be added in the new version of table marked as such.
   */
   partition_info * const modified_part_info;
-
-  /** true for ALTER IGNORE TABLE ... */
-  const bool ignore;
-
-  /** true for online operation (LOCK=NONE) */
-  bool online= false;
 
   /**
     When ha_commit_inplace_alter_table() is called the engine can
@@ -2603,9 +2559,6 @@ public:
 
   /* This will be used as the argument to the above function when called */
   void *inplace_alter_table_committed_argument= nullptr;
-
-  /** which ALGORITHM and LOCK are supported by the storage engine */
-  enum_alter_inplace_result inplace_supported;
 
   /**
      Can be set by handler to describe why a given operation cannot be done
@@ -2621,11 +2574,57 @@ public:
   */
   const char *unsupported_reason= nullptr;
 
-  /** true when InnoDB should abort the alter when table is not empty */
-  const bool error_if_not_empty;
+  /* Alter operations involving parititons are strored here */
+  ulong partition_flags;
 
+  /**
+     Old and new index names. Used for index rename.
+  */
+  struct Rename_key_pair
+  {
+    Rename_key_pair(const KEY *old_key, const KEY *new_key)
+        : old_key(old_key), new_key(new_key)
+    {
+    }
+    const KEY *old_key;
+    const KEY *new_key;
+  };
+  /**
+     Vector of key pairs from DROP/ADD index which can be renamed.
+  */
+  typedef Mem_root_array<Rename_key_pair, true> Rename_keys_vector;
+
+  /**
+     A list of indexes which should be renamed.
+     Index definitions stays the same.
+  */
+  Rename_keys_vector rename_keys;
+
+  /** Size of key_info_buffer array. */
+  uint key_count;
+
+  /** Size of index_drop_buffer array. */
+  uint index_drop_count= 0;
+
+  /** Size of index_add_buffer array. */
+  uint index_add_count= 0;
+
+  /** Size of index_altered_ignorability_buffer array. */
+  uint index_altered_ignorability_count= 0;
+
+  /** which ALGORITHM and LOCK are supported by the storage engine */
+  enum_alter_inplace_result inplace_supported;
+
+  /** TRUE for online operation (LOCK=NONE) */
+  unsigned online : 1;
+  /** TRUE when innodb_file_per_table is set */
+  unsigned file_per_table : 1;
+  /** TRUE for ALTER IGNORE TABLE ... */
+  unsigned ignore : 1;
+  /** true when InnoDB should abort the alter when table is not empty */
+  unsigned error_if_not_empty : 1;
   /** True when DDL should avoid downgrading the MDL */
-  bool mdl_exclusive_after_prepare= false;
+  unsigned mdl_exclusive_after_prepare : 1;
 
   Alter_inplace_info(HA_CREATE_INFO *create_info_arg,
                      Alter_info *alter_info_arg,
