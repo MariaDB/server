@@ -8,7 +8,7 @@ show global variables like 'system_versioning_asof';
 show variables like 'system_versioning_asof';
 select * from t;
 
-set system_versioning_asof= '2031-1-1 0:0:0';
+set system_versioning_asof= '2081-1-1 0:0:0';
 show variables like 'system_versioning_asof';
 select * from t;
 

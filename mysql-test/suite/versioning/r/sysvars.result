@@ -12,10 +12,10 @@ system_versioning_asof	DEFAULT
 select * from t;
 a
 2
-set system_versioning_asof= '2031-1-1 0:0:0';
+set system_versioning_asof= '2081-1-1 0:0:0';
 show variables like 'system_versioning_asof';
 Variable_name	Value
-system_versioning_asof	2031-01-01 00:00:00.000000
+system_versioning_asof	2081-01-01 00:00:00.000000
 select * from t;
 a
 2
