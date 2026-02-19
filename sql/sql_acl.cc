@@ -6238,6 +6238,7 @@ access_t GRANT_INFO::all_privilege()
    acc.set_allow_bits(grant_public->cols);
   
   acc|= privilege;
+  acc.set_deny_subtree(NO_ACL);
   return acc;
 }
 
@@ -6624,6 +6625,7 @@ apply_single_deny_closure_to_cache(const LEX_USER &combo,
 
   case ACL_PRIV_TYPE::PRIV_TYPE_COLUMN: 
   {
+    DBUG_ASSERT(closure_entry.subtree_denies == NO_ACL);
     // Update GRANT_COLUMN in the grant table's hash
     GRANT_TABLE *grant_table=
         table_hash_search(hostname, NULL, closure_entry.db.c_str(), username,
@@ -6641,7 +6643,8 @@ apply_single_deny_closure_to_cache(const LEX_USER &combo,
                                       closure_entry.subtree_denies);
         grant_column->init_rights.set_deny(closure_entry.denies,
                                            closure_entry.subtree_denies);
-
+        grant_table->cols|= closure_entry.denies;
+        grant_table->init_cols= grant_table->cols;
         // Remove column if no privileges left at all
         if (grant_column->rights.is_empty())
         {
@@ -6658,6 +6661,8 @@ apply_single_deny_closure_to_cache(const LEX_USER &combo,
                                                 closure_entry.subtree_denies));
         if (new_col)
           my_hash_insert(&grant_table->hash_columns, (uchar *) new_col);
+        grant_table->cols|= closure_entry.denies;
+        grant_table->init_cols= grant_table->cols;
       }
     }
     else if (has_denies)
@@ -6676,6 +6681,9 @@ apply_single_deny_closure_to_cache(const LEX_USER &combo,
         if (new_col)
         {
           my_hash_insert(&new_grant->hash_columns, (uchar *) new_col);
+          // Set cols to mark which privileges have column-level data
+          new_grant->cols= closure_entry.denies;
+          new_grant->init_cols= new_grant->cols;
           column_priv_insert(new_grant);
         }
       }
@@ -6783,7 +6791,8 @@ static int replace_column_table(GRANT_TABLE *g_t, const User_table &user_table,
            user_table, combo, column->rights, revoke_grant,
            ACL_PRIV_TYPE::PRIV_TYPE_COLUMN, db, table_name,
            column->column.c_ptr(), out_deny_bits);
-       DBUG_RETURN(res);
+       if (res)
+         DBUG_RETURN(res);
      }
      DBUG_RETURN(0);
   } /* is_deny */
@@ -9627,20 +9636,16 @@ err:
 }
 
 
-static void check_grant_column_int(GRANT_TABLE *grant_table,
-                                   const Lex_ident_column &name,
-                                   privilege_t *want_access)
+static access_t check_grant_column_int(GRANT_TABLE *grant_table,
+                                   const Lex_ident_column &name)
 {
   if (grant_table)
   {
-    *want_access&= ~grant_table->privs;
-    if (*want_access & grant_table->cols)
-    {
       GRANT_COLUMN *grant_column= column_hash_search(grant_table, name);
       if (grant_column)
-        *want_access&= ~grant_column->rights;
-    }
+        return grant_column->rights;
   }
+  return access_t(NO_ACL);
 }
 
 inline access_t GRANT_INFO::aggregate_privs()
@@ -9716,11 +9721,17 @@ bool check_grant_column(THD *thd, GRANT_INFO *grant,
                         const Lex_ident_column &column_name,
                         Security_context *sctx)
 {
-  privilege_t want_access(grant->want_privilege & ~grant->privilege);
+  privilege_t want_access;
+  access_t acc;
   DBUG_ENTER("check_grant_column");
-  DBUG_PRINT("enter", ("table: %s  want_access: %llx",
-                       table_name, (longlong) want_access));
 
+  // denies should have been checked previously,
+  // on the table level
+  DBUG_ASSERT(!grant->privilege.is_denied(grant->want_privilege));
+  
+  want_access= grant->want_privilege & ~grant->privilege;
+  DBUG_PRINT("info", ("table: %s  want_access: %llx", table_name,
+                       (longlong) want_access));
   if (!want_access)
     DBUG_RETURN(0);				// Already checked
 
@@ -9729,11 +9740,18 @@ bool check_grant_column(THD *thd, GRANT_INFO *grant,
   /* reload table if someone has modified any grants */
   grant->refresh(sctx, db_name, table_name);
 
-  check_grant_column_int(grant->grant_table_user, column_name, &want_access);
-  check_grant_column_int(grant->grant_table_role, column_name, &want_access);
-  check_grant_column_int(grant->grant_public, column_name, &want_access);
+  acc= check_grant_column_int(grant->grant_table_user, column_name)|
+       check_grant_column_int(grant->grant_table_role, column_name)|
+       check_grant_column_int(grant->grant_public, column_name);
 
+  acc= acc.combine_with_parent(grant->privilege);
   mysql_rwlock_unlock(&LOCK_grant);
+
+
+  // column level denies are on "leaf" hierachy level, no subtree
+  DBUG_ASSERT(!acc.deny_subtree()); 
+
+  want_access &= ~acc;
   if (!want_access)
     DBUG_RETURN(0);
 
@@ -10219,55 +10237,29 @@ access_t get_column_grant(THD *thd, GRANT_INFO *grant,
                         const char *db_name, const char *table_name,
                         const Lex_ident_column &field_name)
 {
-  GRANT_TABLE *grant_table;
-  GRANT_TABLE *grant_table_role;
-  GRANT_TABLE *grant_public;
-  GRANT_COLUMN *grant_column;
-  access_t priv(NO_ACL);
+  access_t tbl_priv;
+  access_t col_priv;
 
   mysql_rwlock_rdlock(&LOCK_grant);
   /* reload table if someone has modified any grants */
   grant->refresh(thd->security_ctx, db_name, table_name);
 
-  grant_table= grant->grant_table_user;
-  grant_table_role= grant->grant_table_role;
-  grant_public= grant->grant_public;
+  tbl_priv= access_t(NO_ACL);
+  col_priv= access_t(NO_ACL);
 
-  if (!grant_table && !grant_table_role && !grant_public)
-    priv= grant->privilege;
-  else
+  for (GRANT_TABLE *t :
+       {grant->grant_table_user, grant->grant_table_role, grant->grant_public})
   {
-    if (grant_table)
-    {
-      grant_column= column_hash_search(grant_table, field_name);
-      if (!grant_column)
-        priv= (grant->privilege | grant_table->privs);
-      else
-        priv= (grant->privilege | grant_table->privs | grant_column->rights);
-    }
-
-    if (grant_table_role)
-    {
-      grant_column= column_hash_search(grant_table_role, field_name);
-      if (!grant_column)
-        priv|= (grant->privilege | grant_table_role->privs);
-      else
-        priv|= (grant->privilege | grant_table_role->privs |
-                grant_column->rights);
-    }
-    if (grant_public)
-    {
-      grant_column= column_hash_search(grant_public, field_name);
-      if (!grant_column)
-        priv|= (grant->privilege | grant_public->privs);
-      else
-        priv|= (grant->privilege | grant_public->privs |
-                grant_column->rights);
-    }
+    if (!t)
+      continue;
+    tbl_priv|= t->privs;
+    GRANT_COLUMN* c= column_hash_search(t, field_name);
+    if (c)
+      col_priv|= c->rights;
   }
   mysql_rwlock_unlock(&LOCK_grant);
-  priv.set_deny_subtree(NO_ACL); /* we're at the leaf level*/
-  return priv;
+  access_t p = col_priv.combine_with_parent(tbl_priv | grant->privilege);
+  return p;
 }
 
 

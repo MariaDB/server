@@ -49,7 +49,20 @@ EXECUTE show_denies;
 DENY SELECT on *.* to u;
 EXECUTE show_denies;
 
+CREATE TABLE sensitive_data (
+  id INT,
+  public_info VARCHAR(50),
+  salary DECIMAL(10,2),
+  ssn VARCHAR(11),
+  address VARCHAR(100)
+);
+
+DENY SELECT(salary,ssn) on sensitive_data to u;
+
+EXECUTE show_denies;
+
 DEALLOCATE PREPARE show_denies;
 DROP USER u;
 DROP DATABASE d;
+DROP TABLE sensitive_data;
 
