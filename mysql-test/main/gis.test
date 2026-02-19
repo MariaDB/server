@@ -3515,3 +3515,21 @@ FROM (
 SELECT ST_DISTANCE_SPHERE(st_geomfromtext('linestring( 2 2, 2 8) '), ST_GeomFromText('POINT(18.413076 43.856258)')) ;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-35739 Linestring self-intersection equality
+--echo #
+CREATE TABLE t1(geom geometry NOT NULL);
+INSERT INTO t1 (geom) VALUES(ST_GeomFromText('LINESTRING(2 2,4 4,6 2,3 2,2 4)'));
+SELECT ST_ASTEXT(geom) FROM t1;
+SELECT ST_EQUALS(geom, ST_INTERSECTION(geom, geom)) AS isequal, ST_ASTEXT(ST_INTERSECTION(geom, geom)) AS intersection FROM t1;
+SELECT ST_AsText(ST_SYMDIFFERENCE(geom, ST_Intersection(geom, geom))) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
