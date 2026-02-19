@@ -1,7 +1,7 @@
 call mtr.add_suppression("InnoDB: innodb_log_archive_start=1234567 is after innodb_log_recovery_start=12345");
 call mtr.add_suppression("InnoDB: innodb_log_archive=ON disallows innodb_log_file_size>4G");
 call mtr.add_suppression("InnoDB: innodb_log_archive=ON but .*/ib_logfile0 exists");
-call mtr.add_suppression("InnoDB: No matching file found for innodb_log_recovery_start=12290");
+call mtr.add_suppression("InnoDB: No matching file found for innodb_log_recovery_start=");
 call mtr.add_suppression("InnoDB: File .*/ib_logfile0 was not found");
 call mtr.add_suppression("InnoDB: innodb_log_archive_start=\\d+ is after innodb_log_recovery_start=\\d+");
 call mtr.add_suppression("InnoDB: Did not find innodb_log_recovery_start=\\d+ ");
