@@ -2269,3 +2269,12 @@ trx_set_rw_mode(
 		trx->read_view.set_creator_trx_id(trx->id);
 	}
 }
+
+/** Reset the undo no and remove the undo log from transaction */
+void trx_t::reset_and_truncate_undo()
+{
+	ut_ad(undo_no <= 1);
+	ut_ad(mod_tables.size() == 1 || undo_no == 0);
+	undo_no= 0;
+	trx_undo_try_truncate(*this);
+}

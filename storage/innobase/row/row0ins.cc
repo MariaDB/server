@@ -2781,7 +2781,13 @@ err_exit:
 		if (!index->table->n_rec_locks
 		    && !index->table->versioned()
 		    && !index->table->is_temporary()
-		    && !index->table->has_spatial_index()) {
+		    && !index->table->has_spatial_index()
+		    /* Prevent ALTER IGNORE from using bulk insert
+		    optimization. since it requires to write undo log
+		    for each row operation that's incompatible with
+		    bulk operations */
+		    && index->table->skip_alter_undo !=
+		         dict_table_t::IGNORE_UNDO) {
 
 			ut_ad(!index->table->skip_alter_undo);
 			trx->bulk_insert = TRX_DML_BULK;
@@ -3341,7 +3347,7 @@ row_ins_clust_index_entry(
 	   skip the undo log and record lock checking for
 	   insertion operation.
 	*/
-	if (index->table->skip_alter_undo) {
+	if (index->table->skip_alter_undo == dict_table_t::NO_UNDO) {
 		flags |= BTR_NO_UNDO_LOG_FLAG | BTR_NO_LOCKING_FLAG;
 	}
 

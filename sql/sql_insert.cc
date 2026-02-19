@@ -5165,8 +5165,13 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
       !table->s->long_unique_table)
   {
     table->file->ha_start_bulk_insert((ha_rows) 0);
-    if (thd->lex->duplicates == DUP_ERROR && !thd->lex->ignore)
-      table->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
+    if (thd->lex->duplicates == DUP_ERROR)
+    {
+      static_assert(int{HA_EXTRA_BEGIN_ALTER_IGNORE_COPY} ==
+		    int{HA_EXTRA_BEGIN_ALTER_COPY} + 1, "");
+      table->file->extra(ha_extra_function(int{HA_EXTRA_BEGIN_ALTER_COPY} +
+                                           thd->lex->ignore));
+    }
     table->file->extra(HA_EXTRA_WRITE_CACHE);
   }
   thd->abort_on_warning= !info.ignore && thd->is_strict_mode();

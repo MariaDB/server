@@ -9492,6 +9492,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_BEGIN_ALTER_COPY:
   case HA_EXTRA_END_ALTER_COPY:
   case HA_EXTRA_ABORT_ALTER_COPY:
+  case HA_EXTRA_BEGIN_ALTER_IGNORE_COPY:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   default:
   {

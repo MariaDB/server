@@ -225,6 +225,8 @@ enum ha_extra_function {
   HA_EXTRA_STARTING_ORDERED_INDEX_SCAN,
   /** Start writing rows during ALTER TABLE...ALGORITHM=COPY. */
   HA_EXTRA_BEGIN_ALTER_COPY,
+  /** Start writing rows during ALTER IGNORE TABLE..ALGORITHM=COPY */
+  HA_EXTRA_BEGIN_ALTER_IGNORE_COPY,
   /** Finish writing rows during ALTER TABLE...ALGORITHM=COPY. */
   HA_EXTRA_END_ALTER_COPY,
   /** Abort of writing rows during ALTER TABLE..ALGORITHM=COPY or

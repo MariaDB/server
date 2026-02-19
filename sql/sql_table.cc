@@ -12351,8 +12351,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
 
   thd->progress.max_counter= from->file->records();
   time_to_report_progress= MY_HOW_OFTEN_TO_WRITE/10;
-  if (!ignore) /* for now, InnoDB needs the undo log for ALTER IGNORE */
-    to->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
+  static_assert(int{HA_EXTRA_BEGIN_ALTER_IGNORE_COPY} ==
+                int{HA_EXTRA_BEGIN_ALTER_COPY} + 1, "");
+  to->file->extra(ha_extra_function(int{HA_EXTRA_BEGIN_ALTER_COPY} + ignore));
 
   while (likely(!(error= info.read_record())))
   {
@@ -12455,6 +12456,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
 
   if (error > 0 && !from->s->tmp_table)
   {
+    /* Abort the operation which invoked extra(HA_EXTRA_BEGIN_ALTER_COPY)
+    or extra(HA_EXTRA_BEGIN_ALTER_IGNORE_COPY) */
+    to->file->extra(HA_EXTRA_ABORT_ALTER_COPY);
     /* We are going to drop the temporary table */
     to->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
   }
@@ -12466,7 +12470,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
     error= 1;
   }
   bulk_insert_started= 0;
-  if (!ignore && error <= 0)
+  if (error <= 0)
   {
     int alt_error= to->file->extra(HA_EXTRA_END_ALTER_COPY);
     if (alt_error > 0)

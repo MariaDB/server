@@ -1205,6 +1205,9 @@ public:
     return bulk_insert == type ? bulk_insert_apply_low(): DB_SUCCESS;
   }
 
+  /** Reset the undo no and remove the undo log from transaction */
+  void reset_and_truncate_undo();
+
 private:
   /** Apply the buffered bulk inserts. */
   dberr_t bulk_insert_apply_low();
