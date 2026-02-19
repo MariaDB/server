@@ -140,7 +140,9 @@ TABLE *get_purge_table(THD *thd);
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 			const char *tb, size_t tblen);
 void close_thread_tables(THD* thd);
-
+extern "C" int thd_sql_is_table_accessed(const MYSQL_THD thd,
+                                         const char *db_name,
+                                         const char *table_name);
 #ifdef MYSQL_DYNAMIC_PLUGIN
 #define tc_size  400
 #endif
@@ -21335,9 +21337,29 @@ void alter_stats_rebuild(dict_table_t *table, THD *thd)
       || dict_stats_persistent_storage_check(false) != SCHEMA_OK)
     DBUG_VOID_RETURN;
 
-  dberr_t ret= dict_stats_update_persistent(table);
-  if (ret == DB_SUCCESS)
-    ret= dict_stats_save(table);
+	if (thd && thd_sql_command(thd) == SQLCOM_CREATE_TABLE)
+	{
+    LEX_STRING *q= thd_query_string(thd);
+    if (q->str && q->length > 0)
+    {
+			
+			if ((thd_sql_is_table_accessed(thd, "mysql", "innodb_table_stats")) ||
+			thd_sql_is_table_accessed(thd, "mysql", "innodb_index_stats"))
+      {
+				// Avoids a deadlock where a shared lock is held on the
+        // stats system table, then dict_stats_update tries to acquire
+        // an exclusive lock on it. An example is "CREATE TABLE t1 AS SELECT *
+        // FROM innodb_[table/index]_stats".
+        dict_stats_recalc_pool_add(table->id);
+
+        DBUG_VOID_RETURN;
+      }
+    }
+  }
+
+	dberr_t ret= dict_stats_update_persistent(table);
+	if (ret == DB_SUCCESS)
+		ret= dict_stats_save(table);
   if (ret != DB_SUCCESS)
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_ALTER_INFO, "Error updating stats for table after"

@@ -104,12 +104,17 @@ n_rows	database_name	lower(table_name)
 DROP TABLE t1;
 DROP TABLE t2;
 #
-# MDEV-38667 Assertion in diagnostics area on DDL stats timeout
+# MDEV-38822 Lock wait timeout does not happen anymore
 #
 set @lock_wait_timeout= @@global.innodb_lock_wait_timeout;
 SET innodb_lock_wait_timeout = 1;
 CREATE TABLE t ENGINE=InnoDB AS SELECT * FROM mysql.innodb_table_stats;
-Warnings:
-Warning	1088	Error updating stats for table after table rebuild: Lock wait timeout
 SET innodb_lock_wait_timeout = @lock_wait_timeout;
+SELECT COUNT(*) as n_rows FROM t;
+n_rows
+1
+# For a deterministic test, we wait for the background thread to update the stats for the new table.
+SELECT table_name, n_rows FROM mysql.innodb_table_stats WHERE table_name = 't';
+table_name	n_rows
+t	1
 DROP TABLE t;

@@ -97,13 +97,7 @@ static void dict_stats_recalc_pool_deinit()
 		destroy_background_thd(dict_stats_thd);
 }
 
-/*****************************************************************//**
-Add a table to the recalc pool, which is processed by the
-background stats gathering thread. Only the table id is added to the
-list, so the table can be closed after being enqueued and it will be
-opened when needed. If the table does not exist later (has been DROPped),
-then it will be removed from the pool and skipped. */
-static void dict_stats_recalc_pool_add(table_id_t id)
+void dict_stats_recalc_pool_add(table_id_t id)
 {
   ut_ad(!srv_read_only_mode);
   ut_ad(id);
