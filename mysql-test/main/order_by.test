@@ -2831,4 +2831,17 @@ SELECT 1 FROM (select 1) dt order BY 50;
 
 --echo # End of 10.11 tests
 
+--echo #
+--echo # MDEV-38649: Wrong result (missing rows) upon condition pushdown on table with DESC key
+--echo #
+CREATE TABLE t1 (a INT, b INT not null, KEY(b));
+INSERT INTO t1 VALUES (2,8),(9,1),(4,6);
+SELECT a, b FROM t1 WHERE b != 10 and b < 30 ORDER BY b DESC;
+SELECT a, b FROM t1 use index() WHERE b != 10 and b < 30 ORDER BY b DESC;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 12.3 tests
+--echo #
+
 --source include/test_db_charset_restore.inc
