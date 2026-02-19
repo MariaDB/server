@@ -80,7 +80,9 @@ wsrep_get_apply_format(THD* thd)
 
   DBUG_ASSERT(thd->wsrep_rgi);
 
-  return thd->wsrep_rgi->rli->relay_log.description_event_for_exec;
+  return thd->wsrep_rgi->rli->relay_log.description_event_for_sql_thread
+
+;
 }
 
 /* store error from rli */
