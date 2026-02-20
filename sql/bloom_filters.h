@@ -29,34 +29,34 @@ SOFTWARE.
 #include <vector>
 #include <algorithm>
 
-/*
-  Use gcc function multiversioning to optimize for a specific CPU with run-time
-  detection. Works only for x86, for other architectures we provide only one
-  implementation for now.
-*/
-#define DEFAULT_IMPLEMENTATION
-#if __GNUC__ > 7 && defined(__GLIBC__)
-#ifdef __x86_64__
-#ifdef HAVE_IMMINTRIN_H
-#include <immintrin.h>
-#undef DEFAULT_IMPLEMENTATION
-#define DEFAULT_IMPLEMENTATION    __attribute__ ((target ("default")))
+#undef AVX2_IMPLEMENTATION
+#undef AVX512_IMPLEMENTATION
+
+#if defined __GNUC__ && (defined __i386__||defined __x86_64__)
 #define AVX2_IMPLEMENTATION __attribute__ ((target ("avx2,avx,fma")))
-#if __GNUC__ > 9
+#if __GNUC__ >= 5 
 #define AVX512_IMPLEMENTATION __attribute__ ((target ("avx512f,avx512bw")))
 #endif
-#endif
-#endif
+#elif defined _MSC_VER && (defined _M_X64 || defined _M_IX86)
+#include <immintrin.h>
+#define AVX2_IMPLEMENTATION
+#define AVX512_IMPLEMENTATION
+#endif 
+
 #ifdef __aarch64__
 #include <arm_neon.h>
-#undef DEFAULT_IMPLEMENTATION
 #define NEON_IMPLEMENTATION
 #endif
-#endif
+
 #if defined __powerpc64__ && defined __VSX__
 #include <altivec.h>
 #define POWER_IMPLEMENTATION
 #endif
+
+#if !defined(AVX2_IMPLEMENTATION) && !defined(NEON_IMPLEMENTATION) && !defined(POWER_IMPLEMENTATION)
+#define DEFAULT_IMPLEMENTATION
+#endif
+
 
 template <typename T>
 struct PatternedSimdBloomFilter
