@@ -15,6 +15,8 @@ set optimizer_replay_context="";
 create database db1;
 use db1;
 
+let $table_name=t1;
+
 delimiter //;
 create function round_cost(explain_output text)
 returns text
@@ -45,31 +47,8 @@ end;
 delimiter ;//
 
 --echo #
---echo # Range query on a single table having 1 unique index on a single column
+--echo # Range query on a single table by using 1 unique index on a single column
 --echo #
-
-let $table_name=t1;
-
-create table t1 (c1 int, c2 int, unique (c1)) engine=innodb;
-
-insert into t1 select seq, seq from seq_1_to_10000;
-
-analyze table t1;
-
-let $explain_query=explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333;
-
-let $table_update_query=delete from t1;
-
---source include/run_query_twice_and_compare_stats.inc
-
-drop table t1;
-
---echo #
---echo # Query on a single table having 2 unique indexes.
---echo # 2 different ranges are specified on each index.
---echo #
-
-let $table_name=t1;
 
 create table t1 (
     c1 int,
@@ -78,11 +57,25 @@ create table t1 (
     unique(c2)
 ) ENGINE=InnoDB;
 
-insert into t1 select seq, seq from seq_1_to_10000;
+insert into t1 select seq, seq from seq_1_to_100;
 
 analyze table t1;
 
-let $explain_query=explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333 and a.c2 < 3 and b.c2 < 333;
+let $explain_query=explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 33;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+--echo #
+--echo # Range query on a single table by using 2 unique indexes on 2 different column
+--echo #
+
+insert into t1 select seq, seq from seq_1_to_100;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 33 and a.c2 < 3 and b.c2 < 33;
 
 let $table_update_query=delete from t1;
 
@@ -92,7 +85,7 @@ let $table_update_query=delete from t1;
 --echo # Add more data to the table and execute the query
 --echo #
 
-insert into t1 select seq, seq from seq_1_to_20000;
+insert into t1 select seq, seq from seq_1_to_200;
 
 analyze table t1;
 
@@ -120,7 +113,7 @@ create table t1 (
     index(c1)
 ) ENGINE=InnoDB;
 
-insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+insert into t1 select seq%5, seq%10 from seq_1_to_200;
 
 analyze table t1;
 
@@ -137,15 +130,13 @@ drop table t1;
 --echo # Also, index column is used in the condition
 --echo #
 
-let $table_name=t1;
-
 create table t1 (
     c1 int,
     c2 int,
     primary key (c1)
 ) ENGINE=InnoDB;
 
-insert into t1 select seq, seq%500 from seq_1_to_10000;
+insert into t1 select seq, seq%5 from seq_1_to_100;
 
 analyze table t1;
 
@@ -170,7 +161,7 @@ create table t1 (
     index(c1, c2)
 ) ENGINE=InnoDB;
 
-insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+insert into t1 select seq%3, seq%5 from seq_1_to_100;
 
 analyze table t1;
 
@@ -195,7 +186,7 @@ create table t1 (
     primary key (c1, c2)
 ) ENGINE=InnoDB;
 
-insert into t1 select seq, seq%500 from seq_1_to_10000;
+insert into t1 select seq, seq%5 from seq_1_to_100;
 
 analyze table t1;
 
@@ -212,15 +203,13 @@ drop table t1;
 --echo # However, only 1 column from the index is used in the condition
 --echo #
 
-let $table_name=t1;
-
 create table t1 (
     c1 int,
     c2 int,
     index(c1, c2)
 ) ENGINE=InnoDB;
 
-insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+insert into t1 select seq%5, seq%10 from seq_1_to_100;
 
 analyze table t1;
 
@@ -237,15 +226,13 @@ drop table t1;
 --echo # However, only 1 column from the index that has unique values is used in the condition
 --echo #
 
-let $table_name=t1;
-
 create table t1 (
     c1 int,
     c2 int,
     primary key (c1, c2)
 ) ENGINE=InnoDB;
 
-insert into t1 select seq, seq%500 from seq_1_to_10000;
+insert into t1 select seq, seq%5 from seq_1_to_100;
 
 analyze table t1;
 
@@ -255,26 +242,46 @@ let $table_update_query=delete from t1;
 
 --source include/run_query_twice_and_compare_stats.inc
 
-drop table t1;
-
 --echo #
 --echo # Equi-Join query on a single table having 1 primary key index on 2 columns.
 --echo # However, only 1 column from the index that has non-unique values is used in the condition
 --echo #
 
-let $table_name=t1;
-
-create table t1 (
-    c1 int,
-    c2 int,
-    primary key (c1, c2)
-) ENGINE=InnoDB;
-
-insert into t1 select seq, seq%500 from seq_1_to_10000;
+insert into t1 select seq, seq%5 from seq_1_to_100;
 
 analyze table t1;
 
 let $explain_query=explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c2 = tt2.c2;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+--echo #
+--echo # Query on a single table having 1 primary key index on 2 columns.
+--echo # However, a constant literal is used in the equality predicate with only 1 column from the index that has unique values.
+--echo #
+
+insert into t1 select seq, seq%5 from seq_1_to_100;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 as tt1 where tt1.c1 = 5;
+
+let $table_update_query=delete from t1;
+
+--source include/run_query_twice_and_compare_stats.inc
+
+--echo #
+--echo # Query on a single table having 1 primary key index on 2 columns.
+--echo # However, a constant literal is used in the equality predicate with only 1 column from the index that has non-unique values.
+--echo #
+
+insert into t1 select seq, seq%5 from seq_1_to_100;
+
+analyze table t1;
+
+let $explain_query=explain format=json select * from t1 as tt1 where tt1.c2 = 5;
 
 let $table_update_query=delete from t1;
 
@@ -287,94 +294,32 @@ drop table t1;
 --echo # However, a constant literal is used in the equality predicate using only 1 column from the index.
 --echo #
 
-let $table_name=t1;
-
 create table t1 (
     c1 int,
     c2 int,
     index(c1)
 ) ENGINE=InnoDB;
 
-insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+insert into t1 select seq%3, seq%5 from seq_1_to_100;
 
 analyze table t1;
 
-let $explain_query=explain format=json select * from t1 as tt1 where tt1.c1 = 5;
+let $explain_query=explain format=json select * from t1 as tt1 where tt1.c1 = 3;
 
 let $table_update_query=delete from t1;
 
 --source include/run_query_twice_and_compare_stats.inc
-
-drop table t1;
-
---echo #
---echo # Query on a single table having 1 primary key index on 2 columns.
---echo # However, a constant literal is used in the equality predicate with only 1 column from the index that has unique values.
---echo #
-
-let $table_name=t1;
-
-create table t1 (
-    c1 int,
-    c2 int,
-    primary key(c1, c2)
-) ENGINE=InnoDB;
-
-insert into t1 select seq, seq%500 from seq_1_to_10000;
-
-analyze table t1;
-
-let $explain_query=explain format=json select * from t1 as tt1 where tt1.c1 = 5;
-
-let $table_update_query=delete from t1;
-
---source include/run_query_twice_and_compare_stats.inc
-
-drop table t1;
 
 --echo #
 --echo # Query on a single table having 1 non-unique index on a single column.
 --echo # Also, a constant literal is used in the equality predicate on the column that is in the index.
 --echo #
 
-let $table_name=t1;
-
-create table t1 (
-    c1 int,
-    c2 int,
-    index(c1)
-) ENGINE=InnoDB;
-
-insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+insert into t1 select seq%3, seq%5 from seq_1_to_100;
 
 analyze table t1;
 
 let $explain_query=explain format=json select * from t1 as tt1 where tt1.c1 = 5;
-
-let $table_update_query=delete from t1;
-
---source include/run_query_twice_and_compare_stats.inc
-
-drop table t1;
-
---echo #
---echo # Query on a single table having 1 primary key index on 2 columns.
---echo # However, a constant literal is used in the equality predicate with only 1 column from the index that has non-unique values.
---echo #
-
-let $table_name=t1;
-
-create table t1 (
-    c1 int,
-    c2 int,
-    primary key(c1, c2)
-) ENGINE=InnoDB;
-
-insert into t1 select seq, seq%500 from seq_1_to_10000;
-
-analyze table t1;
-
-let $explain_query=explain format=json select * from t1 as tt1 where tt1.c2 = 5;
 
 let $table_update_query=delete from t1;
 
@@ -387,19 +332,17 @@ drop table t1;
 --echo # However, a constant literal is used in the equality predicate on the column that is not in the index.
 --echo #
 
-let $table_name=t1;
-
 create table t1 (
     c1 int,
     c2 int,
     primary key(c1)
 ) ENGINE=InnoDB;
 
-insert into t1 select seq, seq%500 from seq_1_to_10000;
+insert into t1 select seq, seq%5 from seq_1_to_100;
 
 analyze table t1;
 
-let $explain_query=explain format=json select * from t1 as tt1 where tt1.c2 = 5;
+let $explain_query=explain format=json select * from t1 as tt1 where tt1.c2 = 4;
 
 let $table_update_query=delete from t1;
 
@@ -421,7 +364,7 @@ create table t1 (
     index(c2)
 ) ENGINE=InnoDB;
 
-insert into t1 select seq%100, seq%500 from seq_1_to_10000;
+insert into t1 select seq%5, seq%10 from seq_1_to_100;
 
 analyze table t1;
 
@@ -448,6 +391,8 @@ create table t1 (
 ) ENGINE=InnoDB;
 
 insert into t1 select seq%2, seq%3, seq%5 from seq_1_to_20;
+
+analyze table t1;
 
 let $explain_query=explain format=json select * from t1 where a=1 and b=1 and c=1;
 

@@ -1,0 +1,160 @@
+#enable both optimizer_trace, and optimizer_record_context
+set optimizer_record_context=ON;
+set optimizer_trace=1;
+create database db1;
+use db1;
+create table t1
+(
+a int, b int,
+index t1_idx_a (a),
+index t1_idx_b (b),
+index t1_idx_ab (a, b)
+);
+insert into t1 select seq%2, seq%3 from seq_1_to_20;
+select count(*) from t1;
+count(*)
+20
+set @set_stmts= (select REGEXP_SUBSTR(
+context, '(SET .*)([\n\r].*)*(?=(set @opt_context=))')
+AS set_stmt from information_schema.optimizer_context);
+select @set_stmts;
+@set_stmts
+SET join_buffer_size=262144;
+
+SET join_cache_level=2;
+
+SET optimizer_adjust_secondary_key_costs=0;
+
+SET GLOBAL optimizer_disk_read_cost=10.240000;
+
+SET GLOBAL optimizer_disk_read_ratio=0.020000;
+
+SET optimizer_extra_pruning_depth=8;
+
+SET GLOBAL optimizer_index_block_copy_cost=0.035600;
+
+SET optimizer_join_limit_pref_ratio=0;
+
+SET GLOBAL optimizer_key_compare_cost=0.011361;
+
+SET GLOBAL optimizer_key_copy_cost=0.015685;
+
+SET GLOBAL optimizer_key_lookup_cost=0.435777;
+
+SET GLOBAL optimizer_key_next_find_cost=0.082347;
+
+SET optimizer_max_sel_arg_weight=32000;
+
+SET optimizer_max_sel_args=16000;
+
+SET optimizer_prune_level=2;
+
+SET GLOBAL optimizer_row_copy_cost=0.060866;
+
+SET GLOBAL optimizer_row_lookup_cost=0.130839;
+
+SET GLOBAL optimizer_row_next_find_cost=0.045916;
+
+SET GLOBAL optimizer_rowid_compare_cost=0.002653;
+
+SET GLOBAL optimizer_rowid_copy_cost=0.002653;
+
+SET optimizer_scan_setup_cost=10.000000;
+
+SET optimizer_search_depth=62;
+
+SET optimizer_selectivity_sampling_limit=100;
+
+SET optimizer_switch='index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,duplicateweedout=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,cset_narrowing=on,sargable_casefold=on';
+
+SET optimizer_trace='enabled=on';
+
+SET optimizer_trace_max_mem_size=1048576;
+
+SET optimizer_use_condition_selectivity=4;
+
+SET optimizer_where_cost=0.032000;
+
+
+select count(*) from t1;
+count(*)
+20
+select context into
+dumpfile "../../tmp/dump1.sql" from information_schema.optimizer_context;
+select context into
+dumpfile "dump1.sql" from information_schema.optimizer_context;
+ERROR HY000: The MariaDB server is running with the --secure-file-priv option so it cannot execute this statement
+drop table t1;
+CREATE DATABASE IF NOT EXISTS db1;
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
+USE db1;
+CREATE TABLE `t1` (
+`a` int(11) DEFAULT NULL,
+`b` int(11) DEFAULT NULL,
+KEY `t1_idx_a` (`a`),
+KEY `t1_idx_b` (`b`),
+KEY `t1_idx_ab` (`a`,`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+SET join_buffer_size=262144;
+SET join_cache_level=2;
+SET optimizer_adjust_secondary_key_costs=0;
+Warnings:
+Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+SET GLOBAL optimizer_disk_read_cost=10.240000;
+SET GLOBAL optimizer_disk_read_ratio=0.020000;
+SET optimizer_extra_pruning_depth=8;
+SET GLOBAL optimizer_index_block_copy_cost=0.035600;
+SET optimizer_join_limit_pref_ratio=0;
+SET GLOBAL optimizer_key_compare_cost=0.011361;
+SET GLOBAL optimizer_key_copy_cost=0.015685;
+SET GLOBAL optimizer_key_lookup_cost=0.435777;
+SET GLOBAL optimizer_key_next_find_cost=0.082347;
+SET optimizer_max_sel_arg_weight=32000;
+SET optimizer_max_sel_args=16000;
+SET optimizer_prune_level=2;
+SET GLOBAL optimizer_row_copy_cost=0.060866;
+SET GLOBAL optimizer_row_lookup_cost=0.130839;
+SET GLOBAL optimizer_row_next_find_cost=0.045916;
+SET GLOBAL optimizer_rowid_compare_cost=0.002653;
+SET GLOBAL optimizer_rowid_copy_cost=0.002653;
+SET optimizer_scan_setup_cost=10.000000;
+SET optimizer_search_depth=62;
+SET optimizer_selectivity_sampling_limit=100;
+SET optimizer_switch='index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,duplicateweedout=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,cset_narrowing=on,sargable_casefold=on';
+SET optimizer_trace='enabled=on';
+SET optimizer_trace_max_mem_size=1048576;
+SET optimizer_use_condition_selectivity=4;
+SET optimizer_where_cost=0.032000;
+set @opt_context='
+{
+  "list_contexts": [
+    {
+      "name": "db1.t1",
+      "num_of_records": 0,
+      "read_cost_io": 0,
+      "read_cost_cpu": 0.0100356,
+      "indexes": [
+        {
+          "index_name": "t1_idx_a",
+          "rec_per_key": ["10"]
+        },
+        {
+          "index_name": "t1_idx_b",
+          "rec_per_key": ["7"]
+        },
+        {
+          "index_name": "t1_idx_ab",
+          "rec_per_key": ["10", "3"]
+        }
+      ]
+    }
+  ]
+}
+';
+set optimizer_replay_context='opt_context';
+select count(*) from t1;
+count(*)
+0
+drop table t1;
+drop database db1;

@@ -1,0 +1,1039 @@
+#enable both optimizer_trace, and optimizer_record_context
+set optimizer_record_context=ON;
+set optimizer_trace=1;
+create database db1;
+use db1;
+create table t1
+(
+a int, b int,
+index t1_idx_a (a),
+index t1_idx_b (b),
+index t1_idx_ab (a, b)
+);
+insert into t1 select seq%2, seq%3 from seq_1_to_20;
+create table t2 (
+a int,
+index t2_idx_a (a)
+);
+insert into t2 select seq%6 from seq_1_to_30;
+create view view1 as (
+select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a and t1.a = 5
+);
+# analyze all the tables
+set session use_stat_tables='COMPLEMENTARY';
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	Table is already up to date
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+db1.t2	analyze	status	Engine-independent statistics collected
+db1.t2	analyze	status	Table is already up to date
+#
+# simple query using one table
+#
+select count(*) from t1;
+count(*)
+20
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+select *from json_table(@records,
+'$[*]' columns(num_of_records text path '$')) as jt;
+num_of_records
+0
+set @indexes=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+select *from json_table(
+@indexes, '$[*][*]' columns(index_name text path '$.index_name',
+rec_per_key json path '$.rec_per_key')) as jt;
+index_name	rec_per_key
+t1_idx_a	["10"]
+t1_idx_b	["7"]
+t1_idx_ab	[
+                "10",
+                "3"
+            ]
+set @list_ranges=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+select *from json_table(
+@list_ranges,
+'$[*][*]' columns(index_name text path '$.index_name',
+ranges json path '$.ranges',
+num_rows int path '$.num_rows',
+max_index_blocks int path '$.max_index_blocks',
+max_row_blocks int path '$.max_row_blocks')) as jt;
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+#
+# simple query using join of two tables
+#
+select count(*) from t1, t2 where t1.a = t2.a;
+count(*)
+100
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+select *from json_table(@records,
+'$[*]' columns(num_of_records text path '$')) as jt;
+num_of_records
+30
+20
+set @indexes=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+select *from json_table(
+@indexes, '$[*][*]' columns(index_name text path '$.index_name',
+rec_per_key json path '$.rec_per_key')) as jt;
+index_name	rec_per_key
+t2_idx_a	["5"]
+t1_idx_a	["10"]
+t1_idx_b	["7"]
+t1_idx_ab	[
+                "10",
+                "3"
+            ]
+set @list_ranges=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+select *from json_table(
+@list_ranges,
+'$[*][*]' columns(index_name text path '$.index_name',
+ranges json path '$.ranges',
+num_rows int path '$.num_rows',
+max_index_blocks int path '$.max_index_blocks',
+max_row_blocks int path '$.max_row_blocks')) as jt;
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+#
+# negative test
+# simple query using join of two tables
+# there should be no result
+#
+set optimizer_record_context=OFF;
+select count(*) from t1, t2 where t1.a = t2.a;
+count(*)
+100
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+select *from json_table(@records,
+'$[*]' columns(num_of_records text path '$')) as jt;
+num_of_records
+set @indexes=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+select *from json_table(
+@indexes, '$[*][*]' columns(index_name text path '$.index_name',
+rec_per_key json path '$.rec_per_key')) as jt;
+index_name	rec_per_key
+set @list_ranges=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+select *from json_table(
+@list_ranges,
+'$[*][*]' columns(index_name text path '$.index_name',
+ranges json path '$.ranges',
+num_rows int path '$.num_rows',
+max_index_blocks int path '$.max_index_blocks',
+max_row_blocks int path '$.max_row_blocks')) as jt;
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+set optimizer_record_context=ON;
+#
+# there should be no duplicate information
+#
+select * from view1 union select * from view1;
+a	b	c
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+select *from json_table(@records,
+'$[*]' columns(num_of_records text path '$')) as jt;
+num_of_records
+30
+20
+set @indexes=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+select *from json_table(
+@indexes, '$[*][*]' columns(index_name text path '$.index_name',
+rec_per_key json path '$.rec_per_key')) as jt;
+index_name	rec_per_key
+t2_idx_a	["5"]
+t1_idx_a	["10"]
+t1_idx_b	["7"]
+t1_idx_ab	[
+                "10",
+                "3"
+            ]
+set @list_ranges=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+select *from json_table(
+@list_ranges,
+'$[*][*]' columns(index_name text path '$.index_name',
+ranges json path '$.ranges',
+num_rows int path '$.num_rows',
+max_index_blocks int path '$.max_index_blocks',
+max_row_blocks int path '$.max_row_blocks')) as jt;
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+t2_idx_a	["(5) <= (a) <= (5)"]	5	1	1
+t2_idx_a	["(5) <= (a) <= (5)"]	5	1	1
+t1_idx_a	["(5) <= (a) <= (5)"]	1	1	1
+t1_idx_ab	["(5) <= (a) <= (5)"]	1	1	1
+t1_idx_a	["(5) <= (a) <= (5)"]	1	1	1
+t1_idx_ab	["(5) <= (a) <= (5)"]	1	1	1
+#
+# test for update
+#
+update t1 set t1.b = t1.a;
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+select *from json_table(@records,
+'$[*]' columns(num_of_records text path '$')) as jt;
+num_of_records
+20
+set @indexes=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+select *from json_table(
+@indexes, '$[*][*]' columns(index_name text path '$.index_name',
+rec_per_key json path '$.rec_per_key')) as jt;
+index_name	rec_per_key
+t1_idx_a	["10"]
+t1_idx_b	["7"]
+t1_idx_ab	[
+                "10",
+                "3"
+            ]
+set @list_ranges=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+select *from json_table(
+@list_ranges,
+'$[*][*]' columns(index_name text path '$.index_name',
+ranges json path '$.ranges',
+num_rows int path '$.num_rows',
+max_index_blocks int path '$.max_index_blocks',
+max_row_blocks int path '$.max_row_blocks')) as jt;
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+#
+# test for insert as select
+#
+insert into t1 (select t2.a as a, t2.a as b from t2);
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+select *from json_table(@records,
+'$[*]' columns(num_of_records text path '$')) as jt;
+num_of_records
+30
+20
+set @indexes=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+select *from json_table(
+@indexes, '$[*][*]' columns(index_name text path '$.index_name',
+rec_per_key json path '$.rec_per_key')) as jt;
+index_name	rec_per_key
+t2_idx_a	["5"]
+t1_idx_a	["10"]
+t1_idx_b	["7"]
+t1_idx_ab	[
+                "10",
+                "3"
+            ]
+set @list_ranges=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+select *from json_table(
+@list_ranges,
+'$[*][*]' columns(index_name text path '$.index_name',
+ranges json path '$.ranges',
+num_rows int path '$.num_rows',
+max_index_blocks int path '$.max_index_blocks',
+max_row_blocks int path '$.max_row_blocks')) as jt;
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+#
+# range analysis tests
+#
+#
+# simple query with or condition on 2 columns
+#
+analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	index	t1_idx_a,t1_idx_b,t1_idx_ab	t1_idx_ab	10	NULL	50	50.00	100.00	70.00	Using where; Using index
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+select *from json_table(@records,
+'$[*]' columns(num_of_records text path '$')) as jt;
+num_of_records
+50
+set @indexes=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+select *from json_table(
+@indexes, '$[*][*]' columns(index_name text path '$.index_name',
+rec_per_key json path '$.rec_per_key')) as jt;
+index_name	rec_per_key
+t1_idx_a	["8"]
+t1_idx_b	["8"]
+t1_idx_ab	[
+                "8",
+                "8"
+            ]
+set @list_ranges=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+select *from json_table(
+@list_ranges,
+'$[*][*]' columns(index_name text path '$.index_name',
+ranges json path '$.ranges',
+num_rows int path '$.num_rows',
+max_index_blocks int path '$.max_index_blocks',
+max_row_blocks int path '$.max_row_blocks')) as jt;
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+t1_idx_a	["(1) <= (a) <= (5)"]	35	1	1
+t1_idx_ab	["(1) <= (a) <= (5)"]	35	1	1
+t1_idx_b	["(6) <= (b) <= (10)"]	1	1	1
+#
+# simple query with or condition on the same column
+#
+analyze select * from t1 where t1.a between 1 and 5 or t1.a between 6 and 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	range	t1_idx_a,t1_idx_ab	t1_idx_ab	5	NULL	36	35.00	100.00	100.00	Using where; Using index
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+select *from json_table(@records,
+'$[*]' columns(num_of_records text path '$')) as jt;
+num_of_records
+50
+set @indexes=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+select *from json_table(
+@indexes, '$[*][*]' columns(index_name text path '$.index_name',
+rec_per_key json path '$.rec_per_key')) as jt;
+index_name	rec_per_key
+t1_idx_a	["8"]
+t1_idx_b	["8"]
+t1_idx_ab	[
+                "8",
+                "8"
+            ]
+set @list_ranges=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+select *from json_table(
+@list_ranges,
+'$[*][*]' columns(index_name text path '$.index_name',
+ranges json path '$.ranges',
+num_rows int path '$.num_rows',
+max_index_blocks int path '$.max_index_blocks',
+max_row_blocks int path '$.max_row_blocks')) as jt;
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+t1_idx_a	[
+                "(1) <= (a) <= (5)",
+                "(6) <= (a) <= (10)"
+            ]	36	2	1
+t1_idx_ab	[
+                "(1) <= (a) <= (5)",
+                "(6) <= (a) <= (10)"
+            ]	36	2	1
+#
+# negative test on the simple query with or condition on 2 columns
+#
+set optimizer_record_context=OFF;
+analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	index	t1_idx_a,t1_idx_b,t1_idx_ab	t1_idx_ab	10	NULL	50	50.00	100.00	70.00	Using where; Using index
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+select *from json_table(@records,
+'$[*]' columns(num_of_records text path '$')) as jt;
+num_of_records
+set @indexes=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+select *from json_table(
+@indexes, '$[*][*]' columns(index_name text path '$.index_name',
+rec_per_key json path '$.rec_per_key')) as jt;
+index_name	rec_per_key
+set @list_ranges=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+select *from json_table(
+@list_ranges,
+'$[*][*]' columns(index_name text path '$.index_name',
+ranges json path '$.ranges',
+num_rows int path '$.num_rows',
+max_index_blocks int path '$.max_index_blocks',
+max_row_blocks int path '$.max_row_blocks')) as jt;
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+set optimizer_record_context=ON;
+#
+# simple query with or condition on 2 columns
+# testing all the stats information
+#
+analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	index	t1_idx_a,t1_idx_b,t1_idx_ab	t1_idx_ab	10	NULL	50	50.00	100.00	70.00	Using where; Using index
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+select *from json_table(@records,
+'$[*]' columns(num_of_records text path '$')) as jt;
+num_of_records
+50
+set @indexes=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+select *from json_table(
+@indexes, '$[*][*]' columns(index_name text path '$.index_name',
+rec_per_key json path '$.rec_per_key')) as jt;
+index_name	rec_per_key
+t1_idx_a	["8"]
+t1_idx_b	["8"]
+t1_idx_ab	[
+                "8",
+                "8"
+            ]
+set @list_ranges=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+select *from json_table(
+@list_ranges,
+'$[*][*]' columns(index_name text path '$.index_name',
+ranges json path '$.ranges',
+num_rows int path '$.num_rows',
+max_index_blocks int path '$.max_index_blocks',
+max_row_blocks int path '$.max_row_blocks')) as jt;
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+t1_idx_a	["(1) <= (a) <= (5)"]	35	1	1
+t1_idx_ab	["(1) <= (a) <= (5)"]	35	1	1
+t1_idx_b	["(6) <= (b) <= (10)"]	1	1	1
+drop view view1;
+drop table t1;
+drop table t2;
+#
+# union query with const tables
+# testing the INSERT statements
+#
+set optimizer_record_context=OFF;
+create table t1 (a int not null auto_increment,
+b int,
+primary key (a)
+);
+insert into t1 select seq, seq%5 from seq_1_to_20;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_record_context=ON;
+analyze select * from t1 where t1.a=5 and t1.b=0 union select * from t1 where t1.a=4 and t1.b=4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	NULL	100.00	NULL	
+2	UNION	t1	const	PRIMARY	PRIMARY	4	const	1	NULL	100.00	NULL	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	2.00	NULL	NULL	
+set @const_table_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=SET join_buffer_size)'
+        )
+from information_schema.optimizer_context
+);
+select @const_table_inserts;
+@const_table_inserts
+REPLACE INTO db1.t1(a, b) VALUES (5, 0);
+
+REPLACE INTO db1.t1(a, b) VALUES (4, 4);
+
+REPLACE INTO mysql.table_stats VALUES ('db1', 't1', 20);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'a', '1', '20', 0.0000, 4.0000, 1.0000, NULL, NULL, NULL);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'b', '0', '4', 0.0000, 4.0000, 4.0000, 5, 'JSON_HB', '{
+  "target_histogram_size": 254,
+  "collected_at": "REPLACED",
+  "collected_by": "REPLACED",
+  "histogram_hb": [
+    {
+      "start": "0",
+      "size": 0.2,
+      "ndv": 1
+    },
+    {
+      "start": "1",
+      "size": 0.2,
+      "ndv": 1
+    },
+    {
+      "start": "2",
+      "size": 0.2,
+      "ndv": 1
+    },
+    {
+      "start": "3",
+      "size": 0.2,
+      "ndv": 1
+    },
+    {
+      "start": "4",
+      "end": "4",
+      "size": 0.2,
+      "ndv": 1
+    }
+  ]
+}');
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'PRIMARY', 1, 1.0000);
+
+
+drop table t1;
+#
+# Single table with a unique index containing few columns.
+# query with const tables and
+# testing the INSERT statements
+#
+set optimizer_record_context=OFF;
+create table t1 (
+a int,
+b int,
+c int,
+unique index idx_ab(a, b)
+);
+insert into t1 select seq%10, seq%3, seq%2 from seq_1_to_20;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_record_context=ON;
+analyze select * from t1 where t1.a=1 and t1.b=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	const	idx_ab	idx_ab	10	const,const	1	NULL	100.00	NULL	
+set @const_table_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=(SET join_buffer_size))'
+        )
+from information_schema.optimizer_context
+);
+select @const_table_inserts;
+@const_table_inserts
+REPLACE INTO db1.t1(a, b, c) VALUES (1, 1, 1);
+
+REPLACE INTO mysql.table_stats VALUES ('db1', 't1', 20);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'a', '0', '9', 0.0000, 4.0000, 2.0000, 10, 'JSON_HB', '{
+  "target_histogram_size": 254,
+  "collected_at": "REPLACED",
+  "collected_by": "REPLACED",
+  "histogram_hb": [
+    {
+      "start": "0",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "1",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "2",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "3",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "4",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "5",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "6",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "7",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "8",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "9",
+      "end": "9",
+      "size": 0.1,
+      "ndv": 1
+    }
+  ]
+}');
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'b', '0', '2', 0.0000, 4.0000, 6.6667, 3, 'JSON_HB', '{
+  "target_histogram_size": 254,
+  "collected_at": "REPLACED",
+  "collected_by": "REPLACED",
+  "histogram_hb": [
+    {
+      "start": "0",
+      "size": 0.3,
+      "ndv": 1
+    },
+    {
+      "start": "1",
+      "size": 0.35,
+      "ndv": 1
+    },
+    {
+      "start": "2",
+      "end": "2",
+      "size": 0.35,
+      "ndv": 1
+    }
+  ]
+}');
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'c', '0', '1', 0.0000, 4.0000, 10.0000, 2, 'JSON_HB', '{
+  "target_histogram_size": 254,
+  "collected_at": "REPLACED",
+  "collected_by": "REPLACED",
+  "histogram_hb": [
+    {
+      "start": "0",
+      "size": 0.5,
+      "ndv": 1
+    },
+    {
+      "start": "1",
+      "end": "1",
+      "size": 0.5,
+      "ndv": 1
+    }
+  ]
+}');
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 1, 2.0000);
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 2, 1.0000);
+
+
+drop table t1;
+#
+# test whether eits stats are stored in the context
+# use_stat_tables is changed several times
+#
+set optimizer_record_context=OFF;
+create table t1 (
+a int,
+b int,
+c int,
+unique index idx_ab(a, b)
+);
+insert into t1 select seq%10, seq%3, seq%2 from seq_1_to_20;
+set session use_stat_tables='COMPLEMENTARY_FOR_QUERIES';
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_record_context=ON;
+select count(*) from t1;
+count(*)
+20
+set @stats_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=(SET join_buffer_size))'
+        )
+from information_schema.optimizer_context
+);
+# shouldn't have insert statements
+select @stats_inserts;
+@stats_inserts
+
+set session use_stat_tables='COMPLEMENTARY';
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	Table is already up to date
+select count(*) from t1;
+count(*)
+20
+set @stats_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=(SET join_buffer_size))'
+        )
+from information_schema.optimizer_context
+);
+# Now, should have insert statements
+select @stats_inserts;
+@stats_inserts
+REPLACE INTO mysql.table_stats VALUES ('db1', 't1', 20);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'a', '0', '9', 0.0000, 4.0000, 2.0000, 10, 'JSON_HB', '{
+  "target_histogram_size": 254,
+  "collected_at": "REPLACED",
+  "collected_by": "REPLACED",
+  "histogram_hb": [
+    {
+      "start": "0",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "1",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "2",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "3",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "4",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "5",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "6",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "7",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "8",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "9",
+      "end": "9",
+      "size": 0.1,
+      "ndv": 1
+    }
+  ]
+}');
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'b', '0', '2', 0.0000, 4.0000, 6.6667, 3, 'JSON_HB', '{
+  "target_histogram_size": 254,
+  "collected_at": "REPLACED",
+  "collected_by": "REPLACED",
+  "histogram_hb": [
+    {
+      "start": "0",
+      "size": 0.3,
+      "ndv": 1
+    },
+    {
+      "start": "1",
+      "size": 0.35,
+      "ndv": 1
+    },
+    {
+      "start": "2",
+      "end": "2",
+      "size": 0.35,
+      "ndv": 1
+    }
+  ]
+}');
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'c', '0', '1', 0.0000, 4.0000, 10.0000, 2, 'JSON_HB', '{
+  "target_histogram_size": 254,
+  "collected_at": "REPLACED",
+  "collected_by": "REPLACED",
+  "histogram_hb": [
+    {
+      "start": "0",
+      "size": 0.5,
+      "ndv": 1
+    },
+    {
+      "start": "1",
+      "end": "1",
+      "size": 0.5,
+      "ndv": 1
+    }
+  ]
+}');
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 1, 2.0000);
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 2, 1.0000);
+
+
+truncate table t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	Table is already up to date
+select count(*) from t1;
+count(*)
+0
+set @stats_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=(SET join_buffer_size))'
+        )
+from information_schema.optimizer_context
+);
+# Now, although there should be insert statements, but stats should be empty/null
+select @stats_inserts;
+@stats_inserts
+REPLACE INTO mysql.table_stats VALUES ('db1', 't1', 0);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'a', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'b', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'c', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL);
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 1, NULL);
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 2, NULL);
+
+
+set optimizer_record_context=OFF;
+drop table t1;
+create table t1 (
+a int,
+b int,
+c int,
+unique index idx_ab(a, b)
+);
+insert into t1 select seq%10, seq%3, seq%2 from seq_1_to_20;
+set session use_stat_tables='PREFERABLY_FOR_QUERIES';
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	OK
+set optimizer_record_context=ON;
+select count(*) from t1;
+count(*)
+20
+set @stats_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=(SET join_buffer_size))'
+        )
+from information_schema.optimizer_context
+);
+# shouldn't have insert statements
+select @stats_inserts;
+@stats_inserts
+
+set session use_stat_tables='PREFERABLY';
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	Table is already up to date
+select count(*) from t1;
+count(*)
+20
+set @stats_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=(SET join_buffer_size))'
+        )
+from information_schema.optimizer_context
+);
+# Now, should have insert statements
+select @stats_inserts;
+@stats_inserts
+REPLACE INTO mysql.table_stats VALUES ('db1', 't1', 20);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'a', '0', '9', 0.0000, 4.0000, 2.0000, 10, 'JSON_HB', '{
+  "target_histogram_size": 254,
+  "collected_at": "REPLACED",
+  "collected_by": "REPLACED",
+  "histogram_hb": [
+    {
+      "start": "0",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "1",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "2",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "3",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "4",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "5",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "6",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "7",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "8",
+      "size": 0.1,
+      "ndv": 1
+    },
+    {
+      "start": "9",
+      "end": "9",
+      "size": 0.1,
+      "ndv": 1
+    }
+  ]
+}');
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'b', '0', '2', 0.0000, 4.0000, 6.6667, 3, 'JSON_HB', '{
+  "target_histogram_size": 254,
+  "collected_at": "REPLACED",
+  "collected_by": "REPLACED",
+  "histogram_hb": [
+    {
+      "start": "0",
+      "size": 0.3,
+      "ndv": 1
+    },
+    {
+      "start": "1",
+      "size": 0.35,
+      "ndv": 1
+    },
+    {
+      "start": "2",
+      "end": "2",
+      "size": 0.35,
+      "ndv": 1
+    }
+  ]
+}');
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'c', '0', '1', 0.0000, 4.0000, 10.0000, 2, 'JSON_HB', '{
+  "target_histogram_size": 254,
+  "collected_at": "REPLACED",
+  "collected_by": "REPLACED",
+  "histogram_hb": [
+    {
+      "start": "0",
+      "size": 0.5,
+      "ndv": 1
+    },
+    {
+      "start": "1",
+      "end": "1",
+      "size": 0.5,
+      "ndv": 1
+    }
+  ]
+}');
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 1, 2.0000);
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 2, 1.0000);
+
+
+truncate table t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	Table is already up to date
+select count(*) from t1;
+count(*)
+0
+set @stats_inserts=
+(select REGEXP_SUBSTR(
+context,
+'(REPLACE INTO.*)([\n\r].*)*(?=(SET join_buffer_size))'
+        )
+from information_schema.optimizer_context
+);
+# Now, although there should be insert statements, but stats should be empty/null
+select @stats_inserts;
+@stats_inserts
+REPLACE INTO mysql.table_stats VALUES ('db1', 't1', 0);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'a', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'b', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL);
+
+REPLACE INTO mysql.column_stats VALUES ('db1', 't1', 'c', NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL);
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 1, NULL);
+
+REPLACE INTO mysql.index_stats VALUES ('db1', 't1', 'idx_ab', 2, NULL);
+
+
+drop table t1;
+drop database db1;
