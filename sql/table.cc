@@ -4142,6 +4142,10 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
   if (unlikely(error))
     goto end;
 
+  lex.current_select->context.mode= Name_resolution_context::RESOLVE_ALL;
+  if (lex.current_select->resolve_names(thd))
+    goto end;
+
   if ((sequence= lex.current_select->table_list.first[0].next_global))
   {
     /* We are using NEXT VALUE FOR sequence. Remember table for open */

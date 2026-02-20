@@ -5747,6 +5747,8 @@ bool open_and_lock_tables(THD *thd, const DDL_options_st &options,
   if (open_tables(thd, options, &tables, &counter, flags, prelocking_strategy))
     goto err;
 
+
+  DBUG_PRINT("XXX", ("Resolve..."));
   if (thd->lex->unit.resolve_names(thd))
     goto err;
 

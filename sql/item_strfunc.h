@@ -2202,6 +2202,11 @@ public:
     /* this function is transparent for view updating */
     return args[0]->field_for_view_update();
   }
+  Item_ident_placeholder *ident_for_view_update() override
+  {
+    /* this function is transparent for view updating */
+    return args[0]->ident_for_view_update();
+  }
   bool need_parentheses_in_default() override { return true; }
 
 protected:

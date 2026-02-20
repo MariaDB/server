@@ -11396,6 +11396,7 @@ bool LEX::insert_select_hack(SELECT_LEX *sel)
   sel->table_list.first= insert_table;
   sel->table_list.elements++;
   insert_table->select_lex= sel;
+  sel->names_to_resolve.prepend(&builtin_select.names_to_resolve);
 
   sel->context.first_name_resolution_table= insert_table;
   builtin_select.context= sel->context;
@@ -13664,27 +13665,32 @@ bool SELECT_LEX_UNIT::is_derived_eliminated() const
 
 bool st_select_lex_unit::resolve_names(THD *thd)
 {
-    for (st_select_lex *sl= first_select(); sl; sl=sl->next_select())
-      if (sl->resolve_names(thd))
-        return true;
-    return false;
+  DBUG_ENTER("st_select_lex_unit::resolve_names");
+  DBUG_PRINT("ENTER", ("unit %p", this));
+  for (st_select_lex *sl= first_select(); sl; sl=sl->next_select())
+    if (sl->resolve_names(thd))
+      DBUG_RETURN(true);
+  DBUG_RETURN(false);
 }
 
 bool st_select_lex::resolve_names(THD *thd)
 {
   List_iterator_fast<Item_ident_placeholder> it(names_to_resolve);
   Item_ident_placeholder *ident;
+  DBUG_ENTER("st_select_lex::resolve_names");
+  DBUG_PRINT("ENTER", ("select %p (%d)", this, this->select_number));
 
   while ((ident= it++))
   {
     if (ident->resolve_name(thd))
-      return true;
+      DBUG_RETURN(true);
   }
 
+  DBUG_PRINT("INFO", ("subqueries..."));
   for (SELECT_LEX_UNIT *u= first_inner_unit(); u; u= u->next_unit())
     if (u->resolve_names(thd))
-      return true;
-  return false;
+      DBUG_RETURN(true);
+  DBUG_RETURN(false);
 }
 
 /*

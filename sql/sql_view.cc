@@ -356,6 +356,7 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
     Item *item;
     while ((item= it++))
     {
+#if 0
       Item_field *field;
       if ((field= item->field_for_view_update()))
       {
@@ -365,6 +366,7 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
         */
         field->any_privileges= 1;
       }
+#endif
     }
   }
 

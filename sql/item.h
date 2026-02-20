@@ -2612,6 +2612,8 @@ public:
                                      Tmp_field_src *src,
                                      const Tmp_field_param *param)= 0;
   virtual Item_field *field_for_view_update() { return 0; }
+  // to look through transparent for update function(s) (i.e collation)
+  virtual Item_ident_placeholder *ident_for_view_update() { return 0; }
 
   virtual Item *neg_transformer(THD *thd) { return NULL; }
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg)
@@ -3723,6 +3725,7 @@ public:
   Item *resolved_to;
   Name_resolution_result res;
   enum_parsing_place parsing_place; /* where we are parsing expression */
+  bool any_privileges;
 
   Item_ident_placeholder(THD *thd,
                          Name_resolution_context *context_arg,
@@ -3736,6 +3739,18 @@ public:
 
   bool fix_fields(THD *thd, Item **ref) override;
   Type type() const override { return IDENT_PLACEHOLDER; }
+
+  /*
+   XXX TODO: do we need it?
+  Item_field *field_for_view_update() override
+  {
+    DBUG_ASSERT(resolved_to);
+
+    return resolved_to->field_for_view_update();
+  }
+  */
+  Item_ident_placeholder *ident_for_view_update() override
+  { return this; }
 
   bool check_vcol_func_processor(void *) override;
   /*
@@ -3772,13 +3787,12 @@ public:
       set_zero_time(to, MYSQL_TIMESTAMP_NONE);
       return FALSE;
     }
-  Item *do_get_copy(THD *thd) const override
-    { DBUG_ASSERT(0); return NULL;}
   Field *create_tmp_field_ex(MEM_ROOT *, TABLE *, Tmp_field_src *,
                              const Tmp_field_param *) override
     { DBUG_ASSERT(0); return NULL;}
-  virtual Item* do_build_clone(THD *thd) const override
-    { DBUG_ASSERT(0); return NULL;}
+protected:
+  Item *shallow_copy(THD *) const override { DBUG_ASSERT(0); return nullptr; }
+  Item *deep_copy(THD *thd) const override { DBUG_ASSERT(0); return nullptr; }
   /*
     Dummy things ends
   */
@@ -6655,6 +6669,8 @@ public:
   { return orig_item->enumerate_field_refs_processor(arg); }
   Item_field *field_for_view_update() override
   { return orig_item->field_for_view_update(); }
+  Item_ident_placeholder *ident_for_view_update() override
+  { return orig_item->ident_for_view_update(); }
 
   /* Row emulation: forwarding of ROW-related calls to orig_item */
   uint cols() const override
