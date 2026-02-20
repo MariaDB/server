@@ -6644,6 +6644,17 @@ int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     store_yesno(table->field[23], show_table->versioned() &&
                                   vers.end_fieldno == field->field_index);
 
+    // Populate CREATE_OPTIONS with engine-defined column options
+    {
+      StringBuffer<512> str(system_charset_info);
+      append_create_options(thd, &str, field->option_list, false, 0);
+      if (str.length())
+      {
+        /* Trim the leading space added by append_create_options */
+        table->field[24]->store(str.ptr() + 1, str.length() - 1, cs);
+      }
+    }
+
     if (schema_table_store_record(thd, table))
       DBUG_RETURN(1);
   }
@@ -7483,6 +7494,17 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
         // IGNORED column
         store_yesno(table->field[16], key_info->is_ignored);
         table->field[16]->set_notnull();
+
+        // Populate CREATE_OPTIONS with engine-defined index options
+        {
+          StringBuffer<512> str(system_charset_info);
+          append_create_options(thd, &str, key_info->option_list, false, 0);
+          if (str.length())
+          {
+            /* Trim the leading space added by append_create_options */
+            table->field[17]->store(str.ptr() + 1, str.length() - 1, cs);
+          }
+        }
 
         if (schema_table_store_record(thd, table))
           DBUG_RETURN(1);
@@ -10115,6 +10137,7 @@ ST_FIELD_INFO columns_fields_info[]=
                                                  NULLABLE,       OPEN_FRM_ONLY), // 21
   Column("IS_SYSTEM_TIME_PERIOD_START", Varchar(3),  NOT_NULL,   OPEN_FRM_ONLY), // 22
   Column("IS_SYSTEM_TIME_PERIOD_END",   Varchar(3),  NOT_NULL,   OPEN_FRM_ONLY), // 23
+  Column("CREATE_OPTIONS", Varchar(2048), NOT_NULL, OPEN_FRM_ONLY),              // 24
   CEnd()
 };
 
@@ -10329,6 +10352,7 @@ ST_FIELD_INFO stat_fields_info[]=
   Column("INDEX_COMMENT", Varchar(INDEX_COMMENT_MAXLEN),
                                        NOT_NULL, "Index_comment",OPEN_FRM_ONLY),
   Column("IGNORED",      Varchar(3),  NOT_NULL, "Ignored",        OPEN_FRM_ONLY),
+  Column("CREATE_OPTIONS", Varchar(2048), NOT_NULL, OPEN_FRM_ONLY),
   CEnd()
 };
 
