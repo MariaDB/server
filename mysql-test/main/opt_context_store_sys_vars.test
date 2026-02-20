@@ -1,0 +1,40 @@
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+--echo #enable both optimizer_trace, and optimizer_record_context
+set optimizer_record_context=ON;
+set optimizer_trace=1;
+
+create database db1;
+use db1;
+
+create table t1
+(
+    a int, b int,
+    index t1_idx_a (a),
+    index t1_idx_b (b),
+    index t1_idx_ab (a, b)
+);
+
+insert into t1 select seq%2, seq%3 from seq_1_to_20;
+
+select count(*) from t1;
+
+--source include/get_sys_vars_from_opt_ctx.inc
+
+select count(*) from t1;
+
+select context into
+    dumpfile "../../tmp/dump1.sql" from information_schema.optimizer_context;
+
+--error 1290
+select context into
+    dumpfile "dump1.sql" from information_schema.optimizer_context;
+
+drop table t1;
+
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+
+drop table t1;
+drop database db1;

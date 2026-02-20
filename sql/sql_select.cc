@@ -8375,9 +8375,12 @@ static ALL_READ_COST cost_for_index_read(THD *thd, const TABLE *table,
   max_seeks= (ha_rows) thd->variables.max_seeks_for_key;
   set_if_bigger(records, 1);
 
-  if (thd->opt_ctx_replay && !thd->opt_ctx_replay->infuse_index_read_cost(
-                                 table, key, records, eq_ref, &cost))
-    ;
+  if (thd->opt_ctx_replay && 
+      !thd->opt_ctx_replay->infuse_index_read_cost(table, key, records,
+                                                   eq_ref, &cost))
+  {
+    /* Ok, Optimizer_context_replay has provided the cost numbers */
+  }
   else if (file->is_clustering_key(key))
   {
     cost.index_cost=
