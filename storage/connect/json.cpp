@@ -1772,7 +1772,7 @@ void JVALUE::SetValue(PGLOBAL g, PVAL valp)
     DataType = TYPE_BINT;
     break;
   default:
-    snprintf(g->Message, sizeof(g->Message), "Unsupported typ %d\n", valp->GetType());
+    snprintf(g->Message, sizeof(g->Message), "Unsupported typ %d", valp->GetType());
     throw(777);
   } // endswitch Type
 

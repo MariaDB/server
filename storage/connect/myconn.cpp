@@ -759,7 +759,7 @@ int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
   } else {
 //  m_Rows = (int)mysql_affected_rows(m_DB);
     m_Rows = (int)m_DB->affected_rows;
-    snprintf(g->Message, sizeof(g->Message), "Affected rows: %d\n", m_Rows);
+    snprintf(g->Message, sizeof(g->Message), "Affected rows: %d", m_Rows);
     rc = RC_NF;
   } // endif field count
 

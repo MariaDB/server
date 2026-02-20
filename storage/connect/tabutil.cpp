@@ -91,7 +91,7 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
   key[++k] = 0;
 
 	if (!(s = alloc_table_share(db, name, key, ++k))) {
-    strcpy(g->Message, "Error allocating share\n");
+    strcpy(g->Message, "Error allocating share");
     return NULL;
     } // endif s
 
@@ -109,7 +109,7 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
     if (thd->is_error())
       thd->clear_error();  // Avoid stopping info commands
 
-    snprintf(g->Message, sizeof(g->Message), "Error %d opening share\n", s->error);
+    snprintf(g->Message, sizeof(g->Message), "Error %d opening share", s->error);
     free_table_share(s);
     return NULL;
   } // endif open_table_def

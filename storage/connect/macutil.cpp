@@ -145,7 +145,7 @@ bool MACINFO::GetFixedInfo(PGLOBAL g)
     } // endif drc
 
   if (drc != ERROR_SUCCESS) {
-    snprintf(g->Message, sizeof(g->Message), "GetNetworkParams failed. Rc=%08x\n", drc);
+    snprintf(g->Message, sizeof(g->Message), "GetNetworkParams failed. Rc=%08x", drc);
     return true;
     } // endif drc
 
