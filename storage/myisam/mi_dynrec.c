@@ -1234,8 +1234,8 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
   from+= info->s->base.pack_bits;
   min_pack_length=info->s->base.min_pack_length - info->s->base.pack_bits;
 
-  for (rec=info->s->rec, end_field=rec+info->s->base.fields, rec_idx= 0;
-       rec < end_field; to+= rec_length, rec++, rec_idx++)
+  for (rec=info->s->rec , end_field=rec+info->s->base.fields, rec_idx= 0 ;
+       rec < end_field ; to+= rec_length, rec++, rec_idx++)
   {
     my_bool null_only= mi_is_null_only_field(info, rec_idx);
     rec_length=rec->length;
@@ -1273,10 +1273,10 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
       if (flag & bit)
       {
 	if (type == FIELD_BLOB || type == FIELD_SKIP_ZERO)
-        {
-          if (!null_only)
+	{
+	  if (!null_only)
 	    bzero((uchar*) to,rec_length);
-        }
+	}
 	else if (type == FIELD_SKIP_ENDSPACE ||
 		 type == FIELD_SKIP_PRESPACE)
 	{
@@ -1318,15 +1318,15 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
             from_left - size_length < blob_length ||
             from_left - size_length - blob_length < min_pack_length)
           goto err;
-        if (!null_only)
-        {
+	if (!null_only)
+	{
 	  memcpy(to, from, (size_t) size_length);
-        }
+	}
 	from+=size_length;
-        if (!null_only)
-        {
+	if (!null_only)
+	{
 	  memcpy(to+size_length, &from, sizeof(char*));
-        }
+	}
 	from+=blob_length;
       }
       else
@@ -1335,9 +1335,9 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
 	  min_pack_length--;
 	if (min_pack_length + rec_length > (uint) (from_end - from))
 	  goto err;
-        if (!null_only)
+	if (!null_only)
 	  memcpy(to,(uchar*) from,(size_t) rec_length);
-        from+=rec_length;
+	from+=rec_length;
       }
       if ((bit= bit << 1) >= 256)
       {
@@ -1350,7 +1350,7 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
 	goto err;
       min_pack_length-=rec_length;
       if (!null_only)
-        memcpy(to, (uchar*) from, (size_t) rec_length);
+	memcpy(to, (uchar*) from, (size_t) rec_length);
       from+=rec_length;
     }
   }

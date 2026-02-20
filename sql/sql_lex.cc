@@ -5499,8 +5499,16 @@ void SELECT_LEX::mark_as_belong_to_derived(TABLE_LIST *derived)
 
 static bool table_supports_null_only(const TABLE_LIST *table_list)
 {
-  return table_list && table_list->table && table_list->table->file &&
-    (table_list->table->file->ha_table_flags() & HA_CAN_NULL_ONLY);
+  enum legacy_db_type db_type;
+
+  if (!table_list || !table_list->table || !table_list->table->file ||
+      !table_list->table->file->ht)
+    return false;
+
+  db_type= table_list->table->file->ht->db_type;
+  return db_type == DB_TYPE_INNODB ||
+         db_type == DB_TYPE_ARIA ||
+         db_type == DB_TYPE_MYISAM;
 }
 
 static void mark_null_only_in_expr(Item *expr, bool *any_marked)

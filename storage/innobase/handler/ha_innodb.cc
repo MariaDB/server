@@ -2920,7 +2920,6 @@ ha_innobase::ha_innobase(
 			  | HA_TABLE_SCAN_ON_INDEX
 			  | HA_CAN_FULLTEXT
 			  | HA_CAN_FULLTEXT_EXT
-			  | HA_CAN_NULL_ONLY
 		/* JAN: TODO: MySQL 5.7
 			  | HA_CAN_FULLTEXT_HINTS
 		*/

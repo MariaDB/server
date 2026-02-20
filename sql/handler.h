@@ -199,8 +199,6 @@ enum chf_create_flags {
 #define HA_HAS_OLD_CHECKSUM    (1ULL << 24)
 /* Table data are stored in separate files (for lower_case_table_names) */
 #define HA_FILE_BASED	       (1ULL << 26)
-/* Reuses legacy bit 27 (HA_NO_VARCHAR), removed as unused. */
-#define HA_CAN_NULL_ONLY       (1ULL << 27)
 #define HA_CAN_BIT_FIELD       (1ULL << 28) /* supports bit fields */
 #define HA_NEED_READ_RANGE_BUFFER (1ULL << 29) /* for read_multi_range */
 #define HA_ANY_INDEX_MAY_BE_UNIQUE (1ULL << 30)

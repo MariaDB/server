@@ -726,7 +726,6 @@ ha_myisam::ha_myisam(handlerton *hton, TABLE_SHARE *table_arg)
   int_table_flags(HA_NULL_IN_KEY | HA_CAN_FULLTEXT | HA_CAN_SQL_HANDLER |
                   HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
                   HA_CAN_VIRTUAL_COLUMNS | HA_CAN_EXPORT |
-                  HA_CAN_NULL_ONLY |
                   HA_REQUIRES_KEY_COLUMNS_FOR_DELETE |
                   HA_DUPLICATE_POS | HA_CAN_INDEX_BLOBS | HA_AUTO_PART_KEY |
                   HA_FILE_BASED | HA_CAN_GEOMETRY | HA_NO_TRANSACTIONS |
