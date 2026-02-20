@@ -139,7 +139,7 @@ insert into t1(x, row_start, row_end) values (6, '1980-01-01 00:00:01', '1980-01
 --error ER_WRONG_VERSIONING_RANGE
 insert into t1(x, row_start, row_end) values (7, '1980-01-01 00:00:11', '1980-01-01 00:00:11');
 insert into t1(x, row_start) values (8, '1980-01-01 00:00:22');
---replace_regex /'202\d-\d\d-\d\d .*'/'now'/
+--replace_regex /'20[2-8]\d-\d\d-\d\d .*'/'now'/
 --error ER_WRONG_VERSIONING_RANGE
 insert into t1(x, row_end) values (9, '1980-01-01 00:00:33');
 
