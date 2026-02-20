@@ -3159,8 +3159,7 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
 
 static Sys_var_mybool
     Sys_optimizer_record_context("optimizer_record_context",
-                                 "If set, record the query optimizer context "
-                                 "(currently into the Optimizer trace). "
+                                 "If set, record the query optimizer context. "
                                  "Recorded context can be later replayed to "
                                  "reproduce the query optimizer behavior",
                                  SESSION_ONLY(optimizer_record_context),

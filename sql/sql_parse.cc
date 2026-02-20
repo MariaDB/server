@@ -5940,10 +5940,13 @@ wsrep_error_label:
 
 finish:
   if (!thd->is_error() && !res)
-    res= store_tables_context_in_trace(thd);
+    res= store_optimizer_context(thd);
 
   if (thd->opt_ctx_replay)
     thd->opt_ctx_replay->restore_modified_table_stats();
+
+  if (res || thd->is_error())
+    clean_captured_ctx(thd);
 
   thd->reset_query_timer();
   DBUG_ASSERT(!thd->in_active_multi_stmt_transaction() ||

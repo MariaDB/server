@@ -98,6 +98,7 @@ public:
              size_t hist_data_len) override;
 
   void serialize(Field *field) override;
+  virtual void serialize(String *to) override;
 
   Histogram_builder *create_builder(Field *col, uint col_len,
                                     ha_rows rows) override;

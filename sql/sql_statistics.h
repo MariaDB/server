@@ -101,6 +101,25 @@ enum enum_index_stat_col
   INDEX_STAT_N_FIELDS
 };
 
+/* Currently there are only 3 persistent statistical tables */
+const uint STATISTICS_TABLES= 3;
+
+/*
+  The names of the statistical tables in this array must correspond the
+  definitions of the tables in the file ../scripts/mysql_system_tables.sql
+*/
+const Lex_ident_table stat_table_name[STATISTICS_TABLES]= {
+    "table_stats"_Lex_ident_table,
+    "column_stats"_Lex_ident_table,
+    "index_stats"_Lex_ident_table,
+};
+
+int open_stat_tables(THD *thd, TABLE_LIST *tables, bool for_write);
+TABLE_STATISTICS_CB *read_statistics_for_table(THD *thd, TABLE *table,
+                                               TABLE_LIST *stat_tables,
+                                               bool force_reload,
+                                               bool want_histograms);
+
 inline
 Use_stat_tables_mode get_use_stat_tables_mode(THD *thd)
 { 
@@ -167,6 +186,7 @@ public:
                      Field *field, const char *hist_data,
                      size_t hist_data_len)= 0;
   virtual void serialize(Field *to_field)= 0;
+  virtual void serialize(String *to)= 0;
 
   virtual Histogram_type get_type()=0;
 
@@ -312,6 +332,7 @@ public:
   bool parse(MEM_ROOT *mem_root, const char*, const char*, Field*,
              const char *hist_data, size_t hist_data_len) override;
   void serialize(Field *to_field) override;
+  void serialize(String *to) override;
   void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
                            ulonglong size) override;
   Histogram_builder *create_builder(Field *col, uint col_len,
