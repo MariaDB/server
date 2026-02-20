@@ -1080,7 +1080,7 @@ static void __attribute__((noinline)) print_result()
 	continue;
     }
     if (status && changed)
-      printf("%-50s %s", row[0], row[3]);
+      printf("%-50s %s\n", row[0], row[3]);
     else if (!status && changed)
     {
       /*
@@ -1090,11 +1090,11 @@ static void __attribute__((noinline)) print_result()
       */
       if (!strcmp(row[2],"error") && strstr(row[3],"REPAIR "))
       {
-        printf("%-50s %s", row[0], "Needs upgrade");
+        printf("%-50s %s\n", row[0], "Needs upgrade");
         array4repair= strstr(row[3], "VIEW") ? &views4repair : &tables4repair;
       }
-      else
-        printf("%s\n%-9s: %s", row[0], row[2], row[3]);
+      else if (!opt_silent || !strcasecmp(row[2],"error"))
+        printf("%s\n%-9s: %s\n", row[0], row[2], row[3]);
       if (opt_auto_repair && strcmp(row[2],"note"))
       {
         found_error=1;
@@ -1103,9 +1103,8 @@ static void __attribute__((noinline)) print_result()
       }
     }
     else
-      printf("%-9s: %s", row[2], row[3]);
+      printf("%-9s: %s\n", row[2], row[3]);
     strmov(prev, row[0]);
-    putchar('\n');
   }
   /* add the last table to be repaired to the list */
   if (found_error && opt_auto_repair && what_to_do != DO_REPAIR)
