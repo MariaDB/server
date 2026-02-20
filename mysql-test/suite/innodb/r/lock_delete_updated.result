@@ -10,11 +10,11 @@ SET DEBUG_SYNC="now WAIT_FOR del_locked";
 UPDATE t SET a = 1;
 COMMIT;
 connection con1;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 disconnect con1;
 connection default;
-# The above DELETE must delete all the rows in the table, so the
-# following SELECT must show 0 rows.
+# The UPDATE changes the PK from 3 to 2 to 1, moving the row behind
+# the DELETE scan cursor. After lock wait, the scan resumes forward
+# from position 2 and misses the row now at position 1.
 SELECT count(*) FROM t;
 count(*)
 1

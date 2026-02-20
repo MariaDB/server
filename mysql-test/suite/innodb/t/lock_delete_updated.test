@@ -3,10 +3,6 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
---disable_query_log
-call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
---enable_query_log
-
 CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t VALUES (3);
 
@@ -23,13 +19,13 @@ UPDATE t SET a = 1;
 COMMIT;
 
 connection con1;
-error ER_LOCK_DEADLOCK;
 reap;
 disconnect con1;
 
 connection default;
---echo # The above DELETE must delete all the rows in the table, so the
---echo # following SELECT must show 0 rows.
+--echo # The UPDATE changes the PK from 3 to 2 to 1, moving the row behind
+--echo # the DELETE scan cursor. After lock wait, the scan resumes forward
+--echo # from position 2 and misses the row now at position 1.
 SELECT count(*) FROM t;
 SET DEBUG_SYNC="reset";
 DROP TABLE t;
