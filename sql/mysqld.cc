@@ -6023,6 +6023,12 @@ int mysqld_main(int argc, char **argv)
                           mysqld_port, MYSQL_COMPILATION_COMMENT);
   }
 
+#ifdef HAVE_PAUSE_INSTRUCTION
+  if (global_system_variables.log_warnings > 2)
+    sql_print_information("Using PAUSE multiplier %u",
+                          my_cpu_relax_multiplier);
+#endif
+
 #ifndef _WIN32
   // try to keep fd=0 busy
   if (please_close_stdin && !freopen("/dev/null", "r", stdin))
