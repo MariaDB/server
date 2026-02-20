@@ -162,11 +162,9 @@ connection slave;
 set @saved_dbug = @@global.debug_dbug;
 set @@global.debug_dbug='d,simulate_checksum_test_failure';
 start slave io_thread;
-# When the checksum error is detected, the slave sets error code 1913
-# (ER_NETWORK_READ_EVENT_CHECKSUM_FAILURE) in queue_event(), then immediately
-# sets error 1595 (ER_SLAVE_RELAY_LOG_WRITE_FAILURE) in handle_slave_io().
-# So we usually get 1595, but it is occasionally possible to get 1913.
---let $slave_io_errno= 1595,1913
+# When the checksum error is detected, the slave sets error code 1743
+# (ER_NETWORK_READ_EVENT_CHECKSUM_FAILURE) in queue_event().
+--let $slave_io_errno= 1743
 --let $show_slave_io_error= 0
 source include/wait_for_slave_io_error.inc;
 set @@global.debug_dbug = @saved_dbug;

@@ -5133,9 +5133,6 @@ Stopping slave I/O thread due to out-of-memory error from master");
 
       if (queue_event(mi, event_buf, event_len))
       {
-        mi->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_WRITE_FAILURE, NULL,
-                   ER_THD(thd, ER_SLAVE_RELAY_LOG_WRITE_FAILURE),
-                   "could not queue event from master");
         goto err;
       }
 
@@ -6402,18 +6399,27 @@ err:
 
 static int queue_old_event(Master_info *mi, const uchar *buf, ulong event_len)
 {
+  int ret = 0;
   DBUG_ENTER("queue_old_event");
 
   switch (mi->rli.relay_log.description_event_for_queue->binlog_version) {
   case 1:
-      DBUG_RETURN(queue_binlog_ver_1_event(mi,buf,event_len));
+      ret= queue_binlog_ver_1_event(mi,buf,event_len);
+      break;
   case 3:
-      DBUG_RETURN(queue_binlog_ver_3_event(mi,buf,event_len));
+      ret= queue_binlog_ver_3_event(mi,buf,event_len);
+      break;
   default: /* unsupported format; eg version 2 */
     DBUG_PRINT("info",("unsupported binlog format %d in queue_old_event()",
                        mi->rli.relay_log.description_event_for_queue->binlog_version));
-    DBUG_RETURN(1);
+    ret= 1;
+    break;
   }
+
+  if (ret == 1)
+    DBUG_RETURN(ER_SLAVE_RELAY_LOG_WRITE_FAILURE);
+
+  DBUG_RETURN(ret);
 }
 
 /*
@@ -6511,7 +6517,12 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   if (mi->rli.relay_log.description_event_for_queue->binlog_version < 4 &&
       buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT /* a way to escape */
       && buf[EVENT_TYPE_OFFSET] != HEARTBEAT_LOG_EVENT)
-    DBUG_RETURN(queue_old_event(mi,buf,event_len));
+  {
+    error= queue_old_event(mi, buf, event_len);
+    if (unlikely(error))
+      goto err;
+    DBUG_RETURN(0);
+  }
 
 #ifdef ENABLED_DEBUG_SYNC
   /*
@@ -7495,12 +7506,12 @@ err:
   DBUG_PRINT("info", ("error: %d", error));
 
   /*
-    Do not print ER_SLAVE_RELAY_LOG_WRITE_FAILURE error here, as the caller
-    handle_slave_io() prints it on return.
+    Print all the errors that occurred during queuing here.
   */
-  if (unlikely(error) && error != ER_SLAVE_RELAY_LOG_WRITE_FAILURE)
-    mi->report(ERROR_LEVEL, error, NULL, ER_DEFAULT(error),
-               error_msg.ptr());
+  if (unlikely(error))
+    mi->report(ERROR_LEVEL, error, NULL, ER_THD(mi->io_thd, error),
+               (error == ER_SLAVE_RELAY_LOG_WRITE_FAILURE && error_msg.is_empty()) ?
+               "could not queue event from master" : error_msg.ptr());
 
   if (unlikely(is_malloc))
     my_free((void *)new_buf);
