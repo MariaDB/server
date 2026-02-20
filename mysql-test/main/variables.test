@@ -551,7 +551,7 @@ set lc_time_names=112;
 select @@lc_time_names;
 --echo LC_TIME_NAMES: testing a number beyond the valid ID range:
 --error ER_UNKNOWN_LOCALE
-set lc_time_names=113;
+set lc_time_names=115;
 select @@lc_time_names;
 --echo LC_TIME_NAMES: testing that 0 is en_US:
 set lc_time_names=0;

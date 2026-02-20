@@ -229,7 +229,7 @@ format(123456789,2) as b,
 format(123456789,2,'rm_CH') as b1;
 select * from v1;
 a	a1	b	b1
-10 Oct October	10 Окт Октября	123,456,789.00	123'456'789,00
+10 Oct October	10 Окт октябрь	123,456,789.00	123'456'789,00
 show create view v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select date_format('2001-10-02','%c %b %M') AS `a`,date_format('2001-10-02','%c %b %M','ru_RU') AS `a1`,format(123456789,2) AS `b`,format(123456789,2,'rm_CH') AS `b1`	utf8mb3	utf8mb3_uca1400_ai_ci
@@ -369,3 +369,60 @@ SET lc_messages=DEFAULT;
 #
 # End of 10.11 tests
 #
+#
+# MDEV-38520 Add formatting month's name (%B prints "formatting" months names, %M - "standalone" names)
+#
+SET lc_time_names=uk_UA;
+SELECT monthname('2001-10-01'), monthname('2001-02-15'), monthname('2001-03-30');
+monthname('2001-10-01')	monthname('2001-02-15')	monthname('2001-03-30')
+жовтень	лютий	березень
+SELECT date_format('2026-10-01','%d %M %Y'), date_format('2026-08-24','%d %M %Y'), date_format('2026-01-22','%d %M %Y');
+date_format('2026-10-01','%d %M %Y')	date_format('2026-08-24','%d %M %Y')	date_format('2026-01-22','%d %M %Y')
+01 жовтень 2026	24 серпень 2026	22 січень 2026
+SELECT date_format('2026-10-01','%d %B %Y'), date_format('2026-08-24','%d %B %Y'), date_format('2026-01-22','%d %B %Y');
+date_format('2026-10-01','%d %B %Y')	date_format('2026-08-24','%d %B %Y')	date_format('2026-01-22','%d %B %Y')
+01 жовтня 2026	24 серпня 2026	22 січня 2026
+SET lc_time_names=ru_UA;
+SELECT date_format('2026-08-24','%d %B %Y'), date_format('2026-01-22','%d %B %Y');
+date_format('2026-08-24','%d %B %Y')	date_format('2026-01-22','%d %B %Y')
+24 августа 2026	22 января 2026
+SET lc_time_names=cs_CZ;
+SELECT date_format('2026-08-24','%d %B %Y'), date_format('2026-01-22','%d %B %Y');
+date_format('2026-08-24','%d %B %Y')	date_format('2026-01-22','%d %B %Y')
+24 srpna 2026	22 ledna 2026
+SET lc_time_names=be_BY;
+SELECT date_format('2026-10-01','%d %M %Y'), date_format('2026-08-24','%d %M %Y'), date_format('2026-01-22','%d %M %Y');
+date_format('2026-10-01','%d %M %Y')	date_format('2026-08-24','%d %M %Y')	date_format('2026-01-22','%d %M %Y')
+01 кастрычнік 2026	24 жнівень 2026	22 студзень 2026
+SET lc_time_names=eu_ES;
+SELECT date_format('2026-04-16','%d %M %Y'), date_format('2026-08-24','%d %M %Y'), date_format('2026-01-22','%d %M %Y');
+date_format('2026-04-16','%d %M %Y')	date_format('2026-08-24','%d %M %Y')	date_format('2026-01-22','%d %M %Y')
+16 apirila 2026	24 abuztua 2026	22 urtarrila 2026
+SET lc_time_names=sr_RS;
+SELECT date_format('2026-04-16','%d %M %Y'), date_format('2026-08-24','%d %M %Y'), date_format('2026-01-22','%d %M %Y');
+date_format('2026-04-16','%d %M %Y')	date_format('2026-08-24','%d %M %Y')	date_format('2026-01-22','%d %M %Y')
+16 април 2026	24 август 2026	22 јануар 2026
+SET lc_time_names=sr_Latn_RS;
+SELECT date_format('2026-04-16','%d %M %Y'), date_format('2026-08-24','%d %M %Y'), date_format('2026-01-22','%d %M %Y');
+date_format('2026-04-16','%d %M %Y')	date_format('2026-08-24','%d %M %Y')	date_format('2026-01-22','%d %M %Y')
+16 april 2026	24 avgust 2026	22 januar 2026
+SET lc_time_names=sr_Cyrl_RS;
+SELECT date_format('2026-04-16','%d %M %Y'), date_format('2026-08-24','%d %M %Y'), date_format('2026-01-22','%d %M %Y');
+date_format('2026-04-16','%d %M %Y')	date_format('2026-08-24','%d %M %Y')	date_format('2026-01-22','%d %M %Y')
+16 април 2026	24 август 2026	22 јануар 2026
+SET lc_time_names=DEFAULT;
+#
+# MDEV-38580 TO_DATE should check both formatting and standalone month name
+#
+SELECT TO_DATE('16 април 2026','DD MONTH YYYY','NLS_DATE_LANGUAGE=''CYRILLIC SERBIAN''') AS x FROM DUAL;
+x
+2026-04-16 00:00:00
+SELECT TO_DATE('15 april 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=''LATIN SERBIAN''') AS x FROM DUAL;
+x
+2024-04-15 00:00:00
+SELECT TO_DATE('15 квітень 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=''UKRAINIAN''') AS x FROM DUAL;
+x
+2024-04-15 00:00:00
+SELECT TO_DATE('15 квітня 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=''UKRAINIAN''') AS x FROM DUAL;
+x
+2024-04-15 00:00:00

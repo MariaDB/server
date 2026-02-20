@@ -867,6 +867,8 @@ extract_oracle_date_time(THD *thd, uint16 *format_ptr,
       break;
     case FMT_MONTH:
       if ((l_time->month= check_word(val_cs, locale->month_names,
+                                     val, val_end, &val)) <= 0 &&
+        (l_time->month= check_word(val_cs, locale->month_names_formatting,
                                      val, val_end, &val)) <= 0)
         goto error;
       break;
@@ -1103,6 +1105,13 @@ static bool make_date_time(THD *thd, const String *format,
       ptr+= mblen;
 
       switch (wc) {
+      case 'B':
+        if (type == MYSQL_TIMESTAMP_TIME || !l_time->month)
+          return 1;
+        str->append(locale->month_names_formatting->type_names[l_time->month-1],
+                    (uint) strlen(locale->month_names_formatting->type_names[l_time->month-1]),
+                    system_charset_info);
+        break;
       case 'M':
         if (type == MYSQL_TIMESTAMP_TIME || !l_time->month)
           return 1;
@@ -2434,6 +2443,7 @@ uint Item_func_date_format::format_length(const String *format)
     {
       switch(*++ptr) {
       case 'M': /* month, textual */
+      case 'B': /* month, formatting */
       case 'W': /* day (of the week), textual */
 	size += 64; /* large for UTF8 locale data */
 	break;

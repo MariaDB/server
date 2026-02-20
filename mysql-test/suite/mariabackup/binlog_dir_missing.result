@@ -1,0 +1,6 @@
+CREATE TABLE t(a varchar(60));
+INSERT INTO t VALUES(1);
+SHOW VARIABLES like 'log_bin';
+Variable_name	Value
+log_bin	OFF
+DROP TABLE t;
