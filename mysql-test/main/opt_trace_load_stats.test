@@ -29,28 +29,7 @@ analyze table t1 persistent for all;
 --echo #
 select * from t1 where a < 3 and b > 6;
 
-set @opt_context=
-  (select json_pretty(json_extract(
-                       json_extract(trace, "$**.optimizer_context"),
-                       '$[0]'
-                      ))
-   from information_schema.optimizer_trace);
-
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
-select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
-set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
-select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
-set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
-select * from json_table(
-    @list_ranges,
-    '$[*][*]' columns(
-        index_name text path '$.index_name',
-        ranges json path '$.ranges',
-        num_rows int path '$.num_rows',
-        max_index_blocks int path '$.max_index_blocks',
-        max_row_blocks int path '$.max_row_blocks'
-    )
-) as jt;
+--source include/get_rec_idx_ranges_from_opt_ctx.inc
 
 set @saved_opt_context_1=@opt_context;
 set @saved_records_1=@records;
@@ -66,12 +45,7 @@ set optimizer_replay_context=@saved_opt_context_var_name_1;
 
 select * from t1 where a < 3 and b > 6;
 
-set @opt_context=
-  (select json_pretty(json_extract(
-                       json_extract(trace, "$**.optimizer_context"),
-                       '$[0]'
-                      ))
-   from information_schema.optimizer_trace);
+--source include/get_opt_context.inc
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
@@ -84,12 +58,7 @@ set optimizer_replay_context="";
 
 select * from t1 where a < 3 and b > 6;
 
-set @opt_context=
-  (select json_pretty(json_extract(
-                       json_extract(trace, "$**.optimizer_context"),
-                       '$[0]'
-                      ))
-   from information_schema.optimizer_trace);
+--source include/get_opt_context.inc
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
@@ -104,12 +73,7 @@ insert into t1 select seq%5, seq%8 from seq_1_to_20;
 --echo #
 select * from t1 where a < 3 and b > 6;
 
-set @opt_context=
-  (select json_pretty(json_extract(
-                       json_extract(trace, "$**.optimizer_context"),
-                       '$[0]'
-                      ))
-   from information_schema.optimizer_trace);
+--source include/get_opt_context.inc
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
@@ -145,12 +109,7 @@ set optimizer_replay_context=@saved_opt_context_var_name_1;
 
 select * from t1 where a < 3 and b > 6;
 
-set @opt_context=
-  (select json_pretty(json_extract(
-                       json_extract(trace, "$**.optimizer_context"),
-                       '$[0]'
-                      ))
-   from information_schema.optimizer_trace);
+--source include/get_opt_context.inc
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
@@ -162,12 +121,7 @@ set optimizer_record_context=OFF;
 
 select * from t1 where a < 3 and b > 6;
 
-set @opt_context=
-  (select json_pretty(json_extract(
-                       json_extract(trace, "$**.optimizer_context"),
-                       '$[0]'
-                      ))
-   from information_schema.optimizer_trace);
+--source include/get_opt_context.inc
 
 select @opt_context;
 
@@ -179,12 +133,7 @@ set optimizer_trace=0;
 
 select * from t1 where a < 3 and b > 6;
 
-set @opt_context=
-  (select json_pretty(json_extract(
-                       json_extract(trace, "$**.optimizer_context"),
-                       '$[0]'
-                      ))
-   from information_schema.optimizer_trace);
+--source include/get_opt_context.inc
 
 select @opt_context;
 
@@ -198,12 +147,7 @@ set optimizer_record_context=ON;
 
 select * from t1 where a < 3 and b > 6;
 
-set @opt_context=
-  (select json_pretty(json_extract(
-                       json_extract(trace, "$**.optimizer_context"),
-                       '$[0]'
-                      ))
-   from information_schema.optimizer_trace);
+--source include/get_opt_context.inc
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
@@ -216,12 +160,7 @@ set optimizer_replay_context="";
 
 select * from t1 where a < 3 and b > 6;
 
-set @opt_context=
-  (select json_pretty(json_extract(
-                       json_extract(trace, "$**.optimizer_context"),
-                       '$[0]'
-                      ))
-   from information_schema.optimizer_trace);
+--source include/get_opt_context.inc
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
@@ -244,12 +183,7 @@ analyze table t1 persistent for all;
 --echo #
 select * from t1 where a < 3 and b > 6;
 
-set @opt_context=
-  (select json_pretty(json_extract(
-                       json_extract(trace, "$**.optimizer_context"),
-                       '$[0]'
-                      ))
-   from information_schema.optimizer_trace);
+--source include/get_opt_context.inc
 
 set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
 set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
@@ -271,12 +205,7 @@ set optimizer_replay_context=@saved_opt_context_var_name_1;
 
 select * from t1 where a < 3 and b > 6;
 
-set @opt_context=
-  (select json_pretty(json_extract(
-                       json_extract(trace, "$**.optimizer_context"),
-                       '$[0]'
-                      ))
-   from information_schema.optimizer_trace);
+--source include/get_opt_context.inc
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
@@ -289,12 +218,7 @@ set optimizer_replay_context="";
 
 select * from t1 where a < 3 and b > 6;
 
-set @opt_context=
-  (select json_pretty(json_extract(
-                       json_extract(trace, "$**.optimizer_context"),
-                       '$[0]'
-                      ))
-   from information_schema.optimizer_trace);
+--source include/get_opt_context.inc
 
 select JSON_EQUALS(@saved_opt_context_2, @opt_context);
 
@@ -353,12 +277,8 @@ set optimizer_replay_context="";
 
 explain select tt1.a, tt2.b from t1 tt1, t1 tt2 where tt1.a = tt2.a;
 
-set @saved_opt_context_1=
-  (select json_extract(
-                       json_extract(trace, "$**.optimizer_context"),
-                       '$[0]'
-                      )
-   from information_schema.optimizer_trace);
+--source include/get_opt_context.inc
+set @saved_opt_context_1= @opt_context;
 
 set optimizer_replay_context=@opt_context_var_name;
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].key_number');

@@ -28,6 +28,7 @@ create view view1 as (
 );
 
 --echo # analyze all the tables
+
 set session use_stat_tables='COMPLEMENTARY';
 analyze table t1 persistent for all;
 analyze table t2 persistent for all;
@@ -37,22 +38,14 @@ analyze table t2 persistent for all;
 --echo #
 select count(*) from t1;
 
-set @trace= (select trace from information_schema.optimizer_trace);
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
-select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
-set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
-select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+--source include/get_rec_idx_ranges_from_opt_ctx.inc
 
 --echo #
 --echo # simple query using join of two tables
 --echo #
 select count(*) from t1, t2 where t1.a = t2.a;
 
-set @trace= (select trace from information_schema.optimizer_trace);
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
-select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
-set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
-select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+--source include/get_rec_idx_ranges_from_opt_ctx.inc
 
 --echo #
 --echo # negative test
@@ -62,11 +55,7 @@ select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.ind
 set optimizer_record_context=OFF;
 select count(*) from t1, t2 where t1.a = t2.a;
 
-set @trace= (select trace from information_schema.optimizer_trace);
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
-select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
-set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
-select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+--source include/get_rec_idx_ranges_from_opt_ctx.inc
 
 set optimizer_record_context=ON;
 
@@ -74,35 +63,24 @@ set optimizer_record_context=ON;
 --echo # there should be no duplicate information
 --echo #
 select * from view1 union select * from view1;
-set @trace= (select trace from information_schema.optimizer_trace);
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
-select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
-set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
-select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+
+--source include/get_rec_idx_ranges_from_opt_ctx.inc
 
 --echo #
 --echo # test for update
 --echo #
 update t1 set t1.b = t1.a;
-analyze table t1 persistent for all;
 
-set @trace= (select trace from information_schema.optimizer_trace);
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
-select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
-set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
-select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+--source include/get_rec_idx_ranges_from_opt_ctx.inc
 
 --echo #
 --echo # test for insert as select
 --echo #
 insert into t1 (select t2.a as a, t2.a as b from t2);
-analyze table t1 persistent for all;
 
-set @trace= (select trace from information_schema.optimizer_trace);
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
-select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
-set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
-select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+--source include/get_rec_idx_ranges_from_opt_ctx.inc
+
+analyze table t1 persistent for all;
 
 --echo #
 --echo # range analysis tests
@@ -113,32 +91,14 @@ select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.ind
 --echo #
 analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
 
-set @trace= (select trace from information_schema.optimizer_trace);
-set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
-select * from json_table(
-    @list_ranges,
-    '$[*][*]' columns(
-        index_name text path '$.index_name',
-        ranges json path '$.ranges',
-        num_rows int path '$.num_rows'
-    )
-) as jt;
+--source include/get_rec_idx_ranges_from_opt_ctx.inc
 
 --echo #
 --echo # simple query with or condition on the same column
 --echo #
 analyze select * from t1 where t1.a between 1 and 5 or t1.a between 6 and 10;
 
-set @trace= (select trace from information_schema.optimizer_trace);
-set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
-select * from json_table(
-    @list_ranges,
-    '$[*][*]' columns(
-        index_name text path '$.index_name',
-        ranges json path '$.ranges',
-        num_rows int path '$.num_rows'
-    )
-) as jt;
+--source include/get_rec_idx_ranges_from_opt_ctx.inc
 
 --echo #
 --echo # negative test on the simple query with or condition on 2 columns
@@ -146,16 +106,7 @@ select * from json_table(
 set optimizer_record_context=OFF;
 analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
 
-set @trace= (select trace from information_schema.optimizer_trace);
-set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
-select * from json_table(
-    @list_ranges,
-    '$[*][*]' columns(
-        index_name text path '$.index_name',
-        ranges json path '$.ranges',
-        num_rows int path '$.num_rows'
-    )
-) as jt;
+--source include/get_rec_idx_ranges_from_opt_ctx.inc
 
 set optimizer_record_context=ON;
 
@@ -165,20 +116,7 @@ set optimizer_record_context=ON;
 --echo #
 analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
 
-set @trace= (select trace from information_schema.optimizer_trace);
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
-select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
-set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
-select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
-set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
-select * from json_table(
-    @list_ranges,
-    '$[*][*]' columns(
-        index_name text path '$.index_name',
-        ranges json path '$.ranges',
-        num_rows int path '$.num_rows'
-    )
-) as jt;
+--source include/get_rec_idx_ranges_from_opt_ctx.inc
 
 drop view view1;
 drop table t1;
@@ -200,12 +138,52 @@ insert into t1 select seq, seq%5 from seq_1_to_20;
 analyze table t1 persistent for all;
 
 set optimizer_record_context=ON;
+
 analyze select * from t1 where t1.a=5 and t1.b=0 union select * from t1 where t1.a=4 and t1.b=4;
 
-set @trace= (select trace from information_schema.optimizer_trace);
-set @const_table_inserts= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.const_table_inserts')));
+set @const_table_inserts=
+    (select REGEXP_SUBSTR(
+         context,
+         '(REPLACE INTO.*)([\n\r].*)*(?=set @opt_context)'
+        )
+        from information_schema.optimizer_context
+    );
+
 select @const_table_inserts;
-select * from json_table(@const_table_inserts, '$[*][*]' columns(insert_stmt text path '$')) as jt;
+
+drop table t1;
+
+--echo #
+--echo # Single table with a unique index containing few columns.
+--echo # query with const tables and
+--echo # testing the INSERT statements
+--echo #
+set optimizer_record_context=OFF;
+
+create table t1 (
+    a int,
+    b int,
+    c int,
+    unique index idx_ab(a, b)
+);
+
+insert into t1 select seq%10, seq%3, seq%2 from seq_1_to_20;
+
+analyze table t1 persistent for all;
+
+set optimizer_record_context=ON;
+
+analyze select * from t1 where t1.a=1 and t1.b=1;
+
+set @const_table_inserts=
+    (select REGEXP_SUBSTR(
+         context,
+         '(REPLACE INTO.*)([\n\r].*)*(?=set @opt_context)'
+        )
+        from information_schema.optimizer_context
+    );
+
+select @const_table_inserts;
 
 drop table t1;
 drop database db1;

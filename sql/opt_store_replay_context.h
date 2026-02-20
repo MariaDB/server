@@ -29,12 +29,12 @@
 
 class SEL_ARG_RANGE_SEQ;
 class Range_list_recorder;
-class trace_table_context;
+class table_context_for_store;
 
 /*
   Recorder is used to capture the environment during query optimization run.
   When the optimization is finished, one can save the captured context
-  somewhere (currently, we write it into the Optimizer Trace)
+  somewhere (currently, we write it into the OptimizerContext IS table)
 */
 class Optimizer_context_recorder
 {
@@ -59,19 +59,20 @@ public:
   void record_const_table_row(MEM_ROOT *mem_root, TABLE *tbl);
 
   bool has_records();
-  trace_table_context *search(uchar *tbl_name, size_t tbl_name_len);
+  table_context_for_store *search(uchar *tbl_name, size_t tbl_name_len);
 
 private:
   /*
-    Hash table mapping "dbname.table_name" -> pointer to trace_table_context.
-    Contains records for all tables for which we have captured data.
+    Hash table mapping "dbname.table_name" -> pointer to
+    table_context_for_store. Contains records for all tables for which we have
+    captured data.
   */
-  HASH tbl_trace_ctx_hash;
+  HASH tbl_ctx_hash;
 
-  trace_table_context *get_table_context(MEM_ROOT *mem_root,
-                                         const TABLE_LIST *tbl);
-  static const uchar *get_tbl_trace_ctx_key(const void *entry_, size_t *length,
-                                            my_bool flags);
+  table_context_for_store *get_table_context(MEM_ROOT *mem_root,
+                                             const TABLE_LIST *tbl);
+  static const uchar *get_tbl_ctx_key(const void *entry_, size_t *length,
+                                      my_bool flags);
 };
 
 /* Interface to record range lists */
@@ -91,19 +92,19 @@ get_range_list_recorder(THD *thd, MEM_ROOT *mem_root, TABLE_LIST *tbl,
                         Cost_estimate *cost, ha_rows max_index_blocks,
                         ha_rows max_row_blocks);
 
-/* Save the collected context in optimizer trace */
-bool store_tables_context_in_trace(THD *thd);
+/* Save the collected context into optimizer_context IS table */
+bool store_optimizer_context(THD *thd);
 
 /***************************************************************************
  * Part 2: APIs for loading previously saved Optimizer Context and replaying
  *  it: making the optimizer work as if the environment was like it has been
  *  at the time the context was recorded.
  ***************************************************************************/
-class trace_table_context_read;
-class trace_index_context_read;
-class trace_range_context_read;
-class trace_irc_context_read;
-class trace_rir_context_read;
+class table_context_for_replay;
+class index_context_for_replay;
+class range_context_for_replay;
+class irc_context_for_replay;
+class rir_context_for_replay;
 
 class Saved_Table_stats;
 
@@ -152,7 +153,7 @@ private:
   /* Current database recorded in the saved Optimizer Context */
   char *db_name;
 
-  List<trace_table_context_read> ctx_list;
+  List<table_context_for_replay> ctx_list;
   bool parse();
   bool has_records();
 #ifndef DBUG_OFF
@@ -161,9 +162,20 @@ private:
   List<ha_rows> *get_index_rec_per_key_list(const TABLE *tbl,
                                             const char *idx_name);
   void store_range_contexts(const TABLE *tbl, const char *idx_name,
-                            List<trace_range_context_read> *list);
+                            List<range_context_for_replay> *list);
   bool infuse_table_rows(const TABLE *tbl, ha_rows *rows);
-  trace_table_context_read *find_trace_read_context(const char *name);
+  table_context_for_replay *find_table_context(const char *name);
 };
 
+class Optimizer_context_capture
+{
+public:
+  String query;
+  String ctx;
+  Optimizer_context_capture(THD *thd, String &ctx_arg);
+};
+
+int fill_optimizer_context_capture_info(THD *thd, TABLE_LIST *tables, Item *);
+
+void clean_captured_ctx(THD *thd);
 #endif

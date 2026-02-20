@@ -18,13 +18,11 @@ set optimizer_replay_context="";
 echo $explain_query;
 let $explain_output=`$explain_query`;
 
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-  (select json_pretty(json_extract(
-                        json_extract(@trace, "$**.optimizer_context"),
-                        '$[0]'
-                      )
-  ));
+    (select REGEXP_SUBSTR(
+         context,
+         '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+         from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 
 #TO-DO: enable it after MDEV-38033 is resolved
