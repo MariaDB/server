@@ -3288,7 +3288,7 @@ log_page_modify(uint32_t space_id, uint32_t page_no) noexcept
     FILE_CHECKPOINT. There should be a FILE_DELETE or FILE_MODIFY
     for this tablespace later, to be handled in fil_name_process(). */
     recv_spaces.emplace_hint(i, space_id, file_name_t("", false));
-  else
+  else if (!srv_read_only_mode)
   {
     if (!srv_force_recovery)
     {
