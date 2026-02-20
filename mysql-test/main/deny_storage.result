@@ -108,6 +108,48 @@ u	%	[
         "deny": 1
     }
 ]
+CREATE TABLE sensitive_data (
+id INT,
+public_info VARCHAR(50),
+salary DECIMAL(10,2),
+ssn VARCHAR(11),
+address VARCHAR(100)
+);
+DENY SELECT(salary,ssn) on sensitive_data to u;
+EXECUTE show_denies;
+User	Host	denies_pretty
+u	%	[
+    {
+        "type": "column",
+        "db": "mysql",
+        "table": "global_priv",
+        "column": "USER",
+        "deny": 5
+    },
+    {
+        "type": "global",
+        "deny": 1
+    },
+    {
+        "type": "column",
+        "db": "test",
+        "table": "sensitive_data",
+        "column": "salary",
+        "deny": 1
+    },
+    {
+        "type": "column",
+        "db": "test",
+        "table": "sensitive_data",
+        "column": "ssn",
+        "deny": 1
+    }
+]
+GRANT ALL PRIVILEGES on *.* TO u WITH GRANT OPTION;
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM u;
+EXECUTE show_denies;
+User	Host	denies_pretty
 DEALLOCATE PREPARE show_denies;
 DROP USER u;
 DROP DATABASE d;
+DROP TABLE sensitive_data;

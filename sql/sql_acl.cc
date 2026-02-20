@@ -2173,6 +2173,7 @@ class User_table_json: public User_table
       return 0;
     if (get_value("denies", JSV_ARRAY, &array_start, &array_len))
       return 0;
+    // I'd rather remove that key with value, but there is no  API for that
     if (set_value("denies", STRING_WITH_LEN("[]"), false) == JSV_BAD_JSON)
       return 1;
     return 0;
@@ -5672,7 +5673,11 @@ static int update_denies_in_user_table(const User_table &user_table,
 {
   int error;
   uchar user_key[MAX_KEY_LENGTH];
+  bool revoke_all= type == ACL_PRIV_TYPE::PRIV_TYPE_MAX && revoke_grant;
+
   DBUG_ENTER("update_denies_in_user_table");
+  DBUG_ASSERT(revoke_all || type != ACL_PRIV_TYPE::PRIV_TYPE_MAX);
+
   if (!rights) // Nothing to do
     DBUG_RETURN(0);
   user_table.table()->use_all_columns();
@@ -5699,7 +5704,13 @@ static int update_denies_in_user_table(const User_table &user_table,
   entry.column= column;
 
   // Update the deny entry
-  if (user_table.update_deny_entry(entry, rights, revoke_grant, out_denies))
+  if (revoke_all)
+  {
+    if (denies_before_change.empty())
+      DBUG_RETURN(0);
+    user_table.remove_all_deny_entries();
+  }
+  else if (user_table.update_deny_entry(entry, rights, revoke_grant, out_denies))
   {
     DBUG_ASSERT(0);
     DBUG_RETURN(-1);
@@ -6281,7 +6292,7 @@ GRANT_NAME::GRANT_NAME(const char *h, const char *d,const char *u,
 
 GRANT_TABLE::GRANT_TABLE(const char *h, const char *d,const char *u,
                          const char *t, const access_t& p, privilege_t c)
-  :GRANT_NAME(h,d,u,t,p, FALSE), cols(c), init_cols(c)
+  :GRANT_NAME(h,d,u,t,p, FALSE), cols(c|p.deny_subtree()), init_cols(c|p.deny_subtree())
 {
   init_hash();
 }
@@ -6519,6 +6530,206 @@ column_hash_search(GRANT_TABLE *t, const LEX_CSTRING &cname)
   return (GRANT_COLUMN*)my_hash_search(&t->hash_columns,
                                        (uchar*)cname.str, cname.length);
 }
+
+/*
+  Update deny privileges of corresponding user
+  in acls_users array
+
+  @param combo - user name and host
+  @param e - deny entry
+*/
+static int apply_deny_user(const LEX_USER &combo,
+                           const deny_entry_t &e)
+{
+  ACL_USER *acl_user= find_user_exact(combo.host, combo.user);
+  if (acl_user)
+  {
+    // Always update, even if denies are NO_ACL (clearing deny bits)
+    acl_user->access.set_deny(e.denies, e.subtree_denies);
+  }
+  if (combo.is_role())
+  {
+    // For roles, also update ACL_ROLE entry if it exists
+    ACL_ROLE *acl_role= find_acl_role(combo.user, true);
+    if (acl_role)
+      acl_role->access.set_deny(e.denies, e.subtree_denies);
+  }
+  return 0;
+}
+
+static int apply_deny_db(const LEX_USER &combo,
+                         const deny_entry_t &e)
+{
+
+  const char *username= combo.user.str;
+  const char *hostname= combo.host.str;
+
+  access_t access(NO_ACL, e.denies, e.subtree_denies);
+ 
+  // Update or insert ACL_DB entry
+  if (!acl_update_db(username, hostname, e.db.c_str(), access,
+                    true /*is_deny*/) && !access.is_empty())
+  {
+     acl_insert_db(username, hostname, e.db.c_str(), access);
+  }
+  return 0;
+}
+
+static int apply_deny_table(const LEX_USER &combo,
+                                     const deny_entry_t &e)
+{
+  const char *user= combo.user.str;
+  const char *host= combo.host.str;
+
+  // Update GRANT_TABLE in column_priv_hash
+  GRANT_TABLE *gt=
+      table_hash_search(host, NULL, e.db.c_str(), user,
+                        e.table.c_str(), true /*exact*/);
+
+  if (!gt && (e.denies || e.subtree_denies))
+  {
+    gt = new (&grant_memroot) GRANT_TABLE(
+        host, e.db.c_str(), user,
+        e.table.c_str(),
+        access_t(NO_ACL, e.denies, e.subtree_denies),
+        NO_ACL);
+    if (!gt)
+      return 1;
+    column_priv_insert(gt);
+  }
+  if (!gt)
+    return 0;
+  gt->privs.set_deny(e.denies,
+                              e.subtree_denies);
+  gt->init_privs= gt->privs;
+  gt->cols|= e.subtree_denies;
+  //  Delete from hash, if no privileges,and no columns are left
+  if (gt->privs.is_empty() && !gt->hash_columns.records)
+    my_hash_delete(&column_priv_hash, (uchar *) gt);
+  return 0;
+}
+
+static int apply_deny_column(const LEX_USER &combo,
+                             const deny_entry_t &e)
+{
+  const char *user= combo.user.str;
+  const char *host= combo.host.str;
+  bool has_denies= e.denies || e.subtree_denies;
+
+  DBUG_ASSERT(e.subtree_denies == NO_ACL);
+
+  // Update GRANT_COLUMN in the grant table's hash
+  GRANT_TABLE *grant_table=
+    table_hash_search(host, NULL, e.db.c_str(), user, e.table.c_str(), true);
+
+  if (!grant_table)
+  {
+    if (!has_denies)
+      return 0;
+
+    DBUG_ASSERT(0);
+    return 1;
+  }
+
+  GRANT_COLUMN *grant_column= column_hash_search(
+      grant_table, Lex_cstring_strlen(e.column.c_str()));
+
+  if (!grant_column)
+  {
+    if (!has_denies)
+      return 0;
+    // Column doesn't exist - only create if there are denies
+    String col_name(e.column.c_str(), e.column.length(),
+                    system_charset_info);
+    grant_column=
+        new GRANT_COLUMN(col_name, access_t(NO_ACL, e.denies,
+                                            e.subtree_denies));
+    if (grant_column)
+      my_hash_insert(&grant_table->hash_columns, (uchar *) grant_column);
+    else
+      return 1;
+  }
+  // always update (even if clearing deny bits)
+  grant_column->rights.set_deny(e.denies,
+                                e.subtree_denies);
+  grant_column->init_rights= grant_column->rights;
+  grant_table->cols|= e.denies;
+  grant_table->init_cols= grant_table->cols;
+
+  // Remove column if no privileges left at all
+  // Also the corresponding table, if it no info is left
+  if (grant_column->rights.is_empty())
+  {
+    my_hash_delete(&grant_table->hash_columns, (uchar *) grant_column);
+    /* Remove also table from hash, if it does not have any info left now */
+    if (grant_table->privs.is_empty() && !grant_table->hash_columns.records)
+      my_hash_delete(&column_priv_hash, (uchar *) grant_table);
+  }
+
+  return 0;
+}
+
+static int apply_deny_proc(const LEX_USER &combo,
+                           const deny_entry_t &e)
+{
+  const char *username= combo.user.str;
+  const char *hostname= combo.host.str;
+  HASH *hash= NULL;
+  // Determine which hash to use based on routine type
+  switch (e.type)
+  {
+  case ACL_PRIV_TYPE::PRIV_TYPE_FUNCTION:
+    hash= &func_priv_hash;
+    break;
+  case ACL_PRIV_TYPE::PRIV_TYPE_PROCEDURE:
+    hash= &proc_priv_hash;
+    break;
+  case ACL_PRIV_TYPE::PRIV_TYPE_PACKAGE:
+    hash= &package_spec_priv_hash;
+    break;
+  case ACL_PRIV_TYPE::PRIV_TYPE_PACKAGE_BODY:
+    hash= &package_body_priv_hash;
+    break;
+  default:
+    DBUG_ASSERT(0);
+    break;
+  }
+
+  if (hash)
+  {
+    GRANT_NAME *grant_name= (GRANT_NAME *) name_hash_search(
+        hash, hostname, NULL, e.db.c_str(), username,
+        e.table.c_str(), true /*exact*/, true /*name_tolower*/);
+
+    if (grant_name)
+    {
+      // Entry exists - always update (even if clearing deny bits)
+      grant_name->privs.set_deny(e.denies,
+                                 e.subtree_denies);
+      grant_name->init_privs.set_deny(e.denies,
+                                      e.subtree_denies);
+
+      // Remove if no privileges left at all
+      if (grant_name->privs.is_empty())
+        my_hash_delete(hash, (uchar *) grant_name);
+    }
+    else if (e.denies || e.subtree_denies)
+    {
+      // Entry doesn't exist - only create if there are denies
+      GRANT_NAME *new_grant= new (&grant_memroot) GRANT_NAME(
+          hostname, e.db.c_str(), username,
+          e.table.c_str(),
+          access_t(NO_ACL, e.denies, e.subtree_denies),
+          true /*is_routine*/);
+      if (new_grant)
+        my_hash_insert(hash, (uchar *) new_grant);
+    }
+  }
+  return 0;
+}
+
+
+
 /**
   Apply a single deny closure entry to the appropriate ACL cache structure.
 
@@ -6535,230 +6746,33 @@ column_hash_search(GRANT_TABLE *t, const LEX_CSTRING &cname)
         existing cache entries to clear their deny bits (not just skip them).
 */
 static int
-apply_single_deny_closure_to_cache(const LEX_USER &combo,
-                                   const deny_entry_t &closure_entry)
+apply_single_deny_closure_to_cache(const LEX_USER &user,
+                                   const deny_entry_t &deny_entry)
 {
-  DBUG_ENTER("apply_single_deny_closure_to_cache");
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  const char *username= combo.user.str;
-  const char *hostname= combo.host.str;
-  const bool has_denies= (closure_entry.denies != NO_ACL ||
-                          closure_entry.subtree_denies != NO_ACL);
-
-  switch (closure_entry.type)
+  switch (deny_entry.type)
   {
-  case ACL_PRIV_TYPE::PRIV_TYPE_GLOBAL: {
-    // Update ACL_USER entry
-    ACL_USER *acl_user= find_user_exact(combo.host,combo.user);
-    if (acl_user)
-    {
-      // Always update, even if denies are NO_ACL (clearing deny bits)
-      acl_user->access.set_deny(closure_entry.denies,
-                                closure_entry.subtree_denies);
-    }
-    if (combo.is_role())
-    {
-      // For roles, also update ACL_ROLE entry if it exists
-      ACL_ROLE *acl_role= find_acl_role(combo.user, true);
-      if (acl_role)
-      {
-        acl_role->access.set_deny(closure_entry.denies,
-                                  closure_entry.subtree_denies);
-      }
-    }
-    }
-    break;
-
-  case ACL_PRIV_TYPE::PRIV_TYPE_DB: {
-      access_t access(NO_ACL, closure_entry.denies,
-                      closure_entry.subtree_denies);
-    // Update or insert ACL_DB entry
-    if (acl_update_db(username, hostname, closure_entry.db.c_str(),
-                      access, true /*is_deny*/))
-    {
-      // Entry was found and updated
-    }
-    else
-    {
-      // Entry not found, insert new one only if there are denies
-      if (has_denies)
-        acl_insert_db(username, hostname, closure_entry.db.c_str(),
-                      access_t(NO_ACL,closure_entry.denies,closure_entry.subtree_denies));
-    }
-  }
-    break;
-
-  case ACL_PRIV_TYPE::PRIV_TYPE_TABLE: {
-    // Update GRANT_TABLE in column_priv_hash
-    GRANT_TABLE *grant_table=
-        table_hash_search(hostname, NULL, closure_entry.db.c_str(), username,
-                          closure_entry.table.c_str(), true /*exact*/);
-
-    if (grant_table)
-    {
-      // Entry exists - always update (even if clearing deny bits)
-      grant_table->privs.set_deny(closure_entry.denies,
-                                  closure_entry.subtree_denies);
-      grant_table->init_privs.set_deny(closure_entry.denies,
-                                       closure_entry.subtree_denies);
-
-      // If table has no privileges left at all, remove it
-      if (grant_table->privs.is_empty() && grant_table->cols == NO_ACL)
-      {
-        my_hash_delete(&column_priv_hash, (uchar *) grant_table);
-      }
-    }
-    else if (has_denies)
-    {
-      // Entry doesn't exist - only create if there are denies
-      GRANT_TABLE *new_grant= new (&grant_memroot) GRANT_TABLE(
-          hostname, closure_entry.db.c_str(), username,
-          closure_entry.table.c_str(),
-          access_t(NO_ACL, closure_entry.denies, closure_entry.subtree_denies),
-          NO_ACL);
-      if (new_grant)
-        column_priv_insert(new_grant);
-    }
-  }
-    break;
-
-  case ACL_PRIV_TYPE::PRIV_TYPE_COLUMN: 
-  {
-    DBUG_ASSERT(closure_entry.subtree_denies == NO_ACL);
-    // Update GRANT_COLUMN in the grant table's hash
-    GRANT_TABLE *grant_table=
-        table_hash_search(hostname, NULL, closure_entry.db.c_str(), username,
-                          closure_entry.table.c_str(), true /*exact*/);
-
-    if (grant_table)
-    {
-      GRANT_COLUMN *grant_column= column_hash_search(
-          grant_table, Lex_cstring_strlen(closure_entry.column.c_str()));
-
-      if (grant_column)
-      {
-        // Column entry exists - always update (even if clearing deny bits)
-        grant_column->rights.set_deny(closure_entry.denies,
-                                      closure_entry.subtree_denies);
-        grant_column->init_rights.set_deny(closure_entry.denies,
-                                           closure_entry.subtree_denies);
-        grant_table->cols|= closure_entry.denies;
-        grant_table->init_cols= grant_table->cols;
-        // Remove column if no privileges left at all
-        if (grant_column->rights.is_empty())
-        {
-          my_hash_delete(&grant_table->hash_columns, (uchar *) grant_column);
-        }
-      }
-      else if (has_denies)
-      {
-        // Column doesn't exist - only create if there are denies
-        String col_name(closure_entry.column.c_str(),
-                        closure_entry.column.length(), system_charset_info);
-        GRANT_COLUMN *new_col=
-            new GRANT_COLUMN(col_name, access_t(NO_ACL, closure_entry.denies,
-                                                closure_entry.subtree_denies));
-        if (new_col)
-          my_hash_insert(&grant_table->hash_columns, (uchar *) new_col);
-        grant_table->cols|= closure_entry.denies;
-        grant_table->init_cols= grant_table->cols;
-      }
-    }
-    else if (has_denies)
-    {
-      // Grant table doesn't exist - only create if there are denies
-      GRANT_TABLE *new_grant= new (&grant_memroot)
-          GRANT_TABLE(hostname, closure_entry.db.c_str(), username,
-                      closure_entry.table.c_str(), access_t(NO_ACL), NO_ACL);
-      if (new_grant)
-      {
-        String col_name(closure_entry.column.c_str(),
-                        closure_entry.column.length(), system_charset_info);
-        GRANT_COLUMN *new_col=
-            new GRANT_COLUMN(col_name, access_t(NO_ACL, closure_entry.denies,
-                                                closure_entry.subtree_denies));
-        if (new_col)
-        {
-          my_hash_insert(&new_grant->hash_columns, (uchar *) new_col);
-          // Set cols to mark which privileges have column-level data
-          new_grant->cols= closure_entry.denies;
-          new_grant->init_cols= new_grant->cols;
-          column_priv_insert(new_grant);
-        }
-      }
-    }
-    break;
-  }
-
+  case ACL_PRIV_TYPE::PRIV_TYPE_GLOBAL:
+    return apply_deny_user(user, deny_entry);
+  case ACL_PRIV_TYPE::PRIV_TYPE_DB:
+    return apply_deny_db(user, deny_entry);
+  case ACL_PRIV_TYPE::PRIV_TYPE_TABLE:
+    return apply_deny_table(user, deny_entry);
+  case ACL_PRIV_TYPE::PRIV_TYPE_COLUMN:
+    return apply_deny_column(user, deny_entry);
   case ACL_PRIV_TYPE::PRIV_TYPE_FUNCTION:
   case ACL_PRIV_TYPE::PRIV_TYPE_PROCEDURE:
   case ACL_PRIV_TYPE::PRIV_TYPE_PACKAGE:
-  case ACL_PRIV_TYPE::PRIV_TYPE_PACKAGE_BODY: {
-    // Determine which hash to use based on routine type
-    HASH *hash= NULL;
-    switch (closure_entry.type)
-    {
-    case ACL_PRIV_TYPE::PRIV_TYPE_FUNCTION:
-      hash= &func_priv_hash;
-      break;
-    case ACL_PRIV_TYPE::PRIV_TYPE_PROCEDURE:
-      hash= &proc_priv_hash;
-      break;
-    case ACL_PRIV_TYPE::PRIV_TYPE_PACKAGE:
-      hash= &package_spec_priv_hash;
-      break;
-    case ACL_PRIV_TYPE::PRIV_TYPE_PACKAGE_BODY:
-      hash= &package_body_priv_hash;
-      break;
-    default:
-      DBUG_ASSERT(0);
-      break;
-    }
-
-    if (hash)
-    {
-      GRANT_NAME *grant_name= (GRANT_NAME *) name_hash_search(
-          hash, hostname, NULL, closure_entry.db.c_str(), username,
-          closure_entry.table.c_str(), true /*exact*/, true /*name_tolower*/);
-
-      if (grant_name)
-      {
-        // Entry exists - always update (even if clearing deny bits)
-        grant_name->privs.set_deny(closure_entry.denies,
-                                   closure_entry.subtree_denies);
-        grant_name->init_privs.set_deny(closure_entry.denies,
-                                        closure_entry.subtree_denies);
-
-        // Remove if no privileges left at all
-        if (grant_name->privs.is_empty())
-        {
-          my_hash_delete(hash, (uchar *) grant_name);
-        }
-      }
-      else if (has_denies)
-      {
-        // Entry doesn't exist - only create if there are denies
-        GRANT_NAME *new_grant= new (&grant_memroot)
-            GRANT_NAME(hostname, closure_entry.db.c_str(), username,
-                       closure_entry.table.c_str(),
-                       access_t(NO_ACL, closure_entry.denies,
-                                closure_entry.subtree_denies),
-                       true /*is_routine*/);
-        if (new_grant)
-          my_hash_insert(hash, (uchar *) new_grant);
-      }
-    }
-  }
-    break;
+  case ACL_PRIV_TYPE::PRIV_TYPE_PACKAGE_BODY:
+    return apply_deny_proc(user, deny_entry);
 
   default:
     DBUG_ASSERT(0); // Unknown privilege type
-    DBUG_RETURN(1);
+    return 1;
   }
-
-  DBUG_RETURN(0);
 }
+
 
 static int replace_column_table(GRANT_TABLE *g_t, const User_table &user_table,
 				TABLE *table, const LEX_USER &combo,
@@ -9641,9 +9655,11 @@ static access_t check_grant_column_int(GRANT_TABLE *grant_table,
 {
   if (grant_table)
   {
-      GRANT_COLUMN *grant_column= column_hash_search(grant_table, name);
-      if (grant_column)
-        return grant_column->rights;
+    access_t acc_col= access_t(NO_ACL);
+    GRANT_COLUMN *grant_column= column_hash_search(grant_table, name);
+    if (grant_column)
+      return acc_col= grant_column->rights;
+    return acc_col.combine_with_parent(grant_table->privs);
   }
   return access_t(NO_ACL);
 }
@@ -9724,14 +9740,14 @@ bool check_grant_column(THD *thd, GRANT_INFO *grant,
   privilege_t want_access;
   access_t acc;
   DBUG_ENTER("check_grant_column");
-
-  // denies should have been checked previously,
-  // on the table level
-  DBUG_ASSERT(!grant->privilege.is_denied(grant->want_privilege));
-  
-  want_access= grant->want_privilege & ~grant->privilege;
   DBUG_PRINT("info", ("table: %s  want_access: %llx", table_name,
-                       (longlong) want_access));
+                      (longlong) grant->want_privilege));
+  
+  want_access= grant->privilege.is_denied(grant->want_privilege);
+  if (want_access)
+    goto err;
+
+  want_access= grant->want_privilege & ~grant->privilege;
   if (!want_access)
     DBUG_RETURN(0);				// Already checked
 
@@ -9751,10 +9767,11 @@ bool check_grant_column(THD *thd, GRANT_INFO *grant,
   // column level denies are on "leaf" hierachy level, no subtree
   DBUG_ASSERT(!acc.deny_subtree()); 
 
-  want_access &= ~acc;
+  want_access= grant->want_privilege & ~acc;
   if (!want_access)
     DBUG_RETURN(0);
 
+err:
   char command[128];
   get_privilege_desc(command, sizeof(command), want_access);
   /* TODO perhaps error should print current rolename as well */
@@ -10081,7 +10098,7 @@ bool check_grant_routine(THD *thd, privilege_t want_access,
 			 TABLE_LIST *procs, const Sp_handler *sph,
 			 bool no_errors)
 {
-  TABLE_LIST *table;
+  TABLE_LIST *table= NULL;
   Security_context *sctx= thd->security_ctx;
   char *user= sctx->priv_user;
   char *host= sctx->priv_host;
@@ -12757,6 +12774,7 @@ mysql_revoke_sp_privs(THD *thd, Grant_tables *tables, const Sp_handler *sph,
 }
 
 
+
 /*
   Revoke all privileges from a list of users.
 
@@ -12771,7 +12789,7 @@ mysql_revoke_sp_privs(THD *thd, Grant_tables *tables, const Sp_handler *sph,
     < 0         Error. Error message not yet sent.
 */
 
-bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list, bool is_deny)
+bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
 {
   uint counter, revoked;
   int result, res;
@@ -12808,12 +12826,23 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list, bool is_deny)
       continue;
     }
 
-    if (replace_user_table(thd, tables.user_table(), lex_user,
-                           ALL_KNOWN_ACL, 1, 0, 0, is_deny))
+    privilege_t p(NO_ACL);
+    if (update_denies_in_user_table(tables.user_table(), 
+          *lex_user, ALL_KNOWN_ACL, true /* revoke */,
+          ACL_PRIV_TYPE::PRIV_TYPE_MAX /* indicator for revoke all*/,
+          NULL,NULL,NULL,p))
     {
       result= -1;
       continue;
     }
+
+    if (replace_user_table(thd, tables.user_table(), lex_user,
+                           ALL_KNOWN_ACL, 1, 0, 0, false))
+    {
+      result= -1;
+      continue;
+    }
+    /* Remove all DENYs, also from caches */
 
     /* Remove db access privileges */
     /*
@@ -12838,7 +12867,7 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list, bool is_deny)
       /* TODO(cvicentiu) refactor replace_db_table to use
          Db_table instead of TABLE directly. */
 	  if (!replace_db_table(tables.user_table(),tables.db_table().table(), acl_db->db, *lex_user,
-                                ALL_KNOWN_ACL, 1, is_deny))
+                                ALL_KNOWN_ACL, 1, false))
 	  {
 	    /*
 	      Don't increment counter as replace_db_table deleted the
@@ -12875,7 +12904,7 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list, bool is_deny)
                                      grant_table, tables.user_table(),
                                      tables.columns_priv_table().table(),
                                      *lex_user, columns, grant_table->db,
-                                     grant_table->tname, ALL_KNOWN_ACL, 1,is_deny))
+                                     grant_table->tname, ALL_KNOWN_ACL, 1,false))
               result= -1;
 
           /* TODO(cvicentiu) refactor replace_db_table to use
@@ -12884,7 +12913,7 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list, bool is_deny)
                                         tables.tables_priv_table().table(),
                                         *lex_user, grant_table->db,
                                         grant_table->tname, ALL_KNOWN_ACL,
-                                        NO_ACL, true, is_deny)))
+                                        NO_ACL, true, false)))
 	  {
             if (res > 0)
               result= -1;
@@ -13166,7 +13195,7 @@ bool sp_grant_privileges(THD *thd,
   mysql_mutex_unlock(&acl_cache->lock);
 
   bzero((char*)tables, sizeof(TABLE_LIST));
-  user_list.empty();
+  user_list.is_empty();
 
   tables->db= sp_db;
   tables->table_name= tables->alias= Lex_ident_table(sp_name);

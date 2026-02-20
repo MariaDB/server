@@ -40,6 +40,9 @@ SELECT id, salary FROM sensitive_data;
 disconnect con1;
 connection default;
 
+REVOKE SELECT ON deny_col_db.sensitive_data FROM col_user1@localhost;
+REVOKE DENY SELECT (salary, ssn) ON deny_col_db.sensitive_data FROM col_user1@localhost;
+
 --echo #
 --echo # Test 2: DENY on one column, access to others allowed
 --echo #
@@ -57,12 +60,14 @@ SELECT id, ssn FROM sensitive_data;
 SELECT * FROM sensitive_data;
 disconnect con2;
 connection default;
+REVOKE SELECT ON deny_col_db.sensitive_data FROM col_user2@localhost;
+REVOKE DENY SELECT (ssn) ON deny_col_db.sensitive_data FROM col_user2@localhost;
 
 --echo #
 --echo # Test 3: Column DENY takes precedence over explicit column GRANT
 --echo #
 
-GRANT SELECT (salary) ON deny_col_db.sensitive_data TO col_user1@localhost;
+GRANT SELECT (salary,id,public_info) ON deny_col_db.sensitive_data TO col_user1@localhost;
 DENY SELECT (salary) ON deny_col_db.sensitive_data TO col_user1@localhost;
 connect (con3, localhost, col_user1,,deny_col_db);
 SELECT id, public_info FROM sensitive_data;
@@ -70,11 +75,14 @@ SELECT id, public_info FROM sensitive_data;
 SELECT salary FROM sensitive_data;
 disconnect con3;
 connection default;
+REVOKE SELECT (salary,id,public_info) ON deny_col_db.sensitive_data FROM col_user1@localhost;
+REVOKE DENY SELECT (salary) ON deny_col_db.sensitive_data FROM col_user1@localhost;
 
 --echo #
 --echo # Test 4: REVOKE DENY on a column
 --echo #
-
+GRANT SELECT (salary) ON deny_col_db.sensitive_data TO col_user1@localhost;
+DENY SELECT (salary,ssn) ON deny_col_db.sensitive_data TO col_user1@localhost;
 REVOKE DENY SELECT (salary) ON deny_col_db.sensitive_data FROM col_user1@localhost;
 
 connect (con4, localhost, col_user1,,deny_col_db);
@@ -83,11 +91,12 @@ SELECT salary FROM sensitive_data;
 SELECT ssn FROM sensitive_data;
 disconnect con4;
 connection default;
+REVOKE DENY SELECT (salary,ssn) ON deny_col_db.sensitive_data FROM  col_user1@localhost;
 
 --echo #
 --echo # Test 5: Multiple column DENYs
 --echo #
-
+GRANT SELECT ON deny_col_db.sensitive_data TO col_user2@localhost;
 DENY SELECT (salary, ssn, address) ON deny_col_db.sensitive_data TO col_user2@localhost;
 
 connect (con5, localhost, col_user2,,deny_col_db);
@@ -153,6 +162,7 @@ connection default;
 
 GRANT UPDATE ON deny_col_db.sensitive_data TO col_user1@localhost;
 DENY UPDATE (salary) ON deny_col_db.sensitive_data TO col_user1@localhost;
+GRANT SELECT(id,public_info) on deny_col_db.sensitive_data TO col_user1@localhost;
 
 connect (con9, localhost, col_user1,,deny_col_db);
 UPDATE sensitive_data SET public_info = 'Updated' WHERE id = 1;
@@ -167,7 +177,8 @@ connection default;
 --echo # Test 10: REVOKE all column DENYs
 --echo #
 
-REVOKE DENY SELECT (ssn) ON deny_col_db.sensitive_data FROM col_user1@localhost;
+GRANT SELECT(ssn) on deny_col_db.sensitive_data to col_user1@localhost;
+REVOKE DENY SELECT (salary,ssn,public_info,id) ON deny_col_db.sensitive_data FROM col_user1@localhost;
 
 connect (con10, localhost, col_user1,,deny_col_db);
 SELECT ssn FROM sensitive_data;

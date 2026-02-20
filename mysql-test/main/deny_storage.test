@@ -61,6 +61,11 @@ DENY SELECT(salary,ssn) on sensitive_data to u;
 
 EXECUTE show_denies;
 
+GRANT ALL PRIVILEGES on *.* TO u WITH GRANT OPTION;
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM u;
+
+EXECUTE show_denies;
+
 DEALLOCATE PREPARE show_denies;
 DROP USER u;
 DROP DATABASE d;

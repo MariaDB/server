@@ -147,7 +147,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role);
 bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role);
 bool mysql_rename_user(THD *thd, List <LEX_USER> &list);
 int mysql_alter_user(THD *thd, List <LEX_USER> &list);
-bool mysql_revoke_all(THD *thd, List <LEX_USER> &list, bool denies);
+bool mysql_revoke_all(THD *thd, List <LEX_USER> &list);
 void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
                                      const char *db, const char *table);
 bool sp_revoke_privileges(THD *thd,

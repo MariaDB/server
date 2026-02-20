@@ -72,7 +72,9 @@ SELECT * FROM testdb.t1;
 INSERT INTO testdb.t1 VALUES (1, 'test', 1000);
 --error ER_TABLEACCESS_DENIED_ERROR
 UPDATE testdb.t1 SET name='test';
-DELETE FROM testdb.t1 WHERE id=999; # Should work
+--error ER_COLUMNACCESS_DENIED_ERROR
+DELETE FROM testdb.t1 WHERE id=999; # select required
+DELETE FROM testdb.t1; # Should work
 connection default;
 disconnect con1;
 

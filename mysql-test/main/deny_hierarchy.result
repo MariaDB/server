@@ -58,6 +58,8 @@ ERROR 42000: Access denied for user 'u1'@'localhost' to database 'testdb'
 UPDATE testdb.t1 SET name='test';
 ERROR 42000: UPDATE command denied to user 'u1'@'localhost' for table `testdb`.`t1`
 DELETE FROM testdb.t1 WHERE id=999;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for column 'id' in table 't1'
+DELETE FROM testdb.t1;
 connection default;
 disconnect con1;
 REVOKE DENY SELECT ON *.* FROM 'u1'@'localhost';

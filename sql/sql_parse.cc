@@ -5296,7 +5296,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
     /* Conditionally writes to binlog */
-    if (!(res = mysql_revoke_all(thd, lex->users_list,false)))
+    if (!(res = mysql_revoke_all(thd, lex->users_list)))
       my_ok(thd);
     break;
   }
