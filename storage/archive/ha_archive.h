@@ -115,11 +115,9 @@ public:
                                ulonglong blocks) override;
   IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override;
   int index_init(uint keynr, bool sorted) override;
-  virtual int index_read(uchar * buf, const uchar * key,
-			 uint key_len, enum ha_rkey_function find_flag)
-                         override;
-  virtual int index_read_idx(uchar * buf, uint index, const uchar * key,
-			     uint key_len, enum ha_rkey_function find_flag);
+  int index_read(uchar * buf, const uchar * key,
+                 uint key_len, enum ha_rkey_function find_flag)
+                 override;
   int index_next(uchar * buf) override;
   int open(const char *name, int mode, uint test_if_locked) override;
   int close(void) override;
