@@ -6401,7 +6401,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
  err:
   if (rc)
-    my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+    if (g->Message[0])
+      my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+    else
+      my_error(ER_GET_ERRNO, MYF(0), rc, "CONNECT");
 
 	PopUser(xp);
 	return rc;
