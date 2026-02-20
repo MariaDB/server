@@ -4543,3 +4543,97 @@ bool is_eits_usable(Field *field)
 #endif
     true;
 }
+
+static void dump_eits_stats_helper(TABLE *table, String &output)
+{
+  output.append(STRING_WITH_LEN("REPLACE INTO "));
+  output.append(table->pos_in_table_list->get_db_name().str,
+                table->pos_in_table_list->get_db_name().length);
+  output.append(STRING_WITH_LEN("."));
+  output.append(table->pos_in_table_list->get_table_name().str,
+                table->pos_in_table_list->get_table_name().length);
+  format_and_store_row(table, table->record[0], false, " VALUES ", false,
+                       output);
+  output.append(STRING_WITH_LEN(";\n\n"));
+}
+
+/*
+  store eits stats for the tables into the output
+*/
+bool dump_eits_stats(THD *thd, List<TABLE_LIST> *tables_list, String &output)
+{
+  int rc= 0;
+  TABLE_LIST stat_tables[STATISTICS_TABLES];
+  char statbuf[sizeof(Index_stat)];
+  static_assert(sizeof(statbuf) >= sizeof(Table_stat), "");
+  static_assert(sizeof(statbuf) >= sizeof(Column_stat), "");
+  start_new_trans new_trans(thd);
+  List_iterator<TABLE_LIST> li(*tables_list);
+
+  DBUG_ENTER("dump_eits_stats");
+
+  if (open_stat_tables(thd, stat_tables, FALSE))
+  {
+    rc= 1;
+    goto end;
+  }
+
+  for (TABLE_LIST *tbl= li++; tbl; tbl= li++)
+  {
+    TABLE *table= tbl->table;
+    TABLE_SHARE *table_share;
+
+    /* Skip tables that can't have statistics. */
+    if (tbl->is_view_or_derived() || !table || !(table_share= table->s) ||
+        table_share->sequence || table_share->tmp_table != NO_TMP_TABLE)
+    {
+      continue;
+    }
+
+    /* dump the statistical table table_stats */
+    TABLE *stat_table= stat_tables[TABLE_STAT].table;
+    Table_stat &table_stat= *new (statbuf) Table_stat(stat_table, table);
+    table_stat.set_key_fields();
+    if (table_stat.find_stat())
+    {
+      dump_eits_stats_helper(stat_table, output);
+    }
+
+    /* dump the statistical table column_stats */
+    stat_table= stat_tables[COLUMN_STAT].table;
+    Column_stat &column_stat= *new (statbuf) Column_stat(stat_table, table);
+    for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
+    {
+      Field *table_field= *field_ptr;
+      column_stat.set_key_fields(table_field);
+      if (column_stat.find_stat())
+      {
+        dump_eits_stats_helper(stat_table, output);
+      }
+    }
+
+    /* dump the statistical table index_stats */
+    stat_table= stat_tables[INDEX_STAT].table;
+    Index_stat &index_stat= *new (statbuf) Index_stat(stat_table, table);
+    for (uint key= 0; key < table->s->keys; key++)
+    {
+      if (!table->keys_in_use_for_query.is_set(key))
+        continue;
+      KEY *key_info= table->key_info + key;
+      uint key_parts= table->actual_n_key_parts(key_info);
+      for (uint i= 0; i < key_parts; i++)
+      {
+        index_stat.set_key_fields(key_info, i + 1);
+        if (index_stat.find_stat())
+        {
+          dump_eits_stats_helper(stat_table, output);
+        }
+      }
+    }
+  }
+  thd->commit_whole_transaction_and_close_tables();
+
+end:
+  new_trans.restore_old_transaction();
+  DBUG_RETURN(rc);
+}
