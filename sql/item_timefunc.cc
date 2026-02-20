@@ -868,9 +868,10 @@ extract_oracle_date_time(THD *thd, uint16 *format_ptr,
     case FMT_MONTH:
       if ((l_time->month= check_word(val_cs, locale->month_names,
                                      val, val_end, &val)) <= 0 &&
-        (l_time->month= check_word(val_cs, locale->month_names_formatting,
-                                     val, val_end, &val)) <= 0)
-        goto error;
+         (locale->month_names == locale->month_names_formatting ||
+         (l_time->month= check_word(val_cs, locale->month_names_formatting,
+                                     val, val_end, &val)) <= 0))
+         goto error;
       break;
     case FMT_MON:
       if ((l_time->month= check_word(val_cs, locale->ab_month_names,

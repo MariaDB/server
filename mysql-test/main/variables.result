@@ -782,8 +782,8 @@ select @@lc_time_names;
 @@lc_time_names
 sw_KE
 LC_TIME_NAMES: testing a number beyond the valid ID range:
-set lc_time_names=115;
-ERROR HY000: Unknown locale: '115'
+set lc_time_names=160;
+ERROR HY000: Unknown locale: '160'
 select @@lc_time_names;
 @@lc_time_names
 sw_KE
