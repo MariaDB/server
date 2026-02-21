@@ -151,7 +151,7 @@ INSERT INTO audit_log (action, modified_by) VALUES ('test', 'hacker');
 ERROR 42000: INSERT command denied to user 'col_user1'@'localhost' for column 'modified_by' in table 'audit_log'
 SELECT * FROM audit_log;
 id	action	modified_by	timestamp
-1	test_action	NULL	2026-02-21 01:45:04
+1	test_action	NULL	TIMESTAMP
 disconnect con8;
 connection default;
 #
