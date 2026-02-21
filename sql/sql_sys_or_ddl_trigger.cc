@@ -1234,6 +1234,34 @@ static bool load_system_triggers(THD *thd)
 
 
 /**
+  Initialize THD used for handling System triggers ON STARTUP/ON SHUTDOWN
+*/
+
+static void init_thd_for_on_startup_shutdown_triggers(void *stack_top)
+{
+  if (thd_for_sys_triggers == nullptr)
+  {
+    original_thd= current_thd;
+
+    thd_for_sys_triggers= new THD{0};
+    thd_for_sys_triggers->store_globals();
+    thd_for_sys_triggers->set_query_inner(
+      (char*) STRING_WITH_LEN("load_system_triggers"),
+      default_charset_info);
+    thd_for_sys_triggers->set_time();
+
+    /*
+      Turn off read only mode for THD dedicated to handling system triggers
+    */
+    thd_for_sys_triggers->security_ctx->master_access|= PRIV_IGNORE_READ_ONLY;
+    thd_for_sys_triggers->tx_read_only= false;
+    thd_for_sys_triggers->variables.tx_read_only= false;
+  }
+  thd_for_sys_triggers->thread_stack= stack_top;
+}
+
+
+/**
   First, load system triggers from the table mysql.event and then run
   ON STARTUP triggers if ones present.
 */
@@ -1245,22 +1273,7 @@ bool run_after_startup_triggers()
 
   bool stack_top;
 
-  original_thd= current_thd;
-
-  thd_for_sys_triggers= new THD{0};
-  thd_for_sys_triggers->thread_stack= (char*) &stack_top;
-  thd_for_sys_triggers->store_globals();
-  thd_for_sys_triggers->set_query_inner(
-    (char*) STRING_WITH_LEN("load_system_triggers"),
-    default_charset_info);
-  thd_for_sys_triggers->set_time();
-
-  /*
-    Turn off read only mode for THD dedicated to handling system triggers
-  */
-  thd_for_sys_triggers->security_ctx->master_access|= PRIV_IGNORE_READ_ONLY;
-  thd_for_sys_triggers->tx_read_only= false;
-  thd_for_sys_triggers->variables.tx_read_only= false;
+  init_thd_for_on_startup_shutdown_triggers(&stack_top);
 
   /*
     First, load all available system triggers from the table mysql.event and
@@ -1329,15 +1342,14 @@ static void destroy_sys_triggers()
 
 void run_before_shutdown_triggers()
 {
-  if (opt_bootstrap || opt_readonly)
+  if (opt_bootstrap)
     return;
 
   bool stack_top;
+  init_thd_for_on_startup_shutdown_triggers(&stack_top);
 
   original_thd= current_thd;
   set_current_thd(thd_for_sys_triggers);
-
-  thd_for_sys_triggers->thread_stack= (char*) &stack_top;
 
   Sys_trigger *trg=
     get_trigger_by_type(TRG_ACTION_BEFORE, TRG_EVENT_SHUTDOWN);
