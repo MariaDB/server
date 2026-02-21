@@ -152,6 +152,7 @@ connect (con8, localhost, col_user1,,deny_col_db);
 INSERT INTO audit_log (action) VALUES ('test_action');
 --error ER_COLUMNACCESS_DENIED_ERROR
 INSERT INTO audit_log (action, modified_by) VALUES ('test', 'hacker');
+--replace_column 4 TIMESTAMP
 SELECT * FROM audit_log;
 disconnect con8;
 connection default;

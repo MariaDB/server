@@ -5693,7 +5693,8 @@ static int update_denies_in_user_table(const User_table &user_table,
     my_error(ER_NONEXISTING_GRANT, MYF(0), combo.user.str, combo.host.str);
     DBUG_RETURN(-1);
   }
-  // collect áll denies entríes from user into deny_closure_t vector
+  store_record(user_table.table(), record[1]);
+
   std::vector<deny_entry_t> denies_before_change;
   collect_denies(user_table,denies_before_change);
 
