@@ -5681,6 +5681,7 @@ static int update_denies_in_user_table(const User_table &user_table,
   if (!rights) // Nothing to do
     DBUG_RETURN(0);
   user_table.table()->use_all_columns();
+  restore_record(user_table.table(), s->default_values);
   user_table.set_host(combo.host.str, combo.host.length);
   user_table.set_user(combo.user.str, combo.user.length);
   key_copy(user_key, user_table.table()->record[0], user_table.table()->key_info,
