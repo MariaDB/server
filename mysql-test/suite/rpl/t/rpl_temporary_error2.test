@@ -1,6 +1,11 @@
 --source include/have_innodb.inc
 --source include/master-slave.inc
 
+if ($check_mdev_38624)
+{
+  --source include/check_slave_skip_errors.inc
+}
+
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
