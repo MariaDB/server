@@ -6230,7 +6230,9 @@ public:
               const char *t, const access_t& p, privilege_t c);
   GRANT_TABLE (TABLE *form, TABLE *col_privs);
   ~GRANT_TABLE() override;
-  bool ok() override { return privs != access_t(NO_ACL) || cols != NO_ACL; }
+  bool has_column_priv_info() const
+  { return cols || privs.deny_subtree(); }
+  bool ok() override { return privs != access_t(NO_ACL) || has_column_priv_info(); }
   void init_hash()
   {
     my_hash_init2(key_memory_acl_memex, &hash_columns, 4,
@@ -6294,7 +6296,7 @@ GRANT_NAME::GRANT_NAME(const char *h, const char *d,const char *u,
 
 GRANT_TABLE::GRANT_TABLE(const char *h, const char *d,const char *u,
                          const char *t, const access_t& p, privilege_t c)
-  :GRANT_NAME(h,d,u,t,p, FALSE), cols(c|p.deny_subtree()), init_cols(c|p.deny_subtree())
+  :GRANT_NAME(h,d,u,t,p, FALSE), cols(c), init_cols(c)
 {
   init_hash();
 }
@@ -6604,7 +6606,6 @@ static int apply_deny_table(const LEX_USER &combo,
   gt->privs.set_deny(e.denies,
                               e.subtree_denies);
   gt->init_privs= gt->privs;
-  gt->cols|= e.subtree_denies;
   //  Delete from hash, if no privileges,and no columns are left
   if (gt->privs.is_empty() && !gt->hash_columns.records)
     my_hash_delete(&column_priv_hash, (uchar *) gt);
@@ -6655,8 +6656,6 @@ static int apply_deny_column(const LEX_USER &combo,
   grant_column->rights.set_deny(e.denies,
                                 e.subtree_denies);
   grant_column->init_rights= grant_column->rights;
-  grant_table->cols|= e.denies;
-  grant_table->init_cols= grant_table->cols;
 
   // Remove column if no privileges left at all
   // Also the corresponding table, if it no info is left
@@ -14215,7 +14214,7 @@ int fill_schema_table_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
         We should skip 'usage' privilege on table if
         we have any privileges on column(s) of this table
       */
-      if (!test_access && grant_table->cols)
+      if (!test_access && grant_table->has_column_priv_info())
         continue;
       if (!(table_access & GRANT_ACL))
         is_grantable= "NO";
