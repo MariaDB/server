@@ -795,6 +795,10 @@ bool init_slave_skip_errors(const char* arg)
   if (!system_charset_info->strnncoll((uchar*)arg,4,(const uchar*)"all",4))
   {
     bitmap_set_all(&slave_error_mask);
+    bitmap_clear_bit(&slave_error_mask,ER_CONNECTION_KILLED);
+    sql_print_warning("Slave: ER_CONNECTION_KILLED (%d) is not allowed in "
+                      "--slave-skip-errors=all. This error will never be skipped "
+                      "by the slave.", ER_CONNECTION_KILLED);
     goto end;
   }
   for (p= arg ; *p; )
@@ -803,7 +807,18 @@ bool init_slave_skip_errors(const char* arg)
     if (!(p= str2int(p, 10, 0, LONG_MAX, &err_code)))
       break;
     if (err_code < MAX_SLAVE_ERROR)
-       bitmap_set_bit(&slave_error_mask,(uint)err_code);
+    {
+      if (err_code == ER_CONNECTION_KILLED)
+      {
+        sql_print_warning("Slave: ER_CONNECTION_KILLED (%d) is not allowed in "
+                          "--slave-skip-errors. This error will never be skipped "
+                          "by the slave.", ER_CONNECTION_KILLED);
+      }
+      else
+      {
+        bitmap_set_bit(&slave_error_mask,(uint)err_code);
+      }
+    }
     while (!my_isdigit(system_charset_info,*p) && *p)
       p++;
   }
