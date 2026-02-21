@@ -5601,12 +5601,26 @@ static int dump_all_databases()
   MYSQL_ROW row;
   MYSQL_RES *tableres;
   int result=0;
+  char mysql_db[]= "mysql";
 
   if (mysql_query_with_error_report(mysql, &tableres, "SHOW DATABASES"))
     return 1;
+
+  /*
+    First dump mysql database since it contains the table mysql.event where
+    triggers' metadata stored
+  */
+  if (dump_all_tables_in_db(mysql_db))
+    return 1;
+
   while ((row= mysql_fetch_row(tableres)))
   {
-    if (is_IS_or_PS(row[0]) || is_SyS(row[0]))
+    if (is_IS_or_PS(row[0]) || is_SyS(row[0]) ||
+        /*
+          Skip the `mysql` database since it is dumped before entering into
+          the while loop
+        */
+        !cmp_database(row[0], mysql_db))
       continue;
 
     if (include_database(row[0]))
