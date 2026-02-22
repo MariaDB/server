@@ -1,0 +1,85 @@
+#
+# DENY routine privileges
+#
+CREATE PROCEDURE proc1() BEGIN SET @p=1; END;
+$$
+CREATE FUNCTION func1() RETURNS INT RETURN 1;
+$$
+CREATE PACKAGE pkg1
+PROCEDURE p1();
+FUNCTION f1() RETURNS INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+PROCEDURE p1() BEGIN SET @pkg=2; END;
+FUNCTION f1() RETURNS INT BEGIN RETURN 2; END;
+END;
+$$
+#
+# Routine-level DENY for different privileges
+#
+CREATE USER u@localhost;
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE test.proc1 TO u@localhost;
+GRANT EXECUTE, ALTER ROUTINE ON FUNCTION test.func1 TO u@localhost;
+DENY ALTER ROUTINE ON PROCEDURE test.proc1 TO u@localhost;
+DENY EXECUTE ON FUNCTION test.func1 TO u@localhost;
+connect  con1, localhost, u,,test;
+CALL proc1();
+SELECT @p;
+@p
+1
+ALTER PROCEDURE proc1 COMMENT 'x';
+ERROR 42000: alter routine command denied to user 'u'@'localhost' for routine 'test.proc1'
+SELECT func1();
+ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.func1'
+ALTER FUNCTION func1 COMMENT 'x';
+connection default;
+disconnect con1;
+DROP USER u@localhost;
+#
+# DB-level DENY overrides routine grants
+#
+CREATE USER u@localhost;
+GRANT EXECUTE ON PROCEDURE test.proc1 TO u@localhost;
+GRANT EXECUTE ON PACKAGE BODY test.pkg1 TO u@localhost;
+DENY EXECUTE ON test.* TO u@localhost;
+connect  con1, localhost, u,,test;
+CALL proc1();
+ERROR 42000: Access denied for user 'u'@'localhost' to database 'test'
+CALL pkg1.p1();
+ERROR 42000: Access denied for user 'u'@'localhost' to database 'test'
+SELECT pkg1.f1();
+ERROR 42000: Access denied for user 'u'@'localhost' to database 'test'
+connection default;
+disconnect con1;
+DROP USER u@localhost;
+#
+# Global DENY overrides routine grants
+#
+CREATE USER u@localhost;
+GRANT EXECUTE ON FUNCTION test.func1 TO u@localhost;
+DENY EXECUTE ON *.* TO u@localhost;
+connect  con1, localhost, u,,test;
+SELECT func1();
+ERROR 42000: Access denied for user 'u'@'localhost' to database 'test'
+connection default;
+disconnect con1;
+DROP USER u@localhost;
+#
+# Package / package body DENY
+#
+CREATE USER u@localhost;
+GRANT EXECUTE ON PACKAGE BODY test.pkg1 TO u@localhost;
+DENY EXECUTE ON PACKAGE BODY test.pkg1 TO u@localhost;
+connect  con1, localhost, u,,test;
+CALL pkg1.p1();
+ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.pkg1'
+SELECT pkg1.f1();
+ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.pkg1'
+connection default;
+disconnect con1;
+DROP USER u@localhost;
+DROP PACKAGE BODY pkg1;
+DROP PACKAGE pkg1;
+DROP PROCEDURE proc1;
+DROP FUNCTION func1;

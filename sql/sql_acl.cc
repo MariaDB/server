@@ -948,7 +948,8 @@ static constexpr const LEX_CSTRING ACL_PRIV_TYPE_STR[]=
   {STRING_WITH_LEN("db")},
   {STRING_WITH_LEN("table")},
   {STRING_WITH_LEN("column")},
-  {STRING_WITH_LEN("routine")},
+  {STRING_WITH_LEN("function")},
+  {STRING_WITH_LEN("procedure")},
   {STRING_WITH_LEN("package")},
   {STRING_WITH_LEN("package body")}
 };
@@ -7182,7 +7183,6 @@ static int replace_routine_table(THD *thd, GRANT_NAME *grant_name,
   int error=0;
   HASH *hash= sph->get_priv_hash();
   DBUG_ENTER("replace_routine_table");
-  DBUG_ASSERT(!is_deny);
   if (!table)
   {
     my_error(ER_NO_SUCH_TABLE, MYF(0), MYSQL_SCHEMA_NAME.str,
@@ -7190,6 +7190,32 @@ static int replace_routine_table(THD *thd, GRANT_NAME *grant_name,
     DBUG_RETURN(-1);
   }
 
+  if (is_deny)
+  {
+    privilege_t out_denies(NO_ACL);
+    ACL_PRIV_TYPE priv_type= ACL_PRIV_TYPE::PRIV_TYPE_MAX;
+    switch (sph->type())
+    {
+    case SP_TYPE_FUNCTION:
+      priv_type= ACL_PRIV_TYPE::PRIV_TYPE_FUNCTION;
+      break;
+    case SP_TYPE_PROCEDURE:
+      priv_type= ACL_PRIV_TYPE::PRIV_TYPE_PROCEDURE;
+      break;
+    case SP_TYPE_PACKAGE:
+      priv_type= ACL_PRIV_TYPE::PRIV_TYPE_PACKAGE;
+      break;
+    case SP_TYPE_PACKAGE_BODY:
+      priv_type= ACL_PRIV_TYPE::PRIV_TYPE_PACKAGE_BODY;
+      break;
+    default:
+      DBUG_ASSERT(0);
+      DBUG_RETURN(-1);
+    }
+    DBUG_RETURN(update_denies_in_user_table(user_table, combo, rights,
+                                            revoke_grant, priv_type, db,
+                                            routine_name, NULL, out_denies));
+  }
   if (revoke_grant && !grant_name->init_privs) // only inherited role privs
   {
     my_hash_delete(hash, (uchar*) grant_name);
@@ -8540,7 +8566,6 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
   const char *db_name, *table_name;
   DBUG_ENTER("mysql_routine_grant");
 
-  DBUG_ASSERT(!is_deny); // wlad TODO
   if (rights & ~PROC_ACLS)
   {
     my_message(ER_ILLEGAL_GRANT_FOR_TABLE,
@@ -10120,30 +10145,27 @@ bool check_grant_routine(THD *thd, privilege_t want_access,
   mysql_rwlock_rdlock(&LOCK_grant);
   for (table= procs; table; table= table->next_global)
   {
+    /*
+      table->grant contains database level priv, and will
+      we populated with finer level routine level privs.
+    */
     GRANT_NAME *grant_proc;
-    if ((grant_proc= routine_hash_search(host, sctx->ip, table->db.str, user,
-                                         table->table_name.str, sph, 0)))
-      table->grant.privilege|= grant_proc->privs;
-    if (role[0]) /* current role set check */
-    {
-      if ((grant_proc= routine_hash_search("", NULL, table->db.str, role,
-                                           table->table_name.str, sph, 0)))
-      table->grant.privilege|= grant_proc->privs;
-    }
-    if (acl_public)
-    {
-      if ((grant_proc= routine_hash_search("", NULL, table->db.str,
-                                           public_name.str,
-                                           table->table_name.str, sph, 0)))
-      table->grant.privilege|= grant_proc->privs;
-    }
+    access_t routine_priv= access_t(NO_ACL);
+    const char *names[]= {user, role[0] ? role : NULL,
+                          acl_public ? public_name.str : NULL};
+    const char *hosts[]= {host, "", ""};
 
-    denied= table->grant.privilege.is_denied(want_access);
-    if (denied)
+    for (size_t i = 0; i < array_elements(names); i++)
     {
-      want_access= denied;
-      goto err;
+      if (!names[i])
+        continue;
+      if ((grant_proc=
+             routine_hash_search(hosts[i], sctx->ip, table->db.str, names[i],
+                                 table->table_name.str, sph, 0)))
+        routine_priv|= grant_proc->privs;
     }
+    table->grant.privilege=
+        routine_priv.combine_with_parent(table->grant.privilege);
     if (want_access & ~table->grant.privilege)
     {
       want_access &= ~table->grant.privilege;
