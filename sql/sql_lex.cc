@@ -10274,6 +10274,7 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
   const Sp_handler *sph= &sp_handler_procedure;
   sql_command= SQLCOM_CALL;
   value_list.empty();
+  call_param_list.empty();
 
   thd->variables.path.resolve(thd, sphead, name, &sph, &pkgname);
 
@@ -10313,6 +10314,7 @@ bool LEX::call_statement_start(THD *thd,
   Identifier_chain2 q_pkg_proc(*pkg, *proc);
   sp_name *spname;
   value_list.empty();
+  call_param_list.empty();
   sql_command= SQLCOM_CALL;
 
   const Lex_ident_db_normalized dbn= thd->to_ident_db_normalized_with_error(*db);
