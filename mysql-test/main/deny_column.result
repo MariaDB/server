@@ -134,6 +134,7 @@ SHOW GRANTS FOR col_user2@localhost;
 Grants for col_user2@localhost
 GRANT USAGE ON *.* TO `col_user2`@`localhost`
 GRANT SELECT ON `deny_col_db`.`sensitive_data` TO `col_user2`@`localhost`
+DENY SELECT (`ssn`, `salary`) ON `deny_col_db`.`sensitive_data` TO `col_user2`@`localhost`
 #
 # Test 8: Column DENY with INSERT/UPDATE operations
 #

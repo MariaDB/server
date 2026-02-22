@@ -1,0 +1,82 @@
+#
+# SHOW GRANTS with DENY output
+#
+CREATE DATABASE sg_db;
+USE sg_db;
+CREATE TABLE t1 (c1 INT, c2 INT);
+CREATE PROCEDURE p1() BEGIN SET @x=1; END;
+$$
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+$$
+CREATE PACKAGE pkg1
+PROCEDURE p1();
+FUNCTION f1() RETURNS INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+PROCEDURE p1() BEGIN SET @pkg=2; END;
+FUNCTION f1() RETURNS INT BEGIN RETURN 2; END;
+END;
+$$
+CREATE USER u1@localhost;
+GRANT SELECT ON sg_db.t1 TO u1@localhost;
+GRANT UPDATE (c1) ON sg_db.t1 TO u1@localhost;
+GRANT EXECUTE ON PROCEDURE sg_db.p1 TO u1@localhost;
+GRANT EXECUTE ON PACKAGE sg_db.pkg1 TO u1@localhost;
+DENY SELECT ON *.* TO u1@localhost;
+DENY INSERT ON sg_db.* TO u1@localhost;
+DENY UPDATE (c2) ON sg_db.t1 TO u1@localhost;
+DENY EXECUTE ON FUNCTION sg_db.f1 TO u1@localhost;
+DENY EXECUTE ON PACKAGE BODY sg_db.pkg1 TO u1@localhost;
+SHOW GRANTS FOR u1@localhost;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO `u1`@`localhost`
+DENY SELECT ON *.* TO `u1`@`localhost`
+DENY INSERT ON `sg_db`.* TO `u1`@`localhost`
+GRANT SELECT, UPDATE (`c1`) ON `sg_db`.`t1` TO `u1`@`localhost`
+DENY UPDATE (`c2`) ON `sg_db`.`t1` TO `u1`@`localhost`
+GRANT EXECUTE ON PROCEDURE `sg_db`.`p1` TO `u1`@`localhost`
+GRANT EXECUTE ON FUNCTION `sg_db`.`f1` TO `u1`@`localhost`
+DENY EXECUTE ON FUNCTION `sg_db`.`f1` TO `u1`@`localhost`
+GRANT EXECUTE ON PACKAGE `sg_db`.`pkg1` TO `u1`@`localhost`
+GRANT EXECUTE ON PACKAGE BODY `sg_db`.`pkg1` TO `u1`@`localhost`
+DENY EXECUTE ON PACKAGE BODY `sg_db`.`pkg1` TO `u1`@`localhost`
+CREATE USER u2@localhost;
+GRANT ALL PRIVILEGES ON sg_db.* TO u2@localhost WITH GRANT OPTION;
+GRANT EXECUTE ON PROCEDURE sg_db.p1 TO u2@localhost WITH GRANT OPTION;
+DENY UPDATE ON sg_db.t1 TO u2@localhost;
+SHOW GRANTS FOR u2@localhost;
+Grants for u2@localhost
+GRANT USAGE ON *.* TO `u2`@`localhost`
+GRANT ALL PRIVILEGES ON `sg_db`.* TO `u2`@`localhost` WITH GRANT OPTION
+DENY UPDATE ON `sg_db`.`t1` TO `u2`@`localhost`
+GRANT EXECUTE ON PROCEDURE `sg_db`.`p1` TO `u2`@`localhost` WITH GRANT OPTION
+CREATE USER u3@localhost;
+GRANT ALL PRIVILEGES ON sg_db.* TO u3@localhost;
+DENY DELETE ON sg_db.t1 TO u3@localhost;
+SHOW GRANTS FOR u3@localhost;
+Grants for u3@localhost
+GRANT USAGE ON *.* TO `u3`@`localhost`
+GRANT ALL PRIVILEGES ON `sg_db`.* TO `u3`@`localhost`
+DENY DELETE ON `sg_db`.`t1` TO `u3`@`localhost`
+CREATE USER u4@localhost;
+DENY ALL PRIVILEGES ON sg_db.* TO u4@localhost;
+SHOW GRANTS FOR u4@localhost;
+Grants for u4@localhost
+GRANT USAGE ON *.* TO `u4`@`localhost`
+DENY ALL PRIVILEGES ON `sg_db`.* TO `u4`@`localhost`
+DENY ALL PRIVILEGES ON sg_db.* TO u4@localhost WITH GRANT OPTION;
+SHOW GRANTS FOR u4@localhost;
+Grants for u4@localhost
+GRANT USAGE ON *.* TO `u4`@`localhost`
+DENY ALL PRIVILEGES ON `sg_db`.* TO `u4`@`localhost`
+DROP USER u1@localhost;
+DROP USER u2@localhost;
+DROP USER u3@localhost;
+DROP USER u4@localhost;
+DROP PACKAGE BODY pkg1;
+DROP PACKAGE pkg1;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP DATABASE sg_db;

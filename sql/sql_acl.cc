@@ -346,13 +346,17 @@ static bool show_role_grants(THD *, const char *,
                              ACL_USER_BASE *, char *, size_t);
 static bool show_default_role(THD *, ACL_USER *, char *, size_t);
 static bool show_global_privileges(THD *, ACL_USER_BASE *,
-                                   bool, char *, size_t);
-static bool show_database_privileges(THD *, const char *, const char *,
+                                   bool, bool, char *, size_t);
+static bool show_database_privileges(THD *, const char *, const char *, bool,
                                      char *, size_t);
-static bool show_table_and_column_privileges(THD *, const char *, const char *,
+static bool show_table_and_column_privileges(THD *, const char *, const char *, bool,
                                              char *, size_t);
 static int show_routine_grants(THD *, const char *, const char *,
-                               const Sp_handler *sph, char *, int);
+                               const Sp_handler *sph, bool, char *, size_t);
+
+static int show_all_privileges(THD *thd, ACL_USER_BASE *acl_user,
+                               const char *username, const char *hostname,
+                               char *buff, size_t buff_size);
 
 static ACL_ROLE *acl_public= NULL;
 
@@ -10459,29 +10463,8 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
   if (show_role_grants(thd, "", role, buff, sizeof(buff)))
     return TRUE;
 
-  if (show_global_privileges(thd, role, TRUE, buff, sizeof(buff)))
-    return TRUE;
-
-  if (show_database_privileges(thd, role->user.str, "", buff, sizeof(buff)))
-    return TRUE;
-
-  if (show_table_and_column_privileges(thd, role->user.str, "", buff, sizeof(buff)))
-    return TRUE;
-
-  if (show_routine_grants(thd, role->user.str, "", &sp_handler_procedure,
-                          buff, sizeof(buff)))
-    return TRUE;
-
-  if (show_routine_grants(thd, role->user.str, "", &sp_handler_function,
-                          buff, sizeof(buff)))
-    return TRUE;
-
-  if (show_routine_grants(thd, role->user.str, "", &sp_handler_package_spec,
-                          buff, sizeof(buff)))
-    return TRUE;
-
-  if (show_routine_grants(thd, role->user.str, "", &sp_handler_package_body,
-                          buff, sizeof(buff)))
+  if (show_all_privileges(thd, role, role->get_username(), "", buff,
+                          sizeof(buff)))
     return TRUE;
 
   return FALSE;
@@ -10672,6 +10655,69 @@ bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
   return 0;
 }
 
+static int show_all_privileges(THD *thd, ACL_USER_BASE *acl_user, const char *username,
+                         const char *hostname, char *buff, size_t buff_size)
+{
+
+  static constexpr ACL_PRIV_TYPE acl_priv_types[]= {
+      ACL_PRIV_TYPE::PRIV_TYPE_GLOBAL, ACL_PRIV_TYPE::PRIV_TYPE_DB,
+      ACL_PRIV_TYPE::PRIV_TYPE_TABLE,
+      // ACL_PRIV_TYPE::PRIV_TYPE_COLUMN, (handled in
+      // show_table_and_column_privileges)
+      ACL_PRIV_TYPE::PRIV_TYPE_PROCEDURE, ACL_PRIV_TYPE::PRIV_TYPE_FUNCTION,
+      ACL_PRIV_TYPE::PRIV_TYPE_PACKAGE, ACL_PRIV_TYPE::PRIV_TYPE_PACKAGE_BODY};
+
+  for (ACL_PRIV_TYPE priv_type : acl_priv_types)
+  {
+    for (bool is_deny : {false, true})
+    {
+      switch (priv_type)
+      {
+      case ACL_PRIV_TYPE::PRIV_TYPE_GLOBAL:
+        if (show_global_privileges(thd, acl_user, !hostname[0], is_deny, buff,
+                                   buff_size))
+          return 1;
+        break;
+      case ACL_PRIV_TYPE::PRIV_TYPE_DB:
+        if (show_database_privileges(thd, username, hostname, is_deny, buff,
+                                     buff_size))
+          return 1;
+        break;
+      case ACL_PRIV_TYPE::PRIV_TYPE_TABLE:
+        if (show_table_and_column_privileges(thd, username, hostname, is_deny,
+                                             buff, buff_size))
+          return 1;
+        break;
+      case ACL_PRIV_TYPE::PRIV_TYPE_PROCEDURE:
+        if (show_routine_grants(thd, username, hostname, &sp_handler_procedure,
+                                is_deny, buff, buff_size))
+          return 1;
+        break;
+      case ACL_PRIV_TYPE::PRIV_TYPE_FUNCTION:
+        if (show_routine_grants(thd, username, hostname, &sp_handler_function,
+                                is_deny, buff, buff_size))
+          return 1;
+        break;
+      case ACL_PRIV_TYPE::PRIV_TYPE_PACKAGE:
+        if (show_routine_grants(thd, username, hostname,
+                                &sp_handler_package_spec, is_deny, buff,
+                                buff_size))
+          return 1;
+        break;
+      case ACL_PRIV_TYPE::PRIV_TYPE_PACKAGE_BODY:
+        if (show_routine_grants(thd, username, hostname,
+                                &sp_handler_package_body, is_deny, buff,
+                                buff_size))
+          return 1;
+        break;
+      default:
+        DBUG_ASSERT(false);
+      }//switch
+    } // GRANT/DENY loop
+  } // for each ACL_PRIV_TYPE
+  return 0;
+}
+
 /*
   SHOW GRANTS;  Send grants for a user to the client
 
@@ -10729,38 +10775,12 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
       DBUG_RETURN(TRUE);
     }
 
-    /* Show granted roles to acl_user */
+     /* Show granted roles to acl_user */
     if (show_role_grants(thd, hostname, acl_user, buff, sizeof(buff)))
       goto end;
-
-    /* Add first global access grants */
-    if (show_global_privileges(thd, acl_user, FALSE, buff, sizeof(buff)))
+    if (show_all_privileges(thd, acl_user, username,
+                            hostname, buff, sizeof(buff)))
       goto end;
-
-    /* Add database access */
-    if (show_database_privileges(thd, username, hostname, buff, sizeof(buff)))
-      goto end;
-
-    /* Add table & column access */
-    if (show_table_and_column_privileges(thd, username, hostname, buff, sizeof(buff)))
-      goto end;
-
-    if (show_routine_grants(thd, username, hostname, &sp_handler_procedure,
-                            buff, sizeof(buff)))
-      goto end;
-
-    if (show_routine_grants(thd, username, hostname, &sp_handler_function,
-                            buff, sizeof(buff)))
-      goto end;
-
-    if (show_routine_grants(thd, username, hostname, &sp_handler_package_spec,
-                            buff, sizeof(buff)))
-      goto end;
-
-    if (show_routine_grants(thd, username, hostname, &sp_handler_package_body,
-                            buff, sizeof(buff)))
-      goto end;
-
     if (show_proxy_grants(thd, username, hostname, buff, sizeof(buff)))
       goto end;
   }
@@ -10899,8 +10919,39 @@ static bool show_role_grants(THD *thd, const char *hostname,
   return FALSE;
 }
 
+static inline const LEX_CSTRING grant_or_deny_str(bool is_deny)
+{
+  return is_deny ? LEX_CSTRING{STRING_WITH_LEN("DENY ")} : LEX_CSTRING{STRING_WITH_LEN("GRANT ")};
+}
+
+static inline privilege_t priv_bits(access_t acc, bool is_deny)
+{
+  return is_deny ? acc.deny_bits() : acc.allow_bits();
+}
+
+static inline privilege_t table_priv_bits(GRANT_TABLE *grant_table, bool is_role, bool is_deny)
+{
+  const access_t& acc= is_role ? grant_table->init_privs : grant_table->privs;
+  return priv_bits(acc, is_deny);
+}
+
+static inline privilege_t column_priv_bits(GRANT_TABLE *grant_table, bool is_role, bool is_deny)
+{
+  if (is_deny)
+    return is_role ? grant_table->init_privs.deny_subtree()
+                   : grant_table->privs.deny_subtree();
+  else
+    return is_role ? grant_table->init_cols : grant_table->cols;
+}
+
+static inline privilege_t column_priv_bits(GRANT_COLUMN *grant_column, bool is_role, bool is_deny)
+{
+  const access_t& acc= is_role ? grant_column->init_rights : grant_column->rights;
+  return priv_bits(acc, is_deny);
+}
+
 static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
-                                   bool handle_as_role,
+                                   bool handle_as_role, bool is_deny,
                                    char *buff, size_t buffsize)
 {
   uint counter;
@@ -10908,18 +10959,22 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
   Protocol *protocol= thd->protocol;
   access_t acc(NO_ACL);
 
+
   String global(buff, buffsize, system_charset_info);
   global.length(0);
-  global.append(STRING_WITH_LEN("GRANT "));
+  global.append(grant_or_deny_str(is_deny));
 
   if (handle_as_role)
     acc= ((ACL_ROLE *)acl_entry)->initial_role_access;
   else
     acc=acl_entry->access;
-  want_access=acc.allow_bits();
+  want_access=priv_bits(acc,is_deny);
 
   // suppress "GRANT USAGE ON *.* TO `PUBLIC`"
-  if (!(want_access & ~GRANT_ACL) && acl_entry == acl_public)
+  if (!(want_access & ~GRANT_ACL) && acl_entry == acl_public && !is_deny)
+    return FALSE;
+
+  if (is_deny && !want_access)
     return FALSE;
 
   if (test_all_bits(want_access, (GLOBAL_ACLS & ~ GRANT_ACL)))
@@ -10982,7 +11037,7 @@ static void add_to_user(THD *thd, String *result, const char *user,
 
 
 static bool show_database_privileges(THD *thd, const char *username,
-                                     const char *hostname,
+                                     const char *hostname, bool is_deny,
                                      char *buff, size_t buffsize)
 {
   privilege_t want_access(NO_ACL);
@@ -11012,13 +11067,13 @@ static bool show_database_privileges(THD *thd, const char *username,
         the role bits present in the table are what matters
       */
       access_t acc= hostname[0] ? acl_db->access : acl_db->initial_access;
-      want_access= acc.allow_bits();
+      want_access= priv_bits(acc,is_deny);
 
       if (want_access)
       {
         String db(buff, buffsize, system_charset_info);
         db.length(0);
-        db.append(STRING_WITH_LEN("GRANT "));
+        db.append(grant_or_deny_str(is_deny));
 
         if (test_all_bits(want_access,(DB_ACLS & ~GRANT_ACL)))
           db.append(STRING_WITH_LEN("ALL PRIVILEGES"));
@@ -11044,7 +11099,7 @@ static bool show_database_privileges(THD *thd, const char *username,
         append_identifier(thd, &db, acl_db->db, strlen(acl_db->db));
         db.append (STRING_WITH_LEN(".*"));
         add_to_user(thd, &db, username, (*hostname), host);
-        if (want_access & GRANT_ACL)
+        if ((want_access & GRANT_ACL) && !is_deny)
           db.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
         protocol->prepare_for_resend();
         protocol->store(db.ptr(),db.length(),db.charset());
@@ -11061,11 +11116,12 @@ static bool show_database_privileges(THD *thd, const char *username,
 
 static bool show_table_and_column_privileges(THD *thd, const char *username,
                                              const char *hostname,
+                                             bool is_deny,
                                              char *buff, size_t buffsize)
 {
   uint counter, index;
   Protocol *protocol= thd->protocol;
-
+  bool is_role= !hostname[0];
   for (index=0 ; index < column_priv_hash.records ; index++)
   {
     const char *user, *host;
@@ -11088,24 +11144,16 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
     {
       privilege_t table_access(NO_ACL);
       privilege_t cols_access(NO_ACL);
-      if (*hostname) // User
-      {
-        table_access= grant_table->privs.allow_bits();
-        cols_access= grant_table->cols;
-      }
-      else // Role
-      {
-        table_access= grant_table->init_privs.allow_bits();
-        cols_access= grant_table->init_cols;
-      }
 
+      table_access= table_priv_bits(grant_table, is_role, is_deny);
+      cols_access= column_priv_bits(grant_table, is_role, is_deny);
       if ((table_access | cols_access) != NO_ACL)
       {
         String global(buff, sizeof(buff), system_charset_info);
         privilege_t test_access= (table_access | cols_access) & ~GRANT_ACL;
 
         global.length(0);
-        global.append(STRING_WITH_LEN("GRANT "));
+        global.append(grant_or_deny_str(is_deny));
 
         if (test_all_bits(table_access, (TABLE_ACLS & ~GRANT_ACL)))
           global.append(STRING_WITH_LEN("ALL PRIVILEGES"));
@@ -11126,7 +11174,7 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
               found= 1;
               global.append(command_array[counter],command_lengths[counter]);
 
-              if (grant_table->cols)
+              if (column_priv_bits(grant_table,is_role,is_deny))
               {
                 uint found_col= 0;
                 HASH *hash_columns;
@@ -11138,10 +11186,9 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
                 {
                   GRANT_COLUMN *grant_column = (GRANT_COLUMN*)
                     my_hash_element(hash_columns,col_index);
-                  const access_t &r= (*hostname ? grant_column->rights         // User
-                                 : grant_column->init_rights);     // Role
+                  privilege_t bits= column_priv_bits(grant_column, is_role, is_deny);
 
-                  if (r.allow_bits() & j)
+                  if (bits & j)
                   {
                     if (!found_col)
                     {
@@ -11177,7 +11224,7 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
         append_identifier(thd, &global, grant_table->tname,
                           strlen(grant_table->tname));
         add_to_user(thd, &global, username, (*hostname), host);
-        if (table_access & GRANT_ACL)
+        if ((table_access & GRANT_ACL) && !is_deny)
           global.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
         protocol->prepare_for_resend();
         protocol->store(global.ptr(),global.length(),global.charset());
@@ -11194,7 +11241,7 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
 
 static int show_routine_grants(THD* thd, const char *username,
                                const char *hostname, const Sp_handler *sph,
-                               char *buff, int buffsize)
+                               bool is_deny, char *buff, size_t buffsize)
 {
   uint counter, index;
   int error= 0;
@@ -11222,9 +11269,9 @@ static int show_routine_grants(THD* thd, const char *username,
     {
       privilege_t proc_access(NO_ACL);
       if (*hostname) // User
-        proc_access= grant_proc->privs.allow_bits();
+        proc_access= priv_bits(grant_proc->privs, is_deny);
       else // Role
-        proc_access= grant_proc->init_privs.allow_bits();
+        proc_access= priv_bits(grant_proc->init_privs, is_deny);
 
       if (proc_access != NO_ACL)
       {
@@ -11232,7 +11279,7 @@ static int show_routine_grants(THD* thd, const char *username,
 	privilege_t test_access(proc_access & ~GRANT_ACL);
 
 	global.length(0);
-	global.append(STRING_WITH_LEN("GRANT "));
+	global.append(grant_or_deny_str(is_deny));
 
 	if (!test_access)
  	  global.append(STRING_WITH_LEN("USAGE"));
