@@ -720,14 +720,13 @@ public:
     Used for: global -> database -> table -> column traversal
 
     Rules:
-    - Inherit parent's allows, add child's allows, remove what child denies
+    - Allows accumulate (but, if both allow and deny, deny wins)
     - Denies accumulate (once denied, always denied)
     - Use child's deny_subtree (we're going down that branch)
   */
   access_t combine_with_parent(const access_t &parent) const
   {
-    return access_t((privilege_t) ((m_allow_bits | parent.m_allow_bits) &
-                                   ~m_deny_bits),
+    return access_t((privilege_t) (m_allow_bits | parent.m_allow_bits),
                     (privilege_t) (m_deny_bits | parent.m_deny_bits),
                     m_deny_subtree);
   }

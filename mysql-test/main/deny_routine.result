@@ -45,11 +45,11 @@ GRANT EXECUTE ON PACKAGE BODY test.pkg1 TO u@localhost;
 DENY EXECUTE ON test.* TO u@localhost;
 connect  con1, localhost, u,,test;
 CALL proc1();
-ERROR 42000: Access denied for user 'u'@'localhost' to database 'test'
+ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.proc1'
 CALL pkg1.p1();
-ERROR 42000: Access denied for user 'u'@'localhost' to database 'test'
+ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.pkg1'
 SELECT pkg1.f1();
-ERROR 42000: Access denied for user 'u'@'localhost' to database 'test'
+ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.pkg1'
 connection default;
 disconnect con1;
 DROP USER u@localhost;
@@ -61,7 +61,7 @@ GRANT EXECUTE ON FUNCTION test.func1 TO u@localhost;
 DENY EXECUTE ON *.* TO u@localhost;
 connect  con1, localhost, u,,test;
 SELECT func1();
-ERROR 42000: Access denied for user 'u'@'localhost' to database 'test'
+ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.func1'
 connection default;
 disconnect con1;
 DROP USER u@localhost;

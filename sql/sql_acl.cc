@@ -10131,13 +10131,6 @@ bool check_grant_routine(THD *thd, privilege_t want_access,
   char *role= sctx->priv_role;
   DBUG_ENTER("check_grant_routine");
 
-  privilege_t denied= sctx->master_access.is_denied(want_access);
-  if (denied)
-  {
-    want_access= denied;
-    goto err;
-  }
-
   want_access&= ~sctx->master_access;
   if (!want_access)
     DBUG_RETURN(0);                             // ok

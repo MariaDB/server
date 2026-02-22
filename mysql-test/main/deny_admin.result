@@ -35,7 +35,7 @@ GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
 DENY FILE ON *.* TO user1@localhost;
 connect  con1, localhost, user1,,;
 SELECT 'test' INTO OUTFILE '/tmp/test.txt';
-ERROR 42000: Access denied for user 'user1'@'localhost' to database '*any*'
+ERROR 28000: Access denied for user 'user1'@'localhost' (using password: NO)
 connection default;
 disconnect con1;
 # Test combination of DENY on multiple global privileges

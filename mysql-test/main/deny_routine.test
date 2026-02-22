@@ -60,13 +60,13 @@ DENY EXECUTE ON test.* TO u@localhost;
 
 connect (con1, localhost, u,,test);
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_PROCACCESS_DENIED_ERROR
 CALL proc1();
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_PROCACCESS_DENIED_ERROR
 CALL pkg1.p1();
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_PROCACCESS_DENIED_ERROR
 SELECT pkg1.f1();
 
 connection default;
@@ -83,7 +83,7 @@ DENY EXECUTE ON *.* TO u@localhost;
 
 connect (con1, localhost, u,,test);
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_PROCACCESS_DENIED_ERROR
 SELECT func1();
 
 connection default;

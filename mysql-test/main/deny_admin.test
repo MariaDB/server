@@ -52,7 +52,7 @@ DENY FILE ON *.* TO user1@localhost;
 
 connect (con1, localhost, user1,,);
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_ACCESS_DENIED_ERROR
 SELECT 'test' INTO OUTFILE '/tmp/test.txt';
 
 connection default;

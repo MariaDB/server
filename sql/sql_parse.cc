@@ -6628,7 +6628,6 @@ check_access(THD *thd, privilege_t want_access,
 #else
   Security_context *sctx= thd->security_ctx;
   access_t db_access(NO_ACL);
-  privilege_t missing_privileges;
 
   /*
     GRANT command:
@@ -6705,21 +6704,6 @@ check_access(THD *thd, privilege_t want_access,
     }
   }
 
-  /* Check DENIES */
-  if ((missing_privileges=sctx->master_access.is_denied(want_access)))
-  {
-    /*
-      *any* db is used for table-less SELECT (e.g., SELECT 1, SELECT @@version).
-      Since no actual database objects are accessed, DENY privileges should
-      not apply here just yet. Delay checks
-
-      [out] *save_privileges= 0
-    */
-    if (want_access != SELECT_ACL || db != any_db.str || dont_check_global_grants)
-      goto error;
-    want_access= missing_privileges;
-  }
-
   if (sctx->master_access.fully_satisfies(want_access))
   {
     /*
@@ -6745,8 +6729,6 @@ check_access(THD *thd, privilege_t want_access,
         plus the internal privileges.
       */
       db_access= db_access.combine_with_parent(sctx->master_access);
-      if (db_access.is_explicitly_denied(want_access))
-        goto error;
       *save_priv= db_access;
     }
     else
@@ -6787,12 +6769,6 @@ check_access(THD *thd, privilege_t want_access,
   DBUG_PRINT("info",("db_access: %llx  want_access: %llx",
               (longlong) db_access.allow_bits(), (longlong) want_access));
 
-  if ((missing_privileges= db_access.is_denied(want_access)))
-  {
-    want_access= missing_privileges;
-    goto error;
-  }
-
   /*
     Save the union of User-table and the intersection between Db-table and
     Host-table privileges, with the already saved internal privileges.
@@ -6800,48 +6776,38 @@ check_access(THD *thd, privilege_t want_access,
   db_access= db_access.combine_with_parent(sctx->master_access);
   *save_priv= db_access;
 
-    /*
-  Early success: DB-level privileges are sufficient.
-  No need to check table/column privileges.
-*/
-  if (db_access.fully_satisfies(want_access))
-    DBUG_RETURN(FALSE);
+  /*
+    We could check for DENYs here, and do early return, if we find any.
+    But we do not, for the sake of better/more natural error reporting
+
+    ER_TABLEACCESS_DENIED_ERROR and ER_COLUMNACCESS_DENIED_ERROR contain
+    better info.
+  */
 
   /*
-    If dont_check_global_grants is set, we cannot proceed to table-level
-    checks. This happens for database pattern grants like "GRANT SELECT ON
-    test_%.* TO user".
+    We need to investigate column- and table access if all requested privileges
+    belongs to the bit set of .
   */
-  if (dont_check_global_grants)
-    goto error;
+  bool need_table_or_column_check=
+      (want_access & (TABLE_ACLS | PROC_ACLS | db_access.allow_bits())) == want_access;
 
   /*
-    Not fully satisfied at global+DB level. Check if missing privileges
-    can potentially be granted at table/column/procedure level.
+    Grant access if the requested access is in the intersection of
+    host- and db-privileges (as retrieved from the acl cache),
+    also grant access if all the requested privileges are in the union of
+    TABLES_ACLS and PROC_ACLS; see check_grant.
   */
-  missing_privileges=
-      privilege_t(want_access & ~db_access.certainly_allowed(want_access));
-
-  if ((missing_privileges & (TABLE_ACLS | PROC_ACLS)) != missing_privileges)
+  if ( (db_access & want_access) == want_access ||
+      (!dont_check_global_grants &&
+       need_table_or_column_check))
   {
     /*
-      Some missing privileges cannot be granted at table/column/proc level
-      (e.g., SHUTDOWN_ACL, FILE_ACL, RELOAD_ACL are global-only).
-      Access denied.
+       Ok; but need to check table- and column privileges.
+       [out] *save_privileges is (User-priv | (Db-priv & Host-priv) | Internal-priv)
     */
-    want_access= missing_privileges;
-    goto error;
+    DBUG_RETURN(FALSE);
   }
 
-  /*
-    All missing privileges can potentially be granted at table/column/proc
-    level. Proceed to check_grant(). [out] *save_privileges is (User-priv |
-    (Db-priv & Host-priv) | Internal-priv)
-  */
-  DBUG_RETURN(FALSE);
-
-
-error:
   /*
     Access is denied;
     [out] *save_privileges is (User-priv | (Db-priv & Host-priv) | Internal-priv)

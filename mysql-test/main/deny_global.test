@@ -23,11 +23,11 @@ DENY SELECT ON *.* TO user1;
 connect (con1, localhost, user1,,test);
 
 --echo # Should FAIL - global DENY SELECT
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 SELECT * FROM t1;
 
 --echo # Should FAIL - in any database
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 SELECT * FROM mysql.user;
 
 --echo # Should SUCCEED - INSERT not denied
@@ -74,7 +74,7 @@ GRANT SELECT ON test.v2 TO normal_user;
 connect (con1, localhost, normal_user,,test);
 
 --echo # Should FAIL - view uses denied_definer's context (which is denied)
---error ER_DBACCESS_DENIED_ERROR
+--error ER_VIEW_INVALID
 SELECT * FROM v2;
 
 --echo # Should SUCCEED - direct table access works for normal_user
@@ -98,15 +98,15 @@ DENY SELECT ON *.* TO show_user;
 connect (con1, localhost, show_user,,test);
 
 --echo # Should FAIL - SHOW COLUMNS requires column privileges
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 SHOW COLUMNS FROM t1;
 
 --echo # Should FAIL - DESCRIBE is same as SHOW COLUMNS
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 DESCRIBE t1;
 
 --echo # Should FAIL - SHOW INDEX
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 SHOW INDEX FROM t1;
 
 connection default;
@@ -125,7 +125,7 @@ DENY SELECT ON *.* TO prec_user;
 
 connect (con1, localhost, prec_user,,test);
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 SELECT * FROM t1;
 
 connection default;
@@ -139,7 +139,7 @@ GRANT SELECT ON *.* TO prec_user;
 connect (con1, localhost, prec_user,,test);
 
 --echo # Should STILL FAIL - DENY takes precedence
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 SELECT * FROM t1;
 
 connection default;
@@ -156,17 +156,16 @@ DENY SELECT, DELETE ON *.* TO mixed_user;
 
 connect (con1, localhost, mixed_user,,test);
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 SELECT * FROM t1;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 DELETE FROM t1 WHERE id=1;
 
 --echo # Should SUCCEED
 INSERT INTO t1 VALUES (4, 'data4');
 
 
-# TODO - should be DBACCESS_DENIED below
 --echo # Denied because of WHERE clause in UPDATE
 --error ER_COLUMNACCESS_DENIED_ERROR
 UPDATE t1 SET data='modified' WHERE id=4;
@@ -187,10 +186,10 @@ DENY SELECT ON *.* TO sub_user;
 
 connect (con1, localhost, sub_user,,test);
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 SELECT * FROM t1 WHERE id IN (SELECT id FROM t2);
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 SELECT * FROM (SELECT * FROM t1) AS dt;
 
 disconnect con1;
@@ -201,7 +200,7 @@ connection default;
 --echo #
 FLUSH PRIVILEGES;
 connect (con1, localhost, sub_user,,test);
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 SELECT * FROM (SELECT * FROM t1) AS dt;
 disconnect con1;
 
