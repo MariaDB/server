@@ -2650,9 +2650,9 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
   if (!ret)
   {
     /* Save the information describing this binlog */
-    copy_crypto_data(rli->relay_log.description_event_for_exec);
-    delete rli->relay_log.description_event_for_exec;
-    rli->relay_log.description_event_for_exec= this;
+    copy_crypto_data(rli->relay_log.description_event_for_sql_thread);
+    delete rli->relay_log.description_event_for_sql_thread;
+    rli->relay_log.description_event_for_sql_thread= this;
   }
 
   DBUG_RETURN(ret);
@@ -2696,7 +2696,7 @@ Format_description_log_event::do_shall_skip(rpl_group_info *rgi)
 #if defined(HAVE_REPLICATION)
 int Start_encryption_log_event::do_apply_event(rpl_group_info* rgi)
 {
-  return rgi->rli->relay_log.description_event_for_exec->start_decryption(this);
+  return rgi->rli->relay_log.description_event_for_sql_thread->start_decryption(this);
 }
 
 int Start_encryption_log_event::do_update_pos(rpl_group_info *rgi)
@@ -2834,7 +2834,7 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
     /*
       Reset thd->variables.option_bits and sql_mode etc, because this could
       be the signal of a master's downgrade from 5.0 to 4.0.
-      However, no need to reset description_event_for_exec: indeed, if the next
+      However, no need to reset description_event_for_sql_thread: indeed, if the next
       master is 5.0 (even 5.0.1) we will soon get a Format_desc; if the next
       master is 4.0 then the events are in the slave's format (conversion).
     */
@@ -5899,7 +5899,7 @@ int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
   {
     THD_STAGE_INFO(rgi->thd, stage_constructing_rows_ev);
     Log_event *ev= assembler->create_rows_event(
-        rgi->rli->relay_log.description_event_for_exec);
+        rgi->rli->relay_log.description_event_for_sql_thread);
     rgi->assembler->~Rows_log_event_assembler();
     my_free(rgi->assembler);
     rgi->assembler= NULL;

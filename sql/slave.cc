@@ -5520,8 +5520,8 @@ err_during_init:
   /* When master_pos_wait() wakes up it will check this and terminate */
   rli->slave_running= MYSQL_SLAVE_NOT_RUN;
   /* Forget the relay log's format */
-  delete rli->relay_log.description_event_for_exec;
-  rli->relay_log.description_event_for_exec= 0;
+  delete rli->relay_log.description_event_for_sql_thread;
+  rli->relay_log.description_event_for_sql_thread= 0;
   rli->reset_inuse_relaylog();
   /* Wake up master_pos_wait() */
   DBUG_PRINT("info",("Signaling possibly waiting master_pos_wait() functions"));
@@ -6649,7 +6649,7 @@ dbug_gtid_accept:
   else
   {
     /*
-      replay_log.description_event_for_exec can be null if the slave thread
+      replay_log.description_event_for_sql_thread can be null if the slave thread
       is getting killed
     */
     if (LOG_EVENT_IS_QUERY((Log_event_type) buf[EVENT_TYPE_OFFSET]) ||
@@ -7093,7 +7093,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
     old_pos= rli->event_relay_log_pos;
     int error;
     if ((ev= Log_event::read_log_event(cur_log, &error,
-                                       rli->relay_log.description_event_for_exec,
+                                       rli->relay_log.description_event_for_sql_thread,
                                        opt_slave_sql_verify_checksum)))
 
     {
@@ -7281,7 +7281,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
       mysql_file_close(rli->cur_log_fd, MYF(MY_WME));
       rli->cur_log_fd = -1;
       rli->last_inuse_relaylog->completed= true;
-      rli->relay_log.description_event_for_exec->reset_crypto();
+      rli->relay_log.description_event_for_sql_thread->reset_crypto();
 
       if (relay_log_purge)
       {
@@ -7609,7 +7609,7 @@ bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
     {29621, { 10, 11,1  }, { 10, 11,3  } },
   };
   const Version &master_ver=
-    rli->relay_log.description_event_for_exec->server_version_split;
+    rli->relay_log.description_event_for_sql_thread->server_version_split;
   struct st_version_range_for_one_bug* versions_for_all_bugs= maria_master ?
     versions_for_our_bugs : versions_for_their_bugs;
   uint all_size= maria_master ?
@@ -7652,7 +7652,7 @@ bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
                       " that master be upgraded to a version at least"
                       " equal to '%d.%d.%d'. Then replication can be"
                       " restarted.",
-                      rli->relay_log.description_event_for_exec->server_version,
+                      rli->relay_log.description_event_for_sql_thread->server_version,
                       bug_source,
                       bug_id,
                       fixed_in[0], fixed_in[1], fixed_in[2]);
