@@ -1,0 +1,236 @@
+#
+# MDEV-36832: Negative isolation tests for UPDATE...IN(SELECT)
+#             consistent read (LOCK_NONE) at REPEATABLE READ
+#
+# These tests verify that replacing S locks with consistent read
+# (LOCK_NONE) on the semi-join read table does NOT cause ACID
+# isolation violations at REPEATABLE READ.
+#
+CREATE TABLE booking (
+booking_id INT PRIMARY KEY
+) ENGINE=InnoDB;
+CREATE TABLE ticket (
+ticket_id INT AUTO_INCREMENT PRIMARY KEY,
+booking_id INT NOT NULL,
+is_valid INT DEFAULT 1,
+KEY fk_ticket_2_booking (booking_id),
+FOREIGN KEY (booking_id) REFERENCES booking(booking_id)
+) ENGINE=InnoDB;
+INSERT INTO booking VALUES (1), (2);
+INSERT INTO ticket (booking_id, is_valid) VALUES
+(1, 1), (1, 1),
+(2, 1), (2, 1);
+connect  con1,localhost,root;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SET SESSION innodb_lock_wait_timeout=3;
+connect  con2,localhost,root;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SET SESSION innodb_lock_wait_timeout=3;
+#
+# Test 1: Phantom insert — concurrent INSERT into subquery range
+#
+# T1 updates tickets for booking_id=1 via semi-join.
+# T2 concurrently inserts a new ticket with booking_id=1.
+# Without S gap locks (LOCK_NONE), T2 is NOT blocked.
+# T1's MVCC snapshot does not see the new row, so T1 updates
+# exactly the 2 original tickets. The new ticket remains is_valid=1.
+# This is correct under snapshot isolation (RR).
+#
+connection con1;
+BEGIN;
+UPDATE ticket SET is_valid=0
+WHERE ticket_id IN (SELECT ticket_id FROM ticket WHERE booking_id=1);
+connection con2;
+BEGIN;
+INSERT INTO ticket (booking_id, is_valid) VALUES (1, 1);
+COMMIT;
+connection con1;
+COMMIT;
+connection default;
+# Expect: ticket_ids 1,2 updated to is_valid=0; new ticket is_valid=1
+SELECT ticket_id, booking_id, is_valid FROM ticket
+WHERE booking_id=1 ORDER BY ticket_id;
+ticket_id	booking_id	is_valid
+1	1	0
+2	1	0
+5	1	1
+DELETE FROM ticket WHERE ticket_id > 4;
+UPDATE ticket SET is_valid=1;
+#
+# Test 2: Concurrent UPDATE on subquery filter column
+#
+# T1 updates tickets for booking_id=1. T2 changes ticket_id=2's
+# booking_id from 1 to 2. Both need X lock on ticket_id=2's PK
+# record, so they serialize regardless of FK index locks.
+# Proves: PK X locks alone ensure write-write serialization.
+#
+connection con1;
+BEGIN;
+UPDATE ticket SET is_valid=0
+WHERE ticket_id IN (SELECT ticket_id FROM ticket WHERE booking_id=1);
+connection con2;
+BEGIN;
+UPDATE ticket SET booking_id=2 WHERE ticket_id=2;
+connection con1;
+COMMIT;
+connection con2;
+COMMIT;
+connection default;
+# Both committed. Serialized via PK X lock.
+# ticket_id=1: is_valid=0 (T1), booking_id=1 (unchanged)
+# ticket_id=2: is_valid=0 (T1 ran first), booking_id=2 (T2 ran second)
+SELECT ticket_id, booking_id, is_valid FROM ticket ORDER BY ticket_id;
+ticket_id	booking_id	is_valid
+1	1	0
+2	2	0
+3	2	1
+4	2	1
+#
+# Test 3: Concurrent DELETE of a subquery-matched row
+#
+# T1 updates tickets for booking_id=1. T2 deletes ticket_id=1.
+# Both need PK X lock → serialized.
+#
+connection default;
+UPDATE ticket SET booking_id=1 WHERE ticket_id <= 2;
+UPDATE ticket SET is_valid=1;
+connection con1;
+BEGIN;
+UPDATE ticket SET is_valid=0
+WHERE ticket_id IN (SELECT ticket_id FROM ticket WHERE booking_id=1);
+connection con2;
+BEGIN;
+DELETE FROM ticket WHERE ticket_id=1;
+connection con1;
+COMMIT;
+connection con2;
+COMMIT;
+connection default;
+# ticket_id=1 deleted by T2 (ran second), ticket_id=2 updated by T1.
+SELECT ticket_id, booking_id, is_valid FROM ticket ORDER BY ticket_id;
+ticket_id	booking_id	is_valid
+2	1	0
+3	2	1
+4	2	1
+INSERT INTO ticket (ticket_id, booking_id, is_valid) VALUES (1, 1, 1);
+UPDATE ticket SET is_valid=1;
+#
+# Test 4: SERIALIZABLE must still acquire S locks
+#
+# At SERIALIZABLE, external_lock() upgrades LOCK_NONE to LOCK_S,
+# so the subquery's read MUST block concurrent writes.
+# T1 does UPDATE...IN(SELECT) at SERIALIZABLE.
+# T2 tries to INSERT into same booking_id range — must block.
+#
+connection con1;
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+connection con2;
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+connection con1;
+BEGIN;
+UPDATE ticket SET is_valid=0
+WHERE ticket_id IN (SELECT ticket_id FROM ticket WHERE booking_id=1);
+connection con2;
+BEGIN;
+INSERT INTO ticket (booking_id, is_valid) VALUES (1, 1);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+COMMIT;
+connection con1;
+COMMIT;
+connection default;
+UPDATE ticket SET is_valid=1;
+#
+# Test 5: Multi-table UPDATE on different tables — read table
+#         uses consistent read (LOCK_NONE), no S locks
+#
+# T1: UPDATE t_write JOIN t_read SET t_write.val = t_read.val
+#     WHERE t_read.status = 'active'
+# T2: UPDATE t_read SET status = 'cancelled' WHERE id = 2
+#
+# With LOCK_NONE on t_read, T2 must NOT block.
+# T1's MVCC snapshot sees 'active' for id=2 and uses val=20.
+# This is correct under snapshot isolation: equivalent to T1
+# running before T2 in a serial schedule.
+#
+CREATE TABLE t_read (
+id INT PRIMARY KEY,
+status VARCHAR(20) NOT NULL,
+val INT NOT NULL
+) ENGINE=InnoDB;
+CREATE TABLE t_write (
+id INT PRIMARY KEY,
+val INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB;
+INSERT INTO t_read VALUES (1, 'active', 10), (2, 'active', 20);
+INSERT INTO t_write VALUES (1, 0), (2, 0);
+connection con1;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+SET DEBUG_SYNC='execute_command_after_close_tables SIGNAL t1_updated WAIT_FOR t2_done';
+UPDATE t_write w JOIN t_read r ON w.id = r.id SET w.val = r.val WHERE r.status = 'active';
+connection con2;
+SET DEBUG_SYNC='now WAIT_FOR t1_updated';
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+UPDATE t_read SET status='cancelled' WHERE id=2;
+COMMIT;
+SET DEBUG_SYNC='now SIGNAL t2_done';
+connection con1;
+COMMIT;
+connection default;
+# t_write.val reflects T1's snapshot: val=10 (id=1), val=20 (id=2).
+# t_read.id=2 is now 'cancelled' (by T2) but T1's snapshot saw
+# 'active'. Correct under snapshot isolation.
+SELECT w.id, w.val, r.status AS current_read_status
+FROM t_write w JOIN t_read r ON w.id = r.id ORDER BY w.id;
+id	val	current_read_status
+1	10	active
+2	20	cancelled
+#
+# Test 6: MVCC snapshot consistency — re-read within same
+#         transaction after UPDATE must see consistent data
+#
+# T1 establishes snapshot, T2 modifies t_read, T1 does
+# multi-table UPDATE using snapshot, then T1 re-reads t_read.
+# The re-read must see the same data as the UPDATE used
+# (MVCC snapshot stability at RR).
+#
+connection default;
+UPDATE t_read SET status='active';
+UPDATE t_write SET val=0;
+connection con1;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+SELECT * FROM t_read WHERE status='active';
+id	status	val
+1	active	10
+2	active	20
+connection con2;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+UPDATE t_read SET status='cancelled', val=99 WHERE id=2;
+COMMIT;
+connection con1;
+UPDATE t_write w JOIN t_read r ON w.id = r.id
+SET w.val = r.val WHERE r.status = 'active';
+SELECT id, status, val FROM t_read WHERE status='active' ORDER BY id;
+id	status	val
+1	active	10
+2	active	20
+COMMIT;
+connection default;
+# t_write must have snapshot values: val=10 and val=20 (NOT val=99).
+# T2's change is invisible to T1's snapshot.
+SELECT id, val FROM t_write ORDER BY id;
+id	val
+1	10
+2	20
+#
+# Cleanup
+#
+DROP TABLE t_write, t_read;
+DROP TABLE ticket;
+DROP TABLE booking;
+disconnect con1;
+disconnect con2;
+SET DEBUG_SYNC='RESET';
