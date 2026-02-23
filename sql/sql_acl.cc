@@ -10061,9 +10061,10 @@ static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
 
   Return true if some privileges are found, false otherwise.
 */
-static bool has_some_table_privs(GRANT_TABLE *grant_table)
+static bool has_some_table_privs(GRANT_TABLE *grant_table,
+                                 const access_t &parent_access)
 {
-  const access_t &table_access= grant_table->privs;
+  access_t table_access= grant_table->privs.combine_with_parent(parent_access);
   /*
     The below ignored "in-doubt" bits, deny_subtree, as we do
     not have full info i.e about all columns.
@@ -10133,7 +10134,7 @@ bool check_grant_db(THD *thd, const access_t &access, const char *db)
         !memcmp(grant_table->hash_key, key.ptr(), key.length()) &&
         compare_hostname(&grant_table->host, sctx->host, sctx->ip))
     {
-      if (has_some_table_privs(grant_table))
+      if (has_some_table_privs(grant_table, access))
       {
         error= FALSE; /* Found match. */
         break;
@@ -10145,7 +10146,7 @@ bool check_grant_db(THD *thd, const access_t &access, const char *db)
         !memcmp(grant_table->hash_key, key2.ptr(), key2.length()) &&
         (!grant_table->host.hostname || !grant_table->host.hostname[0]))
     {
-      if (has_some_table_privs(grant_table))
+      if (has_some_table_privs(grant_table, access))
       {
         error= FALSE; /* Found role match */
         break;

@@ -28,5 +28,37 @@ connection default;
 disconnect con1;
 
 DROP USER u1@localhost;
+
+--echo #
+--echo # global DENY ALL prevents USE, even with table grants
+--echo #
+
+CREATE USER u2@localhost;
+GRANT SELECT ON db1.t1 TO u2@localhost;
+DENY ALL PRIVILEGES ON *.* TO u2@localhost;
+
+connect (con1, localhost, u2,,);
+--error ER_DBACCESS_DENIED_ERROR
+USE db1;
+
+connection default;
+disconnect con1;
+DROP USER u2@localhost;
+
+--echo #
+--echo # db-level DENY ALL prevents USE, even with table grants
+--echo #
+
+CREATE USER u3@localhost;
+GRANT SELECT ON db1.t1 TO u3@localhost;
+DENY ALL PRIVILEGES ON db1.* TO u3@localhost;
+
+connect (con1, localhost, u3,,);
+--error ER_DBACCESS_DENIED_ERROR
+USE db1;
+
+connection default;
+disconnect con1;
+DROP USER u3@localhost;
 DROP TABLE db1.t1;
 DROP DATABASE db1;
