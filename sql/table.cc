@@ -10108,7 +10108,10 @@ static inline bool derived_table_optimization_done(TABLE_LIST *table)
   @brief
   Initialize this derived table/view
 
-  @param thd  Thread handle
+  @param
+    thd  Thread handle
+    init_view  TRUE when called from mysql_derived_init (first call)
+               FALSE when called from mysql_derived_prepare (second call)
 
   @details
   This function makes initial preparations of this derived table/view for
@@ -10186,9 +10189,18 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
         !this->opt_hints_table)        // Table hints are not adjusted yet
       select_lex->opt_hints_qb->fix_hints_for_derived_table(this);
 
+    /*
+      (1) Allow merging during initialization (first call, init_view == true),
+          while optimizer hints are not yet resolved. By the time of
+          the second call (preparation, init_view == false) optimizer hints are
+          already resolved, so the previous choice can be re-considered.
+      (2) Prefer optimizer hint setting for this particular table.
+          If there is no hint then fall back to the optimizer switch setting.
+    */
     bool is_derived_merge_allowed=
+        init_view ||                                              // (1)
         hint_table_state(thd, this, MERGE_HINT_ENUM,
-            optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE));
+            optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE)); // (2)
 
     if (!is_materialized_derived() && unit->can_be_merged() &&
         /*
