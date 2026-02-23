@@ -32,7 +32,11 @@
 #else
 #include "sql_class.h"  // For class THD
 #include "log.h" // for sql_print_error
+#ifndef NDEBUG
 #define VALIDITY_ASSERT(x) DBUG_ASSERT(x)
+#else
+#define VALIDITY_ASSERT(x) do { } while (0)
+#endif
 #endif
 
 #include <type_traits>
