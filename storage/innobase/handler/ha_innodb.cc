@@ -16708,31 +16708,84 @@ ha_innobase::store_lock(
 		unexpected if an obsolete consistent read view would be
 		used. */
 
-		/* Use consistent read for checksum table */
+		/* Use consistent read for checksum table
+		and for read-only table accesses in multi-table
+		UPDATE (SQLCOM_UPDATE_MULTI).
+
+		MDEV-36832: When a single-table UPDATE has an
+		IN(SELECT) subquery referencing the same table,
+		the optimizer converts it to a semi-join, creating
+		two table references. The SQL layer processes this
+		as SQLCOM_UPDATE_MULTI. The read-only (subquery)
+		table handle receives TL_READ from
+		read_lock_type_for_table() (binlog off or ROW
+		format) or TL_READ_NO_INSERT (statement-based
+		binlog).
+
+		Without this fix, the subquery's secondary index
+		scan acquires S next-key locks, including gap
+		locks that span into adjacent key ranges. Two
+		concurrent UPDATE...IN(SELECT) on non-overlapping
+		data sets then deadlock on each other's gap locks.
+
+		For SQLCOM_UPDATE_MULTI with TL_READ we use
+		consistent read (LOCK_NONE) at all isolation
+		levels. This is safe because:
+		 - The MVCC snapshot is stable within a transaction
+		   in REPEATABLE READ.
+		 - Rows being modified still get X locks via the
+		   write-side table handle (F_WRLCK / LOCK_X).
+		 - This matches the locking of explicit value lists
+		   (WHERE id IN (1,2)), which never lock secondary
+		   indexes used only for a subquery lookup.
+		 - SERIALIZABLE is handled by ::external_lock()
+		   upgrading LOCK_NONE back to LOCK_S.
+
+		We limit this to SQLCOM_UPDATE_MULTI (not
+		SQLCOM_UPDATE) because single-table UPDATE with
+		scalar subqueries on other tables traditionally
+		uses S locks to block concurrent modifications to
+		the subquery table, and changing that would alter
+		observable behavior for existing applications.
+
+		For TL_READ_NO_INSERT we keep the pre-existing
+		behavior: consistent read only at READ COMMITTED
+		and below, S locks at REPEATABLE READ and above,
+		because statement-based replication needs locking
+		reads for serializable execution ordering. */
 
 		if (sql_command == SQLCOM_CHECKSUM
 		    || sql_command == SQLCOM_CREATE_SEQUENCE
 		    || (sql_command == SQLCOM_ANALYZE && lock_type == TL_READ)
+		    || (lock_type == TL_READ
+			&& sql_command == SQLCOM_UPDATE_MULTI)
 		    || (trx->isolation_level <= TRX_ISO_READ_COMMITTED
 			&& (lock_type == TL_READ
 			    || lock_type == TL_READ_NO_INSERT)
 			&& (sql_command == SQLCOM_INSERT_SELECT
 			    || sql_command == SQLCOM_REPLACE_SELECT
 			    || sql_command == SQLCOM_UPDATE
+			    || sql_command == SQLCOM_UPDATE_MULTI
 			    || sql_command == SQLCOM_CREATE_SEQUENCE
 			    || sql_command == SQLCOM_CREATE_TABLE))) {
 
-			/* If the transaction isolation level is
-			READ UNCOMMITTED or READ COMMITTED and we are executing
-			INSERT INTO...SELECT or REPLACE INTO...SELECT
-			or UPDATE ... = (SELECT ...) or CREATE  ...
-			SELECT... without FOR UPDATE or IN SHARE
-			MODE in select, then we use consistent read
-			for select. */
+			DBUG_PRINT("ib_lock",
+				   ("consistent read for DML: "
+				    "lock_type=%d sql_command=%d "
+				    "isolation_level=%u",
+				    lock_type, sql_command,
+				    trx->isolation_level));
 
 			m_prebuilt->select_lock_type = LOCK_NONE;
 			m_prebuilt->stored_select_lock_type = LOCK_NONE;
 		} else {
+			DBUG_PRINT("ib_lock",
+				   ("LOCK_S for DML read: "
+				    "lock_type=%d sql_command=%d "
+				    "isolation_level=%u",
+				    lock_type, sql_command,
+				    trx->isolation_level));
+
 			m_prebuilt->select_lock_type = LOCK_S;
 			m_prebuilt->stored_select_lock_type = LOCK_S;
 		}
