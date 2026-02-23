@@ -48,7 +48,6 @@
                                  // calc_time_from_sec,
                                  // get_date_time_format_str
 #include "tztime.h"              // struct Time_zone
-#include "sql_class.h"           // THD
 #include <m_ctype.h>
 #include <time.h>
 
@@ -1066,7 +1065,7 @@ error:
   Create a formatted date/time value in a string.
 */
 
-static bool make_date_time(THD *thd, const String *format,
+static bool make_date_time(Time_zone *tz, const String *format,
                            const MYSQL_TIME *l_time, timestamp_type type,
                            const MY_LOCALE *locale, String *str)
 {
@@ -1293,7 +1292,7 @@ static bool make_date_time(THD *thd, const String *format,
       {
         if (!curr_timezone)
         {
-          curr_timezone= thd->variables.time_zone;
+          curr_timezone= tz;
           curr_timezone->get_timezone_information(&curr_tz, l_time);
         }
         long minutes= labs(curr_tz.seconds_offset)/60, diff_hr, diff_min;
@@ -1310,7 +1309,7 @@ static bool make_date_time(THD *thd, const String *format,
       case 'Z':
         if (!curr_timezone)
         {
-          curr_timezone= thd->variables.time_zone;
+          curr_timezone= tz;
           curr_timezone->get_timezone_information(&curr_tz, l_time);
         }
         str->append(curr_tz.abbreviation, strlen(curr_tz.abbreviation));
@@ -1398,6 +1397,38 @@ static bool get_interval_info(const char *str, size_t length,CHARSET_INFO *cs,
   }
 
   return (str != end);
+}
+
+extern "C"
+void thd_TIME_to_str(MYSQL_THD thd, const MYSQL_TIME *ltime, const char *format,
+                     char *buf, unsigned int buf_len)
+{
+  String str(buf, buf_len, system_charset_info);
+  String fmt(format, strlen(format), system_charset_info);
+  /*
+    The String(char*, ...) constructor sets both the allocated capacity and the
+    current string length to buf_len. We must reset the current length to 0 to
+    allow make_date_time to append from the beginning without triggering a
+    heap reallocation.
+  */
+  str.length(0);
+  make_date_time(thd ? thd->variables.time_zone :
+                       global_system_variables.time_zone,
+                 &fmt, ltime, MYSQL_TIMESTAMP_DATETIME,
+                 thd ? thd->variables.lc_time_names :
+                       global_system_variables.lc_time_names,
+                 &str);
+  /*
+    If the formatted string fits in buf_len, c_ptr_safe() returns buf and no
+    copying is needed. If it exceeded buf_len, a heap allocation occurred,
+    and we must copy the result(partially) back to the caller's buffer.
+  */
+  if (unlikely(str.c_ptr_safe() != buf))
+  {
+    unsigned int len= MY_MIN(str.length(), buf_len - 1);
+    memcpy(buf, str.ptr(), len);
+    buf[len]= 0;
+  }
 }
 
 
@@ -2532,7 +2563,7 @@ String *Item_func_date_format::val_str(String *str)
 
   /* Create the result string */
   str->set_charset(collation.collation);
-  if (!make_date_time(thd, format, &l_time,
+  if (!make_date_time(thd->variables.time_zone, format, &l_time,
                       is_time_format ? MYSQL_TIMESTAMP_TIME :
                                        MYSQL_TIMESTAMP_DATE,
                       lc, str))
