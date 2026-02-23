@@ -4856,6 +4856,9 @@ CREATE TABLE t1 (a INT, b INT not null, KEY(b));
 INSERT INTO t1 VALUES (2,8),(9,1),(4,6);
 SELECT a, b FROM t1 WHERE b != 10 and b < 30 ORDER BY b DESC;
 a	b
+2	8
+4	6
+9	1
 SELECT a, b FROM t1 use index() WHERE b != 10 and b < 30 ORDER BY b DESC;
 a	b
 2	8
