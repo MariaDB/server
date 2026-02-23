@@ -234,8 +234,10 @@ void Json_writer::add_unquoted_str(const char* str)
 
 void Json_writer::add_unquoted_str(const char* str, size_t len)
 {
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   VALIDITY_ASSERT(fmt_helper.is_making_writer_calls() ||
                   got_name == named_item_expected());
+#endif
   if (on_add_str(str, len))
     return;
 
@@ -267,8 +269,10 @@ void Json_writer::add_str(const char *str)
 
 void Json_writer::add_str(const char* str, size_t num_bytes)
 {
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   VALIDITY_ASSERT(fmt_helper.is_making_writer_calls() ||
                   got_name == named_item_expected());
+#endif
   if (on_add_str(str, num_bytes))
     return;
 
