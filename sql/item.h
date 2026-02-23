@@ -8260,6 +8260,13 @@ inline void Virtual_column_info::print(String* str)
   expr->print_for_table_def(str);
 }
 
+inline double normalize_signed_zero(double value)
+{
+  // Canonicalize signed zero representation.
+  // -0.0 == +0.0 by IEEE-754 definition; this only normalizes the sign bit.
+  return value == 0.0 ? 0.0 : value;
+}
+
 class Item_direct_ref_to_item : public Item_direct_ref
 {
   Item *m_item;
