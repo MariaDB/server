@@ -1,4 +1,4 @@
---source include/no_protocol.inc
+--source include/not_embedded.inc
 
 --echo #
 --echo # SHOW GRANTS with DENY output
