@@ -437,9 +437,11 @@ extern "C" {
 extern struct thd_timezone_service_st {
   my_time_t (*thd_TIME_to_gmt_sec)(THD* thd, const MYSQL_TIME *ltime, unsigned int *errcode);
   void (*thd_gmt_sec_to_TIME)(THD* thd, MYSQL_TIME *ltime, my_time_t t);
+  void (*thd_TIME_to_str)(THD* thd, const MYSQL_TIME *ltime, const char *format, char *buf, unsigned int buf_len);
 } *thd_timezone_service;
 my_time_t thd_TIME_to_gmt_sec(THD* thd, const MYSQL_TIME *ltime, unsigned int *errcode);
 void thd_gmt_sec_to_TIME(THD* thd, MYSQL_TIME *ltime, my_time_t t);
+void thd_TIME_to_str(THD* thd, const MYSQL_TIME *ltime, const char *format, char *buf, unsigned int buf_len);
 }
 extern "C" {
 typedef enum _thd_wait_type_e {

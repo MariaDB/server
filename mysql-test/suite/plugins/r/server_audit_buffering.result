@@ -19,6 +19,7 @@ server_audit_syslog_facility	LOG_USER
 server_audit_syslog_ident	mysql-server_auditing
 server_audit_syslog_info	
 server_audit_syslog_priority	LOG_INFO
+server_audit_timestamp_format	%Y%m%d %H:%i:%s
 set global server_audit_logging=on;
 set global server_audit_sync_log_file=on;
 Line count in file: 52

@@ -1,0 +1,60 @@
+set global server_audit_logging=on;
+select 1;
+1
+1
+set global server_audit_timestamp_format='CUSTOM-DATE %Y-%m-%d';
+select 2;
+2
+2
+set time_zone='+05:00';
+set global server_audit_timestamp_format='CUSTOM-TZ %H:%i:%s %z';
+select 3;
+3
+3
+set time_zone=DEFAULT;
+set global server_audit_timestamp_format=DEFAULT;
+select 4;
+4
+4
+#
+# Error handling for long timestamp format
+#
+set global server_audit_timestamp_format='%H:%i:%s';
+show variables like 'server_audit_timestamp_format';
+Variable_name	Value
+server_audit_timestamp_format	%H:%i:%s
+# Attempting to set an excessively long format string.
+set global server_audit_timestamp_format='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+ERROR 42000: Variable 'server_audit_timestamp_format' can't be set to the value of 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+# Value should still be the old one
+show variables like 'server_audit_timestamp_format';
+Variable_name	Value
+server_audit_timestamp_format	%H:%i:%s
+#
+# Test large expansion (many %M specifiers)
+#
+set global server_audit_timestamp_format='%M %M %M %M %M %M %M %M %M %M %M %M %M %M %M';
+select 5;
+5
+5
+set global server_audit_timestamp_format='CMD-LINE-%Y-%m-%d';
+set global server_audit_logging=off;
+CMD-LINE-TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_logging=on',0
+CMD-LINE-TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select 1',0
+CUSTOM-DATE TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_timestamp_format=\'CUSTOM-DATE %Y-%m-%d\'',0
+CUSTOM-DATE TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select 2',0
+CUSTOM-DATE TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set time_zone=\'+05:00\'',0
+CUSTOM-TZ TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_timestamp_format=\'CUSTOM-TZ %H:%i:%s %z\'',0
+CUSTOM-TZ TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select 3',0
+CUSTOM-TZ TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set time_zone=DEFAULT',0
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_timestamp_format=DEFAULT',0
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select 4',0
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_timestamp_format=\'%H:%i:%s\'',0
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'show variables like \'server_audit_timestamp_format\'',0
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select repeat(\'A\', 130)',0
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_timestamp_format=\'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\'',1231
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'show variables like \'server_audit_timestamp_format\'',0
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_timestamp_format=\'%M %M %M %M %M %M %M %M %M %M %M %M %M %M %M\'',0
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select 5',0
+CMD-LINE-TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_timestamp_format=\'CMD-LINE-%Y-%m-%d\'',0
+CMD-LINE-TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_logging=off',0
