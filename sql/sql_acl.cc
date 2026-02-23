@@ -10043,7 +10043,7 @@ static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
         strcmp(item->db, db) == 0 &&
         (!item->host.hostname || !item->host.hostname[0]))
     {
-      if (item->init_privs.certainly_allowed(ALL_KNOWN_ACL))
+      if (item->privs.certainly_allowed(ALL_KNOWN_ACL))
         return FALSE; /* Found current role match */
     }
   }
@@ -10089,13 +10089,19 @@ static bool has_some_table_privs(GRANT_TABLE *grant_table)
   Return 1 if access is denied
 */
 
-bool check_grant_db(THD *thd, const char *db)
+bool check_grant_db(THD *thd, const access_t &access, const char *db)
 {
   Security_context *sctx= thd->security_ctx;
   constexpr size_t key_data_size= SAFE_NAME_LEN + USERNAME_LENGTH + 1;
   // See earlier comments on MY_CS_MBMAXLEN above
   CharBuffer<key_data_size + MY_CS_MBMAXLEN> key, key2;
   bool error= TRUE;
+
+  if (access.is_denied_all(TABLE_ACLS|PROC_ACLS))
+    return 1; // all table and routine privileges are denied
+
+  if (access & (TABLE_ACLS | PROC_ACLS))
+    return 0; // some table or routine privileges are allowed
 
   key.append(Lex_cstring_strlen(sctx->priv_user)).append_char('\0')
      .append_opt_casedn(files_charset_info, Lex_cstring_strlen(db),

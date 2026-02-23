@@ -6946,7 +6946,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
                      &thd->col_access, NULL, FALSE, FALSE))
       return TRUE;
 
-    if (!thd->col_access && check_grant_db(thd, dst_db_name))
+    if (!thd->col_access && check_grant_db(thd, thd->col_access, dst_db_name))
     {
       status_var_increment(thd->status_var.access_denied_errors);
       my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
