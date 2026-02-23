@@ -356,7 +356,7 @@ static int show_routine_grants(THD *, const char *, const char *,
 
 static int show_all_privileges(THD *thd, ACL_USER_BASE *acl_user,
                                const char *username, const char *hostname,
-                               char *buff, size_t buff_size);
+                               bool show_denies, char *buff, size_t buff_size);
 
 static ACL_ROLE *acl_public= NULL;
 
@@ -1915,21 +1915,23 @@ class User_table_json: public User_table
   {
     ulonglong version_id= (ulonglong) get_int_value("version_id");
     ulonglong allow= (ulonglong) get_int_value("access");
-    privilege_t deny= NO_ACL;
-
+    access_t access(NO_ACL);
     enumerate_deny_entries
     (
       [](const deny_callback_data_t *e, void *ctx) -> int {
+          access_t *acc= static_cast<access_t *>(ctx);
           if (e->type == ACL_PRIV_TYPE::PRIV_TYPE_GLOBAL)
-          {
-            *static_cast<privilege_t *>(ctx)|= e->deny_bits;
-            return 1;
-          }
+            acc->set_deny_bits(e->deny_bits);
+          else
+            acc->set_deny_subtree(acc->deny_subtree() | e->deny_bits);
           return 0;
-       }, &deny);
+       }, &access);
 
     if (allow == (ulonglong) ~0)
-      return access_t(GLOBAL_ACLS, deny);
+    {
+      access.set_allow_bits(GLOBAL_ACLS);
+      return access;
+    }
 
     /*
       Reject obviously bad (negative and too large) version_id values.
@@ -1942,8 +1944,9 @@ class User_table_json: public User_table
       return NO_ACL;
     }
     allow= adjust_access(version_id, allow) & GLOBAL_ACLS;
-    deny= adjust_access(version_id, deny) & GLOBAL_ACLS;
-    return access_t(privilege_t(allow),privilege_t(deny));
+    privilege_t deny= adjust_access(version_id, access.deny_bits()) & GLOBAL_ACLS;
+    privilege_t deny_sub=  adjust_access(version_id, access.deny_subtree()) & GLOBAL_ACLS;
+    return access_t((privilege_t)allow,deny,deny_sub);
   }
 
   void set_access(const privilege_t rights, bool revoke, bool is_deny) const override
@@ -9323,11 +9326,13 @@ static bool grant_load(THD *thd,
 
       std::vector<deny_entry_t> denies;
       collect_denies(user_table, denies);
-      std::vector closure= build_deny_closure(denies);
-
-      mysql_mutex_lock(&acl_cache->lock);
-      apply_deny_closure_to_caches(combo, closure);
-      mysql_mutex_unlock(&acl_cache->lock);
+      if (denies.size())
+      {
+        std::vector closure= build_deny_closure(denies);
+        mysql_mutex_lock(&acl_cache->lock);
+        apply_deny_closure_to_caches(combo, closure);
+        mysql_mutex_unlock(&acl_cache->lock);
+      }
     }
     free_root(&temp_memroot, 0);
   }
@@ -10463,7 +10468,7 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
   if (show_role_grants(thd, "", role, buff, sizeof(buff)))
     return TRUE;
 
-  if (show_all_privileges(thd, role, role->get_username(), "", buff,
+  if (show_all_privileges(thd, role, role->get_username(), "", true, buff,
                           sizeof(buff)))
     return TRUE;
 
@@ -10490,6 +10495,7 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
   bool error= false;
   ACL_USER *acl_user;
   uint head_length;
+  bool show_denies= false;
   DBUG_ENTER("mysql_show_create_user");
 
   if (!initialized)
@@ -10497,7 +10503,7 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
     DBUG_RETURN(TRUE);
   }
-  if (get_show_user(thd, lex_user, &username, &hostname, NULL))
+  if (get_show_user(thd, lex_user, &username, &hostname, NULL, &show_denies))
     DBUG_RETURN(TRUE);
 
   List<Item> field_list;
@@ -10603,6 +10609,13 @@ void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
   fields->push_back(field, thd->mem_root);
 }
 
+/* Check if user has any denies at all */
+static bool has_any_denies(Security_context *sctx)
+{
+  const access_t &access= sctx->master_access;
+  return access.deny_bits() || access.deny_subtree();
+}
+
 /** checks privileges for SHOW GRANTS and SHOW CREATE USER
 
   @note that in case of SHOW CREATE USER the parser guarantees
@@ -10610,29 +10623,30 @@ void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
   be assigned to
 */
 bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
-                   const char **hostname, const char **rolename)
+                   const char **hostname, const char **rolename, bool* show_denies)
 {
+  Security_context *sctx= thd->security_ctx;
+  bool do_check_access;
+  *show_denies= false;
+
   if (lex_user->user.str == current_user.str)
   {
     *username= thd->security_ctx->priv_user;
     *hostname= thd->security_ctx->priv_host;
-    return 0;
+    goto check_show_own_denies;
   }
   if (lex_user->user.str == current_role.str)
   {
     *rolename= thd->security_ctx->priv_role;
-    return 0;
+    goto check_show_own_denies;
   }
   if (lex_user->user.str == current_user_and_current_role.str)
   {
     *username= thd->security_ctx->priv_user;
     *hostname= thd->security_ctx->priv_host;
     *rolename= thd->security_ctx->priv_role;
-    return 0;
+    goto check_show_own_denies;
   }
-
-  Security_context *sctx= thd->security_ctx;
-  bool do_check_access;
 
   if (!(lex_user= get_current_user(thd, lex_user)))
     return 1;
@@ -10648,15 +10662,28 @@ bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
     *hostname= lex_user->host.str;
     do_check_access= strcmp(*username, sctx->priv_user) ||
                      strcmp(*hostname, sctx->priv_host);
+    if (!do_check_access)
+      goto check_show_own_denies;
   }
 
-  if (do_check_access && check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 0))
-    return 1;
+  if (do_check_access)
+  {
+    if (check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 0))
+      return 1;
+    *show_denies= true;
+    return 0;
+  }
+  *show_denies= !check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 1);
+  return 0;
+
+check_show_own_denies:
+  *show_denies = has_any_denies(thd->security_ctx) &&
+                 !check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 1);
   return 0;
 }
 
 static int show_all_privileges(THD *thd, ACL_USER_BASE *acl_user, const char *username,
-                         const char *hostname, char *buff, size_t buff_size)
+                         const char *hostname, bool show_denies, char *buff, size_t buff_size)
 {
 
   static constexpr ACL_PRIV_TYPE acl_priv_types[]= {
@@ -10671,6 +10698,8 @@ static int show_all_privileges(THD *thd, ACL_USER_BASE *acl_user, const char *us
   {
     for (bool is_deny : {false, true})
     {
+      if (is_deny && !show_denies)
+        continue;
       switch (priv_type)
       {
       case ACL_PRIV_TYPE::PRIV_TYPE_GLOBAL:
@@ -10733,6 +10762,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
   char buff[1024];
   Protocol *protocol= thd->protocol;
   const char *username= NULL, *hostname= NULL, *rolename= NULL, *end;
+  bool show_denies= false;
   DBUG_ENTER("mysql_show_grants");
 
   if (!initialized)
@@ -10741,7 +10771,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     DBUG_RETURN(TRUE);
   }
 
-  if (get_show_user(thd, lex_user, &username, &hostname, &rolename))
+  if (get_show_user(thd, lex_user, &username, &hostname, &rolename,&show_denies))
     DBUG_RETURN(TRUE);
 
   DBUG_ASSERT(rolename || username);
@@ -10779,7 +10809,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     if (show_role_grants(thd, hostname, acl_user, buff, sizeof(buff)))
       goto end;
     if (show_all_privileges(thd, acl_user, username,
-                            hostname, buff, sizeof(buff)))
+                            hostname, show_denies, buff, sizeof(buff)))
       goto end;
     if (show_proxy_grants(thd, username, hostname, buff, sizeof(buff)))
       goto end;

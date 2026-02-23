@@ -134,7 +134,7 @@ access_t get_column_grant(THD *thd, GRANT_INFO *grant,
                              const char *db_name, const char *table_name,
                              const Lex_ident_column &field_name);
 bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
-                   const char **hostname, const char **rolename);
+                   const char **hostname, const char **rolename, bool *show_denies);
 void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
                                   const char *name, size_t length);
 bool mysql_show_grants(THD *thd, LEX_USER *user);
