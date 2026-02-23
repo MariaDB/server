@@ -1,0 +1,22 @@
+# CALL with positional and named parameters.
+
+--echo # Create procedure with 2 params
+delimiter |;
+CREATE PROCEDURE p1(a INT, b INT)
+BEGIN
+  SELECT a, b;
+END|
+delimiter ;|
+
+--echo # Positional call (same as before)
+CALL p1(1, 2);
+
+--echo # Named call (new syntax)
+CALL p1(a => 10, b => 20);
+
+--echo # Mixed (positional then named)
+CALL p1(100, b => 200);
+
+DROP PROCEDURE p1;
+
+--echo # Done

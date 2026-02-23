@@ -4003,6 +4003,8 @@ public:
   bool call_statement_start(THD *thd, const Qualified_ident *ident);
   bool call_statement_start_or_lvalue_assign(THD *thd,
                                              Qualified_ident *ident);
+  /** Build value_list from call_param_list (for execution/prepare). No-op if call_param_list is empty. */
+  void build_value_list_from_call_params(THD *thd);
   /*
     Create instructions for a direct call (without the CALL keyword):
       sp1;               - a schema procedure call

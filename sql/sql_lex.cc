@@ -10380,12 +10380,27 @@ bool LEX::call_statement_start_or_lvalue_assign(THD *thd,
 }
 
 
+void LEX::build_value_list_from_call_params(THD *thd)
+{
+  if (call_param_list.elements == 0)
+    return;
+  value_list.empty();
+  for (uint i= 0; i < call_param_list.elements; i++)
+  {
+    Call_param *cp= call_param_list.elem(i);
+    value_list.push_back(cp->value, thd->mem_root);
+  }
+}
+
+
 bool LEX::direct_call(THD *thd, const Qualified_ident *ident,
                       List<Item> *args)
 {
   DBUG_ASSERT(ident);
   if (!ident->spvar())
     return false; // A procedure call
+  /* So that args (value_list) is populated when used for method calls below. */
+  build_value_list_from_call_params(thd);
 
   /*
     ident->part(0) is a known SP variable.

@@ -1,0 +1,19 @@
+# Create procedure with 2 params
+CREATE PROCEDURE p1(a INT, b INT)
+BEGIN
+SELECT a, b;
+END|
+# Positional call (same as before)
+CALL p1(1, 2);
+a	b
+1	2
+# Named call (new syntax)
+CALL p1(a => 10, b => 20);
+a	b
+10	20
+# Mixed (positional then named)
+CALL p1(100, b => 200);
+a	b
+100	200
+DROP PROCEDURE p1;
+# Done

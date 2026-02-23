@@ -3497,15 +3497,23 @@ opt_sp_cparams:
         | sp_cparams  { $$= $1; }
         ;
 
+/* One CALL parameter: positional (expr) or named (ident => expr). */
+sp_call_param:
+          expr
+          {
+            Lex->value_list.push_back($1, thd->mem_root);
+          }
+        | ident ARROW_SYM expr
+          {
+            Lex->value_list.push_back($3, thd->mem_root);
+          }
+        ;
+
 sp_cparams:
-          sp_cparams ',' expr
-          {
-            ($$= $1)->push_back($3, thd->mem_root);
-          }
-        | expr
-          {
-            ($$= &Lex->value_list)->push_back($1, thd->mem_root);
-          }
+          sp_cparams ',' sp_call_param
+          { $$= &Lex->value_list; }
+        | sp_call_param
+          { $$= &Lex->value_list; }
         ;
 
 /* Stored FUNCTION parameter declaration list */
