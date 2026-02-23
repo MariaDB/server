@@ -4,6 +4,14 @@
 
 --source include/innodb_stable_estimates.inc
 
+# This test verifies that a deadlock error during join evaluation of a
+# multi-table UPDATE is properly propagated (originally the error was
+# ignored, tripping an assertion on trx->state). Both UPDATEs below wait
+# on a table they only read, so the deadlock exists only if those reads
+# take S locks. At REPEATABLE READ they are consistent (non-locking)
+# reads, hence the two transactions involved in the deadlock run at
+# SERIALIZABLE, where the read-only tables keep their S locks.
+
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
 --enable_query_log
@@ -38,6 +46,7 @@ SET DEBUG_SYNC='now SIGNAL con1_dml';
 
 --connect (con1,localhost,root,,test)
 SET DEBUG_SYNC='now WAIT_FOR con1_dml';
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 begin;
 SELECT * FROM t1 for update; # Holds x lock of all records in the table t1
 SET DEBUG_SYNC='now SIGNAL default_dml';
@@ -45,6 +54,7 @@ SET DEBUG_SYNC='now SIGNAL con2_dml';
 
 --connection default
 SET DEBUG_SYNC='now WAIT_FOR default_dml';
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 --send UPDATE t3 AS alias1 LEFT JOIN t3 AS alias2 ON ( alias1.f1 <> alias1.f2 ) SET alias1.f3 = 59 WHERE ( EXISTS ( SELECT t1.f3 FROM t1 WHERE t1.f1 = alias1.f1 ) ) OR alias2.f1 = 'h'
 # It holds the lock of all record in t3 and tries to acquire record lock for the table  t1.
 
