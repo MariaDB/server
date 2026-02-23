@@ -4,6 +4,14 @@
 
 --source include/innodb_stable_estimates.inc
 
+# This test verifies that a deadlock error during join evaluation of a
+# multi-table UPDATE is properly propagated (originally the error was
+# ignored, tripping an assertion on trx->state). The deadlock depends
+# on the UPDATEs' read-only tables being read with S locks. With no
+# binlog or row-based binlog such reads are consistent (non-locking)
+# reads and the deadlock cannot form, so statement-based binlog is
+# enforced via the .opt file to keep the locking reads.
+
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
 --enable_query_log
