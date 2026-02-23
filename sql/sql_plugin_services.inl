@@ -59,7 +59,8 @@ static struct kill_statement_service_st thd_kill_statement_handler= {
 
 static struct thd_timezone_service_st thd_timezone_handler= {
   thd_TIME_to_gmt_sec,
-  thd_gmt_sec_to_TIME
+  thd_gmt_sec_to_TIME,
+  thd_TIME_to_str
 };
 
 static struct my_sha2_service_st my_sha2_handler = {

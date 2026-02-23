@@ -48,6 +48,7 @@ extern "C" {
 extern struct thd_timezone_service_st {
   my_time_t (*thd_TIME_to_gmt_sec)(MYSQL_THD thd, const MYSQL_TIME *ltime, unsigned int *errcode);
   void (*thd_gmt_sec_to_TIME)(MYSQL_THD thd, MYSQL_TIME *ltime, my_time_t t);
+  void (*thd_TIME_to_str)(MYSQL_THD thd, const MYSQL_TIME *ltime, const char *format, char *buf, unsigned int buf_len);
 } *thd_timezone_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -58,10 +59,14 @@ extern struct thd_timezone_service_st {
 #define thd_gmt_sec_to_TIME(thd, ltime, t) \
   (thd_timezone_service->thd_gmt_sec_to_TIME((thd), (ltime), (t)))
 
+#define thd_TIME_to_str(thd, ltime, format, buf, buf_len) \
+  (thd_timezone_service->thd_TIME_to_str((thd), (ltime), (format), (buf), (buf_len)))
+
 #else
 
 my_time_t thd_TIME_to_gmt_sec(MYSQL_THD thd, const MYSQL_TIME *ltime, unsigned int *errcode);
 void thd_gmt_sec_to_TIME(MYSQL_THD thd, MYSQL_TIME *ltime, my_time_t t);
+void thd_TIME_to_str(MYSQL_THD thd, const MYSQL_TIME *ltime, const char *format, char *buf, unsigned int buf_len);
 
 #endif
 
