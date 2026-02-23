@@ -1787,19 +1787,20 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
   else
   {
     db_access= acl_get_all3(sctx, new_db_file_name.str, FALSE);
-    db_access= db_access.combine_with_parent(sctx->master_access);
   }
 
-  if (!force&& !(db_access & DB_ACLS) &&
-      check_grant_db(thd, new_db_file_name.str))
+  if (!force)
   {
-    my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
-             sctx->priv_user,
-             sctx->priv_host,
-             new_db_file_name.str);
-    general_log_print(thd, COM_INIT_DB, ER_THD(thd, ER_DBACCESS_DENIED_ERROR),
-                      sctx->priv_user, sctx->priv_host, new_db_file_name.str);
-    DBUG_RETURN(ER_DBACCESS_DENIED_ERROR);
+    if (db_access.is_denied_all(DB_ACLS) || 
+       (!(db_access & DB_ACLS)  && check_grant_db(thd, new_db_file_name.str)))
+    {
+      my_error(ER_DBACCESS_DENIED_ERROR, MYF(0), sctx->priv_user,
+               sctx->priv_host, new_db_file_name.str);
+      general_log_print(thd, COM_INIT_DB,
+                        ER_THD(thd, ER_DBACCESS_DENIED_ERROR), sctx->priv_user,
+                        sctx->priv_host, new_db_file_name.str);
+      DBUG_RETURN(ER_DBACCESS_DENIED_ERROR);
+    }
   }
 #endif
 

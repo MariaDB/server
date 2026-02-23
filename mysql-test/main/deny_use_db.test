@@ -1,0 +1,32 @@
+--source include/no_protocol.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # check_grant_db with DENY-only entries
+--echo #
+
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (c1 INT, c2 INT);
+
+CREATE USER u1@localhost;
+DENY INSERT ON db1.t1 TO u1@localhost;
+
+connect (con1, localhost, u1,,);
+
+# Deny-only entries should not satisfy check_grant_db().
+--error ER_DBACCESS_DENIED_ERROR
+USE db1;
+
+connection default;
+GRANT SELECT (c1) ON db1.t1 TO u1@localhost;
+
+connection con1;
+# Column-level grant allows USE.
+USE db1;
+
+connection default;
+disconnect con1;
+
+DROP USER u1@localhost;
+DROP TABLE db1.t1;
+DROP DATABASE db1;

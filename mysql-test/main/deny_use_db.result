@@ -1,0 +1,19 @@
+#
+# check_grant_db with DENY-only entries
+#
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (c1 INT, c2 INT);
+CREATE USER u1@localhost;
+DENY INSERT ON db1.t1 TO u1@localhost;
+connect  con1, localhost, u1,,;
+USE db1;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'db1'
+connection default;
+GRANT SELECT (c1) ON db1.t1 TO u1@localhost;
+connection con1;
+USE db1;
+connection default;
+disconnect con1;
+DROP USER u1@localhost;
+DROP TABLE db1.t1;
+DROP DATABASE db1;

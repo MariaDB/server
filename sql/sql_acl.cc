@@ -4417,7 +4417,7 @@ access_t acl_get_all3(Security_context *sctx, const char *db,
     access|= acl_get("", "", sctx->priv_role, db, db_is_patern);
   if (acl_public)
     access|= acl_get("", "", public_name.str, db, db_is_patern);
-  return access;
+  return access.combine_with_parent(sctx->master_access);
 }
 
 
@@ -5342,6 +5342,7 @@ static bool test_if_create_new_users(THD *thd)
     create_new_users= 1;
 
     db_access= acl_get_all3(sctx, tl.db.str, FALSE);
+    tl.grant.privilege= db_access;
     if (!(db_access & INSERT_ACL))
     {
       if (check_grant(thd, INSERT_ACL, &tl, FALSE, UINT_MAX, TRUE))
@@ -6419,8 +6420,13 @@ GRANT_TABLE::GRANT_TABLE(TABLE *form, TABLE *col_privs)
       /* As column name is a string, we don't have to supply a buffer */
       res=col_privs->field[4]->val_str(&column_name);
       privilege_t priv= get_access_value_from_val_int(col_privs->field[6]);
-      if (!(mem_check = new GRANT_COLUMN(*res,
-                                         fix_rights_for_column(priv))))
+      priv= fix_rights_for_column(priv);
+      if (priv)
+      {
+        cols|= priv;
+        init_cols|= priv;
+      }
+      if (!(mem_check = new GRANT_COLUMN(*res, priv)))
       {
         /* Don't use this entry */
         privs= init_privs= access_t(NO_ACL);   /* purecov: deadcode */
@@ -10029,17 +10035,51 @@ static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
         strcmp(item->db, db) == 0 &&
         compare_hostname(&item->host, sctx->host, sctx->ip))
     {
-      return FALSE;
+      if (item->privs.certainly_allowed(ALL_KNOWN_ACL))
+        return FALSE;
+      continue;
     }
     if (sctx->priv_role[0] && strcmp(item->user, sctx->priv_role) == 0 &&
         strcmp(item->db, db) == 0 &&
         (!item->host.hostname || !item->host.hostname[0]))
     {
-      return FALSE; /* Found current role match */
+      if (item->init_privs.certainly_allowed(ALL_KNOWN_ACL))
+        return FALSE; /* Found current role match */
     }
   }
 
   return TRUE;
+}
+
+/*
+  Helper function for check_grant_db()
+
+  Check if the grant table contains some "positive"(not DENY)
+  grants for the user, for the table or any of its columns.
+  If column privileges exist in the cols bits, return true on
+  uncertainty, as long as they aren't all denied by the parent table.
+
+  Return true if some privileges are found, false otherwise.
+*/
+static bool has_some_table_privs(GRANT_TABLE *grant_table)
+{
+  const access_t &table_access= grant_table->privs;
+  /*
+    The below ignored "in-doubt" bits, deny_subtree, as we do
+    not have full info i.e about all columns.
+    Optimistically decide we'll be not affected by denies in columns.
+  */
+  privilege_t maybe_allowed=
+      table_access.allow_bits() & ~table_access.deny_bits();
+  if (maybe_allowed & TABLE_ACLS)
+    return true;
+
+  privilege_t cols= grant_table->cols;
+  if (cols != NO_ACL && table_access.is_denied(cols) != cols)
+    return true;
+
+  /* Neither table level nor, no column level grants.*/
+  return false;
 }
 
 
@@ -10087,16 +10127,23 @@ bool check_grant_db(THD *thd, const char *db)
         !memcmp(grant_table->hash_key, key.ptr(), key.length()) &&
         compare_hostname(&grant_table->host, sctx->host, sctx->ip))
     {
-      error= FALSE; /* Found match. */
-      break;
+      if (has_some_table_privs(grant_table))
+      {
+        error= FALSE; /* Found match. */
+        break;
+      }
     }
+
     if (sctx->priv_role[0] &&
         key2.length() < grant_table->key_length &&
         !memcmp(grant_table->hash_key, key2.ptr(), key2.length()) &&
         (!grant_table->host.hostname || !grant_table->host.hostname[0]))
     {
-      error= FALSE; /* Found role match */
-      break;
+      if (has_some_table_privs(grant_table))
+      {
+        error= FALSE; /* Found role match */
+        break;
+      }
     }
   }
 
@@ -14575,6 +14622,9 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
   {
     grant->privilege|= sctx->db_access;
   }
+
+  /* We'll get accurate subtree denies below, on table level*/
+  grant->privilege.set_deny_subtree(NO_ACL);
 
   /* table privileges */
   mysql_rwlock_rdlock(&LOCK_grant);

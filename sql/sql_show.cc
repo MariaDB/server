@@ -1442,7 +1442,7 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   String buffer(buff, sizeof(buff), system_charset_info);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *sctx= thd->security_ctx;
-  privilege_t db_access(NO_ACL);
+  access_t db_access(NO_ACL);
 #endif
   Schema_specification_st create;
   Protocol *protocol=thd->protocol;
@@ -1451,12 +1451,11 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (test_all_bits(sctx->master_access, DB_ACLS))
-    db_access=DB_ACLS;
+    db_access= access_t(DB_ACLS);
   else
-    db_access= (acl_get_all3(sctx, dbname->str, FALSE) |
-               sctx->master_access).certainly_allowed(ALL_KNOWN_ACL);
+    db_access= acl_get_all3(sctx, dbname->str, FALSE);
 
-  if (!(db_access & DB_ACLS) && check_grant_db(thd,dbname->str))
+  if (!(db_access & DB_ACLS) && !db_access.is_denied_all(DB_ACLS) && check_grant_db(thd,dbname->str))
   {
     status_var_increment(thd->status_var.access_denied_errors);
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
@@ -5397,7 +5396,7 @@ static privilege_t get_schema_privileges_for_show(THD *thd, TABLE_LIST *tables,
   if (thd->col_access & need)
     return thd->col_access & need;
 
-  privilege_t all3= acl_get_all3(thd->security_ctx, tables->db.str, 0).certainly_allowed(need);
+  access_t all3= acl_get_all3(thd->security_ctx, tables->db.str, 0).certainly_allowed(need);
   if (all3 & need)
     return all3 & need;
 

@@ -69,7 +69,7 @@ DROP USER u@localhost;
 # Package / package body DENY
 #
 CREATE USER u@localhost;
-GRANT EXECUTE ON PACKAGE BODY test.pkg1 TO u@localhost;
+GRANT EXECUTE,GRANT OPTION ON PACKAGE BODY test.pkg1 TO u@localhost;
 DENY EXECUTE ON PACKAGE BODY test.pkg1 TO u@localhost;
 connect  con1, localhost, u,,test;
 CALL pkg1.p1();

@@ -821,6 +821,11 @@ public:
   {
     return (privilege_t) (m_deny_bits & priv);
   }
+  bool is_denied_all(privilege_t priv) const
+  {
+    return (m_deny_bits & priv) == priv;
+  }
+
   /**
    Check if privilege is explicitly denied at THIS level (deny_bits only).
    Ignores deny_subtree - only checks explicit denies at this level.
