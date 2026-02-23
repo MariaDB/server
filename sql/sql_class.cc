@@ -3441,12 +3441,18 @@ bool select_send::send_eof()
   if (unlikely(thd->lex->sql_command != SQLCOM_SELECT))
     goto end;                                   // For DELETE RETURNING
 
-  if (likely(!thd->transaction->stmt.is_trx_read_write()))
+  if (likely(!thd->transaction->stmt.is_trx_read_write()) &&
+      thd->lex->first_select_lex()->select_lock == st_select_lex::NONE)
   {
     /*
-      We are executing a readonly statement. Send the result to the
-      client so that it can process the data while the server is doing
-      cleanups.
+      We are executing a readonly, non-locking statement. Send the result
+      to the client so that it can process the data while the server is
+      doing cleanups.
+      We must not send OK early for SELECT ... FOR UPDATE or
+      SELECT ... LOCK IN SHARE MODE because their locks are released
+      during the cleanup (in external_lock(F_UNLCK) -> autocommit).
+      Sending OK before that creates a race where another connection
+      using NOWAIT could see the still-held locks.
     */
     thd->push_final_warnings();
     thd->update_server_status();       // Needed for slow query status
