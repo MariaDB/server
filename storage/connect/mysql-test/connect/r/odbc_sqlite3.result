@@ -4,6 +4,8 @@ t1	CREATE TABLE `t1` (
   `Attributes` varchar(256) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='ODBC' `CATFUNC`='Drivers'
 SET NAMES utf8;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC SRCDEF='SELECT %s, %d FROM t1' CONNECTION='Driver=SQLite3;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;;
+ERROR HY000: SQLExecDirect: [SQLite]near "%": syntax error (1)
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;;
 SHOW CREATE TABLE t1;
 Table	Create Table
