@@ -41,7 +41,7 @@ Created Apr 25, 2012 Vasil Dimov
 #include <vector>
 
 /** Minimum time interval between stats recalc for a given table */
-#define MIN_RECALC_INTERVAL	10 /* seconds */
+#define MIN_RECALC_INTERVAL 10 /* seconds */
 static void dict_stats_schedule(int ms);
 
 /** Protects recalc_pool */
@@ -64,9 +64,9 @@ typedef std::vector<recalc, ut_allocator<recalc>> recalc_pool_t;
 
 /** Pool where we store information on which tables are to be processed
 by background statistics gathering. */
-static recalc_pool_t		recalc_pool;
+static recalc_pool_t    recalc_pool;
 /** Whether the global data structures have been initialized */
-static bool			stats_initialised;
+static bool     stats_initialised;
 
 static THD *dict_stats_thd;
 
@@ -75,9 +75,9 @@ Free the resources occupied by the recalc pool, called once during
 thread de-initialization. */
 static void dict_stats_recalc_pool_deinit()
 {
-	ut_ad(!srv_read_only_mode);
+  ut_ad(!srv_read_only_mode);
 
-	recalc_pool.clear();
+  recalc_pool.clear();
         /*
           recalc_pool may still have its buffer allocated. It will free it when
           its destructor is called.
@@ -86,11 +86,13 @@ static void dict_stats_recalc_pool_deinit()
           memory.  To avoid that, we force recalc_pool to surrender its buffer
           to empty_pool object, which will free it when leaving this function:
         */
-	recalc_pool_t recalc_empty_pool;
-	recalc_pool.swap(recalc_empty_pool);
+  recalc_pool_t recalc_empty_pool;
+  recalc_pool.swap(recalc_empty_pool);
 
-	if (dict_stats_thd)
-		destroy_background_thd(dict_stats_thd);
+  if (dict_stats_thd) {
+    destroy_background_thd(dict_stats_thd);
+    dict_stats_thd = nullptr;
+  }
 }
 
 /*****************************************************************//**
@@ -120,78 +122,78 @@ static void dict_stats_recalc_pool_add(table_id_t id)
 
 /** Update the table modification counter and if necessary,
 schedule new estimates for table and index statistics to be calculated.
-@param[in,out]	table	persistent or temporary table
-@param[in,out]	thd	current session */
+@param[in,out]  table persistent or temporary table
+@param[in,out]  thd current session */
 void dict_stats_update_if_needed(dict_table_t *table, trx_t &trx) noexcept
 {
         uint32_t stat{table->stat};
 
-	if (UNIV_UNLIKELY(!table->stat_initialized(stat))) {
-		/* The table may have been evicted from dict_sys
-		and reloaded internally by InnoDB for FOREIGN KEY
-		processing, but not reloaded by the SQL layer.
+  if (UNIV_UNLIKELY(!table->stat_initialized(stat))) {
+    /* The table may have been evicted from dict_sys
+    and reloaded internally by InnoDB for FOREIGN KEY
+    processing, but not reloaded by the SQL layer.
 
-		We can (re)compute the transient statistics when the
-		table is actually loaded by the SQL layer.
+    We can (re)compute the transient statistics when the
+    table is actually loaded by the SQL layer.
 
-		Note: If InnoDB persistent statistics are enabled,
-		we will skip the updates. We must do this, because
-		dict_table_get_n_rows() below assumes that the
-		statistics have been initialized. The DBA may have
-		to execute ANALYZE TABLE. */
-		return;
-	}
+    Note: If InnoDB persistent statistics are enabled,
+    we will skip the updates. We must do this, because
+    dict_table_get_n_rows() below assumes that the
+    statistics have been initialized. The DBA may have
+    to execute ANALYZE TABLE. */
+    return;
+  }
 
-	ulonglong	counter = table->stat_modified_counter++;
-	ulonglong	n_rows = dict_table_get_n_rows(table);
+  ulonglong counter = table->stat_modified_counter++;
+  ulonglong n_rows = dict_table_get_n_rows(table);
 
-	if (table->stats_is_persistent(stat)) {
-		if (table->stats_is_auto_recalc(stat)
-		    && counter > n_rows / 10 && !table->name.is_temporary()) {
+  if (table->stats_is_persistent(stat)) {
+    if (table->stats_is_auto_recalc(stat)
+        && counter > n_rows / 10 && !table->name.is_temporary()) {
 #ifdef WITH_WSREP
-			/* Do not add table to background
-			statistic calculation if this thread is not a
-			applier (as all DDL, which is replicated (i.e
-			is binlogged in master node), will be executed
-			with high priority (a.k.a BF) in slave nodes)
-			and is BF. This could again lead BF lock
-			waits in applier node but it is better than
-			no persistent index/table statistics at
-			applier nodes. TODO: allow BF threads
-			wait for these InnoDB internal SQL-parser
-			generated row locks and allow BF thread
-			lock waits to be enqueued at head of waiting
-			queue. */
-			if (trx.is_wsrep()
-			    && !wsrep_thd_is_applying(trx.mysql_thd)
-			    && wsrep_thd_is_BF(trx.mysql_thd, 0)) {
-				WSREP_DEBUG("Avoiding background statistics"
-					    " calculation for table %s.",
-					table->name.m_name);
-				return;
-			}
+      /* Do not add table to background
+      statistic calculation if this thread is not a
+      applier (as all DDL, which is replicated (i.e
+      is binlogged in master node), will be executed
+      with high priority (a.k.a BF) in slave nodes)
+      and is BF. This could again lead BF lock
+      waits in applier node but it is better than
+      no persistent index/table statistics at
+      applier nodes. TODO: allow BF threads
+      wait for these InnoDB internal SQL-parser
+      generated row locks and allow BF thread
+      lock waits to be enqueued at head of waiting
+      queue. */
+      if (trx.is_wsrep()
+          && !wsrep_thd_is_applying(trx.mysql_thd)
+          && wsrep_thd_is_BF(trx.mysql_thd, 0)) {
+        WSREP_DEBUG("Avoiding background statistics"
+              " calculation for table %s.",
+          table->name.m_name);
+        return;
+      }
 #endif /* WITH_WSREP */
 
-			dict_stats_recalc_pool_add(table->id);
-			table->stat_modified_counter = 0;
-		}
-		return;
-	}
+      dict_stats_recalc_pool_add(table->id);
+      table->stat_modified_counter = 0;
+    }
+    return;
+  }
 
-	/* Calculate new statistics if 1 / 16 of table has been modified
-	since the last time a statistics batch was run.
-	We calculate statistics at most every 16th round, since we may have
-	a counter table which is very small and updated very often. */
-	ulonglong threshold = 16 + n_rows / 16; /* 6.25% */
+  /* Calculate new statistics if 1 / 16 of table has been modified
+  since the last time a statistics batch was run.
+  We calculate statistics at most every 16th round, since we may have
+  a counter table which is very small and updated very often. */
+  ulonglong threshold = 16 + n_rows / 16; /* 6.25% */
 
-	if (srv_stats_modified_counter) {
-		threshold = std::min(srv_stats_modified_counter, threshold);
-	}
+  if (srv_stats_modified_counter) {
+    threshold = std::min(srv_stats_modified_counter, threshold);
+  }
 
-	if (counter > threshold) {
-		/* this will reset table->stat_modified_counter to 0 */
-		dict_stats_update_transient(&trx, table);
-	}
+  if (counter > threshold) {
+    /* this will reset table->stat_modified_counter to 0 */
+    dict_stats_update_transient(&trx, table);
+  }
 }
 
 /** Delete a table from the auto recalc pool, and ensure that
@@ -255,17 +257,17 @@ Free resources allocated by dict_stats_init(), must be called
 after dict_stats task has exited. */
 void dict_stats_deinit()
 {
-	if (!stats_initialised) {
-		return;
-	}
+  if (!stats_initialised) {
+    return;
+  }
 
-	ut_ad(!srv_read_only_mode);
-	stats_initialised = false;
+  ut_ad(!srv_read_only_mode);
+  stats_initialised = false;
 
-	dict_stats_recalc_pool_deinit();
+  dict_stats_recalc_pool_deinit();
 
-	mysql_mutex_destroy(&recalc_pool_mutex);
-	pthread_cond_destroy(&recalc_pool_cond);
+  mysql_mutex_destroy(&recalc_pool_mutex);
+  pthread_cond_destroy(&recalc_pool_cond);
 }
 
 /**
@@ -391,6 +393,12 @@ static void dict_stats_func(void*)
 void dict_stats_start()
 {
   DBUG_ASSERT(!dict_stats_timer);
+  
+  // Safely create the THD once during startup
+  if (!dict_stats_thd) {
+    dict_stats_thd = innobase_create_background_thd("InnoDB statistics");
+  }
+
   dict_stats_timer= srv_thread_pool->create_timer(dict_stats_func);
 }
 
@@ -409,6 +417,14 @@ void dict_stats_schedule_now()
 /** Shut down the dict_stats_thread. */
 void dict_stats_shutdown()
 {
-  delete dict_stats_timer;
-  dict_stats_timer= 0;
+  if (dict_stats_timer) {
+    delete dict_stats_timer;
+    dict_stats_timer= 0;
+  }
+
+  // Safely destroy the THD during shutdown
+  if (dict_stats_thd) {
+    destroy_background_thd(dict_stats_thd);
+    dict_stats_thd = nullptr;
+  }
 }
