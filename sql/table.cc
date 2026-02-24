@@ -2270,10 +2270,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (share->db_plugin && !plugin_equals(share->db_plugin, se_plugin))
     goto err; // wrong engine (someone changed the frm under our feet?)
 
-  rec_buff_length= ALIGN_SIZE(share->reclength + 1);
+  rec_buff_length= MY_ALIGN(share->reclength + 1, RECORD_ALIGNMENT);
   share->rec_buff_length= rec_buff_length;
-  if (!(record= (uchar *) alloc_root(&share->mem_root, rec_buff_length)))
-    goto err;                          /* purecov: inspected */
+  record= record_alloc(&share->mem_root, 1);
+
   /* Mark bytes after record as not accessable to catch overrun bugs */
   MEM_NOACCESS(record + share->reclength, rec_buff_length - share->reclength);
   share->default_values= record;
@@ -4461,8 +4461,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   }
   else
   {
-    if (!(record= (uchar*) alloc_root(&outparam->mem_root,
-                                      share->rec_buff_length * records)))
+    if (!(record= share->record_alloc(&outparam->mem_root, records)))
       goto err;                                   /* purecov: inspected */
   }
 
@@ -6779,8 +6778,7 @@ bool TABLE_LIST::set_insert_values(MEM_ROOT *mem_root)
   {
     DBUG_PRINT("info", ("setting insert_value for table"));
     if (!table->insert_values &&
-        !(table->insert_values= (uchar *)alloc_root(mem_root,
-                                                   table->s->rec_buff_length)))
+        !(table->insert_values= table->s->record_alloc(mem_root, 1)))
       DBUG_RETURN(TRUE);
   }
   else

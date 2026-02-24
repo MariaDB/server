@@ -23351,6 +23351,10 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
         (*recinfo)++;
 
         /* Avoid warnings from valgrind */
+        MEM_MAKE_ADDRESSABLE(table->record[0]+ share->reclength,
+                             MARIA_UNIQUE_HASH_LENGTH);
+        MEM_MAKE_ADDRESSABLE(share->default_values+ share->reclength,
+                             MARIA_UNIQUE_HASH_LENGTH);
         bzero(table->record[0]+ share->reclength, MARIA_UNIQUE_HASH_LENGTH);
         bzero(share->default_values+ share->reclength,
               MARIA_UNIQUE_HASH_LENGTH);
