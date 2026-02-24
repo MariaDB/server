@@ -18,6 +18,7 @@
 #include <my_bit.h>
 #include "rpl_utility.h"
 #include "log_event.h"
+#include "slave.h"
 
 #if defined(MYSQL_CLIENT)
 #error MYSQL_CLIENT must not be defined here
@@ -893,7 +894,6 @@ const Type_handler *table_def::field_type_handler(uint col) const
   return Type_handler::get_handler_by_real_type(typecode);
 }
 
-
 /**
   Is the definition compatible with a table?
 
@@ -918,13 +918,15 @@ const Type_handler *table_def::field_type_handler(uint col) const
   @param tmp_table_var[out]
   Virtual temporary table for performing conversions, if necessary.
 
-  @retval true Master table is compatible with slave table.
-  @retval false Master table is not compatible with slave table.
+  @retval TABLE_COMPATIBLE Master table is compatible with slave table.
+  @retval TABLE_INCOMPATIBLE Master table is not compatible with slave table
+  and error is not ignored, abort replication.
+  @retval TABLE_INCOMPATIBLE_IGNORED Master table is not compatible with slave
+  table but error is ignored, skip event.
 */
-bool
-table_def::compatible_with(THD *thd, rpl_group_info *rgi,
-                           TABLE *table, TABLE **conv_table_var)
-  const
+table_def::enum_compatibility_master_slave
+table_def::compatible_with(THD *thd, rpl_group_info *rgi, TABLE *table,
+                           TABLE **conv_table_var) const
 {
   /*
     We only check the initial columns for the tables.
@@ -945,11 +947,12 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
                       field->table->s->db.str,
                       field->table->s->table_name.str,
                       field->field_name.str);
-      return false;
+      return TABLE_INCOMPATIBLE;
     }
 
     if (!h)
-      return false; // An unknown data type found in the binary log
+      return TABLE_INCOMPATIBLE; // An unknown data type found in the binary
+                                 // log
     Conv_source source(h, field_metadata(col), field->charset());
     enum_conv_type convtype= can_convert_field_to(field, source, rli,
                                                   Conv_param(m_flags));
@@ -970,7 +973,7 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
         */
         tmp_table= create_conversion_table(thd, rgi, table);
         if (tmp_table == NULL)
-            return false;
+          return TABLE_INCOMPATIBLE;
         /*
           Clear all fields up to, but not including, this column.
         */
@@ -983,9 +986,6 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
     }
     else
     {
-      DBUG_PRINT("debug", ("Checking column %d -"
-                           " field '%s' can not be converted",
-                           col, field->field_name.str));
       DBUG_ASSERT(col < size() && col < table->s->fields);
       DBUG_ASSERT(table->s->db.str && table->s->table_name.str);
       DBUG_ASSERT(table->in_use);
@@ -999,11 +999,28 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
       field->sql_rpl_type(&target_type);
       DBUG_ASSERT(source_type.length() > 0);
       DBUG_ASSERT(target_type.length() > 0);
+
+      if (ignored_error_code(ER_SLAVE_CONVERSION_FAILED))
+      {
+        DBUG_PRINT("debug", ("Checking column %d -"
+                             " field '%s' can not be converted. Error 1677 is "
+                             "ignored, event is skipped",
+                             col, field->field_name.str));
+        rli->report(WARNING_LEVEL, ER_SLAVE_CONVERSION_FAILED,
+                    rgi->gtid_info(), ER_THD(thd, ER_SLAVE_CONVERSION_FAILED),
+                    col, table->s->db.str, table->s->table_name.str,
+                    field->field_name.str);
+        return TABLE_INCOMPATIBLE_IGNORED;
+      }
+
+      DBUG_PRINT("debug", ("Checking column %d -"
+                           " field '%s' can not be converted",
+                           col, field->field_name.str));
       rli->report(ERROR_LEVEL, ER_SLAVE_CONVERSION_FAILED, rgi->gtid_info(),
                   ER_THD(thd, ER_SLAVE_CONVERSION_FAILED),
                   col, db_name, tbl_name,
                   source_type.c_ptr_safe(), target_type.c_ptr_safe());
-      return false;
+      return TABLE_INCOMPATIBLE;
     }
   }
 
@@ -1028,7 +1045,7 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
 #endif
 
   *conv_table_var= tmp_table;
-  return true;
+  return TABLE_COMPATIBILE;
 }
 
 
