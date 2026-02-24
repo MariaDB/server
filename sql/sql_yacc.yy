@@ -14656,6 +14656,11 @@ backup_statements:
 	    /* Table list is empty for unlock */
             Lex->sql_command= SQLCOM_BACKUP_LOCK;
           }
+        | SERVER_SYM TO_SYM TEXT_STRING_sys
+          {
+            Lex->sql_command= SQLCOM_BACKUP_SERVER;
+            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_backup($3);
+          }
         ;
 
 opt_delete_gtid_domain:

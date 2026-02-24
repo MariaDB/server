@@ -3464,6 +3464,7 @@ SHOW_VAR com_status_vars[]= {
   {"assign_to_keycache",   STMT_STATUS(SQLCOM_ASSIGN_TO_KEYCACHE)},
   {"backup",               STMT_STATUS(SQLCOM_BACKUP)},
   {"backup_lock",          STMT_STATUS(SQLCOM_BACKUP_LOCK)},
+  {"backup_server",        STMT_STATUS(SQLCOM_BACKUP_SERVER)},
   {"begin",                STMT_STATUS(SQLCOM_BEGIN)},
   {"binlog",               STMT_STATUS(SQLCOM_BINLOG_BASE64_EVENT)},
   {"call_procedure",       STMT_STATUS(SQLCOM_CALL)},

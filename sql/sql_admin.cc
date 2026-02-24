@@ -1664,3 +1664,13 @@ wsrep_error_label:
 error:
   DBUG_RETURN(res);
 }
+
+bool Sql_cmd_backup::execute(THD *thd)
+{
+  if (check_global_access(thd, RELOAD_ACL))
+    return true;
+  my_error(ER_NOT_SUPPORTED_YET, MYF(0), "BACKUP SERVER");
+  return true;
+  my_ok(thd);
+  return false;
+}

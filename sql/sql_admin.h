@@ -114,4 +114,23 @@ public:
   }
 };
 
+
+/** BACKUP SERVER */
+class Sql_cmd_backup : public Sql_cmd
+{
+  /** target directory */
+  const LEX_CSTRING target;
+
+public:
+  explicit Sql_cmd_backup(LEX_CSTRING target) : target(target) {}
+  ~Sql_cmd_backup() = default;
+
+  bool execute(THD *thd) override;
+
+  enum_sql_command sql_command_code() const override
+  {
+    return SQLCOM_BACKUP_SERVER;
+  }
+};
+
 #endif
