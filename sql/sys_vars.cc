@@ -3375,6 +3375,13 @@ static bool check_server_id(sys_var *self, THD *thd, set_var *var)
     return true;
   }
 #endif /* WITH_WSREP */
+
+  if (error_if_in_trans_or_substatement(
+        thd,
+        ER_CANT_SET_SERVER_ID_IN_SUBSTATEMENT,
+        ER_CANT_SET_SERVER_ID_IN_TRANSACTION))
+    return true;
+
   return false;
 }
 
