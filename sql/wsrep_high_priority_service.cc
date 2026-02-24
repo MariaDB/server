@@ -68,9 +68,9 @@ static rpl_group_info* wsrep_relay_group_init(THD* thd, const char* log_fname)
 {
   Relay_log_info* rli= new Relay_log_info(false);
 
-  if (!rli->relay_log.description_event_for_exec)
+  if (!rli->relay_log.description_event_for_sql_thread)
   {
-    rli->relay_log.description_event_for_exec=
+    rli->relay_log.description_event_for_sql_thread=
       new Format_description_log_event(4, 0, BINLOG_CHECKSUM_ALG_OFF);
   }
 
