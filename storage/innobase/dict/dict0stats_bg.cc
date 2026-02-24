@@ -371,14 +371,18 @@ static bool is_recalc_pool_empty()
 static tpool::timer* dict_stats_timer;
 static void dict_stats_func(void*)
 {
-  if (!dict_stats_thd)
-    dict_stats_thd= innobase_create_background_thd("InnoDB statistics");
+  // Safety check: ensure the THD was created during startup
+  if (!dict_stats_thd) {
+    return;
+  }
+
   set_current_thd(dict_stats_thd);
 
   while (dict_stats_process_entry_from_recalc_pool(dict_stats_thd)) {}
 
   innobase_reset_background_thd(dict_stats_thd);
   set_current_thd(nullptr);
+  
   if (!is_recalc_pool_empty())
     dict_stats_schedule(MIN_RECALC_INTERVAL * 1000);
 }
