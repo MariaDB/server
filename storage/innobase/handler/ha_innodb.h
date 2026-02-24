@@ -177,8 +177,6 @@ public:
 
 	int extra(ha_extra_function operation) override;
 
-	int extra_opt(ha_extra_function operation, ulong arg) override;
-
 	int reset() override;
 
 	int external_lock(THD *thd, int lock_type) override;
