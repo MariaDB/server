@@ -4736,10 +4736,10 @@ static int dump_all_users_roles_and_grants()
                                     "SELECT CONCAT(QUOTE(u.user), '@', QUOTE(u.Host)) AS u "
                                     "FROM mysql.user u "
                                     " /*!80001 LEFT JOIN mysql.role_edges e "
-                                    "            ON u.user=e.from_user "
-                                    "              AND u.host=e.from_host "
+                                    "            ON u.user=e.from_user COLLATE utf8mb4_bin "
+                                    "              AND u.host=e.from_host COLLATE utf8mb4_bin "
                                     "         WHERE e.from_user IS NULL */"
-                                    " /*M!100005 WHERE is_role='N' */"))
+                                    " /*M!100005 WHERE BINARY is_role='N' */"))
     return 1;
   while ((row= mysql_fetch_row(tableres)))
   {
@@ -4806,7 +4806,7 @@ static int dump_all_users_roles_and_grants()
       "  (SELECT 1 as n, roles_mapping.*"
       "   FROM mysql.roles_mapping"
       "   JOIN mysql.user USING (user,host)"
-      "   WHERE is_role='N'"
+      "   WHERE BINARY is_role='N'"
       "     AND Admin_option='Y'"
       "   UNION SELECT c.n+1, r.*"
       "   FROM create_role_order c"
@@ -4828,16 +4828,16 @@ static int dump_all_users_roles_and_grants()
       "  (SELECT 1 AS n,"
       "          re.*"
       "   FROM mysql.role_edges re"
-      "   JOIN mysql.user u ON re.TO_HOST=u.HOST"
-      "   AND re.TO_USER = u.USER"
-      "   LEFT JOIN mysql.role_edges re2 ON re.TO_USER=re2.FROM_USER"
-      "   AND re2.TO_HOST=re2.FROM_HOST"
+      "   JOIN mysql.user u ON re.TO_HOST=u.HOST COLLATE utf8mb4_bin"
+      "   AND re.TO_USER = u.USER COLLATE utf8mb4_bin"
+      "   LEFT JOIN mysql.role_edges re2 ON re.TO_USER=re2.FROM_USER COLLATE utf8mb4_bin"
+      "   AND re2.TO_HOST=re2.FROM_HOST COLLATE utf8mb4_bin"
       "   WHERE re2.FROM_USER IS NULL"
       "   UNION SELECT c.n+1,"
       "                re.*"
       "   FROM create_role_order c"
-      "   JOIN mysql.role_edges re ON c.FROM_USER=re.TO_USER"
-      "   AND c.FROM_HOST=re.TO_HOST) "
+      "   JOIN mysql.role_edges re ON c.FROM_USER=re.TO_USER COLLATE utf8mb4_bin"
+      "   AND c.FROM_HOST=re.TO_HOST COLLATE utf8mb4_bin) "
       "SELECT CONCAT(QUOTE(FROM_USER), '/*!80001 @', QUOTE(FROM_HOST), '*/') AS r,"
       "       CONCAT(QUOTE(TO_USER), IF(n=1, CONCAT('@', QUOTE(TO_HOST)),"
       "                                 CONCAT('/*!80001 @', QUOTE(TO_HOST), ' */'))) AS u,"
@@ -4872,13 +4872,15 @@ static int dump_all_users_roles_and_grants()
   if (maria_roles_exist && mysql_query_with_error_report(mysql, &tableres,
       "select IF(default_role='', 'NONE', QUOTE(default_role)) as r,"
       "concat(QUOTE(User), '@', QUOTE(Host)) as u FROM mysql.user  "
-      "/*M!100005 WHERE is_role='N' */"))
+      "/*M!100005 WHERE BINARY is_role='N' */"))
     return 1;
   if (mysql_roles_exist && mysql_query_with_error_report(mysql, &tableres,
       "SELECT IF(DEFAULT_ROLE_HOST IS NULL, 'NONE', CONCAT(QUOTE(DEFAULT_ROLE_USER),"
       "                                                    '@', QUOTE(DEFAULT_ROLE_HOST))) as r,"
       "  CONCAT(QUOTE(mu.USER),'@',QUOTE(mu.HOST)) as u "
-      "FROM mysql.user mu LEFT JOIN mysql.default_roles using (USER, HOST)"))
+      "FROM mysql.user mu LEFT JOIN mysql.default_roles dr"
+      "  ON mu.USER = dr.USER COLLATE utf8mb4_bin"
+      "  AND mu.HOST = dr.HOST COLLATE utf8mb4_bin"))
   {
     mysql_free_result(tableres);
     return 1;
@@ -4897,7 +4899,7 @@ static int dump_all_users_roles_and_grants()
       "SELECT DISTINCT QUOTE(m.role) AS r "
       "   FROM mysql.roles_mapping m"
       "   JOIN mysql.user u ON u.user = m.role"
-      "   WHERE is_role='Y'"
+      "   WHERE BINARY is_role='Y'"
       "     AND Admin_option='Y'"
       "   ORDER BY m.role"))
     return 1;
