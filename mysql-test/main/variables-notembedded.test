@@ -7,6 +7,7 @@ source include/not_embedded.inc;
 --echo ---- Init ----
 # Backup global variables so they can be restored at end of test.
 set @my_slave_net_timeout         =@@global.slave_net_timeout;
+set @my_slave_skip_errors         =@@global.slave_skip_errors;
 
 --echo ---- Test ----
 set global slave_net_timeout=100;
@@ -29,6 +30,7 @@ set global slave_net_timeout=default;
 # value and restore it here.  That's ok, because it's normally 0.
 set global sql_slave_skip_counter= 0;
 set @@global.slave_net_timeout= @my_slave_net_timeout;
+
 
 #
 # Bug#28234 - global/session scope - documentation vs implementation
@@ -145,10 +147,11 @@ SHOW VARIABLES like 'slave_skip_errors';
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.slave_skip_errors;
 SELECT @@global.slave_skip_errors;
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
+--error ER_GLOBAL_VARIABLE
 SET @@session.slave_skip_errors= 7;
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
-SET @@global.slave_skip_errors= 7;
+SET @@global.slave_skip_errors= "7";
+SELECT @@global.slave_skip_errors;
+SET @@global.slave_skip_errors= "OFF";
 #
 
 --echo #
@@ -198,3 +201,4 @@ source include/search_pattern_in_file.inc;
 --echo #
 --echo # End of 11.3 tests
 --echo #
+set GLOBAL slave_skip_errors = @my_slave_skip_errors;

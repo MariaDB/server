@@ -6205,8 +6205,10 @@ static Sys_var_charptr Sys_slave_skip_errors(
        "slave_skip_errors", "Tells the slave thread to continue "
        "replication when a query event returns an error from the "
        "provided list",
-       READ_ONLY GLOBAL_VAR(opt_slave_skip_errors), CMD_LINE(REQUIRED_ARG),
-       DEFAULT(0));
+       GLOBAL_VAR(opt_slave_skip_errors), CMD_LINE(REQUIRED_ARG),
+       DEFAULT("OFF"), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_slave_skip_errors),
+       ON_UPDATE(update_slave_skip_errors));
 
 static Sys_var_on_access_global<Sys_var_ulonglong,
                             PRIV_SET_SYSTEM_GLOBAL_VAR_READ_BINLOG_SPEED_LIMIT>
