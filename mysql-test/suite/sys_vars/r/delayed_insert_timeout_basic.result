@@ -59,7 +59,7 @@ SELECT @@global.delayed_insert_timeout;
 SET @@session.delayed_insert_timeout = 0;
 ERROR HY000: Variable 'delayed_insert_timeout' is a GLOBAL variable and should be set with SET GLOBAL
 SELECT @@session.dalayed_insert_timeout;
-ERROR HY000: Unknown system variable 'dalayed_insert_timeout'
+ERROR HY000: Unknown system variable 'dalayed_insert_timeout', did you mean 'delayed_insert_timeout'?
 '#----------------------FN_DYNVARS_025_06------------------------#'
 SELECT @@global.delayed_insert_timeout = VARIABLE_VALUE 
 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
