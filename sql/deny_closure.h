@@ -111,5 +111,5 @@ diff_deny_closures(const std::vector<deny_entry_t> &old_closure,
  Uses correct collation for each field comparison.
 */
 
-bool deny_matches(ACL_PRIV_TYPE p1, const char *d1, const char *t1, const char *c1, 
+bool deny_matches(ACL_PRIV_TYPE p1, const char *d1, const char *t1, const char *c1,
                   ACL_PRIV_TYPE p2, const char *d2, const char *t2, const char *c2);

@@ -1054,9 +1054,9 @@ static int deny_entry_to_json(const deny_callback_data_t &entry, StringBuffer<51
 {
   json_buf.length(0);
   json_buf.append(STRING_WITH_LEN("{\"type\":\""));
-  
+
   const LEX_CSTRING &type_str= acl_priv_type_to_str(entry.type);
- 
+
   json_buf.append(type_str.str, type_str.length);
   json_buf.append('"');
   if (entry.type == PRIV_TYPE_GLOBAL)
@@ -1095,7 +1095,7 @@ end:
 
 /**
   Helper function to parse JSON object into a DENY_ENTRY structure
-  
+
   @param element       Pointer to the start of the JSON object
   @param element_len   Length of JSON object
   @param entry         DENY_ENTRY structure to populate
@@ -1106,7 +1106,7 @@ end:
   @param table_buf_len Length of table_buf
   @param column_buf    Buffer to store unescaped column name
   @param column_buf_len Length of column_buf
-  
+
   @retval 0  Success
   @retval 1  Error
 */
@@ -1158,7 +1158,7 @@ static int deny_entry_from_json(const char *element, int element_len,
    if (json_get_object_key(element, element + element_len,
                            db_term_by_priv_type(entry.type).str,
                          &field_val, &field_len) == JSV_STRING)
-  { 
+  {
     int len= json_unescape(json_charset,
                           (const uchar*)field_val,
                           (const uchar*)field_val + field_len,
@@ -1195,10 +1195,10 @@ static int deny_entry_from_json(const char *element, int element_len,
   else
     return 1; // table/routine field is mandatory for non-global, non-db
               // entries
-  
+
   if (entry.type != PRIV_TYPE_COLUMN)
     return 0; // No more fields expected for routine/table level entries
- 
+
   // Parse column name (only for column level entries)
   if (json_get_object_key(element, element + element_len, "column",
                          &field_val, &field_len) == JSV_STRING)
@@ -1217,7 +1217,7 @@ static int deny_entry_from_json(const char *element, int element_len,
     else
       return 1; // Error unescaping column name
   }
- 
+
   return 0;
 }
 
@@ -5650,7 +5650,7 @@ apply_deny_closure_to_caches(const LEX_USER &combo,
     Clear the privilege check cache (acl_cache)
   */
   acl_cache->clear(1);
-  
+
   DBUG_RETURN(0);
 }
 
@@ -5672,7 +5672,7 @@ static int collect_denies(const User_table &user_table, std::vector<deny_entry_t
   };
   return user_table.enumerate_deny_entries(collect_to_vector, &out);
 }
-  
+
 
 static int update_denies_in_user_table(const User_table &user_table,
                                     const LEX_USER &combo,
@@ -5738,14 +5738,14 @@ static int update_denies_in_user_table(const User_table &user_table,
   /* collect denies after the change, */
   std::vector<deny_entry_t> denies_after_change;
   collect_denies(user_table,denies_after_change);
-  
+
   // build the deny diff and update all affected in-memory cache entries
   // with the new deny bits and subtree deny bits
-  std::vector<deny_entry_t> diff = 
+  std::vector<deny_entry_t> diff =
       diff_deny_closure_inputs(denies_before_change, denies_after_change);
 
   apply_deny_closure_to_caches(combo, diff);
-  
+
   DBUG_RETURN(0);
 }
 
@@ -6260,7 +6260,7 @@ access_t GRANT_INFO::all_privilege()
     acc.set_allow_bits(grant_table_role->cols);
   if (grant_public)
    acc.set_allow_bits(grant_public->cols);
-  
+
   acc|= privilege;
   acc.set_deny_subtree(NO_ACL);
   return acc;
@@ -6430,7 +6430,7 @@ GRANT_TABLE::GRANT_TABLE(TABLE *form, TABLE *col_privs)
       {
         /* Don't use this entry */
         privs= init_privs= access_t(NO_ACL);   /* purecov: deadcode */
-        cols= init_cols= NO_ACL; 
+        cols= init_cols= NO_ACL;
         return;				/* purecov: deadcode */
       }
       if (my_hash_insert(&hash_columns, (uchar *) mem_check))
@@ -6583,7 +6583,7 @@ static int apply_deny_db(const LEX_USER &combo,
   const char *hostname= combo.host.str;
 
   access_t access(NO_ACL, e.denies, e.subtree_denies);
- 
+
   // Update or insert ACL_DB entry
   if (!acl_update_db(username, hostname, e.db.c_str(), access,
                     true /*is_deny*/) && !access.is_empty())
@@ -6800,7 +6800,7 @@ static int replace_column_table(GRANT_TABLE *g_t, const User_table &user_table,
   uint key_prefix_length;
   KEY_PART_INFO *key_part= table->key_info->key_part;
   DBUG_ENTER("replace_column_table");
-  
+
   if (is_deny)
   {
      if (columns.is_empty() && revoke_grant)
@@ -7316,7 +7316,7 @@ static int replace_routine_table(THD *thd, GRANT_NAME *grant_name,
       goto table_error;
   }
 
- 
+
   grant_name->init_privs.set_allow_bits(rights);
   grant_name->privs.set_allow_bits(rights);
   if (grant_name->privs.is_empty())
@@ -8461,7 +8461,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 
     /*
       If revoke_grant, calculate the new column privilege for tables_priv
-      
+
       Note for deny,we skip it, deny calculates its own "closure"
       that correctly handles all in-memory caches.
       There is also no "column priv" for deny in the table
@@ -8652,7 +8652,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
       }
     }
 
-    if (replace_routine_table(thd, grant_name,tables.user_table(), 
+    if (replace_routine_table(thd, grant_name,tables.user_table(),
           tables.procs_priv_table().table(), *Str, db_name, table_name,
           sph, rights, revoke_grant,is_deny) != 0)
     {
@@ -9296,7 +9296,7 @@ static bool grant_load(THD *thd,
         }
         // WLAD: highly suspicious code below, it fix_right_for_procedure() applied after fix_rights_for_table()
         // in  the memcheck constructor. Can't be right?
-        mem_check->privs.set_allow_bits(fix_rights_for_procedure(mem_check->privs.allow_bits())); 
+        mem_check->privs.set_allow_bits(fix_rights_for_procedure(mem_check->privs.allow_bits()));
         mem_check->init_privs= mem_check->privs;
         if (! mem_check->ok())
           delete mem_check;
@@ -9314,9 +9314,9 @@ static bool grant_load(THD *thd,
     READ_RECORD read_record_info;
     if (user_table.init_read_record(&read_record_info))
     {
-        // complain 
+        // complain
     }
-    // create temporary memroot 
+    // create temporary memroot
     MEM_ROOT temp_memroot;
     init_sql_alloc(key_memory_acl_mem, &temp_memroot, ACL_ALLOC_BLOCK_SIZE, 0,
                    MYF(0));
@@ -9783,7 +9783,7 @@ bool check_grant_column(THD *thd, GRANT_INFO *grant,
   DBUG_ENTER("check_grant_column");
   DBUG_PRINT("info", ("table: %s  want_access: %llx", table_name,
                       (longlong) grant->want_privilege));
-  
+
   want_access= grant->privilege.is_denied(grant->want_privilege);
   if (want_access)
     goto err;
@@ -9806,7 +9806,7 @@ bool check_grant_column(THD *thd, GRANT_INFO *grant,
 
 
   // column level denies are on "leaf" hierachy level, no subtree
-  DBUG_ASSERT(!acc.deny_subtree()); 
+  DBUG_ASSERT(!acc.deny_subtree());
 
   want_access= grant->want_privilege & ~acc;
   if (!want_access)
@@ -12974,7 +12974,7 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
     }
 
     privilege_t p(NO_ACL);
-    if (update_denies_in_user_table(tables.user_table(), 
+    if (update_denies_in_user_table(tables.user_table(),
           *lex_user, ALL_KNOWN_ACL, true /* revoke */,
           ACL_PRIV_TYPE::PRIV_TYPE_MAX /* indicator for revoke all*/,
           NULL,NULL,NULL,p))
@@ -13275,7 +13275,7 @@ bool sp_revoke_privileges(THD *thd,
 	lex_user.user.length= strlen(grant_proc->user);
         lex_user.host.str= safe_str(grant_proc->host.hostname);
         lex_user.host.length= strlen(lex_user.host.str);
-        if (replace_routine_table(thd, grant_proc, tables.user_table(), 
+        if (replace_routine_table(thd, grant_proc, tables.user_table(),
                                   tables.procs_priv_table().table(), lex_user,
                                   grant_proc->db, grant_proc->tname,
                                   sph, ALL_KNOWN_ACL,true,is_deny) == 0)

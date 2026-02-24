@@ -10,7 +10,7 @@ SET @q_show_denies =
    FROM mysql.global_priv
    WHERE JSON_LENGTH(JSON_EXTRACT(Priv, ''$.denies'')) > 0
    ORDER BY User, Host';
-   
+
 PREPARE show_denies FROM @q_show_denies;
 
 CREATE USER u;
@@ -70,4 +70,3 @@ DEALLOCATE PREPARE show_denies;
 DROP USER u;
 DROP DATABASE d;
 DROP TABLE sensitive_data;
-

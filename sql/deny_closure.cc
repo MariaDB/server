@@ -39,7 +39,7 @@ static int compare_ci(const LEX_CSTRING &s1, const LEX_CSTRING &s2)
                                                  s2.length);
 }
 
-/* 
+/*
   Compare 2 deny entries represented by ACL_PRIV type
   and db, table, column combo.
 */
@@ -71,8 +71,8 @@ bool deny_matches( ACL_PRIV_TYPE p1, const char* d1, const char *t1, const char 
 {
   return compare(
       p1, Lex_cstring_strlen(d1),
-      Lex_cstring_strlen(t1),Lex_cstring_strlen(c1), 
-      p2, Lex_cstring_strlen(d2), Lex_cstring_strlen(t2), 
+      Lex_cstring_strlen(t1),Lex_cstring_strlen(c1),
+      p2, Lex_cstring_strlen(d2), Lex_cstring_strlen(t2),
       Lex_cstring_strlen(c2)) == 0;
 }
 
@@ -105,7 +105,7 @@ static inline bool node_less_key(const priv_node *a,
                                  const string &column)
 {
   return compare(
-      a->data.type, to_lex(a->data.db), to_lex(a->data.table), to_lex(a->data.column), 
+      a->data.type, to_lex(a->data.db), to_lex(a->data.table), to_lex(a->data.column),
       type, to_lex(db), to_lex(table), to_lex(column)) < 0;
 }
 
@@ -116,7 +116,7 @@ static inline bool node_equal_key(const priv_node *a,
                                   const string &column)
 {
   return compare(
-      a->data.type, to_lex(a->data.db), to_lex(a->data.table), to_lex(a->data.column), 
+      a->data.type, to_lex(a->data.db), to_lex(a->data.table), to_lex(a->data.column),
       type, to_lex(db), to_lex(table), to_lex(column)) == 0;
 }
 
@@ -204,7 +204,7 @@ public:
 
     std::sort(out.begin(), out.end(), entry_less);
 
-    
+
     if (out.size() == 1 &&
       out[0].type == PRIV_TYPE_GLOBAL &&
       !out[0].denies &&
