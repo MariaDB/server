@@ -19,7 +19,7 @@
 #pragma interface			/* gcc class implementation */
 #endif
 
-/* class for the the myisam handler */
+/* class for the MyISAM handler */
 
 #include <myisam.h>
 #include <ft_global.h>

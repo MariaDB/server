@@ -265,30 +265,30 @@
  drop table t0,t1,t2;
  #
  # MDEV-11196: Error:Run-Time Check Failure #2 - Stack around the variable 'key_buff'
-@@ -755,11 +755,12 @@
-     "select_id": 1,
-     "table": {
-       "table_name": "t1",
--      "access_type": "range",
-+      "access_type": "ref",
-       "possible_keys": ["f2"],
-       "key": "f2",
--      "key_length": "3070",
--      "used_key_parts": ["f2", "pk1"],
-+      "key_length": "3066",
-+      "used_key_parts": ["f2"],
-+      "ref": ["const"],
-       "rows": 1,
-       "filtered": 100,
-       "index_condition": "t1.pk1 <= 5 and t1.pk2 <= 5 and t1.f2 = 'abc'",
-@@ -788,8 +789,8 @@
-       "access_type": "range",
-       "possible_keys": ["k1"],
-       "key": "k1",
--      "key_length": "3011",
--      "used_key_parts": ["pk1", "f2", "pk2"],
-+      "key_length": "3007",
-+      "used_key_parts": ["pk1", "f2"],
-       "rows": 1,
-       "filtered": 100,
-       "index_condition": "t1.f2 <= 5 and t1.pk2 <= 5 and t1.pk1 = 'abc'",
+@@ -768,11 +768,12 @@
+       {
+         "table": {
+           "table_name": "t1",
+-          "access_type": "range",
++          "access_type": "ref",
+           "possible_keys": ["f2"],
+           "key": "f2",
+-          "key_length": "3070",
+-          "used_key_parts": ["f2", "pk1"],
++          "key_length": "3066",
++          "used_key_parts": ["f2"],
++          "ref": ["const"],
+           "rows": 1,
+           "filtered": 100,
+           "index_condition": "t1.pk1 <= 5 and t1.pk2 <= 5 and t1.f2 = 'abc'",
+@@ -805,8 +806,8 @@
+           "access_type": "range",
+           "possible_keys": ["k1"],
+           "key": "k1",
+-          "key_length": "3011",
+-          "used_key_parts": ["pk1", "f2", "pk2"],
++          "key_length": "3007",
++          "used_key_parts": ["pk1", "f2"],
+           "rows": 1,
+           "filtered": 100,
+           "index_condition": "t1.f2 <= 5 and t1.pk2 <= 5 and t1.pk1 = 'abc'",

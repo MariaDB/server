@@ -329,6 +329,7 @@ explain
 select * from t1;
 explain format=json
 select * from t1;
+--source include/analyze-format.inc
 analyze format=json 
 select * from t1;
 drop table t1;
@@ -419,3 +420,27 @@ explain format=json select * from t1 order by a desc, b desc;
 explain format=json select * from t1 order by a desc, b ;
 drop table t1;
 
+--echo #
+--echo # MDEV-27204: [ERROR] Json_writer: a member name was expected, Assertion `got_name == named_item_expected()' failed
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2); 
+explain FORMAT=JSON 
+SELECT * FROM t1 t0 
+WHERE t0.a IN (SELECT t2.a FROM t1 t2 WHERE t0.a IN (SELECT t3.a FROM t1 t3));
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-27206: [ERROR] Duplicated key: cause, Assertion `is_uniq_key' failed with optimizer trace
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (pk TIME, b INT, primary key (pk), key (b)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES
+  ('00:13:33',0),('00:13:34',1),('00:13:35',2),('00:13:36',3),
+  ('00:13:37',4),('00:13:38',5),('00:13:39',6),('00:13:40',7),
+  ('00:13:41',8),('00:13:42',9);
+SET optimizer_trace = 'enabled=on';
+SELECT * FROM t1 WHERE a IN ( SELECT b FROM t2 INNER JOIN t1 ON (a = pk) );
+DROP TABLE t1, t2;

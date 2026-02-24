@@ -175,3 +175,12 @@ WHERE x.pk > 3;
 a
 1
 DROP TABLE t1;
+#
+# MDEV-27591 Connect tables (FIX/DOS) don't work with DESC keys - wrong results
+#
+CREATE TABLE t1 (
+id INT,
+f VARCHAR(32),
+PRIMARY KEY (id DESC)
+) ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='emp.txt';
+ERROR HY000: Descending indexes are not supported

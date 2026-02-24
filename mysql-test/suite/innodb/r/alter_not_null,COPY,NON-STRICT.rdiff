@@ -1,42 +1,79 @@
-7,8c7,8
-< affected rows: 0
-< info: Records: 0  Duplicates: 0  Warnings: 1
----
-> affected rows: 1
-> info: Records: 1  Duplicates: 0  Warnings: 1
-21,22c21,22
-< affected rows: 0
-< info: Records: 0  Duplicates: 0  Warnings: 1
----
-> affected rows: 1
-> info: Records: 1  Duplicates: 0  Warnings: 1
-35,36c35,36
-< affected rows: 0
-< info: Records: 0  Duplicates: 0  Warnings: 1
----
-> affected rows: 1
-> info: Records: 1  Duplicates: 0  Warnings: 1
-49,50c49,50
-< affected rows: 0
-< info: Records: 0  Duplicates: 0  Warnings: 1
----
-> affected rows: 1
-> info: Records: 1  Duplicates: 0  Warnings: 1
-63,64c63,64
-< affected rows: 0
-< info: Records: 0  Duplicates: 0  Warnings: 1
----
-> affected rows: 1
-> info: Records: 1  Duplicates: 0  Warnings: 1
-77,78c77,78
-< affected rows: 0
-< info: Records: 0  Duplicates: 0  Warnings: 1
----
-> affected rows: 1
-> info: Records: 1  Duplicates: 0  Warnings: 1
-98,99c98,99
-< affected rows: 0
-< info: Records: 0  Duplicates: 0  Warnings: 1
----
-> affected rows: 1
-> info: Records: 1  Duplicates: 0  Warnings: 1
+--- alter_not_null.result
++++ alter_not_null,COPY,NON-STRICT.result~
+@@ -4,8 +4,8 @@
+ f1
+ NULL
+ ALTER TABLE t1 CHANGE f1 f1 INT NOT NULL;
+-affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 1
++affected rows: 1
++info: Records: 1  Duplicates: 0  Warnings: 1
+ Warnings:
+ Warning	1265	Data truncated for column 'f1' at row 1
+ SELECT * FROM t1;
+@@ -18,8 +18,8 @@
+ f1
+ NULL
+ ALTER TABLE t1 CHANGE f1 f1 CHAR(10) NOT NULL;
+-affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 1
++affected rows: 1
++info: Records: 1  Duplicates: 0  Warnings: 1
+ Warnings:
+ Warning	1265	Data truncated for column 'f1' at row 1
+ SELECT * FROM t1;
+@@ -32,8 +32,8 @@
+ f1
+ NULL
+ ALTER TABLE t1 CHANGE f1 f1 VARCHAR(20) NOT NULL;
+-affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 1
++affected rows: 1
++info: Records: 1  Duplicates: 0  Warnings: 1
+ Warnings:
+ Warning	1265	Data truncated for column 'f1' at row 1
+ SELECT * FROM t1;
+@@ -46,8 +46,8 @@
+ f1
+ NULL
+ ALTER TABLE t1 CHANGE f1 f1 TEXT NOT NULL DEFAULT 'abc';
+-affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 1
++affected rows: 1
++info: Records: 1  Duplicates: 0  Warnings: 1
+ Warnings:
+ Warning	1265	Data truncated for column 'f1' at row 1
+ SELECT * FROM t1;
+@@ -60,8 +60,8 @@
+ f1	f2	f3
+ 2	2	NULL
+ ALTER TABLE t1 CHANGE f3 f3 INT NOT NULL DEFAULT (f1 + f2);
+-affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 1
++affected rows: 1
++info: Records: 1  Duplicates: 0  Warnings: 1
+ Warnings:
+ Warning	1265	Data truncated for column 'f3' at row 1
+ SELECT * FROM t1;
+@@ -74,8 +74,8 @@
+ f1	b
+ 10	NULL
+ ALTER TABLE t1 CHANGE b b TINYINT NOT NULL DEFAULT if(unix_timestamp()>1,1000,0);
+-affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 1
++affected rows: 1
++info: Records: 1  Duplicates: 0  Warnings: 1
+ Warnings:
+ Warning	1265	Data truncated for column 'b' at row 1
+ SELECT * FROM t1;
+@@ -95,8 +95,8 @@
+ CREATE TABLE t1(c1 INT NOT NULL, c2 INT, PRIMARY KEY(c1))ENGINE=INNODB;
+ INSERT INTO t1 VALUES(1, NULL);
+ ALTER IGNORE TABLE t1 CHANGE c2 c2 INT NOT NULL DEFAULT 2;
+-affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 1
++affected rows: 1
++info: Records: 1  Duplicates: 0  Warnings: 1
+ Warnings:
+ Warning	1265	Data truncated for column 'c2' at row 1
+ SELECT * FROM t1;

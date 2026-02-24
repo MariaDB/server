@@ -402,7 +402,7 @@ select json_length( 'true', '$.*' );
 json_length( 'true', '$.*' )
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_length'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_length'
 
 # wildcards not allowed in path expressions for this function
 error ER_INVALID_JSON_PATH_WILDCARD
@@ -410,7 +410,7 @@ select json_length( 'true', '$.foo**.bar' );
 json_length( 'true', '$.foo**.bar' )
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_length'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_length'
 select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[0]' );
 json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[0]' )
 1
@@ -691,25 +691,25 @@ select json_remove( '[ 1, 2, 3 ]', '$[*]' );
 json_remove( '[ 1, 2, 3 ]', '$[*]' )
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_remove'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_remove'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_remove( '[ 1, 2, 3 ]', '$**[2]' );
 json_remove( '[ 1, 2, 3 ]', '$**[2]' )
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_remove'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_remove'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_remove( '[ 1, 2, 3 ]', '$[2]', '$[*]' );
 json_remove( '[ 1, 2, 3 ]', '$[2]', '$[*]' )
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 3 to function 'json_remove'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 3 to function 'json_remove'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_remove( '[ 1, 2, 3 ]', '$[2]', '$**[2]' );
 json_remove( '[ 1, 2, 3 ]', '$[2]', '$**[2]' )
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 3 to function 'json_remove'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 3 to function 'json_remove'
 select json_remove( '[ 1, 2, 3 ]', '$[0]' );
 json_remove( '[ 1, 2, 3 ]', '$[0]' )
 [2, 3]
@@ -730,7 +730,7 @@ select json_remove( '[ { "a": { "a": true } } ]', '$**.a' );
 json_remove( '[ { "a": { "a": true } } ]', '$**.a' )
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_remove'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_remove'
 select json_remove( '[ { "a": true }, { "b": false }, { "c": null }, { "a": null } ]', '$[0].a', '$[2].c' );
 json_remove( '[ { "a": true }, { "b": false }, { "c": null }, { "a": null } ]', '$[0].a', '$[2].c' )
 [{}, {"b": false}, {}, {"a": null}]
@@ -739,7 +739,7 @@ select json_remove( '[ { "a": true }, { "b": [ { "c": { "a": true } }  ] }, { "c
 json_remove( '[ { "a": true }, { "b": [ { "c": { "a": true } }  ] }, { "c": null }, { "a": null } ]', '$**.a' )
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_remove'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_remove'
 select json_remove( '{"id": 123, "name": "systemQA", "array": [1, 2, 3]}', '$[0]' );
 json_remove( '{"id": 123, "name": "systemQA", "array": [1, 2, 3]}', '$[0]' )
 {"id": 123, "name": "systemQA", "array": [1, 2, 3]}
@@ -1220,7 +1220,7 @@ select json_keys('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.*.b');
 json_keys('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.*.b')
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_keys'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_keys'
 # returns [ "a", "b" ]
 SELECT JSON_KEYS('{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }');
 JSON_KEYS('{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }')
@@ -1647,7 +1647,7 @@ select json_array_append(json_compact('{"a": {"b": [3]}}'), '$**[0]', 6);
 json_array_append(json_compact('{"a": {"b": [3]}}'), '$**[0]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_array_append'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_array_append'
 # Auto-wrapping, since because the paths identify scalars.
 # should return {"a": "foo", "b": ["bar", 4], "c": ["wibble", "grape"]}
 SELECT JSON_ARRAY_APPEND('{"a": "foo", "b": "bar", "c": "wibble"}',
@@ -1678,13 +1678,13 @@ select json_array_append( '[[], [], []]', '$[*]', 3, '$[*]', 4);
 json_array_append( '[[], [], []]', '$[*]', 3, '$[*]', 4)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_array_append'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_array_append'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_array_append( '[[], "not array", []]', '$[*]', 3, '$[*]', 4);
 json_array_append( '[[], "not array", []]', '$[*]', 3, '$[*]', 4)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_array_append'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_array_append'
 SELECT JSON_ARRAY_APPEND
 (
 '{ "a" : "foo", "b" : "bar", "c" : "wibble" }',
@@ -1785,73 +1785,73 @@ select json_insert(json_compact('{"a": [1], "b": 2}'), '$.*[1]', 6);
 json_insert(json_compact('{"a": [1], "b": 2}'), '$.*[1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_insert(json_compact('{"a": 1, "b": 2}'), '$.*[1]', 6);
 json_insert(json_compact('{"a": 1, "b": 2}'), '$.*[1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_insert(json_compact('{"a": {"b": 3}}'),   '$.a.*[1]', 6);
 json_insert(json_compact('{"a": {"b": 3}}'),   '$.a.*[1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_insert(json_compact('{"a": {"b": [3]}}'), '$.a.*[1]', 6);
 json_insert(json_compact('{"a": {"b": [3]}}'), '$.a.*[1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_insert(json_compact('{"a": {"b": 3}}'),   '$**[1]', 6);
 json_insert(json_compact('{"a": {"b": 3}}'),   '$**[1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_insert(json_compact('{"a": {"b": [3]}}'), '$**[1]', 6);
 json_insert(json_compact('{"a": {"b": [3]}}'), '$**[1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_insert(json_compact('[1]'), '$[*][1]', 6);
 json_insert(json_compact('[1]'), '$[*][1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_insert(json_compact('[1]'), '$**[1]', 6);
 json_insert(json_compact('[1]'), '$**[1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_insert(json_compact('[1, [2], 3]'), '$[*][1]', 6);
 json_insert(json_compact('[1, [2], 3]'), '$[*][1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_insert(json_compact('[1, [2], 3]'), '$**[1]', 6);
 json_insert(json_compact('[1, [2], 3]'), '$**[1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_insert(json_compact('[[1]]'), '$[*][1]', 6);
 json_insert(json_compact('[[1]]'), '$[*][1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_insert(json_compact('[[1]]'), '$**[1]', 6);
 json_insert(json_compact('[[1]]'), '$**[1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_insert'
 select json_insert(json_compact('{"a": 3}'), '$[1]', 6);
 json_insert(json_compact('{"a": 3}'), '$[1]', 6)
 [{"a": 3}, 6]
@@ -2063,19 +2063,19 @@ select json_insert('[]', '$.a.*[1]', 6);
 json_insert('[]', '$.a.*[1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_insert('[]', '$**[1]', 6);
 json_insert('[]', '$**[1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_insert('[]', '$[*][1]', 6);
 json_insert('[]', '$[*][1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_insert'
 select json_array_insert( '[ 1, 2, 3 ]', '$[1]', true, '$[1]', false );
 json_array_insert( '[ 1, 2, 3 ]', '$[1]', true, '$[1]', false )
 [1, false, true, 2, 3]
@@ -2164,7 +2164,7 @@ select json_set(json_compact('{"a": {"b": [3]}}'), '$**[1]', 6);
 json_set(json_compact('{"a": {"b": [3]}}'), '$**[1]', 6)
 NULL
 Warnings:
-Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_set'
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_set'
 SELECT JSON_SET('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
 '$.a',
 JSON_OBJECT());
@@ -2886,7 +2886,7 @@ json_unquote(json_compact('["a", "b", "c"]'))
 ["a", "b", "c"]
 select charset(json_unquote('"abc"'));
 charset(json_unquote('"abc"'))
-utf8mb3
+utf8mb4
 select json_quote(convert(X'e68891' using utf8));
 json_quote(convert(X'e68891' using utf8))
 "我"

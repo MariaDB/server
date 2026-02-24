@@ -354,6 +354,11 @@ opt_calc_index_goodness(
 	n_fields = dict_index_get_n_unique_in_tree(index);
 
 	for (j = 0; j < n_fields; j++) {
+		if (UNIV_UNLIKELY(index->fields[j].descending)) {
+			/* The internal InnoDB SQL parser does not
+			work with indexes that use DESC order. */
+			return 0;
+		}
 
 		col_no = dict_index_get_nth_col_no(index, j);
 

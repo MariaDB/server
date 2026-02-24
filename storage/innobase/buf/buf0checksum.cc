@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,7 +26,6 @@ Created Aug 11, 2011 Vasil Dimov
 
 #include "buf0checksum.h"
 #include "fil0fil.h"
-#include "ut0crc32.h"
 #include "ut0rnd.h"
 
 #ifndef UNIV_INNOCHECKSUM
@@ -46,12 +45,12 @@ uint32_t buf_calc_page_crc32(const byte* page)
 	should be combined with the CRC-32 function, not with
 	exclusive OR. We stick to the current algorithm in order to
 	remain compatible with old data files. */
-	return ut_crc32(page + FIL_PAGE_OFFSET,
-			FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
-			- FIL_PAGE_OFFSET)
-		^ ut_crc32(page + FIL_PAGE_DATA,
-			   srv_page_size
-			   - (FIL_PAGE_DATA + FIL_PAGE_END_LSN_OLD_CHKSUM));
+	return my_crc32c(0, page + FIL_PAGE_OFFSET,
+			 FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+                         - FIL_PAGE_OFFSET)
+		^ my_crc32c(0, page + FIL_PAGE_DATA,
+                            srv_page_size
+                            - (FIL_PAGE_DATA + FIL_PAGE_END_LSN_OLD_CHKSUM));
 }
 
 #ifndef UNIV_INNOCHECKSUM

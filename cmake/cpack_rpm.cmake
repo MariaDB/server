@@ -2,6 +2,8 @@ IF(RPM)
 
 MESSAGE(STATUS "CPackRPM building with RPM configuration: ${RPM}")
 
+INCLUDE(check_linker_flag)
+
 SET(CPACK_GENERATOR "RPM")
 SET(CPACK_RPM_PACKAGE_DEBUG 1)
 SET(CPACK_PACKAGING_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
@@ -51,6 +53,19 @@ SET(CPACK_RPM_PACKAGE_RELOCATABLE FALSE)
 SET(CPACK_PACKAGE_RELOCATABLE FALSE)
 SET(CPACK_RPM_PACKAGE_GROUP "Applications/Databases")
 SET(CPACK_RPM_PACKAGE_URL ${CPACK_PACKAGE_URL})
+
+# The spec file depends on environment variables
+SET(ENV{RPM_PACKAGE_NAME}    ${CPACK_RPM_PACKAGE_NAME})
+EXECUTE_PROCESS(COMMAND rpm --eval ${CPACK_RPM_PACKAGE_RELEASE} OUTPUT_VARIABLE RPM_PACKAGE_RELEASE_EXPANDED)
+STRING(STRIP "${RPM_PACKAGE_RELEASE_EXPANDED}" RPM_PACKAGE_RELEASE_EXPANDED)
+SET(ENV{RPM_PACKAGE_RELEASE} ${RPM_PACKAGE_RELEASE_EXPANDED})
+SET(ENV{RPM_ARCH}            ${CMAKE_SYSTEM_PROCESSOR})
+SET(ENV{RPM_PACKAGE_VERSION} ${SERVER_VERSION})
+MY_CHECK_AND_SET_LINKER_FLAG("-specs=/usr/lib/rpm/redhat/redhat-package-notes")
+IF(HAVE_LINK_FLAG__specs_/usr/lib/rpm/redhat/redhat_package_notes)
+  SET(CMAKE_CXX_LINKER_LAUNCHER "env;RPM_PACKAGE_NAME=$ENV{RPM_PACKAGE_NAME};RPM_ARCH=$ENV{RPM_ARCH};RPM_PACKAGE_VERSION=$ENV{RPM_PACKAGE_VERSION};RPM_PACKAGE_RELEASE=$ENV{RPM_PACKAGE_RELEASE}")
+  SET(CMAKE_C_LINKER_LAUNCHER ${CMAKE_CXX_LINKER_LAUNCHER})
+ENDIF()
 
 SET(CPACK_RPM_shared_PACKAGE_VENDOR "MariaDB Corporation Ab")
 SET(CPACK_RPM_shared_PACKAGE_LICENSE "LGPLv2.1")
@@ -165,7 +180,7 @@ SET(ignored
 SET(CPACK_RPM_server_USER_FILELIST
     ${ignored}
     "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*"
-    "%config(noreplace) ${INSTALL_SYSCONFDIR}/logrotate.d/mysql"
+    "%config(noreplace) ${INSTALL_SYSCONFDIR}/logrotate.d/mariadb"
     )
 SET(CPACK_RPM_common_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONFDIR}/my.cnf")
 SET(CPACK_RPM_shared_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")
@@ -195,6 +210,10 @@ SETA(CPACK_RPM_client_PACKAGE_CONFLICTS
 
 SETA(CPACK_RPM_common_PACKAGE_CONFLICTS
   "MariaDB-server < 10.6.1")
+SETA(CPACK_RPM_common_PACKAGE_OBSOLETES
+  "mysql-common")
+SETA(CPACK_RPM_common_PACKAGE_PROVIDES
+  "mysql-common")
 
 SETA(CPACK_RPM_devel_PACKAGE_OBSOLETES
   "MySQL-devel")
@@ -229,7 +248,7 @@ IF(WITH_WSREP)
   SETA(CPACK_RPM_server_PACKAGE_REQUIRES
     "galera-4" "rsync" "grep" "gawk" "iproute"
     "coreutils" "findutils" "tar")
-  SETA(CPACK_RPM_server_PACKAGE_RECOMMENDS "lsof" "socat")
+  SETA(CPACK_RPM_server_PACKAGE_RECOMMENDS "lsof" "socat" "pv")
   SETA(CPACK_RPM_test_PACKAGE_REQUIRES "${CPACK_RPM_PACKAGE_REQUIRES}" "socat")
 ENDIF()
 
@@ -307,6 +326,9 @@ IF(RPM MATCHES "fedora")
   ALTERNATIVE_NAME("shared" "mariadb-connector-c" ${MARIADB_CONNECTOR_C_VERSION}-1)
 ENDIF()
 
+IF(RPM MATCHES "fedora|rhel|centos" AND NOT RPM MATCHES "rhel[78]")
+  SETA(CPACK_RPM_server_PACKAGE_REQUIRES "(mysql-selinux  >= 1.0.14 if selinux-policy-targeted)")
+ENDIF()
 SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
 
 # If we want to build build MariaDB-shared-compat,

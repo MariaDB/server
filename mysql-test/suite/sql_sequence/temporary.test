@@ -45,3 +45,21 @@ select nextval(s1);
 select nextval(s1);
 drop temporary sequence s1;
 --enable_ps2_protocol
+
+--echo # End of 10.6 test
+
+--echo #
+--echo # MDEV-31298 Assertion `!check_foreigns' failed in trx_mod_table_time_t* trx_t::check_bulk_buffer(dict_table_t*), Assertion `table->skip_alter_undo || !check_unique_secondary' failed in trx_t::check_bulk_buffer
+--echo #
+set foreign_key_checks=0,unique_checks=0;
+create table t1 (c1 char,index (c1)) engine=innodb;
+xa start 'a';
+insert into t1 values();
+set foreign_key_checks=1,unique_checks=1;
+--error ER_XAER_RMFAIL
+create temporary sequence f engine=innodb;
+xa end 'a';
+xa rollback 'a';
+drop table t1;
+
+--echo # End of 10.11 test

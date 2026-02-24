@@ -304,9 +304,7 @@ create user 'mysqltest_1'@'localhost' identified by 'password';
 grant select, show view on db1.`a` to 'mysqltest_1'@'localhost';
 grant select, show view on db1.`B` to 'mysqltest_1'@'localhost';
 
-connect (conn1, localhost, mysqltest_1, password, test);
-connection conn1;
-use db1;
+connect (conn1, localhost, mysqltest_1, password, db1);
 show tables;
 
 connection default;

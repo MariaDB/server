@@ -175,7 +175,7 @@ default(a) = now()
 1
 drop view v1, v2;
 drop table t1;
-create table t1 (v1 timestamp) select 'x';
+create table t1 (v1 timestamp not null default now() on update now()) select 'x';
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

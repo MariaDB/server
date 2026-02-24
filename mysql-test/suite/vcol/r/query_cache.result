@@ -1,0 +1,20 @@
+#
+# MDEV-29186 Query cache makes virtual column function RAND() non-random
+#
+set global query_cache_type=1;
+set query_cache_type=1;
+set rand_seed1=1234567890, rand_seed2=20;
+create table t1 (a int, b float as (rand()));
+insert into t1 (a) values (1);
+select * from t1;
+a	b
+1	0.449343
+select * from t1;
+a	b
+1	0.797372
+set global query_cache_type=default;
+select * from t1;
+a	b
+1	0.638829
+drop table t1;
+# End of 10.11 tests

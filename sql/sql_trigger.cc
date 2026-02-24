@@ -119,39 +119,33 @@ Trigger_creation_ctx::create(THD *thd,
   bool invalid_creation_ctx= FALSE;
   myf utf8_flag= thd->get_utf8_flag();
 
-  if (resolve_charset(client_cs_name->str,
+  if (resolve_charset(safe_str(client_cs_name),
                       thd->variables.character_set_client,
                       &client_cs, MYF(utf8_flag)))
   {
     sql_print_warning("Trigger for table '%s'.'%s': "
                       "invalid character_set_client value (%s).",
-                      (const char *) db_name,
-                      (const char *) table_name,
-                      (const char *) client_cs_name->str);
+                      db_name, table_name, safe_str(client_cs_name));
 
     invalid_creation_ctx= TRUE;
   }
 
-  if (resolve_collation(connection_cl_name->str,
+  if (resolve_collation(safe_str(connection_cl_name),
                         thd->variables.collation_connection,
                         &connection_cl,MYF(utf8_flag)))
   {
     sql_print_warning("Trigger for table '%s'.'%s': "
                       "invalid collation_connection value (%s).",
-                      (const char *) db_name,
-                      (const char *) table_name,
-                      (const char *) connection_cl_name->str);
+                      db_name, table_name, safe_str(connection_cl_name));
 
     invalid_creation_ctx= TRUE;
   }
 
-  if (resolve_collation(db_cl_name->str, NULL, &db_cl, MYF(utf8_flag)))
+  if (resolve_collation(safe_str(db_cl_name), NULL, &db_cl, MYF(utf8_flag)))
   {
     sql_print_warning("Trigger for table '%s'.'%s': "
                       "invalid database_collation value (%s).",
-                      (const char *) db_name,
-                      (const char *) table_name,
-                      (const char *) db_cl_name->str);
+                      db_name, table_name, safe_str(db_cl_name));
 
     invalid_creation_ctx= TRUE;
   }
@@ -162,8 +156,7 @@ Trigger_creation_ctx::create(THD *thd,
                         Sql_condition::WARN_LEVEL_WARN,
                         ER_TRG_INVALID_CREATION_CTX,
                         ER_THD(thd, ER_TRG_INVALID_CREATION_CTX),
-                        (const char *) db_name,
-                        (const char *) table_name);
+                        db_name, table_name);
   }
 
   /*
@@ -988,7 +981,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   /* Use the filesystem to enforce trigger namespace constraints. */
   trigger_exists= !access(trigname_file.str, F_OK);
 
-  ddl_log_create_trigger(thd, ddl_log_state, &tables->db, &tables->table_name,
+  ddl_log_create_trigger(ddl_log_state, &tables->db, &tables->table_name,
                          &lex->spname->m_name,
                          trigger_exists || table->triggers->count ?
                          DDL_CREATE_TRIGGER_PHASE_DELETE_COPY :
@@ -997,7 +990,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   /* Make a backup of the .TRG file that we can restore in case of crash */
   if (table->triggers->count &&
       (sql_backup_definition_file(&file, &backup_name) ||
-       ddl_log_delete_tmp_file(thd, ddl_log_state_tmp_file, &backup_name,
+       ddl_log_delete_tmp_file(ddl_log_state_tmp_file, &backup_name,
                                ddl_log_state)))
     DBUG_RETURN(true);
 
@@ -1009,7 +1002,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
 
       /* Make a backup of the .TRN file that we can restore in case of crash */
       if (sql_backup_definition_file(&trigname_file, &backup_name) ||
-          ddl_log_delete_tmp_file(thd, ddl_log_state_tmp_file, &backup_name,
+          ddl_log_delete_tmp_file(ddl_log_state_tmp_file, &backup_name,
                                   ddl_log_state))
         DBUG_RETURN(true);
       ddl_log_update_phase(ddl_log_state, DDL_CREATE_TRIGGER_PHASE_OLD_COPIED);
@@ -1355,7 +1348,7 @@ bool Table_triggers_list::drop_trigger(THD *thd, TABLE_LIST *tables,
       /* This code is executed in case of DROP TRIGGER */
       lex_string_set3(&query, thd->query(), thd->query_length());
     }
-    if (ddl_log_drop_trigger(thd, ddl_log_state,
+    if (ddl_log_drop_trigger(ddl_log_state,
                              &tables->db, &tables->table_name,
                              sp_name, &query))
       goto err;

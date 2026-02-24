@@ -1,5 +1,6 @@
 --source include/not_embedded.inc
 --source include/have_innodb.inc
+--source include/have_partition.inc
 
 --echo # 
 --echo # SYSTEM_VERSIONING_ASOF sysvar
@@ -49,7 +50,7 @@ create database mysqltest;
 --enable_warnings
 
 create user mysqltest_1@localhost;
-connect (user1,localhost,mysqltest_1,,test);
+connect (user1,localhost,mysqltest_1,,"*NO-ONE*");
 connection user1;
 
 connection root;
@@ -77,3 +78,30 @@ drop database mysqltest;
 --disconnect user1
 --disconnect root
 --connection default
+
+--echo #
+--echo # MDEV-25559 Auto-create: infinite loop after interrupted lock wait
+--echo #
+
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create table t (pk int primary key, a int) engine innodb with system versioning
+partition by system_time interval 1 hour auto;
+insert into t values (1, 0);
+begin;
+update t set a= a + 1;
+--connect (con1,localhost,root,,)
+set max_statement_time= 1;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+send update t set a= a + 2;
+--connection default
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+send update t set a= a + 3;
+--connection con1
+--error ER_STATEMENT_TIMEOUT
+reap;
+--disconnect con1
+--connection default
+reap;
+commit;
+drop table t;
+set timestamp= default;

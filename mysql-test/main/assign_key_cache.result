@@ -3,7 +3,7 @@ create table t1 (i int) engine=myisam partition by hash (i) partitions 2;
 xa start 'xid';
 cache index t1 partition (non_existing_partition) in my_cache;
 Table	Op	Msg_type	Msg_text
-test.t1	assign_to_keycache	error	Error in list of partitions to test.t1
+test.t1	assign_to_keycache	error	Wrong partition name or partition list
 cache index t1 partition (p1) in my_cache;
 Table	Op	Msg_type	Msg_text
 test.t1	assign_to_keycache	status	OK

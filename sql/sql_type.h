@@ -3094,6 +3094,12 @@ public:
   bool aggregate(const DTCollation &dt, uint flags= 0);
   bool set(DTCollation &dt1, DTCollation &dt2, uint flags= 0)
   { set(dt1); return aggregate(dt2, flags); }
+  bool merge_charset_and_collation(CHARSET_INFO *cs,
+                                   const Lex_extended_collation_st &cl,
+                                   my_repertoire_t repertoire);
+  bool merge_collation(const Lex_extended_collation_st &cl,
+                       my_repertoire_t repertoire,
+                       bool allow_ignorable_with_context_collation);
   const char *derivation_name() const
   {
     switch(derivation)
@@ -3420,28 +3426,21 @@ class Type_cast_attributes
   bool m_length_specified;
   bool m_decimals_specified;
 public:
-  Type_cast_attributes(const char *c_len, const char *c_dec, CHARSET_INFO *cs)
+  Type_cast_attributes(const Lex_length_and_dec_st &length_and_dec,
+                       CHARSET_INFO *cs)
     :m_charset(cs), m_length(0), m_decimals(0),
      m_length_specified(false), m_decimals_specified(false)
   {
-    set_length_and_dec(c_len, c_dec);
+    m_length= length_and_dec.length_overflowed() ? (ulonglong) UINT_MAX32 + 1 :
+                                                   length_and_dec.length();
+    m_decimals= length_and_dec.dec();
+    m_length_specified= length_and_dec.has_explicit_length();
+    m_decimals_specified= length_and_dec.has_explicit_dec();
   }
   Type_cast_attributes(CHARSET_INFO *cs)
     :m_charset(cs), m_length(0), m_decimals(0),
      m_length_specified(false), m_decimals_specified(false)
   { }
-  void set_length_and_dec(const char *c_len, const char *c_dec)
-  {
-    int error;
-    /*
-      We don't have to check for error here as sql_yacc.yy has guaranteed
-      that the values are in range of ulonglong
-    */
-    if ((m_length_specified= (c_len != NULL)))
-      m_length= (ulonglong) my_strtoll10(c_len, NULL, &error);
-    if ((m_decimals_specified= (c_dec != NULL)))
-      m_decimals= (ulonglong) my_strtoll10(c_dec, NULL, &error);
-  }
   CHARSET_INFO *charset() const { return m_charset; }
   bool length_specified() const { return m_length_specified; }
   bool decimals_specified() const { return m_decimals_specified; }
@@ -3453,17 +3452,12 @@ public:
 class Name: private LEX_CSTRING
 {
 public:
-  Name(const char *str_arg, uint length_arg)
-  {
-    DBUG_ASSERT(length_arg < UINT_MAX32);
-    LEX_CSTRING::str= str_arg;
-    LEX_CSTRING::length= length_arg;
-  }
-  Name(const LEX_CSTRING &lcs)
-  {
-    LEX_CSTRING::str= lcs.str;
-    LEX_CSTRING::length= lcs.length;
-  }
+  constexpr Name(const char *str_arg, uint length_arg) :
+    LEX_CSTRING({str_arg, length_arg})
+  { }
+  constexpr Name(const LEX_CSTRING &lcs) :
+    LEX_CSTRING(lcs)
+  { }
   const char *ptr() const { return LEX_CSTRING::str; }
   uint length() const { return (uint) LEX_CSTRING::length; }
   const LEX_CSTRING &lex_cstring() const { return *this; }
@@ -3867,6 +3861,16 @@ public:
     const Type_handler *res= type_handler_base();
     return res ? res : this;
   }
+  /*
+    In 10.11.8 the semantics of this method has changed to the opposite.
+    It used to be called with the old data type handler as "this".
+    Now it's called with the new data type hander as "this".
+    To avoid problems during merges, the method name was renamed.
+  */
+  virtual const Type_handler *type_handler_for_implicit_upgrade() const
+  {
+    return this;
+  }
   virtual const Type_handler *type_handler_for_comparison() const= 0;
   virtual const Type_handler *type_handler_for_native_format() const
   {
@@ -3936,6 +3940,8 @@ public:
   virtual bool can_return_extract_source(interval_type type) const;
   virtual bool is_bool_type() const { return false; }
   virtual bool is_general_purpose_string_type() const { return false; }
+  virtual Type_std_attributes Item_type_std_attributes_generic(
+                                                       const Item *item) const;
   virtual decimal_digits_t Item_time_precision(THD *thd, Item *item) const;
   virtual decimal_digits_t Item_datetime_precision(THD *thd, Item *item) const;
   virtual decimal_digits_t Item_decimal_scale(const Item *item) const;
@@ -4012,9 +4018,13 @@ public:
   virtual bool validate_implicit_default_value(THD *thd,
                                                const Column_definition &def)
                                                const;
-  // Automatic upgrade, e.g. for ALTER TABLE t1 FORCE
-  virtual void Column_definition_implicit_upgrade(Column_definition *c) const
-  { }
+  /*
+    Automatic upgrade, e.g. for REPAIR or ALTER TABLE t1 FORCE
+    - from the data type specified in old->type_handler()
+    - to the data type specified in "this"
+  */
+  virtual void Column_definition_implicit_upgrade_to_this(
+                                                  Column_definition *old) const;
   // Validate CHECK constraint after the parser
   virtual bool Column_definition_validate_check_constraint(THD *thd,
                                                            Column_definition *c)
@@ -4023,7 +4033,6 @@ public:
   virtual bool Column_definition_set_attributes(THD *thd,
                                                 Column_definition *def,
                                                 const Lex_field_type_st &attr,
-                                                CHARSET_INFO *cs,
                                                 column_definition_type_t type)
                                                 const;
   // Fix attributes after the parser
@@ -4040,8 +4049,7 @@ public:
   virtual bool Column_definition_prepare_stage1(THD *thd,
                                                 MEM_ROOT *mem_root,
                                                 Column_definition *c,
-                                                handler *file,
-                                                ulonglong table_flags,
+                                                column_definition_type_t type,
                                                 const Column_derived_attributes
                                                       *derived_attr)
                                                 const;
@@ -4186,7 +4194,7 @@ public:
     @retval
       NULL      on error
     @retval
-      non-NULL  a pointer to a a valid string on success
+      non-NULL  a pointer to a valid string on success
   */
   virtual String *print_item_value(THD *thd, Item *item, String *str) const= 0;
 
@@ -4521,8 +4529,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -4836,8 +4843,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -5283,6 +5289,8 @@ public:
                      bool binary_cmp) const override;
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                      Item *a, Item *b) const override;
+  Type_std_attributes Item_type_std_attributes_generic(
+                                              const Item *item) const override;
   decimal_digits_t Item_decimal_precision(const Item *item) const override;
   bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
   bool Item_param_set_from_value(THD *thd,
@@ -5396,8 +5404,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -5500,8 +5507,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -6068,8 +6074,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -6261,7 +6266,8 @@ public:
   const Type_handler *type_handler_for_comparison() const override;
   int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
                                const override;
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
+  void Column_definition_implicit_upgrade_to_this(
+                                         Column_definition *old) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
@@ -6585,7 +6591,8 @@ public:
                              const Type_cast_attributes &attr) const override;
   bool validate_implicit_default_value(THD *thd, const Column_definition &def)
                                        const override;
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
+  void Column_definition_implicit_upgrade_to_this(
+                                         Column_definition *old) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
@@ -6723,7 +6730,8 @@ public:
   {
     return true;
   }
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
+  void Column_definition_implicit_upgrade_to_this(
+                                         Column_definition *old) const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
                                           TABLE_SHARE *share,
@@ -6912,8 +6920,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -6970,8 +6977,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -7043,7 +7049,6 @@ public:
   bool Column_definition_set_attributes(THD *thd,
                                         Column_definition *def,
                                         const Lex_field_type_st &attr,
-                                        CHARSET_INFO *cs,
                                         column_definition_type_t type)
                                         const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
@@ -7078,6 +7083,7 @@ public:
   {
     return MYSQL_TYPE_VARCHAR;
   }
+  const Type_handler *type_handler_for_implicit_upgrade() const override;
   const Type_handler *type_handler_for_tmp_table(const Item *item) const override
   {
     return varstring_type_handler(item);
@@ -7085,7 +7091,6 @@ public:
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   void show_binlog_type(const Conv_source &src, const Field &dst, String *str)
     const override;
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
@@ -7141,7 +7146,6 @@ public:
   bool Column_definition_set_attributes(THD *thd,
                                         Column_definition *def,
                                         const Lex_field_type_st &attr,
-                                        CHARSET_INFO *cs,
                                         column_definition_type_t type)
                                         const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
@@ -7411,8 +7415,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;

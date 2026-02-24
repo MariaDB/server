@@ -1,0 +1,110 @@
+#
+# Purpose:
+#   This test ensures that the slave can limit the execution time of its
+# events via the global system variable @@slave_max_statement_time.
+#
+# Methodology:
+#   This test uses the following test cases to ensure that a slave will
+# correctly limit the execution time of its events:
+#   1) Using a serial slave, the SQL thread should time out when its underlying
+#      event executes for longer than @@slave_max_statement_time.
+#   2) Using a parallel slave, a worker thread should time out when its
+#      underlying event executes for longer than @@slave_max_statement_time.
+#   3) Load-based log events (from LOAD DATA INFILE) should time out if their
+#      execution time exceeds @@slave_max_statement_time
+#   4) Locally executed long running statements should not time out due to
+#      @@slave_max_statement_time.
+#
+# References:
+#   MDEV-27161: Add option for SQL thread to limit maximum execution time per
+#               query replicated
+#
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # Set up
+--echo #
+--connection master
+SET STATEMENT sql_log_bin=0 FOR CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+SET STATEMENT sql_log_bin=0 FOR CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+--connection slave
+SET STATEMENT sql_log_bin=0 FOR CALL mtr.add_suppression("Slave log event execution was interrupted");
+SET STATEMENT sql_log_bin=0 FOR CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+SET @save_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+
+--let $with_lock= 1
+
+--echo #
+--echo # Test Case 1) Using a serial slave, the SQL thread should time out when
+--echo # its underlying event executes for longer than @@slave_max_statement_time.
+--echo #
+--source include/rpl_slave_max_statement_time.inc
+
+
+--echo #
+--echo # Test Case 2) Using a parallel slave, a worker thread should time out
+--echo # when its underlying event executes for longer than
+--echo # @@slave_max_statement_time
+--echo #
+
+--source include/stop_slave.inc
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_threads=2;
+SET GLOBAL slave_parallel_mode='optimistic';
+--source include/start_slave.inc
+
+--source include/rpl_slave_max_statement_time.inc
+
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+
+--echo #
+--echo # Test Case 3) Load-based log events (from LOAD DATA INFILE) should time
+--echo # out if their execution time exceeds @@slave_max_statement_time
+--echo #
+--let $use_load_data= 1
+--source include/rpl_slave_max_statement_time.inc
+--let $use_load_data=
+
+
+--echo #
+--echo # Test Case 4) Locally executed long running statements should not time
+--echo # out due to @@slave_max_statement_time
+--echo #
+
+--connection slave
+--source include/stop_slave.inc
+SET @old_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+SET @old_gtid_domain_id=@@GLOBAL.gtid_domain_id;
+SET @@GLOBAL.slave_max_statement_time=0.75;
+SET @@GLOBAL.gtid_domain_id=1;
+--source include/start_slave.inc
+
+CREATE TABLE t2 (a int);
+SET STATEMENT sql_log_bin=0 FOR INSERT INTO t2 SELECT SLEEP(1);
+--let $t2_count= `SELECT COUNT(*) FROM t2`
+if ($t2_count != 1)
+{
+    --die Local long running insert statement should have completed
+}
+DROP TABLE t2;
+
+--source include/stop_slave.inc
+SET GLOBAL gtid_domain_id=@old_gtid_domain_id;
+SET GLOBAL slave_max_statement_time=@old_slave_max_statement_time;
+--source include/start_slave.inc
+
+
+--echo # Cleanup
+--source include/stop_slave.inc
+SET GLOBAL slave_max_statement_time=@save_slave_max_statement_time;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc
+
+--echo # End of rpl_slave_max_statement_time.test

@@ -40,8 +40,8 @@ let $restart_noprint=2;
 --source include/wait_condition.inc
 
 # Confirm that IST did not take place
---let $assert_text = mariabackup: Using 128974848 bytes for buffer pool \(set by --use-memory parameter\)
---let $assert_select = mariabackup: Using 128974848 bytes for buffer pool \(set by --use-memory parameter\)
+--let $assert_text = mariabackup: Using 134217728 bytes for buffer pool \(set by --use-memory parameter\)
+--let $assert_select = mariabackup: Using 134217728 bytes for buffer pool \(set by --use-memory parameter\)
 --let $assert_count = 1
 --let $assert_file = $MYSQLTEST_VARDIR/mysqld.2/data/mariabackup.prepare.log
 --let $assert_only_after = Starting InnoDB instance for recovery

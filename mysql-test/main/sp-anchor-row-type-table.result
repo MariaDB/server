@@ -707,7 +707,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` text DEFAULT NULL,
-  `c` char(1) DEFAULT NULL
+  `c` varchar(1) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP PROCEDURE p2;
 DROP PROCEDURE p1;

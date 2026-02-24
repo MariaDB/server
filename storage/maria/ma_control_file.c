@@ -272,7 +272,8 @@ static int lock_control_file(const char *name, my_bool do_retry)
 
 CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
                                         my_bool print_error,
-                                        my_bool wait_for_lock)
+                                        my_bool wait_for_lock,
+                                        int open_flags)
 {
   uchar buffer[CF_MAX_SIZE];
   char name[FN_REFLEN], errmsg_buff[512];
@@ -280,7 +281,6 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
     " file is probably in use by another process";
   uint new_cf_create_time_size, new_cf_changeable_size, new_block_size;
   my_off_t file_size;
-  int open_flags= O_BINARY | /*O_DIRECT |*/ O_RDWR | O_CLOEXEC;
   int error= CONTROL_FILE_UNKNOWN_ERROR;
   DBUG_ENTER("ma_control_file_open");
 
@@ -464,6 +464,15 @@ err:
   DBUG_RETURN(error);
 }
 
+/*
+  The most common way to open the control file when writing tests
+*/
+
+CONTROL_FILE_ERROR ma_control_file_open_or_create()
+{
+  return ma_control_file_open(TRUE, TRUE, TRUE,
+                              control_file_open_flags);
+}
 
 /*
   Write information durably to the control file; stores this information into
@@ -649,7 +658,7 @@ my_bool print_aria_log_control()
   int error= CONTROL_FILE_UNKNOWN_ERROR;
   uint recovery_fails;
   File file;
-  DBUG_ENTER("ma_control_file_open");
+  DBUG_ENTER("print_aria_log_control");
 
   if (fn_format(name, CONTROL_FILE_BASE_NAME,
                 maria_data_root, "", MYF(MY_WME)) == NullS)
@@ -728,7 +737,7 @@ my_bool print_aria_log_control()
   checkpoint_lsn= lsn_korr(buffer + new_cf_create_time_size +
                            CF_LSN_OFFSET);
   logno= uint4korr(buffer + new_cf_create_time_size + CF_FILENO_OFFSET);
-  my_uuid2str(buffer + CF_UUID_OFFSET, uuid_str);
+  my_uuid2str(buffer + CF_UUID_OFFSET, uuid_str, 1);
   uuid_str[MY_UUID_STRING_LENGTH]= 0;
 
   printf("Block size:          %u\n", uint2korr(buffer + CF_BLOCKSIZE_OFFSET));

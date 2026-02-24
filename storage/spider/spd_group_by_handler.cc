@@ -12,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -991,7 +991,7 @@ spider_group_by_handler::spider_group_by_handler(
   DBUG_ENTER("spider_group_by_handler::spider_group_by_handler");
   spider = fields->get_first_table_holder()->spider;
   trx = spider->wide_handler->trx;
-  my_bitmap_init(&skips, NULL, skips1.n_bits, TRUE);
+  my_bitmap_init(&skips, NULL, skips1.n_bits);
   bitmap_copy(&skips, &skips1);
   DBUG_VOID_RETURN;
 }
@@ -1015,7 +1015,6 @@ static int spider_prepare_init_scan(
   const Query& query, MY_BITMAP *skips, spider_fields *fields, ha_spider *spider,
   SPIDER_TRX *trx, longlong& offset_limit, THD *thd)
 {
-  int error_num, link_idx;
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   st_select_lex *select_lex;
   longlong select_limit, direct_order_limit;
@@ -1042,10 +1041,6 @@ static int spider_prepare_init_scan(
 
   spider_db_free_one_result_for_start_next(spider);
 
-  spider->sql_kinds = SPIDER_SQL_KIND_SQL;
-  for (link_idx = 0; link_idx < (int) share->link_count; ++link_idx)
-    spider->sql_kind[link_idx] = SPIDER_SQL_KIND_SQL;
-
   spider->do_direct_update = FALSE;
   spider->direct_update_kinds = 0;
   spider_get_select_limit(spider, &select_lex, &select_limit, &offset_limit);
@@ -1059,9 +1054,7 @@ static int spider_prepare_init_scan(
   ) {
     result_list->internal_limit = select_limit /* + offset_limit */;
     result_list->split_read = select_limit /* + offset_limit */;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
     result_list->bgs_split_read = select_limit /* + offset_limit */;
-#endif
 
     result_list->split_read_base = 9223372036854775807LL;
     result_list->semi_split_read = 0;
@@ -1072,10 +1065,8 @@ static int spider_prepare_init_scan(
   }
   result_list->semi_split_read_base = 0;
   result_list->set_split_read = TRUE;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-  if ((error_num = spider_set_conn_bg_param(spider)))
+  if (int error_num = spider_set_conn_bg_param(spider))
     DBUG_RETURN(error_num);
-#endif
   DBUG_PRINT("info",("spider result_list.finish_flg = FALSE"));
   result_list->finish_flg = FALSE;
   result_list->record_num = 0;
@@ -1187,7 +1178,6 @@ static int spider_send_query(
     link_idx = link_idx_holder->link_idx;
     dbton_hdl = spider->dbton_handler[conn->dbton_id];
     spider->link_idx_chain = link_idx_chain;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
     if (result_list->bgs_phase > 0)
     {
       if ((error_num = spider_check_and_init_casual_read(trx->thd, spider,
@@ -1206,8 +1196,8 @@ static int spider_send_query(
         }
         DBUG_RETURN(error_num);
       }
-    } else {
-#endif
+    } else
+    {
       if ((error_num = dbton_hdl->set_sql_for_exec(
              SPIDER_SQL_TYPE_SELECT_SQL, link_idx, link_idx_chain)))
         DBUG_RETURN(error_num);
@@ -1267,9 +1257,7 @@ static int spider_send_query(
         spider_db_discard_result(spider, link_idx, conn);
         spider_unlock_after_query(conn, 0);
       }
-#ifndef WITHOUT_SPIDER_BG_SEARCH
     }
-#endif
   }
   DBUG_RETURN(0);
 }
@@ -1339,7 +1327,6 @@ int spider_group_by_handler::next_row()
           table->status = STATUS_NOT_FOUND;
         DBUG_RETURN(spider->store_error_num);
       }
-#ifndef WITHOUT_SPIDER_BG_SEARCH
       if (spider->result_list.bgs_phase > 0)
       {
         fields->set_pos_to_first_link_idx_chain();
@@ -1368,7 +1355,6 @@ int spider_group_by_handler::next_row()
           }
         }
       }
-#endif
       spider->use_pre_call = FALSE;
     }
   } else if (offset_limit)
@@ -1418,6 +1404,9 @@ group_by_handler *spider_create_group_by_handler(
   MY_BITMAP skips;
   DBUG_ENTER("spider_create_group_by_handler");
 
+  if (spider_param_disable_group_by_handler(thd))
+    DBUG_RETURN(NULL);
+
   switch (thd_sql_command(thd))
   {
     case SQLCOM_UPDATE:
@@ -1451,7 +1440,7 @@ group_by_handler *spider_create_group_by_handler(
   if (!(table_holder= spider_create_table_holder(table_count)))
     DBUG_RETURN(NULL);
 
-  my_bitmap_init(&skips, NULL, query->select->elements, TRUE);
+  my_bitmap_init(&skips, NULL, query->select->elements);
   table_idx = 0;
   from = query->from;
   if (from->table->part_info)
@@ -1727,13 +1716,6 @@ group_by_handler *spider_create_group_by_handler(
       spider->conn_link_idx, roop_count, share->link_count,
       tgt_link_status)
   ) {
-    if (spider_param_use_handler(thd, share->use_handlers[roop_count]))
-    {
-      DBUG_PRINT("info",("spider direct_join does not support use_handler"));
-      if (lock_mode)
-        goto skip_free_fields;
-      continue;
-    }
     conn = spider->conns[roop_count];
     DBUG_PRINT("info",("spider roop_count=%d", roop_count));
     DBUG_PRINT("info",("spider conn=%p", conn));
@@ -1796,13 +1778,6 @@ group_by_handler *spider_create_group_by_handler(
         tgt_link_status)
     ) {
       DBUG_PRINT("info",("spider roop_count=%d", roop_count));
-      if (spider_param_use_handler(thd, share->use_handlers[roop_count]))
-      {
-        DBUG_PRINT("info",("spider direct_join does not support use_handler"));
-        if (lock_mode)
-          goto skip_free_fields;
-        continue;
-      }
       conn = spider->conns[roop_count];
       DBUG_PRINT("info",("spider conn=%p", conn));
       if (!fields->check_conn_same_conn(conn))

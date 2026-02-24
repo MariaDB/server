@@ -18,7 +18,7 @@
 
 #include "sql_const.h"              // MAX_FIELD_VARCHARLENGTH
 #include "sql_basic_types.h"        // enum_nullability
-#include "sql_string.h"             // strlen, MY_CS_NAME_SIZE
+#include "sql_string.h"             // strlen, MY_CS_CHARACTER_SET_NAME_SIZE
 #include "lex_string.h"             // LEX_CSTRING
 #include "mysql_com.h"              // enum_field_types
 #include "my_time.h"                // TIME_SECOND_PART_DIGITS
@@ -162,6 +162,11 @@ class Yes_or_empty: public Varchar
 {
 public:
   Yes_or_empty(): Varchar(3) { }
+  static LEX_CSTRING value(bool val)
+  {
+    return val ? Lex_cstring(STRING_WITH_LEN("Yes")) :
+                 Lex_cstring();
+  }
 };
 
 
@@ -196,7 +201,14 @@ public:
 class CSName: public Varchar
 {
 public:
-  CSName(): Varchar(MY_CS_NAME_SIZE) { }
+  CSName(): Varchar(MY_CS_CHARACTER_SET_NAME_SIZE) { }
+};
+
+
+class CLName: public Varchar
+{
+public:
+  CLName(): Varchar(MY_CS_COLLATION_NAME_SIZE) { }
 };
 
 

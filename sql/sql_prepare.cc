@@ -97,7 +97,7 @@ When one supplies long data for a placeholder:
 #include "sql_view.h"                          // create_view_precheck
 #include "sql_delete.h"                        // mysql_prepare_delete
 #include "sql_select.h" // for JOIN
-#include "sql_insert.h" // upgrade_lock_type_for_insert, mysql_prepare_insert
+#include "sql_insert.h" // mysql_prepare_insert
 #include "sql_update.h" // mysql_prepare_update
 #include "sql_db.h"     // mysql_opt_change_db, mysql_change_db
 #include "sql_derived.h" // mysql_derived_prepare,
@@ -134,6 +134,7 @@ static const uint PARAMETER_FLAG_UNSIGNED= 128U << 8;
 #endif /* WITH_WSREP */
 #include "sql_audit.h"    // mysql_audit_release
 #include "xa.h"           // xa_recover_get_fields
+#include "sql_audit.h"    // mysql_audit_release
 
 /**
   A result class used to send cursor rows using the binary protocol.
@@ -1297,7 +1298,8 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
                                      List<List_item> &values_list,
                                      List<Item> &update_fields,
                                      List<Item> &update_values,
-                                     enum_duplicates duplic)
+                                     enum_duplicates duplic,
+                                     bool ignore)
 {
   THD *thd= stmt->thd;
   List_iterator_fast<List_item> its(values_list);
@@ -1308,8 +1310,6 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
   if (insert_precheck(thd, table_list))
     goto error;
 
-  //upgrade_lock_type_for_insert(thd, &table_list->lock_type, duplic,
-  //                             values_list.elements > 1);
   /*
     open temporary memory pool for temporary data allocated by derived
     tables & preparation procedure
@@ -1325,7 +1325,6 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
   if ((values= its++))
   {
     uint value_count;
-    ulong counter= 0;
     Item *unused_conds= 0;
 
     if (table_list->table)
@@ -1335,7 +1334,8 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
     }
 
     if (mysql_prepare_insert(thd, table_list, fields, values, update_fields,
-                             update_values, duplic, &unused_conds, FALSE,
+                             update_values, duplic, ignore,
+                             &unused_conds, FALSE,
                              &cache_results))
       goto error;
 
@@ -1352,16 +1352,18 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
     }
     while ((values= its++))
     {
-      counter++;
       if (values->elements != value_count)
       {
-        my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), counter);
+        my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0),
+                 thd->get_stmt_da()->current_row_for_warning());
         goto error;
       }
       if (setup_fields(thd, Ref_ptr_array(),
                        *values, COLUMNS_READ, 0, NULL, 0))
         goto error;
+      thd->get_stmt_da()->inc_current_row_for_warning();
     }
+    thd->get_stmt_da()->reset_current_row_for_warning(1);
   }
   DBUG_RETURN(FALSE);
 
@@ -1389,7 +1391,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
                               List<List_item> &values_list,
                               List<Item> &update_fields,
                               List<Item> &update_values,
-                              enum_duplicates duplic)
+                              enum_duplicates duplic, bool ignore)
 {
   THD *thd= stmt->thd;
 
@@ -1405,7 +1407,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
   }
 
   return mysql_test_insert_common(stmt, table_list, fields, values_list,
-                                  update_fields, update_values, duplic);
+                                  update_fields, update_values, duplic, ignore);
 }
 
 
@@ -1509,7 +1511,18 @@ static int mysql_test_update(Prepared_statement *stmt,
   {
     List_iterator_fast<Item> fs(select->item_list), vs(stmt->lex->value_list);
     while (Item *f= fs++)
-      vs++->associate_with_target_field(thd, static_cast<Item_field*>(f));
+    {
+      /*
+        note that if `f` is a non-updatable view field, it may be not
+        inherited from Item_field, and the cast below will essentially
+        produce garbage. But ER_NONUPDATEABLE_COLUMN will happen before it's
+        ever dereferenced.
+      */
+#ifndef DBUG_OFF
+      if (!dynamic_cast<Item_field*>(f)) f= (Item_field*)0x01; // let it crash
+#endif
+      vs++->associate_with_target_field(thd, reinterpret_cast<Item_field*>(f));
+    }
   }
   /* TODO: here we should send types of placeholders to the client. */
   DBUG_RETURN(0);
@@ -1626,6 +1639,10 @@ static int mysql_test_select(Prepared_statement *stmt,
   */
   if (unit->prepare(unit->derived, 0, 0))
     goto error;
+
+  if (thd->lex->prepare_unreferenced_in_with_clauses())
+    goto error;
+
   if (!lex->describe && !thd->lex->analyze_stmt && !stmt->is_sql_prepare())
   {
     /* Make copy of item list, as change_columns may change it */
@@ -1787,7 +1804,7 @@ err:
 
 static bool select_like_stmt_test(Prepared_statement *stmt,
                                   int (*specific_prepare)(THD *thd),
-                                  ulong setup_tables_done_option)
+                                  ulonglong setup_tables_done_option)
 {
   DBUG_ENTER("select_like_stmt_test");
   THD *thd= stmt->thd;
@@ -1824,7 +1841,7 @@ static bool
 select_like_stmt_test_with_open(Prepared_statement *stmt,
                                 TABLE_LIST *tables,
                                 int (*specific_prepare)(THD *thd),
-                                ulong setup_tables_done_option)
+                                ulonglong setup_tables_done_option)
 {
   uint table_count= 0;
   DBUG_ENTER("select_like_stmt_test_with_open");
@@ -2489,14 +2506,14 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     res= mysql_test_insert(stmt, tables, lex->field_list,
                            lex->many_values,
                            lex->update_list, lex->value_list,
-                           lex->duplicates);
+                           lex->duplicates, lex->ignore);
     break;
 
   case SQLCOM_LOAD:
     res= mysql_test_insert_common(stmt, tables, lex->field_list,
                                   lex->many_values,
                                   lex->update_list, lex->value_list,
-                                  lex->duplicates);
+                                  lex->duplicates, lex->ignore);
     break;
 
   case SQLCOM_UPDATE:
@@ -3768,6 +3785,9 @@ void mysqld_stmt_fetch(THD *thd, char *packet, uint packet_length)
 
   cursor->fetch(num_rows);
 
+  if (!thd->get_sent_row_count())
+    status_var_increment(thd->status_var.empty_queries);
+
   if (!cursor->is_open())
   {
     stmt->close_cursor();
@@ -4487,7 +4507,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   /* No need to commit statement transaction, it's not started. */
   DBUG_ASSERT(thd->transaction->stmt.is_empty());
 
-  close_thread_tables(thd);
+  close_thread_tables_for_query(thd);
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
 
   /*
@@ -4940,7 +4960,9 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
   Statement stmt_backup;
   bool error;
   Query_arena *save_stmt_arena= thd->stmt_arena;
+  Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
   Item_change_list save_change_list;
+
   thd->Item_change_list::move_elements_to(&save_change_list);
 
   state= STMT_CONVENTIONAL_EXECUTION;
@@ -4950,12 +4972,15 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
 
   thd->set_n_backup_statement(this, &stmt_backup);
   thd->set_n_backup_active_arena(this, &stmt_backup);
+
   thd->stmt_arena= this;
+  thd->m_reprepare_observer= 0;
 
   error= server_runnable->execute_server_code(thd);
 
   thd->cleanup_after_query();
 
+  thd->m_reprepare_observer= save_reprepare_observer;
   thd->restore_active_arena(this, &stmt_backup);
   thd->restore_backup_statement(this, &stmt_backup);
   thd->stmt_arena= save_stmt_arena;
@@ -5677,6 +5702,7 @@ Ed_connection::store_result_set()
 
   return ed_result_set;
 }
+
 
 #include <mysql.h>
 #include "../libmysqld/embedded_priv.h"

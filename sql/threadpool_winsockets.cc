@@ -27,7 +27,7 @@
 
  Considerations on Windows : since Windows locks the AIO buffers in physical memory,
  it is important that these buffers are compactly allocated.
- We try to to prevent any kinds of memory fragmentation
+ We try to prevent any kinds of memory fragmentation
 
  A relatively small region (at most 1MB) is allocated, for equally sized smallish(256 bytes)
  This allow buffers. The region is pagesize-aligned (via VirtualAlloc allocation)

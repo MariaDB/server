@@ -73,6 +73,8 @@ ulong plugin_maturity;
 
 static LEX_CSTRING MYSQL_PLUGIN_NAME= {STRING_WITH_LEN("plugin") };
 
+enum mysql_plugin_fields { PLUGIN_NAME, PLUGIN_SONAME, PLUGIN_FIELDS_COUNT };
+
 /*
   not really needed now, this map will become essential when we add more
   maturity levels. We cannot change existing maturity constants,
@@ -460,7 +462,7 @@ static int item_val_real(struct st_mysql_value *value, double *buf)
 
 static struct st_plugin_dl *plugin_dl_find(const LEX_CSTRING *dl)
 {
-  uint i;
+  size_t i;
   struct st_plugin_dl *tmp;
   DBUG_ENTER("plugin_dl_find");
   for (i= 0; i < plugin_dl_array.elements; i++)
@@ -477,7 +479,7 @@ static struct st_plugin_dl *plugin_dl_find(const LEX_CSTRING *dl)
 
 static st_plugin_dl *plugin_dl_insert_or_reuse(struct st_plugin_dl *plugin_dl)
 {
-  uint i;
+  size_t i;
   struct st_plugin_dl *tmp;
   DBUG_ENTER("plugin_dl_insert_or_reuse");
   for (i= 0; i < plugin_dl_array.elements; i++)
@@ -1072,6 +1074,8 @@ plugin_ref plugin_lock_by_name(THD *thd, const LEX_CSTRING *name, int type)
   plugin_ref rc= NULL;
   st_plugin_int *plugin;
   DBUG_ENTER("plugin_lock_by_name");
+  if (!name->length)
+    DBUG_RETURN(NULL);
   mysql_mutex_lock(&LOCK_plugin);
   if ((plugin= plugin_find_internal(name, type)))
     rc= intern_plugin_lock(lex, plugin_int_to_ref(plugin));
@@ -1082,7 +1086,7 @@ plugin_ref plugin_lock_by_name(THD *thd, const LEX_CSTRING *name, int type)
 
 static st_plugin_int *plugin_insert_or_reuse(struct st_plugin_int *plugin)
 {
-  uint i;
+  size_t i;
   struct st_plugin_int *tmp;
   DBUG_ENTER("plugin_insert_or_reuse");
   for (i= 0; i < plugin_array.elements; i++)
@@ -1265,24 +1269,18 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
     remove_status_vars(show_vars);
   }
 
-  if (plugin_type_deinitialize[plugin->plugin->type])
+  plugin_type_init deinit= plugin_type_deinitialize[plugin->plugin->type];
+  if (!deinit)
+    deinit= (plugin_type_init)(plugin->plugin->deinit);
+
+  if (deinit && deinit(plugin))
   {
-    if ((*plugin_type_deinitialize[plugin->plugin->type])(plugin))
-    {
-      sql_print_error("Plugin '%s' of type %s failed deinitialization",
-                      plugin->name.str, plugin_type_names[plugin->plugin->type].str);
-    }
+    if (THD *thd= current_thd)
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   WARN_PLUGIN_BUSY, ER_THD(thd, WARN_PLUGIN_BUSY));
   }
-  else if (plugin->plugin->deinit)
-  {
-    DBUG_PRINT("info", ("Deinitializing plugin: '%s'", plugin->name.str));
-    if (plugin->plugin->deinit(plugin))
-    {
-      DBUG_PRINT("warning", ("Plugin '%s' deinit function returned error.",
-                             plugin->name.str));
-    }
-  }
-  plugin->state= PLUGIN_IS_UNINITIALIZED;
+  else
+    plugin->state= PLUGIN_IS_UNINITIALIZED; // free to unload
 
   if (ref_check && plugin->ref_count)
     sql_print_error("Plugin '%s' has ref_count=%d after deinitialization.",
@@ -1290,10 +1288,13 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
   plugin_variables_deinit(plugin);
 }
 
-static void plugin_del(struct st_plugin_int *plugin)
+static void plugin_del(struct st_plugin_int *plugin, uint del_mask)
 {
   DBUG_ENTER("plugin_del");
   mysql_mutex_assert_owner(&LOCK_plugin);
+  del_mask|= PLUGIN_IS_UNINITIALIZED | PLUGIN_IS_DISABLED; // always use these
+  if (!(plugin->state & del_mask))
+    DBUG_VOID_RETURN;
   /* Free allocated strings before deleting the plugin. */
   plugin_vars_free_values(plugin->plugin->system_vars);
   restore_ptr_backup(plugin->nbackups, plugin->ptr_backup);
@@ -1311,7 +1312,7 @@ static void plugin_del(struct st_plugin_int *plugin)
 
 static void reap_plugins(void)
 {
-  uint count;
+  size_t count;
   struct st_plugin_int *plugin, **reap, **list;
 
   mysql_mutex_assert_owner(&LOCK_plugin);
@@ -1343,19 +1344,19 @@ static void reap_plugins(void)
 
   list= reap;
   while ((plugin= *(--list)))
-      plugin_deinitialize(plugin, true);
+    plugin_deinitialize(plugin, true);
 
   mysql_mutex_lock(&LOCK_plugin);
 
   while ((plugin= *(--reap)))
-    plugin_del(plugin);
+    plugin_del(plugin, 0);
 
   my_afree(reap);
 }
 
 static void intern_plugin_unlock(LEX *lex, plugin_ref plugin)
 {
-  int i;
+  ssize_t i;
   st_plugin_int *pi;
   DBUG_ENTER("intern_plugin_unlock");
 
@@ -1421,7 +1422,7 @@ void plugin_unlock(THD *thd, plugin_ref plugin)
 }
 
 
-void plugin_unlock_list(THD *thd, plugin_ref *list, uint count)
+void plugin_unlock_list(THD *thd, plugin_ref *list, size_t count)
 {
   LEX *lex= thd ? thd->lex : 0;
   DBUG_ENTER("plugin_unlock_list");
@@ -1596,7 +1597,7 @@ static void init_plugin_psi_keys(void) {}
 */
 int plugin_init(int *argc, char **argv, int flags)
 {
-  uint i;
+  size_t i;
   struct st_maria_plugin **builtins;
   struct st_maria_plugin *plugin;
   struct st_plugin_int tmp, *plugin_ptr, **reap, **retry_end, **retry_start;
@@ -1679,6 +1680,8 @@ int plugin_init(int *argc, char **argv, int flags)
       tmp.name.length= strlen(plugin->name);
       tmp.state= 0;
       tmp.load_option= mandatory ? PLUGIN_FORCE : PLUGIN_ON;
+      DBUG_ASSERT(!mandatory ||
+        plugin_maturity_map[plugin->maturity] >= SERVER_MATURITY_LEVEL);
 
       for (i=0; i < array_elements(override_plugin_load_policy); i++)
       {
@@ -1830,7 +1833,7 @@ int plugin_init(int *argc, char **argv, int flags)
       reaped_mandatory_plugin= TRUE;
     plugin_deinitialize(plugin_ptr, true);
     mysql_mutex_lock(&LOCK_plugin);
-    plugin_del(plugin_ptr);
+    plugin_del(plugin_ptr, 0);
   }
 
   mysql_mutex_unlock(&LOCK_plugin);
@@ -1871,6 +1874,19 @@ static bool register_builtin(struct st_maria_plugin *plugin,
     DBUG_RETURN(1);
 
   DBUG_RETURN(0);
+}
+
+
+static bool plugin_table_is_valid(TABLE *table)
+{
+  if (table->s->fields < PLUGIN_FIELDS_COUNT ||
+      table->s->primary_key == MAX_KEY)
+  {
+    my_error(ER_CANNOT_LOAD_FROM_TABLE_V2, MYF(0),
+             table->s->db.str, table->s->table_name.str);
+    return false;
+  }
+  return true;
 }
 
 
@@ -1916,6 +1932,9 @@ static void plugin_load(MEM_ROOT *tmp_root)
     goto end;
   }
 
+  if (!plugin_table_is_valid(table))
+    goto end2;
+
   if (init_read_record(&read_record_info, new_thd, table, NULL, NULL, 1, 0,
                        FALSE))
   {
@@ -1928,8 +1947,8 @@ static void plugin_load(MEM_ROOT *tmp_root)
   {
     DBUG_PRINT("info", ("init plugin record"));
     String str_name, str_dl;
-    get_field(tmp_root, table->field[0], &str_name);
-    get_field(tmp_root, table->field[1], &str_dl);
+    get_field(tmp_root, table->field[PLUGIN_NAME], &str_name);
+    get_field(tmp_root, table->field[PLUGIN_SONAME], &str_dl);
 
     LEX_CSTRING name= {str_name.ptr(), str_name.length()};
     LEX_CSTRING dl=   {str_dl.ptr(), str_dl.length()};
@@ -1977,6 +1996,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
     sql_print_error(ER_THD(new_thd, ER_GET_ERRNO), my_errno,
                            table->file->table_type());
   end_read_record(&read_record_info);
+end2:
   table->mark_table_for_reopen();
   close_mysql_tables(new_thd);
 end:
@@ -2070,7 +2090,7 @@ error:
 
 void plugin_shutdown(void)
 {
-  uint i, count= plugin_array.elements;
+  size_t i, count= plugin_array.elements;
   struct st_plugin_int **plugins, *plugin;
   struct st_plugin_dl **dl;
   DBUG_ENTER("plugin_shutdown");
@@ -2119,12 +2139,14 @@ void plugin_shutdown(void)
     plugins= (struct st_plugin_int **) my_alloca(sizeof(void*) * (count+1));
 
     /*
-      If we have any plugins which did not die cleanly, we force shutdown
+      If we have any plugins which did not die cleanly, we force shutdown.
+      Don't re-deinit() plugins that failed deinit() earlier (already dying)
     */
     for (i= 0; i < count; i++)
     {
       plugins[i]= *dynamic_element(&plugin_array, i, struct st_plugin_int **);
-      /* change the state to ensure no reaping races */
+      if (plugins[i]->state == PLUGIN_IS_DYING)
+        plugins[i]->state= PLUGIN_IS_UNINITIALIZED;
       if (plugins[i]->state == PLUGIN_IS_DELETED)
         plugins[i]->state= PLUGIN_IS_DYING;
     }
@@ -2160,9 +2182,7 @@ void plugin_shutdown(void)
       if (plugins[i]->ref_count)
         sql_print_error("Plugin '%s' has ref_count=%d after shutdown.",
                         plugins[i]->name.str, plugins[i]->ref_count);
-      if (plugins[i]->state & PLUGIN_IS_UNINITIALIZED ||
-          plugins[i]->state & PLUGIN_IS_DISABLED)
-        plugin_del(plugins[i]);
+      plugin_del(plugins[i], PLUGIN_IS_DYING);
     }
 
     /*
@@ -2248,9 +2268,8 @@ static bool finalize_install(THD *thd, TABLE *table, const LEX_CSTRING *name,
   DBUG_ASSERT(!table->file->row_logging);
   table->use_all_columns();
   restore_record(table, s->default_values);
-  table->field[0]->store(name->str, name->length, system_charset_info);
-  table->field[1]->store(tmp->plugin_dl->dl.str, tmp->plugin_dl->dl.length,
-                         files_charset_info);
+  table->field[PLUGIN_NAME]->store(name->str, name->length, system_charset_info);
+  table->field[PLUGIN_SONAME]->store(&tmp->plugin_dl->dl, files_charset_info);
   error= table->file->ha_write_row(table->record[0]);
   if (unlikely(error))
   {
@@ -2280,8 +2299,8 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /* need to open before acquiring LOCK_plugin or it will deadlock */
-  if (! (table = open_ltable(thd, &tables, TL_WRITE,
-                             MYSQL_LOCK_IGNORE_TIMEOUT)))
+  table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
+  if (!table || !plugin_table_is_valid(table))
     DBUG_RETURN(TRUE);
 
   if (my_load_defaults(MYSQL_CONFIG_NAME, load_default_groups, &argc, &argv, NULL))
@@ -2389,7 +2408,7 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
 
   uchar user_key[MAX_KEY_LENGTH];
   table->use_all_columns();
-  table->field[0]->store(name->str, name->length, system_charset_info);
+  table->field[PLUGIN_NAME]->store(name->str, name->length, system_charset_info);
   key_copy(user_key, table->record[0], table->key_info,
            table->key_info->key_length);
   if (! table->file->ha_index_read_idx_map(table->record[0], 0, user_key,
@@ -2401,7 +2420,7 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
       of the delete from the plugin table, so that it is not replicated in
       row based mode.
     */
-    table->file->row_logging= 0;                // No logging    
+    table->file->row_logging= 0;                // No logging
     error= table->file->ha_delete_row(table->record[0]);
     if (unlikely(error))
     {
@@ -2438,18 +2457,9 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /* need to open before acquiring LOCK_plugin or it will deadlock */
-  if (! (table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT)))
+  table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
+  if (!table || !plugin_table_is_valid(table))
     DBUG_RETURN(TRUE);
-
-  if (!table->key_info)
-  {
-    my_printf_error(ER_UNKNOWN_ERROR,
-                    "The table %s.%s has no primary key. "
-                    "Please check the table definition and "
-                    "create the primary key accordingly.", MYF(0),
-                    table->s->db.str, table->s->table_name.str);
-    DBUG_RETURN(TRUE);
-  }
 
   /*
     Pre-acquire audit plugins for events that may potentially occur
@@ -2514,7 +2524,7 @@ wsrep_error_label:
 bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
                        int type, uint state_mask, void *arg)
 {
-  uint idx, total= 0;
+  size_t idx, total= 0;
   struct st_plugin_int *plugin;
   plugin_ref *plugins;
   my_bool res= FALSE;
@@ -3370,7 +3380,7 @@ static void cleanup_variables(struct system_variables *vars)
 
 void plugin_thdvar_cleanup(THD *thd)
 {
-  uint idx;
+  size_t idx;
   plugin_ref *list;
   DBUG_ENTER("plugin_thdvar_cleanup");
 
@@ -3386,7 +3396,7 @@ void plugin_thdvar_cleanup(THD *thd)
   if ((idx= thd->lex->plugins.elements))
   {
     list= ((plugin_ref*) thd->lex->plugins.buffer) + idx - 1;
-    DBUG_PRINT("info",("unlocking %d plugins", idx));
+    DBUG_PRINT("info",("unlocking %zu plugins", idx));
     while ((uchar*) list >= thd->lex->plugins.buffer)
       intern_plugin_unlock(NULL, *list--);
   }
@@ -4168,7 +4178,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
                                int *argc, char **argv)
 {
   struct sys_var_chain chain= { NULL, NULL };
-  bool disable_plugin;
+  bool disable_plugin= false;
   enum_plugin_load_option plugin_load_option= tmp->load_option;
 
   MEM_ROOT *mem_root= alloc_root_inited(&tmp->mem_root) ?
@@ -4276,22 +4286,24 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
     error= handle_options(argc, &argv, opts, mark_changed);
     (*argc)++; /* add back one for the program name */
 
+    /*
+     Set plugin loading policy from option value. First element in the option
+     list is always the <plugin name> option value.
+    */
+    if (!plugin_is_forced(tmp))
+    {
+      plugin_load_option= (enum_plugin_load_option) *(ulong*) opts[0].value;
+      disable_plugin= (plugin_load_option == PLUGIN_OFF);
+      tmp->load_option= plugin_load_option;
+    }
+
     if (unlikely(error))
     {
        sql_print_error("Parsing options for plugin '%s' failed. Disabling plugin",
                        tmp->name.str);
        goto err;
     }
-    /*
-     Set plugin loading policy from option value. First element in the option
-     list is always the <plugin name> option value.
-    */
-    if (!plugin_is_forced(tmp))
-      plugin_load_option= (enum_plugin_load_option) *(ulong*) opts[0].value;
   }
-
-  disable_plugin= (plugin_load_option == PLUGIN_OFF);
-  tmp->load_option= plugin_load_option;
 
   error= 1;
 
@@ -4375,7 +4387,7 @@ void add_plugin_options(DYNAMIC_ARRAY *options, MEM_ROOT *mem_root)
   if (!initialized)
     return;
 
-  for (uint idx= 0; idx < plugin_array.elements; idx++)
+  for (size_t idx= 0; idx < plugin_array.elements; idx++)
   {
     p= *dynamic_element(&plugin_array, idx, struct st_plugin_int **);
 
@@ -4482,7 +4494,7 @@ int thd_setspecific(MYSQL_THD thd, MYSQL_THD_KEY_T key, void *value)
   DBUG_ASSERT(key != INVALID_THD_KEY);
   if (key == INVALID_THD_KEY || (!thd && !(thd= current_thd)))
     return EINVAL;
-  
+
   memcpy(intern_sys_var_ptr(thd, key, true), &value, sizeof(void*));
   return 0;
 }
@@ -4533,8 +4545,12 @@ my_bool post_init_callback(THD *thd, void *)
     set_current_thd(thd);
     plugin_thdvar_init(thd);
 
+    // Restore proper transaction read-only context
+    thd->variables.tx_read_only= false;
     // Restore option_bits
     thd->variables.option_bits= option_bits_saved;
+    // Restore proper default isolation level for appliers
+    thd->variables.tx_isolation= ISO_READ_COMMITTED;
   }
   set_current_thd(0);
   return 0;

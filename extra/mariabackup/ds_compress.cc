@@ -65,7 +65,7 @@ extern ulonglong	xtrabackup_compress_chunk_size;
 
 static ds_ctxt_t *compress_init(const char *root);
 static ds_file_t *compress_open(ds_ctxt_t *ctxt, const char *path,
-				MY_STAT *mystat);
+				const MY_STAT *mystat, bool rewrite);
 static int compress_write(ds_file_t *file, const uchar *buf, size_t len);
 static int compress_close(ds_file_t *file);
 static void compress_deinit(ds_ctxt_t *ctxt);
@@ -74,8 +74,11 @@ datasink_t datasink_compress = {
 	&compress_init,
 	&compress_open,
 	&compress_write,
+	nullptr,
 	&compress_close,
 	&dummy_remove,
+	nullptr,
+	nullptr,
 	&compress_deinit
 };
 
@@ -116,8 +119,10 @@ compress_init(const char *root)
 
 static
 ds_file_t *
-compress_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
+compress_open(ds_ctxt_t *ctxt, const char *path,
+	const MY_STAT *mystat, bool rewrite)
 {
+  DBUG_ASSERT(rewrite == false);
 	ds_compress_ctxt_t	*comp_ctxt;
 	ds_ctxt_t		*dest_ctxt;
  	ds_file_t		*dest_file;

@@ -1,6 +1,6 @@
 call mtr.add_suppression("Operating system error number .* in a file operation.");
 call mtr.add_suppression("The error means the system cannot find the path specified.");
-call mtr.add_suppression("File ./test/t1.ibd: 'delete' returned OS error");
+call mtr.add_suppression("File ./test/t1.ibd was not found");
 set default_storage_engine=innodb;
 #
 # MDEV-18295 IMPORT TABLESPACE fails with instant-altered tables

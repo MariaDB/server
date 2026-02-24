@@ -298,10 +298,16 @@ CREATE TABLE t1 (
 id int(11) NOT NULL,
 PRIMARY KEY (id)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_LOCK1
+Warnings:
+Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
+Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
 CREATE TABLE t2 (
 id int(11) NOT NULL,
 PRIMARY KEY (id)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_LOCK2
+Warnings:
+Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
+Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
 LOCK TABLES t1 READ, t2 READ;
 UNLOCK TABLES;
 

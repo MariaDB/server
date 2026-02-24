@@ -150,6 +150,7 @@ delimiter ;|
 create user u1@localhost;
 grant select on db1.* to u1@localhost;
 grant execute on db1.* to u1@localhost;
+grant all privileges on test.* to u1@localhost;
 
 use test;
 create table t3 (id int unsigned default (20+nextval(db1.s1)), b int);

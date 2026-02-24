@@ -923,13 +923,13 @@ ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column
 select cast(ln(14000) as decimal(2,3)) c1;
 ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '')
 create table t1 (sl decimal(70,30));
-ERROR 42000: Too big precision 70 specified for 'sl'. Maximum is 65
+ERROR 42000: Too big precision specified for 'sl'. Maximum is 65
 create table t1 (sl decimal(32,39));
-ERROR 42000: Too big scale 39 specified for 'sl'. Maximum is 38
+ERROR 42000: Too big scale specified for 'sl'. Maximum is 38
 create table t1 (sl decimal(67,38));
-ERROR 42000: Too big precision 67 specified for 'sl'. Maximum is 65
+ERROR 42000: Too big precision specified for 'sl'. Maximum is 65
 create table t1 (sl decimal(0,50));
-ERROR 42000: Too big scale 50 specified for 'sl'. Maximum is 38
+ERROR 42000: Too big scale specified for 'sl'. Maximum is 38
 create table t1 (sl decimal(0,30));
 ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'sl')
 create table t1 (sl decimal(5, 5));
@@ -956,14 +956,14 @@ f6 decimal unsigned not null default 199.91,
 f7 decimal unsigned not null default 999.9, 
 f8 decimal unsigned not null default 9999.99);
 Warnings:
-Note	1265	Data truncated for column 'f1' at row 1
-Note	1265	Data truncated for column 'f2' at row 1
-Note	1265	Data truncated for column 'f3' at row 1
-Note	1265	Data truncated for column 'f4' at row 1
-Note	1265	Data truncated for column 'f5' at row 1
-Note	1265	Data truncated for column 'f6' at row 1
-Note	1265	Data truncated for column 'f7' at row 1
-Note	1265	Data truncated for column 'f8' at row 1
+Note	1265	Data truncated for column 'f1' at row 0
+Note	1265	Data truncated for column 'f2' at row 0
+Note	1265	Data truncated for column 'f3' at row 0
+Note	1265	Data truncated for column 'f4' at row 0
+Note	1265	Data truncated for column 'f5' at row 0
+Note	1265	Data truncated for column 'f6' at row 0
+Note	1265	Data truncated for column 'f7' at row 0
+Note	1265	Data truncated for column 'f8' at row 0
 insert into t1 (f1) values (1);
 select * from t1;
 f1	f2	f3	f4	f5	f6	f7	f8
@@ -1458,8 +1458,8 @@ cast(a as DECIMAL(3,2))
 9.99
 Warnings:
 Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 2
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 3
 select cast(a as DECIMAL(3,2)), count(*)
 from (select 11.1233 as a
 UNION select 11.1234
@@ -1470,8 +1470,8 @@ cast(a as DECIMAL(3,2))	count(*)
 Warnings:
 Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
 Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 2
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 3
 create table t1 (s varchar(100));
 insert into t1 values (0.00000000010000000000000000364321973154977415791655470655996396089904010295867919921875);
 drop table t1;
@@ -1482,12 +1482,12 @@ SELECT CAST(1 AS decimal(65,10));
 CAST(1 AS decimal(65,10))
 1.0000000000
 SELECT CAST(1 AS decimal(66,10));
-ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65
+ERROR 42000: Too big precision specified for '1'. Maximum is 65
 SELECT CAST(1 AS decimal(65,38));
 CAST(1 AS decimal(65,38))
 1.00000000000000000000000000000000000000
 SELECT CAST(1 AS decimal(65,39));
-ERROR 42000: Too big scale 39 specified for '1'. Maximum is 38
+ERROR 42000: Too big scale specified for '1'. Maximum is 38
 CREATE TABLE t1 (a int DEFAULT NULL, b int DEFAULT NULL);
 INSERT INTO t1 VALUES (3,30), (1,10), (2,10);
 SELECT a+CAST(1 AS decimal(65,30)) AS aa, SUM(b) FROM t1 GROUP BY aa;
@@ -1496,7 +1496,7 @@ aa	SUM(b)
 3.000000000000000000000000000000	10
 4.000000000000000000000000000000	30
 SELECT a+CAST(1 AS decimal(65,49)) AS aa, SUM(b) FROM t1 GROUP BY aa;
-ERROR 42000: Too big scale 49 specified for '1'. Maximum is 38
+ERROR 42000: Too big scale specified for '1'. Maximum is 38
 DROP TABLE t1;
 CREATE TABLE t1 (a int DEFAULT NULL, b int DEFAULT NULL);
 INSERT INTO t1 VALUES (3,30), (1,10), (2,10);
@@ -2297,7 +2297,7 @@ a
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '1e-10000');
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2306,7 +2306,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '0.1 ');
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2315,7 +2315,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '0.10001 ');
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2324,7 +2324,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '0.10001');
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2333,7 +2333,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT 0.10001);
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2342,7 +2342,7 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT 0.10001e0);
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

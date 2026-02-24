@@ -1171,9 +1171,10 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
 #  ifdef UNIV_SEARCH_PERF_STAT
   info->n_searches++;
 #  endif
+  bool ahi_enabled= btr_search_enabled && !index()->is_ibuf();
   /* We do a dirty read of btr_search_enabled below,
      and btr_search_guess_on_hash() will have to check it again. */
-  if (!btr_search_enabled);
+  if (!ahi_enabled);
   else if (btr_search_guess_on_hash(index(), info, tuple, mode,
                                     latch_mode, this, mtr))
   {
@@ -1507,7 +1508,7 @@ release_tree:
 
   reached_latched_leaf:
 #ifdef BTR_CUR_HASH_ADAPT
-    if (btr_search_enabled && !(tuple->info_bits & REC_INFO_MIN_REC_FLAG))
+    if (ahi_enabled && !(tuple->info_bits & REC_INFO_MIN_REC_FLAG))
     {
       if (page_cur_search_with_match_bytes(tuple, mode,
                                            &up_match, &up_bytes,
@@ -6106,7 +6107,6 @@ btr_store_big_rec_extern_fields(
 	byte*		field_ref;
 	ulint		extern_len;
 	ulint		store_len;
-	ulint		space_id;
 	ulint		i;
 	mtr_t		mtr;
 	mem_heap_t*	heap = NULL;
@@ -6135,7 +6135,6 @@ btr_store_big_rec_extern_fields(
 	btr_blob_log_check_t redo_log(pcur, btr_mtr, offsets, &rec_block,
 				      &rec, op);
 	page_zip = buf_block_get_page_zip(rec_block);
-	space_id = rec_block->page.id().space();
 
 	if (page_zip) {
 		int	err;
@@ -6248,14 +6247,16 @@ btr_store_big_rec_extern_fields(
 					       FSP_NO_DIR, 0, &mtr, &mtr,
 					       &error);
 
+			DBUG_EXECUTE_IF("btr_page_alloc_fail",
+					block= nullptr;
+					error= DB_OUT_OF_FILE_SPACE;);
 			if (!block) {
 alloc_fail:
                                 mtr.commit();
 				goto func_exit;
 			}
 
-			ut_a(block != NULL);
-
+			const uint32_t space_id = block->page.id().space();
 			const uint32_t page_no = block->page.id().page_no();
 
 			if (prev_page_no == FIL_NULL) {

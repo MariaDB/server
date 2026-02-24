@@ -1,0 +1,33 @@
+include/master-slave.inc
+[connection master]
+connection master;
+set global binlog_alter_two_phase=true;
+connection slave;
+stop slave;
+SET global slave_parallel_threads=2;
+set global slave_parallel_mode=optimistic;
+start slave;
+connection master;
+CREATE TABLE t1 (i int primary key) ENGINE = InnoDB;
+connection master1;
+ALTER  TABLE t1 DROP PRIMARY KEY;
+ALTER  TABLE t1 ADD UNIQUE KEY ui (i);
+ALTER  TABLE t1 ADD PRIMARY KEY (i);
+connection slave;
+connection master;
+drop table t1;
+CREATE TABLE t1 (a int)engine=innodb;
+ALTER TABLE t1 add column b int, LOCK=EXCLUSIVE;
+drop table t1;
+CREATE TABLE t1 (pk int)engine=innodb;
+ALTER TABLE t1 DROP FOREIGN KEY y, LOCK=EXCLUSIVE;
+ERROR 42000: Can't DROP FOREIGN KEY `y`; check that it exists
+drop table t1;
+connection slave;
+connection master;
+set global binlog_alter_two_phase=false;
+connection slave;
+include/stop_slave.inc
+SET global slave_parallel_threads=0;
+include/start_slave.inc
+include/rpl_end.inc

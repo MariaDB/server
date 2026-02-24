@@ -89,23 +89,31 @@ select * from db1.t1	{
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
-                "table": "t1",
-                "best_access_path": {
-                  "considered_access_paths": [
-                    {
-                      "access_type": "scan",
-                      "resulting_rows": 3,
-                      "cost": 2.005126953,
-                      "chosen": true
+                "get_costs_for_tables": [
+                  {
+                    "best_access_path": {
+                      "table": "t1",
+                      "considered_access_paths": [
+                        {
+                          "access_type": "scan",
+                          "resulting_rows": 3,
+                          "cost": 2.005126953,
+                          "chosen": true
+                        }
+                      ],
+                      "chosen_access_method": {
+                        "type": "scan",
+                        "records": 3,
+                        "cost": 2.005126953,
+                        "uses_join_buffering": false
+                      }
                     }
-                  ],
-                  "chosen_access_method": {
-                    "type": "scan",
-                    "records": 3,
-                    "cost": 2.005126953,
-                    "uses_join_buffering": false
                   }
-                },
+                ]
+              },
+              {
+                "plan_prefix": [],
+                "table": "t1",
                 "rows_for_plan": 3,
                 "cost_for_plan": 2.605126953
               }
@@ -126,12 +134,6 @@ select * from db1.t1	{
             }
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]
@@ -210,23 +212,31 @@ select * from db1.v1	{
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
-                "table": "t1",
-                "best_access_path": {
-                  "considered_access_paths": [
-                    {
-                      "access_type": "scan",
-                      "resulting_rows": 3,
-                      "cost": 2.005126953,
-                      "chosen": true
+                "get_costs_for_tables": [
+                  {
+                    "best_access_path": {
+                      "table": "t1",
+                      "considered_access_paths": [
+                        {
+                          "access_type": "scan",
+                          "resulting_rows": 3,
+                          "cost": 2.005126953,
+                          "chosen": true
+                        }
+                      ],
+                      "chosen_access_method": {
+                        "type": "scan",
+                        "records": 3,
+                        "cost": 2.005126953,
+                        "uses_join_buffering": false
+                      }
                     }
-                  ],
-                  "chosen_access_method": {
-                    "type": "scan",
-                    "records": 3,
-                    "cost": 2.005126953,
-                    "uses_join_buffering": false
                   }
-                },
+                ]
+              },
+              {
+                "plan_prefix": [],
+                "table": "t1",
                 "rows_for_plan": 3,
                 "cost_for_plan": 2.605126953
               }
@@ -247,12 +257,6 @@ select * from db1.v1	{
             }
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]

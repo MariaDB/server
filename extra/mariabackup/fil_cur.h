@@ -27,6 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 #include <my_dir.h>
 #include "read_filt.h"
+#include "mtr0types.h"
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "xtrabackup.h"
@@ -58,8 +59,8 @@ struct xb_fil_cur_t {
 	unsigned		buf_page_no;	/*!< number of the first page in
 					buffer */
 	uint		thread_n;	/*!< thread number for diagnostics */
-	ulint		space_id;	/*!< ID of tablespace */
-	ulint		space_size;	/*!< space size in pages */
+	uint32_t	space_id;	/*!< ID of tablespace */
+	uint32_t	space_size;	/*!< space size in pages */
 	uint32_t	n_process_batch;/*!< Number of batch processed */
 
 	/** @return whether this is not a file-per-table tablespace */

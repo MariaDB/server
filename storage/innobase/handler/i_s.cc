@@ -280,6 +280,8 @@ static const LEX_CSTRING isolation_level_values[] =
 
 static TypelibBuffer<4> isolation_level_values_typelib(isolation_level_values);
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 namespace Show {
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_trx */
@@ -534,6 +536,9 @@ static struct st_mysql_information_schema	i_s_info =
 	MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION
 };
 
+/** version number reported by SHOW PLUGINS */
+constexpr unsigned i_s_version= MYSQL_VERSION_MAJOR << 8 | MYSQL_VERSION_MINOR;
+
 struct st_maria_plugin	i_s_innodb_trx =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
@@ -568,19 +573,8 @@ struct st_maria_plugin	i_s_innodb_trx =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 static const LEX_CSTRING lock_mode_values[] =
@@ -792,19 +786,8 @@ struct st_maria_plugin	i_s_innodb_locks =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 
@@ -955,19 +938,8 @@ struct st_maria_plugin	i_s_innodb_lock_waits =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 namespace Show {
@@ -1144,19 +1116,8 @@ struct st_maria_plugin	i_s_innodb_cmp =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 struct st_maria_plugin	i_s_innodb_cmp_reset =
@@ -1194,19 +1155,8 @@ struct st_maria_plugin	i_s_innodb_cmp_reset =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 PRAGMA_DISABLE_CHECK_STACK_FRAME_EXTRA
@@ -1450,19 +1400,8 @@ struct st_maria_plugin	i_s_innodb_cmp_per_index =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 struct st_maria_plugin	i_s_innodb_cmp_per_index_reset =
@@ -1500,19 +1439,8 @@ struct st_maria_plugin	i_s_innodb_cmp_per_index_reset =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 
@@ -1695,19 +1623,8 @@ struct st_maria_plugin	i_s_innodb_cmpmem =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 struct st_maria_plugin	i_s_innodb_cmpmem_reset =
@@ -1745,19 +1662,8 @@ struct st_maria_plugin	i_s_innodb_cmpmem_reset =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 
@@ -2177,19 +2083,8 @@ struct st_maria_plugin	i_s_innodb_metrics =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 namespace Show {
@@ -2286,19 +2181,8 @@ struct st_maria_plugin	i_s_innodb_ft_default_stopword =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 namespace Show {
@@ -2349,7 +2233,7 @@ i_s_fts_deleted_generic_fill(
 		DBUG_RETURN(0);
 	} else if (!dict_table_has_fts_index(user_table)
 		   || !user_table->is_readable()) {
-		dict_table_close(user_table, false, thd, mdl_ticket);
+		dict_table_close(user_table, thd, mdl_ticket);
 		DBUG_RETURN(0);
 	}
 
@@ -2364,7 +2248,7 @@ i_s_fts_deleted_generic_fill(
 
 	fts_table_fetch_doc_ids(trx, &fts_table, deleted);
 
-	dict_table_close(user_table, false, thd, mdl_ticket);
+	dict_table_close(user_table, thd, mdl_ticket);
 
 	trx->free();
 
@@ -2455,19 +2339,8 @@ struct st_maria_plugin	i_s_innodb_ft_deleted =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 /*******************************************************************//**
@@ -2538,19 +2411,8 @@ struct st_maria_plugin	i_s_innodb_ft_being_deleted =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 
@@ -2719,7 +2581,7 @@ i_s_fts_index_cache_fill(
 	}
 
 	if (!user_table->fts || !user_table->fts->cache) {
-		dict_table_close(user_table, false, thd, mdl_ticket);
+		dict_table_close(user_table, thd, mdl_ticket);
 		DBUG_RETURN(0);
 	}
 
@@ -2744,7 +2606,7 @@ i_s_fts_index_cache_fill(
 	}
 
 	mysql_mutex_unlock(&cache->lock);
-	dict_table_close(user_table, false, thd, mdl_ticket);
+	dict_table_close(user_table, thd, mdl_ticket);
 
 	DBUG_RETURN(ret);
 }
@@ -2801,19 +2663,8 @@ struct st_maria_plugin	i_s_innodb_ft_index_cache =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 /*******************************************************************//**
@@ -3172,7 +3023,7 @@ i_s_fts_index_table_fill(
 		}
 	}
 
-	dict_table_close(user_table, false, thd, mdl_ticket);
+	dict_table_close(user_table, thd, mdl_ticket);
 
 	ut_free(conv_str.f_str);
 
@@ -3231,19 +3082,8 @@ struct st_maria_plugin	i_s_innodb_ft_index_table =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 
@@ -3308,7 +3148,7 @@ i_s_fts_config_fill(
 	}
 
 	if (!dict_table_has_fts_index(user_table)) {
-		dict_table_close(user_table, false, thd, mdl_ticket);
+		dict_table_close(user_table, thd, mdl_ticket);
 		DBUG_RETURN(0);
 	}
 
@@ -3365,7 +3205,7 @@ i_s_fts_config_fill(
 
 	fts_sql_commit(trx);
 
-	dict_table_close(user_table, false, thd, mdl_ticket);
+	dict_table_close(user_table, thd, mdl_ticket);
 
 	trx->free();
 
@@ -3424,19 +3264,8 @@ struct st_maria_plugin	i_s_innodb_ft_config =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 namespace Show {
@@ -3562,7 +3391,7 @@ static int i_s_innodb_stats_fill(THD *thd, TABLE_LIST * tables, Item *)
 		DBUG_RETURN(0);
 	}
 
-	buf_stats_get_pool_info(&info);
+	buf_pool.get_info(&info);
 
 	table = tables->table;
 
@@ -3724,19 +3553,8 @@ struct st_maria_plugin	i_s_innodb_buffer_stats =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 /** These must correspond to the first values of buf_page_state */
@@ -4122,87 +3940,37 @@ and fetch information to information schema tables: INNODB_BUFFER_PAGE.
 @return 0 on success, 1 on failure */
 static int i_s_innodb_buffer_page_fill(THD *thd, TABLE_LIST *tables, Item *)
 {
-	int			status	= 0;
-	mem_heap_t*		heap;
+  DBUG_ENTER("i_s_innodb_buffer_page_fill");
+  RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
-	DBUG_ENTER("i_s_innodb_buffer_page_fill");
+  /* deny access to user without PROCESS privilege */
+  if (check_global_access(thd, PROCESS_ACL))
+    DBUG_RETURN(0);
 
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
+  int status;
+  buf_page_info_t *b=
+    static_cast<buf_page_info_t*>(my_malloc(PSI_INSTRUMENT_ME,
+                                            MAX_BUF_INFO_CACHED * sizeof *b,
+                                            MYF(MY_WME)));
+  if (!b)
+    DBUG_RETURN(1);
+  for (size_t j= 0;;)
+  {
+    memset((void*) b, 0, MAX_BUF_INFO_CACHED * sizeof *b);
+    mysql_mutex_lock(&buf_pool.mutex);
+    const size_t N= buf_pool.curr_size();
+    const size_t n= std::min<size_t>(N, MAX_BUF_INFO_CACHED);
+    for (size_t i= 0; i < n && j < N; i++, j++)
+      i_s_innodb_buffer_page_get_info(&buf_pool.get_nth_page(j)->page, j,
+                                      &b[i]);
 
-	/* deny access to user without PROCESS privilege */
-	if (check_global_access(thd, PROCESS_ACL)) {
-		DBUG_RETURN(0);
-	}
-
-	heap = mem_heap_create(10000);
-
-	for (ulint n = 0;
-	     n < ut_min(buf_pool.n_chunks, buf_pool.n_chunks_new); n++) {
-		const buf_block_t*	block;
-		ulint			n_blocks;
-		buf_page_info_t*	info_buffer;
-		ulint			num_page;
-		ulint			mem_size;
-		ulint			chunk_size;
-		ulint			num_to_process = 0;
-		ulint			block_id = 0;
-
-		/* Get buffer block of the nth chunk */
-		block = buf_pool.chunks[n].blocks;
-		chunk_size = buf_pool.chunks[n].size;
-		num_page = 0;
-
-		while (chunk_size > 0) {
-			/* we cache maximum MAX_BUF_INFO_CACHED number of
-			buffer page info */
-			num_to_process = ut_min(chunk_size,
-				(ulint)MAX_BUF_INFO_CACHED);
-
-			mem_size = num_to_process * sizeof(buf_page_info_t);
-
-			/* For each chunk, we'll pre-allocate information
-			structures to cache the page information read from
-			the buffer pool. Doing so before obtain any mutex */
-			info_buffer = (buf_page_info_t*) mem_heap_zalloc(
-				heap, mem_size);
-
-			/* Obtain appropriate mutexes. Since this is diagnostic
-			buffer pool info printout, we are not required to
-			preserve the overall consistency, so we can
-			release mutex periodically */
-			mysql_mutex_lock(&buf_pool.mutex);
-
-			/* GO through each block in the chunk */
-			for (n_blocks = num_to_process; n_blocks--; block++) {
-				i_s_innodb_buffer_page_get_info(
-					&block->page, block_id,
-					info_buffer + num_page);
-				block_id++;
-				num_page++;
-			}
-
-			mysql_mutex_unlock(&buf_pool.mutex);
-
-			/* Fill in information schema table with information
-			just collected from the buffer chunk scan */
-			status = i_s_innodb_buffer_page_fill(
-				thd, tables, info_buffer,
-				num_page);
-
-			/* If something goes wrong, break and return */
-			if (status) {
-				break;
-			}
-
-			mem_heap_empty(heap);
-			chunk_size -= num_to_process;
-			num_page = 0;
-		}
-	}
-
-	mem_heap_free(heap);
-
-	DBUG_RETURN(status);
+    mysql_mutex_unlock(&buf_pool.mutex);
+    status= i_s_innodb_buffer_page_fill(thd, tables, b, n);
+    if (status || j >= N)
+      break;
+  }
+  my_free(b);
+  DBUG_RETURN(status);
 }
 
 /*******************************************************************//**
@@ -4260,19 +4028,8 @@ struct st_maria_plugin	i_s_innodb_buffer_page =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 namespace Show {
@@ -4613,19 +4370,8 @@ struct st_maria_plugin	i_s_innodb_buffer_page_lru =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 /*******************************************************************//**
@@ -4920,19 +4666,8 @@ struct st_maria_plugin	i_s_innodb_sys_tables =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 namespace Show {
@@ -4995,9 +4730,9 @@ i_s_dict_fill_sys_tablestats(THD* thd, dict_table_t *table,
 
     OK(field_store_string(fields[SYS_TABLESTATS_NAME],
                           table->name.m_name));
-    OK(fields[SYS_TABLESTATS_INIT]->store(table->stat_initialized, true));
+    OK(fields[SYS_TABLESTATS_INIT]->store(table->stat_initialized(), true));
 
-    if (table->stat_initialized)
+    if (table->stat_initialized())
     {
       OK(fields[SYS_TABLESTATS_NROW]->store(table->stat_n_rows, true));
 
@@ -5153,19 +4888,8 @@ struct st_maria_plugin	i_s_innodb_sys_tablestats =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 namespace Show {
@@ -5399,19 +5123,8 @@ struct st_maria_plugin	i_s_innodb_sys_indexes =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 namespace Show {
@@ -5620,19 +5333,8 @@ struct st_maria_plugin	i_s_innodb_sys_columns =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 namespace Show {
@@ -5816,19 +5518,8 @@ struct st_maria_plugin	i_s_innodb_sys_virtual =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-	/* Maria extension */
-	INNODB_VERSION_STR,
-	MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 
@@ -6019,19 +5710,8 @@ struct st_maria_plugin	i_s_innodb_sys_fields =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 namespace Show {
@@ -6222,19 +5902,8 @@ struct st_maria_plugin	i_s_innodb_sys_foreign =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 namespace Show {
@@ -6425,19 +6094,8 @@ struct st_maria_plugin	i_s_innodb_sys_foreign_cols =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 namespace Show {
@@ -6511,7 +6169,7 @@ static int i_s_sys_tablespaces_fill(THD *thd, const fil_space_t &s, TABLE *t)
     else if (srv_is_undo_tablespace(s.id))
     {
       char name[15];
-      snprintf(name, sizeof name, "innodb_undo%03zu",
+      snprintf(name, sizeof name, "innodb_undo%03u",
                (s.id - srv_undo_space_id_start + 1));
       OK(f->store(name, strlen(name), system_charset_info));
     } else f->set_notnull();
@@ -6643,19 +6301,8 @@ struct st_maria_plugin	i_s_innodb_sys_tablespaces =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-        /* Maria extension */
-	INNODB_VERSION_STR,
-        MariaDB_PLUGIN_MATURITY_STABLE,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
 namespace Show {
@@ -6735,8 +6382,8 @@ i_s_dict_fill_tablespaces_encryption(
 			fields[TABLESPACES_ENCRYPTION_NAME]->set_notnull();
 		} else if (srv_is_undo_tablespace(space->id)) {
 			char undo_name[sizeof "innodb_undo000"];
-			snprintf(undo_name, sizeof(undo_name),
-			         "innodb_undo%03" PRIu32, space->id);
+			snprintf(undo_name, sizeof undo_name,
+				 "innodb_undo%03" PRIu32, space->id);
 			OK(fields[TABLESPACES_ENCRYPTION_NAME]->store(
 				   undo_name, strlen(undo_name),
 				   system_charset_info));
@@ -6879,17 +6526,6 @@ struct st_maria_plugin	i_s_innodb_tablespaces_encryption =
 	/* int (*)(void*); */
 	i_s_common_deinit,
 
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	INNODB_VERSION_SHORT,
-
-	/* struct st_mysql_show_var* */
-	NULL,
-
-	/* struct st_mysql_sys_var** */
-	NULL,
-
-	/* Maria extension */
-	INNODB_VERSION_STR,
+	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
 	MariaDB_PLUGIN_MATURITY_STABLE
 };

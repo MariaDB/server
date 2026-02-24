@@ -75,7 +75,7 @@ bool Ack_receiver::start()
 
     m_status= ST_UP;
 
-    if (DBUG_EVALUATE_IF("rpl_semisync_simulate_create_thread_failure", 1, 0) ||
+    if (DBUG_IF("rpl_semisync_simulate_create_thread_failure") ||
         pthread_attr_init(&attr) != 0 ||
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE) != 0 ||
 #ifndef _WIN32
@@ -307,7 +307,8 @@ void Ack_receiver::run()
 
     if (ret <= 0)
     {
-      ret= DBUG_EVALUATE_IF("rpl_semisync_simulate_select_error", -1, ret);
+
+      ret= DBUG_IF("rpl_semisync_simulate_select_error") ? -1 : ret;
 
       if (ret == -1 && errno != EINTR)
         sql_print_information("Failed to wait on semi-sync sockets, "

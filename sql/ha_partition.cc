@@ -149,7 +149,7 @@ partition_notify_tabledef_changed(handlerton *,
 
 
 /*
-  If frm_error() is called then we will use this to to find out what file
+  If frm_error() is called then we will use this to find out what file
   extensions exist for the storage engine. This is also used by the default
   rename_table and delete_table method in handler.cc.
 */
@@ -670,8 +670,10 @@ int ha_partition::rename_table(const char *from, const char *to)
   SYNOPSIS
     create_partitioning_metadata()
     path                              Path to the new frm file (without ext)
-    old_p                             Path to the old frm file (without ext)
-    create_info                       Create info generated for CREATE TABLE
+    old_path                          Path to the old frm file (without ext)
+    action_flag                       Action to take
+    ignore_delete_error               Whether to ignore error in call to
+                                      mysql_file_delete
 
   RETURN VALUE
     >0                        Error
@@ -687,7 +689,8 @@ int ha_partition::rename_table(const char *from, const char *to)
 
 int ha_partition::create_partitioning_metadata(const char *path,
                                                const char *old_path,
-                                               chf_create_flags action_flag)
+                                               chf_create_flags action_flag,
+                                               bool ignore_delete_error)
 {
   partition_element *part;
   DBUG_ENTER("ha_partition::create_partitioning_metadata");
@@ -706,7 +709,8 @@ int ha_partition::create_partitioning_metadata(const char *path,
     strxmov(name, path, ha_par_ext, NullS);
     strxmov(old_name, old_path, ha_par_ext, NullS);
     if ((action_flag == CHF_DELETE_FLAG &&
-         mysql_file_delete(key_file_ha_partition_par, name, MYF(MY_WME))) ||
+         mysql_file_delete(key_file_ha_partition_par, name,
+                           ignore_delete_error ? MYF(0) : MYF(MY_WME))) ||
         (action_flag == CHF_RENAME_FLAG &&
          mysql_file_rename(key_file_ha_partition_par, old_name, name,
                            MYF(MY_WME))))
@@ -2142,7 +2146,14 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
   }
   DBUG_ASSERT(m_new_file == 0);
   m_new_file= new_file_array;
-  if (unlikely((error= copy_partitions(copied, deleted))))
+  for (i= 0; i < part_count; i++)
+    m_added_file[i]->extra(HA_EXTRA_BEGIN_ALTER_COPY);
+  error= copy_partitions(copied, deleted);
+  for (i= 0; i < part_count; i++)
+    m_added_file[i]->extra(error
+                           ? HA_EXTRA_ABORT_ALTER_COPY
+                           : HA_EXTRA_END_ALTER_COPY);
+  if (unlikely(error))
   {
     /*
       Close and unlock the new temporary partitions.
@@ -2191,7 +2202,10 @@ int ha_partition::copy_partitions(ulonglong * const copied,
   else if (m_part_info->part_type == VERSIONING_PARTITION)
   {
     if (m_part_info->check_constants(ha_thd(), m_part_info))
+    {
+      result= HA_ERR_PARTITION_LIST;
       goto init_error;
+    }
   }
 
   while (reorg_part < m_reorged_parts)
@@ -2739,6 +2753,7 @@ register_query_cache_dependant_tables(THD *thd,
     2) MAX_ROWS, MIN_ROWS on partition
     3) Index file name on partition
     4) Data file name on partition
+    5) Engine-defined attributes on partition
 */
 
 int ha_partition::set_up_table_before_create(TABLE *tbl,
@@ -2776,6 +2791,10 @@ int ha_partition::set_up_table_before_create(TABLE *tbl,
   if (info->connect_string.length)
     info->used_fields|= HA_CREATE_USED_CONNECTION;
   tbl->s->connect_string= part_elem->connect_string;
+  if (part_elem->option_list)
+    tbl->s->option_list= part_elem->option_list;
+  if (part_elem->option_struct)
+    tbl->s->option_struct= part_elem->option_struct;
   DBUG_RETURN(0);
 }
 
@@ -3733,31 +3752,31 @@ bool ha_partition::init_partition_bitmaps()
   DBUG_ENTER("ha_partition::init_partition_bitmaps");
 
   /* Initialize the bitmap we use to minimize ha_start_bulk_insert calls */
-  if (my_bitmap_init(&m_bulk_insert_started, NULL, m_tot_parts + 1, FALSE))
+  if (my_bitmap_init(&m_bulk_insert_started, NULL, m_tot_parts + 1))
     DBUG_RETURN(true);
 
   /* Initialize the bitmap we use to keep track of locked partitions */
-  if (my_bitmap_init(&m_locked_partitions, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_locked_partitions, NULL, m_tot_parts))
     DBUG_RETURN(true);
 
   /*
     Initialize the bitmap we use to keep track of partitions which may have
     something to reset in ha_reset().
   */
-  if (my_bitmap_init(&m_partitions_to_reset, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_partitions_to_reset, NULL, m_tot_parts))
     DBUG_RETURN(true);
 
   /*
     Initialize the bitmap we use to keep track of partitions which returned
     HA_ERR_KEY_NOT_FOUND from index_read_map.
   */
-  if (my_bitmap_init(&m_key_not_found_partitions, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_key_not_found_partitions, NULL, m_tot_parts))
     DBUG_RETURN(true);
 
-  if (my_bitmap_init(&m_mrr_used_partitions, NULL, m_tot_parts, TRUE))
+  if (my_bitmap_init(&m_mrr_used_partitions, NULL, m_tot_parts))
     DBUG_RETURN(true);
 
-  if (my_bitmap_init(&m_opened_partitions, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_opened_partitions, NULL, m_tot_parts))
     DBUG_RETURN(true);
 
   m_file_sample= NULL;
@@ -4334,8 +4353,6 @@ int ha_partition::external_lock(THD *thd, int lock_type)
   {
     if (m_part_info->part_expr)
       m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
-    if ((error= m_part_info->vers_set_hist_part(thd)))
-      goto err_handler;
     need_info_for_auto_inc();
   }
   DBUG_RETURN(0);
@@ -4469,7 +4486,6 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
   {
     if (m_part_info->part_expr)
       m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
-    error= m_part_info->vers_set_hist_part(thd);
   }
   DBUG_RETURN(error);
 }
@@ -5492,13 +5508,17 @@ void ha_partition::position(const uchar *record)
 {
   handler *file= m_file[m_last_part];
   size_t pad_length;
-  DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), m_last_part));
   DBUG_ENTER("ha_partition::position");
 
-  file->position(record);
   int2store(ref, m_last_part);
-  memcpy((ref + PARTITION_BYTES_IN_POS), file->ref, file->ref_length);
-  pad_length= m_ref_length - PARTITION_BYTES_IN_POS - file->ref_length;
+  if (bitmap_is_set(&(m_part_info->read_partitions), m_last_part))
+  {
+    file->position(record);
+    memcpy((ref + PARTITION_BYTES_IN_POS), file->ref, file->ref_length);
+    pad_length= m_ref_length - PARTITION_BYTES_IN_POS - file->ref_length;
+  }
+  else
+    pad_length= m_ref_length - PARTITION_BYTES_IN_POS;
   if (pad_length)
     memset((ref + PARTITION_BYTES_IN_POS + file->ref_length), 0, pad_length);
 
@@ -9471,6 +9491,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
   case HA_EXTRA_BEGIN_ALTER_COPY:
   case HA_EXTRA_END_ALTER_COPY:
+  case HA_EXTRA_ABORT_ALTER_COPY:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   default:
   {
@@ -9791,7 +9812,7 @@ ha_rows ha_partition::min_rows_for_estimate()
     All partitions might have been left as unused during partition pruning
     due to, for example, an impossible WHERE condition. Nonetheless, the
     optimizer might still attempt to perform (e.g. range) analysis where an
-    estimate of the the number of rows is calculated using records_in_range.
+    estimate of the number of rows is calculated using records_in_range.
     Hence, to handle this and other possible cases, use zero as the minimum
     number of rows to base the estimate on if no partition is being used.
   */
@@ -10380,7 +10401,7 @@ void ha_partition::print_error(int error, myf errflag)
   /*
     We choose a main handler's print_error if:
     * m_file has not been initialized, like in bug#42438
-    * lookup_errkey is set, which means that an error has occured in the
+    * lookup_errkey is set, which means that an error has occurred in the
       main handler, not in individual partitions
   */
   if (m_file && lookup_errkey == (uint)-1)

@@ -31,6 +31,7 @@ BEGIN
     WHERE variable_name NOT IN ('timestamp')
      AND variable_name not like "Last_IO_Err*"
      AND variable_name != 'INNODB_IBUF_MAX_SIZE'
+     AND variable_name != 'INNODB_LOG_FILE_BUFFERING'
      AND variable_name != 'INNODB_USE_NATIVE_AIO'
      AND variable_name != 'INNODB_BUFFER_POOL_LOAD_AT_STARTUP'
      AND variable_name not like 'GTID%POS'
@@ -99,7 +100,8 @@ BEGIN
     mysql.global_priv;
 
   -- verify that no plugin changed its disabled/enabled state
-  SELECT * FROM INFORMATION_SCHEMA.PLUGINS;
+  SELECT * FROM INFORMATION_SCHEMA.PLUGINS
+           WHERE PLUGIN_STATUS != 'INACTIVE';
 
   select * from information_schema.session_variables
     where variable_name = 'debug_sync';

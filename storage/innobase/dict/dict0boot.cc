@@ -57,7 +57,7 @@ dict_hdr_get_new_id(
 						(not assigned if NULL) */
 	index_id_t*		index_id,	/*!< out: index id
 						(not assigned if NULL) */
-	ulint*			space_id)	/*!< out: space id
+	uint32_t*		space_id)	/*!< out: space id
 						(not assigned if NULL) */
 {
 	ib_id_t		id;
@@ -260,8 +260,8 @@ dberr_t dict_boot()
 	header. */
 
 	dict_sys.recover_row_id(mach_read_from_8(dict_hdr + DICT_HDR_ROW_ID));
-	if (ulint max_space_id = mach_read_from_4(dict_hdr
-						  + DICT_HDR_MAX_SPACE_ID)) {
+	if (uint32_t max_space_id
+	    = mach_read_from_4(dict_hdr + DICT_HDR_MAX_SPACE_ID)) {
 		max_space_id--;
 		fil_assign_new_space_id(&max_space_id);
 	}

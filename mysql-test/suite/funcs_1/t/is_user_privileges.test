@@ -170,7 +170,7 @@ eval $my_select2;
 eval $my_show;
 
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
-connect (testuser3, localhost, testuser3, , test);
+connect (testuser3, localhost, testuser3, ,"*NO-ONE*");
 --vertical_results
 eval $my_select1;
 --error ER_TABLEACCESS_DENIED_ERROR

@@ -6,7 +6,7 @@ DROP TABLE IF EXISTS t1;
 connection slave;
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
-RESET SLAVE;
+include/reset_slave.inc
 SET @saved_slave_type_conversions = @@slave_type_conversions;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS = 'ALL_NON_LOSSY';
 CREATE TABLE t1 (

@@ -9,6 +9,7 @@
 
 # Tests' global declarations
 --let $trx = _trx_
+--let $slave_timeout= -1
 
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 call mtr.add_suppression("WSREP: handlerton rollback failed");

@@ -3,6 +3,8 @@
 --source include/no_msan_without_big.inc
 --source include/not_valgrind.inc
 --source include/have_innodb.inc
+# --view-protocol fails due to MDEV-37119 for MDEV-32299
+--source include/no_view_protocol.inc
 
 create table t1 (a int, b varchar(32));
 insert into t1 values
@@ -4064,4 +4066,178 @@ drop table t1;
 --error ER_BAD_FIELD_ERROR
 SELECT ( WITH RECURSIVE x AS ( WITH x AS ( SELECT 1 FROM t14 ) SELECT x ) , t14 AS ( SELECT 1 UNION SELECT 'x' FROM x ) SELECT x FROM x WHERE ( SELECT x FROM x ) ) ;
 
+--echo #
+--echo # MDEV-32299 Segfault when preparing unreferenced select in recursive CTE
+--echo #
+
+# As in bug report
+--error ER_BAD_FIELD_ERROR
+SELECT ( WITH RECURSIVE x AS ( SELECT * FROM ( SELECT UTC_TIMESTAMP FROM ( SELECT ( WITH x AS ( WITH x AS ( SELECT * FROM x ) SELECT 1 ) SELECT 1 ) ) x ) x UNION SELECT NULL ) ( SELECT x FROM x ) ) ;
+
+#0  0x00005555569dff7b in TABLE_LIST::reset_const_table (this=0x7fffe0019938) at ../src/sql/table.cc:9615
+#1  0x00005555569dffd4 in TABLE_LIST::reset_const_table (this=0x7fffe001a8c0) at ../src/sql/table.cc:9622
+--error ER_BAD_FIELD_ERROR
+select (
+  with recursive x as (
+    select * from (
+      select utc_timestamp
+      from (
+        select (
+          with x as (
+            with x as (
+              select * from x
+            )
+            select 1
+          )
+          select 1
+        ) s
+      ) y
+    ) z
+
+    union
+
+    select null
+  )
+  (select x from x)
+);
+
+#6  0x00007ffff7639206 in __assert_fail (assertion=0x555555e121b6 "table_ref->table || table_ref->view", file=0x555555cdf138 "../src/sql/table.cc", line=7305, function=0x555555e30e24 "void Field_iterator_table_ref::set_field_iterator()") at ./assert/assert.c:101
+#7  0x00005555569da013 in Field_iterator_table_ref::set_field_iterator (this=0x7ffff0a9afc0) at ../src/sql/table.cc:7305
+select (
+  with recursive r as (
+    select * from (
+      with a as (
+          select * from r
+      )
+      select 1
+    ) y
+
+    union
+
+    select 1
+  )
+  (select * from r)
+);
+
+# Field resolution in unreferenced:
+create table t1 (x int);
+
+with recursive r as (
+  select f1 from (
+    with a as (
+        select x from t1
+    )
+    select 1 as f1
+  ) y
+
+  union
+
+  select null
+)
+(select * from r);
+
+--error ER_BAD_FIELD_ERROR
+with recursive r as (
+  select f1 from (
+    with a as (
+        select f2 from t1
+    )
+    select 1 as f1
+  ) y
+
+  union
+
+  select null
+)
+(select * from r);
+
+drop table t1;
+
+with recursive r as (
+  select 1 as f1
+
+  union
+
+  select f1 from (
+    with a as (
+        select f1 from r
+    )
+    select 1 as f1
+  ) y
+)
+(select f1 from r);
+
+--error ER_BAD_FIELD_ERROR
+with recursive r as (
+  select 1 as f1
+
+  union
+
+  select f1 from (
+    with a as (
+        select f2 from r
+    )
+    select 1 as f1
+  ) y
+)
+(select f1 from r);
+
+
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-32724 Segmentation fault due to Deep Recursion in table.cc and sql_lex.cc
+--echo #
+--error ER_RECURSIVE_WITHOUT_ANCHORS
+with recursive r (y) as (
+  with r (z) as (select 1 from r) select 1 from r
+  union all
+  select y from r)
+select y from r;
+
+--echo # r2 CTE is the anchor for r (original behavior):
+with recursive r (y) as (
+  with recursive r2 (z) as (
+    select z + 1 from r2 where z < 2
+    union all
+    select 1)
+  select z from r2
+  union all
+  select y * 2 from r where y < 10)
+select y from r;
+
+--echo # It is different with the name clash,
+--echo # select y * 2 from r is attached to inner r:
+--error ER_BAD_FIELD_ERROR
+with recursive r (y) as (
+  with recursive r (z) as (
+    select z + 1 from r where z < 2
+    union all
+    select 1)
+  select z from r
+  union all
+  select y * 2 from r where y < 10)
+select y from r;
+
+--echo # The whole set of SELECTs is attached to CTE:
+with recursive r (z) as (
+  select z + 1 from r where z < 2
+  union all
+  select 1)
+select z from r
+union all
+select z * 2 from r where z < 10;
+
+--echo # In this case no outer recursion can occur as every r
+--echo # is taken by the inner recursive CTE:
+with recursive r (y) as (
+  with recursive r (z) as (
+    select z + 1 from r where z < 2
+    union all
+    select 1)
+  select z from r
+  union all
+  select z * 2 from r where z < 10)
+select y from r;
+
+--echo # End of 10.11 tests

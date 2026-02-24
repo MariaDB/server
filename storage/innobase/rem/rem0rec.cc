@@ -2733,11 +2733,10 @@ wsrep_rec_get_foreign_key(
 				*buf++ = 0;
 				key_len++;
 			}
-			memcpy(buf, data, len);
-			*buf_len = wsrep_innobase_mysql_sort(
+			*buf_len = wsrep_normalize_string(
 				(int)(col_f->prtype & DATA_MYSQL_TYPE_MASK),
 				dtype_get_charset_coll(col_f->prtype),
-				buf, static_cast<uint>(len),
+				data, buf, static_cast<uint>(len),
 				static_cast<uint>(*buf_len));
 		} else { /* new protocol */
 			if (!(col_r->prtype & DATA_NOT_NULL)) {
@@ -2766,13 +2765,10 @@ wsrep_rec_get_foreign_key(
 			case DATA_VARMYSQL:
 			case DATA_CHAR:
 			case DATA_MYSQL:
-				/* Copy the actual data */
-				memcpy(buf, data, len);
-				len = wsrep_innobase_mysql_sort(
-					(int)
-					(col_f->prtype & DATA_MYSQL_TYPE_MASK),
+				len = wsrep_normalize_string(
+					(int)(col_f->prtype & DATA_MYSQL_TYPE_MASK),
 					dtype_get_charset_coll(col_f->prtype),
-					buf, len, *buf_len);
+					data, buf, len, *buf_len);
 				break;
 			case DATA_BLOB:
 			case DATA_BINARY:

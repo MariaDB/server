@@ -12,9 +12,9 @@ connection node_1;
 connection node_2;
 Starting server ...
 connection node_1;
-# Both should return FOUND 2 as we have bootstrap and SST
-FOUND 2 /Desyncing and pausing the provider/ in mysqld.1.err
-FOUND 2 /Resuming and resyncing the provider/ in mysqld.1.err
+# Both should return NOT FOUND as we have mariabackup with backup locks
+NOT FOUND /Desyncing and pausing the provider/ in mysqld.1.err
+NOT FOUND /Resuming and resyncing the provider/ in mysqld.1.err
 connection node_1;
 SET GLOBAL wsrep_mode = "BF_ABORT_MARIABACKUP";
 # Restart node_2, force SST.
@@ -25,9 +25,9 @@ connection node_2;
 Starting server ...
 connection node_2;
 connection node_1;
-# Both should return FOUND 3 as we have 1 new SST
-FOUND 3 /Desyncing and pausing the provider/ in mysqld.1.err
-FOUND 3 /Resuming and resyncing the provider/ in mysqld.1.err
+# Both should return NOT FOUND as we have mariabackup with backup locks
+NOT FOUND /Desyncing and pausing the provider/ in mysqld.1.err
+NOT FOUND /Resuming and resyncing the provider/ in mysqld.1.err
 SET GLOBAL wsrep_mode = "";
 DROP TABLE t;
 # Case 2: MariaBackup backup from node_2
@@ -46,11 +46,13 @@ SET GLOBAL wsrep_mode = "BF_ABORT_MARIABACKUP";
 SELECT @@wsrep_mode;
 @@wsrep_mode
 BF_ABORT_MARIABACKUP
-# Both should return FOUND 1 as node should not desync
-FOUND 1 /Desyncing and pausing the provider/ in mysqld.2.err
-FOUND 1 /Resuming and resyncing the provider/ in mysqld.2.err
-# Should return FOUND 1 because only last backup does not desync
-FOUND 1 /Server not desynched from group because WSREP_MODE_BF_MARIABACKUP used./ in mysqld.2.err
+# Both should return FOUND 2 because both backups do desync but on different points
+FOUND 2 /Desyncing and pausing the provider/ in mysqld.2.err
+FOUND 2 /Resuming and resyncing the provider/ in mysqld.2.err
+# Should return FOUND 1 as server did not desync at BLOCK_DDL
+FOUND 1 /Server not desynched from group at BLOCK_DDL because WSREP_MODE_BF_MARIABACKUP is used./ in mysqld.2.err
+# Should return FOUND 1 as server did desync and pause at BLOCK_COMMIT
+FOUND 1 /Server desynched from group during BACKUP STAGE BLOCK_COMMIT./ in mysqld.2.err
 SET GLOBAL wsrep_mode = DEFAULT;
 connection node_1;
 DROP TABLE t;

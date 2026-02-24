@@ -1,0 +1,11 @@
+--- ../src/storage/spider/mysql-test/spider/regression/e1121/r/direct_join_by_pkey_key.result	2024-11-14 13:59:27.762081104 +1100
++++ ../src/storage/spider/mysql-test/spider/regression/e1121/r/direct_join_by_pkey_key.reject	2025-10-22 17:41:34.943649475 +1100
+@@ -46,7 +46,7 @@
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%' ;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_b`%';
+ argument
+-select t0.`val` `val`,t0.`akey` `akey` from `auto_test_remote`.`tbl_a` t0 join (select 1) t1 where (t0.`akey` = '4')
++select `akey`,`val` from `auto_test_remote`.`tbl_a` where `akey` = 4
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%' ;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_b`%'
+ argument

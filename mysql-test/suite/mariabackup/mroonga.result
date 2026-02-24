@@ -1,0 +1,15 @@
+#
+# MDEV-34425 mroonga files are not copied by mariabackup
+#
+CREATE TABLE t(c TEXT, FULLTEXT(c)) ENGINE=Mroonga;
+INSERT INTO t VALUES('Once upon a time'),('There was a wicked witch'),('Who ate everybody up');
+# mariadb-backup backup
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * FROM t WHERE MATCH(c) AGAINST('wicked');
+c
+There was a wicked witch
+DROP TABLE t;
+# End 10.11 tests

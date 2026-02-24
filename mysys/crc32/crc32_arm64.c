@@ -33,7 +33,7 @@ my_crc32_t crc32c_aarch64_available(void)
 }
 # else
 #  include <sys/auxv.h>
-#  ifdef __FreeBSD__
+#  if defined(__FreeBSD__) || defined(__OpenBSD__)
 static unsigned long getauxval(unsigned int key)
 {
   unsigned long val;
@@ -116,9 +116,9 @@ asm(".arch_extension crypto");
 
 
 #define CRC32C3X8(buffer, ITR) \
-  __asm__("crc32cx %w[c1], %w[c1], %x[v]":[c1]"+r"(crc1):[v]"r"(*((const uint64_t *)buffer + 42*1 + (ITR))));\
-  __asm__("crc32cx %w[c2], %w[c2], %x[v]":[c2]"+r"(crc2):[v]"r"(*((const uint64_t *)buffer + 42*2 + (ITR))));\
-  __asm__("crc32cx %w[c0], %w[c0], %x[v]":[c0]"+r"(crc0):[v]"r"(*((const uint64_t *)buffer + 42*0 + (ITR))));
+  __asm__("crc32cx %w[c1], %w[c1], %x[v]":[c1]"+r"(crc1):[v]"r"(uint8korr(buffer + (42*1 + (ITR)) * sizeof(uint64_t))));\
+  __asm__("crc32cx %w[c2], %w[c2], %x[v]":[c2]"+r"(crc2):[v]"r"(uint8korr(buffer + (42*2 + (ITR)) * sizeof(uint64_t))));\
+  __asm__("crc32cx %w[c0], %w[c0], %x[v]":[c0]"+r"(crc0):[v]"r"(uint8korr(buffer + (42*0 + (ITR)) * sizeof(uint64_t))));
 
 #else /* HAVE_ARMV8_CRC_CRYPTO_INTRINSICS  */
 
@@ -137,9 +137,9 @@ asm(".arch_extension crypto");
 #define CRC32B(crc, value) (crc) = __crc32b((crc), (value))
 
 #define CRC32C3X8(buffer, ITR) \
-  crc1 = __crc32cd(crc1, *((const uint64_t *)buffer + 42*1 + (ITR)));\
-  crc2 = __crc32cd(crc2, *((const uint64_t *)buffer + 42*2 + (ITR)));\
-  crc0 = __crc32cd(crc0, *((const uint64_t *)buffer + 42*0 + (ITR)));
+  crc1 = __crc32cd(crc1, uint8korr(buffer + (42*1 + (ITR)) * sizeof(uint64_t)));\
+  crc2 = __crc32cd(crc2, uint8korr(buffer + (42*2 + (ITR)) * sizeof(uint64_t)));\
+  crc0 = __crc32cd(crc0, uint8korr(buffer + (42*0 + (ITR)) * sizeof(uint64_t)));
 
 #endif /* HAVE_ARMV8_CRC_CRYPTO_INTRINSICS */
 
@@ -187,20 +187,20 @@ static unsigned crc32c_aarch64(unsigned crc, const void *buf, size_t len)
 
   while ((length-= sizeof(uint64_t)) >= 0)
   {
-    CRC32CX(crc, *(uint64_t *)buffer);
+    CRC32CX(crc, uint8korr(buffer));
     buffer+= sizeof(uint64_t);
   }
 
   /* The following is more efficient than the straight loop */
   if (length & sizeof(uint32_t))
   {
-    CRC32CW(crc, *(uint32_t *)buffer);
+    CRC32CW(crc, uint4korr(buffer));
     buffer+= sizeof(uint32_t);
   }
 
   if (length & sizeof(uint16_t))
   {
-    CRC32CH(crc, *(uint16_t *)buffer);
+    CRC32CH(crc, uint2korr(buffer));
     buffer+= sizeof(uint16_t);
   }
 
@@ -234,7 +234,7 @@ static unsigned crc32c_aarch64_pmull(unsigned crc, const void *buf, size_t len)
     /* Prefetch 3*1024 data for avoiding L2 cache miss */
     PREF1KL2(buffer, 1024*3);
     /* Do first 8 bytes here for better pipelining */
-    crc0= __crc32cd(crc, *(const uint64_t *)buffer);
+    crc0= __crc32cd(crc, uint8korr(buffer));
     crc1= 0;
     crc2= 0;
     buffer+= sizeof(uint64_t);
@@ -260,7 +260,7 @@ static unsigned crc32c_aarch64_pmull(unsigned crc, const void *buf, size_t len)
      */
     t1= (uint64_t)vmull_p64(crc1, k2);
     t0= (uint64_t)vmull_p64(crc0, k1);
-    crc= __crc32cd(crc2, *(const uint64_t *)buffer);
+    crc= __crc32cd(crc2, uint8korr(buffer));
     crc1= __crc32cd(0, t1);
     crc^= crc1;
     crc0= __crc32cd(0, t0);
@@ -285,7 +285,7 @@ static unsigned crc32c_aarch64_pmull(unsigned crc, const void *buf, size_t len)
 
     PREF1KL2(buffer, 1024*3);
     __asm__("crc32cx %w[c0], %w[c], %x[v]\n\t"
-            :[c0]"=r"(crc0):[c]"r"(crc), [v]"r"(*(const uint64_t *)buffer):);
+            :[c0]"=r"(crc0):[c]"r"(crc), [v]"r"(uint8korr(buffer)):);
     crc1= 0;
     crc2= 0;
     buffer+= sizeof(uint64_t);
@@ -311,7 +311,7 @@ static unsigned crc32c_aarch64_pmull(unsigned crc, const void *buf, size_t len)
             "crc32cx        %w[c0],         wzr,    %x[c0]  \n\t"
             "eor            %w[c],          %w[c],  %w[c0]  \n\t"
             :[c1]"+r"(crc1), [c0]"+r"(crc0), [c2]"+r"(crc2), [c]"+r"(crc)
-            :[v]"r"(*((const uint64_t *)buffer)));
+            :[v]"r"(uint8korr(buffer)));
     buffer+= sizeof(uint64_t);
   }
 # endif /* HAVE_ARMV8_CRC_CRYPTO_INTRINSICS */
@@ -322,20 +322,20 @@ static unsigned crc32c_aarch64_pmull(unsigned crc, const void *buf, size_t len)
   {
     while ((length-= sizeof(uint64_t)) >= 0)
     {
-      CRC32CX(crc, *(uint64_t *)buffer);
+      CRC32CX(crc, uint8korr(buffer));
       buffer+= sizeof(uint64_t);
     }
 
     /* The following is more efficient than the straight loop */
     if (length & sizeof(uint32_t))
     {
-      CRC32CW(crc, *(uint32_t *)buffer);
+      CRC32CW(crc, uint4korr(buffer));
       buffer+= sizeof(uint32_t);
     }
 
     if (length & sizeof(uint16_t))
     {
-      CRC32CH(crc, *(uint16_t *)buffer);
+      CRC32CH(crc, uint2korr(buffer));
       buffer+= sizeof(uint16_t);
     }
 
@@ -369,8 +369,10 @@ unsigned int crc32_aarch64(unsigned int crc, const void *buf, size_t len)
     len--;
   }
 
-  for (; len >= 8; len-= 8)
-    CRC32X(crc, *buf8++);
+  for (; len >= 8; len-= 8) {
+    CRC32X(crc, uint8korr((uchar *)buf8));
+    buf8++;
+  }
 
   buf1= (const uint8_t *) buf8;
   while (len--)

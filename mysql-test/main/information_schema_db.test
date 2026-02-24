@@ -56,7 +56,7 @@ create table t1
  f2 varchar(100) not null,
  primary key (f1), unique key (f2));
 
-connect (user1,localhost,mysqltest_1,,);
+connect (user1,localhost,mysqltest_1,,"*NO-ONE*");
 connection user1;
 --disable_result_log
 select * from information_schema.tables;
@@ -115,8 +115,7 @@ grant all on testdb_1.* to testdb_1@localhost with grant option;
 create user testdb_2@localhost;
 grant all on test.* to testdb_2@localhost with grant option;
 
-connect (testdb_1,localhost,testdb_1,,test);
-use testdb_1;
+connect (testdb_1,localhost,testdb_1,,testdb_1);
 create table t1 (f1 char(4));
 create view v1 as select f1 from t1;
 grant insert on v1 to testdb_2@localhost;
@@ -207,13 +206,8 @@ connection default;
 use test;
 drop view testdb_1.v1, v2, testdb_1.v3, v4;
 drop database testdb_1;
-connection testdb_1;
 disconnect testdb_1;
---source include/wait_until_disconnected.inc
-connection testdb_2;
 disconnect testdb_2;
---source include/wait_until_disconnected.inc
-connection default;
 drop user testdb_1@localhost;
 drop user testdb_2@localhost;
 
@@ -227,7 +221,7 @@ create view testdb_1.v1 as select * from testdb_1.t1;
 grant show view on testdb_1.* to mysqltest_1@localhost;
 grant select on testdb_1.v1 to mysqltest_1@localhost;
 
-connect (user1,localhost,mysqltest_1,,test);
+connect (user1,localhost,mysqltest_1,,"*NO-ONE*");
 connection user1;
 select table_schema, table_name, view_definition from information_schema.views
 where table_name='v1';
@@ -244,10 +238,7 @@ show create view testdb_1.v1;
 connection default;
 drop user mysqltest_1@localhost;
 drop database testdb_1;
-connection user1;
 disconnect user1;
---source include/wait_until_disconnected.inc
-connection default;
 
 set global sql_mode=default;
 
@@ -257,9 +248,13 @@ set global sql_mode=default;
 
 create user foo@localhost;
 grant select on test.* to foo@localhost;
+let $default_id= `select connection_id()`;
+connect foo,localhost,foo;
+let $foo_id= `select connection_id()`;
+connection default;
 create procedure rootonly() select 1;
-create sql security definer view v1d as select current_user(),user from information_schema.processlist where command!='daemon';
-create sql security invoker view v1i as select current_user(),user from information_schema.processlist where command!='daemon';
+evalp create sql security definer view v1d as select current_user(),user from information_schema.processlist where id in($default_id, $foo_id) order by user;
+evalp create sql security invoker view v1i as select current_user(),user from information_schema.processlist where id in($default_id, $foo_id) order by user;
 create sql security definer view v2d as select table_name from information_schema.tables where table_schema='mysql' and table_name like '%user%';
 create sql security invoker view v2i as select table_name from information_schema.tables where table_schema='mysql' and table_name like '%user%';
 create sql security definer view v3d as select schema_name from information_schema.schemata where schema_name like '%mysql%';
@@ -268,7 +263,7 @@ create sql security definer view v4d as select routine_name from information_sch
 create sql security invoker view v4i as select routine_name from information_schema.routines where routine_schema='test';
 create sql security definer view v5d as select view_definition > '' from information_schema.views where table_name='v1d';
 create sql security invoker view v5i as select view_definition > '' from information_schema.views where table_name='v1d';
-connect foo,localhost,foo;
+connection foo;
 select * from v1d;
 select * from v1i;
 select * from v2d;
@@ -329,6 +324,42 @@ show index in t3;
 drop user u@localhost;
 drop database db;
 
---echo #
 --echo # End of 10.4 tests
+
 --echo #
+--echo # MDEV-38209 REFERENCES permission on particular schema is sometimes ignored
+--echo #
+
+create database db1;
+CREATE TABLE db1.author (
+  id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL
+) ENGINE = InnoDB;
+
+CREATE TABLE db1.book (
+  id MEDIUMINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(200) NOT NULL,
+  author_id SMALLINT UNSIGNED NOT NULL,
+  CONSTRAINT `fk_book_author`
+    FOREIGN KEY (author_id) REFERENCES db1.author (id)
+    ON DELETE CASCADE
+    ON UPDATE RESTRICT
+) ENGINE = InnoDB;
+
+grant select on *.* to u@localhost;
+grant select, references on db1.* to u@localhost;
+
+--connect u,localhost,u,,db1
+select user();
+show grants;
+--sorted_result
+select table_name,constraint_name from information_schema.referential_constraints;
+--sorted_result
+select table_name,constraint_name from information_schema.table_constraints;
+--disconnect u
+
+--connection default
+drop user u@localhost;
+drop database db1;
+
+--echo # End of 10.11 tests

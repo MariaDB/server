@@ -10,6 +10,8 @@
 # mysqlbinlog: compressed row event 
 # 
 #
+set pseudo_thread_id=5;
+reset master;
 
 SET GLOBAL log_bin_compress=on;
 SET GLOBAL log_bin_compress_min_len=10;

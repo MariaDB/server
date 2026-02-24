@@ -1,0 +1,1 @@
+--master-info-file=$MYSQL_TMP_DIR/master_info_file.txt

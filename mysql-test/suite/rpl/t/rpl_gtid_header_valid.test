@@ -167,6 +167,38 @@ RESET MASTER;
 set @@global.gtid_slave_pos="";
 --source include/start_slave.inc
 
+
+--echo #
+--echo # Test FL_COMMIT_ALTER
+--connection master
+set @old_dbug= @@SESSION.debug_dbug;
+set @@SESSION.debug_dbug= "+d,negate_alter_fl_from_gtid";
+set @old_alter_tp= @@SESSION.binlog_alter_two_phase;
+set @@SESSION.binlog_alter_two_phase= 1;
+alter table t1 add column (nc int);
+--source include/save_master_gtid.inc
+set @@SESSION.debug_dbug=@old_dbug;
+set @@SESSION.binlog_alter_two_phase=@old_alter_tp;
+
+--connection slave
+--echo # Waiting for slave to find invalid event..
+let $slave_sql_errno= 1594; # ER_SLAVE_RELAY_LOG_READ_FAILURE
+source include/wait_for_slave_sql_error.inc;
+STOP SLAVE IO_THREAD;
+
+--echo # Reset master binlogs (as there is an invalid event) and slave state
+--connection master
+RESET MASTER;
+
+--connection slave
+# Just to keep tables consistent between master/slave
+SET STATEMENT sql_log_bin=0 FOR alter table t1 add column (nc int);
+RESET SLAVE;
+RESET MASTER;
+set @@global.gtid_slave_pos="";
+--source include/start_slave.inc
+
+
 --echo #
 --echo # Cleanup
 

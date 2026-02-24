@@ -173,3 +173,43 @@ drop table t2;
 rename table if exists t1 to t2;
 alter table if exists t2 rename to t1;
 drop table t1;
+#
+# MDEV-27027 Atomic DDL: Assertion `!param->got_error' failed upon
+#             unsuccessful multi-RENAME TABLE
+#
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+INSERT INTO db.t SELECT SLEEP(0.05);
+# Missing table in RENAME TABLE (should error)
+RENAME TABLE t1 TO t2,
+missing1 TO m1;
+ERROR 42S02: Table 'test.missing1' doesn't exist
+SHOW CREATE TRIGGER tr1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+tr1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER INSERT ON `t1` FOR EACH ROW
+INSERT INTO db.t SELECT SLEEP(0.05)	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+CREATE TABLE t2 (a INT);
+# Attempt to rename to existing table (should error)
+RENAME TABLE t2 TO t3,
+t1 TO t3;
+ERROR 42S01: Table 't3' already exists
+SHOW CREATE TRIGGER tr1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+tr1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER INSERT ON `t1` FOR EACH ROW
+INSERT INTO db.t SELECT SLEEP(0.05)	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+# Test multiple warnings captured during renaming
+RENAME TABLE IF EXISTS
+missing1 TO m1,
+missing2 TO m2,
+t2 TO t3,  # this rename succeeds
+missing3 TO m3;
+Warnings:
+Note	1146	Table 'test.missing1' doesn't exist
+Note	1146	Table 'test.missing2' doesn't exist
+Note	1146	Table 'test.missing3' doesn't exist
+RENAME TABLE IF EXISTS
+missing1 TO m1,
+t1 TO t3,  # this will error: table exists
+missing2 TO m2;
+ERROR 42S01: Table 't3' already exists
+DROP TABLE t1, t3;

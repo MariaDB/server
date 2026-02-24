@@ -1,0 +1,2 @@
+"--replicate-rewrite-db=primary_db1->replica_db1"
+"--replicate-rewrite-db=x->y"

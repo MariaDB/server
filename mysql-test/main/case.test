@@ -2,11 +2,6 @@
 # Testing of CASE
 #
 
-
---disable_warnings
-drop table if exists t1, t2;
---enable_warnings
-
 select CASE "b" when "a" then 1 when "b" then 2 END as exp;
 select CASE "c" when "a" then 1 when "b" then 2 END as exp;
 select CASE "c" when "a" then 1 when "b" then 2 ELSE 3 END as exp;
@@ -412,7 +407,13 @@ SELECT * FROM t1 WHERE
 
 DROP TABLE t1;
 
+--echo # End of 10.3 test
 
 --echo #
---echo # End of 10.3 test
+--echo # MDEV-25415 CASE function handles NULL inconsistently
 --echo #
+select case 'X' when null then 1 when 'X' then 2 else 3 end;
+select case 'X' when 1/1 then 1 when 'X' then 2 else 3 end;
+select case 'X' when 1/0 then 1 when 'X' then 2 else 3 end;
+
+--echo # End of 10.11 test

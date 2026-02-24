@@ -459,7 +459,13 @@ unsigned int wsrep_check_ip (const char* const addr, bool *is_ipv6)
 
   *is_ipv6= false;
 
-  int gai_ret= getaddrinfo(addr, NULL, &hints, &res);
+  char *end;
+  char address[INET6_ADDRSTRLEN];
+
+  end= strcend(addr, ',');
+  strmake(address, addr, (uint) (end - addr));
+
+  int gai_ret= getaddrinfo(address, NULL, &hints, &res);
   if (0 == gai_ret)
   {
     if (AF_INET == res->ai_family) /* IPv4 */

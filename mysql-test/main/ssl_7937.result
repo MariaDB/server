@@ -13,4 +13,10 @@ have_ssl
 yes
 mysql --ssl --ssl-verify-server-cert -e "call test.have_ssl()"
 ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
+#
+# MDEV-27105 --ssl option set as default for mariadb CLI
+#
+mysql -e "call test.have_ssl()"
+have_ssl
+yes
 drop procedure have_ssl;

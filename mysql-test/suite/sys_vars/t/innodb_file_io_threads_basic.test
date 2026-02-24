@@ -39,16 +39,9 @@ SELECT COUNT(@@GLOBAL.innodb_write_io_threads);
 #   Check if Value can set                                         #
 ####################################################################
 
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
-SET @@GLOBAL.innodb_read_io_threads=1;
---echo Expected error 'Read only variable'
 
 SELECT COUNT(@@GLOBAL.innodb_read_io_threads);
 --echo 1 Expected
-
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
-SET @@GLOBAL.innodb_write_io_threads=1;
---echo Expected error 'Read only variable'
 
 SELECT COUNT(@@GLOBAL.innodb_write_io_threads);
 --echo 1 Expected

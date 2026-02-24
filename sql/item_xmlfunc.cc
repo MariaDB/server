@@ -189,7 +189,7 @@ public:
     }
     return str;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     max_length= MAX_BLOB_WIDTH;
     collation.collation= pxml->charset();
@@ -481,7 +481,7 @@ public:
   {
     return nodeset->copy(*native_cache);
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   { max_length= MAX_BLOB_WIDTH; return FALSE; }
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -500,7 +500,7 @@ public:
   {
     return { STRING_WITH_LEN("xpath_position") };
   }
-  bool fix_length_and_dec() override { max_length=10; return FALSE; }
+  bool fix_length_and_dec(THD *thd) override { max_length=10; return FALSE; }
   longlong val_int() override
   {
     args[0]->val_native(current_thd, &tmp_native_value);
@@ -525,7 +525,7 @@ public:
   {
     return { STRING_WITH_LEN("xpath_count") };
   }
-  bool fix_length_and_dec() override { max_length=10; return FALSE; }
+  bool fix_length_and_dec(THD *thd) override { max_length=10; return FALSE; }
   longlong val_int() override
   {
     uint predicate_supplied_context_size;
@@ -1249,13 +1249,13 @@ my_xpath_keyword(MY_XPATH *x,
 
 static Item *create_func_true(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return (Item*) &Item_true;
+  return (Item*) Item_true;
 }
 
 
 static Item *create_func_false(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return (Item*) &Item_false;
+  return (Item*) Item_false;
 }
 
 
@@ -2785,7 +2785,7 @@ my_xpath_parse(MY_XPATH *xpath, const char *str, const char *strend)
 }
 
 
-bool Item_xml_str_func::fix_length_and_dec()
+bool Item_xml_str_func::fix_length_and_dec(THD *thd)
 {
   max_length= MAX_BLOB_WIDTH;
   return agg_arg_charsets_for_comparison(collation, args, arg_count);

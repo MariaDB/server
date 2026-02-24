@@ -1,0 +1,11 @@
+#
+# MDEV-24815 Show "--allow-suspicious-udfs" state in SYSTEM VARIABLES
+#
+SELECT @@allow_suspicious_udfs AS EXPECT_0;
+EXPECT_0
+0
+# restart: --allow-suspicious-udfs
+SELECT @@allow_suspicious_udfs AS EXPECT_1;
+EXPECT_1
+1
+# restart: --skip-allow-suspicious-udfs

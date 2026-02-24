@@ -133,7 +133,7 @@ min(a)
 -0.010
 drop table t1;
 create table t1 (a float(200,100), b double(200,100));
-ERROR 42000: Too big scale 100 specified for 'a'. Maximum is 30
+ERROR 42000: Too big scale specified for 'a'. Maximum is 30
 create table t1 (c20 char);
 insert ignore into t1 values (5000.0);
 Warnings:
@@ -794,7 +794,7 @@ DROP TABLE t1,t2;
 #
 create or replace table t1 (a double(40,30));
 create or replace table t1 (a double(40,31));
-ERROR 42000: Too big scale 31 specified for 'a'. Maximum is 30
+ERROR 42000: Too big scale specified for 'a'. Maximum is 30
 create or replace table t1 as select 1.01e1;
 show create table t1;
 Table	Create Table
@@ -1763,4 +1763,37 @@ DROP TABLE t1;
 DROP TABLE t0;
 #
 # End of 10.6 tests
+#
+#
+# Start of 10.9 tests
+#
+#
+# MDEV-27712 Reduce the size of Lex_length_and_dec_st from 16 to 8
+#
+CREATE TABLE t1 (a DOUBLE(1000,1000));
+ERROR 42000: Too big scale specified for 'a'. Maximum is 30
+CREATE TABLE t1 (a DOUBLE(1000,0));
+ERROR 42000: Display width out of range for 'a' (max = 255)
+CREATE TABLE t1 (a DOUBLE(0,1000));
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'a')
+CREATE TABLE t1 (a DOUBLE(2147483647,2147483647));
+ERROR 42000: Too big scale specified for 'a'. Maximum is 30
+CREATE TABLE t1 (a DOUBLE(2147483647,0));
+ERROR 42000: Display width out of range for 'a' (max = 255)
+CREATE TABLE t1 (a DOUBLE(0,2147483647));
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'a')
+CREATE TABLE t1 (a DOUBLE(2147483648,2147483648));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2147483648,2147483648))' at line 1
+CREATE TABLE t1 (a DOUBLE(2147483648,0));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2147483648,0))' at line 1
+CREATE TABLE t1 (a DOUBLE(0,2147483648));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2147483648))' at line 1
+CREATE TABLE t1 (a DOUBLE(999999999999999999999999999999,999999999999999999999999999999));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '999999999999999999999999999999,999999999999999999999999999999))' at line 1
+CREATE TABLE t1 (a DOUBLE(999999999999999999999999999999,0));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '999999999999999999999999999999,0))' at line 1
+CREATE TABLE t1 (a DOUBLE(0,999999999999999999999999999999));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '999999999999999999999999999999))' at line 1
+#
+# End of 10.9 tests
 #

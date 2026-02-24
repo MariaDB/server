@@ -16,7 +16,7 @@ set @@global.slave_parallel_workers = 1;
 include/start_slave.inc
 connection slave;
 include/stop_slave.inc
-reset slave;
+include/reset_slave.inc
 connection master;
 reset master;
 create table t2 (a timestamp, b int);
@@ -35,14 +35,14 @@ flush binary logs;
 flush binary logs;
 insert into t2 values (null, 2);
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
 use `test`/*!*/;
 SET TIMESTAMP=1658586280/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C utf8mb3 *//*!*/;
@@ -109,7 +109,9 @@ connection slave;
 set @@global.explicit_defaults_for_timestamp = 1;
 connection slave;
 include/stop_slave.inc
-reset slave;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 reset master;
 create table t2 (a timestamp, b int);
@@ -128,14 +130,14 @@ flush binary logs;
 flush binary logs;
 insert into t2 values (null, 2);
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
 use `test`/*!*/;
 SET TIMESTAMP=1658586280/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C utf8mb3 *//*!*/;
@@ -201,7 +203,9 @@ set @@global.slave_parallel_workers = 4;
 include/start_slave.inc
 connection slave;
 include/stop_slave.inc
-reset slave;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 reset master;
 create table t2 (a timestamp, b int);

@@ -1,0 +1,26 @@
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--echo #
+--echo # MDEV-23287 The INET4 data type
+--echo #
+
+# Mixing INET6 and INET4 is not implemented yet
+
+CREATE TABLE t1 (i4 INET4, i6 INET6);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT * FROM t1 WHERE i4=i6;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT COALESCE(i4,i6) FROM t1 WHERE i4=i6;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT LEAST(i4,i6) FROM t1 WHERE i4=i6;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT i4 FROM t1 UNION ALL SELECT i6 FROM t1;
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

@@ -1,0 +1,51 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # MDEV-27896 Wrong result upon `COLLATE latin1_bin CHARACTER SET latin1` on the table or the database level
+--echo #
+
+CREATE TABLE t1 (a CHAR) COLLATE latin1_bin CHARACTER SET latin1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-27782 Wrong columns when using table level `CHARACTER SET utf8mb4 COLLATE DEFAULT`
+--echo #
+
+CREATE TABLE t1 (a CHAR(10)) CHARACTER SET latin1 COLLATE DEFAULT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a CHAR(10)) CHARACTER SET utf8mb4 COLLATE DEFAULT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-28117 Multiple conflicting table COLLATE clauses are not rejected
+--echo #
+
+--error ER_CONFLICTING_DECLARATIONS
+CREATE TABLE t1 (a CHAR(10)) COLLATE latin1_swedish_ci COLLATE latin1_bin;
+
+
+--echo #
+--echo # MDEV-27906 CREATE TABLE/DATABASE .. CHARSET .. COLLATE is not consistent on errors
+--echo #
+
+CREATE DATABASE db1 CHARACTER SET utf8mb4;
+USE db1;
+--error ER_COLLATION_CHARSET_MISMATCH
+CREATE TABLE t1 (a CHAR) COLLATE latin1_bin CHARACTER SET DEFAULT;
+--error ER_COLLATION_CHARSET_MISMATCH
+CREATE TABLE t1 (a CHAR) CHARACTER SET DEFAULT COLLATE latin1_bin;
+DROP DATABASE db1;
+USE test;
+
+CREATE TABLE t1 (a CHAR) COLLATE latin1_bin CHARACTER SET DEFAULT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a CHAR) CHARACTER SET DEFAULT COLLATE latin1_bin;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

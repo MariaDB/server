@@ -7,9 +7,14 @@ wsrep_debug=1
 
 [mysqld.1]
 wsrep_provider_options='pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
+innodb_fast_shutdown=0
+innodb_undo_tablespaces=0
 
 [mysqld.2]
 wsrep_provider_options='pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
+innodb_fast_shutdown=0
+innodb_undo_tablespaces=3
+loose_innodb_log_file_buffering
 
 [sst]
 transferfmt=@ENV.MTR_GALERA_TFMT

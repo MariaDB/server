@@ -25,7 +25,11 @@ CREATE TABLE `t1` (
   PRIMARY KEY (`pk`)
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t1` VALUES (1,1),(2,2),(3,3),(4,4);
+INSERT INTO `t1` VALUES
+(1,1),
+(2,2),
+(3,3),
+(4,4);
 ALTER TABLE `t1` ENGINE=S3;
 #####
 # mysqldump with --copy-s3-tables=1 XML

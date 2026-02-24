@@ -3487,7 +3487,6 @@ CREATE VIEW v1 AS SELECT f1, f2, f3, 'HELLO' AS my_greeting FROM t1;
 
 # Maybe the SQL standard allows the following INSERT.
 # But it would be a very sophisticated DBMS.
---error ER_NON_INSERTABLE_TABLE
 INSERT INTO v1 SET f1 = 1;
 SELECT * from t1;
 DELETE FROM t1;

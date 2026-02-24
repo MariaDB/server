@@ -33,7 +33,7 @@
 #include "item_windowfunc.h"
 
 bool mysql_union(THD *thd, LEX *lex, select_result *result,
-                 SELECT_LEX_UNIT *unit, ulong setup_tables_done_option)
+                 SELECT_LEX_UNIT *unit, ulonglong setup_tables_done_option)
 {
   DBUG_ENTER("mysql_union");
   bool res;
@@ -479,8 +479,8 @@ int select_unit::update_counter(Field* counter, longlong value)
 */
 
 bool select_unit_ext::disable_index_if_needed(SELECT_LEX *curr_sl)
-{ 
-  const bool oracle_mode= thd->variables.sql_mode & MODE_ORACLE;
+{
+  const bool oracle_mode= (thd->variables.sql_mode & IS_OR_WAS_ORACLE);
   if (is_index_enabled && 
       ((!oracle_mode &&
         curr_sl == curr_sl->master_unit()->union_distinct) ||
@@ -497,7 +497,7 @@ bool select_unit_ext::disable_index_if_needed(SELECT_LEX *curr_sl)
     table->no_keyread=1;
     /* In case of Oracle mode we unfold at the last operator */
     DBUG_ASSERT(!oracle_mode || !curr_sl->next_select());
-    return oracle_mode || !curr_sl->distinct;
+    return !curr_sl->distinct;
   }
   return false;
 }
@@ -1928,7 +1928,7 @@ void st_select_lex_unit::optimize_bag_operation(bool is_outer_distinct)
       PREPARE ... FROM
       recursive
   */
-  if ((thd->variables.sql_mode & MODE_ORACLE) ||
+  if ((thd->variables.sql_mode & IS_OR_WAS_ORACLE) ||
     (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW) ||
     (fake_select_lex != NULL && thd->stmt_arena->is_stmt_prepare()) ||
     (with_element && with_element->is_recursive ))
@@ -2170,6 +2170,20 @@ bool st_select_lex_unit::exec()
   DBUG_ENTER("st_select_lex_unit::exec");
   bool was_executed= executed;
   int error;
+  bool limit_rows_was_activated= false;
+
+  // Restore current_select on scope exit
+  SCOPE_EXIT([this, lex_select_save]() {
+    thd->lex->current_select= lex_select_save;
+  });
+
+  // Handle cleanup on scope exit
+  SCOPE_EXIT([this, &limit_rows_was_activated, &examined_rows]() {
+    if (limit_rows_was_activated)
+      thd->lex->set_limit_rows_examined();
+    if (!saved_error)
+      thd->inc_examined_row_count(examined_rows);
+  });
 
   if (executed && !uncacheable && !describe)
     DBUG_RETURN(FALSE);
@@ -2289,14 +2303,12 @@ bool st_select_lex_unit::exec()
           thd->set_examined_row_count(0);
 	  if (union_result->flush())
 	  {
-	    thd->lex->current_select= lex_select_save;
 	    DBUG_RETURN(1);
 	  }
 	}
       }
       if (unlikely(saved_error))
       {
-	thd->lex->current_select= lex_select_save;
 	DBUG_RETURN(saved_error);
       }
       if (fake_select_lex != NULL)
@@ -2340,20 +2352,18 @@ bool st_select_lex_unit::exec()
 
   DBUG_EXECUTE_IF("show_explain_probe_union_read", 
                    dbug_serve_apcs(thd, 1););
-  {
-    List<Item_func_match> empty_list;
-    empty_list.empty();
-    /*
-      Disable LIMIT ROWS EXAMINED in order to produce the possibly incomplete
-      result of the UNION without interruption due to exceeding the limit.
-    */
-    thd->lex->limit_rows_examined_cnt= ULONGLONG_MAX;
+  /*
+    Temporarily deactivate LIMIT ROWS EXAMINED to avoid producing potentially
+    incomplete result of the UNION due to exceeding of the limit. It will be
+    re-activated upon the function exit (see SCOPE_EXIT macro above)
+  */
+  limit_rows_was_activated= thd->lex->deactivate_limit_rows_examined();
 
-    // Check if EOM
-    if (fake_select_lex != NULL && likely(!thd->is_fatal_error))
-    {
-       /* Send result to 'result' */
-       saved_error= true;
+  // Check if EOM
+  if (fake_select_lex != NULL && likely(!thd->is_fatal_error))
+  {
+      /* Send result to 'result' */
+      saved_error= true;
 
       set_limit(global_parameters());
       init_prepare_fake_select_lex(thd, first_execution);
@@ -2374,7 +2384,7 @@ bool st_select_lex_unit::exec()
                                 result))))
 	{
 	  fake_select_lex->table_list.empty();
-	  goto err;
+	  DBUG_RETURN(TRUE);
 	}
         fake_select_lex->join->no_const_tables= TRUE;
 
@@ -2436,18 +2446,14 @@ bool st_select_lex_unit::exec()
       fake_select_lex->table_list.empty();
       if (likely(!saved_error))
       {
-	thd->limit_found_rows = (ulonglong)table->file->stats.records + add_rows;
-        thd->inc_examined_row_count(examined_rows);
+        thd->limit_found_rows=
+            (ulonglong) table->file->stats.records + add_rows;
       }
       /*
 	Mark for slow query log if any of the union parts didn't use
 	indexes efficiently
       */
     }
-  }
-  thd->lex->current_select= lex_select_save;
-err:
-  thd->lex->set_limit_rows_examined();
   DBUG_RETURN(saved_error);
 }
 
@@ -2586,13 +2592,14 @@ bool st_select_lex_unit::exec_recursive()
 
   thd->lex->current_select= lex_select_save;
 err:
-  thd->lex->set_limit_rows_examined();
   DBUG_RETURN(saved_error);    
 }
 
 
 bool st_select_lex_unit::cleanup()
 {
+  cleanup_stranded_units();
+
   bool error= 0;
   DBUG_ENTER("st_select_lex_unit::cleanup");
 

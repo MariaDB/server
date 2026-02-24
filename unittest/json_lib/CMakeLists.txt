@@ -19,4 +19,4 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/unittest/mytap)
 
 #
-MY_ADD_TESTS(json_lib LINK_LIBRARIES strings dbug)
+MY_ADD_TESTS(json_lib json_normalize LINK_LIBRARIES strings dbug)

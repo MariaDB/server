@@ -186,7 +186,6 @@ xb_fil_cur_open(
 	}
 #else
 	err = fstat(cursor->file.m_file, &cursor->statinfo);
-	MSAN_STAT_WORKAROUND(&cursor->statinfo);
 #endif
 	if (max_file_size < (ulonglong)cursor->statinfo.st_size) {
 		cursor->statinfo.st_size = (ulonglong)max_file_size;
@@ -199,14 +198,6 @@ xb_fil_cur_open(
 
 		return(XB_FIL_CUR_SKIP);
 	}
-
-#ifdef HAVE_FCNTL_DIRECT
-	if (srv_file_flush_method == SRV_O_DIRECT
-	    || srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC) {
-
-		os_file_set_nocache(cursor->file, node->name, "OPEN");
-	}
-#endif
 
 	posix_fadvise(cursor->file, 0, 0, POSIX_FADV_SEQUENTIAL);
 
@@ -239,8 +230,8 @@ xb_fil_cur_open(
 		mysql_mutex_unlock(&fil_system.mutex);
 	}
 
-	cursor->space_size = (ulint)(cursor->statinfo.st_size
-				     / cursor->page_size);
+	cursor->space_size = uint32_t(cursor->statinfo.st_size
+				      / cursor->page_size);
 
 	cursor->read_filter = read_filter;
 	cursor->read_filter->init(&cursor->read_filter_ctxt, cursor);
@@ -467,8 +458,8 @@ read_retry:
 				    "corrupted.%s", cursor->abs_path, ignore_corruption_warn);
 				ut_print_buf(stderr, page, page_size);
 				if (opt_log_innodb_page_corruption) {
-					corrupted_pages.add_page(cursor->node->name, cursor->node->space->id,
-						page_no);
+					corrupted_pages.add_page(cursor->node->name,
+								 {cursor->node->space->id, page_no});
 					retry_count = 1;
 				}
 				else {
@@ -491,8 +482,9 @@ read_retry:
 				unsigned corrupted_page_no =
 					static_cast<unsigned>(strtoul(dbug_val, NULL, 10));
 				if (page_no == corrupted_page_no)
-					corrupted_pages.add_page(cursor->node->name, cursor->node->space->id,
-						corrupted_page_no);
+					corrupted_pages.add_page(cursor->node->name,
+								 {cursor->node->space->id,
+								  corrupted_page_no});
 			});
 		cursor->buf_read += page_size;
 		cursor->buf_npages++;

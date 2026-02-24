@@ -8,23 +8,35 @@ SELECT @start_session_value;
 0
 '#--------------------FN_DYNVARS_054_01-------------------------#'
 SET @@global.keep_files_on_create = ON;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SET @@global.keep_files_on_create = DEFAULT;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@global.keep_files_on_create;
 @@global.keep_files_on_create
 0
 SET @@session.keep_files_on_create = ON;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SET @@session.keep_files_on_create = DEFAULT;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@session.keep_files_on_create;
 @@session.keep_files_on_create
 0
 '#--------------------FN_DYNVARS_054_02-------------------------#'
 SET @@global.keep_files_on_create = DEFAULT;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@global.keep_files_on_create = 'OFF';
 @@global.keep_files_on_create = 'OFF'
 1
 Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: 'OFF'
 SET @@session.keep_files_on_create = DEFAULT;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@session.keep_files_on_create = 'OFF';
 @@session.keep_files_on_create = 'OFF'
 1
@@ -32,51 +44,75 @@ Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: 'OFF'
 '#--------------------FN_DYNVARS_054_03-------------------------#'
 SET @@global.keep_files_on_create = ON;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@global.keep_files_on_create;
 @@global.keep_files_on_create
 1
 SET @@global.keep_files_on_create = OFF;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@global.keep_files_on_create;
 @@global.keep_files_on_create
 0
 SET @@global.keep_files_on_create = 0;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@global.keep_files_on_create;
 @@global.keep_files_on_create
 0
 SET @@global.keep_files_on_create = 1;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@global.keep_files_on_create;
 @@global.keep_files_on_create
 1
 SET @@global.keep_files_on_create = TRUE;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@global.keep_files_on_create;
 @@global.keep_files_on_create
 1
 SET @@global.keep_files_on_create = FALSE;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@global.keep_files_on_create;
 @@global.keep_files_on_create
 0
 '#--------------------FN_DYNVARS_054_04-------------------------#'
 SET @@session.keep_files_on_create = ON;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@session.keep_files_on_create;
 @@session.keep_files_on_create
 1
 SET @@session.keep_files_on_create = OFF;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@session.keep_files_on_create;
 @@session.keep_files_on_create
 0
 SET @@session.keep_files_on_create = 0;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@session.keep_files_on_create;
 @@session.keep_files_on_create
 0
 SET @@session.keep_files_on_create = 1;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@session.keep_files_on_create;
 @@session.keep_files_on_create
 1
 SET @@session.keep_files_on_create = TRUE;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@session.keep_files_on_create;
 @@session.keep_files_on_create
 1
 SET @@session.keep_files_on_create = FALSE;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@session.keep_files_on_create;
 @@session.keep_files_on_create
 0
@@ -130,12 +166,18 @@ IF(@@session.keep_files_on_create, "ON", "OFF") = VARIABLE_VALUE
 1
 '#---------------------FN_DYNVARS_001_08----------------------#'
 SET @@keep_files_on_create = OFF;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SET @@global.keep_files_on_create = ON;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@keep_files_on_create = @@global.keep_files_on_create;
 @@keep_files_on_create = @@global.keep_files_on_create
 0
 '#---------------------FN_DYNVARS_001_09----------------------#'
 SET @@keep_files_on_create = ON;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@keep_files_on_create = @@local.keep_files_on_create;
 @@keep_files_on_create = @@local.keep_files_on_create
 1
@@ -144,6 +186,8 @@ SELECT @@local.keep_files_on_create = @@session.keep_files_on_create;
 1
 '#---------------------FN_DYNVARS_001_10----------------------#'
 SET keep_files_on_create = 1;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@keep_files_on_create;
 @@keep_files_on_create
 1
@@ -154,10 +198,14 @@ ERROR 42S02: Unknown table 'session' in SELECT
 SELECT keep_files_on_create = @@session.keep_files_on_create;
 ERROR 42S22: Unknown column 'keep_files_on_create' in 'SELECT'
 SET @@global.keep_files_on_create = @start_global_value;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@global.keep_files_on_create;
 @@global.keep_files_on_create
 0
 SET @@session.keep_files_on_create = @start_session_value;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SELECT @@session.keep_files_on_create;
 @@session.keep_files_on_create
 0

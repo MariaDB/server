@@ -1,6 +1,3 @@
---replace_regex /name '[^']+'/name 'localhost'/
-INSTALL SONAME 'auth_gssapi';
-
 # gssapi,password
 CREATE USER 'nosuchuser' IDENTIFIED WITH gssapi OR mysql_native_password as password("good");
 replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
@@ -33,4 +30,3 @@ connection default;
 replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
 eval DROP USER '$GSSAPI_SHORTNAME';
 
-UNINSTALL SONAME 'auth_gssapi';

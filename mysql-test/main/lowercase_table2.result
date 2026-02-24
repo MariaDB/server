@@ -185,7 +185,7 @@ create table myUC (i int);
 select TABLE_SCHEMA,TABLE_NAME FROM information_schema.TABLES
 where TABLE_SCHEMA ='mysqltest_LC2';
 TABLE_SCHEMA	TABLE_NAME
-mysqltest_lc2	myUC
+mysqltest_LC2	myUC
 use test;
 drop database mysqltest_LC2;
 #
@@ -346,9 +346,7 @@ create table `B` (a int);
 create user 'mysqltest_1'@'localhost' identified by 'password';
 grant select, show view on db1.`a` to 'mysqltest_1'@'localhost';
 grant select, show view on db1.`B` to 'mysqltest_1'@'localhost';
-connect  conn1, localhost, mysqltest_1, password, test;
-connection conn1;
-use db1;
+connect  conn1, localhost, mysqltest_1, password, db1;
 show tables;
 Tables_in_db1
 B

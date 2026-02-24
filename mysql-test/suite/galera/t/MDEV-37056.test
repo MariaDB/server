@@ -1,0 +1,18 @@
+--source include/galera_cluster.inc
+ 
+--connection node_1
+SET SESSION wsrep_on=OFF;
+SET default_storage_engine=MYISAM;
+CREATE SEQUENCE t;
+SET SESSION wsrep_on=ON;
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+CREATE INDEX idx ON t (a);
+DROP SEQUENCE t;
+
+SET default_storage_engine='MYISAM';
+CREATE SEQUENCE t INCREMENT BY 0 CACHE=0 ENGINE=InnoDB;
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+CREATE INDEX c ON t (c);
+ 
+# cleanup
+DROP SEQUENCE t;

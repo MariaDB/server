@@ -72,13 +72,13 @@ SET collation_connection='sjis_japanese_ci';
 -- source include/ctype_like_escape.inc
 -- source include/ctype_like_range_f1f2.inc
 -- source include/ctype_str_to_date.inc
-
-
+-- source include/ctype_ascii_order.inc
 SET collation_connection='sjis_bin';
 -- source include/ctype_filesort.inc
 -- source include/ctype_innodb_like.inc
 -- source include/ctype_like_escape.inc
 -- source include/ctype_like_range_f1f2.inc
+-- source include/ctype_ascii_order.inc
 --enable_service_connection
 
 # Check parsing of string literals in SJIS with multibyte characters that

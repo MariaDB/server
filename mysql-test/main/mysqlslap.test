@@ -88,3 +88,9 @@ DROP TABLE t1;
 --exec $MYSQL_SLAP --concurrency=1 --silent --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-guid-primary --create-schema=slap
 
 --exec $MYSQL_SLAP --concurrency=1 --silent --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-secondary-indexes=1 --create-schema=slap
+
+--echo #
+--echo # Bug MDEV-34621: Fix division by zero in mariadb-slap when iterations=0
+--echo #
+
+--exec $MYSQL_SLAP -i0 --only-print

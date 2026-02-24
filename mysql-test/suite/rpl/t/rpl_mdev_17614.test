@@ -41,7 +41,7 @@ SELECT * FROM t1;
 
 # restart replication for the next testcase
 --source include/stop_slave_io.inc
-reset slave;
+--source include/reset_slave.inc
 connection master;
 reset master;
 drop table t1;
@@ -159,7 +159,7 @@ SELECT * FROM t1;
 
 # restart replication for the next testcase
 --source include/stop_slave_io.inc
-reset slave;
+--source include/reset_slave.inc
 connection master;
 reset master;
 drop table t1;

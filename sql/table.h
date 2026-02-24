@@ -80,6 +80,7 @@ class derived_handler;
 class Pushdown_derived;
 struct Name_resolution_context;
 class Table_function_json_table;
+class Open_table_context;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -302,6 +303,7 @@ typedef struct st_grant_info
    */
   GRANT_TABLE *grant_table_user;
   GRANT_TABLE *grant_table_role;
+  GRANT_TABLE *grant_public;
   /**
      @brief Used for cache invalidation when caching privilege information.
 
@@ -348,6 +350,14 @@ typedef struct st_grant_info
     want_privilege(NO_ACL),
     orig_want_privilege(NO_ACL)
   { }
+
+  void read(const Security_context *sctx, const char *db,
+            const char *table);
+
+  inline void refresh(const Security_context *sctx, const char *db,
+                     const char *table);
+  inline privilege_t aggregate_privs();
+  inline privilege_t aggregate_cols();
 
   /* OR table and all column privileges */
   privilege_t all_privilege();
@@ -663,12 +673,12 @@ public:
   ~TABLE_STATISTICS_CB();
   MEM_ROOT  mem_root; /* MEM_ROOT to allocate statistical data for the table */
   Table_statistics *table_stats; /* Structure to access the statistical data */
-  ulong total_hist_size;         /* Total size of all histograms */
   uint  stats_available;
+  bool  histograms_exists_on_disk;
 
   bool histograms_exists() const
   {
-    return total_hist_size != 0;
+    return histograms_exists_on_disk;
   }
   bool unused()
   {
@@ -903,6 +913,13 @@ struct TABLE_SHARE
   vers_kind_t versioned;
   period_info_t vers;
   period_info_t period;
+  /*
+      Protect multiple threads from repeating partition auto-create over
+      single share.
+
+      TODO: remove it when partitioning metadata will be in TABLE_SHARE.
+  */
+  bool          vers_skip_auto_create;
 
   bool init_period_from_extra2(period_info_t *period, const uchar *data,
                                const uchar *end);
@@ -1267,7 +1284,6 @@ private:
 
 public:
 
-  uint32 instance; /** Table cache instance this TABLE is belonging to */
   THD	*in_use;                        /* Which thread uses this */
 
   uchar *record[3];			/* Pointer to records */
@@ -1421,7 +1437,13 @@ public:
     NULLable (and have NULL values when null_row=true)
   */
   uint maybe_null;
-  int		current_lock;           /* Type of lock on table */
+  uint max_keys; /* Size of allocated key_info array. */
+  int current_lock;           /* Type of lock on table */
+  /* Number of cost info elements for possible range filters */
+  uint range_rowid_filter_cost_info_elems;
+  uint32 instance; /** Table cache instance this TABLE is belonging to */
+
+  /* variables of type bool */
   bool copy_blobs;			/* copy_blobs when storing */
   /*
     Set if next_number_field is in the UPDATE fields of INSERT ... ON DUPLICATE
@@ -1508,7 +1530,6 @@ public:
   */
   bool alias_name_used;              /* true if table_name is alias */
   bool get_fields_in_item_tree;      /* Signal to fix_field */
-  List<Virtual_column_info> vcol_refix_list;
 private:
   bool m_needs_reopen;
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
@@ -1517,7 +1538,17 @@ public:
   /* used in RBR Triggers */
   bool master_had_triggers;
 #endif
+  /* Temporary value used by binlog_write_table_maps(). Does not need init */
+  bool restore_row_logging;
+  bool stats_is_read;     /* Persistent statistics is read for the table */
+  bool histograms_are_read;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  /* If true, all partitions have been pruned away */
+  bool all_partitions_pruned_away;
+#endif
+  bool vers_write;                      // For versioning
 
+  List<Virtual_column_info> vcol_refix_list;
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;
   /* this is for temporary tables created inside Item_func_group_concat */
@@ -1536,12 +1567,7 @@ public:
   Query_arena *expr_arena;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *part_info;            /* Partition related information */
-  /* If true, all partitions have been pruned away */
-  bool all_partitions_pruned_away;
 #endif
-  uint max_keys; /* Size of allocated key_info array. */
-  bool stats_is_read;     /* Persistent statistics is read for the table */
-  bool histograms_are_read;
   MDL_ticket *mdl_ticket;
 
   /*
@@ -1712,7 +1738,31 @@ public:
   Field **field_to_fill();
   bool validate_default_values_of_unset_fields(THD *thd) const;
 
-  bool insert_all_rows_into_tmp_table(THD *thd, 
+  // Check if the value list is assignable to the explicit field list
+  static bool check_assignability_explicit_fields(List<Item> fields,
+                                                  List<Item> values,
+                                                  bool ignore);
+  // Check if the value list is assignable to all visible fields
+  bool check_assignability_all_visible_fields(List<Item> &values,
+                                              bool ignore) const;
+  /*
+    Check if the value list is assignable to:
+    - The explicit field list if fields.elements > 0, e.g.
+        INSERT INTO t1 (a,b) VALUES (1,2);
+    - All visible fields, if fields.elements==0, e.g.
+        INSERT INTO t1 VALUES (1,2);
+  */
+  bool check_assignability_opt_fields(List<Item> fields,
+                                      List<Item> values,
+                                      bool ignore) const
+  {
+    DBUG_ASSERT(values.elements);
+    return fields.elements ?
+           check_assignability_explicit_fields(fields, values, ignore) :
+           check_assignability_all_visible_fields(values, ignore);
+  }
+
+  bool insert_all_rows_into_tmp_table(THD *thd,
                                       TABLE *tmp_table,
                                       TMP_TABLE_PARAM *tmp_table_param,
                                       bool with_cleanup);
@@ -1729,8 +1779,6 @@ public:
 
   key_map with_impossible_ranges;
 
-  /* Number of cost info elements for possible range filters */
-  uint range_rowid_filter_cost_info_elems;
   /* Pointer to the array of cost info elements for range filters */
   Range_rowid_filter_cost_info *range_rowid_filter_cost_info;
   /* The array of pointers to cost info elements for range filters */
@@ -1747,8 +1795,6 @@ public:
   /**
     System Versioning support
    */
-  bool vers_write;
-
   bool versioned() const
   {
     return s->versioned;
@@ -1798,8 +1844,12 @@ public:
   }
 
 
-  ulonglong vers_start_id() const;
-  ulonglong vers_end_id() const;
+  ulonglong vers_start_id(const uchar *ptr) const;
+  ulonglong vers_end_id(const uchar *ptr) const;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  bool vers_switch_partition(THD *thd, TABLE_LIST *table_list,
+                             Open_table_context *ot_ctx);
+#endif
 
   int update_generated_fields();
   void period_prepare_autoinc();
@@ -1808,9 +1858,11 @@ public:
                              ha_rows *rows_inserted);
   bool vers_check_update(List<Item> &items);
   static bool check_period_overlaps(const KEY &key, const uchar *lhs, const uchar *rhs);
-  int delete_row();
+  inline int delete_row(){ return delete_row<false>(versioned(VERS_TIMESTAMP)); }
+  template <bool replace>
+  int delete_row(bool versioned);
   /* Used in majority of DML (called from fill_record()) */
-  void vers_update_fields();
+  bool vers_update_fields();
   /* Used in DELETE, DUP REPLACE and insert history row */
   void vers_update_end();
   void find_constraint_correlated_indexes();
@@ -1917,12 +1969,12 @@ public:
     DBUG_ASSERT(fields_nullable);
     DBUG_ASSERT(field < n_fields);
     size_t bit= size_t{field} + referenced * n_fields;
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 8
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wconversion"
 #endif
     fields_nullable[bit / 8]|= static_cast<unsigned char>(1 << (bit % 8));
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 8
 # pragma GCC diagnostic pop
 #endif
   }
@@ -1979,9 +2031,13 @@ class IS_table_read_plan;
 #define DT_CREATE           32U
 #define DT_FILL             64U
 #define DT_REINIT           128U
-#define DT_PHASES           8U
+
+#define DT_OPTIMIZE_STAGE2  256U
+
+/* Number of bits used by all phases: */
+#define DT_PHASES           9U
 /* Phases that are applicable to all derived tables. */
-#define DT_COMMON       (DT_INIT + DT_PREPARE + DT_REINIT + DT_OPTIMIZE)
+#define DT_COMMON       (DT_INIT + DT_PREPARE + DT_REINIT + DT_OPTIMIZE + DT_OPTIMIZE_STAGE2)
 /* Phases that are applicable only to materialized derived tables. */
 #define DT_MATERIALIZE  (DT_CREATE + DT_FILL)
 
@@ -2101,6 +2157,8 @@ struct vers_history_point_t
   Item *item;
 };
 
+struct vers_select_conds_t;
+
 class Vers_history_point : public vers_history_point_t
 {
   void fix_item();
@@ -2121,7 +2179,8 @@ public:
   }
   void empty() { unit= VERS_TIMESTAMP; item= NULL; }
   void print(String *str, enum_query_type, const char *prefix, size_t plen) const;
-  bool check_unit(THD *thd);
+  bool check_unit(THD *thd, vers_select_conds_t *vers_conds);
+  bool has_param() const;
   bool eq(const vers_history_point_t &point) const;
 };
 
@@ -2131,6 +2190,7 @@ struct vers_select_conds_t
   vers_system_time_t orig_type;
   bool used:1;
   bool delete_history:1;
+  bool has_param:1;
   Vers_history_point start;
   Vers_history_point end;
   Lex_ident name;
@@ -2146,6 +2206,7 @@ struct vers_select_conds_t
     orig_type= SYSTEM_TIME_UNSPECIFIED;
     used= false;
     delete_history= false;
+    has_param= false;
     start.empty();
     end.empty();
   }
@@ -2153,13 +2214,14 @@ struct vers_select_conds_t
   void init(vers_system_time_t _type,
             Vers_history_point _start= Vers_history_point(),
             Vers_history_point _end= Vers_history_point(),
-            Lex_ident          _name= "SYSTEM_TIME")
+            Lex_ident          _name= { STRING_WITH_LEN("SYSTEM_TIME") })
   {
     type= _type;
     orig_type= _type;
     used= false;
     delete_history= (type == SYSTEM_TIME_HISTORY ||
       type == SYSTEM_TIME_BEFORE);
+    has_param= false;
     start= _start;
     end= _end;
     name= _name;
@@ -2168,7 +2230,7 @@ struct vers_select_conds_t
   void set_all()
   {
     type= SYSTEM_TIME_ALL;
-    name= "SYSTEM_TIME";
+    name= { STRING_WITH_LEN("SYSTEM_TIME") };
   }
 
   void print(String *str, enum_query_type query_type) const;
@@ -2318,15 +2380,10 @@ struct TABLE_LIST
   }
 
   inline void init_one_table_for_prelocking(const LEX_CSTRING *db_arg,
-                                            const LEX_CSTRING *table_name_arg,
-                                            const LEX_CSTRING *alias_arg,
-                                            enum thr_lock_type lock_type_arg,
-                                            prelocking_types prelocking_type,
-                                            TABLE_LIST *belong_to_view_arg,
-                                            uint8 trg_event_map_arg,
-                                            TABLE_LIST ***last_ptr,
-                                            my_bool insert_data)
-
+          const LEX_CSTRING *table_name_arg, const LEX_CSTRING *alias_arg,
+          enum thr_lock_type lock_type_arg, prelocking_types prelocking_type,
+          TABLE_LIST *belong_to_view_arg, uint8 trg_event_map_arg,
+          TABLE_LIST ***last_ptr, my_bool insert_data)
   {
     init_one_table(db_arg, table_name_arg, alias_arg, lock_type_arg);
     cacheable_table= 1;
@@ -2355,6 +2412,7 @@ struct TABLE_LIST
   TABLE_LIST *next_local;
   /* link in a global list of all queries tables */
   TABLE_LIST *next_global, **prev_global;
+  TABLE_LIST *linked_table;             // For sequence tables used in default
   LEX_CSTRING   db;
   LEX_CSTRING   table_name;
   LEX_CSTRING   schema_table_name;
@@ -2671,7 +2729,7 @@ struct TABLE_LIST
   {
     /* Normal open. */
     OPEN_NORMAL= 0,
-    /* Associate a table share only if the the table exists. */
+    /* Associate a table share only if the table exists. */
     OPEN_IF_EXISTS,
     /* Don't associate a table share. */
     OPEN_STUB
@@ -2690,6 +2748,13 @@ struct TABLE_LIST
   bool          merged;
   bool          merged_for_insert;
   bool          sequence;  /* Part of NEXTVAL/CURVAL/LASTVAL */
+  /*
+      Protect single thread from repeating partition auto-create over
+      multiple share instances (as the share is closed on backoff action).
+
+      Skips auto-create only for one given query id.
+  */
+  query_id_t    vers_skip_create;
 
   /*
     Items created by create_view_field and collected to change them in case
@@ -2978,6 +3043,7 @@ struct TABLE_LIST
   bool is_active_sjm();
   bool is_sjm_scan_table();
   bool is_jtbm() { return MY_TEST(jtbm_subselect != NULL); }
+  bool is_pure_alias() const;
   st_select_lex_unit *get_unit();
   st_select_lex *get_single_select();
   void wrap_into_nested_join(List<TABLE_LIST> &join_list);
@@ -3216,6 +3282,7 @@ typedef struct st_nested_join
   table_map         sj_depends_on;
   /* Outer non-trivially correlated tables */
   table_map         sj_corr_tables;
+  table_map         direct_children_map;
   List<Item_ptr>    sj_outer_expr_list;
   /**
      True if this join nest node is completely covered by the query execution
@@ -3343,8 +3410,7 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
                       int db_errno);
 void update_create_info_from_table(HA_CREATE_INFO *info, TABLE *form);
 bool check_db_name(LEX_STRING *db);
-bool check_column_name(const char *name);
-bool check_period_name(const char *name);
+bool check_column_name(const Lex_ident &name);
 bool check_table_name(const char *name, size_t length, bool check_for_path_chars);
 int rename_file_ext(const char * from,const char * to,const char * ext);
 char *get_field(MEM_ROOT *mem, Field *field);
@@ -3373,18 +3439,18 @@ static inline int set_zone(int nr,int min_zone,int max_zone)
 }
 
 /* performance schema */
-extern LEX_CSTRING PERFORMANCE_SCHEMA_DB_NAME;
+extern Lex_ident_db PERFORMANCE_SCHEMA_DB_NAME;
 
-extern LEX_CSTRING GENERAL_LOG_NAME;
-extern LEX_CSTRING SLOW_LOG_NAME;
-extern LEX_CSTRING TRANSACTION_REG_NAME;
+extern Lex_ident_table GENERAL_LOG_NAME;
+extern Lex_ident_table SLOW_LOG_NAME;
+extern Lex_ident_table TRANSACTION_REG_NAME;
 
 /* information schema */
-extern LEX_CSTRING INFORMATION_SCHEMA_NAME;
+extern Lex_ident_db INFORMATION_SCHEMA_NAME;
 extern Lex_ident_db MYSQL_SCHEMA_NAME;
 
 /* table names */
-extern LEX_CSTRING MYSQL_PROC_NAME;
+extern Lex_ident_table MYSQL_PROC_NAME;
 
 inline bool is_infoschema_db(const LEX_CSTRING *name)
 {

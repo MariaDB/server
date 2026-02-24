@@ -42,7 +42,7 @@ drop table t1;
 #
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 ALTER TABLE t1 ADD COLUMN b LINESTRING DEFAULT POINT(1,1);
-ERROR 22007: Incorrect LINESTRING value: 'POINT(1 1)' for column ``.``.`b` at row 1
+ERROR 22007: Incorrect LINESTRING value: 'POINT(1 1)' for column ``.``.`b` at row 0
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	

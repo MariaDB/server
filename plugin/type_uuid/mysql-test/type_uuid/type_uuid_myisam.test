@@ -1,0 +1,61 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # Start of 10.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-4958 Adding datatype UUID
+--echo #
+
+
+SET default_storage_engine=MyISAM;
+--source type_uuid_engines.inc
+
+--echo #
+--echo # Testing index prefix compression
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE test_pack_key()
+BEGIN
+  SHOW CREATE TABLE t1;
+  FOR i IN 0..0x1FFF
+  DO
+    INSERT INTO t1 VALUES (UUID());
+  END FOR;
+  SELECT
+    CASE
+      WHEN INDEX_LENGTH/DATA_LENGTH < 0.7 THEN 'PACKED'
+      WHEN INDEX_LENGTH/DATA_LENGTH > 1.2 THEN 'NOT PACKED'
+      ELSE CONCAT('UNKNOWN ', INDEX_LENGTH/DATA_LENGTH)
+    END AS PackKey
+  FROM INFORMATION_SCHEMA.TABLES
+  WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+END;
+$$
+DELIMITER ;$$
+
+--echo "------------------ CREATE TABLE"
+CREATE TABLE t1 (a UUID, KEY(a));
+CALL test_pack_key();
+DROP TABLE t1;
+
+--echo "------------------ t1packkey.frm"
+--copy_file $MTR_SUITE_DIR/std_data/t1packkey.frm $MYSQLD_DATADIR/test/t1.frm
+TRUNCATE TABLE t1;
+CALL test_pack_key();
+DROP TABLE t1;
+
+--echo "------------------ t1nopackkey.frm"
+--copy_file $MTR_SUITE_DIR/std_data/t1nopackkey.frm $MYSQLD_DATADIR/test/t1.frm
+TRUNCATE TABLE t1;
+CALL test_pack_key();
+DROP TABLE t1;
+
+
+DROP PROCEDURE test_pack_key;
+
+--echo #
+--echo # End of 10.7 tests
+--echo #

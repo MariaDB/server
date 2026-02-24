@@ -161,6 +161,9 @@ MACRO(MYSQL_ADD_PLUGIN)
             PROPERTIES COMPILE_DEFINITIONS "EMBEDDED_LIBRARY${version_string}")
         ENDIF()
         ADD_DEPENDENCIES(${target}_embedded GenError ${ARG_DEPENDS})
+        IF(ARG_LINK_LIBRARIES)
+          TARGET_LINK_LIBRARIES (${target}_embedded ${ARG_LINK_LIBRARIES})
+        ENDIF()
       ENDIF()
     ENDIF()
 
@@ -213,6 +216,11 @@ MACRO(MYSQL_ADD_PLUGIN)
     ENDIF()
 
     TARGET_LINK_LIBRARIES (${target} mysqlservices ${ARG_LINK_LIBRARIES})
+
+    IF(WIN32)
+      # A popular library, turns out many plugins need it for gethostname()
+      TARGET_LINK_LIBRARIES (${target} ws2_32)
+    ENDIF()
 
     IF(CMAKE_SYSTEM_NAME MATCHES AIX)
       TARGET_LINK_OPTIONS(${target} PRIVATE "-Wl,-bE:${CMAKE_SOURCE_DIR}/libservices/mysqlservices_aix.def")

@@ -1,0 +1,121 @@
+--source include/have_innodb.inc
+--source include/innodb_page_size.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo #  MDEV-19229 Allow innodb_undo_tablespaces to be changed
+--echo #	after database creation
+--echo #
+call mtr.add_suppression("Found .* prepared XA transactions");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("InnoDB: Cannot change innodb_undo_tablespaces=\\d+ because previous shutdown was not with innodb_fast_shutdown=0");
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+--echo # case 1: XA transaction alone left
+--source include/wait_all_purged.inc
+XA START 'zombie';
+INSERT INTO t1 VALUES(2);
+XA END 'zombie';
+XA PREPARE 'zombie';
+
+--source include/restart_mysqld.inc
+
+--echo # Display 4 undo tablespaces
+select @@global.innodb_undo_tablespaces;
+
+--echo # Should list 4 undo log tablespaces
+list_files $MYSQLD_DATADIR undo*;
+
+XA COMMIT 'zombie';
+
+--echo # case 2: Successful innodb_undo_tablespace upgrade
+SET GLOBAL innodb_fast_shutdown=0;
+
+let $restart_parameters=--innodb_undo_tablespaces=2;
+--source include/restart_mysqld.inc
+
+--echo # Display 2 undo tablespaces
+SELECT @@global.innodb_undo_tablespaces;
+
+--echo # Should list 2 undo log tablespaces
+list_files $MYSQLD_DATADIR undo*;
+
+DROP TABLE t1;
+--source include/wait_all_purged.inc
+
+--echo # case 3: Reduce the innodb_undo_tablespace to 0
+let $restart_parameters=--innodb_undo_tablespaces=0;
+--source include/restart_mysqld.inc
+
+--echo # Display 0 undo tablespace
+SELECT @@global.innodb_undo_tablespaces;
+
+--echo # Shouldn't list any undo log tablespaces
+list_files $MYSQLD_DATADIR undo*;
+
+--echo # case 4: Change undo tablespace when force_recovery < 5
+let $restart_parameters=--innodb_undo_tablespaces=2 --innodb_force_recovery=4;
+--source include/restart_mysqld.inc
+
+--echo # Display 2 undo tablespace
+SELECT @@global.innodb_undo_tablespaces;
+
+--echo # Should list 2 undo log tablespaces
+list_files $MYSQLD_DATADIR undo*;
+
+--echo # case 5: Fail to change undo tablespace when force_recovery > 4
+let $restart_parameters=--innodb_undo_tablespaces=4 --innodb_force_recovery=5;
+--source include/restart_mysqld.inc
+
+--echo # Display 2 undo tablespace
+SELECT @@global.innodb_undo_tablespaces;
+
+--echo # Should list 2 undo log tablespaces, not 4
+list_files $MYSQLD_DATADIR undo*;
+
+--echo #
+--echo # MDEV-34200 InnoDB tries to write to read-only
+--echo #    system tablespace in buf_dblwr_t::init_or_load_pages()
+--echo #
+
+SET GLOBAL innodb_fast_shutdown=0;
+let $restart_parameters=--innodb_undo_tablespaces=4;
+--source include/restart_mysqld.inc
+--echo # Should list 4 undo log tablespaces
+list_files $MYSQLD_DATADIR undo*;
+
+set global innodb_fast_shutdown=0;
+let $restart_parameters=--innodb_read_only=1;
+--source include/restart_mysqld.inc
+
+set global innodb_fast_shutdown=0;
+let bugdir= $MYSQLTEST_VARDIR/tmp/bugdir;
+mkdir $bugdir;
+let undodir= $MYSQLTEST_VARDIR/tmp/undo_dir;
+mkdir $undodir;
+let $d= --innodb-data-file-path=ibdata1:1M:autoextend;
+let $d=$d --innodb_undo_directory=$undodir;
+let $restart_parameters= $d --innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir --innodb_undo_tablespaces=3;
+--source include/restart_mysqld.inc
+--echo # Should list 3 undo log tablespaces
+list_files $undodir undo*;
+
+let bugdir_1= $MYSQLTEST_VARDIR/tmp/bugdir_1;
+mkdir $bugdir_1;
+
+set global innodb_fast_shutdown=0;
+let $restart_parameters= $d --innodb-data-home-dir=$bugdir_1 --innodb-log-group-home-dir=$bugdir_1 --innodb_undo_tablespaces=0;
+--source include/restart_mysqld.inc
+--echo # Shouldn't list 0 undo log tablespaces
+list_files $undodir undo*;
+
+set global innodb_fast_shutdown=0;
+let $restart_parameters=;
+--source include/restart_mysqld.inc
+rmdir $bugdir;
+rmdir $bugdir_1;
+rmdir $undodir;

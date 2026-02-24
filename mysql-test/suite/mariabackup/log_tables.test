@@ -1,0 +1,45 @@
+# Test for copying log tables tail
+--source include/have_aria.inc
+--source include/have_debug.inc
+
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
+
+CREATE TABLE t(i INT)
+  ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
+
+# Truncate the log in order to make the test ./mtr --repeat proof
+SET GLOBAL general_log = 0;
+TRUNCATE mysql.general_log;
+SET GLOBAL general_log = 1;
+SET GLOBAL log_output = 'TABLE';
+
+INSERT INTO t VALUES (1);
+
+--replace_column 1 TIMESTAMP 2 USER_HOST 3 THREAD_ID 5 Query
+--sorted_result
+SELECT * FROM mysql.general_log
+  WHERE argument LIKE "INSERT INTO %" AND
+  (command_type = "Query" OR command_type = "Execute") ;
+
+--echo # Insert new row into general_log table after it has been copied on BLOCK_DDL.
+--let after_stage_block_ddl=INSERT INTO test.t VALUES (2)
+
+--echo # Backup to dir.
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir --dbug=+d,mariabackup_events
+--enable_result_log
+
+--echo # Xtrabackup prepare.
+--disable_result_log
+--exec $XTRABACKUP  --prepare --target-dir=$targetdir
+--source include/restart_and_restore.inc
+--enable_result_log
+
+--replace_column 1 TIMESTAMP 2 USER_HOST 3 THREAD_ID 5 Query
+--sorted_result
+SELECT * FROM mysql.general_log
+  WHERE argument LIKE "INSERT INTO %" AND
+  (command_type = "Query" OR command_type = "Execute") ;
+
+--rmdir $targetdir
+DROP TABLE t;

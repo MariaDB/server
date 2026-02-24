@@ -626,11 +626,7 @@ CREATE TABLE t1 (
 );
 
 INSERT IGNORE INTO t1 (b) VALUES (b'101110001110100'),(b'011101');
---disable_cursor_protocol
---disable_ps2_protocol
 SELECT pk, b INTO OUTFILE 'load.data' FROM t1;
---enable_ps2_protocol
---enable_cursor_protocol
 --error ER_DATA_TOO_LONG
 LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1 (pk, b);
 

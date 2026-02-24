@@ -1201,3 +1201,25 @@ set GLOBAL innodb_fast_shutdown=0;
 ALTER TABLE t2 FORCE;
 DROP TABLE t2, t1, t3;
 # End of 10.6 tests
+CREATE TABLE t1
+(
+f1 VARCHAR(32)BINARY NOT NULL,
+f2 VARCHAR(32)BINARY NOT NULL,
+PRIMARY KEY (f1),
+INDEX(f2)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES('MySQL', 'InnoDB'), ('MariaDB', 'NDB');
+CREATE TABLE t2
+(
+f1 VARCHAR(32)BINARY NOT NULL,
+f2 VARCHAR(255)BINARY NOT NULL,
+f3 int, PRIMARY KEY (f1), INDEX(f1), INDEX(f2)
+) ENGINE=InnoDB;
+INSERT INTO t2 VALUES('MySQL', 'MySQL', 1),
+('MariaDB', 'MariaDB', 1);
+ALTER TABLE t1 ADD FOREIGN KEY (f1) REFERENCES t2 (f2);
+ALTER TABLE t2 ADD FOREIGN KEY (f2) REFERENCES t2 (f2),
+ADD UNIQUE INDEX(f3);
+ERROR HY000: Cannot delete rows from table which is parent in a foreign key constraint 't1_ibfk_1' of table 't1'
+drop table t1, t2;
+# End of 10.11 tests

@@ -1,1 +1,0 @@
---connect (child3_3, localhost, root, , , $CHILD3_3_MYPORT, $CHILD3_3_MYSOCK)

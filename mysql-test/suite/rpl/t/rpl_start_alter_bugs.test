@@ -1,0 +1,47 @@
+#
+# MDEV-22985 Assertion `!(thd->rgi_slave && thd->rgi_slave->did_mark_start_commit)' failed in ha_rollback_trans#
+#
+#
+
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection master
+set global binlog_alter_two_phase=true;
+
+--connection slave
+stop slave;
+SET global slave_parallel_threads=2;
+set global slave_parallel_mode=optimistic;
+start slave;
+--connection master
+ 
+CREATE TABLE t1 (i int primary key) ENGINE = InnoDB;
+--connection master1 
+ALTER  TABLE t1 DROP PRIMARY KEY;
+ALTER  TABLE t1 ADD UNIQUE KEY ui (i);
+ALTER  TABLE t1 ADD PRIMARY KEY (i);
+ 
+--sync_slave_with_master
+ 
+ #MENT 1274
+--connection master
+drop table t1;
+CREATE TABLE t1 (a int)engine=innodb;
+ALTER TABLE t1 add column b int, LOCK=EXCLUSIVE;
+drop table t1;
+CREATE TABLE t1 (pk int)engine=innodb;
+--error ER_CANT_DROP_FIELD_OR_KEY
+ALTER TABLE t1 DROP FOREIGN KEY y, LOCK=EXCLUSIVE;
+drop table t1;
+--sync_slave_with_master
+--connection master
+set global binlog_alter_two_phase=false;
+
+--connection slave
+--source include/stop_slave.inc
+SET global slave_parallel_threads=0;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc

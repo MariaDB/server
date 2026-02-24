@@ -118,9 +118,12 @@ create table t1 as select uuid(), length(uuid());
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `uuid()` varchar(36) DEFAULT NULL,
+  `uuid()` uuid DEFAULT NULL,
   `length(uuid())` int(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+select length(`uuid()`) from t1;
+length(`uuid()`)
+36
 drop table t1;
 create table t1 select INET_ATON('255.255.0.1') as `a`;
 show create table t1;

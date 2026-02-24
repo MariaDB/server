@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,7 +37,7 @@ inline bool buf_page_peek_if_young(const buf_page_t *bpage)
 	/* FIXME: bpage->freed_page_clock is 31 bits */
 	return((buf_pool.freed_page_clock & ((1UL << 31) - 1))
 	       < (bpage->freed_page_clock
-		  + (buf_pool.curr_size
+		  + (buf_pool.curr_size()
 		     * (BUF_LRU_OLD_RATIO_DIV - buf_pool.LRU_old_ratio)
 		     / (BUF_LRU_OLD_RATIO_DIV * 4))));
 }

@@ -229,32 +229,43 @@ SELECT @@global.character_set_client;
 ##############################################################
 SET @@character_set_client = 1;
 SELECT @@character_set_client;
+
+--echo # latin2_czech_cs is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
 SET @@character_set_client = 2;
-SELECT @@character_set_client;
+
 SET @@character_set_client = 3;
 SELECT @@character_set_client;
 SET @@character_set_client = 36;
 SELECT @@character_set_client;
-SET @@character_set_client = 99;
-SELECT @@character_set_client;
 
+--echo # cp1250_polish_ci is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
+SET @@character_set_client = 99;
+
+--echo # Collation ID 100 does not exist
 --Error ER_UNKNOWN_CHARACTER_SET
 SET @@character_set_client = 100;
 
 SET @@global.character_set_client = 1;
 SELECT @@global.character_set_client;
+
+--echo # latin2_czech_cs is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
 SET @@global.character_set_client = 2;
-SELECT @@global.character_set_client;
+
 SET @@global.character_set_client = 3;
 SELECT @@global.character_set_client;
 SET @@global.character_set_client = 36;
 SELECT @@global.character_set_client;
-SET @@global.character_set_client = 99;
-SELECT @@global.character_set_client;
 
+--echo # cp1250_polish_ci is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
+SET @@global.character_set_client = 99;
+
+--echo # Collation ID 100 does not exist
 --Error ER_UNKNOWN_CHARACTER_SET
 SET @@global.character_set_client = 100;
-
 
 SET @total_charset = (SELECT count(*) FROM INFORMATION_SCHEMA.CHARACTER_SETS);
 SELECT @total_charset;
@@ -331,6 +342,22 @@ SELECT @@local.character_set_client =
 SELECT @@session.character_set_client =
  (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_VARIABLES
   WHERE VARIABLE_NAME='character_set_client') AS res;
+
+--echo #
+--echo # MDEV-28769 Assertion `(m_ci->state & 32) || m_with_collate' failed in Lex_exact_charset_opt_extended_collate::Lex_exact_charset_opt_extended_collate on SET NAMES
+--echo #
+
+--error ER_UNKNOWN_CHARACTER_SET
+SET GLOBAL character_set_client=2;
+
+--echo #
+--echo # MDEV-31018 Replica of 10.3, 10.4, <10.5.19 and <10.6.12 to 10.11 will not work when using non-default charset
+--echo #
+
+SET @@pseudo_slave_mode=1;
+SET character_set_client=2/*latin2_czech_cs*/;
+SHOW VARIABLES LIKE 'character_set_client';
+SET @@pseudo_slave_mode=0;
 
 ####################################
 #     Restore initial value        #

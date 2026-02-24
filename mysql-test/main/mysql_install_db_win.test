@@ -1,4 +1,6 @@
 --source include/windows.inc
+select database();
+use mysql;
 
 # Create database  in tmp directory using mysql_install_db.exe, 
 # and start server from this directory.
@@ -89,4 +91,5 @@ perl;
 EOF
 rmdir $_BASEDIR;
 --source include/start_mysqld.inc
+use test;
 

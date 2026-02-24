@@ -111,6 +111,7 @@ int initialize_encryption_plugin(void *plugin_)
 int finalize_encryption_plugin(void *plugin_)
 {
   st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
+  int deinit_status= 0;
   bool used= plugin_ref_to_int(encryption_manager) == plugin;
 
   if (used)
@@ -120,18 +121,15 @@ int finalize_encryption_plugin(void *plugin_)
     encryption_handler.encryption_ctx_size_func= zero_size;
   }
 
-  if (plugin && plugin->plugin->deinit && plugin->plugin->deinit(NULL))
-  {
-    DBUG_PRINT("warning", ("Plugin '%s' deinit function returned error.",
-                           plugin->name.str));
-  }
+  if (plugin && plugin->plugin->deinit)
+    deinit_status= plugin->plugin->deinit(NULL);
 
   if (used)
   {
     plugin_unlock(NULL, encryption_manager);
     encryption_manager= 0;
   }
-  return 0;
+  return deinit_status;
 }
 
 /******************************************************************

@@ -361,7 +361,8 @@ int main(int argc,char *argv[])
         found= 1;
         if (verbose)
           printf("MariaDB error code %3d (%s): %s\n"
-                 "Learn more: https://mariadb.com/kb/en/e%3d/\n", code, name, msg, code);
+                 "Learn more: https://err.mariadb.com/%3d\n",
+                 code, name, msg, code);
         else
           puts(msg);
       }

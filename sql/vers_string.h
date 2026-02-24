@@ -62,7 +62,7 @@ public:
   { }
   Lex_cstring_with_compare(const LEX_CSTRING src) : Lex_cstring(src.str, src.length)
   { }
-  Lex_cstring_with_compare(const char *_str) : Lex_cstring(_str, strlen(_str))
+  explicit Lex_cstring_with_compare(const char *_str) : Lex_cstring(_str, strlen(_str))
   { }
   bool streq(const Lex_cstring_with_compare& b) const
   {

@@ -1,4 +1,6 @@
 --source include/have_partition.inc
+--source include/not_msan_with_debug.inc
+--source include/no_msan_without_big.inc
 --source include/count_sessions.inc
 
 SET rocksdb_bulk_load_size=3;

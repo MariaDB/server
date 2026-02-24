@@ -842,7 +842,11 @@ typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 // Set by Sql_cmd_alter_table_truncate_partition::execute()
 #define ALTER_PARTITION_TRUNCATE    (1ULL << 11)
 // Set for REORGANIZE PARTITION
-#define ALTER_PARTITION_TABLE_REORG           (1ULL << 12)
+#define ALTER_PARTITION_TABLE_REORG (1ULL << 12)
+#define ALTER_PARTITION_CONVERT_IN  (1ULL << 13)
+#define ALTER_PARTITION_CONVERT_OUT (1ULL << 14)
+// Set for vers_add_auto_hist_parts() operation
+#define ALTER_PARTITION_AUTO_HIST   (1ULL << 15)
 
 /*
   This is master database for most of system tables. However there
@@ -1004,39 +1008,6 @@ struct xid_recovery_member
 #define MIN_XID_LIST_SIZE  128
 #define MAX_XID_LIST_SIZE  (1024*128)
 
-/*
-  These structures are used to pass information from a set of SQL commands
-  on add/drop/change tablespace definitions to the proper hton.
-*/
-#define UNDEF_NODEGROUP 65535
-enum ts_command_type
-{
-  TS_CMD_NOT_DEFINED = -1,
-  CREATE_TABLESPACE = 0,
-  ALTER_TABLESPACE = 1,
-  CREATE_LOGFILE_GROUP = 2,
-  ALTER_LOGFILE_GROUP = 3,
-  DROP_TABLESPACE = 4,
-  DROP_LOGFILE_GROUP = 5,
-  CHANGE_FILE_TABLESPACE = 6,
-  ALTER_ACCESS_MODE_TABLESPACE = 7
-};
-
-enum ts_alter_tablespace_type
-{
-  TS_ALTER_TABLESPACE_TYPE_NOT_DEFINED = -1,
-  ALTER_TABLESPACE_ADD_FILE = 1,
-  ALTER_TABLESPACE_DROP_FILE = 2
-};
-
-enum tablespace_access_mode
-{
-  TS_NOT_DEFINED= -1,
-  TS_READ_ONLY = 0,
-  TS_READ_WRITE = 1,
-  TS_NOT_ACCESSIBLE = 2
-};
-
 /* Statistics about batch operations like bulk_insert */
 struct ha_copy_info
 {
@@ -1045,50 +1016,6 @@ struct ha_copy_info
   ha_rows copied;
   ha_rows deleted;
   ha_rows updated;
-};
-
-struct handlerton;
-class st_alter_tablespace : public Sql_alloc
-{
-  public:
-  const char *tablespace_name;
-  const char *logfile_group_name;
-  enum ts_command_type ts_cmd_type;
-  enum ts_alter_tablespace_type ts_alter_tablespace_type;
-  const char *data_file_name;
-  const char *undo_file_name;
-  const char *redo_file_name;
-  ulonglong extent_size;
-  ulonglong undo_buffer_size;
-  ulonglong redo_buffer_size;
-  ulonglong initial_size;
-  ulonglong autoextend_size;
-  ulonglong max_size;
-  uint nodegroup_id;
-  handlerton *storage_engine;
-  bool wait_until_completed;
-  const char *ts_comment;
-  enum tablespace_access_mode ts_access_mode;
-  st_alter_tablespace()
-  {
-    tablespace_name= NULL;
-    logfile_group_name= "DEFAULT_LG"; //Default log file group
-    ts_cmd_type= TS_CMD_NOT_DEFINED;
-    data_file_name= NULL;
-    undo_file_name= NULL;
-    redo_file_name= NULL;
-    extent_size= 1024*1024;        //Default 1 MByte
-    undo_buffer_size= 8*1024*1024; //Default 8 MByte
-    redo_buffer_size= 8*1024*1024; //Default 8 MByte
-    initial_size= 128*1024*1024;   //Default 128 MByte
-    autoextend_size= 0;            //No autoextension as default
-    max_size= 0;                   //Max size == initial size => no extension
-    storage_engine= NULL;
-    nodegroup_id= UNDEF_NODEGROUP;
-    wait_until_completed= TRUE;
-    ts_comment= NULL;
-    ts_access_mode= TS_NOT_DEFINED;
-  }
 };
 
 /* The handler for a table type.  Will be included in the TABLE structure */
@@ -1111,7 +1038,10 @@ enum enum_schema_tables
   SCH_ENABLED_ROLES,
   SCH_ENGINES,
   SCH_EVENTS,
-  SCH_EXPLAIN,
+  SCH_EXPLAIN_TABULAR,
+  SCH_EXPLAIN_JSON,
+  SCH_ANALYZE_TABULAR,
+  SCH_ANALYZE_JSON,
   SCH_FILES,
   SCH_GLOBAL_STATUS,
   SCH_GLOBAL_VARIABLES,
@@ -1157,6 +1087,7 @@ typedef bool (stat_print_fn)(THD *thd, const char *type, size_t type_len,
 enum ha_stat_type { HA_ENGINE_STATUS, HA_ENGINE_LOGS, HA_ENGINE_MUTEX };
 extern MYSQL_PLUGIN_IMPORT st_plugin_int *hton2plugin[MAX_HA];
 
+struct handlerton;
 #define view_pseudo_hton ((handlerton *)1)
 
 /*
@@ -1522,8 +1453,7 @@ struct handlerton
    bool (*show_status)(handlerton *hton, THD *thd, stat_print_fn *print, enum ha_stat_type stat);
    uint (*partition_flags)();
    alter_table_operations (*alter_table_flags)(alter_table_operations flags);
-   int (*alter_tablespace)(handlerton *hton, THD *thd, st_alter_tablespace *ts_info);
-   int (*fill_is_table)(handlerton *hton, THD *thd, TABLE_LIST *tables, 
+   int (*fill_is_table)(handlerton *hton, THD *thd, TABLE_LIST *tables,
                         class Item *cond, 
                         enum enum_schema_tables);
    uint32 flags;                                /* global handler flags */
@@ -2189,7 +2119,6 @@ struct Vers_parse_info: public Table_period_info
 
   Table_period_info::start_end_t as_row;
 
-protected:
   friend struct Table_scope_and_contents_source_st;
   void set_start(const LEX_CSTRING field_name)
   {
@@ -2201,8 +2130,8 @@ protected:
     as_row.end= field_name;
     period.end= field_name;
   }
-  bool is_start(const char *name) const;
-  bool is_end(const char *name) const;
+
+protected:
   bool is_start(const Create_field &f) const;
   bool is_end(const Create_field &f) const;
   bool fix_implicit(THD *thd, Alter_info *alter_info);
@@ -2380,33 +2309,6 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
     Schema_specification_st::init();
     alter_info= NULL;
   }
-  bool check_conflicting_charset_declarations(CHARSET_INFO *cs);
-  bool add_table_option_default_charset(CHARSET_INFO *cs)
-  {
-    // cs can be NULL, e.g.:  CREATE TABLE t1 (..) CHARACTER SET DEFAULT;
-    if (check_conflicting_charset_declarations(cs))
-      return true;
-    default_table_charset= cs;
-    used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
-    return false;
-  }
-  bool add_alter_list_item_convert_to_charset(CHARSET_INFO *cs)
-  {
-    /* 
-      cs cannot be NULL, as sql_yacc.yy translates
-         CONVERT TO CHARACTER SET DEFAULT
-      to
-         CONVERT TO CHARACTER SET <character-set-of-the-current-database>
-      TODO: Shouldn't we postpone resolution of DEFAULT until the
-      character set of the table owner database is loaded from its db.opt?
-    */
-    DBUG_ASSERT(cs);
-    if (check_conflicting_charset_declarations(cs))
-      return true;
-    alter_table_convert_to_charset= default_table_charset= cs;
-    used_fields|= (HA_CREATE_USED_CHARSET | HA_CREATE_USED_DEFAULT_CHARSET);  
-    return false;
-  }
   ulong table_options_with_row_type()
   {
     if (row_type == ROW_TYPE_DYNAMIC || row_type == ROW_TYPE_PAGE)
@@ -2414,6 +2316,11 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
     else
       return table_options;
   }
+  bool resolve_to_charset_collation_context(THD *thd,
+                  const Lex_table_charset_collation_attrs_st &default_cscl,
+                  const Lex_table_charset_collation_attrs_st &convert_cscl,
+                  const Charset_collation_context &ctx);
+  bool check_if_valid_log_table();
 };
 
 
@@ -2424,16 +2331,23 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
 struct Table_specification_st: public HA_CREATE_INFO,
                                public DDL_options_st
 {
+  Lex_table_charset_collation_attrs_st default_charset_collation;
+  Lex_table_charset_collation_attrs_st convert_charset_collation;
+
   // Deep initialization
   void init()
   {
     HA_CREATE_INFO::init();
     DDL_options_st::init();
+    default_charset_collation.init();
+    convert_charset_collation.init();
   }
   void init(DDL_options_st::Options options_arg)
   {
     HA_CREATE_INFO::init();
     DDL_options_st::init(options_arg);
+    default_charset_collation.init();
+    convert_charset_collation.init();
   }
   /*
     Quick initialization, for parser.
@@ -2445,6 +2359,46 @@ struct Table_specification_st: public HA_CREATE_INFO,
   {
     HA_CREATE_INFO::options= 0;
     DDL_options_st::init();
+    default_charset_collation.init();
+    convert_charset_collation.init();
+  }
+
+  bool add_table_option_convert_charset(CHARSET_INFO *cs)
+  {
+    // cs can be NULL, e.g.: ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT;
+    used_fields|= (HA_CREATE_USED_CHARSET | HA_CREATE_USED_DEFAULT_CHARSET);
+    return cs ?
+      convert_charset_collation.merge_exact_charset(Lex_exact_charset(cs)) :
+      convert_charset_collation.merge_charset_default();
+  }
+  bool add_table_option_convert_collation(const Lex_extended_collation_st &cl)
+  {
+    used_fields|= (HA_CREATE_USED_CHARSET | HA_CREATE_USED_DEFAULT_CHARSET);
+    return convert_charset_collation.merge_collation(cl);
+  }
+
+  bool add_table_option_default_charset(CHARSET_INFO *cs)
+  {
+    // cs can be NULL, e.g.:  CREATE TABLE t1 (..) CHARACTER SET DEFAULT;
+    used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
+    return cs ?
+      default_charset_collation.merge_exact_charset(Lex_exact_charset(cs)) :
+      default_charset_collation.merge_charset_default();
+  }
+  bool add_table_option_default_collation(const Lex_extended_collation_st &cl)
+  {
+    used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
+    return default_charset_collation.merge_collation(cl);
+  }
+
+  bool resolve_to_charset_collation_context(THD *thd,
+                                         const Charset_collation_context &ctx)
+  {
+    return HA_CREATE_INFO::
+             resolve_to_charset_collation_context(thd,
+                                                  default_charset_collation,
+                                                  convert_charset_collation,
+                                                  ctx);
   }
 };
 
@@ -2547,20 +2501,11 @@ public:
   */
   KEY  *key_info_buffer;
 
-  /** Size of key_info_buffer array. */
-  uint key_count;
-
-  /** Size of index_drop_buffer array. */
-  uint index_drop_count= 0;
-
   /**
      Array of pointers to KEYs to be dropped belonging to the TABLE instance
      for the old version of the table.
   */
   KEY  **index_drop_buffer= nullptr;
-
-  /** Size of index_add_buffer array. */
-  uint index_add_count= 0;
 
   /**
      Array of indexes into key_info_buffer for KEYs to be added,
@@ -2569,32 +2514,6 @@ public:
   uint *index_add_buffer= nullptr;
 
   KEY_PAIR  *index_altered_ignorability_buffer= nullptr;
-
-  /** Size of index_altered_ignorability_buffer array. */
-  uint index_altered_ignorability_count= 0;
-
-  /**
-     Old and new index names. Used for index rename.
-  */
-  struct Rename_key_pair
-  {
-    Rename_key_pair(const KEY *old_key, const KEY *new_key)
-        : old_key(old_key), new_key(new_key)
-    {
-    }
-    const KEY *old_key;
-    const KEY *new_key;
-  };
-  /**
-     Vector of key pairs from DROP/ADD index which can be renamed.
-  */
-  typedef Mem_root_array<Rename_key_pair, true> Rename_keys_vector;
-
-  /**
-     A list of indexes which should be renamed.
-     Index definitions stays the same.
-  */
-  Rename_keys_vector rename_keys;
 
   /**
      Context information to allow handlers to keep context between in-place
@@ -2622,9 +2541,6 @@ public:
   */
   alter_table_operations handler_flags= 0;
 
-  /* Alter operations involving parititons are strored here */
-  ulong partition_flags;
-
   /**
      Partition_info taking into account the partition changes to be performed.
      Contains all partitions which are present in the old version of the table
@@ -2633,14 +2549,8 @@ public:
   */
   partition_info * const modified_part_info;
 
-  /** true for ALTER IGNORE TABLE ... */
-  const bool ignore;
-
-  /** true for online operation (LOCK=NONE) */
-  bool online= false;
-
   /**
-    When ha_commit_inplace_alter_table() is called the the engine can
+    When ha_commit_inplace_alter_table() is called the engine can
     set this to a function to be called after the ddl log
     is committed.
   */
@@ -2649,9 +2559,6 @@ public:
 
   /* This will be used as the argument to the above function when called */
   void *inplace_alter_table_committed_argument= nullptr;
-
-  /** which ALGORITHM and LOCK are supported by the storage engine */
-  enum_alter_inplace_result inplace_supported;
 
   /**
      Can be set by handler to describe why a given operation cannot be done
@@ -2667,11 +2574,57 @@ public:
   */
   const char *unsupported_reason= nullptr;
 
-  /** true when InnoDB should abort the alter when table is not empty */
-  const bool error_if_not_empty;
+  /* Alter operations involving parititons are strored here */
+  ulong partition_flags;
 
+  /**
+     Old and new index names. Used for index rename.
+  */
+  struct Rename_key_pair
+  {
+    Rename_key_pair(const KEY *old_key, const KEY *new_key)
+        : old_key(old_key), new_key(new_key)
+    {
+    }
+    const KEY *old_key;
+    const KEY *new_key;
+  };
+  /**
+     Vector of key pairs from DROP/ADD index which can be renamed.
+  */
+  typedef Mem_root_array<Rename_key_pair, true> Rename_keys_vector;
+
+  /**
+     A list of indexes which should be renamed.
+     Index definitions stays the same.
+  */
+  Rename_keys_vector rename_keys;
+
+  /** Size of key_info_buffer array. */
+  uint key_count;
+
+  /** Size of index_drop_buffer array. */
+  uint index_drop_count= 0;
+
+  /** Size of index_add_buffer array. */
+  uint index_add_count= 0;
+
+  /** Size of index_altered_ignorability_buffer array. */
+  uint index_altered_ignorability_count= 0;
+
+  /** which ALGORITHM and LOCK are supported by the storage engine */
+  enum_alter_inplace_result inplace_supported;
+
+  /** TRUE for online operation (LOCK=NONE) */
+  unsigned online : 1;
+  /** TRUE when innodb_file_per_table is set */
+  unsigned file_per_table : 1;
+  /** TRUE for ALTER IGNORE TABLE ... */
+  unsigned ignore : 1;
+  /** true when InnoDB should abort the alter when table is not empty */
+  unsigned error_if_not_empty : 1;
   /** True when DDL should avoid downgrading the MDL */
-  bool mdl_exclusive_after_prepare= false;
+  unsigned mdl_exclusive_after_prepare : 1;
 
   Alter_inplace_info(HA_CREATE_INFO *create_info_arg,
                      Alter_info *alter_info_arg,
@@ -2720,56 +2673,6 @@ typedef struct st_key_create_information
   bool is_ignored;
 } KEY_CREATE_INFO;
 
-
-/*
-  Class for maintaining hooks used inside operations on tables such
-  as: create table functions, delete table functions, and alter table
-  functions.
-
-  Class is using the Template Method pattern to separate the public
-  usage interface from the private inheritance interface.  This
-  imposes no overhead, since the public non-virtual function is small
-  enough to be inlined.
-
-  The hooks are usually used for functions that does several things,
-  e.g., create_table_from_items(), which both create a table and lock
-  it.
- */
-class TABLEOP_HOOKS
-{
-public:
-  TABLEOP_HOOKS() = default;
-  virtual ~TABLEOP_HOOKS() = default;
-
-  inline void prelock(TABLE **tables, uint count)
-  {
-    do_prelock(tables, count);
-  }
-
-  inline int postlock(TABLE **tables, uint count)
-  {
-    return do_postlock(tables, count);
-  }
-private:
-  /* Function primitive that is called prior to locking tables */
-  virtual void do_prelock(TABLE **tables, uint count)
-  {
-    /* Default is to do nothing */
-  }
-
-  /**
-     Primitive called after tables are locked.
-
-     If an error is returned, the tables will be unlocked and error
-     handling start.
-
-     @return Error code or zero.
-   */
-  virtual int do_postlock(TABLE **tables, uint count)
-  {
-    return 0;                           /* Default is to do nothing */
-  }
-};
 
 typedef struct st_savepoint SAVEPOINT;
 extern ulong savepoint_alloc_size;
@@ -3237,7 +3140,6 @@ protected:
   Table_flags cached_table_flags;       /* Set on init() and open() */
 
   ha_rows estimation_rows_to_insert;
-  handler *lookup_handler;
   /* Statistics for the query. Updated if handler_stats.active is set */
   ha_handler_stats active_handler_stats;
   void set_handler_stats();
@@ -3246,6 +3148,7 @@ public:
   uchar *ref;				/* Pointer to current row */
   uchar *dup_ref;			/* Pointer to duplicate row */
   uchar *lookup_buffer;
+  handler *lookup_handler;
 
   /* General statistics for the table like number of row, file sizes etc */
   ha_statistics stats;
@@ -3447,9 +3350,8 @@ public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
     estimation_rows_to_insert(0),
-    lookup_handler(this),
-    ht(ht_arg), ref(0), lookup_buffer(NULL), handler_stats(NULL),
-    end_range(NULL), implicit_emptied(0),
+    ht(ht_arg), ref(0), lookup_buffer(NULL), lookup_handler(this),
+    handler_stats(NULL), end_range(NULL), implicit_emptied(0),
     mark_trx_read_write_done(0),
     check_table_binlog_row_based_done(0),
     check_table_binlog_row_based_result(0),
@@ -3626,7 +3528,8 @@ public:
   int ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info);
 
   int ha_create_partitioning_metadata(const char *name, const char *old_name,
-                                      chf_create_flags action_flag);
+                                      chf_create_flags action_flag,
+                                      bool ignore_delete_error= false);
 
   int ha_change_partitions(HA_CREATE_INFO *create_info,
                            const char *path,
@@ -3642,7 +3545,6 @@ public:
   virtual void print_error(int error, myf errflag);
   virtual bool get_error_message(int error, String *buf);
   uint get_dup_key(int error);
-  bool has_dup_ref() const;
   /**
     Retrieves the names of the table and the key for which there was a
     duplicate entry in the case of HA_ERR_FOREIGN_DUPLICATE_KEY.
@@ -4150,7 +4052,7 @@ public:
   virtual int extra_opt(enum ha_extra_function operation, ulong arg)
   { return extra(operation); }
   /*
-    Table version id for the the table. This should change for each
+    Table version id for the table. This should change for each
     sucessfull ALTER TABLE.
     This is used by the handlerton->check_version() to ask the engine
     if the table definition has been updated.
@@ -4210,7 +4112,6 @@ public:
   }
 
   virtual void update_create_info(HA_CREATE_INFO *create_info) {}
-  int check_old_types();
   virtual int assign_to_keycache(THD* thd, HA_CHECK_OPT* check_opt)
   { return HA_ADMIN_NOT_IMPLEMENTED; }
   virtual int preload_keys(THD* thd, HA_CHECK_OPT* check_opt)
@@ -4327,6 +4228,8 @@ public:
   */
   virtual uint lock_count(void) const { return 1; }
   /**
+    Get the lock(s) for the table and perform conversion of locks if needed.
+
     Is not invoked for non-transactional temporary tables.
 
     @note store_lock() can return more than one lock if the table is MERGE
@@ -4919,6 +4822,7 @@ private:
   }
 
 private:
+  bool check_old_types() const;
   void mark_trx_read_write_internal();
   bool check_table_binlog_row_based_internal();
 
@@ -5167,7 +5071,8 @@ public:
 
   virtual int create_partitioning_metadata(const char *name,
                                            const char *old_name,
-                                           chf_create_flags action_flag)
+                                           chf_create_flags action_flag,
+                                           bool ignore_delete_error)
   { return FALSE; }
 
   virtual int change_partitions(HA_CREATE_INFO *create_info,

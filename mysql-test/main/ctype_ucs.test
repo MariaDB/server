@@ -1,9 +1,5 @@
 -- source include/have_ucs2.inc
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 SET @test_character_set= 'ucs2';
 SET @test_collation= 'ucs2_general_ci';
 -- source include/ctype_common.inc
@@ -55,12 +51,12 @@ DROP TABLE t1;
 SELECT LPAD(_ucs2 X'0420',10,_ucs2 X'0421');
 SELECT LPAD(_ucs2 X'0420',10,_ucs2 X'04210422');
 SELECT LPAD(_ucs2 X'0420',10,_ucs2 X'042104220423');
-SELECT LPAD(_ucs2 X'0420042104220423042404250426042704280429042A042B',10,_ucs2 X'042104220423');
+SELECT LPAD(_ucs2 X'0420042104220423042404250426042704280429042A042B',10,_ucs2 X'042104220423') AS res;
 
 SELECT RPAD(_ucs2 X'0420',10,_ucs2 X'0421');
 SELECT RPAD(_ucs2 X'0420',10,_ucs2 X'04210422');
 SELECT RPAD(_ucs2 X'0420',10,_ucs2 X'042104220423');
-SELECT RPAD(_ucs2 X'0420042104220423042404250426042704280429042A042B',10,_ucs2 X'042104220423');
+SELECT RPAD(_ucs2 X'0420042104220423042404250426042704280429042A042B',10,_ucs2 X'042104220423') AS res;
 
 CREATE TABLE t1 SELECT 
 LPAD(_ucs2 X'0420',10,_ucs2 X'0421') l,
@@ -75,13 +71,9 @@ DROP TABLE t1;
 
 --echo # Problem # 1 (original report): wrong parsing of ucs2 data
 SET character_set_connection=ucs2;
---disable_cursor_protocol
 --enable_prepare_warnings
---disable_ps2_protocol
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp.txt';
 --disable_prepare_warnings
---enable_ps2_protocol
---enable_cursor_protocol
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp.txt' INTO TABLE t1 CHARACTER SET ucs2
 (@b) SET a=REVERSE(@b);
@@ -92,14 +84,10 @@ DROP TABLE t1;
 let $MYSQLD_DATADIR= `select @@datadir`;
 remove_file $MYSQLD_DATADIR/test/tmpp.txt;
 
---disable_ps2_protocol
 --echo # Problem # 2 : if you write and read ucs2 data to a file they're lost
---disable_cursor_protocol
 --enable_prepare_warnings
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp2.txt' CHARACTER SET ucs2;
 --disable_prepare_warnings
---enable_cursor_protocol
---enable_ps2_protocol
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp2.txt' INTO TABLE t1 CHARACTER SET ucs2
 (@b) SET a=REVERSE(@b);
@@ -130,6 +118,7 @@ SET NAMES koi8r;
 SET character_set_connection=ucs2;
 --source include/ctype_like.inc
 
+--disable_service_connection
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ucs2);
 INSERT INTO t1 VALUES ('ÆÙ×Á'),('æÙ×Á'),('Æù×Á'),('ÆÙ÷Á'),('ÆÙ×á'),('æù÷á');
 INSERT INTO t1 VALUES ('ÆÙ×ÁÐÒÏÌÄÖ'),('æÙ×ÁÐÒÏÌÄÖ'),('Æù×ÁÐÒÏÌÄÖ'),('ÆÙ÷ÁÐÒÏÌÄÖ');
@@ -139,6 +128,7 @@ SELECT * FROM t1 WHERE a LIKE '%Æù×Á%';
 SELECT * FROM t1 WHERE a LIKE '%Æù×%';
 SELECT * FROM t1 WHERE a LIKE 'Æù×Á%';
 SELECT * FROM t1 WHERE a LIKE 'Æù×Á%' COLLATE ucs2_bin;
+--enable_service_connection
 DROP TABLE t1;
 
 #

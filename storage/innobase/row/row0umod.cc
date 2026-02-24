@@ -471,6 +471,8 @@ func_exit:
 	return(err);
 }
 
+bool dtuple_coll_eq(const dtuple_t &tuple1, const dtuple_t &tuple2);
+
 /** Find out if an accessible version of a clustered index record
 corresponds to a secondary index entry.
 @param rec    record in a latched clustered index page
@@ -591,7 +593,7 @@ nochange_index:
 			a char field, but the collation identifies the old
 			and new value anyway! */
 
-			if (entry && !dtuple_coll_cmp(ientry, entry)) {
+			if (entry && dtuple_coll_eq(*ientry, *entry)) {
 				break;
 			}
 		}
@@ -1243,7 +1245,7 @@ close_table:
 		would probably be better to just drop all temporary
 		tables (and temporary undo log records) of the current
 		connection, instead of doing this rollback. */
-		dict_table_close(node->table, dict_locked);
+		node->table->release();
 		node->table = NULL;
 		return false;
 	}
@@ -1372,7 +1374,7 @@ rollback_clust:
 		bool update_statistics
 			= !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE);
 
-		if (err == DB_SUCCESS && node->table->stat_initialized) {
+		if (err == DB_SUCCESS && node->table->stat_initialized()) {
 			switch (node->rec_type) {
 			case TRX_UNDO_UPD_EXIST_REC:
 				break;
@@ -1402,8 +1404,7 @@ rollback_clust:
 		}
 	}
 
-	dict_table_close(node->table, dict_locked);
-
+	node->table->release();
 	node->table = NULL;
 
 	return(err);

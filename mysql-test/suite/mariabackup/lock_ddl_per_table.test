@@ -16,7 +16,7 @@ CREATE TABLE `bobby``tables` (id INT, name VARCHAR(50), purchased DATE) ENGINE I
 set global innodb_log_checkpoint_now = 1;
 
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --lock-ddl-per-table=1 --dbug=+d,check_mdl_lock_works;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir --lock-ddl-per-table=1 --dbug=+d,check_mdl_lock_works;
 --enable_result_log
 DROP TABLE t;
 DROP TABLE `bobby``tables`;

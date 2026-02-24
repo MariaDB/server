@@ -1,0 +1,11 @@
+--source include/windows.inc
+let $sys_errno=0;
+
+# Error 100 is returned by the powershell script
+# if MySql.Data is not installed
+--error 0,100
+--exec powershell -ExecutionPolicy Bypass -NoLogo -NoProfile -File main\mysql_connector_net.ps1
+if ($sys_errno != 0)
+{
+  --skip Connector/NET is not installed
+}

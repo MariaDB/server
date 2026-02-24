@@ -291,20 +291,20 @@ byte* fil_space_encrypt(
 
 /** Decrypt a page.
 @param]in]	space_id		space id
+@param[in]	fsp_flags		Tablespace flags
 @param[in]	crypt_data		crypt_data
 @param[in]	tmp_frame		Temporary buffer
 @param[in]	physical_size		page size
-@param[in]	fsp_flags		Tablespace flags
 @param[in,out]	src_frame		Page to decrypt
 @retval DB_SUCCESS on success
 @retval DB_DECRYPTION_FAILED on error */
 dberr_t
 fil_space_decrypt(
-	ulint			space_id,
+	uint32_t		space_id,
+	uint32_t		fsp_flags,
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
 	ulint			physical_size,
-	ulint			fsp_flags,
 	byte*			src_frame);
 
 /******************************************************************

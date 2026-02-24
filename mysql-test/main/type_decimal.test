@@ -675,7 +675,10 @@ DROP TABLE t1dec102;
 
 SELECT CAST('0e111111111' AS DECIMAL(38,0)) AS a;
 SELECT CAST('0e1111111111' AS DECIMAL(38,0)) AS a;
+#enable after fix MDEV-29647
+--disable_view_protocol
 SELECT CAST('.00000000000000000000000000000000000001e111111111111111111111' AS DECIMAL(38,0)) AS a;
+--disable_view_protocol
 
 CREATE TABLE t1 (str VARCHAR(128), comment VARCHAR(128));
 INSERT INTO t1 VALUES
@@ -840,4 +843,94 @@ DROP TABLE t0;
 
 --echo #
 --echo # End of 10.6 tests
+--echo #
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-33442 REPAIR TABLE corrupts UUIDs
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE show_table()
+BEGIN
+  SHOW CREATE TABLE t1;
+  SELECT VERSION FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
+  SELECT * FROM t1 ORDER BY a;
+END;
+$$
+DELIMITER ;$$
+
+--echo # Upgrade using REPAIR
+
+--copy_file std_data/old_decimal/t1dec102.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file std_data/old_decimal/t1dec102.MYD $MYSQLD_DATADIR/test/t1.MYD
+--copy_file std_data/old_decimal/t1dec102.MYI $MYSQLD_DATADIR/test/t1.MYI
+CALL show_table;
+
+CHECK TABLE t1 FOR UPGRADE;
+CALL show_table;
+
+CHECK TABLE t1 FOR UPGRADE;
+CALL show_table;
+
+REPAIR TABLE t1;
+--echo # Expect old decimal, as it does not implicitly upgrade to new decimal
+CALL show_table;
+
+CHECK TABLE t1 FOR UPGRADE;
+CALL show_table;
+DROP TABLE t1;
+
+
+--echo # Upgrade using ALTER, adding a table COMMENT
+
+--echo # Upgrade a 10.11.4 table using ALTER, adding a table COMMENT
+--copy_file std_data/old_decimal/t1dec102.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file std_data/old_decimal/t1dec102.MYD $MYSQLD_DATADIR/test/t1.MYD
+--copy_file std_data/old_decimal/t1dec102.MYI $MYSQLD_DATADIR/test/t1.MYI
+CALL show_table;
+
+--echo # ALTER..INPLACE should fail - the FRM file is too old and needs upgrade
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, COMMENT 'test10';
+ALTER IGNORE TABLE t1 COMMENT 'test11';
+-- echo # Expect old decimal, as it does not implicitly upgrade to new decimal
+CALL show_table;
+
+--echo # Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, COMMENT 'test12';
+CALL show_table;
+
+DROP TABLE t1;
+
+
+--echo # Upgrade using ALTER, adding a column DEFAULT
+
+--echo # Upgrade a 10.11.4 table using ALTER, adding a table COMMENT
+--copy_file std_data/old_decimal/t1dec102.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file std_data/old_decimal/t1dec102.MYD $MYSQLD_DATADIR/test/t1.MYD
+--copy_file std_data/old_decimal/t1dec102.MYI $MYSQLD_DATADIR/test/t1.MYI
+CALL show_table;
+
+--echo # ALTER..INPLACE should fail - the FRM file is too old and needs upgrade
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, MODIFY a DECIMAL(10,2) DEFAULT 10;
+ALTER IGNORE TABLE t1 MODIFY a DECIMAL(10,2) DEFAULT 11;
+--echo # Expect new decimal, as we explicitly redefined the data type
+CALL show_table;
+
+--echo # Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, MODIFY a DECIMAL(10,2) DEFAULT 12;
+CALL show_table;
+
+DROP TABLE t1;
+
+DROP PROCEDURE show_table;
+
+
+--echo #
+--echo # End of 10.11 tests
 --echo #

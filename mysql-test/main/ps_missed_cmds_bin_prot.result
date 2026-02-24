@@ -219,9 +219,4 @@ SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT='Hello, world!';
 ERROR 45000: Hello, world!
 RESIGNAL SET MESSAGE_TEXT = 'New error message';
 ERROR 0K000: RESIGNAL when handler not active
-# Test Test case 29: Check the statements 'CREATE/ALTER/DROP TABLEPSPACE'
-# can be executed as a prepared statement
-CREATE TABLESPACE ts1 ADD DATAFILE 'ts1.ibd' ENGINE=InnoDB;
-ALTER TABLESPACE ts1 ADD DATAFILE 'ts1_1.ibd' ENGINE=InnoDB;
-DROP TABLESPACE ts1 ENGINE=InnoDB;
 SET default_storage_engine= @save_storage_engine;

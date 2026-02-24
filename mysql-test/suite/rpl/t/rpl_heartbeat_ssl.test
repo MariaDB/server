@@ -29,7 +29,8 @@ eval CHANGE MASTER TO
     MASTER_SSL=1,
     MASTER_SSL_CA='$MYSQL_TEST_DIR/std_data/cacert.pem',
     MASTER_SSL_CERT='$MYSQL_TEST_DIR/std_data/client-cert.pem',
-    MASTER_SSL_KEY='$MYSQL_TEST_DIR/std_data/client-key.pem';
+    MASTER_SSL_KEY='$MYSQL_TEST_DIR/std_data/client-key.pem',
+    MASTER_USE_GTID=NO;
 --source include/start_slave.inc
 # Check SSL state of slave
 let $slave_ssl_status= query_get_value(SHOW SLAVE STATUS, Master_SSL_Allowed, 1);

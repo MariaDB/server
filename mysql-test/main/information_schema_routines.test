@@ -249,3 +249,102 @@ WHERE ROUTINE_SCHEMA = 'i_s_routines_test' AND ROUTINE_NAME = 'test_func5';
 
 # final clean up
 DROP DATABASE i_s_routines_test;
+
+--echo #
+--echo # MDEV-20609 Full table scan in INFORMATION_SCHEMA.PARAMETERS/ROUTINES
+--echo #
+--disable_warnings
+DROP DATABASE IF EXISTS i_s_routines_test;
+--enable_warnings
+
+CREATE DATABASE i_s_routines_test;
+USE i_s_routines_test;
+
+CREATE FUNCTION test_func5 (s CHAR(20)) RETURNS VARCHAR(30)
+  RETURN CONCAT('XYZ, ' ,s);
+
+
+--let count_routines = `select count(*) from information_schema.routines`
+
+--echo #
+--echo # We cannot use the index due to missing condition on SPECIFIC_SCHEMA,
+--echo # but we will use ROUTINE_NAME for filtering records from mysql.proc
+FLUSH STATUS;
+--disable_cursor_protocol
+--disable_ps2_protocol
+--replace_column 24 <created> 25 <modified>
+query_vertical SELECT * FROM INFORMATION_SCHEMA.ROUTINES
+  WHERE ROUTINE_NAME = 'test_func5';
+--enable_ps2_protocol
+--enable_cursor_protocol
+--replace_result $count_routines count_routines
+SHOW STATUS LIKE 'handler_read%next';
+
+--echo #
+--echo # We cannot use the index due to CONCAT(), and filtering by ROUTINE_NAME
+--echo # does not work either since ROUTINE_NAME = 'not_existing_proc'. See
+--echo # the difference in counters in comparison to the previous test
+--disable_cursor_protocol
+--disable_ps2_protocol
+FLUSH STATUS;
+query_vertical SELECT * FROM INFORMATION_SCHEMA.ROUTINES
+  WHERE CONCAT(ROUTINE_SCHEMA) = 'i_s_routines_test'
+  AND ROUTINE_NAME = 'not_existing_proc';
+--replace_result $count_routines count_routines
+SHOW STATUS LIKE 'handler_read%next';
+
+--echo #
+--echo # Now the index must be used
+FLUSH STATUS;
+--replace_column 24 <created> 25 <modified>
+query_vertical SELECT * FROM INFORMATION_SCHEMA.ROUTINES
+  WHERE ROUTINE_SCHEMA = 'i_s_routines_test'
+  AND ROUTINE_NAME = 'test_func5';
+SHOW STATUS LIKE 'handler_read%next';
+
+--echo #
+--echo # Using the first key part of the index
+FLUSH STATUS;
+--replace_column 24 <created> 25 <modified>
+query_vertical SELECT * FROM INFORMATION_SCHEMA.ROUTINES
+  WHERE ROUTINE_SCHEMA = 'i_s_routines_test';
+SHOW STATUS LIKE 'handler_read%next';
+
+--echo #
+--echo # Test non-latin letters in procedure name
+SET NAMES koi8r;
+CREATE PROCEDURE `процедурка`(a INT) SELECT a;
+--echo #
+--echo # The index must be used
+FLUSH STATUS;
+--replace_column 24 <created> 25 <modified>
+query_vertical SELECT * FROM INFORMATION_SCHEMA.ROUTINES
+  WHERE ROUTINE_SCHEMA = 'i_s_routines_test'
+  AND ROUTINE_NAME = 'процедурка';
+SHOW STATUS LIKE 'handler_read%next';
+--enable_ps2_protocol
+--enable_cursor_protocol
+
+--echo #
+--echo # Test SHOW PROCEDURE STATUS. It's impossible to use the index here
+--echo # so don't check Handler_read counters, only the results correctness
+--replace_column 5 <modified> 6 <created>
+query_vertical SHOW FUNCTION STATUS LIKE 'test_func5';
+--replace_column 5 <modified> 6 <created>
+query_vertical SHOW FUNCTION STATUS LIKE 'test_%';
+--replace_column 5 <modified> 6 <created>
+query_vertical SHOW FUNCTION STATUS LIKE '%func%';
+--replace_column 5 <modified> 6 <created>
+query_vertical SHOW FUNCTION STATUS LIKE 'test';
+--replace_column 5 <modified> 6 <created>
+query_vertical SHOW PROCEDURE STATUS LIKE 'процедурка';
+--replace_column 5 <modified> 6 <created>
+query_vertical SHOW PROCEDURE STATUS LIKE '%оцедурка';
+--replace_column 5 <modified> 6 <created>
+query_vertical SHOW PROCEDURE STATUS LIKE '%оцедур%';
+--replace_column 5 <modified> 6 <created>
+query_vertical SHOW PROCEDURE STATUS LIKE 'такой_нет';
+
+# Cleanup
+DROP DATABASE i_s_routines_test;
+USE test;

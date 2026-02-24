@@ -77,8 +77,8 @@ my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
     @retval 1 failure
 */
 my_bool
-my_hash_init2(PSI_memory_key psi_key, HASH *hash, uint growth_size,
-              CHARSET_INFO *charset, ulong size, size_t key_offset,
+my_hash_init2(PSI_memory_key psi_key, HASH *hash, size_t growth_size,
+              CHARSET_INFO *charset, size_t size, size_t key_offset,
               size_t key_length, my_hash_get_key get_key,
               my_hash_function hash_function,
               void (*free_element)(void*), uint flags)
@@ -283,6 +283,8 @@ uchar* my_hash_first_from_hash_value(const HASH *hash,
     uint flag= 1;
     uint idx= my_hash_mask(hash_value,
                            hash->blength, hash->records);
+    if (!length)
+      length= hash->key_length; // length for fixed length keys or 0
     do
     {
       pos= dynamic_element(&hash->array,idx,HASH_LINK*);
@@ -317,6 +319,8 @@ uchar* my_hash_next(const HASH *hash, const uchar *key, size_t length,
   if (*current_record != NO_RECORD)
   {
     HASH_LINK *data=dynamic_element(&hash->array,0,HASH_LINK*);
+    if (!length)
+      length= hash->key_length; // length for fixed length keys or 0
     for (idx=data[*current_record].next; idx != NO_RECORD ; idx=pos->next)
     {
       pos=data+idx;
@@ -357,8 +361,11 @@ static void movelink(HASH_LINK *array,uint find,uint next_link,uint newlink)
     length length of key
 
   NOTES:
-    If length is 0, comparison is done using the length of the
-    record being compared against.
+    length equal 0 can mean 2 things:
+      1) it is fixed key length hash (HASH::key_length != 0) and
+      default length should be taken in this case
+      2) it is really 0 length key for variable key length hash
+      (HASH::key_length == 0)
 
   RETURN
     = 0  key of record == key
@@ -369,10 +376,11 @@ static int hashcmp(const HASH *hash, HASH_LINK *pos, const uchar *key,
                    size_t length)
 {
   size_t rec_keylength;
-  uchar *rec_key= (uchar*) my_hash_key(hash, pos->data, &rec_keylength, 1);
-  return ((length && length != rec_keylength) ||
+  uchar *rec_key;
+  rec_key= (uchar*) my_hash_key(hash, pos->data, &rec_keylength, 1);
+  return (length != rec_keylength) ||
 	  my_strnncoll(hash->charset, (uchar*) rec_key, rec_keylength,
-		       (uchar*) key, rec_keylength));
+		       (uchar*) key, rec_keylength);
 }
 
 

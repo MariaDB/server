@@ -1,0 +1,19 @@
+for master_1
+for child2
+for child3
+set spider_same_server_link= 1;
+CREATE USER spider@localhost IDENTIFIED BY 'pwd';
+GRANT ALL ON test.* TO spider@localhost;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'spider', password 'pwd');
+SET autocommit=0;
+set @old_init_connect=@@global.init_connect;
+set global init_connect="dummy";
+CREATE TABLE t ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"' AS SELECT 1;
+Got one of the listed errors
+set global init_connect=@old_init_connect;
+drop server srv;
+drop user spider@localhost;
+for master_1
+for child2
+for child3

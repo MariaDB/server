@@ -10,6 +10,7 @@ name
 wait/synch/rwlock/innodb/dict_operation_lock
 wait/synch/rwlock/innodb/fil_space_latch
 wait/synch/rwlock/innodb/lock_latch
+wait/synch/rwlock/innodb/log_latch
 wait/synch/rwlock/innodb/trx_i_s_cache_lock
 wait/synch/rwlock/innodb/trx_purge_latch
 wait/synch/rwlock/innodb/trx_rseg_latch
@@ -43,6 +44,7 @@ ORDER BY event_name;
 event_name
 wait/synch/rwlock/innodb/fil_space_latch
 wait/synch/rwlock/innodb/lock_latch
+wait/synch/rwlock/innodb/log_latch
 SELECT event_name FROM performance_schema.events_waits_history_long
 WHERE event_name = 'wait/synch/sxlock/innodb/index_tree_rw_lock'
 AND operation IN ('try_shared_lock','shared_lock') LIMIT 1;

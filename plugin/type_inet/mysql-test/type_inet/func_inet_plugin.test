@@ -35,3 +35,24 @@ ORDER BY PLUGIN_NAME;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo # Start of 10.11 tests
+
+--echo #
+--echo # MDEV-34981 Functions missing from INFORMATION_SCHEMA.SQL_FUNCTIONS
+--echo #
+
+SELECT FUNCTION FROM INFORMATION_SCHEMA.SQL_FUNCTIONS
+WHERE FUNCTION IN (
+'INET6_ATON',
+'INET6_NTOA',
+'INET_ATON',
+'INET_NTOA',
+'IS_IPV4',
+'IS_IPV4_COMPAT',
+'IS_IPV4_MAPPED',
+'IS_IPV6'
+)
+ORDER BY FUNCTION;
+
+--echo # End of 10.11 tests

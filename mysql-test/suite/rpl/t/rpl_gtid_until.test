@@ -2,6 +2,11 @@
 --let $rpl_topology=1->2
 --source include/rpl_init.inc
 
+--connection server_2
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+--source include/start_slave.inc
+
 --connection server_1
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 # Function to extract one GTID from a list.
@@ -40,7 +45,7 @@ START SLAVE UNTIL master_gtid_pos = "";
 --error ER_UNTIL_REQUIRES_USING_GTID
 START SLAVE UNTIL master_gtid_pos = "";
 
-CHANGE MASTER TO master_use_gtid=current_pos;
+CHANGE MASTER TO master_use_gtid=slave_pos;
 
 --connection server_1
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
@@ -219,7 +224,7 @@ INSERT INTO t1 VALUES (10);
 --connection server_2
 --replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_1,
-     master_user = "root", master_use_gtid = current_pos;
+     master_user = "root", master_use_gtid = slave_pos;
 eval START SLAVE UNTIL master_gtid_pos = '$until_condition';
 --source include/wait_for_slave_to_start.inc
 

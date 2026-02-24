@@ -15,6 +15,7 @@ DATABASE()
 information_schema
 DROP   USER 'testuser1'@'localhost';
 CREATE USER 'testuser1'@'localhost';
+GRANT SELECT ON test.* TO 'testuser1'@'localhost';
 connect  testuser1, localhost, testuser1, , test;
 SELECT DATABASE();
 DATABASE()

@@ -309,6 +309,7 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
   uchar *UNINIT_VAR(saved_vseg);
   uint  saved_length=0, saved_prefix_len=0;
   uint  length_pack;
+  const int reverse = keyinfo->seg->flag & HA_REVERSE_SORT;
   DBUG_ENTER("_mi_prefix_search");
 
   t_buff[0]=0;                                  /* Avoid bugs */
@@ -452,8 +453,6 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
             break;
       }
 
-      if (my_flag>0)      /* mismatch */
-        break;
       if (my_flag==0) /* match */
       {
 	/*
@@ -478,12 +477,7 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
 	    for ( ; k < k_end && *k == ' '; k++) ;
 	    if (k == k_end)
 	      goto cmp_rest;		/* should never happen */
-	    if (*k < (uchar) ' ')
-	    {
-	      my_flag= 1;		/* Compared string is smaller */
-	      break;
-	    }
-	    my_flag= -1;		/* Continue searching */
+	    my_flag= (uchar)' ' - *k;
 	  }
         }
         else if (len > cmplen)
@@ -498,12 +492,7 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
 	       vseg++, matched++) ;
 	  DBUG_ASSERT(vseg < vseg_end);
 
-	  if (*vseg > (uchar) ' ')
-	  {
-	    my_flag= 1;			/* Compared string is smaller */
-	    break;
-	  }
-	  my_flag= -1;			/* Continue searching */
+          my_flag= *vseg - (uchar)' ';
         }
         else
 	{
@@ -530,6 +519,8 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
 	  }
 	}
       }
+      if ((reverse ? -my_flag : my_flag) > 0)      /* mismatch */
+        break;
       matched-=left;
     }
     /* else (matched < prefix_len) ---> do nothing. */
@@ -541,7 +532,7 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
     *ret_pos=page;
   }
   if (my_flag)
-    flag=(keyinfo->seg->flag & HA_REVERSE_SORT) ? -my_flag : my_flag;
+    flag= reverse ? -my_flag : my_flag;
   if (flag == 0)
   {
     memcpy(buff,t_buff,saved_length=seg_len_pack+prefix_len);
@@ -1608,7 +1599,7 @@ _mi_calc_var_pack_key_length(MI_KEYDEF *keyinfo,uint nod_flag,uchar *next_key,
     }
     else
       n_length= *next_key++ & 127;
-    if (!packed)
+    if (!packed && n_length)
       n_length-= s_temp->store_not_null;
 
     if (n_length || packed)             /* Don't pack 0 length keys */
@@ -1897,7 +1888,7 @@ void _mi_store_var_pack_key(MI_KEYDEF *keyinfo  __attribute__((unused)),
       return;                                   /* Identical key */
     store_key_length(key_pos,s_temp->n_length);
   }
-  else
+  else if (s_temp->n_length)
   {
     s_temp->n_length+= s_temp->store_not_null;
     store_pack_length(s_temp->pack_marker == 128,key_pos,s_temp->n_length);

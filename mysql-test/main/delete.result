@@ -557,3 +557,14 @@ having t3.a > any (select t2.b from t2
 where t2.b*10 < sum(t3.b)));
 drop table t1,t2,t3;
 End of 10.4 tests
+#
+# MDEV-26459: Assertion `block_size <= 0xFFFFFFFFL' failed
+# in calculate_block_sizes for 10.7 only
+#
+SET @sort_buffer_size_save= @@sort_buffer_size;
+SET sort_buffer_size=1125899906842624;
+CREATE TABLE t1 (a INT,b CHAR,KEY(a,b));
+DELETE a1 FROM t1 AS a1,t1 AS a2 WHERE a1.a=a2.a;
+DROP TABLE t1;
+SET sort_buffer_size= @sort_buffer_size_save;
+# End of 10.11 tests

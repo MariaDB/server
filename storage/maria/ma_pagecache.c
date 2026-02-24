@@ -996,7 +996,7 @@ static int flush_all_key_blocks(PAGECACHE *pagecache)
     The function first compares the memory size parameter
     with the key cache value.
 
-    If they differ the function free the the memory allocated for the
+    If they differ the function free the memory allocated for the
     old key cache blocks by calling the end_pagecache function and
     then rebuilds the key cache with new blocks by calling
     init_key_cache.
@@ -4726,10 +4726,10 @@ static my_bool free_block(PAGECACHE *pagecache, PAGECACHE_BLOCK_LINK *block,
 
 static int cmp_sec_link(const void *a_, const void *b_)
 {
-  PAGECACHE_BLOCK_LINK *const *a= a_;
-  PAGECACHE_BLOCK_LINK *const *b= b_;
-  return (((*a)->hash_link->pageno < (*b)->hash_link->pageno) ? -1 :
-      ((*a)->hash_link->pageno > (*b)->hash_link->pageno) ? 1 : 0);
+  const PAGECACHE_BLOCK_LINK *a= *(const PAGECACHE_BLOCK_LINK **) a_;
+  const PAGECACHE_BLOCK_LINK *b= *(const PAGECACHE_BLOCK_LINK **) b_;
+  return ((a->hash_link->pageno < b->hash_link->pageno) ? -1 :
+      (a->hash_link->pageno > b->hash_link->pageno) ? 1 : 0);
 }
 
 

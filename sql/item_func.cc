@@ -72,6 +72,9 @@ bool check_reserved_words(const LEX_CSTRING *name)
   return FALSE;
 }
 
+void pause_execution(THD *thd, double timeout);
+static int do_pause(THD *thd, Interruptible_wait *timed_cond,
+                    mysql_cond_t *cond, double timeout);
 
 /**
    Test if the sum of arguments overflows the ulonglong range.
@@ -288,6 +291,37 @@ bool Item_func::check_argument_types_scalar(uint start, uint end) const
 }
 
 
+/**
+  @brief
+  Update function's nullability based on nullness of its arguments
+
+  @details
+  Functions like `IFNULL` and `COALESCE` decide nullability of their
+  result after checking all the arguments. If any of the argument
+  is NOT NULL, function's result is also set to NOT NULL.
+  Note: Nullability determined here may be reset by type handlers in
+  `Item_hybrid_func_fix_attributes()`, if the first non-null argument
+  cannot be safely converted to target data type.
+  E.g. Type_handler_inet6 does:
+    IFNULL(inet6_not_null_expr, 'foo') -> INET6 NULL
+    IFNULL(inet6_not_null_expr, '::1') -> INET6 NOT NULL
+*/
+void Item_func::update_nullability_post_fix_fields()
+{
+  if (!maybe_null())
+    return;
+
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (!args[i]->maybe_null())
+    {
+      base_flags &= ~item_base_t::MAYBE_NULL;
+      break;
+    }
+  }
+}
+
+
 /*
   Resolve references to table column for a function and its argument
 
@@ -375,7 +409,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
     cleanup();
     return true;
   }
-  if (fix_length_and_dec())
+  if (fix_length_and_dec(thd))
   {
     cleanup();
     return TRUE;
@@ -657,7 +691,7 @@ void Item_func::print_op(String *str, enum_query_type query_type)
 }
 
 
-bool Item_func::eq(const Item *item, bool binary_cmp) const
+bool Item_func::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -677,7 +711,7 @@ bool Item_func::eq(const Item *item, bool binary_cmp) const
       (func_type == Item_func::FUNC_SP &&
        my_strcasecmp(system_charset_info, func_name(), item_func->func_name())))
     return 0;
-  return Item_args::eq(item_func, binary_cmp);
+  return Item_args::eq(item_func, config);
 }
 
 
@@ -755,7 +789,12 @@ void Item_func::signal_divide_by_null()
 Item *Item_func::get_tmp_table_item(THD *thd)
 {
   if (!with_sum_func() && !const_item())
-    return new (thd->mem_root) Item_temptable_field(thd, result_field);
+  {
+    auto item_field= new (thd->mem_root) Item_field(thd, result_field);
+    if (item_field)
+      item_field->set_refers_to_temp_table();
+    return item_field;
+  }
   return copy_or_same(thd);
 }
 
@@ -778,9 +817,9 @@ String *Item_int_func::val_str(String *str)
 }
 
 
-bool Item_func_connection_id::fix_length_and_dec()
+bool Item_func_connection_id::fix_length_and_dec(THD *thd)
 {
-  if (Item_long_func::fix_length_and_dec())
+  if (Item_long_func::fix_length_and_dec(thd))
     return TRUE;
   max_length= 10;
   return FALSE;
@@ -791,7 +830,7 @@ bool Item_func_connection_id::fix_fields(THD *thd, Item **ref)
 {
   if (Item_int_func::fix_fields(thd, ref))
     return TRUE;
-  thd->thread_specific_used= TRUE;
+  thd->used|= THD::THREAD_SPECIFIC_USED;
   value= thd->variables.pseudo_thread_id;
   return FALSE;
 }
@@ -810,7 +849,7 @@ bool Item_num_op::fix_type_handler(const Type_aggregator *aggregator)
 }
 
 
-bool Item_func_plus::fix_length_and_dec(void)
+bool Item_func_plus::fix_length_and_dec(THD *thd)
 {
   DBUG_ENTER("Item_func_plus::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
@@ -1025,7 +1064,8 @@ err:
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_WARN_DATA_OUT_OF_RANGE,
                       ER_THD(thd, ER_WARN_DATA_OUT_OF_RANGE),
-                      name.str, 1L);
+                      name.str,
+                      thd->get_stmt_da()->current_row_for_warning());
   return dec;
 }
 
@@ -1249,7 +1289,7 @@ void Item_func_minus::fix_unsigned_flag()
 }
 
 
-bool Item_func_minus::fix_length_and_dec()
+bool Item_func_minus::fix_length_and_dec(THD *thd)
 {
   DBUG_ENTER("Item_func_minus::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
@@ -1437,7 +1477,7 @@ void Item_func_mul::result_precision()
 }
 
 
-bool Item_func_mul::fix_length_and_dec(void)
+bool Item_func_mul::fix_length_and_dec(THD *thd)
 {
   DBUG_ENTER("Item_func_mul::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
@@ -1538,11 +1578,11 @@ void Item_func_div::fix_length_and_dec_int(void)
 }
 
 
-bool Item_func_div::fix_length_and_dec()
+bool Item_func_div::fix_length_and_dec(THD *thd)
 {
   DBUG_ENTER("Item_func_div::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
-  prec_increment= current_thd->variables.div_precincrement;
+  prec_increment= thd->variables.div_precincrement;
   set_maybe_null(); // division by zero
 
   const Type_aggregator *aggregator= &type_handler_data->m_type_aggregator_for_div;
@@ -1609,7 +1649,7 @@ longlong Item_func_int_div::val_int()
 }
 
 
-bool Item_func_int_div::fix_length_and_dec()
+bool Item_func_int_div::fix_length_and_dec(THD *thd)
 {
   uint32 prec= args[0]->decimal_int_part();
   set_if_smaller(prec, MY_INT64_NUM_DECIMAL_DIGITS);
@@ -1689,7 +1729,7 @@ void Item_func_mod::result_precision()
 }
 
 
-bool Item_func_mod::fix_length_and_dec()
+bool Item_func_mod::fix_length_and_dec(THD *thd)
 {
   DBUG_ENTER("Item_func_mod::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
@@ -1755,7 +1795,7 @@ longlong  Item_func_hash::val_int()
 }
 
 
-bool Item_func_hash::fix_length_and_dec()
+bool Item_func_hash::fix_length_and_dec(THD *thd)
 {
   decimals= 0;
   max_length= 8;
@@ -1858,7 +1898,7 @@ void Item_func_neg::fix_length_and_dec_decimal()
 }
 
 
-bool Item_func_neg::fix_length_and_dec()
+bool Item_func_neg::fix_length_and_dec(THD *thd)
 {
   DBUG_ENTER("Item_func_neg::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
@@ -1943,7 +1983,7 @@ void Item_func_abs::fix_length_and_dec_decimal()
 }
 
 
-bool Item_func_abs::fix_length_and_dec()
+bool Item_func_abs::fix_length_and_dec(THD *thd)
 {
   DBUG_ENTER("Item_func_abs::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
@@ -2166,7 +2206,7 @@ public:
 };
 
 
-bool Item_func_shift_left::fix_length_and_dec()
+bool Item_func_shift_left::fix_length_and_dec(THD *thd)
 {
   static Func_handler_shift_left_int_to_ulonglong ha_int_to_ull;
   static Func_handler_shift_left_decimal_to_ulonglong ha_dec_to_ull;
@@ -2200,7 +2240,7 @@ public:
 };
 
 
-bool Item_func_shift_right::fix_length_and_dec()
+bool Item_func_shift_right::fix_length_and_dec(THD *thd)
 {
   static Func_handler_shift_right_int_to_ulonglong ha_int_to_ull;
   static Func_handler_shift_right_decimal_to_ulonglong ha_dec_to_ull;
@@ -2232,7 +2272,7 @@ public:
 };
 
 
-bool Item_func_bit_neg::fix_length_and_dec()
+bool Item_func_bit_neg::fix_length_and_dec(THD *thd)
 {
   static Func_handler_bit_neg_int_to_ulonglong ha_int_to_ull;
   static Func_handler_bit_neg_decimal_to_ulonglong ha_dec_to_ull;
@@ -2304,7 +2344,7 @@ void Item_func_int_val::fix_length_and_dec_double()
 }
 
 
-bool Item_func_int_val::fix_length_and_dec()
+bool Item_func_int_val::fix_length_and_dec(THD *thd)
 {
   DBUG_ENTER("Item_func_int_val::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
@@ -2817,6 +2857,7 @@ bool Item_func_rand::fix_fields(THD *thd,Item **ref)
   if (Item_real_func::fix_fields(thd, ref))
     return TRUE;
   used_tables_cache|= RAND_TABLE_BIT;
+  thd->lex->safe_to_cache_query= 0;
   if (arg_count)
   {					// Only use argument once in query
     /*
@@ -2847,9 +2888,9 @@ bool Item_func_rand::fix_fields(THD *thd,Item **ref)
       Once events are forwarded rather than recreated,
       the following can be skipped if inside the slave thread
     */
-    if (!thd->rand_used)
+    if (!(thd->used & THD::RAND_USED))
     {
-      thd->rand_used= 1;
+      thd->used|= THD::RAND_USED;
       thd->rand_saved_seed1= thd->rand.seed1;
       thd->rand_saved_seed2= thd->rand.seed2;
     }
@@ -3161,7 +3202,7 @@ longlong Item_func_char_length::val_int()
 }
 
 
-bool Item_func_coercibility::fix_length_and_dec()
+bool Item_func_coercibility::fix_length_and_dec(THD *thd)
 {
   max_length=10;
   base_flags&= ~item_base_t::MAYBE_NULL;
@@ -3206,7 +3247,10 @@ longlong Item_func_locate::val_int()
     start0= start= args[2]->val_int();
 
     if ((start <= 0) || (start > a->length()))
+    {
+      null_value= args[2]->is_null();
       return 0;
+    }
     start0--; start--;
 
     /* start is now sufficiently valid to pass to charpos function */
@@ -3298,7 +3342,7 @@ longlong Item_func_field::val_int()
 }
 
 
-bool Item_func_field::fix_length_and_dec()
+bool Item_func_field::fix_length_and_dec(THD *thd)
 {
   base_flags&= ~item_base_t::MAYBE_NULL;
   max_length=3;
@@ -3354,7 +3398,7 @@ longlong Item_func_ord::val_int()
 	/* Returns number of found type >= 1 or 0 if not found */
 	/* This optimizes searching in enums to bit testing! */
 
-bool Item_func_find_in_set::fix_length_and_dec()
+bool Item_func_find_in_set::fix_length_and_dec(THD *thd)
 {
   decimals=0;
   max_length=3;					// 1-999
@@ -3483,7 +3527,7 @@ public:
 };
 
 
-bool Item_func_bit_count::fix_length_and_dec()
+bool Item_func_bit_count::fix_length_and_dec(THD *thd)
 {
   static Func_handler_bit_count_int_to_slong ha_int_to_slong;
   static Func_handler_bit_count_decimal_to_slong ha_dec_to_slong;
@@ -3597,7 +3641,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
                           NullS))
       goto err_exit;
   }
-  if (func->fix_length_and_dec())
+  if (func->fix_length_and_dec(thd))
     DBUG_RETURN(TRUE);
   initid.max_length=func->max_length;
   initid.maybe_null=func->maybe_null();
@@ -3897,7 +3941,7 @@ my_decimal *Item_func_udf_decimal::val_decimal(my_decimal *dec_buf)
 
 /* Default max_length is max argument length */
 
-bool Item_func_udf_str::fix_length_and_dec()
+bool Item_func_udf_str::fix_length_and_dec(THD *thd)
 {
   DBUG_ENTER("Item_func_udf_str::fix_length_and_dec");
   max_length=0;
@@ -4647,32 +4691,7 @@ longlong Item_func_sleep::val_int()
   if (timeout < 0.00001)
     return 0;
 
-  timed_cond.set_timeout((ulonglong) (timeout * 1000000000.0));
-
-  mysql_cond_init(key_item_func_sleep_cond, &cond, NULL);
-  mysql_mutex_lock(&LOCK_item_func_sleep);
-
-  THD_STAGE_INFO(thd, stage_user_sleep);
-  thd->mysys_var->current_mutex= &LOCK_item_func_sleep;
-  thd->mysys_var->current_cond=  &cond;
-
-  error= 0;
-  thd_wait_begin(thd, THD_WAIT_SLEEP);
-  while (!thd->killed)
-  {
-    error= timed_cond.wait(&cond, &LOCK_item_func_sleep);
-    if (error == ETIMEDOUT || error == ETIME)
-      break;
-    error= 0;
-  }
-  thd_wait_end(thd);
-  mysql_mutex_unlock(&LOCK_item_func_sleep);
-  mysql_mutex_lock(&thd->mysys_var->mutex);
-  thd->mysys_var->current_mutex= 0;
-  thd->mysys_var->current_cond=  0;
-  mysql_mutex_unlock(&thd->mysys_var->mutex);
-
-  mysql_cond_destroy(&cond);
+  error= do_pause(thd, &timed_cond, &cond, timeout);
 
 #ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sleep_inject_query_done_debug_sync", {
@@ -4850,7 +4869,7 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
 
 
 bool
-Item_func_set_user_var::fix_length_and_dec()
+Item_func_set_user_var::fix_length_and_dec(THD *thd)
 {
   base_flags|= (args[0]->base_flags & item_base_t::MAYBE_NULL);
   decimals=args[0]->decimals;
@@ -4876,7 +4895,7 @@ Item_func_set_user_var::fix_length_and_dec()
   Mark field in read_map
 
   NOTES
-    This is used by filesort to register used fields in a a temporary
+    This is used by filesort to register used fields in a temporary
     column read set or to register used fields in a view
 */
 
@@ -5706,9 +5725,8 @@ err:
   return 1;
 }
 
-bool Item_func_get_user_var::fix_length_and_dec()
+bool Item_func_get_user_var::fix_length_and_dec(THD *thd)
 {
-  THD *thd=current_thd;
   int error;
   set_maybe_null();
   decimals=NOT_FIXED_DEC;
@@ -5784,7 +5802,7 @@ void Item_func_get_user_var::print(String *str, enum_query_type query_type)
 }
 
 
-bool Item_func_get_user_var::eq(const Item *item, bool binary_cmp) const
+bool Item_func_get_user_var::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -5918,7 +5936,7 @@ void Item_func_get_system_var::update_null_value()
 }
 
 
-bool Item_func_get_system_var::fix_length_and_dec()
+bool Item_func_get_system_var::fix_length_and_dec(THD *thd)
 {
   const char *cptr;
   set_maybe_null();
@@ -5955,9 +5973,9 @@ bool Item_func_get_system_var::fix_length_and_dec()
     case SHOW_CHAR_PTR:
       mysql_mutex_lock(&LOCK_global_system_variables);
       cptr= var->show_type() == SHOW_CHAR ?
-          reinterpret_cast<const char*>(var->value_ptr(current_thd, var_type,
+          reinterpret_cast<const char*>(var->value_ptr(thd, var_type,
                                                        &component)) :
-          *reinterpret_cast<const char* const*>(var->value_ptr(current_thd,
+          *reinterpret_cast<const char* const*>(var->value_ptr(thd,
                                                                var_type,
                                                                &component));
       if (cptr)
@@ -6177,7 +6195,7 @@ double Item_func_get_system_var::val_real()
 }
 
 
-bool Item_func_get_system_var::eq(const Item *item, bool binary_cmp) const
+bool Item_func_get_system_var::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -6462,7 +6480,7 @@ err:
 }
 
 
-bool Item_func_match::eq(const Item *item, bool binary_cmp) const
+bool Item_func_match::eq(const Item *item, const Eq_config &config) const
 {
   if (item->type() != FUNC_ITEM ||
       ((Item_func*)item)->functype() != FT_FUNC ||
@@ -6472,7 +6490,7 @@ bool Item_func_match::eq(const Item *item, bool binary_cmp) const
   Item_func_match *ifm=(Item_func_match*) item;
 
   if (key == ifm->key && table == ifm->table &&
-      key_item()->eq(ifm->key_item(), binary_cmp))
+      key_item()->eq(ifm->key_item(), config))
     return 1;
 
   return 0;
@@ -6548,7 +6566,7 @@ public:
 };
 
 
-bool Item_func_bit_xor::fix_length_and_dec()
+bool Item_func_bit_xor::fix_length_and_dec(THD *thd)
 {
   static const Func_handler_bit_xor_int_to_ulonglong ha_int_to_ull;
   static const Func_handler_bit_xor_dec_to_ulonglong ha_dec_to_ull;
@@ -6687,7 +6705,7 @@ bool Item_func_sp::is_expensive()
   @note called from Item::fix_fields.
 */
 
-bool Item_func_sp::fix_length_and_dec()
+bool Item_func_sp::fix_length_and_dec(THD *thd)
 {
   DBUG_ENTER("Item_func_sp::fix_length_and_dec");
 
@@ -6822,12 +6840,29 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     DBUG_RETURN(TRUE);
   }
 
+  Query_arena *arena, backup;
+  /*
+    Allocation an instance of Item_func_sp used for initialization of
+    sp_result_field taken place inside the method init_result_field() is done
+    on sp_head's mem_root since Item_sp also allocated on this memory root.
+
+    Switching to SP/PS memory root is done explicitly before calling the method
+    init_result_field() instead doing that inside init_result_field()
+    since for the case when rollup aggregate function is handled
+    (@see Item_sum_sp::copy_or_same, @see JOIN::rollup_make_fields)
+    the runtime arena used for operations, so switching to SP/PS arena for this
+    case would result in assertion failure on second execution of the same
+    prepared statement because the memory root be already marked as read only.
+  */
+  arena= thd->activate_stmt_arena_if_needed(&backup);
   /*
     We must call init_result_field before Item_func::fix_fields()
     to make m_sp and result_field members available to fix_length_and_dec(),
     which is called from Item_func::fix_fields().
   */
   res= init_result_field(thd, max_length, maybe_null(), &null_value, &name);
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
 
   if (res)
     DBUG_RETURN(TRUE);
@@ -7023,7 +7058,7 @@ bool Item_func_last_value::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuz
 }
 
 
-bool Item_func_last_value::fix_length_and_dec()
+bool Item_func_last_value::fix_length_and_dec(THD *thd)
 {
   last_value=          args[arg_count -1];
   Type_std_attributes::set(last_value);
@@ -7100,12 +7135,17 @@ longlong Item_func_nextval::val_int()
   longlong value;
   int error;
   const char *key;
+  DBUG_ENTER("Item_func_nextval::val_int");
+  if (table_list->is_pure_alias())
+  {
+    my_error(ER_NOT_SEQUENCE2, MYF(0), table_list->alias.str);
+    DBUG_RETURN(0);
+  }
   uint length= get_table_def_key(table_list, &key);
   THD *thd;
   SEQUENCE_LAST_VALUE *entry;
   char buff[80];
   String key_buff(buff,sizeof(buff), &my_charset_bin);
-  DBUG_ENTER("Item_func_nextval::val_int");
   update_table();
   DBUG_ASSERT(table);
   DBUG_ASSERT(table->s->sequence);
@@ -7403,4 +7443,44 @@ void fix_rownum_pointers(THD *thd, SELECT_LEX *select_lex, ha_rows *ptr)
         ((Item_func*) item)->functype() == Item_func::ROWNUM_FUNC)
       ((Item_func_rownum*) item)->store_pointer_to_row_counter(ptr);
   }
+}
+
+static int do_pause(THD *thd, Interruptible_wait *timed_cond, mysql_cond_t *cond, double timeout)
+{
+  int error= 0;
+  timed_cond->set_timeout((ulonglong) (timeout * 1000000000.0));
+
+  mysql_cond_init(key_item_func_sleep_cond, cond, NULL);
+  mysql_mutex_lock(&LOCK_item_func_sleep);
+
+  THD_STAGE_INFO(thd, stage_user_sleep);
+  thd->mysys_var->current_mutex= &LOCK_item_func_sleep;
+  thd->mysys_var->current_cond=  cond;
+
+  thd_wait_begin(thd, THD_WAIT_SLEEP);
+  while (!thd->killed)
+  {
+    error= timed_cond->wait(cond, &LOCK_item_func_sleep);
+    if (error == ETIMEDOUT || error == ETIME)
+      break;
+    error= 0;
+  }
+  thd_wait_end(thd);
+  mysql_mutex_unlock(&LOCK_item_func_sleep);
+  mysql_mutex_lock(&thd->mysys_var->mutex);
+  thd->mysys_var->current_mutex= 0;
+  thd->mysys_var->current_cond=  0;
+  mysql_mutex_unlock(&thd->mysys_var->mutex);
+
+  mysql_cond_destroy(cond);
+
+  return error;
+}
+
+void pause_execution(THD *thd, double timeout)
+{
+  Interruptible_wait timed_cond(thd);
+  mysql_cond_t cond;
+
+  do_pause(thd, &timed_cond, &cond, timeout);
 }

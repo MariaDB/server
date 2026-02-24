@@ -14,6 +14,7 @@ if (!$DIALOG_EXAMPLES_SO) {
 --replace_result .dll .so
 eval install plugin three_attempts soname '$DIALOG_EXAMPLES_SO';
 create user test_dialog identified via three_attempts using 'SECRET';
+GRANT SELECT ON test.* TO test_dialog;
 
 --write_file $MYSQLTEST_VARDIR/tmp/dialog_good.txt
 foo

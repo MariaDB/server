@@ -88,9 +88,7 @@ extern "C" {
 #endif /* defined(HAVE_CURSES_H) && defined(HAVE_TERM_H) */
 
 #undef bcmp				// Fix problem with new readline
-#if defined(_WIN32)
-#include <conio.h>
-#else
+#if !defined(_WIN32)
 # ifdef __APPLE__
 #  include <editline/readline.h>
 # else
@@ -103,6 +101,98 @@ extern "C" {
 #endif
 #define USE_POPEN
 }
+
+static CHARSET_INFO *charset_info= &my_charset_latin1;
+
+#if defined(_WIN32)
+/*
+  Set console mode for the whole duration of the client session.
+
+  We need for input
+    - line input (i.e read lines from console)
+    - echo typed characters
+    - "cooked" mode, i.e we do not want to handle all keystrokes,
+      like DEL etc ourselves, yet. We might want handle keystrokes
+      in the future, to implement tab completion, and better
+      (multiline) history.
+
+ Disable VT escapes for the output.We do not know what kind of escapes SELECT would return.
+*/
+struct Console_mode
+{
+  HANDLE in= GetStdHandle(STD_INPUT_HANDLE);
+  HANDLE out= GetStdHandle(STD_OUTPUT_HANDLE);
+  DWORD mode_in=0;
+  DWORD mode_out=0;
+
+  enum {STDIN_CHANGED = 1, STDOUT_CHANGED = 2};
+  int changes=0;
+
+  Console_mode()
+  {
+    if (in && in != INVALID_HANDLE_VALUE && GetConsoleMode(in, &mode_in))
+    {
+      SetConsoleMode(in, ENABLE_ECHO_INPUT|ENABLE_LINE_INPUT|ENABLE_PROCESSED_INPUT);
+      changes |= STDIN_CHANGED;
+    }
+
+    if (out && out != INVALID_HANDLE_VALUE && GetConsoleMode(out, &mode_out))
+    {
+#ifdef ENABLE_VIRTUAL_TERMINAL_INPUT
+      SetConsoleMode(out, mode_out & ~ENABLE_VIRTUAL_TERMINAL_INPUT);
+      changes |= STDOUT_CHANGED;
+#endif
+    }
+  }
+
+  ~Console_mode()
+  {
+    if (changes & STDIN_CHANGED)
+      SetConsoleMode(in, mode_in);
+
+    if(changes & STDOUT_CHANGED)
+      SetConsoleMode(out, mode_out);
+  }
+};
+
+static Console_mode my_conmode;
+
+#define MAX_CGETS_LINE_LEN 65535
+/** Read line from console, chomp EOL*/
+static char *win_readline()
+{
+  static wchar_t wstrbuf[MAX_CGETS_LINE_LEN];
+  static char strbuf[MAX_CGETS_LINE_LEN * 4];
+
+  DWORD nchars= 0;
+  uint len= 0;
+  SetLastError(0);
+  if (!ReadConsoleW(GetStdHandle(STD_INPUT_HANDLE), wstrbuf, MAX_CGETS_LINE_LEN-1,
+                    &nchars, NULL))
+    goto err;
+  if (nchars == 0 && GetLastError() == ERROR_OPERATION_ABORTED)
+    goto err;
+
+  for (;nchars > 0; nchars--)
+  {
+    if (wstrbuf[nchars - 1] != '\n' && wstrbuf[nchars - 1] != '\r')
+      break;
+  }
+
+  if (nchars > 0)
+  {
+    uint errors;
+    len= my_convert(strbuf, sizeof(strbuf), charset_info,
+                    (const char *) wstrbuf, nchars * sizeof(wchar_t),
+                    &my_charset_utf16le_bin, &errors);
+  }
+  strbuf[len]= 0;
+  return strbuf;
+err:
+  return NULL;
+}
+#endif
+
 
 #ifdef HAVE_VIDATTR
 static int have_curses= 0;
@@ -213,7 +303,6 @@ unsigned short terminal_width= 80;
 
 static uint opt_protocol=0;
 static const char *opt_protocol_type= "";
-static CHARSET_INFO *charset_info= &my_charset_latin1;
 
 #include "sslopt-vars.h"
 
@@ -1118,6 +1207,81 @@ inline int get_command_index(char cmd_char)
   return -1;
 }
 
+static LINE_BUFFER *batch_readline_init(ulong max_size, const char *path)
+{
+  LINE_BUFFER *line_buff;
+  File file;
+  MY_STAT input_file_stat;
+  char buff[FN_REFLEN + 512];
+
+  if (path)
+  {
+    if ((file= my_open(path, O_RDONLY | O_BINARY, MYF(0))) < 0)
+    {
+#ifdef _WIN32
+      if (my_errno == EACCES && my_stat(path, &input_file_stat, MYF(0)) &&
+          MY_S_ISDIR(input_file_stat.st_mode))
+        my_snprintf(buff, sizeof(buff), "Can't read from a directory '%.*s'",
+                    FN_REFLEN, path);
+      else
+#endif
+      my_snprintf(buff, sizeof(buff), "Failed to open file '%.*s', error: %d",
+                  FN_REFLEN, path, my_errno);
+      put_info(buff, INFO_ERROR, 0);
+      return 0;
+    }
+  }
+  else
+  {
+    file= my_fileno(stdin);
+  }
+
+  if (my_fstat(file, &input_file_stat, MYF(0)))
+  {
+    my_snprintf(buff, sizeof(buff), "Failed to stat file '%.*s', error: %d",
+                FN_REFLEN, path ? path : "stdin", my_errno);
+    goto err1;
+  }
+
+  if (MY_S_ISDIR(input_file_stat.st_mode))
+  {
+    my_snprintf(buff, sizeof(buff), "Can't read from a directory '%.*s'",
+                FN_REFLEN, path ? path : "stdin");
+    goto err1;
+  }
+
+#ifndef _WIN32
+  if (MY_S_ISBLK(input_file_stat.st_mode))
+  {
+    my_snprintf(buff, sizeof(buff), "Can't read from a block device '%.*s'",
+                FN_REFLEN, path ? path : "stdin");
+    goto err1;
+  }
+#endif
+
+  if (!(line_buff= (LINE_BUFFER*) my_malloc(PSI_NOT_INSTRUMENTED,
+                                            sizeof(*line_buff),
+                                            MYF(MY_WME | MY_ZEROFILL))))
+  {
+    goto err;
+  }
+
+  if (init_line_buffer(line_buff, file, IO_SIZE, max_size))
+  {
+    my_free(line_buff);
+    goto err;
+  }
+
+  return line_buff;
+
+err1:
+  put_info(buff, INFO_ERROR, 0);
+err:
+  if (path)
+    my_close(file, MYF(0));
+  return 0;
+}
+
 static int delimiter_index= -1;
 static int charset_index= -1;
 static int sandbox_index= -1;
@@ -1192,10 +1356,8 @@ int main(int argc,char *argv[])
   }
 
   if (status.batch && !status.line_buff &&
-      !(status.line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, stdin)))
+      !(status.line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, NULL)))
   {
-    put_info("Can't initialize batch_readline - may be the input source is "
-             "a directory or a block device.", INFO_ERROR, 0);
     free_defaults(defaults_argv);
     my_end(0);
     exit(1);
@@ -1298,9 +1460,7 @@ int main(int argc,char *argv[])
   if (opt_outfile)
     end_tee();
   mysql_end(0);
-#ifndef _lint
-  DBUG_RETURN(0);				// Keep compiler happy
-#endif
+  DBUG_RETURN(0);
 }
 
 sig_handler mysql_end(int sig)
@@ -1356,6 +1516,46 @@ sig_handler mysql_end(int sig)
   exit(status.exit_status);
 }
 
+#ifdef _WIN32
+#define CNV_BUFSIZE 1024
+
+/**
+ Convert user,database,and password to requested charset.
+
+ This is done in the single case when user connects with non-UTF8
+ default-character-set, on UTF8 capable Windows.
+
+ User, password, and database are UTF8 encoded, prior to the function,
+ this needs to be fixed, in case they contain non-ASCIIs.
+
+ Mostly a workaround, to allow existng users with non-ASCII password
+ to survive upgrade without losing connectivity.
+*/
+static void maybe_convert_charset(const char **user, const char **password,
+                                  const char **database, const char *csname)
+{
+  if (GetACP() != CP_UTF8 || !strncmp(csname, "utf8", 4))
+    return;
+  static char bufs[3][CNV_BUFSIZE];
+  const char **from[]= {user, password, database};
+  CHARSET_INFO *cs= get_charset_by_csname(csname, MY_CS_PRIMARY,
+                                         MYF(MY_UTF8_IS_UTF8MB3 | MY_WME));
+  if (!cs)
+    return;
+  for (int i= 0; i < 3; i++)
+  {
+    const char *str= *from[i];
+    if (!str)
+      continue;
+    uint errors;
+    uint len= my_convert(bufs[i], CNV_BUFSIZE, cs, str, (uint32) strlen(str),
+                         &my_charset_utf8mb4_bin, &errors);
+    bufs[i][len]= 0;
+    *from[i]= bufs[i];
+  }
+}
+#endif
+
 /*
   set connection-specific options and call mysql_real_connect
 */
@@ -1365,7 +1565,7 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
   if (opt_secure_auth)
     mysql_options(mysql, MYSQL_SECURE_AUTH, (char *) &opt_secure_auth);
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-  if (opt_use_ssl)
+  if (opt_use_ssl && opt_protocol <= MYSQL_PROTOCOL_SOCKET)
   {
     mysql_ssl_set(mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
 		  opt_ssl_capath, opt_ssl_cipher);
@@ -1387,6 +1587,10 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysql");
+#ifdef _WIN32
+  maybe_convert_charset(&user, &password, &database,default_charset);
+#endif
+
   return mysql_real_connect(mysql, host, user, password, database,
                             opt_mysql_port, opt_mysql_unix_port, flags);
 }
@@ -2059,11 +2263,6 @@ static inline void reset_prompt(char *in_string, bool *ml_comment) {
 
 static int read_and_execute(bool interactive)
 {
-#if defined(_WIN32)
-  String tmpbuf;
-  String buffer;
-#endif
-
   char	*line= NULL;
   char	in_string=0;
   ulong line_number=0;
@@ -2141,26 +2340,7 @@ static int read_and_execute(bool interactive)
 
 #if defined(_WIN32)
       tee_fputs(prompt, stdout);
-      if (!tmpbuf.is_alloced())
-        tmpbuf.alloc(65535);
-      tmpbuf.length(0);
-      buffer.length(0);
-      size_t clen;
-      do
-      {
-        line= my_cgets((char*)tmpbuf.ptr(), tmpbuf.alloced_length()-1, &clen);
-        buffer.append(line, clen);
-        /* 
-           if we got buffer fully filled than there is a chance that
-           something else is still in console input buffer
-        */
-      } while (tmpbuf.alloced_length() <= clen);
-      /* 
-        An empty line is returned from my_cgets when there's error reading :
-        Ctrl-c for example
-      */
-      if (line)
-        line= buffer.c_ptr();
+      line= win_readline();
 #else
       if (opt_outfile)
 	fputs(prompt, OUTFILE);
@@ -2250,10 +2430,7 @@ static int read_and_execute(bool interactive)
     }
   }
 
-#if defined(_WIN32)
-  buffer.free();
-  tmpbuf.free();
-#else
+#if !defined(_WIN32)
   if (interactive)
     /*
       free the last entered line.
@@ -2772,7 +2949,9 @@ static void fix_history(String *final_command)
     ptr++;
   }
   if (total_lines > 1)			
-    add_history(fixed_buffer.ptr());
+  {
+    add_history(fixed_buffer.c_ptr());
+  }
 }
 
 /*	
@@ -3094,6 +3273,36 @@ static int reconnect(void)
   return 0;
 }
 
+#ifndef EMBEDDED_LIBRARY
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wvarargs"
+/* CONC-789 */
+#endif
+
+static void status_info_cb(void *data, enum enum_mariadb_status_info type, ...)
+{
+  va_list ap;
+  va_start(ap, type);
+  if (type == SESSION_TRACK_TYPE && va_arg(ap, int) == SESSION_TRACK_SCHEMA)
+  {
+    MARIADB_CONST_STRING *val= va_arg(ap, MARIADB_CONST_STRING *);
+    my_free(current_db);
+    if (val->length)
+      current_db= my_strndup(PSI_NOT_INSTRUMENTED, val->str, val->length, MYF(MY_FAE));
+    else
+      current_db= NULL;
+  }
+  va_end(ap);
+}
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+#else
+#define mysql_optionsv(A,B,C,D) do { } while(0)
+#endif
+
 static void get_current_db()
 {
   MYSQL_RES *res;
@@ -3306,6 +3515,21 @@ static int com_clear(String *buffer,char *)
   return 0;
 }
 
+static void adjust_console_codepage(const char *name __attribute__((unused)))
+{
+#ifdef _WIN32
+  if (my_set_console_cp(name) < 0)
+  {
+    char buf[128];
+    snprintf(buf, sizeof(buf),
+      "WARNING: Could not determine Windows codepage for charset '%s',"
+      "continue using codepage %u", name, GetConsoleOutputCP());
+    put_info(buf, INFO_INFO);
+  }
+#endif
+}
+
+
 static int com_charset(String *, char *line)
 {
   char buff[256], *param;
@@ -3328,6 +3552,7 @@ static int com_charset(String *, char *line)
     mysql_set_character_set(&mysql, charset_info->cs_name.str);
     default_charset= (char *)charset_info->cs_name.str;
     put_info("Charset changed", INFO_INFO);
+    adjust_console_codepage(charset_info->cs_name.str);
   }
   else put_info("Charset is not found", INFO_INFO);
   return 0;
@@ -3357,8 +3582,6 @@ static int com_go(String *buffer, char *)
     old_buffer.copy();
   }
 
-  /* Remove garbage for nicer messages */
-  LINT_INIT_STRUCT(buff[0]);
   remove_cntrl(*buffer);
 
   if (buffer->is_empty())
@@ -3648,7 +3871,10 @@ static char *fieldflags2str(uint f) {
   ff2s_check_flag(NUM);
   ff2s_check_flag(PART_KEY);
   ff2s_check_flag(GROUP);
-  ff2s_check_flag(BINCMP);
+  /*
+    CONTEXT_COLLATION_FLAG (former BINCMP_FLAG) is used at parse
+    time only and should never show up on the client side. Don't test it.
+  */
   ff2s_check_flag(ON_UPDATE_NOW);
 #undef ff2s_check_flag
   if (f)
@@ -4529,7 +4755,6 @@ static int com_source(String *, char *line)
   LINE_BUFFER *line_buff;
   int error;
   STATUS old_status;
-  FILE *sql_file;
   my_bool save_ignore_errors;
 
   if (status.sandbox)
@@ -4549,18 +4774,10 @@ static int com_source(String *, char *line)
     end--;
   end[0]=0;
   unpack_filename(source_name,source_name);
-  /* open file name */
-  if (!(sql_file = my_fopen(source_name, O_RDONLY | O_BINARY,MYF(0))))
-  {
-    char buff[FN_REFLEN+60];
-    sprintf(buff,"Failed to open file '%s', error: %d", source_name,errno);
-    return put_info(buff, INFO_ERROR, 0);
-  }
 
-  if (!(line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, sql_file)))
+  if (!(line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, source_name)))
   {
-    my_fclose(sql_file,MYF(0));
-    return put_info("Can't initialize batch_readline", INFO_ERROR, 0);
+    return ignore_errors ? -1 : 1;
   }
 
   /* Save old status */
@@ -4579,7 +4796,7 @@ static int com_source(String *, char *line)
   ignore_errors= save_ignore_errors;
   status=old_status;				// Continue as before
   in_com_source= aborted= 0;
-  my_fclose(sql_file,MYF(0));
+  my_close(line_buff->file, MYF(0));
   batch_readline_end(line_buff);
   /*
     If we got an error during source operation, don't abort the client
@@ -4847,6 +5064,8 @@ sql_real_connect(char *host,char *database,char *user,char *password,
     mysql_close(&mysql);
   }
   mysql_init(&mysql);
+  if (!one_database)
+    mysql_optionsv(&mysql, MARIADB_OPT_STATUS_CALLBACK, status_info_cb, NULL);
   if (opt_init_command)
     mysql_options(&mysql, MYSQL_INIT_COMMAND, opt_init_command);
   if (opt_connect_timeout)
@@ -4899,6 +5118,7 @@ sql_real_connect(char *host,char *database,char *user,char *password,
     put_info(buff, INFO_ERROR);
     return 1;
   }
+  adjust_console_codepage(charset_info->cs_name.str);
   connected=1;
 #ifndef EMBEDDED_LIBRARY
   mysql_options(&mysql, MYSQL_OPT_RECONNECT, &debug_info_flag);

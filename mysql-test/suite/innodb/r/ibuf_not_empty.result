@@ -6,6 +6,8 @@ INDEX(b))
 ENGINE=InnoDB STATS_PERSISTENT=0;
 SET GLOBAL innodb_change_buffering_debug = 1;
 SET GLOBAL innodb_change_buffering=all;
+Warnings:
+Warning	1287	'@@innodb_change_buffering' is deprecated and will be removed in a future release
 INSERT INTO t1 SELECT 0,'x',1 FROM seq_1_to_1024;
 # restart: --innodb-force-recovery=6 --innodb-change-buffer-dump
 check table t1;

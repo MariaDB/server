@@ -3,7 +3,7 @@ call mtr.add_suppression("InnoDB: Recovery failed to read page");
 call mtr.add_suppression("InnoDB: Unable to decompress ..test.t[12]\\.ibd\\[page id: space=[1-9][0-9]*, page number=[0-9]+\\]");
 call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test/t[12]\\.ibd'");
 call mtr.add_suppression("InnoDB: File '.*test/t[12]\\.ibd' is corrupted");
-call mtr.add_suppression("InnoDB: Table `test`\\.`t[12]` is corrupted");
+call mtr.add_suppression("Table `test`\\.`t[12]` is corrupted");
 # Restart mysqld --file-key-management-filename=keys2.txt
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
 SET GLOBAL innodb_file_per_table = ON;
@@ -19,9 +19,9 @@ insert into t3 values (1, repeat('secret',6000));
 # Restart mysqld --file-key-management-filename=keys3.txt
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys3.txt
 select count(*) from t1 FORCE INDEX (b) where b like 'secret%';
-ERROR 42S02: Table 'test.t1' doesn't exist in engine
+ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
 select count(*) from t2 FORCE INDEX (b) where b like 'secret%';
-ERROR 42S02: Table 'test.t2' doesn't exist in engine
+ERROR HY000: Table `test`.`t2` is corrupted. Please drop the table and recreate.
 select count(*) from t3 FORCE INDEX (b) where b like 'secret%';
 count(*)
 1

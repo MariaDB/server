@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2023 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -368,7 +368,7 @@ void wsrep_abort_thd(THD *bf_thd,
   /* Note that when you use RSU node is desynced from cluster, thus WSREP(thd)
   might not be true.
   */
-  if ((WSREP(bf_thd)
+  if ((WSREP_NNULL(bf_thd)
        || ((WSREP_ON || bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU)
            &&  wsrep_thd_is_toi(bf_thd))
        || bf_thd->lex->sql_command == SQLCOM_KILL)

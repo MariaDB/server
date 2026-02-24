@@ -51,10 +51,6 @@ Group=mysql
 # These are enabled by default
 AmbientCapabilities=CAP_IPC_LOCK
 
-# PrivateDevices=true implies NoNewPrivileges=true and
-# SUID auth_pam_tool suddenly doesn't do setuid anymore
-PrivateDevices=false
-
 # Prevent writes to /usr, /boot, and /etc
 ProtectSystem=full
 
@@ -83,7 +79,7 @@ ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
  && echo _WSREP_START_POSITION=$VAR > @INSTALL_RUNDATADIR@/wsrep-start-position || exit 1"
 
 # Needed to create system tables etc.
-# ExecStartPre=@scriptdir@/mysql_install_db -u mysql
+# ExecStartPre=@scriptdir@/mariadb-install-db
 
 # Start main service
 # MYSQLD_OPTS here is for users to set in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf

@@ -40,7 +40,7 @@ echo # xtrabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 let $backuplog=$MYSQLTEST_VARDIR/tmp/backup.log;
 --error 1
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --core-file > $backuplog;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir --core-file > $backuplog;
 --enable_result_log
 
 --let SEARCH_PATTERN=Database page corruption detected.*

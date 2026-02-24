@@ -4093,10 +4093,10 @@ int STDCALL mysql_set_character_set(MYSQL *mysql, const char *cs_name)
   if (mysql->options.charset_dir)
     charsets_dir= mysql->options.charset_dir;
 
-  if (strlen(cs_name) < MY_CS_NAME_SIZE &&
+  if (strlen(cs_name) < MY_CS_CHARACTER_SET_NAME_SIZE &&
      (cs= get_charset_by_csname(cs_name, MY_CS_PRIMARY, MYF(MY_UTF8_IS_UTF8MB3))))
   {
-    char buff[MY_CS_NAME_SIZE + 10];
+    char buff[MY_CS_CHARACTER_SET_NAME_SIZE + 10];
     charsets_dir= save_csdir;
     /* Skip execution of "SET NAMES" for pre-4.1 servers */
     if (mysql_get_server_version(mysql) < 40100)

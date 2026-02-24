@@ -9,7 +9,7 @@ ERROR 42S22: Unknown column 'a.z' in 'SELECT'
 ALTER TABLE tbl_a CHANGE c c INT;
 ERROR 42S22: Unknown column 'c' in 'tbl_a'
 LOCK TABLE tbl_a READ;
-ERROR HY000: Unable to connect to foreign data source: localhost
+Got one of the listed errors
 DROP DATABASE auto_test_local;
 for master_1
 for child2

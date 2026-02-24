@@ -24,6 +24,7 @@ english
 estonian
 french
 german
+georgian
 greek
 hindi
 hungarian

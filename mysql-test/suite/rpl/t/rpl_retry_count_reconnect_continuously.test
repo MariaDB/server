@@ -1,0 +1,9 @@
+# Test:
+# master-retry-count= 0 and retry_count= ULONG_MAX - 2,
+# after exhausting retry_cnt attempts with an overflow of err_count occurs,
+# the connection should be Connecting;
+#
+--let $overflow= 1
+--let $retry_count= 3
+--let $expected_Slave_IO_Running_status= Connecting
+--source rpl_retry_count.inc

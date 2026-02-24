@@ -5,7 +5,7 @@ CREATE DATABASE IF NOT EXISTS auto_test_local;
 USE auto_test_local;
 CREATE TABLE t (i CHAR) ENGINE=SPIDER;
 INSERT INTO t VALUES (0);
-ERROR HY000: Unable to connect to foreign data source: localhost
+Got one of the listed errors
 INSERT t SELECT 1 ON DUPLICATE KEY UPDATE c=1;
 ERROR 42S22: Unknown column 'c' in 'UPDATE'
 DROP DATABASE IF EXISTS auto_test_local;

@@ -1,7 +1,12 @@
 CREATE TABLE t(i INT) ENGINE INNODB;
 INSERT INTO t VALUES(1);
+SET GLOBAL innodb_max_purge_lag_wait=0;
 # xtrabackup backup
 NOT FOUND /InnoDB: Allocated tablespace ID/ in backup.log
+SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
+variable_value
+0
 INSERT INTO t VALUES(2);
 # xtrabackup prepare
 # shutdown server
@@ -17,6 +22,13 @@ DROP TABLE t;
 #                  undo log tablespaces
 #
 call mtr.add_suppression("InnoDB: innodb_undo_tablespaces=0 disables dedicated undo log tablespaces");
+call mtr.add_suppression("InnoDB: Cannot change innodb_undo_tablespaces=0 because previous shutdown was not with innodb_fast_shutdown=0");
+call mtr.add_suppression("Found 1 prepared XA transactions");
+CREATE TABLE t(f1 INT NOT NULL)ENGINE=InnoDB;
+XA START 'zombie';
+INSERT INTO t VALUES(1);
+XA END 'zombie';
+XA PREPARE 'zombie';
 # restart: --innodb_undo_tablespaces=0
 # xtrabackup backup
 # xtrabackup prepare
@@ -27,3 +39,5 @@ call mtr.add_suppression("InnoDB: innodb_undo_tablespaces=0 disables dedicated u
 # Display undo log files from target directory
 undo001
 undo002
+XA COMMIT 'zombie';
+DROP TABLE t;

@@ -405,7 +405,7 @@ ut_strerr(
 	case DB_FTS_TOO_MANY_WORDS_IN_PHRASE:
 		return("Too many words in a FTS phrase or proximity search");
 	case DB_DECRYPTION_FAILED:
-		return("Table is encrypted but decrypt failed.");
+		return("Table is compressed or encrypted but uncompress or decrypt failed.");
 	case DB_IO_PARTIAL_FAILED:
 		return("Partial IO failed");
 	case DB_COMPUTE_VALUE_FAILED:
@@ -432,6 +432,18 @@ ut_strerr(
 }
 
 namespace ib {
+
+std::ostream &operator<<(std::ostream &lhs, const bytes_iec &rhs)
+{
+  static const char *sizes[]= {"B", "KiB", "MiB", "GiB", "TiB", "PiB",
+                              "EiB", "ZiB", "YiB"};
+  size_t i= 0;
+  double d= rhs.get_double();
+  for (; d > 512.0 && i < array_elements(sizes); i++, d/= 1024.0);
+  lhs.precision(3);
+  lhs << std::fixed << d << sizes[i];
+  return lhs;
+}
 
 ATTRIBUTE_COLD logger& logger::operator<<(dberr_t err)
 {

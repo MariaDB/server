@@ -10,7 +10,7 @@ CREATE TABLE t1 (a INT) ENGINE=MyISAM;
 LOCK TABLE t1 READ;
 
 --connect (con1,localhost,root,,test)
-SET SESSION max_session_mem_used= 45500;
+SET SESSION max_session_mem_used= 8192;
 --send
   LOCK TABLE t1 WRITE;
 
@@ -21,10 +21,7 @@ UNLOCK TABLES;
 --connection con1
 --error 0,ER_OPTION_PREVENTS_STATEMENT
 --reap
-# This may work or fail as different servers uses different amount of
-# memory and the statement may work or not. What is important is that we
-# don't get a crash here!
---error 0,ER_OPTION_PREVENTS_STATEMENT
+--error ER_OPTION_PREVENTS_STATEMENT
 TRUNCATE TABLE t1;
 
 --disconnect con1

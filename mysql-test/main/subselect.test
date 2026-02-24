@@ -7,10 +7,6 @@
 #       as possible.
 #
 # Initialise
---disable_warnings
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t11,t12;
-drop view if exists v2;
---enable_warnings
 
 call mtr.add_suppression("Sort aborted.*");
 
@@ -1195,7 +1191,6 @@ DROP TABLE t1;
 #
 
 --disable_service_connection
---disable_ps2_protocol
 create table t1 (a int, b decimal(13, 3));
 insert into t1 values (1, 0.123);
 let $outfile_abs= $MYSQLTEST_VARDIR/tmp/subselect.out.file.1;
@@ -1204,15 +1199,12 @@ let $outfile_rel= ../../tmp/subselect.out.file.1;
 --error 0,1
 --remove_file $outfile_abs
 --enable_warnings
---disable_cursor_protocol
 eval select a, (select max(b) from t1) into outfile "$outfile_rel" from t1;
---enable_cursor_protocol
 delete from t1;
 eval load data infile "$outfile_rel" into table t1;
 --remove_file $outfile_abs
 select * from t1;
 drop table t1;
---enable_ps2_protocol
 --enable_service_connection
 
 #
@@ -3612,9 +3604,7 @@ DROP TABLE t1,t2;
 CREATE TABLE t1(a1 int);
 INSERT INTO t1 VALUES (1),(2);
 
---disable_cursor_protocol
 SELECT @@session.sql_mode INTO @old_sql_mode;
---enable_cursor_protocol
 SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
 
 ## First a simpler query, illustrating the transformation
@@ -3652,9 +3642,7 @@ INSERT INTO t1 VALUES (1),(2);
 CREATE TABLE t2(a1 int);
 INSERT INTO t2 VALUES (3);
 
---disable_cursor_protocol
 SELECT @@session.sql_mode INTO @old_sql_mode;
---enable_cursor_protocol
 SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
 
 ## All these are subject to the transformation
@@ -3675,9 +3663,7 @@ DROP TABLE t1, t2;
 create table t2(i int);
 insert into t2 values(0);
 
---disable_cursor_protocol
 SELECT @@session.sql_mode INTO @old_sql_mode;
---enable_cursor_protocol
 SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
 
 CREATE VIEW v1 AS  
@@ -5053,9 +5039,7 @@ INSERT INTO t1 VALUES (1),(2);
 CREATE TABLE t2(a1 int);
 INSERT INTO t2 VALUES (3);
 
---disable_cursor_protocol
 SELECT @@session.sql_mode INTO @old_sql_mode;
---enable_cursor_protocol
 SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
 
 ## All these are subject to the transformation
@@ -5072,9 +5056,7 @@ DROP TABLE t1, t2;
 create table t2(i int);
 insert into t2 values(0);
 
---disable_cursor_protocol
 SELECT @@session.sql_mode INTO @old_sql_mode;
---enable_cursor_protocol
 SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
 
 CREATE VIEW v1 AS  
@@ -5467,9 +5449,7 @@ DROP TABLE t1,t2,t3;
 CREATE TABLE t1(a1 int);
 INSERT INTO t1 VALUES (1),(2);
 
---disable_cursor_protocol
 SELECT @@session.sql_mode INTO @old_sql_mode;
---enable_cursor_protocol
 SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
  
 ## First a simpler query, illustrating the transformation
@@ -6474,6 +6454,4 @@ insert into t2 select (('e','e') IN (SELECT v1.id, v1.id FROM v1 JOIN t3));
 drop view v1;
 drop table t1, t2, t3;
 
---echo #
 --echo # End of 10.6 tests
---echo #

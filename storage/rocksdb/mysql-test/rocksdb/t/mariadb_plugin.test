@@ -31,29 +31,15 @@ disconnect con1;
 let $wait_condition= SELECT VARIABLE_VALUE=1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='Threads_cached';
 --source include/wait_condition.inc
 
+select engine, support from information_schema.engines where engine='rocksdb';
+select plugin_name,plugin_status from information_schema.plugins where plugin_name='rocksdb';
+
 --echo #
 --echo # MDEV-15686: Loading MyRocks plugin back after it has been unloaded causes a crash
 --echo #
-call mtr.add_suppression("Plugin 'ROCKSDB.*' init function returned error.");
-call mtr.add_suppression("Plugin 'ROCKSDB.*' registration as a INFORMATION SCHEMA failed.");
-call mtr.add_suppression("Plugin 'ROCKSDB' registration as a STORAGE ENGINE failed");
 
---echo #
---echo # There are two possible scenarios:
+--error ER_PLUGIN_INSTALLED
+INSTALL PLUGIN rocksdb SONAME 'ha_rocksdb';
 
---echo #  ha_rocksdb.{dll,so} is still loaded into mysqld's address space. Its
---echo #  global variables are in the state that doesn't allow it to be
---echo #  initialized back (this is what MDEV-15686 is about). This is handled 
---echo #  by intentionally returning an error from rocksdb_init_func.
---echo #
---echo #  The second case is when ha_rocksdb.{ddl,so} has been fully unloaded 
---echo #  and so it will be now loaded as if it happens for the first time.
-
---error 0,ER_INTERNAL_ERROR
-INSTALL SONAME 'ha_rocksdb';
-
---echo # Whatever happened on the previous step, restore things to the way they
---echo # were at testcase start.
---error 0,ER_SP_DOES_NOT_EXIST
-UNINSTALL SONAME 'ha_rocksdb';
-
+select engine, support from information_schema.engines where engine='rocksdb';
+select plugin_name,plugin_status from information_schema.plugins where plugin_name='rocksdb';

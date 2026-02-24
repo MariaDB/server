@@ -1,5 +1,5 @@
 ########################################################################
-# Tests things releated to syntax of BACKUP STAGE (MDEV-5336)
+# Tests things related to syntax of BACKUP STAGE (MDEV-5336)
 ########################################################################
 
 --source include/have_innodb.inc

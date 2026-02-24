@@ -115,13 +115,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 100,
-      "filtered": 53.32928848,
-      "attached_condition": "t1.col0 > 1 and t1.col1 > 1 and t1.col2 > 1 and t1.col3 > 1 and t1.col4 > 1 and t1.col5 > 1 and t1.col6 > 1 and t1.col7 > 1 and t1.col8 > 1 and t1.col9 > 1 and t1.col10 > 1 and t1.col11 > 1 and t1.col12 > 1 and t1.col13 > 1 and t1.col14 > 1 and t1.col15 > 1 and t1.col16 > 1 and t1.col17 > 1 and t1.col18 > 1 and t1.col19 > 1 and t1.col20 > 1 and t1.col21 > 1 and t1.col22 > 1 and t1.col23 > 1 and t1.col24 > 1 and t1.col25 > 1 and t1.col26 > 1 and t1.col27 > 1 and t1.col28 > 1 and t1.col29 > 1 and t1.col30 > 1 and t1.col31 > 1 and t1.col32 > 1 and t1.col33 > 1 and t1.col34 > 1 and t1.col35 > 1 and t1.col36 > 1 and t1.col37 > 1 and t1.col38 > 1 and t1.col39 > 1 and t1.col40 > 1 and t1.col41 > 1 and t1.col42 > 1 and t1.col43 > 1 and t1.col44 > 1 and t1.col45 > 1 and t1.col46 > 1 and t1.col47 > 1 and t1.col48 > 1 and t1.col49 > 1 and t1.col50 > 1 and t1.col51 > 1 and t1.col52 > 1 and t1.col53 > 1 and t1.col54 > 1 and t1.col55 > 1 and t1.col56 > 1 and t1.col57 > 1 and t1.col58 > 1 and t1.col59 > 1 and t1.col60 > 1 and t1.col61 > 1 and t1.col62 > 1 and t1.col63 > 1 and t1.col64 > 1 and t1.col65 > 1 and t1.col66 > 1 and t1.col67 > 1 and t1.col68 > 1 and t1.col69 > 1 and t1.col70 > 1 and t1.col71 > 1 and t1.col72 > 1 and t1.col73 > 1 and t1.col74 > 1 and t1.col75 > 1 and t1.col76 > 1 and t1.col77 > 1 and t1.col78 > 1 and t1.col79 > 1 and t1.col80 > 1 and t1.col81 > 1 and t1.col82 > 1 and t1.col83 > 1 and t1.col84 > 1 and t1.col85 > 1 and t1.col86 > 1 and t1.col87 > 1 and t1.col88 > 1 and t1.col89 > 1 and t1.col90 > 1 and t1.col91 > 1 and t1.col92 > 1 and t1.col93 > 1 and t1.col94 > 1 and t1.col95 > 1 and t1.col96 > 1 and t1.col97 > 1 and t1.col98 > 1 and t1.col99 > 1 and t1.col100 > 1 and t1.col101 > 1 and t1.col102 > 1 and t1.col103 > 1 and t1.col104 > 1 and t1.col105 > 1 and t1.col106 > 1 and t1.col107 > 1 and t1.col108 > 1 and t1.col109 > 1 and t1.col110 > 1 and t1.col111 > 1 and t1.col112 > 1 and t1.col113 > 1 and t1.col114 > 1 and t1.col115 > 1 and t1.col116 > 1 and t1.col117 > 1 and t1.col118 > 1 and t1.col119 > 1 and t1.col120 > 1 and t1.col121 > 1 and t1.col122 > 1 and t1.col123 > 1 and t1.col124 > 1 and t1.col125 > 1 and t1.col126 > 1 and t1.col127 > 1 and t1.col128 > 1 and t1.col129 > 1 and t1.col130 > 1 and t1.col131 > 1 and t1.col132 > 1 and t1.col133 > 1 and t1.col134 > 1 and t1.col135 > 1 and t1.col136 > 1 and t1.col137 > 1 and t1.col138 > 1 and t1.col139 > 1 and t1.col140 > 1 and t1.col141 > 1 and t1.col142 > 1 and t1.col143 > 1 and t1.col144 > 1 and t1.col145 > 1 and t1.col146 > 1 and t1.col147 > 1 and t1.col148 > 1 and t1.col149 > 1 and t1.col150 > 1 and t1.col151 > 1 and t1.col152 > 1 and t1.col153 > 1 and t1.col154 > 1 and t1.col155 > 1 and t1.col156 > 1 and t1.col157 > 1 and t1.col158 > 1 and t1.col159 > 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 100,
+          "filtered": 53.32928848,
+          "attached_condition": "t1.col0 > 1 and t1.col1 > 1 and t1.col2 > 1 and t1.col3 > 1 and t1.col4 > 1 and t1.col5 > 1 and t1.col6 > 1 and t1.col7 > 1 and t1.col8 > 1 and t1.col9 > 1 and t1.col10 > 1 and t1.col11 > 1 and t1.col12 > 1 and t1.col13 > 1 and t1.col14 > 1 and t1.col15 > 1 and t1.col16 > 1 and t1.col17 > 1 and t1.col18 > 1 and t1.col19 > 1 and t1.col20 > 1 and t1.col21 > 1 and t1.col22 > 1 and t1.col23 > 1 and t1.col24 > 1 and t1.col25 > 1 and t1.col26 > 1 and t1.col27 > 1 and t1.col28 > 1 and t1.col29 > 1 and t1.col30 > 1 and t1.col31 > 1 and t1.col32 > 1 and t1.col33 > 1 and t1.col34 > 1 and t1.col35 > 1 and t1.col36 > 1 and t1.col37 > 1 and t1.col38 > 1 and t1.col39 > 1 and t1.col40 > 1 and t1.col41 > 1 and t1.col42 > 1 and t1.col43 > 1 and t1.col44 > 1 and t1.col45 > 1 and t1.col46 > 1 and t1.col47 > 1 and t1.col48 > 1 and t1.col49 > 1 and t1.col50 > 1 and t1.col51 > 1 and t1.col52 > 1 and t1.col53 > 1 and t1.col54 > 1 and t1.col55 > 1 and t1.col56 > 1 and t1.col57 > 1 and t1.col58 > 1 and t1.col59 > 1 and t1.col60 > 1 and t1.col61 > 1 and t1.col62 > 1 and t1.col63 > 1 and t1.col64 > 1 and t1.col65 > 1 and t1.col66 > 1 and t1.col67 > 1 and t1.col68 > 1 and t1.col69 > 1 and t1.col70 > 1 and t1.col71 > 1 and t1.col72 > 1 and t1.col73 > 1 and t1.col74 > 1 and t1.col75 > 1 and t1.col76 > 1 and t1.col77 > 1 and t1.col78 > 1 and t1.col79 > 1 and t1.col80 > 1 and t1.col81 > 1 and t1.col82 > 1 and t1.col83 > 1 and t1.col84 > 1 and t1.col85 > 1 and t1.col86 > 1 and t1.col87 > 1 and t1.col88 > 1 and t1.col89 > 1 and t1.col90 > 1 and t1.col91 > 1 and t1.col92 > 1 and t1.col93 > 1 and t1.col94 > 1 and t1.col95 > 1 and t1.col96 > 1 and t1.col97 > 1 and t1.col98 > 1 and t1.col99 > 1 and t1.col100 > 1 and t1.col101 > 1 and t1.col102 > 1 and t1.col103 > 1 and t1.col104 > 1 and t1.col105 > 1 and t1.col106 > 1 and t1.col107 > 1 and t1.col108 > 1 and t1.col109 > 1 and t1.col110 > 1 and t1.col111 > 1 and t1.col112 > 1 and t1.col113 > 1 and t1.col114 > 1 and t1.col115 > 1 and t1.col116 > 1 and t1.col117 > 1 and t1.col118 > 1 and t1.col119 > 1 and t1.col120 > 1 and t1.col121 > 1 and t1.col122 > 1 and t1.col123 > 1 and t1.col124 > 1 and t1.col125 > 1 and t1.col126 > 1 and t1.col127 > 1 and t1.col128 > 1 and t1.col129 > 1 and t1.col130 > 1 and t1.col131 > 1 and t1.col132 > 1 and t1.col133 > 1 and t1.col134 > 1 and t1.col135 > 1 and t1.col136 > 1 and t1.col137 > 1 and t1.col138 > 1 and t1.col139 > 1 and t1.col140 > 1 and t1.col141 > 1 and t1.col142 > 1 and t1.col143 > 1 and t1.col144 > 1 and t1.col145 > 1 and t1.col146 > 1 and t1.col147 > 1 and t1.col148 > 1 and t1.col149 > 1 and t1.col150 > 1 and t1.col151 > 1 and t1.col152 > 1 and t1.col153 > 1 and t1.col154 > 1 and t1.col155 > 1 and t1.col156 > 1 and t1.col157 > 1 and t1.col158 > 1 and t1.col159 > 1"
+        }
+      }
+    ]
   }
 }
 select 
@@ -142,13 +146,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 100,
-      "filtered": 53.32928848,
-      "attached_condition": "t1.col0 > 1 and t1.col1 > 1 and t1.col2 > 1 and t1.col3 > 1 and t1.col4 > 1 and t1.col5 > 1 and t1.col6 > 1 and t1.col7 > 1 and t1.col8 > 1 and t1.col9 > 1 and t1.col10 > 1 and t1.col11 > 1 and t1.col12 > 1 and t1.col13 > 1 and t1.col14 > 1 and t1.col15 > 1 and t1.col16 > 1 and t1.col17 > 1 and t1.col18 > 1 and t1.col19 > 1 and t1.col20 > 1 and t1.col21 > 1 and t1.col22 > 1 and t1.col23 > 1 and t1.col24 > 1 and t1.col25 > 1 and t1.col26 > 1 and t1.col27 > 1 and t1.col28 > 1 and t1.col29 > 1 and t1.col30 > 1 and t1.col31 > 1 and t1.col32 > 1 and t1.col33 > 1 and t1.col34 > 1 and t1.col35 > 1 and t1.col36 > 1 and t1.col37 > 1 and t1.col38 > 1 and t1.col39 > 1 and t1.col40 > 1 and t1.col41 > 1 and t1.col42 > 1 and t1.col43 > 1 and t1.col44 > 1 and t1.col45 > 1 and t1.col46 > 1 and t1.col47 > 1 and t1.col48 > 1 and t1.col49 > 1 and t1.col50 > 1 and t1.col51 > 1 and t1.col52 > 1 and t1.col53 > 1 and t1.col54 > 1 and t1.col55 > 1 and t1.col56 > 1 and t1.col57 > 1 and t1.col58 > 1 and t1.col59 > 1 and t1.col60 > 1 and t1.col61 > 1 and t1.col62 > 1 and t1.col63 > 1 and t1.col64 > 1 and t1.col65 > 1 and t1.col66 > 1 and t1.col67 > 1 and t1.col68 > 1 and t1.col69 > 1 and t1.col70 > 1 and t1.col71 > 1 and t1.col72 > 1 and t1.col73 > 1 and t1.col74 > 1 and t1.col75 > 1 and t1.col76 > 1 and t1.col77 > 1 and t1.col78 > 1 and t1.col79 > 1 and t1.col80 > 1 and t1.col81 > 1 and t1.col82 > 1 and t1.col83 > 1 and t1.col84 > 1 and t1.col85 > 1 and t1.col86 > 1 and t1.col87 > 1 and t1.col88 > 1 and t1.col89 > 1 and t1.col90 > 1 and t1.col91 > 1 and t1.col92 > 1 and t1.col93 > 1 and t1.col94 > 1 and t1.col95 > 1 and t1.col96 > 1 and t1.col97 > 1 and t1.col98 > 1 and t1.col99 > 1 and t1.col100 > 1 and t1.col101 > 1 and t1.col102 > 1 and t1.col103 > 1 and t1.col104 > 1 and t1.col105 > 1 and t1.col106 > 1 and t1.col107 > 1 and t1.col108 > 1 and t1.col109 > 1 and t1.col110 > 1 and t1.col111 > 1 and t1.col112 > 1 and t1.col113 > 1 and t1.col114 > 1 and t1.col115 > 1 and t1.col116 > 1 and t1.col117 > 1 and t1.col118 > 1 and t1.col119 > 1 and t1.col120 > 1 and t1.col121 > 1 and t1.col122 > 1 and t1.col123 > 1 and t1.col124 > 1 and t1.col125 > 1 and t1.col126 > 1 and t1.col127 > 1 and t1.col128 > 1 and t1.col129 > 1 and t1.col130 > 1 and t1.col131 > 1 and t1.col132 > 1 and t1.col133 > 1 and t1.col134 > 1 and t1.col135 > 1 and t1.col136 > 1 and t1.col137 > 1 and t1.col138 > 1 and t1.col139 > 1 and t1.col140 > 1 and t1.col141 > 1 and t1.col142 > 1 and t1.col143 > 1 and t1.col144 > 1 and t1.col145 > 1 and t1.col146 > 1 and t1.col147 > 1 and t1.col148 > 1 and t1.col149 > 1 and t1.col150 > 1 and t1.col151 > 1 and t1.col152 > 1 and t1.col153 > 1 and t1.col154 > 1 and t1.col155 > 1 and t1.col156 > 1 and t1.col157 > 1 and t1.col158 > 1 and t1.col159 > 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 100,
+          "filtered": 53.32928848,
+          "attached_condition": "t1.col0 > 1 and t1.col1 > 1 and t1.col2 > 1 and t1.col3 > 1 and t1.col4 > 1 and t1.col5 > 1 and t1.col6 > 1 and t1.col7 > 1 and t1.col8 > 1 and t1.col9 > 1 and t1.col10 > 1 and t1.col11 > 1 and t1.col12 > 1 and t1.col13 > 1 and t1.col14 > 1 and t1.col15 > 1 and t1.col16 > 1 and t1.col17 > 1 and t1.col18 > 1 and t1.col19 > 1 and t1.col20 > 1 and t1.col21 > 1 and t1.col22 > 1 and t1.col23 > 1 and t1.col24 > 1 and t1.col25 > 1 and t1.col26 > 1 and t1.col27 > 1 and t1.col28 > 1 and t1.col29 > 1 and t1.col30 > 1 and t1.col31 > 1 and t1.col32 > 1 and t1.col33 > 1 and t1.col34 > 1 and t1.col35 > 1 and t1.col36 > 1 and t1.col37 > 1 and t1.col38 > 1 and t1.col39 > 1 and t1.col40 > 1 and t1.col41 > 1 and t1.col42 > 1 and t1.col43 > 1 and t1.col44 > 1 and t1.col45 > 1 and t1.col46 > 1 and t1.col47 > 1 and t1.col48 > 1 and t1.col49 > 1 and t1.col50 > 1 and t1.col51 > 1 and t1.col52 > 1 and t1.col53 > 1 and t1.col54 > 1 and t1.col55 > 1 and t1.col56 > 1 and t1.col57 > 1 and t1.col58 > 1 and t1.col59 > 1 and t1.col60 > 1 and t1.col61 > 1 and t1.col62 > 1 and t1.col63 > 1 and t1.col64 > 1 and t1.col65 > 1 and t1.col66 > 1 and t1.col67 > 1 and t1.col68 > 1 and t1.col69 > 1 and t1.col70 > 1 and t1.col71 > 1 and t1.col72 > 1 and t1.col73 > 1 and t1.col74 > 1 and t1.col75 > 1 and t1.col76 > 1 and t1.col77 > 1 and t1.col78 > 1 and t1.col79 > 1 and t1.col80 > 1 and t1.col81 > 1 and t1.col82 > 1 and t1.col83 > 1 and t1.col84 > 1 and t1.col85 > 1 and t1.col86 > 1 and t1.col87 > 1 and t1.col88 > 1 and t1.col89 > 1 and t1.col90 > 1 and t1.col91 > 1 and t1.col92 > 1 and t1.col93 > 1 and t1.col94 > 1 and t1.col95 > 1 and t1.col96 > 1 and t1.col97 > 1 and t1.col98 > 1 and t1.col99 > 1 and t1.col100 > 1 and t1.col101 > 1 and t1.col102 > 1 and t1.col103 > 1 and t1.col104 > 1 and t1.col105 > 1 and t1.col106 > 1 and t1.col107 > 1 and t1.col108 > 1 and t1.col109 > 1 and t1.col110 > 1 and t1.col111 > 1 and t1.col112 > 1 and t1.col113 > 1 and t1.col114 > 1 and t1.col115 > 1 and t1.col116 > 1 and t1.col117 > 1 and t1.col118 > 1 and t1.col119 > 1 and t1.col120 > 1 and t1.col121 > 1 and t1.col122 > 1 and t1.col123 > 1 and t1.col124 > 1 and t1.col125 > 1 and t1.col126 > 1 and t1.col127 > 1 and t1.col128 > 1 and t1.col129 > 1 and t1.col130 > 1 and t1.col131 > 1 and t1.col132 > 1 and t1.col133 > 1 and t1.col134 > 1 and t1.col135 > 1 and t1.col136 > 1 and t1.col137 > 1 and t1.col138 > 1 and t1.col139 > 1 and t1.col140 > 1 and t1.col141 > 1 and t1.col142 > 1 and t1.col143 > 1 and t1.col144 > 1 and t1.col145 > 1 and t1.col146 > 1 and t1.col147 > 1 and t1.col148 > 1 and t1.col149 > 1 and t1.col150 > 1 and t1.col151 > 1 and t1.col152 > 1 and t1.col153 > 1 and t1.col154 > 1 and t1.col155 > 1 and t1.col156 > 1 and t1.col157 > 1 and t1.col158 > 1 and t1.col159 > 1"
+        }
+      }
+    ]
   }
 }
 select
@@ -176,13 +184,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 100,
-      "filtered": 99.60784149,
-      "attached_condition": "(t1.col1 > 1 or t1.col2 > 1 or t1.col3 > 1 or t1.col4 > 1 or t1.col5 > 1 or t1.col6 > 1 or t1.col7 > 1 or t1.col8 > 1 or t1.col9 > 1 or t1.col10 > 1 or t1.col11 > 1 or t1.col12 > 1 or t1.col13 > 1 or t1.col14 > 1 or t1.col15 > 1 or t1.col16 > 1 or t1.col17 > 1 or t1.col18 > 1 or t1.col19 > 1 or t1.col20 > 1 or t1.col21 > 1 or t1.col22 > 1 or t1.col23 > 1 or t1.col24 > 1 or t1.col25 > 1 or t1.col26 > 1 or t1.col27 > 1 or t1.col28 > 1 or t1.col29 > 1 or t1.col30 > 1 or t1.col31 > 1 or t1.col32 > 1 or t1.col33 > 1 or t1.col34 > 1 or t1.col35 > 1 or t1.col36 > 1 or t1.col37 > 1 or t1.col38 > 1 or t1.col39 > 1 or t1.col40 > 1 or t1.col41 > 1 or t1.col42 > 1 or t1.col43 > 1 or t1.col44 > 1 or t1.col45 > 1 or t1.col46 > 1 or t1.col47 > 1 or t1.col48 > 1 or t1.col49 > 1 or t1.col50 > 1 or t1.col51 > 1 or t1.col52 > 1 or t1.col53 > 1 or t1.col54 > 1 or t1.col55 > 1 or t1.col56 > 1 or t1.col57 > 1 or t1.col58 > 1 or t1.col59 > 1 or t1.col60 > 1 or t1.col61 > 1 or t1.col62 > 1 or t1.col63 > 1 or t1.col64 > 1 or t1.col65 > 1 or t1.col66 > 1 or t1.col67 > 1 or t1.col68 > 1 or t1.col69 > 1 or t1.col70 > 1 or t1.col71 > 1 or t1.col72 > 1 or t1.col73 > 1 or t1.col74 > 1 or t1.col75 > 1 or t1.col76 > 1 or t1.col77 > 1 or t1.col78 > 1 or t1.col79 > 1 or t1.col80 > 1 or t1.col81 > 1 or t1.col82 > 1 or t1.col83 > 1 or t1.col84 > 1 or t1.col85 > 1 or t1.col86 > 1 or t1.col87 > 1 or t1.col88 > 1 or t1.col89 > 1 or t1.col90 > 1 or t1.col91 > 1 or t1.col92 > 1 or t1.col93 > 1 or t1.col94 > 1 or t1.col95 > 1 or t1.col96 > 1 or t1.col97 > 1 or t1.col98 > 1 or t1.col99 > 1 or t1.col100 > 1 or t1.col101 > 1 or t1.col102 > 1 or t1.col103 > 1 or t1.col104 > 1 or t1.col105 > 1 or t1.col106 > 1 or t1.col107 > 1 or t1.col108 > 1 or t1.col109 > 1 or t1.col110 > 1 or t1.col111 > 1 or t1.col112 > 1 or t1.col113 > 1 or t1.col114 > 1 or t1.col115 > 1 or t1.col116 > 1 or t1.col117 > 1 or t1.col118 > 1 or t1.col119 > 1 or t1.col120 > 1 or t1.col121 > 1 or t1.col122 > 1 or t1.col123 > 1 or t1.col124 > 1 or t1.col125 > 1 or t1.col126 > 1 or t1.col127 > 1 or t1.col128 > 1 or t1.col129 > 1 or t1.col130 > 1 or t1.col131 > 1 or t1.col132 > 1 or t1.col133 > 1 or t1.col134 > 1 or t1.col135 > 1 or t1.col136 > 1 or t1.col137 > 1 or t1.col138 > 1 or t1.col139 > 1 or t1.col140 > 1 or t1.col141 > 1 or t1.col142 > 1 or t1.col143 > 1 or t1.col144 > 1 or t1.col145 > 1 or t1.col146 > 1 or t1.col147 > 1 or t1.col148 > 1 or t1.col149 > 1 or t1.col150 > 1 or t1.col151 > 1 or t1.col152 > 1 or t1.col153 > 1 or t1.col154 > 1 or t1.col155 > 1 or t1.col156 > 1 or t1.col157 > 1 or t1.col158 > 1) and t1.col159 > 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 100,
+          "filtered": 99.60784149,
+          "attached_condition": "(t1.col1 > 1 or t1.col2 > 1 or t1.col3 > 1 or t1.col4 > 1 or t1.col5 > 1 or t1.col6 > 1 or t1.col7 > 1 or t1.col8 > 1 or t1.col9 > 1 or t1.col10 > 1 or t1.col11 > 1 or t1.col12 > 1 or t1.col13 > 1 or t1.col14 > 1 or t1.col15 > 1 or t1.col16 > 1 or t1.col17 > 1 or t1.col18 > 1 or t1.col19 > 1 or t1.col20 > 1 or t1.col21 > 1 or t1.col22 > 1 or t1.col23 > 1 or t1.col24 > 1 or t1.col25 > 1 or t1.col26 > 1 or t1.col27 > 1 or t1.col28 > 1 or t1.col29 > 1 or t1.col30 > 1 or t1.col31 > 1 or t1.col32 > 1 or t1.col33 > 1 or t1.col34 > 1 or t1.col35 > 1 or t1.col36 > 1 or t1.col37 > 1 or t1.col38 > 1 or t1.col39 > 1 or t1.col40 > 1 or t1.col41 > 1 or t1.col42 > 1 or t1.col43 > 1 or t1.col44 > 1 or t1.col45 > 1 or t1.col46 > 1 or t1.col47 > 1 or t1.col48 > 1 or t1.col49 > 1 or t1.col50 > 1 or t1.col51 > 1 or t1.col52 > 1 or t1.col53 > 1 or t1.col54 > 1 or t1.col55 > 1 or t1.col56 > 1 or t1.col57 > 1 or t1.col58 > 1 or t1.col59 > 1 or t1.col60 > 1 or t1.col61 > 1 or t1.col62 > 1 or t1.col63 > 1 or t1.col64 > 1 or t1.col65 > 1 or t1.col66 > 1 or t1.col67 > 1 or t1.col68 > 1 or t1.col69 > 1 or t1.col70 > 1 or t1.col71 > 1 or t1.col72 > 1 or t1.col73 > 1 or t1.col74 > 1 or t1.col75 > 1 or t1.col76 > 1 or t1.col77 > 1 or t1.col78 > 1 or t1.col79 > 1 or t1.col80 > 1 or t1.col81 > 1 or t1.col82 > 1 or t1.col83 > 1 or t1.col84 > 1 or t1.col85 > 1 or t1.col86 > 1 or t1.col87 > 1 or t1.col88 > 1 or t1.col89 > 1 or t1.col90 > 1 or t1.col91 > 1 or t1.col92 > 1 or t1.col93 > 1 or t1.col94 > 1 or t1.col95 > 1 or t1.col96 > 1 or t1.col97 > 1 or t1.col98 > 1 or t1.col99 > 1 or t1.col100 > 1 or t1.col101 > 1 or t1.col102 > 1 or t1.col103 > 1 or t1.col104 > 1 or t1.col105 > 1 or t1.col106 > 1 or t1.col107 > 1 or t1.col108 > 1 or t1.col109 > 1 or t1.col110 > 1 or t1.col111 > 1 or t1.col112 > 1 or t1.col113 > 1 or t1.col114 > 1 or t1.col115 > 1 or t1.col116 > 1 or t1.col117 > 1 or t1.col118 > 1 or t1.col119 > 1 or t1.col120 > 1 or t1.col121 > 1 or t1.col122 > 1 or t1.col123 > 1 or t1.col124 > 1 or t1.col125 > 1 or t1.col126 > 1 or t1.col127 > 1 or t1.col128 > 1 or t1.col129 > 1 or t1.col130 > 1 or t1.col131 > 1 or t1.col132 > 1 or t1.col133 > 1 or t1.col134 > 1 or t1.col135 > 1 or t1.col136 > 1 or t1.col137 > 1 or t1.col138 > 1 or t1.col139 > 1 or t1.col140 > 1 or t1.col141 > 1 or t1.col142 > 1 or t1.col143 > 1 or t1.col144 > 1 or t1.col145 > 1 or t1.col146 > 1 or t1.col147 > 1 or t1.col148 > 1 or t1.col149 > 1 or t1.col150 > 1 or t1.col151 > 1 or t1.col152 > 1 or t1.col153 > 1 or t1.col154 > 1 or t1.col155 > 1 or t1.col156 > 1 or t1.col157 > 1 or t1.col158 > 1) and t1.col159 > 1"
+        }
+      }
+    ]
   }
 }
 select 
@@ -259,6 +271,7 @@ opt_trace;
 JS
 [
     {
+        "table": "t1",
         "considered_access_paths": 
         [
             {
@@ -315,6 +328,7 @@ opt_trace;
 JS
 [
     {
+        "table": "t1",
         "considered_access_paths": 
         [
             {

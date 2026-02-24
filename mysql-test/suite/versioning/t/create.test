@@ -1,10 +1,6 @@
 --source suite/versioning/engines.inc
 --source suite/versioning/common.inc
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
 --enable_prepare_warnings
 
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype_expl SYS_DATATYPE NULL ''
@@ -420,11 +416,11 @@ drop tables t0, t1, t2, t3;
 --echo #
 --echo # MDEV-23968 CREATE TEMPORARY TABLE .. LIKE (system versioned table) returns error if unique index is defined in the table
 --echo #
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 create table t1 (id int primary key, index(row_start)) with system versioning;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 create table t1 (id int primary key, index(row_end)) with system versioning;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 create table t1 (id int, primary key(id, row_end, row_end)) with system versioning;
 create table t1 (id int primary key) with system versioning;
 create temporary table t2 like t1;

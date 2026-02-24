@@ -39,7 +39,7 @@ INSERT INTO isam_p VALUES (1), (101), (201), (301);
 let $targetdir=$MYSQLTEST_VARDIR/tmp;
 
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir/full;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --target-dir=$targetdir/full;
 --enable_result_log
 
 DROP TABLE t1;

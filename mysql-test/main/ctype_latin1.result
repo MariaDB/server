@@ -3342,7 +3342,7 @@ GROUP_CONCAT(CASE WHEN a THEN a ELSE '' END)
 1234567
 SELECT COALESCE(a,'') FROM t1 GROUP BY 1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(a,'')	253	9	7	Y	0	39	8
+def					COALESCE(a,'')	253	9	7	N	1	39	8
 COALESCE(a,'')
 1234567
 # All columns must be VARCHAR(9) with the same length:
@@ -3361,7 +3361,7 @@ t2	CREATE TABLE `t2` (
   `IFNULL(a,'')` varchar(9) NOT NULL,
   `IF(a,a,'')` varchar(9) DEFAULT NULL,
   `CASE WHEN a THEN a ELSE '' END` varchar(9) DEFAULT NULL,
-  `COALESCE(a,'')` varchar(9) DEFAULT NULL
+  `COALESCE(a,'')` varchar(9) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT CONCAT_WS(1,2,3) FROM t1;
@@ -8160,12 +8160,12 @@ SELECT * FROM t1 WHERE (a,a)=('2001-01-01x',DATE'2001-01-01');
 a
 2001-01-01x
 Warnings:
-Warning	1292	Truncated incorrect date value: '2001-01-01x'
+Warning	1292	Incorrect date value: '2001-01-01x' for column `test`.`t1`.`a` at row 2
 SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01x');
 a
 2001-01-01x
 Warnings:
-Warning	1292	Truncated incorrect date value: '2001-01-01x'
+Warning	1292	Incorrect date value: '2001-01-01x' for column `test`.`t1`.`a` at row 2
 SELECT * FROM t1 WHERE (a,a)=('2001-01-01',DATE'2001-01-01');
 a
 2001-01-01
@@ -8185,12 +8185,12 @@ SELECT * FROM t1 WHERE (a,a)=('2001-01-01x',DATE'2001-01-01');
 a
 2001-01-01x
 Warnings:
-Warning	1292	Truncated incorrect date value: '2001-01-01x'
+Warning	1292	Incorrect date value: '2001-01-01x' for column `test`.`t1`.`a` at row 2
 SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01x');
 a
 2001-01-01x
 Warnings:
-Warning	1292	Truncated incorrect date value: '2001-01-01x'
+Warning	1292	Incorrect date value: '2001-01-01x' for column `test`.`t1`.`a` at row 2
 SELECT * FROM t1 WHERE (a,a)=('2001-01-01',DATE'2001-01-01');
 a
 2001-01-01
@@ -8889,6 +8889,38 @@ a	b
 111	111
 DROP TABLE t1;
 #
+# MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+#
+CREATE TABLE t1 (a CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+SELECT CAST('a' AS CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT);
+CAST('a' AS CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT)
+a
+CREATE TABLE t1 AS
+SELECT CAST('a' AS CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET latin1 COLLATE DEFAULT) AS c1;
+c1
+string
+CREATE TABLE t1 AS
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET latin1 COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
 #
@@ -8982,4 +9014,32 @@ c1
 -9223372036854775808
 #
 # End of 10.5 tests
+#
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+#
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+name
+Jeans
+CREATE TABLE t1 AS
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `name` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+#
+# End of 10.6 tests
 #

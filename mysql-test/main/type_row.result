@@ -49,3 +49,26 @@ ERROR HY000: Illegal parameter data types row and int for operation 'MOD'
 #
 # End of 10.5 tests
 #
+#
+# Start of 10.7 tests
+#
+#
+# MDEV-29356 Assertion `0' failed in Type_handler_row::Item_save_in_field on INSERT
+#
+SET sql_mode='';
+CREATE TABLE t1 (c1 INT,c2 INT);
+CREATE TRIGGER t BEFORE INSERT ON t1 FOR EACH ROW SET NEW.c1=(SELECT * FROM t1);
+INSERT INTO t1 VALUES (0,0);
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `test`.`t1`.`c1`
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+SET sql_mode='';
+CREATE TABLE t1 (c1 INT,c2 INT) ENGINE=MyISAM;
+CREATE TRIGGER t BEFORE INSERT ON t1 FOR EACH ROW SET NEW.c1=ROW(1,1);
+INSERT INTO t1 VALUES (0,0);
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `test`.`t1`.`c1`
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# End of 10.7 tests
+#

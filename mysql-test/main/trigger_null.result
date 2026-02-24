@@ -183,7 +183,7 @@ a	b	c
 1	NULL	1
 2	2	NULL
 drop table t1;
-create table t1 (a timestamp, b int auto_increment primary key);
+create table t1 (a timestamp not null default now() on update now(), b int auto_increment primary key);
 create trigger trgi before insert on t1 for each row set new.a=if(new.a is null, '2000-10-20 10:20:30', NULL);
 set statement timestamp=777777777 for insert t1 (a) values (NULL);
 set statement timestamp=888888888 for insert t1 (a) values ('1999-12-11 10:9:8');

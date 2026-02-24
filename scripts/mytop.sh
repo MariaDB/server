@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# $Id: mytop,v 1.99-maria6 2019/10/22 14:53:51 jweisbuch Exp $
+# $Id: mytop,v 1.99-maria8 2025/07/16 17:59:26 jweisbuch Exp $
 
 =pod
 
@@ -21,7 +21,7 @@ use Socket;
 use List::Util qw(min max);
 use File::Basename;
 
-$main::VERSION = "1.99-maria6";
+$main::VERSION = "1.99-maria8";
 my $path_for_script = dirname($0);
 
 $| = 1;
@@ -256,7 +256,11 @@ if (eval {DBI->install_driver("MariaDB")}) {
 
 if ($config{socket} and -S $config{socket})
 {
-  $dsn .= "${prefix}_socket=$config{socket}";
+    $dsn .= "${prefix}_socket=$config{socket}";
+}
+elsif($config{host} eq "localhost")
+{
+    $dsn .= "host=$config{host}";
 }
 else
 {

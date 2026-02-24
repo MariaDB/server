@@ -10,9 +10,7 @@
 # the new one, we have left some references to the original test case
 #
 
-CALL mtr.add_suppression("Operating system error number");
-CALL mtr.add_suppression("The error means the system cannot");
-CALL mtr.add_suppression("returned OS error 71");
+CALL mtr.add_suppression("InnoDB: File .*test/t1\\.ibd was not found");
 
 let $DATADIR= `select @@datadir`;
 

@@ -141,7 +141,7 @@ static struct st_mysql_auth server_handler= {
   gssapi_auth, NULL, NULL
 };
 
-maria_declare_plugin(gssapi_server)
+maria_declare_plugin(auth_gssapi)
 {
   MYSQL_AUTHENTICATION_PLUGIN,
   &server_handler,

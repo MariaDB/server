@@ -36,7 +36,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 CREATE USER user1@localhost IDENTIFIED BY '';
 ## TODO: it works even without INSERT/UPDATE/DELETE: file a bug report!
-GRANT INSERT, UPDATE, DELETE, READ_ONLY ADMIN ON *.* TO user1@localhost;
+GRANT SELECT, INSERT, UPDATE, DELETE, READ_ONLY ADMIN ON *.* TO user1@localhost;
 SHOW GRANTS FOR user1@localhost;
 SET @@GLOBAL.read_only=1;
 
@@ -55,21 +55,27 @@ DROP TABLE t1;
 
 
 --echo #
---echo # Test that @@read_only is ignored with SUPER
+--echo # Test that @@read_only is not ignored with SUPER
 --echo #
 
 CREATE TABLE t1 (a INT);
 CREATE USER user1@localhost IDENTIFIED BY '';
 ## TODO: it works even without INSERT/UPDATE/DELETE: file a bug report!
-GRANT INSERT, UPDATE, DELETE, SUPER ON *.* TO user1@localhost;
+GRANT SELECT, INSERT, UPDATE, DELETE, SUPER ON *.* TO user1@localhost;
 SHOW GRANTS FOR user1@localhost;
 SET @@GLOBAL.read_only=1;
 
 connect (con1,localhost,user1,,);
 connection con1;
 SELECT @@read_only;
+--error ER_OPTION_PREVENTS_STATEMENT
 UPDATE t1 SET a=11 WHERE a=10;
+--error ER_OPTION_PREVENTS_STATEMENT
 DELETE FROM t1 WHERE a=11;
+connection default;
+grant read only admin on *.* to user1@localhost;
+disconnect con1;
+connect (con1,localhost,user1,,);
 INSERT INTO t1 VALUES (20);
 disconnect con1;
 

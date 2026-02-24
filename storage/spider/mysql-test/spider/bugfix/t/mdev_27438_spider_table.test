@@ -18,7 +18,7 @@ INSERT INTO t2 VALUES (1);
 --let $expect_file_name= $MYSQLTEST_VARDIR/tmp/$expect_file_name.expect
 --exec echo wait > $expect_file_name
 SET SESSION debug_dbug="+d,crash_commit_after_log";
---error 2006,2013
+--error 2006,2013,2026
 INSERT INTO t2 VALUES (2);
 
 # restart the server

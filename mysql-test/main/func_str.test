@@ -1,6 +1,7 @@
 # Description
 # -----------
 # Testing string functions
+--source include/have_sequence.inc
 
 set @save_max_allowed_packet=@@global.max_allowed_packet;
 set global max_allowed_packet=1048576;
@@ -1533,11 +1534,7 @@ SELECT CONVERT(('' IN (REVERSE(CAST(('') AS DECIMAL)), '')), CHAR(3));
 --echo #
 CREATE TABLE t1 ( a TEXT );
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 --eval SELECT 'aaaaaaaaaaaaaa' INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug58165.txt';
---enable_ps2_protocol
---enable_cursor_protocol
 SELECT insert( substring_index( 'a', 'a', 'b' ), 1, 0, 'x' );
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug58165.txt' INTO TABLE t1;
@@ -2456,3 +2453,147 @@ DROP TABLE t1;
 select hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex('\\'))))))))))))))))))))))))))))))))))))))))))))) as x;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-25704 Function random_bytes
+--echo #
+
+create table t1 as select random_bytes(100);
+show create table t1;
+drop table t1;
+
+--echo # The sequence starts at 17 so that the probability of test failure is small enough (about 2^(-136))
+select count(*) from seq_17_to_1024 where random_bytes(seq) <=> random_bytes(seq);
+
+select count(*) from seq_1_to_1024 where length(random_bytes(seq)) = seq;
+
+select random_bytes(`0`),`1` from (values (0,1),(null,2),(0,3)) t1;
+
+--echo #
+--echo # Test NULL output for NULL input
+--echo #
+
+SELECT random_bytes(NULL);
+
+--echo #
+--echo # Test For values outside range from 1 to 1024 return NULL
+--echo #
+
+SELECT random_bytes(0);
+SELECT random_bytes(-1);
+SELECT random_bytes(-100);
+SELECT random_bytes(-26);
+SELECT random_bytes(-132);
+SELECT random_bytes(1025);
+SELECT random_bytes(11111);
+SELECT random_bytes(2056);
+
+#double warning for view protocol 
+--disable_view_protocol
+SELECT length(random_bytes(10.0));
+SELECT length(random_bytes(10.1));
+SELECT length(random_bytes(+1e1));
+SELECT length(random_bytes(time("00:01")));
+SELECT length(random_bytes("10.0"));
+SELECT length(random_bytes("10.1"));
+SELECT length(random_bytes("+1e1"));
+SELECT length(random_bytes("10.0bunnies"));
+SELECT length(random_bytes("10.1chickens"));
+SELECT length(random_bytes("+1e1rabbits"));
+--enable_view_protocol
+
+--delimiter |
+create procedure p1()
+begin
+  declare r ROW (c1 INT);
+  set r.c1= 10;
+  select random_bytes(r);
+end|
+--delimiter ;
+--error 1241
+call p1();
+drop procedure p1;
+
+--echo #
+--echo # Test For invalid argument return NULL
+--echo #
+#double warning for view protocol 
+--disable_view_protocol
+SELECT random_bytes('s');
+SELECT random_bytes('r');
+SELECT random_bytes('res');
+SELECT random_bytes('test');
+--enable_view_protocol
+
+--echo #
+--echo # MDEV-29108 RANDOM_BYTES - assertion in Create_tmp_table::finalize
+--echo #
+
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+SELECT RANDOM_BYTES(-10) f1, IFNULL(a,1) f2 FROM t GROUP BY f1, f2;
+
+# Cleanup
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-29154 Excessive warnings upon a call to RANDOM_BYTES
+--echo #
+#double warning for view protocol 
+--disable_view_protocol
+select length(random_bytes(cast('x' as unsigned)+1));
+select repeat('.', cast('x' as unsigned)+1);
+--enable_view_protocol
+
+--echo #
+--echo # MDEV-23149 Server crashes in my_convert / ErrConvString::ptr / Item_char_typecast::check_truncation_with_warn
+--echo #
+#double warning for view protocol 
+--disable_view_protocol
+--replace_regex /'.*'/'...random bytes...'/
+select "a" in ("abc", (convert(random_bytes(8) ,binary(2))));
+--enable_view_protocol
+--echo #
+--echo # End of 10.10 tests
+--echo #
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-33392 Server crashes when using RANDOM_BYTES function and GROUP BY clause on a column with a negative value
+--echo #
+
+SET sql_mode='';
+CREATE TABLE t1 (a VARCHAR(255)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (9494),(9495),(9496),(9497),(9498),(9499),(9500),(9501),(9502),(9503);
+SELECT RANDOM_BYTES (-1) f1,a f2 FROM t1 GROUP BY f1,f2;
+CREATE TABLE t2 AS SELECT RANDOM_BYTES (-1) f1,a f2 FROM t1 GROUP BY f1,f2;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-37740 LOCATE(X,Y,NULL) is not NULL
+--echo #
+select locate(1,2,NULL);
+
+--echo #
+--echo # MDEV-37835 mysqli silently trims each json_arrayagg result to modulo 64KB
+--echo #
+let $a=`select repeat('a', 65540)`;
+let $b=`select repeat('b', 65540)`;
+replace_regex /a{65535}/a.../ /b{65535}/b.../;
+evalp select group_concat(v) from ( select '$a' as v union all select '$b' as v) t;
+
+--echo #
+--echo # MDEV-38233 Inconsistent results for make_set of cast
+--echo #
+create table t1 (c1 int);
+insert into t1 values (9067);
+select cast(make_set(3, cast(c1 as binary), 0) as char) from t1;
+drop table t1;
+
+--echo # End of 10.11 tests

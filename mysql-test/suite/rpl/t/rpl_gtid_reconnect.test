@@ -4,11 +4,6 @@
 --source include/have_debug.inc
 
 
---connection server_2
---source include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid= current_pos;
---source include/start_slave.inc
-
 --connection server_1
 CREATE TABLE t1 (a INT);
 FLUSH LOGS;

@@ -96,7 +96,7 @@ static ST_FIELD_INFO qc_info_fields[]=
   Column("GROUP_CONCAT_MAX_LENGTH",SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
   Column("CHARACTER_SET_CLIENT",  CSName(),                           NOT_NULL),
   Column("CHARACTER_SET_RESULT",  CSName(),                           NOT_NULL),
-  Column("COLLATION",             CSName(),                           NOT_NULL),
+  Column("COLLATION",             CLName(),                           NOT_NULL),
   Column("TIMEZONE",              Varchar(50),                        NOT_NULL),
   Column("DEFAULT_WEEK_FORMAT",   SLong(),                            NOT_NULL),
   Column("DIV_PRECISION_INCREMENT",SLong(),                           NOT_NULL),

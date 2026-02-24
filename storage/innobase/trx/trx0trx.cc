@@ -24,7 +24,9 @@ The transaction
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "trx0trx.h"
+#include "sql_class.h" // THD
 
 #ifdef WITH_WSREP
 #include <mysql/service_wsrep.h>
@@ -133,8 +135,6 @@ trx_init(
 	trx->auto_commit = false;
 
 	trx->will_lock = false;
-
-	trx->bulk_insert = false;
 
 	trx->apply_online_log = false;
 
@@ -357,7 +357,7 @@ trx_t *trx_create()
 }
 
 /** Free the memory to trx_pools */
-void trx_t::free()
+void trx_t::free() noexcept
 {
   autoinc_locks.fake_defined();
 #ifdef HAVE_MEM_CHECK
@@ -378,8 +378,10 @@ void trx_t::free()
   ut_ad(magic_n == TRX_MAGIC_N);
   ut_ad(!read_only);
   ut_ad(!lock.wait_lock);
+  ut_ad(!commit_lsn);
 
   dict_operation= false;
+  commit_lsn= 0;
   trx_sys.deregister_trx(this);
   check_unique_secondary= true;
   check_foreigns= true;
@@ -517,6 +519,7 @@ TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 	ut_a(trx->magic_n == TRX_MAGIC_N);
 
 	ut_d(trx->apply_online_log = false);
+	trx->bulk_insert = 0;
 	trx->commit_state();
 	trx->release_locks();
 	trx->mod_tables.clear();
@@ -718,6 +721,12 @@ corrupted:
 		return err;
 	}
 
+	if (trx_sys.is_undo_empty()) {
+func_exit:
+		purge_sys.clone_oldest_view<true>();
+		return DB_SUCCESS;
+	}
+
 	/* Look from the rollback segments if there exist undo logs for
 	transactions. */
 	const time_t	start_time	= time(NULL);
@@ -779,8 +788,7 @@ corrupted:
 		ib::info() << "Trx id counter is " << trx_sys.get_max_trx_id();
 	}
 
-	purge_sys.clone_oldest_view<true>();
-	return DB_SUCCESS;
+	goto func_exit;
 }
 
 /** Assign a persistent rollback segment in a round-robin fashion,
@@ -802,6 +810,7 @@ static void trx_assign_rseg_low(trx_t *trx)
 	undo tablespaces that are scheduled for truncation. */
 	static Atomic_counter<unsigned>	rseg_slot;
 	unsigned slot = rseg_slot++ % TRX_SYS_N_RSEGS;
+	DBUG_EXECUTE_IF("assign_same_rseg", slot= 0;);
 	ut_d(const auto start_scan_slot = slot);
 	ut_d(bool look_for_rollover = false);
 	trx_rseg_t*	rseg;
@@ -814,6 +823,8 @@ static void trx_assign_rseg_low(trx_t *trx)
 			ut_ad(!look_for_rollover || start_scan_slot != slot);
 			ut_d(look_for_rollover = true);
 			slot = (slot + 1) % TRX_SYS_N_RSEGS;
+			DBUG_EXECUTE_IF("assign_same_rseg",
+				slot= (slot - 1) % TRX_SYS_N_RSEGS;);
 
 			if (!rseg->space) {
 				continue;
@@ -822,8 +833,7 @@ static void trx_assign_rseg_low(trx_t *trx)
 			ut_ad(rseg->is_persistent());
 
 			if (rseg->space != fil_system.sys_space) {
-				if (rseg->skip_allocation()
-				    || !srv_undo_tablespaces) {
+				if (rseg->skip_allocation()) {
 					continue;
 				}
 			} else if (const fil_space_t *space =
@@ -894,16 +904,21 @@ trx_start_low(
 	ut_ad(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
 
 	/* Check whether it is an AUTOCOMMIT SELECT */
-	trx->auto_commit = thd_trx_is_auto_commit(trx->mysql_thd);
-
-	trx->read_only = srv_read_only_mode
-		|| (!trx->dict_operation
-		    && thd_trx_is_read_only(trx->mysql_thd));
-
-	if (!trx->auto_commit) {
+        if (const THD* thd = trx->mysql_thd) {
+		trx->auto_commit = !(thd->variables.option_bits
+                                     & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+			&& thd->lex->sql_command == SQLCOM_SELECT;
+		trx->read_only = (!trx->dict_operation && thd->tx_read_only)
+			|| srv_read_only_mode;
+		if (!trx->auto_commit) {
+			trx->will_lock = true;
+		} else if (!trx->will_lock) {
+			trx->read_only = true;
+		}
+	} else {
+		trx->auto_commit = false;
+		trx->read_only = false;
 		trx->will_lock = true;
-	} else if (!trx->will_lock) {
-		trx->read_only = true;
 	}
 
 #ifdef WITH_WSREP
@@ -1239,25 +1254,28 @@ static void trx_flush_log_if_needed(lsn_t lsn, trx_t *trx)
   ut_ad(srv_flush_log_at_trx_commit);
   ut_ad(trx->state != TRX_STATE_PREPARED);
 
-  if (log_sys.get_flushed_lsn() > lsn)
+  if (log_sys.get_flushed_lsn(std::memory_order_relaxed) >= lsn)
     return;
+
+  ut_ad(!trx->mysql_thd || !trx->mysql_thd->tx_read_only);
 
   const bool flush=
     (srv_file_flush_method != SRV_NOSYNC &&
      (srv_flush_log_at_trx_commit & 1));
+  if (!log_sys.is_mmap())
+  {
+    completion_callback cb;
 
-  completion_callback cb;
-  if ((cb.m_param= thd_increment_pending_ops(trx->mysql_thd)))
-  {
-    cb.m_callback = thd_decrement_pending_ops;
-    log_write_up_to(lsn, flush, false, &cb);
+    if ((cb.m_param= thd_increment_pending_ops(trx->mysql_thd)))
+    {
+      cb.m_callback= thd_decrement_pending_ops;
+      log_write_up_to(lsn, flush, &cb);
+      return;
+    }
   }
-  else
-  {
-    trx->op_info= "flushing log";
-    log_write_up_to(lsn, flush);
-    trx->op_info= "";
-  }
+  trx->op_info= "flushing log";
+  log_write_up_to(lsn, flush);
+  trx->op_info= "";
 }
 
 /** Process tables that were modified by the committing transaction. */
@@ -1497,11 +1515,16 @@ bool trx_t::commit_cleanup() noexcept
   ut_ad(!dict_operation);
   ut_ad(!was_dict_operation);
 
+  if (is_bulk_insert())
+    for (auto &t : mod_tables)
+      delete t.second.bulk_store;
+
   mutex.wr_lock();
   state= TRX_STATE_NOT_STARTED;
   *detailed_error= '\0';
   mod_tables.clear();
 
+  bulk_insert= TRX_NO_BULK;
   check_foreigns= true;
   check_unique_secondary= true;
   assert_freed();
@@ -1594,8 +1617,11 @@ void trx_t::commit() noexcept
   ut_d(was_dict_operation= dict_operation);
   dict_operation= false;
   commit_persist();
+#ifdef UNIV_DEBUG
+  if (!was_dict_operation)
+    for (const auto &p : mod_tables) ut_ad(!p.second.is_dropped());
+#endif /* UNIV_DEBUG */
   ut_d(was_dict_operation= false);
-  ut_d(for (const auto &p : mod_tables) ut_ad(!p.second.is_dropped()));
   commit_cleanup();
 }
 
@@ -1723,12 +1749,14 @@ void trx_commit_complete_for_mysql(trx_t *trx)
     return;
   switch (srv_flush_log_at_trx_commit) {
   case 0:
-    return;
+    goto func_exit;
   case 1:
     if (trx->active_commit_ordered)
       return;
   }
   trx_flush_log_if_needed(lsn, trx);
+ func_exit:
+  trx->commit_lsn= 0;
 }
 
 /**********************************************************************//**
@@ -1928,8 +1956,6 @@ trx_prepare(
 
 	lsn_t	lsn = trx_prepare_low(trx);
 
-	DBUG_EXECUTE_IF("ib_trx_crash_during_xa_prepare_step", DBUG_SUICIDE(););
-
 	ut_a(trx->state == TRX_STATE_ACTIVE);
 	{
 		TMTrxGuard tg{*trx};
@@ -1962,7 +1988,7 @@ trx_prepare(
 			/* Do not release any locks at the
 			SERIALIZABLE isolation level. */
 		} else if (!trx->mysql_thd
-			   || thd_sql_command(trx->mysql_thd)
+			   || trx->mysql_thd->lex->sql_command
 			   != SQLCOM_XA_PREPARE) {
 			/* Do not release locks for XA COMMIT ONE PHASE
 			or for internal distributed transactions

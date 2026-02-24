@@ -1,1 +1,1 @@
---loose-innodb-log-file-size=2m
+--loose-innodb-log-file-size=4194304

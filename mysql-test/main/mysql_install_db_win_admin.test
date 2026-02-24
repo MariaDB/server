@@ -1,0 +1,24 @@
+--source include/windows.inc
+--source include/check_windows_admin.inc
+--source include/have_innodb.inc
+
+# Create database  in tmp directory using mysql_install_db.exe,
+# and start server from this directory.
+let $ddir= $MYSQLTEST_VARDIR/tmp/ddir;
+use mysql;
+--disable_result_log
+exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --password=foo --verbose-bootstrap -R;
+--enable_result_log
+--source include/kill_mysqld.inc
+let $restart_parameters=--datadir=$ddir;
+--source include/start_mysqld.inc
+
+# Check that connect with wrong password succeeds
+# (because it can alternatively connect with GSSAPI as admin)
+connect (root,localhost,root,wrongpass,mysql);
+
+--source include/kill_mysqld.inc
+let $restart_parameters=;
+rmdir $ddir;
+--source include/start_mysqld.inc
+

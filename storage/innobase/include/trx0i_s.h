@@ -108,7 +108,7 @@ struct i_s_trx_row_t {
 					is waiting, or NULL */
 	time_t		trx_wait_started; /*!< trx_t->lock.wait_started */
 	uintmax_t	trx_weight;	/*!< TRX_WEIGHT() */
-	ulint		trx_mysql_thread_id; /*!< thd_get_thread_id() */
+	my_thread_id	trx_mysql_thread_id; /*!< thd_get_thread_id() */
 	const char*	trx_query;	/*!< MySQL statement being
 					executed in the transaction */
 	CHARSET_INFO*	trx_query_cs;	/*!< the charset of trx_query */

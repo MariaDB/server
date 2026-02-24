@@ -113,7 +113,7 @@ def					COALESCE(c0, c6)	254	30	1	Y	0	39	8
 COALESCE(c0, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c7)	254	30	1	Y	0	39	8
+def					COALESCE(c0, c7)	253	30	1	Y	0	39	8
 COALESCE(c0, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -305,11 +305,11 @@ def					COALESCE(c6, c6)	3	11	1	Y	32896	0	63
 COALESCE(c6, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c6, c7)	254	11	1	Y	0	39	8
+def					COALESCE(c6, c7)	253	11	1	Y	0	39	8
 COALESCE(c6, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c7, c0)	254	30	1	Y	0	39	8
+def					COALESCE(c7, c0)	253	30	1	Y	0	39	8
 COALESCE(c7, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -333,11 +333,11 @@ def					COALESCE(c7, c5)	251	4294967295	1	Y	0	39	8
 COALESCE(c7, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c7, c6)	254	11	1	Y	0	39	8
+def					COALESCE(c7, c6)	253	11	1	Y	0	39	8
 COALESCE(c7, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c7, c7)	254	1	1	Y	0	39	8
+def					COALESCE(c7, c7)	253	1	1	Y	0	39	8
 COALESCE(c7, c7)
 1
 CALL p1('t1', 'LEAST(colt1, colt2)');
@@ -370,7 +370,7 @@ def					LEAST(c0, c6)	5	23	1	Y	32896	31	63
 LEAST(c0, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c7)	254	30	1	Y	0	39	8
+def					LEAST(c0, c7)	253	30	1	Y	0	39	8
 LEAST(c0, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -566,7 +566,7 @@ def					LEAST(c6, c7)	5	17	1	Y	32896	0	63
 LEAST(c6, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c7, c0)	254	30	1	Y	0	39	8
+def					LEAST(c7, c0)	253	30	1	Y	0	39	8
 LEAST(c7, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -594,7 +594,7 @@ def					LEAST(c7, c6)	5	17	1	Y	32896	0	63
 LEAST(c7, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c7, c7)	254	1	1	Y	0	39	8
+def					LEAST(c7, c7)	253	1	1	Y	0	39	8
 LEAST(c7, c7)
 1
 CALL p1('t1', 'colt1+colt2');
@@ -884,7 +884,7 @@ def					COALESCE(c0, c6)	254	30	1	Y	0	39	8
 COALESCE(c0, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c0, c7)	254	30	1	Y	0	39	8
+def					COALESCE(c0, c7)	253	30	1	Y	0	39	8
 COALESCE(c0, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1076,11 +1076,11 @@ def					COALESCE(c6, c6)	3	11	1	Y	32896	0	63
 COALESCE(c6, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c6, c7)	254	11	1	Y	0	39	8
+def					COALESCE(c6, c7)	253	11	1	Y	0	39	8
 COALESCE(c6, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c7, c0)	254	30	1	Y	0	39	8
+def					COALESCE(c7, c0)	253	30	1	Y	0	39	8
 COALESCE(c7, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1104,11 +1104,11 @@ def					COALESCE(c7, c5)	251	4294967295	1	Y	0	39	8
 COALESCE(c7, c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c7, c6)	254	11	1	Y	0	39	8
+def					COALESCE(c7, c6)	253	11	1	Y	0	39	8
 COALESCE(c7, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(c7, c7)	254	1	1	Y	0	39	8
+def					COALESCE(c7, c7)	253	1	1	Y	0	39	8
 COALESCE(c7, c7)
 1
 CALL p1('t1c', 'LEAST(colt1, colt2)');
@@ -1141,7 +1141,7 @@ def					LEAST(c0, c6)	5	23	1	Y	32896	31	63
 LEAST(c0, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c0, c7)	254	30	1	Y	0	39	8
+def					LEAST(c0, c7)	253	30	1	Y	0	39	8
 LEAST(c0, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1337,7 +1337,7 @@ def					LEAST(c6, c7)	5	17	1	Y	32896	0	63
 LEAST(c6, c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c7, c0)	254	30	1	Y	0	39	8
+def					LEAST(c7, c0)	253	30	1	Y	0	39	8
 LEAST(c7, c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1365,7 +1365,7 @@ def					LEAST(c7, c6)	5	17	1	Y	32896	0	63
 LEAST(c7, c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(c7, c7)	254	1	1	Y	0	39	8
+def					LEAST(c7, c7)	253	1	1	Y	0	39	8
 LEAST(c7, c7)
 1
 CALL p1('t1c', 'colt1+colt2');
@@ -1675,7 +1675,7 @@ def					COALESCE(t1.c0, t2.c11)	254	30	1	Y	0	39	8
 COALESCE(t1.c0, t2.c11)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c0, t2.c12)	254	30	1	Y	0	39	8
+def					COALESCE(t1.c0, t2.c12)	253	30	1	Y	0	39	8
 COALESCE(t1.c0, t2.c12)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1987,11 +1987,11 @@ def					COALESCE(t1.c6, t2.c11)	253	19	1	Y	0	39	8
 COALESCE(t1.c6, t2.c11)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c6, t2.c12)	254	11	1	Y	0	39	8
+def					COALESCE(t1.c6, t2.c12)	253	11	1	Y	0	39	8
 COALESCE(t1.c6, t2.c12)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c7, t2.c0)	254	30	1	Y	0	39	8
+def					COALESCE(t1.c7, t2.c0)	253	30	1	Y	0	39	8
 COALESCE(t1.c7, t2.c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -2015,31 +2015,31 @@ def					COALESCE(t1.c7, t2.c5)	251	4294967295	1	Y	0	39	8
 COALESCE(t1.c7, t2.c5)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c7, t2.c6)	254	11	1	Y	0	39	8
+def					COALESCE(t1.c7, t2.c6)	253	11	1	Y	0	39	8
 COALESCE(t1.c7, t2.c6)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c7, t2.c7)	254	22	1	Y	0	39	8
+def					COALESCE(t1.c7, t2.c7)	253	22	1	Y	0	39	8
 COALESCE(t1.c7, t2.c7)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c7, t2.c8)	254	12	1	Y	0	39	8
+def					COALESCE(t1.c7, t2.c8)	253	12	1	Y	0	39	8
 COALESCE(t1.c7, t2.c8)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c7, t2.c9)	254	10	1	Y	0	39	8
+def					COALESCE(t1.c7, t2.c9)	253	10	1	Y	0	39	8
 COALESCE(t1.c7, t2.c9)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c7, t2.c10)	254	10	1	Y	0	39	8
+def					COALESCE(t1.c7, t2.c10)	253	10	1	Y	0	39	8
 COALESCE(t1.c7, t2.c10)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c7, t2.c11)	254	19	1	Y	0	39	8
+def					COALESCE(t1.c7, t2.c11)	253	19	1	Y	0	39	8
 COALESCE(t1.c7, t2.c11)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(t1.c7, t2.c12)	254	1	1	Y	0	39	8
+def					COALESCE(t1.c7, t2.c12)	253	1	1	Y	0	39	8
 COALESCE(t1.c7, t2.c12)
 1
 CALL p2('LEAST(t1.colt1, t2.colt2)');
@@ -2092,7 +2092,7 @@ def					LEAST(t1.c0, t2.c11)	12	26	26	Y	128	6	63
 LEAST(t1.c0, t2.c11)
 0000-00-00 00:00:00.000000
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c0, t2.c12)	254	30	1	Y	0	39	8
+def					LEAST(t1.c0, t2.c12)	253	30	1	Y	0	39	8
 LEAST(t1.c0, t2.c12)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -2408,7 +2408,7 @@ def					LEAST(t1.c6, t2.c12)	5	17	1	Y	32896	0	63
 LEAST(t1.c6, t2.c12)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c7, t2.c0)	254	30	1	Y	0	39	8
+def					LEAST(t1.c7, t2.c0)	253	30	1	Y	0	39	8
 LEAST(t1.c7, t2.c0)
 1
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -2456,7 +2456,7 @@ def					LEAST(t1.c7, t2.c11)	12	19	19	Y	128	0	63
 LEAST(t1.c7, t2.c11)
 0000-00-00 00:00:00
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					LEAST(t1.c7, t2.c12)	254	1	1	Y	0	39	8
+def					LEAST(t1.c7, t2.c12)	253	1	1	Y	0	39	8
 LEAST(t1.c7, t2.c12)
 1
 CALL p2('t1.colt1+t2.colt2');

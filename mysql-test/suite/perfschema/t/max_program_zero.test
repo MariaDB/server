@@ -11,6 +11,7 @@
 
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
+--source include/not_msan_with_debug.inc
 
 --source ../include/start_server_common.inc
 

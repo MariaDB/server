@@ -203,23 +203,31 @@ explain select * from t1 where a=1 or b=1	{
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
-                "table": "t1",
-                "best_access_path": {
-                  "considered_access_paths": [
-                    {
-                      "access_type": "index_merge",
-                      "resulting_rows": 2,
-                      "cost": 2.484903732,
-                      "chosen": true
+                "get_costs_for_tables": [
+                  {
+                    "best_access_path": {
+                      "table": "t1",
+                      "considered_access_paths": [
+                        {
+                          "access_type": "index_merge",
+                          "resulting_rows": 2,
+                          "cost": 2.484903732,
+                          "chosen": true
+                        }
+                      ],
+                      "chosen_access_method": {
+                        "type": "index_merge",
+                        "records": 2,
+                        "cost": 2.484903732,
+                        "uses_join_buffering": false
+                      }
                     }
-                  ],
-                  "chosen_access_method": {
-                    "type": "index_merge",
-                    "records": 2,
-                    "cost": 2.484903732,
-                    "uses_join_buffering": false
                   }
-                },
+                ]
+              },
+              {
+                "plan_prefix": [],
+                "table": "t1",
                 "rows_for_plan": 2,
                 "cost_for_plan": 2.884903732
               }
@@ -246,12 +254,6 @@ explain select * from t1 where a=1 or b=1	{
             }
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]

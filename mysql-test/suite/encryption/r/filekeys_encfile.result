@@ -15,6 +15,10 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `encrypted`=yes `encryption_key_id`=2
 alter table t1 encryption_key_id=3;
 ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ENCRYPTION_KEY_ID'
+show warnings;
+Level	Code	Message
+Warning	140	InnoDB: ENCRYPTION_KEY_ID 3 not available
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'ENCRYPTION_KEY_ID'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

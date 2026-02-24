@@ -1,0 +1,11 @@
+--- mem_pressure.result
++++ mem_pressure,32bit.result
+@@ -11,7 +11,7 @@
+ @@GLOBAL.innodb_buffer_pool_size_auto_min,
+ @@GLOBAL.innodb_buffer_pool_size_max;
+ @@GLOBAL.innodb_buffer_pool_size	@@GLOBAL.innodb_buffer_pool_size_auto_min	@@GLOBAL.innodb_buffer_pool_size_max
+-17825792	16777216	25165824
++17825792	16777216	18874368
+ CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+ SET STATEMENT unique_checks=0, foreign_key_checks=0 FOR

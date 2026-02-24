@@ -8,7 +8,7 @@
 # Steps:
 #    0 - Have LOG_WARNINGS=2
 #    1 - On a fresh slave server which has not replicated any GTIDs execute
-#        "CHANGE MASTER TO MASTER_USE_GTID=current_pos;" command. Start the
+#        "CHANGE MASTER TO MASTER_USE_GTID=slave_pos;" command. Start the
 #        slave.
 #    2 - In Master error log verify that pattern "using_gtid(1), gtid('')" is
 #        present.
@@ -44,7 +44,7 @@ SET GLOBAL LOG_WARNINGS=2;
 
 --connection slave
 --source include/stop_slave.inc
-CHANGE MASTER TO MASTER_USE_GTID=current_pos;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 --source include/start_slave.inc
 
 --connection master

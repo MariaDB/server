@@ -1,0 +1,49 @@
+--source include/galera_cluster.inc
+
+--source include/force_restart.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+# Set higher weight for node_1 to keep it in primary
+# while node_2 is inconsistent
+
+SET GLOBAL wsrep_provider_options ='pc.ignore_sb=true;pc.weight=2';
+
+--connection node_2
+CREATE TABLE t1 (f1 INT) ENGINE=InnoDB;
+SET GLOBAL wsrep_IGNORE_apply_errors=1;
+SET SESSION wsrep_dirty_reads=1;
+SHOW CREATE TABLE t1;
+FLUSH HOSTS;
+--error ER_TABLE_EXISTS_ERROR
+CREATE TABLE t1 (f1 INT) ENGINE=InnoDB;
+# This will cause inconsistency
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+FLUSH HOSTS;
+SHOW WARNINGS;
+
+--connection node_1
+--echo # Wait until inconsistent node_2 leaves from cluster
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
+--echo # Restart node_2
+--source include/restart_mysqld.inc
+
+call mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on");
+
+--connection node_1
+--echo # Wait until node_2 is back in the cluster
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+SET GLOBAL wsrep_provider_options ='pc.ignore_sb=false;pc.weight=1';
+
+DROP TABLE t1;
+--source include/auto_increment_offset_restore.inc
+--source include/galera_end.inc

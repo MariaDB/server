@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB   
+   Copyright (c) 2009, 2021, MariaDB
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -43,10 +43,12 @@ static inline
 #ifdef SCANNER_NEXT_NCHARS
 weight_and_nchars_t
 MY_FUNCTION_NAME(scanner_next_with_nchars)(my_uca_scanner *scanner,
+                                           const my_uca_scanner_param *param,
                                            size_t nchars)
 #else
 int
-MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
+MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner,
+                               const my_uca_scanner_param *param)
 #endif
 {
 #ifdef SCANNER_NEXT_NCHARS
@@ -55,13 +57,8 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
 #else
 #define LOCAL_MAX_CONTRACTION_LENGTH MY_UCA_MAX_CONTRACTION
 #endif
-  /*
-    Check if the weights for the previous character have been
-    already fully scanned. If yes, then get the next character and
-    initialize wbeg and wlength to its weight string.
-  */
-
-  if (scanner->wbeg[0])
+  uint16 weight= my_uca_scanner_next_expansion_weight(scanner);
+  if (weight)
   {
     /*
       More weights left from the previous step.
@@ -69,7 +66,7 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
       Return "0" as "nchars". The real nchars was set on a previous
       iteration.
     */
-    SCANNER_NEXT_RETURN(*scanner->wbeg++, 0);
+    SCANNER_NEXT_RETURN(weight, 0);
   }
 
 #ifdef SCANNER_NEXT_NCHARS
@@ -79,39 +76,84 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
 #endif
   {
     const uint16 *wpage;
-    my_wc_t wc[MY_UCA_MAX_CONTRACTION];
     int mblen;
+    my_wc_t currwc= 0;
+    const uint16 *cweight;
+
+#if MY_UCA_ASCII_OPTIMIZE && !defined(SCANNER_NEXT_NCHARS)
+    if (scanner->sbeg + 1 < scanner->send)
+    {
+      const MY_UCA_2BYTES_ITEM *ww;
+      ww= my_uca_level_booster_2bytes_item_addr_const(param->level->booster,
+                                                      scanner->sbeg[0],
+                                                      scanner->sbeg[1]);
+      if (my_uca_2bytes_item_is_applicable(ww))
+      {
+        /*
+          Byte pairs that make 2-byte head characters in previous
+          context pairs are marked as not applicable for optimization
+          during the collation initialization. So when we come here
+          sbeg[0] and sbeg[1] are:
+          - either two ASCII characters
+          - or one 2-byte character which IS NOT a previous context head
+          Just remember sbeg[1] as the previous character for simplicity.
+          This may erroneously interpret bytes 0x80..0x9F as previous context
+          head characters U+0080..U+009F. However, CLDR does not have any real
+          collations that use these characters as previous context heads.
+        */
+        scanner->page= 0;
+        scanner->code= (int) scanner->sbeg[1];
+        scanner->sbeg+= 2;
+        if ((weight= my_uca_scanner_set_weight(scanner, ww->weight)))
+        {
+          /*
+            TODO: add support for scanner_next_with_nchars and do this:
+            SCANNER_NEXT_RETURN(weight, ignorable_nchars + 1);
+          */
+          return weight;
+        }
+        continue; /* Ignorable character */
+      }
+      /* 2 byte optimization is not applicable, go the slow path */
+    }
+#endif
+
 
     /* Get next character */
 #if MY_UCA_ASCII_OPTIMIZE
     /* Get next ASCII character */
     if (scanner->sbeg < scanner->send && scanner->sbeg[0] < 0x80)
     {
-      wc[0]= scanner->sbeg[0];
+      currwc= scanner->sbeg[0];
       scanner->sbeg+= 1;
 
 #if MY_UCA_COMPILE_CONTRACTIONS
-      if (my_uca_needs_context_handling(scanner->level, wc[0]))
+      if (my_uca_needs_context_handling(param->level, currwc))
       {
-        const MY_CONTRACTION *cnt= my_uca_context_weight_find(scanner, wc,
+        const MY_CONTRACTION *cnt= my_uca_context_weight_find(scanner, param,
+                                                              currwc,
                                                   LOCAL_MAX_CONTRACTION_LENGTH);
         if (cnt)
-          SCANNER_NEXT_RETURN_CONTRACTION(cnt, ignorable_nchars);
+        {
+          if ((weight= my_uca_scanner_set_weight(scanner, cnt->weight)))
+            SCANNER_NEXT_RETURN_CONTRACTION(cnt, ignorable_nchars);
+          continue;  /* Ignorable contraction */
+        }
       }
 #endif
 
       scanner->page= 0;
-      scanner->code= (int) wc[0];
-      scanner->wbeg= scanner->level->weights[0] + scanner->code * scanner->level->lengths[0];
-      if (scanner->wbeg[0])
-        SCANNER_NEXT_RETURN(*scanner->wbeg++, ignorable_nchars + 1);
-      continue;
+      scanner->code= (int) currwc;
+      cweight= param->level->weights[0] + scanner->code * param->level->lengths[0];
+      if ((weight= my_uca_scanner_set_weight(scanner, cweight)))
+        SCANNER_NEXT_RETURN(weight, ignorable_nchars + 1);
+      continue; /* Ignorable character */
     }
     else
 #endif
     /* Get next MB character */
-    if (((mblen= MY_MB_WC(scanner, wc, scanner->sbeg,
-                                       scanner->send)) <= 0))
+    if (((mblen= MY_MB_WC(scanner, param, &currwc, scanner->sbeg,
+                                            scanner->send)) <= 0))
     {
       if (scanner->sbeg >= scanner->send)
       {
@@ -122,7 +164,7 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
         There are some more bytes left. Non-positive mb_len means that
         we got an incomplete or a bad byte sequence. Consume mbminlen bytes.
       */
-      if ((scanner->sbeg+= scanner->cs->mbminlen) > scanner->send)
+      if ((scanner->sbeg+= param->cs->mbminlen) > scanner->send)
       {
         /* For safety purposes don't go beyond the string range. */
         scanner->sbeg= scanner->send;
@@ -136,41 +178,43 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
     }
 
     scanner->sbeg+= mblen;
-    if (wc[0] > scanner->level->maxchar)
+    if (currwc > param->level->maxchar)
     {
-      /* Return 0xFFFD as weight for all characters outside BMP */
-      scanner->wbeg= nochar;
-      SCANNER_NEXT_RETURN(0xFFFD, ignorable_nchars + 1);
+      SCANNER_NEXT_RETURN(my_uca_scanner_set_weight_outside_maxchar(scanner),
+                          ignorable_nchars + 1);
     }
 
 #if MY_UCA_COMPILE_CONTRACTIONS
-    if (my_uca_needs_context_handling(scanner->level, wc[0]))
+    if (my_uca_needs_context_handling(param->level, currwc))
     {
-      const MY_CONTRACTION *cnt= my_uca_context_weight_find(scanner, wc,
+      const MY_CONTRACTION *cnt= my_uca_context_weight_find(scanner, param, currwc,
                                                 LOCAL_MAX_CONTRACTION_LENGTH);
       if (cnt)
-        SCANNER_NEXT_RETURN_CONTRACTION(cnt, ignorable_nchars);
+      {
+        if ((weight= my_uca_scanner_set_weight(scanner, cnt->weight)))
+          SCANNER_NEXT_RETURN_CONTRACTION(cnt, ignorable_nchars);
+        continue;  /* Ignorable contraction */
+      }
     }
 #endif
 
     /* Process single character */
-    scanner->page= wc[0] >> 8;
-    scanner->code= wc[0] & 0xFF;
+    scanner->page= currwc >> 8;
+    scanner->code= currwc & 0xFF;
 
     /* If weight page for w[0] does not exist, then calculate algoritmically */
-    if (!(wpage= scanner->level->weights[scanner->page]))
-      SCANNER_NEXT_RETURN(my_uca_scanner_next_implicit(scanner),
+    if (!(wpage= param->level->weights[scanner->page]))
+      SCANNER_NEXT_RETURN(my_uca_scanner_next_implicit(scanner, param),
                           ignorable_nchars + 1);
 
     /* Calculate pointer to w[0]'s weight, using page and offset */
-    scanner->wbeg= wpage +
-                   scanner->code * scanner->level->lengths[scanner->page];
-    if (scanner->wbeg[0])
-      break;
-    /* Skip ignorable character and continue the loop */
+    cweight= wpage + scanner->code * param->level->lengths[scanner->page];
+    if ((weight= my_uca_scanner_set_weight(scanner, cweight)))
+      SCANNER_NEXT_RETURN(weight, ignorable_nchars + 1);
+    continue; /* Ignorable character */
   }
 
-  SCANNER_NEXT_RETURN(*scanner->wbeg++, ignorable_nchars + 1);
+  SCANNER_NEXT_RETURN(0, 0); /* Not reachable */
 }
 
 #undef SCANNER_NEXT_NCHARS

@@ -1,0 +1,34 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-33957 UPDATE fails on replica replicating blob virtual column in
+#            NOBLOB mode when replica logging is off
+#
+connection slave;
+select @@log_slave_updates;
+@@log_slave_updates
+0
+connection master;
+set binlog_row_image= 'NOBLOB';
+create table t (
+c int primary key, d int,
+i blob generated always as (c), key k(i)) engine=innodb;
+Warnings:
+Note	1071	Specified key was too long; max key length is 3072 bytes
+insert into t (c) values (1);
+update t set d= 0;
+connection slave;
+connection master;
+drop table t;
+create table t (
+c int primary key, d int,
+i blob generated always as (c), key k(i)) engine=innodb
+partition by key (c) partitions 2;
+Warnings:
+Note	1071	Specified key was too long; max key length is 3072 bytes
+insert into t (c) values (1);
+update t set d= 0;
+connection slave;
+connection master;
+drop table t;
+include/rpl_end.inc

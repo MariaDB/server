@@ -314,12 +314,12 @@ ALTER TABLE t3 ADD COLUMN c7 TIME NOT NULL DEFAULT current_timestamp();
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1265	Data truncated for column 'c7' at row 1
+Note	1265	Data truncated for column 'c7' at row 0
 ALTER TABLE t3 ADD COLUMN c8 DATE NOT NULL DEFAULT current_timestamp();
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1265	Data truncated for column 'c8' at row 1
+Note	1265	Data truncated for column 'c8' at row 0
 SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8 FROM t3;
 id	c2	c3	c4	c5	c6	c7	c8
 1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
@@ -1248,12 +1248,12 @@ ALTER TABLE t3 ADD COLUMN c7 TIME NOT NULL DEFAULT current_timestamp();
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1265	Data truncated for column 'c7' at row 1
+Note	1265	Data truncated for column 'c7' at row 0
 ALTER TABLE t3 ADD COLUMN c8 DATE NOT NULL DEFAULT current_timestamp();
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1265	Data truncated for column 'c8' at row 1
+Note	1265	Data truncated for column 'c8' at row 0
 SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8 FROM t3;
 id	c2	c3	c4	c5	c6	c7	c8
 1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
@@ -2182,12 +2182,12 @@ ALTER TABLE t3 ADD COLUMN c7 TIME NOT NULL DEFAULT current_timestamp();
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1265	Data truncated for column 'c7' at row 1
+Note	1265	Data truncated for column 'c7' at row 0
 ALTER TABLE t3 ADD COLUMN c8 DATE NOT NULL DEFAULT current_timestamp();
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1265	Data truncated for column 'c8' at row 1
+Note	1265	Data truncated for column 'c8' at row 0
 SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8 FROM t3;
 id	c2	c3	c4	c5	c6	c7	c8
 1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01

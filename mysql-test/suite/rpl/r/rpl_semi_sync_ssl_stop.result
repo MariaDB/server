@@ -1,0 +1,53 @@
+# Skip starting the slave because we manually start with SSL later
+include/master-slave.inc
+[connection master]
+#
+# Setup
+connection master;
+CREATE USER replssl@localhost;
+GRANT REPLICATION SLAVE on *.* to replssl@localhost REQUIRE SSL;
+set @orig_master_enabled= @@GLOBAL.rpl_semi_sync_master_enabled;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 1;
+connection slave;
+CHANGE MASTER TO
+master_user='replssl',
+master_password='',
+master_ssl=1,
+master_ssl_ca='MYSQL_TEST_DIR/std_data/cacert.pem',
+master_ssl_cert='MYSQL_TEST_DIR/std_data/client-cert.pem',
+master_ssl_key='MYSQL_TEST_DIR/std_data/client-key.pem';
+set @orig_slave_enabled= @@GLOBAL.rpl_semi_sync_slave_enabled;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= 1;
+include/start_slave.inc
+connection master;
+# Verify Semi-Sync is active
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+# Create some table so slave can be seen as up-to-date and working
+connection master;
+CREATE TABLE t1 (a INT);
+connection slave;
+# Disconnect the slave and wait until the master's dump thread is gone
+connection slave;
+STOP SLAVE;
+connection master;
+# MDEV-36663: Verifying dump thread connection is killed..
+# ..done
+# Cleanup
+connection master;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= @orig_master_enabled;
+DROP USER replssl@localhost;
+DROP TABLE t1;
+connection slave;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @orig_slave_enabled;
+CHANGE MASTER TO
+master_user='root',
+master_ssl=0,
+master_ssl_ca='',
+master_ssl_cert='',
+master_ssl_key='';
+connection slave;
+include/start_slave.inc
+include/rpl_end.inc
+# End of rpl_semi_sync_ssl_stop.inc

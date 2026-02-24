@@ -1,0 +1,46 @@
+--- ../src/storage/spider/mysql-test/spider/r/direct_right_left_right_join_nullable.result	2024-11-14 13:59:27.762081104 +1100
++++ ../src/storage/spider/mysql-test/spider/r/direct_right_left_right_join_nullable.reject	2025-10-22 17:41:38.127672798 +1100
+@@ -87,7 +87,42 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+-select t0.`a` `a`,t2.`b` `b`,t2.`c` `c`,t3.`a` `a` from `auto_test_remote`.`ta_r_no_idx` t3 left join (`auto_test_remote`.`ta_r_3` t1 left join `auto_test_remote`.`ta_r` t0 on ((t0.`a` = t1.`a`) and (t1.`a` is not null)) join `auto_test_remote`.`ta_r_auto_inc` t2) on ((t2.`b` = t3.`b`) and (t2.`c` = t1.`c`)) where 1 order by t3.`a` desc
++select `a`,`b` from `auto_test_remote`.`ta_r_no_idx`
++select `a`,`c` from `auto_test_remote`.`ta_r_3`
++select `a` from `auto_test_remote`.`ta_r` where `a` = 1
++select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc`
++select `a` from `auto_test_remote`.`ta_r` where `a` = 2
++select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc`
++select `a` from `auto_test_remote`.`ta_r` where `a` = 3
++select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc`
++select `a`,`c` from `auto_test_remote`.`ta_r_3`
++select `a` from `auto_test_remote`.`ta_r` where `a` = 1
++select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc`
++select `a` from `auto_test_remote`.`ta_r` where `a` = 2
++select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc`
++select `a` from `auto_test_remote`.`ta_r` where `a` = 3
++select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc`
++select `a`,`c` from `auto_test_remote`.`ta_r_3`
++select `a` from `auto_test_remote`.`ta_r` where `a` = 1
++select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc`
++select `a` from `auto_test_remote`.`ta_r` where `a` = 2
++select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc`
++select `a` from `auto_test_remote`.`ta_r` where `a` = 3
++select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc`
++select `a`,`c` from `auto_test_remote`.`ta_r_3`
++select `a` from `auto_test_remote`.`ta_r` where `a` = 1
++select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc`
++select `a` from `auto_test_remote`.`ta_r` where `a` = 2
++select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc`
++select `a` from `auto_test_remote`.`ta_r` where `a` = 3
++select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc`
++select `a`,`c` from `auto_test_remote`.`ta_r_3`
++select `a` from `auto_test_remote`.`ta_r` where `a` = 1
++select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc`
++select `a` from `auto_test_remote`.`ta_r` where `a` = 2
++select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc`
++select `a` from `auto_test_remote`.`ta_r` where `a` = 3
++select `b`,`c` from `auto_test_remote`.`ta_r_auto_inc`
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+ SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r ORDER BY a;
+ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')

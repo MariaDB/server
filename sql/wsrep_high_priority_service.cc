@@ -114,10 +114,7 @@ static void wsrep_setup_uk_and_fk_checks(THD* thd)
   else
     thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
 
-  if (wsrep_slave_FK_checks == FALSE)
-    thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
-  else
-    thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
+  thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
 }
 
 static int apply_events(THD*                       thd,
@@ -167,6 +164,10 @@ Wsrep_high_priority_service::Wsrep_high_priority_service(THD* thd)
      same commit ordering algorithm in group commit control
    */
   thd->variables.option_bits|= OPTION_BIN_LOG;
+
+  /* Allow applying in a transaction read-only context */
+  thd->tx_read_only= false;
+  thd->variables.tx_read_only= false;
 
   thd->net.vio= 0;
   thd->reset_db(&db_str);

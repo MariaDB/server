@@ -18,7 +18,7 @@
 
 /* some definitions for full-text indices */
 
-/* ftdefs.h is is always included first when used, so we have to include my_global.h here */
+/* ftdefs.h is always included first when used, so we have to include my_global.h here */
 #include <my_global.h>
 #include "fulltext.h"
 #include <m_ctype.h>

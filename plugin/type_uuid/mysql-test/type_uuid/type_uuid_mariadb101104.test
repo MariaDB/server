@@ -1,0 +1,110 @@
+let $datadir= `select @@datadir`;
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-33442 REPAIR TABLE corrupts UUIDs
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE show_table(long_version INT)
+BEGIN
+  SHOW CREATE TABLE t1;
+  SELECT VERSION FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
+  IF long_version>0 THEN
+    SELECT * FROM t1 ORDER BY b;
+  ELSE
+    SELECT * FROM t1 ORDER BY a DESC LIMIT 5;
+  END IF;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Upgrade a 10.11.4 table using REPAIR
+
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.frm $datadir/test/t1.frm
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.MYI $datadir/test/t1.MYI
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.MYD $datadir/test/t1.MYD
+CALL show_table(1);
+
+CHECK TABLE t1 FOR UPGRADE;
+CALL show_table(0);
+
+CHECK TABLE t1 FOR UPGRADE;
+CALL show_table(0);
+
+REPAIR TABLE t1;
+CALL show_table(1);
+
+CHECK TABLE t1 FOR UPGRADE;
+CALL show_table(0);
+
+DROP TABLE t1;
+
+--echo # Upgrade a 10.11.4 table using ALTER, adding a table COMMENT
+
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.frm $datadir/test/t1.frm
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.MYI $datadir/test/t1.MYI
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.MYD $datadir/test/t1.MYD
+CALL show_table(0);
+
+--echo # ALTER..INPLACE should fail - the old column 'b UUID' needs upgrade
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, COMMENT 'test10';
+ALTER IGNORE TABLE t1 COMMENT 'test11';
+CALL show_table(0);
+
+--echo # Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, COMMENT 'test12';
+CALL show_table(0);
+
+DROP TABLE t1;
+
+
+--echo # Upgrade a 10.11.4 table using ALTER, adding a DEFAULT for 'b INT'
+
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.frm $datadir/test/t1.frm
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.MYI $datadir/test/t1.MYI
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.MYD $datadir/test/t1.MYD
+CALL show_table(0);
+
+--echo # ALTER..INPLACE should fail - the old column 'b UUID' needs upgrade
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, MODIFY b INT NOT NULL DEFAULT 10;
+ALTER IGNORE TABLE t1 MODIFY b INT NOT NULL DEFAULT 11;
+CALL show_table(0);
+
+--echo # Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, MODIFY b INT NOT NULL DEFAULT 12;
+CALL show_table(0);
+
+DROP TABLE t1;
+
+
+--echo # Upgrade a 10.11.4 table using ALTER, adding a DEFAULT for 'a UUID'
+
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.frm $datadir/test/t1.frm
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.MYI $datadir/test/t1.MYI
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.MYD $datadir/test/t1.MYD
+CALL show_table(0);
+
+--echo # ALTER..INPLACE should fail - the old column 'b UUID' needs upgrade
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, MODIFY a UUID DEFAULT '16301234-5566-f777-e888-99aabbccdd00';
+ALTER IGNORE TABLE t1 MODIFY a UUID DEFAULT '16301234-5566-f777-e888-99aabbccdd01';
+CALL show_table(0);
+
+--echo # Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 MODIFY a UUID DEFAULT '16301234-5566-f777-e888-99aabbccdd02';
+CALL show_table(0);
+
+DROP TABLE t1;
+
+DROP PROCEDURE show_table;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #

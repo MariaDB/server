@@ -1,5 +1,7 @@
 SET @buffering= @@innodb_change_buffering;
 SET GLOBAL innodb_change_buffering= deletes;
+Warnings:
+Warning	1287	'@@innodb_change_buffering' is deprecated and will be removed in a future release
 SET @flush= @@innodb_flush_log_at_trx_commit;
 SET GLOBAL innodb_flush_log_at_trx_commit= 0;
 CREATE TABLE t1 (
@@ -46,4 +48,6 @@ INSERT INTO t2 SELECT @x, @x, @x, @x, @x, @x, @x, @x, @x, @x, @x, @x, @x
 FROM seq_1_to_768;
 DROP TABLE t1, t2;
 SET GLOBAL innodb_change_buffering= @buffering;
+Warnings:
+Warning	1287	'@@innodb_change_buffering' is deprecated and will be removed in a future release
 SET GLOBAL innodb_flush_log_at_trx_commit= @flush;

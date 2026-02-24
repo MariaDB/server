@@ -1,0 +1,2 @@
+# Needed conflict
+conflicts-with-version mysql-client (<< 5.0.51)

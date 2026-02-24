@@ -42,8 +42,8 @@ set sql_mode='';
 grant execute on procedure db1_secret.stamp to ''@'%';
 grant execute on function db1_secret.db to ''@'%';
 set sql_mode=default;
-connect  con2user1,localhost,user1,,;
-connect  con3anon,localhost,anon,,;
+connect  con2user1,localhost,user1,,"*NO-ONE*";
+connect  con3anon,localhost,anon,,"*NO-ONE*";
 connection con2user1;
 call db1_secret.stamp(2);
 select db1_secret.db();
@@ -128,7 +128,7 @@ use db2;
 create procedure p () insert into t2 values (1);
 call p();
 ERROR 42000: INSERT command denied to user 'user1'@'localhost' for table `db2`.`t2`
-connect  con4user2,localhost,user2,,;
+connect  con4user2,localhost,user2,,"*NO-ONE*";
 connection con4user2;
 use db2;
 call p();
@@ -203,9 +203,9 @@ show grants for userc@localhost;
 Grants for userc@localhost
 GRANT USAGE ON *.* TO `userc`@`localhost`
 GRANT EXECUTE ON PROCEDURE `sptest`.`p1` TO `userc`@`localhost` WITH GRANT OPTION
-connect  con2usera,localhost,usera,,;
-connect  con3userb,localhost,userb,,;
-connect  con4userc,localhost,userc,,;
+connect  con2usera,localhost,usera,,"*NO-ONE*";
+connect  con3userb,localhost,userb,,"*NO-ONE*";
+connect  con4userc,localhost,userc,,"*NO-ONE*";
 connection con2usera;
 call sptest.p1(1);
 grant execute on procedure sptest.p1 to userb@localhost;
@@ -270,6 +270,7 @@ use mysqltest//
 create table t1 (s1 int)//
 create user user1@localhost//
 grant select on t1 to user1@localhost//
+grant select on test.* to user1@localhost//
 create function bug_9503 () returns int sql security invoker begin declare v int;
 select min(s1) into v from t1; return v; end//
 connect  user1,localhost,user1,,test;
@@ -349,6 +350,7 @@ return 'ok';
 end;
 |
 create user user_bug12812@localhost IDENTIFIED BY 'ABC'|
+grant select,create view on test.* to user_bug12812@localhost|
 connect  test_user_12812,localhost,user_bug12812,ABC,test;
 SELECT test.bug12812()|
 ERROR 42000: execute command denied to user 'user_bug12812'@'localhost' for routine 'test.bug12812'
@@ -398,6 +400,7 @@ sql security definer
 select * from db_bug14533.t1;
 grant execute on procedure db_bug14533.bug14533_1 to user_bug14533@localhost;
 grant execute on procedure db_bug14533.bug14533_2 to user_bug14533@localhost;
+grant select on test.* to user_bug14533@localhost;
 connect  user_bug14533,localhost,user_bug14533,,test;
 call db_bug14533.bug14533_1();
 Field	Type	Null	Key	Default	Extra
@@ -672,7 +675,7 @@ create database mysqltest_db;
 create user bug57061_user@localhost;
 create function mysqltest_db.f1() returns int return 0;
 create procedure mysqltest_db.p1() begin end;
-connect  conn1, localhost, bug57061_user,,;
+connect  conn1, localhost, bug57061_user,,"*NO-ONE*";
 # Attempt to drop routine on which user doesn't have privileges
 # should result in the same 'access denied' type of error whether
 # routine exists or not.
@@ -697,7 +700,7 @@ CREATE DATABASE db1;
 CREATE PROCEDURE db1.p1() SELECT 1;
 CREATE USER user2@localhost IDENTIFIED BY '';
 GRANT SELECT(db) ON mysql.proc TO user2@localhost;
-connect  con2, localhost, user2;
+connect  con2, localhost, user2,,"*NO-ONE*";
 # The statement below before disclosed info from body_utf8 column.
 SHOW CREATE PROCEDURE db1.p1;
 ERROR 42000: PROCEDURE p1 does not exist
@@ -716,6 +719,7 @@ DROP USER user2@localhost;
 DROP DATABASE db1;
 create user foo@local_ost;
 create user foo@`local\_ost` identified via mysql_old_password using '0123456789ABCDEF';
+grant select,create routine on test.* to foo@local_ost;
 create database foodb;
 grant create routine on foodb.* to foo@local_ost;
 connect con1,localhost,foo;
@@ -725,11 +729,13 @@ foo@localhost	foo@local_ost
 show grants;
 Grants for foo@local_ost
 GRANT USAGE ON *.* TO `foo`@`local_ost`
+GRANT SELECT, CREATE ROUTINE ON `test`.* TO `foo`@`local_ost`
 GRANT CREATE ROUTINE ON `foodb`.* TO `foo`@`local_ost`
 create procedure fooproc() select 'i am fooproc';
 show grants;
 Grants for foo@local_ost
 GRANT USAGE ON *.* TO `foo`@`local_ost`
+GRANT SELECT, CREATE ROUTINE ON `test`.* TO `foo`@`local_ost`
 GRANT CREATE ROUTINE ON `foodb`.* TO `foo`@`local_ost`
 GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`fooproc` TO `foo`@`local_ost`
 disconnect con1;
@@ -749,6 +755,7 @@ create function mysqltest_db.f1() returns int return 0;
 create procedure mysqltest_db.p1() begin end;
 # Create user with no privileges on mysqltest_db database.
 create user bug12602983_user@localhost;
+grant create view on test.* to bug12602983_user@localhost;
 connect  conn1, localhost, bug12602983_user,,;
 # Attempt to execute routine on which user doesn't have privileges
 # should result in the same 'access denied' error whether
@@ -796,8 +803,7 @@ CREATE USER u1@localhost;
 GRANT CREATE ROUTINE ON u1.* TO u1@localhost;
 GRANT ALTER ROUTINE ON FUNCTION u1.f1 TO u1@localhost;
 GRANT ALTER ROUTINE ON PROCEDURE u1.p1 TO u1@localhost;
-connect  u1, localhost, u1,,;
-USE u1;
+connect  u1, localhost, u1,,u1;
 CREATE OR REPLACE FUNCTION f1() RETURNS INT BEGIN RETURN 2; END; $$
 CREATE OR REPLACE PROCEDURE p1() BEGIN SELECT 1; END; $$
 disconnect u1;

@@ -1,0 +1,117 @@
+#
+# This test ensures that ALTER TABLE ... CONVERT PARTITION ... TO TABLE
+# works with replication. I.e., the partitioning is done correctly, and
+# after partitioning, both tables can be updated correctly.
+#
+# References:
+#   MDEV-36906: RBR crashes upon DML after CONVERT PARTITION
+#
+
+--source include/have_innodb.inc
+--source include/have_partition.inc
+--source include/master-slave.inc
+
+
+--echo #
+--echo # Ensure initial CREATE TABLE with partitioned data is replicated
+--echo # correctly
+--connection master
+create table t (a int, b int, key(a)) engine=innodb partition by range (b) (partition p1 values less than (10), partition pn values less than (maxvalue));
+insert into t values (1,5),(2,100);
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables=master:test.t,slave:test.t
+
+--source include/diff_tables.inc
+
+--echo #
+--echo # Ensure ALTER TABLE .. CONVERT PARTITION .. TO TABLE replicates
+--echo # correctly
+--connection master
+alter table t convert partition p1 to table offspring;
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables=master:test.t,slave:test.t
+--source include/diff_tables.inc
+--let $diff_tables=master:test.offspring,slave:test.offspring
+--source include/diff_tables.inc
+
+
+--echo #
+--echo # Ensure data can be inserted into existing table after
+--echo # ALTER TABLE .. CONVERT PARTITION .. TO TABLE
+--connection master
+insert into t values (3, 6);
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables=master:test.t,slave:test.t
+--source include/diff_tables.inc
+
+
+--echo #
+--echo # Ensure data can be inserted into offspring table after
+--echo # ALTER TABLE .. CONVERT PARTITION .. TO TABLE
+--connection master
+insert into offspring values (4, 101);
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables=master:test.offspring,slave:test.offspring
+--source include/diff_tables.inc
+
+
+--echo #
+--echo # Ensure data can be updated in existing table after
+--echo # ALTER TABLE .. CONVERT PARTITION .. TO TABLE
+--connection master
+update t set b=b+1 where a=3;
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables=master:test.t,slave:test.t
+--source include/diff_tables.inc
+
+
+--echo #
+--echo # Ensure data can be updated in offspring table after
+--echo # ALTER TABLE .. CONVERT PARTITION .. TO TABLE
+--connection master
+update offspring set b=b+1 where a=4;
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables=master:test.offspring,slave:test.offspring
+--source include/diff_tables.inc
+
+
+--echo #
+--echo # Ensure data can be deleted in existing table after
+--echo # ALTER TABLE .. CONVERT PARTITION .. TO TABLE
+--connection master
+delete from t;
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables=master:test.t,slave:test.t
+--source include/diff_tables.inc
+
+
+--echo #
+--echo # Ensure data can be deleted in offspring table after
+--echo # ALTER TABLE .. CONVERT PARTITION .. TO TABLE
+--connection master
+delete from offspring;
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables=master:test.offspring,slave:test.offspring
+--source include/diff_tables.inc
+
+
+--connection master
+drop table t, offspring;
+--source include/rpl_end.inc
+--echo # End of rpl_alter_convert_partition

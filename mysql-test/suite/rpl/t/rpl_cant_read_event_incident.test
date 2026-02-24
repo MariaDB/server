@@ -22,6 +22,10 @@
 --source include/master-slave.inc
 
 --connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+--source include/start_slave.inc
+
 # Make sure the slave is stopped while we are messing with master.
 # Otherwise we get occasional failures as the slave manages to re-connect
 # to the newly started master and we get extra events applied, causing
@@ -49,7 +53,8 @@ show binlog events;
 
 --connection slave
 call mtr.add_suppression("Slave I/O: Got fatal error 1236 from master when reading data from binary log");
-reset slave;
+--let $master_use_gtid_option= No
+--source include/reset_slave.inc
 start slave;
 
 # ER_MASTER_FATAL_ERROR_READING_BINLOG 1236

@@ -4,7 +4,6 @@ connection server_2;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=5;
-CHANGE MASTER TO master_use_gtid= current_pos;
 include/start_slave.inc
 connection server_1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100) CHARACTER SET utf8);

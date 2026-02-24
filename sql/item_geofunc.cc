@@ -42,7 +42,7 @@
 #include "item_create.h"
 
 
-bool Item_geometry_func::fix_length_and_dec()
+bool Item_geometry_func::fix_length_and_dec(THD *thd)
 {
   collation.set(&my_charset_bin);
   decimals=0;
@@ -223,7 +223,7 @@ String *Item_func_as_wkt::val_str_ascii(String *str)
 }
 
 
-bool Item_func_as_wkt::fix_length_and_dec()
+bool Item_func_as_wkt::fix_length_and_dec(THD *thd)
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= (uint32) UINT_MAX32;
@@ -250,7 +250,7 @@ String *Item_func_as_wkb::val_str(String *str)
 }
 
 
-bool Item_func_as_geojson::fix_length_and_dec()
+bool Item_func_as_geojson::fix_length_and_dec(THD *thd)
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length=MAX_BLOB_WIDTH;
@@ -1092,6 +1092,7 @@ Item_func_spatial_rel::get_mm_leaf(RANGE_OPT_PARAM *param,
     DBUG_RETURN(0);                              // out of memory
   field->get_key_image(str, key_part->length, key_part->image_type);
   SEL_ARG *tree;
+
   if (!(tree= new (param->mem_root) SEL_ARG(field, str, str)))
     DBUG_RETURN(0);                              // out of memory
 
@@ -1409,6 +1410,38 @@ exit:
 }
 
 
+static void handle_sp_crosses_func_case(Gcalc_function &func,
+                                        Gcalc_operation_transporter &trn,
+                                        Geometry_ptr_with_buffer_and_mbr &g1,
+                                        Geometry_ptr_with_buffer_and_mbr &g2,
+                                        uint &shape_a, uint &shape_b,
+                                        bool &null_value)
+{
+  func.add_operation(Gcalc_function::op_intersection, 2);
+  if (func.reserve_op_buffer(3))
+    return;
+  func.add_operation(Gcalc_function::v_find_t |
+                     Gcalc_function::op_intersection, 2);
+  shape_a= func.get_next_expression_pos();
+  if ((null_value= g1.store_shapes(&trn)))
+    return;
+  shape_b= func.get_next_expression_pos();
+  if ((null_value= g2.store_shapes(&trn)))
+    return;
+  if (func.reserve_op_buffer(7))
+    return;
+  func.add_operation(Gcalc_function::op_intersection, 2);
+  func.add_operation(Gcalc_function::v_find_t |
+                     Gcalc_function::op_difference, 2);
+  func.repeat_expression(shape_a);
+  func.repeat_expression(shape_b);
+  func.add_operation(Gcalc_function::v_find_t |
+                     Gcalc_function::op_difference, 2);
+  func.repeat_expression(shape_b);
+  func.repeat_expression(shape_a);
+}
+
+
 bool Item_func_spatial_precise_rel::val_bool()
 {
   DBUG_ENTER("Item_func_spatial_precise_rel::val_int");
@@ -1475,34 +1508,23 @@ bool Item_func_spatial_precise_rel::val_bool()
           g2.shape_type() == Geometry::wkb_point ||
           g2.shape_type() == Geometry::wkb_multipoint)
       {
-        null_value= 1;
-        break;
+        null_value= true;
+        goto exit;
       }
       /* fall through */
     case SP_OVERLAPS_FUNC:
-      func.add_operation(Gcalc_function::op_intersection, 2);
-      if (func.reserve_op_buffer(3))
-        break;
-      func.add_operation(Gcalc_function::v_find_t |
-                         Gcalc_function::op_intersection, 2);
-      shape_a= func.get_next_expression_pos();
-      if ((null_value= g1.store_shapes(&trn)))
-        break;
-      shape_b= func.get_next_expression_pos();
-      if ((null_value= g2.store_shapes(&trn)))
-        break;
-      if (func.reserve_op_buffer(7))
-        break;
-      func.add_operation(Gcalc_function::op_intersection, 2);
-      func.add_operation(Gcalc_function::v_find_t |
-                         Gcalc_function::op_difference, 2);
-      func.repeat_expression(shape_a);
-      func.repeat_expression(shape_b);
-      func.add_operation(Gcalc_function::v_find_t |
-                         Gcalc_function::op_difference, 2);
-      func.repeat_expression(shape_b);
-      func.repeat_expression(shape_a);
+    {
+      // Both geometries must have the same number of dimensions.
+      uint32 g1_dim, g2_dim;
+      const char *dummy;
+      g1.geom->dimension(&g1_dim, &dummy);
+      g2.geom->dimension(&g2_dim, &dummy);
+      if (g1_dim != g2_dim)
+        DBUG_RETURN(0);
+      handle_sp_crosses_func_case(func, trn, g1, g2,
+                                  shape_a, shape_b, null_value);
       break;
+    }
     case SP_TOUCHES_FUNC:
       if (func.reserve_op_buffer(5))
         break;

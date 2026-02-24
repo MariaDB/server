@@ -261,83 +261,90 @@ create table test.t1 (i int) engine=myisam;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
 InnoDB		0 transactions not purged
-select * from information_schema.metadata_lock_info;
-THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_BACKUP_DDL	NULL	Backup lock		
-#	MDL_BACKUP_DML	NULL	Backup lock		
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
-#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
-#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_DDL	Backup lock		
+MDL_BACKUP_DML	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysqltest2	
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysqltest2	t2
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
 create or replace table test.t1;
 ERROR 42000: A table must have at least 1 column
 show tables;
 Tables_in_test
 t2
-select * from information_schema.metadata_lock_info;
-THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_BACKUP_DDL	NULL	Backup lock		
-#	MDL_BACKUP_DML	NULL	Backup lock		
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
-#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_DDL	Backup lock		
+MDL_BACKUP_DML	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysqltest2	
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysqltest2	t2
 create or replace table mysqltest2.t2;
 ERROR 42000: A table must have at least 1 column
-select * from information_schema.metadata_lock_info;
-THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 create table t1 (i int);
 drop table t1;
 create table test.t1 (i int);
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
-select * from information_schema.metadata_lock_info;
-THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_BACKUP_DDL	NULL	Backup lock		
-#	MDL_BACKUP_DML	NULL	Backup lock		
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
-#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
-#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_DDL	Backup lock		
+MDL_BACKUP_DML	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysqltest2	
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysqltest2	t2
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
 create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
 ERROR 42S21: Duplicate column name 'a'
 show tables;
 Tables_in_test
 t2
-select * from information_schema.metadata_lock_info;
-THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_BACKUP_DDL	NULL	Backup lock		
-#	MDL_BACKUP_DML	NULL	Backup lock		
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
-#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_DDL	Backup lock		
+MDL_BACKUP_DML	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysqltest2	
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysqltest2	t2
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_DDL	Backup lock		
+MDL_BACKUP_DML	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysqltest2	
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysqltest2	t2
 create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
 ERROR 42S21: Duplicate column name 'a'
-select * from information_schema.metadata_lock_info;
-THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 create table t1 (i int);
 drop table t1;
 create table test.t1 (i int) engine=innodb;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
-select * from information_schema.metadata_lock_info;
-THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_BACKUP_DDL	NULL	Backup lock		
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
-#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
-#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_DDL	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysqltest2	
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysqltest2	t2
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
 unlock tables;
 drop table test.t1,mysqltest2.t2;
 create table test.t1 (i int) engine=aria transactional=1 checksum=1;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
-select * from information_schema.metadata_lock_info;
-THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_BACKUP_DDL	NULL	Backup lock		
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
-#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
-#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_DDL	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysqltest2	
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysqltest2	t2
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
 unlock tables;
 drop table t1;
 create table test.t1 (i int);
@@ -348,19 +355,19 @@ drop table test.t1;
 #
 create table t1 (i int);
 lock table t1 write;
-select * from information_schema.metadata_lock_info;
-THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_BACKUP_DDL	NULL	Backup lock		
-#	MDL_BACKUP_DML	NULL	Backup lock		
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
-#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_DDL	Backup lock		
+MDL_BACKUP_DML	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
 create or replace table t1 (a char(1)) engine=Innodb select 'foo' as a;
 ERROR 22001: Data too long for column 'a' at row 1
 show tables;
 Tables_in_test
 t2
-select * from information_schema.metadata_lock_info;
-THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 create table t1 (i int);
 drop table t1;
 #
@@ -447,37 +454,37 @@ drop view t1;
 #
 create table t1 (a int);
 lock table t1 write, t2 read;
-select * from information_schema.metadata_lock_info;
-THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_BACKUP_DDL	NULL	Backup lock		
-#	MDL_BACKUP_DML	NULL	Backup lock		
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
-#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
-#	MDL_SHARED_READ	NULL	Table metadata lock	test	t2
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_DDL	Backup lock		
+MDL_BACKUP_DML	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
+MDL_SHARED_READ	Table metadata lock	test	t2
 create or replace table t1 (i int);
-select * from information_schema.metadata_lock_info;
-THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_BACKUP_DDL	NULL	Backup lock		
-#	MDL_BACKUP_DML	NULL	Backup lock		
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
-#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
-#	MDL_SHARED_READ	NULL	Table metadata lock	test	t2
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_DDL	Backup lock		
+MDL_BACKUP_DML	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
+MDL_SHARED_READ	Table metadata lock	test	t2
 create or replace table t1 like t2;
-select * from information_schema.metadata_lock_info;
-THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_BACKUP_DDL	NULL	Backup lock		
-#	MDL_BACKUP_DML	NULL	Backup lock		
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
-#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
-#	MDL_SHARED_READ	NULL	Table metadata lock	test	t2
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_DDL	Backup lock		
+MDL_BACKUP_DML	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
+MDL_SHARED_READ	Table metadata lock	test	t2
 create or replace table t1 select 1 as f1;
-select * from information_schema.metadata_lock_info;
-THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_BACKUP_DDL	NULL	Backup lock		
-#	MDL_BACKUP_DML	NULL	Backup lock		
-#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
-#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
-#	MDL_SHARED_READ	NULL	Table metadata lock	test	t2
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_DDL	Backup lock		
+MDL_BACKUP_DML	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
+MDL_SHARED_READ	Table metadata lock	test	t2
 drop table t1;
 unlock tables;
 #
@@ -580,5 +587,4 @@ DROP TABLE IF EXISTS tm, t;
 #
 # End of 10.3 tests
 #
-# End of 10.4 tests
 SET GLOBAL innodb_stats_persistent=@save_persistent;

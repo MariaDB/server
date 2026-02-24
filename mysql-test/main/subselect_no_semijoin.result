@@ -1,8 +1,6 @@
 set @optimizer_switch_for_subselect_test='semijoin=off,mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 set join_cache_level=1;
 set @join_cache_level_for_subselect_test=@@join_cache_level;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t11,t12;
-drop view if exists v2;
 call mtr.add_suppression("Sort aborted.*");
 set @subselect_tmp=@@optimizer_switch;
 set @@optimizer_switch=ifnull(@optimizer_switch_for_subselect_test,
@@ -7561,9 +7559,7 @@ Warning	1292	Truncated incorrect DECIMAL value: 'e'
 Warning	1292	Truncated incorrect DECIMAL value: 'e'
 drop view v1;
 drop table t1, t2, t3;
-#
 # End of 10.6 tests
-#
 #
 # MDEV-19714: JOIN::pseudo_bits_cond is not visible in EXPLAIN FORMAT=JSON
 #
@@ -7581,34 +7577,46 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 2,
-      "filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "query_block": {
           "select_id": 2,
           "pseudo_bits_condition": "1 = t1.a or <in_optimizer>(1,<exists>(subquery#3))",
-          "table": {
-            "table_name": "t2",
-            "access_type": "system",
-            "rows": 1,
-            "filtered": 100
-          },
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t2",
+                "access_type": "system",
+                "rows": 1,
+                "filtered": 100
+              }
+            }
+          ],
           "subqueries": [
             {
               "query_block": {
                 "select_id": 3,
-                "table": {
-                  "table_name": "t3",
-                  "access_type": "ALL",
-                  "rows": 2,
-                  "filtered": 100,
-                  "attached_condition": "1 = t3.c"
-                }
+                "nested_loop": [
+                  {
+                    "table": {
+                      "table_name": "t3",
+                      "access_type": "ALL",
+                      "rows": 2,
+                      "filtered": 100,
+                      "attached_condition": "1 = t3.c"
+                    }
+                  }
+                ]
               }
             }
           ]

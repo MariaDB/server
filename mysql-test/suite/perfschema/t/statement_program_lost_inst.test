@@ -22,7 +22,7 @@ let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
 --write_line wait $restart_file
 --shutdown_server 
 --source include/wait_until_disconnected.inc
---write_line "restart:--performance_schema_max_program_instances=7 --performance_schema_max_statement_stack=2 --thread_stack=655360" $restart_file
+--write_line "restart:--performance_schema_max_program_instances=7 --performance_schema_max_statement_stack=2 --thread_stack=1048576" $restart_file
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 

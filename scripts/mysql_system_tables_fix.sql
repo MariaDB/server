@@ -31,6 +31,18 @@ set enforce_storage_engine=NULL;
 set alter_algorithm='DEFAULT';
 set use_stat_tables='NEVER';
 
+
+--
+-- Upgrade mysql.column_stats table early because its quite noisy otherwise
+--
+
+ALTER TABLE column_stats
+  modify min_value varbinary(255) DEFAULT NULL,
+  modify max_value varbinary(255) DEFAULT NULL,
+  modify hist_type enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON_HB'),
+  modify histogram longblob,
+  ENGINE=Aria transactional=0;
+
 set @have_innodb= (select count(engine) from information_schema.engines where engine='INNODB' and support != 'NO');
 
 # MDEV-21873: 10.2 to 10.3 upgrade doesn't remove semi-sync reference from
@@ -68,7 +80,6 @@ ALTER TABLE help_category ENGINE=Aria transactional=0;
 ALTER TABLE help_relation ENGINE=Aria transactional=0;
 ALTER TABLE help_keyword ENGINE=Aria transactional=0;
 ALTER TABLE table_stats ENGINE=Aria transactional=0;
-ALTER TABLE column_stats ENGINE=Aria transactional=0;
 ALTER TABLE index_stats ENGINE=Aria transactional=0;
 
 ALTER TABLE user add File_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
@@ -290,8 +301,12 @@ ALTER TABLE general_log
   MODIFY thread_id BIGINT(21) UNSIGNED NOT NULL;
 SET GLOBAL general_log = @old_log_state;
 
-SET @old_log_state = @@global.slow_query_log;
-SET GLOBAL slow_query_log = 'OFF';
+SET @old_log_state = @@global.log_slow_query;
+SET GLOBAL log_slow_query = 'OFF';
+ALTER TABLE slow_log
+  ADD COLUMN thread_id BIGINT(21) UNSIGNED NOT NULL AFTER sql_text;
+ALTER TABLE slow_log
+  ADD COLUMN rows_affected BIGINT UNSIGNED NOT NULL AFTER thread_id;
 ALTER TABLE slow_log
   MODIFY start_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   MODIFY user_host MEDIUMTEXT NOT NULL,
@@ -303,13 +318,9 @@ ALTER TABLE slow_log
   MODIFY last_insert_id INTEGER NOT NULL,
   MODIFY insert_id INTEGER NOT NULL,
   MODIFY server_id INTEGER UNSIGNED NOT NULL,
-  MODIFY sql_text MEDIUMTEXT NOT NULL;
-ALTER TABLE slow_log
-  ADD COLUMN thread_id BIGINT(21) UNSIGNED NOT NULL AFTER sql_text;
-ALTER TABLE slow_log
-  MODIFY thread_id BIGINT(21) UNSIGNED NOT NULL,
-  ADD COLUMN rows_affected BIGINT UNSIGNED NOT NULL AFTER thread_id;
-SET GLOBAL slow_query_log = @old_log_state;
+  MODIFY sql_text MEDIUMTEXT NOT NULL,
+  MODIFY thread_id BIGINT(21) UNSIGNED NOT NULL;
+SET GLOBAL log_slow_query = @old_log_state;
 
 ALTER TABLE plugin
   MODIFY name varchar(64) COLLATE utf8mb3_general_ci NOT NULL DEFAULT '',
@@ -510,10 +521,10 @@ UPDATE proc SET character_set_client = @@character_set_client
                      WHERE character_set_client IS NULL;
 
 ALTER TABLE proc ADD collation_connection
-                     char(32) collate utf8mb3_bin DEFAULT NULL
+                     char(64) collate utf8mb3_bin DEFAULT NULL
                      AFTER character_set_client;
 ALTER TABLE proc MODIFY collation_connection
-                        char(32) collate utf8mb3_bin DEFAULT NULL;
+                        char(64) collate utf8mb3_bin DEFAULT NULL;
 
 SELECT CASE WHEN COUNT(*) > 0 THEN 
 CONCAT ("WARNING: NULL values of the 'collation_connection' column ('mysql.proc' table) have been updated with a default value (", @@collation_connection, "). Please verify if necessary.")
@@ -525,10 +536,10 @@ UPDATE proc SET collation_connection = @@collation_connection
                      WHERE collation_connection IS NULL;
 
 ALTER TABLE proc ADD db_collation
-                     char(32) collate utf8mb3_bin DEFAULT NULL
+                     char(64) collate utf8mb3_bin DEFAULT NULL
                      AFTER collation_connection;
 ALTER TABLE proc MODIFY db_collation
-                        char(32) collate utf8mb3_bin DEFAULT NULL;
+                        char(64) collate utf8mb3_bin DEFAULT NULL;
 
 SELECT CASE WHEN COUNT(*) > 0 THEN 
 CONCAT ("WARNING: NULL values of the 'db_collation' column ('mysql.proc' table) have been updated with default values. Please verify if necessary.")
@@ -637,16 +648,16 @@ ALTER TABLE event MODIFY character_set_client
                          char(32) collate utf8mb3_bin DEFAULT NULL;
 
 ALTER TABLE event ADD collation_connection
-                      char(32) collate utf8mb3_bin DEFAULT NULL
+                      char(64) collate utf8mb3_bin DEFAULT NULL
                       AFTER character_set_client;
 ALTER TABLE event MODIFY collation_connection
-                         char(32) collate utf8mb3_bin DEFAULT NULL;
+                         char(64) collate utf8mb3_bin DEFAULT NULL;
 
 ALTER TABLE event ADD db_collation
-                      char(32) collate utf8mb3_bin DEFAULT NULL
+                      char(64) collate utf8mb3_bin DEFAULT NULL
                       AFTER collation_connection;
 ALTER TABLE event MODIFY db_collation
-                         char(32) collate utf8mb3_bin DEFAULT NULL;
+                         char(64) collate utf8mb3_bin DEFAULT NULL;
 
 ALTER TABLE event ADD body_utf8 longblob DEFAULT NULL
                       AFTER db_collation;
@@ -706,7 +717,7 @@ ALTER TABLE user ADD plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL AF
 ALTER TABLE user CHANGE auth_string authentication_string TEXT NOT NULL;
 
 ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER authentication_string;
-ALTER TABLE user ADD password_last_changed timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL after password_expired;
+ALTER TABLE user ADD password_last_changed timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP after password_expired;
 ALTER TABLE user ADD password_lifetime smallint unsigned DEFAULT NULL after password_last_changed;
 ALTER TABLE user ADD account_locked enum('N', 'Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL after password_lifetime;
 ALTER TABLE user ADD is_role enum('N', 'Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER account_locked;
@@ -728,7 +739,7 @@ ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL
 -- used by MariaDB. MariaDB-10.4 will use these in the creation of mysql.global_priv.
 -- password_last_changed has a DEFAULT/ON UPDATE of CURRENT_TIMESTAMP to keep track of
 -- time until 10.4 added.
-                 MODIFY IF EXISTS password_last_changed timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER max_statement_time,
+                 MODIFY IF EXISTS password_last_changed timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER max_statement_time,
                  MODIFY IF EXISTS password_lifetime smallint unsigned DEFAULT NULL AFTER password_last_changed,
                  MODIFY IF EXISTS account_locked enum('N', 'Y') CHARACTER SET utf8mb3 DEFAULT 'N' NOT NULL after password_lifetime;
 
@@ -791,9 +802,6 @@ flush privileges;
 
 ALTER TABLE help_category MODIFY url TEXT NOT NULL;
 ALTER TABLE help_topic MODIFY url TEXT NOT NULL;
-
-# MDEV-7383 - varbinary on mix/max of column_stats
-alter table column_stats modify min_value varbinary(255) DEFAULT NULL, modify max_value varbinary(255) DEFAULT NULL;
 
 DELIMITER //
 IF 'BASE TABLE' = (select table_type from information_schema.tables where table_schema=database() and table_name='user') THEN

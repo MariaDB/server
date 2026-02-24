@@ -63,7 +63,7 @@ c	d
 3	27
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
-RESET SLAVE;
+include/reset_slave.inc
 connection master;
 RESET MASTER;
 SET SESSION BINLOG_FORMAT=STATEMENT;

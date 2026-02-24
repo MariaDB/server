@@ -1,0 +1,19 @@
+--- suite/innodb/r/compression_providers_loaded.result
++++ suite/innodb/r/compression_providers_loaded.reject
+@@ -1,10 +1,10 @@
+ #
+-# Testing unloaded compression provider: bzip2
++# Testing unloaded compression provider: lzo
+ #
+-# Innodb_have_bzip2 reflects that the provider is loaded
+-SHOW GLOBAL STATUS WHERE Variable_name = "Innodb_have_bzip2";
++# Innodb_have_lzo reflects that the provider is loaded
++SHOW GLOBAL STATUS WHERE Variable_name = "Innodb_have_lzo";
+ Variable_name	Value
+-Innodb_have_bzip2	ON
+-# Innodb_compression_algorithm can be set to bzip2
+-SET GLOBAL Innodb_compression_algorithm = bzip2;
++Innodb_have_lzo	ON
++# Innodb_compression_algorithm can be set to lzo
++SET GLOBAL Innodb_compression_algorithm = lzo;
+ SET GLOBAL Innodb_compression_algorithm = zlib;

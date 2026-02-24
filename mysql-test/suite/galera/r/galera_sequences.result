@@ -206,7 +206,7 @@ t	CREATE TABLE `t` (
 ) ENGINE=InnoDB SEQUENCE=1
 connection node_1;
 DROP SEQUENCE t;
-CREATE SEQUENCE t INCREMENT BY 1 NOCACHE ENGINE=INNODB;
+CREATE SEQUENCE t INCREMENT BY 0 CACHE 1 ENGINE=INNODB;
 CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
 connection node_2;
 # Wait DDL to replicate

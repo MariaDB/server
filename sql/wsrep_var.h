@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2023 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -96,6 +96,7 @@ extern bool wsrep_desync_update              UPDATE_ARGS;
 extern bool wsrep_trx_fragment_size_check    CHECK_ARGS;
 extern bool wsrep_trx_fragment_size_update   UPDATE_ARGS;
 
+extern bool wsrep_trx_fragment_unit_check    CHECK_ARGS;
 extern bool wsrep_trx_fragment_unit_update   UPDATE_ARGS;
 
 extern bool wsrep_max_ws_size_check          CHECK_ARGS;
@@ -110,9 +111,6 @@ extern bool wsrep_gtid_seq_no_check          CHECK_ARGS;
 extern bool wsrep_gtid_domain_id_update      UPDATE_ARGS;
 
 extern bool wsrep_mode_check                 CHECK_ARGS;
-extern bool wsrep_strict_ddl_update          UPDATE_ARGS;
-extern bool wsrep_replicate_myisam_update    UPDATE_ARGS;
-extern bool wsrep_replicate_myisam_check     CHECK_ARGS;
 extern bool wsrep_forced_binlog_format_check CHECK_ARGS;
 #else  /* WITH_WSREP */
 

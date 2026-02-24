@@ -2,7 +2,7 @@ set @save_userstat=@@global.userstat;
 create user foo@localhost identified by 'foo';
 flush user_statistics;
 set global userstat=1;
-connect foo, localhost, foo, foo;
+connect foo, localhost, foo, foo, "*NO-ONE*";
 select 1;
 1
 1
@@ -12,7 +12,7 @@ select user, bytes_received from information_schema.user_statistics where user =
 user	bytes_received
 foo	18
 connect(localhost,foo,bar,test,MASTER_PORT,MASTER_SOCKET);
-connect foo, localhost, foo, bar;
+connect foo, localhost, foo, bar, test;
 ERROR 28000: Access denied for user 'foo'@'localhost' (using password: YES)
 connection default;
 select user, bytes_received from information_schema.user_statistics where user = 'foo';

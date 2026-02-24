@@ -1,0 +1,15 @@
+--source include/have_rocksdb.inc
+
+CREATE DATABASE mysqltest;
+USE mysqltest;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES(42);
+DROP TABLE t1;
+DROP DATABASE mysqltest;
+
+--echo Check for MyRocks info LOG files
+--replace_regex /.*LOG/db_LOG/
+--list_files $MYSQL_TMP_DIR *LOG
+
+# Clean up
+remove_files_wildcard $MYSQL_TMP_DIR/./ *LOG;

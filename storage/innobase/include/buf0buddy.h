@@ -24,17 +24,13 @@ Binary buddy allocator for compressed pages
 Created December 2006 by Marko Makela
 *******************************************************/
 
-#ifndef buf0buddy_h
-#define buf0buddy_h
-
+#pragma once
 #include "buf0types.h"
 
 /**
 @param[in]	block size in bytes
 @return index of buf_pool.zip_free[], or BUF_BUDDY_SIZES */
-inline
-ulint
-buf_buddy_get_slot(ulint size)
+inline ulint buf_buddy_get_slot(ulint size) noexcept
 {
 	ulint	i;
 	ulint	s;
@@ -53,13 +49,13 @@ buf_buddy_get_slot(ulint size)
 @param i      index of buf_pool.zip_free[] or BUF_BUDDY_SIZES
 @param lru    assigned to true if buf_pool.mutex was temporarily released
 @return allocated block, never NULL */
-byte *buf_buddy_alloc_low(ulint i, bool *lru) MY_ATTRIBUTE((malloc));
+byte *buf_buddy_alloc_low(ulint i, bool *lru) noexcept MY_ATTRIBUTE((malloc));
 
 /** Allocate a ROW_FORMAT=COMPRESSED block.
 @param size   compressed page size in bytes
 @param lru    assigned to true if buf_pool.mutex was temporarily released
 @return allocated block, never NULL */
-inline byte *buf_buddy_alloc(ulint size, bool *lru= nullptr)
+inline byte *buf_buddy_alloc(ulint size, bool *lru= nullptr) noexcept
 {
   return buf_buddy_alloc_low(buf_buddy_get_slot(size), lru);
 }
@@ -68,24 +64,26 @@ inline byte *buf_buddy_alloc(ulint size, bool *lru= nullptr)
 @param[in]	buf	block to be freed, must not be pointed to
 			by the buffer pool
 @param[in]	i	index of buf_pool.zip_free[], or BUF_BUDDY_SIZES */
-void buf_buddy_free_low(void* buf, ulint i);
+void buf_buddy_free_low(void* buf, ulint i) noexcept;
 
 /** Deallocate a block.
 @param[in]	buf	block to be freed, must not be pointed to
 			by the buffer pool
 @param[in]	size	block size in bytes */
-inline void buf_buddy_free(void* buf, ulint size)
+inline void buf_buddy_free(void* buf, ulint size) noexcept
 {
-	buf_buddy_free_low(buf, buf_buddy_get_slot(size));
+  buf_buddy_free_low(buf, buf_buddy_get_slot(size));
 }
 
-/** Try to reallocate a block.
-@param[in]	buf		block to be reallocated, must be pointed
-to by the buffer pool
-@param[in]	size		block size, up to srv_page_size
-@retval false	if failed because of no free blocks. */
-bool buf_buddy_realloc(void* buf, ulint size);
+ATTRIBUTE_COLD MY_ATTRIBUTE((nonnull, warn_unused_result))
+/** Reallocate a ROW_FORMAT=COMPRESSED page frame during buf_pool_t::shrink().
+@param bpage page descriptor covering a ROW_FORMAT=COMPRESSED page
+@param block uncompressed block for storage
+@return block
+@retval nullptr if the block was consumed */
+ATTRIBUTE_COLD
+buf_block_t *buf_buddy_shrink(buf_page_t *bpage, buf_block_t *block) noexcept;
 
-/** Combine all pairs of free buddies. */
-void buf_buddy_condense_free();
-#endif /* buf0buddy_h */
+/** Combine all pairs of free buddies.
+@param size  the target innodb_buffer_pool_size */
+ATTRIBUTE_COLD void buf_buddy_condense_free(size_t size) noexcept;

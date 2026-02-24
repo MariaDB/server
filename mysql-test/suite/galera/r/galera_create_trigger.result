@@ -5,6 +5,7 @@ CREATE TABLE definer_user (f1 INTEGER, trigger_user VARCHAR(100)) ENGINE=InnoDB;
 CREATE TABLE definer_current_user (f1 INTEGER, trigger_user VARCHAR(100)) ENGINE=InnoDB;
 CREATE TABLE definer_default (f1 INTEGER, trigger_user VARCHAR(100)) ENGINE=InnoDB;
 CREATE USER 'user1';
+GRANT ALL ON test.* to 'user1';
 CREATE DEFINER=root@localhost TRIGGER definer_root BEFORE INSERT ON definer_root FOR EACH ROW SET NEW.trigger_user = CURRENT_USER();
 CREATE DEFINER=user1 TRIGGER definer_user BEFORE INSERT ON definer_user FOR EACH ROW SET NEW.trigger_user = CURRENT_USER();
 CREATE DEFINER=current_user TRIGGER definer_current_user BEFORE INSERT ON definer_current_user FOR EACH ROW SET NEW.trigger_user = CURRENT_USER();

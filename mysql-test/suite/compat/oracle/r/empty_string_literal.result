@@ -156,7 +156,7 @@ c1	c2
 1	one
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE VIEW "v1" AS select "t1"."c1" AS "c1","t1"."c2" AS "c2" from "t1" union select "t1"."c1" AS "c1",NULL AS "NULL" from "t1" order by 1,2	cp1250	latin2_general_ci
+v1	CREATE VIEW "v1" AS select "__4"."c1" AS "c1","__4"."c2" AS "c2" from (select "__5"."c1" AS "c1","__5"."c2" AS "c2" from (select "t1"."c1" AS "c1","t1"."c2" AS "c2" from "t1" union select "t1"."c1" AS "c1",NULL AS "NULL" from "t1") "__5") "__4" order by 1,2	cp1250	latin2_general_ci
 DROP VIEW v1;
 DROP TABLE t1;
 EXPLAIN EXTENDED SELECT '';

@@ -1,4 +1,3 @@
-drop table if exists t1,t2,t3;
 create table t1 (libname varchar(21) not null, city text, primary key (libname));
 create table t2 (isbn varchar(21) not null, author text, title text, primary key (isbn));
 create table t3 (isbn varchar(21) not null, libname varchar(21) not null, quantity int ,primary key (isbn,libname));
@@ -135,3 +134,16 @@ count(distinct a)
 10
 drop table t1;
 set @@tmp_table_size = default;
+#
+# End of 5.5 tests
+#
+#
+# MDEV-26452 SIGSEGV in Item::cleanup from Item::cleanup_processor
+#
+create table t (a int,b date,primary key(a,b));
+select b,count(distinct a) from t group by b having b is null;
+b	count(distinct a)
+drop table t;
+#
+# End of 10.7 tests
+#

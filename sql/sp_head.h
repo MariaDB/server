@@ -519,6 +519,18 @@ private:
                                                sp_assignment_lex *param_lex,
                                                Item_args *parameters);
 
+  bool bind_input_param(THD *thd,
+                        Item *arg_item,
+                        uint arg_no,
+                        sp_rcontext *nctx,
+                        bool is_function);
+
+  bool bind_output_param(THD *thd,
+                         Item *arg_item,
+                         uint arg_no,
+                         sp_rcontext *octx,
+                         sp_rcontext *nctx);
+
 public:
   /**
     Generate a code for an "OPEN cursor" statement.
@@ -575,7 +587,7 @@ public:
   { return m_flags & MODIFIES_DATA; }
 
   inline uint instructions()
-  { return m_instr.elements; }
+  { return (uint)m_instr.elements; }
 
   inline sp_instr *
   last_instruction()

@@ -252,7 +252,7 @@ Blob Handshake_client::process_data(const Blob &data)
   static byte test_buf[2048];
 
   if (m_round == 1 
-      && DBUG_EVALUATE_IF("winauth_first_packet_test", true, false))
+      && DBUG_IF("winauth_first_packet_test"))
   {
     const char *env= getenv("TEST_PACKET_LENGTH");
     size_t len= env ? atoi(env) : 0;

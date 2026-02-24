@@ -9,7 +9,7 @@ INSERT INTO t VALUES(1);
 SHOW VARIABLES like 'log_bin';
 
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --target-dir=$basedir;
 --enable_result_log
 
 exec $XTRABACKUP --prepare --binlog-info=1 --target-dir=$basedir ;

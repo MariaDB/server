@@ -1,3 +1,5 @@
+SET GLOBAL innodb_fast_shutdown=0;
+# restart: --innodb_undo_tablespaces=2
 SET GLOBAL innodb_undo_log_truncate = 0;
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path

@@ -21,7 +21,7 @@ SHOW TABLES;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE 
  SHOW CREATE TABLE t1;
---error ER_DROP_PARTITION_NON_EXISTENT
+--error ER_PARTITION_DOES_NOT_EXIST
 ALTER TABLE t1 DROP PARTITION s2;
 ALTER TABLE t1 DROP PARTITION s1;
 SELECT * FROM t1 ORDER BY c1;
@@ -52,7 +52,7 @@ SHOW TABLES;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE 
  SHOW CREATE TABLE t1;
---error ER_DROP_PARTITION_NON_EXISTENT 
+--error ER_PARTITION_DOES_NOT_EXIST 
 ALTER TABLE t1 DROP PARTITION s2;
 ALTER TABLE t1 DROP PARTITION s1;
 SELECT * FROM t1 ORDER BY c1;
@@ -83,7 +83,7 @@ SHOW TABLES;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE 
  SHOW CREATE TABLE t1;
---error ER_DROP_PARTITION_NON_EXISTENT
+--error ER_PARTITION_DOES_NOT_EXIST
 ALTER TABLE t1 DROP PARTITION s2;
 ALTER TABLE t1 DROP PARTITION s1;
 SELECT * FROM t1 ORDER BY c1;
@@ -114,7 +114,7 @@ SHOW TABLES;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE 
  SHOW CREATE TABLE t1;
---error ER_DROP_PARTITION_NON_EXISTENT
+--error ER_PARTITION_DOES_NOT_EXIST
 ALTER TABLE t1 DROP PARTITION s2;
 ALTER TABLE t1 DROP PARTITION s1;
 SELECT * FROM t1 ORDER BY c1;
@@ -145,7 +145,7 @@ SHOW TABLES;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE 
  SHOW CREATE TABLE t1;
---error ER_DROP_PARTITION_NON_EXISTENT
+--error ER_PARTITION_DOES_NOT_EXIST
 ALTER TABLE t1 DROP PARTITION s2;
 ALTER TABLE t1 DROP PARTITION s1;
 SELECT * FROM t1 ORDER BY c1;
@@ -176,7 +176,7 @@ SHOW TABLES;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE 
  SHOW CREATE TABLE t1;
---error ER_DROP_PARTITION_NON_EXISTENT
+--error ER_PARTITION_DOES_NOT_EXIST
 ALTER TABLE t1 DROP PARTITION s2;
 ALTER TABLE t1 DROP PARTITION s1;
 SELECT * FROM t1 ORDER BY c1;

@@ -11,8 +11,8 @@ SELECT plugin,authentication_string FROM mysql.user WHERE User='plug';
 plugin	authentication_string
 test_plugin_server	plug_dest
 ## test plugin auth
-connect(localhost,plug,plug_dest,test,MYSQL_PORT,MYSQL_SOCK);
-connect plug_con,localhost,plug,plug_dest;
+connect(localhost,plug,plug_dest,,MYSQL_PORT,MYSQL_SOCK);
+connect plug_con,localhost,plug,plug_dest,"*NO-ONE*";
 ERROR 28000: Access denied for user 'plug'@'localhost' (using password: YES)
 GRANT PROXY ON plug_dest TO plug;
 test proxies_priv columns
@@ -33,7 +33,7 @@ proxies_priv	CREATE TABLE `proxies_priv` (
   PRIMARY KEY (`Host`,`User`,`Proxied_host`,`Proxied_user`),
   KEY `Grantor` (`Grantor`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='User proxy privileges'
-connect plug_con,localhost,plug,plug_dest;
+connect plug_con,localhost,plug,plug_dest,"*NO-ONE*";
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 plug@localhost	plug_dest@%
@@ -46,14 +46,14 @@ connect(localhost,plug,bad_credentials,test,MYSQL_PORT,MYSQL_SOCK);
 connect plug_con,localhost,plug,bad_credentials;
 ERROR 28000: Access denied for user 'plug'@'localhost' (using password: YES)
 ## test bad default plugin : nothing bad happens, as that plugin was't required by the server
-connect plug_con_wrongp,localhost,plug,plug_dest,,,,,wrong_plugin_name;
+connect plug_con_wrongp,localhost,plug,plug_dest,"*NO-ONE*",,,,wrong_plugin_name;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 plug@localhost	plug_dest@%
 connection default;
 disconnect plug_con_wrongp;
 ## test correct default plugin
-connect plug_con_rightp,localhost,plug,plug_dest,,,,,auth_test_plugin;
+connect plug_con_rightp,localhost,plug,plug_dest,"*NO-ONE*",,,,auth_test_plugin;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 plug@localhost	plug_dest@%
@@ -67,7 +67,7 @@ DROP USER grant_user;
 ## test utf-8 user name
 CREATE USER `Ÿ` IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 GRANT PROXY ON plug_dest TO `Ÿ`;
-connect non_ascii,localhost,Ÿ,plug_dest;
+connect non_ascii,localhost,Ÿ,plug_dest,"*NO-ONE*";
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 Ÿ@localhost	plug_dest@%
@@ -80,7 +80,8 @@ CREATE DATABASE test_grant_db;
 GRANT ALL PRIVILEGES ON test_grant_db.* TO new_grant_user 
 IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 GRANT PROXY ON plug_dest TO new_grant_user;
-connect plug_con_grant,localhost,new_grant_user,plug_dest;
+GRANT CREATE, DROP ON test_grant_db.* TO 'plug_dest'@'%';
+connect plug_con_grant,localhost,new_grant_user,plug_dest,"*NO-ONE*";
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 new_grant_user@localhost	plug_dest@%
@@ -96,11 +97,10 @@ IDENTIFIED BY 'new_password';
 connect(localhost,new_grant_user,plug_dest,test,MYSQL_PORT,MYSQL_SOCK);
 connect plug_con_grant_deny,localhost,new_grant_user,plug_dest;
 ERROR 28000: Access denied for user 'new_grant_user'@'localhost' (using password: YES)
-connect plug_con_grant,localhost,new_grant_user,new_password;
+connect plug_con_grant,localhost,new_grant_user,new_password,test_grant_db;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 new_grant_user@localhost	new_grant_user@%
-USE test_grant_db;
 CREATE TABLE t1 (a INT);
 DROP TABLE t1;
 connection default;
@@ -137,7 +137,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 # this should fail : no such grant
 REVOKE PROXY ON grant_plug_dest FROM grant_plug;
 ERROR 42000: There is no such grant defined for user 'grant_plug' on host '%'
-connect grant_plug_dest_con,localhost,grant_plug_dest,grant_plug_dest_passwd;
+connect grant_plug_dest_con,localhost,grant_plug_dest,grant_plug_dest_passwd,"*NO-ONE*";
 ## testing what an ordinary user can grant 
 this should fail : no rights to grant all
 GRANT PROXY ON ''@'%%' TO grant_plug;
@@ -219,7 +219,7 @@ ERROR HY000: Variable 'proxy_user' is a read only variable
 SELECT @@LOCAL.proxy_user;
 @@LOCAL.proxy_user
 NULL
-connect plug_con,localhost,plug,plug_dest;
+connect plug_con,localhost,plug,plug_dest,"*NO-ONE*";
 SELECT @@LOCAL.proxy_user;
 @@LOCAL.proxy_user
 'plug'@'%'
@@ -248,7 +248,7 @@ ERROR HY000: Variable 'external_user' is a read only variable
 SELECT @@LOCAL.external_user;
 @@LOCAL.external_user
 NULL
-connect plug_con,localhost,plug,plug_dest;
+connect plug_con,localhost,plug,plug_dest,"*NO-ONE*";
 SELECT @@LOCAL.external_user;
 @@LOCAL.external_user
 plug_dest
@@ -348,7 +348,7 @@ CREATE USER uplain@localhost IDENTIFIED WITH 'cleartext_plugin_server'
   AS 'cleartext_test';
 ## test plugin auth
 ERROR 28000: Access denied for user 'uplain'@'localhost' (using password: YES)
-connect cleartext_con,localhost,uplain,cleartext_test;
+connect cleartext_con,localhost,uplain,cleartext_test,"*NO-ONE*";
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 uplain@localhost	uplain@localhost
@@ -454,7 +454,7 @@ ERROR 1045 (28000): Access denied for user 'unknown'@'localhost' (using password
 CREATE USER bug12610784@localhost;
 SET PASSWORD FOR bug12610784@localhost = PASSWORD('secret');
 ERROR 28000: Access denied for user 'bug12610784'@'localhost' (using password: NO)
-connect b12610784,localhost,bug12610784,secret,test;
+connect b12610784,localhost,bug12610784,secret,"*NO-ONE*";
 connection default;
 disconnect b12610784;
 DROP USER bug12610784@localhost;
@@ -467,14 +467,14 @@ IDENTIFIED WITH 'test_plugin_server' AS 'bug12818542_dest';
 CREATE USER bug12818542_dest@localhost 
 IDENTIFIED BY 'bug12818542_dest_passwd';
 GRANT PROXY ON bug12818542_dest@localhost TO bug12818542@localhost;
-connect bug12818542_con,localhost,bug12818542,bug12818542_dest;
+connect bug12818542_con,localhost,bug12818542,bug12818542_dest,"*NO-ONE*";
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 bug12818542@localhost	bug12818542_dest@localhost
 SET PASSWORD = PASSWORD('bruhaha');
 connection default;
 disconnect bug12818542_con;
-connect bug12818542_con2,localhost,bug12818542,bug12818542_dest;
+connect bug12818542_con2,localhost,bug12818542,bug12818542_dest,"*NO-ONE*";
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 bug12818542@localhost	bug12818542_dest@localhost

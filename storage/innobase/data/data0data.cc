@@ -79,40 +79,6 @@ void dtuple_t::trim(const dict_index_t& index)
 	n_fields = i;
 }
 
-/** Compare two data tuples.
-@param[in] tuple1 first data tuple
-@param[in] tuple2 second data tuple
-@return positive, 0, negative if tuple1 is greater, equal, less, than tuple2,
-respectively */
-int
-dtuple_coll_cmp(
-	const dtuple_t*	tuple1,
-	const dtuple_t*	tuple2)
-{
-	ulint	n_fields;
-	ulint	i;
-	int	cmp;
-
-	ut_ad(tuple1 != NULL);
-	ut_ad(tuple2 != NULL);
-	ut_ad(tuple1->magic_n == DATA_TUPLE_MAGIC_N);
-	ut_ad(tuple2->magic_n == DATA_TUPLE_MAGIC_N);
-	ut_ad(dtuple_check_typed(tuple1));
-	ut_ad(dtuple_check_typed(tuple2));
-
-	n_fields = dtuple_get_n_fields(tuple1);
-
-	cmp = (int) n_fields - (int) dtuple_get_n_fields(tuple2);
-
-	for (i = 0; cmp == 0 && i < n_fields; i++) {
-		const dfield_t*	field1	= dtuple_get_nth_field(tuple1, i);
-		const dfield_t*	field2	= dtuple_get_nth_field(tuple2, i);
-		cmp = cmp_dfield_dfield(field1, field2);
-	}
-
-	return(cmp);
-}
-
 /*********************************************************************//**
 Sets number of fields used in a tuple. Normally this is set in
 dtuple_create, but if you want later to set it smaller, you can use this. */
@@ -466,8 +432,10 @@ dfield_print_raw(
 		ulint	print_len = ut_min(len, static_cast<ulint>(1000));
 		ut_print_buf(f, dfield_get_data(dfield), print_len);
 		if (len != print_len) {
-			fprintf(f, "(total %lu bytes%s)",
-				(ulong) len,
+			std::ostringstream str_bytes;
+			str_bytes << ib::bytes_iec{len};
+			fprintf(f, "(total %s%s)",
+				str_bytes.str().c_str(),
 				dfield_is_ext(dfield) ? ", external" : "");
 		}
 	} else {
@@ -599,7 +567,7 @@ dtuple_convert_big_rec(
 	size = rec_get_converted_size(index, entry, *n_ext);
 
 	if (UNIV_UNLIKELY(size > 1000000000)) {
-		ib::warn() << "Tuple size is very big: " << size;
+		ib::warn() << "Tuple size is very big: " << ib::bytes_iec{size};
 		fputs("InnoDB: Tuple contents: ", stderr);
 		dtuple_print(stderr, entry);
 		putc('\n', stderr);

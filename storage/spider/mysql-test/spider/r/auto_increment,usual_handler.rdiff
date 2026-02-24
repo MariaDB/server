@@ -1,0 +1,11 @@
+--- ../src/storage/spider/mysql-test/spider/r/auto_increment.result	2024-06-21 13:39:03.368040208 +1000
++++ ../src/storage/spider/mysql-test/spider/r/auto_increment.reject	2025-10-22 17:41:24.231571237 +1100
+@@ -154,7 +154,7 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+-select t0.`col_a` `col_a`,t0.`col_b` `col_b`,t0.`col_c` `col_c` from `auto_test_remote`.`tbl_a` t0
++select `col_a`,`col_b`,`col_c` from `auto_test_remote`.`tbl_a`
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+ SELECT col_a, col_b, col_c FROM tbl_a ORDER BY col_a;
+ col_a	col_b	col_c

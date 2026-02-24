@@ -383,9 +383,9 @@ t1 where object_id=85984;
 drop table t1;
 
 create table t1 (fl geometry not null);
---error 1416
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 insert into t1 values (1);
---error 1416
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 insert into t1 values (1.11);
 --error 1416
 insert into t1 values ("qwerty");

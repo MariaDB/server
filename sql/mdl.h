@@ -172,7 +172,7 @@ enum enum_mdl_type {
     cases when we only need to access metadata and not data, e.g. when
     filling an INFORMATION_SCHEMA table.
     Since SH lock is compatible with SNRW lock, the connection that
-    holds SH lock lock should not try to acquire any kind of table-level
+    holds the SH lock should not try to acquire any kind of table-level
     or row-level lock, as this can lead to a deadlock. Moreover, after
     acquiring SH lock, the connection should not wait for any other
     resource, as it might cause starvation for X locks and a potential
@@ -414,8 +414,8 @@ public:
 
     @param  mdl_namespace Id of namespace of object to be locked
     @param  db            Name of database to which the object belongs
-    @param  name          Name of of the object
-    @param  key           Where to store the the MDL key.
+    @param  name          Name of the object
+    @param  key           Where to store the MDL key.
   */
   void mdl_key_init(enum_mdl_namespace mdl_namespace_arg,
                     const char *db, const char *name_arg)
@@ -699,7 +699,17 @@ public:
   */
   MDL_ticket *next_in_context;
   MDL_ticket **prev_in_context;
+
+#ifndef DBUG_OFF
+  /**
+    Duration of lock represented by this ticket.
+    Context public. Debug-only.
+  */
 public:
+  enum_mdl_duration m_duration;
+#endif
+  ulonglong m_time;
+
 #ifdef WITH_WSREP
   void wsrep_report(bool debug) const;
 #endif /* WITH_WSREP */
@@ -741,10 +751,12 @@ private:
              , enum_mdl_duration duration_arg
 #endif
             )
-   : m_type(type_arg),
+   :
 #ifndef DBUG_OFF
      m_duration(duration_arg),
 #endif
+     m_time(0),
+     m_type(type_arg),
      m_ctx(ctx_arg),
      m_lock(NULL),
      m_psi(NULL)
@@ -764,13 +776,7 @@ private:
 private:
   /** Type of metadata lock. Externally accessible. */
   enum enum_mdl_type m_type;
-#ifndef DBUG_OFF
-  /**
-    Duration of lock represented by this ticket.
-    Context private. Debug-only.
-  */
-  enum_mdl_duration m_duration;
-#endif
+
   /**
     Context of the owner of the metadata lock ticket. Externally accessible.
   */

@@ -64,13 +64,16 @@ if ($binlog_f2_mid > $binlog_f1_end)
   --die Mid point chosen to end in binlog 2 does not exist in earlier binlog
 }
 
-#--echo #
-#--echo #
-#--echo # Test using --read-from-remote-server
-#--echo #
-#--let $read_from_remote_server= 1
-#--emit warning is not supported by --read-from-remote-server now
-#--source binlog_mysqlbinlog_warn_stop_position.inc
+--let $domain_id= `SELECT @@GLOBAL.gtid_domain_id`
+--let $binlog_f1_over_eof= `SELECT $binlog_f1_end + 1`
+--let $binlog_f2_over_eof= `SELECT $binlog_f2_end + 1`
+
+--echo #
+--echo #
+--echo # Test using --read-from-remote-server
+--echo #
+--let $read_from_remote_server= 1
+--source binlog_mysqlbinlog_warn_stop_position.inc
 
 --echo #
 --echo #

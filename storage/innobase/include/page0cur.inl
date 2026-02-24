@@ -185,6 +185,7 @@ page_cur_tuple_insert(
 		rec = page_cur_insert_rec_low(cursor, rec, *offsets, mtr);
 	}
 
-	ut_ad(!rec || !cmp_dtuple_rec(tuple, rec, *offsets));
+	ut_ad(!rec || !cmp_dtuple_rec(tuple, rec, cursor->index, *offsets));
 	return(rec);
 }
+

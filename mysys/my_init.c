@@ -22,6 +22,9 @@
 #include <m_ctype.h>
 #include <signal.h>
 #include <mysql/psi/mysql_stage.h>
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
 #ifdef _WIN32
 #ifdef _MSC_VER
 #include <locale.h>
@@ -31,8 +34,13 @@
 #endif
 static void my_win_init(void);
 static my_bool win32_init_tcp_ip();
+static void setup_codepages();
 #else
 #define my_win_init()
+#endif
+
+#if defined(_SC_PAGE_SIZE) && !defined(_SC_PAGESIZE)
+#define _SC_PAGESIZE _SC_PAGE_SIZE
 #endif
 
 extern pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
@@ -42,6 +50,7 @@ extern pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
 
 my_bool my_init_done= 0;
 uint	mysys_usage_id= 0;              /* Incremented for each my_init() */
+size_t  my_system_page_size= 8192;	/* Default if no sysconf() */
 
 ulonglong   my_thread_stack_size= (sizeof(void*) <= 4)? 65536: ((256-16)*1024);
 
@@ -58,6 +67,69 @@ static mode_t atoi_octal(const char *str)
 
 MYSQL_FILE *mysql_stdin= NULL;
 static MYSQL_FILE instrumented_stdin;
+
+#ifdef _WIN32
+static UINT orig_console_cp, orig_console_output_cp;
+
+static void reset_console_cp(void)
+{
+  /*
+    We try not to call SetConsoleCP unnecessarily, to workaround a bug on
+    older Windows 10 (1803), which could switch truetype console fonts to
+    raster, eventhough SetConsoleCP would be a no-op (switch from UTF8 to UTF8).
+  */
+  if (GetConsoleCP() != orig_console_cp)
+    SetConsoleCP(orig_console_cp);
+  if (GetConsoleOutputCP() != orig_console_output_cp)
+    SetConsoleOutputCP(orig_console_output_cp);
+}
+
+/*
+  The below fixes discrepancies in console output and
+  command line parameter encoding. command line is in
+  ANSI codepage, output to console by default is in OEM, but
+  we like them to be in the same encoding.
+
+  We do this only if current codepage is UTF8, i.e when we
+  know we're on Windows that can handle UTF8 well.
+*/
+static void setup_codepages()
+{
+  UINT acp;
+  BOOL is_a_tty= fileno(stdout) >= 0 && isatty(fileno(stdout));
+
+  if (is_a_tty)
+  {
+    /*
+      Save console codepages, in case we change them,
+      to restore them on exit.
+    */
+    orig_console_cp= GetConsoleCP();
+    orig_console_output_cp= GetConsoleOutputCP();
+    if (orig_console_cp && orig_console_output_cp)
+      atexit(reset_console_cp);
+  }
+
+  if ((acp= GetACP()) != CP_UTF8)
+    return;
+
+  /*
+    Use setlocale to make mbstowcs/mkdir/getcwd behave, see
+    https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/setlocale-wsetlocale
+  */
+  setlocale(LC_ALL, "en_US.UTF8");
+
+  if (is_a_tty && (orig_console_cp != acp || orig_console_output_cp != acp))
+  {
+    /*
+      If ANSI codepage is UTF8, we actually want to switch console
+      to it as well.
+    */
+    SetConsoleCP(acp);
+    SetConsoleOutputCP(acp);
+  }
+}
+#endif
 
 /**
   Initialize my_sys functions, resources and variables
@@ -79,6 +151,7 @@ my_bool my_init(void)
   my_umask= 0660;                       /* Default umask for new files */
   my_umask_dir= 0700;                   /* Default umask for new directories */
   my_global_flags= 0;
+  my_system_page_size= my_getpagesize();
 
   /* Default creation of new files */
   if ((str= getenv("UMASK")) != 0)
@@ -326,6 +399,16 @@ static void my_win_init(void)
 
   _tzset();
 
+  /* Disable automatic LF->CRLF translation. */
+  FILE* stdf[]= {stdin, stdout, stderr};
+  for (int i= 0; i < array_elements(stdf); i++)
+  {
+    int fd= fileno(stdf[i]);
+    if (fd >= 0)
+      (void) _setmode(fd, O_BINARY);
+  }
+  _set_fmode(O_BINARY);
+  setup_codepages();
   DBUG_VOID_RETURN;
 }
 

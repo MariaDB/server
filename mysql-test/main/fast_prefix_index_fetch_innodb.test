@@ -1,10 +1,6 @@
 -- source include/have_innodb.inc
 --disable_service_connection
 
-SET @save_opt= @@GLOBAL.innodb_prefix_index_cluster_optimization;
-set global innodb_prefix_index_cluster_optimization = ON;
-show variables like 'innodb_prefix_index_cluster_optimization';
-
 SET @save_innodb_stats_persistent=@@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = OFF;
 
@@ -29,206 +25,28 @@ insert into prefixinno values (1, 1001, repeat('a', 1)),
 
 select * from prefixinno;
 
-let $show_count_statement = show status like 'innodb_secondary_index_triggered_cluster_reads';
-let $show_opt_statement = show status like 'innodb_secondary_index_triggered_cluster_reads_avoided';
-
---echo # Baseline sanity check: 0, 0.
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
-select "no-op query";
-
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_ps2_protocol
---disable_cursor_protocol
---disable_query_log
-eval select $count - $base_count into @cluster_lookups;
-eval select $opt - $base_opt into @cluster_lookups_avoided;
---enable_query_log
---enable_cursor_protocol
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Eligible for optimization.
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 select id, bigfield from prefixinno where bigfield = repeat('d', 31);
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_cursor_protocol
---disable_query_log
-eval select $count - $base_count into @cluster_lookups;
-eval select $opt - $base_opt into @cluster_lookups_avoided;
---enable_query_log
---enable_cursor_protocol
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Eligible for optimization, access via fake_id only.
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 select id, bigfield from prefixinno where fake_id = 1031;
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_cursor_protocol
---disable_query_log
-eval select $count - $base_count into @cluster_lookups;
-eval select $opt - $base_opt into @cluster_lookups_avoided;
---enable_query_log
---enable_cursor_protocol
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Not eligible for optimization, access via fake_id of big row.
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 select id, bigfield from prefixinno where fake_id = 1033;
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_cursor_protocol
---disable_query_log
-eval select $count - $base_count into @cluster_lookups;
-eval select $opt - $base_opt into @cluster_lookups_avoided;
---enable_query_log
---enable_cursor_protocol
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Not eligible for optimization.
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 select id, bigfield from prefixinno where bigfield = repeat('x', 32);
-
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_cursor_protocol
---disable_query_log
-eval select $count - $base_count into @cluster_lookups;
-eval select $opt - $base_opt into @cluster_lookups_avoided;
---enable_query_log
---enable_cursor_protocol
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
---echo # Not eligible for optimization.
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 select id, bigfield from prefixinno where bigfield = repeat('y', 33);
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_cursor_protocol
---disable_query_log
-eval select $count - $base_count into @cluster_lookups;
-eval select $opt - $base_opt into @cluster_lookups_avoided;
---enable_query_log
---enable_cursor_protocol
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
---echo # Eligible, should not increment lookup counter.
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 select id, bigfield from prefixinno where bigfield = repeat('b', 8);
-
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_cursor_protocol
---disable_query_log
-eval select $count - $base_count into @cluster_lookups;
-eval select $opt - $base_opt into @cluster_lookups_avoided;
---enable_query_log
---enable_cursor_protocol
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
---echo # Eligible, should not increment lookup counter.
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 select id, bigfield from prefixinno where bigfield = repeat('c', 24);
-
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_cursor_protocol
---disable_query_log
-eval select $count - $base_count into @cluster_lookups;
-eval select $opt - $base_opt into @cluster_lookups_avoided;
---enable_query_log
---enable_cursor_protocol
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
---echo # Should increment lookup counter.
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 select id, bigfield from prefixinno where bigfield = repeat('z', 128);
-
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_cursor_protocol
---disable_query_log
-eval select $count - $base_count into @cluster_lookups;
-eval select $opt - $base_opt into @cluster_lookups_avoided;
---enable_query_log
---disable_cursor_protocol
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
---echo # Disable optimization, confirm we still increment counter.
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
-set global innodb_prefix_index_cluster_optimization = OFF;
 select id, bigfield from prefixinno where fake_id = 1033;
-
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_cursor_protocol
---disable_query_log
-eval select $count - $base_count into @cluster_lookups;
-eval select $opt - $base_opt into @cluster_lookups_avoided;
---enable_query_log
---enable_cursor_protocol
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
 
 drop table prefixinno;
 
 --echo # Multi-byte handling case
 
-set global innodb_prefix_index_cluster_optimization = ON;
 SET NAMES utf8mb4;
 CREATE TABLE t1(
 	f1 varchar(10) CHARACTER SET UTF8MB4 COLLATE UTF8MB4_BIN,
@@ -239,199 +57,37 @@ INSERT INTO t1 VALUES('தமிழ்'), ('🐱🌑'), ('🌒'), ('🌑');
 INSERT INTO t1 VALUES('😊me'), ('eu€'), ('ls¢');
 
 --echo # Eligible - record length is shorter than prefix
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 = 'a';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Not eligible - record length longer than prefix length
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 like 'c%';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Eligible - record length shorter than prefix length
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 = 'až';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Not eligible - record length longer than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 = 'தமிழ்';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Not eligible - record length longer than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 like 'ggᵷ%';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Not eligible - record length longer than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 like '😊%';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Not eligible - record length longer than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 = 'ls¢';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Eligible - record length shorter than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 like '¢¢%';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Eligible - record length shorter than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 like '🐱🌑%';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Not eligible - record length longer than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 like '🌑%';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Not eligible - record length longer than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 like '🌒%';
-
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
 
 DROP TABLE t1;
 
@@ -446,200 +102,37 @@ INSERT INTO t1 VALUES('தமிழ்'), ('🐱🌑'), ('🌒'), ('🌑');
 INSERT INTO t1 VALUES('😊me'), ('eu€'), ('ls¢');
 
 --echo # Eligible - record length is shorter than prefix
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 = 'a';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Not eligible - record length longer than prefix length
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 like 'c%';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Eligible - record length shorter than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 = 'až';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Not eligible - record length longer than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 = 'தமிழ்';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Not eligible - record length longer than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 like 'ggᵷ%';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Not eligible - record length longer than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 like '😊%';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Not eligible - record length longer than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 = 'ls¢';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Eligible - record length shorter than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX(`f1`) WHERE f1 like '¢¢%';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Eligible - record length shorter than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 like '🐱🌑%';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Eligible - record length is shorter than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 like '🌑%';
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Eligible - record length is shorter than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 like '🌒%';
-
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
 
 DROP TABLE t1;
 
@@ -651,42 +144,10 @@ INSERT INTO t1 VALUES (2, 'test'), (3, repeat('test1', 2000));
 INSERT INTO t1(col1) VALUES(1);
 
 --echo # Eligible - record length is shorter than prefix length
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT col1 FROM t1 FORCE INDEX (`idx1`) WHERE col2 is NULL;
 
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
 --echo # Not eligible - record length longer than prefix index
-
-let $base_count = query_get_value($show_count_statement, Value, 1);
-let $base_opt = query_get_value($show_opt_statement, Value, 1);
-
 SELECT col1 FROM t1 FORCE INDEX (`idx1`) WHERE col2 like 'test1%';
-
-let $count = query_get_value($show_count_statement, Value, 1);
-let $opt = query_get_value($show_opt_statement, Value, 1);
-
---disable_query_log
-eval set @cluster_lookups = $count - $base_count;
-eval set @cluster_lookups_avoided = $opt - $base_opt;
---enable_query_log
-
-select @cluster_lookups;
-select @cluster_lookups_avoided;
-
---enable_ps2_protocol
 
 DROP TABLE t1;
 
@@ -733,16 +194,10 @@ INSERT INTO wp_blogs (domain, path) VALUES
 ('foo', 'bar'), ('bar', 'foo'), ('foo', 'foo'), ('bar', 'bar'),
 ('foo', 'foobar'), ('bar', 'foobar'), ('foobar', 'foobar');
 
-SET GLOBAL innodb_prefix_index_cluster_optimization=off;
-SELECT blog_id FROM wp_blogs WHERE domain IN ('domain.no')
-AND path IN ( '/fondsinvesteringer/', '/' );
-
-SET GLOBAL innodb_prefix_index_cluster_optimization=on;
 SELECT blog_id FROM wp_blogs WHERE domain IN ('domain.no')
 AND path IN ( '/fondsinvesteringer/', '/' );
 
 DROP TABLE wp_blogs;
 
-SET GLOBAL innodb_prefix_index_cluster_optimization = @save_opt;
 SET GLOBAL innodb_stats_persistent = @save_innodb_stats_persistent;
 --enable_service_connection

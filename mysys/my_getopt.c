@@ -39,7 +39,7 @@ static double getopt_double(char *arg, const struct my_option *optp, int *err);
 static void init_variables(const struct my_option *, init_func_p);
 static void init_one_value(const struct my_option *, void *, longlong);
 static void fini_one_value(const struct my_option *, void *, longlong);
-static int setval(const struct my_option *, void *, char *, my_bool);
+static int setval(const struct my_option *, void *, char *, my_bool, const char *);
 static char *check_struct_option(char *cur_arg, char *key_name);
 
 /*
@@ -133,6 +133,45 @@ double getopt_ulonglong2double(ulonglong v)
   u.ull= v;
   return u.dbl;
 }
+
+#ifdef _WIN32
+/**
+
+ On Windows, if program is running in UTF8 mode, but some arguments are not UTF8.
+
+ This will mostly likely be a sign of old "ANSI" my.ini, and it is likely that
+ something will go wrong, e.g file access error.
+*/
+static void validate_value(const char *key, const char *value,
+                           const char *filename)
+{
+  MY_STRCOPY_STATUS status;
+  const struct charset_info_st *cs= &my_charset_utf8mb4_bin;
+  size_t len;
+  if (GetACP() != CP_UTF8)
+    return;
+  if (!(len= strlen(value)))
+    return;
+  cs->cset->well_formed_char_length(cs, value, value + len, len, &status);
+  if (!status.m_well_formed_error_pos)
+    return;
+  if (filename && *filename)
+  {
+    my_getopt_error_reporter(WARNING_LEVEL,
+      "%s: invalid (non-UTF8) characters found for option '%s'"
+      " in file '%s'",
+      my_progname, key, filename);
+  }
+  else
+  {
+    my_getopt_error_reporter(
+    WARNING_LEVEL, "%s: invalid (non-UTF8) characters for option %s",
+      my_progname, key);
+  }
+}
+#else
+#define validate_value(key, value, filename) (void)filename
+#endif
 
 #define SET_HO_ERROR_AND_CONTINUE(e) { ho_error= (e); (*argc)--; continue; }
 
@@ -567,7 +606,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 		}
 	      }
 	      if ((error= setval(optp, optp->value, argument,
-				 set_maximum_value)))
+                                 set_maximum_value,filename)))
 		SET_HO_ERROR_AND_CONTINUE(error)
               if (get_one_option(optp, argument, filename))
                 SET_HO_ERROR_AND_CONTINUE(EXIT_UNSPECIFIED_ERROR)
@@ -613,7 +652,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 	continue;
       }
       if ((!option_is_autoset) &&
-	  ((error= setval(optp, value, argument, set_maximum_value))) &&
+        ((error= setval(optp, value, argument, set_maximum_value,filename))) &&
           !option_is_loose)
 	SET_HO_ERROR_AND_CONTINUE(error)
       if (get_one_option(optp, argument, filename))
@@ -716,7 +755,7 @@ static my_bool get_bool_argument(const struct my_option *opts,
 */
 
 static int setval(const struct my_option *opts, void *value, char *argument,
-		  my_bool set_maximum_value)
+                  my_bool set_maximum_value, const char *option_file)
 {
   int err= 0, res= 0;
   DBUG_ENTER("setval");
@@ -869,6 +908,7 @@ static int setval(const struct my_option *opts, void *value, char *argument,
       goto ret;
     };
   }
+  validate_value(opts->name, argument, option_file);
   DBUG_RETURN(0);
 
 ret:

@@ -536,36 +536,53 @@ static bool write_db_opt(THD *thd, const char *path,
 
   DESCRIPTION
 
+  create->default_table_charset is guaranteed to be alway set
+  Required by some callers
+
   RETURN VALUES
   0	File found
-  1	No database file or could not open it
-
+  -1	No database file (file was not found or 'empty' file was cached)
+  1     Could not open it
 */
 
-bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
+int load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
 {
   File file;
   char buf[256+DATABASE_COMMENT_MAXLEN];
   DBUG_ENTER("load_db_opt");
-  bool error=1;
+  int error= 0;
   size_t nbytes;
   myf utf8_flag= thd->get_utf8_flag();
 
   bzero((char*) create,sizeof(*create));
-  create->default_table_charset= thd->variables.collation_server;
 
   /* Check if options for this database are already in the hash */
   if (!get_dbopt(thd, path, create))
-    DBUG_RETURN(0);
+  {
+    if (!create->default_table_charset)
+      error= -1;                                // db.opt did not exists
+    goto err1;
+  }
 
   /* Otherwise, load options from the .opt file */
   if ((file= mysql_file_open(key_file_dbopt,
                              path, O_RDONLY | O_SHARE, MYF(0))) < 0)
+  {
+    /*
+      Create an empty entry, to avoid doing an extra file open for every create
+      table.
+    */
+    put_dbopt(path, create);
+    error= -1;
     goto err1;
+  }
 
   IO_CACHE cache;
   if (init_io_cache(&cache, file, IO_SIZE, READ_CACHE, 0, 0, MYF(0)))
-    goto err2;
+  {
+    error= 1;
+    goto err2;                                  // Not cached
+  }
 
   while ((int) (nbytes= my_b_gets(&cache, (char*) buf, sizeof(buf))) > 0)
   {
@@ -586,7 +603,7 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
            default-collation commands.
         */
         if (!(create->default_table_charset=
-        get_charset_by_csname(pos+1, MY_CS_PRIMARY, MYF(utf8_flag))) &&
+              get_charset_by_csname(pos+1, MY_CS_PRIMARY, MYF(utf8_flag))) &&
             !(create->default_table_charset=
               get_charset_by_name(pos+1, MYF(utf8_flag))))
         {
@@ -621,9 +638,10 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
 err2:
   mysql_file_close(file, MYF(0));
 err1:
+  if (!create->default_table_charset)           // In case of error
+    create->default_table_charset= thd->variables.collation_server;
   DBUG_RETURN(error);
 }
-
 
 /*
   Retrieve database options by name. Load database options file or fetch from
@@ -651,11 +669,12 @@ err1:
     db_create_info right after that.
 
   RETURN VALUES (read NOTE!)
-    FALSE   Success
-    TRUE    Failed to retrieve options
+  0	File found
+  -1	No database file (file was not found or 'empty' file was cached)
+  1     Could not open it
 */
 
-bool load_db_opt_by_name(THD *thd, const char *db_name,
+int load_db_opt_by_name(THD *thd, const char *db_name,
                          Schema_specification_st *db_create_info)
 {
   char db_opt_path[FN_REFLEN + 1];
@@ -947,6 +966,7 @@ exit:
 int mysql_create_db(THD *thd, const LEX_CSTRING *db, DDL_options_st options,
                     const Schema_specification_st *create_info)
 {
+  DBUG_ASSERT(create_info->default_table_charset);
   /*
     As mysql_create_db_internal() may modify Db_create_info structure passed
     to it, we need to use a copy to make execution prepared statement- safe.
@@ -962,6 +982,7 @@ int mysql_create_db(THD *thd, const LEX_CSTRING *db, DDL_options_st options,
 bool mysql_alter_db(THD *thd, const LEX_CSTRING *db,
                     const Schema_specification_st *create_info)
 {
+  DBUG_ASSERT(create_info->default_table_charset);
   /*
     As mysql_alter_db_internal() may modify Db_create_info structure passed
     to it, we need to use a copy to make execution prepared statement- safe.
@@ -1130,7 +1151,7 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
     debug_crash_here("ddl_log_drop_after_drop_tables");
 
     LEX_CSTRING cpath{ path, path_length};
-    ddl_log_drop_db(thd, &ddl_log_state, &rm_db, &cpath);
+    ddl_log_drop_db(&ddl_log_state, &rm_db, &cpath);
 
     drop_database_objects(thd, &cpath, &rm_db, rm_mysql_schema);
 
@@ -1366,9 +1387,7 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
   *tables= tot_list;
 
   /* and at last delete all non-table files */
-  for (uint idx=0 ;
-       idx < (uint) dirp->number_of_files && !thd->killed ;
-       idx++)
+  for (size_t idx=0; idx < dirp->number_of_files && !thd->killed; idx++)
   {
     FILEINFO *file=dirp->dir_entry+idx;
     char *extension;
@@ -1491,9 +1510,7 @@ long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path)
   DBUG_ENTER("mysql_rm_arc_files");
   DBUG_PRINT("enter", ("path: %s", org_path));
 
-  for (uint idx=0 ;
-       idx < (uint) dirp->number_of_files && !thd->killed ;
-       idx++)
+  for (size_t idx=0; idx < dirp->number_of_files && !thd->killed; idx++)
   {
     FILEINFO *file=dirp->dir_entry+idx;
     char *extension, *revision;
@@ -1783,16 +1800,13 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (test_all_bits(sctx->master_access, DB_ACLS))
+  {
     db_access= DB_ACLS;
+  }
   else
   {
-    db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user,
-                        new_db_file_name.str, FALSE) | sctx->master_access;
-    if (sctx->priv_role[0])
-    {
-      /* include a possible currently set role for access */
-      db_access|= acl_get("", "", sctx->priv_role, new_db_file_name.str, FALSE);
-    }
+    db_access= acl_get_all3(sctx, new_db_file_name.str, FALSE);
+    db_access|= sctx->master_access;
   }
 
   if (!force_switch &&
@@ -1956,8 +1970,7 @@ bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
 
   build_table_filename(path, sizeof(path)-1,
                        old_db->str, "", MY_DB_OPT_FILE, 0);
-  if ((load_db_opt(thd, path, &create_info)))
-    create_info.default_table_charset= thd->variables.collation_server;
+  load_db_opt(thd, path, &create_info);
 
   length= build_table_filename(path, sizeof(path)-1, old_db->str, "", "", 0);
   if (length && path[length-1] == FN_LIBCHAR)
@@ -1977,8 +1990,8 @@ bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
   /* Step2: Move tables to the new database */
   if ((dirp = my_dir(path,MYF(MY_DONT_SORT))))
   {
-    uint nfiles= (uint) dirp->number_of_files;
-    for (uint idx=0 ; idx < nfiles && !thd->killed ; idx++)
+    size_t nfiles= dirp->number_of_files;
+    for (size_t idx=0 ; idx < nfiles && !thd->killed ; idx++)
     {
       FILEINFO *file= dirp->dir_entry + idx;
       char *extension, tname[FN_REFLEN + 1];
@@ -2067,8 +2080,8 @@ bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
 
   if ((dirp = my_dir(path,MYF(MY_DONT_SORT))))
   {
-    uint nfiles= (uint) dirp->number_of_files;
-    for (uint idx=0 ; idx < nfiles ; idx++)
+    size_t nfiles= dirp->number_of_files;
+    for (size_t idx=0 ; idx < nfiles ; idx++)
     {
       FILEINFO *file= dirp->dir_entry + idx;
       char oldname[FN_REFLEN + 1], newname[FN_REFLEN + 1];

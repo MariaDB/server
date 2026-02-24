@@ -21,9 +21,11 @@
 
 #include "wsrep/seqno.hpp"
 #include "wsrep/view.hpp"
+#include "wsrep/allowlist_service.hpp"
 
 typedef wsrep::id Wsrep_id;
 typedef wsrep::seqno Wsrep_seqno;
 typedef wsrep::view Wsrep_view;
+typedef enum wsrep::allowlist_service::allowlist_key Wsrep_allowlist_key;
 
 #endif /* WSREP_TYPES_H */

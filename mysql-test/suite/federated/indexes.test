@@ -1,0 +1,22 @@
+--source include/not_embedded.inc
+--source suite/federated/have_federatedx.inc
+
+--echo #
+--echo # MDEV-27398 DESC index causes wrong (empty) result on Federated tables
+--echo #
+
+create table t (a int);
+insert into t values (1),(5),(2),(3),(4);
+
+--evalp create table tf (a int, key(a desc)) connection 'mysql://root@127.0.0.1:$MASTER_MYPORT/test/t' engine=Federated
+--sorted_result
+select * from tf;
+--sorted_result
+select * from tf where a > 2;
+--sorted_result
+select * from tf where a < 3;
+--sorted_result
+select * from tf where a >= 3;
+--sorted_result
+select * from tf where a <= 3;
+drop table tf, t;

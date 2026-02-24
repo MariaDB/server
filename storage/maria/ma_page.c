@@ -119,7 +119,7 @@ my_bool _ma_fetch_keypage(MARIA_PAGE *page, MARIA_HA *info,
                        PAGECACHE_LOCK_READ_UNLOCK);
     page_link.changed= 0;
     push_dynamic(&info->pinned_pages, (void*) &page_link);
-    page->link_offset= info->pinned_pages.elements-1;
+    page->link_offset= (uint)info->pinned_pages.elements-1;
   }
 
   if (tmp == info->buff)

@@ -3,6 +3,7 @@ include/master-slave.inc
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 connection master;
 create user test;
+grant all on test.* to test;
 connection slave;
 connect  master2,127.0.0.1,test,,test,$MASTER_MYPORT,;
 connect  slave2,127.0.0.1,test,,test,$SLAVE_MYPORT,;

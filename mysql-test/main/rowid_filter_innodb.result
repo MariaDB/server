@@ -80,26 +80,30 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "range",
-      "possible_keys": ["i_l_shipdate", "i_l_quantity"],
-      "key": "i_l_shipdate",
-      "key_length": "4",
-      "used_key_parts": ["l_shipDATE"],
-      "rowid_filter": {
-        "range": {
-          "key": "i_l_quantity",
-          "used_key_parts": ["l_quantity"]
-        },
-        "rows": 605,
-        "selectivity_pct": 10.07493755
-      },
-      "rows": 510,
-      "filtered": 10.07493782,
-      "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
-      "attached_condition": "lineitem.l_quantity > 45"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "range",
+          "possible_keys": ["i_l_shipdate", "i_l_quantity"],
+          "key": "i_l_shipdate",
+          "key_length": "4",
+          "used_key_parts": ["l_shipDATE"],
+          "rowid_filter": {
+            "range": {
+              "key": "i_l_quantity",
+              "used_key_parts": ["l_quantity"]
+            },
+            "rows": 605,
+            "selectivity_pct": 10.07493755
+          },
+          "rows": 510,
+          "filtered": 10.07493782,
+          "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
+          "attached_condition": "lineitem.l_quantity > 45"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=on' for ANALYZE SELECT l_orderkey, l_linenumber, l_shipdate, l_quantity FROM lineitem
@@ -112,41 +116,48 @@ WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 l_quantity > 45;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "range",
-      "possible_keys": ["i_l_shipdate", "i_l_quantity"],
-      "key": "i_l_shipdate",
-      "key_length": "4",
-      "used_key_parts": ["l_shipDATE"],
-      "rowid_filter": {
-        "range": {
-          "key": "i_l_quantity",
-          "used_key_parts": ["l_quantity"]
-        },
-        "rows": 605,
-        "selectivity_pct": 10.07493755,
-        "r_rows": 605,
-        "r_lookups": 510,
-        "r_selectivity_pct": 11.76470588,
-        "r_buffer_size": "REPLACED",
-        "r_filling_time_ms": "REPLACED"
-      },
-      "r_loops": 1,
-      "rows": 510,
-      "r_rows": 60,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 10.07493782,
-      "r_filtered": 100,
-      "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
-      "attached_condition": "lineitem.l_quantity > 45"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "range",
+          "possible_keys": ["i_l_shipdate", "i_l_quantity"],
+          "key": "i_l_shipdate",
+          "key_length": "4",
+          "used_key_parts": ["l_shipDATE"],
+          "rowid_filter": {
+            "range": {
+              "key": "i_l_quantity",
+              "used_key_parts": ["l_quantity"]
+            },
+            "rows": 605,
+            "selectivity_pct": 10.07493755,
+            "r_rows": 605,
+            "r_lookups": 510,
+            "r_selectivity_pct": 11.76470588,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "r_loops": 1,
+          "rows": 510,
+          "r_rows": 60,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 10.07493782,
+          "r_filtered": 100,
+          "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
+          "attached_condition": "lineitem.l_quantity > 45"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=on' for SELECT l_orderkey, l_linenumber, l_shipdate, l_quantity FROM lineitem
@@ -225,18 +236,22 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "range",
-      "possible_keys": ["i_l_shipdate", "i_l_quantity"],
-      "key": "i_l_shipdate",
-      "key_length": "4",
-      "used_key_parts": ["l_shipDATE"],
-      "rows": 510,
-      "filtered": 10.07493782,
-      "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
-      "attached_condition": "lineitem.l_quantity > 45"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "range",
+          "possible_keys": ["i_l_shipdate", "i_l_quantity"],
+          "key": "i_l_shipdate",
+          "key_length": "4",
+          "used_key_parts": ["l_shipDATE"],
+          "rows": 510,
+          "filtered": 10.07493782,
+          "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
+          "attached_condition": "lineitem.l_quantity > 45"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=off' for ANALYZE SELECT l_orderkey, l_linenumber, l_shipdate, l_quantity FROM lineitem
@@ -249,28 +264,35 @@ WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 l_quantity > 45;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "range",
-      "possible_keys": ["i_l_shipdate", "i_l_quantity"],
-      "key": "i_l_shipdate",
-      "key_length": "4",
-      "used_key_parts": ["l_shipDATE"],
-      "r_loops": 1,
-      "rows": 510,
-      "r_rows": 510,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 10.07493782,
-      "r_filtered": 11.76470588,
-      "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
-      "attached_condition": "lineitem.l_quantity > 45"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "range",
+          "possible_keys": ["i_l_shipdate", "i_l_quantity"],
+          "key": "i_l_shipdate",
+          "key_length": "4",
+          "used_key_parts": ["l_shipDATE"],
+          "r_loops": 1,
+          "rows": 510,
+          "r_rows": 510,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 10.07493782,
+          "r_filtered": 11.76470588,
+          "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
+          "attached_condition": "lineitem.l_quantity > 45"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=off' for SELECT l_orderkey, l_linenumber, l_shipdate, l_quantity FROM lineitem
@@ -352,35 +374,41 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "range",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "i_l_shipdate",
-      "key_length": "4",
-      "used_key_parts": ["l_shipDATE"],
-      "rows": 98,
-      "filtered": 100,
-      "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-01-31'",
-      "using_index": true
-    },
-    "table": {
-      "table_name": "orders",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["o_orderkey"],
-      "ref": ["dbt3_s001.lineitem.l_orderkey"],
-      "rows": 1,
-      "filtered": 4.733333111,
-      "attached_condition": "orders.o_totalprice between 200000 and 230000"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "range",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "i_l_shipdate",
+          "key_length": "4",
+          "used_key_parts": ["l_shipDATE"],
+          "rows": 98,
+          "filtered": 100,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-01-31'",
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["o_orderkey"],
+          "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "rows": 1,
+          "filtered": 4.733333111,
+          "attached_condition": "orders.o_totalprice between 200000 and 230000"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=on' for ANALYZE SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
@@ -396,51 +424,60 @@ WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-01-31' AND
 o_totalprice between 200000 and 230000;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "range",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "i_l_shipdate",
-      "key_length": "4",
-      "used_key_parts": ["l_shipDATE"],
-      "r_loops": 1,
-      "rows": 98,
-      "r_rows": 98,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-01-31'",
-      "using_index": true
-    },
-    "table": {
-      "table_name": "orders",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["o_orderkey"],
-      "ref": ["dbt3_s001.lineitem.l_orderkey"],
-      "r_loops": 98,
-      "rows": 1,
-      "r_rows": 1,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 4.733333111,
-      "r_filtered": 11.2244898,
-      "attached_condition": "orders.o_totalprice between 200000 and 230000"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "range",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "i_l_shipdate",
+          "key_length": "4",
+          "used_key_parts": ["l_shipDATE"],
+          "r_loops": 1,
+          "rows": 98,
+          "r_rows": 98,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-01-31'",
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["o_orderkey"],
+          "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "r_loops": 98,
+          "rows": 1,
+          "r_rows": 1,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 4.733333111,
+          "r_filtered": 11.2244898,
+          "attached_condition": "orders.o_totalprice between 200000 and 230000"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=on' for SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
@@ -474,35 +511,41 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "range",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "i_l_shipdate",
-      "key_length": "4",
-      "used_key_parts": ["l_shipDATE"],
-      "rows": 98,
-      "filtered": 100,
-      "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-01-31'",
-      "using_index": true
-    },
-    "table": {
-      "table_name": "orders",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["o_orderkey"],
-      "ref": ["dbt3_s001.lineitem.l_orderkey"],
-      "rows": 1,
-      "filtered": 4.733333111,
-      "attached_condition": "orders.o_totalprice between 200000 and 230000"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "range",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "i_l_shipdate",
+          "key_length": "4",
+          "used_key_parts": ["l_shipDATE"],
+          "rows": 98,
+          "filtered": 100,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-01-31'",
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["o_orderkey"],
+          "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "rows": 1,
+          "filtered": 4.733333111,
+          "attached_condition": "orders.o_totalprice between 200000 and 230000"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=off' for ANALYZE SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
@@ -518,51 +561,60 @@ WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-01-31' AND
 o_totalprice between 200000 and 230000;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "range",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "i_l_shipdate",
-      "key_length": "4",
-      "used_key_parts": ["l_shipDATE"],
-      "r_loops": 1,
-      "rows": 98,
-      "r_rows": 98,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-01-31'",
-      "using_index": true
-    },
-    "table": {
-      "table_name": "orders",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["o_orderkey"],
-      "ref": ["dbt3_s001.lineitem.l_orderkey"],
-      "r_loops": 98,
-      "rows": 1,
-      "r_rows": 1,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 4.733333111,
-      "r_filtered": 11.2244898,
-      "attached_condition": "orders.o_totalprice between 200000 and 230000"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "range",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "i_l_shipdate",
+          "key_length": "4",
+          "used_key_parts": ["l_shipDATE"],
+          "r_loops": 1,
+          "rows": 98,
+          "r_rows": 98,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-01-31'",
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["o_orderkey"],
+          "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "r_loops": 98,
+          "rows": 1,
+          "r_rows": 1,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 4.733333111,
+          "r_filtered": 11.2244898,
+          "attached_condition": "orders.o_totalprice between 200000 and 230000"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=off' for SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
@@ -598,44 +650,50 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "range",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity",
-        "i_l_quantity"
-      ],
-      "key": "i_l_shipdate",
-      "key_length": "4",
-      "used_key_parts": ["l_shipDATE"],
-      "rowid_filter": {
-        "range": {
-          "key": "i_l_quantity",
-          "used_key_parts": ["l_quantity"]
-        },
-        "rows": 605,
-        "selectivity_pct": 10.07493755
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "range",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity",
+            "i_l_quantity"
+          ],
+          "key": "i_l_shipdate",
+          "key_length": "4",
+          "used_key_parts": ["l_shipDATE"],
+          "rowid_filter": {
+            "range": {
+              "key": "i_l_quantity",
+              "used_key_parts": ["l_quantity"]
+            },
+            "rows": 605,
+            "selectivity_pct": 10.07493755
+          },
+          "rows": 510,
+          "filtered": 10.07493782,
+          "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
+          "attached_condition": "lineitem.l_quantity > 45"
+        }
       },
-      "rows": 510,
-      "filtered": 10.07493782,
-      "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
-      "attached_condition": "lineitem.l_quantity > 45"
-    },
-    "table": {
-      "table_name": "orders",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["o_orderkey"],
-      "ref": ["dbt3_s001.lineitem.l_orderkey"],
-      "rows": 1,
-      "filtered": 9.600000381,
-      "attached_condition": "orders.o_totalprice between 180000 and 230000"
-    }
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["o_orderkey"],
+          "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "rows": 1,
+          "filtered": 9.600000381,
+          "attached_condition": "orders.o_totalprice between 180000 and 230000"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=on' for ANALYZE SELECT o_orderkey, l_linenumber, l_shipdate, l_quantity, o_totalprice
@@ -653,65 +711,74 @@ l_quantity > 45 AND
 o_totalprice between 180000 and 230000;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "range",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity",
-        "i_l_quantity"
-      ],
-      "key": "i_l_shipdate",
-      "key_length": "4",
-      "used_key_parts": ["l_shipDATE"],
-      "rowid_filter": {
-        "range": {
-          "key": "i_l_quantity",
-          "used_key_parts": ["l_quantity"]
-        },
-        "rows": 605,
-        "selectivity_pct": 10.07493755,
-        "r_rows": 605,
-        "r_lookups": 510,
-        "r_selectivity_pct": 11.76470588,
-        "r_buffer_size": "REPLACED",
-        "r_filling_time_ms": "REPLACED"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "range",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity",
+            "i_l_quantity"
+          ],
+          "key": "i_l_shipdate",
+          "key_length": "4",
+          "used_key_parts": ["l_shipDATE"],
+          "rowid_filter": {
+            "range": {
+              "key": "i_l_quantity",
+              "used_key_parts": ["l_quantity"]
+            },
+            "rows": 605,
+            "selectivity_pct": 10.07493755,
+            "r_rows": 605,
+            "r_lookups": 510,
+            "r_selectivity_pct": 11.76470588,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "r_loops": 1,
+          "rows": 510,
+          "r_rows": 60,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 10.07493782,
+          "r_filtered": 100,
+          "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
+          "attached_condition": "lineitem.l_quantity > 45"
+        }
       },
-      "r_loops": 1,
-      "rows": 510,
-      "r_rows": 60,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 10.07493782,
-      "r_filtered": 100,
-      "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
-      "attached_condition": "lineitem.l_quantity > 45"
-    },
-    "table": {
-      "table_name": "orders",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["o_orderkey"],
-      "ref": ["dbt3_s001.lineitem.l_orderkey"],
-      "r_loops": 60,
-      "rows": 1,
-      "r_rows": 1,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 9.600000381,
-      "r_filtered": 26.66666667,
-      "attached_condition": "orders.o_totalprice between 180000 and 230000"
-    }
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["o_orderkey"],
+          "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "r_loops": 60,
+          "rows": 1,
+          "r_rows": 1,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 9.600000381,
+          "r_filtered": 26.66666667,
+          "attached_condition": "orders.o_totalprice between 180000 and 230000"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=on' for SELECT o_orderkey, l_linenumber, l_shipdate, l_quantity, o_totalprice
@@ -753,36 +820,42 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "orders",
-      "access_type": "range",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "i_o_totalprice",
-      "key_length": "9",
-      "used_key_parts": ["o_totalprice"],
-      "rows": 144,
-      "filtered": 100,
-      "attached_condition": "orders.o_totalprice between 180000 and 230000",
-      "using_index": true
-    },
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "ref",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity",
-        "i_l_quantity"
-      ],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["l_orderkey"],
-      "ref": ["dbt3_s001.orders.o_orderkey"],
-      "rows": 4,
-      "filtered": 0.855656624,
-      "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30' and lineitem.l_quantity > 45"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "i_o_totalprice",
+          "key_length": "9",
+          "used_key_parts": ["o_totalprice"],
+          "rows": 144,
+          "filtered": 100,
+          "attached_condition": "orders.o_totalprice between 180000 and 230000",
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity",
+            "i_l_quantity"
+          ],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["l_orderkey"],
+          "ref": ["dbt3_s001.orders.o_orderkey"],
+          "rows": 4,
+          "filtered": 0.855656624,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30' and lineitem.l_quantity > 45"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=off' for ANALYZE SELECT o_orderkey, l_linenumber, l_shipdate, l_quantity, o_totalprice
@@ -800,52 +873,61 @@ l_quantity > 45 AND
 o_totalprice between 180000 and 230000;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "orders",
-      "access_type": "range",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "i_o_totalprice",
-      "key_length": "9",
-      "used_key_parts": ["o_totalprice"],
-      "r_loops": 1,
-      "rows": 144,
-      "r_rows": 144,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "orders.o_totalprice between 180000 and 230000",
-      "using_index": true
-    },
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "ref",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity",
-        "i_l_quantity"
-      ],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["l_orderkey"],
-      "ref": ["dbt3_s001.orders.o_orderkey"],
-      "r_loops": 144,
-      "rows": 4,
-      "r_rows": 6.625,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 0.855656624,
-      "r_filtered": 1.677148847,
-      "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30' and lineitem.l_quantity > 45"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "i_o_totalprice",
+          "key_length": "9",
+          "used_key_parts": ["o_totalprice"],
+          "r_loops": 1,
+          "rows": 144,
+          "r_rows": 144,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "orders.o_totalprice between 180000 and 230000",
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity",
+            "i_l_quantity"
+          ],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["l_orderkey"],
+          "ref": ["dbt3_s001.orders.o_orderkey"],
+          "r_loops": 144,
+          "rows": 4,
+          "r_rows": 6.625,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 0.855656624,
+          "r_filtered": 1.677148847,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30' and lineitem.l_quantity > 45"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=off' for SELECT o_orderkey, l_linenumber, l_shipdate, l_quantity, o_totalprice
@@ -885,35 +967,41 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "orders",
-      "access_type": "range",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "i_o_totalprice",
-      "key_length": "9",
-      "used_key_parts": ["o_totalprice"],
-      "rows": 71,
-      "filtered": 100,
-      "attached_condition": "orders.o_totalprice between 200000 and 230000",
-      "using_index": true
-    },
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "ref",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["l_orderkey"],
-      "ref": ["dbt3_s001.orders.o_orderkey"],
-      "rows": 4,
-      "filtered": 8.492922783,
-      "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "i_o_totalprice",
+          "key_length": "9",
+          "used_key_parts": ["o_totalprice"],
+          "rows": 71,
+          "filtered": 100,
+          "attached_condition": "orders.o_totalprice between 200000 and 230000",
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["l_orderkey"],
+          "ref": ["dbt3_s001.orders.o_orderkey"],
+          "rows": 4,
+          "filtered": 8.492922783,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=on' for ANALYZE SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
@@ -929,51 +1017,60 @@ WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 o_totalprice between 200000 and 230000;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "orders",
-      "access_type": "range",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "i_o_totalprice",
-      "key_length": "9",
-      "used_key_parts": ["o_totalprice"],
-      "r_loops": 1,
-      "rows": 71,
-      "r_rows": 71,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "orders.o_totalprice between 200000 and 230000",
-      "using_index": true
-    },
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "ref",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["l_orderkey"],
-      "ref": ["dbt3_s001.orders.o_orderkey"],
-      "r_loops": 71,
-      "rows": 4,
-      "r_rows": 6.704225352,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 8.492922783,
-      "r_filtered": 7.773109244,
-      "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "i_o_totalprice",
+          "key_length": "9",
+          "used_key_parts": ["o_totalprice"],
+          "r_loops": 1,
+          "rows": 71,
+          "r_rows": 71,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "orders.o_totalprice between 200000 and 230000",
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["l_orderkey"],
+          "ref": ["dbt3_s001.orders.o_orderkey"],
+          "r_loops": 71,
+          "rows": 4,
+          "r_rows": 6.704225352,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 8.492922783,
+          "r_filtered": 7.773109244,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=on' for SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
@@ -1033,35 +1130,41 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "orders",
-      "access_type": "range",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "i_o_totalprice",
-      "key_length": "9",
-      "used_key_parts": ["o_totalprice"],
-      "rows": 71,
-      "filtered": 100,
-      "attached_condition": "orders.o_totalprice between 200000 and 230000",
-      "using_index": true
-    },
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "ref",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["l_orderkey"],
-      "ref": ["dbt3_s001.orders.o_orderkey"],
-      "rows": 4,
-      "filtered": 8.492922783,
-      "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "i_o_totalprice",
+          "key_length": "9",
+          "used_key_parts": ["o_totalprice"],
+          "rows": 71,
+          "filtered": 100,
+          "attached_condition": "orders.o_totalprice between 200000 and 230000",
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["l_orderkey"],
+          "ref": ["dbt3_s001.orders.o_orderkey"],
+          "rows": 4,
+          "filtered": 8.492922783,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=off' for ANALYZE SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
@@ -1077,51 +1180,60 @@ WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 o_totalprice between 200000 and 230000;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "orders",
-      "access_type": "range",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "i_o_totalprice",
-      "key_length": "9",
-      "used_key_parts": ["o_totalprice"],
-      "r_loops": 1,
-      "rows": 71,
-      "r_rows": 71,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "orders.o_totalprice between 200000 and 230000",
-      "using_index": true
-    },
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "ref",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["l_orderkey"],
-      "ref": ["dbt3_s001.orders.o_orderkey"],
-      "r_loops": 71,
-      "rows": 4,
-      "r_rows": 6.704225352,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 8.492922783,
-      "r_filtered": 7.773109244,
-      "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "i_o_totalprice",
+          "key_length": "9",
+          "used_key_parts": ["o_totalprice"],
+          "r_loops": 1,
+          "rows": 71,
+          "r_rows": 71,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "orders.o_totalprice between 200000 and 230000",
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["l_orderkey"],
+          "ref": ["dbt3_s001.orders.o_orderkey"],
+          "r_loops": 71,
+          "rows": 4,
+          "r_rows": 6.704225352,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 8.492922783,
+          "r_filtered": 7.773109244,
+          "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=off' for SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
@@ -1192,36 +1304,42 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "range",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_receiptdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "i_l_receiptdate",
-      "key_length": "4",
-      "used_key_parts": ["l_receiptDATE"],
-      "rows": 18,
-      "filtered": 0.566194832,
-      "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
-      "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
-    },
-    "table": {
-      "table_name": "orders",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["o_orderkey"],
-      "ref": ["dbt3_s001.lineitem.l_orderkey"],
-      "rows": 1,
-      "filtered": 5.666666508,
-      "attached_condition": "orders.o_totalprice between 200000 and 250000"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "range",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_receiptdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "i_l_receiptdate",
+          "key_length": "4",
+          "used_key_parts": ["l_receiptDATE"],
+          "rows": 18,
+          "filtered": 0.566194832,
+          "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
+        }
+      },
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["o_orderkey"],
+          "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "rows": 1,
+          "filtered": 5.666666508,
+          "attached_condition": "orders.o_totalprice between 200000 and 250000"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=on' for ANALYZE SELECT l_shipdate, l_receiptdate, o_totalprice
@@ -1241,52 +1359,61 @@ l_receiptdate BETWEEN '1996-10-05' AND '1996-10-10' AND
 o_totalprice BETWEEN 200000 AND 250000;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "range",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_receiptdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "i_l_receiptdate",
-      "key_length": "4",
-      "used_key_parts": ["l_receiptDATE"],
-      "r_loops": 1,
-      "rows": 18,
-      "r_rows": 18,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 0.566194832,
-      "r_filtered": 38.88888889,
-      "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
-      "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
-    },
-    "table": {
-      "table_name": "orders",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["o_orderkey"],
-      "ref": ["dbt3_s001.lineitem.l_orderkey"],
-      "r_loops": 7,
-      "rows": 1,
-      "r_rows": 1,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 5.666666508,
-      "r_filtered": 14.28571429,
-      "attached_condition": "orders.o_totalprice between 200000 and 250000"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "range",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_receiptdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "i_l_receiptdate",
+          "key_length": "4",
+          "used_key_parts": ["l_receiptDATE"],
+          "r_loops": 1,
+          "rows": 18,
+          "r_rows": 18,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 0.566194832,
+          "r_filtered": 38.88888889,
+          "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
+        }
+      },
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["o_orderkey"],
+          "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "r_loops": 7,
+          "rows": 1,
+          "r_rows": 1,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 5.666666508,
+          "r_filtered": 14.28571429,
+          "attached_condition": "orders.o_totalprice between 200000 and 250000"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=on' for SELECT l_shipdate, l_receiptdate, o_totalprice
@@ -1316,36 +1443,42 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "range",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_receiptdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "i_l_receiptdate",
-      "key_length": "4",
-      "used_key_parts": ["l_receiptDATE"],
-      "rows": 18,
-      "filtered": 0.566194832,
-      "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
-      "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
-    },
-    "table": {
-      "table_name": "orders",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["o_orderkey"],
-      "ref": ["dbt3_s001.lineitem.l_orderkey"],
-      "rows": 1,
-      "filtered": 5.666666508,
-      "attached_condition": "orders.o_totalprice between 200000 and 250000"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "range",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_receiptdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "i_l_receiptdate",
+          "key_length": "4",
+          "used_key_parts": ["l_receiptDATE"],
+          "rows": 18,
+          "filtered": 0.566194832,
+          "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
+        }
+      },
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["o_orderkey"],
+          "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "rows": 1,
+          "filtered": 5.666666508,
+          "attached_condition": "orders.o_totalprice between 200000 and 250000"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=off' for ANALYZE SELECT l_shipdate, l_receiptdate, o_totalprice
@@ -1365,52 +1498,61 @@ l_receiptdate BETWEEN '1996-10-05' AND '1996-10-10' AND
 o_totalprice BETWEEN 200000 AND 250000;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "range",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_receiptdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "i_l_receiptdate",
-      "key_length": "4",
-      "used_key_parts": ["l_receiptDATE"],
-      "r_loops": 1,
-      "rows": 18,
-      "r_rows": 18,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 0.566194832,
-      "r_filtered": 38.88888889,
-      "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
-      "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
-    },
-    "table": {
-      "table_name": "orders",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY", "i_o_totalprice"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["o_orderkey"],
-      "ref": ["dbt3_s001.lineitem.l_orderkey"],
-      "r_loops": 7,
-      "rows": 1,
-      "r_rows": 1,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 5.666666508,
-      "r_filtered": 14.28571429,
-      "attached_condition": "orders.o_totalprice between 200000 and 250000"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "range",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_receiptdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "i_l_receiptdate",
+          "key_length": "4",
+          "used_key_parts": ["l_receiptDATE"],
+          "r_loops": 1,
+          "rows": 18,
+          "r_rows": 18,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 0.566194832,
+          "r_filtered": 38.88888889,
+          "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
+        }
+      },
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY", "i_o_totalprice"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["o_orderkey"],
+          "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "r_loops": 7,
+          "rows": 1,
+          "r_rows": 1,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 5.666666508,
+          "r_filtered": 14.28571429,
+          "attached_condition": "orders.o_totalprice between 200000 and 250000"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=off' for SELECT l_shipdate, l_receiptdate, o_totalprice
@@ -1447,35 +1589,41 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "orders",
-      "access_type": "range",
-      "possible_keys": ["PRIMARY", "i_o_totalprice", "i_o_totaldiscount"],
-      "key": "i_o_totaldiscount",
-      "key_length": "9",
-      "used_key_parts": ["o_totaldiscount"],
-      "rows": 41,
-      "filtered": 3.333333254,
-      "index_condition": "orders.o_totaldiscount between 18000 and 20000",
-      "attached_condition": "orders.o_totalprice between 200000 and 220000"
-    },
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "ref",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["l_orderkey"],
-      "ref": ["dbt3_s001.orders.o_orderkey"],
-      "rows": 4,
-      "filtered": 3.047460556,
-      "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY", "i_o_totalprice", "i_o_totaldiscount"],
+          "key": "i_o_totaldiscount",
+          "key_length": "9",
+          "used_key_parts": ["o_totaldiscount"],
+          "rows": 41,
+          "filtered": 3.333333254,
+          "index_condition": "orders.o_totaldiscount between 18000 and 20000",
+          "attached_condition": "orders.o_totalprice between 200000 and 220000"
+        }
+      },
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["l_orderkey"],
+          "ref": ["dbt3_s001.orders.o_orderkey"],
+          "rows": 4,
+          "filtered": 3.047460556,
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=on' for ANALYZE SELECT o_totaldiscount, o_totalprice, l_shipdate
@@ -1495,51 +1643,60 @@ o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "orders",
-      "access_type": "range",
-      "possible_keys": ["PRIMARY", "i_o_totalprice", "i_o_totaldiscount"],
-      "key": "i_o_totaldiscount",
-      "key_length": "9",
-      "used_key_parts": ["o_totaldiscount"],
-      "r_loops": 1,
-      "rows": 41,
-      "r_rows": 41,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 3.333333254,
-      "r_filtered": 2.43902439,
-      "index_condition": "orders.o_totaldiscount between 18000 and 20000",
-      "attached_condition": "orders.o_totalprice between 200000 and 220000"
-    },
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "ref",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["l_orderkey"],
-      "ref": ["dbt3_s001.orders.o_orderkey"],
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 6,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 3.047460556,
-      "r_filtered": 66.66666667,
-      "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY", "i_o_totalprice", "i_o_totaldiscount"],
+          "key": "i_o_totaldiscount",
+          "key_length": "9",
+          "used_key_parts": ["o_totaldiscount"],
+          "r_loops": 1,
+          "rows": 41,
+          "r_rows": 41,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 3.333333254,
+          "r_filtered": 2.43902439,
+          "index_condition": "orders.o_totaldiscount between 18000 and 20000",
+          "attached_condition": "orders.o_totalprice between 200000 and 220000"
+        }
+      },
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["l_orderkey"],
+          "ref": ["dbt3_s001.orders.o_orderkey"],
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 6,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 3.047460556,
+          "r_filtered": 66.66666667,
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=on' for SELECT o_totaldiscount, o_totalprice, l_shipdate
@@ -1572,35 +1729,41 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "orders",
-      "access_type": "range",
-      "possible_keys": ["PRIMARY", "i_o_totalprice", "i_o_totaldiscount"],
-      "key": "i_o_totaldiscount",
-      "key_length": "9",
-      "used_key_parts": ["o_totaldiscount"],
-      "rows": 41,
-      "filtered": 3.333333254,
-      "index_condition": "orders.o_totaldiscount between 18000 and 20000",
-      "attached_condition": "orders.o_totalprice between 200000 and 220000"
-    },
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "ref",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["l_orderkey"],
-      "ref": ["dbt3_s001.orders.o_orderkey"],
-      "rows": 4,
-      "filtered": 3.047460556,
-      "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY", "i_o_totalprice", "i_o_totaldiscount"],
+          "key": "i_o_totaldiscount",
+          "key_length": "9",
+          "used_key_parts": ["o_totaldiscount"],
+          "rows": 41,
+          "filtered": 3.333333254,
+          "index_condition": "orders.o_totaldiscount between 18000 and 20000",
+          "attached_condition": "orders.o_totalprice between 200000 and 220000"
+        }
+      },
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["l_orderkey"],
+          "ref": ["dbt3_s001.orders.o_orderkey"],
+          "rows": 4,
+          "filtered": 3.047460556,
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=off' for ANALYZE SELECT o_totaldiscount, o_totalprice, l_shipdate
@@ -1620,51 +1783,60 @@ o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "orders",
-      "access_type": "range",
-      "possible_keys": ["PRIMARY", "i_o_totalprice", "i_o_totaldiscount"],
-      "key": "i_o_totaldiscount",
-      "key_length": "9",
-      "used_key_parts": ["o_totaldiscount"],
-      "r_loops": 1,
-      "rows": 41,
-      "r_rows": 41,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 3.333333254,
-      "r_filtered": 2.43902439,
-      "index_condition": "orders.o_totaldiscount between 18000 and 20000",
-      "attached_condition": "orders.o_totalprice between 200000 and 220000"
-    },
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "ref",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["l_orderkey"],
-      "ref": ["dbt3_s001.orders.o_orderkey"],
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 6,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 3.047460556,
-      "r_filtered": 66.66666667,
-      "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY", "i_o_totalprice", "i_o_totaldiscount"],
+          "key": "i_o_totaldiscount",
+          "key_length": "9",
+          "used_key_parts": ["o_totaldiscount"],
+          "r_loops": 1,
+          "rows": 41,
+          "r_rows": 41,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 3.333333254,
+          "r_filtered": 2.43902439,
+          "index_condition": "orders.o_totaldiscount between 18000 and 20000",
+          "attached_condition": "orders.o_totalprice between 200000 and 220000"
+        }
+      },
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["l_orderkey"],
+          "ref": ["dbt3_s001.orders.o_orderkey"],
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 6,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 3.047460556,
+          "r_filtered": 66.66666667,
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=off' for SELECT o_totaldiscount, o_totalprice, l_shipdate
@@ -1700,40 +1872,46 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "orders",
-      "access_type": "range",
-      "possible_keys": [
-        "PRIMARY",
-        "i_o_orderdate",
-        "i_o_totalprice",
-        "i_o_totaldiscount"
-      ],
-      "key": "i_o_totaldiscount",
-      "key_length": "9",
-      "used_key_parts": ["o_totaldiscount"],
-      "rows": 41,
-      "filtered": "REPLACED",
-      "index_condition": "orders.o_totaldiscount between 18000 and 20000",
-      "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
-    },
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "ref",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["l_orderkey"],
-      "ref": ["dbt3_s001.orders.o_orderkey"],
-      "rows": 4,
-      "filtered": "REPLACED",
-      "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "range",
+          "possible_keys": [
+            "PRIMARY",
+            "i_o_orderdate",
+            "i_o_totalprice",
+            "i_o_totaldiscount"
+          ],
+          "key": "i_o_totaldiscount",
+          "key_length": "9",
+          "used_key_parts": ["o_totaldiscount"],
+          "rows": 41,
+          "filtered": "REPLACED",
+          "index_condition": "orders.o_totaldiscount between 18000 and 20000",
+          "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
+        }
+      },
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["l_orderkey"],
+          "ref": ["dbt3_s001.orders.o_orderkey"],
+          "rows": 4,
+          "filtered": "REPLACED",
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=on' for ANALYZE SELECT o_totaldiscount, o_totalprice, l_shipdate
@@ -1753,60 +1931,69 @@ o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "orders",
-      "access_type": "range",
-      "possible_keys": [
-        "PRIMARY",
-        "i_o_orderdate",
-        "i_o_totalprice",
-        "i_o_totaldiscount"
-      ],
-      "key": "i_o_totaldiscount",
-      "key_length": "9",
-      "used_key_parts": ["o_totaldiscount"],
-      "r_loops": 1,
-      "rows": 41,
-      "r_rows": 41,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": {
-        "pages_accessed": 84
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "range",
+          "possible_keys": [
+            "PRIMARY",
+            "i_o_orderdate",
+            "i_o_totalprice",
+            "i_o_totaldiscount"
+          ],
+          "key": "i_o_totaldiscount",
+          "key_length": "9",
+          "used_key_parts": ["o_totaldiscount"],
+          "r_loops": 1,
+          "rows": 41,
+          "r_rows": 41,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": {
+            "pages_accessed": 84
+          },
+          "filtered": "REPLACED",
+          "r_filtered": 2.43902439,
+          "index_condition": "orders.o_totaldiscount between 18000 and 20000",
+          "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
+        }
       },
-      "filtered": "REPLACED",
-      "r_filtered": 2.43902439,
-      "index_condition": "orders.o_totaldiscount between 18000 and 20000",
-      "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
-    },
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "ref",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["l_orderkey"],
-      "ref": ["dbt3_s001.orders.o_orderkey"],
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 6,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": {
-        "pages_accessed": 3
-      },
-      "filtered": "REPLACED",
-      "r_filtered": 66.66666667,
-      "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
-    }
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["l_orderkey"],
+          "ref": ["dbt3_s001.orders.o_orderkey"],
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 6,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": {
+            "pages_accessed": 2
+          },
+          "filtered": "REPLACED",
+          "r_filtered": 66.66666667,
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=on' for SELECT o_totaldiscount, o_totalprice, l_shipdate
@@ -1839,40 +2026,46 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "orders",
-      "access_type": "range",
-      "possible_keys": [
-        "PRIMARY",
-        "i_o_orderdate",
-        "i_o_totalprice",
-        "i_o_totaldiscount"
-      ],
-      "key": "i_o_totaldiscount",
-      "key_length": "9",
-      "used_key_parts": ["o_totaldiscount"],
-      "rows": 41,
-      "filtered": "REPLACED",
-      "index_condition": "orders.o_totaldiscount between 18000 and 20000",
-      "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
-    },
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "ref",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["l_orderkey"],
-      "ref": ["dbt3_s001.orders.o_orderkey"],
-      "rows": 4,
-      "filtered": "REPLACED",
-      "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "range",
+          "possible_keys": [
+            "PRIMARY",
+            "i_o_orderdate",
+            "i_o_totalprice",
+            "i_o_totaldiscount"
+          ],
+          "key": "i_o_totaldiscount",
+          "key_length": "9",
+          "used_key_parts": ["o_totaldiscount"],
+          "rows": 41,
+          "filtered": "REPLACED",
+          "index_condition": "orders.o_totaldiscount between 18000 and 20000",
+          "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
+        }
+      },
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["l_orderkey"],
+          "ref": ["dbt3_s001.orders.o_orderkey"],
+          "rows": 4,
+          "filtered": "REPLACED",
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=off' for ANALYZE SELECT o_totaldiscount, o_totalprice, l_shipdate
@@ -1892,60 +2085,69 @@ o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "orders",
-      "access_type": "range",
-      "possible_keys": [
-        "PRIMARY",
-        "i_o_orderdate",
-        "i_o_totalprice",
-        "i_o_totaldiscount"
-      ],
-      "key": "i_o_totaldiscount",
-      "key_length": "9",
-      "used_key_parts": ["o_totaldiscount"],
-      "r_loops": 1,
-      "rows": 41,
-      "r_rows": 41,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": {
-        "pages_accessed": 84
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "range",
+          "possible_keys": [
+            "PRIMARY",
+            "i_o_orderdate",
+            "i_o_totalprice",
+            "i_o_totaldiscount"
+          ],
+          "key": "i_o_totaldiscount",
+          "key_length": "9",
+          "used_key_parts": ["o_totaldiscount"],
+          "r_loops": 1,
+          "rows": 41,
+          "r_rows": 41,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": {
+            "pages_accessed": 84
+          },
+          "filtered": "REPLACED",
+          "r_filtered": 2.43902439,
+          "index_condition": "orders.o_totaldiscount between 18000 and 20000",
+          "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
+        }
       },
-      "filtered": "REPLACED",
-      "r_filtered": 2.43902439,
-      "index_condition": "orders.o_totaldiscount between 18000 and 20000",
-      "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
-    },
-    "table": {
-      "table_name": "lineitem",
-      "access_type": "ref",
-      "possible_keys": [
-        "PRIMARY",
-        "i_l_shipdate",
-        "i_l_orderkey",
-        "i_l_orderkey_quantity"
-      ],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["l_orderkey"],
-      "ref": ["dbt3_s001.orders.o_orderkey"],
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 6,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": {
-        "pages_accessed": 3
-      },
-      "filtered": "REPLACED",
-      "r_filtered": 66.66666667,
-      "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
-    }
+      {
+        "table": {
+          "table_name": "lineitem",
+          "access_type": "ref",
+          "possible_keys": [
+            "PRIMARY",
+            "i_l_shipdate",
+            "i_l_orderkey",
+            "i_l_orderkey_quantity"
+          ],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["l_orderkey"],
+          "ref": ["dbt3_s001.orders.o_orderkey"],
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 6,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": {
+            "pages_accessed": 2
+          },
+          "filtered": "REPLACED",
+          "r_filtered": 66.66666667,
+          "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='rowid_filter=off' for SELECT o_totaldiscount, o_totalprice, l_shipdate
@@ -2093,40 +2295,50 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "access_type": "ALL",
-      "rows": 101,
-      "filtered": 100,
-      "attached_condition": "t2.a2 is not null"
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["a1", "b1"],
-      "key": "a1",
-      "key_length": "5",
-      "used_key_parts": ["a1"],
-      "ref": ["test.t2.a2"],
-      "rows": 36,
-      "filtered": 28.75,
-      "attached_condition": "t1.b1 <= (subquery#2) and t1.pk1 + 1 = t2.pk2 + 2"
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "rows": 101,
+          "filtered": 100,
+          "attached_condition": "t2.a2 is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a1", "b1"],
+          "key": "a1",
+          "key_length": "5",
+          "used_key_parts": ["a1"],
+          "ref": ["test.t2.a2"],
+          "rows": 36,
+          "filtered": 28.75,
+          "attached_condition": "t1.b1 <= (subquery#2) and t1.pk1 + 1 = t2.pk2 + 2"
+        }
+      }
+    ],
     "subqueries": [
       {
         "query_block": {
           "select_id": 2,
-          "table": {
-            "table_name": "t2",
-            "access_type": "range",
-            "possible_keys": ["PRIMARY"],
-            "key": "PRIMARY",
-            "key_length": "4",
-            "used_key_parts": ["pk2"],
-            "rows": 1,
-            "filtered": 100,
-            "index_condition": "t2.pk2 <= 1"
-          }
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t2",
+                "access_type": "range",
+                "possible_keys": ["PRIMARY"],
+                "key": "PRIMARY",
+                "key_length": "4",
+                "used_key_parts": ["pk2"],
+                "rows": 1,
+                "filtered": 100,
+                "index_condition": "t2.pk2 <= 1"
+              }
+            }
+          ]
         }
       }
     ]
@@ -2298,28 +2510,35 @@ analyze format=json
 select * from t1  where nm like '500%' AND fl2 = 0;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "range",
-      "possible_keys": ["idx1", "idx2"],
-      "key": "idx1",
-      "key_length": "35",
-      "used_key_parts": ["nm"],
-      "r_loops": 1,
-      "rows": 1,
-      "r_rows": 1,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 49.20000076,
-      "r_filtered": 100,
-      "index_condition": "t1.nm like '500%'",
-      "attached_condition": "t1.fl2 = 0"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["idx1", "idx2"],
+          "key": "idx1",
+          "key_length": "35",
+          "used_key_parts": ["nm"],
+          "r_loops": 1,
+          "rows": 1,
+          "r_rows": 1,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 49.20000076,
+          "r_filtered": 100,
+          "index_condition": "t1.nm like '500%'",
+          "attached_condition": "t1.fl2 = 0"
+        }
+      }
+    ]
   }
 }
 select * from t1  where nm like '500%' AND fl2 = 0;
@@ -2345,28 +2564,35 @@ analyze format=json
 select * from t1  where nm like '500%' AND fl2 = 0;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "range",
-      "possible_keys": ["idx1", "idx2"],
-      "key": "idx1",
-      "key_length": "35",
-      "used_key_parts": ["nm"],
-      "r_loops": 1,
-      "rows": 1,
-      "r_rows": 1,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 49.20000076,
-      "r_filtered": 100,
-      "index_condition": "t1.nm like '500%'",
-      "attached_condition": "t1.fl2 = 0"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["idx1", "idx2"],
+          "key": "idx1",
+          "key_length": "35",
+          "used_key_parts": ["nm"],
+          "r_loops": 1,
+          "rows": 1,
+          "r_rows": 1,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 49.20000076,
+          "r_filtered": 100,
+          "index_condition": "t1.nm like '500%'",
+          "attached_condition": "t1.fl2 = 0"
+        }
+      }
+    ]
   }
 }
 select * from t1  where nm like '500%' AND fl2 = 0;
@@ -2417,41 +2643,48 @@ analyze format=json
 select * from t1  where nm like '75%' AND fl2 = 0;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["idx1", "idx2"],
-      "key": "idx2",
-      "key_length": "2",
-      "used_key_parts": ["fl2"],
-      "ref": ["const"],
-      "rowid_filter": {
-        "range": {
-          "key": "idx1",
-          "used_key_parts": ["nm"]
-        },
-        "rows": 115,
-        "selectivity_pct": 1.15,
-        "r_rows": 111,
-        "r_lookups": 100,
-        "r_selectivity_pct": 2,
-        "r_buffer_size": "REPLACED",
-        "r_filling_time_ms": "REPLACED"
-      },
-      "r_loops": 1,
-      "rows": 55,
-      "r_rows": 2,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 1.149999976,
-      "r_filtered": 100,
-      "attached_condition": "t1.nm like '75%'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["idx1", "idx2"],
+          "key": "idx2",
+          "key_length": "2",
+          "used_key_parts": ["fl2"],
+          "ref": ["const"],
+          "rowid_filter": {
+            "range": {
+              "key": "idx1",
+              "used_key_parts": ["nm"]
+            },
+            "rows": 115,
+            "selectivity_pct": 1.15,
+            "r_rows": 111,
+            "r_lookups": 100,
+            "r_selectivity_pct": 2,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "r_loops": 1,
+          "rows": 55,
+          "r_rows": 2,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 1.149999976,
+          "r_filtered": 100,
+          "attached_condition": "t1.nm like '75%'"
+        }
+      }
+    ]
   }
 }
 select * from t1  where nm like '75%' AND fl2 = 0;
@@ -2525,41 +2758,48 @@ nm like '3448%'
 ) and fl2 = 0;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["idx1", "idx2"],
-      "key": "idx2",
-      "key_length": "5",
-      "used_key_parts": ["fl2"],
-      "ref": ["const"],
-      "rowid_filter": {
-        "range": {
-          "key": "idx1",
-          "used_key_parts": ["nm"]
-        },
-        "rows": 44,
-        "selectivity_pct": 0.44,
-        "r_rows": 44,
-        "r_lookups": 1000,
-        "r_selectivity_pct": 0,
-        "r_buffer_size": "REPLACED",
-        "r_filling_time_ms": "REPLACED"
-      },
-      "r_loops": 1,
-      "rows": 863,
-      "r_rows": 0,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 0.439999998,
-      "r_filtered": 100,
-      "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["idx1", "idx2"],
+          "key": "idx2",
+          "key_length": "5",
+          "used_key_parts": ["fl2"],
+          "ref": ["const"],
+          "rowid_filter": {
+            "range": {
+              "key": "idx1",
+              "used_key_parts": ["nm"]
+            },
+            "rows": 44,
+            "selectivity_pct": 0.44,
+            "r_rows": 44,
+            "r_lookups": 1000,
+            "r_selectivity_pct": 0,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "r_loops": 1,
+          "rows": 863,
+          "r_rows": 0,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 0.439999998,
+          "r_filtered": 100,
+          "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
+        }
+      }
+    ]
   }
 }
 create table t0 select * from t1  where nm like '34%';
@@ -2585,39 +2825,46 @@ nm like '3448%'
 ) and fl2 = 0;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["idx1", "idx2"],
-      "key": "idx2",
-      "key_length": "5",
-      "used_key_parts": ["fl2"],
-      "ref": ["const"],
-      "rowid_filter": {
-        "range": {
-          "key": "idx1",
-          "used_key_parts": ["nm"]
-        },
-        "rows": 44,
-        "selectivity_pct": 0.44,
-        "r_rows": 0,
-        "r_lookups": 0,
-        "r_selectivity_pct": 0,
-        "r_buffer_size": "REPLACED",
-        "r_filling_time_ms": "REPLACED"
-      },
-      "r_loops": 1,
-      "rows": 853,
-      "r_rows": 0,
-      "r_engine_stats": REPLACED,
-      "filtered": 0.439999998,
-      "r_filtered": 100,
-      "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["idx1", "idx2"],
+          "key": "idx2",
+          "key_length": "5",
+          "used_key_parts": ["fl2"],
+          "ref": ["const"],
+          "rowid_filter": {
+            "range": {
+              "key": "idx1",
+              "used_key_parts": ["nm"]
+            },
+            "rows": 44,
+            "selectivity_pct": 0.44,
+            "r_rows": 0,
+            "r_lookups": 0,
+            "r_selectivity_pct": 0,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "r_loops": 1,
+          "rows": 853,
+          "r_rows": 0,
+          "r_engine_stats": REPLACED,
+          "filtered": 0.439999998,
+          "r_filtered": 100,
+          "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
+        }
+      }
+    ]
   }
 }
 drop table t0;
@@ -2683,54 +2930,62 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 1,
-            "table": {
-              "table_name": "t1",
-              "access_type": "ref",
-              "possible_keys": ["f1", "f2"],
-              "key": "f1",
-              "key_length": "13",
-              "used_key_parts": ["f1"],
-              "ref": ["const"],
-              "rowid_filter": {
-                "range": {
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ref",
+                  "possible_keys": ["f1", "f2"],
                   "key": "f1",
-                  "used_key_parts": ["f1"]
-                },
-                "rows": 1,
-                "selectivity_pct": 1.587301587
-              },
-              "rows": 1,
-              "filtered": 1.587301612,
-              "index_condition": "t1.f1 is null",
-              "attached_condition": "t1.f2 is null and (t1.f2 between 'a' and 'z' or t1.f1 = 'a')"
-            }
+                  "key_length": "13",
+                  "used_key_parts": ["f1"],
+                  "ref": ["const"],
+                  "rowid_filter": {
+                    "range": {
+                      "key": "f1",
+                      "used_key_parts": ["f1"]
+                    },
+                    "rows": 1,
+                    "selectivity_pct": 1.587301587
+                  },
+                  "rows": 1,
+                  "filtered": 1.587301612,
+                  "index_condition": "t1.f1 is null",
+                  "attached_condition": "t1.f2 is null and (t1.f2 between 'a' and 'z' or t1.f1 = 'a')"
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
-            "table": {
-              "table_name": "t1",
-              "access_type": "ref",
-              "possible_keys": ["f1", "f2"],
-              "key": "f1",
-              "key_length": "13",
-              "used_key_parts": ["f1"],
-              "ref": ["const"],
-              "rowid_filter": {
-                "range": {
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ref",
+                  "possible_keys": ["f1", "f2"],
                   "key": "f1",
-                  "used_key_parts": ["f1"]
-                },
-                "rows": 1,
-                "selectivity_pct": 1.587301587
-              },
-              "rows": 1,
-              "filtered": 1.587301612,
-              "index_condition": "t1.f1 is null",
-              "attached_condition": "t1.f2 is null and (t1.f2 between 'a' and 'z' or t1.f1 = 'a')"
-            }
+                  "key_length": "13",
+                  "used_key_parts": ["f1"],
+                  "ref": ["const"],
+                  "rowid_filter": {
+                    "range": {
+                      "key": "f1",
+                      "used_key_parts": ["f1"]
+                    },
+                    "rows": 1,
+                    "selectivity_pct": 1.587301587
+                  },
+                  "rows": 1,
+                  "filtered": 1.587301612,
+                  "index_condition": "t1.f1 is null",
+                  "attached_condition": "t1.f2 is null and (t1.f2 between 'a' and 'z' or t1.f1 = 'a')"
+                }
+              }
+            ]
           }
         }
       ]
@@ -3703,96 +3958,111 @@ fi.fh in (6311439873746261694,-397087483897438286,
 8518228073041491534,-5420422472375069774);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t",
-      "access_type": "index_merge",
-      "possible_keys": ["PRIMARY", "acli_rid", "acli_tp"],
-      "key_length": "2,767",
-      "index_merge": {
-        "intersect": {
-          "range": {
-            "key": "acli_tp",
-            "used_key_parts": ["tp"]
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t",
+          "access_type": "index_merge",
+          "possible_keys": ["PRIMARY", "acli_rid", "acli_tp"],
+          "key_length": "2,767",
+          "index_merge": {
+            "intersect": [
+              {
+                "range": {
+                  "key": "acli_tp",
+                  "used_key_parts": ["tp"]
+                }
+              },
+              {
+                "range": {
+                  "key": "acli_rid",
+                  "used_key_parts": ["rid"]
+                }
+              }
+            ]
           },
-          "range": {
-            "key": "acli_rid",
-            "used_key_parts": ["rid"]
-          }
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 3,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "t.tp = 121 and t.rid = 'B5FCC8C7111E4E3CBC21AAF5012F59C2'",
+          "using_index": true
         }
       },
-      "r_loops": 1,
-      "rows": 2,
-      "r_rows": 3,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "t.tp = 121 and t.rid = 'B5FCC8C7111E4E3CBC21AAF5012F59C2'",
-      "using_index": true
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "a",
-        "access_type": "ref",
-        "possible_keys": ["PRIMARY", "acei_aclid"],
-        "key": "acei_aclid",
-        "key_length": "8",
-        "used_key_parts": ["aclid"],
-        "ref": ["test.t.id"],
-        "r_loops": 1,
-        "rows": 1,
-        "r_rows": 3,
-        "r_table_time_ms": "REPLACED",
-        "r_other_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED,
-        "filtered": 100,
-        "r_filtered": 100
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "a",
+            "access_type": "ref",
+            "possible_keys": ["PRIMARY", "acei_aclid"],
+            "key": "acei_aclid",
+            "key_length": "8",
+            "used_key_parts": ["aclid"],
+            "ref": ["test.t.id"],
+            "r_loops": 1,
+            "rows": 1,
+            "r_rows": 3,
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 100,
+            "r_filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "8Kb",
+          "join_type": "BKA",
+          "mrr_type": "Rowid-ordered scan",
+          "attached_condition": "a.atp = 1",
+          "r_loops": 3,
+          "r_filtered": 100,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 1
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "8Kb",
-      "join_type": "BKA",
-      "mrr_type": "Rowid-ordered scan",
-      "attached_condition": "a.atp = 1",
-      "r_loops": 3,
-      "r_filtered": 100,
-      "r_unpack_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_effective_rows": 1
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "fi",
-        "access_type": "ref",
-        "possible_keys": ["filt_aceid", "filt_fh"],
-        "key": "filt_aceid",
-        "key_length": "8",
-        "used_key_parts": ["aceid"],
-        "ref": ["test.a.id"],
-        "r_loops": 1,
-        "rows": 24,
-        "r_rows": 80,
-        "r_table_time_ms": "REPLACED",
-        "r_other_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED,
-        "filtered": 14.46428585,
-        "r_filtered": 100
-      },
-      "buffer_type": "incremental",
-      "buffer_size": "4Kb",
-      "join_type": "BKA",
-      "mrr_type": "Rowid-ordered scan",
-      "attached_condition": "fi.fh in (6311439873746261694,-397087483897438286,8518228073041491534,-5420422472375069774)",
-      "r_loops": 3,
-      "r_filtered": 40,
-      "r_unpack_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_effective_rows": 26.66666667
-    }
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "fi",
+            "access_type": "ref",
+            "possible_keys": ["filt_aceid", "filt_fh"],
+            "key": "filt_aceid",
+            "key_length": "8",
+            "used_key_parts": ["aceid"],
+            "ref": ["test.a.id"],
+            "r_loops": 1,
+            "rows": 24,
+            "r_rows": 80,
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 14.46428585,
+            "r_filtered": 100
+          },
+          "buffer_type": "incremental",
+          "buffer_size": "4Kb",
+          "join_type": "BKA",
+          "mrr_type": "Rowid-ordered scan",
+          "attached_condition": "fi.fh in (6311439873746261694,-397087483897438286,8518228073041491534,-5420422472375069774)",
+          "r_loops": 3,
+          "r_filtered": 40,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 26.66666667
+        }
+      }
+    ]
   }
 }
 set optimizer_switch=@save_optimizer_switch;
@@ -4044,28 +4314,35 @@ order by
 pk desc;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["a", "b"],
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["const"],
-      "r_loops": 1,
-      "rows": 250,
-      "r_rows": 250,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 4.799086094,
-      "r_filtered": 100,
-      "attached_condition": "t1.a <=> 30100 and t1.b in (30100,30101,30102)"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a", "b"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "r_loops": 1,
+          "rows": 250,
+          "r_rows": 250,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 4.799086094,
+          "r_filtered": 100,
+          "attached_condition": "t1.a <=> 30100 and t1.b in (30100,30101,30102)"
+        }
+      }
+    ]
   }
 }
 drop table t1;

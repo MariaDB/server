@@ -16,9 +16,10 @@
 create user foo@'127.0.0.1';
 
 --connect (con1,127.0.0.1,foo,,)
+let $con1_id= `select connection_id()`;
 
 --connection default
-select user from information_schema.processlist;
+evalp select user from information_schema.processlist where id=$con1_id;
 kill user foo@'127.0.0.1';
 
 let $wait_condition=
@@ -31,6 +32,7 @@ drop user foo@'127.0.0.1';
 --echo #
 --echo # KILL USER and missing privileges
 --echo #
+let $default_id= `select connection_id()`;
 create user a@'127.0.0.1';
 create user b@'127.0.0.1';
 grant process on *.* to a@'127.0.0.1';
@@ -38,13 +40,13 @@ grant select on *.* to b@'127.0.0.1';
 --connect a,127.0.0.1,a
 show grants;
 --connect b,127.0.0.1,b
+let $b_id= `select connection_id()`;
 --replace_column 1 # 3 # 5 # 6 # 9 #
 show processlist;
 kill user a; # existing connection, but not visible to current_user
 kill user x; # not existing connection
 --connection a
---replace_column 1 # 3 # 5 # 6 # 7 # 8 # 9 #
-show processlist;
+evalp select user from information_schema.processlist where id in (connection_id(), $b_id, $default_id) order by user;
 --error ER_KILL_DENIED_ERROR
 kill user b;
 --connection default

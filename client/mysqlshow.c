@@ -137,6 +137,7 @@ int main(int argc, char **argv)
 
   if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
     default_charset= (char *)my_default_csname();
+  my_set_console_cp(default_charset);
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, default_charset);
 
   if (opt_plugin_dir && *opt_plugin_dir)

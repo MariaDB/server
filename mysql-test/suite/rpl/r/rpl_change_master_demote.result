@@ -1,0 +1,715 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+change master to master_use_gtid=slave_pos;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+#
+#    Test Case 1: When both gtid_binlog_pos and gtid_slave_pos are
+# empty, MASTER_DEMOTE_TO_SLAVE=1 results in no change to replication
+# state.
+#
+include/rpl_change_master_demote.inc
+##############################################
+# Connection semantics change:
+#  * True primary is now connection 'slave'
+#  * True replica is now connection 'master'
+##############################################
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	
+GTID_CURRENT_POS	
+GTID_SLAVE_POS	
+# First ensure gtid_slave_pos after master_demote_to_slave matches
+# gtid_current_pos calculation
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 ;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	
+GTID_CURRENT_POS	
+GTID_SLAVE_POS	
+# Validating gtid_slave_pos == gtid_binlog_pos..
+# ..success
+connection slave;
+# Ensuring replication works correctly after role swap
+connection slave;
+set session gtid_domain_id= 0;
+CREATE TABLE repl_t (a int);
+INSERT INTO repl_t VALUES (1);
+connection master;
+# Validating that replication works..
+# ..success
+# Cleaning up replication check data
+connection slave;
+DROP TABLE repl_t;
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	
+GTID_CURRENT_POS	0-2-3
+GTID_SLAVE_POS	0-2-3
+##############################################
+# Connection semantics change:
+#  * True primary is back to connection 'master'
+#  * True replica is back to connection 'slave'
+##############################################
+connection master;
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
+#
+# Test Case 2: If gtid_slave_pos is empty, gtid_binlog_pos will
+# completely overwrite it with MASTER_DEMOTE_TO_SLAVE=1.
+#
+connection slave;
+include/stop_slave.inc
+RESET MASTER;
+set @@global.gtid_slave_pos="";
+include/start_slave.inc
+connection master;
+RESET MASTER;
+set @@global.gtid_slave_pos="";
+set session gtid_domain_id= 0;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (1);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_change_master_demote.inc
+##############################################
+# Connection semantics change:
+#  * True primary is now connection 'slave'
+#  * True replica is now connection 'master'
+##############################################
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-2
+GTID_CURRENT_POS	0-1-2
+GTID_SLAVE_POS	
+# First ensure gtid_slave_pos after master_demote_to_slave matches
+# gtid_current_pos calculation
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 ;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-2
+GTID_CURRENT_POS	0-1-2
+GTID_SLAVE_POS	0-1-2
+# Validating gtid_slave_pos == gtid_binlog_pos..
+# ..success
+connection slave;
+# Ensuring replication works correctly after role swap
+connection slave;
+set session gtid_domain_id= 0;
+CREATE TABLE repl_t (a int);
+INSERT INTO repl_t VALUES (1);
+connection master;
+# Validating that replication works..
+# ..success
+# Cleaning up replication check data
+connection slave;
+DROP TABLE repl_t;
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-2
+GTID_CURRENT_POS	0-2-5
+GTID_SLAVE_POS	0-2-5
+##############################################
+# Connection semantics change:
+#  * True primary is back to connection 'master'
+#  * True replica is back to connection 'slave'
+##############################################
+connection master;
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
+#
+# Test Case 3: Using a single domain id, if neither gtid_slave_pos nor
+# gtid_binlog_pos are empty, and gtid_binlog_pos is more recent, then
+# gtid_binlog_pos will overwrite gtid_slave_pos when
+# MASTER_DEMOTE_TO_SLAVE=1.
+#
+connection master;
+INSERT INTO t1 VALUES (2);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_change_master_demote.inc
+##############################################
+# Connection semantics change:
+#  * True primary is now connection 'slave'
+#  * True replica is now connection 'master'
+##############################################
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-6
+GTID_CURRENT_POS	0-1-6
+GTID_SLAVE_POS	0-2-5
+# First ensure gtid_slave_pos after master_demote_to_slave matches
+# gtid_current_pos calculation
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 ;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-6
+GTID_CURRENT_POS	0-1-6
+GTID_SLAVE_POS	0-1-6
+# Validating gtid_slave_pos == gtid_binlog_pos..
+# ..success
+connection slave;
+# Ensuring replication works correctly after role swap
+connection slave;
+set session gtid_domain_id= 0;
+CREATE TABLE repl_t (a int);
+INSERT INTO repl_t VALUES (1);
+connection master;
+# Validating that replication works..
+# ..success
+# Cleaning up replication check data
+connection slave;
+DROP TABLE repl_t;
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-6
+GTID_CURRENT_POS	0-2-9
+GTID_SLAVE_POS	0-2-9
+##############################################
+# Connection semantics change:
+#  * True primary is back to connection 'master'
+#  * True replica is back to connection 'slave'
+##############################################
+connection master;
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
+#
+# Test Case 4: If gtid_slave_pos and gtid_binlog_pos are equivalent,
+# MASTER_DEMOTE_TO_SLAVE=1 will not change gtid_slave_pos.
+#
+connection master;
+# update gtid_binlog_pos and demote it (we have proven this works)
+INSERT INTO t1 VALUES (3);
+# Update to account for statements to verify replication in include file
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+RESET SLAVE ALL;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_change_master_demote.inc
+##############################################
+# Connection semantics change:
+#  * True primary is now connection 'slave'
+#  * True replica is now connection 'master'
+##############################################
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-10
+GTID_CURRENT_POS	0-1-10
+GTID_SLAVE_POS	0-1-10
+# First ensure gtid_slave_pos after master_demote_to_slave matches
+# gtid_current_pos calculation
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 ;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-10
+GTID_CURRENT_POS	0-1-10
+GTID_SLAVE_POS	0-1-10
+# Validating gtid_slave_pos == gtid_binlog_pos..
+# ..success
+connection slave;
+# Ensuring replication works correctly after role swap
+connection slave;
+set session gtid_domain_id= 0;
+CREATE TABLE repl_t (a int);
+INSERT INTO repl_t VALUES (1);
+connection master;
+# Validating that replication works..
+# ..success
+# Cleaning up replication check data
+connection slave;
+DROP TABLE repl_t;
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-10
+GTID_CURRENT_POS	0-2-13
+GTID_SLAVE_POS	0-2-13
+##############################################
+# Connection semantics change:
+#  * True primary is back to connection 'master'
+#  * True replica is back to connection 'slave'
+##############################################
+connection master;
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
+#
+# Test Case 5: If a new domain id is added into gtid_binlog_pos while
+# gtid_slave_pos already has a state, MASTER_DEMOTE_TO_SLAVE=1 will
+# append a new GTID to gtid_slave_pos with the latest seq_no from that
+# domain.
+#
+connection master;
+# Domain_id
+set session gtid_domain_id= 0;
+INSERT INTO t1 VALUES (4);
+set session gtid_domain_id= 1;
+CREATE TABLE t2 (a int);
+INSERT INTO t2 VALUES (1);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_change_master_demote.inc
+##############################################
+# Connection semantics change:
+#  * True primary is now connection 'slave'
+#  * True replica is now connection 'master'
+##############################################
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-14,1-1-2
+GTID_CURRENT_POS	0-1-14,1-1-2
+GTID_SLAVE_POS	0-2-13
+# First ensure gtid_slave_pos after master_demote_to_slave matches
+# gtid_current_pos calculation
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 ;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-14,1-1-2
+GTID_CURRENT_POS	0-1-14,1-1-2
+GTID_SLAVE_POS	0-1-14,1-1-2
+# Validating gtid_slave_pos == gtid_binlog_pos..
+# ..success
+connection slave;
+# Ensuring replication works correctly after role swap
+connection slave;
+set session gtid_domain_id= 0;
+CREATE TABLE repl_t (a int);
+INSERT INTO repl_t VALUES (1);
+connection master;
+# Validating that replication works..
+# ..success
+# Cleaning up replication check data
+connection slave;
+DROP TABLE repl_t;
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-14,1-1-2
+GTID_CURRENT_POS	0-2-17,1-1-2
+GTID_SLAVE_POS	0-2-17,1-1-2
+##############################################
+# Connection semantics change:
+#  * True primary is back to connection 'master'
+#  * True replica is back to connection 'slave'
+##############################################
+connection master;
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
+#
+# Test Case 6: If gtid_slave_pos has multiple GTID positions and
+# gtid_binlog_pos contains updates on existing domain ids, new
+# domains, and differing server_ids, MASTER_DEMOTE_TO_SLAVE=1 will
+# update gtid_slave_pos such that it will have the seq_nos only from
+# the GTIDs last applied by this server. In other words, any GTIDs
+# with server ids that don't match that of the demoting server will be
+# ignored in the update.
+#
+connection master;
+# Update to account for statements to verify replication in include file
+set session gtid_domain_id= 0;
+INSERT INTO t1 VALUES (5);
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+RESET SLAVE ALL;
+set session gtid_domain_id= 1;
+INSERT INTO t2 VALUES (2);
+set session gtid_domain_id= 2;
+CREATE TABLE t3 (a int);
+INSERT INTO t3 VALUES (1);
+# The following events have a different server_id and should not go into
+# gtid_slave_pos
+set @old_server_id = @@server_id;
+set session gtid_domain_id= 1;
+set session server_id= 3;
+INSERT INTO t2 VALUES (3);
+set session gtid_domain_id= 4;
+set session server_id= 3;
+CREATE TABLE t5 (a int);
+INSERT INTO t5 VALUES (1);
+set session server_id= @old_server_id;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_change_master_demote.inc
+##############################################
+# Connection semantics change:
+#  * True primary is now connection 'slave'
+#  * True replica is now connection 'master'
+##############################################
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-18,1-3-4,2-1-2,4-3-2
+GTID_CURRENT_POS	0-1-18,1-1-2,2-1-2
+GTID_SLAVE_POS	0-1-18,1-1-2
+# First ensure gtid_slave_pos after master_demote_to_slave matches
+# gtid_current_pos calculation
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 ;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-18,1-3-4,2-1-2,4-3-2
+GTID_CURRENT_POS	0-1-18,1-1-2,2-1-2
+GTID_SLAVE_POS	0-1-18,1-1-2,2-1-2
+# Validating gtid_slave_pos == gtid_binlog_pos..
+# ..success
+connection slave;
+# Ensuring replication works correctly after role swap
+connection slave;
+set session gtid_domain_id= 0;
+CREATE TABLE repl_t (a int);
+INSERT INTO repl_t VALUES (1);
+connection master;
+# Validating that replication works..
+# ..success
+# Cleaning up replication check data
+connection slave;
+DROP TABLE repl_t;
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-18,1-3-4,2-1-2,4-3-2
+GTID_CURRENT_POS	0-2-21,1-3-4,2-1-2,4-3-2
+GTID_SLAVE_POS	0-2-21,1-3-4,2-1-2,4-3-2
+##############################################
+# Connection semantics change:
+#  * True primary is back to connection 'master'
+#  * True replica is back to connection 'slave'
+##############################################
+connection master;
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
+#
+# Test Case 7: If MASTER_DEMOTE_TO_SLAVE=1 is combined with
+# IGNORE_DOMAIN_IDS such that gtid_binlog_pos has more recent GTIDs
+# than gtid_slave_pos in ignored domains, the CHANGE MASTER TO command
+# will still update gtid_slave_pos with the most recent transactions
+# from gtid_binlog_pos, despite being ignored by CHANGE MASTER TO
+# because they were already applied on the server.
+#
+connection master;
+set session gtid_domain_id= 2;
+INSERT INTO t3 VALUES (2);
+set session gtid_domain_id= 3;
+CREATE TABLE t4 (a int);
+INSERT INTO t4 VALUES (1);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_change_master_demote.inc
+##############################################
+# Connection semantics change:
+#  * True primary is now connection 'slave'
+#  * True replica is now connection 'master'
+##############################################
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-18,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_CURRENT_POS	0-2-21,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_SLAVE_POS	0-2-21,1-3-4,2-1-2,4-3-2
+# First ensure gtid_slave_pos after master_demote_to_slave matches
+# gtid_current_pos calculation
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 , ignore_domain_ids=(2,3);
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-18,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_CURRENT_POS	0-2-21,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_SLAVE_POS	0-2-21,1-3-4,2-1-3,3-1-2,4-3-2
+# Validating gtid_slave_pos == gtid_binlog_pos..
+# ..success
+connection slave;
+# Ensuring replication works correctly after role swap
+connection slave;
+set session gtid_domain_id= 0;
+CREATE TABLE repl_t (a int);
+INSERT INTO repl_t VALUES (1);
+connection master;
+# Validating that replication works..
+# ..success
+# Cleaning up replication check data
+connection slave;
+DROP TABLE repl_t;
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-18,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_CURRENT_POS	0-2-24,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_SLAVE_POS	0-2-24,1-3-4,2-1-3,3-1-2,4-3-2
+##############################################
+# Connection semantics change:
+#  * True primary is back to connection 'master'
+#  * True replica is back to connection 'slave'
+##############################################
+connection master;
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
+#
+# Test Case 8: If gtid_binlog_pos is more recent than gtid_slave_pos,
+# and MASTER_DEMOTE_TO_SLAVE=1 is combined with a later call to
+# START SLAVE UNTIL master_gtid_pos=<G> such that
+# gtid_slave_pos < G < gtid_binlog_pos, then the slave should stop
+# immediately after SSU because gtid_slave_pos should be updated to be
+# after G.
+#
+connection master;
+set session gtid_domain_id= 0;
+INSERT INTO t1 VALUES (6);
+# Tagging ssu_middle_binlog_pos here to be used for START SLAVE UNTIL
+INSERT INTO t1 VALUES (7);
+include/save_master_gtid.inc
+# Ensure slave is up-to-date with master and then disable slave status
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_SLAVE_POS	0-2-24,1-3-4,2-1-3,3-1-2,4-3-2
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=Slave_Pos, master_demote_to_slave=1;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_SLAVE_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
+# GTID ssu_middle_binlog_pos should be considered in the past because
+# gtid_slave_pos should be updated using the latest binlog gtids.
+# The following call to sync_with_master_gtid.inc uses the latest
+# binlog position and should still succeed despite the SSU stop
+# position pointing to a previous event (because
+# master_demote_to_slave=1 merges gtid_binlog_pos into gtid_slave_pos).
+START SLAVE UNTIL master_gtid_pos="ssu_middle_binlog_pos";
+Warnings:
+Note	1278	It is recommended to use --skip-slave-start when doing step-by-step replication with START SLAVE UNTIL; otherwise, you will get problems if you get an unexpected slave's mariadbd restart
+# Slave needs time to start and stop automatically
+# Waiting for both SQL and IO threads to have started..
+# Waiting for Slave SQL and IO threads to be killed..
+# Validating neither SQL nor IO threads are running..
+# ..success
+# Clean slave state of master
+RESET SLAVE ALL;
+#
+# Test Case 9: If gtid_slave_pos is more recent than gtid_binlog_pos
+# when demoting the master to become a slave, the replication state
+# should be preserved.
+#
+# rpl_change_master_demote.inc should force
+# gtid_slave_pos > gtid_binlog_pos in domain 0 (due to the step which
+# validates replication works)
+connection master;
+include/rpl_change_master_demote.inc
+##############################################
+# Connection semantics change:
+#  * True primary is now connection 'slave'
+#  * True replica is now connection 'master'
+##############################################
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_CURRENT_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_SLAVE_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
+# First ensure gtid_slave_pos after master_demote_to_slave matches
+# gtid_current_pos calculation
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 , ignore_domain_ids=(2,3);
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_CURRENT_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_SLAVE_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
+# Validating gtid_slave_pos == gtid_binlog_pos..
+# ..success
+connection slave;
+Warnings:
+Note	1255	Slave already has been stopped
+# Ensuring replication works correctly after role swap
+connection slave;
+set session gtid_domain_id= 0;
+CREATE TABLE repl_t (a int);
+INSERT INTO repl_t VALUES (1);
+connection master;
+# Validating that replication works..
+# ..success
+# Cleaning up replication check data
+connection slave;
+DROP TABLE repl_t;
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_CURRENT_POS	0-2-29,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_SLAVE_POS	0-2-29,1-3-4,2-1-3,3-1-2,4-3-2
+##############################################
+# Connection semantics change:
+#  * True primary is back to connection 'master'
+#  * True replica is back to connection 'slave'
+##############################################
+connection master;
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
+# Demote master to slave with the more recent gtid_slave_pos
+connection master;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+# Validating gtid_slave_pos is unchanged..
+# ..success
+# Validating gtid_slave_pos == gtid_binlog_pos..
+# ..success
+# Clean slave state of master
+RESET SLAVE ALL;
+#
+# Test Case 10: MASTER_DEMOTE_TO_SLAVE=0 should not change replication
+# state, regardless of gtid_slave_pos in comparison to gtid_binlog_pos.
+#
+# In domain 0, make gtid_slave_pos > gtid_binlog_pos
+connection master;
+include/rpl_change_master_demote.inc
+##############################################
+# Connection semantics change:
+#  * True primary is now connection 'slave'
+#  * True replica is now connection 'master'
+##############################################
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_CURRENT_POS	0-2-29,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_SLAVE_POS	0-2-29,1-3-4,2-1-3,3-1-2,4-3-2
+# First ensure gtid_slave_pos after master_demote_to_slave matches
+# gtid_current_pos calculation
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1 , ignore_domain_ids=(2,3);
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_CURRENT_POS	0-2-29,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_SLAVE_POS	0-2-29,1-3-4,2-1-3,3-1-2,4-3-2
+# Validating gtid_slave_pos == gtid_binlog_pos..
+# ..success
+connection slave;
+# Ensuring replication works correctly after role swap
+connection slave;
+set session gtid_domain_id= 0;
+CREATE TABLE repl_t (a int);
+INSERT INTO repl_t VALUES (1);
+connection master;
+# Validating that replication works..
+# ..success
+# Cleaning up replication check data
+connection slave;
+DROP TABLE repl_t;
+connection master;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-26,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_CURRENT_POS	0-2-32,1-3-4,2-1-3,3-1-2,4-3-2
+GTID_SLAVE_POS	0-2-32,1-3-4,2-1-3,3-1-2,4-3-2
+##############################################
+# Connection semantics change:
+#  * True primary is back to connection 'master'
+#  * True replica is back to connection 'slave'
+##############################################
+connection master;
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+connection master;
+# Tag gtid_slave_pos now (before binlog updates) for later comparison
+connection master;
+# In domain 1, make gtid_slave_pos < gtid_binlog_pos
+set session gtid_domain_id= 1;
+INSERT INTO t2 VALUES (4);
+# In domains 2, 3 and 4, gtid_slave_pos == gtid_binlog_pos
+# Include a new domain id (5)
+set session gtid_domain_id= 5;
+CREATE TABLE t6 (a int);
+INSERT INTO t6 VALUES (1);
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-26,1-1-5,2-1-3,3-1-2,4-3-2,5-1-2
+GTID_SLAVE_POS	0-2-32,1-3-4,2-1-3,3-1-2,4-3-2
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=0;
+# Validating gtid_slave_pos is unchanged..
+# ..success
+# Clean slave state of master
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=slave_pos, master_demote_to_slave=1;
+RESET SLAVE ALL;
+SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' ORDER BY VARIABLE_NAME ASC;
+VARIABLE_NAME	GLOBAL_VALUE
+GTID_BINLOG_POS	0-1-26,1-1-5,2-1-3,3-1-2,4-3-2,5-1-2
+GTID_SLAVE_POS	0-2-32,1-1-5,2-1-3,3-1-2,4-3-2,5-1-2
+#
+#
+# Stop slave for error test cases
+connection slave;
+include/stop_slave.inc
+#
+# Error Case 1: MASTER_DEMOTE_TO_SLAVE=1 combined with
+# MASTER_USE_GTID=NO should result in an error.
+#
+connection master;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=no, master_demote_to_slave=1;
+ERROR HY000: CHANGE MASTER TO option 'MASTER_DEMOTE_TO_SLAVE=TRUE' is missing requirement Using_Gtid=Slave_Pos
+#
+# Error Case 2: Error when MASTER_DEMOTE_TO_SLAVE=1 is used without
+# binary logging enabled.
+#
+connection master;
+# Restarting master without binary log
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=Slave_Pos, master_demote_to_slave=1;
+ERROR HY000: You are not using binary logging
+# Restarting master to re-enable binary log
+connection server_1;
+connection default;
+#
+# Error Case 3: Error when MASTER_DEMOTE_TO_SLAVE is provided a
+# non-boolean value.
+#
+connection master;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SLAVE_PORT, master_user='root', master_use_gtid=Slave_Pos, master_demote_to_slave=invalid;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'invalid' at line 1
+#
+# MDEV-31768
+# Ensure MASTER_DEMOTE_TO_REPLICA aliases MASTER_DEMOTE_TO_SLAVE
+#
+connection slave;
+RESET MASTER;
+include/reset_slave.inc
+CREATE TABLE t_mdev_31768 (a int);
+CHANGE MASTER TO master_use_gtid=Replica_Pos, master_demote_to_replica=1;
+# Validating alias MASTER_DEMOTE_TO_REPLICA provides intended behavior..
+# ..success
+DROP TABLE t_mdev_31768;
+RESET MASTER;
+include/reset_slave.inc
+# Clear primary binlog state to match replica
+connection master;
+RESET MASTER;
+#
+# Cleanup
+#
+connection master;
+DROP TABLE t1, t2, t3, t4, t5, t6;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+#
+### End rpl_change_master_demote.test

@@ -658,3 +658,18 @@ SELECT COUNT(*) FROM t1 JOIN t2 ON (b = a) UNION DISTINCT SELECT COUNT(*) FROM t
 DROP TABLE t1, t2;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-22241: Assertion `0' failed in Protocol::end_statement after query with LIMIT ROWS EXAMINED
+--echo #
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (1);
+
+SELECT 1 FROM t1
+WHERE (1 IN (SELECT 8 UNION SELECT 5)) OR t1.a = 2
+LIMIT ROWS EXAMINED 1;
+
+DROP TABLE t1;
+
+--echo # End of 10.11 tests

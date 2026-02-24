@@ -261,17 +261,21 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "t1.a desc",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t1.a desc",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 (select a from t1 order by a desc) limit 1;
@@ -287,17 +291,21 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "t1.a desc",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t1.a desc",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 (select a from t1 where a=20 union select a from t1) order by a desc limit 1;
@@ -321,25 +329,33 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 1,
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 3,
-              "filtered": 100,
-              "attached_condition": "t1.a = 20"
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 3,
+                  "filtered": 100,
+                  "attached_condition": "t1.a = 20"
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 3,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 3,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         }
       ]
@@ -367,25 +383,33 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 1,
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 3,
-              "filtered": 100,
-              "attached_condition": "t1.a = 20"
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 3,
+                  "filtered": 100,
+                  "attached_condition": "t1.a = 20"
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 3,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 3,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         }
       ]
@@ -421,30 +445,38 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 1,
-            "read_sorted_file": {
-              "filesort": {
-                "sort_key": "t1.pk",
-                "table": {
-                  "table_name": "t1",
-                  "access_type": "ALL",
-                  "rows": 5,
-                  "filtered": 100
+            "nested_loop": [
+              {
+                "read_sorted_file": {
+                  "filesort": {
+                    "sort_key": "t1.pk",
+                    "table": {
+                      "table_name": "t1",
+                      "access_type": "ALL",
+                      "rows": 5,
+                      "filtered": 100
+                    }
+                  }
                 }
               }
-            }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100,
-              "attached_condition": "t1.pk > 4"
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 5,
+                  "filtered": 100,
+                  "attached_condition": "t1.pk > 4"
+                }
+              }
+            ]
           }
         }
       ]
@@ -457,8 +489,6 @@ drop table t1;
 #
 select * from ( mysql.db );
 Host	Db	User	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Create_tmp_table_priv	Lock_tables_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Execute_priv	Event_priv	Trigger_priv	Delete_history_priv
-%	test		Y	Y	Y	Y	Y	Y	N	Y	Y	Y	Y	Y	Y	Y	Y	N	N	Y	Y	Y
-%	test\_%		Y	Y	Y	Y	Y	Y	N	Y	Y	Y	Y	Y	Y	Y	Y	N	N	Y	Y	Y
 create table t1 (a int);
 insert into t1 values (7), (2), (7);
 select * from (t1);

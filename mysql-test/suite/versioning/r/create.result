@@ -1,4 +1,3 @@
-drop table if exists t1;
 create table t1 (
 x1 int unsigned,
 Sys_start SYS_DATATYPE as row start invisible comment 'start',
@@ -266,8 +265,8 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `y` int(11) DEFAULT NULL,
-  `st` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `en` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
+  `st` timestamp(6) NOT NULL,
+  `en` timestamp(6) NOT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ## For versioned table
 insert into t1 values (1);
@@ -296,8 +295,8 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `y` int(11) DEFAULT NULL,
-  `st` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `en` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
+  `st` timestamp(6) NOT NULL,
+  `en` timestamp(6) NOT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
 select * from t3 where y > 2;
 y	st	en
@@ -385,8 +384,8 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `x25` int(11) DEFAULT NULL,
-  `row_start` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `row_end` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
+  `row_start` timestamp(6) NOT NULL,
+  `row_end` timestamp(6) NOT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t2 with system versioning
 as select x25, row_start rs, row_end re from t1;
@@ -394,8 +393,8 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `x25` int(11) DEFAULT NULL,
-  `rs` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `re` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
+  `rs` timestamp(6) NOT NULL,
+  `re` timestamp(6) NOT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
 create or replace table t1 (
 x26 int,
@@ -409,8 +408,8 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `x26` int(11) DEFAULT NULL,
-  `st` bigint(20) unsigned NOT NULL DEFAULT 0,
-  `en` bigint(20) unsigned NOT NULL DEFAULT 0
+  `st` bigint(20) unsigned NOT NULL,
+  `en` bigint(20) unsigned NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
 create or replace table t1 (x27 int, id int) with system versioning engine NON_DEFAULT_ENGINE;
 create or replace table t2 (b int, id int);
@@ -421,8 +420,8 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `b` int(11) DEFAULT NULL,
   `x27` int(11) DEFAULT NULL,
-  `rs` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `re` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
+  `rs` timestamp(6) NOT NULL,
+  `re` timestamp(6) NOT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
 ## Errors
 create or replace temporary table t (x28 int) with system versioning;
@@ -458,10 +457,10 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `x30` int(11) DEFAULT NULL,
   `y` int(11) DEFAULT NULL,
-  `row_start` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `row_end` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `st` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `en` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
+  `row_start` timestamp(6) NOT NULL,
+  `row_end` timestamp(6) NOT NULL,
+  `st` timestamp(6) NOT NULL,
+  `en` timestamp(6) NOT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t3 (
 y int,
@@ -475,8 +474,8 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `x30` int(11) DEFAULT NULL,
   `y` int(11) DEFAULT NULL,
-  `row_start` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `row_end` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `row_start` timestamp(6) NOT NULL,
+  `row_end` timestamp(6) NOT NULL,
   `st` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
   `en` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`st`, `en`)

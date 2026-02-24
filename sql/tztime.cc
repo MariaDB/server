@@ -1052,7 +1052,7 @@ public:
     This method uses system function (localtime_r()) for conversion
     local time in system time zone in MYSQL_TIME structure to its my_time_t
     representation. Unlike the same function for Time_zone_db class
-    it it won't handle unnormalized input properly. Still it will
+    it won't handle unnormalized input properly. Still it will
     return lowest possible my_time_t in case of ambiguity or if we
     provide time corresponding to the time-gap.
 
@@ -2003,7 +2003,11 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
 #endif
 
     /* ttid is increasing because we are reading using index */
-    DBUG_ASSERT(ttid >= tmp_tz_info.typecnt);
+    if (ttid < tmp_tz_info.typecnt)
+    {
+      sql_print_error("mysql.time_zone_transition_type table is incorrectly defined or corrupted");
+      goto end;
+    }
 
     tmp_tz_info.typecnt= ttid + 1;
 
@@ -2519,7 +2523,7 @@ scan_tz_dir(char * name_end, uint symlink_recursion_level, uint verbose)
 {
   MY_DIR *cur_dir;
   char *name_end_tmp;
-  uint i;
+  size_t i;
 
   /* Sort directory data, to pass mtr tests on different platforms. */
   if (!(cur_dir= my_dir(fullname, MYF(MY_WANT_STAT|MY_WANT_SORT))))

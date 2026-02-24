@@ -6,12 +6,16 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t0",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100
+        }
+      }
+    ]
   }
 }
 explain format=json select * from t0 where 1>2;
@@ -29,13 +33,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t0",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100,
-      "attached_condition": "t0.a < 3"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "t0.a < 3"
+        }
+      }
+    ]
   }
 }
 # Try a basic join
@@ -51,24 +59,30 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t0",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100,
-      "attached_condition": "t0.a is not null"
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["a"],
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["test.t0.a"],
-      "rows": 1,
-      "filtered": 100
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "t0.a is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t0.a"],
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
   }
 }
 # Try range and index_merge
@@ -79,17 +93,21 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "access_type": "range",
-      "possible_keys": ["a1"],
-      "key": "a1",
-      "key_length": "5",
-      "used_key_parts": ["a1"],
-      "rows": 5,
-      "filtered": 100,
-      "index_condition": "t2.a1 < 5"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a1"],
+          "key": "a1",
+          "key_length": "5",
+          "used_key_parts": ["a1"],
+          "rows": 5,
+          "filtered": 100,
+          "index_condition": "t2.a1 < 5"
+        }
+      }
+    ]
   }
 }
 explain format=json select * from t2 where a1=1 or b1=2;
@@ -97,27 +115,35 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "access_type": "index_merge",
-      "possible_keys": ["a1", "b1"],
-      "key_length": "5,5",
-      "index_merge": {
-        "sort_union": {
-          "range": {
-            "key": "a1",
-            "used_key_parts": ["a1"]
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "index_merge",
+          "possible_keys": ["a1", "b1"],
+          "key_length": "5,5",
+          "index_merge": {
+            "sort_union": [
+              {
+                "range": {
+                  "key": "a1",
+                  "used_key_parts": ["a1"]
+                }
+              },
+              {
+                "range": {
+                  "key": "b1",
+                  "used_key_parts": ["b1"]
+                }
+              }
+            ]
           },
-          "range": {
-            "key": "b1",
-            "used_key_parts": ["b1"]
-          }
+          "rows": 2,
+          "filtered": 100,
+          "attached_condition": "t2.a1 = 1 or t2.b1 = 2"
         }
-      },
-      "rows": 2,
-      "filtered": 100,
-      "attached_condition": "t2.a1 = 1 or t2.b1 = 2"
-    }
+      }
+    ]
   }
 }
 explain format=json select * from t2 where a1=1 or (b1=2 and b2=3);
@@ -125,27 +151,35 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "access_type": "index_merge",
-      "possible_keys": ["a1", "b1"],
-      "key_length": "5,10",
-      "index_merge": {
-        "sort_union": {
-          "range": {
-            "key": "a1",
-            "used_key_parts": ["a1"]
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "index_merge",
+          "possible_keys": ["a1", "b1"],
+          "key_length": "5,10",
+          "index_merge": {
+            "sort_union": [
+              {
+                "range": {
+                  "key": "a1",
+                  "used_key_parts": ["a1"]
+                }
+              },
+              {
+                "range": {
+                  "key": "b1",
+                  "used_key_parts": ["b1", "b2"]
+                }
+              }
+            ]
           },
-          "range": {
-            "key": "b1",
-            "used_key_parts": ["b1", "b2"]
-          }
+          "rows": 2,
+          "filtered": 100,
+          "attached_condition": "t2.a1 = 1 or t2.b1 = 2 and t2.b2 = 3"
         }
-      },
-      "rows": 2,
-      "filtered": 100,
-      "attached_condition": "t2.a1 = 1 or t2.b1 = 2 and t2.b2 = 3"
-    }
+      }
+    ]
   }
 }
 explain format=json select * from t2 where (a1=1 and a2=1) or 
@@ -154,27 +188,35 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "access_type": "index_merge",
-      "possible_keys": ["a1", "b1"],
-      "key_length": "10,10",
-      "index_merge": {
-        "union": {
-          "range": {
-            "key": "a1",
-            "used_key_parts": ["a1", "a2"]
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "index_merge",
+          "possible_keys": ["a1", "b1"],
+          "key_length": "10,10",
+          "index_merge": {
+            "union": [
+              {
+                "range": {
+                  "key": "a1",
+                  "used_key_parts": ["a1", "a2"]
+                }
+              },
+              {
+                "range": {
+                  "key": "b1",
+                  "used_key_parts": ["b1", "b2"]
+                }
+              }
+            ]
           },
-          "range": {
-            "key": "b1",
-            "used_key_parts": ["b1", "b2"]
-          }
+          "rows": 2,
+          "filtered": 100,
+          "attached_condition": "t2.a1 = 1 and t2.a2 = 1 or t2.b1 = 2 and t2.b2 = 1"
         }
-      },
-      "rows": 2,
-      "filtered": 100,
-      "attached_condition": "t2.a1 = 1 and t2.a2 = 1 or t2.b1 = 2 and t2.b2 = 1"
-    }
+      }
+    ]
   }
 }
 # Try ref access on two key components
@@ -183,24 +225,30 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t0",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100,
-      "attached_condition": "t0.a is not null"
-    },
-    "table": {
-      "table_name": "t2",
-      "access_type": "ref",
-      "possible_keys": ["b1"],
-      "key": "b1",
-      "key_length": "10",
-      "used_key_parts": ["b1", "b2"],
-      "ref": ["test.t0.a", "const"],
-      "rows": 1,
-      "filtered": 100
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "t0.a is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ref",
+          "possible_keys": ["b1"],
+          "key": "b1",
+          "key_length": "10",
+          "used_key_parts": ["b1", "b2"],
+          "ref": ["test.t0.a", "const"],
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
   }
 }
 drop table t1,t2;
@@ -218,24 +266,32 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 1,
-            "table": {
-              "table_name": "A",
-              "access_type": "ALL",
-              "rows": 10,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "A",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
-            "table": {
-              "table_name": "B",
-              "access_type": "ALL",
-              "rows": 10,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "B",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         }
       ]
@@ -251,24 +307,32 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 1,
-            "table": {
-              "table_name": "A",
-              "access_type": "ALL",
-              "rows": 10,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "A",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
-            "table": {
-              "table_name": "B",
-              "access_type": "ALL",
-              "rows": 10,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "B",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         }
       ]
@@ -285,25 +349,33 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t0",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "expression_cache": {
           "state": "uninitialized",
           "query_block": {
             "select_id": 2,
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 10,
-              "filtered": 100,
-              "attached_condition": "t1.b = t0.a"
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100,
+                  "attached_condition": "t1.b = t0.a"
+                }
+              }
+            ]
           }
         }
       }
@@ -317,26 +389,34 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t0",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100,
-      "attached_condition": "t0.a > (subquery#2) or t0.a < 3"
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "t0.a > (subquery#2) or t0.a < 3"
+        }
+      }
+    ],
     "subqueries": [
       {
         "expression_cache": {
           "state": "uninitialized",
           "query_block": {
             "select_id": 2,
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 10,
-              "filtered": 100,
-              "attached_condition": "t1.b = t0.a"
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100,
+                  "attached_condition": "t1.b = t0.a"
+                }
+              }
+            ]
           }
         }
       }
@@ -355,26 +435,32 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "tbl1",
-      "access_type": "ALL",
-      "rows": 100,
-      "filtered": 100,
-      "attached_condition": "tbl1.b < 3"
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "tbl2",
-        "access_type": "ALL",
-        "rows": 100,
-        "filtered": 100,
-        "attached_condition": "tbl2.b < 5"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tbl1",
+          "access_type": "ALL",
+          "rows": 100,
+          "filtered": 100,
+          "attached_condition": "tbl1.b < 3"
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "1Kb",
-      "join_type": "BNL",
-      "attached_condition": "tbl2.a = tbl1.a"
-    }
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "tbl2",
+            "access_type": "ALL",
+            "rows": 100,
+            "filtered": 100,
+            "attached_condition": "tbl2.b < 5"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "1Kb",
+          "join_type": "BNL",
+          "attached_condition": "tbl2.a = tbl1.a"
+        }
+      }
+    ]
   }
 }
 drop table t1;
@@ -452,12 +538,16 @@ EXPLAIN
       {
         "query_block": {
           "select_id": 2,
-          "table": {
-            "table_name": "t0",
-            "access_type": "ALL",
-            "rows": 10,
-            "filtered": 100
-          }
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t0",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100
+              }
+            }
+          ]
         }
       }
     ]
@@ -476,30 +566,38 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100,
-      "attached_condition": "tbl.cnt > 0",
-      "materialized": {
-        "query_block": {
-          "select_id": 2,
-          "having_condition": "cnt > 0",
-          "filesort": {
-            "sort_key": "t1.a",
-            "temporary_table": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 10,
-                "filtered": 100
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "tbl.cnt > 0",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "having_condition": "cnt > 0",
+              "filesort": {
+                "sort_key": "t1.a",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 10,
+                        "filtered": 100
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
       }
-    }
+    ]
   }
 }
 explain format=json
@@ -509,41 +607,51 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "tbl2",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100,
-      "attached_condition": "tbl2.a is not null"
-    },
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "8",
-      "used_key_parts": ["cnt"],
-      "ref": ["test.tbl2.a"],
-      "rows": 2,
-      "filtered": 100,
-      "attached_condition": "tbl1.cnt = tbl2.a",
-      "materialized": {
-        "query_block": {
-          "select_id": 2,
-          "filesort": {
-            "sort_key": "t1.a",
-            "temporary_table": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 10,
-                "filtered": 100
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tbl2",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "tbl2.a is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "8",
+          "used_key_parts": ["cnt"],
+          "ref": ["test.tbl2.a"],
+          "rows": 2,
+          "filtered": 100,
+          "attached_condition": "tbl1.cnt = tbl2.a",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "filesort": {
+                "sort_key": "t1.a",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 10,
+                        "filtered": 100
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
       }
-    }
+    ]
   }
 }
 #
@@ -555,40 +663,50 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100,
-      "attached_condition": "t1.a is not null"
-    },
-    "table": {
-      "table_name": "<subquery2>",
-      "access_type": "eq_ref",
-      "possible_keys": ["distinct_key"],
-      "key": "distinct_key",
-      "key_length": "4",
-      "used_key_parts": ["max(a)"],
-      "ref": ["test.t1.a"],
-      "rows": 1,
-      "filtered": 100,
-      "materialized": {
-        "unique": 1,
-        "materialization": {
-          "query_block": {
-            "select_id": 2,
-            "temporary_table": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 10,
-                "filtered": 100
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "t1.a is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "eq_ref",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "4",
+          "used_key_parts": ["max(a)"],
+          "ref": ["test.t1.a"],
+          "rows": 1,
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 10,
+                        "filtered": 100
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
       }
-    }
+    ]
   }
 }
 #
@@ -603,46 +721,58 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "const_condition": "1",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100
-    },
-    "table": {
-      "table_name": "<subquery2>",
-      "access_type": "eq_ref",
-      "possible_keys": ["distinct_key"],
-      "key": "distinct_key",
-      "key_length": "4",
-      "used_key_parts": ["a"],
-      "ref": ["func"],
-      "rows": 1,
-      "filtered": 100,
-      "materialized": {
-        "unique": 1,
-        "query_block": {
-          "select_id": 2,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "eq_ref",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["func"],
+          "rows": 1,
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t0",
+                    "access_type": "ALL",
+                    "rows": 10,
+                    "filtered": 100
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "block-nl-join": {
           "table": {
-            "table_name": "t0",
+            "table_name": "t2",
             "access_type": "ALL",
             "rows": 10,
             "filtered": 100
-          }
+          },
+          "buffer_type": "flat",
+          "buffer_size": "1Kb",
+          "join_type": "BNL"
         }
       }
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "rows": 10,
-        "filtered": 100
-      },
-      "buffer_type": "flat",
-      "buffer_size": "1Kb",
-      "join_type": "BNL"
-    }
+    ]
   }
 }
 # 
@@ -659,25 +789,31 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t1",
-        "access_type": "ALL",
-        "rows": 10,
-        "filtered": 100,
-        "first_match": "t2"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "141",
-      "join_type": "BNL",
-      "attached_condition": "t1.b = t2.b and t1.a = t2.a"
-    }
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 10,
+            "filtered": 100,
+            "first_match": "t2"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "141",
+          "join_type": "BNL",
+          "attached_condition": "t1.b = t2.b and t1.a = t2.a"
+        }
+      }
+    ]
   }
 }
 # 
@@ -696,26 +832,34 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100
-    },
-    "duplicates_removal": {
-      "block-nl-join": {
+    "nested_loop": [
+      {
         "table": {
-          "table_name": "t1",
+          "table_name": "t2",
           "access_type": "ALL",
           "rows": 10,
           "filtered": 100
-        },
-        "buffer_type": "flat",
-        "buffer_size": "206",
-        "join_type": "BNL",
-        "attached_condition": "t1.b = t2.b and t1.a = t2.a"
+        }
+      },
+      {
+        "duplicates_removal": [
+          {
+            "block-nl-join": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100
+              },
+              "buffer_type": "flat",
+              "buffer_size": "206",
+              "join_type": "BNL",
+              "attached_condition": "t1.b = t2.b and t1.a = t2.a"
+            }
+          }
+        ]
       }
-    }
+    ]
   }
 }
 set optimizer_switch=@tmp;
@@ -732,18 +876,22 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "range",
-      "possible_keys": ["a"],
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "rows": 2,
-      "filtered": 100,
-      "index_condition": "t1.a < 3",
-      "mrr_type": "Rowid-ordered scan"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "rows": 2,
+          "filtered": 100,
+          "index_condition": "t1.a < 3",
+          "mrr_type": "Rowid-ordered scan"
+        }
+      }
+    ]
   }
 }
 # 'Range checked for each record'
@@ -754,22 +902,28 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "tbl1",
-      "access_type": "ALL",
-      "rows": 100,
-      "filtered": 100
-    },
-    "range-checked-for-each-record": {
-      "keys": ["a"],
-      "table": {
-        "table_name": "tbl2",
-        "access_type": "ALL",
-        "possible_keys": ["a"],
-        "rows": 100,
-        "filtered": 100
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tbl1",
+          "access_type": "ALL",
+          "rows": 100,
+          "filtered": 100
+        }
+      },
+      {
+        "range-checked-for-each-record": {
+          "keys": ["a"],
+          "table": {
+            "table_name": "tbl2",
+            "access_type": "ALL",
+            "possible_keys": ["a"],
+            "rows": 100,
+            "filtered": 100
+          }
+        }
       }
-    }
+    ]
   }
 }
 drop table t1;
@@ -786,49 +940,59 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "outer_t1",
-      "access_type": "index",
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "rows": 2,
-      "filtered": 100,
-      "attached_condition": "!<in_optimizer>(outer_t1.a,<exists>(subquery#2))",
-      "using_index": true
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "outer_t1",
+          "access_type": "index",
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "rows": 2,
+          "filtered": 100,
+          "attached_condition": "!<in_optimizer>(outer_t1.a,<exists>(subquery#2))",
+          "using_index": true
+        }
+      }
+    ],
     "subqueries": [
       {
         "query_block": {
           "select_id": 2,
           "having_condition": "trigcond(t1.a is null)",
-          "full-scan-on-null_key": {
-            "table": {
-              "table_name": "t1",
-              "access_type": "ref_or_null",
-              "possible_keys": ["a"],
-              "key": "a",
-              "key_length": "5",
-              "used_key_parts": ["a"],
-              "ref": ["func"],
-              "rows": 2,
-              "filtered": 100,
-              "attached_condition": "trigcond(<cache>(outer_t1.a) = t1.a or t1.a is null)",
-              "using_index": true
-            }
-          },
-          "block-nl-join": {
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "rows": 2,
-              "filtered": 100
+          "nested_loop": [
+            {
+              "full-scan-on-null_key": {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ref_or_null",
+                  "possible_keys": ["a"],
+                  "key": "a",
+                  "key_length": "5",
+                  "used_key_parts": ["a"],
+                  "ref": ["func"],
+                  "rows": 2,
+                  "filtered": 100,
+                  "attached_condition": "trigcond(<cache>(outer_t1.a) = t1.a or t1.a is null)",
+                  "using_index": true
+                }
+              }
             },
-            "buffer_type": "flat",
-            "buffer_size": "65",
-            "join_type": "BNL",
-            "attached_condition": "t2.b <> outer_t1.a"
-          }
+            {
+              "block-nl-join": {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "rows": 2,
+                  "filtered": 100
+                },
+                "buffer_type": "flat",
+                "buffer_size": "65",
+                "join_type": "BNL",
+                "attached_condition": "t2.b <> outer_t1.a"
+              }
+            }
+          ]
         }
       }
     ]
@@ -852,34 +1016,44 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "const_condition": "<not>(<in_optimizer>(20000,<max>(subquery#2) >= 20000))",
-    "table": {
-      "table_name": "t0",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "query_block": {
           "select_id": 2,
-          "table": {
-            "table_name": "tbl1",
-            "access_type": "ALL",
-            "rows": 100,
-            "filtered": 100
-          },
-          "block-nl-join": {
-            "table": {
-              "table_name": "tbl2",
-              "access_type": "ALL",
-              "rows": 100,
-              "filtered": 100
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "tbl1",
+                "access_type": "ALL",
+                "rows": 100,
+                "filtered": 100
+              }
             },
-            "buffer_type": "flat",
-            "buffer_size": "1Kb",
-            "join_type": "BNL",
-            "attached_condition": "tbl2.b = tbl1.b"
-          }
+            {
+              "block-nl-join": {
+                "table": {
+                  "table_name": "tbl2",
+                  "access_type": "ALL",
+                  "rows": 100,
+                  "filtered": 100
+                },
+                "buffer_type": "flat",
+                "buffer_size": "1Kb",
+                "join_type": "BNL",
+                "attached_condition": "tbl2.b = tbl1.b"
+              }
+            }
+          ]
         }
       }
     ]
@@ -899,24 +1073,32 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 2,
-      "filtered": 100,
-      "attached_condition": "!<in_optimizer>(t1.a,t1.a in (subquery#2))"
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100,
+          "attached_condition": "!<in_optimizer>(t1.a,t1.a in (subquery#2))"
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
           "query_block": {
             "select_id": 2,
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "rows": 2,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "rows": 2,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -951,41 +1133,52 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "range",
-      "key": "a",
-      "key_length": "10",
-      "used_key_parts": ["a", "b"],
-      "rows": 101,
-      "filtered": 100,
-      "using_index_for_group_by": true
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "key": "a",
+          "key_length": "10",
+          "used_key_parts": ["a", "b"],
+          "rows": 101,
+          "filtered": 100,
+          "using_index_for_group_by": true
+        }
+      }
+    ]
   }
 }
 analyze format=json select count(distinct b) from t1 group by a;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "range",
-      "key": "a",
-      "key_length": "10",
-      "used_key_parts": ["a", "b"],
-      "r_loops": 1,
-      "rows": 101,
-      "r_rows": 100,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "using_index_for_group_by": true
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "key": "a",
+          "key_length": "10",
+          "used_key_parts": ["a", "b"],
+          "r_loops": 1,
+          "rows": 101,
+          "r_rows": 100,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100,
+          "using_index_for_group_by": true
+        }
+      }
+    ]
   }
 }
 drop table t1,t2;
@@ -1046,17 +1239,21 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "range",
-      "key": "idx_t1_1",
-      "key_length": "147",
-      "used_key_parts": ["a1", "a2", "b"],
-      "rows": 17,
-      "filtered": 100,
-      "attached_condition": "t1.b = 'a' and t1.a2 >= 'b'",
-      "using_index_for_group_by": true
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "key": "idx_t1_1",
+          "key_length": "147",
+          "used_key_parts": ["a1", "a2", "b"],
+          "rows": 17,
+          "filtered": 100,
+          "attached_condition": "t1.b = 'a' and t1.a2 >= 'b'",
+          "using_index_for_group_by": true
+        }
+      }
+    ]
   }
 }
 explain format=json select count(distinct a1,a2,b,c) from t1 where (a2 >= 'b') and (b = 'a') and (c = 'i121');
@@ -1064,17 +1261,21 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "range",
-      "key": "idx_t1_1",
-      "key_length": "163",
-      "used_key_parts": ["a1", "a2", "b", "c"],
-      "rows": 65,
-      "filtered": 100,
-      "attached_condition": "t1.b = 'a' and t1.c = 'i121' and t1.a2 >= 'b'",
-      "using_index_for_group_by": true
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "key": "idx_t1_1",
+          "key_length": "163",
+          "used_key_parts": ["a1", "a2", "b", "c"],
+          "rows": 65,
+          "filtered": 100,
+          "attached_condition": "t1.b = 'a' and t1.c = 'i121' and t1.a2 >= 'b'",
+          "using_index_for_group_by": true
+        }
+      }
+    ]
   }
 }
 drop table t1;
@@ -1088,13 +1289,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 2,
-      "filtered": 100,
-      "attached_condition": "t1.a = _latin1'\xDF'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100,
+          "attached_condition": "t1.a = _latin1'\xDF'"
+        }
+      }
+    ]
   }
 }
 DROP TABLE t1;
@@ -1108,13 +1313,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 2,
-      "filtered": 100,
-      "attached_condition": "(case when convert(t1.a using utf8mb3) = <cache>(_utf8mb3'a' collate utf8mb3_bin) then NULL else t1.a end)"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100,
+          "attached_condition": "(case when convert(t1.a using utf8mb3) = <cache>(_utf8mb3'a' collate utf8mb3_bin) then NULL else t1.a end)"
+        }
+      }
+    ]
   }
 }
 DROP TABLE t1;
@@ -1141,12 +1350,16 @@ EXPLAIN
     "filesort": {
       "sort_key": "t2.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "rows": 256,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 256,
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1160,12 +1373,16 @@ EXPLAIN
     "filesort": {
       "sort_key": "t2.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "rows": 256,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 256,
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1190,12 +1407,16 @@ EXPLAIN
     "filesort": {
       "sort_key": "t2.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "rows": 256,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 256,
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1216,19 +1437,26 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "system",
-      "rows": 0,
-      "filtered": 0,
-      "const_row_not_found": true
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "system",
+          "rows": 0,
+          "filtered": 0,
+          "const_row_not_found": true
+        }
+      }
+    ]
   }
 }
 analyze format=json 
 select * from t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "table": {
@@ -1254,55 +1482,70 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "const_condition": "1",
-    "table": {
-      "table_name": "t2",
-      "access_type": "const",
-      "possible_keys": ["PRIMARY"],
-      "rows": 1,
-      "filtered": 100,
-      "impossible_on_condition": true
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 2,
-      "filtered": 100
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "const",
+          "possible_keys": ["PRIMARY"],
+          "rows": 1,
+          "filtered": 100,
+          "impossible_on_condition": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100
+        }
+      }
+    ]
   }
 }
 analyze format=json
 select * from t1 left join t2 on t2.pk > 10 and t2.pk < 0;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "const_condition": "1",
-    "table": {
-      "table_name": "t2",
-      "access_type": "const",
-      "possible_keys": ["PRIMARY"],
-      "r_loops": 0,
-      "rows": 1,
-      "r_rows": null,
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": null,
-      "impossible_on_condition": true
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 2,
-      "r_rows": 2,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "const",
+          "possible_keys": ["PRIMARY"],
+          "r_loops": 0,
+          "rows": 1,
+          "r_rows": null,
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": null,
+          "impossible_on_condition": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 2,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ]
   }
 }
 # Check ET_NOT_EXISTS:
@@ -1317,68 +1560,83 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 2,
-      "filtered": 100
-    },
-    "table": {
-      "table_name": "t2",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["pk"],
-      "ref": ["test.t1.a"],
-      "rows": 1,
-      "filtered": 100,
-      "attached_condition": "trigcond(t2.pk is null) and trigcond(trigcond(t1.a is not null))",
-      "using_index": true,
-      "not_exists": true
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["pk"],
+          "ref": ["test.t1.a"],
+          "rows": 1,
+          "filtered": 100,
+          "attached_condition": "trigcond(t2.pk is null) and trigcond(trigcond(t1.a is not null))",
+          "using_index": true,
+          "not_exists": true
+        }
+      }
+    ]
   }
 }
 analyze format=json
 select * from t1 left join t2 on t2.pk=t1.a where  t2.pk is null;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 2,
-      "r_rows": 2,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
-    "table": {
-      "table_name": "t2",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["pk"],
-      "ref": ["test.t1.a"],
-      "r_loops": 2,
-      "rows": 1,
-      "r_rows": 1,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "trigcond(t2.pk is null) and trigcond(trigcond(t1.a is not null))",
-      "using_index": true,
-      "not_exists": true
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 2,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["pk"],
+          "ref": ["test.t1.a"],
+          "r_loops": 2,
+          "rows": 1,
+          "r_rows": 1,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "trigcond(t2.pk is null) and trigcond(trigcond(t1.a is not null))",
+          "using_index": true,
+          "not_exists": true
+        }
+      }
+    ]
   }
 }
 # Check ET_DISTINCT
@@ -1394,26 +1652,32 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "temporary_table": {
-      "table": {
-        "table_name": "t1",
-        "access_type": "ALL",
-        "rows": 2,
-        "filtered": 100,
-        "attached_condition": "t1.a is not null"
-      },
-      "table": {
-        "table_name": "t2",
-        "access_type": "eq_ref",
-        "possible_keys": ["PRIMARY"],
-        "key": "PRIMARY",
-        "key_length": "4",
-        "used_key_parts": ["pk"],
-        "ref": ["test.t1.a"],
-        "rows": 1,
-        "filtered": 100,
-        "using_index": true,
-        "distinct": true
-      }
+      "nested_loop": [
+        {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100,
+            "attached_condition": "t1.a is not null"
+          }
+        },
+        {
+          "table": {
+            "table_name": "t2",
+            "access_type": "eq_ref",
+            "possible_keys": ["PRIMARY"],
+            "key": "PRIMARY",
+            "key_length": "4",
+            "used_key_parts": ["pk"],
+            "ref": ["test.t1.a"],
+            "rows": 1,
+            "filtered": 100,
+            "using_index": true,
+            "distinct": true
+          }
+        }
+      ]
     }
   }
 }
@@ -1421,43 +1685,52 @@ analyze format=json
 select distinct t1.a from t1 join t2 on t2.pk=t1.a;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "temporary_table": {
-      "table": {
-        "table_name": "t1",
-        "access_type": "ALL",
-        "r_loops": 1,
-        "rows": 2,
-        "r_rows": 2,
-        "r_table_time_ms": "REPLACED",
-        "r_other_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED,
-        "filtered": 100,
-        "r_filtered": 100,
-        "attached_condition": "t1.a is not null"
-      },
-      "table": {
-        "table_name": "t2",
-        "access_type": "eq_ref",
-        "possible_keys": ["PRIMARY"],
-        "key": "PRIMARY",
-        "key_length": "4",
-        "used_key_parts": ["pk"],
-        "ref": ["test.t1.a"],
-        "r_loops": 2,
-        "rows": 1,
-        "r_rows": 1,
-        "r_table_time_ms": "REPLACED",
-        "r_other_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED,
-        "filtered": 100,
-        "r_filtered": 100,
-        "using_index": true,
-        "distinct": true
-      }
+      "nested_loop": [
+        {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "r_loops": 1,
+            "rows": 2,
+            "r_rows": 2,
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 100,
+            "r_filtered": 100,
+            "attached_condition": "t1.a is not null"
+          }
+        },
+        {
+          "table": {
+            "table_name": "t2",
+            "access_type": "eq_ref",
+            "possible_keys": ["PRIMARY"],
+            "key": "PRIMARY",
+            "key_length": "4",
+            "used_key_parts": ["pk"],
+            "ref": ["test.t1.a"],
+            "r_loops": 2,
+            "rows": 1,
+            "r_rows": 1,
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 100,
+            "r_filtered": 100,
+            "using_index": true,
+            "distinct": true
+          }
+        }
+      ]
     }
   }
 }
@@ -1486,83 +1759,98 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100,
-      "attached_condition": "t3.a is not null"
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t4",
-        "access_type": "ref",
-        "possible_keys": ["a"],
-        "key": "a",
-        "key_length": "5",
-        "used_key_parts": ["a"],
-        "ref": ["test.t3.a"],
-        "rows": 1,
-        "filtered": 100,
-        "index_condition_bka": "t4.b + 1 <= t3.b + 1"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "t3.a is not null"
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "400",
-      "join_type": "BKA",
-      "mrr_type": "Rowid-ordered scan"
-    }
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t4",
+            "access_type": "ref",
+            "possible_keys": ["a"],
+            "key": "a",
+            "key_length": "5",
+            "used_key_parts": ["a"],
+            "ref": ["test.t3.a"],
+            "rows": 1,
+            "filtered": 100,
+            "index_condition_bka": "t4.b + 1 <= t3.b + 1"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "400",
+          "join_type": "BKA",
+          "mrr_type": "Rowid-ordered scan"
+        }
+      }
+    ]
   }
 }
 analyze format=json
 select * from t3,t4 where t3.a=t4.a and (t4.b+1 <= t3.b+1);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 10,
-      "r_rows": 10,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "t3.a is not null"
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t4",
-        "access_type": "ref",
-        "possible_keys": ["a"],
-        "key": "a",
-        "key_length": "5",
-        "used_key_parts": ["a"],
-        "ref": ["test.t3.a"],
-        "r_loops": 1,
-        "rows": 1,
-        "r_rows": 10,
-        "r_table_time_ms": "REPLACED",
-        "r_other_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED,
-        "filtered": 100,
-        "r_filtered": 100,
-        "index_condition_bka": "t4.b + 1 <= t3.b + 1"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "t3.a is not null"
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "400",
-      "join_type": "BKA",
-      "mrr_type": "Rowid-ordered scan",
-      "r_loops": 10,
-      "r_filtered": 100,
-      "r_unpack_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_effective_rows": 1
-    }
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t4",
+            "access_type": "ref",
+            "possible_keys": ["a"],
+            "key": "a",
+            "key_length": "5",
+            "used_key_parts": ["a"],
+            "ref": ["test.t3.a"],
+            "r_loops": 1,
+            "rows": 1,
+            "r_rows": 10,
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 100,
+            "r_filtered": 100,
+            "index_condition_bka": "t4.b + 1 <= t3.b + 1"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "400",
+          "join_type": "BKA",
+          "mrr_type": "Rowid-ordered scan",
+          "r_loops": 10,
+          "r_filtered": 100,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 1
+        }
+      }
+    ]
   }
 }
 set optimizer_switch=@tmp_optimizer_switch;
@@ -1581,12 +1869,16 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t0",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "expression_cache": {
@@ -1594,13 +1886,17 @@ EXPLAIN
           "query_block": {
             "select_id": 2,
             "outer_ref_condition": "t0.a < 5",
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 10,
-              "filtered": 100,
-              "attached_condition": "t1.b < t0.a"
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100,
+                  "attached_condition": "t1.b < t0.a"
+                }
+              }
+            ]
           }
         }
       }
@@ -1618,17 +1914,21 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "t1.a, t1.b desc",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t1.a, t1.b desc",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 explain format=json select * from t1 order by a desc, b desc;
@@ -1636,17 +1936,21 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "t1.a desc, t1.b desc",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t1.a desc, t1.b desc",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 explain format=json select * from t1 order by a desc, b ;
@@ -1654,17 +1958,91 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "t1.a desc, t1.b",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t1.a desc, t1.b",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 drop table t1;
+#
+# MDEV-27204: [ERROR] Json_writer: a member name was expected, Assertion `got_name == named_item_expected()' failed
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+explain FORMAT=JSON 
+SELECT * FROM t1 t0 
+WHERE t0.a IN (SELECT t2.a FROM t1 t2 WHERE t0.a IN (SELECT t3.a FROM t1 t3));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100
+        }
+      },
+      {
+        "duplicates_removal": [
+          {
+            "block-nl-join": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 2,
+                "filtered": 100
+              },
+              "buffer_type": "flat",
+              "buffer_size": "152",
+              "join_type": "BNL",
+              "attached_condition": "t2.a = t0.a"
+            }
+          },
+          {
+            "block-nl-join": {
+              "table": {
+                "table_name": "t3",
+                "access_type": "ALL",
+                "rows": 2,
+                "filtered": 100
+              },
+              "buffer_type": "incremental",
+              "buffer_size": "109",
+              "join_type": "BNL",
+              "attached_condition": "t3.a = t0.a"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+DROP TABLE t1;
+#
+# MDEV-27206: [ERROR] Duplicated key: cause, Assertion `is_uniq_key' failed with optimizer trace
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (pk TIME, b INT, primary key (pk), key (b)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES
+('00:13:33',0),('00:13:34',1),('00:13:35',2),('00:13:36',3),
+('00:13:37',4),('00:13:38',5),('00:13:39',6),('00:13:40',7),
+('00:13:41',8),('00:13:42',9);
+SET optimizer_trace = 'enabled=on';
+SELECT * FROM t1 WHERE a IN ( SELECT b FROM t2 INNER JOIN t1 ON (a = pk) );
+a
+DROP TABLE t1, t2;

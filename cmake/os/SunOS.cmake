@@ -17,10 +17,6 @@ INCLUDE(CheckSymbolExists)
 INCLUDE(CheckCSourceRuns)
 INCLUDE(CheckCSourceCompiles) 
 
-# fcntl(fd, F_SETFL, O_DIRECT) is not supported,
-# and directio(3C) would only work on UFS or NFS, not ZFS.
-SET(HAVE_FCNTL_DIRECT 0 CACHE INTERNAL "")
-
 # Enable 64 bit file offsets
 SET(_FILE_OFFSET_BITS 64)
 
@@ -73,8 +69,8 @@ CHECK_C_SOURCE_RUNS(
 
 
 # Check is special processor flag needs to be set on older GCC
-#that defaults to v8 sparc . Code here is taken from my_rdtsc.h
-IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_SIZEOF_VOID_P EQUAL 4
+# that defaults to v8 sparc . Code here is taken from my_rdtsc.h
+IF(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_SIZEOF_VOID_P EQUAL 4
   AND CMAKE_SYSTEM_PROCESSOR MATCHES "sparc")
   SET(SOURCE
   "

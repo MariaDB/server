@@ -1,10 +1,8 @@
 SELECT @@wsrep_on;
 @@wsrep_on
 0
-SET @wsrep_slave_threads_global_saved = @@global.wsrep_slave_threads;
 SET @wsrep_debug_saved = @@global.wsrep_debug;
 SET SESSION wsrep_trx_fragment_size=DEFAULT;
-ERROR HY000: Incorrect arguments to SET
 SELECT @@session.wsrep_trx_fragment_size;
 @@session.wsrep_trx_fragment_size
 0
@@ -24,16 +22,21 @@ SELECT @@global.wsrep_debug;
 @@global.wsrep_debug
 NONE
 SET GLOBAL wsrep_slave_threads=5;
+ERROR HY000: WSREP (galera) not started
 SELECT @@global.wsrep_slave_threads;
 @@global.wsrep_slave_threads
-5
+1
 SET GLOBAL wsrep_desync=1;
 ERROR HY000: WSREP (galera) not started
 SELECT @@global.wsrep_desync;
 @@global.wsrep_desync
 0
 SET SESSION wsrep_trx_fragment_unit='rows';
-ERROR HY000: Incorrect arguments to SET
+ERROR 42000: Variable 'wsrep_trx_fragment_unit' can't be set to the value of 'rows'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1231	Cannot set 'wsrep_trx_fragment_unit' because wsrep is switched off
+Error	1231	Variable 'wsrep_trx_fragment_unit' can't be set to the value of 'rows'
 SELECT @@session.wsrep_trx_fragment_unit;
 @@session.wsrep_trx_fragment_unit
-rows
+bytes

@@ -1,66 +1,98 @@
-7,10c7
-< affected rows: 0
-< info: Records: 0  Duplicates: 0  Warnings: 1
-< Warnings:
-< Warning	1265	Data truncated for column 'f1' at row 1
----
-> ERROR 01000: Data truncated for column 'f1' at row 1
-13c10
-< 0
----
-> NULL
-21,24c18
-< affected rows: 0
-< info: Records: 0  Duplicates: 0  Warnings: 1
-< Warnings:
-< Warning	1265	Data truncated for column 'f1' at row 1
----
-> ERROR 01000: Data truncated for column 'f1' at row 1
-27c21
-< 
----
-> NULL
-35,38c29
-< affected rows: 0
-< info: Records: 0  Duplicates: 0  Warnings: 1
-< Warnings:
-< Warning	1265	Data truncated for column 'f1' at row 1
----
-> ERROR 01000: Data truncated for column 'f1' at row 1
-41c32
-< 
----
-> NULL
-49,52c40
-< affected rows: 0
-< info: Records: 0  Duplicates: 0  Warnings: 1
-< Warnings:
-< Warning	1265	Data truncated for column 'f1' at row 1
----
-> ERROR 01000: Data truncated for column 'f1' at row 1
-55c43
-< 
----
-> NULL
-63,66c51
-< affected rows: 0
-< info: Records: 0  Duplicates: 0  Warnings: 1
-< Warnings:
-< Warning	1265	Data truncated for column 'f3' at row 1
----
-> ERROR 01000: Data truncated for column 'f3' at row 1
-69c54
-< 2	2	0
----
-> 2	2	NULL
-77,80c62
-< affected rows: 0
-< info: Records: 0  Duplicates: 0  Warnings: 1
-< Warnings:
-< Warning	1265	Data truncated for column 'b' at row 1
----
-> ERROR 01000: Data truncated for column 'b' at row 1
-83c65
-< 10	0
----
-> 10	NULL
+--- alter_not_null.result
++++ alter_not_null,INPLACE,STRICT.result~
+@@ -4,13 +4,10 @@
+ f1
+ NULL
+ ALTER TABLE t1 CHANGE f1 f1 INT NOT NULL;
+-affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 1
+-Warnings:
+-Warning	1265	Data truncated for column 'f1' at row 1
++ERROR 01000: Data truncated for column 'f1' at row 1
+ SELECT * FROM t1;
+ f1
+-0
++NULL
+ DROP TABLE t1;
+ CREATE TABLE t1(f1 CHAR(10))ENGINE=INNODB;
+ INSERT INTO t1 VALUES(NULL);
+@@ -18,13 +15,10 @@
+ f1
+ NULL
+ ALTER TABLE t1 CHANGE f1 f1 CHAR(10) NOT NULL;
+-affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 1
+-Warnings:
+-Warning	1265	Data truncated for column 'f1' at row 1
++ERROR 01000: Data truncated for column 'f1' at row 1
+ SELECT * FROM t1;
+ f1
+-
++NULL
+ DROP TABLE t1;
+ CREATE TABLE t1(f1 VARCHAR(10))ENGINE=INNODB;
+ INSERT INTO t1 VALUES(NULL);
+@@ -32,13 +26,10 @@
+ f1
+ NULL
+ ALTER TABLE t1 CHANGE f1 f1 VARCHAR(20) NOT NULL;
+-affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 1
+-Warnings:
+-Warning	1265	Data truncated for column 'f1' at row 1
++ERROR 01000: Data truncated for column 'f1' at row 1
+ SELECT * FROM t1;
+ f1
+-
++NULL
+ DROP TABLE t1;
+ CREATE TABLE t1(f1 TEXT)ENGINE=INNODB;
+ INSERT INTO t1 VALUES(NULL);
+@@ -46,13 +37,10 @@
+ f1
+ NULL
+ ALTER TABLE t1 CHANGE f1 f1 TEXT NOT NULL DEFAULT 'abc';
+-affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 1
+-Warnings:
+-Warning	1265	Data truncated for column 'f1' at row 1
++ERROR 01000: Data truncated for column 'f1' at row 1
+ SELECT * FROM t1;
+ f1
+-
++NULL
+ DROP TABLE t1;
+ CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL, f3 INT)ENGINE=INNODB;
+ INSERT INTO t1 VALUES(2, 2, NULL);
+@@ -60,13 +48,10 @@
+ f1	f2	f3
+ 2	2	NULL
+ ALTER TABLE t1 CHANGE f3 f3 INT NOT NULL DEFAULT (f1 + f2);
+-affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 1
+-Warnings:
+-Warning	1265	Data truncated for column 'f3' at row 1
++ERROR 01000: Data truncated for column 'f3' at row 1
+ SELECT * FROM t1;
+ f1	f2	f3
+-2	2	0
++2	2	NULL
+ DROP TABLE t1;
+ CREATE TABLE t1(f1 INT NOT NULL DEFAULT 0, b TINYINT)ENGINE=InnoDB;
+ INSERT INTO t1 VALUES(10, NULL);
+@@ -74,13 +59,10 @@
+ f1	b
+ 10	NULL
+ ALTER TABLE t1 CHANGE b b TINYINT NOT NULL DEFAULT if(unix_timestamp()>1,1000,0);
+-affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 1
+-Warnings:
+-Warning	1265	Data truncated for column 'b' at row 1
++ERROR 01000: Data truncated for column 'b' at row 1
+ SELECT * FROM t1;
+ f1	b
+-10	0
++10	NULL
+ DROP TABLE t1;
+ CREATE TABLE t1(a INT, v INT AS (a), c INT, d INT NOT NULL, e INT) ENGINE=InnoDB;
+ ALTER TABLE t1 DROP COLUMN c, CHANGE COLUMN e e INT NOT NULL;

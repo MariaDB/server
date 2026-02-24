@@ -1,0 +1,33 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-4958 Adding datatype UUID
+--echo #
+
+CREATE TABLE t1 (a BINARY(16));
+
+--sync_slave_with_master
+ALTER TABLE t1 MODIFY a UUID;
+
+--connection master
+INSERT INTO t1 VALUES (X'00000000000000000000000000000000');
+INSERT INTO t1 VALUES (X'00000000000000000000000000000001');
+INSERT INTO t1 VALUES (X'fffffffffffffffffffffffffffffffe');
+INSERT INTO t1 VALUES (X'ffffffffffffffffffffffffffffffff');
+SELECT HEX(a) FROM t1 ORDER BY a;
+--sync_slave_with_master
+SELECT * FROM t1 ORDER BY a;
+
+--connection master
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
+--source include/rpl_end.inc

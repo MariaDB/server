@@ -1,0 +1,19 @@
+!include my.cnf
+
+[mysqld.1]
+gtid-domain-id=1
+server-id=1
+log-bin
+log-slave-updates
+
+[mysqld.2]
+gtid-domain-id=2
+server-id=2
+log-bin
+log-slave-updates
+
+[mysqld.3]
+gtid-domain-id=3
+server-id=3
+log-bin
+log-slave-updates

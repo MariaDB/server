@@ -91,6 +91,7 @@ INSERT INTO t1 (f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10,pk) VALUES (
 --sorted_result
 --query_vertical SELECT f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10 FROM t1
 
+--enable_prepare_warnings
 INSERT INTO t1 (f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10,pk) VALUES (
   999999999999999999999999999999999999999,
   999999999999999999999999999999999999999.9999999999999999,
@@ -104,6 +105,7 @@ INSERT INTO t1 (f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10,pk) VALUES (
   19999999999999999999999999999999999999999999.9999999999,
   6
 );
+--disable_prepare_warnings
 
 --sorted_result
 --query_vertical SELECT f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10 FROM t1

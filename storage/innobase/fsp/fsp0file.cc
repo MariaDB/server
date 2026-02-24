@@ -249,11 +249,11 @@ dberr_t Datafile::read_first_page_flags(const page_t *page) noexcept
   m_flags= fsp_header_get_flags(page);
   if (!fil_space_t::is_valid_flags(m_flags, m_space_id))
   {
-    ulint cflags= fsp_flags_convert_from_101(m_flags);
-    if (unsigned(cflags) == ~0U)
+    uint32_t cflags= fsp_flags_convert_from_101(m_flags);
+    if (cflags == UINT32_MAX)
       switch (fsp_flags_is_incompatible_mysql(m_flags)) {
       case 0:
-        sql_print_error("InnoDB: Invalid flags 0x%zx in %s",
+        sql_print_error("InnoDB: Invalid flags 0x%" PRIx32 " in %s",
                         m_flags, m_filepath);
         return DB_CORRUPTION;
       case 3:
@@ -355,8 +355,7 @@ in order for this function to validate it.
 @param[in]	flags		The expected tablespace flags.
 @retval DB_SUCCESS if tablespace is valid, DB_ERROR if not.
 m_is_valid is also set true on success, else false. */
-dberr_t
-Datafile::validate_to_dd(ulint space_id, ulint flags)
+dberr_t Datafile::validate_to_dd(uint32_t space_id, uint32_t flags)
 {
 	dberr_t err;
 
@@ -395,7 +394,9 @@ Datafile::validate_to_dd(ulint space_id, ulint flags)
 	return(DB_ERROR);
 }
 
+inline
 uint32_t recv_dblwr_t::find_first_page(const char *name, pfs_os_file_t file)
+  const noexcept
 {
   os_offset_t file_size= os_file_get_size(file);
   if (file_size != (os_offset_t) -1)
@@ -513,7 +514,7 @@ Datafile::validate_for_recovery()
 			}
 		}
 
-		if (m_space_id == ULINT_UNDEFINED) {
+		if (m_space_id == UINT32_MAX) {
 			return DB_SUCCESS; /* empty file */
 		}
 
@@ -541,7 +542,7 @@ m_is_valid is set true on success, else false.
 @retval DB_SUCCESS on if the datafile is valid
 @retval DB_CORRUPTION if the datafile is not readable
 @retval DB_TABLESPACE_EXISTS if there is a duplicate space_id */
-dberr_t Datafile::validate_first_page(const page_t *first_page)
+dberr_t Datafile::validate_first_page(const page_t *first_page) noexcept
 {
 	const char*	error_txt = NULL;
 
@@ -565,9 +566,9 @@ err_exit:
 		}
 
 		sql_print_information(
-				"InnoDB: %s in datafile: %s, Space ID: %zu, "
-				"Flags: %zu", error_txt, m_filepath,
-				m_space_id, m_flags);
+			"InnoDB: %s in datafile: %s, Space ID: " UINT32PF
+			", " "Flags: " UINT32PF,
+			error_txt, m_filepath, m_space_id, m_flags);
 		m_is_valid = false;
 		return DB_CORRUPTION;
 	} else {
@@ -711,15 +712,15 @@ Datafile::find_space_id()
 	     page_size <<= 1) {
 		/* map[space_id] = count of pages */
 		typedef std::map<
-			ulint,
-			ulint,
-			std::less<ulint>,
-			ut_allocator<std::pair<const ulint, ulint> > >
+			uint32_t,
+			uint32_t,
+			std::less<uint32_t>,
+			ut_allocator<std::pair<const uint32_t, uint32_t> > >
 			Pages;
 
 		Pages	verify;
-		ulint	page_count = 64;
-		ulint	valid_pages = 0;
+		uint32_t page_count = 64;
+		uint32_t valid_pages = 0;
 
 		/* Adjust the number of pages to analyze based on file size */
 		while ((page_count * page_size) > file_size) {
@@ -733,14 +734,14 @@ Datafile::find_space_id()
 		byte*	page = static_cast<byte*>(
 			aligned_malloc(page_size, page_size));
 
-		ulint fsp_flags;
+		uint32_t fsp_flags;
 		/* provide dummy value if the first os_file_read() fails */
 		switch (srv_checksum_algorithm) {
 		case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
 		case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
 			fsp_flags = 1U << FSP_FLAGS_FCRC32_POS_MARKER
 				| FSP_FLAGS_FCRC32_PAGE_SSIZE()
-				| innodb_compression_algorithm
+				| uint(innodb_compression_algorithm)
 				       << FSP_FLAGS_FCRC32_POS_COMPRESSED_ALGO;
 			break;
 		default:
@@ -780,7 +781,7 @@ Datafile::find_space_id()
 
 			if (noncompressed_ok || compressed_ok) {
 
-				ulint	space_id = mach_read_from_4(page
+				uint32_t space_id = mach_read_from_4(page
 					+ FIL_PAGE_SPACE_ID);
 
 				if (space_id > 0) {

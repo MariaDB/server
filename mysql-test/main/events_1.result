@@ -1,5 +1,6 @@
 set sql_mode="";
 call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted");
+call mtr.add_suppression("Incorrect definition of table mysql.event:.*");
 drop database if exists events_test;
 drop database if exists db_x;
 drop database if exists mysqltest_db2;

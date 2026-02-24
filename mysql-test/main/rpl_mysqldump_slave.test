@@ -198,4 +198,20 @@ if ($postdump_first_binary_log_filename != $postdump_binlog_filename)
 connection slave;
 --source include/start_slave.inc
 
+# MDEV-33212: mysqldump uses MASTER_LOG_POS with dump-slave
+# The bug was that the MASTER_LOG_POS was wrong. So check that it is correct.
+--connection master
+--let $pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+--sync_slave_with_master
+--connection master
+--exec $MYSQL_DUMP_SLAVE --compact --dump-slave test >$MYSQLTEST_VARDIR/tmp/MDEV-33212.sql
+--let SEARCH_RANGE=500000000
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/MDEV-33212.sql
+--let SEARCH_PATTERN= MASTER_LOG_POS=$pos
+--let SEARCH_OUTPUT=count
+--source include/search_pattern_in_file.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/MDEV-33212.sql
+
+
 --source include/rpl_end.inc

@@ -1736,7 +1736,7 @@ fts_optimize_free(
 	mem_heap_t*	heap = static_cast<mem_heap_t*>(optim->self_heap->arg);
 
 	trx_commit_for_mysql(optim->trx);
-	optim->trx->free();
+	optim->trx->clear_and_free();
 	optim->trx = NULL;
 
 	fts_doc_ids_free(optim->to_delete);
@@ -2809,7 +2809,7 @@ static void fts_optimize_sync_table(dict_table_t *table,
 		  std::this_thread::sleep_for(std::chrono::seconds(6)););
 
   if (mdl_ticket)
-    dict_table_close(sync_table, false, fts_opt_thd, mdl_ticket);
+    dict_table_close(sync_table, fts_opt_thd, mdl_ticket);
 }
 
 /**********************************************************************//**

@@ -41,3 +41,18 @@ select nextval(s1);
 nextval(s1)
 2
 drop temporary sequence s1;
+# End of 10.6 test
+#
+# MDEV-31298 Assertion `!check_foreigns' failed in trx_mod_table_time_t* trx_t::check_bulk_buffer(dict_table_t*), Assertion `table->skip_alter_undo || !check_unique_secondary' failed in trx_t::check_bulk_buffer
+#
+set foreign_key_checks=0,unique_checks=0;
+create table t1 (c1 char,index (c1)) engine=innodb;
+xa start 'a';
+insert into t1 values();
+set foreign_key_checks=1,unique_checks=1;
+create temporary sequence f engine=innodb;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+xa end 'a';
+xa rollback 'a';
+drop table t1;
+# End of 10.11 test

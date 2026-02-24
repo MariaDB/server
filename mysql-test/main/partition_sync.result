@@ -15,7 +15,7 @@ a
 1
 connection default;
 ALTER TABLE t1 DROP PARTITION p3;
-ERROR HY000: Error in list of partitions to DROP
+ERROR HY000: Wrong partition name or partition list
 connection con1;
 # This failed with deadlock and should not do so.
 SELECT * FROM t1;

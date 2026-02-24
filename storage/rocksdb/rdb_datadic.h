@@ -593,7 +593,7 @@ class Rdb_key_def {
     SECONDARY_FORMAT_VERSION_UPDATE3 = 65535,
   };
 
-  void setup(const TABLE *const table, const Rdb_tbl_def *const tbl_def);
+  uint setup(const TABLE *const table, const Rdb_tbl_def *const tbl_def);
 
   static uint extract_ttl_duration(const TABLE *const table_arg,
                                    const Rdb_tbl_def *const tbl_def_arg,

@@ -43,7 +43,7 @@ id	val
 connection node_2;
 select * from t1;
 id	val
-1	23
+1	24
 select * from t2;
 id	val
 2	42

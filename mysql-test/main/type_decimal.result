@@ -721,7 +721,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (d decimal(66,0));
-ERROR 42000: Too big precision 66 specified for 'd'. Maximum is 65
+ERROR 42000: Too big precision specified for 'd'. Maximum is 65
 CREATE TABLE t1 (i INT, d1 DECIMAL(9,2), d2 DECIMAL(9,2));
 INSERT INTO t1 VALUES (1, 101.40, 21.40), (1, -80.00, 0.00),
 (2, 0.00, 0.00), (2, -13.20, 0.00), (2, 59.60, 46.40),
@@ -1091,7 +1091,7 @@ a
 Warnings:
 Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
 Warning	1292	Truncated incorrect DECIMAL value: '.00000000000000000000000000000000000001e111111111111111111111'
-Warning	1264	Out of range value for column 'a' at row 1
+Warning	1264	Out of range value for column 'a' at row 0
 CREATE TABLE t1 (str VARCHAR(128), comment VARCHAR(128));
 INSERT INTO t1 VALUES
 ('0e111111111111111111111', 'Zero mantissa and a huge positive exponent'),
@@ -1152,13 +1152,13 @@ CAST(str AS DECIMAL(38,0))
 Level	Code	Message
 Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
 Warning	1292	Truncated incorrect DECIMAL value: '1e111111111111111111111'
-Warning	1264	Out of range value for column 'CAST(str AS DECIMAL(38,0))' at row 1
+Warning	1264	Out of range value for column 'CAST(str AS DECIMAL(38,0))' at row 2
 CAST(CONCAT(str,'garbage') AS DECIMAL(38,0))
 99999999999999999999999999999999999999
 Level	Code	Message
 Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
 Warning	1292	Truncated incorrect DECIMAL value: '1e111111111111111111111garbage'
-Warning	1264	Out of range value for column 'CAST(CONCAT(str,'garbage') AS DECIMAL(38,0))' at row 1
+Warning	1264	Out of range value for column 'CAST(CONCAT(str,'garbage') AS DECIMAL(38,0))' at row 2
 DROP TABLE t1;
 #
 # End of 10.2 tests
@@ -1529,4 +1529,177 @@ DROP TABLE t1;
 DROP TABLE t0;
 #
 # End of 10.6 tests
+#
+#
+# Start of 10.11 tests
+#
+#
+# MDEV-33442 REPAIR TABLE corrupts UUIDs
+#
+CREATE PROCEDURE show_table()
+BEGIN
+SHOW CREATE TABLE t1;
+SELECT VERSION FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
+SELECT * FROM t1 ORDER BY a;
+END;
+$$
+# Upgrade using REPAIR
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(10,2)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+9
+a
+123.45
+123.46
+123.47
+CHECK TABLE t1 FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	error	Upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(10,2)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+9
+a
+123.45
+123.46
+123.47
+CHECK TABLE t1 FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	error	Upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(10,2)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+9
+a
+123.45
+123.46
+123.47
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+# Expect old decimal, as it does not implicitly upgrade to new decimal
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(10,2)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a
+123.45
+123.46
+123.47
+CHECK TABLE t1 FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(10,2)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a
+123.45
+123.46
+123.47
+DROP TABLE t1;
+# Upgrade using ALTER, adding a table COMMENT
+# Upgrade a 10.11.4 table using ALTER, adding a table COMMENT
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(10,2)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+9
+a
+123.45
+123.46
+123.47
+# ALTER..INPLACE should fail - the FRM file is too old and needs upgrade
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, COMMENT 'test10';
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+ALTER IGNORE TABLE t1 COMMENT 'test11';
+# Expect old decimal, as it does not implicitly upgrade to new decimal
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(10,2)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='test11'
+VERSION
+10
+a
+123.45
+123.46
+123.47
+# Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, COMMENT 'test12';
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(10,2)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='test12'
+VERSION
+10
+a
+123.45
+123.46
+123.47
+DROP TABLE t1;
+# Upgrade using ALTER, adding a column DEFAULT
+# Upgrade a 10.11.4 table using ALTER, adding a table COMMENT
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(10,2)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+9
+a
+123.45
+123.46
+123.47
+# ALTER..INPLACE should fail - the FRM file is too old and needs upgrade
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, MODIFY a DECIMAL(10,2) DEFAULT 10;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+ALTER IGNORE TABLE t1 MODIFY a DECIMAL(10,2) DEFAULT 11;
+# Expect new decimal, as we explicitly redefined the data type
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(10,2) DEFAULT 11.00
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a
+123.45
+123.46
+123.47
+# Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, MODIFY a DECIMAL(10,2) DEFAULT 12;
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(10,2) DEFAULT 12.00
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a
+123.45
+123.46
+123.47
+DROP TABLE t1;
+DROP PROCEDURE show_table;
+#
+# End of 10.11 tests
 #

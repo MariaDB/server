@@ -1,6 +1,42 @@
 version: build-{build}~branch-{branch}
 
-clone_depth: 1
+clone_depth: 10
+
+skip_branch_with_pr: true
+before_build:
+  - ps: |
+      function Get-Remote-Ref($ref) {
+        try {
+          $result = git ls-remote origin $ref 2>$null
+          if (-not $result) {
+            "Warning: Could not fetch remote ref '$ref'"
+            return $null
+          }
+          return ($result -split "`t")[0]
+        } catch {
+          "Warning: Exception while running git ls-remote for '$ref': $_"
+          return $null
+        }
+      }
+      Get-ChildItem Env: | Where-Object { $_.Name -like 'APPVEYOR*COMMIT' } | ForEach-Object { "$($_.Name)=$($_.Value)" }
+      $commit = $env:APPVEYOR_REPO_COMMIT
+      $commit2 = $env:APPVEYOR_PULL_REQUEST_HEAD_COMMIT
+      $branch = $env:APPVEYOR_REPO_BRANCH
+      $latest = $null
+      $mainBranch = $branch -match '^(main|\d+\.\d+)$'
+      if ($env:APPVEYOR_PULL_REQUEST_NUMBER -eq $null) {
+        "Branch build detected"
+        $latest = Get-Remote-Ref "refs/heads/$branch"
+      } else {
+        $pr = $env:APPVEYOR_PULL_REQUEST_NUMBER
+        $latest = Get-Remote-Ref "refs/pull/$pr/head"
+        $mainBranch = $False
+        "Pull Request build detected"
+      }
+      if ($latest -and ($commit -ne $latest) -and ($commit2 -ne $latest) -and (-not $mainBranch)) {
+        "Skipping outdated commit (latest is $latest)"
+        Exit-AppVeyorBuild
+      }
 
 build_script:
   # dump some system info

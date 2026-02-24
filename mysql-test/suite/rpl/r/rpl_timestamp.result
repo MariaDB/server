@@ -7,28 +7,28 @@ create table t1 (f1 timestamp, f2 timestamp);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f1` timestamp NULL DEFAULT NULL,
-  `f2` timestamp NULL DEFAULT NULL
+  `f1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `f2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection slave;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f1` timestamp NULL DEFAULT NULL,
-  `f2` timestamp NULL DEFAULT NULL
+  `f1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `f2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection master;
 drop table t1;
 flush binary logs;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
 use `test`/*!*/;
 SET TIMESTAMP=1656940000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=0, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;

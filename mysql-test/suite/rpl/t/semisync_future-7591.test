@@ -8,7 +8,7 @@ set global rpl_semi_sync_master_enabled = ON;
 --connection slave
 --source include/stop_slave.inc
 set global rpl_semi_sync_slave_enabled = ON;
-change master to master_log_file='master-bin.000002', master_log_pos = 320;
+change master to master_log_file='master-bin.000002', master_log_pos = 320, master_use_gtid=no;
 
 start slave;
 --let $slave_io_errno=1236
@@ -20,7 +20,8 @@ reset master;
 
 --connection slave
 --source include/stop_slave_sql.inc
-reset slave;
+--let $master_use_gtid_option= No
+--source include/reset_slave.inc
 --source include/start_slave.inc
 
 set global rpl_semi_sync_slave_enabled = OFF;

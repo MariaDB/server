@@ -162,7 +162,7 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
    @note The relay log information can be NULL, which means that no
    checking or comparison with the source table is done, simply
    because it is not used.  This feature is used by MySQL Backup to
-   unpack a row from from the backup image, but can be used for other
+   unpack a row from the backup image, but can be used for other
    purposes as well.
 
    @param rli     Relay log info, which can be NULL

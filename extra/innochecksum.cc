@@ -48,7 +48,6 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 #include "buf0buf.h"             /* buf_page_is_corrupted */
 #include "page0zip.h"            /* page_zip_*() */
 #include "trx0undo.h"            /* TRX_* */
-#include "ut0crc32.h"		 /* ut_crc32_init() */
 #include "fil0crypt.h"           /* fil_space_verify_crypt_checksum */
 #include <string.h>
 
@@ -77,7 +76,7 @@ static ulint physical_page_size;  /* Page size in bytes on disk. */
 static ulint extent_size;
 static ulint xdes_size;
 ulong srv_page_size;
-ulong srv_page_size_shift;
+uint32_t srv_page_size_shift;
 static uint32_t dblwr_1;
 static uint32_t dblwr_2;
 /* Current page number (0 based). */
@@ -265,7 +264,7 @@ void print_leaf_stats(
 static void init_page_size_from_flags(const uint32_t flags)
 {
 	if (fil_space_t::full_crc32(flags)) {
-		const ulong ssize = FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(flags);
+		const uint32_t ssize = FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(flags);
 		srv_page_size_shift = UNIV_ZIP_SIZE_SHIFT_MIN - 1 + ssize;
 		srv_page_size = 512U << ssize;
 		physical_page_size = srv_page_size;
@@ -274,7 +273,7 @@ static void init_page_size_from_flags(const uint32_t flags)
 		return;
 	}
 
-	const ulong	ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
+	const uint32_t ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
 
 	srv_page_size_shift = ssize
 		? UNIV_ZIP_SIZE_SHIFT_MIN - 1 + ssize
@@ -440,12 +439,7 @@ static bool is_page_all_zeroes(
 				with crypt_scheme encrypted
 @param[in]	flags		tablespace flags
 @retval true if page is corrupted otherwise false. */
-static
-bool
-is_page_corrupted(
-	byte*		buf,
-	bool		is_encrypted,
-	ulint		flags)
+static bool is_page_corrupted(byte *buf, bool is_encrypted, uint32_t flags)
 {
 
 	/* enable if page is corrupted. */
@@ -593,7 +587,7 @@ Rewrite the checksum for the page.
 @retval false : skip the rewrite as checksum stored match with
 		calculated or page is doublwrite buffer.
 */
-static bool update_checksum(byte* page, ulint flags)
+static bool update_checksum(byte* page, uint32_t flags)
 {
 	ib_uint32_t	checksum = 0;
 	byte		stored1[4];	/* get FIL_PAGE_SPACE_OR_CHKSUM field checksum */
@@ -637,7 +631,7 @@ static bool update_checksum(byte* page, ulint flags)
 	} else if (use_full_crc32) {
 		ulint payload = buf_page_full_crc32_size(page, NULL, NULL)
 			- FIL_PAGE_FCRC32_CHECKSUM;
-		checksum = ut_crc32(page, payload);
+		checksum = my_crc32c(0, page, payload);
 		byte* c = page + payload;
 		if (mach_read_from_4(c) == checksum) return false;
 		mach_write_to_4(c, checksum);
@@ -702,7 +696,7 @@ write_file(
 	const char*	filename,
 	FILE*		file,
 	byte*		buf,
-	ulint		flags,
+	uint32_t	flags,
 	fpos_t*		pos)
 {
 	bool	do_update;
@@ -1246,16 +1240,16 @@ static struct my_option innochecksum_options[] = {
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
-/* Print out the Innodb version and machine information. */
-static void print_version(void)
+/** Print out the version and build information. */
+static void print_version()
 {
 #ifdef DBUG_OFF
 	printf("%s Ver %s, for %s (%s)\n",
-		my_progname, INNODB_VERSION_STR,
+		my_progname, PACKAGE_VERSION,
 		SYSTEM_TYPE, MACHINE_TYPE);
 #else
 	printf("%s-debug Ver %s, for %s (%s)\n",
-		my_progname, INNODB_VERSION_STR,
+		my_progname, PACKAGE_VERSION,
 		SYSTEM_TYPE, MACHINE_TYPE);
 #endif /* DBUG_OFF */
 }
@@ -1403,7 +1397,7 @@ static int verify_checksum(
 	byte*			buf,
 	bool			is_encrypted,
 	unsigned long long*	mismatch_count,
-	ulint			flags)
+	uint32_t		flags)
 {
 	int exit_status = 0;
 	if (is_page_corrupted(buf, is_encrypted, flags)) {
@@ -1444,7 +1438,7 @@ rewrite_checksum(
 	byte*		buf,
 	fpos_t*		pos,
 	bool		is_encrypted,
-	ulint		flags)
+	uint32_t	flags)
 {
 	bool is_compressed = fil_space_t::is_compressed(flags);
 

@@ -11,11 +11,8 @@ connection slave;
 connection master;
 SELECT ID INTO @binlog_dump_tid
 FROM information_schema.PROCESSLIST WHERE COMMAND = 'Binlog Dump';
-# Control State
-SELECT STATE FROM information_schema.PROCESSLIST WHERE ID = @binlog_dump_tid;
-STATE
-Master has sent all binlog to slave; waiting for more updates
-SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+# Wait for the Control State
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_clients';
 Variable_name	Value
 Rpl_semi_sync_master_clients	1
 # Disable Semi-Sync while the dump thread is still connected to its slave
@@ -23,14 +20,14 @@ SET @@GLOBAL.rpl_semi_sync_master_enabled = 0;
 SELECT STATE FROM information_schema.PROCESSLIST WHERE ID = @binlog_dump_tid;
 STATE
 Master has sent all binlog to slave; waiting for more updates
-SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_clients';
 Variable_name	Value
 Rpl_semi_sync_master_clients	1
 # Disconnect the slave and wait until the master's dump thread is gone
 connection slave;
 STOP SLAVE;
 connection master;
-SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_clients';
 Variable_name	Value
 Rpl_semi_sync_master_clients	0
 # Cleanup

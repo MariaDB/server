@@ -1,7 +1,6 @@
 include/master-slave.inc
 [connection master]
 connection master;
-drop database if exists mysqltest1;
 create database mysqltest1;
 create table mysqltest1.t1 (n int);
 insert into mysqltest1.t1 values (1);

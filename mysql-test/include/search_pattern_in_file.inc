@@ -27,6 +27,10 @@
 #    search result. The timeout can be set in SEARCH_TIMEOUT, default is 60
 #    seconds.
 #
+#    Optionally, SEARCH_WAIT can be set to "FOUND" or "NOT FOUND", and this
+#    will wait for the condition to occur. The timeout can be set in
+#    SEARCH_TIMEOUT, default is 60 seconds.
+#
 #    Optionally, SEARCH_OUTPUT can be set to control the format of output.
 #    Supported formats:
 #     - (default)  : "FOUND n /pattern/ in FILE " or "NOT FOUND ..."

@@ -8600,7 +8600,6 @@ grn_obj_set_info_source_invalid_lexicon_error(grn_ctx *ctx,
       source_name_size, source_name);
 }
 
-PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 inline static grn_rc
 grn_obj_set_info_source_validate(grn_ctx *ctx, grn_obj *obj, grn_obj *value)
@@ -8703,6 +8702,8 @@ exit:
   }
   return ctx->rc;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 inline static void
 grn_obj_set_info_source_log(grn_ctx *ctx, grn_obj *obj, grn_obj *value)

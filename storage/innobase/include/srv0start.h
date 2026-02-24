@@ -33,10 +33,10 @@ Created 10/10/1995 Heikki Tuuri
 struct dict_table_t;
 
 /** Open the configured number of dedicated undo tablespaces.
-@param[in]	create_new_db	whether the database is being initialized
+@param[in]      create_new_undo whether the undo tablespaces has to be created
+@param[in,out]  mtr             mini-transaction
 @return DB_SUCCESS or error code */
-dberr_t
-srv_undo_tablespaces_init(bool create_new_db);
+dberr_t srv_undo_tablespaces_init(bool create_new_undo, mtr_t *mtr);
 
 /** Start InnoDB.
 @param[in]	create_new_db	whether to create a new database

@@ -108,6 +108,7 @@ select export_set(3, _latin1'foo', _utf8'bar', ',', 4);
 create table t1 as select uuid(), length(uuid());
 --enable_warnings
 show create table t1;
+select length(`uuid()`) from t1;
 drop table t1;
 
 #

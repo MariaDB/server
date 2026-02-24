@@ -3471,9 +3471,9 @@ JOIN t1 AS a12 ON a12.c1 = a11.c1
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
-Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where 0)
+Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where multiple equal(NULL, NULL, `test`.`a21`.`c2`))
 DROP TABLE t1, t2, t3;
 #73
 CREATE TABLE t1 (id INT);

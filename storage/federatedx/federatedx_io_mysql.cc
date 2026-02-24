@@ -212,7 +212,7 @@ ulong federatedx_io_mysql::last_savepoint() const
 ulong federatedx_io_mysql::actual_savepoint() const
 {
   SAVEPT *savept= NULL;
-  uint index= savepoints.elements;
+  size_t index= savepoints.elements;
   DBUG_ENTER("federatedx_io_mysql::last_savepoint");
 
   while (index)
@@ -286,7 +286,7 @@ ulong federatedx_io_mysql::savepoint_release(ulong sp)
 ulong federatedx_io_mysql::savepoint_rollback(ulong sp)
 {
   SAVEPT *savept;
-  uint index;
+  size_t index;
   DBUG_ENTER("federatedx_io_mysql::savepoint_release");
   DBUG_PRINT("info",("savepoint=%lu", sp));
   
@@ -321,7 +321,7 @@ ulong federatedx_io_mysql::savepoint_rollback(ulong sp)
 void federatedx_io_mysql::savepoint_restrict(ulong sp)
 {
   SAVEPT *savept;
-  uint index= savepoints.elements;
+  size_t index= savepoints.elements;
   DBUG_ENTER("federatedx_io_mysql::savepoint_restrict");
   
   while (index)
@@ -361,7 +361,7 @@ bool federatedx_io_mysql::test_all_restrict() const
 {
   bool result= FALSE;
   SAVEPT *savept;
-  uint index= savepoints.elements;
+  size_t index= savepoints.elements;
   DBUG_ENTER("federatedx_io_mysql::test_all_restrict");
   
   while (index)

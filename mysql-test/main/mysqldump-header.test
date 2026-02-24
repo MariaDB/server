@@ -1,0 +1,125 @@
+--source include/not_embedded.inc
+
+CREATE TABLE `courses` (
+  `course_id` smallint(20) PRIMARY KEY,
+  `name` varchar(50),
+  `description` varchar(100),
+  `num_years` tinyint(1),
+  `escape_çÇÁá!#%"'` varchar(10)
+);
+
+desc courses;
+
+INSERT INTO `courses` VALUES (5, 'Course 1', 'Course Description 1', 3, NULL);
+
+--echo #
+--echo # Dump only data rows into outfile with default options
+--echo #
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+
+--echo #
+--echo # Dump header and data rows into outfile with default options
+--echo #
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ --header test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+
+--echo #
+--echo # Dump header and data rows into outfile with comma delimited fields
+--echo #
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ --header --fields-terminated-by , test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+
+--echo #
+--echo # Dump header and data rows into outfile with single quote enclosed fields
+--echo #
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ --header --fields-enclosed-by \' test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+
+--echo #
+--echo # Dump header and data rows into outfile with optional single quote enclosed fields
+--echo #
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ --header --fields-optionally-enclosed-by \' test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+
+--echo #
+--echo # Dump header and data rows into outfile with semicolon terminated data rows
+--echo #
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ --header --lines-terminated-by \; test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+
+--echo
+--echo #
+--echo # Dump header and data rows into outfile with several options above combined
+--echo #
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ --header --fields-terminated-by , --fields-enclosed-by \' --lines-terminated-by \; test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+--echo
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ --header --fields-terminated-by , --fields-optionally-enclosed-by \' --lines-terminated-by \; test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+
+--echo
+--echo #
+--echo # --skip-quote-names
+--echo #
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ --header --skip-quote-names test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+
+--echo #
+--echo # --compatible=ansi
+--echo #
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ --header --compatible=ansi test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+
+INSERT INTO `courses` VALUES (4, 'Course 2', 'Course Description 2', 4, NULL);
+INSERT INTO `courses` VALUES (3, 'Course 3', 'Course Description 3', 3, NULL);
+INSERT INTO `courses` VALUES (2, 'Course 4', 'Course Description 4', 5, NULL);
+INSERT INTO `courses` VALUES (1, 'Course 5', 'Course Description 5', 3, NULL);
+
+--echo
+--echo #
+--echo # Dump data rows into outfile with --where clause
+--echo #
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ --where "num_years=5" test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+
+--echo #
+--echo # Dump header and data rows into outfile with --where clause. The header must remain on top and not meddle among data rows
+--echo #
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ --where "num_years=5" --header test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+
+--echo #
+--echo # Dump data rows ordered by primary key.
+--echo #
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ --order-by-primary test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+
+--echo #
+--echo # Dump header and data rows ordered by primary key. The header must remain on top and not meddle among data rows
+--echo #
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ --order-by-primary --header test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+
+--echo #
+--echo # Dump data rows from an empty table, must generate no output
+--echo #
+DELETE FROM `courses`;
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+
+--echo #
+--echo # Dump header and data rows from an empty table, must generate a single header line as output
+--echo #
+--exec $MYSQL_DUMP -u root --tab $MYSQLTEST_VARDIR/ --header test
+--cat_file $MYSQLTEST_VARDIR/courses.txt
+
+--echo #
+--echo # Use header without the --tab option. Must produce an error
+--echo #
+--error 1
+--exec $MYSQL_DUMP -u root --header test
+
+DROP TABLE `courses`;
+--remove_file $MYSQLTEST_VARDIR/courses.txt
+--remove_file $MYSQLTEST_VARDIR/courses.sql

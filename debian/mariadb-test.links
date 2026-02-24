@@ -1,8 +1,0 @@
-usr/bin/mariadb-client-test usr/bin/mysql_client_test
-usr/bin/mariadb-client-test-embedded usr/bin/mysql_client_test_embedded
-usr/bin/mariadb-test usr/bin/mysqltest
-usr/bin/mariadb-test-embedded usr/bin/mysqltest_embedded
-usr/share/mysql/mysql-test/mariadb-test-run.pl usr/share/mysql/mysql-test/mariadb-test-run
-usr/share/mysql/mysql-test/mariadb-test-run.pl usr/share/mysql/mysql-test/mtr
-usr/share/mysql/mysql-test/mariadb-test-run.pl usr/share/mysql/mysql-test/mysql-test-run
-usr/share/mysql/mysql-test/mariadb-test-run.pl usr/share/mysql/mysql-test/mysql-test-run.pl

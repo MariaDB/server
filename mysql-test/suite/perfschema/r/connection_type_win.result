@@ -55,7 +55,7 @@ select user_host, command_type, argument from mysql.general_log
 where command_type = "Connect";
 user_host	[root] @ santa.claus.ipv4.example.com [192.0.2.4]
 command_type	Connect
-argument	root@santa.claus.ipv4.example.com on test using TCP/IP
+argument	root@santa.claus.ipv4.example.com on  using TCP/IP
 user_host	[root] @ santa.claus.ipv4.example.com [192.0.2.4]
 command_type	Connect
 argument	root@santa.claus.ipv4.example.com on test using TCP/IP
@@ -64,7 +64,6 @@ command_type	Connect
 argument	rootssl@santa.claus.ipv4.example.com on test using SSL/TLS
 select substring(argument, locate("Connect", argument)) from test_log
 where argument like "%Connect%on test%";
-substring(argument, locate("Connect", argument))	Connect	root@santa.claus.ipv4.example.com on test using TCP/IP
 substring(argument, locate("Connect", argument))	Connect	root@santa.claus.ipv4.example.com on test using TCP/IP
 substring(argument, locate("Connect", argument))	Connect	rootssl@santa.claus.ipv4.example.com on test using SSL/TLS
 DROP TABLE test_log;

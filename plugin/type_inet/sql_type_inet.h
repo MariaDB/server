@@ -52,94 +52,16 @@ typedef Type_handler_fbt<Inet6> Type_handler_inet6;
 
 /***********************************************************************/
 
-class Inet4
+class Inet4: public FixedBinTypeStorage<IN_ADDR_SIZE, IN_ADDR_MAX_CHAR_LENGTH>
 {
-  char m_buffer[IN_ADDR_SIZE];
-protected:
-  bool ascii_to_ipv4(const char *str, size_t length);
-  bool character_string_to_ipv4(const char *str, size_t str_length,
-                                CHARSET_INFO *cs)
-  {
-    if (cs->state & MY_CS_NONASCII)
-    {
-      char tmp[IN_ADDR_MAX_CHAR_LENGTH];
-      String_copier copier;
-      uint length= copier.well_formed_copy(&my_charset_latin1, tmp, sizeof(tmp),
-                                           cs, str, str_length);
-      return ascii_to_ipv4(tmp, length);
-    }
-    return ascii_to_ipv4(str, str_length);
-  }
-  bool binary_to_ipv4(const char *str, size_t length)
-  {
-    if (length != sizeof(m_buffer))
-      return true;
-    memcpy(m_buffer, str, length);
-    return false;
-  }
-
-  Inet4() = default;
 public:
-  void to_binary(char *dst, size_t dstsize) const
-  {
-    DBUG_ASSERT(dstsize >= sizeof(m_buffer));
-    memcpy(dst, m_buffer, sizeof(m_buffer));
-  }
-  bool to_binary(String *to) const
-  {
-    return to->copy(m_buffer, sizeof(m_buffer), &my_charset_bin);
-  }
+  using FixedBinTypeStorage::FixedBinTypeStorage;
+  bool ascii_to_fbt(const char *str, size_t str_length);
   size_t to_string(char *dst, size_t dstsize) const;
-  bool to_string(String *to) const
-  {
-    to->set_charset(&my_charset_latin1);
-    if (to->alloc(INET_ADDRSTRLEN))
-      return true;
-    to->length((uint32) to_string((char*) to->ptr(), INET_ADDRSTRLEN));
-    return false;
-  }
+  static const Name &default_value();
 };
 
+typedef Type_handler_fbt<Inet4> Type_handler_inet4;
 
-class Inet4_null: public Inet4, public Null_flag
-{
-public:
-  // Initialize from a text representation
-  Inet4_null(const char *str, size_t length, CHARSET_INFO *cs)
-   :Null_flag(character_string_to_ipv4(str, length, cs))
-  { }
-  Inet4_null(const String &str)
-   :Inet4_null(str.ptr(), str.length(), str.charset())
-  { }
-  // Initialize from a binary representation
-  Inet4_null(const char *str, size_t length)
-   :Null_flag(binary_to_ipv4(str, length))
-  { }
-  Inet4_null(const Binary_string &str)
-   :Inet4_null(str.ptr(), str.length())
-  { }
-public:
-  const Inet4& to_inet4() const
-  {
-    DBUG_ASSERT(!is_null());
-    return *this;
-  }
-  void to_binary(char *dst, size_t dstsize) const
-  {
-    to_inet4().to_binary(dst, dstsize);
-  }
-  bool to_binary(String *to) const
-  {
-    return to_inet4().to_binary(to);
-  }
-  size_t to_string(char *dst, size_t dstsize) const
-  {
-    return to_inet4().to_string(dst, dstsize);
-  }
-  bool to_string(String *to) const
-  {
-    return to_inet4().to_string(to);
-  }
-};
 
 #endif /* SQL_TYPE_INET_H */

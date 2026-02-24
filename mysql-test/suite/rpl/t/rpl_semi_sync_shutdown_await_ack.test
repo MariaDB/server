@@ -219,7 +219,7 @@ SET GLOBAL debug_dbug="+d,simulate_delay_semisync_slave_reply";
 --connection server_2
 set debug_sync= "now wait_for io_thd_at_slave_reply";
 
---disconnect con1
+--dirty_close con1
 
 --connection default
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect

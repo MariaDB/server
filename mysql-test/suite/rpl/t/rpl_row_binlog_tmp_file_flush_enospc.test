@@ -1,0 +1,64 @@
+#
+# This test ensures that a large transaction (i.e. one whose data exceeds the
+# binlog_cache_size limit and spills into a tmp file) that errors while
+# flushing the tmp file (e.g. due to no space on disk) does not corrupt the
+# binlog, and that the server/replication can continue working normally after
+# the error. To simulate the error, the test uses debug_dbug to inject a
+# failure in the my_write() function, which is called when flushing the tmp
+# file.
+#
+# References:
+#   MDEV-37662: Binlog Corruption When tmpdir is Full
+#
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection master
+set @old_binlog_cache_size= @@global.binlog_cache_size;
+set @@global.binlog_cache_size=4096;
+CALL mtr.add_suppression('Error writing file');
+
+--echo #
+--echo # Initialize test data
+--connection master
+create table t1 (a int, b longtext default NULL) engine=innodb;
+
+--echo #
+--echo # Create transaction with cache data larger than the binlog_cache_size
+--echo # so it spills into a tmp file, then simulate ENOSPC while flushing
+--echo # the tmp file.
+--echo #
+set @@session.debug_dbug="+d,simulate_binlog_tmp_file_no_space_left_on_flush";
+--replace_regex /Error writing file '[^']+\/tmp\/[^']+'/Error writing file '...\/tmp\/<FILENAME>'/
+--error 3
+insert into t1 values (2, repeat("y", 8192));
+set @@session.debug_dbug="";
+
+--echo #
+--echo # Create another transaction to make sure the server/replication can
+--echo # continue working normally after the error
+--echo #
+insert into t1 values (3, repeat("z", 8192));
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--let $diff_tables=master:test.t1,slave:test.t1
+--source include/diff_tables.inc
+
+--echo #
+--echo # Cleanup
+--connection master
+drop table t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--connection master
+set @@global.binlog_cache_size= @old_binlog_cache_size;
+
+--source include/rpl_end.inc
+--echo # End of rpl_row_binlog_tmp_file_flush_enospc.test

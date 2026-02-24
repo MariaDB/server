@@ -258,6 +258,29 @@ public:
     Seconds_Behind_Master as zero while the SQL thread is so waiting.
   */
   bool sql_thread_caught_up;
+  /**
+    Simple setter for @ref worker_threads_caught_up;
+    sets it `false` to indicate new user events in queue
+    @pre @ref data_lock held to prevent race with is_threads_caught_up()
+  */
+  inline void unset_worker_threads_caught_up()
+  {
+    mysql_mutex_assert_owner(&data_lock);
+    worker_threads_caught_up= false;
+  }
+  /**
+    @return
+      `true` if both @ref sql_thread_caught_up and (refresh according to
+      @ref last_inuse_relaylog as needed) @ref worker_threads_caught_up
+    @pre Only meaningful if `mi->using_parallel()`
+    @pre @ref data_lock held to prevent race condition
+    @note
+      Parallel replication requires the idleness of the main SQL thread as well,
+      because after the thread sets its state to "busy" with `data_lock` held,
+      it enqueues events *without this lock*. Not to mention any event the main
+      thread processes itself without distribution, e.g., ignored ones.
+  */
+  bool are_sql_threads_caught_up();
 
   void clear_until_condition();
   /**
@@ -588,6 +611,22 @@ private:
     relay log.
   */
   uint32 m_flags;
+
+  /**
+    When `true`, this worker threads' copy of @ref sql_thread_caught_up
+    represents that __every__ worker thread is waiting for new events.
+    * The SQL driver thread sets this to `false` through
+      unset_worker_threads_caught_up() as it prepares an event
+      (either to enqueue a worker or, e.g., ignored events, process itself)
+    * For the main driver or any worker thread to refresh this state immediately
+      when it finishes, the procedure would have to be a critical section.
+      To avoid depending on a mutex, this state instead only returns to `true`
+      as part of its reader, are_worker_threads_caught_up().
+      `Seconds_Behind_Master` of SHOW SLAVE STATUS uses this method (which also
+      reads `sql_thread_caught_up`) to know when all SQL threads are waiting.
+    @pre Only meaningful if `mi->using_parallel()`
+  */
+  bool worker_threads_caught_up= true;
 };
 
 
@@ -640,6 +679,33 @@ struct inuse_relaylog {
   }
 };
 
+enum start_alter_state
+{
+  INVALID= 0,
+  REGISTERED,           // Start Alter exist, Default state
+  COMMIT_ALTER,         // COMMIT the alter
+  ROLLBACK_ALTER,       // Rollback the alter
+  COMPLETED             // COMMIT/ROLLBACK Alter written in binlog
+};
+
+struct start_alter_info
+{
+  /*
+    ALTER id is defined as a pair of GTID's seq_no and domain_id.
+  */
+  decltype(rpl_gtid::seq_no) sa_seq_no; // key for searching (SA's id)
+  uint32 domain_id;
+  bool   direct_commit_alter; // when true CA thread executes the whole query
+  /*
+    0 prepared and not error from commit and rollback
+    >0 error expected in commit/rollback
+    Rollback can be logged with 0 error if master is killed
+  */
+  uint error;
+  enum start_alter_state state;
+  /* We are not using mysql_cond_t because we do not need PSI */
+  mysql_cond_t start_alter_cond;
+};
 
 /*
   This is data for various state needed to be kept for the processing of
@@ -667,6 +733,8 @@ struct rpl_group_info
   */
   uint64 gtid_sub_id;
   rpl_gtid current_gtid;
+  /* Currently applied event or NULL */
+  Log_event *current_event;
   uint64 commit_id;
   /*
     This is used to keep transaction commit order.
@@ -759,6 +827,9 @@ struct rpl_group_info
   bool did_mark_start_commit;
   /* Copy of flags2 from GTID event. */
   uchar gtid_ev_flags2;
+  /* Copy of flags3 from GTID event. */
+  uint16 gtid_ev_flags_extra;
+  uint64 gtid_ev_sa_seq_no;
   enum {
     GTID_DUPLICATE_NULL=0,
     GTID_DUPLICATE_IGNORE=1,
@@ -833,6 +904,15 @@ struct rpl_group_info
     RETRY_KILL_KILLED
   };
   uchar killed_for_retry;
+  bool reserved_start_alter_thread;
+  bool finish_event_group_called;
+  /*
+    Used for two phase alter table
+  */
+  rpl_parallel_thread *rpt;
+  Query_log_event *start_alter_ev;
+  bool direct_commit_alter;
+  start_alter_info *sa_info;
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
@@ -960,6 +1040,19 @@ struct rpl_group_info
     if (!is_parallel_exec)
       rli->event_relay_log_pos= future_event_relay_log_pos;
   }
+
+  void finish_start_alter_event_group();
+
+  bool get_finish_event_group_called()
+  {
+    return finish_event_group_called;
+  }
+
+  void set_finish_event_group_called(bool value)
+  {
+    finish_event_group_called= value;
+  }
+
 };
 
 

@@ -273,14 +273,6 @@ int ha_sequence::write_row(const uchar *buf)
 #ifdef WITH_WSREP
   if (WSREP_ON && WSREP(thd) && wsrep_thd_is_local(thd))
   {
-    if (sequence_locked &&
-        (wsrep_thd_is_SR(thd) || wsrep_streaming_enabled(thd)))
-    {
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "SEQUENCEs with streaming replication in Galera cluster");
-      DBUG_RETURN(HA_ERR_UNSUPPORTED);
-    }
-
     /*
        We need to start Galera transaction for select NEXT VALUE FOR
        sequence if it is not yet started. Note that ALTER is handled

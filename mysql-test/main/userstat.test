@@ -135,6 +135,11 @@ set global userstat= 0;
 drop function f;
 --enable_ps2_protocol
 
---echo #
 --echo # End of 10.2 tests
+
 --echo #
+--echo # MDEV-36586 USER_STATISTICS.BUSY_TIME is in microseconds
+--echo #
+select distinct busy_time>1e5, cpu_time>1e5 from information_schema.user_statistics;
+
+--echo # End of 10.11 tests

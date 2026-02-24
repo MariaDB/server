@@ -38,6 +38,21 @@ INSERT INTO t1 VALUES (3);
 SELECT COUNT(*) = 3 FROM t1;
 
 --connection node_3
+SET @@session.binlog_alter_two_phase = 1;
+ALTER TABLE t1 ADD COLUMN f2 INT;
+INSERT INTO t1 VALUES (4,1);
+
+--connection node_1
+--let $count = 4
+--let $table = t1
+--source include/wait_until_rows_count.inc
+
+--connection node_2
+--let $count = 4
+--let $table = t1
+--source include/wait_until_rows_count.inc
+
+--connection node_3
 DROP TABLE t1;
 
 --connection node_2

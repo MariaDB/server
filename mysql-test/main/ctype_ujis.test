@@ -9,10 +9,20 @@ drop table if exists t1;
 
 set names ujis;
 
+--echo #
+--echo # General tests
+--echo #
+
+SET NAMES ujis;
+-- source include/ctype_ascii_order.inc
+SET NAMES ujis COLLATE ujis_bin;
+-- source include/ctype_ascii_order.inc
+
 #
 # Test problem with LEFT()
 #
 
+SET NAMES ujis;
 create table t1 (c text character set ujis);
 insert into t1 values (0xa4a2),(0xa4a3);
 select hex(left(c,1)) from t1 group by c;

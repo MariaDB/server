@@ -1,6 +1,0 @@
-# restart: --innodb-log-buffer-size=1125899906842624
-SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'innodb'
-AND support IN ('YES', 'DEFAULT', 'ENABLED');
-ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /InnoDB: Cannot allocate memory; too large innodb_log_buffer_size\?/ in mysqld.1.err
-# restart

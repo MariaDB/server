@@ -1,0 +1,503 @@
+--source include/have_utf8mb4.inc
+
+
+CREATE TABLE t0 (a VARCHAR(64));
+INSERT INTO t0 VALUES
+('CHARACTER SET DEFAULT'),
+('CHARACTER SET latin1'),
+('CHARACTER SET utf8mb4'),
+('COLLATE DEFAULT'),
+('COLLATE utf8mb4_bin'),
+('COLLATE latin1_swedish_ci'),
+('COLLATE latin1_bin'),
+('COLLATE uca1400_ai_ci'),
+('COLLATE uca1400_as_ci');
+
+CREATE TABLE clauses
+(
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  cl1 VARCHAR(64) NOT NULL,
+  cl2 VARCHAR(64) NOT NULL,
+  cl3 VARCHAR(64) NOT NULL,
+  clause_count INT GENERATED ALWAYS AS ((cl1<>'') + (cl2<>'') + (cl3<>'')),
+  clauses TEXT GENERATED ALWAYS AS (CONCAT(cl1,
+                                    IF(cl2='','',' '), cl2,
+                                    IF(cl3='','',' '), cl3))
+);
+
+# No clauses
+INSERT INTO clauses (cl1, cl2, cl3)
+  SELECT '' AS cl1, '' AS cl2, '' AS cl3;
+
+# One clause
+INSERT INTO clauses (cl1, cl2, cl3)
+  SELECT t0.a AS cl1, '' AS cl2, '' AS cl3
+  FROM t0;
+
+# Two clauses
+INSERT INTO clauses (cl1, cl2, cl3)
+  SELECT t0.a AS cl1, t2.a AS cl2, '' AS cl3
+  FROM t0 t0, t0 t2;
+
+# Three clauses
+INSERT INTO clauses (cl1, cl2, cl3)
+  SELECT t0.a AS cl1, t2.a AS cl2, t3.a AS cl3
+  FROM t0 t0, t0 t2, t0 t3;
+
+DROP TABLE t0;
+
+
+CREATE TABLE results_template
+(
+  id INT NOT NULL PRIMARY KEY,
+  result TEXT NOT NULL
+);
+
+
+DELIMITER $$;
+CREATE PROCEDURE diff_result_tables_stat(table1 VARCHAR(64),
+                                         table2 VARCHAR(64),
+                                         cond VARCHAR(128))
+BEGIN
+  DECLARE query_counts TEXT DEFAULT
+    'SELECT '
+    ' COUNT(*),'
+    ' SUM(t1.result=t2.result),'
+    ' SUM(t1.result<>t2.result) '
+    'FROM table1 t1 JOIN table2 t2 USING (id)/*$(WHERE)*/';
+
+  SET query_counts=REPLACE(query_counts, 'table1', table1);
+  SET query_counts=REPLACE(query_counts, 'table2', table2);
+  IF (cond<>'')
+  THEN
+    SET query_counts=REPLACE(query_counts, '/*$(WHERE)*/', CONCAT('WHERE ',cond));
+  END IF;
+  EXECUTE IMMEDIATE query_counts;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE diff_result_tables_records(table1 VARCHAR(64),
+                                            table2 VARCHAR(64),
+                                            cond VARCHAR(128))
+BEGIN
+  DECLARE query_records TEXT DEFAULT
+    'SELECT '
+    ' '''' AS ``,'
+    ' clauses.clauses AS attrs,'
+    ' t1.result AS `aaa`,'
+    ' t2.result AS `bbb` '
+    ' FROM table1 t1'
+    ' JOIN table2 t2 USING (id)'
+    ' JOIN clauses USING (id) '
+    ' WHERE t1.result<>t2.result /*$(COND)*/ ORDER BY t1.id';
+
+  SET query_records=REPLACE(query_records, 'table1', table1);
+  SET query_records=REPLACE(query_records, 'table2', table2);
+  IF (cond<>'')
+  THEN
+    SET query_records=REPLACE(query_records, '/*$(COND)*/', CONCAT('AND ',cond));
+  END IF;
+  EXECUTE IMMEDIATE query_records;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE diff_result_tables(table1 VARCHAR(64),
+                                    table2 VARCHAR(64),
+                                    cond VARCHAR(128))
+BEGIN
+  CALL diff_result_tables_stat(table1, table2, cond);
+  CALL diff_result_tables_records(table1, table2, cond);
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE exec(query_bootstrap TEXT,
+                      query_pattern TEXT,
+                      query_cleanup TEXT,
+                      id INT,
+                      clauses TEXT)
+BEGIN
+  DECLARE query TEXT DEFAULT REPLACE(query_pattern, '/*CSCL*/',clauses);
+  DECLARE result TEXT DEFAULT NULL;
+  DECLARE CONTINUE HANDLER FOR
+     1064,  /*ER_PARSE_ERROR*/
+     1302,  /*ER_CONFLICTING_DECLARATIONS*/
+     1253   /*ER_COLLATION_CHARSET_MISMATCH*/
+  BEGIN
+    GET DIAGNOSTICS CONDITION 1 result=MESSAGE_TEXT;
+    SET result=CONCAT('ERROR: ', result);
+  END;
+  IF query_bootstrap<>''
+  THEN
+    EXECUTE IMMEDIATE query_bootstrap;
+  END IF;
+  EXECUTE IMMEDIATE query;
+  IF result IS NULL
+  THEN
+    IF query_pattern LIKE '%DATABASE%'
+    THEN
+      SET result=(SELECT CONCAT('CHARACTER SET ', DEFAULT_CHARACTER_SET_NAME,
+                                ' COLLATE ', DEFAULT_COLLATION_NAME)
+                  FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME='db1');
+    ELSE
+      SET result=(SELECT CONCAT('CHARACTER SET ', SUBSTRING_INDEX(TABLE_COLLATION,'_',1),
+                                ' COLLATE ', TABLE_COLLATION)
+                  FROM INFORMATION_SCHEMA.TABLES
+                  WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test1');
+    END IF;
+  END IF;
+  INSERT INTO results (id, result) VALUES (id, result);
+  IF query_cleanup<>''
+  THEN
+    EXECUTE IMMEDIATE query_cleanup;
+  END IF;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE show_results(query TEXT, clause_count_arg INT)
+BEGIN
+  SELECT '' AS ``, CONCAT(clause_count_arg, ' clauses') AS `TEST:`;
+  SELECT '' AS ``, COUNT(*) AS `TOTAL`
+  FROM results JOIN clauses USING (id)
+  WHERE clauses.clause_count=clause_count_arg;
+
+  -- Display erroneous results
+  SELECT '' AS ``, COUNT(*) AS `ERROR`
+  FROM results JOIN clauses USING (id)
+  WHERE clauses.clause_count=clause_count_arg
+    AND result RLIKE '^ERROR';
+
+  SELECT '' AS ``, query, clauses AS attrs, result
+  FROM results JOIN clauses USING (id)
+  WHERE clauses.clause_count=clause_count_arg
+    AND result RLIKE '^ERROR' ORDER BY id;
+
+  -- Display successfull results
+  SELECT '' AS ``, COUNT(*) AS `OK`
+  FROM results JOIN clauses USING (id)
+  WHERE clauses.clause_count=clause_count_arg
+    AND result NOT RLIKE '^ERROR';
+
+  SELECT '' AS ``, query, clauses AS attrs, result
+  FROM results JOIN clauses USING (id)
+  WHERE clauses.clause_count=clause_count_arg
+    AND result NOT RLIKE '^ERROR' ORDER BY id;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE run(query_bootstrap TEXT,
+                     query TEXT,
+                     query_cleanup TEXT,
+                     clause_count_arg INT)
+BEGIN
+  FOR rec IN (SELECT * FROM clauses WHERE clause_count=clause_count_arg)
+  DO
+    CALL exec(query_bootstrap, query, query_cleanup, rec.id, rec.clauses);
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PROCEDURE run_all(query_bootstrap TEXT, query TEXT, query_cleanup TEXT)
+BEGIN
+  DECLARE msg TEXT;
+  DECLARE count_results INT;
+  DECLARE count_clauses INT;
+  FOR i IN 0..3
+  DO
+    CALL run(query_bootstrap, query, query_cleanup, i);
+  END FOR;
+  SET count_clauses=(SELECT COUNT(*) FROM clauses);
+  SET count_results=(SELECT COUNT(*) FROM results);
+  IF (count_results<>count_clauses)
+  THEN
+    SET msg=CONCAT('Got ', count_results,' rows in `results`; ',
+                   'Expected ', count_clauses, ' rows');
+    SIGNAL SQLSTATE '45000'
+      SET MYSQL_ERRNO=30001,
+      MESSAGE_TEXT=msg;
+  END IF;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PROCEDURE show_results_all(query TEXT)
+BEGIN
+  FOR i IN 0..3
+  DO
+    CALL show_results(query, i);
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+
+
+--vertical_results
+
+--echo #
+--echo # Running CREATE DATABASE tests
+--echo # Displaying all results
+--echo #
+
+SET @@collation_server=utf8mb4_unicode_ci;
+CREATE TABLE results LIKE results_template;
+CALL run_all('','CREATE DATABASE db1 /*CSCL*/', 'DROP DATABASE IF EXISTS db1');
+CALL show_results_all('CREATE DATABASE');
+ALTER TABLE results RENAME TO results_create_db;
+
+--echo #
+--echo # Running ALTER DATABASE tests
+--echo #
+
+CREATE TABLE results LIKE results_template;
+CALL run_all('CREATE DATABASE db1 CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci',
+             'ALTER DATABASE db1 COMMENT '''' /*CSCL*/',
+             'DROP DATABASE db1');
+ALTER TABLE results RENAME TO results_alter_db;
+
+--echo # Displaying results that differ in CREATE DATABASE and ALTER DATABASE
+--echo # Only queries with no clauses or with COLLATE DEFAULT alone
+--echo # (without any other COLLATE or CHARACTER SET clauses)
+--echo # should differ:
+--echo # CREATE DATABASE db1 COMMENT '' [COLLATE DEFAULT]; -- means @@collation_server
+--echo # ALTER DATABASE db1 COMMENT '' COLLATE DEFAULT; -- means "the default collation of the current character set of db1"
+--echo # ALTER DATABASE db1 COMMENT ''; -- means "keep the current db1 collation"
+
+CALL diff_result_tables('results_create_db', 'results_alter_db', '');
+
+
+--echo #
+--echo # Running CREATE TABLE tests
+--echo #
+
+CREATE DATABASE test1 COLLATE utf8mb4_unicode_ci;
+
+CREATE TABLE results LIKE results_template;
+CALL run_all('',
+             'CREATE TABLE test1.t1 (a int) /*CSCL*/',
+             'DROP TABLE IF EXISTS test1.t1');
+ALTER TABLE results RENAME TO results_create_table;
+--echo # Expect no difference to CREATE DATABASE
+CALL diff_result_tables('results_create_db', 'results_create_table', '');
+
+DROP DATABASE test1;
+
+
+--echo #
+--echo # Running ALTER TABLE tests
+--echo #
+
+CREATE DATABASE test1 COLLATE utf8mb4_unicode_ci;
+
+CREATE TABLE results LIKE results_template;
+CALL run_all('CREATE TABLE test1.t1(a INT) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci',
+             'ALTER TABLE test1.t1 COMMENT '''' /*CSCL*/',
+             'DROP TABLE test1.t1');
+ALTER TABLE results RENAME TO results_alter_table;
+--echo # Only queries with no clauses or with COLLATE DEFAULT alone
+--echo # (without any other COLLATE or CHARACTER SET clauses)
+--echo # should differ:
+--echo # CREATE TABLE test1.t1 COMMENT '' [COLLATE DEFAULT]; -- means "the default collation of the database test1"
+--echo # ALTER TABLE test1.t1 COMMENT '' COLLATE DEFAULT; -- means "the default collation of the current character set of test1.t1"
+--echo # ALTER TABLE test1.t1 COMMENT ''; -- means "keep the current collation of test.t1"
+CALL diff_result_tables('results_create_table', 'results_alter_table', '');
+#SELECT result FROM (
+#(SELECT * FROM results_create_table)
+#EXCEPT
+#(SELECT * FROM results_alter_table)) t1;
+
+DROP DATABASE test1;
+
+--echo #
+--echo # Running ALTER TABLE CONVERT TO tests
+--echo #
+
+CREATE DATABASE test1 COLLATE utf8mb4_unicode_ci;
+
+CREATE TABLE results LIKE results_template;
+CALL run_all('CREATE TABLE test1.t1(a INT) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci',
+             'ALTER TABLE test1.t1 CONVERT TO /*CSCL*/',
+             'DROP TABLE test1.t1');
+ALTER TABLE results RENAME TO results_convert_table;
+
+--echo # CONVERT TO COLLATE (without CHARACTER SET) is not supported yet
+
+CALL diff_result_tables_stat('results_alter_table', 'results_convert_table','');
+
+--echo # Everything that did not fail on syntax error
+--echo # should give equal results with ALTER TABLE DEFAULT CHARACTER SET
+--echo # Expect 0 non-equal results:
+CALL diff_result_tables('results_alter_table', 'results_convert_table',
+                        't2.result NOT RLIKE ''SQL syntax''');
+
+DROP DATABASE test1;
+
+--horizontal_results
+
+
+DROP PROCEDURE show_results_all;
+DROP PROCEDURE run_all;
+DROP PROCEDURE show_results;
+DROP PROCEDURE exec;
+DROP PROCEDURE run;
+DROP PROCEDURE diff_result_tables;
+DROP PROCEDURE diff_result_tables_stat;
+DROP PROCEDURE diff_result_tables_records;
+DROP TABLE clauses;
+DROP TABLE results_template;
+DROP TABLE results_create_db;
+DROP TABLE results_alter_db;
+DROP TABLE results_create_table;
+DROP TABLE results_alter_table;
+DROP TABLE results_convert_table;
+
+--echo #
+--echo # MDEV-30003 Assertion failure upon 2nd execution of SP trying to set collation on non-existing database
+--echo #
+
+CREATE PROCEDURE p() ALTER SCHEMA db DEFAULT COLLATE = utf8_bin;
+--replace_regex /to file '.*db.opt'/to file '<dir>db.opt'/
+--error 1
+CALL p;
+--replace_regex /to file '.*db.opt'/to file '<dir>db.opt'/
+--error 1
+CALL p;
+DROP PROCEDURE p;
+
+CREATE DATABASE db1;
+CREATE PROCEDURE p() CREATE DATABASE db1 COLLATE DEFAULT;
+--error ER_DB_CREATE_EXISTS
+CALL p;
+--error ER_DB_CREATE_EXISTS
+CALL p;
+DROP DATABASE db1;
+DROP PROCEDURE p;
+
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p() CREATE TABLE t1 (a INT) COLLATE DEFAULT;
+--error ER_TABLE_EXISTS_ERROR
+CALL p;
+--error ER_TABLE_EXISTS_ERROR
+CALL p;
+DROP TABLE t1;
+DROP PROCEDURE p;
+
+--echo #
+--echo # End of 10.9 tests
+--echo #
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-10865 COLLATE keyword doesn't work in PREPARE query
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # A context collation and an explicit NULL
+--echo #
+
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+SELECT NULL COLLATE uca1400_ai_ci;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+SELECT CONCAT(NULL) COLLATE uca1400_ai_ci;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT NULL COLLATE uca1400_ai_ci AS c1';
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT CONCAT(NULL) COLLATE uca1400_ai_ci AS c1';
+
+
+--echo #
+--echo # A context collation and a parameter bound to NULL
+--echo #
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXECUTE stmt USING NULL;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXECUTE stmt USING CONCAT(NULL);
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXECUTE stmt USING NULL COLLATE uca1400_ai_ci;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXECUTE stmt USING CONCAT(NULL) COLLATE uca1400_ai_ci;
+
+--echo #
+--echo # A context collation and CONVERT(NULL USING ...)
+--echo #
+
+EXECUTE stmt USING CONVERT(NULL USING utf8mb4);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+EXECUTE stmt USING CONVERT(NULL USING utf8mb4) COLLATE uca1400_ai_ci;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--error ER_COLLATION_CHARSET_MISMATCH
+EXECUTE stmt USING CONVERT(NULL USING binary);
+
+--error ER_COLLATION_CHARSET_MISMATCH
+EXECUTE stmt USING CONVERT(NULL USING latin1);
+
+--echo #
+--echo # A context collation and an expression with a parameter
+--echo # whose character does not get resolved when bound to a not-NULL value
+--echo #
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT LEFT(NULL,?) COLLATE uca1400_ai_ci AS c1';
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXECUTE stmt USING NULL;
+
+
+--echo #
+--echo # A context collation and an expression with a parameter
+--echo # whose character set gets resolved when bound to a not-NULL value
+--echo #
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING 1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+--error ER_COLLATION_CHARSET_MISMATCH
+EXECUTE stmt USING _binary'test';
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING 'test';
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING 'test' COLLATE utf8mb4_bin;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING _latin1'test' COLLATE latin1_bin;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.11 tests
+--echo #

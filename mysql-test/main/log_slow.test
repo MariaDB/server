@@ -9,6 +9,7 @@ set @@log_slow_verbosity="";
 select @@log_slow_filter;
 select @@log_slow_rate_limit;
 select @@log_slow_verbosity;
+--replace_regex /\S+mysqld-slow.log/$PATH\/mysqld-slow.log/
 show variables like "log_slow%";
 set @org_slow_query_log= @@global.slow_query_log;
 

@@ -68,7 +68,7 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list,
 
   DEBUG_SYNC(thd, "ha_admin_try_alter");
   tmp_disable_binlog(thd); // binlogging is done by caller if wanted
-  result_code= (thd->open_temporary_tables(table_list) ||
+  result_code= (thd->check_and_open_tmp_table(table_list) ||
                 mysql_recreate_table(thd, table_list, recreate_info, false));
   reenable_binlog(thd);
   /*
@@ -565,6 +565,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   Disable_wsrep_on_guard wsrep_on_guard(thd, disable_wsrep_on);
 #endif /* WITH_WSREP */
 
+  if (thd->transaction->xid_state.check_has_uncommitted_xa())
+    DBUG_RETURN(TRUE);
+
   fill_check_table_metadata_fields(thd, &field_list);
 
   if (protocol->send_result_set_metadata(&field_list,
@@ -699,8 +702,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             protocol->store(operator_name, system_charset_info);
             protocol->store(&error_clex_str, system_charset_info);
             length= my_snprintf(buff, sizeof(buff),
-                                ER_THD(thd, ER_DROP_PARTITION_NON_EXISTENT),
-                                table_name.str);
+                                ER_THD(thd, ER_PARTITION_DOES_NOT_EXIST));
             protocol->store(buff, length, system_charset_info);
             if(protocol->write())
               goto err;
@@ -864,11 +866,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         !(check_opt->sql_flags & TT_USEFRM))
     {
       handler *file= table->table->file;
-      int check_old_types=   file->check_old_types();
       int check_for_upgrade= file->ha_check_for_upgrade(check_opt);
 
-      if (check_old_types == HA_ADMIN_NEEDS_ALTER ||
-          check_for_upgrade == HA_ADMIN_NEEDS_ALTER)
+      if (check_for_upgrade == HA_ADMIN_NEEDS_ALTER)
       {
         /* We use extra_open_options to be able to open crashed tables */
         thd->open_options|= extra_open_options;
@@ -877,7 +877,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         thd->open_options&= ~extra_open_options;
         goto send_result;
       }
-      if (check_old_types || check_for_upgrade)
+      if (check_for_upgrade)
       {
         /* If repair is not implemented for the engine, run ALTER TABLE */
         need_repair_or_alter= 1;
@@ -963,6 +963,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       {
         TABLE *tab= table->table;
         Field **field_ptr= tab->field;
+        USED_MEM *memroot_block;
+
         if (!lex->column_list)
         {
           /* Fields we have to read from the engine */
@@ -1049,7 +1051,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           int pos;
           LEX_STRING *index_name;
           List_iterator_fast<LEX_STRING> it(*lex->index_list);
-
           tab->keys_in_use_for_query.clear_all();
           while ((index_name= it++))
           {
@@ -1065,12 +1066,15 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         }
         /* Ensure that number of records are updated */
         tab->file->info(HA_STATUS_VARIABLE);
+        memroot_block= get_last_memroot_block(thd->mem_root);
         if (!(compl_result_code=
               alloc_statistics_for_table(thd, tab,
                                          &tab->has_value_set)) &&
             !(compl_result_code=
               collect_statistics_for_table(thd, tab)))
           compl_result_code= update_statistics_for_table(thd, tab);
+        free_statistics_for_table(tab);
+        free_all_new_blocks(thd->mem_root, memroot_block);
       }
       else
         compl_result_code= HA_ADMIN_FAILED;
@@ -1447,8 +1451,7 @@ send_result_message:
   }
   thd->resume_subsequent_commits(suspended_wfc);
   DBUG_EXECUTE_IF("inject_analyze_table_sleep", my_sleep(500000););
-  if (is_table_modified && is_cmd_replicated &&
-      (!opt_readonly || thd->slave_thread) && !thd->lex->no_write_to_binlog)
+  if (is_table_modified && is_cmd_replicated && !thd->lex->no_write_to_binlog)
   {
     thd->get_stmt_da()->set_overwrite_status(true);
     auto res= write_bin_log(thd, true, thd->query(), thd->query_length());
@@ -1585,9 +1588,14 @@ bool Sql_cmd_check_table::execute(THD *thd)
   bool res= TRUE;
   DBUG_ENTER("Sql_cmd_check_table::execute");
 
-  if (check_table_access(thd, SELECT_ACL, first_table,
-                         TRUE, UINT_MAX, FALSE))
+  if (check_some_access(thd, TABLE_ACLS, first_table))
+  {
+    my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "CHECK TABLE",
+            thd->security_ctx->priv_user,
+            thd->security_ctx->host_or_ip,
+            first_table->db.str, first_table->table_name.str);
     goto error; /* purecov: inspected */
+  }
 
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, &msg_check,
                          lock_type, 0, 0, HA_OPEN_FOR_REPAIR, 0,

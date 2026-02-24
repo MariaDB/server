@@ -10,6 +10,7 @@ SELECT COUNT(*) = 1 FROM t1;
 COUNT(*) = 1
 1
 CREATE USER foo@localhost;
+GRANT ALL ON test.* to foo@localhost;
 # Open connection to node 2 using 'foo' user.
 connect foo_node_2,127.0.0.1,foo,,test,$port_2,;
 

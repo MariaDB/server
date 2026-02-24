@@ -2,10 +2,6 @@
 # Test of heap tables.
 #
 
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
-
 create table t1 (a int not null,b int not null, primary key using HASH (a)) engine=heap comment="testing heaps" avg_row_length=100 min_rows=1 max_rows=100;
 insert into t1 values(1,1),(2,2),(3,3),(4,4);
 delete from t1 where a=1 or a=0;
@@ -346,4 +342,18 @@ explain SELECT * FROM t1 WHERE c1='bar2';
 SELECT * FROM t1 WHERE c1='bar2';
 DROP TABLE t1;
 
---echo End of 5.5 tests
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-27406 Index on a HEAP table retains DESC attribute despite being hash
+--echo #
+create table t1 (a int, key(a desc)) engine=memory;
+show index from t1;
+show create table t1;
+drop table t1;
+
+--echo #
+--echo # End of 10.8 tests
+--echo #

@@ -1558,17 +1558,21 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "fulltext",
-      "possible_keys": ["f1"],
-      "key": "f1",
-      "key_length": "0",
-      "used_key_parts": ["f1"],
-      "rows": 1,
-      "filtered": 100,
-      "attached_condition": "1.238585e+308 <= (match t1.f1 against ('1' in boolean mode))"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "fulltext",
+          "possible_keys": ["f1"],
+          "key": "f1",
+          "key_length": "0",
+          "used_key_parts": ["f1"],
+          "rows": 1,
+          "filtered": 100,
+          "attached_condition": "1.238585e+308 <= (match t1.f1 against ('1' in boolean mode))"
+        }
+      }
+    ]
   }
 }
 DROP TABLE t1;

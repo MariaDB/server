@@ -27,19 +27,19 @@ CREATE TABLE t1 (a TYPE_MYSQL_TIMESTAMP);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` type_mysql_timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `a` type_mysql_timestamp NULL DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a TIMESTAMP);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `a` timestamp NULL DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 MODIFY a TYPE_MYSQL_TIMESTAMP;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` type_mysql_timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `a` type_mysql_timestamp NULL DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;

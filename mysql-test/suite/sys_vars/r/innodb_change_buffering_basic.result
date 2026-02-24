@@ -24,6 +24,8 @@ select * from information_schema.session_variables where variable_name='innodb_c
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_CHANGE_BUFFERING	none
 set global innodb_change_buffering='none';
+Warnings:
+Warning	1287	'@@innodb_change_buffering' is deprecated and will be removed in a future release
 select @@global.innodb_change_buffering;
 @@global.innodb_change_buffering
 none
@@ -34,6 +36,8 @@ select * from information_schema.session_variables where variable_name='innodb_c
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_CHANGE_BUFFERING	none
 set @@global.innodb_change_buffering='inserts';
+Warnings:
+Warning	1287	'@@innodb_change_buffering' is deprecated and will be removed in a future release
 select @@global.innodb_change_buffering;
 @@global.innodb_change_buffering
 inserts
@@ -50,6 +54,8 @@ ERROR HY000: Variable 'innodb_change_buffering' is a GLOBAL variable and should 
 set global innodb_change_buffering=1.1;
 ERROR 42000: Incorrect argument type to variable 'innodb_change_buffering'
 set global innodb_change_buffering=1;
+Warnings:
+Warning	1287	'@@innodb_change_buffering' is deprecated and will be removed in a future release
 SELECT @@global.innodb_change_buffering;
 @@global.innodb_change_buffering
 inserts
@@ -60,6 +66,8 @@ ERROR 42000: Incorrect argument type to variable 'innodb_change_buffering'
 set global innodb_change_buffering='some';
 ERROR 42000: Variable 'innodb_change_buffering' can't be set to the value of 'some'
 SET @@global.innodb_change_buffering = @start_global_value;
+Warnings:
+Warning	1287	'@@innodb_change_buffering' is deprecated and will be removed in a future release
 SELECT @@global.innodb_change_buffering;
 @@global.innodb_change_buffering
 none

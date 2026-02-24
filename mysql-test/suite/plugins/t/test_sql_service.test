@@ -60,7 +60,7 @@ show status like 'test_sql_query_result';
 set global test_sql_service_execute_sql_global= 'drop table test.t1';
 show status like 'test_sql_query_result';
 
-create table t1 (id int, time timestamp);
+create table t1 (id int, time timestamp not null default now());
 insert into t1 values (1, NULL), (2, NULL), (3, NULL), (4, NULL), (5, NULL);
 set global test_sql_service_execute_sql_global= 'select * FROM test.t1 WHERE time < DATE_SUB(NOW(), interval 5 minute)';
 show status like 'test_sql_query_result';
@@ -79,4 +79,3 @@ uninstall plugin test_sql_service;
 # --replace_column 2 # 5 #
 # --replace_regex /xid=[0-9]+/xid=XX/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/
 # SHOW BINLOG EVENTS LIMIT 3,5;
-

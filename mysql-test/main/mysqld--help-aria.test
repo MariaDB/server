@@ -6,7 +6,7 @@ flush tables;
 --let $args=--table-cache=5 --max-connections=10 --log-warnings=1 --silent-startup --lower-case-table-names=1 --help --verbose
 
 --exec $MYSQLD_CMD $args > $MYSQL_TMP_DIR/mysqld--help2.txt 2> $MYSQL_TMP_DIR/mysqld--help2.err
---replace_regex /mysqld/mariadbd/ /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \d* // /^.*failed to retrieve the MAC address\n//
+--replace_regex /mysqld/mariadbd/ /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \d* // /\[Warning] failed to retrieve the MAC address\n//
 --cat_file $MYSQL_TMP_DIR/mysqld--help2.err
 
 --echo #
@@ -14,7 +14,7 @@ flush tables;
 --echo #
 
 --exec $MYSQLD_CMD $args --datadir=$MYSQL_TMP_DIR/help > $MYSQL_TMP_DIR/mysqld--help2.txt 2> $MYSQL_TMP_DIR/mysqld--help2.err
---replace_regex /mysqld/mariadbd/ /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \d* // /^.*failed to retrieve the MAC address\n//
+--replace_regex /mysqld/mariadbd/ /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \d* // /\[Warning] failed to retrieve the MAC address\n//
 --cat_file $MYSQL_TMP_DIR/mysqld--help2.err
 
 --echo #
@@ -23,7 +23,7 @@ flush tables;
 
 --mkdir $MYSQL_TMP_DIR/help
 --exec $MYSQLD_CMD $args --datadir=$MYSQL_TMP_DIR/help > $MYSQL_TMP_DIR/mysqld--help2.txt 2> $MYSQL_TMP_DIR/mysqld--help2.err
---replace_regex /mysqld/mariadbd/ /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \d* // /^.*failed to retrieve the MAC address\n//
+--replace_regex /mysqld/mariadbd/ /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \d* // /\[Warning] failed to retrieve the MAC address\n//
 --cat_file $MYSQL_TMP_DIR/mysqld--help2.err
 --list_files $MYSQL_TMP_DIR/help
 

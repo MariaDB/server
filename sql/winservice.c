@@ -134,6 +134,20 @@ static void get_datadir_from_ini(const char *ini, char *service_name, char *data
 }
 
 
+static int fix_and_check_datadir(mysqld_service_properties *props)
+{
+  normalize_path(props->datadir, MAX_PATH);
+  /* Check if datadir really exists */
+  if (GetFileAttributes(props->datadir) != INVALID_FILE_ATTRIBUTES)
+    return 0;
+  /*
+    It is possible, that datadir contains some unconvertable character.
+    We just pretend not to know what's the data directory
+  */
+  props->datadir[0]= 0;
+  return 0;
+}
+
 /*
   Retrieve some properties from windows mysqld service binary path.
   We're interested in ini file location and datadir, and also in version of
@@ -284,16 +298,9 @@ int get_mysql_service_properties(const wchar_t *bin_path,
     }
   }
 
-  if (props->datadir[0])
+  if (props->datadir[0] == 0 || fix_and_check_datadir(props))
   {
-    normalize_path(props->datadir, MAX_PATH);
-    /* Check if datadir really exists */
-    if (GetFileAttributes(props->datadir) == INVALID_FILE_ATTRIBUTES)
-      goto end;
-  }
-  else
-  {
-    /* There is no datadir in ini file,  bail out.*/
+    /* There is no datadir in ini file, or non-existing dir, bail out.*/
     goto end;
   }
 

@@ -1,4 +1,4 @@
-/* Copyright(C) 2019 MariaDB Corporation
+/* Copyright(C) 2019, 20222, MariaDB Corporation.
 
 This program is free software; you can redistribute itand /or modify
 it under the terms of the GNU General Public License as published by
@@ -197,6 +197,16 @@ public:
   TPOOL_SUPPRESS_TSAN size_t pos()
   {
     return m_pos;
+  }
+
+  void resize(size_t count)
+  {
+    mysql_mutex_assert_owner(&m_mtx);
+    assert(is_full());
+    m_base.resize(count);
+    m_cache.resize(count);
+    for (size_t i = 0; i < count; i++)
+      m_cache[i] = &m_base[i];
   }
 };
 

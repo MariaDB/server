@@ -14,8 +14,8 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=
 --enable_result_log
 --source include/shutdown_mysqld.inc
 
+if ($MTR_COMBINATION_STRICT_CRC32) {
 perl;
-do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
 my $file= "$ENV{MYSQLD_DATADIR}/ibdata1";
 open(FILE, "+<", $file) or die "Unable to open $file\n";
 binmode FILE;
@@ -23,23 +23,54 @@ my $ps= $ENV{INNODB_PAGE_SIZE};
 my $page;
 die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
 substr($page,26,8) = pack("NN", 4096, ~1024);
-my $polynomial = 0x82f63b78; # CRC-32C
-my $full_crc32 = unpack("N",substr($page,54,4)) & 0x10; # FIL_SPACE_FLAGS
-if ($full_crc32)
-{
-    my $ck = mycrc32(substr($page, 0, $ps-4), 0, $polynomial);
-    substr($page, $ps-4, 4) = pack("N", $ck);
-}
 sysseek(FILE, 0, 0) || die "Unable to rewind $file\n";
 syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
 close(FILE) || die "Unable to close $file\n";
-EOF
 
---remove_files_wildcard $MYSQLD_DATADIR ib_logfile*
+$file= "$ENV{MYSQLD_DATADIR}/ib_logfile0";
+open(FILE, ">", $file) || die "Unable to truncate $file\n";
+close(FILE) || "Unable to close $file\n";
+EOF
+--let SEARCH_PATTERN= redo log: [0-9.]*[KMGT]iB; LSN=17596481010687\\b
+}
+
+if (!$MTR_COMBINATION_STRICT_CRC32) {
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
+my $file= "$ENV{MYSQLD_DATADIR}/ib_logfile0";
+open(FILE, ">", $file) or die "Unable to open $file\n";
+binmode FILE;
+my $extra_repeat = 139820;
+# The desired log sequence number is 17596481011216 (0x1000fffffe10).
+my $file_size=4<<20;
+my $lsn_hi=4096,$lsn_lo=0xfffffe00 - $extra_repeat * 15;
+my $polynomial = 0x82f63b78; # CRC-32C
+my ($header, $checkpoint, $log);
+$header = "Phys" . pack("x[4]NN", $lsn_hi, $lsn_lo - $file_size + 0x300f) .
+          "some Perl code" . pack("x[478]");
+$header .= pack("Nx[3584]", mycrc32($header, 0, $polynomial));
+$checkpoint = pack("NNNNx[44]", $lsn_hi, $lsn_lo, $lsn_hi, $lsn_lo);
+$checkpoint .= pack("Nx[8128]", mycrc32($checkpoint, 0, $polynomial));
+$log = pack("CxxNN", 0xfa, $lsn_hi, $lsn_lo);
+$log .= pack("CN", 0, mycrc32($log, 0, $polynomial));
+
+# Write more than 2MiB of FILE_MODIFY mini-transactions to exercise the parser.
+my $extra = pack("CCxa*", 0xb9, 127, "a/b.ibd");
+$extra .= pack("CN", 0, mycrc32($extra, 0, $polynomial));
+
+print FILE $header, $checkpoint, $extra x ($extra_repeat - 1), $log;
+seek(FILE, $file_size - 15, 0);
+$extra = pack("CCxa*", 0xb9, 127, "c/d.ibd");
+$extra .= pack("CN", 1, mycrc32($extra, 0, $polynomial));
+print FILE $extra;
+close(FILE) or die "Unable to close $file\n";
+EOF
+--let SEARCH_PATTERN= InnoDB: log sequence number 17596481011216
+--let $restart_parameters=--innodb-log-file-size=4M --innodb-encrypt-log=0
+}
 
 --source include/start_mysqld.inc
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
---let SEARCH_PATTERN= InnoDB: New log file created, LSN=175964\d{8}
 --source include/search_pattern_in_file.inc
 
 CREATE TABLE t(i INT) ENGINE=INNODB ENCRYPTED=YES;
@@ -48,13 +79,14 @@ INSERT INTO t VALUES(1);
 echo # xtrabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir;
 --enable_result_log
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 INSERT INTO t VALUES(2);
 echo # xtrabackup prepare;
 --disable_result_log
 exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+--let $restart_parameters=
 --source include/restart_and_restore.inc
 --enable_result_log
 SELECT * FROM t;

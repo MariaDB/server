@@ -291,6 +291,8 @@ static void make_ftype(register char * to, register int flag)
 
   if (flag & FILE_BINARY)    
     *to++='b';
+  else if (flag & O_TEXT)
+    *to++= 't';
 
   if (O_CLOEXEC)
     *to++= 'e';

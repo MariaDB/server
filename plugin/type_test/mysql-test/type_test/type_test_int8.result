@@ -297,9 +297,9 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` test_int8(20) DEFAULT NULL,
-  `c2` decimal(20,1) DEFAULT NULL,
-  `c3` double DEFAULT NULL
+  `c1` test_int8(20) NOT NULL,
+  `c2` decimal(20,1) NOT NULL,
+  `c3` double NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2 ORDER BY c1;
 c1	c2	c3

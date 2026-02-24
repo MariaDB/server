@@ -38,6 +38,7 @@ C_MODE_START
 #include "ma_recovery.h"
 C_MODE_END
 #include "ma_trnman.h"
+#include "ma_loghandler.h"
 
 //#include "sql_priv.h"
 #include "protocol.h"
@@ -1754,6 +1755,13 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
     /* Set trid (needed if the table was moved from another system) */
     share->state.create_trid= trnman_get_min_safe_trid();
   }
+
+  /*
+    Leaving not-zero value here leads to crash in the following
+    maria_delete() particularly when we execute REPAIR TABLE partitioned_t;.
+  */
+  file->cur_row.trid= 0;
+
   mysql_mutex_lock(&share->intern_lock);
   if (!error)
   {
@@ -3411,6 +3419,7 @@ void ha_maria::get_auto_increment(ulonglong offset, ulonglong increment,
   ulonglong nr;
   int error;
   uchar key[MARIA_MAX_KEY_BUFF];
+  enum ha_rkey_function search_flag= HA_READ_PREFIX_LAST;
 
   if (!table->s->next_number_key_offset)
   {                                             // Autoincrement at key-start
@@ -3424,13 +3433,18 @@ void ha_maria::get_auto_increment(ulonglong offset, ulonglong increment,
   /* it's safe to call the following if bulk_insert isn't on */
   maria_flush_bulk_insert(file, table->s->next_number_index);
 
+  if (unlikely(table->key_info[table->s->next_number_index].
+                  key_part[table->s->next_number_keypart].key_part_flag &
+                    HA_REVERSE_SORT))
+    search_flag= HA_READ_KEY_EXACT;
+
   (void) extra(HA_EXTRA_KEYREAD);
   key_copy(key, table->record[0],
            table->key_info + table->s->next_number_index,
            table->s->next_number_key_offset);
   error= maria_rkey(file, table->record[1], (int) table->s->next_number_index,
                     key, make_prev_keypart_map(table->s->next_number_keypart),
-                    HA_READ_PREFIX_LAST);
+                    search_flag);
   if (error)
     nr= 1;
   else
@@ -3887,7 +3901,8 @@ static int ha_maria_init(void *p)
   if (!aria_readonly)
     res= maria_upgrade();
   res= res || maria_init();
-  tmp= ma_control_file_open(!aria_readonly, !aria_readonly, !aria_readonly);
+  tmp= ma_control_file_open(!aria_readonly, !aria_readonly, !aria_readonly,
+                            control_file_open_flags);
   res= res || aria_readonly ? tmp == CONTROL_FILE_LOCKED : tmp != 0;
   res= res ||
     ((force_start_after_recovery_failures != 0 && !aria_readonly) &&

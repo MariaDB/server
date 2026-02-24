@@ -329,7 +329,7 @@ grant update (a) on mysqltest_1.t1 to mysqltest_3@localhost;
 grant select (b) on mysqltest_1.t2 to mysqltest_3@localhost;
 grant select (c) on mysqltest_2.t1 to mysqltest_3@localhost;
 grant update (d) on mysqltest_2.t2 to mysqltest_3@localhost;
-connect (conn1,localhost,mysqltest_3,,);
+connect (conn1,localhost,mysqltest_3,,"*NO-ONE*",);
 connection conn1;
 SELECT * FROM INFORMATION_SCHEMA.COLUMN_PRIVILEGES
  WHERE GRANTEE = '''mysqltest_3''@''localhost'''
@@ -598,6 +598,7 @@ select user, QUOTE(host) from mysql.user where user="mysqltest_8";
 
 --echo Schema privileges
 grant select on mysqltest.* to mysqltest_8@'';
+grant select on test.* to mysqltest_8@'';
 show grants for mysqltest_8@'';
 grant select on mysqltest.* to mysqltest_8@;
 show grants for mysqltest_8@;
@@ -725,7 +726,7 @@ GRANT SELECT           ON mysqltest2.v_yn TO 'mysqltest_1'@'localhost' IDENTIFIE
 GRANT SELECT           ON mysqltest2.*    TO 'mysqltest_1'@'localhost' IDENTIFIED BY 'mysqltest_1';
 GRANT SHOW VIEW,SELECT ON mysqltest2.v_yy TO 'mysqltest_1'@'localhost' IDENTIFIED BY 'mysqltest_1';
 
-connect (mysqltest_1, localhost, mysqltest_1, mysqltest_1,);
+connect (mysqltest_1, localhost, mysqltest_1, mysqltest_1,"*NO-ONE*");
 
 # fail because of missing SHOW VIEW (have generic SELECT)
 --error ER_TABLEACCESS_DENIED_ERROR
@@ -1371,7 +1372,7 @@ grant execute on procedure mysqltest1.p1 to mysqluser1@localhost;
 --echo # in privilege tables and in in-memory structures.
 show grants for mysqluser1@localhost;
 select db, routine_name, routine_type, proc_priv from mysql.procs_priv where user='mysqluser1' and host='localhost';
---connect (bug36544_con1,localhost,mysqluser1,,)
+--connect (bug36544_con1,localhost,mysqluser1,,"*NO-ONE*")
 call mysqltest1.p1();
 select mysqltest1.f1();
 
@@ -1398,7 +1399,7 @@ select mysqltest1.f1();
 create user mysqluser1@localhost;
 show grants for mysqluser1@localhost;
 select db, routine_name, routine_type, proc_priv from mysql.procs_priv where user='mysqluser1' and host='localhost';
---connect (bug36544_con2,localhost,mysqluser1,,)
+--connect (bug36544_con2,localhost,mysqluser1,,"*NO-ONE*")
 --echo # Newly created user should not be able to access any of the routines.
 --error ER_PROCACCESS_DENIED_ERROR
 call mysqltest1.p1();
@@ -1465,7 +1466,7 @@ create user mysqluser1@localhost;
 show grants for mysqluser1@localhost;
 select db, routine_name, routine_type, proc_priv from mysql.procs_priv where user='mysqluser1' and host='localhost';
 select db, table_name, table_priv from mysql.tables_priv where user='mysqluser1' and host='localhost';
---connect (bug36544_con3,localhost,mysqluser1,,)
+--connect (bug36544_con3,localhost,mysqluser1,,"*NO-ONE*")
 --echo # Newly created user should not be able to access to any of the
 --echo # stored routines or tables.
 --error ER_PROCACCESS_DENIED_ERROR
@@ -1486,7 +1487,7 @@ select * from mysqltest1.t22;
 show grants for mysqluser10@localhost;
 select db, routine_name, routine_type, proc_priv from mysql.procs_priv where user='mysqluser10' and host='localhost';
 select db, table_name, table_priv from mysql.tables_priv where user='mysqluser10' and host='localhost';
---connect (bug36544_con4,localhost,mysqluser10,,)
+--connect (bug36544_con4,localhost,mysqluser10,,"*NO-ONE*")
 call mysqltest1.p1();
 select mysqltest1.f1();
 select * from mysqltest1.t11;
@@ -1679,7 +1680,7 @@ GRANT CREATE ON db1.* TO 'user2'@'%';
 GRANT CREATE ROUTINE ON db1.* TO 'user2'@'%';
 FLUSH PRIVILEGES;
 SHOW GRANTS FOR 'user1'@'localhost';
-connect (con1,localhost,user1,,);
+connect (con1,localhost,user1,,"*NO-ONE*");
 --echo ** Connect as user1 and create a procedure.
 --echo ** The creation will imply implicitly assigned
 --echo ** EXECUTE and ALTER ROUTINE privileges to
@@ -1695,7 +1696,7 @@ CREATE PROCEDURE db1.proc1(p1 INT)
  END ;||
 DELIMITER ;||
 
-connect (con2,localhost,user2,,);
+connect (con2,localhost,user2,,"*NO-ONE*");
 --echo ** Connect as user2 and create a procedure.
 --echo ** Implicitly assignment of privileges will
 --echo ** fail because the user2@localhost is an
@@ -2179,7 +2180,7 @@ DROP USER foo@'127.0.0.1';
 create user foo@localhost;
 create database foodb;
 grant create routine on foodb.* to foo@localhost;
-connect con1,localhost,foo;
+connect con1,localhost,foo,,foodb;
 create procedure fooproc() select 'i am fooproc';
 show grants;
 disconnect con1;
@@ -2192,7 +2193,7 @@ show grants for foo@localhost;
 flush privileges;
 show grants for foo@localhost;
 drop user foo@localhost;
-drop procedure fooproc;
+drop procedure foodb.fooproc;
 drop database foodb;
 
 
@@ -2209,7 +2210,7 @@ DROP DATABASE IF EXISTS no_such_db;
 CREATE DATABASE secret;
 GRANT USAGE ON *.* TO untrusted@localhost;
 
-connect (con1, localhost, untrusted);
+connect (con1, localhost, untrusted,,"*NO-ONE*");
 SHOW GRANTS;
 SHOW DATABASES;
 
@@ -2274,7 +2275,7 @@ CREATE USER foo;
 CREATE DATABASE db;
 CREATE TABLE db.t (a INT);
 
---connect (con1,localhost,foo,,)
+--connect (con1,localhost,foo,,"*NO-ONE*")
 
 --error ER_TABLEACCESS_DENIED_ERROR
 GRANT ALL ON db.t TO foo;
@@ -2345,12 +2346,14 @@ DROP USER bar3@localhost;
 --echo #
 --echo # MDEV-17946 : Unsorted acl_dbs after RENAME USER
 --echo #
+CREATE USER a;
 CREATE USER foo;
 GRANT SELECT ON test.* TO foo;
-RENAME USER '' TO 'name';
+RENAME USER 'a' TO 'name';
 GRANT UPDATE ON test.* TO foo;
-RENAME USER 'name' to '';
+RENAME USER 'name' to 'a';
 DROP USER foo;
+DROP USER a;
 
 --echo #
 --echo # End of 10.4 tests

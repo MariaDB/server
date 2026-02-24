@@ -424,7 +424,7 @@ void JOIN_CACHE::create_flag_fields()
     the buffer. Such placement helps to optimize construction of access keys.
     For each field that is used to build access keys to the joined table but
     is stored in some other join cache buffer the function saves a pointer
-    to the the field descriptor. The array of such pointers are placed in the
+    to the field descriptor. The array of such pointers are placed in the
     the join cache structure just before the array of pointers to the
     blob fields blob_ptr.
     Any field stored in a join cache buffer that is used to construct keys
@@ -444,7 +444,7 @@ void JOIN_CACHE::create_flag_fields()
     through. For each of this pointers we find out in what previous key cache
     the referenced field is stored. The value of 'referenced_field_no'
     provides us with the index into the array of offsets for referenced 
-    fields stored in the join cache. The offset read by the the index allows
+    fields stored in the join cache. The offset read by the index allows
     us to read the field without reading all other fields of the record 
     stored the join cache buffer. This optimizes the construction of keys
     to access 'join_tab' when some key arguments are stored in the previous
@@ -522,7 +522,7 @@ void JOIN_CACHE::create_key_arg_fields()
       }
     } 
   }
-  /* After this 'blob_ptr' shall not be be changed */ 
+  /* After this 'blob_ptr' shall not be changed */
   blob_ptr= copy_ptr;
   
   /* Now create local fields that are used to build ref for this key access */
@@ -557,7 +557,7 @@ void JOIN_CACHE::create_key_arg_fields()
     have to be added is determined as the difference between all read fields
     and and those for which the descriptors have been already created.
     The latter are supposed to be marked in the bitmap tab->table->tmp_set.
-    The function increases the value of 'length' to the the total length of
+    The function increases the value of 'length' to the total length of
     the added fields.
    
   NOTES
@@ -1373,7 +1373,7 @@ uint JOIN_CACHE::write_record_data(uchar * link, bool *is_full)
 
   curr_rec_pos= cp;
   
-  /* If the there is a match flag set its value to 0 */
+  /* If there is a match flag set its value to 0 */
   copy= field_descr;
   if (with_match_flag)
     *copy[0].str= 0;
@@ -1542,7 +1542,7 @@ uint JOIN_CACHE::write_record_data(uchar * link, bool *is_full)
     to point to the very beginning of the join buffer. If the buffer is
     reset for writing additionally: 
     - the counter of the records in the buffer is set to 0,
-    - the the value of 'last_rec_pos' gets pointing at the position just
+    - the value of 'last_rec_pos' gets pointing at the position just
       before the buffer, 
     - 'end_pos' is set to point to the beginning of the join buffer,
     - the size of the auxiliary buffer is reset to 0,
@@ -1608,7 +1608,7 @@ bool JOIN_CACHE::put_record()
     This default implementation of the virtual function get_record
     reads fields of the next record from the join buffer of this cache.
     The function also reads all other fields associated with this record
-    from the the join buffers of the previous caches. The fields are read
+    from the join buffers of the previous caches. The fields are read
     into the corresponding record buffers.
     It is supposed that 'pos' points to the position in the buffer 
     right after the previous record when the function is called.
@@ -1656,7 +1656,7 @@ bool JOIN_CACHE::get_record()
     This default implementation of the virtual function get_record_pos
     reads the fields of the record positioned at 'rec_ptr' from the join buffer.
     The function also reads all other fields associated with this record 
-    from the the join buffers of the previous caches. The fields are read
+    from the join buffers of the previous caches. The fields are read
     into the corresponding record buffers.
 
   RETURN VALUE
@@ -2200,7 +2200,7 @@ enum_nested_loop_state JOIN_CACHE::join_records(bool skip_last)
         Prepare for generation of null complementing extensions.
         For all inner tables of the outer join operation for which
         regular matches have been just found the field 'first_unmatched'
-        is set to point the the first inner table. After all null
+        is set to point the first inner table. After all null
         complement rows are generated for this outer join this field
         is set back to NULL.
       */
@@ -2637,7 +2637,7 @@ inline bool JOIN_CACHE::check_match(uchar *rec_ptr)
     table records.
     If the 'join_tab' is the last inner table of the embedding outer 
     join and the null complemented record satisfies the outer join
-    condition then the the corresponding match flag is turned on
+    condition then the corresponding match flag is turned on
     unless it has been set earlier. This setting may trigger
     re-evaluation of pushdown conditions for the record. 
 
@@ -2700,7 +2700,7 @@ finish:
 
   DESCRIPTION
     This function puts info about the type of the used join buffer (flat or
-    incremental) and on the type of the the employed join algorithm (BNL,
+    incremental) and on the type of the employed join algorithm (BNL,
     BNLH, BKA or BKAH) to the data structure
 
   RETURN VALUE
@@ -2912,7 +2912,7 @@ int JOIN_CACHE_HASHED::init_hash_table()
 
     /*
       TODO: Make a better estimate for this upper bound of
-            the number of records in in the join buffer.
+            the number of records in the join buffer.
     */
     size_t max_n= buff_size / (pack_length-length+
                              key_entry_length+size_of_key_ofs);
@@ -3221,7 +3221,7 @@ bool JOIN_CACHE_HASHED::skip_if_not_needed_match()
       key_len         key value length
       key_ref_ptr OUT position of the reference to the next key from 
                       the hash element for the found key , or
-                      a position where the reference to the the hash 
+                      a position where the reference to the hash
                       element for the key is to be added in the
                       case when the key has not been found
       
@@ -3454,7 +3454,7 @@ bool JOIN_CACHE_HASHED::check_all_match_flags_for_key(uchar *key_chain_ptr)
 
   RETURN VALUE
     length of the key value - if the starting value of 'cur_key_entry' refers
-    to the position after that referred by the the value of 'last_key_entry',    
+    to the position after that referred by the value of 'last_key_entry',
     0 - otherwise.     
 */
 
@@ -3672,7 +3672,7 @@ bool JOIN_CACHE_BNL::prepare_look_for_matches(bool skip_last)
     
   RETURN VALUE    
     pointer to the position right after the prefix of the current record
-    in the join buffer if the there is another record to iterate over,
+    in the join buffer if there is another record to iterate over,
     0 - otherwise.  
 */
 
@@ -3823,7 +3823,7 @@ uchar *JOIN_CACHE_BNLH::get_matching_chain_by_join_key()
     record from the join buffer is ignored.
     The function builds the hashed key from the join fields of join_tab
     and uses this key to look in the hash table of the join cache for
-    the chain of matching records in in the join buffer. If it finds
+    the chain of matching records in the join buffer. If it finds
     such a chain it sets  the member last_rec_ref_ptr to point to the
     last link of the chain while setting the member next_rec_ref_po 0.
     
@@ -3862,7 +3862,7 @@ bool JOIN_CACHE_BNLH::prepare_look_for_matches(bool skip_last)
     
   RETURN VALUE   
     pointer to the beginning of the record fields in the join buffer
-    if the there is another record to iterate over, 0 - otherwise.  
+    if there is another record to iterate over, 0 - otherwise.
 */
 
 uchar *JOIN_CACHE_BNLH::get_next_candidate_for_match()
@@ -4066,7 +4066,7 @@ int JOIN_TAB_SCAN_MRR::next()
     join_tab->tracker->r_rows++;
     join_tab->tracker->r_rows_after_where++;
     /*
-      If a record in in an incremental cache contains no fields then the
+      If a record in an incremental cache contains no fields then the
       association for the last record in cache will be equal to cache->end_pos
     */
     /* 
@@ -4284,7 +4284,7 @@ DESCRIPTION
   
 RETURN VALUE   
   pointer to the start of the record fields in the join buffer
-  if the there is another record to iterate over, 0 - otherwise.  
+  if there is another record to iterate over, 0 - otherwise.
 */
 
 uchar *JOIN_CACHE_BKA::get_next_candidate_for_match()

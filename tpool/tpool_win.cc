@@ -206,6 +206,11 @@ class thread_pool_win : public thread_pool
         CloseThreadpoolIo(fd.m_ptp_io);
       return 0;
     }
+
+    /**
+     Expose implementation.
+    */
+    const char *get_implementation() const override { return "ThreadPool"; }
   };
 
   PTP_POOL m_ptp_pool;
@@ -268,7 +273,7 @@ public:
       abort();
   }
 
-  aio *create_native_aio(int max_io) override
+  aio *create_native_aio(int max_io, aio_implementation) override
   {
     return new native_aio(*this, max_io);
   }

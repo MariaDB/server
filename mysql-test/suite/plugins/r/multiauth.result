@@ -1,6 +1,8 @@
 install soname 'auth_ed25519';
 create user 'USER'         identified via unix_socket OR mysql_native_password as password("GOOD");
+grant select on test.* to 'USER' ;
 create user mysqltest1 identified via unix_socket OR mysql_native_password as password("good");
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 CREATE USER for mysqltest1@%
 CREATE USER `mysqltest1`@`%` IDENTIFIED VIA unix_socket OR mysql_native_password USING '*8409037B3E362D6DAE24C8E667F4D3B66716144E'
@@ -16,7 +18,9 @@ mysqltest1@localhost	mysqltest1@%	test
 mysqltest: Could not open connection 'default': 1045 Access denied for user 'mysqltest1'@'localhost' (using password: YES)
 drop user 'USER', mysqltest1;
 create user 'USER'         identified via mysql_native_password as password("GOOD") OR unix_socket;
+grant select on test.* to 'USER' ;
 create user mysqltest1 identified via mysql_native_password as password("good") OR unix_socket;
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 CREATE USER for mysqltest1@%
 CREATE USER `mysqltest1`@`%` IDENTIFIED VIA mysql_native_password USING '*8409037B3E362D6DAE24C8E667F4D3B66716144E' OR unix_socket
@@ -32,7 +36,9 @@ mysqltest1@localhost	mysqltest1@%	test
 mysqltest: Could not open connection 'default': 1698 Access denied for user 'mysqltest1'@'localhost'
 drop user 'USER', mysqltest1;
 create user 'USER'         identified via unix_socket OR ed25519 as password("GOOD");
+grant select on test.* to 'USER' ;
 create user mysqltest1 identified via unix_socket OR ed25519 as password("good");
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 CREATE USER for mysqltest1@%
 CREATE USER `mysqltest1`@`%` IDENTIFIED VIA unix_socket OR ed25519 USING 'F4aF8bw7130VaRbdLCl4f/P/wkjDmgJXwWvpJ5gmsZc'
@@ -48,7 +54,9 @@ mysqltest1@localhost	mysqltest1@%	test
 mysqltest: Could not open connection 'default': 1045 Access denied for user 'mysqltest1'@'localhost' (using password: YES)
 drop user 'USER', mysqltest1;
 create user 'USER'         identified via ed25519 as password("GOOD") OR unix_socket;
+grant select on test.* to 'USER' ;
 create user mysqltest1 identified via ed25519 as password("good") OR unix_socket;
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 CREATE USER for mysqltest1@%
 CREATE USER `mysqltest1`@`%` IDENTIFIED VIA ed25519 USING 'F4aF8bw7130VaRbdLCl4f/P/wkjDmgJXwWvpJ5gmsZc' OR unix_socket
@@ -64,7 +72,9 @@ mysqltest1@localhost	mysqltest1@%	test
 mysqltest: Could not open connection 'default': 1698 Access denied for user 'mysqltest1'@'localhost'
 drop user 'USER', mysqltest1;
 create user 'USER'         identified via ed25519 as password("GOOD") OR unix_socket OR mysql_native_password as password("works");
+grant select on test.* to 'USER' ;
 create user mysqltest1 identified via ed25519 as password("good") OR unix_socket OR mysql_native_password as password("works");
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 CREATE USER for mysqltest1@%
 CREATE USER `mysqltest1`@`%` IDENTIFIED VIA ed25519 USING 'F4aF8bw7130VaRbdLCl4f/P/wkjDmgJXwWvpJ5gmsZc' OR unix_socket OR mysql_native_password USING '*7D8C3DF236D9163B6C274A9D47704BC496988460'
@@ -84,6 +94,7 @@ mysqltest1@localhost	mysqltest1@%	test
 mysqltest: Could not open connection 'default': 1045 Access denied for user 'mysqltest1'@'localhost' (using password: YES)
 drop user 'USER', mysqltest1;
 create user mysqltest1 identified via mysql_native_password as password("good") OR mysql_native_password as password("works");
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 CREATE USER for mysqltest1@%
 CREATE USER `mysqltest1`@`%` IDENTIFIED VIA mysql_native_password USING '*8409037B3E362D6DAE24C8E667F4D3B66716144E' OR mysql_native_password USING '*7D8C3DF236D9163B6C274A9D47704BC496988460'
@@ -156,7 +167,9 @@ create user mysqltest1 identified via ed25519 as password("good") OR unix_socket
 ERROR HY000: Column count of mysql.user is wrong. Expected 3, found 47. Created with MariaDB XX.YY.ZZ, now running XX.YY.ZZ. Please use mariadb-upgrade to fix this error
 # switching back from mysql.user to mysql.global_priv
 create user 'USER'         identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;
+grant select on test.* to 'USER' ;
 create user mysqltest1 identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;
+grant select on test.* to mysqltest1;
 update mysql.global_priv set priv=replace(priv, '1234567890123456789012345678901234567890a', 'invalid password');
 flush privileges;
 show create user mysqltest1;
@@ -175,6 +188,7 @@ user()	current_user()	database()
 mysqltest1@localhost	mysqltest1@%	test
 drop user 'USER', mysqltest1;
 create user mysqltest1 identified via ed25519 as password("good");
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 CREATE USER for mysqltest1@%
 CREATE USER `mysqltest1`@`%` IDENTIFIED VIA ed25519 USING 'F4aF8bw7130VaRbdLCl4f/P/wkjDmgJXwWvpJ5gmsZc'

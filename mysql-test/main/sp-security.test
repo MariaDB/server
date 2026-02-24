@@ -67,8 +67,8 @@ grant execute on procedure db1_secret.stamp to ''@'%';
 grant execute on function db1_secret.db to ''@'%';
 set sql_mode=default;
 
-connect (con2user1,localhost,user1,,);
-connect (con3anon,localhost,anon,,);
+connect (con2user1,localhost,user1,,"*NO-ONE*");
+connect (con3anon,localhost,anon,,"*NO-ONE*");
 
 
 #
@@ -195,7 +195,7 @@ create procedure p () insert into t2 values (1);
 --error ER_TABLEACCESS_DENIED_ERROR
 call p();
 
-connect (con4user2,localhost,user2,,);
+connect (con4user2,localhost,user2,,"*NO-ONE*");
 
 connection con4user2;
 use db2;
@@ -284,9 +284,9 @@ show grants for usera@localhost;
 grant execute on procedure sptest.p1 to userc@localhost with grant option;
 show grants for userc@localhost;
 
-connect (con2usera,localhost,usera,,);
-connect (con3userb,localhost,userb,,);
-connect (con4userc,localhost,userc,,);
+connect (con2usera,localhost,usera,,"*NO-ONE*");
+connect (con3userb,localhost,userb,,"*NO-ONE*");
+connect (con4userc,localhost,userc,,"*NO-ONE*");
 
 connection con2usera;
 call sptest.p1(1);
@@ -357,6 +357,7 @@ use mysqltest//
 create table t1 (s1 int)//
 create user user1@localhost//
 grant select on t1 to user1@localhost//
+grant select on test.* to user1@localhost//
 create function bug_9503 () returns int sql security invoker begin declare v int;
 select min(s1) into v from t1; return v; end//
 delimiter ;//
@@ -467,6 +468,7 @@ begin
 end;
 |
 create user user_bug12812@localhost IDENTIFIED BY 'ABC'|
+grant select,create view on test.* to user_bug12812@localhost|
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (test_user_12812,localhost,user_bug12812,ABC,test)|
 --error ER_PROCACCESS_DENIED_ERROR
@@ -543,6 +545,7 @@ create procedure bug14533_2()
 
 grant execute on procedure db_bug14533.bug14533_1 to user_bug14533@localhost;
 grant execute on procedure db_bug14533.bug14533_2 to user_bug14533@localhost;
+grant select on test.* to user_bug14533@localhost;
 
 connect (user_bug14533,localhost,user_bug14533,,test);
 
@@ -927,7 +930,7 @@ create database mysqltest_db;
 create user bug57061_user@localhost;
 create function mysqltest_db.f1() returns int return 0;
 create procedure mysqltest_db.p1() begin end;
-connect (conn1, localhost, bug57061_user,,);
+connect (conn1, localhost, bug57061_user,,"*NO-ONE*");
 --echo # Attempt to drop routine on which user doesn't have privileges
 --echo # should result in the same 'access denied' type of error whether
 --echo # routine exists or not.
@@ -959,7 +962,7 @@ CREATE PROCEDURE db1.p1() SELECT 1;
 CREATE USER user2@localhost IDENTIFIED BY '';
 GRANT SELECT(db) ON mysql.proc TO user2@localhost;
  
-connect (con2, localhost, user2);
+connect (con2, localhost, user2,,"*NO-ONE*");
 --echo # The statement below before disclosed info from body_utf8 column.
 --error ER_SP_DOES_NOT_EXIST
 SHOW CREATE PROCEDURE db1.p1;
@@ -982,6 +985,7 @@ DROP DATABASE db1;
 #
 create user foo@local_ost;
 create user foo@`local\_ost` identified via mysql_old_password using '0123456789ABCDEF';
+grant select,create routine on test.* to foo@local_ost;
 create database foodb;
 grant create routine on foodb.* to foo@local_ost;
 connect con1,localhost,foo;
@@ -1010,6 +1014,7 @@ create procedure mysqltest_db.p1() begin end;
 
 --echo # Create user with no privileges on mysqltest_db database.
 create user bug12602983_user@localhost;
+grant create view on test.* to bug12602983_user@localhost;
 
 connect (conn1, localhost, bug12602983_user,,);
 
@@ -1067,8 +1072,7 @@ GRANT CREATE ROUTINE ON u1.* TO u1@localhost;
 GRANT ALTER ROUTINE ON FUNCTION u1.f1 TO u1@localhost;
 GRANT ALTER ROUTINE ON PROCEDURE u1.p1 TO u1@localhost;
 
-connect (u1, localhost, u1,,);
-USE u1;
+connect (u1, localhost, u1,,u1);
 DELIMITER $$;
 CREATE OR REPLACE FUNCTION f1() RETURNS INT BEGIN RETURN 2; END; $$
 CREATE OR REPLACE PROCEDURE p1() BEGIN SELECT 1; END; $$

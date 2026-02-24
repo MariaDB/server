@@ -34,7 +34,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 # define SUX_LOCK_GENERIC /* Use dummy implementation for debugging purposes */
 #endif
 
-#ifdef SUX_LOCK_GENERIC
 /** An exclusive-only variant of srw_lock */
 template<bool spinloop>
 class pthread_mutex_wrapper final
@@ -83,7 +82,6 @@ template<>
 inline void pthread_mutex_wrapper<true>::wr_lock() noexcept
 { if (!wr_lock_try()) wr_wait(); }
 # endif
-#endif
 
 template<bool spinloop> class ssux_lock_impl;
 
@@ -566,7 +564,7 @@ public:
   /** @return whether any lock may be held by any thread */
   bool is_locked_or_waiting() const noexcept
   { return lock.is_locked_or_waiting(); }
-  /** @return whether an exclusive lock may be held by any thread */
+  /** @return whether a shared or exclusive lock may be held by any thread */
   bool is_locked() const noexcept { return lock.is_locked(); }
   /** @return whether an exclusive lock may be held by any thread */
   bool is_write_locked() const noexcept { return lock.is_write_locked(); }

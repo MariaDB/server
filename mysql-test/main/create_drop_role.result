@@ -51,7 +51,6 @@ u1@localhost
 SHOW DATABASES;
 Database
 information_schema
-test
 SELECT CURRENT_ROLE;
 CURRENT_ROLE
 NULL

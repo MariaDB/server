@@ -58,7 +58,7 @@ SHOW VARIABLES LIKE 'gtid_binlog_state';
 Variable_name	Value
 gtid_binlog_state	
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
-MASTER_USE_GTID=CURRENT_POS;
+MASTER_USE_GTID=SLAVE_POS;
 include/start_slave.inc
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 Variable_name	Value

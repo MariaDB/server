@@ -253,7 +253,7 @@ row_upd_check_references_constraints(
 				FALSE, foreign, table, entry, thr);
 
 			if (ref_table) {
-				dict_table_close(ref_table);
+				ref_table->release();
 			}
 
 			if (err != DB_SUCCESS) {
@@ -338,7 +338,7 @@ wsrep_row_upd_check_foreign_constraints(
 				TRUE, foreign, table, entry, thr);
 
 			if (opened) {
-				dict_table_close(opened);
+				opened->release();
 			}
 
 			if (err != DB_SUCCESS) {

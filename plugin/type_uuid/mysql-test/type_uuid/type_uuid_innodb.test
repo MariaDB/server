@@ -1,0 +1,31 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # Start of 10.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-4958 Adding datatype UUID
+--echo #
+
+SET default_storage_engine=InnoDB;
+--source type_uuid_engines.inc
+
+--echo #
+--echo # MDEV-26742 Assertion `field->type_handler() == this' failed in FixedBinTypeBundle<NATIVE_LEN, MAX_CHAR_LEN>::Type_handler_fbt::stored_field_cmp_to_item
+--echo #
+
+CREATE TABLE t1 ( pk uuid, c text) engine=myisam;
+INSERT INTO t1 VALUES ('00000000-0000-0000-0000-000000000000',1);
+CREATE TABLE t2 ( d text, KEY (d)) engine=innodb ;
+INSERT INTO t2 VALUES (2);
+SELECT * FROM t2 JOIN t1 ON ( t1.pk > t2.d);
+EXPLAIN SELECT * FROM t2 JOIN t1 ON ( t1.pk > t2.d);
+--error ER_TRUNCATED_WRONG_VALUE
+UPDATE t2 JOIN t1 ON ( t1.pk > t2.d) SET t1.c = 1;
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # End of 10.7 tests
+--echo #

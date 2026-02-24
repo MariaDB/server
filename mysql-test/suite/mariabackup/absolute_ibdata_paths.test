@@ -30,7 +30,7 @@ let $_innodb_data_file_path=`select @@innodb_data_file_path`;
 let $_innodb_data_home_dir=`select @@innodb_data_home_dir`;
 
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir;
 --enable_result_log
 exec $XTRABACKUP  --prepare --target-dir=$targetdir;
 

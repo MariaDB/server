@@ -75,6 +75,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
             "ref_optimizer_key_uses": [
               {
                 "table": "t1",
+                "index": "key1",
                 "field": "key1",
                 "equals": "1",
                 "null_rejecting": false
@@ -201,33 +202,40 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
-                "table": "t1",
-                "best_access_path": {
-                  "considered_access_paths": [
-                    {
-                      "access_type": "ref",
-                      "index": "key1",
-                      "used_range_estimates": true,
-                      "rows": 1,
-                      "cost": 1.125146475,
-                      "chosen": true
-                    },
-                    {
-                      "type": "scan",
-                      "chosen": false,
-                      "cause": "cost"
+                "get_costs_for_tables": [
+                  {
+                    "best_access_path": {
+                      "table": "t1",
+                      "considered_access_paths": [
+                        {
+                          "access_type": "ref",
+                          "index": "key1",
+                          "used_range_estimates": true,
+                          "rows": 1,
+                          "cost": 1.125146475,
+                          "chosen": true
+                        },
+                        {
+                          "type": "scan",
+                          "chosen": false,
+                          "cause": "cost"
+                        }
+                      ],
+                      "chosen_access_method": {
+                        "type": "ref",
+                        "records": 1,
+                        "cost": 1.125146475,
+                        "uses_join_buffering": false
+                      }
                     }
-                  ],
-                  "chosen_access_method": {
-                    "type": "ref",
-                    "records": 1,
-                    "cost": 1.125146475,
-                    "uses_join_buffering": false
                   }
-                },
+                ]
+              },
+              {
+                "plan_prefix": [],
+                "table": "t1",
                 "rows_for_plan": 1,
-                "cost_for_plan": 1.325146475,
-                "pruned_by_hanging_leaf": true
+                "cost_for_plan": 1.325146475
               }
             ]
           },
@@ -252,12 +260,6 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
             }
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]

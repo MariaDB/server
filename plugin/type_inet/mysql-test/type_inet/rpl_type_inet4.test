@@ -1,0 +1,24 @@
+--source include/master-slave.inc
+
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--echo #
+--echo # MDEV-23287 The INET4 data type
+--echo #
+
+connection master;
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('0.0.0.0'),('255.255.255.255');
+sync_slave_with_master;
+SELECT HEX(a), a FROM t1;
+connection master;
+DROP TABLE t1;
+sync_slave_with_master;
+
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--source include/rpl_end.inc

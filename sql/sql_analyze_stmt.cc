@@ -33,7 +33,7 @@ void Filesort_tracker::print_json_members(Json_writer *writer)
   else
     writer->add_member("r_loops").add_ll(get_r_loops());
   
-  if (get_r_loops() && time_tracker.timed)
+  if (time_tracker.has_timed_statistics())
   {
     writer->add_member("r_total_time_ms").
             add_double(time_tracker.get_time_ms());

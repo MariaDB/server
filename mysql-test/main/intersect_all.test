@@ -336,13 +336,22 @@ create table i3 (x int);
 explain SELECT * from t3 union select * from u3 intersect all select * from i3;
 set sql_mode= 'oracle';
 explain SELECT * from t3 union select * from u3 intersect all select * from i3;
+# TODO: there is a bug in --view protocol, it displays column name as '*' instead of 'x'
+--replace_result * x
 select * from t3 union select * from u3 intersect select * from i3;
+--replace_result * x
 SELECT * from t3 union select * from u3 intersect all select * from i3;
 insert into t3 values (0);
 insert into i3 values (0);
+--replace_result * x
 Select * from t3 union select * from u3 intersect select * from i3;
+--replace_result * x
 SELECT * FROM t3 UNION SELECT * FROM u3 INTERSECT ALL SELECT * FROM i3;
+# CREATE VIEW still works good
+create view v as select * from t3 union select * from u3 intersect select * from i3;
+select * from v;
 drop tables t3, u3, i3;
+drop view v;
 
 --enable_info
 --echo # First line of these results is column names, not the result
@@ -372,10 +381,26 @@ values (1, 2) union all values (1, 2) union values (4, 3) union all values (4, 3
 values (1, 2) union all values (1, 2) union values (4, 3) union all values (4, 3) union all values (1, 2) union values (1, 2);
 --disable_info
 
+set sql_mode= default;
 create table t1 (a int, b int);
 create table t2 like t1;
 insert t1 values (1, 2), (1, 2), (1, 2), (2, 3), (2, 3), (3, 4), (3, 4);
 insert t2 values (1, 2), (1, 2), (2, 3), (2, 3), (2, 3), (2, 3), (4, 5);
+
+select * from t1 intersect all select * from t2;
+select * from t1 intersect all select * from t2 union values (1, 2);
+select * from t1 intersect all (select * from t2 union values (1, 2));
+(select * from t1 intersect all select * from t2) union values (1, 2);
+
+create view v1 as select * from t1 intersect all select * from t2 union values (1, 2);
+show create view v1;
+select * from v1;
+
+create view v2 as select * from t1 union values (1, 2) intersect all select * from t2;
+show create view v2;
+select * from v2;
+
+set sql_mode= 'oracle';
 select * from t1 intersect select * from t2;
 select * from t1 intersect all select * from t2;
 --echo # Default: first INTERSECT ALL, then UNION
@@ -390,5 +415,85 @@ select * from t1 intersect all select * from t2 union values (1, 2);
 select * from t1 intersect all (select * from t2 union values (1, 2));
 (select * from t1 intersect all select * from t2) union values (1, 2);
 explain select * from t1 intersect all select * from t2 union values (1, 2);
+
+show create view v1;
+select * from v1;
+
+show create view v2;
+select * from v2;
+
+create view v3 as select * from t1 union values (1, 2) intersect all select * from t2;
+show create view v3;
+select * from v3;
+
 drop tables t1, t2;
+drop view v1, v2, v3;
+
+create table t3 (x int);
+create table u3 (x int);
+create table i3 (x int);
+create view v4 as SELECT * from t3 union select * from u3 intersect all select * from i3;
+select * from v4;
+drop tables t3, u3, i3;
+drop view v4;
+set sql_mode= default;
+
+--echo #
+--echo # MDEV-37325 Incorrect results for INTERSECT ALL in ORACLE mode
+--echo #
+create table t1 (a int, b int);
+create table t2 like t1;
+insert t1 values (1, 2), (1, 2), (1, 2), (1, 2);
+insert t2 values (1, 2), (1, 2);
+select * from t1 except all select * from t2 intersect all values (1, 2);
+explain select * from t1 except all select * from t2 intersect all values (1, 2);
+Explain select * from (select * from (select * from t1 except all select * from t2) __3 intersect all values (1,2)) __5;
+
+create view v1 as select * from t1 except all select * from t2 intersect all values (1, 2);
+show create view v1;
+select * from v1;
+drop view v1;
+
+create view v1 as ((select * from t1 except all select * from t2) intersect all values (1, 2));
+show create view v1;
+select * from v1;
+drop view v1;
+
+explain select * from ((select * from t1 except all select * from t2) intersect all values (1, 2)) v;
+
+--echo # Oracle: first UNION, then INTERSECT ALL
+set sql_mode= 'oracle';
+create view v2 as select * from t1 except all select * from t2 intersect all values (1, 2);
+show create view v2;
+select * from v2;
+drop view v2;
+
+EXPLAIN select * from t1 except all select * from t2 intersect all values (1, 2);
+
+select * from t2 union all select * from t2;
+select * from t1 except all select * from t2 intersect all values (1, 2) union values (2, 3);
+select * from t2 union all select * from t2 except all select * from t2 intersect all values (1, 2) union values (2, 3);
+select * from t1 except all select * from t2 union values (2, 3);
+--echo # Default: first INTERSECT ALL, then UNION
+select * from t1 union values (1, 2) intersect all select * from t2;
+select * from t1 union (values (1, 2) intersect all select * from t2);
+set sql_mode= default;
+select * from t1 union values (1, 2) intersect all select * from t2;
+select * from t1 union (values (1, 2) intersect all select * from t2);
+
+set sql_mode= 'oracle';
+create or replace table t2 like t1;
+insert t2 values (1, 2), (2, 3);
+create table t3 select * from t1 except all select * from t2;
+select * from t3;
+select * from t3 intersect all select * from t1;
+show create table t2;
+select * from t2 order by a desc;
+select * from t1 except all select * from t2;
+select * from t1 except all select * from t2 union all values (0, 1);
+select * from t1 except all select * from t2 union all values (0, 1) order by a limit 2;
+select * from t1 except all select * from t2 intersect all select * from t1;
+select * from t1 except all select * from t2 intersect all select * from t1 union all select * from t2;
+select * from t1 except all select * from t2 intersect all select * from t1 union all select * from t2 order by a desc limit 3;
+drop tables t1, t2, t3;
 set sql_mode= default;

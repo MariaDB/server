@@ -1,10 +1,10 @@
-call mtr.add_suppression("InnoDB: Table `test`\\.`t1` (has an unreadable root page|is corrupted)");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t1` has an unreadable root page");
 call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[123]\\.ibd' cannot be decrypted\\.");
 call mtr.add_suppression("InnoDB: Recovery failed to read page");
 call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file .*test.t[12].ibd looks corrupted; key_version=1");
 call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test/t1\\.ibd'");
 call mtr.add_suppression("InnoDB: File '.*test/t1\\.ibd' is corrupted");
-call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted");
+call mtr.add_suppression("Table `test`\\.`t1` is corrupted");
 # Start server with keys2.txt
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
 CREATE TABLE t1(a int not null primary key auto_increment, b varchar(128)) engine=innodb ENCRYPTED=YES ENCRYPTION_KEY_ID=19;
@@ -40,11 +40,11 @@ SELECT COUNT(1) FROM t2;
 COUNT(1)
 2048
 SELECT COUNT(1) FROM t2,t1 where t2.a = t1.a;
-ERROR 42S02: Table 'test.t1' doesn't exist in engine
+ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
 SELECT COUNT(1) FROM t1 where b = 'ab';
-ERROR 42S02: Table 'test.t1' doesn't exist in engine
+ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
 SELECT COUNT(1) FROM t1;
-ERROR 42S02: Table 'test.t1' doesn't exist in engine
+ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
 
 # Start server with keys2.txt
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt

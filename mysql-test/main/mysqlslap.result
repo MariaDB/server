@@ -260,3 +260,6 @@ DROP TABLE t1;
 #
 # Bug MDEV-15789 (Upstream: #80329): MYSQLSLAP OPTIONS --AUTO-GENERATE-SQL-GUID-PRIMARY and --AUTO-GENERATE-SQL-SECONDARY-INDEXES DONT WORK
 #
+#
+# Bug MDEV-34621: Fix division by zero in mariadb-slap when iterations=0
+#

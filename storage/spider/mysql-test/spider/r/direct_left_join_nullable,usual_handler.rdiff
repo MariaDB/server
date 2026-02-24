@@ -1,0 +1,14 @@
+--- ../src/storage/spider/mysql-test/spider/r/direct_left_join_nullable.result	2024-05-01 14:39:20.122241957 +1000
++++ ../src/storage/spider/mysql-test/spider/r/direct_left_join_nullable.reject	2025-10-22 17:42:31.592068856 +1100
+@@ -87,7 +87,10 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+-select t0.`a` `a`,t2.`b` `b`,t2.`c` `c`,t3.`a` `a` from `auto_test_remote`.`ta_r_no_idx` t0 left join `auto_test_remote`.`ta_r_auto_inc` t1 on (t1.`a` = t0.`a`) left join `auto_test_remote`.`ta_r_3` t2 on (t2.`c` = t1.`c`) left join `auto_test_remote`.`ta_r` t3 on (t3.`b` = t2.`b`) where 1 order by t0.`a` desc
++select `a` from `auto_test_remote`.`ta_r_no_idx`
++select `a`,`c` from `auto_test_remote`.`ta_r_auto_inc`
++select `b`,`c` from `auto_test_remote`.`ta_r_3`
++select `a`,`b` from `auto_test_remote`.`ta_r`
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+ SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r ORDER BY a;
+ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')

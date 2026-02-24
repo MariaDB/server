@@ -1,0 +1,8 @@
+--innodb_doublewrite=0
+--innodb_log_file_size=24m
+--innodb_immediate_scrub_data_uncompressed=1
+--plugin-load-add=$FILE_KEY_MANAGEMENT_SO
+--loose-file-key-management
+--loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/logkey.txt
+--file-key-management-encryption-algorithm=aes_cbc
+--innodb-encrypt-log=1

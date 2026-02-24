@@ -57,25 +57,31 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t10",
-      "access_type": "ALL",
-      "rows": 4,
-      "filtered": 100,
-      "attached_condition": "t10.mb4 is not null"
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["mb3"],
-      "key": "mb3",
-      "key_length": "99",
-      "used_key_parts": ["mb3"],
-      "ref": ["test.t10.mb4"],
-      "rows": 1,
-      "filtered": 100,
-      "index_condition": "t1.mb3 = t10.mb4"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t10",
+          "access_type": "ALL",
+          "rows": 4,
+          "filtered": 100,
+          "attached_condition": "t10.mb4 is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["mb3"],
+          "key": "mb3",
+          "key_length": "99",
+          "used_key_parts": ["mb3"],
+          "ref": ["test.t10.mb4"],
+          "rows": 1,
+          "filtered": 100,
+          "index_condition": "t1.mb3 = t10.mb4"
+        }
+      }
+    ]
   }
 }
 select * from t10,t1 where t10.mb4=t1.mb3;
@@ -96,24 +102,30 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t10",
-      "access_type": "ALL",
-      "rows": 4,
-      "filtered": 100
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["mb3"],
-      "key": "mb3",
-      "key_length": "99",
-      "used_key_parts": ["mb3"],
-      "ref": ["test.t10.mb4"],
-      "rows": 1,
-      "filtered": 100,
-      "index_condition": "t10.mb4 <=> t1.mb3"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t10",
+          "access_type": "ALL",
+          "rows": 4,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["mb3"],
+          "key": "mb3",
+          "key_length": "99",
+          "used_key_parts": ["mb3"],
+          "ref": ["test.t10.mb4"],
+          "rows": 1,
+          "filtered": 100,
+          "index_condition": "t10.mb4 <=> t1.mb3"
+        }
+      }
+    ]
   }
 }
 select * from t10,t1 where t10.mb4<=>t1.mb3;
@@ -129,19 +141,25 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t10",
-      "access_type": "ALL",
-      "rows": 4,
-      "filtered": 100
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 10002,
-      "filtered": 100,
-      "attached_condition": "t10.mb4 = convert(t1.mb3 using utf8mb4)"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t10",
+          "access_type": "ALL",
+          "rows": 4,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 10002,
+          "filtered": 100,
+          "attached_condition": "t10.mb4 = convert(t1.mb3 using utf8mb4)"
+        }
+      }
+    ]
   }
 }
 #
@@ -153,24 +171,30 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t10",
-      "access_type": "ALL",
-      "rows": 4,
-      "filtered": 100
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["mb3"],
-      "key": "mb3",
-      "key_length": "99",
-      "used_key_parts": ["mb3"],
-      "ref": ["func"],
-      "rows": 1,
-      "filtered": 100,
-      "index_condition": "t1.mb3 = concat('',t10.mb4)"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t10",
+          "access_type": "ALL",
+          "rows": 4,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["mb3"],
+          "key": "mb3",
+          "key_length": "99",
+          "used_key_parts": ["mb3"],
+          "ref": ["func"],
+          "rows": 1,
+          "filtered": 100,
+          "index_condition": "t1.mb3 = concat('',t10.mb4)"
+        }
+      }
+    ]
   }
 }
 select * from t10,t1 where t1.mb3=concat('',t10.mb4);
@@ -232,28 +256,34 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t10",
-      "access_type": "const",
-      "possible_keys": ["PRIMARY"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["pk"],
-      "ref": ["const"],
-      "rows": 1,
-      "filtered": 100
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "range",
-      "possible_keys": ["mb3"],
-      "key": "mb3",
-      "key_length": "99",
-      "used_key_parts": ["mb3"],
-      "rows": 4,
-      "filtered": 100,
-      "index_condition": "t1.mb3 = '????' or t1.mb3 = 'hello'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t10",
+          "access_type": "const",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["pk"],
+          "ref": ["const"],
+          "rows": 1,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["mb3"],
+          "key": "mb3",
+          "key_length": "99",
+          "used_key_parts": ["mb3"],
+          "rows": 4,
+          "filtered": 100,
+          "index_condition": "t1.mb3 = '????' or t1.mb3 = 'hello'"
+        }
+      }
+    ]
   }
 }
 explain format=json
@@ -262,24 +292,30 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t10",
-      "access_type": "const",
-      "possible_keys": ["PRIMARY"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["pk"],
-      "ref": ["const"],
-      "rows": 1,
-      "filtered": 100
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 10002,
-      "filtered": 100,
-      "attached_condition": "convert(t1.mb3 using utf8mb4) > '????'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t10",
+          "access_type": "const",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["pk"],
+          "ref": ["const"],
+          "rows": 1,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 10002,
+          "filtered": 100,
+          "attached_condition": "convert(t1.mb3 using utf8mb4) > '????'"
+        }
+      }
+    ]
   }
 }
 # For comparison, it will handle it when collations match:
@@ -295,28 +331,34 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t10",
-      "access_type": "const",
-      "possible_keys": ["PRIMARY"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["pk"],
-      "ref": ["const"],
-      "rows": 1,
-      "filtered": 100
-    },
-    "table": {
-      "table_name": "t2",
-      "access_type": "range",
-      "possible_keys": ["mb4"],
-      "key": "mb4",
-      "key_length": "131",
-      "used_key_parts": ["mb4"],
-      "rows": 3,
-      "filtered": 100,
-      "index_condition": "t2.mb4 > '????'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t10",
+          "access_type": "const",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["pk"],
+          "ref": ["const"],
+          "rows": 1,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["mb4"],
+          "key": "mb4",
+          "key_length": "131",
+          "used_key_parts": ["mb4"],
+          "rows": 3,
+          "filtered": 100,
+          "index_condition": "t2.mb4 > '????'"
+        }
+      }
+    ]
   }
 }
 #
@@ -332,37 +374,45 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t10",
-      "access_type": "ALL",
-      "rows": 4,
-      "filtered": 100,
-      "attached_condition": "t10.mb4 is not null and t10.mb4 is not null"
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["mb3"],
-      "key": "mb3",
-      "key_length": "99",
-      "used_key_parts": ["mb3"],
-      "ref": ["test.t10.mb4"],
-      "rows": 1,
-      "filtered": 100,
-      "index_condition": "t1.mb3 = t10.mb4"
-    },
-    "table": {
-      "table_name": "t2",
-      "access_type": "ref",
-      "possible_keys": ["mb4"],
-      "key": "mb4",
-      "key_length": "131",
-      "used_key_parts": ["mb4"],
-      "ref": ["test.t10.mb4"],
-      "rows": 1,
-      "filtered": 100,
-      "index_condition": "concat(convert(t1.mb3 using utf8mb4),t2.mb4,t10.mb4) <> 'Bebebe'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t10",
+          "access_type": "ALL",
+          "rows": 4,
+          "filtered": 100,
+          "attached_condition": "t10.mb4 is not null and t10.mb4 is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["mb3"],
+          "key": "mb3",
+          "key_length": "99",
+          "used_key_parts": ["mb3"],
+          "ref": ["test.t10.mb4"],
+          "rows": 1,
+          "filtered": 100,
+          "index_condition": "t1.mb3 = t10.mb4"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ref",
+          "possible_keys": ["mb4"],
+          "key": "mb4",
+          "key_length": "131",
+          "used_key_parts": ["mb4"],
+          "ref": ["test.t10.mb4"],
+          "rows": 1,
+          "filtered": 100,
+          "index_condition": "concat(convert(t1.mb3 using utf8mb4),t2.mb4,t10.mb4) <> 'Bebebe'"
+        }
+      }
+    ]
   }
 }
 select json_detailed(json_extract(trace, '$**.condition_processing')) as JS
@@ -408,37 +458,45 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t10",
-      "access_type": "ALL",
-      "rows": 4,
-      "filtered": 0.78125,
-      "attached_condition": "t10.mb4 = 'hello'"
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["mb3"],
-      "key": "mb3",
-      "key_length": "99",
-      "used_key_parts": ["mb3"],
-      "ref": ["const"],
-      "rows": 1,
-      "filtered": 100,
-      "index_condition": "t1.mb3 = t10.mb4"
-    },
-    "table": {
-      "table_name": "t2",
-      "access_type": "ref",
-      "possible_keys": ["mb4"],
-      "key": "mb4",
-      "key_length": "131",
-      "used_key_parts": ["mb4"],
-      "ref": ["const"],
-      "rows": 1,
-      "filtered": 100,
-      "index_condition": "t2.mb4 = t10.mb4 and concat(convert(t1.mb3 using utf8mb4),t2.mb4,t10.mb4) <> 'Bebebe'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t10",
+          "access_type": "ALL",
+          "rows": 4,
+          "filtered": 25,
+          "attached_condition": "t10.mb4 = 'hello'"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["mb3"],
+          "key": "mb3",
+          "key_length": "99",
+          "used_key_parts": ["mb3"],
+          "ref": ["const"],
+          "rows": 1,
+          "filtered": 100,
+          "index_condition": "t1.mb3 = t10.mb4"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ref",
+          "possible_keys": ["mb4"],
+          "key": "mb4",
+          "key_length": "131",
+          "used_key_parts": ["mb4"],
+          "ref": ["const"],
+          "rows": 1,
+          "filtered": 100,
+          "index_condition": "t2.mb4 = t10.mb4 and concat(convert(t1.mb3 using utf8mb4),t2.mb4,t10.mb4) <> 'Bebebe'"
+        }
+      }
+    ]
   }
 }
 select json_detailed(json_extract(trace, '$**.condition_processing')) as JS

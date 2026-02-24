@@ -159,7 +159,7 @@ dict_table_t *dict_table_t::create(const span<const char> &name,
   table->mdl_name.m_name= table->name.m_name;
   table->is_system_db= dict_mem_table_is_system(table->name.m_name);
   table->space= space;
-  table->space_id= space ? space->id : ULINT_UNDEFINED;
+  table->space_id= space ? space->id : UINT32_MAX;
   table->n_t_cols= static_cast<unsigned>(n_cols + DATA_N_SYS_COLS) &
     dict_index_t::MAX_N_FIELDS;
   table->n_v_cols= static_cast<unsigned>(n_v_cols) &
@@ -1042,32 +1042,6 @@ dict_mem_table_free_foreign_vcol_set(
 			foreign->v_cols = NULL;
 		}
 	}
-}
-
-/**********************************************************************//**
-Adds a field definition to an index. NOTE: does not take a copy
-of the column name if the field is a column. The memory occupied
-by the column name may be released only after publishing the index. */
-void
-dict_mem_index_add_field(
-/*=====================*/
-	dict_index_t*	index,		/*!< in: index */
-	const char*	name,		/*!< in: column name */
-	ulint		prefix_len)	/*!< in: 0 or the column prefix length
-					in a MySQL index like
-					INDEX (textcol(25)) */
-{
-	dict_field_t*	field;
-
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	index->n_def++;
-
-	field = dict_index_get_nth_field(index, unsigned(index->n_def) - 1);
-
-	field->name = name;
-	field->prefix_len = prefix_len & ((1U << 12) - 1);
 }
 
 /**********************************************************************//**

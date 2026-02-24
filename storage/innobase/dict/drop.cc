@@ -277,7 +277,7 @@ void trx_t::commit(std::vector<pfs_os_file_t> &deleted)
         dict_sys.remove(table);
         if (const auto id= space ? space->id : 0)
         {
-          space_ids.emplace_back(uint32_t(id));
+          space_ids.emplace_back(id);
           pfs_os_file_t d= fil_delete_tablespace(id);
           if (d != OS_FILE_CLOSED)
             deleted.emplace_back(d);

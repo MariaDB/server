@@ -4147,10 +4147,70 @@ EXECUTE IMMEDIATE 'SELECT ''😎'' AS c';
 c
 😎
 #
+# MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+#
+CREATE TABLE t1 (a CHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+SELECT CAST('a' AS CHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT);
+CAST('a' AS CHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT)
+a
+CREATE TABLE t1 AS
+SELECT CAST('a' AS CHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET utf8mb4 COLLATE DEFAULT) AS c1;
+c1
+string
+CREATE TABLE t1 AS
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET utf8mb4 COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
 #
-# Start of 10.5 tests
+# Start of 10.6 tests
+#
+#
+# MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+#
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+name
+Jeans
+CREATE TABLE t1 AS
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `name` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+#
+# End of 10.6 tests
+#
+#
+# Start of 10.11 tests
 #
 #
 # MDEV-24584 Selecting INT column with COLLATE utf8mb4_general_ci throws an error
@@ -4164,7 +4224,6 @@ SELECT 1 COLLATE utf8mb4_bin;
 1
 SELECT 1 COLLATE latin1_swedish_ci;
 ERROR 42000: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
-#
 # MDEV-34376 Wrong data types when mixing an utf8 *TEXT column and a short binary
 #
 CREATE TABLE t1 (
@@ -4287,4 +4346,53 @@ DROP VIEW v2, v1;
 DROP TABLE t1;
 #
 # End of 10.5 tests
+#
+#
+# MDEV-10865 COLLATE keyword doesn't work in PREPARE query
+#
+SET NAMES utf8mb4;
+CREATE TABLE t1 (
+c1 varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL
+) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ('jj');
+SELECT * FROM t1 WHERE c1 LIKE 'jj' COLLATE utf8mb4_unicode_ci;
+c1
+jj
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE c1 LIKE ? COLLATE utf8mb4_unicode_ci';
+EXECUTE stmt USING 'jj';
+c1
+jj
+DROP TABLE t1;
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE utf8mb4_unicode_ci AS c1';
+EXECUTE stmt USING 'test';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT CONCAT(?) COLLATE utf8mb4_unicode_ci AS c1';
+EXECUTE stmt USING 'test';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT NULL COLLATE utf8mb4_unicode_ci AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` char(0) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT CONCAT(NULL) COLLATE utf8mb4_unicode_ci AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` char(0) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+#
+# End of 10.11 tests
 #

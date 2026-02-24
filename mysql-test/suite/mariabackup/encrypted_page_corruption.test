@@ -67,7 +67,7 @@ if (`select @@innodb_checksum_algorithm LIKE '%full_crc32'`)
 }
 --disable_result_log
 --error $expect_error
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --extended-validation --target-dir=$targetdir --core-file > $backuplog;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --extended-validation --target-dir=$targetdir --core-file > $backuplog;
 --enable_result_log
 
 
@@ -79,7 +79,7 @@ rmdir $targetdir;
 
 # Due to very constructed nature of the "corruption" (faking checksums), the "corruption" won't be found without --extended-validation
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir;
 --enable_result_log
 
 drop table t1;

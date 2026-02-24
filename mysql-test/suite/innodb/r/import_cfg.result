@@ -1,0 +1,67 @@
+#
+#  MDEV-35169 ALTER TABLE...IMPORT TABLESPACE does not
+#		work with INDEX DESC
+#
+# prepare cfg for primary key with desc column
+create table t1 (pk int, a int, primary key(pk desc)) engine=InnoDB;
+insert into t1 values (1,10),(2,20),(3,15);
+flush table t1 for export;
+unlock tables;
+drop table t1;
+# prepare cfg for secondary index with desc column
+create table t1 (pk int primary key, a int,key(a desc)) engine=InnoDB;
+insert into t1 values (1,10),(2,20),(3,15);
+flush table t1 for export;
+unlock tables;
+drop table t1;
+# prepare cfg for secondary index with ascending column
+create table t1 (pk int primary key, a int, key(a)) engine=InnoDB;
+insert into t1 values (1,10),(2,20),(3,15);
+flush table t1 for export;
+unlock tables;
+drop table t1;
+# Import desc tablespace into desc frm
+# Import into table with desc primary key column
+create table t1 (pk int, a int, primary key(pk desc)) engine=InnoDB;
+alter table t1 discard tablespace;
+alter table t1 import tablespace;
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;
+# Import into table with desc secondary index
+create table t1 (pk int primary key, a int, key(a desc))engine=InnoDB;
+alter table t1 discard tablespace;
+alter table t1 import tablespace;
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;
+# Import asc tablespace into desc frm
+create table t1 (pk int primary key, a int, key(a desc))engine=InnoDB;
+alter table t1 discard tablespace;
+alter table t1 import tablespace;
+ERROR HY000: Schema mismatch (Index a field a is DESC which does not match with .cfg file)
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Error	Tablespace has been discarded for table `t1`
+test.t1	check	error	Corrupt
+drop table t1;
+# Import desc tablespace into asc frm
+create table t1 (pk int primary key, a int, key(a)) engine=InnoDB;
+alter table t1 discard tablespace;
+alter table t1 import tablespace;
+ERROR HY000: Schema mismatch (Index a field a is ASC which does not match with .cfg file)
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Error	Tablespace has been discarded for table `t1`
+test.t1	check	error	Corrupt
+drop table t1;
+# Import asc tablespace into asc frm
+create table t1 (pk int primary key, a int, key(a)) engine=InnoDB;
+alter table t1 discard tablespace;
+alter table t1 import tablespace;
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;

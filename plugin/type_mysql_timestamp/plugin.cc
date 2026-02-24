@@ -24,12 +24,7 @@ class Type_collection_local: public Type_collection
 {
 protected:
   const Type_handler *aggregate_common(const Type_handler *h1,
-                                       const Type_handler *h2) const
-  {
-    if (h1 == h2)
-      return h1;
-    return NULL;
-  }
+                                       const Type_handler *h2) const;
 public:
   const Type_handler *aggregate_for_result(const Type_handler *h1,
                                            const Type_handler *h2)
@@ -108,7 +103,19 @@ public:
       Field_mysql_timestampf(*name, rec, attr->unireg_check, share,
                              attr->temporal_dec(MAX_DATETIME_WIDTH));
   }
-  void Column_definition_implicit_upgrade(Column_definition *c) const override
+  const Type_handler *type_handler_for_implicit_upgrade() const override
+  {
+    /*
+      The derived method as of 10.11.8 does "return this;" anyway.
+      However, in the future this may change to return a
+      opt_mysql56_temporal_format dependent handler.
+      Here in this class we need to make sure to do "return this;"
+      not to depend on the derived method changes.
+    */
+    return this;
+  }
+  void Column_definition_implicit_upgrade_to_this(Column_definition *old)
+                                                           const override
   {
     /*
       Suppress the automatic upgrade depending on opt_mysql56_temporal_format,
@@ -124,6 +131,27 @@ static Type_handler_mysql_timestamp2 type_handler_mysql_timestamp2;
 const Type_handler *Field_mysql_timestampf::type_handler() const
 {
   return &type_handler_mysql_timestamp2;
+}
+
+
+const Type_handler *
+Type_collection_local::aggregate_common(const Type_handler *h1,
+                                        const Type_handler *h2) const
+{
+  if (h1 == h2)
+    return h1;
+
+  static const Type_aggregator::Pair agg[]=
+  {
+    {
+      &type_handler_timestamp2,
+      &type_handler_mysql_timestamp2,
+      &type_handler_mysql_timestamp2
+    },
+    {NULL,NULL,NULL}
+  };
+
+  return Type_aggregator::find_handler_in_array(agg, h1, h2, true);
 }
 
 

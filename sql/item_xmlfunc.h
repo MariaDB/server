@@ -55,7 +55,7 @@ public:
   }
   uint32 elements() const
   {
-    return length() / sizeof(MY_XPATH_FLT);
+    return length() / (uint32) sizeof(MY_XPATH_FLT);
   }
 };
 
@@ -118,7 +118,7 @@ public:
     set_maybe_null();
   }
   bool fix_fields(THD *thd, Item **ref) override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   bool const_item() const override
   {
     return const_item_cache && (!nodeset_func || nodeset_func->const_item());

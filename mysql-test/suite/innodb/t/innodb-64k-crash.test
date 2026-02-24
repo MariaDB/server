@@ -2,6 +2,7 @@
 --source include/have_innodb_64k.inc
 # Embedded server does not support restarting
 --source include/not_embedded.inc
+--source innodb_default_row_format.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
@@ -314,3 +315,64 @@ connection default;
 
 check table t1,t2;
 drop table t1,t2;
+
+--echo #
+--echo #  MDEV-35475 Assertion `!rec_offs_nth_extern(offsets1, n)'
+--echo #               failed in cmp_rec_rec_simple_field
+--echo #
+let $row_format= `select @@global.innodb_default_row_format`;
+if ($row_format != "redundant")
+{
+CREATE TABLE t1(f1 int not null, f2 text, f3 text, f4 text,
+                f5 text, f6 text, f7 text, f8 text,
+                f9 text, f10 text, f11 text, f12 text,
+                f13 text, f14 text, f15 text, f16 text,
+                f17 text, f18 text, f19 text, f20 text,
+                f21 text, f22 text, f23 text, f24 text,
+                f25 text, PRIMARY KEY(f1))ENGINE=InnoDB;
+let $error_code = ER_TOO_BIG_ROWSIZE;
+if ($row_format == "dynamic")
+{
+  let $error_code = 0;
+}
+
+--error $error_code
+SET STATEMENT unique_checks=0,foreign_key_checks=0 FOR
+INSERT INTO t1 VALUES(1, REPEAT('a', 1024), REPEAT('b', 1024),
+                      REPEAT('c', 1024), REPEAT('d', 1024),
+                      REPEAT('e', 1024), REPEAT('f', 1024),
+                      REPEAT('g', 4096), REPEAT('h', 1024),
+                      REPEAT('i', 1024), REPEAT('j', 1024),
+                      REPEAT('k', 1024), REPEAT('l', 1024),
+                      REPEAT('m', 1024), REPEAT('n', 1024),
+                      REPEAT('o', 1024), REPEAT('p', 1024),
+                      REPEAT('q', 1024), REPEAT('r', 1024),
+                      REPEAT('s', 1024), REPEAT('t', 1024),
+                      REPEAT('u', 1024), REPEAT('v', 1024),
+                      REPEAT('w', 1024), REPEAT('x', 1024)),
+                     (2, REPEAT('a', 1024), REPEAT('b', 1024),
+                      REPEAT('c', 1024), REPEAT('d', 1024),
+                      REPEAT('e', 1024), REPEAT('f', 1024),
+                      REPEAT('g', 4096), REPEAT('h', 1024),
+                      REPEAT('i', 1024), REPEAT('j', 1024),
+                      REPEAT('k', 1024), REPEAT('l', 1024),
+                      REPEAT('m', 1024), REPEAT('n', 1024),
+                      REPEAT('o', 1024), REPEAT('p', 1024),
+                      REPEAT('q', 1024), REPEAT('r', 1024),
+                      REPEAT('s', 1024), REPEAT('t', 1024),
+                     REPEAT('u', 1024), REPEAT('v', 1024),
+                      REPEAT('w', 1024), REPEAT('x', 1024)),
+                     (3, REPEAT('a', 1024), REPEAT('b', 1024),
+                      REPEAT('c', 1024), REPEAT('d', 1024),
+                      REPEAT('e', 1024), REPEAT('f', 1024),
+                      REPEAT('g', 4096), REPEAT('h', 1024),
+                      REPEAT('i', 1024), REPEAT('j', 1024),
+                      REPEAT('k', 1024), REPEAT('l', 1024),
+                      REPEAT('m', 1024), REPEAT('n', 1024),
+                      REPEAT('o', 1024), REPEAT('p', 1024),
+                      REPEAT('q', 1024), REPEAT('r', 1024),
+                      REPEAT('s', 1024), REPEAT('t', 1024),
+                      REPEAT('u', 1024), REPEAT('v', 1024),
+                      REPEAT('w', 1024), REPEAT('x', 1024));
+DROP TABLE t1;
+}

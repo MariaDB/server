@@ -521,27 +521,4 @@ EXECUTE stmt_2;
 DROP TABLE t1;
 DEALLOCATE PREPARE stmt_1;
 DEALLOCATE PREPARE stmt_2;
-# Test Test case 25: Check the statements 'CREATE/ALTER/DROP TABLEPSPACE'
-# can be executed as a prepared statement
-PREPARE stmt_1 FROM "CREATE TABLESPACE ts1 ADD DATAFILE 'ts1.ibd' ENGINE=InnoDB";
-PREPARE stmt_2 FROM "ALTER TABLESPACE ts1 ADD DATAFILE 'ts1_1.ibd' ENGINE=InnoDB";
-PREPARE stmt_3 FROM "DROP TABLESPACE ts1 ENGINE=InnoDB";
-EXECUTE stmt_1;
-# Execute the same prepared statement the second time to check that
-# no internal structures used for handling the 'CREATE TABLESPACE'
-# statement were damaged.
-EXECUTE stmt_1;
-EXECUTE stmt_2;
-# Execute the same prepared statement the second time to check that
-# no internal structures used for handling the 'ALTER TABLESPACE'
-# statement were damaged.
-EXECUTE stmt_2;
-EXECUTE stmt_3;
-# Execute the same prepared statement the second time to check that
-# no internal structures used for handling the 'DROP TABLESPACE'
-# statement were damaged.
-EXECUTE stmt_3;
-DEALLOCATE PREPARE stmt_1;
-DEALLOCATE PREPARE stmt_2;
-DEALLOCATE PREPARE stmt_3;
 SET default_storage_engine= @save_storage_engine;

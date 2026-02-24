@@ -2699,7 +2699,7 @@ func_exit:
 		}
 	}
 
-	trx->free();
+	trx->clear_and_free();
 
 	return(error);
 }
@@ -2775,7 +2775,7 @@ fts_update_sync_doc_id(
 
 			fts_sql_rollback(trx);
 		}
-		trx->free();
+		trx->clear_and_free();
 	}
 
 	return(error);
@@ -2995,7 +2995,7 @@ fts_commit_table(
 
 	fts_sql_commit(trx);
 
-	trx->free();
+	trx->clear_and_free();
 
 	return(error);
 }
@@ -4072,7 +4072,7 @@ fts_sync_begin(
 		ib::info() << "FTS SYNC for table " << sync->table->name
 			<< ", deleted count: "
 			<< ib_vector_size(cache->deleted_doc_ids)
-			<< " size: " << cache->total_size << " bytes";
+			<< " size: " << ib::bytes_iec{cache->total_size};
 	}
 }
 
@@ -4209,7 +4209,7 @@ fts_sync_commit(
 
 	/* Avoid assertion in trx_t::free(). */
 	trx->dict_operation_lock_mode = false;
-	trx->free();
+	trx->clear_and_free();
 
 	return(error);
 }
@@ -4259,7 +4259,7 @@ fts_sync_rollback(
 
 	/* Avoid assertion in trx_t::free(). */
 	trx->dict_operation_lock_mode = false;
-	trx->free();
+	trx->clear_and_free();
 }
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
@@ -4462,7 +4462,7 @@ fts_add_token(
 
 		t_str.f_n_char = str.f_n_char;
 
-		t_str.f_len = str.f_len * result_doc->charset->casedn_multiply + 1;
+		t_str.f_len = str.f_len * result_doc->charset->casedn_multiply() + 1;
 
 		t_str.f_str = static_cast<byte*>(
 			mem_heap_alloc(heap, t_str.f_len));
@@ -5935,7 +5935,7 @@ cleanup:
 			fts_sql_rollback(trx);
 		}
 
-		trx->free();
+		trx->clear_and_free();
 	}
 
 	if (!cache->stopword_info.cached_stopword) {

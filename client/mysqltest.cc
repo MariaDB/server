@@ -55,6 +55,7 @@
 #endif
 #include <signal.h>
 #include <my_stacktrace.h>
+#include <my_attribute.h>
 
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
 
@@ -78,7 +79,7 @@ static my_bool non_blocking_api_enabled= 0;
 #define MAX_DELIMITER_LENGTH 16
 #define DEFAULT_MAX_CONN        64
 
-#define DIE_BUFF_SIZE           15*1024
+#define DIE_BUFF_SIZE           64*1024
 
 #define RESULT_STRING_INIT_MEM 2048
 #define RESULT_STRING_INCREMENT_MEM 2048
@@ -1987,6 +1988,8 @@ static void make_error_message(char *buf, size_t len, const char *fmt, va_list a
   s+= my_snprintf(s, end -s, "\n");
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static void die(const char *fmt, ...)
 {
   char buff[DIE_BUFF_SIZE];
@@ -1997,6 +2000,8 @@ static void die(const char *fmt, ...)
   make_error_message(buff, sizeof(buff), fmt, args);
   really_die(buff);
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static void really_die(const char *msg)
 {
@@ -2025,6 +2030,8 @@ static void really_die(const char *msg)
 
   cleanup_and_exit(1, 1);
 }
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 void report_or_die(const char *fmt, ...)
 {
@@ -2080,6 +2087,7 @@ void abort_not_supported_test(const char *fmt, ...)
   cleanup_and_exit(62, 0);
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 void abort_not_in_this_version()
 {
@@ -3704,6 +3712,47 @@ static int replace(DYNAMIC_STRING *ds_str,
   return 0;
 }
 
+#ifdef _WIN32
+/**
+  Check if background execution of command was requested.
+  Like in Unix shell, we assume background execution of the last
+  character in command is a ampersand (we do not tokenize though)
+*/
+static bool is_background_command(const DYNAMIC_STRING *ds)
+{
+  for (size_t i= ds->length - 1; i > 1; i--)
+  {
+    char c= ds->str[i];
+    if (!isspace(c))
+      return (c == '&');
+  }
+  return false;
+}
+
+/**
+  Execute OS command in background. We assume that the last character
+  is ampersand, i.e is_background_command() returned
+*/
+#include <string>
+static int execute_in_background(char *cmd)
+{
+  STARTUPINFO s{};
+  PROCESS_INFORMATION pi{};
+  char *end= strrchr(cmd, '&');
+  DBUG_ASSERT(end);
+  *end =0;
+  std::string scmd("cmd /c ");
+  scmd.append(cmd);
+  BOOL ok=
+   CreateProcess(0, (char *)scmd.c_str(), 0, 0, 0, CREATE_NO_WINDOW, 0, 0, &s, &pi);
+  *end= '&';
+  if (!ok)
+    return (int) GetLastError();
+  CloseHandle(pi.hProcess);
+  CloseHandle(pi.hThread);
+  return 0;
+}
+#endif
 
 /*
   Execute given command.
@@ -3778,6 +3827,14 @@ void do_exec(struct st_command *command)
   DBUG_PRINT("info", ("Executing '%s' as '%s'",
                       command->first_argument, ds_cmd.str));
 
+#ifdef _WIN32
+  if (is_background_command(&ds_cmd))
+  {
+    error= execute_in_background(ds_cmd.str);
+    goto end;
+  }
+#endif
+
   if (!(res_file= my_popen(ds_cmd.str, "r")))
   {
     dynstr_free(&ds_cmd);
@@ -3804,7 +3861,9 @@ void do_exec(struct st_command *command)
     dynstr_append_sorted(&ds_res, &ds_sorted);
     dynstr_free(&ds_sorted);
   }
-
+#ifdef _WIN32
+end:
+#endif
   if (error)
   {
     uint status= WEXITSTATUS(error);
@@ -4101,8 +4160,7 @@ void do_remove_file(struct st_command *command)
 void do_remove_files_wildcard(struct st_command *command)
 {
   int error= 0, sys_errno= 0;
-  uint i;
-  size_t directory_length;
+  size_t i, directory_length;
   MY_DIR *dir_info;
   FILEINFO *file;
   char dir_separator[2];
@@ -4141,7 +4199,7 @@ void do_remove_files_wildcard(struct st_command *command)
   /* Set default wild chars for wild_compare, is changed in embedded mode */
   set_wild_chars(1);
   
-  for (i= 0; i < (uint) dir_info->number_of_files; i++)
+  for (i= 0; i < dir_info->number_of_files; i++)
   {
     file= dir_info->dir_entry + i;
     /* Remove only regular files, i.e. no directories etc. */
@@ -4427,7 +4485,7 @@ void do_rmdir(struct st_command *command)
 static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
                           const DYNAMIC_STRING *ds_wild)
 {
-  uint i;
+  size_t i;
   MY_DIR *dir_info;
   FILEINFO *file;
   DBUG_ENTER("get_list_files");
@@ -4436,7 +4494,7 @@ static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
   if (!(dir_info= my_dir(ds_dirname->str, MYF(MY_WANT_SORT))))
     DBUG_RETURN(1);
   set_wild_chars(1);
-  for (i= 0; i < (uint) dir_info->number_of_files; i++)
+  for (i= 0; i < dir_info->number_of_files; i++)
   {
     file= dir_info->dir_entry + i;
     if (ds_wild && ds_wild->length &&
@@ -8464,8 +8522,12 @@ void do_close_connection(struct st_command *command)
   DBUG_PRINT("info", ("Closing connection %s", con->name));
 #ifndef EMBEDDED_LIBRARY
   if (command->type == Q_DIRTY_CLOSE)
-  {
     mariadb_cancel(con->mysql);
+  else
+  {
+    simple_command(con->mysql,COM_QUIT,0,0,0);
+    if (con->util_mysql)
+      simple_command(con->util_mysql,COM_QUIT,0,0,0);
   }
 #endif /*!EMBEDDED_LIBRARY*/
   if (con->stmt)
@@ -8605,6 +8667,7 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
   con               - connection structure to be used
   host, user, pass, - connection parameters
   db, port, sock
+  default_db        - 0 if db was explicitly passed
 
   DESCRIPTION
   This function will try to establish a connection to server and handle
@@ -8622,7 +8685,8 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
 int connect_n_handle_errors(struct st_command *command,
                             MYSQL* con, const char* host,
                             const char* user, const char* pass,
-                            const char* db, int port, const char* sock)
+                            const char* db, int port, const char* sock,
+                            my_bool default_db)
 {
   DYNAMIC_STRING *ds;
   int failed_attempts= 0;
@@ -8663,8 +8727,10 @@ int connect_n_handle_errors(struct st_command *command,
 
   mysql_options(con, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(con, MYSQL_OPT_CONNECT_ATTR_ADD, "program_name", "mysqltest");
-  while (!mysql_real_connect(con, host, user, pass, db, port, sock ? sock: 0,
-                          CLIENT_MULTI_STATEMENTS))
+  while (!mysql_real_connect(con, host, user, pass,
+                             (default_db ? "" : db),
+                             port, (sock ? sock : 0),
+                             CLIENT_MULTI_STATEMENTS))
   {
     /*
       If we have used up all our connections check whether this
@@ -8709,6 +8775,13 @@ do_handle_error:
                  mysql_sqlstate(con), ds);
     return 0; /* Not connected */
   }
+
+  if (default_db && db && db[0] != '\0')
+  {
+    mysql_select_db(con, db);
+    // Ignore errors intentionally
+  }
+
 
   var_set_errno(0);
   handle_no_error(command);
@@ -8763,6 +8836,7 @@ void do_connect(struct st_command *command)
   int connect_timeout= 0;
   char *csname=0;
   struct st_connection* con_slot;
+  my_bool default_db;
 
   static DYNAMIC_STRING ds_connection_name;
   static DYNAMIC_STRING ds_host;
@@ -8941,12 +9015,8 @@ void do_connect(struct st_command *command)
     mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
     mysql_options(con_slot->mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-#if MYSQL_VERSION_ID >= 50000
-    /* Turn on ssl_verify_server_cert only if host is "localhost" */
-    opt_ssl_verify_server_cert= !strcmp(ds_host.str, "localhost");
     mysql_options(con_slot->mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                   &opt_ssl_verify_server_cert);
-#endif
   }
 #endif
 
@@ -8973,7 +9043,12 @@ void do_connect(struct st_command *command)
 
   /* Use default db name */
   if (ds_database.length == 0)
+  {
     dynstr_set(&ds_database, opt_db);
+    default_db= 1;
+  }
+  else
+    default_db= 0;
 
   if (opt_plugin_dir && *opt_plugin_dir)
     mysql_options(con_slot->mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
@@ -8988,7 +9063,7 @@ void do_connect(struct st_command *command)
   if (connect_n_handle_errors(command, con_slot->mysql,
                               ds_host.str,ds_user.str,
                               ds_password.str, ds_database.str,
-                              con_port, ds_sock.str))
+                              con_port, ds_sock.str, default_db))
   {
     DBUG_PRINT("info", ("Inserting connection %s in connection pool",
                         ds_connection_name.str));
@@ -9515,7 +9590,7 @@ int read_line()
   my_bool have_slash= FALSE;
   
   enum {R_NORMAL, R_Q, R_SLASH_IN_Q,
-        R_COMMENT, R_LINE_START} state= R_LINE_START;
+        R_COMMENT, R_LINE_START, R_CSTYLE_COMMENT} state= R_LINE_START;
   DBUG_ENTER("read_line");
 
   *p= 0;
@@ -9602,7 +9677,21 @@ int read_line()
 	  state= R_Q;
 	}
       }
+      else if (c == '*' && last_char == '/')
+      {
+        state= R_CSTYLE_COMMENT;
+        break;
+      }
       have_slash= is_escape_char(c, last_quote);
+      break;
+
+    case R_CSTYLE_COMMENT:
+      if (c == '!')
+        // Got the hint introducer '/*!'. Switch to normal processing of
+        // next following characters
+        state= R_NORMAL;
+      else if (c == '/' && last_char == '*')
+        state= R_NORMAL;
       break;
 
     case R_COMMENT:
@@ -11438,7 +11527,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
   DYNAMIC_STRING ds_res_1st_execution;
   my_bool ds_res_1st_execution_init = FALSE;
   my_bool compare_2nd_execution = TRUE;
-  int query_match_ps2_re;
+  int query_match_ps2_re, query_match_cursor_re;
   MYSQL_RES *res;
   DBUG_ENTER("run_query_stmt");
   DBUG_PRINT("query", ("'%-.60s'", query));
@@ -11497,6 +11586,9 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
     parameter markers.
   */
 
+  query_match_cursor_re= cursor_protocol_enabled && cn->stmt->field_count &&
+                         match_re(&cursor_re, query);
+
   if (cursor_protocol_enabled)
   {
     ps2_protocol_enabled = 0;
@@ -11505,7 +11597,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
       Use cursor for queries matching the filter,
       else reset cursor type
     */
-    if (match_re(&cursor_re, query))
+    if (query_match_cursor_re)
     {
       /*
       Use cursor when retrieving result
@@ -11517,12 +11609,13 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
     }
   }
 
-  query_match_ps2_re = match_re(&ps2_re, query);
+  query_match_ps2_re = ps2_protocol_enabled && cn->stmt->field_count &&
+                       match_re(&ps2_re, query);
 
   /*
     Execute the query first time if second execution enable
   */
-  if (ps2_protocol_enabled && query_match_ps2_re)
+  if (query_match_ps2_re)
   {
     if (do_stmt_execute(cn))
     {
@@ -11578,8 +11671,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
       and keep them in a separate string for later. Cursor_protocol is used
       only for queries matching the filter "cursor_re".
     */
-    if (cursor_protocol_enabled && match_re(&cursor_re, query) &&
-        !disable_warnings)
+    if (query_match_cursor_re && !disable_warnings)
       append_warnings(&ds_execute_warnings, mysql);
 
     if (read_stmt_results(stmt, ds, command))
@@ -11591,7 +11683,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
         The results of the first and second execution are compared
         only if result logging is enabled
       */
-      if (compare_2nd_execution && ps2_protocol_enabled && query_match_ps2_re)
+      if (compare_2nd_execution && query_match_ps2_re)
       {
         if (ds->length != ds_res_1st_execution.length ||
            !(memcmp(ds_res_1st_execution.str, ds->str, ds->length) == 0))
@@ -12971,12 +13063,8 @@ int main(int argc, char **argv)
     mysql_options(con->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(con->mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
     mysql_options(con->mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-#if MYSQL_VERSION_ID >= 50000
-    /* Turn on ssl_verify_server_cert only if host is "localhost" */
-    opt_ssl_verify_server_cert= opt_host && !strcmp(opt_host, "localhost");
     mysql_options(con->mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                   &opt_ssl_verify_server_cert);
-#endif
   }
 #endif
 

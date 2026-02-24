@@ -3569,7 +3569,6 @@ grn_select_data_fill_drilldowns(grn_ctx *ctx,
     return succeeded;
   }
 }
-PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static grn_obj *
 command_select(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
@@ -3722,6 +3721,8 @@ exit :
 
   return NULL;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 #define N_VARS 26
 #define DEFINE_VARS grn_expr_var vars[N_VARS]

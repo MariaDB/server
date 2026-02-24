@@ -1,0 +1,236 @@
+#
+# MDEV-27106 Spider: specify connection to data node by engine-defined attributes
+#
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE tbl_a (
+a INT,
+b VARCHAR(255),
+PRIMARY KEY(a)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+connection child2_2;
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+CREATE TABLE tbl_a (
+a INT,
+b VARCHAR(255),
+PRIMARY KEY(a)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+# Single data node
+connection master_1;
+CREATE TABLE tbl_a (
+a INT,
+b VARCHAR(255),
+PRIMARY KEY(a)
+) ENGINE=Spider DEFAULT CHARSET=utf8
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a";
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+SELECT * FROM tbl_a;
+a	b
+1	aaa
+2	bbb
+3	ccc
+4	ddd
+DELETE FROM tbl_a;
+DROP TABLE tbl_a;
+# Multiple data nodes with high availability setting
+connection master_1;
+CREATE TABLE tbl_a (
+a INT,
+b VARCHAR(255),
+PRIMARY KEY(a)
+) ENGINE=Spider DEFAULT CHARSET=utf8
+REMOTE_SERVER="s_2_1 s_2_2" REMOTE_TABLE="tbl_a";
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+SELECT * FROM tbl_a;
+a	b
+1	aaa
+2	bbb
+3	ccc
+4	ddd
+connection child2_1;
+SELECT * FROM tbl_a;
+a	b
+1	aaa
+2	bbb
+3	ccc
+4	ddd
+connection child2_2;
+SELECT * FROM tbl_a;
+a	b
+1	aaa
+2	bbb
+3	ccc
+4	ddd
+connection master_1;
+DELETE FROM tbl_a;
+DROP TABLE tbl_a;
+# Multiple data nodes with partition options
+connection master_1;
+CREATE TABLE tbl_a (
+a INT,
+b VARCHAR(255),
+PRIMARY KEY(a)
+) ENGINE=Spider DEFAULT CHARSET=utf8
+PARTITION BY RANGE (a) (
+PARTITION p1 VALUES LESS THAN (3) REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a",
+PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2" REMOTE_TABLE="tbl_a"
+);
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+SELECT * FROM tbl_a;
+a	b
+1	aaa
+2	bbb
+3	ccc
+4	ddd
+DELETE FROM tbl_a;
+DROP TABLE tbl_a;
+# Multiple data nodes with table options + partition options
+connection master_1;
+CREATE TABLE tbl_a (
+a INT,
+b VARCHAR(255),
+PRIMARY KEY(a)
+) ENGINE=Spider DEFAULT CHARSET=utf8
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a"
+PARTITION BY RANGE (a) (
+PARTITION p1 VALUES LESS THAN (3),
+PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2"
+);
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+SELECT * FROM tbl_a;
+a	b
+1	aaa
+2	bbb
+3	ccc
+4	ddd
+connection child2_1;
+SELECT * FROM tbl_a;
+a	b
+1	aaa
+2	bbb
+connection master_1;
+DELETE FROM tbl_a;
+DROP TABLE tbl_a;
+# COMMENT + engine-defined option
+connection master_1;
+CREATE TABLE tbl_a (
+a INT,
+b VARCHAR(255),
+PRIMARY KEY(a)
+) ENGINE=Spider DEFAULT CHARSET=utf8
+COMMENT='tbl "tbl_a"'
+PARTITION BY RANGE (a) (
+PARTITION p1 VALUES LESS THAN (3) COMMENT='srv "s_2_1"',
+PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2"
+);
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+SELECT * FROM tbl_a;
+a	b
+1	aaa
+2	bbb
+3	ccc
+4	ddd
+connection child2_1;
+SELECT * FROM tbl_a;
+a	b
+1	aaa
+2	bbb
+connection master_1;
+DELETE FROM tbl_a;
+DROP TABLE tbl_a;
+# COMMENT + engine-defined option (invalid)
+connection master_1;
+CREATE TABLE tbl_a (
+a INT,
+b VARCHAR(255),
+PRIMARY KEY(a)
+) ENGINE=Spider DEFAULT CHARSET=utf8
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" COMMENT='tbl "tbl_b"';
+ERROR HY000: Can't create table `auto_test_local`.`tbl_a` (errno: 12501 "Unknown error 12501")
+CREATE TABLE tbl_a (
+a INT,
+b VARCHAR(255),
+PRIMARY KEY(a)
+) ENGINE=Spider DEFAULT CHARSET=utf8
+COMMENT='srv "s_2_1"' REMOTE_TABLE="tbl_a"
+PARTITION BY RANGE (a) (
+PARTITION p1 VALUES LESS THAN (3),
+PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2"
+);
+ERROR HY000: Can't create table `auto_test_local`.`tbl_a` (errno: 12501 "Unknown error 12501")
+# Various combinations of COMMENTs and options
+CREATE TABLE tbl_a (
+a INT,
+b VARCHAR(255),
+PRIMARY KEY(a)
+) ENGINE=Spider DEFAULT CHARSET=utf8
+REMOTE_SERVER="s_2_1" REMOTE_DATABASE="auto_test_remote" REMOTE_TABLE="tbl_a";
+SELECT * FROM tbl_a;
+a	b
+DROP TABLE tbl_a;
+CREATE TABLE tbl_a (
+a INT,
+b VARCHAR(255),
+PRIMARY KEY(a)
+) ENGINE=Spider DEFAULT CHARSET=utf8
+REMOTE_TABLE="tbl_a"
+PARTITION BY RANGE (a) (
+PARTITION p1 VALUES LESS THAN (3)
+REMOTE_SERVER="s_2_1" COMMENT='database "auto_test_remote"',
+PARTITION p2 VALUES LESS THAN MAXVALUE
+REMOTE_SERVER="s_2_2" REMOTE_DATABASE="auto_test_remote2"
+);
+SELECT * FROM tbl_a;
+a	b
+DROP TABLE tbl_a;
+CREATE TABLE tbl_a (
+a INT,
+b VARCHAR(255),
+PRIMARY KEY(a)
+) ENGINE=Spider DEFAULT CHARSET=utf8
+COMMENT='tbl "tbl_a"'
+PARTITION BY RANGE (a) (
+PARTITION p1 VALUES LESS THAN (3)
+REMOTE_SERVER="s_2_1" REMOTE_DATABASE="auto_test_remote",
+PARTITION p2 VALUES LESS THAN MAXVALUE
+REMOTE_SERVER="s_2_2" REMOTE_DATABASE="auto_test_remote2"
+);
+SELECT * FROM tbl_a;
+a	b
+DROP TABLE tbl_a;
+CREATE TABLE tbl_a (
+a INT
+) ENGINE=Spider DEFAULT CHARSET=utf8
+PARTITION BY HASH (a) PARTITIONS 2;
+SELECT * FROM tbl_a;
+ERROR HY000: Unable to connect to foreign data source: localhost
+DROP TABLE tbl_a;
+# MDEV-27860 SIGSEGV in spider_parse_connect_info on CREATE TABLE
+CREATE TABLE tbl_a ENGINE=SPIDER COMMENT="TABLE 'unknown_table'"
+PARTITION BY LIST COLUMNS (c) (
+PARTITION p DEFAULT COMMENT="srv 'unknown_server'" ENGINE=SPIDER
+);
+ERROR HY000: The foreign server name you are trying to reference does not exist. Data source error:  unknown_server
+connection child2_1;
+DROP DATABASE auto_test_remote;
+connection child2_2;
+DROP DATABASE auto_test_remote2;
+connection master_1;
+DROP DATABASE auto_test_local;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3

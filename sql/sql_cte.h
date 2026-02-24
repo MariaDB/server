@@ -438,9 +438,7 @@ public:
   void print(THD *thd, String *str, enum_query_type query_type);
 
   friend class With_element;
-
-  friend
-  bool LEX::check_dependencies_in_with_clauses();
+  friend struct LEX;
 };
 
 inline

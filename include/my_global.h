@@ -29,6 +29,14 @@
 #pragma GCC poison __WIN__
 #endif
 
+#if defined(_MSC_VER) && !defined(__clang__)
+/*
+  Following functions have bugs, when used with UTF-8 active codepage.
+  #include <winservice.h> will use the non-buggy wrappers
+*/
+#pragma deprecated("CreateServiceA", "OpenServiceA", "ChangeServiceConfigA")
+#endif
+
 /*
   InnoDB depends on some MySQL internals which other plugins should not
   need.  This is because of InnoDB's foreign key support, "safe" binlog
@@ -273,10 +281,6 @@ C_MODE_END
 #error "Please add -fno-exceptions to CXXFLAGS and reconfigure/recompile"
 #endif
 
-#if defined(_lint) && !defined(lint)
-#define lint
-#endif
-
 #ifndef stdin
 #include <stdio.h>
 #endif
@@ -440,20 +444,16 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 /*
    Suppress uninitialized variable warning without generating code.
 */
-#if defined(__GNUC__)
-/* GCC specific self-initialization which inhibits the warning. */
+#if defined(__GNUC__) && !defined(__clang__)
+/*
+  GCC specific self-initialization which inhibits the warning.
+  clang and static analysis will complain loudly about this.
+*/
 #define UNINIT_VAR(x) x= x
-#elif defined(_lint) || defined(FORCE_INIT_OF_VARS)
+#elif defined(FORCE_INIT_OF_VARS)
 #define UNINIT_VAR(x) x= 0
 #else
 #define UNINIT_VAR(x) x
-#endif
-
-/* This is only to be used when resetting variables in a class constructor */
-#if defined(_lint) || defined(FORCE_INIT_OF_VARS)
-#define LINT_INIT(x) x= 0
-#else
-#define LINT_INIT(x)
 #endif
 
 #if !defined(HAVE_UINT)
@@ -497,7 +497,7 @@ C_MODE_END
 #endif
 
 /* We might be forced to turn debug off, if not turned off already */
-#if (defined(FORCE_DBUG_OFF) || defined(_lint)) && !defined(DBUG_OFF)
+#if defined(FORCE_DBUG_OFF) && !defined(DBUG_OFF)
 #  define DBUG_OFF
 #  ifdef DBUG_ON
 #    undef DBUG_ON
@@ -519,7 +519,7 @@ typedef int	my_socket;	/* File descriptor for sockets */
 #endif
 /* Type for functions that handles signals */
 #define sig_handler RETSIGTYPE
-#if defined(__GNUC__) && !defined(_lint)
+#if defined(__GNUC__)
 typedef char	pchar;		/* Mixed prototypes can take char */
 typedef char	puchar;		/* Mixed prototypes can take char */
 typedef char	pbool;		/* Mixed prototypes can take char */
@@ -582,6 +582,9 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #define SOCK_CLOEXEC    0
 #else
 #define HAVE_SOCK_CLOEXEC
+#endif
+#ifndef O_TEXT
+#define O_TEXT 0
 #endif
 
 /* additional file share flags for win32 */
@@ -1023,7 +1026,7 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 #define YESNO(X) ((X) ? "yes" : "no")
 
 #define MY_HOW_OFTEN_TO_ALARM	2	/* How often we want info on screen */
-#define MY_HOW_OFTEN_TO_WRITE	10000	/* How often we want info on screen */
+#define MY_HOW_OFTEN_TO_WRITE	100000	/* How often we want info on screen */
 
 #include <my_byteorder.h>
 

@@ -428,7 +428,9 @@ bool table_value_constr::exec(SELECT_LEX *sl)
   DBUG_ENTER("table_value_constr::exec");
   List_iterator_fast<List_item> li(lists_of_values);
   List_item *elem;
+  THD *cur_thd= sl->parent_lex->thd;
   ha_rows send_records= 0;
+  int rc=0;
   
   if (select_options & SELECT_DESCRIBE)
     DBUG_RETURN(false);
@@ -444,12 +446,10 @@ bool table_value_constr::exec(SELECT_LEX *sl)
 
   while ((elem= li++))
   {
-    THD *cur_thd= sl->parent_lex->thd;
+    cur_thd->get_stmt_da()->inc_current_row_for_warning();
     if (send_records >= sl->master_unit()->lim.get_select_limit())
       break;
-    int rc=
-      result->send_data_with_check(*elem, sl->master_unit(), send_records);
-    cur_thd->get_stmt_da()->inc_current_row_for_warning();
+    rc= result->send_data_with_check(*elem, sl->master_unit(), send_records);
     if (!rc)
       send_records++;
     else if (rc > 0)
@@ -683,7 +683,7 @@ bool table_value_constr::to_be_wrapped_as_with_tail()
     the select of the form
     SELECT * FROM (VALUES (v1), ... (vn)) tvc_x
 
-  @retval pointer to the result of of the transformation if successful
+  @retval pointer to the result of the transformation if successful
           NULL - otherwise
 */
 
@@ -736,7 +736,7 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
 
   /*
     Create a unit for the substituted select used for TVC and attach it
-    to the the wrapper select wrapper_sl as the only unit. The created
+    to the wrapper select wrapper_sl as the only unit. The created
     unit is the unit for the derived table tvc_x of the transformation.
   */
   if (!(derived_unit= new (thd->mem_root) SELECT_LEX_UNIT()))
@@ -803,7 +803,7 @@ err:
     SELECT * FROM (VALUES (v1), ... (vn)) tvc_x
       ORDER BY ... LIMIT n [OFFSET m]
 
-  @retval pointer to the result of of the transformation if successful
+  @retval pointer to the result of the transformation if successful
           NULL - otherwise
 */
 
@@ -991,7 +991,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   */
   if (mysql_new_select(lex, 1, NULL))
     goto err;
-  mysql_init_select(lex);
+  lex->init_select();
   /* Create item list as '*' for the subquery SQ */
   Item *item;
   SELECT_LEX *sq_select; // select for IN subquery;
@@ -1009,7 +1009,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   SELECT_LEX_UNIT *derived_unit; // unit for tvc_select
   if (mysql_new_select(lex, 1, NULL))
     goto err;
-  mysql_init_select(lex);
+  lex->init_select();
   tvc_select= lex->current_select;
   derived_unit= tvc_select->master_unit();
   tvc_select->set_linkage(DERIVED_TABLE_TYPE);

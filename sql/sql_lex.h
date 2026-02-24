@@ -300,7 +300,6 @@ class sp_pcontext;
 class sp_variable;
 class sp_expr_lex;
 class sp_assignment_lex;
-class st_alter_tablespace;
 class partition_info;
 class Event_parse_data;
 class set_var_base;
@@ -509,6 +508,7 @@ struct LEX_MASTER_INFO
   uint port, connect_retry;
   float heartbeat_period;
   int sql_delay;
+  bool is_demotion_opt;
   /*
     Enum is used for making it possible to detect if the user
     changed variable or if it should be left at old value
@@ -551,6 +551,7 @@ struct LEX_MASTER_INFO
     gtid_pos_str= null_clex_str;
     use_gtid_opt= LEX_GTID_UNCHANGED;
     sql_delay= -1;
+    is_demotion_opt= 0;
   }
 };
 
@@ -861,6 +862,28 @@ bool print_explain_for_slow_log(LEX *lex, THD *thd, String *str);
 
 
 class st_select_lex_unit: public st_select_lex_node {
+private:
+  /*
+    When a CTE is merged to the parent SELECT, its unit is excluded
+    which separates it from the tree of units for this query.  It
+    needs to be cleaned up but not at the time it is excluded, since
+    its queries are merged to the unit above it.  Remember all such
+    units via the stranded_clean_list and clean them at the end of
+    the query.  This list is maintained only at the root unit node
+    of the query tree.
+   */
+  st_select_lex_unit *stranded_clean_list{nullptr};
+
+  // Add myself to the stranded_clean_list.
+  void remember_my_cleanup();
+
+  /*
+    Walk the stranded_clean_list and cleanup units.  This must only
+    be called for the st_select_lex_unit type because it assumes
+    that those are the only nodes in the stranded_clean_list.
+  */
+  void cleanup_stranded_units();
+
 protected:
   TABLE_LIST result_table_list;
   select_unit *union_result;
@@ -981,7 +1004,7 @@ public:
   };
 
   void init_query();
-  st_select_lex* outer_select();
+  st_select_lex* outer_select() const;
   const st_select_lex* first_select() const
   {
     return reinterpret_cast<const st_select_lex*>(slave);
@@ -1052,6 +1075,9 @@ public:
   bool can_be_merged();
 
   friend class st_select_lex;
+
+private:
+  bool is_derived_eliminated() const;
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
@@ -1087,9 +1113,20 @@ Field_pair *find_matching_field_pair(Item *item, List<Field_pair> pair_list);
 class st_select_lex: public st_select_lex_node
 {
 public:
+  Name_resolution_context context;
+  LEX_CSTRING db;
+
+  /*
+    Point to the LEX in which it was created, used in view subquery detection.
+
+    TODO: make also st_select_lex::parent_stmt_lex (see LEX::stmt_lex)
+    and use st_select_lex::parent_lex & st_select_lex::parent_stmt_lex
+    instead of global (from THD) references where it is possible.
+  */
+  LEX *parent_lex;
   /*
     Currently the field first_nested is used only by parser.
-    It containa either a reference to the first select
+    It contains either a reference to the first select
     of the nest of selects to which 'this' belongs to, or
     in the case of priority jump it contains a reference to
     the select to which the priority nest has to be attached to.
@@ -1102,18 +1139,6 @@ public:
     while select3->first_nested points to select2 and
     select1->first_nested points to select1.
   */
-
-  Name_resolution_context context;
-  LEX_CSTRING db;
-
-  /*
-    Point to the LEX in which it was created, used in view subquery detection.
-
-    TODO: make also st_select_lex::parent_stmt_lex (see LEX::stmt_lex)
-    and use st_select_lex::parent_lex & st_select_lex::parent_stmt_lex
-    instead of global (from THD) references where it is possible.
-  */
-  LEX *parent_lex;
   st_select_lex *first_nested;
   Item *where, *having;                         /* WHERE & HAVING clauses */
   Item *prep_where; /* saved WHERE clause for prepared statement processing */
@@ -1146,8 +1171,6 @@ public:
   TABLE_LIST *embedding;          /* table embedding to the above list   */
   table_value_constr *tvc;
 
-  /* The interface employed to execute the select query by a foreign engine */
-  select_handler *select_h;
   /* The object used to organize execution of the query by a foreign engine */
   select_handler *pushdown_select;
   List<TABLE_LIST> *join_list;    /* list for the currently parsed join  */
@@ -1660,7 +1683,8 @@ public:
     DBUG_ENTER("SELECT_LEX::set_linkage_and_distinct");
     DBUG_PRINT("info", ("select: %p  distinct %d", this, d));
     set_linkage(l);
-    DBUG_ASSERT(l == UNION_TYPE ||
+    DBUG_ASSERT(l == UNSPECIFIED_TYPE ||
+                l == UNION_TYPE ||
                 l == INTERSECT_TYPE ||
                 l == EXCEPT_TYPE);
     if (d && master_unit() && master_unit()->union_distinct != this)
@@ -1690,6 +1714,7 @@ public:
   TABLE_LIST *find_table(THD *thd,
                          const LEX_CSTRING *db_name,
                          const LEX_CSTRING *table_name);
+  bool optimize_constant_subqueries();
 };
 typedef class st_select_lex SELECT_LEX;
 
@@ -3234,8 +3259,6 @@ public:
   /* Query Plan Footprint of a currently running select  */
   Explain_query *explain;
 
-  // type information
-  CHARSET_INFO *charset;
   /*
     LEX which represents current statement (conventional, SP or PS)
 
@@ -3342,7 +3365,7 @@ public:
     at parse time to set local name resolution contexts for various parts
     of a query. For example, in a JOIN ... ON (some_condition) clause the
     Items in 'some_condition' must be resolved only against the operands
-    of the the join, and not against the whole clause. Similarly, Items in
+    of the join, and not against the whole clause. Similarly, Items in
     subqueries should be resolved against the subqueries (and outer queries).
     The stack is used in the following way: when the parser detects that
     all Items in some clause need a local context, it creates a new context
@@ -3572,12 +3595,6 @@ public:
 
 
   /*
-    Reference to a struct that contains information in various commands
-    to add/create/drop/change table spaces.
-  */
-  st_alter_tablespace *alter_tablespace_info;
-
-  /*
     The set of those tables whose fields are referenced in all subqueries
     of the query.
     TODO: possibly this it is incorrect to have used tables in LEX because
@@ -3602,14 +3619,29 @@ public:
   static const ulong initial_gtid_domain_buffer_size= 16;
   uint32 gtid_domain_static_buffer[initial_gtid_domain_buffer_size];
 
-  inline void set_limit_rows_examined()
+  /*
+    Activates enforcement of the LIMIT ROWS EXAMINED clause, if present
+    in the query.
+  */
+  void set_limit_rows_examined()
   {
     if (limit_rows_examined)
       limit_rows_examined_cnt= limit_rows_examined->val_uint();
-    else
-      limit_rows_examined_cnt= ULONGLONG_MAX;
   }
 
+  /**
+    Deactivates enforcement of the LIMIT ROWS EXAMINED clause and returns its
+    prior state.
+    Return value:
+    - false: LIMIT ROWS EXAMINED was not activated
+    - true:  LIMIT ROWS EXAMINED was activated
+  */
+  bool deactivate_limit_rows_examined()
+  {
+    bool was_activated= (limit_rows_examined_cnt != ULONGLONG_MAX);
+    limit_rows_examined_cnt= ULONGLONG_MAX; // Unreachable value
+    return was_activated;
+  }
 
   LEX_CSTRING *win_ref;
   Window_frame *win_frame;
@@ -3764,6 +3796,7 @@ public:
                          select_stack_head()->select_number :
                          0),
                         select_lex, select_lex->select_number));
+    DBUG_ASSERT(select_lex);
     if (unlikely(select_stack_top > MAX_SELECT_NESTING))
     {
       my_error(ER_TOO_HIGH_LEVEL_OF_NESTING_FOR_SELECT, MYF(0));
@@ -3843,8 +3876,10 @@ public:
   bool table_or_sp_used();
 
   bool is_partition_management() const;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
   bool part_values_current(THD *thd);
   bool part_values_history(THD *thd);
+#endif
 
   /**
     @brief check if the statement is a single-level join
@@ -3870,17 +3905,16 @@ public:
   bool save_prep_leaf_tables();
 
   int print_explain(select_result_sink *output, uint8 explain_flags,
-                    bool is_analyze, bool *printed_anything);
+                    bool is_analyze, bool is_json_format,
+                    bool *printed_anything);
   bool restore_set_statement_var();
 
-  void init_last_field(Column_definition *field, const LEX_CSTRING *name,
-                       const CHARSET_INFO *cs);
+  void init_last_field(Column_definition *field, const LEX_CSTRING *name);
   bool last_field_generated_always_as_row_start_or_end(Lex_ident *p,
                                                        const char *type,
                                                        uint flags);
   bool last_field_generated_always_as_row_start();
   bool last_field_generated_always_as_row_end();
-  bool set_bincmp(CHARSET_INFO *cs, bool bin);
 
   bool new_sp_instr_stmt(THD *, const LEX_CSTRING &prefix,
                          const LEX_CSTRING &suffix);
@@ -3894,6 +3928,10 @@ public:
 
   int case_stmt_action_then();
   bool setup_select_in_parentheses();
+  bool set_names(const char *pos,
+                 CHARSET_INFO *cs,
+                 const Lex_extended_collation_st &coll,
+                 bool no_lookahead);
   bool set_trigger_new_row(const LEX_CSTRING *name, Item *val);
   bool set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
                          Item *val);
@@ -3934,6 +3972,7 @@ public:
                                const sp_name *name,
                                const sp_name *name2,
                                const char *cpp_body_end);
+  bool show_routine_code_start(THD *thd, enum_sql_command cmd, sp_name *name);
   bool call_statement_start(THD *thd, sp_name *name);
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name);
   bool call_statement_start(THD *thd, const Lex_ident_sys_st *name1,
@@ -4499,6 +4538,23 @@ public:
   bool add_alter_list(LEX_CSTRING par_name, Virtual_column_info *expr,
                       bool par_exists);
   bool add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name, bool exists);
+  bool add_alter_list_item_convert_to_charset(CHARSET_INFO *cs)
+  {
+    if (create_info.add_table_option_convert_charset(cs))
+      return true;
+    alter_info.flags|= ALTER_CONVERT_TO;
+    return false;
+  }
+  bool
+  add_alter_list_item_convert_to_charset(CHARSET_INFO *cs,
+                                         const Lex_extended_collation_st &cl)
+  {
+    if (create_info.add_table_option_convert_charset(cs) ||
+        create_info.add_table_option_convert_collation(cl))
+      return true;
+    alter_info.flags|= ALTER_CONVERT_TO;
+    return false;
+  }
   void set_command(enum_sql_command command,
                    DDL_options_st options)
   {
@@ -4667,7 +4723,7 @@ public:
 
   int add_period(Lex_ident name, Lex_ident_sys_st start, Lex_ident_sys_st end)
   {
-    if (check_period_name(name.str)) {
+    if (check_column_name(name)) {
       my_error(ER_WRONG_COLUMN_NAME, MYF(0), name.str);
       return 1;
     }
@@ -4733,7 +4789,7 @@ public:
   }
   bool main_select_push(bool service= false);
   bool insert_select_hack(SELECT_LEX *sel);
-  SELECT_LEX *create_priority_nest(SELECT_LEX *first_in_nest);
+  SELECT_LEX *create_priority_nest(SELECT_LEX *first_in_nest, SELECT_LEX *attach_to);
 
   bool set_main_unit(st_select_lex_unit *u)
   {
@@ -4813,6 +4869,7 @@ public:
   void stmt_deallocate_prepare(const Lex_ident_sys_st &ident);
 
   bool stmt_alter_table_exchange_partition(Table_ident *table);
+  bool stmt_alter_table(Table_ident *table);
 
   void stmt_purge_to(const LEX_CSTRING &to);
   bool stmt_purge_before(Item *item);
@@ -4901,6 +4958,7 @@ public:
                               DDL_options ddl_options);
 
   bool check_dependencies_in_with_clauses();
+  bool prepare_unreferenced_in_with_clauses();
   bool check_cte_dependencies_and_resolve_references();
   bool resolve_references_to_cte(TABLE_LIST *tables,
                                  TABLE_LIST **tables_last,
@@ -5259,6 +5317,13 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
                                 bool need_set_keyword= true);
 
 void mark_or_conds_to_avoid_pushdown(Item *cond);
+
+
+inline
+bool TABLE_LIST::is_pure_alias() const
+{
+  return !db.length || (table_options & TL_OPTION_ALIAS);
+}
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_LEX_INCLUDED */

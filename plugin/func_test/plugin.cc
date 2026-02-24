@@ -29,7 +29,7 @@ public:
     null_value= str->copy(STRING_WITH_LEN("sysconst_test"), system_charset_info);
     return null_value ? NULL : str;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     max_length= MAX_FIELD_NAME * system_charset_info->mbmaxlen;
     set_maybe_null();

@@ -1,0 +1,44 @@
+connection node_2;
+connection node_1;
+drop table if exists t1;
+drop view if exists t1;
+connection node_2;
+SELECT @@character_set_server, @@collation_server;
+@@character_set_server	@@collation_server
+latin1	latin1_swedish_ci
+SELECT @@character_set_client, @@collation_connection;
+@@character_set_client	@@collation_connection
+latin1	latin1_swedish_ci
+connection node_1;
+SET NAMES latin1 COLLATE latin1_bin;
+SELECT @@character_set_server, @@collation_server;
+@@character_set_server	@@collation_server
+latin1	latin1_swedish_ci
+SELECT @@character_set_client, @@collation_connection;
+@@character_set_client	@@collation_connection
+latin1	latin1_bin
+create table t1 (a int);
+insert into t1 values (1);
+create view v1 as select a from t1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	latin1	latin1_bin
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+connection node_2;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	latin1	latin1_bin
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+connection node_1;
+DROP VIEW v1;
+DROP TABLE t1;
+disconnect node_2;
+disconnect node_1;

@@ -16,10 +16,12 @@ SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 CREATE USER plug_user IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 GRANT PROXY ON `plug%dest` TO plug_user;
+GRANT ALL ON test_user_db.* TO plug_user;
 --error 1
 --exec $MYSQL -u plug_user --password=plug_dest -e "SELECT current_user();SELECT user();USE test_user_db;CREATE TABLE t1(a int);SHOW TABLES;DROP TABLE t1;" 2>&1
 REVOKE PROXY ON `plug%dest` FROM plug_user;
 GRANT PROXY ON plug_dest TO plug_user;
+GRANT ALL ON test_user_db.* TO 'plug_dest'@'%';
 --replace_result $MASTER_MYSOCK MASTER_MYSOCK
 --exec $MYSQL -u plug_user --password=plug_dest -e "SELECT current_user();SELECT user();USE test_user_db;CREATE TABLE t1(a int);SHOW TABLES;DROP TABLE t1;" 2>&1
 REVOKE PROXY ON plug_dest FROM plug_user;
@@ -56,6 +58,7 @@ CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 --error 1
 --exec $MYSQL -u plug_user --password=plug_dest -e "SELECT current_user();SELECT user();USE test_user_db;CREATE TABLE t1(a int);SHOW TABLES;DROP TABLE t1;" 2>&1
 GRANT PROXY ON plug_dest TO plug_user;
+GRANT ALL ON test_user_db.* TO 'plug_dest'@'%';
 --echo 2)
 --replace_result $MASTER_MYSOCK MASTER_MYSOCK
 --exec $MYSQL -u plug_user --password=plug_dest -e "SELECT current_user();SELECT user();USE test_user_db;CREATE TABLE t1(a int);SHOW TABLES;DROP TABLE t1;" 2>&1
@@ -105,12 +108,12 @@ CREATE USER plug_user
   IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 GRANT PROXY ON plug_dest TO plug_user;
-connect(plug_user,localhost,plug_user,plug_dest);
+connect(plug_user,localhost,plug_user,plug_dest,"*NO-ONE*");
 select USER(),CURRENT_USER();
 connection default;
 disconnect plug_user;
 RENAME USER plug_user TO new_user;
-connect(plug_user,localhost,new_user,plug_dest);
+connect(plug_user,localhost,new_user,plug_dest,"*NO-ONE*");
 select USER(),CURRENT_USER();
 connection default;
 --sorted_result
@@ -128,7 +131,7 @@ CREATE USER plug_user
   IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 GRANT PROXY ON plug_dest TO plug_user;
-connect(plug_user,localhost,plug_user,plug_dest);
+connect(plug_user,localhost,plug_user,plug_dest,"*NO-ONE*");
 select USER(),CURRENT_USER();
 connection default;
 disconnect plug_user;
@@ -156,7 +159,7 @@ FLUSH PRIVILEGES;
 GRANT PROXY ON new_dest TO new_user;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-connect(plug_user,localhost,new_user,new_dest);
+connect(plug_user,localhost,new_user,new_dest,"*NO-ONE*");
 select USER(),CURRENT_USER();
 connection default;
 disconnect plug_user;
@@ -166,7 +169,7 @@ CREATE USER new_dest IDENTIFIED BY 'new_dest_passwd';
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 GRANT ALL PRIVILEGES ON test.* TO new_user;
-connect(plug_user,localhost,new_dest,new_dest_passwd);
+connect(plug_user,localhost,new_dest,new_dest_passwd,"*NO-ONE*");
 select USER(),CURRENT_USER();
 connection default;
 disconnect plug_user;
@@ -178,7 +181,7 @@ CREATE USER ''@'%%' IDENTIFIED WITH test_plugin_server AS 'proxied_user';
 CREATE USER proxied_user IDENTIFIED BY 'proxied_user_passwd';
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
+connect(proxy_con,localhost,proxied_user,proxied_user_passwd,"*NO-ONE*");
 SELECT USER(),CURRENT_USER();
 --echo ========== test 2.2.1 ======================================
 SELECT @@proxy_user;
@@ -189,11 +192,11 @@ disconnect proxy_con;
 connect(proxy_con,localhost,proxy_user,proxied_user);
 --enable_query_log
 GRANT PROXY ON proxied_user TO ''@'%%';
-connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
+connect(proxy_con,localhost,proxied_user,proxied_user_passwd,"*NO-ONE*");
 SELECT USER(),CURRENT_USER();
 connection default;
 disconnect proxy_con;
-connect(proxy_con,localhost,proxy_user,proxied_user);
+connect(proxy_con,localhost,proxy_user,proxied_user,"*NO-ONE*");
 SELECT USER(),CURRENT_USER();
 --echo ========== test 2.2.1 ======================================
 SELECT @@proxy_user;
@@ -206,7 +209,7 @@ GRANT ALL PRIVILEGES ON test_user_db.* TO ''@'%%'
 CREATE USER proxied_user IDENTIFIED BY 'proxied_user_passwd';
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
+connect(proxy_con,localhost,proxied_user,proxied_user_passwd,"*NO-ONE*");
 SELECT USER(),CURRENT_USER();
 SELECT @@proxy_user;
 connection default;
@@ -216,11 +219,11 @@ disconnect proxy_con;
 connect(proxy_con,localhost,proxy_user,proxied_user);
 --enable_query_log
 GRANT PROXY ON proxied_user TO ''@'%%';
-connect(proxy_con,localhost,proxied_user,proxied_user_passwd);
+connect(proxy_con,localhost,proxied_user,proxied_user_passwd,"*NO-ONE*");
 SELECT USER(),CURRENT_USER();
 connection default;
 disconnect proxy_con;
-connect(proxy_con,localhost,proxy_user,proxied_user);
+connect(proxy_con,localhost,proxy_user,proxied_user,"*NO-ONE*");
 SELECT USER(),CURRENT_USER();
 SELECT @@proxy_user;
 connection default;
@@ -240,11 +243,11 @@ GRANT PROXY ON proxied_user_4 TO ''@'%%';
 GRANT PROXY ON proxied_user_5 TO ''@'%%';
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
-connect(proxy_con_1,localhost,proxied_user_1,'proxied_user_1_pwd');
-connect(proxy_con_2,localhost,proxied_user_2,proxied_user_2_pwd);
-connect(proxy_con_3,localhost,proxied_user_3,proxied_user_3_pwd);
-connect(proxy_con_4,localhost,proxied_user_4,proxied_user_4_pwd);
-connect(proxy_con_5,localhost,proxied_user_5,proxied_user_5_pwd);
+connect(proxy_con_1,localhost,proxied_user_1,'proxied_user_1_pwd',"*NO-ONE*");
+connect(proxy_con_2,localhost,proxied_user_2,proxied_user_2_pwd,"*NO-ONE*");
+connect(proxy_con_3,localhost,proxied_user_3,proxied_user_3_pwd,"*NO-ONE*");
+connect(proxy_con_4,localhost,proxied_user_4,proxied_user_4_pwd,"*NO-ONE*");
+connect(proxy_con_5,localhost,proxied_user_5,proxied_user_5_pwd,"*NO-ONE*");
 connection proxy_con_1;
 SELECT USER(),CURRENT_USER();
 SELECT @@proxy_user;

@@ -1,4 +1,6 @@
 -- source include/have_des.inc
+#double warning for view protocol 
+--source include/no_view_protocol.inc
 
 --disable_warnings
 drop table if exists t1;
@@ -120,7 +122,9 @@ CREATE TABLE t1 (
   b BLOB DEFAULT DES_ENCRYPT(a, 'passwd'),
   c TEXT DEFAULT DES_DECRYPT(b, 'passwd')
 );
+--disable_warnings
 SHOW CREATE TABLE t1;
+--enable_warnings
 INSERT INTO t1 (a) VALUES ('test');
 SELECT c FROM t1;
 DROP TABLE t1;

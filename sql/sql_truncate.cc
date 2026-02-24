@@ -503,6 +503,14 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
     if (lock_table(thd, table_ref, &hton_can_recreate))
       DBUG_RETURN(TRUE);
 
+    /*
+      This is mainly here for truncate_notembedded.test, but it is still
+      useful to check killed after we got the lock
+    */
+
+    if (thd->killed)
+      DBUG_RETURN(TRUE);
+
     if (hton_can_recreate)
     {
      /*
@@ -532,7 +540,7 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
            (HTON_REQUIRES_CLOSE_AFTER_TRUNCATE |
             HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE)))
       {
-        thd->locked_tables_list.mark_table_for_reopen(thd, table_ref->table);
+        thd->locked_tables_list.mark_table_for_reopen(table_ref->table);
         if (unlikely(thd->locked_tables_list.reopen_tables(thd, false)))
           thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
       }

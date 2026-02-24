@@ -102,6 +102,10 @@ if ($all_slaves_status)
 if ($slave_name)
 {
   --let $_show_query=SHOW SLAVE $slave_name STATUS
+  if ($for_channel)
+  {
+    --let $_show_query=SHOW SLAVE STATUS for channel $slave_name
+  }
 }
 
 

@@ -1,0 +1,2 @@
+--log-bin=1
+--innodb_undo_tablespaces=4

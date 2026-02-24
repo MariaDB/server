@@ -109,4 +109,41 @@ drop table t1,t2;
 set global userstat=@save_userstat;
 set global innodb_stats_persistent_sample_pages=@save_ispsp;
 
+--echo #
+--echo # MDEV-35958: Cost estimates for materialized derived tables are poor
+--echo #
+set optimizer_trace=1;
+create table t1 (
+  a int
+);
+insert into t1 select seq from seq_1_to_10000;
+
+explain
+select *
+from
+  t1 as t1_base,
+  (select a from t1 limit 10000) as TBL;
+
+set @trace=(select trace from information_schema.optimizer_trace);
+--echo # BEFORE, without fix_derived_table_read_cost: derived2 has cost=rows=10000
+select json_detailed(
+  json_extract(json_extract(@trace, '$**.rows_estimation'), '$[1]')
+  ) as Trace;
+
+set optimizer_adjust_secondary_key_costs='fix_derived_table_read_cost';
+
+explain
+select *
+from
+  t1 as t1_base,
+  (select a from t1 limit 10000) as TBL;
+
+set @trace=(select trace from information_schema.optimizer_trace);
+--echo # AFTER, with fix_derived_table_read_cost: derived2 has more realistic cost
+select json_detailed(
+  json_extract(json_extract(@trace, '$**.rows_estimation'), '$[1]')
+  ) as Trace;
+
+drop table t1;
+
 set @@optimizer_adjust_secondary_key_costs=default;

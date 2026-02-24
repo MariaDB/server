@@ -1013,6 +1013,7 @@ public:
 };
 
 
+int check_if_log_table(const TABLE_LIST *table);
 int check_if_log_table(const TABLE_LIST *table, bool check_if_opened,
                        const char *errmsg);
 
@@ -1186,6 +1187,7 @@ File open_binlog(IO_CACHE *log, const char *log_file_name,
 
 void make_default_log_name(char **out, const char* log_ext, bool once);
 void binlog_reset_cache(THD *thd);
+void binlog_clear_incident(THD *thd);
 bool write_annotated_row(THD *thd);
 
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
@@ -1222,8 +1224,8 @@ inline bool normalize_binlog_name(char *to, const char *from, bool is_relay_log)
   /* opt_name is not null and not empty and from is a relative path */
   if (opt_name && opt_name[0] && from && !test_if_hard_path(from))
   {
-    // take the path from opt_name
-    // take the filename from from 
+    // take the path from "opt_name"
+    // take the filename from "from"
     char log_dirpart[FN_REFLEN], log_dirname[FN_REFLEN];
     size_t log_dirpart_len, log_dirname_len;
     dirname_part(log_dirpart, opt_name, &log_dirpart_len);
@@ -1275,7 +1277,11 @@ const char *
 get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list);
 
 int binlog_commit(THD *thd, bool all, bool is_ro_1pc= false);
+int binlog_rollback(handlerton *hton, THD *thd, bool all);
 int binlog_commit_by_xid(handlerton *hton, XID *xid);
 int binlog_rollback_by_xid(handlerton *hton, XID *xid);
+bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
+                               uint64 start_alter_id, bool log_if_exists);
+
 
 #endif /* LOG_H */

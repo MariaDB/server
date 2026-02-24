@@ -877,13 +877,17 @@ bool Protocol_text::store_field_metadata(const THD * thd,
     if (charset_for_protocol == &my_charset_bin || thd_charset == NULL)
     {
       /* No conversion */
-      int2store(pos, charset_for_protocol->number);
+      uint id= charset_for_protocol->get_id(MY_COLLATION_ID_TYPE_COMPAT_100800);
+      DBUG_ASSERT(id <= UINT_MAX16);
+      int2store(pos, (uint16) id);
       int4store(pos + 2, field.length);
     }
     else
     {
       /* With conversion */
-      int2store(pos, thd_charset->number);
+      uint id= thd_charset->get_id(MY_COLLATION_ID_TYPE_COMPAT_100800);
+      DBUG_ASSERT(id <= UINT_MAX16);
+      int2store(pos, (uint16) id);
       uint32 field_length= field.max_octet_length(charset_for_protocol,
                                                   thd_charset);
       int4store(pos + 2, field_length);
@@ -1371,20 +1375,48 @@ bool Protocol::store(I_List<i_string>* str_list)
 {
   char buf[256];
   String tmp(buf, sizeof(buf), &my_charset_bin);
-  uint32 len;
+  size_t len= 0;
   I_List_iterator<i_string> it(*str_list);
   i_string* s;
+  const char *delimiter= ",";
 
   tmp.length(0);
   while ((s=it++))
   {
+    tmp.append(delimiter, len);
     tmp.append(s->ptr, strlen(s->ptr));
-    tmp.append(',');
+    len= 1;
   }
-  if ((len= tmp.length()))
-    len--;					// Remove last ','
-  return store((char*) tmp.ptr(), len,  tmp.charset());
+
+  return store((char*) tmp.ptr(), tmp.length(),  tmp.charset());
 }
+
+
+/**
+  Send a set of strings as a string of key-value pairs with ',' in between.
+*/
+
+bool Protocol::store(I_List<i_string_pair>* str_list)
+{
+  char buf[256];
+  const char *delimiter= ",";
+  String tmp(buf, sizeof(buf), &my_charset_bin);
+  size_t delim_len= 0;
+  I_List_iterator<i_string_pair> it(*str_list);
+  i_string_pair* s;
+
+  tmp.length(0);
+  while ((s=it++))
+  {
+    tmp.append(delimiter, delim_len);
+    tmp.append(s->key, strlen(s->key));
+    tmp.append(STRING_WITH_LEN("->"));
+    tmp.append(s->val, strlen(s->val));
+    delim_len= 1;
+  }
+  return store((char*) tmp.ptr(), tmp.length(),  tmp.charset());
+}
+
 
 /****************************************************************************
   Functions to handle the simple (default) protocol where everything is

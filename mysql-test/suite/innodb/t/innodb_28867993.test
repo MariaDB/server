@@ -6,6 +6,10 @@ source include/have_innodb.inc;
 create table t1 (a int) engine=innodb;
 insert t1 values (1),(2);
 create database ib_logfile2;
+--disable_query_log
+call mtr.add_suppression("InnoDB: Operating system error number ");
+call mtr.add_suppression("InnoDB: Error number .* means ");
+--enable_query_log
 source include/restart_mysqld.inc;
 select * from t1;
 drop table t1;

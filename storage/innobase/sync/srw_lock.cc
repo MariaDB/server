@@ -143,8 +143,7 @@ static inline void srw_pause(unsigned delay) noexcept
   HMT_medium();
 }
 
-#ifdef SUX_LOCK_GENERIC
-# ifndef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
+#ifndef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
 template<> void pthread_mutex_wrapper<true>::wr_wait() noexcept
 {
   const unsigned delay= srw_pause_delay();
@@ -158,8 +157,9 @@ template<> void pthread_mutex_wrapper<true>::wr_wait() noexcept
 
   pthread_mutex_lock(&lock);
 }
-# endif
+#endif
 
+#ifdef SUX_LOCK_GENERIC
 template void ssux_lock_impl<false>::init() noexcept;
 template void ssux_lock_impl<true>::init() noexcept;
 template void ssux_lock_impl<false>::destroy() noexcept;

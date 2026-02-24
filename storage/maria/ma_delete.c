@@ -165,8 +165,6 @@ my_bool _ma_ck_delete(MARIA_HA *info, MARIA_KEY *key)
   MARIA_KEY org_key;
   DBUG_ENTER("_ma_ck_delete");
 
-  LINT_INIT_STRUCT(org_key);
-
   alloc_on_stack(*info->stack_end_ptr, key_buff, buff_alloced,
                  key->keyinfo->max_store_length);
   if (!key_buff)

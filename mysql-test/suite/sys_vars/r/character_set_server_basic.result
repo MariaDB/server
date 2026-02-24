@@ -382,10 +382,9 @@ SET @@character_set_server = 1;
 SELECT @@character_set_server;
 @@character_set_server
 big5
+# latin2_czech_cs is not a default collation
 SET @@character_set_server = 2;
-SELECT @@character_set_server;
-@@character_set_server
-latin2
+ERROR 42000: Unknown character set: '2'
 SET @@character_set_server = 3;
 SELECT @@character_set_server;
 @@character_set_server
@@ -394,28 +393,27 @@ SET @@character_set_server = 36;
 SELECT @@character_set_server;
 @@character_set_server
 cp866
+# cp1250_polish_ci is not a default collation
 SET @@character_set_server = 99;
-SELECT @@character_set_server;
-@@character_set_server
-cp1250
+ERROR 42000: Unknown character set: '99'
+# Collation ID 100 does not exist
 SET @@character_set_server = 100;
 ERROR 42000: Unknown character set: '100'
 SET @@global.character_set_server = 1;
 SELECT @@global.character_set_server;
 @@global.character_set_server
 big5
+# latin2_czech_cs is not a default collation
 SET @@global.character_set_server = 2;
-SELECT @@global.character_set_server;
-@@global.character_set_server
-latin2
+ERROR 42000: Unknown character set: '2'
 SET @@global.character_set_server = 36;
 SELECT @@global.character_set_server;
 @@global.character_set_server
 cp866
+# cp1250_polish_ci is not a default collation
 SET @@global.character_set_server = 99;
-SELECT @@global.character_set_server;
-@@global.character_set_server
-cp1250
+ERROR 42000: Unknown character set: '99'
+# Collation ID 100 does not exist
 SET @@global.character_set_server = 100;
 ERROR 42000: Unknown character set: '100'
 '#--------------------FN_DYNVARS_009_10-------------------------#'
@@ -488,5 +486,21 @@ SELECT @@session.character_set_server =
 WHERE VARIABLE_NAME='character_set_server') AS res;
 res
 1
+#
+# MDEV-31018 Replica of 10.3, 10.4, <10.5.19 and <10.6.12 to 10.11 will not work when using non-default charset
+#
+SET character_set_server=2/*latin2_czech_cs*/;
+ERROR 42000: Unknown character set: '2'
+SET @@pseudo_slave_mode=1;
+SET character_set_server=2/*latin2_czech_cs*/;
+SHOW VARIABLES LIKE 'character_set_server';
+Variable_name	Value
+character_set_server	latin2
+SHOW VARIABLES LIKE 'collation_server';
+Variable_name	Value
+collation_server	latin2_general_ci
+SET @@pseudo_slave_mode=0;
+Warnings:
+Warning	1231	Slave applier execution mode not active, statement ineffective.
 SET @@global.character_set_server = @global_start_value;
 SET @@session.character_set_server = @session_start_value;

@@ -24,10 +24,8 @@
 
 #define ARGS       MY_MIN(24,(int)len-i),s+MY_MAX(i-3,0)
 
-#if defined(_WIN32)
-#define EL  "\r\n"
-#else
-#define EL  "\n"
+#define EL "\n"
+#if !defined(_WIN32)
 #undef     SE_CATCH                  // Does not work for Linux
 #endif
 
