@@ -1,0 +1,52 @@
+#
+# Purpose:
+#   This test validates that CHANGE MASTER TO does not emit a spurious
+#   warning about implicitly changing Using_Gtid when the value is not
+#   actually changing.
+#
+# References:
+#   MDEV-37842: CHANGE MASTER TO is implicitly changing the value of
+#               'Using_Gtid' from 'No' to 'No'
+#
+
+# Format independent test so just use one
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+
+--echo #
+--echo # Test 1: CHANGE MASTER TO with relay_log_pos when Using_Gtid is
+--echo # already No should NOT produce a spurious 'from No to No' warning
+--echo #
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+CHANGE MASTER TO relay_log_pos=0;
+SHOW WARNINGS;
+
+--echo #
+--echo # Test 2: CHANGE MASTER TO with master_log_file/pos when Using_Gtid
+--echo # is already No should NOT produce a warning
+--echo #
+--let $io_log_pos= query_get_value('SHOW SLAVE STATUS', Read_Master_Log_Pos, 1)
+--let $io_log_file= query_get_value('SHOW SLAVE STATUS', Master_Log_File, 1)
+--replace_result $io_log_file IO_LOG_FILE $io_log_pos IO_LOG_POS
+--eval CHANGE MASTER TO master_log_pos=$io_log_pos, master_log_file='$io_log_file'
+SHOW WARNINGS;
+
+--echo #
+--echo # Test 3: CHANGE MASTER TO with log coordinates when Using_Gtid is
+--echo # Slave_Pos SHOULD produce a warning (value actually changes)
+--echo #
+CHANGE MASTER TO MASTER_USE_GTID=Slave_Pos;
+--replace_result $io_log_file IO_LOG_FILE $io_log_pos IO_LOG_POS
+--eval CHANGE MASTER TO master_log_pos=$io_log_pos, master_log_file='$io_log_file'
+SHOW WARNINGS;
+
+--echo #
+--echo # Cleanup
+--echo #
+CHANGE MASTER TO MASTER_USE_GTID=Slave_Pos;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc
