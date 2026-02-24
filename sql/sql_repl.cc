@@ -139,6 +139,17 @@ struct binlog_send_info {
   bool slave_gtid_ignore_duplicates;
   bool using_gtid_state;
 
+  /*
+    Domain IDs that the slave has configured to ignore (via
+    CHANGE MASTER ... IGNORE_DOMAIN_IDS or DO_DOMAIN_IDS).
+    These domains should be excluded from GTID state validation
+    when the slave connects, to avoid spurious errors when the master's
+    binlog contains domains the slave doesn't care about.
+    See MDEV-28213.
+  */
+  DYNAMIC_ARRAY slave_ignore_domain_ids;
+  DYNAMIC_ARRAY slave_do_domain_ids;
+
   int error;
   const char *errmsg;
   char error_text[MAX_SLAVE_ERRMSG];
@@ -185,6 +196,15 @@ struct binlog_send_info {
     error_text[0] = 0;
     bzero(&error_gtid, sizeof(error_gtid));
     until_binlog_state.init();
+    my_init_dynamic_array(PSI_INSTRUMENT_ME, &slave_ignore_domain_ids,
+                          sizeof(ulong), 4, 4, MYF(0));
+    my_init_dynamic_array(PSI_INSTRUMENT_ME, &slave_do_domain_ids,
+                          sizeof(ulong), 4, 4, MYF(0));
+  }
+  ~binlog_send_info()
+  {
+    delete_dynamic(&slave_ignore_domain_ids);
+    delete_dynamic(&slave_do_domain_ids);
   }
 };
 
@@ -802,6 +822,144 @@ get_slave_until_gtid(THD *thd, String *out_str)
 
 
 /*
+  Get the value of the @slave_connect_state_domain_ids_ignore user variable
+  into the supplied String.
+
+  The slave sends this variable to let the master know which GTID domain IDs
+  it is configured to ignore (via IGNORE_DOMAIN_IDS or implied by
+  DO_DOMAIN_IDS). See MDEV-28213.
+
+  Returns false if error (ie. slave did not set the variable),
+  true if success.
+*/
+static bool
+get_slave_ignore_domain_ids(THD *thd, String *out_str)
+{
+  bool null_value;
+
+  const LEX_CSTRING name=
+    { STRING_WITH_LEN("slave_connect_state_domain_ids_ignore") };
+  user_var_entry *entry=
+    (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name.str,
+                                     name.length);
+  return entry && entry->val_str(&null_value, out_str, 0) && !null_value;
+}
+
+
+/*
+  Get the value of the @slave_connect_state_domain_ids_do user variable
+  into the supplied String.
+
+  The slave sends this to let the master know which GTID domain IDs
+  it is configured to replicate (via DO_DOMAIN_IDS). Any domain NOT in
+  this list should be skipped during validation. See MDEV-28213.
+
+  Returns false if not set, true if success.
+*/
+static bool
+get_slave_do_domain_ids(THD *thd, String *out_str)
+{
+  bool null_value;
+
+  const LEX_CSTRING name=
+    { STRING_WITH_LEN("slave_connect_state_domain_ids_do") };
+  user_var_entry *entry=
+    (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name.str,
+                                     name.length);
+  return entry && entry->val_str(&null_value, out_str, 0) && !null_value;
+}
+
+
+/*
+  Parse a comma-separated list of domain IDs from a string and load them
+  into a DYNAMIC_ARRAY. Used to parse the slave's ignored domain IDs
+  sent via @slave_connect_state_domain_ids_ignore.
+
+  @retval  false  success
+  @retval  true   error
+*/
+static bool
+load_ignore_domain_ids(const char *str, size_t len, DYNAMIC_ARRAY *ids)
+{
+  const char *p= str;
+  const char *end= str + len;
+  bool expect_number= true;
+
+  while (p < end)
+  {
+    /* Skip whitespace */
+    while (p < end && *p == ' ')
+      p++;
+    if (p >= end)
+      break;
+
+    if (expect_number)
+    {
+      char *endptr;
+      ulong domain_id= strtoul(p, &endptr, 10);
+      if (endptr == p)
+        return true;  /* Parse error: expected a number */
+      if (insert_dynamic(ids, (uchar *) &domain_id))
+        return true;  /* Out of memory */
+      p= endptr;
+      expect_number= false;
+    }
+    else
+    {
+      if (*p != ',')
+        return true;  /* Parse error: expected a comma */
+      p++;
+      expect_number= true;
+    }
+  }
+
+  /* Trailing comma is invalid */
+  if (expect_number && ids->elements > 0)
+    return true;
+
+  return false;
+}
+
+
+static int ulong_cmp(const void *a, const void *b)
+{
+  ulong va= *(const ulong *) a;
+  ulong vb= *(const ulong *) b;
+  return (va > vb) - (va < vb);
+}
+
+
+/*
+  Check whether the given domain_id should be skipped based on the slave's
+  configured DO_DOMAIN_IDS and IGNORE_DOMAIN_IDS lists (MDEV-28213).
+
+  The arrays must already be sorted (see sort_domain_id_arrays()).
+
+  A domain is skipped if:
+  - It is explicitly in the IGNORE list, OR
+  - A DO list is configured (non-empty) and the domain is NOT in it.
+*/
+static bool
+is_domain_id_ignored(const DYNAMIC_ARRAY *ignore_ids,
+                     const DYNAMIC_ARRAY *do_ids, ulong domain_id)
+{
+  /* If IGNORE_DOMAIN_IDS is set, check if this domain is in it */
+  if (ignore_ids->elements > 0 &&
+      bsearch(&domain_id, ignore_ids->buffer, ignore_ids->elements,
+              sizeof(ulong), ulong_cmp))
+    return true;
+  /*
+    If DO_DOMAIN_IDS is set (non-empty), only domains in the DO list
+    should be validated. Any domain NOT in the list should be skipped.
+  */
+  if (do_ids->elements > 0)
+    return !bsearch(&domain_id, do_ids->buffer, do_ids->elements,
+                    sizeof(ulong), ulong_cmp);
+  return false;
+}
+
+
+/*
   Function prepares and sends repliation heartbeat event.
 
   @param net                net object of THD
@@ -1000,9 +1158,16 @@ err:
   Gtid_list_log_event where D is not present in the requested slave state at
   all. Since if D is not in requested slave state, it means that slave needs
   to start at the very first GTID in domain D.
+
+  The ignore_ids parameter (MDEV-28213) allows domains that the slave has
+  configured to ignore to be skipped during this check. Without this, a slave
+  that ignores a domain would fail to connect if the master's oldest binlog
+  references that domain but the slave has no position for it.
 */
 static bool
-contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
+contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev,
+                        const DYNAMIC_ARRAY *ignore_ids,
+                        const DYNAMIC_ARRAY *do_ids)
 {
   uint32 i;
 
@@ -1013,6 +1178,12 @@ contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
     if (!gtid)
     {
       /*
+        If the slave is configured to ignore this domain, skip the check.
+        The slave doesn't need events from this domain at all (MDEV-28213).
+      */
+      if (is_domain_id_ignored(ignore_ids, do_ids, gl_domain_id))
+        continue;
+      /*
         The slave needs to start from the very beginning of this domain, which
         is in an earlier binlog file. So we need to search back further.
       */
@@ -1021,6 +1192,12 @@ contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
     if (gtid->server_id == glev->list[i].server_id &&
         gtid->seq_no <= glev->list[i].seq_no)
     {
+      /*
+        If the slave is configured to ignore this domain, skip the check
+        even if the slave's position is behind the master's (MDEV-28213).
+      */
+      if (is_domain_id_ignored(ignore_ids, do_ids, gl_domain_id))
+        continue;
       /*
         The slave needs to start after gtid, but it is contained in an earlier
         binlog file. So we need to search back further, unless it was the very
@@ -1102,6 +1279,18 @@ check_slave_start_position(binlog_send_info *info, const char **errormsg,
     rpl_gtid master_gtid;
     rpl_gtid master_replication_gtid;
     rpl_gtid start_gtid;
+
+    /*
+      If the slave has configured this domain to be ignored (MDEV-28213),
+      skip validation for it entirely. The slave doesn't care about this
+      domain's events so there's no point requiring the master to have
+      the right binlog position for it.
+    */
+    if (is_domain_id_ignored(&info->slave_ignore_domain_ids,
+                             &info->slave_do_domain_ids,
+                             slave_gtid->domain_id))
+      continue;
+
     bool start_at_own_slave_pos=
       rpl_global_gtid_slave_state->domain_to_gtid(slave_gtid->domain_id,
                                                   &master_replication_gtid) &&
@@ -1294,7 +1483,9 @@ end:
 */
 static const char *
 gtid_find_binlog_file(slave_connection_state *state, char *out_name,
-                      slave_connection_state *until_gtid_state)
+                      slave_connection_state *until_gtid_state,
+                      const DYNAMIC_ARRAY *ignore_ids,
+                      const DYNAMIC_ARRAY *do_ids)
 {
   MEM_ROOT memroot;
   binlog_file_entry *list;
@@ -1345,7 +1536,7 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
     if (unlikely(errormsg))
       goto end;
 
-    if (!glev || contains_all_slave_gtid(state, glev))
+    if (!glev || contains_all_slave_gtid(state, glev, ignore_ids, do_ids))
     {
       strmake(out_name, buf, FN_REFLEN);
 
@@ -2110,6 +2301,12 @@ static int init_binlog_sender(binlog_send_info *info,
   String connect_gtid_state(str_buf, sizeof(str_buf), system_charset_info);
   char str_buf2[128];
   String slave_until_gtid_str(str_buf2, sizeof(str_buf2), system_charset_info);
+  char str_buf3[128];
+  String slave_ignore_domain_ids_str(str_buf3, sizeof(str_buf3),
+                                     system_charset_info);
+  char str_buf4[128];
+  String slave_do_domain_ids_str(str_buf4, sizeof(str_buf4),
+                                 system_charset_info);
   connect_gtid_state.length(0);
 
   /** save start file/pos that was requested by slave */
@@ -2132,6 +2329,37 @@ static int init_binlog_sender(binlog_send_info *info,
     info->slave_gtid_ignore_duplicates= get_slave_gtid_ignore_duplicates(thd);
     if (get_slave_until_gtid(thd, &slave_until_gtid_str))
       info->until_gtid_state= &info->until_gtid_state_obj;
+    /*
+      Read the slave's ignored domain IDs, if sent (MDEV-28213).
+      Older slaves won't send this, which is fine - the array will just
+      remain empty and all domains will be validated as before.
+    */
+    if (get_slave_ignore_domain_ids(thd, &slave_ignore_domain_ids_str))
+    {
+      if (load_ignore_domain_ids(slave_ignore_domain_ids_str.ptr(),
+                                 slave_ignore_domain_ids_str.length(),
+                                 &info->slave_ignore_domain_ids))
+      {
+        info->errmsg= "Out of memory or malformed slave request when "
+            "obtaining ignored domain IDs";
+        info->error= ER_UNKNOWN_ERROR;
+        return 1;
+      }
+      sort_dynamic(&info->slave_ignore_domain_ids, ulong_cmp);
+    }
+    if (get_slave_do_domain_ids(thd, &slave_do_domain_ids_str))
+    {
+      if (load_ignore_domain_ids(slave_do_domain_ids_str.ptr(),
+                                 slave_do_domain_ids_str.length(),
+                                 &info->slave_do_domain_ids))
+      {
+        info->errmsg= "Out of memory or malformed slave request when "
+            "obtaining DO domain IDs";
+        info->error= ER_UNKNOWN_ERROR;
+        return 1;
+      }
+      sort_dynamic(&info->slave_do_domain_ids, ulong_cmp);
+    }
   }
 
   DBUG_EXECUTE_IF("binlog_force_reconnect_after_22_events",
@@ -2195,7 +2423,9 @@ static int init_binlog_sender(binlog_send_info *info,
     }
     if ((info->errmsg= gtid_find_binlog_file(&info->gtid_state,
                                              search_file_name,
-                                             info->until_gtid_state)))
+                                             info->until_gtid_state,
+                                             &info->slave_ignore_domain_ids,
+                                             &info->slave_do_domain_ids)))
     {
       info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       return 1;

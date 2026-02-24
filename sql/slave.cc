@@ -1750,6 +1750,40 @@ bool is_network_error(uint errorno)
   2       transient network problem, the caller should try to reconnect
 */
 
+
+/*
+  Build a SET @var_name='id1,id2,...' query string from a DYNAMIC_ARRAY
+  of ulong domain IDs.
+
+  @param[in,out] query_str  String to write the query into (reset first)
+  @param[in]     ids        Array of ulong domain IDs
+  @param[in]     var_name   User variable name (without '@')
+
+  @retval false  success
+  @retval true   out of memory
+*/
+static bool
+build_domain_ids_query(String *query_str, const DYNAMIC_ARRAY *ids,
+                       const char *var_name)
+{
+  query_str->length(0);
+  if (query_str->append(STRING_WITH_LEN("SET @"), system_charset_info) ||
+      query_str->append(var_name, strlen(var_name), system_charset_info) ||
+      query_str->append(STRING_WITH_LEN("='"), system_charset_info))
+    return true;
+  for (uint i= 0; i < ids->elements; i++)
+  {
+    ulong domain_id;
+    get_dynamic((DYNAMIC_ARRAY *) ids, (void *) &domain_id, i);
+    if (i > 0)
+      query_str->append(',');
+    query_str->append_ulonglong(domain_id);
+  }
+  query_str->append(STRING_WITH_LEN("'"), system_charset_info);
+  return false;
+}
+
+
 static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
 {
   char err_buff[MAX_SLAVE_ERRMSG], err_buff2[MAX_SLAVE_ERRMSG];
@@ -2555,6 +2589,69 @@ after_set_capability:
             "encountered when it tries to set @slave_until_gtid.";
           sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
           goto err;
+        }
+      }
+    }
+
+    /*
+      Send the slave's IGNORE_DOMAIN_IDS and DO_DOMAIN_IDS to the master,
+      so it can skip GTID state validation for domains the slave doesn't
+      care about. See MDEV-28213.
+
+      This is done as user variables so that older masters that don't know
+      about these variables simply ignore them (backwards compatible).
+    */
+    {
+      DYNAMIC_ARRAY *ignore_ids=
+        &mi->domain_id_filter.m_domain_ids[Domain_id_filter::IGNORE_DOMAIN_IDS];
+      DYNAMIC_ARRAY *do_ids=
+        &mi->domain_id_filter.m_domain_ids[Domain_id_filter::DO_DOMAIN_IDS];
+
+      struct {
+        DYNAMIC_ARRAY *ids;
+        const char *var_name;
+      } domain_id_vars[]= {
+        { ignore_ids, "slave_connect_state_domain_ids_ignore" },
+        { do_ids, "slave_connect_state_domain_ids_do" }
+      };
+
+      for (uint v= 0; v < array_elements(domain_id_vars); v++)
+      {
+        if (domain_id_vars[v].ids->elements == 0)
+          continue;
+
+        if (build_domain_ids_query(&query_str, domain_id_vars[v].ids,
+                                   domain_id_vars[v].var_name))
+        {
+          err_code= ER_OUTOFMEMORY;
+          errmsg= "The slave I/O thread stops because a fatal out-of-memory "
+            "error is encountered when it tries to set "
+            "@slave_connect_state_domain_ids.";
+          sprintf(err_buff, "%s Error: Out of memory", errmsg);
+          goto err;
+        }
+
+        rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
+        if (unlikely(rc))
+        {
+          if (check_io_slave_killed(mi, NULL))
+            goto slave_killed_err;
+          err_code= mysql_errno(mysql);
+          if (is_network_error(err_code))
+          {
+            mi->report(ERROR_LEVEL, err_code, NULL,
+                       "Setting @%s failed with error: %s",
+                       domain_id_vars[v].var_name, mysql_error(mysql));
+            goto network_err;
+          }
+          else
+          {
+            errmsg= "The slave I/O thread stops because a fatal error is "
+              "encountered when it tries to set "
+              "@slave_connect_state_domain_ids.";
+            sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+            goto err;
+          }
         }
       }
     }
