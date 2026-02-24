@@ -79,6 +79,42 @@ ERROR 42000: execute command denied to user 'u'@'localhost' for routine 'test.pk
 connection default;
 disconnect con1;
 DROP USER u@localhost;
+#
+# DROP SP clears denies for user
+#
+CREATE USER u@localhost;
+CREATE PROCEDURE proc2() BEGIN SET @p=1; END;
+$$
+DENY EXECUTE ON PROCEDURE proc2 TO u@localhost;
+SHOW GRANTS for u@localhost;
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+DENY EXECUTE ON PROCEDURE `test`.`proc2` TO `u`@`localhost`
+# show that deny entry exists in json
+SELECT User, Host,
+JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+FROM mysql.global_priv
+WHERE User='u';
+User	Host	denies_pretty
+u	localhost	[
+    {
+        "type": "procedure",
+        "db": "test",
+        "procedure": "proc2",
+        "deny": 262144
+    }
+]
+DROP PROCEDURE proc2;
+SELECT User, Host,
+JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+FROM mysql.global_priv
+WHERE User='u';
+User	Host	denies_pretty
+u	localhost	[]
+SHOW GRANTS for u@localhost;
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+DROP USER u@localhost;
 DROP PACKAGE BODY pkg1;
 DROP PACKAGE pkg1;
 DROP PROCEDURE proc1;

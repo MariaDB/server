@@ -6544,7 +6544,7 @@ absent:
       sp_automatic_privileges && !opt_noacl &&
       sp_revoke_privileges(thd, lex->spname->m_db,
                            Lex_ident_routine(lex->spname->m_name),
-                           Sp_handler::handler(lex->sql_command),false))
+                           Sp_handler::handler(lex->sql_command)))
   {
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_PROC_AUTO_REVOKE_FAIL,
@@ -6704,7 +6704,7 @@ check_access(THD *thd, privilege_t want_access,
     }
   }
 
-  if (sctx->master_access.fully_satisfies(want_access))
+  if ((sctx->master_access & want_access) == want_access)
   {
     /*
       1. If we don't have a global SELECT privilege, we have to get the

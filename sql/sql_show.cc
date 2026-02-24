@@ -5396,7 +5396,7 @@ static privilege_t get_schema_privileges_for_show(THD *thd, TABLE_LIST *tables,
   if (thd->col_access & need)
     return thd->col_access & need;
 
-  access_t all3= acl_get_all3(thd->security_ctx, tables->db.str, 0).certainly_allowed(need);
+  access_t all3= acl_get_all3(thd->security_ctx, tables->db.str, 0);
   if (all3 & need)
     return all3 & need;
 
@@ -6525,7 +6525,7 @@ int get_schema_column_record(THD *thd, TABLE_LIST *tables,
                &tables->grant.privilege, 0, 0, MY_TEST(tables->schema_table));
   if (is_temporary_table(tables))
   {
-    tables->grant.privilege|= TMP_TABLE_ACLS;
+    tables->grant.privilege.force_allow(TMP_TABLE_ACLS);
   }
 #endif
 

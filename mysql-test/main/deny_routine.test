@@ -110,6 +110,32 @@ connection default;
 disconnect con1;
 DROP USER u@localhost;
 
+--echo #
+--echo # DROP SP clears denies for user
+--echo #
+CREATE USER u@localhost;
+DELIMITER $$;
+CREATE PROCEDURE proc2() BEGIN SET @p=1; END;
+$$
+DELIMITER ;$$
+
+DENY EXECUTE ON PROCEDURE proc2 TO u@localhost;
+SHOW GRANTS for u@localhost;
+
+--echo # show that deny entry exists in json
+SELECT User, Host,
+   JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+   FROM mysql.global_priv
+   WHERE User='u';
+DROP PROCEDURE proc2;
+SELECT User, Host,
+   JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+   FROM mysql.global_priv
+   WHERE User='u';
+SHOW GRANTS for u@localhost;
+DROP USER u@localhost;
+
+
 DROP PACKAGE BODY pkg1;
 DROP PACKAGE pkg1;
 DROP PROCEDURE proc1;

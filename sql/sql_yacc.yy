@@ -538,7 +538,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> DELETE_SYM                    /* SQL-2003-R */
 %token  <kwd> DENSE_RANK_SYM
 %token  <kwd> DENY
-%token  <kwd> DENIES
 %token  <kwd> DESCRIBE                      /* SQL-2003-R */
 %token  <kwd> DESC                          /* SQL-2003-N */
 %token  <kwd> DETERMINISTIC_SYM             /* SQL-2003-R */
@@ -18226,7 +18225,6 @@ revoke:
           }
         | REVOKE clear_privileges ALL opt_privileges ',' GRANT OPTION FROM user_and_role_list
           {
-            /* TODO(cvicentiu) REVOKE DENY ALL. */
             Lex->sql_command = SQLCOM_REVOKE_ALL;
           }
         | REVOKE clear_privileges revoke_role

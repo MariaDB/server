@@ -1944,7 +1944,7 @@ class User_table_json: public User_table
         (version_id > 0 && version_id < 100400))
     {
       print_warning_bad_version_id(version_id);
-      return NO_ACL;
+      return access_t(NO_ACL);
     }
     access = adjust_access(version_id, access) & GLOBAL_ACLS;
     privilege_t deny= adjust_access(version_id, den.deny_bits()) & GLOBAL_ACLS;
@@ -3199,7 +3199,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       if (host_table.num_fields() == 8)
       {						// Without grant
         if (host.access & CREATE_ACL)
-          host.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL | CREATE_TMP_ACL;
+          host.access.force_allow(REFERENCES_ACL | INDEX_ACL | ALTER_ACL | CREATE_TMP_ACL);
       }
 #endif
       (void) push_dynamic(&acl_hosts,(uchar*) &host);
@@ -3360,12 +3360,12 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     if (db_table.num_fields() <=  9)
     {						// Without grant
       if (db.access & CREATE_ACL)
-	db.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL;
+	db.access.force_allow(REFERENCES_ACL | INDEX_ACL | ALTER_ACL);
     }
 #endif
     if (db_table.num_fields() <= 23)
-      if ((db.access | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL) == DB_ACLS)
-        db.access|= SHOW_CREATE_ROUTINE_ACL;
+      if ((db.access.allow_bits() | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL) == DB_ACLS)
+        db.access.force_allow(SHOW_CREATE_ROUTINE_ACL);
     acl_dbs.push(db);
   }
   end_read_record(&read_record_info);
@@ -4336,7 +4336,7 @@ access_t acl_get(const char *host, const char *ip,
   db= tmp_db;
 
   if (key.length() > key_data_size) // db name was truncated
-    DBUG_RETURN(NO_ACL);        // no privileges for an invalid db name
+    DBUG_RETURN(access_t(NO_ACL));        // no privileges for an invalid db name
 
   mysql_mutex_lock(&acl_cache->lock);
   if (!db_is_pattern &&
@@ -4408,7 +4408,7 @@ access_t acl_get_all3(Security_context *sctx, const char *db,
                          bool db_is_patern)
 {
   if (!initialized)
-    return DB_ACLS;
+    return access_t(DB_ACLS);
 
   access_t access= acl_get(sctx->host, sctx->ip,
                               sctx->priv_user, db, db_is_patern);
@@ -5856,7 +5856,7 @@ static int replace_db_table(const User_table &user_table, TABLE *table,
 
   acl_cache->clear(1);				// Clear privilege cache
   if (old_row_exists)
-    acl_update_db(combo.user.str, combo.host.str, db, rights, false /*is_deny*/);
+    acl_update_db(combo.user.str, combo.host.str, db, access_t(rights), false /*is_deny*/);
   else if (rights)
   {
     /*
@@ -5867,9 +5867,9 @@ static int replace_db_table(const User_table &user_table, TABLE *table,
        existing entry, otherwise insert a new one.
     */
     if (!combo.is_role() ||
-        !acl_update_db(combo.user.str, combo.host.str, db, rights, false))
+        !acl_update_db(combo.user.str, combo.host.str, db, access_t(rights), false))
     {
-      acl_insert_db(combo.user.str,combo.host.str,db,rights);
+      acl_insert_db(combo.user.str,combo.host.str,db, access_t(rights));
     }
   }
   DBUG_RETURN(0);
@@ -6418,7 +6418,7 @@ GRANT_TABLE::GRANT_TABLE(TABLE *form, TABLE *col_privs)
         cols|= priv;
         init_cols|= priv;
       }
-      if (!(mem_check = new GRANT_COLUMN(*res, priv)))
+      if (!(mem_check = new GRANT_COLUMN(*res, access_t(priv))))
       {
         /* Don't use this entry */
         privs= init_privs= access_t(NO_ACL);
@@ -6927,7 +6927,7 @@ static int replace_column_table(GRANT_TABLE *g_t, const User_table &user_table,
 	result= -1;				/* purecov: inspected */
 	goto end;				/* purecov: inspected */
       }
-      grant_column= new GRANT_COLUMN(column->column,privileges);
+      grant_column= new GRANT_COLUMN(column->column, access_t(privileges));
       if (my_hash_insert(&g_t->hash_columns,(uchar*) grant_column))
       {
         result= -1;
@@ -7921,7 +7921,7 @@ restart:
       goto restart;
     }
   }
-  DBUG_ASSERT(rights == merged->cols);
+  DBUG_ASSERT(rights == access_t(merged->cols));
   return changed;
 }
 
@@ -7966,7 +7966,7 @@ static int update_role_table_columns(GRANT_TABLE *merged,
     column_priv_insert(merged);
     return 2;
   }
-  else if ((privs | cols) == NO_ACL)
+  else if (privs.is_empty() && cols == NO_ACL)
   {
     /*
       there is GRANT_TABLE object but the role has no table or column
@@ -8633,9 +8633,10 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
     if (!grant_name)
     {
       DBUG_ASSERT(!revoke_grant);
+      access_t access= is_deny ? access_t(NO_ACL, rights) : access_t(rights);
       grant_name= new GRANT_NAME(Str->host.str, db_name,
                                  Str->user.str, table_name,
-                                 rights, TRUE);
+                                 access, TRUE);
       if (!grant_name ||
           my_hash_insert(sph->get_priv_hash(), (uchar*) grant_name))
       {
@@ -13195,6 +13196,30 @@ Silence_routine_definer_errors::handle_condition(
 }
 
 
+static int revoke_routine_priv_for_user(THD *thd, GRANT_NAME *grant_proc,
+                                  const User_table &user_table, TABLE *procs_priv_table,
+                                  const LEX_USER &lex_user,
+                                  const char *db, const char *routine_name,
+                                  const Sp_handler *sph)
+{
+  List<LEX_COLUMN> columns;
+  int failed= 0;
+
+  /* For both GRANT and DENY, remove their entries from system tables. */
+  for (bool is_deny : {false, true})
+  {
+    privilege_t p= is_deny?grant_proc->privs.deny_bits():grant_proc->privs.allow_bits();
+    if (!p)
+      continue;
+    if (replace_routine_table(thd, grant_proc, user_table, procs_priv_table,
+                               lex_user, db, routine_name, sph, ALL_KNOWN_ACL,
+                               true /* revoke */, is_deny))
+      failed= 1;
+  }
+  return failed;
+}
+
+
 /**
   Revoke privileges for all users on a stored procedure.  Use an error handler
   that converts errors about missing grants into warnings.
@@ -13215,15 +13240,13 @@ Silence_routine_definer_errors::handle_condition(
 bool sp_revoke_privileges(THD *thd,
                           const Lex_ident_db &sp_db,
                           const Lex_ident_routine &sp_name,
-                          const Sp_handler *sph,
-                          bool is_deny)
+                          const Sp_handler *sph)
 {
   uint counter, revoked;
   int result;
   HASH *hash= sph->get_priv_hash();
   Silence_routine_definer_errors error_handler;
   DBUG_ENTER("sp_revoke_privileges");
-  DBUG_ASSERT(!is_deny);
   Grant_tables tables;
   const uint tables_to_open= Table_user | Table_db | Table_tables_priv |
                              Table_columns_priv | Table_procs_priv |
@@ -13253,10 +13276,10 @@ bool sp_revoke_privileges(THD *thd,
 	lex_user.user.length= strlen(grant_proc->user);
         lex_user.host.str= safe_str(grant_proc->host.hostname);
         lex_user.host.length= strlen(lex_user.host.str);
-        if (replace_routine_table(thd, grant_proc, tables.user_table(),
+        if (revoke_routine_priv_for_user(thd, grant_proc, tables.user_table(),
                                   tables.procs_priv_table().table(), lex_user,
                                   grant_proc->db, grant_proc->tname,
-                                  sph, ALL_KNOWN_ACL, true, is_deny) == 0)
+                                  sph) == 0)
 	{
 	  revoked= 1;
 	  continue;
@@ -13596,10 +13619,10 @@ static bool set_user_salt_if_needed(ACL_USER *, int, plugin_ref)
 bool check_grant(THD *, privilege_t, TABLE_LIST *, bool, uint, bool)
 { return 0; }
 inline access_t public_access()
-{ return NO_ACL; }
+{ return access_t(NO_ACL); }
 access_t get_column_grant(THD *, GRANT_INFO *, const char *, const char *,
                              const Lex_ident_column &)
-{ return ALL_KNOWN_ACL; }
+{ return access_t(ALL_KNOWN_ACL); }
 int acl_check_setrole(THD *, const LEX_CSTRING &, access_t *) { return 0; }
 int acl_setrole(THD *, const LEX_CSTRING &, const access_t&) { return 0; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */

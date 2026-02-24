@@ -677,7 +677,7 @@ private:
 
 public:
   access_t() {};
-  access_t(privilege_t allow, privilege_t deny= NO_ACL,
+  explicit access_t(privilege_t allow, privilege_t deny= NO_ACL,
            privilege_t deny_subtree= NO_ACL)
       : m_allow_bits(allow), m_deny_bits(deny), m_deny_subtree(deny_subtree)
   {
@@ -699,6 +699,13 @@ public:
     m_deny_subtree= deny_subtree;
   }
   void set_allow_bits(privilege_t allow) { m_allow_bits= allow; }
+  void force_allow(privilege_t bits, bool overwrite_deny=false)
+  {
+    m_allow_bits|= bits;
+    if (overwrite_deny)
+      m_deny_bits&= ~bits ;
+    //m_deny_subtree&= ~bits;
+  }
   access_t &operator=(const privilege_t &)= delete;
   access_t &operator|=(const access_t &other)
   {

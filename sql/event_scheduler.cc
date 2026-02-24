@@ -415,7 +415,7 @@ Event_scheduler::start(int *err_no)
 
     Same goes for transaction access mode. Set it to read-write for this thd.
   */
-  new_thd->security_ctx->master_access |= PRIV_IGNORE_READ_ONLY;
+  new_thd->security_ctx->master_access.force_allow(PRIV_IGNORE_READ_ONLY);
   new_thd->variables.tx_read_only= false;
   new_thd->tx_read_only= false;
 

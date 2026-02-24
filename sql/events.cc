@@ -1174,7 +1174,7 @@ Events::load_events_from_db(THD *thd)
   */
 
   access_t saved_master_access(thd->security_ctx->master_access);
-  thd->security_ctx->master_access |= PRIV_IGNORE_READ_ONLY;
+  thd->security_ctx->master_access.force_allow(PRIV_IGNORE_READ_ONLY);
   bool save_tx_read_only= thd->tx_read_only;
   thd->tx_read_only= false;
 

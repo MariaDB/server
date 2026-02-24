@@ -1308,7 +1308,7 @@ exit:
   if (unlikely(thd->db.str &&
                cmp_db_names(Lex_ident_db(thd->db), db) && !error))
   {
-    mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
+    mysql_change_db_impl(thd, NULL, access_t(NO_ACL), thd->variables.collation_server);
     thd->session_tracker.current_schema.mark_as_changed(thd);
   }
 end:
@@ -1731,7 +1731,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
         new_db_name->length == 0.
       */
 
-      mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
+      mysql_change_db_impl(thd, NULL, access_t(NO_ACL), thd->variables.collation_server);
 
       goto done;
     }
@@ -1748,7 +1748,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
   {
     /* Switch the current database to INFORMATION_SCHEMA. */
 
-    mysql_change_db_impl(thd, &INFORMATION_SCHEMA_NAME, SELECT_ACL,
+    mysql_change_db_impl(thd, &INFORMATION_SCHEMA_NAME, access_t(SELECT_ACL),
                          system_charset_info);
     goto done;
   }
@@ -1772,7 +1772,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
   if (Lex_ident_db::check_name_with_error(new_db_file_name))
   {
     if (force)
-      mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
+      mysql_change_db_impl(thd, NULL, access_t(NO_ACL), thd->variables.collation_server);
 
     DBUG_RETURN(ER_WRONG_DB_NAME);
   }
@@ -1817,7 +1817,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
 
       /* Change db to NULL. */
 
-      mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
+      mysql_change_db_impl(thd, NULL, access_t(NO_ACL), thd->variables.collation_server);
 
       /* The operation succeed. */
       goto done;

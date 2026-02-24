@@ -39,10 +39,8 @@ DENY INSERT ON `sg_db`.* TO `u1`@`localhost`
 GRANT SELECT, UPDATE (`c1`) ON `sg_db`.`t1` TO `u1`@`localhost`
 DENY UPDATE (`c2`) ON `sg_db`.`t1` TO `u1`@`localhost`
 GRANT EXECUTE ON PROCEDURE `sg_db`.`p1` TO `u1`@`localhost`
-GRANT EXECUTE ON FUNCTION `sg_db`.`f1` TO `u1`@`localhost`
 DENY EXECUTE ON FUNCTION `sg_db`.`f1` TO `u1`@`localhost`
 GRANT EXECUTE ON PACKAGE `sg_db`.`pkg1` TO `u1`@`localhost`
-GRANT EXECUTE ON PACKAGE BODY `sg_db`.`pkg1` TO `u1`@`localhost`
 DENY EXECUTE ON PACKAGE BODY `sg_db`.`pkg1` TO `u1`@`localhost`
 DROP USER u1@localhost;
 #

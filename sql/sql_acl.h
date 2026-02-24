@@ -153,7 +153,7 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
 bool sp_revoke_privileges(THD *thd,
                           const Lex_ident_db &sp_db,
                           const Lex_ident_routine &sp_name,
-                          const Sp_handler *sph, bool is_deny);
+                          const Sp_handler *sph);
 bool sp_grant_privileges(THD *thd,
                          const Lex_ident_db &sp_db,
                          const Lex_ident_routine &sp_name,
