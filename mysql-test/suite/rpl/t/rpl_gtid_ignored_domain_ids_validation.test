@@ -1,0 +1,185 @@
+--source include/have_innodb.inc
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+#
+# MDEV-28213: A slave's ignored domain ids should not be validated when
+# connecting to a master.
+#
+# When a slave connects to a master using MASTER_USE_GTID=Slave_Pos and the
+# master has purged old binlogs, the master validates the slave's GTID state
+# against the oldest available binlog's Gtid_list event. If the master's
+# Gtid_list contains domains that the slave is configured to ignore (via
+# IGNORE_DOMAIN_IDS or DO_DOMAIN_IDS), those domains should NOT be validated.
+# Previously this would cause error 1236.
+#
+
+--echo #
+--echo # Setup: Create tables in two GTID domains on master
+--echo #
+
+--connection server_1
+SET @@session.gtid_domain_id= 1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+SET @@session.gtid_domain_id= 2;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (100);
+
+# Sync slave with master for both domains
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+--echo #
+--echo # Test 1: IGNORE_DOMAIN_IDS with purged binlogs should not cause error 1236
+--echo #
+
+--connection server_2
+--source include/stop_slave.inc
+
+--connection server_1
+# While slave is stopped, only advance domain 2 (which will be ignored).
+# Domain 1 stays at the same position so the slave can still connect for it.
+SET @@session.gtid_domain_id= 2;
+INSERT INTO t2 VALUES (200);
+INSERT INTO t2 VALUES (201);
+
+# Flush logs to rotate the binlog file, then flush again so we have a newer
+# file to purge up to.
+FLUSH LOGS;
+SET @@session.gtid_domain_id= 2;
+INSERT INTO t2 VALUES (202);
+FLUSH LOGS;
+
+# Now purge all binlogs except the latest.
+# The oldest remaining binlog's Gtid_list will reference both domains.
+# Domain 1 will still be at the position the slave knows (up to date).
+# Domain 2 will have advanced past the slave's position (stale for slave).
+--let $purge_binlogs_to= query_get_value(SHOW MASTER STATUS, File, 1)
+--source include/wait_for_purge.inc
+--source include/show_binary_logs.inc
+
+--connection server_2
+# Configure slave to ignore domain 2. The slave has no up-to-date position
+# for domain 2 since it was stopped before the latest domain 2 transactions.
+# Without the fix, connecting would fail with error 1236 because the master
+# validates domain 2's position even though the slave doesn't care about it.
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(2), MASTER_USE_GTID=slave_pos;
+--source include/start_slave.inc
+
+# Verify slave can connect and replicate domain 1 data
+--connection server_1
+SET @@session.gtid_domain_id= 1;
+INSERT INTO t1 VALUES (2);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+--echo # Slave should have domain 1 data (the domain it cares about)
+SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # Test 2: DO_DOMAIN_IDS with purged binlogs should not cause error 1236
+--echo #
+
+--connection server_2
+--source include/stop_slave.inc
+
+# The slave ignored domain 2 during test 1, so its position for domain 2
+# is stale. We need to update it to match the master before we can start
+# replication without the ignore filter.
+--connection server_1
+--let $master_pos= `SELECT @@GLOBAL.gtid_binlog_pos`
+--connection server_2
+--disable_query_log
+--eval SET GLOBAL gtid_slave_pos='$master_pos'
+--enable_query_log
+
+# Reset domain filtering and sync up
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(), DO_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
+--source include/start_slave.inc
+
+# Sync up everything
+--connection server_1
+SET @@session.gtid_domain_id= 1;
+INSERT INTO t1 VALUES (3);
+SET @@session.gtid_domain_id= 2;
+INSERT INTO t2 VALUES (300);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+
+--connection server_1
+# While slave is stopped, only advance domain 2 (which will NOT be in DO list).
+# Domain 1 stays current so the slave can connect for it.
+SET @@session.gtid_domain_id= 2;
+INSERT INTO t2 VALUES (400);
+INSERT INTO t2 VALUES (401);
+
+# Create new binlog and purge old ones
+FLUSH LOGS;
+SET @@session.gtid_domain_id= 2;
+INSERT INTO t2 VALUES (402);
+FLUSH LOGS;
+
+# Purge all old binlogs
+--let $purge_binlogs_to= query_get_value(SHOW MASTER STATUS, File, 1)
+--source include/wait_for_purge.inc
+--source include/show_binary_logs.inc
+
+--connection server_2
+# Configure slave with DO_DOMAIN_IDS=(1) -- only replicate domain 1.
+# This means domain 2 should be ignored during validation.
+# Without the fix, this would fail because the master's oldest binlog
+# references domain 2 but slave may not have the latest position for it.
+CHANGE MASTER TO DO_DOMAIN_IDS=(1), IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
+--source include/start_slave.inc
+
+--connection server_1
+SET @@session.gtid_domain_id= 1;
+INSERT INTO t1 VALUES (4);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+--echo # Slave should have all domain 1 data
+SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+--connection server_2
+--source include/stop_slave.inc
+
+# Update slave's GTID position to match master for all domains,
+# since domain 2 was not replicated during test 2.
+--connection server_1
+--let $master_pos= `SELECT @@GLOBAL.gtid_binlog_pos`
+--connection server_2
+--disable_query_log
+--eval SET GLOBAL gtid_slave_pos='$master_pos'
+--enable_query_log
+
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
+--source include/start_slave.inc
+
+--connection server_1
+SET @@session.gtid_domain_id= 0;
+DROP TABLE t1, t2;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+--source include/rpl_end.inc
