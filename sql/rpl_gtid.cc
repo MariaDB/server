@@ -27,6 +27,7 @@
 #include "sql_parse.h"
 #include "key.h"
 #include "rpl_rli.h"
+#include "rpl_mi.h"
 #include "slave.h"
 #include "log_event.h"
 #include "transaction.h"
@@ -1720,6 +1721,18 @@ rpl_binlog_state_base::is_before_pos(slave_connection_state *pos)
           OR we are identical, but there's some other server_id after)
       THEN that position lies before our state.
     */
+    /*
+      If the slave is configured to ignore this domain (MDEV-28213),
+      skip the check. The slave doesn't care about this domain's position.
+    */
+#ifdef HAVE_REPLICATION
+    if (pos->domain_filter)
+    {
+      pos->domain_filter->do_filter(e->gtid.domain_id);
+      if (pos->domain_filter->is_group_filtered())
+        continue;
+    }
+#endif
     element *elem;
     if ((elem= (element *)my_hash_search(&hash,
                                          (const uchar *)&e->gtid.domain_id,
@@ -1744,7 +1757,21 @@ rpl_binlog_state_base::is_before_pos(slave_connection_state *pos)
     const element *elem= (const element *) my_hash_element(&hash, i);
     if (likely(elem->hash.records > 0) &&
         !pos->find(elem->domain_id))
+    {
+      /*
+        If the slave is configured to ignore this domain (MDEV-28213),
+        skip the check rather than returning false.
+      */
+#ifdef HAVE_REPLICATION
+      if (pos->domain_filter)
+      {
+        pos->domain_filter->do_filter(elem->domain_id);
+        if (pos->domain_filter->is_group_filtered())
+          continue;
+      }
+#endif
       return false;
+    }
   }
 
   /* Nothing in our state lies after anything in the position. */
@@ -2360,6 +2387,9 @@ end:
 
 slave_connection_state::slave_connection_state()
 {
+#ifdef HAVE_REPLICATION
+  domain_filter= NULL;
+#endif
   my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
                offsetof(entry, gtid) + offsetof(rpl_gtid, domain_id),
                sizeof(rpl_gtid::domain_id), NULL, my_free, HASH_UNIQUE);
@@ -2369,6 +2399,9 @@ slave_connection_state::slave_connection_state()
 
 slave_connection_state::~slave_connection_state()
 {
+#ifdef HAVE_REPLICATION
+  delete domain_filter;
+#endif
   my_hash_free(&hash);
   delete_dynamic(&gtid_sort_array);
 }

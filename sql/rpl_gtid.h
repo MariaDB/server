@@ -357,6 +357,15 @@ struct slave_connection_state
   /* Auxiliary buffer to sort gtid list. */
   DYNAMIC_ARRAY gtid_sort_array;
 
+#ifdef HAVE_REPLICATION
+  /*
+    Domain ID filter sent by the slave (via IGNORE_DOMAIN_IDS / DO_DOMAIN_IDS).
+    NULL until the slave actually sends domain ID lists (MDEV-28213).
+    Owned by this struct; deleted in ~slave_connection_state().
+  */
+  Domain_id_filter *domain_filter;
+#endif
+
   slave_connection_state();
   ~slave_connection_state();
 
