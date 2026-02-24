@@ -264,6 +264,9 @@ The following specify which files/extra groups are read (specified before remain
  --deadlock-timeout-short=# 
  Short timeout for the two-step deadlock detection (in
  microseconds)
+ --default-master-connection=name 
+ Master connection to use for all slave variables and
+ slave commands
  --default-password-lifetime=# 
  This defines the global password expiration policy. 0
  means automatic password expiration is disabled. If the
@@ -1751,6 +1754,7 @@ deadlock-search-depth-long 15
 deadlock-search-depth-short 4
 deadlock-timeout-long 50000000
 deadlock-timeout-short 10000
+default-master-connection 
 default-password-lifetime 0
 default-regex-flags 
 default-storage-engine myisam
