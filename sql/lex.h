@@ -189,7 +189,6 @@ SYMBOL symbols[] = {
   { "DELETE",		SYM(DELETE_SYM)},
   { "DELETE_DOMAIN_ID", SYM(DELETE_DOMAIN_ID_SYM)},
   { "DENY",             SYM(DENY)},
-  { "DENIES",             SYM(DENIES)},
   { "DESC",		SYM(DESC)},
   { "DESCRIBE",		SYM(DESCRIBE)},
   { "DETERMINISTIC",    SYM(DETERMINISTIC_SYM)},

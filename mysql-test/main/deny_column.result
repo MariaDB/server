@@ -9,7 +9,7 @@ salary DECIMAL(10,2),
 ssn VARCHAR(11),
 address VARCHAR(100)
 );
-INSERT INTO deny_col_db.sensitive_data VALUES 
+INSERT INTO deny_col_db.sensitive_data VALUES
 (1, 'John Doe', 75000.00, '123-45-6789', '123 Main St'),
 (2, 'Jane Smith', 85000.00, '987-65-4321', '456 Oak Ave');
 CREATE USER col_user1@localhost;
