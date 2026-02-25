@@ -162,6 +162,7 @@ class Master_info: public Master_info_file, public Slave_reporting_capability
   ~Master_info();
   bool shall_ignore_server_id(ulong s_id);
   void clear_in_memory_info(bool all);
+  void reset_master_server_id();
   bool error()
   {
     /* If malloc() in initialization failed */
