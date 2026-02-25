@@ -5434,10 +5434,10 @@ thd_need_wait_reports(const MYSQL_THD thd)
 {
   rpl_group_info *rgi;
 
-  if (mysql_bin_log.is_open())
-    return true;
   if (!thd)
     return false;
+  if (unlikely(opt_binlog_commit_wait_count != 0) && mysql_bin_log.is_open())
+    return true;
   rgi= thd->rgi_slave;
   if (!rgi)
     return false;
@@ -5478,13 +5478,10 @@ thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
   rpl_group_info *rgi;
   rpl_group_info *other_rgi;
 
-  if (!thd)
+  if (!thd || !other_thd)
     return 0;
-  DEBUG_SYNC(thd, "thd_report_wait_for");
-  thd->transaction->stmt.mark_trans_did_wait();
-  if (!other_thd)
-    return 0;
-  binlog_report_wait_for(thd, other_thd);
+  if (unlikely(opt_binlog_commit_wait_count != 0))
+    binlog_report_wait_for(thd, other_thd);
   rgi= thd->rgi_slave;
   other_rgi= other_thd->rgi_slave;
   if (!rgi || !other_rgi)

@@ -1457,8 +1457,6 @@ void multi_delete::abort_result_set()
 
   if (thd->transaction->stmt.modified_non_trans_table)
     thd->transaction->all.modified_non_trans_table= TRUE;
-  thd->transaction->all.m_unsafe_rollback_flags|=
-    (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 
   /*
     If rows from the first table only has been deleted and it is
@@ -1655,8 +1653,6 @@ bool multi_delete::send_eof()
 
   if (thd->transaction->stmt.modified_non_trans_table)
     thd->transaction->all.modified_non_trans_table= TRUE;
-  thd->transaction->all.m_unsafe_rollback_flags|=
-    (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 
   /*
     We must invalidate the query cache before binlog writing and

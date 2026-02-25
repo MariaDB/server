@@ -787,6 +787,8 @@ public:
 	/** whether dict_sys.latch is held exclusively; protected by
 	dict_sys.latch */
 	bool dict_operation_lock_mode;
+	/** cached value of thd_need_wait_reports() (if mysql_thd is set). */
+	bool need_wait_report;
 
 	/** wall-clock time of the latest transition to TRX_STATE_ACTIVE;
 	used for diagnostic purposes only */
