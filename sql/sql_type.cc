@@ -2862,8 +2862,21 @@ Type_handler_varchar::Column_definition_set_attributes(
     }
     break;
   case COLUMN_DEFINITION_ROUTINE_LOCAL:
-  case COLUMN_DEFINITION_TABLE_FIELD:
     break;
+  case COLUMN_DEFINITION_TABLE_FIELD:
+    /*
+      Support SQL Standard T081: "Optional string types maximum length"
+      Allows users to specify VARCHAR fields without a length
+      In this case, has_explicit_length is false.
+      This is only allowed for types VARCHAR, VARBINARY, NVARCHAR.
+      Note that Type_handler_vector inherits from Type_handler_varchar.
+    */
+    if (this == &type_handler_varchar ||
+        this == &type_handler_varchar_compressed)
+    {
+      def->set_handler(&type_handler_blob);
+      return false;
+    }
   }
   thd->parse_error();
   return true;

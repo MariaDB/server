@@ -1,0 +1,123 @@
+#
+# MDEV-31414
+# Test for SQL Standard T081: "Optional string types maximum length"
+# This tests the feature that allows VARCHAR columns to be created without
+# specifying a length, defaulting to the maximum VARCHAR length (65535)
+#
+# We have 3 scenarios for resolving charset and collation
+# 1. Empty
+# 2. Precisely Typed
+# 3. Contextually typed
+#
+# Check the comment section in "lex_charset.cc" at 
+# CHARSET_INFO *Lex_exact_charset_extended_collation_attrs_st::
+#                resolved_to_character_set
+
+--echo #
+--echo # SQL Standard T081: VARCHAR without explicit length specification
+--echo #
+
+--echo #
+--echo # Basic test: CREATE TABLE with VARCHAR without length or charset (scenario 1a)
+--echo #
+
+CREATE TABLE t1 (a VARCHAR);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo 
+--echo #
+--echo # Basic test: CREATE TABLE with charset (scenario 1b)
+--echo #
+
+CREATE TABLE t1 (a VARCHAR CHARSET latin1);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo
+--echo #
+--echo # Test VARCHAR without length with specific column charsets or collations (scenario 2a)
+--echo #
+
+CREATE TABLE t1 (a VARCHAR CHARSET utf8mb4);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo 
+CREATE TABLE t1 (a VARCHAR COLLATE utf8mb4_general_ci);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo 
+CREATE TABLE t1 (a VARCHAR CHARSET latin1);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo 
+CREATE TABLE t1 (a VARCHAR COLLATE latin1_general_ci);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo 
+--echo #
+--echo # Test VARCHAR without length with specific column charsets and collations (scenario 2b)
+--echo #
+
+CREATE TABLE t1 (a VARCHAR CHARSET utf8mb4 COLLATE utf8mb4_general_ci);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo 
+CREATE TABLE t1 (a VARCHAR CHARSET latin1 COLLATE latin1_general_ci);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo 
+--echo #
+--echo # Basic test: CREATE TABLE with charset (Scenario 3)
+--echo #
+CREATE TABLE t1 (a VARCHAR) CHARSET latin1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo
+--echo #
+--echo # Test ALTER TABLE MODIFY COLUMN with VARCHAR without length
+--echo #
+CREATE TABLE t1 (id INTEGER, a VARCHAR(255));
+ALTER TABLE t1 MODIFY a VARCHAR;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo
+--echo #
+--echo # Test ALTER TABLE ADD COLUMN with VARCHAR without length
+--echo #
+CREATE TABLE t1 (id INTEGER);
+ALTER TABLE t1 ADD a VARCHAR;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo
+--echo #
+--echo # Corner Case: VARBINARY without length should become BLOB
+--echo #
+CREATE TABLE t1 (a VARBINARY);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo
+--echo #
+--echo # Test NATIONAL VARCHAR (NVARCHAR) without length
+--echo #
+CREATE TABLE t1 (a NVARCHAR);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo
+--echo #
+--echo # Test VARCHAR COMPRESSED without length
+--echo #
+CREATE TABLE t1 (a VARCHAR COMPRESSED);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
