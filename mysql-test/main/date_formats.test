@@ -5,6 +5,7 @@
 #
 # Test of str_to_date
 #
+let $old_charset= `SELECT @@character_set_client`;
 
 select str_to_date(concat('15-01-2001',' 2:59:58.999'),
 	           concat('%d-%m-%Y',' ','%H:%i:%s.%f')) as exp;
@@ -160,7 +161,7 @@ set names latin1;
 set lc_time_names=en_US;
 
 #
-# Bug #14016 
+# Bug #14016
 #
 create table t1 (f1 datetime);
 insert into t1 (f1) values ("2005-01-01");
@@ -232,10 +233,7 @@ SELECT DATE_FORMAT("2009-01-01",'%W %d %M %Y') as valid_date;
 
 --echo "End of 5.0 tests"
 
-
---echo #
 --echo # Start of 5.1 tests
---echo #
 
 --echo #
 --echo # Bug#58005 utf8 + get_format causes failed assertion: !str || str != Ptr'
@@ -244,9 +242,7 @@ SET NAMES utf8;
 SELECT LEAST('%', GET_FORMAT(datetime, 'eur'), CAST(GET_FORMAT(datetime, 'eur') AS CHAR(65535))) as exp;
 SET NAMES latin1;
 
---echo #
 --echo # End of 5.1 tests
---echo #
 
 #
 # TIME_FORMAT and non-time format specifiers
@@ -257,9 +253,7 @@ select time_format('01 02:02:02', '%d %T');
 select time_format('01 02:02:02', '%T');
 select time_format('2001-01-01 02:02:02', '%T');
 
---echo #
 --echo # End of 10.2 test
---echo #
 
 --echo #
 --echo # MDEV-31684 Add timezone information to DATE_FORMAT
@@ -285,7 +279,6 @@ SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
 
 SET TIME_ZONE= '+04:30';
 SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
-
 
 --echo # Using UTC
 
@@ -322,6 +315,32 @@ SELECT DATE_FORMAT('2023-03-26 01:59:59', '%z %Z');
 SELECT DATE_FORMAT('2023-03-26 03:00:00', '%z %Z');
 
 
---echo #
 --echo # End of 11.3 test
+
 --echo #
+--echo MDEV-26112 STR_TO_DATE should work with lc_time_names
+--echo #
+
+--disable_service_connection
+
+SET names utf8;
+set @@lc_time_names="uk_UA";
+select str_to_date("1 березень 2010", "%e %M %Y"), str_to_date("1 березня 2010", "%e %M %Y");
+select str_to_date("Березень 15. 2010", "%M %d. %Y");
+select str_to_date("пн 27 квітня 2026", "%a %e %M %Y"), str_to_date("неділя 28 грудня 2010", "%W %e %M %Y");
+select str_to_date(date_format("2010-03-01","%e. %M %Y"), "%e. %M %Y");
+
+set @@lc_time_names="de_DE";
+select str_to_date("1 März 2010", "%e %M %Y"), str_to_date("1 Juni 2010", "%e %M %Y");
+select str_to_date("1 Sep 2010", "%e %b %Y"), str_to_date("1 Mär 2010", "%e %b %Y");
+select str_to_date(date_format("2010-03-01","%e. %M %Y"), "%e. %M %Y");
+
+set @@lc_time_names="vi_VN";
+select str_to_date("1 Tháng hai 2026", "%e %M %Y"), str_to_date("20 tháng 3 2010", "%e %M %Y");
+select str_to_date("1 Tháng một 2026", "%e %M %Y");
+
+--echo # End of 12.3 test
+
+--enable_service_connection
+SET @@lc_time_names=DEFAULT;
+eval SET NAMES $old_charset;
