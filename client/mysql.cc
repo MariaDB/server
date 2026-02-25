@@ -1441,13 +1441,25 @@ int main(int argc,char *argv[])
       if (verbose)
 	tee_fprintf(stdout, "Reading history-file %s\n",histfile);
       read_history(histfile);
-      if (!(histfile_tmp= (char*) my_malloc(PSI_NOT_INSTRUMENTED,
-                                            strlen(histfile) + 5, MYF(MY_WME))))
       {
-	fprintf(stderr, "Couldn't allocate memory for temp histfile!\n");
-	exit(1);
+        /* Extra space for the suffix appended to histfile:
+             "."     - separator       (sizeof = 2, includes NUL)
+             + PID   - up to 20 digits (ULONG_MAX = 18446744073709551615)
+             + ".TMP"- extension       (sizeof = 5, includes NUL, doubles
+                                        as the string NUL terminator)
+           sizeof(".")  and sizeof(".TMP") each carry a NUL, so the sum
+           over-allocates by one byte, which is intentional. */
+        size_t hlen= strlen(histfile) + sizeof(".") + 20 + sizeof(".TMP");
+        if (!(histfile_tmp= (char*) my_malloc(PSI_NOT_INSTRUMENTED, hlen, MYF(MY_WME))))
+        {
+          fprintf(stderr, "Couldn't allocate memory for temp histfile!\n");
+          exit(1);
+        }
+        /* Include PID in name to avoid rename collision when concurrent sessions exit. */
+        /* pid_t is signed but getpid() always returns a non-negative value (POSIX). */
+        snprintf(histfile_tmp, hlen, "%s.%lu.TMP", histfile,
+                 (unsigned long) getpid());
       }
-      sprintf(histfile_tmp, "%s.TMP", histfile);
     }
   }
 
