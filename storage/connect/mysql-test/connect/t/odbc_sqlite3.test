@@ -53,6 +53,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 let $Database=$MTR_SUITE_DIR/std_data/test.sqlite3;
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=$Database;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
+--eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC SRCDEF='SELECT %s, %d FROM t1' CONNECTION='Driver=SQLite3 ODBC Driver;Database=$Database;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;

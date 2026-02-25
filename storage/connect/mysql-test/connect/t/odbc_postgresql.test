@@ -161,6 +161,7 @@ DROP VIEW v1;
 DROP TABLE t1;
 
 --echo # Table "t1" in the schema "public"
+CREATE TABLE t1 ENGINE=CONNECT TABNAME='public.t1' SRCDEF='SELECT %s, "%d" FROM public.t1' TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr';
 CREATE TABLE t1 ENGINE=CONNECT TABNAME='public.t1' TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr';
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;

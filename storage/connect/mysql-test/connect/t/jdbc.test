@@ -40,6 +40,7 @@ DROP TABLE t1;
 --echo # Testing JDBC view
 --echo #
 --replace_result $PORT PORT
+--eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC SRCDEF='select id, msg, tm, dt, %s, %s from t2' CONNECTION='jdbc:mysql://localhost:$PORT/connect?user=root&useSSL=false'
 --eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC SRCDEF='select id, msg, tm, dt from t2' CONNECTION='jdbc:mysql://localhost:$PORT/connect?user=root&useSSL=false'
 SELECT * FROM t1;
 SELECT msg, dt FROM t1;
