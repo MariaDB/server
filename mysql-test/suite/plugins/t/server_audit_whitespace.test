@@ -1,0 +1,101 @@
+--source include/not_embedded.inc
+--source include/no_view_protocol.inc
+
+--disable_ps2_protocol
+
+--echo
+--echo =======================================================================
+--echo Test for whitespace handling in SERVER_AUDIT_INCL_USERS
+--echo Bug: Whitespace around commas with empty tokens causes all users logged
+--echo Expected: Only specified users should be logged
+--echo =======================================================================
+
+# Create test users
+CREATE USER 'audit_user1'@'localhost' IDENTIFIED BY 'password1';
+CREATE USER 'audit_user2'@'localhost' IDENTIFIED BY 'password2';
+CREATE USER 'audit_user3'@'localhost' IDENTIFIED BY 'password3';
+
+GRANT ALL ON *.* TO 'audit_user1'@'localhost';
+GRANT ALL ON *.* TO 'audit_user2'@'localhost';
+GRANT ALL ON *.* TO 'audit_user3'@'localhost';
+
+--echo
+--echo =======================================================================
+--echo Install the audit plugin
+--echo =======================================================================
+INSTALL PLUGIN server_audit SONAME 'server_audit';
+
+if (!`SELECT COUNT(*) FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME='server_audit'`) {
+  --skip No SERVER_AUDIT plugin
+}
+
+--echo
+--echo =======================================================================
+--echo Set up audit log file
+--echo =======================================================================
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+--echo
+--echo =======================================================================
+--echo TEST 1: Whitespace around commas - 'user1 , user2'
+--echo =======================================================================
+SET GLOBAL server_audit_logging = OFF;
+SET GLOBAL server_audit_events = 'QUERY';
+SET GLOBAL server_audit_file_path = 'server_audit_whitespace1.log';
+SET GLOBAL server_audit_output_type = 'FILE';
+SET GLOBAL server_audit_incl_users = 'audit_user1 , audit_user2';
+SET GLOBAL server_audit_logging = ON;
+
+--connect (conn1a, localhost, audit_user1, password1,)
+SELECT 'whitespace1_test_user1';
+--disconnect conn1a
+
+--connect (conn3a, localhost, audit_user3, password3,)
+SELECT 'whitespace1_test_user3_NOT_in_list';
+--disconnect conn3a
+
+--connection default
+SET GLOBAL server_audit_logging = OFF;
+
+--echo # Whitespace test 1 - user3 should NOT appear:
+--replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9],[^,]*,/TIME,HOSTNAME,/ /,[0-9]+,[0-9]+,/,CONNECTION_ID,QUERY_ID,/ /localhost:[0-9]+/localhost/
+cat_file $MYSQLD_DATADIR/server_audit_whitespace1.log;
+--remove_file $MYSQLD_DATADIR/server_audit_whitespace1.log
+
+--echo
+--echo =======================================================================
+--echo TEST 2: Whitespace with empty tokens - 'user1  ,   ,  user2'
+--echo =======================================================================
+SET GLOBAL server_audit_file_path = 'server_audit_whitespace2.log';
+SET GLOBAL server_audit_incl_users = 'audit_user1  ,   ,  audit_user2';
+SET GLOBAL server_audit_logging = ON;
+
+--connect (conn1b, localhost, audit_user1, password1,)
+SELECT 'whitespace2_test_user1';
+--disconnect conn1b
+
+--connect (conn3b, localhost, audit_user3, password3,)
+SELECT 'whitespace2_test_user3_NOT_in_list';
+--disconnect conn3b
+
+--connection default
+SET GLOBAL server_audit_logging = OFF;
+
+--echo # Whitespace test 2 - user3 should NOT appear:
+--replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9],[^,]*,/TIME,HOSTNAME,/ /,[0-9]+,[0-9]+,/,CONNECTION_ID,QUERY_ID,/ /localhost:[0-9]+/localhost/
+cat_file $MYSQLD_DATADIR/server_audit_whitespace2.log;
+--remove_file $MYSQLD_DATADIR/server_audit_whitespace2.log
+
+--echo
+--echo =======================================================================
+--echo Cleanup
+--echo =======================================================================
+UNINSTALL PLUGIN server_audit;
+
+DROP USER 'audit_user1'@'localhost';
+DROP USER 'audit_user2'@'localhost';
+DROP USER 'audit_user3'@'localhost';
+
+--echo # Test completed - whitespace handling verified
+
+--enable_ps2_protocol

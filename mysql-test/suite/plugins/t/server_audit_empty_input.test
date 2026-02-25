@@ -1,0 +1,108 @@
+--source include/not_embedded.inc
+--source include/no_view_protocol.inc
+
+--disable_ps2_protocol
+
+--echo
+--echo =======================================================================
+--echo Test for empty and invalid input in SERVER_AUDIT_INCL_USERS
+--echo Tests: empty string, only commas, only whitespace and commas
+--echo Expected: When incl_users is effectively empty, ALL users are logged
+--echo           (empty inclusion list = no filtering)
+--echo =======================================================================
+
+# Create test users
+CREATE USER 'audit_user1'@'localhost' IDENTIFIED BY 'password1';
+
+GRANT ALL ON *.* TO 'audit_user1'@'localhost';
+
+--echo
+--echo =======================================================================
+--echo Install the audit plugin
+--echo =======================================================================
+INSTALL PLUGIN server_audit SONAME 'server_audit';
+
+if (!`SELECT COUNT(*) FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME='server_audit'`) {
+  --skip No SERVER_AUDIT plugin
+}
+
+--echo
+--echo =======================================================================
+--echo Set up audit log file
+--echo =======================================================================
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+--echo
+--echo =======================================================================
+--echo TEST 1: Only commas - ',,,'
+--echo =======================================================================
+SET GLOBAL server_audit_logging = OFF;
+SET GLOBAL server_audit_events = 'QUERY';
+SET GLOBAL server_audit_file_path = 'server_audit_empty1.log';
+SET GLOBAL server_audit_output_type = 'FILE';
+SET GLOBAL server_audit_incl_users = ',,,';
+SET GLOBAL server_audit_logging = ON;
+
+--connect (conn1a, localhost, audit_user1, password1,)
+SELECT 'empty1_test_user1_should_log_all';
+--disconnect conn1a
+
+--connection default
+SET GLOBAL server_audit_logging = OFF;
+
+--echo # Only commas test - all users should be logged (no filter):
+--replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9],[^,]*,/TIME,HOSTNAME,/ /,[0-9]+,[0-9]+,/,CONNECTION_ID,QUERY_ID,/ /localhost:[0-9]+/localhost/
+cat_file $MYSQLD_DATADIR/server_audit_empty1.log;
+--remove_file $MYSQLD_DATADIR/server_audit_empty1.log
+
+--echo
+--echo =======================================================================
+--echo TEST 2: Whitespace and commas - '  ,  ,  '
+--echo =======================================================================
+SET GLOBAL server_audit_file_path = 'server_audit_empty2.log';
+SET GLOBAL server_audit_incl_users = '  ,  ,  ';
+SET GLOBAL server_audit_logging = ON;
+
+--connect (conn1b, localhost, audit_user1, password1,)
+SELECT 'empty2_test_user1_should_log_all';
+--disconnect conn1b
+
+--connection default
+SET GLOBAL server_audit_logging = OFF;
+
+--echo # Whitespace and commas test - all users should be logged (no filter):
+--replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9],[^,]*,/TIME,HOSTNAME,/ /,[0-9]+,[0-9]+,/,CONNECTION_ID,QUERY_ID,/ /localhost:[0-9]+/localhost/
+cat_file $MYSQLD_DATADIR/server_audit_empty2.log;
+--remove_file $MYSQLD_DATADIR/server_audit_empty2.log
+
+--echo
+--echo =======================================================================
+--echo TEST 3: Empty string - ''
+--echo =======================================================================
+SET GLOBAL server_audit_file_path = 'server_audit_empty3.log';
+SET GLOBAL server_audit_incl_users = '';
+SET GLOBAL server_audit_logging = ON;
+
+--connect (conn1c, localhost, audit_user1, password1,)
+SELECT 'empty3_test_user1_should_log_all';
+--disconnect conn1c
+
+--connection default
+SET GLOBAL server_audit_logging = OFF;
+
+--echo # Empty string test - all users should be logged (no filter):
+--replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9],[^,]*,/TIME,HOSTNAME,/ /,[0-9]+,[0-9]+,/,CONNECTION_ID,QUERY_ID,/ /localhost:[0-9]+/localhost/
+cat_file $MYSQLD_DATADIR/server_audit_empty3.log;
+--remove_file $MYSQLD_DATADIR/server_audit_empty3.log
+
+--echo
+--echo =======================================================================
+--echo Cleanup
+--echo =======================================================================
+UNINSTALL PLUGIN server_audit;
+
+DROP USER 'audit_user1'@'localhost';
+
+--echo # Test completed - empty input handling verified
+
+--enable_ps2_protocol

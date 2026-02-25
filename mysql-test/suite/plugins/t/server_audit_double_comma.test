@@ -1,0 +1,94 @@
+--source include/not_embedded.inc
+--source include/no_view_protocol.inc
+
+--disable_ps2_protocol
+
+--echo #
+--echo # Test for double comma handling in SERVER_AUDIT_INCL_USERS
+--echo # Bug: Double commas (e.g., 'user1,,user2') cause all users to be logged
+--echo # Expected: Only user1 and user2 should be logged
+--echo #
+
+# Create test users
+CREATE USER 'audit_user1'@'localhost' IDENTIFIED BY 'password1';
+CREATE USER 'audit_user2'@'localhost' IDENTIFIED BY 'password2';
+CREATE USER 'audit_user3'@'localhost' IDENTIFIED BY 'password3';
+
+GRANT ALL ON *.* TO 'audit_user1'@'localhost';
+GRANT ALL ON *.* TO 'audit_user2'@'localhost';
+GRANT ALL ON *.* TO 'audit_user3'@'localhost';
+
+--echo #
+--echo # Install the audit plugin
+--echo #
+INSTALL PLUGIN server_audit SONAME 'server_audit';
+
+if (!`SELECT COUNT(*) FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME='server_audit'`) {
+  --skip No SERVER_AUDIT plugin
+}
+
+--echo #
+--echo # Set up audit log file
+--echo #
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+--echo #
+--echo # Configure audit with double comma in incl_users
+--echo #
+SET GLOBAL server_audit_logging = OFF;
+SET GLOBAL server_audit_events = 'QUERY';
+SET GLOBAL server_audit_file_path = 'server_audit_double_comma.log';
+SET GLOBAL server_audit_output_type = 'FILE';
+# This is the bug case - double comma between users
+SET GLOBAL server_audit_incl_users = 'audit_user1,,audit_user2';
+SET GLOBAL server_audit_logging = ON;
+
+--echo #
+--echo # Connect as user1 - should be logged
+--echo #
+--connect (conn1, localhost, audit_user1, password1,)
+SELECT 'query_from_user1';
+--disconnect conn1
+
+--echo #
+--echo # Connect as user2 - should be logged
+--echo #
+--connect (conn2, localhost, audit_user2, password2,)
+SELECT 'query_from_user2';
+--disconnect conn2
+
+--echo #
+--echo # Connect as user3 - should NOT be logged (not in incl_users)
+--echo #
+--connect (conn3, localhost, audit_user3, password3,)
+SELECT 'query_from_user3_NOT_in_list';
+--disconnect conn3
+
+--connection default
+
+--echo #
+--echo # Cleanup
+--echo #
+SET GLOBAL server_audit_logging = OFF;
+UNINSTALL PLUGIN server_audit;
+
+DROP USER 'audit_user1'@'localhost';
+DROP USER 'audit_user2'@'localhost';
+DROP USER 'audit_user3'@'localhost';
+
+--echo #
+--echo # Verify audit log - user3 queries should NOT appear
+--echo #
+--echo # The audit log should contain queries from user1 and user2 only
+--echo # If the bug exists, user3 queries will also appear (all users logged)
+--replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9],[^,]*,/TIME,HOSTNAME,/ /,[0-9]+,[0-9]+,/,CONNECTION_ID,QUERY_ID,/ /localhost:[0-9]+/localhost/
+cat_file $MYSQLD_DATADIR/server_audit_double_comma.log;
+
+--echo #
+--echo # Remove the temporary audit log
+--echo #
+--remove_file $MYSQLD_DATADIR/server_audit_double_comma.log
+
+--echo # Test completed - double comma handling verified
+
+--enable_ps2_protocol

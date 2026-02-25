@@ -1,0 +1,84 @@
+
+=======================================================================
+Test for empty and invalid input in SERVER_AUDIT_INCL_USERS
+Tests: empty string, only commas, only whitespace and commas
+Expected: When incl_users is effectively empty, ALL users are logged
+(empty inclusion list = no filtering)
+=======================================================================
+CREATE USER 'audit_user1'@'localhost' IDENTIFIED BY 'password1';
+GRANT ALL ON *.* TO 'audit_user1'@'localhost';
+
+=======================================================================
+Install the audit plugin
+=======================================================================
+INSTALL PLUGIN server_audit SONAME 'server_audit';
+
+=======================================================================
+Set up audit log file
+=======================================================================
+
+=======================================================================
+TEST 1: Only commas - ',,,'
+=======================================================================
+SET GLOBAL server_audit_logging = OFF;
+SET GLOBAL server_audit_events = 'QUERY';
+SET GLOBAL server_audit_file_path = 'server_audit_empty1.log';
+SET GLOBAL server_audit_output_type = 'FILE';
+SET GLOBAL server_audit_incl_users = ',,,';
+SET GLOBAL server_audit_logging = ON;
+connect  conn1a, localhost, audit_user1, password1,;
+SELECT 'empty1_test_user1_should_log_all';
+empty1_test_user1_should_log_all
+empty1_test_user1_should_log_all
+disconnect conn1a;
+connection default;
+SET GLOBAL server_audit_logging = OFF;
+# Only commas test - all users should be logged (no filter):
+TIME,HOSTNAME,root,localhost,CONNECTION_ID,QUERY_ID,QUERY,test,'SET GLOBAL server_audit_logging = ON',0
+TIME,HOSTNAME,audit_user1,localhost,CONNECTION_ID,QUERY_ID,QUERY,test,'SELECT \'empty1_test_user1_should_log_all\'',0
+TIME,HOSTNAME,root,localhost,CONNECTION_ID,QUERY_ID,QUERY,test,'SET GLOBAL server_audit_logging = OFF',0
+
+=======================================================================
+TEST 2: Whitespace and commas - '  ,  ,  '
+=======================================================================
+SET GLOBAL server_audit_file_path = 'server_audit_empty2.log';
+SET GLOBAL server_audit_incl_users = '  ,  ,  ';
+SET GLOBAL server_audit_logging = ON;
+connect  conn1b, localhost, audit_user1, password1,;
+SELECT 'empty2_test_user1_should_log_all';
+empty2_test_user1_should_log_all
+empty2_test_user1_should_log_all
+disconnect conn1b;
+connection default;
+SET GLOBAL server_audit_logging = OFF;
+# Whitespace and commas test - all users should be logged (no filter):
+TIME,HOSTNAME,root,localhost,CONNECTION_ID,QUERY_ID,QUERY,test,'SET GLOBAL server_audit_logging = ON',0
+TIME,HOSTNAME,audit_user1,localhost,CONNECTION_ID,QUERY_ID,QUERY,test,'SELECT \'empty2_test_user1_should_log_all\'',0
+TIME,HOSTNAME,root,localhost,CONNECTION_ID,QUERY_ID,QUERY,test,'SET GLOBAL server_audit_logging = OFF',0
+
+=======================================================================
+TEST 3: Empty string - ''
+=======================================================================
+SET GLOBAL server_audit_file_path = 'server_audit_empty3.log';
+SET GLOBAL server_audit_incl_users = '';
+SET GLOBAL server_audit_logging = ON;
+connect  conn1c, localhost, audit_user1, password1,;
+SELECT 'empty3_test_user1_should_log_all';
+empty3_test_user1_should_log_all
+empty3_test_user1_should_log_all
+disconnect conn1c;
+connection default;
+SET GLOBAL server_audit_logging = OFF;
+# Empty string test - all users should be logged (no filter):
+TIME,HOSTNAME,root,localhost,CONNECTION_ID,QUERY_ID,QUERY,test,'SET GLOBAL server_audit_logging = ON',0
+TIME,HOSTNAME,audit_user1,localhost,CONNECTION_ID,QUERY_ID,QUERY,test,'SELECT \'empty3_test_user1_should_log_all\'',0
+TIME,HOSTNAME,root,localhost,CONNECTION_ID,QUERY_ID,QUERY,test,'SET GLOBAL server_audit_logging = OFF',0
+
+=======================================================================
+Cleanup
+=======================================================================
+UNINSTALL PLUGIN server_audit;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+DROP USER 'audit_user1'@'localhost';
+# Test completed - empty input handling verified
