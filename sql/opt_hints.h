@@ -113,6 +113,7 @@
 
 #include <functional>
 #include "my_config.h"
+#include "opt_hints_structs.h"
 #include "sql_alloc.h"
 #include "sql_list.h"
 #include "mem_root_array.h"
@@ -138,6 +139,9 @@ struct st_opt_hint_info
   bool irregular_hint;    // true if hint requires some special handling.
                           // Currently it's used only for join order hints
                           // since they need a special printing procedure.
+  hint_resolution_stage resolution_stage; // Stage when this hint type has to
+                          // be resolved: early (before opening tables) or late
+                          // (after opening tables).
 };
 
 typedef Optimizer_hint_parser Parser;
