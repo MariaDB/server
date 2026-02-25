@@ -1038,7 +1038,11 @@ LEX_CSTRING table_or_routine_term_by_priv_type(ACL_PRIV_TYPE type)
 {
   if (type == PRIV_TYPE_COLUMN)
     return LEX_CSTRING{STRING_WITH_LEN("table")};
-  /* For table, the key is "table", for procedure "procedure" etc */
+  /*
+    Use the type name as the leaf key ("table", "column", "function",
+    "procedure", ...). This keeps JSON readable without an extra
+    indirection like a generic "name" field.
+  */
   return acl_priv_type_to_str(type);
 }
 
@@ -1084,9 +1088,9 @@ static int deny_entry_to_json(const deny_callback_data_t &entry, StringBuffer<51
   append_str_value(&json_buf, Lex_cstring_strlen(entry.column));
 
 end:
-  /* Add deny bits */
+  /* Add deny bits (stored under "bits" key inside denies array) */
   DBUG_ASSERT(entry.deny_bits);
-  json_buf.append(STRING_WITH_LEN(",\"deny\":"));
+  json_buf.append(STRING_WITH_LEN(",\"bits\":"));
   json_buf.append_ulonglong(entry.deny_bits);
   json_buf.append('}');
 
@@ -1137,19 +1141,17 @@ static int deny_entry_from_json(const char *element, int element_len,
    else
     return 1; // Type is mandatory
 
-   // Parse deny
-   if (json_get_object_key(element, element + element_len, "deny", &field_val,
-                           &field_len) == JSV_NUMBER)
-   {
-     int err;
-     const char *end= field_val + field_len;
-     entry.deny_bits=
-         privilege_t(my_strtoll10(field_val, (char **) &end, &err));
-     if (err)
-       return 1;
-   }
-   else
-     return 1; // Deny value is mandatory
+   // Parse deny bits (stored as "bits")
+   if (json_get_object_key(element, element + element_len, "bits", &field_val,
+                           &field_len) != JSV_NUMBER)
+     return 1;
+
+   int err;
+   const char *end= field_val + field_len;
+   entry.deny_bits=
+       privilege_t(my_strtoll10(field_val, (char **) &end, &err));
+   if (err)
+     return 1;
 
   if (entry.type == PRIV_TYPE_GLOBAL)
      return 0; // No more fields expected for global entries

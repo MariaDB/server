@@ -18,12 +18,12 @@ u	%	[
     {
         "type": "db",
         "db": "mysql",
-        "deny": 3
+        "bits": 3
     },
     {
         "type": "db",
         "db": "d",
-        "deny": 4
+        "bits": 4
     }
 ]
 REVOKE DENY SELECT  ON mysql.* FROM u;
@@ -33,12 +33,12 @@ u	%	[
     {
         "type": "db",
         "db": "mysql",
-        "deny": 2
+        "bits": 2
     },
     {
         "type": "db",
         "db": "d",
-        "deny": 4
+        "bits": 4
     }
 ]
 REVOKE DENY INSERT  ON mysql.* FROM u;
@@ -48,7 +48,7 @@ u	%	[
     {
         "type": "db",
         "db": "d",
-        "deny": 4
+        "bits": 4
     }
 ]
 REVOKE DENY UPDATE ON d.* FROM u;
@@ -62,7 +62,7 @@ u	%	[
         "type": "table",
         "db": "mysql",
         "table": "global_priv",
-        "deny": 3
+        "bits": 3
     }
 ]
 REVOKE DENY INSERT,SELECT  ON mysql.global_priv FROM u;
@@ -77,7 +77,7 @@ u	%	[
         "db": "mysql",
         "table": "global_priv",
         "column": "USER",
-        "deny": 1
+        "bits": 1
     }
 ]
 DENY UPDATE(user) on mysql.global_priv to u;
@@ -89,7 +89,7 @@ u	%	[
         "db": "mysql",
         "table": "global_priv",
         "column": "USER",
-        "deny": 5
+        "bits": 5
     }
 ]
 DENY SELECT on *.* to u;
@@ -101,11 +101,11 @@ u	%	[
         "db": "mysql",
         "table": "global_priv",
         "column": "USER",
-        "deny": 5
+        "bits": 5
     },
     {
         "type": "global",
-        "deny": 1
+        "bits": 1
     }
 ]
 CREATE TABLE sensitive_data (
@@ -124,25 +124,25 @@ u	%	[
         "db": "mysql",
         "table": "global_priv",
         "column": "USER",
-        "deny": 5
+        "bits": 5
     },
     {
         "type": "global",
-        "deny": 1
+        "bits": 1
     },
     {
         "type": "column",
         "db": "test",
         "table": "sensitive_data",
         "column": "salary",
-        "deny": 1
+        "bits": 1
     },
     {
         "type": "column",
         "db": "test",
         "table": "sensitive_data",
         "column": "ssn",
-        "deny": 1
+        "bits": 1
     }
 ]
 GRANT ALL PRIVILEGES on *.* TO u WITH GRANT OPTION;

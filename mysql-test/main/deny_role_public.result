@@ -47,7 +47,7 @@ r_base		[
         "type": "table",
         "db": "test",
         "table": "t1",
-        "deny": 1
+        "bits": 1
     }
 ]
 connect  con1, localhost, u1,,;
@@ -87,7 +87,7 @@ PUBLIC		[
         "type": "table",
         "db": "test",
         "table": "t1",
-        "deny": 1
+        "bits": 1
     }
 ]
 connect  con2, localhost, u2,,;

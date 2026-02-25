@@ -310,8 +310,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
   }
   // For the values we need select_priv
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  if (table->grant.privilege.certainly_allowed(SELECT_ACL))
-    table->grant.want_privilege= NO_ACL;
+  table->grant.want_privilege= (SELECT_ACL & ~table->grant.privilege);
 #endif
 
   if (check_key_in_view(thd, table_list) ||

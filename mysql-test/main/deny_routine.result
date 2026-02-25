@@ -101,7 +101,7 @@ u	localhost	[
         "type": "procedure",
         "db": "test",
         "procedure": "proc2",
-        "deny": 262144
+        "bits": 262144
     }
 ]
 DROP PROCEDURE proc2;
