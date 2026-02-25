@@ -1,0 +1,75 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # DENY with roles of roles and PUBLIC
+--echo #
+
+CREATE TABLE test.t1 (id INT);
+INSERT INTO test.t1 VALUES (1);
+
+--echo #
+--echo # DENY on base role should block through role inheritance
+--echo #
+CREATE USER u1@localhost;
+CREATE ROLE r_base, r_mid, r_top;
+GRANT SELECT ON test.t1 TO r_base;
+DENY SELECT ON test.t1 TO r_base;
+GRANT r_base TO r_mid;
+GRANT r_mid TO r_top;
+GRANT r_top TO u1@localhost;
+
+--echo #
+--echo # SHOW GRANTS for roles and JSON storage
+--echo #
+SHOW GRANTS FOR r_base;
+SHOW GRANTS FOR r_mid;
+SHOW GRANTS FOR r_top;
+SELECT User, Host,
+       JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+  FROM mysql.global_priv
+ WHERE User='r_base';
+
+connect (con1, localhost, u1,,);
+SET ROLE r_top;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM test.t1;
+disconnect con1;
+connection default;
+
+REVOKE DENY SELECT ON test.t1 FROM r_base;
+connect (con1, localhost, u1,,);
+SET ROLE r_top;
+SELECT * FROM test.t1;
+disconnect con1;
+connection default;
+
+DROP ROLE r_top;
+DROP ROLE r_mid;
+DROP ROLE r_base;
+DROP USER u1@localhost;
+
+--echo #
+--echo # PUBLIC DENY should affect users
+--echo #
+CREATE USER u2@localhost;
+GRANT SELECT ON test.t1 TO u2@localhost;
+DENY SELECT ON test.t1 TO PUBLIC;
+
+SHOW GRANTS FOR PUBLIC;
+SELECT User, Host,
+       JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies_pretty
+  FROM mysql.global_priv
+ WHERE User='PUBLIC';
+
+connect (con2, localhost, u2,,);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM test.t1;
+disconnect con2;
+connection default;
+
+REVOKE DENY SELECT ON test.t1 FROM PUBLIC;
+DROP USER u2@localhost;
+
+DROP TABLE test.t1;
+DELETE FROM mysql.global_priv WHERE User='PUBLIC';
+FLUSH PRIVILEGES;

@@ -6562,7 +6562,10 @@ static int apply_deny_user(const LEX_USER &combo,
     /* For roles, also update ACL_ROLE entry if it exists */
     ACL_ROLE *acl_role= find_acl_role(combo.user, true);
     if (acl_role)
+    {
       acl_role->access.set_deny(e.denies, e.subtree_denies);
+      acl_role->initial_role_access.set_deny(e.denies, e.subtree_denies);
+    }
   }
   return 0;
 }
