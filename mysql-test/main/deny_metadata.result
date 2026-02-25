@@ -25,6 +25,49 @@ DROP ROLE r;
 DROP USER u@localhost;
 DROP TABLE t1;
 #
+# Column-level grant allows SHOW COLUMNS (no roles)
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE USER u@localhost;
+GRANT SELECT (a) ON test.t1 TO u@localhost;
+connect  con2, localhost, u,,;
+SHOW COLUMNS FROM test.t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+disconnect con2;
+connection default;
+DROP USER u@localhost;
+DROP TABLE t1;
+#
+# Column-level GRANT+DENY should block SHOW COLUMNS (no roles)
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE USER u@localhost;
+GRANT SELECT (a) ON test.t1 TO u@localhost;
+DENY SELECT (a) ON test.t1 TO u@localhost;
+connect  con2, localhost, u,,;
+SHOW COLUMNS FROM test.t1;
+ERROR 42000: SELECT command denied to user 'u'@'localhost' for table `test`.`t1`
+disconnect con2;
+connection default;
+DROP USER u@localhost;
+DROP TABLE t1;
+#
+# Mixed column GRANT+DENY should allow SHOW COLUMNS (no roles)
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE USER u@localhost;
+GRANT SELECT (a) ON test.t1 TO u@localhost;
+DENY SELECT (b) ON test.t1 TO u@localhost;
+connect  con2, localhost, u,,;
+SHOW COLUMNS FROM test.t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+disconnect con2;
+connection default;
+DROP USER u@localhost;
+DROP TABLE t1;
+#
 # Higher level DENY should block SHOW COLUMNS
 #
 CREATE TABLE t1 (a INT);

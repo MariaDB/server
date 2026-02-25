@@ -9443,7 +9443,7 @@ bool grant_reload(THD *thd)
 }
 
 static bool has_any_table_or_column_priv_for_show(
-    GRANT_INFO *grant, const access_t &parent_access);
+    GRANT_INFO *grant, const access_t &parent_access, privilege_t want);
 
 /**
   @brief Check table level grants
@@ -9616,8 +9616,8 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
       continue;
     }
 
-    denied = t_ref->grant.privilege.is_denied(want_access);
-    if (denied && (!any_combination_will_do || denied == want_access))
+    denied= t_ref->grant.privilege.is_denied(original_want_access);
+    if (denied && (!any_combination_will_do || denied == original_want_access))
     {
       want_access=denied;
       goto err;
@@ -9647,7 +9647,7 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     if (any_combination_will_do)
     {
       if (!has_any_table_or_column_priv_for_show(&t_ref->grant,
-                                                 t_ref->grant.privilege))
+                                                 t_ref->grant.privilege, original_want_access))
         goto err;
       continue;
     }
@@ -10069,22 +10069,61 @@ static bool has_some_table_privs(GRANT_TABLE *grant_table,
 }
 
 /*
+  Helper for SHOW COLUMNS/INDEX: check if any column has explicit
+  grant with one of "want" privileges, not DENIED on any level.
+*/
+static bool has_explicit_column_priv_for_show(GRANT_TABLE *grant_table,
+                                              const access_t &table_access,
+                                              privilege_t want)
+{
+  DBUG_ASSERT(grant_table);
+  DBUG_ASSERT(want);
+  if (!grant_table->cols)
+    return false;
+  HASH *h= &grant_table->hash_columns;
+  for (uint i= 0; i < h->records; ++i)
+  {
+    GRANT_COLUMN *col= (GRANT_COLUMN *) my_hash_element(h, i);
+    access_t col_access= col->rights.combine_with_parent(table_access);
+    if (col_access.certainly_allowed(want))
+      return true;
+  }
+  return false;
+}
+
+/*
   For SHOW COLUMNS/INDEX: allow if any effective table/column privilege
   remains after applying denies. This treats deny-only same as no grants.
 */
 static bool has_any_table_or_column_priv_for_show(GRANT_INFO *grant,
-                                                  const access_t &parent_access)
+                                                  const access_t &parent_access,
+                                                  privilege_t table_want)
 {
+  DBUG_ASSERT(table_want != NO_ACL);
   access_t table_access=
     grant->aggregate_privs().combine_with_parent(parent_access);
-  privilege_t maybe_allowed=
-    table_access.allow_bits() & ~table_access.deny_bits();
-  if (maybe_allowed & TABLE_ACLS)
+  if (table_access & table_want)
     return true;
 
-  privilege_t cols= grant->aggregate_cols();
-  if (cols != NO_ACL && table_access.is_denied(cols) != cols)
+  const privilege_t col_want= COL_ACLS;
+  privilege_t cols= grant->aggregate_cols() & col_want;
+  if (cols == NO_ACL)
+    return false;
+  if (table_access.is_denied(cols) == cols)
+    return false;
+
+  /* If any column privilege type is not denied, we may allow. */
+  privilege_t deny_sub= table_access.deny_subtree() & col_want;
+  if ((cols & ~deny_sub) != NO_ACL)
     return true;
+
+  GRANT_TABLE *tables[]= {grant->grant_table_user, grant->grant_table_role,
+                          grant->grant_public};
+  for (GRANT_TABLE *t : tables)
+  {
+    if (t && has_explicit_column_priv_for_show(t, table_access, col_want))
+      return true;
+  }
 
   return false;
 }

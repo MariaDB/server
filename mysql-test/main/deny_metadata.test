@@ -29,6 +29,54 @@ DROP USER u@localhost;
 DROP TABLE t1;
 
 --echo #
+--echo # Column-level grant allows SHOW COLUMNS (no roles)
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+CREATE USER u@localhost;
+GRANT SELECT (a) ON test.t1 TO u@localhost;
+
+connect (con2, localhost, u,,);
+SHOW COLUMNS FROM test.t1;
+disconnect con2;
+connection default;
+
+DROP USER u@localhost;
+DROP TABLE t1;
+
+--echo #
+--echo # Column-level GRANT+DENY should block SHOW COLUMNS (no roles)
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+CREATE USER u@localhost;
+GRANT SELECT (a) ON test.t1 TO u@localhost;
+DENY SELECT (a) ON test.t1 TO u@localhost;
+
+connect (con2, localhost, u,,);
+--error ER_TABLEACCESS_DENIED_ERROR
+SHOW COLUMNS FROM test.t1;
+disconnect con2;
+connection default;
+
+DROP USER u@localhost;
+DROP TABLE t1;
+
+--echo #
+--echo # Mixed column GRANT+DENY should allow SHOW COLUMNS (no roles)
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+CREATE USER u@localhost;
+GRANT SELECT (a) ON test.t1 TO u@localhost;
+DENY SELECT (b) ON test.t1 TO u@localhost;
+
+connect (con2, localhost, u,,);
+SHOW COLUMNS FROM test.t1;
+disconnect con2;
+connection default;
+
+DROP USER u@localhost;
+DROP TABLE t1;
+
+--echo #
 --echo # Higher level DENY should block SHOW COLUMNS
 --echo #
 CREATE TABLE t1 (a INT);
