@@ -84,7 +84,8 @@ protected:
   virtual ~Json_path_extractor() { }
   virtual bool check_and_get_value(Json_engine_scan *je,
                                    String *to, int *error)=0;
-  bool extract(String *to, Item *js, Item *jp, CHARSET_INFO *cs);
+  bool extract(String *to, Item *js, Item *jp, CHARSET_INFO *cs,
+               LEX_CSTRING func_name, bool allow_wildcard);
 };
 
 
@@ -196,7 +197,7 @@ public:
   String *val_str(String *to) override
   {
     null_value= Json_path_extractor::extract(to, args[0], args[1],
-                                             collation.collation);
+                                             collation.collation, func_name_cstring(), false);
     return null_value ? NULL : to;
   }
   bool check_and_get_value(Json_engine_scan *je,
@@ -226,7 +227,7 @@ public:
   String *val_str(String *to) override
   {
     null_value= Json_path_extractor::extract(to, args[0], args[1],
-                                             collation.collation);
+                                             collation.collation, func_name_cstring(), true);
     return null_value ? NULL : to;
   }
   bool check_and_get_value(Json_engine_scan *je,
