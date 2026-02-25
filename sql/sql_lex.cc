@@ -10399,7 +10399,10 @@ bool LEX::direct_call(THD *thd, const Qualified_ident *ident,
   DBUG_ASSERT(ident);
   if (!ident->spvar())
     return false; // A procedure call
-  /* So that args (value_list) is populated when used for method calls below. */
+  /*
+    Populate value_list from call_param_list so that args is ready for
+    SP variable method calls such as assoc_array_var.delete('key').
+  */
   build_value_list_from_call_params(thd);
 
   /*
