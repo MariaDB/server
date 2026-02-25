@@ -1,0 +1,17 @@
+#
+# MDEV-37608: Increase default binlog_row_event_max_size to 64k
+#
+--source include/have_binlog_format_row.inc
+
+--echo # Suppress the expected warning for the .opt file adjustment
+# This handles the "adjusted to 4294967040" warning found in the log.
+CALL mtr.add_suppression("option 'binlog_row_event_max_size': unsigned value 4300000000 adjusted to .*");
+
+--echo # Verify Read-Only Status
+# Confirming that runtime changes are rejected.
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.binlog_row_event_max_size= 4096;
+
+--echo # Verify Maximum Clipping from .opt file
+# This SELECT confirms the server correctly handled the extreme .opt value.
+SELECT @@global.binlog_row_event_max_size;

@@ -1,0 +1,9 @@
+# Suppress the expected warning for the .opt file adjustment
+CALL mtr.add_suppression("option 'binlog_row_event_max_size': unsigned value 4300000000 adjusted to .*");
+# Verify Read-Only Status
+SET @@global.binlog_row_event_max_size= 4096;
+ERROR HY000: Variable 'binlog_row_event_max_size' is a read only variable
+# Verify Maximum Clipping from .opt file
+SELECT @@global.binlog_row_event_max_size;
+@@global.binlog_row_event_max_size
+4294967040
