@@ -728,7 +728,8 @@ bool Item_func_json_query::fix_length_and_dec(THD *thd)
 
 
 bool Json_path_extractor::extract(String *str, Item *item_js, Item *item_jp,
-                                  CHARSET_INFO *cs)
+                                  CHARSET_INFO *cs, LEX_CSTRING func_name,
+                                  bool allow_wildcard)
 {
   String *js= item_js->val_json(&tmp_js);
   int error= 0;
@@ -737,10 +738,28 @@ bool Json_path_extractor::extract(String *str, Item *item_js, Item *item_jp,
   if (!parsed)
   {
     String *s_p= item_jp->val_str(&tmp_path);
-    if (s_p &&
+
+    if (allow_wildcard)
+    {
+      if (s_p &&
+        json_path_setup(&p, s_p->charset(), (const uchar *) s_p->ptr(),
+                       (const uchar *) s_p->ptr() + s_p->length()))
+        error= true;
+    }
+    else
+    {
+      if (s_p &&
         path_setup_nwc(&p, s_p->charset(), (const uchar *) s_p->ptr(),
                        (const uchar *) s_p->ptr() + s_p->length()))
+        error= true;
+    }
+
+    if (error)
+    {
+      report_path_error_ex(s_p->ptr(), &p, func_name.str, 1, Sql_condition::WARN_LEVEL_WARN);
       return true;
+    }
+
     parsed= constant;
   }
 
