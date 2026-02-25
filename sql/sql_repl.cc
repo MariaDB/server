@@ -4569,6 +4569,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   if (lex_mi->heartbeat_period)
     lex_mi->heartbeat_period(mi);
   mi->received_heartbeats= 0; // counter lives until master is CHANGEd
+  mi->reset_master_server_id();
 
   /*
     Reset the last time server_id list if the current CHANGE MASTER
