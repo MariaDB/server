@@ -1,0 +1,17 @@
+#
+# MDEV-38494: .mariadb_history rename race condition
+#
+# The unfixed client wrote every session's temp history file to the same
+# path ("<histfile>.TMP"), so when two sessions exited simultaneously the
+# second rename failed with ENOENT.  The fix appends the process PID to
+# the temp name ("<histfile>.<pid>.TMP") so each session uses a unique
+# path and no collision can occur.
+#
+# Verification technique:
+#   Pre-create <histfile>.TMP as a sentinel before running an interactive
+#   mariadb session.  With the fix the session writes to
+#   <histfile>.<pid>.TMP and the sentinel is left untouched.  Without the
+#   fix the session overwrites and renames the sentinel away.
+#
+PASS
+# End of 10.11 tests
