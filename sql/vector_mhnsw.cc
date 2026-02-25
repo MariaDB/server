@@ -148,11 +148,15 @@ struct FVector
   { return (data_size - data_header)*2; }
 
   static const FVector *create(const MHNSW_Share *ctx, void *mem, const void *src);
+  static float dot_product(const int16_t *v1, const int16_t *v2, size_t len);
+  static void fix_tail(int16_t *dims, size_t vec_len);
+  static size_t alloc_size(size_t n);
+  static FVector *align_ptr(void *ptr);
 
   void postprocess(bool use_subdist, size_t vec_len)
   {
     int16_t *d= dims;
-    fix_tail(vec_len);
+    fix_tail(d,vec_len);
     if (use_subdist)
     {
       subabs2= scale * scale * dot_product(d, d, subdist_part) / 2;
@@ -164,14 +168,49 @@ struct FVector
     abs2= subabs2 + scale * scale * dot_product(d, d, vec_len) / 2;
   }
 
+
+
+  float distance_to(const FVector *other, size_t vec_len) const
+  {
+    return abs2 + other->abs2 - scale * other->scale *
+           dot_product(dims, other->dims, vec_len);
+  }
+
+  float distance_greater_than(const FVector *other, size_t vec_len, float than,
+                              Stats *stats) const
+  {
+    float k = scale * other->scale;
+    float dp= dot_product(dims, other->dims, subdist_part);
+    float subdist= (subabs2 + other->subabs2 - k * dp)/subdist_part*vec_len;
+    if (subdist > than)
+      return subdist;
+    dp+= dot_product(dims+subdist_part, other->dims+subdist_part,
+                     vec_len - subdist_part);
+    float dist= abs2 + other->abs2 - k * dp;
+    stats->subdist.add(subdist/dist);
+    return dist;
+  }
+};
+#pragma pack(pop)
+
+struct Vector_ops 
+{
+  float (*dot_product)(const int16_t *v1, const int16_t *v2, size_t len);
+  size_t (*alloc_size)(size_t n);
+  FVector * (*align_ptr)(void *ptr);
+  void (*fix_tail)(int16_t *dims, size_t vec_len);
+};
+
+
 #ifdef AVX2_IMPLEMENTATION
   /************* AVX2 *****************************************************/
   static constexpr size_t AVX2_bytes= 256/8;
   static constexpr size_t AVX2_dims= AVX2_bytes/sizeof(int16_t);
   static_assert(subdist_part % AVX2_dims == 0);
 
+  extern "C"
   AVX2_IMPLEMENTATION
-  static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
+  float dot_product_avx2(const int16_t *v1, const int16_t *v2, size_t len)
   {
     typedef float v8f __attribute__((vector_size(AVX2_bytes)));
     union { v8f v; __m256 i; } tmp;
@@ -186,17 +225,20 @@ struct FVector
     return d[0] + d[1] + d[2] + d[3] + d[4] + d[5] + d[6] + d[7];
   }
 
+  extern "C"
   AVX2_IMPLEMENTATION
-  static size_t alloc_size(size_t n)
-  { return alloc_header + MY_ALIGN(n*2, AVX2_bytes) + AVX2_bytes - 1; }
+  size_t alloc_size_avx2(size_t n)
+  { return FVector::alloc_header + MY_ALIGN(n*2, AVX2_bytes) + AVX2_bytes - 1; }
 
+  extern "C"
   AVX2_IMPLEMENTATION
-  static FVector *align_ptr(void *ptr)
-  { return (FVector*)(MY_ALIGN(((intptr)ptr) + alloc_header, AVX2_bytes)
-                      - alloc_header); }
+  FVector *align_ptr_avx2(void *ptr)
+  { return (FVector*)(MY_ALIGN(((intptr)ptr) + FVector::alloc_header, AVX2_bytes)
+                      - FVector::alloc_header); }
 
+  extern "C"
   AVX2_IMPLEMENTATION
-  void fix_tail(size_t vec_len)
+  void fix_tail_avx2(int16_t *dims, size_t vec_len)
   {
     bzero(dims + vec_len, (MY_ALIGN(vec_len, AVX2_dims) - vec_len)*2);
   }
@@ -208,8 +250,9 @@ struct FVector
   static constexpr size_t AVX512_dims= AVX512_bytes/sizeof(int16_t);
   static_assert(subdist_part % AVX512_dims == 0);
 
+  extern "C"
   AVX512_IMPLEMENTATION
-  static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
+  float dot_product_avx512(const int16_t *v1, const int16_t *v2, size_t len)
   {
     __m512i *p1= (__m512i*)v1;
     __m512i *p2= (__m512i*)v2;
@@ -219,17 +262,20 @@ struct FVector
     return _mm512_reduce_add_ps(d);
   }
 
+  extern "C"
   AVX512_IMPLEMENTATION
-  static size_t alloc_size(size_t n)
-  { return alloc_header + MY_ALIGN(n*2, AVX512_bytes) + AVX512_bytes - 1; }
+  size_t alloc_size_avx512(size_t n)
+  { return FVector::alloc_header + MY_ALIGN(n*2, AVX512_bytes) + AVX512_bytes - 1; }
 
+  extern "C"
   AVX512_IMPLEMENTATION
-  static FVector *align_ptr(void *ptr)
-  { return (FVector*)(MY_ALIGN(((intptr)ptr) + alloc_header, AVX512_bytes)
-                      - alloc_header); }
+  FVector *align_ptr_avx512(void *ptr)
+  { return (FVector*)(MY_ALIGN(((intptr)ptr) + FVector::alloc_header, AVX512_bytes)
+                      - FVector::alloc_header); }
 
+  extern "C"
   AVX512_IMPLEMENTATION
-  void fix_tail(size_t vec_len)
+  void fix_tail_avx512(int16_t *dims, size_t vec_len)
   {
     bzero(dims + vec_len, (MY_ALIGN(vec_len, AVX512_dims) - vec_len)*2);
   }
@@ -250,7 +296,7 @@ struct FVector
   static constexpr size_t NEON_dims= NEON_bytes / sizeof(int16_t);
   static_assert(subdist_part % NEON_dims == 0);
 
-  static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
+  float dot_product_neon(const int16_t *v1, const int16_t *v2, size_t len)
   {
     int64_t d= 0;
     for (size_t i= 0; i < (len + NEON_dims - 1) / NEON_dims; i++)
@@ -265,14 +311,14 @@ struct FVector
     return static_cast<float>(d);
   }
 
-  static size_t alloc_size(size_t n)
-  { return alloc_header + MY_ALIGN(n * 2, NEON_bytes) + NEON_bytes - 1; }
+  size_t alloc_size_neon(size_t n)
+  { return FVector::alloc_header + MY_ALIGN(n * 2, NEON_bytes) + NEON_bytes - 1; }
 
-  static FVector *align_ptr(void *ptr)
-  { return (FVector*) (MY_ALIGN(((intptr) ptr) + alloc_header, NEON_bytes)
-                       - alloc_header); }
+  FVector *align_ptr_neon(void *ptr)
+  { return (FVector*) (MY_ALIGN(((intptr) ptr) + FVector::alloc_header, NEON_bytes)
+                       - FVector::alloc_header); }
 
-  void fix_tail(size_t vec_len)
+  void fix_tail_neon(int16_t *dims, size_t vec_len)
   {
     bzero(dims + vec_len, (MY_ALIGN(vec_len, NEON_dims) - vec_len) * 2);
   }
@@ -284,7 +330,7 @@ struct FVector
   static constexpr size_t POWER_dims= POWER_bytes / sizeof(int16_t);
   static_assert(subdist_part % POWER_dims == 0);
 
-  static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
+  float dot_product_power(const int16_t *v1, const int16_t *v2, size_t len)
   {
     // Using vector long long for int64_t accumulation
     vector long long ll_sum= {0, 0};
@@ -314,28 +360,25 @@ struct FVector
                               static_cast<int64_t>(ll_sum[1]));
   }
 
-  static size_t alloc_size(size_t n)
+  size_t alloc_size_power(size_t n)
   {
-    return alloc_header + MY_ALIGN(n * 2, POWER_bytes) + POWER_bytes - 1;
+    return FVector::alloc_header + MY_ALIGN(n * 2, POWER_bytes) + POWER_bytes - 1;
   }
 
-  static FVector *align_ptr(void *ptr)
+  FVector *align_ptr_power(void *ptr)
   {
-    return (FVector*)(MY_ALIGN(((intptr)ptr) + alloc_header, POWER_bytes)
-                    - alloc_header);
+    return (FVector*)(MY_ALIGN(((intptr)ptr) + FVector::alloc_header, POWER_bytes)
+                    - FVector::alloc_header);
   }
 
-  void fix_tail(size_t vec_len)
+  void fix_tail_power(int16_t *dims, size_t vec_len)
   {
     bzero(dims + vec_len, (MY_ALIGN(vec_len, POWER_dims) - vec_len) * 2);
   }
-#undef DEFAULT_IMPLEMENTATION
 #endif
 
-  /************* no-SIMD default ******************************************/
-#ifdef DEFAULT_IMPLEMENTATION
-  DEFAULT_IMPLEMENTATION
-  static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
+  /************* no-SIMD ******************************************/
+  static float dot_product_default(const int16_t *v1, const int16_t *v2, size_t len)
   {
     int64_t d= 0;
     for (size_t i= 0; i < len; i++)
@@ -343,38 +386,92 @@ struct FVector
     return static_cast<float>(d);
   }
 
-  DEFAULT_IMPLEMENTATION
-  static size_t alloc_size(size_t n) { return alloc_header + n*2; }
+  size_t alloc_size_default(size_t n) { return FVector::alloc_header + n*2; }
 
-  DEFAULT_IMPLEMENTATION
-  static FVector *align_ptr(void *ptr) { return (FVector*)ptr; }
+  FVector *align_ptr_default(void *ptr) { return (FVector*)ptr; }
+  void fix_tail_default(int16_t *dims, size_t) { }
 
-  DEFAULT_IMPLEMENTATION
-  void fix_tail(size_t) { }
+#if defined __x86_64__ || defined _M_X64
+extern "C" Vector_ops vector_ops_x86_available(void);
 #endif
 
-  float distance_to(const FVector *other, size_t vec_len) const
-  {
-    return abs2 + other->abs2 - scale * other->scale *
-           dot_product(dims, other->dims, vec_len);
-  }
+static Vector_ops choose_vector_ops_impl()
+{
+#if defined __x86_64__ || defined _M_X64
+  auto ops = vector_ops_x86_available();
+  if (ops.dot_product)
+    return ops;
+#elif defined __aarch64__
+  return {dot_product_neon, alloc_size_neon, align_ptr_neon, fix_tail_neon};
+#elif defined __powerpc64__
+  return {dot_product_power, alloc_size_power, align_ptr_power, fix_tail_power};
+#endif
+  return {dot_product_default, alloc_size_default, align_ptr_default, fix_tail_default};
+}
 
-  float distance_greater_than(const FVector *other, size_t vec_len, float than,
-                              Stats *stats) const
-  {
-    float k = scale * other->scale;
-    float dp= dot_product(dims, other->dims, subdist_part);
-    float subdist= (subabs2 + other->subabs2 - k * dp)/subdist_part*vec_len;
-    if (subdist > than)
-      return subdist;
-    dp+= dot_product(dims+subdist_part, other->dims+subdist_part,
-                     vec_len - subdist_part);
-    float dist= abs2 + other->abs2 - k * dp;
-    stats->subdist.add(subdist/dist);
-    return dist;
-  }
-};
-#pragma pack(pop)
+static const Vector_ops chosen_vector_ops= choose_vector_ops_impl();
+
+float FVector::dot_product(const int16_t *v1, const int16_t *v2, size_t len)
+{
+  return chosen_vector_ops.dot_product(v1, v2, len);
+}
+size_t FVector::alloc_size(size_t n)
+{
+  return chosen_vector_ops.alloc_size(n);
+}
+FVector *FVector::align_ptr(void *ptr)
+{
+  return chosen_vector_ops.align_ptr(ptr);
+}
+void FVector::fix_tail(int16_t *dims, size_t vec_len)
+{
+  chosen_vector_ops.fix_tail(dims, vec_len);
+}
+
+/*
+  A simple benchmark to test the performance of the dot product function.
+*/
+#include <iostream>
+#include <random>
+
+void mhnsw_run_benchmark()
+{
+  const size_t vec_len= 1024;
+  const size_t iterations= 1000000;
+
+  int16_t *vec1= (int16_t*)aligned_alloc(64, vec_len * sizeof(int16_t));
+  int16_t *vec2= (int16_t*)aligned_alloc(64, vec_len * sizeof(int16_t));
+  std::mt19937 rng(42);
+  std::uniform_int_distribution<int16_t> dist(-100, 100);
+
+  for (size_t i= 0; i < vec_len; i++) vec1[i]= dist(rng);
+  for (size_t i= 0; i < vec_len; i++) vec2[i]= dist(rng);
+
+  std::cout << "Warm up....\n";
+  for (int i= 0; i < 1000; i++)
+    FVector::dot_product(vec1, vec2, vec_len);
+
+  std::cout << "Running benchmark...\n";
+  ulonglong start= my_timer_microseconds();
+
+  volatile float result= 0;
+  for (size_t i= 0; i < iterations; i++)
+    result+= FVector::dot_product(vec1, vec2, vec_len);
+
+  ulonglong end= my_timer_microseconds();
+  ulonglong duration= end - start;
+
+  double per_call= duration / (double)iterations;
+  double total_time_sec= duration / 1e6;
+
+  std::cout << "Total time in seconds: " << total_time_sec << "\n";
+  std::cout << "Total time in microseconds: " << duration << "\n";
+  std::cout << "Average time per call: " << per_call << "\n";
+  std::cout << "Result: " << result << "\n";
+
+  free(vec1);
+  free(vec2);
+}
 
 /*
   An array of pointers to graph nodes
