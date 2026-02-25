@@ -7924,7 +7924,7 @@ restart:
       goto restart;
     }
   }
-  DBUG_ASSERT(rights == access_t(merged->cols));
+  DBUG_ASSERT(rights.allow_bits() == merged->cols);
   return changed;
 }
 
@@ -9442,6 +9442,8 @@ bool grant_reload(THD *thd)
   DBUG_RETURN(result);
 }
 
+static bool has_any_table_or_column_priv_for_show(
+    GRANT_INFO *grant, const access_t &parent_access);
 
 /**
   @brief Check table level grants
@@ -9609,18 +9611,13 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
         Note that during creation of temporary table we still need to check
         if user has CREATE_TMP_ACL.
       */
-      access_t &p= t_ref->grant.privilege;
-
-      /* Note, we're overwriting DENY here*/
-      p= access_t(p.allow_bits() | TMP_TABLE_ACLS,
-                  p.deny_bits() & ~TMP_TABLE_ACLS,
-                  p.deny_subtree() & ~TMP_TABLE_ACLS);
+      t_ref->grant.privilege.force_allow(TMP_TABLE_ACLS);
       t_ref->grant.want_privilege= NO_ACL;
       continue;
     }
 
     denied = t_ref->grant.privilege.is_denied(want_access);
-    if (denied)
+    if (denied && (!any_combination_will_do || denied == want_access))
     {
       want_access=denied;
       goto err;
@@ -9648,7 +9645,12 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
       privileges on any column combination on the table.
     */
     if (any_combination_will_do)
+    {
+      if (!has_any_table_or_column_priv_for_show(&t_ref->grant,
+                                                 t_ref->grant.privilege))
+        goto err;
       continue;
+    }
 
     t_ref->grant.privilege= t_ref->grant.aggregate_privs().combine_with_parent(t_ref->grant.privilege);
     t_ref->grant.want_privilege= ((want_access & COL_ACLS) & ~t_ref->grant.privilege);
@@ -10063,6 +10065,27 @@ static bool has_some_table_privs(GRANT_TABLE *grant_table,
     return true;
 
   /* Neither table level nor, no column level grants.*/
+  return false;
+}
+
+/*
+  For SHOW COLUMNS/INDEX: allow if any effective table/column privilege
+  remains after applying denies. This treats deny-only same as no grants.
+*/
+static bool has_any_table_or_column_priv_for_show(GRANT_INFO *grant,
+                                                  const access_t &parent_access)
+{
+  access_t table_access=
+    grant->aggregate_privs().combine_with_parent(parent_access);
+  privilege_t maybe_allowed=
+    table_access.allow_bits() & ~table_access.deny_bits();
+  if (maybe_allowed & TABLE_ACLS)
+    return true;
+
+  privilege_t cols= grant->aggregate_cols();
+  if (cols != NO_ACL && table_access.is_denied(cols) != cols)
+    return true;
+
   return false;
 }
 

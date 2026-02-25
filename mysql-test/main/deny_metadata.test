@@ -1,0 +1,67 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # DENY metadata behavior
+--echo #
+
+--echo #
+--echo # Direct DENY should affect SHOW COLUMNS
+--echo #
+CREATE TABLE t1 (id INT);
+CREATE TABLE t2 (c1 INT);
+CREATE USER u@localhost;
+CREATE ROLE r;
+GRANT SELECT ON test.t1 TO r;
+GRANT SELECT ON test.t2 TO r;
+DENY SELECT ON test.t1 TO r;
+GRANT r TO u@localhost;
+
+connect (con1, localhost, u,,);
+SET ROLE r;
+--error ER_TABLEACCESS_DENIED_ERROR
+SHOW COLUMNS FROM test.t1;
+SHOW COLUMNS FROM test.t2;
+disconnect con1;
+connection default;
+
+DROP ROLE r;
+DROP USER u@localhost;
+DROP TABLE t1;
+
+--echo #
+--echo # Higher level DENY should block SHOW COLUMNS
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE USER u@localhost;
+CREATE ROLE r;
+GRANT SELECT ON test.t1 TO r;
+GRANT r TO u@localhost;
+
+--echo #
+--echo # Database-level DENY
+--echo #
+DENY SELECT ON test.* TO r;
+connect (con3, localhost, u,,);
+SET ROLE r;
+--error ER_TABLEACCESS_DENIED_ERROR
+SHOW COLUMNS FROM test.t1;
+disconnect con3;
+connection default;
+
+REVOKE DENY SELECT ON test.* FROM r;
+
+--echo #
+--echo # Global DENY
+--echo #
+DENY SELECT ON *.* TO r;
+connect (con3, localhost, u,,);
+SET ROLE r;
+--error ER_TABLEACCESS_DENIED_ERROR
+SHOW COLUMNS FROM test.t1;
+disconnect con3;
+connection default;
+
+DROP ROLE r;
+DROP USER u@localhost;
+DROP TABLE t1;
+DROP TABLE t2;
