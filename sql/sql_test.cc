@@ -714,3 +714,47 @@ void print_keyuse_array_for_trace(THD *thd, DYNAMIC_ARRAY *keyuse_array)
     keyuse_elem.add("null_rejecting",keyuse->null_rejecting);
   }
 }
+
+
+#ifndef DBUG_OFF
+
+/* Check if ptr points to memory on the mem_root */
+
+bool dbug_is_mem_on_mem_root(const MEM_ROOT *mem_root, void *ptr)
+{
+  const USED_MEM *ptrs[]= {mem_root->free, mem_root->used};
+  for (const USED_MEM **p= ptrs; p!=ptrs + 2; p++)
+  {
+    for (const USED_MEM *block= *p; block; block= block->next)
+    {
+      const char *start= (const char*)block;
+      const char *end= start + block->size - block->left;
+      DBUG_ASSERT(end >= start);
+      if (ptr >= start && ptr < end)
+        return true;
+    }
+  }
+  return false;
+}
+
+
+/*
+  Check whether ptr has been allocated on a statement mem_root
+  or transient mem_root or somewhere else.
+*/
+const char *dbug_which_mem_root(THD *thd, void *ptr)
+{
+  if (dbug_is_mem_on_mem_root(thd->mem_root, ptr))
+  {
+    if (thd->mem_root == thd->stmt_arena->mem_root)
+      return "thd->mem_root, same as stmt_arena->mem_root";
+    return "thd->mem_root";
+  }
+
+  if (dbug_is_mem_on_mem_root(thd->stmt_arena->mem_root, ptr))
+    return "thd->stmt_arena->mem_root";
+
+  return "Unknown";
+}
+
+#endif
