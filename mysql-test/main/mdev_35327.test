@@ -1,0 +1,58 @@
+--echo #
+--echo # MDEV-35327: Add VEC_DISTANCE_MANHATTAN function
+--echo #
+
+--echo #
+--echo # Checking for argument validity
+--echo #
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT VEC_DISTANCE_MANHATTAN(VEC_FromText('[1,2]'));
+SELECT VEC_DISTANCE_MANHATTAN(NULL, VEC_FromText('[1,2]'));
+--echo # Checking for mismatched dimensions
+SELECT VEC_DISTANCE_MANHATTAN(VEC_FromText('[1,1,1]'),VEC_FromText('[1,2]'));
+
+--echo #
+--echo # Basic math check
+--echo #
+SELECT VEC_DISTANCE_MANHATTAN(VEC_FromText('[1,2,3]'), VEC_FromText('[2,3,4]'));
+
+
+--echo #
+--echo # Without Vector Index
+--echo #
+CREATE TABLE t1 (id INT, v VECTOR(3) NOT NULL);
+INSERT INTO t1 VALUES (1, VEC_FromText('[2,2,2]')), (2, VEC_FromText('[0,0,5]')), (3, VEC_FromText('[1,1,1]'));
+
+--echo # Manhattan distance:- 6,5,3 Euclidean distance:- 3.46,5,1.73
+--echo # Manhattan | Euclidean
+--echo # P3          P3
+--echo # P2          P1   
+--echo # P1          P2   
+--echo # output should be 3,5,6 and ordering should be P3 < P2 < P1
+
+SELECT id, VEC_DISTANCE_MANHATTAN(v, VEC_FromText('[0,0,0]')) as dist FROM t1 ORDER BY dist;
+--echo # Comparison with Euclidean distance
+SELECT id, VEC_DISTANCE_EUCLIDEAN(v, VEC_FromText('[0,0,0]')) as dist FROM t1 ORDER BY dist;
+
+--echo #
+--echo # With Vector Index
+--echo #
+CREATE VECTOR INDEX idx ON t1(v) DISTANCE=manhattan;
+
+--echo # Output should be 3,5 and 6 again
+SELECT id, VEC_DISTANCE_MANHATTAN(v, VEC_FromText('[0,0,0]')) as dist FROM t1 ORDER BY dist LIMIT 3;
+
+--echo # Checking if the vector index is actually implemented using manhattan distance
+EXPLAIN SELECT id FROM t1 FORCE INDEX (idx) 
+ORDER BY VEC_DISTANCE_MANHATTAN(v, VEC_FromText('[0,0,0]')) LIMIT 1;
+
+--echo # Cleanup
+DROP TABLE t1;
+
+--echo # Miscellaneous Tests
+
+SELECT VEC_DISTANCE_MANHATTAN(VEC_FromText('[-1,-1]'), VEC_FromText('[1,1]')) as neg_test;
+
+SELECT VEC_DISTANCE_MANHATTAN(VEC_FromText('[1.5, 2.5]'), VEC_FromText('[1.5, 2.5]')) as zero_dist;
+
+SELECT VEC_DISTANCE_MANHATTAN(VEC_FromText('[1.1]'), VEC_FromText('[2.2]')) as float_test;

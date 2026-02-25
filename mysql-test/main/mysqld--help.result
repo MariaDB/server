@@ -799,7 +799,7 @@ The following specify which files/extra groups are read (specified before remain
  Supported MDL namespaces: BACKUP
  --mhnsw-default-distance=name 
  Distance function to build the vector index for. One of: 
- euclidean, cosine
+ euclidean, cosine, manhattan
  --mhnsw-default-m=# Larger values mean slower SELECTs and INSERTs, larger
  index size and higher memory consumption but more
  accurate results

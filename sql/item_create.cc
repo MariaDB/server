@@ -6237,6 +6237,24 @@ protected:
 
 Create_func_vec_distance_cosine Create_func_vec_distance_cosine::s_singleton;
 
+
+class Create_func_vec_distance_manhattan: public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  { return new (thd->mem_root)
+      Item_func_vec_distance(thd, arg1, arg2, Item_func_vec_distance::MANHATTAN); }
+
+  static Create_func_vec_distance_manhattan s_singleton;
+
+protected:
+  Create_func_vec_distance_manhattan() = default;
+  virtual ~Create_func_vec_distance_manhattan() = default;
+};
+
+Create_func_vec_distance_manhattan Create_func_vec_distance_manhattan::s_singleton;
+
+
 class Create_func_vec_distance: public Create_func_arg2
 {
 public:
@@ -6250,6 +6268,7 @@ protected:
   Create_func_vec_distance() = default;
   virtual ~Create_func_vec_distance() = default;
 };
+
 
 Create_func_vec_distance Create_func_vec_distance::s_singleton;
 
@@ -6516,6 +6535,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("UUID_SHORT") }, BUILDER(Create_func_uuid_short)},
   { { STRING_WITH_LEN("VEC_DISTANCE_EUCLIDEAN") }, BUILDER(Create_func_vec_distance_euclidean)},
   { { STRING_WITH_LEN("VEC_DISTANCE_COSINE") }, BUILDER(Create_func_vec_distance_cosine)},
+  { { STRING_WITH_LEN("VEC_DISTANCE_MANHATTAN") }, BUILDER(Create_func_vec_distance_manhattan)},
   { { STRING_WITH_LEN("VEC_DISTANCE") }, BUILDER(Create_func_vec_distance)},
   { { STRING_WITH_LEN("VEC_FROMTEXT") }, BUILDER(Create_func_vec_fromtext)},
   { { STRING_WITH_LEN("VEC_TOTEXT") }, BUILDER(Create_func_vec_totext)},
