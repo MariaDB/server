@@ -16,6 +16,10 @@ INSERT INTO t VALUES(2);
 SELECT * FROM t;
 i
 1
+#
+# MDEV-34713 Check that mariadb_upgrade_info is created during copy-back
+#
+FOUND 1 /^[0-9]+\.[0-9]+\.[0-9]+/ in mariadb_upgrade_info
 DROP TABLE t;
 #
 #  MDEV-27121 mariabackup incompatible with disabled dedicated
