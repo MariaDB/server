@@ -386,15 +386,19 @@ static bool is_recalc_pool_empty()
 static tpool::timer* dict_stats_timer;
 static void dict_stats_func(void*)
 {
-  if (!dict_stats_thd)
-    dict_stats_thd= innobase_create_background_thd("InnoDB statistics");
+  DBUG_EXECUTE_IF("mdev_38891_sleep_in_bg_thread", {
+    os_thread_sleep(2000000); /* Sleep for 2 seconds to simulate race condition */
+  });
+
+  DBUG_ASSERT(dict_stats_thd != nullptr);
+
   set_current_thd(dict_stats_thd);
 
   while (dict_stats_process_entry_from_recalc_pool(dict_stats_thd)) {}
-  dict_defrag_process_entries_from_defrag_pool(dict_stats_thd);
 
   innobase_reset_background_thd(dict_stats_thd);
   set_current_thd(nullptr);
+  
   if (!is_recalc_pool_empty())
     dict_stats_schedule(MIN_RECALC_INTERVAL * 1000);
 }
@@ -422,5 +426,16 @@ void dict_stats_schedule_now()
 void dict_stats_shutdown()
 {
   delete dict_stats_timer;
+<<<<<<< Updated upstream
   dict_stats_timer= 0;
 }
+=======
+  dict_stats_timer = nullptr;
+
+  // Safely destroy the THD during shutdown
+  if (dict_stats_thd) {
+    destroy_background_thd(dict_stats_thd);
+    dict_stats_thd = nullptr;
+  }
+}
+>>>>>>> Stashed changes

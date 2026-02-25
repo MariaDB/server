@@ -1,0 +1,20 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+
+--echo # 
+--echo # MDEV-38891: Race condition in dict_stats background thread during shutdown
+--echo #
+
+--echo # 1. Create a table with persistent stats to wake up the background thread
+CREATE TABLE t1 (a INT) ENGINE=InnoDB STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
+INSERT INTO t1 SELECT * FROM seq_1_to_500;
+
+--echo # 2. Turn on the debug flag to freeze the dict_stats thread
+SET GLOBAL debug_dbug="+d,mdev_38891_sleep_in_bg_thread";
+
+--echo # 3. Restart the server. The background thread will wake up DURING the shutdown.
+--echo # Without the patch, this causes a THD read access violation and crashes.
+--source include/restart_mysqld.inc
+
+--echo # 4. Clean up
+DROP TABLE t1;
