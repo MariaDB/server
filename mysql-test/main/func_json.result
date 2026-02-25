@@ -46,6 +46,8 @@ json_query('{"key1":123, "key1": [1,2,3]}', '$.key1')
 select json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000))) as exp;
 exp
 NULL
+Warnings:
+Warning	4043	Limit of 32 on JSON path depth is reached in argument 2 to function 'json_query' at position 65
 select json_array();
 json_array()
 []
@@ -662,6 +664,8 @@ JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path)
 SELECT JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]');
 JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]')
 NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_value'
 CREATE TABLE t1 (f INT NOT NULL);
 INSERT INTO t1 VALUES (0);
 SELECT JSON_KEYS(f) FROM t1 ORDER BY 1;
@@ -1456,6 +1460,8 @@ SET COLLATION_CONNECTION= ucs2_unicode_ci;
 SELECT JSON_VALUE('["foo"]', '$**[0]') AS f;
 f
 NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_value'
 SET @@COLLATION_CONNECTION= @old_collation_connection;
 #
 # MDEV-32587 JSON_VALID fail to validate integer zero in scientific notation
@@ -2384,6 +2390,8 @@ SET @json= '[
 SELECT JSON_VALUE(@json, '$[0][1 to 2].key1');
 JSON_VALUE(@json, '$[0][1 to 2].key1')
 NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_value'
 SET @json='{
             "A": [0,
                   [1, 2, 3],
@@ -2400,7 +2408,7 @@ SET @json='{
            }';
 SELECT JSON_QUERY(@json, '$.A[-2][-3 to -1]');
 JSON_QUERY(@json, '$.A[-2][-3 to -1]')
-NULL
+[13, 14]
 SET @json= '[
              [1, {"key1": "value1"}, 3],
              [false, 5, 6],
@@ -2549,6 +2557,8 @@ SET @json1= '[
 SELECT JSON_VALUE(@json1, '$[2][1 to 2].key1');
 JSON_VALUE(@json1, '$[2][1 to 2].key1')
 NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_value'
 SET @json= '[
              [1.1, {"key1": "value1"}, 3],
              [false, 5, 6],
@@ -2559,9 +2569,13 @@ SET @json= '[
 SELECT JSON_VALUE(@json, '$[*][0]');
 JSON_VALUE(@json, '$[*][0]')
 NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_value'
 SELECT JSON_VALUE(@json, '$[2 to 3][0]');
 JSON_VALUE(@json, '$[2 to 3][0]')
 NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_value'
 #
 # MDEV-28072: JSON_EXTRACT has inconsistent behavior with '0' value in
 # json path (when range is used)
@@ -2770,4 +2784,6 @@ S1A1
 SELECT JSON_VALUE('{"a":[1,2]}', '$.a[*]');
 JSON_VALUE('{"a":[1,2]}', '$.a[*]')
 NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_value'
 # End of 10.11 Test
