@@ -373,10 +373,7 @@ static bool is_recalc_pool_empty()
 static tpool::timer* dict_stats_timer;
 static void dict_stats_func(void*)
 {
-  // Safety check: ensure the THD was created during startup
-  if (!dict_stats_thd) {
-    return;
-  }
+  DBUG_ASSERT(dict_stats_thd != nullptr);
 
   set_current_thd(dict_stats_thd);
 
@@ -394,12 +391,16 @@ void dict_stats_start()
 {
   DBUG_ASSERT(!dict_stats_timer);
   
-  // Safely create the THD once during startup
   if (!dict_stats_thd) {
     dict_stats_thd = innobase_create_background_thd("InnoDB statistics");
   }
 
-  dict_stats_timer= srv_thread_pool->create_timer(dict_stats_func);
+  if (dict_stats_thd) {
+    dict_stats_timer = srv_thread_pool->create_timer(dict_stats_func);
+  } else {
+    sql_print_warning("InnoDB: Failed to create background THD for statistics. "
+                      "Automatic statistics recalculation will be disabled.");
+  }
 }
 
 
