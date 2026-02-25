@@ -1071,7 +1071,7 @@ inline void buf_pool_t::garbage_collect() noexcept
   my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
   mysql_mutex_unlock(&flush_list_mutex);
 # ifdef BTR_CUR_HASH_ADAPT
-  bool ahi_disabled= btr_search.disable();
+  ulong ahi_disabled= btr_search.disable();
 # endif /* BTR_CUR_HASH_ADAPT */
   time_t start= time(nullptr);
   mysql_mutex_lock(&mutex);
@@ -1092,7 +1092,7 @@ inline void buf_pool_t::garbage_collect() noexcept
       shrunk(size, reduce_size);
 # ifdef BTR_CUR_HASH_ADAPT
       if (ahi_disabled)
-        btr_search.enable(true);
+        btr_search.enable(true, ahi_disabled);
 # endif
       mysql_mutex_unlock(&mutex);
       sql_print_information("InnoDB: Memory pressure event shrunk"
@@ -1502,8 +1502,8 @@ bool buf_pool_t::create() noexcept
 
   buf_LRU_old_ratio_update(100 * 3 / 8, false);
 #ifdef BTR_CUR_HASH_ADAPT
-  if (btr_search.enabled)
-    btr_search.enable();
+  if (btr_search.get_enabled())
+    btr_search.enable(false, btr_search.get_enabled());
 #endif
 
 #ifdef __linux__
@@ -1959,7 +1959,20 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
   }
 
 #ifdef BTR_CUR_HASH_ADAPT
-  bool ahi_disabled= false;
+  /* Stores the previous AHI state (0=OFF, 1=ON, 2=IF_SPECIFIED) if AHI
+  is disabled during a buffer pool shrink.
+
+  When growing the buffer pool, existing AHI memory pointers remain
+  valid, so we do not disable AHI.
+  Note that the AHI hash table size is not grown automatically to match
+  the new buffer pool size.
+  Therefore, this defaults to 0 so the subsequent enable() is skipped.
+
+  When shrinking, AHI must be disabled to prevent dangling pointers
+  to unmapped memory. If the shrink succeeds, the code jumps to the
+  'resized:' label, at which point ahi_to_be_re_enabled holds the
+  previous state to safely re-enable AHI. */
+  ulong ahi_to_be_re_enabled= 0;
 #endif
 
   const bool significant_change=
@@ -2074,8 +2087,8 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     }
 
 #ifdef BTR_CUR_HASH_ADAPT
-    if (ahi_disabled)
-      btr_search.enable(true);
+    if (ahi_to_be_re_enabled)
+      btr_search.enable(true, ahi_to_be_re_enabled);
 #endif
     if (n_blocks_removed)
       sql_print_information("InnoDB: innodb_buffer_pool_size=%zum (%zu pages)"
@@ -2099,7 +2112,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
     mysql_mutex_unlock(&flush_list_mutex);
 #ifdef BTR_CUR_HASH_ADAPT
-    ahi_disabled= btr_search.disable();
+    ahi_to_be_re_enabled= btr_search.disable();
 #endif /* BTR_CUR_HASH_ADAPT */
     mysql_mutex_lock(&mutex);
 
@@ -2160,8 +2173,8 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     my_printf_error(ER_WRONG_USAGE, "innodb_buffer_pool_size change aborted",
                     MYF(ME_ERROR_LOG));
 #ifdef BTR_CUR_HASH_ADAPT
-    if (ahi_disabled)
-      btr_search.enable(true);
+    if (ahi_to_be_re_enabled)
+      btr_search.enable(true, ahi_to_be_re_enabled);
 #endif
     mysql_mutex_lock(&LOCK_global_system_variables);
   }
@@ -3696,7 +3709,7 @@ ATTRIBUTE_COLD void buf_pool_t::clear_hash_index() noexcept
   std::set<dict_index_t*> garbage;
 
   mysql_mutex_lock(&mutex);
-  ut_ad(!btr_search.enabled);
+  ut_ad(!btr_search.get_enabled());
 
   for (char *extent= memory,
          *end= memory + block_descriptors_in_bytes(n_blocks);
