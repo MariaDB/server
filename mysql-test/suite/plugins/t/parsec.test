@@ -61,3 +61,46 @@ connect con5, localhost, test2, "wrong_pwd";
 connection default;
 source include/wait_until_count_sessions.inc;
 drop user test2@'%';
+
+--echo # Test for MDEV-35254: PARSEC plugin should allow DBAs to specify number of iterations
+
+--echo # Basic visibility and default value
+set @init_value := @@global.parsec_iterations;
+
+--echo # Valid power-of-two values should be accepted
+set global parsec_iterations = 1024;
+select @@global.parsec_iterations;
+
+set global parsec_iterations = 262144;
+select @@global.parsec_iterations;
+
+--echo # Values should be rounded UP to next power of two
+--echo # 5000 -> 8192
+set global parsec_iterations = 5000;
+select @@global.parsec_iterations;
+
+--echo # 131073 -> 262144
+set global parsec_iterations = 131073;
+select @@global.parsec_iterations;
+
+--echo # Lower bound enforcement
+set global parsec_iterations = 512;
+select @@global.parsec_iterations;
+
+--echo # Upper bound enforcement
+set global parsec_iterations = 600000;
+select @@global.parsec_iterations;
+
+--echo # Session variable access
+set session parsec_iterations = 1024;
+select @@session.parsec_iterations;
+
+--echo # parsec_iterations should should not get accidently mutated during user creation
+set @iter_before := @@global.parsec_iterations;
+create user t_iter@'%' identified via parsec using password('pwd');
+select @@global.parsec_iterations = @iter_before;
+drop user t_iter@'%';
+
+set global parsec_iterations = @init_value;
+
+--echo # End of parsec.test
