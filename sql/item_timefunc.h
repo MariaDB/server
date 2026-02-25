@@ -1856,6 +1856,10 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
+  }
 
 protected:
   Item *shallow_copy(THD *thd) const override

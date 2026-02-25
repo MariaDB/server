@@ -261,6 +261,54 @@ uint check_word(TYPELIB *lib, const char *val, const char *end,
   return res;
 }
 
+/*
+  Like check_word() in strfunc, with the following differnces for
+  multi-byte characters:
+  - Word can contain numbers (needed for matching Japanese months)
+  - If multiple partial matches and next character is space, try
+    matching with two words (needed for matching vietnamese months)
+*/
+
+uint check_word2(CHARSET_INFO *cs, TYPELIB *lib, const char *val,
+                const char *end, const char **end_of_word)
+{
+  int res, rc=0, round;
+  const char *ptr, *val_start= val;
+  my_bool part_match;
+  my_wc_t wc= 0;
+
+  if (cs->mbmaxlen == 1)
+    return check_word(lib, val, end, end_of_word);
+
+  /*
+    Try to match one word or two words.
+    Needed for matching vietnamese months which are two words
+  */
+  for (round= 0 ; round < 2 ; round++, val= ptr+1)
+  {
+    /*
+      Find end of word. Words ends with single letter non alpha character or
+      end of string.
+    */
+    for (ptr=val ; ptr < end ; ptr+= rc)
+    {
+      if ((rc= cs->mb_wc(&wc, (const uchar*) ptr,
+                         (const uchar*) end)) <= 0 ||
+          (rc == 1 && !my_isalnum(cs, wc)))
+        break;
+    }
+    if ((res= find_type2(lib, val_start, (size_t) (ptr - val_start),
+                         &part_match, cs)) > 0)
+    {
+      *end_of_word= ptr;
+      return res;
+    }
+    if (!part_match || ptr == end || rc != 1 || !my_isspace(cs, wc))
+      return res;
+  }
+  return 0;                                     // No match
+}
+
 
 /*
   Converts a string between character sets

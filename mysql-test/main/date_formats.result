@@ -628,3 +628,29 @@ DATE_FORMAT('2023-03-26 03:00:00', '%z %Z')
 #
 # End of 11.3 test
 #
+MDEV-26112 STR_TO_DATE should work with lc_time_names
+SET names utf8;
+set lc_time_names="uk_UA";
+select str_to_date("1 березень 2010", "%e %M %Y"), str_to_date("1 березня 2010", "%e %M %Y");
+str_to_date("1 березень 2010", "%e %M %Y")	str_to_date("1 березня 2010", "%e %M %Y")
+2010-03-01	2010-03-01
+select str_to_date("6 квітня 2010", "%e %M %Y"), str_to_date("31 грудня 2010", "%e %M %Y");
+str_to_date("6 квітня 2010", "%e %M %Y")	str_to_date("31 грудня 2010", "%e %M %Y")
+2010-04-06	2010-12-31
+select str_to_date("пн 27 квітня 2026", "%a %e %M %Y"), str_to_date("неділя 28 грудня 2010", "%W %e %M %Y");
+str_to_date("пн 27 квітня 2026", "%a %e %M %Y")	str_to_date("неділя 28 грудня 2010", "%W %e %M %Y")
+2026-04-27	2010-12-28
+select str_to_date(date_format("2010-03-01","%e. %M %Y"), "%e. %M %Y");
+str_to_date(date_format("2010-03-01","%e. %M %Y"), "%e. %M %Y")
+2010-03-01
+set lc_time_names="de_DE";
+select str_to_date("1 März 2010", "%e %M %Y"), str_to_date("1 Juni 2010", "%e %M %Y");
+str_to_date("1 März 2010", "%e %M %Y")	str_to_date("1 Juni 2010", "%e %M %Y")
+2010-03-01	2010-06-01
+select str_to_date("1 Sep 2010", "%e %b %Y"), str_to_date("1 Mär 2010", "%e %b %Y");
+str_to_date("1 Sep 2010", "%e %b %Y")	str_to_date("1 Mär 2010", "%e %b %Y")
+2010-09-01	2010-03-01
+#
+# End of 12.3 test
+#
+SET NAMES latin1;
