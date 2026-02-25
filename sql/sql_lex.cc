@@ -10385,11 +10385,10 @@ void LEX::build_value_list_from_call_params(THD *thd)
   if (call_param_list.elements == 0)
     return;
   value_list.empty();
-  for (uint i= 0; i < call_param_list.elements; i++)
-  {
-    Call_param *cp= call_param_list.elem(i);
+  List_iterator_fast<Call_param> it(call_param_list);
+  Call_param *cp;
+  while ((cp= it++))
     value_list.push_back(cp->value, thd->mem_root);
-  }
 }
 
 
