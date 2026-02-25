@@ -1,5 +1,8 @@
 !include ../my.cnf
 
+[mysqld]
+binlog-row-event-max-size=8192
+
 [mysqld.1]
 gtid_domain_id=0
 server_id=1

@@ -1,0 +1,31 @@
+--source include/have_binlog_format_row.inc
+
+# Verify it is READ-ONLY at runtime
+--echo # Verify Read-Only Status (SET should fail)
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.binlog_row_event_max_size= 4096;
+
+
+# Suppress warnings for testing boundary clipping (Min 256, Max 4.3G)
+--disable_query_log
+call mtr.add_suppression("option 'binlog_row_event_max_size': unsigned value 100 adjusted to 256");
+call mtr.add_suppression("option 'binlog_row_event_max_size': unsigned value 4300000000 adjusted to .*");
+--enable_query_log
+
+# Verify MINIMUM clipping (Set to 100, should clip to 256)
+--echo # Restarting with --binlog-row-event-max-size=100
+--let $restart_parameters=--binlog-row-event-max-size=100
+--source include/restart_mysqld.inc
+
+--echo # Should be clipped to 256 (the minimum)
+SELECT @@global.binlog_row_event_max_size;
+
+# Verify MAXIMUM clipping (Set to huge value, should clip to max)
+--echo # Restarting with --binlog-row-event-max-size=4300000000
+--let $restart_parameters=--binlog-row-event-max-size=4300000000
+--source include/restart_mysqld.inc
+
+--echo # Should be clipped to 4294967040 (the maximum)
+SELECT @@global.binlog_row_event_max_size;
+
+--echo # End of sys_vars.binlog_row_event_max_size_basic
