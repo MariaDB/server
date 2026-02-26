@@ -1561,9 +1561,8 @@ static bool alter_options_need_rebuild(
 			*ha_alter_info->create_info->option_struct;
 	const ha_table_option_struct& opt= *table->s->option_struct;
 
-	/* Allow an instant change to enable page_compressed,
-	and any change of page_compression_level. */
-	if ((!alt_opt.page_compressed && opt.page_compressed)
+	/* Allow an instant change of page_compression_level. */
+	if ((alt_opt.page_compressed != opt.page_compressed)
 	    || alt_opt.encryption != opt.encryption
 	    || alt_opt.encryption_key_id != opt.encryption_key_id) {
 		return(true);
@@ -8634,15 +8633,6 @@ field_changed:
 		     & ALTER_ADD_VIRTUAL_COLUMN)
 		    && prepare_inplace_add_virtual(
 			    ha_alter_info, altered_table, table)) {
-			DBUG_RETURN(true);
-		}
-
-		if ((ha_alter_info->handler_flags & ALTER_OPTIONS)
-		    && ctx->page_compression_level
-		    && !ctx->old_table->not_redundant()) {
-			my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
-				 table_type(),
-				 "PAGE_COMPRESSED=1 ROW_FORMAT=REDUNDANT");
 			DBUG_RETURN(true);
 		}
 
