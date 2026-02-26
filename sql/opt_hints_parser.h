@@ -62,6 +62,7 @@ public:
     tEOF=   2, // returned when the end of input is reached
 
     // One character tokens
+    tDOT= '.',
     tCOMMA= ',',
     tAT= '@',
     tLPAREN= '(',
@@ -167,6 +168,7 @@ public:
     m_syntax_error(false),
     m_fatal_error(false)
   { }
+  THD *thd() const { return m_thd; }
   bool set_syntax_error()
   {
     m_syntax_error= true;
@@ -267,6 +269,8 @@ private:
   // Rules consisting of a single token
 
   using TokenAT= TokenParser<Parser, TokenID::tAT>;
+
+  using TokenCOMMA= TokenParser<Parser, TokenID::tCOMMA>;
 
   using TokenEOF= TokenParser<Parser, TokenID::tEOF>;
 
@@ -447,14 +451,9 @@ private:
     hint_param_table_list ::= hint_param_table [ {, hint_param_table}... ]
     opt_hint_param_table_list ::= [ hint_param_table_list ]
   */
-  class Hint_param_table_list_container: public List<Hint_param_table>
-  {
-  public:
-    Hint_param_table_list_container()
-    { }
-    bool add(Optimizer_hint_parser *p, Hint_param_table &&table);
-    size_t count() const { return elements; }
-  };
+  using Hint_param_table_list_container= List_container<Hint_param_table,
+                                               Parser>;
+
 
   class Opt_hint_param_table_list: public LIST<Parser,
                                                Hint_param_table_list_container,
@@ -468,14 +467,7 @@ private:
     table_name_list ::= table_name [ {, table_name }... ]
     opt_table_name_list ::= [ table_name_list ]
   */
-  class Table_name_list_container: public List<Table_name>
-  {
-  public:
-    Table_name_list_container()
-    { }
-    bool add(Optimizer_hint_parser *p, Table_name &&table);
-    size_t count() const { return elements; }
-  };
+  using Table_name_list_container= List_container<Table_name, Parser>;
 
   class Opt_table_name_list: public LIST<Parser,
                                          Table_name_list_container,
@@ -490,14 +482,8 @@ private:
     hint_param_index_list ::= hint_param_index [ {, hint_param_index }...]
     opt_hint_param_index_list ::= [ hint_param_index_list ]
   */
-  class Hint_param_index_list_container: public List<Hint_param_index>
-  {
-  public:
-    Hint_param_index_list_container()
-    { }
-    bool add(Optimizer_hint_parser *p, Hint_param_index &&table);
-    size_t count() const { return elements; }
-  };
+  using Hint_param_index_list_container= List_container<Hint_param_index,
+                                                        Parser>;
 
   class Opt_hint_param_index_list: public LIST<Parser,
                                                Hint_param_index_list_container,
@@ -623,18 +609,117 @@ public:
     void append_args(THD *thd, String *str) const override;
   };
 
+  // qb_path_element_view_name ::= identifier
+  class QB_path_element_view_name: public Identifier
+  {
+  public:
+    using Identifier::Identifier;
+  };
 
-  // qb_name_hint ::= QB_NAME ( query_block_name )
+  // qb_path_element_select_num ::= identifier
+  class QB_path_element_select_num: public Identifier
+  {
+  public:
+    using Identifier::Identifier;
+  };
+
+  // at_qb_path_element_select_num ::= @ qb_path_element_select_num
+  class At_QB_path_element_select_num:
+    public AND2<Parser, TokenAT, QB_path_element_select_num>
+  {
+  public:
+    using AND2::AND2;
+    using AND2::operator=;
+  };
+
+  // just a clone of At_QB_path_element_select_num to avoid inheritance issues
+  class At_QB_path_element_select_num2:
+    public AND2<Parser, TokenAT, QB_path_element_select_num>
+  {
+  public:
+    using AND2::AND2;
+    using AND2::operator=;
+  };
+
+  class Opt_at_QB_path_element_select_num:
+    public OPT<Parser, At_QB_path_element_select_num2>
+  {
+  public:
+    using OPT::OPT;
+  };
+
+  /*
+    qb_path_element_view_sel ::= qb_path_element_view_name
+                                 [ @ qb_path_element_select_num ]
+  */
+  class QB_path_element_view_sel: public AND2<Parser, QB_path_element_view_name,
+                                              Opt_at_QB_path_element_select_num>
+  {
+  public:
+    using AND2::AND2;
+  };
+
+  // qb_path_element ::= @ qb_path_element_select_num | qb_path_element_view_sel
+  class QB_path_element: public OR2<Parser, At_QB_path_element_select_num,
+                                            QB_path_element_view_sel>
+  {
+  public:
+    using OR2::OR2;
+  };
+
+  // Container for query block path elements
+  class Query_block_path_list: public List_container<QB_path_element, Parser>
+  {
+  public:
+    static Query_block_path_list empty(const Parser &)
+    {
+      return Query_block_path_list();
+    }
+  };
+
+  /*
+    query_block_path ::= query_block_path_element
+                         [ {, query_block_path_element }... ]
+  */
+  class Query_block_path: public LIST<Parser,
+                                      Query_block_path_list,
+                                      QB_path_element,
+                                      TokenID::tDOT, 0>
+  {
+    using LIST::LIST;
+  };
+
+  // opt_query_block_path ::= [, query_block_path]
+  class Opt_query_block_path: public AND2<Parser,
+                                          TokenCOMMA,
+                                          Query_block_path>::Opt
+  {
+  public:
+    using Opt::Opt;
+  };
+
+  // qb_name_with_opt_path ::= query_block_name [, query_block_path]
+  class QB_name_with_opt_path: public AND2<Parser,
+                                           Query_block_name,
+                                           Opt_query_block_path>
+  {
+  public:
+    using AND2::AND2;
+  };
+
+  // qb_name_hint ::= QB_NAME ( qb_name_with_opt_path )
   class Qb_name_hint: public AND4<Parser,
                                   Keyword_QB_NAME,
                                   LParen,
-                                  Query_block_name,
-                                  RParen>
+                                  QB_name_with_opt_path,
+                                  RParen>,
+                                public Printable_parser_rule
   {
   public:
     using AND4::AND4;
 
     bool resolve(Parse_context *pc) const;
+    void append_args(THD *thd, String *str) const override;
   };
 
 
@@ -698,15 +783,8 @@ private:
     strategy_list ::= strategy_name [ {, strategy_name }... ]
     opt_strategy_list ::= [ strategy_list ]
   */
-  class Semijoin_strategy_list_container: public List<Semijoin_strategy>
-  {
-  public:
-    Semijoin_strategy_list_container()
-    { }
-    bool add(Optimizer_hint_parser *p, Semijoin_strategy &&strategy);
-    size_t count() const { return elements; }
-  };
-
+  using Semijoin_strategy_list_container= List_container<Semijoin_strategy,
+                                                         Parser>;
   class Opt_sj_strategy_list: public LIST<Parser,
                                        Semijoin_strategy_list_container,
                                        Semijoin_strategy, TokenID::tCOMMA, 0>
@@ -944,15 +1022,7 @@ public:
 
 private:
   // hint_list ::= hint [ hint... ]
-  class Hint_list_container: public List<Hint>
-  {
-  public:
-    Hint_list_container()
-    { }
-    bool add(Optimizer_hint_parser *p, Hint &&hint);
-    size_t count() const { return elements; }
-  };
-
+  using Hint_list_container= List_container<Hint, Parser>;
 
   class Hint_list: public LIST<Parser, Hint_list_container,
                                Hint, TokenID::tNULL/*not separated list*/, 1>

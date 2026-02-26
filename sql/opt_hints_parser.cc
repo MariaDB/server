@@ -51,6 +51,12 @@ Opt_hints_table *get_table_hints(Parse_context *pc,
 void append_table_name(THD *thd, String *str, const LEX_CSTRING &table_name,
                        const LEX_CSTRING &qb_name);
 
+int cmp_lex_string(const LEX_CSTRING &s, const LEX_CSTRING &t,
+                   const CHARSET_INFO *cs);
+
+int cmp_lex_string_limit(const LEX_CSTRING &s, const LEX_CSTRING &t,
+                         const CHARSET_INFO *cs, size_t chars_limit);
+
 static const Lex_ident_sys null_ident_sys;
 
 
@@ -250,6 +256,8 @@ Optimizer_hint_tokenizer::get_token(CHARSET_INFO *cs)
                  TokenID::tIDENT : find_keyword(ident));
   if (!get_char(','))
     return Token(Lex_cstring(m_ptr - 1, 1), TokenID::tCOMMA);
+  if (!get_char('.'))
+    return Token(Lex_cstring(m_ptr - 1, 1), TokenID::tDOT);
   if (!get_char('@'))
     return Token(Lex_cstring(m_ptr - 1, 1), TokenID::tAT);
   if (!get_char('('))
@@ -294,61 +302,6 @@ void Parser::push_warning_syntax_error(THD *thd, uint start_lineno)
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_PARSE_ERROR, ER_THD(thd, ER_PARSE_ERROR),
                       msg, txt.ptr(), start_lineno + lineno());
-}
-
-
-bool
-Parser::Table_name_list_container::add(Optimizer_hint_parser *p,
-                                       Table_name &&elem)
-{
-  Table_name *pe= (Table_name*) p->m_thd->alloc(sizeof(*pe));
-  if (!pe)
-    return true;
-  *pe= std::move(elem);
-  return push_back(pe, p->m_thd->mem_root);
-}
-
-
-bool Parser::Hint_param_table_list_container::add(Optimizer_hint_parser *p,
-                                                  Hint_param_table &&elem)
-{
-  Hint_param_table *pe= (Hint_param_table*) p->m_thd->alloc(sizeof(*pe));
-  if (!pe)
-    return true;
-  *pe= std::move(elem);
-  return push_back(pe, p->m_thd->mem_root);
-}
-
-
-bool Parser::Hint_param_index_list_container::add(Optimizer_hint_parser *p,
-                                                  Hint_param_index &&elem)
-{
-  Hint_param_index *pe= (Hint_param_index*) p->m_thd->alloc(sizeof(*pe));
-  if (!pe)
-    return true;
-  *pe= std::move(elem);
-  return push_back(pe, p->m_thd->mem_root);
-}
-
-
-bool Parser::Hint_list_container::add(Optimizer_hint_parser *p, Hint &&elem)
-{
-  Hint *pe= new (p->m_thd->mem_root) Hint;
-  if (!pe)
-    return true;
-  *pe= std::move(elem);
-  return push_back(pe, p->m_thd->mem_root);
-}
-
-
-bool Parser::Semijoin_strategy_list_container::add(Optimizer_hint_parser *p,
-                                                   Semijoin_strategy &&elem)
-{
-  Semijoin_strategy *pe= (Semijoin_strategy*) p->m_thd->alloc(sizeof(*pe));
-  if (!pe)
-    return true;
-  *pe= std::move(elem);
-  return push_back(pe, p->m_thd->mem_root);
 }
 
 
@@ -766,6 +719,25 @@ void Parser::Index_level_hint::append_args(THD *thd, String *str) const
 }
 
 
+
+/*
+  Check if a SELECT_LEX is a descendant of a given unit
+*/
+static bool is_descendant_of_unit(SELECT_LEX *sl, st_select_lex_unit *unit)
+{
+  // Walk up the tree from sl to see if we reach unit
+  while (sl)
+  {
+    st_select_lex_unit *sl_unit= sl->master_unit();
+    if (sl_unit == unit)
+      return true;
+    // Move up to the outer SELECT
+    sl= sl_unit->outer_select();
+  }
+  return false;
+}
+
+
 /*
   Resolve a parsed query block name hint, i.e. set up proper Opt_hint_*
   structures which will be used later during query preparation and optimization.
@@ -777,21 +749,151 @@ Return value:
 */
 bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
 {
-  Opt_hints_qb *qb= pc->select->opt_hints_qb;
+  const opt_hints_enum hint_type= QB_NAME_HINT_ENUM;
+  Opt_hints_qb *target_qb= nullptr;
+  const Lex_ident_sys qb_name_from_hint=
+    Query_block_name::to_ident_sys(pc->thd);
 
-  DBUG_ASSERT(qb);
-
-  const Lex_ident_sys qb_name_sys= Query_block_name::to_ident_sys(pc->thd);
-
-  if (qb->get_name().str ||                        // QB name is already set
-      qb->get_parent()->find_by_name(qb_name_sys)) // Name is already used
+  const Opt_query_block_path &path= *this;
+  if (path.is_empty())
   {
-    print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, QB_NAME_HINT_ENUM, true,
-               &qb_name_sys, nullptr, nullptr, nullptr);
-    return false;
+    // Simple hint, e.g. QB_NAME(qb1)
+    target_qb= pc->select->opt_hints_qb;
+  }
+  else
+  {
+    //  QB_NAME hint with path, for example QB_NAME(qb1, v1@sel_1 .@sel_2)
+    const Query_block_path_list &qb_path_list= path;
+
+    // Start from the current SELECT_LEX
+    SELECT_LEX *target_select= pc->select;
+    // Iterate through all path elements
+    for (const QB_path_element &elem : qb_path_list)
+    {
+      Lex_ident_sys select_num_str;
+      Lex_ident_sys view_name;
+      if (const At_QB_path_element_select_num &at_select_num= elem)
+      {
+        // This path element is a SELECT_LEX number, for example @SEL_1
+        const QB_path_element_select_num &qb_path_select_num= at_select_num;
+        select_num_str= qb_path_select_num.to_ident_sys(pc->thd);
+      }
+      else if (const QB_path_element_view_sel &view_sel= elem)
+      {
+        /*
+          This path element is a combination of view name
+          and optional SELECT_LEX number, for example v1 or v1@SEL_1
+        */
+        const QB_path_element_view_name &qb_path_view_name= view_sel;
+        view_name= qb_path_view_name.to_ident_sys(pc->thd);
+        const Opt_at_QB_path_element_select_num &opt_at_select_num= view_sel;
+        if (const At_QB_path_element_select_num2 &at_select_num= opt_at_select_num)
+        {
+          const QB_path_element_select_num &qb_path_select_num= at_select_num;
+          select_num_str= qb_path_select_num.to_ident_sys(pc->thd);
+        }
+      }
+
+      // Find SELECT_LEX corresponding to the parsed path element
+      if (select_num_str.length > 0)
+      {
+        // Check format and extract select number, then wind to the select_lex
+        const LEX_CSTRING format= { "SEL_", 4 };
+        if (cmp_lex_string_limit(select_num_str, format,
+                                 system_charset_info, format.length))
+        {
+          print_warn(pc->thd, ER_WARN_WRONG_PATH_IN_QB_NAME, hint_type,
+                     true, &qb_name_from_hint, nullptr, nullptr, this);
+          return false;
+        }
+
+        uint hint_select_num= atoi(select_num_str.str + format.length);
+        /*
+          Select number in the hint is treated as a relative offset from
+          current unit's first_select() select_number (base select_number).
+          I.e., @SEL_N means: find SELECT_LEX with select_number =
+          base select_number + (N - 1).
+          @SEL_1 always points to the base SELECT_LEX, @SEL_2 - to the next
+          one, and so on.
+        */
+        if (hint_select_num < 1)
+        {
+          print_warn(pc->thd, ER_WARN_WRONG_PATH_IN_QB_NAME, hint_type,
+                     true, &qb_name_from_hint, nullptr, nullptr, this);
+          return false;
+        }
+        st_select_lex_unit *unit= target_select->master_unit();
+        uint base_select_num= unit->first_select()->select_number;
+        uint target_select_num= base_select_num + (hint_select_num - 1);
+        /*
+          Traverse the global SELECT_LEX list to find SELECT_LEX
+          with target_select_num
+        */
+        target_select= nullptr;
+        for (SELECT_LEX *sl= pc->thd->lex->all_selects_list; sl;
+             sl= sl->next_select_in_list())
+        {
+          if (sl->select_number == target_select_num &&
+              is_descendant_of_unit(sl, unit))
+          {
+            target_select= sl;
+            break;
+          }
+        }
+        if (!target_select)
+        {
+          // Target select_number wasn't found
+          print_warn(pc->thd, ER_WARN_WRONG_PATH_IN_QB_NAME, hint_type,
+                     true, &qb_name_from_hint, nullptr, nullptr, this);
+          return false;
+        }
+      }
+      if (view_name.length > 0)
+      {
+        // Traverse the list of current SELECT_LEX's tables to find `view_name`
+        bool found= false;
+        for (TABLE_LIST *tbl= target_select->table_list.first; tbl;
+             tbl= tbl->next_local)
+        {
+          if (tbl->is_view_or_derived() &&
+              !cmp_lex_string(tbl->alias, view_name, system_charset_info))
+          {
+            found= true;
+            target_select= tbl->get_unit()->first_select();
+            break;
+          }
+        }
+        if (!found)
+        {
+          print_warn(pc->thd, ER_WARN_WRONG_PATH_IN_QB_NAME, hint_type,
+                     true, &qb_name_from_hint, nullptr, nullptr, this);
+          return false;
+        }
+      }
+    }
+    /*
+      Loop is finished, and target SELECT_LEX has been successfully found.
+      Create Opt_hints_qb structure for it (or get if it is already created).
+    */
+    Parse_context target_pc(pc->thd, target_select);
+    target_qb= get_qb_hints(&target_pc);
+    if (!target_qb)
+      return true;
   }
 
-  qb->set_name(qb_name_sys);
+  DBUG_ASSERT(target_qb);
+  /*
+    (1) Name is already assigned to this query block
+    (2) Given name is already used inside this block of hints
+  */
+  if (target_qb->get_name().str ||                                // (1)
+      target_qb->get_parent()->find_by_name(qb_name_from_hint))   // (2)
+  {
+    print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, true,
+               &qb_name_from_hint, nullptr, nullptr, nullptr);
+    return false;
+  }
+  target_qb->set_name(qb_name_from_hint);
   return false;
 }
 
@@ -869,6 +971,58 @@ bool Parser::Semijoin_hint::resolve(Parse_context *pc) const
   if (qb)
     qb->semijoin_hint= this;
   return false;
+}
+
+
+/*
+  Append QB_NAME hint arguments for printing in warnings/EXPLAIN
+*/
+void Parser::Qb_name_hint::append_args(THD *thd, String *str) const
+{
+  const Query_block_path &qb_path= *this;
+  DBUG_ASSERT(!qb_path.is_empty()); // append_args() is only valid for
+                                    // complex QB_NAME hints with path
+    
+  // It is a complex QB_NAME hint with path, print the path to the query block
+  str->append(STRING_WITH_LEN(", "));
+  bool first_element= true;
+  for (const QB_path_element &elem : qb_path)
+  {
+    if (!first_element)
+      str->append(STRING_WITH_LEN(" ."));
+    first_element= false;
+    Lex_ident_sys select_num;
+
+    // Check if it's a select number or view/table name
+    if (const At_QB_path_element_select_num &at_select_num= elem)
+    {
+      const QB_path_element_select_num &qb_path_select_num= at_select_num;
+      select_num= qb_path_select_num.to_ident_sys(thd);
+    }
+    else if (const QB_path_element_view_sel &view_sel= elem)
+    {
+      const QB_path_element_view_name &qb_path_view_name= view_sel;
+      Lex_ident_sys view_name= qb_path_view_name.to_ident_sys(thd);
+      append_identifier(thd, str, &view_name);
+
+      const Opt_at_QB_path_element_select_num &opt_at_select_num= view_sel;
+      if (const At_QB_path_element_select_num2 &at_select_num=
+                                               opt_at_select_num)
+      {
+        const QB_path_element_select_num &qb_path_select_num= at_select_num;
+        select_num= qb_path_select_num.to_ident_sys(thd);
+      }
+    }
+    else
+    {
+      DBUG_ASSERT(false);
+    }
+    if (select_num.length > 0)
+    {
+      str->append(STRING_WITH_LEN("@"));
+      append_identifier(thd, str, &select_num);
+    }
+  }
 }
 
 
@@ -1335,7 +1489,6 @@ bool Parser::Hint_list::resolve(Parse_context *pc) const
     else if (const Qb_name_hint &qb_hint __attribute__((unused)) = hint)
     {
       // QB_NAME hints have been resolved earlier
-      DBUG_ASSERT(pc->select->opt_hints_qb->get_name().length > 0);
       continue;
     }
     else {

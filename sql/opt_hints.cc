@@ -86,6 +86,13 @@ int cmp_lex_string(const LEX_CSTRING &s, const LEX_CSTRING &t,
                                    (const uchar*)t.str, t.length);
 }
 
+int cmp_lex_string_limit(const LEX_CSTRING &s, const LEX_CSTRING &t,
+                         const CHARSET_INFO *cs, size_t chars_limit)
+{
+  return cs->coll->strnncollsp(cs, (const uchar*)s.str, chars_limit,
+                                   (const uchar*)t.str, chars_limit);
+}
+
 /*
   This is a version of push_warning_printf() guaranteeing no escalation of
   the warning to the level of error
@@ -316,8 +323,8 @@ static Opt_hints_qb *find_hints_by_select_number(Parse_context *pc,
 
    Note: Implicit QB names are only supported for SELECTs. DML operations
    (UPDATE, DELETE, INSERT) only support explicit QB names. This is caused by
-   the fact that Sql_cmd_dml::prepare() resolves both early and late hints
-   at the same time.
+   the fact that optimizer hints are resolved before `open_tables()`
+   at `Sql_cmd_dml::prepare()`.
 
    @return the pair: - result code
                      - matching query block hints object, if it exists,
@@ -1783,7 +1790,7 @@ bool is_compound_hint(opt_hints_enum type_arg)
 /*
   @brief
     Perform "Hint Resolution" for Optimizer Hints (see opt_hints.h for
-    definition) for both early and late stages.
+    definition).
 
   @detail
     Hints use "Explain select numbering", so this must be called after the
