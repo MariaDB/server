@@ -313,13 +313,14 @@ cursor.
 inline
 dberr_t btr_pcur_open_with_no_init(const dtuple_t *tuple, page_cur_mode_t mode,
                                    btr_latch_mode latch_mode,
-                                   btr_pcur_t *cursor, mtr_t *mtr)
+                                   btr_pcur_t *cursor, mtr_t *mtr,
+                                   mrr_readahead_ctx_t* mrr_ctx)
 {
   cursor->latch_mode= BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode);
   cursor->search_mode= mode;
   cursor->pos_state= BTR_PCUR_IS_POSITIONED;
   cursor->trx_if_known= nullptr;
-  return cursor->btr_cur.search_leaf(tuple, mode, latch_mode, mtr);
+  return cursor->btr_cur.search_leaf(tuple, mode, latch_mode, mtr, mrr_ctx);
 }
 
 /**************************************************************//**

@@ -753,6 +753,20 @@ ATTRIBUTE_COLD bool fil_space_t::acquire_and_prepare() noexcept
   return is_open;
 }
 
+void fil_space_t::set_stopping_reads() noexcept
+{
+  mysql_mutex_lock(&fil_system.mutex);
+  n_pending.fetch_or(STOPPING_READS, std::memory_order_acquire);
+  mysql_mutex_unlock(&fil_system.mutex);
+}
+
+void fil_space_t::clear_stopping_reads() noexcept
+{
+  mysql_mutex_lock(&fil_system.mutex);
+  n_pending.fetch_and(~STOPPING_READS, std::memory_order_release);
+  mysql_mutex_unlock(&fil_system.mutex);
+}
+
 /** Try to extend a tablespace if it is smaller than the specified size.
 @param[in,out]	space	tablespace
 @param[in]	size	desired size in pages

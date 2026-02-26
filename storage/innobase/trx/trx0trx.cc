@@ -612,9 +612,7 @@ static dberr_t trx_resurrect_table_locks(trx_t *trx, const trx_undo_t &undo)
                             &updated_extern, &undo_no, &table_id);
       tables.emplace(table_id, type == TRX_UNDO_EMPTY);
       ut_ad(page_offset(undo_rec) == undo_rec_offset);
-      undo_rec= trx_undo_get_prev_rec(block, undo_rec_offset,
-                                      undo.hdr_page_no, undo.hdr_offset,
-                                      true, &mtr);
+      undo_rec= trx_undo_get_prev_rec(block, undo, undo_rec_offset, &mtr);
       if (!undo_rec)
         break;
       undo_rec_offset= uint16_t(undo_rec - block->page.frame);

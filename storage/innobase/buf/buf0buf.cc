@@ -2542,6 +2542,68 @@ buf_block_t *buf_pool_t::unzip(buf_page_t *b, buf_pool_t::hash_chain &chain)
   return block;
 }
 
+/** Applies a random read-ahead in buf_pool if there are at least a threshold
+value of accessed pages from the random read-ahead area. Does not read any
+page, not even the one at the position (space, offset), if the read-ahead
+mechanism is not activated. NOTE: the calling thread may own latches on
+pages: to avoid deadlocks this function must be written such that it cannot
+end up waiting for these latches!
+@param[in]	page_id		page id of a page which the current thread
+wants to access
+@return number of page read requests issued */
+TRANSACTIONAL_TARGET
+static void buf_read_ahead_random(const page_id_t page_id) noexcept
+{
+  if (!srv_random_read_ahead || page_id.space() >= SRV_TMP_SPACE_ID)
+    /* Disable the read-ahead for temporary tablespace */
+    return;
+
+  if (srv_startup_is_before_trx_rollback_phase)
+    /* No read-ahead to avoid thread deadlocks */
+    return;
+
+  if (page_id == page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO))
+    return;
+
+  if (os_aio_pending_reads_approx() > buf_pool.curr_pool_size() / 2)
+    return;
+
+  fil_space_t* space= fil_space_t::get(page_id.space());
+  if (!space)
+    return;
+
+
+  const uint32_t buf_read_ahead_area= buf_pool.read_ahead_area;
+  ulint count= 5 + buf_read_ahead_area / 8;
+  const page_id_t low= page_id - (page_id.page_no() % buf_read_ahead_area);
+  page_id_t high= low + buf_read_ahead_area;
+  high.set_page_no(std::min(high.page_no(), space->last_page_number()));
+
+  /* Count how many blocks in the area have been recently accessed,
+  that is, reside near the start of the LRU list. */
+
+  for (page_id_t i= low; i < high; ++i)
+  {
+    bool ok= false;
+    {
+      buf_pool_t::hash_chain &chain=
+        buf_pool.page_hash.cell_get(i.fold());
+      transactional_shared_lock_guard<page_hash_latch> g
+        {buf_pool.page_hash.lock_get(chain)};
+      if (const buf_page_t *bpage= buf_pool.page_hash.get(i, chain))
+        if (bpage->is_accessed() && buf_page_peek_if_young(bpage))
+          ok= true;
+    }
+    if (ok && !--count)
+    {
+      buf_read_ahead_random(space, low, high);
+      break;
+    }
+  }
+
+  space->release();
+}
+
 buf_block_t *buf_pool_t::page_fix(const page_id_t id,
                                   dberr_t *err, trx_t *trx,
                                   buf_pool_t::page_fix_conflicts c) noexcept

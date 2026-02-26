@@ -111,6 +111,7 @@ bool is_update_query(enum enum_sql_command command);
 #include "ut0mem.h"
 #include "row0ext.h"
 #include "innodb_binlog.h"
+#include "buf0rea.h"
 
 #include "lz4.h"
 #include "lzo/lzo1x.h"
@@ -2932,7 +2933,10 @@ ha_innobase::ha_innobase(
 			  | HA_CAN_SKIP_LOCKED
 		  ),
 	m_start_of_scan(),
-        m_mysql_has_locked()
+        m_mysql_has_locked(),
+	m_mrr_readahead_pages(0),
+	m_mrr_readahead_enabled(false),
+	m_mrr_readahead_triggered(false)
 {}
 
 /*********************************************************************//**
@@ -8943,6 +8947,13 @@ ha_innobase::index_read(
 		build_template(false);
 	}
 
+	mrr_readahead_ctx_t *mrr_ctx= nullptr;
+	if (m_mrr_readahead_enabled && !m_mrr_readahead_triggered) {
+		/* Get current page information from index */
+		mrr_ctx= new mrr_readahead_ctx_t(
+			true, m_mrr_readahead_pages);
+	}
+
 	if (key_len) {
 		ut_ad(key_ptr);
 		/* Convert the search key value to InnoDB format into
@@ -8975,9 +8986,21 @@ ha_innobase::index_read(
 
 	mariadb_set_stats temp(m_prebuilt->trx, handler_stats);
 	dberr_t ret =
-		row_search_mvcc(buf, mode, m_prebuilt, m_last_match_mode, 0);
+	  row_search_mvcc(buf, mode, m_prebuilt, m_last_match_mode, 0,
+			  mrr_ctx);
 
 	DBUG_EXECUTE_IF("ib_select_query_failure", ret = DB_ERROR;);
+
+	if (mrr_ctx) {
+		/* Do buf_read_ahead_pages() */
+		buf_read_ahead_pages(
+		  index->table->space,
+		  st_::span<const uint32_t>(mrr_ctx->page_list,
+		                            mrr_ctx->pages_found));
+		delete mrr_ctx;
+		mrr_ctx= nullptr;
+		m_mrr_readahead_triggered= true;
+	}
 
 	if (UNIV_LIKELY(ret == DB_SUCCESS)) {
 		table->status = 0;
@@ -20230,6 +20253,34 @@ static void innodb_params_adjust()
   ut_ad(MYSQL_SYSVAR_NAME(log_write_ahead_size).max_val == 4096);
 }
 
+/** Extract LIMIT information from optimizer context */
+static ha_rows extract_limit_from_optimizer(THD *thd)
+{
+  if (!thd || !thd->lex || !thd->lex->current_select)
+    return HA_POS_ERROR;
+  SELECT_LEX *select_lex = thd->lex->current_select;
+  /* Check for LIMIT clause */
+  Item *limit_item= select_lex->limit_params.select_limit;
+
+  if (limit_item && limit_item->const_item())
+  {
+    /* Handle different LIMIT scenarios */
+    longlong limit_val = limit_item->val_int();
+    if (limit_val > 0)
+      return (ha_rows)limit_val;
+  }
+  /* Check for EXISTS subquery pattern */
+  if (select_lex->master_unit() &&
+      select_lex->master_unit()->item &&
+      select_lex->master_unit()->item->type() == Item::SUBSELECT_ITEM)
+  {
+    Item_subselect *subq = (Item_subselect*)select_lex->master_unit()->item;
+    if (subq->substype() == Item_subselect::EXISTS_SUBS)
+      /* EXISTS subquery - effectively LIMIT 1 */
+      return 1;
+  }
+  return HA_POS_ERROR;
+}
 /****************************************************************************
  * DS-MRR implementation
  ***************************************************************************/
@@ -20244,8 +20295,10 @@ ha_innobase::multi_range_read_init(
 	uint		mode,
 	HANDLER_BUFFER*	buf)
 {
-	return(m_ds_mrr.dsmrr_init(this, seq, seq_init_param,
-				 n_ranges, mode, buf));
+    if (m_ds_mrr.get_limit() == HA_POS_ERROR)
+      m_ds_mrr.set_limit(extract_limit_from_optimizer(ha_thd()));
+    return(m_ds_mrr.dsmrr_init(this, seq, seq_init_param,
+				n_ranges, mode, buf));
 }
 
 int
@@ -20267,7 +20320,7 @@ ha_innobase::multi_range_read_info_const(
 	Cost_estimate*	cost)
 {
 	/* See comments in ha_myisam::multi_range_read_info_const */
-	m_ds_mrr.init(this, table);
+	m_ds_mrr.init(this, table, limit);
 
 	if (m_prebuilt->select_lock_type != LOCK_NONE) {
 		*flags |= HA_MRR_USE_DEFAULT_IMPL;
@@ -20302,6 +20355,14 @@ ha_innobase::multi_range_read_explain_info(
 	size_t size)
 {
 	return m_ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
+}
+
+void
+ha_innobase::configure_mrr_readahead(uint max_pages)
+{
+  m_mrr_readahead_pages= max_pages;
+  m_mrr_readahead_enabled= true;
+  m_mrr_readahead_triggered= false;
 }
 
 /** Find or open a table handle for the virtual column template
