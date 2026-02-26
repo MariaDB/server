@@ -691,7 +691,7 @@ handle_new_error:
 		bulk buffer in row_mysql_handle_errors().
 		For ALTER TABLE ALGORITHM=COPY & CREATE TABLE...SELECT,
 		the bulk insert transaction will be rolled back inside
-		ha_innobase::extra(HA_EXTRA_ABORT_ALTER_COPY) */
+		ha_innobase::extra(HA_EXTRA_ABORT_COPY) */
 		trx->bulk_insert &= TRX_DDL_BULK;
 		trx->last_stmt_start = 0;
 		break;

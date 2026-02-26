@@ -2222,12 +2222,21 @@ public:
 	Use DICT_TF2_FLAG_IS_SET() to parse this flag. */
 	unsigned				flags2:DICT_TF2_BITS;
 
-	/** TRUE if the table is an intermediate table during copy alter
-	operation or a partition/subpartition which is required for copying
-	data and skip the undo log for insertion of row in the table.
-	This variable will be set and unset during extra(), or during the
+	/** Undo log handling modes for ALTER [IGNORE] TABLE...ALGORITHM=COPY */
+	static constexpr unsigned	NORMAL_UNDO = 0;
+	/** Never writes row-level undo log records */
+	static constexpr unsigned	NO_UNDO = 1;
+	/** For ALTER IGNORE TABLE...ALGORITHM=COPY, this enables rewriting
+	old insert undo blocks to maintain only the latest insert undo log. */
+	static constexpr unsigned	IGNORE_UNDO = 2;
+
+	/** Mode for handling undo logs during ALTER TABLE...ALGORITHM=COPY operations.
+	This will not be consulted in ha_innobase::inplace_alter_table();
+	Set during copy alter operations or partition/subpartition operations.
+	When set, controls undo log behavior for row operations in the table.
+	This variable is set and unset during extra(), or during the
 	process of altering partitions */
-	unsigned                                skip_alter_undo:1;
+	unsigned                                skip_alter_undo:2;
 
 	/*!< whether this is in a single-table tablespace and the .ibd
 	file is missing or page decryption failed and page is corrupted */

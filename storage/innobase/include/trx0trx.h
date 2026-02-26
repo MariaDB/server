@@ -1205,6 +1205,13 @@ public:
     return bulk_insert == type ? bulk_insert_apply_low(): DB_SUCCESS;
   }
 
+  /** This function used only during ALTER IGNORE TABLE command.
+  Reset the undo no and remove the undo log from transaction.
+  By doing this, InnoDB doesn't add any undo logs to purge queue
+  during transaction commit
+  @param table target table for ALTER IGNORE TABLE */
+  void reset_and_truncate_undo(const dict_table_t *table) noexcept;
+
 private:
   /** Apply the buffered bulk inserts. */
   dberr_t bulk_insert_apply_low();

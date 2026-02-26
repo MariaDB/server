@@ -1912,9 +1912,31 @@ trx_undo_report_row_operation(
 		ut_ad(!trx->read_only);
 		ut_ad(trx->id);
 		pundo = &trx->rsegs.m_redo.undo;
+		const bool empty{!*pundo};
 		rseg = trx->rsegs.m_redo.rseg;
 		undo_block = trx_undo_assign_low<false>(trx, rseg, pundo,
 							&mtr, &err);
+		/* For ALTER IGNORE, implement undo log rewriting
+		to maintain only the latest insert undo record.
+		This allows easy rollback of the last inserted row
+		on duplicate key errors. Before writing a new undo
+		record, rewind the undo log to the previous record
+		position, effectively discarding all intermediate
+		undo records and keeping only the most recent one. */
+		if (!empty && (*pundo)->old_offset <= (*pundo)->top_offset &&
+		    index->table->skip_alter_undo ==
+			dict_table_t::IGNORE_UNDO) {
+
+			ut_ad(!rec);
+			ut_ad(trx->undo_no == 1);
+			(*pundo)->top_offset = (*pundo)->old_offset;
+			(*pundo)->top_undo_no = 0;
+			trx->undo_no = 0;
+			mtr.write<2>(
+			  *undo_block,
+			  undo_block->page.frame + TRX_UNDO_PAGE_HDR +
+			  TRX_UNDO_PAGE_FREE, (*pundo)->old_offset);
+		}
 	}
 
 	trx_undo_t*	undo	= *pundo;
@@ -2001,6 +2023,8 @@ err_exit:
 			/* Success */
 			undo->top_page_no = undo_block->page.id().page_no();
 			mtr.commit();
+
+			undo->old_offset = offset;
 			undo->top_offset  = offset;
 			undo->top_undo_no = trx->undo_no++;
 			undo->guess_block = undo_block;
