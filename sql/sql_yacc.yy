@@ -3501,10 +3501,19 @@ opt_sp_cparams:
 sp_call_param:
           expr
           {
+            LEX::Call_param *cp= (LEX::Call_param*)thd->alloc(sizeof(LEX::Call_param));
+            cp->name= null_clex_str;
+            cp->value= $1;
+            Lex->call_param_list.push_back(cp, thd->mem_root);
             Lex->value_list.push_back($1, thd->mem_root);
           }
         | ident ARROW_SYM expr
           {
+            LEX::Call_param *cp= (LEX::Call_param*)thd->alloc(sizeof(LEX::Call_param));
+            cp->name.str= thd->strmake($1.str, $1.length);
+            cp->name.length= cp->name.str ? $1.length : 0;
+            cp->value= $3;
+            Lex->call_param_list.push_back(cp, thd->mem_root);
             Lex->value_list.push_back($3, thd->mem_root);
           }
         ;
