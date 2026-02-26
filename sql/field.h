@@ -804,6 +804,7 @@ public:
   bool is_max() const { return is_max(ptr); }
 
   uchar		*ptr;			// Position to field in record
+  uchar   *ptr_old; // Position to old field in record
 
   /**
      Byte where the @c NULL bit is stored inside a record. If this Field is a
