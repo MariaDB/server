@@ -1593,6 +1593,27 @@ int init_intvar_from_file(int* var, IO_CACHE* f, int default_val)
   DBUG_RETURN(1);
 }
 
+int init_ullongvar_from_file(ulonglong* var, IO_CACHE* f,
+                             ulonglong default_val)
+{
+  char buf[32];
+  int error;
+  DBUG_ENTER("init_ullongvar_from_file");
+
+
+  if (my_b_gets(f, buf, sizeof(buf)))
+  {
+    *var = (ulonglong) my_strtoll10(buf, (char**) 0, &error);
+    DBUG_RETURN(0);
+  }
+  else if (default_val)
+  {
+    *var = default_val;
+    DBUG_RETURN(0);
+  }
+  DBUG_RETURN(1);
+}
+
 int init_floatvar_from_file(float* var, IO_CACHE* f, float default_val)
 {
   char buf[16];

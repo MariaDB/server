@@ -13,3 +13,13 @@ include/wait_for_slave_io_to_start.inc
 # Check that relay log coordinates are equal to those we saved in old-format_relay-log.info
 = , 0, slave-relay-bin.000001, 4
 include/rpl_end.inc
+#
+# MDEV-38020: Master & relay log info files read 2^31 and above incorrectly
+#
+include/rpl_init.inc [topology=1->2]
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER TO relay_log_pos=2147483648;
+include/rpl_restart_server.inc [server_number=2 parameters: --skip-slave-start]
+include/assert.inc [relay_log_pos should be 2147483648 after restart]
+include/rpl_end.inc
