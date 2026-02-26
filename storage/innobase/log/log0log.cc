@@ -765,7 +765,7 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
     }
     if (archive && file_size > ARCHIVE_FILE_SIZE_MAX)
     {
-      my_printf_error(ER_WRONG_USAGE, "innodb_log_file_size>4M", MYF(0));
+      my_printf_error(ER_WRONG_USAGE, "innodb_log_file_size>4G", MYF(0));
       break;
     }
     if (archive == this->archive)

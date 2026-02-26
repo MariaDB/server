@@ -228,7 +228,7 @@ private:
   /** whether the memory-mapped interface is enabled for writing */
   bool is_pmem:1;
 #endif
-  /** whether !archive log records may have been writtne with
+  /** whether !archive log records may have been written with
   get_sequence_bit()==0 */
   bool circular_recovery_from_sequence_bit_0:1;
 public:

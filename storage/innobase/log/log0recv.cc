@@ -1786,10 +1786,11 @@ dberr_t recv_sys_t::find_checkpoint()
 #endif
     no_archive_found:
       if (archive)
+      {
         sql_print_error("InnoDB: innodb_log_archive files not found in '%s'",
                         srv_log_group_home_dir);
-      if (archive)
         return DB_ERROR;
+      }
       archive= -1;
       goto retry;
 
@@ -1957,7 +1958,7 @@ dberr_t recv_sys_t::find_checkpoint()
           case log_t::FORMAT_ENC_11:
             if (recv_check_log_block(buf))
             {
-              recv_sys.was_archive= true;
+              was_archive= true;
               log_sys.archive= false;
               file= OS_FILE_CLOSED;
               goto circular_log_recovery;
@@ -5683,9 +5684,7 @@ dberr_t recv_sys_t::find_checkpoint_archived(lsn_t first_lsn, bool silent)
     ut_ad(rescan);
     ut_ad(recv_spaces.empty());
     checkpoint= log_sys.next_checkpoint_lsn;
-    if (file_checkpoint)
-      checkpoint= log_sys.next_checkpoint_lsn;
-    else
+    if (!file_checkpoint)
     {
       ut_ad(!silent);
       sql_print_error("InnoDB: Did not find innodb_log_recovery_start=" LSN_PF
