@@ -1342,8 +1342,6 @@ void LEX::start(THD *thd_arg)
   needs_reprepare= false;
   opt_hints_global= 0;
 
-  has_returning_list= false;
-
   memset(&trg_chistics, 0, sizeof(trg_chistics));
   selects_for_hint_resolution.empty();
   DBUG_VOID_RETURN;
@@ -3108,6 +3106,7 @@ void st_select_lex::init_query()
   leaf_tables_prep.empty();
   leaf_tables.empty();
   item_list.empty();
+  returning_list.empty();
   fix_after_optimize.empty();
   min_max_opt_list.empty();
   limit_params.clear();
@@ -3146,7 +3145,8 @@ void st_select_lex::init_query()
 
   context.select_lex= this;
   context.init();
-  cond_count= between_count= with_wild= 0;
+  cond_count= between_count= 0;
+  with_wild= with_wild_returning= 0;
   max_equal_elems= 0;
   ref_pointer_array.reset();
   select_n_where_fields= 0;
@@ -3191,7 +3191,7 @@ void st_select_lex::init_select()
   having= 0;
   table_join_options= 0;
   select_lock= select_lock_type::NONE;
-  in_sum_expr= with_wild= 0;
+  in_sum_expr= with_wild= with_wild_returning= 0;
   options= 0;
   ftfunc_list_alloc.empty();
   inner_sum_func_list= 0;
@@ -10962,7 +10962,8 @@ Item *LEX::create_item_qualified_asterisk(THD *thd,
                                              star_clex_str)))
     return NULL;
   current_select->parsing_place == IN_RETURNING ?
-              thd->lex->returning()->with_wild++ : current_select->with_wild++;
+              thd->lex->returning()->with_wild_returning++ :
+              current_select->with_wild++;
   return item;
 }
 
@@ -10978,7 +10979,8 @@ Item *LEX::create_item_qualified_asterisk(THD *thd,
                                              schema, *b, star_clex_str)))
    return NULL;
   current_select->parsing_place == IN_RETURNING ?
-            thd->lex->returning()->with_wild++ : current_select->with_wild++;
+            thd->lex->returning()->with_wild_returning++ :
+            current_select->with_wild++;
   return item;
 }
 

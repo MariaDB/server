@@ -47,7 +47,8 @@ class Sql_cmd_update final : public Sql_cmd_dml
 public:
   ha_rows found{0}, updated{0};
   Sql_cmd_update(bool multitable_arg)
-    : orig_multitable(multitable_arg), multitable(multitable_arg)
+    : orig_multitable(multitable_arg), multitable(multitable_arg),
+    save_protocol(nullptr)
   {}
 
   enum_sql_command sql_command_code() const override
@@ -112,6 +113,7 @@ private:
  public:
   /* The list of the updating expressions used in the set clause */
   List<Item> *update_value_list;
+  Protocol *save_protocol;
 };
 
 #endif /* SQL_UPDATE_INCLUDED */

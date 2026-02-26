@@ -455,6 +455,7 @@ Item::Item(THD *thd):
     if (place == SELECT_LIST || place == IN_HAVING)
       thd->lex->current_select->select_n_having_items++;
   }
+  is_old_value_reference= false;
 }
 
 /*
@@ -470,6 +471,7 @@ Item::Item():
   null_value= 0;
   marker= MARKER_UNUSED;
   join_tab_idx= MAX_TABLES;
+  is_old_value_reference= false;
 }
 
 
@@ -503,6 +505,7 @@ Item::Item(THD *thd, Item *item):
 {
   next= thd->free_list;				// Put in free list
   thd->free_list= this;
+  is_old_value_reference= false;
 }
 
 
@@ -7971,6 +7974,44 @@ bool Item_field::send(Protocol *protocol, st_value *buffer)
   return protocol->store(result_field);
 }
 
+bool Item_old_field::send(Protocol *protocol, st_value *buffer)
+{
+  bool result;
+
+  std::swap(field->ptr_old, field->ptr);
+  result= Item_field::send(protocol, buffer);
+  std::swap(field->ptr_old, field->ptr);
+
+  return result;
+}
+
+
+bool Item_old_field::fix_fields(THD *thd, Item **reference)
+{
+  if (Item_field::fix_fields(thd, reference))
+    return true;
+  /*
+    Store the pointer to where old values are store before update.
+  */
+  if (field)
+  {
+    field->ptr_old= field->table->record[1] +
+                  field->offset(field->table->record[0]);
+  }
+  else
+  {
+    /*
+      Field is NULL in case of view. But we need the information to field
+      to return its old value. Hence get the field from the reference item
+      and proceed.
+    */
+    field= ((Item_old_field*)((*reference)->real_item()))->field;
+    field->ptr_old= field->table->record[1] + field->offset(field->table->record[0]);
+  }
+
+  return false;
+}
+
 
 Item* Item::propagate_equal_fields_and_change_item_tree(THD *thd,
                                                         const Context &ctx,
@@ -10006,7 +10047,6 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
 {
   return find_matching_field_pair(this, sel->grouping_tmp_fields) != NULL;
 }
-
 
 bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
 {
