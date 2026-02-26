@@ -42,3 +42,25 @@ if (`SELECT "$master_file" != "" OR
 
 --let $rpl_only_running_threads= 1
 --source include/rpl_end.inc
+
+--echo #
+--echo # MDEV-38020: Master & relay log info files read 2^31 and above incorrectly
+--echo #
+
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--connection server_2
+--source include/stop_slave.inc
+
+CHANGE MASTER TO relay_log_pos=2147483648;
+
+--let $rpl_server_number= 2
+--let $rpl_server_parameters= --skip-slave-start
+--source include/rpl_restart_server.inc
+
+--let $assert_text= relay_log_pos should be 2147483648 after restart
+--let $assert_cond= [SHOW SLAVE STATUS, Relay_Log_Pos, 1] = 2147483648
+--source include/assert.inc
+
+--source include/rpl_end.inc

@@ -321,7 +321,8 @@ Failed to open the existing relay log info file '%s' (errno %d)",
       }
     }
 
-    int relay_log_pos, master_log_pos, lines;
+    ulonglong relay_log_pos, master_log_pos;
+    int lines;
     char *first_non_digit;
 
     /*
@@ -374,12 +375,12 @@ Failed to open the existing relay log info file '%s' (errno %d)",
     else
       DBUG_PRINT("info", ("relay_log_info file is in old format."));
 
-    if (init_intvar_from_file(&relay_log_pos,
+    if (init_ullongvar_from_file(&relay_log_pos,
                               &info_file, BIN_LOG_HEADER_SIZE) ||
         init_strvar_from_file(group_master_log_name,
                               sizeof(group_master_log_name),
                               &info_file, "") ||
-        init_intvar_from_file(&master_log_pos, &info_file, 0) ||
+        init_ullongvar_from_file(&master_log_pos, &info_file, 0) ||
         (lines >= LINES_IN_RELAY_LOG_INFO_WITH_DELAY &&
          init_intvar_from_file(&sql_delay, &info_file, 0)))
     {

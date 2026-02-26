@@ -432,7 +432,8 @@ file '%s')", fname);
     }
 
     mi->fd = fd;
-    int port, connect_retry, master_log_pos, lines;
+    int port, connect_retry, lines;
+    ulonglong master_log_pos;
     int ssl= 0, ssl_verify_server_cert= 0;
     float master_heartbeat_period= 0.0;
     char *first_non_digit;
@@ -480,7 +481,7 @@ file '%s')", fname);
     else
       lines= 7;
 
-    if (init_intvar_from_file(&master_log_pos, &mi->file, 4) ||
+    if (init_ullongvar_from_file(&master_log_pos, &mi->file, 4) ||
         init_strvar_from_file(mi->host, sizeof(mi->host), &mi->file, 0) ||
         init_strvar_from_file(mi->user, sizeof(mi->user), &mi->file, "test") ||
         init_strvar_from_file(mi->password, sizeof(mi->password),
