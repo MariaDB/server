@@ -111,6 +111,7 @@ extern my_bool opt_readonly;
 #include "ut0mem.h"
 #include "row0ext.h"
 #include "mariadb_stats.h"
+#include "trx0undo.h"
 simple_thread_local ha_handler_stats *mariadb_stats;
 
 #include "lz4.h"
@@ -15811,6 +15812,15 @@ bool ha_innobase::referenced_by_foreign_key() const noexcept
   return !empty;
 }
 
+inline void trx_t::reset_and_truncate_undo(const dict_table_t *table) noexcept
+{
+  ut_ad(undo_no <= 1);
+  ut_ad(mod_tables.size() == 0 || mod_tables.begin()->first == table);
+  mod_tables.clear();
+  undo_no= 0;
+  trx_undo_try_truncate(*this);
+}
+
 /*******************************************************************//**
 Tells something additional to the handler about how to do things.
 @return 0 or error number */
@@ -15884,9 +15894,15 @@ ha_innobase::extra(
 			break;
 		}
 		goto stmt_boundary;
-	case HA_EXTRA_BEGIN_ALTER_COPY:
+	case HA_EXTRA_BEGIN_ALTER_IGNORE_COPY:
+	case HA_EXTRA_BEGIN_COPY:
 		trx = check_trx_exists(thd);
-		m_prebuilt->table->skip_alter_undo = 1;
+		static_assert(int{HA_EXTRA_BEGIN_ALTER_IGNORE_COPY} ==
+			      int{HA_EXTRA_BEGIN_COPY} + 1, "");
+		static_assert(int{dict_table_t::NO_UNDO} + 1 ==
+			      int{dict_table_t::IGNORE_UNDO}, "");
+		m_prebuilt->table->skip_alter_undo =
+		  (operation - HA_EXTRA_BEGIN_COPY + dict_table_t::NO_UNDO) & 3;
 		if (m_prebuilt->table->is_temporary()
 		    || !m_prebuilt->table->versioned_by_id()) {
 			break;
@@ -15897,7 +15913,7 @@ ha_innobase::extra(
 			const_cast<dict_table_t*>(m_prebuilt->table), 0)
 			.first->second.set_versioned(0);
 		break;
-	case HA_EXTRA_END_ALTER_COPY:
+	case HA_EXTRA_END_COPY:
 		trx = check_trx_exists(thd);
 		if (!m_prebuilt->table->skip_alter_undo) {
 			/* This could be invoked inside INSERT...SELECT.
@@ -15905,7 +15921,15 @@ ha_innobase::extra(
 			they could cause a severe performance regression. */
 			break;
 		}
-		m_prebuilt->table->skip_alter_undo = 0;
+
+		if (m_prebuilt->table->skip_alter_undo ==
+			dict_table_t::IGNORE_UNDO) {
+			trx->reset_and_truncate_undo(m_prebuilt->table);
+		}
+
+		m_prebuilt->table->skip_alter_undo =
+			dict_table_t::NORMAL_UNDO;
+
 		if (dberr_t err= trx->bulk_insert_apply<TRX_DDL_BULK>()) {
 			trx->rollback();
 			return convert_error_code_to_mysql(
@@ -15929,16 +15953,21 @@ ha_innobase::extra(
 			because no undo log records were generated.
 			This log write will also be unnecessarily executed
 			during CREATE...SELECT, which is the other caller of
-			handler::extra(HA_EXTRA_BEGIN_ALTER_COPY). */
+			handler::extra(HA_EXTRA_ALTER_COPY). */
 			log_buffer_flush_to_disk();
 		}
 		alter_stats_rebuild(m_prebuilt->table, thd);
 		break;
-	case HA_EXTRA_ABORT_ALTER_COPY:
+	case HA_EXTRA_ABORT_COPY:
+		/* Abort the ALTER COPY operation. For ALTER IGNORE,
+		this prevents undo logs from being added to the
+		purge thread, allowing proper cleanup of the
+		temporary undo state. */
 		if (m_prebuilt->table->skip_alter_undo &&
 		    !m_prebuilt->table->is_temporary()) {
 			trx = check_trx_exists(ha_thd());
-			m_prebuilt->table->skip_alter_undo = 0;
+			m_prebuilt->table->skip_alter_undo =
+				dict_table_t::NORMAL_UNDO;
 			trx->rollback();
 			return(HA_ERR_ROLLBACK);
 		}

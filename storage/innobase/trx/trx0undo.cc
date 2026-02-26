@@ -1179,6 +1179,8 @@ trx_undo_mem_create(
 
 	undo->rseg = rseg;
 
+	undo->top_offset = 0;
+	undo->old_offset = 0;
 	undo->hdr_page_no = page_no;
 	undo->hdr_offset = offset;
 	undo->last_page_no = page_no;

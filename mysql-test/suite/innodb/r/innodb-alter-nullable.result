@@ -78,8 +78,8 @@ ALTER IGNORE TABLE t1 ADD UNIQUE(c);
 affected rows: 3
 info: Records: 3  Duplicates: 1  Warnings: 0
 ALTER IGNORE TABLE t1 ADD PRIMARY KEY(c);
-affected rows: 2
-info: Records: 2  Duplicates: 0  Warnings: 1
+affected rows: 3
+info: Records: 3  Duplicates: 1  Warnings: 1
 Warnings:
 Warning	1265	Data truncated for column 'c' at row 1
 SELECT * FROM t1;
