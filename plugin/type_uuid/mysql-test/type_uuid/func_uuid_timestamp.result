@@ -1,0 +1,88 @@
+SET time_zone='+00:00';
+#
+# UUIDv1 with known timestamps
+#
+SELECT '4bd352dc-e593-11f0-8de9-0242ac120002' AS uuid,
+UUID_TIMESTAMP('4bd352dc-e593-11f0-8de9-0242ac120002') AS ts;
+uuid	ts
+4bd352dc-e593-11f0-8de9-0242ac120002	2025-12-30 15:22:04.357910
+SELECT 'bec1046a-e593-11f0-8de9-0242ac120002' AS uuid,
+UUID_TIMESTAMP('bec1046a-e593-11f0-8de9-0242ac120002') AS ts;
+uuid	ts
+bec1046a-e593-11f0-8de9-0242ac120002	2025-12-30 15:25:17.175921
+SELECT 'c28c09a0-e593-11f0-8de9-0242ac120002' AS uuid,
+UUID_TIMESTAMP('c28c09a0-e593-11f0-8de9-0242ac120002') AS ts;
+uuid	ts
+c28c09a0-e593-11f0-8de9-0242ac120002	2025-12-30 15:25:23.539600
+#
+# UUIDv7 with known timestamps (ms precision)
+#
+SELECT '019b6fdd-4937-7bb5-95c7-53363c6df927' AS uuid,
+UUID_TIMESTAMP('019b6fdd-4937-7bb5-95c7-53363c6df927') AS ts;
+uuid	ts
+019b6fdd-4937-7bb5-95c7-53363c6df927	2025-12-30 15:25:31.831000
+SELECT '019b6fdd-5f17-7cf2-b034-248b9c207db6' AS uuid,
+UUID_TIMESTAMP('019b6fdd-5f17-7cf2-b034-248b9c207db6') AS ts;
+uuid	ts
+019b6fdd-5f17-7cf2-b034-248b9c207db6	2025-12-30 15:25:37.431000
+SELECT '019b6fdd-7327-7a5b-935c-4de00dd0e7c6' AS uuid,
+UUID_TIMESTAMP('019b6fdd-7327-7a5b-935c-4de00dd0e7c6') AS ts;
+uuid	ts
+019b6fdd-7327-7a5b-935c-4de00dd0e7c6	2025-12-30 15:25:42.567000
+#
+# UUIDv4 returns NULL (no timestamp)
+#
+SELECT UUID_TIMESTAMP(UUID_V4()) IS NULL AS v4_returns_null;
+v4_returns_null
+1
+SELECT UUID_TIMESTAMP('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11') IS NULL AS v4_string_returns_null;
+v4_string_returns_null
+1
+#
+# NULL and invalid input
+#
+SELECT UUID_TIMESTAMP(NULL) IS NULL AS null_input;
+null_input
+1
+SELECT UUID_TIMESTAMP('not-a-valid-uuid');
+UUID_TIMESTAMP('not-a-valid-uuid')
+NULL
+Warnings:
+Warning	1292	Incorrect uuid value: 'not-a-valid-uuid'
+#
+# Native UUID type
+#
+SELECT '019b6fdd-4937-7bb5-95c7-53363c6df927' AS uuid,
+UUID_TIMESTAMP(CAST('019b6fdd-4937-7bb5-95c7-53363c6df927' AS UUID)) AS ts;
+uuid	ts
+019b6fdd-4937-7bb5-95c7-53363c6df927	2025-12-30 15:25:31.831000
+#
+# Return type is TIMESTAMP(6)
+#
+CREATE TABLE t1 AS SELECT UUID_TIMESTAMP('019b6fdd-4937-7bb5-95c7-53363c6df927') AS ts;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `ts` timestamp(6) NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+#
+# Edge cases
+#
+SELECT '00000000-0000-1000-8000-000000000000' AS uuid,
+UUID_TIMESTAMP('00000000-0000-1000-8000-000000000000') IS NULL AS before_unix_epoch;
+uuid	before_unix_epoch
+00000000-0000-1000-8000-000000000000	1
+SELECT '00000000-0000-7000-8000-000000000000' AS uuid,
+UUID_TIMESTAMP('00000000-0000-7000-8000-000000000000') AS ts;
+uuid	ts
+00000000-0000-7000-8000-000000000000	0000-00-00 00:00:00.000000
+SELECT 'ffffffff-ffff-7fff-8000-000000000000' AS uuid,
+UUID_TIMESTAMP('ffffffff-ffff-7fff-8000-000000000000') AS ts;
+uuid	ts
+ffffffff-ffff-7fff-8000-000000000000	2042-12-13 16:54:30.655000
+SELECT 'ffffffff-ffff-1fff-8000-000000000000' AS uuid,
+UUID_TIMESTAMP('ffffffff-ffff-1fff-8000-000000000000') AS ts;
+uuid	ts
+ffffffff-ffff-1fff-8000-000000000000	2105-11-25 16:30:52.684697
+SET time_zone=DEFAULT;
