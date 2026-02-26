@@ -1,0 +1,123 @@
+--echo #
+--echo # MDEV-37939: Use correct error for invalid logarithm arguments
+--echo #
+--echo # LOG/LN/LOG2/LOG10 now emit function-specific domain warnings
+--echo # instead of ER_DIVISION_BY_ZERO, since these functions do not
+--echo # perform division.
+--echo #
+
+--echo #
+--echo # Test valid inputs first (before any warning-producing statements)
+--echo # This ensures SHOW WARNINGS is truly empty
+--echo #
+SET SESSION sql_mode='ERROR_FOR_DIVISION_BY_ZERO';
+
+SELECT LOG(10);
+SELECT LN(2.718);
+SELECT LOG2(8);
+SELECT LOG10(100);
+SELECT LOG(2, 8);
+SHOW WARNINGS;
+--echo # Should be empty - valid inputs produce no warnings
+
+--echo #
+--echo # Test sql_mode='' behavior (before any warnings are produced)
+--echo #
+SET SESSION sql_mode='';
+
+SELECT LOG(-1);
+SHOW WARNINGS;
+--echo # Should be empty - no warning when sql_mode doesn't include ERROR_FOR_DIVISION_BY_ZERO
+
+SELECT LN(-1);
+SHOW WARNINGS;
+
+--echo #
+--echo # Now test warning-producing cases
+--echo #
+SET SESSION sql_mode='ERROR_FOR_DIVISION_BY_ZERO';
+
+--echo #
+--echo # LOG family should report function-specific domain warnings
+--echo #
+SELECT LOG(-1);
+SHOW WARNINGS;
+
+SELECT LOG(0);
+SHOW WARNINGS;
+
+SELECT LN(0);
+SHOW WARNINGS;
+
+SELECT LN(-5);
+SHOW WARNINGS;
+
+SELECT LOG2(-1);
+SHOW WARNINGS;
+
+SELECT LOG10(-1);
+SHOW WARNINGS;
+
+--echo # Two-argument LOG: invalid second argument
+SELECT LOG(2, -1);
+SHOW WARNINGS;
+
+--echo # Two-argument LOG: invalid base (negative)
+SELECT LOG(-2, 10);
+SHOW WARNINGS;
+
+--echo # Two-argument LOG: base = 1 (invalid - would cause log(1)=0 in denominator)
+SELECT LOG(1, 10);
+SHOW WARNINGS;
+
+--echo #
+--echo # Division operations should report ER_DIVISION_BY_ZERO (1365)
+--echo #
+
+--echo # Division - integer
+SELECT 1/0;
+SHOW WARNINGS;
+
+--echo # Division - real/float
+SELECT 1.0/0.0;
+SHOW WARNINGS;
+
+--echo # Division - decimal
+SELECT CAST(1 AS DECIMAL(10,2)) / CAST(0 AS DECIMAL(10,2));
+SHOW WARNINGS;
+
+--echo # Division - with string arguments
+SELECT '1'/'0';
+SHOW WARNINGS;
+
+--echo # Integer DIV
+SELECT 5 DIV 0;
+SHOW WARNINGS;
+
+--echo # Integer DIV - with string arguments
+SELECT '5' DIV '0';
+SHOW WARNINGS;
+
+--echo # MOD - integer
+SELECT 5 MOD 0;
+SHOW WARNINGS;
+
+--echo # MOD - real/float
+SELECT 5.5e0 MOD 0.0e0;
+SHOW WARNINGS;
+
+--echo # MOD - decimal
+SELECT CAST(5 AS DECIMAL(10,2)) MOD CAST(0 AS DECIMAL(10,2));
+SHOW WARNINGS;
+
+--echo # MOD - with string arguments
+SELECT '5' MOD '0';
+SHOW WARNINGS;
+
+--echo # MOD function syntax
+SELECT MOD(5, 0);
+SHOW WARNINGS;
+
+--echo # MOD function - decimal
+SELECT MOD(5.5, 0.0);
+SHOW WARNINGS;

@@ -1,0 +1,238 @@
+#
+# MDEV-37939: Use correct error for invalid logarithm arguments
+#
+# LOG/LN/LOG2/LOG10 now emit function-specific domain warnings
+# instead of ER_DIVISION_BY_ZERO, since these functions do not
+# perform division.
+#
+#
+# Test valid inputs first (before any warning-producing statements)
+# This ensures SHOW WARNINGS is truly empty
+#
+SET SESSION sql_mode='ERROR_FOR_DIVISION_BY_ZERO';
+SELECT LOG(10);
+LOG(10)
+2.302585092994046
+SELECT LN(2.718);
+LN(2.718)
+0.999896315728952
+SELECT LOG2(8);
+LOG2(8)
+3
+SELECT LOG10(100);
+LOG10(100)
+2
+SELECT LOG(2, 8);
+LOG(2, 8)
+3
+SHOW WARNINGS;
+Level	Code	Message
+# Should be empty - valid inputs produce no warnings
+#
+# Test sql_mode='' behavior (before any warnings are produced)
+#
+SET SESSION sql_mode='';
+SELECT LOG(-1);
+LOG(-1)
+NULL
+SHOW WARNINGS;
+Level	Code	Message
+# Should be empty - no warning when sql_mode doesn't include ERROR_FOR_DIVISION_BY_ZERO
+SELECT LN(-1);
+LN(-1)
+NULL
+SHOW WARNINGS;
+Level	Code	Message
+#
+# Now test warning-producing cases
+#
+SET SESSION sql_mode='ERROR_FOR_DIVISION_BY_ZERO';
+#
+# LOG family should report function-specific domain warnings
+#
+SELECT LOG(-1);
+LOG(-1)
+NULL
+Warnings:
+Warning	4257	Passing non-positive argument to log() makes the function's result undefined
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4257	Passing non-positive argument to log() makes the function's result undefined
+SELECT LOG(0);
+LOG(0)
+NULL
+Warnings:
+Warning	4257	Passing non-positive argument to log() makes the function's result undefined
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4257	Passing non-positive argument to log() makes the function's result undefined
+SELECT LN(0);
+LN(0)
+NULL
+Warnings:
+Warning	4256	Passing non-positive argument to ln() makes the function's result undefined
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4256	Passing non-positive argument to ln() makes the function's result undefined
+SELECT LN(-5);
+LN(-5)
+NULL
+Warnings:
+Warning	4256	Passing non-positive argument to ln() makes the function's result undefined
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4256	Passing non-positive argument to ln() makes the function's result undefined
+SELECT LOG2(-1);
+LOG2(-1)
+NULL
+Warnings:
+Warning	4259	Passing non-positive argument to log2() makes the function's result undefined
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4259	Passing non-positive argument to log2() makes the function's result undefined
+SELECT LOG10(-1);
+LOG10(-1)
+NULL
+Warnings:
+Warning	4260	Passing non-positive argument to log10() makes the function's result undefined
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4260	Passing non-positive argument to log10() makes the function's result undefined
+# Two-argument LOG: invalid second argument
+SELECT LOG(2, -1);
+LOG(2, -1)
+NULL
+Warnings:
+Warning	4257	Passing non-positive argument to log() makes the function's result undefined
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4257	Passing non-positive argument to log() makes the function's result undefined
+# Two-argument LOG: invalid base (negative)
+SELECT LOG(-2, 10);
+LOG(-2, 10)
+NULL
+Warnings:
+Warning	4258	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4258	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
+# Two-argument LOG: base = 1 (invalid - would cause log(1)=0 in denominator)
+SELECT LOG(1, 10);
+LOG(1, 10)
+NULL
+Warnings:
+Warning	4258	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4258	Passing non-positive or equal-to-1 base to log() makes the function's result undefined
+#
+# Division operations should report ER_DIVISION_BY_ZERO (1365)
+#
+# Division - integer
+SELECT 1/0;
+1/0
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# Division - real/float
+SELECT 1.0/0.0;
+1.0/0.0
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# Division - decimal
+SELECT CAST(1 AS DECIMAL(10,2)) / CAST(0 AS DECIMAL(10,2));
+CAST(1 AS DECIMAL(10,2)) / CAST(0 AS DECIMAL(10,2))
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# Division - with string arguments
+SELECT '1'/'0';
+'1'/'0'
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# Integer DIV
+SELECT 5 DIV 0;
+5 DIV 0
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# Integer DIV - with string arguments
+SELECT '5' DIV '0';
+'5' DIV '0'
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# MOD - integer
+SELECT 5 MOD 0;
+5 MOD 0
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# MOD - real/float
+SELECT 5.5e0 MOD 0.0e0;
+5.5e0 MOD 0.0e0
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# MOD - decimal
+SELECT CAST(5 AS DECIMAL(10,2)) MOD CAST(0 AS DECIMAL(10,2));
+CAST(5 AS DECIMAL(10,2)) MOD CAST(0 AS DECIMAL(10,2))
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# MOD - with string arguments
+SELECT '5' MOD '0';
+'5' MOD '0'
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# MOD function syntax
+SELECT MOD(5, 0);
+MOD(5, 0)
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
+# MOD function - decimal
+SELECT MOD(5.5, 0.0);
+MOD(5.5, 0.0)
+NULL
+Warnings:
+Warning	1365	Division by 0
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1365	Division by 0
