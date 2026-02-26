@@ -86,6 +86,13 @@ int cmp_lex_string(const LEX_CSTRING &s, const LEX_CSTRING &t,
                                    (const uchar*)t.str, t.length);
 }
 
+int cmp_lex_string_limit(const LEX_CSTRING &s, const LEX_CSTRING &t,
+                         const CHARSET_INFO *cs, size_t chars_limit)
+{
+  return cs->coll->strnncollsp(cs, (const uchar*)s.str, chars_limit,
+                                   (const uchar*)t.str, chars_limit);
+}
+
 /*
   This is a version of push_warning_printf() guaranteeing no escalation of
   the warning to the level of error

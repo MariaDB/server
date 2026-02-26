@@ -1,0 +1,11 @@
+--echo
+--echo ================================================================
+set optimizer_switch= 'derived_merge=on';
+--source opt_hints_qb_name_path.inc
+
+--echo
+--echo ================================================================
+set optimizer_switch= 'derived_merge=off';
+--source opt_hints_qb_name_path.inc
+
+set optimizer_switch= default;
