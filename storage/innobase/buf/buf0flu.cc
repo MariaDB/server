@@ -1816,7 +1816,9 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
   ut_ad(!recv_sys.rpo);
-  ut_ad(archive ? file_size <= ~0U : next_checkpoint_lsn >= first_lsn);
+  ut_ad(archive
+        ? file_size <= ARCHIVE_FILE_SIZE_MAX
+        : next_checkpoint_lsn >= first_lsn);
   ut_ad(end_lsn >= next_checkpoint_lsn);
   ut_d(const lsn_t current_lsn{get_lsn()});
   ut_ad(end_lsn <= current_lsn);
