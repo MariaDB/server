@@ -455,6 +455,7 @@ Item::Item(THD *thd):
     if (place == SELECT_LIST || place == IN_HAVING)
       thd->lex->current_select->select_n_having_items++;
   }
+  is_old_value_reference= false;
 }
 
 /*
@@ -470,6 +471,7 @@ Item::Item():
   null_value= 0;
   marker= MARKER_UNUSED;
   join_tab_idx= MAX_TABLES;
+  is_old_value_reference= false;
 }
 
 
@@ -503,6 +505,7 @@ Item::Item(THD *thd, Item *item):
 {
   next= thd->free_list;				// Put in free list
   thd->free_list= this;
+  is_old_value_reference= false;
 }
 
 
@@ -3245,7 +3248,7 @@ Item* Item_ref::deep_copy(THD *thd) const
 
 /**********************************************/
 
-Item_field::Item_field(THD *thd, Field *f)
+Item_field::Item_field(THD *thd, Field *f, bool is_old_reference)
   :Item_ident(thd, 0, null_clex_str,
               Lex_cstring_strlen(*f->table_name), f->field_name),
    item_equal(0),
@@ -3259,6 +3262,7 @@ Item_field::Item_field(THD *thd, Field *f)
   orig_table_name= table_name;
   orig_field_name= field_name;
   with_flags|= item_with_t::FIELD;
+  is_old_value_reference= is_old_reference;
 }
 
 
@@ -3270,7 +3274,7 @@ Item_field::Item_field(THD *thd, Field *f)
 */
 
 Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
-                       Field *f)
+                       Field *f, bool is_old_reference)
   :Item_ident(thd, context_arg, f->table->s->db,
               Lex_cstring_strlen(*f->table_name), f->field_name),
    item_equal(0), have_privileges(NO_ACL), any_privileges(0)
@@ -3308,13 +3312,15 @@ Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
   }
   set_field(f);
   with_flags|= item_with_t::FIELD;
+  is_old_value_reference= is_old_reference;
 }
 
 
 Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
                        const LEX_CSTRING &db_arg,
                        const LEX_CSTRING &table_name_arg,
-                       const LEX_CSTRING &field_name_arg)
+                       const LEX_CSTRING &field_name_arg,
+                       bool is_old_reference)
   :Item_ident(thd, context_arg, db_arg, table_name_arg, field_name_arg),
    field(0), item_equal(0),
    have_privileges(NO_ACL), any_privileges(0)
@@ -3324,13 +3330,14 @@ Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
   if (select && select->parsing_place != IN_HAVING)
       select->select_n_where_fields++;
   with_flags|= item_with_t::FIELD;
+  is_old_value_reference= is_old_reference;
 }
 
 /**
   Constructor need to process subselect with temporary tables (see Item)
 */
 
-Item_field::Item_field(THD *thd, Item_field *item)
+Item_field::Item_field(THD *thd, Item_field *item, bool is_old_reference)
   :Item_ident(thd, item),
    field(item->field),
    item_equal(item->item_equal),
@@ -3339,6 +3346,7 @@ Item_field::Item_field(THD *thd, Item_field *item)
 {
   collation.set(DERIVATION_IMPLICIT);
   with_flags|= item_with_t::FIELD;
+  is_old_value_reference= is_old_reference;
 }
 
 
@@ -7968,7 +7976,17 @@ bool Item::find_item_processor(void *arg)
 
 bool Item_field::send(Protocol *protocol, st_value *buffer)
 {
-  return protocol->store(result_field);
+  bool result;
+
+  if (is_old_value_reference)
+    switch_to_old_row();
+
+  result= protocol->store(result_field);
+
+  if (is_old_value_reference)
+    restore_row();
+
+  return result;
 }
 
 
@@ -8501,6 +8519,7 @@ Item_ref::Item_ref(THD *thd, TABLE_LIST *view_arg, Item **item,
   */
   if ((set_properties_only= (ref && *ref && (*ref)->fixed())))
     set_properties();
+  is_old_value_reference= false;
 }
 
 
@@ -8941,9 +8960,14 @@ void Item_ref::print(String *str, enum_query_type query_type)
 
 bool Item_ref::send(Protocol *prot, st_value *buffer)
 {
+  bool res= false;
+
   if (result_field)
     return prot->store(result_field);
-  return (*ref)->send(prot, buffer);
+  set_correct_reference();
+  res=  (*ref)->send(prot, buffer);
+  return res;
+
 }
 
 
@@ -10006,7 +10030,6 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
 {
   return find_matching_field_pair(this, sel->grouping_tmp_fields) != NULL;
 }
-
 
 bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
 {

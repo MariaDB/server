@@ -985,7 +985,7 @@ protected:
     return rc;
   }
 public:
-
+    bool is_old_value_reference;
   /*
     Cache val_str() into the own buffer, e.g. to evaluate constant
     expressions with subqueries in the ORDER/GROUP clauses.
@@ -1004,6 +1004,9 @@ public:
   {
     return null_to_empty ? val_str_null_to_empty(to) : val_str(to);
   }
+  virtual void switch_to_old_row() { return; }
+
+virtual void restore_row() { return; }
   virtual Item_func *get_item_func() { return NULL; }
 
   const MY_LOCALE *locale_from_val_str();
@@ -2846,6 +2849,7 @@ public:
     DBUG_ASSERT(fixed());
     return false;
   }
+  virtual void set_correct_reference() { return; }
 
 protected:
   /*
@@ -3806,30 +3810,51 @@ private:
 public:
   Item_field(THD *thd, Name_resolution_context *context_arg,
              const LEX_CSTRING &db_arg, const LEX_CSTRING &table_name_arg,
-	     const LEX_CSTRING &field_name_arg);
+	     const LEX_CSTRING &field_name_arg, bool is_old_reference= false);
   Item_field(THD *thd, Name_resolution_context *context_arg,
-             const LEX_CSTRING &field_name_arg)
-   :Item_field(thd, context_arg, null_clex_str, null_clex_str, field_name_arg)
-  { }
-  Item_field(THD *thd, Name_resolution_context *context_arg)
-   :Item_field(thd, context_arg, null_clex_str, null_clex_str, null_clex_str)
-  { }
+             const LEX_CSTRING &field_name_arg, bool is_old_reference= false)
+   :Item_field(thd, context_arg, null_clex_str, null_clex_str,
+               field_name_arg, is_old_reference)
+  { is_old_value_reference= is_old_reference; }
+  Item_field(THD *thd, Name_resolution_context *context_arg,
+             bool is_old_reference= false)
+   :Item_field(thd, context_arg, null_clex_str, null_clex_str,
+               null_clex_str, is_old_reference)
+  { is_old_value_reference= is_old_reference; }
   /*
     Constructor needed to process subselect with temporary tables (see Item)
   */
-  Item_field(THD *thd, Item_field *item);
+  Item_field(THD *thd, Item_field *item, bool is_old_reference= false);
   /*
     Constructor used inside setup_wild(), ensures that field, table,
     and database names will live as long as Item_field (this is important
     in prepared statements).
   */
-  Item_field(THD *thd, Name_resolution_context *context_arg, Field *field);
+  Item_field(THD *thd, Name_resolution_context *context_arg, Field *field,
+             bool is_old_reference= false);
   /*
     If this constructor is used, fix_fields() won't work, because
     db_name, table_name and column_name are unknown. It's necessary to call
     reset_field() before fix_fields() for all fields created this way.
   */
-  Item_field(THD *thd, Field *field);
+  Item_field(THD *thd, Field *field, bool is_old_reference= false);
+  void switch_to_old_row() override
+  {
+    TABLE *table = field->table;
+    table->move_fields(table->field,
+                       table->record[1],
+                       table->record[0]);
+
+  }
+
+  void restore_row() override
+  {
+    TABLE *table = field->table;
+    table->move_fields(table->field,
+                       table->record[0],
+                       table->record[1]);
+  }
+
   Type type() const override { return FIELD_ITEM; }
   bool eq(const Item *item, const Eq_config &config) const override;
   double val_real() override;
@@ -6371,6 +6396,13 @@ public:
   }
   Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg) override
   { return (*ref)->field_transformer_for_having_pushdown(thd, arg); }
+  void set_correct_reference() override
+  {
+    if (is_old_value_reference)
+      (*ref)->is_old_value_reference= true;
+    else
+      (*ref)->is_old_value_reference= false;
+  }
 
 protected:
   Item *deep_copy(THD *thd) const override;

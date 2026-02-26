@@ -34804,6 +34804,7 @@ bool Sql_cmd_dml::execute(THD *thd)
   SELECT_LEX_UNIT *unit = &lex->unit;
   SELECT_LEX *select_lex= lex->first_select_lex();
 
+
   if (!is_prepared())
   {
     /*

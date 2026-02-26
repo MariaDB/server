@@ -6330,6 +6330,13 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
         DBUG_RETURN(0);
       if (!ref)
         DBUG_RETURN((Field*) view_ref_found);
+
+      if (thd->is_setting_returning &&
+          (*ref)->is_old_value_reference)
+      {
+        item->is_old_value_reference= true;
+      }
+
       /*
        *ref != NULL means that *ref contains the item that we need to
        replace. If the item was aliased by the user, set the alias to
@@ -8070,8 +8077,9 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
   Item *item;
   List_iterator<Item> it(fields);
   Query_arena *arena, backup;
-  uint *with_wild= returning_field ? &(thd->lex->returning()->with_wild) :
-                                     &(select_lex->with_wild);
+  uint *with_wild= returning_field ?
+                   &(thd->lex->returning()->with_wild_returning) :
+                   &(select_lex->with_wild);
   DBUG_ENTER("setup_wild");
 
   if (!(*with_wild))
@@ -8274,12 +8282,17 @@ int setup_returning_fields(THD* thd, TABLE_LIST* table_list)
   saved_grant= &table_list->table->grant;
   table_list->table->grant.want_privilege|= SELECT_ACL;
 
-  res= setup_wild(thd, table_list, thd->lex->returning()->item_list, NULL,
-                     thd->lex->returning(), true)
-       || setup_fields(thd, Ref_ptr_array(), thd->lex->returning()->item_list,
-                       MARK_COLUMNS_READ, NULL, NULL, 0, THD_WHERE::RETURNING);
+  thd->is_setting_returning= true;
+
+  res= setup_wild(thd, table_list, thd->lex->returning()->returning_list,
+                  NULL, thd->lex->returning(), true)
+       || setup_fields(thd, Ref_ptr_array(),
+                       thd->lex->returning()->returning_list,
+                       MARK_COLUMNS_READ, NULL, NULL, 0,
+                       THD_WHERE::RETURNING);
 
   table_list->table->grant= *saved_grant;
+  thd->is_setting_returning= false;
 
   return res;
 }

@@ -15,7 +15,8 @@ ERROR 21000: Operand should contain 1 column(s)
 REPLACE INTO t2(id2, val2) VALUES(4, 'd') RETURNING(SELECT* FROM t2);
 ERROR 21000: Operand should contain 1 column(s)
 REPLACE INTO t2(id2, val2) VALUES(5, 'f') RETURNING(SELECT id2 FROM t2);
-ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+(SELECT id2 FROM t2)
+3
 #
 # Multiple rows in single replace statement
 #
@@ -30,7 +31,7 @@ ERROR 21000: Operand should contain 1 column(s)
 REPLACE INTO t2 VALUES(9, 'g'), (10, 'h') RETURNING(SELECT* FROM t2);
 ERROR 21000: Operand should contain 1 column(s)
 REPLACE INTO t2 VALUES(13, 'f'), (14, 'g') RETURNING(SELECT id2 FROM t2);
-ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+ERROR 21000: Subquery returns more than 1 row
 #
 # REPLACE ... SET
 #
@@ -45,7 +46,7 @@ ERROR 21000: Operand should contain 1 column(s)
 REPLACE INTO t2 SET id2 = 4, val2 = 'd' RETURNING(SELECT * FROM t2);
 ERROR 21000: Operand should contain 1 column(s)
 REPLACE INTO t2 SET id2 = 5, val2 = 'f' RETURNING(SELECT id2 FROM t2);
-ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+ERROR 21000: Subquery returns more than 1 row
 #
 # REPLACE...SELECT
 #

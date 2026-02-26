@@ -843,10 +843,10 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   /* mysql_prepare_insert sets table_list->table if it was not set */
   table= table_list->table;
 
-  /* Prepares LEX::returing_list if it is not empty */
+  /* Prepares LEX::returning_list if it is not empty */
   if (returning)
   {
-    result->prepare(returning->item_list, NULL);
+    result->prepare(thd->lex->returning()->returning_list, NULL);
     if (thd->is_bulk_op())
     {
       /*
@@ -1049,7 +1049,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     metadata.
   */
   if (returning &&
-      result->send_result_set_metadata(returning->item_list,
+      result->send_result_set_metadata(thd->lex->returning()->returning_list,
                                        Protocol::SEND_NUM_ROWS |
                                        Protocol::SEND_EOF))
     goto values_loop_end;
@@ -2560,7 +2560,7 @@ int Write_record::send_data()
     autoinc values (generated inside the handler::ha_write()) and
     values updated in ON DUPLICATE KEY UPDATE.
   */
-  return sink ? sink->send_data(thd->lex->returning()->item_list) < 0 : 0;
+  return sink ? sink->send_data(thd->lex->returning()->returning_list) < 0 : 0;
 }
 
 
@@ -4186,7 +4186,7 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
     So we prepare the list now
   */
   if (sel_res)
-    sel_res->prepare(lex->returning()->item_list, NULL);
+    sel_res->prepare(lex->returning()->returning_list, NULL);
 
   DBUG_ASSERT(select_lex->leaf_tables.elements != 0);
   List_iterator<TABLE_LIST> ti(select_lex->leaf_tables);
@@ -4472,8 +4472,9 @@ int select_insert::prepare2(JOIN *)
 
   /* Same as the other variants of INSERT */
   if (sel_result &&
-      sel_result->send_result_set_metadata(thd->lex->returning()->item_list,
-                                Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+      sel_result->send_result_set_metadata(
+                              thd->lex->returning()->returning_list,
+                              Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(1);
   DBUG_RETURN(0);
 }
