@@ -1,0 +1,41 @@
+#
+# MDEV-19609: CREATE TABLE LIKE with sql_mode=MYSQL40 writes TYPE= to binlog
+#
+# When sql_mode includes MYSQL40, CREATE TABLE LIKE logged the storage
+# engine using the deprecated TYPE= syntax in the binary log. Since TYPE=
+# is no longer accepted by the parser (even under MYSQL40 mode), this
+# caused replication to fail with a syntax error on the slave.
+#
+# Verify that ENGINE= is written instead of TYPE= in the binlog, and
+# that the statement replicates to the slave successfully.
+#
+
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--connection master
+
+SET sql_mode='MYSQL40';
+
+CREATE TEMPORARY TABLE tmp (a INT);
+
+# Capture position before the statement we want to inspect
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+CREATE TABLE t1 LIKE tmp;
+
+# Verify binlog contains ENGINE= not TYPE=
+--source include/show_binlog_events.inc
+
+--sync_slave_with_master
+
+# Verify replication succeeded
+--connection slave
+SHOW TABLES;
+SHOW CREATE TABLE t1;
+
+# Cleanup
+--connection master
+DROP TABLE t1;
+
+--source include/rpl_end.inc

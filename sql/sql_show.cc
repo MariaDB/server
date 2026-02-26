@@ -2039,7 +2039,13 @@ static void add_table_options(THD *thd, TABLE *table,
   {
     LEX_CSTRING *engine_name= table->file->engine_name();
 
-    if (sql_mode & (MODE_MYSQL323 | MODE_MYSQL40))
+    /*
+      Always use ENGINE= for binlog to avoid replication errors.
+      TYPE= is deprecated and not supported on replicas.
+      Only use TYPE= for client display when binlog is disabled.
+    */
+    if (thd->is_current_stmt_binlog_disabled() &&
+        (sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)))
       packet->append(STRING_WITH_LEN(" TYPE="));
     else
       packet->append(STRING_WITH_LEN(" ENGINE="));
