@@ -1048,13 +1048,13 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
   static_assert(!bool(WRITE_NORMAL), "");
   static_assert(bool(CIRCULAR_MMAP), "");
   static_assert(mode == WRITE_NORMAL || mode == CIRCULAR_MMAP, "");
-  ut_ad(bool(mode) == is_mmap_writeable());
+  ut_ad(bool(mode) == is_mmap());
+  ut_ad(is_mmap() == is_mmap_writeable());
   ut_ad(!mode || buf_size == capacity());
-  const size_t buf_size{this->buf_size - size};
   uint64_t l;
   static_assert(WRITE_TO_BUF == WRITE_BACKOFF << 1, "");
   while (UNIV_UNLIKELY((l= write_lsn_offset.fetch_add(size + WRITE_TO_BUF) &
-                        (WRITE_TO_BUF - 1)) >= buf_size))
+                        (WRITE_TO_BUF - 1)) >= buf_size - size))
   {
     /* The following is inlined here instead of being part of
     append_prepare_wait(), in order to increase the locality of reference
@@ -1095,7 +1095,7 @@ static lsn_t log_close(lsn_t lsn) noexcept
   /* The last checkpoint is too old. Let us set an appropriate
   checkpoint age target, that is, a checkpoint LSN target that is the
   current LSN minus the maximum age. Let us see if are exceeding the
-  log_checkpoint_margin() limit that will involve a synchronous wait
+  log_t::checkpoint_margin() limit that will involve a synchronous wait
   in each write operation. */
 
   const bool furious{checkpoint_age >= log_sys.max_checkpoint_age};
@@ -1107,7 +1107,7 @@ static lsn_t log_close(lsn_t lsn) noexcept
   The aim of the more aggressive target is that mtr_flush_ahead() will
   request more progress in buf_flush_page_cleaner() sooner, so that it
   will be less likely that several threads will end up waiting in
-  log_checkpoint_margin(). That function will use the less aggressive
+  log_t::checkpoint_margin(). That function will use the less aggressive
   limit (lsn - log_sys.max_checkpoint_age) in order to minimize the
   synchronous wait time. */
   if (furious)

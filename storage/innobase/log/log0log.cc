@@ -1915,7 +1915,7 @@ ATTRIBUTE_COLD void log_t::checkpoint_margin() noexcept
 
     if (!check_for_checkpoint())
     {
-func_exit:
+    func_exit:
       latch.wr_unlock();
       return;
     }
