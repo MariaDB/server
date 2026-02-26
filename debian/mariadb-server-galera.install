@@ -1,0 +1,19 @@
+debian/additions/mariadb.conf.d/60-galera.cnf etc/mysql/mariadb.conf.d
+lib/systemd/system/mariadb@bootstrap.service.d/use_galera_new_cluster.conf
+usr/bin/galera_new_cluster
+usr/bin/galera_recovery
+usr/bin/wsrep_sst_common
+usr/bin/wsrep_sst_mariabackup
+usr/bin/wsrep_sst_mysqldump
+usr/bin/wsrep_sst_rsync
+usr/bin/wsrep_sst_rsync_wan
+usr/lib/mysql/plugin/wsrep_info.so
+usr/share/man/man1/galera_new_cluster.1
+usr/share/man/man1/galera_recovery.1
+usr/share/man/man1/wsrep_sst_common.1
+usr/share/man/man1/wsrep_sst_mariabackup.1
+usr/share/man/man1/wsrep_sst_mysqldump.1
+usr/share/man/man1/wsrep_sst_rsync.1
+usr/share/man/man1/wsrep_sst_rsync_wan.1
+usr/share/mariadb/wsrep.cnf
+usr/share/mariadb/wsrep_notify
