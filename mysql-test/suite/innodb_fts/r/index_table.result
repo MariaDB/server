@@ -5,7 +5,7 @@ id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200),
 content TEXT
 ) ENGINE= InnoDB;
-SET STATEMENT debug_dbug='+d,innodb_report_deadlock' FOR
+SET STATEMENT debug_dbug='+d,fts_load_stopword_fail' FOR
 CREATE FULLTEXT INDEX idx ON articles (title, content);
 ERROR HY000: Got error 11 "Resource temporarily unavailable" from storage engine InnoDB
 CREATE FULLTEXT INDEX idx ON articles (title, content);

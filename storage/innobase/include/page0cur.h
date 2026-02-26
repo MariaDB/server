@@ -244,6 +244,21 @@ bool page_cur_search_with_match_bytes(const dtuple_t &tuple,
                                       uint16_t *ilow_bytes)
   noexcept;
 
+/** Compare a data tuple to a physical record.
+@param rec    B-tree index record
+@param index  index B-tree
+@param tuple  search key
+@param match  matched fields << 16 | bytes
+@param comp   nonzero if ROW_FORMAT=REDUNDANT is not being used
+@return the comparison result of dtuple and rec
+@retval 0 if dtuple is equal to rec
+@retval negative if dtuple is less than rec
+@retval positive if dtuple is greater than rec */
+int cmp_dtuple_rec_bytes(const rec_t *rec,
+                         const dict_index_t &index,
+                         const dtuple_t &tuple, int *match, ulint comp)
+  noexcept;
+
 /***********************************************************//**
 Positions a page cursor on a randomly chosen user record on a page. If there
 are no user records, sets the cursor on the infimum record. */
