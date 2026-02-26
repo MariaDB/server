@@ -1861,12 +1861,14 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
         ut_ad(!c);
         const lsn_t lsn{get_lsn()};
         ut_ad(lsn == current_lsn);
+        ut_ad(buf_size == capacity());
         persist(lsn);
         checkpoint_buf= buf;
         buf= resize_buf;
         resize_buf= nullptr;
         first_lsn+= capacity();
         file_size= resize_target;
+        buf_size= unsigned(capacity());
         goto unmap_old_checkpoint;
       }
       else if (c && is_mmap())
@@ -1880,14 +1882,20 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 #endif
       if (resize_log.is_opened())
       {
+#ifdef HAVE_PMEM
+        ut_ad(!c == is_mmap());
+        ut_ad(c || buf_size == capacity());
+#endif
         first_lsn+= capacity();
+
         file_size= resize_target;
 
 #ifdef HAVE_PMEM
-        ut_ad(!c == is_mmap());
         if (!c)
         {
+          buf_size= unsigned(capacity());
         first_checkpoint_in_new_archive:
+          ut_ad(buf_size == capacity());
           c= buf;
           ut_ad(!memcmp_aligned<512>(c, field_ref_zero, START_OFFSET));
         }
@@ -2103,8 +2111,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
         ut_ad(!is_opened());
         my_munmap(buf, file_size);
         buf= resize_buf;
-        buf_size= unsigned(std::min<uint64_t>(resize_target - START_OFFSET,
-                                              buf_size_max));
+        buf_size= unsigned(resize_target - START_OFFSET);
       }
       else
 #endif

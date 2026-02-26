@@ -342,7 +342,12 @@ void mtr_t::release()
 ATTRIBUTE_COLD lsn_t log_t::archived_mmap_switch_complete() noexcept
 {
   ut_ad(latch_have_wr());
-  if (!archive || !resize_buf)
+  ut_ad(buf_size == capacity());
+  if (!archive)
+    return 0;
+  ut_ad(file_size <= ARCHIVE_FILE_SIZE_MAX);
+  ut_ad(resize_target <= ARCHIVE_FILE_SIZE_MAX);
+  if (!resize_buf)
     return 0;
   const lsn_t lsn{get_lsn()}, last_lsn{first_lsn + capacity()};
   if (lsn < last_lsn)
@@ -354,6 +359,7 @@ ATTRIBUTE_COLD lsn_t log_t::archived_mmap_switch_complete() noexcept
   resize_buf= nullptr;
   first_lsn= last_lsn;
   file_size= resize_target;
+  buf_size= unsigned(capacity());
   return lsn;
 }
 
@@ -932,6 +938,7 @@ log_t::append_prepare<log_t::ARCHIVED_MMAP>(size_t size, bool ex) noexcept
   ut_ad(ex ? latch_have_wr() : latch_have_rd());
   ut_ad(is_mmap());
   ut_ad(is_mmap_writeable());
+  ut_ad(buf_size == capacity());
   ut_ad(archive);
   ut_ad(archived_lsn);
 
@@ -940,7 +947,7 @@ log_t::append_prepare<log_t::ARCHIVED_MMAP>(size_t size, bool ex) noexcept
   while (UNIV_UNLIKELY((l= write_lsn_offset.fetch_add(size + WRITE_TO_BUF) &
                         (WRITE_TO_BUF - 1)) + size +
                        (lsn= base_lsn.load(std::memory_order_relaxed)) >=
-                       first_lsn + capacity()) &&
+                       first_lsn + buf_size) &&
          !resize_buf && !checkpoint_buf)
   {
     /* The following is inlined here instead of being part of
@@ -1041,8 +1048,8 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
   static_assert(!bool(WRITE_NORMAL), "");
   static_assert(bool(CIRCULAR_MMAP), "");
   static_assert(mode == WRITE_NORMAL || mode == CIRCULAR_MMAP, "");
-  ut_ad(bool(mode) == is_mmap());
-  ut_ad(!mode || buf_size == std::min<uint64_t>(capacity(), buf_size_max));
+  ut_ad(bool(mode) == is_mmap_writeable());
+  ut_ad(!mode || buf_size == capacity());
   const size_t buf_size{this->buf_size - size};
   uint64_t l;
   static_assert(WRITE_TO_BUF == WRITE_BACKOFF << 1, "");
@@ -1064,7 +1071,7 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
     set_check_for_checkpoint(true);
 
   return {lsn,
-          buf + size_t(mode ? FIRST_LSN + (lsn - first_lsn) % capacity() : l)};
+          buf + size_t(mode ? FIRST_LSN + (lsn - first_lsn) % buf_size : l)};
 }
 
 /** Finish appending data to the log.

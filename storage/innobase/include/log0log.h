@@ -528,6 +528,8 @@ public:
     ut_ad(archived_mmap_switch());
     return resize_buf + START_OFFSET;
   }
+#else
+  static constexpr bool is_mmap_writeable() { return false; }
 #endif
   /** @return whether archived_mmap_switch_complete() needs to be called */
   bool archived_mmap_switch() const noexcept

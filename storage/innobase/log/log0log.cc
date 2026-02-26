@@ -335,7 +335,7 @@ bool log_t::attach(log_file_t file, os_offset_t size,
   ut_ad(!size || size >= START_OFFSET + SIZE_OF_FILE_CHECKPOINT);
   ut_ad(!writer);
 
-  file_size= size;
+  file_size= size; /* for HAVE_PMEM, clear_mmap() will assign buf_size later */
 
   if (size)
   {
@@ -493,7 +493,7 @@ void log_t::create(lsn_t lsn) noexcept
     ut_ad(is_mmap_writeable());
     ut_ad(is_opened() == archive);
     mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
-    buf_size= unsigned(std::min<uint64_t>(capacity(), buf_size_max));
+    buf_size= unsigned(capacity());
     if (archive)
       goto create_archive_header;
     memset_aligned<4096>(buf, 0, 4096);
@@ -840,7 +840,10 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
 
     const lsn_t old_first_lsn{first_lsn};
     if (archive)
+    {
       first_lsn= wait_lsn;
+      resize_target= file_size;
+    }
     std::string normal_name{get_circular_path()};
     std::string arch_name{get_archive_path()};
 
@@ -940,7 +943,7 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size, void *thd)
       status= RESIZE_NO_CHANGE;
       /* When the current log becomes full and a new archivable log file
       is being created, it will be of this size. At that point we will assign
-      file_size= resize_target, resize_target= 0; */
+      file_size= resize_target (and buf_size= capacity() for HAVE_PMEM). */
       resize_target= size;
     }
   }
@@ -1839,7 +1842,7 @@ void log_t::clear_mmap() noexcept
 #ifdef HAVE_PMEM
   if (is_mmap_writeable())
   {
-    buf_size= unsigned(std::min<uint64_t>(capacity(), buf_size_max));
+    buf_size= unsigned(capacity());
     mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
     ut_ad(next_checkpoint_no <= START_OFFSET / 4);
     if (archive)
