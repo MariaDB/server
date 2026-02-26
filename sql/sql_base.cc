@@ -5809,8 +5809,17 @@ bool open_normal_and_derived_tables(THD *thd, TABLE_LIST *tables, uint flags,
   uint counter;
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
   DBUG_ENTER("open_normal_and_derived_tables");
-  if (open_tables(thd, &tables, &counter, flags, &prelocking_strategy) ||
-      mysql_handle_derived(thd->lex, dt_phases))
+  if (open_tables(thd, &tables, &counter, flags, &prelocking_strategy))
+    goto end;
+
+  // Process initialization phase if it is requested in dt_phases
+  if ((dt_phases & DT_INIT) && mysql_handle_derived(thd->lex, DT_INIT))
+    goto end;
+
+  thd->lex->resolve_optimizer_hints();
+
+  // Process all phases remaining after DT_INIT
+  if (mysql_handle_derived(thd->lex, dt_phases & ~DT_INIT))
     goto end;
 
   DBUG_RETURN(0);
