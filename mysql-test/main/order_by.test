@@ -2844,4 +2844,12 @@ DROP TABLE t1;
 --echo # End of 12.3 tests
 --echo #
 
+--echo #
+--echo # MDEV-38921: Incorrect ORDER BY Result
+--echo #
+CREATE TABLE t2 (a INT, b INT not null, KEY(b));
+INSERT INTO t2 VALUES (2,8),(9,1),(4,6),(11,13),(15,17);
+SELECT a, b FROM t2 WHERE b != 10 and b < 30 ORDER BY b DESC;
+DROP TABLE t2;
+
 --source include/test_db_charset_restore.inc
