@@ -87,7 +87,7 @@ SELECT ssn FROM sensitive_data;
 ERROR 42000: SELECT command denied to user 'col_user1'@'localhost' for column 'ssn' in table 'sensitive_data'
 disconnect con4;
 connection default;
-REVOKE DENY SELECT (salary,ssn) ON deny_col_db.sensitive_data FROM  col_user1@localhost;
+REVOKE DENY SELECT (ssn) ON deny_col_db.sensitive_data FROM  col_user1@localhost;
 #
 # Test 5: Multiple column DENYs
 #
@@ -173,7 +173,6 @@ connection default;
 # Test 10: REVOKE all column DENYs
 #
 GRANT SELECT(ssn) on deny_col_db.sensitive_data to col_user1@localhost;
-REVOKE DENY SELECT (salary,ssn,public_info,id) ON deny_col_db.sensitive_data FROM col_user1@localhost;
 connect  con10, localhost, col_user1,,deny_col_db;
 SELECT ssn FROM sensitive_data;
 ssn

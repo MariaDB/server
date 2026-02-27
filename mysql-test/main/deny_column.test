@@ -91,7 +91,7 @@ SELECT salary FROM sensitive_data;
 SELECT ssn FROM sensitive_data;
 disconnect con4;
 connection default;
-REVOKE DENY SELECT (salary,ssn) ON deny_col_db.sensitive_data FROM  col_user1@localhost;
+REVOKE DENY SELECT (ssn) ON deny_col_db.sensitive_data FROM  col_user1@localhost;
 
 --echo #
 --echo # Test 5: Multiple column DENYs
@@ -179,7 +179,7 @@ connection default;
 --echo #
 
 GRANT SELECT(ssn) on deny_col_db.sensitive_data to col_user1@localhost;
-REVOKE DENY SELECT (salary,ssn,public_info,id) ON deny_col_db.sensitive_data FROM col_user1@localhost;
+
 
 connect (con10, localhost, col_user1,,deny_col_db);
 SELECT ssn FROM sensitive_data;

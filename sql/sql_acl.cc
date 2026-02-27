@@ -5675,6 +5675,29 @@ static int collect_denies(const User_table &user_table, std::vector<deny_entry_t
 }
 
 
+static void report_nonexisting_deny(const LEX_USER &combo, ACL_PRIV_TYPE type,
+                                    const char *table_or_routine)
+{
+  switch (type)
+  {
+  case ACL_PRIV_TYPE::PRIV_TYPE_TABLE:
+  case ACL_PRIV_TYPE::PRIV_TYPE_COLUMN:
+    my_error(ER_NONEXISTING_TABLE_GRANT, MYF(0), combo.user.str,
+             combo.host.str, table_or_routine ? table_or_routine : "");
+    break;
+  case ACL_PRIV_TYPE::PRIV_TYPE_FUNCTION:
+  case ACL_PRIV_TYPE::PRIV_TYPE_PROCEDURE:
+  case ACL_PRIV_TYPE::PRIV_TYPE_PACKAGE:
+  case ACL_PRIV_TYPE::PRIV_TYPE_PACKAGE_BODY:
+    my_error(ER_NONEXISTING_PROC_GRANT, MYF(0), combo.user.str, combo.host.str,
+             table_or_routine ? table_or_routine : "");
+    break;
+  default:
+    my_error(ER_NONEXISTING_GRANT, MYF(0), combo.user.str, combo.host.str);
+    break;
+  }
+}
+
 static int update_denies_in_user_table(const User_table &user_table,
                                     const LEX_USER &combo,
                                     const privilege_t rights, const bool revoke_grant,
@@ -5714,6 +5737,27 @@ static int update_denies_in_user_table(const User_table &user_table,
   entry.db= db;
   entry.table_or_routine= table_or_routine;
   entry.column= column;
+
+  if (revoke_grant && !revoke_all)
+  {
+    bool found= false;
+    for (const auto &e : denies_before_change)
+    {
+      if (!deny_matches(type, db, table_or_routine, column,
+                        e.type, e.db.c_str(), e.table.c_str(), e.column.c_str()))
+        continue;
+      if (e.denies & rights)
+      {
+        found= true;
+        break;
+      }
+    }
+    if (!found)
+    {
+      report_nonexisting_deny(combo, type, table_or_routine);
+      DBUG_RETURN(1);
+    }
+  }
 
   // Update the deny entry
   if (revoke_all)
