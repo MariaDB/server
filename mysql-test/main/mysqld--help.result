@@ -1773,7 +1773,7 @@ binlog-large-commit-threshold 134217728
 binlog-legacy-event-pos FALSE
 binlog-optimize-thread-scheduling TRUE
 binlog-row-event-fragment-threshold 1073741824
-binlog-row-event-max-size 8192
+binlog-row-event-max-size 65536
 binlog-row-image FULL
 binlog-row-metadata NO_LOG
 binlog-space-limit 0
