@@ -705,5 +705,7 @@ void print_keyuse_array_for_trace(THD *thd, DYNAMIC_ARRAY *keyuse_array)
            .field->field_name.str)).
       add("equals",keyuse->val).
       add("null_rejecting",keyuse->null_rejecting);
+    if (keyuse->driving_ndv > 0)
+      keyuse_elem.add("driving_ndv", keyuse->driving_ndv);
   }
 }
