@@ -1,0 +1,76 @@
+--echo #
+--echo # MDEV-30255: UNION ALL strips trailing zeros from decimal expressions
+--echo #
+--echo # The expression (c1 DIV 1)*0.1 declares decimals=1.  decimal_mul()
+--echo # strips trailing fractional zeros from the computed value (e.g. the
+--echo # result "0" of 0*0.1 gets frac=0), but the declared precision of the
+--echo # expression must govern the string representation in a UNION result
+--echo # column.  Both the plain and the DISTINCT variants must show the same
+--echo # number of fractional digits.
+--echo #
+
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 VALUES (0), (1), (10);
+
+--echo #
+--echo # Zero value: both paths must show "0.0" (1 declared decimal place)
+--echo #
+--echo # Without DISTINCT (used to produce "0" instead of "0.0"):
+SELECT (c1 DIV 1)*0.1 FROM t1 WHERE c1=0
+UNION ALL
+SELECT '1';
+
+--echo # With DISTINCT:
+(SELECT DISTINCT (c1 DIV 1)*0.1 FROM t1 WHERE c1=0)
+UNION ALL
+(SELECT '1');
+
+--echo #
+--echo # Non-zero fractional value must show its fraction digit
+--echo #
+--echo # Without DISTINCT:
+SELECT (c1 DIV 1)*0.1 FROM t1 WHERE c1=1
+UNION ALL
+SELECT '2';
+
+--echo # With DISTINCT:
+(SELECT DISTINCT (c1 DIV 1)*0.1 FROM t1 WHERE c1=1)
+UNION ALL
+(SELECT '2');
+
+--echo #
+--echo # Integral multiple: "1.0" has one declared decimal place
+--echo #
+--echo # Without DISTINCT:
+SELECT (c1 DIV 1)*0.1 FROM t1 WHERE c1=10
+UNION ALL
+SELECT '2';
+
+--echo # With DISTINCT:
+(SELECT DISTINCT (c1 DIV 1)*0.1 FROM t1 WHERE c1=10)
+UNION ALL
+(SELECT '2');
+
+DROP TABLE t1;
+
+--echo #
+--echo # decimal_div() path: zero dividend must preserve fraction digits
+--echo # (decimal_div() calls decimal_make_zero(), setting frac=0 and leaving
+--echo # the fractional buffer uninitialised; the fix pads to declared decimals)
+--echo #
+CREATE TABLE t2 (c1 INT);
+INSERT INTO t2 VALUES (0), (1);
+
+--echo # Without DISTINCT:
+SELECT (c1 DIV 1) / 1.0 FROM t2 WHERE c1=0
+UNION ALL
+SELECT '3';
+
+--echo # With DISTINCT:
+(SELECT DISTINCT (c1 DIV 1) / 1.0 FROM t2 WHERE c1=0)
+UNION ALL
+(SELECT '3');
+
+DROP TABLE t2;
+
+--echo # End of 10.11 tests
