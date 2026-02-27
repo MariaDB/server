@@ -7920,7 +7920,7 @@ static int table_name_sort(const void *tbl1_, const void *tbl2_)
 static int update_role_columns(GRANT_TABLE *merged,
                                GRANT_TABLE **cur, GRANT_TABLE **last)
 {
-  access_t rights __attribute__((unused)) (NO_ACL);
+  IF_DBUG(access_t rights(NO_ACL);,)
   int changed= 0;
   if (!merged->cols)
   {
@@ -7962,7 +7962,7 @@ restart:
   for (uint i=0 ; i < mh->records ; i++)
   {
     GRANT_COLUMN *col = (GRANT_COLUMN *)my_hash_element(mh, i);
-    rights|= col->rights;
+    IF_DBUG(rights|= col->rights;,)
     if (!col->rights)
     {
       changed= 1;
@@ -10205,7 +10205,7 @@ bool check_grant_db(THD *thd, const access_t &access, const char *db)
   CharBuffer<key_data_size + MY_CS_MBMAXLEN> key, key2;
   bool error= TRUE;
 
-  if (access.is_denied_all(TABLE_ACLS|PROC_ACLS))
+  if (access.is_denied(TABLE_ACLS | PROC_ACLS) == (TABLE_ACLS | PROC_ACLS))
     return 1; // all table and routine privileges are denied
 
   if (access & (TABLE_ACLS | PROC_ACLS))
