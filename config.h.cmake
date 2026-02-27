@@ -164,7 +164,6 @@
 #cmakedefine gmtime_r @gmtime_r@
 #cmakedefine HAVE_IN_ADDR_T 1
 #cmakedefine HAVE_INITGROUPS 1
-#cmakedefine HAVE_LDIV 1
 #cmakedefine HAVE_LRAND48 1
 #cmakedefine HAVE_LOCALTIME_R 1
 #cmakedefine HAVE_LSTAT 1
@@ -176,15 +175,12 @@
 #cmakedefine HAVE_MALLINFO 1
 #cmakedefine HAVE_MALLINFO2 1
 #cmakedefine HAVE_MALLOC_ZONE 1
-#cmakedefine HAVE_MEMCPY 1
-#cmakedefine HAVE_MEMMOVE 1
 #cmakedefine HAVE_MKSTEMP 1
 #cmakedefine HAVE_MKOSTEMP 1
 #cmakedefine HAVE_MLOCKALL 1
 #cmakedefine HAVE_MMAP 1
 #cmakedefine HAVE_MMAP64 1
 #cmakedefine HAVE_MPROTECT 1
-#cmakedefine HAVE_PERROR 1
 #cmakedefine HAVE_POLL 1
 #cmakedefine HAVE_POSIX_FALLOCATE 1
 #cmakedefine HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE 1
@@ -214,7 +210,6 @@
 #cmakedefine HAVE_SCHED_YIELD 1
 #cmakedefine HAVE_SELECT 1
 #cmakedefine HAVE_SETENV 1
-#cmakedefine HAVE_SETLOCALE 1
 #cmakedefine HAVE_SETMNTENT 1
 #cmakedefine HAVE_SETUPTERM 1
 #cmakedefine HAVE_SIGSET 1
@@ -224,14 +219,8 @@
 #cmakedefine HAVE_SIGWAITINFO 1
 #cmakedefine HAVE_SLEEP 1
 #cmakedefine HAVE_STPCPY 1
-#cmakedefine HAVE_STRERROR 1
-#cmakedefine HAVE_STRCOLL 1
 #cmakedefine HAVE_STRNLEN 1
-#cmakedefine HAVE_STRPBRK 1
 #cmakedefine HAVE_STRTOK_R 1
-#cmakedefine HAVE_STRTOLL 1
-#cmakedefine HAVE_STRTOUL 1
-#cmakedefine HAVE_STRTOULL 1
 #cmakedefine HAVE_TELL 1
 #cmakedefine HAVE_THR_YIELD 1
 #cmakedefine HAVE_TIME 1
@@ -239,7 +228,6 @@
 #cmakedefine HAVE_VIDATTR 1
 #define HAVE_VIO_READ_BUFF 1
 #cmakedefine HAVE_VASPRINTF 1
-#cmakedefine HAVE_VSNPRINTF 1
 #cmakedefine HAVE_FTRUNCATE 1
 #cmakedefine HAVE_TZNAME 1
 /* Symbols we may use */
