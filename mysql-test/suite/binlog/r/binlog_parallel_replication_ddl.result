@@ -1,8 +1,13 @@
+CREATE TABLE t1 (i1 int, i2 int, pk int);
+CREATE TABLE t2 (i1 int, i2 int, pk int);
+CREATE TABLE t3 LIKE t1;
 RESET MASTER;
+ALTER TABLE t3 ENGINE = MERGE UNION (t1,t2);
 CREATE OR REPLACE SEQUENCE s1;
 DROP SEQUENCE s1;
 FLUSH LOGS;
-FOUND 2 /GTID [0-9]+-[0-9]+-[0-9]+/ in mysqlbinlog.sql
+DROP TABLE t3,t2,t1;
+FOUND 3 /GTID [0-9]+-[0-9]+-[0-9]+/ in mysqlbinlog.sql
 The same as above number of samples must be found:
-FOUND 2 /GTID [0-9]+-[0-9]+-[0-9]+ ddl/ in mysqlbinlog.sql
+FOUND 3 /GTID [0-9]+-[0-9]+-[0-9]+ ddl/ in mysqlbinlog.sql
 End of the tests
