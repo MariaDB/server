@@ -673,6 +673,7 @@ void log_t::header_rewrite(my_bool archive) noexcept
   if (!c)
   {
     ut_ad(is_mmap());
+    ut_ad(is_mmap_writeable());
     if (!archive)
     {
       memset_aligned<512>(buf + 512, 0, START_OFFSET - 512);
@@ -812,6 +813,14 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       write_checkpoint(), recovery will only encounter
       get_sequence_bit() == 1, consistent with our first_lsn. */
       circular_recovery_from_sequence_bit_0= false;
+      goto retry_after_checkpoint;
+    }
+    else if (next_checkpoint_lsn < first_lsn)
+    {
+      /* write_checkpoint() switched files, but the latest FILE_CHECKPOINT
+      record points to a previous log file. In the innodb_log_archive=OFF
+      format the checkpoint must be within the only log file. */
+      wait_lsn= first_lsn;
       goto retry_after_checkpoint;
     }
 

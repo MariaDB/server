@@ -337,7 +337,7 @@ public:
 	/* @} */
 
 private:
-  /** the thread that initiated resize_lsn() */
+  /** the thread that initiated resize_start() */
   Atomic_relaxed<void*> resize_initiator;
 #ifdef HAVE_PMEM
   /** mutex protecting wrap-around in resize_write() */
