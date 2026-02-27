@@ -1,0 +1,86 @@
+#
+# MDEV-38497 RESET SLAVE ALL doesn't remove all slave related configurations
+#
+CHANGE MASTER TO
+MASTER_HOST='localhost',
+MASTER_USER='replssl',
+MASTER_PASSWORD='password',
+MASTER_PORT=3001,
+MASTER_CONNECT_RETRY=7,
+MASTER_HEARTBEAT_PERIOD=3,
+MASTER_SSL=1,
+MASTER_SSL_CA='MYSQL_TEST_DIR/std_data/cacert.pem',
+MASTER_SSL_CAPATH='MYSQL_TEST_DIR/std_data',
+MASTER_SSL_CERT='MYSQL_TEST_DIR/std_data/client-cert.pem',
+MASTER_SSL_KEY='MYSQL_TEST_DIR/std_data/client-key.pem',
+MASTER_SSL_CRL='MYSQL_TEST_DIR/std_data/crl.pem',
+MASTER_SSL_CRLPATH='MYSQL_TEST_DIR/std_data',
+MASTER_SSL_CIPHER='AES256-SHA',
+MASTER_SSL_VERIFY_SERVER_CERT=1,
+MASTER_RETRY_COUNT=17,
+MASTER_USE_GTID=current_pos,
+IGNORE_SERVER_IDS=(123),
+DO_DOMAIN_IDS=(19);
+RESET SLAVE ALL;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root';
+SHOW SLAVE STATUS;
+Slave_IO_State	
+Master_Host	127.0.0.1
+Master_User	root
+Master_Port	3306
+Connect_Retry	60
+Master_Log_File	
+Read_Master_Log_Pos	4
+Relay_Log_File	mysqld-relay-bin.000001
+Relay_Log_Pos	4
+Relay_Master_Log_File	
+Slave_IO_Running	No
+Slave_SQL_Running	No
+Replicate_Do_DB	
+Replicate_Ignore_DB	
+Replicate_Do_Table	
+Replicate_Ignore_Table	
+Replicate_Wild_Do_Table	
+Replicate_Wild_Ignore_Table	
+Last_Errno	0
+Last_Error	
+Skip_Counter	0
+Exec_Master_Log_Pos	0
+Relay_Log_Space	257
+Until_Condition	None
+Until_Log_File	
+Until_Log_Pos	0
+Master_SSL_Allowed	Yes
+Master_SSL_CA_File	
+Master_SSL_CA_Path	
+Master_SSL_Cert	
+Master_SSL_Cipher	
+Master_SSL_Key	
+Seconds_Behind_Master	NULL
+Master_SSL_Verify_Server_Cert	No
+Last_IO_Errno	0
+Last_IO_Error	
+Last_SQL_Errno	0
+Last_SQL_Error	
+Replicate_Ignore_Server_Ids	
+Master_Server_Id	0
+Master_SSL_Crl	
+Master_SSL_Crlpath	
+Using_Gtid	Slave_Pos
+Gtid_IO_Pos	
+Replicate_Do_Domain_Ids	
+Replicate_Ignore_Domain_Ids	
+Parallel_Mode	optimistic
+SQL_Delay	0
+SQL_Remaining_Delay	NULL
+Slave_SQL_Running_State	
+Slave_DDL_Groups	0
+Slave_Non_Transactional_Groups	0
+Slave_Transactional_Groups	0
+Replicate_Rewrite_DB	
+Connects_Tried	0
+Master_Retry_Count	100000
+RESET SLAVE ALL;
+# End of reset_slave_all_leaks_master_info.test
