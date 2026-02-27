@@ -147,6 +147,27 @@ WHERE variable_name LIKE 'INNODB_LSN%';
 
 --let $restart_parameters= --innodb-log-recovery-start=0
 --source include/shutdown_mysqld.inc
+
+perl;
+my $file= "$ENV{DATADIR}/ib_ffffffffff803000.log";
+my $file_size= 4<<20;
+open(FILE, "+<", $file) or die "Unable to open $file\n";
+binmode FILE;
+print FILE pack("Nx[12284]", $file_size - 33);
+seek FILE, $file_size - 17, 0 or die "Unable to seek $file\n";
+# WRITE to page 0:0 offset 0x7e
+print FILE "0~\0\0~incomplete..";
+close(FILE) or die "Unable to close $file\n";
+EOF
+
+--let $restart_parameters= --innodb-log-recovery-start=18446744073705357279
+--source include/start_mysqld.inc
+
+SELECT variable_name, variable_value FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_LSN%';
+--source include/shutdown_mysqld.inc
+--let $restart_parameters= --innodb-log-recovery-start=0
+
 --remove_file $DATADIR/ib_ffffffffff803000.log
 --disable_result_log
 --error 0,1 # fails if innodb_log_archive=ON

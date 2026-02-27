@@ -3817,7 +3817,14 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse_mmap(bool if_exists)
   ut_ad(recv_sys.offset <= recv_sys.len);
   if (log_sys.archive)
   {
-    ut_ad(log_sys.archived_mmap_switch());
+    if (!log_sys.archived_mmap_switch())
+    {
+      ut_d(auto i= recv_sys.log_archive.find(log_sys.get_first_lsn()));
+      ut_ad(i != recv_sys.log_archive.end());
+      ut_d(i++);
+      ut_ad(i == recv_sys.log_archive.end());
+      return GOT_EOF;
+    }
     recv_warp s{&log_sys.buf[recv_sys.offset]};
     auto r= recv_sys.parse<recv_warp,storing,format>(s,if_exists);
     log_sys.archived_mmap_switch_recovery_complete();
@@ -4982,7 +4989,7 @@ recv_scan_log(const bool last_phase, const recv_sys_t::parser *parser) noexcept
   else
     ut_ad(recv_sys.file_checkpoint);
 
-  bool store{recv_sys.file_checkpoint != 0};
+  bool store{recv_sys.file_checkpoint != 0}, archive_exhausted{false};
   ut_ad(store || !last_phase);
   size_t buf_size= log_sys.buf_size;
   if (log_sys.is_mmap())
@@ -5025,7 +5032,16 @@ recv_scan_log(const bool last_phase, const recv_sys_t::parser *parser) noexcept
       if (log_sys.archive &&
           end_lsn >= log_sys.get_first_lsn() + log_sys.capacity() &&
           !log_sys.archived_switch_recovery())
-        recv_sys.set_corrupt_log();
+      {
+        ut_ad(!archive_exhausted);
+        archive_exhausted= true;
+        ut_ad(end_lsn == log_sys.get_first_lsn() + log_sys.capacity());
+        ut_d(auto i= recv_sys.log_archive.find(log_sys.get_first_lsn()));
+        ut_ad(i != recv_sys.log_archive.end());
+        ut_ad(i->second.end == end_lsn);
+        ut_d(i++);
+        ut_ad(i == recv_sys.log_archive.end());
+      }
       else if (dberr_t err=
                log_sys.log.read(source_offset,
                                 {log_sys.buf + recv_sys.len, size}))
@@ -5153,6 +5169,9 @@ recv_scan_log(const bool last_phase, const recv_sys_t::parser *parser) noexcept
 
     if (recv_sys.offset < log_sys.write_size &&
         recv_sys.lsn == recv_sys.scanned_lsn)
+      goto got_eof;
+
+    if (archive_exhausted)
       goto got_eof;
 
     if (recv_sys.offset > buf_size / 4 ||
