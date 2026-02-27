@@ -4849,4 +4849,36 @@ ERROR 42S22: Unknown column '-5' in 'ORDER BY'
 SELECT 1 FROM (select 1) dt order BY 50;
 ERROR 42S22: Unknown column '50' in 'ORDER BY'
 # End of 10.11 tests
+#
+# MDEV-38649: Wrong result (missing rows) upon condition pushdown on table with DESC key
+#
+CREATE TABLE t1 (a INT, b INT not null, KEY(b));
+INSERT INTO t1 VALUES (2,8),(9,1),(4,6);
+SELECT a, b FROM t1 WHERE b != 10 and b < 30 ORDER BY b DESC;
+a	b
+2	8
+4	6
+9	1
+SELECT a, b FROM t1 use index() WHERE b != 10 and b < 30 ORDER BY b DESC;
+a	b
+2	8
+4	6
+9	1
+DROP TABLE t1;
+#
+# End of 12.3 tests
+#
+#
+# MDEV-38921: Incorrect ORDER BY Result
+#
+CREATE TABLE t2 (a INT, b INT not null, KEY(b));
+INSERT INTO t2 VALUES (2,8),(9,1),(4,6),(11,13),(15,17);
+SELECT a, b FROM t2 WHERE b != 10 and b < 30 ORDER BY b DESC;
+a	b
+15	17
+11	13
+2	8
+4	6
+9	1
+DROP TABLE t2;
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

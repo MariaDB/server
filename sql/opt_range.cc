@@ -13904,7 +13904,7 @@ int QUICK_SELECT_DESC::get_next()
    *     step back once, and move backwards
    */
 
-  for (;;)
+  for (;; last_range= nullptr, file->set_end_range(nullptr))
   {
     int result;
     if (last_range)
@@ -13953,7 +13953,7 @@ int QUICK_SELECT_DESC::get_next()
 	DBUG_RETURN(local_error);		// Empty table
       if (cmp_prev(last_range) == 0)
 	DBUG_RETURN(0);
-      last_range= 0;                            // No match; go to next range
+      // No match; go to next range
       continue;
     }
 
@@ -13974,6 +13974,8 @@ int QUICK_SELECT_DESC::get_next()
       last_range->make_min_endpoint(&min_range);
       if (min_range.length > 0)
         file->set_end_range(&min_range, handler::RANGE_SCAN_DESC);
+      else
+        file->set_end_range(nullptr);
 
       DBUG_ASSERT(last_range->flag & NEAR_MAX ||
                   (last_range->flag & EQ_RANGE && 
@@ -13989,7 +13991,7 @@ int QUICK_SELECT_DESC::get_next()
     {
       if (result != HA_ERR_KEY_NOT_FOUND && result != HA_ERR_END_OF_FILE)
 	DBUG_RETURN(result);
-      last_range= 0;                            // Not found, to next range
+      // Not found, to next range
       continue;
     }
     if (cmp_prev(last_range) == 0)
@@ -13998,7 +14000,7 @@ int QUICK_SELECT_DESC::get_next()
 	last_range= 0;				// Stop searching
       DBUG_RETURN(0);				// Found key is in range
     }
-    last_range= 0;                              // To next range
+    // To next range
   }
 }
 
