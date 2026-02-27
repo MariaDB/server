@@ -212,8 +212,11 @@ USE test;
 #       when binlogging is active, the master will not hit an
 #       assertion.
 #
-# ii) a test case that partially succeeds on the master will also
-#      partially succeed on the slave.
+# ii) (DISABLED) To pass, this test case took advantage of a vulnerability,
+#     MDEV-38506. Please uncomment this test case when MDEV-29848 is fixed.
+#
+#     test case that partially succeeds on the master will also
+#     partially succeed on the slave.
 #
 #     - The revoke statement that partially succeeds tries to revoke
 #       an EXECUTE grant for two users, and only one of the user has
@@ -242,64 +245,67 @@ DROP PROCEDURE p1;
 
 -- sync_slave_with_master
 
--- echo ### ii) Test case in which REVOKE partially succeeds
-
--- connection master
--- source include/rpl_reset.inc
--- connection master
-
-CREATE TABLE t1(c1 INT);
-DELIMITER |;
-CREATE PROCEDURE p1() SELECT * FROM t1 |
-DELIMITER ;|
-
-CREATE USER 'user49119'@'localhost';
-GRANT EXECUTE ON PROCEDURE p1 TO 'user49119'@'localhost';
-
--- echo ##############################################################
--- echo ### Showing grants for both users: root and user49119 (master)
-SHOW GRANTS FOR 'user49119'@'localhost';
-SHOW GRANTS FOR CURRENT_USER;
--- echo ##############################################################
-
--- sync_slave_with_master
-
--- echo ##############################################################
--- echo ### Showing grants for both users: root and user49119 (master)
-SHOW GRANTS FOR 'user49119'@'localhost';
-SHOW GRANTS FOR CURRENT_USER;
--- echo ##############################################################
-
--- connection master
-
--- echo ## This statement will make the revoke fail because root has no
--- echo ## execute grant. However, it will still revoke the grant for
--- echo ## user49119.
--- error ER_NONEXISTING_PROC_GRANT
-REVOKE EXECUTE ON PROCEDURE p1 FROM 'user49119'@'localhost', 'root'@'localhost';
-
--- echo ##############################################################
--- echo ### Showing grants for both users: root and user49119 (master)
--- echo ### after revoke statement failure
-SHOW GRANTS FOR 'user49119'@'localhost';
-SHOW GRANTS FOR CURRENT_USER;
--- echo ##############################################################
-
--- sync_slave_with_master
-
--- echo #############################################################
--- echo ### Showing grants for both users: root and user49119 (slave)
--- echo ### after revoke statement failure (should match 
-SHOW GRANTS FOR 'user49119'@'localhost';
-SHOW GRANTS FOR CURRENT_USER;
--- echo ##############################################################
-
--- connection master
-DROP TABLE t1;
-DROP PROCEDURE p1;
-DROP USER 'user49119'@'localhost';
-
--- sync_slave_with_master
+--echo #
+--echo # TODO: Re-enable test-case after fixing MDEV-29848
+--echo #
+#-- echo ### ii) Test case in which REVOKE partially succeeds
+#
+#-- connection master
+#-- source include/rpl_reset.inc
+#-- connection master
+#
+#CREATE TABLE t1(c1 INT);
+#DELIMITER |;
+#CREATE PROCEDURE p1() SELECT * FROM t1 |
+#DELIMITER ;|
+#
+#CREATE USER 'user49119'@'localhost';
+#GRANT EXECUTE ON PROCEDURE p1 TO 'user49119'@'localhost';
+#
+#-- echo ##############################################################
+#-- echo ### Showing grants for both users: root and user49119 (master)
+#SHOW GRANTS FOR 'user49119'@'localhost';
+#SHOW GRANTS FOR CURRENT_USER;
+#-- echo ##############################################################
+#
+#-- sync_slave_with_master
+#
+#-- echo ##############################################################
+#-- echo ### Showing grants for both users: root and user49119 (master)
+#SHOW GRANTS FOR 'user49119'@'localhost';
+#SHOW GRANTS FOR CURRENT_USER;
+#-- echo ##############################################################
+#
+#-- connection master
+#
+#-- echo ## This statement will make the revoke fail because root has no
+#-- echo ## execute grant. However, it will still revoke the grant for
+#-- echo ## user49119.
+#-- error ER_NONEXISTING_PROC_GRANT
+#REVOKE EXECUTE ON PROCEDURE p1 FROM 'user49119'@'localhost', 'root'@'localhost';
+#
+#-- echo ##############################################################
+#-- echo ### Showing grants for both users: root and user49119 (master)
+#-- echo ### after revoke statement failure
+#SHOW GRANTS FOR 'user49119'@'localhost';
+#SHOW GRANTS FOR CURRENT_USER;
+#-- echo ##############################################################
+#
+#-- sync_slave_with_master
+#
+#-- echo #############################################################
+#-- echo ### Showing grants for both users: root and user49119 (slave)
+#-- echo ### after revoke statement failure (should match)
+#SHOW GRANTS FOR 'user49119'@'localhost';
+#SHOW GRANTS FOR CURRENT_USER;
+#-- echo ##############################################################
+#
+#-- connection master
+#DROP TABLE t1;
+#DROP PROCEDURE p1;
+#DROP USER 'user49119'@'localhost';
+#
+#-- sync_slave_with_master
 
 #
 # Bug #51987  	revoke privileges logs wrong error code

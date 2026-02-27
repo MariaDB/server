@@ -38,4 +38,33 @@ User	Host
 SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
 COUNT(*)
 0
+#
+# MDEV-38506: Failed GRANT on a procedure breaks replication
+#
+# Disable NO_AUTO_CREATE_USER so grant will auto-create users
+connection master;
+SET @old_sql_mode= @@GLOBAL.sql_mode;
+SET GLOBAL sql_mode='';
+# Create new stored procedure sp to be granted to new role test_role
+CREATE PROCEDURE test.sp() SELECT 1;
+# Create a new user with limited privileges to grant sp execution to test_role
+CREATE USER 'test_user'@'%' IDENTIFIED BY 'somepass';
+GRANT EXECUTE ON test.* TO 'test_user'@'%' WITH GRANT OPTION;
+connect  con_test_user,localhost,test_user,somepass;
+GRANT EXECUTE ON PROCEDURE test.sp TO 'nonexistentuser'@'';
+ERROR 42000: You are not allowed to create a user with GRANT
+# Ensuring the failed GRANT is not replicated..
+include/rpl_sync.inc
+connection master;
+connection slave;
+SHOW GRANTS for 'nonexistentuser'@'';
+ERROR 42000: There is no such grant defined for user 'nonexistentuser' on host '%'
+# ..PASS
+connection master;
+disconnect con_test_user;
+SET GLOBAL sql_mode= @old_sql_mode;
+DROP USER test_user@'%';
+DROP PROCEDURE test.sp;
+# End of MDEV-38506 test case
 include/rpl_end.inc
+# End of rpl_grant.test
