@@ -11134,3 +11134,15 @@ size_t TABLE::key_storage_length(uint index)
 
   return key_storage_length_from_ddl(index);
 }
+
+uchar *TABLE_SHARE::record_alloc(MEM_ROOT *record_mem_root, uint records)
+{
+  DBUG_ASSERT(rec_buff_length % RECORD_ALIGNMENT == 0);
+  // Allocate a bit more to guarantee the pointer is RECORD_ALIGNMENT aligned
+  size_t rec_buff_alloc_size= rec_buff_length * records +
+                              RECORD_ALIGNMENT - ALIGN_MAX_UNIT;
+
+  uchar *buf= (uchar*)alloc_root(record_mem_root, rec_buff_alloc_size);
+
+  return (uchar*)MY_ALIGN((uintptr_t)buf, RECORD_ALIGNMENT);
+}

@@ -7775,3 +7775,18 @@ static Sys_var_path Sys_path(
         "path", "Comma-separated list of schema names that defines the search "
         "order for stored routines",
         SESSION_VAR(path), NO_CMD_LINE, NOT_IN_BINLOG);
+
+unsigned long long total_memcpy_time = 0;
+unsigned long long total_memcpy_calls = 0;
+
+static Sys_var_ulonglong Sys_memcpy_time(
+       "memcpy_time", "Total time in copy_record memcpy",
+       READ_ONLY GLOBAL_VAR(total_memcpy_time),
+       CMD_LINE(OPT_ARG),
+       VALID_RANGE(0, ULLONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_ulonglong Sys_memcpy_calls(
+       "memcpy_calls", "Total calls to copy_record memcpy",
+       READ_ONLY GLOBAL_VAR(total_memcpy_calls),
+       CMD_LINE(OPT_ARG),
+       VALID_RANGE(0, ULLONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
