@@ -4874,6 +4874,9 @@ SELECT a, b FROM t2 WHERE b != 10 and b < 30 ORDER BY b DESC;
 a	b
 15	17
 11	13
+2	8
+4	6
+9	1
 DROP TABLE t2;
 #
 # End of 12.3 tests
