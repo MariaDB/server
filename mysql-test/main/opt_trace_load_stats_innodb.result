@@ -43,13 +43,11 @@ Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
 set optimizer_replay_context="";
 explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));
@@ -138,13 +136,11 @@ Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
 set optimizer_replay_context="";
 explain format=json select * from t1 a, t1 b where a.c1 < 3 and b.c1 < 333 and a.c2 < 3 and b.c2 < 333
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));
@@ -276,13 +272,11 @@ Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
 set optimizer_replay_context="";
 explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));
@@ -360,13 +354,11 @@ Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
 set optimizer_replay_context="";
 explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));
@@ -443,13 +435,11 @@ Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
 set optimizer_replay_context="";
 explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1 and tt1.c2 = tt2.c2
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));
@@ -542,13 +532,11 @@ Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
 set optimizer_replay_context="";
 explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1 and tt1.c2 = tt2.c2
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));
@@ -631,13 +619,11 @@ Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
 set optimizer_replay_context="";
 explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));
@@ -724,13 +710,11 @@ Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
 set optimizer_replay_context="";
 explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c1 = tt2.c1
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));
@@ -807,13 +791,11 @@ Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
 set optimizer_replay_context="";
 explain format=json select * from t1 as tt1, t1 as tt2 where tt1.c2 = tt2.c2
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));
@@ -887,13 +869,11 @@ Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
 set optimizer_replay_context="";
 explain format=json select * from t1 as tt1 where tt1.c1 = 5
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));
@@ -957,13 +937,11 @@ Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
 set optimizer_replay_context="";
 explain format=json select * from t1 as tt1 where tt1.c1 = 5
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));
@@ -1027,13 +1005,11 @@ Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
 set optimizer_replay_context="";
 explain format=json select * from t1 as tt1 where tt1.c1 = 5
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));
@@ -1097,13 +1073,11 @@ Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
 set optimizer_replay_context="";
 explain format=json select * from t1 as tt1 where tt1.c2 = 5
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));
@@ -1160,13 +1134,11 @@ Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
 set optimizer_replay_context="";
 explain format=json select * from t1 as tt1 where tt1.c2 = 5
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));
@@ -1225,13 +1197,11 @@ Table	Op	Msg_type	Msg_text
 db1.t1	analyze	status	OK
 set optimizer_replay_context="";
 explain format=json select * from t1 as tt1 where tt1.c1 = 5 OR tt1.c2 = 10
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));
@@ -1315,13 +1285,11 @@ index idx_ac(a, c)
 insert into t1 select seq%2, seq%3, seq%5 from seq_1_to_20;
 set optimizer_replay_context="";
 explain format=json select * from t1 where a=1 and b=1 and c=1
-set @trace= (select trace from information_schema.optimizer_trace);
 set @saved_opt_context=
-(select json_pretty(json_extract(
-json_extract(@trace, "$**.optimizer_context"),
-'$[0]'
-                      )
-));
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;-- opt_context_ends)')
+from information_schema.optimizer_context);
 set @saved_opt_context_var_name='saved_opt_context';
 set @explain_output='$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));

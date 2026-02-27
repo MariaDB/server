@@ -224,6 +224,8 @@ def	information_schema	KEY_PERIOD_USAGE	PERIOD_NAME	7	NULL	NO	varchar	64	192	NUL
 def	information_schema	KEY_PERIOD_USAGE	TABLE_CATALOG	4	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
 def	information_schema	KEY_PERIOD_USAGE	TABLE_NAME	6	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
 def	information_schema	KEY_PERIOD_USAGE	TABLE_SCHEMA	5	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
+def	information_schema	OPTIMIZER_CONTEXT	CONTEXT	2	NULL	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	longtext			select		NEVER	NULL	NO	NO
+def	information_schema	OPTIMIZER_CONTEXT	QUERY	1	NULL	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	longtext			select		NEVER	NULL	NO	NO
 def	information_schema	OPTIMIZER_COSTS	ENGINE	1	NULL	NO	varchar	192	576	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(192)			select		NEVER	NULL	NO	NO
 def	information_schema	OPTIMIZER_COSTS	OPTIMIZER_DISK_READ_COST	2	NULL	NO	decimal	NULL	NULL	9	6	NULL	NULL	NULL	decimal(9,6)			select		NEVER	NULL	NO	NO
 def	information_schema	OPTIMIZER_COSTS	OPTIMIZER_DISK_READ_RATIO	8	NULL	NO	decimal	NULL	NULL	9	6	NULL	NULL	NULL	decimal(9,6)			select		NEVER	NULL	NO	NO
@@ -911,6 +913,8 @@ NULL	information_schema	KEY_COLUMN_USAGE	POSITION_IN_UNIQUE_CONSTRAINT	bigint	NU
 3.0000	information_schema	KEY_PERIOD_USAGE	TABLE_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	KEY_PERIOD_USAGE	TABLE_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	KEY_PERIOD_USAGE	PERIOD_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+1.0000	information_schema	OPTIMIZER_CONTEXT	QUERY	longtext	4294967295	4294967295	utf8mb3	utf8mb3_general_ci	longtext
+1.0000	information_schema	OPTIMIZER_CONTEXT	CONTEXT	longtext	4294967295	4294967295	utf8mb3	utf8mb3_general_ci	longtext
 3.0000	information_schema	OPTIMIZER_COSTS	ENGINE	varchar	192	576	utf8mb3	utf8mb3_general_ci	varchar(192)
 NULL	information_schema	OPTIMIZER_COSTS	OPTIMIZER_DISK_READ_COST	decimal	NULL	NULL	NULL	NULL	decimal(9,6)
 NULL	information_schema	OPTIMIZER_COSTS	OPTIMIZER_INDEX_BLOCK_COPY_COST	decimal	NULL	NULL	NULL	NULL	decimal(9,6)

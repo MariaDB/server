@@ -4336,6 +4336,7 @@ public:
   */
   Optimizer_context_recorder *opt_ctx_recorder= NULL;
   Optimizer_context_replay *opt_ctx_replay= NULL;
+  Optimizer_context_capture *captured_opt_ctx= NULL;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *work_part_info;

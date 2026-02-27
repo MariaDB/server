@@ -1592,6 +1592,8 @@ void THD::change_user(void)
   opt_ctx_recorder= NULL;
   delete opt_ctx_replay;
   opt_ctx_replay= NULL;
+  delete captured_opt_ctx;
+  captured_opt_ctx= NULL;
   /* cannot clear caches if it'll free the currently running routine */
   DBUG_ASSERT(!spcont);
   sp_caches_clear();
