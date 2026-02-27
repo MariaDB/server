@@ -13974,6 +13974,8 @@ int QUICK_SELECT_DESC::get_next()
       last_range->make_min_endpoint(&min_range);
       if (min_range.length > 0)
         file->set_end_range(&min_range, handler::RANGE_SCAN_DESC);
+      else
+        file->set_end_range(nullptr);
 
       DBUG_ASSERT(last_range->flag & NEAR_MAX ||
                   (last_range->flag & EQ_RANGE && 
