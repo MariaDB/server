@@ -376,3 +376,18 @@ Warning	1292	Incorrect vector value: '1' for column `test`.`t1`.`v` at row 1
 drop table t1;
 set sql_mode=default;
 # End of 11.8 tests
+# MDEV-35821: vector index sizes are not in information_schema.TABLES nor SHOW TABLE STATUS
+CREATE TABLE t_vec (
+id INT PRIMARY KEY,
+v VECTOR(4) NOT NULL,
+VECTOR INDEX (v)
+) ENGINE=InnoDB;
+INSERT INTO t_vec VALUES (1, VEC_FromText('[1,2,3,4]'));
+INSERT INTO t_vec VALUES (2, VEC_FromText('[2,3,4,5]'));
+SELECT index_length > 0 AS index_length_is_nonzero
+FROM information_schema.TABLES
+WHERE table_schema = 'test' AND table_name = 't_vec';
+index_length_is_nonzero
+1
+DROP TABLE t_vec;
+# End of 11.9 tests
