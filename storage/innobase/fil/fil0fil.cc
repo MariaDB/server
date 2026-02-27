@@ -3180,7 +3180,7 @@ ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn) noexcept
 			checkpoint LSN. Remove it from the list, so
 			that if the tablespace is not going to be
 			modified any more, subsequent checkpoints will
-			avoid calling fil_names_write() on it. */
+			avoid calling fil_names_clear() on it. */
 			it->max_lsn = 0;
 			fil_system.named_spaces.erase(it);
 		}
@@ -3188,7 +3188,7 @@ ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn) noexcept
 		/* max_lsn is the last LSN where fil_names_dirty_and_write()
 		was called. If we kept track of "min_lsn" (the first LSN
 		where max_lsn turned nonzero), we could avoid the
-		fil_names_write() call if min_lsn > lsn. */
+		fil_names_clear() call if min_lsn > lsn. */
 		ut_ad(UT_LIST_GET_LEN((*it).chain) == 1);
 		size_t s = mtr.log_file_op(FILE_MODIFY, (*it).id, name);
 		ut_ad(s <= budget_left);

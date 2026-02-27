@@ -2163,18 +2163,21 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
   ut_ad(oldest_lsn <= end_lsn);
   ut_ad(end_lsn == log_sys.get_lsn());
 
-  if (oldest_lsn == end_lsn && oldest_lsn != log_sys.get_first_lsn() &&
-      (oldest_lsn == log_sys.last_checkpoint_lsn ||
-       (!log_sys.resize_in_progress() &&
-        oldest_lsn == log_sys.last_checkpoint_lsn +
-        (log_sys.is_encrypted()
-         ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT))))
+  if (oldest_lsn == log_sys.last_checkpoint_lsn ||
+      (oldest_lsn == end_lsn &&
+       !log_sys.resize_in_progress() &&
+       oldest_lsn == log_sys.last_checkpoint_lsn +
+       (log_sys.is_encrypted()
+        ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT)))
   {
-    /* Do nothing, because nothing was logged (other than a
-    FILE_CHECKPOINT record) since the previous checkpoint. */
-  do_nothing:
-    log_sys.latch.wr_unlock();
-    return true;
+    if (oldest_lsn != log_sys.get_first_lsn())
+    {
+      /* Do nothing, because nothing (or only a FILE_CHECKPOINT) was
+      logged since the previous checkpoint. */
+    do_nothing:
+      log_sys.latch.wr_unlock();
+      return true;
+    }
   }
 
   ut_ad(!recv_no_log_write);

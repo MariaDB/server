@@ -743,6 +743,11 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
   /* Durably write the log for the file system operation. */
   log_write_and_flush();
 
+#ifdef HAVE_PMEM
+  const lsn_t wait_lsn= log_sys.archived_mmap_switch()
+    ? log_sys.get_first_lsn() + log_sys.capacity() : 0;
+#endif
+
   log_sys.latch.wr_unlock();
   m_latch_ex= false;
 
@@ -764,6 +769,11 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   release_resources();
+
+#ifdef HAVE_PMEM
+  if (wait_lsn)
+    buf_flush_ahead(wait_lsn, true);
+#endif
 
   return success;
 }
