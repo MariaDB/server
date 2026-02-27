@@ -730,6 +730,8 @@ public:
   friend struct TABLE_SHARE;
 };
 
+#define RECORD_ALIGNMENT (4*ALIGN_MAX_UNIT)
+
 /**
   This structure is shared between different table objects. There is one
   instance of table share per one table in the database.
@@ -1277,18 +1279,7 @@ struct TABLE_SHARE
   {
     return table_creation_was_logged == 1;
   }
-#ifndef RECORD_ALIGNMENT
-  static constexpr int RECORD_ALIGNMENT= 2 * ALIGN_MAX_UNIT;
-#endif
-  uchar *record_alloc(MEM_ROOT *record_mem_root, uint records)
-  {
-    // Allocate a bit more to guarantee the pointer is RECORD_ALIGNMENT aligned
-    uint rec_buff_alloc_size= rec_buff_length * records +
-                              RECORD_ALIGNMENT - ALIGN_MAX_UNIT;
-
-    void *buf= alloc_root(record_mem_root, rec_buff_alloc_size);
-    return (uchar*)MY_ALIGN((uintptr_t)buf, RECORD_ALIGNMENT);
-  }
+  uchar *record_alloc(MEM_ROOT *record_mem_root, uint records);
 };
 
 /* not NULL, but cannot be dereferenced */
@@ -2073,7 +2064,7 @@ public:
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
-
+#if 0
   void copy_record(uchar *dst, uchar *src)
   {
     MEM_MAKE_ADDRESSABLE(src, s->rec_buff_length);
@@ -2084,12 +2075,12 @@ public:
     // rec_buff_length, which is aligned by 16, than reclength
     // alloc_root uses the formula for
     static_assert(REDZONE_SIZE == 0 || REDZONE_SIZE == 8);
-    constexpr uint alignment= TABLE_SHARE::RECORD_ALIGNMENT;
-    memcpy_aligned<alignment>(dst, src, s->rec_buff_length);
+    memcpy_aligned<RECORD_ALIGNMENT>(dst, src, s->rec_buff_length);
 
     MEM_NOACCESS(src + s->reclength, s->rec_buff_length - s->reclength);
     MEM_NOACCESS(dst + s->reclength, s->rec_buff_length - s->reclength);
   }
+#endif
 };
 
 

@@ -71,8 +71,9 @@
 #define SPECIAL_LOG_QUERIES_NOT_USING_INDEXES 4096 /* Obsolete */
 
 	/* Extern defines */
-#define store_record(A,B) (A)->copy_record((A)->B,(A)->record[0])
-#define restore_record(A,B) (A)->copy_record((A)->record[0],(A)->B)
+#include "my_memcpy_bench.h"
+#define store_record(A,B) copy_record((A), (A)->B,(A)->record[0])
+#define restore_record(A,B) copy_record((A), (A)->record[0],(A)->B)
 #define cmp_record(A,B) memcmp((A)->record[0],(A)->B,(size_t) (A)->s->reclength)
 #define empty_record(A) { \
                           restore_record((A),s->default_values); \

@@ -988,6 +988,8 @@ update_begin:
 
   while (!(error=info.read_record()) && !thd->killed)
   {
+    // __builtin_prefetch(table->record[0], 0);
+    // __builtin_prefetch(table->record[1], 1);
     explain->tracker.on_record_read();
     thd->inc_examined_row_count();
     if (!select || select->skip_record(thd) > 0)
