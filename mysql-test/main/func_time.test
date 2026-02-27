@@ -3378,3 +3378,21 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --echo # End of 11.7 tests
+
+--echo #
+--echo # Start of 13.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-37016 UNIX_TIMESTAMP returns 0 for the Unix epoch, not NULL
+--echo #
+
+SET time_zone='+00:00';
+SELECT UNIX_TIMESTAMP('1970-01-01 00:00:00');
+SELECT UNIX_TIMESTAMP('1970-01-01 00:00:00') IS NULL;
+SELECT UNIX_TIMESTAMP('1970-01-01 00:00:00.000000');
+SET time_zone=DEFAULT;
+
+--echo #
+--echo # End of 13.0 tests
+--echo #

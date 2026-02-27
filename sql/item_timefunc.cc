@@ -428,7 +428,7 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
       goto err;
   }
 
-  if (l_time->month > 12 || l_time->day > 31 || l_time->hour > 23 || 
+  if (l_time->month > 12 || l_time->day > 31 || l_time->hour > 23 ||
       l_time->minute > 59 || l_time->second > 59)
     goto err;
 
@@ -1531,13 +1531,13 @@ longlong Item_func_to_days::val_int_endpoint(bool left_endp, bool *incl_endp)
       *incl_endp= TRUE;
     return res;
   }
-  
+
   if (args[0]->field_type() == MYSQL_TYPE_DATE)
   {
     // TO_DAYS() is strictly monotonic for dates, leave incl_endp intact
     return res;
   }
- 
+
   /*
     Handle the special but practically useful case of datetime values that
     point to day bound ("strictly less" comparison stays intact):
@@ -1687,7 +1687,7 @@ uint week_mode(uint mode)
 			   		to ISO 8601:1988
 			  If set	The week that contains the first
 					'first-day-of-week' is week 1.
-	
+
 	ISO 8601:1988 means that if the week containing January 1 has
 	four or more days in the new year, then it is week 1;
 	Otherwise it is the last week of the previous year, and the
@@ -1734,7 +1734,7 @@ longlong Item_func_weekday::val_int()
 bool Item_func_dayname::fix_length_and_dec(THD *thd)
 {
   CHARSET_INFO *cs= thd->variables.collation_connection;
-  locale= thd->variables.lc_time_names;  
+  locale= thd->variables.lc_time_names;
   collation.set(cs, DERIVATION_COERCIBLE, locale->repertoire());
   decimals=0;
   max_length= locale->max_day_name_length * collation.collation->mbmaxlen;
@@ -1817,7 +1817,7 @@ longlong Item_func_year::val_int_endpoint(bool left_endp, bool *incl_endp)
       col < '2007-09-15 23:00:00'  -> YEAR(col) <= 2007
   */
   const MYSQL_TIME &ltime= dt.get_mysql_time()[0];
-  if (!left_endp && ltime.day == 1 && ltime.month == 1 && 
+  if (!left_endp && ltime.day == 1 && ltime.month == 1 &&
       dt.hhmmssff_is_zero())
     ; /* do nothing */
   else
@@ -1848,15 +1848,6 @@ bool Item_func_unix_timestamp::get_timestamp_value(my_time_t *seconds,
   Timestamp tm(native);
   *seconds= (my_time_t) tm.tv_sec;
   *second_part= tm.tv_usec;
-  if ((null_value= (tm.tv_sec == 0 && tm.tv_usec == 0)))
-  {
-    /*
-      The value {0,0}='1970-01-01 00:00:00.000000 GMT' cannot be
-      stored in a TIMESTAMP field. Return SQL NULL.
-      Simmetrically, UNIX_TIMESTAMP(0) also returns SQL NULL.
-    */
-    return true;
-  }
   return false;
 }
 
@@ -1865,7 +1856,7 @@ longlong Item_func_unix_timestamp::int_op()
 {
   if (arg_count == 0)
     return (longlong) current_thd->query_start();
-  
+
   ulong second_part;
   my_time_t seconds;
   if (get_timestamp_value(&seconds, &second_part))
@@ -2115,7 +2106,7 @@ bool get_interval_value(THD *thd, Item *args,
     interval->second_part= array[1];
     break;
   case INTERVAL_LAST: /* purecov: begin deadcode */
-    DBUG_ASSERT(0); 
+    DBUG_ASSERT(0);
     break;            /* purecov: end */
   }
   return 0;
@@ -2167,7 +2158,7 @@ void Item_func_curdate_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 void Item_func_curdate_utc::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 {
   my_tz_UTC->gmt_sec_to_TIME(now_time, thd->query_start());
-  /* 
+  /*
     We are not flagging this query as using time zone, since it uses fixed
     UTC-SYSTEM time-zone.
   */
@@ -2257,7 +2248,7 @@ void Item_func_curtime_utc::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
   now_time->year= now_time->month= now_time->day= 0;
   now_time->time_type= MYSQL_TIMESTAMP_TIME;
   set_sec_part(thd->query_start_sec_part(), now_time, this);
-  /* 
+  /*
     We are not flagging this query as using time zone, since it uses fixed
     UTC-SYSTEM time-zone.
   */
@@ -2299,7 +2290,7 @@ void Item_func_now_utc::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 {
   my_tz_UTC->gmt_sec_to_TIME(now_time, thd->query_start());
   set_sec_part(thd->query_start_sec_part(), now_time, this);
-  /* 
+  /*
     We are not flagging this query as using time zone, since it uses fixed
     UTC-SYSTEM time-zone.
   */
@@ -2511,7 +2502,7 @@ String *Item_func_date_format::val_str(String *str)
   if ((null_value= args[0]->get_date(thd, &l_time,
                                      Temporal::Options(mode, thd))))
     return 0;
-  
+
   if (!(format= args[1]->val_str(&format_buffer)) || !format->length())
     goto null_date;
 
@@ -3730,9 +3721,9 @@ bool Item_date_add_interval::eq(const Item *item, const Eq_config &config) const
 
 static const char *interval_names[]=
 {
-  "year", "quarter", "month", "week", "day",  
+  "year", "quarter", "month", "week", "day",
   "hour", "minute", "second", "microsecond",
-  "year_month", "day_hour", "day_minute", 
+  "year_month", "day_hour", "day_minute",
   "day_second", "hour_minute", "hour_second",
   "minute_second", "day_microsecond",
   "hour_microsecond", "minute_microsecond",
@@ -4170,14 +4161,14 @@ Item_char_typecast::fix_length_and_dec_native_to_binary(uint32 octet_length)
 void Item_char_typecast::fix_length_and_dec_internal(CHARSET_INFO *from_cs)
 {
   uint32 char_length;
-  /* 
+  /*
      We always force character set conversion if cast_cs
      is a multi-byte character set. It guarantees that the
      result of CAST is a well-formed string.
      For single-byte character sets we allow just to copy
      from the argument. A single-byte character sets string
-     is always well-formed. 
-     
+     is always well-formed.
+
      There is a special trick to convert form a number to ucs2.
      As numbers have my_charset_bin as their character set,
      it wouldn't do conversion to ucs2 without an additional action.
@@ -4260,7 +4251,7 @@ Sql_mode_dependency Item_datetime_typecast::value_depends_on_sql_mode() const
 
 
 /**
-  MAKEDATE(a,b) is a date function that creates a date value 
+  MAKEDATE(a,b) is a date function that creates a date value
   from a year and day value.
 
   NOTES:
@@ -4311,7 +4302,7 @@ bool Item_func_add_time::fix_length_and_dec(THD *thd)
     The field type for the result of an Item_func_add_time function is defined
     as follows:
 
-    - If first arg is a MYSQL_TYPE_DATETIME or MYSQL_TYPE_TIMESTAMP 
+    - If first arg is a MYSQL_TYPE_DATETIME or MYSQL_TYPE_TIMESTAMP
       result is MYSQL_TYPE_DATETIME
     - If first arg is a MYSQL_TYPE_TIME result is MYSQL_TYPE_TIME
     - Otherwise the result is MYSQL_TYPE_STRING
@@ -4342,7 +4333,7 @@ bool Item_func_add_time::fix_length_and_dec(THD *thd)
 
 
 /**
-  TIMEDIFF(t,s) is a time function that calculates the 
+  TIMEDIFF(t,s) is a time function that calculates the
   time value between a start and end time.
 
   t and s: time_or_datetime_expression
@@ -4395,7 +4386,7 @@ bool Item_func_timediff::get_date(THD *thd, MYSQL_TIME *ltime,
 
 
 /**
-  MAKETIME(h,m,s) is a time function that calculates a time value 
+  MAKETIME(h,m,s) is a time function that calculates a time value
   from the total number of hours, minutes, and seconds.
   Result: Time value
 */
@@ -4533,15 +4524,15 @@ longlong Item_func_timestamp_diff::val_int()
     return months/3*neg;
   case INTERVAL_MONTH:
     return months*neg;
-  case INTERVAL_WEEK:          
+  case INTERVAL_WEEK:
     return ((longlong) (seconds / SECONDS_IN_24H / 7L)) * neg;
-  case INTERVAL_DAY:		
+  case INTERVAL_DAY:
     return ((longlong) (seconds / SECONDS_IN_24H)) * neg;
-  case INTERVAL_HOUR:		
+  case INTERVAL_HOUR:
     return ((longlong) (seconds / 3600L)) * neg;
-  case INTERVAL_MINUTE:		
+  case INTERVAL_MINUTE:
     return ((longlong) (seconds / 60L)) * neg;
-  case INTERVAL_SECOND:		
+  case INTERVAL_SECOND:
     return ((longlong) seconds) * neg;
   case INTERVAL_MICROSECOND:
     /*
@@ -4574,21 +4565,21 @@ void Item_func_timestamp_diff::print(String *str, enum_query_type query_type)
   case INTERVAL_MONTH:
     str->append(STRING_WITH_LEN("MONTH"));
     break;
-  case INTERVAL_WEEK:          
+  case INTERVAL_WEEK:
     str->append(STRING_WITH_LEN("WEEK"));
     break;
-  case INTERVAL_DAY:		
+  case INTERVAL_DAY:
     str->append(STRING_WITH_LEN("DAY"));
     break;
   case INTERVAL_HOUR:
     str->append(STRING_WITH_LEN("HOUR"));
     break;
-  case INTERVAL_MINUTE:		
+  case INTERVAL_MINUTE:
     str->append(STRING_WITH_LEN("MINUTE"));
     break;
   case INTERVAL_SECOND:
     str->append(STRING_WITH_LEN("SECOND"));
-    break;		
+    break;
   case INTERVAL_MICROSECOND:
     str->append(STRING_WITH_LEN("MICROSECOND"));
     break;
@@ -4614,7 +4605,7 @@ String *Item_func_get_format::val_str_ascii(String *str)
   ulong val_len;
 
   if ((null_value= args[0]->null_value))
-    return 0;    
+    return 0;
 
   val_len= val->length();
   for (format= &known_date_time_formats[0];
@@ -4624,7 +4615,7 @@ String *Item_func_get_format::val_str_ascii(String *str)
     uint format_name_len;
     format_name_len= (uint) strlen(format_name);
     if (val_len == format_name_len &&
-	!my_charset_latin1.strnncoll(val->ptr(), val_len, 
+	!my_charset_latin1.strnncoll(val->ptr(), val_len,
 		                     format_name, val_len))
     {
       const char *format_str= get_date_time_format_str(format, type);
@@ -4686,7 +4677,7 @@ get_date_time_result_type(const char *format, uint length)
   const char *time_part_frms= "HISThiklrs";
   const char *date_part_frms= "MVUXYWabcjmvuxyw";
   bool date_part_used= 0, time_part_used= 0, frac_second_used= 0;
-  
+
   const char *val= format;
   const char *end= format + length;
 
