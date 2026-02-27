@@ -11819,7 +11819,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
   }
   bulk_insert_started= 0;
   if (!ignore)
+  {
+    bool save_abort_on_warning= thd->abort_on_warning;
+    thd->abort_on_warning= false;
     to->file->extra(HA_EXTRA_END_ALTER_COPY);
+    thd->abort_on_warning= save_abort_on_warning;
+  }
 
   cleanup_done= 1;
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
