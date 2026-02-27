@@ -3836,9 +3836,8 @@ sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
   mysql_mutex_assert_owner(&rli->data_lock);
   DBUG_ASSERT(!rli->belongs_to_client());
 
-  int type= ev->get_type_code();
-  if (sql_delay && type != ROTATE_EVENT &&
-      type != FORMAT_DESCRIPTION_EVENT && type != START_EVENT_V3)
+  Log_event_type type= ev->get_type_code();
+  if (sql_delay && Log_event::is_group_event(type))
   {
     // The time when we should execute the event.
     time_t sql_delay_end=
