@@ -3875,6 +3875,9 @@ exit:
 privilege_t acl_get_all3(Security_context *sctx, const char *db,
                          bool db_is_patern)
 {
+  if (!initialized)
+    return DB_ACLS;
+
   privilege_t access= acl_get(sctx->host, sctx->ip,
                               sctx->priv_user, db, db_is_patern);
   if (sctx->priv_role[0])

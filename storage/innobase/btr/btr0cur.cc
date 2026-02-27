@@ -2286,7 +2286,7 @@ btr_cur_ins_lock_and_undo(
 	      || dict_index_is_clust(index)
 	      || (flags & BTR_CREATE_FLAG));
 	ut_ad((flags & BTR_NO_UNDO_LOG_FLAG)
-	      || !index->table->skip_alter_undo);
+	      || index->table->skip_alter_undo != dict_table_t::NO_UNDO);
 
 	ut_ad(mtr->is_named_space(index->table->space));
 

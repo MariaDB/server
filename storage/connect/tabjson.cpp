@@ -1804,7 +1804,7 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL jvp)
 
           break;
         default:
-					snprintf(g->Message, sizeof(g->Message), "Unsupported column type %d\n", vp->GetType());
+					snprintf(g->Message, sizeof(g->Message), "Unsupported column type %d", vp->GetType());
 					throw 888;
 				} // endswitch Type
 

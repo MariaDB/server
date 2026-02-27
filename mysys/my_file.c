@@ -50,23 +50,37 @@ static uint set_max_open_files(uint max_file_limit)
   {
     old_cur= (uint) rlimit.rlim_cur;
     DBUG_PRINT("info", ("rlim_cur: %u  rlim_max: %u",
-			(uint) rlimit.rlim_cur,
-			(uint) rlimit.rlim_max));
+                        (uint) rlimit.rlim_cur,
+                        (uint) rlimit.rlim_max));
     if ((ulonglong) rlimit.rlim_cur == (ulonglong) RLIM_INFINITY ||
         rlimit.rlim_cur >= max_file_limit)
       DBUG_RETURN(max_file_limit);
-    rlimit.rlim_cur= rlimit.rlim_max= max_file_limit;
-    if (setrlimit(RLIMIT_NOFILE, &rlimit))
+
+    /* Never lower the hard limit (rlim_max): lowering is irreversible for
+       non-privileged users and can prevent later increases. */
+    if ((ulonglong) rlimit.rlim_max != (ulonglong) RLIM_INFINITY &&
+        max_file_limit > rlimit.rlim_max)
+    {
+      /* Best effort: try raising hard limit only when needed. */
+      rlimit.rlim_max= max_file_limit;
+    }
+
+    /* Soft limit cannot exceed hard limit. */
+    rlimit.rlim_cur= max_file_limit;
+
+    if (setrlimit(RLIMIT_NOFILE, &rlimit)) {
       max_file_limit= old_cur;			/* Use original value */
+    }
     else
     {
       rlimit.rlim_cur= 0;			/* Safety if next call fails */
       (void) getrlimit(RLIMIT_NOFILE,&rlimit);
       DBUG_PRINT("info", ("rlim_cur: %u", (uint) rlimit.rlim_cur));
       if (rlimit.rlim_cur)			/* If call didn't fail */
-	max_file_limit= (uint) rlimit.rlim_cur;
+        max_file_limit= (uint) rlimit.rlim_cur;
     }
   }
+
   DBUG_PRINT("exit",("max_file_limit: %u", max_file_limit));
   DBUG_RETURN(max_file_limit);
 }
