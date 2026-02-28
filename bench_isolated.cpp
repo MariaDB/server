@@ -21,9 +21,9 @@
 #define MY_ALIGN(A,L)     (((A) + (L) - 1) & ~((L) - 1))
 
 const size_t MAX_SIZE = 32 * 1024;
-// Ensure 32-byte alignment for AVX
-alignas(32) char global_src[MAX_SIZE];
-alignas(32) char global_dst[MAX_SIZE];
+// Ensure 64-byte alignment for AVX-512
+alignas(64) char global_src[MAX_SIZE];
+alignas(64) char global_dst[MAX_SIZE];
 
 template <typename T>
 __attribute__((always_inline)) inline T* wash(T* ptr) {
@@ -388,6 +388,14 @@ static inline void __attribute__((always_inline)) memcpy_manual_avx_loop_aligned
     }
 }
 
+static inline void __attribute__((always_inline)) memcpy_manual_avx512_loop_aligned(void *dest, const void *src, size_t s) {
+    char *dst = (char *)dest;
+    const char *src_ptr = (const char *)src;
+    for (size_t i = 0; i < s; i += 64) {
+        _mm512_store_si512((__m512i*)(dst + i), _mm512_load_si512((const __m512i*)(src_ptr + i)));
+    }
+}
+
 
 static inline void __attribute__((always_inline)) memcpy_manual_sse_loop(void *dest, const void *src, size_t s) {
     char *dst = (char *)dest;
@@ -585,6 +593,21 @@ static void BM_Manual_AVX_Loop_Aligned(benchmark::State& state) {
   }
 }
 
+static void BM_Manual_AVX512_Loop_Aligned(benchmark::State& state) {
+  size_t size = state.range(0);
+  size_t aligned_size = MY_ALIGN(size, 64);
+  std::memset(global_src, 'x', aligned_size);
+  char* src = global_src;
+  char* dst = global_dst;
+
+  for (auto _ : state) {
+    volatile size_t s = aligned_size;
+    memcpy_manual_avx512_loop_aligned(dst, src, s);
+    benchmark::DoNotOptimize(dst);
+    benchmark::ClobberMemory();
+  }
+}
+
 
 
 static void BM_BuiltinMemcpy(benchmark::State& state) {
@@ -691,6 +714,7 @@ BENCHMARK(BM_Threshold_16Aligned_memcpy)->Apply(CustomArgsAll);
 
 BENCHMARK(BM_Manual_SSE_Loop_Aligned)->Apply(CustomArgsAll);
 BENCHMARK(BM_Manual_AVX_Loop_Aligned)->Apply(CustomArgsAll);
+BENCHMARK(BM_Manual_AVX512_Loop_Aligned)->Apply(CustomArgsAll);
 
 
 BENCHMARK(BM_Rep_Movsq_Aligned)->Apply(CustomArgsAll);

@@ -11,6 +11,7 @@ debug = 0
 
 funcs = [
     # "memcpy_threshold_8byte_mov_avx_fallback", requires power of 2 alignment
+    "memcpy_manual_avx512_loop_aligned"
     "memcpy_manual_avx_loop_aligned",
     "memcpy_manual_avx_loop_unaligned",
     "memcpy_manual_sse_loop",
