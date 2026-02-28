@@ -128,6 +128,53 @@ SET DEBUG_SYNC = 'now SIGNAL continue_worker';
 
 SELECT @@global.gtid_binlog_state, @@global.gtid_slave_pos as "all through 101 have been committed";
 
+#
+# MDEV-35570 parallel slave ALTER-SEQUNCE attemted to binlog out-of-order.
+# Let two transactions I_1 -> AS_2 where AS_2 depends on a commit parent I_1.
+# Under the bug condition AS_2 may complete its work including binlogging
+# while I_1 is slowly executing Xid_log_event.
+# The test simulate the slowness, AS_2 must defer its completion.
+#
+--connection slave
+--source include/stop_slave.inc
+set @saved_mode= @@global.slave_parallel_mode;
+set @@global.slave_parallel_mode = conservative;
+--source include/start_slave.inc
+
+--connection master
+INSERT INTO ti SET a=2;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+# allow to proceed to sync with the 1st following WFPT2SC wait condtion
+lock table ti write;
+# allow to proceed into commit to sync with the 2nd following WFPC wait condition
+--let $saved_dbug= @@GLOBAL.debug_dbug
+SET GLOBAL debug_dbug= "+d,halt_past_mark_start_commit";
+
+--connection master
+INSERT INTO ti SET a=35570;
+ALTER SEQUENCE s2 restart with 1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to start commit"
+--source include/wait_condition.inc
+# the 1st wait release
+unlock tables;
+
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+# the 2nd wait release
+SET debug_sync = "now SIGNAL past_mark_continue";
+
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+SET @@global.slave_parallel_mode = @saved_mode;
+--eval SET @@global.debug_dbug = $saved_dbug
+--source include/start_slave.inc
+
 # MDEV-31792 Assertion in MDL_context::acquire_lock upon parallel replication of CREATE SEQUENCE
 
 --let $iter = 3
