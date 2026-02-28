@@ -3202,3 +3202,12 @@ Warnings:
 Warning	1292	Incorrect uuid value: ''
 Warning	1292	Incorrect uuid value: ''
 DROP TABLE t1;
+#
+# Begin 10.11 tests
+#
+#
+# MDEV-31053 UUID(size) should be disallowed
+#
+CREATE TABLE t1 (a UUID(24));
+ERROR HY000: Type 'uuid' does not accept length nor precision values
+# End 10.11 tests

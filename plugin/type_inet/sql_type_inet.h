@@ -44,6 +44,15 @@ public:
     return !only_zero_bytes(m_buffer, sizeof(m_buffer));
   }
   static const Name &default_value();
+  static bool allowed(const Lex_field_type_st &attr,
+                      const Name& name)
+  {
+    /*
+      Inet6 support allows length at least, for the case
+      CREATE TABLE t1 (id int NOT NULL PRIMARY KEY, a INET6(6) DEFAULT '::10');
+    */
+    return false;  // no error, is allowed
+  }
 };
 
 
@@ -59,6 +68,16 @@ public:
   bool ascii_to_fbt(const char *str, size_t str_length);
   size_t to_string(char *dst, size_t dstsize) const;
   static const Name &default_value();
+  static bool allowed(const Lex_field_type_st &attr,
+                      const Name& name)
+  {
+    if (attr.length() || attr.dec()) {
+      my_error(ER_NO_LENGTH_PRECISION_ALLOWED, MYF(0), name.ptr());
+      return true;
+    }
+
+    return false;  // no error, is allowed
+  }
 };
 
 typedef Type_handler_fbt<Inet4> Type_handler_inet4;
