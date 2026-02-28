@@ -674,8 +674,7 @@ Description: MariaDB database core server files
 
 Package: mariadb-server
 Architecture: any
-Suggests: mailx,
-          mariadb-test,
+Suggests: mariadb-test,
           netcat-openbsd
 Recommends: libhtml-template-perl,
             pv
