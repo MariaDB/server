@@ -2114,3 +2114,24 @@ DELIMITER ;$$
 --echo #
 --echo # End of 11.7 tests
 --echo #
+
+--echo #
+--echo # MDEV-17677 : Keywords are parsed as identifiers when followed by a dot
+--echo #
+
+--echo : dot after SELECT
+SELECT.1;
+SELECT .1;
+SELECT-.1;
+--error ER_PARSE_ERROR
+SELECT.abc;
+
+--echo : expressions
+SELECT.123+0;
+SELECT.5 * 2;
+
+--echo : still work as identifier
+CREATE TABLE `SELECT` (a INT);
+INSERT INTO `SELECT` VALUES (5);
+SELECT `SELECT`.a FROM `SELECT`;
+DROP TABLE `SELECT`;

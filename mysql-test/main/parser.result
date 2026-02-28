@@ -2315,3 +2315,32 @@ nocopy
 #
 # End of 11.7 tests
 #
+#
+# MDEV-17677 : Keywords are parsed as identifiers when followed by a dot
+#
+: dot after SELECT
+SELECT.1;
+.1
+0.1
+SELECT .1;
+.1
+0.1
+SELECT-.1;
+-.1
+-0.1
+SELECT.abc;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT.abc' at line 1
+: expressions
+SELECT.123+0;
+.123+0
+0.123
+SELECT.5 * 2;
+.5 * 2
+1.0
+: still work as identifier
+CREATE TABLE `SELECT` (a INT);
+INSERT INTO `SELECT` VALUES (5);
+SELECT `SELECT`.a FROM `SELECT`;
+a
+5
+DROP TABLE `SELECT`;
