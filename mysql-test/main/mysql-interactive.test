@@ -1,10 +1,11 @@
+# this would need an instrumented ncurses library
+source include/not_msan.inc;
+source include/not_embedded.inc;
+source include/not_windows.inc;
+source include/have_innodb.inc;
 --echo #
 --echo # regression introduced by MDEV-14448
 --echo #
-source include/not_embedded.inc;
-source include/not_windows.inc;
-# this would need an instrumented ncurses library
-source include/not_msan.inc;
 
 write_file $MYSQL_TMP_DIR/mysql_in;
 delimiter $
@@ -46,3 +47,25 @@ exec socat -t10 EXEC:"$MYSQL",pty STDIO < $MYSQL_TMP_DIR/mysql_in;
 remove_file $MYSQL_TMP_DIR/mysql_in;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-38922 CLI incorrectly adds "stage done" on REPAIR TABLE output
+--echo #
+write_file $MYSQL_TMP_DIR/mysql_in;
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+REPAIR TABLE t;
+DROP TABLE t;
+exit
+EOF
+let TERM=dumb;
+replace_regex /id is \d+/id is X/ /Server version: .*/Server version: Y/ / \(\d+\.\d+ sec\)//;
+error 0,127;
+exec socat -t30 EXEC:"$MYSQL test",pty STDIO < $MYSQL_TMP_DIR/mysql_in;
+if ($sys_errno == 127)
+{
+  remove_file $MYSQL_TMP_DIR/mysql_in;
+  skip no socat;
+}
+remove_file $MYSQL_TMP_DIR/mysql_in;
+
+--echo # End of 11.8 tests

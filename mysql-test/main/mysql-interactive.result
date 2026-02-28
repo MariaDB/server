@@ -62,3 +62,34 @@ Query OK, 0 rows affected
 MariaDB [(none)]> exit
 Bye
 # End of 10.11 tests
+#
+# MDEV-38922 CLI incorrectly adds "stage done" on REPAIR TABLE output
+#
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+REPAIR TABLE t;
+DROP TABLE t;
+exit
+Welcome to the MariaDB monitor.  Commands end with ; or \g.
+Your MariaDB connection id is X
+Server version: Y
+Copyright (c) 2000, 2018, Oracle, MariaDB Corporation Ab and others.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+MariaDB [test]> CREATE TABLE t (c INT) ENGINE=InnoDB;
+Query OK, 0 rows affected
+
+MariaDB [test]> REPAIR TABLE t;
+Stage: 2 of 4 'Enabling keys'      0% of stage done                                                   +--------+--------+----------+----------+
+| Table  | Op     | Msg_type | Msg_text |
++--------+--------+----------+----------+
+| test.t | repair | status   | OK       |
++--------+--------+----------+----------+
+1 row in set
+
+MariaDB [test]> DROP TABLE t;
+Query OK, 0 rows affected
+
+MariaDB [test]> exit
+Bye
+# End of 11.8 tests
