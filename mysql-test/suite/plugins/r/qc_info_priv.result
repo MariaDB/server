@@ -2,16 +2,26 @@ set @save_query_cache_size=@@global.query_cache_size;
 set global query_cache_type=ON;
 set local query_cache_type=ON;
 set global query_cache_size=1355776;
-create table t1 (a int not null);
+create table t1 (a int not null) with system versioning;
 insert into t1 values (1),(2),(3);
+create table t2 (a timestamp);
+insert t2 () values (0);
 select * from t1;
 a
 1
 2
 3
-select statement_schema, statement_text, result_blocks_count, result_blocks_size from information_schema.query_cache_info;
+select * from t1 for system_time as of timestamp'2016-01-30 08:07:06';
+a
+select * from t2;
+a
+0000-00-00 00:00:00
+select statement_schema, statement_text, result_blocks_count, result_blocks_size from information_schema.query_cache_info
+order by statement_schema, statement_text;
 statement_schema	statement_text	result_blocks_count	result_blocks_size
 test	select * from t1	1	512
+test	select * from t1 for system_time as of timestamp'2016-01-30 08:07:06'	1	512
+test	select * from t2	1	512
 select @@time_zone into @time_zone;
 select @@default_week_format into @default_week_format;
 select @@character_set_client into @character_set_client;
@@ -28,8 +38,10 @@ select * from t1;
 set time_zone= @time_zone, default_week_format= @default_week_format, character_set_client= @character_set_client,character_set_results= @character_set_results, sql_mode= @sql_mode, div_precision_increment= @div_precision_increment, lc_time_names= @lc_time_names, autocommit= @autocommit, group_concat_max_len= @group_concat_max_len, max_sort_length= @max_sort_length;
 select * from information_schema.query_cache_info;
 STATEMENT_SCHEMA	STATEMENT_TEXT	RESULT_BLOCKS_COUNT	RESULT_BLOCKS_SIZE	RESULT_BLOCKS_SIZE_USED	LIMIT	MAX_SORT_LENGTH	GROUP_CONCAT_MAX_LENGTH	CHARACTER_SET_CLIENT	CHARACTER_SET_RESULT	COLLATION	TIMEZONE	DEFAULT_WEEK_FORMAT	DIV_PRECISION_INCREMENT	SQL_MODE	LC_TIME_NAMES	CLIENT_LONG_FLAG	CLIENT_PROTOCOL_41	CLIENT_EXTENDED_METADATA	PROTOCOL_TYPE	MORE_RESULTS_EXISTS	IN_TRANS	AUTOCOMMIT	PACKET_NUMBER	HITS
-test	select * from t1	1	512	#	-1	1011	513	binary	utf32	utf32_bin	Europe/Moscow	4	7	STRICT_ALL_TABLES	ar_SD	1	1	1	#	0	0	0	#	0
-test	select * from t1	1	512	#	-1	1024	1048576	latin1	latin1	latin1_swedish_ci	SYSTEM	0	4	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	en_US	1	1	1	#	0	0	1	#	0
+test	select * from t1	1	512	#	-1	1011	513	binary	utf32	utf32_bin	NULL	4	7	STRICT_ALL_TABLES	ar_SD	1	1	1	#	0	0	0	#	0
+test	select * from t1	1	512	#	-1	1024	1048576	latin1	latin1	latin1_swedish_ci	NULL	0	4	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	en_US	1	1	1	#	0	0	1	#	0
+test	select * from t1 for system_time as of timestamp'2016-01-30 08:07:06'	1	512	#	-1	1024	1048576	latin1	latin1	latin1_swedish_ci	NULL	0	4	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	en_US	1	1	1	#	0	0	1	#	0
+test	select * from t2	1	512	#	-1	1024	1048576	latin1	latin1	latin1_swedish_ci	NULL	0	4	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	en_US	1	1	1	#	0	0	1	#	0
 create user mysqltest;
 grant select on test.* to mysqltest;
 connect  conn1,localhost,mysqltest,,;
@@ -44,6 +56,6 @@ count(*)
 0
 connection default;
 drop user mysqltest;
-drop table t1;
+drop table t1, t2;
 set @@global.query_cache_size=@save_query_cache_size;
 set global query_cache_type=default;

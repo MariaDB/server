@@ -11,7 +11,7 @@ select a from t1;
 select count(*) from information_schema.query_cache_info;
 connection default;
 drop user mysqltest;
-drop table t1;
+drop table t1, t2;
 
 set @@global.query_cache_size=@save_query_cache_size;
 set global query_cache_type=default;
