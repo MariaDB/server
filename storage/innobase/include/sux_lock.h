@@ -196,8 +196,18 @@ public:
   /** Upgrade an update lock */
   inline void u_x_upgrade();
   inline void u_x_upgrade(const char *file, unsigned line);
+  /** @return whether an update lock was upgraded to exclusive */
+  bool u_x_upgrade_try() noexcept
+  {
+    ut_ad(have_u_not_x());
+    if (!lock.u_wr_upgrade_try())
+      return false;
+    recursive/= RECURSIVE_U;
+    return true;
+  }
+
   /** @return whether a shared lock was upgraded to exclusive */
-  bool s_x_upgrade_try()
+  bool s_x_upgrade_try() noexcept
   {
     ut_ad(have_s());
     ut_ad(!have_u_or_x());
@@ -205,7 +215,12 @@ public:
       return false;
     claim_ownership();
     s_unlock();
-    lock.u_wr_upgrade();
+    if (!lock.u_wr_upgrade_try())
+    {
+      ut_d(recursive= RECURSIVE_U);
+      u_s_downgrade();
+      return false;
+    }
     recursive= RECURSIVE_X;
     return true;
   }
