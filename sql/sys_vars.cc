@@ -7737,3 +7737,9 @@ static Sys_var_path Sys_path(
         "path", "Comma-separated list of schema names that defines the search "
         "order for stored routines",
         SESSION_VAR(path), NO_CMD_LINE, NOT_IN_BINLOG);
+
+static Sys_var_mybool Sys_generate_invisible_primary_key(
+    "sql_generate_invisible_primary_key",
+    "Automatically generate an invisible auto-increment primary key for "
+    "tables created without a primary key",
+    SESSION_VAR(generate_invisible_primary_key), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
