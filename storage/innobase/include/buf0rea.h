@@ -52,50 +52,34 @@ void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
                               ulint zip_size) noexcept
   MY_ATTRIBUTE((nonnull));
 
-/** Applies a random read-ahead in buf_pool if there are at least a threshold
-value of accessed pages from the random read-ahead area. Does not read any
-page, not even the one at the position (space, offset), if the read-ahead
-mechanism is not activated. NOTE 1: the calling thread may own latches on
-pages: to avoid deadlocks this function must be written such that it cannot
-end up waiting for these latches! NOTE 2: the calling thread must want
-access to the page given: this rule is set to prevent unintended read-aheads
-performed by ibuf routines, a situation which could result in a deadlock if
-the OS does not support asynchronous i/o.
-@param[in]	page_id		page id of a page which the current thread
-wants to access
-@param[in]	ibuf		whether we are inside ibuf routine
-@return number of page read requests issued; NOTE that if we read ibuf
-pages, it may happen that the page at the given page number does not
-get read even if we return a positive value! */
-ulint buf_read_ahead_random(const page_id_t page_id, bool ibuf) noexcept;
+/** Apply a random read-ahead of pages.
+@param space     tablespace
+@param ibuf      whether we are inside ibuf routine
+@param low       first page to attempt to read
+@param high      last page to attempt to read */
+void buf_read_ahead_random(fil_space_t *space, bool ibuf,
+                           page_id_t low, page_id_t high) noexcept;
 
-/** Applies linear read-ahead if in the buf_pool the page is a border page of
+/** Apply linear read-ahead if an undo log page is a border page of
 a linear read-ahead area and all the pages in the area have been accessed.
-Does not read any page if the read-ahead mechanism is not activated. Note
-that the algorithm looks at the 'natural' adjacent successor and
-predecessor of the page, which on the leaf level of a B-tree are the next
-and previous page in the chain of leaves. To know these, the page specified
-in (space, offset) must already be present in the buf_pool. Thus, the
-natural way to use this function is to call it when a page in the buf_pool
-is accessed the first time, calling this function just after it has been
-bufferfixed.
-NOTE 1: as this function looks at the natural predecessor and successor
-fields on the page, what happens, if these are not initialized to any
-sensible value? No problem, before applying read-ahead we check that the
-area to read is within the span of the space, if not, read-ahead is not
-applied. An uninitialized value may result in a useless read operation, but
-only very improbably.
-NOTE 2: the calling thread may own latches on pages: to avoid deadlocks this
-function must be written such that it cannot end up waiting for these
-latches!
-NOTE 3: the calling thread must want access to the page given: this rule is
-set to prevent unintended read-aheads performed by ibuf routines, a situation
-which could result in a deadlock if the OS does not support asynchronous io.
-@param[in]	page_id		page id; see NOTE 3 above
-@param[in]	ibuf		whether if we are inside ibuf routine
+Does not read any page if the read-ahead mechanism is not activated.
+@param space     undo tablespace or fil_system.space, or nullptr
+@param id        undo page identifier
 @return number of page read requests issued */
-ulint
-buf_read_ahead_linear(const page_id_t page_id, bool ibuf) noexcept;
+ulint buf_read_ahead_undo(fil_space_t *space, const page_id_t id) noexcept;
+
+/** Read ahead a number of pages.
+@param space    tablespace
+@param pages    pages to read ahead
+@param ibuf     whether we are inside the ibuf routine */
+void buf_read_ahead_pages(fil_space_t *space,
+                          st_::span<const uint32_t> pages, bool ibuf) noexcept;
+
+/** Read ahead a page if it is not yet in the buffer pool.
+@param space    tablespace
+@param page     page to read ahead
+@param ibuf     whether we are inside the ibuf routine */
+void buf_read_ahead_one(fil_space_t *space, uint32_t page, bool ibuf) noexcept;
 
 /** Schedule a page for recovery.
 @param space    tablespace

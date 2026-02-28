@@ -1637,6 +1637,7 @@ release_tree:
     /* We are about to access the leaf level. */
 
     switch (latch_mode) {
+      uint32_t children[16];
     case BTR_MODIFY_ROOT_AND_LEAF:
       rw_latch= RW_X_LATCH;
       break;
@@ -1644,8 +1645,30 @@ release_tree:
     case BTR_SEARCH_PREV: /* btr_pcur_move_to_prev() */
       ut_ad(rw_latch == RW_S_LATCH || rw_latch == RW_X_LATCH);
 
-      if (!not_first_access)
-        buf_read_ahead_linear(page_id, false);
+      if (!not_first_access && srv_read_ahead_threshold)
+      {
+        /* Prefetch a few left siblings and our leaf page. */
+        const rec_t *rec= page_cur.rec;
+        uint32_t *const end= &children[array_elements(children)];
+        uint32_t *last= end;
+        *--last= page_id.page_no();
+
+        do
+        {
+          rec= page_rec_get_prev_const(rec);
+          if (!rec || page_rec_is_infimum(rec))
+            break;
+          offsets= rec_get_offsets(rec, index(), offsets, 0, ULINT_UNDEFINED,
+                                   &heap);
+          *--last= btr_node_ptr_get_child_page_no(rec, offsets);
+        }
+        while (last > children);
+
+        if (last != end)
+          buf_read_ahead_pages(index()->table->space,
+                               st_::span<const uint32_t>{last, end},
+                               ibuf_inside(mtr));
+      }
 
       if (page_has_prev(block->page.frame) &&
           page_rec_is_first(page_cur.rec, block->page.frame))
@@ -1687,8 +1710,28 @@ release_tree:
         buf_mode= btr_op == BTR_DELETE_OP
           ? BUF_GET_IF_IN_POOL_OR_WATCH
           : BUF_GET_IF_IN_POOL;
-      else if (!not_first_access)
-        buf_read_ahead_linear(page_id, false);
+      else if (!not_first_access && srv_read_ahead_threshold)
+      {
+        /* Prefetch our leaf page and a few right siblings. */
+        const rec_t *rec= page_cur.rec;
+        uint32_t *last= children;
+        *last++= page_id.page_no();
+        do
+        {
+          rec= page_rec_get_next_const(rec);
+          if (!rec || page_rec_is_supremum(rec))
+            break;
+          offsets= rec_get_offsets(rec, index(), offsets, 0, ULINT_UNDEFINED,
+                                   &heap);
+          *last++= btr_node_ptr_get_child_page_no(rec, offsets);
+        }
+        while (last < &children[array_elements(children)]);
+
+        if (children != last)
+          buf_read_ahead_pages(index()->table->space,
+                               st_::span<const uint32_t>{children, last},
+                               ibuf_inside(mtr));
+      }
       break;
     case BTR_MODIFY_TREE:
       ut_ad(rw_latch == RW_X_LATCH);
@@ -2150,8 +2193,28 @@ index_locked:
 
     if (latch_mode != BTR_MODIFY_TREE)
     {
-      if (!height && first && first_access)
-        buf_read_ahead_linear({block->page.id().space(), page}, false);
+      if (!height && first && first_access && srv_read_ahead_threshold)
+      {
+        /* Prefetch a few first leaf pages. */
+        const rec_t *rec= page_cur.rec;
+        uint32_t children[16], *last= children;
+        *last++= page;
+        do
+        {
+          rec= page_rec_get_next_const(rec);
+          if (!rec || page_rec_is_supremum(rec))
+            break;
+          offsets= rec_get_offsets(rec, index, offsets, 0, ULINT_UNDEFINED,
+                                   &heap);
+          *last++= btr_node_ptr_get_child_page_no(rec, offsets);
+        }
+        while (last < &children[array_elements(children)]);
+
+        if (children != last)
+          buf_read_ahead_pages(index->table->space,
+                               st_::span<const uint32_t>{children, last},
+                               ibuf_inside(mtr));
+      }
     }
     else if (btr_cur_need_opposite_intention(block->page, index->is_clust(),
                                              lock_intention,
@@ -6768,12 +6831,9 @@ btr_copy_blob_prefix(
 	page_id_t	id,	/*!< in: page identifier of the first BLOB page */
 	uint32_t	offset)	/*!< in: offset on the first BLOB page */
 {
-	ulint	copied_len	= 0;
-
-	for (;;) {
+	for (ulint copied_len = 0;; offset = FIL_PAGE_DATA) {
 		mtr_t		mtr;
 		buf_block_t*	block;
-		const page_t*	page;
 		const byte*	blob_header;
 		ulint		part_len;
 		ulint		copy_len;
@@ -6782,16 +6842,13 @@ btr_copy_blob_prefix(
 
 		block = buf_page_get(id, 0, RW_S_LATCH, &mtr);
 		if (!block || btr_check_blob_fil_page_type(*block, "read")) {
+func_exit:
 			mtr.commit();
 			return copied_len;
 		}
-		if (!buf_page_make_young_if_needed(&block->page)) {
-			buf_read_ahead_linear(id, false);
-		}
+		buf_page_make_young_if_needed(&block->page);
 
-		page = buf_block_get_frame(block);
-
-		blob_header = page + offset;
+		blob_header = block->page.frame + offset;
 		part_len = btr_blob_get_part_len(blob_header);
 		copy_len = ut_min(part_len, len - copied_len);
 
@@ -6799,21 +6856,15 @@ btr_copy_blob_prefix(
 		       blob_header + BTR_BLOB_HDR_SIZE, copy_len);
 		copied_len += copy_len;
 
-		id.set_page_no(btr_blob_get_next_page_no(blob_header));
-
-		mtr_commit(&mtr);
-
-		if (id.page_no() == FIL_NULL || copy_len != part_len) {
+		const uint32_t next{btr_blob_get_next_page_no(blob_header)};
+		if (next == FIL_NULL || copy_len != part_len) {
 			MEM_CHECK_DEFINED(buf, copied_len);
-			return(copied_len);
+                        goto func_exit;
 		}
 
-		/* On other BLOB pages except the first the BLOB header
-		always is at the page data start: */
-
-		offset = FIL_PAGE_DATA;
-
+		mtr_commit(&mtr);
 		ut_ad(copied_len <= len);
+                id.set_page_no(next);
 	}
 }
 
