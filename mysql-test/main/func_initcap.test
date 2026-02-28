@@ -1,0 +1,22 @@
+#-- File: initcap_basic_functionality_tests.mtr
+
+--echo # Basic Functionality Tests
+SELECT INITCAP('hello world') AS 'Expected "Hello World"';
+SELECT INITCAP('HELLO WORLD') AS 'Expected "Hello World"';
+SELECT INITCAP('hello WORLD') AS 'Expected "Hello World"';
+
+--echo # Word Boundary Tests
+SELECT INITCAP('hello,world') AS 'Expected "Hello,World"';
+SELECT INITCAP('hello.world') AS 'Expected "Hello.World"';
+SELECT INITCAP('hello-world') AS 'Expected "Hello-World"';
+SELECT INITCAP('hello_world') AS 'Expected "Hello_World"';
+
+--echo # Special Character Tests
+SELECT INITCAP('hello123world') AS 'Expected "Hello123world"';
+SELECT INITCAP('123Hello') AS 'Expected "123Hello"';
+
+--echo # NULL Handling Tests
+SELECT INITCAP(NULL) AS 'Expected NULL';
+
+--echo # Edge Cases Tests
+SELECT INITCAP('') AS 'Expected ""';

@@ -1,0 +1,38 @@
+# Basic Functionality Tests
+SELECT INITCAP('hello world') AS 'Expected "Hello World"';
+Expected "Hello World"
+Hello World
+SELECT INITCAP('HELLO WORLD') AS 'Expected "Hello World"';
+Expected "Hello World"
+Hello World
+SELECT INITCAP('hello WORLD') AS 'Expected "Hello World"';
+Expected "Hello World"
+Hello World
+# Word Boundary Tests
+SELECT INITCAP('hello,world') AS 'Expected "Hello,World"';
+Expected "Hello,World"
+Hello,World
+SELECT INITCAP('hello.world') AS 'Expected "Hello.World"';
+Expected "Hello.World"
+Hello.World
+SELECT INITCAP('hello-world') AS 'Expected "Hello-World"';
+Expected "Hello-World"
+Hello-World
+SELECT INITCAP('hello_world') AS 'Expected "Hello_World"';
+Expected "Hello_World"
+Hello_World
+# Special Character Tests
+SELECT INITCAP('hello123world') AS 'Expected "Hello123world"';
+Expected "Hello123world"
+Hello123world
+SELECT INITCAP('123Hello') AS 'Expected "123Hello"';
+Expected "123Hello"
+123Hello
+# NULL Handling Tests
+SELECT INITCAP(NULL) AS 'Expected NULL';
+Expected NULL
+NULL
+# Edge Cases Tests
+SELECT INITCAP('') AS 'Expected ""';
+Expected ""
+

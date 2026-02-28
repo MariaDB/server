@@ -2379,6 +2379,19 @@ protected:
 };
 
 
+class Create_func_initcap : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override;
+
+  static Create_func_initcap s_singleton;
+
+protected:
+  Create_func_initcap() = default;
+  ~Create_func_initcap() override = default;
+};
+
+
 class Create_func_space : public Create_func_arg1
 {
 public:
@@ -4121,6 +4134,13 @@ Create_func_instr::create_2_arg(THD *thd, Item *arg1, Item *arg2)
   return new (thd->mem_root) Item_func_locate(thd, arg1, arg2);
 }
 
+Create_func_initcap Create_func_initcap::s_singleton;
+
+Item*
+Create_func_initcap::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_initcap(thd, arg1);
+}
 
 Create_func_is_free_lock Create_func_is_free_lock::s_singleton;
 
@@ -6369,6 +6389,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("GREATEST") }, BUILDER(Create_func_greatest)},
   { { STRING_WITH_LEN("HEX") }, BUILDER(Create_func_hex)},
   { { STRING_WITH_LEN("IFNULL") }, BUILDER(Create_func_ifnull)},
+  { { STRING_WITH_LEN("INITCAP") }, BUILDER(Create_func_initcap)},
   { { STRING_WITH_LEN("INSTR") }, BUILDER(Create_func_instr)},
   { { STRING_WITH_LEN("ISNULL") }, BUILDER(Create_func_isnull)},
   { { STRING_WITH_LEN("IS_FREE_LOCK") }, BUILDER(Create_func_is_free_lock)},
