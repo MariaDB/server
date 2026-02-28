@@ -2853,7 +2853,7 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
         yylineno++;
     }
   }
-  if (start == get_ptr() && c == '.' && ident_map[(uchar) yyPeek()])
+  if (start == get_ptr() && c == '.' && ident_map[(uchar) yyPeek()] && !my_isdigit(cs, yyPeek()))
     next_state= MY_LEX_IDENT_SEP;
   else
   {                                    // '(' must follow directly if function
