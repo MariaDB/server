@@ -26,22 +26,13 @@
 
 #include <mysql_version.h>
 
-#if MYSQL_VERSION_ID>=50515
 #include "sql_class.h"
 #include "sql_array.h"
-#elif MYSQL_VERSION_ID>50100
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
-#include "../mysql_priv.h"
-#endif
 
 #include <mysys_err.h>
 #include <my_sys.h>
 
-#if MYSQL_VERSION_ID>=50120
 typedef uchar byte;
-#endif
 
 /// partially copy-pasted stuff that should be moved elsewhere
 
@@ -90,7 +81,6 @@ void sphUnalignedWrite ( void * pPtr, const T & tVal )
 #define SafeDelete(_arg)		{ if ( _arg ) delete ( _arg );		(_arg) = NULL; }
 #define SafeDeleteArray(_arg)	{ if ( _arg ) delete [] ( _arg );	(_arg) = NULL; }
 
-#define Min(a,b) ((a)<(b)?(a):(b))
 #ifndef _WIN32
 typedef unsigned int DWORD;
 #endif
@@ -360,82 +350,68 @@ bool CSphUrl::Parse ( const char * sUrl, int iLen )
 
 int CSphUrl::Connect()
 {
-	struct sockaddr_in sin;
-#ifndef _WIN32
-	struct sockaddr_un saun;
-#endif
-
-	int iDomain = 0;
-	int iSockaddrSize = 0;
-	struct sockaddr * pSockaddr = NULL;
-
-	in_addr_t ip_addr;
+	int iSocket = -1;
 
 	if ( m_iPort )
 	{
-		iDomain = AF_INET;
-		iSockaddrSize = sizeof(sin);
-		pSockaddr = (struct sockaddr *) &sin;
+		char portStr[16];
+		struct addrinfo hints, *hp, *p;
+		int tmp_errno;
 
-		memset ( &sin, 0, sizeof(sin) );
-		sin.sin_family = AF_INET;
-		sin.sin_port = htons ( m_iPort );
+		my_snprintf(portStr, sizeof(portStr), "%d", m_iPort);
 
-		// resolve address
-		if ( (int)( ip_addr = inet_addr ( m_sHost ) )!=(int)INADDR_NONE )
-			memcpy ( &sin.sin_addr, &ip_addr, sizeof(ip_addr) );
-		else
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = SOCK_STREAM;
+
+		tmp_errno = getaddrinfo ( m_sHost, portStr, &hints, &hp );
+		if ( tmp_errno!=0 || !hp || !hp->ai_addr )
 		{
-			int tmp_errno;
-			bool bError = false;
+			char sError[256];
+			my_snprintf ( sError, sizeof(sError),
+				"failed to resolve searchd host (name=%s) because %s",
+				m_sHost, gai_strerror(tmp_errno) );
 
-#if MYSQL_VERSION_ID>=50515
-			struct addrinfo *hp = NULL;
-			tmp_errno = getaddrinfo ( m_sHost, NULL, NULL, &hp );
-			if ( !tmp_errno || !hp || !hp->ai_addr )
-			{
-				bError = true;
-				if ( hp )
-					freeaddrinfo ( hp );
-			}
-#else
-			struct hostent tmp_hostent, *hp;
-			char buff2 [ GETHOSTBYNAME_BUFF_SIZE ];
-			hp = my_gethostbyname_r ( m_sHost, &tmp_hostent, buff2, sizeof(buff2), &tmp_errno );
-			if ( !hp )
-			{
-				my_gethostbyname_r_free();
-				bError = true;
-			}
-#endif
-
-			if ( bError )
-			{
-				char sError[256];
-				my_snprintf ( sError, sizeof(sError), "failed to resolve searchd host (name=%s)", m_sHost );
-
-				my_error ( ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), sError );
-				return -1;
-			}
-
-#if MYSQL_VERSION_ID>=50515
-			memcpy ( &sin.sin_addr, hp->ai_addr, Min ( sizeof(sin.sin_addr), (size_t)hp->ai_addrlen ) );
-			freeaddrinfo ( hp );
-#else
-			memcpy ( &sin.sin_addr, hp->h_addr, Min ( sizeof(sin.sin_addr), (size_t)hp->h_length ) );
-			my_gethostbyname_r_free();
-#endif
+			my_error ( ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), sError );
+			return -1;
 		}
+
+		for (p = hp; p != NULL; p = p->ai_next)
+		{
+			iSocket = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+			if (iSocket == -1)
+				continue;
+
+			if (connect(iSocket, p->ai_addr, p->ai_addrlen) == 0)
+				break;  // success
+
+			close(iSocket);
+			iSocket = -2;
+		}
+		freeaddrinfo ( hp );
 	} else
 	{
 #ifndef _WIN32
-		iDomain = AF_UNIX;
-		iSockaddrSize = sizeof(saun);
-		pSockaddr = (struct sockaddr *) &saun;
-
+		struct sockaddr_un saun;
 		memset ( &saun, 0, sizeof(saun) );
 		saun.sun_family = AF_UNIX;
+
+		if (strlen(m_sHost) >= sizeof(saun.sun_path))
+		{
+			my_error ( ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), "Unix socket path too long" );
+			return -1;
+		}
 		strncpy ( saun.sun_path, m_sHost, sizeof(saun.sun_path)-1 );
+
+		iSocket = socket(AF_UNIX, SOCK_STREAM, 0);
+		if (iSocket >= 0)
+		{
+			if (connect(iSocket, (struct sockaddr *)&saun, sizeof(saun)) == -1)
+			{
+				close(iSocket);
+				iSocket = -2;
+			}
+		}
 #else
 		my_error ( ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), "Unix-domain sockets are not supported on Windows" );
 		return -1;
@@ -445,36 +421,17 @@ int CSphUrl::Connect()
 	// connect to searchd and exchange versions
 	uint uServerVersion;
 	uint uClientVersion = htonl ( SPHINX_SEARCHD_PROTO );
-	int iSocket = -1;
 	const char * pError = NULL;
-	do
-	{
-		iSocket = (int)socket ( iDomain, SOCK_STREAM, 0 );
-		if ( iSocket==-1 )
-		{
-			pError = "Failed to create client socket";
-			break;
-		}
+	if ( iSocket == -1 )
+		pError = "Failed to create client socket";
+	else if ( iSocket == -2 )
+		pError = "Failed to connect to searchd";
 
-		if ( connect ( iSocket, pSockaddr, iSockaddrSize )==-1 )
-		{
-			pError = "Failed to connect to searchd";
-			break;
-		}
+	else if ( !sphRecv ( iSocket, (char *)&uServerVersion, sizeof(uServerVersion) ) )
+		pError = "Failed to receive searchd version";
 
-		if ( !sphRecv ( iSocket, (char *)&uServerVersion, sizeof(uServerVersion) ) )
-		{
-			pError = "Failed to receive searchd version";
-			break;
-		}
-
-		if ( !sphSend ( iSocket, (char *)&uClientVersion, sizeof(uClientVersion) ) )
-		{
-			pError = "Failed to send client version";
-			break;
-		}
-	}
-	while(0);
+	else if ( !sphSend ( iSocket, (char *)&uClientVersion, sizeof(uClientVersion) ) )
+		pError = "Failed to send client version";
 
 	// fixme: compare versions?
 
@@ -484,8 +441,8 @@ int CSphUrl::Connect()
 		snprintf ( sError, sizeof(sError), "%s [%d] %s", Format(), errno, strerror(errno) );
 		my_error ( ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), sError );
 
-		if ( iSocket!=-1 )
-			close ( iSocket );
+		if ( iSocket >= 0 )
+			close(iSocket);
 
 		return -1;
 	}
