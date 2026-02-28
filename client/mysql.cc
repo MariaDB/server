@@ -3622,7 +3622,6 @@ static int com_go(String *buffer, char *)
   timer= microsecond_interval_timer();
   executing_query= 1;
   error= mysql_real_query_for_lazy(buffer->ptr(),buffer->length());
-  report_progress_end();
 
 #ifdef HAVE_READLINE
   if (status.add_to_history) 
@@ -3660,6 +3659,7 @@ static int com_go(String *buffer, char *)
         goto end;
     }
 
+    report_progress_end();
     if (verbose >= 3 || !opt_silent)
       end_timer(timer, time_buff);
     else
@@ -3967,6 +3967,16 @@ print_as_hex(FILE *output_file, const char *str, size_t len, size_t total_bytes_
     tee_putc((int)' ', output_file);
 }
 
+static inline MYSQL_ROW fetch_row(MYSQL_RES *result)
+{
+  MYSQL_ROW row = mysql_fetch_row(result);
+#ifndef EMBEDDED_LIBRARY
+  if (last_progress_report_length) {
+    report_progress_end();
+  }
+#endif
+  return row;
+}
 
 static void
 print_table_data(MYSQL_RES *result)
@@ -4023,7 +4033,7 @@ print_table_data(MYSQL_RES *result)
     tee_puts((char*) separator.ptr(), PAGER);
   }
 
-  while ((cur= mysql_fetch_row(result)))
+  while ((cur = fetch_row(result)))
   {
     if (interrupted_query)
       break;
@@ -4195,7 +4205,7 @@ static void print_table_data_html(MYSQL_RES *result)
     }
     (void) tee_fputs("</TR>", PAGER);
   }
-  while ((cur = mysql_fetch_row(result)))
+  while ((cur = fetch_row(result)))
   {
     if (interrupted_query)
       break;
@@ -4231,7 +4241,7 @@ print_table_data_xml(MYSQL_RES *result)
             PAGER);
 
   fields = mysql_fetch_fields(result);
-  while ((cur = mysql_fetch_row(result)))
+  while ((cur = fetch_row(result)))
   {
     if (interrupted_query)
       break;
@@ -4275,7 +4285,7 @@ print_table_data_vertically(MYSQL_RES *result)
   }
 
   mysql_field_seek(result,0);
-  for (uint row_count=1; (cur= mysql_fetch_row(result)); row_count++)
+  for (uint row_count=1; (cur = fetch_row(result)); row_count++)
   {
     if (interrupted_query)
       break;
@@ -4476,7 +4486,7 @@ print_tab_data(MYSQL_RES *result)
     }
     (void) tee_fputs("\n", PAGER);
   }
-  while ((cur = mysql_fetch_row(result)))
+  while ((cur = fetch_row(result)))
   {
     lengths=mysql_fetch_lengths(result);
     field= mysql_fetch_fields(result);
