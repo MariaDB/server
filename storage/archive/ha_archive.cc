@@ -290,7 +290,7 @@ static int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share)
   if (!(azopen(&frm_stream, az_file, O_RDONLY|O_BINARY)))
   {
     if (errno == EROFS || errno == EACCES)
-      DBUG_RETURN(my_errno= errno);
+      DBUG_RETURN(HA_ERR_TABLE_READONLY);
     DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
   }
 
@@ -1003,7 +1003,7 @@ int ha_archive::write_row(const uchar *buf)
 
   if (!share->archive_write_open && share->init_archive_writer())
   {
-    rc= errno;
+    rc= HA_ERR_CRASHED_ON_USAGE;
     goto error;
   }
 
@@ -1231,7 +1231,7 @@ int ha_archive::rnd_init(bool scan)
       DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
 
   if (init_archive_reader())
-      DBUG_RETURN(errno);
+      DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
 
   /* We rewind the file so that we can read from the beginning if scan */
   if (scan)
@@ -1563,7 +1563,7 @@ int ha_archive::optimize(THD* thd, HA_CHECK_OPT* check_opt)
   if (init_archive_reader())
   {
     mysql_mutex_unlock(&share->mutex);
-    DBUG_RETURN(errno);
+    DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
   }
 
   // now we close both our writer and our reader for the rename
@@ -1757,7 +1757,13 @@ int ha_archive::info(uint flag)
   {
     MY_STAT file_stat;  // Stat information for the data file
 
-    (void) mysql_file_stat(/* arch_key_file_data */ 0, share->data_file_name, &file_stat, MYF(MY_WME));
+    if (!mysql_file_stat(/* arch_key_file_data */ 0, share->data_file_name, &file_stat, MYF(MY_WME)))
+    {
+      /* ensure closed */
+      if (share->archive_write_open)
+	extra(HA_EXTRA_FLUSH);
+      DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+    }
 
     if (flag & HA_STATUS_TIME)
       stats.update_time= (ulong) file_stat.st_mtime;
@@ -1779,7 +1785,7 @@ int ha_archive::info(uint flag)
   if (flag & HA_STATUS_AUTO)
   {
     if (init_archive_reader())
-      DBUG_RETURN(errno);
+      DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
 
     mysql_mutex_lock(&share->mutex);
     azflush(&archive, Z_SYNC_FLUSH);
