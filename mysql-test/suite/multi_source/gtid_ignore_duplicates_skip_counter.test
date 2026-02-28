@@ -1,0 +1,70 @@
+# Test combining `@@gtid_ignore_duplicates` and `@@sql_slave_skip_counter`
+#
+# Reference: MDEV-38636 `@@sql_slave_skip_counter`
+# resets to 1 when skipping events by `@@gtid_ignore_duplicates`
+
+--let $rpl_topology= 1->2, 1->3
+--let $rpl_skip_start_slave= 1
+--source include/rpl_init.inc
+
+
+--echo # Set up
+
+# Create some events to trigger `@@gtid_ignore_duplicates` with
+CREATE TABLE t (a INT);
+--source include/save_master_pos.inc
+--source include/save_master_gtid.inc
+
+--connection server_2
+START SLAVE;
+--source include/sync_with_master_gtid.inc
+
+--connection server_3
+SET @save_gtid_ignore_duplicates= @@GLOBAL.gtid_ignore_duplicates;
+SET @@GLOBAL.gtid_ignore_duplicates= ON;
+
+# Queue the test events without processing (which increments `@@gtid_slave_pos`)
+START SLAVE IO_THREAD;
+--source include/sync_io_with_master.inc
+
+# Queue and process second copies of the events through another connection
+--replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
+eval CHANGE MASTER 'bridge' TO
+  master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root';
+  SET @@SESSION.default_master_connection= 'bridge';
+    --source include/start_slave.inc
+      --source include/sync_with_master_gtid.inc
+    --source include/stop_slave.inc
+  SET @@SESSION.default_master_connection= '';
+RESET SLAVE 'bridge' ALL;
+
+
+--echo # Test
+
+SET @@GLOBAL.sql_slave_skip_counter= 100;
+START SLAVE SQL_THREAD;
+--source include/sync_with_master.inc
+
+SELECT @@sql_slave_skip_counter;
+--let $status_items= Skip_Counter
+--source include/show_slave_status.inc
+
+--connection server_1
+  DROP TABLE t;
+  --source include/save_master_gtid.inc
+--connection server_2
+  --source include/sync_with_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+SHOW TABLES; # The counter should continue to skip the DROP TABLE.
+
+
+--echo # Tear down
+
+--source include/stop_slave.inc
+SET @@GLOBAL.sql_slave_skip_counter= 0;
+SET @@GLOBAL.gtid_ignore_duplicates= @save_gtid_ignore_duplicates;
+SET STATEMENT sql_log_bin=0 FOR DROP TABLE t;
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc
