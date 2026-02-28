@@ -13,7 +13,7 @@ ORDER BY table_schema,table_name;
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	columns_priv
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -38,7 +38,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	column_stats
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -63,7 +63,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	db
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -88,7 +88,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	event
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -113,7 +113,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	func
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -138,7 +138,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	general_log
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	CSV
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -163,7 +163,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	global_priv
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	11
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -188,7 +188,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	gtid_slave_pos
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -213,7 +213,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	help_category
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -238,7 +238,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	help_keyword
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -263,7 +263,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	help_relation
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -288,7 +288,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	help_topic
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -313,7 +313,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	index_stats
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -338,7 +338,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	innodb_index_stats
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	InnoDB
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -363,7 +363,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	innodb_table_stats
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	InnoDB
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -388,7 +388,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	plugin
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -413,7 +413,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	proc
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	11
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -438,7 +438,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	procs_priv
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -463,7 +463,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	proxies_priv
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -488,7 +488,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	roles_mapping
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -513,7 +513,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	servers
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	11
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -538,7 +538,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	slow_log
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	CSV
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -563,7 +563,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	tables_priv
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -588,7 +588,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	table_stats
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -613,7 +613,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	time_zone
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -638,7 +638,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	time_zone_leap_second
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -663,7 +663,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	time_zone_name
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -688,7 +688,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	time_zone_transition
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -713,7 +713,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	time_zone_transition_type
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -738,7 +738,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	transaction_registry
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	InnoDB
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -802,7 +802,7 @@ ORDER BY table_schema,table_name;
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	columns_priv
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -827,7 +827,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	column_stats
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -852,7 +852,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	db
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -877,7 +877,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	event
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -902,7 +902,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	func
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -927,7 +927,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	general_log
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	CSV
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -952,7 +952,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	global_priv
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	11
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -977,7 +977,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	gtid_slave_pos
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1002,7 +1002,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	help_category
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1027,7 +1027,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	help_keyword
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1052,7 +1052,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	help_relation
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1077,7 +1077,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	help_topic
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1102,7 +1102,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	index_stats
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1127,7 +1127,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	innodb_index_stats
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	InnoDB
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1152,7 +1152,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	innodb_table_stats
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	InnoDB
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1177,7 +1177,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	plugin
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1202,7 +1202,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	proc
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	11
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1227,7 +1227,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	procs_priv
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1252,7 +1252,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	proxies_priv
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1277,7 +1277,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	roles_mapping
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1302,7 +1302,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	servers
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	11
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1327,7 +1327,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	slow_log
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	CSV
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1352,7 +1352,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	tables_priv
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1377,7 +1377,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	table_stats
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1402,7 +1402,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	time_zone
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1427,7 +1427,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	time_zone_leap_second
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1452,7 +1452,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	time_zone_name
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1477,7 +1477,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	time_zone_transition
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1502,7 +1502,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	time_zone_transition_type
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
@@ -1527,7 +1527,7 @@ Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
 TABLE_NAME	transaction_registry
-TABLE_TYPE	BASE TABLE
+TABLE_TYPE	SYSTEM TABLE
 ENGINE	InnoDB
 VERSION	10
 ROW_FORMAT	DYNAMIC_OR_PAGE
