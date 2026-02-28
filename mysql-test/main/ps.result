@@ -6058,4 +6058,95 @@ ALTER TABLE t FORCE;
 EXECUTE stmt USING DEFAULT;
 ERROR HY000: Default/ignore value is not supported for such parameter usage
 DROP TABLE t;
-# End of 10.11 test
+#
+# MDEV-30073 Wrong result on 2nd execution of PS for query with NOT EXISTS
+#
+CREATE TABLE t1 (
+product_key int,
+dealerid int
+);
+INSERT INTO t1 VALUES
+(3569, 4),
+(3569, 112);
+CREATE TABLE t2 (
+id int,
+product_key int
+);
+INSERT INTO t2 VALUES
+(16494, 3569),
+(16494, 3569);
+CREATE TABLE t3 (
+dealerid int
+);
+INSERT INTO t3 VALUES (4), (5);
+set optimizer_switch='subquery_cache=off';
+EXPLAIN EXTENDED
+SELECT * FROM t1
+WHERE
+! EXISTS
+(
+SELECT dt.id
+FROM (SELECT id, product_key FROM t2) dt, t3
+WHERE
+dt.product_key = t1.product_key AND
+t3.dealerid = t1.dealerid
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1276	Field or reference 'test.t1.product_key' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.t1.dealerid' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`t1`.`product_key` AS `product_key`,`test`.`t1`.`dealerid` AS `dealerid` from `test`.`t1` where !(<in_optimizer>((`test`.`t1`.`product_key`,`test`.`t1`.`dealerid`),(`test`.`t1`.`product_key`,`test`.`t1`.`dealerid`) in ( <materialize> (/* select#2 */ select `test`.`t2`.`product_key`,`test`.`t3`.`dealerid` from `test`.`t2` join `test`.`t3` where `test`.`t2`.`product_key` is not null and `test`.`t3`.`dealerid` is not null ), <primary_index_lookup>(`test`.`t1`.`product_key` in <temporary table> on distinct_key where `test`.`t1`.`product_key` = `<subquery2>`.`product_key` and `test`.`t1`.`dealerid` = `<subquery2>`.`dealerid`))) and `test`.`t1`.`dealerid` is not null and `test`.`t1`.`product_key` is not null)
+SELECT * FROM t1
+WHERE
+! EXISTS
+(
+SELECT dt.id
+FROM (SELECT id, product_key FROM t2) dt, t3
+WHERE
+dt.product_key = t1.product_key AND
+t3.dealerid = t1.dealerid
+);
+product_key	dealerid
+3569	112
+PREPARE stmt FROM "
+SELECT * FROM t1
+WHERE
+! EXISTS
+(
+ SELECT dt.id
+ FROM (SELECT id, product_key FROM t2) dt, t3
+ WHERE
+   dt.product_key = t1.product_key AND
+   t3.dealerid = t1.dealerid
+)";
+EXECUTE stmt;
+product_key	dealerid
+3569	112
+EXECUTE stmt;
+product_key	dealerid
+3569	112
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1,t2,t3;
+CREATE TABLE t1 (a int, b int);
+INSERT INTO t1 VALUES (3569, 4), (3569, 112);
+CREATE TABLE t2 (c int, a int);
+INSERT INTO t2 VALUES (16494, 3569), (16494, 3569);
+PREPARE stmt FROM "
+SELECT * FROM t1
+WHERE EXISTS (SELECT dt.c  FROM (SELECT c, a FROM t2) dt WHERE dt.a = t1.a)
+";
+EXECUTE stmt;
+a	b
+3569	4
+3569	112
+EXECUTE stmt;
+a	b
+3569	4
+3569	112
+DROP TABLE t1,t2;
+#
+# End of 10.11 tests
+#

@@ -703,6 +703,25 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
     the found_in_group_by field of the references from the list.
   */
   List_iterator_fast <Item_outer_ref> ref_it(select->inner_refs_list);
+
+  /*
+    For subsequent executions, we need added fields pushed into
+    all_fields so they are subsequently added to ref_pointer_array
+    for join execution
+  */
+  if (thd->stmt_arena->state == Query_arena::STMT_EXECUTED)
+  {
+    while ((ref= ref_it++))
+    {
+      if (ref->found_in_select_list)
+        continue;
+      int el= all_fields.elements;
+      all_fields.push_front(ref_pointer_array[el], thd->mem_root);
+    }
+    return false;
+  }
+
+
   for (ORDER *group= select->join->group_list; group;  group= group->next)
   {
     (*group->item)->walk(&Item::check_inner_refs_processor, TRUE, &ref_it);
@@ -755,16 +774,37 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
     else if (ref->found_in_group_by)
       direct_ref= TRUE;
 
-    new_ref= direct_ref ?
-              new (thd->mem_root) Item_direct_ref(thd, ref->context, item_ref, ref->table_name,
-                          ref->field_name, ref->alias_name_used) :
-              new (thd->mem_root) Item_ref(thd, ref->context, item_ref, ref->table_name,
-                          ref->field_name, ref->alias_name_used);
-    if (!new_ref)
-      return TRUE;
-    ref->outer_ref= new_ref;
-    ref->ref= &ref->outer_ref;
-
+    /*
+      These late fixed items need to be allocated on statement memory during the
+      first execution, if this is the 2nd execution, they need to be reversed
+    */
+    bool is_first_execution= thd->is_first_query_execution();
+    if (is_first_execution ||
+        thd->stmt_arena->is_stmt_prepare())
+    {
+      Query_arena *arena, backup;
+      arena= 0;
+      if (is_first_execution)
+        arena= thd->activate_stmt_arena_if_needed(&backup);
+      new_ref= direct_ref ?
+                new (thd->mem_root) Item_direct_ref(thd, ref->context,
+                                                    item_ref, ref->table_name,
+                                                    ref->field_name,
+                                                    ref->alias_name_used) :
+                new (thd->mem_root) Item_ref(thd, ref->context,
+                                             item_ref, ref->table_name,
+                                             ref->field_name,
+                                             ref->alias_name_used);
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
+      if (!new_ref)
+        return TRUE;
+      if (is_first_execution)
+        ref->outer_ref= new_ref;
+      else
+        thd->change_item_tree(&ref->outer_ref, new_ref);
+      ref->ref= &ref->outer_ref;
+    }
     if (ref->fix_fields_if_needed(thd, 0))
       return TRUE;
     thd->lex->used_tables|= item->used_tables();
@@ -1660,6 +1700,13 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   if (res)
     DBUG_RETURN(res);
 
+  if (!thd->is_first_query_execution() &&
+      !thd->lex->is_ps_or_view_context_analysis())
+  {
+    select_lex->uncacheable= select_lex->save_uncacheable;
+    select_lex->master_unit()->uncacheable= select_lex->save_master_uncacheable;
+  }
+
   if (order)
   {
     bool requires_sorting= FALSE;
@@ -2320,6 +2367,9 @@ JOIN::optimize_inner()
 
     if (arena)
       thd->restore_active_arena(arena, &backup);
+
+    select_lex->save_uncacheable= select_lex->uncacheable;
+    select_lex->save_master_uncacheable= select_lex->master_unit()->uncacheable;
   }
 
   if (!allowed_top_level_tables)
@@ -27226,8 +27276,24 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
     return FALSE;
   }
   /* Lookup the current GROUP/ORDER field in the SELECT clause. */
-  select_item= find_item_in_list(order_item, fields, &counter,
-                                 REPORT_EXCEPT_NOT_FOUND, &resolution);
+
+  // if this is the first real execution
+  if (thd->stmt_arena->state != Query_arena::STMT_EXECUTED)
+  {
+    select_item= find_item_in_list(order_item,
+                                   fields, &counter,
+                                   REPORT_EXCEPT_NOT_FOUND, &resolution);
+    order->resolution= resolution;
+    order->select_item= select_item;
+    order->counter= counter;
+  }
+  else
+  {
+    resolution= order->resolution;
+    select_item= order->select_item;
+    counter= order->counter;
+  }
+
   if (!select_item)
     return TRUE; /* The item is not unique, or some other error occurred. */
 
@@ -27255,9 +27321,33 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
     if ((is_group_field && order_item_type == Item::FIELD_ITEM) ||
         order_item_type == Item::REF_ITEM)
     {
-      from_field= find_field_in_tables(thd, (Item_ident*) order_item, tables,
-                                       NULL, ignored_tables_list_t(NULL),
-                                       &view_ref, IGNORE_ERRORS, FALSE, FALSE);
+      if (thd->stmt_arena->state != Query_arena::STMT_EXECUTED)
+      {
+        from_field= find_field_in_tables(thd, (Item_ident*) order_item,
+                                         tables, NULL,
+                                         ignored_tables_list_t(NULL),
+                                         &view_ref, IGNORE_ERRORS, FALSE,
+                                         FALSE);
+        order->view_ref= view_ref;                   // save for next execution
+        order->from_field= from_field;
+      }
+      else
+      {
+        if (order->view_ref)
+        {
+          view_ref= order->view_ref;
+          from_field= order->from_field;
+        }
+        else
+        {
+          from_field= find_field_in_tables(thd, (Item_ident*) order_item,
+                                           tables, NULL,
+                                           ignored_tables_list_t(NULL),
+                                           &view_ref, IGNORE_ERRORS, FALSE,
+                                           FALSE);
+        }
+      }
+
       if (!from_field)
         from_field= (Field*) not_found_field;
     }

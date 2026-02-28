@@ -166,6 +166,7 @@ void Item_subselect::cleanup()
   value_assigned= 0;
   expr_cache= 0;
   forced_const= FALSE;
+  const_item_cache= TRUE;
   DBUG_PRINT("info", ("exec_counter: %d", exec_counter));
 #ifndef DBUG_OFF
   exec_counter= 0;
@@ -1045,6 +1046,8 @@ void Item_subselect::update_used_tables()
 {
   if (!forced_const)
   {
+    if (!unit->thd->is_first_query_execution())
+      return;
     recalc_used_tables(parent_select, FALSE);
     if (!(engine->uncacheable() & ~UNCACHEABLE_EXPLAIN))
     {
@@ -1722,17 +1725,24 @@ bool Item_exists_subselect::fix_length_and_dec()
       (unit->global_parameters()->limit_params.select_limit->basic_const_item() &&
        unit->global_parameters()->limit_params.select_limit->val_int() > 1))
   {
-    /*
-       We need only 1 row to determine existence (i.e. any EXISTS that is not
-       an IN always requires LIMIT 1)
-     */
-    Item *item= new (thd->mem_root) Item_int(thd, (int32) 1);
-    if (!item)
-      DBUG_RETURN(TRUE);
-    thd->change_item_tree(&unit->global_parameters()->limit_params.select_limit,
-                          item);
-    unit->global_parameters()->limit_params.explicit_limit= 1; // we set the limit
-    DBUG_PRINT("info", ("Set limit to 1"));
+    if (thd->is_first_query_execution())
+    {
+      /*
+         We need only 1 row to determine existence (i.e. any EXISTS that is not
+         an IN always requires LIMIT 1)
+         This is a permanent transformation and should be allocated on statement
+         memory and not reversed.
+       */
+      Query_arena backup, *arena= thd->activate_stmt_arena_if_needed(&backup);
+      Item *item= new (thd->mem_root) Item_int(thd, (int32) 1);
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
+      if (!item)
+        DBUG_RETURN(TRUE);
+      unit->global_parameters()->limit_params.select_limit= item;
+      unit->global_parameters()->limit_params.explicit_limit= 1; // we set the limit
+      DBUG_PRINT("info", ("Set limit to 1"));
+    }
   }
   DBUG_RETURN(FALSE);
 }
@@ -2184,6 +2194,9 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
       item= new (thd->mem_root) Item_sum_min(thd,
                                              select_lex->ref_pointer_array[0]);
     }
+    if (!item)
+      DBUG_RETURN(TRUE);
+
     if (upper_item)
       upper_item->set_sum_test(item);
     thd->change_item_tree(&select_lex->ref_pointer_array[0], item);

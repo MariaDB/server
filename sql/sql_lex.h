@@ -1394,6 +1394,8 @@ public:
     case of an error during prepare the PS is not created.
   */
   uint8 changed_elements; // see TOUCHED_SEL_*
+  uint8 save_uncacheable;
+  uint8 save_master_uncacheable;
 
   /**
     The set of those tables whose fields are referenced in the select list of

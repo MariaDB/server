@@ -3093,6 +3093,8 @@ void st_select_lex::init_query()
   hidden_bit_fields= 0;
   fields_in_window_functions= 0;
   changed_elements= 0;
+  save_uncacheable= 0;
+  save_master_uncacheable= 0;
   parsing_place= NO_MATTER;
   save_parsing_place= NO_MATTER;
   context_analysis_place= NO_MATTER;
