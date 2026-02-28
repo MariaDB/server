@@ -1,0 +1,54 @@
+--source include/not_embedded.inc
+--source include/not_windows.inc
+# MSAN instruments ncurses in a way that makes readline unhappy
+--source include/not_msan.inc
+
+--echo #
+--echo # MDEV-38494: .mariadb_history rename race condition
+--echo #
+--echo # The unfixed client wrote every session's temp history file to the same
+--echo # path ("<histfile>.TMP"), so when two sessions exited simultaneously the
+--echo # second rename failed with ENOENT.  The fix appends the process PID to
+--echo # the temp name ("<histfile>.<pid>.TMP") so each session uses a unique
+--echo # path and no collision can occur.
+--echo #
+--echo # Verification technique:
+--echo #   Pre-create <histfile>.TMP as a sentinel before running an interactive
+--echo #   mariadb session.  With the fix the session writes to
+--echo #   <histfile>.<pid>.TMP and the sentinel is left untouched.  Without the
+--echo #   fix the session overwrites and renames the sentinel away.
+--echo #
+
+let $histfile = $MYSQLTEST_VARDIR/tmp/mdev38494_hist;
+
+# Provide the SQL for the interactive session
+write_file $MYSQL_TMP_DIR/mdev38494_in;
+SELECT 1;
+exit
+EOF
+
+# Pre-create the old-style sentinel
+write_file $histfile.TMP;
+SENTINEL
+EOF
+
+let TERM=dumb;
+--error 0,127
+exec env MYSQL_HISTFILE=$histfile socat -t10 EXEC:"$MYSQL",pty STDIO < $MYSQL_TMP_DIR/mdev38494_in > /dev/null 2>&1;
+if ($sys_errno == 127)
+{
+  remove_file $MYSQL_TMP_DIR/mdev38494_in;
+  remove_file $histfile.TMP;
+  skip no socat;
+}
+
+# Sentinel must still exist: the fixed client used <histfile>.<pid>.TMP
+file_exists $histfile.TMP;
+--echo PASS
+
+# Cleanup
+remove_file $MYSQL_TMP_DIR/mdev38494_in;
+remove_file $histfile.TMP;
+--exec rm -f $histfile
+
+--echo # End of 10.11 tests
