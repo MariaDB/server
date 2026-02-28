@@ -674,6 +674,10 @@ typedef SOCKET_SIZE_TYPE size_socket;
   something like 1024-MALLOC_OVERHEAD bytes
 */
 #define MALLOC_OVERHEAD (8+24)
+/*
+  Overhead of using mmap/my_virtual_mem_alloc for MEMORY engine block allocation
+ */
+#define VMALLOC_OVERHEAD (8+32)
 
 	/* get memory in huncs */
 #define ONCE_ALLOC_INIT		(uint) 4096

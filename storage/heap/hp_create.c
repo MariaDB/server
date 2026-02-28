@@ -343,7 +343,7 @@ static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
     as otherwise we get strange results when max_records <
     heap_allocation_parts)
   */
-  extra= sizeof(HP_PTRS) + MALLOC_OVERHEAD;
+  extra= sizeof(HP_PTRS) + VMALLOC_OVERHEAD;
 
   /* We don't want too few blocks per row either */
   if (records_in_block < 10)
@@ -362,7 +362,7 @@ static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
   block->recbuffer= recbuffer;
   block->last_allocated= 0L;
   /* All alloctions are done with this size, if possible */
-  block->alloc_size= alloc_size - MALLOC_OVERHEAD;
+  block->alloc_size= alloc_size - VMALLOC_OVERHEAD;
 
   for (i= 0; i <= HP_MAX_LEVELS; i++)
     block->level_info[i].records_under_level=

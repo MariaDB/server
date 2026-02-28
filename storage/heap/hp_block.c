@@ -16,6 +16,7 @@
 /* functions on blocks; Keys and records are saved in blocks */
 
 #include "heapdef.h"
+#include "my_virtual_mem.h"
 
 /*
   Find record according to record-position.
@@ -80,10 +81,10 @@ int hp_get_new_block(HP_SHARE *info, HP_BLOCK *block, size_t *alloc_length)
                   (ulonglong)block->records_in_block * block->recbuffer);
   /* Alloc in blocks of powers of 2 */
   *alloc_length= MY_MAX(*alloc_length, block->alloc_size);
-  if (!(root=(HP_PTRS*) my_malloc(hp_key_memory_HP_PTRS, *alloc_length,
-                                  MYF(MY_WME |
-                                      (info->internal ?
-                                       MY_THREAD_SPECIFIC : 0)))))
+  if (!(root=(HP_PTRS*) my_virtual_mem_alloc(hp_key_memory_HP_PTRS,
+                                             *alloc_length,
+                                             MYF(MY_WME | (info->internal ?
+                                                 MY_THREAD_SPECIFIC : 0)))))
     return 1;
 
   if (i == 0)
@@ -150,7 +151,7 @@ uchar *hp_free_level(HP_BLOCK *block, uint level, HP_PTRS *pos, uchar *last_pos)
   }
   if ((uchar*) pos != last_pos)
   {
-    my_free(pos);
+    my_virtual_mem_free(pos);
     return last_pos;
   }
   return next_ptr;			/* next memory position */

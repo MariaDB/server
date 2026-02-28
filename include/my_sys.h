@@ -92,6 +92,7 @@ C_MODE_START
 #define MY_SYNC       4096U     /* my_copy(): sync dst file */
 #define MY_SYNC_DIR   32768U    /* my_create/delete/rename: sync directory */
 #define MY_THREAD_SPECIFIC 0x10000U /* my_malloc(): thread specific */
+#define MY_NO_UPDATE_MALLOC 0x80000U /*my_large_malloc(): no update_malloc_size*/
 #define MY_ROOT_USE_MPROTECT 0x20000U /* init_alloc_root: read only segments */
 /* Tree that should delete things automatically */
 #define MY_TREE_WITH_DELETE 0x40000U
@@ -173,6 +174,8 @@ extern void *my_multi_malloc(PSI_memory_key key, myf MyFlags, ...);
 extern void *my_multi_malloc_large(PSI_memory_key key, myf MyFlags, ...);
 extern void *my_realloc(PSI_memory_key key, void *ptr, size_t size, myf MyFlags);
 extern void my_free(void *ptr);
+extern void *my_mmap_alloc(PSI_memory_key key, size_t size, myf MyFlags);
+extern int my_mmap_free(void *ptr);
 extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf MyFlags);
 extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
 extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);

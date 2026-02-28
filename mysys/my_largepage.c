@@ -417,7 +417,8 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
   if (ptr != NULL)
   {
     MEM_MAKE_DEFINED(ptr, *size);
-    update_malloc_size(*size, 0);
+    if (!(my_flags & MY_NO_UPDATE_MALLOC))
+      update_malloc_size(*size, 0);
   }
 
   DBUG_RETURN(ptr);

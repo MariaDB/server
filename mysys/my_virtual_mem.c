@@ -199,3 +199,102 @@ void my_virtual_mem_release(char *ptr, size_t size)
   }
 #endif
 }
+
+struct my_virtual_mem_header
+{
+  PSI_thread *m_owner;
+  size_t m_size; // size requested by the caller
+  size_t m_alloc_size; // size allocated to satisfy the request
+  PSI_memory_key m_key;
+};
+typedef struct my_virtual_mem_header my_virtual_mem_header;
+#define HEADER_SIZE 32
+
+#define USER_TO_HEADER(P) ((my_virtual_mem_header*)((char *)(P) - HEADER_SIZE))
+#define HEADER_TO_USER(P) ((char*)(P) + HEADER_SIZE)
+
+char *my_virtual_mem_alloc(PSI_memory_key key, size_t size, myf my_flags)
+{
+  my_virtual_mem_header *mvh;
+  void *ptr;
+  size_t alloc_size;
+  DBUG_ENTER("my_virtual_mem_alloc");
+
+#if !defined(_WIN32) && !defined(HAVE_MMAP)
+    DBUG_RETURN(my_malloc(key, size, my_flags));
+#else
+  if (!(my_flags & (MY_WME | MY_FAE)))
+    my_flags|= my_global_flags;
+
+  if (!size)
+    size= 1;
+
+  size= ALIGN_SIZE(size);
+  alloc_size= size + HEADER_SIZE;
+  if (alloc_size > SIZE_T_MAX - 1024L*1024L*16L)      /* Wrong call */
+    DBUG_RETURN(0);
+
+  mvh= (my_virtual_mem_header*) my_large_malloc(&alloc_size,
+                                              (my_flags | MY_NO_UPDATE_MALLOC));
+  if (mvh == NULL)
+  {
+#ifdef _WIN32
+    my_errno= GetLastError();
+#else
+    my_errno= errno;
+#endif
+    ptr= NULL;
+  }
+  else
+  {
+    int flag= MY_TEST(my_flags & MY_THREAD_SPECIFIC);
+    mvh->m_size= size | flag;
+    mvh->m_alloc_size= alloc_size;
+    mvh->m_key= PSI_CALL_memory_alloc(key, size, &mvh->m_owner);
+    /*
+     my_large_malloc allocates from large pages pool, so the allocations are
+     aligned with page boundary. alloc_size reflects the actual size of the
+     memory allocated by my_large_malloc
+     */
+    update_malloc_size(alloc_size, flag);
+    ptr= HEADER_TO_USER(mvh);
+    // mmap/VirtualAlloc is zero-filled (with MAP_ANONYMOUS), bzero not required
+    if (!(my_flags & MY_ZEROFILL))
+      TRASH_ALLOC(ptr, size);
+  }
+
+  DBUG_PRINT("exit",("ptr: %p", ptr));
+  DBUG_RETURN(ptr);
+#endif /* !defined(_WIN32) && !defined(HAVE_MMAP) */
+}
+
+int my_virtual_mem_free(void *ptr)
+{
+  my_virtual_mem_header *mvh;
+  size_t size;
+  my_bool flags;
+  DBUG_ENTER("my_virtual_mem_free");
+
+  if (ptr == NULL)
+    DBUG_RETURN(0);
+
+#if !defined(_WIN32) && !defined(HAVE_MMAP)
+  my_free(ptr);
+#else
+  mvh= USER_TO_HEADER(ptr);
+  size= mvh->m_size & ~1;
+  flags= mvh->m_size & 1;
+  PSI_CALL_memory_free(mvh->m_key, size, mvh->m_owner);
+  /*
+  my_large_free hardcodes the deduction from global memory bucket(flag 0). If
+  this block is thread-specific, we deduct the thread memory here and inflate
+  global memory bucket so that my_large_free's hardcoded deduction perfectly
+  balances out to zero.
+   */
+  update_malloc_size(-(longlong) mvh->m_alloc_size, flags);
+  update_malloc_size((longlong) mvh->m_alloc_size, 0);
+
+  my_large_free(mvh, mvh->m_alloc_size);
+#endif /* !defined(_WIN32) && !defined(HAVE_MMAP) */
+  DBUG_RETURN(0);
+}

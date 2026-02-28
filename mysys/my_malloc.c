@@ -254,4 +254,3 @@ char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf my_fla
   }
   DBUG_RETURN(ptr);
 }
-
