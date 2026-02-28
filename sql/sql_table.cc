@@ -10626,27 +10626,6 @@ const char *online_alter_check_supported(THD *thd,
   if (!*online)
     return "BIGINT GENERATED ALWAYS AS ROW_START";
 
-  List<FOREIGN_KEY_INFO> fk_list;
-  table->file->get_foreign_key_list(thd, &fk_list);
-  for (auto &fk: fk_list)
-  {
-    if (fk_modifies_child(fk.delete_method) ||
-        fk_modifies_child(fk.update_method))
-    {
-      *online= false;
-      // Don't fall to a common unsupported case to avoid heavy string ops.
-      if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
-      {
-        return fk_modifies_child(fk.delete_method)
-               ? thd->strcat({STRING_WITH_LEN("ON DELETE ")},
-                             *fk_option_name(fk.delete_method)).str
-               : thd->strcat({STRING_WITH_LEN("ON UPDATE ")},
-                             *fk_option_name(fk.update_method)).str;
-      }
-      return NULL;
-    }
-  }
-
   for (auto &c: alter_info->create_list)
   {
     *online= c.field || !(c.flags & AUTO_INCREMENT_FLAG);
@@ -13914,4 +13893,118 @@ bool HA_CREATE_INFO::
       return true;
   }
   return false;
+}
+
+static
+void update_virtual_fields_for_rows(TABLE *table)
+{
+  if (table->vfield) {
+    table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
+    table->move_fields(table->field, table->record[1], table->record[0]);
+    table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
+    table->move_fields(table->field, table->record[0], table->record[1]);
+  }
+}
+
+/**
+  Delete a row from the table.
+  The row to be deleted must be present in `table->record[0]`.
+  The handler (`table->file`) must be configured to operate on the data
+  stored in `table->record[0]` (i.e., the effect from calling `ha_rnd_pos` 
+  or `ha_index_read` is required to make a successful call).
+  @param[in,out] table The table object representing the target table.
+  @return error number or 0 */
+int sql_delete_row(TABLE *table)
+{
+  THD *thd= table->in_use;
+  bool delete_history= thd->lex->vers_conditions.delete_history;
+  thd->lex->vers_conditions.delete_history = false;
+  SCOPE_EXIT([thd, delete_history]
+  {
+    thd->lex->vers_conditions.delete_history= delete_history;
+  });
+  table->pos_in_table_list->trg_event_map = trg2bit(TRG_EVENT_DELETE);
+
+  int error= 0;
+  bool trg_skip_row= false;
+  // This ensures that triggers can correctly read virtual field values
+  if (table->vfield) 
+    table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
+  
+  table->column_bitmaps_set(&table->s->all_set, &table->s->all_set);
+  if (table->triggers &&
+      unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
+                                                 TRG_ACTION_BEFORE, FALSE,
+                                                 &trg_skip_row)))
+    return trg_skip_row ? HA_ERR_CASCADE_SQL : 0;
+      
+
+  error= table->delete_row();
+  if (error != 0) 
+    return error;
+
+  if (table->triggers &&
+      unlikely(table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
+                                                 TRG_ACTION_AFTER, FALSE,
+                                                 nullptr)))
+    return HA_ERR_CASCADE_SQL;
+
+  return 0;
+}
+
+/**
+  Update a row in the table.
+  The old row must be present in `table->record[1]` and the new row in `table->record[0]`.
+  The handler (`table->file`) must be configured to operate on the data
+  stored in `table->record[1]` (i.e., the effect from calling `ha_index_read` 
+  is required to make a successful call).
+  @param[in,out] table The table object representing the target table.
+  @return error number or 0 */
+int sql_update_row(TABLE *table) 
+{
+  THD *thd= current_thd;
+  bool trg_skip_row= false;
+  table->column_bitmaps_set(&table->s->all_set, &table->s->all_set);
+
+  table->pos_in_table_list->trg_event_map = trg2bit(TRG_EVENT_UPDATE);
+
+  // This ensures that triggers can correctly read virtual field values
+  update_virtual_fields_for_rows(table);
+
+  if (table->triggers && 
+        table->triggers->has_triggers(TRG_EVENT_UPDATE, TRG_ACTION_BEFORE)) 
+  {
+      if (unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
+                                                     TRG_ACTION_BEFORE, TRUE,
+                                                     &trg_skip_row)))
+        return trg_skip_row ? 0 : HA_ERR_CASCADE_SQL;
+      // This is necessary for indexes that depend on virtual fields
+      update_virtual_fields_for_rows(table);
+  }
+
+  int error= table->file->ha_update_row(table->record[1], table->record[0]);
+
+  bool record_was_same= error == HA_ERR_RECORD_IS_THE_SAME;
+  if (record_was_same)
+    error= 0;
+  if (error != 0)
+    return error;
+
+  if (table->versioned(VERS_TIMESTAMP))
+  {
+    store_record(table, record[2]);
+    table->mark_columns_per_binlog_row_image();
+    error= vers_insert_history_row(table);
+    restore_record(table, record[2]);
+    if (error)
+      return error;
+  }
+
+  if (table->triggers &&
+      unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
+                                                 TRG_ACTION_AFTER, TRUE,
+                                                 nullptr)))
+    return HA_ERR_CASCADE_SQL;
+
+  return 0;
 }

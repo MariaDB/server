@@ -23,6 +23,7 @@
 #include "sql_string.h"                         /* String */
 #include "lex_string.h"
 #include "lex_ident.h"
+#include "assume_aligned.h" // For memcpy_aligned
 
 #ifndef MYSQL_CLIENT
 
@@ -726,6 +727,8 @@ public:
   friend struct TABLE_SHARE;
 };
 
+#define RECORD_ALIGNMENT (4*ALIGN_MAX_UNIT)
+
 /**
   This structure is shared between different table objects. There is one
   instance of table share per one table in the database.
@@ -1273,6 +1276,7 @@ struct TABLE_SHARE
   {
     return table_creation_was_logged == 1;
   }
+  uchar *record_alloc(MEM_ROOT *record_mem_root, uint records);
 };
 
 /* not NULL, but cannot be dereferenced */
@@ -1647,6 +1651,7 @@ public:
   bool all_partitions_pruned_away;
 #endif
   bool vers_write;                      // For versioning
+  bool used_in_cascade;
 
   List<Virtual_column_info> vcol_refix_list;
   REGINFO reginfo;			/* field connections */
@@ -2056,6 +2061,23 @@ public:
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
+#if 0
+  void copy_record(uchar *dst, uchar *src)
+  {
+    MEM_MAKE_ADDRESSABLE(src, s->rec_buff_length);
+    MEM_MAKE_DEFINED(src, s->rec_buff_length);
+    MEM_MAKE_ADDRESSABLE(dst, s->rec_buff_length);
+
+    // Aligned copy is faster than non-aligned, that is, it's much better to use
+    // rec_buff_length, which is aligned by 16, than reclength
+    // alloc_root uses the formula for
+    static_assert(REDZONE_SIZE == 0 || REDZONE_SIZE == 8);
+    memcpy_aligned<RECORD_ALIGNMENT>(dst, src, s->rec_buff_length);
+
+    MEM_NOACCESS(src + s->reclength, s->rec_buff_length - s->reclength);
+    MEM_NOACCESS(dst + s->reclength, s->rec_buff_length - s->reclength);
+  }
+#endif
 };
 
 

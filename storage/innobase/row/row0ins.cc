@@ -1106,16 +1106,17 @@ row_ins_foreign_check_on_constraint(
 			goto nonstandard_exit_func;
 		}
 	}
-
-	if (row_ins_cascade_n_ancestors(cascade) >= FK_MAX_CASCADE_DEL) {
-		err = DB_FOREIGN_EXCEED_MAX_CASCADE;
-
-		row_ins_foreign_report_err(
-			"Trying a too deep cascaded delete or update\n",
-			thr, foreign, btr_pcur_get_rec(pcur), entry);
-
-		goto nonstandard_exit_func;
+	/* Check fk_cascade_depth to limit the recursive call depth on
+	a single update/delete that affects multiple tables chained
+	together with foreign key relations.
+	fk_cascade_depth increments later, so we have to add 1 here. */
+	if (UNIV_UNLIKELY(trx->mysql_thd->fk_cascade_depth + 1 >=
+							FK_MAX_CASCADE_DEL))
+	{
+	  err= DB_FOREIGN_EXCEED_MAX_CASCADE;
+	  goto nonstandard_exit_func;
 	}
+	ut_ad(row_ins_cascade_n_ancestors(cascade) < FK_MAX_CASCADE_DEL);
 
 	index = pcur->index();
 
@@ -1313,15 +1314,6 @@ row_ins_foreign_check_on_constraint(
 			ut_ad(table->fts);
 			fts_trx_add_op(trx, table, doc_id, FTS_DELETE, NULL);
 		}
-	}
-
-	if (table->versioned() && cascade->is_delete != PLAIN_DELETE
-	    && cascade->update->affects_versioned()) {
-		ut_ad(!cascade->historical_heap);
-		cascade->historical_heap = mem_heap_create(srv_page_size);
-		cascade->historical_row = row_build(
-			ROW_COPY_DATA, clust_index, clust_rec, NULL, table,
-			NULL, NULL, NULL, cascade->historical_heap);
 	}
 
 	/* Store pcur position and initialize or store the cascade node

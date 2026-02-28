@@ -65,7 +65,7 @@ Created 9/17/2000 Heikki Tuuri
 #include <algorithm>
 #include <vector>
 #include <thread>
-
+#include "ha_innodb.h"
 
 /** Delay an INSERT, DELETE or UPDATE operation if the purge is lagging. */
 static void row_mysql_delay_if_needed() noexcept
@@ -672,6 +672,7 @@ handle_new_error:
 	case DB_TABLE_NOT_FOUND:
 	case DB_DECRYPTION_FAILED:
 	case DB_COMPUTE_VALUE_FAILED:
+	case DB_SQL_ERROR:
 	rollback_to_savept:
 		DBUG_EXECUTE_IF("row_mysql_crash_if_error", {
 					log_buffer_flush_to_disk();
@@ -1660,7 +1661,6 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	for (;;) {
 		thr->run_node = node;
 		thr->prev_node = node;
-		thr->fk_cascade_depth = 0;
 
 		row_upd_step(thr);
 
@@ -1815,125 +1815,6 @@ no_unlock:
 @param	buf	Buffer to hold start time data */
 void thd_get_query_start_data(THD *thd, char *buf);
 
-/** Insert history row when evaluating foreign key referential action.
-
-1. Create new dtuple_t 'row' from node->historical_row;
-2. Update its row_end to current timestamp;
-3. Insert it to a table;
-4. Update table statistics.
-
-This is used in UPDATE CASCADE/SET NULL of a system versioned referenced table.
-
-node->historical_row: dtuple_t containing pointers of row changed by referential
-action.
-
-@param[in]	thr	current query thread
-@param[in]	node	a node which just updated a row in a foreign table
-@return DB_SUCCESS or some error */
-static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
-{
-	trx_t* trx = thr_get_trx(thr);
-	dfield_t* row_end;
-	char row_end_data[8];
-	dict_table_t* table = node->table;
-	const unsigned zip_size = table->space->zip_size();
-	ut_ad(table->versioned());
-
-	dtuple_t*       row;
-	const ulint     n_cols        = dict_table_get_n_cols(table);
-	const ulint     n_v_cols      = dict_table_get_n_v_cols(table);
-
-	ut_ad(n_cols == dtuple_get_n_fields(node->historical_row));
-	ut_ad(n_v_cols == dtuple_get_n_v_fields(node->historical_row));
-
-	row = dtuple_create_with_vcol(node->historical_heap, n_cols, n_v_cols);
-
-	dict_table_copy_types(row, table);
-
-	ins_node_t* insert_node =
-		ins_node_create(INS_DIRECT, table, node->historical_heap);
-
-	if (!insert_node) {
-		trx->error_state = DB_OUT_OF_MEMORY;
-		goto exit;
-	}
-
-	insert_node->common.parent = thr;
-	ins_node_set_new_row(insert_node, row);
-
-	ut_ad(n_cols > DATA_N_SYS_COLS);
-	// Exclude DB_ROW_ID, DB_TRX_ID, DB_ROLL_PTR
-	for (ulint i = 0; i < n_cols - DATA_N_SYS_COLS; i++) {
-		dfield_t *src= dtuple_get_nth_field(node->historical_row, i);
-		dfield_t *dst= dtuple_get_nth_field(row, i);
-		dfield_copy(dst, src);
-		if (dfield_is_ext(src)) {
-			byte *field_data
-				= static_cast<byte*>(dfield_get_data(src));
-			ulint ext_len;
-			ulint field_len = dfield_get_len(src);
-
-			ut_a(field_len >= BTR_EXTERN_FIELD_REF_SIZE);
-
-			ut_a(memcmp(field_data + field_len
-				     - BTR_EXTERN_FIELD_REF_SIZE,
-				     field_ref_zero,
-				     BTR_EXTERN_FIELD_REF_SIZE));
-
-			byte *data = btr_copy_externally_stored_field(
-				&ext_len, field_data, zip_size, field_len,
-				node->historical_heap);
-			dfield_set_data(dst, data, ext_len);
-		}
-	}
-
-	for (ulint i = 0; i < n_v_cols; i++) {
-		dfield_t *dst= dtuple_get_nth_v_field(row, i);
-		dfield_t *src= dtuple_get_nth_v_field(node->historical_row, i);
-		dfield_copy(dst, src);
-	}
-
-	node->historical_row = NULL;
-
-	row_end = dtuple_get_nth_field(row, table->vers_end);
-	if (dict_table_get_nth_col(table, table->vers_end)->vers_native()) {
-		mach_write_to_8(row_end_data, trx->id);
-		dfield_set_data(row_end, row_end_data, 8);
-	} else {
-		thd_get_query_start_data(trx->mysql_thd, row_end_data);
-		dfield_set_data(row_end, row_end_data, 7);
-	}
-
-	for (;;) {
-		thr->run_node = insert_node;
-		thr->prev_node = insert_node;
-
-		row_ins_step(thr);
-
-		switch (trx->error_state) {
-		case DB_LOCK_WAIT:
-			if (lock_wait(thr) == DB_SUCCESS) {
-				continue;
-			}
-
-			/* fall through */
-		default:
-			/* Other errors are handled for the parent node. */
-			thr->fk_cascade_depth = 0;
-			goto exit;
-
-		case DB_SUCCESS:
-			dict_stats_update_if_needed(table, *trx);
-			goto exit;
-		}
-	}
-exit:
-	que_graph_free_recursive(insert_node);
-	mem_heap_free(node->historical_heap);
-	node->historical_heap = NULL;
-	return trx->error_state;
-}
-
 /**********************************************************************//**
 Does a cascaded delete or set null in a foreign key operation.
 @return error code or DB_SUCCESS */
@@ -1945,26 +1826,11 @@ row_update_cascade_for_mysql(
                                 or set null operation */
         dict_table_t*   table)  /*!< in: table where we do the operation */
 {
-        /* Increment fk_cascade_depth to record the recursive call depth on
-        a single update/delete that affects multiple tables chained
-        together with foreign key relations. */
-
-        if (++thr->fk_cascade_depth > FK_MAX_CASCADE_DEL) {
-                return(DB_FOREIGN_EXCEED_MAX_CASCADE);
-        }
-
 	trx_t* trx = thr_get_trx(thr);
 
-	if (table->versioned()) {
-		if (node->is_delete == PLAIN_DELETE) {
-                  node->vers_make_delete(trx);
-                } else if (node->update->affects_versioned()) {
-			dberr_t err = row_update_vers_insert(thr, node);
-			if (err != DB_SUCCESS) {
-				return err;
-			}
-                        node->vers_make_update(trx);
-                }
+	if (table->versioned() && node->is_delete != PLAIN_DELETE &&
+	  node->update->affects_versioned()) {
+		node->vers_make_update(trx);
 	}
 
 	for (;;) {
@@ -1975,7 +1841,11 @@ row_update_cascade_for_mysql(
 		{
 			TABLE *mysql_table = thr->prebuilt->m_mysql_table;
 			thr->prebuilt->m_mysql_table = NULL;
-			row_upd_step(thr);
+
+			dberr_t cascade_error = innodb_do_foreign_cascade(thr,
+									  node);
+			if (UNIV_LIKELY(trx->error_state == DB_SUCCESS))
+				trx->error_state = cascade_error;
 			thr->prebuilt->m_mysql_table = mysql_table;
 		}
 
@@ -1987,12 +1857,9 @@ row_update_cascade_for_mysql(
 
 			/* fall through */
 		default:
-			/* Other errors are handled for the parent node. */
-			thr->fk_cascade_depth = 0;
 			return trx->error_state;
 
 		case DB_SUCCESS:
-			thr->fk_cascade_depth = 0;
 			bool stats;
 
 			if (node->is_delete == PLAIN_DELETE) {

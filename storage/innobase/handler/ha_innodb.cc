@@ -2050,15 +2050,6 @@ convert_error_code_to_mysql(
 		return(HA_ERR_ABORTED_BY_USER);
 
 	case DB_FOREIGN_EXCEED_MAX_CASCADE:
-		ut_ad(thd);
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    HA_ERR_ROW_IS_REFERENCED,
-				    "InnoDB: Cannot delete/update "
-				    "rows with cascading foreign key "
-				    "constraints that exceed max "
-				    "depth of %d. Please "
-				    "drop extra constraints and try "
-				    "again", FK_MAX_CASCADE_DEL);
 		return(HA_ERR_FK_DEPTH_EXCEEDED);
 
 	case DB_CANT_CREATE_GEOMETRY_OBJECT:
@@ -2223,10 +2214,110 @@ convert_error_code_to_mysql(
 		return(HA_ERR_TABLE_CORRUPT);
 	case DB_FTS_TOO_MANY_WORDS_IN_PHRASE:
 		return(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE);
+	case DB_SQL_ERROR:
+		return(HA_ERR_CASCADE_SQL);
 	case DB_COMPUTE_VALUE_FAILED:
 		return(HA_ERR_GENERIC); // impossible
 	}
 }
+
+/**
+  Converts a MariaDB handler error code to an InnoDB error code.
+  An inverse of convert_error_code_to_mysql.
+  @return InnoDB error code
+*/
+static dberr_t
+convert_sql_error_to_dberr(THD *thd, que_thr_t *thr, int sql_error)
+{
+  switch (sql_error)
+  {
+  case 0:
+    return DB_SUCCESS;
+  case HA_ERR_CASCADE_SQL:
+    // this error should be accessible with thd->get_stmt_da()->sql_errno()
+    ut_ad(thd->get_stmt_da()->is_error());
+    return DB_SQL_ERROR;
+
+  case HA_ERR_GENERIC:
+  default:
+    return DB_ERROR;
+
+  case HA_ERR_ABORTED_BY_USER:
+    return DB_INTERRUPTED;
+  case HA_ERR_FK_DEPTH_EXCEEDED:
+    if (thd->fk_cascade_depth == 0)
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          HA_ERR_ROW_IS_REFERENCED,
+                          "InnoDB: Cannot delete/update "
+                          "rows with cascading foreign key "
+                          "constraints that exceed max "
+                          "depth of %d. Please "
+                          "drop extra constraints and try "
+                          "again", FK_MAX_CASCADE_DEL);
+    return DB_FOREIGN_EXCEED_MAX_CASCADE;
+  case HA_ERR_NULL_IN_SPATIAL:
+    return DB_CANT_CREATE_GEOMETRY_OBJECT;
+  case HA_ERR_FOUND_DUPP_KEY:
+    return DB_DUPLICATE_KEY;
+  case HA_ERR_TABLE_READONLY:
+    return DB_READ_ONLY;
+  case HA_ERR_FOREIGN_DUPLICATE_KEY:
+    return DB_FOREIGN_DUPLICATE_KEY;
+  case HA_ERR_TABLE_DEF_CHANGED:
+    return DB_MISSING_HISTORY;
+  case HA_ERR_NO_ACTIVE_RECORD:
+    return DB_RECORD_NOT_FOUND;
+  case HA_ERR_LOCK_DEADLOCK:
+    return DB_DEADLOCK;
+  case HA_ERR_RECORD_CHANGED:
+    return DB_RECORD_CHANGED;
+  case HA_ERR_LOCK_WAIT_TIMEOUT:
+    return DB_LOCK_WAIT_TIMEOUT;
+  case HA_ERR_NO_REFERENCED_ROW:
+    return DB_NO_REFERENCED_ROW;
+  case HA_ERR_ROW_IS_REFERENCED:
+    return DB_ROW_IS_REFERENCED;
+  case HA_ERR_CANNOT_ADD_FOREIGN:
+    return DB_CANNOT_ADD_CONSTRAINT;
+  case HA_ERR_CRASHED:
+    return DB_CORRUPTION;
+  case HA_ERR_RECORD_FILE_FULL:
+    return DB_OUT_OF_FILE_SPACE;
+  case HA_ERR_INTERNAL_ERROR:
+    return DB_TEMP_FILE_WRITE_FAIL;
+  case HA_ERR_NO_SUCH_TABLE:
+    return DB_TABLE_NOT_FOUND;
+  case HA_ERR_DECRYPTION_FAILED:
+    return DB_DECRYPTION_FAILED;
+  case HA_ERR_TABLESPACE_MISSING:
+    return DB_TABLESPACE_NOT_FOUND;
+  case HA_ERR_TO_BIG_ROW:
+    return DB_TOO_BIG_RECORD;
+  case HA_ERR_INDEX_COL_TOO_LONG:
+    return DB_TOO_BIG_INDEX_COL;
+  case HA_ERR_LOCK_TABLE_FULL:
+    return DB_LOCK_TABLE_FULL;
+  case HA_FTS_INVALID_DOCID:
+    return DB_FTS_INVALID_DOCID;
+  case HA_ERR_TOO_MANY_CONCURRENT_TRXS:
+    return DB_TOO_MANY_CONCURRENT_TRXS;
+  case HA_ERR_UNSUPPORTED:
+    return DB_UNSUPPORTED;
+  case HA_ERR_INDEX_CORRUPT:
+    return DB_INDEX_CORRUPT;
+  case HA_ERR_UNDO_REC_TOO_BIG:
+    return DB_UNDO_RECORD_TOO_BIG;
+  case HA_ERR_OUT_OF_MEM:
+    return DB_OUT_OF_MEMORY;
+  case HA_ERR_TABLESPACE_EXISTS:
+    return DB_TABLESPACE_EXISTS;
+  case HA_ERR_TABLE_CORRUPT:
+    return DB_TABLE_CORRUPT;
+  case HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE:
+    return DB_FTS_TOO_MANY_WORDS_IN_PHRASE;
+  }
+}
+
 
 /*************************************************************//**
 Prints info of a THD object (== user session thread) to the given file. */
@@ -8449,6 +8540,36 @@ ATTRIBUTE_COLD bool wsrep_append_table_key(MYSQL_THD thd,
 }
 #endif /* WITH_WSREP */
 
+int ha_innobase::update_prebuilt_upd_buf()
+{
+  DBUG_ENTER("ha_innobase::update_prebuilt_upd_buf");
+  if (m_upd_buf == NULL)
+  {
+    ut_ad(m_upd_buf_size == 0);
+
+    /*
+      Create a buffer for packing the fields of a record. Why
+      table->reclength did not work here? Obviously, because char
+      fields when packed actually became 1 byte longer, when we also
+      stored the string length as the first byte.
+    */
+
+    m_upd_buf_size = table->s->reclength + table->s->max_key_length
+                     + MAX_REF_PARTS * 3;
+
+    m_upd_buf = reinterpret_cast<uchar*>(
+                    my_malloc(PSI_INSTRUMENT_ME, m_upd_buf_size, MYF(MY_WME)));
+
+    if (m_upd_buf == NULL)
+    {
+      m_upd_buf_size = 0;
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+
 /**
 Updates a row given as a parameter to a new value. Note that we are given
 whole rows, not just the fields which are updated: this incurs some
@@ -8476,27 +8597,8 @@ ha_innobase::update_row(
 		DBUG_RETURN(err);
 	}
 
-	if (m_upd_buf == NULL) {
-		ut_ad(m_upd_buf_size == 0);
-
-		/* Create a buffer for packing the fields of a record. Why
-		table->reclength did not work here? Obviously, because char
-		fields when packed actually became 1 byte longer, when we also
-		stored the string length as the first byte. */
-
-		m_upd_buf_size = table->s->reclength + table->s->max_key_length
-			+ MAX_REF_PARTS * 3;
-
-		m_upd_buf = reinterpret_cast<uchar*>(
-			my_malloc(PSI_INSTRUMENT_ME,
-                                  m_upd_buf_size,
-				MYF(MY_WME)));
-
-		if (m_upd_buf == NULL) {
-			m_upd_buf_size = 0;
-			DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-		}
-	}
+	if (int ret= update_prebuilt_upd_buf())
+		DBUG_RETURN(ret);
 
 	mariadb_set_stats temp(trx, handler_stats);
 
@@ -21405,4 +21507,152 @@ void alter_stats_rebuild(dict_table_t *table, trx_t *trx) noexcept
                         ER_ALTER_INFO, "Error updating stats for table after"
                         " table rebuild: %s", ut_strerr(ret));
   DBUG_VOID_RETURN;
+}
+
+
+/********************************************************************//**
+Fetches the MySQL TABLE object corresponding to the InnoDB table
+referenced in the given update node.
+@return Pointer to the TABLE object if found, or nullptr on error. */
+static
+TABLE *find_sql_table_for_update_node(upd_node_t* node) {
+  THD *thd= current_thd;
+  char db_buf[NAME_LEN + 1];
+  char tbl_buf[NAME_LEN + 1];
+  ulint db_buf_len, tbl_buf_len;
+  dict_table_t *table= node->table;
+  if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
+    return nullptr;
+  }
+
+  return find_fk_open_table(thd, db_buf, db_buf_len, tbl_buf, 
+                                          tbl_buf_len);
+}
+
+
+/**
+  Executes a cascading operation (DELETE or UPDATE) for a foreign key
+  constraint by invoking the corresponding action from sql layer.
+
+  Sets up the MariaDB format table records and cursor.
+
+  @return DB_SUCCESS if OK else error code.
+*/
+dberr_t 
+innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node)
+{
+  bool is_delete= node->is_delete;
+
+  TABLE *maria_table= find_sql_table_for_update_node(node);
+
+  THD *thd= maria_table->in_use;
+  ha_innobase *handler= (ha_innobase*)maria_table->file;
+  row_prebuilt_t *prebuilt= handler->get_prebuilt(node->table);
+  btr_pcur_t *pcur= node->pcur;
+  const rec_t* rec= btr_pcur_get_rec(pcur);
+  dict_index_t *clust_index= dict_table_get_first_index(node->table);
+  const rec_offs* offsets= rec_get_offsets(
+          rec, clust_index, nullptr,
+          clust_index->n_core_fields,
+          ULINT_UNDEFINED, &node->heap);
+
+  uint rec_length= maria_table->s->rec_buff_length;
+  uint rec_count= (is_delete ? 1 : 2);
+  uchar *saved_record{};
+  if (maria_table->used_in_cascade)
+  {
+    saved_record= new (std::align_val_t(ALIGN_MAX_UNIT))
+                      uchar[rec_length * rec_count];
+
+    ut_ad(maria_table->record[0] + rec_length == maria_table->record[1]);
+
+    MEM_MAKE_ADDRESSABLE(maria_table->record[0], rec_length*rec_count);
+    memcpy(saved_record, maria_table->record[0], rec_length * rec_count);
+    for (uint i= 0; i < rec_count; i++)
+      MEM_NOACCESS(maria_table->record[i] + maria_table->s->reclength,
+                   maria_table->s->rec_buff_length - maria_table->s->reclength);
+  }
+
+  maria_table->used_in_cascade= true;
+
+  uint old_rec_idx= is_delete ? 0 : 1;
+  row_sel_store_mysql_rec(maria_table->record[old_rec_idx], prebuilt, rec, NULL,
+                          true, clust_index, offsets);
+
+  if (!is_delete)
+  {
+    /*
+      The following creates the upd_row vector, that can be converted to a
+      mysql row.
+      The memory in row and upd_row is not re-used, following the existing
+      pattern in row_upd_store_row.
+      The memory is then freed in row_upd_store_row, so no memory is leaked.
+     */
+    node->row= row_build(ROW_COPY_DATA, clust_index, rec, offsets, NULL,
+                         NULL, NULL, &node->upd_ext, node->heap);
+
+    node->upd_row= dtuple_copy(node->row, node->heap);
+    row_upd_replace(node->upd_row, &node->upd_ext, clust_index,
+                    node->update, node->heap);
+
+    dtuple_t* entry= row_build_index_entry(node->upd_row, NULL, clust_index,
+                                           node->heap);
+
+    ulint n_ext= dtuple_get_n_ext(node->upd_row);
+
+    ulint size= rec_get_converted_size(clust_index, entry, n_ext);
+    byte *buf= static_cast<byte*>(mem_heap_alloc(node->heap, size));
+
+    rec_t *rec_upd= rec_convert_dtuple_to_rec(buf, clust_index, entry, n_ext);
+    const rec_offs* upd_offsets= rec_get_offsets(
+            rec_upd, clust_index, nullptr,
+            clust_index->n_core_fields,
+            ULINT_UNDEFINED, &node->heap);
+
+    row_sel_store_mysql_rec_keep_blobs(maria_table->record[0], prebuilt,
+                                       rec_upd, NULL, false, clust_index,
+                                       upd_offsets);
+  }
+
+  node->row= nullptr; // keep the heap allocated.
+
+  if (handler->update_prebuilt_upd_buf())
+    return DB_OUT_OF_MEMORY;
+
+  TABLE_LIST *tl = maria_table->pos_in_table_list;
+  uint8 old_trg_ops = tl->trg_event_map;
+  uint8 old_slave_fk_ops = tl->slave_fk_event_map;
+  tl->trg_event_map = tl->slave_fk_event_map = 0;
+
+  auto *upd_node= prebuilt->upd_node;
+  auto *upd_graph= prebuilt->upd_graph;
+  prebuilt->upd_node= node;
+  prebuilt->upd_graph= static_cast<que_fork_t*>(que_node_get_parent(thr));
+
+  btr_pcur_copy_stored_position(prebuilt->pcur, pcur);
+  prebuilt->sql_stat_start = FALSE;
+
+  ++thd->fk_cascade_depth;
+  int err= is_delete ? sql_delete_row(maria_table)
+                     : sql_update_row(maria_table);
+  --thd->fk_cascade_depth;
+
+  tl->slave_fk_event_map = old_slave_fk_ops;
+  tl->trg_event_map = old_trg_ops;
+  prebuilt->upd_node= upd_node;
+  prebuilt->upd_graph= upd_graph;
+
+  if (saved_record)
+  {
+    MEM_MAKE_ADDRESSABLE(maria_table->record[0], rec_length*rec_count);
+    memcpy(maria_table->record[0], saved_record, rec_length*rec_count);
+    for (uint i= 0; i < rec_count; i++)
+      MEM_NOACCESS(maria_table->record[i] + maria_table->s->reclength,
+                   maria_table->s->rec_buff_length - maria_table->s->reclength);
+    ::operator delete[](saved_record, std::align_val_t(ALIGN_MAX_UNIT));
+  }
+  else
+    maria_table->used_in_cascade= false;
+
+  return convert_sql_error_to_dberr(maria_table->in_use, thr, err);
 }
