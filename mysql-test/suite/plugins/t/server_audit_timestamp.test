@@ -1,0 +1,60 @@
+--source include/not_embedded.inc
+
+if (!$SERVER_AUDIT_SO) {
+  skip No SERVER_AUDIT plugin;
+}
+
+--disable_ps_protocol
+--disable_view_protocol
+
+# The plugin is loaded via .opt file
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+let SEARCH_FILE= $MYSQLD_DATADIR/server_audit_timestamp.log;
+
+set global server_audit_logging=on;
+
+# Default format
+select 1;
+
+# Custom format 1: Just date
+set global server_audit_timestamp_format='CUSTOM-DATE %Y-%m-%d';
+select 2;
+
+# Custom format 2: Including timezone. It should use global timezone instead of session one.
+set time_zone='+05:00';
+set global server_audit_timestamp_format='CUSTOM-TZ %H:%i:%s %z';
+select 3;
+set time_zone=DEFAULT;
+
+# Revert to default
+set global server_audit_timestamp_format=DEFAULT;
+select 4;
+
+--echo #
+--echo # Error handling for long timestamp format
+--echo #
+set global server_audit_timestamp_format='%H:%i:%s';
+show variables like 'server_audit_timestamp_format';
+
+--echo # Attempting to set an excessively long format string.
+let $long_format= `select repeat('A', 130)`;
+--error ER_WRONG_VALUE_FOR_VAR
+eval set global server_audit_timestamp_format='$long_format';
+
+--echo # Value should still be the old one
+show variables like 'server_audit_timestamp_format';
+
+--echo #
+--echo # Test large expansion (many %M specifiers)
+--echo #
+set global server_audit_timestamp_format='%M %M %M %M %M %M %M %M %M %M %M %M %M %M %M';
+select 5;
+set global server_audit_timestamp_format='CMD-LINE-%Y-%m-%d';
+
+set global server_audit_logging=off;
+
+# We use replace_regex to mask the actual volatile parts but keep our prefixes
+--replace_regex /\d{4}\d{2}\d{2} \d{2}:\d{2}:\d{2}/TIMESTAMP/ /CUSTOM-DATE \d{4}-\d{2}-\d{2}/CUSTOM-DATE TIMESTAMP/ /CUSTOM-TZ \d{2}:\d{2}:\d{2} [+-]\d{4}/CUSTOM-TZ TIMESTAMP/ /CUSTOM-TZ \d{2}:\d{2}:\d{2}/CUSTOM-TZ TIMESTAMP/ /CMD-LINE-\d{4}-\d{2}-\d{2}/CMD-LINE-TIMESTAMP/ /([A-Z][a-z]+ ){10,}[A-Z][a-z]+/TIMESTAMP/ /\d{2}:\d{2}:\d{2}/TIMESTAMP/ /,[^,]+,root,(localhost|localhost:[0-9]+),(\d+),(\d+),/,HOSTNAME,root,localhost,ID,ID,/
+cat_file $SEARCH_FILE;
+
+remove_file $SEARCH_FILE;
