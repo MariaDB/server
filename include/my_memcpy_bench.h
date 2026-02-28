@@ -398,6 +398,15 @@ static inline void __attribute__((always_inline)) memcpy_manual_sse_loop(void *d
     }
 }
 
+static inline void __attribute__((always_inline)) memcpy_manual_avx512_loop_aligned(void *dest, const void *src, size_t s) {
+    char *dst = (char *)dest;
+    const char *src_ptr = (const char *)src;
+    for (size_t i = 0; i < s; i += 64) {
+        _mm512_store_si512((__m512i*)(dst + i), _mm512_load_si512((const __m512i*)(src_ptr + i)));
+    }
+}
+
+
 
 extern unsigned long long total_memcpy_time;
 extern unsigned long long total_memcpy_calls;
