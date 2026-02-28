@@ -1,0 +1,102 @@
+#
+# MDEV-29919: Support INSERT ... VALUES AS alias ON DUPLICATE KEY UPDATE
+#
+#
+# Test setup
+#
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b INT,
+c INT
+);
+#
+# Basic INSERT AS alias ON DUPLICATE KEY UPDATE
+#
+INSERT INTO t1 VALUES (1, 10, 100);
+INSERT INTO t1 VALUES (1, 20, 200) AS new
+ON DUPLICATE KEY UPDATE b = new.b, c = new.c;
+SELECT * FROM t1;
+a	b	c
+1	20	200
+#
+# Multiple rows with AS alias
+#
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 10, 100);
+INSERT INTO t1 VALUES (1, 20, 200), (2, 30, 300) AS new
+ON DUPLICATE KEY UPDATE b = new.b;
+SELECT * FROM t1 ORDER BY a;
+a	b	c
+1	20	100
+2	30	300
+#
+# Expression using alias columns
+#
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 10, 100);
+INSERT INTO t1 VALUES (1, 5, 50) AS new
+ON DUPLICATE KEY UPDATE b = new.b + new.c, c = new.a * 10;
+SELECT * FROM t1;
+a	b	c
+1	55	10
+#
+# Mix of alias and table column references
+#
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 10, 100);
+INSERT INTO t1 VALUES (1, 20, 200) AS new
+ON DUPLICATE KEY UPDATE b = new.b, c = t1.c + new.c;
+SELECT * FROM t1;
+a	b	c
+1	20	300
+#
+# INSERT without ON DUPLICATE KEY (alias should be ignored)
+#
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 10, 100) AS new;
+SELECT * FROM t1;
+a	b	c
+1	10	100
+#
+# Different alias names
+#
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 10, 100);
+INSERT INTO t1 VALUES (1, 99, 999) AS inserted_row
+ON DUPLICATE KEY UPDATE b = inserted_row.b, c = inserted_row.c;
+SELECT * FROM t1;
+a	b	c
+1	99	999
+#
+# Case sensitivity: alias names must match exactly
+#
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 10, 100);
+INSERT INTO t1 VALUES (1, 50, 500) AS nEw
+ON DUPLICATE KEY UPDATE b = new.b;
+ERROR 42S22: Unknown column 'new.b' in 'SELECT'
+#
+# Alias cannot be the same as the target table name
+#
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 10, 100);
+INSERT INTO t1 VALUES (1, 50, 500) AS t1
+ON DUPLICATE KEY UPDATE b = t1.b;
+ERROR 42000: Not unique table/alias: 't1'
+#
+# Verify that AS alias is NOT allowed in REPLACE
+#
+REPLACE INTO t1 VALUES (1, 50, 500) AS new;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
+#
+# Verify that AS alias is NOT allowed in CREATE ... VALUES
+#
+CREATE TABLE t2 AS VALUES (1, 10, 100) AS new;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
+#
+# Cleanup
+#
+DROP TABLE t1;
+#
+# End of tests
+#

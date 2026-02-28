@@ -1277,6 +1277,7 @@ void LEX::start(THD *thd_arg)
   part_info= 0;
   m_sql_cmd= NULL;
   duplicates= DUP_ERROR;
+  insert_values_alias= Lex_ident_table();
   spname= NULL;
   spcont= NULL;
   proc_list.first= 0;

@@ -9178,12 +9178,31 @@ table_value_constructor:
             if (Lex->parsed_TVC_start())
               MYSQL_YYABORT;
 	  }
-	  values_list
+	  values_list opt_values_row_alias
 	  {
             if (!($$= Lex->parsed_TVC_end()))
 	      MYSQL_YYABORT;
 	  }
 	;
+
+/*
+  Optional alias for the row(s) being inserted.
+  Syntax: INSERT ... VALUES (...) AS alias
+  Used to reference new values in ON DUPLICATE KEY UPDATE clause.
+*/
+opt_values_row_alias:
+          select_alias
+          {
+            if ($1.str)
+            {
+              if (Lex->sql_command != SQLCOM_INSERT)
+                my_yyabort_error((ER_SYNTAX_ERROR, MYF(0)));
+              Lex->insert_values_alias= Lex_ident_table($1);
+            }
+            else
+              Lex->insert_values_alias= Lex_ident_table();
+          }
+        ;
 
 opt_hint_comment:
           /*empty */   { $$.init(); }
