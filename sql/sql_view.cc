@@ -559,6 +559,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   /* prepare select to resolve all fields */
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
+  lex->resolve_optimizer_hints();
   if (unit->prepare(unit->derived, 0, 0))
   {
     /*

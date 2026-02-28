@@ -12388,3 +12388,9 @@ ER_SLAVE_INCOMPATIBLE_TABLE_DEF
         eng "Table structure for binlog event is not compatible with the table definition on this slave: %s"
 ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
         eng "Data type '%-.64s' doesn't support %s attribute."
+ER_WARN_AMBIGUOUS_QB_NAME
+	eng "Query block name %s is ambiguous for %s hint"
+ER_WARN_IMPLICIT_QB_NAME_FOR_UNION
+	eng "Implicit query block name %s is not supported for derived tables and views with UNION/EXCEPT/INTERSECT and is ignored for %s hint"
+ER_WARN_WRONG_PATH_IN_QB_NAME
+        eng "Hint %s is ignored. Check whether the path to the query block is correct"
