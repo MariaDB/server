@@ -1,4 +1,4 @@
-/* Copyright 2008-2025 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2026 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1043,55 +1043,6 @@ bool wsrep_mode_check(sys_var *self, THD* thd, set_var* var)
   return false;
 }
 
-#if UNUSED /* eaec266eb16c (Sergei Golubchik  2014-09-28) */
-static SHOW_VAR wsrep_status_vars[]=
-{
-  {"connected",         (char*) &wsrep_connected,         SHOW_BOOL},
-  {"ready",             (char*) &wsrep_show_ready,        SHOW_FUNC},
-  {"cluster_state_uuid",(char*) &wsrep_cluster_state_uuid,SHOW_CHAR_PTR},
-  {"cluster_conf_id",   (char*) &wsrep_cluster_conf_id,   SHOW_LONGLONG},
-  {"cluster_status",    (char*) &wsrep_cluster_status,    SHOW_CHAR_PTR},
-  {"cluster_size",      (char*) &wsrep_cluster_size,      SHOW_LONG_NOFLUSH},
-  {"local_index",       (char*) &wsrep_local_index,       SHOW_LONG_NOFLUSH},
-  {"local_bf_aborts",   (char*) &wsrep_show_bf_aborts,    SHOW_FUNC},
-  {"provider_name",     (char*) &wsrep_provider_name,     SHOW_CHAR_PTR},
-  {"provider_version",  (char*) &wsrep_provider_version,  SHOW_CHAR_PTR},
-  {"provider_vendor",   (char*) &wsrep_provider_vendor,   SHOW_CHAR_PTR},
-  {"provider_capabilities", (char*) &wsrep_provider_capabilities, SHOW_CHAR_PTR},
-  {"thread_count",      (char*) &wsrep_running_threads,   SHOW_LONG_NOFLUSH},
-  {"applier_thread_count", (char*)&wsrep_running_applier_threads, SHOW_LONG_NOFLUSH},
-  {"rollbacker_thread_count", (char *)&wsrep_running_rollbacker_threads, SHOW_LONG_NOFLUSH},
-};
-
-static int show_var_cmp(const void *var1, const void *var2)
-{
-  return strcasecmp(((SHOW_VAR*)var1)->name, ((SHOW_VAR*)var2)->name);
-}
-
-/*
- * Status variables stuff below
- */
-static inline void
-wsrep_assign_to_mysql (SHOW_VAR* mysql, wsrep_stats_var* wsrep_var)
-{
-  mysql->name= wsrep_var->name;
-  switch (wsrep_var->type) {
-  case WSREP_VAR_INT64:
-    mysql->value= (char*) &wsrep_var->value._int64;
-    mysql->type= SHOW_LONGLONG;
-    break;
-  case WSREP_VAR_STRING:
-    mysql->value= (char*) &wsrep_var->value._string;
-    mysql->type= SHOW_CHAR_PTR;
-    break;
-  case WSREP_VAR_DOUBLE:
-    mysql->value= (char*) &wsrep_var->value._double;
-    mysql->type= SHOW_DOUBLE;
-    break;
-  }
-}
-#endif /* UNUSED */
-
 #if DYNAMIC
 // somehow this mysql status thing works only with statically allocated arrays.
 static SHOW_VAR*          mysql_status_vars= NULL;
@@ -1106,6 +1057,17 @@ static void export_wsrep_status_to_mysql(THD* thd)
   int wsrep_status_len, i;
 
   thd->wsrep_status_vars= Wsrep_server_state::instance().status();
+
+  /* Add wsrep_checkpoint_position and SE checkpoint */
+  wsrep::provider::status_variable checkpoint("checkpoint_position",
+					      wsrep_get_checkpoint());
+  thd->wsrep_status_vars.push_back(checkpoint);
+  XID xid;
+  wsrep_get_SE_checkpoint(xid);
+  const std::string se_checkpoint= wsrep_xid_print(&xid);
+  wsrep::provider::status_variable se_chkpoint("se_checkpoint",
+					       se_checkpoint);
+  thd->wsrep_status_vars.push_back(se_chkpoint);
 
   wsrep_status_len= thd->wsrep_status_vars.size();
 
