@@ -2899,16 +2899,26 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
         yylineno++;
     }
   }
+  // here we check if the current token is a keyword followed by a dot and then digit
+  // if it's the case, we want to return it as keyword not identifier
+  int tokval= find_keyword(str, length, false);
+  if (tokval && c == '.' && my_isdigit(cs, yyPeek()))
+  {
+    yyUnget();
+    return tokval;
+  }
   if (start == get_ptr() && c == '.' && ident_map[(uchar) yyPeek()])
+  {
     next_state= MY_LEX_IDENT_SEP;
+  }
   else
   {                                    // '(' must follow directly if function
-    int tokval;
+    int tokval2;
     yyUnget();
-    if ((tokval= find_keyword(str, length, c == '(')))
+    if ((tokval2= find_keyword(str, length, c == '(')))
     {
       next_state= MY_LEX_START;        // Allow signed numbers
-      return(tokval);                  // Was keyword
+      return(tokval2);                  // Was keyword
     }
     yySkip();                  // next state does a unget
   }
