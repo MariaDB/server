@@ -1,0 +1,35 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-33814 Wrong error message "Can't create table" on "ALTER TABLE"
+--echo #
+
+CREATE TABLE utilisateur (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE cluster_t (
+  id INT PRIMARY KEY,
+  owner_id INT,
+  CONSTRAINT fk_utilisateur_cluster FOREIGN KEY (owner_id) REFERENCES utilisateur (id)
+) ENGINE=InnoDB;
+
+--echo # ALTER TABLE with duplicate FK constraint name should say
+--echo # "Can't alter table" not "Can't create table"
+--error ER_CANT_CREATE_TABLE
+ALTER TABLE cluster_t
+  ADD CONSTRAINT fk_utilisateur_cluster FOREIGN KEY (owner_id) REFERENCES utilisateur (id)
+  ON DELETE SET NULL;
+
+--echo # Verify CREATE TABLE still says "Can't create table"
+DROP TABLE cluster_t;
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE cluster_t (
+  id INT PRIMARY KEY,
+  owner_id INT,
+  CONSTRAINT fk_utilisateur_cluster FOREIGN KEY (owner_id) REFERENCES utilisateur (id),
+  CONSTRAINT fk_utilisateur_cluster FOREIGN KEY (owner_id) REFERENCES utilisateur (id)
+) ENGINE=InnoDB;
+
+--echo # Clean up
+--disable_warnings
+DROP TABLE IF EXISTS cluster_t;
+--enable_warnings
+DROP TABLE utilisateur;
