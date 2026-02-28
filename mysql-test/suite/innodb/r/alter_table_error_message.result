@@ -1,0 +1,27 @@
+#
+# MDEV-33814 Wrong error message "Can't create table" on "ALTER TABLE"
+#
+CREATE TABLE utilisateur (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE cluster_t (
+id INT PRIMARY KEY,
+owner_id INT,
+CONSTRAINT fk_utilisateur_cluster FOREIGN KEY (owner_id) REFERENCES utilisateur (id)
+) ENGINE=InnoDB;
+# ALTER TABLE with duplicate FK constraint name should say
+# "Can't alter table" not "Can't create table"
+ALTER TABLE cluster_t
+ADD CONSTRAINT fk_utilisateur_cluster FOREIGN KEY (owner_id) REFERENCES utilisateur (id)
+ON DELETE SET NULL;
+ERROR HY000: Can't alter table `test`.`cluster_t` (errno: 121 "Duplicate key on write or update")
+# Verify CREATE TABLE still says "Can't create table"
+DROP TABLE cluster_t;
+CREATE TABLE cluster_t (
+id INT PRIMARY KEY,
+owner_id INT,
+CONSTRAINT fk_utilisateur_cluster FOREIGN KEY (owner_id) REFERENCES utilisateur (id),
+CONSTRAINT fk_utilisateur_cluster FOREIGN KEY (owner_id) REFERENCES utilisateur (id)
+) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`cluster_t` (errno: 150 "Foreign key constraint is incorrectly formed")
+# Clean up
+DROP TABLE IF EXISTS cluster_t;
+DROP TABLE utilisateur;
