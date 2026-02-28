@@ -1,0 +1,17 @@
+#
+# MDEV-32061: Allow INTO OUTFILE to write to a fifo
+# This test (as well as the feature itself) does not currently
+# work on Windows, although one day it probably could.
+#
+CREATE TABLE t1 (val1 VARCHAR(255), val2 VARCHAR(255));
+INSERT INTO t1 VALUES('hello', 'there');
+SELECT * FROM t1;
+val1	val2
+hello	there
+SELECT * INTO OUTFILE 'MYSQL_TMP_DIR/fifo' FROM t1;
+TRUNCATE TABLE t1;
+LOAD DATA INFILE 'MYSQL_TMP_DIR/fifo_data.txt' INTO TABLE t1;
+SELECT * FROM t1;
+val1	val2
+hello	there
+DROP TABLE t1;
