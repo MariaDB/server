@@ -2265,9 +2265,9 @@ master_def:
             Lex->mi.ssl_crlpath= $3.str;
           }
 
-        | MASTER_HEARTBEAT_PERIOD_SYM '=' NUM_literal
+        | MASTER_HEARTBEAT_PERIOD_SYM '=' opt_plus NUM_literal
           {
-            Lex->mi.heartbeat_period= (float) $3->val_real();
+            Lex->mi.heartbeat_period= (float) $4->val_real();
             if (unlikely(Lex->mi.heartbeat_period >
                          SLAVE_MAX_HEARTBEAT_PERIOD) ||
                 unlikely(Lex->mi.heartbeat_period < 0.0))
