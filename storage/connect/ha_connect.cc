@@ -832,7 +832,6 @@ static int connect_init_func(void *p)
     sql_print_information("connect_init: hton=%p", p);
 
   DTVAL::SetTimeShift();      // Initialize time zone shift once for all
-  BINCOL::SetEndian();        // Initialize host endian setting
 #if defined(JAVA_SUPPORT)
 	JAVAConn::SetJVM();
 #endif   // JAVA_SUPPORT

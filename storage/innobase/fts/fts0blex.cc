@@ -1,7 +1,5 @@
 #include "univ.i"
-#line 2 "fts0blex.cc"
 
-#line 4 "fts0blex.cc"
 
 #define  YY_INT_ALIGNED short int
 
@@ -639,7 +637,6 @@ static const flex_int16_t yy_chk[32] =
 #define yymore() yymore_used_but_not_detected
 #define YY_MORE_ADJ 0
 #define YY_RESTORE_YY_MORE_OFFSET
-#line 1 "fts0blex.l"
 /*****************************************************************************
 
 Copyright (c) 2007, 2014, Oracle and/or its affiliates. All Rights Reserved.
@@ -663,7 +660,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
  *
  * Created 2007/5/9 Sunny Bains
  */
-#line 27 "fts0blex.l"
 
 #include "fts0ast.h"
 #include "fts0pars.h"
@@ -672,9 +668,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #define YY_DECL int fts_blexer(YYSTYPE* val, yyscan_t yyscanner)
 #define exit(A)   ut_error
 
-#line 675 "fts0blex.cc"
 #define YY_NO_INPUT 1
-#line 677 "fts0blex.cc"
 
 #define INITIAL 0
 
@@ -932,10 +926,8 @@ YY_DECL
 		}
 
 	{
-#line 44 "fts0blex.l"
 
 
-#line 938 "fts0blex.cc"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -990,12 +982,10 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 46 "fts0blex.l"
 /* Ignore whitespace */ ;
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 48 "fts0blex.l"
 {
 	val->oper = fts0bget_text(yyscanner)[0];
 
@@ -1004,7 +994,6 @@ YY_RULE_SETUP
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 54 "fts0blex.l"
 {
 	val->token = fts_ast_string_create(reinterpret_cast<const byte*>(fts0bget_text(yyscanner)), fts0bget_leng(yyscanner));
 
@@ -1013,7 +1002,6 @@ YY_RULE_SETUP
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 60 "fts0blex.l"
 {
 	val->token = fts_ast_string_create(reinterpret_cast<const byte*>(fts0bget_text(yyscanner)), fts0bget_leng(yyscanner));
 
@@ -1022,7 +1010,6 @@ YY_RULE_SETUP
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 66 "fts0blex.l"
 {
 	val->token = fts_ast_string_create(reinterpret_cast<const byte*>(fts0bget_text(yyscanner)), fts0bget_leng(yyscanner));
 
@@ -1032,15 +1019,12 @@ YY_RULE_SETUP
 case 6:
 /* rule 6 can match eol */
 YY_RULE_SETUP
-#line 72 "fts0blex.l"
 
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 74 "fts0blex.l"
 ECHO;
 	YY_BREAK
-#line 1043 "fts0blex.cc"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -2172,6 +2156,5 @@ void yyfree (void * ptr , yyscan_t yyscanner)
 
 #define YYTABLES_NAME "yytables"
 
-#line 74 "fts0blex.l"
 
 
