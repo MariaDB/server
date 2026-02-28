@@ -41,13 +41,13 @@ eval change master to master_host='127.0.0.1',master_port=$MASTER_MYPORT, master
 --query_vertical show status like 'Slave_heartbeat_period';
 
 #
-# the min value for the period is 1 millisecond an attempt to assign a
+# the min value for the period is 1 millisecond rounded; an attempt to assign a
 # lesser will be warned with treating the value as zero
 #
 connection slave;
 --replace_result $MASTER_MYPORT MASTER_PORT
 ### 5.1 mtr does not have --warning ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
-eval change master to master_host='127.0.0.1',master_port=$MASTER_MYPORT, master_user='root', master_heartbeat_period= 0.0009999;
+eval change master to master_host='127.0.0.1',master_port=$MASTER_MYPORT, master_user='root', master_heartbeat_period= 0.0004999;
 --query_vertical show status like 'Slave_heartbeat_period';
 
 #
