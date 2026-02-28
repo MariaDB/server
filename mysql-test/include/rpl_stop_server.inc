@@ -28,6 +28,7 @@
 # executing on a server and the server will go down after this script.
 if (!$_include_file_depth)
 {
+  --let $_include_file_depth= 0
   --echo include/rpl_stop_server.inc [server_number=$rpl_server_number]
 }
 --inc $_include_file_depth
