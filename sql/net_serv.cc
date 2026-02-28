@@ -428,13 +428,13 @@ my_bool my_net_write(NET *net, const uchar *packet, size_t len)
     int3store(buff, z_size);
     buff[3]= (uchar) net->pkt_nr++;
     if (net_write_buff(net, buff, NET_HEADER_SIZE) ||
-	net_write_buff(net, packet, z_size))
+        net_write_buff(net, packet, z_size))
     {
       MYSQL_NET_WRITE_DONE(1);
       return 1;
     }
-    packet += z_size;
-    len-=     z_size;
+    packet+= z_size;
+    len-= z_size;
   }
   /* Write last packet */
   int3store(buff,len);
@@ -584,10 +584,10 @@ net_write_buff(NET *net, const uchar *packet, size_t len)
     if (net->write_pos != net->buff)
     {
       /* Fill up already used packet and write it */
-      memcpy((char*) net->write_pos,packet,left_length);
-      if (net_real_write(net, net->buff, 
-			 (size_t) (net->write_pos - net->buff) + left_length))
-	return 1;
+      memcpy((char*) net->write_pos, packet, left_length);
+      net->write_pos+= left_length;
+      if (net_real_write(net, net->buff, (size_t)(net->write_pos - net->buff)))
+        return 1;
       net->write_pos= net->buff;
       packet+= left_length;
       len-= left_length;
@@ -595,16 +595,16 @@ net_write_buff(NET *net, const uchar *packet, size_t len)
     if (net->compress)
     {
       /*
-	We can't have bigger packets than 16M with compression
-	Because the uncompressed length is stored in 3 bytes
+	      We can't have bigger packets than 16M with compression
+	      Because the uncompressed length is stored in 3 bytes
       */
       left_length= MAX_PACKET_LENGTH;
       while (len > left_length)
       {
-	if (net_real_write(net, packet, left_length))
-	  return 1;
-	packet+= left_length;
-	len-= left_length;
+        if (net_real_write(net, packet, left_length))
+          return 1;
+        packet+= left_length;
+        len-= left_length;
       }
     }
     if (len > net->max_packet)
@@ -627,7 +627,7 @@ net_write_buff(NET *net, const uchar *packet, size_t len)
 */
 
 int
-net_real_write(NET *net,const uchar *packet, size_t len)
+net_real_write(NET *net, const uchar *packet, size_t len)
 {
   size_t length;
   const uchar *pos,*end;
@@ -674,7 +674,9 @@ net_real_write(NET *net,const uchar *packet, size_t len)
     memcpy(b+header_length,packet,len);
 
     /* Don't compress error packets (compress == 2) */
-    if (net->compress == 2 || my_compress(b+header_length, &len, &complen))
+    if (net->compress == 2 
+        || my_compress(b+header_length, &len, &complen, 
+                      net->write_pos, net->buff_end))
       complen=0;
     int3store(&b[NET_HEADER_SIZE],complen);
     int3store(b,len);
@@ -1086,12 +1088,12 @@ my_net_read_packet_reallen(NET *net, my_bool read_from_server, ulong* reallen)
       size_t total_length= 0;
       do
       {
-	net->where_b += (ulong)len;
-	total_length += len;
-	len = my_real_read(net,&complen, 0);
+	      net->where_b += (ulong)len;
+	      total_length += len;
+	      len = my_real_read(net,&complen, 0);
       } while (len == MAX_PACKET_LENGTH);
       if (likely(len != packet_error))
-	len+= total_length;
+	      len+= total_length;
       net->where_b = save_pos;
     }
 
@@ -1117,8 +1119,8 @@ my_net_read_packet_reallen(NET *net, my_bool read_from_server, ulong* reallen)
     if (net->remain_in_buf)
     {
       buf_length= net->buf_length;		/* Data left in old packet */
-      first_packet_offset= start_of_packet= (net->buf_length -
-					     net->remain_in_buf);
+      first_packet_offset=
+        start_of_packet= (net->buf_length - net->remain_in_buf);
       /* Restore the character that was overwritten by the end 0 */
       net->buff[start_of_packet]= net->save_char;
     }
@@ -1133,84 +1135,84 @@ my_net_read_packet_reallen(NET *net, my_bool read_from_server, ulong* reallen)
 
       if (buf_length - start_of_packet >= NET_HEADER_SIZE)
       {
-	read_length = uint3korr(net->buff+start_of_packet);
-	if (!read_length)
-	{ 
-	  /* End of multi-byte packet */
-	  start_of_packet += NET_HEADER_SIZE;
-	  break;
-	}
-	if (read_length + NET_HEADER_SIZE <= buf_length - start_of_packet)
-	{
-	  if (multi_byte_packet)
-	  {
-	    /* Remove packet header for second packet */
-	    memmove(net->buff + first_packet_offset + start_of_packet,
-		    net->buff + first_packet_offset + start_of_packet +
-		    NET_HEADER_SIZE,
-		    buf_length - start_of_packet);
-	    start_of_packet += read_length;
-	    buf_length -= NET_HEADER_SIZE;
-	  }
-	  else
-	    start_of_packet+= read_length + NET_HEADER_SIZE;
+	      read_length= uint3korr(net->buff+start_of_packet);
+        if (!read_length)
+        {
+          /* End of multi-byte packet */
+          start_of_packet+= NET_HEADER_SIZE;
+          break;
+        }
+        if (read_length + NET_HEADER_SIZE <= buf_length - start_of_packet)
+        {
+          if (multi_byte_packet)
+          {
+            /* Remove packet header for second packet */
+            memmove(net->buff + first_packet_offset + start_of_packet,
+              net->buff + first_packet_offset + start_of_packet +
+              NET_HEADER_SIZE,
+              buf_length - start_of_packet);
+            start_of_packet+= read_length;
+            buf_length-= NET_HEADER_SIZE;
+          }
+          else
+            start_of_packet+= read_length + NET_HEADER_SIZE;
 
-	  if (read_length != MAX_PACKET_LENGTH)	/* last package */
-	  {
-	    multi_byte_packet= 0;		/* No last zero len packet */
-	    break;
-	  }
-	  multi_byte_packet= NET_HEADER_SIZE;
-	  /* Move data down to read next data packet after current one */
-	  if (first_packet_offset)
-	  {
-	    memmove(net->buff,net->buff+first_packet_offset,
-		    buf_length-first_packet_offset);
-	    buf_length-=first_packet_offset;
-	    start_of_packet -= first_packet_offset;
-	    first_packet_offset=0;
-	  }
-	  continue;
-	}
+          if (read_length != MAX_PACKET_LENGTH)	/* last package */
+          {
+            multi_byte_packet= 0;		/* No last zero len packet */
+            break;
+          }
+          multi_byte_packet= NET_HEADER_SIZE;
+          /* Move data down to read next data packet after current one */
+          if (first_packet_offset)
+          {
+            memmove(net->buff,net->buff+first_packet_offset,
+              buf_length-first_packet_offset);
+            buf_length-=first_packet_offset;
+            start_of_packet -= first_packet_offset;
+            first_packet_offset=0;
+          }
+          continue;
+        }
       }
       /* Move data down to read next data packet after current one */
       if (first_packet_offset)
       {
-	memmove(net->buff,net->buff+first_packet_offset,
-		buf_length-first_packet_offset);
-	buf_length-=first_packet_offset;
-	start_of_packet -= first_packet_offset;
-	first_packet_offset=0;
+        memmove(net->buff,net->buff+first_packet_offset,
+          buf_length - first_packet_offset);
+        buf_length-= first_packet_offset;
+        start_of_packet-= first_packet_offset;
+        first_packet_offset= 0;
       }
 
-      net->where_b=buf_length;
-      if ((packet_len = my_real_read(net,&complen, read_from_server))
+      net->where_b= buf_length;
+      if ((packet_len= my_real_read(net,&complen, read_from_server))
           == packet_error)
       {
         MYSQL_NET_READ_DONE(1, 0);
-	return packet_error;
+	      return packet_error;
       }
       read_from_server= 0;
-      if (my_uncompress(net->buff + net->where_b, packet_len,
-			&complen))
+      if (my_uncompress(net->buff + net->where_b, packet_len, &complen, 
+            net->buff + net->where_b + complen, net->buff_end))
       {
-	net->error= 2;			/* caller will close socket */
+	      net->error= 2;			/* caller will close socket */
         net->last_errno= ER_NET_UNCOMPRESS_ERROR;
-	MYSQL_SERVER_my_error(ER_NET_UNCOMPRESS_ERROR, MYF(0));
+	      MYSQL_SERVER_my_error(ER_NET_UNCOMPRESS_ERROR, MYF(0));
         MYSQL_NET_READ_DONE(1, 0);
-	return packet_error;
+	      return packet_error;
       }
       buf_length+= (ulong)complen;
-      *reallen += packet_len;
+      *reallen+= packet_len;
     }
 
     net->read_pos=      net->buff+ first_packet_offset + NET_HEADER_SIZE;
     net->buf_length=    buf_length;
     net->remain_in_buf= (ulong) (buf_length - start_of_packet);
-    len = ((ulong) (start_of_packet - first_packet_offset) - NET_HEADER_SIZE -
+    len= ((ulong) (start_of_packet - first_packet_offset) - NET_HEADER_SIZE -
            multi_byte_packet);
     net->save_char= net->read_pos[len];	/* Must be saved */
-    net->read_pos[len]=0;		/* Safeguard for mysql_use_result */
+    net->read_pos[len]= 0;		/* Safeguard for mysql_use_result */
   }
 #endif /* HAVE_COMPRESS */
   MYSQL_NET_READ_DONE(0, len);

@@ -983,7 +983,7 @@ int s3_put_object(ms3_st *s3_client, const char *aws_bucket,
     size_t comp_len;
 
     data[-COMPRESS_HEADER]= 0;                  // No compression
-    if (!my_compress(data, &length, &comp_len))
+    if (!my_compress(data, &length, &comp_len, 0, 0))
       data[-COMPRESS_HEADER]= 1;                // Compressed package
     data-=   COMPRESS_HEADER;
     length+= COMPRESS_HEADER;
