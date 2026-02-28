@@ -4206,6 +4206,25 @@ Field *Type_handler_datetime_common::make_schema_field(MEM_ROOT *root,
 }
 
 
+Field *Type_handler_set::make_schema_field(MEM_ROOT *root, TABLE *table,
+                                            const Record_addr &addr,
+                                            const ST_FIELD_INFO &def) const
+{
+  LEX_CSTRING name= def.name();
+  const Typelib *typelib= def.typelib();
+  DBUG_ASSERT(typelib);
+  return new (root)
+         Field_set(addr.ptr(), (uint32) sizeof(ulonglong),
+                    addr.null_ptr(), addr.null_bit(),
+                    Field::NONE, &name,
+                    get_set_pack_length(typelib->count),
+                    typelib, system_charset_info);
+
+}
+
+
+
+
 /*************************************************************************/
 
 /*
