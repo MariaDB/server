@@ -1086,7 +1086,7 @@ struct dict_index_t {
 	/*----------------------*/
 	/** Statistics for query optimization */
 	/* @{ */
-	ib_uint64_t*	stat_n_diff_key_vals;
+	uint64_t*	stat_n_diff_key_vals;
 				/*!< approximate number of different
 				key values for this index, for each
 				n-column prefix where 1 <= n <=
@@ -1099,7 +1099,7 @@ struct dict_index_t {
 				to calculate each of stat_n_diff_key_vals[],
 				e.g. stat_n_sample_sizes[3] pages were sampled
 				to get the number stat_n_diff_key_vals[3]. */
-	ib_uint64_t*	stat_n_non_null_key_vals;
+	uint64_t*	stat_n_non_null_key_vals;
 				/* approximate number of non-null key values
 				for this index, for each column where
 				1 <= n <= dict_get_n_unique(index) (the array
