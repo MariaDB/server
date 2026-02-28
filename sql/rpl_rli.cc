@@ -238,6 +238,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       but a destructor will take care of that
     */
     mysql_mutex_lock(log_lock);
+    relay_log.mi= mi;
     if (relay_log.open_index_file(buf_relaylog_index_name, ln, TRUE) ||
         relay_log.open(ln, 0, 0, SEQ_READ_APPEND,
                        (ulong)max_relay_log_size, 1, TRUE))
@@ -602,7 +603,7 @@ read_relay_log_description_event(IO_CACHE *cur_log, ulonglong start_pos,
     else
     {
       DBUG_PRINT("info",("found event of another type=%d", typ));
-      found= (typ != ROTATE_EVENT);
+      found= (typ != GTID_LIST_EVENT && typ != ROTATE_EVENT);
       delete ev;
     }
   }

@@ -33,9 +33,10 @@ FLUSH LOGS;
 INSERT INTO t1 (c1) VALUES (2);
 
 --source include/sync_slave_io_with_master.inc
-call mtr.add_suppression("File '.*slave-relay-bin.");
+call mtr.add_suppression(".*slave-relay-bin.");
 call mtr.add_suppression("Could not open log file");
-call mtr.add_suppression("Failed to open the relay log");
+call mtr.add_suppression("Recovery");
+call mtr.add_suppression("Error counting relay log space");
 call mtr.add_suppression("Failed to initialize the master info structure");
 
 # Stop slave

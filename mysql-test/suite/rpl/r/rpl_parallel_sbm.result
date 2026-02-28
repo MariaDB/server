@@ -55,6 +55,10 @@ connection slave;
 include/sync_with_master_sql_delay_debug_sync.inc
 set debug_sync= "now WAIT_FOR at_sql_delay";
 set debug_sync= "now SIGNAL continue_sql_thread";
+set debug_sync= "now WAIT_FOR at_sql_delay";
+set debug_sync= "now SIGNAL continue_sql_thread";
+set debug_sync= "now WAIT_FOR at_sql_delay";
+set debug_sync= "now SIGNAL continue_sql_thread";
 # Waiting for replica to get blocked by the table lock
 # Sleeping 1s to increment SBM
 # Ensuring Seconds_Behind_Master increases after sleeping..
