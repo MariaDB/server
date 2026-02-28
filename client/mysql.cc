@@ -3618,7 +3618,6 @@ static int com_go(String *buffer, char *)
   timer= microsecond_interval_timer();
   executing_query= 1;
   error= mysql_real_query_for_lazy(buffer->ptr(),buffer->length());
-  report_progress_end();
 
 #ifdef HAVE_READLINE
   if (status.add_to_history) 
@@ -3656,6 +3655,8 @@ static int com_go(String *buffer, char *)
         goto end;
     }
 
+    report_progress_end();
+    
     if (verbose >= 3 || !opt_silent)
       end_timer(timer, time_buff);
     else
