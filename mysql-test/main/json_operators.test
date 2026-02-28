@@ -1,0 +1,64 @@
+--source include/have_innodb.inc
+--echo #
+--echo # MDEV-18530: Support for -> and ->> JSON operators
+--echo #
+
+--echo # 1. Basic Extraction with ->
+SELECT '{"a": 1, "b": "text"}'->'$.a' AS int_val,
+       '{"a": 1, "b": "text"}'->'$.b' AS str_val;
+
+--echo # 2. Unquoted Extraction with ->>
+SELECT '{"a": 1, "b": "text"}'->>'$.a' AS int_val,
+       '{"a": 1, "b": "text"}'->>'$.b' AS str_val;
+
+--echo # 3. Chaining Operators
+--echo # Should support nested extraction
+SELECT '{"a": {"b": {"c": 42}}}'->'$.a'->'$.b'->'$.c' AS chained_arrow,
+       '{"a": {"b": {"c": 42}}}'->'$.a'->'$.b'->>'$.c' AS chained_unquoted;
+
+--echo # 4. Table Integration
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  data JSON
+);
+
+INSERT INTO t1 VALUES 
+(1, '{"name": "Alice", "meta": {"age": 25, "city": "London"}}'),
+(2, '{"name": "Bob", "meta": {"age": 30, "city": "Paris"}}'),
+(3, '{"name": "Charlie", "meta": null}');
+
+--echo # Usage in SELECT list
+SELECT id, data->'$.name', data->>'$.meta.city' FROM t1;
+
+--echo # Usage in WHERE clause
+SELECT data->>'$.name' FROM t1 WHERE data->'$.meta.age' > 25;
+
+--echo # Usage in ORDER BY
+SELECT data->>'$.name' FROM t1 ORDER BY data->'$.meta.age' DESC;
+
+--echo # 5. Edge Cases: Invalid JSON and Paths
+--echo # Native functions return NULL or error; operators should match
+SELECT '{"a": 1'->'$.a'; -- Invalid JSON
+SELECT '{"a": 1}'->'$.no_key'; -- Missing keys
+SELECT '{"a": 1}'->'invalid_path'; -- Invalid path
+
+--echo # 6. Integration with Generated Columns
+--echo # This is a common use case for these operators in MySQL
+CREATE TABLE t2 (
+  j JSON,
+  name VARCHAR(50) AS (j->>'$.name') VIRTUAL,
+  INDEX (name)
+);
+
+INSERT INTO t2 (j) VALUES ('{"name": "Zoe", "score": 100}');
+SELECT name FROM t2;
+EXPLAIN SELECT name FROM t2 WHERE name = 'Zoe';
+
+DROP TABLE t1, t2;
+
+--echo # 7. Chaining with non-JSON results
+--echo # -> expects JSON input. ->> returns a string. 
+--echo # If the string from ->> is valid JSON, another -> can follow.
+SELECT '{"outer": "{\\"inner\\": 1}"}'->>'$.outer'->'$.inner' AS complex_chain;
+
+--echo # End of MDEV-18530 tests
