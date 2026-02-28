@@ -49,11 +49,9 @@
 #define DEFAULT_ERRMSGS           my_default_lc_messages->errmsgs->errmsgs
 #define CURRENT_THD_ERRMSGS       (current_thd)->variables.errmsgs
 
-#ifndef mysqld_error_find_printf_error_used
 #define ER_DEFAULT(X) DEFAULT_ERRMSGS[((X)-ER_ERROR_FIRST) / ERRORS_PER_RANGE][(X)% ERRORS_PER_RANGE]
 #define ER_THD(thd,X) ((thd)->variables.errmsgs[((X)-ER_ERROR_FIRST) / ERRORS_PER_RANGE][(X) % ERRORS_PER_RANGE])
 #define ER(X)         ER_THD(current_thd, (X))
-#endif
 #define ER_THD_OR_DEFAULT(thd,X) ((thd) ? ER_THD(thd, (X)) : ER_DEFAULT(X))
 
 #define SPECIAL_USE_LOCKS	1		/* Lock used databases */
