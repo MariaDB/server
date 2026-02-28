@@ -1,7 +1,7 @@
 --source include/have_innodb.inc
---echo #
---echo # MDEV-18530: Support for -> and ->> JSON operators
---echo #
+#
+# MDEV-18530: Support for -> and ->> JSON operators
+#
 
 --echo # 1. Basic Extraction with ->
 SELECT '{"a": 1, "b": "text"}'->'$.a' AS int_val,
@@ -38,9 +38,9 @@ SELECT data->>'$.name' FROM t1 ORDER BY data->'$.meta.age' DESC;
 
 --echo # 5. Edge Cases: Invalid JSON and Paths
 --echo # Native functions return NULL or error; operators should match
-SELECT '{"a": 1'->'$.a'; -- Invalid JSON
-SELECT '{"a": 1}'->'$.no_key'; -- Missing keys
-SELECT '{"a": 1}'->'invalid_path'; -- Invalid path
+SELECT '{"a": 1'->'$.a';
+SELECT '{"a": 1}'->'$.no_key';
+SELECT '{"a": 1}'->'invalid_path';
 
 --echo # 6. Integration with Generated Columns
 --echo # This is a common use case for these operators in MySQL
@@ -61,4 +61,4 @@ DROP TABLE t1, t2;
 --echo # If the string from ->> is valid JSON, another -> can follow.
 SELECT '{"outer": "{\\"inner\\": 1}"}'->>'$.outer'->'$.inner' AS complex_chain;
 
---echo # End of MDEV-18530 tests
+# End of MDEV-18530 tests
