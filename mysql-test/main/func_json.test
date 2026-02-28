@@ -1235,6 +1235,23 @@ select null<=>json_extract('1',json_object(null,'{ }',null,null),'{}');
 
 --echo # End of 10.6 tests
 
+SELECT json_extract(t.j, '$')
+FROM (SELECT json_extract('["a",1]', '$') AS j) AS t;
+
+SELECT json_extract(t.j, '$')
+FROM (SELECT json_extract('{"key":"value"}', '$') AS j) AS t;
+
+# Multi-path extraction through derived table
+SELECT json_extract(t.j, '$[0]', '$[1]')
+FROM (SELECT json_extract('[{"a":1},{"b":2},{"c":3}]', '$') AS j) AS t;
+
+# UTF-8 content through derived table
+SELECT json_extract(t.j, '$')
+FROM (SELECT json_extract('{"name":"Ä Ö Ü ß","city":"München"}', '$') AS j) AS t;
+
+SELECT json_extract(t.j, '$.name')
+FROM (SELECT json_extract('{"name":"日本語テスト","val":[1,2]}', '$') AS j) AS t;
+
 --echo #
 --echo # MDEV-35614 JSON_UNQUOTE doesn't work with emojis
 --echo #
