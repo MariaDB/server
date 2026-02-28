@@ -201,6 +201,9 @@ enum enum_mysql_show_type
 enum enum_var_type
 {
   SHOW_OPT_DEFAULT= 0, SHOW_OPT_SESSION, SHOW_OPT_GLOBAL
+#ifdef MYSQL_SERVER
+	  , SHOW_OPT_ONESHOT
+#endif
 };
 
 struct st_mysql_show_var {
