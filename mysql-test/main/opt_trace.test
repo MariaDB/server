@@ -1267,4 +1267,44 @@ select json_detailed(json_extract(trace, '$**.join_execution'))
 set optimizer_trace='enabled=off';
 
 drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-30354: Fix JSON escaping in optimizer trace output
+--echo #
+
+set optimizer_trace='enabled=on';
+
+--echo # Test 1: Simple double quotes
+SELECT LENGTH("a");
+SELECT json_valid(trace) AS valid_json, json_detailed(json_extract(trace,'$**.expanded_query')) AS expanded_query FROM information_schema.optimizer_trace;
+
+--echo # Test 2: Nested quotes
+SELECT LENGTH("a\"b");
+SELECT json_valid(trace) AS valid_json, json_detailed(json_extract(trace,'$**.expanded_query')) FROM information_schema.optimizer_trace;
+
+--echo # Test 3: Special characters with quotes
+SELECT LENGTH("a\n\"b\t\"c");
+SELECT json_valid(trace) AS valid_json, json_detailed(json_extract(trace,'$**.expanded_query')) FROM information_schema.optimizer_trace;
+
+--echo # Test 4: New line
+SELECT COLUMN_JSON(COLUMN_CREATE("foo", "New
+line" AS CHAR));
+SELECT json_valid(trace) AS valid_json, json_detailed(json_extract(trace,'$**.expanded_query')) FROM information_schema.optimizer_trace;
+
+--echo # Test 5: Backslashes
+SELECT LENGTH("a\\b");
+SELECT json_valid(trace) AS valid_json, json_detailed(json_extract(trace,'$**.expanded_query')) FROM information_schema.optimizer_trace;
+
+--echo # Test 6: JSON functions
+SELECT JSON_EXTRACT('{"key":"value"}', "$.key");
+SELECT json_valid(trace) AS valid_json, json_detailed(json_extract(trace,'$**.expanded_query')) FROM information_schema.optimizer_trace;
+
+--echo # Test 7: Failed escape due to illegal symbol
+SET NAMES utf8mb4;
+SELECT "𝄞" AS x;
+SELECT json_valid(trace) AS valid_json, json_detailed(json_extract(trace,'$**.expanded_query')) FROM information_schema.optimizer_trace;
+
+SET NAMES DEFAULT; 
+SET optimizer_trace='enabled=off';
+
 --echo # End of 10.11 tests
