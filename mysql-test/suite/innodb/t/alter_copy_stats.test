@@ -90,10 +90,15 @@ DROP TABLE t1;
 DROP TABLE t2;
 
 --echo #
---echo # MDEV-38667 Assertion in diagnostics area on DDL stats timeout
+--echo # MDEV-38822 Lock wait timeout does not happen anymore
 --echo #
 set @lock_wait_timeout= @@global.innodb_lock_wait_timeout;
 SET innodb_lock_wait_timeout = 1;
 CREATE TABLE t ENGINE=InnoDB AS SELECT * FROM mysql.innodb_table_stats;
 SET innodb_lock_wait_timeout = @lock_wait_timeout;
+SELECT COUNT(*) as n_rows FROM t;
+--echo # For a deterministic test, we wait for the background thread to update the stats for the new table.
+--let $wait_condition= SELECT COUNT(*) = 1 FROM mysql.innodb_table_stats WHERE table_name = 't' AND n_rows > 0
+--source include/wait_condition.inc
+SELECT table_name, n_rows FROM mysql.innodb_table_stats WHERE table_name = 't';
 DROP TABLE t;

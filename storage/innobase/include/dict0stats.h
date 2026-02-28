@@ -200,3 +200,12 @@ dict_stats_empty_table(
 persistent statistics are enabled. */
 void dict_stats_empty_table_and_save(dict_table_t *table);
 #endif /* dict0stats_h */
+
+/**
+ * @brief Add a table to the recalc pool, which is processed by the
+ * background stats gathering thread. Only the table id is added to the
+ * list, so the table can be closed after being enqueued and it will be
+ * opened when needed. If the table does not exist later (has been DROPped),
+ * then it will be removed from the pool and skipped.
+ */
+void dict_stats_recalc_pool_add(table_id_t id);
