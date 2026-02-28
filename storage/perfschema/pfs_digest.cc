@@ -224,9 +224,9 @@ find_or_create_digest(PFS_thread *thread,
   */
   PFS_digest_key hash_key;
   memset(& hash_key, 0, sizeof(hash_key));
-  /* Compute MD5 Hash of the tokens received. */
-  compute_digest_md5(digest_storage, hash_key.m_md5);
-  memcpy((void*)& digest_storage->m_md5, &hash_key.m_md5, MD5_HASH_SIZE);
+  /* Comchpute digest hash of the tokens received. */
+  compute_digest_hash(digest_storage, hash_key.m_hash);
+  memcpy((void*)& digest_storage->m_hash, &hash_key.m_hash, DIGEST_HASH_SIZE);
   /* Add the current schema to the key */
   hash_key.m_schema_name_length= schema_name_length;
   if (schema_name_length > 0)
