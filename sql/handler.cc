@@ -6133,7 +6133,14 @@ int ha_create_table(THD *thd, const char *path, const char *db,
   if (unlikely(error))
   {
     if (!thd->is_error())
-      my_error(ER_CANT_CREATE_TABLE, MYF(0), db, table_name, error);
+    {
+      if (create_info->options & HA_CREATE_TMP_ALTER)
+        my_printf_error(ER_CANT_CREATE_TABLE,
+                        "Can't alter table %`s.%`s (errno: %M)",
+                        MYF(0), db, table_name, error);
+      else
+        my_error(ER_CANT_CREATE_TABLE, MYF(0), db, table_name, error);
+    }
     table.file->print_error(error, MYF(ME_WARNING));
     PSI_CALL_drop_table_share(temp_table, share.db.str, (uint)share.db.length,
                               share.table_name.str, (uint)share.table_name.length);
