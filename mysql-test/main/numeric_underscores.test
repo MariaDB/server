@@ -83,3 +83,73 @@ SELECT _1.0;
 --echo # Valid cases for comparison
 SELECT 1_0.0_1e1_0;
 SELECT 0x1_F, 0b1_0;
+
+--echo #
+--echo # MDEV-34228: Underscores in CAST and string-to-number conversions
+--echo #
+
+--echo # =========================================
+--echo # CAST to UNSIGNED — reuse literal patterns
+--echo # =========================================
+SELECT CAST('1_000' AS UNSIGNED);
+SELECT CAST('1_234_567' AS UNSIGNED);
+SELECT CAST('+1_000' AS UNSIGNED);
+
+--echo # CAST to SIGNED
+SELECT CAST('-1_000' AS SIGNED);
+SELECT CAST('1_000' AS SIGNED);
+SELECT CAST('+1_234_567' AS SIGNED);
+
+--echo # CAST to DECIMAL — from the decimal/float literals above
+SELECT CAST('1_000.001' AS DECIMAL(10,3));
+SELECT CAST('1000.000_5' AS DECIMAL(10,4));
+SELECT CAST('1_000.000_001' AS DECIMAL(13,6));
+
+--echo # CAST to DOUBLE — from the float literals above
+SELECT CAST('1_2.3_4e1_0' AS DOUBLE);
+SELECT CAST('1.2e+1_0' AS DOUBLE);
+SELECT CAST('1.2e-1_0' AS DOUBLE);
+
+--echo # =================================
+--echo # Invalid underscores in CAST input
+--echo # =================================
+
+--echo # Consecutive underscores — should truncate after first digit group
+SELECT CAST('1__234' AS UNSIGNED);
+SELECT CAST('1__234' AS SIGNED);
+SELECT CAST('1__234' AS DECIMAL(10,0));
+SELECT CAST('1__234' AS DOUBLE);
+
+--echo # Trailing underscore — should truncate
+SELECT CAST('1000_' AS UNSIGNED);
+
+--echo # Leading underscore — should be 0 with warning
+SELECT CAST('_1000' AS UNSIGNED);
+
+--echo # Underscore adjacent to decimal point
+SELECT CAST('1_.0' AS DECIMAL(10,1));
+SELECT CAST('1._0' AS DECIMAL(10,1));
+
+--echo # Underscore adjacent to exponent marker
+SELECT CAST('1.0_e10' AS DOUBLE);
+SELECT CAST('1.0e_10' AS DOUBLE);
+
+--echo # ============================
+--echo # Implicit string-to-number
+--echo # ============================
+SELECT '1_000' + 0;
+SELECT '1_234_567' + 0;
+SELECT '-1_000' + 0;
+SELECT '1_000.50' + 0.0;
+SELECT '1_2.3_4e1_0' + 0e0;
+
+--echo # Invalid underscore in implicit conversion
+SELECT '1__234' + 0;
+SELECT '1000_' + 0;
+SELECT '_1000' + 0;
+
+--echo # ============================
+--echo # Hex/Binary strings via CAST
+--echo # ============================
+--echo # Note: CAST('0xFF' as UNSIGNED) itself returns 0, hence CAST('0x_FF' AS UNSIGNED) also doesn't work yet.
+SELECT CAST('0x_FF' AS UNSIGNED);

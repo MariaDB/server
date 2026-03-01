@@ -1566,11 +1566,8 @@ LEX_CSTRING Lex_input_stream::get_token(uint skip, uint length)
 LEX_CSTRING Lex_input_stream::get_numeric_token(uint skip, uint length)
 {
   const char *str= m_tok_start + skip;
-  for (uint i= 0; i < length; i++)
-  {
-    if (str[i] == '_')
-      return strip_underscores(str, length);
-  }
+  if (memchr(str, '_', length))
+    return strip_underscores(str, length);
   return get_token(skip, length);
 }
 
