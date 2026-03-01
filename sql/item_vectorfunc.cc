@@ -179,6 +179,16 @@ Item_func_vec_fromtext::Item_func_vec_fromtext(THD *thd, Item *a)
 {
   mem_root_inited= false;
 }
+ 
+const Type_handler *Item_func_vec_fromtext::type_handler() const
+{
+  return &type_handler_vector;
+}
+
+Field *Item_func_vec_fromtext::create_field_for_create_select(MEM_ROOT *root, TABLE *table)
+{
+  return create_table_field_from_handler(root, table);
+}
 
 bool Item_func_vec_fromtext::fix_length_and_dec(THD *thd)
 {

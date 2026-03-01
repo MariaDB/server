@@ -97,6 +97,8 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   Item_func_vec_fromtext(THD *thd, Item *a);
   String *val_str(String *buf) override;
+  const Type_handler *type_handler() const override;
+  Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= { STRING_WITH_LEN("VEC_FromText") };
