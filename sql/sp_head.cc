@@ -2237,8 +2237,14 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
     for (uint i= 0 ; i < params ; i++)
     {
-      Item *arg_item= it_args++;
-
+      Item *arg_item;
+      if (i < args->elements)
+        arg_item= it_args++;
+      else
+      {
+        sp_variable *spvar= m_pcont->get_context_variable(i);
+        arg_item= spvar->default_value;
+      }
       if (!arg_item)
         break;
 
