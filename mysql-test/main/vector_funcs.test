@@ -77,6 +77,22 @@ select vec_totext(`null`) from (values (null),(0x00000000)) x;
 --echo #
 select 0x31313131 in ('1111', vec_fromtext('[1]'));
 
+--echo #
+--echo # MDEV-35211: VEC_FromText does not return vector type but varbinary
+--echo #
+create table t as select vec_fromtext('[1,2,3]') as v;
+show create table t;
+drop table t;
+create table t as select vec_fromtext('[1]') as v1, vec_fromtext('[1,2,3,4,5]') as v5;
+show create table t;
+drop table t;
+create table t as
+select vec_fromtext('[1]') as v
+union
+select vec_fromtext('[2]') as v;
+show create table t;
+drop table t;
+
 --echo # End of 11.7 tests
 
 --echo #
