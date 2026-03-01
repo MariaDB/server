@@ -369,4 +369,17 @@ insert t1 values (1);
 drop table t1;
 set sql_mode=default;
 
+--echo #
+--echo # MDEV-38349 Fix assert thd->abort_on_warning == 0 in mysql_insert
+--echo #
+CREATE TABLE t1 (id INT KEY,v VECTOR (8) NOT NULL,VECTOR INDEX (v)) ENGINE=INNODB;
+CREATE TABLE t2 (id INT KEY,t_id INT,INDEX par_ind (t_id),FOREIGN KEY(t_id) REFERENCES t1 (id) ON DELETE CASCADE) ENGINE=INNODB;
+--ERROR ER_ROW_IS_REFERENCED_2
+DROP TABLE t1;
+--ERROR ER_NO_SUCH_TABLE_IN_ENGINE
+INSERT INTO t1 VALUES (0,'');
+ 
+# cleanup
+DROP TABLE t2,t1;
+
 --echo # End of 11.8 tests
