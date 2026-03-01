@@ -1,0 +1,60 @@
+#
+# MDEV-31527: Add --validate-config option to check configuration
+#             without starting the server
+#
+#
+# Test 1: --validate-config with valid configuration should succeed (exit 0)
+#
+FOUND 1 /Configuration is valid/ in mdev-31527-test1.log
+#
+# Test 2: --validate-config with unknown option should fail (exit 2)
+#
+FOUND 1 /unknown option '--nonexistentoption'/ in mdev-31527-test2.log
+#
+# Test 3: --validate-config should not start the server (no pid file)
+#
+#
+# Test 4: --validate-config should not produce help output
+#
+NOT FOUND /Starts the MariaDB database server/ in mdev-31527-test4.log
+#
+# Test 5: --validate-config with bad option in config file should fail
+#
+FOUND 1 /unknown variable 'zzz_bogus_option=123'/ in mdev-31527-test5.log
+#
+# Test 6: --validate-config with valid config file should succeed
+#
+FOUND 1 /Configuration is valid/ in mdev-31527-test6.log
+#
+# Test 7: --validate-config with --help (help takes precedence,
+#         'Configuration is valid' should NOT be printed)
+#
+FOUND 1 /Starts the MariaDB database server/ in mdev-31527-test7.log
+NOT FOUND /Configuration is valid/ in mdev-31527-test7.log
+#
+# Test 8: --validate-config with --verbose should still succeed (exit 0)
+#
+FOUND 1 /Configuration is valid/ in mdev-31527-test8.log
+#
+# Test 9: --validate-config with --bootstrap should succeed (exit 0)
+#
+FOUND 1 /Configuration is valid/ in mdev-31527-test9.log
+#
+# Test 10: --validate-config with --version (version takes precedence,
+#          'Configuration is valid' should NOT be printed)
+#
+FOUND 1 /Ver [0-9]/ in mdev-31527-test10.log
+NOT FOUND /Configuration is valid/ in mdev-31527-test10.log
+#
+# Test 11: --help --validate-config --invalid-config should print help
+#          and exit cleanly (help takes precedence)
+#
+FOUND 1 /Starts the MariaDB database server/ in mdev-31527-test11.log
+NOT FOUND /unknown option/ in mdev-31527-test11.log
+#
+# Test 12: --version --validate-config --invalid-config should print version
+#          and exit cleanly (version takes precedence)
+#
+FOUND 1 /Ver [0-9]/ in mdev-31527-test12.log
+NOT FOUND /unknown option/ in mdev-31527-test12.log
+# End of 13.0 tests

@@ -380,9 +380,11 @@ handlerton *opt_binlog_engine_hton;
 bool opt_bin_log_compress;
 uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
+my_bool opt_validate_config= 0;
 my_bool debug_assert_on_not_freed_memory= 0;
 my_bool disable_log_notes, opt_support_flashback= 0;
 static my_bool opt_abort;
+static my_bool opt_version;
 ulonglong log_output_options;
 my_bool opt_userstat_running;
 bool opt_error_log= IF_WIN(1,0);
@@ -4131,7 +4133,8 @@ static int init_common_variables()
   sf_leaking_memory= 0; // no memory leaks from now on
 
 #ifndef EMBEDDED_LIBRARY
-  if (opt_abort && !opt_verbose)
+  if (opt_abort && !opt_verbose &&
+      (!opt_validate_config || opt_help || opt_version))
     unireg_abort(0);
 #endif /*!EMBEDDED_LIBRARY*/
 
@@ -5576,7 +5579,11 @@ static int init_server_components()
   }
 
   if (opt_abort)
+  {
+    if (opt_validate_config && !opt_help && !opt_version)
+      sql_print_information("Configuration is valid.");
     unireg_abort(0);
+  }
 
   if (init_io_cache_encryption())
     unireg_abort(1);
@@ -6780,6 +6787,11 @@ struct my_option my_long_options[]=
   {"help", '?', "Display this help and exit", 
    &opt_help, &opt_help, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
+  {"validate-config", 0, "Validate the server configuration specified by the user "
+   "and exit with an exit code of 0 for success or 1 for failure, "
+   "without starting the server",
+   &opt_validate_config, &opt_validate_config, 0, GET_BOOL, NO_ARG, 0, 0, 0,
+   0, 0, 0},
   {"ansi", 'a', "Use ANSI SQL syntax instead of MariaDB syntax. This mode "
    "will also set transaction isolation level 'serializable'", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -8512,6 +8524,7 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     {
       print_version();
       opt_abort= 1;                    // Abort after parsing all options
+      opt_version= 1;
     }
 #endif /*EMBEDDED_LIBRARY*/
     break;
@@ -9057,7 +9070,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
                                 mysqld_get_one_option)))
     return ho_error;
 
-  if (!opt_help)
+  if (!opt_help && !opt_validate_config)
     delete_dynamic(&all_options);
   else
     opt_abort= 1;
