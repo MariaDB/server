@@ -147,7 +147,7 @@ SET (SQL_SOURCE
                sql_time.cc tztime.cc unireg.cc item_xmlfunc.cc
                uniques.cc
                rpl_tblmap.cc sql_binlog.cc event_scheduler.cc
-               event_data_objects.cc
+               event_data_objects.cc event_common.cc
                event_queue.cc event_db_repository.cc
                events.cc ../sql-common/my_user.c
                partition_info.cc rpl_utility.cc rpl_utility_server.cc
