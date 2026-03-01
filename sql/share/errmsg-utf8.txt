@@ -12388,3 +12388,7 @@ ER_SLAVE_INCOMPATIBLE_TABLE_DEF
         eng "Table structure for binlog event is not compatible with the table definition on this slave: %s"
 ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
         eng "Data type '%-.64s' doesn't support %s attribute."
+ER_SYS_TRG_SEMANTIC_ERROR
+        eng "Incorrect definition of the trigger %s.%s: action '%s' is not compatible with event '%s'"
+ER_TRG_EVENT_CONFLICTS_NAME
+        eng "%s with the same name '%s' already exists"

@@ -4439,8 +4439,11 @@ public:
   /**
     @param id                thread identifier
     @param is_wsrep_applier  thread type
+    @param process_wide      flag specifying that the instance of THD is
+                             per whole process, or per thread
   */
-  THD(my_thread_id id, bool is_wsrep_applier= false);
+  THD(my_thread_id id, bool is_wsrep_applier= false,
+      bool process_wide= false);
 
   ~THD();
 

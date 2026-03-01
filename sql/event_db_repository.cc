@@ -717,7 +717,13 @@ Event_db_repository::create_event(THD *thd, Event_parse_data *parse_data,
     }
     else
     {
-      my_error(ER_EVENT_ALREADY_EXISTS, MYF(0), parse_data->name.str);
+      Event_parse_data::enum_kind trg_kind=
+        (Event_parse_data::enum_kind)table->field[ET_FIELD_KIND]->val_int();
+      if (trg_kind == Event_parse_data::SCHEDULE_EVENT)
+        my_error(ER_EVENT_ALREADY_EXISTS, MYF(0), parse_data->name.str);
+      else
+        my_error(ER_TRG_EVENT_CONFLICTS_NAME,  MYF(0),
+                 "Trigger", parse_data->name.str);
       goto end;
     }
   } else
