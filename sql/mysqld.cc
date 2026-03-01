@@ -384,10 +384,15 @@ handlerton *opt_binlog_engine_hton;
 bool opt_bin_log_compress;
 uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
+my_bool opt_validate_config= 0;
+my_bool validate_config_has_warnings= 0;
 my_bool debug_assert_on_not_freed_memory= 0;
 my_bool disable_log_notes, opt_support_flashback= 0;
 my_bool opt_silent_startup= 0;
 static my_bool opt_abort;
+#ifndef EMBEDDED_LIBRARY
+static my_bool opt_version;
+#endif
 ulonglong log_output_options;
 my_bool opt_userstat_running;
 bool opt_error_log= IF_WIN(1,0);
@@ -1522,7 +1527,6 @@ static int systemd_sock_activation; /* systemd socket activation */
 
 
 C_MODE_START
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 /**
   Error reporter that buffer log messages.
   @param level          log message level
@@ -1540,7 +1544,6 @@ static void buffered_option_error_reporter(enum loglevel level,
   va_end(args);
   buffered_logs.buffer(level, buffer);
 }
-#endif
 
 
 /**
@@ -4274,7 +4277,7 @@ static int init_common_variables()
   sf_leaking_memory= 0; // no memory leaks from now on
 
 #ifndef EMBEDDED_LIBRARY
-  if (opt_abort && !opt_verbose)
+  if ((opt_help || opt_version) && !opt_verbose)
     unireg_abort(0);
 #endif /*!EMBEDDED_LIBRARY*/
 
@@ -4481,10 +4484,8 @@ static int init_common_variables()
     default_collation= get_charset_by_name(default_collation_name, MYF(utf8_flag));
     if (!default_collation)
     {
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
       buffered_logs.print();
       buffered_logs.cleanup();
-#endif
       sql_print_error(ER_DEFAULT(ER_UNKNOWN_COLLATION), default_collation_name);
       return 1;
     }
@@ -5243,9 +5244,8 @@ static int init_server_components()
   }
 
 
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
-    Parsing the performance schema command line option may have reported
+    Parsing the early command line options may have reported
     warnings/information messages.
     Now that the logger is finally available, and redirected
     to the proper file when the --log--error option is used,
@@ -5253,7 +5253,6 @@ static int init_server_components()
   */
   buffered_logs.print();
   buffered_logs.cleanup();
-#endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
 #ifndef EMBEDDED_LIBRARY
   /*
@@ -5460,7 +5459,7 @@ static int init_server_components()
   }
 #endif /* WITH_WSREP */
 
-  if (!opt_help && !binlog_engine_used && opt_bin_log)
+  if (!opt_abort && !binlog_engine_used && opt_bin_log)
   {
     if (mysql_bin_log.open_index_file(opt_binlog_index_name, opt_bin_logname,
                                       TRUE))
@@ -5722,7 +5721,26 @@ static int init_server_components()
   }
 
   if (opt_abort)
+  {
+#ifndef EMBEDDED_LIBRARY
+    if (opt_validate_config && !opt_help && !opt_version)
+#else
+    if (opt_validate_config && !opt_help)
+#endif
+    {
+      /*
+        Printed directly rather than as a [Note]: notes are suppressed
+        under --validate-config, and this verdict must always be shown.
+      */
+      if (validate_config_has_warnings)
+        puts("Configuration is valid, but warnings were reported; "
+             "see above.");
+      else
+        puts("Configuration is valid.");
+      fflush(stdout);
+    }
     unireg_abort(0);
+  }
 
   if (init_io_cache_encryption())
     unireg_abort(1);
@@ -6129,12 +6147,6 @@ int mysqld_main(int argc, char **argv)
 
   sys_var_init();
 
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
-  /*
-    Initialize the array of performance schema instrument configurations.
-  */
-  init_pfs_instrument_array();
-
   /*
     Logs generated while parsing the command line
     options are buffered and printed later.
@@ -6142,6 +6154,12 @@ int mysqld_main(int argc, char **argv)
   buffered_logs.init();
   my_getopt_error_reporter= buffered_option_error_reporter;
   my_charset_error_reporter= buffered_option_error_reporter;
+
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+  /*
+    Initialize the array of performance schema instrument configurations.
+  */
+  init_pfs_instrument_array();
 
   pfs_param.m_pfs_instrument= const_cast<char*>("");
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
@@ -6939,6 +6957,11 @@ struct my_option my_long_options[]=
   {"help", '?', "Display this help and exit", 
    &opt_help, &opt_help, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
+  {"validate-config", 0, "Validate the server configuration specified by the user "
+   "and exit with an exit code of 0 for success or non-zero for failure, "
+   "without starting the server",
+   &opt_validate_config, &opt_validate_config, 0, GET_BOOL, NO_ARG, 0, 0, 0,
+   0, 0, 0},
   {"ansi", 'a', "Use ANSI SQL syntax instead of MariaDB syntax. This mode "
    "will also set transaction isolation level 'serializable'", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -8678,6 +8701,7 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     {
       print_version();
       opt_abort= 1;                    // Abort after parsing all options
+      opt_version= 1;
     }
 #endif /*EMBEDDED_LIBRARY*/
     break;
@@ -9222,7 +9246,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
                                 mysqld_get_one_option)))
     return ho_error;
 
-  if (!opt_help)
+  if (!opt_help && !opt_validate_config)
     delete_dynamic(&all_options);
   else
     opt_abort= 1;
@@ -9231,7 +9255,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   (*argc_ptr)++;
   (*argv_ptr)--;
 
-  disable_log_notes= opt_silent_startup;
+  disable_log_notes= opt_silent_startup || opt_validate_config;
 
   /*
     Options have been parsed. Now some of them need additional special

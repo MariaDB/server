@@ -1,0 +1,100 @@
+#
+# Test 1: --validate-config with valid configuration should succeed (exit 0)
+#
+FOUND 1 /Configuration is valid\./ in mdev-31527-test1.log
+#
+# Test 2: --validate-config with unknown option should fail (exit 2)
+#
+FOUND 1 /unknown option '--nonexistentoption'/ in mdev-31527-test2.log
+#
+# Test 3: --validate-config should not start the server (no pid file created)
+#
+FOUND 1 /Configuration is valid\./ in mdev-31527-test3.log
+#
+# Test 4: --validate-config should not produce help output
+#
+NOT FOUND /Starts the MariaDB database server/ in mdev-31527-test4.log
+#
+# Test 5: --validate-config with bad option in config file should fail
+#
+FOUND 1 /unknown variable 'zzz_bogus_option=123'/ in mdev-31527-test5.log
+#
+# Test 6: --validate-config with valid config file should succeed
+#
+FOUND 1 /Configuration is valid\./ in mdev-31527-test6.log
+#
+# Test 7: --validate-config with --help (help takes precedence,
+#         'Configuration is valid' should NOT be printed)
+#
+FOUND 1 /Starts the MariaDB database server/ in mdev-31527-test7.log
+NOT FOUND /Configuration is valid/ in mdev-31527-test7.log
+#
+# Test 8: --validate-config with --verbose should still succeed (exit 0)
+#
+FOUND 1 /Configuration is valid\./ in mdev-31527-test8.log
+#
+# Test 9: --validate-config with --version (version takes precedence,
+#         'Configuration is valid' should NOT be printed)
+#
+FOUND 1 /Ver [0-9]/ in mdev-31527-test9.log
+NOT FOUND /Configuration is valid/ in mdev-31527-test9.log
+#
+# Test 10: --help --validate-config --invalid-config should print help
+#          and exit cleanly (help takes precedence)
+#
+FOUND 1 /Starts the MariaDB database server/ in mdev-31527-test10.log
+NOT FOUND /unknown option/ in mdev-31527-test10.log
+#
+# Test 11: --version --validate-config --invalid-config should print version
+#          and exit cleanly (version takes precedence)
+#
+FOUND 1 /Ver [0-9]/ in mdev-31527-test11.log
+NOT FOUND /unknown option/ in mdev-31527-test11.log
+#
+# Test 12: --validate-config --log-bin should not create binlog index file
+#
+FOUND 1 /Configuration is valid\./ in mdev-31527-test12.log
+#
+# Test 13: --validate-config with adjusted option value should warn and succeed
+#
+FOUND 1 /option 'table_open_cache': unsigned value 0 adjusted/ in mdev-31527-test13.log
+FOUND 1 /Configuration is valid, but warnings were reported/ in mdev-31527-test13.log
+#
+# Test 14: --validate-config with a warning that is not related to
+#          option parsing (e.g. tls_version) should still report
+#          "warnings were reported"
+#
+FOUND 1 /TLSv1.0 and TLSv1.1 are insecure/ in mdev-31527-test14.log
+FOUND 1 /Configuration is valid, but warnings were reported/ in mdev-31527-test14.log
+#
+# Test 15: --validate-config --help --verbose should not print
+#          'Configuration is valid' (help takes precedence)
+#
+FOUND 1 /Starts the MariaDB database server/ in mdev-31527-test15.log
+NOT FOUND /Configuration is valid/ in mdev-31527-test15.log
+#
+# Test 16: --validate-config --version --verbose should not print
+#          'Configuration is valid' (version takes precedence)
+#
+FOUND 1 /Ver [0-9]/ in mdev-31527-test16.log
+NOT FOUND /Configuration is valid/ in mdev-31527-test16.log
+#
+# Test 17: --validate-config --silent-startup must still print the verdict
+#
+FOUND 1 /Configuration is valid\./ in mdev-31527-test17.log
+#
+# Test 18: a warning printed via sql_print_warning() is counted
+#
+FOUND 1 /Although a general log file was specified, log tables are used/ in mdev-31527-test18.log
+FOUND 1 /Configuration is valid, but warnings were reported/ in mdev-31527-test18.log
+#
+# Test 19: a warning for an early-parsed option is counted
+#
+FOUND 1 /option 'max_connections': unsigned value 99999999999 adjusted/ in mdev-31527-test19.log
+FOUND 1 /Configuration is valid, but warnings were reported/ in mdev-31527-test19.log
+#
+# Test 20: --validate-config prints no [Note] lines
+#          (e.g. "Plugin 'FEEDBACK' is disabled.")
+#
+NOT FOUND /\[Note\]/ in mdev-31527-test20.log
+# End of 13.2 tests

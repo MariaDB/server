@@ -11994,6 +11994,9 @@ int vprint_msg_to_log(enum loglevel level, const char *format, va_list args)
   size_t length;
   DBUG_ENTER("vprint_msg_to_log");
 
+  if (level == WARNING_LEVEL)
+    validate_config_has_warnings= 1;
+
   length= my_vsnprintf(buff, sizeof(buff), format, args);
   print_buffer_to_file(level, buff, length);
 
