@@ -988,7 +988,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 #endif /* EMBEDDED_LIBRARY */
   {
     if (prepare_for_replace(table, info.handle_duplicates, info.ignore))
-      DBUG_RETURN(1);
+      goto abort;
+    
     /**
       This is a simple check for the case when the table has a trigger
       that reads from it, or when the statement invokes a stored function
