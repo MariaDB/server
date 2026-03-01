@@ -1,0 +1,77 @@
+# MDEV-38329 CALL with named parameters.
+# Create procedure with 2 params
+CREATE PROCEDURE p1(a INT, b INT) SELECT a, b;
+# Positional call
+CALL p1(1, 2);
+a	b
+1	2
+# Named call - same order as declaration
+CALL p1(a => 10, b => 20);
+a	b
+10	20
+# Named call - reversed order (tests resolution)
+CALL p1(b => 200, a => 100);
+a	b
+100	200
+# Mixed: positional first, then named
+CALL p1(100, b => 200);
+a	b
+100	200
+# User variables as named parameters
+SET @v1= 5, @v2= 10;
+CALL p1(a => @v1, b => @v2);
+a	b
+5	10
+# Expressions as named parameters
+CALL p1(a => 1+1, b => 3*4);
+a	b
+2	12
+# Error: unknown parameter names
+CALL p1(x => 0, y => 3);
+ERROR 42000: Undeclared variable: x
+# 3-param procedure
+CREATE PROCEDURE p2(x INT, y INT, z INT) SELECT x, y, z;
+# Named call all 3
+CALL p2(x => 1, y => 2, z => 3);
+x	y	z
+1	2	3
+# Named out-of-order
+CALL p2(z => 30, x => 10, y => 20);
+x	y	z
+10	20	30
+# Mixed: 1 positional + 2 named
+CALL p2(1, z => 30, y => 20);
+x	y	z
+1	20	30
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+# Error: unknown parameter name
+CREATE PROCEDURE p3(a INT) SELECT a;
+CALL p3(x => 1);
+ERROR 42000: Undeclared variable: x
+# Error: duplicate parameter
+CALL p3(a => 1, a => 2);
+ERROR 42000: Duplicate parameter: a
+DROP PROCEDURE p3;
+# OUT parameters: named call out-of-order, writeback to correct variables
+CREATE PROCEDURE p_out(OUT a INT, OUT b INT)
+BEGIN
+SELECT 10, 20 INTO a, b;
+END|
+CALL p_out(b => @bout, a => @aout);
+SELECT @aout, @bout;
+@aout	@bout
+10	20
+DROP PROCEDURE p_out;
+# INOUT parameters with named call
+CREATE PROCEDURE p_inout(INOUT x INT, INOUT y INT)
+BEGIN
+SET x= x * 10, y= y + 100;
+END|
+SET @xin= 1, @yin= 2;
+CALL p_inout(y => @yin, x => @xin);
+SELECT @xin, @yin;
+@xin	@yin
+10	102
+DROP PROCEDURE p_inout;
+# End of 13.0 tests

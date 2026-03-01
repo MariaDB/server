@@ -1,0 +1,80 @@
+# MDEV-38329 CALL with named parameters.
+
+--echo # MDEV-38329 CALL with named parameters.
+--echo # Create procedure with 2 params
+CREATE PROCEDURE p1(a INT, b INT) SELECT a, b;
+
+--echo # Positional call
+CALL p1(1, 2);
+
+--echo # Named call - same order as declaration
+CALL p1(a => 10, b => 20);
+
+--echo # Named call - reversed order (tests resolution)
+CALL p1(b => 200, a => 100);
+
+--echo # Mixed: positional first, then named
+CALL p1(100, b => 200);
+
+--echo # User variables as named parameters
+SET @v1= 5, @v2= 10;
+CALL p1(a => @v1, b => @v2);
+
+--echo # Expressions as named parameters
+CALL p1(a => 1+1, b => 3*4);
+
+--echo # Error: unknown parameter names
+--error ER_SP_UNDECLARED_VAR
+CALL p1(x => 0, y => 3);
+
+--echo # 3-param procedure
+CREATE PROCEDURE p2(x INT, y INT, z INT) SELECT x, y, z;
+
+--echo # Named call all 3
+CALL p2(x => 1, y => 2, z => 3);
+
+--echo # Named out-of-order
+CALL p2(z => 30, x => 10, y => 20);
+
+--echo # Mixed: 1 positional + 2 named
+CALL p2(1, z => 30, y => 20);
+
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+
+--echo # Error: unknown parameter name
+CREATE PROCEDURE p3(a INT) SELECT a;
+
+--error ER_SP_UNDECLARED_VAR
+CALL p3(x => 1);
+
+--echo # Error: duplicate parameter
+--error ER_SP_DUP_PARAM
+CALL p3(a => 1, a => 2);
+
+DROP PROCEDURE p3;
+
+--echo # OUT parameters: named call out-of-order, writeback to correct variables
+delimiter |;
+CREATE PROCEDURE p_out(OUT a INT, OUT b INT)
+BEGIN
+  SELECT 10, 20 INTO a, b;
+END|
+delimiter ;|
+CALL p_out(b => @bout, a => @aout);
+SELECT @aout, @bout;
+DROP PROCEDURE p_out;
+
+--echo # INOUT parameters with named call
+delimiter |;
+CREATE PROCEDURE p_inout(INOUT x INT, INOUT y INT)
+BEGIN
+  SET x= x * 10, y= y + 100;
+END|
+delimiter ;|
+SET @xin= 1, @yin= 2;
+CALL p_inout(y => @yin, x => @xin);
+SELECT @xin, @yin;
+DROP PROCEDURE p_inout;
+
+--echo # End of 13.0 tests
