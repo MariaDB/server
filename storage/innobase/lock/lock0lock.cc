@@ -6959,7 +6959,7 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
     }
 
     {
-      unsigned l= 1;
+      unsigned l= 0;
       /* Now that we are holding lock_sys.wait_mutex again, check
       whether a cycle still exists. */
       trx_t *cycle= find_cycle(trx);
@@ -6967,22 +6967,30 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
         goto func_exit; /* One of the transactions was already aborted. */
 
       lock_sys.deadlocks++;
-      victim= cycle;
-      undo_no_t victim_weight= calc_victim_weight(victim, trx);
-      unsigned victim_pos= l;
+      /* Select the victim among the cycle participants. Traverse
+      the cycle in the same order as the display loop below
+      (cycle->wait_trx, ..., cycle as positions 1, 2, ..., N)
+      so that victim_pos matches the displayed transaction number. */
+      undo_no_t victim_weight= 0;
+      unsigned victim_pos= 0;
       for (trx_t *next= cycle;;)
       {
         next= next->lock.wait_trx;
         l++;
         const undo_no_t next_weight= calc_victim_weight(next, trx);
 #ifdef HAVE_REPLICATION
-        const int pref=
-          thd_deadlock_victim_preference(victim->mysql_thd, next->mysql_thd);
-        /* Set bit 63 for any non-preferred victim to make such preference take
-        priority in the weight comparison.
-        -1 means victim is preferred. 1 means next is preferred. */
-        undo_no_t victim_not_pref= (1ULL << 63) & (undo_no_t)(int64_t)(-pref);
-        undo_no_t next_not_pref= (1ULL << 63) & (undo_no_t)(int64_t)pref;
+        undo_no_t victim_not_pref= 0;
+        undo_no_t next_not_pref= 0;
+        if (UNIV_LIKELY(victim != nullptr))
+        {
+          const int pref=
+            thd_deadlock_victim_preference(victim->mysql_thd, next->mysql_thd);
+          /* Set bit 63 for any non-preferred victim to make such preference
+          take priority in the weight comparison.
+          -1 means victim is preferred. 1 means next is preferred. */
+          victim_not_pref= (1ULL << 63) & (undo_no_t)(int64_t)(-pref);
+          next_not_pref= (1ULL << 63) & (undo_no_t)(int64_t)pref;
+        }
 #else
         undo_no_t victim_not_pref= 0;
         undo_no_t next_not_pref= 0;
@@ -6996,7 +7004,8 @@ and less modified rows. Bit 0 is used to prefer orig_trx in case of a tie.
          - Else the TRX_WEIGHT in bits 1-61 will decide, if not equal.
          - Else, if one of them is the original trx, bit 0 will decide.
          - If all is equal, previous victim will arbitrarily be chosen. */
-        if ((next_weight|next_not_pref) < (victim_weight|victim_not_pref))
+        if (UNIV_UNLIKELY(victim == nullptr) ||
+            (next_weight|next_not_pref) < (victim_weight|victim_not_pref))
         {
           victim_weight= next_weight;
           victim= next;
