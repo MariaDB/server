@@ -380,6 +380,7 @@ handlerton *opt_binlog_engine_hton;
 bool opt_bin_log_compress;
 uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
+my_bool opt_validate_config= 0;
 my_bool debug_assert_on_not_freed_memory= 0;
 my_bool disable_log_notes, opt_support_flashback= 0;
 static my_bool opt_abort;
@@ -1901,6 +1902,8 @@ extern "C" void unireg_abort(int exit_code)
 
   if (opt_help)
     usage();
+  else if (opt_validate_config && !exit_code)
+    sql_print_information("Configuration is valid.");
   else if (exit_code)
     sql_print_error("Aborting");
   /* Don't write more notes to the log to not hide error message */
@@ -4131,7 +4134,7 @@ static int init_common_variables()
   sf_leaking_memory= 0; // no memory leaks from now on
 
 #ifndef EMBEDDED_LIBRARY
-  if (opt_abort && !opt_verbose)
+  if (opt_abort && !opt_verbose && !opt_validate_config)
     unireg_abort(0);
 #endif /*!EMBEDDED_LIBRARY*/
 
@@ -6780,6 +6783,11 @@ struct my_option my_long_options[]=
   {"help", '?', "Display this help and exit", 
    &opt_help, &opt_help, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
+  {"validate-config", 0, "Validate the server configuration specified by the user "
+   "and exit with an exit code of 0 for success or 1 for failure, "
+   "without starting the server",
+   &opt_validate_config, &opt_validate_config, 0, GET_BOOL, NO_ARG, 0, 0, 0,
+   0, 0, 0},
   {"ansi", 'a', "Use ANSI SQL syntax instead of MariaDB syntax. This mode "
    "will also set transaction isolation level 'serializable'", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -9057,7 +9065,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
                                 mysqld_get_one_option)))
     return ho_error;
 
-  if (!opt_help)
+  if (!opt_help && !opt_validate_config)
     delete_dynamic(&all_options);
   else
     opt_abort= 1;

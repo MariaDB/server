@@ -1,0 +1,72 @@
+#
+# Test --validate-config option (MDEV-31527)
+#
+# The --validate-config flag validates the configuration and exits
+# with exit code 0 on success, or 1 on failure, without starting
+# the server.
+#
+
+--source include/not_embedded.inc
+
+# mysqld refuses to run as root normally.
+--source include/not_as_root.inc
+
+mkdir $MYSQLTEST_VARDIR/tmp/validate_config;
+
+--echo #
+--echo # Test 1: --validate-config with valid configuration should succeed (exit 0)
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/validate_config --skip-grant-tables --validate-config >$MYSQLTEST_VARDIR/tmp/validate_config/test1.log 2>&1
+
+--echo #
+--echo # Test 2: --validate-config with unknown option should fail (exit != 0)
+--echo #
+--error 2
+--exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/validate_config --skip-grant-tables --validate-config --nonexistentoption >$MYSQLTEST_VARDIR/tmp/validate_config/test2.log 2>&1
+
+--echo #
+--echo # Test 3: --validate-config should not start the server (no pid file)
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/validate_config --skip-grant-tables --validate-config --pid-file=$MYSQLTEST_VARDIR/tmp/validate_config/validate.pid >$MYSQLTEST_VARDIR/tmp/validate_config/test4.log 2>&1
+--error 1
+--file_exists $MYSQLTEST_VARDIR/tmp/validate_config/validate.pid
+
+--echo #
+--echo # Test 4: --validate-config should not produce help output
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/validate_config --skip-grant-tables --validate-config >$MYSQLTEST_VARDIR/tmp/validate_config/test5.log 2>&1
+# The log should NOT contain the --help option listing
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/validate_config/test5.log
+--let SEARCH_PATTERN=To see what values a running
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # Test 5: --validate-config with bad option in config file should fail
+--echo #
+# Note: $MYSQLD_BOOTSTRAP_CMD contains --no-defaults which prevents
+# --defaults-file from being processed. Use $MYSQLD directly instead.
+--write_file $MYSQLTEST_VARDIR/tmp/validate_config/bad.cnf
+[mariadb]
+zzz_bogus_option=123
+EOF
+--error 7
+--exec $MYSQLD --defaults-file=$MYSQLTEST_VARDIR/tmp/validate_config/bad.cnf --skip-networking --skip-grant-tables --validate-config --lc-messages-dir=$MYSQL_SHAREDIR --datadir=$MYSQLTEST_VARDIR/tmp/validate_config --plugin-dir=$MYSQLTEST_VARDIR/plugins --character-sets-dir=$MYSQL_CHARSETSDIR --console --core-file >$MYSQLTEST_VARDIR/tmp/validate_config/test6.log 2>&1
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/validate_config/test6.log
+--let SEARCH_PATTERN=unknown variable 'zzz_bogus_option=123'
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # Test 6: --validate-config with valid config file should succeed
+--echo #
+--write_file $MYSQLTEST_VARDIR/tmp/validate_config/good.cnf
+[mariadb]
+max_connections=50
+EOF
+--exec $MYSQLD --defaults-file=$MYSQLTEST_VARDIR/tmp/validate_config/good.cnf --skip-networking --skip-grant-tables --validate-config --lc-messages-dir=$MYSQL_SHAREDIR --datadir=$MYSQLTEST_VARDIR/tmp/validate_config --plugin-dir=$MYSQLTEST_VARDIR/plugins --character-sets-dir=$MYSQL_CHARSETSDIR --console --core-file >$MYSQLTEST_VARDIR/tmp/validate_config/test7.log 2>&1
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/validate_config/test7.log
+--let SEARCH_PATTERN=Configuration is valid
+--source include/search_pattern_in_file.inc
+
+# Cleanup
+remove_files_wildcard $MYSQLTEST_VARDIR/tmp/validate_config;
+rmdir $MYSQLTEST_VARDIR/tmp/validate_config;

@@ -1739,6 +1739,9 @@ The following specify which files/extra groups are read (specified before remain
  --userstat          Enables statistics gathering for USER_STATISTICS,
  CLIENT_STATISTICS, INDEX_STATISTICS and TABLE_STATISTICS
  tables in the INFORMATION_SCHEMA
+ --validate-config   Validate the server configuration specified by the user
+ and exit with an exit code of 0 for success or 1 for
+ failure, without starting the server
  -v, --verbose       Used with --help option for detailed help
  -V, --version[=name] 
  Output version information and exit
@@ -2180,6 +2183,7 @@ transaction-read-only FALSE
 updatable-views-with-limit YES
 use-stat-tables PREFERABLY_FOR_QUERIES
 userstat FALSE
+validate-config FALSE
 verbose TRUE
 wait-timeout 28800
 

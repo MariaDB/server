@@ -1,0 +1,21 @@
+#
+# Test 1: --validate-config with valid configuration should succeed (exit 0)
+#
+#
+# Test 2: --validate-config with unknown option should fail (exit != 0)
+#
+#
+# Test 3: --validate-config should not start the server (no pid file)
+#
+#
+# Test 4: --validate-config should not produce help output
+#
+NOT FOUND /To see what values a running/ in test5.log
+#
+# Test 5: --validate-config with bad option in config file should fail
+#
+FOUND 1 /unknown variable 'zzz_bogus_option=123'/ in test6.log
+#
+# Test 6: --validate-config with valid config file should succeed
+#
+FOUND 1 /Configuration is valid/ in test7.log
