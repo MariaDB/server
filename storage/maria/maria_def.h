@@ -963,7 +963,6 @@ struct st_maria_handler
   MEM_ROOT      ft_memroot;             /* used by the parser               */
   MYSQL_FTPARSER_PARAM *ftparser_param;	/* share info between init/deinit */
   void *external_ref;			/* For MariaDB TABLE */
-  const MY_BITMAP *null_set;            /* Columns used only for NULL tests */
   uchar *buff;				/* page buffer */
   uchar *keyread_buff;                   /* Buffer for last key read */
   uchar *lastkey_buff;			/* Last used search key */
@@ -1060,14 +1059,6 @@ struct st_maria_handler
   rowid_filter_func_t rowid_filter_func;   /* rowid filter check function */
   void *rowid_filter_func_arg;         /* parameter for the func */
 };
-
-static inline my_bool ma_is_null_only_field(const MARIA_HA *info,
-                                            const MARIA_COLUMNDEF *column)
-{
-  return info->null_set &&
-         column->column_nr < info->null_set->n_bits &&
-         bitmap_is_set(info->null_set, column->column_nr);
-}
 
 /* Table options for the Aria and S3 storage engine */
 

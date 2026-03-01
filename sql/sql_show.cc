@@ -9098,10 +9098,10 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   my_bitmap_map* bitmaps=
     (my_bitmap_map*) thd->alloc(bitmap_size * 2);
   my_bitmap_init(&table->def_read_set, bitmaps, field_count);
-  my_bitmap_init(&table->null_set,
+  my_bitmap_init(&table->isnull_only_set,
                  (my_bitmap_map*)((uchar*) bitmaps + bitmap_size),
                  field_count);
-  bitmap_clear_all(&table->null_set);
+  bitmap_clear_all(&table->isnull_only_set);
   table->read_set= &table->def_read_set;
   bitmap_clear_all(table->read_set);
   table_list->schema_table_param= tmp_table_param;

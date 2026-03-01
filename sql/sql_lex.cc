@@ -5499,16 +5499,10 @@ void SELECT_LEX::mark_as_belong_to_derived(TABLE_LIST *derived)
 
 static bool table_supports_null_only(const TABLE_LIST *table_list)
 {
-  enum legacy_db_type db_type;
-
-  if (!table_list || !table_list->table || !table_list->table->file ||
-      !table_list->table->file->ht)
+  if (!table_list || !table_list->table || !table_list->table->file)
     return false;
 
-  db_type= table_list->table->file->ht->db_type;
-  return db_type == DB_TYPE_INNODB ||
-         db_type == DB_TYPE_ARIA ||
-         db_type == DB_TYPE_MYISAM;
+  return table_list->table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ;
 }
 
 static void mark_null_only_in_expr(Item *expr, bool *any_marked)
@@ -5525,6 +5519,13 @@ static void clear_null_only_in_expr(Item *expr)
                WALK_SUBQUERY | WALK_SKIP_NULL_PREDICATE_ARGS);
 }
 
+/*
+  Mark fields that appear in NULL predicates, then clear fields that are also
+  used in other contexts. During the clear pass,
+  WALK_SKIP_NULL_PREDICATE_ARGS keeps the field inside IS NULL / IS NOT NULL /
+  <=> NULL from being cleared by that same predicate, so only fields used
+  exclusively for NULL checks remain set.
+*/
 static void update_null_only_set(SELECT_LEX *select)
 {
   TABLE_LIST *tl;
@@ -5547,7 +5548,7 @@ static void update_null_only_set(SELECT_LEX *select)
   while ((tl= ti++))
   {
     if (tl->table)
-      bitmap_clear_all(&tl->table->null_set);
+      bitmap_clear_all(&tl->table->isnull_only_set);
   }
 
   bool any_marked= false;
@@ -5640,11 +5641,11 @@ static void update_null_only_set(SELECT_LEX *select)
   while ((tl= ti++))
   {
     if (table_supports_null_only(tl))
-      null_only_columns+= bitmap_bits_set(&tl->table->null_set);
+      null_only_columns+= bitmap_bits_set(&tl->table->isnull_only_set);
   }
 
   if (null_only_columns)
-    status_var_add(current_thd->status_var.ha_null_only_columns,
+    status_var_add(current_thd->status_var.null_only_columns,
                    null_only_columns);
 }
 

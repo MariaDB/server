@@ -247,8 +247,6 @@ struct st_myisam_info
   MEM_ROOT      ft_memroot;             /* used by the parser               */
   MYSQL_FTPARSER_PARAM *ftparser_param; /* share info between init/deinit   */
   void *external_ref;			/* For MariaDB TABLE */
-  const MY_BITMAP *null_set;            /* Columns used only for NULL tests */
-  uint16 *fieldnr_map;                  /* recinfo index -> SQL field index */
   LIST in_use;                          /* Thread using this table          */
   char *filename;			/* parameter to open filename       */
   uchar *buff,				/* Temp area for key                */
@@ -318,15 +316,6 @@ struct st_myisam_info
   uchar *rtree_recursion_state;         /* For RTREE */
   int rtree_recursion_depth;
 };
-
-static inline my_bool mi_is_null_only_field(const MI_INFO *info, uint rec_idx)
-{
-  uint16 fieldnr;
-  if (!info->null_set || !info->fieldnr_map)
-    return 0;
-  fieldnr= info->fieldnr_map[rec_idx];
-  return fieldnr != MI_NO_FIELD_NR && bitmap_is_set(info->null_set, fieldnr);
-}
 
 #define USE_WHOLE_KEY   (HA_MAX_KEY_BUFF*2) /* Use whole key in _mi_search() */
 #define F_EXTRA_LCK     -1

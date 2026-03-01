@@ -21,7 +21,7 @@ COUNT(*)
 2
 SELECT VARIABLE_VALUE > 0 AS null_only_used
 FROM information_schema.session_status
-WHERE VARIABLE_NAME='Handler_null_only_columns';
+WHERE VARIABLE_NAME='Null_only_columns';
 null_only_used
 1
 SELECT SUM(COUNT) AS blob_reads
@@ -39,7 +39,7 @@ COUNT(*)
 2
 SELECT VARIABLE_VALUE > 0 AS null_only_used
 FROM information_schema.session_status
-WHERE VARIABLE_NAME='Handler_null_only_columns';
+WHERE VARIABLE_NAME='Null_only_columns';
 null_only_used
 1
 SELECT SUM(COUNT) AS blob_reads
@@ -56,7 +56,7 @@ COUNT(*)
 2
 SELECT VARIABLE_VALUE > 0 AS null_only_used
 FROM information_schema.session_status
-WHERE VARIABLE_NAME='Handler_null_only_columns';
+WHERE VARIABLE_NAME='Null_only_columns';
 null_only_used
 1
 FLUSH STATUS;
@@ -70,7 +70,7 @@ COUNT(*)
 2
 SELECT VARIABLE_VALUE > 0 AS null_only_used
 FROM information_schema.session_status
-WHERE VARIABLE_NAME='Handler_null_only_columns';
+WHERE VARIABLE_NAME='Null_only_columns';
 null_only_used
 1
 SET GLOBAL innodb_monitor_disable='module_buffer_page';
@@ -82,7 +82,7 @@ SUM(CRC32(b))
 4149198040
 SELECT VARIABLE_VALUE = 0 AS null_only_used
 FROM information_schema.session_status
-WHERE VARIABLE_NAME='Handler_null_only_columns';
+WHERE VARIABLE_NAME='Null_only_columns';
 null_only_used
 1
 SELECT SUM(COUNT) > 0 AS blob_reads

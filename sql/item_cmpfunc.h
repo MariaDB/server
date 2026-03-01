@@ -841,9 +841,40 @@ protected:
   { return get_item_copy<Item_func_nop_all>(thd, this); }
 };
 
-static inline Field *null_predicate_field(Item *item);
-static inline bool mark_null_only_field(Field *field, void *arg);
-static inline Field *null_safe_equal_field(Item *left, Item *right);
+static inline Field *null_predicate_field(Item *item)
+{
+  Item *real_item= item->real_item();
+  if (real_item->type() != Item::FIELD_ITEM)
+    return NULL;
+  Item_field *item_field= static_cast<Item_field *>(real_item);
+  Field *field= item_field->field;
+  if (!field || !field->stored_in_db())
+    return NULL;
+  return field;
+}
+
+static inline bool mark_null_only_field(Field *field, void *arg)
+{
+  if (!field || !field->table || !field->real_maybe_null())
+    return false;
+  bitmap_set_bit(&field->table->isnull_only_set, field->field_index);
+  if (arg)
+    *static_cast<bool *>(arg)= true;
+  return true;
+}
+
+/* Recognize predicates like field <=> NULL (or NULL <=> field). */
+static inline Field *null_safe_equal_field(Item *left, Item *right)
+{
+  Item *left_real= left->real_item();
+  Item *right_real= right->real_item();
+
+  if (left_real->type() == Item::NULL_ITEM)
+    return null_predicate_field(right);
+  if (right_real->type() == Item::NULL_ITEM)
+    return null_predicate_field(left);
+  return NULL;
+}
 
 class Item_func_eq :public Item_bool_rowready_func2
 {
@@ -2935,42 +2966,6 @@ public:
 
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
 };
-
-static inline Field *null_predicate_field(Item *item)
-{
-  Item *real_item= item->real_item();
-  if (real_item->type() != Item::FIELD_ITEM)
-    return NULL;
-  Item_field *item_field= static_cast<Item_field *>(real_item);
-  Field *field= item_field->field;
-  if (!field || !field->stored_in_db())
-    return NULL;
-  return field;
-}
-
-static inline bool mark_null_only_field(Field *field, void *arg)
-{
-  if (!field || !field->table || !field->table->file
-      || !field->real_maybe_null())
-    return false;
-  bitmap_set_bit(&field->table->null_set, field->field_index);
-  if (arg)
-    *static_cast<bool *>(arg)= true;
-  return true;
-}
-
-static inline Field *null_safe_equal_field(Item *left, Item *right)
-{
-  Item *left_real= left->real_item();
-  Item *right_real= right->real_item();
-
-  if (left_real->type() == Item::NULL_ITEM)
-    return null_predicate_field(right);
-  if (right_real->type() == Item::NULL_ITEM)
-    return null_predicate_field(left);
-  return NULL;
-}
-
 
 class Item_func_isnull :public Item_func_null_predicate
 {

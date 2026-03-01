@@ -930,7 +930,7 @@ bool Item_field::clear_null_only_fields_processor(void *arg)
 {
   (void) arg;
   if (field && field->table)
-    bitmap_clear_bit(&field->table->null_set, field->field_index);
+    bitmap_clear_bit(&field->table->isnull_only_set, field->field_index);
   return 0;
 }
 

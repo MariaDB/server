@@ -4793,7 +4793,6 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
   MARIA_SHARE *share= info->s;
   uchar *field_length_data= 0, *UNINIT_VAR(blob_buffer), *start_of_data;
   uint flag, null_bytes, cur_null_bytes, row_extents, field_lengths;
-  my_bool null_only;
   my_bool found_blob= 0;
   MARIA_EXTENT_CURSOR extent;
   MARIA_COLUMNDEF *column, *end_column;
@@ -4934,7 +4933,6 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
   {
     enum en_fieldtype type= column->type;
     uchar *field_pos= record + column->offset;
-    null_only= ma_is_null_only_field(info, column);
     /* First check if field is present in record */
     if ((record[column->null_pos] & column->null_bit) ||
         (column->empty_bit &&
@@ -4948,19 +4946,11 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
     case FIELD_NORMAL:                          /* Fixed length field */
     case FIELD_SKIP_PRESPACE:
     case FIELD_SKIP_ZERO:                       /* Fixed length field */
-      if (!null_only)
-      {
-        if (data + column->length > end_of_data &&
-            !(data= read_next_extent(info, &extent, &end_of_data)))
-          goto err;
-        memcpy(field_pos, data, column->length);
-        data+= column->length;
-      }
-      else if (skip_long_data(info, column->length, &extent, &data,
-                              &end_of_data))
-      {
-        DBUG_RETURN(my_errno);
-      }
+      if (data + column->length > end_of_data &&
+          !(data= read_next_extent(info, &extent, &end_of_data)))
+        goto err;
+      memcpy(field_pos, data, column->length);
+      data+= column->length;
       break;
     case FIELD_SKIP_ENDSPACE:                   /* CHAR */
     {
@@ -4977,17 +4967,10 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
       if (length > column->length)
         goto err;
 #endif
-      if (!null_only)
-      {
-        if (read_long_data(info, field_pos, length, &extent, &data,
-                           &end_of_data))
-          DBUG_RETURN(my_errno);
-        bfill(field_pos + length, column->length - length, ' ');
-      }
-      else if (skip_long_data(info, length, &extent, &data, &end_of_data))
-      {
+      if (read_long_data(info, field_pos, length, &extent, &data,
+                         &end_of_data))
         DBUG_RETURN(my_errno);
-      }
+      bfill(field_pos + length, column->length - length, ' ');
       break;
     }
     case FIELD_VARCHAR:
@@ -5012,18 +4995,11 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
       if (length > column->length - pack_length)
         goto err;
 #endif
-      if (!null_only)
-      {
-        if (read_long_data(info, field_pos, length, &extent, &data,
-                           &end_of_data))
-          DBUG_RETURN(my_errno);
-        MEM_UNDEFINED(field_pos + length,
-                      column->length - length - pack_length);
-      }
-      else if (skip_long_data(info, length, &extent, &data, &end_of_data))
-      {
+      if (read_long_data(info, field_pos, length, &extent, &data,
+                         &end_of_data))
         DBUG_RETURN(my_errno);
-      }
+      MEM_UNDEFINED(field_pos + length,
+                    column->length - length - pack_length);
       break;
     }
     case FIELD_BLOB:
@@ -5053,8 +5029,7 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
           size_length= blob_field->length - portable_sizeof_char_ptr;
           blob_part_length= _ma_calc_blob_length(size_length, length_data);
           blob_lengths+= blob_part_length;
-          if (!ma_is_null_only_field(info, blob_field))
-            read_blob_lengths+= blob_part_length;
+          read_blob_lengths+= blob_part_length;
           length_data+= size_length;
         }
         cur_row->blob_length= blob_lengths;
@@ -5066,12 +5041,9 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
         blob_buffer= info->blob_buff;
       }
 
-      if (!null_only)
-      {
-        memcpy(field_pos, field_length_data, column_size_length);
-        memcpy(field_pos + column_size_length, (uchar *) &blob_buffer,
-               sizeof(char*));
-      }
+      memcpy(field_pos, field_length_data, column_size_length);
+      memcpy(field_pos + column_size_length, (uchar *) &blob_buffer,
+             sizeof(char*));
       field_length_data+= column_size_length;
 
       /*
@@ -5080,18 +5052,10 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
       if (!extent.first_extent || (ulong) (end_of_data - data) < blob_length)
         end_of_data= data;                      /* Force read of next extent */
 
-      if (!null_only)
-      {
-        if (read_long_data(info, blob_buffer, blob_length, &extent, &data,
-                           &end_of_data))
-          DBUG_RETURN(my_errno);
-        blob_buffer+= blob_length;
-      }
-      else if (skip_long_data(info, blob_length, &extent, &data,
-                              &end_of_data))
-      {
+      if (read_long_data(info, blob_buffer, blob_length, &extent, &data,
+                         &end_of_data))
         DBUG_RETURN(my_errno);
-      }
+      blob_buffer+= blob_length;
       break;
     }
     default:

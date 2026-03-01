@@ -1028,7 +1028,7 @@ typedef struct system_status_var
   ulong ha_prepare_count;
   ulong ha_icp_attempts;
   ulong ha_icp_match;
-  ulong ha_null_only_columns;
+  ulong null_only_columns;
   ulong ha_discover_count;
   ulong ha_savepoint_count;
   ulong ha_savepoint_rollback_count;

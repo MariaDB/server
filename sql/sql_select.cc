@@ -21947,10 +21947,10 @@ setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps, uint field_count)
   my_bitmap_init(&table->cond_set,
                  (my_bitmap_map*) bitmaps, field_count);
   bitmaps+= bitmap_size;
-  my_bitmap_init(&table->null_set,
+  my_bitmap_init(&table->isnull_only_set,
                  (my_bitmap_map*) bitmaps, field_count);
   bitmaps+= bitmap_size;
-  bitmap_clear_all(&table->null_set);
+  bitmap_clear_all(&table->isnull_only_set);
   my_bitmap_init(&table->has_value_set,
                  (my_bitmap_map*) bitmaps, field_count);
   /* write_set and all_set are copies of read_set */

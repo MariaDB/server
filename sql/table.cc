@@ -4693,7 +4693,7 @@ partititon_err:
   my_bitmap_init(&outparam->cond_set,
                  (my_bitmap_map*) bitmaps, share->fields);
   bitmaps+= bitmap_size;
-  my_bitmap_init(&outparam->null_set,
+  my_bitmap_init(&outparam->isnull_only_set,
                  (my_bitmap_map*) bitmaps, share->fields);
   bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->def_rpl_write_set,
@@ -7746,7 +7746,7 @@ void TABLE::clear_column_bitmaps()
         s->column_bitmap_size * (s->virtual_fields ? 3 : 2));
   column_bitmaps_set(&def_read_set, &def_write_set);
   rpl_write_set= 0;                             // Safety
-  bitmap_clear_all(&null_set);
+  bitmap_clear_all(&isnull_only_set);
 }
 
 

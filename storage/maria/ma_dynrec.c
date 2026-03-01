@@ -1260,7 +1260,6 @@ size_t _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
 {
   uint flag,bit,length,min_pack_length, column_length;
   enum en_fieldtype type;
-  my_bool null_only;
   uchar *from_end,*to_end,*packpos;
   reg3 MARIA_COLUMNDEF *column, *end_column;
   DBUG_ENTER("_ma_rec_unpack");
@@ -1284,7 +1283,6 @@ size_t _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
   for (column= info->s->columndef, end_column= column + info->s->base.fields;
        column < end_column ; to+= column_length, column++)
   {
-    null_only= ma_is_null_only_field(info, column);
     column_length= column->length;
     if ((type = (enum en_fieldtype) column->type) != FIELD_NORMAL &&
 	(type != FIELD_CHECK))
@@ -1297,8 +1295,7 @@ size_t _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
           length= (uint) *(uchar*) from;
           if (length > column_length-1)
             goto err;
-          if (!null_only)
-            *to= *from;
+          *to= *from;
           from++;
         }
         else
@@ -1306,17 +1303,13 @@ size_t _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
           get_key_length(length, from);
           if (length > column_length-2)
             goto err;
-          if (!null_only)
-            int2store(to,length);
+          int2store(to,length);
         }
         if (from+length > from_end)
           goto err;
-        if (!null_only)
-        {
-          memcpy(to+pack_length, from, length);
-          MEM_UNDEFINED(to+pack_length + length,
-                        column_length - length - pack_length);
-        }
+        memcpy(to+pack_length, from, length);
+        MEM_UNDEFINED(to+pack_length + length,
+                      column_length - length - pack_length);
         from+= length;
         min_pack_length--;
         continue;
@@ -1325,8 +1318,7 @@ size_t _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
       {
 	if (type == FIELD_BLOB || type == FIELD_SKIP_ZERO)
         {
-          if (!null_only)
-	    bzero(to, column_length);
+	  bzero(to, column_length);
         }
 	else if (type == FIELD_SKIP_ENDSPACE ||
 		 type == FIELD_SKIP_PRESPACE)
@@ -1347,12 +1339,12 @@ size_t _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
 	  if (length >= column_length ||
 	      min_pack_length + length > (uint) (from_end - from))
 	    goto err;
-	  if (!null_only && type == FIELD_SKIP_ENDSPACE)
+	  if (type == FIELD_SKIP_ENDSPACE)
 	  {
 	    memcpy(to, from, (size_t) length);
 	    bfill(to+length, column_length-length, ' ');
 	  }
-	  else if (!null_only)
+	  else
 	  {
 	    bfill(to, column_length-length, ' ');
 	    memcpy(to+column_length-length, from, (size_t) length);
@@ -1369,11 +1361,9 @@ size_t _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
             from_left - size_length < blob_length ||
             from_left - size_length - blob_length < min_pack_length)
 	  goto err;
-        if (!null_only)
-	  memcpy(to, from, (size_t) size_length);
+	memcpy(to, from, (size_t) size_length);
 	from+=size_length;
-        if (!null_only)
-	  memcpy(to+size_length,(uchar*) &from,sizeof(char*));
+	memcpy(to+size_length,(uchar*) &from,sizeof(char*));
 	from+=blob_length;
       }
       else
@@ -1382,8 +1372,7 @@ size_t _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
 	  min_pack_length--;
 	if (min_pack_length + column_length > (uint) (from_end - from))
 	  goto err;
-        if (!null_only)
-	  memcpy(to, from, (size_t) column_length);
+	memcpy(to, from, (size_t) column_length);
         from+=column_length;
       }
       if ((bit= bit << 1) >= 256)
@@ -1396,8 +1385,7 @@ size_t _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
       if (min_pack_length > (uint) (from_end - from))
 	goto err;
       min_pack_length-=column_length;
-      if (!null_only)
-        memcpy(to, from, (size_t) column_length);
+      memcpy(to, from, (size_t) column_length);
       from+=column_length;
     }
   }

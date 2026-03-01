@@ -7090,7 +7090,7 @@ build_template_field(
 
 	templ->null_only = allow_null_only
 		&& !templ->is_virtual
-		&& bitmap_is_set(&table->null_set, field->field_index);
+		&& bitmap_is_set(&table->isnull_only_set, field->field_index);
 	ut_ad(!templ->null_only || templ->mysql_null_bit_mask != 0);
 
 	templ->mysql_col_offset = (ulint) get_field_offset(table, field);

@@ -34,7 +34,7 @@ FLUSH STATUS;
 SELECT COUNT(*) FROM t WHERE b IS NULL;
 SELECT VARIABLE_VALUE > 0 AS null_only_used
   FROM information_schema.session_status
- WHERE VARIABLE_NAME='Handler_null_only_columns';
+ WHERE VARIABLE_NAME='Null_only_columns';
 
 SELECT SUM(COUNT) AS blob_reads
   FROM information_schema.innodb_metrics
@@ -51,7 +51,7 @@ FLUSH STATUS;
 SELECT COUNT(*) FROM t WHERE b <=> NULL;
 SELECT VARIABLE_VALUE > 0 AS null_only_used
   FROM information_schema.session_status
- WHERE VARIABLE_NAME='Handler_null_only_columns';
+ WHERE VARIABLE_NAME='Null_only_columns';
 
 SELECT SUM(COUNT) AS blob_reads
   FROM information_schema.innodb_metrics
@@ -64,7 +64,7 @@ SELECT COUNT(*)
     ON t1.id= t2.id AND t1.b IS NULL;
 SELECT VARIABLE_VALUE > 0 AS null_only_used
   FROM information_schema.session_status
- WHERE VARIABLE_NAME='Handler_null_only_columns';
+ WHERE VARIABLE_NAME='Null_only_columns';
 
 FLUSH STATUS;
 SELECT COUNT(*)
@@ -75,7 +75,7 @@ SELECT COUNT(*)
                   AND inner_t.b IS NULL);
 SELECT VARIABLE_VALUE > 0 AS null_only_used
   FROM information_schema.session_status
- WHERE VARIABLE_NAME='Handler_null_only_columns';
+ WHERE VARIABLE_NAME='Null_only_columns';
 
 --disable_warnings
 SET GLOBAL innodb_monitor_disable='module_buffer_page';
@@ -87,7 +87,7 @@ FLUSH STATUS;
 SELECT SUM(CRC32(b)) FROM t WHERE b IS NULL OR c = 3;
 SELECT VARIABLE_VALUE = 0 AS null_only_used
   FROM information_schema.session_status
- WHERE VARIABLE_NAME='Handler_null_only_columns';
+ WHERE VARIABLE_NAME='Null_only_columns';
 
 SELECT SUM(COUNT) > 0 AS blob_reads
   FROM information_schema.innodb_metrics
