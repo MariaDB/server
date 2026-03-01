@@ -20,6 +20,7 @@
 #include <my_global.h>
 #include <myisam.h>                     /* Structs & some defines */
 #include <myisampack.h>                 /* packing of keys */
+#include <my_bitmap.h>
 #include <my_tree.h>
 #include <my_pthread.h>
 #include <thr_lock.h>

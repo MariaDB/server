@@ -824,6 +824,7 @@ typedef uint8 item_walk_flags;
 const item_walk_flags WALK_SUBQUERY=          1;
 const item_walk_flags WALK_NO_CACHE_PROCESS= (1<<1);
 const item_walk_flags WALK_NO_REF=           (1<<2);
+const item_walk_flags WALK_SKIP_NULL_PREDICATE_ARGS= (1<<3);
 
 
 class Item :public Value_source,
@@ -2287,6 +2288,8 @@ public:
   virtual bool register_field_in_read_map(void *arg) { return 0; }
   virtual bool register_field_in_write_map(void *arg) { return 0; }
   virtual bool register_field_in_bitmap(void *arg) { return 0; }
+  virtual bool mark_null_only_fields_processor(void *arg) { return 0; }
+  virtual bool clear_null_only_fields_processor(void *arg) { return 0; }
   virtual bool update_table_bitmaps_processor(void *arg) { return 0; }
   /*
     Compute the intersection of index coverings of all fields in the
@@ -3975,6 +3978,7 @@ public:
   bool register_field_in_read_map(void *arg) override;
   bool register_field_in_write_map(void *arg) override;
   bool register_field_in_bitmap(void *arg) override;
+  bool clear_null_only_fields_processor(void *arg) override;
   bool intersect_field_part_of_key(void *arg) override;
   bool check_partition_func_processor(void *) override {return false;}
   bool post_fix_fields_part_expr_processor(void *bool_arg) override;

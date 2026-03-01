@@ -1295,7 +1295,8 @@ size_t _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
           length= (uint) *(uchar*) from;
           if (length > column_length-1)
             goto err;
-          *to= *from++;
+          *to= *from;
+          from++;
         }
         else
         {
@@ -1316,7 +1317,9 @@ size_t _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
       if (flag & bit)
       {
 	if (type == FIELD_BLOB || type == FIELD_SKIP_ZERO)
+        {
 	  bzero(to, column_length);
+        }
 	else if (type == FIELD_SKIP_ENDSPACE ||
 		 type == FIELD_SKIP_PRESPACE)
 	{
@@ -1369,7 +1372,8 @@ size_t _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
 	  min_pack_length--;
 	if (min_pack_length + column_length > (uint) (from_end - from))
 	  goto err;
-	memcpy(to, from, (size_t) column_length); from+=column_length;
+	memcpy(to, from, (size_t) column_length);
+        from+=column_length;
       }
       if ((bit= bit << 1) >= 256)
       {

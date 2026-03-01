@@ -21,6 +21,7 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_class.h"                          // sql_lex.h: SQLCOM_END
+#include "handler.h"
 #include "sql_lex.h"
 #include "sql_parse.h"                          // add_to_list
 #include "item_create.h"
@@ -5496,6 +5497,158 @@ void SELECT_LEX::mark_as_belong_to_derived(TABLE_LIST *derived)
   in the leaf_tables list and of the conds expression (if any).
 */
 
+static bool table_supports_null_only(const TABLE_LIST *table_list)
+{
+  if (!table_list || !table_list->table || !table_list->table->file)
+    return false;
+
+  return table_list->table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ;
+}
+
+static void mark_null_only_in_expr(Item *expr, bool *any_marked)
+{
+  if (expr)
+    expr->walk(&Item::mark_null_only_fields_processor, any_marked,
+               WALK_SUBQUERY);
+}
+
+static void clear_null_only_in_expr(Item *expr)
+{
+  if (expr)
+    expr->walk(&Item::clear_null_only_fields_processor, 0,
+               WALK_SUBQUERY | WALK_SKIP_NULL_PREDICATE_ARGS);
+}
+
+/*
+  Mark fields that appear in NULL predicates, then clear fields that are also
+  used in other contexts. During the clear pass,
+  WALK_SKIP_NULL_PREDICATE_ARGS keeps the field inside IS NULL / IS NOT NULL /
+  <=> NULL from being cleared by that same predicate, so only fields used
+  exclusively for NULL checks remain set.
+*/
+static void update_null_only_set(SELECT_LEX *select)
+{
+  TABLE_LIST *tl;
+  List_iterator<TABLE_LIST> ti(select->leaf_tables);
+  bool any_supported= false;
+
+  while ((tl= ti++))
+  {
+    if (table_supports_null_only(tl))
+    {
+      any_supported= true;
+      break;
+    }
+  }
+
+  if (!any_supported)
+    return;
+
+  ti.rewind();
+  while ((tl= ti++))
+  {
+    if (tl->table)
+      bitmap_clear_all(&tl->table->isnull_only_set);
+  }
+
+  bool any_marked= false;
+
+  ti.rewind();
+  while ((tl= ti++))
+  {
+    if (tl->on_expr && !is_eliminated_table(select->join->eliminated_tables, tl))
+      mark_null_only_in_expr(tl->on_expr, &any_marked);
+
+    if (tl->jtbm_subselect)
+    {
+      Item *left_expr= tl->jtbm_subselect->left_exp();
+      mark_null_only_in_expr(left_expr, &any_marked);
+    }
+
+    for (TABLE_LIST *embedding= tl->embedding; embedding;
+         embedding= embedding->embedding)
+    {
+      if (embedding->on_expr &&
+          embedding->nested_join->join_list.head() == tl &&
+          !is_eliminated_table(select->join->eliminated_tables, embedding))
+      {
+        mark_null_only_in_expr(embedding->on_expr, &any_marked);
+      }
+    }
+  }
+
+  mark_null_only_in_expr(select->join->conds, &any_marked);
+  mark_null_only_in_expr(select->join->having, &any_marked);
+
+  if (!any_marked)
+    return;
+
+  ti.rewind();
+  while ((tl= ti++))
+  {
+    if (tl->on_expr && !is_eliminated_table(select->join->eliminated_tables, tl))
+      clear_null_only_in_expr(tl->on_expr);
+
+    if (tl->jtbm_subselect)
+    {
+      Item *left_expr= tl->jtbm_subselect->left_exp();
+      clear_null_only_in_expr(left_expr);
+    }
+
+    for (TABLE_LIST *embedding= tl->embedding; embedding;
+         embedding= embedding->embedding)
+    {
+      if (embedding->on_expr &&
+          embedding->nested_join->join_list.head() == tl &&
+          !is_eliminated_table(select->join->eliminated_tables, embedding))
+      {
+        clear_null_only_in_expr(embedding->on_expr);
+      }
+    }
+  }
+
+  clear_null_only_in_expr(select->join->conds);
+  clear_null_only_in_expr(select->join->having);
+
+  Item *item;
+  List_iterator_fast<Item> it(select->join->all_fields);
+  while ((item= it++))
+    item->walk(&Item::clear_null_only_fields_processor, 0,
+               WALK_SUBQUERY | WALK_SKIP_NULL_PREDICATE_ARGS);
+
+  Item_outer_ref *ref;
+  List_iterator_fast<Item_outer_ref> ref_it(select->inner_refs_list);
+  while ((ref= ref_it++))
+  {
+    item= ref->outer_ref;
+    item->walk(&Item::clear_null_only_fields_processor, 0,
+               WALK_SUBQUERY | WALK_SKIP_NULL_PREDICATE_ARGS);
+  }
+
+  for (ORDER *order= select->group_list.first; order; order= order->next)
+    (*order->item)->walk(&Item::clear_null_only_fields_processor, 0,
+                         WALK_SUBQUERY | WALK_SKIP_NULL_PREDICATE_ARGS);
+  if (!select->master_unit()->is_unit_op() ||
+      select->master_unit()->global_parameters() != select)
+  {
+    for (ORDER *order= select->order_list.first; order; order= order->next)
+      (*order->item)->walk(&Item::clear_null_only_fields_processor, 0,
+                           WALK_SUBQUERY | WALK_SKIP_NULL_PREDICATE_ARGS);
+  }
+
+  ulong null_only_columns= 0;
+  ti.rewind();
+  while ((tl= ti++))
+  {
+    if (table_supports_null_only(tl))
+      null_only_columns+= bitmap_bits_set(&tl->table->isnull_only_set);
+  }
+
+  if (null_only_columns)
+    status_var_add(current_thd->status_var.null_only_columns,
+                   null_only_columns);
+}
+
 void SELECT_LEX::update_used_tables()
 {
   TABLE_LIST *tl;
@@ -5620,6 +5773,7 @@ void SELECT_LEX::update_used_tables()
       (*order->item)->update_used_tables();
   }
   join->result->update_used_tables();
+  update_null_only_set(this);
 }
 
 

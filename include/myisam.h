@@ -231,7 +231,6 @@ typedef struct st_columndef		/* column information */
   uint32 offset;			/* Offset to position in row */
   uint8  null_bit;			/* If column may be 0 */
   uint16 null_pos;			/* position for null marker */
-
 #ifndef NOT_PACKED_DATABASES
   void (*unpack)(struct st_columndef *rec,struct st_mi_bit_buff *buff,
 		 uchar *start,uchar *end);

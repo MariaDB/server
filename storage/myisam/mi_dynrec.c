@@ -1220,6 +1220,7 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
 		     ulong found_length)
 {
   uint flag,bit,length,rec_length,min_pack_length;
+  uint rec_idx;
   enum en_fieldtype type;
   uchar *from_end,*to_end,*packpos;
   reg3 MI_COLUMNDEF *rec,*end_field;
@@ -1233,8 +1234,8 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
   from+= info->s->base.pack_bits;
   min_pack_length=info->s->base.min_pack_length - info->s->base.pack_bits;
 
-  for (rec=info->s->rec , end_field=rec+info->s->base.fields ;
-       rec < end_field ; to+= rec_length, rec++)
+  for (rec=info->s->rec , end_field=rec+info->s->base.fields, rec_idx= 0 ;
+       rec < end_field ; to+= rec_length, rec++, rec_idx++)
   {
     rec_length=rec->length;
     if ((type = (enum en_fieldtype) rec->type) != FIELD_NORMAL &&
@@ -1248,7 +1249,8 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
           length= (uint) *(uchar*) from;
           if (length > rec_length-1)
             goto err;
-          *to= *from++;
+          *to= *from;
+          from++;
         }
         else
         {
@@ -1267,7 +1269,9 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
       if (flag & bit)
       {
 	if (type == FIELD_BLOB || type == FIELD_SKIP_ZERO)
+	{
 	  bzero((uchar*) to,rec_length);
+	}
 	else if (type == FIELD_SKIP_ENDSPACE ||
 		 type == FIELD_SKIP_PRESPACE)
 	{
@@ -1320,7 +1324,8 @@ size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
 	  min_pack_length--;
 	if (min_pack_length + rec_length > (uint) (from_end - from))
 	  goto err;
-	memcpy(to,(uchar*) from,(size_t) rec_length); from+=rec_length;
+	memcpy(to,(uchar*) from,(size_t) rec_length);
+	from+=rec_length;
       }
       if ((bit= bit << 1) >= 256)
       {
