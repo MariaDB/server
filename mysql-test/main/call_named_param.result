@@ -53,4 +53,25 @@ ERROR 42000: Undeclared variable: x
 CALL p3(a => 1, a => 2);
 ERROR 42000: Duplicate parameter: a
 DROP PROCEDURE p3;
+# OUT parameters: named call out-of-order, writeback to correct variables
+CREATE PROCEDURE p_out(OUT a INT, OUT b INT)
+BEGIN
+SELECT 10, 20 INTO a, b;
+END|
+CALL p_out(b => @bout, a => @aout);
+SELECT @aout, @bout;
+@aout	@bout
+10	20
+DROP PROCEDURE p_out;
+# INOUT parameters with named call
+CREATE PROCEDURE p_inout(INOUT x INT, INOUT y INT)
+BEGIN
+SET x= x * 10, y= y + 100;
+END|
+SET @xin= 1, @yin= 2;
+CALL p_inout(y => @yin, x => @xin);
+SELECT @xin, @yin;
+@xin	@yin
+10	102
+DROP PROCEDURE p_inout;
 # End of 13.0 tests

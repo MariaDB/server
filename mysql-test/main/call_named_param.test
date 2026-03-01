@@ -54,4 +54,27 @@ CALL p3(a => 1, a => 2);
 
 DROP PROCEDURE p3;
 
+--echo # OUT parameters: named call out-of-order, writeback to correct variables
+delimiter |;
+CREATE PROCEDURE p_out(OUT a INT, OUT b INT)
+BEGIN
+  SELECT 10, 20 INTO a, b;
+END|
+delimiter ;|
+CALL p_out(b => @bout, a => @aout);
+SELECT @aout, @bout;
+DROP PROCEDURE p_out;
+
+--echo # INOUT parameters with named call
+delimiter |;
+CREATE PROCEDURE p_inout(INOUT x INT, INOUT y INT)
+BEGIN
+  SET x= x * 10, y= y + 100;
+END|
+delimiter ;|
+SET @xin= 1, @yin= 2;
+CALL p_inout(y => @yin, x => @xin);
+SELECT @xin, @yin;
+DROP PROCEDURE p_inout;
+
 --echo # End of 13.0 tests
