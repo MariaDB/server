@@ -5,7 +5,9 @@
 --source include/innodb_stable_estimates.inc
 
 --disable_query_log
-call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+# MDEV-36832: Deadlock no longer occurs because subqueries in
+# SQLCOM_UPDATE_MULTI now use consistent read instead of S locks.
+# The suppression for transaction-abort messages is therefore removed.
 --enable_query_log
 
 CREATE TABLE t1 (
@@ -45,14 +47,15 @@ SET DEBUG_SYNC='now SIGNAL con2_dml';
 
 --connection default
 SET DEBUG_SYNC='now WAIT_FOR default_dml';
+# MDEV-36832: This UPDATE no longer blocks on con1's X locks on t1
+# because the EXISTS subquery uses consistent read (LOCK_NONE) instead
+# of S locks when sql_command is SQLCOM_UPDATE_MULTI.
 --send UPDATE t3 AS alias1 LEFT JOIN t3 AS alias2 ON ( alias1.f1 <> alias1.f2 ) SET alias1.f3 = 59 WHERE ( EXISTS ( SELECT t1.f3 FROM t1 WHERE t1.f1 = alias1.f1 ) ) OR alias2.f1 = 'h'
-# It holds the lock of all record in t3 and tries to acquire record lock for the table  t1.
 
 --connect (con2,localhost,root,,test)
 set debug_sync='now WAIT_FOR con2_dml';
-let $wait_condition=
-select count(*) > 0 from information_schema.innodb_lock_waits;
---source include/wait_condition.inc
+# MDEV-36832: No lock wait to detect — default's UPDATE completes
+# immediately via consistent read. Just signal con1 to proceed.
 SET DEBUG_SYNC='now SIGNAL con1_dml2';
 disconnect con2;
 
@@ -60,11 +63,11 @@ disconnect con2;
 --connection con1
 SET DEBUG_SYNC='now WAIT_FOR con1_dml2';
 UPDATE v4, t1 SET t1.pk = 76 WHERE t1.f2 IN ( SELECT t2.f FROM t2 INNER JOIN t3 );
-# It holds the record lock on table t1 and tries to acquire record lock on t3.
-# leads to deadlock (con1 trx is waiting for default trx and vice versa)
+# MDEV-36832: This UPDATE's subquery on t2/t3 also uses consistent read,
+# so it no longer waits for default's locks on t3. No deadlock cycle forms.
 
 --connection default
---error ER_LOCK_DEADLOCK
+# MDEV-36832: No deadlock — both UPDATEs succeed.
 --reap
 
 connection con1;
