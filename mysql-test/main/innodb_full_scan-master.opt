@@ -1,0 +1,2 @@
+--innodb_monitor_enable=lock_rec_lock_created
+

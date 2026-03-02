@@ -4,14 +4,14 @@
 CREATE TABLE t (a INT PRIMARY KEY) ENGINE=InnoDB;
 insert into t values (42);
 # SELECT
-set global innodb_monitor_enable="lock_rec_lock_created";
+set @init=(SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created');
 BEGIN;
 SELECT * FROM t LOCK IN SHARE MODE;
 a
 42
 COMMIT;
 ## +0, was +1
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 0
 BEGIN;
@@ -20,7 +20,7 @@ a
 42
 COMMIT;
 ## +0, was +1
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 0
 ## SELECT without explicit transaction
@@ -28,7 +28,7 @@ SELECT * FROM t;
 a
 42
 ### +0, was +0
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 0
 # SELECT with a condition
@@ -38,7 +38,7 @@ a
 42
 COMMIT;
 ### +1, was +1
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 1
 BEGIN;
@@ -47,7 +47,7 @@ a
 42
 COMMIT;
 ## +1, was +1
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 2
 ## SELECT with a condition without explicit transaction
@@ -55,7 +55,7 @@ SELECT * FROM t where a > 10;
 a
 42
 ### +0, was +0
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 2
 DROP TABLE t;
@@ -68,7 +68,7 @@ select * from t1 where t1.a = 10
 UNION
 select * from t1;
 ## +1, was +3
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 3
 insert into t2
@@ -76,7 +76,7 @@ select * from t1
 UNION
 select * from t1 where t1.a = 10;
 ## +1, was +3
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 4
 insert into t2
@@ -84,7 +84,7 @@ select * from t1 where t1.a > 10
 UNION
 select * from t1;
 ## +1, was +1
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 5
 insert into t2
@@ -92,7 +92,7 @@ select * from t1
 UNION
 select * from t1 where t1.a > 10;
 ## +0, was +1
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 5
 drop table t1, t2;
@@ -104,7 +104,7 @@ select * from t1 where t1.a = 10
 UNION
 select * from t1;
 ## +1, was +3
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 6
 create or replace table t2 (a int, b int) engine=innodb
@@ -112,7 +112,7 @@ select * from t1
 UNION
 select * from t1 where t1.a = 10;
 ## +1, was +3
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 7
 create or replace table t2 (a int, b int) engine=innodb
@@ -120,7 +120,7 @@ select * from t1 where t1.a > 10
 UNION
 select * from t1;
 ## +1, was +1
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 8
 create or replace table t2 (a int, b int) engine=innodb
@@ -128,7 +128,7 @@ select * from t1
 UNION
 select * from t1 where t1.a > 10;
 ## +0, was +1
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 8
 drop table t1, t2;
@@ -137,33 +137,33 @@ create table t1 (a int primary key, b int) engine=innodb;
 insert into t1 select seq, seq from seq_1_to_100;
 UPDATE t1 SET b = b + 3;
 ## +0, was +1
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 8
 UPDATE t1 SET b = b + 3 WHERE a = 10;
 ## +1, was +1
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 9
 UPDATE t1 SET b = b + 3 WHERE a > 10;
 ## +1, was +1
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 10
 # DELETE
 DELETE FROM t1;
 ## +0, was +1
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 10
 DELETE FROM t1 WHERE a = 10;
 ## +1, was +1
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 11
 DELETE FROM t1 WHERE a > 10;
 ## +1, was +1
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 12
 drop table t1;
@@ -176,21 +176,21 @@ begin;
 select * from t1 join t2 on t1.a = t2.a LOCK IN SHARE MODE;
 commit;
 ## +1, was +2
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 13
 begin;
 select * from t1 join t2 on t1.a = t2.b LOCK IN SHARE MODE;
 commit;
 ## +2, was +2
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 15
 begin;
 select * from t1 join t2 on t1.b = t2.b LOCK IN SHARE MODE;
 commit;
 ## +1, was +2
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 16
 drop table t1, t2;
@@ -200,7 +200,7 @@ insert into t10 select seq, uuid() from seq_1_to_10000;
 create table t11(a int) engine=innodb;
 insert into t11 select a from t10;
 ## +0, was +11
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 16
 drop table t10, t11;
@@ -209,7 +209,7 @@ insert into t10 select seq, uuid() from seq_1_to_10000;
 create table t11(a int) engine=innodb;
 insert into t11 select a from t10 order by a desc;
 ## +0, was +11
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 16
 drop table t10, t11;
@@ -220,13 +220,10 @@ create table t11(a int) engine=innodb;
 explain
 insert into t11 select a from t10 where a > 30;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t10	range	a	a	5	NULL	10000	Using where; Using index
+1	SIMPLE	t10	range	a	a	5	NULL	#	Using where; Using index
 insert into t11 select a from t10 where a > 30;
 ## +11, was +11
-SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
 COUNT
 27
 drop table t10, t11;
-set global innodb_monitor_enable=default;
-Warnings:
-Warning	1230	Default value is not defined for this set option. Please specify correct counter or module name.
