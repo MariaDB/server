@@ -1286,13 +1286,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     }
 
     // READ_ONLY
-    static const LEX_CSTRING yesno[]=
-    {
-      { STRING_WITH_LEN("NO") },
-      { STRING_WITH_LEN("YES") }
-    };
-    const LEX_CSTRING *yn = yesno + var->is_readonly();
-    fields[12]->store(yn->str, yn->length, scs);
+    fields[12]->store(Show::Yes_or_no::value(var->is_readonly()), scs);
 
     // COMMAND_LINE_ARGUMENT
     if (var->option.id >= 0)
@@ -1314,6 +1308,17 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
       fields[14]->set_notnull();
       fields[14]->store(var->origin_filename, strlen(var->origin_filename),
                         files_charset_info);
+    }
+
+    // IS_DEPRECATED
+    fields[15]->store(Show::Yes_or_no::value(var->option.deprecation_substitute != NULL), scs);
+
+    // DEPRECATED_REPLACEMENT
+    if (var->option.deprecation_substitute != NULL && !IS_DEPRECATED_NO_REPLACEMENT(var->option.deprecation_substitute))
+    {
+      fields[16]->set_notnull();
+      fields[16]->store(var->option.deprecation_substitute,
+                        strlen(var->option.deprecation_substitute), scs);
     }
 
     if (schema_table_store_record(thd, tables->table))
