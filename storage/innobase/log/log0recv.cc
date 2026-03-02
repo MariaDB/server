@@ -5525,7 +5525,7 @@ ATTRIBUTE_COLD bool log_t::archive_rename() noexcept
       ut_ad(!is_mmap());
       log.close();
 #endif
-      success= rename(old_name);
+      success= !rename(old_name);
     }
 #ifdef _WIN32
     if (success)
