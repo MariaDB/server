@@ -138,6 +138,7 @@ let SEARCH_PATTERN = InnoDB: Renaming .*ffffffffff803000\\.log to ib_logfile0;
 
 --error ER_CANT_CREATE_TABLE
 CREATE TABLE t0 (a INT PRIMARY KEY) ENGINE=InnoDB;
+--replace_result \\ /
 --error ER_ERROR_ON_RENAME
 RENAME TABLE mysql.innodb_table_stats TO mysql.intabdb_noble_stats;
 --error ER_OPEN_AS_READONLY
