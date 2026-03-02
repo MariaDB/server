@@ -1,0 +1,81 @@
+#
+# GCF-360 Inconsistency voting: node goes non-prim on DDL that fails everywhere
+#
+# We issue 400 DDLs in total to make this test more stressful#
+#
+
+--source include/galera_cluster.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--let $count = 400
+--disable_query_log
+--disable_result_log
+while ($count)
+{
+        --connection node_1
+        --send DROP TABLE nonexisting_table;
+
+        --connection node_2
+        --send DROP TABLE nonexisting_table_2;
+
+        --connection node_3
+        --send DROP TABLE nonexisting_table_3;
+
+        --connection node_1
+        --error ER_BAD_TABLE_ERROR
+        --reap
+
+        --connection node_2
+        --error ER_BAD_TABLE_ERROR
+        --reap
+
+        --connection node_3
+        --error ER_BAD_TABLE_ERROR
+        --reap
+
+        --dec $count
+}
+--enable_result_log
+--enable_query_log
+
+--connection node_1
+#
+# Wait until inconsistency voting has ended and all nodes are back to cluster
+#
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE AS expect_3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE AS expect_3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
+
+--connection node_3
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE AS expect_3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
+
+--source ../galera/include/auto_increment_offset_restore.inc
