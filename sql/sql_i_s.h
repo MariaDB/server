@@ -167,6 +167,16 @@ public:
   }
 };
 
+class Yes_or_no: public Varchar
+{
+public:
+  Yes_or_no(): Varchar(3) { }
+  static LEX_CSTRING value(bool val)
+  {
+    return val ? Lex_cstring(STRING_WITH_LEN("YES")) :
+                 Lex_cstring(STRING_WITH_LEN("NO"));
+  }
+};
 
 class Catalog: public Varchar
 {
