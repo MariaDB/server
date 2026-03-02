@@ -153,4 +153,11 @@ drop table t;
 --error ER_VEC_DISTANCE_TYPE
 select vec_distance(value(key_cache_name), 0x30303030) from information_schema.key_caches;
 
+--echo #
+--echo # MDEV-35211: VEC_FromText does not return vector type but varbinary
+--echo #
+create table t as select vec_fromtext('[1,2,3]') as v;
+show create table t;
+drop table t;
+
 --echo # End of 11.8 tests
