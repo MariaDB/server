@@ -243,20 +243,9 @@ SELECT * FROM t1;
 DROP TABLE t1;
 
 --echo #
---echo #  MDEV-37886 PAGE_COMPRESSED ALTER TABLE operations
---echo #    inconsistent with innodb_file_per_table setting
+--echo #  MDEV-38079 Crash recovery fails after ALTER TABLE…PAGE_COMPRESSED=1
 --echo #
-SET GLOBAL innodb_file_per_table=0;
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
-SET DEBUG_SYNC='before_lock_tables_takes_lock SIGNAL stuck WAIT_FOR go';
-send ALTER TABLE t1 PAGE_COMPRESSED=1, ALGORITHM=INSTANT;
-
---connect con1,localhost,root
-SET DEBUG_SYNC='now WAIT_FOR stuck';
-SET GLOBAL innodb_file_per_table=1;
-SET DEBUG_SYNC='now SIGNAL go';
---disconnect con1
---connection default
---error ER_ILLEGAL_HA_CREATE_OPTION
---reap
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 PAGE_COMPRESSED=1, ALGORITHM=INSTANT;
 DROP TABLE t1;
