@@ -229,7 +229,7 @@ static uint innodb_max_purge_lag_wait;
 static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
                                              void *, const void *limit)
 {
-  if (high_level_read_only)
+  if (high_level_read_only || recv_sys.rpo)
     return;
   const uint l= *static_cast<const uint*>(limit);
   if (!trx_sys.history_exceeds(l))
@@ -1218,7 +1218,7 @@ tables that it was aware of, drop any leftover tables inside InnoDB.
 @param path  database path */
 static void innodb_drop_database(handlerton*, char *path)
 {
-  if (high_level_read_only)
+  if (high_level_read_only || recv_sys.rpo)
     return;
 
   ulint len= 0;
@@ -2849,7 +2849,7 @@ static int innobase_close_connection(handlerton *, THD *thd) noexcept
 static int innobase_rollback_by_xid(handlerton*, XID *xid) noexcept
 {
   DBUG_EXECUTE_IF("innobase_xa_fail", return XAER_RMFAIL;);
-  if (high_level_read_only)
+  if (high_level_read_only || recv_sys.rpo)
     return XAER_RMFAIL;
   if (trx_t *trx= trx_get_trx_by_xid(xid))
   {
@@ -7672,7 +7672,7 @@ int ha_innobase::is_valid_trx(bool altering_to_supported) const noexcept
 {
   ut_ad(m_prebuilt->trx == thd_to_trx(m_user_thd));
 
-  if (high_level_read_only)
+  if (high_level_read_only || recv_sys.rpo)
   {
     ib_senderrf(m_user_thd, IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
     return HA_ERR_TABLE_READONLY;
@@ -12102,7 +12102,7 @@ int create_table_info_t::prepare_create_table(const char* name, bool strict)
 		DBUG_RETURN(HA_WRONG_CREATE_OPTION);
 	}
 
-	if (high_level_read_only) {
+	if (high_level_read_only || recv_sys.rpo) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	}
 
@@ -13539,7 +13539,7 @@ static bool delete_table_check_foreigns(const dict_table_t &table,
 int ha_innobase::delete_table(const char *name)
 {
   DBUG_ENTER("ha_innobase::delete_table");
-  if (high_level_read_only)
+  if (high_level_read_only || recv_sys.rpo)
     DBUG_RETURN(HA_ERR_TABLE_READONLY);
 
   THD *thd= ha_thd();
@@ -14157,7 +14157,7 @@ ha_innobase::rename_table(
 
 	DBUG_ENTER("ha_innobase::rename_table");
 
-	if (high_level_read_only) {
+	if (high_level_read_only || recv_sys.rpo) {
 		ib_senderrf(thd, IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	}
@@ -15276,6 +15276,7 @@ ha_innobase::check(
 		print_check_msg(thd, table->s->db.str, table->s->table_name.str,
 				"check", "note",
 				(opt_readonly || high_level_read_only
+				 || recv_sys.rpo
 				 || !(check_opt->sql_flags & TT_FOR_UPGRADE))
 				? "Auto_increment will be"
 				" checked on each open until"
@@ -15519,7 +15520,7 @@ int ha_innobase::check_for_upgrade(HA_CHECK_OPT *check_opt)
     if (m_prebuilt->table->get_index(*autoinc_col))
     {
       check_opt->handler_flags= 1;
-      return (high_level_read_only && !opt_readonly)
+      return ((high_level_read_only || recv_sys.rpo) && !opt_readonly)
         ? HA_ADMIN_FAILED : HA_ADMIN_NEEDS_CHECK;
     }
   }
@@ -15927,7 +15928,7 @@ ha_innobase::extra(
 		trx->end_bulk_insert(*m_prebuilt->table);
 		trx->bulk_insert &= TRX_DML_BULK;
 		if (!m_prebuilt->table->is_temporary()
-		    && !high_level_read_only) {
+		    && !high_level_read_only && !recv_sys.rpo) {
 			/* During copy_data_between_tables(), InnoDB only
 			updates transient statistics. */
 			if (!m_prebuilt->table->stats_is_persistent()) {
@@ -17280,7 +17281,7 @@ innobase_commit_by_xid(
 	DBUG_EXECUTE_IF("innobase_xa_fail",
 			return XAER_RMFAIL;);
 
-	if (high_level_read_only) {
+	if (high_level_read_only || recv_sys.rpo) {
 		return(XAER_RMFAIL);
 	}
 
@@ -18629,7 +18630,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
   ut_ad(var == &srv_log_file_size);
   mysql_mutex_unlock(&LOCK_global_system_variables);
 
-  if (high_level_read_only)
+  if (high_level_read_only || recv_sys.rpo)
     ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_READ_ONLY_MODE);
   else if (
 #ifdef HAVE_PMEM

@@ -39,6 +39,16 @@ INNODB_LSN_FLUSHED	18446744073705357295
 INNODB_LSN_LAST_CHECKPOINT	18446744073705357279
 INNODB_LSN_ARCHIVED	18446744073705357279
 FOUND 1 /InnoDB: Renaming .*ffffffffff803000\.log to ib_logfile0/ in mysqld.1.err
+CREATE TABLE t0 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t0` (errno: 165 "Table is read only")
+RENAME TABLE mysql.innodb_table_stats TO mysql.intabdb_noble_stats;
+ERROR HY000: Error on rename of './mysql/innodb_table_stats' to './mysql/intabdb_noble_stats' (errno: 165 "Table is read only")
+DROP TABLE mysql.innodb_index_stats;
+ERROR HY000: Table 'innodb_index_stats' is read only
+ALTER TABLE mysql.innodb_table_stats ROW_FORMAT=COMPACT, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Running in read-only mode. Try ALGORITHM=COPY
+TRUNCATE TABLE mysql.innodb_table_stats;
+ERROR HY000: Table 'innodb_table_stats' is read only
 # restart: --innodb-log-recovery-start=0 --innodb-log-recovery-target=18446744073705357290
 SELECT variable_name, variable_value FROM information_schema.global_status
 WHERE variable_name LIKE 'INNODB_LSN%';
