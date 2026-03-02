@@ -120,3 +120,46 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 prepare bar from "DELETE FROM table_28779 WHERE a = 7 OR 1=1/*!998765' AND b = 'bar';*";
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '/*!998765' AND b = 'bar';*' at line 1
 drop table table_28779;
+#
+# MDEV-7381: Reversed executable comments
+#
+# Server version is >= 100000, so reversed comments with version
+# <= current should NOT execute (server is not older than that version).
+SELECT 1 /*!!50101 +1 */;
+1
+1
+SELECT 1 /*!!100000 +1 */;
+1
+1
+# Reversed comment with version higher than current SHOULD execute.
+SELECT 1 /*!!999999 +1 */;
+1  +1
+2
+# MariaDB-specific reversed executable comments
+SELECT 1 /*M!!50101 +1 */;
+1
+1
+SELECT 1 /*M!!999999 +1 */;
+1  +1
+2
+# Without version number (just /*!! with no digits) should still work
+# as a regular executable comment expanding the content.
+SELECT 1 /*!! +1 */;
+1  +1
+2
+SELECT 1 /*M!! +1 */;
+1  +1
+2
+# Combined forward and reversed in the same statement (MDEV-7381 use case).
+# On this server (>= 10.0.0): /*!100000 OR REPLACE */ executes,
+# /*!!100000 IF NOT EXISTS */ is skipped.
+# Effective statement: CREATE OR REPLACE TABLE t1 (a INT);
+CREATE /*!100000 OR REPLACE */ TABLE /*!!100000 IF NOT EXISTS */ t1 (a INT);
+INSERT INTO t1 VALUES (1);
+# Run again. OR REPLACE should drop and recreate the table, losing the row.
+CREATE /*!100000 OR REPLACE */ TABLE /*!!100000 IF NOT EXISTS */ t1 (a INT);
+# Table should be empty, proving OR REPLACE was used (not IF NOT EXISTS).
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+DROP TABLE t1;
