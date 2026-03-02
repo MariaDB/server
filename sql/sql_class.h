@@ -928,6 +928,7 @@ typedef struct system_variables
 #endif // USER_VAR_TRACKING
   my_bool tcp_nodelay;
   my_bool optimizer_record_context;
+  my_bool generate_invisible_primary_key;
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;
   plugin_ref enforced_table_plugin;
