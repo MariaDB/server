@@ -602,6 +602,7 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
 {
   ut_ad(is_active());
   ut_ad(!high_level_read_only);
+  ut_ad(!recv_sys.rpo);
   ut_ad(m_modifications);
   ut_ad(!m_memo.empty());
   ut_ad(!recv_recovery_is_on());
@@ -714,6 +715,7 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
 {
   ut_ad(is_active());
   ut_ad(!high_level_read_only);
+  ut_ad(!recv_sys.rpo);
   ut_ad(m_modifications);
   ut_ad(!m_made_dirty);
   ut_ad(!recv_recovery_is_on());

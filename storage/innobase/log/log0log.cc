@@ -610,6 +610,7 @@ void log_t::set_buffered(bool buffered) noexcept
 #ifdef HAVE_PMEM
       is_mmap() ||
 #endif
+      recv_sys.rpo ||
       high_level_read_only)
     return;
   log_resize_acquire();
@@ -632,7 +633,7 @@ void log_t::set_buffered(bool buffered) noexcept
   /** Try to enable or disable durable writes (update log_write_through) */
 void log_t::set_write_through(bool write_through)
 {
-  if (is_mmap() || high_level_read_only)
+  if (is_mmap() || high_level_read_only || recv_sys.rpo)
     return;
   log_resize_acquire();
   if (!resize_in_progress() && is_opened() &&

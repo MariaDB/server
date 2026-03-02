@@ -1951,7 +1951,7 @@ static int innodb_ddl_recovery_done(handlerton*)
   if (!recv_sys.rpo && srv_operation <= SRV_OPERATION_EXPORT_RESTORED &&
       srv_force_recovery < SRV_FORCE_NO_BACKGROUND)
   {
-    if (srv_start_after_restore && !high_level_read_only)
+    if (srv_start_after_restore)
       drop_garbage_tables_after_restore();
     srv_init_purge_tasks();
   }

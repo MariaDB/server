@@ -2150,7 +2150,8 @@ dberr_t recv_sys_t::find_checkpoint()
       log_sys.archived_lsn= lsn;
     if (recv_sys_invalid_rpo(lsn))
       return DB_READ_ONLY;
-    if (!memcmp(creator, "Backup ", 7))
+    if (!memcmp(creator, "Backup ", 7) &&
+        !recv_sys.rpo && !high_level_read_only)
       srv_start_after_restore= true;
 
     if (!tmp_buf)

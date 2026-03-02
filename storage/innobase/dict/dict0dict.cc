@@ -3952,7 +3952,7 @@ void dict_set_corrupted(trx_t *trx, dict_index_t *index, const char *ctx)
 
 	/* If this is read only mode, do not update SYS_INDEXES, just
 	mark it as corrupted in memory */
-	if (high_level_read_only) {
+	if (high_level_read_only || recv_sys.rpo) {
 		index->type |= DICT_CORRUPT;
 		goto func_exit;
 	}

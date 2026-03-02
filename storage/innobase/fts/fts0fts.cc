@@ -5869,7 +5869,8 @@ fts_load_stopword(
 		trx->start_line = __LINE__;
 		trx->start_file = __FILE__;
 #endif
-		trx_start_internal_low(trx, !high_level_read_only);
+		trx_start_internal_low(trx, !high_level_read_only
+				       && !recv_sys.rpo);
 		trx->op_info = "upload FTS stopword";
 		new_trx = TRUE;
 	}

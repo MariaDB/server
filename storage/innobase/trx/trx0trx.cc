@@ -957,7 +957,7 @@ trx_start_low(
 	    && (!trx->mysql_thd || read_write || trx->dict_operation)) {
 		/* Temporary rseg is assigned only if the transaction
 		updates a temporary table */
-		if (!high_level_read_only) {
+		if (!high_level_read_only && !recv_sys.rpo) {
 			trx_assign_rseg_low(trx);
 		}
 	} else {
@@ -968,7 +968,7 @@ trx_start_low(
 			to write to the temporary table. */
 
 			if (read_write) {
-				ut_ad(!srv_read_only_mode);
+				ut_ad(!recv_sys.rpo);
 				trx_sys.register_rw(trx);
 			}
 		} else {
@@ -2248,7 +2248,7 @@ trx_set_rw_mode(
 	ut_ad(!trx->read_only);
 	ut_ad(trx->id == 0);
 
-	if (high_level_read_only) {
+	if (high_level_read_only || recv_sys.rpo) {
 		return;
 	}
 

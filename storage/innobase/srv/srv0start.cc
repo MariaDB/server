@@ -1834,7 +1834,7 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	/* Recreate the undo tablespaces */
-	if (!high_level_read_only) {
+	if (!high_level_read_only && !recv_sys.rpo) {
 		err = srv_undo_tablespaces_reinitialize();
 		if (err) {
 			return srv_init_abort(err);
@@ -1863,7 +1863,7 @@ dberr_t srv_start(bool create_new_db)
 		ut_ad(high_level_read_only
 		      || srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN);
 
-		if (!high_level_read_only
+		if (!high_level_read_only && !recv_sys.rpo
 		    && srv_sys_space.can_auto_shrink()) {
 			fsp_system_tablespace_truncate(false);
 			DBUG_EXECUTE_IF("crash_after_sys_truncate",
@@ -1872,7 +1872,7 @@ dberr_t srv_start(bool create_new_db)
 
 		/* Validate a few system page types that were left
 		uninitialized before MySQL or MariaDB 5.5. */
-		if (!high_level_read_only
+		if (!high_level_read_only && !recv_sys.rpo
 		    && !fil_system.sys_space->full_crc32()) {
 			buf_block_t*	block;
 			mtr.start();
@@ -1921,7 +1921,7 @@ dberr_t srv_start(bool create_new_db)
 		be free of any locks.  The data dictionary latch
 		should guarantee that there is at most one data
 		dictionary transaction active at a time. */
-		if (!high_level_read_only
+		if (!high_level_read_only && !recv_sys.rpo
 		    && srv_force_recovery <= SRV_FORCE_NO_TRX_UNDO) {
 			/* If the following call is ever removed, the
 			first-time ha_innobase::open() must hold (or
