@@ -658,6 +658,55 @@ static uint32_t fsp_get_pages_to_extend_ibd(unsigned physical_size,
 	return extent_size;
 }
 
+/** Check if tablespace size exceeds warning threshold and emit warning.
+@param new_size    New size in pages
+@return true if warning was emitted */
+bool fil_space_t::check_size_warning(uint32_t new_size) noexcept
+{
+  const ulonglong threshold= fil_system.tablespace_size_warning_threshold;
+  const uint warning_pct= fil_system.tablespace_size_warning_pct;
+
+  if (threshold == 0)
+    return false;
+
+  /* Reset state if threshold or warning percentage changed */
+  if (m_last_warning_threshold != threshold ||
+      m_last_warning_pct != warning_pct) {
+    m_last_size_warning_pct= 0;
+    m_last_warning_threshold= threshold;
+    m_last_warning_pct= static_cast<uint8_t>(warning_pct);
+  }
+
+  uint64_t current_bytes=
+    static_cast<uint64_t>(new_size) * physical_size();
+  /* new_size is at most 2^32 and physical_size() at most 2^16,
+  so current_bytes * 100 < 2^55, well within uint64_t range. */
+  uint64_t current_pct=
+    (current_bytes * 100) / threshold;
+  uint8_t display_pct=
+    static_cast<uint8_t>(std::min(current_pct, uint64_t{100}));
+
+  if (display_pct < warning_pct)
+    return false;
+
+  /* Warn on every 1% increase */
+  if (display_pct <= m_last_size_warning_pct)
+    return false;
+
+  const auto n= name();
+  sql_print_warning("InnoDB: Tablespace '%.*s' size %llu bytes"
+                    " reached %u%% of configured threshold"
+                    " of %llu bytes",
+                    int(n.size()), n.data(),
+                    ulonglong{current_bytes},
+                    unsigned{display_pct},
+                    ulonglong{threshold});
+
+  m_last_size_warning_pct= display_pct;
+
+  return true;
+}
+
 /** Try to extend the last data file of a tablespace if it is auto-extending.
 @param[in,out]	space	tablespace
 @param[in,out]	header	tablespace header
@@ -757,6 +806,9 @@ fsp_try_extend_data_file(fil_space_t *space, buf_block_t *header, mtr_t *mtr)
 	mtr->write<4,mtr_t::FORCED>(*header, FSP_HEADER_OFFSET + FSP_SIZE
 				    + header->page.frame,
 				    space->size_in_header);
+
+	/* Check if tablespace size exceeds warning threshold */
+	space->check_size_warning(space->size_in_header);
 
 	return(size_increase);
 }

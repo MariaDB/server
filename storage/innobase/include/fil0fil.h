@@ -420,6 +420,23 @@ private:
 
   /** LSN of undo tablespace creation or 0; protected by latch */
   lsn_t create_lsn= 0;
+
+public:
+  /** Check if tablespace size exceeds warning threshold and emit warning.
+  @param new_size  New size in pages
+  @return true if warning was emitted */
+  bool check_size_warning(uint32_t new_size) noexcept;
+
+private:
+  /** Threshold value used for the last warning */
+  ulonglong m_last_warning_threshold{0};
+
+  /** Last percentage at which we emitted a size warning (0-100) */
+  uint8_t m_last_size_warning_pct{0};
+
+  /** Warning pct value used for the last warning */
+  uint8_t m_last_warning_pct{0};
+
 public:
   /** @return whether this is the temporary tablespace */
   bool is_temporary() const noexcept
@@ -1498,6 +1515,11 @@ public:
   /** whether fil_space_t::create() has issued a warning about
   potential space_id reuse */
   bool space_id_reuse_warned;
+
+  /** Percentage at which to start emitting tablespace size warnings */
+  Atomic_relaxed<uint32_t> tablespace_size_warning_pct;
+  /** Threshold in bytes for tablespace size warnings (0 = disabled) */
+  Atomic_relaxed<ulonglong> tablespace_size_warning_threshold;
 
   /** Add the file to the end of opened spaces list in
   fil_system.space_list, so that fil_space_t::try_to_close() should close

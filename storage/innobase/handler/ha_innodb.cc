@@ -19138,6 +19138,24 @@ static MYSQL_SYSVAR_ULONG(purge_batch_size, srv_purge_batch_size,
   1,			/* Minimum value */
   innodb_purge_batch_size_MAX, 0);
 
+static MYSQL_SYSVAR_ULONGLONG(tablespace_size_warning_threshold,
+  *reinterpret_cast<ulonglong*>(&fil_system.tablespace_size_warning_threshold),
+  PLUGIN_VAR_RQCMDARG,
+  "Threshold in bytes for tablespace size warnings (0 = disabled)",
+  NULL, NULL,
+  0,			/* Default setting */
+  0,			/* Minimum value */
+  ULLONG_MAX, 0);	/* Maximum value */
+
+static MYSQL_SYSVAR_UINT(tablespace_size_warning_pct,
+  *reinterpret_cast<uint*>(&fil_system.tablespace_size_warning_pct),
+  PLUGIN_VAR_RQCMDARG,
+  "Percentage at which to start emitting tablespace size warnings",
+  NULL, NULL,
+  85,			/* Default setting */
+  0,			/* Minimum value */
+  100, 0);		/* Maximum value */
+
 extern void srv_update_purge_thread_count(uint n);
 
 static
@@ -20102,6 +20120,8 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(monitor_reset_all),
   MYSQL_SYSVAR(purge_threads),
   MYSQL_SYSVAR(purge_batch_size),
+  MYSQL_SYSVAR(tablespace_size_warning_threshold),
+  MYSQL_SYSVAR(tablespace_size_warning_pct),
   MYSQL_SYSVAR(log_checkpoint_now),
 #ifdef UNIV_DEBUG
   MYSQL_SYSVAR(buf_flush_list_now),

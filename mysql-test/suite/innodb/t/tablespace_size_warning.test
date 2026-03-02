@@ -1,0 +1,171 @@
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+--source include/not_embedded.inc
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: Tablespace .* size .* bytes reached .* of configured threshold");
+--enable_query_log
+
+--echo #
+--echo # MDEV-38936: Proactive handling of InnoDB tablespace full condition
+--echo #
+
+# Save original values
+SET @old_threshold = @@global.innodb_tablespace_size_warning_threshold;
+SET @old_pct = @@global.innodb_tablespace_size_warning_pct;
+
+--echo # Test system variables
+SHOW VARIABLES LIKE 'innodb_tablespace_size_warning_threshold';
+SHOW VARIABLES LIKE 'innodb_tablespace_size_warning_pct';
+
+--echo # Test basic warning emission
+SET GLOBAL innodb_tablespace_size_warning_threshold = 10485760;
+SET GLOBAL innodb_tablespace_size_warning_pct = 70;
+
+CREATE TABLE t1 (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  data LONGBLOB
+) ENGINE=InnoDB;
+
+--disable_query_log
+let $i = 10;
+while ($i) {
+  eval INSERT INTO t1 (data) VALUES (REPEAT('a', 1024*1024));
+  dec $i;
+}
+--enable_query_log
+
+let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=Tablespace 'test/t1' size [^\n]* bytes reached [^\n]*% of configured threshold;
+--source include/search_pattern_in_file.inc
+
+DROP TABLE t1;
+
+--echo # Test configurable warning percentage
+SET GLOBAL innodb_tablespace_size_warning_threshold = 10485760;
+SET GLOBAL innodb_tablespace_size_warning_pct = 80;
+
+CREATE TABLE t1b (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  data LONGBLOB
+) ENGINE=InnoDB;
+
+--disable_query_log
+let $i = 8;
+while ($i) {
+  eval INSERT INTO t1b (data) VALUES (REPEAT('x', 1024*1024));
+  dec $i;
+}
+--enable_query_log
+
+let SEARCH_PATTERN=Tablespace 'test/t1b' size [^\n]* bytes reached [^\n]*% of configured threshold;
+--source include/search_pattern_in_file.inc
+
+DROP TABLE t1b;
+
+--echo # Test threshold set to zero disables warnings
+SET GLOBAL innodb_tablespace_size_warning_threshold = 0;
+
+CREATE TABLE t2 (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  data LONGBLOB
+) ENGINE=InnoDB;
+
+--disable_query_log
+let $i = 5;
+while ($i) {
+  eval INSERT INTO t2 (data) VALUES (REPEAT('b', 1024*1024));
+  dec $i;
+}
+--enable_query_log
+
+let SEARCH_PATTERN=Tablespace 'test/t2' size [^\n]* bytes reached [^\n]*% of configured threshold;
+--source include/search_pattern_in_file.inc
+
+DROP TABLE t2;
+
+--echo # Test disable via threshold=0 then re-enable
+SET GLOBAL innodb_tablespace_size_warning_threshold = 0;
+SET GLOBAL innodb_tablespace_size_warning_pct = 70;
+
+CREATE TABLE t3 (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  data LONGBLOB
+) ENGINE=InnoDB;
+
+--disable_query_log
+let $i = 10;
+while ($i) {
+  eval INSERT INTO t3 (data) VALUES (REPEAT('c', 1024*1024));
+  dec $i;
+}
+--enable_query_log
+
+SET GLOBAL innodb_tablespace_size_warning_threshold = 10485760;
+
+--disable_query_log
+INSERT INTO t3 (data) VALUES (REPEAT('d', 1024*1024));
+--enable_query_log
+
+let SEARCH_PATTERN=Tablespace 'test/t3' size [^\n]* bytes reached [^\n]*% of configured threshold;
+--source include/search_pattern_in_file.inc
+
+DROP TABLE t3;
+
+--echo # Test TRUNCATE TABLE resets warning state
+CREATE TABLE t4 (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  data LONGBLOB
+) ENGINE=InnoDB;
+
+--disable_query_log
+let $i = 10;
+while ($i) {
+  eval INSERT INTO t4 (data) VALUES (REPEAT('e', 1024*1024));
+  dec $i;
+}
+--enable_query_log
+
+let SEARCH_PATTERN=Tablespace 'test/t4' size [^\n]* bytes reached [^\n]*% of configured threshold;
+--source include/search_pattern_in_file.inc
+
+TRUNCATE TABLE t4;
+
+--disable_query_log
+let $i = 10;
+while ($i) {
+  eval INSERT INTO t4 (data) VALUES (REPEAT('f', 1024*1024));
+  dec $i;
+}
+--enable_query_log
+
+let SEARCH_PATTERN=Tablespace 'test/t4' size [^\n]* bytes reached [^\n]*% of configured threshold;
+--source include/search_pattern_in_file.inc
+
+DROP TABLE t4;
+
+--echo # Test behavior when tablespace exceeds 100% of threshold
+SET GLOBAL innodb_tablespace_size_warning_threshold = 5242880;
+SET GLOBAL innodb_tablespace_size_warning_pct = 70;
+
+CREATE TABLE t5 (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  data LONGBLOB
+) ENGINE=InnoDB;
+
+--disable_query_log
+let $i = 10;
+while ($i) {
+  eval INSERT INTO t5 (data) VALUES (REPEAT('g', 1024*1024));
+  dec $i;
+}
+--enable_query_log
+
+let SEARCH_PATTERN=Tablespace 'test/t5' size [^\n]* bytes reached 100% of configured threshold;
+--source include/search_pattern_in_file.inc
+
+DROP TABLE t5;
+
+# Restore original values
+SET GLOBAL innodb_tablespace_size_warning_threshold = @old_threshold;
+SET GLOBAL innodb_tablespace_size_warning_pct = @old_pct;
