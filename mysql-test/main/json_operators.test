@@ -1,0 +1,75 @@
+--echo #
+--echo # MDEV-13594: Support for -> and ->> JSON operators
+--echo #
+
+--echo # 1. Basic Extraction with ->
+SELECT '{"a": 1, "b": "text"}'->'$.a' AS int_val,
+       '{"a": 1, "b": "text"}'->'$.b' AS str_val;
+
+--echo # 2. Unquoted Extraction with ->>
+SELECT '{"a": 1, "b": "text"}'->> '$.a' AS int_val,
+       '{"a": 1, "b": "text"}'->> '$.b' AS str_val;
+
+--echo # 3. Chaining Operators
+--echo # Should support nested extraction
+SELECT '{"a": {"b": {"c": 42}}}'->'$.a'->'$.b'->'$.c' AS chained_arrow,
+       '{"a": {"b": {"c": 42}}}'->'$.a'->'$.b'->>'$.c' AS chained_unquoted;
+
+--echo # 4. Operator Precedence
+--echo # -> and ->> bind tighter than arithmetic operators
+SELECT '{"a": 5}'->'$.a' + 1 AS arrow_plus_one;
+SELECT '{"a": 5}'->> '$.a' + 1 AS unquoted_arrow_plus_one;
+SELECT '{"a": 5}'->'$.a' * 2 AS arrow_times_two;
+
+--echo # 5. Table Integration
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  data JSON
+);
+
+INSERT INTO t1 VALUES
+(1, '{"name": "Alice", "meta": {"age": 25, "city": "London"}}'),
+(2, '{"name": "Bob", "meta": {"age": 30, "city": "Paris"}}'),
+(3, '{"name": "Charlie", "meta": null}');
+
+--echo # Usage in SELECT list
+SELECT id, data->'$.name', data->>'$.meta.city' FROM t1;
+
+--echo # Usage in WHERE clause
+SELECT data->>'$.name' FROM t1 WHERE data->'$.meta.age' > 25;
+
+--echo # Usage in ORDER BY
+SELECT data->>'$.name' FROM t1 ORDER BY data->'$.meta.age' DESC;
+
+DROP TABLE t1;
+
+--echo # 6. Edge Cases: Invalid JSON and Paths
+--echo # Invalid JSON text returns a warning; result is NULL
+--echo error ER_INVALID_JSON_TEXT_IN_PARAM
+SELECT '{"a": 1'->'$.a';
+
+--echo # Missing key returns NULL (no error)
+SELECT '{"a": 1}'->'$.no_key';
+
+--echo # Invalid path returns a warning; result is NULL
+--echo error ER_INVALID_JSON_PATH
+SELECT '{"a": 1}'->'invalid_path';
+
+--echo # 7. Integration with Generated Columns
+CREATE TABLE t2 (
+  j JSON,
+  name VARCHAR(50) AS (j->>'$.name') VIRTUAL,
+  INDEX (name)
+);
+
+INSERT INTO t2 (j) VALUES ('{"name": "Zoe", "score": 100}');
+SELECT name FROM t2;
+EXPLAIN SELECT name FROM t2 WHERE name = 'Zoe';
+
+DROP TABLE t2;
+
+--echo # 8. Chaining with non-JSON results
+--echo # ->> returns a string. If the string is valid JSON, another -> can follow.
+SELECT '{"outer": "{\"inner\": 1}"}'->> '$.outer'->'$.inner' AS complex_chain;
+
+--echo End of 13.0 tests

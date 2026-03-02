@@ -2091,6 +2091,17 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       return((int) c);
 
     case MY_LEX_MINUS_OR_COMMENT:
+      /* MDEV-18530: Efficiently detect MySQL-compatible JSON path operators -> and ->> */
+      if (yyPeek() == '>')
+      {
+        yySkip();
+        if (yyPeek() == '>')
+        {
+          yySkip();
+          return JSON_UNQUOTED_ARROW_SYM;
+        }
+        return JSON_ARROW_SYM;
+      }
       if (yyPeek() == '-' &&
           (my_isspace(cs,yyPeekn(1)) ||
            my_iscntrl(cs,yyPeekn(1))))
