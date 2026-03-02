@@ -664,6 +664,9 @@ void log_t::header_rewrite(my_bool archive) noexcept
   name is not ib_logfile0. That is, the archived log file
   recovery will accept both the circular and the archived
   format for the last file. */
+  sql_print_information("InnoDB: setting innodb_log_archive=%u"
+                        " at innodb_log_recovery_start=" LSN_PF,
+                        archive, end_lsn);
 
   byte* c= checkpoint_buf;
   ut_ad(end_lsn >= first_lsn);
@@ -682,6 +685,7 @@ void log_t::header_rewrite(my_bool archive) noexcept
       mach_write_to_8(my_assume_aligned<8>(c + 8), end_lsn);
       mach_write_to_4(my_assume_aligned<4>(c + 60), my_crc32c(0, c, 60));
       pmem_persist(buf + 512, START_OFFSET - 512);
+      memset_aligned<512>(buf, 0, 512);
       header_write(buf, first_lsn, is_encrypted());
       memset_aligned<512>(buf + 512, 0, CHECKPOINT_1 - 512);
       pmem_persist(buf, CHECKPOINT_1);

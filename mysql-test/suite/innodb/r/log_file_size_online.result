@@ -111,6 +111,8 @@ $check_no_innodb;
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 # restart: with restart_parameters
 SET GLOBAL innodb_log_archive=OFF;
+FOUND 1 /InnoDB: setting innodb_log_archive=0 at innodb_log_recovery_start=.*/ in mysqld.1.err
+FOUND 1 /InnoDB: setting innodb_log_archive=1 at innodb_log_recovery_start=.*/ in mysqld.1.err
 SHOW VARIABLES LIKE 'innodb_log_file_size';
 Variable_name	Value
 innodb_log_file_size	5242880

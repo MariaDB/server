@@ -156,6 +156,10 @@ evalp $check_no_innodb;
 --let $restart_noprint=
 
 SET GLOBAL innodb_log_archive=OFF;
+let SEARCH_PATTERN = InnoDB: setting innodb_log_archive=0 at innodb_log_recovery_start=.*;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN = InnoDB: setting innodb_log_archive=1 at innodb_log_recovery_start=.*;
+--source include/search_pattern_in_file.inc
 
 SHOW VARIABLES LIKE 'innodb_log_file_size';
 SET GLOBAL innodb_log_file_size=6291456;
