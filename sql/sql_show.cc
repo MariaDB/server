@@ -10532,21 +10532,23 @@ ST_FIELD_INFO variables_fields_info[]=
 
 ST_FIELD_INFO sysvars_fields_info[]=
 {
-  Column("VARIABLE_NAME",        Name(),                           NOT_NULL),
-  Column("SESSION_VALUE",        Varchar(2048),                    NULLABLE),
-  Column("GLOBAL_VALUE",         Varchar(2048),                    NULLABLE),
-  Column("GLOBAL_VALUE_ORIGIN",  Name(),                           NOT_NULL),
-  Column("DEFAULT_VALUE",        Varchar(2048),                    NULLABLE),
-  Column("VARIABLE_SCOPE",       Name(),                           NOT_NULL),
-  Column("VARIABLE_TYPE",        Name(),                           NOT_NULL),
-  Column("VARIABLE_COMMENT",     Varchar(TABLE_COMMENT_MAXLEN),    NOT_NULL),
-  Column("NUMERIC_MIN_VALUE",    Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
-  Column("NUMERIC_MAX_VALUE",    Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
-  Column("NUMERIC_BLOCK_SIZE",   Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
-  Column("ENUM_VALUE_LIST",      Longtext(65535),                  NULLABLE),
-  Column("READ_ONLY",            Yes_or_empty(),                   NOT_NULL),
-  Column("COMMAND_LINE_ARGUMENT",Name(),                           NULLABLE),
-  Column("GLOBAL_VALUE_PATH",    Varchar(2048),                    NULLABLE),
+  Column("VARIABLE_NAME",         Name(),                           NOT_NULL),
+  Column("SESSION_VALUE",         Varchar(2048),                    NULLABLE),
+  Column("GLOBAL_VALUE",          Varchar(2048),                    NULLABLE),
+  Column("GLOBAL_VALUE_ORIGIN",   Name(),                           NOT_NULL),
+  Column("DEFAULT_VALUE",         Varchar(2048),                    NULLABLE),
+  Column("VARIABLE_SCOPE",        Name(),                           NOT_NULL),
+  Column("VARIABLE_TYPE",         Name(),                           NOT_NULL),
+  Column("VARIABLE_COMMENT",      Varchar(TABLE_COMMENT_MAXLEN),    NOT_NULL),
+  Column("NUMERIC_MIN_VALUE",     Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
+  Column("NUMERIC_MAX_VALUE",     Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
+  Column("NUMERIC_BLOCK_SIZE",    Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
+  Column("ENUM_VALUE_LIST",       Longtext(65535),                  NULLABLE),
+  Column("READ_ONLY",             Yes_or_no(),                   NOT_NULL),
+  Column("COMMAND_LINE_ARGUMENT", Name(),                           NULLABLE),
+  Column("GLOBAL_VALUE_PATH",     Varchar(2048),                    NULLABLE),
+  Column("IS_DEPRECATED",         Yes_or_no(),                    NOT_NULL),
+  Column("DEPRECATED_REPLACEMENT",Name(),                           NULLABLE),
   CEnd()
 };
 
