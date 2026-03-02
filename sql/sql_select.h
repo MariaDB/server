@@ -1235,6 +1235,8 @@ protected:
     KEYUSE **join_tab_keyuse;
     /* Copies of JOIN_TAB::checked_keys for each JOIN_TAB. */
     key_map *join_tab_checked_keys;
+    /* Copies of TABLE::key_part_map for each JOIN_TAB->TABLE */
+    key_part_map **const_key_parts;
     SJ_MATERIALIZATION_INFO **sj_mat_info;
     my_bool error;
   public:
@@ -1244,7 +1246,7 @@ protected:
       keyuse.buffer= NULL;
       keyuse.malloc_flags= 0;
       best_positions= 0;                        /* To detect errors */
-      error= my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
+      error= my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME | MY_ZEROFILL),
                              &best_positions,
                              sizeof(*best_positions) * (tables + 1),
                              &join_tab_keyuse,
@@ -1253,6 +1255,8 @@ protected:
                              sizeof(*join_tab_checked_keys) * tables,
                              &sj_mat_info,
                              sizeof(sj_mat_info) * tables,
+                             &const_key_parts,
+                             sizeof(*const_key_parts) * tables, 
                              NullS) == 0;
     }
     Join_plan_state(JOIN *join);
