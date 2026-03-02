@@ -1,0 +1,51 @@
+SET SESSION debug_dbug="+d,test_invisible_index,test_completely_invisible";
+CREATE TABLE t0 (c1 INT, c2 INT);
+SHOW INDEX FROM t0;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t0	1	invisible	1	invisible	A	NULL	NULL	NULL	YES	BTREE			NO
+SET sql_generate_invisible_primary_key=ON;
+CREATE TABLE t1 (c1 INT, c2 INT);
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	_inv_PK	A	0	NULL	NULL		BTREE			NO
+t1	1	invisible	1	invisible	A	NULL	NULL	NULL	YES	BTREE			NO
+INSERT INTO t1 VALUES (3, 0);
+INSERT INTO t1 VALUES (4, 0);
+SELECT _rowid, t1.* FROM t1;
+_rowid	c1	c2
+1	3	0
+2	4	0
+ALTER TABLE t1 ADD c3 INT;
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	invisible	1	invisible	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	PRIMARY	1	_inv_PK	A	2	NULL	NULL		BTREE			NO
+ALTER TABLE t1 ADD _inv_PK INT;
+ALTER TABLE t1 ADD _inv_PK1 INT;
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	invisible	1	invisible	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	PRIMARY	1	_inv_PK2	A	2	NULL	NULL		BTREE			NO
+ALTER TABLE t1 DROP PRIMARY KEY;
+ERROR 42000: Can't DROP INDEX `PRIMARY`; check that it exists
+ALTER TABLE t1 ADD PRIMARY KEY (c1);
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	c1	A	2	NULL	NULL		BTREE			NO
+t1	1	invisible	1	invisible	A	NULL	NULL	NULL	YES	BTREE			NO
+SELECT _rowid, t1.* FROM t1;
+_rowid	c1	c2	c3	_inv_PK	_inv_PK1
+3	3	0	NULL	NULL	NULL
+4	4	0	NULL	NULL	NULL
+ALTER TABLE t1 DROP PRIMARY KEY;
+CREATE TABLE t2 (c1 INT, c2 INT, _inv_PK INT);
+SHOW INDEX FROM t2;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t2	0	PRIMARY	1	_inv_PK1	A	0	NULL	NULL		BTREE			NO
+t2	1	invisible	1	invisible	A	NULL	NULL	NULL	YES	BTREE			NO
+SET SESSION debug_dbug="";
+CREATE TABLE t3 (c1 INT, c2 INT);
+SHOW INDEX FROM t3;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+DROP TABLE t0, t1, t2, t3;
+SET sql_generate_invisible_primary_key=OFF;
