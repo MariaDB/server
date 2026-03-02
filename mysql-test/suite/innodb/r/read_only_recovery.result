@@ -25,7 +25,7 @@ SELECT * FROM t;
 a
 1
 UPDATE t SET a=3 WHERE a=1;
-# restart: --innodb-read-only
+# restart: --innodb-read-only --innodb-log-recovery-start=0
 # Starting with MariaDB 10.2, innodb_read_only implies READ UNCOMMITTED.
 # In earlier versions, this would return the last committed version
 # (empty table)!

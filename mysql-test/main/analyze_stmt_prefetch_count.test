@@ -28,6 +28,8 @@ commit;
 --echo # (in the test's .opt file we've disabled buffer pool saving/loading 
 --echo #  and also tried to disable any background activity)
 SET GLOBAL innodb_fast_shutdown=0;
+# Avoid any crash recovery that would load pages.
+--let $restart_parameters=--innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 
 set @innodb_pages_read0= 

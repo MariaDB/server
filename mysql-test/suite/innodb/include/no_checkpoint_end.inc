@@ -1,35 +1,33 @@
 # Check that the latest checkpoint in the redo log files
 # is not newer than the checkpoint sampled by no_checkpoint_start.inc
 
-if (!$no_checkpoint_kill) {
 --source include/kill_mysqld.inc
-}
+--error 2
+--exec $MYSQLD_CMD --innodb --innodb-read-only --innodb-log-recovery-start=0 --innodb-invalid-option --innodb-page-size=$INNODB_PAGE_SIZE --innodb-buffer-pool-size=21m
 
 perl;
-my $cp = $ENV{CHECKPOINT_LSN};
-$cp =~ s/^InnoDB\t\t//;
-my $log = "$ENV{MYSQLD_DATADIR}ib_logfile0";
-open(LOG, "<$log") || die "Unable to open $log";
-seek(LOG, 4096, 0) || die "Unable to seek $log";
-die unless read(LOG, $_, 8) == 8;
-my ($cp1hi,$cp1lo) = unpack("NN", $_);
-seek(LOG, 8192, 0) || die "Unable to seek $log";
-die unless read(LOG, $_, 8) == 8;
-my ($cp2hi,$cp2lo) = unpack("NN", $_);
-close(LOG);
-
-my $cp1 = $cp1hi << 32 | $cp1lo;
-my $cp2 = $cp2hi << 32 | $cp2lo;
-
-open(OUT, ">$ENV{MYSQLTEST_VARDIR}/log/check.txt") || die;
-
-if ($cp1 > $cp || $cp2 > $cp) {
-   print OUT "--source include/start_mysqld.inc\n"
-   unless $ENV{no_checkpoint_kill};
-   print OUT "$ENV{CLEANUP_IF_CHECKPOINT}\n";
-   print OUT "--skip Extra checkpoint 1 after $cp ($cp1,$cp2)\n";
+my $cp=0;
+my $search_file= "$ENV{MYSQLTEST_VARDIR}/log/mysqld.1.err";
+open(FILE, '<', $search_file) || die("Can't open file $search_file: $!");
+while(<FILE>)
+{
+    if (/^CURRENT_TEST:/)
+    {
+        $cp=0;
+    }
+    elsif (!$cp && /\[Warning\] innodb_read_only prevents crash recovery between (\d+) and/o)
+    {
+        $cp=$1;
+    }
 }
-
+close(FILE);
+open(OUT, ">$ENV{MYSQLTEST_VARDIR}/log/check.txt") || die;
+if ($cp != $ENV{CHECKPOINT_LSN})
+{
+   print OUT "--source include/start_mysqld.inc\n";
+   print OUT "$ENV{CLEANUP_IF_CHECKPOINT}\n";
+   print OUT "--skip Unexpected checkpoint $cp != $ENV{CHECKPOINT_LSN}\n";
+}
 close(OUT);
 EOF
 

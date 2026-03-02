@@ -19,7 +19,7 @@ commit;
 # (in the test's .opt file we've disabled buffer pool saving/loading 
 #  and also tried to disable any background activity)
 SET GLOBAL innodb_fast_shutdown=0;
-# restart
+# restart: --innodb-log-recovery-start=0
 set @innodb_pages_read0= 
 (select variable_value 
 from information_schema.session_status 

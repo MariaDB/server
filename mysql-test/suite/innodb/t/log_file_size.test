@@ -1,5 +1,6 @@
 # Test resizing the InnoDB redo log.
 --source include/innodb_page_size_small.inc
+--source include/skip_innodb_log_archive.inc
 # Embedded server tests do not support restarting
 --source include/not_embedded.inc
 --source include/maybe_debug.inc

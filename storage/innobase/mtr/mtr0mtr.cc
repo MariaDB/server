@@ -52,12 +52,14 @@ void mtr_t::finisher_update()
   if (log_sys.is_mmap())
   {
     commit_logger= mtr_t::commit_log<true>;
-    finisher= mtr_t::finish_writer<true>;
+    finisher= log_sys.archive
+      ? mtr_t::finish_writer<log_t::ARCHIVED_MMAP>
+      : mtr_t::finish_writer<log_t::CIRCULAR_MMAP>;
     return;
   }
   commit_logger= mtr_t::commit_log<false>;
 #endif
-  finisher= mtr_t::finish_writer<false>;
+  finisher= mtr_t::finish_writer<log_t::WRITE_NORMAL>;
 }
 
 void mtr_memo_slot_t::release() const
@@ -336,7 +338,58 @@ void mtr_t::release()
   m_memo.clear();
 }
 
-ATTRIBUTE_NOINLINE void mtr_t::commit_log_release() noexcept
+#ifdef HAVE_PMEM
+ATTRIBUTE_COLD lsn_t log_t::archived_mmap_switch_complete() noexcept
+{
+  ut_ad(latch_have_wr());
+  ut_ad(buf_size == capacity());
+  if (!archive)
+    return 0;
+  ut_ad(file_size <= ARCHIVE_FILE_SIZE_MAX);
+  ut_ad(resize_target <= ARCHIVE_FILE_SIZE_MAX);
+  if (!resize_buf)
+    return 0;
+  const lsn_t lsn{get_lsn()}, last_lsn{first_lsn + capacity()};
+  if (lsn < last_lsn)
+    return 0;
+  ut_a(!checkpoint_buf);
+  persist(lsn);
+  checkpoint_buf= buf;
+  buf= resize_buf;
+  resize_buf= nullptr;
+  first_lsn= last_lsn;
+  file_size= resize_target;
+  buf_size= unsigned(capacity());
+  return lsn;
+}
+
+template<>
+ATTRIBUTE_NOINLINE void mtr_t::commit_log_release<true>() noexcept
+{
+  if (m_latch_ex)
+  {
+  completed:
+    const lsn_t lsn{log_sys.archived_mmap_switch_complete()};
+    log_sys.latch.wr_unlock();
+    m_latch_ex= false;
+    if (lsn)
+      buf_flush_ahead(lsn, true);
+  }
+  else
+  {
+    const bool retry{log_sys.archived_mmap_switch()};
+    log_sys.latch.rd_unlock();
+    if (retry)
+    {
+      log_sys.latch.wr_lock(SRW_LOCK_CALL);
+      goto completed;
+    }
+  }
+}
+#endif
+
+template<>
+ATTRIBUTE_NOINLINE void mtr_t::commit_log_release<false>() noexcept
 {
   if (m_latch_ex)
   {
@@ -395,12 +448,12 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,lsn_t> lsns) noexcept
     buf_pool.page_cleaner_wakeup();
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
-    mtr->commit_log_release();
+    mtr->commit_log_release<mmap>();
     mtr->release();
   }
   else
   {
-    mtr->commit_log_release();
+    mtr->commit_log_release<mmap>();
 
     for (auto it= mtr->m_memo.rbegin(); it != mtr->m_memo.rend(); )
     {
@@ -488,6 +541,7 @@ void mtr_t::commit()
     }
 
     ut_ad(!srv_read_only_mode);
+    ut_ad(!recv_sys.rpo);
     std::pair<lsn_t,lsn_t> lsns{do_write()};
     process_freed_pages();
 #ifdef HAVE_PMEM
@@ -689,6 +743,11 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
   /* Durably write the log for the file system operation. */
   log_write_and_flush();
 
+#ifdef HAVE_PMEM
+  const lsn_t wait_lsn= log_sys.archived_mmap_switch()
+    ? log_sys.get_first_lsn() + log_sys.capacity() : 0;
+#endif
+
   log_sys.latch.wr_unlock();
   m_latch_ex= false;
 
@@ -710,6 +769,11 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   release_resources();
+
+#ifdef HAVE_PMEM
+  if (wait_lsn)
+    buf_flush_ahead(wait_lsn, true);
+#endif
 
   return success;
 }
@@ -741,6 +805,7 @@ ATTRIBUTE_COLD lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
   ut_ad(!m_made_dirty);
   ut_ad(m_memo.empty());
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
   ut_ad(!m_freed_space);
   ut_ad(!m_freed_pages);
   ut_ad(!m_user_space);
@@ -852,7 +917,9 @@ static time_t log_close_warn_time;
 making the server crash-unsafe. */
 ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t lsn)
 {
-  if (log_sys.overwrite_warned)
+  ut_ad(!log_sys.archive); /* we hope that this is unreachable */
+
+  if (log_sys.overwrite_warned || log_sys.archive)
     return;
 
   time_t t= time(nullptr);
@@ -871,6 +938,41 @@ ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t lsn)
                   srv_shutdown_state > SRV_SHUTDOWN_INITIATED
                   ? ". Shutdown is in progress" : "");
 }
+
+
+#ifdef HAVE_PMEM
+template<>
+inline std::pair<lsn_t,byte*>
+log_t::append_prepare<log_t::ARCHIVED_MMAP>(size_t size, bool ex) noexcept
+{
+  ut_ad(ex ? latch_have_wr() : latch_have_rd());
+  ut_ad(is_mmap());
+  ut_ad(is_mmap_writeable());
+  ut_ad(buf_size == capacity());
+  ut_ad(archive);
+  ut_ad(archived_lsn);
+
+  uint64_t l, lsn;
+  static_assert(WRITE_TO_BUF == WRITE_BACKOFF << 1, "");
+  while (UNIV_UNLIKELY((l= write_lsn_offset.fetch_add(size + WRITE_TO_BUF) &
+                        (WRITE_TO_BUF - 1)) + size +
+                       (lsn= base_lsn.load(std::memory_order_relaxed)) >=
+                       first_lsn + buf_size) &&
+         !resize_buf && !checkpoint_buf)
+  {
+    /* The following is inlined here instead of being part of
+    archive_mmap_switch_prepare() below, in order to increase the
+    locality of reference and to expedite setting the WRITE_BACKOFF flag. */
+    bool late(write_lsn_offset.fetch_or(WRITE_BACKOFF) & WRITE_BACKOFF);
+    /* Subtract our LSN overshoot. */
+    write_lsn_offset.fetch_sub(size);
+    archived_mmap_switch_prepare(late, ex);
+  }
+
+  lsn+= l;
+  return {lsn, buf + FIRST_LSN + (lsn - first_lsn)};
+}
+#endif
 
 ATTRIBUTE_COLD void log_t::append_prepare_wait(bool late, bool ex) noexcept
 {
@@ -918,6 +1020,8 @@ ATTRIBUTE_COLD void log_t::append_prepare_wait(bool late, bool ex) noexcept
     const bool is_pmem{is_mmap()};
     if (is_pmem)
     {
+      ut_ad(is_mmap_writeable());
+      ut_ad(!archive);
       ut_ad(lsn - get_flushed_lsn(std::memory_order_relaxed) < capacity() ||
             overwrite_warned);
       persist(lsn);
@@ -942,22 +1046,25 @@ done:
 }
 
 /** Reserve space in the log buffer for appending data.
-@tparam mmap  log_sys.is_mmap()
+@tparam mode  how to write log
 @param size   total length of the data to append(), in bytes
 @param ex     whether log_sys.latch is exclusively locked
 @return the start LSN and the buffer position for append() */
-template<bool mmap>
+template<log_t::write mode>
 inline
 std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 {
   ut_ad(ex ? latch_have_wr() : latch_have_rd());
-  ut_ad(mmap == is_mmap());
-  ut_ad(!mmap || buf_size == std::min<uint64_t>(capacity(), buf_size_max));
-  const size_t buf_size{this->buf_size - size};
+  static_assert(!bool(WRITE_NORMAL), "");
+  static_assert(bool(CIRCULAR_MMAP), "");
+  static_assert(mode == WRITE_NORMAL || mode == CIRCULAR_MMAP, "");
+  ut_ad(bool(mode) == is_mmap());
+  ut_ad(is_mmap() == is_mmap_writeable());
+  ut_ad(!mode || buf_size == capacity());
   uint64_t l;
   static_assert(WRITE_TO_BUF == WRITE_BACKOFF << 1, "");
   while (UNIV_UNLIKELY((l= write_lsn_offset.fetch_add(size + WRITE_TO_BUF) &
-                        (WRITE_TO_BUF - 1)) >= buf_size))
+                        (WRITE_TO_BUF - 1)) >= buf_size - size))
   {
     /* The following is inlined here instead of being part of
     append_prepare_wait(), in order to increase the locality of reference
@@ -968,14 +1075,13 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
     append_prepare_wait(late, ex);
   }
 
-  const lsn_t lsn{l + base_lsn.load(std::memory_order_relaxed)},
-    end_lsn{lsn + size};
+  const lsn_t lsn{l + base_lsn.load(std::memory_order_relaxed)};
 
-  if (UNIV_UNLIKELY(end_lsn >= last_checkpoint_lsn + log_capacity))
+  if (UNIV_UNLIKELY(lsn + size >= last_checkpoint_lsn + log_capacity))
     set_check_for_checkpoint(true);
 
   return {lsn,
-          buf + size_t(mmap ? FIRST_LSN + (lsn - first_lsn) % capacity() : l)};
+          buf + size_t(mode ? FIRST_LSN + (lsn - first_lsn) % buf_size : l)};
 }
 
 /** Finish appending data to the log.
@@ -999,7 +1105,7 @@ static lsn_t log_close(lsn_t lsn) noexcept
   /* The last checkpoint is too old. Let us set an appropriate
   checkpoint age target, that is, a checkpoint LSN target that is the
   current LSN minus the maximum age. Let us see if are exceeding the
-  log_checkpoint_margin() limit that will involve a synchronous wait
+  log_t::checkpoint_margin() limit that will involve a synchronous wait
   in each write operation. */
 
   const bool furious{checkpoint_age >= log_sys.max_checkpoint_age};
@@ -1011,7 +1117,7 @@ static lsn_t log_close(lsn_t lsn) noexcept
   The aim of the more aggressive target is that mtr_flush_ahead() will
   request more progress in buf_flush_page_cleaner() sooner, so that it
   will be less likely that several threads will end up waiting in
-  log_checkpoint_margin(). That function will use the less aggressive
+  log_t::checkpoint_margin(). That function will use the less aggressive
   limit (lsn - log_sys.max_checkpoint_age) in order to minimize the
   synchronous wait time. */
   if (furious)
@@ -1111,12 +1217,14 @@ func_exit:
   return finish_write(len);
 }
 
-inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
-                                size_t seq) noexcept
+template<bool mmap>
+ATTRIBUTE_COLD
+void log_t::resize_write_low(lsn_t lsn, const byte *end,
+                             size_t len, size_t seq) noexcept
 {
   ut_ad(latch_have_any());
+  ut_ad(resize_buf);
 
-  if (UNIV_LIKELY_NULL(resize_buf))
   {
     ut_ad(end >= buf);
     end-= len;
@@ -1208,92 +1316,142 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
 inline void log_t::append(byte *&d, const void *s, size_t size) noexcept
 {
   ut_ad(log_sys.latch_have_any());
-  ut_ad(d + size <= log_sys.buf +
-        (log_sys.is_mmap() ? log_sys.file_size : log_sys.buf_size));
+  ut_ad(log_sys.is_mmap()
+        ? ((d >= log_sys.buf && d + size <= log_sys.buf + log_sys.file_size) ||
+           (log_sys.archive &&
+            d >= log_sys.resize_buf &&
+            d + size <= log_sys.resize_buf + log_sys.resize_target))
+        : (d >= log_sys.buf && d + size <= log_sys.buf + log_sys.buf_size));
   memcpy(d, s, size);
   d+= size;
 }
 
-template<bool mmap>
-std::pair<lsn_t,lsn_t> mtr_t::finish_writer(mtr_t *mtr, size_t len)
+template<log_t::write mode>
+std::pair<lsn_t,lsn_t>
+mtr_t::finish_writer(mtr_t *mtr, size_t len)
 {
   ut_ad(log_sys.is_latest());
   ut_ad(!recv_no_log_write);
+  ut_ad(!recv_sys.rpo);
   ut_ad(mtr->is_logged());
   ut_ad(mtr->m_latch_ex ? log_sys.latch_have_wr() : log_sys.latch_have_rd());
   ut_ad(len < recv_sys.MTR_SIZE_MAX);
+  ut_ad(mode == log_t::WRITE_NORMAL ||
+        log_sys.archive == (mode == log_t::ARCHIVED_MMAP));
 
   const size_t size{mtr->m_commit_lsn ? 5U + 8U : 5U};
   std::pair<lsn_t, byte*> start=
-    log_sys.append_prepare<mmap>(len, mtr->m_latch_ex);
+    log_sys.append_prepare<mode>(len, mtr->m_latch_ex);
 
-  if (!mmap)
-  {
+  if (mode == log_t::WRITE_NORMAL)
+#ifdef HAVE_PMEM
+  write_normal:
+#endif
     for (const mtr_buf_t::block_t &b : mtr->m_log)
       log_sys.append(start.second, b.begin(), b.used());
-
-  write_trailer:
-    *start.second++= log_sys.get_sequence_bit(start.first + len - size);
-    if (mtr->m_commit_lsn)
-    {
-      mach_write_to_8(start.second, mtr->m_commit_lsn);
-      mtr->m_crc= my_crc32c(mtr->m_crc, start.second, 8);
-      start.second+= 8;
-    }
-    mach_write_to_4(start.second, mtr->m_crc);
-    start.second+= 4;
-  }
+#ifdef HAVE_PMEM
   else
   {
-    if (UNIV_LIKELY(start.second + len <= &log_sys.buf[log_sys.file_size]))
+    const size_t file_size= log_sys.file_size;
+    byte *const buf{log_sys.buf};
+    byte *end= &buf[file_size];
+    if (UNIV_LIKELY(start.second + len <= end))
+      goto write_normal;
+    byte *const begin= mode == log_t::ARCHIVED_MMAP
+      ? log_sys.get_archived_mmap_switch()
+      : buf + log_sys.START_OFFSET;
+    if (mode == log_t::ARCHIVED_MMAP && start.second > end)
     {
-      for (const mtr_buf_t::block_t &b : mtr->m_log)
-        log_sys.append(start.second, b.begin(), b.used());
-      goto write_trailer;
+      /* Our mini-transaction will not span two log files. We are
+      somewhere between log_t::archived_mmap_switch_prepare() and
+      log_t::archived_mmap_switch_complete(), and our entire log must
+      be written to the new file. */
+      start.second= begin + (start.second - end);
+      goto write_normal;
     }
+
     for (const mtr_buf_t::block_t &b : mtr->m_log)
     {
       size_t size{b.used()};
-      const size_t size_left(&log_sys.buf[log_sys.file_size] - start.second);
+      const size_t size_left(end - start.second);
       const byte *src= b.begin();
       if (size > size_left)
       {
         ::memcpy(start.second, src, size_left);
-        start.second= &log_sys.buf[log_sys.START_OFFSET];
+        start.second= begin;
+        if (mode == log_t::ARCHIVED_MMAP)
+          /* An approximation; the minimum innodb_log_file_size
+          always exceeds the maximum mtr->get_log_size() */
+          end= begin + file_size;
         src+= size_left;
         size-= size_left;
       }
       ::memcpy(start.second, src, size);
       start.second+= size;
     }
-    const size_t size_left(&log_sys.buf[log_sys.file_size] - start.second);
-    if (size_left > size)
-      goto write_trailer;
-
-    byte tail[5 + 8];
-    tail[0]= log_sys.get_sequence_bit(start.first + len - size);
-
-    if (mtr->m_commit_lsn)
+    const size_t size_left(end - start.second);
+    if (size_left <= size)
     {
-      mach_write_to_8(tail + 1, mtr->m_commit_lsn);
-      mtr->m_crc= my_crc32c(mtr->m_crc, tail + 1, 8);
-      mach_write_to_4(tail + 9, mtr->m_crc);
+      byte tail[5 + 8];
+      tail[0]=
+        (mode == log_t::WRITE_NORMAL
+         ? log_sys.archive : mode == log_t::ARCHIVED_MMAP) ||
+        log_sys.get_sequence_bit(start.first + len - size);
+
+      if (mtr->m_commit_lsn)
+      {
+        mach_write_to_8(tail + 1, mtr->m_commit_lsn);
+        mtr->m_crc= my_crc32c(mtr->m_crc, tail + 1, 8);
+        mach_write_to_4(tail + 9, mtr->m_crc);
+      }
+      else
+        mach_write_to_4(tail + 1, mtr->m_crc);
+
+      ::memcpy(start.second, tail, size_left);
+      ::memcpy(begin, tail + size_left, size - size_left);
+      start.second= ((size >= size_left) ? begin : end) + (size - size_left);
+      goto wrote_trailer;
     }
-    else
-      mach_write_to_4(tail + 1, mtr->m_crc);
-
-    ::memcpy(start.second, tail, size_left);
-    ::memcpy(log_sys.buf + log_sys.START_OFFSET, tail + size_left,
-             size - size_left);
-    start.second= log_sys.buf +
-      ((size >= size_left) ? log_sys.START_OFFSET : log_sys.file_size) +
-      (size - size_left);
   }
+#endif
 
-  log_sys.resize_write(start.first, start.second, len, size);
+  *start.second++=
+    (mode == log_t::WRITE_NORMAL
+     ? log_sys.archive : mode == log_t::ARCHIVED_MMAP) ||
+    log_sys.get_sequence_bit(start.first + len - size);
+
+  if (mtr->m_commit_lsn)
+  {
+    mach_write_to_8(start.second, mtr->m_commit_lsn);
+    mtr->m_crc= my_crc32c(mtr->m_crc, start.second, 8);
+    start.second+= 8;
+  }
+  mach_write_to_4(start.second, mtr->m_crc);
+  start.second+= 4;
+
+#ifdef HAVE_PMEM
+wrote_trailer:
+#else
+  static_assert(mode == log_t::WRITE_NORMAL, "");
+#endif
 
   mtr->m_commit_lsn= start.first + len;
-  return {start.first, log_close(mtr->m_commit_lsn)};
+
+  switch (mode) {
+  case log_t::ARCHIVED_MMAP:
+    ut_ad(!log_sys.resize_in_progress());
+    return {start.first, (log_sys.get_first_lsn() > log_sys.last_checkpoint_lsn
+                          ? log_sys.get_first_lsn() : 0)};
+  case log_t::CIRCULAR_MMAP:
+    log_sys.resize_write<true>(start.first, start.second, len, size);
+    return {start.first, log_close(mtr->m_commit_lsn)};
+  case log_t::WRITE_NORMAL:
+    log_sys.resize_write<false>(start.first, start.second, len, size);
+  }
+  return {start.first, log_sys.archive
+          ? (log_sys.get_first_lsn() > log_sys.last_checkpoint_lsn
+             ? log_sys.get_first_lsn() : 0)
+          : log_close(mtr->m_commit_lsn)};
 }
 
 bool mtr_t::have_x_latch(const buf_block_t &block) const

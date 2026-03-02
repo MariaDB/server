@@ -37,7 +37,7 @@ insert t1 (a, b) values (1, repeat("def", 1000));
 insert t1 (a, b) values (2, repeat("ghi", 10000));
 select a, left(b, 9), length(b) from t1;
 
-let $restart_parameters = --disable-provider-$alg;
+let $restart_parameters = --disable-provider-$alg --innodb-log-recovery-start=0;
 source include/restart_mysqld.inc;
 
 if ($engine == "innodb") {

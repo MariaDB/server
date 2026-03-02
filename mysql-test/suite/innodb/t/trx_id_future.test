@@ -56,6 +56,7 @@ syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
 close(FILE) || die "Unable to close $file";
 EOF
 
+--let $restart_parameters=--innodb-log-recovery-start=0
 --source include/start_mysqld.inc
 call mtr.add_suppression("\\[Warning\\] InnoDB: A transaction id in a record of table `test`\\.`t1` is newer than the system-wide maximum");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: We detected index corruption");

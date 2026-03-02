@@ -36,7 +36,7 @@ let undodir= $MYSQLTEST_VARDIR/tmp/undo_dir;
 
 --let $d=--innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir
 --let $d=$d --innodb-data-file-path=ibdata1:1M:autoextend
---let $d=$d --innodb-undo-tablespaces=0
+--let $d=$d --innodb-undo-tablespaces=0 --innodb-log-recovery-start=0
 --let $d=$d --skip-innodb-fast-shutdown --innodb_undo_directory=$undodir
 --let $restart_noprint=1
 --let $restart_parameters=$d --innodb-stats-persistent=0
@@ -232,6 +232,10 @@ DROP TABLE tr,tc,td,tz,tp;
 --error 0,1
 --remove_file $bugdir/ib_buffer_pool
 
+if (!`select @@innodb_log_archive=0`)
+{
+--replace_result ib_0000000000003000.log ib_logfile0
+}
 --list_files $bugdir
 --remove_files_wildcard $bugdir
 --rmdir $bugdir

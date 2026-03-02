@@ -17,7 +17,7 @@ SET GLOBAL innodb_fast_shutdown=0;
 SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
 NAME	FILE_SIZE
 innodb_system	79691776
-# restart
+# restart: --innodb-log-recovery-start=0
 SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
 NAME	FILE_SIZE
 innodb_system	12582912

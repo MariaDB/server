@@ -56,7 +56,7 @@ create spatial index idx2 on t1(c2);
 show create table t1;
 
 # test read only case
-let $restart_parameters = --innodb-read-only;
+let $restart_parameters = --innodb-read-only --innodb-log-recovery-start=0;
 --source include/restart_mysqld.inc
 set @g1 = ST_GeomFromText('Polygon((0 0,0 100,100 100,100 0,0 0))');
 select count(*) from t1 where MBRWithin(t1.c2, @g1);

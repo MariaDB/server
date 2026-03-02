@@ -513,13 +513,15 @@ inline void trx_t::release_locks()
 TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 {
 	ut_ad(trx->is_recovered);
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
 	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED)
 	     || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)
 	     || (trx_state_eq(trx, TRX_STATE_ACTIVE)
 		 && (!srv_was_started
 		     || srv_operation == SRV_OPERATION_RESTORE
 		     || srv_operation == SRV_OPERATION_RESTORE_EXPORT
-		     || srv_read_only_mode
+		     || recv_sys.rpo
 		     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
 		     || (!srv_is_being_started
 		         && !srv_undo_sources && srv_fast_shutdown))));

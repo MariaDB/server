@@ -1,7 +1,9 @@
 --source include/have_innodb.inc
+--source ../../suite/innodb/include/skip_innodb_log_archive.inc #mariadb-backup
 --source include/have_debug.inc
 --source include/not_embedded.inc
 --source include/have_file_key_management_plugin.inc
+--source ../../suite/innodb/include/no_checkpoint_prepare.inc
 call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=3\\] in file .*test.t[12]\\.ibd looks corrupted");
 call mtr.add_suppression("InnoDB: Unable to apply log to corrupted page ");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");

@@ -1356,10 +1356,12 @@ bool dict_sys_t::load_sys_tables() noexcept
 
 dberr_t dict_sys_t::create_or_check_sys_tables() noexcept
 {
+  ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
   if (sys_tables_exist())
     return DB_SUCCESS;
 
-  if (srv_read_only_mode || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)
+  if (recv_sys.rpo || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)
     return DB_READ_ONLY;
 
   if (load_sys_tables())

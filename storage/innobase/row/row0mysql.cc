@@ -2250,8 +2250,10 @@ row_discard_tablespace_foreign_key_checks(
 	const trx_t*		trx,	/*!< in: transaction handle */
 	const dict_table_t*	table)	/*!< in: table to be discarded */
 {
+	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
-	if (srv_read_only_mode || !trx->check_foreigns) {
+	if (!trx->check_foreigns) {
 		return(DB_SUCCESS);
 	}
 

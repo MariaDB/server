@@ -1,5 +1,6 @@
 --source include/innodb_page_size.inc
 --source include/not_embedded.inc
+--source include/no_checkpoint_prepare.inc
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 let MYSQLD_DATADIR=`select @@datadir`;

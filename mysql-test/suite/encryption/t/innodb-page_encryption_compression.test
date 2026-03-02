@@ -42,7 +42,7 @@ FLUSH TABLES innodb_dynamic FOR EXPORT; UNLOCK TABLES;
 select variable_value > 0 from information_schema.global_status
 where variable_name = 'INNODB_NUM_PAGES_PAGE_COMPRESSED';
 
---let $restart_parameters=--innodb-encrypt-tables=OFF
+--let $restart_parameters=--innodb-encrypt-tables=OFF --innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 
 # zlib

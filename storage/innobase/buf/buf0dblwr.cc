@@ -258,7 +258,7 @@ func_exit:
   init(TRX_SYS_DOUBLEWRITE + read_buf);
 
   const bool upgrade_to_innodb_file_per_table=
-    !srv_read_only_mode &&
+    !recv_sys.rpo &&
     mach_read_from_4(TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED +
                      TRX_SYS_DOUBLEWRITE + read_buf) !=
     TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N;
@@ -334,7 +334,8 @@ void buf_dblwr_t::recover() noexcept
   if (!is_created())
     return;
   const lsn_t max_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
-  ut_ad(recv_sys.scanned_lsn == max_lsn);
+  ut_ad(recv_sys.scanned_lsn == max_lsn ||
+        (recv_sys.rpo && recv_sys.rpo < max_lsn));
   ut_ad(recv_sys.scanned_lsn >= recv_sys.lsn);
 
   uint32_t page_no_dblwr= 0;

@@ -229,7 +229,7 @@ static uint innodb_max_purge_lag_wait;
 static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
                                              void *, const void *limit)
 {
-  if (high_level_read_only)
+  if (high_level_read_only || recv_sys.rpo)
     return;
   const uint l= *static_cast<const uint*>(limit);
   if (!trx_sys.history_exceeds(l))
@@ -950,6 +950,7 @@ static SHOW_VAR innodb_status_variables[]= {
   {"lsn_flushed", &export_vars.innodb_lsn_flushed, SHOW_ULONGLONG},
   {"lsn_last_checkpoint", &export_vars.innodb_lsn_last_checkpoint,
    SHOW_ULONGLONG},
+  {"lsn_archived", &log_sys.archived_lsn, SHOW_ULONGLONG},
   {"master_thread_active_loops", &srv_main_active_loops, SHOW_SIZE_T},
   {"master_thread_idle_loops", &srv_main_idle_loops, SHOW_SIZE_T},
   {"max_trx_id", &export_vars.innodb_max_trx_id, SHOW_ULONGLONG},
@@ -1217,7 +1218,7 @@ tables that it was aware of, drop any leftover tables inside InnoDB.
 @param path  database path */
 static void innodb_drop_database(handlerton*, char *path)
 {
-  if (high_level_read_only)
+  if (high_level_read_only || recv_sys.rpo)
     return;
 
   ulint len= 0;
@@ -1497,7 +1498,9 @@ innobase_start_trx_and_assign_read_view(
 @return false */
 static bool innobase_flush_logs(handlerton*)
 {
-  if (!srv_read_only_mode)
+  ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
+  if (!recv_sys.rpo)
     /* Write and flush any outstanding redo log. */
     log_buffer_flush_to_disk(true);
   return false;
@@ -1941,9 +1944,11 @@ all_fail:
 
 static int innodb_ddl_recovery_done(handlerton*)
 {
+  ut_ad(!srv_read_only_mode || recv_sys.rpo);
   ut_ad(!ddl_recovery_done);
   ut_d(ddl_recovery_done= true);
-  if (!srv_read_only_mode && srv_operation <= SRV_OPERATION_EXPORT_RESTORED &&
+
+  if (!recv_sys.rpo && srv_operation <= SRV_OPERATION_EXPORT_RESTORED &&
       srv_force_recovery < SRV_FORCE_NO_BACKGROUND)
   {
     if (srv_start_after_restore && !high_level_read_only)
@@ -2844,7 +2849,7 @@ static int innobase_close_connection(handlerton *, THD *thd) noexcept
 static int innobase_rollback_by_xid(handlerton*, XID *xid) noexcept
 {
   DBUG_EXECUTE_IF("innobase_xa_fail", return XAER_RMFAIL;);
-  if (high_level_read_only)
+  if (high_level_read_only || recv_sys.rpo)
     return XAER_RMFAIL;
   if (trx_t *trx= trx_get_trx_by_xid(xid))
   {
@@ -3694,6 +3699,9 @@ compression_algorithm_is_not_loaded(ulong compression_algorithm, myf flags)
   return 1;
 }
 
+/** Initial value of innodb_lsn_archived */
+static uint64_t innodb_log_archive_start;
+
 /** Initialize, validate and normalize the InnoDB startup parameters.
 @return failure code
 @retval 0 on success
@@ -3982,6 +3990,32 @@ static int innodb_init_params()
 skip_buffering_tweak:
 #endif
 
+  log_sys.archived_lsn= innodb_log_archive_start;
+
+  if (recv_sys.recovery_start &&
+      log_sys.archived_lsn > recv_sys.recovery_start)
+  {
+    sql_print_error("InnoDB: innodb_log_archive_start=" LSN_PF
+                    " is after innodb_log_recovery_start=" LSN_PF,
+                    log_sys.archived_lsn, recv_sys.recovery_start);
+    DBUG_RETURN(HA_ERR_INITIALIZATION);
+  }
+
+  if (recv_sys.rpo && recv_sys.recovery_start > recv_sys.rpo)
+  {
+    sql_print_error("InnoDB: innodb_log_recovery_start=" LSN_PF
+                    " is after innodb_log_recovery_target=" LSN_PF,
+                    recv_sys.recovery_start, recv_sys.rpo);
+    DBUG_RETURN(HA_ERR_INITIALIZATION);
+  }
+
+  if (log_sys.archive && srv_log_file_size > log_sys.ARCHIVE_FILE_SIZE_MAX)
+  {
+    sql_print_error("InnoDB: innodb_log_archive=ON"
+                    " disallows innodb_log_file_size>4G");
+    DBUG_RETURN(HA_ERR_INITIALIZATION);
+  }
+
   if (!tpool::supports_native_aio())
     srv_use_native_aio= FALSE;
 
@@ -4139,14 +4173,25 @@ static int innodb_init(void* p)
 	dberr_t	err = srv_sys_space.check_file_spec(&create_new_db, 5U << 20);
 
 	if (err != DB_SUCCESS) {
+	init_abort:
 		DBUG_RETURN(innodb_init_abort());
+	}
+
+	if (create_new_db && recv_sys.rpo) {
+		sql_print_error("InnoDB: Cannot fulfill"
+				" innodb_log_recovery_target"
+				" because no database exists!");
+		goto init_abort;
 	}
 
 	err = srv_start(create_new_db);
 
 	if (err != DB_SUCCESS) {
+		if (!recv_sys.rpo) {
+			recv_sys.rpo = srv_read_only_mode;
+		}
 		innodb_shutdown();
-		DBUG_RETURN(innodb_init_abort());
+		goto init_abort;
 	}
 
 	srv_was_started = true;
@@ -5673,6 +5718,7 @@ dberr_t ha_innobase::statistics_init(dict_table_t *table, bool recalc)
 {
   ut_ad(table->is_readable());
   ut_ad(!table->stats_mutex_is_owner());
+  ut_ad(!srv_read_only_mode || recv_sys.rpo);
 
   uint32_t stat= table->stat;
   dberr_t err= DB_SUCCESS;
@@ -5682,7 +5728,7 @@ dberr_t ha_innobase::statistics_init(dict_table_t *table, bool recalc)
     dict_stats_empty_table(table);
   else
   {
-    if (dict_table_t::stats_is_persistent(stat) && !srv_read_only_mode
+    if (dict_table_t::stats_is_persistent(stat) && !recv_sys.rpo
 #ifdef WITH_WSREP
         && !wsrep_thd_skip_locking(m_user_thd)
 #endif
@@ -7626,7 +7672,7 @@ int ha_innobase::is_valid_trx(bool altering_to_supported) const noexcept
 {
   ut_ad(m_prebuilt->trx == thd_to_trx(m_user_thd));
 
-  if (high_level_read_only)
+  if (high_level_read_only || recv_sys.rpo)
   {
     ib_senderrf(m_user_thd, IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
     return HA_ERR_TABLE_READONLY;
@@ -7987,6 +8033,7 @@ calc_row_difference(
 	const bool skip_virtual = ha_innobase::omits_virtual_cols(*table->s);
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	clust_index = dict_table_get_first_index(prebuilt->table);
 	auto_inc = 0;
@@ -12055,7 +12102,7 @@ int create_table_info_t::prepare_create_table(const char* name, bool strict)
 		DBUG_RETURN(HA_WRONG_CREATE_OPTION);
 	}
 
-	if (high_level_read_only) {
+	if (high_level_read_only || recv_sys.rpo) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	}
 
@@ -12080,6 +12127,17 @@ int create_table_info_t::prepare_create_table(const char* name, bool strict)
 
 	DBUG_RETURN(parse_table_name(name));
 }
+
+/********************************************************************//**
+Helper function to push warnings from InnoDB internals to SQL-layer. */
+static
+void
+ib_foreign_warn(
+	trx_t*		trx,	/*!< in: trx */
+	dberr_t		error,	/*!< in: error code to push as warning */
+	const char	*table_name,
+	const char	*format,/*!< in: warning message */
+	...);
 
 /** Push warning message to SQL-layer based on foreign key constraint index
 match error.
@@ -13481,7 +13539,7 @@ static bool delete_table_check_foreigns(const dict_table_t &table,
 int ha_innobase::delete_table(const char *name)
 {
   DBUG_ENTER("ha_innobase::delete_table");
-  if (high_level_read_only)
+  if (high_level_read_only || recv_sys.rpo)
     DBUG_RETURN(HA_ERR_TABLE_READONLY);
 
   THD *thd= ha_thd();
@@ -13762,6 +13820,7 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 	DBUG_ASSERT(trx->dict_operation);
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	normalize_table_name(norm_to, to);
 	normalize_table_name(norm_from, from);
@@ -14098,7 +14157,7 @@ ha_innobase::rename_table(
 
 	DBUG_ENTER("ha_innobase::rename_table");
 
-	if (high_level_read_only) {
+	if (high_level_read_only || recv_sys.rpo) {
 		ib_senderrf(thd, IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	}
@@ -14748,6 +14807,8 @@ ha_innobase::info_low(
 
 	DBUG_ENTER("info");
 
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
 	DEBUG_SYNC_C("ha_innobase_info_low");
 
 	/* If we are forcing recovery at a high level, we will suppress
@@ -14778,7 +14839,7 @@ ha_innobase::info_low(
 		m_prebuilt->trx->op_info = "updating table statistics";
 
 		if (ib_table->stats_is_persistent()
-		    && !srv_read_only_mode
+		    && !recv_sys.rpo
 		    && dict_stats_persistent_storage_check(false)
 		    == SCHEMA_OK) {
 			if (is_analyze) {
@@ -15215,6 +15276,7 @@ ha_innobase::check(
 		print_check_msg(thd, table->s->db.str, table->s->table_name.str,
 				"check", "note",
 				(opt_readonly || high_level_read_only
+				 || recv_sys.rpo
 				 || !(check_opt->sql_flags & TT_FOR_UPGRADE))
 				? "Auto_increment will be"
 				" checked on each open until"
@@ -15458,7 +15520,7 @@ int ha_innobase::check_for_upgrade(HA_CHECK_OPT *check_opt)
     if (m_prebuilt->table->get_index(*autoinc_col))
     {
       check_opt->handler_flags= 1;
-      return (high_level_read_only && !opt_readonly)
+      return ((high_level_read_only || recv_sys.rpo) && !opt_readonly)
         ? HA_ADMIN_FAILED : HA_ADMIN_NEEDS_CHECK;
     }
   }
@@ -15866,7 +15928,7 @@ ha_innobase::extra(
 		trx->end_bulk_insert(*m_prebuilt->table);
 		trx->bulk_insert &= TRX_DML_BULK;
 		if (!m_prebuilt->table->is_temporary()
-		    && !high_level_read_only) {
+		    && !high_level_read_only && !recv_sys.rpo) {
 			/* During copy_data_between_tables(), InnoDB only
 			updates transient statistics. */
 			if (!m_prebuilt->table->stats_is_persistent()) {
@@ -16071,6 +16133,8 @@ ha_innobase::external_lock(
 	DBUG_ENTER("ha_innobase::external_lock");
 	DBUG_PRINT("enter",("lock_type: %d", lock_type));
 
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
 	update_thd(thd);
 	trx_t* trx = m_prebuilt->trx;
 	ut_ad(m_prebuilt->table);
@@ -16129,7 +16193,7 @@ ha_innobase::external_lock(
 	const auto sql_command = thd_sql_command(thd);
 
 	/* Check for UPDATEs in read-only mode. */
-	if (srv_read_only_mode) {
+	if (recv_sys.rpo) {
 		switch (sql_command) {
 		case SQLCOM_CREATE_TABLE:
 			if (lock_type != F_WRLCK) {
@@ -16182,7 +16246,7 @@ ha_innobase::external_lock(
 	switch (m_prebuilt->table->quiesce) {
 	case QUIESCE_START:
 		/* Check for FLUSH TABLE t WITH READ LOCK; */
-		if (!srv_read_only_mode
+		if (!recv_sys.rpo
 		    && sql_command == SQLCOM_FLUSH
 		    && lock_type == F_RDLCK) {
 
@@ -16358,7 +16422,9 @@ innodb_show_status(
 	/* We don't create the temp files or associated
 	mutexes in read-only-mode */
 
-	if (srv_read_only_mode) {
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
+	if (recv_sys.rpo) {
 		DBUG_RETURN(0);
 	}
 
@@ -16510,6 +16576,8 @@ ha_innobase::store_lock(
 						'lock'; this may also be
 						TL_IGNORE */
 {
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
 	/* Note that trx in this function is NOT necessarily m_prebuilt->trx
 	because we call update_thd() later, in ::external_lock()! Failure to
 	understand this caused a serious memory corruption bug in 5.1.11. */
@@ -16551,7 +16619,7 @@ ha_innobase::store_lock(
 	const bool in_lock_tables = thd_in_lock_tables(thd);
 	const int sql_command = thd_sql_command(thd);
 
-	if (srv_read_only_mode
+	if (recv_sys.rpo
 	    && (sql_command == SQLCOM_UPDATE
 		|| sql_command == SQLCOM_INSERT
 		|| sql_command == SQLCOM_REPLACE
@@ -17213,7 +17281,7 @@ innobase_commit_by_xid(
 	DBUG_EXECUTE_IF("innobase_xa_fail",
 			return XAER_RMFAIL;);
 
-	if (high_level_read_only) {
+	if (high_level_read_only || recv_sys.rpo) {
 		return(XAER_RMFAIL);
 	}
 
@@ -17437,6 +17505,8 @@ fast_shutdown_validate(
 						for update function */
 	struct st_mysql_value*		value)	/*!< in: incoming string */
 {
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
 	if (check_sysvar_int(thd, var, save, value)) {
 		return(1);
 	}
@@ -17444,7 +17514,7 @@ fast_shutdown_validate(
 	uint new_val = *reinterpret_cast<uint*>(save);
 
 	if (srv_fast_shutdown && !new_val
-	    && !srv_read_only_mode && abort_loop) {
+	    && !recv_sys.rpo && abort_loop) {
 		return(1);
 	}
 
@@ -18317,10 +18387,12 @@ static
 void
 checkpoint_now_set(THD* thd, st_mysql_sys_var*, void*, const void *save)
 {
+  ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
   if (!*static_cast<const my_bool*>(save))
     return;
 
-  if (srv_read_only_mode)
+  if (recv_sys.rpo)
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         HA_ERR_UNSUPPORTED,
@@ -18447,7 +18519,9 @@ buffer_pool_dump_now(
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
-	if (*(my_bool*) save && !srv_read_only_mode) {
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
+	if (*(my_bool*) save && !recv_sys.rpo) {
 		mysql_mutex_unlock(&LOCK_global_system_variables);
 		buf_dump_start();
 		mysql_mutex_lock(&LOCK_global_system_variables);
@@ -18472,7 +18546,9 @@ buffer_pool_load_now(
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
-	if (*(my_bool*) save && !srv_read_only_mode) {
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
+	if (*(my_bool*) save && !recv_sys.rpo) {
 		mysql_mutex_unlock(&LOCK_global_system_variables);
 		buf_load_start();
 		mysql_mutex_lock(&LOCK_global_system_variables);
@@ -18497,7 +18573,9 @@ buffer_pool_load_abort(
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
-	if (*(my_bool*) save && !srv_read_only_mode) {
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
+	if (*(my_bool*) save && !recv_sys.rpo) {
 		mysql_mutex_unlock(&LOCK_global_system_variables);
 		buf_load_abort();
 		mysql_mutex_lock(&LOCK_global_system_variables);
@@ -18541,7 +18619,8 @@ static void innodb_data_file_write_through_update(THD *, st_mysql_sys_var*,
 static void innodb_doublewrite_update(THD *, st_mysql_sys_var*,
                                       void *, const void *save)
 {
-  if (!srv_read_only_mode)
+  ut_ad(!srv_read_only_mode || recv_sys.rpo);
+  if (!recv_sys.rpo)
     fil_system.set_use_doublewrite(*static_cast<const ulong*>(save));
 }
 
@@ -18551,7 +18630,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
   ut_ad(var == &srv_log_file_size);
   mysql_mutex_unlock(&LOCK_global_system_variables);
 
-  if (high_level_read_only)
+  if (high_level_read_only || recv_sys.rpo)
     ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_READ_ONLY_MODE);
   else if (
 #ifdef HAVE_PMEM
@@ -19049,7 +19128,7 @@ static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
 
 static MYSQL_SYSVAR_STR(log_group_home_dir, srv_log_group_home_dir,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Path to ib_logfile0", NULL, NULL, NULL);
+  "Path to ib_logfile0 or ib_*.log", NULL, NULL, NULL);
 
 static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct, srv_max_buf_pool_modified_pct,
   PLUGIN_VAR_RQCMDARG,
@@ -19413,7 +19492,7 @@ static MYSQL_SYSVAR_UINT(log_buffer_size, log_sys.buf_size,
   NULL, NULL, 16U << 20, 2U << 20, log_sys.buf_size_max, 4096);
 
   static constexpr const char *innodb_log_file_mmap_description=
-    "Whether ib_logfile0"
+    "Whether the log"
     " resides in persistent memory (when supported) or"
     " should initially be memory-mapped";
 static MYSQL_SYSVAR_BOOL(log_file_mmap, log_sys.log_mmap,
@@ -19424,13 +19503,13 @@ static MYSQL_SYSVAR_BOOL(log_file_mmap, log_sys.log_mmap,
 #if defined __linux__ || defined _WIN32
 static MYSQL_SYSVAR_BOOL(log_file_buffering, log_sys.log_buffered,
   PLUGIN_VAR_OPCMDARG,
-  "Whether the file system cache for ib_logfile0 is enabled",
+  "Whether the file system cache for ib_logfile0 or ib_*.log is enabled",
   nullptr, innodb_log_file_buffering_update, FALSE);
 #endif
 
 static MYSQL_SYSVAR_BOOL(log_file_write_through, log_sys.log_write_through,
   PLUGIN_VAR_OPCMDARG,
-  "Whether each write to ib_logfile0 is write through",
+  "Whether each write to the log is write through",
   nullptr, innodb_log_file_write_through_update, FALSE);
 
 static MYSQL_SYSVAR_BOOL(data_file_buffering, fil_system.buffered,
@@ -19443,11 +19522,37 @@ static MYSQL_SYSVAR_BOOL(data_file_write_through, fil_system.write_through,
   "Whether each write to data files writes through",
   nullptr, innodb_data_file_write_through_update, FALSE);
 
+static void innodb_log_archive_update(THD *thd, st_mysql_sys_var*,
+                                      void *, const void *save) noexcept
+{
+  log_sys.set_archive(*static_cast<const my_bool*>(save), thd);
+}
+
+static MYSQL_SYSVAR_BOOL(log_archive, log_sys.archive,
+  PLUGIN_VAR_OPCMDARG,
+  "Whether log archiving is desired",
+  nullptr, innodb_log_archive_update, FALSE);
+
+static MYSQL_SYSVAR_UINT64_T(log_archive_start, innodb_log_archive_start,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "initial value of innodb_lsn_archived; 0=auto-detect",
+  nullptr, nullptr, 0, 0, std::numeric_limits<uint64_t>::max(), 0);
+
+static MYSQL_SYSVAR_UINT64_T(log_recovery_start, recv_sys.recovery_start,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "LSN to start recovery from (0=automatic)",
+  nullptr, nullptr, 0, 0, std::numeric_limits<uint64_t>::max(), 0);
+
+static MYSQL_SYSVAR_UINT64_T(log_recovery_target, recv_sys.rpo,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "recovery point objective (end LSN; 0=unlimited)",
+  nullptr, nullptr, 0, 0, std::numeric_limits<uint64_t>::max(), 0);
+
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG,
-  "Redo log size in bytes.",
+  "Desired log file size in bytes",
   nullptr, innodb_log_file_size_update,
-  96 << 20, 4 << 20, std::numeric_limits<ulonglong>::max(), 4096);
+  96 << 20, log_t::FILE_SIZE_MIN, std::numeric_limits<ulonglong>::max(), 4096);
 
 static uint innodb_log_spin_wait_delay;
 
@@ -19877,6 +19982,10 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_file_write_through),
   MYSQL_SYSVAR(data_file_buffering),
   MYSQL_SYSVAR(data_file_write_through),
+  MYSQL_SYSVAR(log_archive),
+  MYSQL_SYSVAR(log_archive_start),
+  MYSQL_SYSVAR(log_recovery_start),
+  MYSQL_SYSVAR(log_recovery_target),
   MYSQL_SYSVAR(log_file_size),
   MYSQL_SYSVAR(log_write_ahead_size),
   MYSQL_SYSVAR(log_spin_wait_delay),
