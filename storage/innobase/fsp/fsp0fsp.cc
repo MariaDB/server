@@ -596,29 +596,15 @@ fsp_try_extend_data_file_with_pages(
 	buf_block_t*	header,
 	mtr_t*		mtr)
 {
-	bool	success;
-	ulint	size;
-
 	ut_ad(!is_system_tablespace(space->id));
 	ut_d(space->modify_check(*mtr));
 
-	size = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SIZE
-				+ header->page.frame);
+	uint32_t size = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SIZE
+					 + header->page.frame);
 	ut_ad(size == space->size_in_header);
-
 	ut_a(page_no >= size);
 
-	success = fil_space_extend(space, page_no + 1);
-	/* The size may be less than we wanted if we ran out of disk space. */
-	/* recv_sys_t::parse() expects to find a WRITE record that
-	covers all 4 bytes. Therefore, we must specify mtr_t::FORCED
-	in order to avoid optimizing away any unchanged most
-	significant bytes of FSP_SIZE. */
-	mtr->write<4,mtr_t::FORCED>(*header, FSP_HEADER_OFFSET + FSP_SIZE
-				    + header->page.frame, space->size);
-	space->size_in_header = space->size;
-
-	return(success);
+	return space->extend(page_no + 1, header, mtr);
 }
 
 /** Calculate the number of physical pages in an extent for this file.
@@ -658,6 +644,86 @@ static uint32_t fsp_get_pages_to_extend_ibd(unsigned physical_size,
 	}
 
 	return extent_size;
+}
+
+/** Check if tablespace size exceeds warning threshold and emit warning.
+@param new_size    New size in pages
+@param threshold   nonzero warning threshold in bytes
+@return true if warning was emitted */
+ATTRIBUTE_COLD bool fil_space_t::check_size_warning(uint32_t new_size,
+                                                    ulonglong threshold)
+  noexcept
+{
+  const uint warning_pct= fil_system.tablespace_size_warning_pct;
+
+  /* Reset state if threshold or warning percentage changed */
+  const uint32_t threshold_pages=
+    uint32_t(threshold / physical_size());
+  if ((m_last_warning_threshold ^ threshold_pages) |
+      (uint{m_last_warning_pct} ^ warning_pct)) {
+    m_last_size_warning_pct= 0;
+    m_last_warning_threshold= threshold_pages;
+    m_last_warning_pct= uint8_t(warning_pct);
+  }
+
+  uint64_t current_bytes=
+    uint64_t(new_size) * physical_size();
+  /* new_size is at most 1ULL<<32 and physical_size() at most 1<<16,
+  so current_bytes * 100 < 1ULL<<55, well within uint64_t range. */
+  uint64_t current_pct=
+    (current_bytes * 100) / threshold;
+  uint8_t display_pct=
+    uint8_t(std::min(current_pct, uint64_t{100}));
+
+  if (display_pct < warning_pct)
+    return false;
+
+  if (display_pct <= m_last_size_warning_pct)
+    return false;
+
+  /* Warn on every 1% increase */
+  const auto n= name();
+  sql_print_warning("InnoDB: Tablespace '%.*s' size %llu bytes"
+                    " reached %u%% of configured threshold"
+                    " of %llu bytes",
+                    int(n.size()), n.data(),
+                    ulonglong{current_bytes},
+                    unsigned{display_pct},
+                    ulonglong{threshold});
+
+  m_last_size_warning_pct= display_pct;
+
+  return true;
+}
+
+/** Extend the tablespace, update size_in_header, and emit size warnings.
+@param size     desired size in pages
+@param header   tablespace header block
+@param mtr      mini-transaction
+@return whether the extension succeeded */
+bool fil_space_t::extend(uint32_t size, buf_block_t *header, mtr_t *mtr)
+  noexcept
+{
+  if (!fil_space_extend(this, size))
+    return false;
+
+  /* For the system tablespace, we ignore any fragments of a
+  full megabyte when storing the size to the space header */
+  const unsigned ps= physical_size();
+  size_in_header= id
+    ? this->size
+    : ut_2pow_round(this->size, (1024 * 1024) / ps);
+
+  /* recv_sys_t::parse() expects to find a WRITE record that
+  covers all 4 bytes. Therefore, we must specify mtr_t::FORCED
+  in order to avoid optimizing away any unchanged most
+  significant bytes of FSP_SIZE. */
+  mtr->write<4,mtr_t::FORCED>(*header, FSP_HEADER_OFFSET + FSP_SIZE +
+                              header->page.frame, size_in_header);
+
+  if (uint64_t threshold= fil_system.tablespace_size_warning_threshold)
+    check_size_warning(size_in_header, threshold);
+  return true;
 }
 
 /** Try to extend the last data file of a tablespace if it is auto-extending.
@@ -741,24 +807,9 @@ fsp_try_extend_data_file(fil_space_t *space, buf_block_t *header, mtr_t *mtr)
 		return(0);
 	}
 
-	if (!fil_space_extend(space, size + size_increase)) {
+	if (!space->extend(size + size_increase, header, mtr)) {
 		return(0);
 	}
-
-	/* For the system tablespace, we ignore any fragments of a
-	full megabyte when storing the size to the space header */
-
-	space->size_in_header = space->id
-		? space->size
-		: ut_2pow_round(space->size, (1024 * 1024) / ps);
-
-	/* recv_sys_t::parse() expects to find a WRITE record that
-	covers all 4 bytes. Therefore, we must specify mtr_t::FORCED
-	in order to avoid optimizing away any unchanged most
-	significant bytes of FSP_SIZE. */
-	mtr->write<4,mtr_t::FORCED>(*header, FSP_HEADER_OFFSET + FSP_SIZE
-				    + header->page.frame,
-				    space->size_in_header);
 
 	return(size_increase);
 }

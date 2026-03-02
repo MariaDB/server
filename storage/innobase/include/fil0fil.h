@@ -80,6 +80,7 @@ inline bool srv_is_undo_tablespace(uint32_t space_id)
 }
 
 class page_id_t;
+struct buf_block_t;
 
 /** Structure containing encryption specification */
 struct fil_space_crypt_t;
@@ -420,6 +421,32 @@ private:
 
   /** LSN of undo tablespace creation or 0; protected by latch */
   lsn_t create_lsn= 0;
+
+public:
+  /** Check if tablespace size exceeds warning threshold and emit warning.
+  @param new_size    New size in pages
+  @param threshold   nonzero warning threshold in bytes
+  @return true if warning was emitted */
+  ATTRIBUTE_COLD bool check_size_warning(uint32_t new_size,
+                                         ulonglong threshold) noexcept;
+
+  /** Extend the tablespace, update size_in_header, and emit size warnings.
+  @param size     desired size in pages
+  @param header   tablespace header block
+  @param mtr      mini-transaction
+  @return whether the extension succeeded */
+  bool extend(uint32_t size, buf_block_t *header, mtr_t *mtr) noexcept;
+
+private:
+  /** Threshold in pages used for the last warning */
+  uint32_t m_last_warning_threshold{0};
+
+  /** Last percentage at which we emitted a size warning (0-100) */
+  uint8_t m_last_size_warning_pct{0};
+
+  /** Warning pct value used for the last warning */
+  uint8_t m_last_warning_pct{0};
+
 public:
   /** @return whether this is the temporary tablespace */
   bool is_temporary() const noexcept
@@ -1509,6 +1536,11 @@ public:
   /** whether fil_space_t::create() has issued a warning about
   potential space_id reuse */
   bool space_id_reuse_warned;
+
+  /** Percentage at which to start emitting tablespace size warnings */
+  uint32_t tablespace_size_warning_pct;
+  /** Threshold in bytes for tablespace size warnings (0 = disabled) */
+  ulonglong tablespace_size_warning_threshold;
 
   /** Add the file to the end of opened spaces list in
   fil_system.space_list, so that fil_space_t::try_to_close() should close
