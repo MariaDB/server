@@ -2849,6 +2849,36 @@ SELECT a, b FROM t2 WHERE b != 10 and b < 30 ORDER BY b DESC;
 DROP TABLE t2;
 
 --echo #
+--echo # MDEV-38934: ICP, Reverse scan: range access will scan whole index for
+--echo #             range w/o max endpoint
+--echo #
+CREATE TABLE t1 (
+  a int,
+  b int,
+  INDEX(a)
+);
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_10000;
+SELECT COUNT(*) FROM t1 WHERE a > 9900 AND (a+1 > 9901) ORDER BY a DESC;
+FLUSH STATUS;
+--disable_result_log
+--disable_ps_protocol
+SELECT * FROM t1 WHERE a > 9900 AND (a+1 > 9901) ORDER BY a DESC;
+--enable_ps_protocol
+--enable_result_log
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+
+SELECT COUNT(*) FROM t1 WHERE a > 9900 AND (a+1 > 990000) ORDER BY a DESC;
+FLUSH STATUS;
+--disable_result_log
+--disable_ps_protocol
+SELECT * FROM t1 WHERE a > 9900 AND (a+1 > 999000) ORDER BY a DESC;
+--enable_ps_protocol
+--enable_result_log
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+
+DROP TABLE t1;
+
+--echo #
 --echo # End of 12.3 tests
 --echo #
 
