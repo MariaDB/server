@@ -1,0 +1,95 @@
+#
+# MDEV-13594: Support for -> and ->> JSON operators
+#
+# 1. Basic Extraction with ->
+SELECT '{"a": 1, "b": "text"}'->'$.a' AS int_val,
+'{"a": 1, "b": "text"}'->'$.b' AS str_val;
+int_val	str_val
+1	"text"
+# 2. Unquoted Extraction with ->>
+SELECT '{"a": 1, "b": "text"}'->> '$.a' AS int_val,
+'{"a": 1, "b": "text"}'->> '$.b' AS str_val;
+int_val	str_val
+1	text
+# 3. Chaining Operators
+# Should support nested extraction
+SELECT '{"a": {"b": {"c": 42}}}'->'$.a'->'$.b'->'$.c' AS chained_arrow,
+'{"a": {"b": {"c": 42}}}'->'$.a'->'$.b'->>'$.c' AS chained_unquoted;
+chained_arrow	chained_unquoted
+42	42
+# 4. Operator Precedence
+# -> and ->> bind tighter than arithmetic operators
+SELECT '{"a": 5}'->'$.a' + 1 AS arrow_plus_one;
+arrow_plus_one
+6
+SELECT '{"a": 5}'->> '$.a' + 1 AS unquoted_arrow_plus_one;
+unquoted_arrow_plus_one
+6
+SELECT '{"a": 5}'->'$.a' * 2 AS arrow_times_two;
+arrow_times_two
+10
+# 5. Table Integration
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+data JSON
+);
+INSERT INTO t1 VALUES
+(1, '{"name": "Alice", "meta": {"age": 25, "city": "London"}}'),
+(2, '{"name": "Bob", "meta": {"age": 30, "city": "Paris"}}'),
+(3, '{"name": "Charlie", "meta": null}');
+# Usage in SELECT list
+SELECT id, data->'$.name', data->>'$.meta.city' FROM t1;
+id	data->'$.name'	data->>'$.meta.city'
+1	"Alice"	London
+2	"Bob"	Paris
+3	"Charlie"	NULL
+# Usage in WHERE clause
+SELECT data->>'$.name' FROM t1 WHERE data->'$.meta.age' > 25;
+data->>'$.name'
+Bob
+# Usage in ORDER BY
+SELECT data->>'$.name' FROM t1 ORDER BY data->'$.meta.age' DESC;
+data->>'$.name'
+Bob
+Alice
+Charlie
+DROP TABLE t1;
+# 6. Edge Cases: Invalid JSON and Paths
+# Invalid JSON text returns a warning; result is NULL
+error ER_INVALID_JSON_TEXT_IN_PARAM
+SELECT '{"a": 1'->'$.a';
+'{"a": 1'->'$.a'
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 8
+# Missing key returns NULL (no error)
+SELECT '{"a": 1}'->'$.no_key';
+'{"a": 1}'->'$.no_key'
+NULL
+# Invalid path returns a warning; result is NULL
+error ER_INVALID_JSON_PATH
+SELECT '{"a": 1}'->'invalid_path';
+'{"a": 1}'->'invalid_path'
+NULL
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 1
+# 7. Integration with Generated Columns
+CREATE TABLE t2 (
+j JSON,
+name VARCHAR(50) AS (j->>'$.name') VIRTUAL,
+INDEX (name)
+);
+INSERT INTO t2 (j) VALUES ('{"name": "Zoe", "score": 100}');
+SELECT name FROM t2;
+name
+Zoe
+EXPLAIN SELECT name FROM t2 WHERE name = 'Zoe';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ref	name	name	53	const	1	Using index
+DROP TABLE t2;
+# 8. Chaining with non-JSON results
+# ->> returns a string. If the string is valid JSON, another -> can follow.
+SELECT '{"outer": "{\"inner\": 1}"}'->> '$.outer'->'$.inner' AS complex_chain;
+complex_chain
+1
+End of 13.0 tests

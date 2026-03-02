@@ -474,7 +474,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <NONE> SHIFT_LEFT             /* OPERATOR */
 %token  <NONE> SHIFT_RIGHT            /* OPERATOR */
 %token  <NONE> ARROW_SYM              /* OPERATOR */
-/* MDEV-18530: MySQL-compatible JSON path operators -> and ->> */
+/* MDEV-13594: MySQL-compatible JSON path operators -> and ->> */
 %token  <NONE> JSON_ARROW_SYM          /* OPERATOR */
 %token  <NONE> JSON_UNQUOTED_ARROW_SYM /* OPERATOR */
 
@@ -10627,19 +10627,25 @@ primary_base_expr:
           }
         ;
 
-/* 
-  MDEV-18530: JSON operators -> and ->>
+/*
+  MDEV-13594: JSON operators -> and ->>
   These rules map the operators to Item_func_json_extract and Item_func_json_unquote.
-  Splitting into primary_base_expr and primary_expr allows proper operator chaining 
+  Splitting into primary_base_expr and primary_expr allows proper operator chaining
   (e.g., col->'$.a'->'$.b') by keeping the grammar left-associative.
 */
 primary_expr:
           primary_base_expr
         | primary_expr JSON_ARROW_SYM primary_base_expr
           {
+            /*
+              Build the argument list on thd->mem_root so it is tied to the
+              parser arena.  Assign $$ first so the allocation is not orphaned
+              if push_back or object construction fails and YYABORT is called.
+            */
             List<Item> *list= new (thd->mem_root) List<Item>;
-            if (unlikely(list == NULL) ||
-                unlikely(list->push_back($1, thd->mem_root)) ||
+            if (unlikely(list == NULL))
+              MYSQL_YYABORT;
+            if (unlikely(list->push_back($1, thd->mem_root)) ||
                 unlikely(list->push_back($3, thd->mem_root)))
               MYSQL_YYABORT;
             $$= new (thd->mem_root) Item_func_json_extract(thd, *list);
@@ -10649,8 +10655,9 @@ primary_expr:
         | primary_expr JSON_UNQUOTED_ARROW_SYM primary_base_expr
           {
             List<Item> *list= new (thd->mem_root) List<Item>;
-            if (unlikely(list == NULL) ||
-                unlikely(list->push_back($1, thd->mem_root)) ||
+            if (unlikely(list == NULL))
+              MYSQL_YYABORT;
+            if (unlikely(list->push_back($1, thd->mem_root)) ||
                 unlikely(list->push_back($3, thd->mem_root)))
               MYSQL_YYABORT;
             Item *extract= new (thd->mem_root) Item_func_json_extract(thd, *list);
