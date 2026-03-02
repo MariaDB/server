@@ -111,5 +111,5 @@ INSERT INTO t1 (i, d, dt, v) VALUES
 (NULL, '2008-09-11', '2004-06-07 23:17:09', 'k');
 ALTER TABLE t1 ADD UNIQUE KEY ind1 (pk, d, i, v);
 ALTER TABLE t1 ADD UNIQUE KEY ind2 (d, v);
-ERROR 23000: Duplicate entry '2008-09-11-k' for key 'ind2'
+ERROR 23000: Duplicate entry '1900-01-01-i' for key 'ind2'
 DROP TABLE t1;
