@@ -420,7 +420,17 @@ private:
 
   /** LSN of undo tablespace creation or 0; protected by latch */
   lsn_t create_lsn= 0;
+
 public:
+  /** Last percentage at which we emitted a size warning (0-100) */
+  uint8_t m_last_size_warning_pct{0};
+
+  /** Threshold value used for the last warning */
+  ulonglong m_last_warning_threshold{0};
+
+  /** Count of warnings emitted in the current decade (0-2) */
+  uint8_t m_warning_count_in_decade{0};
+
   /** @return whether this is the temporary tablespace */
   bool is_temporary() const noexcept
   { return UNIV_UNLIKELY(id == SRV_TMP_SPACE_ID); }

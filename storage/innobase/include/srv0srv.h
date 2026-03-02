@@ -238,6 +238,15 @@ extern ulong srv_buf_pool_load_pages_abort;
 /** Lock table size in bytes */
 extern ulint	srv_lock_table_size;
 
+/** Threshold in bytes for tablespace size warnings (0 = disabled) */
+extern ulonglong srv_tablespace_size_warning_threshold;
+
+/** Percentage at which to start emitting tablespace size warnings */
+extern uint srv_tablespace_size_warning_pct;
+
+/** Enable/disable tablespace size warning feature */
+extern my_bool srv_tablespace_size_warning_enabled;
+
 /** the value of innodb_checksum_algorithm */
 extern ulong	srv_checksum_algorithm;
 extern my_bool	srv_random_read_ahead;
