@@ -273,6 +273,7 @@ extern ulong	srv_innodb_stats_method;
 
 extern ulint	srv_max_n_open_files;
 
+extern my_bool	srv_buffer_pool_in_core_file;
 extern double	srv_max_buf_pool_modified_pct;
 extern double	srv_max_dirty_pages_pct_lwm;
 
