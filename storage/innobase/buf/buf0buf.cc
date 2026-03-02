@@ -1374,7 +1374,7 @@ bool buf_pool_t::create() noexcept
 #ifdef UNIV_PFS_MEMORY
   PSI_MEMORY_CALL(memory_alloc)(mem_key_buf_buf_pool, actual_size, &owner);
 #endif
-#ifdef _WIN32
+#ifndef _AIX
   if (!my_virtual_mem_commit(memory, actual_size))
   {
     my_virtual_mem_release(memory_unaligned, size_unaligned);
@@ -1860,12 +1860,6 @@ inline void buf_pool_t::shrunk(size_t size, size_t reduced) noexcept
   ut_ad(size + reduced == size_in_bytes);
   size_in_bytes_requested= size;
   size_in_bytes= size;
-# ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
-  /* Only page_guess() may read this memory, which after
-  my_virtual_mem_decommit() may be zeroed out or preserve its original
-  contents.  Try to catch any unintended reads outside page_guess(). */
-  MEM_UNDEFINED(memory + size, size_in_bytes_max - size);
-# else
   for (size_t n= page_hash.pad(page_hash.n_cells), i= 0; i < n;
        i+= page_hash.ELEMENTS_PER_LATCH + 1)
   {
@@ -1876,7 +1870,6 @@ inline void buf_pool_t::shrunk(size_t size, size_t reduced) noexcept
     guess before we invoke my_virtual_mem_decommit() below. */
     latch.unlock();
   }
-# endif
   my_virtual_mem_decommit(memory + size, reduced);
 #ifdef UNIV_PFS_MEMORY
   PSI_MEMORY_CALL(memory_free)(mem_key_buf_buf_pool, reduced, owner);
@@ -2837,34 +2830,14 @@ uint32_t buf_pool_t::page_guess(buf_block_t *b, page_hash_latch &latch,
                                 const page_id_t id) noexcept
 {
   transactional_shared_lock_guard<page_hash_latch> g{latch};
-#ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
-  /* shrunk() and my_virtual_mem_decommit() could retain the original
-  contents of the virtual memory range or zero it out immediately or
-  with a delay.  Any zeroing out may lead to a false positive for
-  b->page.id() == id but never for b->page.state().  At the time of
-  the shrunk() call, shrink() and buf_LRU_block_free_non_file_page()
-  should guarantee that b->page.state() is equal to
-  buf_page_t::NOT_USED (0) for all to-be-freed blocks. */
-#else
-  /* shrunk() made the memory inaccessible. */
   if (UNIV_UNLIKELY(reinterpret_cast<char*>(b) >= memory + size_in_bytes))
+    /* shrunk() made the memory inaccessible. */
     return 0;
-#endif
   const page_id_t block_id{b->page.id()};
-#ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
-  /* shrunk() may have invoked MEM_UNDEFINED() on this memory to be able
-  to catch any unintended access elsewhere in our code. */
-  MEM_MAKE_DEFINED(&block_id, sizeof block_id);
-#endif
 
   if (id == block_id)
   {
     uint32_t state= b->page.state();
-#ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
-    /* shrunk() may have invoked MEM_UNDEFINED() on this memory to be able
-    to catch any unintended access elsewhere in our code. */
-    MEM_MAKE_DEFINED(&state, sizeof state);
-#endif
     /* Ignore guesses that point to read-fixed blocks.  We can only
     avoid a race condition by looking up the block via page_hash. */
     if ((state >= buf_page_t::FREED && state < buf_page_t::READ_FIX) ||

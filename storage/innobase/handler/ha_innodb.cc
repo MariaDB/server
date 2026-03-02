@@ -3688,10 +3688,29 @@ static MYSQL_SYSVAR_SIZE_T(buffer_pool_size_auto_min,
   innodb_buffer_pool_extent_size);
 #endif
 
+#if SIZEOF_SIZE_T < 8 || defined _AIX || defined HAVE_valgrind
+/* In constrained environments, innodb_buffer_pool_size_max
+will default to the initial innodb_buffer_pool_size, that is,
+by default, it will not be possible to increase innodb_buffer_pool_size.
+
+In MemorySanitizer and possibly Valgrind memcheck, any virtual memory
+allocation would be backed by one or more copies of shadow bits of the
+same size that could be allocated and initialized even for dummy
+mappings created by mmap(2) with PROT_NONE. We do not want significant
+overhead beyond the actual innodb_buffer_pool_size. */
+static constexpr size_t innodb_buffer_pool_size_max_default{0},
+  innodb_buffer_pool_size_max_minimum{0};
+#else
+static constexpr size_t innodb_buffer_pool_size_max_default{8ULL << 40},// 8TiB
+  innodb_buffer_pool_size_max_minimum{innodb_buffer_pool_extent_size};
+#endif
+
 static MYSQL_SYSVAR_SIZE_T(buffer_pool_size_max, buf_pool.size_in_bytes_max,
                            PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
                            "Maximum innodb_buffer_pool_size",
-                           nullptr, nullptr, 0, 0,
+                           nullptr, nullptr,
+                           innodb_buffer_pool_size_max_default,
+                           innodb_buffer_pool_size_max_minimum,
                            size_t(-ssize_t(innodb_buffer_pool_extent_size)),
                            innodb_buffer_pool_extent_size);
 
@@ -3783,11 +3802,10 @@ static int innodb_init_params()
   min= ut_calc_align<size_t>
     (buf_pool.blocks_in_bytes(BUF_LRU_MIN_LEN + BUF_LRU_MIN_LEN / 4),
      1U << 20);
-  size_t innodb_buffer_pool_size= buf_pool.size_in_bytes_requested;
+  const size_t innodb_buffer_pool_size= buf_pool.size_in_bytes_requested;
 
-  /* With large pages, buffer pool can't grow or shrink. */
-  if (!buf_pool.size_in_bytes_max || my_use_large_pages ||
-      innodb_buffer_pool_size > buf_pool.size_in_bytes_max)
+  if (innodb_buffer_pool_size > buf_pool.size_in_bytes_max ||
+      my_use_large_pages /* large_pages=ON fixes innodb_buffer_pool_size */)
     buf_pool.size_in_bytes_max= ut_calc_align(innodb_buffer_pool_size,
                                               innodb_buffer_pool_extent_size);
 
