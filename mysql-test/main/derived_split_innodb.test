@@ -811,4 +811,43 @@ drop table t1, t2, t3;
 
 --echo # End of 11.4 tests
 
+--echo #
+--echo # MDEV-38877: Unnecessary filesort on derived table materialization
+--echo #
+
+CREATE TABLE t1 (
+  groups_20 int NOT NULL,
+  groups_20_2 int NOT NULL,
+  b int,
+  PRIMARY KEY (groups_20, groups_20_2)
+);
+
+CREATE TABLE t2 (a int, b int, index(a));
+
+--disable_result_log
+INSERT INTO t1 SELECT seq/1000, seq+1, seq from seq_1_to_10000;
+
+INSERT INTO t2 SELECT seq, seq from seq_1_to_1000;
+
+ANALYZE TABLE t1, t2;
+--enable_result_log
+
+EXPLAIN
+SELECT
+  a,
+  SUM(b)
+FROM (
+  SELECT
+    groups_20
+  FROM t1
+  GROUP BY groups_20
+  HAVING COUNT(*) != 1000
+) DT
+JOIN t2 ON a = groups_20
+GROUP BY a;
+
+DROP TABLE t1, t2;
+
+--echo # End of 12.3 tests
+
 SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;
