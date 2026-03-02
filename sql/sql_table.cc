@@ -2751,6 +2751,43 @@ int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
   return 0;
 }
 
+static int add_generated_invisible_pk(THD *thd, List<Create_field> *field_list,
+                                      Alter_info *alter_info)
+{
+  Create_field *fld= new (thd->mem_root) Create_field();
+
+  Lex_ident_column automatic_pk_name;
+  if ((automatic_pk_name= make_unique_invisible_field_name(
+           thd, "_inv_PK"_Lex_ident_column, &alter_info->create_list))
+          .str)
+    fld->field_name= automatic_pk_name;
+  else
+    return 1;
+
+  fld->set_handler(&type_handler_ulonglong);
+  fld->invisible= INVISIBLE_FULL;
+  fld->flags|=
+      AUTO_INCREMENT_FLAG | NOT_NULL_FLAG | UNSIGNED_FLAG | UNIQUE_KEY_FLAG;
+
+  if (fld->check(thd))
+    return 1;
+
+  field_list->push_front(fld, thd->mem_root);
+
+  LEX_CSTRING automatic_pk_col= automatic_pk_name;
+
+  Key *key=
+      new (thd->mem_root) Key(Key::PRIMARY, &null_clex_str, HA_KEY_ALG_UNDEF,
+                              true, DDL_options(DDL_options::OPT_NONE));
+  key->columns.push_back(new (thd->mem_root)
+                             Key_part_spec(&automatic_pk_col, 0, true),
+                         thd->mem_root);
+
+  alter_info->key_list.push_back(key, thd->mem_root);
+
+  return 0;
+}
+
 #define INTERNAL_FIELD_NAME_LENGTH  30
 
 static Lex_ident_column make_internal_field_name(THD *thd, const char *prefix,
@@ -3300,6 +3337,28 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       DBUG_RETURN(TRUE);
   }
 
+  /*
+    Check if primary_key exists. If a primary key does not exist, and
+    the generate_invisible_primary_key option is set, and the handler
+    supports auto increment, add an INVISIBLE_FULL primary key (MDEV-21181)
+  */
+  List_iterator<Key> auto_pk_key_iterator(alter_info->key_list);
+  bool has_primary_key= 0;
+  Key *auto_pk_key;
+
+  while (!has_primary_key && (auto_pk_key= auto_pk_key_iterator++))
+  {
+    if (auto_pk_key->type == Key::PRIMARY)
+      has_primary_key= 1;
+  }
+
+  if (!has_primary_key && !create_info->sequence &&
+      thd->variables.generate_invisible_primary_key && create_info->db_type &&
+      !(file->ha_table_flags() & HA_NO_AUTO_INCREMENT))
+  {
+    if (add_generated_invisible_pk(thd, &alter_info->create_list, alter_info))
+      DBUG_RETURN(TRUE);
+  }
 
   for (field_no=0; (sql_field=it++) ; field_no++)
   {
@@ -3443,7 +3502,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_CREATE_SELECT_AUTOINC);
 
   /* Create keys */
-
   List_iterator<Key> key_iterator(alter_info->key_list);
   List_iterator<Key> key_iterator2(alter_info->key_list);
   uint key_parts=0;
