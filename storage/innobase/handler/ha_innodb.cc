@@ -15922,7 +15922,8 @@ ha_innobase::extra(
 			break;
 		}
 
-		if (m_prebuilt->table->skip_alter_undo ==
+		if (!m_prebuilt->table->is_temporary() &&
+		    m_prebuilt->table->skip_alter_undo ==
 			dict_table_t::IGNORE_UNDO) {
 			trx->reset_and_truncate_undo(m_prebuilt->table);
 		}
