@@ -1,0 +1,36 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+#
+# Test 1: CHANGE MASTER TO with relay_log_pos when Using_Gtid is
+# already No should NOT produce a spurious 'from No to No' warning
+#
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+CHANGE MASTER TO relay_log_pos=0;
+SHOW WARNINGS;
+Level	Code	Message
+#
+# Test 2: CHANGE MASTER TO with master_log_file/pos when Using_Gtid
+# is already No should NOT produce a warning
+#
+CHANGE MASTER TO master_log_pos=IO_LOG_POS, master_log_file='IO_LOG_FILE';
+SHOW WARNINGS;
+Level	Code	Message
+#
+# Test 3: CHANGE MASTER TO with log coordinates when Using_Gtid is
+# Slave_Pos SHOULD produce a warning (value actually changes)
+#
+CHANGE MASTER TO MASTER_USE_GTID=Slave_Pos;
+CHANGE MASTER TO master_log_pos=IO_LOG_POS, master_log_file='IO_LOG_FILE';
+Warnings:
+Note	4190	CHANGE MASTER TO is implicitly changing the value of 'Using_Gtid' from 'Slave_Pos' to 'No'
+SHOW WARNINGS;
+Level	Code	Message
+Note	4190	CHANGE MASTER TO is implicitly changing the value of 'Using_Gtid' from 'Slave_Pos' to 'No'
+#
+# Cleanup
+#
+CHANGE MASTER TO MASTER_USE_GTID=Slave_Pos;
+include/start_slave.inc
+include/rpl_end.inc
