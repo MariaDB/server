@@ -137,12 +137,12 @@ SELECT *
 FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
 WHERE federated.t3.name=t.name;
 name	id	name
-yyy	5	yyy
-yyy	7	yyy
-yyy	5	yyy
-yyy	7	yyy
 xxx	4	xxx
 yyy	5	yyy
+yyy	5	yyy
+yyy	5	yyy
+yyy	7	yyy
+yyy	7	yyy
 yyy	7	yyy
 EXPLAIN
 SELECT *
