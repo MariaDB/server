@@ -16,6 +16,8 @@ INSERT INTO t1(f2) values (2);
 INSERT INTO t1(f2) values (2);
 INSERT INTO t1(f2) values (2);
 Killing server ...
+Performing --wsrep-recover ...
+Using --wsrep-start-position when starting mysqld ...
 SELECT NEXTVAL(s);
 NEXTVAL(s)
 12
@@ -81,7 +83,18 @@ INSERT INTO t1(f2) values (2);
 INSERT INTO t1(f2) values (2);
 INSERT INTO t1(f2) values (2);
 INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
 Killing server ...
+Performing --wsrep-recover ...
+Using --wsrep-start-position when starting mysqld ...
 connection node_1;
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
@@ -107,7 +120,7 @@ f1	f2
 connection node_2;
 SELECT NEXTVAL(s);
 NEXTVAL(s)
-22
+32
 SELECT * FROM t1;
 f1	f2
 1	1
@@ -126,7 +139,7 @@ LASTVAL(s)
 19
 SELECT NEXTVAL(s);
 NEXTVAL(s)
-33
+41
 connection node_1;
 DROP TABLE t1;
 DROP SEQUENCE s;

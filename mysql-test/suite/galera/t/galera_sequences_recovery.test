@@ -32,6 +32,8 @@ INSERT INTO t1(f2) values (2);
 
 # Crash and restart the node, losing the transaciton
 --source include/kill_galera.inc
+--let $galera_wsrep_recover_server_id=2
+--source include/galera_wsrep_recover.inc
 --let $start_mysqld_params =
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --source include/start_mysqld.inc
@@ -40,6 +42,10 @@ INSERT INTO t1(f2) values (2);
 SELECT NEXTVAL(s);
 
 --connection node_1
+# Wait for the NEXTVAL to be applied
+--let $wait_condition = SELECT next_not_cached_value > 12 FROM s;
+--source include/wait_condition.inc
+
 # Update the sequence value further
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
@@ -88,9 +94,20 @@ INSERT INTO t1(f2) values (2);
 INSERT INTO t1(f2) values (2);
 INSERT INTO t1(f2) values (2);
 INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
 
 # Crash and restart the node, losing the transaciton
 --source include/kill_galera.inc
+--let $galera_wsrep_recover_server_id=2
+--source include/galera_wsrep_recover.inc
 --let $start_mysqld_params =
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --source include/start_mysqld.inc
