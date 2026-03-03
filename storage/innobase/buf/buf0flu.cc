@@ -2047,7 +2047,9 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
       st.st_mode&= 0444;
     else
       st.st_mode= 0444;
-    fchmod(resize_log.m_file, st.st_mode);
+    if (fchmod(resize_log.m_file, st.st_mode))
+      my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG),
+               get_archive_path().c_str(), errno);
     resize_log.close();
 #endif
   }
