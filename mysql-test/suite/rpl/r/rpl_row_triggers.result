@@ -470,4 +470,26 @@ drop table t2;
 #
 # enterprise 10.4 tests end
 #
+# MDEV-38937
+# GTT: 1944 Error executing row event: 'Failed to open t2.test' on INSERT
+connection slave;
+set global slave_run_triggers_for_rbr= LOGGING;
+set global slave_exec_mode= IDEMPOTENT;
+connection master;
+create table t1 (a text);
+create global temporary table t2 like t1;
+create trigger tr after delete on t1 for each row update t2 set b=(1);
+connection slave;
+connection master;
+insert into t1 select 1 t1;
+connection slave;
+connection master;
+# Cleanup
+drop table t1,t2;
+connection slave;
+set global slave_exec_mode= @old_slave_exec_mode;
+set global slave_run_triggers_for_rbr= @old_slave_run_triggers_for_rbr;
+#
+# End of 13.0 tests
+#
 include/rpl_end.inc
