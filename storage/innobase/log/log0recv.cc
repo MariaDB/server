@@ -1959,6 +1959,10 @@ dberr_t recv_sys_t::find_checkpoint()
             if (recv_check_log_block(buf))
             {
               was_archive= true;
+#ifdef HAVE_PMEM
+              if (log_sys.is_mmap_writeable())
+                log_sys.log.close();
+#endif
               log_sys.archive= false;
               file= OS_FILE_CLOSED;
               goto circular_log_recovery;
@@ -2011,6 +2015,8 @@ dberr_t recv_sys_t::find_checkpoint()
     }
 
   circular_log_recovery:
+    ut_ad(!log_sys.archive);
+    ut_ad(!log_sys.is_mmap_writeable() || !log_sys.is_opened());
     files.emplace_back(file);
 
     for (int i= 1; i < 101; i++)
