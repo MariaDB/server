@@ -1,3 +1,16 @@
 let $skip_vector=1;
 let $extra_fields=, v vector(5) not null default x'e360d63ebe554f3fcdbc523f4522193f5236083d', vector index(v);
 --source alter_table_innodb.test
+
+--echo #
+--echo #  MDEV-38832 Assertion `!commit_lsn' failed in void trx_t::free()
+--echo #
+let $MYSQLD_DATADIR= `select @@datadir`;
+CREATE DATABASE test_1;
+--error ER_SQL_DISCOVER_ERROR
+SET STATEMENT max_session_mem_used=8192 FOR
+CREATE TABLE test_1.t (a INT,b VECTOR (5) NOT NULL,
+		       VECTOR INDEX (b)) ENGINE=INNODB;
+--echo # Print the files exist in test_1 directory
+--list_files $MYSQLD_DATADIR/test_1
+DROP DATABASE test_1;

@@ -6484,6 +6484,7 @@ static int ha_create_table_from_share(THD *thd, TABLE_SHARE *share,
    0  ok
   @retval
    1  error
+   2  error while creating high level index failure
 */
 int ha_create_table(THD *thd, const char *path, const char *db,
                     const char *table_name, HA_CREATE_INFO *create_info,
@@ -6552,7 +6553,10 @@ int ha_create_table(THD *thd, const char *path, const char *db,
     }
 
     if ((error= share.path.length > sizeof(file_name) - HLINDEX_BUF_LEN))
+    {
+      error= 2;
       goto err;
+    }
 
     enum_sql_command old_sql_command= thd->lex->sql_command;
     for (uint i= share.keys; i < share.total_keys; i++)
@@ -6569,13 +6573,17 @@ int ha_create_table(THD *thd, const char *path, const char *db,
       if (error)
       {
         index_share.db_plugin= NULL;
+        error= 2;
         break;
       }
 
       uint unused;
       if ((error= ha_create_table_from_share(thd, &index_share, &index_cinfo,
                                              &unused)))
+      {
+        error= 2;
         break;
+      }
     }
     thd->lex->sql_command= old_sql_command;
     free_table_share(&index_share);
@@ -6583,7 +6591,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
 
 err:
   free_table_share(&share);
-  DBUG_RETURN(error != 0);
+  DBUG_RETURN(error);
 }
 
 void st_ha_check_opt::init()
