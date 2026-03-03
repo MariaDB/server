@@ -1854,7 +1854,7 @@ void log_t::clear_mmap() noexcept
   ut_ad(!resize_in_progress());
   ut_ad(get_lsn() == get_flushed_lsn(std::memory_order_relaxed));
 #ifdef HAVE_PMEM
-  if (is_mmap_writeable())
+  if (is_mmap_writeable() && !recv_sys.rpo)
   {
     buf_size= unsigned(capacity());
     mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
