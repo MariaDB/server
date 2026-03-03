@@ -2965,3 +2965,37 @@ DROP VIEW v1;
 DROP TABLE t1;
 
 --echo # End of 11.1 tests
+
+--echo #
+--echo # MDEV-38474 Double free or corruption, ASAN heap-use-after-free in st_join_table::cleanup
+--echo #
+
+--echo # Test case 1, fails on 10.11+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TABLE t3 (c INT);
+
+--echo # Inserts are optional, fails with and without data
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (3),(4);
+INSERT INTO t3 VALUES (5),(6);
+
+EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT b FROM t2 WHERE a IN ((SELECT c FROM t3 WHERE FALSE HAVING c < 0)));
+
+DROP TABLE t1, t2, t3;
+
+--echo # Test case 2, fails on 11.4 but not on 10.11
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TABLE t3 (c INT);
+CREATE TABLE t4 (d INT PRIMARY KEY);
+
+SET SQL_SAFE_UPDATES=1;
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+UPDATE t1 STRAIGHT_JOIN t2 SET a = 89 WHERE 9 IN (SELECT c FROM t3 WHERE c IN (SELECT MAX(d) FROM t4));
+
+DROP TABLE t1, t2, t3, t4;
+
+--echo #
+--echo # End of 11.4 tests
+--echo #
