@@ -2392,7 +2392,7 @@ ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
 static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
-  ut_ad(!recv_sys.rpo);
+  ut_ad(!recv_sys.rpo || recv_recovery_is_on());
   mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
 
   /* During furious flush, we need to keep generating free pages. Otherwise
