@@ -12472,6 +12472,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
   bulk_insert_started= 0;
   if (error <= 0)
   {
+    Abort_on_warning_instant_set save_abort_on_warning(thd, false);
     int alt_error= to->file->extra(HA_EXTRA_END_COPY);
     if (alt_error > 0)
     {
