@@ -5889,8 +5889,16 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
 
   if (tables->view)
   {
-    table->field[3]->store(STRING_WITH_LEN("VIEW"), cs);
-    table->field[20]->store(STRING_WITH_LEN("VIEW"), cs);
+    if ((!strcmp(db_name->str, "mysql") && strcmp(table_name->str, "user")) || (!strcmp(db_name->str, "performance_schema")))
+    {
+      table->field[3]->store(STRING_WITH_LEN("SYSTEM VIEW"), cs);
+      table->field[20]->store(STRING_WITH_LEN("SYSTEM VIEW"), cs);
+    }
+    else
+    {
+      table->field[3]->store(STRING_WITH_LEN("VIEW"), cs);
+      table->field[20]->store(STRING_WITH_LEN("VIEW"), cs);
+    }
   }
   else
   {
@@ -5917,6 +5925,8 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       DBUG_ASSERT(share->tmp_table == NO_TMP_TABLE);
       if (share->versioned)
         table->field[3]->store(STRING_WITH_LEN("SYSTEM VERSIONED"), cs);
+      else if ((!strcmp(db_name->str, "mysql") && strcmp(table_name->str, "user")) || (!strcmp(db_name->str, "performance_schema")))
+        table->field[3]->store(STRING_WITH_LEN("SYSTEM TABLE"), cs);
       else
         table->field[3]->store(STRING_WITH_LEN("BASE TABLE"), cs);
     }
