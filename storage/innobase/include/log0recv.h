@@ -257,9 +257,20 @@ public:
   /** the time when progress was last reported */
   time_t progress_time;
 
-  struct archive_log { const lsn_t end; log_t::log_access access; };
+  /** an innodb_log_archive=ON file available for recovery */
+  struct archive_log
+  {
+    /** the LSN that is past the end of the file; derived from
+    the start LSN and the file size */
+    const lsn_t end;
+    /** READ_WRITE or READ_ONLY, initially derived from the file permissions.
+    In find_checkpoint(), all but the last file will be marked READ_ONLY.
+    Also the last file may be marked READ_ONLY if recv_sys.rpo is set. */
+    const log_t::log_access access;
+  };
+  /** map of innodb_log_archive=ON files, indexed by the start LSN */
   using archive_map = std::map<const lsn_t, archive_log>;
-  /** archive log files */
+  /** innodb_log_archive=ON files, with no gaps before the last file */
   archive_map log_archive;
 
   using map = std::map<const page_id_t, page_recv_t,
