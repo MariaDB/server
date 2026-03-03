@@ -919,9 +919,11 @@ public:
   int unhandled_errors;
   int first_error;
   bool only_ignore_non_existing_errors;
+  bool ignore_corrupt_frm_error;
 
   ddl_log_error_handler() : handled_errors(0), unhandled_errors(0),
-                            first_error(0), only_ignore_non_existing_errors(0)
+                            first_error(0), only_ignore_non_existing_errors(0),
+                            ignore_corrupt_frm_error(false)
   {}
 
   bool handle_condition(THD *,
@@ -935,7 +937,8 @@ public:
     if (non_existing_table_error(sql_errno) ||
         (!only_ignore_non_existing_errors &&
          (sql_errno == EE_LINK ||
-          sql_errno == EE_DELETE || sql_errno == ER_TRG_NO_DEFINER)))
+          sql_errno == EE_DELETE || sql_errno == ER_TRG_NO_DEFINER)) ||
+        (ignore_corrupt_frm_error && sql_errno == ER_NOT_FORM_FILE))
     {
       handled_errors++;
       return TRUE;
@@ -1799,7 +1802,11 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     if (ddl_log_entry->flags == 0)
     {
       if (hton)
+      {
+        no_such_table_handler.ignore_corrupt_frm_error= true;
         error= execute_drop_table(thd, hton, &db, &table, path.str);
+        no_such_table_handler.ignore_corrupt_frm_error= false;
+      }
       else
         error= ha_delete_table_force(thd, path.str, &db, &table);
     }
@@ -2273,9 +2280,11 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       */
       if (likely(hton))
       {
+        no_such_table_handler.ignore_corrupt_frm_error= true;
         error= execute_drop_table(thd, hton, &ddl_log_entry->from_db,
                                   &ddl_log_entry->from_name,
                                   ddl_log_entry->tmp_name.str);
+        no_such_table_handler.ignore_corrupt_frm_error= false;
       }
       (void) update_phase(entry_pos, DDL_ALTER_TABLE_PHASE_INIT);
     }
