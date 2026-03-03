@@ -2975,7 +2975,7 @@ void st_select_lex_node::init_query_common()
   into the front of the stranded_clean_list:
     before: root -> B -> A
      after: root -> this -> B -> A
-  During cleanup, the stranded units are cleaned in FIFO order.
+  During cleanup, the stranded units are cleaned in LIFO order (parent-first).
  */
 void st_select_lex_unit::remember_my_cleanup()
 {
