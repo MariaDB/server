@@ -1067,8 +1067,10 @@ inline void buf_pool_t::garbage_collect() noexcept
   size_in_bytes_requested= size;
   mysql_mutex_unlock(&mutex);
   mysql_mutex_lock(&flush_list_mutex);
+  ++done_flush_list_waiters_count;
   page_cleaner_wakeup(true);
   my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
+  --done_flush_list_waiters_count;
   mysql_mutex_unlock(&flush_list_mutex);
 # ifdef BTR_CUR_HASH_ADAPT
   bool ahi_disabled= btr_search.disable();
@@ -1436,6 +1438,9 @@ bool buf_pool_t::create() noexcept
   n_blocks= get_n_blocks(actual_size);
   n_blocks_to_withdraw= 0;
   UT_LIST_INIT(free, &buf_page_t::list);
+  UT_LIST_INIT(ext_free, &ext_buf_page_t::free_list);
+  ut_d(force_LRU_eviction_to_ebp= 0);
+
   const size_t ssize= srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN;
 
   for (char *extent= memory,
@@ -1459,6 +1464,18 @@ bool buf_pool_t::create() noexcept
     }
   }
 
+  size_t ext_buf_pages_array_size= extended_pages * sizeof(ext_buf_page_t);
+  ext_buf_pages_array= static_cast<ext_buf_page_t *>(
+      my_malloc(PSI_NOT_INSTRUMENTED, ext_buf_pages_array_size, MYF(0)));
+  UT_LIST_INIT(ext_free, &ext_buf_page_t::free_list);
+  for (ext_buf_page_t *page= ext_buf_pages_array,
+                      *end= ext_buf_pages_array + extended_pages;
+       page != end; ++page) {
+    ut_d(page->in_free_list= true);
+    ut_d(page->in_LRU_list= page->in_free_list= false);
+    UT_LIST_ADD_LAST(ext_free, page);
+  }
+
 #if defined(__aarch64__)
   mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
 #else
@@ -1467,6 +1484,7 @@ bool buf_pool_t::create() noexcept
 
   UT_LIST_INIT(withdrawn, &buf_page_t::list);
   UT_LIST_INIT(LRU, &buf_page_t::LRU);
+  UT_LIST_INIT(ext_LRU, &ext_buf_page_t::ext_LRU_list);
   UT_LIST_INIT(flush_list, &buf_page_t::list);
   UT_LIST_INIT(unzip_LRU, &buf_block_t::unzip_LRU);
 
@@ -1593,6 +1611,9 @@ void buf_pool_t::close() noexcept
     memory= nullptr;
     memory_unaligned= nullptr;
   }
+
+  my_free(ext_buf_pages_array);
+  ext_buf_pages_array= nullptr;
 
   pthread_cond_destroy(&done_flush_LRU);
   pthread_cond_destroy(&done_flush_list);
@@ -1877,8 +1898,10 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
 
   try_LRU_scan= false;
   mysql_mutex_unlock(&mutex);
+  ++done_flush_list_waiters_count;
   page_cleaner_wakeup(true);
   my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
+  --done_flush_list_waiters_count;
   mysql_mutex_unlock(&flush_list_mutex);
   mysql_mutex_lock(&mutex);
 
@@ -2095,8 +2118,10 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     mysql_mutex_unlock(&mutex);
     DEBUG_SYNC_C("buf_pool_shrink_before_wakeup");
     mysql_mutex_lock(&flush_list_mutex);
+    ++done_flush_list_waiters_count;
     page_cleaner_wakeup(true);
     my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
+    --done_flush_list_waiters_count;
     mysql_mutex_unlock(&flush_list_mutex);
 #ifdef BTR_CUR_HASH_ADAPT
     ahi_disabled= btr_search.disable();
@@ -3126,7 +3151,7 @@ buf_pool_t::page_hash_table::append(buf_pool_t::hash_chain &chain,
   *prev= bpage;
 }
 
-inline void
+void
 buf_pool_t::page_hash_table::replace(buf_pool_t::hash_chain &chain,
                                      buf_page_t *old,
                                      buf_page_t *bpage) noexcept
@@ -3158,9 +3183,23 @@ static buf_block_t *buf_page_create_low(page_id_t page_id, ulint zip_size,
 retry:
   mysql_mutex_lock(&buf_pool.mutex);
 
-  buf_page_t *bpage= buf_pool.page_hash.get(page_id, chain);
+  buf_page_t *bpage= buf_pool.page_hash.get<true>(page_id, chain);
 
-  if (bpage)
+  if (!bpage)
+    /* not found */;
+  else if (buf_pool.is_page_external(*bpage))
+  {
+    page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
+    hash_lock.lock();
+    buf_pool.page_hash.remove(chain, bpage);
+    hash_lock.unlock();
+    ut_ad(!bpage->in_page_hash);
+    ext_buf_page_t *ext_buf_page= reinterpret_cast<ext_buf_page_t *>(bpage);
+    buf_pool.remove_ext_page_from_LRU(*ext_buf_page);
+    buf_pool.free_ext_page(*ext_buf_page);
+    bpage= nullptr;
+  }
+  else
   {
 #ifdef BTR_CUR_HASH_ADAPT
     const dict_index_t *drop_hash_entry= nullptr;
@@ -4046,6 +4085,8 @@ void buf_pool_t::get_info(buf_pool_info_t *pool_info) noexcept
     double(stat.n_pages_read - old_stat.n_pages_read) / elapsed;
   pool_info->pages_created_rate=
     double(stat.n_pages_created - old_stat.n_pages_created) / elapsed;
+  pool_info->n_pages_read_from_ebp= stat.n_pages_read_from_ebp;
+  pool_info->n_pages_written_to_ebp= stat.n_pages_written_to_ebp;
   pool_info->pages_written_rate=
     double(stat.n_pages_written - old_stat.n_pages_written) / elapsed;
   pool_info->n_page_get_delta= pool_info->n_page_gets -

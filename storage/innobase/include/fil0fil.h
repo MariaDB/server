@@ -1412,6 +1412,9 @@ private:
   fil_system.mutex. */
   fil_space_t *space_list_last_opened= nullptr;
 
+  /** External buffer pool file handler */
+  pfs_os_file_t ext_bp_file;
+
 #ifdef __linux__
   /** available block devices that reside on non-rotational storage */
   std::vector<dev_t> ssd;
@@ -1440,6 +1443,18 @@ public:
   mysql_mutex_t mutex;
 	fil_space_t*	sys_space;	/*!< The innodb_system tablespace */
 	fil_space_t*	temp_space;	/*!< The innodb_temporary tablespace */
+public:
+
+  /** Extended buffer pool file path */
+  char  *ext_bp_path;
+
+  /** Extended buffer pool file size, equals to 0 if extended buffer pool is
+  not used. */
+  union {
+    Atomic_relaxed<size_t> ext_bp_size;
+    size_t ext_bp_size_non_atomic;
+  };
+
   /** Map of fil_space_t::id to fil_space_t* */
   hash_table_t spaces;
 
@@ -1496,6 +1511,33 @@ public:
   /** whether fil_space_t::create() has issued a warning about
   potential space_id reuse */
   bool space_id_reuse_warned;
+
+  /** Create external buffer pool file.
+  @return whether the creation failed */
+  bool create_ext_file() noexcept;
+
+  /** External bufer pool os_aio() wrapper.
+  @param bpage           buffer pool page for read/write
+  @param ext_buf_page    external buffer pool page which will be freed on read
+                         completion and replace bpage in buffer pool on write
+                         completion
+  @param io_request_type IORequest::WRITE_ASYNC, IORequest::READ_SYNC or
+                         IORequest::READ_ASYNC
+  @param slot            memory to be used for encrypted or page_compressed
+                         pages
+  @param len             length to read/write
+  @param buf             buffer
+  @retval DB_SUCCESS if request was queued successfully
+  @retval DB_IO_ERROR on I/O error */
+  dberr_t ext_bp_io(buf_page_t &bpage, ext_buf_page_t &ext_buf_page,
+                    IORequest::Type io_request_type, buf_tmp_buffer_t *slot,
+                    size_t len, void *buf) noexcept;
+
+  /** Returns if external buffer pool is enabled. */
+  bool ext_buf_pool_enabled() const { return ext_bp_size; }
+
+  /** Disable external boffer pool */
+  void ext_buf_pool_disable() { ext_bp_size= 0; }
 
   /** Add the file to the end of opened spaces list in
   fil_system.space_list, so that fil_space_t::try_to_close() should close
@@ -1833,4 +1875,6 @@ ulint fil_space_get_block_size(const fil_space_t* space, unsigned offset)
 bool fil_crypt_check(fil_space_crypt_t *crypt_data, const char *f_name)
   noexcept;
 
+/* External buffer pool file name */
+extern const char *ext_bp_file_name;
 #endif /* UNIV_INNOCHECKSUM */
