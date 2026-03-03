@@ -4511,6 +4511,13 @@ public:
                                             size_t size)
   { return 0; }
 
+  /**
+    Configure MRR read-ahead optimization based on LIMIT value.
+    Storage engines can override this to implement LIMIT-aware read-ahead.
+    @param max_pages  Maximum number of pages to read ahead (0 = disable read-ahead)
+  */
+  virtual void configure_mrr_readahead(uint max_pages) {}
+
   virtual int read_range_first(const key_range *start_key,
                                const key_range *end_key,
                                bool eq_range, bool sorted);

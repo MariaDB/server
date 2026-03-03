@@ -1102,6 +1102,44 @@ int Mrr_ordered_rndpos_reader::get_next(range_id_t *range_info)
 /****************************************************************************
  * Top-level DS-MRR implementation functions (the ones called by storage engine)
  ***************************************************************************/
+/**
+  Calculate how many pages we should read-ahead for given LIMIT
+*/
+static uint calculate_pages_for_limit(ha_rows limit, uint records_per_page)
+{
+  /* Calculate pages needed, with some buffer for safety */
+  uint pages_needed=
+    (uint)((limit + records_per_page - 1) / records_per_page);
+  /* Add 20% buffer for sparse pages and deleted records */
+  return (uint)(pages_needed * 1.2);
+}
+
+/**
+  Estimate average number of records per page for the active index
+*/
+static uint estimate_records_per_page(handler *h_arg)
+{
+  TABLE *table= h_arg->get_table();
+  KEY *key_info= &table->key_info[h_arg->active_index];
+
+  /* Use table statistics to estimate records per page */
+  ha_rows total_rows= table->file->stats.records;
+  ha_rows index_pages= table->file->stats.data_file_length /
+                       table->file->stats.block_size;
+
+  if (index_pages == 0)
+    return (uint) total_rows;
+
+  uint records_per_page= (uint)(total_rows / index_pages);
+
+  /* Apply bounds based on key size */
+  uint key_length= key_info->key_length;
+  uint page_size= table->file->stats.block_size;
+  uint max_records= page_size / key_length;
+
+  return std::min(records_per_page, max_records);
+}
+
 
 /**
   DS-MRR: Initialize and start MRR scan
@@ -1142,7 +1180,15 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
   is_mrr_assoc= !MY_TEST(mode & HA_MRR_NO_ASSOCIATION);
 
   strategy_exhausted= FALSE;
-  
+
+  uint max_pages_for_limit= 0;
+  if (limit_hint == HA_POS_ERROR);
+  else if (limit_hint > 2)
+    max_pages_for_limit= calculate_pages_for_limit(
+      limit_hint, estimate_records_per_page(h_arg));
+
+  h_arg->configure_mrr_readahead(max_pages_for_limit);
+
   /* By default, have do-nothing buffer manager */
   buf_manager.arg= this;
   buf_manager.reset_buffer_sizes= do_nothing;

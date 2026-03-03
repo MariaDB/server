@@ -596,6 +596,12 @@ public:
     ut_ad((n & ~PENDING) == (STOPPING | CLOSING));
   }
 
+  /** Set the STOPPING_READS */
+  void set_stopping_reads() noexcept;
+
+  /** Clear the STOPPING_READS flag */
+  void clear_stopping_reads() noexcept;
+
 private:
   /** Clear the CLOSING flag */
   void clear_closing() noexcept

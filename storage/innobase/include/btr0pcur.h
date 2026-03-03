@@ -83,7 +83,8 @@ cursor.
 inline
 dberr_t btr_pcur_open_with_no_init(const dtuple_t *tuple, page_cur_mode_t mode,
                                    btr_latch_mode latch_mode,
-                                   btr_pcur_t *cursor, mtr_t *mtr);
+                                   btr_pcur_t *cursor, mtr_t *mtr,
+                                   mrr_readahead_ctx_t* mrr_ctx = nullptr);
 
 /**************************************************************//**
 Gets the up_match value for a pcur after a search.

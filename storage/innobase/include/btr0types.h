@@ -105,3 +105,39 @@ enum btr_latch_mode {
 	/** Try to delete mark a spatial index record */
 	BTR_RTREE_DELETE_MARK = 256
 };
+
+/** MRR read-ahead context structure for passing
+through B-tree operations */
+struct mrr_readahead_ctx_t
+{
+  /** Whether MRR read-ahead is enabled */
+  bool enabled= false;
+  /** Array to store collected leaf page numbers */
+  uint32_t *page_list= nullptr;
+  /** Counter of pages found so far */
+  uint pages_found= 0;
+  /** Maximum number of pages in the array */
+  uint max_pages= 64;
+
+  /** Constructor with enable flag and page count */
+  mrr_readahead_ctx_t(bool enable, uint num_pages) :
+    enabled(enable), pages_found(0)
+  {
+    if (enabled)
+    {
+      if (num_pages > 0 && num_pages < 64)
+        max_pages= num_pages;
+      page_list= static_cast<uint32_t*>(malloc(max_pages * sizeof(uint32_t)));
+    }
+  }
+
+  /** Destructor */
+  ~mrr_readahead_ctx_t()
+  {
+    if (page_list)
+    {
+      free(page_list);
+      page_list= nullptr;
+    }
+  }
+};
