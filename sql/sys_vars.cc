@@ -2649,6 +2649,14 @@ static Sys_var_mybool Sys_binlog_alter_two_phase(
        SESSION_VAR(binlog_alter_two_phase), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE));
 
+static Sys_var_mybool Sys_binlog_sequential_table_ids(
+       "binlog_sequential_table_ids",
+       "When set, use compact 1-based sequential table IDs in row-based "
+       "binlog events instead of sparse global table_map_id values. "
+       "This enables O(1) array-based table lookup on the slave",
+       SESSION_VAR(binlog_sequential_table_ids), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE));
+
 static bool
 check_gtid_ignore_duplicates(sys_var *self, THD *thd, set_var *var)
 {

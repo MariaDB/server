@@ -1640,6 +1640,8 @@ public:
 #endif
   /* Temporary value used by binlog_write_table_maps(). Does not need init */
   bool restore_row_logging;
+  /* Table ID used in Table_map events: sequential or table_map_id */
+  ulonglong binlog_sequential_id;
   bool stats_is_read;     /* Persistent statistics is read for the table */
   bool histograms_are_read;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
