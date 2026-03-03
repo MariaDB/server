@@ -1218,6 +1218,11 @@ bool Json_schema_items::validate(const json_engine_t *je,
     count++;
     if (validate_schema_items(&curr_je, &items_schema))
       return true;
+    if (!json_value_scalar(&curr_je))
+    {
+      if (json_skip_level(&curr_je))
+        return true;
+    }
   }
 
   return is_false ? (!count ? false : true) : false;
