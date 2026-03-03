@@ -41,6 +41,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "fil0crypt.h"
 #include "buf0rea.h"
 #include "buf0flu.h"
+#include "buf0lru.h"
 #include "buf0buddy.h"
 #include "buf0dblwr.h"
 #include "lock0lock.h"
@@ -1191,7 +1192,6 @@ void buf_page_print(const byte *read_buf, ulint zip_size) noexcept
 }
 
 #ifdef BTR_CUR_HASH_ADAPT
-
 /** Ensure that some adaptive hash index fields are initialized */
 static void buf_block_init_low(buf_block_t *block) noexcept
 {
@@ -1841,7 +1841,7 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
         UT_LIST_ADD_FIRST(unzip_LRU, block);
     }
 
-    buf_block_modify_clock_inc(block);
+    block->invalidate();
 
     buf_block_init_low(block);
     hash_lock.unlock();
@@ -2208,17 +2208,17 @@ static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage) noexcept
 #ifdef UNIV_LRU_DEBUG
     /* buf_pool.LRU_old must be the first item in the LRU list
     whose "old" flag is set. */
-    ut_a(buf_pool.LRU_old->old);
+    ut_a(buf_pool.LRU_old->zip.old());
     ut_a(!UT_LIST_GET_PREV(LRU, buf_pool.LRU_old) ||
-         !UT_LIST_GET_PREV(LRU, buf_pool.LRU_old)->old);
+         !UT_LIST_GET_PREV(LRU, buf_pool.LRU_old)->zip.old());
     ut_a(!UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old) ||
-         UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old)->old);
+         UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old)->zip.old());
   }
   else
   {
     /* Check that the "old" flag is consistent in
     the block and its neighbours. */
-    dpage->set_old(dpage->is_old());
+    if (dpage->is_old()) dpage->set_old<true>(); else dpage->set_old<false>();
 #endif /* UNIV_LRU_DEBUG */
   }
 
@@ -2364,7 +2364,7 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
     bpage= nullptr;
   }
   else
-    buf_page_make_young_if_needed(bpage);
+    bpage->set_accessed();
 
 #ifdef UNIV_DEBUG
   if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
@@ -3014,14 +3014,14 @@ buf_block_t *buf_page_optimistic_get(buf_block_t *block,
       return nullptr;
     }
 
-    if (modify_clock != block->modify_clock || block->page.is_freed())
+    if (modify_clock != block->modify_clock() || block->page.is_freed())
     {
       block->page.lock.s_unlock();
       goto fail;
     }
 
     ut_ad(!block->page.is_read_fixed());
-    buf_page_make_young_if_needed(&block->page);
+    block->page.flag_accessed();
     mtr->memo_push(block, MTR_MEMO_PAGE_S_FIX);
   }
   else if (block->page.lock.have_u_not_x())
@@ -3029,7 +3029,7 @@ buf_block_t *buf_page_optimistic_get(buf_block_t *block,
     block->page.lock.u_x_upgrade();
     block->page.unfix();
     block= mtr->page_lock_upgrade(*block);
-    ut_ad(modify_clock == block->modify_clock);
+    ut_ad(modify_clock == block->modify_clock());
   }
   else if (!block->page.lock.x_lock_try())
     goto fail;
@@ -3037,13 +3037,13 @@ buf_block_t *buf_page_optimistic_get(buf_block_t *block,
   {
     ut_ad(!block->page.is_io_fixed());
 
-    if (modify_clock != block->modify_clock || block->page.is_freed())
+    if (modify_clock != block->modify_clock() || block->page.is_freed())
     {
       block->page.lock.x_unlock();
       goto fail;
     }
 
-    buf_page_make_young_if_needed(&block->page);
+    block->page.flag_accessed();
     mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
   }
 
@@ -3095,17 +3095,37 @@ buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr) noexcept
 }
 
 /** Initialize the block.
-@param page_id  page identifier
-@param zip_size ROW_FORMAT=COMPRESSED page size, or 0
-@param fix      initial buf_fix_count() */
-void buf_block_t::initialise(const page_id_t page_id, ulint zip_size,
-                             uint32_t fix) noexcept
+@param page_id   page identifier
+@param zip_ssize ROW_FORMAT=COMPRESSED page size shift, or 0
+@param state     initial state() */
+void buf_block_t::initialise(const page_id_t page_id, uint16_t zip_ssize,
+                             uint32_t state) noexcept
 {
   ut_ad(!page.in_file());
   buf_block_init_low(this);
-  page.init(fix, page_id);
+  page.init(state, page_id, zip_ssize);
   page.set_os_used();
-  page_zip_set_size(&page.zip, zip_size);
+}
+
+bool buf_page_t::flag_accessed() noexcept
+{
+  flag_accessed_only();
+  return set_accessed();
+}
+
+bool buf_page_t::set_accessed() noexcept
+{
+  ut_ad(in_file());
+#ifdef SAFE_MUTEX
+  ut_ad((mysql_mutex_is_owner(&buf_pool.mutex) && !buf_fix_count()) ||
+        lock.have_any());
+#else /* SAFE_MUTEX */
+  ut_ad(!buf_fix_count() || lock.have_any());
+#endif /* SAFE_MUTEX */
+  if (access_time)
+    return true;
+  access_time= uint16_t(time(nullptr));
+  return false;
 }
 
 void
@@ -3304,10 +3324,18 @@ retry:
   ut_ad(bpage->state() == buf_page_t::MEMORY);
 
   {
+    uint16_t ssize= 0;
+    if (zip_size)
+    {
+      for (ssize= 1; zip_size > (512U << ssize); ssize++) {}
+      ut_ad(ssize < 1U << PAGE_ZIP_SSIZE_BITS);
+      ut_ad(zip_size == 512U << ssize);
+    }
+
     page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
     hash_lock.lock();
     reinterpret_cast<buf_block_t*>(bpage)->
-      initialise(page_id, zip_size, buf_page_t::REINIT + 1);
+      initialise(page_id, ssize, buf_page_t::REINIT + 1);
     bpage->lock.x_lock();
     buf_pool.page_hash.append(chain, bpage);
     hash_lock.unlock();
@@ -3332,7 +3360,7 @@ retry:
 
   mtr->memo_push(reinterpret_cast<buf_block_t*>(bpage), MTR_MEMO_PAGE_X_FIX);
 
-  bpage->set_accessed();
+  bpage->flag_accessed();
 
   static_assert(FIL_PAGE_PREV + 4 == FIL_PAGE_NEXT, "adjacent");
   memset_aligned<8>(bpage->frame + FIL_PAGE_PREV, 0xff, 8);
@@ -3565,7 +3593,7 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node,
   ut_ad(!buf_dblwr.is_inside(id()));
   ut_ad(id().space() == node.space->id);
   ut_ad(zip_size() == node.space->zip_size());
-  ut_ad(!!zip.ssize == !!zip.data);
+  ut_ad(!!zip.ssize() == !!zip.data);
   ut_ad(recovery == recv_sys.recovery_on);
 
   const byte *read_frame= zip.data ? zip.data : frame;
@@ -3800,33 +3828,6 @@ void buf_refresh_io_stats() noexcept
 {
 	buf_pool.last_printout_time = time(NULL);
 	buf_pool.old_stat = buf_pool.stat;
-}
-
-/** Invalidate all pages in the buffer pool.
-All pages must be in a replaceable state (not modified or latched). */
-void buf_pool_invalidate() noexcept
-{
-	/* It is possible that a write batch that has been posted
-	earlier is still not complete. For buffer pool invalidation to
-	proceed we must ensure there is NO write activity happening. */
-
-	os_aio_wait_until_no_pending_writes(false);
-	ut_d(buf_pool.assert_all_freed());
-	mysql_mutex_lock(&buf_pool.mutex);
-
-	while (UT_LIST_GET_LEN(buf_pool.LRU)) {
-		buf_LRU_scan_and_free_block();
-	}
-
-	ut_ad(UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0);
-
-	buf_pool.freed_page_clock = 0;
-	buf_pool.LRU_old = NULL;
-	buf_pool.LRU_old_len = 0;
-	buf_pool.stat.init();
-
-	buf_refresh_io_stats();
-	mysql_mutex_unlock(&buf_pool.mutex);
 }
 
 #ifdef UNIV_DEBUG

@@ -1213,6 +1213,25 @@ static void buf_flush_discard_page(buf_page_t *bpage) noexcept
   buf_LRU_free_page(bpage, true);
 }
 
+void buf_page_t::make_young(uint16_t tm) noexcept
+{
+  mysql_mutex_assert_owner(&buf_pool.mutex);
+  ut_ad(in_file());
+
+  if (!tm || !is_old());
+  else if (tm >= access_time)
+  {
+    /* Note: access_time wraps around in only 65536 seconds or 18.2 hours.
+    Let us zero out the access_time here, so that the next flag_accessed()
+    will set a new access time. In that way, a frequently accessed block
+    should be less likely to be a victim of LRU eviction. */
+    access_time= 0;
+    buf_page_make_young(this);
+  }
+  else
+    buf_pool.stat.n_pages_not_made_young++;
+}
+
 /** Adjust to_withdraw during buf_pool_t::shrink() */
 ATTRIBUTE_COLD static size_t buf_flush_LRU_to_withdraw(size_t to_withdraw,
                                                        const buf_page_t &bpage)
@@ -1259,6 +1278,9 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
   page less than 5% of BP. */
   const size_t buf_lru_min_len=
     std::min((buf_pool.usable_size()) / 20 - 1, size_t{BUF_LRU_MIN_LEN});
+  const uint16_t tm= buf_pool.LRU_old_time_threshold
+    ? uint16_t(time(nullptr) - buf_pool.LRU_old_time_threshold / 1000)
+    : 0;
 
   for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.LRU);
        bpage &&
@@ -1270,6 +1292,13 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
   {
     buf_page_t *prev= UT_LIST_GET_PREV(LRU, bpage);
     buf_pool.lru_hp.set(prev);
+
+    if (bpage->zip.was_accessed())
+    {
+      bpage->make_young(tm);
+      continue;
+    }
+
     auto state= bpage->state();
     ut_ad(state >= buf_page_t::FREED);
     ut_ad(bpage->in_LRU_list);
@@ -1440,6 +1469,10 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
   static_assert(FIL_NULL > SRV_TMP_SPACE_ID, "consistency");
   static_assert(FIL_NULL > SRV_SPACE_ID_UPPER_BOUND, "consistency");
 
+  const uint16_t tm= buf_pool.LRU_old_time_threshold
+    ? uint16_t(time(nullptr) - buf_pool.LRU_old_time_threshold / 1000)
+    : 0;
+
   /* Start from the end of the list looking for a suitable block to be
   flushed. */
   ulint len= UT_LIST_GET_LEN(buf_pool.flush_list);
@@ -1451,6 +1484,9 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
     if (oldest_modification >= lsn)
       break;
     ut_ad(bpage->in_file());
+
+    if (bpage->zip.was_accessed())
+      bpage->make_young(tm);
 
     {
       buf_page_t *prev= UT_LIST_GET_PREV(list, bpage);
@@ -2611,6 +2647,7 @@ static void buf_flush_page_cleaner() noexcept
 
       if (!buf_pool.need_LRU_eviction())
         continue;
+      set_timespec(abstime, 1);
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
       oldest_lsn= buf_pool.get_oldest_modification(0);
     }
@@ -2735,10 +2772,13 @@ static void buf_flush_page_cleaner() noexcept
                                                          dirty_blocks,
                                                          dirty_pct)) != 0)
     {
-      const ulint tm= ut_time_ms();
       mysql_mutex_lock(&buf_pool.mutex);
       last_pages= n_flushed= buf_flush_list_holding_mutex(n);
-      page_cleaner.flush_time+= ut_time_ms() - tm;
+      timespec finish;
+      set_timespec(finish, 0);
+      page_cleaner.flush_time+=
+        ulint((finish.MY_tv_sec - abstime.MY_tv_sec) * 1000 +
+              (finish.MY_tv_nsec - abstime.MY_tv_nsec) / 1000000 - 1000);
       MONITOR_INC_VALUE_CUMULATIVE(MONITOR_FLUSH_ADAPTIVE_TOTAL_PAGE,
                                    MONITOR_FLUSH_ADAPTIVE_COUNT,
                                    MONITOR_FLUSH_ADAPTIVE_PAGES,

@@ -30,6 +30,7 @@ Created 2012-02-08 by Sunny Bains.
 # include "btr0sea.h"
 #endif
 #include "buf0flu.h"
+#include "buf0lru.h"
 #include "que0que.h"
 #include "dict0boot.h"
 #include "dict0load.h"
@@ -459,7 +460,7 @@ public:
 	@param trx covering transaction */
 	AbstractCallback(trx_t* trx, uint32_t space_id)
 		:
-		m_zip_size(0),
+		m_zip_ssize(0),
 		m_trx(trx),
 		m_space(space_id),
 		m_xdes(),
@@ -483,7 +484,7 @@ public:
 	/** @return true if compressed table. */
 	bool is_compressed_table() const UNIV_NOTHROW
 	{
-		return get_zip_size();
+		return get_zip_ssize();
 	}
 
 	/** @return the tablespace flags */
@@ -500,10 +501,10 @@ public:
 		m_filepath = filename;
 	}
 
-	ulint get_zip_size() const { return m_zip_size; }
+	uint16_t get_zip_ssize() const { return m_zip_ssize; }
 	ulint physical_size() const
 	{
-		return m_zip_size ? m_zip_size : srv_page_size;
+		return m_zip_ssize ? 512U << m_zip_ssize : srv_page_size;
 	}
 
 	const char* filename() const { return m_filepath; }
@@ -545,11 +546,10 @@ protected:
 		ulint		page_no,
 		const page_t*	page) const UNIV_NOTHROW
 	{
-		ulint	offset;
-
-		offset = xdes_calc_descriptor_index(get_zip_size(), page_no);
-
-		return(page + XDES_ARR_OFFSET + XDES_SIZE * offset);
+		return page + XDES_ARR_OFFSET + XDES_SIZE
+			* (ut_2pow_remainder<ulint>(page_no,
+						    physical_size())
+			   / FSP_EXTENT_SIZE);
 	}
 
 	/** Set the current page directory (xdes). If the extent descriptor is
@@ -571,8 +571,8 @@ protected:
 
 		if (mach_read_from_4(XDES_ARR_OFFSET + XDES_STATE + page)
 		    != XDES_FREE) {
-			const ulint physical_size = m_zip_size
-				? m_zip_size : srv_page_size;
+			const ulint physical_size = m_zip_ssize
+				? 512U << m_zip_ssize : srv_page_size;
 
 			m_xdes = UT_NEW_ARRAY_NOKEY(xdes_t, physical_size);
 
@@ -598,7 +598,7 @@ protected:
 	@return true if the page is marked as free */
 	bool is_free(uint32_t page_no) const UNIV_NOTHROW
 	{
-		ut_a(xdes_calc_descriptor_page(get_zip_size(), page_no)
+		ut_a(xdes_calc_descriptor_page(physical_size(), page_no)
 		     == m_xdes_page_no);
 
 		if (m_xdes != 0) {
@@ -613,8 +613,8 @@ protected:
 	}
 
 protected:
-	/** The ROW_FORMAT=COMPRESSED page size, or 0. */
-	ulint			m_zip_size;
+	/** The ROW_FORMAT=COMPRESSED page shift size, or 0. */
+	uint16_t		m_zip_ssize;
 
 	/** File handle to the tablespace */
 	pfs_os_file_t		m_file;
@@ -672,7 +672,8 @@ AbstractCallback::init(
 
 	/* Clear the DATA_DIR flag, which is basically garbage. */
 	m_space_flags &= ~(1U << FSP_FLAGS_POS_RESERVED);
-	m_zip_size = fil_space_t::zip_size(m_space_flags);
+	m_zip_ssize = fil_space_t::full_crc32(m_space_flags)
+                ? 0 : FSP_FLAGS_GET_ZIP_SSIZE(m_space_flags);
 	const ulint logical_size = fil_space_t::logical_size(m_space_flags);
 	const ulint physical_size = fil_space_t::physical_size(m_space_flags);
 
@@ -700,24 +701,6 @@ AbstractCallback::init(
 
 	return set_current_xdes(0, page);
 }
-
-/**
-TODO: This can be made parallel trivially by chunking up the file
-and creating a callback per thread.. Main benefit will be to use
-multiple CPUs for checksums and compressed tables. We have to do
-compressed tables block by block right now. Secondly we need to
-decompress/compress and copy too much of data. These are
-CPU intensive.
-
-Iterate over all the pages in the tablespace.
-@param iter - Tablespace iterator
-@param block - block to use for IO
-@param callback - Callback to inspect and update page contents
-@retval DB_SUCCESS or error code */
-static dberr_t fil_iterate(
-	const fil_iterator_t&	iter,
-	buf_block_t*		block,
-	AbstractCallback&	callback);
 
 /**
 Try and determine the index root pages by checking if the next/prev
@@ -844,7 +827,7 @@ dberr_t
 FetchIndexRootPages::build_row_import(row_import* cfg) const UNIV_NOTHROW
 {
 	ut_a(cfg->m_table == m_table);
-	cfg->m_zip_size = m_zip_size;
+	cfg->m_zip_size = m_zip_ssize ? 512U << m_zip_ssize : 0;
 	cfg->m_n_indexes = 1;
 
 	if (cfg->m_n_indexes == 0) {
@@ -952,11 +935,8 @@ public:
 		}
 	}
 
-	dberr_t run(const fil_iterator_t& iter,
-		    buf_block_t* block) UNIV_NOTHROW override
-	{
-		return fil_iterate(iter, block, *this);
-	}
+	dberr_t run(const fil_iterator_t &iter, buf_block_t *block)
+		noexcept override;
 
 	/** Called for each block as it is read from the file.
 	@param block block to convert, it is not from the buffer pool.
@@ -4116,13 +4096,24 @@ func_exit:
   return err;
 }
 
-static dberr_t fil_iterate(
-	const fil_iterator_t&	iter,
-	buf_block_t*		block,
-	AbstractCallback&	callback)
+
+/**
+TODO: This can be made parallel trivially by chunking up the file
+and creating a callback per thread.. Main benefit will be to use
+multiple CPUs for checksums and compressed tables. We have to do
+compressed tables block by block right now. Secondly we need to
+decompress/compress and copy too much of data. These are
+CPU intensive.
+
+Iterate over all the pages in the tablespace.
+@param iter - Tablespace iterator
+@param block - block to use for IO
+@retval DB_SUCCESS or error code */
+dberr_t PageConverter::run(const fil_iterator_t &iter, buf_block_t *block)
+	noexcept
 {
 	os_offset_t		offset;
-	const ulint		size = callback.physical_size();
+	const ulint		size = physical_size();
 	ulint			n_bytes = iter.n_io_buffers * size;
 
 	byte* page_compress_buf= static_cast<byte*>(malloc(get_buf_size()));
@@ -4133,8 +4124,7 @@ static dberr_t fil_iterate(
 	}
 
 	uint32_t actual_space_id = 0;
-	const bool full_crc32 = fil_space_t::full_crc32(
-		callback.get_space_flags());
+	const bool full_crc32 = fil_space_t::full_crc32(get_space_flags());
 
 	/* TODO: For ROW_FORMAT=COMPRESSED tables we do a lot of useless
 	copying for non-index pages. Unfortunately, it is
@@ -4144,7 +4134,7 @@ static dberr_t fil_iterate(
 	bool		punch_hole = !my_test_if_thinly_provisioned(iter.file);
 
 	for (offset = iter.start; offset < iter.end; offset += n_bytes) {
-		if (callback.is_interrupted()) {
+		if (is_interrupted()) {
 			err = DB_INTERRUPTED;
 			goto func_exit;
 		}
@@ -4204,7 +4194,7 @@ static dberr_t fil_iterate(
 
 			if (page_no != block->page.id().page_no()) {
 page_corrupted:
-				ib::warn() << callback.filename()
+				ib::warn() << filename()
 					   << ": Page " << (offset / size)
 					   << " at offset " << offset
 					   << " looks corrupted.";
@@ -4221,9 +4211,9 @@ page_corrupted:
 			page_compressed =
 				(full_crc32
 				 && fil_space_t::is_compressed(
-					callback.get_space_flags())
+					get_space_flags())
 				 && buf_page_is_compressed(
-					src, callback.get_space_flags()))
+					src, get_space_flags()))
 				|| type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
 				|| type == FIL_PAGE_PAGE_COMPRESSED;
 
@@ -4235,7 +4225,7 @@ page_corrupted:
 			byte* dst = io_buffer + i * size;
 			bool frame_changed = false;
 			uint key_version = buf_page_get_key_version(
-				src, callback.get_space_flags());
+				src, get_space_flags());
 
 			if (!encrypted) {
 			} else if (!key_version) {
@@ -4254,15 +4244,15 @@ page_corrupted:
 				}
 			} else {
 				if (!buf_page_verify_crypt_checksum(
-					src, callback.get_space_flags())) {
+					src, get_space_flags())) {
 					goto page_corrupted;
 				}
 
 				if ((err = fil_space_decrypt(
 					actual_space_id,
-					callback.get_space_flags(),
+					get_space_flags(),
 					iter.crypt_data, dst,
-					callback.physical_size(),
+					physical_size(),
 					src))) {
 					goto func_exit;
 				}
@@ -4280,7 +4270,7 @@ page_corrupted:
 			if (page_compressed) {
 				ulint compress_length = fil_page_decompress(
 					page_compress_buf, dst,
-					callback.get_space_flags());
+					get_space_flags());
 				ut_ad(compress_length != srv_page_size);
 				if (compress_length == 0) {
 					goto page_corrupted;
@@ -4291,11 +4281,11 @@ page_corrupted:
 					   false,
 					   encrypted && !frame_changed
 					   ? dst : src,
-					   callback.get_space_flags())) {
+					   get_space_flags())) {
 				goto page_corrupted;
 			}
 
-			if ((err = callback(block)) != DB_SUCCESS) {
+			if ((err = (*this)(block)) != DB_SUCCESS) {
 				goto func_exit;
 			} else if (!updated) {
 				updated = !!block->page.frame;
@@ -4333,7 +4323,7 @@ page_corrupted:
 			first page (i.e. page 0) is not encrypted or
 			compressed and there is no need to copy frame. */
 			if (encrypted && block->page.id().page_no() != 0) {
-				byte *local_frame = callback.get_frame(block);
+				byte *local_frame = get_frame(block);
 				ut_ad((writeptr + (i * size)) != local_frame);
 				memcpy((writeptr + (i * size)), local_frame, size);
 			}
@@ -4353,7 +4343,7 @@ page_corrupted:
 				if (ulint len = fil_page_compress(
 					    src,
 					    page_compress_buf,
-					    callback.get_space_flags(),
+					    get_space_flags(),
 					    512,/* FIXME: proper block size */
 					    encrypted)) {
 					/* FIXME: remove memcpy() */
@@ -4499,7 +4489,6 @@ fil_tablespace_iterate(
 	buf_block_t* block = reinterpret_cast<buf_block_t*>
 		(ut_zalloc_nokey(sizeof *block));
 	block->page.frame = page;
-	block->page.init(buf_page_t::UNFIXED + 1, page_id_t{~0ULL});
 
 	/* Read the first page and determine the page size. */
 
@@ -4511,9 +4500,12 @@ fil_tablespace_iterate(
 	}
 
 	if (err == DB_SUCCESS) {
-		block->page.id_ = page_id_t(callback.get_space_id(), 0);
-		if (ulint zip_size = callback.get_zip_size()) {
-			page_zip_set_size(&block->page.zip, zip_size);
+		block->page.init(buf_page_t::UNFIXED + 1,
+				 {callback.get_space_id(), 0},
+				 callback.get_zip_ssize());
+		ut_d(block->page.lock.x_lock());
+
+		if (callback.get_zip_ssize()) {
 			/* ROW_FORMAT=COMPRESSED is not optimised for block IO
 			for now. We do the IMPORT page by page. */
 			n_io_buffers = 1;
@@ -4523,7 +4515,8 @@ fil_tablespace_iterate(
 
 		/* read (optional) crypt data */
 		iter.crypt_data = fil_space_read_crypt_data(
-			callback.get_zip_size(), page);
+			callback.get_zip_ssize()
+			? 512U << callback.get_zip_ssize() : 0, page);
 
 		/* If tablespace is encrypted, it needs extra buffers */
 		if (iter.crypt_data && n_io_buffers > 1) {
@@ -4555,7 +4548,7 @@ fil_tablespace_iterate(
 			iter.crypt_tmp_buffer = NULL;
 		}
 
-		if (block->page.zip.ssize) {
+		if (block->page.zip.ssize()) {
 			ut_ad(iter.n_io_buffers == 1);
 			block->page.frame = iter.io_buffer;
 			block->page.zip.data = block->page.frame
@@ -4571,6 +4564,8 @@ fil_tablespace_iterate(
 		aligned_free(iter.crypt_tmp_buffer);
 		aligned_free(iter.crypt_io_buffer);
 		aligned_free(iter.io_buffer);
+		ut_d(block->page.lock.x_unlock());
+		ut_d(block->page.lock.free());
 	}
 
 	if (err == DB_SUCCESS) {

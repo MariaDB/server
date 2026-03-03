@@ -1026,7 +1026,7 @@ inline void mtr_t::page_checksum(const buf_page_t &bpage)
 
   if (UNIV_LIKELY_NULL(bpage.zip.data))
   {
-    size= (UNIV_ZIP_SIZE_MIN >> 1) << bpage.zip.ssize;
+    size= (UNIV_ZIP_SIZE_MIN >> 1) << bpage.zip.ssize();
     switch (fil_page_get_type(bpage.zip.data)) {
     case FIL_PAGE_TYPE_ALLOCATED:
     case FIL_PAGE_INODE:
