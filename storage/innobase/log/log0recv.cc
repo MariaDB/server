@@ -2876,12 +2876,6 @@ recv_sys_t::parse_mtr_result log_parse_start(source &l, unsigned nonce)
   if (!log_sys.archive && *l != log_sys.get_sequence_bit(end_lsn))
     return recv_sys_t::GOT_EOF;
 
-  if (recv_sys.rpo && recv_sys.rpo < end_lsn)
-  {
-    recv_sys_rpo_exceeded= end_lsn;
-    return recv_sys_t::GOT_EOF;
-  }
-
   if (l.is_eof(5 + nonce))
    return recv_sys_t::PREMATURE_EOF;
 
@@ -2900,7 +2894,16 @@ recv_sys_t::parse_mtr_result log_parse_start(source &l, unsigned nonce)
     stored_crc32c= mach_read_from_4(static_cast<byte*>(crc.memcpy(b, 4)));
   }
 
-  return crc32c == stored_crc32c ? recv_sys_t::OK : recv_sys_t::GOT_EOF;
+  if (UNIV_UNLIKELY(crc32c != stored_crc32c))
+    return recv_sys_t::GOT_EOF;
+
+  if (recv_sys.rpo && recv_sys.rpo < end_lsn)
+  {
+    recv_sys_rpo_exceeded= end_lsn;
+    return recv_sys_t::GOT_EOF;
+  }
+
+  return recv_sys_t::OK;
 }
 
 /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
