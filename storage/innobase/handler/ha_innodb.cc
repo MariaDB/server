@@ -14917,6 +14917,25 @@ stats_fetch:
 			stats.index_file_length
 				= ulonglong(stat_sum_of_other_index_sizes)
 				* size;
+            /* Include hlindex (vector index) size in index_file_length */
+            if (table->s->hlindexes())
+            {
+                char hli_name[FN_REFLEN];
+                char norm_path[FN_REFLEN];
+                normalize_table_name(norm_path, sizeof(norm_path),
+                        table->s->normalized_path.str);
+                my_snprintf(hli_name, sizeof(hli_name),
+                        "%s" HLINDEX_TEMPLATE,
+                        norm_path, table->s->keys);
+                if (dict_table_t *hli_table= dict_table_open_on_name(hli_name, false,
+                            DICT_ERR_IGNORE_NONE))
+                {
+                    if (fil_space_t *hli_space= hli_table->space)
+                        stats.index_file_length+=
+                            ulonglong(hli_space->size) * hli_space->physical_size();
+                    dict_table_close(hli_table, m_user_thd, nullptr);
+                }
+            }
 			if (flag & HA_STATUS_VARIABLE_EXTRA) {
 				space->s_lock();
 				stats.delete_length = 1024
