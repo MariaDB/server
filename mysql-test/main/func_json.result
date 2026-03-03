@@ -5764,4 +5764,49 @@ NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 {"key": "value", "key2": "value2"}	1	0	0	1	0	1	1
 {"key": "value", "key": "value2"}	1	0	0	1	0	0	1
 DROP TABLE test_default_json;
-# End of 12.3
+#
+# MDEV-38033: JSON_SCHEMA_VALID function returning wrong result
+#
+SET @schema= '
+{
+  "type": "object",
+  "properties": 
+  {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "arr_fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field1": {
+            "type": "string"
+          },
+          "field2": {
+            "type": "number"
+          }
+        },
+        "required": ["field1"]
+      }
+    }
+  }
+}';
+SET @value= '
+{
+  "id": "zero",
+  "arr_fields": [
+    {
+      "field1": "A",
+      "field2": 123
+    },
+    {
+      "field1": "B"
+    }
+  ]
+}';
+SELECT JSON_SCHEMA_VALID(@schema, @value);
+JSON_SCHEMA_VALID(@schema, @value)
+1
+# End of 12.3 tests

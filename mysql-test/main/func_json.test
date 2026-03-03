@@ -4489,4 +4489,51 @@ FROM test_default_json;
 
 DROP TABLE test_default_json;
 
---echo # End of 12.3
+--echo #
+--echo # MDEV-38033: JSON_SCHEMA_VALID function returning wrong result
+--echo #
+
+SET @schema= '
+{
+  "type": "object",
+  "properties": 
+  {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "arr_fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field1": {
+            "type": "string"
+          },
+          "field2": {
+            "type": "number"
+          }
+        },
+        "required": ["field1"]
+      }
+    }
+  }
+}';
+
+SET @value= '
+{
+  "id": "zero",
+  "arr_fields": [
+    {
+      "field1": "A",
+      "field2": 123
+    },
+    {
+      "field1": "B"
+    }
+  ]
+}';
+
+SELECT JSON_SCHEMA_VALID(@schema, @value);
+
+--echo # End of 12.3 tests
