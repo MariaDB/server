@@ -282,7 +282,7 @@ class Master_info : public Slave_reporting_capability
     events should happen before fsyncing.
   */
   uint sync_counter;
-  float heartbeat_period;         // interface with CHANGE MASTER or master.info
+  uint32_t heartbeat_period; ///< integer in milliseconds
   ulonglong received_heartbeats;  // counter of received heartbeat events
   DYNAMIC_ARRAY ignore_server_ids;
   ulong master_id;

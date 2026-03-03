@@ -16,7 +16,7 @@ show status like 'Slave_heartbeat_period';;
 Variable_name	Slave_heartbeat_period
 Value	5.000
 connection slave;
-change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root', master_heartbeat_period= 0.0009999;
+change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root', master_heartbeat_period= 0.0004999;
 Warnings:
 Warning	1703	The requested value for the heartbeat period is less than 1 millisecond. The value is reset to 0, meaning that heartbeating will effectively be disabled
 show status like 'Slave_heartbeat_period';;
