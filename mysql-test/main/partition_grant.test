@@ -80,3 +80,55 @@ drop user mysqltest_1@localhost;
 drop schema mysqltest_1;
 
 --echo End of 5.1 tests
+
+--echo #
+--echo # MDEV-37948: ALTER TABLE ... TRUNCATE PARTITION should require
+--echo # ALTER or DROP privilege
+--echo #
+
+CREATE DATABASE mysqltest_2;
+USE mysqltest_2;
+
+CREATE TABLE t1 (a INT)
+  PARTITION BY LIST (a) (
+    PARTITION p1 VALUES IN (1),
+    PARTITION p2 VALUES IN (2),
+    PARTITION p3 VALUES IN (3)
+  );
+INSERT INTO t1 VALUES (1),(2),(3);
+
+CREATE USER mysqltest_2@localhost;
+
+--echo # Test with only DROP privilege (should succeed)
+GRANT DROP ON mysqltest_2.* TO mysqltest_2@localhost;
+
+connect (conn_drop,localhost,mysqltest_2,,mysqltest_2);
+SHOW GRANTS FOR CURRENT_USER;
+ALTER TABLE t1 TRUNCATE PARTITION p1;
+disconnect conn_drop;
+
+connection default;
+REVOKE DROP ON mysqltest_2.* FROM mysqltest_2@localhost;
+
+--echo # Test with only ALTER privilege (should succeed)
+GRANT ALTER ON mysqltest_2.* TO mysqltest_2@localhost;
+
+connect (conn_alter,localhost,mysqltest_2,,mysqltest_2);
+SHOW GRANTS FOR CURRENT_USER;
+ALTER TABLE t1 TRUNCATE PARTITION p2;
+disconnect conn_alter;
+
+connection default;
+REVOKE ALTER ON mysqltest_2.* FROM mysqltest_2@localhost;
+
+--echo # Test with no privileges (should fail)
+GRANT SELECT ON mysqltest_2.* TO mysqltest_2@localhost;
+connect (conn_none,localhost,mysqltest_2,,mysqltest_2);
+--error ER_TABLEACCESS_DENIED_ERROR
+ALTER TABLE t1 TRUNCATE PARTITION p3;
+disconnect conn_none;
+
+connection default;
+DROP TABLE t1;
+DROP USER mysqltest_2@localhost;
+DROP DATABASE mysqltest_2;
