@@ -1,0 +1,193 @@
+--echo #
+--echo # MDEV-13594: Support for -> and ->> JSON operators
+--echo #
+
+--echo # 1. Basic Extraction with ->
+SELECT '{"a": 1, "b": "text"}'->'$.a' AS int_val,
+       '{"a": 1, "b": "text"}'->'$.b' AS str_val;
+
+--echo # 2. Unquoted Extraction with ->>
+SELECT '{"a": 1, "b": "text"}'->> '$.a' AS int_val,
+       '{"a": 1, "b": "text"}'->> '$.b' AS str_val;
+
+--echo # 3. Chaining Operators
+--echo # Should support nested extraction
+SELECT '{"a": {"b": {"c": 42}}}'->'$.a'->'$.b'->'$.c' AS chained_arrow,
+       '{"a": {"b": {"c": 42}}}'->'$.a'->'$.b'->>'$.c' AS chained_unquoted;
+
+--echo # 4. Operator Precedence
+--echo # -> and ->> bind tighter than arithmetic operators
+SELECT '{"a": 5}'->'$.a' + 1 AS arrow_plus_one;
+SELECT '{"a": 5}'->> '$.a' + 1 AS unquoted_arrow_plus_one;
+SELECT '{"a": 5}'->'$.a' * 2 AS arrow_times_two;
+
+--echo # 5. Table Integration
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  data JSON
+);
+
+INSERT INTO t1 VALUES
+(1, '{"name": "Alice", "meta": {"age": 25, "city": "London"}}'),
+(2, '{"name": "Bob", "meta": {"age": 30, "city": "Paris"}}'),
+(3, '{"name": "Charlie", "meta": null}');
+
+--echo # Usage in SELECT list
+SELECT id, data->'$.name', data->>'$.meta.city' FROM t1;
+
+--echo # Usage in WHERE clause
+SELECT data->>'$.name' FROM t1 WHERE data->'$.meta.age' > 25;
+
+--echo # Usage in ORDER BY
+SELECT data->>'$.name' FROM t1 ORDER BY data->'$.meta.age' DESC;
+
+DROP TABLE t1;
+
+--echo # 6. Edge Cases: Invalid JSON and Paths
+--echo # Invalid JSON text returns a warning; result is NULL
+SELECT '{"a": 1'->'$.a';
+
+--echo # Missing key returns NULL (no error)
+SELECT '{"a": 1}'->'$.no_key';
+
+--echo # Invalid path returns a warning; result is NULL
+SELECT '{"a": 1}'->'invalid_path';
+
+--echo # 7. Integration with Generated Columns
+CREATE TABLE t2 (
+  j JSON,
+  name VARCHAR(50) AS (j->>'$.name') VIRTUAL,
+  INDEX (name)
+);
+
+INSERT INTO t2 (j) VALUES ('{"name": "Zoe", "score": 100}');
+SELECT name FROM t2;
+EXPLAIN SELECT name FROM t2 WHERE name = 'Zoe';
+
+DROP TABLE t2;
+
+--echo # 8. Chaining with non-JSON results
+--echo # ->> returns a string. If the string is valid JSON, another -> can follow.
+SELECT '{"outer": "{\\"inner\\": 1}"}'->> '$.outer'->'$.inner' AS complex_chain;
+
+--echo #
+--echo # 9. Ported tests from MySQL (Oracle). Authors at Oracle Corporation.
+--echo # Path: mysql-test/suite/json/inc/json_functions.inc
+--echo #
+
+CREATE TABLE t1_mysql(autopk int primary key auto_increment, f1 JSON);
+INSERT INTO t1_mysql(f1) VALUES
+  ('{"a":1}'),
+  ('{"a":3}'),
+  ('{"a":2}'),
+  ('{"a":11, "b":3}'),
+  ('{"a":33, "b":1}'),
+  ('{"a":22,"b":2}');
+ANALYZE TABLE t1_mysql;
+
+SELECT f1->"$.a" FROM t1_mysql order by autopk;
+EXPLAIN SELECT f1->"$.a" FROM t1_mysql order by autopk;
+
+SELECT f1->"$.a" FROM t1_mysql WHERE f1->"$.b" > 1 order by autopk;
+EXPLAIN SELECT f1->"$.a" FROM t1_mysql WHERE f1->"$.b" > 1 order by autopk;
+
+SELECT f1->"$.a", f1->"$.b" FROM t1_mysql ORDER BY autopk;
+
+--sorted_result
+SELECT MAX(f1->"$.a"), f1->"$.b" FROM t1_mysql GROUP BY f1->"$.b";
+
+SELECT JSON_OBJECT("c",f1->"$.b") AS f2
+  FROM t1_mysql HAVING JSON_TYPE(f2->"$.c") <> 'NULL' ORDER BY autopk;
+
+--echo Test unquoting operator
+INSERT INTO t1_mysql(f1) VALUES
+  ('{"t":"a"}'),
+  ('{"t":"b"}'),
+  ('{"t":"c"}');
+--echo Returned values should be quoted
+SELECT f1->"$.t" FROM t1_mysql WHERE f1->"$.t" <> 'NULL' order by autopk;
+--echo Returned values should be unquoted
+SELECT f1->>"$.t" FROM t1_mysql WHERE f1->>"$.t" <> 'NULL' order by autopk;
+
+--echo # Error cases (using MariaDB error codes/behaviors)
+--echo # MariaDB allows NULL on the RHS (returns NULL)
+SELECT f1->>NULL FROM t1_mysql;
+
+--echo # Invalid path returns a warning
+SELECT f1 ->> "NULL" FROM t1_mysql;
+
+INSERT INTO t1_mysql(f1) VALUES
+  ('[ { "a": 1 }, { "a": 2 } ]'),
+  ('{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }'),
+  ('{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }'),
+  ('{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }');
+
+SELECT
+  f1->>"$**.b",
+  JSON_UNQUOTE(JSON_EXTRACT(f1,"$**.b"))
+  FROM t1_mysql order by autopk;
+
+SELECT
+  f1->>"$.c",
+  JSON_UNQUOTE(JSON_EXTRACT(f1,"$.c"))
+  FROM t1_mysql order by autopk;
+
+DROP TABLE t1_mysql;
+
+--echo #
+--echo # 10. Ported tests from MySQL (Oracle). Authors at Oracle Corporation.
+--echo # Path: mysql-test/suite/json/t/json_prep_stmts.test
+--echo #
+
+CREATE TABLE t1_prep(j JSON);
+set @int=123;
+set @intstr='123';
+set @dec=3.14;
+set @decstr='3.14';
+set @flt=3.14E1;
+set @fltstr='3.14E1';
+set @strstr='xyz';
+set @quotstr='"xyz"';
+set @json='{"int" : 123, "dec" : 3.14, "flt" : 3.14E1, "str" : "xyz", "array" : [1, 2, 4]}';
+
+insert into t1_prep values (@json);
+
+prepare ps_get_int from "select * from t1_prep where j->'$.int' = ?";
+prepare ps_get_dec from "select * from t1_prep where j->'$.dec' = ?";
+prepare ps_get_flt from "select * from t1_prep where j->'$.flt' = ?";
+prepare ps_get_str from "select * from t1_prep where j->'$.str' = ?";
+
+execute ps_get_int using @int;
+execute ps_get_int using @intstr;
+execute ps_get_dec using @dec;
+execute ps_get_dec using @decstr;
+execute ps_get_flt using @flt;
+execute ps_get_flt using @fltstr;
+execute ps_get_str using @quotstr;
+
+deallocate prepare ps_get_int;
+deallocate prepare ps_get_dec;
+deallocate prepare ps_get_flt;
+deallocate prepare ps_get_str;
+
+prepare ps_get_int from "select * from t1_prep where j->>'$.int' = ?";
+prepare ps_get_dec from "select * from t1_prep where j->>'$.dec' = ?";
+prepare ps_get_flt from "select * from t1_prep where j->>'$.flt' = ?";
+prepare ps_get_str from "select * from t1_prep where j->>'$.str' = ?";
+
+execute ps_get_int using @int;
+execute ps_get_int using @intstr;
+execute ps_get_dec using @dec;
+execute ps_get_dec using @decstr;
+execute ps_get_flt using @flt;
+execute ps_get_flt using @fltstr;
+execute ps_get_str using @strstr;
+
+deallocate prepare ps_get_int;
+deallocate prepare ps_get_dec;
+deallocate prepare ps_get_flt;
+deallocate prepare ps_get_str;
+
+DROP TABLE t1_prep;
+
+--echo End of 13.0 tests
