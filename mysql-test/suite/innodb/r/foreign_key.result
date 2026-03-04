@@ -11,7 +11,7 @@ ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint 
 create table t2 (f1 int primary key,
 constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
-ERROR HY000: Can't create table `test`.`t2` (errno: 121 "Duplicate key on write or update")
+ERROR HY000: Can't alter table `test`.`t2` (errno: 121 "Duplicate key on write or update")
 set foreign_key_checks = 0;
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
 ERROR HY000: Duplicate FOREIGN KEY constraint name 'test/c1'
@@ -282,11 +282,11 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't alter table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 SHOW WARNINGS;
 Level	Code	Message
 Warning	150	Alter  table `test`.`t1` with foreign key (a) constraint failed. Referenced table `test`.`t2` not found in the data dictionary.
-Error	1005	Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+Error	1005	Can't alter table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `t1`
 DROP TABLE t1;
 #
@@ -973,7 +973,7 @@ set default_storage_engine= default;
 SET FOREIGN_KEY_CHECKS=1;
 CREATE TABLE t1 (a TEXT, b TEXT) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (b);
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't alter table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 SET FOREIGN_KEY_CHECKS=DEFAULT;
 DROP TABLE t1;
 #
@@ -1005,10 +1005,10 @@ alter table t2 add foreign key(a) references t1(a, b);
 ERROR 42000: Incorrect foreign key definition for 'foreign key without name': Key reference and table reference don't match
 create or replace table t1(a tinyint primary key) engine innodb;
 alter table t2 add foreign key(a) references t1;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't alter table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 create or replace table t1(b int primary key) engine innodb;
 alter table t2 add foreign key(a) references t1;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't alter table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 create or replace table t1(a int primary key, b int) engine innodb;
 alter table t2 add foreign key(a) references t1;
 show create table t2;

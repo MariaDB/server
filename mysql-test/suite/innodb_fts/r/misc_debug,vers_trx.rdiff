@@ -5,7 +5,7 @@
  SET SESSION debug_dbug="+d,ib_dict_create_index_tree_fail";
  CREATE FULLTEXT INDEX idx ON articles(body);
 -ERROR HY000: Out of memory.
-+ERROR HY000: Can't create table `test`.`articles` (errno: 128 "Out of memory in engine")
++ERROR HY000: Can't alter table `test`.`articles` (errno: 128 "Out of memory in engine")
  SET SESSION debug_dbug=@saved_debug_dbug;
  ALTER TABLE articles STATS_PERSISTENT=DEFAULT;
  DROP TABLE articles;
