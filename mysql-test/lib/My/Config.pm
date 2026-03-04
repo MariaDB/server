@@ -25,7 +25,7 @@ use Carp;
 # many times in the config file. Note that options must be written
 # using '-' instead of '_' here!
 
-my %multipart_options=
+our %multipart_options=
   (
    "plugin-load-add" => 1,
    "optimizer-switch" => 1,

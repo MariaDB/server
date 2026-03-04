@@ -95,3 +95,20 @@ id	w	q
 1	2	test;range=meta.foo_count,100,500
 5	1	test;range=meta.foo_count,100,500
 drop table ts;
+# MDEV-37969 sphinx_snippets() UDF fails to resolve hostname
+CREATE FUNCTION sphinx_snippets RETURNS STRING SONAME 'ha_sphinx.so';
+SELECT sphinx_snippets('d', 'test1', 'search_term', 'sphinx://localhost:SPHINXSEARCH_PORT' AS sphinx);
+sphinx_snippets('d', 'test1', 'search_term', 'sphinx://localhost:SPHINXSEARCH_PORT' AS sphinx)
+d
+SELECT sphinx_snippets('this is to test groups', 'test1', 'groups', 'sphinx://127.0.0.1:19001' AS sphinx);
+sphinx_snippets('this is to test groups', 'test1', 'groups', 'sphinx://127.0.0.1:19001' AS sphinx)
+this is to test <b>groups</b>
+SELECT sphinx_snippets('this is to test groups', 'test1', 'groups', 'unix://SPHINXSEARCH_SOCKET' AS sphinx);
+sphinx_snippets('this is to test groups', 'test1', 'groups', 'unix://SPHINXSEARCH_SOCKET' AS sphinx)
+this is to test <b>groups</b>
+SELECT sphinx_snippets('d', 'test1', 'search_term', 'sphinx://somedomainthatdoesntresolve.example.com:19001' AS sphinx);
+ERROR HY000: Unable to connect to foreign data source: failed to resolve searchd host (name=somedomainthatdoesntresolve
+SELECT sphinx_snippets('this is to test groups', 'test1', 'groups', 'unix:///home/dan/repos/build-mariadb-server-10.11/mysql-test/var/tmp/missing_socket' AS sphinx);
+ERROR HY000: Unable to connect to foreign data source: unix:////home/dan/repos/build-mariadb-server-10.11/mysql-test/va
+DROP FUNCTION sphinx_snippets;
+# End of 10.11 tests
