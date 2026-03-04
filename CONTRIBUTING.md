@@ -15,13 +15,16 @@ MariaDB Server has a vibrant community contributing in a wide range of areas. Th
 -   Contribute towards [documenting MariaDB Server](https://mariadb.com/docs/general-resources/about/readme/contributing-documentation)  and its ecosystem by adding new content or improving existing content.
 -   [Translate](https://mariadb.com/docs/general-resources/about/readme/contributing-documentation)  existing documentation.
 
-### Help debug and develop MariaDB
+### Help develop MariaDB
 -----
--   [Report bugs](https://jira.mariadb.org/)
--   Test development versions
--   Write code to fix bugs or develop new features (see  [Getting Started for Developers](https://mariadb.org/getting-started-for-developers)).See also [list of beginner friendly tasks](https://jira.mariadb.org/browse/MDEV-15736?jql=resolution%20%3D%20Unresolved%20AND%20labels%20%3D%20beginner-friendly%20ORDER%20BY%20updated%20DESC)
--   Help with code quality control
--   Participate in packaging for different Linux distributions
+-   Fix bugs or develop new features
+-   Review code contributions
+-   Test bug fixes and features
+-   Participate in packaging for different distributions
+
+Check the [list of beginner friendly tasks](https://jira.mariadb.org/issues/?jql=status%3DConfirmed%20AND%20labels%3Dbeginner-friendly%20ORDER%20BY%20updated%20DESC). Or talk to the [MariaDB developers](#engage-online-with-other-community-members).
+
+See also [Getting Started for Developers](https://mariadb.org/getting-started-for-developers). Coding standards for the main source code can be found in [CODING_STANDARDS.md](CODING_STANDARDS.md).
 
 ### Sponsor or donate
 ---
@@ -33,7 +36,7 @@ You’re very welcome to support MariaDB Server as an individual, or talk your c
     -   [Events and Conferences page](https://mariadb.org/events/)
     -   [mariadb.meetup.com](http://mariadb.meetup.com/)
 
-### Live QA for beginner contributors
+### Live Q&A for beginner contributors
 ----
 MariaDB has a dedicated time each week when we answer new contributor questions live on Zulip.
 From 8:00 to 10:00 UTC on Mondays, and 10:00 to 12:00 UTC on Thursdays, anyone can ask any questions they’d like,
@@ -42,5 +45,5 @@ New contributors can ask questions any time, but we will provide immediate feedb
 
 ### Additional resources
 ----
- - [MariaDB Foundation ](https://mariadb.org/)
+ - [MariaDB Foundation](https://mariadb.org/)
  - [MariaDB Documentation](https://mariadb.com/docs/)
