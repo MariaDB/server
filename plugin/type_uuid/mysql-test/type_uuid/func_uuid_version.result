@@ -1,0 +1,184 @@
+#
+# MDEV-38983 Adding UUID_VERSION()
+#
+#
+# UUIDv1
+#
+SELECT UUID_VERSION(uuid()) AS version;
+version
+1
+#
+# UUIDv4
+#
+SELECT UUID_VERSION(uuid_v4()) AS version;
+version
+4
+#
+# UUIDv7
+#
+SELECT UUID_VERSION(uuid_v7()) AS version;
+version
+7
+#
+# UUIDv5
+#
+SELECT UUID_VERSION("3e1f44c0-1c3d-535d-ac3f-5218a74bf2df") AS version;
+version
+5
+#
+# not valid with text
+#
+SELECT UUID_VERSION("lefred") AS version;
+ERROR 22007: Incorrect uuid value: 'lefred'
+#
+# not valid with wrong uuid (version 0)
+#
+SELECT UUID_VERSION("AF39A01C-E29D-0C4C-8072-60CEB26A82F1") AS version;
+ERROR 22007: Incorrect uuid value: 'AF39A01C-E29D-0C4C-8072-60CEB26A82F1'
+#
+# valid with uuid (version 8)
+#
+SELECT UUID_VERSION("AF39A01C-E29D-8C4C-8072-60CEB26A82F1") AS version;
+version
+8
+#
+# not valid with wrong uuid (version 9)
+#
+SELECT UUID_VERSION("AF39A01C-E29D-9C4C-8072-60CEB26A82F1") AS version;
+ERROR 22007: Incorrect uuid value: 'AF39A01C-E29D-9C4C-8072-60CEB26A82F1'
+#
+# wrong uuid full of hyphens
+#
+SELECT UUID_VERSION("------------------------------------") AS version;
+ERROR 22007: Incorrect uuid value: '------------------------------------'
+#
+# wrong uuid full of hyphens but the version
+#
+SELECT UUID_VERSION("--------------1---------------------") AS version;
+ERROR 22007: Incorrect uuid value: '--------------1---------------------'
+#
+# wrong variant for valid uuid version
+#
+SELECT UUID_VERSION("f7525aa0-1eba-11f1-4c6e-5e1b9081e705") AS version;
+ERROR 22007: Incorrect uuid value (variant check failed): 'f7525aa0-1eba-11f1-4c6e-5e1b9081e705'
+#
+# deprecated uuid version 2
+#
+SELECT UUID_VERSION("AF39A01C-E29D-2C4C-8072-60CEB26A82F1") AS version;
+version
+2
+Warnings:
+Warning	1300	Version 2 UUIDs are deprecated
+#
+# no argument
+#
+SELECT UUID_VERSION() AS version;
+ERROR 42000: Incorrect parameter count in the call to native function 'UUID_VERSION'
+#
+# multiple arguments
+#
+SELECT UUID_VERSION(uuid(), 1) AS version;
+ERROR 42000: Incorrect parameter count in the call to native function 'UUID_VERSION'
+#
+# use it in check constraint to force uuid_v1
+#
+CREATE TABLE t1 (id uuid PRIMARY KEY CHECK(uuid_version(id) = 1));
+INSERT INTO t1 VALUES(UUID());
+INSERT INTO t1 VALUES(UUID_v4());
+ERROR 23000: CONSTRAINT `t1.id` failed for `test`.`t1`
+INSERT INTO t1 VALUES(UUID_v7());
+ERROR 23000: CONSTRAINT `t1.id` failed for `test`.`t1`
+DROP TABLE t1;
+#
+# use it in check constraint to force uuid_v4
+#
+CREATE TABLE t1 (id uuid PRIMARY KEY CHECK(uuid_version(id) = 4));
+INSERT INTO t1 VALUES(UUID());
+ERROR 23000: CONSTRAINT `t1.id` failed for `test`.`t1`
+INSERT INTO t1 VALUES(UUID_v4());
+INSERT INTO t1 VALUES(UUID_v7());
+ERROR 23000: CONSTRAINT `t1.id` failed for `test`.`t1`
+DROP TABLE t1;
+#
+# use it in check constraint to force uuid_v7
+#
+CREATE TABLE t1 (id uuid PRIMARY KEY CHECK(uuid_version(id) = 7));
+INSERT INTO t1 VALUES(UUID());
+ERROR 23000: CONSTRAINT `t1.id` failed for `test`.`t1`
+INSERT INTO t1 VALUES(UUID_v4());
+ERROR 23000: CONSTRAINT `t1.id` failed for `test`.`t1`
+INSERT INTO t1 VALUES(UUID_v7());
+DROP TABLE t1;
+#
+# visualize all the version numbers
+#
+CREATE TABLE t1 (id uuid PRIMARY KEY);
+INSERT INTO t1 (id) VALUES
+-- Version 1 (time-based)
+('6ba7b810-9dad-11d1-80b4-00c04fd430c8'),
+('f81d4fae-7dec-11d0-a765-00a0c91e6bf6'),
+-- Version 3 (MD5 name-based)
+('9073926b-929f-31c2-abc9-fad77ae3e8eb'),
+-- Version 4 (random)
+('550e8400-e29b-41d4-a716-446655440000'),
+('123e4567-e89b-42d3-a456-426614174000'),
+('ffffffff-ffff-4fff-bfff-ffffffffffff'),
+-- Version 5 (SHA-1 name-based)
+('2ed6657d-e927-568b-95e1-2665a8aea6a2'),
+-- Version 6 (reordered time-based)
+('1ec9414c-232a-6b00-b3c8-9e6bdecf3d2a'),
+('1f0799c0-98b9-6f10-a2d3-5f6e7c8b9a01'),
+-- Version 7 (Unix time + random)
+('01890f4e-7b1a-7cc0-9f2a-6b5c4d3e2f10'),
+('017f22e2-79b0-7a5b-b123-456789abcdef'),
+-- Version 8 (custom / experimental)
+('12345678-1234-8abc-8def-1234567890ab'),
+('ffffffff-ffff-8fff-bfff-ffffffffffff'),
+-- Boundary / edge patterns
+('00000000-0000-4000-8000-000000000000'),
+('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+('bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb'),
+-- Mixed / fuzz-like
+('deadbeef-dead-4bad-8eed-feedfacecafe'),
+('cafebabe-cafe-4abe-8afe-babecafebabe');
+SELECT id,uuid_version(id) as v FROM t1 ORDER BY id;
+id	v
+00000000-0000-4000-8000-000000000000	4
+f81d4fae-7dec-11d0-a765-00a0c91e6bf6	1
+6ba7b810-9dad-11d1-80b4-00c04fd430c8	1
+017f22e2-79b0-7a5b-b123-456789abcdef	7
+01890f4e-7b1a-7cc0-9f2a-6b5c4d3e2f10	7
+12345678-1234-8abc-8def-1234567890ab	8
+1ec9414c-232a-6b00-b3c8-9e6bdecf3d2a	6
+1f0799c0-98b9-6f10-a2d3-5f6e7c8b9a01	6
+2ed6657d-e927-568b-95e1-2665a8aea6a2	5
+123e4567-e89b-42d3-a456-426614174000	4
+550e8400-e29b-41d4-a716-446655440000	4
+aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa	4
+cafebabe-cafe-4abe-8afe-babecafebabe	4
+bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb	4
+9073926b-929f-31c2-abc9-fad77ae3e8eb	3
+deadbeef-dead-4bad-8eed-feedfacecafe	4
+ffffffff-ffff-8fff-bfff-ffffffffffff	8
+ffffffff-ffff-4fff-bfff-ffffffffffff	4
+TRUNCATE TABLE t1;
+INSERT INTO t1 (id) VALUES
+('000003e8-89ab-21d3-8c4d-001122334455'),
+('000007d0-1234-2abc-9def-112233445566'),
+('00000064-dead-2bad-a123-abcdefabcdef'),
+('0000c350-beef-2345-b678-1234567890ab'),
+('00000001-cafe-2ace-8ace-feedfacecafe');
+SELECT id,uuid_version(id) as v FROM t1 ORDER BY id;
+id	v
+000003e8-89ab-21d3-8c4d-001122334455	2
+000007d0-1234-2abc-9def-112233445566	2
+0000c350-beef-2345-b678-1234567890ab	2
+00000064-dead-2bad-a123-abcdefabcdef	2
+00000001-cafe-2ace-8ace-feedfacecafe	2
+Warnings:
+Warning	1300	Version 2 UUIDs are deprecated
+Warning	1300	Version 2 UUIDs are deprecated
+Warning	1300	Version 2 UUIDs are deprecated
+Warning	1300	Version 2 UUIDs are deprecated
+Warning	1300	Version 2 UUIDs are deprecated
+DROP TABLE t1;

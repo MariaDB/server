@@ -1,0 +1,172 @@
+--echo #
+--echo # MDEV-38983 Adding UUID_VERSION()
+--echo #
+
+--echo #
+--echo # UUIDv1
+--echo #
+SELECT UUID_VERSION(uuid()) AS version;
+
+--echo #
+--echo # UUIDv4
+--echo #
+SELECT UUID_VERSION(uuid_v4()) AS version;
+
+--echo #
+--echo # UUIDv7
+--echo #
+SELECT UUID_VERSION(uuid_v7()) AS version;
+
+--echo #
+--echo # UUIDv5
+--echo #
+SELECT UUID_VERSION("3e1f44c0-1c3d-535d-ac3f-5218a74bf2df") AS version;
+
+--echo #
+--echo # not valid with text
+--echo #
+--error ER_TRUNCATED_WRONG_VALUE
+SELECT UUID_VERSION("lefred") AS version;
+
+--echo #
+--echo # not valid with wrong uuid (version 0)
+--echo #
+--error ER_TRUNCATED_WRONG_VALUE
+SELECT UUID_VERSION("AF39A01C-E29D-0C4C-8072-60CEB26A82F1") AS version;
+
+--echo #
+--echo # valid with uuid (version 8)
+--echo #
+SELECT UUID_VERSION("AF39A01C-E29D-8C4C-8072-60CEB26A82F1") AS version;
+
+--echo #
+--echo # not valid with wrong uuid (version 9)
+--echo #
+--error ER_TRUNCATED_WRONG_VALUE
+SELECT UUID_VERSION("AF39A01C-E29D-9C4C-8072-60CEB26A82F1") AS version;
+
+--echo #
+--echo # wrong uuid full of hyphens
+--echo #
+--error ER_TRUNCATED_WRONG_VALUE
+SELECT UUID_VERSION("------------------------------------") AS version;
+
+--echo #
+--echo # wrong uuid full of hyphens but the version
+--echo #
+--error ER_TRUNCATED_WRONG_VALUE
+SELECT UUID_VERSION("--------------1---------------------") AS version;
+
+--echo #
+--echo # wrong variant for valid uuid version
+--echo #
+--error ER_TRUNCATED_WRONG_VALUE
+SELECT UUID_VERSION("f7525aa0-1eba-11f1-4c6e-5e1b9081e705") AS version;
+
+--echo #
+--echo # deprecated uuid version 2
+--echo #
+SELECT UUID_VERSION("AF39A01C-E29D-2C4C-8072-60CEB26A82F1") AS version;
+
+--echo #
+--echo # no argument
+--echo #
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT UUID_VERSION() AS version;
+
+--echo #
+--echo # multiple arguments
+--echo #
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT UUID_VERSION(uuid(), 1) AS version;
+
+--echo #
+--echo # use it in check constraint to force uuid_v1
+--echo #
+
+CREATE TABLE t1 (id uuid PRIMARY KEY CHECK(uuid_version(id) = 1));
+INSERT INTO t1 VALUES(UUID());
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES(UUID_v4());
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES(UUID_v7());
+DROP TABLE t1;
+
+--echo #
+--echo # use it in check constraint to force uuid_v4
+--echo #
+
+CREATE TABLE t1 (id uuid PRIMARY KEY CHECK(uuid_version(id) = 4));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES(UUID());
+INSERT INTO t1 VALUES(UUID_v4());
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES(UUID_v7());
+DROP TABLE t1;
+
+--echo #
+--echo # use it in check constraint to force uuid_v7
+--echo #
+
+CREATE TABLE t1 (id uuid PRIMARY KEY CHECK(uuid_version(id) = 7));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES(UUID());
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES(UUID_v4());
+INSERT INTO t1 VALUES(UUID_v7());
+DROP TABLE t1;
+
+--echo #
+--echo # visualize all the version numbers
+--echo #
+CREATE TABLE t1 (id uuid PRIMARY KEY);
+
+INSERT INTO t1 (id) VALUES
+-- Version 1 (time-based)
+('6ba7b810-9dad-11d1-80b4-00c04fd430c8'),
+('f81d4fae-7dec-11d0-a765-00a0c91e6bf6'),
+
+-- Version 3 (MD5 name-based)
+('9073926b-929f-31c2-abc9-fad77ae3e8eb'),
+
+-- Version 4 (random)
+('550e8400-e29b-41d4-a716-446655440000'),
+('123e4567-e89b-42d3-a456-426614174000'),
+('ffffffff-ffff-4fff-bfff-ffffffffffff'),
+
+-- Version 5 (SHA-1 name-based)
+('2ed6657d-e927-568b-95e1-2665a8aea6a2'),
+
+-- Version 6 (reordered time-based)
+('1ec9414c-232a-6b00-b3c8-9e6bdecf3d2a'),
+('1f0799c0-98b9-6f10-a2d3-5f6e7c8b9a01'),
+
+-- Version 7 (Unix time + random)
+('01890f4e-7b1a-7cc0-9f2a-6b5c4d3e2f10'),
+('017f22e2-79b0-7a5b-b123-456789abcdef'),
+
+-- Version 8 (custom / experimental)
+('12345678-1234-8abc-8def-1234567890ab'),
+('ffffffff-ffff-8fff-bfff-ffffffffffff'),
+
+-- Boundary / edge patterns
+('00000000-0000-4000-8000-000000000000'),
+('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+('bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb'),
+
+-- Mixed / fuzz-like
+('deadbeef-dead-4bad-8eed-feedfacecafe'),
+('cafebabe-cafe-4abe-8afe-babecafebabe');
+
+SELECT id,uuid_version(id) as v FROM t1 ORDER BY id;
+TRUNCATE TABLE t1;
+
+INSERT INTO t1 (id) VALUES
+('000003e8-89ab-21d3-8c4d-001122334455'),
+('000007d0-1234-2abc-9def-112233445566'),
+('00000064-dead-2bad-a123-abcdefabcdef'),
+('0000c350-beef-2345-b678-1234567890ab'),
+('00000001-cafe-2ace-8ace-feedfacecafe');
+SELECT id,uuid_version(id) as v FROM t1 ORDER BY id;
+
+DROP TABLE t1;
