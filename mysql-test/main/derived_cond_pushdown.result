@@ -3510,7 +3510,7 @@ EXPLAIN
             "filtered": 100
           },
           "buffer_type": "incremental",
-          "buffer_size": "4Kb",
+          "buffer_size": "4KiB",
           "join_type": "BNL",
           "attached_condition": "v1.a = t2.a and v2.a = t2.a or v2.b > 13 and t2.c < 115",
           "materialized": {
@@ -3626,7 +3626,7 @@ EXPLAIN
             "attached_condition": "v2.b < 50 or v2.b = 19"
           },
           "buffer_type": "incremental",
-          "buffer_size": "4Kb",
+          "buffer_size": "4KiB",
           "join_type": "BNL",
           "attached_condition": "(v2.a = v1.a or v1.a = t2.a) and (v2.b < 50 or v2.b = 19)",
           "materialized": {
@@ -4096,7 +4096,7 @@ EXPLAIN
             "attached_condition": "v2.max_c > 300"
           },
           "buffer_type": "incremental",
-          "buffer_size": "9Kb",
+          "buffer_size": "9KiB",
           "join_type": "BNL",
           "attached_condition": "v2.a = v1.a or v1.a = t2.a",
           "materialized": {
@@ -5847,7 +5847,7 @@ EXPLAIN
             "attached_condition": "v_union.a = 1"
           },
           "buffer_type": "incremental",
-          "buffer_size": "4Kb",
+          "buffer_size": "4KiB",
           "join_type": "BNL",
           "attached_condition": "v_union.c > 800 or v1.max_c > 200",
           "materialized": {

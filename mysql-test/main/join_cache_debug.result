@@ -97,7 +97,7 @@ JSON
             "using_index": true
           },
           "buffer_type": "flat",
-          "buffer_size": "256Kb",
+          "buffer_size": "256KiB",
           "join_type": "BNL",
           "attached_condition": "trigcond(trigcond(t3.c = 1))",
           "r_loops": 10000,
