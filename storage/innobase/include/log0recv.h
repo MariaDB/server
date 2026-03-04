@@ -266,7 +266,7 @@ public:
     /** READ_WRITE or READ_ONLY, initially derived from the file permissions.
     In find_checkpoint(), all but the last file will be marked READ_ONLY.
     Also the last file may be marked READ_ONLY if recv_sys.rpo is set. */
-    const log_t::log_access access;
+    log_t::log_access access;
   };
   /** map of innodb_log_archive=ON files, indexed by the start LSN */
   using archive_map = std::map<const lsn_t, archive_log>;
