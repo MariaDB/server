@@ -326,6 +326,8 @@ bool Single_line_formatting_helper::on_add_member(const char *name,
                                                   size_t len)
 {
   DBUG_ASSERT(state== INACTIVE || state == DISABLED);
+  if (memchr(name, 0, len))
+    return false;
   if (state != DISABLED)
   {
     // remove everything from the array
@@ -389,6 +391,12 @@ bool Single_line_formatting_helper::on_add_str(const char *str,
 {
   if (state == IN_ARRAY)
   {
+    if (memchr(str, 0, len))
+    {
+      disable_and_flush();
+      return false;
+    }
+
     // New length will be:
     //  "$string", 
     //  quote + quote + comma + space = 4
@@ -485,4 +493,3 @@ void Single_line_formatting_helper::disable_and_flush()
   buf_ptr= buffer;
   state= INACTIVE;
 }
-
