@@ -131,6 +131,44 @@ static bool
 write_bin_log_start_alter_rollback(THD *thd, uint64 &start_alter_id,
                                    bool &partial_alter, bool if_exists);
 
+
+/**
+  Check if AUTO_INCREMENT was set as requested and warn if not.
+
+  MDEV-33660: When ALTER TABLE ... AUTO_INCREMENT=N is used with N lower
+  than the next AUTO_INCREMENT value in the column, the engine keeps the
+  higher value. This function checks and issues a warning if so.
+
+  @param thd           Thread handle
+  @param create_info   Create info with requested auto_increment value
+  @param table         Table to check (after ALTER is complete)
+*/
+
+static void
+check_auto_increment_lower_than_max(THD *thd,
+                                    const HA_CREATE_INFO *create_info,
+                                    TABLE *table)
+{
+  if (!(create_info->used_fields & HA_CREATE_USED_AUTO) ||
+      create_info->auto_increment_value == 0 ||
+      !table || !table->found_next_number_field || !table->file)
+    return;
+
+  if (table->file->info(HA_STATUS_AUTO))
+    return;
+
+  ulonglong next_auto_inc= table->file->stats.auto_increment_value;
+  if (next_auto_inc > create_info->auto_increment_value)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_ALTER_INFO,
+                        "Can not set AUTO_INCREMENT to %llu which is lower "
+                        "than the next AUTO_INCREMENT value of %llu",
+                        create_info->auto_increment_value,
+                        next_auto_inc);
+  }
+}
+
 /**
   @brief Helper function for explain_filename
   @param thd          Thread handle
@@ -8222,6 +8260,8 @@ static bool mysql_inplace_alter_table(THD *thd,
     commit_succeded_with_error= 1;
   }
 
+  check_auto_increment_lower_than_max(thd, ha_alter_info->create_info, table);
+
   close_all_tables_for_name(thd, table->s,
                             alter_ctx->is_table_renamed() ?
                             HA_EXTRA_PREPARE_FOR_RENAME :
@@ -11474,6 +11514,9 @@ do_continue:;
       */
       table->file->ha_create_partitioning_metadata(alter_ctx.get_tmp_path(),
                                                    NULL, CHF_DELETE_FLAG);
+
+      check_auto_increment_lower_than_max(thd, ha_alter_info.create_info, table);
+
       goto end_inplace;
     }
 
@@ -11790,6 +11833,9 @@ do_continue:;
     if (wait_for_master(thd))
       goto err_new_table_cleanup;
   }
+
+  check_auto_increment_lower_than_max(thd, create_info, new_table);
+
   if (table->s->tmp_table != NO_TMP_TABLE)
   {
     /* Release lock if this is a transactional temporary table */

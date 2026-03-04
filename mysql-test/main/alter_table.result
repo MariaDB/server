@@ -1279,6 +1279,8 @@ ALTER TABLE t1
 DROP i,
 ADD i INT UNSIGNED NOT NULL AUTO_INCREMENT,
 AUTO_INCREMENT = 1;
+Warnings:
+Warning	1088	Can not set AUTO_INCREMENT to 1 which is lower than the next AUTO_INCREMENT value of 4
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(1), PRIMARY KEY (a(255)));
 ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
