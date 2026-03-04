@@ -9092,6 +9092,11 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   opt_init_connect.length=strlen(opt_init_connect.str);
   opt_init_slave.length=strlen(opt_init_slave.str);
 
+#ifdef HAVE_REPLICATION
+  global_system_variables.default_master_connection.length=
+    strlen(global_system_variables.default_master_connection.str);
+#endif
+
   if (global_system_variables.low_priority_updates)
     thr_upgraded_concurrent_insert_lock= TL_WRITE_LOW_PRIORITY;
 
