@@ -2770,4 +2770,28 @@ S1A1
 SELECT JSON_VALUE('{"a":[1,2]}', '$.a[*]');
 JSON_VALUE('{"a":[1,2]}', '$.a[*]')
 NULL
+#
+# MDEV-38264 Assertion in json_find_path() fails after computing
+# array size of invalid json structure
+#
+SELECT JSON_QUERY('{ "A": [0,] }', '$.A[-1]');
+JSON_QUERY('{ "A": [0,] }', '$.A[-1]')
+NULL
+SELECT JSON_VALUE('{ "A": [0,] }', '$.A[-1]');
+JSON_VALUE('{ "A": [0,] }', '$.A[-1]')
+NULL
+SELECT JSON_VALUE('{ "A": [5,] }', '$.A[-2]');
+JSON_VALUE('{ "A": [5,] }', '$.A[-2]')
+NULL
+SELECT JSON_VALUE('{ "A": [5] }', '$.A[-2]');
+JSON_VALUE('{ "A": [5] }', '$.A[-2]')
+NULL
+SELECT JSON_LENGTH('{ "A": [0,] }', '$.A');
+JSON_LENGTH('{ "A": [0,] }', '$.A')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' at position 11
+SELECT JSON_VALID('{ "A": [0,] }');
+JSON_VALID('{ "A": [0,] }')
+0
 # End of 10.11 Test
