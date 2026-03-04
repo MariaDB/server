@@ -26,6 +26,87 @@ INSERT INTO t1 VALUES (1), (2);
 </mysqldump>
 DROP TABLE t1;
 #
+# MDEV-32362 Remove generated columns from INSERT statements in dump
+# Include list of non-generated columns in INSERT statements for tables
+# with one or more generated columns
+#
+CREATE DATABASE dump_generated;
+USE dump_generated;
+CREATE TABLE t1 (pk INTEGER, a INTEGER, b INTEGER, c VARCHAR(16),
+sum INTEGER GENERATED ALWAYS AS (a+b),
+sub VARCHAR(4) GENERATED ALWAYS AS (SUBSTRING(c, 1, 4)),
+key k1(sum),
+key k2(sub)
+) engine=innodb;
+INSERT INTO t1(pk, a, b, c) VALUES (1, 11, 12, 'oneone'), (2, 21, 22, 'twotwo');
+SELECT * FROM t1;
+pk	a	b	c	sum	sub
+1	11	12	oneone	23	oneo
+2	21	22	twotwo	43	twot
+# Default behavior: INSERT with DEFAULT for generated columns
+/*M!999999\- enable the sandbox mode */ 
+set autocommit=0;
+INSERT INTO `t1` VALUES
+(1,11,12,'oneone',DEFAULT,DEFAULT),
+(2,21,22,'twotwo',DEFAULT,DEFAULT);
+commit;
+# With --complete-insert: generated columns omitted from column list
+/*M!999999\- enable the sandbox mode */ 
+set autocommit=0;
+INSERT INTO `t1` (`pk`, `a`, `b`, `c`) VALUES (1,11,12,'oneone'),
+(2,21,22,'twotwo');
+commit;
+DELETE FROM t1;
+SELECT * FROM t1;
+pk	a	b	c	sum	sub
+1	11	12	oneone	23	oneo
+2	21	22	twotwo	43	twot
+DELETE FROM t1;
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/t1.txt' INTO TABLE t1;
+SELECT * FROM t1;
+pk	a	b	c	sum	sub
+1	11	12	oneone	23	oneo
+2	21	22	twotwo	43	twot
+DROP TABLE t1;
+# A table with regular columns after generated
+CREATE TABLE t2 (pk INTEGER, a INTEGER, b INTEGER,
+sum INTEGER GENERATED ALWAYS AS (a+b),
+c VARCHAR(16),
+key k1(sum)
+) engine=innodb;
+INSERT INTO t2(pk, a, b, c) VALUES (1, 11, 12, 'oneone'), (2, 21, 22, 'twotwo');
+SELECT * FROM t2;
+pk	a	b	sum	c
+1	11	12	23	oneone
+2	21	22	43	twotwo
+# Default behavior: INSERT with DEFAULT for generated columns
+/*M!999999\- enable the sandbox mode */ 
+set autocommit=0;
+INSERT INTO `t2` VALUES
+(1,11,12,DEFAULT,'oneone'),
+(2,21,22,DEFAULT,'twotwo');
+commit;
+# With --complete-insert: generated columns omitted from column list
+/*M!999999\- enable the sandbox mode */ 
+set autocommit=0;
+INSERT INTO `t2` (`pk`, `a`, `b`, `c`) VALUES (1,11,12,'oneone'),
+(2,21,22,'twotwo');
+commit;
+DELETE FROM t2;
+SELECT * FROM t2;
+pk	a	b	sum	c
+1	11	12	23	oneone
+2	21	22	43	twotwo
+DELETE FROM t2;
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/t2.txt' INTO TABLE t2;
+SELECT * FROM t2;
+pk	a	b	sum	c
+1	11	12	23	oneone
+2	21	22	43	twotwo
+DROP TABLE t2;
+DROP DATABASE dump_generated;
+USE test;
+#
 # Bug#2005 Long decimal comparison bug.
 #
 CREATE TABLE t1 (a decimal(64, 20));
