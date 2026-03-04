@@ -13888,6 +13888,24 @@ QUICK_SELECT_DESC::QUICK_SELECT_DESC(QUICK_RANGE_SELECT *q,
   q->dont_free=1;				// Don't free shared mem
 }
 
+/**
+  Helper function for QUICK_SELECT_DESC::get_next(), below, which sets the
+  minimum endpoint as the end range on the storage engine when scanning in
+  descending order.
+
+  @param file        storage engine handler
+  @param last_range  the range under inspection by QUICK_SELECT_DESC::get_next()
+ */
+static void set_min_range(handler *file, QUICK_RANGE *last_range)
+{
+  key_range min_range;
+  last_range->make_min_endpoint(&min_range);
+  if (min_range.length > 0)
+    file->set_end_range(&min_range, handler::RANGE_SCAN_DESC);
+  else
+    file->set_end_range(nullptr);
+}
+
 
 int QUICK_SELECT_DESC::get_next()
 {
@@ -13904,7 +13922,7 @@ int QUICK_SELECT_DESC::get_next()
    *     step back once, and move backwards
    */
 
-  for (;;)
+  for (;; last_range= nullptr, file->set_end_range(nullptr))
   {
     int result;
     if (last_range)
@@ -13950,10 +13968,13 @@ int QUICK_SELECT_DESC::get_next()
     {
       int local_error;
       if (unlikely((local_error= file->ha_index_last(record))))
-	DBUG_RETURN(local_error);		// Empty table
+        DBUG_RETURN(local_error);		// Empty table
       if (cmp_prev(last_range) == 0)
-	DBUG_RETURN(0);
-      last_range= 0;                            // No match; go to next range
+      {
+        set_min_range(file, last_range);
+        DBUG_RETURN(0);
+      }
+      // No match; go to next range
       continue;
     }
 
@@ -13970,11 +13991,7 @@ int QUICK_SELECT_DESC::get_next()
     }
     else
     {
-      key_range min_range;
-      last_range->make_min_endpoint(&min_range);
-      if (min_range.length > 0)
-        file->set_end_range(&min_range, handler::RANGE_SCAN_DESC);
-
+      set_min_range(file, last_range);
       DBUG_ASSERT(last_range->flag & NEAR_MAX ||
                   (last_range->flag & EQ_RANGE && 
                    used_key_parts > head->key_info[index].user_defined_key_parts) ||
@@ -13989,7 +14006,7 @@ int QUICK_SELECT_DESC::get_next()
     {
       if (result != HA_ERR_KEY_NOT_FOUND && result != HA_ERR_END_OF_FILE)
 	DBUG_RETURN(result);
-      last_range= 0;                            // Not found, to next range
+      // Not found, to next range
       continue;
     }
     if (cmp_prev(last_range) == 0)
@@ -13998,7 +14015,7 @@ int QUICK_SELECT_DESC::get_next()
 	last_range= 0;				// Stop searching
       DBUG_RETURN(0);				// Found key is in range
     }
-    last_range= 0;                              // To next range
+    // To next range
   }
 }
 
