@@ -159,11 +159,15 @@ extern Time_zone *spd_tz_system;
 inline int spider_write_sys_table_row(TABLE *table, bool do_handle_error = TRUE)
 {
   int error_num;
-  THD *thd = table->in_use;
+  /*
+    THD *thd = table->in_use;
 
-  tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
+    tmp_disable_binlog(thd); /\* Do not replicate the low-level changes. *\/
+   */
   error_num = table->file->ha_write_row(table->record[0]);
-  reenable_binlog(thd);
+  /*
+    reenable_binlog(thd);
+   */
 
   if (error_num && do_handle_error)
     table->file->print_error(error_num, MYF(0));
