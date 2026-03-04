@@ -1,0 +1,63 @@
+#
+# UUIDv1
+#
+SELECT UUID_VERSION(uuid()) AS version;
+version
+1
+#
+# UUIDv4
+#
+SELECT UUID_VERSION(uuid_v4()) AS version;
+version
+4
+#
+# UUIDv7
+#
+SELECT UUID_VERSION(uuid_v7()) AS version;
+version
+7
+#
+# not valid
+#
+SELECT UUID_VERSION("lefred") AS version;
+ERROR HY000: uuid_version: not a valid UUID
+#
+# no argument
+#
+SELECT UUID_VERSION() AS version;
+ERROR 42000: Incorrect parameter count in the call to native function 'UUID_VERSION'
+#
+# multiple arguments
+#
+SELECT UUID_VERSION(uuid(), 1) AS version;
+ERROR 42000: Incorrect parameter count in the call to native function 'UUID_VERSION'
+#
+# use it in check constraint to force uuid_v1
+#
+CREATE TABLE t1 (uuid CHAR(36) PRIMARY KEY CHECK(uuid_version(uuid) = 1));
+INSERT INTO t1 VALUES(UUID());
+INSERT INTO t1 VALUES(UUID_v4());
+ERROR 23000: CONSTRAINT `t1.uuid` failed for `test`.`t1`
+INSERT INTO t1 VALUES(UUID_v7());
+ERROR 23000: CONSTRAINT `t1.uuid` failed for `test`.`t1`
+DROP TABLE t1;
+#
+# use it in check constraint to force uuid_v4
+#
+CREATE TABLE t1 (uuid CHAR(36) PRIMARY KEY CHECK(uuid_version(uuid) = 4));
+INSERT INTO t1 VALUES(UUID());
+ERROR 23000: CONSTRAINT `t1.uuid` failed for `test`.`t1`
+INSERT INTO t1 VALUES(UUID_v4());
+INSERT INTO t1 VALUES(UUID_v7());
+ERROR 23000: CONSTRAINT `t1.uuid` failed for `test`.`t1`
+DROP TABLE t1;
+#
+# use it in check constraint to force uuid_v7
+#
+CREATE TABLE t1 (uuid CHAR(36) PRIMARY KEY CHECK(uuid_version(uuid) = 7));
+INSERT INTO t1 VALUES(UUID());
+ERROR 23000: CONSTRAINT `t1.uuid` failed for `test`.`t1`
+INSERT INTO t1 VALUES(UUID_v4());
+ERROR 23000: CONSTRAINT `t1.uuid` failed for `test`.`t1`
+INSERT INTO t1 VALUES(UUID_v7());
+DROP TABLE t1;

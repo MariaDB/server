@@ -1,0 +1,70 @@
+#UUID_VERSION() extract version from UUIDs
+
+--echo #
+--echo # UUIDv1
+--echo #
+SELECT UUID_VERSION(uuid()) AS version;
+
+--echo #
+--echo # UUIDv4
+--echo #
+SELECT UUID_VERSION(uuid_v4()) AS version;
+
+--echo #
+--echo # UUIDv7
+--echo #
+SELECT UUID_VERSION(uuid_v7()) AS version;
+
+--echo #
+--echo # not valid
+--echo #
+--error 1105
+SELECT UUID_VERSION("lefred") AS version;
+
+--echo #
+--echo # no argument
+--echo #
+--error 1582
+SELECT UUID_VERSION() AS version;
+
+--echo #
+--echo # multiple arguments
+--echo #
+--error 1582
+SELECT UUID_VERSION(uuid(), 1) AS version;
+
+--echo #
+--echo # use it in check constraint to force uuid_v1
+--echo #
+
+CREATE TABLE t1 (uuid CHAR(36) PRIMARY KEY CHECK(uuid_version(uuid) = 1));
+INSERT INTO t1 VALUES(UUID());
+--error 4025
+INSERT INTO t1 VALUES(UUID_v4());
+--error 4025
+INSERT INTO t1 VALUES(UUID_v7());
+DROP TABLE t1;
+
+--echo #
+--echo # use it in check constraint to force uuid_v4
+--echo #
+
+CREATE TABLE t1 (uuid CHAR(36) PRIMARY KEY CHECK(uuid_version(uuid) = 4));
+--error 4025
+INSERT INTO t1 VALUES(UUID());
+INSERT INTO t1 VALUES(UUID_v4());
+--error 4025
+INSERT INTO t1 VALUES(UUID_v7());
+DROP TABLE t1;
+
+--echo #
+--echo # use it in check constraint to force uuid_v7
+--echo #
+
+CREATE TABLE t1 (uuid CHAR(36) PRIMARY KEY CHECK(uuid_version(uuid) = 7));
+--error 4025
+INSERT INTO t1 VALUES(UUID());
+--error 4025
+INSERT INTO t1 VALUES(UUID_v4());
+INSERT INTO t1 VALUES(UUID_v7());
+DROP TABLE t1;
