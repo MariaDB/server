@@ -40,13 +40,12 @@ SELECT id, VEC_DISTANCE_EUCLIDEAN(v, VEC_FromText('[0,0,0]')) as dist FROM t1 OR
 CREATE VECTOR INDEX idx ON t1(v) DISTANCE=manhattan;
 
 --echo # Output should be 3,5 and 6 again
-SELECT id, VEC_DISTANCE_MANHATTAN(v, VEC_FromText('[0,0,0]')) as dist FROM t1 ORDER BY dist LIMIT 3;
+SELECT id, VEC_DISTANCE_MANHATTAN(v, VEC_FromText('[0,0,0]')) as dist FROM t1 FORCE INDEX (idx) ORDER BY dist LIMIT 3;
 
 --echo # Checking if the vector index is actually implemented using manhattan distance
-EXPLAIN SELECT id FROM t1 FORCE INDEX (idx) 
-ORDER BY VEC_DISTANCE_MANHATTAN(v, VEC_FromText('[0,0,0]')) LIMIT 1;
+EXPLAIN SELECT id, VEC_DISTANCE_MANHATTAN(v, VEC_FromText('[0,0,0]')) as dist FROM t1 FORCE INDEX (idx) ORDER BY dist LIMIT 3;
 
---echo # Cleanup
+--echo # Cleanup    
 DROP TABLE t1;
 
 --echo # Miscellaneous Tests

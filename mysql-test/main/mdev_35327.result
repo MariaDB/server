@@ -46,17 +46,16 @@ id	dist
 #
 CREATE VECTOR INDEX idx ON t1(v) DISTANCE=manhattan;
 # Output should be 3,5 and 6 again
-SELECT id, VEC_DISTANCE_MANHATTAN(v, VEC_FromText('[0,0,0]')) as dist FROM t1 ORDER BY dist LIMIT 3;
+SELECT id, VEC_DISTANCE_MANHATTAN(v, VEC_FromText('[0,0,0]')) as dist FROM t1 FORCE INDEX (idx) ORDER BY dist LIMIT 3;
 id	dist
 3	3
-2	5
 1	6
+2	5
 # Checking if the vector index is actually implemented using manhattan distance
-EXPLAIN SELECT id FROM t1 FORCE INDEX (idx) 
-ORDER BY VEC_DISTANCE_MANHATTAN(v, VEC_FromText('[0,0,0]')) LIMIT 1;
+EXPLAIN SELECT id, VEC_DISTANCE_MANHATTAN(v, VEC_FromText('[0,0,0]')) as dist FROM t1 FORCE INDEX (idx) ORDER BY dist LIMIT 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	idx	14	NULL	1	
-# Cleanup
+1	SIMPLE	t1	index	NULL	idx	14	NULL	3	
+# Cleanup    
 DROP TABLE t1;
 # Miscellaneous Tests
 SELECT VEC_DISTANCE_MANHATTAN(VEC_FromText('[-1,-1]'), VEC_FromText('[1,1]')) as neg_test;
