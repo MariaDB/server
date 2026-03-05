@@ -1932,6 +1932,8 @@ trx_undo_report_row_operation(
 			(*pundo)->top_offset = (*pundo)->old_offset;
 			(*pundo)->top_undo_no = 0;
 			trx->undo_no = 0;
+			trx->mod_tables.clear();
+			m = trx->mod_tables.emplace(index->table, 0);
 			mtr.write<2>(
 			  *undo_block,
 			  undo_block->page.frame + TRX_UNDO_PAGE_HDR +

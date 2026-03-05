@@ -692,7 +692,7 @@ handle_new_error:
 		For ALTER TABLE ALGORITHM=COPY & CREATE TABLE...SELECT,
 		the bulk insert transaction will be rolled back inside
 		ha_innobase::extra(HA_EXTRA_ABORT_COPY) */
-		trx->bulk_insert &= TRX_DDL_BULK;
+		trx->clear_dml_bulk();
 		trx->last_stmt_start = 0;
 		break;
 	case DB_LOCK_WAIT:
@@ -1277,12 +1277,7 @@ row_insert_for_mysql(
           node->vers_update_end(prebuilt, ins_mode == ROW_INS_HISTORICAL);
         }
 
-	/* Because we now allow multiple INSERT into the same
-	initially empty table in bulk insert mode, on error we must
-	roll back to the start of the transaction. For correctness, it
-	would suffice to roll back to the start of the first insert
-	into this empty table, but we will keep it simple and efficient. */
-	const undo_no_t savept{trx->bulk_insert ? 0 : trx->undo_no};
+	undo_no_t savept = trx->undo_no;
 
 	thr = que_fork_get_first_thr(prebuilt->ins_graph);
 
@@ -1308,6 +1303,24 @@ run_again:
 error_exit:
 		/* FIXME: What's this ? */
 		thr->lock_state = QUE_THR_LOCK_ROW;
+
+		/* Because we now allow multiple INSERT into the same
+		initially empty table in bulk insert mode, on error we must
+		roll back to the start of the transaction. For correctness, it
+		would suffice to roll back to the start of the first insert
+		into this empty table, but we will keep it simple and efficient.
+
+		In ALTER IGNORE...ALGORITHM=COPY (IGNORE_UNDO mode),
+		trx_undo_report_row_operation() rewrites the insert undo log to
+		retain only the latest record, resetting trx->undo_no to 0
+		before each new insert. We must use savept=0 so that partial
+		rollback targets the single surviving undo record. */
+		static_assert(TRX_DML_BULK & 2, "");
+		static_assert(TRX_DDL_BULK & 2, "");
+		static_assert(dict_table_t::IGNORE_UNDO == 2, "");
+		if ((trx->bulk_insert | table->skip_alter_undo) & 2) {
+			savept = 0;
+		}
 
 		was_lock_wait = row_mysql_handle_errors(
 			&err, trx, thr, &savept);
