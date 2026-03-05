@@ -289,12 +289,12 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   if (!(mem_root->flags & ROOT_FLAG_MPROTECT))
   {
     length+= ALIGN_SIZE(sizeof(USED_MEM));
-    if (!(next = (USED_MEM*) my_malloc(mem_root->psi_key, length,
+    if (!(next= (USED_MEM*) my_malloc(mem_root->psi_key, length,
 				       MYF(MY_WME | ME_FATAL |
 					   MALLOC_FLAG(mem_root)))))
     {
       if (mem_root->error_handler)
-	(*mem_root->error_handler)();
+        (*mem_root->error_handler)();
       DBUG_RETURN((uchar*) 0);			/* purecov: inspected */
     }
     next->next= mem_root->used;
@@ -310,8 +310,8 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   if ((*(prev= &mem_root->free)) != NULL)
   {
     if ((*prev)->left < length &&
-	mem_root->first_block_usage++ >= ALLOC_MAX_BLOCK_USAGE_BEFORE_DROP &&
-	(*prev)->left < ALLOC_MAX_BLOCK_TO_DROP)
+	      mem_root->first_block_usage++ >= ALLOC_MAX_BLOCK_USAGE_BEFORE_DROP &&
+	      (*prev)->left < ALLOC_MAX_BLOCK_TO_DROP)
     {
       next= *prev;
       *prev= next->next;			/* Remove block from free list */
@@ -337,7 +337,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
                                        MYF(MY_WME | ME_FATAL))))
     {
       if (mem_root->error_handler)
-	(*mem_root->error_handler)();
+	      (*mem_root->error_handler)();
       DBUG_RETURN((void*) 0);                      /* purecov: inspected */
     }
     mem_root->block_num++;
