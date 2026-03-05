@@ -123,3 +123,22 @@ Warning	4048	Incorrect GeoJSON format specified for st_geomfromgeojson function.
 #
 # End of 10.2 tests
 #
+#
+# MDEV-34079: ST_AsGeoJSON returns incorrect value for empty geometry
+#
+SELECT ST_AsGeoJSON(GeomFromText('GeometryCollection EMPTY'));
+ST_AsGeoJSON(GeomFromText('GeometryCollection EMPTY'))
+{"type": "GeometryCollection", "geometries": []}
+SELECT ST_AsGeoJSON(ST_DIFFERENCE(POINT(0,0), POINT(0,0)));
+ST_AsGeoJSON(ST_DIFFERENCE(POINT(0,0), POINT(0,0)))
+{"type": "GeometryCollection", "geometries": []}
+SELECT ST_AsGeoJSON(GeomFromText('MultiPoint EMPTY'));
+ST_AsGeoJSON(GeomFromText('MultiPoint EMPTY'))
+NULL
+SELECT ST_AsGeoJSON(GeomFromText('MultiLineString EMPTY'));
+ST_AsGeoJSON(GeomFromText('MultiLineString EMPTY'))
+NULL
+SELECT ST_AsGeoJSON(GeomFromText('MultiPolygon EMPTY'));
+ST_AsGeoJSON(GeomFromText('MultiPolygon EMPTY'))
+NULL
+# End of 10.11 tests

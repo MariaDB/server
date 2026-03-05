@@ -863,7 +863,8 @@ static const char *append_json_points(String *txt, uint max_dec,
     data+= POINT_DATA_SIZE;
     txt->qs_append(", ", 2);
   }
-  txt->length(txt->length() - 2);// Remove ending ', '
+  if (txt->ptr()[txt->length() - 1] == ' ')
+    txt->length(txt->length() - 2);// Remove ending ', '
   txt->qs_append(']');
   return data;
 }
@@ -1761,7 +1762,8 @@ bool Gis_polygon::get_data_as_json(String *txt, uint max_dec_digits,
     data= append_json_points(txt, max_dec_digits, n_points, data, 0);
     txt->qs_append(", ", 2);
   }
-  txt->length(txt->length() - 2);// Remove ending ', '
+  if (txt->ptr()[txt->length() - 1] == ' ')
+    txt->length(txt->length() - 2);// Remove ending ', '
   txt->qs_append(']');
   *end= data;
   return 0;
@@ -2636,7 +2638,8 @@ bool Gis_multi_line_string::get_data_as_json(String *txt, uint max_dec_digits,
     data= append_json_points(txt, max_dec_digits, n_points, data, 0);
     txt->qs_append(", ", 2);
   }
-  txt->length(txt->length() - 2);
+  if (txt->ptr()[txt->length() - 1] == ' ')
+    txt->length(txt->length() - 2);
   txt->qs_append(']');
   *end= data;
   return 0;
@@ -3059,7 +3062,8 @@ bool Gis_multi_polygon::get_data_as_json(String *txt, uint max_dec_digits,
     txt->length(txt->length() - 2);
     txt->qs_append("], ", 3);
   }
-  txt->length(txt->length() - 2);
+  if (txt->ptr()[txt->length() - 1] == ' ')
+    txt->length(txt->length() - 2);
   txt->q_append(']');
   *end= data;
   return 0;
@@ -3529,7 +3533,8 @@ bool Gis_geometry_collection::get_data_as_json(String *txt, uint max_dec_digits,
         txt->append(STRING_WITH_LEN("}, "), 512))
       return 1;
   }
-  txt->length(txt->length() - 2);
+  if (txt->ptr()[txt->length() - 1] == ' ')
+    txt->length(txt->length() - 2);
   if (txt->append(']'))
     return 1;
 
