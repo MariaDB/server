@@ -1,4 +1,10 @@
-#UUID_VERSION() extract version from UUIDs
+--echo #
+--echo # Start of 13.0 test
+--echo #
+
+--echo #
+--echo # MDEV-38983 Adding UUID_VERSION()
+--echo #
 
 --echo #
 --echo # UUIDv1
@@ -16,21 +22,38 @@ SELECT UUID_VERSION(uuid_v4()) AS version;
 SELECT UUID_VERSION(uuid_v7()) AS version;
 
 --echo #
---echo # not valid
+--echo # UUIDv5
 --echo #
---error 1105
+SELECT UUID_VERSION("3e1f44c0-1c3d-535d-ac3f-5218a74bf2df") AS version;
+
+--echo #
+--echo # not valid with text
+--echo #
+--error ER_TRUNCATED_WRONG_VALUE
 SELECT UUID_VERSION("lefred") AS version;
+
+--echo #
+--echo # not valid with wrong uuid (version 8)
+--echo #
+--error ER_TRUNCATED_WRONG_VALUE
+SELECT UUID_VERSION("AF39A01C-E29D-8C4C-8072-60CEB26A82F1") AS version;
+
+--echo #
+--echo # not valid with wrong uuid (version 9)
+--echo #
+--error ER_TRUNCATED_WRONG_VALUE
+SELECT UUID_VERSION("AF39A01C-E29D-8C4C-8072-60CEB26A82F1") AS version;
 
 --echo #
 --echo # no argument
 --echo #
---error 1582
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
 SELECT UUID_VERSION() AS version;
 
 --echo #
 --echo # multiple arguments
 --echo #
---error 1582
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
 SELECT UUID_VERSION(uuid(), 1) AS version;
 
 --echo #
@@ -39,9 +62,9 @@ SELECT UUID_VERSION(uuid(), 1) AS version;
 
 CREATE TABLE t1 (uuid CHAR(36) PRIMARY KEY CHECK(uuid_version(uuid) = 1));
 INSERT INTO t1 VALUES(UUID());
---error 4025
+--error ER_CONSTRAINT_FAILED
 INSERT INTO t1 VALUES(UUID_v4());
---error 4025
+--error ER_CONSTRAINT_FAILED
 INSERT INTO t1 VALUES(UUID_v7());
 DROP TABLE t1;
 
@@ -50,10 +73,10 @@ DROP TABLE t1;
 --echo #
 
 CREATE TABLE t1 (uuid CHAR(36) PRIMARY KEY CHECK(uuid_version(uuid) = 4));
---error 4025
+--error ER_CONSTRAINT_FAILED
 INSERT INTO t1 VALUES(UUID());
 INSERT INTO t1 VALUES(UUID_v4());
---error 4025
+--error ER_CONSTRAINT_FAILED
 INSERT INTO t1 VALUES(UUID_v7());
 DROP TABLE t1;
 
@@ -62,9 +85,11 @@ DROP TABLE t1;
 --echo #
 
 CREATE TABLE t1 (uuid CHAR(36) PRIMARY KEY CHECK(uuid_version(uuid) = 7));
---error 4025
+--error ER_CONSTRAINT_FAILED
 INSERT INTO t1 VALUES(UUID());
---error 4025
+--error ER_CONSTRAINT_FAILED
 INSERT INTO t1 VALUES(UUID_v4());
 INSERT INTO t1 VALUES(UUID_v7());
 DROP TABLE t1;
+
+--echo End of 13.0 test

@@ -1,4 +1,10 @@
 #
+# Start of 13.0 test
+#
+#
+# MDEV-38983 Adding UUID_VERSION()
+#
+#
 # UUIDv1
 #
 SELECT UUID_VERSION(uuid()) AS version;
@@ -17,10 +23,26 @@ SELECT UUID_VERSION(uuid_v7()) AS version;
 version
 7
 #
-# not valid
+# UUIDv5
+#
+SELECT UUID_VERSION("3e1f44c0-1c3d-535d-ac3f-5218a74bf2df") AS version;
+version
+5
+#
+# not valid with text
 #
 SELECT UUID_VERSION("lefred") AS version;
-ERROR HY000: uuid_version: not a valid UUID
+ERROR 22007: Incorrect uuid value: 'lefred'
+#
+# not valid with wrong uuid (version 8)
+#
+SELECT UUID_VERSION("AF39A01C-E29D-8C4C-8072-60CEB26A82F1") AS version;
+ERROR 22007: Incorrect uuid value: 'AF39A01C-E29D-8C4C-8072-60CEB26A82F1'
+#
+# not valid with wrong uuid (version 9)
+#
+SELECT UUID_VERSION("AF39A01C-E29D-8C4C-8072-60CEB26A82F1") AS version;
+ERROR 22007: Incorrect uuid value: 'AF39A01C-E29D-8C4C-8072-60CEB26A82F1'
 #
 # no argument
 #
@@ -61,3 +83,4 @@ INSERT INTO t1 VALUES(UUID_v4());
 ERROR 23000: CONSTRAINT `t1.uuid` failed for `test`.`t1`
 INSERT INTO t1 VALUES(UUID_v7());
 DROP TABLE t1;
+End of 13.0 test

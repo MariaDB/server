@@ -330,8 +330,8 @@ maria_declare_plugin(type_uuid)
   0,                                                  // Pointer to plugin deinitialization function
   0x0100,                                             // Numeric version 0xAABB means AA.BB version
   NULL,                                               // Status variables
-   NULL,                                               // System variables
+   NULL,                                              // System variables
   "1.0",                                              // String version representation
-  MariaDB_PLUGIN_MATURITY_STABLE                      // Maturity(see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL                // Maturity(see include/mysql/plugin.h)*/
 }
 maria_declare_plugin_end;
