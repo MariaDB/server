@@ -1825,6 +1825,17 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
 
   if (duplic == DUP_UPDATE)
   {
+    /*
+      The row alias for INSERT ... AS alias cannot be the same as the
+      target table name, as this would make column references ambiguous.
+    */
+    if (thd->lex->insert_values_alias.str &&
+        table_list->table_name.streq(thd->lex->insert_values_alias))
+    {
+      my_error(ER_NONUNIQ_TABLE, MYF(0), thd->lex->insert_values_alias.str);
+      DBUG_RETURN(1);
+    }
+
     /* it should be allocated before Item::fix_fields() */
     if (table_list->set_insert_values(thd->mem_root))
       DBUG_RETURN(1);

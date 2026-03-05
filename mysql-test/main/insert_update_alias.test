@@ -1,0 +1,107 @@
+--echo #
+--echo # MDEV-29919: Support INSERT ... VALUES AS alias ON DUPLICATE KEY UPDATE
+--echo #
+
+#
+# This test validates the row alias syntax for INSERT ON DUPLICATE KEY UPDATE
+# which allows referencing inserted values using alias.column instead of VALUES(column)
+#
+
+--echo #
+--echo # Test setup
+--echo #
+CREATE TABLE t1 (
+  a INT PRIMARY KEY,
+  b INT,
+  c INT
+);
+
+--echo #
+--echo # Basic INSERT AS alias ON DUPLICATE KEY UPDATE
+--echo #
+INSERT INTO t1 VALUES (1, 10, 100);
+INSERT INTO t1 VALUES (1, 20, 200) AS new
+  ON DUPLICATE KEY UPDATE b = new.b, c = new.c;
+SELECT * FROM t1;
+
+--echo #
+--echo # Multiple rows with AS alias
+--echo #
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 10, 100);
+INSERT INTO t1 VALUES (1, 20, 200), (2, 30, 300) AS new
+  ON DUPLICATE KEY UPDATE b = new.b;
+SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # Expression using alias columns
+--echo #
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 10, 100);
+INSERT INTO t1 VALUES (1, 5, 50) AS new
+  ON DUPLICATE KEY UPDATE b = new.b + new.c, c = new.a * 10;
+SELECT * FROM t1;
+
+--echo #
+--echo # Mix of alias and table column references
+--echo #
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 10, 100);
+INSERT INTO t1 VALUES (1, 20, 200) AS new
+  ON DUPLICATE KEY UPDATE b = new.b, c = t1.c + new.c;
+SELECT * FROM t1;
+
+--echo #
+--echo # INSERT without ON DUPLICATE KEY (alias should be ignored)
+--echo #
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 10, 100) AS new;
+SELECT * FROM t1;
+
+--echo #
+--echo # Different alias names
+--echo #
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 10, 100);
+INSERT INTO t1 VALUES (1, 99, 999) AS inserted_row
+  ON DUPLICATE KEY UPDATE b = inserted_row.b, c = inserted_row.c;
+SELECT * FROM t1;
+
+--echo #
+--echo # Case sensitivity: alias names must match exactly
+--echo #
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 10, 100);
+--error ER_BAD_FIELD_ERROR
+INSERT INTO t1 VALUES (1, 50, 500) AS nEw
+  ON DUPLICATE KEY UPDATE b = new.b;
+
+--echo #
+--echo # Alias cannot be the same as the target table name
+--echo #
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 10, 100);
+--error ER_NONUNIQ_TABLE
+INSERT INTO t1 VALUES (1, 50, 500) AS t1
+  ON DUPLICATE KEY UPDATE b = t1.b;
+
+--echo #
+--echo # Verify that AS alias is NOT allowed in REPLACE
+--echo #
+--error ER_SYNTAX_ERROR
+REPLACE INTO t1 VALUES (1, 50, 500) AS new;
+
+--echo #
+--echo # Verify that AS alias is NOT allowed in CREATE ... VALUES
+--echo #
+--error ER_SYNTAX_ERROR
+CREATE TABLE t2 AS VALUES (1, 10, 100) AS new;
+
+--echo #
+--echo # Cleanup
+--echo #
+DROP TABLE t1;
+
+--echo #
+--echo # End of tests
+--echo #
