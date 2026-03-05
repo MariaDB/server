@@ -5763,6 +5763,12 @@ lock_rec_insert_check_and_lock(
       if (index->is_spatial())
         return DB_SUCCESS;
 
+      DBUG_LOG("ib_lock",
+               "insert_check trx " << ib::hex(trx->id)
+               << " index " << index->name()
+               << " page " << id
+               << " heap_no " << heap_no);
+
       /* If another transaction has an explicit lock request which locks
       the gap, waiting or granted, on the successor, the insert has to wait.
 
@@ -5778,10 +5784,138 @@ lock_rec_insert_check_and_lock(
                                                          g.cell(), id,
                                                          heap_no, trx))
       {
-        trx->mutex_lock();
-        err= lock_rec_enqueue_waiting(c_lock, type_mode, id, block->page.frame,
-                                      heap_no, index, thr, nullptr);
-        trx->mutex_unlock();
+        const ulint pred_heap_no= comp
+            ? rec_get_heap_no_new(rec) : rec_get_heap_no_old(rec);
+
+        /* MDEV-37974: If the first conflicting lock is WAITING and
+        we hold a granted X lock on the successor record, the
+        waiting lock is necessarily blocked behind our lock in the
+        queue and can never be granted while our lock exists.
+
+        To prevent phantoms, we must also verify that the
+        waiting transaction (TX2) has not already scanned through
+        the gap from the predecessor side. We check this by
+        verifying TX2 has no GRANTED lock on the predecessor:
+        - Same-page: TX2 has no granted lock on pred_heap_no.
+        - Cross-page (infimum): TX2 has no locks on the previous
+          page, meaning TX2 entered via B-tree descent directly
+          to this page and never traversed the gap.
+
+        We check TX2's locks (not TX1's) because TX1 may only
+        hold implicit locks on secondary index records (from
+        delete-marking via a clustered index scan), which have
+        no explicit lock_t struct. TX2, however, always acquires
+        explicit locks during its scan via sel_set_rec_lock().
+
+        Additionally, we verify that no other transaction holds a
+        GRANTED lock conflicting with our INSERT_INTENTION (such
+        locks can arise from lock inheritance during purge). */
+        if (c_lock->is_waiting() &&
+            lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP,
+                              g.cell(), id, heap_no, trx))
+        {
+          bool pred_ok;
+
+          if (pred_heap_no != PAGE_HEAP_NO_INFIMUM)
+          {
+            /* Same-page case: check that TX2 has no
+            GRANTED lock on the predecessor record.
+            If TX2 has no lock there, TX2 has not scanned
+            through the gap. Both predecessor and
+            successor are on this page, covered by the
+            same LockGuard -- no additional latching. */
+            pred_ok= !lock_rec_has_expl(LOCK_S | LOCK_REC_NOT_GAP,
+                                        g.cell(), id,
+                                        pred_heap_no,
+                                        c_lock->trx);
+          }
+          else
+          {
+            /* Cross-page case: predecessor is the page
+            infimum. Walk TX2's trx_locks to check whether
+            TX2 has any lock on the previous page. If not,
+            TX2 never scanned through it and no phantom is
+            possible.
+
+            Acquiring wait_trx->mutex is safe: we hold
+            lock_sys.latch (shared) + hash cell latch.
+            wait_trx is sleeping in lock_wait() holding
+            only wait_mutex. Latch order is
+            lock_sys.latch -> trx->mutex (established
+            precedent: lock_rec_convert_impl_to_expl_for_trx). */
+            const uint32_t prev_page_no=
+                btr_page_get_prev(block->page.frame);
+            if (prev_page_no == FIL_NULL)
+            {
+              /* Leftmost page in the index. There is
+              no previous page, so TX2 could not have
+              scanned through it. TX2 must have entered
+              this page via B-tree descent. */
+              pred_ok= true;
+            }
+            else
+            {
+              const page_id_t prev_id(id.space(),
+                                      prev_page_no);
+              trx_t *wait_trx= c_lock->trx;
+              pred_ok= true;
+
+              wait_trx->mutex_lock();
+              for (const lock_t *l= UT_LIST_GET_FIRST(
+                       wait_trx->lock.trx_locks);
+                   l;
+                   l= UT_LIST_GET_NEXT(trx_locks, l))
+              {
+                if (!l->is_table() &&
+                    l->un_member.rec_lock.page_id
+                    == prev_id)
+                {
+                  pred_ok= false;
+                  break;
+                }
+              }
+              wait_trx->mutex_unlock();
+            }
+          }
+
+          if (pred_ok)
+          {
+            const bool is_supremum=
+                (heap_no == PAGE_HEAP_NO_SUPREMUM);
+            c_lock= nullptr;
+            for (lock_t *l= lock_sys_t::get_first(g.cell(), id,
+                                                   heap_no);
+                 l; l= lock_rec_get_next(heap_no, l))
+            {
+              if (l->trx != trx && !l->is_waiting() &&
+                  lock_rec_has_to_wait(trx, type_mode, l,
+                                       is_supremum))
+              {
+                c_lock= l;
+                break;
+              }
+            }
+          }
+        }
+
+        if (c_lock)
+        {
+          DBUG_LOG("ib_lock",
+                   "insert_check conflict trx " << ib::hex(trx->id)
+                   << " blocker " << *c_lock
+                   << " blocker->trx " << ib::hex(c_lock->trx->id));
+          trx->mutex_lock();
+          err= lock_rec_enqueue_waiting(c_lock, type_mode, id,
+                                        block->page.frame,
+                                        heap_no, index, thr, nullptr);
+          trx->mutex_unlock();
+        }
+        else
+        {
+          DBUG_LOG("ib_lock",
+                   "insert_check skip trx " << ib::hex(trx->id)
+                   << " all conflicting locks are waiting");
+        }
       }
     }
   }
