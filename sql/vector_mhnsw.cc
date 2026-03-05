@@ -451,78 +451,87 @@ float FVector::dot_product(const int16_t *v1, const int16_t *v2, size_t len)
 #ifdef AVX512_IMPLEMENTATION
   if (cpu_level == CpuLevel::AVX512)
     return dot_product_avx512(v1, v2, len);
-#elif AVX2_IMPLEMENTATION
+#endif
+#ifdef AVX2_IMPLEMENTATION
   if (cpu_level == CpuLevel::AVX2)
     return dot_product_avx2(v1, v2, len);
-#elif NEON_IMPLEMENTATION
+#endif
+#ifdef NEON_IMPLEMENTATION
   if (cpu_level == CpuLevel::NEON)
     return dot_product_neon(v1, v2, len);
-#elif POWER_IMPLEMENTATION
+#endif
+#ifdef POWER_IMPLEMENTATION
   if (cpu_level == CpuLevel::POWERPC)
     return dot_product_power(v1, v2, len);
-#else
-    return dot_product_default(v1, v2, len);
 #endif
+    return dot_product_default(v1, v2, len);
 }
 size_t FVector::alloc_size(size_t n)
 {
 #ifdef AVX512_IMPLEMENTATION
   if (cpu_level == CpuLevel::AVX512)
     return alloc_size_avx512(n);
-#elif AVX2_IMPLEMENTATION
+#endif
+#ifdef AVX2_IMPLEMENTATION
   if (cpu_level == CpuLevel::AVX2)
     return alloc_size_avx2(n);
-#elif NEON_IMPLEMENTATION
+#endif
+#ifdef NEON_IMPLEMENTATION
   if (cpu_level == CpuLevel::NEON)
     return alloc_size_neon(n);
-#elif POWER_IMPLEMENTATION
+#endif
+#ifdef POWER_IMPLEMENTATION
   if (cpu_level == CpuLevel::POWERPC)
     return alloc_size_power(n);
-#else
-    return alloc_size_default(n);
 #endif
-
+    return alloc_size_default(n);
 }
 FVector *FVector::align_ptr(void *ptr)
 {
 #ifdef AVX512_IMPLEMENTATION
   if (cpu_level == CpuLevel::AVX512)
     return align_ptr_avx512(ptr);
-#elif AVX2_IMPLEMENTATION
+#endif
+#ifdef AVX2_IMPLEMENTATION
   if (cpu_level == CpuLevel::AVX2)
     return align_ptr_avx2(ptr);
-#elif NEON_IMPLEMENTATION
+#endif
+#ifdef NEON_IMPLEMENTATION
   if (cpu_level == CpuLevel::NEON)
     return align_ptr_neon(ptr);
-#elif POWER_IMPLEMENTATION
+#endif
+#ifdef POWER_IMPLEMENTATION
   if (cpu_level == CpuLevel::POWERPC)
     return align_ptr_power(ptr);
-#else
-    return align_ptr_default(ptr);
 #endif
+    return align_ptr_default(ptr);
 }
+
 void FVector::fix_tail(int16_t *dims, size_t vec_len)
 {
 #ifdef AVX512_IMPLEMENTATION
   if (cpu_level == CpuLevel::AVX512)
     return fix_tail_avx512(dims, vec_len);
-#elif AVX2_IMPLEMENTATION
+#endif
+#ifdef AVX2_IMPLEMENTATION
   if (cpu_level == CpuLevel::AVX2)
     return fix_tail_avx2(dims, vec_len);
-#elif NEON_IMPLEMENTATION
+#endif
+#ifdef NEON_IMPLEMENTATION
   if (cpu_level == CpuLevel::NEON)
     return fix_tail_neon(dims, vec_len);
-#elif POWER_IMPLEMENTATION
+#endif
+#ifdef POWER_IMPLEMENTATION
   if (cpu_level == CpuLevel::POWERPC)
     return fix_tail_power(dims, vec_len);
-#else
-    return fix_tail_default(dims, vec_len);
 #endif
+    return fix_tail_default(dims, vec_len);
 }
 
 /*
   A temporary benchmark to test the performance of the dot product function.
 */
+#ifdef __x86_64__ 
 #include <iostream>
 #include <random>
 
@@ -564,6 +573,7 @@ void mhnsw_run_benchmark()
   free(vec1);
   free(vec2);
 }
+#endif
 
 /*
   An array of pointers to graph nodes

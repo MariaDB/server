@@ -37,6 +37,9 @@ SOFTWARE.
 #if __GNUC__ >= 5 
 #define AVX512_IMPLEMENTATION __attribute__ ((target ("avx512f,avx512bw")))
 #endif
+#ifdef HAVE_IMMINTRIN_H
+#include <immintrin.h>
+#endif
 #elif defined _MSC_VER && (defined _M_X64 || defined _M_IX86)
 #include <immintrin.h>
 #define AVX2_IMPLEMENTATION
