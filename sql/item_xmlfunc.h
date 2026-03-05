@@ -166,4 +166,30 @@ public:
   { return get_item_copy<Item_func_xml_update>(thd, this); }
 };
 
+
+class MY_XML_VALIDATION_DATA;
+
+class Item_func_xml_isvalid: public Item_bool_func
+{
+protected:
+  String m_tmp_str;
+  MY_XML_VALIDATION_DATA *m_data;
+
+public:
+  Item_func_xml_isvalid(THD *thd, Item *xml, Item *schema) :
+       Item_bool_func(thd, xml, schema) {}
+  Item_func_xml_isvalid(THD *thd, Item *xml, Item *schema, Item *element) :
+       Item_bool_func(thd, xml, schema, element) {}
+  bool val_bool() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("xmlisvalid") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_xml_isvalid>(thd, this); }
+};
+
+
 #endif /* ITEM_XMLFUNC_INCLUDED */
