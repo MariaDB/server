@@ -2825,6 +2825,20 @@ protected:
 };
 
 
+class Create_func_xml_isvalid : public Create_native_func
+{
+public:
+  Item *create_native(THD *thd, const LEX_CSTRING *name, List<Item> *item_list)
+    override;
+
+  static Create_func_xml_isvalid s_singleton;
+
+protected:
+  Create_func_xml_isvalid() = default;
+  ~Create_func_xml_isvalid() override = default;
+};
+
+
 class Create_func_xml_update : public Create_func_arg3
 {
 public:
@@ -6259,6 +6273,44 @@ Create_func_xml_extractvalue::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 }
 
 
+Create_func_xml_isvalid Create_func_xml_isvalid::s_singleton;
+
+Item*
+Create_func_xml_isvalid::create_native(THD *thd,
+                                       const LEX_CSTRING *name,
+                                       List<Item> *item_list)
+{
+  Item* func;
+  int arg_count= 0;
+  Item *param_1, *param_2, *param_3= NULL;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  switch (arg_count)
+  {
+  case 2:
+    param_1= item_list->pop();
+    param_2= item_list->pop();
+    func= new (thd->mem_root)
+      Item_func_xml_isvalid(thd, param_1, param_2);
+    break;
+  case 3:
+    param_1= item_list->pop();
+    param_2= item_list->pop();
+    param_3= item_list->pop();
+    func= new (thd->mem_root)
+      Item_func_xml_isvalid(thd, param_1, param_2, param_3);
+    break;
+  default:
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    func= NULL;
+  }
+
+  return func;
+}
+
+
 Create_func_xml_update Create_func_xml_update::s_singleton;
 
 Item*
@@ -6632,6 +6684,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("WSREP_LAST_SEEN_GTID") }, BUILDER(Create_func_wsrep_last_seen_gtid)},
   { { STRING_WITH_LEN("WSREP_SYNC_WAIT_UPTO_GTID") }, BUILDER(Create_func_wsrep_sync_wait_upto)},
 #endif /* WITH_WSREP */
+  { { STRING_WITH_LEN("XMLISVALID") }, BUILDER(Create_func_xml_isvalid)},
   { { STRING_WITH_LEN("YEARWEEK") }, BUILDER(Create_func_year_week)}
 };
 

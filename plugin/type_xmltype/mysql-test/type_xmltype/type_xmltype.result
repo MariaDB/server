@@ -226,4 +226,25 @@ t1	CREATE TABLE `t1` (
   `x` xmltype CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
+validation tests
+set @xs= '<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+<xs:element name="note">
+  <xs:complexType>
+    <xs:sequence>
+      <xs:element name="to" type="xs:string"/>
+      <xs:element name="from" type="xs:string"/>
+      <xs:element name="heading" type="xs:string"/>
+      <xs:element name="body" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:element>
+
+</xs:schema>';
+select XMLISVALID(@xs, '<a> If <b> 123 </b> </a>');
+ERROR HY000: Invalid XML Schema.
+select XMLISVALID('<a> If <b> 123 </b> </a>', @xs);
+XMLISVALID('<a> If <b> 123 </b> </a>', @xs)
+0
 # End of 11.8 tests

@@ -44,8 +44,8 @@
        - substring-before()
   3. add lacking axis:
        - following-sibling
-       - following, 
-       - preceding-sibling 
+       - following,
+       - preceding-sibling
        - preceding
 */
 
@@ -287,7 +287,7 @@ class Item_nodeset_func_childbyname: public Item_nodeset_func_axisbyname
 {
 public:
   Item_nodeset_func_childbyname(THD *thd, Item *a, const char *n_arg, uint l_arg,
-                                String *pxml): 
+                                String *pxml):
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
   LEX_CSTRING func_name_cstring() const override
   {
@@ -546,7 +546,7 @@ public:
     MY_XPATH_FLT *fltend= (MY_XPATH_FLT*) tmp_native_value.end();
     uint numnodes= pxml->length() / sizeof(MY_XML_NODE);
     MY_XML_NODE *nodebeg= (MY_XML_NODE*) pxml->ptr();
-  
+
     for (MY_XPATH_FLT *flt= fltbeg; flt < fltend; flt++)
     {
       MY_XML_NODE *self= &nodebeg[flt->num];
@@ -1142,7 +1142,7 @@ static char simpletok[128]=
 */
   0,1,0,0,1,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,0,1,1,1,0,
   1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,
-  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0  
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0
 };
 
 
@@ -1165,7 +1165,7 @@ static struct my_xpath_keyword_names_st my_keyword_names[] =
   {MY_XPATH_LEX_DIV     , "div"                    ,  3, 0 },
   {MY_XPATH_LEX_MOD     , "mod"                    ,  3, 0 },
   {0,NULL,0,0}
-};  
+};
 
 
 static struct my_xpath_keyword_names_st my_axis_names[]=
@@ -1493,7 +1493,7 @@ my_xpath_lex_scan(MY_XPATH *xpath,
   int ch, ctype, length;
   for ( ; beg < end && *beg == ' ' ; beg++) ; // skip leading spaces
   lex->beg= beg;
-  
+
   if (beg >= end)
   {
     lex->end= beg;
@@ -1508,7 +1508,7 @@ my_xpath_lex_scan(MY_XPATH *xpath,
       ((ctype & (_MY_L | _MY_U)) || *beg == '_'))
   {
     // scan until the end of the identifier
-    for (beg+= length; 
+    for (beg+= length;
          (length= xpath->cs->ctype(&ctype,
                                    (const uchar*) beg,
                                    (const uchar*) end)) > 0 &&
@@ -1548,7 +1548,7 @@ my_xpath_lex_scan(MY_XPATH *xpath,
 
 
   ch= *beg++;
-  
+
   if (ch > 0 && ch < 128 && simpletok[ch])
   {
     // a token consisting of one character found
@@ -1574,7 +1574,7 @@ my_xpath_lex_scan(MY_XPATH *xpath,
       lex->end= beg+1;
       lex->term= MY_XPATH_LEX_STRING;
       return;
-    } 
+    }
     else
     {
       // unexpected end-of-line, without closing quot sign
@@ -1687,7 +1687,7 @@ static int my_xpath_parse_LocationPath(MY_XPATH *xpath)
 
   if (!xpath->context)
     xpath->context= xpath->rootelement;
-  int rc= my_xpath_parse_RelativeLocationPath(xpath) || 
+  int rc= my_xpath_parse_RelativeLocationPath(xpath) ||
           my_xpath_parse_AbsoluteLocationPath(xpath);
 
   xpath->item= xpath->context;
@@ -1732,7 +1732,7 @@ static int my_xpath_parse_AbsoluteLocationPath(MY_XPATH *xpath)
   }
 
   my_xpath_parse_RelativeLocationPath(xpath);
- 
+
   return (xpath->error == 0);
 }
 
@@ -1742,7 +1742,7 @@ static int my_xpath_parse_AbsoluteLocationPath(MY_XPATH *xpath)
 
   SYNOPSYS
 
-    For better performance we combine these two rules 
+    For better performance we combine these two rules
 
     [3] RelativeLocationPath ::=   Step
                                  | RelativeLocationPath '/' Step
@@ -1794,12 +1794,12 @@ static int my_xpath_parse_RelativeLocationPath(MY_XPATH *xpath)
     1 - success
     0 - failure
 */
-static int 
+static int
 my_xpath_parse_AxisSpecifier_NodeTest_opt_Predicate_list(MY_XPATH *xpath)
 {
   if (!my_xpath_parse_AxisSpecifier(xpath))
     return 0;
- 
+
   if (!my_xpath_parse_NodeTest(xpath))
     return 0;
 
@@ -1859,7 +1859,7 @@ static int my_xpath_parse_Step(MY_XPATH *xpath)
   Scan Abbreviated Axis Specifier
 
   SYNOPSYS
-  [5] AxisSpecifier ::=  AxisName '::' 
+  [5] AxisSpecifier ::=  AxisName '::'
                          | AbbreviatedAxisSpecifier
 
   RETURN
@@ -2002,7 +2002,7 @@ static int my_xpath_parse_PrimaryExpr_literal(MY_XPATH *xpath)
 }
 static int my_xpath_parse_PrimaryExpr(MY_XPATH *xpath)
 {
-  return 
+  return
       my_xpath_parse_lp_Expr_rp(xpath)          ||
       my_xpath_parse_VariableReference(xpath)   ||
       my_xpath_parse_PrimaryExpr_literal(xpath) ||
@@ -2077,13 +2077,13 @@ static int my_xpath_parse_UnionExpr(MY_XPATH *xpath)
 {
   if (!my_xpath_parse_PathExpr(xpath))
     return 0;
- 
+
   while (my_xpath_parse_term(xpath, MY_XPATH_LEX_VLINE))
   {
     Item *prev= xpath->item;
     if (prev->fixed_type_handler() != &type_handler_xpath_nodeset)
       return 0;
-    
+
     if (!my_xpath_parse_PathExpr(xpath)
         || xpath->item->fixed_type_handler() != &type_handler_xpath_nodeset)
     {
@@ -2152,7 +2152,7 @@ my_xpath_parse_FilterExpr_opt_slashes_RelativeLocationPath(MY_XPATH *xpath)
 }
 static int my_xpath_parse_PathExpr(MY_XPATH *xpath)
 {
-  return my_xpath_parse_LocationPath(xpath) || 
+  return my_xpath_parse_LocationPath(xpath) ||
          my_xpath_parse_FilterExpr_opt_slashes_RelativeLocationPath(xpath);
 }
 
@@ -2261,7 +2261,7 @@ static int my_xpath_parse_AndExpr(MY_XPATH *xpath)
     0 - failure
 */
 static int my_xpath_parse_ne(MY_XPATH *xpath)
-{ 
+{
   MY_XPATH_LEX prevtok= xpath->prevtok;
   if (!my_xpath_parse_term(xpath, MY_XPATH_LEX_EXCL))
     return 0;
@@ -2337,7 +2337,7 @@ static int my_xpath_parse_RelationalOperator(MY_XPATH *xpath)
 {
   if (my_xpath_parse_term(xpath, MY_XPATH_LEX_LESS))
   {
-    xpath->extra= my_xpath_parse_term(xpath, MY_XPATH_LEX_EQ) ? 
+    xpath->extra= my_xpath_parse_term(xpath, MY_XPATH_LEX_EQ) ?
                   MY_XPATH_LEX_LE : MY_XPATH_LEX_LESS;
     return 1;
   }
@@ -2429,10 +2429,10 @@ static int my_xpath_parse_AdditiveExpr(MY_XPATH *xpath)
                                 | MultiplicativeExpr MultiplyOperator UnaryExpr	
                                 | MultiplicativeExpr 'div' UnaryExpr	
                                 | MultiplicativeExpr 'mod' UnaryExpr
-    or in other words:  
-  
+    or in other words:
+
     [26]  MultiplicativeExpr ::= UnaryExpr (MulOper MultiplicativeExpr)*
-  
+
   RETURN
     1 - success
     0 - failure
@@ -2563,17 +2563,17 @@ static int my_xpath_parse_Number(MY_XPATH *xpath)
 
 /*
   Scan NCName.
-  
+
   SYNOPSYS
-    
+
     The keywords AND, OR, MOD, DIV are valid identifiers
     when they are in identifier context:
-    
+
     SELECT
     ExtractValue('<and><or><mod><div>VALUE</div></mod></or></and>',
                  '/and/or/mod/div')
     ->  VALUE
-    
+
   RETURN
     1 - success
     0 - failure
@@ -2623,7 +2623,7 @@ my_xpath_parse_QName(MY_XPATH *xpath)
 
     1. Standard XPath syntax [36], for SP variables:
 
-      VariableReference ::= '$' QName     
+      VariableReference ::= '$' QName
 
       Finds a SP variable with the given name.
       If outside of a SP context, or variable with
@@ -2746,7 +2746,7 @@ my_xpath_parse_NameTest(MY_XPATH *xpath)
 
   SYNOPSYS
     Scan xpath expression.
-    The expression is returned in xpath->expr. 
+    The expression is returned in xpath->expr
 
   RETURN
     1 - success
@@ -2783,7 +2783,7 @@ bool Item_xml_str_func::fix_fields(THD *thd, Item **ref)
 
   if (Item_str_func::fix_fields(thd, ref))
     return true;
-  
+
   status_var_increment(current_thd->status_var.feature_xml);
 
   nodeset_func= 0;
@@ -2854,7 +2854,7 @@ bool Item_xml_str_func::fix_fields(THD *thd, Item **ref)
 
 
 #define MAX_LEVEL 256
-typedef struct 
+typedef struct
 {
   uint level;
   String *pxml;         // parsed XML
@@ -2937,7 +2937,7 @@ int xml_value(MY_XML_PARSER *st,const char *attr, size_t len)
 {
   MY_XML_USER_DATA *data= (MY_XML_USER_DATA*)st->user_data;
   MY_XML_NODE node;
-  
+
   node.parent= data->parent; // Set parent for the new text node to old parent
   node.level= data->level;
   node.type= MY_XML_NODE_TEXT;
@@ -3068,7 +3068,7 @@ String *Item_func_xml_extractvalue::val_str(String *str)
     null_value= 1;
     return 0;
   }
-  return res;  
+  return res;
 }
 
 
@@ -3147,4 +3147,3100 @@ String *Item_func_xml_update::val_str(String *str)
   }
 
   return collect_result(str, nodebeg, rep) ? (String *) NULL : str;
+}
+
+
+/* XML Schema validation. */
+
+struct xs_word
+{
+  LEX_CSTRING m_w;
+  xs_word(const char *word, size_t len): m_w(LEX_CSTRING{word, len}) {}
+  bool eq(const char *name, size_t len) const
+  {
+    return len == m_w.length && memcmp(m_w.str, name, len) == 0;
+  }
+};
+
+/* XML schema keywords. */
+static xs_word xs_abstract(STRING_WITH_LEN("abstract"));
+static xs_word xs_all(STRING_WITH_LEN("all"));
+static xs_word xs_any(STRING_WITH_LEN("any"));
+static xs_word xs_anyAttribute(STRING_WITH_LEN("anyAttribute"));
+static xs_word xs_attribute(STRING_WITH_LEN("attribute"));
+static xs_word xs_attributeFormDefault(
+                 STRING_WITH_LEN("attributeFormDefault"));
+static xs_word xs_attributeGroup(STRING_WITH_LEN("attributeGroup"));
+static xs_word xs_base(STRING_WITH_LEN("base"));
+static xs_word xs_block(STRING_WITH_LEN("block"));
+static xs_word xs_choice(STRING_WITH_LEN("choice"));
+static xs_word xs_complexContent(STRING_WITH_LEN("complexContent"));
+static xs_word xs_complexType(STRING_WITH_LEN("complexType"));
+static xs_word xs_default(STRING_WITH_LEN("default"));
+static xs_word xs_encoding(STRING_WITH_LEN("encoding"));
+static xs_word xs_element(STRING_WITH_LEN("element"));
+static xs_word xs_elementFormDefault(STRING_WITH_LEN("elementFormDefault"));
+static xs_word xs_enumeration(STRING_WITH_LEN("enumeration"));
+static xs_word xs_extension(STRING_WITH_LEN("extersion"));
+static xs_word xs_final(STRING_WITH_LEN("final"));
+static xs_word xs_fixed(STRING_WITH_LEN("fixed"));
+static xs_word xs_form(STRING_WITH_LEN("form"));
+static xs_word xs_fractionDigits(STRING_WITH_LEN("fractionDigits"));
+static xs_word xs_group(STRING_WITH_LEN("group"));
+static xs_word xs_id(STRING_WITH_LEN("id"));
+static xs_word xs_key(STRING_WITH_LEN("key"));
+static xs_word xs_keyref(STRING_WITH_LEN("keyref"));
+static xs_word xs_itemType(STRING_WITH_LEN("itemType"));
+static xs_word xs_length(STRING_WITH_LEN("length"));
+static xs_word xs_list(STRING_WITH_LEN("list"));
+static xs_word xs_memberTypes(STRING_WITH_LEN("memberTypes"));
+static xs_word xs_maxExclusive(STRING_WITH_LEN("maxExclusive"));
+static xs_word xs_maxInclusive(STRING_WITH_LEN("maxInclusive"));
+static xs_word xs_maxLength(STRING_WITH_LEN("maxLength"));
+static xs_word xs_maxOccurs(STRING_WITH_LEN("maxOccurs"));
+static xs_word xs_minExclusive(STRING_WITH_LEN("minExclusive"));
+static xs_word xs_minInclusive(STRING_WITH_LEN("minInclusive"));
+static xs_word xs_minLength(STRING_WITH_LEN("minLength"));
+static xs_word xs_minOccurs(STRING_WITH_LEN("minOccurs"));
+static xs_word xs_mixed(STRING_WITH_LEN("mixed"));
+static xs_word xs_name(STRING_WITH_LEN("name"));
+static xs_word xs_namespace(STRING_WITH_LEN("namespace"));
+static xs_word xs_notation(STRING_WITH_LEN("notation"));
+static xs_word xs_nillable(STRING_WITH_LEN("nillable"));
+static xs_word xs_ref(STRING_WITH_LEN("ref"));
+static xs_word xs_pattern(STRING_WITH_LEN("pattrern"));
+static xs_word xs_processContent(STRING_WITH_LEN("processContent"));
+static xs_word xs_restriction(STRING_WITH_LEN("restriction"));
+static xs_word xs_schema(STRING_WITH_LEN("schema"));
+static xs_word xs_sequence(STRING_WITH_LEN("sequence"));
+static xs_word xs_smipleContent(STRING_WITH_LEN("simpleContent"));
+static xs_word xs_simpleType(STRING_WITH_LEN("simpleType"));
+static xs_word xs_substitutionGroup(STRING_WITH_LEN("substitutionGroup"));
+static xs_word xs_targetNamespace(STRING_WITH_LEN("targetNamespace"));
+static xs_word xs_totalDigits(STRING_WITH_LEN("totalDigits"));
+static xs_word xs_type(STRING_WITH_LEN("type"));
+static xs_word xs_unbounded(STRING_WITH_LEN("unbounded"));
+static xs_word xs_unique(STRING_WITH_LEN("unique"));
+static xs_word xs_union(STRING_WITH_LEN("union"));
+static xs_word xs_value(STRING_WITH_LEN("value"));
+static xs_word xs_version(STRING_WITH_LEN("version"));
+static xs_word xs_whiteSpace(STRING_WITH_LEN("whiteSpace"));
+static xs_word xs_xml(STRING_WITH_LEN("xml"));
+static xs_word xs_xml_lang(STRING_WITH_LEN("xml:lang"));
+
+class XMLSchema_tag;
+class XMLSchema_attribute;
+class XMLSchema_xml;
+class XMLSchema_schema;
+class XMLSchema_attributeGroup_reference;
+class XMLSchema_type;
+
+class XMLSchema_item
+{
+public:
+  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
+  {
+    return alloc_root(mem_root, size);
+  }
+  static void operator delete(void *ptr __attribute__((unused)),
+                              size_t size __attribute__((unused)))
+  { TRASH_FREE(ptr, size); }
+
+  static void operator delete(void *, MEM_ROOT*) {}
+  virtual ~XMLSchema_item() = default;
+
+
+  /* Parsing of the schema. */
+  virtual bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                         const char *attr, size_t len);
+  virtual bool enter_attr(MY_XML_VALIDATION_DATA *st,
+                          const char *attr, size_t len);
+  virtual bool value(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len)
+  {
+    return MY_XML_OK;
+  }
+  virtual bool leave(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len);
+
+  /* Validation of an XML. */
+  virtual bool validate_name(const char *attr, size_t len) { return false; }
+  virtual void validate_prepare() {}
+  virtual bool validate_done() { return MY_XML_OK; }
+
+  virtual bool validate_value(MY_XML_VALIDATION_DATA *st,
+                              const char *attr, size_t len)
+  {
+    return MY_XML_OK;
+  }
+  virtual bool validate_leave(MY_XML_VALIDATION_DATA *st,
+                              const char *attr, size_t len)
+  {
+    return MY_XML_OK;
+  }
+  virtual bool validate_tag(MY_XML_VALIDATION_DATA *st,
+                            const char *attr, size_t len)
+  {
+    return MY_XML_OK;
+  }
+  virtual bool validate_attr(MY_XML_VALIDATION_DATA *st,
+                             const char *attr, size_t len)
+  {
+    return MY_XML_OK;
+  }
+
+  int validate_failed(MY_XML_VALIDATION_DATA *st);
+
+  class XMLSchema_item *m_next;
+};
+
+
+class XMLSchema_annotation: public XMLSchema_item
+{
+  int m_level;
+public:
+  XMLSchema_annotation(): XMLSchema_item(), m_level(0) {}
+
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override
+  {
+    m_level++;
+    return MY_XML_OK;
+  }
+  bool enter_attr(MY_XML_VALIDATION_DATA *st,
+                  const char *attr, size_t len) override
+  {
+    return XMLSchema_annotation::enter_tag(st, attr, len);
+  }
+  bool leave(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len) override
+  {
+    if (m_level == 0)
+      return XMLSchema_item::leave(st, attr, len);
+    m_level--;
+    return MY_XML_OK;
+  }
+};
+
+
+class XMLSchema_root: public XMLSchema_item
+{
+public:
+  XMLSchema_root(): XMLSchema_item() {}
+
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override;
+
+  bool validate_tag(MY_XML_VALIDATION_DATA *st,
+                    const char *attr, size_t len) override;
+#ifndef DBUG_OFF
+  bool enter_attr(MY_XML_VALIDATION_DATA *st,
+                  const char *attr, size_t len) override
+  {
+    DBUG_ASSERT(0); /* should never be called. */
+    return MY_XML_OK;
+  }
+  bool leave(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len) override
+  {
+    DBUG_ASSERT(0); /* should never be called. */
+    return MY_XML_OK;
+  }
+  bool validate_leave(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override
+  {
+    DBUG_ASSERT(0); /* should never be called. */
+    return MY_XML_OK;
+  }
+#endif /* DBUG_OFF */
+};
+
+
+/*
+  That item reads the attribute value of some Schema tag.
+  pops from stack after it.
+*/
+class XMLSchema_tag_attribute: public XMLSchema_item
+{
+public:
+  const xs_word *m_name;
+  const char *m_val;
+  size_t m_val_len;
+  XMLSchema_tag_attribute *m_next_attribute;
+
+  XMLSchema_tag_attribute(const xs_word *name): XMLSchema_item(),
+    m_name(name), m_val(NULL), m_val_len(0) {}
+
+#ifndef DBUG_OFF
+  /* should never happen. */
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override
+  {
+    DBUG_ASSERT(0);
+    return MY_XML_OK;
+  }
+  bool enter_attr(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override
+  {
+    DBUG_ASSERT(0);
+    return MY_XML_OK;
+  }
+#endif /*DBUG_OFF*/
+
+  bool value(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len) override
+  {
+    m_val= attr;
+    m_val_len= len;
+    return MY_XML_OK;
+  }
+
+  bool eq_name(const char *name, size_t len) const
+  {
+    return m_name->eq(name, len);
+  }
+  bool is_set() const
+  {
+    return m_val_len > 0;
+  }
+  bool eq_value(const char *name, size_t len) const
+  {
+    return len == m_val_len && memcmp(m_val, name, len) == 0;
+  }
+};
+
+
+class XMLSchema_tag_integer_attribute: public XMLSchema_tag_attribute
+{
+  int m_error;
+public:
+  longlong m_value_int;
+
+  XMLSchema_tag_integer_attribute(const xs_word *name, longlong def_value= 1):
+    XMLSchema_tag_attribute(name), m_error(0), m_value_int(def_value) {}
+  bool value(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len) override
+  {
+    char *tmp= (char *) attr + len;
+    m_value_int= (longlong) my_strtoll10(attr, &tmp, &m_error);
+
+    (void) XMLSchema_tag_attribute::value(st, attr, len);
+
+    return m_error ? MY_XML_ERROR : MY_XML_OK;
+  }
+};
+
+
+class XMLSchema_tag_unbounded_integer_attribute:
+  public XMLSchema_tag_integer_attribute
+{
+public:
+  XMLSchema_tag_unbounded_integer_attribute(const xs_word *name,
+                                            longlong def_value= 1):
+    XMLSchema_tag_integer_attribute(name, def_value) {}
+  bool value(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len) override
+  {
+    if (XMLSchema_tag_integer_attribute::value(st, attr, len) == MY_XML_OK)
+      return MY_XML_OK;
+
+    if (xs_unbounded.eq(attr, len))
+    {
+      m_value_int= LONGLONG_MAX;
+      return MY_XML_OK;
+    }
+
+    return MY_XML_ERROR;
+  }
+};
+
+
+class XMLSchema_tag_namespaced_attribute:public XMLSchema_tag_attribute
+{
+public:
+  XMLSchema_tag_namespaced_attribute(const xs_word *name):
+    XMLSchema_tag_attribute(name) {}
+  bool value(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len) override
+  {
+    size_t col_pos= 0;
+    while (col_pos < len)
+    {
+      if (attr[col_pos++] == MY_XPATH_LEX_COLON)
+      {
+        attr+= col_pos;
+        len-= col_pos;
+        break;
+      }
+    }
+
+    m_val= attr;
+    m_val_len= len;
+    return MY_XML_OK;
+  }
+};
+
+
+class MY_XML_VALIDATION_DATA
+{
+public:
+  int validation_failed;
+  uint attr;
+  XMLSchema_item skipped_attr;
+  XMLSchema_annotation annotation;
+
+  XMLSchema_root root;
+  XMLSchema_item *s_stack;
+  XMLSchema_schema *schema;
+  XMLSchema_xml *xml;
+  MEM_ROOT *mem_root;
+
+  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
+  { return alloc_root(mem_root, size); }
+  static void operator delete(void *ptr __attribute__((unused)),
+                              size_t size __attribute__((unused)))
+  { TRASH_FREE(ptr, size); }
+  static void operator delete(void *, MEM_ROOT*) {}
+
+  MY_XML_VALIDATION_DATA():
+    s_stack(&root), schema(NULL), xml(NULL), mem_root(NULL)
+  {
+    root.m_next= NULL;
+  };
+
+  void push(XMLSchema_item *s)
+  {
+    s->m_next= s_stack;
+    s_stack= s;
+  }
+
+  void pop() { s_stack= s_stack->m_next; }
+};
+
+
+bool XMLSchema_item::enter_tag(MY_XML_VALIDATION_DATA *st,
+                               const char *attr, size_t len)
+{
+  st->push(&st->annotation);
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_item::enter_attr(MY_XML_VALIDATION_DATA *st,
+                                const char *attr, size_t len)
+{
+  st->push(&st->skipped_attr);
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_item::leave(MY_XML_VALIDATION_DATA *st,
+                           const char *attr, size_t len)
+{
+  st->pop();
+  return MY_XML_OK;
+}
+
+
+int XMLSchema_item::validate_failed(MY_XML_VALIDATION_DATA *st)
+{
+  st->validation_failed= 1;
+  return MY_XML_ERROR;
+}
+
+
+/*
+  Parsing schema's tag. Handling tag's attributes.
+*/
+
+class XMLSchema_tag: public XMLSchema_item
+{
+public:
+  XMLSchema_tag_attribute *m_tag_attributes;
+  XMLSchema_tag_attribute m_id; /* eveny tag in schema has the "id" attr */
+  XMLSchema_tag *m_next_tag;
+
+  XMLSchema_annotation *m_annotation;
+  bool declare_attribute(XMLSchema_tag_attribute *attr)
+  {
+    attr->m_next_attribute= m_tag_attributes;
+    m_tag_attributes= attr;
+    return FALSE;
+  }
+
+  XMLSchema_tag(): XMLSchema_item(),
+                   m_tag_attributes(&m_id), m_id(&xs_id)
+  {
+    m_id.m_next_attribute= NULL;
+  }
+  XMLSchema_tag_attribute *find_attr(const char *attr, size_t len);
+
+  bool enter_attr(MY_XML_VALIDATION_DATA *st,
+                  const char *attr, size_t len) override;
+
+  virtual bool validate_min_counter() const
+  {
+    return true;
+  }
+  virtual bool validate_max_counter() const
+  {
+    return true;
+  }
+  virtual void push_self(MY_XML_VALIDATION_DATA *st)
+  {
+    st->push(this);
+  }
+};
+
+
+XMLSchema_tag_attribute *XMLSchema_tag::find_attr(const char *name, size_t len)
+{
+  for (XMLSchema_tag_attribute *atr= m_tag_attributes;
+       atr;
+       atr= atr->m_next_attribute)
+  {
+    if (atr->eq_name(name, len))
+      return atr;
+  }
+  return NULL;
+}
+
+
+bool XMLSchema_tag::enter_attr(MY_XML_VALIDATION_DATA *st,
+                               const char *attr, size_t len)
+{
+  XMLSchema_tag_attribute *atr= find_attr(attr, len);
+  if (!atr)
+    return XMLSchema_item::enter_attr(st, attr, len);
+  st->push(atr);
+  return MY_XML_OK;
+}
+
+
+/*
+  Stores the description of an XML attribute and then validates it.
+*/
+class XMLSchema_attribute: public XMLSchema_tag
+{
+public:
+  XMLSchema_tag_attribute m_atr_name;
+  XMLSchema_tag_attribute m_atr_type;
+  XMLSchema_tag_attribute m_atr_default;
+  XMLSchema_tag_attribute m_atr_fixed;
+
+  XMLSchema_type *m_type;
+  XMLSchema_attribute *m_next_attribute;
+  XMLSchema_attribute(): XMLSchema_tag(),
+    m_atr_name(&xs_name),
+    m_atr_type(&xs_type),
+    m_atr_default(&xs_default),
+    m_atr_fixed(&xs_fixed),
+    m_type(NULL)
+  {
+    declare_attribute(&m_atr_name);
+    declare_attribute(&m_atr_type);
+    declare_attribute(&m_atr_default);
+    declare_attribute(&m_atr_fixed);
+  }
+
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override;
+  bool leave(MY_XML_VALIDATION_DATA *st,
+             const char *attr, size_t len) override;
+
+  void validate_prepare() override;
+  bool validate_value(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override;
+  bool validate_leave(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override;
+  bool validate_tag(MY_XML_VALIDATION_DATA *st,
+                    const char *attr, size_t len) override
+  {
+    return MY_XML_ERROR;
+  }
+  bool validate_attr(MY_XML_VALIDATION_DATA *st,
+                     const char *attr, size_t len) override
+  {
+    return MY_XML_ERROR;
+  }
+
+  bool validate_name(const char *attr, size_t len) override
+  {
+    return m_atr_name.eq_value(attr, len);
+  }
+};
+
+
+class XMLSchema_anyAttribute: public XMLSchema_tag
+{
+public:
+  XMLSchema_tag_attribute m_atr_namespace;
+  XMLSchema_tag_attribute m_atr_processContent;
+
+  XMLSchema_anyAttribute(): XMLSchema_tag(),
+    m_atr_namespace(&xs_namespace),
+    m_atr_processContent(&xs_processContent)
+  {
+    declare_attribute(&m_atr_namespace);
+    declare_attribute(&m_atr_processContent);
+  }
+};
+
+
+class XMLSchema_any: public XMLSchema_anyAttribute
+{
+public:
+  XMLSchema_tag_integer_attribute           m_minOccurs;
+  XMLSchema_tag_unbounded_integer_attribute m_maxOccurs;
+
+  XMLSchema_any(): XMLSchema_anyAttribute(),
+    m_minOccurs(&xs_minOccurs),
+    m_maxOccurs(&xs_maxOccurs)
+  {
+    declare_attribute(&m_minOccurs);
+    declare_attribute(&m_maxOccurs);
+  }
+};
+
+
+/*
+  Supposed to be a member of tags supporting these inside:
+    <attribute>
+    <attributeGroup>
+    <anyAttribute>
+*/
+class XMLSchema_std_attributes
+{
+public:
+  XMLSchema_attribute *m_attributes; /* nested attributes. */
+  XMLSchema_attributeGroup_reference *m_groups;    /* nested goups. */
+  XMLSchema_anyAttribute *m_anyAttribute;
+
+  XMLSchema_std_attributes():
+    m_attributes(NULL), m_groups(NULL),
+    m_anyAttribute(NULL) {}
+
+  /*
+    returns
+      1 if the tag recognised and handled
+      0 if the tag wasn't recognised
+      -1 if an error happened
+  */
+  int enter_tag(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len);
+  int validate_attr(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len);
+};
+
+
+class XMLSchema_attributeGroup_def: public XMLSchema_tag
+{
+  XMLSchema_attributeGroup_def *m_next_group;
+  XMLSchema_std_attributes m_attributes;
+public:
+  XMLSchema_tag_attribute m_atr_name;
+
+  XMLSchema_type *m_type;
+  XMLSchema_attributeGroup_def(): XMLSchema_tag(),
+    m_atr_name(&xs_name)
+  {
+    declare_attribute(&m_atr_name);
+  }
+
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override
+  {
+    int res;
+
+    if (!(res= m_attributes.enter_tag(st, attr, len)))
+      return XMLSchema_tag::enter_tag(st, attr, len);
+
+    return res > 0 ? MY_XML_OK : MY_XML_ERROR;
+  }
+};
+
+
+class XMLSchema_attributeGroup_reference: public XMLSchema_tag
+{
+  XMLSchema_attributeGroup_def *m_group;
+public:
+  XMLSchema_attributeGroup_reference *m_next_ref;
+  XMLSchema_tag_attribute m_atr_ref;
+
+  XMLSchema_type *m_type;
+  XMLSchema_attributeGroup_reference(): XMLSchema_tag(),
+    m_atr_ref(&xs_ref)
+  {
+    declare_attribute(&m_atr_ref);
+  }
+
+  bool leave(MY_XML_VALIDATION_DATA *st,
+            const char *attr, size_t len) override;
+  bool validate_attr(MY_XML_VALIDATION_DATA *st,
+                     const char *attr, size_t len) override
+  {
+    /* TODO return MY_XML_OK if name found */
+    return MY_XML_ERROR;
+  }
+};
+
+
+class XMLSchema_builtin_type
+{
+protected:
+  virtual ~XMLSchema_builtin_type() = default;
+public:
+  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
+  {
+    return alloc_root(mem_root, size);
+  }
+  static void operator delete(void *ptr __attribute__((unused)),
+                              size_t size __attribute__((unused)))
+  { TRASH_FREE(ptr, size); }
+  static void operator delete(void *, MEM_ROOT*) {}
+
+  virtual bool valid_value(const char *value, size_t len) { return TRUE; }
+  static XMLSchema_builtin_type *get_builtin_type_by_name(
+           MY_XML_VALIDATION_DATA *st, const char *name, size_t len);
+
+  XMLSchema_builtin_type() {}
+};
+
+
+class XMLSchema_string_builtin_type: public XMLSchema_builtin_type
+{
+public:
+};
+
+
+enum xml_num_char_classes {
+  N_MNS,
+  N_PLS,
+  N_DIG,
+  N_PNT,
+  N_EXP,
+  N_SPC,
+  N_EOF,
+  n_er,
+  N_NUM_CLASSES
+};
+
+
+static enum xml_num_char_classes xml_num_chr_map[104] = {
+  n_er, n_er,  n_er,  n_er, n_er, n_er,  n_er, n_er,
+  n_er, N_SPC, N_SPC, n_er, n_er, N_SPC, n_er, n_er,
+  n_er, n_er,  n_er,  n_er, n_er, n_er,  n_er, n_er,
+  n_er, n_er,  n_er,  n_er, n_er, n_er,  n_er, n_er,
+
+  N_SPC, n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /* !"#$%&'*/
+  n_er,  n_er,  n_er,  N_PLS, n_er,  N_MNS, N_PNT, n_er, /*()*+,-./ */
+  N_DIG, N_DIG, N_DIG, N_DIG, N_DIG, N_DIG, N_DIG, N_DIG,/*01234567*/
+  N_DIG, N_DIG, n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*89:;<=>?*/
+
+  n_er,  n_er,  n_er,  n_er,  n_er,  N_EXP, n_er,  n_er, /*@ABCDEFG*/
+  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*HIJKLMNO*/
+  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*PQRSTUVW*/
+  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*XYZ[\]^_*/
+
+  n_er,  n_er,  n_er,  n_er,  n_er,  N_EXP, n_er,  n_er  /*`abcdefg*/
+};
+
+
+enum xml_num_states {
+  NS_GO,  /* Initial state. */
+  NS_END, /* Number ended. */
+  NS_GMI, /* If the number starts with '-'. */
+  NS_GPL, /* If the number starts with '+'. */
+  NS_INT, /* Integer part. */
+  NS_FRC, /* Fractional part. */
+  NS_EXP, /* Exponential part begins. */
+  NS_EX1, /* Exponential part started with + or -. */
+  NS_EX2, /* Exponential part continues. */
+  NS_NUM_STATES,
+  E_SYN   /* Syntax error. */
+};
+
+
+static int xml_num_states[NS_NUM_STATES][N_NUM_CLASSES]=
+{
+/*         -        +        0..9   POINT   E      SPACE   EOF   BAD_SYM*/
+/*GO*/   { NS_GMI, NS_GPL, NS_INT, NS_FRC, E_SYN,  NS_GO,  E_SYN,  E_SYN},
+/*END*/  { E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN,  NS_END, NS_END, E_SYN},
+/*GMI*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, E_SYN,  E_SYN,  E_SYN,  E_SYN},
+/*GPL*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, E_SYN,  E_SYN,  E_SYN,  E_SYN},
+/*INT*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, NS_EXP, NS_END, NS_END, E_SYN},
+/*FRC*/  { E_SYN,  E_SYN,  NS_FRC, E_SYN,  NS_EXP, NS_END, NS_END, E_SYN},
+/*EXP*/  { NS_EX1, NS_EX1, NS_EX2, E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN},
+/*EX1*/  { E_SYN,  E_SYN,  NS_EX2, E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN},
+/*EX2*/  { E_SYN,  E_SYN,  NS_EX2, E_SYN,  E_SYN,  NS_END, NS_END, E_SYN}
+};
+
+
+enum xml_num_types
+{
+  NUM_TYPE_NEG=1,       /* Number is negative. */
+  NUM_TYPE_FRAC_PART=2, /* The fractional part is not empty. */
+  NUM_TYPE_EXP=4,       /* The number has the 'e' part. */
+};
+const uint NUM_TYPE_UINT= NUM_TYPE_NEG | NUM_TYPE_FRAC_PART | NUM_TYPE_EXP;
+const uint NUM_TYPE_INT= NUM_TYPE_FRAC_PART | NUM_TYPE_EXP;
+const uint NUM_TYPE_DEC= NUM_TYPE_EXP;
+const uint NUM_TYPE_FLOAT= 0; 
+
+static uint xml_num_state_types[NS_NUM_STATES]=
+{
+/*GO*/   0,
+/*END*/  0,
+/*GMI*/  NUM_TYPE_NEG,
+/*GPL*/  0,
+/*INT*/  0,
+/*FRC*/  NUM_TYPE_FRAC_PART,
+/*EXP*/  NUM_TYPE_EXP,
+/*EX1*/  0,
+/*EX2*/  0,
+};
+
+
+class XMLSchema_num_builtin_type: public XMLSchema_builtin_type
+{
+public:
+  int m_disallowed_types;
+  XMLSchema_num_builtin_type(int disallowed_types): XMLSchema_builtin_type(),
+    m_disallowed_types(disallowed_types) {}
+  bool valid_value(const char *value, size_t len) override
+  {
+    int state= NS_GO;
+    size_t pos= 0;
+
+    while (len > pos)
+    {
+      int c= (int) value[pos++];
+      if (c > 103)
+        return 0;
+
+      state= xml_num_states[state][xml_num_chr_map[c]];
+      if (state == E_SYN ||
+          xml_num_state_types[state] & m_disallowed_types)
+        return 0;
+    }
+
+    return xml_num_states[state][N_EOF] == NS_END;
+  }
+};
+
+
+enum xml_time_char_classes {
+  TC_MNS,
+  TC_PLS,
+  TC_DIG,
+  TC_PNT,
+  TC_T,
+  TC_Z,
+  TC_CLN,
+  TC_SPC,
+  TC_EOF,
+  tc_er,
+  TC_NUM_CLASSES
+};
+
+
+static enum xml_time_char_classes xml_time_chr_map[96] = {
+  tc_er, tc_er,  tc_er,  tc_er, tc_er, tc_er,  tc_er, tc_er,
+  tc_er, TC_SPC, TC_SPC, tc_er, tc_er, TC_SPC, tc_er, tc_er,
+  tc_er, tc_er,  tc_er,  tc_er, tc_er, tc_er,  tc_er, tc_er,
+  tc_er, tc_er,  tc_er,  tc_er, tc_er, tc_er,  tc_er, tc_er,
+
+  TC_SPC, tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er, /* !"#$%&'*/
+  tc_er,  tc_er,  tc_er,  TC_PLS, tc_er,  TC_MNS, TC_PNT, tc_er, /*()*+,-./ */
+  TC_DIG, TC_DIG, TC_DIG, TC_DIG, TC_DIG, TC_DIG, TC_DIG, TC_DIG,/*01234567*/
+  TC_DIG, TC_DIG, TC_CLN, tc_er,  tc_er,  tc_er,  tc_er,  tc_er, /*89:;<=>?*/
+
+  tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er, /*@ABCDEFG*/
+  tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er, /*HIJKLMNO*/
+  tc_er,  tc_er,  tc_er,  tc_er,  TC_T,   tc_er,  tc_er,  tc_er, /*PQRSTUVW*/
+  tc_er,  tc_er,  TC_Z,   tc_er,  tc_er,  tc_er,  tc_er,  tc_er  /*XYZ[\]^_*/
+};
+
+
+enum xml_time_states {
+  /* datetime */
+  T_GO,  /* Initial state. */
+  T_END, /* Datetime ended. */
+  T_YMI, /* If the year starts with '-'. */
+  T_Y1,
+  T_Y2,
+  T_Y3,
+  T_Y4,
+  T_YE,
+  T_M1,
+  T_M2,
+  T_ME,
+  T_D1,
+  T_D2,
+  T_DE,
+  T_H1,
+  T_H2,
+  T_HE,
+  T_MI1,
+  T_MI2,
+  T_MIE,
+  T_S1,
+  T_S2,
+  T_SFP,
+  T_SFR,
+  T_ZH0,
+  T_ZH1,
+  T_ZH2,
+  T_ZHE,
+  T_ZM1,
+  T_ZM2,
+  T_Z,
+
+  /* date */
+  T_dGO,  /* Initial state. */
+  T_dYMI, /* If the year starts with '-'. */
+  T_dY1,
+  T_dY2,
+  T_dY3,
+  T_dY4,
+  T_dYE,
+  T_dM1,
+  T_dM2,
+  T_dME,
+  T_dD1,
+  T_dD2,
+
+  /* time */
+  T_tGO,
+
+  /* gYear */
+  T_yGO,
+  T_yYMI,
+  T_yY1,
+  T_yY2,
+  T_yY3,
+  T_yY4,
+
+  /* gMonth */
+  T_mGO,
+  T_mG1,
+  T_mG2,
+  T_mM1,
+  T_mM2,
+  T_mE1,
+  T_mE2,
+
+  /* gDay */
+  T_aGO,
+  T_aG1,
+  T_aG2,
+  T_aG3,
+  T_aD1,
+  T_aD2,
+
+  /* gYearMonth */
+  T_hGO,
+  T_hYMI,
+  T_hY1,
+  T_hY2,
+  T_hY3,
+  T_hY4,
+  T_hM1,
+  T_hM2,
+
+  /* gMonthDay */
+  T_nGO,
+  T_nG1,
+  T_nG2,
+  T_nM1,
+  T_nM2,
+
+  T_NUM_STATES,
+  T_SYN   /* Syntax error. */
+};
+
+
+static int xml_time_states[T_NUM_STATES][TC_NUM_CLASSES]= {
+/*       -       +     0..9    .       T      Z     :     SPACE  EOF  BAD_SYM*/
+/* dateTime */
+/*GO*/ {T_YMI, T_SYN, T_Y1,  T_SYN, T_SYN, T_SYN, T_SYN, T_GO,  T_SYN, T_SYN},
+/*END*/{T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_END, T_SYN, T_SYN},
+/*YMI*/{T_SYN, T_SYN, T_Y1,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y1*/ {T_SYN, T_SYN, T_Y2,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y2*/ {T_SYN, T_SYN, T_Y3,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y3*/ {T_SYN, T_SYN, T_Y4,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y4*/ {T_YE,  T_SYN, T_Y4,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*YE*/ {T_SYN, T_SYN, T_M1,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M1*/ {T_SYN, T_SYN, T_M2,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M2*/ {T_ME,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*ME*/ {T_SYN, T_SYN, T_D1,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*D1*/ {T_SYN, T_SYN, T_D2,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*D2*/ {T_SYN, T_SYN, T_SYN, T_SYN, T_DE,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*DE*/ {T_SYN, T_SYN, T_H1,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+
+/*H1*/ {T_SYN, T_SYN, T_H2,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*H2*/ {T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_HE,  T_SYN, T_SYN, T_SYN},
+/*HE*/ {T_SYN, T_SYN, T_MI1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*MI1*/{T_SYN, T_SYN, T_MI2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*MI2*/{T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_MIE, T_SYN, T_SYN, T_SYN},
+/*MIE*/{T_SYN, T_SYN, T_S1,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*S1*/ {T_SYN, T_SYN, T_S2,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*S2*/ {T_ZH0, T_ZH0, T_SYN, T_SFP, T_SYN, T_Z,   T_SYN, T_END, T_END, T_SYN},
+/*SFP*/{T_SYN, T_SYN, T_SFR, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*SFR*/{T_ZH0, T_ZH0, T_SFR, T_SYN, T_SYN, T_Z,   T_SYN, T_END, T_END, T_SYN},
+/*ZH0*/{T_SYN, T_SYN, T_ZH1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*ZH1*/{T_SYN, T_SYN, T_ZH2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*ZH2*/{T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_ZHE, T_SYN, T_SYN, T_SYN},
+/*ZHE*/{T_SYN, T_SYN, T_ZM1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*ZM1*/{T_SYN, T_SYN, T_ZM2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*ZM2*/{T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_END, T_END, T_SYN},
+/*Z*/  {T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_END, T_END, T_SYN},
+
+/* date */
+/*       -       +     0..9    .       T      Z     :     SPACE  EOF  BAD_SYM*/
+/*GO*/ {T_dYMI,T_SYN, T_dY1, T_SYN, T_SYN, T_SYN, T_SYN, T_dGO, T_SYN, T_SYN},
+/*YMI*/{T_SYN, T_SYN, T_dY1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y1*/ {T_SYN, T_SYN, T_dY2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y2*/ {T_SYN, T_SYN, T_dY3, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y3*/ {T_SYN, T_SYN, T_dY4, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y4*/ {T_dYE, T_SYN, T_dY4, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*YE*/ {T_SYN, T_SYN, T_dM1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M1*/ {T_SYN, T_SYN, T_dM2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M2*/ {T_dME, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*ME*/ {T_SYN, T_SYN, T_dD1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*D1*/ {T_SYN, T_SYN, T_dD2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*D2*/ {T_ZH0, T_ZH0, T_SYN, T_SYN, T_SYN, T_Z,   T_SYN, T_END, T_END, T_SYN},
+
+/* time */
+/*       -       +     0..9    .       T      Z     :     SPACE  EOF  BAD_SYM*/
+/*GO*/ {T_SYN, T_SYN, T_H1,  T_SYN, T_SYN, T_SYN, T_SYN, T_tGO, T_SYN, T_SYN},
+
+/* gYear "2026+01:00" */
+/*       -       +     0..9    .       T      Z     :     SPACE  EOF  BAD_SYM*/
+/*GO*/ {T_yYMI,T_SYN, T_yY1, T_SYN, T_SYN, T_SYN, T_SYN, T_yGO, T_SYN, T_SYN},
+/*YMI*/{T_SYN, T_SYN, T_yY1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y1*/ {T_SYN, T_SYN, T_yY2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y2*/ {T_SYN, T_SYN, T_yY3, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y3*/ {T_SYN, T_SYN, T_yY4, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y4*/ {T_ZH0, T_ZH0, T_yY4, T_SYN, T_SYN, T_Z,   T_SYN, T_END, T_END, T_SYN},
+
+/* gMonth "--02--+01:00" */
+/*       -       +     0..9    .       T      Z     :     SPACE  EOF  BAD_SYM*/
+/*GO*/ {T_mG1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_mGO, T_SYN, T_SYN},
+/*G1*/ {T_mG2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*G2*/ {T_SYN, T_SYN, T_mM1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M1*/ {T_SYN, T_SYN, T_mM2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M2*/ {T_mE1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*E1*/ {T_mE2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*E2*/ {T_ZH0, T_ZH0, T_SYN, T_SYN, T_SYN, T_Z,   T_SYN, T_END, T_END, T_SYN},
+
+/* gDay "---10+02:00" */
+/*       -       +     0..9    .       T      Z     :     SPACE  EOF  BAD_SYM*/
+/*GO*/ {T_aG1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_aGO, T_SYN, T_SYN},
+/*G1*/ {T_aG2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*G2*/ {T_aG3, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*G3*/ {T_SYN, T_SYN, T_aD1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*D1*/ {T_SYN, T_SYN, T_aD2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*D2*/ {T_ZH0, T_ZH0, T_SYN, T_SYN, T_SYN, T_Z,   T_SYN, T_END, T_END, T_SYN},
+
+/* gYearMonth "2026-10+02:00" */
+/*       -       +     0..9    .       T      Z     :     SPACE  EOF  BAD_SYM*/
+/*GO*/ {T_hYMI,T_SYN, T_hY1, T_SYN, T_SYN, T_SYN, T_SYN, T_hGO, T_SYN, T_SYN},
+/*YMI*/{T_SYN, T_SYN, T_hY1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y1*/ {T_SYN, T_SYN, T_hY2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y2*/ {T_SYN, T_SYN, T_hY3, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y3*/ {T_SYN, T_SYN, T_hY4, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y4*/ {T_hM1, T_SYN, T_hY4, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M1*/ {T_SYN, T_SYN, T_hM2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M2*/ {T_ZH0, T_ZH0, T_SYN, T_SYN, T_SYN, T_Z,   T_SYN, T_END, T_END, T_SYN},
+
+/* gMonthDay "--05-02+01:00" */
+/*       -       +     0..9    .       T      Z     :     SPACE  EOF  BAD_SYM*/
+/*GO*/ {T_nG1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_nGO, T_SYN, T_SYN},
+/*G1*/ {T_nG2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*G2*/ {T_SYN, T_SYN, T_nM1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M1*/ {T_SYN, T_SYN, T_nM2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M2*/ {T_aG3, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+};
+
+
+#ifdef MDEV37262
+//TODO add control for invalid date-times.
+
+enum xml_time_types
+{
+  TIME_TYPE_YEAR,
+  TIME_TYPE_MONTH,
+  TIME_TYPE_DAY,
+  TIME_TYPE_HOUR,
+  TIME_TYPE_MIN,
+  TIME_TYPE_SEC,
+  TIME_TYPE_TZH,
+  TIME_TYPE_TZM
+};
+
+
+static uint xml_timestate_types[T_NUM_STATES]=
+{
+/*T_GO*/  0,
+/*T_END*/ 0,
+/*T_YMI*/ 0,
+/*T_Y1*/  TIME_TYPE_YEAR,
+/*T_Y2*/  0,
+/*T_Y3*/  0,
+/*T_Y4*/  0,
+/*T_YE*/  0,
+/*T_M1*/  TIME_TYPE_MONTH,
+/*T_M2*/  0,
+/*T_ME*/  0,
+/*T_D1*/  TIME_TYPE_DAY,
+/*T_D2*/  0,
+/*T_DE*/  0,
+/*T_H1*/  TIME_TYPE_TIME,
+/*T_H2*/  0,
+/*T_HE*/  0,
+/*T_MI1*/ 0,
+/*T_MI2*/ 0,
+/*T_MIE*/ 0,
+/*T_S1*/  0,
+/*T_S2*/  0,
+/*T_SFP*/ 0,
+/*T_SFR*/ 0,
+/*T_ZH0*/ TIME_TYPE_TZ,
+/*T_ZH1*/ 0,
+/*T_ZH2*/ 0,
+/*T_ZHE*/ 0,
+/*T_ZM1*/ 0,
+/*T_ZM2*/ 0,
+/*T_Z*/   TIME_TYPE_TZ
+};
+#endif /*MDEV37262*/
+
+
+class XMLSchema_datetime_builtin_type: public XMLSchema_builtin_type
+{
+public:
+  enum xml_time_states m_state0;
+  bool m_spaces_allowed;
+
+  XMLSchema_datetime_builtin_type(
+      enum xml_time_states state0, bool spaces_allowed= TRUE):
+    XMLSchema_builtin_type(),
+    m_state0(state0), m_spaces_allowed(spaces_allowed) {}
+
+  bool valid_value(const char *value, size_t len) override
+  {
+    int state= m_state0;
+
+    size_t pos= 0;
+
+    while (len > pos)
+    {
+      int c= (int) value[pos++];
+      if (c > 96)
+        return 0;
+
+      state= xml_time_states[state][xml_time_chr_map[c]];
+      if (state == T_SYN)
+        return 0;
+    }
+
+    return xml_time_states[state][TC_EOF] == T_END;
+  }
+};
+
+
+enum xml_bin_char_classes {
+  BC_HEX,
+  BC_B64,
+  BC_EQ,
+  BC_SPC,
+  BC_EOF,
+  bc_er,
+  BC_NUM_CLASSES
+};
+
+
+static enum xml_bin_char_classes xml_bin_chr_map[128]=
+{
+   bc_er, bc_er, bc_er, bc_er, bc_er, bc_er, bc_er, bc_er,
+   bc_er,BC_SPC,BC_SPC, bc_er, bc_er,BC_SPC, bc_er, bc_er,
+   bc_er, bc_er, bc_er, bc_er, bc_er, bc_er, bc_er, bc_er,
+   bc_er, bc_er, bc_er, bc_er, bc_er, bc_er, bc_er, bc_er,
+  BC_SPC, bc_er, bc_er, bc_er, bc_er, bc_er, bc_er, bc_er, /*  !"#$%&' */
+   bc_er, bc_er, bc_er,BC_B64, bc_er, bc_er, bc_er,BC_B64, /* ()*+,-./ */
+  BC_HEX,BC_HEX,BC_HEX,BC_HEX,BC_HEX,BC_HEX,BC_HEX,BC_HEX, /* 01234567 */
+  BC_HEX,BC_HEX, bc_er, bc_er, bc_er, BC_EQ, bc_er, bc_er, /* 89:;<=>? */
+   bc_er,BC_HEX,BC_HEX,BC_HEX,BC_HEX,BC_HEX,BC_HEX,BC_B64, /* @ABCDEFG */
+  BC_B64,BC_B64,BC_B64,BC_B64,BC_B64,BC_B64,BC_B64,BC_B64, /* HIJKLMNO */
+  BC_B64,BC_B64,BC_B64,BC_B64,BC_B64,BC_B64,BC_B64,BC_B64, /* PQRSTUVW */
+  BC_B64,BC_B64,BC_B64, bc_er, bc_er, bc_er, bc_er, bc_er, /* XYZ[\]^_ */
+   bc_er,BC_HEX,BC_HEX,BC_HEX,BC_HEX,BC_HEX,BC_HEX,BC_B64, /* `abcdefg */
+  BC_B64,BC_B64,BC_B64,BC_B64,BC_B64,BC_B64,BC_B64,BC_B64, /* hijklmno */
+  BC_B64,BC_B64,BC_B64,BC_B64,BC_B64,BC_B64,BC_B64,BC_B64, /* pqrstuvwxyz{|}~  */
+  BC_B64,BC_B64,BC_B64, bc_er, bc_er, bc_er, bc_er, bc_er  /* pqrstuvwxyz{|}~  */
+};
+
+
+enum xml_bin_states {
+  B_END,
+  B_HEX0,
+  B_HEX1,
+  B_B640,
+  B_B641,
+  B_B642,
+  B_B643,
+  B_NUM_STATES,
+  B_SYN   /* Syntax error. */
+};
+
+
+static int xml_bin_states[B_NUM_STATES][BC_NUM_CLASSES]= {
+/*          HEX     B64     =      SPACE   EOF    BAD_SYM */
+/*END*/  { B_SYN,  B_SYN,  B_SYN,  B_END,  B_END,  T_SYN },
+/*HEX0*/ { B_HEX1, B_SYN,  B_SYN,  B_HEX0, B_END,  T_SYN },
+/*HEX1*/ { B_HEX0, B_SYN,  B_SYN,  B_HEX1, B_SYN,  T_SYN },
+/*B640*/ { B_B641, B_B641, B_SYN,  B_B640, B_END,  T_SYN },
+/*B641*/ { B_B642, B_B642, B_SYN,  B_B641, B_SYN,  T_SYN },
+/*B642*/ { B_B643, B_B643, B_SYN,  B_B642, B_SYN,  T_SYN },
+/*B643*/ { B_B640, B_B640, B_END,  B_B643, B_SYN,  T_SYN }
+};
+
+
+class XMLSchema_binary_builtin_type: public XMLSchema_builtin_type
+{
+public:
+  enum xml_bin_states m_state0;
+
+  XMLSchema_binary_builtin_type(enum xml_bin_states state0):
+    XMLSchema_builtin_type(), m_state0(state0) {}
+
+  bool valid_value(const char *value, size_t len) override
+  {
+    int state= m_state0;
+
+    size_t pos= 0;
+
+    while (len > pos)
+    {
+      int c= (int) value[pos++];
+      if (c > 127)
+        return 0;
+
+      state= xml_bin_states[state][xml_bin_chr_map[c]];
+      if (state == B_SYN)
+        return 0;
+    }
+
+    return xml_bin_states[state][BC_EOF] == B_END;
+  }
+};
+
+
+/* Just to make type control possible. */
+class XMLSchema_type: public XMLSchema_tag
+{
+};
+
+
+class XMLSchema_any_type: public XMLSchema_type
+{
+public:
+  int m_level;
+  XMLSchema_any_type(): XMLSchema_type(), m_level(0) {}
+
+  bool validate_leave(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override
+  {
+    if (m_level == 0)
+      return MY_XML_ERROR;
+
+    m_level--;
+    return MY_XML_OK;
+  }
+  bool validate_tag(MY_XML_VALIDATION_DATA *st,
+                    const char *attr, size_t len) override
+  {
+    m_level++;
+    return MY_XML_OK;
+  }
+  bool validate_attr(MY_XML_VALIDATION_DATA *st,
+                     const char *attr, size_t len) override
+  {
+    m_level++;
+    return MY_XML_OK;
+  }
+  bool validate_done() override
+  {
+    return m_level == 0 ? MY_XML_OK : MY_XML_ERROR;
+  }
+};
+
+
+class XMLSchema_simple_builtin_type: public XMLSchema_type
+{
+public:
+  XMLSchema_builtin_type *m_int_type;
+  XMLSchema_simple_builtin_type(XMLSchema_builtin_type *int_type):
+    XMLSchema_type(), m_int_type(int_type) {}
+  bool validate_tag(MY_XML_VALIDATION_DATA *st,
+                    const char *attr, size_t len) override
+  {
+    return validate_failed(st);
+  }
+  virtual bool validate_attr(MY_XML_VALIDATION_DATA *st,
+                             const char *attr, size_t len)
+  {
+    return validate_failed(st);
+  }
+  bool validate_value(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override
+  {
+    return m_int_type->valid_value(attr, len) ? MY_XML_OK :
+                                                validate_failed(st);
+  }
+};
+
+
+class XMLSchema_user_type: public XMLSchema_type
+{
+protected:
+  XMLSchema_schema *m_schema;
+  XMLSchema_tag_attribute m_type_name;
+  XMLSchema_tag_attribute m_final;
+public:
+  XMLSchema_tag *m_compositor;
+  XMLSchema_user_type *m_next_type;
+
+  XMLSchema_user_type(XMLSchema_schema *schema): XMLSchema_type(),
+    m_schema(schema),
+    m_type_name(&xs_name),
+    m_final(&xs_final),
+    m_compositor(NULL)
+  {
+    declare_attribute(&m_type_name);
+    declare_attribute(&m_final);
+  }
+  bool validate_name(const char *attr, size_t len) override
+  {
+    return m_type_name.eq_value(attr, len);
+  }
+  void validate_prepare() override
+  {
+    m_compositor->validate_prepare();
+  }
+  bool validate_tag(MY_XML_VALIDATION_DATA *st,
+                    const char *attr, size_t len) override
+  {
+    return validate_failed(st);
+  }
+};
+
+
+class XMLSchema_simpleType: public XMLSchema_user_type
+{
+public:
+  XMLSchema_simpleType(XMLSchema_schema *schema=NULL):
+    XMLSchema_user_type(schema) {}
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override;
+  bool leave(MY_XML_VALIDATION_DATA *st,
+             const char *attr, size_t len) override;
+
+  bool validate_value(MY_XML_VALIDATION_DATA *st,
+                    const char *attr, size_t len) override
+  {
+    return m_compositor->validate_value(st, attr, len);
+  }
+};
+
+
+class XMLSchema_complexType: public XMLSchema_user_type
+{
+  XMLSchema_tag_attribute m_mixed;
+  XMLSchema_tag_attribute m_abstract;
+  XMLSchema_tag_attribute m_block;
+  /* XMLSchema_tag_attribute m_defaultAttributesApply; for 1.1 schema */
+
+  XMLSchema_std_attributes m_attributes;
+public:
+  XMLSchema_complexType(XMLSchema_schema *schema=NULL):
+    XMLSchema_user_type(schema),
+    m_mixed(&xs_mixed),
+    m_abstract(&xs_abstract),
+    m_block(&xs_block)
+  {
+    declare_attribute(&m_mixed);
+    declare_attribute(&m_abstract);
+    declare_attribute(&m_block);
+  }
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override;
+  bool leave(MY_XML_VALIDATION_DATA *st,
+             const char *attr, size_t len) override;
+
+  bool validate_attr(MY_XML_VALIDATION_DATA *st,
+                     const char *attr, size_t len) override
+  {
+    return m_attributes.validate_attr(st, attr, len);
+  }
+  bool validate_tag(MY_XML_VALIDATION_DATA *st,
+                    const char *attr, size_t len) override
+  {
+    return m_compositor->validate_tag(st, attr, len);
+  }
+  bool validate_leave(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override
+  {
+    return m_compositor->validate_leave(st, attr, len);
+  }
+};
+
+
+class XMLSchema_facet: public XMLSchema_tag
+{
+protected:
+  XMLSchema_tag_attribute m_value;
+  XMLSchema_tag_attribute m_fixed;
+public:
+  XMLSchema_facet(): XMLSchema_tag(),
+    m_value(&xs_value),
+    m_fixed(&xs_fixed)
+  {
+    declare_attribute(&m_value);
+    declare_attribute(&m_fixed);
+  }
+
+  bool is_set() const { return m_value.is_set(); }
+};
+
+
+class XMLSchema_enum_facet: public XMLSchema_facet
+{
+public:
+  XMLSchema_enum_facet *m_next_enum;
+  bool eq(const char *value, size_t len) const
+  {
+    return m_value.eq_value(value, len);
+  }
+};
+
+
+class XMLSchema_restriction_in_simpleType: public XMLSchema_tag
+{
+  XMLSchema_type *m_base_type;
+  XMLSchema_tag_attribute m_base;
+
+  /* for numeric types. */
+  XMLSchema_facet m_minInclusive, m_maxInclusive,
+                  m_minExclusive, m_maxExclusive,
+                  m_totalDigits, m_fractionDigits;
+
+  /* for strings. */
+  XMLSchema_facet m_length, m_minLength, m_maxLength,
+                  m_pattern, m_whiteSpace;
+
+  /* enum */
+  XMLSchema_enum_facet *m_enumeration;
+
+public:
+  XMLSchema_restriction_in_simpleType(): XMLSchema_tag(),
+    m_base_type(NULL),
+    m_base(&xs_base),
+    m_enumeration(NULL)
+  {
+    declare_attribute(&m_base);
+  }
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override;
+  bool leave(MY_XML_VALIDATION_DATA *st,
+            const char *attr, size_t len) override;
+  bool validate_value(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override;
+};
+
+
+class XMLSchema_restriction_in_simpleContent:
+  public XMLSchema_restriction_in_simpleType
+{
+  XMLSchema_std_attributes m_attributes;
+public:
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                const char *attr, size_t len) override
+  {
+    int res;
+
+    if (!(res= m_attributes.enter_tag(st, attr, len)))
+      return XMLSchema_restriction_in_simpleType::enter_tag(st, attr, len);
+
+    return res > 0 ? MY_XML_OK : MY_XML_ERROR;
+  }
+};
+
+
+class XMLSchema_restriction_in_complexContent: public XMLSchema_complexType
+{
+public:
+  XMLSchema_tag_attribute m_base;
+  XMLSchema_restriction_in_complexContent(): XMLSchema_complexType(),
+    m_base(&xs_base)
+  {
+    declare_attribute(&m_base);
+  }
+};
+
+
+class XMLSchema_extension_in_simpleContent: public XMLSchema_tag
+{
+  XMLSchema_tag_attribute m_base;
+  XMLSchema_std_attributes m_attributes;
+public:
+  XMLSchema_extension_in_simpleContent(): XMLSchema_tag(),
+    m_base(&xs_base)
+  {
+    declare_attribute(&m_base);
+  }
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override
+  {
+    int res;
+
+    if (!(res= m_attributes.enter_tag(st, attr, len)))
+      return XMLSchema_tag::enter_tag(st, attr, len);
+
+    return res > 0 ? MY_XML_OK : MY_XML_ERROR;
+  }
+};
+
+
+class XMLSchema_extension_in_complexContent:
+  public XMLSchema_restriction_in_complexContent
+{
+};
+
+
+class XMLSchema_list: public XMLSchema_tag
+{
+  XMLSchema_tag_attribute m_attr_itemType;
+  XMLSchema_type *m_type;
+public:
+  XMLSchema_list(): XMLSchema_tag(),
+    m_attr_itemType(&xs_itemType),
+    m_type(NULL)
+  {
+    declare_attribute(&m_attr_itemType);
+  }
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override;
+  bool leave(MY_XML_VALIDATION_DATA *st,
+             const char *attr, size_t len) override;
+};
+
+
+class XMLSchema_union: public XMLSchema_tag
+{
+  XMLSchema_tag_attribute m_attr_memberTypes;
+  XMLSchema_user_type *m_nested_types; /* we have to preserver the order here */
+  XMLSchema_user_type **m_nested_hook;
+public:
+  XMLSchema_union(): XMLSchema_tag(),
+    m_attr_memberTypes(&xs_memberTypes),
+    m_nested_types(NULL),
+    m_nested_hook(&m_nested_types)
+  {
+    declare_attribute(&m_attr_memberTypes);
+  }
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override;
+  bool leave(MY_XML_VALIDATION_DATA *st,
+             const char *attr, size_t len) override;
+};
+
+
+class XMLSchema_simpleContent: public XMLSchema_tag
+{
+  XMLSchema_tag *m_nested; /* extension or restriction */
+public:
+  XMLSchema_simpleContent(): XMLSchema_tag(),
+    m_nested(NULL) {}
+
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override;
+};
+
+
+class XMLSchema_complexContent: public XMLSchema_simpleContent
+{
+  XMLSchema_tag_attribute m_atr_mixed;
+  XMLSchema_tag *m_nested; /* extension or restriction */
+
+public:
+  XMLSchema_complexContent(): XMLSchema_simpleContent(),
+    m_atr_mixed(&xs_mixed)
+  {
+    declare_attribute(&m_atr_mixed);
+  }
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override;
+};
+
+
+class XMLSchema_element_global;
+
+class XMLSchema_all: public XMLSchema_tag
+{
+  XMLSchema_tag_integer_attribute           m_minOccurs;
+  XMLSchema_tag_unbounded_integer_attribute m_maxOccurs;
+  XMLSchema_tag **m_tags_hook;
+
+public:
+  XMLSchema_tag *m_tags;
+
+  XMLSchema_all(): XMLSchema_tag(),
+    m_minOccurs(&xs_minOccurs),
+    m_maxOccurs(&xs_maxOccurs),
+    m_tags_hook(&m_tags), m_tags(NULL)
+  {
+    declare_attribute(&m_minOccurs);
+    declare_attribute(&m_maxOccurs);
+  }
+
+  void append_tag(XMLSchema_tag *tag);
+
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override;
+  bool leave(MY_XML_VALIDATION_DATA *st,
+             const char *attr, size_t len) override
+  {
+    *m_tags_hook= NULL;
+    return XMLSchema_tag::leave(st, attr, len);
+  }
+  void validate_prepare() override
+  {
+    for (XMLSchema_tag *cur= m_tags; cur; cur= cur->m_next_tag)
+      cur->validate_prepare();
+  }
+};
+
+
+class XMLSchema_sequence: public XMLSchema_all
+{
+  XMLSchema_tag *m_cur_tag;
+public:
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override;
+  void validate_prepare() override
+  {
+    m_cur_tag= NULL;
+  }
+  bool validate_done() override { return m_cur_tag == NULL; }
+
+  bool validate_tag(MY_XML_VALIDATION_DATA *st,
+                    const char *attr, size_t len) override;
+  bool validate_leave(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override;
+};
+
+
+class XMLSchema_choice: public XMLSchema_sequence
+{
+};
+
+
+class XMLSchema_group_def: public XMLSchema_tag
+{
+  XMLSchema_tag *m_compositor;
+public:
+  XMLSchema_tag_attribute m_atr_name;
+
+  XMLSchema_type *m_type;
+  XMLSchema_group_def(): XMLSchema_tag(),
+    m_compositor(NULL),
+    m_atr_name(&xs_name)
+  {
+    declare_attribute(&m_atr_name);
+  }
+
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override;
+};
+
+
+class XMLSchema_group_reference: public XMLSchema_tag
+{
+  XMLSchema_tag_integer_attribute           m_minOccurs;
+  XMLSchema_tag_unbounded_integer_attribute m_maxOccurs;
+  XMLSchema_tag_attribute m_ref;
+  XMLSchema_group_def *m_group;
+public:
+  XMLSchema_group_reference(): XMLSchema_tag(),
+    m_minOccurs(&xs_minOccurs),
+    m_maxOccurs(&xs_maxOccurs),
+    m_ref(&xs_ref),
+    m_group(NULL)
+  {
+    declare_attribute(&m_minOccurs);
+    declare_attribute(&m_maxOccurs);
+    declare_attribute(&m_ref);
+  }
+
+  bool leave(MY_XML_VALIDATION_DATA *st,
+             const char *attr, size_t len) override
+  {
+    /*find global group in <schema> */
+    return XMLSchema_tag::leave(st, attr, len);
+  }
+};
+
+
+class XMLSchema_element_global: public XMLSchema_attribute
+{
+public:
+  XMLSchema_element_global *m_next_element_global;
+  XMLSchema_tag_attribute m_atr_nillable;
+  XMLSchema_tag_attribute m_atr_abstract;
+  XMLSchema_tag_attribute m_atr_substitutionGroup;
+  XMLSchema_tag_attribute m_atr_block;
+  XMLSchema_tag_attribute m_atr_final;
+
+  XMLSchema_element_global(): XMLSchema_attribute(),
+    m_atr_nillable(&xs_nillable),
+    m_atr_abstract(&xs_abstract),
+    m_atr_substitutionGroup(&xs_substitutionGroup),
+    m_atr_block(&xs_block),
+    m_atr_final(&xs_final)
+  {
+    declare_attribute(&m_atr_nillable);
+    declare_attribute(&m_atr_abstract);
+    declare_attribute(&m_atr_substitutionGroup);
+    declare_attribute(&m_atr_block);
+    declare_attribute(&m_atr_final);
+  }
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override;
+  bool validate_attr(MY_XML_VALIDATION_DATA *st,
+                     const char *attr, size_t len) override;
+  bool validate_value(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override;
+  bool validate_tag(MY_XML_VALIDATION_DATA *st,
+                    const char *attr, size_t len) override;
+  bool validate_leave(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override;
+
+};
+
+
+class XMLSchema_element_local: public XMLSchema_element_global
+{
+public:
+  int m_counter;
+  XMLSchema_tag_attribute m_atr_ref;
+  XMLSchema_tag_integer_attribute           m_atr_minOccurs;
+  XMLSchema_tag_unbounded_integer_attribute m_atr_maxOccurs;
+  XMLSchema_tag_attribute m_atr_form;
+
+  XMLSchema_element_local(): XMLSchema_element_global(),
+    m_atr_ref(&xs_ref),
+    m_atr_minOccurs(&xs_minOccurs),
+    m_atr_maxOccurs(&xs_maxOccurs),
+    m_atr_form(&xs_form)
+  {
+    declare_attribute(&m_atr_ref);
+    declare_attribute(&m_atr_minOccurs);
+    declare_attribute(&m_atr_maxOccurs);
+    declare_attribute(&m_atr_form);
+  }
+  void validate_prepare() override
+  {
+    m_counter= 0;
+  }
+  bool validate_name(const char *attr, size_t len) override
+  {
+    return XMLSchema_element_global::validate_name(attr, len);
+  }
+  bool validate_min_counter() const override
+  {
+    return m_counter >= m_atr_minOccurs.m_value_int;
+  }
+  bool validate_max_counter() const override
+  {
+    return m_counter < m_atr_maxOccurs.m_value_int;
+  }
+  void push_self(MY_XML_VALIDATION_DATA *st) override
+  {
+    m_counter++;
+    m_type->validate_prepare();
+    st->push(this);
+  }
+};
+
+
+/*
+  This <xml> tag can appear both in the SCHEMA and the XML
+  itself. So the rules are equal for both schema parsing and
+  validation.
+*/
+class XMLSchema_xml_tag_attribute: public  XMLSchema_tag_attribute
+{
+public:
+   XMLSchema_xml_tag_attribute(const xs_word *name):
+     XMLSchema_tag_attribute(name) {}
+
+  bool validate_value(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override
+  {
+    return value(st, attr, len);
+  }
+  bool validate_leave(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override
+  {
+    return leave(st, attr, len);
+  }
+};
+
+
+class XMLSchema_xml: public XMLSchema_tag
+{
+public:
+  XMLSchema_xml_tag_attribute m_atr_version;
+  XMLSchema_xml_tag_attribute m_atr_encoding;
+  XMLSchema_xml(): XMLSchema_tag(),
+    m_atr_version(&xs_version),
+    m_atr_encoding(&xs_encoding)
+  {
+    declare_attribute(&m_atr_version);
+    declare_attribute(&m_atr_encoding);
+  }
+  bool validate_leave(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override
+  {
+    return leave(st, attr, len);
+  }
+  bool validate_tag(MY_XML_VALIDATION_DATA *st,
+                    const char *attr, size_t len) override
+  {
+    return enter_tag(st, attr, len);
+  }
+  bool validate_attr(MY_XML_VALIDATION_DATA *st,
+                     const char *attr, size_t len) override
+  {
+    return enter_attr(st, attr, len);
+  }
+};
+
+
+class XMLSchema_schema: public XMLSchema_tag
+{
+  XMLSchema_tag_attribute m_atr_elementFormDefault;
+  XMLSchema_tag_attribute m_atr_targetNamespace;
+  XMLSchema_tag_attribute m_atr_attributeFormDefault;
+  XMLSchema_tag_attribute m_atr_version;
+  XMLSchema_tag_attribute m_atr_xml_lang;
+
+public:
+  XMLSchema_user_type *m_global_simpleTypes;
+  XMLSchema_user_type *m_global_complexTypes;
+  XMLSchema_attribute *m_global_attributes;
+  XMLSchema_element_global *m_global_elements;
+  XMLSchema_attributeGroup_def *m_global_attr_groups;
+
+  /*
+  TODO: should be supported.
+  XMLSchema_attribute_group *m_attribute_groups;
+  XMLSchema_type_def *m_type_defs;
+  XMLSchema_simpleType *m_simple_types;
+  */
+
+  XMLSchema_schema(): XMLSchema_tag(),
+    m_atr_elementFormDefault(&xs_elementFormDefault),
+    m_atr_targetNamespace(&xs_targetNamespace),
+    m_atr_attributeFormDefault(&xs_attributeFormDefault),
+    m_atr_version(&xs_version),
+    m_atr_xml_lang(&xs_xml_lang),
+    m_global_simpleTypes(NULL),
+    m_global_complexTypes(NULL),
+    m_global_attributes(NULL),
+    m_global_elements(NULL),
+    m_global_attr_groups(NULL)
+  {
+    declare_attribute(&m_atr_elementFormDefault);
+    declare_attribute(&m_atr_attributeFormDefault);
+    declare_attribute(&m_atr_targetNamespace);
+    declare_attribute(&m_atr_version);
+    declare_attribute(&m_atr_xml_lang);
+  }
+
+  XMLSchema_type *find_type_by_name(MY_XML_VALIDATION_DATA *st,
+                                    const char *name, size_t len) const;
+  XMLSchema_attributeGroup_def *find_attribute_group_by_name(const char *name,
+                                                             size_t len) const
+  {
+    return NULL;
+  }
+  XMLSchema_element_global *find_element(const char *name, size_t len) const
+  {
+    XMLSchema_element_global *el= m_global_elements;
+    for(; el; el= el->m_next_element_global)
+    {
+      if (el->validate_name(name, len))
+        return el;
+    }
+    return NULL;
+  }
+
+  bool validate_element(MY_XML_VALIDATION_DATA *st,
+                        const char *attr, size_t len);
+  bool enter_tag(MY_XML_VALIDATION_DATA *st,
+                 const char *attr, size_t len) override;
+  XMLSchema_type *find_simple_type(const char *name, size_t len) const;
+  XMLSchema_type *find_complex_type(const char *name, size_t len) const;
+};
+
+
+/* implementations */
+
+/* XML schema builtin types. */
+static xs_word xs_anyType(STRING_WITH_LEN("anyType"));
+static xs_word xs_anySimpleType(STRING_WITH_LEN("anySimpleType"));
+
+/* integers */
+static xs_word xs_integer(STRING_WITH_LEN("integer"));
+static xs_word xs_long(STRING_WITH_LEN("long"));
+static xs_word xs_int(STRING_WITH_LEN("int"));
+static xs_word xs_short( STRING_WITH_LEN("short"));
+static xs_word xs_byte(STRING_WITH_LEN("byte"));
+
+/* non-negative integers */
+static xs_word xs_nonNegativeInteger(STRING_WITH_LEN("nonNegativeInteger"));
+static xs_word xs_positiveInteger(STRING_WITH_LEN("positiveInteger"));
+static xs_word xs_unsignedInt(STRING_WITH_LEN("unsignedInt"));
+static xs_word xs_unsignedLong(STRING_WITH_LEN("unsignedLong"));
+
+/* numeric */
+static xs_word xs_decimal(STRING_WITH_LEN("decimal"));
+static xs_word xs_double(STRING_WITH_LEN("double"));
+static xs_word xs_float(STRING_WITH_LEN("float"));
+static xs_word xs_boolean(STRING_WITH_LEN("boolean"));
+static xs_word xs_true(STRING_WITH_LEN("true"));
+static xs_word xs_false(STRING_WITH_LEN("false"));
+
+/* strings */
+static xs_word xs_string(STRING_WITH_LEN("string"));
+static xs_word xs_anyURI(STRING_WITH_LEN("anyURI"));
+static xs_word xs_QName(STRING_WITH_LEN("QName"));
+static xs_word xs_NOTATION(STRING_WITH_LEN("NOTATION"));
+static xs_word xs_normalizedString(STRING_WITH_LEN("normalizedString"));
+static xs_word xs_language(STRING_WITH_LEN("language"));
+static xs_word xs_NMTOKEN(STRING_WITH_LEN("NMTOKEN"));
+
+/* date/time */
+static xs_word xs_date(STRING_WITH_LEN("date"));
+static xs_word xs_time(STRING_WITH_LEN("time"));
+static xs_word xs_dateTime(STRING_WITH_LEN("dateTime"));
+static xs_word xs_duration(STRING_WITH_LEN("duration"));
+static xs_word xs_gDay(STRING_WITH_LEN("gDay"));
+static xs_word xs_gMonth(STRING_WITH_LEN("gMonth"));
+static xs_word xs_gMonthDay(STRING_WITH_LEN("gMonthDay"));
+static xs_word xs_gYear(STRING_WITH_LEN("gYear"));
+static xs_word xs_gYearMonth(STRING_WITH_LEN("gYearMonth"));
+
+/* identifiers */
+static xs_word xs_ID(STRING_WITH_LEN("ID"));
+static xs_word xs_IDREF(STRING_WITH_LEN("IDREF"));
+static xs_word xs_ENTITY(STRING_WITH_LEN("ENTITY"));
+
+/* binary */
+static xs_word xs_base64Binary(STRING_WITH_LEN("base64Binary"));
+static xs_word xs_hexBinary(STRING_WITH_LEN("hexBinary"));
+
+
+class XMLSchema_bool_builtin_type: public XMLSchema_builtin_type
+{
+public:
+  bool valid_value(const char *value, size_t len) override
+  {
+    return xs_true.eq(value, len) || xs_false.eq(value, len);
+  }
+};
+
+
+XMLSchema_builtin_type *XMLSchema_builtin_type::get_builtin_type_by_name(
+  MY_XML_VALIDATION_DATA *st, const char *name, size_t len)
+{
+  /* strings */
+  if (xs_string.eq(name, len) ||
+      xs_anyURI.eq(name, len) ||
+      xs_QName.eq(name, len) ||
+      xs_NOTATION.eq(name, len) ||
+      xs_normalizedString.eq(name, len) ||
+      xs_language.eq(name, len) ||
+      xs_NMTOKEN.eq(name, len))
+    return new(st->mem_root) XMLSchema_string_builtin_type;
+
+  /* integers */
+  if (xs_integer.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_INT);
+
+  if (xs_long.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_INT);
+
+  if (xs_int.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_INT);
+
+  if (xs_short.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_INT);
+
+  if (xs_byte.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_INT);
+
+/* non-negative integers */
+  if (xs_nonNegativeInteger.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_UINT);
+
+  if (xs_positiveInteger.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_UINT);
+
+  if (xs_unsignedInt.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_UINT);
+
+  if (xs_unsignedLong.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_UINT);
+
+/* numeric */
+  if (xs_decimal.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_DEC);
+
+  if (xs_double.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_FLOAT);
+
+  if (xs_float.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_FLOAT);
+
+  if (xs_boolean.eq(name, len))
+    return new(st->mem_root) XMLSchema_bool_builtin_type;
+
+  /* date/time types */
+  if (xs_dateTime.eq(name, len))
+    return new(st->mem_root) XMLSchema_datetime_builtin_type(T_GO);
+
+  if (xs_date.eq(name, len))
+    return new(st->mem_root) XMLSchema_datetime_builtin_type(T_dGO);
+
+  if (xs_time.eq(name, len))
+    return new(st->mem_root) XMLSchema_datetime_builtin_type(T_tGO);
+
+  if (xs_gYear.eq(name, len))
+    return new(st->mem_root) XMLSchema_datetime_builtin_type(T_yGO);
+
+  if (xs_gMonth.eq(name, len))
+    return new(st->mem_root) XMLSchema_datetime_builtin_type(T_mGO);
+
+  if (xs_gDay.eq(name, len))
+    return new(st->mem_root) XMLSchema_datetime_builtin_type(T_aGO);
+
+  if (xs_gMonthDay.eq(name, len))
+    return new(st->mem_root) XMLSchema_datetime_builtin_type(T_nGO);
+
+  if (xs_base64Binary.eq(name, len))
+    return new(st->mem_root) XMLSchema_binary_builtin_type(B_B640);
+
+  if (xs_hexBinary.eq(name, len))
+    return new(st->mem_root) XMLSchema_binary_builtin_type(B_HEX0);
+
+  /* various types */
+  if (xs_anySimpleType.eq(name, len))
+    return new(st->mem_root) XMLSchema_builtin_type;
+
+  return NULL;
+}
+
+
+bool XMLSchema_root::enter_tag(MY_XML_VALIDATION_DATA *st,
+                               const char *attr, size_t len)
+{
+  if (xs_xml.eq(attr, len))
+  {
+    st->push(st->xml);
+  }
+  else if (xs_schema.eq(attr, len))
+  {
+    st->schema= new(st->mem_root) XMLSchema_schema;
+    st->push(st->schema);
+  }
+  else
+    return XMLSchema_item::enter_tag(st, attr, len);
+
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_root::validate_tag(MY_XML_VALIDATION_DATA *st,
+                                  const char *attr, size_t len)
+{
+  if (xs_xml.eq(attr, len))
+  {
+    st->push(st->xml);
+  }
+  else
+  {
+    return st->schema->validate_element(st, attr, len);
+  }
+
+  return MY_XML_OK;
+}
+
+
+int XMLSchema_std_attributes::enter_tag(MY_XML_VALIDATION_DATA *st,
+                                        const char *attr, size_t len)
+{
+  if (xs_attribute.eq(attr, len))
+  {
+    XMLSchema_attribute *atr= new(st->mem_root) XMLSchema_attribute;
+
+    atr->m_next_attribute= m_attributes;
+    m_attributes= atr;
+
+    st->push(atr);
+  }
+  else if (xs_attributeGroup.eq(attr, len))
+  {
+    XMLSchema_attributeGroup_reference *ref=
+      new(st->mem_root) XMLSchema_attributeGroup_reference;
+    ref->m_next_ref= m_groups;
+    m_groups= ref;
+
+    st->push(ref);
+  }
+  else if (xs_anyAttribute.eq(attr, len))
+  {
+    if (m_anyAttribute)
+      return -1; /* can't have two anyAttribute-s */
+
+    m_anyAttribute= new(st->mem_root) XMLSchema_anyAttribute;
+    st->push(m_anyAttribute);
+  }
+  else
+    return 0;
+
+  return 1;
+}
+
+
+int XMLSchema_std_attributes::validate_attr(MY_XML_VALIDATION_DATA *st,
+                                            const char *attr, size_t len)
+{
+  for (XMLSchema_attribute *atr= m_attributes;
+       atr; atr= atr->m_next_attribute)
+  {
+    if (atr->validate_name(attr, len))
+    {
+      atr->push_self(st);
+      return MY_XML_OK;
+    }
+  }
+
+  for (XMLSchema_attributeGroup_reference *g= m_groups;
+       g; g= g->m_next_ref)
+  {
+    if (g->validate_attr(st, attr, len) == MY_XML_OK)
+      return MY_XML_OK;
+
+    /* attribute wasn't found in the group. */
+  }
+  /* TODO handle anyAttributes */
+  return MY_XML_ERROR;
+}
+
+
+bool XMLSchema_attribute::enter_tag(MY_XML_VALIDATION_DATA *st,
+                                    const char *attr, size_t len)
+{
+  XMLSchema_type *t;
+
+  if (xs_simpleType.eq(attr, len))
+  {
+    if (m_type)
+      return MY_XML_ERROR; /* several types specified. */
+
+    t= new(st->mem_root) XMLSchema_simpleType;
+    m_type= t;
+    st->push(t);
+    return MY_XML_OK;
+  }
+
+  return XMLSchema_tag::enter_tag(st, attr, len);
+}
+
+
+bool XMLSchema_attribute::leave(MY_XML_VALIDATION_DATA *st,
+                                const char *attr, size_t len)
+{
+  if (!m_atr_name.is_set())
+    return MY_XML_ERROR; /* name must be specified. */
+
+  if (m_type)
+  {
+    if (m_atr_type.is_set())
+      return MY_XML_ERROR; /* only one type should be specified. */
+  }
+  else
+  {
+    m_type= st->schema->find_type_by_name(
+                          st, m_atr_type.m_val, m_atr_type.m_val_len);
+    if (!m_type)
+      return MY_XML_ERROR;
+  }
+
+  return XMLSchema_item::leave(st, attr, len);
+}
+
+
+bool XMLSchema_attributeGroup_reference::leave(MY_XML_VALIDATION_DATA *st,
+        const char *attr, size_t len)
+{
+  if (!m_atr_ref.is_set())
+    return MY_XML_ERROR;
+
+  m_group= st->schema->find_attribute_group_by_name(m_atr_ref.m_val,
+                                                    m_atr_ref.m_val_len);
+
+  return m_group ? MY_XML_OK : MY_XML_ERROR;
+}
+
+
+bool XMLSchema_simpleType::enter_tag(MY_XML_VALIDATION_DATA *st,
+                                     const char *attr, size_t len)
+{
+  XMLSchema_tag *def= NULL;
+
+  if (xs_restriction.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_restriction_in_simpleType;
+  }
+  else if (xs_list.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_list;
+  }
+  else if (xs_union.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_union;
+  }
+
+  if (def)
+  {
+    if (m_compositor)
+      return MY_XML_ERROR; /* exactly one tag allowed. */
+
+    m_compositor= def;
+    st->push(def);
+
+    return MY_XML_OK;
+  }
+
+  return XMLSchema_user_type::enter_tag(st, attr, len);
+}
+
+
+bool XMLSchema_simpleType::leave(MY_XML_VALIDATION_DATA *st,
+                                 const char *attr, size_t len)
+{
+  if (m_schema)
+  {
+    if (!m_type_name.is_set())
+      return MY_XML_OK; /* type neme should be specified here. */
+
+    m_next_type= m_schema->m_global_simpleTypes;
+    m_schema->m_global_simpleTypes= this;
+  }
+  return XMLSchema_user_type::leave(st, attr, len);
+}
+
+
+bool XMLSchema_complexType::enter_tag(MY_XML_VALIDATION_DATA *st,
+                                      const char *attr, size_t len)
+{
+  int res;
+  XMLSchema_tag *def= NULL;
+
+  if (xs_smipleContent.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_simpleContent;
+  }
+  else if (xs_complexContent.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_complexContent;
+  }
+  else if (xs_sequence.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_sequence;
+  }
+  else if (xs_choice.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_choice;
+  }
+  else if (xs_all.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_all;
+  }
+  else if (xs_group.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_group_reference;
+  }
+  else if ((res= m_attributes.enter_tag(st, attr, len)))
+  {
+    if (res < 0)
+      return MY_XML_ERROR;
+  }
+  else
+    return XMLSchema_user_type::enter_tag(st, attr, len);
+
+  /* Can have exactly one of these tags.. */
+  if (def)
+  {
+    if (m_compositor)
+      return MY_XML_ERROR;
+
+    st->push(def);
+    m_compositor= def;
+  }
+
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_complexType::leave(MY_XML_VALIDATION_DATA *st,
+                                  const char *attr, size_t len)
+{
+  if (m_schema)
+  {
+    if (!m_type_name.is_set())
+      return MY_XML_OK; /* type neme should be specified here. */
+
+    m_next_type= m_schema->m_global_complexTypes;
+    m_schema->m_global_complexTypes= this;
+  }
+  return XMLSchema_user_type::leave(st, attr, len);
+}
+
+
+bool XMLSchema_restriction_in_simpleType::enter_tag(MY_XML_VALIDATION_DATA *st,
+                                                    const char *attr,
+                                                    size_t len)
+{
+  if (xs_minInclusive.eq(attr, len))
+  {
+    st->push(&m_minInclusive);
+  }
+  else if (xs_maxInclusive.eq(attr, len))
+  {
+    st->push(&m_maxInclusive);
+  }
+  if (xs_minExclusive.eq(attr, len))
+  {
+    st->push(&m_minExclusive);
+  }
+  else if (xs_maxExclusive.eq(attr, len))
+  {
+    st->push(&m_maxExclusive);
+  }
+  else if (xs_totalDigits.eq(attr, len))
+  {
+    st->push(&m_totalDigits);
+  }
+  else if (xs_fractionDigits.eq(attr, len))
+  {
+    st->push(&m_fractionDigits);
+  }
+  else if (xs_length.eq(attr, len))
+  {
+    st->push(&m_length);
+  }
+  else if (xs_minLength.eq(attr, len))
+  {
+    st->push(&m_minLength);
+  }
+  else if (xs_maxLength.eq(attr, len))
+  {
+    st->push(&m_maxLength);
+  }
+  else if (xs_pattern.eq(attr, len))
+  {
+    st->push(&m_pattern);
+  }
+  else if (xs_whiteSpace.eq(attr, len))
+  {
+    st->push(&m_whiteSpace);
+  }
+  else if (xs_enumeration.eq(attr, len))
+  {
+    XMLSchema_enum_facet *en= new(st->mem_root) XMLSchema_enum_facet;
+    en->m_next_enum= m_enumeration;
+    m_enumeration= en;
+    st->push(en);
+  }
+  else
+    return XMLSchema_tag::enter_tag(st, attr, len);
+
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_restriction_in_simpleType::leave(
+    MY_XML_VALIDATION_DATA *st, const char *attr, size_t len)
+{
+  if (m_base.is_set())
+  {
+    if (m_base_type)
+      return MY_XML_ERROR; /* type should be specified only once. */
+
+    m_base_type= st->schema->find_type_by_name(
+                               st, m_base.m_val, m_base.m_val_len);
+    if (!m_base_type)
+      return MY_XML_ERROR;
+  }
+  else
+  {
+    if (!m_base_type)
+      return MY_XML_ERROR; /* no type specified. */
+  }
+
+  return XMLSchema_tag::leave(st, attr, len);
+}
+
+
+bool XMLSchema_restriction_in_simpleType::validate_value(
+            MY_XML_VALIDATION_DATA *st, const char *attr, size_t len)
+{
+  if (m_enumeration)
+  {
+    for (XMLSchema_enum_facet *en= m_enumeration; en; en= en->m_next_enum)
+    {
+      if (en->eq(attr, len))
+        return MY_XML_OK;
+    }
+    return MY_XML_ERROR;
+  }
+
+  /* TODO check other facets. */
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_list::enter_tag(MY_XML_VALIDATION_DATA *st,
+                               const char *attr, size_t len)
+{
+  if (xs_simpleType.eq(attr, len))
+  {
+    if (m_type)
+      return MY_XML_ERROR; /* several types specified. */
+
+    m_type= new(st->mem_root) XMLSchema_simpleType;
+    st->push(m_type);
+
+    return MY_XML_OK;
+  }
+
+  return XMLSchema_tag::enter_tag(st, attr, len);
+}
+
+
+bool XMLSchema_list::leave(MY_XML_VALIDATION_DATA *st,
+                           const char *attr, size_t len)
+{
+  bool res= XMLSchema_tag::leave(st, attr, len);
+
+  if (m_type)
+  {
+    return m_attr_itemType.is_set() ? MY_XML_ERROR /* can't have two */ :
+                                      res;
+  }
+  if (!m_attr_itemType.is_set())
+    return MY_XML_ERROR; /* type must be specified. */
+
+  m_type= st->schema->find_type_by_name(st, attr, len);
+
+  return m_type ? res : MY_XML_ERROR;
+}
+
+
+bool XMLSchema_union::enter_tag(MY_XML_VALIDATION_DATA *st,
+                                const char *attr, size_t len)
+{
+  if (xs_simpleType.eq(attr, len))
+  {
+    XMLSchema_simpleType *t= new(st->mem_root) XMLSchema_simpleType;
+    st->push(t);
+    *m_nested_hook= t->m_next_type;
+    m_nested_hook= &t->m_next_type;
+    return MY_XML_OK;
+  }
+
+  return XMLSchema_tag::enter_tag(st, attr, len);
+}
+
+
+bool XMLSchema_union::leave(MY_XML_VALIDATION_DATA *st,
+                            const char *attr, size_t len)
+{
+  bool res= XMLSchema_tag::leave(st, attr, len);
+
+  *m_nested_hook= NULL;
+
+  /* TODO: add handling the typelist */
+  return m_nested_types || m_attr_memberTypes.is_set() ? res : MY_XML_ERROR;
+}
+
+
+bool XMLSchema_simpleContent::enter_tag(MY_XML_VALIDATION_DATA *st,
+                                        const char *attr, size_t len)
+{
+  XMLSchema_tag *t= NULL;
+
+  if (xs_restriction.eq(attr, len))
+  {
+    t= new(st->mem_root) XMLSchema_restriction_in_simpleContent;
+  }
+  else if (xs_extension.eq(attr, len))
+  {
+    t= new(st->mem_root) XMLSchema_extension_in_simpleContent;
+  }
+
+  if (!t)
+    return XMLSchema_tag::enter_tag(st, attr, len);
+
+  if (m_nested)
+    return MY_XML_ERROR; /* only one nested allowed. */
+
+  st->push(t);
+  m_nested= t;
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_complexContent::enter_tag(MY_XML_VALIDATION_DATA *st,
+                                         const char *attr, size_t len)
+{
+  XMLSchema_tag *t= NULL;
+
+  if (xs_restriction.eq(attr, len))
+  {
+    t= new(st->mem_root) XMLSchema_restriction_in_complexContent;
+  }
+  else if (xs_extension.eq(attr, len))
+  {
+    t= new(st->mem_root) XMLSchema_extension_in_complexContent;
+  }
+
+  if (!t)
+    return XMLSchema_simpleContent::enter_tag(st, attr, len);
+
+  if (m_nested)
+    return MY_XML_ERROR; /* only one nested allowed. */
+
+  st->push(t);
+  m_nested= t;
+  return MY_XML_OK;
+}
+
+
+void XMLSchema_all::append_tag(XMLSchema_tag *tag)
+{
+  *m_tags_hook= tag;
+  m_tags_hook= &tag->m_next_tag;
+}
+
+
+bool XMLSchema_all::enter_tag(MY_XML_VALIDATION_DATA *st,
+                              const char *attr, size_t len)
+{
+  XMLSchema_tag *def= NULL;
+
+  if (xs_element.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_element_local;
+  }
+  else
+    return XMLSchema_tag::enter_tag(st, attr, len);
+
+  if (def == NULL)
+    return MY_XML_ERROR; /* OOM */
+
+  append_tag(def);
+  st->push(def);
+
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_sequence::enter_tag(MY_XML_VALIDATION_DATA *st,
+                                   const char *attr, size_t len)
+{
+  XMLSchema_tag *def= NULL;
+
+  if (xs_sequence.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_sequence;
+  }
+  else if (xs_choice.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_choice;
+  }
+  else if (xs_any.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_any;
+  }
+  else if (xs_group.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_group_reference;
+  }
+  else
+    return XMLSchema_all::enter_tag(st, attr, len);
+
+  if (def == NULL)
+    return MY_XML_ERROR; /* OOM */
+
+  append_tag(def);
+  st->push(def);
+
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_sequence::validate_tag(MY_XML_VALIDATION_DATA *st,
+                                      const char *attr, size_t len)
+{
+  if (!m_cur_tag)
+  {
+    if (!(m_cur_tag= m_tags))
+      return MY_XML_ERROR;
+    m_cur_tag->validate_prepare();
+  }
+
+  for (;;)
+  {
+    if (m_cur_tag->validate_name(attr, len))
+    {
+      if (m_cur_tag->validate_max_counter())
+        break;
+      /* can't have another element with this name. */
+      return validate_failed(st);
+    }
+    else
+    {
+      if (!m_cur_tag->validate_min_counter())
+      {
+        /* had to be another one with this name. */
+        return validate_failed(st);
+      }
+      if (!(m_cur_tag= m_cur_tag->m_next_tag))
+        return MY_XML_ERROR;
+      m_cur_tag->validate_prepare();
+    }
+  }
+
+  m_cur_tag->push_self(st);
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_sequence::validate_leave(MY_XML_VALIDATION_DATA *st,
+                                        const char *attr, size_t len)
+{
+  while (m_cur_tag) /* not all tags were met */
+  {
+    if (!m_cur_tag->validate_min_counter())
+    {
+      return validate_failed(st);
+    }
+    m_cur_tag= m_cur_tag->m_next_tag;
+  }
+
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_group_def::enter_tag(MY_XML_VALIDATION_DATA *st,
+                                    const char *attr, size_t len)
+{
+  XMLSchema_tag *def= NULL;
+
+  if (xs_sequence.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_sequence;
+  }
+  else if (xs_choice.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_choice;
+  }
+  else if (xs_all.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_all;
+  }
+  else
+    return XMLSchema_tag::enter_tag(st, attr, len);
+
+  if (def == NULL || m_compositor != NULL)
+    return MY_XML_ERROR;
+
+  m_compositor= def;
+  st->push(def);
+
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_element_global::enter_tag(MY_XML_VALIDATION_DATA *st,
+                                         const char *attr, size_t len)
+{
+  XMLSchema_type *def= NULL;
+
+  if (xs_complexType.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_complexType;
+  }
+/* TODO implement these
+  else if (xs_unique.eq(attr, len))
+  {
+  }
+  else if (xs_key.eq(attr, len))
+  {
+  }
+  else if (xs_keyref.eq(attr, len))
+  {
+  }
+*/
+  else
+    return XMLSchema_attribute::enter_tag(st, attr, len);
+
+  if (def == NULL || m_type != NULL)
+    return MY_XML_ERROR;
+
+  m_type= def;
+  st->push(def);
+
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_element_global::validate_attr(MY_XML_VALIDATION_DATA *st,
+                                             const char *attr, size_t len)
+{
+  return m_type->validate_attr(st, attr, len);
+}
+
+
+bool XMLSchema_element_global::validate_value(MY_XML_VALIDATION_DATA *st,
+                                              const char *attr, size_t len)
+{
+  return m_type->validate_value(st, attr, len);
+}
+
+
+bool XMLSchema_element_global::validate_tag(MY_XML_VALIDATION_DATA *st,
+                                            const char *attr, size_t len)
+{
+  return m_type->validate_tag(st, attr, len);
+}
+
+
+bool XMLSchema_element_global::validate_leave(MY_XML_VALIDATION_DATA *st,
+                                              const char *attr, size_t len)
+{
+  st->pop();
+  return m_type->validate_leave(st, attr, len);
+}
+
+
+bool XMLSchema_schema::enter_tag(MY_XML_VALIDATION_DATA *st,
+                                 const char *attr, size_t len)
+{
+  XMLSchema_item *def= NULL;
+
+  if (xs_element.eq(attr, len))
+  {
+    XMLSchema_element_global *el= new(st->mem_root) XMLSchema_element_global;
+    el->m_next_element_global= m_global_elements;
+    m_global_elements= el;
+    def= el;
+  }
+  else if (xs_attribute.eq(attr, len))
+  {
+    XMLSchema_attribute *atr= new(st->mem_root) XMLSchema_attribute;
+    atr->m_next_attribute= m_global_attributes;;
+    m_global_attributes= atr;
+    def= atr;
+  }
+  else if (xs_complexType.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_complexType(this);
+  }
+  else if (xs_simpleType.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_simpleType(this);
+  }
+  else if (xs_group.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_group_def;
+  }
+  else if (xs_attributeGroup.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_attributeGroup_def;
+  }
+  else if (xs_notation.eq(attr, len))
+  {
+    def= new(st->mem_root) XMLSchema_annotation;
+  }
+  else
+    return XMLSchema_tag::enter_tag(st, attr, len);
+
+  if (def == NULL)
+    return MY_XML_ERROR; /*OOM*/
+
+  st->push(def);
+  return MY_XML_OK;
+}
+
+
+XMLSchema_type *XMLSchema_schema::find_simple_type(
+                                    const char *name, size_t len) const
+{
+  XMLSchema_user_type *t= m_global_simpleTypes;
+  for(; t; t= t->m_next_type)
+  {
+    if (t->validate_name(name, len))
+      return t;
+  }
+  return NULL;
+}
+
+
+XMLSchema_type *XMLSchema_schema::find_complex_type(
+                                    const char *name, size_t len) const
+{
+  XMLSchema_user_type *t= m_global_complexTypes;
+  for(; t; t= t->m_next_type)
+  {
+    if (t->validate_name(name, len))
+      return t;
+  }
+  return NULL;
+}
+
+
+XMLSchema_type *XMLSchema_schema::find_type_by_name(
+   MY_XML_VALIDATION_DATA *st, const char *name, size_t len) const
+{
+  size_t col_pos= 0;
+  XMLSchema_builtin_type *builtin_type;
+  XMLSchema_type *result;
+
+  /* TODO check the namespace properly. */
+  while (col_pos < len)
+  {
+    if (name[col_pos++] == MY_XPATH_LEX_COLON)
+    {
+      name+= col_pos;
+      len-= col_pos;
+      break;
+    }
+  }
+
+  builtin_type= XMLSchema_builtin_type::get_builtin_type_by_name(
+      st, name, len);
+
+  if (builtin_type)
+  {
+    result= new(st->mem_root) XMLSchema_simple_builtin_type(builtin_type);
+  }
+  else
+  {
+    if (xs_anyType.eq(name, len))
+      result= new(st->mem_root) XMLSchema_any_type;
+    else
+    {
+      result= find_simple_type(name, len);
+      if (!result)
+        result= find_complex_type(name, len);
+    }
+  }
+
+  return result;
+}
+
+bool XMLSchema_schema::validate_element(MY_XML_VALIDATION_DATA *st,
+                                        const char *attr, size_t len)
+{
+  XMLSchema_element_global *e= find_element(attr, len);
+  if (!e)
+    return validate_failed(st);
+
+  e->validate_prepare();
+  st->push(e);
+  return MY_XML_OK;
+}
+
+
+/* implementations cur */
+
+/*
+XMLSchema_attribute *
+XMLSchema_element_global::find_attribute(const char *name, size_t len)
+{
+  for (XMLSchema_attribute *atr= m_attributes;
+       atr;
+       atr= atr->m_next_attribute)
+  {
+    if (len == atr->m_atr_name.m_val_len &&
+        memcmp(atr->m_atr_name.m_val, name, len) == 0)
+      return atr;
+  }
+  return NULL;
+}
+
+
+bool XMLSchema_element::validate_attr(MY_XML_VALIDATION_DATA *st,
+    const char *name, size_t len)
+{
+  XMLSchema_attribute *attr= find_attribute(name, len);
+  if (!attr)
+    return MY_XML_ERROR;
+
+  st->push(attr);
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_schema::validate_tag(MY_XML_VALIDATION_DATA *st,
+                                    const char *name, size_t len)
+{
+  XMLSchema_tag *tag= find_tag(name, len);
+  if (!tag)
+    return validate_failed(st);
+  st->push(tag);
+  return MY_XML_OK;
+}
+*/
+
+
+void XMLSchema_attribute::validate_prepare()
+{
+  m_type->validate_prepare();
+}
+
+
+bool XMLSchema_attribute::validate_value(MY_XML_VALIDATION_DATA *st,
+                                         const char *attr, size_t len)
+{
+  return m_type->validate_value(st, attr, len);
+}
+
+
+bool XMLSchema_attribute::validate_leave(MY_XML_VALIDATION_DATA *st,
+                                         const char *attr, size_t len)
+{
+  st->pop();
+  return m_type->validate_leave(st, attr, len);
+}
+
+
+extern "C" {
+static int schema_enter(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  MY_XML_VALIDATION_DATA *data= (MY_XML_VALIDATION_DATA *) st->user_data;
+
+  if (st->current_node_type == MY_XML_NODE_TAG)
+  {
+    size_t col_pos= 0;
+    /* TODO check the namespace properly. */
+    while (col_pos < len)
+    {
+      if (attr[col_pos++] == MY_XPATH_LEX_COLON)
+      {
+        attr+= col_pos;
+        len-= col_pos;
+        break;
+      }
+    }
+
+    if (!data->s_stack)
+    {
+      DBUG_ASSERT(0); /* Shouldn't happen. */
+      return MY_XML_ERROR;
+    }
+    return data->s_stack->enter_tag(data, attr, len);
+  }
+  else if (st->current_node_type == MY_XML_NODE_TEXT)
+  {
+  }
+  else if (st->current_node_type == MY_XML_NODE_ATTR)
+  {
+    if (!data->s_stack)
+    {
+      DBUG_ASSERT(0); /* Shouldn't happen. */
+      return MY_XML_ERROR;
+    }
+    return data->s_stack->enter_attr(data, attr, len);
+  }
+
+  return MY_XML_OK;
+}
+
+
+static int schema_value(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  MY_XML_VALIDATION_DATA *data= (MY_XML_VALIDATION_DATA *) st->user_data;
+
+  return data->s_stack->value(data, attr, len);
+}
+
+
+static int schema_leave(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  MY_XML_VALIDATION_DATA *data= (MY_XML_VALIDATION_DATA *) st->user_data;
+
+  return data->s_stack->leave(data, attr, len);
+}
+
+} /* extern "C" */
+
+
+static int schema_parse(THD *thd, const String *xml,
+                        MY_XML_VALIDATION_DATA *user_data)
+{
+  MY_XML_PARSER p;
+  int rc;
+
+  user_data->mem_root= thd->mem_root;
+
+  /* Prepare XML parser */
+  my_xml_parser_create(&p);
+  p.flags= MY_XML_FLAG_RELATIVE_NAMES | MY_XML_FLAG_SKIP_TEXT_NORMALIZATION;
+
+  my_xml_set_enter_handler(&p, schema_enter);
+  my_xml_set_value_handler(&p, schema_value);
+  my_xml_set_leave_handler(&p, schema_leave);
+  my_xml_set_user_data(&p, (void*) user_data);
+
+  /* Execute XML parser */
+  if ((rc= my_xml_parse(&p, xml->ptr(), xml->length())) != MY_XML_OK)
+  {
+    char buf[128];
+    my_snprintf(buf, sizeof(buf)-1,
+                "XML Schema parse error at line %d pos %lu: %s",
+                my_xml_error_lineno(&p) + 1,
+                (ulong) my_xml_error_pos(&p) + 1,
+                my_xml_error_string(&p));
+    my_printf_error(ER_WRONG_VALUE, ER_THD(thd, ER_WRONG_VALUE), MYF(0),
+                    "XML", buf);
+    return 1;
+  }
+
+  if (user_data->schema == NULL)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR, "Invalid XML Schema.", MYF(0));
+    return 1;
+  }
+
+  return 0;
+}
+
+
+bool Item_func_xml_isvalid::fix_length_and_dec(THD *thd)
+{
+  String *schema_str;
+
+  if (Item_bool_func::fix_length_and_dec(thd))
+    return TRUE;
+
+  status_var_increment(current_thd->status_var.feature_xml);
+
+  set_maybe_null();
+
+  m_data= NULL;
+  if (!args[1]->const_item())
+  {
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "Only constant XML Schema-s are supported.", MYF(0));
+    return TRUE;
+  }
+  if (!(schema_str= args[1]->val_str(&m_tmp_schema)))
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WRONG_VALUE,
+                        ER_THD(thd, ER_WRONG_VALUE),
+                        "XML", "NULL as XML Schema");
+    return FALSE;
+  }
+
+  m_data= new(thd->mem_root) MY_XML_VALIDATION_DATA;
+  m_data->xml= new(thd->mem_root) XMLSchema_xml;
+
+  if (schema_parse(thd, schema_str, m_data))
+    return TRUE;
+
+  return FALSE;
+}
+
+
+extern "C" {
+static int validation_enter(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  MY_XML_VALIDATION_DATA *data= (MY_XML_VALIDATION_DATA *) st->user_data;
+  int result= MY_XML_OK;
+
+  if (st->current_node_type == MY_XML_NODE_TAG)
+  {
+    result= data->s_stack->validate_tag(data, attr, len);
+  }
+  else if (st->current_node_type == MY_XML_NODE_ATTR)
+  {
+    result= data->s_stack->validate_attr(data, attr, len);
+  }
+  else if (st->current_node_type == MY_XML_NODE_TEXT)
+  {
+  }
+
+  return result;
+}
+
+
+int validation_value(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  MY_XML_VALIDATION_DATA *data= (MY_XML_VALIDATION_DATA *) st->user_data;
+
+  return data->s_stack->validate_value(data, attr, len);
+}
+
+
+int validation_leave(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  MY_XML_VALIDATION_DATA *data= (MY_XML_VALIDATION_DATA *) st->user_data;
+
+  return data->s_stack->validate_leave(data, attr, len);
+}
+
+} /* extern "C" */
+
+
+static int validate_schema(const String *xml,
+                           MY_XML_VALIDATION_DATA *user_data)
+{
+  MY_XML_PARSER p;
+
+  /* Prepare XML parser */
+  my_xml_parser_create(&p);
+  p.flags= MY_XML_FLAG_RELATIVE_NAMES | MY_XML_FLAG_SKIP_TEXT_NORMALIZATION;
+
+  my_xml_set_enter_handler(&p, validation_enter);
+  my_xml_set_value_handler(&p, validation_value);
+  my_xml_set_leave_handler(&p, validation_leave);
+  my_xml_set_user_data(&p, (void*) user_data);
+
+  user_data->validation_failed= 0;
+  user_data->schema->m_next= NULL;
+  user_data->s_stack= &user_data->root;
+
+  /* Execute XML parser */
+  return my_xml_parse(&p, xml->ptr(), xml->length()) == MY_XML_OK;
+}
+
+
+bool Item_func_xml_isvalid::val_bool()
+{
+  String *xml= args[0]->val_str(&m_tmp_xml);
+
+  if ((null_value= !xml || m_data == NULL))
+    return FALSE;
+
+  return validate_schema(xml, m_data);
 }

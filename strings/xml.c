@@ -479,7 +479,8 @@ gt:
         my_xml_norm_text(&a);
       if (a.beg != a.end)
       {
-        my_xml_value(p,a.beg,(size_t) (a.end-a.beg));
+        if (MY_XML_OK != my_xml_value(p,a.beg,(size_t) (a.end-a.beg)))
+          return MY_XML_ERROR;
       }
     }
   }
