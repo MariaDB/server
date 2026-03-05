@@ -3148,3 +3148,314 @@ String *Item_func_xml_update::val_str(String *str)
 
   return collect_result(str, nodebeg, rep) ? (String *) NULL : str;
 }
+
+
+class XMLSchema
+{
+protected:
+  const class XMLSchema *m_next;
+public:
+  virtual bool check_valid()= 0;
+  virtual ~XMLSchema() = default;
+};
+
+
+class XMLSchema_simple_element : public XMLSchema
+{
+enum types
+{
+  decimal= 0,
+  string,
+  boolean,
+};
+
+static const char *typenames[];
+
+public:
+  bool check_valid() override;
+};
+
+
+const char *XMLSchema_simple_element::typenames[]=
+{
+  "decimal", "string", "boolean"
+};
+
+
+class XMLSchema_sequence : public XMLSchema
+{
+  const class XMLSchema *m_list;
+public:
+  bool check_valid() override;
+};
+
+static LEX_CSTRING element_names[]=
+{
+  {STRING_WITH_LEN("element")},
+  {STRING_WITH_LEN("complexType")},
+  {STRING_WITH_LEN("sequence")},
+  {STRING_WITH_LEN("schema")},
+  {STRING_WITH_LEN("xml")},
+  {STRING_WITH_LEN("")}
+};
+
+enum schema_element
+{
+  XML_SCHEMA_ELEMENT,
+  XML_SCHEMA_COMPLEX_TYPE,
+  XML_SCHAMA_SEQUENCE,
+  XML_SCHEMA_SCHEMA,
+  XML_SCHEMA_XML,
+};
+
+
+static LEX_CSTRING sc_xml_attr_names[]=
+{
+  {STRING_WITH_LEN("version")},
+  {STRING_WITH_LEN("charset")},
+  {STRING_WITH_LEN("")},
+};
+
+
+enum sc_xml_attr
+{
+  SC_XML_VERSION,
+  SC_XML_CHARSET
+};
+
+typedef struct 
+{
+  uint level;
+  String *pxml;         // parsed XML
+} MY_XML_VALIDATION_DATA;
+
+
+static const int XML_SCHEMA_NOT_FOUND= 0xFFFF;
+
+static size_t find_schema_name(const LEX_CSTRING *collection,
+    const char *name, size_t name_len)
+{
+  for (const LEX_CSTRING *cur= collection; cur->length; cur++)
+  {
+    if (name_len == cur->length &&
+        memcmp(cur->str, name, name_len) == 0)
+      return cur - collection;
+  }
+  return XML_SCHEMA_NOT_FOUND;
+}
+
+
+extern "C" {
+static int schema_enter(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  MY_XML_VALIDATION_DATA *data= (MY_XML_VALIDATION_DATA *) st->user_data;
+
+  if (st->current_node_type == MY_XML_NODE_TAG)
+  {
+    switch (find_schema_name(::element_names, attr, len))
+    {
+      case XML_SCHEMA_ELEMENT:
+        data->level++;
+        break;
+      case XML_SCHEMA_COMPLEX_TYPE:
+        break;
+      default:
+        break;
+    };
+  }
+  else if (st->current_node_type == MY_XML_NODE_TEXT)
+  {
+  }
+  else if (st->current_node_type == MY_XML_NODE_ATTR)
+  {
+    data->attr= 
+    switch (find_schema_name(::sc_xml_attr_names, attr, len))
+    {
+      case SC_XML_VERSION:
+        data->
+        break;
+      case SC_XML_CHARSET:
+        break;
+      default:
+        break;
+    };
+  }
+
+  return MY_XML_OK;
+}
+
+
+int schema_value(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  MY_XML_VALIDATION_DATA *data= (MY_XML_VALIDATION_DATA *) st->user_data;
+  if (data->element == SC_
+  switch (find_schema_name(::sc_xml_attr_names, attr, len))
+  {
+    case SC_XML_VERSION:
+      data->
+        break;
+    case SC_XML_CHARSET:
+      break;
+    default:
+      break;
+  };
+  return MY_XML_OK;
+}
+
+
+int schema_leave(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  MY_XML_VALIDATION_DATA *data= (MY_XML_VALIDATION_DATA *) st->user_data;
+
+  data->level--;
+
+  return MY_XML_OK;
+}
+
+} /* extern "C" */
+
+
+static int schema_parse(THD *thd, const String *xml,
+                        MY_XML_VALIDATION_DATA *user_data)
+{
+  MY_XML_PARSER p;
+  int rc;
+
+  /* Prepare XML parser */
+  my_xml_parser_create(&p);
+  p.flags= MY_XML_FLAG_RELATIVE_NAMES | MY_XML_FLAG_SKIP_TEXT_NORMALIZATION;
+
+  my_xml_set_enter_handler(&p, schema_enter);
+  my_xml_set_value_handler(&p, schema_value);
+  my_xml_set_leave_handler(&p, schema_leave);
+  my_xml_set_user_data(&p, (void*) &user_data);
+
+  /* Execute XML parser */
+  if ((rc= my_xml_parse(&p, xml->ptr(), xml->length())) != MY_XML_OK)
+  {
+    char buf[128];
+    my_snprintf(buf, sizeof(buf)-1, "parse error at line %d pos %lu: %s",
+                my_xml_error_lineno(&p) + 1,
+                (ulong) my_xml_error_pos(&p) + 1,
+                my_xml_error_string(&p));
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WRONG_VALUE,
+                        ER_THD(thd, ER_WRONG_VALUE), "XML", buf);
+  }
+
+  return 0;
+}
+
+
+bool Item_func_xml_isvalid::fix_length_and_dec(THD *thd)
+{
+  String *schema_str;
+  MY_XML_VALIDATION_DATA data;
+
+  if (Item_bool_func::fix_length_and_dec(thd))
+    return TRUE;
+
+  status_var_increment(current_thd->status_var.feature_xml);
+
+  set_maybe_null();
+
+  if (!args[0]->const_item() ||
+      !(schema_str= args[0]->val_str(&m_tmp_str)))
+    return TRUE;
+
+  if (schema_parse(thd, schema_str, &data))
+    return TRUE;
+
+  return FALSE;
+}
+
+
+extern "C" {
+static int validation_enter(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  MY_XML_VALIDATION_DATA *data= (MY_XML_VALIDATION_DATA *) st->user_data;
+
+  if (st->current_node_type == MY_XML_NODE_TAG)
+  {
+    switch (find_schema_name(::element_names, attr, len))
+    {
+      case XML_SCHEMA_ELEMENT:
+        data->level++;
+        break;
+      case XML_SCHEMA_COMPLEX_TYPE:
+        break;
+      default:
+        break;
+    };
+  }
+  else if (st->current_node_type == MY_XML_NODE_TEXT)
+  {
+  }
+
+  return MY_XML_OK;
+}
+
+
+int validation_value(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  MY_XML_VALIDATION_DATA *data= (MY_XML_VALIDATION_DATA *) st->user_data;
+  data->level++;
+  return MY_XML_OK;
+}
+
+
+int validation_leave(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  MY_XML_VALIDATION_DATA *data= (MY_XML_VALIDATION_DATA *) st->user_data;
+
+  data->level--;
+
+  return MY_XML_OK;
+}
+
+} /* extern "C" */
+
+
+static int validate_schema(const String *xml,
+                           MY_XML_VALIDATION_DATA *user_data)
+{
+  MY_XML_PARSER p;
+  int rc;
+
+  /* Prepare XML parser */
+  my_xml_parser_create(&p);
+  p.flags= MY_XML_FLAG_RELATIVE_NAMES | MY_XML_FLAG_SKIP_TEXT_NORMALIZATION;
+
+  my_xml_set_enter_handler(&p, validation_enter);
+  my_xml_set_value_handler(&p, validation_value);
+  my_xml_set_leave_handler(&p, validation_leave);
+  my_xml_set_user_data(&p, (void*) &user_data);
+
+  /* Execute XML parser */
+  if ((rc= my_xml_parse(&p, xml->ptr(), xml->length())) != MY_XML_OK)
+  {
+    THD *thd= current_thd;
+    char buf[128];
+    my_snprintf(buf, sizeof(buf)-1, "parse error at line %d pos %lu: %s",
+                my_xml_error_lineno(&p) + 1,
+                (ulong) my_xml_error_pos(&p) + 1,
+                my_xml_error_string(&p));
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WRONG_VALUE,
+                        ER_THD(thd, ER_WRONG_VALUE), "XML", buf);
+  }
+
+  return 0;
+}
+
+
+bool Item_func_xml_isvalid::val_bool()
+{
+  String *xml= args[1]->val_str(&m_tmp_str);
+  MY_XML_VALIDATION_DATA data;
+
+  if ((null_value= !xml))
+    return FALSE;
+
+  return validate_schema(xml, &data);
+}
