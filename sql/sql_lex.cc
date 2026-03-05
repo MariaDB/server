@@ -2426,6 +2426,16 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         yySkipn(maria_comment_syntax ? 4 : 3);
 
         /*
+          Check for reversed executable comment syntax: '/' '*' '!' '!'
+          A reversed comment is executed only on versions OLDER than
+          the specified version (i.e. when MYSQL_VERSION_ID < version).
+          See MDEV-7381.
+        */
+        bool reversed_comment= (yyPeekn(0) == '!');
+        if (reversed_comment)
+          yySkipn(1);
+
+        /*
           The special comment format is very strict:
           '/' '*' '!', followed by an optional 'M' and exactly
           1-2 digits (major), 2 digits (minor), then 2 digits (dot).
@@ -2458,9 +2468,16 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
             MariaDB-10.0 does not understand. Ignore all versioned comments
             with MySQL versions in the range 50700-999999, but
             do not ignore MariaDB specific comments for the same versions.
+
+            Reversed executable comments (MDEV-7381): execute the content
+            only when the server version is strictly less than the specified
+            version. The MySQL 5.7 range exclusion does not apply to
+            reversed comments.
           */ 
-          if (version <= MYSQL_VERSION_ID &&
-              (version < 50700 || version > 99999 || maria_comment_syntax))
+          if ((!reversed_comment &&
+               version <= MYSQL_VERSION_ID &&
+               (version < 50700 || version > 99999 || maria_comment_syntax)) ||
+              (reversed_comment && MYSQL_VERSION_ID < version))
           {
             /* Accept 'M' 'm' 'm' 'd' 'd' */
             yySkipn(length);

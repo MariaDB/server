@@ -101,3 +101,36 @@ prepare bar from "DELETE FROM table_28779 WHERE a = 7 OR 1=1/*!998765' AND b = '
 
 drop table table_28779;
 
+
+--echo #
+--echo # MDEV-7381: Reversed executable comments
+--echo #
+
+--echo # Server version is >= 100000, so reversed comments with version
+--echo # <= current should NOT execute (server is not older than that version).
+SELECT 1 /*!!50101 +1 */;
+SELECT 1 /*!!100000 +1 */;
+
+--echo # Reversed comment with version higher than current SHOULD execute.
+SELECT 1 /*!!999999 +1 */;
+
+--echo # MariaDB-specific reversed executable comments
+SELECT 1 /*M!!50101 +1 */;
+SELECT 1 /*M!!999999 +1 */;
+
+--echo # Without version number (just /*!! with no digits) should still work
+--echo # as a regular executable comment expanding the content.
+SELECT 1 /*!! +1 */;
+SELECT 1 /*M!! +1 */;
+
+--echo # Combined forward and reversed in the same statement (MDEV-7381 use case).
+--echo # On this server (>= 10.0.0): /*!100000 OR REPLACE */ executes,
+--echo # /*!!100000 IF NOT EXISTS */ is skipped.
+--echo # Effective statement: CREATE OR REPLACE TABLE t1 (a INT);
+CREATE /*!100000 OR REPLACE */ TABLE /*!!100000 IF NOT EXISTS */ t1 (a INT);
+INSERT INTO t1 VALUES (1);
+--echo # Run again. OR REPLACE should drop and recreate the table, losing the row.
+CREATE /*!100000 OR REPLACE */ TABLE /*!!100000 IF NOT EXISTS */ t1 (a INT);
+--echo # Table should be empty, proving OR REPLACE was used (not IF NOT EXISTS).
+SELECT COUNT(*) FROM t1;
+DROP TABLE t1;
