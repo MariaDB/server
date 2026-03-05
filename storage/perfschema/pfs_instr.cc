@@ -26,6 +26,7 @@
   Performance schema instruments (implementation).
 */
 
+#include <atomic>
 #include <my_global.h>
 #include <string.h>
 
@@ -94,7 +95,7 @@ PFS_ALIGNED static PFS_cacheline_uint64 thread_internal_id_counter;
 /** Hash table for instrumented files. */
 LF_HASH pfs_filename_hash;
 /** True if pfs_filename_hash is initialized. */
-static bool filename_hash_inited= false;
+static std::atomic<bool> filename_hash_inited(false);
 
 my_bool show_compatibility_56= 0;
 
@@ -275,11 +276,12 @@ C_MODE_END
 */
 int init_file_hash(const PFS_global_param *param)
 {
-  if ((! filename_hash_inited) && (param->m_file_sizing != 0))
+  if ((!filename_hash_inited.load(std::memory_order_acquire)) &&
+      (param->m_file_sizing != 0))
   {
     lf_hash_init(&pfs_filename_hash, sizeof(PFS_file*), LF_HASH_UNIQUE,
                  0, 0, filename_hash_get_key, &my_charset_bin);
-    filename_hash_inited= true;
+    filename_hash_inited.store(true, std::memory_order_release);
   }
   return 0;
 }
@@ -287,10 +289,10 @@ int init_file_hash(const PFS_global_param *param)
 /** Cleanup the file name hash. */
 void cleanup_file_hash(void)
 {
-  if (filename_hash_inited)
+  if (filename_hash_inited.load(std::memory_order_acquire))
   {
     lf_hash_destroy(&pfs_filename_hash);
-    filename_hash_inited= false;
+    filename_hash_inited.store(false, std::memory_order_release);
   }
 }
 
@@ -733,7 +735,7 @@ LF_PINS* get_filename_hash_pins(PFS_thread *thread)
 {
   if (unlikely(thread->m_filename_hash_pins == NULL))
   {
-    if (! filename_hash_inited)
+    if (!filename_hash_inited.load(std::memory_order_acquire))
       return NULL;
     thread->m_filename_hash_pins= lf_hash_get_pins(&pfs_filename_hash);
   }

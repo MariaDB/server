@@ -25,6 +25,7 @@
   Performance schema setup actor (implementation).
 */
 
+#include <atomic>
 #include "my_global.h"
 #include "my_sys.h"
 #include "my_base.h"
@@ -44,7 +45,7 @@
 /** Hash table for setup_actor records. */
 LF_HASH setup_actor_hash;
 /** True if @c setup_actor_hash is initialized. */
-static bool setup_actor_hash_inited= false;
+static std::atomic<bool> setup_actor_hash_inited(false);
 
 /**
   Initialize the setup actor buffers.
@@ -85,12 +86,13 @@ C_MODE_END
 */
 int init_setup_actor_hash(const PFS_global_param *param)
 {
-  if ((! setup_actor_hash_inited) && (param->m_setup_actor_sizing != 0))
+  if ((!setup_actor_hash_inited.load(std::memory_order_acquire)) &&
+      (param->m_setup_actor_sizing != 0))
   {
     lf_hash_init(&setup_actor_hash, sizeof(PFS_setup_actor*), LF_HASH_UNIQUE,
                  0, 0, setup_actor_hash_get_key, &my_charset_bin);
     /* setup_actor_hash.size= param->m_setup_actor_sizing; */
-    setup_actor_hash_inited= true;
+    setup_actor_hash_inited.store(true, std::memory_order_release);
   }
   return 0;
 }
@@ -98,10 +100,10 @@ int init_setup_actor_hash(const PFS_global_param *param)
 /** Cleanup the setup actor hash. */
 void cleanup_setup_actor_hash(void)
 {
-  if (setup_actor_hash_inited)
+  if (setup_actor_hash_inited.load(std::memory_order_acquire))
   {
     lf_hash_destroy(&setup_actor_hash);
-    setup_actor_hash_inited= false;
+    setup_actor_hash_inited.store(false, std::memory_order_release);
   }
 }
 
@@ -109,7 +111,7 @@ static LF_PINS* get_setup_actor_hash_pins(PFS_thread *thread)
 {
   if (unlikely(thread->m_setup_actor_hash_pins == NULL))
   {
-    if (! setup_actor_hash_inited)
+    if (!setup_actor_hash_inited.load(std::memory_order_acquire))
       return NULL;
     thread->m_setup_actor_hash_pins= lf_hash_get_pins(&setup_actor_hash);
   }

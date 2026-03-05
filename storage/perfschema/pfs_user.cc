@@ -25,6 +25,7 @@
   Performance schema user (implementation).
 */
 
+#include <atomic>
 #include "my_global.h"
 #include "my_sys.h"
 #include "pfs.h"
@@ -42,7 +43,7 @@
 */
 
 LF_HASH user_hash;
-static bool user_hash_inited= false;
+static std::atomic<bool> user_hash_inited(false);
 
 /**
   Initialize the user buffers.
@@ -86,11 +87,12 @@ C_MODE_END
 */
 int init_user_hash(const PFS_global_param *param)
 {
-  if ((! user_hash_inited) && (param->m_user_sizing != 0))
+  if ((!user_hash_inited.load(std::memory_order_acquire)) &&
+      (param->m_user_sizing != 0))
   {
     lf_hash_init(&user_hash, sizeof(PFS_user*), LF_HASH_UNIQUE,
                  0, 0, user_hash_get_key, &my_charset_bin);
-    user_hash_inited= true;
+    user_hash_inited.store(true, std::memory_order_release);
   }
   return 0;
 }
@@ -98,10 +100,10 @@ int init_user_hash(const PFS_global_param *param)
 /** Cleanup the user hash. */
 void cleanup_user_hash(void)
 {
-  if (user_hash_inited)
+  if (user_hash_inited.load(std::memory_order_acquire))
   {
     lf_hash_destroy(&user_hash);
-    user_hash_inited= false;
+    user_hash_inited.store(false, std::memory_order_release);
   }
 }
 
@@ -109,7 +111,7 @@ static LF_PINS* get_user_hash_pins(PFS_thread *thread)
 {
   if (unlikely(thread->m_user_hash_pins == NULL))
   {
-    if (! user_hash_inited)
+    if (!user_hash_inited.load(std::memory_order_acquire))
       return NULL;
     thread->m_user_hash_pins= lf_hash_get_pins(&user_hash);
   }

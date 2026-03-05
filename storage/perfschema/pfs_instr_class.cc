@@ -164,7 +164,7 @@ PFS_ALIGNED PFS_transaction_class global_transaction_class;
 */
 LF_HASH table_share_hash;
 /** True if table_share_hash is initialized. */
-static bool table_share_hash_inited= false;
+static std::atomic<bool> table_share_hash_inited(false);
 
 static std::atomic<uint32> file_class_dirty_count(0);
 static std::atomic<uint32> file_class_allocated_count(0);
@@ -403,11 +403,12 @@ C_MODE_END
 /** Initialize the table share hash table. */
 int init_table_share_hash(const PFS_global_param *param)
 {
-  if ((! table_share_hash_inited) && (param->m_table_share_sizing != 0))
+  if ((!table_share_hash_inited.load(std::memory_order_acquire)) &&
+      (param->m_table_share_sizing != 0))
   {
     lf_hash_init(&table_share_hash, sizeof(PFS_table_share*), LF_HASH_UNIQUE,
                  0, 0, table_share_hash_get_key, &my_charset_bin);
-    table_share_hash_inited= true;
+    table_share_hash_inited.store(true, std::memory_order_release);
   }
   return 0;
 }
@@ -415,10 +416,10 @@ int init_table_share_hash(const PFS_global_param *param)
 /** Cleanup the table share hash table. */
 void cleanup_table_share_hash(void)
 {
-  if (table_share_hash_inited)
+  if (table_share_hash_inited.load(std::memory_order_acquire))
   {
     lf_hash_destroy(&table_share_hash);
-    table_share_hash_inited= false;
+    table_share_hash_inited.store(false, std::memory_order_release);
   }
 }
 
@@ -431,7 +432,7 @@ LF_PINS* get_table_share_hash_pins(PFS_thread *thread)
 {
   if (unlikely(thread->m_table_share_hash_pins == NULL))
   {
-    if (! table_share_hash_inited)
+    if (!table_share_hash_inited.load(std::memory_order_acquire))
       return NULL;
     thread->m_table_share_hash_pins= lf_hash_get_pins(&table_share_hash);
   }

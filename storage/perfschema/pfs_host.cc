@@ -26,6 +26,7 @@
   Performance schema host (implementation).
 */
 
+#include <atomic>
 #include "my_global.h"
 #include "my_sys.h"
 #include "pfs.h"
@@ -43,7 +44,7 @@
 */
 
 LF_HASH host_hash;
-static bool host_hash_inited= false;
+static std::atomic<bool> host_hash_inited(false);
 
 /**
   Initialize the host buffers.
@@ -87,11 +88,12 @@ C_MODE_END
 */
 int init_host_hash(const PFS_global_param *param)
 {
-  if ((! host_hash_inited) && (param->m_host_sizing != 0))
+  if ((!host_hash_inited.load(std::memory_order_acquire)) &&
+      (param->m_host_sizing != 0))
   {
     lf_hash_init(&host_hash, sizeof(PFS_host*), LF_HASH_UNIQUE,
                  0, 0, host_hash_get_key, &my_charset_bin);
-    host_hash_inited= true;
+    host_hash_inited.store(true, std::memory_order_release);
   }
   return 0;
 }
@@ -99,7 +101,7 @@ int init_host_hash(const PFS_global_param *param)
 /** Cleanup the host hash. */
 void cleanup_host_hash(void)
 {
-  if (host_hash_inited)
+  if (host_hash_inited.load(std::memory_order_acquire))
   {
     lf_hash_destroy(&host_hash);
     host_hash_inited= false;
@@ -110,7 +112,7 @@ static LF_PINS* get_host_hash_pins(PFS_thread *thread)
 {
   if (unlikely(thread->m_host_hash_pins == NULL))
   {
-    if (! host_hash_inited)
+    if (!host_hash_inited.load(std::memory_order_acquire))
       return NULL;
     thread->m_host_hash_pins= lf_hash_get_pins(&host_hash);
   }

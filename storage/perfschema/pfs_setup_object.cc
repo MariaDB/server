@@ -44,7 +44,7 @@
 uint setup_objects_version= 0;
 
 LF_HASH setup_object_hash;
-static bool setup_object_hash_inited= false;
+static std::atomic<bool> setup_object_hash_inited(false);
 
 /**
   Initialize the setup object buffers.
@@ -85,11 +85,12 @@ C_MODE_END
 */
 int init_setup_object_hash(const PFS_global_param *param)
 {
-  if ((! setup_object_hash_inited) && (param->m_setup_object_sizing != 0))
+  if ((!setup_object_hash_inited.load(std::memory_order_acquire)) &&
+      (param->m_setup_object_sizing != 0))
   {
     lf_hash_init(&setup_object_hash, sizeof(PFS_setup_object*), LF_HASH_UNIQUE,
                  0, 0, setup_object_hash_get_key, &my_charset_bin);
-    setup_object_hash_inited= true;
+    setup_object_hash_inited.store(true, std::memory_order_release);
   }
   return 0;
 }
@@ -97,9 +98,9 @@ int init_setup_object_hash(const PFS_global_param *param)
 /** Cleanup the setup objects hash. */
 void cleanup_setup_object_hash(void)
 {
-  if (setup_object_hash_inited)
+  if (setup_object_hash_inited.load(std::memory_order_acquire))
   {
-    setup_object_hash_inited= false;
+    setup_object_hash_inited.store(false, std::memory_order_release);
     lf_hash_destroy(&setup_object_hash);
   }
 }
@@ -108,7 +109,7 @@ static LF_PINS* get_setup_object_hash_pins(PFS_thread *thread)
 {
   if (unlikely(thread->m_setup_object_hash_pins == NULL))
   {
-    if (! setup_object_hash_inited)
+    if (!setup_object_hash_inited.load(std::memory_order_acquire))
       return NULL;
     thread->m_setup_object_hash_pins= lf_hash_get_pins(&setup_object_hash);
   }

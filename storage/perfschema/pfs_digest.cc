@@ -32,6 +32,7 @@
 
 #define MYSQL_LEX 1
 
+#include <atomic>
 #include "my_global.h"
 #include "my_sys.h"
 #include "pfs_instr.h"
@@ -62,7 +63,7 @@ PFS_ALIGNED static PFS_cacheline_uint32 digest_monotonic_index;
 bool digest_full= false;
 
 LF_HASH digest_hash;
-static bool digest_hash_inited= false;
+static std::atomic<bool> digest_hash_inited(false);
 
 /**
   Initialize table EVENTS_STATEMENTS_SUMMARY_BY_DIGEST.
@@ -169,22 +170,23 @@ C_MODE_END
 */
 int init_digest_hash(const PFS_global_param *param)
 {
-  if ((! digest_hash_inited) && (param->m_digest_sizing != 0))
+  if ((!digest_hash_inited.load(std::memory_order_acquire)) &&
+      (param->m_digest_sizing != 0))
   {
     lf_hash_init(&digest_hash, sizeof(PFS_statements_digest_stat*),
                  LF_HASH_UNIQUE, 0, 0, digest_hash_get_key,
                  &my_charset_bin);
-    digest_hash_inited= true;
+    digest_hash_inited.store(true, std::memory_order_release);
   }
   return 0;
 }
 
 void cleanup_digest_hash(void)
 {
-  if (digest_hash_inited)
+  if (digest_hash_inited.load(std::memory_order_acquire))
   {
     lf_hash_destroy(&digest_hash);
-    digest_hash_inited= false;
+    digest_hash_inited.store(false, std::memory_order_release);
   }
 }
 
@@ -192,7 +194,7 @@ static LF_PINS* get_digest_hash_pins(PFS_thread *thread)
 {
   if (unlikely(thread->m_digest_hash_pins == NULL))
   {
-    if (!digest_hash_inited)
+    if (!digest_hash_inited.load(std::memory_order_acquire))
       return NULL;
     thread->m_digest_hash_pins= lf_hash_get_pins(&digest_hash);
   }

@@ -41,7 +41,7 @@
 #include <string.h>
 
 LF_HASH program_hash;
-static bool program_hash_inited= false;
+static std::atomic<bool> program_hash_inited(false);
 
 /**
   Initialize table EVENTS_STATEMENTS_SUMMARY_BY_PROGRAM.
@@ -85,11 +85,12 @@ C_MODE_END
 */
 int init_program_hash(const PFS_global_param *param)
 {
-  if ((! program_hash_inited) && (param->m_program_sizing != 0))
+  if ((!program_hash_inited.load(std::memory_order_acquire)) &&
+      (param->m_program_sizing != 0))
   {
     lf_hash_init(&program_hash, sizeof(PFS_program*), LF_HASH_UNIQUE,
                  0, 0, program_hash_get_key, &my_charset_bin);
-    program_hash_inited= true;
+    program_hash_inited.store(true, std::memory_order_release);
   }
   return 0;
 }
@@ -97,10 +98,10 @@ int init_program_hash(const PFS_global_param *param)
 /** Cleanup the program hash. */
 void cleanup_program_hash(void)
 {
-  if (program_hash_inited)
+  if (program_hash_inited.load(std::memory_order_acquire))
   {
     lf_hash_destroy(&program_hash);
-    program_hash_inited= false;
+    program_hash_inited.store(false, std::memory_order_release);
   }
 }
 
@@ -161,7 +162,7 @@ static LF_PINS* get_program_hash_pins(PFS_thread *thread)
 {
   if (unlikely(thread->m_program_hash_pins == NULL))
   {
-    if (! program_hash_inited)
+    if (!program_hash_inited.load(std::memory_order_acquire))
       return NULL;
     thread->m_program_hash_pins= lf_hash_get_pins(&program_hash);
   }
