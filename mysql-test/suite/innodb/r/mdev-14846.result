@@ -43,7 +43,6 @@ connection con1;
 SET DEBUG_SYNC='now WAIT_FOR con1_dml2';
 UPDATE v4, t1 SET t1.pk = 76 WHERE t1.f2 IN ( SELECT t2.f FROM t2 INNER JOIN t3 );
 connection default;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 connection con1;
 COMMIT;
 disconnect con1;
