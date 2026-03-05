@@ -17,6 +17,8 @@
 */
 
 #include "opt_hints_parser.h"
+#include "lex_ident_sys.h"
+#include "m_ctype.h"
 #include "sql_error.h"
 #include "mysqld_error.h"
 #include "sql_class.h"
@@ -309,10 +311,9 @@ void Parser::push_warning_syntax_error(THD *thd, uint start_lineno)
   Resolve a parsed table level hint, i.e. set up proper Opt_hint_* structures
   which will be used later during query preparation and optimization.
 
-Return value:
-- false: no critical errors, warnings on duplicated hints,
-       unresolved query block names, etc. are allowed
-- true: critical errors detected, break further hints processing
+  @return false: no critical errors, warnings on duplicated hints,
+                 unresolved query block names, etc. are allowed
+          true: critical errors detected, break further hints processing
 */
 bool Parser::Table_level_hint::resolve(Parse_context *pc) const
 {
@@ -448,10 +449,9 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
   Resolve a parsed index level hint, i.e. set up proper Opt_hint_* structures
   which will be used later during query preparation and optimization.
 
-  Return value:
-  - false: no critical errors, warnings on duplicated hints,
-         unresolved query block names, etc. are allowed
-  - true: critical errors detected, break further hints processing
+  @return false: no critical errors, warnings on duplicated hints,
+                 unresolved query block names, etc. are allowed
+          true: critical errors detected, break further hints processing
 
   Taxonomy of index hints
   - 2 levels of hints:
@@ -738,21 +738,22 @@ static bool is_descendant_of_unit(SELECT_LEX *sl, st_select_lex_unit *unit)
 }
 
 
+extern void push_warning_safe(THD *thd, Sql_condition::enum_warning_level level,
+                         uint code, const char *format, ...);
+
 /*
   Resolve a parsed query block name hint, i.e. set up proper Opt_hint_*
   structures which will be used later during query preparation and optimization.
 
-Return value:
-- false: no critical errors, warnings on duplicated hints,
-       unresolved query block names, etc. are allowed
-- true: critical errors detected, break further hints processing
+  @return false: no critical errors, warnings on duplicated hints,
+                 unresolved query block names, etc. are allowed
+          true: critical errors detected, break further hints processing
 */
 bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
 {
   const opt_hints_enum hint_type= QB_NAME_HINT_ENUM;
   Opt_hints_qb *target_qb= nullptr;
-  const Lex_ident_sys qb_name_from_hint=
-    Query_block_name::to_ident_sys(pc->thd);
+  const Lex_ident_sys qb_name= Query_block_name::to_ident_sys(pc->thd);
 
   const Opt_query_block_path &path= *this;
   if (path.is_empty())
@@ -768,8 +769,10 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
     // Start from the current SELECT_LEX
     SELECT_LEX *target_select= pc->select;
     // Iterate through all path elements
+    uint elem_num= 0;
     for (const QB_path_element &elem : qb_path_list)
     {
+      elem_num++;
       Lex_ident_sys select_num_str;
       Lex_ident_sys view_name;
       if (const At_QB_path_element_select_num &at_select_num= elem)
@@ -802,12 +805,39 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
         if (cmp_lex_string_limit(select_num_str, format,
                                  system_charset_info, format.length))
         {
-          print_warn(pc->thd, ER_WARN_WRONG_PATH_IN_QB_NAME, hint_type,
-                     true, &qb_name_from_hint, nullptr, nullptr, this);
+          String str= get_hint_string(pc->thd);
+          push_warning_safe(
+            pc->thd, Sql_condition::WARN_LEVEL_WARN,
+            ER_WARN_QB_NAME_PATH_INVALID_SELECT,
+            ER_THD(pc->thd, ER_WARN_QB_NAME_PATH_INVALID_SELECT),
+            str.c_ptr_safe(), elem_num);
           return false;
         }
 
-        uint hint_select_num= atoi(select_num_str.str + format.length);
+        const char *select_num_str_end= select_num_str.str + select_num_str.length;
+        char *endptr= nullptr;
+        int error;
+        long long hint_select_num=
+          my_strtoll10(select_num_str.str + format.length, &endptr, &error);
+
+        /*
+          (1) error during conversion
+          (2) conversion stopped before end of string
+          (3) select number out of valid range (1-10000)
+        */
+        if (error != 0 ||                       // (1)
+            endptr != select_num_str_end ||     // (2)
+            hint_select_num < 1 || hint_select_num > 10000)   // (3)
+        {
+          String str= get_hint_string(pc->thd);
+          push_warning_safe(
+            pc->thd, Sql_condition::WARN_LEVEL_WARN,
+            ER_WARN_QB_NAME_PATH_INVALID_SELECT,
+            ER_THD(pc->thd, ER_WARN_QB_NAME_PATH_INVALID_SELECT),
+            str.c_ptr_safe(), elem_num);
+          return false;
+        }
+
         /*
           Select number in the hint is treated as a relative offset from
           current unit's first_select() select_number (base select_number).
@@ -816,12 +846,6 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
           @SEL_1 always points to the base SELECT_LEX, @SEL_2 - to the next
           one, and so on.
         */
-        if (hint_select_num < 1)
-        {
-          print_warn(pc->thd, ER_WARN_WRONG_PATH_IN_QB_NAME, hint_type,
-                     true, &qb_name_from_hint, nullptr, nullptr, this);
-          return false;
-        }
         st_select_lex_unit *unit= target_select->master_unit();
         uint base_select_num= unit->first_select()->select_number;
         uint target_select_num= base_select_num + (hint_select_num - 1);
@@ -843,8 +867,12 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
         if (!target_select)
         {
           // Target select_number wasn't found
-          print_warn(pc->thd, ER_WARN_WRONG_PATH_IN_QB_NAME, hint_type,
-                     true, &qb_name_from_hint, nullptr, nullptr, this);
+          String str= get_hint_string(pc->thd);
+          push_warning_safe(
+            pc->thd, Sql_condition::WARN_LEVEL_WARN,
+            ER_WARN_QB_NAME_PATH_SELECT_NOT_FOUND,
+            ER_THD(pc->thd, ER_WARN_QB_NAME_PATH_SELECT_NOT_FOUND),
+            str.c_ptr_safe(), hint_select_num, elem_num);
           return false;
         }
       }
@@ -865,8 +893,12 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
         }
         if (!found)
         {
-          print_warn(pc->thd, ER_WARN_WRONG_PATH_IN_QB_NAME, hint_type,
-                     true, &qb_name_from_hint, nullptr, nullptr, this);
+          String str= get_hint_string(pc->thd);
+          push_warning_safe(
+            pc->thd, Sql_condition::WARN_LEVEL_WARN,
+            ER_WARN_QB_NAME_PATH_VIEW_NOT_FOUND,
+            ER_THD(pc->thd, ER_WARN_QB_NAME_PATH_VIEW_NOT_FOUND),
+            str.c_ptr_safe(), view_name.str, elem_num);
           return false;
         }
       }
@@ -886,15 +918,31 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
     (1) Name is already assigned to this query block
     (2) Given name is already used inside this block of hints
   */
-  if (target_qb->get_name().str ||                                // (1)
-      target_qb->get_parent()->find_by_name(qb_name_from_hint))   // (2)
+  if (target_qb->get_name().str ||                      // (1)
+      target_qb->get_parent()->find_by_name(qb_name))   // (2)
   {
     print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, true,
-               &qb_name_from_hint, nullptr, nullptr, nullptr);
+               &qb_name, nullptr, nullptr, nullptr);
     return false;
   }
-  target_qb->set_name(qb_name_from_hint);
+  target_qb->set_name(qb_name);
   return false;
+}
+
+/*
+  Generate the string representation of the QB_NAME hint, for example,
+  "QB_NAME(`qb_v1`, `v1` .`v2`@`sel_2`)"
+
+  @return String representation of the hint
+*/
+String Parser::Qb_name_hint::get_hint_string(THD *thd) const
+{
+  String str(STRING_WITH_LEN("QB_NAME("), system_charset_info);
+  const Lex_ident_sys qb_name= Query_block_name::to_ident_sys(thd);
+  append_identifier(thd, &str, qb_name.str, qb_name.length);
+  append_args(thd, &str);
+  str.append(')');
+  return str;
 }
 
 
@@ -938,10 +986,9 @@ void Parser::Semijoin_hint::add_strategy_to_map(TokenID token_id,
   Resolve a parsed semijoin hint, i.e. set up proper Opt_hint_* structures
   which will be used later during query preparation and optimization.
 
-Return value:
-- false: no critical errors, warnings on duplicated hints,
-       unresolved query block names, etc. are allowed
-- true: critical errors detected, break further hints processing
+  @return false: no critical errors, warnings on duplicated hints,
+                 unresolved query block names, etc. are allowed
+          true: critical errors detected, break further hints processing
 */
 bool Parser::Semijoin_hint::resolve(Parse_context *pc) const
 {
@@ -1029,9 +1076,8 @@ void Parser::Qb_name_hint::append_args(THD *thd, String *str) const
 /*
   Helper function to be called by Semijoin_hint::resolve().
 
-Return value:
-- pointer to Opt_hints_qb if the hint was resolved successfully
-- NULL if the hint was ignored
+  @return pointer to Opt_hints_qb if the hint was resolved successfully
+          NULL if the hint was ignored
 */
 Opt_hints_qb* Parser::Semijoin_hint::
     resolve_for_qb_name(Parse_context *pc, bool hint_state,
@@ -1106,10 +1152,9 @@ void Parser::Semijoin_hint::
   Resolve a parsed subquery hint, i.e. set up proper Opt_hint_* structures
   which will be used later during query preparation and optimization.
 
-Return value:
-- false: no critical errors, warnings on duplicated hints,
-       unresolved query block names, etc. are allowed
-- true: critical errors detected, break further hints processing
+  @return false: no critical errors, warnings on duplicated hints,
+                 unresolved query block names, etc. are allowed
+          true: critical errors detected, break further hints processing
 */
 bool Parser::Subquery_hint::resolve(Parse_context *pc) const
 {
@@ -1141,9 +1186,8 @@ bool Parser::Subquery_hint::resolve(Parse_context *pc) const
 /*
   Helper function to be called by Subquery_hint::resolve().
 
-Return value:
-- pointer to Opt_hints_qb if the hint was resolved successfully
-- NULL if the hint was ignored
+  @return pointer to Opt_hints_qb if the hint was resolved successfully
+          NULL if the hint was ignored
 */
 Opt_hints_qb* Parser::Subquery_hint::
     resolve_for_qb_name(Parse_context *pc, TokenID token_id,
@@ -1270,10 +1314,9 @@ void Parser::Join_order_hint::append_args(THD *thd, String *str) const
   Resolve a parsed join order hint, i.e. set up proper Opt_hint_* structures
   which will be used later during query preparation and optimization.
 
-  Return value:
-  - false: no critical errors, warnings on duplicated hints,
-         unresolved query block names, etc. are allowed
-  - true: critical errors detected, break further hints processing
+  @return false: no critical errors, warnings on duplicated hints,
+                 unresolved query block names, etc. are allowed
+          true: critical errors detected, break further hints processing
 */
 bool Parser::Join_order_hint::resolve(Parse_context *pc)
 {

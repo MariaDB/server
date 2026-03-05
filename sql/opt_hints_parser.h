@@ -720,6 +720,9 @@ public:
 
     bool resolve(Parse_context *pc) const;
     void append_args(THD *thd, String *str) const override;
+    String get_hint_string(THD *thd) const;
+
+    Lex_ident_sys qb_name;
   };
 
 

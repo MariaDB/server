@@ -247,6 +247,12 @@ explain extended
 with cte as (select count(*) from t1, (select * from t1 where a < 5) dt1)
 select /*+ qb_name(qb_cte1, cte1) no_index(t1@qb_cte1)*/ * from cte join cte as cte1;
 
+--echo # ======================================
+--echo # Scalar context subquery
+explain extended
+select /*+ qb_name(inner, @sel_3) no_index(t1@inner) */
+    (select (select max(a) from t1 where a < 10) + b)
+  from t1;
 
 --echo # ======================================
 --echo # Wrong paths generate warnings
@@ -259,7 +265,8 @@ select /*+ qb_name(qb_cte1, cte1) no_index(t1@qb_cte1)*/ * from cte join cte as 
 explain extended
   select /*+ qb_name(`qb_v1`, `v2`)*/* from v1;
 
---echo # Wrong select number:
+--echo # Wrong view name `v2`, however `@sel_2` is correct as it addresses
+--echo # the inner query block of `v1`
 explain extended
   select /*+ qb_name(qb_v1, `v2`@`sel_2`)*/* from v1;
 
@@ -276,7 +283,7 @@ explain extended
 
 --echo # Wrong select number:
 explain extended
-select /*+ qb_name(qb_v1, dt .v1@sel_2)*/* from (select t1.* from t1 join v1) dt;
+select /*+ qb_name(qb_v1, dt .v1@sel_5)*/* from (select t1.* from t1 join v1) dt;
 
 explain extended
 select /*+ qb_name(qb_v1, dt .v1@sel_1 .@sel_2)*/* from
@@ -288,6 +295,14 @@ explain extended
 
 explain extended
   select /*+ qb_name(qb_v1, v1 .lex_2)*/* from v1;
+
+--echo # Select number is too large:
+explain extended
+  select /*+ qb_name(qb_v1, `v1`@`SEL_9999999999`)*/* from v1;
+
+--echo # Exponentaial select numbers are not allowed:
+explain extended
+  select /*+ qb_name(qb_v1, `v1`@`SEL_1e2`)*/* from v1;
 
 --echo # @SEL_N matches a SELECT in a sibling unit (warning expected).
 --echo # v1 has only @SEL_1, v3 has @SEL_1 and @SEL_2 (UNION)

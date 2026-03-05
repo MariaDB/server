@@ -432,6 +432,19 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	with cte as (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 5)/* select#1 */ select /*+ NO_INDEX(`t1`@`qb_cte1`) */ `cte`.`count(*)` AS `count(*)`,`cte1`.`count(*)` AS `count(*)` from `cte` join `cte` `cte1`
 # ======================================
+# Scalar context subquery
+explain extended
+select /*+ qb_name(inner, @sel_3) no_index(t1@inner) */
+(select (select max(a) from t1 where a < 10) + b)
+from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	index	NULL	idx_ab	10	NULL	100	100.00	Using index
+3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	100	9.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.b' of SELECT #2 was resolved in SELECT #1
+Note	1249	Select 2 was reduced during optimization
+Note	1003	/* select#1 */ select /*+ NO_INDEX(`t1`@`inner`) */ (/* select#3 */ select /*+ QB_NAME(`inner`) */ max(`test`.`t1`.`a`) from `test`.`t1` where `test`.`t1`.`a` < 10) + `test`.`t1`.`b` AS `(select (select max(a) from t1 where a < 10) + b)` from `test`.`t1`
+# ======================================
 # Wrong paths generate warnings
 #
 explain extended
@@ -439,22 +452,23 @@ select /*+ qb_name(`qb_v1`, `v2`)*/* from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using index condition
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `v2`) is ignored. Check whether the path to the query block is correct
+Warning	4260	Hint QB_NAME(`qb_v1`, `v2`) is ignored. View `v2` required at element #1 of the path is not found in the target query block.
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 10
-# Wrong select number:
+# Wrong view name `v2`, however `@sel_2` is correct as it addresses
+# the inner query block of `v1`
 explain extended
 select /*+ qb_name(qb_v1, `v2`@`sel_2`)*/* from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using index condition
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `v2`@`sel_2`) is ignored. Check whether the path to the query block is correct
+Warning	4260	Hint QB_NAME(`qb_v1`, `v2`@`sel_2`) is ignored. View `v2` required at element #1 of the path is not found in the target query block.
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 10
 explain extended
 select /*+ qb_name(qb_v1, v2@sel_1 .@sel_2)*/* from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using index condition
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `v2`@`sel_1` .@`sel_2`) is ignored. Check whether the path to the query block is correct
+Warning	4260	Hint QB_NAME(`qb_v1`, `v2`@`sel_1` .@`sel_2`) is ignored. View `v2` required at element #1 of the path is not found in the target query block.
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 10
 # Attempting to reference a regular table as a query block:
 explain extended
@@ -463,7 +477,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using where; Using index
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `dt` .`t1`) is ignored. Check whether the path to the query block is correct
+Warning	4260	Hint QB_NAME(`qb_v1`, `dt` .`t1`) is ignored. View `t1` required at element #2 of the path is not found in the target query block.
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 10
 # Wrong view name inside a derived table:
 explain extended
@@ -472,16 +486,16 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using where; Using index
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `dt` .`v2`) is ignored. Check whether the path to the query block is correct
+Warning	4260	Hint QB_NAME(`qb_v1`, `dt` .`v2`) is ignored. View `v2` required at element #2 of the path is not found in the target query block.
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 10
 # Wrong select number:
 explain extended
-select /*+ qb_name(qb_v1, dt .v1@sel_2)*/* from (select t1.* from t1 join v1) dt;
+select /*+ qb_name(qb_v1, dt .v1@sel_5)*/* from (select t1.* from t1 join v1) dt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using where; Using index
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `dt` .`v1`@`sel_2`) is ignored. Check whether the path to the query block is correct
+Warning	4259	Hint QB_NAME(`qb_v1`, `dt` .`v1`@`sel_5`) is ignored. Select #5 required at element #2 of the path is not found in the target query block.
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 10
 explain extended
 select /*+ qb_name(qb_v1, dt .v1@sel_1 .@sel_2)*/* from
@@ -490,7 +504,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using where; Using index
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `dt` .`v1`@`sel_1` .@`sel_2`) is ignored. Check whether the path to the query block is correct
+Warning	4259	Hint QB_NAME(`qb_v1`, `dt` .`v1`@`sel_1` .@`sel_2`) is ignored. Select #2 required at element #3 of the path is not found in the target query block.
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 10
 # Wrong select number syntax:
 explain extended
@@ -498,14 +512,30 @@ select /*+ qb_name(qb_v1, `v1`@`lex_2`)*/* from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using index condition
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `v1`@`lex_2`) is ignored. Check whether the path to the query block is correct
+Warning	4258	Hint QB_NAME(`qb_v1`, `v1`@`lex_2`) is ignored. Element #1 of the path contains invalid select number (expected: @SEL_1, @SEL_2, ...).
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 10
 explain extended
 select /*+ qb_name(qb_v1, v1 .lex_2)*/* from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using index condition
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `v1` .`lex_2`) is ignored. Check whether the path to the query block is correct
+Warning	4260	Hint QB_NAME(`qb_v1`, `v1` .`lex_2`) is ignored. View `lex_2` required at element #2 of the path is not found in the target query block.
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 10
+# Select number is too large:
+explain extended
+select /*+ qb_name(qb_v1, `v1`@`SEL_9999999999`)*/* from v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using index condition
+Warnings:
+Warning	4258	Hint QB_NAME(`qb_v1`, `v1`@`SEL_9999999999`) is ignored. Element #1 of the path contains invalid select number (expected: @SEL_1, @SEL_2, ...).
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 10
+# Exponentaial select numbers are not allowed:
+explain extended
+select /*+ qb_name(qb_v1, `v1`@`SEL_1e2`)*/* from v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using index condition
+Warnings:
+Warning	4258	Hint QB_NAME(`qb_v1`, `v1`@`SEL_1e2`) is ignored. Element #1 of the path contains invalid select number (expected: @SEL_1, @SEL_2, ...).
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 10
 # @SEL_N matches a SELECT in a sibling unit (warning expected).
 # v1 has only @SEL_1, v3 has @SEL_1 and @SEL_2 (UNION)
@@ -519,7 +549,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 4	UNION	t1	range	idx_a,idx_ab	idx_ab	5	NULL	14	100.00	Using index condition
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_wrong` , `v1` .@`SEL_2`) is ignored. Check whether the path to the query block is correct
+Warning	4259	Hint QB_NAME(`qb_wrong`, `v1` .@`SEL_2`) is ignored. Select #2 required at element #2 of the path is not found in the target query block.
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`v3`.`a` AS `a`,`v3`.`b` AS `b`,`v3`.`c` AS `c` from `test`.`t1` join `test`.`v3` where `test`.`t1`.`a` < 10
 drop table t1, t2;
 drop view v1, v2, v3;
@@ -986,6 +1016,19 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	with cte as (/* select#2 */ select count(0) AS `count(*)` from `test`.`t1` join (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 5) `dt1`)/* select#1 */ select /*+ NO_INDEX(`t1`@`qb_cte1`) */ `cte`.`count(*)` AS `count(*)`,`cte1`.`count(*)` AS `count(*)` from `cte` join `cte` `cte1`
 # ======================================
+# Scalar context subquery
+explain extended
+select /*+ qb_name(inner, @sel_3) no_index(t1@inner) */
+(select (select max(a) from t1 where a < 10) + b)
+from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	index	NULL	idx_ab	10	NULL	100	100.00	Using index
+3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	100	9.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.b' of SELECT #2 was resolved in SELECT #1
+Note	1249	Select 2 was reduced during optimization
+Note	1003	/* select#1 */ select /*+ NO_INDEX(`t1`@`inner`) */ (/* select#3 */ select /*+ QB_NAME(`inner`) */ max(`test`.`t1`.`a`) from `test`.`t1` where `test`.`t1`.`a` < 10) + `test`.`t1`.`b` AS `(select (select max(a) from t1 where a < 10) + b)` from `test`.`t1`
+# ======================================
 # Wrong paths generate warnings
 #
 explain extended
@@ -993,22 +1036,23 @@ select /*+ qb_name(`qb_v1`, `v2`)*/* from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using index condition
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `v2`) is ignored. Check whether the path to the query block is correct
+Warning	4260	Hint QB_NAME(`qb_v1`, `v2`) is ignored. View `v2` required at element #1 of the path is not found in the target query block.
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 10
-# Wrong select number:
+# Wrong view name `v2`, however `@sel_2` is correct as it addresses
+# the inner query block of `v1`
 explain extended
 select /*+ qb_name(qb_v1, `v2`@`sel_2`)*/* from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using index condition
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `v2`@`sel_2`) is ignored. Check whether the path to the query block is correct
+Warning	4260	Hint QB_NAME(`qb_v1`, `v2`@`sel_2`) is ignored. View `v2` required at element #1 of the path is not found in the target query block.
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 10
 explain extended
 select /*+ qb_name(qb_v1, v2@sel_1 .@sel_2)*/* from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using index condition
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `v2`@`sel_1` .@`sel_2`) is ignored. Check whether the path to the query block is correct
+Warning	4260	Hint QB_NAME(`qb_v1`, `v2`@`sel_1` .@`sel_2`) is ignored. View `v2` required at element #1 of the path is not found in the target query block.
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 10
 # Attempting to reference a regular table as a query block:
 explain extended
@@ -1018,7 +1062,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using where; Using index
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `dt` .`t1`) is ignored. Check whether the path to the query block is correct
+Warning	4260	Hint QB_NAME(`qb_v1`, `dt` .`t1`) is ignored. View `t1` required at element #2 of the path is not found in the target query block.
 Note	1003	/* select#1 */ select `dt`.`a` AS `a`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 10) `dt`
 # Wrong view name inside a derived table:
 explain extended
@@ -1028,17 +1072,17 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using where; Using index
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `dt` .`v2`) is ignored. Check whether the path to the query block is correct
+Warning	4260	Hint QB_NAME(`qb_v1`, `dt` .`v2`) is ignored. View `v2` required at element #2 of the path is not found in the target query block.
 Note	1003	/* select#1 */ select `dt`.`a` AS `a`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 10) `dt`
 # Wrong select number:
 explain extended
-select /*+ qb_name(qb_v1, dt .v1@sel_2)*/* from (select t1.* from t1 join v1) dt;
+select /*+ qb_name(qb_v1, dt .v1@sel_5)*/* from (select t1.* from t1 join v1) dt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	500	100.00	
 2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using where; Using index
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `dt` .`v1`@`sel_2`) is ignored. Check whether the path to the query block is correct
+Warning	4259	Hint QB_NAME(`qb_v1`, `dt` .`v1`@`sel_5`) is ignored. Select #5 required at element #2 of the path is not found in the target query block.
 Note	1003	/* select#1 */ select `dt`.`a` AS `a`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 10) `dt`
 explain extended
 select /*+ qb_name(qb_v1, dt .v1@sel_1 .@sel_2)*/* from
@@ -1048,7 +1092,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using where; Using index
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `dt` .`v1`@`sel_1` .@`sel_2`) is ignored. Check whether the path to the query block is correct
+Warning	4259	Hint QB_NAME(`qb_v1`, `dt` .`v1`@`sel_1` .@`sel_2`) is ignored. Select #2 required at element #3 of the path is not found in the target query block.
 Note	1003	/* select#1 */ select `dt`.`a` AS `a`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`a` < 10) `dt`
 # Wrong select number syntax:
 explain extended
@@ -1056,14 +1100,30 @@ select /*+ qb_name(qb_v1, `v1`@`lex_2`)*/* from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using index condition
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `v1`@`lex_2`) is ignored. Check whether the path to the query block is correct
+Warning	4258	Hint QB_NAME(`qb_v1`, `v1`@`lex_2`) is ignored. Element #1 of the path contains invalid select number (expected: @SEL_1, @SEL_2, ...).
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 10
 explain extended
 select /*+ qb_name(qb_v1, v1 .lex_2)*/* from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using index condition
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_v1` , `v1` .`lex_2`) is ignored. Check whether the path to the query block is correct
+Warning	4260	Hint QB_NAME(`qb_v1`, `v1` .`lex_2`) is ignored. View `lex_2` required at element #2 of the path is not found in the target query block.
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 10
+# Select number is too large:
+explain extended
+select /*+ qb_name(qb_v1, `v1`@`SEL_9999999999`)*/* from v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using index condition
+Warnings:
+Warning	4258	Hint QB_NAME(`qb_v1`, `v1`@`SEL_9999999999`) is ignored. Element #1 of the path contains invalid select number (expected: @SEL_1, @SEL_2, ...).
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 10
+# Exponentaial select numbers are not allowed:
+explain extended
+select /*+ qb_name(qb_v1, `v1`@`SEL_1e2`)*/* from v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx_a,idx_ab	idx_a	5	NULL	5	100.00	Using index condition
+Warnings:
+Warning	4258	Hint QB_NAME(`qb_v1`, `v1`@`SEL_1e2`) is ignored. Element #1 of the path contains invalid select number (expected: @SEL_1, @SEL_2, ...).
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` < 10
 # @SEL_N matches a SELECT in a sibling unit (warning expected).
 # v1 has only @SEL_1, v3 has @SEL_1 and @SEL_2 (UNION)
@@ -1077,7 +1137,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 4	UNION	t1	range	idx_a,idx_ab	idx_ab	5	NULL	14	100.00	Using index condition
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Warning	4258	Hint QB_NAME(`qb_wrong` , `v1` .@`SEL_2`) is ignored. Check whether the path to the query block is correct
+Warning	4259	Hint QB_NAME(`qb_wrong`, `v1` .@`SEL_2`) is ignored. Select #2 required at element #2 of the path is not found in the target query block.
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`v3`.`a` AS `a`,`v3`.`b` AS `b`,`v3`.`c` AS `c` from `test`.`t1` join `test`.`v3` where `test`.`t1`.`a` < 10
 drop table t1, t2;
 drop view v1, v2, v3;
