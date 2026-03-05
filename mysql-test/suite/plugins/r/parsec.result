@@ -43,3 +43,58 @@ connect con5, localhost, test2, "wrong_pwd";
 ERROR 28000: Access denied for user 'test2'@'localhost' (using password: NO)
 connection default;
 drop user test2@'%';
+# Test for MDEV-35254: PARSEC plugin should allow DBAs to specify number of iterations
+# Basic visibility and default value
+set @init_value := @@global.parsec_iterations;
+# Valid power-of-two values should be accepted
+set global parsec_iterations = 1024;
+select @@global.parsec_iterations;
+@@global.parsec_iterations
+1024
+set global parsec_iterations = 262144;
+select @@global.parsec_iterations;
+@@global.parsec_iterations
+262144
+# Values should be rounded UP to next power of two
+# 5000 -> 8192
+set global parsec_iterations = 5000;
+Warnings:
+Warning	1231	parsec: parsec_iterations rounded up to 8192 (next supported value)
+select @@global.parsec_iterations;
+@@global.parsec_iterations
+8192
+# 131073 -> 262144
+set global parsec_iterations = 131073;
+Warnings:
+Warning	1231	parsec: parsec_iterations rounded up to 262144 (next supported value)
+select @@global.parsec_iterations;
+@@global.parsec_iterations
+262144
+# Lower bound enforcement
+set global parsec_iterations = 512;
+Warnings:
+Warning	1292	Truncated incorrect parsec_iterations value: '512'
+select @@global.parsec_iterations;
+@@global.parsec_iterations
+1024
+# Upper bound enforcement
+set global parsec_iterations = 600000;
+Warnings:
+Warning	1231	parsec: parsec_iterations rounded up to 1048576 (next supported value)
+select @@global.parsec_iterations;
+@@global.parsec_iterations
+1048576
+# Session variable access
+set session parsec_iterations = 1024;
+select @@session.parsec_iterations;
+@@session.parsec_iterations
+1024
+# parsec_iterations should should not get accidently mutated during user creation
+set @iter_before := @@global.parsec_iterations;
+create user t_iter@'%' identified via parsec using password('pwd');
+select @@global.parsec_iterations = @iter_before;
+@@global.parsec_iterations = @iter_before
+1
+drop user t_iter@'%';
+set global parsec_iterations = @init_value;
+# End of parsec.test
