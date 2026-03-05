@@ -193,13 +193,13 @@ struct FVector
 };
 #pragma pack(pop)
 
-struct Vector_ops 
-{
-  float (*dot_product)(const int16_t *v1, const int16_t *v2, size_t len);
-  size_t (*alloc_size)(size_t n);
-  FVector * (*align_ptr)(void *ptr);
-  void (*fix_tail)(int16_t *dims, size_t vec_len);
-};
+// struct Vector_ops 
+// {
+//   float (*dot_product)(const int16_t *v1, const int16_t *v2, size_t len);
+//   size_t (*alloc_size)(size_t n);
+//   FVector * (*align_ptr)(void *ptr);
+//   void (*fix_tail)(int16_t *dims, size_t vec_len);
+// };
 
 
 #ifdef AVX2_IMPLEMENTATION
@@ -391,45 +391,137 @@ struct Vector_ops
   FVector *align_ptr_default(void *ptr) { return (FVector*)ptr; }
   void fix_tail_default(int16_t *dims, size_t) { }
 
+
+/*******************/
 #if defined __x86_64__ || defined _M_X64
-extern "C" Vector_ops vector_ops_x86_available(void);
+// extern "C" Vector_ops vector_ops_x86_available(void);
+extern "C" bool cpu_has_avx2();
+extern "C" bool cpu_has_avx512();
+extern "C" bool cpu_has_avx_and_xsave();
 #endif
 
-static Vector_ops choose_vector_ops_impl()
+enum class CpuLevel 
 {
+  AVX2, 
+  AVX512,
+  NEON,
+  POWERPC,
+  DEFAULT
+};
+
+static CpuLevel detect_cpu_level() {
 #if defined __x86_64__ || defined _M_X64
-  auto ops = vector_ops_x86_available();
-  if (ops.dot_product)
-    return ops;
+    if (!cpu_has_avx_and_xsave())
+        return CpuLevel::DEFAULT;
+    if (cpu_has_avx512())
+        return CpuLevel::AVX512;
+    else if (cpu_has_avx2())
+        return CpuLevel::AVX2;
+    else
+        return CpuLevel::DEFAULT;
 #elif defined __aarch64__
-  return {dot_product_neon, alloc_size_neon, align_ptr_neon, fix_tail_neon};
+    return CpuLevel::NEON;
 #elif defined __powerpc64__
-  return {dot_product_power, alloc_size_power, align_ptr_power, fix_tail_power};
+    return CpuLevel::POWERPC;
+#else
+    return CpuLevel::DEFAULT;
 #endif
-  return {dot_product_default, alloc_size_default, align_ptr_default, fix_tail_default};
 }
 
-static const Vector_ops chosen_vector_ops= choose_vector_ops_impl();
+static const CpuLevel cpu_level = detect_cpu_level();
+
+// static Vector_ops choose_vector_ops_impl()
+// {
+// #if defined __x86_64__ || defined _M_X64 
+//   auto ops = vector_ops_x86_available();
+//   if (ops.dot_product)
+//     return ops;
+// #elif defined __aarch64__
+//   return {dot_product_neon, alloc_size_neon, align_ptr_neon, fix_tail_neon};
+// #elif defined __powerpc64__
+//   return {dot_product_power, alloc_size_power, align_ptr_power, fix_tail_power};
+// #endif
+//   return {dot_product_default, alloc_size_default, align_ptr_default, fix_tail_default};
+// }
+
+// static const Vector_ops chosen_vector_ops= choose_vector_ops_impl();
 
 float FVector::dot_product(const int16_t *v1, const int16_t *v2, size_t len)
 {
-  return chosen_vector_ops.dot_product(v1, v2, len);
+#ifdef AVX512_IMPLEMENTATION
+  if (cpu_level == CpuLevel::AVX512)
+    return dot_product_avx512(v1, v2, len);
+#elif AVX2_IMPLEMENTATION
+  if (cpu_level == CpuLevel::AVX2)
+    return dot_product_avx2(v1, v2, len);
+#elif NEON_IMPLEMENTATION
+  if (cpu_level == CpuLevel::NEON)
+    return dot_product_neon(v1, v2, len);
+#elif POWER_IMPLEMENTATION
+  if (cpu_level == CpuLevel::POWERPC)
+    return dot_product_power(v1, v2, len);
+#else
+    return dot_product_default(v1, v2, len);
+#endif
 }
 size_t FVector::alloc_size(size_t n)
 {
-  return chosen_vector_ops.alloc_size(n);
+#ifdef AVX512_IMPLEMENTATION
+  if (cpu_level == CpuLevel::AVX512)
+    return alloc_size_avx512(n);
+#elif AVX2_IMPLEMENTATION
+  if (cpu_level == CpuLevel::AVX2)
+    return alloc_size_avx2(n);
+#elif NEON_IMPLEMENTATION
+  if (cpu_level == CpuLevel::NEON)
+    return alloc_size_neon(n);
+#elif POWER_IMPLEMENTATION
+  if (cpu_level == CpuLevel::POWERPC)
+    return alloc_size_power(n);
+#else
+    return alloc_size_default(n);
+#endif
+
 }
 FVector *FVector::align_ptr(void *ptr)
 {
-  return chosen_vector_ops.align_ptr(ptr);
+#ifdef AVX512_IMPLEMENTATION
+  if (cpu_level == CpuLevel::AVX512)
+    return align_ptr_avx512(ptr);
+#elif AVX2_IMPLEMENTATION
+  if (cpu_level == CpuLevel::AVX2)
+    return align_ptr_avx2(ptr);
+#elif NEON_IMPLEMENTATION
+  if (cpu_level == CpuLevel::NEON)
+    return align_ptr_neon(ptr);
+#elif POWER_IMPLEMENTATION
+  if (cpu_level == CpuLevel::POWERPC)
+    return align_ptr_power(ptr);
+#else
+    return align_ptr_default(ptr);
+#endif
 }
 void FVector::fix_tail(int16_t *dims, size_t vec_len)
 {
-  chosen_vector_ops.fix_tail(dims, vec_len);
+#ifdef AVX512_IMPLEMENTATION
+  if (cpu_level == CpuLevel::AVX512)
+    return fix_tail_avx512(dims, vec_len);
+#elif AVX2_IMPLEMENTATION
+  if (cpu_level == CpuLevel::AVX2)
+    return fix_tail_avx2(dims, vec_len);
+#elif NEON_IMPLEMENTATION
+  if (cpu_level == CpuLevel::NEON)
+    return fix_tail_neon(dims, vec_len);
+#elif POWER_IMPLEMENTATION
+  if (cpu_level == CpuLevel::POWERPC)
+    return fix_tail_power(dims, vec_len);
+#else
+    return fix_tail_default(dims, vec_len);
+#endif
 }
 
 /*
-  A simple benchmark to test the performance of the dot product function.
+  A temporary benchmark to test the performance of the dot product function.
 */
 #include <iostream>
 #include <random>

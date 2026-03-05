@@ -170,6 +170,9 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ${MYSYS_LIBWRAP_SOURCE}
 )
 
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|i[3-6]86")
+  LIST(APPEND SQL_SOURCE vector_mhnsw_x86.cc)
+ENDIF()
 
 ADD_CONVENIENCE_LIBRARY(sql_embedded ${SQL_EMBEDDED_SOURCES})
 DTRACE_INSTRUMENT(sql_embedded)
