@@ -2230,12 +2230,16 @@ public:
 	old insert undo blocks to maintain only the latest insert undo log. */
 	static constexpr unsigned	IGNORE_UNDO = 2;
 
-	/** Mode for handling undo logs during ALTER TABLE...ALGORITHM=COPY operations.
-	This will not be consulted in ha_innobase::inplace_alter_table();
-	Set during copy alter operations or partition/subpartition operations.
-	When set, controls undo log behavior for row operations in the table.
-	This variable is set and unset during extra(), or during the
-	process of altering partitions */
+	/** Mode for handling undo logs during ALTER TABLE...ALGORITHM=COPY
+	operations. This will not be consulted in
+	ha_innobase::inplace_alter_table(); Set during copy alter operations
+	or partition/subpartition operations. When set, controls undo log
+	behavior for row operations in the table. This variable is set and
+	unset during extra(), or during the process of altering partitions
+
+	All reads of bit-fields in the same word must be protected by
+	at least a shared MDL on the table, and all writes must be
+	protected by an exclusive MDL. */
 	unsigned                                skip_alter_undo:2;
 
 	/*!< whether this is in a single-table tablespace and the .ibd
