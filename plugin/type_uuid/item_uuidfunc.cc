@@ -16,6 +16,8 @@
 #define MYSQL_SERVER
 #include "mariadb.h"
 #include "item_uuidfunc.h"
+#include <string>
+#include <cctype>
 
 String *Item_func_sys_guid::val_str(String *str)
 {
@@ -63,7 +65,9 @@ int return_uuid_version(const std::string &str)
     if (str[14] == '8' || str[14] == '9' ) {
         return -1;
     }
-    return (str[14] <= '9') ? (str[14] - '0') : (std::tolower(static_cast<unsigned char>(str[14])) - 'a' + 10);
+    return (str[14] <= '9')
+         ? (str[14] - '0')
+         : (static_cast<char>(std::tolower(static_cast<unsigned char>(str[14]))) - 'a' + 10);
 }
 
 longlong Item_func_uuid_version::val_int()
