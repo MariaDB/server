@@ -2030,7 +2030,7 @@ double Item_func_ln::val_real()
     return 0.0;
   if (value <= 0.0)
   {
-    signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LN);
+    signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOGARITHM);
     null_value= 1;
     return 0.0;
   }
@@ -2056,13 +2056,13 @@ double Item_func_log::val_real()
       return 0.0;
     if (base <= 0.0 || base == 1.0)
     {
-      signal_log_domain_error(ER_INVALID_BASE_FOR_LOG);
+      signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOGARITHM);
       null_value= 1;
       return 0.0;
     }
     if (value <= 0.0)
     {
-      signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOG);
+      signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOGARITHM);
       null_value= 1;
       return 0.0;
     }
@@ -2070,7 +2070,7 @@ double Item_func_log::val_real()
   }
   if (base <= 0.0)
   {
-    signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOG);
+    signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOGARITHM);
     null_value= 1;
     return 0.0;
   }
@@ -2086,7 +2086,7 @@ double Item_func_log2::val_real()
     return 0.0;
   if (value <= 0.0)
   {
-    signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOG2);
+    signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOGARITHM);
     null_value= 1;
     return 0.0;
   }
@@ -2101,7 +2101,7 @@ double Item_func_log10::val_real()
     return 0.0;
   if (value <= 0.0)
   {
-    signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOG10);
+    signal_log_domain_error(ER_INVALID_ARGUMENT_FOR_LOGARITHM);
     null_value= 1;
     return 0.0;
   }
