@@ -21036,11 +21036,16 @@ bool Create_tmp_table::choose_engine(THD *thd, TABLE *table,
   TABLE_SHARE *share= table->s;
   DBUG_ENTER("Create_tmp_table::choose_engine");
   /*
-    If result table is small; use a heap, otherwise TMP_TABLE_HTON (Aria)
-    In the future we should try making storage engine selection more dynamic
+    If result table is small; use a heap, otherwise TMP_TABLE_HTON (Aria).
+    HEAP now supports blob columns via continuation chains, so blob_fields
+    alone no longer forces a disk-based engine.  We still fall back to disk
+    when reclength exceeds HA_MAX_REC_LENGTH (HEAP's fixed-width rows would
+    waste too much memory for very wide records).
+    In the future we should try making storage engine selection more dynamic.
   */
 
-  if (share->blob_fields || m_using_unique_constraint ||
+  if (m_using_unique_constraint ||
+      share->reclength > HA_MAX_REC_LENGTH ||
       (thd->variables.big_tables &&
        !(m_select_options & SELECT_SMALL_RESULT)) ||
       (m_select_options & TMP_TABLE_FORCE_MYISAM) ||
@@ -21104,9 +21109,14 @@ bool Create_tmp_table::finalize(THD *thd,
   if (!m_using_unique_constraint)
     share->reclength+= m_group_null_items; // null flag is stored separately
 
-  if (share->blob_fields == 0)
+  if (share->blob_fields == 0 || share->db_type() == heap_hton)
   {
-    /* We need to ensure that first byte is not 0 for the delete link */
+    /*
+      We need to ensure that first byte is not 0 for the delete link.
+      HEAP uses fixed-width rows even with blobs (blob data lives in
+      separate continuation records within the same HP_BLOCK, not
+      inline in the primary record), so it still needs this guard.
+    */
     if (m_field_count[other])
       m_null_count[other]++;
     else
@@ -21125,11 +21135,15 @@ bool Create_tmp_table::finalize(THD *thd,
   if (!share->reclength)
     share->reclength= 1;                // Dummy select
   share->stored_rec_length= share->reclength;
-  /* Use packed rows if there is blobs or a lot of space to gain */
-  if (share->blob_fields ||
-      (string_total_length() >= STRING_TOTAL_LENGTH_TO_PACK_ROWS &&
-       (share->reclength / string_total_length() <= RATIO_TO_PACK_ROWS ||
-        string_total_length() / string_count() >= AVG_STRING_LENGTH_TO_PACK_ROWS)))
+  /*
+    Use packed rows if there is blobs or a lot of space to gain.
+    HEAP requires fixed-width rows — it cannot use packed row format.
+  */
+  if (share->db_type() != heap_hton &&
+      (share->blob_fields ||
+       (string_total_length() >= STRING_TOTAL_LENGTH_TO_PACK_ROWS &&
+        (share->reclength / string_total_length() <= RATIO_TO_PACK_ROWS ||
+         string_total_length() / string_count() >= AVG_STRING_LENGTH_TO_PACK_ROWS))))
     use_packed_rows= 1;
 
   {
@@ -21160,8 +21174,13 @@ bool Create_tmp_table::finalize(THD *thd,
     share->null_bytes= share->null_bytes_for_compare= whole_null_pack_length;
   }
 
-  if (share->blob_fields == 0)
+  if (share->blob_fields == 0 || share->db_type() == heap_hton)
   {
+    /*
+      Same first-byte guard as above: HEAP with blobs still uses
+      fixed-width rows and needs a non-zero first byte for the
+      delete-link mechanism.
+    */
     null_counter[(m_field_count[other] ? other : distinct)]++;
   }
 
@@ -26803,8 +26822,15 @@ JOIN_TAB::remove_duplicates()
   table->file->info(HA_STATUS_VARIABLE);
   table->reginfo.lock_type=TL_WRITE;
 
-  if (table->s->db_type() == heap_hton ||
-      (!table->s->blob_fields &&
+  /*
+    remove_dup_with_hash_index() copies field data into a flat key buffer
+    via field->make_sort_key() and compares with memcmp.  Blob fields
+    store only a pointer in the record, so memcmp would compare pointer
+    values instead of blob content.  Fall back to the row-by-row compare
+    path for tables with blobs.
+  */
+  if (!table->s->blob_fields &&
+      (table->s->db_type() == heap_hton ||
        ((ALIGN_SIZE(keylength) + HASH_OVERHEAD) * table->file->stats.records <
 	thd->variables.sortbuff_size)))
     error= remove_dup_with_hash_index(join->thd, table, field_count,
@@ -31781,8 +31807,24 @@ test_if_cheaper_ordering(bool in_join_optimizer,
           and as result we'll choose an index scan when using ref/range
           access + filesort will be cheaper.
         */
-        select_limit= (ha_rows) (select_limit < fanout ?
-                                 1 : select_limit/fanout);
+        /*
+          fanout can be extremely small (close to 0) when
+          cond_selectivity values are tiny, making select_limit/fanout
+          overflow to infinity or a value exceeding HA_POS_ERROR.
+          Casting such a double to ha_rows (unsigned long long) is
+          undefined behavior.  Cap at HA_POS_ERROR to avoid UB.
+          Note: (double) HA_POS_ERROR rounds up to 2^64 (double can't
+          represent 2^64-1 exactly), so the >= comparison is safe —
+          any double that reaches 2^64 is genuinely out of range.
+        */
+        {
+          double adjusted= (select_limit < fanout) ?
+                           1.0 : select_limit / fanout;
+          if (adjusted >= (double) HA_POS_ERROR)
+            select_limit= HA_POS_ERROR;
+          else
+            select_limit= (ha_rows) adjusted;
+        }
 
         /*
           refkey_rows_estimate is E(#rows) produced by the table access

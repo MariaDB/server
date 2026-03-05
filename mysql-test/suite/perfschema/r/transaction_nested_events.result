@@ -145,7 +145,7 @@ RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
 SQL_TEXT
 FROM performance_schema.events_statements_history_long s
 WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
-ORDER BY thread_id, r_event_id;
+ORDER BY thread_id, r_event_id, r_end_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          2	statement/sql/insert     	               NULL	NULL              	INSERT INTO t1 VALUES (210, "INSERT 210")
 thread_id	          2	          2	transaction              	                  1	STATEMENT         	<transaction started>
@@ -265,7 +265,7 @@ RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
 SQL_TEXT
 FROM performance_schema.events_statements_history_long s
 WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
-ORDER BY thread_id, r_event_id;
+ORDER BY thread_id, r_event_id, r_end_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          2	statement/sql/begin      	               NULL	NULL              	START TRANSACTION
 thread_id	          2	          5	transaction              	                  1	STATEMENT         	<transaction started>
@@ -397,7 +397,7 @@ RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
 SQL_TEXT
 FROM performance_schema.events_statements_history_long s
 WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
-ORDER BY thread_id, r_event_id;
+ORDER BY thread_id, r_event_id, r_end_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          2	statement/sql/create_proc	               NULL	NULL              	CREATE PROCEDURE tp_update() UPDATE t1 SET s1 = s1 + 1
 thread_id	          2	          2	transaction              	                  1	STATEMENT         	<transaction started>
@@ -537,7 +537,7 @@ RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
 SQL_TEXT
 FROM performance_schema.events_statements_history_long s
 WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
-ORDER BY thread_id, r_event_id;
+ORDER BY thread_id, r_event_id, r_end_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          2	statement/sql/create_proc	               NULL	NULL              	CREATE PROCEDURE tp_start() START TRANSACTION
 thread_id	          2	          2	transaction              	                  1	STATEMENT         	<transaction started>
@@ -697,7 +697,7 @@ RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
 SQL_TEXT
 FROM performance_schema.events_statements_history_long s
 WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
-ORDER BY thread_id, r_event_id;
+ORDER BY thread_id, r_event_id, r_end_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          2	statement/sql/create_proc	               NULL	NULL              	CREATE PROCEDURE tp_rollback() ROLLBACK
 thread_id	          2	          2	transaction              	                  1	STATEMENT         	<transaction started>
@@ -871,7 +871,7 @@ RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
 SQL_TEXT
 FROM performance_schema.events_statements_history_long s
 WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
-ORDER BY thread_id, r_event_id;
+ORDER BY thread_id, r_event_id, r_end_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          2	statement/sql/begin      	               NULL	NULL              	START TRANSACTION
 thread_id	          3	          3	statement/sql/insert     	                  2	TRANSACTION       	INSERT INTO t1 VALUES (410, "INSERT 410")
@@ -1005,7 +1005,7 @@ RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
 SQL_TEXT
 FROM performance_schema.events_statements_history_long s
 WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
-ORDER BY thread_id, r_event_id;
+ORDER BY thread_id, r_event_id, r_end_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          2	statement/sql/begin      	               NULL	NULL              	START TRANSACTION
 thread_id	          2	          6	transaction              	                  1	STATEMENT         	<transaction started>
@@ -1238,7 +1238,7 @@ RPAD(IFNULL(NESTING_EVENT_TYPE, 'NULL'), 18, ' ') NESTING_EVENT_TYPE,
 SQL_TEXT
 FROM performance_schema.events_statements_history_long s
 WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
-ORDER BY thread_id, r_event_id;
+ORDER BY thread_id, r_event_id, r_end_event_id;
 THREAD_ID	R_EVENT_ID	R_END_EVENT_ID	EVENT_NAME               	R_NESTING_EVENT_ID	NESTING_EVENT_TYPE	SQL_TXT
 thread_id	          1	          2	statement/sql/begin      	               NULL	NULL              	START TRANSACTION
 thread_id	          2	         19	transaction              	                  1	STATEMENT         	<transaction started>

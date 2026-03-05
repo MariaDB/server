@@ -1,0 +1,439 @@
+#
+# Test BLOB/TEXT column support in HEAP (MEMORY) tables.
+#
+
+--disable_warnings
+drop table if exists t1,t2;
+--enable_warnings
+
+--echo #
+--echo # Basic CRUD with BLOB column
+--echo #
+create table t1 (a int not null, b blob, primary key(a)) engine=memory;
+insert into t1 values (1, 'hello'), (2, 'world');
+select * from t1 order by a;
+select * from t1 where a=1;
+select * from t1 where a=2;
+update t1 set b='updated' where a=1;
+select * from t1 order by a;
+delete from t1 where a=2;
+select * from t1 order by a;
+insert into t1 values (3, 'new row');
+select * from t1 order by a;
+drop table t1;
+
+--echo #
+--echo # Multiple BLOB/TEXT columns of different types
+--echo #
+create table t1 (
+  id int not null auto_increment,
+  t tinyblob,
+  b blob,
+  m mediumblob,
+  tx text,
+  primary key(id)
+) engine=memory;
+insert into t1 (t, b, m, tx) values
+  ('tiny1', 'blob1', 'medium1', 'text1'),
+  ('tiny2', 'blob2', 'medium2', 'text2');
+select * from t1 order by id;
+update t1 set b='blob_updated', tx='text_updated' where id=1;
+select * from t1 order by id;
+delete from t1 where id=2;
+select * from t1 order by id;
+drop table t1;
+
+--echo #
+--echo # NULL and empty blob values
+--echo #
+create table t1 (a int not null, b blob, c text, primary key(a)) engine=memory;
+insert into t1 values (1, NULL, NULL);
+insert into t1 values (2, '', '');
+insert into t1 values (3, 'data', 'text');
+select a, b, c, length(b), length(c) from t1 order by a;
+update t1 set b=NULL where a=3;
+select a, b, c, length(b), length(c) from t1 order by a;
+update t1 set b='restored' where a=3;
+select a, b, c, length(b), length(c) from t1 order by a;
+drop table t1;
+
+--echo #
+--echo # Large BLOBs spanning multiple continuation runs
+--echo # For (int, blob): recbuffer=16, visible=15, leaf block ~1021 slots.
+--echo # Max run payload ~15305 bytes. Sizes chosen to span multiple runs
+--echo # and not align to visible (15 bytes).
+--echo #
+create table t1 (a int not null, b blob, primary key(a)) engine=memory;
+insert into t1 values (1, repeat('A', 1000));
+insert into t1 values (2, repeat('B', 50000));
+insert into t1 values (3, repeat('C', 63001));
+select a, length(b), left(b, 5), right(b, 5) from t1 order by a;
+# Verify data integrity
+select a from t1 where b = repeat('A', 1000);
+select a from t1 where b = repeat('B', 50000);
+select a from t1 where b = repeat('C', 63001);
+# Update small to large (multi-run)
+update t1 set b=repeat('D', 63001) where a=1;
+select a, length(b), left(b, 5), right(b, 5) from t1 order by a;
+select a from t1 where b = repeat('D', 63001);
+# Update large to small
+update t1 set b=repeat('E', 100) where a=2;
+select a, length(b), left(b, 5), right(b, 5) from t1 order by a;
+drop table t1;
+
+--echo #
+--echo # Mixed operations: insert, delete, insert (free list reuse)
+--echo #
+create table t1 (a int not null, b blob, primary key(a)) engine=memory;
+insert into t1 values (1, repeat('X', 20000));
+insert into t1 values (2, repeat('Y', 50000));
+insert into t1 values (3, repeat('Z', 10000));
+delete from t1 where a=2;
+# This insert should reuse freed continuation records
+insert into t1 values (4, repeat('W', 40000));
+select a, length(b) from t1 order by a;
+select a from t1 where b = repeat('X', 20000);
+select a from t1 where b = repeat('Z', 10000);
+select a from t1 where b = repeat('W', 40000);
+# Delete all and reinsert
+delete from t1;
+insert into t1 values (10, repeat('R', 50000));
+insert into t1 values (20, repeat('S', 50000));
+select a, length(b) from t1 order by a;
+drop table t1;
+
+--echo #
+--echo # Free list fragmentation: NULL-blob rows interleaved with large-blob rows
+--echo #
+--echo # When rows with NULL blobs and rows with large blobs are deleted, the
+--echo # free list gets primary-record slots (from NULL rows) interleaved between
+--echo # continuation slots (from large-blob rows).  The peek-then-unlink
+--echo # algorithm must find contiguous continuation groups despite these
+--echo # interleaving primary slots breaking address contiguity.
+--echo #
+--echo # After deleting all rows and reinserting, the new blob data must be
+--echo # correct — verifying no free list corruption from the fragmented state.
+--echo #
+create table t1 (a int not null, b blob, primary key(a)) engine=memory;
+# Insert alternating: NULL blob, large blob, NULL blob, large blob
+# The primary slots for NULL rows will sit between continuation runs
+# on the free list after deletion.
+insert into t1 values (1, NULL);
+insert into t1 values (2, repeat('A', 20000));
+insert into t1 values (3, NULL);
+insert into t1 values (4, repeat('B', 30000));
+insert into t1 values (5, NULL);
+insert into t1 values (6, repeat('C', 25000));
+select a, length(b) from t1 order by a;
+# Delete in an order that creates maximum free list interleaving:
+# large blob rows first (their continuation slots go to free list),
+# then NULL rows (their primary slots go to free list head,
+# interleaving with the continuation slots).
+delete from t1 where a=2;
+delete from t1 where a=4;
+delete from t1 where a=6;
+delete from t1 where a=1;
+delete from t1 where a=3;
+delete from t1 where a=5;
+# Reinsert large blobs — these should either scavenge contiguous groups
+# from the fragmented free list or fall through to tail allocation.
+# Either way, data must be correct.
+insert into t1 values (10, repeat('D', 35000));
+insert into t1 values (20, repeat('E', 20000));
+insert into t1 values (30, repeat('F', 15000));
+select a, length(b) from t1 order by a;
+select a from t1 where b = repeat('D', 35000);
+select a from t1 where b = repeat('E', 20000);
+select a from t1 where b = repeat('F', 15000);
+# Second cycle: delete and reinsert again to exercise scavenging of
+# the runs we just created (which are now interleaved differently).
+delete from t1 where a=10;
+insert into t1 values (40, repeat('G', 40000));
+select a, length(b) from t1 order by a;
+select a from t1 where b = repeat('E', 20000);
+select a from t1 where b = repeat('F', 15000);
+select a from t1 where b = repeat('G', 40000);
+drop table t1;
+
+--echo #
+--echo # Free list scavenging with mixed NULL and non-NULL blob columns
+--echo #
+--echo # Multiple blob columns where some are NULL and others are large.
+--echo # This creates rows with partial continuation chains — the NULL
+--echo # columns have no chain while the non-NULL columns do.
+--echo #
+create table t1 (
+  a int not null,
+  b blob,
+  c blob,
+  primary key(a)
+) engine=memory;
+insert into t1 values (1, repeat('X', 15000), NULL);
+insert into t1 values (2, NULL, repeat('Y', 25000));
+insert into t1 values (3, repeat('Z', 10000), repeat('W', 20000));
+insert into t1 values (4, NULL, NULL);
+select a, length(b), length(c) from t1 order by a;
+# Delete rows with different blob patterns to create varied free list state
+delete from t1 where a=1;
+delete from t1 where a=3;
+# Insert new rows that should scavenge from the freed continuation slots
+insert into t1 values (5, repeat('P', 18000), repeat('Q', 22000));
+select a, length(b), length(c) from t1 order by a;
+select a from t1 where b is null and c = repeat('Y', 25000);
+select a from t1 where b = repeat('P', 18000) and c = repeat('Q', 22000);
+# Delete everything, reinsert to verify full cleanup
+delete from t1;
+insert into t1 values (6, repeat('R', 30000), repeat('S', 30000));
+select a, length(b), length(c) from t1 order by a;
+select a from t1 where b = repeat('R', 30000) and c = repeat('S', 30000);
+drop table t1;
+
+--echo #
+--echo # TRUNCATE with BLOB data
+--echo #
+create table t1 (a int not null, b blob, primary key(a)) engine=memory;
+insert into t1 values (1, repeat('T', 30000)), (2, repeat('U', 30000));
+select count(*) from t1;
+truncate table t1;
+select count(*) from t1;
+insert into t1 values (1, 'after truncate');
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # Full table scan correctness
+--echo #
+create table t1 (a int not null, b blob) engine=memory;
+insert into t1 values (1, repeat('a', 500));
+insert into t1 values (2, repeat('b', 23000));
+insert into t1 values (3, repeat('c', 51000));
+insert into t1 values (4, NULL);
+insert into t1 values (5, '');
+# Full scan should return exactly 5 rows, no continuation record leaks
+select a, length(b), left(b, 5) from t1 order by a;
+select count(*) from t1;
+drop table t1;
+
+--echo #
+--echo # Hash index on non-blob column with blob data present
+--echo #
+create table t1 (
+  a int not null,
+  b varchar(20) not null,
+  c blob,
+  primary key(a),
+  key(b)
+) engine=memory;
+insert into t1 values (1, 'key1', repeat('h', 20000));
+insert into t1 values (2, 'key2', repeat('i', 33000));
+insert into t1 values (3, 'key1', repeat('j', 10000));
+select a, b, length(c) from t1 where b='key1' order by a;
+select a, b, length(c) from t1 where b='key2';
+select a, b, length(c) from t1 where a=2;
+drop table t1;
+
+--echo #
+--echo # BTREE index on non-blob column with blob data present
+--echo #
+create table t1 (
+  a int not null,
+  b int not null,
+  c blob,
+  key b_idx using btree (b)
+) engine=memory;
+insert into t1 values (1, 10, repeat('p', 17000));
+insert into t1 values (2, 20, repeat('q', 25000));
+insert into t1 values (3, 30, repeat('r', 41000));
+insert into t1 values (4, 20, repeat('s', 19000));
+select a, b, length(c) from t1 where b=20 order by a;
+select a, b, length(c) from t1 where b>=20 order by b, a;
+drop table t1;
+
+--echo #
+--echo # REPLACE with BLOB column
+--echo #
+create table t1 (a int not null, b blob, primary key(a)) engine=memory;
+insert into t1 values (1, 'original');
+insert into t1 values (2, repeat('x', 30000));
+replace into t1 values (1, repeat('replaced', 5000));
+select a, length(b), left(b, 20) from t1 order by a;
+replace into t1 values (2, 'short');
+select a, length(b), left(b, 20) from t1 order by a;
+drop table t1;
+
+--echo #
+--echo # INSERT ... SELECT with BLOB data
+--echo #
+create table t1 (a int not null, b blob, primary key(a)) engine=memory;
+create table t2 (a int not null, b blob, primary key(a)) engine=memory;
+insert into t1 values (1, repeat('m', 22000)), (2, repeat('n', 37000));
+insert into t2 select * from t1;
+select a, length(b) from t2 order by a;
+select a from t2 where b=repeat('m', 22000);
+select a from t2 where b=repeat('n', 37000);
+drop table t1, t2;
+
+--echo #
+--echo # TINYBLOB NOT NULL edge case (reclength=9, minimal visible_offset)
+--echo #
+CREATE TABLE t_tiny (b TINYBLOB NOT NULL) ENGINE=MEMORY;
+INSERT INTO t_tiny VALUES ('hello'), ('world');
+SELECT * FROM t_tiny;
+DROP TABLE t_tiny;
+
+--echo #
+--echo # TINYBLOB NULL edge case (reclength=10)
+--echo #
+CREATE TABLE t_tiny2 (b TINYBLOB) ENGINE=MEMORY;
+INSERT INTO t_tiny2 VALUES ('foo'), ('bar');
+SELECT * FROM t_tiny2;
+DROP TABLE t_tiny2;
+
+--echo #
+--echo # Blob-only table with no primary key
+--echo #
+create table t1 (b blob) engine=memory;
+insert into t1 values (repeat('A', 5000)), (repeat('B', 10000));
+select length(b), left(b, 3) from t1 order by b;
+delete from t1;
+insert into t1 values ('short1'), ('short2');
+select b from t1 order by b;
+drop table t1;
+
+--echo #
+--echo # Table-full error with blob data
+--echo #
+set @save_max= @@max_heap_table_size;
+# Variable must be set before CREATE TABLE (limit is captured at creation).
+set @@max_heap_table_size= 65536;
+create table t1 (a int not null, b blob, primary key(a)) engine=memory;
+# Insert until table is full; blob data consumes continuation slots
+--disable_abort_on_error
+insert into t1 values (1, repeat('x', 30000));
+insert into t1 values (2, repeat('y', 30000));
+insert into t1 values (3, repeat('z', 30000));
+--enable_abort_on_error
+# At least the first row should be readable
+select a, length(b) from t1 where a=1;
+set @@max_heap_table_size= @save_max;
+drop table t1;
+
+--echo #
+--echo # Multiple blob columns with different sizes in same row
+--echo #
+create table t1 (
+  a int not null,
+  b tinyblob,
+  c blob,
+  d mediumblob,
+  primary key(a)
+) engine=memory;
+insert into t1 values (1, repeat('p', 200), repeat('q', 30000), repeat('r', 60000));
+insert into t1 values (2, 'small', repeat('s', 15000), repeat('t', 45000));
+select a, length(b), length(c), length(d), left(b,3), left(c,3), left(d,3) from t1 order by a;
+# Verify data integrity
+select a from t1 where b=repeat('p', 200) and c=repeat('q', 30000) and d=repeat('r', 60000);
+select a from t1 where b='small' and c=repeat('s', 15000) and d=repeat('t', 45000);
+drop table t1;
+
+--echo #
+--echo # UPDATE failure preserves old blob data (table-full during blob grow)
+--echo #
+set @save_max= @@max_heap_table_size;
+# Size chosen so two rows with small blobs fit, but updating one to a
+# large blob exhausts the table before the new chain is fully written.
+# Variable must be set before CREATE TABLE (limit is captured at creation).
+# Use LONGBLOB so the 200KB value is accepted by the column type.
+set @@max_heap_table_size= 65536;
+create table t1 (a int not null, b longblob, primary key(a)) engine=memory;
+insert into t1 values (1, repeat('A', 5000));
+insert into t1 values (2, repeat('B', 5000));
+# This update should fail: the new blob is too large for the table
+--error ER_RECORD_FILE_FULL
+update t1 set b=repeat('X', 200000) where a=1;
+# Old data must survive intact after the failed update
+select a, length(b), left(b, 5), right(b, 5) from t1 order by a;
+select a from t1 where b=repeat('A', 5000);
+select a from t1 where b=repeat('B', 5000);
+set @@max_heap_table_size= @save_max;
+drop table t1;
+
+--echo #
+--echo # Large blob exceeding uint16 run_rec_count cap (65535 records)
+--echo #
+--echo # With recbuffer=16, visible=15, a 1MB blob needs ~69906 records,
+--echo # exceeding the uint16 max of 65535.  The free list scavenging must
+--echo # split into multiple runs at the cap boundary.
+--echo # Delete-then-reinsert exercises scavenging of the freed chain.
+--echo #
+set @save_max= @@max_heap_table_size;
+set @@max_heap_table_size= 64 * 1024 * 1024;
+create table t1 (a int not null, b longblob, primary key(a)) engine=memory;
+insert into t1 values (1, repeat('A', 1048576));
+insert into t1 values (2, repeat('B', 1048576));
+select a, length(b), left(b, 5), right(b, 5) from t1 order by a;
+select a from t1 where b = repeat('A', 1048576);
+select a from t1 where b = repeat('B', 1048576);
+# Delete both rows — puts ~140K contiguous records on free list
+delete from t1 where a=1;
+delete from t1 where a=2;
+# Reinsert — scavenges from free list, must split at uint16 boundary
+insert into t1 values (3, repeat('C', 1048576));
+insert into t1 values (4, repeat('D', 1048576));
+select a, length(b), left(b, 5), right(b, 5) from t1 order by a;
+select a from t1 where b = repeat('C', 1048576);
+select a from t1 where b = repeat('D', 1048576);
+set @@max_heap_table_size= @save_max;
+drop table t1;
+
+--echo #
+--echo # Zero-copy Case A: tiny blobs fitting in rec 0 payload (wide table)
+--echo #
+create table t_casea (a int not null, b varchar(480), c blob, primary key(a)) engine=memory;
+insert into t_casea values (1, repeat('v', 480), repeat('A', 400));
+insert into t_casea values (2, repeat('w', 480), repeat('B', 100));
+select a, length(c), left(c,3) from t_casea order by a;
+select a from t_casea where c = repeat('A', 400);
+select a from t_casea where c = repeat('B', 100);
+drop table t_casea;
+
+--echo #
+--echo # Zero-copy Case B: medium blobs (single run, multiple records)
+--echo #
+create table t_caseb (a int not null, b blob, primary key(a)) engine=memory;
+insert into t_caseb values (1, repeat('M', 8000));
+insert into t_caseb values (2, repeat('N', 15000));
+select a, length(b), left(b,3), right(b,3) from t_caseb order by a;
+select a from t_caseb where b = repeat('M', 8000);
+select a from t_caseb where b = repeat('N', 15000);
+# Delete and reinsert to exercise free list -> tail fallback
+delete from t_caseb where a=1;
+insert into t_caseb values (3, repeat('O', 12000));
+select a, length(b) from t_caseb order by a;
+select a from t_caseb where b = repeat('O', 12000);
+drop table t_caseb;
+
+--echo #
+--echo # Zero-copy Case B->C boundary (large blobs forcing multi-run)
+--echo #
+create table t_boundary (a int not null, b blob, primary key(a)) engine=memory;
+# Case B: single run, zero-copy
+insert into t_boundary values (1, repeat('X', 15000));
+# Case C: large enough to span multiple leaf blocks
+insert into t_boundary values (2, repeat('Y', 50000));
+select a, length(b), left(b,3) from t_boundary order by a;
+select a from t_boundary where b = repeat('X', 15000);
+select a from t_boundary where b = repeat('Y', 50000);
+drop table t_boundary;
+
+--echo #
+--echo # Non-blob table regression: ensure no behavioral change
+--echo #
+create table t1 (a int not null, b varchar(100), primary key(a)) engine=memory;
+insert into t1 values (1, 'no blob here'), (2, 'still no blob');
+select * from t1 order by a;
+update t1 set b='changed' where a=1;
+select * from t1 order by a;
+delete from t1 where a=2;
+select * from t1 order by a;
+drop table t1;

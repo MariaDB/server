@@ -2510,10 +2510,10 @@ SELECT f3, MIN(f2) FROM t1 GROUP BY f1 LIMIT 1;
 f3	MIN(f2)
 blob	NULL
 DROP TABLE t1;
-the value below *must* be 1
+the value below *must* be 0 (HEAP supports blobs)
 show status like 'Created_tmp_disk_tables';
 Variable_name	Value
-Created_tmp_disk_tables	1
+Created_tmp_disk_tables	0
 #
 #  Bug #1002146: Unneeded filesort if usage of join buffer is not allowed
 #  (bug mdev-645)

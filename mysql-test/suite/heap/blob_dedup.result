@@ -1,0 +1,15 @@
+CREATE TABLE t1 (a mediumtext) ENGINE=HEAP;
+INSERT INTO t1 VALUES ('abc'),('def');
+SELECT DISTINCT a FROM t1;
+a
+abc
+def
+DROP TABLE t1;
+CREATE TABLE t1 (a mediumtext);
+CREATE TABLE t2 (b varchar(20));
+INSERT INTO t1 VALUES ('a'),('b');
+SELECT left(a,100000000) FROM t1 UNION SELECT b FROM t2;
+left(a,100000000)
+a
+b
+DROP TABLE t1, t2;
