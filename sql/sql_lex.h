@@ -3356,6 +3356,7 @@ public:
   List<LEX_CSTRING>   view_list; // view list (list of field names in view)
   List<LEX_STRING>   *column_list; // list of column names (in ANALYZE)
   List<LEX_STRING>   *index_list;  // list of index names (in ANALYZE)
+  Name_resolution_context *update_ctx;
   /*
     A stack of name resolution contexts for the query. This stack is used
     at parse time to set local name resolution contexts for various parts

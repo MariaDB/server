@@ -789,9 +789,14 @@ bool Item_ident_placeholder::resolve_name(THD *thd)
       {
         LEX_CSTRING tb= {table_name.str, table_name.length};
         LEX_CSTRING fl= {field_name.str, field_name.length};
-        resolved_to= new (thd->mem_root)
-          Item_direct_view_ref(thd, context, &res.column.veiw_field->item,
-                               tb, fl, res.table);
+        // XXX TODO: do we really need it or just return
+        // item_for_view_update()
+        if (context->wrapp)
+          resolved_to= new (thd->mem_root)
+            Item_direct_view_ref(thd, context, &res.column.veiw_field->item,
+                                 tb, fl, res.table);
+        else
+          resolved_to= res.column.veiw_field->item;
         DBUG_PRINT("info", ("View Field %p", resolved_to));
         break;
       }
@@ -902,6 +907,7 @@ bool Item_ident_placeholder::fix_fields(THD *thd, Item **ref)
       const char *db, *tab;
       db=  res.column.field->table->s->db.str;
       tab= res.column.field->table->s->table_name.str;
+      i_field->any_privileges= true;
       if (!(i_field->have_privileges=
             (get_column_grant(thd, &res.column.field->table->grant,
                               db, tab, field_name) &

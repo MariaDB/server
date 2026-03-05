@@ -3543,9 +3543,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   /* should be assigned after making first tables same */
   all_tables= lex->query_tables;
   /* set context for commands which do not use setup_tables */
-  select_lex->
-    context.resolve_in_table_list_only(select_lex->
-                                       table_list.first);
+  if (lex->sql_command != SQLCOM_INSERT_SELECT)
+    select_lex->
+      context.resolve_in_table_list_only(select_lex->
+                                         table_list.first);
 
   /*
     Remember last commmand executed, so that we can use it in places

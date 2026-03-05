@@ -14328,6 +14328,10 @@ update:
             Lex->first_select_lex()->master_unit()->set_with_clause($1);
             if ($1)
               $1->attach_to(Lex->first_select_lex());
+            if (!(lex->update_ctx=
+                  new (thd->mem_root) Name_resolution_context))
+              MYSQL_YYABORT;
+            Lex->update_ctx[0]= Lex->context_stack.head()[0];
           }
           opt_low_priority opt_ignore update_table_list
           SET update_list
@@ -14361,6 +14365,8 @@ update:
           {
             if ($12)
               Select->order_list= *($12);
+            Lex->update_ctx[0]= Lex->context_stack.head()[0];
+            Lex->update_ctx->wrapp= false;
           } stmt_end {}
         ;
 
@@ -14369,18 +14375,28 @@ update_list:
         | update_elem
         ;
 
+push_update_context:
+        {
+          Lex->push_context(Lex->update_ctx);
+        }
+
+pop_update_context:
+        {
+          Lex->pop_context();
+        }
+
 update_elem:
-          simple_ident_nospvar equal DEFAULT
+          push_update_context simple_ident_nospvar pop_update_context equal DEFAULT
           {
             Item *def= new (thd->mem_root) Item_default_value(thd,
-                                             Lex->current_context(), $1, 1);
+                                             Lex->current_context(), $2, 1);
             Lex->default_used= TRUE;
-            if (!def || add_item_to_list(thd, $1) || add_value_to_list(thd, def))
+            if (!def || add_item_to_list(thd, $2) || add_value_to_list(thd, def))
               MYSQL_YYABORT;
           }
-        | simple_ident_nospvar equal expr_or_ignore
+        | push_update_context simple_ident_nospvar pop_update_context equal expr_or_ignore
           {
-            if (add_item_to_list(thd, $1) || add_value_to_list(thd, $3))
+            if (add_item_to_list(thd, $2) || add_value_to_list(thd, $5))
               MYSQL_YYABORT;
           }
         ;

@@ -290,6 +290,7 @@ struct Name_resolution_context: Sql_alloc
     only against this->table_list.
   */
   bool select_list_resolving= false;
+  bool wrapp= true;
 
   /*
     Sometimes like in CREATE or ALTER TABLE field can not and should not
@@ -3751,6 +3752,20 @@ public:
   */
   Item_ident_placeholder *ident_for_view_update() override
   { return this; }
+  Field * resolved_field()
+  {
+    switch(res.result)
+    {
+      case NAME_RESOLVED_FIELD:
+        return res.column.field;
+      case NAME_RESOLVED_VIEW:
+        // XXX TODO: FIX
+        DBUG_ASSERT(0);
+        return 0;
+      default:
+        return 0;
+    }
+  }
 
   bool check_vcol_func_processor(void *) override;
   /*

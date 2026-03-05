@@ -1242,6 +1242,7 @@ void LEX::start(THD *thd_arg)
 
   builtin_select.lex_start(this);
   lex_options= 0;
+  update_ctx= NULL;
   context_stack.empty();
   //empty select_stack
   select_stack_top= 0;
@@ -11398,10 +11399,6 @@ bool LEX::insert_select_hack(SELECT_LEX *sel)
   insert_table->select_lex= sel;
   sel->names_to_resolve.prepend(&builtin_select.names_to_resolve);
 
-  sel->context.first_name_resolution_table= insert_table;
-  builtin_select.context= sel->context;
-  change_item_list_context(&field_list, &sel->context);
-
   if (sel->tvc && !sel->next_select() &&
       (sql_command == SQLCOM_INSERT_SELECT ||
        sql_command == SQLCOM_REPLACE_SELECT))
@@ -11416,6 +11413,15 @@ bool LEX::insert_select_hack(SELECT_LEX *sel)
       sql_command= SQLCOM_REPLACE;
   }
 
+  if (sql_command == SQLCOM_INSERT_SELECT ||
+      sql_command == SQLCOM_REPLACE_SELECT)
+    builtin_select.context.last_name_resolution_table= insert_table;
+  else
+  {
+    sel->context.first_name_resolution_table= insert_table;
+    builtin_select.context= sel->context;
+    change_item_list_context(&field_list, &sel->context);
+  }
 
   for (SELECT_LEX *sel= all_selects_list;
        sel;

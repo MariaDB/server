@@ -356,9 +356,8 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
     Item *item;
     while ((item= it++))
     {
-#if 0
-      Item_field *field;
-      if ((field= item->field_for_view_update()))
+      Item_ident_placeholder *field;
+      if ((field= item->ident_for_view_update()))
       {
         /*
          any_privileges may be reset later by the Item_field::set_field
@@ -366,7 +365,6 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
         */
         field->any_privileges= 1;
       }
-#endif
     }
   }
 

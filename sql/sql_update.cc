@@ -139,17 +139,17 @@ bool compare_record(const TABLE *table)
     FALSE Items are OK
 */
 
-static bool check_fields(THD *thd, TABLE_LIST *table, List<Item> &items,
-                         bool update_view)
+static bool check_fields(THD *thd, TABLE_LIST *table, List<Item> &items)
+//  , bool update_view)
 {
   Item *item;
-  if (update_view)
+  //if (update_view)
   {
     List_iterator<Item> it(items);
-    Item_field *field;
+    Item_ident_placeholder *field;
     while ((item= it++))
     {
-      if (!(field= item->field_for_view_update()))
+      if (!(field= item->ident_for_view_update()))
       {
         /* item has name, because it comes from VIEW SELECT list */
         my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name.str);
@@ -159,8 +159,12 @@ static bool check_fields(THD *thd, TABLE_LIST *table, List<Item> &items,
         we make temporary copy of Item_field, to avoid influence of changing
         result_field on Item_ref which refer on this field
       */
-      thd->change_item_tree(it.ref(),
-                            new (thd->mem_root) Item_field(thd, field));
+      //thd->change_item_tree(it.ref(),
+      //                      new (thd->mem_root) Item_field(thd, field));
+      DBUG_ASSERT(field->context->wrapp);
+      if (field->fix_fields(thd, it.ref())) // XXX TODO: should we do it so
+                                           // early
+        return true;
     }
   }
 
@@ -1682,16 +1686,21 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
     DBUG_RETURN(true);
 
   List<Item> *fields= &lex->first_select_lex()->item_list;
+
+  if (resolve_names_in_list(thd, *fields))
+    DBUG_RETURN(1);
+  /*
   if (setup_fields_with_no_wrap(thd, Ref_ptr_array(), *fields,
                                 MARK_COLUMNS_WRITE, 0, 0, THD_WHERE::SET_LIST))
     DBUG_RETURN(1);
+  */
 
   // Check if we have a view in the list ...
-  for (tl= table_list; tl ; tl= tl->next_local)
-    if (tl->view)
-      break;
+  //for (tl= table_list; tl ; tl= tl->next_local)
+  //  if (tl->view)
+  //    break;
   // ... and pass this knowledge in check_fields call
-  if (check_fields(thd, table_list, *fields, tl != NULL ))
+  if (check_fields(thd, table_list, *fields))//, tl != NULL ))
     DBUG_RETURN(1);
 
   table_map tables_for_update= thd->table_map_for_update= get_table_map(fields);

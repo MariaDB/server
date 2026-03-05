@@ -402,6 +402,21 @@ inline bool setup_fields_with_no_wrap(THD *thd, Ref_ptr_array ref_pointer_array,
   return res;
 }
 
+
+inline bool resolve_names_in_list(THD *thd, List<Item> &items)
+{
+  List_iterator_fast<Item> li(items);
+  Item *item;
+  while ((item= li++))
+  {
+    Item_ident_placeholder *ident= item->ident_for_view_update();
+    if (ident && ident->resolve_name(thd))
+      return true;
+  }
+  return false;
+}
+
+
 /**
   An abstract class for a strategy specifying how the prelocking
   algorithm should extend the prelocking set while processing
