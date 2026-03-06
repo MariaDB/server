@@ -2433,11 +2433,11 @@ protected:
 };
 
 
-class Create_func_str_to_date : public Create_func_arg2
+class Create_func_str_to_date : public Create_native_func
 {
 public:
-  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
-
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                      List<Item> *item_list) override;
   static Create_func_str_to_date s_singleton;
 
 protected:
@@ -5867,9 +5867,32 @@ Create_func_sqrt::create_1_arg(THD *thd, Item *arg1)
 Create_func_str_to_date Create_func_str_to_date::s_singleton;
 
 Item*
-Create_func_str_to_date::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+Create_func_str_to_date::create_native(THD *thd, const LEX_CSTRING *name,
+                                      List<Item> *item_list)
 {
-  return new (thd->mem_root) Item_func_str_to_date(thd, arg1, arg2);
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  switch (arg_count) {
+  case 2:
+  {
+    Item *param_1= item_list->pop();
+    Item *param_2= item_list->pop();
+    return new (thd->mem_root) Item_func_str_to_date(thd, param_1, param_2);
+  }
+  case 3:
+  {
+    Item *param_1= item_list->pop();
+    Item *param_2= item_list->pop();
+    Item *param_3= item_list->pop();
+    return new (thd->mem_root) Item_func_str_to_date(thd,
+                                 param_1, param_2, param_3);
+  }
+  }
+  my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+  return NULL;
 }
 
 

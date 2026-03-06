@@ -2323,9 +2323,24 @@ bool Item_func_date_format::fix_length_and_dec(THD *thd)
   {
     if (arg_count < 3)
       locale= thd->variables.lc_time_names;
-    else
-      if (args[2]->basic_const_item())
-        locale= args[2]->locale_from_val_str();
+    else if (args[2]->basic_const_item())
+    {
+      if (args[2]->is_null())
+        locale= thd->variables.lc_time_names;
+      else
+      {
+        StringBuffer<MAX_FIELD_WIDTH> tmp;
+        String *name= args[2]->val_str_ascii(&tmp);
+        if (!name || !(locale= my_locale_by_name(name->to_lex_cstring())))
+        {
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_UNKNOWN_LOCALE,
+                              ER_THD(thd, ER_UNKNOWN_LOCALE),
+                              name ? name->c_ptr_safe() : "NULL");
+          locale= thd->variables.lc_time_names;
+        }
+      }
+    }
   }
 
   /*
@@ -2484,8 +2499,30 @@ String *Item_func_date_format::val_str(String *str)
   if (!(format= args[1]->val_str(&format_buffer)) || !format->length())
     goto null_date;
 
-  if (!is_time_format && !(lc= locale) && !(lc= args[2]->locale_from_val_str()))
-    goto null_date; // invalid locale
+  if (!is_time_format)
+  {
+    if (arg_count >= 3 && args[2]->is_null())
+      goto null_date;
+
+    if (!(lc= locale))
+    {
+      if (arg_count < 3)
+        lc= thd->variables.lc_time_names;
+      else
+      {
+        StringBuffer<MAX_FIELD_WIDTH> tmp;
+        String *name= args[2]->val_str_ascii(&tmp);
+        if (!name || !(lc= my_locale_by_name(name->to_lex_cstring())))
+        {
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_UNKNOWN_LOCALE,
+                              ER_THD(thd, ER_UNKNOWN_LOCALE),
+                              name ? name->c_ptr_safe() : "NULL");
+          lc= thd->variables.lc_time_names;
+        }
+      }
+    }
+  }
 
   if (fixed_length)
     size=max_length;
@@ -4697,16 +4734,42 @@ get_date_time_result_type(const char *format, uint length)
 bool Item_func_str_to_date::fix_length_and_dec(THD *thd)
 {
   if (!args[0]->type_handler()->is_traditional_scalar_type() ||
-      !args[1]->type_handler()->is_traditional_scalar_type())
+      !args[1]->type_handler()->is_traditional_scalar_type() ||
+      (arg_count > 2 && !args[2]->type_handler()->is_traditional_scalar_type()))
   {
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
              args[0]->type_handler()->name().ptr(),
              args[1]->type_handler()->name().ptr(), func_name());
     return TRUE;
   }
-  if (agg_arg_charsets(collation, args, 2, MY_COLL_ALLOW_CONV, 1))
+  if (agg_arg_charsets(collation, args, arg_count, MY_COLL_ALLOW_CONV, 1))
     return TRUE;
-  if (collation.collation->mbminlen > 1)
+
+  if (arg_count < 3)
+      locale= thd->variables.lc_time_names;
+  else if (args[2]->basic_const_item())
+  {
+    if (args[2]->is_null())
+      locale= thd->variables.lc_time_names;
+    else
+    {
+      StringBuffer<MAX_FIELD_WIDTH> tmp;
+      String *name= args[2]->val_str_ascii(&tmp);
+      if (!name || !(locale= my_locale_by_name(name->to_lex_cstring())))
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_UNKNOWN_LOCALE,
+                            ER_THD(thd, ER_UNKNOWN_LOCALE),
+                            name ? name->c_ptr_safe() : "NULL");
+        locale= thd->variables.lc_time_names;
+      }
+    }
+  }
+  else
+      locale= 0;
+
+  if (collation.collation->mbminlen > 1 || (locale && !locale->is_ascii) ||
+      arg_count >= 3)
     internal_charset= &my_charset_utf8mb4_general_ci;
 
   set_maybe_null();
@@ -4731,6 +4794,27 @@ bool Item_func_str_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
   DATE_TIME_FORMAT date_time_format;
   StringBuffer<64> val_string, format_str;
   String *val, *format;
+  const MY_LOCALE *lc= locale;
+
+  if (arg_count >= 3)
+  {
+    if (args[2]->is_null())
+      return (null_value= 1);
+
+    if (!lc)
+    {
+      StringBuffer<MAX_FIELD_WIDTH> tmp;
+      String *name= args[2]->val_str_ascii(&tmp);
+      if (!name || !(lc= my_locale_by_name(name->to_lex_cstring())))
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_UNKNOWN_LOCALE,
+                            ER_THD(thd, ER_UNKNOWN_LOCALE),
+                            name ? name->c_ptr_safe() : "NULL");
+        lc= thd->variables.lc_time_names;
+      }
+    }
+  }
 
   val=    args[0]->val_str(&val_string, &subject_converter, internal_charset);
   format= args[1]->val_str(&format_str, &format_converter, internal_charset);
@@ -4743,7 +4827,7 @@ bool Item_func_str_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
 			ltime, tstype, 0, "datetime",
                         date_conv_mode_t(fuzzydate) |
                         sql_mode_for_dates(thd),
-                        thd->variables.lc_time_names,
+                        lc,
                         val->charset()))
     return (null_value=1);
   return (null_value= 0);

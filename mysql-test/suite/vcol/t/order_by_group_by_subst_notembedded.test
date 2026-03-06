@@ -14,14 +14,14 @@ set optimizer_trace=1;
 ## order by
 explain select c + 1 from t order by c + 1;
 select
-json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+json_detailed(json_extract(trace, '$**.virtual_column_substitution')) a
 from
 information_schema.optimizer_trace;
 
 ## group by
 explain select c + 1 from t group by c + 1;
 select
-json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+json_detailed(json_extract(trace, '$**.virtual_column_substitution')) a
 from
 information_schema.optimizer_trace;
 
@@ -45,7 +45,7 @@ set optimizer_trace=1;
 
 explain select * from t order by c + 1, 1 - c;
 select
-json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+json_detailed(json_extract(trace, '$**.virtual_column_substitution')) a
 from
 information_schema.optimizer_trace;
 
@@ -53,7 +53,7 @@ information_schema.optimizer_trace;
 
 explain select * from t group by c + 1, 1 - c;
 select
-json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+json_detailed(json_extract(trace, '$**.virtual_column_substitution')) a
 from
 information_schema.optimizer_trace;
 

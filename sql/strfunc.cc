@@ -253,13 +253,14 @@ uint check_word(TYPELIB *lib, const char *val, const char *end,
   int res;
   const char *ptr;
 
-  /* Find end of word */
-  for (ptr= val ; ptr < end && my_isalpha(&my_charset_latin1, *ptr) ; ptr++)
-    ;
-  if ((res=find_type(lib, val, (uint) (ptr - val), 1)) > 0)
+  /* Find end of word. We allow alphanumeric and dot. */
+  for (ptr= val ; ptr < end && (my_isalnum(&my_charset_latin1, *ptr) || *ptr == '.') ; ptr++);
+
+  if ((res= find_type(lib, val, (uint) (ptr - val), 1)) > 0)
     *end_of_word= ptr;
   return res;
 }
+
 
 /*
   Like check_word() in strfunc, with the following differnces for
@@ -286,28 +287,29 @@ uint check_word2(CHARSET_INFO *cs, TYPELIB *lib, const char *val,
   */
   for (round= 0 ; round < 2 ; round++, val= ptr+1)
   {
-    /*
-      Find end of word. Words ends with single letter non alpha character or
-      end of string.
-    */
+    /* Find end of word. We allow alphanumeric, dot and multi-byte. */
     for (ptr=val ; ptr < end ; ptr+= rc)
     {
       if ((rc= cs->mb_wc(&wc, (const uchar*) ptr,
-                         (const uchar*) end)) <= 0 ||
-          (rc == 1 && !my_isalnum(cs, wc)))
+                         (const uchar*) end)) <= 0)
+        break;
+      if (rc == 1 && !my_isalnum(cs, wc) && wc != '.')
         break;
     }
+
     if ((res= find_type2(lib, val_start, (size_t) (ptr - val_start),
                          &part_match, cs)) > 0)
     {
       *end_of_word= ptr;
       return res;
     }
+
     if (!part_match || ptr == end || rc != 1 || !my_isspace(cs, wc))
-      return res;
+      return 0;
   }
   return 0;                                     // No match
 }
+
 
 
 /*

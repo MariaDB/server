@@ -1839,14 +1839,23 @@ protected:
 
 class Item_func_str_to_date :public Item_handled_func
 {
+  bool check_arguments() const override
+  {
+    return check_argument_types_can_return_text(0, arg_count);
+  }
   bool const_item;
   String subject_converter;
   String format_converter;
   CHARSET_INFO *internal_charset;
+  const MY_LOCALE *locale;
 public:
   Item_func_str_to_date(THD *thd, Item *a, Item *b):
     Item_handled_func(thd, a, b), const_item(false),
-    internal_charset(NULL)
+    internal_charset(NULL),locale(0)
+  {}
+  Item_func_str_to_date(THD *thd, Item *a, Item *b, Item *c):
+    Item_handled_func(thd, a, b, c), const_item(false),
+    internal_charset(NULL), locale(0)
   {}
   bool get_date_common(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate,
                        timestamp_type) override;
@@ -1858,6 +1867,8 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   bool check_vcol_func_processor(void *arg) override
   {
+    if (arg_count > 2)
+      return false;
     return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
 

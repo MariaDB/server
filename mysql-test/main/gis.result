@@ -4183,9 +4183,9 @@ ERROR HY000: Illegal parameter data types point and datetime for operation 'addt
 SELECT ADDTIME(TIMESTAMP'2001-01-01 10:10:10', POINT(1,1));
 ERROR HY000: Illegal parameter data types datetime and point for operation 'addtime'
 SELECT STR_TO_DATE(POINT(1,1),'%M %d,%Y');
-ERROR HY000: Illegal parameter data types point and varchar for operation 'str_to_date'
+ERROR HY000: Illegal parameter data type point for operation 'str_to_date'
 SELECT STR_TO_DATE('2001-01-01', POINT(1,1));
-ERROR HY000: Illegal parameter data types varchar and point for operation 'str_to_date'
+ERROR HY000: Illegal parameter data type point for operation 'str_to_date'
 #
 # MDEV-12665 Hybrid functions do not preserve geometry type
 #
