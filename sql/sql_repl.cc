@@ -3869,7 +3869,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
            lex_mi->log_file_name || lex_mi->pos ||
            lex_mi->relay_log_name || lex_mi->relay_log_pos)
   {
-    if (lex_mi->use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_NO)
+    if (lex_mi->use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_NO && mi->using_gtid_astext(mi->using_gtid) != mi->using_gtid_astext(Master_info::USE_GTID_NO))
     {
       push_warning_printf(
           thd, Sql_condition::WARN_LEVEL_NOTE, WARN_OPTION_CHANGING,

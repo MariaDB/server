@@ -1,0 +1,34 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+#
+# Test Case 1: No warning when Using_Gtid is already 'No' and
+# explicitly setting master_use_gtid=NO
+#
+CHANGE MASTER TO master_use_gtid=NO;
+# Using_Gtid should be 'No': No
+CHANGE MASTER TO master_use_gtid=NO;
+# No warning should appear above
+#
+# Test Case 2: No warning when Using_Gtid is already 'No' and
+# setting relay_log_pos (which implicitly sets Using_Gtid to No)
+#
+CHANGE MASTER TO relay_log_pos=0;
+# No warning should appear above
+#
+# Test Case 3: Warning IS shown when actually changing from
+# Slave_Pos to No (via relay_log_pos)
+#
+CHANGE MASTER TO master_use_gtid=Slave_Pos;
+# Using_Gtid should be 'Slave_Pos': Slave_Pos
+CHANGE MASTER TO relay_log_pos=0;
+Warnings:
+Note	4190	CHANGE MASTER TO is implicitly changing the value of 'Using_Gtid' from 'Slave_Pos' to 'No'
+# Warning 4190 should appear above about changing from 'Slave_Pos' to 'No'
+#
+# Cleanup
+#
+CHANGE MASTER TO master_use_gtid=NO;
+include/start_slave.inc
+include/rpl_end.inc
