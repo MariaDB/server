@@ -1,0 +1,36 @@
+#
+# MDEV-37977 InnoDB deadlock report incorrectly reports
+#            rolled back transaction number
+#
+SET @save_print_all_deadlocks= @@GLOBAL.innodb_print_all_deadlocks;
+SET GLOBAL innodb_print_all_deadlocks= ON;
+CREATE TABLE t1 (id INT PRIMARY KEY, val INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 10), (2, 20);
+#
+# Classic deadlock: con1 locks row 1 then tries row 2;
+# default locks row 2 then tries row 1.
+# The requesting transaction (default) is always the preferred
+# victim due to bit 0 in calc_victim_weight(). In a 2-transaction
+# cycle, find_cycle() returns the other transaction, so the
+# requesting transaction is displayed as "(1) TRANSACTION".
+# The rollback message must say "WE ROLL BACK TRANSACTION (1)".
+#
+connect  con1,localhost,root,,;
+BEGIN;
+UPDATE t1 SET val= 11 WHERE id= 1;
+connection default;
+BEGIN;
+UPDATE t1 SET val= 22 WHERE id= 2;
+connection con1;
+UPDATE t1 SET val= 12 WHERE id= 2;
+connection default;
+UPDATE t1 SET val= 21 WHERE id= 1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ROLLBACK;
+connection con1;
+ROLLBACK;
+disconnect con1;
+connection default;
+FOUND 1 /WE ROLL BACK TRANSACTION \(1\)/ in mysqld.1.err
+SET GLOBAL innodb_print_all_deadlocks= @save_print_all_deadlocks;
+DROP TABLE t1;

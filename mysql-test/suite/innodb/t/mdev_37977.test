@@ -1,0 +1,59 @@
+--echo #
+--echo # MDEV-37977 InnoDB deadlock report incorrectly reports
+--echo #            rolled back transaction number
+--echo #
+
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+
+SET @save_print_all_deadlocks= @@GLOBAL.innodb_print_all_deadlocks;
+SET GLOBAL innodb_print_all_deadlocks= ON;
+
+CREATE TABLE t1 (id INT PRIMARY KEY, val INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 10), (2, 20);
+
+--echo #
+--echo # Classic deadlock: con1 locks row 1 then tries row 2;
+--echo # default locks row 2 then tries row 1.
+--echo # The requesting transaction (default) is always the preferred
+--echo # victim due to bit 0 in calc_victim_weight(). In a 2-transaction
+--echo # cycle, find_cycle() returns the other transaction, so the
+--echo # requesting transaction is displayed as "(1) TRANSACTION".
+--echo # The rollback message must say "WE ROLL BACK TRANSACTION (1)".
+--echo #
+
+--connect (con1,localhost,root,,)
+BEGIN;
+UPDATE t1 SET val= 11 WHERE id= 1;
+
+--connection default
+BEGIN;
+UPDATE t1 SET val= 22 WHERE id= 2;
+
+--connection con1
+--send UPDATE t1 SET val= 12 WHERE id= 2
+
+--connection default
+let $wait_condition=
+  SELECT COUNT(*) >= 2 FROM INFORMATION_SCHEMA.INNODB_LOCKS
+  WHERE lock_table LIKE '%t1%';
+--source include/wait_condition.inc
+
+--error ER_LOCK_DEADLOCK
+UPDATE t1 SET val= 21 WHERE id= 1;
+ROLLBACK;
+
+--connection con1
+--reap
+ROLLBACK;
+--disconnect con1
+
+--connection default
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= WE ROLL BACK TRANSACTION \(1\);
+--source include/search_pattern_in_file.inc
+
+SET GLOBAL innodb_print_all_deadlocks= @save_print_all_deadlocks;
+DROP TABLE t1;
+--source include/wait_until_count_sessions.inc
