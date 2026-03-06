@@ -3521,6 +3521,8 @@ public:
   static constexpr uchar FL_COMMIT_ALTER_E1= 4;
   static constexpr uchar FL_ROLLBACK_ALTER_E1= 8;
   static constexpr uchar FL_EXTRA_THREAD_ID= 16; // thread_id like in BEGIN Query
+  /* Table_map events in this group use compact 1-based sequential IDs */
+  static constexpr uchar FL_EXTRA_SEQUENTIAL_TABLE_IDS= 32;
 
 #ifdef MYSQL_SERVER
   static constexpr uint32_t max_size=
