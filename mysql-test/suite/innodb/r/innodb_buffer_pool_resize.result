@@ -1,34 +1,60 @@
+#
+# MDEV-29445: Reorganize buffer pool (and remove chunks)
+#
 set global innodb_adaptive_hash_index=ON;
 select @@innodb_buffer_pool_size;
 @@innodb_buffer_pool_size
 8388608
+set global innodb_buffer_pool_size = 9437184;
 set global innodb_buffer_pool_size = 10485760;
-Warnings:
-Warning	1292	Truncated incorrect innodb_buffer_pool_size value: '10485760'
 select @@innodb_buffer_pool_size;
 @@innodb_buffer_pool_size
-16777216
-create table t1 (id int not null, val int not null default '0', primary key (id)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
-create or replace view view0 as select 1 union all select 1;
-set @`v_id` := 0;
-set @`v_val` := 0;
-replace into t1 select (@`v_id` := (@`v_id` + 4) mod 4294967296) as id, (@`v_val` := (@`v_val` + 4) mod 4294967296) as val from view0 v0, view0 v1, view0 v2, view0 v3, view0 v4, view0 v5, view0 v6, view0 v7, view0 v8, view0 v9, view0 v10, view0 v11, view0 v12, view0 v13, view0 v14, view0 v15, view0 v16, view0 v17;
+10485760
+create table t1 (id int primary key, val int not null)
+ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+create table t2 (id int primary key, val int not null)
+ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=$kbs;
+SET STATEMENT foreign_key_checks=0, unique_checks=0 FOR
+INSERT INTO t1 SELECT seq*4,seq*4 FROM seq_1_to_262144;
+SET STATEMENT foreign_key_checks=0, unique_checks=0 FOR
+INSERT INTO t2 SELECT seq*4,seq*4 FROM seq_1_to_16384;
+SELECT @@GLOBAL.innodb_adaptive_hash_index;
+@@GLOBAL.innodb_adaptive_hash_index
+1
+SET STATEMENT max_statement_time=1e-9 FOR
+SET GLOBAL innodb_buffer_pool_size = 7340032;
+SELECT @@GLOBAL.innodb_adaptive_hash_index;
+@@GLOBAL.innodb_adaptive_hash_index
+1
+FOUND 1 /innodb_buffer_pool_size=7m.*resized from|innodb_buffer_pool_size change aborted/ in mysqld.1.err
 set global innodb_buffer_pool_size = 7340032;
-Warnings:
-Warning	1292	Truncated incorrect innodb_buffer_pool_size value: '7340032'
-select @@innodb_buffer_pool_size;
-@@innodb_buffer_pool_size
-8388608
 select count(val) from t1;
 count(val)
 262144
+select count(val) from t2;
+count(val)
+16384
 set global innodb_adaptive_hash_index=OFF;
-set global innodb_buffer_pool_size = 25165824;
+set global innodb_buffer_pool_size = 24117248;
+set global innodb_buffer_pool_size = 26214400;
+Warnings:
+Warning	1292	Truncated incorrect innodb_buffer_pool_size value: '26214400'
 select @@innodb_buffer_pool_size;
 @@innodb_buffer_pool_size
 25165824
 select count(val) from t1;
 count(val)
 262144
-drop table t1;
-drop view view0;
+select count(val) from t2;
+count(val)
+16384
+drop table t1,t2;
+SET GLOBAL innodb_max_purge_lag_wait = 0;
+SET @save_pct= @@GLOBAL.innodb_max_dirty_pages_pct;
+SET @save_pct_lwm= @@GLOBAL.innodb_max_dirty_pages_pct_lwm;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm = 0.0;
+SET GLOBAL innodb_max_dirty_pages_pct = 0.0;
+SET GLOBAL innodb_buffer_pool_size = @old_innodb_buffer_pool_size;
+SET GLOBAL innodb_adaptive_hash_index = @old_innodb_adaptive_hash_index;
+SET GLOBAL innodb_max_dirty_pages_pct = @save_pct;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm = @save_pct_lwm;

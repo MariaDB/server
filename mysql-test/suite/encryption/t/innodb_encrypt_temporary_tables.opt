@@ -1,2 +1,2 @@
---innodb_buffer_pool_size=5M
+--innodb_buffer_pool_size=6M
 --innodb_encrypt_temporary_tables=1
