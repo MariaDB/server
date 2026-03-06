@@ -1,0 +1,15 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-38904: latin7 collation corruption
+--echo #
+
+CREATE TABLE t1 (
+  c1 VARCHAR(10) CHARACTER SET latin7 COLLATE latin7_general_ci, 
+  KEY(c1)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES ('a-b'), ('a b');
+CHECK TABLE t1;
+
+DROP TABLE t1;
