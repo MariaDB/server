@@ -1,0 +1,87 @@
+#
+# MDEV-30255: UNION ALL strips trailing zeros from decimal expressions
+#
+# The expression (c1 DIV 1)*0.1 declares decimals=1.  decimal_mul()
+# strips trailing fractional zeros from the computed value (e.g. the
+# result "0" of 0*0.1 gets frac=0), but the declared precision of the
+# expression must govern the string representation in a UNION result
+# column.  Both the plain and the DISTINCT variants must show the same
+# number of fractional digits.
+#
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 VALUES (0), (1), (10);
+#
+# Zero value: both paths must show "0.0" (1 declared decimal place)
+#
+# Without DISTINCT (used to produce "0" instead of "0.0"):
+SELECT (c1 DIV 1)*0.1 FROM t1 WHERE c1=0
+UNION ALL
+SELECT '1';
+(c1 DIV 1)*0.1
+0.0
+1
+# With DISTINCT:
+(SELECT DISTINCT (c1 DIV 1)*0.1 FROM t1 WHERE c1=0)
+UNION ALL
+(SELECT '1');
+(c1 DIV 1)*0.1
+0.0
+1
+#
+# Non-zero fractional value must show its fraction digit
+#
+# Without DISTINCT:
+SELECT (c1 DIV 1)*0.1 FROM t1 WHERE c1=1
+UNION ALL
+SELECT '2';
+(c1 DIV 1)*0.1
+0.1
+2
+# With DISTINCT:
+(SELECT DISTINCT (c1 DIV 1)*0.1 FROM t1 WHERE c1=1)
+UNION ALL
+(SELECT '2');
+(c1 DIV 1)*0.1
+0.1
+2
+#
+# Integral multiple: "1.0" has one declared decimal place
+#
+# Without DISTINCT:
+SELECT (c1 DIV 1)*0.1 FROM t1 WHERE c1=10
+UNION ALL
+SELECT '2';
+(c1 DIV 1)*0.1
+1.0
+2
+# With DISTINCT:
+(SELECT DISTINCT (c1 DIV 1)*0.1 FROM t1 WHERE c1=10)
+UNION ALL
+(SELECT '2');
+(c1 DIV 1)*0.1
+1.0
+2
+DROP TABLE t1;
+#
+# decimal_div() path: zero dividend must preserve fraction digits
+# (decimal_div() calls decimal_make_zero(), setting frac=0 and leaving
+# the fractional buffer uninitialised; the fix pads to declared decimals)
+#
+CREATE TABLE t2 (c1 INT);
+INSERT INTO t2 VALUES (0), (1);
+# Without DISTINCT:
+SELECT (c1 DIV 1) / 1.0 FROM t2 WHERE c1=0
+UNION ALL
+SELECT '3';
+(c1 DIV 1) / 1.0
+0.0000
+3
+# With DISTINCT:
+(SELECT DISTINCT (c1 DIV 1) / 1.0 FROM t2 WHERE c1=0)
+UNION ALL
+(SELECT '3');
+(c1 DIV 1) / 1.0
+0.0000
+3
+DROP TABLE t2;
+# End of 10.11 tests

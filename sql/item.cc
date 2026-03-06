@@ -7107,7 +7107,21 @@ int Item::save_decimal_in_field(Field *field, bool no_conversions)
   if (value.is_null())
     return set_field_to_null_with_conversions(field, no_conversions);
   field->set_notnull();
-  return field->store_decimal(value.ptr());
+  const my_decimal *dec= value.ptr();
+  my_decimal dec_buf;
+  /*
+    If the value has fewer fractional digits than the expression declares,
+    round up to that precision so trailing zeros are stored correctly.
+    round_to() also zeroes any newly added fractional buffer words.
+    Skip when decimals is a sentinel (>= DECIMAL_MAX_SCALE).
+  */
+  decimal_digits_t dec_frac= (decimal_digits_t) decimals;
+  if (dec_frac < DECIMAL_MAX_SCALE && dec_frac > dec->frac)
+  {
+    dec->round_to(&dec_buf, (int) dec_frac, TRUNCATE);
+    dec= &dec_buf;
+  }
+  return field->store_decimal(dec);
 }
 
 
