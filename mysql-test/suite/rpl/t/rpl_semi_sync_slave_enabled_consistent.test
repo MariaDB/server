@@ -50,7 +50,7 @@ set debug_sync='now signal io_thread_continue_read_event';
 
 --echo # Waiting for the slave to stop with the error from corrupt_queue_event
 --connection slave
---let $slave_io_errno= 1595,1743
+--let $slave_io_errno= 1743
 --source include/wait_for_slave_io_error.inc
 
 --echo # Sleep 1 to give time for Ack_receiver to receive COM_QUIT
