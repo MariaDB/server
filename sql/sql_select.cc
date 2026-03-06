@@ -7297,6 +7297,26 @@ add_keyuse(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field,
   keyuse.cond_guard= key_field->cond_guard;
   keyuse.sj_pred_no= key_field->sj_pred_no;
   keyuse.validity_ref= 0;
+
+  /* Compute driving_ndv from EITS statistics if val is a field */
+  keyuse.driving_ndv= 0;
+  {
+    Item *driving_item= key_field->val->real_item();
+    if (driving_item->type() == Item::FIELD_ITEM)
+    {
+      Field *driving_field= ((Item_field*) driving_item)->field;
+      if (driving_field->read_stats)
+      {
+        double avg_freq= driving_field->read_stats->get_avg_frequency();
+        if (avg_freq > 0)
+        {
+          double rows= (double) driving_field->table->stat_records();
+          keyuse.driving_ndv= MY_MIN(rows / avg_freq, rows);
+        }
+      }
+    }
+  }
+
   return (insert_dynamic(keyuse_array,(uchar*) &keyuse));
 }
 
@@ -7450,6 +7470,7 @@ add_ft_keys(DYNAMIC_ARRAY *keyuse_array,
   keyuse.sj_pred_no= UINT_MAX;
   keyuse.validity_ref= 0;
   keyuse.null_rejecting= FALSE;
+  keyuse.driving_ndv= 0;  /* Not applicable for fulltext keys */
   return insert_dynamic(keyuse_array,(uchar*) &keyuse);
 }
 
@@ -8223,6 +8244,52 @@ inline double use_found_constraint(double records)
 
 
 /*
+  Compute the probability that a value from the driving table will find
+  a match in the inner table's index, based on NDV (number of distinct values).
+
+  @param  inner_table     The inner (looked-up) table
+  @param  key             The key being used for ref access
+  @param  min_driving_ndv Minimum NDV across all usable driving columns
+                          (precomputed during KEYUSE iteration)
+
+  @return match_probability in range (0, 1.0]
+          1.0 if statistics are not available
+
+  The idea: if the driving table has more distinct values than the inner
+  table's key, only a fraction of driving rows will find matches.
+  
+  match_probability = min(1.0, ndv(inner.key) / ndv(outer.col))
+  
+  where ndv = table_rows / avg_frequency
+*/
+
+static double
+get_ref_match_probability(TABLE *inner_table, uint key, double min_driving_ndv)
+{
+  /* Get NDV for inner table's key (first key part) */
+  KEY *keyinfo= inner_table->key_info + key;
+  Field *inner_field= keyinfo->key_part[0].field;
+  if (!inner_field->read_stats)
+    return 1.0;
+
+  double inner_avg_freq= inner_field->read_stats->get_avg_frequency();
+  if (inner_avg_freq <= 0)
+    return 1.0;
+
+  double inner_rows= (double) inner_table->stat_records();
+  double inner_ndv= inner_rows / inner_avg_freq;
+
+  /*
+    match_probability = min(1.0, ndv(inner) / ndv(outer))
+    
+    If inner has fewer distinct values than outer, only a fraction
+    of outer rows will find a match.
+  */
+  return MY_MIN(1.0, inner_ndv / min_driving_ndv);
+}
+
+
+/*
   Calculate the cost of reading a set of rows trough an index
 
   @param eq_ref   True if there is only one matching key (EQ_REF)
@@ -8801,6 +8868,8 @@ best_access_path(JOIN      *join,
       DBUG_PRINT("info", ("Considering ref access on key %s",
                           keyuse->table->key_info[keyuse->key].name.str));
 
+      double min_driving_ndv= DBL_MAX;  /* Track min driving NDV for keypart 0 */
+
       do /* For each keypart */
       {
         uint keypart= keyuse->keypart;
@@ -8844,6 +8913,10 @@ best_access_path(JOIN      *join,
               best_part_found_ref= (keyuse->used_tables &
                                     ~join->const_table_map);
             }
+            /* Track minimum driving NDV for keypart 0 */
+            if (keypart == 0 && keyuse->driving_ndv > 0)
+              set_if_smaller(min_driving_ndv, keyuse->driving_ndv);
+
             if (rec > keyuse->ref_table_rows)
               rec= keyuse->ref_table_rows;
 	    /*
@@ -9059,6 +9132,36 @@ best_access_path(JOIN      *join,
                 }
               }
             }
+
+            /*
+              Apply match_probability based on NDV to adjust records.
+              If the driving table has more distinct values than the inner
+              table's key, only a fraction of driving rows will find matches.
+            */
+            if (key_parts == 1 &&
+                min_driving_ndv > 0 && min_driving_ndv < DBL_MAX)
+            {
+              /*
+                Bound effective NDV by record_count - NDV can't exceed the
+                number of rows from driving tables after filtering.
+              */
+              double effective_driving_ndv= min_driving_ndv;
+              set_if_smaller(effective_driving_ndv, record_count);
+
+              double match_prob= get_ref_match_probability(table, key,
+                                                           effective_driving_ndv);
+              if (match_prob < 1.0)
+              {
+                if (unlikely(trace_access_idx.trace_started()))
+                {
+                  trace_access_idx.
+                    add("match_probability", match_prob).
+                    add("rows_before_adjustment", records);
+                }
+                records *= match_prob;
+              }
+            }
+
             /* Calculate the cost of the index access */
             tmp= cost_for_index_read(thd, table, key,
                                      (ha_rows) records, 0);
@@ -9270,6 +9373,36 @@ best_access_path(JOIN      *join,
             }
 
             set_if_smaller(records, (double) s->records);
+
+            /*
+              Apply match_probability based on NDV to adjust records.
+              If the driving table has more distinct values than the inner
+              table's key, only a fraction of driving rows will find matches.
+            */
+            if (max_key_part == 1 &&
+                min_driving_ndv > 0 && min_driving_ndv < DBL_MAX)
+            {
+              /*
+                Bound effective NDV by record_count - NDV can't exceed the
+                number of rows from driving tables after filtering.
+              */
+              double effective_driving_ndv= min_driving_ndv;
+              set_if_smaller(effective_driving_ndv, record_count);
+
+              double match_prob= get_ref_match_probability(table, key,
+                                                           effective_driving_ndv);
+              if (match_prob < 1.0)
+              {
+                if (unlikely(trace_access_idx.trace_started()))
+                {
+                  trace_access_idx.
+                    add("match_probability", match_prob).
+                    add("rows_before_adjustment", records);
+                }
+                records *= match_prob;
+              }
+            }
+
             tmp= cost_for_index_read(thd, table, key, (ha_rows)records, 0);
             tmp.copy_cost+= extra_cost;
           }

@@ -81,6 +81,13 @@ typedef struct keyuse_t {
   */
   bool *validity_ref;
 
+  /*
+    Number of distinct values in the driving column (val).
+    Computed from EITS statistics when KEYUSE is created.
+    0 means statistics not available.
+  */
+  double driving_ndv;
+
   bool is_for_hash_join() { return is_hash_join_key_no(key); }
 } KEYUSE;
 
