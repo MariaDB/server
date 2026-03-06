@@ -5378,13 +5378,12 @@ innobase_vcol_build_templ(
 	}
 
 	if (field->real_maybe_null()) {
-                templ->mysql_null_byte_offset =
-                        field->null_offset();
-
-                templ->mysql_null_bit_mask = (ulint) field->null_bit;
-        } else {
-                templ->mysql_null_bit_mask = 0;
-        }
+		templ->mysql_null_byte_offset = field->null_offset();
+		templ->mysql_null_bit_mask =
+			static_cast<byte>(field->null_bit);
+	} else {
+		templ->mysql_null_bit_mask = 0;
+	}
 
         templ->mysql_col_offset = static_cast<ulint>(
 					get_field_offset(table, field));
@@ -6974,6 +6973,7 @@ build_template_field(
 	row_prebuilt_t*	prebuilt,	/*!< in/out: template */
 	dict_index_t*	clust_index,	/*!< in: InnoDB clustered index */
 	dict_index_t*	index,		/*!< in: InnoDB index to use */
+	bool		allow_null_only,/*!< in: allow null-only columns */
 	TABLE*		table,		/*!< in: MySQL table object */
 	const Field*	field,		/*!< in: field in MySQL table */
 	ulint		i,		/*!< in: field index in InnoDB table */
@@ -7082,11 +7082,16 @@ build_template_field(
 		templ->mysql_null_byte_offset =
 			field->null_offset();
 
-		templ->mysql_null_bit_mask = (ulint) field->null_bit;
+		templ->mysql_null_bit_mask =
+			static_cast<byte>(field->null_bit);
 	} else {
 		templ->mysql_null_bit_mask = 0;
 	}
 
+	templ->null_only = allow_null_only
+		&& !templ->is_virtual
+		&& bitmap_is_set(&table->isnull_only_set, field->field_index);
+	ut_ad(!templ->null_only || templ->mysql_null_bit_mask != 0);
 
 	templ->mysql_col_offset = (ulint) get_field_offset(table, field);
 	templ->mysql_col_len = (ulint) field->pack_length();
@@ -7128,7 +7133,7 @@ build_template_field(
 			+ templ->mysql_col_len;
 	}
 
-	if (DATA_LARGE_MTYPE(templ->type)) {
+	if (DATA_LARGE_MTYPE(templ->type) && !templ->null_only) {
 		prebuilt->templ_contains_blob = TRUE;
 	}
 
@@ -7226,6 +7231,11 @@ ha_innobase::build_template(
 
 	m_prebuilt->template_type = whole_row
 		? ROW_MYSQL_WHOLE_ROW : ROW_MYSQL_REC_FIELDS;
+	const bool allow_null_only=
+		m_prebuilt->template_type != ROW_MYSQL_WHOLE_ROW
+		&& m_prebuilt->select_lock_type != LOCK_X
+		&& !m_prebuilt->pk_filter
+		&& !m_prebuilt->in_fts_query;
 	m_prebuilt->null_bitmap_len = table->s->null_bytes
 		& dict_index_t::MAX_N_FIELDS;
 
@@ -7324,6 +7334,7 @@ ha_innobase::build_template(
 
 				mysql_row_templ_t* templ= build_template_field(
 					m_prebuilt, clust_index, index,
+					allow_null_only,
 					table, field, i - num_v, 0);
 
 				ut_ad(!templ->is_virtual);
@@ -7444,6 +7455,7 @@ ha_innobase::build_template(
 				ut_d(mysql_row_templ_t*	templ =)
 				build_template_field(
 					m_prebuilt, clust_index, index,
+					allow_null_only,
 					table, field, i - num_v, num_v);
 				ut_ad(templ->is_virtual == (ulint)is_v);
 
@@ -7511,6 +7523,7 @@ no_icp:
 			ut_d(mysql_row_templ_t* templ =)
 			build_template_field(
 				m_prebuilt, clust_index, index,
+				allow_null_only,
 				table, field, i - num_v, num_v);
 			ut_ad(templ->is_virtual == (ulint)is_v);
 			if (is_v) {
