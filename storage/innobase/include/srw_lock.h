@@ -289,6 +289,15 @@ public:
 
   bool rd_u_upgrade_try() noexcept { return writer.wr_lock_try(); }
 
+  bool u_wr_upgrade_try() noexcept
+  {
+    DBUG_ASSERT(writer.is_locked());
+    uint32_t lk= 0;
+    return readers.compare_exchange_strong(lk, WRITER,
+                                           std::memory_order_acquire,
+                                           std::memory_order_relaxed);
+  }
+
   void u_wr_upgrade() noexcept
   {
     DBUG_ASSERT(writer.is_locked());
@@ -496,6 +505,7 @@ public:
     else
       lock.u_wr_upgrade();
   }
+  bool u_wr_upgrade_try() noexcept { return lock.u_wr_upgrade_try(); }
   bool rd_lock_try() noexcept { return lock.rd_lock_try(); }
   bool u_lock_try() noexcept { return lock.u_lock_try(); }
   bool wr_lock_try() noexcept { return lock.wr_lock_try(); }
