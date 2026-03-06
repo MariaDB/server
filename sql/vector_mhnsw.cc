@@ -104,8 +104,8 @@ static MYSQL_THDVAR_UINT(default_m, PLUGIN_VAR_RQCMDARG,
        "and higher memory consumption but more accurate results",
        nullptr, nullptr, 6, 3, 200, 1);
 
-enum metric_type : uint { EUCLIDEAN, COSINE };
-static const char *distance_names[]= { "euclidean", "cosine", nullptr };
+enum metric_type : uint { EUCLIDEAN, COSINE, MANHATTAN };
+static const char *distance_names[]= { "euclidean", "cosine", "manhattan", nullptr };
 static TYPELIB distances= CREATE_TYPELIB_FOR(distance_names);
 static MYSQL_THDVAR_ENUM(default_distance, PLUGIN_VAR_RQCMDARG,
        "Distance function to build the vector index for",
@@ -1749,9 +1749,16 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
 
 Item_func_vec_distance::distance_kind mhnsw_uses_distance(const TABLE *table, KEY *keyinfo)
 {
-  if (keyinfo->option_struct->metric == EUCLIDEAN)
-    return Item_func_vec_distance::EUCLIDEAN;
-  return Item_func_vec_distance::COSINE;
+  switch (keyinfo->option_struct->metric) {
+    case EUCLIDEAN:
+      return Item_func_vec_distance::EUCLIDEAN;
+    case MANHATTAN:
+      return Item_func_vec_distance::MANHATTAN;
+    case COSINE:
+      return Item_func_vec_distance::COSINE;
+    default:
+      return Item_func_vec_distance::COSINE;
+  }
 }
 
 /*
