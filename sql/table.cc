@@ -2277,10 +2277,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (share->db_plugin && !plugin_equals(share->db_plugin, se_plugin))
     goto err; // wrong engine (someone changed the frm under our feet?)
 
-  rec_buff_length= ALIGN_SIZE(share->reclength + 1);
+  rec_buff_length= MY_ALIGN(share->reclength + 1, RECORD_ALIGNMENT);
   share->rec_buff_length= rec_buff_length;
-  if (!(record= (uchar *) alloc_root(&share->mem_root, rec_buff_length)))
-    goto err;                          /* purecov: inspected */
+  record= record_alloc(&share->mem_root, 1);
+
   /* Mark bytes after record as not accessable to catch overrun bugs */
   MEM_NOACCESS(record + share->reclength, rec_buff_length - share->reclength);
   share->default_values= record;
@@ -4468,8 +4468,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   }
   else
   {
-    if (!(record= (uchar*) alloc_root(&outparam->mem_root,
-                                      share->rec_buff_length * records)))
+    if (!(record= share->record_alloc(&outparam->mem_root, records)))
       goto err;                                   /* purecov: inspected */
   }
 
@@ -6786,8 +6785,7 @@ bool TABLE_LIST::set_insert_values(MEM_ROOT *mem_root)
   {
     DBUG_PRINT("info", ("setting insert_value for table"));
     if (!table->insert_values &&
-        !(table->insert_values= (uchar *)alloc_root(mem_root,
-                                                   table->s->rec_buff_length)))
+        !(table->insert_values= table->s->record_alloc(mem_root, 1)))
       DBUG_RETURN(TRUE);
   }
   else
@@ -11142,4 +11140,16 @@ size_t TABLE::key_storage_length(uint index)
     return key_info[index].stat_storage_length;
 
   return key_storage_length_from_ddl(index);
+}
+
+uchar *TABLE_SHARE::record_alloc(MEM_ROOT *record_mem_root, uint records)
+{
+  DBUG_ASSERT(rec_buff_length % RECORD_ALIGNMENT == 0);
+  // Allocate a bit more to guarantee the pointer is RECORD_ALIGNMENT aligned
+  size_t rec_buff_alloc_size= rec_buff_length * records +
+                              RECORD_ALIGNMENT - ALIGN_MAX_UNIT;
+
+  uchar *buf= (uchar*)alloc_root(record_mem_root, rec_buff_alloc_size);
+
+  return (uchar*)MY_ALIGN((uintptr_t)buf, RECORD_ALIGNMENT);
 }

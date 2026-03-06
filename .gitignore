@@ -629,3 +629,6 @@ tests/mariadb-client-test
 versioninfo_dll.rc
 versioninfo_exe.rc
 win/packaging/ca/symlinks.cc
+
+.gemini/
+gha-creds-*.json

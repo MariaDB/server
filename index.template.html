@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benchmark Results</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
+            box-sizing: border-box;
+        }
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+        }
+        .controls {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        .slider-container {
+            flex-grow: 1;
+            min-width: 300px;
+        }
+        input[type=range] {
+            width: 100%;
+            cursor: pointer;
+        }
+        canvas {
+            width: 100% !important;
+            height: 75vh !important; /* Forces chart to fit nicely vertically */
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+  
+    <div class="controls">
+            <div class="slider-container">
+        <label for="xMaxSlider" style="display: block; margin-bottom: 5px; font-weight: bold;">
+            Max Size (Bytes): <span id="xMaxVal" style="color: #007bff;">200</span>
+        </label>
+        <input type="range" id="xMaxSlider" min="1.58" max="14" step="0.01" value="7.64" oninput="updateChart()">
+    </div>
+    <label style="cursor: pointer; user-select: none;">
+        <input type="checkbox" id="logX" onchange="updateChart()" checked> Logarithmic X (Size)
+    </label>
+    <label style="cursor: pointer; user-select: none;">
+        <input type="checkbox" id="logY" onchange="updateChart()"> Logarithmic Y (Time)
+    </label>
+  </div>
+
+
+  <canvas id="benchmarkChart"></canvas>
+</div>
+
+<script>
+    const jsonData = {{JSON_DATA}};
+    let myChart = null;
+
+    function updateChart() {
+        try {
+            const datasets = {};
+            const labelsSet = new Set();
+
+            jsonData.benchmarks.forEach(item => {
+                const nameFull = item.name;
+                const cpuTime = item.cpu_time;
+                const parts = nameFull.split('/');
+                const baseName = parts[0];
+                const size = parseInt(parts[1], 10);
+
+                if (!datasets[baseName]) {
+                    datasets[baseName] = [];
+                }
+                datasets[baseName].push({x: size, y: cpuTime});
+                labelsSet.add(size);
+            });
+
+                        const colors = [
+                'rgb(75, 192, 192)',   // teal
+                'rgb(255, 99, 132)',   // red
+                'rgb(54, 162, 235)',   // blue
+                'rgb(255, 205, 86)',   // yellow
+                'rgb(153, 102, 255)',  // purple
+                'rgb(255, 159, 64)',   // orange
+                'rgb(0, 0, 0)',        // black
+                'rgb(100, 255, 100)',  // green
+                'rgb(128, 128, 128)',  // grey
+                'rgb(255, 0, 255)',    // magenta
+                'rgb(0, 255, 255)',    // cyan
+                'rgb(128, 0, 0)'       // maroon
+            ];
+
+            const chartDatasets = Object.keys(datasets).map((key, index) => {
+                datasets[key].sort((a, b) => a.x - b.x);
+                return {
+                    label: key,
+                    data: datasets[key],
+                    fill: false,
+                    borderColor: colors[index % colors.length],
+                    backgroundColor: colors[index % colors.length],
+                    tension: 0,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                };
+            });
+
+            
+            
+            const slider = document.getElementById('xMaxSlider');
+            // 2^value
+            const xMaxInput = Math.round(Math.pow(2, parseFloat(slider.value)));
+            
+            document.getElementById('xMaxVal').innerText = xMaxInput >= 16384 ? 'Max (16384)' : xMaxInput;
+            
+            // Find appropriate yMax based on visible data points to simulate auto-scaling since we removed the manual yMax input
+            let dynamicYMax = 0;
+            Object.keys(datasets).forEach(key => {
+                datasets[key].forEach(point => {
+                    if (point.x <= xMaxInput && point.y > dynamicYMax) {
+                        dynamicYMax = point.y;
+                    }
+                });
+            });
+
+
+            const logX = document.getElementById('logX').checked;
+            const logY = document.getElementById('logY').checked;
+
+            const config = {
+                type: 'line',
+                data: {
+                    datasets: chartDatasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: true, text: 'Memcpy Performance Comparison' },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: {
+                            type: logX ? 'logarithmic' : 'linear',
+                            title: { display: true, text: 'Size (Bytes)' },
+                            max: xMaxInput == 16384 ? undefined : xMaxInput,
+                            ticks: {
+                                callback: function(value) {
+                                    return value;
+                                }
+                            }
+                        },
+                        y: {
+                            type: logY ? 'logarithmic' : 'linear',
+                            title: { display: true, text: 'CPU Time (ns)' },
+                            beginAtZero: !logY,
+                            max: logY ? undefined : (dynamicYMax > 0 ? dynamicYMax * 1.1 : undefined) // add 10% padding
+                        }
+                    }
+                }
+            };
+
+
+            if (myChart) {
+                myChart.destroy();
+            }
+            
+            const ctx = document.getElementById('benchmarkChart').getContext('2d');
+            myChart = new Chart(ctx, config);
+
+        } catch (error) {
+            console.error('Error generating chart:', error);
+            document.querySelector('.container').innerHTML = `<p style="color:red">Error parsing data: ${error.message}</p>`;
+        }
+    }
+
+    // Call on load
+    window.onload = updateChart;
+</script>
+
+</body>
+</html>

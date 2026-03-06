@@ -822,10 +822,10 @@ typedef long long	my_ptrdiff_t;
 
 #define MY_ALIGN(A,L)	   (((A) + (L) - 1) & ~((L) - 1))
 #define MY_ALIGN_DOWN(A,L) ((A) & ~((L) - 1))
-#define ALIGN_SIZE(A)	MY_ALIGN((A),sizeof(double))
+#define ALIGN_SIZE(A)	MY_ALIGN((A), ALIGN_MAX_UNIT)
 #define ALIGN_MAX_UNIT  (sizeof(double))
 /* Size to make addressable obj. */
-#define ALIGN_PTR(A, t) ((t*) MY_ALIGN((A), sizeof(double)))
+#define ALIGN_PTR(A, t) ((t*) MY_ALIGN((A), ALIGN_MAX_UNIT))
 #define ADD_TO_PTR(ptr,size,type) (type) ((uchar*) (ptr)+size)
 #define PTR_BYTE_DIFF(A,B) (my_ptrdiff_t) ((uchar*) (A) - (uchar*) (B))
 

@@ -22534,10 +22534,9 @@ bool Create_tmp_table::finalize(THD *thd,
     use_packed_rows= 1;
 
   {
-    uint alloc_length= ALIGN_SIZE(share->reclength + MI_UNIQUE_HASH_LENGTH+1);
+    uint alloc_length= MY_ALIGN(share->reclength + MI_UNIQUE_HASH_LENGTH+1, RECORD_ALIGNMENT);
     share->rec_buff_length= alloc_length;
-    if (!(table->record[0]= (uchar*)
-                            alloc_root(&table->mem_root, alloc_length*3)))
+    if (!(table->record[0]= share->record_alloc(&table->mem_root, 3)))
       goto err;
     table->record[1]= table->record[0]+alloc_length;
     share->default_values= table->record[1]+alloc_length;
@@ -23351,6 +23350,10 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
         (*recinfo)++;
 
         /* Avoid warnings from valgrind */
+        MEM_MAKE_ADDRESSABLE(table->record[0]+ share->reclength,
+                             MARIA_UNIQUE_HASH_LENGTH);
+        MEM_MAKE_ADDRESSABLE(share->default_values+ share->reclength,
+                             MARIA_UNIQUE_HASH_LENGTH);
         bzero(table->record[0]+ share->reclength, MARIA_UNIQUE_HASH_LENGTH);
         bzero(share->default_values+ share->reclength,
               MARIA_UNIQUE_HASH_LENGTH);

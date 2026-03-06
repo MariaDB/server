@@ -1,0 +1,504 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # After update
+--echo #
+
+create table t1 (
+    x int primary key
+) engine=innodb;
+
+create table t2 (
+    x int primary key,
+    y int,
+    foreign key (x) references t1(x) on update cascade
+) engine=innodb;
+
+create table t3 (
+    old_x int,
+    new_x int
+) engine=innodb;
+
+create trigger tr after update on t2
+    for each row
+   insert into t3 (old_x, new_x) values (old.x, new.x);
+
+insert into t1 (x) values (1);
+insert into t2 (x, y) values (1, 20);
+
+update t1 set x = 2;
+select * from t3;
+update t2 set y = 50;
+
+select * from t3;
+select * from t1;
+select * from t2;
+
+drop table t3;
+drop table t2;
+drop table t1;
+
+--echo #
+--echo # After update with counter
+--echo #
+
+create table t1(x int primary key) engine=innodb;
+create table t2(x int primary key,
+            foreign key(x) references t1(x) on update cascade) engine=innodb;
+
+create trigger tr_t2 after update on t2
+    for each row set @counter=@counter+1;
+
+insert into t1 values (1);
+insert into t2 values (1);
+set @counter=0;
+
+update t1 set x = 2;
+
+select * from t1;
+select * from t2;
+
+select @counter;
+drop table t2;
+drop table t1;
+
+--echo #
+--echo # Before update
+--echo #
+
+create table t1 (
+    x int primary key
+) engine=innodb;
+
+
+create table t2 (
+    x int primary key,
+    y int,
+    foreign key(x) references t1(x) on update cascade
+) engine=innodb;
+
+create trigger tr before update on t2
+    for each row set new.y = 50;
+
+insert into t1 (x) values (1);
+insert into t2 (x, y) values (1,2);
+
+update t1 set x = 2;
+select * from t1;
+select * from t2;
+
+
+drop table t2;
+drop table t1;
+
+--echo #
+--echo # Update, foreign key on secondary index
+--echo #
+
+create table t1(x int auto_increment primary key, y int, unique key(y)) engine=innodb;
+create table t2(a int primary key, x int, z varchar(20),
+                foreign key(x) references t1(y) on update cascade) engine=innodb;
+create table t3(id int auto_increment primary key, action_x int, action_z varchar(20), note varchar(50)) engine=innodb;
+
+create trigger tr_t2 before update on t2
+    for each row
+        insert into t3(action_x, action_z, note) values (old.x, old.z, 'update t2 — old'),
+        (new.x, new.z, 'update t2 — new');
+
+
+
+insert into t1 values (1, 10);
+insert into t2 values (1, 10, 'str');
+
+update t1 set y=20 where x=1;
+
+select * from t1;
+select * from t2;
+select * from t3;
+
+drop table t3;
+drop table t2;
+drop table t1;
+
+--echo #
+--echo # Update, on update set null cascade
+--echo #
+
+create table t1 (
+    id int primary key,
+    value varchar(50)
+) engine=innodb;
+
+create table t2 (
+    id int primary key,
+    t1_id int,
+    t2_value varchar(50),
+    foreign key (t1_id) references t1(id) on update set null
+) engine=innodb;
+
+create trigger tr_t2_before_update before update on t2
+for each row set new.t2_value = 'updated by trigger';
+
+insert into t1 (id, value) values (1, 'parent_row');
+insert into t2 (id, t1_id, t2_value) values (1, 1, 'child_row');
+
+select * from t1;
+select * from t2;
+
+update t1 set id = 2 where id = 1;
+
+select * from t1;
+select * from t2;
+
+drop table t2;
+drop table t1;
+
+--echo #
+--echo # Before update, indexes on virtual columns
+--echo #
+
+create table t1(x int auto_increment primary key, y int, unique key(y)) engine=innodb;
+create table t2(a int primary key, x int,
+                t int,
+                z varchar(20) as (concat("test", t)),
+                y varchar(20) as (concat("test2", t)),
+                y_another varchar(20) as (concat("test3", x)),
+                unique(z),
+                unique(y),
+                unique(y_another),
+                foreign key(x) references t1(y) on update cascade) engine=innodb;
+
+create trigger tr before update on t2
+    for each row set new.t = 50;
+
+insert into t1 (x,y) values (1,1);
+insert into t2 (a,x,t) values (1,1,1);
+
+select * from t2;
+update t1 set y = 2;
+select * from t2 force index (z) where z = 'test50';
+select * from t2 force index (y) where y = 'test250';
+select * from t2 force index (y_another) where y_another = 'test32';
+select * from t2;
+drop table t2;
+drop table t1;
+
+--echo #
+--echo # Before delete
+--echo #
+
+create table t1 (
+    x int primary key
+) engine=innodb;
+
+create table t2 (
+    x int primary key,
+    y int,
+    foreign key(x) references t1(x) on delete cascade
+) engine=innodb;
+
+create trigger tr before delete on t2
+    for each row set @deleted_value = old.y;
+
+insert into t1 (x) values (1);
+insert into t2 (x, y) values (1, 100);
+
+delete from t1 where x = 1;
+
+select @deleted_value as deleted_value;
+
+select * from t2;
+
+drop table t2;
+drop table t1;
+
+--echo #
+--echo # After, before delete
+--echo #
+
+create table t1 (
+    x int primary key
+) engine=innodb;
+
+create table t2 (
+    x int primary key,
+    y int,
+    foreign key(x) references t1(x) on delete cascade
+) engine=innodb;
+
+create table t3 (
+    id int auto_increment primary key,
+    log_event varchar(255)
+) engine=innodb;
+
+
+create trigger tr_before before delete on t2
+    for each row
+        set @deleted_value = old.y;
+
+
+create trigger tr_after after delete on t2
+    for each row
+        insert into t3 (log_event) values ('after delete trigger executed');
+
+insert into t1 (x) values (1), (2);
+insert into t2 (x, y) values (1, 100), (2, 200);
+
+delete from t1 where x = 1;
+
+select @deleted_value as before_deleted_value;
+
+select * from t3;
+
+select * from t2;
+
+select * from t1;
+
+drop table t3;
+drop table t2;
+drop table t1;
+
+--echo #
+--echo # On delete set null
+--echo #
+
+create table t1 (
+    id int primary key,
+    value varchar(50)
+) engine=innodb;
+
+create table t2 (
+    id int primary key,
+    t1_id int,
+    t2_value varchar(50),
+    foreign key (t1_id) references t1(id) on delete set null
+) engine=innodb;
+
+
+create trigger tr_t2_before_update before update on t2
+for each row set new.t2_value = 'updated by trigger';
+
+insert into t1 (id, value) values (1, 'parent_row');
+insert into t2 (id, t1_id, t2_value) values (1, 1, 'child_row');
+
+select * from t1;
+select * from t2;
+
+delete from t1 where id = 1;
+
+select * from t1;
+select * from t2;
+
+drop table t2;
+drop table t1;
+
+--echo #
+--echo # Cascade chain
+--echo #
+
+create table t1 (
+    id int primary key
+) engine=innodb;
+
+create table t2 (
+    id int primary key,
+    foreign key (id) references t1(id) on update cascade
+) engine=innodb;
+
+create table t3 (
+    id int primary key,
+    foreign key (id) references t2(id) on update cascade
+) engine=innodb;
+
+create table update_log (
+    log_id int auto_increment primary key,
+    table_name varchar(50),
+    old_value int,
+    new_value int
+) engine=innodb;
+
+create trigger tr_t2_after_update after update on t2
+    for each row
+        insert into update_log(table_name, old_value, new_value)
+        values ('t2', old.id, new.id);
+
+create trigger tr_t3_after_update after update on t3
+    for each row
+        insert into update_log(table_name, old_value, new_value)
+        values ('t3', old.id, new.id);
+
+insert into t1 (id) values (1);
+insert into t2 (id) values (1);
+insert into t3 (id) values (1);
+
+update t1 set id = 2;
+
+select * from t1;
+select * from t2;
+select * from t3;
+select * from update_log;
+
+drop table update_log;
+drop table t3;
+drop table t2;
+drop table t1;
+
+--echo #
+--echo # With bit fields
+--echo #
+
+create table t1 (
+    id bit(8) primary key,
+    flag bit(1) not null default b'0'
+) engine=innodb;
+
+create table t2 (
+    id bit(8) primary key,
+    t1_id bit(8),
+    value int,
+    foreign key (t1_id) references t1(id) on update cascade
+) engine=innodb;
+
+create table trigger_log (
+    log_id int auto_increment primary key,
+    log_message varchar(255)
+) engine=innodb;
+
+create trigger tr_t2_after_update after update on t2
+    for each row
+    insert into trigger_log(log_message)
+    values (concat('t2 updated: ', hex(old.t1_id), ' -> ', hex(new.t1_id)));
+
+insert into t1 (id, flag) values (b'00000001', b'1');
+insert into t2 (id, t1_id, value) values (b'00000001', b'00000001', 100);
+
+update t1 set id = b'00000010' where id = b'00000001';
+
+select bin(id), bin(t1_id), value from t2;
+
+select * from trigger_log;
+
+drop table trigger_log;
+drop table t2;
+drop table t1;
+
+
+--echo #
+--echo # With blobs
+--echo #
+
+create table t1 (
+    id int primary key,
+    blob_data blob
+) engine=innodb;
+
+create table t2 (
+    id int primary key,
+    t1_id int,
+    copied_blob_data blob,
+    foreign key (t1_id) references t1(id) on delete cascade on update cascade
+) engine=innodb;
+
+
+create trigger tr_t2_before_update
+before update on t2
+for each row
+set new.copied_blob_data = concat(old.copied_blob_data, repeat('-updated', 1250));
+
+
+insert into t1 (id, blob_data) values (1, repeat('a', 1024));
+insert into t2 (id, t1_id, copied_blob_data) values (1, 1, repeat('b', 1024));
+
+select * from t2;
+update t1 set id = 2 where id = 1;
+
+select * from t2;
+
+drop table t2;
+drop table t1;
+
+--echo #
+--echo # With blobs error too long
+--echo #
+
+create table t1 (
+    id int primary key,
+    blob_data blob
+) engine=innodb;
+
+create table t2 (
+    id int primary key,
+    t1_id int,
+    copied_blob_data blob,
+    foreign key (t1_id) references t1(id) on delete cascade on update cascade
+) engine=innodb;
+
+
+create trigger tr_t2_before_update
+before update on t2
+for each row
+set new.copied_blob_data = concat(old.copied_blob_data, repeat('-updated', 12500));
+
+
+insert into t1 (id, blob_data) values (1, repeat('a', 1024));
+insert into t2 (id, t1_id, copied_blob_data) values (1, 1, repeat('b', 1024));
+
+select * from t2;
+--error ER_DATA_TOO_LONG
+update t1 set id = 2 where id = 1;
+
+drop table t2;
+drop table t1;
+
+--echo # max depth is incrementally limited for cascade actions inside triggers
+
+create table t2(
+  id int primary key,
+  pid int,
+  index(pid),
+  foreign key(pid) references t2(id) on delete cascade) engine=innodb;
+insert into t2 values(0,0),(1,0),(2,1),(3,2),(4,3),(5,4),(6,5),(7,6),
+                     (8,7),(9,8),(10,9),(11,10),(12,11),(13,12),(14,13);
+
+create table t1(
+  id int primary key,
+  pid int,
+  index(pid),
+  foreign key(pid) references t1(id) on delete cascade) engine=innodb;
+
+create trigger trg before delete on t1 for each row
+  delete from t2 where id = 0 and old.id=14;
+
+insert into t1 values(0,0),(1,0),(2,1),(3,2),(4,3),(5,4),(6,5),(7,6),
+                     (8,7),(9,8),(10,9),(11,10),(12,11),(13,12),(14,13);
+--error ER_GET_ERRNO
+delete from t1 where id=0;
+select * from t2;
+select * from t1;
+drop table t1;
+drop table t2;
+
+--echo # Cascade deletes don't overwrite nested records.
+
+create table t1 (x int, y int, id int unique auto_increment,
+                 key(x), primary key(y),
+                 foreign key (x) references t1(y)
+                   on delete cascade) engine=innodb;
+insert t1(x, y) values (4,4), (4, 3), (3, 2), (2, 1), (1, 0);
+
+
+create table log (data int);
+
+create trigger tr after delete on t1
+  for each row insert log values (old.id);
+
+delete from t1 where y = 4;
+select * from t1;
+select * from log;
+drop trigger tr;
+drop table log;
+drop table t1;
+
+
+
+call mtr.add_suppression("InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15\\.");

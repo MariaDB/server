@@ -435,6 +435,12 @@ public:
 			  const Column_definition& new_field,
 			  const KEY_PART_INFO& old_part,
 			  const KEY_PART_INFO& new_part) const override;
+	row_prebuilt_t *get_prebuilt(const dict_table_t* table) {
+		build_template(true);
+		m_prebuilt->index = dict_table_get_first_index(table);
+		return m_prebuilt;
+	}
+	int update_prebuilt_upd_buf();
 
 	/** Check consistency between .frm indexes and InnoDB indexes
 	Set HA_DUPLICATE_KEY_NOT_IN_ORDER if multiple unique index
@@ -507,14 +513,14 @@ protected:
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
 	THD*			m_user_thd;
-
+public:
 	/** buffer used in updates */
 	uchar*			m_upd_buf;
 
 	/** the size of upd_buf in bytes */
 	ulint			m_upd_buf_size;
-
-	/** Flags that specify the handler instance (table) capability. */
+protected:
+	/** Flags that specificy the handler instance (table) capability. */
 	Table_flags		m_int_table_flags;
 
 	/** Index into the server's primary key meta-data table->key_info{} */
@@ -934,3 +940,10 @@ ulint dict_table_get_foreign_id(const dict_table_t &table) noexcept;
 @param foreign  foreign key */
 void dict_create_add_foreign_id(ulint *id_nr, const char *name,
                                 dict_foreign_t *foreign) noexcept;
+
+/** An SQL-layer callback for cascade actions
+@param thr Innodb thr
+@param node Innodb update node
+@return DB_SUCCESS or DB_SQL_ERROR
+ */
+dberr_t innodb_do_foreign_cascade(que_thr_t *thr, upd_node_t* node);
