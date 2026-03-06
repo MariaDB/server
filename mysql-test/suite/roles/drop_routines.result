@@ -30,7 +30,7 @@ end|
 grant execute on function mysql.test_func to r2;
 grant execute on procedure mysql.test_proc to r3;
 revoke execute on procedure mysql.test_proc from r2;
-ERROR 42000: There is no such grant defined for user 'r2' on host '' on routine 'test_proc'
+ERROR 42000: There is no such grant defined for role 'r2' on routine 'test_proc'
 show grants for r1;
 Grants for r1
 GRANT DELETE ON `mysql`.`roles_mapping` TO `r2`
