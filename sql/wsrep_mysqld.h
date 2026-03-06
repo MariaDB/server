@@ -1,4 +1,4 @@
-/* Copyright 2008-2025 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2026 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -611,6 +611,14 @@ bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables);
 bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk);
 
 void wsrep_report_query_interrupted(const THD *thd, const char* file, const int line);
+
+/** Return wsrep server uuid.
+ */
+const std::string wsrep_get_server_uuid();
+
+/** Return full wsrep strorage engine checkpoint.
+ */
+const std::string wsrep_get_checkpoint();
 
 #else /* !WITH_WSREP */
 
