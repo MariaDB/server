@@ -1,0 +1,268 @@
+# Change storage engine to Innodb, otherwise the system variable will be different.
+--source include/have_innodb.inc
+let $default_storage_engine= `select @@global.default_storage_engine`;
+set global default_storage_engine= innodb;
+set default_storage_engine= innodb;
+
+SET NAMES utf8;
+--echo #
+--echo # MDEV-34646 Be more helpful on unknown parameter messages
+--echo #
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+set innobdb_lock_wait_timeout=1000;
+
+--echo #
+--echo # Verify the change in other languages
+--echo #
+--echo # Czech
+SET lc_messages='cs_CZ';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # Danish
+SET lc_messages='da_DK';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # Estonian
+SET lc_messages='et_EE';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # French
+SET lc_messages='fr_FR';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # German
+SET lc_messages='de_DE';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # Georgian
+SET lc_messages='ka_GE';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # Hindi
+SET lc_messages='hi_IN';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # Italian
+SET lc_messages='it_IT';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # Japanese
+SET lc_messages='ja_JP';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # Dutch
+SET lc_messages='nl_NL';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # Portuguese
+SET lc_messages='pt_PT';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # Russian
+SET lc_messages='ru_RU';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # Serbian
+SET lc_messages='sr_RS';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # Spanish
+SET lc_messages='es_ES';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # Swahili
+SET lc_messages='sw_KE';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # Swedish
+SET lc_messages='sv_SE';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # Ukrainian
+SET lc_messages='uk_UA';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo # Chinese
+SET lc_messages='zh_CN';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET innobdb_lock_wait_timeout=1000;
+
+--echo #
+--echo # Verify the change in other variables
+--echo #
+SET lc_messages='en_US';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET sll_ca=0;
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL mx_conncetoins = 500;
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL qurey_cach_size = 134217728;
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET SESSION join_bufer_size = 2097152;
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET SESSION sort_bufer_size = 2097152;
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL max_conections = 500;
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET SESSION tmp_table_sze = 67108864;
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL innodb_lok_wait_timeout = 120;
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET SESSION lock_wiat_timeout = 60;
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL wait_tiemout = 600;
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET SESSION sql_mde = 'STRICT_TRANS_TABLES';
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET SESSION character_set_clinet = 'utf8mb4';
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET SESSION character_set_resuts = 'utf8mb4';
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL innodb_buffer_pol_size = 134217728;
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL thred_cache_size = 50;
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL table_open_cach = 2000;
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL query_cache_szie = 134217728;
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET SESSION max_hep_table_size = 67108864;
+
+
+--echo #
+--echo # Test long variables
+--echo #
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+set innobdb_lock_wait_timeout_a_very_very_very_long_variable_a_very_very_very_long_variable_a_very_very_very_long_variable_a_very_very_very_long_variable_a_very_very_very_long_variable=1000;
+
+--echo #
+--echo # Verify not to print suggestion when the input is far from the closest variable
+--echo #
+--echo # Czech
+SET lc_messages='cs_CZ';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # Danish
+SET lc_messages='da_DK';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # Estonian
+SET lc_messages='et_EE';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # French
+SET lc_messages='fr_FR';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # German
+SET lc_messages='de_DE';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # Georgian
+SET lc_messages='ka_GE';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # Hindi
+SET lc_messages='hi_IN';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # Italian
+SET lc_messages='it_IT';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # Japanese
+SET lc_messages='ja_JP';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # Dutch
+SET lc_messages='nl_NL';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # Portuguese
+SET lc_messages='pt_PT';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # Russian
+SET lc_messages='ru_RU';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # Serbian
+SET lc_messages='sr_RS';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # Spanish
+SET lc_messages='es_ES';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # Swahili
+SET lc_messages='sw_KE';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # Swedish
+SET lc_messages='sv_SE';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # Ukrainian
+SET lc_messages='uk_UA';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+--echo # Chinese
+SET lc_messages='zh_CN';
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SET xxxxxxxxxxxxxxxxxxx=1000;
+
+
+# Change it back to default storage engine to avoid errors.
+eval set global default_storage_engine= $default_storage_engine;

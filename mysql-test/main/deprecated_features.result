@@ -1,5 +1,5 @@
 set global log_bin_trust_routine_creators=1;
-ERROR HY000: Unknown system variable 'log_bin_trust_routine_creators'
+ERROR HY000: Unknown system variable 'log_bin_trust_routine_creators', did you mean 'log_bin_trust_function_creators'?
 set table_type='MyISAM';
 ERROR HY000: Unknown system variable 'table_type'
 select @@table_type='MyISAM';
