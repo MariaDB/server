@@ -1,0 +1,20 @@
+--source include/have_innodb.inc
+call mtr.add_suppression("innodb_buffer_pool_size change aborted");
+SET @b=REPEAT('0',1048576);
+CREATE TEMPORARY TABLE t (c MEDIUMTEXT) ENGINE=InnoDB;
+INSERT INTO t VALUES
+(@b),(@b),(@b),(@b),(@b),(@b),(@b),(@b),(@b),(@b),(@b);
+--error 0,ER_WRONG_USAGE
+SET STATEMENT max_statement_time=0.000001 FOR
+SET GLOBAL innodb_buffer_pool_size=6291456;
+--error 0,ER_WRONG_USAGE
+SET STATEMENT max_statement_time=0.000001 FOR
+SET GLOBAL innodb_buffer_pool_size=6291456;
+--error 0,ER_WRONG_USAGE
+SET STATEMENT max_statement_time=0.000001 FOR
+SET GLOBAL innodb_buffer_pool_size=6291456;
+--error 0,ER_WRONG_USAGE
+SET GLOBAL innodb_buffer_pool_size=6291456;
+SET GLOBAL innodb_buffer_pool_size=16777216;
+CHECKSUM TABLE t;
+DROP TEMPORARY TABLE t;
