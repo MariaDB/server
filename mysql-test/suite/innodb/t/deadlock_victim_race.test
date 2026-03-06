@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
 --source include/count_sessions.inc
+--source include/innodb_table_lock_on_full_scan.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
@@ -36,10 +37,13 @@ SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 BEGIN; # trx 2
 # The first time it will be hit on trying to lock (20,20), the second hit
 # will be on (30,30).
-SET DEBUG_SYNC = 'lock_trx_handle_wait_enter SIGNAL upd_locked WAIT_FOR upd_cont EXECUTE 2';
+if ($MTR_COMBINATION_ROW_LOCK) {
+  SET DEBUG_SYNC = 'lock_trx_handle_wait_enter SIGNAL upd_locked WAIT_FOR upd_cont EXECUTE 2';
+}
 # We must not modify primary key fields to cause rr_sequential() read record
 # function choosing in mysql_update(), i.e. both query_plan.using_filesort and
 # query_plan.using_io_buffer must be false during init_read_record() call.
+SET SESSION innodb_lock_wait_timeout=1;
 --send UPDATE t SET b = 100
 
 --connect(con_3,localhost,root,,)
@@ -51,7 +55,9 @@ BEGIN; # trx 3
 # weight.
 UPDATE t2 SET a = a + 100;
 SELECT * FROM t WHERE a = 30 FOR UPDATE;
-SET DEBUG_SYNC='now WAIT_FOR upd_locked';
+if ($MTR_COMBINATION_ROW_LOCK) {
+  SET DEBUG_SYNC='now WAIT_FOR upd_locked';
+}
 # Locking queue:
 # (10,10)             (20,20)                  (30,30)
 #    ^                   ^                        ^
@@ -75,7 +81,9 @@ SET DEBUG_SYNC='now WAIT_FOR sel_locked';
 ROLLBACK;
 SET DEBUG_SYNC='now SIGNAL upd_cont';
 
-SET DEBUG_SYNC="now WAIT_FOR upd_locked";
+if ($MTR_COMBINATION_ROW_LOCK) {
+  SET DEBUG_SYNC='now WAIT_FOR upd_locked';
+}
 # Locking queue:
 # (10,10)             (20,20)                  (30,30)
 #    ^                   ^                        ^
@@ -87,10 +95,15 @@ SET DEBUG_SYNC="now WAIT_FOR upd_locked";
 # lock on (30,30). But the deadlock has not been determined yet.
 
 SET SESSION innodb_lock_wait_timeout=1;
---error ER_LOCK_WAIT_TIMEOUT
-# The deadlock will be determined in lock_wait() after lock wait timeout
-# expired.
-SELECT * FROM t WHERE a = 10 FOR UPDATE;
+if ($MTR_COMBINATION_ROW_LOCK) {
+  --error ER_LOCK_WAIT_TIMEOUT
+  # The deadlock will be determined in lock_wait() after lock wait timeout
+  # expired.
+  SELECT * FROM t WHERE a = 10 FOR UPDATE;
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  SELECT * FROM t WHERE a = 10 FOR UPDATE;
+}
 SET DEBUG_SYNC="now SIGNAL upd_cont";
 
 --connection con_3
@@ -103,8 +116,14 @@ SET DEBUG_SYNC="now SIGNAL upd_cont";
 # trx 2 was choosen as a victim (see lock_cancel_waiting_and_release() call
 # from Deadlock::report() for details). The try to update non-locked record
 # will cause assertion if the bug is not fixed.
---error ER_LOCK_DEADLOCK
---reap
+if ($MTR_COMBINATION_ROW_LOCK) {
+  --error ER_LOCK_DEADLOCK
+  --reap
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --error ER_LOCK_WAIT_TIMEOUT
+  --reap
+}
 
 --disconnect con_3
 --disconnect con_2

@@ -3,6 +3,7 @@
 --source include/have_debug_sync.inc
 
 --source include/innodb_stable_estimates.inc
+--source include/innodb_table_lock_on_full_scan.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
@@ -63,13 +64,24 @@ disconnect con2;
 SET DEBUG_SYNC='now WAIT_FOR con1_dml2';
 --replace_column 9 #
 explain UPDATE v4, t1 SET t1.pk = 76 WHERE t1.f2 IN ( SELECT t2.f FROM t2 INNER JOIN t3 );
-UPDATE v4, t1 SET t1.pk = 76 WHERE t1.f2 IN ( SELECT t2.f FROM t2 INNER JOIN t3 );
+if ($MTR_COMBINATION_ROW_LOCK) {
+  UPDATE v4, t1 SET t1.pk = 76 WHERE t1.f2 IN ( SELECT t2.f FROM t2 INNER JOIN t3 );
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --error ER_LOCK_DEADLOCK
+  UPDATE v4, t1 SET t1.pk = 76 WHERE t1.f2 IN ( SELECT t2.f FROM t2 INNER JOIN t3 );
+}
 # It holds the record lock on table t1 and tries to acquire record lock on t3.
 # leads to deadlock (con1 trx is waiting for default trx and vice versa)
 
 --connection default
---error ER_LOCK_DEADLOCK
---reap
+if ($MTR_COMBINATION_ROW_LOCK) {
+  --error ER_LOCK_DEADLOCK
+  --reap
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --reap
+}
 
 connection con1;
 COMMIT;

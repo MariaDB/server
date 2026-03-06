@@ -1,0 +1,11 @@
+--- /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/innodb_i_s_innodb_trx.result	2025-02-19 14:14:39.060154916 +1100
++++ /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/innodb_i_s_innodb_trx.reject	2026-03-05 14:23:32.823680533 +1100
+@@ -57,7 +57,7 @@
+ trx_isolation_level, trx_unique_checks, trx_foreign_key_checks
+ FROM INFORMATION_SCHEMA.INNODB_TRX;
+ trx_state	trx_weight	trx_tables_in_use	trx_tables_locked	trx_rows_locked	trx_rows_modified	trx_concurrency_tickets	trx_isolation_level	trx_unique_checks	trx_foreign_key_checks
+-RUNNING	3	0	1	6	1	0	REPEATABLE READ	1	1
++RUNNING	3	0	2	0	1	0	REPEATABLE READ	1	1
+ connection con_trx;
+ ROLLBACK;
+ SET FOREIGN_KEY_CHECKS = 0;

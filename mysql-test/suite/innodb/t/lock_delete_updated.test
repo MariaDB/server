@@ -2,6 +2,7 @@
 --source include/count_sessions.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
+--source include/innodb_table_lock_on_full_scan.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
@@ -23,8 +24,13 @@ UPDATE t SET a = 1;
 COMMIT;
 
 connection con1;
-error ER_LOCK_DEADLOCK;
-reap;
+if ($MTR_COMBINATION_ROW_LOCK) {
+  error ER_LOCK_DEADLOCK;
+  reap;
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  reap;
+}
 disconnect con1;
 
 connection default;

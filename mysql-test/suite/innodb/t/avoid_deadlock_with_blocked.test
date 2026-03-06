@@ -2,10 +2,14 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/count_sessions.inc
+--source include/innodb_table_lock_on_full_scan.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
 --enable_query_log
+
+set @old_innodb_lock_wait_timeout=@@global.innodb_lock_wait_timeout;
+set global innodb_lock_wait_timeout=1;
 
 connect stop_purge,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
@@ -42,7 +46,13 @@ INSERT INTO t1 (id) VALUES (1);
   COMMIT;
 
 --connection con2
+if ($MTR_COMBINATION_ROW_LOCK) {
   --reap
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --error ER_LOCK_DEADLOCK
+  --reap
+}
   COMMIT;
 
 --echo # The scenario when we bypass X<-S pair:
@@ -72,11 +82,23 @@ INSERT INTO t1 (id) VALUES (1);
   COMMIT;
 
 --connection con2
+if ($MTR_COMBINATION_ROW_LOCK) {
   --reap
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --error ER_LOCK_WAIT_TIMEOUT
+  --reap
+}
   COMMIT;
 
 --connection con3
+if ($MTR_COMBINATION_ROW_LOCK) {
   --reap
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --error ER_LOCK_DEADLOCK
+  --reap
+}
   COMMIT;
 
 #
@@ -100,8 +122,13 @@ INSERT INTO t1 (id) VALUES (1);
   ROLLBACK;
 
 --connection con2
+if ($MTR_COMBINATION_ROW_LOCK) {
   --error ER_LOCK_DEADLOCK
   --reap
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --reap
+}
   COMMIT;
 
 --echo # More complicated scenario:
@@ -180,7 +207,13 @@ INSERT INTO t1 (id) VALUES (1);
   COMMIT;
 
 --connection con3
+if ($MTR_COMBINATION_ROW_LOCK) {
   --reap
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --error ER_LOCK_DEADLOCK
+  --reap
+}
   COMMIT;
 
 --echo # A secenario, where con1 has to bypass two transactions:
@@ -210,11 +243,23 @@ INSERT INTO t1 (id) VALUES (1);
   COMMIT;
 
 --connection con2
+if ($MTR_COMBINATION_ROW_LOCK) {
   --reap
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --error ER_LOCK_WAIT_TIMEOUT
+  --reap
+}
   COMMIT;
 
 --connection con3
+if ($MTR_COMBINATION_ROW_LOCK) {
   --reap
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --error ER_LOCK_DEADLOCK
+  --reap
+}
   COMMIT;
 
 --connection default
@@ -225,4 +270,5 @@ INSERT INTO t1 (id) VALUES (1);
 
 DROP TABLE t1;
 
+set global innodb_lock_wait_timeout=@old_innodb_lock_wait_timeout;
 --source include/wait_until_count_sessions.inc
