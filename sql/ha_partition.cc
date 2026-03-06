@@ -4543,6 +4543,18 @@ void ha_partition::try_semi_consistent_read(bool yes)
   DBUG_VOID_RETURN;
 }
 
+static int create_range_partition(partition_info *part_info)
+{
+  Alter_info alter_info;
+  alter_info.reset();
+  alter_info.partition_flags= ALTER_PARTITION_ADD;
+
+  /*
+    - Compute which partition to create
+    - Create partition
+  */
+  return 0;
+}
 
 /****************************************************************************
                 MODULE change record
@@ -4609,6 +4621,10 @@ int ha_partition::write_row(const uchar * buf)
   }
   old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   error= m_part_info->get_partition_id(m_part_info, &part_id, &func_value);
+  if (error == HA_ERR_NO_PARTITION_FOUND &&
+      m_part_info->int_type != INTERVAL_LAST &&
+      m_part_info->part_type == RANGE_PARTITION)
+    error= create_range_partition(m_part_info);
   dbug_tmp_restore_column_map(&table->read_set, old_map);
   if (unlikely(error))
   {

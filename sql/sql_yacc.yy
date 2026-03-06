@@ -5191,7 +5191,7 @@ part_field_item:
         ;
 
 part_column_list:
-          COLUMNS '(' part_field_list ')'
+          COLUMNS '(' part_field_list ')' opt_interval
           {
             partition_info *part_info= Lex->part_info;
             part_info->column_list= TRUE;
@@ -5199,6 +5199,17 @@ part_column_list:
           }
         ;
 
+opt_interval:
+          /* empty */ {}
+        | INTERVAL_SYM expr interval
+          {
+           partition_info *part_info= Lex->part_info;
+           const char *table_name=
+             Lex->create_last_non_select_table->table_name.str;
+           if (unlikely(part_info->set_interval(thd, $2, $3, table_name)))
+             MYSQL_YYABORT;
+          }
+        ;
 
 part_func:
           '(' part_func_expr ')'
@@ -5734,7 +5745,7 @@ opt_versioning_rotation:
          {
            partition_info *part_info= Lex->part_info;
            const char *table_name= Lex->create_last_non_select_table->table_name.str;
-           if (unlikely(part_info->vers_set_interval(thd, $3, $4, $5, $6,
+           if (unlikely(part_info->vers_set_interval(thd, $3 /*expr*/, $4, $5, $6,
                                                      table_name)))
              MYSQL_YYABORT;
          }

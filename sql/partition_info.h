@@ -98,6 +98,9 @@ struct Vers_part_info : public Sql_alloc
 class partition_info : public DDL_LOG_STATE, public Sql_alloc
 {
 public:
+  INTERVAL interval;
+  enum interval_type int_type;
+
   /*
    * Here comes a set of definitions needed for partitioned table handlers.
    */
@@ -309,7 +312,8 @@ public:
   bool column_list;                          // COLUMNS PARTITIONING, 5.5+
 
   partition_info()
-  : get_partition_id(NULL), get_part_partition_id(NULL),
+  : int_type(INTERVAL_LAST),
+    get_partition_id(NULL), get_part_partition_id(NULL),
     get_subpartition_id(NULL),
     part_field_array(NULL), subpart_field_array(NULL),
     part_charset_field_array(NULL),
@@ -417,6 +421,8 @@ public:
   bool field_in_partition_expr(Field *field) const;
 
   bool vers_init_info(THD *thd);
+  bool set_interval(THD* thd, Item* ival, interval_type type,
+                    const char *table_name);
   bool vers_set_interval(THD *thd, Item *interval,
                          interval_type int_type, Item *starts,
                          bool auto_part, const char *table_name);
