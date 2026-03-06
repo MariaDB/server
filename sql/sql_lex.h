@@ -42,6 +42,7 @@
 #include "sql_class.h"                // enum enum_column_usage
 #include "select_handler.h"
 #include "rpl_master_info_file.h"     // Master_info_file
+#include "opt_hints_structs.h"
 
 /* Used for flags of nesting constructs */
 #define SELECT_NESTING_MAP_SIZE 64
@@ -3839,6 +3840,8 @@ public:
 
   void handle_parsed_optimizer_hints_in_last_select();
   void resolve_optimizer_hints();
+  void resolve_early_optimizer_hints();
+  void resolve_late_optimizer_hints();
   bool discard_optimizer_hints_in_last_select();
 
   bool is_in_sf_or_trg();
@@ -5068,6 +5071,9 @@ private:
     create_info.set(options);
     return main_select_push() || check_create_options(options);
   }
+
+  void resolve_optimizer_hints_for_stage(hint_resolution_stage stage);
+
 public:
   bool stmt_create_function_start(const DDL_options_st &options)
   {
