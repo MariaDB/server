@@ -1,0 +1,66 @@
+# MDEV-33710: UUID_TIMESTAMP() extracts timestamp from UUIDv1 and UUIDv7
+
+SET time_zone='+00:00';
+
+--echo #
+--echo # UUIDv1 with known timestamps
+--echo #
+SELECT '4bd352dc-e593-11f0-8de9-0242ac120002' AS uuid,
+       UUID_TIMESTAMP('4bd352dc-e593-11f0-8de9-0242ac120002') AS ts;
+SELECT 'bec1046a-e593-11f0-8de9-0242ac120002' AS uuid,
+       UUID_TIMESTAMP('bec1046a-e593-11f0-8de9-0242ac120002') AS ts;
+SELECT 'c28c09a0-e593-11f0-8de9-0242ac120002' AS uuid,
+       UUID_TIMESTAMP('c28c09a0-e593-11f0-8de9-0242ac120002') AS ts;
+
+--echo #
+--echo # UUIDv7 with known timestamps (ms precision)
+--echo #
+SELECT '019b6fdd-4937-7bb5-95c7-53363c6df927' AS uuid,
+       UUID_TIMESTAMP('019b6fdd-4937-7bb5-95c7-53363c6df927') AS ts;
+SELECT '019b6fdd-5f17-7cf2-b034-248b9c207db6' AS uuid,
+       UUID_TIMESTAMP('019b6fdd-5f17-7cf2-b034-248b9c207db6') AS ts;
+SELECT '019b6fdd-7327-7a5b-935c-4de00dd0e7c6' AS uuid,
+       UUID_TIMESTAMP('019b6fdd-7327-7a5b-935c-4de00dd0e7c6') AS ts;
+
+--echo #
+--echo # UUIDv4 returns NULL (no timestamp)
+--echo #
+SELECT UUID_TIMESTAMP(UUID_V4()) IS NULL AS v4_returns_null;
+SELECT UUID_TIMESTAMP('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11') IS NULL AS v4_string_returns_null;
+
+--echo #
+--echo # NULL and invalid input
+--echo #
+SELECT UUID_TIMESTAMP(NULL) IS NULL AS null_input;
+SELECT UUID_TIMESTAMP('not-a-valid-uuid');
+
+--echo #
+--echo # Native UUID type
+--echo #
+SELECT '019b6fdd-4937-7bb5-95c7-53363c6df927' AS uuid,
+       UUID_TIMESTAMP(CAST('019b6fdd-4937-7bb5-95c7-53363c6df927' AS UUID)) AS ts;
+
+--echo #
+--echo # Return type is TIMESTAMP(6)
+--echo #
+CREATE TABLE t1 AS SELECT UUID_TIMESTAMP('019b6fdd-4937-7bb5-95c7-53363c6df927') AS ts;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Edge cases
+--echo #
+# UUIDv1 before Unix epoch
+SELECT '00000000-0000-1000-8000-000000000000' AS uuid,
+       UUID_TIMESTAMP('00000000-0000-1000-8000-000000000000') IS NULL AS before_unix_epoch;
+# UUIDv7 at Unix epoch (ts=0)
+SELECT '00000000-0000-7000-8000-000000000000' AS uuid,
+       UUID_TIMESTAMP('00000000-0000-7000-8000-000000000000') AS ts;
+# UUIDv7 max 48-bit timestamp
+SELECT 'ffffffff-ffff-7fff-8000-000000000000' AS uuid,
+       UUID_TIMESTAMP('ffffffff-ffff-7fff-8000-000000000000') AS ts;
+# UUIDv1 max timestamp
+SELECT 'ffffffff-ffff-1fff-8000-000000000000' AS uuid,
+       UUID_TIMESTAMP('ffffffff-ffff-1fff-8000-000000000000') AS ts;
+
+SET time_zone=DEFAULT;
