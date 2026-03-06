@@ -42,6 +42,7 @@ Completed by Sunny Bains and Marko Makela
 #include "pars0pars.h"
 #include "ut0sort.h"
 #include "row0ftsort.h"
+#include "fts0exec.h"
 #include "row0import.h"
 #include "row0vers.h"
 #include "handler0alter.h"
@@ -3035,10 +3036,27 @@ wait_again:
 			new_table->fts->cache->first_doc_id =
 				new_table->fts->cache->next_doc_id;
 
+			trx_t *fts_trx = trx_create();
+			trx_start_internal(fts_trx); 
+			fts_trx->op_info= "setting last FTS document id";
+			FTSQueryExecutor executor(
+				fts_trx, new_table);
 			err= fts_update_sync_doc_id(
+				&executor,
 				new_table,
-				new_table->fts->cache->synced_doc_id,
-				NULL);
+				new_table->fts->cache->synced_doc_id);
+			if (err == DB_SUCCESS) {
+				trx_commit_for_mysql(fts_trx);
+				new_table->fts->cache->synced_doc_id++;
+			} else {
+				sql_print_error(
+				  "InnoDB: ( %s ) while updating "
+				  "last doc id for table %s",
+				  ut_strerr(err),
+				  new_table->name.m_name);
+				fts_trx->rollback();
+			}
+			fts_trx->free();
 		}
 	}
 

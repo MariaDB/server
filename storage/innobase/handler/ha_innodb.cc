@@ -11391,6 +11391,81 @@ ha_innobase::update_create_info(
 	}
 }
 
+/** Update FTS stopword configuration when reload is enabled
+@param table		  FTS table
+@param trx		  transaction
+@param thd		  current thread
+@param new_stopword_table stopword table name
+@param new_stopword_is_on stopword enable setting
+@return TRUE if success */
+static
+bool innobase_fts_update_stopword_config(dict_table_t *table, trx_t *trx,
+                                         THD *thd,
+                                         const char *new_stopword_table,
+                                         bool new_stopword_is_on)
+{
+  ut_ad(dict_sys.locked());
+  /* Create FTSQueryExecutor for config operations */
+  FTSQueryExecutor executor(trx, table);
+  dberr_t error = DB_SUCCESS;
+  fts_string_t str;
+
+  /* Load CONFIG table directly since we already hold dict_sys.lock() */
+  char config_table_name[MAX_FULL_NAME_LEN];
+  fts_table_t fts_table;
+  FTS_INIT_FTS_TABLE(&fts_table, nullptr, FTS_COMMON_TABLE, table);
+  fts_table.suffix = "CONFIG";
+  fts_get_table_name(&fts_table, config_table_name, true);
+  const span<const char> config_name{
+    config_table_name, strlen(config_table_name)};
+  dict_table_t *config_table = dict_sys.load_table(config_name);
+
+  if (config_table == nullptr)
+    return false;
+
+  /* Assign CONFIG table directly to executor for optimized access */
+  executor.set_config_table(config_table);
+	
+  /* Update FTS_USE_STOPWORD setting in CONFIG table */
+  ulint use_stopword = (ulint) new_stopword_is_on;
+  fts_cache_t *cache= table->fts->cache;
+  error= fts_config_set_ulint(
+    &executor, table, FTS_USE_STOPWORD, use_stopword);
+
+  if (error != DB_SUCCESS)
+    return false;
+
+  if (!use_stopword)
+  {
+    cache->stopword_info.status = STOPWORD_OFF;
+    goto cleanup;
+  }
+
+  /* Validate and update FTS_STOPWORD_TABLE_NAME in CONFIG
+  table if provided */
+  if (new_stopword_table &&
+      fts_load_user_stopword(
+        &executor, table->fts, new_stopword_table,
+	&table->fts->cache->stopword_info))
+  {
+    /* Stopword table is valid, update CONFIG table */
+    str.f_n_char = 0;
+    str.f_str = (byte*) new_stopword_table;
+    str.f_len = strlen(new_stopword_table);
+
+    error = fts_config_set_value(&executor, table, FTS_STOPWORD_TABLE_NAME, &str);
+  }
+  else fts_load_default_stopword(&cache->stopword_info);
+cleanup:
+  if (!cache->stopword_info.cached_stopword)
+    cache->stopword_info.cached_stopword=
+      rbt_create_arg_cmp(
+        sizeof(fts_tokenizer_word_t), innobase_fts_text_cmp,
+        &my_charset_latin1);
+
+  return true;
+}
+
 /*****************************************************************//**
 Initialize the table FTS stopword list
 @return TRUE if success */
@@ -11413,9 +11488,24 @@ innobase_fts_load_stopword(
   }
 
   table->fts->dict_locked= true;
-  bool success= fts_load_stopword(table, trx, stopword_table,
-                                  THDVAR(thd, ft_enable_stopword), false);
+  bool own_trx= (trx == nullptr);
+  if (own_trx)
+  {
+    trx= trx_create();
+    trx_start_internal(trx);
+  }
+  bool success= innobase_fts_update_stopword_config(
+                  table, trx, thd, stopword_table,
+                  THDVAR(thd, ft_enable_stopword));
+  if (own_trx)
+  {
+    if (success)
+      trx_commit_for_mysql(trx);
+    else trx->rollback();
+    trx->free();
+  }
   table->fts->dict_locked= false;
+  DBUG_EXECUTE_IF("fts_load_stopword_fail", success= false;);
   return success;
 }
 
@@ -15158,7 +15248,7 @@ ha_innobase::optimize(
 		if (m_prebuilt->table->fts && m_prebuilt->table->fts->cache
 		    && m_prebuilt->table->space) {
 			fts_sync_table(m_prebuilt->table);
-			fts_optimize_table(m_prebuilt->table);
+			fts_optimize_table(m_prebuilt->table, thd);
 		}
 		try_alter = false;
 	}

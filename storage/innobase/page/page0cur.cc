@@ -78,9 +78,9 @@ static ulint cmp_get_pad_char(const dtype_t &type) noexcept
 @retval 0 if dtuple is equal to rec
 @retval negative if dtuple is less than rec
 @retval positive if dtuple is greater than rec */
-static int cmp_dtuple_rec_bytes(const rec_t *rec,
-                                const dict_index_t &index,
-                                const dtuple_t &tuple, int *match, ulint comp)
+int cmp_dtuple_rec_bytes(const rec_t *rec,
+                         const dict_index_t &index,
+                         const dtuple_t &tuple, int *match, ulint comp)
   noexcept
 {
   ut_ad(dtuple_check_typed(&tuple));
