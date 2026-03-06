@@ -1,0 +1,21 @@
+--- /home/parad/mariadb/10.11-0/c/mysql-test/suite/rpl/r/rpl_gtid_restart_slave.result	2026-02-04 22:21:06.979945089 -0700
++++ /home/parad/mariadb/10.11-0/c/mysql-test/suite/rpl/r/rpl_gtid_restart_slave.reject	2026-02-04 22:31:26.101231276 -0700
+@@ -27,12 +27,16 @@
+ slave-relay-bin.000002	#	Gtid	#	#	GTID #-#-#
+ slave-relay-bin.000002	#	Query	#	#	use `test`; RENAME TABLE t TO t1
+ slave-relay-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+-slave-relay-bin.000002	#	Query	#	#	use `test`; INSERT INTO t1 VALUES ('initial state')
++slave-relay-bin.000002	#	Annotate_rows	#	#	INSERT INTO t1 VALUES ('initial state')
++slave-relay-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
++slave-relay-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+ slave-relay-bin.000002	#	Query	#	#	COMMIT
+ slave-relay-bin.000002	#	Gtid	#	#	GTID #-#-#
+ slave-relay-bin.000002	#	Query	#	#	use `test`; RENAME TABLE t1 TO t
+ slave-relay-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+-slave-relay-bin.000002	#	Query	#	#	use `test`; INSERT INTO t VALUES ('before restart')
++slave-relay-bin.000002	#	Annotate_rows	#	#	INSERT INTO t VALUES ('before restart')
++slave-relay-bin.000002	#	Table_map	#	#	table_id: # (test.t)
++slave-relay-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+ slave-relay-bin.000002	#	Query	#	#	COMMIT
+ slave-relay-bin.000002	#	Stop	#	#	
+ SELECT * FROM t;
