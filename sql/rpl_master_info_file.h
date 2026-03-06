@@ -83,7 +83,7 @@ inline const char *master_ssl_key    = "";
 inline const char *master_ssl_cipher = "";
 inline bool master_ssl_verify_server_cert= true;
 /// `ulong` is the data type `my_getopt` expects.
-inline auto master_use_gtid= static_cast<ulong>(enum_master_use_gtid::DEFAULT);
+inline ulong master_use_gtid= static_cast<ulong>(enum_master_use_gtid::DEFAULT);
 inline uint64_t master_retry_count= 100000;
 /// }@
 
@@ -612,9 +612,11 @@ struct Master_info_file: Info_file
     ignore_server_ids(ignore_server_ids),
     do_domain_ids(do_domain_ids), ignore_domain_ids(ignore_domain_ids)
   {
-    for(auto &[_, mem_fn]: VALUE_MAP)
-      if (mem_fn)
-        mem_fn(this).set_default();
+    for (std::unordered_map<std::string_view,
+           const Mem_fn>::const_iterator it= VALUE_MAP.begin();
+         it != VALUE_MAP.end(); ++it)
+      if (it->second)
+        it->second(this).set_default();
   }
 
   bool load_from_file() override
@@ -695,12 +697,15 @@ break_for:;
     /* Write MariaDB `key=value` lines:
       The "value" can then be written individually after generating the`key=`.
     */
-    for (auto &[key, pm]: VALUE_MAP)
-      if (pm)
+    for (std::unordered_map<std::string_view,
+           const Mem_fn>::const_iterator it= VALUE_MAP.begin();
+         it != VALUE_MAP.end(); ++it)
+    {
+      if (it->second)
       {
-        Persistent &value= pm(this);
+        Persistent &value= it->second(this);
         my_b_write(&file,
-                   reinterpret_cast<const uchar *>(key.data()), key.size());
+                   reinterpret_cast<const uchar *>(it->first.data()), it->first.size());
         if (!value.is_default())
         {
           my_b_write_byte(&file, '=');
@@ -708,11 +713,11 @@ break_for:;
         }
         my_b_write_byte(&file, '\n');
       }
+    }
     my_b_write(&file, reinterpret_cast<const uchar *>(END_MARKER),
-              sizeof(END_MARKER) - /* the '\0' */ 1);
+               sizeof(END_MARKER) - /* the '\0' */ 1);
     my_b_write_byte(&file, '\n');
   }
-
 };
 
 #endif // C++ standard guard
