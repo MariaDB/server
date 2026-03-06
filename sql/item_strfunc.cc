@@ -112,19 +112,19 @@ String *Item_func::val_str_from_val_str_ascii(String *str, String *ascii_buffer)
       res->set_charset(collation.collation);
     return res;
   }
-  
+
   DBUG_ASSERT(str != ascii_buffer);
-  
+
   uint errors;
   String *res= val_str_ascii(ascii_buffer);
   if (!res)
     return 0;
-  
+
   if ((null_value= str->copy(res->ptr(), res->length(),
                              &my_charset_latin1, collation.collation,
                              &errors)))
     return 0;
-  
+
   return str;
 }
 
@@ -281,7 +281,7 @@ String *Item_func_sha2::val_str_ascii(String *str)
   }
   digest_length/= 8; /* bits to bytes */
 
-  /* 
+  /*
     Since we're subverting the usual String methods, we must make sure that
     the destination has space for the bytes we're about to write.
   */
@@ -1345,7 +1345,7 @@ bool Item_func_reverse::fix_length_and_dec(THD *thd)
   Don't reallocate val_str() if not needed.
 
   @todo
-    Fix that this works with binary strings when using USE_MB 
+    Fix that this works with binary strings when using USE_MB
 */
 
 String *Item_func_replace::val_str_internal(String *str, bool null_to_empty)
@@ -1818,7 +1818,7 @@ String *Item_func_regexp_replace::val_str_internal(String *str,
 
     if (!re.match() || re.subpattern_length(0) == 0)
     {
-      /* 
+      /*
         No match or an empty match.
         Append the rest of the source string
         starting from startoffset until the end of the source.
@@ -2146,7 +2146,7 @@ String *Item_func_substr::val_str(String *str)
     return 0; /* purecov: inspected */
 
   /* Negative or zero length, will return empty string. */
-  if ((arg_count == 3) && (length <= 0) && 
+  if ((arg_count == 3) && (length <= 0) &&
       (length == 0 || !args[2]->unsigned_flag))
     return make_empty_result(str);
 
@@ -2325,8 +2325,8 @@ String *Item_func_substr_index::val_str(String *str)
       */
       for (offset=res->length(); offset ;)
       {
-        /* 
-          this call will result in finding the position pointing to one 
+        /*
+          this call will result in finding the position pointing to one
           address space less than where the found substring is located
           in res
         */
@@ -2658,7 +2658,7 @@ bool Item_func_password::fix_fields(THD *thd, Item **ref)
 String *Item_func_password::val_str_ascii(String *str)
 {
   DBUG_ASSERT(fixed());
-  String *res= args[0]->val_str(str); 
+  String *res= args[0]->val_str(str);
   switch (alg){
   case NEW:
     if (args[0]->null_value || res->length() == 0)
@@ -3021,7 +3021,7 @@ String *Item_func_soundex::val_str(String *str)
   char *to= (char *) str->ptr();
   char *to_end= to + str->alloced_length();
   char *from= (char *) res->ptr(), *end= from + res->length();
-  
+
   for ( ; ; ) /* Skip pre-space */
   {
     if ((rc= cs->mb_wc(&wc, (uchar*) from, (uchar*) end)) <= 0)
@@ -3057,7 +3057,7 @@ String *Item_func_soundex::val_str(String *str)
       }
     }
   }
-  
+
   /*
      last_ch is now set to the first 'double-letter' check.
      loop on input letters until end of input
@@ -3078,7 +3078,7 @@ String *Item_func_soundex::val_str(String *str)
       if (!my_uni_isalpha(wc))
         continue;
     }
-    
+
     ch= get_scode(wc);
     if ((ch != '0') && (ch != last_ch)) // if not skipped or double
     {
@@ -3094,9 +3094,9 @@ String *Item_func_soundex::val_str(String *str)
       last_ch= ch;  // save code of last input letter
     }               // for next double-letter check
   }
-  
+
   /* Pad up to 4 characters with DIGIT ZERO, if the string is shorter */
-  if (nchars < 4) 
+  if (nchars < 4)
   {
     uint nbytes= (4 - nchars) * cs->mbminlen;
     cs->fill(to, nbytes, '0');
@@ -3184,7 +3184,11 @@ String *Item_func_format::val_str_ascii(String *str)
     return NULL;
   }
 
-  lc= locale ? locale : args[2]->locale_from_val_str();
+  if (!(lc= locale ? locale : args[2]->locale_from_val_str()))
+  {
+    null_value= 1;
+    return 0;
+  }
 
   dec= set_zone(dec, 0, FORMAT_MAX_DECIMALS);
   dec_length= dec ? dec+1 : 0;
@@ -3222,7 +3226,7 @@ String *Item_func_format::val_str_ascii(String *str)
     const char *src= str->ptr() + str_length - dec_length - 1;
     const char *src_begin= str->ptr() + sign_length;
     char *dst= buf + sizeof(buf);
-    
+
     /* Put the fractional part */
     if (dec)
     {
@@ -3230,7 +3234,7 @@ String *Item_func_format::val_str_ascii(String *str)
       *dst= lc->decimal_point;
       memcpy(dst + 1, src + 2, dec);
     }
-    
+
     /* Put the integer part with grouping */
     for (count= *grouping; src >= src_begin; count--)
     {
@@ -3249,10 +3253,10 @@ String *Item_func_format::val_str_ascii(String *str)
       DBUG_ASSERT(dst > buf);
       *--dst= *src--;
     }
-    
+
     if (sign_length) /* Put '-' */
       *--dst= *str->ptr();
-    
+
     /* Put the rest of the integer part without grouping */
     str->copy(dst, buf + sizeof(buf) - dst, &my_charset_latin1);
   }
@@ -3337,7 +3341,7 @@ bool Item_func_make_set::fix_length_and_dec(THD *thd)
 
   if (agg_arg_charsets_for_string_result(collation, args + 1, arg_count - 1))
     return TRUE;
-  
+
   for (uint i=1 ; i < arg_count ; i++)
     char_length+= args[i]->max_char_length();
   fix_char_length(char_length);
@@ -3766,7 +3770,7 @@ String *Item_func_rpad::val_str(String *str)
   String *res= args[0]->val_str(str);
   String *rpad= arg_count == 2 ? &pad_str : args[2]->val_str(&pad_str);
 
-  if (!res || args[1]->null_value || !rpad || 
+  if (!res || args[1]->null_value || !rpad ||
       ((count < 0) && !args[1]->unsigned_flag))
     goto err;
 
@@ -3858,9 +3862,9 @@ String *Item_func_lpad::val_str(String *str)
   String *res= args[0]->val_str(&tmp_value);
   String *pad= arg_count == 2 ? &pad_str : args[2]->val_str(&pad_str);
 
-  if (!res || args[1]->null_value || !pad ||  
+  if (!res || args[1]->null_value || !pad ||
       ((count < 0) && !args[1]->unsigned_flag))
-    goto err;  
+    goto err;
 
   null_value=0;
 
@@ -3893,9 +3897,9 @@ String *Item_func_lpad::val_str(String *str)
     res->length(res->charpos((int) count));
     return res;
   }
-  
+
   byte_count= count * collation.collation->mbmaxlen;
-  
+
   {
     THD *thd= current_thd;
     if ((ulonglong) byte_count > thd->variables.max_allowed_packet)
@@ -3918,7 +3922,7 @@ String *Item_func_lpad::val_str(String *str)
   }
   else
     pad_char_length= 1; // Implicit space
-  
+
   str->length(0);
   str->set_charset(collation.collation);
   count-= res_char_length;
@@ -3962,12 +3966,12 @@ String *Item_func_conv::val_str(String *str)
   null_value= 0;
   unsigned_flag= !(from_base < 0);
 
-  if (args[0]->field_type() == MYSQL_TYPE_BIT) 
+  if (args[0]->field_type() == MYSQL_TYPE_BIT)
   {
-    /* 
+    /*
      Special case: The string representation of BIT doesn't resemble the
      decimal representation, so we shouldn't change it to string and then to
-     decimal. 
+     decimal.
     */
     dec= args[0]->val_int();
   }
@@ -4127,7 +4131,7 @@ String *Item_func_collation::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
   uint dummy_errors;
-  CHARSET_INFO *cs= args[0]->charset_for_protocol(); 
+  CHARSET_INFO *cs= args[0]->charset_for_protocol();
 
   null_value= 0;
   str->copy(cs->coll_name.str, cs->coll_name.length, &my_charset_latin1,
@@ -4141,7 +4145,7 @@ bool Item_func_weight_string::fix_length_and_dec(THD *thd)
   CHARSET_INFO *cs= args[0]->collation.collation;
   collation.set(&my_charset_bin, args[0]->collation.derivation);
   weigth_flags= my_strxfrm_flag_normalize(cs, weigth_flags);
-  /* 
+  /*
     Use result_length if it was given explicitly in constructor,
     otherwise calculate max_length using argument's max_length
     and "nweights".
@@ -4170,7 +4174,7 @@ String *Item_func_weight_string::val_str(String *str)
   if (args[0]->result_type() != STRING_RESULT ||
       !(res= args[0]->val_str(&tmp_value)))
     goto nl;
-  
+
   /*
     Use result_length if it was given in constructor
     explicitly, otherwise calculate result length
@@ -4192,7 +4196,7 @@ String *Item_func_weight_string::val_str(String *str)
       /*
         If we don't need to pad the result with spaces, then it should be
         OK to calculate character length of the argument approximately:
-        "res->length() / cs->mbminlen" can return a number that is 
+        "res->length() / cs->mbminlen" can return a number that is
         bigger than the real number of characters in the string, so
         we'll allocate a little bit more memory but avoid calling
         the slow res->numchars().
@@ -4819,7 +4823,7 @@ String *Item_func_compress::val_str(String *str)
   new_size= res->length() + res->length() / 5 + 12;
 
   // Check new_size overflow: new_size <= res->length()
-  if (((uint32) (new_size+5) <= res->length()) || 
+  if (((uint32) (new_size+5) <= res->length()) ||
       str->alloc((uint32) new_size + 4 + 1))
   {
     null_value= 1;
@@ -6272,7 +6276,7 @@ String *Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
     return 0;
   }
 
-  ssize_t gtid_len= my_snprintf((char*)gtid_str.ptr(), 
+  ssize_t gtid_len= my_snprintf((char*)gtid_str.ptr(),
                                 WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1,
                                 "%u-%u-%llu", wsrep_gtid_server.domain_id,
                                 wsrep_gtid_server.server_id,
@@ -6296,7 +6300,7 @@ String *Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
     null_value= TRUE;
     return 0;
   }
-  ssize_t gtid_len= my_snprintf((char*)gtid_str.ptr(), 
+  ssize_t gtid_len= my_snprintf((char*)gtid_str.ptr(),
                                 WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1,
                                 "%u-%u-%llu", wsrep_gtid_server.domain_id,
                                 wsrep_gtid_server.server_id,
@@ -6360,7 +6364,7 @@ longlong Item_func_wsrep_sync_wait_upto::val_int()
     }
   }
   else
-  { 
+  {
     my_error(ER_WRONG_ARGUMENTS, MYF(0), func_name());
     null_value= TRUE;
     ret= 0;

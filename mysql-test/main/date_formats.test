@@ -338,9 +338,87 @@ select str_to_date(date_format("2010-03-01","%e. %M %Y"), "%e. %M %Y");
 set @@lc_time_names="vi_VN";
 select str_to_date("1 Tháng hai 2026", "%e %M %Y"), str_to_date("20 tháng 3 2010", "%e %M %Y");
 select str_to_date("1 Tháng một 2026", "%e %M %Y");
+--enable_service_connection
+
+--echo #
+--echo MDEV-38967 add to STR_TO_DATE() locale parameter (optional)
+--echo #
+
+SELECT str_to_date('15 квітня 2026', '%d %M %Y', 'uk_UA');
+SELECT str_to_date('20 févr. 2026', '%d %b %Y', 'fr_FR');
+SELECT str_to_date('Понеділок 01 листопад 2026', '%W %d %M %Y', 'uk_UA') as a;
+SELECT str_to_date('mar. 02 Mars 2026', '%a %d %M %Y', 'fr_FR');
+select str_to_date("1 Tháng hai 2026", "%e %M %Y",'vi_VN'), str_to_date("20 tháng 3 2010", "%e %M %Y",'vi_VN');
+select str_to_date("1 Tháng một 2026", "%e %M %Y",'vi_VN');
+
+SET lc_time_names = 'de_DE';
+SELECT str_to_date('10 April 2026', '%d %M %Y','en_US');
+SELECT str_to_date('10 травня 2026', '%d %M %Y', 'uk_UA');
+select str_to_date(date_format("2010-03-01","%e. %M %Y","uk_UA"), "%e. %M %Y","uk_UA") as a;
+select str_to_date(date_format("2010-03-01","%e. %M %Y","it_IT"), "%e. %M %Y","uk_UA") as a;
+select str_to_date(date_format("2010-03-01","%e. %M %Y","it_IT"), "%e. %M %Y","it_CH") as a;
+
+SELECT str_to_date('10 Dezember 2026', '%d %M %Y',NULL);
+
+# invalid locale tests a warning and fallback to en_US
+--disable_warnings
+SELECT str_to_date('10 Dezember 2026', '%d %M %Y',"");
+show warnings;
+SELECT str_to_date('10 Dezember 2026', '%d %M %Y','aaaaa');
+show warnings;
+SELECT str_to_date('10 December 2026', '%d %M %Y','aaaaa');
+show warnings;
+SELECT str_to_date('1 May 2026', '%d %M %Y','aaaaa');
+show warnings;
+SELECT DATE_FORMAT('2010-03-01', '%d %M %Y','1');
+show warnings;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT DATE_FORMAT('2010-03-01', '%d %M %Y',POINT(1,1));
+--enable_warnings
+
+SELECT DATE_FORMAT('2010-03-01', '%d %M %Y','de_DE');
+SELECT DATE_FORMAT('2010-03-01', '%d %M %Y',NULL);
+
+SET @lc = 'de_DE';
+SELECT str_to_date('18 Oktober 2022', '%d %M %Y', @lc);
+prepare stmt from "SELECT str_to_date(?, '%d %M %Y', ?);";
+execute stmt using '20 september 2026','da_DK';
+execute stmt using '20 вересня 2026','uk_UA';
+
+SELECT str_to_date('20.févr..2026', '%d.%b.%Y', 'fr_FR');
+SELECT str_to_date('10.March.2026', '%d.%M.%Y', 'en_US');
+SELECT str_to_date('12. Mär 2026', '%d.%M %Y', 'de_DE');
+
+--vertical_results
+SELECT
+str_to_date('1 Tháng một 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng hai 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng ba 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng tư 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng năm 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng sáu 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng bảy 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng tám 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng chín 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng mười 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng mười một 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng mười hai 2026', '%d %M %Y','vi_VN');
+
+SELECT
+str_to_date('1 Tháng 1 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 2 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 3 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 4 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 5 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 6 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 7 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 8 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 9 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 10 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 11 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 12 2026', '%d %M %Y','vi_VN');
 
 --echo # End of 12.3 test
 
---enable_service_connection
 SET @@lc_time_names=DEFAULT;
 eval SET NAMES $old_charset;

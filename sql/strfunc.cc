@@ -57,7 +57,7 @@ ulonglong find_set(const TYPELIB *lib,
   *err_len= 0;
   if (str != end)
   {
-    const char *start= str;    
+    const char *start= str;
     for (;;)
     {
       const char *pos= start;
@@ -126,8 +126,8 @@ uint find_type(const TYPELIB *lib, const char *find, size_t length,
   const char *j;
   for (uint pos=0 ; (j=lib->type_names[pos++]) ; )
   {
-    for (i=find ; i != end && 
-	   my_toupper(system_charset_info,*i) == 
+    for (i=find ; i != end &&
+	   my_toupper(system_charset_info,*i) ==
 	   my_toupper(system_charset_info,*j) ; i++, j++) ;
     if (i == end)
     {
@@ -236,77 +236,71 @@ void unhex_type2(TYPELIB *interval)
 
   SYNOPSIS
     check_word()
-    lib		TYPELIB
-    val		String to check
-    end		End of input
-    end_of_word	Store value of last used byte here if we found word
+    cs           Character set
+    lib          TYPELIB
+    val          String to check
+    end          End of input
+    end_of_word  points to the first character after the matched string
+
+  NOTES
+    works for multi-byte characters
+  - matches the longest prefix, whether it's letters, digits or punctuation
+    (e.g. see month names for Japanese and Vietnamese)
+  - cs is utf8mb4_general_ci, because that's the charset of strings in sql_locale.cc
+    If multiple entries match as prefixes of the same length, the result is
+    considered ambiguous (returns 0) unless one of them is an exact match.
 
   RETURN
-    0	 No matching value
-    > 1  lib->type_names[#-1] matched
-	 end_of_word will point to separator character/end in 'val'
+    0  No matching value
+    > 0  lib->type_names[#-1] matched
+   end_of_word will point to separator character/end in 'val'
 */
 
-uint check_word(TYPELIB *lib, const char *val, const char *end,
-		const char **end_of_word)
-{
-  int res;
-  const char *ptr;
-
-  /* Find end of word */
-  for (ptr= val ; ptr < end && my_isalpha(&my_charset_latin1, *ptr) ; ptr++)
-    ;
-  if ((res=find_type(lib, val, (uint) (ptr - val), 1)) > 0)
-    *end_of_word= ptr;
-  return res;
-}
-
-/*
-  Like check_word() in strfunc, with the following differnces for
-  multi-byte characters:
-  - Word can contain numbers (needed for matching Japanese months)
-  - If multiple partial matches and next character is space, try
-    matching with two words (needed for matching vietnamese months)
-*/
-
-uint check_word2(CHARSET_INFO *cs, TYPELIB *lib, const char *val,
+uint check_word(CHARSET_INFO *cs, TYPELIB *lib, const char *val,
                 const char *end, const char **end_of_word)
 {
-  int res, rc=0, round;
-  const char *ptr, *val_start= val;
-  my_bool part_match;
-  my_wc_t wc= 0;
-
-  if (cs->mbmaxlen == 1)
-    return check_word(lib, val, end, end_of_word);
-
-  /*
-    Try to match one word or two words.
-    Needed for matching vietnamese months which are two words
-  */
-  for (round= 0 ; round < 2 ; round++, val= ptr+1)
+  uint prefix_match= 0, prefix_len= 0, exact= 0;
+  for (uint i=0; i < lib->count; i++)
   {
-    /*
-      Find end of word. Words ends with single letter non alpha character or
-      end of string.
-    */
-    for (ptr=val ; ptr < end ; ptr+= rc)
+    const char *s= lib->type_names[i], *e= s + lib->type_lengths[i], *v= val;
+    my_wc_t wcv_prev;
+    int lv_prev=0;
+    while (v < end && s < e)
     {
-      if ((rc= cs->mb_wc(&wc, (const uchar*) ptr,
-                         (const uchar*) end)) <= 0 ||
-          (rc == 1 && !my_isalnum(cs, wc)))
+      my_wc_t wcs, wcv;
+      int ls, lv;
+      if ((ls= cs->mb_wc(&wcs, (const uchar*) s, (const uchar*) e)) <= 0 ||
+          (lv= cs->mb_wc(&wcv, (const uchar*) v, (const uchar*) end)) <= 0)
+        return 0; // invalid character
+      if (cs->strnncoll(s, ls, v, lv))
         break;
+      lv_prev= lv;
+      wcv_prev= wcv;
+      s+= ls;
+      v+= lv;
     }
-    if ((res= find_type2(lib, val_start, (size_t) (ptr - val_start),
-                         &part_match, cs)) > 0)
+    if (lv_prev == 1 && my_isspace(cs, wcv_prev))
+      v--; // don't include an endspace
+    else if (lv_prev > 1 || (lv_prev == 1 && my_isalnum(cs, wcv_prev)))
     {
-      *end_of_word= ptr;
-      return res;
+      my_wc_t wcv;
+      int lv= cs->mb_wc(&wcv, (const uchar*) v, (const uchar*) end);
+      if (lv > 1 || (lv == 1 && my_isalnum(cs, wcv)))
+        continue; // won't break mid-word
     }
-    if (!part_match || ptr == end || rc != 1 || !my_isspace(cs, wc))
-      return res;
+    // prefix match of the name
+    if ((uint) (v - val) > prefix_len || s >= e)
+    {
+      exact= s >= e;
+      prefix_match= i + 1;
+      prefix_len= (uint) (v - val);
+    }
+    else if (prefix_len && (uint) (v - val) == prefix_len && !exact)
+      prefix_match= 0; // ambiguous
   }
-  return 0;                                     // No match
+  if (prefix_match)
+    *end_of_word= val + prefix_len;
+  return prefix_match;
 }
 
 
