@@ -626,5 +626,26 @@ SELECT DATE_FORMAT('2023-03-26 03:00:00', '%z %Z');
 DATE_FORMAT('2023-03-26 03:00:00', '%z %Z')
 +0200 MEST
 #
+# MDEV-29564: DATE_FORMAT: support ISO 8601 timezone
+#
+# Testing %L (milliseconds)
+SELECT DATE_FORMAT('2022-10-01 20:04:05.465', '%Y-%m-%dT%H:%i:%s.%L');
+DATE_FORMAT('2022-10-01 20:04:05.465', '%Y-%m-%dT%H:%i:%s.%L')
+2022-10-01T20:04:05.465
+# Testing %o (colon-separated timezone offset)
+SET time_zone = '+05:30';
+SELECT DATE_FORMAT('2022-10-01 20:04:05', '%Y-%m-%dT%H:%i:%s%o');
+DATE_FORMAT('2022-10-01 20:04:05', '%Y-%m-%dT%H:%i:%s%o')
+2022-10-01T20:04:05+05:30
+SET time_zone = '-08:00';
+SELECT DATE_FORMAT('2022-10-01 20:04:05', '%Y-%m-%dT%H:%i:%s%o');
+DATE_FORMAT('2022-10-01 20:04:05', '%Y-%m-%dT%H:%i:%s%o')
+2022-10-01T20:04:05-08:00
+# Combined test: full ISO 8601 format
+SET time_zone = '+05:30';
+SELECT DATE_FORMAT('2022-10-01 20:04:05.465', '%Y-%m-%dT%H:%i:%s.%L%o');
+DATE_FORMAT('2022-10-01 20:04:05.465', '%Y-%m-%dT%H:%i:%s.%L%o')
+2022-10-01T20:04:05.465+05:30
+#
 # End of 11.3 test
 #
