@@ -1,0 +1,33 @@
+#
+# Test 1: --validate-config with valid configuration should succeed (exit 0)
+#
+#
+# Test 2: --validate-config with unknown option should fail (exit 2)
+#
+#
+# Test 3: --validate-config should not start the server (no pid file)
+#
+#
+# Test 4: --validate-config should not produce help output
+#
+NOT FOUND /Starts the MariaDB database server/ in mdev-31527-test4.log
+#
+# Test 5: --validate-config with bad option in config file should fail
+#
+FOUND 1 /unknown variable 'zzz_bogus_option=123'/ in mdev-31527-test5.log
+#
+# Test 6: --validate-config with valid config file should succeed
+#
+FOUND 1 /Configuration is valid/ in mdev-31527-test6.log
+#
+# Test 7: --validate-config with --help (help takes precedence)
+#
+FOUND 1 /Starts the MariaDB database server/ in mdev-31527-test7.log
+#
+# Test 8: --validate-config with --verbose
+#
+FOUND 1 /Configuration is valid/ in mdev-31527-test8.log
+#
+# Test 9: --validate-config with --bootstrap (already used via MYSQLD_BOOTSTRAP_CMD, test explicit)
+#
+FOUND 1 /Configuration is valid/ in mdev-31527-test9.log

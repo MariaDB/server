@@ -1,0 +1,99 @@
+#
+# Test --validate-config option (MDEV-31527)
+#
+# The --validate-config flag validates the configuration and exits
+# with exit code 0 on success, or non-zero on failure, without starting
+# the server.
+#
+
+--source include/not_embedded.inc
+
+# mysqld refuses to run as root normally.
+--source include/not_as_root.inc
+
+--echo #
+--echo # Test 1: --validate-config with valid configuration should succeed (exit 0)
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD --validate-config >$MYSQLTEST_VARDIR/tmp/mdev-31527-test1.log 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev-31527-test1.log
+
+--echo #
+--echo # Test 2: --validate-config with unknown option should fail (exit 2)
+--echo #
+--error 2
+--exec $MYSQLD_BOOTSTRAP_CMD --validate-config --nonexistentoption >$MYSQLTEST_VARDIR/tmp/mdev-31527-test2.log 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev-31527-test2.log
+
+--echo #
+--echo # Test 3: --validate-config should not start the server (no pid file)
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD --validate-config --pid-file=$MYSQLTEST_VARDIR/tmp/mdev-31527-validate.pid >$MYSQLTEST_VARDIR/tmp/mdev-31527-test3.log 2>&1
+--error 1
+--file_exists $MYSQLTEST_VARDIR/tmp/mdev-31527-validate.pid
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev-31527-test3.log
+
+--echo #
+--echo # Test 4: --validate-config should not produce help output
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD --validate-config >$MYSQLTEST_VARDIR/tmp/mdev-31527-test4.log 2>&1
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/mdev-31527-test4.log
+--let SEARCH_PATTERN=Starts the MariaDB database server
+--source include/search_pattern_in_file.inc
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev-31527-test4.log
+
+--echo #
+--echo # Test 5: --validate-config with bad option in config file should fail
+--echo #
+--write_file $MYSQLTEST_VARDIR/tmp/mdev-31527-bad.cnf
+[mariadb]
+zzz_bogus_option=123
+EOF
+--error 7
+--exec $MYSQLD --defaults-file=$MYSQLTEST_VARDIR/tmp/mdev-31527-bad.cnf --validate-config --datadir=$MYSQLTEST_VARDIR/tmp --lc-messages-dir=$MYSQL_SHAREDIR --character-sets-dir=$MYSQL_CHARSETSDIR --console >$MYSQLTEST_VARDIR/tmp/mdev-31527-test5.log 2>&1
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/mdev-31527-test5.log
+--let SEARCH_PATTERN=unknown variable 'zzz_bogus_option=123'
+--source include/search_pattern_in_file.inc
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev-31527-test5.log
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev-31527-bad.cnf
+
+--echo #
+--echo # Test 6: --validate-config with valid config file should succeed
+--echo #
+--write_file $MYSQLTEST_VARDIR/tmp/mdev-31527-good.cnf
+[mariadb]
+max_connections=50
+EOF
+--exec $MYSQLD --defaults-file=$MYSQLTEST_VARDIR/tmp/mdev-31527-good.cnf --validate-config --datadir=$MYSQLTEST_VARDIR/tmp --lc-messages-dir=$MYSQL_SHAREDIR --character-sets-dir=$MYSQL_CHARSETSDIR --console >$MYSQLTEST_VARDIR/tmp/mdev-31527-test6.log 2>&1
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/mdev-31527-test6.log
+--let SEARCH_PATTERN=Configuration is valid
+--source include/search_pattern_in_file.inc
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev-31527-test6.log
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev-31527-good.cnf
+
+--echo #
+--echo # Test 7: --validate-config with --help (help takes precedence)
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD --validate-config --help >$MYSQLTEST_VARDIR/tmp/mdev-31527-test7.log 2>&1
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/mdev-31527-test7.log
+--let SEARCH_PATTERN=Starts the MariaDB database server
+--source include/search_pattern_in_file.inc
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev-31527-test7.log
+
+--echo #
+--echo # Test 8: --validate-config with --verbose
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD --validate-config --verbose >$MYSQLTEST_VARDIR/tmp/mdev-31527-test8.log 2>&1
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/mdev-31527-test8.log
+--let SEARCH_PATTERN=Configuration is valid
+--source include/search_pattern_in_file.inc
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev-31527-test8.log
+
+--echo #
+--echo # Test 9: --validate-config with --bootstrap (already used via MYSQLD_BOOTSTRAP_CMD, test explicit)
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD --validate-config >$MYSQLTEST_VARDIR/tmp/mdev-31527-test9.log 2>&1
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/mdev-31527-test9.log
+--let SEARCH_PATTERN=Configuration is valid
+--source include/search_pattern_in_file.inc
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev-31527-test9.log
+
