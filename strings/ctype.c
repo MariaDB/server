@@ -69,23 +69,23 @@ struct my_cs_file_section_st
   const char *str;
 };
 
-#define _CS_MISC	1
-#define _CS_ID		2
-#define _CS_CSNAME	3
-#define _CS_FAMILY	4
-#define _CS_ORDER	5
-#define _CS_COLNAME	6
-#define _CS_FLAG	7
-#define _CS_CHARSET	8
-#define _CS_COLLATION	9
-#define _CS_UPPERMAP	10
-#define _CS_LOWERMAP	11
-#define _CS_UNIMAP	12
-#define _CS_COLLMAP	13
-#define _CS_CTYPEMAP	14
-#define _CS_PRIMARY_ID	15
-#define _CS_BINARY_ID	16
-#define _CS_CSDESCRIPT	17
+#define _CS_MISC  1
+#define _CS_ID    2
+#define _CS_CSNAME  3
+#define _CS_FAMILY  4
+#define _CS_ORDER 5
+#define _CS_COLNAME 6
+#define _CS_FLAG  7
+#define _CS_CHARSET 8
+#define _CS_COLLATION 9
+#define _CS_UPPERMAP  10
+#define _CS_LOWERMAP  11
+#define _CS_UNIMAP  12
+#define _CS_COLLMAP 13
+#define _CS_CTYPEMAP  14
+#define _CS_PRIMARY_ID  15
+#define _CS_BINARY_ID 16
+#define _CS_CSDESCRIPT  17
 
 
 /* Special purpose commands */
@@ -161,34 +161,34 @@ struct my_cs_file_section_st
 
 static const struct my_cs_file_section_st sec[] =
 {
-  {_CS_MISC,		"xml"},
-  {_CS_MISC,		"xml/version"},
-  {_CS_MISC,		"xml/encoding"},
-  {_CS_MISC,		"charsets"},
-  {_CS_MISC,		"charsets/max-id"},
-  {_CS_MISC,		"charsets/copyright"},
-  {_CS_MISC,		"charsets/description"},
-  {_CS_CHARSET,		"charsets/charset"},
-  {_CS_PRIMARY_ID,	"charsets/charset/primary-id"},
-  {_CS_BINARY_ID,	"charsets/charset/binary-id"},
-  {_CS_CSNAME,		"charsets/charset/name"},
-  {_CS_FAMILY,		"charsets/charset/family"},
-  {_CS_CSDESCRIPT,	"charsets/charset/description"},
-  {_CS_MISC,		"charsets/charset/alias"},
-  {_CS_MISC,		"charsets/charset/ctype"},
-  {_CS_CTYPEMAP,	"charsets/charset/ctype/map"},
-  {_CS_MISC,		"charsets/charset/upper"},
-  {_CS_UPPERMAP,	"charsets/charset/upper/map"},
-  {_CS_MISC,		"charsets/charset/lower"},
-  {_CS_LOWERMAP,	"charsets/charset/lower/map"},
-  {_CS_MISC,		"charsets/charset/unicode"},
-  {_CS_UNIMAP,		"charsets/charset/unicode/map"},
-  {_CS_COLLATION,	"charsets/charset/collation"},
-  {_CS_COLNAME,		"charsets/charset/collation/name"},
-  {_CS_ID,		"charsets/charset/collation/id"},
-  {_CS_ORDER,		"charsets/charset/collation/order"},
-  {_CS_FLAG,		"charsets/charset/collation/flag"},
-  {_CS_COLLMAP,		"charsets/charset/collation/map"},
+  {_CS_MISC,    "xml"},
+  {_CS_MISC,    "xml/version"},
+  {_CS_MISC,    "xml/encoding"},
+  {_CS_MISC,    "charsets"},
+  {_CS_MISC,    "charsets/max-id"},
+  {_CS_MISC,    "charsets/copyright"},
+  {_CS_MISC,    "charsets/description"},
+  {_CS_CHARSET,   "charsets/charset"},
+  {_CS_PRIMARY_ID,  "charsets/charset/primary-id"},
+  {_CS_BINARY_ID, "charsets/charset/binary-id"},
+  {_CS_CSNAME,    "charsets/charset/name"},
+  {_CS_FAMILY,    "charsets/charset/family"},
+  {_CS_CSDESCRIPT,  "charsets/charset/description"},
+  {_CS_MISC,    "charsets/charset/alias"},
+  {_CS_MISC,    "charsets/charset/ctype"},
+  {_CS_CTYPEMAP,  "charsets/charset/ctype/map"},
+  {_CS_MISC,    "charsets/charset/upper"},
+  {_CS_UPPERMAP,  "charsets/charset/upper/map"},
+  {_CS_MISC,    "charsets/charset/lower"},
+  {_CS_LOWERMAP,  "charsets/charset/lower/map"},
+  {_CS_MISC,    "charsets/charset/unicode"},
+  {_CS_UNIMAP,    "charsets/charset/unicode/map"},
+  {_CS_COLLATION, "charsets/charset/collation"},
+  {_CS_COLNAME,   "charsets/charset/collation/name"},
+  {_CS_ID,    "charsets/charset/collation/id"},
+  {_CS_ORDER,   "charsets/charset/collation/order"},
+  {_CS_FLAG,    "charsets/charset/collation/flag"},
+  {_CS_COLLMAP,   "charsets/charset/collation/map"},
 
   /* Special purpose commands */
   {_CS_UCA_VERSION,              "charsets/charset/collation/version"},
@@ -257,7 +257,7 @@ static const struct my_cs_file_section_st sec[] =
   {_CS_RESET_FIRST_VARIABLE,            "charsets/charset/collation/rules/reset/first_variable"},
   {_CS_RESET_LAST_VARIABLE,             "charsets/charset/collation/rules/reset/last_variable"},
 
-  {0,	NULL}
+  {0, NULL}
 };
 
 static const struct my_cs_file_section_st
@@ -272,8 +272,8 @@ static const struct my_cs_file_section_st
   return NULL;
 }
 
-#define MY_CS_CSDESCR_SIZE	64
-#define MY_CS_TAILORING_SIZE	(32*1024)
+#define MY_CS_CSDESCR_SIZE  64
+#define MY_CS_TAILORING_SIZE  (32*1024)
 #define MY_CS_UCA_VERSION_SIZE  64
 #define MY_CS_CONTEXT_SIZE      64
 
@@ -977,7 +977,7 @@ my_repertoire_t my_charset_repertoire(CHARSET_INFO *cs)
   When merging to 5.2, this function should be changed
   to check a new flag MY_CS_NONASCII, 
   
-     return (cs->flag & MY_CS_NONASCII) ? 0 : 1;
+      return (cs->flag & MY_CS_NONASCII) ? 0 : 1;
   
   This flag was previously added into 5.2 under terms
   of WL#3759 "Optimize identifier conversion in client-server protocol"
@@ -1004,11 +1004,11 @@ my_is_printable(my_wc_t wc)
 {
   /*
     Blocks:
-      U+0000 .. U+001F     control
-      U+0020 .. U+007E     printable
-      U+007F .. U+009F     control
-      U+00A0 .. U+00FF     printable
-      U+0100 .. U+10FFFF   As of Unicode-6.1.0, this range does not have any
+      U+0000 .. U+001F    control
+      U+0020 .. U+007E    printable
+      U+007F .. U+009F    control
+      U+00A0 .. U+00FF    printable
+      U+0100 .. U+10FFFF  As of Unicode-6.1.0, this range does not have any
                            characters of the "Cc" (Other, control) category.
                            Should be mostly safe to print.
                            Except for the surrogate halfs,
@@ -1154,8 +1154,8 @@ my_convert_using_func(char *to, size_t to_length,
                       CHARSET_INFO *from_cs, my_charset_conv_mb_wc mb_wc,
                       uint *errors)
 {
-  int         cnvres;
-  my_wc_t     wc;
+  int        cnvres;
+  my_wc_t    wc;
   const uchar *from_end= (const uchar*) from + from_length;
   char *to_start= to;
   uchar *to_end= (uchar*) to + to_length;
@@ -1167,6 +1167,13 @@ my_convert_using_func(char *to, size_t to_length,
       from+= cnvres;
     else if (cnvres == MY_CS_ILSEQ)
     {
+      error_count++;
+      from++;
+      wc= '?';
+    }
+    else if (cnvres == 0)
+    {
+      /* MDEV-38904 FIX: Prevent 100% CPU infinite loop on 0-byte consumption */
       error_count++;
       from++;
       wc= '?';
@@ -1270,7 +1277,8 @@ my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
   {
     if (!length)
     {
-      *errors= 0;
+      /* FIX: Catch silent truncation if the destination buffer is too small */
+      *errors= (from_length > to_length) ? MY_CS_TRUNCATED : 0;
       return length2;
     }
     if (*((unsigned char*) from) > 0x7F) /* A non-ASCII character */
@@ -1319,6 +1327,14 @@ my_convert_fix(CHARSET_INFO *to_cs, char *to, size_t to_length,
       from+= cnvres;
     else if (cnvres == MY_CS_ILSEQ)
     {
+      if (!copy_status->m_well_formed_error_pos)
+        copy_status->m_well_formed_error_pos= from;
+      from++;
+      wc= '?';
+    }
+    else if (cnvres == 0)
+    {
+      /* MDEV-38904 FIX: Prevent 100% CPU infinite loop on 0-byte consumption */
       if (!copy_status->m_well_formed_error_pos)
         copy_status->m_well_formed_error_pos= from;
       from++;
