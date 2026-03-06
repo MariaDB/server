@@ -151,6 +151,7 @@ public:
 
   enum_type m_column_type;
   bool m_format_json;
+  bool m_explicit_format_json;
   json_path_t m_path;
   On_response m_on_error;
   On_response m_on_empty;
@@ -165,12 +166,14 @@ public:
   int set(THD *thd, enum_type ctype, const LEX_CSTRING &path, CHARSET_INFO *cs);
   int set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
           const Lex_column_charset_collation_attrs_st &cl);
+  bool enable_format_json();
   Json_table_column(Create_field *f, Json_table_nested_path *nest) :
     m_field(f), m_nest(nest), m_explicit_cs(NULL)
   {
     m_on_error.m_response= RESPONSE_NOT_SPECIFIED;
     m_on_empty.m_response= RESPONSE_NOT_SPECIFIED;
     m_format_json= false;
+    m_explicit_format_json= false;
   }
   int print(THD *tnd, Field **f, String *str);
 };
@@ -291,4 +294,3 @@ table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
                                           table_map nest_tables, bool *error);
 
 #endif /* JSON_TABLE_INCLUDED */
-

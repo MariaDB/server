@@ -12310,6 +12310,20 @@ json_table_column_type:
               MYSQL_YYABORT;
             }
           }
+        | json_table_field_type FORMAT_SYM JSON_SYM PATH_SYM json_text_literal
+            json_opt_on_empty_or_error
+          {
+            if (Lex->last_field->set_attributes(thd, $1,
+                                                COLUMN_DEFINITION_TABLE_FIELD))
+              MYSQL_YYABORT;
+            if (Lex->json_table->m_cur_json_table_column->enable_format_json() ||
+                Lex->json_table->m_cur_json_table_column->
+                  set(thd, Json_table_column::PATH, $5,
+                      $1.charset_collation_attrs()))
+            {
+              MYSQL_YYABORT;
+            }
+          }
         | json_table_field_type EXISTS PATH_SYM json_text_literal
           {
             if (Lex->last_field->set_attributes(thd, $1,
