@@ -711,8 +711,6 @@ static void make_slave_skip_errors_printable(void)
   DBUG_ASSERT(sizeof(slave_skip_error_names) > MIN_ROOM);
   DBUG_ASSERT(MAX_SLAVE_ERROR <= 999999); // 6 digits
 
-  /* Make @@slave_skip_errors show the nice human-readable value.  */
-  opt_slave_skip_errors= slave_skip_error_names;
 
   if (!use_slave_mask || bitmap_is_clear_all(&slave_error_mask))
   {
@@ -774,13 +772,20 @@ bool init_slave_skip_errors(const char* arg)
   if (!arg || !*arg)                            // No errors defined
     goto end;
 
-  if (my_bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR))
-    DBUG_RETURN(1);
+  if (!slave_error_mask.bitmap)
+  {
+    if (my_bitmap_init(&slave_error_mask, 0, MAX_SLAVE_ERROR))
+      DBUG_RETURN(1);
+  }
+  else
+  {
+    bitmap_clear_all(&slave_error_mask);
+  }
 
   use_slave_mask= 1;
   for (;my_isspace(system_charset_info,*arg);++arg)
     /* empty */;
-  if (!system_charset_info->strnncoll((uchar*)arg,4,(const uchar*)"all",4))
+  if (strlen(arg) == 3 && !system_charset_info->strnncoll((uchar*)arg,3,(const uchar*)"all",3))
   {
     bitmap_set_all(&slave_error_mask);
     goto end;
@@ -799,6 +804,38 @@ bool init_slave_skip_errors(const char* arg)
 end:
   make_slave_skip_errors_printable();
   DBUG_RETURN(0);
+}
+
+
+bool check_slave_skip_errors(sys_var *self, THD *thd, set_var *var)
+{
+  return give_error_if_slave_running(0);
+}
+
+
+bool update_slave_skip_errors(sys_var *self, THD *thd, enum_var_type type)
+{
+  bool err= false;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+
+  if (give_error_if_slave_running(1))
+  {
+    my_error(ER_SLAVE_MUST_STOP, MYF(0));
+    err= true;
+  }
+
+  if (!err && init_slave_skip_errors(opt_slave_skip_errors))
+  {
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "slave_skip_errors", opt_slave_skip_errors);
+    err= true;
+    opt_slave_skip_errors= slave_skip_error_names;
+  }
+
+
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  return err;
 }
 
 /**
