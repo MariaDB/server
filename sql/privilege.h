@@ -660,6 +660,7 @@ constexpr privilege_t PRIV_STMT_CREATE_SERVER= FEDERATED_ADMIN_ACL;
 constexpr privilege_t PRIV_STMT_ALTER_SERVER= FEDERATED_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_STMT_DROP_SERVER= FEDERATED_ADMIN_ACL;
+constexpr privilege_t PRIV_STMT_SHOW_CREATE_SERVER= FEDERATED_ADMIN_ACL;
 
 
 /* Privileges related to processes */

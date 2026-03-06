@@ -5181,6 +5181,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     res= show_create_db(thd, lex);
     break;
   case SQLCOM_SHOW_CREATE_SERVER:
+    if (check_global_access(thd, PRIV_STMT_SHOW_CREATE_SERVER))
+      break;
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
     res= mysql_show_create_server(thd, &lex->name);
     break;
