@@ -80,3 +80,40 @@ DROP USER user1@localhost;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # Start of 11.8 tests
+--echo #
+
+--echo #
+--echo # MDEV-38601 SHOW CREATE SERVER does not require FEDERATED ADMIN
+--echo #
+
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+  OPTIONS (USER 'remote_user', HOST 'localhost', PASSWORD 'secret', DATABASE 'test2');
+
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE FEDERATED ADMIN, SUPER ON *.* FROM user1@localhost;
+
+connect (con1,localhost,user1,,);
+connection con1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SHOW CREATE SERVER srv;
+disconnect con1;
+
+connection default;
+GRANT FEDERATED ADMIN ON *.* TO user1@localhost;
+
+connect (con1,localhost,user1,,);
+connection con1;
+SHOW CREATE SERVER srv;
+disconnect con1;
+
+connection default;
+DROP SERVER srv;
+DROP USER user1@localhost;
+
+--echo #
+--echo # End of 11.8 tests
+--echo #
