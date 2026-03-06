@@ -162,10 +162,33 @@ void my_virtual_mem_decommit(char *ptr, size_t size)
   update_malloc_size(-(longlong) size, 0);
 }
 
+
+#if defined(HAVE_MMAP) && !defined(_WIN32)
+/* Solaris for example has only MAP_ANON, FreeBSD has MAP_ANONYMOUS and
+MAP_ANON but MAP_ANONYMOUS is marked "for compatibility" */
+#if defined(MAP_ANONYMOUS)
+#define OS_MAP_ANON     MAP_ANONYMOUS
+#elif defined(MAP_ANON)
+#define OS_MAP_ANON     MAP_ANON
+#else
+#error unsupported mmap - no MAP_ANON{YMOUS}
+#endif
+#endif /* HAVE_MMAP && !_WIN32 */
+
+char *my_virtual_mem_alloc(size_t size)
+{
+#ifdef _WIN32
+  return VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+#else
+  return mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | OS_MAP_ANON,
+              -1, 0);
+#endif
+}
+
+
 void my_virtual_mem_release(char *ptr, size_t size)
 {
 #ifdef _WIN32
-  DBUG_ASSERT(my_use_large_pages || !is_memory_committed(ptr, size));
   if (!VirtualFree(ptr, 0, MEM_RELEASE))
   {
     my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size,
