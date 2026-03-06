@@ -513,6 +513,19 @@ int thd_sql_command(const THD *thd)
   return (int) thd->lex->sql_command;
 }
 
+extern "C" int thd_sql_is_table_accessed(const MYSQL_THD thd,
+                                         const char *db_name,
+                                         const char *table_name)
+{
+  for (TABLE *table= thd->open_tables; table; table= table->next)
+  {
+    if (!strcmp(table->s->db.str, db_name) &&
+        !strcmp(table->s->table_name.str, table_name))
+      return 1;
+  }
+  return 0;
+}
+
 /*
   Returns options used with DDL's, like IF EXISTS etc...
   Will returns 'nonsense' if the command was not a DDL.
