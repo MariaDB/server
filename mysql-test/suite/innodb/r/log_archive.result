@@ -1,0 +1,68 @@
+call mtr.add_suppression("InnoDB: No matching file found for innodb_log_recovery_start=12288");
+call mtr.add_suppression("InnoDB: innodb_read_only prevents crash recovery between 18446744073705357279 and 18446744073705357311");
+call mtr.add_suppression("InnoDB: Did not find any checkpoint after LSN=18446744073701175296");
+call mtr.add_suppression("InnoDB: cannot fulfill innodb_log_recovery_target=18446744073705357290<18446744073705357306");
+call mtr.add_suppression("InnoDB: innodb_log_archive=ON but .*ib_logfile0 exists");
+call mtr.add_suppression("InnoDB: Renaming ib_ffffffffff803000.log to ib_logfile0");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+# restart: --innodb-read-only --innodb-log-recovery-start=12288
+SELECT variable_name, variable_value FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_LSN%';
+variable_name	variable_value
+FOUND 1 /InnoDB: No matching file found for innodb_log_recovery_start=12288/ in mysqld.1.err
+# restart: --innodb-read-only --innodb-log-recovery-start=18446744073705357279
+SELECT variable_name, variable_value FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_LSN%';
+variable_name	variable_value
+FOUND 1 /InnoDB: innodb_read_only prevents crash recovery between 18446744073705357279 and 18446744073705357311/ in mysqld.1.err
+# restart: --innodb-read-only --innodb-log-recovery-start=18446744073705357311
+SELECT variable_name, variable_value FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_LSN%';
+variable_name	variable_value
+# restart: --innodb-log-recovery-start=0 --innodb-log-recovery-target=18446744073705357290
+FOUND 1 /InnoDB: Did not find any checkpoint after LSN=18446744073701175296/ in mysqld.1.err
+# restart: --innodb-log-recovery-start=0 --innodb-log-recovery-target=18446744073705357290
+FOUND 2 /InnoDB: Did not find any checkpoint after LSN=18446744073701175296/ in mysqld.1.err
+FOUND 1 /InnoDB: End of log at LSN=18446744073705357295/ in mysqld.1.err
+FOUND 1 /InnoDB: cannot fulfill innodb_log_recovery_target=18446744073705357290<18446744073705357306/ in mysqld.1.err
+# restart: --innodb-log-recovery-start=0 --innodb-read-only --innodb-log-archive
+FOUND 1 /InnoDB: innodb_log_archive=ON but .*ib_logfile0 exists/ in mysqld.1.err
+# restart: --innodb-log-recovery-start=0 --innodb-read-only --skip-innodb-log-archive
+FOUND 2 /InnoDB: innodb_read_only prevents crash recovery between 18446744073705357279 and 18446744073705357311/ in mysqld.1.err
+# restart: --innodb-log-recovery-start=0 --innodb-log-recovery-target=18446744073705357295
+SELECT variable_name, variable_value FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_LSN%';
+variable_name	variable_value
+INNODB_LSN_CURRENT	18446744073705357295
+INNODB_LSN_FLUSHED	18446744073705357295
+INNODB_LSN_LAST_CHECKPOINT	18446744073705357279
+INNODB_LSN_ARCHIVED	18446744073705357279
+FOUND 1 /InnoDB: Renaming .*ffffffffff803000\.log to ib_logfile0/ in mysqld.1.err
+CREATE TABLE t0 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t0` (errno: 165 "Table is read only")
+RENAME TABLE mysql.innodb_table_stats TO mysql.intabdb_noble_stats;
+ERROR HY000: Error on rename of './mysql/innodb_table_stats' to './mysql/intabdb_noble_stats' (errno: 165 "Table is read only")
+DROP TABLE mysql.innodb_index_stats;
+ERROR HY000: Table 'innodb_index_stats' is read only
+ALTER TABLE mysql.innodb_table_stats ROW_FORMAT=COMPACT, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Running in read-only mode. Try ALGORITHM=COPY
+TRUNCATE TABLE mysql.innodb_table_stats;
+ERROR HY000: Table 'innodb_table_stats' is read only
+# restart: --innodb-log-recovery-start=0 --innodb-log-recovery-target=18446744073705357290
+SELECT variable_name, variable_value FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_LSN%';
+variable_name	variable_value
+INNODB_LSN_CURRENT	18446744073705357295
+INNODB_LSN_FLUSHED	18446744073705357295
+INNODB_LSN_LAST_CHECKPOINT	18446744073705357279
+INNODB_LSN_ARCHIVED	18446744073705357279
+# restart: --innodb-log-recovery-start=18446744073705357279
+SELECT variable_name, variable_value FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_LSN%';
+variable_name	variable_value
+INNODB_LSN_CURRENT	18446744073705357295
+INNODB_LSN_FLUSHED	18446744073705357295
+INNODB_LSN_LAST_CHECKPOINT	18446744073705357279
+INNODB_LSN_ARCHIVED	18446744073705357279
+# restart: --innodb-log-recovery-start=0

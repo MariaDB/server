@@ -97,7 +97,6 @@ static const char *removed_variables[] =
 "innodb_locks_unsafe_for_binlog",
 "innodb_log_arch_dir",
 "innodb_log_arch_expire_sec",
-"innodb_log_archive",
 "innodb_log_block_size",
 "innodb_log_checksum_algorithm",
 "innodb_log_checksums",

@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/no_checkpoint_prepare.inc
 --source include/have_debug.inc
 
 --disable_query_log
@@ -22,6 +23,7 @@ INSERT INTO t1 VALUES(1, 'sql'), (2, 'server'), (3, 'mariadb'),
 	(12, 'test8');
 
 let $restart_noprint=2;
+let $restart_parameters=--innodb-log-recovery-start=0;
 --source include/restart_mysqld.inc
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
@@ -49,7 +51,7 @@ EOF
 SELECT * FROM t1 WHERE PK = 1;
 
 # Force recovery to ignore the corrupted page.
-let $restart_parameters=--innodb-force-recovery=1;
+let $restart_parameters=--innodb-log-recovery-start=0 --innodb-force-recovery=1;
 --source include/restart_mysqld.inc
 SELECT * FROM t1 WHERE PK = 1;
 --error ER_NOT_KEYFILE

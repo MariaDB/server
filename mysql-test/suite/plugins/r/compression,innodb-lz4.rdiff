@@ -15,8 +15,8 @@
  0	abcabcabc	300
  1	defdefdef	3000
  2	ghighighi	30000
--# restart: --disable-provider-bzip2
-+# restart: --disable-provider-lz4
+-# restart: --disable-provider-bzip2 --innodb-log-recovery-start=0
++# restart: --disable-provider-lz4 --innodb-log-recovery-start=0
  select a, left(b, 9), length(b) from t1;
  ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
  show warnings;

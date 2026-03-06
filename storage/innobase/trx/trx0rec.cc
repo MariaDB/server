@@ -1834,6 +1834,7 @@ trx_undo_report_row_operation(
 	ut_ad(!update || rec);
 	ut_ad(!rec || rec_offs_validate(rec, index, offsets));
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo || index->table->is_temporary());
 
 	trx = thr_get_trx(thr);
 	/* This function must not be invoked during rollback

@@ -1,0 +1,189 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+call mtr.add_suppression("InnoDB: No matching file found for innodb_log_recovery_start=12288");
+call mtr.add_suppression("InnoDB: innodb_read_only prevents crash recovery between 18446744073705357279 and 18446744073705357311");
+call mtr.add_suppression("InnoDB: Did not find any checkpoint after LSN=18446744073701175296");
+call mtr.add_suppression("InnoDB: cannot fulfill innodb_log_recovery_target=18446744073705357290<18446744073705357306");
+call mtr.add_suppression("InnoDB: innodb_log_archive=ON but .*ib_logfile0 exists");
+call mtr.add_suppression("InnoDB: Renaming ib_ffffffffff803000.log to ib_logfile0");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+
+let DATADIR= `select @@datadir`;
+--source include/shutdown_mysqld.inc
+--disable_result_log
+--error 0,1 # fails if innodb_log_archive=ON
+--move_file $DATADIR/ib_logfile0 $DATADIR/ib_logfile_hidden
+--enable_result_log
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+my $file= "$ENV{DATADIR}/ib_ffffffffff803000.log";
+my $file_size= 4<<20;
+open(FILE, ">", $file) or die "Unable to open $file\n";
+binmode FILE;
+print FILE pack("N", $file_size - 1);
+seek FILE, $file_size - 33, 0 or die "Unable to seek $file\n";
+my $polynomial = 0x82f63b78; # CRC-32C
+my $FILE_CHECKPOINT;
+$FILE_CHECKPOINT=pack("CxxNN", 0xfa, 0xffffffff, 0xffbfffdf);
+$FILE_CHECKPOINT .= pack("CN", 1, mycrc32($FILE_CHECKPOINT, 0, $polynomial));
+my $WRITE=pack("CxxCx[7]", 0x3a, 8); # write NULs to page 0:0 offset 8
+$WRITE .= pack("CN", 1, mycrc32($WRITE, 0, $polynomial));
+print FILE $FILE_CHECKPOINT, $WRITE;
+$FILE_CHECKPOINT=pack("CxxNN", 0xfa, 0xffffffff, 0xffbfffff);
+$FILE_CHECKPOINT .= pack("CN", 1, mycrc32($FILE_CHECKPOINT, 0, $polynomial));
+my $FILE_MODIFY=pack("CCxa*", 0xb9, 127, "a/b.ibd");
+$FILE_MODIFY .= pack("CN", 1, mycrc32($FILE_MODIFY, 0, $polynomial));
+print FILE substr($FILE_MODIFY, 0, 1);
+close(FILE) or die "Unable to close $file\n";
+chmod 0444, $file or die "Unable to chmod 444 $file\n";
+$file= "$ENV{DATADIR}/ib_ffffffffffc00000.log";
+open(FILE, ">", $file) or die "Unable to open $file\n";
+binmode FILE;
+seek FILE, 0x3000, 0 or die "Unable to seek $file\n";
+print FILE substr($FILE_MODIFY, 1), $FILE_MODIFY x 139819, $FILE_CHECKPOINT;
+seek FILE, $file_size - 1, 0 or die "Unable to seek $file\n";
+print FILE chr(0);
+close(FILE) or die "Unable to close $file\n";
+EOF
+
+--let $restart_parameters= --innodb-read-only --innodb-log-recovery-start=12288
+--source include/start_mysqld.inc
+SELECT variable_name, variable_value FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_LSN%';
+
+let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN = InnoDB: No matching file found for innodb_log_recovery_start=12288;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= --innodb-read-only --innodb-log-recovery-start=18446744073705357279
+--source include/restart_mysqld.inc
+SELECT variable_name, variable_value FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_LSN%';
+
+let SEARCH_PATTERN = InnoDB: innodb_read_only prevents crash recovery between 18446744073705357279 and 18446744073705357311;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= --innodb-read-only --innodb-log-recovery-start=18446744073705357311
+--source include/start_mysqld.inc
+SELECT variable_name, variable_value FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_LSN%';
+
+perl;
+my $file= "$ENV{DATADIR}/ib_ffffffffff803000.log";
+chmod 0644, $file or die "Unable to chmod 644 $file\n";
+open(FILE, "+<", $file) or die "Unable to open $file\n";
+binmode FILE;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+my $polynomial = 0x82f63b78; # CRC-32C
+my $buf = pack("NNNNx[492]", 0x50687973, 0, 0xffffffff, 0xff803000);
+$buf .= pack("N", mycrc32($buf, 0, $polynomial));
+print FILE $buf;
+seek FILE, 0x1000, 0 or die "Unable to seek $file\n";
+# checkpoint buffer pointing to the FILE_MODIFY record
+$buf = pack("NN", 0xffffffff, 0xffbfffdf) x 2 . chr(0) x 44;
+$buf .= pack("N", mycrc32($buf, 0, $polynomial));
+print FILE $buf;
+close(FILE) or die "Unable to close $file\n";
+EOF
+
+--let $restart_parameters= --innodb-log-recovery-start=0 --innodb-log-recovery-target=18446744073705357290
+--source include/restart_mysqld.inc
+let SEARCH_PATTERN = InnoDB: Did not find any checkpoint after LSN=18446744073701175296;
+--source include/search_pattern_in_file.inc
+
+--remove_file $DATADIR/ib_ffffffffffc00000.log
+--source include/restart_mysqld.inc
+
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN = InnoDB: End of log at LSN=18446744073705357295;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN = InnoDB: cannot fulfill innodb_log_recovery_target=18446744073705357290<18446744073705357306;
+--source include/search_pattern_in_file.inc
+
+--move_file $DATADIR/ib_ffffffffff803000.log $DATADIR/ib_logfile0
+
+--let $restart_parameters= --innodb-log-recovery-start=0 --innodb-read-only --innodb-log-archive
+--source include/restart_mysqld.inc
+let SEARCH_PATTERN = InnoDB: innodb_log_archive=ON but .*ib_logfile0 exists;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= --innodb-log-recovery-start=0 --innodb-read-only --skip-innodb-log-archive
+--source include/restart_mysqld.inc
+let SEARCH_PATTERN = InnoDB: innodb_read_only prevents crash recovery between 18446744073705357279 and 18446744073705357311;
+--source include/search_pattern_in_file.inc
+
+--move_file $DATADIR/ib_logfile0 $DATADIR/ib_ffffffffff803000.log
+
+perl;
+my $file= "$ENV{DATADIR}/ib_ffffffffff803000.log";
+my $file_size= 4<<20;
+open(FILE, "+<", $file) or die "Unable to open $file\n";
+binmode FILE;
+seek FILE, $file_size - 17, 0 or die "Unable to seek $file\n";
+print FILE chr(0); # trim the log after the FILE_CHECKPOINT
+close(FILE) or die "Unable to close $file\n";
+EOF
+
+--let $restart_parameters= --innodb-log-recovery-start=0 --innodb-log-recovery-target=18446744073705357295
+--source include/restart_mysqld.inc
+
+SELECT variable_name, variable_value FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_LSN%';
+
+let SEARCH_PATTERN = InnoDB: Renaming .*ffffffffff803000\\.log to ib_logfile0;
+--source include/search_pattern_in_file.inc
+
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t0 (a INT PRIMARY KEY) ENGINE=InnoDB;
+--replace_result \\ /
+--error ER_ERROR_ON_RENAME
+RENAME TABLE mysql.innodb_table_stats TO mysql.intabdb_noble_stats;
+--error ER_OPEN_AS_READONLY
+DROP TABLE mysql.innodb_index_stats;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE mysql.innodb_table_stats ROW_FORMAT=COMPACT, ALGORITHM=INPLACE;
+--error ER_OPEN_AS_READONLY
+TRUNCATE TABLE mysql.innodb_table_stats;
+
+--source include/shutdown_mysqld.inc
+--move_file $DATADIR/ib_logfile0 $DATADIR/ib_ffffffffff803000.log
+
+--let $restart_parameters= --innodb-log-recovery-start=0 --innodb-log-recovery-target=18446744073705357290
+--source include/start_mysqld.inc
+
+SELECT variable_name, variable_value FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_LSN%';
+
+--let $restart_parameters= --innodb-log-recovery-start=0
+--source include/shutdown_mysqld.inc
+
+perl;
+my $file= "$ENV{DATADIR}/ib_ffffffffff803000.log";
+my $file_size= 4<<20;
+open(FILE, "+<", $file) or die "Unable to open $file\n";
+binmode FILE;
+print FILE pack("Nx[12284]", $file_size - 33);
+seek FILE, $file_size - 17, 0 or die "Unable to seek $file\n";
+# WRITE to page 0:0 offset 0x7e
+print FILE "0~\0\0~incomplete..";
+close(FILE) or die "Unable to close $file\n";
+EOF
+
+--let $restart_parameters= --innodb-log-recovery-start=18446744073705357279
+--source include/start_mysqld.inc
+
+SELECT variable_name, variable_value FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_LSN%';
+
+--source include/shutdown_mysqld.inc
+--let $restart_parameters= --innodb-log-recovery-start=0
+
+--remove_file $DATADIR/ib_ffffffffff803000.log
+--disable_result_log
+--error 0,1 # fails if innodb_log_archive=ON
+--move_file $DATADIR/ib_logfile_hidden $DATADIR/ib_logfile0
+--enable_result_log
+--source include/start_mysqld.inc

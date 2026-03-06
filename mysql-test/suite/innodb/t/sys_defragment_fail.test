@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/skip_innodb_log_archive.inc
 --source include/have_debug.inc
 --source include/have_sequence.inc
 

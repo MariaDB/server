@@ -506,6 +506,7 @@ row_quiesce_table_start(
 	ut_a(trx->mysql_thd != 0);
 	ut_a(srv_n_purge_threads > 0);
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	ut_a(trx->mysql_thd != 0);
 
@@ -604,8 +605,9 @@ row_quiesce_set_state(
 	trx_t*		trx)		/*!< in/out: transaction */
 {
 	ut_a(srv_n_purge_threads > 0);
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
 
-	if (srv_read_only_mode) {
+	if (recv_sys.rpo) {
 
 		ib_senderrf(trx->mysql_thd,
 			    IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);

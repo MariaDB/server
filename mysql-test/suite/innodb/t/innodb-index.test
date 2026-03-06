@@ -1,4 +1,5 @@
 -- source include/have_innodb.inc
+--source include/no_checkpoint_prepare.inc
 # Embedded server tests do not support restarting.
 -- source include/not_embedded.inc
 
