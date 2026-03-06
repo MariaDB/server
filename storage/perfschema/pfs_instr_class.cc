@@ -1591,6 +1591,52 @@ PFS_memory_class *sanitize_memory_class(PFS_memory_class *unsafe)
   SANITIZE_ARRAY_BODY(PFS_memory_class, memory_class_array, memory_class_max, unsafe);
 }
 
+/**
+  Get the name of a memory instrumentation class by key.
+  This is a helper function for debug purposes.
+  @param key                          the instrument key
+  @return the instrument name, or NULL if not found
+*/
+const char *pfs_get_memory_class_name(PSI_memory_key key)
+{
+  PFS_memory_class *memory_class= find_memory_class(key);
+  if (memory_class != NULL)
+    return memory_class->m_name;
+  return NULL;
+}
+
+#ifndef DBUG_OFF
+/*
+  Print the name of a MEM_ROOT to stderr for use from a debugger.
+  @param root the MEM_ROOT to identify (may be NULL)
+*/
+extern "C"
+void dbug_print_memroot_name(MEM_ROOT *root)
+{
+  const char *name= NULL;
+
+  if (!root)
+  {
+    fprintf(stderr, "MEM_ROOT: NULL\n");
+    return;
+  }
+
+  if (root->psi_key != PSI_NOT_INSTRUMENTED)
+  {
+    PFS_memory_class *klass= find_memory_class(root->psi_key);
+    if (klass != NULL)
+      name= klass->m_name;
+  }
+
+  if (name && *name)
+    fprintf(stderr, "MEM_ROOT '%s' (%p) [key=%u]\n",
+            name, (void*)root, root->psi_key);
+  else
+    fprintf(stderr, "MEM_ROOT (%p) [key=%u]\n",
+            (void*)root, root->psi_key);
+}
+#endif
+
 PFS_instr_class *find_table_class(uint index)
 {
   if (index == 1)
