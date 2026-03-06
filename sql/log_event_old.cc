@@ -146,7 +146,9 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
         RPL_TABLE_LIST *ptr=static_cast<RPL_TABLE_LIST*>(table_list_ptr);
         DBUG_ASSERT(ptr->m_tabledef_valid);
         TABLE *conv_table;
-        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
+        if (ptr->m_tabledef.compatible_with(thd, rgi, ptr->table,
+                                            &conv_table) ==
+            table_def::TABLE_INCOMPATIBLE)
         {
           ev_thd->is_slave_error= 1;
           rgi->slave_close_thread_tables(ev_thd);
@@ -1445,7 +1447,9 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
         */
         RPL_TABLE_LIST *ptr=static_cast<RPL_TABLE_LIST*>(table_list_ptr);
         TABLE *conv_table;
-        if (ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
+        if (ptr->m_tabledef.compatible_with(thd, rgi, ptr->table,
+                                            &conv_table) ==
+            table_def::TABLE_INCOMPATIBLE)
         {
           thd->is_slave_error= 1;
           rgi->slave_close_thread_tables(thd);

@@ -1,0 +1,67 @@
+# ==== Purpose ====
+#
+# Check that slave-skip-errors skips following errors like
+# ER_SLAVE_CONVERSION_FAILED and ER_NO_SUCH_TABLE.
+#
+# This test is adapted from the upstream mysql test for Bug#17653275, to verify the fix for Mariadb MDEV-7270.
+#
+# ==== Implementation ====
+# On slave, set slave_skip_errors=1677, so that slave skips ER_SLAVE_CONVERSION_FAILED 
+# reported during application of row based events.
+# On master, create a table t with a varchar filed of length 25. On slave
+# increase the varchar field width to 255, so that updates that are received
+# from master will fail on slave with error ER_SLAVE_CONVERSION_FAILED.
+#
+# Verify that slave doesn't break inspite of these errors.
+
+
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+# On master create table t which contains a field named 'name' with length
+# varchar(25).
+CREATE TABLE t (name VARCHAR(25) DEFAULT NULL);
+--source include/sync_slave_sql_with_master.inc
+
+# On slave alter the name field length to varchar(255).
+call mtr.add_suppression("Slave SQL.*Error executing row event: .Table .test.t. doesn.t exist., Error_code: 1146");
+call mtr.add_suppression("Slave SQL.*Column 0 of table .test.t. cannot be converted from type.* Error_code: 1677");
+call mtr.add_suppression("The slave coordinator and worker threads are stopped, possibly leaving data in inconsistent state");
+call mtr.add_suppression("Got error 1 during COMMIT");
+ALTER TABLE t MODIFY name VARCHAR(255);
+
+connection master;
+INSERT INTO t VALUE ('Omar');
+--echo # Sync should be successful. Slave should not stop with an error
+--echo # ER_SLAVE_CONVERSION_FAILED. It should be up and running in spite
+--echo # of errors as we have set slave_skip_error=1677.
+--source include/sync_slave_sql_with_master.inc
+--source include/check_slave_no_error.inc
+
+--echo # Verify master has one row and slave has none, row events from master should be skipped.
+connection master;
+SELECT * FROM t;
+
+connection slave;
+SELECT * FROM t;
+
+connection master;
+SELECT COUNT(*) AS master_count FROM t;
+connection slave;
+SELECT COUNT(*) AS slave_count FROM t;
+
+
+--echo ==== Clean up ====
+--source include/stop_slave.inc
+RESET MASTER;
+RESET SLAVE;
+--source include/start_slave.inc
+
+connection master;
+--source include/sync_slave_sql_with_master.inc
+
+connection master;
+DROP TABLE t;
+--source include/rpl_end.inc
+

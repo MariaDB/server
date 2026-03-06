@@ -58,13 +58,19 @@ public:
 
   ~table_def();
 
+  enum enum_compatibility_master_slave
+  {
+    TABLE_COMPATIBILE= 0,
+    TABLE_INCOMPATIBLE= 1,
+    TABLE_INCOMPATIBLE_IGNORED= 2
+  };
+
   /**
     Return the number of fields there is type data for.
 
     @return The number of fields that there is type data for.
    */
   ulong size() const { return m_size; }
-
 
   /**
     Returns internal binlog type code for one field,
@@ -190,8 +196,9 @@ public:
     @retval 0  if the table definition is compatible with @c table
   */
 #ifndef MYSQL_CLIENT
-  bool compatible_with(THD *thd, rpl_group_info *rgi, TABLE *table,
-                      TABLE **conv_table_var) const;
+  enum_compatibility_master_slave
+  compatible_with(THD *thd, rpl_group_info *rgi, TABLE *table,
+                  TABLE **conv_table_var) const;
 
   /**
    Create a virtual in-memory temporary table structure.

@@ -296,20 +296,6 @@ inline int idempotent_error_code(int err_code)
   return (ret);
 }
 
-/**
-  Ignore error code specified on command line.
-*/
-
-inline int ignored_error_code(int err_code)
-{
-  if (use_slave_mask && bitmap_is_set(&slave_error_mask, err_code))
-  {
-    statistic_increment(slave_skipped_errors, LOCK_status);
-    return 1;
-  }
-  return err_code == ER_SLAVE_IGNORED_TABLE;
-}
-
 /*
   This function converts an engine's error to a server error.
    
@@ -5687,20 +5673,29 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         RPL_TABLE_LIST *ptr= static_cast<RPL_TABLE_LIST*>(table_list_ptr);
         DBUG_ASSERT(ptr->m_tabledef_valid);
         TABLE *conv_table;
-        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
+        int compatible=
+            ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table);
+        if (compatible == table_def::TABLE_INCOMPATIBLE)
         {
-          DBUG_PRINT("debug", ("Table: %s.%s is not compatible with master",
-                               ptr->table->s->db.str,
-                               ptr->table->s->table_name.str));
-          /*
-            We should not honour --slave-skip-errors at this point as we are
-            having severe errors which should not be skiped.
-          */
+          DBUG_PRINT("debug",
+                     ("Table: %s.%s is not compatible with master",
+                      ptr->table->s->db.str, ptr->table->s->table_name.str));
           thd->is_slave_error= 1;
           /* remove trigger's tables */
           error= ERR_BAD_TABLE_DEF;
           goto err;
         }
+        if (compatible == table_def::TABLE_INCOMPATIBLE_IGNORED)
+        {
+          DBUG_PRINT("debug",
+                     ("Table: %s.%s is not compatible with master. Error 1677 "
+                      "is ignored, event is skipped",
+                      ptr->table->s->db.str, ptr->table->s->table_name.str));
+
+          error= 0;
+          goto err;
+        }
+
         DBUG_PRINT("debug", ("Table: %s.%s is compatible with master"
                              " - conv_table: %p",
                              ptr->table->s->db.str,
@@ -5840,7 +5835,6 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       before in some other ROWS event. 
      */
     rgi->set_row_stmt_start_timestamp();
-
     THD_STAGE_INFO(thd, stage_executing);
     do
     {
