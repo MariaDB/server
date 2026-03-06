@@ -1773,6 +1773,14 @@ null<=>json_extract('1',json_object(null,'{ }',null,null),'{}')
 1
 Warnings:
 Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 1
+SELECT JSON_EXTRACT('{a:true}','$.a')=TRUE;
+JSON_EXTRACT('{a:true}','$.a')=TRUE
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 2
+SELECT JSON_EXTRACT('0E+0','$');
+JSON_EXTRACT('0E+0','$')
+0E+0
 #
 # End of 10.6 tests
 #

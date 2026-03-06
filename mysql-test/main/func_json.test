@@ -1239,6 +1239,10 @@ FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
 select null<=>json_extract('1',json_object(null,'{ }',null,null),'{}');
 
 
+
+SELECT JSON_EXTRACT('{a:true}','$.a')=TRUE;
+SELECT JSON_EXTRACT('0E+0','$');
+
 --echo #
 --echo # End of 10.6 tests
 --echo #
