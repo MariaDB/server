@@ -31,6 +31,7 @@
 
 #include <my_bitmap.h>
 #include "rpl_constants.h"
+#include "sql_array.h"
 #include <vector>
 #include <string>
 #include <functional>
@@ -4502,19 +4503,22 @@ public:
   struct Optional_metadata_fields
   {
     typedef std::pair<unsigned int, unsigned int> uint_pair;
-    typedef std::vector<std::string> str_vector;
+    typedef Dynamic_array<LEX_CSTRING> str_vector;
     bool allocation_error; /* Set if allocation of data structures fails */
 
     struct Default_charset
     {
-      Default_charset() : default_charset(0) {}
+      Default_charset() : default_charset(0), charset_pairs(PSI_INSTRUMENT_MEM)
+      {
+      }
       bool empty() const { return default_charset == 0; }
 
       // Default charset for the columns which are not in charset_pairs.
       unsigned int default_charset;
 
       /* The uint_pair means <column index, column charset number>. */
-      std::vector<uint_pair> charset_pairs;
+      // std::vector<uint_pair> charset_pairs;
+      Dynamic_array<uint_pair> charset_pairs;
     };
 
     // Contents of DEFAULT_CHARSET field is converted into Default_charset.
@@ -4522,21 +4526,21 @@ public:
     // Contents of ENUM_AND_SET_DEFAULT_CHARSET are converted into
     // Default_charset.
     Default_charset m_enum_and_set_default_charset;
-    std::vector<bool> m_signedness;
+    Dynamic_array<bool> m_signedness;
     // Character set number of every string column
-    std::vector<unsigned int> m_column_charset;
+    Dynamic_array<uint> m_column_charset;
     // Character set number of every ENUM or SET column.
-    std::vector<unsigned int> m_enum_and_set_column_charset;
+    Dynamic_array<uint> m_enum_and_set_column_charset;
     LEX_CSTRING *m_column_name;
     // each str_vector stores values of one enum/set column
-    std::vector<str_vector> m_enum_str_value;
-    std::vector<str_vector> m_set_str_value;
-    std::vector<unsigned int> m_geometry_type;
+    Dynamic_array<str_vector> m_enum_str_value;
+    Dynamic_array<str_vector> m_set_str_value;
+    Dynamic_array<uint> m_geometry_type;
     /*
       The uint_pair means <column index, prefix length>.  Prefix length is 0 if
       whole column value is used.
     */
-    std::vector<uint_pair> m_primary_key;
+    Dynamic_array<uint_pair> m_primary_key;
 
     /*
       It parses m_optional_metadata and populates into above variables.

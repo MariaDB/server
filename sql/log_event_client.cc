@@ -3230,7 +3230,7 @@ class Table_map_log_event::Charset_iterator
   */
   static std::unique_ptr<Charset_iterator> create_charset_iterator(
       const Default_charset &default_charset,
-      const std::vector<uint> &column_charset);
+      const Dynamic_array<uint> &column_charset);
 };
 
 /**
@@ -3240,9 +3240,8 @@ class Table_map_log_event::Default_charset_iterator : public Charset_iterator
 {
  public:
   Default_charset_iterator(const Default_charset &default_charset)
-      : m_iterator(default_charset.charset_pairs.begin()),
-        m_end(default_charset.charset_pairs.end()),
-        m_column_index(0),
+      : m_iterator(default_charset.charset_pairs.front()),
+        m_end(default_charset.charset_pairs.end()), m_column_index(0),
         m_default_charset_info(
             get_charset(default_charset.default_charset, 0)) {}
 
@@ -3259,8 +3258,8 @@ class Table_map_log_event::Default_charset_iterator : public Charset_iterator
   ~Default_charset_iterator(){};
 
  private:
-  std::vector<Optional_metadata_fields::uint_pair>::const_iterator m_iterator,
-      m_end;
+  const Optional_metadata_fields::uint_pair *m_iterator;
+  const Optional_metadata_fields::uint_pair *m_end;
   uint m_column_index;
   const CHARSET_INFO *m_default_charset_info;
 };
@@ -3271,8 +3270,9 @@ class Table_map_log_event::Default_charset_iterator : public Charset_iterator
 class Table_map_log_event::Column_charset_iterator : public Charset_iterator
 {
  public:
-  Column_charset_iterator(const std::vector<uint> &column_charset)
-      : m_iterator(column_charset.begin()), m_end(column_charset.end()) {}
+  Column_charset_iterator(const Dynamic_array<uint> &column_charset)
+      : m_iterator(column_charset.front()), m_end(column_charset.end())
+  {}
 
   const CHARSET_INFO *next() override {
     const CHARSET_INFO *ret = nullptr;
@@ -3285,15 +3285,15 @@ class Table_map_log_event::Column_charset_iterator : public Charset_iterator
 
  ~Column_charset_iterator(){};
  private:
-  std::vector<uint>::const_iterator m_iterator;
-  std::vector<uint>::const_iterator m_end;
+  const uint *m_iterator;
+  const uint *m_end;
 };
 //Table_map_log_event::Column_charset_iterator::~Column_charset_iterator(){int a=8;a++; a--;};
 
 std::unique_ptr<Table_map_log_event::Charset_iterator>
 Table_map_log_event::Charset_iterator::create_charset_iterator(
     const Default_charset &default_charset,
-    const std::vector<uint> &column_charset)
+    const Dynamic_array<uint> &column_charset)
 {
   if (!default_charset.empty())
     return std::unique_ptr<Charset_iterator>(
@@ -3459,7 +3459,7 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
                                         const Optional_metadata_fields &fields)
 {
   unsigned char* field_metadata_ptr= m_field_metadata;
-  std::vector<bool>::const_iterator signedness_it= fields.m_signedness.begin();
+  const bool *signedness_it= fields.m_signedness.front();
 
   std::unique_ptr<Charset_iterator> charset_it =
       Charset_iterator::create_charset_iterator(fields.m_default_charset,
@@ -3468,12 +3468,11 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
       Charset_iterator::create_charset_iterator(
           fields.m_enum_and_set_default_charset,
           fields.m_enum_and_set_column_charset);
-  std::vector<Optional_metadata_fields::str_vector>::const_iterator
-    set_str_values_it= fields.m_set_str_value.begin();
-  std::vector<Optional_metadata_fields::str_vector>::const_iterator
-    enum_str_values_it= fields.m_enum_str_value.begin();
-  std::vector<unsigned int>::const_iterator geometry_type_it=
-    fields.m_geometry_type.begin();
+  const Optional_metadata_fields::str_vector *set_str_values_it=
+      fields.m_set_str_value.front();
+  const Optional_metadata_fields::str_vector *enum_str_values_it=
+      fields.m_enum_str_value.front();
+  const uint *geometry_type_it= fields.m_geometry_type.front();
   LEX_CSTRING *col_names= fields.m_column_name;
 
   uint geometry_type= 0;
@@ -3542,24 +3541,24 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
     if (real_type == MYSQL_TYPE_ENUM &&
         enum_str_values_it != fields.m_enum_str_value.end())
     {
-      str_values= &(*enum_str_values_it);
+      str_values= enum_str_values_it;
       enum_str_values_it++;
     }
     else if (real_type == MYSQL_TYPE_SET &&
              set_str_values_it != fields.m_set_str_value.end())
     {
-      str_values= &(*set_str_values_it);
+      str_values= set_str_values_it;
       set_str_values_it++;
     }
 
     if (str_values != NULL)
     {
       const char *separator= "(";
-      for (Optional_metadata_fields::str_vector::const_iterator it=
-             str_values->begin(); it != str_values->end(); it++)
+      for (const LEX_CSTRING *it= str_values->front(); it != str_values->end();
+           it++)
       {
         my_b_printf(file, "%s", separator);
-        pretty_print_str(file, it->c_str(), it->size());
+        pretty_print_str(file, it->str, it->length);
         separator= ",";
       }
       my_b_printf(file, ")");
@@ -3582,12 +3581,10 @@ void Table_map_log_event::print_primary_key
   {
     my_b_printf(file, "# Primary Key(");
 
-    std::vector<Optional_metadata_fields::uint_pair>::const_iterator it=
-      fields.m_primary_key.begin();
-
-    for (; it != fields.m_primary_key.end(); it++)
+    for (auto *it= fields.m_primary_key.front();
+         it != fields.m_primary_key.end(); it++)
     {
-      if (it != fields.m_primary_key.begin())
+      if (it != fields.m_primary_key.front())
         my_b_printf(file, ", ");
 
       // Print column name or column index

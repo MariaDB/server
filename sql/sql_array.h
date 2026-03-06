@@ -42,7 +42,7 @@ public:
   {}
 
   void reset() { m_array= NULL; m_size= 0; }
- 
+
   void reset(Element_type *array_arg, size_t size_arg)
   {
     m_array= array_arg;
@@ -197,6 +197,8 @@ public:
 
   size_t size() const { return array.elements; }
 
+  bool empty() const { return array.elements == 0; }
+
   const Elem *end() const
   {
     return back() + 1;
@@ -282,7 +284,7 @@ public:
     size_t old_size= elements();
     if (reserve(new_size))
       return true;
-    
+
     if (new_size > old_size)
     {
       set_dynamic(&array, (uchar*)&default_val, new_size - 1);
