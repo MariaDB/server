@@ -1,0 +1,103 @@
+include/rpl_init.inc [topology=1->2]
+#
+# Setup: Create tables in two GTID domains on master
+#
+connection server_1;
+SET @@session.gtid_domain_id= 1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+SET @@session.gtid_domain_id= 2;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (100);
+connection server_2;
+SELECT * FROM t1;
+a
+1
+SELECT * FROM t2;
+a
+100
+#
+# Test 1: IGNORE_DOMAIN_IDS with purged binlogs should not cause error 1236
+#
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+SET @@session.gtid_domain_id= 2;
+INSERT INTO t2 VALUES (200);
+INSERT INTO t2 VALUES (201);
+FLUSH LOGS;
+SET @@session.gtid_domain_id= 2;
+INSERT INTO t2 VALUES (202);
+FLUSH LOGS;
+include/wait_for_purge.inc "master-bin.000003"
+show binary logs;
+Log_name	File_size
+master-bin.000003	#
+connection server_2;
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(2), MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+connection server_1;
+SET @@session.gtid_domain_id= 1;
+INSERT INTO t1 VALUES (2);
+connection server_2;
+# Slave should have domain 1 data (the domain it cares about)
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+#
+# Test 2: DO_DOMAIN_IDS with purged binlogs should not cause error 1236
+#
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+connection server_2;
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(), DO_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+connection server_1;
+SET @@session.gtid_domain_id= 1;
+INSERT INTO t1 VALUES (3);
+SET @@session.gtid_domain_id= 2;
+INSERT INTO t2 VALUES (300);
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+SET @@session.gtid_domain_id= 2;
+INSERT INTO t2 VALUES (400);
+INSERT INTO t2 VALUES (401);
+FLUSH LOGS;
+SET @@session.gtid_domain_id= 2;
+INSERT INTO t2 VALUES (402);
+FLUSH LOGS;
+include/wait_for_purge.inc "master-bin.000005"
+show binary logs;
+Log_name	File_size
+master-bin.000005	#
+connection server_2;
+CHANGE MASTER TO DO_DOMAIN_IDS=(1), IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+connection server_1;
+SET @@session.gtid_domain_id= 1;
+INSERT INTO t1 VALUES (4);
+connection server_2;
+# Slave should have all domain 1 data
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+#
+# Cleanup
+#
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+connection server_2;
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+connection server_1;
+SET @@session.gtid_domain_id= 0;
+DROP TABLE t1, t2;
+connection server_2;
+include/rpl_end.inc
