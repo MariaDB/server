@@ -386,9 +386,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 70
-%else
-%expect 71
+%expect 72
+%ifdef ORACLE
+%expect 73
 %endif
 
 /*
@@ -474,6 +474,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <NONE> SHIFT_LEFT             /* OPERATOR */
 %token  <NONE> SHIFT_RIGHT            /* OPERATOR */
 %token  <NONE> ARROW_SYM              /* OPERATOR */
+/* MDEV-13594: MySQL-compatible JSON path operators -> and ->> */
+%token  <NONE> JSON_ARROW_SYM          /* OPERATOR */
+%token  <NONE> JSON_UNQUOTED_ARROW_SYM /* OPERATOR */
 
 
 /*
@@ -1254,6 +1257,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %nonassoc NOT_SYM
 %nonassoc NEG '~' NOT2_SYM BINARY
 %nonassoc COLLATE_SYM
+%left   JSON_ARROW_SYM JSON_UNQUOTED_ARROW_SYM
 %nonassoc SUBQUERY_AS_EXPR
 
 /*
@@ -1592,7 +1596,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         boolean_test
         predicate bit_expr parenthesized_expr
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
-        primary_expr string_factor_expr mysql_concatenation_expr
+        primary_expr primary_base_expr string_factor_expr mysql_concatenation_expr
         select_sublist_qualified_asterisk
         expr_or_ignore expr_or_ignore_or_default
         signed_literal expr_or_literal
@@ -10612,13 +10616,55 @@ column_default_non_parenthesized_expr:
         }
         ;
 
-primary_expr:
+primary_base_expr:
           column_default_non_parenthesized_expr
         | explicit_cursor_attr
         | '(' parenthesized_expr ')' { $$= $2; }
         | subquery
           {
             if (!($$= Lex->create_item_query_expression(thd, $1->master_unit())))
+              MYSQL_YYABORT;
+          }
+        ;
+
+/*
+  MDEV-13594: JSON operators -> and ->>
+  These rules map the operators to Item_func_json_extract and Item_func_json_unquote.
+  Splitting into primary_base_expr and primary_expr allows proper operator chaining
+  (e.g., col->'$.a'->'$.b') by keeping the grammar left-associative.
+*/
+primary_expr:
+          primary_base_expr
+        | primary_expr JSON_ARROW_SYM primary_base_expr
+          {
+            /*
+              Build the argument list on thd->mem_root so it is tied to the
+              parser arena.  Assign $$ first so the allocation is not orphaned
+              if push_back or object construction fails and YYABORT is called.
+            */
+            List<Item> *list= new (thd->mem_root) List<Item>;
+            if (unlikely(list == NULL))
+              MYSQL_YYABORT;
+            if (unlikely(list->push_back($1, thd->mem_root)) ||
+                unlikely(list->push_back($3, thd->mem_root)))
+              MYSQL_YYABORT;
+            $$= new (thd->mem_root) Item_func_json_extract(thd, *list);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | primary_expr JSON_UNQUOTED_ARROW_SYM primary_base_expr
+          {
+            List<Item> *list= new (thd->mem_root) List<Item>;
+            if (unlikely(list == NULL))
+              MYSQL_YYABORT;
+            if (unlikely(list->push_back($1, thd->mem_root)) ||
+                unlikely(list->push_back($3, thd->mem_root)))
+              MYSQL_YYABORT;
+            Item *extract= new (thd->mem_root) Item_func_json_extract(thd, *list);
+            if (unlikely(extract == NULL))
+              MYSQL_YYABORT;
+            $$= new (thd->mem_root) Item_func_json_unquote(thd, extract);
+            if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
         ;

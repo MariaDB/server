@@ -56,6 +56,8 @@ SYMBOL symbols[] = {
   { ">>",		SYM(SHIFT_RIGHT)},
   { "<=>",		SYM(EQUAL_SYM)},
   { "=>",   SYM(ARROW_SYM)},
+  { "->",   SYM(JSON_ARROW_SYM)},
+  { "->>",  SYM(JSON_UNQUOTED_ARROW_SYM)},
   { "ACCOUNT",		SYM(ACCOUNT_SYM)},
   { "ACTION",		SYM(ACTION)},
   { "ADD",		SYM(ADD)},
