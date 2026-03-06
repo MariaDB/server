@@ -182,6 +182,18 @@ CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '''' at line 1
 RESET SLAVE;
 
+*** MDEV-38454: MASTER_HEARTBEAT_PERIOD should accept + sign ***
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=+60;
+SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
+Variable_name	Value
+Slave_heartbeat_period	60.000
+RESET SLAVE;
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=60;
+SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
+Variable_name	Value
+Slave_heartbeat_period	60.000
+RESET SLAVE;
+
 *** Running slave ***
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=0.1;
 include/start_slave.inc
