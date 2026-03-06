@@ -3040,7 +3040,7 @@ ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn) noexcept
 		auto next = std::next(it);
 
 		ut_ad(it->max_lsn > 0);
-		if (it->max_lsn < lsn) {
+		if (it->max_lsn <= lsn) {
 			/* The tablespace was last dirtied before the
 			checkpoint LSN. Remove it from the list, so
 			that if the tablespace is not going to be
