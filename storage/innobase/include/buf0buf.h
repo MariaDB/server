@@ -1208,6 +1208,18 @@ public:
   /** The maximum allowed innodb_buffer_pool_size */
   size_t size_in_bytes_max;
 
+  /** We maintain our private view of innobase_should_madvise_buf_pool() which we
+  initialize at the beginning of buf_pool_t::create() and then update when the
+  @@global.innodb_buffer_pool_in_core_file changes.
+
+  Changes to buf_pool_should_madvise_dont_dump are protected by buf_pool_t::mutex.
+
+  The function buf_pool_t::madvise_update_dump() handles updating
+  buf_pool_should_madvise_dont_dump in reaction to changes to
+  @@global.innodb_buffer_pool_in_core_file.
+  */
+  bool buf_pool_should_madvise_dont_dump = true;
+
   /** @return the current size of the buffer pool, in bytes */
   size_t curr_pool_size() const noexcept { return size_in_bytes; }
 
@@ -1233,6 +1245,31 @@ public:
   @return number of errors found in madvise() calls */
   static int madvise_do_dump() noexcept;
 #endif
+
+  /** Advise the OS to exclude the buffer pool from core dumps
+  using MADV_DONTDUMP.
+
+  Emits a warning if unsupported or if madvise() fails.
+
+  @retval true   Advice applied successfully.
+  @retval false  Unsupported platform or madvise() failure. */
+  bool madvise_dont_dump() noexcept;
+
+  /** Advise the OS to include the buffer pool in core dumps
+  using MADV_DODUMP.
+
+  @retval true   Advice applied successfully.
+  @retval false  Unsupported platform or madvise() failure. */
+  bool madvise_dump() noexcept;
+
+  /** Re-evaluate whether the buffer pool should be excluded from
+  core dumps and update the madvise state if needed.
+
+  Calls madvise_dont_dump() or madvise_dump() when the desired
+  state changes or when @p force is true.
+
+  @param force  Re-apply advice even if state is unchanged. */
+  void madvise_update_dump(bool force = false);
 
   /** Hash cell chain in page_hash_table */
   struct hash_chain

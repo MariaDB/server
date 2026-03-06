@@ -1141,6 +1141,52 @@ int buf_pool_t::madvise_do_dump() noexcept
 }
 #endif
 
+bool buf_pool_t::madvise_dont_dump() noexcept
+{
+#if defined(HAVE_MADVISE) && defined(MADV_DODUMP)
+  if (madvise(memory_unaligned, size_unaligned, MADV_DONTDUMP))
+  {
+    sql_print_warning("Disabling @@core_file because can't satisfy the value"
+                      " of @@innodb_buffer_pool_in_core_file=OFF");
+    return false;
+  }
+  return true;
+#else
+  sql_print_warning("Disabling @@core_file because MADV_DODUMP is not supported.");
+  return false;
+#endif
+}
+
+bool buf_pool_t::madvise_dump() noexcept
+{
+#if defined(HAVE_MADVISE) && defined(MADV_DODUMP)
+  if (madvise(memory_unaligned, size_unaligned, MADV_DODUMP)) {
+    return false;
+  }
+  return true;
+#else
+  return false;
+#endif
+}
+
+void buf_pool_t::madvise_update_dump(bool force)
+{
+  mysql_mutex_lock(&mutex);
+  auto should_madvise_dont_dump= innobase_should_madvise_buf_pool();
+  if (force
+      || should_madvise_dont_dump != buf_pool_should_madvise_dont_dump)
+  {
+    buf_pool_should_madvise_dont_dump= should_madvise_dont_dump;
+    bool success= buf_pool_should_madvise_dont_dump
+                     ? madvise_dont_dump() : madvise_dump();
+    if (buf_pool_should_madvise_dont_dump && !success)
+    {
+      innobase_disable_core_dump();
+    }
+  }
+  mysql_mutex_unlock(&mutex);
+}
+
 #ifndef UNIV_DEBUG
 static inline byte hex_to_ascii(byte hex_digit) noexcept
 {
@@ -1310,6 +1356,8 @@ bool buf_pool_t::create() noexcept
   allocated before innodb initialization */
   ut_ad(srv_operation >= SRV_OPERATION_RESTORE || !field_ref_zero);
 
+  buf_pool_should_madvise_dont_dump = innobase_should_madvise_buf_pool();
+
   if (!field_ref_zero)
   {
     if (auto b= aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096))
@@ -1359,9 +1407,14 @@ bool buf_pool_t::create() noexcept
   }
 
   MEM_UNDEFINED(memory_unaligned, size);
-  ut_dontdump(memory_unaligned, size, true);
+
   memory= memory_unaligned + alignment_waste;
   size_unaligned= size;
+  if(buf_pool_should_madvise_dont_dump && !madvise_dont_dump())
+  {
+    innobase_disable_core_dump();
+  }
+
   size-= alignment_waste;
   size&= ~(innodb_buffer_pool_extent_size - 1);
 
@@ -1547,7 +1600,8 @@ void buf_pool_t::close() noexcept
         block->page.lock.free();
       }
 
-    ut_dodump(memory_unaligned, size_unaligned);
+    if (buf_pool_should_madvise_dont_dump)  madvise_dump();
+
 #ifdef UNIV_PFS_MEMORY
     PSI_MEMORY_CALL(memory_free)(mem_key_buf_buf_pool, size, owner);
     owner= nullptr;
@@ -2114,6 +2168,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     mysql_mutex_lock(&LOCK_global_system_variables);
   }
 
+  madvise_update_dump(true);
   ut_d(validate());
 }
 
