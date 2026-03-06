@@ -20,12 +20,12 @@ SET STATEMENT foreign_key_checks=0, unique_checks=0 FOR
 INSERT INTO t2 SELECT seq*4,seq*4 FROM seq_1_to_16384;
 SELECT @@GLOBAL.innodb_adaptive_hash_index;
 @@GLOBAL.innodb_adaptive_hash_index
-1
+ON
 SET STATEMENT max_statement_time=1e-9 FOR
 SET GLOBAL innodb_buffer_pool_size = 7340032;
 SELECT @@GLOBAL.innodb_adaptive_hash_index;
 @@GLOBAL.innodb_adaptive_hash_index
-1
+ON
 FOUND 1 /innodb_buffer_pool_size=7m.*resized from|innodb_buffer_pool_size change aborted/ in mysqld.1.err
 set global innodb_buffer_pool_size = 7340032;
 select count(val) from t1;

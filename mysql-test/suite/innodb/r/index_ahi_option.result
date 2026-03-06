@@ -1,0 +1,132 @@
+#
+# Test InnoDB index-level adaptive_hash_index options
+#
+SET @start_global_value = @@global.innodb_adaptive_hash_index;
+SET GLOBAL innodb_adaptive_hash_index=OFF;
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+col1 INT, col2 INT, col3 INT,
+INDEX idx_1 (col1) adaptive_hash_index=DEFAULT,
+INDEX idx_2 (col1, col2) adaptive_hash_index=YES,
+INDEX idx_3 (col1, col2, col3) adaptive_hash_index=NO
+) ENGINE=InnoDB STATS_PERSISTENT=0 adaptive_hash_index=DEFAULT;
+INSERT INTO t1 SELECT seq, seq, seq << 8, seq << 16 FROM seq_0_to_255;
+SET GLOBAL innodb_monitor_enable = module_adaptive_hash;
+CALL run_and_check_idx(1, 240);
+result_msg
+# No AHI used in SELECT (idx_1)
+CALL run_and_check_idx(2, 240);
+result_msg
+# No AHI used in SELECT (idx_2)
+CALL run_and_check_idx(3, 240);
+result_msg
+# No AHI used in SELECT (idx_3)
+ALTER TABLE t1 adaptive_hash_index=OFF, ALGORITHM=INSTANT, LOCK=NONE;
+CALL run_and_check_idx(1, 240);
+result_msg
+# No AHI used in SELECT (idx_1)
+CALL run_and_check_idx(2, 240);
+result_msg
+# No AHI used in SELECT (idx_2)
+CALL run_and_check_idx(3, 240);
+result_msg
+# No AHI used in SELECT (idx_3)
+ALTER TABLE t1 adaptive_hash_index='ON', ALGORITHM=INSTANT, LOCK=NONE;
+CALL run_and_check_idx(1, 240);
+result_msg
+# No AHI used in SELECT (idx_1)
+CALL run_and_check_idx(2, 240);
+result_msg
+# No AHI used in SELECT (idx_2)
+CALL run_and_check_idx(3, 240);
+result_msg
+# No AHI used in SELECT (idx_3)
+DROP PROCEDURE run_and_check_idx;
+DROP TABLE t1;
+SET @@global.innodb_adaptive_hash_index = @start_global_value;
+SET GLOBAL innodb_monitor_disable = module_adaptive_hash;
+SET GLOBAL innodb_monitor_disable = default;
+SET GLOBAL innodb_monitor_enable = default;
+#
+# Test maximum number of fields per (secondary) index is 64 (32+32)
+#
+CREATE TABLE t2 (dummy INT NOT NULL, c1 INT NOT NULL, c2 INT NOT NULL, c3 INT NOT NULL, c4 INT NOT NULL, c5 INT NOT NULL, c6 INT NOT NULL, c7 INT NOT NULL, c8 INT NOT NULL, c9 INT NOT NULL, c10 INT NOT NULL, c11 INT NOT NULL, c12 INT NOT NULL, c13 INT NOT NULL, c14 INT NOT NULL, c15 INT NOT NULL, c16 INT NOT NULL, c17 INT NOT NULL, c18 INT NOT NULL, c19 INT NOT NULL, c20 INT NOT NULL, c21 INT NOT NULL, c22 INT NOT NULL, c23 INT NOT NULL, c24 INT NOT NULL, c25 INT NOT NULL, c26 INT NOT NULL, c27 INT NOT NULL, c28 INT NOT NULL, c29 INT NOT NULL, c30 INT NOT NULL, c31 INT NOT NULL, c32 INT NOT NULL, c33 INT NOT NULL, c34 INT NOT NULL, c35 INT NOT NULL, c36 INT NOT NULL, c37 INT NOT NULL, c38 INT NOT NULL, c39 INT NOT NULL, c40 INT NOT NULL, c41 INT NOT NULL, c42 INT NOT NULL, c43 INT NOT NULL, c44 INT NOT NULL, c45 INT NOT NULL, c46 INT NOT NULL, c47 INT NOT NULL, c48 INT NOT NULL, c49 INT NOT NULL, c50 INT NOT NULL, c51 INT NOT NULL, c52 INT NOT NULL, c53 INT NOT NULL, c54 INT NOT NULL, c55 INT NOT NULL, c56 INT NOT NULL, c57 INT NOT NULL, c58 INT NOT NULL, c59 INT NOT NULL, c60 INT NOT NULL, c61 INT NOT NULL, c62 INT NOT NULL, c63 INT NOT NULL, c64 INT NOT NULL, c65 INT NOT NULL, PRIMARY KEY (dummy)) ENGINE=InnoDB;
+ALTER TABLE t2 DROP PRIMARY KEY, ADD PRIMARY KEY (c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26, c27, c28, c29, c30, c31, c32, c33);
+ERROR 42000: Too many key parts specified; max 32 parts allowed
+ALTER TABLE t2 DROP PRIMARY KEY, ADD PRIMARY KEY (c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26, c27, c28, c29, c30, c31, c32);
+CREATE INDEX idx_fail ON t2 (c33, c34, c35, c36, c37, c38, c39, c40, c41, c42, c43, c44, c45, c46, c47, c48, c49, c50, c51, c52, c53, c54, c55, c56, c57, c58, c59, c60, c61, c62, c63, c64, c65);
+ERROR 42000: Too many key parts specified; max 32 parts allowed
+CREATE INDEX idx_ok ON t2 (c33, c34, c35, c36, c37, c38, c39, c40, c41, c42, c43, c44, c45, c46, c47, c48, c49, c50, c51, c52, c53, c54, c55, c56, c57, c58, c59, c60, c61, c62, c63, c64);
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `dummy` int(11) NOT NULL,
+  `c1` int(11) NOT NULL,
+  `c2` int(11) NOT NULL,
+  `c3` int(11) NOT NULL,
+  `c4` int(11) NOT NULL,
+  `c5` int(11) NOT NULL,
+  `c6` int(11) NOT NULL,
+  `c7` int(11) NOT NULL,
+  `c8` int(11) NOT NULL,
+  `c9` int(11) NOT NULL,
+  `c10` int(11) NOT NULL,
+  `c11` int(11) NOT NULL,
+  `c12` int(11) NOT NULL,
+  `c13` int(11) NOT NULL,
+  `c14` int(11) NOT NULL,
+  `c15` int(11) NOT NULL,
+  `c16` int(11) NOT NULL,
+  `c17` int(11) NOT NULL,
+  `c18` int(11) NOT NULL,
+  `c19` int(11) NOT NULL,
+  `c20` int(11) NOT NULL,
+  `c21` int(11) NOT NULL,
+  `c22` int(11) NOT NULL,
+  `c23` int(11) NOT NULL,
+  `c24` int(11) NOT NULL,
+  `c25` int(11) NOT NULL,
+  `c26` int(11) NOT NULL,
+  `c27` int(11) NOT NULL,
+  `c28` int(11) NOT NULL,
+  `c29` int(11) NOT NULL,
+  `c30` int(11) NOT NULL,
+  `c31` int(11) NOT NULL,
+  `c32` int(11) NOT NULL,
+  `c33` int(11) NOT NULL,
+  `c34` int(11) NOT NULL,
+  `c35` int(11) NOT NULL,
+  `c36` int(11) NOT NULL,
+  `c37` int(11) NOT NULL,
+  `c38` int(11) NOT NULL,
+  `c39` int(11) NOT NULL,
+  `c40` int(11) NOT NULL,
+  `c41` int(11) NOT NULL,
+  `c42` int(11) NOT NULL,
+  `c43` int(11) NOT NULL,
+  `c44` int(11) NOT NULL,
+  `c45` int(11) NOT NULL,
+  `c46` int(11) NOT NULL,
+  `c47` int(11) NOT NULL,
+  `c48` int(11) NOT NULL,
+  `c49` int(11) NOT NULL,
+  `c50` int(11) NOT NULL,
+  `c51` int(11) NOT NULL,
+  `c52` int(11) NOT NULL,
+  `c53` int(11) NOT NULL,
+  `c54` int(11) NOT NULL,
+  `c55` int(11) NOT NULL,
+  `c56` int(11) NOT NULL,
+  `c57` int(11) NOT NULL,
+  `c58` int(11) NOT NULL,
+  `c59` int(11) NOT NULL,
+  `c60` int(11) NOT NULL,
+  `c61` int(11) NOT NULL,
+  `c62` int(11) NOT NULL,
+  `c63` int(11) NOT NULL,
+  `c64` int(11) NOT NULL,
+  `c65` int(11) NOT NULL,
+  PRIMARY KEY (`c1`,`c2`,`c3`,`c4`,`c5`,`c6`,`c7`,`c8`,`c9`,`c10`,`c11`,`c12`,`c13`,`c14`,`c15`,`c16`,`c17`,`c18`,`c19`,`c20`,`c21`,`c22`,`c23`,`c24`,`c25`,`c26`,`c27`,`c28`,`c29`,`c30`,`c31`,`c32`),
+  KEY `idx_ok` (`c33`,`c34`,`c35`,`c36`,`c37`,`c38`,`c39`,`c40`,`c41`,`c42`,`c43`,`c44`,`c45`,`c46`,`c47`,`c48`,`c49`,`c50`,`c51`,`c52`,`c53`,`c54`,`c55`,`c56`,`c57`,`c58`,`c59`,`c60`,`c61`,`c62`,`c63`,`c64`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;

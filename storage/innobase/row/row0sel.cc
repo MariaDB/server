@@ -4541,7 +4541,7 @@ early_not_found:
 
 	if (UNIV_UNLIKELY(direction == 0)
 	    && unique_search
-	    && btr_search.enabled
+	    && btr_search.get_enabled()
 	    && dict_index_is_clust(index)
 	    && !index->table->is_temporary()
 	    && !prebuilt->templ_contains_blob

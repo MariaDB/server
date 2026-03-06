@@ -11710,8 +11710,8 @@ fail:
 
 		DBUG_ASSERT(ctx->need_rebuild() == new_clustered);
 
-		innobase_copy_frm_flags_from_table_share(
-			ctx->new_table, altered_table->s);
+		innobase_copy_frm_flags_from_table(
+			ctx->new_table, altered_table);
 
 		if (new_clustered) {
 			DBUG_PRINT("to_be_dropped",
@@ -11786,8 +11786,8 @@ foreign_fail:
 			ctx->prebuilt->table = innobase_reload_table(
 				m_user_thd, ctx->prebuilt->table,
 				table->s->table_name, *ctx);
-			innobase_copy_frm_flags_from_table_share(
-				ctx->prebuilt->table, altered_table->s);
+			innobase_copy_frm_flags_from_table(
+				ctx->prebuilt->table, altered_table);
 		}
 
 		unlock_and_close_files(deleted, trx);

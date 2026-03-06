@@ -203,7 +203,10 @@ static bool set_one_value(ha_create_table_option *opt, THD *thd,
             *val= num;
             DBUG_RETURN(0);
           }
-          str+= len+1;
+          str+= len;
+          if (*str == ',')
+            ++str;
+          len= 0;
         }
       }
 
@@ -527,8 +530,8 @@ bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share)
 */
 bool parse_engine_part_options(THD *thd, TABLE *table)
 {
-  MEM_ROOT *root= &table->mem_root;
   TABLE_SHARE *share= table->s;
+  MEM_ROOT *root= &share->mem_root;
   partition_info *part_info= table->part_info;
   engine_option_value *tmp_option_list;
   handlerton *ht;
