@@ -1797,12 +1797,20 @@ static int
 my_utf16le_uni(CHARSET_INFO *cs __attribute__((unused)),
                my_wc_t *pwc, const uchar *s, const uchar *e)
 {
-  my_wc_t lo;
+  uint16 lo;
 
   if (s + 2 > e)
     return MY_CS_TOOSMALL2;
 
-  if ((*pwc= uint2korr(s)) < MY_UTF16_SURROGATE_HIGH_FIRST ||
+  memcpy(&lo, s, 2);
+#ifndef WORDS_BIGENDIAN
+#elif defined __GNUC__
+  lo= __builtin_bswap16(lo);
+#else
+  lo= (uint16) (lo << 8 | (unsigned char) lo);
+#endif
+
+  if ((*pwc= lo) < MY_UTF16_SURROGATE_HIGH_FIRST ||
       (*pwc > MY_UTF16_SURROGATE_LOW_LAST))
     return 2; /* [0000-D7FF,E000-FFFF] */
 
@@ -1812,10 +1820,15 @@ my_utf16le_uni(CHARSET_INFO *cs __attribute__((unused)),
   if (s + 4  > e)
     return MY_CS_TOOSMALL4;
 
-  s+= 2;
+  memcpy(&lo, s + 2, 2);
+#ifndef WORDS_BIGENDIAN
+#elif defined __GNUC__
+  lo= __builtin_bswap16(lo);
+#else
+  lo= (uint16) (lo << 8 | (unsigned char) lo);
+#endif
 
-  if ((lo= uint2korr(s)) < MY_UTF16_SURROGATE_LOW_FIRST ||
-      lo > MY_UTF16_SURROGATE_LOW_LAST)
+  if (lo < MY_UTF16_SURROGATE_LOW_FIRST || lo > MY_UTF16_SURROGATE_LOW_LAST)
     return MY_CS_ILSEQ; /* Expected low surrogate part, got something else */
 
   *pwc= 0x10000 + (((*pwc & 0x3FF) << 10) | (lo & 0x3FF));
@@ -1857,9 +1870,19 @@ static size_t
 my_lengthsp_utf16le(CHARSET_INFO *cs __attribute__((unused)),
                     const char *ptr, size_t length)
 {
-  const char *end= ptr + length;
-  while (end > ptr + 1 && uint2korr(end - 2) == ' ')
-    end-= 2;
+  const char *end;
+  for (end= ptr + length; end > ptr + 1; end-= 2)
+  {
+    uint16 b;
+    memcpy(&b, end - 2, 2);
+#ifdef WORDS_BIGENDIAN
+    if (b != 0x2000)
+      break;
+#else
+    if (b != 0x0020)
+      break;
+#endif
+  }
   return (size_t) (end - ptr);
 }
 
