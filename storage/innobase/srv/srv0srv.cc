@@ -242,6 +242,15 @@ NULL value when collecting statistics. By default, it is set to
 SRV_STATS_NULLS_EQUAL(0), ie. all NULL value are treated equal */
 ulong srv_innodb_stats_method;
 
+/** Threshold in bytes for tablespace size warnings (0 = disabled) */
+ulonglong srv_tablespace_size_warning_threshold = 17592186044416ULL;
+
+/** Percentage at which to start emitting tablespace size warnings */
+uint srv_tablespace_size_warning_pct = 70;
+
+/** Enable/disable tablespace size warning feature */
+my_bool srv_tablespace_size_warning_enabled = TRUE;
+
 srv_stats_t	srv_stats;
 
 /* structure to pass status variables to MySQL */
