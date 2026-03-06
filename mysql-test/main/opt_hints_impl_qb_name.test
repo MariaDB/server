@@ -1,0 +1,9 @@
+set optimizer_switch = 'derived_merge=on';
+
+--source opt_hints_impl_qb_name.inc
+
+set optimizer_switch = 'derived_merge=off';
+
+--source opt_hints_impl_qb_name.inc
+
+set optimizer_switch = default;
