@@ -43,6 +43,7 @@
                                 // my_make_scrambled_password_323
 #include <m_ctype.h>
 #include <my_md5.h>
+#include "../mysys/xxhash.h"
 C_MODE_START
 #include "../mysys/my_static.h"			// For soundex_map
 C_MODE_END
@@ -4568,6 +4569,44 @@ longlong Item_func_crc32::val_int()
 
   return static_cast<longlong>
     (ulonglong{crc_func(uint32_t(crc), res->ptr(), res->length())});
+}
+
+#include "../mysys/xxhash.h"
+
+longlong Item_func_xxh32::val_int()
+{
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(arg_count == 1);
+
+  null_value= 0;
+  String *Result= args[0]->val_str(&m_Value);
+  if (!Result || Result->length() == 0)
+  {
+    null_value= 1;
+    return 0;
+  }
+
+  const uint32_t Hash=
+    XXH32(static_cast<const void *>(Result->ptr()), Result->length(), 0);
+  return static_cast<longlong>(static_cast<ulonglong>(Hash));
+}
+
+longlong Item_func_xxh3_64::val_int()
+{
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(arg_count == 1);
+
+  null_value= 0;
+  String *Result= args[0]->val_str(&m_Value);
+  if (!Result || Result->length() == 0)
+  {
+    null_value= 1;
+    return 0;
+  }
+
+  const uint64_t Hash=
+    XXH3_64bits(static_cast<const void *>(Result->ptr()), Result->length());
+  return static_cast<longlong>(static_cast<ulonglong>(Hash));
 }
 
 #ifdef HAVE_COMPRESS
