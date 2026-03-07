@@ -4807,7 +4807,7 @@ static ulong xb_set_max_open_files(rlim_t max_file_limit)
 		/* Use original value */
 		max_file_limit = static_cast<ulong>(old_cur);
 
-		msg( "setrlimit failed %d %s limit S: %lu H: %lu",
+		msg( "setrlimit failed %d %s limit S: %" PRIu64 " H: %" PRIu64,
 		     errno, strerror(errno), rlimit.rlim_cur, rlimit.rlim_max);
 	} else {
 

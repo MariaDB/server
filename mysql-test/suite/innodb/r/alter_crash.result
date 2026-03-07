@@ -244,18 +244,27 @@ a	b
 2	1
 DROP TABLE t1;
 #
-#  MDEV-37886 PAGE_COMPRESSED ALTER TABLE operations
-#    inconsistent with innodb_file_per_table setting
+#  MDEV-38079 Crash recovery fails after ALTER TABLE…PAGE_COMPRESSED=1
 #
-SET GLOBAL innodb_file_per_table=0;
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
-SET DEBUG_SYNC='before_lock_tables_takes_lock SIGNAL stuck WAIT_FOR go';
 ALTER TABLE t1 PAGE_COMPRESSED=1, ALGORITHM=INSTANT;
-connect con1,localhost,root;
-SET DEBUG_SYNC='now WAIT_FOR stuck';
-SET GLOBAL innodb_file_per_table=1;
-SET DEBUG_SYNC='now SIGNAL go';
-disconnect con1;
-connection default;
-ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'PAGE_COMPRESSED'
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Changing table options requires the table to be rebuilt. Try ALGORITHM=INPLACE
+DROP TABLE t1;
+#
+#  MDEV-38928  Assertion undo_no <= 1 in reset_and_truncate_undo
+#  during ALTER IGNORE on temporary table
+#
+CREATE TEMPORARY TABLE t1 (f1 INT) ENGINE=INNODB;
+INSERT INTO t1 (f1) VALUES (0),(0);
+ALTER IGNORE TABLE t1 FORCE;
+DROP TABLE t1;
+#
+#  MDEV-38951 Assertion `0' upon ALTER IGNORE handling duplicate keys
+#
+CREATE TABLE t1(f1 INT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1), (1);
+ALTER IGNORE TABLE t1 ADD UNIQUE(f1);
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
 DROP TABLE t1;

@@ -482,13 +482,21 @@ char *my_large_virtual_alloc(size_t *size)
         DBUG_RETURN(ptr);
       }
     }
+
+    my_use_large_pages= FALSE;
   }
 
+# ifdef _AIX
+  /* On IBM AIX, my_virtual_mem_commit() relies on mprotect(2) rather than
+  a subsequent mmap(2) with MAP_FIXED. */
   ptr= mmap(NULL, *size, PROT_READ | PROT_WRITE,
             MAP_PRIVATE | OS_MAP_ANON, -1, 0);
+# else
+  ptr= mmap(NULL, *size, PROT_NONE, MAP_PRIVATE | OS_MAP_ANON, -1, 0);
+# endif
   if (ptr == MAP_FAILED)
   {
-    my_error(EE_OUTOFMEMORY, MYF(ME_BELL + ME_ERROR_LOG), size);
+    my_error(EE_OUTOFMEMORY, MYF(ME_BELL + ME_ERROR_LOG), *size);
     ptr= NULL;
   }
 

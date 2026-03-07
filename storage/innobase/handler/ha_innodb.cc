@@ -3631,7 +3631,8 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	m_prebuilt->used_in_HANDLER = TRUE;
 
 	reset_template();
-	m_prebuilt->trx->bulk_insert &= TRX_DDL_BULK;
+
+	m_prebuilt->trx->clear_dml_bulk();
 }
 
 /*********************************************************************//**
@@ -3688,10 +3689,29 @@ static MYSQL_SYSVAR_SIZE_T(buffer_pool_size_auto_min,
   innodb_buffer_pool_extent_size);
 #endif
 
+#if SIZEOF_SIZE_T < 8 || defined _AIX || defined HAVE_valgrind
+/* In constrained environments, innodb_buffer_pool_size_max
+will default to the initial innodb_buffer_pool_size, that is,
+by default, it will not be possible to increase innodb_buffer_pool_size.
+
+In MemorySanitizer and possibly Valgrind memcheck, any virtual memory
+allocation would be backed by one or more copies of shadow bits of the
+same size that could be allocated and initialized even for dummy
+mappings created by mmap(2) with PROT_NONE. We do not want significant
+overhead beyond the actual innodb_buffer_pool_size. */
+static constexpr size_t innodb_buffer_pool_size_max_default{0},
+  innodb_buffer_pool_size_max_minimum{0};
+#else
+static constexpr size_t innodb_buffer_pool_size_max_default{8ULL << 40},// 8TiB
+  innodb_buffer_pool_size_max_minimum{innodb_buffer_pool_extent_size};
+#endif
+
 static MYSQL_SYSVAR_SIZE_T(buffer_pool_size_max, buf_pool.size_in_bytes_max,
                            PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
                            "Maximum innodb_buffer_pool_size",
-                           nullptr, nullptr, 0, 0,
+                           nullptr, nullptr,
+                           innodb_buffer_pool_size_max_default,
+                           innodb_buffer_pool_size_max_minimum,
                            size_t(-ssize_t(innodb_buffer_pool_extent_size)),
                            innodb_buffer_pool_extent_size);
 
@@ -3783,11 +3803,10 @@ static int innodb_init_params()
   min= ut_calc_align<size_t>
     (buf_pool.blocks_in_bytes(BUF_LRU_MIN_LEN + BUF_LRU_MIN_LEN / 4),
      1U << 20);
-  size_t innodb_buffer_pool_size= buf_pool.size_in_bytes_requested;
+  const size_t innodb_buffer_pool_size= buf_pool.size_in_bytes_requested;
 
-  /* With large pages, buffer pool can't grow or shrink. */
-  if (!buf_pool.size_in_bytes_max || my_use_large_pages ||
-      innodb_buffer_pool_size > buf_pool.size_in_bytes_max)
+  if (innodb_buffer_pool_size > buf_pool.size_in_bytes_max ||
+      my_use_large_pages /* large_pages=ON fixes innodb_buffer_pool_size */)
     buf_pool.size_in_bytes_max= ut_calc_align(innodb_buffer_pool_size,
                                               innodb_buffer_pool_extent_size);
 
@@ -4467,7 +4486,7 @@ static bool end_of_statement(trx_t *trx) noexcept
   undo_no_t savept= 0;
   trx->rollback(&savept);
   /* MariaDB will roll back the entire transaction. */
-  trx->bulk_insert&= TRX_DDL_BULK;
+  trx->clear_dml_bulk();
   trx->last_stmt_start= 0;
   return true;
 }
@@ -15812,10 +15831,10 @@ bool ha_innobase::referenced_by_foreign_key() const noexcept
   return !empty;
 }
 
-inline void trx_t::reset_and_truncate_undo(const dict_table_t *table) noexcept
+inline void trx_t::reset_and_truncate_undo() noexcept
 {
   ut_ad(undo_no <= 1);
-  ut_ad(mod_tables.size() == 0 || mod_tables.begin()->first == table);
+  ut_ad(mod_tables.size() <= 1);
   mod_tables.clear();
   undo_no= 0;
   trx_undo_try_truncate(*this);
@@ -15850,7 +15869,7 @@ ha_innobase::extra(
 	stmt_boundary:
 		trx->bulk_insert_apply();
 		trx->end_bulk_insert(*m_prebuilt->table);
-		trx->bulk_insert &= TRX_DDL_BULK;
+		trx->clear_dml_bulk();
 		break;
 	case HA_EXTRA_NO_KEYREAD:
 		(void)check_trx_exists(thd);
@@ -15901,10 +15920,18 @@ ha_innobase::extra(
 			      int{HA_EXTRA_BEGIN_COPY} + 1, "");
 		static_assert(int{dict_table_t::NO_UNDO} + 1 ==
 			      int{dict_table_t::IGNORE_UNDO}, "");
+		if (m_prebuilt->table->is_temporary()) {
+			m_prebuilt->table->skip_alter_undo =
+				(HA_EXTRA_BEGIN_ALTER_IGNORE_COPY
+				 - operation + dict_table_t::NORMAL_UNDO) & 1;
+			break;
+		}
+
 		m_prebuilt->table->skip_alter_undo =
-		  (operation - HA_EXTRA_BEGIN_COPY + dict_table_t::NO_UNDO) & 3;
-		if (m_prebuilt->table->is_temporary()
-		    || !m_prebuilt->table->versioned_by_id()) {
+			(operation - HA_EXTRA_BEGIN_COPY
+			 + dict_table_t::NO_UNDO) & 3;
+
+		if (!m_prebuilt->table->versioned_by_id()) {
 			break;
 		}
 		ut_ad(trx == m_prebuilt->trx);
@@ -15914,17 +15941,18 @@ ha_innobase::extra(
 			.first->second.set_versioned(0);
 		break;
 	case HA_EXTRA_END_COPY:
+	{
 		trx = check_trx_exists(thd);
-		if (!m_prebuilt->table->skip_alter_undo) {
+		const unsigned alter_undo = m_prebuilt->table->skip_alter_undo;
+		if (!alter_undo) {
 			/* This could be invoked inside INSERT...SELECT.
 			We do not want any extra log writes, because
 			they could cause a severe performance regression. */
 			break;
 		}
 
-		if (m_prebuilt->table->skip_alter_undo ==
-			dict_table_t::IGNORE_UNDO) {
-			trx->reset_and_truncate_undo(m_prebuilt->table);
+		if (alter_undo == dict_table_t::IGNORE_UNDO) {
+			trx->reset_and_truncate_undo();
 		}
 
 		m_prebuilt->table->skip_alter_undo =
@@ -15938,7 +15966,7 @@ ha_innobase::extra(
 		}
 
 		trx->end_bulk_insert(*m_prebuilt->table);
-		trx->bulk_insert &= TRX_DML_BULK;
+		trx->clear_ddl_bulk();
 		if (!m_prebuilt->table->is_temporary()
 		    && !high_level_read_only) {
 			/* During copy_data_between_tables(), InnoDB only
@@ -15958,6 +15986,7 @@ ha_innobase::extra(
 		}
 		alter_stats_rebuild(m_prebuilt->table, thd);
 		break;
+	}
 	case HA_EXTRA_ABORT_COPY:
 		/* Abort the ALTER COPY operation. For ALTER IGNORE,
 		this prevents undo logs from being added to the
@@ -16254,7 +16283,7 @@ ha_innobase::external_lock(
 		if (!trx->bulk_insert) {
 			break;
 		}
-		trx->bulk_insert &= TRX_DDL_BULK;
+		trx->clear_dml_bulk();
 		trx->last_stmt_start = trx->undo_no;
 	}
 
