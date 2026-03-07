@@ -3067,12 +3067,15 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
   thd->lex->in_sum_func= 0;                     // For Item_field::fix_fields()
 
   /*
-    If CALL used named parameters, resolve each name to its formal-parameter
-    position and rebuild value_list in declaration order so that
-    execute_procedure receives arguments positionally.
+    Rebuild value_list from call_param_list so execution always sees the
+    current arguments (needed for prepared statements where value_list may
+    not have been preserved from prepare). Then, if any parameter is named,
+    resolve names to formal positions and rebuild value_list in declaration order.
   */
   if (thd->lex->call_param_list.elements > 0)
   {
+    thd->lex->build_value_list_from_call_params(thd);
+
     bool has_named= false;
     {
       List_iterator_fast<LEX::Call_param> it(thd->lex->call_param_list);
@@ -3143,7 +3146,17 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
         }
       }
 
-      /* Validate: every required slot must be filled. */
+      /* Defaults pass: fill any omitted slot from the parameter's default. */
+      for (uint i= 0; i < param_count; i++)
+      {
+        if (!arg_array[i])
+        {
+          sp_variable *spvar= pctx->get_context_variable(i);
+          arg_array[i]= spvar->default_value;
+        }
+      }
+
+      /* Validate: every required slot must be filled (no default = error). */
       for (uint i= 0; i < param_count; i++)
       {
         if (!arg_array[i])

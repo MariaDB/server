@@ -74,4 +74,32 @@ SELECT @xin, @yin;
 @xin	@yin
 10	102
 DROP PROCEDURE p_inout;
+# Default parameters: omitted params get default value
+CREATE PROCEDURE p_def(a INT, b INT DEFAULT 10) SELECT a, b;
+# Positional: one arg, second gets default
+CALL p_def(1);
+a	b
+1	10
+# Positional: two args
+CALL p_def(1, 2);
+a	b
+1	2
+# Named: omit b, b gets default (2e)
+CALL p_def(a => 5);
+a	b
+5	10
+# Named: both given
+CALL p_def(a => 1, b => 20);
+a	b
+1	20
+# Named: reversed order, give both
+CALL p_def(b => 100, a => 7);
+a	b
+7	100
+DROP PROCEDURE p_def;
+# Error: required param omitted (no default)
+CREATE PROCEDURE p_req(a INT, b INT) SELECT a, b;
+CALL p_req(a => 1);
+ERROR 42000: Incorrect number of arguments for PROCEDURE test.p_req; expected 2, got 1
+DROP PROCEDURE p_req;
 # End of 13.0 tests

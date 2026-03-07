@@ -77,4 +77,25 @@ CALL p_inout(y => @yin, x => @xin);
 SELECT @xin, @yin;
 DROP PROCEDURE p_inout;
 
+--echo # Default parameters: omitted params get default value
+CREATE PROCEDURE p_def(a INT, b INT DEFAULT 10) SELECT a, b;
+
+--echo # Positional: one arg, second gets default
+CALL p_def(1);
+--echo # Positional: two args
+CALL p_def(1, 2);
+--echo # Named: omit b, b gets default (2e)
+CALL p_def(a => 5);
+--echo # Named: both given
+CALL p_def(a => 1, b => 20);
+--echo # Named: reversed order, give both
+CALL p_def(b => 100, a => 7);
+DROP PROCEDURE p_def;
+
+--echo # Error: required param omitted (no default)
+CREATE PROCEDURE p_req(a INT, b INT) SELECT a, b;
+--error ER_SP_WRONG_NO_OF_ARGS
+CALL p_req(a => 1);
+DROP PROCEDURE p_req;
+
 --echo # End of 13.0 tests
