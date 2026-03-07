@@ -2269,3 +2269,42 @@ $$
 #
 # End of 10.6 tests
 #
+#
+# MDEV-17677 : Keywords are parsed as identifiers when followed by a dot
+#
+test for Nd (should work)
+SELECT.1;
+.1
+0.1
+SELECT.123+0;
+.123+0
+0.123
+SELECT.5 * 2;
+.5 * 2
+1.0
+test for Mn
+SELECT.́1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT.�\00811' at line 1
+SELECT.̈abc;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT.̈abc' at line 1
+test for Mc
+SELECT.ःtest;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT.ःtest' at line 1
+test for Pc
+SELECT.‿a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT.‿a' at line 1
+test for Cf
+SELECT.‎abc;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT.‎abc' at line 1
+test for Middle-dot and underscore
+SELECT.·123;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT.·123' at line 1
+ٍSELECT._1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '�\008DSELECT._1' at line 1
+still work as identifier
+CREATE TABLE `SELECT` (a INT);
+INSERT INTO `SELECT` VALUES (5);
+SELECT `SELECT`.a FROM `SELECT`;
+a
+5
+DROP TABLE `SELECT`;
