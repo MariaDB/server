@@ -245,6 +245,7 @@ close_and_exit:
 	we can clear the flag without risking any race condition with
 	buf_page_t::read_complete(). */
 	recv_sys.recovery_on = false;
+	log_sys.set_check_for_checkpoint();
 	log_sys.latch.wr_unlock();
 	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 

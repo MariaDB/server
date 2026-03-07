@@ -186,6 +186,11 @@ private:
 public:
   /** innodb_log_buffer_size (usable append_prepare() size in bytes) */
   unsigned buf_size;
+  /** set when there may be need to initiate a log checkpoint.
+  This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
+  std::atomic<bool> need_checkpoint;
+  /** next checkpoint number (protected by latch.wr_lock()) */
+  byte next_checkpoint_no;
   /** log file size in bytes, including the header */
   lsn_t file_size;
 
@@ -230,13 +235,6 @@ public:
   In write_buf(), buf and flush_buf may be swapped */
   byte *flush_buf;
 
-  /** set when there may be need to initiate a log checkpoint.
-  This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
-  std::atomic<bool> need_checkpoint;
-  /** whether a checkpoint is pending; protected by latch.wr_lock() */
-  Atomic_relaxed<bool> checkpoint_pending;
-  /** next checkpoint number (protected by latch.wr_lock()) */
-  byte next_checkpoint_no;
   /** Log sequence number when a log file overwrite (broken crash recovery)
   was noticed. Protected by latch.wr_lock(). */
   lsn_t overwrite_warned;
@@ -245,8 +243,6 @@ public:
   Atomic_relaxed<lsn_t> last_checkpoint_lsn;
   /** The log writer (protected by latch.wr_lock()) */
   lsn_t (*writer)() noexcept;
-  /** next checkpoint LSN (protected by latch.wr_lock()) */
-  lsn_t next_checkpoint_lsn;
 
   /** Log file */
   log_file_t log;
@@ -541,8 +537,9 @@ public:
   }
 
   /** Write checkpoint information and invoke latch.wr_unlock().
+  @param checkpoint the new checkpoint LSN
   @param end_lsn    start LSN of the FILE_CHECKPOINT mini-transaction */
-  inline void write_checkpoint(lsn_t end_lsn) noexcept;
+  inline void write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept;
 
   /** Variations of write_buf() */
   enum resizing_and_latch {

@@ -97,7 +97,7 @@ void log_t::create() noexcept
   /* LSN 0 and 1 are reserved; @see buf_page_t::oldest_modification_ */
   base_lsn.store(FIRST_LSN, std::memory_order_relaxed);
   flushed_to_disk_lsn.store(FIRST_LSN, std::memory_order_relaxed);
-  need_checkpoint.store(true, std::memory_order_relaxed);
+  need_checkpoint.store(false, std::memory_order_relaxed);
   write_lsn= FIRST_LSN;
 
   ut_ad(!checkpoint_buf);
@@ -113,8 +113,6 @@ void log_t::create() noexcept
   log_capacity= 0;
   max_modified_age_async= 0;
   max_checkpoint_age= 0;
-  next_checkpoint_lsn= 0;
-  checkpoint_pending= false;
 
   ut_ad(is_initialised());
 }
@@ -1325,10 +1323,12 @@ func_exit:
     }
 
     DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", goto skip_checkpoint;);
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
     log_sys.latch.wr_unlock();
 
     /* We must wait to prevent the tail of the log overwriting the head. */
     buf_flush_wait_flushed(lsn - max_age);
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     /* Sleep to avoid a thundering herd */
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
@@ -1356,10 +1356,10 @@ inline void buf_mem_pressure_shutdown() noexcept {}
 /** Make a checkpoint at the latest lsn on shutdown. */
 ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown() noexcept
 {
-	lsn_t			lsn;
 	ulint			count = 0;
 
 	ib::info() << "Starting shutdown...";
+	ut_ad(buf_pool.is_initialised() || !srv_was_started);
 
 	/* Wait until the master thread and all other operations are idle: our
 	algorithm only works if the server is idle at shutdown */
@@ -1385,17 +1385,16 @@ ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown() noexcept
 		srv_shutdown(srv_fast_shutdown == 0);
 	}
 
+	constexpr ulint COUNT_INTERVAL{600};
+	if (false) {
+	loop:
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		count++;
+	}
 
-loop:
 	ut_ad(lock_sys.is_initialised() || !srv_was_started);
 	ut_ad(log_sys.is_initialised() || !srv_was_started);
 	ut_ad(fil_system.is_initialised() || !srv_was_started);
-
-#define COUNT_INTERVAL 600U
-#define CHECK_INTERVAL 100000U
-	std::this_thread::sleep_for(std::chrono::microseconds(CHECK_INTERVAL));
-
-	count++;
 
 	/* Check that there are no longer transactions, except for
 	PREPARED ones. We need this wait even for the 'very fast'
@@ -1408,12 +1407,12 @@ loop:
 
 		if (srv_print_verbose_log && count > COUNT_INTERVAL) {
 			service_manager_extend_timeout(
-				COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
-				"Waiting for %lu active transactions to finish",
-				(ulong) total_trx);
-			ib::info() << "Waiting for " << total_trx << " active"
-				<< " transactions to finish";
-
+				COUNT_INTERVAL / 5,
+				"Waiting for %zu active transactions to finish",
+				total_trx);
+			sql_print_information("InnoDB: Waiting for %zu active"
+					      " transactions to finish",
+					      total_trx);
 			count = 0;
 		}
 
@@ -1429,7 +1428,7 @@ loop:
 		ut_ad(!srv_read_only_mode);
 wait_suspend_loop:
 		service_manager_extend_timeout(
-			COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
+			COUNT_INTERVAL / 5,
 			"Waiting for %s to exit", thread_name);
 		if (srv_print_verbose_log && count > COUNT_INTERVAL) {
 			ib::info() << "Waiting for " << thread_name
@@ -1448,66 +1447,37 @@ wait_suspend_loop:
 		goto wait_suspend_loop;
 	}
 
-	if (buf_page_cleaner_is_active) {
-		thread_name = "page cleaner thread";
-		pthread_cond_signal(&buf_pool.do_flush_list);
-		goto wait_suspend_loop;
-	}
+	if (buf_pool.is_initialised()) {
+		if (srv_fast_shutdown != 2 && !srv_read_only_mode
+		    && srv_was_started) {
+			log_sys.set_check_for_checkpoint();
+			buf_flush_sync_batch(0);
+		}
 
-	buf_load_dump_end();
+		buf_load_dump_end();
 
-	if (!buf_pool.is_initialised()) {
-		ut_ad(!srv_was_started);
-	} else {
-		buf_flush_buffer_pool();
-	}
+		mysql_mutex_lock(&buf_pool.flush_list_mutex);
+		srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
+		while (buf_page_cleaner_is_active) {
+			pthread_cond_signal(&buf_pool.do_flush_list);
+			my_cond_wait(&buf_pool.done_flush_list,
+				     &buf_pool.flush_list_mutex.m_mutex);
+		}
+		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
-	if (srv_fast_shutdown == 2 || !srv_was_started) {
-		if (!srv_read_only_mode && srv_was_started) {
+		if (srv_fast_shutdown == 2 && !srv_read_only_mode) {
 			sql_print_information(
 				"InnoDB: Executing innodb_fast_shutdown=2."
 				" Next startup will execute crash recovery!");
-
-			/* In this fastest shutdown we do not flush the
-			buffer pool:
-
-			it is essentially a 'crash' of the InnoDB server.
-			Make sure that the log is all flushed to disk, so
-			that we can recover all committed transactions in
-			a crash recovery. */
 			log_buffer_flush_to_disk();
 		}
+	}
 
-		srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
+	if (srv_fast_shutdown == 2 || !srv_was_started) {
 		return;
 	}
 
-	if (!srv_read_only_mode) {
-		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-			"ensuring dirty buffer pool are written to log");
-		log_make_checkpoint();
-
-                const auto sizeof_cp = log_sys.is_encrypted()
-			? SIZE_OF_FILE_CHECKPOINT + 8
-			: SIZE_OF_FILE_CHECKPOINT;
-
-		log_sys.latch.wr_lock(SRW_LOCK_CALL);
-
-		lsn = log_sys.get_lsn();
-
-		const bool lsn_changed = lsn != log_sys.last_checkpoint_lsn
-			&& lsn != log_sys.last_checkpoint_lsn + sizeof_cp;
-		ut_ad(lsn >= log_sys.last_checkpoint_lsn);
-
-		log_sys.latch.wr_unlock();
-
-		if (lsn_changed) {
-			goto loop;
-		}
-	} else {
-		lsn = recv_sys.lsn;
-	}
-
+	const lsn_t lsn{log_get_lsn()};
 	srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
 
 	/* Make some checks that the server really is quiet */
