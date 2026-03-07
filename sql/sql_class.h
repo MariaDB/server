@@ -927,6 +927,7 @@ typedef struct system_variables
   my_bool session_track_user_variables;
 #endif // USER_VAR_TRACKING
   my_bool tcp_nodelay;
+  my_bool json_schema_format_validation;
   my_bool optimizer_record_context;
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;
