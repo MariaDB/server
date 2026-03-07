@@ -3603,6 +3603,8 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
 DYNAMIC_ARRAY all_status_vars;
 static bool status_vars_inited= 0;
 ulonglong status_var_array_version= 0;
+HASH status_vars_hash;
+ulonglong status_vars_hash_version = 0;
 
 C_MODE_START
 static int show_var_cmp(const void *var1, const void *var2)
@@ -3961,10 +3963,6 @@ const char* get_one_variable(THD *thd,
   return pos;
 }
 
-HASH status_vars_hash;
-ulonglong status_vars_hash_version = 0;
-
-
 static const uchar *get_status_var_length(const void *var_, size_t *length,
                                    my_bool)
 {
@@ -3998,16 +3996,6 @@ error:
   DBUG_RETURN(1);
 }
 
-uint count_array_elements(SHOW_VAR *array)
-{
-  uint cnt = 0;
-  if (!array) return 0;
-  
-  for (; array->name; array++)
-    cnt++;
-  
-  return cnt;
-}
 
 int add_status_var_hash(SHOW_VAR *variables)
 {
@@ -4017,15 +4005,8 @@ int add_status_var_hash(SHOW_VAR *variables)
   {
     SHOW_VAR *var = variables;
 
-    if (!var || !var->name)
+    if (!var || !var->name || var->type == SHOW_ARRAY)
     {
-      continue;
-    }
-
-    if (var->type == SHOW_ARRAY) 
-    {
-      sql_print_information("HASH ARRAY: Skip array '%s'", 
-                           var->name);
       continue;
     }
     
@@ -4034,20 +4015,16 @@ int add_status_var_hash(SHOW_VAR *variables)
       return 1;
     }
     ++count;
-    sql_print_information("HASH ADD: name='%s', type=%d", var->name, var->type);
   }
-  sql_print_information("Added %u static variables to hash", count);
   return 0;
 }
 
-
-static bool show_status_array(THD *thd, const char *wild,
-                              SHOW_VAR *variables,
-                              enum enum_var_type scope,
-                              struct system_status_var *status_var,
-                              const LEX_CSTRING &prefix, TABLE *table,
-                              bool ucase_names,
-                              COND *cond)
+static bool hash_path_show_status(THD *thd,
+                                  const char *wild,
+                                  enum enum_var_type scope,
+                                  struct system_status_var *status_var,
+                                  TABLE *table,
+                                  bool ucase_names)
 {
   my_aligned_storage<SHOW_VAR_FUNC_BUFF_SIZE, MY_ALIGNOF(long)> buffer;
   char * const buff= buffer.data;
@@ -4060,21 +4037,11 @@ static bool show_status_array(THD *thd, const char *wild,
   bool is_wsrep_var= FALSE;
 #endif
 
-  DBUG_ENTER("show_status_array");
-  sql_print_information("SHOW STATUS ARRAY ENTER");
-
-  if (wild && wild[0] && 
-      (!cond || cond->val_bool()) &&
-      prefix.length == 0)
-  {
-    sql_print_information("HASH PATH ENTER: wild=%s", wild);
 
     var= (SHOW_VAR *) my_hash_search(&status_vars_hash, (uchar *) wild,
                                      strlen(wild));
     if (var && var->name)
     {
-      sql_print_information("HASH PATH: Found variable '%s' in hash", wild);
-
       Lex_cstring_strlen var_name(var->name);
 
       if (ucase_names)
@@ -4097,8 +4064,6 @@ static bool show_status_array(THD *thd, const char *wild,
 
       if (var->type == SHOW_FUNC || var->type == SHOW_SIMPLE_FUNC)
       {
-        sql_print_information("HASH PATH: Executing function '%s'", wild);
-
         SHOW_VAR *current= var;
 
         while (current->type == SHOW_FUNC || current->type == SHOW_SIMPLE_FUNC)
@@ -4138,9 +4103,32 @@ static bool show_status_array(THD *thd, const char *wild,
       thd->get_stmt_da()->inc_current_row_for_warning();
       DBUG_RETURN(FALSE);
     }
-  }
+}
 
-  if (prefix.length)
+
+static bool scan_path_show_status(THD *thd,
+                                  const char *wild,
+                                  SHOW_VAR *variables,
+                                  enum enum_var_type scope,
+                                  struct system_status_var *status_var,
+                                  const LEX_CSTRING &prefix,
+                                  TABLE *table,
+                                  bool ucase_names,
+                                  COND *cond)
+{
+  my_aligned_storage<SHOW_VAR_FUNC_BUFF_SIZE, MY_ALIGNOF(long)> buffer;
+  char * const buff= buffer.data;
+  CharBuffer<NAME_CHAR_LEN> name_buffer;
+  SHOW_VAR tmp, *var;
+  bool res= FALSE;
+  CHARSET_INFO *charset= system_charset_info;
+  size_t prefix_length= 0;
+#ifdef WITH_WSREP
+  bool is_wsrep_var= FALSE;
+#endif
+
+  DBUG_ENTER("show_status_array");
+if (prefix.length)
   {
     if (ucase_names)
       name_buffer.copy_caseup(system_charset_info, prefix);
@@ -4270,6 +4258,45 @@ static bool show_status_array(THD *thd, const char *wild,
   }
 end:
   DBUG_RETURN(res);
+}
+
+
+static bool show_status_array(THD *thd, const char *wild,
+                              SHOW_VAR *variables,
+                              enum enum_var_type scope,
+                              struct system_status_var *status_var,
+                              const LEX_CSTRING &prefix, TABLE *table,
+                              bool ucase_names,
+                              COND *cond)
+{
+  my_aligned_storage<SHOW_VAR_FUNC_BUFF_SIZE, MY_ALIGNOF(long)> buffer;
+  char * const buff= buffer.data;
+  CharBuffer<NAME_CHAR_LEN> name_buffer;
+  SHOW_VAR tmp, *var;
+  bool res= FALSE;
+  CHARSET_INFO *charset= system_charset_info;
+  size_t prefix_length= 0;
+#ifdef WITH_WSREP
+  bool is_wsrep_var= FALSE;
+#endif
+
+  DBUG_ENTER("show_status_array");
+
+  if (wild && wild[0] && 
+      (!cond || cond->val_bool()) &&
+      prefix.length == 0)
+  {
+    if (!hash_path_show_status(thd, wild, scope, status_var, 
+                               table, ucase_names))
+    {
+      DBUG_RETURN(FALSE);
+    }
+  }
+
+  result = scan_path_show_status(thd, wild, variables, scope, status_var,
+                                 prefix, table, ucase_names, cond);
+
+  DBUG_RETURN(result);
 }
 
 /*
