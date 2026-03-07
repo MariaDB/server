@@ -2237,10 +2237,21 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
     for (uint i= 0 ; i < params ; i++)
     {
-      Item *arg_item= it_args++;
-
+      Item *arg_item;
+      if (i < args->elements)
+        arg_item= it_args++;
+      else
+      {
+        sp_variable *spvar= m_pcont->get_context_variable(i);
+        arg_item= spvar->default_value;
+      }
       if (!arg_item)
+      {
+        my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "PROCEDURE",
+                 ErrConvDQName(this).ptr(), params, args->elements);
+        err_status= TRUE;
         break;
+      }
 
       err_status= bind_input_param(thd, arg_item, i, octx, nctx, FALSE);
       if (err_status)

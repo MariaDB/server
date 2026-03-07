@@ -3067,6 +3067,116 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
   thd->lex->in_sum_func= 0;                     // For Item_field::fix_fields()
 
   /*
+    Rebuild value_list from call_param_list so execution always sees the
+    current arguments (needed for prepared statements where value_list may
+    not have been preserved from prepare). Then, if any parameter is named,
+    resolve names to formal positions and rebuild value_list in declaration order.
+  */
+  if (thd->lex->call_param_list.elements > 0)
+  {
+    thd->lex->build_value_list_from_call_params(thd);
+
+    bool has_named= false;
+    {
+      List_iterator_fast<LEX::Call_param> it(thd->lex->call_param_list);
+      LEX::Call_param *cp;
+      while ((cp= it++))
+        if (cp->name.length) { has_named= true; break; }
+    }
+
+    if (has_named)
+    {
+      sp_pcontext *pctx= sp->get_parse_context();
+      const uint param_count= pctx->context_var_count();
+      const uint call_count= thd->lex->call_param_list.elements;
+
+      Item **arg_array= (Item **)thd->alloc(param_count * sizeof(Item *));
+      if (!arg_array)
+        return 1;
+      memset(arg_array, 0, param_count * sizeof(Item *));
+
+      /* Positional pass: leading positional arguments fill slots 0..N-1. */
+      uint positional_idx= 0;
+      bool seen_named= false;
+      {
+        List_iterator_fast<LEX::Call_param> it(thd->lex->call_param_list);
+        LEX::Call_param *cp;
+        while ((cp= it++))
+        {
+          if (!cp->name.length)
+          {
+            if (seen_named)
+            {
+              my_error(ER_WRONG_ARGUMENTS, MYF(0), "CALL");
+              return 1;
+            }
+            if (positional_idx >= param_count)
+            {
+              my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "PROCEDURE",
+                       ErrConvDQName(sp).ptr(), param_count, call_count);
+              return 1;
+            }
+            arg_array[positional_idx++]= cp->value;
+          }
+          else
+            seen_named= true;
+        }
+      }
+
+      /* Named pass: resolve each name to its formal-parameter slot. */
+      {
+        List_iterator_fast<LEX::Call_param> it(thd->lex->call_param_list);
+        LEX::Call_param *cp;
+        while ((cp= it++))
+        {
+          if (!cp->name.length)
+            continue;
+          sp_variable *spvar= pctx->find_variable(&cp->name, false);
+          if (!spvar)
+          {
+            my_error(ER_SP_UNDECLARED_VAR, MYF(0), cp->name.str);
+            return 1;
+          }
+          if (arg_array[spvar->offset])
+          {
+            my_error(ER_SP_DUP_PARAM, MYF(0), cp->name.str);
+            return 1;
+          }
+          arg_array[spvar->offset]= cp->value;
+        }
+      }
+
+      /* Defaults pass: fill any omitted slot from the parameter's default. */
+      for (uint i= 0; i < param_count; i++)
+      {
+        if (!arg_array[i])
+        {
+          sp_variable *spvar= pctx->get_context_variable(i);
+          arg_array[i]= spvar->default_value;
+        }
+      }
+
+      /* Validate: every required slot must be filled (no default = error). */
+      for (uint i= 0; i < param_count; i++)
+      {
+        if (!arg_array[i])
+        {
+          sp_variable *spvar= pctx->get_context_variable(i);
+          my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "PROCEDURE",
+                   ErrConvDQName(sp).ptr(), param_count, call_count);
+          (void)spvar;
+          return 1;
+        }
+      }
+
+      /* Rebuild value_list in formal-parameter order. */
+      thd->lex->value_list.empty();
+      for (uint i= 0; i < param_count; i++)
+        thd->lex->value_list.push_back(arg_array[i], thd->mem_root);
+    }
+  }
+
+  /*
     We never write CALL statements into binlog:
      - If the mode is non-prelocked, each statement will be logged
        separately.
