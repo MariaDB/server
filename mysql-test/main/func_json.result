@@ -1768,6 +1768,26 @@ null<=>json_extract('1',json_object(null,'{ }',null,null),'{}')
 Warnings:
 Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 1
 # End of 10.6 tests
+SELECT json_extract(t.j, '$')
+FROM (SELECT json_extract('["a",1]', '$') AS j) AS t;
+json_extract(t.j, '$')
+["a", 1]
+SELECT json_extract(t.j, '$')
+FROM (SELECT json_extract('{"key":"value"}', '$') AS j) AS t;
+json_extract(t.j, '$')
+{"key": "value"}
+SELECT json_extract(t.j, '$[0]', '$[1]')
+FROM (SELECT json_extract('[{"a":1},{"b":2},{"c":3}]', '$') AS j) AS t;
+json_extract(t.j, '$[0]', '$[1]')
+[{"a": 1}, {"b": 2}]
+SELECT json_extract(t.j, '$')
+FROM (SELECT json_extract('{"name":"Ä Ö Ü ß","city":"München"}', '$') AS j) AS t;
+json_extract(t.j, '$')
+{"name": "Ä Ö Ü ß", "city": "München"}
+SELECT json_extract(t.j, '$.name')
+FROM (SELECT json_extract('{"name":"日本語テスト","val":[1,2]}', '$') AS j) AS t;
+json_extract(t.j, '$.name')
+"日本語テスト"
 #
 # MDEV-35614 JSON_UNQUOTE doesn't work with emojis
 #
