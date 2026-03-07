@@ -32727,9 +32727,24 @@ void JOIN::save_query_plan(Join_plan_state *save_to)
 
   for (uint i= 0; i < table_count; i++)
   {
+    uint num_keys= join_tab[i].table->s->keys;
     save_to->join_tab_keyuse[i]= join_tab[i].keyuse;
     join_tab[i].keyuse= NULL;
     save_to->join_tab_checked_keys[i]= join_tab[i].checked_keys;
+    if (num_keys > 0)
+    {
+      if (!save_to->const_key_parts[i])
+      {
+        save_to->const_key_parts[i]=
+            (key_part_map *) thd->calloc(sizeof(key_part_map) * num_keys);
+      }
+
+      if (save_to->const_key_parts[i])
+      {
+        memcpy(save_to->const_key_parts[i], join_tab[i].table->const_key_parts,
+               sizeof(key_part_map) * num_keys);
+      }
+    }
     join_tab[i].checked_keys.clear_all();
   }
   memcpy((uchar*) save_to->best_positions, (uchar*) best_positions,
@@ -32777,6 +32792,9 @@ void JOIN::restore_query_plan(Join_plan_state *restore_from)
   {
     join_tab[i].keyuse= restore_from->join_tab_keyuse[i];
     join_tab[i].checked_keys= restore_from->join_tab_checked_keys[i];
+    memcpy(join_tab[i].table->const_key_parts,
+           restore_from->const_key_parts[i],
+           sizeof(key_part_map) * join_tab[i].table->s->keys);
   }
 
   memcpy((uchar*) best_positions, (uchar*) restore_from->best_positions,

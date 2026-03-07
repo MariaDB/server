@@ -1,0 +1,32 @@
+#
+# MDEV-38877: Unnecessary filesort on derived table materialization
+# when derived table is inherently sorted by the grouping columns
+#
+CREATE TABLE t1 (
+groups_20 int NOT NULL,
+groups_20_2 int NOT NULL,
+b int,
+PRIMARY KEY (groups_20, groups_20_2)
+);
+CREATE TABLE t2 (a int, b int, index(a));
+INSERT INTO t1 SELECT seq/1000, seq+1, seq from seq_1_to_10000;
+INSERT INTO t2 SELECT seq, seq from seq_1_to_1000;
+ANALYZE TABLE t1, t2;
+EXPLAIN
+SELECT 
+a, 
+SUM(b) 
+FROM ( 
+SELECT 
+groups_20 
+FROM t1 
+GROUP BY groups_20 
+HAVING COUNT(*) != 1000
+) DT 
+JOIN t2 ON a = groups_20 
+GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	a	NULL	NULL	NULL	1000	Using where; Using temporary; Using filesort
+1	PRIMARY	<derived2>	ref	key0	key0	4	test.t2.a	1	
+2	DERIVED	t1	index	PRIMARY	PRIMARY	8	NULL	10000	Using index
+DROP TABLE t1, t2;
