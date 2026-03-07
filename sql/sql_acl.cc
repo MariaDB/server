@@ -13613,10 +13613,30 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
     Cast *passwd to an unsigned char, so that it doesn't extend the sign for
     *passwd > 127 and become 2**32-127+ after casting to uint.
   */
-  uint passwd_len= (thd->client_capabilities & CLIENT_SECURE_CONNECTION ?
-                    (uchar) (*passwd++) : (uint)strlen(passwd));
-
-  db+= passwd_len + 1;
+  size_t passwd_len;
+  if (!(thd->client_capabilities & CLIENT_SECURE_CONNECTION))
+  {
+    passwd_len= strlen(passwd);
+    db= passwd + passwd_len + 1;  /* +1 to skip null terminator */
+  }
+  else if (!(thd->client_capabilities & CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA))
+  {
+    passwd_len= (uchar)(*passwd++);
+    db= passwd + passwd_len;
+  }
+  else
+  {
+    ulonglong len= safe_net_field_length_ll((uchar**)&passwd,
+                                            end - passwd);
+    if (len > packet_length)
+    {
+      my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
+                 MYF(0));
+      DBUG_RETURN(1);
+    }
+    passwd_len= (size_t)len;
+    db= passwd + passwd_len;
+  }
   /*
     Database name is always NUL-terminated, so in case of empty database
     the packet must contain at least the trailing '\0'.
