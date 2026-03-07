@@ -31,10 +31,10 @@
 #include "pfs_digest.h"
 
 /*
-  Write MD5 hash value in a string to be used
+  Write XXH3 hash value in a string to be used
   as DIGEST for the statement.
 */
-#define MD5_HASH_TO_STRING(_hash, _str)                    \
+#define DIGEST_HASH_TO_STRING(_hash, _str)                 \
   sprintf(_str, "%02x%02x%02x%02x%02x%02x%02x%02x"         \
                 "%02x%02x%02x%02x%02x%02x%02x%02x",        \
           _hash[0], _hash[1], _hash[2], _hash[3],          \
@@ -42,7 +42,8 @@
           _hash[8], _hash[9], _hash[10], _hash[11],        \
           _hash[12], _hash[13], _hash[14], _hash[15])
 
-#define MD5_HASH_TO_STRING_LENGTH 32
+/* XXH3_128bits = 16 bytes of binary = 128 printable characters */
+#define DIGEST_HASH_TO_STRING_LENGTH 32
 
 struct PFS_host;
 struct PFS_user;
@@ -140,7 +141,7 @@ struct PFS_digest_row
   /** Length in bytes of @c m_schema_name. */
   uint m_schema_name_length;
   /** Column DIGEST. */
-  char m_digest[COL_DIGEST_SIZE];
+  char m_digest[DIGEST_HASH_TO_STRING_LENGTH + 1];
   /** Length in bytes of @c m_digest. */
   uint m_digest_length;
   /** Column DIGEST_TEXT. */
