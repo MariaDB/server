@@ -2032,4 +2032,16 @@ COLUMNS(NAME VARCHAR(30) PATH '$.NAME')) AS t_sz;
 
 SELECT JSON_VALUE('{"a":[1,2]}', '$.a[*]');
 
+--echo #
+--echo # MDEV-38264 Assertion in json_find_path() fails after computing
+--echo # array size of invalid json structure
+--echo #
+
+SELECT JSON_QUERY('{ "A": [0,] }', '$.A[-1]');
+SELECT JSON_VALUE('{ "A": [0,] }', '$.A[-1]');
+SELECT JSON_VALUE('{ "A": [5,] }', '$.A[-2]');
+SELECT JSON_VALUE('{ "A": [5] }', '$.A[-2]');
+SELECT JSON_LENGTH('{ "A": [0,] }', '$.A');
+SELECT JSON_VALID('{ "A": [0,] }');
+
 --echo # End of 10.11 Test
