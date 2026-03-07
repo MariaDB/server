@@ -1,0 +1,64 @@
+#
+# MDEV-37442: Illegal mix of collations during "mariadb-dump --system=user"
+#
+# When a server is migrated from MySQL 8.0, the mysql.user, mysql.role_edges
+# and mysql.default_roles tables retain their original utf8mb4 collations.
+# If the user and role tables end up with different utf8mb4 collations
+# (e.g. utf8mb4_general_ci vs utf8mb4_unicode_ci), MariaDB's mysqldump
+# --system=user fails with "Illegal mix of collations" when joining the
+# tables because no explicit collation was specified on the JOIN keys.
+#
+# Fix: Added COLLATE utf8mb4_bin on every JOIN key so the explicit
+# collation always wins over any implicit column collation.
+#
+# Simulate the mismatch: a user table with utf8mb4_general_ci joined
+# against role_edges with utf8mb4_unicode_ci.  Both have IMPLICIT
+# coercibility, so MariaDB cannot resolve the conflict automatically.
+# This is the same type of error that mysqldump triggered on a migrated
+# server.  COLLATE utf8mb4_bin (EXPLICIT coercibility) resolves it.
+CREATE TEMPORARY TABLE t_mysql_user (
+User  char(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+Host  char(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT ''
+);
+CREATE TEMPORARY TABLE t_role_edges (
+FROM_HOST char(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+FROM_USER char(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT ''
+);
+INSERT INTO t_mysql_user VALUES ('mdev37442_user', '%');
+INSERT INTO t_role_edges    VALUES ('', 'mdev37442_role');
+# Without COLLATE: utf8mb4_general_ci (IMPLICIT) vs utf8mb4_unicode_ci (IMPLICIT)
+# -> ERROR 1267: Illegal mix of collations
+SELECT u.User FROM t_mysql_user u
+JOIN t_role_edges e ON u.User = e.FROM_USER;
+ERROR HY000: Illegal mix of collations (utf8mb4_general_ci,IMPLICIT) and (utf8mb4_unicode_ci,IMPLICIT) for operation '='
+# With COLLATE utf8mb4_bin: EXPLICIT coercibility wins on both sides -> OK
+SELECT u.User FROM t_mysql_user u
+JOIN t_role_edges e ON u.User = e.FROM_USER COLLATE utf8mb4_bin;
+User
+DROP TEMPORARY TABLE t_mysql_user, t_role_edges;
+#
+# Create the full MySQL-origin role tables and verify that
+# mysqldump --system=user completes without error.
+DROP TABLE IF EXISTS mysql.role_edges;
+DROP TABLE IF EXISTS mysql.default_roles;
+CREATE TABLE mysql.role_edges (
+FROM_HOST            char(60)  CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+FROM_USER            char(32)  CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+TO_HOST              char(60)  CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+TO_USER              char(32)  CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+WITH_ADMIN_OPTION    enum('N','Y') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'N',
+PRIMARY KEY (FROM_HOST, FROM_USER, TO_HOST, TO_USER)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE mysql.default_roles (
+HOST              char(60)  CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+USER              char(32)  CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+DEFAULT_ROLE_HOST char(60)  CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+DEFAULT_ROLE_USER char(32)  CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+PRIMARY KEY (HOST, USER, DEFAULT_ROLE_HOST, DEFAULT_ROLE_USER)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+INSERT INTO mysql.role_edges VALUES ('', 'mdev37442_role', '%', 'mdev37442_user', 'N');
+INSERT INTO mysql.default_roles VALUES ('%', 'mdev37442_user', '', 'mdev37442_role');
+# mysqldump --system=user must succeed despite the collation difference.
+# Cleanup
+DROP TABLE mysql.role_edges;
+DROP TABLE mysql.default_roles;
