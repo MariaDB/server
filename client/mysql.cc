@@ -270,8 +270,7 @@ static int sigint_received= 0;
 #endif
 static char *current_host,*current_db,*current_user=0,*opt_password=0,
             *current_prompt=0, *delimiter_str= 0,
-            *default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME,
-            *opt_init_command= 0;
+            *default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
 static char *histfile;
 static char *histfile_tmp;
 static String glob_buffer,old_buffer;
@@ -308,6 +307,7 @@ static uint opt_protocol=0;
 static const char *opt_protocol_type= "";
 
 #include "sslopt-vars.h"
+#include "common-cli-vars.h"
 
 const char *default_dbug_option="d:t:o,/tmp/mariadb.trace";
 
@@ -1833,10 +1833,6 @@ static struct my_option my_long_options[] =
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore-spaces", 'i', "Ignore space after function names.",
    &ignore_spaces, &ignore_spaces, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"init-command", 0,
-   "SQL Command to execute when connecting to MariaDB server. Will "
-   "automatically be re-executed when reconnecting.", &opt_init_command,
-   &opt_init_command, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"line-numbers", 0, "Write line numbers for errors.",
    &line_numbers, &line_numbers, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"skip-line-numbers", 'L', "Don't write line number for errors.", 0, 0, 0,
@@ -1948,6 +1944,7 @@ static struct my_option my_long_options[] =
    &opt_mysql_unix_port, &opt_mysql_unix_port, 0, GET_STR_ALLOC,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #include "sslopt-longopts.h"
+#include "common-cli-longopts.h"
   {"table", 't', "Output in table format.", &output_tables,
    &output_tables, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"tee", OPT_TEE,

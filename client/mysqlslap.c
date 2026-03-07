@@ -86,6 +86,7 @@ TODO:
 #include <my_dir.h>
 #include <signal.h>
 #include <sslopt-vars.h>
+#include <common-cli-vars.h>
 #ifndef _WIN32
 #include <sys/wait.h>
 #endif
@@ -118,8 +119,7 @@ static char *host= NULL, *opt_password= NULL, *user= NULL,
             *default_engine= NULL,
             *pre_system= NULL,
             *post_system= NULL,
-            *opt_mysql_unix_port= NULL,
-            *opt_init_command= NULL;
+            *opt_mysql_unix_port= NULL;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 
 const char *delimiter= "\n";
@@ -617,11 +617,6 @@ static struct my_option my_long_options[] =
   {"host", 'h', "Connect to host. Defaults in the following order: "
   "$MARIADB_HOST, and then localhost",
    &host, &host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"init-command", 0,
-   "SQL Command to execute when connecting to MariaDB server. Will "
-   "automatically be re-executed when reconnecting.",
-   &opt_init_command, &opt_init_command, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"iterations", 'i', "Number of times to run the tests.", &iterations,
     &iterations, 0, GET_UINT, REQUIRED_ARG, 1, 0, 0, 0, 0, 0},
   {"no-drop", 0, "Do not drop the schema after the test.",
@@ -685,6 +680,7 @@ static struct my_option my_long_options[] =
     &opt_mysql_unix_port, &opt_mysql_unix_port, 0, GET_STR,
     REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #include <sslopt-longopts.h>
+#include <common-cli-longopts.h>
 #ifndef DONT_ALLOW_USER_CHANGE
   {"user", 'u', "User for login if not current user.", &user,
     &user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
