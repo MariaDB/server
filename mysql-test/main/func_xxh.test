@@ -1,0 +1,21 @@
+SELECT XXH32('abc') = '32d153ff' AS xxh32_expected;
+SELECT XXH32(11223344) = '1852349e' AS xxh32_expected;
+SELECT XXH32('abc') = XXH32('abc') AS xxh32_eq;
+SELECT XXH32(NULL) IS NULL AS xxh32_null;
+SELECT XXH32('') = '02cc5d05' AS xxh32_empty;
+
+SELECT XXH3('abc') = '78af5f94892f3950' AS xxh3_expected;
+SELECT XXH3(11223344) = '8178f6e2d84ca479' AS xxh3_expected;
+SELECT XXH3('abc') = XXH32('abc') AS xxh3_eq;
+SELECT XXH3(NULL) IS NULL AS xxh3_null;
+SELECT XXH3('') = '2d06800538d394c2' AS xxh3_empty;
+
+SELECT XXH3_128('abc') = '06b05ab6733a618578af5f94892f3950' AS xxh3_128_expected;
+SELECT XXH3_128(11223344) = '4a18cfb1c6fc9ebb0869a1f5a72ff851' AS xxh3_128_num;
+SELECT XXH3_128('abc') = XXH3_128('abc') AS xxh3_128_eq;
+SELECT XXH3_128(NULL) IS NULL AS xxh3_128_null;
+SELECT XXH3_128('') = '99aa06d3014798d86001c324468d497f' AS xxh3_128_empty;
+
+SELECT XXH32(_latin1'abc') = XXH32(_utf8mb4'abc') AS xxh32_charset_eq;
+SELECT XXH3(_latin1'abc') = XXH3(_utf8mb4'abc') AS xxh3_charset_eq;
+SELECT XXH3_128(_latin1'abc') = XXH3_128(_utf8mb4'abc') AS xxh3_128_charset_eq;
