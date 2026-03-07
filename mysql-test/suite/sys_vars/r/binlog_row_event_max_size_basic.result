@@ -1,0 +1,15 @@
+# Verify Read-Only Status (SET should fail)
+SET @@global.binlog_row_event_max_size= 4096;
+ERROR HY000: Variable 'binlog_row_event_max_size' is a read only variable
+# Restarting with --binlog-row-event-max-size=100
+# restart: --binlog-row-event-max-size=100
+# Should be clipped to 256 (the minimum)
+SELECT @@global.binlog_row_event_max_size;
+@@global.binlog_row_event_max_size
+256
+# Restarting with --binlog-row-event-max-size=4300000000
+# restart: --binlog-row-event-max-size=4300000000
+# Should be clipped to the maximum (4294967040 on 64-bit)
+SELECT @@global.binlog_row_event_max_size;
+@@global.binlog_row_event_max_size
+4294967040
