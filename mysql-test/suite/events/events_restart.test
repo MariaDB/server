@@ -4,6 +4,8 @@
 call mtr.add_suppression('Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted');
 call mtr.add_suppression('Event Scheduler: An error occurred when initializing system tables. Disabling the Event Scheduler');
 call mtr.add_suppression('Event Scheduler.*shutdown.*');
+call mtr.add_suppression('Event Scheduler: error during compilation of');
+call mtr.add_suppression('Event Scheduler:.*Query was empty');
 --enable_query_log
 
 let $collation_server=`select @@collation_server`;
