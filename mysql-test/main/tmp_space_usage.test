@@ -107,11 +107,14 @@ let $tmp_usage1=`select variable_value from information_schema.session_status wh
 connection c1;
 --disable_query_log
 let $tmp_usage2=`select tmp_space_used from information_schema.processlist where id=$id`;
-if ($tmp_usage1 == $tmp_usage2)
+# The two values are read at slightly different times, so they may differ
+# by a small amount due to internal temp space changes between reads.
+let $diff=`select abs(cast('$tmp_usage1' as signed) - cast('$tmp_usage2' as signed))`;
+if ($diff <= 32768)
 {
 --echo # information_schema.process_list.tmp_space_used == status.tmp_space_used
 }
-if ($tmp_usage1 != $tmp_usage2)
+if ($diff > 32768)
 {
 --echo tmp_space_used difference: $tmp_usage1 != $tmp_usage2
 }
