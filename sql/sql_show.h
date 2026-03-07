@@ -77,6 +77,9 @@ typedef struct system_status_var STATUS_VAR;
 
 typedef enum { WITHOUT_DB_NAME, WITH_DB_NAME } enum_with_db_name;
 
+int status_vars_hash_init();
+int add_status_var_hash(SHOW_VAR *variables);
+
 int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond);
 
 int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
