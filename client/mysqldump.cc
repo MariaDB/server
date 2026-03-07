@@ -188,6 +188,7 @@ static MYSQL_RES *routine_res, *routine_list_res, *slave_status_res= NULL;
 
 
 #include <sslopt-vars.h>
+#include <common-cli-vars.h>
 FILE *md_result_file= 0;
 FILE *stderror_file=0;
 
@@ -592,6 +593,7 @@ static struct my_option my_long_options[] =
    &opt_mysql_unix_port, &opt_mysql_unix_port, 0, 
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #include <sslopt-longopts.h>
+#include <common-cli-longopts.h>
   {"system", 0, "Dump system tables as portable SQL",
    &opt_system, &opt_system, &opt_system_types, GET_SET, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"tab",'T',
@@ -2105,6 +2107,9 @@ static MYSQL* connect_to_db(char *host, char *user,char *passwd)
 
   if (opt_default_auth && *opt_default_auth)
     mysql_options(con, MYSQL_DEFAULT_AUTH, opt_default_auth);
+
+  if (opt_init_command && *opt_init_command)
+    mysql_options(con, MYSQL_INIT_COMMAND, opt_init_command);
 
   mysql_options(con, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(con, MYSQL_OPT_CONNECT_ATTR_ADD,

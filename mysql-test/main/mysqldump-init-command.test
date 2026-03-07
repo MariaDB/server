@@ -1,0 +1,18 @@
+--source include/not_embedded.inc
+
+# MDEV-28911: Add --init-command option to mariadb-dump / mysqldump
+
+CREATE DATABASE 28911_mysqldump;
+USE 28911_mysqldump;
+CREATE TABLE t1(id INT, ts TIMESTAMP);
+SET time_zone='+00:00';
+INSERT INTO t1 VALUES (1, '2026-01-01 12:00:00');
+
+--echo 
+--echo # dump with --init-command="SET SESSION time_zone='+05:00'" (INSERT shows 17:00:00)
+--exec $MYSQL_DUMP --compact --skip-comments --skip-tz-utc --init-command="SET SESSION time_zone='+05:00'" 28911_mysqldump
+
+DROP TABLE t1;
+DROP DATABASE 28911_mysqldump;
+
+--echo # End of MDEV-28911
