@@ -43,6 +43,7 @@ KEYWORDS
 KEY_CACHES
 KEY_COLUMN_USAGE
 KEY_PERIOD_USAGE
+OPTIMIZER_CONTEXT
 OPTIMIZER_COSTS
 OPTIMIZER_TRACE
 PARAMETERS
@@ -131,6 +132,7 @@ KEYWORDS	WORD
 KEY_CACHES	KEY_CACHE_NAME
 KEY_COLUMN_USAGE	CONSTRAINT_SCHEMA
 KEY_PERIOD_USAGE	CONSTRAINT_SCHEMA
+OPTIMIZER_CONTEXT	QUERY
 OPTIMIZER_COSTS	ENGINE
 OPTIMIZER_TRACE	QUERY
 PARAMETERS	SPECIFIC_SCHEMA
@@ -219,6 +221,7 @@ KEYWORDS	WORD
 KEY_CACHES	KEY_CACHE_NAME
 KEY_COLUMN_USAGE	CONSTRAINT_SCHEMA
 KEY_PERIOD_USAGE	CONSTRAINT_SCHEMA
+OPTIMIZER_CONTEXT	QUERY
 OPTIMIZER_COSTS	ENGINE
 OPTIMIZER_TRACE	QUERY
 PARAMETERS	SPECIFIC_SCHEMA
@@ -384,6 +387,7 @@ Database: information_schema
 | KEY_CACHES                            |
 | KEY_COLUMN_USAGE                      |
 | KEY_PERIOD_USAGE                      |
+| OPTIMIZER_CONTEXT                     |
 | OPTIMIZER_COSTS                       |
 | OPTIMIZER_TRACE                       |
 | PARAMETERS                            |
@@ -462,6 +466,7 @@ Database: INFORMATION_SCHEMA
 | KEY_CACHES                            |
 | KEY_COLUMN_USAGE                      |
 | KEY_PERIOD_USAGE                      |
+| OPTIMIZER_CONTEXT                     |
 | OPTIMIZER_COSTS                       |
 | OPTIMIZER_TRACE                       |
 | PARAMETERS                            |
@@ -501,5 +506,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	73
+information_schema	74
 mysql	31

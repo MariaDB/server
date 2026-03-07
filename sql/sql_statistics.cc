@@ -66,21 +66,6 @@
 
 Histogram_base *create_histogram(MEM_ROOT *mem_root, Histogram_type hist_type);
 
-/* Currently there are only 3 persistent statistical tables */
-static const uint STATISTICS_TABLES= 3;
-
-/*
-  The names of the statistical tables in this array must correspond the
-  definitions of the tables in the file ../scripts/mysql_system_tables.sql
-*/
-static const Lex_ident_table stat_table_name[STATISTICS_TABLES]=
-{
-  "table_stats"_Lex_ident_table,
-  "column_stats"_Lex_ident_table,
-  "index_stats"_Lex_ident_table,
-};
-
-
 TABLE_STATISTICS_CB::TABLE_STATISTICS_CB():
   usage_count(0), table_stats(0),
   stats_available(TABLE_STAT_NO_STATS), histograms_exists_on_disk(0)
@@ -265,7 +250,7 @@ index_stat_def= {INDEX_STAT_N_FIELDS, index_stat_fields, 4, index_stat_pk_col};
 */
 
 ATTRIBUTE_NOINLINE
-static int open_stat_tables(THD *thd, TABLE_LIST *tables, bool for_write)
+int open_stat_tables(THD *thd, TABLE_LIST *tables, bool for_write)
 {
   int rc;
   Dummy_error_handler deh; // suppress errors
@@ -1319,6 +1304,11 @@ bool Histogram_binary::parse(MEM_ROOT *mem_root, const char*, const char*,
 void Histogram_binary::serialize(Field *field)
 {
   field->store((char*)values, size, &my_charset_bin);
+}
+
+void Histogram_binary::serialize(String *to)
+{
+  to->append((char *) values, sizeof(values));
 }
 
 void Histogram_binary::init_for_collection(MEM_ROOT *mem_root,
@@ -3031,7 +3021,6 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   now.        
 */
 
-static
 TABLE_STATISTICS_CB*
 read_statistics_for_table(THD *thd, TABLE *table,
                           TABLE_LIST *stat_tables, bool force_reload,

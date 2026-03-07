@@ -781,6 +781,7 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
     goto err;
   }
 
+  set_json_text(buckets.size(), hist_data, hist_data_len);
   DBUG_RETURN(false); // Ok
 err:
   THD *thd= current_thd;
@@ -1047,6 +1048,10 @@ void Histogram_json_hb::serialize(Field *field)
   field->store(json_text.data(), json_text.size(), &my_charset_bin);
 }
 
+void Histogram_json_hb::serialize(String *to)
+{
+  to->append(json_text.data(), json_text.size());
+}
 
 #ifndef DBUG_OFF
 static int SGN(int x)

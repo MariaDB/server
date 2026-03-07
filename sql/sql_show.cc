@@ -10899,6 +10899,7 @@ ST_FIELD_INFO slave_status_info[]=
 
 /** For creating fields of information_schema.OPTIMIZER_TRACE */
 extern ST_FIELD_INFO optimizer_trace_info[];
+extern ST_FIELD_INFO optimizer_context_capture_info[];
 
 } //namespace Show
 
@@ -10979,6 +10980,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_optimizer_costs_tables, 0, 0, -1,-1, 0, 0},
   {"OPTIMIZER_TRACE"_Lex_ident_i_s_table, Show::optimizer_trace_info, 0,
      fill_optimizer_trace_info, NULL, NULL, -1, -1, false, 0},
+  {"OPTIMIZER_CONTEXT"_Lex_ident_i_s_table, Show::optimizer_context_capture_info, 0,
+     fill_optimizer_context_capture_info, NULL, NULL, -1, -1, false, 0},
   {"PARAMETERS"_Lex_ident_i_s_table, Show::parameters_fields_info, 0,
    fill_schema_proc, 0, 0, 1, 2, 0, 0},
   {"PARTITIONS"_Lex_ident_i_s_table, Show::partitions_fields_info, 0,

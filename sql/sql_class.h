@@ -914,6 +914,7 @@ typedef struct system_variables
 #endif // USER_VAR_TRACKING
   my_bool tcp_nodelay;
   my_bool optimizer_record_context;
+  /* Name of the user @variable that has the context we're replaying */
   char *optimizer_replay_context;
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;
@@ -4336,6 +4337,7 @@ public:
   */
   Optimizer_context_recorder *opt_ctx_recorder= NULL;
   Optimizer_context_replay *opt_ctx_replay= NULL;
+  Optimizer_context_capture *captured_opt_ctx= NULL;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *work_part_info;
