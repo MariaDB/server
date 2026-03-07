@@ -66,9 +66,21 @@ namespace Int_IO_CACHE
         specific variants of a safe string-to-integer converter
         (e.g., std::from_chars() when all platforms support it).
       */
-      if (*end == '\n' && value <= std::numeric_limits<I>::max())
+      if (value <= std::numeric_limits<I>::max())
       {
         value= static_cast<I>(val);
+        /* 
+          MDEV-38010: Consume the rest of the line if the buffer didn't reach the newline.
+          This handles cases where trailing garbage on a numeric line caused the
+          parser to stop early, leaving the garbage to corrupt the next line.
+        */
+        if (buf[length - 1] != '\n')
+        {
+          int c;
+          do {
+            c= my_b_get(file);
+          } while (c != '\n' && c != my_b_EOF);
+        }
         return false;
       }
       [[fallthrough]];
