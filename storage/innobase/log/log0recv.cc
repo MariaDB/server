@@ -2821,12 +2821,6 @@ log_parse_file(const page_id_t id, bool if_exists,
                 ? "ignored" : recv_sys.file_checkpoint ? "reread" : "read",
                 recv_sys.lsn);
 
-      DBUG_PRINT("ib_log",
-                 ("FILE_CHECKPOINT(" LSN_PF ") %s at " LSN_PF,
-                  c, c != log_sys.next_checkpoint_lsn
-                  ? "ignored" : recv_sys.file_checkpoint ? "reread" : "read",
-                  recv_sys.lsn));
-
       if (c == log_sys.last_checkpoint_lsn)
       {
         /* There can be multiple FILE_CHECKPOINT for the same LSN. */
@@ -4367,7 +4361,7 @@ static bool recv_scan_log(bool last_phase, const recv_sys_t::parser *parser)
           {
             recv_sys.set_corrupt_log();
             sql_print_error("InnoDB: Missing FILE_CHECKPOINT(" LSN_PF
-                            ") at " LSN_PF, log_sys.last_checkpoint_lsn,
+                            ") at " LSN_PF, log_sys.last_checkpoint_lsn.load(),
                             recv_sys.lsn);
           }
           mysql_mutex_unlock(&recv_sys.mutex);
@@ -4392,7 +4386,7 @@ static bool recv_scan_log(bool last_phase, const recv_sys_t::parser *parser)
           }
           sql_print_information("InnoDB: Starting crash recovery from"
                                 " checkpoint LSN="  LSN_PF,
-                                log_sys.last_checkpoint_lsn);
+                                log_sys.last_checkpoint_lsn.load());
         }
       }
     }
