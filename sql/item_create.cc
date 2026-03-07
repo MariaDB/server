@@ -655,6 +655,17 @@ protected:
   ~Create_func_xxh3() override = default;
 };
 
+class Create_func_xxh3_128 : public Create_native_func
+{
+public:
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                      List<Item> *item_list) override;
+  static Create_func_xxh3_128 s_singleton;
+protected:
+  Create_func_xxh3_128() = default;
+  ~Create_func_xxh3_128() override = default;
+};
+
 class Create_func_datediff : public Create_func_arg2
 {
 public:
@@ -3734,7 +3745,24 @@ Item *Create_func_xxh3::create_native(THD *thd, const LEX_CSTRING *name,
 
   Item *arg1= item_list->pop();
   DBUG_ASSERT(!arg1->is_explicit_name());
-  return new (thd->mem_root) Item_func_xxh3_64(thd, arg1);
+  return new (thd->mem_root) Item_func_xxh3(thd, arg1);
+}
+
+Create_func_xxh3_128 Create_func_xxh3_128::s_singleton;
+
+Item *Create_func_xxh3_128::create_native(THD *thd, const LEX_CSTRING *name,
+                                          List<Item> *item_list)
+{
+  int argc= item_list ? item_list->elements : 0;
+  if (unlikely(argc != 1))
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    return nullptr;
+  }
+
+  Item *arg1= item_list->pop();
+  DBUG_ASSERT(!arg1->is_explicit_name());
+  return new (thd->mem_root) Item_func_xxh3_128(thd, arg1);
 }
 
 Create_func_datediff Create_func_datediff::s_singleton;
@@ -6394,6 +6422,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("CRC32C") }, BUILDER(Create_func_crc32c)},
     { { STRING_WITH_LEN("XXH32") }, BUILDER(Create_func_xxh32) },
 { { STRING_WITH_LEN("XXH3") }, BUILDER(Create_func_xxh3) },
+    { { STRING_WITH_LEN("XXH3_128") }, BUILDER(Create_func_xxh3_128) },
   { { STRING_WITH_LEN("DATABASE") }, BUILDER(Create_func_database)},
   { { STRING_WITH_LEN("DATEDIFF") }, BUILDER(Create_func_datediff)},
   { { STRING_WITH_LEN("DATE_FORMAT") }, BUILDER(Create_func_date_format)},

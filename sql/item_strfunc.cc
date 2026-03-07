@@ -4571,42 +4571,109 @@ longlong Item_func_crc32::val_int()
     (ulonglong{crc_func(uint32_t(crc), res->ptr(), res->length())});
 }
 
-#include "../mysys/xxhash.h"
-
-longlong Item_func_xxh32::val_int()
+namespace
 {
-  DBUG_ASSERT(fixed());
-  DBUG_ASSERT(arg_count == 1);
+constexpr const CHARSET_INFO *XxhCharset= &my_charset_utf8mb4_bin;
 
-  null_value= 0;
-  String *Result= args[0]->val_str(&m_Value);
-  if (!Result || Result->length() == 0)
+void BytesToHexLower(const unsigned char *digest, size_t length, String *to)
+{
+  static const char hex[]= "0123456789abcdef";
+  char buffer[32 * 2];
+
+  DBUG_ASSERT(length * 2 <= sizeof(buffer));
+
+  for (size_t i= 0; i < length; ++i)
   {
-    null_value= 1;
-    return 0;
+    buffer[i * 2]= hex[digest[i] >> 4];
+    buffer[i * 2 + 1]= hex[digest[i] & 0x0f];
   }
 
-  const uint32_t Hash=
-    XXH32(static_cast<const void *>(Result->ptr()), Result->length(), 0);
-  return static_cast<longlong>(static_cast<ulonglong>(Hash));
+  to->copy(buffer, length * 2, &my_charset_latin1);
 }
 
-longlong Item_func_xxh3_64::val_int()
+String *GetStableXxhInput(Item *arg, String *value, String *converted_value,
+                          bool *null_value)
+{
+  String *input= arg->val_str(value);
+  if (!input)
+  {
+    *null_value= true;
+    return nullptr;
+  }
+
+  *null_value= false;
+
+  if (input->charset() == XxhCharset)
+    return input;
+
+  uint errors= 0;
+  converted_value->length(0);
+  if (converted_value->copy(input->ptr(), input->length(),
+                            input->charset(), XxhCharset, &errors))
+  {
+    *null_value= true;
+    return nullptr;
+  }
+
+  return converted_value;
+}
+}
+
+String *Item_func_xxh32::val_str_ascii(String *to)
 {
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(arg_count == 1);
 
-  null_value= 0;
-  String *Result= args[0]->val_str(&m_Value);
-  if (!Result || Result->length() == 0)
-  {
-    null_value= 1;
-    return 0;
-  }
+  String *input=
+    GetStableXxhInput(args[0], &value, &converted_value, &null_value);
+  if (!input)
+    return nullptr;
 
-  const uint64_t Hash=
-    XXH3_64bits(static_cast<const void *>(Result->ptr()), Result->length());
-  return static_cast<longlong>(static_cast<ulonglong>(Hash));
+  const XXH32_hash_t hash=
+    XXH32(reinterpret_cast<const void *>(input->ptr()), input->length(), 0);
+
+  XXH32_canonical_t canonical;
+  XXH32_canonicalFromHash(&canonical, hash);
+  BytesToHexLower(canonical.digest, sizeof(canonical.digest), to);
+  return to;
+}
+
+String *Item_func_xxh3::val_str_ascii(String *to)
+{
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(arg_count == 1);
+
+  String *input=
+    GetStableXxhInput(args[0], &value, &converted_value, &null_value);
+  if (!input)
+    return nullptr;
+
+  const XXH64_hash_t hash=
+    XXH3_64bits(reinterpret_cast<const void *>(input->ptr()), input->length());
+
+  XXH64_canonical_t canonical;
+  XXH64_canonicalFromHash(&canonical, hash);
+  BytesToHexLower(canonical.digest, sizeof(canonical.digest), to);
+  return to;
+}
+
+String *Item_func_xxh3_128::val_str_ascii(String *to)
+{
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(arg_count == 1);
+
+  String *input=
+    GetStableXxhInput(args[0], &value, &converted_value, &null_value);
+  if (!input)
+    return nullptr;
+
+  const XXH128_hash_t hash=
+    XXH3_128bits(reinterpret_cast<const void *>(input->ptr()), input->length());
+
+  XXH128_canonical_t canonical;
+  XXH128_canonicalFromHash(&canonical, hash);
+  BytesToHexLower(canonical.digest, sizeof(canonical.digest), to);
+  return to;
 }
 
 #ifdef HAVE_COMPRESS
