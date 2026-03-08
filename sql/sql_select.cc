@@ -1595,6 +1595,26 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     }
   }
 
+  if (thd->lex->current_select->first_cond_optimization &&
+      !thd->lex->is_view_context_analysis())
+  {
+    Query_arena_stmt on_stmt_arena(thd);
+    List_iterator<Item> li(select_lex->item_list);
+    Item *item;
+    while ((item= li++))
+    {
+      if (item->type() == Item::COND_ITEM)
+      {
+        Item *new_item= static_cast<Item_cond *>(item)->simplify_cond(thd);
+        if (new_item != item)
+        {
+          new_item->share_name_with(item);
+          li.replace(new_item);
+        }
+      }
+    }
+  }
+
   if (setup_fields(thd, ref_ptrs, fields_list, select_lex->item_list_usage,
                    &all_fields, &select_lex->pre_fix, 1))
     DBUG_RETURN(-1);

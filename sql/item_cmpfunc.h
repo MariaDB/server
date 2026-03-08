@@ -3450,6 +3450,7 @@ public:
   Item *deep_copy(THD *thd) const override;
   bool excl_dep_on_table(table_map tab_map) override;
   bool excl_dep_on_grouping_fields(st_select_lex *sel) override;
+  Item *simplify_cond(THD *thd);
 
 private:
   void merge_sub_condition(List_iterator<Item>& li);
