@@ -286,24 +286,6 @@ err:
   return 1;
 }
 
-static inline bool is_numeric_type(uint type)
-{
-  switch (type)
-  {
-  case MYSQL_TYPE_TINY:
-  case MYSQL_TYPE_SHORT:
-  case MYSQL_TYPE_INT24:
-  case MYSQL_TYPE_LONG:
-  case MYSQL_TYPE_LONGLONG:
-  case MYSQL_TYPE_NEWDECIMAL:
-  case MYSQL_TYPE_FLOAT:
-  case MYSQL_TYPE_DOUBLE:
-    return true;
-  default:
-    return false;
-  }
-  return false;
-}
 
 static inline bool is_character_type(uint type)
 {
@@ -3174,7 +3156,9 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     {
       MEM_ROOT root;
       init_alloc_root(0, &root, 4096, 0, 0);
-      Optional_metadata_fields fields(&root, m_colcnt,
+      Optional_metadata_fields fields(&root, 
+                                      m_colcnt,
+                                      m_coltype,
                                       m_optional_metadata,
                                       m_optional_metadata_len,
                                       0);
@@ -3459,7 +3443,6 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
                                         const Optional_metadata_fields &fields)
 {
   unsigned char* field_metadata_ptr= m_field_metadata;
-  const bool *signedness_it= fields.m_signedness.front();
 
   std::unique_ptr<Charset_iterator> charset_it =
       Charset_iterator::create_charset_iterator(fields.m_default_charset,
@@ -3480,6 +3463,7 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
 
   for (unsigned long i= 0; i < m_colcnt; i++)
   {
+    const Optional_metadata_fields::Column_metadata column_metadata = fields.m_column_metadata.at(i);
     uint real_type = m_coltype[i];
     if (real_type == MYSQL_TYPE_STRING &&
         (*field_metadata_ptr == MYSQL_TYPE_ENUM ||
@@ -3495,7 +3479,7 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
       cs = enum_and_set_charset_it->next();
 
     // Print column name
-    const LEX_CSTRING& col_name = fields.m_column_metadata.at(i).column_name;
+    const LEX_CSTRING& col_name= column_metadata.column_name;
     if (col_name.str)
     {
       pretty_print_identifier(file, col_name.str, col_name.length);
@@ -3523,12 +3507,10 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
     my_b_printf(file, "%s", type_name);
 
     // Print UNSIGNED for numeric column
-    if (is_numeric_type(real_type) &&
-        signedness_it != fields.m_signedness.end())
+    if (is_numeric_type(real_type))
     {
-      if (*signedness_it == true)
+      if (column_metadata.is_unsigned == true)
         my_b_printf(file, " UNSIGNED");
-      signedness_it++;
     }
 
     // if the column is not marked as 'null', print 'not null'

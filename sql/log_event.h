@@ -39,6 +39,24 @@
 #include <map>
 #include <lex_charset.h>
 
+static inline bool is_numeric_type(uint type)
+{
+  switch (type)
+  {
+  case MYSQL_TYPE_TINY:
+  case MYSQL_TYPE_SHORT:
+  case MYSQL_TYPE_INT24:
+  case MYSQL_TYPE_LONG:
+  case MYSQL_TYPE_LONGLONG:
+  case MYSQL_TYPE_NEWDECIMAL:
+  case MYSQL_TYPE_FLOAT:
+  case MYSQL_TYPE_DOUBLE:
+    return true;
+  default:
+    return false;
+  }
+}
+
 #ifdef MYSQL_CLIENT
 #include "sql_const.h"
 #include "rpl_utility.h"
@@ -4526,7 +4544,6 @@ public:
     // Contents of ENUM_AND_SET_DEFAULT_CHARSET are converted into
     // Default_charset.
     Default_charset m_enum_and_set_default_charset;
-    Dynamic_array<bool> m_signedness;
     // Character set number of every string column
     Dynamic_array<uint> m_column_charset;
     // Character set number of every ENUM or SET column.
@@ -4544,6 +4561,8 @@ public:
     struct Column_metadata
     {
         LEX_CSTRING column_name{ nullptr, 0 };
+        uchar column_type{};
+        bool is_unsigned{ false };
     };
 
     Dynamic_array<Column_metadata> m_column_metadata;
@@ -4559,6 +4578,7 @@ public:
       @param[in] only_column_names Only read column names
      */
     Optional_metadata_fields(MEM_ROOT *root, uint master_cols,
+                             const uchar* column_types,
                              uchar* optional_metadata,
                              size_t optional_metadata_len,
                              bool only_column_names);

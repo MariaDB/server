@@ -94,6 +94,7 @@ public:
   {
     return static_cast<enum_field_types>(m_type[index]);
   }
+  const uchar *field_types() const { return m_type; }
   /*
     Return a representation of the type data for one field.
 

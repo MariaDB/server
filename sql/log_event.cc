@@ -3719,17 +3719,32 @@ Table_map_log_event::~Table_map_log_event()
 /**
    Parses SIGNEDNESS field.
 
-   @param[out] vec     stores the signedness flags extracted from field.
+   @param[out] column_metadata store all column metadata here (including signedness)
    @param[in]  field   SIGNEDNESS field in table_map_event.
    @param[in]  length  length of the field
  */
-static void parse_signedness(Dynamic_array<bool> &vec,
-                             unsigned char *field, unsigned int length)
+static void parse_signedness(
+  Dynamic_array<Table_map_log_event::Optional_metadata_fields::Column_metadata>& column_metadata,
+  unsigned char *field, unsigned int length)
 {
-  for (unsigned int i= 0; i < length; i++)
+  unsigned char *field_end= field + length;
+  unsigned char unsigned_bitfield= 0;
+  unsigned char mask= 0;
+
+  for (uint col= 0; col < column_metadata.size(); col++)
   {
-    for (unsigned char c= 0x80; c != 0; c>>= 1)
-      vec.append(field[i] & c);
+    auto &col_meta= column_metadata.at(col);
+    if (!is_numeric_type(col_meta.column_type))
+      continue;
+    if (mask == 0)
+    {
+      if (field >= field_end)
+        return;
+      unsigned_bitfield= *field++;
+      mask= 0x80;
+    }
+    col_meta.is_unsigned= unsigned_bitfield & mask;
+    mask >>= 1;
   }
 }
 
@@ -3897,10 +3912,11 @@ static void parse_pk_with_prefix(
 
 Table_map_log_event::Optional_metadata_fields::
 Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
+                         const uchar* column_types,
                          uchar* optional_metadata,
                          size_t optional_metadata_len,
                          bool only_column_names)
-    : m_signedness(PSI_INSTRUMENT_MEM), m_column_charset(PSI_INSTRUMENT_MEM),
+    : m_column_charset(PSI_INSTRUMENT_MEM),
       m_enum_and_set_column_charset(PSI_INSTRUMENT_MEM),
       m_enum_str_value(PSI_INSTRUMENT_MEM),
       m_set_str_value(PSI_INSTRUMENT_MEM), m_geometry_type(PSI_INSTRUMENT_MEM),
@@ -3913,8 +3929,12 @@ Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
   allocation_error= 0;
 
   for (uint i= 0; i < master_columns; i++)
-    if (m_column_metadata.append(Column_metadata()))
+  {
+    Column_metadata column_metadata{};
+    column_metadata.column_type = column_types[i];
+    if (m_column_metadata.append(column_metadata))
       goto error;
+  }
 
   if (optional_metadata == NULL)
     return;
@@ -3933,7 +3953,7 @@ Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
 
     switch(type) {
     case SIGNEDNESS:
-      parse_signedness(m_signedness, field, len);
+      parse_signedness(m_column_metadata, field, len);
       break;
     case DEFAULT_CHARSET:
       parse_default_charset(m_default_charset, field, len);
