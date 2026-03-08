@@ -915,6 +915,9 @@ create table t1 (a int, b longtext, c varchar(18));
 insert into t1 values (1, 'Aa123456', 'abc'), (2, 'Bb7897777', 'def'),
   (3, 'Cc01287', 'xyz'), (5, 'd12345', 'efg');
 
+# ROLLUP row's b value is indeterminate (depends on last group processed),
+# which varies by temp table engine (HEAP vs Aria). Mask the value.
+--replace_regex /(Aa123456|Bb7897777|Cc01287|d12345)/SOME_B_VALUE/
 select distinct if(sum(a), b, 0) from t1 group by value(c) with rollup;
 drop table t1;
 

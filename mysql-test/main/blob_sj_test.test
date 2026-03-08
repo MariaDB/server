@@ -1,0 +1,26 @@
+set optimizer_switch='materialization=on,in_to_exists=off,semijoin=off';
+set @blob_len = 16;
+set @prefix_len = 6;
+set @suffix_len = @blob_len - @prefix_len;
+
+create table t1 (a1 blob(16), a2 blob(16));
+create table t2 (b1 blob(16), b2 blob(16));
+
+insert into t1 values
+(concat('1 - 00', repeat('x', @suffix_len)), concat('2 - 00', repeat('x', @suffix_len)));
+insert into t1 values
+(concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+insert into t1 values
+(concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+
+insert into t2 values
+(concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+insert into t2 values
+(concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+insert into t2 values
+(concat('1 - 03', repeat('x', @suffix_len)), concat('2 - 03', repeat('x', @suffix_len)));
+
+explain extended select left(a1,7), left(a2,7) from t1 where a1 in (select b1 from t2 where b1 > '0');
+select left(a1,7), left(a2,7) from t1 where a1 in (select b1 from t2 where b1 > '0');
+
+drop table t1, t2;

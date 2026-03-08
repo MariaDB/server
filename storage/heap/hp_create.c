@@ -74,7 +74,17 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
       so the visible_offset must be least at sizeof(uchar*)
     */
     visible_offset= MY_MAX(reclength, sizeof (char*));
-    
+    /*
+      Blob tables store continuation run headers (next_cont pointer +
+      run_slots count = HP_CONT_HEADER_SIZE bytes) in each run's first
+      slot.  Ensure at least 1 byte of payload beyond the header,
+      otherwise hp_write_run_data() underflows computing
+      chunk = visible - HP_CONT_HEADER_SIZE.  Only matters for
+      pathological single-TINYBLOB tables (reclength as low as 9).
+    */
+    if (create_info->blob_count)
+      visible_offset= MY_MAX(visible_offset, HP_CONT_HEADER_SIZE + 1);
+
     for (i= key_segs= max_length= 0, keyinfo= keydef; i < keys; i++, keyinfo++)
     {
       bzero((char*) &keyinfo->block,sizeof(keyinfo->block));
@@ -111,6 +121,12 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
         case HA_KEYTYPE_VARTEXT1:
           keyinfo->flag|= HA_VAR_LENGTH_KEY;
           /*
+            Real blob fields always enter as VARTEXT2/VARBINARY2, never
+            as VARTEXT1/VARBINARY1. Strip any spurious HA_BLOB_PART
+            (e.g. from uninitialized key_part_flag in SJ weedout tables).
+          */
+          keyinfo->seg[j].flag&= ~HA_BLOB_PART;
+          /*
             For BTREE algorithm, key length, greater than or equal
             to 255, is packed on 3 bytes.
           */
@@ -127,15 +143,77 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
         case HA_KEYTYPE_VARTEXT2:
           keyinfo->flag|= HA_VAR_LENGTH_KEY;
           /*
+            Strip HA_BLOB_PART for key segments that don't correspond
+            to actual blob fields. HA_BLOB_PART can appear spuriously
+            from uninitialized key_part_flag (SJ weedout tables) or
+            from BLOB_FLAG on non-Field_blob types (I_S temp tables).
+          */
+          if (keyinfo->seg[j].flag & HA_BLOB_PART)
+          {
+            my_bool real_blob= FALSE;
+            uint k;
+            for (k= 0; k < create_info->blob_count; k++)
+            {
+              if (create_info->blob_descs[k].offset ==
+                  keyinfo->seg[j].start)
+              {
+                real_blob= TRUE;
+                break;
+              }
+            }
+            if (!real_blob)
+              keyinfo->seg[j].flag&= ~HA_BLOB_PART;
+          }
+          /*
             For BTREE algorithm, key length, greater than or equal
             to 255, is packed on 3 bytes.
           */
           if (keyinfo->algorithm == HA_KEY_ALG_BTREE)
             length+= size_to_store_key_length(keyinfo->seg[j].length);
+          else if (keyinfo->seg[j].flag & HA_BLOB_PART)
+            length+= 4 + sizeof(uchar*); /* 4-byte len + data ptr in key */
           else
             length+= 2;
-          /* Save number of bytes used to store length */
-          keyinfo->seg[j].bit_start= 2;
+          /*
+            Save number of bytes used to store length.
+            For blob segments, bit_start holds the actual blob packlength
+            (1-4). Some SQL layer paths (DISTINCT) set it explicitly;
+            others (UNION) leave it 0 and set seg->length to pack_length
+            (= packlength + sizeof(uchar*)). Derive it when missing.
+            Also normalize seg->length to 0 ("whole blob") for blob
+            segments where the SQL layer set it to pack_length.
+          */
+          if (!(keyinfo->seg[j].flag & HA_BLOB_PART))
+            keyinfo->seg[j].bit_start= 2;
+          else
+          {
+            if (keyinfo->seg[j].bit_start == 0 && keyinfo->seg[j].length > 0)
+              keyinfo->seg[j].bit_start=
+                (uint8)(keyinfo->seg[j].length - sizeof(uchar*));
+            keyinfo->seg[j].length= 0;  /* "whole blob" */
+            /*
+              Fallback: if bit_start is still 0 after the length-based
+              derivation above (which requires length > 0), look up the
+              actual packlength from the blob descriptor array.  This
+              covers any SQL layer path that sets both bit_start=0 and
+              length=0 for a blob key segment.
+            */
+            if (keyinfo->seg[j].bit_start == 0)
+            {
+              uint k;
+              for (k= 0; k < create_info->blob_count; k++)
+              {
+                if (create_info->blob_descs[k].offset ==
+                    keyinfo->seg[j].start)
+                {
+                  keyinfo->seg[j].bit_start=
+                    (uint8) create_info->blob_descs[k].packlength;
+                  break;
+                }
+              }
+              DBUG_ASSERT(keyinfo->seg[j].bit_start > 0);
+            }
+          }
           /*
             Make future comparison simpler by only having to check for
             one type
@@ -174,7 +252,8 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     if (!(share= (HP_SHARE*) my_malloc(hp_key_memory_HP_SHARE,
                                        sizeof(HP_SHARE)+
 				       keys*sizeof(HP_KEYDEF)+
-				       key_segs*sizeof(HA_KEYSEG),
+				       key_segs*sizeof(HA_KEYSEG)+
+				       create_info->blob_count*sizeof(HP_BLOB_DESC),
 				       MYF(MY_ZEROFILL |
                                            (create_info->internal_table ?
                                             MY_THREAD_SPECIFIC : 0)))))
@@ -182,6 +261,13 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     share->keydef= (HP_KEYDEF*) (share + 1);
     share->key_stat_version= 1;
     keyseg= (HA_KEYSEG*) (share->keydef + keys);
+    if (create_info->blob_count)
+    {
+      share->blob_descs= (HP_BLOB_DESC*) (keyseg + key_segs);
+      memcpy(share->blob_descs, create_info->blob_descs,
+             create_info->blob_count * sizeof(HP_BLOB_DESC));
+      share->blob_count= create_info->blob_count;
+    }
     init_block(&share->block, hp_memory_needed_per_row(reclength),
                min_records, max_records);
 	/* Fix keys */

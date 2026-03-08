@@ -28,6 +28,7 @@ PSI_memory_key hp_key_memory_HP_SHARE;
 PSI_memory_key hp_key_memory_HP_INFO;
 PSI_memory_key hp_key_memory_HP_PTRS;
 PSI_memory_key hp_key_memory_HP_KEYDEF;
+PSI_memory_key hp_key_memory_HP_BLOB;
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -36,7 +37,8 @@ static PSI_memory_info all_heap_memory[]=
   { & hp_key_memory_HP_SHARE, "HP_SHARE", 0},
   { & hp_key_memory_HP_INFO, "HP_INFO", 0},
   { & hp_key_memory_HP_PTRS, "HP_PTRS", 0},
-  { & hp_key_memory_HP_KEYDEF, "HP_KEYDEF", 0}
+  { & hp_key_memory_HP_KEYDEF, "HP_KEYDEF", 0},
+  { & hp_key_memory_HP_BLOB, "HP_BLOB", 0}
 };
 
 void init_heap_psi_keys()

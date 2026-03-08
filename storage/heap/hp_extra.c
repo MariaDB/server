@@ -59,6 +59,12 @@ int heap_reset(HP_INFO *info)
   info->current_hash_ptr=0;
   info->update=0;
   info->next_block=0;
+  if (info->blob_buff)
+  {
+    my_free(info->blob_buff);
+    info->blob_buff= NULL;
+    info->blob_buff_len= 0;
+  }
   return 0;
 }
 

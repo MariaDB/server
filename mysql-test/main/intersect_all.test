@@ -108,8 +108,10 @@ show create table t4;
 drop tables t4;
 
 
+--sorted_result
 (select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3) union all (select 4,4);
 
+--sorted_result
 (select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3) union all (select 4,4) except all (select 2,2);
 
 drop tables t1,t2,t3;
@@ -149,6 +151,7 @@ explain extended (select a,b from t1) union all (select c,d from t2) intersect a
 insert into t2 values (3,3);
 insert into t3 values (3,3);
 
+--sorted_result
 (select e,f from t3) intersect all (select c,d from t2) union all (select a,b from t1) union all (select 4,4);
 explain extended (select e,f from t3) intersect all (select c,d from t2) union all (select a,b from t1) union all (select 4,4);
 

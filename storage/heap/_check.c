@@ -42,7 +42,7 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
 {
   int error;
   uint key;
-  ulong records=0, deleted=0, pos, next_block;
+  ulong records=0, deleted=0, cont_count=0, pos, next_block;
   HP_SHARE *share=info->s;
   uchar *current_ptr= info->current_ptr;
   DBUG_ENTER("heap_check_heap");
@@ -68,9 +68,9 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
     else
     {
       next_block+= share->block.records_in_block;
-      if (next_block >= share->records+share->deleted)
+      if (next_block >= share->total_records+share->deleted)
       {
-	next_block= share->records+share->deleted;
+	next_block= share->total_records+share->deleted;
 	if (pos >= next_block)
 	  break;				/* End of file */
       }
@@ -79,6 +79,12 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
 
     if (!current_ptr[share->visible])
       deleted++;
+    else if (hp_is_cont(current_ptr, share->visible))
+    {
+      uint16 run_rec_count= hp_cont_rec_count(current_ptr);
+      cont_count+= run_rec_count;
+      pos+= run_rec_count - 1;  /* -1 because for-loop does pos++ */
+    }
     else
       records++;
   }
@@ -88,6 +94,13 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
     DBUG_PRINT("error",("Found rows: %lu (%lu)  deleted %lu (%lu)",
 			records, (ulong) share->records,
                         deleted, (ulong) share->deleted));
+    error= 1;
+  }
+  if (records + cont_count != share->total_records)
+  {
+    DBUG_PRINT("error",("total_records mismatch: primary %lu + cont %lu != %lu",
+                        records, cont_count,
+                        (ulong) share->total_records));
     error= 1;
   }
   DBUG_RETURN(error);

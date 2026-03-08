@@ -203,7 +203,7 @@ SELECT tmp_disk_table_size = @@session.tmp_disk_table_size;
 SET @@tmp_disk_table_size=16384;
 CREATE VIEW v AS SELECT 'a';
 
---error ER_RECORD_FILE_FULL
+--sorted_result
 SELECT table_name FROM INFORMATION_SCHEMA.views;
 
 DROP VIEW v;

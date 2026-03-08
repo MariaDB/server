@@ -25,6 +25,7 @@
 #include "sql_plugin.h"
 #include "ha_heap.h"
 #include "sql_base.h"
+#include "field.h"
 
 static handler *heap_create_handler(handlerton *, TABLE_SHARE *, MEM_ROOT *);
 static int heap_prepare_hp_create_info(TABLE *, bool, HP_CREATE_INFO *);
@@ -103,6 +104,7 @@ int ha_heap::open(const char *name, int mode, uint test_if_locked)
 
     rc= heap_create(name, &create_info, &internal_share, &created_new_share);
     my_free(create_info.keydef);
+    my_free(create_info.blob_descs);
     if (rc)
       goto end;
 
@@ -361,6 +363,45 @@ int ha_heap::rnd_pos(uchar * buf, uchar *pos)
 void ha_heap::position(const uchar *record)
 {
   *(HEAP_PTR*) ref= heap_position(file);	// Ref is aligned
+}
+
+int ha_heap::remember_rnd_pos()
+{
+  saved_current_record= file->current_record;
+  position((uchar*) 0);
+  return 0;
+}
+
+int ha_heap::restart_rnd_next(uchar *buf)
+{
+  /*
+    Restore the scan position saved by remember_rnd_pos().
+
+    heap_scan() uses current_record as a sequential counter and next_block
+    as a cached upper bound for the current HP_BLOCK segment.  Within one
+    segment, heap_scan() advances current_ptr by recbuffer without calling
+    hp_find_record().  heap_rrnd() (called via rnd_pos) doesn't update
+    these, so we restore them here.
+
+    next_block is set to the next records_in_block-aligned boundary after
+    saved_current_record.  We MUST then cap it at total_records + deleted
+    (== block.last_allocated), which is the number of actually allocated
+    slots in the HP_BLOCK.  Without this cap, if the saved position falls
+    in the last block segment and rows have been deleted between
+    remember_rnd_pos() and restart_rnd_next() (e.g. by
+    remove_dup_with_compare), next_block can exceed the allocated range.
+    heap_scan() would then take the fast path (pos < next_block) and walk
+    current_ptr past the last allocated slot into unmapped memory, causing
+    a segfault.
+  */
+  file->current_record= saved_current_record;
+  file->next_block= saved_current_record -
+    (saved_current_record % file->s->block.records_in_block) +
+    file->s->block.records_in_block;
+  ulong scan_end= file->s->total_records + file->s->deleted;
+  if (file->next_block > scan_end)
+    file->next_block= scan_end;
+  return rnd_pos(buf, ref);
 }
 
 int ha_heap::info(uint flag)
@@ -693,6 +734,47 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
     keydef[share->next_number_index].flag|= HA_AUTO_KEY;
     found_real_auto_increment= share->next_number_key_offset == 0;
   }
+
+  /* Populate blob column descriptors */
+  if (share->blob_fields)
+  {
+    HP_BLOB_DESC *blob_descs;
+    blob_descs= (HP_BLOB_DESC*) my_malloc(hp_key_memory_HP_BLOB,
+                                          share->blob_fields *
+                                          sizeof(HP_BLOB_DESC),
+                                          MYF(MY_WME | MY_THREAD_SPECIFIC));
+    if (!blob_descs)
+    {
+      my_free(keydef);
+      return my_errno;
+    }
+    {
+      uint real_blob_count= 0;
+      for (uint b= 0; b < share->blob_fields; b++)
+      {
+        Field *field= table_arg->field[share->blob_field[b]];
+        /*
+          BLOB_FLAG may be set on non-Field_blob fields (e.g. long
+          Field_string in INFORMATION_SCHEMA temp tables). Only include
+          true Field_blob types in the HEAP blob descriptor array.
+          Field_geom (MYSQL_TYPE_GEOMETRY) extends Field_blob and must
+          also be included.
+        */
+        if (field->type() == MYSQL_TYPE_BLOB ||
+            field->type() == MYSQL_TYPE_GEOMETRY)
+        {
+          Field_blob *blob= (Field_blob*) field;
+          blob_descs[real_blob_count].offset=
+            (uint) blob->offset(table_arg->record[0]);
+          blob_descs[real_blob_count].packlength= blob->pack_length_no_ptr();
+          real_blob_count++;
+        }
+      }
+      hp_create_info->blob_descs= blob_descs;
+      hp_create_info->blob_count= real_blob_count;
+    }
+  }
+
   hp_create_info->auto_key= auto_key;
   hp_create_info->auto_key_type= auto_key_type;
   hp_create_info->max_table_size= MY_MAX(current_thd->variables.max_heap_table_size, sizeof(HP_PTRS));
@@ -734,6 +816,7 @@ int ha_heap::create(const char *name, TABLE *table_arg,
 				  create_info->auto_increment_value - 1 : 0);
   error= heap_create(name, &hp_create_info, &internal_share, &created);
   my_free(hp_create_info.keydef);
+  my_free(hp_create_info.blob_descs);
   DBUG_ASSERT(file == 0);
   return (error);
 }
@@ -800,7 +883,7 @@ int ha_heap::find_unique_row(uchar *record, uint unique_idx)
                                        share->blength, share->records));
   do
   {
-    if (!hp_rec_key_cmp(keyinfo, pos->ptr_to_rec, record))
+    if (!hp_rec_key_cmp(keyinfo, record, pos->ptr_to_rec, file))
     {
       file->current_hash_ptr= pos;
       file->current_ptr= pos->ptr_to_rec;
@@ -810,6 +893,8 @@ int ha_heap::find_unique_row(uchar *record, uint unique_idx)
         records.
       */
       memcpy(record, file->current_ptr, (size_t) share->reclength);
+      if (share->blob_count && hp_read_blobs(file, record, file->current_ptr))
+        DBUG_RETURN(-1);
 
       DBUG_RETURN(0); // found and position set
     }
