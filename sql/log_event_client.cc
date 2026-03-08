@@ -3473,7 +3473,6 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
   const Optional_metadata_fields::str_vector *enum_str_values_it=
       fields.m_enum_str_value.front();
   const uint *geometry_type_it= fields.m_geometry_type.front();
-  LEX_CSTRING *col_names= fields.m_column_name;
 
   uint geometry_type= 0;
 
@@ -3496,11 +3495,11 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
       cs = enum_and_set_charset_it->next();
 
     // Print column name
-    if (col_names && col_names->str)
+    const LEX_CSTRING& col_name = fields.m_column_metadata.at(i).column_name;
+    if (col_name.str)
     {
-      pretty_print_identifier(file, col_names->str, col_names->length);
+      pretty_print_identifier(file, col_name.str, col_name.length);
       my_b_printf(file, " ");
-      col_names++;
     }
 
     // update geometry_type for geometry columns
@@ -3588,10 +3587,11 @@ void Table_map_log_event::print_primary_key
         my_b_printf(file, ", ");
 
       // Print column name or column index
-      if (!fields.m_column_name)
-        my_b_printf(file, "%u", it->first);
+      const LEX_CSTRING& column_name = fields.m_column_metadata.at(it->first).column_name;
+      if (column_name.str)
+        my_b_printf(file, "%s", column_name.str);
       else
-        my_b_printf(file, "%s", fields.m_column_name[it->first].str);
+        my_b_printf(file, "%u", it->first);
 
       // Print prefix length
       if (it->second != 0)

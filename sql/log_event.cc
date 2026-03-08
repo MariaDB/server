@@ -3777,23 +3777,25 @@ static void parse_column_charset(Dynamic_array<uint> &vec,
    Parses COLUMN_NAME field.
 
    @param[in]  root    Allocate memory here
-   @param[out] name    Store column names extracted from field here
+   @param[out] column_metadata store all column metadata here (including column names)
    @param[in]  field   COLUMN_NAME field in table_map_event.
    @param[in]  length  length of the field
  */
-static bool parse_column_name(MEM_ROOT *root, LEX_CSTRING *name,
-                              unsigned char *field, unsigned int length)
+static bool parse_column_name(MEM_ROOT *root, 
+  Dynamic_array<Table_map_log_event::Optional_metadata_fields::Column_metadata>& column_metadata,
+  unsigned char *field, unsigned int length)
 {
-  for (uchar *end= field+length; field < end ; name++)
+  unsigned int col = 0;
+  for (uchar *end= field+length; field < end && col < column_metadata.size(); col++)
   {
+    LEX_CSTRING& name = column_metadata.at(col).column_name;
     uint name_length= net_field_length(&field);
-    if (!(name->str= strmake_root(root, (char*) field, name_length)))
+    if (!(name.str= strmake_root(root, (char*) field, name_length)))
       return 1;
-    name->length= name_length;
+    name.length= name_length;
     field+= name_length;
   }
 
-  name->str= 0;                                 // End marker
   return 0;
 }
 
@@ -3902,13 +3904,18 @@ Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
       m_enum_and_set_column_charset(PSI_INSTRUMENT_MEM),
       m_enum_str_value(PSI_INSTRUMENT_MEM),
       m_set_str_value(PSI_INSTRUMENT_MEM), m_geometry_type(PSI_INSTRUMENT_MEM),
-      m_primary_key(PSI_INSTRUMENT_MEM)
+      m_primary_key(PSI_INSTRUMENT_MEM),
+      m_column_metadata(PSI_INSTRUMENT_MEM, master_columns)
 {
   unsigned int len;
   uchar *metadata_end;
 
   allocation_error= 0;
-  m_column_name= 0;
+
+  for (uint i= 0; i < master_columns; i++)
+    if (m_column_metadata.append(Column_metadata()))
+      goto error;
+
   if (optional_metadata == NULL)
     return;
 
@@ -3935,11 +3942,7 @@ Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
       parse_column_charset(m_column_charset, field, len);
       break;
     case COLUMN_NAME:
-      if (!(m_column_name= (LEX_CSTRING*) alloc_root(root,
-                                                     sizeof(LEX_CSTRING) *
-                                                     (master_columns +1 ))))
-        goto error;
-      if (parse_column_name(root, m_column_name, field, len))
+      if (parse_column_name(root, m_column_metadata, field, len))
         goto error;
       break;
     case SET_STR_VALUE:

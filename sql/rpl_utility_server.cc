@@ -1354,7 +1354,8 @@ default_column_mapping:
                  (uchar*) m_tabledef.optional_metadata.str,
                  m_tabledef.optional_metadata.length, 1);
 
-  if (!opt_metadata.m_column_name)
+  if (!opt_metadata.m_column_metadata.empty() && 
+          !opt_metadata.m_column_metadata.at(0).column_name.str)
   {
     /*
       If there are no column names provided in the optional metadata
@@ -1366,7 +1367,7 @@ default_column_mapping:
 
   for (uint col= 0; col < master_cols; col++)
   {
-    const LEX_CSTRING *field_name= &opt_metadata.m_column_name[col];
+    const LEX_CSTRING *field_name= &opt_metadata.m_column_metadata.at(col).column_name;
     Field *field= table->find_field_by_name(field_name);
     if (unlikely(!field))
     {

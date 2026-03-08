@@ -4531,7 +4531,6 @@ public:
     Dynamic_array<uint> m_column_charset;
     // Character set number of every ENUM or SET column.
     Dynamic_array<uint> m_enum_and_set_column_charset;
-    LEX_CSTRING *m_column_name;
     // each str_vector stores values of one enum/set column
     Dynamic_array<str_vector> m_enum_str_value;
     Dynamic_array<str_vector> m_set_str_value;
@@ -4541,6 +4540,13 @@ public:
       whole column value is used.
     */
     Dynamic_array<uint_pair> m_primary_key;
+
+    struct Column_metadata
+    {
+        LEX_CSTRING column_name{ nullptr, 0 };
+    };
+
+    Dynamic_array<Column_metadata> m_column_metadata;
 
     /*
       It parses m_optional_metadata and populates into above variables.
