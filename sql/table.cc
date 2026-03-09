@@ -8839,6 +8839,7 @@ void TABLE_LIST::reinit_before_use(THD *thd)
          parent_embedding->nested_join->join_list.head() == embedded);
 
   mdl_request.ticket= NULL;
+  derived_result= NULL;
 }
 
 
