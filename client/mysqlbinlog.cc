@@ -893,10 +893,12 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       for (size_t i= events_in_stmt.elements; i > 0; --i)
       {
         e= *(dynamic_element(&events_in_stmt, i - 1, Log_event**));
-        result= result || print_base64(print_event_info, e);
+        if ((result= print_base64(print_event_info, e)))
+          break;
       }
       // Copy all output into the Log_event
-      ev->output_buf.copy(e->output_buf);
+      if (!result)
+        ev->output_buf.copy(e->output_buf);
       // Delete Log_event
       for (size_t i= 0; i < events_in_stmt.elements-1; ++i)
       {
@@ -904,6 +906,8 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         delete e;
       }
       reset_dynamic(&events_in_stmt);
+      if (result)
+        return result;
     }
   }
 
@@ -1955,6 +1959,14 @@ static void cleanup()
   mysql_server_end();
   if (opt_flashback)
   {
+    if (binlog_events.buffer)
+    {
+      for (size_t i= 0; i < binlog_events.elements; ++i)
+      {
+        LEX_STRING *event_str= dynamic_element(&binlog_events, i, LEX_STRING*);
+        my_free(event_str->str);
+      }
+    }
     delete_dynamic(&binlog_events);
     delete_dynamic(&events_in_stmt);
   }

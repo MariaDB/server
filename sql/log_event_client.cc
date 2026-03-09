@@ -1124,7 +1124,7 @@ static uchar *fill_row_image(const MY_BITMAP *cols_bitmap,
   @param[in] rows_buff          Packed event buff
 */
 
-void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_info,
+bool Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_info,
                                                uchar *rows_buff, Log_event_type ev_type)
 {
   Table_map_log_event *map;
@@ -1133,16 +1133,24 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
   uchar *rows_pos= rows_buff + m_rows_before_size;
   Field_info *ai_fields= nullptr;
   Field_info *bi_fields= nullptr;
+  bool error= false;
 
   if (!(map= print_event_info->m_table_map.get_table(m_table_id)) ||
       !(td= map->create_table_def()))
-    return;
+    return false;
 
   /* If the write rows event contained no values for the AI */
   if (((get_general_type_code() == WRITE_ROWS_EVENT) && (m_rows_buf==m_rows_end)))
-    goto end;
+    goto err;
 
-  (void) my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &rows_arr, sizeof(LEX_STRING), 8, 8, MYF(0));
+  if (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &rows_arr,
+                            sizeof(LEX_STRING), 8, 8, MYF(0)))
+  {
+    fprintf(stderr, "\nError: Out of memory. "
+            "Could not exchange to flashback event.\n");
+    error= true;
+    goto err;
+  }
 
   if (get_general_type_code() == UPDATE_ROWS_EVENT ||
       get_general_type_code() == UPDATE_ROWS_EVENT_V1)
@@ -1159,7 +1167,8 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
       {
         fprintf(stderr, "\nError: Out of memory. "
                 "Could not exchange to flashback event.\n");
-        exit(1);
+        error= true;
+        goto end;
       }
     }
   }
@@ -1170,8 +1179,8 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
     size_t length1= 0;
     if (!(length1= calc_row_event_length(td, &m_cols, value, bi_fields)))
     {
-      fprintf(stderr, "\nError row length: %zu\n", length1);
-      exit(1);
+      error= true;
+      goto end;
     }
     value+= length1;
 
@@ -1182,8 +1191,8 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
     {
       if (!(length2= calc_row_event_length(td, &m_cols_ai, value, ai_fields)))
       {
-        fprintf(stderr, "\nError row length: %zu\n", length2);
-        exit(1);
+        error= true;
+        goto end;
       }
       value+= length2;
     }
@@ -1197,7 +1206,8 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
     {
       fprintf(stderr, "\nError: Out of memory. "
               "Could not exchange to flashback event.\n");
-      exit(1);
+      error= true;
+      goto end;
     }
 
     if (length2 != 0) // It has before and after image
@@ -1237,7 +1247,9 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
     {
       fprintf(stderr, "\nError: Out of memory. "
               "Could not push flashback event into array.\n");
-      exit(1);
+      my_free(one_row.str);
+      error= true;
+      goto end;
     }
   }
 
@@ -1250,15 +1262,24 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
     rows_pos+= one_row->length;
     my_free(one_row->str);
   }
-  delete_dynamic(&rows_arr);
-
 end:
-  if (bi_fields)
+  if (error)
+  {
+    for (size_t i= 0; i < rows_arr.elements; ++i)
+    {
+      LEX_STRING *one_row= dynamic_element(&rows_arr, i, LEX_STRING*);
+      my_free(one_row->str);
+    }
+  }
+  delete_dynamic(&rows_arr);
+err:
+  if (ai_fields || bi_fields)
   {
     my_free(bi_fields);
     my_free(ai_fields);
   }
   delete td;
+  return error;
 }
 
 /**
@@ -1389,11 +1410,10 @@ static size_t calc_field_event_length(const uchar *ptr, uint type, uint meta)
 
   @return  length of the parsed row image if succeeds, otherwise 0 is returned.
  */
-size_t
-Rows_log_event::calc_row_event_length(table_def *td,
-                                      MY_BITMAP *cols_bitmap,
-                                      const uchar *value,
-                                      Field_info *fields)
+size_t Rows_log_event::calc_row_event_length(table_def *td,
+                                             MY_BITMAP *cols_bitmap,
+                                             const uchar *value,
+                                             Field_info *fields)
 {
   const uchar *value0= value;
   const uchar *null_bits= value;
@@ -1417,15 +1437,33 @@ Rows_log_event::calc_row_event_length(table_def *td,
     if (!is_null)
     {
       size_t size;
-      size_t fsize= td->calc_field_size((uint)i, (uchar*) value);
-      if (value + fsize > m_rows_end)
-      {
-        /* Corrupted replication event was detected, skipping entry */
-        return 0;
-      }
+      const char *event_name= get_type_str();
+      const bool IsUpdate= get_general_type_code() == UPDATE_ROWS_EVENT ||
+                           get_general_type_code() == UPDATE_ROWS_EVENT_V1;
+      const char *image_suffix= "";
+      if (IsUpdate)
+        image_suffix=
+            (cols_bitmap == &m_cols_ai) ? " (after image)" : " (before image)";
       if (!(size= calc_field_event_length(value, td->type(i),
                                           td->field_metadata(i))))
+      {
+        fprintf(stderr,
+                "\nError decoding row image while converting event for "
+                "--flashback (%s): event=%s%s, column=%u, column_type=%u, "
+                "metadata=%u\n",
+                "could not determine field length", event_name, image_suffix,
+                i, (uint) td->type(i), (uint) td->field_metadata(i));
         return 0;
+      }
+      if (size > (size_t) (m_rows_end - value))
+      {
+        /* corrupted replication event was detected, skipping entry */
+        fprintf(stderr,
+                "\nError decoding row image while converting event for "
+                "--flashback (%s): event=%s%s, column=%u\n",
+                "field extends past row buffer", event_name, image_suffix, i);
+        return 0;
+      }
 
       if (fields)
       {
@@ -1693,6 +1731,7 @@ bool Log_event::print_base64(IO_CACHE* file,
   {
     uint tmp_size= size;
     Rows_log_event *ev= NULL;
+    bool error= false;
     Log_event_type ev_type = (enum Log_event_type) ptr[EVENT_TYPE_OFFSET];
     if (read_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF &&
         read_checksum_alg != BINLOG_CHECKSUM_ALG_OFF)
@@ -1702,36 +1741,35 @@ bool Log_event::print_base64(IO_CACHE* file,
         ptr[EVENT_TYPE_OFFSET]= DELETE_ROWS_EVENT;
         ev= new Delete_rows_log_event(ptr, tmp_size,
                                        glob_description_event);
-        ev->change_to_flashback_event(print_event_info, ptr, ev_type);
         break;
       case WRITE_ROWS_EVENT_V1:
         ptr[EVENT_TYPE_OFFSET]= DELETE_ROWS_EVENT_V1;
         ev= new Delete_rows_log_event(ptr, tmp_size,
                                        glob_description_event);
-        ev->change_to_flashback_event(print_event_info, ptr, ev_type);
         break;
       case DELETE_ROWS_EVENT:
         ptr[EVENT_TYPE_OFFSET]= WRITE_ROWS_EVENT;
         ev= new Write_rows_log_event(ptr, tmp_size,
                                        glob_description_event);
-        ev->change_to_flashback_event(print_event_info, ptr, ev_type);
         break;
       case DELETE_ROWS_EVENT_V1:
         ptr[EVENT_TYPE_OFFSET]= WRITE_ROWS_EVENT_V1;
         ev= new Write_rows_log_event(ptr, tmp_size,
                                        glob_description_event);
-        ev->change_to_flashback_event(print_event_info, ptr, ev_type);
         break;
       case UPDATE_ROWS_EVENT:
       case UPDATE_ROWS_EVENT_V1:
         ev= new Update_rows_log_event(ptr, tmp_size,
                                        glob_description_event);
-        ev->change_to_flashback_event(print_event_info, ptr, ev_type);
         break;
       default:
         break;
     }
+    if (ev)
+      error= ev->change_to_flashback_event(print_event_info, ptr, ev_type);
     delete ev;
+    if (unlikely(error))
+      goto err;
   }
 
   if (do_print_encoded)
