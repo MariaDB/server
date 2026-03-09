@@ -86,6 +86,22 @@ flush session status;
 --replace_regex /(\.\d{5})\d+/\1/
 select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
 show status like 'handler_read_rnd_next'; # not used, wrong distance metric
+
+# mhnsw_ef_search boundary coverage
+set @saved_ef_search= @@session.mhnsw_ef_search;
+set @@session.mhnsw_ef_search= 1;
+select @@session.mhnsw_ef_search;
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 1;
+set @@session.mhnsw_ef_search= 10000;
+select @@session.mhnsw_ef_search;
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 1;
+set @@session.mhnsw_ef_search= 0;
+select @@session.mhnsw_ef_search;
+set @@session.mhnsw_ef_search= 10001;
+select @@session.mhnsw_ef_search;
+set @@session.mhnsw_ef_search= @saved_ef_search;
 --enable_cursor_protocol
 --enable_ps2_protocol
 --enable_view_protocol
