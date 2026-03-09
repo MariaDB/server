@@ -302,14 +302,42 @@ static int hp_write_one_blob(HP_SHARE *share, const uchar *data_ptr,
   uchar *prev_run_start= NULL;
   uint32 data_offset= 0;
 
-  /* Calculate minimum acceptable run size */
+  /*
+    Calculate minimum acceptable contiguous run size for free-list reuse.
+
+    The free-list walk (Step 1 below) rejects contiguous groups smaller
+    than min_run_records, bailing to tail allocation instead.  This
+    prevents excessive chain fragmentation for large blobs: accepting
+    tiny fragments would produce long chains of many short runs, each
+    with its own 10-byte header overhead and pointer dereference on read.
+
+    The threshold is the larger of:
+      - 1/10 of the blob size (caps chain length at ~10 runs)
+      - 128 bytes absolute floor (HP_CONT_MIN_RUN_BYTES)
+      - 2 records minimum (a single-slot run is pure overhead)
+
+    For small blobs whose total bytes or records needed is below this
+    threshold, the fragmentation concern doesn't apply — the entire blob
+    fits in one short run.  Cap both min_run_bytes and min_run_records
+    so the free list can satisfy the allocation without falling through
+    to the tail unnecessarily.
+  */
   min_run_bytes= data_len / HP_CONT_RUN_FRACTION_DEN *
                  HP_CONT_RUN_FRACTION_NUM;
   if (min_run_bytes < HP_CONT_MIN_RUN_BYTES)
     min_run_bytes= HP_CONT_MIN_RUN_BYTES;
+  if (min_run_bytes > data_len)
+    min_run_bytes= data_len;
   min_run_records= (min_run_bytes + recbuffer - 1) / recbuffer;
   if (min_run_records < 2)
     min_run_records= 2;
+  {
+    uint32 first_payload= visible - HP_CONT_HEADER_SIZE;
+    uint32 total_records_needed= data_len <= first_payload ? 1 :
+        1 + (data_len - first_payload + recbuffer - 1) / recbuffer;
+    if (total_records_needed < min_run_records)
+      min_run_records= total_records_needed;
+  }
 
   /*
     Step 1: Try to allocate contiguous runs from the free list.
