@@ -4824,17 +4824,15 @@ public:
 
   /* not for direct call, each derived has its own ::print() */
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override= 0;
-  void change_to_flashback_event(PRINT_EVENT_INFO *print_event_info, uchar *rows_buff, Log_event_type ev_type);
+  bool change_to_flashback_event(PRINT_EVENT_INFO *print_event_info, uchar *rows_buff, Log_event_type ev_type);
   bool print_verbose(IO_CACHE *file,
                      PRINT_EVENT_INFO *print_event_info);
   size_t print_verbose_one_row(IO_CACHE *file, table_def *td,
                                PRINT_EVENT_INFO *print_event_info,
                                MY_BITMAP *cols_bitmap,
                                const uchar *ptr, const uchar *prefix);
-  size_t calc_row_event_length(table_def *td,
-                               MY_BITMAP *cols_bitmap,
-                               const uchar *value,
-                               Field_info *fields);
+  size_t calc_row_event_length(table_def *td, MY_BITMAP *cols_bitmap,
+                               const uchar *value, Field_info *fields);
   void count_row_events(PRINT_EVENT_INFO *print_event_info);
 
 #endif

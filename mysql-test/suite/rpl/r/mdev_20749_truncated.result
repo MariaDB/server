@@ -1,0 +1,17 @@
+#
+# MDEV-20749 corrupted BLOB length prefix should report truncated row image
+# The server-side DBUG hook corrupts the serialized row image written to
+# the binary log by increasing the BLOB length prefix without changing
+# the event size. mariadb-binlog --flashback should then report that the
+# field extends past the row buffer while decoding the WRITE_ROWS_EVENT.
+#
+create table t1 (a int, b blob) engine=innodb;
+set @old_dbug= @@debug_dbug;
+set debug_dbug= "+d,flashback_corrupt_blob_length_prefix";
+insert into t1 values (1, repeat("a",3104));
+set debug_dbug= @old_dbug;
+flush binary logs;
+# MYSQL_BINLOG --result-file=RESULT_FILE -vvv --flashback MYSQLD_DATADIR/BINLOG_FILE 2>&1
+
+Error decoding row image while converting event for --flashback (field extends past row buffer): event=Delete_rows_v1, column=1
+DROP TABLE t1;
