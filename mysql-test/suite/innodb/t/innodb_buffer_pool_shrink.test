@@ -1,0 +1,14 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+call mtr.add_suppression("innodb_buffer_pool_size change aborted");
+CREATE TABLE t (c INT) ENGINE=InnoDB PARTITION BY HASH(c) PARTITIONS 512;
+BEGIN;
+SELECT * FROM t LOCK IN SHARE MODE;
+SET @save_size = @@GLOBAL.innodb_buffer_pool_size;
+--error 0,ER_WRONG_USAGE
+SET GLOBAL innodb_buffer_pool_size=6291456;
+COMMIT;
+--error 0,ER_WRONG_USAGE
+SET GLOBAL innodb_buffer_pool_size=6291456;
+SET GLOBAL innodb_buffer_pool_size = @save_size;
+DROP TABLE t;
