@@ -1131,11 +1131,32 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         goto end;
       }
 
-      if (!gtid_event_filter->exclude(&ev_gtid))
-        print_event_info->activate_current_event_group();
-      else
-        print_event_info->deactivate_current_event_group();
+ /* MDEV-28278: ensure server_id also matches when evaluating GTID start position */
+ if (!gtid_event_filter->exclude(&ev_gtid))
+ {
+  
+   if (position_gtid_filter && position_gtid_filter->get_num_start_gtids() > 0)
+   {
+    rpl_gtid *start_gtids = position_gtid_filter->get_start_gtids();
+    size_t n_start_gtids = position_gtid_filter->get_num_start_gtids();
+
+     for (size_t i = 0; i < n_start_gtids; i++)
+     {
+       if (start_gtids[i].domain_id == ev_gtid.domain_id)
+      {
+        if (start_gtids[i].server_id != ev_gtid.server_id ||
+            ev_gtid.seq_no <= start_gtids[i].seq_no)
+        {
+          goto end_skip_count;
+        }
+      }
     }
+  }
+
+  print_event_info->activate_current_event_group();
+}
+else
+  print_event_info->deactivate_current_event_group();
 
     /*
       Where we always ensure the initial binlog state is valid, we only
