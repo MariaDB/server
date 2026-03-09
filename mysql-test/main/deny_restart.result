@@ -1,0 +1,34 @@
+#
+# Check that privilege hashes are populated with DENY entries on startup
+#
+USE test;
+CREATE TABLE t1 (id INT);
+CREATE USER u@localhost;
+GRANT SELECT ON test.t1 TO u@localhost;
+DENY SELECT ON test.t1 TO u@localhost;
+# Before restart: DENY is enforced
+connect  con1, localhost, u,,;
+SELECT * FROM test.t1;
+ERROR 42000: SELECT command denied to user 'u'@'localhost' for table `test`.`t1`
+disconnect con1;
+connection default;
+# Before restart: DENY is visible and persisted
+SHOW GRANTS FOR u@localhost;
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+GRANT SELECT ON `test`.`t1` TO `u`@`localhost`
+DENY SELECT ON `test`.`t1` TO `u`@`localhost`
+# Restart and verify again
+# restart
+SHOW GRANTS FOR u@localhost;
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+GRANT SELECT ON `test`.`t1` TO `u`@`localhost`
+DENY SELECT ON `test`.`t1` TO `u`@`localhost`
+connect  con1, localhost, u,,;
+SELECT * FROM test.t1;
+ERROR 42000: SELECT command denied to user 'u'@'localhost' for table `test`.`t1`
+disconnect con1;
+connection default;
+DROP USER u@localhost;
+DROP TABLE test.t1;

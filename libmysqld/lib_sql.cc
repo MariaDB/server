@@ -787,7 +787,7 @@ int check_embedded_connection(MYSQL *mysql, const char *db)
   strmake_buf(sctx->priv_user, mysql->user);
   sctx->user= my_strdup(PSI_NOT_INSTRUMENTED, mysql->user, MYF(0));
   sctx->proxy_user[0]= 0;
-  sctx->master_access= GLOBAL_ACLS;       // Full rights
+  sctx->master_access= access_t(GLOBAL_ACLS);       // Full rights
   emb_transfer_connect_attrs(mysql);
 
   /* Change database if necessary */

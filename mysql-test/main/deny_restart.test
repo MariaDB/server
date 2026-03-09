@@ -1,0 +1,36 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # Check that privilege hashes are populated with DENY entries on startup
+--echo #
+
+USE test;
+CREATE TABLE t1 (id INT);
+
+CREATE USER u@localhost;
+GRANT SELECT ON test.t1 TO u@localhost;
+DENY SELECT ON test.t1 TO u@localhost;
+
+--echo # Before restart: DENY is enforced
+connect (con1, localhost, u,,);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM test.t1;
+disconnect con1;
+connection default;
+
+--echo # Before restart: DENY is visible and persisted
+SHOW GRANTS FOR u@localhost;
+
+--echo # Restart and verify again
+--source include/restart_mysqld.inc
+
+SHOW GRANTS FOR u@localhost;
+
+connect (con1, localhost, u,,);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM test.t1;
+disconnect con1;
+connection default;
+
+DROP USER u@localhost;
+DROP TABLE test.t1;

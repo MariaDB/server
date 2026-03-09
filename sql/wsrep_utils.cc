@@ -521,7 +521,7 @@ thd::thd (my_bool ini, bool system_thread)
     {
       ptr->system_thread= SYSTEM_THREAD_GENERIC;
     }
-    ptr->security_ctx->master_access= ALL_KNOWN_ACL;
+    ptr->security_ctx->master_access= access_t(ALL_KNOWN_ACL);
     lex_start(ptr);
   }
 }
