@@ -510,3 +510,129 @@ SELECT * FROM t1 NATURAL JOIN t1 AS t2 WHERE t1.b=NULL ORDER BY t1.a LIMIT 1;
 a	b
 DROP TABLE t1;
 set optimizer_join_limit_pref_ratio=default;
+#
+# MDEV-38072 Optimizer choosing the wrong plan
+#
+CREATE TABLE `actor` (
+`actor_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+`actor_user` int(10) unsigned DEFAULT NULL,
+`actor_name` varbinary(255) NOT NULL,
+PRIMARY KEY (`actor_id`),
+UNIQUE KEY `actor_name` (`actor_name`),
+UNIQUE KEY `actor_user` (`actor_user`)
+) ENGINE=InnoDB DEFAULT CHARSET=binary
+ROW_FORMAT=COMPRESSED;
+CREATE TABLE `logging` (
+`log_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+`log_type` varbinary(32) NOT NULL DEFAULT '',
+`log_action` varbinary(32) NOT NULL DEFAULT '',
+`log_timestamp` binary(14) NOT NULL DEFAULT '19700101000000',
+`log_namespace` int(11) NOT NULL DEFAULT 0,
+`log_title` varbinary(255) NOT NULL DEFAULT '',
+`log_comment_id` bigint(20) unsigned NOT NULL,
+`log_params` blob NOT NULL,
+`log_deleted` tinyint(3) unsigned NOT NULL DEFAULT 0,
+`log_actor` bigint(20) unsigned NOT NULL,
+`log_page` int(10) unsigned DEFAULT NULL,
+PRIMARY KEY (`log_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=174074740 DEFAULT CHARSET=binary
+ROW_FORMAT=COMPRESSED;
+SET autocommit=0;
+SET unique_checks=0;
+SET foreign_key_checks=0;
+SET GLOBAL innodb_stats_persistent=0;
+create table foo (id int primary key not null auto_increment,
+text varchar(128));
+insert into foo (text) values ('sgqkwlqeplosa'),('aoaltwlqeplosa'),
+('zdlsihdatjtd'),('qwzstyolatdgdoxqatrtaqols'),('qwzstyolatdwlheptrrhkqojioa'),
+('qwzstyolatd-gdhateatr-xqds'),('hqai'),('eitepzstd-atkghdqdb-qeehzja'),
+('eitepzstd-gdoxqat-txtja'),('ogojyh'),('szggdtss');
+insert into foo (text) select concat('NOT-', text) from foo;
+insert into actor select seq, seq, uuid() from seq_1_to_1000;
+insert into logging
+(log_timestamp, log_actor, log_params, log_comment_id, log_type)
+select 19700101+seq, if(seq%2, 406, seq%1000), seq, seq, text
+from seq_1_to_60000 join foo on seq%22+1=id;
+update actor set actor_name = 'DGG' where actor_id = 406;
+update logging set log_type = 'eitepzstd-atkghdqdb-qeehzja' where log_id%2;
+create index `log_page_id_time` on logging
+(`log_page`,`log_timestamp`);
+create index `log_actor_type_time` on logging
+(`log_actor`,`log_type`,`log_timestamp`);
+create index `log_type_action` on logging
+(`log_type`,`log_action`,`log_timestamp`);
+create index `log_type_time` on logging
+(`log_type`,`log_timestamp`);
+create index `log_actor_time` on logging
+(`log_actor`,`log_timestamp`);
+create index `log_page_time` on logging
+(`log_namespace`,`log_title`,`log_timestamp`);
+create index `log_times` on logging
+(`log_timestamp`);
+SET autocommit=default;
+SET unique_checks=default;
+SET foreign_key_checks=default;
+analyze table actor, logging;
+Table	Op	Msg_type	Msg_text
+test.actor	analyze	status	Engine-independent statistics collected
+test.actor	analyze	status	OK
+test.logging	analyze	status	Engine-independent statistics collected
+test.logging	analyze	Warning	Engine-independent statistics are not collected for column 'log_params'
+test.logging	analyze	status	OK
+explain format=json
+SELECT log_id, log_type, log_action, log_timestamp, log_deleted
+FROM `logging` JOIN `actor` ON (actor_id=log_actor)
+WHERE
+(
+log_type NOT IN
+('sgqkwlqeplosa','aoaltwlqeplosa','zdlsihdatjtd',
+'qwzstyolatdgdoxqatrtaqols','qwzstyolatdwlheptrrhkqojioa',
+'qwzstyolatd-gdhateatr-xqds','hqai','eitepzstd-atkghdqdb-qeehzja',
+'eitepzstd-gdoxqat-txtja','ogojyh','szggdtss')
+) AND
+actor_name = 'DGG' AND
+(log_deleted & 4) != 4
+ORDER BY log_timestamp DESC,log_id DESC LIMIT 2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "actor",
+          "access_type": "const",
+          "possible_keys": ["PRIMARY", "actor_name"],
+          "key": "actor_name",
+          "key_length": "257",
+          "used_key_parts": ["actor_name"],
+          "ref": ["const"],
+          "rows": "REPLACED",
+          "filtered": 100,
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "logging",
+          "access_type": "range",
+          "possible_keys": [
+            "log_actor_type_time",
+            "log_type_action",
+            "log_type_time",
+            "log_actor_time"
+          ],
+          "key": "log_actor_time",
+          "key_length": "8",
+          "used_key_parts": ["log_actor"],
+          "rows": "REPLACED",
+          "filtered": 48.42499924,
+          "attached_condition": "logging.log_actor <=> 406 and logging.log_type not in ('sgqkwlqeplosa','aoaltwlqeplosa','zdlsihdatjtd','qwzstyolatdgdoxqatrtaqols','qwzstyolatdwlheptrrhkqojioa','qwzstyolatd-gdhateatr-xqds','hqai','eitepzstd-atkghdqdb-qeehzja','eitepzstd-gdoxqat-txtja','ogojyh','szggdtss') and logging.log_deleted & 4 <> 4"
+        }
+      }
+    ]
+  }
+}
+drop table actor, logging, foo;
+SET GLOBAL innodb_stats_persistent=default;
+# End of 10.11 tests

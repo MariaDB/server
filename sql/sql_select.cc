@@ -31843,7 +31843,8 @@ test_if_cheaper_ordering(bool in_join_optimizer,
             quick_records= table->opt_range[nr].rows;
           possible_key.add("records", quick_records);
           if (best_key < 0 ||
-              (select_limit <= MY_MIN(quick_records,best_records) ?
+              (select_limit <= MY_MIN(quick_records,best_records) &&
+                 is_covering ?
                keyinfo->user_defined_key_parts < best_key_parts :
                quick_records < best_records) ||
               (!is_best_covering && is_covering))
