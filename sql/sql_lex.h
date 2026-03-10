@@ -79,6 +79,121 @@ public:
 };
 
 
+/*
+  A simple or extended prepared statement name.
+*/
+struct Lex_sql_statement_name_st
+{
+  enum Type
+  {
+    PREPARED_STATEMENT,  // PREPARE stmt FROM 'SELECT 1';
+    LOCAL_VAR            // PREPARE LOCAL spvar FROM 'SELECT 1';
+  };
+private:
+  Type m_type;
+  Lex_ident_sys_st m_name; // PS name or spvar name
+public:
+  static Lex_sql_statement_name_st make_for_ps_name(
+                                                  const Lex_ident_sys_st &name)
+  {
+    Lex_sql_statement_name_st res;
+    res.m_type= PREPARED_STATEMENT;
+    res.m_name= name;
+    return res;
+  }
+  static Lex_sql_statement_name_st make_for_local_var_name(
+                                                 const Lex_ident_sys_st &name)
+  {
+    Lex_sql_statement_name_st res;
+    res.m_type= LOCAL_VAR;
+    res.m_name= name;
+    return res;
+  }
+  Lex_ident_sys_st ps_name() const
+  {
+    return m_type == PREPARED_STATEMENT ? m_name : Lex_ident_sys();
+  }
+  Lex_ident_sys_st local_var_name() const
+  {
+    return m_type == LOCAL_VAR ? m_name : Lex_ident_sys();
+  }
+};
+
+
+/*
+  This structure stores the tail of the "OPEN c FOR" statement.
+  The whole structure must satisfy "union check size" assert in sql_yacc.yy.
+  So we have to use a union here.
+*/
+struct Lex_open_for_st
+{
+  enum Type
+  {
+    QUERY,                // OPEN c FOR SELECT 1;
+    DYNAMIC_STRING,       // OPEN c FOR expr;
+    PREPARED_STATEMENT,   // OPEN c FOR PREPARE stmt;
+    LOCAL_VAR             // OPEN c FOR LOCAL spvar;
+  };
+private:
+  Type m_type;
+  union
+  {
+    /*
+      m_name contains either PS name or an SP variable name:
+        OPEN c FOR PREPARE stmt;
+        OPEN c FOR LOCAL spvar;
+    */
+    Lex_ident_sys_st m_name;
+    Item *m_dynamic_string;      // OPEN c FOR expr;
+  };
+public:
+  static Lex_open_for_st make_for_query()
+  {
+    Lex_open_for_st res;
+    res.m_type= QUERY;
+    res.m_name= Lex_ident_sys();
+    res.m_dynamic_string= nullptr;
+    return res;
+  }
+  static Lex_open_for_st make_for_dynamic_string(Item *dynamic_string)
+  {
+    Lex_open_for_st res;
+    res.m_type= DYNAMIC_STRING;
+    res.m_name= Lex_ident_sys();
+    res.m_dynamic_string= dynamic_string;
+    return res;
+  }
+  static Lex_open_for_st make_for_ps_name(const Lex_ident_sys_st &name)
+  {
+    Lex_open_for_st res;
+    res.m_type= PREPARED_STATEMENT;
+    res.m_dynamic_string= nullptr;
+    res.m_name= name;
+    return res;
+  }
+  static Lex_open_for_st make_for_local_var_name(const Lex_ident_sys_st &name)
+  {
+    Lex_open_for_st res;
+    res.m_type= LOCAL_VAR;
+    res.m_dynamic_string= nullptr;
+    res.m_name= name;
+    return res;
+  }
+  Lex_ident_sys_st ps_name() const
+  {
+    return m_type == PREPARED_STATEMENT ? m_name : Lex_ident_sys();
+  }
+  Lex_ident_sys_st local_var_name() const
+  {
+    return m_type == LOCAL_VAR ? m_name : Lex_ident_sys();
+  }
+  Item *dynamic_string() const
+  {
+    return m_type == DYNAMIC_STRING ? m_dynamic_string : nullptr;
+  }
+};
+
+
 /**
   ORDER BY ... LIMIT parameters;
 */
@@ -3126,13 +3241,14 @@ class Query_arena_memroot;
 
 class Lex_prepared_stmt
 {
-  Lex_ident_sys m_name; // Statement name (in all queries)
-  Item *m_code;         // PREPARE or EXECUTE IMMEDIATE source expression
-  List<Item> m_params;  // List of parameters for EXECUTE [IMMEDIATE]
+  Lex_ident_sys m_name;   // Statement name (in all queries)
+  Item *m_code;           // PREPARE or EXECUTE IMMEDIATE source expression
+  sp_rcontext_addr m_var; // OPEN c FOR LOCAL spvar;
+  List<Item> m_params;    // List of parameters for EXECUTE [IMMEDIATE]
 public:
 
   Lex_prepared_stmt()
-   :m_code(NULL)
+   :m_code(NULL), m_var(nullptr, 0)
   { }
   const Lex_ident_sys &name() const
   {
@@ -3141,6 +3257,10 @@ public:
   Item *code() const
   {
     return m_code;
+  }
+  const sp_rcontext_addr & var() const
+  {
+    return m_var;
   }
   uint param_count() const
   {
@@ -3155,9 +3275,15 @@ public:
     DBUG_ASSERT(m_params.elements == 0);
     m_name= ident;
     m_code= code;
+    m_var= sp_rcontext_addr(nullptr, 0);
     if (params)
       m_params= *params;
   }
+  bool set(LEX *lex, const Lex_sql_statement_name_st &name, Item *code,
+           List<Item> *params);
+
+  bool set(LEX *lex, const Lex_open_for_st &open_for,
+           List<Item> *params);
   bool params_fix_fields(THD *thd)
   {
     // Fix Items in the EXECUTE..USING list
@@ -3169,6 +3295,10 @@ public:
     }
     return false;
   }
+  Lex_ident_sys evaluate_name(THD *thd,
+                              String *value_buffer,
+                              String *converter_buffer,
+                              const char *op) const;
   bool get_dynamic_sql_string(THD *thd, LEX_CSTRING *dst, String *buffer);
   void lex_start()
   {
@@ -5046,10 +5176,10 @@ public:
   bool stmt_uninstall_plugin_by_soname(const DDL_options_st &opt,
                                        const LEX_CSTRING &soname);
   bool stmt_prepare_validate(const char *stmt_type);
-  bool stmt_prepare(const Lex_ident_sys_st &ident, Item *code);
-  bool stmt_execute(const Lex_ident_sys_st &ident, List<Item> *params);
+  bool stmt_prepare(const Lex_sql_statement_name_st &ident, Item *code);
+  bool stmt_execute(const Lex_sql_statement_name_st &ident, List<Item> *params);
   bool stmt_execute_immediate(Item *code, List<Item> *params);
-  void stmt_deallocate_prepare(const Lex_ident_sys_st &ident);
+  bool stmt_deallocate_prepare(const Lex_sql_statement_name_st &ident);
 
   bool stmt_alter_table_exchange_partition(Table_ident *table);
   bool stmt_alter_table(Table_ident *table);

@@ -524,6 +524,16 @@ public:
   /// @return instance of found SP-variable, or NULL if not found.
   sp_variable *find_variable(const LEX_CSTRING *name, bool current_scope_only) const;
 
+  /// Find an SP-variable by name, raise an error if not found
+  sp_variable *find_variable_or_error(const LEX_CSTRING &name,
+                                      bool current_scope_only) const
+  {
+    sp_variable *res= find_variable(&name, current_scope_only);
+    if (!res)
+      my_error(ER_SP_UNDECLARED_VAR, MYF(0), name.str);
+    return res;
+  }
+
   /// Find SP-variable by the offset in the root parsing context.
   ///
   /// The function is used for two things:

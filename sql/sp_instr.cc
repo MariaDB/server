@@ -2639,8 +2639,8 @@ sp_instr_copen_by_ref::execute(THD *thd, uint *nextp)
 int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_copen_by_ref::exec_core");
-  const Item *code= m_lex_keeper.lex()->get_lex_for_cursor()->
-                                          prepared_stmt.code();
+  const Lex_prepared_stmt &lps= m_lex_keeper.lex()->get_lex_for_cursor()->
+                                                      prepared_stmt;
   DBUG_ASSERT(m_ip >= m_set_ps_placeholder_count);
   const sp_instr_set_ps_placeholder *set_placeholder_first=
     dynamic_cast<const sp_instr_set_ps_placeholder*>(
@@ -2648,6 +2648,23 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
   DBUG_ASSERT(set_placeholder_first || !m_set_ps_placeholder_count);
   uint set_placeholder_first_ip= set_placeholder_first ?
                                  set_placeholder_first->m_ip : 0;
+
+  StringBuffer<64> value_buffer, converter_buffer;
+  Lex_ident_sys ps_name= lps.evaluate_name(thd, &value_buffer,
+                                           &converter_buffer, "OPEN");
+  if (ps_name.str == nullptr && lps.var().rcontext_handler()/*FOR LOCAL*/)
+  {
+    /*
+      We're here if this is an "OPEN c0 FOR LOCAL spvar" statement
+      and the SP variable evaluates to SQL NULL:
+        SET spvar= NULL;
+        OPEN c0 FOR LOCAL spvar;
+      evaluate_name() should have raised the ER_UNKNOWN_STMT_HANDLER error.
+    */
+    DBUG_ASSERT(thd->is_error());
+    DBUG_RETURN(-1);
+  }
+
   sp_cursor *cursor;
   if (thd->open_cursors_counter() < thd->variables.max_open_cursors)
   {
@@ -2669,10 +2686,11 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
     // TODO: check with DmitryS if hiding ROOT_FLAG_READ_ONLY is OK:
     auto flags_backup= thd->lex->query_arena()->mem_root->flags;
     thd->lex->query_arena()->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
-    int rc= !code ? cursor->open(thd) :
-                    cursor->open_from_dynamic_string(thd,
-                                            set_placeholder_first_ip,
-                                            m_set_ps_placeholder_count);
+    int rc= ps_name.length ? cursor->open_from_ps(thd, ps_name) :
+            !lps.code() ? cursor->open(thd) :
+                        cursor->open_from_dynamic_string(thd,
+                                                set_placeholder_first_ip,
+                                                m_set_ps_placeholder_count);
     thd->lex->query_arena()->mem_root->flags= flags_backup;
     DBUG_RETURN(rc);
   }
@@ -2696,7 +2714,9 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
     DBUG_RETURN(-1);
   }
   cursor->reset_for_reopen(thd);
-  DBUG_RETURN(!code ? cursor->open(thd, false/*don't check max_open_cursors*/) :
+  DBUG_RETURN(ps_name.length ? cursor->open_from_ps(thd, ps_name) :
+              !lps.code() ? cursor->open(thd,
+                                       false/*don't check max_open_cursors*/) :
               cursor->open_from_dynamic_string(thd, set_placeholder_first_ip,
                                                m_set_ps_placeholder_count));
 }
