@@ -1404,6 +1404,21 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
   return 0;
 }
 
+/*
+  Read-path hierarchical traversal:
+  descend upper layers with ef=1, then search layer 0 with requested limit.
+*/
+static int search_hierarchical_read(MHNSW_param *p, const FVector *target,
+                                    uint limit, Neighborhood *candidates)
+{
+  for (; p->layer > 0; p->layer--)
+  {
+    if (int err= search_layer(p, target, NEAREST, 1, candidates, false))
+      return err;
+  }
+  return search_layer(p, target, NEAREST, limit, candidates, false);
+}
+
 
 int mhnsw_insert(TABLE *table, KEY *keyinfo)
 {
@@ -1566,18 +1581,8 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
     return err;
 
   MHNSW_param p(ctx, graph, candidates.links[0]->max_layer);
-
-  for (; p.layer > 0; p.layer--)
-  {
-    if (int err= search_layer(&p, target, NEAREST, 1, &candidates, false))
-    {
-      graph->file->ha_rnd_end();
-      return err;
-    }
-  }
-
-  if (int err= search_layer(&p, target, NEAREST, static_cast<uint>(limit),
-                            &candidates, false))
+  if (int err= search_hierarchical_read(&p, target, static_cast<uint>(limit),
+                                        &candidates))
   {
     graph->file->ha_rnd_end();
     return err;
