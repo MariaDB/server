@@ -779,3 +779,57 @@ drop table one_k, t1000;
 #
 # End 12.1 tests
 #
+#
+# MDEV-39005: Assertion failure on hint-forced Split-Materialized plan
+#
+create table t1 (
+groups_20 int not null,
+groups_20_2 int not null,
+b int,
+primary key (groups_20, groups_20_2)
+) engine=innodb;
+insert into t1 select 0, seq, seq from seq_1_to_10;
+create table t2 (a int, b int, index(a));
+insert into t2 select seq, seq from seq_0_to_10;
+analyze table t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+# Query plan without forced split:
+analyze
+select a, sum(b)
+from
+(
+select groups_20 from t1
+group by groups_20
+having count(*) != 1
+) dt
+join
+t2 on a = groups_20
+group by a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t2	ALL	a	NULL	NULL	NULL	11	11.00	100.00	100.00	Using where; Using temporary; Using filesort
+1	PRIMARY	<derived2>	ref	key0	key0	4	test.t2.a	1	0.09	100.00	100.00	
+2	DERIVED	t1	ALL	PRIMARY	NULL	NULL	NULL	10	10.00	100.00	100.00	Using temporary; Using filesort
+# Query plan with forced split:
+analyze
+select /*+ split_materialized(dt) */ a, sum(b)
+from
+(
+select groups_20 from t1
+group by groups_20
+having count(*) != 1
+) dt
+join
+t2 on a = groups_20
+group by a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	1.00	100.00	100.00	Using temporary; Using filesort
+1	PRIMARY	t2	ref	a	a	5	dt.groups_20	1	1.00	100.00	100.00	
+2	DERIVED	t1	ALL	PRIMARY	NULL	NULL	NULL	10	10.00	100.00	100.00	Using temporary; Using filesort
+drop table t1, t2;
+#
+# End 12.3 tests
+#

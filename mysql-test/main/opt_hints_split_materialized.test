@@ -523,3 +523,52 @@ drop table one_k, t1000;
 --echo #
 --echo # End 12.1 tests
 --echo #
+
+--echo #
+--echo # MDEV-39005: Assertion failure on hint-forced Split-Materialized plan
+--echo #
+create table t1 (
+  groups_20 int not null,
+  groups_20_2 int not null,
+  b int,
+  primary key (groups_20, groups_20_2)
+) engine=innodb;
+insert into t1 select 0, seq, seq from seq_1_to_10;
+
+create table t2 (a int, b int, index(a));
+insert into t2 select seq, seq from seq_0_to_10;
+
+analyze table t1, t2;
+
+--echo # Query plan without forced split:
+analyze
+  select a, sum(b)
+  from
+    (
+      select groups_20 from t1
+      group by groups_20
+      having count(*) != 1
+    ) dt
+    join
+    t2 on a = groups_20
+  group by a;
+
+
+--echo # Query plan with forced split:
+analyze
+  select /*+ split_materialized(dt) */ a, sum(b)
+  from
+    (
+      select groups_20 from t1
+      group by groups_20
+      having count(*) != 1
+    ) dt
+    join
+    t2 on a = groups_20
+  group by a;
+
+drop table t1, t2;
+
+--echo #
+--echo # End 12.3 tests
+--echo #
