@@ -1,0 +1,22 @@
+SET sql_mode=ORACLE;
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  ci INT;
+  v0 INT;
+BEGIN
+  OPEN c0 FOR SELECT 1;
+  ci:= c0.id();
+  SELECT ci, c0;
+  c0.detach();
+  SELECT ci, c0;
+  c0.attach(ci);
+  SELECT ci, c0;
+  FETCH c0 INTO v0;
+  SELECT v0;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;

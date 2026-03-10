@@ -4565,6 +4565,8 @@ public:
   */
   virtual int remember_rnd_pos()
     { return HA_ERR_WRONG_COMMAND; }
+  virtual int restore_rnd_pos()
+    { return HA_ERR_WRONG_COMMAND; }
   virtual int restart_rnd_next(uchar *buf)
     { return HA_ERR_WRONG_COMMAND; }
 

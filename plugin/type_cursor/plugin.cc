@@ -354,6 +354,7 @@ public:
     return this;
   }
 
+  bool has_methods() const override { return true; }
   bool can_return_bool() const override { return false; }
   bool can_return_int() const override { return false; }
   bool can_return_decimal() const override { return false; }
@@ -747,6 +748,199 @@ public:
     // Let's also disallow GROUP BY
     static const LEX_CSTRING name= {STRING_WITH_LEN("GROUP BY") };
     Item_func_or_sum_illegal_param(name);
+    return nullptr;
+  }
+
+  /*** Methods related to methods of SYS_REFCURSOR ***/
+  class Item_func_sys_refcursor_detach: public Item_bool_func,
+                                        public sp_rcontext_addr
+  {
+    bool check_arguments() const override { return arg_count != 0; }
+  public:
+    Item_func_sys_refcursor_detach(THD *thd, const sp_rcontext_addr &addr)
+     :Item_bool_func(thd), sp_rcontext_addr(addr)
+    { }
+    bool val_bool() override
+    {
+      THD *thd= current_thd;
+      DBUG_ASSERT(fixed());
+      Field *field= thd->get_variable(*this)->field;
+      field->set_null();
+      null_value= false;
+      return false;
+    }
+    LEX_CSTRING func_name_cstring() const override
+    {
+      static LEX_CSTRING name= {STRING_WITH_LEN("detach") };
+      return name;
+    }
+    bool fix_length_and_dec(THD *thd) override
+    {
+      Item_bool_func::fix_length_and_dec(thd);
+      set_maybe_null();
+      return false;
+    }
+    bool check_vcol_func_processor(void *arg) override
+    {
+      return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+    }
+    Item *shallow_copy(THD *thd) const override
+    { return get_item_copy<Item_func_sys_refcursor_detach>(thd, this); }
+
+    static
+    Item *make_method(THD *thd, const sp_rcontext_addr &addr, List<Item> *args)
+    {
+      uint nargs= args ? args->elements : 0;
+      if (nargs != 0)
+      {
+        my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "DETACH", "", 1, nargs);
+        return nullptr;
+      }
+      return new (thd->mem_root) Item_func_sys_refcursor_detach(thd, addr);
+    }
+  };
+
+  class Item_func_sys_refcursor_attach: public Item_bool_func,
+                                        public sp_rcontext_addr
+  {
+    bool check_arguments() const override { return arg_count != 1; }
+  public:
+    Item_func_sys_refcursor_attach(THD *thd, const sp_rcontext_addr &addr,
+                                   Item *a)
+     :Item_bool_func(thd, a), sp_rcontext_addr(addr)
+    { }
+    bool val_bool() override
+    {
+      THD *thd= current_thd;
+      DBUG_ASSERT(fixed());
+      Item_field *item_field= thd->get_variable(*this);
+      DBUG_ASSERT(item_field);
+      longlong offset= args[0]->val_int();
+      if ((null_value= args[0]->null_value || offset < 0 || offset >= 0xFFFF))
+        return 0;
+      item_field->field->set_notnull();
+      item_field->field->store(offset);
+      null_value= false;
+      return false;
+    }
+    LEX_CSTRING func_name_cstring() const override
+    {
+      static LEX_CSTRING name= {STRING_WITH_LEN("attach") };
+      return name;
+    }
+    bool fix_length_and_dec(THD *thd) override
+    {
+      Item_bool_func::fix_length_and_dec(thd);
+      set_maybe_null();
+      return false;
+    }
+    bool check_vcol_func_processor(void *arg) override
+    {
+      return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+    }
+    Item *shallow_copy(THD *thd) const override
+    { return get_item_copy<Item_func_sys_refcursor_attach>(thd, this); }
+
+    static
+    Item *make_method(THD *thd, const sp_rcontext_addr &addr, List<Item> *args)
+    {
+      uint nargs= args ? args->elements : 0;
+      if (nargs != 1)
+      {
+        my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "ATTACH", "", 1, nargs);
+        return nullptr;
+      }
+
+      return new (thd->mem_root)
+        Item_func_sys_refcursor_attach(thd, addr, args->head());
+    }
+  };
+
+
+  class Item_func_sys_refcursor_id: public Item_long_func,
+                                    public sp_rcontext_addr
+  {
+    bool check_arguments() const override { return arg_count != 0; }
+  public:
+    Item_func_sys_refcursor_id(THD *thd, const sp_rcontext_addr &addr)
+     :Item_long_func(thd), sp_rcontext_addr(addr)
+    { }
+    longlong val_int() override
+    {
+      THD *thd= current_thd;
+      DBUG_ASSERT(fixed());
+      Item_field *item_field= thd->get_variable(*this);
+      Type_ref_null ref= item_field->val_ref(thd);
+      if ((null_value= ref.is_null()))
+        return 0;
+      return ref.value();
+    }
+    LEX_CSTRING func_name_cstring() const override
+    {
+      static LEX_CSTRING name= {STRING_WITH_LEN("id") };
+      return name;
+    }
+    bool fix_length_and_dec(THD *thd) override
+    {
+      Item_long_func::fix_length_and_dec(thd);
+      set_maybe_null();
+      return false;
+    }
+    bool check_vcol_func_processor(void *arg) override
+    {
+      return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+    }
+    Item *shallow_copy(THD *thd) const override
+    { return get_item_copy<Item_func_sys_refcursor_id>(thd, this); }
+
+    static
+    Item *make_method(THD *thd, const sp_rcontext_addr &addr, List<Item> *args)
+    {
+      uint nargs= args ? args->elements : 0;
+      if (nargs != 0)
+      {
+        my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "ID", "", 1, nargs);
+        return nullptr;
+      }
+      return new (thd->mem_root) Item_func_sys_refcursor_id(thd, addr);
+    }
+  };
+
+  virtual
+  Item *create_item_method(THD *thd,
+                           object_method_type_t type,
+                           const Lex_ident_sys &ca,
+                           const Lex_ident_sys &cb,
+                           List<Item> *args,
+                           const Lex_ident_cli_st &query_fragment)
+                                                   const override
+  {
+    const Sp_rcontext_handler *rh;
+    sp_variable *spvar= thd->lex->find_variable(&ca, &rh);
+    if (!spvar)
+      return nullptr;
+    if (type == object_method_type_t::FUNCTION)
+    {
+      if (cb.length == 2)
+      {
+        if (Lex_ident_column(cb).streq("ID"_Lex_ident_column))
+          return Item_func_sys_refcursor_id::make_method(thd,
+                                         sp_rcontext_addr(rh, spvar->offset),
+                                         args);
+      }
+      return nullptr;
+    }
+    if (cb.length == 6)
+    {
+      if (Lex_ident_column(cb).streq("DETACH"_Lex_ident_column))
+        return Item_func_sys_refcursor_detach::make_method(thd,
+                                         sp_rcontext_addr(rh, spvar->offset),
+                                         args);
+      if (Lex_ident_column(cb).streq("ATTACH"_Lex_ident_column))
+        return Item_func_sys_refcursor_attach::make_method(thd,
+                                         sp_rcontext_addr(rh, spvar->offset),
+                                         args);
+    }
     return nullptr;
   }
 

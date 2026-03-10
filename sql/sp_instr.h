@@ -1823,7 +1823,7 @@ public:
 
   void set_fetch_target_list(List<sp_fetch_target> *list)
   {
-    m_fetch_target_list= *list;
+    m_fetch_target_list= list ? *list : List<sp_fetch_target>();
   }
 
 protected:

@@ -415,6 +415,24 @@ int ha_heap::rnd_pos(uchar * buf, uchar *pos)
   return error;
 }
 
+
+int ha_heap::remember_rnd_pos()
+{
+  remember_current_record= file->current_record;
+  remember_next_block= file->next_block;
+  return 0;
+};
+
+
+
+int ha_heap::restore_rnd_pos()
+{
+  file->current_record= remember_current_record;
+  file->next_block= remember_next_block;
+  return 0;
+};
+
+
 void ha_heap::position(const uchar *record)
 {
   *(HEAP_PTR*) ref= heap_position(file);	// Ref is aligned

@@ -24,7 +24,7 @@
 #include "sql_base.h"                           // setup_fields
 #include "sql_select.h"                         // free_underlaid_joins
 
-bool mysql_do(THD *thd, List<Item> &values)
+bool mysql_do(THD *thd, List<Item> &values, bool clear_errors)
 {
   List_iterator<Item> li(values);
   Item *value;
@@ -48,7 +48,9 @@ bool mysql_do(THD *thd, List<Item> &values)
     */
     if (! thd->in_sub_stmt)
       trans_rollback_stmt(thd);
-    thd->clear_error(); // DO always is OK
+    if (!clear_errors)
+      DBUG_RETURN(true); // A package pseudo-procedure call
+    thd->clear_error(); // The DO statement always is OK
   }
   my_ok(thd);
   DBUG_RETURN(FALSE);

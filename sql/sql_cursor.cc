@@ -267,6 +267,22 @@ int Materialized_cursor::open(JOIN *join __attribute__((unused)))
 }
 
 
+ulonglong Materialized_cursor::try_fetch(ulonglong num_rows)
+{
+  ulonglong count;
+  table->file->remember_rnd_pos();
+
+  for (count= 0; count < num_rows; count++)
+  {
+    if (table->file->ha_rnd_next(table->record[0]))
+      break;
+  }
+
+  table->file->restore_rnd_pos();
+  return count;
+}
+
+
 /**
   Fetch up to the given number of rows from a materialized cursor.
 
@@ -313,6 +329,19 @@ void Materialized_cursor::fetch(ulong num_rows)
     close();
     break;
   }
+}
+
+
+bool Materialized_cursor::column_value(THD *thd, uint colno,
+                                       Settable_routine_parameter *to) const
+{
+  DBUG_ASSERT(colno < item_list.elements);
+  List<Item> list(item_list);
+  List_iterator<Item> it(list);
+  Item *item;
+  for (uint i= 0 ; (item= it++) && i < colno; i++)
+  { }
+  return to->set_value(thd, thd->spcont, &item);
 }
 
 

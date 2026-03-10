@@ -1,0 +1,346 @@
+SET sql_mode=ORACLE;
+
+# SQL.SET_PARAM_BY_NAME + INSERT
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  PREPARE stmt FROM 'INSERT INTO t1 VALUES (:a,:b)';
+  SQL.SET_PARAM_BY_NAME('stmt', ':a', 0);
+  SQL.SET_PARAM_BY_NAME('stmt', ':b', 'b00');
+  EXECUTE stmt;
+  SQL.SET_PARAM_BY_NAME('stmt', ':a', 1);
+  SQL.SET_PARAM_BY_NAME('stmt', ':b', 'b01');
+  EXECUTE stmt;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+# SQL.SET_PARAM_BY_NAME + UPDATE
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b0');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  SELECT * FROM t1;
+  PREPARE stmt FROM 'UPDATE t1 SET a=a+:a, b=b||:b';
+  SQL.SET_PARAM_BY_NAME('stmt', ':a', 100);
+  SQL.SET_PARAM_BY_NAME('stmt', ':b', '-b1');
+  EXECUTE stmt;
+  SELECT * FROM t1;
+  SQL.SET_PARAM_BY_NAME('stmt', ':a', 1);
+  SQL.SET_PARAM_BY_NAME('stmt', ':b', '-b2');
+  EXECUTE stmt;
+  SELECT * FROM t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+# SQL.SET_PARAM_BY_NAME with an unknown PS name
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  PREPARE stmt FROM 'SELECT :a';
+  SQL.SET_PARAM_BY_NAME('stmt1', ':a', 0);
+  DEALLOCATE PREPARE stmt;
+END;
+$$
+DELIMITER ;$$
+--error ER_UNKNOWN_STMT_HANDLER
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# The same parameter can be set more than one time
+# If some parameter is not set, an error is raised
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1(do_set_b BOOL, do_execute BOOL) AS
+BEGIN
+  PREPARE stmt FROM 'INSERT INTO t1 VALUES (:a,:b)';
+  SQL.SET_PARAM_BY_NAME('stmt', ':a', 0);
+  SQL.SET_PARAM_BY_NAME('stmt', ':a', 1);
+  IF do_set_b THEN
+    SQL.SET_PARAM_BY_NAME('stmt', ':b', 'b01');
+  END IF;
+  IF do_execute THEN
+    EXECUTE stmt;
+  END IF;
+END;
+$$
+DELIMITER ;$$
+CALL p1(FALSE, FALSE);
+--error ER_WRONG_ARGUMENTS
+CALL p1(FALSE, TRUE);
+CALL p1(TRUE, TRUE);
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+# Duplicate parameter name:
+# - PREPARE does not fail
+# - SQL.SET_PARAM_BY_NAME does not fail
+# - EXECUTE fails
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1(do_execute BOOL) AS
+BEGIN
+  PREPARE stmt FROM 'INSERT INTO t1 VALUES (:a,:a)';
+  SQL.SET_PARAM_BY_NAME('stmt', ':a', 0);
+  SQL.SET_PARAM_BY_NAME('stmt', ':a', 1); -- Sets the left :a again
+  IF do_execute THEN
+    EXECUTE stmt;
+  END IF;
+END;
+$$
+DELIMITER ;$$
+CALL p1(FALSE);
+--error ER_WRONG_ARGUMENTS
+CALL p1(TRUE);
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+# Parameter names can be passed to SQL.SET_PARAM_BY_NAME without colon
+# Parameter names are case insensitive
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  PREPARE stmt FROM 'INSERT INTO t1 VALUES (:a,:b)';
+  SQL.SET_PARAM_BY_NAME('stmt', ':a', 0);
+  SQL.SET_PARAM_BY_NAME('stmt', ':b', 'b00');
+  EXECUTE stmt;
+  SQL.SET_PARAM_BY_NAME('stmt', 'A', 1);
+  SQL.SET_PARAM_BY_NAME('stmt', 'B', 'b01');
+  EXECUTE stmt;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+# Parameter values set by SQL.SET_PARAM_BY_NAME must be preserved
+# for the next execution
+
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DECIMAL(12,2));
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1 AS
+BEGIN
+  PREPARE stmt FROM 'INSERT INTO t1 VALUES(:a,:b,:c)';
+  SQL.SET_PARAM_BY_NAME('stmt', 'a', 10);
+  SQL.SET_PARAM_BY_NAME('stmt', 'b', 'b01');
+  SQL.SET_PARAM_BY_NAME('stmt', 'c', 10.12);
+  EXECUTE stmt;
+  EXECUTE stmt;
+  SQL.SET_PARAM_BY_NAME('stmt', 'a', NULL);
+  SQL.SET_PARAM_BY_NAME('stmt', 'b', NULL);
+  SQL.SET_PARAM_BY_NAME('stmt', 'c', NULL);
+  EXECUTE stmt;
+  EXECUTE stmt;
+  SQL.SET_PARAM_BY_NAME('stmt', 'a', 20);
+  SQL.SET_PARAM_BY_NAME('stmt', 'b', 'b02');
+  SQL.SET_PARAM_BY_NAME('stmt', 'c', 20.12);
+  EXECUTE stmt;
+  EXECUTE stmt;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  v0 INT := 10;
+  v1 VARCHAR(10) := 'v10';
+BEGIN
+  PREPARE stmt FROM 'SELECT :p0,:p1';
+  SQL.SET_PARAM_BY_NAME('stmt', ':p0', v0);
+  SQL.SET_PARAM_BY_NAME('stmt', ':p1', v1);
+  EXECUTE stmt;
+  v0:= 11;
+  v1:= 'v11';
+  EXECUTE stmt; -- This still selects (10,'v10')
+  SQL.SET_PARAM_BY_NAME('stmt', ':p0', v0);
+  SQL.SET_PARAM_BY_NAME('stmt', ':p1', v1);
+  EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# SQL.SET_PARAM_BY_NAME
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  v0 INTEGER;
+  v1 TEXT;
+  c0 SYS_REFCURSOR;
+  ps_name VARCHAR(10) := 'stmt';
+BEGIN
+  PREPARE stmt FROM 'SELECT :p0,:p1';
+  SQL.SET_PARAM_BY_NAME('stmt', ':p0', 10);
+  SQL.SET_PARAM_BY_NAME('stmt', ':p1', 'p10');
+  OPEN c0 FOR LOCAL ps_name;
+  FETCH c0 INTO v0, v1;
+  CLOSE c0;
+  SELECT v0, v1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+# SQL.COLUMN_VALUE - bad destination argument
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  c0 SYS_REFCURSOR;
+BEGIN
+  SQL.COLUMN_VALUE(c0, 1, 10/*expect a variable here*/);
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_ARGUMENTS
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# SQL.COLUMN_VALUE - not opened cursor
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  v00 INT;
+  c0 SYS_REFCURSOR;
+BEGIN
+  SQL.COLUMN_VALUE(c0, 1, v00);
+  SELECT v00;
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_CURSOR_MISMATCH
+CALL p1;
+DROP PROCEDURE p1;
+
+# SQL.COLUMN_VALUE - COLUMN_VALUE without FETCH
+# TODO: Stays on the last position???
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  v00 INT;
+  V10 VARCHAR(10);
+  c0 SYS_REFCURSOR;
+BEGIN
+  OPEN c0 FOR SELECT 0,'s0' UNION SELECT 1,'s1';
+  SQL.COLUMN_VALUE(c0, 1, v00);
+  SQL.COLUMN_VALUE(c0, 2, v10);
+  SELECT v00, v10;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+# SQL.COLUMN_VALUE - bad and good column positions
+DELIMITER $$;
+CREATE PROCEDURE p1(col1 INT, col2 INT) AS
+  v00_dummy INT;
+  v10_dummy VARCHAR(10);
+  v00 INT;
+  V10 VARCHAR(10);
+  c0 SYS_REFCURSOR;
+BEGIN
+  OPEN c0 FOR SELECT 0,'s0' UNION SELECT 1,'s1';
+  FETCH c0 INTO v00_dummy,v10_dummy;
+  FETCH c0 INTO v00_dummy,v10_dummy;
+  SQL.COLUMN_VALUE(c0, col1, v00);
+  SQL.COLUMN_VALUE(c0, col2, v10);
+  SELECT v00, v10;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_ARGUMENTS
+CALL p1(NULL,NULL);
+--error ER_WRONG_ARGUMENTS
+CALL p1(0,1);
+--error ER_WRONG_ARGUMENTS
+CALL p1(-1,0);
+--error ER_WRONG_ARGUMENTS
+CALL p1(1,3);
+CALL p1(1,2);
+DROP PROCEDURE p1;
+
+
+# FETCH + SYS_REFCURSOR
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  v00 INT;
+  V10 VARCHAR(10);
+  c0 SYS_REFCURSOR;
+BEGIN
+  OPEN c0 FOR SELECT 0,'s0' UNION SELECT 1,'s1';
+  FETCH c0;
+  SQL.COLUMN_VALUE(c0,1,v00);
+  SQL.COLUMN_VALUE(c0,2,v10);
+  SELECT v00, v10, c0%FOUND;
+
+  FETCH c0;
+  SQL.COLUMN_VALUE(c0,1,v00);
+  SQL.COLUMN_VALUE(c0,2,v10);
+  SELECT v00, v10, c0%FOUND;
+
+  FETCH c0;
+  SQL.COLUMN_VALUE(c0,1,v00);
+  SQL.COLUMN_VALUE(c0,2,v10);
+  SELECT v00, v10, c0%FOUND;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# FETCH + static cursor
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  v00 INT;
+  V10 VARCHAR(10);
+  CURSOR c0 IS SELECT 0,'s0' UNION SELECT 1,'s1';
+BEGIN
+  OPEN c0;
+  FETCH c0;
+  FETCH c0 INTO v00, v10;
+  SELECT v00, v10, c0%FOUND;
+
+  FETCH c0 INTO v00, v10;
+  SELECT v00, v10, c0%FOUND;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;

@@ -29,6 +29,8 @@ class ha_heap final : public handler
   ulong   records_changed;
   uint    key_stat_version;
   my_bool internal_table;
+  ulong   remember_current_record;
+  ulong   remember_next_block;
 public:
   ha_heap(handlerton *hton, TABLE_SHARE *table);
   ~ha_heap() = default;
@@ -82,6 +84,8 @@ public:
   int rnd_next(uchar *buf) override;
   int rnd_pos(uchar * buf, uchar *pos) override;
   void position(const uchar *record) override;
+  int remember_rnd_pos() override;
+  int restore_rnd_pos() override;
   int can_continue_handler_scan() override;
   int info(uint) override;
   int extra(enum ha_extra_function operation) override;

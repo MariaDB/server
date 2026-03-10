@@ -2645,6 +2645,13 @@ int ha_maria::remember_rnd_pos()
 }
 
 
+int ha_maria::restore_rnd_pos()
+{
+  register_handler(file);
+  return (*file->s->scan_restore_pos)(file, remember_pos);
+}
+
+
 int ha_maria::restart_rnd_next(uchar *buf)
 {
   int error;
