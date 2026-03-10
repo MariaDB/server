@@ -1,0 +1,29 @@
+#
+# MDEV-38998: Assertion failure in diagnostics area upon INSERT/UPDATE IGNORE and check with ER_DATA_OUT_OF_RANGE
+#
+CREATE TABLE t1 (f INT, CHECK(COT(f)));
+# Test INSERT IGNORE
+INSERT IGNORE INTO t1 VALUES (0);
+Warnings:
+Error	1690	DOUBLE value is out of range in 'cot(`test`.`t1`.`f`)'
+Warning	4025	CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+# Test several values with INSERT IGNORE
+TRUNCATE TABLE t1;
+INSERT IGNORE INTO t1 VALUES (0), (1);
+Warnings:
+Error	1690	DOUBLE value is out of range in 'cot(`test`.`t1`.`f`)'
+Warning	4025	CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+SELECT * FROM t1;
+f
+1
+# Test UPDATE IGNORE
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1);
+UPDATE IGNORE t1 SET f=0;
+Warnings:
+Error	1690	DOUBLE value is out of range in 'cot(`test`.`t1`.`f`)'
+Warning	4025	CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+SELECT * FROM t1;
+f
+1
+DROP TABLE t1;

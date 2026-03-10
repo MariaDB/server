@@ -6593,6 +6593,8 @@ int TABLE::verify_constraints(bool ignore_failure)
           field_error.append('.');
         }
         field_error.append((*chk)->name);
+        if (ignore_failure)
+          in_use->clear_error();
         my_error(ER_CONSTRAINT_FAILED,
                  MYF(ignore_failure ? ME_WARNING : 0), field_error.c_ptr(),
                  s->db.str, s->table_name.str);
