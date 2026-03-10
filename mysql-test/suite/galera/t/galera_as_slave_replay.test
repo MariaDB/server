@@ -11,6 +11,7 @@
 --source include/have_debug_sync.inc
 --source include/galera_have_debug_sync.inc
 --source include/log_bin.inc
+--source include/force_restart.inc
 
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 
@@ -140,7 +141,7 @@ DROP TABLE t1;
 
 --connection node_3
 DROP TABLE t1;
-RESET MASTER;
+--source include/reset_master.inc
 
 --connection node_1
 --disconnect node_2a
