@@ -86,6 +86,27 @@ flush session status;
 --replace_regex /(\.\d{5})\d+/\1/
 select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
 show status like 'handler_read_rnd_next'; # not used, wrong distance metric
+
+# mhnsw_ef_search boundary coverage
+set @saved_ef_search= @@session.mhnsw_ef_search;
+set @@session.mhnsw_ef_search= 1;
+select @@session.mhnsw_ef_search;
+# ANN result order can be probabilistic at low ef_search, so verify row count only.
+select count(*) from
+(select id from t1
+ order by vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e')
+ limit 1) q;
+set @@session.mhnsw_ef_search= 10000;
+select @@session.mhnsw_ef_search;
+select count(*) from
+(select id from t1
+ order by vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e')
+ limit 1) q;
+set @@session.mhnsw_ef_search= 0;
+select @@session.mhnsw_ef_search;
+set @@session.mhnsw_ef_search= 10001;
+select @@session.mhnsw_ef_search;
+set @@session.mhnsw_ef_search= @saved_ef_search;
 --enable_cursor_protocol
 --enable_ps2_protocol
 --enable_view_protocol
