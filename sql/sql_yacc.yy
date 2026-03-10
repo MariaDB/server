@@ -264,6 +264,8 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
     bool with_unique_keys;
     ulong type_constraint;
   } json_predicate;
+  Lex_open_for_st open_for;
+  Lex_sql_statement_name_st sql_statement_name;
 
   /* pointers */
   Lex_ident_sys *ident_sys_ptr;
@@ -1617,7 +1619,12 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_versioning_interval_start
         json_default_literal
         set_expr_misc
-        select_or_expr
+
+%type <sql_statement_name>
+        sql_statement_name
+
+%type <open_for>
+        open_for
 
 %type <num> opt_vers_auto_part
 
@@ -2230,9 +2237,10 @@ verb_clause:
         ;
 
 deallocate:
-          deallocate_or_drop PREPARE_SYM ident
+          deallocate_or_drop PREPARE_SYM sql_statement_name
           {
-            Lex->stmt_deallocate_prepare($3);
+            if (Lex->stmt_deallocate_prepare($3))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -2242,7 +2250,7 @@ deallocate_or_drop:
         ;
 
 prepare:
-          PREPARE_SYM ident FROM
+          PREPARE_SYM sql_statement_name FROM
           {
             thd->where= THD_WHERE::USE_WHERE_STRING;
             thd->where_str=
@@ -2257,7 +2265,7 @@ prepare:
         ;
 
 execute:
-          EXECUTE_SYM ident execute_using
+          EXECUTE_SYM sql_statement_name execute_using
           {
             if (Lex->stmt_execute($2, $3))
               MYSQL_YYABORT;
@@ -3777,9 +3785,36 @@ select_or_ps_name:
         | ident { $$= $1; }
         ;
 
-select_or_expr:
-          select_for_open_cursor { $$= nullptr; }
-        | expr { $$= $1; }
+
+sql_statement_name:
+          ident
+          {
+            $$= Lex_sql_statement_name_st::make_for_ps_name($1);
+          }
+        | LOCAL_SYM ident
+          {
+            $$= Lex_sql_statement_name_st::make_for_local_var_name($2);
+          }
+        ;
+
+
+open_for:
+          select_for_open_cursor       // OPEN c FOR SELECT 1;
+          {
+            $$= Lex_open_for_st::make_for_query();
+          }
+        | bit_expr                     // OPEN c FOR 'SELECT 1';
+          {
+            $$= Lex_open_for_st::make_for_dynamic_string($1);
+          }
+        | PREPARE_SYM ident            // OPEN c FOR PREPARE stmt;
+          {
+            $$= Lex_open_for_st::make_for_ps_name($2);
+          }
+        | LOCAL_SYM ident
+          {
+            $$= Lex_open_for_st::make_for_local_var_name($2);
+          }
         ;
 
 sp_cursor_stmt:
@@ -3809,12 +3844,13 @@ sp_cursor_stmt_for_open:
               MYSQL_YYABORT;
             Lex->clause_that_disallows_subselect= "OPEN..FOR";
           }
-          remember_name select_or_expr remember_end
+          remember_name open_for remember_end
           {
             Lex->clause_that_disallows_subselect= NULL;
-            $1->prepared_stmt.set(Lex_ident_sys(), $4, nullptr);
+            if ($1->prepared_stmt.set(Lex, $4, nullptr))
+              MYSQL_YYABORT;
             DBUG_ASSERT(Lex == $1);
-            if ($1->sp_cursor_stmt_finalize(thd, Lex_ident_sys(), $3, $5))
+            if ($1->sp_cursor_stmt_finalize(thd, $4.ps_name(), $3, $5))
               MYSQL_YYABORT;
 
             $$= $1;

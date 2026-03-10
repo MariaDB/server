@@ -245,6 +245,10 @@ public:
                          select_result *result_arg,
                          Server_side_cursor **cursor_arg,
                          const InstrSlice &instrs_set_placeholder);
+  static Prepared_statement *find_by_name(THD *thd, const LEX_CSTRING &name)
+  {
+    return (Prepared_statement*) thd->stmt_map.find_by_name(&name);
+  }
   static Prepared_statement *find_by_name_or_error(THD *thd,
                                                    const LEX_CSTRING &name,
                                                    const char *clause)
@@ -2802,6 +2806,83 @@ bool Lex_prepared_stmt::get_dynamic_sql_string(THD *thd,
 }
 
 
+bool Lex_prepared_stmt::set(LEX *lex, const Lex_sql_statement_name_st &name,
+                            Item *code, List<Item> *params)
+{
+  DBUG_ASSERT(m_params.elements == 0);
+  // Simple and extended prepared statement name cannot co-exist
+  DBUG_ASSERT(!name.ps_name().length || !name.local_var_name().length);
+  if (params)
+    m_params= *params;
+  m_code= code;
+  m_name= name.ps_name();
+  if (name.local_var_name().length)
+  {
+    sp_variable *spvar= lex->spcont->find_variable_or_error(
+                                                name.local_var_name(), false);
+    if (!spvar)
+      return true;
+    m_var= sp_rcontext_addr(&sp_rcontext_handler_local, spvar->offset);
+  }
+  return false;
+}
+
+
+bool Lex_prepared_stmt::set(LEX *lex, const Lex_open_for_st &open_for,
+                            List<Item> *params)
+{
+  DBUG_ASSERT(m_params.elements == 0);
+  DBUG_ASSERT(lex->spcont);
+  // Simple and extended prepared statement name cannot co-exist
+  DBUG_ASSERT(!open_for.ps_name().length || !open_for.local_var_name().length);
+  if (params)
+    m_params= *params;
+  m_name= open_for.ps_name();
+  m_code= open_for.dynamic_string();
+  if (open_for.local_var_name().length)
+  {
+    sp_variable *spvar= lex->spcont->find_variable_or_error(
+                                             open_for.local_var_name(), false);
+    if (!spvar)
+      return true;
+    m_var= sp_rcontext_addr(&sp_rcontext_handler_local, spvar->offset);
+  }
+  return false;
+}
+
+
+/*
+  Evaluate a simple or an extended prepared statement name.
+*/
+Lex_ident_sys Lex_prepared_stmt::evaluate_name(THD *thd,
+                                               String *value_buffer,
+                                               String *converter_buffer,
+                                               const char *op) const
+{
+  // Simple statement name and extended statement name cannot co-exist
+  DBUG_ASSERT(m_name.length == 0 || m_var.rcontext_handler() == nullptr);
+
+  if (!m_var.rcontext_handler())
+    return m_name; // Simple name: PREPARE stmt FROM 'SELECT 1';
+
+  // Extended name: PREPARE LOCAL spvar FROM 'SELECT 1';
+  DBUG_ASSERT(thd->spcont);
+  Item *item= thd->get_variable(m_var);
+  if (!(item= thd->sp_fix_func_item(&item)))
+    return Lex_ident_sys();
+
+  String *var_value;
+  if (!(var_value= item->val_str(value_buffer, converter_buffer,
+                                 system_charset_info)))
+  {
+    my_error(ER_UNKNOWN_STMT_HANDLER, MYF(0), (int) 4, "NULL", op);
+    return Lex_ident_sys();
+  }
+  LEX_CSTRING tmp= var_value->to_lex_cstring();
+  return Lex_ident_sys(tmp.str, tmp.length);
+}
+
+
 /**
   SQLCOM_PREPARE implementation.
 
@@ -2818,14 +2899,20 @@ bool Lex_prepared_stmt::get_dynamic_sql_string(THD *thd,
 
 void mysql_sql_stmt_prepare(THD *thd)
 {
+  DBUG_ENTER("mysql_sql_stmt_prepare");
   LEX *lex= thd->lex;
   CSET_STRING orig_query= thd->query_string;
-  const LEX_CSTRING *name= &lex->prepared_stmt.name();
+  StringBuffer<64> value_buffer, converter_buffer;
+  const Lex_ident_sys name= lex->prepared_stmt.evaluate_name(thd,
+                                                             &value_buffer,
+                                                             &converter_buffer,
+                                                             "PREPARE");
+  if (name.str == nullptr)
+    DBUG_VOID_RETURN; // `LOCAL spvar` evaluated to SQL NULL
   Prepared_statement *stmt;
   LEX_CSTRING query;
-  DBUG_ENTER("mysql_sql_stmt_prepare");
 
-  if ((stmt= (Prepared_statement*) thd->stmt_map.find_by_name(name)))
+  if ((stmt= (Prepared_statement*) thd->stmt_map.find_by_name(&name)))
   {
     /*
       If there is a statement with the same name, remove it. It is ok to
@@ -2854,7 +2941,7 @@ void mysql_sql_stmt_prepare(THD *thd)
   stmt->set_sql_prepare();
 
   /* Set the name first, insert should know that this statement has a name */
-  if (stmt->set_name(name))
+  if (stmt->set_name(&name))
   {
     delete stmt;
     DBUG_VOID_RETURN;
@@ -3646,7 +3733,14 @@ bool mysql_sql_stmt_execute(THD *thd, const Lex_ident_sys &name,
 
 void mysql_sql_stmt_execute(THD *thd)
 {
-  (void) mysql_sql_stmt_execute(thd, thd->lex->prepared_stmt.name(),
+  StringBuffer<64> value_buffer, converter_buffer;
+  const Lex_ident_sys name= thd->lex->prepared_stmt.evaluate_name(thd,
+                                                            &value_buffer,
+                                                            &converter_buffer,
+                                                            "EXECUTE");
+  if (name.str == nullptr)
+    return;  // `LOCAL spvar` evaluated to SQL NULL
+  (void) mysql_sql_stmt_execute(thd, name,
                                 "EXECUTE", false, nullptr, nullptr);
 }
 
@@ -3826,13 +3920,19 @@ void mysqld_stmt_close(THD *thd, char *packet)
 void mysql_sql_stmt_close(THD *thd)
 {
   Prepared_statement* stmt;
-  const LEX_CSTRING *name= &thd->lex->prepared_stmt.name();
-  DBUG_PRINT("info", ("DEALLOCATE PREPARE: %.*s", (int) name->length,
-                      name->str));
+  StringBuffer<64> value_buffer, converter_buffer;
+  const Lex_ident_sys name= thd->lex->prepared_stmt.evaluate_name(thd,
+                                                          &value_buffer,
+                                                          &converter_buffer,
+                                                          "DEALLOCATE PREPARE");
+  if (name.str == nullptr)
+    return; // `LOCAL spvar` evaluated to SQL NULL
+  DBUG_PRINT("info", ("DEALLOCATE PREPARE: %.*s", (int) name.length,
+                      name.str));
 
-  if (! (stmt= (Prepared_statement*) thd->stmt_map.find_by_name(name)))
+  if (! (stmt= (Prepared_statement*) thd->stmt_map.find_by_name(&name)))
     my_error(ER_UNKNOWN_STMT_HANDLER, MYF(0),
-             static_cast<int>(name->length), name->str, "DEALLOCATE PREPARE");
+             static_cast<int>(name.length), name.str, "DEALLOCATE PREPARE");
   else if (stmt->is_in_use())
     my_error(ER_PS_NO_RECURSION, MYF(0));
   else
