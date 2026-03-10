@@ -138,15 +138,23 @@ uchar *hp_search(HP_INFO *info, HP_KEYDEF *keyinfo, const uchar *key,
 
   if (share->records)
   {
+    ulong key_hash= hp_hashnr(keyinfo, key);
     ulong search_pos=
-      hp_mask(hp_hashnr(keyinfo, key), share->blength, share->records);
+      hp_mask(key_hash, share->blength, share->records);
     pos=hp_find_hash(&keyinfo->block, search_pos);
     if (search_pos !=
         hp_mask(pos->hash_of_key, share->blength, share->records))
       goto not_found;                           /* Wrong link */
+    /*
+      Save hash for hp_search_next() to reuse without recomputing.
+      Pre-check hash_of_key before hp_key_cmp() to avoid expensive
+      blob materialization for non-matching entries.
+    */
+    info->last_hash_of_key= key_hash;
     do
     {
-      if (!hp_key_cmp(keyinfo, pos->ptr_to_rec, key, info))
+      if (pos->hash_of_key == key_hash &&
+          !hp_key_cmp(keyinfo, pos->ptr_to_rec, key, info))
       {
 	switch (nextflag) {
 	case 0:					/* Search after key */
@@ -207,7 +215,8 @@ uchar *hp_search_next(HP_INFO *info, HP_KEYDEF *keyinfo, const uchar *key,
 
   while ((pos= pos->next_key))
   {
-    if (! hp_key_cmp(keyinfo, pos->ptr_to_rec, key, info))
+    if (pos->hash_of_key == info->last_hash_of_key &&
+        ! hp_key_cmp(keyinfo, pos->ptr_to_rec, key, info))
     {
       info->current_hash_ptr=pos;
       DBUG_RETURN (info->current_ptr= pos->ptr_to_rec);

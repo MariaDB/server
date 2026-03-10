@@ -193,6 +193,7 @@ typedef struct st_heap_info
   uchar *blob_buff;            /* Reassembly buffer for blob reads */
   uint32 blob_buff_len;        /* Current allocated size of blob_buff */
   my_bool has_zerocopy_blobs;  /* Last hp_read_blobs produced zero-copy ptrs */
+  ulong last_hash_of_key;     /* Hash from last hp_search(), reused by hp_search_next() */
   THR_LOCK_DATA lock;
   LIST open_list;
 } HP_INFO;

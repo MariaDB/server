@@ -878,12 +878,15 @@ int ha_heap::find_unique_row(uchar *record, uint unique_idx)
   DBUG_ASSERT(keyinfo->flag & HA_NOSAME);
   if (!share->records)
     DBUG_RETURN(1); // not found
+  ulong rec_hash= hp_rec_hashnr(keyinfo, record);
   HASH_INFO *pos= hp_find_hash(&keyinfo->block,
-                               hp_mask(hp_rec_hashnr(keyinfo, record),
+                               hp_mask(rec_hash,
                                        share->blength, share->records));
   do
   {
-    if (!hp_rec_key_cmp(keyinfo, record, pos->ptr_to_rec, file))
+    /* Hash pre-check avoids expensive blob materialization for non-matching entries */
+    if (pos->hash_of_key == rec_hash &&
+        !hp_rec_key_cmp(keyinfo, record, pos->ptr_to_rec, file))
     {
       file->current_hash_ptr= pos;
       file->current_ptr= pos->ptr_to_rec;
