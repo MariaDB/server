@@ -105,6 +105,7 @@ public:
   int rnd_next(uchar * buf) override final;
   int rnd_pos(uchar * buf, uchar * pos) override final;
   int remember_rnd_pos() override final;
+  int restore_rnd_pos() override final;
   int restart_rnd_next(uchar * buf) override final;
   void position(const uchar * record) override final;
   void update_optimizer_costs(OPTIMIZER_COSTS *costs) override final;

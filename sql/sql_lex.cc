@@ -8865,6 +8865,15 @@ Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return NULL;
   }
+
+  /*
+    Set name for Oracle style named parameters.
+    This is needed to have dbms_sql_set_param_by_name()
+    work in any clause of any query.
+  */
+  if (!item->name.str)
+    item->set_name(thd, start, end - start,
+                   thd->variables.collation_connection);
   return item;
 }
 
@@ -10317,9 +10326,29 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
   Database_qualified_name pkgname;
   const Sp_handler *sph= &sp_handler_procedure;
   sql_command= SQLCOM_CALL;
-  value_list.empty();
 
   thd->variables.path.resolve(thd, sphead, name, &sph, &pkgname);
+
+  if (sph == &sp_handler_procedure /*package procedure was not found*/ &&
+      name->m_explicit_name /*Explicit two step call: CALL a.b; */)
+  {
+    // Search for a package function plugin
+    CharBuffer<NAME_LEN> name2;
+    name2.copy(name->m_db);
+    name2.append_char('_');
+    name2.append(name->m_name);
+    Create_func *builder= function_plugin_find_native_function_builder(thd,
+                                                      name2.to_lex_cstring());
+    if (builder &&
+        builder->type() == Create_func::TYPE_PACKAGE_PUBLIC_PROCEDURE)
+    {
+      LEX_CSTRING tmp= name2.to_lex_cstring();
+      Item *func= builder->create_func(thd, &tmp, &value_list);
+      value_list.empty();
+      value_list.push_back(func, thd->mem_root);
+      return !(m_sql_cmd= new (thd->mem_root) Sql_cmd_call_plugin(name2));
+    }
+  }
 
   // Only add to used routines if we have a valid database name
   if (name->m_db.str)
@@ -10356,7 +10385,6 @@ bool LEX::call_statement_start(THD *thd,
   DBUG_ASSERT(db->str);
   Identifier_chain2 q_pkg_proc(*pkg, *proc);
   sp_name *spname;
-  value_list.empty();
   sql_command= SQLCOM_CALL;
 
   const Lex_ident_db_normalized dbn= thd->to_ident_db_normalized_with_error(*db);
@@ -10885,6 +10913,20 @@ Item *LEX::make_item_func_or_method_call(THD *thd,
     }
     DBUG_ASSERT(thd->is_error());
     return nullptr;
+  }
+
+  // TODO: move this after package routine resolution
+  // Search for a package function plugin
+  CharBuffer<NAME_LEN> name2;
+  name2.copy(sys_a);
+  name2.append_char('_');
+  name2.append(sys_b);
+  Create_func *builder= function_plugin_find_native_function_builder(thd,
+                                                      name2.to_lex_cstring());
+  if (builder && builder->type() == Create_func::TYPE_PACKAGE_PUBLIC_FUNCTION)
+  {
+    LEX_CSTRING tmp= name2.to_lex_cstring();
+    return builder->create_func(thd, &tmp, args);
   }
 
   return make_item_func_call_generic(thd, &ca, &cb, args);

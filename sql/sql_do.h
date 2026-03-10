@@ -21,6 +21,6 @@
 class THD;
 class Item;
 
-bool mysql_do(THD *thd, List<Item> &values);
+bool mysql_do(THD *thd, List<Item> &values, bool clear_errors);
 
 #endif /* SQL_DO_INCLUDED */

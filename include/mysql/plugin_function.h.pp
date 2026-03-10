@@ -726,3 +726,23 @@ public:
     return m_builder;
   }
 };
+template<class BASE, class ITEM, Create_func::Type routine_type>
+class TFuncPluginCreate : public BASE
+{
+public:
+  using BASE::BASE;
+  Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) override
+  {
+    return new (thd->mem_root) ITEM(thd, arg1, arg2, arg3);
+  }
+  Create_func::Type type() const override
+  {
+    return routine_type;
+  }
+  static Plugin_function *plugin_descriptor()
+  {
+    static TFuncPluginCreate creator;
+    static Plugin_function descriptor(&creator);
+    return &descriptor;
+  }
+};

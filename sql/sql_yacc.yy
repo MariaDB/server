@@ -1443,7 +1443,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %ifdef ORACLE
 %type <qualified_ident>
         optionally_qualified_directly_assignable
-        direct_call_or_lvalue_assign
 %endif
 
 %type <simple_string>
@@ -3442,33 +3441,24 @@ sp_suid:
         ;
 
 call:
-          CALL_SYM ident
+          CALL_SYM ident opt_sp_cparam_list
           {
             if (unlikely(Lex->call_statement_start(thd, &$2)))
               MYSQL_YYABORT;
-          }
-          opt_sp_cparam_list
-          {
             if (Lex->check_cte_dependencies_and_resolve_references())
               MYSQL_YYABORT;
           }
-        | CALL_SYM ident '.' ident
+        | CALL_SYM ident '.' ident opt_sp_cparam_list
           {
             if (unlikely(Lex->call_statement_start(thd, &$2, &$4)))
               MYSQL_YYABORT;
-          }
-          opt_sp_cparam_list
-          {
             if (Lex->check_cte_dependencies_and_resolve_references())
               MYSQL_YYABORT;
           }
-        | CALL_SYM ident '.' ident '.' ident
+        | CALL_SYM ident '.' ident '.' ident opt_sp_cparam_list
           {
             if (unlikely(Lex->call_statement_start(thd, &$2, &$4, &$6)))
               MYSQL_YYABORT;
-          }
-          opt_sp_cparam_list
-          {
             if (Lex->check_cte_dependencies_and_resolve_references())
               MYSQL_YYABORT;
           }
@@ -3512,6 +3502,7 @@ sp_cparams:
           }
         | expr
           {
+            Lex->value_list.empty();
             ($$= &Lex->value_list)->push_back($1, thd->mem_root);
           }
         ;
@@ -4580,17 +4571,17 @@ sp_proc_stmt_open:
         ;
 
 sp_proc_stmt_fetch_head:
-          FETCH_SYM ident INTO
+          FETCH_SYM ident
           {
             if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$2))))
               MYSQL_YYABORT;
           }
-        | FETCH_SYM FROM ident INTO
+        | FETCH_SYM FROM ident
           {
             if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$3))))
               MYSQL_YYABORT;
           }
-       | FETCH_SYM NEXT_SYM FROM ident INTO
+       | FETCH_SYM NEXT_SYM FROM ident
           {
             if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$4))))
               MYSQL_YYABORT;
@@ -4598,9 +4589,13 @@ sp_proc_stmt_fetch_head:
         ;
 
 sp_proc_stmt_fetch:
-         sp_proc_stmt_fetch_head sp_fetch_list
+         sp_proc_stmt_fetch_head INTO sp_fetch_list
          {
-           $1->set_fetch_target_list($2);
+           $1->set_fetch_target_list($3);
+         }
+       | sp_proc_stmt_fetch_head
+         {
+           $1->set_fetch_target_list(nullptr);
          }
        | FETCH_SYM GROUP_SYM NEXT_SYM ROW_SYM
          {
@@ -19761,27 +19756,24 @@ statement:
         | set_assign_lvalue_function
         ;
 
-direct_call_or_lvalue_assign:
-          optionally_qualified_directly_assignable
-          {
-            if (Lex->call_statement_start_or_lvalue_assign(thd, $$= $1))
-              MYSQL_YYABORT;
-          }
-        ;
-
 direct_call_statement:
-          direct_call_or_lvalue_assign opt_parenthesized_opt_sp_cparams
+          optionally_qualified_directly_assignable
+          opt_parenthesized_opt_sp_cparams
           {
-            if (Lex->direct_call(thd, $1, $2) ||
+            if (Lex->call_statement_start_or_lvalue_assign(thd, $1) ||
+                Lex->direct_call(thd, $1, $2) ||
                 Lex->check_cte_dependencies_and_resolve_references())
               MYSQL_YYABORT;
           }
         ;
 
 set_assign_lvalue_function:
-          direct_call_or_lvalue_assign parenthesized_opt_sp_cparams
+          optionally_qualified_directly_assignable
+          parenthesized_opt_sp_cparams
           opt_object_member_access SET_VAR
           {
+            if (Lex->call_statement_start_or_lvalue_assign(thd, $1))
+              MYSQL_YYABORT;
             if (unlikely(Lex->assoc_assign_start(thd, $1)))
               MYSQL_YYABORT;
           }

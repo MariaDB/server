@@ -3328,6 +3328,12 @@ bool Sql_cmd_call::execute(THD *thd)
 }
 
 
+bool Sql_cmd_call_plugin::execute(THD *thd)
+{
+  return mysql_do(thd, thd->lex->value_list, false);
+}
+
+
 /**
   Check whether the SQL statement being processed is prepended by
   SET STATEMENT clause and handle variables assignment if it is.
@@ -4015,7 +4021,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         || open_and_lock_tables(thd, all_tables, TRUE, 0))
       goto error;
 
-    res= mysql_do(thd, *lex->insert_list);
+    res= mysql_do(thd, *lex->insert_list, true);
     break;
 
   case SQLCOM_EMPTY_QUERY:

@@ -1012,6 +1012,17 @@ public:
     return 0;
   }
 
+  int store_longlong_null(const Longlong_null &val, bool unsigned_val)
+  {
+    if (val.is_null())
+    {
+      set_null();
+      return 0;
+    }
+    set_notnull();
+    return store(val.value(), unsigned_val);
+  }
+
   /*
     expr_event_handler()
 

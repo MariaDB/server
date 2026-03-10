@@ -61,6 +61,18 @@ public:
   virtual Item *create_func(THD *thd, const LEX_CSTRING *name,
                             List<Item> *item_list) = 0;
 
+  enum Type
+  {
+    TYPE_GLOBAL_FUNCTION,
+    TYPE_PACKAGE_PUBLIC_FUNCTION,
+    TYPE_PACKAGE_PUBLIC_PROCEDURE
+  };
+
+  virtual Type type() const
+  {
+    return TYPE_GLOBAL_FUNCTION;
+  }
+
 protected:
   /** Constructor */
   Create_func() = default;
@@ -359,6 +371,8 @@ Item *create_func_dyncol_get(THD *thd, Item *num, Item *str,
                              CHARSET_INFO *cs);
 Item *create_func_dyncol_json(THD *thd, Item *str);
 
+Create_func *
+function_plugin_find_native_function_builder(THD *thd, const LEX_CSTRING &name);
 
 class Native_func_registry_array
 {

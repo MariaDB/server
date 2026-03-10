@@ -23,6 +23,7 @@
 #include <my_base.h>
 
 #include "sql_command.h"
+#include "char_buffer.h"
 
 struct handlerton;
 
@@ -358,6 +359,24 @@ public:
   {
     return SQLCOM_CALL;
   }
+};
+
+
+class Sql_cmd_call_plugin: public Sql_cmd
+{
+public:
+  CharBuffer<NAME_LEN> m_name;
+  Sql_cmd_call_plugin(CharBuffer<NAME_LEN> name)
+  {
+    m_name.copy(name.to_lex_cstring());
+  }
+  virtual ~Sql_cmd_call_plugin() = default;
+  bool execute(THD *thd) override;
+  enum_sql_command sql_command_code() const override
+  {
+    return SQLCOM_CALL;
+  }
+
 };
 
 

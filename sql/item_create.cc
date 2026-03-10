@@ -6650,7 +6650,7 @@ void Native_functions_hash::cleanup()
 }
 
 
-static Create_func *
+Create_func *
 function_plugin_find_native_function_builder(THD *thd, const LEX_CSTRING &name)
 {
   plugin_ref plugin;
