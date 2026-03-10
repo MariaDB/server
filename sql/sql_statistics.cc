@@ -4544,14 +4544,12 @@ bool is_eits_usable(Field *field)
     true;
 }
 
-static void dump_eits_stats_helper(TABLE *table, String &output)
+static void append_insert_for_current_row(TABLE *table, String &output)
 {
   output.append(STRING_WITH_LEN("REPLACE INTO "));
-  output.append(table->pos_in_table_list->get_db_name().str,
-                table->pos_in_table_list->get_db_name().length);
+  output.append(table->pos_in_table_list->get_db_name());
   output.append(STRING_WITH_LEN("."));
-  output.append(table->pos_in_table_list->get_table_name().str,
-                table->pos_in_table_list->get_table_name().length);
+  output.append(table->pos_in_table_list->get_table_name());
   format_and_store_row(table, table->record[0], false, " VALUES ", false,
                        output);
   output.append(STRING_WITH_LEN(";\n\n"));
@@ -4595,9 +4593,7 @@ bool dump_eits_stats(THD *thd, List<TABLE_LIST> *tables_list, String &output)
     Table_stat &table_stat= *new (statbuf) Table_stat(stat_table, table);
     table_stat.set_key_fields();
     if (table_stat.find_stat())
-    {
-      dump_eits_stats_helper(stat_table, output);
-    }
+      append_insert_for_current_row(stat_table, output);
 
     /* dump the statistical table column_stats */
     stat_table= stat_tables[COLUMN_STAT].table;
@@ -4607,9 +4603,7 @@ bool dump_eits_stats(THD *thd, List<TABLE_LIST> *tables_list, String &output)
       Field *table_field= *field_ptr;
       column_stat.set_key_fields(table_field);
       if (column_stat.find_stat())
-      {
-        dump_eits_stats_helper(stat_table, output);
-      }
+        append_insert_for_current_row(stat_table, output);
     }
 
     /* dump the statistical table index_stats */
@@ -4625,9 +4619,7 @@ bool dump_eits_stats(THD *thd, List<TABLE_LIST> *tables_list, String &output)
       {
         index_stat.set_key_fields(key_info, i + 1);
         if (index_stat.find_stat())
-        {
-          dump_eits_stats_helper(stat_table, output);
-        }
+          append_insert_for_current_row(stat_table, output);
       }
     }
   }
