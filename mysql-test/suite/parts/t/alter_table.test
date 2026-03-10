@@ -287,7 +287,7 @@ drop prepare stmt;
 --echo # Privileges
 create user alan;
 grant usage on *.* to alan;
-grant create, insert, drop on test.* to alan;
+grant create, insert on test.* to alan;
 --connect alan,localhost,alan,,test
 show grants for current_user;
 --error ER_TABLEACCESS_DENIED_ERROR
