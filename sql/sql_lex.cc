@@ -7820,6 +7820,7 @@ bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
   sp_variable *spv;
   const sp_type_def_ref* return_type_def;
   const Row_definition_list *row_def_list;
+  uint dynamic_count;
 
   if (stmt->prepared_stmt.code() &&
       stmt->stmt_prepare_validate("OPEN..FOR"))
@@ -7844,30 +7845,70 @@ bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
   if (check_variable_is_refcursor({STRING_WITH_LEN("OPEN")}, spv))
     goto error;
 
-  // `OPEN cursor_name FOR ps_name` is not allowed in the grammar
-  DBUG_ASSERT(stmt->get_ps_name().is_null());
-  if (stmt->prepared_stmt.code())
+
+  /*
+    It can be either of these:
+    1) OPEN c FOR SELECT..;
+    2) OPEN c FOR expr;
+    3) OPEN c FOR PREPARE stmt;
+    4) OPEN c FOR LOCAL spvar_with_stmt_name;
+  */
+  dynamic_count=
+        (stmt->prepared_stmt.code() != nullptr) +                // FOR expr
+        (!stmt->get_ps_name().is_null()) +                       // FOR PREPARE
+        (stmt->prepared_stmt.is_for_local()); // FOR LOCAL
+  DBUG_ASSERT(dynamic_count <= 1); // They cannot co-exist, by the grammar
+
+  if (dynamic_count)
   {
     sphead->m_flags|= sp_head::CONTAINS_DYNAMIC_SQL;
     DBUG_ASSERT(stmt->sql_command == SQLCOM_END);
     stmt->sql_command= SQLCOM_EXECUTE;
   }
 
-  /*
-    This statement is not supported:
-        OPEN strict_cursor_variable FOR 'SELECT ...';
-    It can be rewritten:
-    - either to use a SELECT statement instead of the dynamic string:
-        OPEN strict_cursor_variable FOR SELECT ...;
-    - or to make c0 a weak cursor variable (i.e.without the RETURN clause)
-        OPEN weak_cursor_variable FOR 'SELECT ...';
-  */
   return_type_def= dynamic_cast<const sp_type_def_ref*>(spv[0].field_def.
                                                get_attr_const_generic_ptr(0));
-  if (return_type_def && stmt->prepared_stmt.code())
+  if (return_type_def)
   {
-    my_error(ER_WRONG_USAGE, MYF(0), name->str, "OPEN..FOR <dynamic string>");
-    goto error;
+     if (stmt->prepared_stmt.code())
+     {
+       /*
+         This statement is not supported:
+             OPEN strict_cursor_variable FOR 'SELECT ...';
+         It can be rewritten:
+         - either to use a SELECT statement instead of the dynamic string:
+             OPEN strict_cursor_variable FOR SELECT ...;
+         - or to make c0 a weak cursor variable (i.e.without the RETURN clause)
+             OPEN weak_cursor_variable FOR 'SELECT ...';
+       */
+       my_error(ER_WRONG_USAGE, MYF(0), name->str,
+                "OPEN..FOR <dynamic string>");
+       goto error;
+     }
+     if (stmt->get_ps_name().length)
+     {
+       /*
+         This statement is not supported:
+             OPEN strict_cursor_variable FOR PREPARE stmt;
+         It can be rewritten to use a weak cursor variable:
+             OPEN weak_cursor_variable FOR PREPARE stmt;
+       */
+       my_error(ER_WRONG_USAGE, MYF(0), name->str,
+                "OPEN..FOR PREPARE ps_name");
+       goto error;
+     }
+     if (stmt->prepared_stmt.is_for_local())
+     {
+       /*
+         This statement is not supported:
+             OPEN strict_cursor_variable FOR LOCAL ps_name_variable;
+         It can be rewritten to use a weak cursor variable:
+             OPEN weak_cursor_variable FOR LOCAL ps_name_variable;
+       */
+       my_error(ER_WRONG_USAGE, MYF(0), name->str,
+                "OPEN..FOR LOCAL ps_name_variable");
+       goto error;
+     }
   }
 
   /*
@@ -12892,13 +12933,12 @@ bool LEX::stmt_prepare_validate(const char *stmt_type)
 }
 
 
-bool LEX::stmt_prepare(const Lex_ident_sys_st &ident, Item *code)
+bool LEX::stmt_prepare(const Lex_sql_statement_name_st &ident, Item *code)
 {
   sql_command= SQLCOM_PREPARE;
   if (stmt_prepare_validate("PREPARE..FROM"))
     return true;
-  prepared_stmt.set(ident, code, NULL);
-  return false;
+  return prepared_stmt.set(this, ident, code, NULL);
 }
 
 
@@ -12913,18 +12953,19 @@ bool LEX::stmt_execute_immediate(Item *code, List<Item> *params)
 }
 
 
-bool LEX::stmt_execute(const Lex_ident_sys_st &ident, List<Item> *params)
+bool LEX::stmt_execute(const Lex_sql_statement_name_st &ident,
+                       List<Item> *params)
 {
   sql_command= SQLCOM_EXECUTE;
-  prepared_stmt.set(ident, NULL, params);
-  return stmt_prepare_validate("EXECUTE..USING");
+  return prepared_stmt.set(this, ident, NULL, params) ||
+         stmt_prepare_validate("EXECUTE..USING");
 }
 
 
-void LEX::stmt_deallocate_prepare(const Lex_ident_sys_st &ident)
+bool LEX::stmt_deallocate_prepare(const Lex_sql_statement_name_st &ident)
 {
   sql_command= SQLCOM_DEALLOCATE_PREPARE;
-  prepared_stmt.set(ident, NULL, NULL);
+  return prepared_stmt.set(this, ident, NULL, NULL);
 }
 
 
