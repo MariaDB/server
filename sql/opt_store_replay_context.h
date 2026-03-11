@@ -31,6 +31,8 @@ class SEL_ARG_RANGE_SEQ;
 class Range_list_recorder;
 class table_context_for_store;
 
+void init_optimizer_context_recorder_if_needed(THD *thd);
+
 /*
   Recorder is used to capture the environment during query optimization run.
   When the optimization is finished, one can save the captured context
@@ -39,29 +41,30 @@ class table_context_for_store;
 class Optimizer_context_recorder
 {
 public:
-  Optimizer_context_recorder();
+  Optimizer_context_recorder(MEM_ROOT *mem_root_arg);
 
   ~Optimizer_context_recorder();
 
   Range_list_recorder *
-  start_range_list_record(MEM_ROOT *mem_root, TABLE_LIST *tbl,
+  start_range_list_record(TABLE_LIST *tbl,
                           size_t found_records, const char *index_name,
                           const Cost_estimate *cost, ha_rows max_index_blocks,
                           ha_rows max_row_blocks);
 
-  void record_cost_index_read(MEM_ROOT *mem_root, const TABLE_LIST *tbl,
+  void record_cost_index_read(const TABLE_LIST *tbl,
                               uint key, ha_rows records, bool eq_ref,
                               const ALL_READ_COST *cost);
-  void record_records_in_range(MEM_ROOT *mem_root, const TABLE *tbl,
+  void record_records_in_range(const TABLE *tbl,
                                const KEY_PART_INFO *key_part, uint keynr,
                                const key_range *min_range,
                                const key_range *max_range, ha_rows records);
-  void record_const_table_row(MEM_ROOT *mem_root, TABLE *tbl);
+  void record_const_table_row(TABLE *tbl);
 
   bool has_records();
   table_context_for_store *search(uchar *tbl_name, size_t tbl_name_len);
 
 private:
+  MEM_ROOT *mem_root;
   /*
     Hash table mapping "dbname.table_name" -> pointer to
     table_context_for_store. Contains records for all tables for which we have
@@ -69,8 +72,7 @@ private:
   */
   HASH tbl_ctx_hash;
 
-  table_context_for_store *get_table_context(MEM_ROOT *mem_root,
-                                             const TABLE_LIST *tbl);
+  table_context_for_store *get_table_context(const TABLE_LIST *tbl);
   static const uchar *get_tbl_ctx_key(const void *entry_, size_t *length,
                                       my_bool flags);
 };
@@ -81,9 +83,6 @@ class Range_list_recorder : public Sql_alloc
 public:
   void add_range(MEM_ROOT *mem_root, const char *range);
 };
-
-/* Optionally create and get the statistics context recorder for this query */
-Optimizer_context_recorder *get_opt_context_recorder(THD *thd);
 
 /* Get the range list recorder if we need one. */
 Range_list_recorder *

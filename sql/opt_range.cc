@@ -17759,9 +17759,9 @@ static ha_rows hook_records_in_range(MEM_ROOT *mem_root, THD *thd,
                                   max_range, &records);
   }
 
-  if (Optimizer_context_recorder *recorder= get_opt_context_recorder(thd))
+  if (Optimizer_context_recorder *recorder= thd->opt_ctx_recorder)
   {
-    recorder->record_records_in_range(mem_root, table, key_part, keynr,
+    recorder->record_records_in_range(table, key_part, keynr,
                                       min_range, max_range, records);
   }
   return records;
