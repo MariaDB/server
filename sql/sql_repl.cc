@@ -447,7 +447,7 @@ inline void fix_checksum(enum_binlog_checksum_alg checksum_alg, String *packet,
   ha_checksum crc;
   crc= my_checksum(0, (uchar *)packet->ptr() + ev_offset, data_len -
                    BINLOG_CHECKSUM_LEN);
-  int4store(packet->ptr() + ev_offset + data_len - BINLOG_CHECKSUM_LEN, crc);
+  int4store(const_cast<char *>(packet->ptr() + ev_offset + data_len - BINLOG_CHECKSUM_LEN), crc);
 }
 
 

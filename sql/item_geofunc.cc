@@ -97,7 +97,7 @@ String *Item_func_geometry_from_wkb::val_str(String *str)
       if (str->copy(*str_ret))
         return 0;
 
-      int4store(str->ptr(), srid);
+      int4store(const_cast<char *>(str->ptr()), srid);
       return str;
     }
     return str_ret;
