@@ -3134,10 +3134,10 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
         field->val_str(&tmp);
       }
       if (require_quote)
-        output.append(STRING_WITH_LEN("'"));
-      output.append(tmp.ptr(), tmp.length());
+        output.append('\'');
+      output.append_for_single_quote(tmp.ptr(), tmp.length());
       if (require_quote)
-        output.append(STRING_WITH_LEN("'"));
+        output.append('\'');
     }
   }
   output.append(')');
