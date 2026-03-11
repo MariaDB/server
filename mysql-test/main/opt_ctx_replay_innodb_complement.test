@@ -1,0 +1,7 @@
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/opt_context_schema.inc
+
+set session use_stat_tables='COMPLEMENTARY';
+--source include/opt_ctx_replay_innodb.inc
