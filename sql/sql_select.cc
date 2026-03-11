@@ -8410,9 +8410,9 @@ static ALL_READ_COST cost_for_index_read(THD *thd, const TABLE *table,
     cost.copy_cost= 0;
   }
 
-  if (Optimizer_context_recorder *recorder= get_opt_context_recorder(thd))
+  if (Optimizer_context_recorder *recorder= thd->opt_ctx_recorder)
   {
-    recorder->record_cost_index_read(thd->mem_root, table->pos_in_table_list,
+    recorder->record_cost_index_read(table->pos_in_table_list,
                                      key, records, eq_ref, &cost);
   }
   DBUG_PRINT("statistics", ("index_cost: %.3f  row_cost: %.3f",
@@ -25137,11 +25137,8 @@ join_read_system(JOIN_TAB *tab)
       return -1;
     }
     store_record(table,record[1]);
-    if (Optimizer_context_recorder *recorder=
-            get_opt_context_recorder(tab->join->thd))
-    {
-      recorder->record_const_table_row(tab->join->thd->mem_root, table);
-    }
+    if (Optimizer_context_recorder *rec= tab->join->thd->opt_ctx_recorder)
+      rec->record_const_table_row(table);
   }
   else if (!table->status)			// Only happens with left join
     restore_record(table,record[1]);			// restore old record
@@ -25197,11 +25194,9 @@ join_read_const(JOIN_TAB *tab)
       return -1;
     }
     store_record(table,record[1]);
-    if (Optimizer_context_recorder *recorder=
-            get_opt_context_recorder(tab->join->thd))
-    {
-      recorder->record_const_table_row(tab->join->thd->mem_root, table);
-    }
+
+    if (Optimizer_context_recorder *rec= tab->join->thd->opt_ctx_recorder)
+      rec->record_const_table_row(table);
   }
   else if (!(table->status & ~STATUS_NULL_ROW))	// Only happens with left join
   {

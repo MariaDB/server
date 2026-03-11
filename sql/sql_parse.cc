@@ -3553,6 +3553,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   thd->last_sql_command= lex->sql_command;
 
   init_optimizer_context_replay_if_needed(thd);
+  init_optimizer_context_recorder_if_needed(thd);
 
   /*
     Reset warning count for each query that uses tables
