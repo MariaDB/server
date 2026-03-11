@@ -972,7 +972,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           /* Fields we want to have statistics for */
           bitmap_clear_all(&tab->has_value_set);
 
-          for (uint fields= 0; *field_ptr; field_ptr++, fields++)
+          for (; *field_ptr; field_ptr++)
           {
             Field *field= *field_ptr;
             if (field->flags & LONG_UNIQUE_HASH_FIELD)

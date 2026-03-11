@@ -8815,9 +8815,7 @@ alter_templ_needs_rebuild(
 	const Alter_inplace_info*     ha_alter_info,
 	const dict_table_t*		table)
 {
-        ulint	i = 0;
-
-	for (Field** fp = altered_table->field; *fp; fp++, i++) {
+	for (Field** fp = altered_table->field; *fp; fp++) {
 		for (const Create_field& cf :
 		     ha_alter_info->alter_info->create_list) {
 			for (ulint j=0; j < table->n_cols; j++) {
@@ -9682,13 +9680,11 @@ innobase_rename_columns_try(
 	trx_t*			trx,
 	const char*		table_name)
 {
-	uint	i = 0;
-
 	DBUG_ASSERT(ctx->need_rebuild());
 	DBUG_ASSERT(ha_alter_info->handler_flags
 		    & ALTER_COLUMN_NAME);
 
-	for (Field** fp = table->field; *fp; fp++, i++) {
+	for (Field** fp = table->field; *fp; fp++) {
 		if (!((*fp)->flags & FIELD_IS_RENAMED)) {
 			continue;
 		}
