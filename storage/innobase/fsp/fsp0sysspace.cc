@@ -613,16 +613,14 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 		return err;
 	}
 
-	if (srv_force_recovery != 6
+	if (!log_sys.file_size && log_sys.format == log_t::FORMAT_3_23
 	    && srv_operation == SRV_OPERATION_NORMAL
-	    && !log_sys.next_checkpoint_lsn
-	    && log_sys.format == log_t::FORMAT_3_23) {
-
+	    && srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 		log_sys.latch.wr_lock(SRW_LOCK_CALL);
-		/* Prepare for possible upgrade from 0-sized ib_logfile0. */
-		log_sys.next_checkpoint_lsn = mach_read_from_8(
+		/* Upgrade from 0-sized ib_logfile0. */
+		log_sys.last_checkpoint_lsn = mach_read_from_8(
 			first_page + 26/*FIL_PAGE_FILE_FLUSH_LSN*/);
-		if (log_sys.next_checkpoint_lsn < 8204) {
+		if (log_sys.last_checkpoint_lsn < 8204) {
 			/* Before MDEV-14425, InnoDB had a minimum LSN
 			of 8192+12=8204. Likewise, mariadb-backup
 			--prepare would create an empty ib_logfile0
@@ -632,10 +630,9 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 					"empty, and LSN is unknown.");
 			err = DB_CORRUPTION;
 		} else {
-			log_sys.last_checkpoint_lsn =
-				recv_sys.lsn = recv_sys.file_checkpoint =
-				log_sys.next_checkpoint_lsn;
-			log_sys.set_recovered_lsn(log_sys.next_checkpoint_lsn);
+			recv_sys.lsn = recv_sys.file_checkpoint =
+				log_sys.last_checkpoint_lsn;
+			log_sys.set_recovered_lsn(recv_sys.lsn);
 			log_sys.next_checkpoint_no = 0;
 		}
 

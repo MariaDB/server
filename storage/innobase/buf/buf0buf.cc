@@ -3092,7 +3092,7 @@ re_evict:
 			return(NULL);
 		}
 
-		buf_flush_sync_batch(LSN_MAX);
+		buf_flush_sync_batch(0, false);
 
 		state = block->page.state();
 
