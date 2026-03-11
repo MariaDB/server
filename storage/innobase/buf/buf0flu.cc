@@ -1566,25 +1566,6 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
   return count;
 }
 
-/** Wait until a LRU flush batch ends. */
-void buf_flush_wait_LRU_batch_end() noexcept
-{
-  mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
-  mysql_mutex_assert_not_owner(&buf_pool.mutex);
-
-  if (buf_pool.n_flush())
-  {
-    tpool::tpool_wait_begin();
-    thd_wait_begin(nullptr, THD_WAIT_DISKIO);
-    do
-      my_cond_wait(&buf_pool.done_flush_LRU,
-                   &buf_pool.flush_list_mutex.m_mutex);
-    while (buf_pool.n_flush());
-    tpool::tpool_wait_end();
-    thd_wait_end(nullptr);
-  }
-}
-
 /** Write out dirty blocks from buf_pool.flush_list.
 The caller must invoke buf_dblwr.flush_buffered_writes()
 after releasing buf_pool.mutex.
@@ -1810,19 +1791,16 @@ static ulint buf_flush_LRU(ulint max_n) noexcept
 # include "cache.h"
 #endif
 
-/** Write checkpoint information to the log header and release mutex.
-@param end_lsn    start LSN of the FILE_CHECKPOINT mini-transaction */
-inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
+
+inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
-  ut_ad(end_lsn >= next_checkpoint_lsn);
+  ut_ad(end_lsn >= checkpoint);
   ut_d(const lsn_t current_lsn{get_lsn()});
   ut_ad(end_lsn <= current_lsn);
-  ut_ad(end_lsn + SIZE_OF_FILE_CHECKPOINT <= current_lsn ||
+  ut_ad(end_lsn + SIZE_OF_FILE_CHECKPOINT +
+        8 * is_encrypted() <= current_lsn ||
         srv_shutdown_state > SRV_SHUTDOWN_INITIATED);
-
-  DBUG_PRINT("ib_log",
-             ("checkpoint at " LSN_PF " written", next_checkpoint_lsn));
 
   auto n= next_checkpoint_no;
   const size_t offset{(n & 1) ? CHECKPOINT_2 : CHECKPOINT_1};
@@ -1831,7 +1809,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   byte* c= my_assume_aligned<CPU_LEVEL1_DCACHE_LINESIZE>
     (is_mmap() ? buf + offset : checkpoint_buf);
   memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(c, 0, CPU_LEVEL1_DCACHE_LINESIZE);
-  mach_write_to_8(my_assume_aligned<8>(c), next_checkpoint_lsn);
+  mach_write_to_8(my_assume_aligned<8>(c), checkpoint);
   mach_write_to_8(my_assume_aligned<8>(c + 8), end_lsn);
   mach_write_to_4(my_assume_aligned<4>(c + 60), my_crc32c(0, c, 60));
 
@@ -1843,7 +1821,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     ut_ad(!is_opened());
     resizing= resize_lsn.load(std::memory_order_relaxed);
 
-    if (resizing > 1 && resizing <= next_checkpoint_lsn)
+    if (resizing > 1 && resizing <= checkpoint)
     {
       memcpy_aligned<64>(resize_buf + CHECKPOINT_1, c, 64);
       header_write(resize_buf, resizing, is_encrypted());
@@ -1855,8 +1833,6 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 #endif
   {
     ut_ad(!is_mmap());
-    ut_ad(!checkpoint_pending);
-    checkpoint_pending= true;
     latch.wr_unlock();
     log_write_and_flush_prepare();
     resizing= resize_lsn.load(std::memory_order_relaxed);
@@ -1864,7 +1840,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     ut_ad(write_size >= 512);
     ut_ad(write_size <= 4096);
     log.write(offset, {c, write_size});
-    if (resizing > 1 && resizing <= next_checkpoint_lsn)
+    if (resizing > 1 && resizing <= checkpoint)
     {
       resize_log.write(CHECKPOINT_1, {c, write_size});
       byte *buf= static_cast<byte*>(aligned_malloc(4096, 4096));
@@ -1877,30 +1853,26 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     if (!log_write_through)
       ut_a(log.flush());
     latch.wr_lock(SRW_LOCK_CALL);
-    ut_ad(checkpoint_pending);
-    checkpoint_pending= false;
     resizing= resize_lsn.load(std::memory_order_relaxed);
   }
 
-  ut_ad(!checkpoint_pending);
   next_checkpoint_no++;
-  const lsn_t checkpoint_lsn{next_checkpoint_lsn};
-  last_checkpoint_lsn= checkpoint_lsn;
+  last_checkpoint_lsn= checkpoint;
 
   DBUG_PRINT("ib_log", ("checkpoint ended at " LSN_PF ", flushed to " LSN_PF,
-                        checkpoint_lsn, get_flushed_lsn()));
+                        checkpoint, get_flushed_lsn()));
   if (overwrite_warned)
   {
     sql_print_information("InnoDB: Crash recovery was broken "
                           "between LSN=" LSN_PF
                           " and checkpoint LSN=" LSN_PF ".",
-                          overwrite_warned, checkpoint_lsn);
+                          overwrite_warned, checkpoint);
     overwrite_warned= 0;
   }
 
   lsn_t resizing_completed= 0;
 
-  if (resizing > 1 && resizing <= checkpoint_lsn)
+  if (resizing > 1 && resizing <= checkpoint)
   {
     ut_ad(is_mmap() == !resize_flush_buf);
     ut_ad(is_mmap() == !resize_log.is_opened());
@@ -1977,7 +1949,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   log_resize_release();
 
   if (UNIV_LIKELY(resizing <= 1));
-  else if (resizing > checkpoint_lsn)
+  else if (resizing > checkpoint)
     buf_flush_ahead(resizing, false);
   else if (resizing_completed)
     ib::info() << "Resized log to " << ib::bytes_iec{resizing_completed}
@@ -1988,9 +1960,8 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 
 /** Initiate a log checkpoint, discarding the start of the log.
 @param oldest_lsn   the checkpoint LSN
-@param end_lsn      log_sys.get_lsn()
-@return true if success, false if a checkpoint write was already running */
-static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
+@param end_lsn      log_sys.get_lsn() */
+static void log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
   ut_ad(log_sys.latch_have_wr());
@@ -2001,14 +1972,12 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
       (oldest_lsn == end_lsn &&
        !log_sys.resize_in_progress() &&
        oldest_lsn == log_sys.last_checkpoint_lsn +
-       (log_sys.is_encrypted()
-        ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT)))
+       log_sys.is_encrypted() * 8 + SIZE_OF_FILE_CHECKPOINT))
   {
     /* Do nothing, because nothing was logged (other than a
     FILE_CHECKPOINT record) since the previous checkpoint. */
-  do_nothing:
     log_sys.latch.wr_unlock();
-    return true;
+    return;
   }
 
   ut_ad(!recv_no_log_write);
@@ -2025,35 +1994,33 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
   mtr_t::commit() in other threads will be blocked,
   and no pages can be added to buf_pool.flush_list. */
   const lsn_t flush_lsn{fil_names_clear(oldest_lsn)};
-  ut_ad(flush_lsn >= end_lsn + SIZE_OF_FILE_CHECKPOINT);
-  log_sys.latch.wr_unlock();
-  log_write_up_to(flush_lsn, true);
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
-  if (log_sys.last_checkpoint_lsn >= oldest_lsn)
-    goto do_nothing;
+  ut_ad(flush_lsn >= end_lsn +
+        SIZE_OF_FILE_CHECKPOINT + 8 * log_sys.is_encrypted());
+  ut_ad(flush_lsn > log_sys.get_flushed_lsn());
 
-  ut_ad(log_sys.get_flushed_lsn() >= flush_lsn);
-
-  if (log_sys.checkpoint_pending)
+  if (false);
+#ifdef HAVE_PMEM
+  else if (log_sys.is_mmap())
+    log_sys.persist(flush_lsn);
+#endif
+  else
   {
-    /* A checkpoint write is running */
     log_sys.latch.wr_unlock();
-    return false;
+    log_write_up_to(flush_lsn, true);
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
   }
 
-  log_sys.next_checkpoint_lsn= oldest_lsn;
-  log_sys.write_checkpoint(end_lsn);
+  ut_ad(oldest_lsn > log_sys.last_checkpoint_lsn);
+  ut_ad(log_sys.get_flushed_lsn() >= flush_lsn);
 
-  return true;
+  log_sys.write_checkpoint(oldest_lsn, end_lsn);
 }
 
 /** Make a checkpoint. Note that this function does not flush dirty
 blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
-log file. Use log_make_checkpoint() to flush also the pool.
-@retval true if the checkpoint was or had been made
-@retval false if a checkpoint write was already running */
-static bool log_checkpoint() noexcept
+log file. Use log_make_checkpoint() to flush also the pool. */
+static void log_checkpoint() noexcept
 {
   ut_ad(!recv_recovery_is_on());
 
@@ -2072,101 +2039,68 @@ static bool log_checkpoint() noexcept
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   const lsn_t oldest_lsn= buf_pool.get_oldest_modification(end_lsn);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-  return log_checkpoint_low(oldest_lsn, end_lsn);
-}
-
-/** Make a checkpoint. */
-ATTRIBUTE_COLD void log_make_checkpoint() noexcept
-{
-  buf_flush_wait_flushed(log_get_lsn());
-  while (!log_checkpoint());
+  log_checkpoint_low(oldest_lsn, end_lsn);
 }
 
 /** Wait for all dirty pages up to an LSN to be written out.
-NOTE: The calling thread is not allowed to hold any buffer page latches! */
-static void buf_flush_wait(lsn_t lsn) noexcept
+NOTE: The calling thread is not allowed to hold any buffer page latches!
+@param lsn       the checkpoint to wait for
+@param checkpoint whether an empty checkpoint needs to be written */
+ATTRIBUTE_COLD void buf_flush_wait(lsn_t lsn, bool checkpoint) noexcept
 {
+  mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
+  ut_ad(log_sys.latch_have_wr());
+
   lsn_t oldest_lsn;
+  if (!checkpoint);
+  else if (lsn == log_sys.get_lsn() &&
+           lsn == log_sys.last_checkpoint_lsn +
+           SIZE_OF_FILE_CHECKPOINT + 8 * log_sys.is_encrypted());
+  else if (buf_flush_sync_lsn < lsn)
+    goto set_target;
+  else
+    goto wake;
 
   while ((oldest_lsn= buf_pool.get_oldest_modification(lsn)) < lsn)
   {
     if (buf_flush_sync_lsn < lsn)
     {
+    set_target:
       buf_flush_sync_lsn= lsn;
+    wake:
+      log_sys.latch.wr_unlock();
+      ut_ad(buf_page_cleaner_is_active);
       buf_pool.page_cleaner_set_idle(false);
       pthread_cond_signal(&buf_pool.do_flush_list);
+      MONITOR_INC(MONITOR_FLUSH_SYNC_WAITS);
       my_cond_wait(&buf_pool.done_flush_list,
                    &buf_pool.flush_list_mutex.m_mutex);
-      oldest_lsn= buf_pool.get_oldest_modification(lsn);
-      if (oldest_lsn >= lsn)
-        break;
     }
+    else
+      log_sys.latch.wr_unlock();
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     os_aio_wait_until_no_pending_writes(false);
+
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
+
+    if (checkpoint)
+    {
+      lsn= log_sys.get_lsn();
+      if (lsn != log_sys.last_checkpoint_lsn +
+          SIZE_OF_FILE_CHECKPOINT + 8 * log_sys.is_encrypted())
+      {
+        buf_flush_sync_lsn= lsn;
+        log_sys.set_check_for_checkpoint(true);
+        goto wake;
+      }
+    }
   }
 
   if (oldest_lsn >= buf_flush_sync_lsn)
   {
     buf_flush_sync_lsn= 0;
     pthread_cond_broadcast(&buf_pool.done_flush_list);
-  }
-}
-
-/** Wait until all persistent pages are flushed up to a limit.
-@param sync_lsn   buf_pool.get_oldest_modification(LSN_MAX) to wait for */
-ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn) noexcept
-{
-  ut_ad(sync_lsn);
-  ut_ad(sync_lsn < LSN_MAX);
-  ut_ad(!srv_read_only_mode);
-
-  mysql_mutex_lock(&buf_pool.flush_list_mutex);
-
-  if (buf_pool.get_oldest_modification(sync_lsn) < sync_lsn)
-  {
-    MONITOR_INC(MONITOR_FLUSH_SYNC_WAITS);
-
-#if 1 /* FIXME: remove this, and guarantee that the page cleaner serves us */
-    if (UNIV_UNLIKELY(!buf_page_cleaner_is_active))
-    {
-      do
-      {
-        mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-        ulint n_pages= buf_flush_list(srv_max_io_capacity, sync_lsn);
-        if (n_pages)
-        {
-          MONITOR_INC_VALUE_CUMULATIVE(MONITOR_FLUSH_SYNC_TOTAL_PAGE,
-                                       MONITOR_FLUSH_SYNC_COUNT,
-                                       MONITOR_FLUSH_SYNC_PAGES, n_pages);
-        }
-        os_aio_wait_until_no_pending_writes(false);
-        mysql_mutex_lock(&buf_pool.flush_list_mutex);
-      }
-      while (buf_pool.get_oldest_modification(sync_lsn) < sync_lsn);
-    }
-    else
-#endif
-    {
-      thd_wait_begin(nullptr, THD_WAIT_DISKIO);
-      tpool::tpool_wait_begin();
-      buf_flush_wait(sync_lsn);
-      tpool::tpool_wait_end();
-      thd_wait_end(nullptr);
-    }
-  }
-
-  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-
-  if (UNIV_UNLIKELY(log_sys.last_checkpoint_lsn < sync_lsn))
-  {
-    /* If the buffer pool was clean, no log write was guaranteed
-    to happen until now. There could be an outstanding FILE_CHECKPOINT
-    record from a previous fil_names_clear() call, which we must
-    write out before we can advance the checkpoint. */
-    log_write_up_to(sync_lsn, true);
-    DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", return;);
-    log_checkpoint();
   }
 }
 
@@ -2192,7 +2126,7 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious) noexcept
       {
         /* Request any concurrent threads to wait for this batch to complete,
         in log_free_check(). */
-        log_sys.set_check_for_checkpoint();
+        log_sys.set_check_for_checkpoint(true);
         /* Immediately wake up buf_flush_page_cleaner(), even when it
         is in the middle of a 1-second my_cond_timedwait(). */
       wake:
@@ -2213,7 +2147,7 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious) noexcept
 
 /** Conduct checkpoint-related flushing for innodb_flush_sync=ON,
 and try to initiate checkpoints until the target is met.
-@param lsn   minimum value of buf_pool.get_oldest_modification(LSN_MAX) */
+@param lsn   target checkpoint */
 ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
 static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
 {
@@ -2251,6 +2185,12 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   }
 
+  if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED)
+  {
+    service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                   "Waiting to flush the buffer pool");
+  }
+
   if (ulint n_flushed= buf_flush_list(srv_max_io_capacity, lsn))
   {
     MONITOR_INC_VALUE_CUMULATIVE(MONITOR_FLUSH_SYNC_TOTAL_PAGE,
@@ -2268,28 +2208,31 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
   const lsn_t checkpoint_lsn= measure ? measure : newest_lsn;
 
   if (!recv_recovery_is_on() &&
-      checkpoint_lsn > log_sys.last_checkpoint_lsn + SIZE_OF_FILE_CHECKPOINT)
+      checkpoint_lsn > log_sys.last_checkpoint_lsn +
+      SIZE_OF_FILE_CHECKPOINT + 8 * log_sys.is_encrypted())
   {
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     log_checkpoint_low(checkpoint_lsn, newest_lsn);
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
-    measure= buf_pool.get_oldest_modification(LSN_MAX);
+    measure= buf_pool.get_oldest_modification(0);
   }
+
+  if (measure);
+  else if (srv_shutdown_state < SRV_SHUTDOWN_CLEANUP ||
+           log_sys.get_lsn() == log_sys.last_checkpoint_lsn +
+           SIZE_OF_FILE_CHECKPOINT + 8 * log_sys.is_encrypted())
+    measure= LSN_MAX;
   else
-  {
-    log_sys.latch.wr_unlock();
-    if (!measure)
-      measure= LSN_MAX;
-  }
+    buf_flush_sync_lsn= newest_lsn;
 
   /* After attempting log checkpoint, check if we have reached our target. */
-  const lsn_t target= buf_flush_sync_lsn;
-
-  if (measure >= target)
+  if (measure >= buf_flush_sync_lsn)
     buf_flush_sync_lsn= 0;
   else if (measure >= buf_flush_async_lsn)
     buf_flush_async_lsn= 0;
 
+  log_sys.latch.wr_unlock();
   /* wake up buf_flush_wait() */
   pthread_cond_broadcast(&buf_pool.done_flush_list);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
@@ -2554,7 +2497,7 @@ static void buf_flush_page_cleaner() noexcept
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
     if (!buf_pool.need_LRU_eviction())
     {
-      if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED)
+      if (UNIV_UNLIKELY(srv_shutdown_state >= SRV_SHUTDOWN_LAST_PHASE))
         break;
 
       if (buf_pool.page_cleaner_idle() &&
@@ -2578,28 +2521,37 @@ static void buf_flush_page_cleaner() noexcept
     if (!oldest_lsn)
     {
     fully_unemployed:
-      buf_flush_sync_lsn= 0;
+      if (srv_shutdown_state < SRV_SHUTDOWN_CLEANUP)
+        buf_flush_sync_lsn= 0;
     set_idle:
       buf_pool.page_cleaner_set_idle(true);
     set_almost_idle:
       pthread_cond_broadcast(&buf_pool.done_flush_LRU);
       pthread_cond_broadcast(&buf_pool.done_flush_list);
-      if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))
-        break;
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       buf_dblwr.flush_buffered_writes();
 
       do
       {
-        IF_DBUG(if (_db_keyword_(nullptr, "ib_log_checkpoint_avoid", 1) ||
-                    _db_keyword_(nullptr, "ib_log_checkpoint_avoid_hard", 1))
+        if (recv_recovery_is_on())
+          continue;
+        IF_DBUG(if (log_sys.last_checkpoint_lsn &&
+                    srv_shutdown_state < SRV_SHUTDOWN_CLEANUP &&
+                    (_db_keyword_(nullptr, "ib_log_checkpoint_avoid", 1) ||
+                     _db_keyword_(nullptr, "ib_log_checkpoint_avoid_hard", 1)))
                   continue,);
-        if (!recv_recovery_is_on() &&
-            !srv_startup_is_before_trx_rollback_phase &&
-            srv_operation <= SRV_OPERATION_EXPORT_RESTORED)
+        if (log_sys.check_for_checkpoint() ||
+            (!srv_startup_is_before_trx_rollback_phase &&
+             srv_operation <= SRV_OPERATION_EXPORT_RESTORED))
           log_checkpoint();
       }
       while (false);
+
+      if (UNIV_UNLIKELY(srv_shutdown_state >= SRV_SHUTDOWN_LAST_PHASE))
+      {
+        mysql_mutex_lock(&buf_pool.flush_list_mutex);
+        break;
+      }
 
       if (!buf_pool.need_LRU_eviction())
         continue;
@@ -2615,7 +2567,8 @@ static void buf_flush_page_cleaner() noexcept
         goto do_furious_flush;
       if (oldest_lsn >= lsn_limit)
       {
-        buf_flush_sync_lsn= 0;
+        if (srv_shutdown_state < SRV_SHUTDOWN_CLEANUP)
+          buf_flush_sync_lsn= 0;
         pthread_cond_broadcast(&buf_pool.done_flush_list);
       }
       else if (lsn_limit > soft_lsn_limit)
@@ -2636,6 +2589,9 @@ static void buf_flush_page_cleaner() noexcept
       buf_pool.n_flush_inc();
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       n= srv_max_io_capacity;
+      /* We must urgently perform some LRU eviction. Page writes are
+      only triggered by this thread, whether it is for checkpoint or
+      LRU eviction. First, wait for any pending writes to complete. */
       os_aio_wait_until_no_pending_writes(false);
       mysql_mutex_lock(&buf_pool.mutex);
     LRU_flush:
@@ -2653,7 +2609,7 @@ static void buf_flush_page_cleaner() noexcept
       buf_pool.page_cleaner_set_idle(false);
       goto set_almost_idle;
     }
-    else if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))
+    else if (UNIV_UNLIKELY(srv_shutdown_state >= SRV_SHUTDOWN_LAST_PHASE))
       break;
 
     const ulint dirty_blocks= UT_LIST_GET_LEN(buf_pool.flush_list);
@@ -2741,8 +2697,12 @@ static void buf_flush_page_cleaner() noexcept
       goto check_oldest_and_set_idle;
     else
     {
-      mysql_mutex_lock(&buf_pool.mutex);
+      /* Page writes are only triggered by this thread, whether it is
+      for checkpoint or LRU eviction flushing. Wait for any pending
+      writes of an earlier batch to complete before starting an LRU
+      scan to improve the chances that some blocks are clean. */
       os_aio_wait_until_no_pending_writes(false);
+      mysql_mutex_lock(&buf_pool.mutex);
     }
 
     n= srv_max_io_capacity;
@@ -2754,18 +2714,7 @@ static void buf_flush_page_cleaner() noexcept
     goto LRU_flush;
   }
 
-  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-
-  if (srv_fast_shutdown != 2)
-  {
-    buf_dblwr.flush_buffered_writes();
-    mysql_mutex_lock(&buf_pool.flush_list_mutex);
-    buf_flush_wait_LRU_batch_end();
-    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-    os_aio_wait_until_no_pending_writes(false);
-  }
-
-  mysql_mutex_lock(&buf_pool.flush_list_mutex);
+  ut_ad(!buf_pool.n_flush());
   lsn_limit= buf_flush_sync_lsn;
   if (UNIV_UNLIKELY(lsn_limit != 0))
   {
@@ -2773,6 +2722,9 @@ static void buf_flush_page_cleaner() noexcept
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     goto furious_flush;
   }
+  ut_ad(log_sys.get_lsn_approx() == log_sys.last_checkpoint_lsn +
+        SIZE_OF_FILE_CHECKPOINT + 8 * log_sys.is_encrypted() ||
+        srv_fast_shutdown == 2 || srv_read_only_mode || !srv_was_started);
   buf_page_cleaner_is_active= false;
   pthread_cond_broadcast(&buf_pool.done_flush_list);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
@@ -2810,41 +2762,28 @@ ATTRIBUTE_COLD void buf_flush_page_cleaner_init() noexcept
   std::thread(buf_flush_page_cleaner).detach();
 }
 
-/** Flush the buffer pool on shutdown. */
-ATTRIBUTE_COLD void buf_flush_buffer_pool() noexcept
+/** Make a checkpoint. */
+ATTRIBUTE_COLD void log_make_checkpoint() noexcept
 {
-  ut_ad(!buf_page_cleaner_is_active);
-  ut_ad(!buf_flush_sync_lsn);
-
-  service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-                                 "Waiting to flush the buffer pool");
-  os_aio_wait_until_no_pending_reads(false);
-
-  mysql_mutex_lock(&buf_pool.flush_list_mutex);
-
-  while (buf_pool.get_oldest_modification(0))
-  {
-    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-    buf_flush_list(srv_max_io_capacity);
-    os_aio_wait_until_no_pending_writes(false);
-    mysql_mutex_lock(&buf_pool.flush_list_mutex);
-    service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-                                   "Waiting to flush " ULINTPF " pages",
-                                   UT_LIST_GET_LEN(buf_pool.flush_list));
-  }
-
-  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-  ut_ad(!os_aio_pending_reads());
+  buf_flush_sync_batch(0, true);
 }
 
-/** Synchronously flush dirty blocks during recv_sys_t::apply().
-NOTE: The calling thread is not allowed to hold any buffer page latches! */
-ATTRIBUTE_COLD void buf_flush_sync_batch(lsn_t lsn) noexcept
+/** Wait for the persistent data to be written out.
+NOTE: The calling thread is not allowed to hold any buffer page latches!
+@param lsn        minimum checkpoint to wait for
+@param checkpoint whether an empty checkpoint needs to be written */
+ATTRIBUTE_COLD void buf_flush_sync_batch(lsn_t lsn, bool checkpoint) noexcept
 {
-  lsn= std::max(lsn, log_get_lsn());
+  thd_wait_begin(nullptr, THD_WAIT_DISKIO);
+  tpool::tpool_wait_begin();
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  lsn= std::max(lsn, log_sys.get_lsn());
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
-  buf_flush_wait(lsn);
+  buf_flush_wait(lsn, checkpoint);
+  log_sys.latch.wr_unlock();
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+  tpool::tpool_wait_end();
+  thd_wait_end(nullptr);
 }
 
 ATTRIBUTE_COLD void buf_pool_t::print_flush_info() const noexcept

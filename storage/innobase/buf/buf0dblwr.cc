@@ -317,7 +317,7 @@ func_exit:
   else
   {
     alignas(8) char checkpoint[8];
-    mach_write_to_8(checkpoint, log_sys.next_checkpoint_lsn);
+    mach_write_to_8(checkpoint, log_sys.last_checkpoint_lsn);
     for (auto i= size * 2; i--; page += srv_page_size)
       if (memcmp_aligned<8>(page + FIL_PAGE_LSN, checkpoint, 8) >= 0)
         /* Valid pages are not older than the log checkpoint. */

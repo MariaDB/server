@@ -1015,7 +1015,7 @@ static lsn_t log_close(lsn_t lsn) noexcept
   limit (lsn - log_sys.max_checkpoint_age) in order to minimize the
   synchronous wait time. */
   if (furious)
-    log_sys.set_check_for_checkpoint();
+    log_sys.set_check_for_checkpoint(true);
 
   return ((lsn - max_age) & ~lsn_t{1}) | lsn_t{furious};
 }
