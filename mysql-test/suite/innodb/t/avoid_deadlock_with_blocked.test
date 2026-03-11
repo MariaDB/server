@@ -4,6 +4,7 @@
 --source include/count_sessions.inc
 --source include/innodb_table_lock_on_full_scan.inc
 
+set global innodb_print_all_deadlocks= 1;
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
 --enable_query_log
@@ -33,16 +34,16 @@ INSERT INTO t1 (id) VALUES (1);
 
 --connection con1
   BEGIN;
-  SELECT * FROM t1 LOCK IN SHARE MODE;
+  /* 1 */ SELECT * FROM t1 LOCK IN SHARE MODE;
 
 --connection con2
   BEGIN;
   SET DEBUG_SYNC = 'lock_wait_before_suspend SIGNAL con2_will_wait';
-  --send SELECT * FROM t1 FOR UPDATE
+  --send /* 2 */ SELECT * FROM t1 FOR UPDATE
 
 --connection con1
   SET DEBUG_SYNC = 'now WAIT_FOR con2_will_wait';
-  SELECT * FROM t1 FOR UPDATE;
+  /* 1 */ SELECT * FROM t1 FOR UPDATE;
   COMMIT;
 
 --connection con2
@@ -63,22 +64,22 @@ if ($MTR_COMBINATION_TABLE_LOCK) {
 
 --connection con1
   BEGIN;
-  SELECT * FROM t1 LOCK IN SHARE MODE;
+  /* con1 */ SELECT * FROM t1 LOCK IN SHARE MODE;  # S
 
 --connection con2
   BEGIN;
   SET DEBUG_SYNC = 'lock_wait_before_suspend SIGNAL con2_will_wait';
-  --send SELECT * FROM t1 FOR UPDATE
+  --send /* con2 */ SELECT * FROM t1 FOR UPDATE    # X
 
 --connection con3
   SET DEBUG_SYNC = 'now WAIT_FOR con2_will_wait';
   BEGIN;
   SET DEBUG_SYNC = 'lock_wait_before_suspend SIGNAL con3_will_wait';
-  --send SELECT * FROM t1 LOCK IN SHARE MODE;
+  --send /* con3 */ SELECT * FROM t1 LOCK IN SHARE MODE   # S
 
 --connection con1
   SET DEBUG_SYNC = 'now WAIT_FOR con3_will_wait';
-  SELECT * FROM t1 FOR UPDATE;
+  /* con1 */ SELECT * FROM t1 FOR UPDATE;  # X
   COMMIT;
 
 --connection con2
