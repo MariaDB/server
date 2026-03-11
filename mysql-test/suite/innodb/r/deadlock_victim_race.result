@@ -13,6 +13,7 @@ connect con_2,localhost,root,,;
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 BEGIN;
 SET DEBUG_SYNC = 'lock_trx_handle_wait_enter SIGNAL upd_locked WAIT_FOR upd_cont EXECUTE 2';
+SET SESSION innodb_lock_wait_timeout=1;
 UPDATE t SET b = 100;
 connect con_3,localhost,root,,;
 BEGIN;
@@ -27,7 +28,7 @@ connection default;
 SET DEBUG_SYNC='now WAIT_FOR sel_locked';
 ROLLBACK;
 SET DEBUG_SYNC='now SIGNAL upd_cont';
-SET DEBUG_SYNC="now WAIT_FOR upd_locked";
+SET DEBUG_SYNC='now WAIT_FOR upd_locked';
 SET SESSION innodb_lock_wait_timeout=1;
 SELECT * FROM t WHERE a = 10 FOR UPDATE;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction

@@ -4,6 +4,7 @@
 #
 
 -- source include/have_innodb.inc
+--source include/innodb_table_lock_on_full_scan.inc
 
 SET @save_timeout=@@GLOBAL.innodb_lock_wait_timeout;
 SET GLOBAL innodb_lock_wait_timeout=100000000;
@@ -134,6 +135,7 @@ if (!$success)
     -- echo Timeout waiting for rows in INNODB_LOCKS to appear
 }
 
+--sorted_result
 SELECT lock_mode, lock_type, lock_table, lock_index, lock_rec, lock_data
 FROM INFORMATION_SCHEMA.INNODB_LOCKS ORDER BY lock_data;
 

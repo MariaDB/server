@@ -1,6 +1,8 @@
 #
 # MDEV-24813 Locking full table scan fails to use table-level locking
 #
+set @old_innodb_table_lock_on_full_scan=@@innodb_table_lock_on_full_scan;
+set innodb_table_lock_on_full_scan=1;
 CREATE TABLE t (a INT PRIMARY KEY) ENGINE=InnoDB;
 insert into t values (42);
 # SELECT
@@ -227,3 +229,4 @@ SELECT (COUNT-@init) as COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME 
 COUNT
 27
 drop table t10, t11;
+set innodb_table_lock_on_full_scan=@old_innodb_table_lock_on_full_scan;

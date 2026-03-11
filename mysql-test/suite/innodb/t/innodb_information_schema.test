@@ -4,6 +4,7 @@
 #
 
 -- source include/have_innodb.inc
+--source include/innodb_table_lock_on_full_scan.inc
 
 # lock data that is part of result set for this testcase
 # is retreived using buf_page_try_get. i.e only show if page

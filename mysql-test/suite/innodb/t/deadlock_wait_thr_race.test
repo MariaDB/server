@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
 --source include/count_sessions.inc
+--source include/innodb_table_lock_on_full_scan.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
@@ -40,8 +41,11 @@ SELECT * FROM t WHERE a = 20 FOR UPDATE;
 # RC is necessary to do semi-consistent read
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 # It will be hit on trying to lock (20,20).
-SET DEBUG_SYNC = 'lock_trx_handle_wait_enter SIGNAL upd_locked WAIT_FOR upd_cont';
+if ($MTR_COMBINATION_ROW_LOCK) {
+  SET DEBUG_SYNC = 'lock_trx_handle_wait_enter SIGNAL upd_locked WAIT_FOR upd_cont';
+}
 SET DEBUG_SYNC = 'trx_t_release_locks_enter SIGNAL sel_cont WAIT_FOR upd_cont_2';
+set session innodb_lock_wait_timeout = 1;
 BEGIN; # trx 2
 # We must not modify primary key fields to cause rr_sequential() read record
 # function choosing in mysql_update(), i.e. both query_plan.using_filesort and
@@ -50,21 +54,33 @@ BEGIN; # trx 2
 --send UPDATE t SET b = 100
 
 --connection default
-SET DEBUG_SYNC="now WAIT_FOR upd_locked";
+if ($MTR_COMBINATION_ROW_LOCK) {
+  SET DEBUG_SYNC="now WAIT_FOR upd_locked";
+}
 SET DEBUG_SYNC="deadlock_report_before_lock_releasing SIGNAL upd_cont WAIT_FOR sel_cont";
-SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL sel_before_suspend";
+if ($MTR_COMBINATION_ROW_LOCK) {
+  SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL sel_before_suspend";
+}
 # If the bug is not fixed, the following SELECT will crash, as the above UPDATE
 # will reset trx->lock.wait_thr during rollback
 --send SELECT * FROM t WHERE a = 10 FOR UPDATE;
 
 --connect(con_3,localhost,root,,)
-SET DEBUG_SYNC="now WAIT_FOR sel_before_suspend";
+if ($MTR_COMBINATION_ROW_LOCK) {
+  SET DEBUG_SYNC="now WAIT_FOR sel_before_suspend";
+}
 SET DEBUG_SYNC="now SIGNAL upd_cont_2";
 --disconnect con_3
 
 --connection con_2
---error ER_LOCK_DEADLOCK
---reap
+if ($MTR_COMBINATION_ROW_LOCK) {
+  --error ER_LOCK_DEADLOCK
+  --reap
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --error ER_LOCK_WAIT_TIMEOUT
+  --reap
+}
 --disconnect con_2
 
 --connection default

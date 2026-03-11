@@ -864,6 +864,10 @@ static MYSQL_THDVAR_BOOL(ft_enable_stopword, PLUGIN_VAR_OPCMDARG,
   NULL, NULL,
   /* default */ TRUE);
 
+static MYSQL_THDVAR_BOOL(table_lock_on_full_scan, PLUGIN_VAR_OPCMDARG,
+  "Whether to acquire table lock when SQL layer advises full scan",
+  NULL, NULL, FALSE);
+
 static MYSQL_THDVAR_UINT(lock_wait_timeout, PLUGIN_VAR_RQCMDARG,
   "Timeout in seconds an InnoDB transaction may wait for a lock before being rolled back. The value 100000000 is infinite timeout.",
   NULL, NULL, 50, 0, 100000000, 0);
@@ -15911,7 +15915,8 @@ ha_innobase::extra_opt(
 	switch (operation) {
 	case HA_EXTRA_FULL_SCAN:
 		handled = true;
-		if (!m_prebuilt->skip_locked)
+		if (THDVAR(ha_thd(), table_lock_on_full_scan) &&
+				!m_prebuilt->skip_locked && arg == ULONG_MAX)
 			m_prebuilt->full_table_scan = true;
 		break;
 	default:/* Do nothing */
@@ -19891,6 +19896,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_num_word_optimize),
   MYSQL_SYSVAR(ft_sort_pll_degree),
   MYSQL_SYSVAR(lock_wait_timeout),
+  MYSQL_SYSVAR(table_lock_on_full_scan),
   MYSQL_SYSVAR(deadlock_detect),
   MYSQL_SYSVAR(deadlock_report),
   MYSQL_SYSVAR(page_size),

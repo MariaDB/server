@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/innodb_table_lock_on_full_scan.inc
 
 #
 # Test that transaction data is correctly "visualized" in

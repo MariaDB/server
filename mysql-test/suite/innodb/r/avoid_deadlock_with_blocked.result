@@ -1,3 +1,5 @@
+set @old_innodb_lock_wait_timeout=@@global.innodb_lock_wait_timeout;
+set global innodb_lock_wait_timeout=1;
 connect stop_purge,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connect  con1,localhost,root,,;
@@ -196,3 +198,4 @@ disconnect con2;
 disconnect con3;
 disconnect stop_purge;
 DROP TABLE t1;
+set global innodb_lock_wait_timeout=@old_innodb_lock_wait_timeout;

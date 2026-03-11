@@ -1,8 +1,12 @@
 --source include/have_sequence.inc
 --source include/have_innodb.inc
+--source include/no_view_protocol.inc
 --echo #
 --echo # MDEV-24813 Locking full table scan fails to use table-level locking
 --echo #
+
+set @old_innodb_table_lock_on_full_scan=@@innodb_table_lock_on_full_scan;
+set innodb_table_lock_on_full_scan=1;
 
 CREATE TABLE t (a INT PRIMARY KEY) ENGINE=InnoDB;
 insert into t values (42);
@@ -204,3 +208,4 @@ insert into t11 select a from t10 where a > 30;
 eval $print_lock_rec_lock_created;
 drop table t10, t11;
 
+set innodb_table_lock_on_full_scan=@old_innodb_table_lock_on_full_scan;

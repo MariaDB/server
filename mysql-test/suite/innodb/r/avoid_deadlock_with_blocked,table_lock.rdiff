@@ -1,0 +1,62 @@
+--- /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/avoid_deadlock_with_blocked.result	2026-03-05 16:40:26.246544601 +1100
++++ /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/avoid_deadlock_with_blocked.reject	2026-03-05 16:40:52.806357867 +1100
+@@ -32,8 +32,7 @@
+ 1
+ COMMIT;
+ connection con2;
+-id
+-1
++ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ COMMIT;
+ # The scenario when we bypass X<-S pair:
+ # <con1, S, granted>,
+@@ -61,12 +60,10 @@
+ 1
+ COMMIT;
+ connection con2;
+-id
+-1
++ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ COMMIT;
+ connection con3;
+-id
+-1
++ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ COMMIT;
+ # A variant of the above scenario:
+ # <con1, X REC_NOT_GAP, granted>,
+@@ -87,7 +84,8 @@
+ INSERT INTO t1 VALUES (0);
+ ROLLBACK;
+ connection con2;
+-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
++id
++1
+ COMMIT;
+ # More complicated scenario:
+ # <con1, S, granted>,
+@@ -155,8 +153,7 @@
+ 1
+ COMMIT;
+ connection con3;
+-id
+-1
++ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ COMMIT;
+ # A secenario, where con1 has to bypass two transactions:
+ # <con1, S, granted>
+@@ -185,12 +182,10 @@
+ 1
+ COMMIT;
+ connection con2;
+-id
+-1
++ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ COMMIT;
+ connection con3;
+-id
+-1
++ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ COMMIT;
+ connection default;
+ disconnect con1;
