@@ -262,7 +262,7 @@ public:
       ((uint8 *) values)[i]= (uint8) (val * prec_factor());
       return;
     case DOUBLE_PREC_HB:
-      int2store(values + i * 2, val * prec_factor());
+      int2store(values + i * 2, (uint16)(val * prec_factor()));
       return;
     }
   }
