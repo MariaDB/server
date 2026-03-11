@@ -421,3 +421,12 @@ select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length
 --exec $MYSQL_CHECK --analyze test t1 --persistent
 select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length,avg_frequency from mysql.column_stats where db_name = 'test' and table_name = 't1' order by db_name,table_name;
 drop table t1;
+
+--echo #
+--echo # MDEV-38778 mariadbcheck --silent
+--echo #
+create table t1 (a int) engine=innodb;
+--exec $MYSQL_CHECK -s --optimize test t1
+drop table t1;
+
+--echo # End of 10.11 tests

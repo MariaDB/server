@@ -84,6 +84,7 @@ stdout_open(ds_ctxt_t *ctxt __attribute__((unused)),
 #endif
 
 	stdout_file->fd = my_fileno(stdout);
+	posix_fadvise(stdout_file->fd, 0, 0, POSIX_FADV_DONTNEED);
 
 	file->path = (char *) stdout_file + sizeof(ds_stdout_file_t);
 	memcpy(file->path, fullpath, pathlen);
@@ -99,12 +100,11 @@ stdout_write(ds_file_t *file, const uchar *buf, size_t len)
 {
 	File fd = ((ds_stdout_file_t *) file->ptr)->fd;
 
-	if (!my_write(fd, buf, len, MYF(MY_WME | MY_NABP))) {
-		posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED);
-		return 0;
+	if (my_write(fd, buf, len, MYF(MY_WME | MY_NABP))) {
+		return 1;
 	}
 
-	return 1;
+	return 0;
 }
 
 static

@@ -487,3 +487,9 @@ select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	1	3	0.0000	4.0000	1.0000
 drop table t1;
+#
+# MDEV-38778 mariadbcheck --silent
+#
+create table t1 (a int) engine=innodb;
+drop table t1;
+# End of 10.11 tests

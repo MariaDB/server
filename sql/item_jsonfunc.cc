@@ -733,7 +733,8 @@ bool Item_func_json_query::fix_length_and_dec(THD *thd)
 
 
 bool Json_path_extractor::extract(String *str, Item *item_js, Item *item_jp,
-                                  CHARSET_INFO *cs)
+                                  CHARSET_INFO *cs, const char *func_name,
+                                  bool allow_wildcard)
 {
   String *js= item_js->val_json(&tmp_js);
   int error= 0;
@@ -742,10 +743,29 @@ bool Json_path_extractor::extract(String *str, Item *item_js, Item *item_jp,
   if (!parsed)
   {
     String *s_p= item_jp->val_str(&tmp_path);
-    if (s_p &&
+
+    if (allow_wildcard)
+    {
+      if (s_p &&
+        json_path_setup(&p, s_p->charset(), (const uchar *) s_p->ptr(),
+                       (const uchar *) s_p->ptr() + s_p->length()))
+        error= true;
+    }
+    else
+    {
+      if (s_p &&
         path_setup_nwc(&p, s_p->charset(), (const uchar *) s_p->ptr(),
                        (const uchar *) s_p->ptr() + s_p->length()))
+        error= true;
+    }
+
+    if (error)
+    {
+      report_path_error_ex(s_p->ptr(), &p, func_name, 1,
+                           Sql_condition::WARN_LEVEL_WARN);
       return true;
+    }
+
     parsed= constant;
   }
 
@@ -1050,8 +1070,18 @@ bool Item_json_str_multipath::fix_fields(THD *thd, Item **ref)
 bool Item_func_json_extract::fix_length_and_dec(THD *thd)
 {
   collation.set(args[0]->collation);
-  max_length= args[0]->max_length * (arg_count - 1);
 
+  /* *2 accounts for LOOSE json_nice() formatting (spaces after : and ,). */
+  ulonglong char_length=
+    (ulonglong) args[0]->max_char_length() * (arg_count - 1) * 2;
+
+  if (arg_count > 2)
+  {
+    /* Multiple paths: result is wrapped as [val1, val2, ...]. */
+    char_length+= 2 + (arg_count - 2) * 2;
+  }
+
+  fix_char_length_ulonglong(char_length);
   mark_constant_paths(paths, args+1, arg_count-1);
   set_maybe_null();
   return FALSE;
@@ -3842,6 +3872,7 @@ skip_search:
     goto null_return;
   
   str->length(0);
+  str->set_charset(collation.collation);
   if (str->append('['))
     goto err_return; /* Out of memory. */
   /* Parse the OBJECT collecting the keys. */
@@ -4528,6 +4559,7 @@ String *Item_func_json_normalize::val_str(String *buf)
   }
 
   buf->length(0);
+  buf->set_charset(collation.collation);
   if (buf->append(normalized_json.str, normalized_json.length))
   {
     null_value= 1;
@@ -5195,12 +5227,11 @@ String* Item_func_json_key_value::val_str(String *str)
 
   if ((null_value= args[0]->null_value) ||
       (null_value= args[1]->null_value))
-  {
-    goto return_null;
-  }
+    return NULL;
 
   null_value= Json_path_extractor::extract(&tmp_str, args[0], args[1],
-                                             collation.collation);
+                                           collation.collation,
+                                           func_name(), true);
   if (null_value)
     return NULL;
 
