@@ -1,0 +1,8 @@
+#
+# MDEV-35767: replicate_do_table does not parse comma separated lists
+#
+
+[mysqld.2]
+replicate_do_table=test.t1
+replicate_do_table=test.t2
+replicate_do_table=test.t3

@@ -1,0 +1,3 @@
+SHOW VARIABLES LIKE 'replicate_do_table';
+Variable_name	Value
+replicate_do_table	test.t3,test.t1,test.t2

@@ -1,0 +1,1 @@
+SHOW VARIABLES LIKE 'replicate_do_table';

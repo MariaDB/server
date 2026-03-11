@@ -29,6 +29,10 @@ my %multipart_options=
   (
    "plugin-load-add" => 1,
    "optimizer-switch" => 1,
+   "replicate-do-table" => 1,
+   "replicate-ignore-table" => 1,
+   "replicate-do-db" => 1,
+   "replicate-ignore-db" => 1,
 );
 
 
@@ -83,13 +87,32 @@ sub insert {
   my ($self, $option_name, $value, $if_not_exist)= @_;
   my $option= $self->option($option_name);
   if (defined($option) and !$if_not_exist) {
-    $option->{value}= $value;
+    # Check if this is a multipart option (like replicate-do-table)
+    my $tmp_option= $option_name;
+    $tmp_option =~ s/^_//;
+    $tmp_option =~ s/--//;
+    $tmp_option =~ s/_/-/g;
+
+    if (defined($value) and $My::Config::multipart_options{$tmp_option}) {
+      $option->{value}= $option->{value} . "," . $value;
+    } else {
+      $option->{value}= $value;
+    }
   }
   else {
+    # If option is defined, check if it's a multipart option getting pushed via $if_not_exist
+    if (defined($option) and defined($value)) {
+      my $tmp_option= $option_name;
+      $tmp_option =~ s/^--?//;
+      $tmp_option =~ s/_/-/g;
+      if ($My::Config::multipart_options{$tmp_option}) {
+        $option->{value}= $option->{value} . "," . $value;
+        return $option;
+      }
+    }
+
     $option= My::Config::Option->new($option_name, $value);
-    # Insert option in list
     push(@{$self->{options}}, $option);
-    # Insert option in hash
     $self->{options_by_name}->{$option_name}= $option;
   }
   return $option;
@@ -496,7 +519,6 @@ sub group {
   return undef;
 }
 
-
 #
 # Return a list of all options in a specific group in the config
 #
@@ -508,6 +530,19 @@ sub options_in_group {
   return $group->options();
 }
 
+#
+# Return a specific option given group and option name
+#
+sub option {
+  my ($self, $group_name, $option_name)= @_;
+  my $group= $self->group($group_name);
+
+  croak "group '$group_name' does not exist"
+    unless defined($group);
+
+  my $option= $group->option($option_name);
+  return $option;
+}
 
 #
 # Return a value given group and option name
@@ -519,13 +554,8 @@ sub value {
   croak "group '$group_name' does not exist"
     unless defined($group);
 
-  my $option= $group->option($option_name);
-  croak "option '$option_name' does not exist"
-    unless defined($option);
-
-  return $option->value();
+  return $group->value($option_name);
 }
-
 
 #
 # Check if an option exists
