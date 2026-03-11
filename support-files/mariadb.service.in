@@ -59,6 +59,27 @@ ProtectSystem=full
 # Doesn't yet work properly with SELinux enabled
 # NoNewPrivileges=true
 
+# Restrict modifications of kernel interfaces from the MariaDB service context.
+#
+# Note: ProtectKernelTunables makes /proc and /sys read-only, but it does not
+# necessarily remount separate sub-mounts under /sys/fs (for example cgroupfs
+# at /sys/fs/cgroup and selinuxfs at /sys/fs/selinux), so writes there may
+# still be allowed.
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+#
+# Prevent creating real-time scheduling policies.
+RestrictRealtime=true
+#
+# Prevent changing process personality(2)
+LockPersonality=true
+#
+# Restrict use of Linux namespaces by the daemon and its children, MariaDB
+# server core does not require namespace creation in typical operation
+# (override via drop-in if needed).
+RestrictNamespaces=true
+
 # Prevent accessing /home, /root and /run/user
 ProtectHome=true
 
