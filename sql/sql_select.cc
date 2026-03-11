@@ -21334,7 +21334,7 @@ bool Create_tmp_table::finalize(THD *thd,
 	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT1 ||
 	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT2) ?
 	0 : FIELDFLAG_BINARY;
-      m_key_part_info->key_part_flag= 0;
+      m_key_part_info->key_part_flag= field->key_part_flag();
       if (!m_using_unique_constraint)
       {
         cur_group->buff=(char*) m_group_buff;

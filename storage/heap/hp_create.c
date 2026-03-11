@@ -277,6 +277,16 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
       keyinfo->seg= keyseg;
       memcpy(keyseg, keydef[i].seg,
 	     (size_t) (sizeof(keyseg[0]) * keydef[i].keysegs));
+      keyinfo->has_blob_seg= FALSE;
+      {
+        uint j;
+        for (j= 0; j < keydef[i].keysegs; j++)
+          if (keyseg[j].flag & HA_BLOB_PART)
+          {
+            keyinfo->has_blob_seg= TRUE;
+            break;
+          }
+      }
       keyseg+= keydef[i].keysegs;
 
       if (keydef[i].algorithm == HA_KEY_ALG_BTREE)

@@ -116,6 +116,7 @@ typedef struct st_hp_keydef		/* Key definition with open */
   uint keysegs;				/* Number of key-segment */
   uint length;				/* Length of key (automatic) */
   uint8 algorithm;			/* HASH / BTREE */
+  my_bool has_blob_seg;			/* Key has HA_BLOB_PART segments */
   HA_KEYSEG *seg;
   HP_BLOCK block;			/* Where keys are saved */
   /*

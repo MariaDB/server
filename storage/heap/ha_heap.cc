@@ -291,6 +291,20 @@ int ha_heap::index_read_map(uchar *buf, const uchar *key,
                             enum ha_rkey_function find_flag)
 {
   DBUG_ASSERT(inited==INDEX);
+  /*
+    When the index has blob key segments, the SQL layer's key buffer (e.g.
+    group_buff from end_update) uses Field_varstring format (2B length +
+    inline data) because Field_blob::new_key_field() returns Field_varstring.
+    But HEAP's hp_hashnr/hp_key_cmp expect hp_make_key format (4B length +
+    data pointer).  Rebuild the key from record[0] which has the correct
+    blob field layout.
+  */
+  if (file->s->keydef[active_index].has_blob_seg)
+  {
+    hp_make_key(file->s->keydef + active_index, (uchar*) file->lastkey,
+                table->record[0]);
+    key= (const uchar*) file->lastkey;
+  }
   int error = heap_rkey(file,buf,active_index, key, keypart_map, find_flag);
   return error;
 }
@@ -299,6 +313,12 @@ int ha_heap::index_read_last_map(uchar *buf, const uchar *key,
                                  key_part_map keypart_map)
 {
   DBUG_ASSERT(inited==INDEX);
+  if (file->s->keydef[active_index].has_blob_seg)
+  {
+    hp_make_key(file->s->keydef + active_index, (uchar*) file->lastkey,
+                table->record[0]);
+    key= (const uchar*) file->lastkey;
+  }
   int error= heap_rkey(file, buf, active_index, key, keypart_map,
 		       HA_READ_PREFIX_LAST);
   return error;
@@ -308,6 +328,12 @@ int ha_heap::index_read_idx_map(uchar *buf, uint index, const uchar *key,
                                 key_part_map keypart_map,
                                 enum ha_rkey_function find_flag)
 {
+  if (file->s->keydef[index].has_blob_seg)
+  {
+    hp_make_key(file->s->keydef + index, (uchar*) file->lastkey,
+                table->record[0]);
+    key= (const uchar*) file->lastkey;
+  }
   int error = heap_rkey(file, buf, index, key, keypart_map, find_flag);
   return error;
 }
