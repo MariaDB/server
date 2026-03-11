@@ -3159,6 +3159,7 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
       Optional_metadata_fields fields(&root, 
                                       m_colcnt,
                                       m_coltype,
+                                      m_field_metadata,
                                       m_optional_metadata,
                                       m_optional_metadata_len,
                                       0);
@@ -3320,43 +3321,36 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
     my_snprintf(typestr, typestr_length, "BIGINT");
     break;
   case MYSQL_TYPE_NEWDECIMAL:
-      my_snprintf(typestr, typestr_length, "DECIMAL(%d,%d)",
-                  (*meta_ptr)[0], (*meta_ptr)[1]);
-      (*meta_ptr)+= 2;
-      break;
+    my_snprintf(typestr, typestr_length, "DECIMAL(%d,%d)",
+                (*meta_ptr)[0], (*meta_ptr)[1]);
+    break;
   case MYSQL_TYPE_FLOAT:
     my_snprintf(typestr, typestr_length, "FLOAT");
-    (*meta_ptr)++;
     break;
   case MYSQL_TYPE_DOUBLE:
     my_snprintf(typestr, typestr_length, "DOUBLE");
-    (*meta_ptr)++;
     break;
   case MYSQL_TYPE_BIT:
     my_snprintf(typestr, typestr_length, "BIT(%d)",
                 (((*meta_ptr)[0])) + (*meta_ptr)[1]*8);
-    (*meta_ptr)+= 2;
     break;
   case MYSQL_TYPE_TIMESTAMP2:
     if (**meta_ptr != 0)
       my_snprintf(typestr, typestr_length, "TIMESTAMP(%d)", **meta_ptr);
     else
       my_snprintf(typestr, typestr_length, "TIMESTAMP");
-    (*meta_ptr)++;
     break;
   case MYSQL_TYPE_DATETIME2:
     if (**meta_ptr != 0)
       my_snprintf(typestr, typestr_length, "DATETIME(%d)", **meta_ptr);
     else
       my_snprintf(typestr, typestr_length, "DATETIME");
-    (*meta_ptr)++;
     break;
   case MYSQL_TYPE_TIME2:
     if (**meta_ptr != 0)
       my_snprintf(typestr, typestr_length, "TIME(%d)", **meta_ptr);
     else
       my_snprintf(typestr, typestr_length, "TIME");
-    (*meta_ptr)++;
     break;
   case MYSQL_TYPE_NEWDATE:
   case MYSQL_TYPE_DATE:
@@ -3367,11 +3361,9 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
     break;
   case MYSQL_TYPE_ENUM:
     my_snprintf(typestr, typestr_length, "ENUM");
-    (*meta_ptr)+= 2;
     break;
   case MYSQL_TYPE_SET:
     my_snprintf(typestr, typestr_length, "SET");
-    (*meta_ptr)+= 2;
     break;
   case MYSQL_TYPE_BLOB:
     {
@@ -3390,8 +3382,6 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
         my_snprintf(typestr, typestr_length, "INVALID_%s(%d)", type_name, size);
       else
         my_snprintf(typestr, typestr_length, "%s%s", names[size], type_name);
-
-      (*meta_ptr)++;
     }
     break;
   case MYSQL_TYPE_VARCHAR:
@@ -3402,8 +3392,6 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
     else
       my_snprintf(typestr, typestr_length, "VARBINARY(%d)",
                   uint2korr(*meta_ptr));
-
-    (*meta_ptr)+= 2;
     break;
   case MYSQL_TYPE_STRING:
     {
@@ -3415,8 +3403,6 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
         my_snprintf(typestr, typestr_length, "CHAR(%d)", len/cs->mbmaxlen);
       else
         my_snprintf(typestr, typestr_length, "BINARY(%d)", len);
-
-      (*meta_ptr)+= 2;
     }
     break;
   case MYSQL_TYPE_GEOMETRY:
@@ -3430,13 +3416,13 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
       else
         my_snprintf(typestr, typestr_length, "INVALID_GEOMETRY_TYPE(%u)",
                     geometry_type);
-      (*meta_ptr)++;
     }
     break;
   default:
     *typestr= 0;
     break;
   }
+  advance_field_metadata_ptr(type, (const uchar**) meta_ptr);
 }
 
 void Table_map_log_event::print_columns(IO_CACHE *file,
@@ -3451,10 +3437,6 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
       Charset_iterator::create_charset_iterator(
           fields.m_enum_and_set_default_charset,
           fields.m_enum_and_set_column_charset);
-  const Optional_metadata_fields::str_vector *set_str_values_it=
-      fields.m_set_str_value.front();
-  const Optional_metadata_fields::str_vector *enum_str_values_it=
-      fields.m_enum_str_value.front();
   const uint *geometry_type_it= fields.m_geometry_type.front();
 
   uint geometry_type= 0;
@@ -3519,17 +3501,13 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
 
     // Print string values of SET and ENUM column
     const Optional_metadata_fields::str_vector *str_values= NULL;
-    if (real_type == MYSQL_TYPE_ENUM &&
-        enum_str_values_it != fields.m_enum_str_value.end())
+    if (real_type == MYSQL_TYPE_ENUM && !column_metadata.enum_str_values.empty())
     {
-      str_values= enum_str_values_it;
-      enum_str_values_it++;
+      str_values= &column_metadata.enum_str_values;
     }
-    else if (real_type == MYSQL_TYPE_SET &&
-             set_str_values_it != fields.m_set_str_value.end())
+    else if (real_type == MYSQL_TYPE_SET && !column_metadata.set_str_values.empty())
     {
-      str_values= set_str_values_it;
-      set_str_values_it++;
+      str_values= &column_metadata.set_str_values;
     }
 
     if (str_values != NULL)

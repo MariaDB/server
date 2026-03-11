@@ -30,6 +30,7 @@
 #define _log_event_h
 
 #include <my_bitmap.h>
+#include "mysql/psi/psi_base.h"
 #include "rpl_constants.h"
 #include "sql_array.h"
 #include <vector>
@@ -4437,6 +4438,42 @@ class table_def;
   </tr>
   </table>
 */
+/**
+  Advances a field metadata pointer past the metadata for one column.
+  The advancement size depends on the column type, mirroring the layout
+  written by Field::save_field_metadata().
+
+  @param[in]     type      The resolved column type (e.g. MYSQL_TYPE_ENUM,
+                            not MYSQL_TYPE_STRING, for enum columns)
+  @param[in,out] meta_ptr  Pointer into the field metadata blob; advanced
+                            in-place by the number of bytes consumed.
+*/
+inline void advance_field_metadata_ptr(uint type, const uchar** meta_ptr)
+{
+  switch (type) {
+  case MYSQL_TYPE_FLOAT:
+  case MYSQL_TYPE_DOUBLE:
+  case MYSQL_TYPE_TIMESTAMP2:
+  case MYSQL_TYPE_DATETIME2:
+  case MYSQL_TYPE_TIME2:
+  case MYSQL_TYPE_BLOB:
+  case MYSQL_TYPE_GEOMETRY:
+    (*meta_ptr)++;
+    break;
+  case MYSQL_TYPE_NEWDECIMAL:
+  case MYSQL_TYPE_BIT:
+  case MYSQL_TYPE_ENUM:
+  case MYSQL_TYPE_SET:
+  case MYSQL_TYPE_VARCHAR:
+  case MYSQL_TYPE_VAR_STRING:
+  case MYSQL_TYPE_STRING:
+    (*meta_ptr)+= 2;
+    break;
+  default:
+    break;
+  }
+}
+
 class Table_map_log_event : public Log_event
 {
 public:
@@ -4548,9 +4585,6 @@ public:
     Dynamic_array<uint> m_column_charset;
     // Character set number of every ENUM or SET column.
     Dynamic_array<uint> m_enum_and_set_column_charset;
-    // each str_vector stores values of one enum/set column
-    Dynamic_array<str_vector> m_enum_str_value;
-    Dynamic_array<str_vector> m_set_str_value;
     Dynamic_array<uint> m_geometry_type;
     /*
       The uint_pair means <column index, prefix length>.  Prefix length is 0 if
@@ -4563,6 +4597,10 @@ public:
         LEX_CSTRING column_name{ nullptr, 0 };
         uchar column_type{};
         bool is_unsigned{ false };
+
+        // each str_vector stores values for the enum/set column
+        str_vector enum_str_values{PSI_INSTRUMENT_MEM, 0};
+        str_vector set_str_values{PSI_INSTRUMENT_MEM, 0};
     };
 
     Dynamic_array<Column_metadata> m_column_metadata;
@@ -4579,6 +4617,7 @@ public:
      */
     Optional_metadata_fields(MEM_ROOT *root, uint master_cols,
                              const uchar* column_types,
+                             const uchar* field_metadata,
                              uchar* optional_metadata,
                              size_t optional_metadata_len,
                              bool only_column_names);

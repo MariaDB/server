@@ -1352,6 +1352,7 @@ default_column_mapping:
   Table_map_log_event::Optional_metadata_fields
     opt_metadata(rgi->thd->mem_root, master_cols,
                  m_tabledef.field_types(),
+                 nullptr,
                  (uchar*) m_tabledef.optional_metadata.str,
                  m_tabledef.optional_metadata.length, 1);
 
