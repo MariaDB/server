@@ -485,7 +485,7 @@ bool store_optimizer_context(THD *thd)
 {
   LEX *lex= thd->lex;
 
-  if (!get_opt_context_recorder(thd) ||
+  if (!thd->opt_ctx_recorder ||
       lex->query_tables == *(lex->query_tables_last))
   {
     return false;
@@ -633,8 +633,7 @@ bool store_optimizer_context(THD *thd)
   optimizer_context IS table.
 */
 table_context_for_store *
-Optimizer_context_recorder::get_table_context(MEM_ROOT *mem_root,
-                                              const TABLE_LIST *tbl)
+Optimizer_context_recorder::get_table_context(const TABLE_LIST *tbl)
 {
   String tbl_name;
   append_full_table_name(tbl, &tbl_name);
@@ -658,7 +657,8 @@ Optimizer_context_recorder::get_table_context(MEM_ROOT *mem_root,
   return table_ctx;
 }
 
-Optimizer_context_recorder::Optimizer_context_recorder()
+Optimizer_context_recorder::Optimizer_context_recorder(MEM_ROOT *mem_root_arg) :
+  mem_root(mem_root_arg)
 {
   my_hash_init(key_memory_trace_ddl_info, &tbl_ctx_hash, system_charset_info,
                16, 0, 0, &Optimizer_context_recorder::get_tbl_ctx_key, 0,
@@ -708,7 +708,7 @@ void Range_list_recorder::add_range(MEM_ROOT *mem_root, const char *range)
     Pointer one can use to add ranges.
 */
 Range_list_recorder *Optimizer_context_recorder::start_range_list_record(
-    MEM_ROOT *mem_root, TABLE_LIST *tbl, size_t found_records,
+    TABLE_LIST *tbl, size_t found_records,
     const char *index_name, const Cost_estimate *cost,
     ha_rows max_index_blocks, ha_rows max_row_blocks)
 {
@@ -732,7 +732,7 @@ Range_list_recorder *Optimizer_context_recorder::start_range_list_record(
     Store the ranges of every index of the table into the
     table context.
   */
-  table_context_for_store *table_ctx= get_table_context(mem_root, tbl);
+  table_context_for_store *table_ctx= get_table_context(tbl);
 
   if (unlikely(!table_ctx))
     return nullptr; // OOM
@@ -748,7 +748,7 @@ Range_list_recorder *Optimizer_context_recorder::start_range_list_record(
   of the table context.
 */
 void Optimizer_context_recorder::record_cost_index_read(
-    MEM_ROOT *mem_root, const TABLE_LIST *tbl, uint key, ha_rows records,
+    const TABLE_LIST *tbl, uint key, ha_rows records,
     bool eq_ref, const ALL_READ_COST *cost)
 {
   cost_index_read_call_record *idx_read_rec=
@@ -762,7 +762,7 @@ void Optimizer_context_recorder::record_cost_index_read(
   idx_read_rec->eq_ref= eq_ref;
   idx_read_rec->cost= *cost;
 
-  table_context_for_store *table_ctx= get_table_context(mem_root, tbl);
+  table_context_for_store *table_ctx= get_table_context(tbl);
 
   if (unlikely(!table_ctx))
     return; // OOM
@@ -784,7 +784,7 @@ const uchar *Optimizer_context_recorder::get_tbl_ctx_key(const void *entry_,
 }
 
 void Optimizer_context_recorder::record_records_in_range(
-    MEM_ROOT *mem_root, const TABLE *tbl, const KEY_PART_INFO *key_part,
+    const TABLE *tbl, const KEY_PART_INFO *key_part,
     uint keynr, const key_range *min_range, const key_range *max_range,
     ha_rows records)
 {
@@ -811,7 +811,7 @@ void Optimizer_context_recorder::record_records_in_range(
   rec_in_range_ctx->records= records;
 
   table_context_for_store *table_ctx=
-      get_table_context(mem_root, tbl->pos_in_table_list);
+      get_table_context(tbl->pos_in_table_list);
 
   if (unlikely(!table_ctx))
     return; // OOM
@@ -819,15 +819,14 @@ void Optimizer_context_recorder::record_records_in_range(
   table_ctx->rir_list.push_back(rec_in_range_ctx, mem_root);
 }
 
-void Optimizer_context_recorder::record_const_table_row(MEM_ROOT *mem_root,
-                                                        TABLE *tbl)
+void Optimizer_context_recorder::record_const_table_row(TABLE *tbl)
 {
   StringBuffer<512> output;
   output.append(STRING_WITH_LEN("REPLACE INTO "));
   append_full_table_name(tbl->pos_in_table_list, &output);
   format_and_store_row(tbl, tbl->record[1], true, " VALUES ", false, output);
   table_context_for_store *table_ctx=
-      get_table_context(mem_root, tbl->pos_in_table_list);
+      get_table_context(tbl->pos_in_table_list);
 
   if (unlikely(!table_ctx))
     return; // OOM
@@ -856,35 +855,6 @@ static void append_full_table_name(const TABLE_LIST *tbl, String *buf)
   buf->append(tbl->get_table_name().str, tbl->get_table_name().length);
 }
 
-Optimizer_context_recorder *get_opt_context_recorder(THD *thd)
-{
-  if (!thd->variables.optimizer_trace ||
-      !thd->variables.optimizer_record_context)
-  {
-    clean_captured_ctx(thd);
-    return nullptr;
-  }
-
-  if (thd->opt_ctx_recorder)
-    return thd->opt_ctx_recorder;
-
-  LEX *lex= thd->lex;
-  if (lex->sql_command == SQLCOM_SELECT ||
-      lex->sql_command == SQLCOM_INSERT_SELECT ||
-      lex->sql_command == SQLCOM_DELETE || lex->sql_command == SQLCOM_UPDATE ||
-      lex->sql_command == SQLCOM_DELETE_MULTI ||
-      lex->sql_command == SQLCOM_UPDATE_MULTI)
-  {
-    thd->opt_ctx_recorder= new Optimizer_context_recorder();
-    return thd->opt_ctx_recorder;
-  }
-  else if (lex->sql_command != SQLCOM_SET_OPTION)
-  {
-    clean_captured_ctx(thd);
-  }
-
-  return nullptr;
-}
 
 Range_list_recorder *
 get_range_list_recorder(THD *thd, MEM_ROOT *mem_root, TABLE_LIST *tbl,
@@ -892,11 +862,11 @@ get_range_list_recorder(THD *thd, MEM_ROOT *mem_root, TABLE_LIST *tbl,
                         Cost_estimate *cost, ha_rows max_index_blocks,
                         ha_rows max_row_blocks)
 {
-  Optimizer_context_recorder *ctx= get_opt_context_recorder(thd);
+  Optimizer_context_recorder *ctx= thd->opt_ctx_recorder;
 
   if (ctx && !thd->lex->explain->is_query_plan_ready())
   {
-    return ctx->start_range_list_record(mem_root, tbl, records, index_name,
+    return ctx->start_range_list_record(tbl, records, index_name,
                                         cost, max_index_blocks,
                                         max_row_blocks);
   }
@@ -1449,21 +1419,46 @@ Optimizer_context_replay::Optimizer_context_replay(THD *thd_arg) : thd(thd_arg)
   parse(); // TODO: error handling?
 }
 
+static bool sql_command_uses_opt_context(enum_sql_command sql_command)
+{
+  return (sql_command == SQLCOM_SELECT ||
+          sql_command == SQLCOM_INSERT_SELECT ||
+          sql_command == SQLCOM_DELETE ||
+          sql_command == SQLCOM_UPDATE ||
+          sql_command == SQLCOM_DELETE_MULTI ||
+          sql_command == SQLCOM_UPDATE_MULTI);
+}
 
 void init_optimizer_context_replay_if_needed(THD *thd)
 {
-  enum_sql_command sql_command= thd->lex->sql_command;
   /* If @@optimizer_replay_context is not empty, start the replay  */
   if (thd->variables.optimizer_replay_context &&
       strlen(thd->variables.optimizer_replay_context) > 0 &&
-      (sql_command == SQLCOM_SELECT ||
-       sql_command == SQLCOM_INSERT_SELECT ||
-       sql_command == SQLCOM_DELETE ||
-       sql_command == SQLCOM_UPDATE ||
-       sql_command == SQLCOM_DELETE_MULTI ||
-       sql_command == SQLCOM_UPDATE_MULTI))
+      sql_command_uses_opt_context(thd->lex->sql_command))
   {
     thd->opt_ctx_replay= new Optimizer_context_replay(thd);
+  }
+}
+
+void init_optimizer_context_recorder_if_needed(THD *thd)
+{
+  if (!thd->variables.optimizer_trace ||
+      !thd->variables.optimizer_record_context)
+  {
+    clean_captured_ctx(thd);
+    return ;
+  }
+  // Recorder is cleaned up after query in THD::cleanup_after_query()
+  DBUG_ASSERT(!thd->opt_ctx_recorder);
+
+  LEX *lex= thd->lex;
+  if (sql_command_uses_opt_context(lex->sql_command))
+  {
+    thd->opt_ctx_recorder= new Optimizer_context_recorder(thd->mem_root);
+  }
+  else if (lex->sql_command != SQLCOM_SET_OPTION)
+  {
+    clean_captured_ctx(thd);
   }
 }
 
