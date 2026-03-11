@@ -1288,7 +1288,10 @@ bool ha_federated::create_where_from_key(String *to,
   bool both_not_null=
     (start_key != NULL && end_key != NULL) ? TRUE : FALSE;
   const uchar *ptr;
-  uint remainder, length;
+#ifndef DBUG_OFF
+  uint remainder;
+#endif
+  uint length;
   char tmpbuff[FEDERATED_QUERY_BUFFER_SIZE];
   String tmp(tmpbuff, sizeof(tmpbuff), system_charset_info);
   const key_range *ranges[2]= { start_key, end_key };
@@ -1315,10 +1318,14 @@ bool ha_federated::create_where_from_key(String *to,
     }
 
     for (key_part= key_info->key_part,
+#ifndef DBUG_OFF
          remainder= key_info->user_defined_key_parts,
+#endif
          length= ranges[i]->length,
          ptr= ranges[i]->key; ;
+#ifndef DBUG_OFF
          remainder--,
+#endif
          key_part++)
     {
       Field *field= key_part->field;
