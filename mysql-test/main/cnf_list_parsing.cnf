@@ -1,6 +1,7 @@
 #
 # MDEV-35767: replicate_do_table does not parse comma separated lists
 #
+!include include/default_my.cnf
 
 [mysqld.2]
 replicate_do_table=test.t1
