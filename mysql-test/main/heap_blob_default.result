@@ -1,0 +1,94 @@
+#
+# MDEV-38975 Phase 1: HEAP blob promotion must preserve column default metadata
+#
+# When a view's underlying TEXT/BLOB column goes through
+# create_tmp_field_from_item_field()'s HEAP blob path, the new
+# Field_blob_key must inherit NO_DEFAULT_VALUE_FLAG and default_value
+# from the source field.  Otherwise DESCRIBE shows an empty Default
+# instead of NULL for NOT NULL columns without a default.
+#
+#
+# Test 1: real TEXT columns — four default/null combinations
+#
+CREATE TABLE t1 (
+nn_nodef TEXT NOT NULL,
+nn_def   TEXT NOT NULL DEFAULT 'hello',
+y_def    TEXT DEFAULT NULL,
+y_nodef  TEXT
+) ENGINE=InnoDB;
+CREATE VIEW v1 AS SELECT nn_nodef, nn_def, y_def, y_nodef FROM t1;
+# nn_nodef  NOT NULL, no default  -> Default must be NULL (no default)
+# nn_def    NOT NULL, 'hello'     -> Default must be 'hello'
+# y_def     nullable, NULL        -> Default must be NULL
+# y_nodef   nullable, implicit    -> Default must be NULL
+DESC v1;
+Field	Type	Null	Key	Default	Extra
+nn_nodef	text	NO		NULL	
+nn_def	text	NO		'hello'	
+y_def	text	YES		NULL	
+y_nodef	text	YES		NULL	
+SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'v1'
+ORDER BY ORDINAL_POSITION;
+COLUMN_NAME	COLUMN_TYPE	IS_NULLABLE	COLUMN_DEFAULT
+nn_nodef	text	NO	NULL
+nn_def	text	NO	'hello'
+y_def	text	YES	NULL
+y_nodef	text	YES	NULL
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# Test 2: VARCHAR columns promoted through expression path
+#
+# COALESCE() wraps in an expression whose type_handler_for_tmp_table()
+# promotes VARCHAR > HEAP_CONVERT_IF_BIGGER_TO_BLOB to BLOB.
+# Expression-derived NOT NULL columns have no user default, so Default
+# must be NULL (no default defined) for the NOT NULL variants and
+# NULL for the nullable variants.
+#
+CREATE TABLE t2 (
+nn_nodef VARCHAR(100) NOT NULL,
+nn_def   VARCHAR(100) NOT NULL DEFAULT 'world',
+y_def    VARCHAR(100) DEFAULT NULL,
+y_nodef  VARCHAR(100)
+) ENGINE=InnoDB;
+CREATE VIEW v2 AS
+SELECT COALESCE(nn_nodef) AS nn_nodef,
+COALESCE(nn_def)   AS nn_def,
+COALESCE(y_def)    AS y_def,
+COALESCE(y_nodef)  AS y_nodef
+FROM t2;
+DESC v2;
+Field	Type	Null	Key	Default	Extra
+nn_nodef	longtext	NO			
+nn_def	longtext	NO			
+y_def	longtext	YES		NULL	
+y_nodef	longtext	YES		NULL	
+SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'v2'
+ORDER BY ORDINAL_POSITION;
+COLUMN_NAME	COLUMN_TYPE	IS_NULLABLE	COLUMN_DEFAULT
+nn_nodef	longtext	NO	''
+nn_def	longtext	NO	''
+y_def	longtext	YES	NULL
+y_nodef	longtext	YES	NULL
+DROP VIEW v2;
+DROP TABLE t2;
+#
+# Test 3: I_S VARCHAR columns promoted in add_schema_fields()
+#
+# NOT NULL I_S columns promoted from varchar to longtext must still
+# show NULL as Default (NO_DEFAULT_VALUE_FLAG must be preserved).
+#
+SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = 'information_schema'
+  AND TABLE_NAME = 'INNODB_LOCKS'
+  AND COLUMN_NAME IN ('lock_id', 'lock_table', 'lock_index')
+ORDER BY ORDINAL_POSITION;
+COLUMN_NAME	COLUMN_TYPE	IS_NULLABLE	COLUMN_DEFAULT
+lock_id	longtext	NO	NULL
+lock_table	longtext	NO	NULL
+lock_index	longtext	YES	NULL

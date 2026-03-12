@@ -1,6 +1,6 @@
 DESC sys.memory_by_host_by_current_bytes;
 Field	Type	Null	Key	Default	Extra
-host	varchar(60)	YES		NULL	
+host	longtext	YES		NULL	
 current_count_used	decimal(41,0)	YES		NULL	
 current_allocated	varchar(14)	YES		NULL	
 current_avg_alloc	varchar(14)	YES		NULL	
@@ -9,7 +9,7 @@ total_allocated	varchar(14)	YES		NULL
 SELECT * FROM sys.memory_by_host_by_current_bytes;
 DESC sys.x$memory_by_host_by_current_bytes;
 Field	Type	Null	Key	Default	Extra
-host	varchar(60)	YES		NULL	
+host	longtext	YES		NULL	
 current_count_used	decimal(41,0)	YES		NULL	
 current_allocated	decimal(41,0)	YES		NULL	
 current_avg_alloc	decimal(45,4)	NO		0.0000	

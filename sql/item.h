@@ -672,19 +672,22 @@ class Tmp_field_param
   bool m_make_copy_field;
   bool m_part_of_unique_key;
   bool m_group_concat;
+  bool m_is_heap_engine;
 public:
   Tmp_field_param(bool group,
                   bool modify_item,
                   bool table_cant_handle_bit_fields,
                   bool make_copy_field,
                   bool part_of_unique_key,
-                  bool group_concat)
+                  bool group_concat,
+                  bool is_heap_engine= false)
    :m_group(group),
     m_modify_item(modify_item),
     m_table_cant_handle_bit_fields(table_cant_handle_bit_fields),
     m_make_copy_field(make_copy_field),
     m_part_of_unique_key(part_of_unique_key),
-    m_group_concat(group_concat)
+    m_group_concat(group_concat),
+    m_is_heap_engine(is_heap_engine)
   { }
   bool group() const { return m_group; }
   bool modify_item() const { return m_modify_item; }
@@ -693,6 +696,7 @@ public:
   bool make_copy_field() const { return m_make_copy_field; }
   bool part_of_unique_key() const { return m_part_of_unique_key; }
   bool group_concat() const { return m_group_concat; }
+  bool is_heap_engine() const { return m_is_heap_engine; }
   void set_modify_item(bool to) { m_modify_item= to; }
 };
 
