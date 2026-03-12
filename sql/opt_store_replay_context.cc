@@ -172,7 +172,7 @@ ST_FIELD_INFO optimizer_context_capture_info[]= {
     Column("CONTEXT", Longtext(65535), NOT_NULL), CEnd()};
 } // namespace Show
 
-static char *strdup_root(MEM_ROOT *root, String *buf);
+static char *strdup_root(MEM_ROOT *root, const String *buf);
 static void append_full_table_name(const TABLE_LIST *tbl, String *buf);
 static int parse_check_obj_start_in_array(json_engine_t *je, String *err_buf,
                                           const char *err_msg);
@@ -800,12 +800,10 @@ void Optimizer_context_recorder::record_records_in_range(
   print_key_value(&min_key, key_part, min_range->key, min_range->length);
   print_key_value(&max_key, key_part, min_range->key, min_range->length);
 
-  if (!(rec_in_range_ctx->min_key=
-            strdup_root(mem_root, min_key.c_ptr_safe())))
+  if (!(rec_in_range_ctx->min_key= strdup_root(mem_root, &min_key)))
     return; // OOM
 
-  if (!(rec_in_range_ctx->max_key=
-            strdup_root(mem_root, max_key.c_ptr_safe())))
+  if (!(rec_in_range_ctx->max_key= strdup_root(mem_root, &max_key)))
     return; // OOM
 
   rec_in_range_ctx->records= records;
@@ -831,7 +829,7 @@ void Optimizer_context_recorder::record_const_table_row(TABLE *tbl)
   if (unlikely(!table_ctx))
     return; // OOM
 
-  char *ins_stmt= strdup_root(mem_root, output.c_ptr_safe());
+  char *ins_stmt= strdup_root(mem_root, &output);
 
   if (unlikely(!ins_stmt))
     return; // OOM
@@ -839,9 +837,9 @@ void Optimizer_context_recorder::record_const_table_row(TABLE *tbl)
   table_ctx->const_tbl_ins_stmt_list.push_back(ins_stmt, mem_root);
 }
 
-static char *strdup_root(MEM_ROOT *root, String *buf)
+static char *strdup_root(MEM_ROOT *root, const String *str)
 {
-  return strdup_root(root, buf->c_ptr_safe());
+  return strmake_root(root, str->ptr(), str->length());
 }
 
 /*
