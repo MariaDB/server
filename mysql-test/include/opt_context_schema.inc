@@ -3,10 +3,6 @@ let $opt_context_schema=
   "description": "schema corresponding to the optimizer context section of the trace",
   "type": "object",
   "properties": {
-    "current_database": {
-      "type": "string",
-      "minLength": 1
-    },
     "list_contexts": {
       "type": "array",
       "uniqueItems": true,
@@ -15,10 +11,6 @@ let $opt_context_schema=
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "minLength": 1
-          },
-          "ddl": {
             "type": "string",
             "minLength": 1
           },
@@ -205,7 +197,6 @@ let $opt_context_schema=
     }
   },
   "required": [
-    "current_database",
     "list_contexts"
   ]
 };

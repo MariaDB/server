@@ -3026,10 +3026,12 @@ static uint make_packed_sortkey(Sort_param *param, uchar *to)
 
 /*
   @brief
-    format the row record and store it in the output
-    for eg: - if print_names, and reqd_table_alias are specified,
-    with a separator of "=", the formatted row looks like
-    "tbl(col1,col2,...,coln)=(val1,val2,...,valn)"
+    Format the row record and store it in the output
+
+  @detail
+    Call this function with print_names=true, reqd_table_alias="tbl",
+    separator="=" and the output would have this form:
+      tbl(col1,col2,...,coln)=(val1,val2,...,valn)
 */
 void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
                           const char *separator, bool reqd_table_alias,
@@ -3059,10 +3061,11 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
   {
     output.append(table->alias);
   }
-  output.append('(');
+
   bool first= true;
   if (print_names)
   {
+    output.append('(');
     for (pfield= table->field; *pfield; pfield++)
     {
       if (table->read_set &&
@@ -3079,14 +3082,16 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
     }
 
     output.append(STRING_WITH_LEN(")"));
-    output.append(separator, strlen(separator));
-    output.append(STRING_WITH_LEN("("));
     first= true;
   }
+
+  output.append(separator, strlen(separator));
+  output.append(STRING_WITH_LEN("("));
 
   for (pfield= table->field; *pfield; pfield++)
   {
     Field *field= *pfield;
+    bool require_quote= false;
 
     if (table->read_set &&
         !bitmap_is_set(table->read_set, (*pfield)->field_index))
@@ -3104,8 +3109,36 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
       if (field->type() == MYSQL_TYPE_BIT)
         (void) field->val_int_as_str(&tmp, 1);
       else
+      {
+        switch (field->type())
+        {
+        case MYSQL_TYPE_VARCHAR:
+        case MYSQL_TYPE_STRING:
+        case MYSQL_TYPE_VAR_STRING:
+        case MYSQL_TYPE_BLOB:
+        case MYSQL_TYPE_TIME2:
+        case MYSQL_TYPE_DATETIME2:
+        case MYSQL_TYPE_TIMESTAMP2:
+        case MYSQL_TYPE_TIME:
+        case MYSQL_TYPE_DATETIME:
+        case MYSQL_TYPE_TIMESTAMP:
+        case MYSQL_TYPE_DATE:
+        case MYSQL_TYPE_YEAR:
+        case MYSQL_TYPE_ENUM:
+        case MYSQL_TYPE_SET:
+          require_quote= true;
+          break;
+        default:
+          break;
+        }
         field->val_str(&tmp);
-      output.append(tmp.ptr(), tmp.length());
+      }
+      if (require_quote)
+        output.append('\'');
+      output.append_for_single_quote_opt_convert(tmp.ptr(), tmp.length(),
+                                                 &my_charset_utf8mb4_bin);
+      if (require_quote)
+        output.append('\'');
     }
   }
   output.append(')');

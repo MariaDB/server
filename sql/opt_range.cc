@@ -17657,9 +17657,6 @@ static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
   const KEY_PART_INFO *cur_key_part= key_parts + keypart->part;
   seq_it= seq_if.init((void *) &seq, 0, flags);
 
-  List<char> range_list;
-  range_list.empty();
-
   while (!seq_if.next(seq_it, &range))
   {
     StringBuffer<128> range_info(system_charset_info);
@@ -17754,17 +17751,17 @@ static ha_rows hook_records_in_range(MEM_ROOT *mem_root, THD *thd,
                                      page_range *pages)
 {
   ha_rows records=
-      (table->file->records_in_range(keynr, min_range, max_range, pages));
+      table->file->records_in_range(keynr, min_range, max_range, pages);
 
-  if (thd->opt_ctx_replay)
+  if (Optimizer_context_replay *repl= thd->opt_ctx_replay)
   {
-    thd->opt_ctx_replay->infuse_records_in_range(
-        table, key_part, keynr, min_range, max_range, &records);
+    repl->infuse_records_in_range(table, key_part, keynr, min_range,
+                                  max_range, &records);
   }
 
-  if (Optimizer_context_recorder *recorder= get_opt_context_recorder(thd))
+  if (Optimizer_context_recorder *recorder= thd->opt_ctx_recorder)
   {
-    recorder->record_records_in_range(mem_root, table, key_part, keynr,
+    recorder->record_records_in_range(table, key_part, keynr,
                                       min_range, max_range, records);
   }
   return records;
