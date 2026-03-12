@@ -1,9 +1,9 @@
 DESC sys.privileges_by_table_by_level;
 Field	Type	Null	Key	Default	Extra
-TABLE_SCHEMA	varchar(64)	NO		NULL	
-TABLE_NAME	varchar(64)	NO		NULL	
-GRANTEE	varchar(385)	NO			
-PRIVILEGE	varchar(64)	NO			
+TABLE_SCHEMA	longtext	NO		NULL	
+TABLE_NAME	longtext	NO		NULL	
+GRANTEE	longtext	NO		NULL	
+PRIVILEGE	longtext	NO		NULL	
 LEVEL	varchar(6)	NO			
 CREATE DATABASE test1;
 USE test1;
