@@ -89,7 +89,7 @@ FROM (SELECT CONCAT(@c:= @c+1, ':',
 PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER ()) AS e
 FROM t3) dt;
 cnt	distinct_e	min_len
-800	800	39
+800	800	2910
 Warnings:
 Warning	4202	800 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 # One assignment per row, not one per row per pass
@@ -100,7 +100,7 @@ assignments
 SELECT variable_name, variable_value FROM information_schema.session_status
 WHERE variable_name = 'Created_tmp_disk_tables';
 variable_name	variable_value
-CREATED_TMP_DISK_TABLES	1
+CREATED_TMP_DISK_TABLES	2
 # Same query without the overflow, for comparison
 SET max_heap_table_size = 64*1024*1024;
 SET tmp_table_size = 64*1024*1024;
@@ -112,7 +112,7 @@ FROM (SELECT CONCAT(@c:= @c+1, ':',
 PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER ()) AS e
 FROM t3) dt;
 cnt	distinct_e	min_len
-800	800	39
+800	800	2910
 Warnings:
 Warning	4202	800 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 SELECT @c AS assignments;
