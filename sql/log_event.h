@@ -4585,7 +4585,6 @@ public:
     Dynamic_array<uint> m_column_charset;
     // Character set number of every ENUM or SET column.
     Dynamic_array<uint> m_enum_and_set_column_charset;
-    Dynamic_array<uint> m_geometry_type;
     /*
       The uint_pair means <column index, prefix length>.  Prefix length is 0 if
       whole column value is used.
@@ -4601,6 +4600,8 @@ public:
         // each str_vector stores values for the enum/set column
         str_vector enum_str_values{PSI_INSTRUMENT_MEM, 0};
         str_vector set_str_values{PSI_INSTRUMENT_MEM, 0};
+
+        uint geometry_type{ 0 };
     };
 
     Dynamic_array<Column_metadata> m_column_metadata;

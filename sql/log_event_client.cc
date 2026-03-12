@@ -3437,9 +3437,6 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
       Charset_iterator::create_charset_iterator(
           fields.m_enum_and_set_default_charset,
           fields.m_enum_and_set_column_charset);
-  const uint *geometry_type_it= fields.m_geometry_type.front();
-
-  uint geometry_type= 0;
 
   my_b_printf(file, "# Columns(");
 
@@ -3468,18 +3465,11 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
       my_b_printf(file, " ");
     }
 
-    // update geometry_type for geometry columns
-    if (real_type == MYSQL_TYPE_GEOMETRY)
-    {
-      geometry_type= (geometry_type_it != fields.m_geometry_type.end()) ?
-        *geometry_type_it++ : 0;
-    }
-
     // print column type
     const uint TYPE_NAME_LEN = 100;
     char type_name[TYPE_NAME_LEN];
     get_type_name(real_type, &field_metadata_ptr, cs, type_name,
-                  TYPE_NAME_LEN, geometry_type);
+                  TYPE_NAME_LEN, column_metadata.geometry_type);
 
     if (type_name[0] == '\0')
     {

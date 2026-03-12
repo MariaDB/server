@@ -18,6 +18,7 @@
 
 #include "mariadb.h"
 #include "mysql/psi/psi_base.h"
+#include "mysql_com.h"
 #include "sql_priv.h"
 #include "handler.h"
 #ifndef MYSQL_CLIENT
@@ -3867,17 +3868,26 @@ static void parse_set_str_value(
 /**
    Parses GEOMETRY_TYPE field.
 
-   @param[out] vec     stores geometry column's types extracted from field.
+   @param[out] column_metadata store all column metadata here (including
+     geometry types)
    @param[in]  field   GEOMETRY_TYPE field in table_map_event.
    @param[in]  length  length of the field
  */
-static void parse_geometry_type(Dynamic_array<uint> &vec,
-                                unsigned char *field, unsigned int length)
+static void parse_geometry_type(
+    Dynamic_array<Table_map_log_event::Optional_metadata_fields::Column_metadata> 
+      &column_metadata,
+    unsigned char *field, unsigned int length)
 {
   unsigned char* p= field;
 
-  while (p < field + length)
-    vec.append(net_field_length(&p));
+  for (unsigned int col = 0; p < field + length && col < column_metadata.size(); col++)
+  {
+    auto& col_metadata = column_metadata.at(col);
+    if (col_metadata.column_type == MYSQL_TYPE_GEOMETRY)
+    {
+      col_metadata.geometry_type = net_field_length(&p);
+    }
+  }
 }
 
 /**
@@ -3935,7 +3945,6 @@ Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
                          bool only_column_names)
     : m_column_charset(PSI_INSTRUMENT_MEM),
       m_enum_and_set_column_charset(PSI_INSTRUMENT_MEM),
-      m_geometry_type(PSI_INSTRUMENT_MEM),
       m_primary_key(PSI_INSTRUMENT_MEM),
       m_column_metadata(PSI_INSTRUMENT_MEM, master_columns)
 {
@@ -3996,7 +4005,7 @@ Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
       parse_set_str_value(m_column_metadata, field, len, MYSQL_TYPE_ENUM);
       break;
     case GEOMETRY_TYPE:
-      parse_geometry_type(m_geometry_type, field, len);
+      parse_geometry_type(m_column_metadata, field, len);
       break;
     case SIMPLE_PRIMARY_KEY:
       parse_simple_pk(m_primary_key, field, len);
