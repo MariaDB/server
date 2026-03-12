@@ -695,6 +695,11 @@ struct row_prebuilt_t {
 	/** The MySQL table object */
 	TABLE*		m_mysql_table;
 
+	/** If TRUE, the SQL layer has advised that we're doing full scan.
+	A locking read will acquire a table-level lock (X or S) instead
+	of acquiring row-level locks. */
+	bool		full_table_scan;
+
 	/** Get template by dict_table_t::cols[] number */
 	const mysql_row_templ_t* get_template_by_col(ulint col) const
 	{

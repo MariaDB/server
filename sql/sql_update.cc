@@ -786,6 +786,8 @@ bool Sql_cmd_update::update_single_table(THD *thd)
            Full index scan must be started with init_read_record_idx
       */
 
+      init_table_full_scan_if_needed(table, conds, limit);
+
       if (query_plan.index == MAX_KEY || (select && select->quick))
         error= init_read_record(&info, thd, table, select, NULL, 0, 1, FALSE);
       else
@@ -881,6 +883,7 @@ update_begin:
   if (select && select->quick && select->quick->reset())
     goto err;
   table->file->try_semi_consistent_read(1);
+  init_table_full_scan_if_needed(table, conds, limit);
   if (init_read_record(&info, thd, table, select, file_sort, 0, 1, FALSE))
     goto err;
 

@@ -774,6 +774,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   if (select && select->quick && select->quick->reset())
     goto got_error;
 
+  init_table_full_scan_if_needed(table, conds, limit);
   if (query_plan.index == MAX_KEY || (select && select->quick))
     error= init_read_record(&info, thd, table, select, file_sort, 1, 1, FALSE);
   else

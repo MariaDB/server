@@ -1,0 +1,12 @@
+--- /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/row_lock.result	2023-11-29 12:36:54.941275754 +1100
++++ /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/row_lock.reject	2026-03-05 16:08:19.816626898 +1100
+@@ -11,8 +11,8 @@
+ UPDATE t4 SET d = 1 WHERE d in ( SELECT a FROM t1 ) ORDER BY c LIMIT 6;
+ connection con11;
+ UPDATE t4 SET d = 9;
+-connection con12;
+ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
++connection con12;
+ connection con11;
+ commit;
+ connection default;

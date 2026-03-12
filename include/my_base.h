@@ -231,7 +231,12 @@ enum ha_extra_function {
   /** Finish HA_EXTRA_BEGIN_COPY or HA_EXTRA_BEGIN_ALTER_IGNORE_COPY */
   HA_EXTRA_END_COPY,
   /** Abort HA_EXTRA_BEGIN_COPY or HA_EXTRA_BEGIN_ALTER_IGNORE_COPY */
-  HA_EXTRA_ABORT_COPY
+  HA_EXTRA_ABORT_COPY,
+  /*
+    Advise the engine that the next operation will be a full table or
+    full index scan
+  */
+  HA_EXTRA_FULL_SCAN
 };
 
 /* Compatible option, to be deleted in 6.0 */

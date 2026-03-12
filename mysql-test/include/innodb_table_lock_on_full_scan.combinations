@@ -1,0 +1,6 @@
+[row_lock]
+--disable_innodb_table_lock_on_full_scan
+
+[table_lock]
+--innodb_table_lock_on_full_scan
+

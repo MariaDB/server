@@ -2,6 +2,7 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/not_embedded.inc
+--source include/innodb_table_lock_on_full_scan.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
@@ -128,8 +129,14 @@ SAVEPOINT s1;
 SET DEBUG_SYNC='now WAIT_FOR t3_waiting';
 --echo # T1: Wait for (T3) auto increment lock on t1 causing  T1 -> T3 -> T2 -> T1 deadlock
 SET debug_dbug = '+d,innodb_deadlock_victim_self';
---error ER_AUTOINC_READ_FAILED
-INSERT INTO t1(col2) VALUES(200);
+if ($MTR_COMBINATION_ROW_LOCK) {
+  --error ER_AUTOINC_READ_FAILED
+  INSERT INTO t1(col2) VALUES(200);
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --error ER_LOCK_DEADLOCK
+  INSERT INTO t1(col2) VALUES(200);
+}
 
 --echo # The transaction should have been rolled back
 SELECT * FROM t1;

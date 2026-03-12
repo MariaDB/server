@@ -1,0 +1,20 @@
+--- /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/autoinc_debug.result	2025-02-19 14:14:39.056154959 +1100
++++ /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/autoinc_debug.reject	2026-03-05 16:31:06.934494369 +1100
+@@ -132,7 +132,7 @@
+ # T1: Wait for (T3) auto increment lock on t1 causing  T1 -> T3 -> T2 -> T1 deadlock
+ SET debug_dbug = '+d,innodb_deadlock_victim_self';
+ INSERT INTO t1(col2) VALUES(200);
+-ERROR HY000: Failed to read auto-increment value from storage engine
++ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ # The transaction should have been rolled back
+ SELECT * FROM t1;
+ col1	col2
+@@ -152,7 +152,7 @@
+ SELECT * FROM t1;
+ col1	col2
+ 1	100
+-2	100
++3	100
+ DROP TABLE t1;
+ SELECT * FROM t2;
+ col1

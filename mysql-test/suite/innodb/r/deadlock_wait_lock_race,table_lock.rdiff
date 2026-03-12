@@ -1,0 +1,19 @@
+--- /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/deadlock_wait_lock_race.result	2026-03-06 15:32:50.445412134 +1100
++++ /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/deadlock_wait_lock_race.reject	2026-03-06 15:33:24.125169729 +1100
+@@ -10,15 +10,12 @@
+ connect con_2,localhost,root,,;
+ SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+ BEGIN;
+-SET DEBUG_SYNC = 'lock_trx_handle_wait_before_unlocked_wait_lock_check SIGNAL upd_locked WAIT_FOR upd_cont';
+ set session innodb_lock_wait_timeout = 1;
+ UPDATE t SET b = 100;
+ connection default;
+-SET DEBUG_SYNC="now WAIT_FOR upd_locked";
+-SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL upd_cont";
+ SELECT * FROM t WHERE a = 10 FOR UPDATE;
+ connection con_2;
+-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
++ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ disconnect con_2;
+ connection default;
+ a	b
