@@ -68,6 +68,8 @@ class federatedx_io_mysql :public federatedx_io
   DYNAMIC_ARRAY savepoints;
   bool requested_autocommit;
   bool actual_autocommit;
+  /** VIO for which time_zone was set; when vio changes (reconnect), set again */
+  void *time_zone_set_vio;
 
   int actual_query(const char *buffer, size_t length);
   bool test_all_restrict() const;
@@ -134,7 +136,8 @@ federatedx_io *instantiate_io_mysql(MEM_ROOT *server_root,
 
 federatedx_io_mysql::federatedx_io_mysql(FEDERATEDX_SERVER *aserver)
   : federatedx_io(aserver),
-    requested_autocommit(TRUE), actual_autocommit(TRUE)
+    requested_autocommit(TRUE), actual_autocommit(TRUE),
+    time_zone_set_vio(NULL)
 {
   DBUG_ENTER("federatedx_io_mysql::federatedx_io_mysql");
 
@@ -162,6 +165,7 @@ void federatedx_io_mysql::reset()
 {
   reset_dynamic(&savepoints);
   set_active(FALSE);
+  time_zone_set_vio= NULL;
   
   requested_autocommit= TRUE;
   mysql.reconnect= 1;
@@ -455,7 +459,18 @@ int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
     if ((error= mysql_real_query(&mysql, STRING_WITH_LEN("set time_zone='+00:00'"))))
       DBUG_RETURN(error);
 
+    time_zone_set_vio= mysql.net.vio;
     mysql.reconnect= 1;
+  }
+  else if (mysql.net.vio != time_zone_set_vio)
+  {
+    /*
+      Connection changed (e.g. driver reconnect or new connection from pool).
+      Set time_zone so TIMESTAMP is consistent (avoids TZ mismatch with LB).
+    */
+    if ((error= mysql_real_query(&mysql, STRING_WITH_LEN("set time_zone='+00:00'"))))
+      DBUG_RETURN(error);
+    time_zone_set_vio= mysql.net.vio;
   }
 
   error= mysql_real_query(&mysql, buffer, (ulong)length);
