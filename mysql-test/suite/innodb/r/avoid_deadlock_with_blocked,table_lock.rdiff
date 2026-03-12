@@ -1,5 +1,5 @@
 --- /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/avoid_deadlock_with_blocked.result	2026-03-05 16:40:26.246544601 +1100
-+++ /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/avoid_deadlock_with_blocked.reject	2026-03-05 16:40:52.806357867 +1100
++++ /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/avoid_deadlock_with_blocked.reject	2026-03-12 11:08:57.116399743 +1100
 @@ -32,8 +32,7 @@
  1
  COMMIT;
@@ -10,8 +10,12 @@
  COMMIT;
  # The scenario when we bypass X<-S pair:
  # <con1, S, granted>,
-@@ -61,12 +60,10 @@
- 1
+@@ -57,16 +56,12 @@
+ connection con1;
+ SET DEBUG_SYNC = 'now WAIT_FOR con3_will_wait';
+ SELECT * FROM t1 FOR UPDATE;
+-id
+-1
  COMMIT;
  connection con2;
 -id
@@ -25,7 +29,7 @@
  COMMIT;
  # A variant of the above scenario:
  # <con1, X REC_NOT_GAP, granted>,
-@@ -87,7 +84,8 @@
+@@ -87,7 +82,8 @@
  INSERT INTO t1 VALUES (0);
  ROLLBACK;
  connection con2;
@@ -35,7 +39,7 @@
  COMMIT;
  # More complicated scenario:
  # <con1, S, granted>,
-@@ -155,8 +153,7 @@
+@@ -155,8 +151,7 @@
  1
  COMMIT;
  connection con3;
@@ -45,8 +49,12 @@
  COMMIT;
  # A secenario, where con1 has to bypass two transactions:
  # <con1, S, granted>
-@@ -185,12 +182,10 @@
- 1
+@@ -181,16 +176,12 @@
+ connection con1;
+ SET DEBUG_SYNC = 'now WAIT_FOR con3_will_wait';
+ SELECT * FROM t1 WHERE id=1 FOR UPDATE;
+-id
+-1
  COMMIT;
  connection con2;
 -id
