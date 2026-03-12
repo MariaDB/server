@@ -1,3 +1,10 @@
+# Every statement below runs while LOCK TABLES is in effect.  The view
+# protocol builds its wrapper view on a second connection, which would
+# then wait for a metadata lock this connection does not release until
+# the test moves on, and the test cannot move on until the view is
+# built.
+--source include/no_view_protocol.inc
+
 #
 # A MEMORY table with a blob locked twice in the same lock set.
 #

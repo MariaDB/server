@@ -4,7 +4,7 @@ OPTIMIZER_COSTS	MEMORY
 show create table information_schema.optimizer_costs;
 Table	Create Table
 OPTIMIZER_COSTS	CREATE TEMPORARY TABLE `OPTIMIZER_COSTS` (
-  `ENGINE` varchar(192) NOT NULL,
+  `ENGINE` longtext NOT NULL,
   `OPTIMIZER_DISK_READ_COST` decimal(9,6) NOT NULL,
   `OPTIMIZER_INDEX_BLOCK_COPY_COST` decimal(9,6) NOT NULL,
   `OPTIMIZER_KEY_COMPARE_COST` decimal(9,6) NOT NULL,
