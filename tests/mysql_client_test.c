@@ -7842,9 +7842,8 @@ static void test_explain_bug()
   DIE_UNLESS(6 == mysql_num_fields(result));
 
   verify_prepare_field(result, 0, "Field", "COLUMN_NAME",
-                       mysql_get_server_version(mysql) <= 50000 ?
-                       MYSQL_TYPE_STRING : MYSQL_TYPE_VAR_STRING,
-                       0, 0, "information_schema", 64, 0);
+                       MYSQL_TYPE_BLOB,
+                       0, 0, "information_schema", 0, 0);
 
   verify_prepare_field(result, 1, "Type", "COLUMN_TYPE", MYSQL_TYPE_BLOB,
                        0, 0, "information_schema", 0, 0);
@@ -7877,9 +7876,8 @@ static void test_explain_bug()
   }
 
   verify_prepare_field(result, 5, "Extra", "EXTRA",
-                       mysql_get_server_version(mysql) <= 50000 ?
-                       MYSQL_TYPE_STRING : MYSQL_TYPE_VAR_STRING,
-                       0, 0, "information_schema", 80, 0);
+                       MYSQL_TYPE_BLOB,
+                       0, 0, "information_schema", 0, 0);
 
   mysql_free_result(result);
   mysql_stmt_close(stmt);

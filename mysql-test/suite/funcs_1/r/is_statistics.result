@@ -28,62 +28,62 @@ DROP FUNCTION test.f1;
 #########################################################################
 DESCRIBE          information_schema.STATISTICS;
 Field	Type	Null	Key	Default	Extra
-TABLE_CATALOG	varchar(512)	NO		NULL	
-TABLE_SCHEMA	varchar(64)	NO		NULL	
-TABLE_NAME	varchar(64)	NO		NULL	
+TABLE_CATALOG	longtext	NO		NULL	
+TABLE_SCHEMA	longtext	NO		NULL	
+TABLE_NAME	longtext	NO		NULL	
 NON_UNIQUE	bigint(1)	NO		NULL	
-INDEX_SCHEMA	varchar(64)	NO		NULL	
-INDEX_NAME	varchar(64)	NO		NULL	
+INDEX_SCHEMA	longtext	NO		NULL	
+INDEX_NAME	longtext	NO		NULL	
 SEQ_IN_INDEX	int(2) unsigned	NO		NULL	
-COLUMN_NAME	varchar(64)	NO		NULL	
+COLUMN_NAME	longtext	NO		NULL	
 COLLATION	varchar(1)	YES		NULL	
 CARDINALITY	bigint(21)	YES		NULL	
 SUB_PART	bigint(3)	YES		NULL	
 PACKED	varchar(10)	YES		NULL	
 NULLABLE	varchar(3)	NO		NULL	
-INDEX_TYPE	varchar(16)	NO		NULL	
-COMMENT	varchar(16)	YES		NULL	
-INDEX_COMMENT	varchar(1024)	NO		NULL	
+INDEX_TYPE	longtext	NO		NULL	
+COMMENT	longtext	YES		NULL	
+INDEX_COMMENT	longtext	NO		NULL	
 IGNORED	varchar(3)	NO		NULL	
 SHOW CREATE TABLE information_schema.STATISTICS;
 Table	Create Table
 STATISTICS	CREATE TEMPORARY TABLE `STATISTICS` (
-  `TABLE_CATALOG` varchar(512) NOT NULL,
-  `TABLE_SCHEMA` varchar(64) NOT NULL,
-  `TABLE_NAME` varchar(64) NOT NULL,
+  `TABLE_CATALOG` longtext NOT NULL,
+  `TABLE_SCHEMA` longtext NOT NULL,
+  `TABLE_NAME` longtext NOT NULL,
   `NON_UNIQUE` bigint(1) NOT NULL,
-  `INDEX_SCHEMA` varchar(64) NOT NULL,
-  `INDEX_NAME` varchar(64) NOT NULL,
+  `INDEX_SCHEMA` longtext NOT NULL,
+  `INDEX_NAME` longtext NOT NULL,
   `SEQ_IN_INDEX` int(2) unsigned NOT NULL,
-  `COLUMN_NAME` varchar(64) NOT NULL,
+  `COLUMN_NAME` longtext NOT NULL,
   `COLLATION` varchar(1),
   `CARDINALITY` bigint(21),
   `SUB_PART` bigint(3),
   `PACKED` varchar(10),
   `NULLABLE` varchar(3) NOT NULL,
-  `INDEX_TYPE` varchar(16) NOT NULL,
-  `COMMENT` varchar(16),
-  `INDEX_COMMENT` varchar(1024) NOT NULL,
+  `INDEX_TYPE` longtext NOT NULL,
+  `COMMENT` longtext,
+  `INDEX_COMMENT` longtext NOT NULL,
   `IGNORED` varchar(3) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 SHOW COLUMNS FROM information_schema.STATISTICS;
 Field	Type	Null	Key	Default	Extra
-TABLE_CATALOG	varchar(512)	NO		NULL	
-TABLE_SCHEMA	varchar(64)	NO		NULL	
-TABLE_NAME	varchar(64)	NO		NULL	
+TABLE_CATALOG	longtext	NO		NULL	
+TABLE_SCHEMA	longtext	NO		NULL	
+TABLE_NAME	longtext	NO		NULL	
 NON_UNIQUE	bigint(1)	NO		NULL	
-INDEX_SCHEMA	varchar(64)	NO		NULL	
-INDEX_NAME	varchar(64)	NO		NULL	
+INDEX_SCHEMA	longtext	NO		NULL	
+INDEX_NAME	longtext	NO		NULL	
 SEQ_IN_INDEX	int(2) unsigned	NO		NULL	
-COLUMN_NAME	varchar(64)	NO		NULL	
+COLUMN_NAME	longtext	NO		NULL	
 COLLATION	varchar(1)	YES		NULL	
 CARDINALITY	bigint(21)	YES		NULL	
 SUB_PART	bigint(3)	YES		NULL	
 PACKED	varchar(10)	YES		NULL	
 NULLABLE	varchar(3)	NO		NULL	
-INDEX_TYPE	varchar(16)	NO		NULL	
-COMMENT	varchar(16)	YES		NULL	
-INDEX_COMMENT	varchar(1024)	NO		NULL	
+INDEX_TYPE	longtext	NO		NULL	
+COMMENT	longtext	YES		NULL	
+INDEX_COMMENT	longtext	NO		NULL	
 IGNORED	varchar(3)	NO		NULL	
 SELECT table_catalog, table_schema, table_name, index_schema, index_name
 FROM information_schema.statistics WHERE table_catalog IS NOT NULL
