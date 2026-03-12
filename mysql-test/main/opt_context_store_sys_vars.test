@@ -26,7 +26,7 @@ select count(*) from t1;
 select context into
     dumpfile "../../tmp/dump1.sql" from information_schema.optimizer_context;
 
---error 1290
+--error ER_OPTION_PREVENTS_STATEMENT
 select context into
     dumpfile "dump1.sql" from information_schema.optimizer_context;
 
