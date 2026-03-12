@@ -2060,4 +2060,22 @@ extern String null_string;
 /* do not check if we are going check less then this number of records */
 #define SELECTIVITY_SAMPLING_THRESHOLD 10
 
+/*
+  An iterator to enumerate string representation of list of ranges.
+
+  Intialization part is intentionally missing as it requires use of data
+  structures internal to opt_range.cc
+*/
+class Range_print_enumerator
+{
+public:
+  virtual bool next()=0;
+  /*
+    Return string representation of the current range, something like
+    "(10) < key1 <= (20)"
+   */
+  virtual const String& get_interval_str()=0;
+  virtual ~Range_print_enumerator(){}
+};
+
 #endif
