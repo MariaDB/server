@@ -165,10 +165,8 @@ private:
   table_context_for_replay *find_table_context(const char *name);
 };
 
-
 /*
-  Optimizer context that was captured and serialized into an SQL script.
-
+  Optimizer context that is captured and serialized into an SQL script.
   This is the source data for INFORMATION_SCHEMA.OPTIMIZER_CONTEXT.
 */
 class Optimizer_context_capture

@@ -144,7 +144,7 @@ analyze select * from t1 where t1.a=5 and t1.b=0 union select * from t1 where t1
 set @const_table_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=SET join_buffer_size)'
+         '(REPLACE INTO.*)([\n\r].*)*(?=set @opt_context)'
         )
         from information_schema.optimizer_context
     );
@@ -179,7 +179,7 @@ analyze select * from t1 where t1.a=1 and t1.b=1;
 set @const_table_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(SET join_buffer_size))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
         )
         from information_schema.optimizer_context
     );
@@ -215,7 +215,7 @@ select count(*) from t1;
 set @stats_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(SET join_buffer_size))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
         )
         from information_schema.optimizer_context
     );
@@ -232,7 +232,7 @@ select count(*) from t1;
 set @stats_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(SET join_buffer_size))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
         )
         from information_schema.optimizer_context
     );
@@ -249,7 +249,7 @@ select count(*) from t1;
 set @stats_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(SET join_buffer_size))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
         )
         from information_schema.optimizer_context
     );
@@ -281,7 +281,7 @@ select count(*) from t1;
 set @stats_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(SET join_buffer_size))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=set @opt_context)'
         )
         from information_schema.optimizer_context
     );
@@ -298,7 +298,7 @@ select count(*) from t1;
 set @stats_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(SET join_buffer_size))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
         )
         from information_schema.optimizer_context
     );
@@ -315,7 +315,7 @@ select count(*) from t1;
 set @stats_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(SET join_buffer_size))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
         )
         from information_schema.optimizer_context
     );
@@ -347,7 +347,7 @@ explain select * from t0, t1 where t0.a=1;
 set @const_table_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(SET join_buffer_size))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
         )
         from information_schema.optimizer_context
     );
