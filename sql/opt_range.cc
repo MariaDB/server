@@ -453,8 +453,7 @@ static void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
 
 static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
                          uint idx, SEL_ARG *keypart,
-                         const KEY_PART_INFO *key_parts,
-                         Range_list_recorder *recorder= NULL);
+                         const KEY_PART_INFO *key_parts);
 
 static
 void print_range_for_non_indexed_field(String *out, Field *field,
@@ -8023,14 +8022,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
       *tree->index_scans_end++= index_scan;
 
       if (unlikely(thd->trace_started()))
-      {
-        TABLE::OPT_RANGE *range= param->table->opt_range + keynr;
-        Range_list_recorder *recorder= get_range_list_recorder(
-            thd, param->old_root, param->table->pos_in_table_list,
-            param->table->key_info[keynr].name.str, found_records, &cost,
-            range->max_index_blocks, range->max_row_blocks);
-        trace_ranges(&trace_range, param, idx, key, key_part, recorder);
-      }
+        trace_ranges(&trace_range, param, idx, key, key_part);
       trace_range.end();
 
       if (unlikely(trace_idx.trace_started()))
@@ -12383,6 +12375,46 @@ void SEL_ARG::test_use_count(SEL_ARG *root)
 #endif
 
 
+class Range_print_enumerator_impl: public Range_print_enumerator
+{
+public:
+  bool next() override
+  {
+    range_info.length(0);
+    if (seq_if.next(seq_it, &range))
+      return true; // No more ranges
+    print_range(&range_info, cur_key_part, &range, n_key_parts);
+    return false;
+  }
+  const String& get_interval_str() override { return range_info; }
+
+  Range_print_enumerator_impl(PARAM *param, uint idx,  SEL_ARG *keypart):
+    range_info(system_charset_info)
+  {
+    KEY *keyinfo= param->table->key_info + param->real_keynr[idx];
+    n_key_parts= param->table->actual_n_key_parts(keyinfo);
+    seq.keyno= idx;
+    seq.key_parts= param->key[idx];
+    seq.real_keyno= param->real_keynr[idx];
+    seq.param= param;
+    seq.start= keypart;
+    cur_key_part= keyinfo->key_part + keypart->part;
+    seq_it= seq_if.init((void *) &seq, 0, 0);
+  }
+
+private:
+  SEL_ARG_RANGE_SEQ seq;
+  KEY_MULTI_RANGE range;
+  range_seq_t seq_it;
+  uint flags= 0;
+  RANGE_SEQ_IF seq_if= {NULL, sel_arg_range_seq_init,
+                        sel_arg_range_seq_next, 0, 0};
+  StringBuffer<128> range_info;
+  uint n_key_parts;
+  const KEY_PART_INFO *cur_key_part;
+};
+
+
 /**
   Check if first key part has only one value
 
@@ -12533,6 +12565,16 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
         file->index_blocks(keynr, param->range_count, rows);
     range->max_row_blocks=
         MY_MIN(file->row_blocks(), rows * file->stats.block_size / IO_SIZE);
+
+    if (Optimizer_context_recorder *rec= param->thd->opt_ctx_recorder)
+    {
+      Range_print_enumerator_impl range_iter(param, idx, tree);
+      rec->record_multi_range_read_info_const(param->table->pos_in_table_list,
+                                              keynr, &range_iter, rows, cost,
+                                              range->max_index_blocks,
+                                              range->max_row_blocks);
+    }
+
     if (update_tbl_stats)
     {
       param->table->opt_range_keys.set_bit(keynr);
@@ -17637,40 +17679,18 @@ void print_range_for_non_indexed_field(String *out, Field *field,
     this is added to the trace
   Also, record the created ranges if record_ranges is enabled
 */
+
 static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
                          uint idx, SEL_ARG *keypart,
-                         const KEY_PART_INFO *key_parts,
-                         Range_list_recorder *recorder)
+                         const KEY_PART_INFO *key_parts)
 {
-  SEL_ARG_RANGE_SEQ seq;
-  KEY_MULTI_RANGE range;
-  range_seq_t seq_it;
-  uint flags= 0;
-  RANGE_SEQ_IF seq_if = {NULL, sel_arg_range_seq_init,
-                         sel_arg_range_seq_next, 0, 0};
-  KEY *keyinfo= param->table->key_info + param->real_keynr[idx];
-  uint n_key_parts= param->table->actual_n_key_parts(keyinfo);
   DBUG_ASSERT(range_trace->trace_started());
-  seq.keyno= idx;
-  seq.key_parts= param->key[idx];
-  seq.real_keyno= param->real_keynr[idx];
-  seq.param= param;
-  seq.start= keypart;
-  /*
-    is_ror_scan is set to FALSE here, because we are only interested
-    in iterating over all the ranges and printing them.
-  */
-  seq.is_ror_scan= FALSE;
-  const KEY_PART_INFO *cur_key_part= key_parts + keypart->part;
-  seq_it= seq_if.init((void *) &seq, 0, flags);
+  Range_print_enumerator_impl range_iter(param, idx, keypart);
 
-  while (!seq_if.next(seq_it, &range))
+  while (!range_iter.next())
   {
-    StringBuffer<128> range_info(system_charset_info);
-    print_range(&range_info, cur_key_part, &range, n_key_parts);
-    range_trace->add(range_info.c_ptr_safe(), range_info.length());
-    if (recorder)
-      recorder->add_range(param->old_root, range_info.c_ptr_safe());
+    const String& str= range_iter.get_interval_str();
+    range_trace->add(str.ptr(), str.length());
   }
 }
 
