@@ -113,7 +113,7 @@ struct Range_record : public Sql_alloc
 /*
    A record of one multi_range_read_info_const() call:
 */
-class Multi_range_read_const_call_record : public Range_list_recorder
+class Multi_range_read_const_call_record : public Sql_alloc
 {
 public:
   char *idx_name;
@@ -682,50 +682,43 @@ Optimizer_context_recorder::search(uchar *tbl_name, size_t tbl_name_len)
                                                     tbl_name_len);
 }
 
-/*
-  @detail
-    Do not use thd->mem_root, allocate memory only on the passed mem_root.
-*/
-void Range_list_recorder::add_range(MEM_ROOT *mem_root, const char *range)
+void Optimizer_context_recorder::record_multi_range_read_info_const(
+    const TABLE_LIST *tbl,
+    uint keynr,
+    Range_print_enumerator *ranges,
+    ha_rows rows,
+    const Cost_estimate *cost,
+    ha_rows max_index_blocks,
+    ha_rows max_row_blocks)
 {
-  Range_record *record= new (mem_root) Range_record;
+  /* Do not record calls made by "Range checked for each record" */
+  if (current_thd->lex->explain->is_query_plan_ready())
+    return;
 
-  if (unlikely(!record))
-    return; // OOM
-
-  if (!(record->range= strdup_root(mem_root, range)))
-    return; // OOM
-
-  ((Multi_range_read_const_call_record *) this)
-      ->range_list.push_back(record, mem_root);
-}
-
-/*
-  @brief
-    Start recording a range list for tbl.index_name
-
-  @return
-    Pointer one can use to add ranges.
-*/
-Range_list_recorder *Optimizer_context_recorder::start_range_list_record(
-    TABLE_LIST *tbl, size_t found_records,
-    const char *index_name, const Cost_estimate *cost,
-    ha_rows max_index_blocks, ha_rows max_row_blocks)
-{
-  Multi_range_read_const_call_record *range_ctx=
-      new (mem_root) Multi_range_read_const_call_record;
+  auto *range_ctx= new (mem_root) Multi_range_read_const_call_record;
 
   if (unlikely(!range_ctx))
-    return nullptr; // OOM
+    return; // OOM
 
+  const char *index_name= tbl->table->key_info[keynr].name.str;
   if (!(range_ctx->idx_name= strdup_root(mem_root, index_name)))
-    return nullptr; // OOM
+    return; // OOM
 
-  range_ctx->num_records= found_records;
+  range_ctx->num_records= rows;
+  range_ctx->cost= *cost;
+  range_ctx->max_index_blocks= max_index_blocks;
+  range_ctx->max_row_blocks= max_row_blocks;
+
+  while (!ranges->next())
   {
-    range_ctx->cost= *cost;
-    range_ctx->max_index_blocks= max_index_blocks;
-    range_ctx->max_row_blocks= max_row_blocks;
+    Range_record *record= new (mem_root) Range_record;
+    if (unlikely(!record))
+      return; // OOM
+    const String &str= ranges->get_interval_str();
+
+    if (!(record->range= strdup_root(mem_root, &str)))
+      return;
+    range_ctx->range_list.push_back(record, mem_root);
   }
 
   /*
@@ -735,12 +728,9 @@ Range_list_recorder *Optimizer_context_recorder::start_range_list_record(
   table_context_for_store *table_ctx= get_table_context(tbl);
 
   if (unlikely(!table_ctx))
-    return nullptr; // OOM
+    return; // OOM
 
-  if (table_ctx->mrr_list.push_back(range_ctx, mem_root))
-    return nullptr;
-
-  return range_ctx;
+  table_ctx->mrr_list.push_back(range_ctx, mem_root);
 }
 
 /*
@@ -853,24 +843,6 @@ static void append_full_table_name(const TABLE_LIST *tbl, String *buf)
   buf->append(tbl->get_table_name().str, tbl->get_table_name().length);
 }
 
-
-Range_list_recorder *
-get_range_list_recorder(THD *thd, MEM_ROOT *mem_root, TABLE_LIST *tbl,
-                        const char *index_name, ha_rows records,
-                        Cost_estimate *cost, ha_rows max_index_blocks,
-                        ha_rows max_row_blocks)
-{
-  Optimizer_context_recorder *ctx= thd->opt_ctx_recorder;
-
-  if (ctx && !thd->lex->explain->is_query_plan_ready())
-  {
-    return ctx->start_range_list_record(tbl, records, index_name,
-                                        cost, max_index_blocks,
-                                        max_row_blocks);
-  }
-
-  return nullptr;
-}
 
 /*
   This class is used to store the in-memory representation of
