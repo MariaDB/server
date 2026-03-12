@@ -19,8 +19,7 @@
 #include <string.h> /* memcpy */
 
 /*
-  Portable byte-swap helpers.  Each expands to a single instruction on
-  all major compilers and architectures.
+  Byte-swap helpers.
 */
 #ifdef _MSC_VER
 #  include <stdlib.h> /* _byteswap_* */
@@ -169,20 +168,20 @@ static inline void int8store(void *t, ulonglong a)
   are correct on any host endianness without further #ifdefs.
 */
 
-static inline int32 sint3korr(const void *p)
-{
-  const uchar *a= (const uchar *) p;
-  uint32 ret=
-      ((uint32) a[0]) | (((uint32) a[1]) << 8) | (((uint32) a[2]) << 16);
-  if (a[2] & 128)
-    ret|= ((uint32) 255L << 24);
-  return (int32) ret;
-}
 
 static inline uint32 uint3korr(const void *p)
 {
-  const uchar *a= (const uchar *) p;
-  return ((uint32) a[0]) | (((uint32) a[1]) << 8) | (((uint32) a[2]) << 16);
+  return (uint32) uint2korr(p) | ((uint32) ((const uchar *) p)[2] << 16);
+}
+
+static inline int32 sint3korr(const void *p)
+{
+  uint32 v = uint3korr(p);
+  /*
+    Shift left to move sign bit into MSB position, then arithmetic
+    right shift to sign-extend back.
+  */
+  return ((int32)(v << 8)) >> 8;
 }
 
 static inline ulonglong uint5korr(const void *p)
@@ -199,24 +198,22 @@ static inline ulonglong uint6korr(const void *p)
 static inline void int3store(void *t, ulonglong a)
 {
   uchar *p= (uchar *) t;
-  p[0]= (uchar) a;
-  p[1]= (uchar) (a >> 8);
+  int2store(t, a);
   p[2]= (uchar) (a >> 16);
 }
 
 static inline void int5store(void *t, ulonglong a)
 {
   uchar *p= (uchar *) t;
-  int4store(t, (uint32) a);
+  int4store(t, a);
   p[4]= (uchar) (a >> 32);
 }
 
 static inline void int6store(void *t, ulonglong a)
 {
   uchar *p= (uchar *) t;
-  int4store(t, (uint32)a);
-  p[4]= (uchar) (a >> 32);
-  p[5]= (uchar) (a >> 40);
+  int4store(t, a);
+  int2store(p + 4, a >> 32);
 }
 
 /*
