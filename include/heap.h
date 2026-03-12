@@ -118,6 +118,7 @@ typedef struct st_hp_keydef		/* Key definition with open */
   uint8 algorithm;			/* HASH / BTREE */
   my_bool has_blob_seg;			/* Key has HA_BLOB_PART segments */
   my_bool needs_key_rebuild_from_group_buff; /* GROUP BY key must be rebuilt from group_buff */
+  my_bool blob_data_in_record;		/* BLOB data written to record[0] by heap_store_key_blob_ref */
   HA_KEYSEG *seg;
   HP_BLOCK block;			/* Where keys are saved */
   /*

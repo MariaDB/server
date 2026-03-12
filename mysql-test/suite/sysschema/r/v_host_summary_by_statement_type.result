@@ -1,7 +1,7 @@
 DESC sys.host_summary_by_statement_type;
 Field	Type	Null	Key	Default	Extra
-host	varchar(255)	YES		NULL	
-statement	varchar(128)	YES		NULL	
+host	text	YES		NULL	
+statement	text	YES		NULL	
 total	bigint(20) unsigned	NO		NULL	
 total_latency	text	YES		NULL	
 max_latency	text	YES		NULL	
@@ -13,8 +13,8 @@ full_scans	bigint(21) unsigned	NO		0
 SELECT * FROM sys.host_summary_by_statement_type;
 DESC sys.x$host_summary_by_statement_type;
 Field	Type	Null	Key	Default	Extra
-host	varchar(255)	YES		NULL	
-statement	varchar(128)	YES		NULL	
+host	text	YES		NULL	
+statement	text	YES		NULL	
 total	bigint(20) unsigned	NO		NULL	
 total_latency	bigint(20) unsigned	NO		NULL	
 max_latency	bigint(20) unsigned	NO		NULL	

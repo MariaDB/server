@@ -45,4 +45,11 @@ IF(WITH_UNIT_TESTS)
   TARGET_COMPILE_DEFINITIONS(hp_test_key_setup-t PRIVATE MYSQL_SERVER)
   TARGET_LINK_LIBRARIES(hp_test_key_setup-t heap sql mytap)
   MY_ADD_TEST(hp_test_key_setup)
+
+  ADD_EXECUTABLE(hp_test_blob_promotion-t
+    hp_test_blob_promotion-t.cc
+    ${CMAKE_SOURCE_DIR}/unittest/sql/dummy_builtins.cc)
+  TARGET_COMPILE_DEFINITIONS(hp_test_blob_promotion-t PRIVATE MYSQL_SERVER)
+  TARGET_LINK_LIBRARIES(hp_test_blob_promotion-t heap sql mytap)
+  MY_ADD_TEST(hp_test_blob_promotion)
 ENDIF()

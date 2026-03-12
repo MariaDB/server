@@ -1127,6 +1127,338 @@ static void test_varchar_promoted_to_blob()
 }
 
 
+/*
+  derived_with_keys_no_widening: when create_key_part_by_field() sets
+  key_part->length = field_length for a promoted BLOB, heap_prepare
+  must NOT widen to max_data_length().
+
+  Contrast with the promoted_blob test above where key_part->length = 20
+  (a stale varchar-like value != field_length) which DOES get widened.
+
+  The derived_with_keys path (ref access on materialized derived tables)
+  sets key_part->length = field_length via create_key_part_by_field().
+  Field_blob::new_key_field() creates a Field_varstring of that length,
+  so widening to max_data_length() would create a multi-GB Field_varstring.
+*/
+static void test_derived_blob_key_no_widening()
+{
+  static const LEX_CSTRING fname_id= {STRING_WITH_LEN("id")};
+
+  /*
+    Simulate a derived table with two fields:
+      - id: INT (4 bytes) at offset 1
+      - TABLE_SCHEMA: BLOB promoted from VARCHAR(64) utf8 at offset 5
+        packlength=4, field_length=192 (64*3)
+    Record layout:
+      byte 0:    null bitmap
+      bytes 1-4: INT
+      bytes 5-8: blob packlength=4 (length, little-endian)
+      bytes 9-16: blob data pointer (8 bytes)
+    reclength = 17
+  */
+#define DWK_REC_LENGTH 17
+#define DWK_INT_OFFSET 1
+#define DWK_BLOB_OFFSET 5
+#define DWK_BLOB_PACKLEN 4
+#define DWK_BLOB_FIELD_LENGTH 192  /* VARCHAR(64) * 3 (utf8 mbmaxlen) */
+
+  uchar rec_buf[DWK_REC_LENGTH + 8];
+  memset(rec_buf, 0, sizeof(rec_buf));
+
+  TABLE_SHARE share;
+  memset(static_cast<void*>(&share), 0, sizeof(share));
+  share.fields= 2;
+  share.keys= 1;
+  share.reclength= DWK_REC_LENGTH;
+  share.rec_buff_length= DWK_REC_LENGTH;
+  share.db_record_offset= 1;
+  share.blob_fields= 0;
+
+  /* Field 0: INT at offset 1 */
+  alignas(Field_long) char fl_storage[sizeof(Field_long)];
+  Field_long *fl= ::new (fl_storage) Field_long(
+      rec_buf + DWK_INT_OFFSET, 11, (uchar*) 0, 0,
+      Field::NONE, &fname_id, false, false);
+  fl->field_index= 0;
+
+  /* Field 1: BLOB promoted from VARCHAR(64) utf8 */
+  alignas(Field_blob) char bf_storage[sizeof(Field_blob)];
+  Field_blob *bf= make_test_field_blob(bf_storage,
+                                       rec_buf + DWK_BLOB_OFFSET,
+                                       (uchar*) 0, 0,
+                                       &share, DWK_BLOB_PACKLEN,
+                                       &my_charset_utf8mb3_general_ci);
+  bf->field_index= 1;
+  /* Simulate Phase 1 promotion: set field_length to original VARCHAR size */
+  bf->field_length= DWK_BLOB_FIELD_LENGTH;
+
+  Field *field_array[3]= { fl, bf, NULL };
+
+  uint blob_offsets[1]= { 1 };
+  share.blob_field= blob_offsets;
+
+  /*
+    KEY_PART_INFO: set up as create_key_part_by_field() does for BLOB.
+    key_part->length = field_length (192), NOT pack_length.
+    key_part->key_part_flag = HA_BLOB_PART (from Field_blob::key_part_flag()).
+  */
+  KEY_PART_INFO kpis[2];
+  memset(kpis, 0, sizeof(kpis));
+
+  kpis[0].field= fl;
+  kpis[0].offset= DWK_INT_OFFSET;
+  kpis[0].length= 4;
+  kpis[0].key_part_flag= 0;
+  kpis[0].type= fl->key_type();
+  kpis[0].store_length= 4;
+
+  kpis[1].field= bf;
+  kpis[1].offset= DWK_BLOB_OFFSET;
+  kpis[1].length= DWK_BLOB_FIELD_LENGTH;  /* = field_length, NOT pack_length */
+  kpis[1].key_part_flag= bf->key_part_flag();  /* HA_BLOB_PART */
+  kpis[1].type= bf->key_type();
+  kpis[1].store_length= DWK_BLOB_FIELD_LENGTH + bf->key_part_length_bytes();
+
+  KEY sql_key;
+  memset(&sql_key, 0, sizeof(sql_key));
+  sql_key.user_defined_key_parts= 2;
+  sql_key.usable_key_parts= 2;
+  sql_key.key_part= kpis;
+  sql_key.algorithm= HA_KEY_ALG_HASH;
+  sql_key.key_length= kpis[0].store_length + kpis[1].store_length;
+
+  TABLE test_table;
+  memset(static_cast<void*>(&test_table), 0, sizeof(test_table));
+  test_table.record[0]= rec_buf;
+  test_table.s= &share;
+  test_table.field= field_array;
+  test_table.key_info= &sql_key;
+  share.key_info= &sql_key;
+
+  fl->table= &test_table;
+  bf->table= &test_table;
+
+  Fake_thd_guard thd_guard;
+
+  HP_CREATE_INFO hp_ci;
+  memset(&hp_ci, 0, sizeof(hp_ci));
+  hp_ci.max_table_size= 1024*1024;
+  hp_ci.keys= 1;
+  hp_ci.reclength= DWK_REC_LENGTH;
+
+  int err= test_heap_prepare_hp_create_info(&test_table, TRUE, &hp_ci);
+
+  ok(err == 0,
+     "derived_no_widening: heap_prepare succeeded (err=%d)", err);
+
+  HP_KEYDEF *kd= &hp_ci.keydef[0];
+
+  /* seg[0]: INT — unchanged */
+  ok(kd->seg[0].length == 4,
+     "derived_no_widening: seg[0].length = %u (expected 4)",
+     (uint) kd->seg[0].length);
+
+  /* seg[1]: promoted blob — seg->length = 0 (blob convention) */
+  ok(kd->seg[1].flag & HA_BLOB_PART,
+     "derived_no_widening: seg[1] has HA_BLOB_PART");
+  ok(kd->seg[1].length == 0,
+     "derived_no_widening: seg[1].length = %u (expected 0)",
+     (uint) kd->seg[1].length);
+
+  /* key_part->length must NOT be widened to max_data_length() */
+  ok(kpis[1].length == DWK_BLOB_FIELD_LENGTH,
+     "derived_no_widening: key_part.length = %u (expected %u, NOT %u)",
+     (uint) kpis[1].length, DWK_BLOB_FIELD_LENGTH,
+     (uint) bf->max_data_length());
+
+  /* store_length and key_length should also be unchanged */
+  uint expected_store= DWK_BLOB_FIELD_LENGTH + bf->key_part_length_bytes();
+  ok(kpis[1].store_length == expected_store,
+     "derived_no_widening: store_length = %u (expected %u)",
+     (uint) kpis[1].store_length, expected_store);
+
+  my_free(hp_ci.keydef);
+  my_free(hp_ci.blob_descs);
+  bf->~Field_blob();
+  fl->~Field_long();
+
+#undef DWK_REC_LENGTH
+#undef DWK_INT_OFFSET
+#undef DWK_BLOB_OFFSET
+#undef DWK_BLOB_PACKLEN
+#undef DWK_BLOB_FIELD_LENGTH
+}
+
+
+/*
+  derived_blob_key_longblob: LONGBLOB (packlength=4, field_length=UINT32_MAX)
+  with key_part->length = 0 and metadata-only store_length.
+
+  This simulates the direct-to-record[0] path where add_tmp_key() leaves
+  BLOB key parts with length=0 (from key_length()) and store_length has
+  only HA_KEY_BLOB_LENGTH (2 bytes) + HA_KEY_NULL_LENGTH.  The key buffer
+  has no space for BLOB data — heap_store_key_blob_ref writes directly
+  into record[0]'s Field_blob.
+
+  heap_prepare_hp_create_info must handle this correctly:
+    - seg->flag = HA_BLOB_PART
+    - seg->length = 0
+    - No widening (key_part->length = 0 < pack_no_ptr, condition is FALSE)
+*/
+static void test_derived_blob_key_longblob()
+{
+  static const LEX_CSTRING fname_id= {STRING_WITH_LEN("id")};
+
+  /*
+    Record layout:
+      byte 0:     null bitmap
+      bytes 1-4:  INT
+      bytes 5-8:  blob packlength=4 (LONGBLOB)
+      bytes 9-16: blob data pointer (8 bytes)
+    reclength = 17
+  */
+#define LB_REC_LENGTH 17
+#define LB_INT_OFFSET 1
+#define LB_BLOB_OFFSET 5
+#define LB_BLOB_PACKLEN 4
+
+  uchar rec_buf[LB_REC_LENGTH + 8];
+  memset(rec_buf, 0, sizeof(rec_buf));
+
+  TABLE_SHARE share;
+  memset(static_cast<void*>(&share), 0, sizeof(share));
+  share.fields= 2;
+  share.keys= 1;
+  share.reclength= LB_REC_LENGTH;
+  share.rec_buff_length= LB_REC_LENGTH;
+  share.db_record_offset= 1;
+  share.blob_fields= 0;
+
+  /* Field 0: INT at offset 1 */
+  alignas(Field_long) char fl_storage[sizeof(Field_long)];
+  Field_long *fl= ::new (fl_storage) Field_long(
+      rec_buf + LB_INT_OFFSET, 11, (uchar*) 0, 0,
+      Field::NONE, &fname_id, false, false);
+  fl->field_index= 0;
+
+  /* Field 1: LONGBLOB at offset 5 (packlength=4) */
+  alignas(Field_blob) char bf_storage[sizeof(Field_blob)];
+  Field_blob *bf= make_test_field_blob(bf_storage,
+                                       rec_buf + LB_BLOB_OFFSET,
+                                       rec_buf, 2, /* nullable, null_bit=2 */
+                                       &share, LB_BLOB_PACKLEN,
+                                       &my_charset_latin1);
+  bf->field_index= 1;
+
+  Field *field_array[3]= { fl, bf, NULL };
+
+  uint blob_offsets[1]= { 1 };
+  share.blob_field= blob_offsets;
+
+  /*
+    KEY_PART_INFO: simulates what add_tmp_key() produces with the
+    direct-to-record[0] fix — no BLOB length override.
+    key_part->length = 0 (from Field_blob::key_length())
+    store_length = 0 + HA_KEY_BLOB_LENGTH(2) + HA_KEY_NULL_LENGTH(1) = 3
+  */
+  KEY_PART_INFO kpis[2];
+  memset(kpis, 0, sizeof(kpis));
+
+  kpis[0].field= fl;
+  kpis[0].offset= LB_INT_OFFSET;
+  kpis[0].length= 4;
+  kpis[0].key_part_flag= 0;
+  kpis[0].type= fl->key_type();
+  kpis[0].store_length= 4;
+
+  kpis[1].field= bf;
+  kpis[1].offset= LB_BLOB_OFFSET;
+  kpis[1].length= 0;                          /* key_length() = 0 for blobs */
+  kpis[1].null_bit= 2;
+  kpis[1].null_offset= 0;
+  kpis[1].key_part_flag= bf->key_part_flag();  /* HA_BLOB_PART */
+  kpis[1].type= bf->key_type();
+  /* store_length = HA_KEY_BLOB_LENGTH + HA_KEY_NULL_LENGTH = 3 */
+  kpis[1].store_length= HA_KEY_BLOB_LENGTH + HA_KEY_NULL_LENGTH;
+
+  KEY sql_key;
+  memset(&sql_key, 0, sizeof(sql_key));
+  sql_key.user_defined_key_parts= 2;
+  sql_key.usable_key_parts= 2;
+  sql_key.key_part= kpis;
+  sql_key.algorithm= HA_KEY_ALG_HASH;
+  sql_key.key_length= kpis[0].store_length + kpis[1].store_length;
+
+  TABLE test_table;
+  memset(static_cast<void*>(&test_table), 0, sizeof(test_table));
+  test_table.record[0]= rec_buf;
+  test_table.s= &share;
+  test_table.field= field_array;
+  test_table.key_info= &sql_key;
+  share.key_info= &sql_key;
+
+  fl->table= &test_table;
+  bf->table= &test_table;
+
+  Fake_thd_guard thd_guard;
+
+  HP_CREATE_INFO hp_ci;
+  memset(&hp_ci, 0, sizeof(hp_ci));
+  hp_ci.max_table_size= 1024*1024;
+  hp_ci.keys= 1;
+  hp_ci.reclength= LB_REC_LENGTH;
+
+  int err= test_heap_prepare_hp_create_info(&test_table, TRUE, &hp_ci);
+
+  ok(err == 0,
+     "longblob: heap_prepare succeeded (err=%d)", err);
+
+  HP_KEYDEF *kd= &hp_ci.keydef[0];
+  ok(kd->keysegs == 2,
+     "longblob: keysegs = %u (expected 2)", kd->keysegs);
+  ok(kd->has_blob_seg != 0,
+     "longblob: has_blob_seg is set");
+
+  /* seg[0]: INT — unchanged */
+  ok(kd->seg[0].length == 4,
+     "longblob: seg[0].length = %u (expected 4)",
+     (uint) kd->seg[0].length);
+  ok(!(kd->seg[0].flag & HA_BLOB_PART),
+     "longblob: seg[0] has NO HA_BLOB_PART");
+
+  /* seg[1]: LONGBLOB — must have HA_BLOB_PART, length=0 */
+  ok(kd->seg[1].flag & HA_BLOB_PART,
+     "longblob: seg[1].flag (0x%x) has HA_BLOB_PART",
+     (uint) kd->seg[1].flag);
+  ok(kd->seg[1].length == 0,
+     "longblob: seg[1].length = %u (expected 0)",
+     (uint) kd->seg[1].length);
+  /*
+    bit_start (packlength) is set later by hp_create() from blob_descs,
+    not by heap_prepare_hp_create_info().  Don't check it here.
+  */
+
+  /* key_part->length must NOT be widened (0 < pack_no_ptr → no widening) */
+  ok(kpis[1].length == 0,
+     "longblob: key_part.length = %u (expected 0, not widened)",
+     (uint) kpis[1].length);
+
+  /* store_length remains metadata-only */
+  ok(kpis[1].store_length == HA_KEY_BLOB_LENGTH + HA_KEY_NULL_LENGTH,
+     "longblob: store_length = %u (expected %u = metadata only)",
+     (uint) kpis[1].store_length,
+     (uint)(HA_KEY_BLOB_LENGTH + HA_KEY_NULL_LENGTH));
+
+  my_free(hp_ci.keydef);
+  my_free(hp_ci.blob_descs);
+  bf->~Field_blob();
+  fl->~Field_long();
+
+#undef LB_REC_LENGTH
+#undef LB_INT_OFFSET
+#undef LB_BLOB_OFFSET
+#undef LB_BLOB_PACKLEN
+}
 
 
 /*
@@ -1407,7 +1739,7 @@ int main(int argc __attribute__((unused)),
   MY_INIT("hp_test_key_setup");
   /* Field constructors reference system_charset_info via DTCollation */
   system_charset_info= &my_charset_latin1;
-  plan(63);
+  plan(78);
 
   diag("distinct_key_truncation: key_part->length widened for blob key parts");
   test_distinct_key_truncation();
@@ -1433,6 +1765,12 @@ int main(int argc __attribute__((unused)),
 
   diag("promoted_blob: varchar promoted to blob in tmp table");
   test_varchar_promoted_to_blob();
+
+  diag("derived_no_widening: blob key_part.length = field_length must not be widened");
+  test_derived_blob_key_no_widening();
+
+  diag("longblob: LONGBLOB with metadata-only store_length (direct-to-record[0])");
+  test_derived_blob_key_longblob();
 
   diag("needs_rebuild: needs_key_rebuild_from_group_buff flag with/without table->group");
   test_needs_key_rebuild_from_group_buff();

@@ -2113,6 +2113,40 @@ public:
 };
 
 
+/*
+  HEAP-only store_key that writes the lookup value directly into the
+  derived table's record[0] blob field, bypassing the SQL-layer key
+  buffer entirely.  Non-BLOB key parts continue to use the key buffer.
+
+  Data flow:
+    heap_store_key_blob_ref::copy() → Field_blob(record[0]) directly
+  Then materialize_heap_key_if_needed() → hp_make_key(record[0]) builds
+  the HEAP key.  BLOB data is already in record[0]; non-BLOB parts are
+  copied from the key buffer to record[0] as before.
+
+  Inherits store_key_item so copy_inner() calls item->save_in_field()
+  which writes into to_field (the actual Field_blob in record[0]).
+  The base ctor creates a throwaway Field_varstring(0) which is
+  immediately replaced.
+*/
+class heap_store_key_blob_ref : public store_key_item
+{
+public:
+  heap_store_key_blob_ref(THD *thd, Field *blob_field, Item *val,
+                          bool value_arg)
+    : store_key_item(thd, blob_field, blob_field->ptr,
+                     blob_field->maybe_null() ? blob_field->null_ptr : 0,
+                     0, val, value_arg)
+  {
+    /* Replace the dummy Field_varstring(0) with the actual blob field */
+    to_field= blob_field;
+  }
+
+  enum Type type() const override { return ITEM_STORE_KEY; }
+  const char *name() const override { return "blob_ref"; }
+};
+
+
 class store_key_const_item :public store_key_item
 {
   bool inited;

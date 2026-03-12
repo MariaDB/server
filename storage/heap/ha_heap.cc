@@ -393,14 +393,120 @@ void ha_heap::rebuild_key_from_group_buff(HP_KEYDEF *keydef, const uchar *&key,
 
 
 /*
+  Parse SQL-layer key buffer into record[0] for non-GROUP BY blob indexes.
+
+  The SQL layer builds keys using Field_blob::new_key_field() which
+  returns a Field_varstring.  The resulting key uses 2B length + inline
+  data format.  HEAP's hp_hashnr/hp_key_cmp expect hp_make_key format:
+  4B length + data pointer.
+
+  For materialization lookups (both semi-join and non-semi-join), the
+  SQL layer passes a key buffer to index_read_map() but does NOT
+  populate the temp table's record[0] with the lookup values.  We must
+  parse the key buffer to extract blob data into record[0], then call
+  hp_make_key() to produce the HEAP-format key.
+
+  Iterates HA_KEYSEG segments (not SQL-layer KEY_PART_INFO) because
+  HA_KEYSEG carries the segment's wire format (flag, bit_start for
+  packlength, seg->start for record offset) needed to populate
+  record[0] correctly for hp_make_key().
+*/
+void ha_heap::rebuild_blob_key_from_segments(HP_KEYDEF *keydef,
+                                             const uchar *&key,
+                                             my_bool blob_in_record)
+{
+  const uchar *key_pos= key;
+  for (uint seg_idx= 0; seg_idx < keydef->keysegs; seg_idx++)
+  {
+    HA_KEYSEG *seg= &keydef->seg[seg_idx];
+    if (seg->null_bit)
+    {
+      /*
+        Copy null flag from key buffer to record[0]'s null bitmap.
+        hp_make_key() reads null status from rec[null_pos] & null_bit.
+      */
+      uchar *null_byte= table->record[0] + seg->null_pos;
+      if (*key_pos)
+        *null_byte|= seg->null_bit;          /* set null */
+      else
+        *null_byte&= ~seg->null_bit;         /* clear null */
+      key_pos++;
+    }
+    if (seg->flag & HA_BLOB_PART)
+    {
+      if (blob_in_record)
+      {
+        /*
+          Direct-to-record[0] path (heap_store_key_blob_ref): BLOB
+          data is already in record[0].  Skip the metadata placeholder
+          bytes (HA_KEY_BLOB_LENGTH = 2) in the key buffer.
+        */
+        key_pos+= HA_KEY_BLOB_LENGTH;
+      }
+      else
+      {
+        /*
+          Old path: BLOB data is in the key buffer as Field_varstring
+          format (2B length + inline data).  Extract and store into
+          record[0]'s blob field (packlength + data pointer).
+        */
+        uint16 varchar_len= uint2korr(key_pos);
+        const uchar *varchar_data= key_pos + 2;
+        key_pos= varchar_data + varchar_len;
+
+        uint packlength= seg->bit_start;
+        uchar *blob_field= table->record[0] + seg->start;
+        store_lowendian((ulonglong) varchar_len, blob_field, packlength);
+        memcpy(blob_field + packlength, &varchar_data, sizeof(void*));
+      }
+      continue;
+    }
+    /*
+      Non-BLOB segments: copy data from the key buffer to record[0].
+      hp_make_key() builds the HEAP native key from record[0], so all
+      key part data must be there.  For ref access, store_key writes
+      non-BLOB values into the key buffer (via new_key_field()), not
+      into record[0].  Copy them here.
+    */
+    if (seg->flag & HA_VAR_LENGTH_PART)
+    {
+      /*
+        VARCHAR in key buffer: 2-byte length prefix + data.
+        In record[0]: native format (1 or 2-byte prefix per bit_start).
+      */
+      uint16 data_len= uint2korr(key_pos);
+      uchar *rec_pos= table->record[0] + seg->start;
+      uint native_pack= seg->bit_start;
+      if (native_pack == 1)
+        *rec_pos= (uchar) data_len;
+      else
+        int2store(rec_pos, data_len);
+      memcpy(rec_pos + native_pack, key_pos + 2, data_len);
+      key_pos+= 2 + seg->length;
+    }
+    else
+    {
+      /* Fixed-length: copy directly to record[0] */
+      memcpy(table->record[0] + seg->start, key_pos, seg->length);
+      key_pos+= seg->length;
+    }
+  }
+  hp_make_key(keydef, (uchar*) file->lastkey, table->record[0]);
+  key= (const uchar*) file->lastkey;
+}
+
+
+/*
   Ensure the key is in HEAP's native format for blob indexes.
 
-  GROUP BY (needs_key_rebuild_from_group_buff): parse the SQL-layer group_buff
-  into record[0] and rebuild via hp_make_key(), because record[0]'s
-  blob fields may be stale after copy_funcs().
+  GROUP BY (needs_key_rebuild_from_group_buff): parse the SQL-layer
+  group_buff into record[0] via rebuild_key_from_group_buff(), using
+  SQL-layer KEY_PART_INFO with store_length advancement.
 
-  DISTINCT / SJ-materialize: record[0] already has correct blob
-  values; build the HEAP key directly from record[0].
+  DISTINCT / SJ-materialize / materialization lookup: parse the
+  SQL-layer key buffer via rebuild_blob_key_from_segments(), using
+  HA_KEYSEG iteration.  This is needed because record[0] may not
+  contain the lookup values (the SQL layer builds the key separately).
 */
 void ha_heap::materialize_heap_key_if_needed(uint key_index, const uchar *&key)
 {
@@ -410,10 +516,8 @@ void ha_heap::materialize_heap_key_if_needed(uint key_index, const uchar *&key)
     if (keydef->needs_key_rebuild_from_group_buff)
       rebuild_key_from_group_buff(keydef, key, key_index);
     else
-    {
-      hp_make_key(keydef, (uchar*) file->lastkey, table->record[0]);
-      key= (const uchar*) file->lastkey;
-    }
+      rebuild_blob_key_from_segments(keydef, key,
+                                     keydef->blob_data_in_record);
   }
 }
 
@@ -860,7 +964,18 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
           rebuild_key_from_group_buff() to jump to uninitialized memory.
         */
         uint pack_no_ptr= ((Field_blob*)field)->pack_length_no_ptr();
-        if (key_part->length > pack_no_ptr && key_part->length < blob_max)
+        /*
+          Only widen when key_part->length does not already match
+          the field's logical data length.  create_key_part_by_field()
+          sets key_part->length = field_length for blob fields, which
+          is the correct size for new_key_field() — widening that to
+          max_data_length() would create a multi-GB Field_varstring.
+          The DISTINCT path sets key_part->length = pack_length()
+          (a small value unrelated to data size) which must be widened.
+        */
+        if (key_part->length > pack_no_ptr &&
+            key_part->length != field->field_length &&
+            key_part->length < blob_max)
         {
           uint len_delta= blob_max - key_part->length;
           key_part->length= blob_max;
@@ -923,8 +1038,31 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
     which may use stale blob pointers after copy_funcs().
   */
   if (keys > 0)
+  {
     keydef[0].needs_key_rebuild_from_group_buff=
       (table_arg->group && hp_keydef_has_blob_seg(&keydef[0]));
+    /*
+      blob_data_in_record: set when all BLOB key parts have length=0,
+      indicating the direct-to-record[0] path from add_tmp_key().
+      heap_store_key_blob_ref writes BLOB data directly to record[0],
+      so rebuild_blob_key_from_segments() must skip BLOB data in the
+      key buffer.  When FALSE, the old path applies: BLOB data is in
+      the key buffer and must be extracted by rebuild_blob_key_from_segments().
+    */
+    keydef[0].blob_data_in_record= FALSE;
+    if (hp_keydef_has_blob_seg(&keydef[0]))
+    {
+      KEY_PART_INFO *kp= table_arg->key_info[0].key_part;
+      uint nparts= table_arg->key_info[0].user_defined_key_parts;
+      my_bool all_zero= TRUE;
+      for (uint i= 0; i < nparts; i++)
+      {
+        if ((kp[i].key_part_flag & HA_BLOB_PART) && kp[i].length != 0)
+          all_zero= FALSE;
+      }
+      keydef[0].blob_data_in_record= all_zero;
+    }
+  }
 
   if (table_arg->found_next_number_field)
   {

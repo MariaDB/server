@@ -230,7 +230,7 @@ Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
 Insert_priv	enum('N','Y')	utf8mb3_general_ci	NO		N		select,insert,update,references	
 show full columns from v1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-c	varchar(64)	utf8mb3_general_ci	NO		NULL		select,insert,update,references	
+c	longtext	utf8mb3_general_ci	NO		NULL		select,insert,update,references	
 select * from information_schema.COLUMNS where table_name="t1"
 and column_name= "a";
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
@@ -609,18 +609,18 @@ drop table t1;
 SHOW CREATE TABLE INFORMATION_SCHEMA.character_sets;
 Table	Create Table
 CHARACTER_SETS	CREATE TEMPORARY TABLE `CHARACTER_SETS` (
-  `CHARACTER_SET_NAME` varchar(32) NOT NULL,
-  `DEFAULT_COLLATE_NAME` varchar(64) NOT NULL,
-  `DESCRIPTION` varchar(60) NOT NULL,
+  `CHARACTER_SET_NAME` longtext NOT NULL,
+  `DEFAULT_COLLATE_NAME` longtext NOT NULL,
+  `DESCRIPTION` longtext NOT NULL,
   `MAXLEN` bigint(3) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 set names latin2;
 SHOW CREATE TABLE INFORMATION_SCHEMA.character_sets;
 Table	Create Table
 CHARACTER_SETS	CREATE TEMPORARY TABLE `CHARACTER_SETS` (
-  `CHARACTER_SET_NAME` varchar(32) NOT NULL,
-  `DEFAULT_COLLATE_NAME` varchar(64) NOT NULL,
-  `DESCRIPTION` varchar(60) NOT NULL,
+  `CHARACTER_SET_NAME` longtext NOT NULL,
+  `DEFAULT_COLLATE_NAME` longtext NOT NULL,
+  `DESCRIPTION` longtext NOT NULL,
   `MAXLEN` bigint(3) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 set names latin1;
@@ -633,9 +633,9 @@ alter table t1 default character set utf8;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `CHARACTER_SET_NAME` varchar(32) NOT NULL,
-  `DEFAULT_COLLATE_NAME` varchar(64) NOT NULL,
-  `DESCRIPTION` varchar(60) NOT NULL,
+  `CHARACTER_SET_NAME` longtext NOT NULL,
+  `DEFAULT_COLLATE_NAME` longtext NOT NULL,
+  `DESCRIPTION` longtext NOT NULL,
   `MAXLEN` bigint(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 drop table t1;
@@ -827,8 +827,8 @@ select column_type from information_schema.columns
 where table_schema="information_schema" and table_name="COLUMNS" and
 (column_name="character_set_name" or column_name="collation_name");
 column_type
-varchar(32)
-varchar(64)
+longtext
+longtext
 select TABLE_ROWS from information_schema.tables where
 table_schema="information_schema" and table_name="COLUMNS";
 TABLE_ROWS
@@ -868,33 +868,334 @@ information_schema.columns
 where data_type = 'longtext' and table_schema != 'performance_schema'
 order by binary table_name, ordinal_position;
 table_schema	table_name	column_name
+information_schema	ALL_PLUGINS	PLUGIN_NAME
+information_schema	ALL_PLUGINS	PLUGIN_VERSION
+information_schema	ALL_PLUGINS	PLUGIN_STATUS
+information_schema	ALL_PLUGINS	PLUGIN_TYPE
+information_schema	ALL_PLUGINS	PLUGIN_TYPE_VERSION
+information_schema	ALL_PLUGINS	PLUGIN_LIBRARY
+information_schema	ALL_PLUGINS	PLUGIN_LIBRARY_VERSION
+information_schema	ALL_PLUGINS	PLUGIN_AUTHOR
 information_schema	ALL_PLUGINS	PLUGIN_DESCRIPTION
+information_schema	ALL_PLUGINS	PLUGIN_LICENSE
+information_schema	ALL_PLUGINS	LOAD_OPTION
+information_schema	ALL_PLUGINS	PLUGIN_MATURITY
+information_schema	ALL_PLUGINS	PLUGIN_AUTH_VERSION
+information_schema	APPLICABLE_ROLES	GRANTEE
+information_schema	APPLICABLE_ROLES	ROLE_NAME
+information_schema	CHARACTER_SETS	CHARACTER_SET_NAME
+information_schema	CHARACTER_SETS	DEFAULT_COLLATE_NAME
+information_schema	CHARACTER_SETS	DESCRIPTION
+information_schema	CHECK_CONSTRAINTS	CONSTRAINT_CATALOG
+information_schema	CHECK_CONSTRAINTS	CONSTRAINT_SCHEMA
+information_schema	CHECK_CONSTRAINTS	TABLE_NAME
+information_schema	CHECK_CONSTRAINTS	CONSTRAINT_NAME
 information_schema	CHECK_CONSTRAINTS	CHECK_CLAUSE
+information_schema	CLIENT_STATISTICS	CLIENT
+information_schema	COLLATIONS	COLLATION_NAME
+information_schema	COLLATIONS	CHARACTER_SET_NAME
+information_schema	COLLATION_CHARACTER_SET_APPLICABILITY	COLLATION_NAME
+information_schema	COLLATION_CHARACTER_SET_APPLICABILITY	CHARACTER_SET_NAME
+information_schema	COLLATION_CHARACTER_SET_APPLICABILITY	FULL_COLLATION_NAME
+information_schema	COLUMNS	TABLE_CATALOG
+information_schema	COLUMNS	TABLE_SCHEMA
+information_schema	COLUMNS	TABLE_NAME
+information_schema	COLUMNS	COLUMN_NAME
 information_schema	COLUMNS	COLUMN_DEFAULT
+information_schema	COLUMNS	DATA_TYPE
+information_schema	COLUMNS	CHARACTER_SET_NAME
+information_schema	COLUMNS	COLLATION_NAME
 information_schema	COLUMNS	COLUMN_TYPE
+information_schema	COLUMNS	EXTRA
+information_schema	COLUMNS	PRIVILEGES
+information_schema	COLUMNS	COLUMN_COMMENT
 information_schema	COLUMNS	GENERATION_EXPRESSION
+information_schema	COLUMN_PRIVILEGES	GRANTEE
+information_schema	COLUMN_PRIVILEGES	TABLE_CATALOG
+information_schema	COLUMN_PRIVILEGES	TABLE_SCHEMA
+information_schema	COLUMN_PRIVILEGES	TABLE_NAME
+information_schema	COLUMN_PRIVILEGES	COLUMN_NAME
+information_schema	COLUMN_PRIVILEGES	PRIVILEGE_TYPE
+information_schema	ENABLED_ROLES	ROLE_NAME
+information_schema	ENGINES	ENGINE
+information_schema	ENGINES	COMMENT
+information_schema	EVENTS	EVENT_CATALOG
+information_schema	EVENTS	EVENT_SCHEMA
+information_schema	EVENTS	EVENT_NAME
+information_schema	EVENTS	DEFINER
+information_schema	EVENTS	TIME_ZONE
 information_schema	EVENTS	EVENT_DEFINITION
+information_schema	EVENTS	INTERVAL_VALUE
+information_schema	EVENTS	INTERVAL_FIELD
+information_schema	EVENTS	SQL_MODE
+information_schema	EVENTS	STATUS
+information_schema	EVENTS	ON_COMPLETION
+information_schema	EVENTS	EVENT_COMMENT
+information_schema	EVENTS	CHARACTER_SET_CLIENT
+information_schema	EVENTS	COLLATION_CONNECTION
+information_schema	EVENTS	DATABASE_COLLATION
+information_schema	FILES	FILE_NAME
+information_schema	FILES	FILE_TYPE
+information_schema	FILES	TABLESPACE_NAME
+information_schema	FILES	TABLE_CATALOG
+information_schema	FILES	TABLE_SCHEMA
+information_schema	FILES	TABLE_NAME
+information_schema	FILES	LOGFILE_GROUP_NAME
+information_schema	FILES	ENGINE
+information_schema	FILES	FULLTEXT_KEYS
+information_schema	FILES	STATUS
+information_schema	FILES	EXTRA
+information_schema	GEOMETRY_COLUMNS	F_TABLE_CATALOG
+information_schema	GEOMETRY_COLUMNS	F_TABLE_SCHEMA
+information_schema	GEOMETRY_COLUMNS	F_TABLE_NAME
+information_schema	GEOMETRY_COLUMNS	F_GEOMETRY_COLUMN
+information_schema	GEOMETRY_COLUMNS	G_TABLE_CATALOG
+information_schema	GEOMETRY_COLUMNS	G_TABLE_SCHEMA
+information_schema	GEOMETRY_COLUMNS	G_TABLE_NAME
+information_schema	GEOMETRY_COLUMNS	G_GEOMETRY_COLUMN
+information_schema	GLOBAL_STATUS	VARIABLE_NAME
+information_schema	GLOBAL_STATUS	VARIABLE_VALUE
+information_schema	GLOBAL_VARIABLES	VARIABLE_NAME
+information_schema	GLOBAL_VARIABLES	VARIABLE_VALUE
+information_schema	INDEX_STATISTICS	TABLE_SCHEMA
+information_schema	INDEX_STATISTICS	TABLE_NAME
+information_schema	INDEX_STATISTICS	INDEX_NAME
+information_schema	INNODB_BUFFER_PAGE	PAGE_TYPE
+information_schema	INNODB_BUFFER_PAGE	TABLE_NAME
+information_schema	INNODB_BUFFER_PAGE	INDEX_NAME
+information_schema	INNODB_BUFFER_PAGE_LRU	PAGE_TYPE
+information_schema	INNODB_BUFFER_PAGE_LRU	TABLE_NAME
+information_schema	INNODB_BUFFER_PAGE_LRU	INDEX_NAME
+information_schema	INNODB_CMP_PER_INDEX	database_name
+information_schema	INNODB_CMP_PER_INDEX	table_name
+information_schema	INNODB_CMP_PER_INDEX	index_name
+information_schema	INNODB_LOCKS	lock_id
+information_schema	INNODB_LOCKS	lock_table
+information_schema	INNODB_LOCKS	lock_index
+information_schema	INNODB_LOCKS	lock_data
+information_schema	INNODB_LOCK_WAITS	requested_lock_id
+information_schema	INNODB_LOCK_WAITS	blocking_lock_id
+information_schema	INNODB_METRICS	NAME
+information_schema	INNODB_METRICS	SUBSYSTEM
+information_schema	INNODB_METRICS	COMMENT
+information_schema	INNODB_SYS_COLUMNS	NAME
+information_schema	INNODB_SYS_FIELDS	NAME
+information_schema	INNODB_SYS_FOREIGN	ID
+information_schema	INNODB_SYS_FOREIGN	FOR_NAME
+information_schema	INNODB_SYS_FOREIGN	REF_NAME
+information_schema	INNODB_SYS_FOREIGN_COLS	ID
+information_schema	INNODB_SYS_FOREIGN_COLS	FOR_COL_NAME
+information_schema	INNODB_SYS_FOREIGN_COLS	REF_COL_NAME
+information_schema	INNODB_SYS_INDEXES	NAME
+information_schema	INNODB_SYS_TABLES	NAME
+information_schema	INNODB_TRX	trx_state
+information_schema	INNODB_TRX	trx_requested_lock_id
+information_schema	INNODB_TRX	trx_query
+information_schema	INNODB_TRX	trx_operation_state
+information_schema	INNODB_TRX	trx_last_foreign_key_error
+information_schema	KEYWORDS	WORD
+information_schema	KEY_CACHES	KEY_CACHE_NAME
+information_schema	KEY_COLUMN_USAGE	CONSTRAINT_CATALOG
+information_schema	KEY_COLUMN_USAGE	CONSTRAINT_SCHEMA
+information_schema	KEY_COLUMN_USAGE	CONSTRAINT_NAME
+information_schema	KEY_COLUMN_USAGE	TABLE_CATALOG
+information_schema	KEY_COLUMN_USAGE	TABLE_SCHEMA
+information_schema	KEY_COLUMN_USAGE	TABLE_NAME
+information_schema	KEY_COLUMN_USAGE	COLUMN_NAME
+information_schema	KEY_COLUMN_USAGE	REFERENCED_TABLE_SCHEMA
+information_schema	KEY_COLUMN_USAGE	REFERENCED_TABLE_NAME
+information_schema	KEY_COLUMN_USAGE	REFERENCED_COLUMN_NAME
 information_schema	OPTIMIZER_TRACE	QUERY
 information_schema	OPTIMIZER_TRACE	TRACE
+information_schema	PARAMETERS	SPECIFIC_CATALOG
+information_schema	PARAMETERS	SPECIFIC_SCHEMA
+information_schema	PARAMETERS	SPECIFIC_NAME
+information_schema	PARAMETERS	PARAMETER_NAME
+information_schema	PARAMETERS	DATA_TYPE
+information_schema	PARAMETERS	CHARACTER_SET_NAME
+information_schema	PARAMETERS	COLLATION_NAME
 information_schema	PARAMETERS	DTD_IDENTIFIER
+information_schema	PARTITIONS	TABLE_CATALOG
+information_schema	PARTITIONS	TABLE_SCHEMA
+information_schema	PARTITIONS	TABLE_NAME
+information_schema	PARTITIONS	PARTITION_NAME
+information_schema	PARTITIONS	SUBPARTITION_NAME
+information_schema	PARTITIONS	PARTITION_METHOD
+information_schema	PARTITIONS	SUBPARTITION_METHOD
 information_schema	PARTITIONS	PARTITION_EXPRESSION
 information_schema	PARTITIONS	SUBPARTITION_EXPRESSION
 information_schema	PARTITIONS	PARTITION_DESCRIPTION
+information_schema	PARTITIONS	PARTITION_COMMENT
+information_schema	PARTITIONS	NODEGROUP
+information_schema	PARTITIONS	TABLESPACE_NAME
+information_schema	PLUGINS	PLUGIN_NAME
+information_schema	PLUGINS	PLUGIN_VERSION
+information_schema	PLUGINS	PLUGIN_STATUS
+information_schema	PLUGINS	PLUGIN_TYPE
+information_schema	PLUGINS	PLUGIN_TYPE_VERSION
+information_schema	PLUGINS	PLUGIN_LIBRARY
+information_schema	PLUGINS	PLUGIN_LIBRARY_VERSION
+information_schema	PLUGINS	PLUGIN_AUTHOR
 information_schema	PLUGINS	PLUGIN_DESCRIPTION
+information_schema	PLUGINS	PLUGIN_LICENSE
+information_schema	PLUGINS	LOAD_OPTION
+information_schema	PLUGINS	PLUGIN_MATURITY
+information_schema	PLUGINS	PLUGIN_AUTH_VERSION
+information_schema	PROCESSLIST	USER
+information_schema	PROCESSLIST	HOST
+information_schema	PROCESSLIST	DB
+information_schema	PROCESSLIST	COMMAND
+information_schema	PROCESSLIST	STATE
 information_schema	PROCESSLIST	INFO
+information_schema	PROFILING	STATE
+information_schema	PROFILING	SOURCE_FUNCTION
+information_schema	PROFILING	SOURCE_FILE
+information_schema	REFERENTIAL_CONSTRAINTS	CONSTRAINT_CATALOG
+information_schema	REFERENTIAL_CONSTRAINTS	CONSTRAINT_SCHEMA
+information_schema	REFERENTIAL_CONSTRAINTS	CONSTRAINT_NAME
+information_schema	REFERENTIAL_CONSTRAINTS	UNIQUE_CONSTRAINT_CATALOG
+information_schema	REFERENTIAL_CONSTRAINTS	UNIQUE_CONSTRAINT_SCHEMA
+information_schema	REFERENTIAL_CONSTRAINTS	UNIQUE_CONSTRAINT_NAME
+information_schema	REFERENTIAL_CONSTRAINTS	MATCH_OPTION
+information_schema	REFERENTIAL_CONSTRAINTS	UPDATE_RULE
+information_schema	REFERENTIAL_CONSTRAINTS	DELETE_RULE
+information_schema	REFERENTIAL_CONSTRAINTS	TABLE_NAME
+information_schema	REFERENTIAL_CONSTRAINTS	REFERENCED_TABLE_NAME
+information_schema	ROUTINES	SPECIFIC_NAME
+information_schema	ROUTINES	ROUTINE_CATALOG
+information_schema	ROUTINES	ROUTINE_SCHEMA
+information_schema	ROUTINES	ROUTINE_NAME
+information_schema	ROUTINES	ROUTINE_TYPE
+information_schema	ROUTINES	DATA_TYPE
+information_schema	ROUTINES	CHARACTER_SET_NAME
+information_schema	ROUTINES	COLLATION_NAME
 information_schema	ROUTINES	DTD_IDENTIFIER
 information_schema	ROUTINES	ROUTINE_DEFINITION
+information_schema	ROUTINES	EXTERNAL_NAME
+information_schema	ROUTINES	EXTERNAL_LANGUAGE
+information_schema	ROUTINES	SQL_DATA_ACCESS
+information_schema	ROUTINES	SQL_PATH
+information_schema	ROUTINES	SQL_MODE
 information_schema	ROUTINES	ROUTINE_COMMENT
+information_schema	ROUTINES	DEFINER
+information_schema	ROUTINES	CHARACTER_SET_CLIENT
+information_schema	ROUTINES	COLLATION_CONNECTION
+information_schema	ROUTINES	DATABASE_COLLATION
+information_schema	SCHEMATA	CATALOG_NAME
+information_schema	SCHEMATA	SCHEMA_NAME
+information_schema	SCHEMATA	DEFAULT_CHARACTER_SET_NAME
+information_schema	SCHEMATA	DEFAULT_COLLATION_NAME
+information_schema	SCHEMATA	SQL_PATH
+information_schema	SCHEMATA	SCHEMA_COMMENT
+information_schema	SCHEMA_PRIVILEGES	GRANTEE
+information_schema	SCHEMA_PRIVILEGES	TABLE_CATALOG
+information_schema	SCHEMA_PRIVILEGES	TABLE_SCHEMA
+information_schema	SCHEMA_PRIVILEGES	PRIVILEGE_TYPE
+information_schema	SESSION_STATUS	VARIABLE_NAME
+information_schema	SESSION_STATUS	VARIABLE_VALUE
+information_schema	SESSION_VARIABLES	VARIABLE_NAME
+information_schema	SESSION_VARIABLES	VARIABLE_VALUE
+information_schema	SPATIAL_REF_SYS	AUTH_NAME
+information_schema	SPATIAL_REF_SYS	SRTEXT
+information_schema	SQL_FUNCTIONS	FUNCTION
+information_schema	STATISTICS	TABLE_CATALOG
+information_schema	STATISTICS	TABLE_SCHEMA
+information_schema	STATISTICS	TABLE_NAME
+information_schema	STATISTICS	INDEX_SCHEMA
+information_schema	STATISTICS	INDEX_NAME
+information_schema	STATISTICS	COLUMN_NAME
+information_schema	STATISTICS	INDEX_TYPE
+information_schema	STATISTICS	COMMENT
+information_schema	STATISTICS	INDEX_COMMENT
+information_schema	SYSTEM_VARIABLES	VARIABLE_NAME
+information_schema	SYSTEM_VARIABLES	SESSION_VALUE
+information_schema	SYSTEM_VARIABLES	GLOBAL_VALUE
+information_schema	SYSTEM_VARIABLES	GLOBAL_VALUE_ORIGIN
+information_schema	SYSTEM_VARIABLES	DEFAULT_VALUE
+information_schema	SYSTEM_VARIABLES	VARIABLE_SCOPE
+information_schema	SYSTEM_VARIABLES	VARIABLE_TYPE
+information_schema	SYSTEM_VARIABLES	VARIABLE_COMMENT
+information_schema	SYSTEM_VARIABLES	NUMERIC_MIN_VALUE
+information_schema	SYSTEM_VARIABLES	NUMERIC_MAX_VALUE
+information_schema	SYSTEM_VARIABLES	NUMERIC_BLOCK_SIZE
 information_schema	SYSTEM_VARIABLES	ENUM_VALUE_LIST
+information_schema	SYSTEM_VARIABLES	COMMAND_LINE_ARGUMENT
+information_schema	SYSTEM_VARIABLES	GLOBAL_VALUE_PATH
+information_schema	TABLES	TABLE_CATALOG
+information_schema	TABLES	TABLE_SCHEMA
+information_schema	TABLES	TABLE_NAME
+information_schema	TABLES	TABLE_TYPE
+information_schema	TABLES	ENGINE
+information_schema	TABLES	TABLE_COLLATION
+information_schema	TABLES	CREATE_OPTIONS
+information_schema	TABLES	TABLE_COMMENT
+information_schema	TABLESPACES	TABLESPACE_NAME
+information_schema	TABLESPACES	ENGINE
+information_schema	TABLESPACES	TABLESPACE_TYPE
+information_schema	TABLESPACES	LOGFILE_GROUP_NAME
+information_schema	TABLESPACES	TABLESPACE_COMMENT
+information_schema	TABLE_CONSTRAINTS	CONSTRAINT_CATALOG
+information_schema	TABLE_CONSTRAINTS	CONSTRAINT_SCHEMA
+information_schema	TABLE_CONSTRAINTS	CONSTRAINT_NAME
+information_schema	TABLE_CONSTRAINTS	TABLE_SCHEMA
+information_schema	TABLE_CONSTRAINTS	TABLE_NAME
+information_schema	TABLE_CONSTRAINTS	CONSTRAINT_TYPE
+information_schema	TABLE_PRIVILEGES	GRANTEE
+information_schema	TABLE_PRIVILEGES	TABLE_CATALOG
+information_schema	TABLE_PRIVILEGES	TABLE_SCHEMA
+information_schema	TABLE_PRIVILEGES	TABLE_NAME
+information_schema	TABLE_PRIVILEGES	PRIVILEGE_TYPE
+information_schema	TABLE_STATISTICS	TABLE_SCHEMA
+information_schema	TABLE_STATISTICS	TABLE_NAME
+information_schema	TRIGGERS	TRIGGER_CATALOG
+information_schema	TRIGGERS	TRIGGER_SCHEMA
+information_schema	TRIGGERS	TRIGGER_NAME
+information_schema	TRIGGERS	EVENT_OBJECT_CATALOG
+information_schema	TRIGGERS	EVENT_OBJECT_SCHEMA
+information_schema	TRIGGERS	EVENT_OBJECT_TABLE
 information_schema	TRIGGERS	ACTION_CONDITION
 information_schema	TRIGGERS	ACTION_STATEMENT
+information_schema	TRIGGERS	ACTION_REFERENCE_OLD_TABLE
+information_schema	TRIGGERS	ACTION_REFERENCE_NEW_TABLE
+information_schema	TRIGGERS	SQL_MODE
+information_schema	TRIGGERS	DEFINER
+information_schema	TRIGGERS	CHARACTER_SET_CLIENT
+information_schema	TRIGGERS	COLLATION_CONNECTION
+information_schema	TRIGGERS	DATABASE_COLLATION
+information_schema	USER_PRIVILEGES	GRANTEE
+information_schema	USER_PRIVILEGES	TABLE_CATALOG
+information_schema	USER_PRIVILEGES	PRIVILEGE_TYPE
+information_schema	USER_STATISTICS	USER
+information_schema	VIEWS	TABLE_CATALOG
+information_schema	VIEWS	TABLE_SCHEMA
+information_schema	VIEWS	TABLE_NAME
 information_schema	VIEWS	VIEW_DEFINITION
+information_schema	VIEWS	DEFINER
+information_schema	VIEWS	CHARACTER_SET_CLIENT
+information_schema	VIEWS	COLLATION_CONNECTION
 mysql	global_priv	Priv
+sys	innodb_buffer_stats_by_table	object_name
+sys	innodb_lock_waits	locked_table
+sys	innodb_lock_waits	locked_index
 sys	innodb_lock_waits	waiting_query
+sys	innodb_lock_waits	waiting_lock_id
 sys	innodb_lock_waits	blocking_query
+sys	innodb_lock_waits	blocking_lock_id
+sys	metrics	Variable_name
 sys	processlist	current_statement
 sys	processlist	last_statement
+sys	schema_auto_increment_columns	table_schema
+sys	schema_auto_increment_columns	table_name
+sys	schema_auto_increment_columns	column_name
+sys	schema_auto_increment_columns	data_type
 sys	schema_auto_increment_columns	column_type
+sys	schema_object_overview	db
+sys	schema_object_overview	object_type
+sys	schema_redundant_indexes	table_schema
+sys	schema_redundant_indexes	table_name
+sys	schema_redundant_indexes	redundant_index_name
+sys	schema_redundant_indexes	dominant_index_name
+sys	schema_redundant_indexes	sql_drop_index
 sys	schema_table_lock_waits	waiting_query
 sys	session	current_statement
 sys	session	last_statement
@@ -911,8 +1212,18 @@ mysql	user	x509_subject
 mysql	user	plugin
 mysql	user	authentication_string
 mysql	user	default_role
+sys	x$innodb_buffer_stats_by_table	object_name
+sys	x$innodb_lock_waits	locked_table
+sys	x$innodb_lock_waits	locked_index
+sys	x$innodb_lock_waits	waiting_query
+sys	x$innodb_lock_waits	waiting_lock_id
+sys	x$innodb_lock_waits	blocking_query
+sys	x$innodb_lock_waits	blocking_lock_id
 sys	x$processlist	current_statement
 sys	x$processlist	last_statement
+sys	x$schema_flattened_keys	table_schema
+sys	x$schema_flattened_keys	table_name
+sys	x$schema_flattened_keys	index_name
 sys	x$schema_table_lock_waits	waiting_query
 sys	x$session	current_statement
 sys	x$session	last_statement
@@ -1309,15 +1620,14 @@ DROP TABLE t1;
 DROP VIEW v1;
 DROP FUNCTION func1;
 DROP FUNCTION func2;
-select column_type, group_concat(table_schema, '.', table_name), count(*) as num
+select column_type, group_concat(table_schema, '.', table_name order by table_schema, table_name), count(*) as num
 from information_schema.columns where
 table_schema='information_schema' and
 (column_type = 'varchar(7)' or column_type = 'varchar(20)'
  or column_type = 'varchar(27)')
 group by column_type order by num;
-column_type	group_concat(table_schema, '.', table_name)	num
+column_type	group_concat(table_schema, '.', table_name order by table_schema, table_name)	num
 varchar(7)	information_schema.ROUTINES,information_schema.VIEWS	2
-varchar(20)	information_schema.ALL_PLUGINS,information_schema.ALL_PLUGINS,information_schema.ALL_PLUGINS,information_schema.FILES,information_schema.FILES,information_schema.PLUGINS,information_schema.PLUGINS,information_schema.PLUGINS,information_schema.PROFILING	9
 create table t1(f1 char(1) not null, f2 char(9) not null)
 default character set utf8;
 select CHARACTER_MAXIMUM_LENGTH, CHARACTER_OCTET_LENGTH from
@@ -2505,16 +2815,16 @@ drop table t1;
 SET SQL_MODE= 'EMPTY_STRING_IS_NULL';
 CREATE OR REPLACE TABLE t1 AS SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE 1 = 0;
 SHOW returned: CREATE TABLE `t1` (
-  `TABLE_NAME` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL
+  `TABLE_NAME` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE `t1` (
-  `TABLE_NAME` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL
+  `TABLE_NAME` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `TABLE_NAME` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL
+  `TABLE_NAME` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SET SQL_MODE=DEFAULT;

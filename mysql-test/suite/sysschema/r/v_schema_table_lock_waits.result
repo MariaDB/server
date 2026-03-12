@@ -16,8 +16,8 @@ blocking_pid	bigint(20) unsigned	YES		NULL
 blocking_account	text	YES		NULL	
 blocking_lock_type	varchar(32)	NO		NULL	
 blocking_lock_duration	varchar(32)	NO		NULL	
-sql_kill_blocking_query	varchar(31)	YES		NULL	
-sql_kill_blocking_connection	varchar(25)	YES		NULL	
+sql_kill_blocking_query	tinytext	YES		NULL	
+sql_kill_blocking_connection	tinytext	YES		NULL	
 SELECT * FROM sys.schema_table_lock_waits;
 DESC sys.x$schema_table_lock_waits;
 Field	Type	Null	Key	Default	Extra
@@ -37,8 +37,8 @@ blocking_pid	bigint(20) unsigned	YES		NULL
 blocking_account	text	YES		NULL	
 blocking_lock_type	varchar(32)	NO		NULL	
 blocking_lock_duration	varchar(32)	NO		NULL	
-sql_kill_blocking_query	varchar(31)	YES		NULL	
-sql_kill_blocking_connection	varchar(25)	YES		NULL	
+sql_kill_blocking_query	tinytext	YES		NULL	
+sql_kill_blocking_connection	tinytext	YES		NULL	
 SELECT * FROM sys.x$schema_table_lock_waits;
 connect con1,localhost,root,,;
 connect con2,localhost,root,,;

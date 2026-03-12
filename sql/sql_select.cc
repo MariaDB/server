@@ -6553,11 +6553,11 @@ add_key_field(JOIN *join,
   uint optimize= 0;  
   if (eq_func &&
       ((join->is_allowed_hash_join_access() &&
-        field->hash_join_is_possible() && 
+        field->hash_join_is_possible() &&
         !(field->table->pos_in_table_list->is_materialized_derived() &&
           field->table->is_created())) ||
        (field->table->pos_in_table_list->is_materialized_derived() &&
-        !field->table->is_created() && !(field->flags & BLOB_FLAG))))
+        !field->table->is_created())))
   {
     optimize= KEY_OPTIMIZE_EQ;
   }   
@@ -12750,17 +12750,37 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       */
       if (!keyuse->val->used_tables() && !thd->lex->describe)
       {					// Compare against constant
-        store_key_item tmp(thd,
-                           keyinfo->key_part[i].field,
-                           key_buff + maybe_null,
-                           maybe_null ?  key_buff : 0,
-                           keyinfo->key_part[i].length,
-                           keyuse->val,
-                           FALSE);
-        if (unlikely(thd->is_error()))
-          DBUG_RETURN(TRUE);
-        tmp.copy(thd);
-        j->ref.const_ref_part_map |= key_part_map(1) << i ;
+        /*
+          HEAP BLOB key parts: skip the early-const optimization.
+          record[0] is overwritten during derived table materialization
+          (rows inserted via write_row(record[0])), so a const BLOB
+          value stored there at optimization time would be lost.
+          Fall through to create a heap_store_key_blob_ref that
+          re-stores the value at every lookup.
+        */
+        if ((keyinfo->key_part[i].key_part_flag & HA_BLOB_PART) &&
+            keyinfo->key_part[i].length == 0 &&
+            keyinfo->key_part[i].field->table->s->db_type() == heap_hton)
+        {
+          *ref_key++= new heap_store_key_blob_ref(thd,
+                                                   keyinfo->key_part[i].field,
+                                                   keyuse->val, FALSE);
+          /* Don't set const_ref_part_map — force re-copy every lookup */
+        }
+        else
+        {
+          store_key_item tmp(thd,
+                             keyinfo->key_part[i].field,
+                             key_buff + maybe_null,
+                             maybe_null ?  key_buff : 0,
+                             keyinfo->key_part[i].length,
+                             keyuse->val,
+                             FALSE);
+          if (unlikely(thd->is_error()))
+            DBUG_RETURN(TRUE);
+          tmp.copy(thd);
+          j->ref.const_ref_part_map |= key_part_map(1) << i ;
+        }
       }
       else
       {
@@ -12781,6 +12801,16 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
 	null_ref_key= key_buff;
         null_ref_part= i;
       }
+      /*
+        HEAP BLOB key parts: disable the ref cache.  cmp_buffer_with_ref()
+        does a memcmp on the key buffer, which has no BLOB data (only
+        metadata placeholders).  Two lookups differing only in the BLOB
+        value would appear identical, returning stale results.
+      */
+      if ((keyinfo->key_part[i].key_part_flag & HA_BLOB_PART) &&
+          keyinfo->key_part[i].length == 0 &&
+          keyinfo->key_part[i].field->table->s->db_type() == heap_hton)
+        j->ref.disable_cache= TRUE;
       key_buff+= keyinfo->key_part[i].store_length;
     }
   } /* not ftkey */
@@ -12837,6 +12867,20 @@ static store_key *
 get_store_key(THD *thd, KEYUSE *keyuse, table_map used_tables,
 	      KEY_PART_INFO *key_part, uchar *key_buff, uint maybe_null)
 {
+  /*
+    HEAP BLOB key parts with length=0: direct-to-record[0] path.
+    add_tmp_key() leaves BLOB key parts with length=0; the key buffer
+    has only metadata placeholders.  Write the lookup value directly
+    into record[0]'s Field_blob via heap_store_key_blob_ref.
+    Non-zero length means the key buffer has space for data (e.g.
+    SJ-materialize path) — use the normal store_key mechanism.
+  */
+  if ((key_part->key_part_flag & HA_BLOB_PART) &&
+      key_part->length == 0 &&
+      key_part->field->table->s->db_type() == heap_hton)
+    return new heap_store_key_blob_ref(thd, key_part->field,
+                                       keyuse->val, FALSE);
+
   if (!((~used_tables) & keyuse->used_tables))		// if const item
   {
     return new store_key_const_item(thd,
@@ -12850,7 +12894,7 @@ get_store_key(THD *thd, KEYUSE *keyuse, table_map used_tables,
            (keyuse->val->type() == Item::REF_ITEM &&
 	    ((((Item_ref*)keyuse->val)->ref_type() == Item_ref::OUTER_REF &&
               (*(Item_ref**)((Item_ref*)keyuse->val)->ref)->ref_type() ==
-              Item_ref::DIRECT_REF) || 
+              Item_ref::DIRECT_REF) ||
              ((Item_ref*)keyuse->val)->ref_type() == Item_ref::VIEW_REF) &&
             keyuse->val->real_item()->type() == Item::FIELD_ITEM))
     return new store_key_field(thd,
@@ -15805,16 +15849,26 @@ bool TABLE_REF::tmp_table_index_lookup_init(THD *thd,
     DBUG_ASSERT(item);
     items[i]= item;
     int null_count= MY_TEST(cur_key_part->field->real_maybe_null());
-    *ref_key= new store_key_item(thd, cur_key_part->field,
-                                 /* TIMOUR:
-                                    the NULL byte is taken into account in
-                                    cur_key_part->store_length, so instead of
-                                    cur_ref_buff + MY_TEST(maybe_null), we could
-                                    use that information instead.
-                                 */
-                                 cur_ref_buff + null_count,
-                                 null_count ? cur_ref_buff : 0,
-                                 cur_key_part->length, items[i], value);
+    /*
+      HEAP BLOB key parts: write lookup value directly into record[0]'s
+      Field_blob, bypassing the key buffer.
+    */
+    if ((cur_key_part->key_part_flag & HA_BLOB_PART) &&
+        cur_key_part->length == 0 &&
+        cur_key_part->field->table->s->db_type() == heap_hton)
+      *ref_key= new heap_store_key_blob_ref(thd, cur_key_part->field,
+                                             items[i], value);
+    else
+      *ref_key= new store_key_item(thd, cur_key_part->field,
+                                   /* TIMOUR:
+                                      the NULL byte is taken into account in
+                                      cur_key_part->store_length, so instead of
+                                      cur_ref_buff + MY_TEST(maybe_null), we could
+                                      use that information instead.
+                                   */
+                                   cur_ref_buff + null_count,
+                                   null_count ? cur_ref_buff : 0,
+                                   cur_key_part->length, items[i], value);
     cur_ref_buff+= cur_key_part->store_length;
   }
   *ref_key= NULL; /* End marker. */
@@ -20502,11 +20556,12 @@ Field *create_tmp_field(TABLE *table, Item *item,
                         Field **default_field,
                         bool group, bool modify_item,
                         bool table_cant_handle_bit_fields,
-                        bool make_copy_field)
+                        bool make_copy_field,
+                        bool is_heap_engine= false)
 {
   Tmp_field_src src;
   Tmp_field_param prm(group, modify_item, table_cant_handle_bit_fields,
-                      make_copy_field);
+                      make_copy_field, is_heap_engine);
   Field *result= item->create_tmp_field_ex(table->in_use->mem_root,
                                            table, &src, &prm);
   if (is_json_type(item) && make_json_valid_expr(table, result))
@@ -20736,6 +20791,15 @@ TABLE *Create_tmp_table::start(THD *thd,
       m_distinct= 0;                           // Can't use distinct
   }
 
+  /*
+    Early engine prediction: reclength is not yet known (fields not added),
+    so pass 0.  pick_engine() with reclength=0 only skips the
+    reclength > HA_MAX_REC_LENGTH check, which choose_engine() will
+    verify later with the real value.  Since HEAP promotion reduces
+    reclength, this is conservative.
+  */
+  m_heap_expected= (pick_engine(thd, 0) == heap_hton);
+
   m_alloced_field_count= param->field_count+param->func_count+param->sum_func_count;
   DBUG_ASSERT(m_alloced_field_count);
   const uint field_count= m_alloced_field_count;
@@ -20863,6 +20927,8 @@ bool Create_tmp_table::add_fields(THD *thd,
       distinct_record_structure= true;
     }
   li.rewind();
+  if (m_heap_expected)
+    Type_handler::set_creating_heap_tmp_table(true);
   while ((item=li++))
   {
     uint uneven_delta;
@@ -20913,7 +20979,8 @@ bool Create_tmp_table::add_fields(THD *thd,
             create_tmp_field(table, arg, &copy_func,
                              tmp_from_field, &m_default_field[fieldnr],
                              m_group != 0, not_all_columns,
-                             distinct_record_structure , false);
+                             distinct_record_structure, false,
+                             m_heap_expected);
           if (!new_field)
             goto err;					// Should be OOM
           tmp_from_field++;
@@ -20977,7 +21044,8 @@ bool Create_tmp_table::add_fields(THD *thd,
                          */
                          item->marker == MARKER_NULL_KEY ||
                          param->bit_fields_as_long,
-                         param->force_copy_fields);
+                         param->force_copy_fields,
+                         m_heap_expected);
       if (unlikely(!new_field))
       {
         if (unlikely(thd->is_fatal_error))
@@ -21028,6 +21096,7 @@ bool Create_tmp_table::add_fields(THD *thd,
 
   DBUG_ASSERT(fieldnr == m_field_count[other] + m_field_count[distinct]);
   DBUG_ASSERT(m_blob_count == m_blobs_count[other] + m_blobs_count[distinct]);
+  Type_handler::set_creating_heap_tmp_table(false);
   share->fields= fieldnr;
   share->blob_fields= m_blob_count;
   table->field[fieldnr]= 0;                     // End marker
@@ -21042,6 +21111,7 @@ bool Create_tmp_table::add_fields(THD *thd,
   DBUG_RETURN(false);
 
 err:
+  Type_handler::set_creating_heap_tmp_table(false);
   thd->mem_root= mem_root_save;
   DBUG_RETURN(true);
 }
@@ -21658,7 +21728,37 @@ bool Create_tmp_table::add_schema_fields(THD *thd, TABLE *table,
     const ST_FIELD_INFO &def= defs[fieldnr];
     Record_addr addr(def.nullable());
     const Type_handler *h= def.type_handler();
-    Field *field= h->make_schema_field(&table->mem_root, table, addr, def);
+    Field *field;
+    /*
+      HEAP varchar→blob promotion for I_S tables: HEAP uses fixed-width
+      rows, so wide VARCHARs waste their full declared octet_length per
+      row.  BLOBs store only actual data in continuation chains.  This
+      is the same promotion that type_handler_for_tmp_table() does at
+      CONVERT_IF_BIGGER_TO_BLOB (512 chars), just at a lower threshold
+      for HEAP.
+    */
+    if (m_heap_expected && h == &type_handler_varchar &&
+        def.char_length() * system_charset_info->mbmaxlen >
+          HEAP_CONVERT_IF_BIGGER_TO_BLOB)
+    {
+      /*
+        Match Type_handler_varchar::make_schema_field() blob creation:
+        packlength=4, system_charset_info, octet_length = char_length *
+        mbmaxlen.  field_length stores the original octet_length so that
+        create_tmp_field_from_item_field() can de-promote back to VARCHAR
+        for CREATE TABLE ... AS SELECT.
+      */
+      LEX_CSTRING name= def.name();
+      uint32 octet_length= (uint32) def.char_length() *
+                            system_charset_info->mbmaxlen;
+      field= new (&table->mem_root)
+        Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(), Field::NONE,
+                   &name, share, 4, system_charset_info);
+      if (field)
+        field->field_length= octet_length;
+    }
+    else
+      field= h->make_schema_field(&table->mem_root, table, addr, def);
     if (!field)
     {
       thd->mem_root= mem_root_save;

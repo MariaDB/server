@@ -3779,7 +3779,7 @@ insert into t1 values (1), (10), (100);
 create view v1(a) as select concat(a) from t1;
 show columns from v1;
 Field	Type	Null	Key	Default	Extra
-a	varchar(30)	YES		NULL	
+a	tinytext	YES		NULL	
 select hex(a) from v1;
 hex(a)
 003000300030003000300030003000300030003000300030003000300030003000300030003000300030003000300030003000300030003000300031
@@ -3881,7 +3881,7 @@ insert into t1 values (1);
 create view v1(a) as select concat(a) from t1;
 show columns from v1;
 Field	Type	Null	Key	Default	Extra
-a	varchar(20)	YES		NULL	
+a	tinytext	YES		NULL	
 select hex(a) from v1;
 hex(a)
 0031
@@ -3892,7 +3892,7 @@ insert into t1 values (1), (10), (100), (1000), (10000);
 create view v1(a) as select concat(a) from t1;
 show columns from v1;
 Field	Type	Null	Key	Default	Extra
-a	varchar(20)	YES		NULL	
+a	tinytext	YES		NULL	
 select hex(a) from v1;
 hex(a)
 00300030003000300030003000300030003000300030003000300030003000300030003000300031
@@ -3936,7 +3936,7 @@ concat(a)
 create view v1(a) as select concat(a) from t1;
 show columns from v1;
 Field	Type	Null	Key	Default	Extra
-a	varchar(22)	YES		NULL	
+a	tinytext	YES		NULL	
 select hex(a) from v1;
 hex(a)
 003100320033002E003400350036
@@ -3947,7 +3947,7 @@ insert into t1 values (1.1), (10.1), (100.1), (1000.1), (10000.1);
 create view v1(a) as select concat(a) from t1;
 show columns from v1;
 Field	Type	Null	Key	Default	Extra
-a	varchar(22)	YES		NULL	
+a	tinytext	YES		NULL	
 select hex(a) from v1;
 hex(a)
 00300030003000300030003000300030003000300030003000300030003000300030003000300031002E0031
@@ -3986,7 +3986,7 @@ insert into t1 values (1);
 create view v1(a) as select concat(a) from t1;
 show columns from v1;
 Field	Type	Null	Key	Default	Extra
-a	varbinary(64)	YES		NULL	
+a	tinyblob	YES		NULL	
 select hex(a) from v1;
 hex(a)
 0000000000000001
@@ -4000,7 +4000,7 @@ insert into t1 values ('2001-02-03 04:05:06');
 create view v1(a) as select concat(a) from t1;
 show columns from v1;
 Field	Type	Null	Key	Default	Extra
-a	varchar(19)	YES		NULL	
+a	tinytext	YES		NULL	
 select hex(a) from v1;
 hex(a)
 0030003000300030002D00300030002D00300030002000300030003A00300030003A00300030
@@ -4041,7 +4041,7 @@ insert into t1 values (20010203040506);
 create view v1(a) as select concat(a) from t1;
 show columns from v1;
 Field	Type	Null	Key	Default	Extra
-a	varchar(19)	YES		NULL	
+a	tinytext	YES		NULL	
 select hex(a) from v1;
 hex(a)
 0032003000300031002D00300032002D00300033002000300034003A00300035003A00300036

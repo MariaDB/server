@@ -2,14 +2,14 @@ SHOW CREATE TABLE INFORMATION_SCHEMA.INNODB_TRX;
 Table	Create Table
 INNODB_TRX	CREATE TEMPORARY TABLE `INNODB_TRX` (
   `trx_id` bigint(21) unsigned NOT NULL,
-  `trx_state` varchar(13) NOT NULL,
+  `trx_state` longtext NOT NULL,
   `trx_started` datetime NOT NULL,
-  `trx_requested_lock_id` varchar(81),
+  `trx_requested_lock_id` longtext,
   `trx_wait_started` datetime,
   `trx_weight` bigint(21) unsigned NOT NULL,
   `trx_mysql_thread_id` bigint(21) unsigned NOT NULL,
-  `trx_query` varchar(1024),
-  `trx_operation_state` varchar(64),
+  `trx_query` longtext,
+  `trx_operation_state` longtext,
   `trx_tables_in_use` bigint(21) unsigned NOT NULL,
   `trx_tables_locked` bigint(21) unsigned NOT NULL,
   `trx_lock_structs` bigint(21) unsigned NOT NULL,
@@ -20,7 +20,7 @@ INNODB_TRX	CREATE TEMPORARY TABLE `INNODB_TRX` (
   `trx_isolation_level` enum('READ UNCOMMITTED','READ COMMITTED','REPEATABLE READ','SERIALIZABLE') NOT NULL,
   `trx_unique_checks` int(1) NOT NULL,
   `trx_foreign_key_checks` int(1) NOT NULL,
-  `trx_last_foreign_key_error` varchar(256),
+  `trx_last_foreign_key_error` longtext,
   `trx_is_read_only` int(1) NOT NULL,
   `trx_autocommit_non_locking` int(1) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci

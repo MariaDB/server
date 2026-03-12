@@ -1069,12 +1069,12 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `ID` bigint(4) NOT NULL,
-  `USER` varchar(128) NOT NULL,
-  `HOST` varchar(64) NOT NULL,
-  `DB` varchar(64),
-  `COMMAND` varchar(16) NOT NULL,
+  `USER` longtext NOT NULL,
+  `HOST` longtext NOT NULL,
+  `DB` longtext,
+  `COMMAND` longtext NOT NULL,
   `TIME` int(7) NOT NULL,
-  `STATE` varchar(64),
+  `STATE` longtext,
   `INFO` longtext,
   `TIME_MS` decimal(22,3) NOT NULL,
   `STAGE` tinyint(2) NOT NULL,
@@ -1093,12 +1093,12 @@ show create table t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `ID` bigint(4) NOT NULL,
-  `USER` varchar(128) NOT NULL,
-  `HOST` varchar(64) NOT NULL,
-  `DB` varchar(64),
-  `COMMAND` varchar(16) NOT NULL,
+  `USER` longtext NOT NULL,
+  `HOST` longtext NOT NULL,
+  `DB` longtext,
+  `COMMAND` longtext NOT NULL,
   `TIME` int(7) NOT NULL,
-  `STATE` varchar(64),
+  `STATE` longtext,
   `INFO` longtext,
   `TIME_MS` decimal(22,3) NOT NULL,
   `STAGE` tinyint(2) NOT NULL,
@@ -1116,9 +1116,9 @@ create table t1 like information_schema.character_sets;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `CHARACTER_SET_NAME` varchar(32) NOT NULL,
-  `DEFAULT_COLLATE_NAME` varchar(64) NOT NULL,
-  `DESCRIPTION` varchar(60) NOT NULL,
+  `CHARACTER_SET_NAME` longtext NOT NULL,
+  `DEFAULT_COLLATE_NAME` longtext NOT NULL,
+  `DESCRIPTION` longtext NOT NULL,
   `MAXLEN` bigint(3) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 drop table t1;

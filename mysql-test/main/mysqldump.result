@@ -3871,11 +3871,11 @@ DROP TABLE IF EXISTS `TABLES`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TEMPORARY TABLE `TABLES` (
-  `TABLE_CATALOG` varchar(512) NOT NULL,
-  `TABLE_SCHEMA` varchar(64) NOT NULL,
-  `TABLE_NAME` varchar(64) NOT NULL,
-  `TABLE_TYPE` varchar(64) NOT NULL,
-  `ENGINE` varchar(64),
+  `TABLE_CATALOG` longtext NOT NULL,
+  `TABLE_SCHEMA` longtext NOT NULL,
+  `TABLE_NAME` longtext NOT NULL,
+  `TABLE_TYPE` longtext NOT NULL,
+  `ENGINE` longtext,
   `VERSION` bigint(21) unsigned,
   `ROW_FORMAT` varchar(10),
   `TABLE_ROWS` bigint(21) unsigned,
@@ -3888,10 +3888,10 @@ CREATE TEMPORARY TABLE `TABLES` (
   `CREATE_TIME` datetime,
   `UPDATE_TIME` datetime,
   `CHECK_TIME` datetime,
-  `TABLE_COLLATION` varchar(64),
+  `TABLE_COLLATION` longtext,
   `CHECKSUM` bigint(21) unsigned,
-  `CREATE_OPTIONS` varchar(2048),
-  `TABLE_COMMENT` varchar(2048) NOT NULL,
+  `CREATE_OPTIONS` longtext,
+  `TABLE_COMMENT` longtext NOT NULL,
   `MAX_INDEX_LENGTH` bigint(21) unsigned,
   `TEMPORARY` varchar(1)
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;

@@ -725,21 +725,25 @@ class Tmp_field_param
   bool m_modify_item;
   bool m_table_cant_handle_bit_fields;
   bool m_make_copy_field;
+  bool m_is_heap_engine;
 public:
   Tmp_field_param(bool group,
                   bool modify_item,
                   bool table_cant_handle_bit_fields,
-                  bool make_copy_field)
+                  bool make_copy_field,
+                  bool is_heap_engine= false)
    :m_group(group),
     m_modify_item(modify_item),
     m_table_cant_handle_bit_fields(table_cant_handle_bit_fields),
-    m_make_copy_field(make_copy_field)
+    m_make_copy_field(make_copy_field),
+    m_is_heap_engine(is_heap_engine)
   { }
   bool group() const { return m_group; }
   bool modify_item() const { return m_modify_item; }
   bool table_cant_handle_bit_fields() const
   { return m_table_cant_handle_bit_fields; }
   bool make_copy_field() const { return m_make_copy_field; }
+  bool is_heap_engine() const { return m_is_heap_engine; }
   void set_modify_item(bool to) { m_modify_item= to; }
 };
 
