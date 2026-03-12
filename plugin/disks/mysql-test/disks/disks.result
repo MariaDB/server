@@ -1,8 +1,8 @@
 show create table information_schema.disks;
 Table	Create Table
 DISKS	CREATE TEMPORARY TABLE `DISKS` (
-  `Disk` varchar(pathlen) NOT NULL,
-  `Path` varchar(pathlen) NOT NULL,
+  `Disk` longtext NOT NULL,
+  `Path` longtext NOT NULL,
   `Total` bigint(32) NOT NULL,
   `Used` bigint(32) NOT NULL,
   `Available` bigint(32) NOT NULL

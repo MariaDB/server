@@ -4523,6 +4523,9 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
                                    FALSE);
       if (!*ref_key)
         DBUG_RETURN(TRUE);
+      if ((cur_key_part->key_part_flag & HA_BLOB_PART) &&
+          cur_key_part->field->table->s->db_type() == heap_hton)
+        tab_ref->disable_cache= TRUE;
       cur_ref_buff+= cur_key_part->store_length;
     }
     *ref_key= NULL; /* End marker. */
