@@ -3355,6 +3355,8 @@ static void wsrep_mdl_log(wsrep_mdl_log_t level,
                           const MDL_ticket *ticket,
                           const MDL_key *key)
 {
+                          const MDL_key *key)
+{
   const char* schema= key->db_name();
   const int schema_len= key->db_name_length();
   const char* name= key->name();
