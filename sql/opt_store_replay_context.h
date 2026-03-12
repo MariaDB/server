@@ -28,7 +28,8 @@
  ***************************************************************************/
 
 class SEL_ARG_RANGE_SEQ;
-class Range_list_recorder;
+class Range_print_enumerator;
+
 class table_context_for_store;
 
 void init_optimizer_context_recorder_if_needed(THD *thd);
@@ -45,11 +46,13 @@ public:
 
   ~Optimizer_context_recorder();
 
-  Range_list_recorder *
-  start_range_list_record(TABLE_LIST *tbl,
-                          size_t found_records, const char *index_name,
-                          const Cost_estimate *cost, ha_rows max_index_blocks,
-                          ha_rows max_row_blocks);
+  void record_multi_range_read_info_const(const TABLE_LIST *tbl,
+                                          uint keynr,
+                                          Range_print_enumerator *ranges,
+                                          ha_rows rows,
+                                          const Cost_estimate *cost,
+                                          ha_rows max_index_blocks,
+                                          ha_rows max_row_blocks);
 
   void record_cost_index_read(const TABLE_LIST *tbl,
                               uint key, ha_rows records, bool eq_ref,
@@ -77,19 +80,6 @@ private:
                                       my_bool flags);
 };
 
-/* Interface to record range lists */
-class Range_list_recorder : public Sql_alloc
-{
-public:
-  void add_range(MEM_ROOT *mem_root, const char *range);
-};
-
-/* Get the range list recorder if we need one. */
-Range_list_recorder *
-get_range_list_recorder(THD *thd, MEM_ROOT *mem_root, TABLE_LIST *tbl,
-                        const char *index_name, ha_rows records,
-                        Cost_estimate *cost, ha_rows max_index_blocks,
-                        ha_rows max_row_blocks);
 
 /* Save the collected context into optimizer_context IS table */
 bool store_optimizer_context(THD *thd);
