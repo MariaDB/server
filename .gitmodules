@@ -16,4 +16,4 @@
 	url = https://github.com/mariadb-corporation/libmarias3.git
 [submodule "storage/columnstore/columnstore"]
 	path = storage/columnstore/columnstore
-	url = https://github.com/mariadb-corporation/mariadb-columnstore-engine.git
+	url = https://github.com/grooverdan/mariadb-columnstore-engine.git
