@@ -230,6 +230,39 @@ public:
   }
 };
 
+/*
+  Extends the Read_value interface to read an array of elements.
+  Descendant classes implement read_container()
+  // TODO: make it read_array_elem ?
+*/
+class Read_array : public Read_value
+{
+  int before_read(json_engine_t *je, const char *value_name, String *err_buf)
+  {
+    if (json_scan_next(je) || je->state != JST_ARRAY_START)
+    {
+      err_buf->append(STRING_WITH_LEN("error reading "));
+      err_buf->append(value_name, strlen(value_name));
+      err_buf->append(STRING_WITH_LEN(" value"));
+      return 1;
+    }
+    return 0;
+  }
+
+  int after_read(int rc) { return rc > 0; }
+
+public:
+  bool read_value(json_engine_t *je, const char *value_name,
+                  String *err_buf) override
+  {
+    int rc= before_read(je, value_name, err_buf);
+    if (rc <= 0)
+      rc= read_container(je, err_buf);
+    return after_read(rc);
+  }
+  virtual int read_container(json_engine_t *je, String *err_buf)= 0;
+};
+
 }; /* namespace json_reader */
 
 #endif
