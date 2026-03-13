@@ -485,12 +485,17 @@ bool store_optimizer_context(THD *thd)
 {
   LEX *lex= thd->lex;
 
+  if (thd->in_sub_stmt)
+  {
+    /* This is a sub-statement inside SP. Don't do anything */
+    return false;
+  }
+
   if (!thd->opt_ctx_recorder ||
       lex->query_tables == *(lex->query_tables_last))
   {
     return false;
   }
-
   String sql_script;
   sql_script.set_charset(system_charset_info);
   Json_writer ctx_writer;
@@ -1412,6 +1417,11 @@ void init_optimizer_context_replay_if_needed(THD *thd)
 
 void init_optimizer_context_recorder_if_needed(THD *thd)
 {
+  if (thd->in_sub_stmt)
+  {
+    /* This is a sub-statement inside SP. Don't do anything */
+    return;
+  }
   if (!thd->variables.optimizer_record_context)
   {
     clean_captured_ctx(thd);
