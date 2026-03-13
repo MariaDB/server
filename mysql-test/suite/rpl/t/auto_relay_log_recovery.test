@@ -1,0 +1,109 @@
+# MDEV-38907: Relay Logs can now automatically remove
+# an incomplete event or event group left by a crash.
+#
+# Each case must first sync the slave up
+# so it does not inject failures at the previous case's unsynchronized section.
+# Due to START SLAVE restarting relay logs in GTID mode (MDEV-4698),
+# it must also show truncation results directly via
+# SHOW RELAYLOG EVENTS before the next case's START SLAVE and sync.
+# (Due to specifying `$binlog_start`, the listing may be empty;
+#  this is expected when truncating a trailing incomplete event group.)
+
+--source include/have_debug.inc
+--source include/have_innodb.inc
+# format-agnostic, but easier to test rotate crashes with the row format
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo # Case 0: No event groups and no trailing incomplete event
+--sync_slave_with_master
+
+
+--echo # Case 1: No event groups but trailing incomplete event
+--source include/stop_slave_sql.inc
+--let $binlog_file= `SELECT Relay_Log_File FROM information_schema.slave_status`
+
+SET @@GLOBAL.debug_dbug= '+d,fail_rotate_mid_write';
+--connection master
+  FLUSH BINARY LOGS;
+  --save_master_pos
+--connection slave
+--let $slave_io_errno= 1595
+--source include/wait_for_slave_io_error.inc
+
+--let $rpl_server_number= 2
+--source include/rpl_restart_server.inc
+--source include/show_relaylog_events.inc
+
+
+--echo # Case 2: Complete event group but trailing incomplete event
+--source include/start_slave.inc
+--sync_with_master
+--source include/stop_slave_sql.inc
+--let $binlog_file= `SELECT Relay_Log_File FROM information_schema.slave_status`
+--let $binlog_start= `SELECT Relay_Log_Pos FROM information_schema.slave_status`
+
+SET @@GLOBAL.debug_dbug= '+d,fail_rotate_mid_write';
+--connection master
+  CREATE TABLE t (a TEXT) ENGINE=innodb;
+  FLUSH BINARY LOGS;
+  --save_master_pos
+--connection slave
+--source include/wait_for_slave_io_error.inc
+
+--source include/rpl_restart_server.inc
+--source include/show_relaylog_events.inc
+
+
+--echo # Case 3: Trailing incomplete event group AND trailing incomplete event
+SET @@max_relay_log_size=4096;
+--source include/start_slave.inc
+--sync_with_master
+--source include/stop_slave_sql.inc
+--let $binlog_file= `SELECT Relay_Log_File FROM information_schema.slave_status`
+--let $binlog_start= `SELECT Relay_Log_Pos FROM information_schema.slave_status`
+
+SET @@GLOBAL.debug_dbug= '+d,fail_rotate_mid_write';
+--connection master
+  BEGIN;
+    INSERT INTO t VALUES (REPEAT('3', 4096)); # slave's `@@max_relay_log_size`
+    INSERT INTO t VALUES ('3');
+  COMMIT;
+  --save_master_pos
+--connection slave
+--source include/wait_for_slave_io_error.inc
+
+--source include/rpl_restart_server.inc
+--source include/show_relaylog_events.inc
+
+
+--echo # Case 4: Trailing incomplete event group but complete event
+--source include/start_slave.inc
+--sync_with_master
+--source include/stop_slave_sql.inc
+--let $binlog_file= `SELECT Relay_Log_File FROM information_schema.slave_status`
+--let $binlog_start= `SELECT Relay_Log_Pos FROM information_schema.slave_status`
+
+SET @@GLOBAL.debug_dbug= '+d,kill_slave_io_before_commit';
+--connection master
+  INSERT INTO t VALUES ('4');
+  --save_master_pos
+--connection slave
+--source include/wait_for_slave_io_error.inc
+
+--source include/rpl_restart_server.inc
+--source include/show_relaylog_events.inc
+
+
+--echo # Double-check that all INSERTs have applied
+--source include/start_slave.inc
+--sync_with_master
+SELECT LEFT(a, 2) FROM t;
+
+--echo # Case NaN: Cleanup
+--connection master
+  DROP TABLE t;
+  CALL mtr.add_suppression('Could not use ');
+  CALL mtr.add_suppression('Slave I/O: Relay log write failure: ');
+
+--source include/rpl_end.inc

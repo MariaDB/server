@@ -241,8 +241,13 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     */
     mysql_mutex_lock(log_lock);
     if (relay_log.open_index_file(buf_relaylog_index_name, ln, TRUE) ||
-        relay_log.open(ln, 0, 0, SEQ_READ_APPEND,
-                       (ulong)max_relay_log_size, 1, TRUE))
+        relay_log.open(ln, nullptr, 0, SEQ_READ_APPEND,
+          static_cast<ulong>(max_relay_log_size), true, true, false,
+          /*
+            Not needed for `@@relay_log_recovery`,
+            and not safe for non-GTID mode until MDEV-39051
+          */
+          !is_relay_log_recovery && mi->master_use_gtid))
     {
       mysql_mutex_unlock(log_lock);
       mysql_mutex_unlock(&data_lock);
@@ -1122,9 +1127,14 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
         DBUG_RETURN(1);
       }
       mysql_mutex_lock(rli->relay_log.get_log_lock());
-      if (rli->relay_log.open(ln, 0, 0, SEQ_READ_APPEND,
-                             (ulong)(rli->max_relay_log_size ? rli->max_relay_log_size :
-                              max_binlog_size), 1, TRUE))
+      if (rli->relay_log.open(ln, nullptr, 0, SEQ_READ_APPEND,
+        rli->max_relay_log_size ? static_cast<ulong>(rli->max_relay_log_size) :
+        max_binlog_size, true, true, false,
+        /*
+          Not needed for `@@relay_log_recovery`,
+          and not safe for non-GTID mode until MDEV-39051
+        */
+        !rli->is_relay_log_recovery && master_use_gtid))
       {
         sql_print_error("Unable to purge relay log files. Failed to open relay "
                         "log file:%s.", rli->relay_log.get_log_fname());

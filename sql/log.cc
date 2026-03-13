@@ -4622,6 +4622,201 @@ Event_log::write_description_event(enum_binlog_checksum_alg checksum_alg,
 }
 
 
+bool do_relaylog_recovery(MYSQL_BIN_LOG *relay_log, const char *log_name)
+{
+  MEM_ROOT memroot;
+  my_off_t group_pos; ///< Start offset of the event group or non-group event
+  /// @note not initialized when @ref truncate_entry is `nullptr`
+  my_off_t truncate_pos;
+  if (my_b_filelength(relay_log->get_index_file()) == 0)
+    // No recovery required for a fresh new log with no files
+    return false;
+
+  int err= true;
+  Format_description_log_event fdev(BINLOG_VERSION);
+  DBUG_ASSERT(fdev.is_valid());
+  rpl_gtid truncate_gtid= {0, 0, 0};
+  /*
+    We want to truncate an incompletely written latest group, but we don't
+    know if this group began in a previous file, so start pretending it did.
+  */
+  enum {UNCERTAIN, OUTSIDE, IN_TRANSACTION, IN_STANDALONE}
+  group_state= UNCERTAIN;
+  init_alloc_root(PSI_INSTRUMENT_ME, &memroot,
+                  FN_REFLEN+sizeof(binlog_file_entry), 0, MYF(0));
+  binlog_file_entry
+  *truncate_entry= nullptr, *list= relay_log->get_list(&memroot);
+  if (!list)
+  {
+    sql_print_error(
+      "Out of memory while loading the index file for relay log %sQ", log_name);
+    goto end;
+  }
+
+  for (; list; list= list->next)
+  {
+    IO_CACHE log;
+    const char *errmsg;
+    Log_event *event;
+    char log_file_name[FN_REFLEN];
+    if (normalize_binlog_name(log_file_name, list->name.str, true))
+    {
+      sql_print_error(
+        "Could not normalize the name for relay log file %sQ", log_name);
+      goto end;
+    }
+    File file= open_binlog(&log, log_file_name, &errmsg);
+    if ((file) < 0)
+    {
+      sql_print_error("%s", errmsg);
+      goto end;
+    }
+    group_pos= 0;
+    while ((
+      /*
+        A slave will verify the checksum in the SQL thread;
+        the relay log does not care about checksums until then.
+      */
+      event= Log_event::read_log_event(&log, &err, &fdev, false, false)
+    ) && event->is_valid())
+    {
+
+      switch (event->get_type_code()) {
+      case FORMAT_DESCRIPTION_EVENT:
+      {
+        auto format_description_event=
+          static_cast<Format_description_log_event *>(event);
+        /*FIXME:
+          Shouldn't this section, as well as TC_LOG_BINLOG::recover(),
+          replace the `fdev` passed from an outer scope with
+          what's read from the log, since they may not match?
+        */
+        fdev.used_checksum_alg= format_description_event->used_checksum_alg;
+        /*
+          In practice, the presence of this legacy field either:
+          * marks the very first Format Description of a log.
+            This means there are no prior events, let alone an open group.
+          * (with Log_event::is_artificial_event() set)
+            tells the SQL thread to disregard the current group -
+            because the other end of the connection has appearently crashed,
+            or have changed after reconnecting mid-group.
+        */
+        if (!format_description_event->created)
+          break;
+      }
+      [[fallthrough]];
+      case XID_EVENT:
+      case XA_PREPARE_LOG_EVENT:
+        group_state= OUTSIDE;
+      break;
+      case START_ENCRYPTION_EVENT:
+        if (fdev.start_decryption(
+            static_cast<Start_encryption_log_event *>(event)))
+        {
+          delete event;
+          err= LOG_READ_DECRYPT;
+          errmsg= "Prepare decryption failure";
+          goto end_while;
+        }
+        break;
+      case GTID_EVENT:
+      {
+        auto gtid_event= static_cast<Gtid_log_event *>(event);
+        truncate_gtid=
+          {gtid_event->domain_id, gtid_event->server_id, gtid_event->seq_no};
+        group_state= (gtid_event->flags2 & Gtid_log_event::FL_STANDALONE) ?
+         IN_STANDALONE : IN_TRANSACTION;
+      }
+      break;
+      case QUERY_EVENT:
+      {
+        auto query_event= static_cast<Query_log_event *>(event);
+        if (query_event->is_begin())
+        {
+          group_state= IN_TRANSACTION;
+          break;
+        }
+        if (query_event->is_commit() || query_event->is_rollback())
+        {
+          group_state= OUTSIDE;
+          break;
+        }
+      }
+      [[fallthrough]];
+      default:
+        switch (group_state) {
+        case IN_STANDALONE:
+          if (!event->is_part_of_group())
+            group_state= OUTSIDE;
+        case IN_TRANSACTION:
+          break;
+        default:
+          if (event->is_part_of_group())
+            group_state= IN_STANDALONE;
+        }
+      }
+      delete event;
+
+      // Increment @ref group_pos only when not inside a group
+      switch (group_state) {
+      case OUTSIDE:
+        truncate_gtid= {0, 0, 0};
+      [[fallthrough]];
+      case UNCERTAIN:
+        group_pos= my_b_tell(&log);
+      default:;
+      }
+    }
+  end_while:
+    end_io_cache(&log);
+    mysql_file_close(file, MYF(MY_WME));
+
+    switch (err) {
+    case LOG_READ_IO:
+    case LOG_READ_MEM:
+    case LOG_READ_DECRYPT:
+      sql_print_error("Error from Log_event::read_log_event(): '%s'", errmsg);
+      goto end;
+    default: // EOF or incomprehensible event (which effectively is also EOF)
+      switch (group_state) {
+      default:
+        if (!err)
+          break; // No corrupted event to truncate
+        /*
+          Shelf this position:
+          Truncate from here even if the whole log is ungrouped events
+        */
+      [[fallthrough]];
+      // In a group, unclosed at the end
+      case IN_TRANSACTION:
+      case IN_STANDALONE:
+        truncate_pos= group_pos;
+        truncate_entry= list;
+      }
+    }
+    if (group_state != UNCERTAIN)
+      break; // Truncation (if necessary) has been located earlier.
+    // Keep checking for a group
+    fdev.reset_crypto();
+  }
+
+  if (truncate_entry && (err= relay_log->truncate_and_remove_binlogs(
+    truncate_entry->name.str, truncate_pos, &truncate_gtid)))
+  {
+    sql_print_error("Failed to truncate the relay log to file:%s pos:%llu.",
+       truncate_entry->name.str, truncate_pos);
+    goto end;
+  }
+end:
+  free_root(&memroot, MYF(0));
+  if (err)
+    sql_print_error("Crash detection and recovery failed. "
+      "Either correct the problem (if it's, for example, out of memory error) "
+      "and restart, or delete (or rename) the relay log %sQ "
+      "or restart the slave with @@GLOBAL.relay_log_recovery=1", log_name);
+  return err;
+}
+
 /**
   Open a (new) binlog file.
 
@@ -4643,7 +4838,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
                          ulong max_size_arg,
                          bool null_created_arg,
                          bool need_mutex,
-                         bool commit_by_rotate)
+                         bool commit_by_rotate,
+                         bool do_recovery)
 {
   xid_count_per_binlog *new_xid_list_entry= NULL, *b;
   DBUG_ENTER("MYSQL_BIN_LOG::open");
@@ -4651,20 +4847,18 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
   DBUG_ASSERT(is_relay_log || !opt_binlog_engine_hton);
   mysql_mutex_assert_owner(&LOCK_log);
 
-  if (!is_relay_log)
+  if (do_recovery && !binlog_state_recover_done)
   {
-    if (!binlog_state_recover_done)
-    {
-      binlog_state_recover_done= true;
-      if (do_binlog_recovery(opt_bin_logname, false))
-        DBUG_RETURN(1);
-    }
-
-    if ((!binlog_background_thread_started &&
-         !binlog_background_thread_stop) &&
-        start_binlog_background_thread())
+    binlog_state_recover_done= true;
+    if (is_relay_log ? do_relaylog_recovery(this, log_name) :
+        do_binlog_recovery(opt_bin_logname, false))
       DBUG_RETURN(1);
   }
+
+  if (!is_relay_log &&
+      !binlog_background_thread_started && !binlog_background_thread_stop &&
+      start_binlog_background_thread())
+    DBUG_RETURN(1);
 
   /* We need to calculate new log file name for purge to delete old */
   if (init_and_set_log_file_name(log_name, new_name, next_log_number,
@@ -11685,8 +11879,9 @@ MYSQL_BIN_LOG::close_engine()
 */
 void MYSQL_BIN_LOG::clear_inuse_flag_when_closing(File file)
 {
-  my_off_t offset= BIN_LOG_HEADER_SIZE + FLAGS_OFFSET;
-  uchar flags= 0;            // clearing LOG_EVENT_BINLOG_IN_USE_F
+  constexpr my_off_t offset= BIN_LOG_HEADER_SIZE + FLAGS_OFFSET;
+  //FIXME: use mysql_file_pread() to load the existing flags
+  uchar flags= is_relay_log ? LOG_EVENT_RELAY_LOG_F : 0;
   mysql_file_pwrite(file, &flags, 1, offset, MYF(0));
 }
 
