@@ -104,9 +104,9 @@ set @saved_explain_output= @explain_output;
 drop table t1;
 #source the dump1.sql file
 Warnings:
-Note	1007	Can't create database 'db1'; database exists
-Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
 EXPLAIN
 {
   "query_block": {
@@ -225,9 +225,9 @@ set @saved_explain_output= @explain_output;
 drop table t1;
 #source the dump1.sql file
 Warnings:
-Note	1007	Can't create database 'db1'; database exists
-Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
 EXPLAIN
 {
   "query_block": {
@@ -341,9 +341,9 @@ set @saved_explain_output= @explain_output;
 drop table t1;
 #source the dump1.sql file
 Warnings:
-Note	1007	Can't create database 'db1'; database exists
-Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
 EXPLAIN
 {
   "query_block": {
@@ -461,9 +461,9 @@ set @saved_explain_output= @explain_output;
 drop table t1;
 #source the dump1.sql file
 Warnings:
-Note	1007	Can't create database 'db1'; database exists
-Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
 EXPLAIN
 {
   "query_block": {
@@ -585,9 +585,9 @@ set @saved_explain_output= @explain_output;
 drop table t1;
 #source the dump1.sql file
 Warnings:
-Note	1007	Can't create database 'db1'; database exists
-Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
 EXPLAIN
 {
   "query_block": {
@@ -705,9 +705,9 @@ set @saved_explain_output= @explain_output;
 drop table t1;
 #source the dump1.sql file
 Warnings:
-Note	1007	Can't create database 'db1'; database exists
-Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
 EXPLAIN
 {
   "query_block": {
@@ -810,9 +810,9 @@ set @saved_explain_output= @explain_output;
 drop table t1;
 #source the dump1.sql file
 Warnings:
-Note	1007	Can't create database 'db1'; database exists
-Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
 EXPLAIN
 {
   "query_block": {
@@ -905,9 +905,9 @@ set @saved_explain_output= @explain_output;
 drop table t1;
 #source the dump1.sql file
 Warnings:
-Note	1007	Can't create database 'db1'; database exists
-Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
 EXPLAIN
 {
   "query_block": {
@@ -982,9 +982,9 @@ set @saved_explain_output= @explain_output;
 drop table t1;
 #source the dump1.sql file
 Warnings:
-Note	1007	Can't create database 'db1'; database exists
-Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
 EXPLAIN
 {
   "query_block": {
@@ -1068,9 +1068,9 @@ set @saved_explain_output= @explain_output;
 drop table t1;
 #source the dump1.sql file
 Warnings:
-Note	1007	Can't create database 'db1'; database exists
-Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
 EXPLAIN
 {
   "query_block": {
@@ -1152,9 +1152,9 @@ set @saved_explain_output= @explain_output;
 drop table t1;
 #source the dump1.sql file
 Warnings:
-Note	1007	Can't create database 'db1'; database exists
-Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
 EXPLAIN
 {
   "query_block": {
@@ -1235,9 +1235,9 @@ set @saved_explain_output= @explain_output;
 drop table t1;
 #source the dump1.sql file
 Warnings:
-Note	1007	Can't create database 'db1'; database exists
-Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
 EXPLAIN
 {
   "query_block": {
@@ -1343,9 +1343,9 @@ set @saved_explain_output= @explain_output;
 drop table t1;
 #source the dump1.sql file
 Warnings:
-Note	1007	Can't create database 'db1'; database exists
-Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
 EXPLAIN
 {
   "query_block": {
@@ -1476,9 +1476,9 @@ set @saved_explain_output= @explain_output;
 drop table t1;
 #source the dump1.sql file
 Warnings:
-Note	1007	Can't create database 'db1'; database exists
-Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
 EXPLAIN
 {
   "query_block": {

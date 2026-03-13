@@ -4556,7 +4556,9 @@ static void append_insert_for_current_row(TABLE *table, String &output)
 }
 
 /*
-  store eits stats for the tables into the output
+  @brief
+    Store eits stats for the tables into the output.
+    Assumes tables_list contains unique tables.
 */
 bool dump_eits_stats(THD *thd, List<TABLE_LIST> *tables_list, String &output)
 {
