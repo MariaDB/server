@@ -485,7 +485,7 @@ bool store_optimizer_context(THD *thd)
 {
   LEX *lex= thd->lex;
 
-  if (thd->in_sub_stmt)
+  if (thd->spcont)
   {
     /* This is a sub-statement inside SP. Don't do anything */
     return false;
@@ -1417,7 +1417,7 @@ void init_optimizer_context_replay_if_needed(THD *thd)
 
 void init_optimizer_context_recorder_if_needed(THD *thd)
 {
-  if (thd->in_sub_stmt)
+  if (thd->spcont)
   {
     /* This is a sub-statement inside SP. Don't do anything */
     return;
