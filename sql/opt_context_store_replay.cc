@@ -243,36 +243,37 @@ static bool is_base_table(const TABLE_LIST *tbl)
           tbl->table->s->tmp_table != SYSTEM_TMP_TABLE);
 }
 
-static void dump_range_stats(THD *thd, table_context_for_store *context,
-                             Json_writer *ctx_writer)
+static
+void dump_mrr_info_calls(List<Multi_range_read_const_call_record> *mrr_list,
+                         Json_writer *ctx_writer)
 {
   Json_writer_array list_ranges_wrapper(ctx_writer, "list_ranges");
-  List_iterator irc_li(context->mrr_list);
+  List_iterator irc_li(*mrr_list);
   while (Multi_range_read_const_call_record *irc= irc_li++)
   {
     Json_writer_object irc_wrapper(ctx_writer);
     irc_wrapper.add("index_name", irc->idx_name);
-    List_iterator rc_li(irc->range_list);
-    Json_writer_array ranges_wrapper(ctx_writer, "ranges");
-    while (const char *range_str= rc_li++)
+
     {
-      ranges_wrapper.add(range_str, strlen(range_str));
+      Json_writer_array ranges_wrapper(ctx_writer, "ranges");
+      List_iterator rc_li(irc->range_list);
+      while (const char *range_str= rc_li++)
+        ranges_wrapper.add(range_str, strlen(range_str));
     }
-    ranges_wrapper.end();
 
     irc_wrapper.add("num_rows", irc->rows);
     {
-      Json_writer_object cost_wrapper(ctx_writer, "cost");
-      cost_wrapper.add("avg_io_cost", irc->cost.avg_io_cost);
-      cost_wrapper.add("cpu_cost", irc->cost.cpu_cost);
-      cost_wrapper.add("comp_cost", irc->cost.comp_cost);
-      cost_wrapper.add("copy_cost", irc->cost.copy_cost);
-      cost_wrapper.add("limit_cost", irc->cost.limit_cost);
-      cost_wrapper.add("setup_cost", irc->cost.setup_cost);
-      cost_wrapper.add("index_cost_io", irc->cost.index_cost.io);
-      cost_wrapper.add("index_cost_cpu", irc->cost.index_cost.cpu);
-      cost_wrapper.add("row_cost_io", irc->cost.row_cost.io);
-      cost_wrapper.add("row_cost_cpu", irc->cost.row_cost.cpu);
+      Json_writer_object obj(ctx_writer, "cost");
+      obj.add("avg_io_cost", irc->cost.avg_io_cost);
+      obj.add("cpu_cost", irc->cost.cpu_cost);
+      obj.add("comp_cost", irc->cost.comp_cost);
+      obj.add("copy_cost", irc->cost.copy_cost);
+      obj.add("limit_cost", irc->cost.limit_cost);
+      obj.add("setup_cost", irc->cost.setup_cost);
+      obj.add("index_cost_io", irc->cost.index_cost.io);
+      obj.add("index_cost_cpu", irc->cost.index_cost.cpu);
+      obj.add("row_cost_io", irc->cost.row_cost.io);
+      obj.add("row_cost_cpu", irc->cost.row_cost.cpu);
     }
 
     irc_wrapper.add("max_index_blocks", irc->max_index_blocks);
@@ -280,46 +281,48 @@ static void dump_range_stats(THD *thd, table_context_for_store *context,
   }
 }
 
-static void dump_index_read_cost(THD *thd, table_context_for_store *context,
-                                 Json_writer *ctx_writer)
+static void dump_index_read_calls(List<cost_index_read_call_record> *irc_list,
+                                  Json_writer *ctx_writer)
 {
   Json_writer_array list_irc_wrapper(ctx_writer, "list_index_read_costs");
-  List_iterator irc_li(context->irc_list);
+  List_iterator irc_li(*irc_list);
 
   while (cost_index_read_call_record *irc= irc_li++)
   {
-    Json_writer_object irc_wrapper(ctx_writer);
-    irc_wrapper.add("key_number", irc->key);
-    irc_wrapper.add("num_records", irc->records);
-    irc_wrapper.add("eq_ref", irc->eq_ref ? 1 : 0);
-    irc_wrapper.add("index_cost_io", irc->cost.index_cost.io);
-    irc_wrapper.add("index_cost_cpu", irc->cost.index_cost.cpu);
-    irc_wrapper.add("row_cost_io", irc->cost.row_cost.io);
-    irc_wrapper.add("row_cost_cpu", irc->cost.row_cost.cpu);
-    irc_wrapper.add("max_index_blocks", irc->cost.max_index_blocks);
-    irc_wrapper.add("max_row_blocks", irc->cost.max_row_blocks);
-    irc_wrapper.add("copy_cost", irc->cost.copy_cost);
+    Json_writer_object obj(ctx_writer);
+    obj.add("key_number", irc->key);
+    obj.add("num_records", irc->records);
+    obj.add("eq_ref", irc->eq_ref ? 1 : 0);
+    obj.add("index_cost_io", irc->cost.index_cost.io);
+    obj.add("index_cost_cpu", irc->cost.index_cost.cpu);
+    obj.add("row_cost_io", irc->cost.row_cost.io);
+    obj.add("row_cost_cpu", irc->cost.row_cost.cpu);
+    obj.add("max_index_blocks", irc->cost.max_index_blocks);
+    obj.add("max_row_blocks", irc->cost.max_row_blocks);
+    obj.add("copy_cost", irc->cost.copy_cost);
   }
 }
 
-static void dump_records_in_range(THD *thd, table_context_for_store *context,
-                                  Json_writer *ctx_writer)
+static
+void dump_records_in_range_calls(List<records_in_range_call_record> *rir_list,
+                                 Json_writer *ctx_writer)
 {
   Json_writer_array list_irc_wrapper(ctx_writer, "list_records_in_range");
-  List_iterator rir_li(context->rir_list);
+  List_iterator rir_li(*rir_list);
 
   while (records_in_range_call_record *rir= rir_li++)
   {
-    Json_writer_object rir_wrapper(ctx_writer);
-    rir_wrapper.add("key_number", rir->keynr);
-    rir_wrapper.add("min_key", rir->min_key);
-    rir_wrapper.add("max_key", rir->max_key);
-    rir_wrapper.add("num_records", rir->records);
+    Json_writer_object obj(ctx_writer);
+    obj.add("key_number", rir->keynr);
+    obj.add("min_key", rir->min_key);
+    obj.add("max_key", rir->max_key);
+    obj.add("num_records", rir->records);
   }
 }
 
-static void dump_index_stats(THD *thd, uchar *tbl_name, size_t tbl_name_len,
-                             Json_writer *ctx_writer)
+static
+void dump_recorded_table_calls(THD *thd, uchar *tbl_name, size_t tbl_name_len,
+                               Json_writer *ctx_writer)
 {
   table_context_for_store *table_context=
       thd->opt_ctx_recorder->search(tbl_name, tbl_name_len);
@@ -327,9 +330,9 @@ static void dump_index_stats(THD *thd, uchar *tbl_name, size_t tbl_name_len,
   if (!table_context)
     return;
 
-  dump_range_stats(thd, table_context, ctx_writer);
-  dump_index_read_cost(thd, table_context, ctx_writer);
-  dump_records_in_range(thd, table_context, ctx_writer);
+  dump_mrr_info_calls(&table_context->mrr_list, ctx_writer);
+  dump_index_read_calls(&table_context->irc_list, ctx_writer);
+  dump_records_in_range_calls(&table_context->rir_list, ctx_writer);
 }
 
 /*
@@ -364,13 +367,11 @@ static void dump_table_stats(THD *thd, TABLE_LIST *tbl, uchar *tbl_name,
     index_wrapper.add("index_name", key->name);
     Json_writer_array rpk_wrapper(ctx_writer, "rec_per_key");
     for (uint i= 0; i < num_key_parts; i++)
-    {
       rpk_wrapper.add(key->actual_rec_per_key(i));
-    }
     rpk_wrapper.end();
   }
   indexes_wrapper.end();
-  dump_index_stats(thd, tbl_name, tbl_name_len, ctx_writer);
+  dump_recorded_table_calls(thd, tbl_name, tbl_name_len, ctx_writer);
 }
 
 static void create_view_def(THD *thd, TABLE_LIST *table, String *name,
