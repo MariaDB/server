@@ -31,7 +31,7 @@ select * from t1 where t1.a = 3;
 
 --echo #
 --echo # disable optimizer_trace, but enable optimizer_record_context
---echo # there should be no trace here as well
+--echo # The context will be recorded.
 --echo #
 
 set optimizer_record_context=ON;
