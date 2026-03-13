@@ -31,6 +31,7 @@ class SEL_ARG_RANGE_SEQ;
 class Range_print_enumerator;
 
 class table_context_for_store;
+class Multi_range_read_const_call_record;
 
 void init_optimizer_context_recorder_if_needed(THD *thd);
 
@@ -91,9 +92,6 @@ bool store_optimizer_context(THD *thd);
  ***************************************************************************/
 class table_context_for_replay;
 class index_context_for_replay;
-class range_context_for_replay;
-class irc_context_for_replay;
-class rir_context_for_replay;
 
 class Saved_Table_stats;
 
@@ -150,7 +148,7 @@ private:
   List<ha_rows> *get_index_rec_per_key_list(const TABLE *tbl,
                                             const char *idx_name);
   void store_range_contexts(const TABLE *tbl, const char *idx_name,
-                            List<range_context_for_replay> *list);
+                            List<Multi_range_read_const_call_record> *list);
   bool infuse_table_rows(const TABLE *tbl, ha_rows *rows);
   table_context_for_replay *find_table_context(const char *name);
 };
