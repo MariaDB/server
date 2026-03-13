@@ -100,25 +100,14 @@ using namespace json_reader;
 */
 
 /*
-   One index range, aka interval.
-
-   Currently we store the interval's text representation, like
-   "1 < (key1) < 2"
-*/
-struct Range_record : public Sql_alloc
-{
-  char *range;
-};
-
-/*
    A record of one multi_range_read_info_const() call:
 */
 class Multi_range_read_const_call_record : public Sql_alloc
 {
 public:
   char *idx_name;
-  size_t num_records;
-  List<Range_record> range_list;
+  ha_rows rows;
+  List<char> range_list;
   Cost_estimate cost;
   ha_rows max_index_blocks;
   ha_rows max_row_blocks;
@@ -181,15 +170,15 @@ static int parse_table_context(THD *thd, json_engine_t *je, String *err_buf,
 static int parse_index_context(THD *thd, json_engine_t *je, String *err_buf,
                                index_context_for_replay *index_ctx);
 static int parse_range_context(THD *thd, json_engine_t *je, String *err_buf,
-                               range_context_for_replay *range_ctx);
+                               Multi_range_read_const_call_record *range_ctx);
 static int parse_index_read_cost_context(THD *thd, json_engine_t *je,
                                          String *err_buf,
-                                         irc_context_for_replay *irc_ctx);
+                                         cost_index_read_call_record *out);
 static bool parse_range_cost_estimate(THD *thd, json_engine_t *je,
                                       String *err_buf, Cost_estimate *cost);
 static int parse_records_in_range_context(THD *thd, json_engine_t *je,
                                           String *err_buf,
-                                          rir_context_for_replay *rir_ctx);
+                                          records_in_range_call_record *rir_ctx);
 
 struct DDL_Key
 {
@@ -242,13 +231,13 @@ static void dump_range_stats(THD *thd, table_context_for_store *context,
     irc_wrapper.add("index_name", irc->idx_name);
     List_iterator rc_li(irc->range_list);
     Json_writer_array ranges_wrapper(ctx_writer, "ranges");
-    while (Range_record *rc= rc_li++)
+    while (const char *range_str= rc_li++)
     {
-      ranges_wrapper.add(rc->range, strlen(rc->range));
+      ranges_wrapper.add(range_str, strlen(range_str));
     }
     ranges_wrapper.end();
 
-    irc_wrapper.add("num_rows", irc->num_records);
+    irc_wrapper.add("num_rows", irc->rows);
     {
       Json_writer_object cost_wrapper(ctx_writer, "cost");
       cost_wrapper.add("avg_io_cost", irc->cost.avg_io_cost);
@@ -709,21 +698,19 @@ void Optimizer_context_recorder::record_multi_range_read_info_const(
   if (!(range_ctx->idx_name= strdup_root(mem_root, index_name)))
     return; // OOM
 
-  range_ctx->num_records= rows;
+  range_ctx->rows= rows;
   range_ctx->cost= *cost;
   range_ctx->max_index_blocks= max_index_blocks;
   range_ctx->max_row_blocks= max_row_blocks;
 
   while (!ranges->next())
   {
-    Range_record *record= new (mem_root) Range_record;
-    if (unlikely(!record))
-      return; // OOM
     const String &str= ranges->get_interval_str();
+    const char *range_str;
 
-    if (!(record->range= strdup_root(mem_root, &str)))
+    if (!(range_str= strdup_root(mem_root, &str)))
       return;
-    range_ctx->range_list.push_back(record, mem_root);
+    range_ctx->range_list.push_back(range_str, mem_root);
   }
 
   /*
@@ -851,21 +838,6 @@ static void append_full_table_name(const TABLE_LIST *tbl, String *buf)
 
 /*
   This class is used to store the in-memory representation of
-  one range context i.e. read from json
-*/
-class range_context_for_replay : public Sql_alloc
-{
-public:
-  char *index_name;
-  List<char> ranges;
-  ha_rows num_rows;
-  Cost_estimate cost;
-  ha_rows max_index_blocks;
-  ha_rows max_row_blocks;
-};
-
-/*
-  This class is used to store the in-memory representation of
   one index context i.e. read from json
 */
 class index_context_for_replay : public Sql_alloc
@@ -873,32 +845,6 @@ class index_context_for_replay : public Sql_alloc
 public:
   char *idx_name;
   List<ha_rows> list_rec_per_key;
-};
-
-/*
-  This class is used to store the in-memory representation of
-  one index read cost i.e. read from json
-*/
-class irc_context_for_replay : public Sql_alloc
-{
-public:
-  uint key;
-  ha_rows records;
-  bool eq_ref;
-  ALL_READ_COST cost;
-};
-
-/*
-  This class is used to store the in-memory representation of
-  one records_in_range call cost i.e. read from json
-*/
-class rir_context_for_replay : public Sql_alloc
-{
-public:
-  uint keynr;
-  char *min_key;
-  char *max_key;
-  ha_rows records;
 };
 
 /*
@@ -918,9 +864,9 @@ public:
   double read_cost_io;
   double read_cost_cpu;
   List<index_context_for_replay> index_list;
-  List<range_context_for_replay> ranges_list;
-  List<irc_context_for_replay> irc_list;
-  List<rir_context_for_replay> rir_list;
+  List<Multi_range_read_const_call_record> ranges_list;
+  List<cost_index_read_call_record> irc_list;
+  List<records_in_range_call_record> rir_list;
 };
 
 /*
@@ -1195,15 +1141,15 @@ static int parse_table_context(THD *thd, json_engine_t *je, String *err_buf,
            thd, &table_ctx->index_list, parse_index_context),
        true},
       {"list_ranges",
-       Read_list_of_context<range_context_for_replay>(
+       Read_list_of_context<Multi_range_read_const_call_record>(
            thd, &table_ctx->ranges_list, parse_range_context),
        true},
       {"list_index_read_costs",
-       Read_list_of_context<irc_context_for_replay>(
+       Read_list_of_context<cost_index_read_call_record>(
            thd, &table_ctx->irc_list, parse_index_read_cost_context),
        true},
       {"list_records_in_range",
-       Read_list_of_context<rir_context_for_replay>(
+       Read_list_of_context<records_in_range_call_record>(
            thd, &table_ctx->rir_list, parse_records_in_range_context),
        true},
       {NULL, Read_double(NULL), true}};
@@ -1252,24 +1198,22 @@ static int parse_index_context(THD *thd, json_engine_t *je, String *err_buf,
    -1  EOF
 */
 static int parse_range_context(THD *thd, json_engine_t *je, String *err_buf,
-                               range_context_for_replay *range_ctx)
+                               Multi_range_read_const_call_record *out)
 {
   const char *err_msg= "Expected an object in the list_ranges array";
 
   Read_named_member array[]= {
-      {"index_name", Read_string(thd, &range_ctx->index_name), false},
-      {"ranges", Read_list_of_ranges(thd, &range_ctx->ranges), false},
+      {"index_name", Read_string(thd, &out->idx_name), false},
+      {"ranges", Read_list_of_ranges(thd, &out->range_list), false},
       {"num_rows",
-       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&range_ctx->num_rows),
+       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->rows),
        false},
-      {"cost", Read_range_cost_estimate(thd, &range_ctx->cost), false},
+      {"cost", Read_range_cost_estimate(thd, &out->cost), false},
       {"max_index_blocks",
-       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(
-           &range_ctx->max_index_blocks),
+       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->max_index_blocks),
        false},
       {"max_row_blocks",
-       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(
-           &range_ctx->max_row_blocks),
+       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->max_row_blocks),
        false},
       {NULL, Read_double(NULL), true}};
 
@@ -1328,29 +1272,29 @@ static bool parse_range_cost_estimate(THD *thd, json_engine_t *je,
 */
 static int parse_index_read_cost_context(THD *thd, json_engine_t *je,
                                          String *err_buf,
-                                         irc_context_for_replay *irc_ctx)
+                                         cost_index_read_call_record *out)
 {
   const char *err_msg= "Expected an object in the index_read_costs array";
 
   Read_named_member array[]= {
-      {"key_number", Read_non_neg_integer<uint, UINT_MAX>(&irc_ctx->key),
+      {"key_number", Read_non_neg_integer<uint, UINT_MAX>(&out->key),
        false},
       {"num_records",
-       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&irc_ctx->records), false},
-      {"eq_ref", Read_non_neg_integer<bool, 1>(&irc_ctx->eq_ref), false},
-      {"index_cost_io", Read_double(&irc_ctx->cost.index_cost.io), false},
-      {"index_cost_cpu", Read_double(&irc_ctx->cost.index_cost.cpu), false},
-      {"row_cost_io", Read_double(&irc_ctx->cost.row_cost.io), false},
-      {"row_cost_cpu", Read_double(&irc_ctx->cost.row_cost.cpu), false},
+       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->records), false},
+      {"eq_ref", Read_non_neg_integer<bool, 1>(&out->eq_ref), false},
+      {"index_cost_io", Read_double(&out->cost.index_cost.io), false},
+      {"index_cost_cpu", Read_double(&out->cost.index_cost.cpu), false},
+      {"row_cost_io", Read_double(&out->cost.row_cost.io), false},
+      {"row_cost_cpu", Read_double(&out->cost.row_cost.cpu), false},
       {"max_index_blocks",
        Read_non_neg_integer<longlong, LONGLONG_MAX>(
-           &irc_ctx->cost.max_index_blocks),
+           &out->cost.max_index_blocks),
        false},
       {"max_row_blocks",
        Read_non_neg_integer<longlong, LONGLONG_MAX>(
-           &irc_ctx->cost.max_row_blocks),
+           &out->cost.max_row_blocks),
        false},
-      {"copy_cost", Read_double(&irc_ctx->cost.copy_cost), false},
+      {"copy_cost", Read_double(&out->cost.copy_cost), false},
       {NULL, Read_double(NULL), true}};
 
   return parse_context_obj_from_json_array(je, err_buf, err_msg, array);
@@ -1371,17 +1315,17 @@ static int parse_index_read_cost_context(THD *thd, json_engine_t *je,
 */
 static int parse_records_in_range_context(THD *thd, json_engine_t *je,
                                           String *err_buf,
-                                          rir_context_for_replay *rir_ctx)
+                                          records_in_range_call_record *out)
 {
   const char *err_msg= "Expected an object in the records_in_range array";
 
   Read_named_member array[]= {
-      {"key_number", Read_non_neg_integer<uint, UINT_MAX>(&rir_ctx->keynr),
+      {"key_number", Read_non_neg_integer<uint, UINT_MAX>(&out->keynr),
        false},
-      {"min_key", Read_string(thd, &rir_ctx->min_key), false},
-      {"max_key", Read_string(thd, &rir_ctx->max_key), false},
+      {"min_key", Read_string(thd, &out->min_key), false},
+      {"max_key", Read_string(thd, &out->max_key), false},
       {"num_records",
-       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&rir_ctx->records), false},
+       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->records), false},
       {NULL, Read_double(NULL), true}};
 
   return parse_context_obj_from_json_array(je, err_buf, err_msg, array);
@@ -1497,8 +1441,8 @@ bool Optimizer_context_replay::infuse_range_stats(
   uint n_key_parts= table->actual_n_key_parts(keyinfo);
   KEY_MULTI_RANGE multi_range;
   range_seq_t seq_it;
-  List<range_context_for_replay> range_ctx_list;
-  store_range_contexts(table, idx_name, &range_ctx_list);
+  List<Multi_range_read_const_call_record> mrr_const_calls;
+  store_range_contexts(table, idx_name, &mrr_const_calls);
   String act_ranges;
   seq_it= seq_if->init((void *) seq, 0, 0);
   act_ranges.append(STRING_WITH_LEN("["));
@@ -1514,12 +1458,12 @@ bool Optimizer_context_replay::infuse_range_stats(
 
   act_ranges.append(STRING_WITH_LEN("]"));
 
-  if (!range_ctx_list.is_empty())
+  if (!mrr_const_calls.is_empty())
   {
-    List_iterator<range_context_for_replay> range_ctx_itr(range_ctx_list);
-    while (range_context_for_replay *range_ctx= range_ctx_itr++)
+    List_iterator<Multi_range_read_const_call_record> range_ctx_itr(mrr_const_calls);
+    while (Multi_range_read_const_call_record *range_ctx= range_ctx_itr++)
     {
-      List_iterator<char> range_itr(range_ctx->ranges);
+      List_iterator<char> range_itr(range_ctx->range_list);
       seq_it= seq_if->init((void *) seq, 0, 0);
       bool matched= true;
 
@@ -1538,7 +1482,7 @@ bool Optimizer_context_replay::infuse_range_stats(
       if (matched)
       {
         *cost= range_ctx->cost;
-        *rows= range_ctx->num_rows;
+        *rows= range_ctx->rows;
         *max_index_blocks= range_ctx->max_index_blocks;
         *max_row_blocks= range_ctx->max_row_blocks;
         return false;
@@ -1588,13 +1532,13 @@ bool Optimizer_context_replay::infuse_index_read_cost(const TABLE *tbl,
   if (table_context_for_replay *tbl_ctx=
           find_table_context(tbl_name.c_ptr_safe()))
   {
-    List_iterator<irc_context_for_replay> irc_itr(tbl_ctx->irc_list);
-    while (irc_context_for_replay *irc_ctx= irc_itr++)
+    List_iterator<cost_index_read_call_record> irc_itr(tbl_ctx->irc_list);
+    while (cost_index_read_call_record *rec= irc_itr++)
     {
-      if (irc_ctx->key == keynr && irc_ctx->records == records &&
-          irc_ctx->eq_ref == eq_ref)
+      if (rec->key == keynr && rec->records == records &&
+          rec->eq_ref == eq_ref)
       {
-        *cost= irc_ctx->cost;
+        *cost= rec->cost;
         return false;
       }
     }
@@ -1712,14 +1656,14 @@ bool Optimizer_context_replay::infuse_records_in_range(
   if (table_context_for_replay *tbl_ctx=
           find_table_context(tbl_name.c_ptr_safe()))
   {
-    List_iterator<rir_context_for_replay> rir_itr(tbl_ctx->rir_list);
-    while (rir_context_for_replay *rir_ctx= rir_itr++)
+    List_iterator<records_in_range_call_record> rir_itr(tbl_ctx->rir_list);
+    while (records_in_range_call_record *rec= rir_itr++)
     {
-      if (rir_ctx->keynr == keynr &&
-          strcmp(rir_ctx->min_key, min_key.c_ptr_safe()) == 0 &&
-          strcmp(rir_ctx->max_key, max_key.c_ptr_safe()) == 0)
+      if (rec->keynr == keynr &&
+          !strcmp(rec->min_key, min_key.c_ptr_safe()) &&
+          !strcmp(rec->max_key, max_key.c_ptr_safe()))
       {
-        *records= rir_ctx->records;
+        *records= rec->records;
         return false;
       }
     }
@@ -1879,15 +1823,15 @@ void Optimizer_context_replay::dbug_print_read_stats()
       DBUG_PRINT("info", ("]"));
     }
 
-    List_iterator<range_context_for_replay> range_itr(tbl_ctx->ranges_list);
+    List_iterator<Multi_range_read_const_call_record> range_itr(tbl_ctx->ranges_list);
 
-    while (range_context_for_replay *range_ctx= range_itr++)
+    while (Multi_range_read_const_call_record *call_rec= range_itr++)
     {
       DBUG_PRINT("info", ("...........New Range Context........."));
-      DBUG_PRINT("info", ("index_name: %s", range_ctx->index_name));
+      DBUG_PRINT("info", ("index_name: %s", call_rec->idx_name));
       DBUG_PRINT("info", ("ranges: [ "));
 
-      List_iterator<char> range_itr(range_ctx->ranges);
+      List_iterator<char> range_itr(call_rec->range_list);
 
       while (true)
       {
@@ -1898,43 +1842,43 @@ void Optimizer_context_replay::dbug_print_read_stats()
       }
 
       DBUG_PRINT("info", ("]"));
-      DBUG_PRINT("info", ("num_rows: %llx", range_ctx->num_rows));
+      DBUG_PRINT("info", ("num_rows: %llx", call_rec->rows));
       {
-        DBUG_PRINT("info", ("avg_io_cost: %f", range_ctx->cost.avg_io_cost));
-        DBUG_PRINT("info", ("cpu_cost: %f", range_ctx->cost.cpu_cost));
-        DBUG_PRINT("info", ("comp_cost: %f", range_ctx->cost.comp_cost));
-        DBUG_PRINT("info", ("copy_cost: %f", range_ctx->cost.copy_cost));
-        DBUG_PRINT("info", ("limit_cost: %f", range_ctx->cost.limit_cost));
-        DBUG_PRINT("info", ("setup_cost: %f", range_ctx->cost.setup_cost));
+        DBUG_PRINT("info", ("avg_io_cost: %f", call_rec->cost.avg_io_cost));
+        DBUG_PRINT("info", ("cpu_cost: %f", call_rec->cost.cpu_cost));
+        DBUG_PRINT("info", ("comp_cost: %f", call_rec->cost.comp_cost));
+        DBUG_PRINT("info", ("copy_cost: %f", call_rec->cost.copy_cost));
+        DBUG_PRINT("info", ("limit_cost: %f", call_rec->cost.limit_cost));
+        DBUG_PRINT("info", ("setup_cost: %f", call_rec->cost.setup_cost));
         DBUG_PRINT("info",
-                   ("index_cost.io: %f", range_ctx->cost.index_cost.io));
+                   ("index_cost.io: %f", call_rec->cost.index_cost.io));
         DBUG_PRINT("info",
-                   ("index_cost.cpu: %f", range_ctx->cost.index_cost.cpu));
-        DBUG_PRINT("info", ("row_cost.io: %f", range_ctx->cost.row_cost.io));
-        DBUG_PRINT("info", ("row_cost.cpu: %f", range_ctx->cost.row_cost.cpu));
+                   ("index_cost.cpu: %f", call_rec->cost.index_cost.cpu));
+        DBUG_PRINT("info", ("row_cost.io: %f", call_rec->cost.row_cost.io));
+        DBUG_PRINT("info", ("row_cost.cpu: %f", call_rec->cost.row_cost.cpu));
       }
       DBUG_PRINT("info",
-                 ("max_index_blocks: %llx", range_ctx->max_index_blocks));
-      DBUG_PRINT("info", ("max_row_blocks: %llx", range_ctx->max_row_blocks));
+                 ("max_index_blocks: %llx", call_rec->max_index_blocks));
+      DBUG_PRINT("info", ("max_row_blocks: %llx", call_rec->max_row_blocks));
     }
 
-    List_iterator<irc_context_for_replay> irc_itr(tbl_ctx->irc_list);
+    List_iterator<cost_index_read_call_record> irc_itr(tbl_ctx->irc_list);
 
-    for (irc_context_for_replay *irc= irc_itr++; irc; irc= irc_itr++)
+    for (cost_index_read_call_record *rec= irc_itr++; rec; rec= irc_itr++)
     {
       DBUG_PRINT("info", ("...........New Index Read Cost Context........."));
-      DBUG_PRINT("info", ("key_number: %u", irc->key));
-      DBUG_PRINT("info", ("num_records: %llx", irc->records));
-      DBUG_PRINT("info", ("eq_ref: %d", irc->eq_ref));
+      DBUG_PRINT("info", ("key_number: %u", rec->key));
+      DBUG_PRINT("info", ("num_records: %llx", rec->records));
+      DBUG_PRINT("info", ("eq_ref: %d", rec->eq_ref));
       {
-        DBUG_PRINT("info", ("index_cost_io: %f", irc->cost.index_cost.io));
-        DBUG_PRINT("info", ("index_cost_cpu: %f", irc->cost.index_cost.cpu));
-        DBUG_PRINT("info", ("row_cost_io: %f", irc->cost.row_cost.io));
-        DBUG_PRINT("info", ("row_cost_cpu: %f", irc->cost.row_cost.cpu));
+        DBUG_PRINT("info", ("index_cost_io: %f", rec->cost.index_cost.io));
+        DBUG_PRINT("info", ("index_cost_cpu: %f", rec->cost.index_cost.cpu));
+        DBUG_PRINT("info", ("row_cost_io: %f", rec->cost.row_cost.io));
+        DBUG_PRINT("info", ("row_cost_cpu: %f", rec->cost.row_cost.cpu));
         DBUG_PRINT("info",
-                   ("max_index_blocks: %llx", irc->cost.max_index_blocks));
-        DBUG_PRINT("info", ("max_row_blocks: %llx", irc->cost.max_row_blocks));
-        DBUG_PRINT("info", ("copy_cost: %f", irc->cost.copy_cost));
+                   ("max_index_blocks: %llx", rec->cost.max_index_blocks));
+        DBUG_PRINT("info", ("max_row_blocks: %llx", rec->cost.max_row_blocks));
+        DBUG_PRINT("info", ("copy_cost: %f", rec->cost.copy_cost));
       }
     }
   }
@@ -2022,9 +1966,9 @@ Optimizer_context_replay::get_index_rec_per_key_list(const TABLE *tbl,
 */
 void Optimizer_context_replay::store_range_contexts(
     const TABLE *tbl, const char *idx_name,
-    List<range_context_for_replay> *list)
+    List<Multi_range_read_const_call_record> *out)
 {
-  if (!has_records() || !list)
+  if (!has_records() || !out)
     return;
 
   String tbl_name;
@@ -2033,16 +1977,16 @@ void Optimizer_context_replay::store_range_contexts(
   if (table_context_for_replay *tbl_ctx=
           find_table_context(tbl_name.c_ptr_safe()))
   {
-    List_iterator<range_context_for_replay> range_ctx_itr(
+    List_iterator<Multi_range_read_const_call_record> range_ctx_itr(
         tbl_ctx->ranges_list);
-    while (range_context_for_replay *range_ctx= range_ctx_itr++)
+    while (Multi_range_read_const_call_record *range_ctx= range_ctx_itr++)
     {
-      if (!strcmp(idx_name, range_ctx->index_name))
-        list->push_back(range_ctx);
+      if (!strcmp(idx_name, range_ctx->idx_name))
+        out->push_back(range_ctx);
     }
   }
 
-  if (list->is_empty())
+  if (out->is_empty())
   {
     String name;
     name.append(tbl_name);
@@ -2063,7 +2007,7 @@ Optimizer_context_replay::find_table_context(const char *name)
 
   while (table_context_for_replay *tbl_ctx= table_itr++)
   {
-    if (strcmp(name, tbl_ctx->name) == 0)
+    if (!strcmp(name, tbl_ctx->name))
       return tbl_ctx;
   }
   return nullptr;
