@@ -120,7 +120,7 @@ public:
 		ut_ad(mtr_started == scan_mtr->is_active());
 
 		DBUG_EXECUTE_IF("row_merge_instrument_log_check_flush",
-				log_sys.set_check_for_checkpoint(););
+				log_sys.set_check_for_checkpoint(true););
 
 		for (idx_tuple_vec::iterator it = m_dtuple_vec.begin();
 		     it != m_dtuple_vec.end();
