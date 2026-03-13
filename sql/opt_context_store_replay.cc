@@ -392,7 +392,7 @@ static bool is_optimizer_related_var(const char **sys_vars,
     Save current values of optimizer variables: append to sql_script
     a set of "SET variable=value" statements.
 */
-static int store_system_variables(THD *thd, String &sql_script)
+static void store_system_variables(THD *thd, String &sql_script)
 {
   CHARSET_INFO *charset_info= system_charset_info;
   // hold the lock until the end of this method.
@@ -449,7 +449,6 @@ static int store_system_variables(THD *thd, String &sql_script)
     }
   }
   mysql_prlock_unlock(&LOCK_system_variables_hash);
-  return 0;
 }
 
 /*
@@ -493,7 +492,8 @@ bool store_optimizer_context(THD *thd)
   Json_writer ctx_writer;
   Json_writer_object context(&ctx_writer);
   Json_writer_array context_list(&ctx_writer, "list_contexts");
-
+  sql_script.append(STRING_WITH_LEN("SET NAMES utf8mb4;\n\n "));
+  store_system_variables(thd, sql_script);
   sql_script.append(STRING_WITH_LEN("CREATE DATABASE IF NOT EXISTS "));
   sql_script.append(thd->get_db(), strlen(thd->get_db()));
   sql_script.append(STRING_WITH_LEN(";\n\n"));
@@ -596,9 +596,6 @@ bool store_optimizer_context(THD *thd)
 
   if (!res)
     res= dump_eits_stats(thd, &uniq_tables_list, sql_script);
-
-  if (!res)
-    res= store_system_variables(thd, sql_script);
 
   if (!res)
   {
@@ -804,7 +801,7 @@ void Optimizer_context_recorder::record_records_in_range(
 
 void Optimizer_context_recorder::record_const_table_row(TABLE *tbl)
 {
-  StringBuffer<512> output;
+  StringBuffer<512> output(&my_charset_utf8mb4_bin);
   output.append(STRING_WITH_LEN("REPLACE INTO "));
   append_full_table_name(tbl->pos_in_table_list, &output);
   format_and_store_row(tbl, tbl->record[1], true, " VALUES ", false, output);
