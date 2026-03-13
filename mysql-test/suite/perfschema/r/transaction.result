@@ -518,9 +518,9 @@ ACTUAL	EXPECTED
 connection con1;
 RELEASE SAVEPOINT SVP001;
 #
-## Expect 1 active transaction with 3 savepoints, 1 rollback to savepoint, 1 release savepoint
+## Expect 1 active transaction with 3 savepoints, 1 rollback to savepoint, 2 release savepoint
 connection default;
-CALL transaction_verifier(0, @con1_thread_id, 'transaction', 'ACTIVE', 0, '', '', '', '', 'READ WRITE', '', 'NO', 3, 1, 1, 1);
+CALL transaction_verifier(0, @con1_thread_id, 'transaction', 'ACTIVE', 0, '', '', '', '', 'READ WRITE', '', 'NO', 3, 1, 2, 1);
 ACTUAL	EXPECTED
      1	       1
 #
@@ -529,9 +529,9 @@ ACTUAL	EXPECTED
 connection con1;
 COMMIT;
 #
-## Expect 1 committed transaction with 3 savepoints, 1 rollback to savepoint, 1 release savepoint
+## Expect 1 committed transaction with 3 savepoints, 1 rollback to savepoint, 2 release savepoint
 connection default;
-CALL transaction_verifier(1, @con1_thread_id, 'transaction', 'COMMITTED', 0, '', '', '', '', 'READ WRITE', '', 'NO', 3, 1, 1, 1);
+CALL transaction_verifier(1, @con1_thread_id, 'transaction', 'COMMITTED', 0, '', '', '', '', 'READ WRITE', '', 'NO', 3, 1, 2, 1);
 ACTUAL	EXPECTED
      1	       1
 CALL clear_transaction_tables();

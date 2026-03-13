@@ -54,5 +54,6 @@ eval $my_show3;
 
 # Cleanup
 connection default;
+disconnect testuser1;
 DROP USER 'testuser1'@'localhost';
 DROP DATABASE db_datadict;

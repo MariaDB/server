@@ -226,6 +226,11 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
    */
   if ((ret || !wsrep_on(victim_thd)) && signal)
   {
+    WSREP_DEBUG("wsrep_thd_bf_abort thread %ld sending "
+                "KILL_QUERY_HARD to %ld ret=%d signal %d",
+                bf_thd->thread_id,
+                victim_thd->thread_id,
+                ret, signal);
     victim_thd->wsrep_aborter= bf_thd->thread_id;
     victim_thd->awake_no_mutex(KILL_QUERY_HARD);
   } else {
@@ -294,6 +299,22 @@ extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
   }
 
   return false;
+}
+
+/** Check if a wsrep applier is rolling back a transaction locally.
+
+This function is used for notifying InnoDB routines that this thread
+is rolling back a wsrep transaction locally.
+
+@param thd         thread handle
+
+@return true       if wsrep applier is rolling back a transaction locally
+@return false      otherwise
+
+*/
+extern "C" my_bool wsrep_thd_in_rollback(const THD *thd)
+{
+  return thd->wsrep_applier_is_in_rollback();
 }
 
 static inline enum wsrep::key::type

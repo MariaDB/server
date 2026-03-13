@@ -19,7 +19,7 @@ SELECT COUNT(*) = 1 FROM child WHERE id = 2;
 COUNT(*) = 1
 1
 INSERT INTO child VALUES (3,3);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 SET SESSION foreign_key_checks = 0;
 DELETE FROM parent;
 connection node_1;

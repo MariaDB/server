@@ -268,6 +268,7 @@ struct ha_table_option_struct
   char *bulk_size;
   char *bulk_update_size;
   char *connect_timeout;
+  char *connection;
   char *database;
   char *default_file;
   char *default_group;
@@ -313,6 +314,7 @@ ha_create_table_option spider_table_option_list[]= {
   HA_TOPTION_STRING("BULK_SIZE", bulk_size),
   HA_TOPTION_STRING("BULK_UPDATE_SIZE", bulk_update_size),
   HA_TOPTION_STRING("CONNECT_TIMEOUT", connect_timeout),
+  HA_TOPTION_STRING("CONNECTION", connection),
   HA_TOPTION_STRING("REMOTE_DATABASE", database),
   HA_TOPTION_STRING("DEFAULT_FILE", default_file),
   HA_TOPTION_STRING("DEFAULT_GROUP", default_group),
@@ -2307,11 +2309,12 @@ static int spider_get_connect_info(const int type,
       return HA_ERR_OUT_OF_MEM;
     break;
   default:
-    if (table_share->connect_string.length == 0)
+    if (table_share->option_struct_table->connection == NULL)
       return 1;
     DBUG_PRINT("info",("spider create out string"));
     if (!(out = spider_create_string(
-          table_share->connect_string.str, table_share->connect_string.length)))
+          table_share->option_struct_table->connection,
+          strlen(table_share->option_struct_table->connection))))
       return HA_ERR_OUT_OF_MEM;
     break;
   }
@@ -2529,11 +2532,11 @@ int spider_parse_connect_info(
   table, a partition, or a sub-partition. */
   if (part_info)
     if (part_info->is_sub_partitioned())
-      options= sub_elem->option_struct;
+      options= sub_elem->option_struct_part;
     else
-      options= part_elem->option_struct;
+      options= part_elem->option_struct_part;
   else
-    options= table_share->option_struct;
+    options= table_share->option_struct_table;
   spider_minus_1(share, table_share);
 
   /* Parse through all option fields, and flip option_specified if
@@ -2657,8 +2660,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT_WITH_MAX("aim", auto_increment_mode, 0, 3);
           SPIDER_PARAM_DEPRECATED_WARNING("alc", 1104);
           SPIDER_PARAM_INT("alc", active_link_count, 1);
-          SPIDER_PARAM_DEPRECATED_WARNING("bfz", 1007);
-          SPIDER_PARAM_INT("bfz", buffer_size, 0);
           SPIDER_PARAM_DEPRECATED_WARNING("bfr", 1104);
           SPIDER_PARAM_LONGLONG("bfr", bgs_first_read, 0);
           SPIDER_PARAM_INT("bmd", bgs_mode, 0);
@@ -2669,9 +2670,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_DEPRECATED_WARNING("bkm", 1104);
           SPIDER_PARAM_INT_WITH_MAX("bkm", bka_mode, 0, 2);
           SPIDER_PARAM_INT("bsz", bulk_size, 0);
-          SPIDER_PARAM_DEPRECATED_WARNING("btt", 1007);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("btt", bka_table_name_types,
-            0, 1);
           SPIDER_PARAM_DEPRECATED_WARNING("bum", 1104);
           SPIDER_PARAM_INT_WITH_MAX("bum", bulk_update_mode, 0, 2);
           SPIDER_PARAM_INT("bus", bulk_update_size, 0);
@@ -2679,18 +2677,12 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT_WITH_MAX("cbm", crd_bg_mode, 0, 2);
           SPIDER_PARAM_DEPRECATED_WARNING("civ", 1104);
           SPIDER_PARAM_DOUBLE("civ", crd_interval, 0);
-          SPIDER_PARAM_DEPRECATED_WARNING("cmd", 1007);
-          SPIDER_PARAM_INT_WITH_MAX("cmd", crd_mode, 0, 3);
           SPIDER_PARAM_DEPRECATED_WARNING("csr", 1104);
           SPIDER_PARAM_INT_WITH_MAX("csr", casual_read, 0, 63);
           SPIDER_PARAM_DEPRECATED_WARNING("csy", 1104);
           SPIDER_PARAM_INT_WITH_MAX("csy", crd_sync, 0, 2);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("cto", connect_timeouts, 0,
             2147483647);
-          SPIDER_PARAM_DEPRECATED_WARNING("ctp", 1007);
-          SPIDER_PARAM_INT_WITH_MAX("ctp", crd_type, 0, 2);
-          SPIDER_PARAM_DEPRECATED_WARNING("cwg", 1007);
-          SPIDER_PARAM_DOUBLE("cwg", crd_weight, 1);
           SPIDER_PARAM_INT_WITH_MAX("dat", delete_all_rows_type, 0, 1);
           SPIDER_PARAM_DEPRECATED_WARNING("ddi", 1104);
           SPIDER_PARAM_INT_WITH_MAX("ddi", direct_dup_insert, 0, 1);
@@ -2713,12 +2705,6 @@ int spider_parse_connect_info(
         SPIDER_PARAM_STR_LIST("fds", tgt_filedsns);
         SPIDER_PARAM_DEPRECATED_WARNING("frd", 1104);
         SPIDER_PARAM_LONGLONG("frd", first_read, 0);
-        SPIDER_PARAM_DEPRECATED_WARNING("isa", 1007);
-        SPIDER_PARAM_INT("isa", init_sql_alloc_size, 0);
-        SPIDER_PARAM_DEPRECATED_WARNING("ilm", 1007);
-        SPIDER_PARAM_LONGLONG("ilm", internal_limit, 0);
-        SPIDER_PARAM_DEPRECATED_WARNING("ios", 1007);
-        SPIDER_PARAM_LONGLONG("ios", internal_offset, 0);
         SPIDER_PARAM_DEPRECATED_WARNING("iom", 1104);
         SPIDER_PARAM_INT_WITH_MAX("iom", internal_optimize, 0, 1);
         SPIDER_PARAM_DEPRECATED_WARNING("iol", 1104);
@@ -2795,8 +2781,6 @@ int spider_parse_connect_info(
         SPIDER_PARAM_INT_WITH_MAX("slm", selupd_lock_mode, 0, 2);
         SPIDER_PARAM_DEPRECATED_WARNING("sls", 1104);
         SPIDER_PARAM_INT_WITH_MAX("sls", store_last_sts, 0, 1);
-        SPIDER_PARAM_DEPRECATED_WARNING("smd", 1007);
-        SPIDER_PARAM_INT_WITH_MAX("smd", sts_mode, 1, 2);
         SPIDER_PARAM_DEPRECATED_WARNING("smr", 1104);
         SPIDER_PARAM_LONGLONG("smr", static_mean_rec_length, 0);
         SPIDER_PARAM_DEPRECATED_WARNING("spr", 1104);
@@ -2815,10 +2799,6 @@ int spider_parse_connect_info(
         SPIDER_PARAM_LONGLONG("ssl", semi_split_read_limit, 0);
         SPIDER_PARAM_DEPRECATED_WARNING("ssy", 1104);
         SPIDER_PARAM_INT_WITH_MAX("ssy", sts_sync, 0, 2);
-        SPIDER_PARAM_DEPRECATED_WARNING("stc", 1007);
-        SPIDER_PARAM_INT_WITH_MAX("stc", semi_table_lock_conn, 0, 1);
-        SPIDER_PARAM_DEPRECATED_WARNING("stl", 1007);
-        SPIDER_PARAM_INT_WITH_MAX("stl", semi_table_lock, 0, 1);
         SPIDER_PARAM_DEPRECATED_WARNING("srs", 1104);
         SPIDER_PARAM_LONGLONG("srs", static_records_for_status, 0);
         SPIDER_PARAM_LONG_LIST_WITH_MAX("svc", tgt_ssl_vscs, 0, 1);
@@ -2862,16 +2842,10 @@ int spider_parse_connect_info(
       case 8:
         SPIDER_PARAM_STR_LIST("database", tgt_dbs);
         SPIDER_PARAM_STR_LIST("password", tgt_passwords);
-        SPIDER_PARAM_DEPRECATED_WARNING("sts_mode", 1007);
-        SPIDER_PARAM_INT_WITH_MAX("sts_mode", sts_mode, 1, 2);
         SPIDER_PARAM_DEPRECATED_WARNING("sts_sync", 1104);
         SPIDER_PARAM_INT_WITH_MAX("sts_sync", sts_sync, 0, 2);
-        SPIDER_PARAM_DEPRECATED_WARNING("crd_mode", 1007);
-        SPIDER_PARAM_INT_WITH_MAX("crd_mode", crd_mode, 0, 3);
         SPIDER_PARAM_DEPRECATED_WARNING("crd_sync", 1104);
         SPIDER_PARAM_INT_WITH_MAX("crd_sync", crd_sync, 0, 2);
-        SPIDER_PARAM_DEPRECATED_WARNING("crd_type", 1007);
-        SPIDER_PARAM_INT_WITH_MAX("crd_type", crd_type, 0, 2);
         SPIDER_PARAM_LONGLONG("priority", priority, 0);
         SPIDER_PARAM_INT("bgs_mode", bgs_mode, 0);
         SPIDER_PARAM_STR_LIST("ssl_cert", tgt_ssl_certs);
@@ -2891,8 +2865,6 @@ int spider_parse_connect_info(
         error_num= parse.fail(true);
         goto error;
       case 10:
-        SPIDER_PARAM_DEPRECATED_WARNING("crd_weight", 1007);
-        SPIDER_PARAM_DOUBLE("crd_weight", crd_weight, 1);
         SPIDER_PARAM_DEPRECATED_WARNING("split_read", 1104);
         SPIDER_PARAM_LONGLONG("split_read", split_read, 0);
         SPIDER_PARAM_DEPRECATED_WARNING("quick_mode", 1104);
@@ -2916,8 +2888,6 @@ int spider_parse_connect_info(
         SPIDER_PARAM_LONG_LIST_WITH_MAX("link_status", link_statuses, 0, 3);
         SPIDER_PARAM_DEPRECATED_WARNING("casual_read", 1104);
         SPIDER_PARAM_INT_WITH_MAX("casual_read", casual_read, 0, 63);
-        SPIDER_PARAM_DEPRECATED_WARNING("buffer_size", 1007);
-        SPIDER_PARAM_INT("buffer_size", buffer_size, 0);
         error_num= parse.fail(true);
         goto error;
       case 12:
@@ -2937,8 +2907,6 @@ int spider_parse_connect_info(
         error_num= parse.fail(true);
         goto error;
       case 14:
-        SPIDER_PARAM_DEPRECATED_WARNING("internal_limit", 1007);
-        SPIDER_PARAM_LONGLONG("internal_limit", internal_limit, 0);
         SPIDER_PARAM_DEPRECATED_WARNING("bgs_first_read", 1104);
         SPIDER_PARAM_LONGLONG("bgs_first_read", bgs_first_read, 0);
         SPIDER_PARAM_INT_WITH_MAX("read_only_mode", read_only_mode, 0, 1);
@@ -2954,12 +2922,8 @@ int spider_parse_connect_info(
         error_num= parse.fail(true);
         goto error;
       case 15:
-        SPIDER_PARAM_DEPRECATED_WARNING("internal_offset", 1007);
-        SPIDER_PARAM_LONGLONG("internal_offset", internal_offset, 0);
         SPIDER_PARAM_DEPRECATED_WARNING("reset_sql_alloc", 1104);
         SPIDER_PARAM_INT_WITH_MAX("reset_sql_alloc", reset_sql_alloc, 0, 1);
-        SPIDER_PARAM_DEPRECATED_WARNING("semi_table_lock", 1007);
-        SPIDER_PARAM_INT_WITH_MAX("semi_table_lock", semi_table_lock, 0, 1);
         SPIDER_PARAM_DEPRECATED_WARNING("quick_page_byte", 1104);
         SPIDER_PARAM_LONGLONG("quick_page_byte", quick_page_byte, 0);
         SPIDER_PARAM_DEPRECATED_WARNING("quick_page_size", 1104);
@@ -3047,13 +3011,8 @@ int spider_parse_connect_info(
           error_num = parse.fail(true);
           goto error;
         case 19:
-          SPIDER_PARAM_DEPRECATED_WARNING("init_sql_alloc_size", 1007);
-          SPIDER_PARAM_INT("init_sql_alloc_size", init_sql_alloc_size, 0);
           SPIDER_PARAM_INT_WITH_MAX(
             "auto_increment_mode", auto_increment_mode, 0, 3);
-          SPIDER_PARAM_DEPRECATED_WARNING("bka_table_name_type", 1007);
-          SPIDER_PARAM_LONG_LIST_WITH_MAX("bka_table_name_type",
-            bka_table_name_types, 0, 1);
           SPIDER_PARAM_DEPRECATED_WARNING("load_crd_at_startup", 1104);
           SPIDER_PARAM_INT_WITH_MAX(
             "load_crd_at_startup", load_crd_at_startup, 0, 1);
@@ -3105,12 +3064,6 @@ int spider_parse_connect_info(
           SPIDER_PARAM_DEPRECATED_WARNING("static_key_cardinality", 1104);
           SPIDER_PARAM_NUMHINT("static_key_cardinality", static_key_cardinality,
             3, (int) table_share->keys, spider_set_ll_value);
-          error_num = parse.fail(true);
-          goto error;
-        case 26:
-          SPIDER_PARAM_DEPRECATED_WARNING("semi_table_lock_connection", 1007);
-          SPIDER_PARAM_INT_WITH_MAX(
-            "semi_table_lock_connection", semi_table_lock_conn, 0, 1);
           error_num = parse.fail(true);
           goto error;
         case 32:
@@ -6503,9 +6456,6 @@ int spider_db_init(
   spider_hton_ptr = spider_hton;
 
   spider_hton->flags = HTON_TEMPORARY_NOT_SUPPORTED;
-#ifdef HTON_CAN_READ_CONNECT_STRING_IN_PARTITION
-  spider_hton->flags |= HTON_CAN_READ_CONNECT_STRING_IN_PARTITION;
-#endif
   spider_hton->panic = spider_panic;
   spider_hton->signal_ddl_recovery_done= spider_after_ddl_recovery;
   spider_hton->close_connection = spider_close_connection;
@@ -6530,8 +6480,12 @@ int spider_db_init(
 
   if (my_gethwaddr((uchar *) addr))
   {
-    my_printf_error(ER_SPIDER_CANT_NUM, ER_SPIDER_CANT_STR1, MYF(ME_WARNING),
+    my_printf_error(ER_SPIDER_CANT_NUM, ER_SPIDER_CANT_STR1, MYF(ME_NOTE),
       "get hardware address with error ", errno);
+    /*
+      If we can't get the hardware address, we zero it out.
+      The spider_unique_id will then look like: -000000000000-PID-
+    */
     bzero(addr,6);
   }
   spider_unique_id.str = spider_unique_id_buf;
@@ -6962,7 +6916,8 @@ void spider_get_partition_info(
           DBUG_VOID_RETURN;
         }
         DBUG_PRINT("info",("spider tmp_name=%s", tmp_name));
-        if (!memcmp(table_name, tmp_name, table_name_length + 1))
+        if (table_name_length == strlen(tmp_name) &&
+            !strncmp(table_name, tmp_name, table_name_length))
           DBUG_VOID_RETURN;
         if (
           tmp_flg &&
@@ -6983,7 +6938,8 @@ void spider_get_partition_info(
         DBUG_VOID_RETURN;
       }
       DBUG_PRINT("info",("spider tmp_name=%s", tmp_name));
-      if (!memcmp(table_name, tmp_name, table_name_length + 1))
+      if (table_name_length == strlen(tmp_name) &&
+          !strncmp(table_name, tmp_name, table_name_length))
         DBUG_VOID_RETURN;
       if (
         tmp_flg &&
@@ -8603,17 +8559,20 @@ int spider_discover_table_structure(
   str.q_append(SPIDER_SQL_COMMENT_STR, SPIDER_SQL_COMMENT_LEN);
   str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
   str.append_escape_string(share->comment.str, share->comment.length);
-  if (str.reserve(SPIDER_SQL_CONNECTION_LEN +
-    (SPIDER_SQL_VALUE_QUOTE_LEN * 2) +
-    (share->connect_string.length * 2)))
+  if (share->option_struct_table->connection)
   {
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    if (str.reserve(SPIDER_SQL_CONNECTION_LEN +
+      (SPIDER_SQL_VALUE_QUOTE_LEN * 2) +
+      (strlen(share->option_struct_table->connection) * 2)))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+    str.q_append(SPIDER_SQL_CONNECTION_STR, SPIDER_SQL_CONNECTION_LEN);
+    str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+    str.append_escape_string(share->option_struct_table->connection,
+      strlen(share->option_struct_table->connection));
   }
-  str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-  str.q_append(SPIDER_SQL_CONNECTION_STR, SPIDER_SQL_CONNECTION_LEN);
-  str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-  str.append_escape_string(share->connect_string.str,
-    share->connect_string.length);
   if (str.reserve(SPIDER_SQL_VALUE_QUOTE_LEN))
   {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);

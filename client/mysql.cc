@@ -1216,6 +1216,88 @@ inline int get_command_index(char cmd_char)
   return -1;
 }
 
+static LINE_BUFFER *batch_readline_init(ulong max_size, const char *path)
+{
+  LINE_BUFFER *line_buff;
+  File file;
+  MY_STAT input_file_stat;
+  char buff[FN_REFLEN + 512];
+
+  if (path)
+  {
+    file= my_open(path, O_RDONLY | O_BINARY, MYF(0));
+    if (file < 0 && my_errno == ENOENT && script_dir)
+    {
+      char full_path[FN_REFLEN];
+      strxnmov(full_path, sizeof(full_path)-1, script_dir, "/", path, NULL);
+      file= my_open(full_path, O_RDONLY | O_BINARY, MYF(0));
+    }
+    if (file < 0)
+    {
+#ifdef _WIN32
+      if (my_errno == EACCES && my_stat(path, &input_file_stat, MYF(0)) &&
+          MY_S_ISDIR(input_file_stat.st_mode))
+        my_snprintf(buff, sizeof(buff), "Can't read from a directory '%.*s'",
+                    FN_REFLEN, path);
+      else
+#endif
+      my_snprintf(buff, sizeof(buff), "Failed to open file '%.*s', error: %d",
+                  FN_REFLEN, path, my_errno);
+      put_info(buff, INFO_ERROR, 0);
+      return 0;
+    }
+  }
+  else
+  {
+    file= my_fileno(stdin);
+  }
+
+  if (my_fstat(file, &input_file_stat, MYF(0)))
+  {
+    my_snprintf(buff, sizeof(buff), "Failed to stat file '%.*s', error: %d",
+                FN_REFLEN, path ? path : "stdin", my_errno);
+    goto err1;
+  }
+
+  if (MY_S_ISDIR(input_file_stat.st_mode))
+  {
+    my_snprintf(buff, sizeof(buff), "Can't read from a directory '%.*s'",
+                FN_REFLEN, path ? path : "stdin");
+    goto err1;
+  }
+
+#ifndef _WIN32
+  if (MY_S_ISBLK(input_file_stat.st_mode))
+  {
+    my_snprintf(buff, sizeof(buff), "Can't read from a block device '%.*s'",
+                FN_REFLEN, path ? path : "stdin");
+    goto err1;
+  }
+#endif
+
+  if (!(line_buff= (LINE_BUFFER*) my_malloc(PSI_NOT_INSTRUMENTED,
+                                            sizeof(*line_buff),
+                                            MYF(MY_WME | MY_ZEROFILL))))
+  {
+    goto err;
+  }
+
+  if (init_line_buffer(line_buff, file, IO_SIZE, max_size))
+  {
+    my_free(line_buff);
+    goto err;
+  }
+
+  return line_buff;
+
+err1:
+  put_info(buff, INFO_ERROR, 0);
+err:
+  if (path)
+    my_close(file, MYF(0));
+  return 0;
+}
+
 static int delimiter_index= -1;
 static int charset_index= -1;
 static int sandbox_index= -1;
@@ -1290,10 +1372,8 @@ int main(int argc,char *argv[])
   }
 
   if (status.batch && !status.line_buff &&
-      !(status.line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, stdin)))
+      !(status.line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, NULL)))
   {
-    put_info("Can't initialize batch_readline - may be the input source is "
-             "a directory or a block device.", INFO_ERROR, 0);
     free_defaults(defaults_argv);
     my_end(0);
     exit(1);
@@ -1344,6 +1424,11 @@ int main(int argc,char *argv[])
             mysql_thread_id(&mysql), server_version_string(&mysql));
     put_info((char*) glob_buffer.ptr(),INFO_INFO);
     put_info(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"), INFO_INFO);
+#if SERVER_MATURITY_LEVEL < MariaDB_PLUGIN_MATURITY_STABLE
+    put_info("Help others discover MariaDB."
+             " Star it on GitHub: https://github.com/MariaDB/server\n",
+             INFO_INFO);
+#endif
   }
 
 #ifdef HAVE_READLINE
@@ -1409,9 +1494,7 @@ int main(int argc,char *argv[])
   if (opt_outfile)
     end_tee();
   mysql_end(0);
-#ifndef _lint
-  DBUG_RETURN(0);				// Keep compiler happy
-#endif
+  DBUG_RETURN(0);
 }
 
 sig_handler mysql_end(int sig)
@@ -2691,7 +2774,7 @@ static bool add_line(String &buffer, char *line, size_t line_length,
       }
       buffer.length(0);
     }
-    else if (!*ml_comment &&
+    else if (!*ml_comment && *ss_comment != SSC_HINT &&
              (!*in_string &&
               (inchar == '#' ||
                (inchar == '-' && pos[1] == '-' &&
@@ -2912,7 +2995,9 @@ static void fix_history(String *final_command)
     ptr++;
   }
   if (total_lines > 1)			
-    add_history(fixed_buffer.ptr());
+  {
+    add_history(fixed_buffer.c_ptr());
+  }
 }
 
 /*	
@@ -3235,6 +3320,12 @@ static int reconnect(void)
 }
 
 #ifndef EMBEDDED_LIBRARY
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wvarargs"
+/* CONC-789 */
+#endif
+
 static void status_info_cb(void *data, enum enum_mariadb_status_info type, ...)
 {
   va_list ap;
@@ -3250,6 +3341,10 @@ static void status_info_cb(void *data, enum enum_mariadb_status_info type, ...)
   }
   va_end(ap);
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 #else
 #define mysql_optionsv(A,B,C,D) do { } while(0)
 #endif
@@ -3533,8 +3628,6 @@ static int com_go(String *buffer, char *)
     old_buffer.copy();
   }
 
-  /* Remove garbage for nicer messages */
-  LINT_INIT_STRUCT(buff[0]);
   remove_cntrl(*buffer);
 
   if (buffer->is_empty())
@@ -4734,11 +4827,9 @@ static int com_connect(String *buffer, char *line)
 static int com_source(String *, char *line)
 {
   char source_name[FN_REFLEN], *end, *param;
-  char full_path[FN_REFLEN];
   LINE_BUFFER *line_buff;
   int error;
   STATUS old_status;
-  FILE *sql_file;
   my_bool save_ignore_errors;
 
   if (status.sandbox)
@@ -4758,27 +4849,10 @@ static int com_source(String *, char *line)
     end--;
   end[0]=0;
   unpack_filename(source_name,source_name);
-  /* open file name */
-  if (!(sql_file = my_fopen(source_name, O_RDONLY | O_BINARY,MYF(0))))
-  {
-    if (script_dir)
-    {
-      snprintf(full_path, sizeof(full_path), "%s/%s", script_dir, source_name);
-      sql_file = my_fopen(full_path, O_RDONLY | O_BINARY, MYF(0));
-    }
-  }
 
-  if (!sql_file)
+  if (!(line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, source_name)))
   {
-    char buff[FN_REFLEN + 60];
-    sprintf(buff, "Failed to open file '%s', error: %d", source_name, errno);
-    return put_info(buff, INFO_ERROR, 0);
-  }
-
-  if (!(line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, sql_file)))
-  {
-    my_fclose(sql_file,MYF(0));
-    return put_info("Can't initialize batch_readline", INFO_ERROR, 0);
+    return ignore_errors ? -1 : 1;
   }
 
   /* Save old status */
@@ -4797,7 +4871,7 @@ static int com_source(String *, char *line)
   ignore_errors= save_ignore_errors;
   status=old_status;				// Continue as before
   in_com_source= aborted= 0;
-  my_fclose(sql_file,MYF(0));
+  my_close(line_buff->file, MYF(0));
   batch_readline_end(line_buff);
   /*
     If we got an error during source operation, don't abort the client

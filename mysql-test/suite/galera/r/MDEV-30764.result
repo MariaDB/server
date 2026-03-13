@@ -1,0 +1,66 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+SET GLOBAL wsrep_provider_options ='pc.ignore_sb=true;pc.weight=2';
+connection node_2;
+SET GLOBAL read_only=1;
+SET SESSION wsrep_trx_fragment_size = 64;
+set default_storage_engine=SEQUENCE;
+SET AUTOCOMMIT = OFF;
+CREATE TABLE t1(c1 NUMERIC NOT NULL);
+ERROR HY000: Can't create table `test`.`t1` (errno: 131 "Command not supported by the engine")
+CREATE TABLE t1 (id INT PRIMARY KEY) engine=innodb;
+SET SESSION SQL_MODE='HIGH_NOT_PRECEDENCE';
+INSERT INTO t1  VALUES (1),(2),(3);
+SET GLOBAL SQL_MODE='NO_ENGINE_SUBSTITUTION';
+DROP TABLE dummy;
+ERROR 42S02: Unknown table 'test.dummy'
+INSERT INTO t1  VALUES('a');
+Warnings:
+Warning	1366	Incorrect integer value: 'a' for column `test`.`t1`.`id` at row 1
+# In this point there should be one fragment
+select count(*) AS EXPECT_1 from mysql.wsrep_streaming_log;
+EXPECT_1
+1
+SET @@global.wsrep_cluster_address='gcomm://';
+SET SESSION SQL_MODE='TRADITIONAL ';
+# Killing cluster because we have messed with wsrep_cluster_address
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+Killing server ...
+connection node_1;
+SET SESSION wsrep_sync_wait = 0;
+Killing server ...
+connection node_2;
+call mtr.add_suppression("WSREP: BF applier thread");
+call mtr.add_suppression("WSREP: Event");
+call mtr.add_suppression("WSREP: SR trx recovery applying returned 1290");
+call mtr.add_suppression("WSREP: Adopting a transaction");
+call mtr.add_suppression("WSREP: Could not find applier context for");
+call mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster");
+call mtr.add_suppression("WSREP: Failed to vote on request for");
+select count(*) AS EXPECT_0 from mysql.wsrep_streaming_log;
+EXPECT_0
+0
+SELECT * FROM t1;
+c1
+connection node_1;
+select count(*) AS EXPECT_0 from mysql.wsrep_streaming_log;
+EXPECT_0
+0
+SELECT * FROM t1;
+c1
+DROP TABLE t1;
+SET GLOBAL wsrep_provider_options ='pc.ignore_sb=false;pc.weight=1';
+connection node_2;
+connection node_1;
+call mtr.add_suppression("WSREP: Event");
+call mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on");
+call mtr.add_suppression("WSREP: Failed to apply write set: gtid");
+call mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster");
+call mtr.add_suppression("WSREP: Could not find applier context for");
+call mtr.add_suppression("WSREP: Failed to vote on request for");
+disconnect node_2;
+disconnect node_1;

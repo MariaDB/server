@@ -530,14 +530,12 @@ fedora upgrade-from:
     matrix:
       # Get latest versions of all major versions
       - UPGRADE_PATH:
-        - "10.6>11.4"
-        - "10.3"
-        - "10.4"
-        - "10.4.8" # Test unexpected table rebuilds as in https://jira.mariadb.org/browse/MDEV-28727
+        - "10.6>11.8"
         - "10.5"
         - "10.6"
         - "10.11"
         - "11.4"
+        - "11.8"
   script:
     - |
       if [[ $UPGRADE_PATH == *">"* ]]; then

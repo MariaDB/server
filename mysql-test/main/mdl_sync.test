@@ -3,18 +3,8 @@
 #
 --source include/have_debug_sync.inc
 --source include/have_metadata_lock_info.inc
-
-# We need InnoDB tables for some of the tests.
 --source include/have_innodb.inc
-
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
-
-
-# Clean up resources used in this test case.
---disable_warnings
-SET DEBUG_SYNC= 'RESET';
---enable_warnings
+--source include/no_view_protocol.inc
 
 #
 # Test the case of when a exclusive lock request waits for a
@@ -26,10 +16,6 @@ connect (con2,localhost,root,,test,,);
 connect (con3,localhost,root,,test,,);
 
 connection default;
-
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
 
 create table t1 (i int);
 create table t2 (i int);
@@ -4010,7 +3996,6 @@ DROP TABLE t1;
 
 disconnect con1;
 
-
 --echo #
 --echo # MDEV-28567 Assertion `0' in open_tables upon function-related operation
 --echo #
@@ -4062,6 +4047,25 @@ connection default;
 DROP VIEW v1;
 SET debug_sync='reset';
 
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # MDEV-30364 Assertion MDL_EXCLUSIVE on DISCARD TABLESPACE in LOCK TABLE mode
+--echo #
+create table t (c int) engine=innodb;
+set debug_sync='get_schema_column SIGNAL waiting WAIT_FOR go';
+send select column_name from information_schema.columns
+where table_schema='test' and table_name='t';
+
+--connect con1,localhost,root
+set debug_sync= 'now WAIT_FOR waiting';
+lock table t write;
+--error ER_LOCK_WAIT_TIMEOUT
+set statement lock_wait_timeout=0 for alter table t discard tablespace;
+unlock tables;
+set debug_sync='now SIGNAL go';
+--disconnect con1
+
+--connection default
+reap;
+drop table t;
+set debug_sync= 'reset';

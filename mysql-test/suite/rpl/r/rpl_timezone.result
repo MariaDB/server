@@ -141,6 +141,7 @@ SET @@session.time_zone = default;
 connection slave;
 include/stop_slave.inc
 connection master;
+include/kill_binlog_dump_threads.inc
 reset master;
 CREATE TABLE t1 (date timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP, a int(11) default NULL);
 SET @@session.time_zone='+01:00';

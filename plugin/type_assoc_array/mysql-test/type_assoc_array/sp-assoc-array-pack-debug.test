@@ -1,0 +1,144 @@
+-- source include/have_debug.inc
+
+set sql_mode=oracle;
+SET NAMES utf8mb4;
+SELECT @@SESSION.max_allowed_packet;
+
+--echo #
+--echo # MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+--echo #
+
+SET debug_dbug='d,assoc_array_pack';
+
+CREATE TABLE dtypes
+(
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  dtype VARCHAR(128),
+  val LONGTEXT
+);
+INSERT INTO dtypes (dtype, val) VALUES
+
+('bit(1)',                             'bit:1'),
+('bit(8)',                             'bit:255'),
+('bit(16)',                            'bit:65535'),
+('bit(64)',                            'bit:18446744073709551615'),
+('tinyint',                            '123'),
+('tinyint unsigned',                   '123'),
+('smallint',                           '123'),
+('smallint unsigned',                  '123'),
+('int',                                '123'),
+('int unsigned',                       '123'),
+('mediumint',                          '123'),
+('mediumint unsigned',                 '123'),
+('bigint',                             '123'),
+('bigint unsigned',                    '123'),
+('decimal(10,2)',                      '123.45'),
+('float',                              '123e5'),
+('double',                             '123e5'),
+('mariadb_schema.date',                '2001-01-01'),
+('time',                               '800:59:59'),
+('time(6)',                            '800:59:59.123456'),
+('datetime',                           '2001-01-01 23:59:59'),
+('datetime(6)',                        '2001-01-01 23:59:59.123456'),
+('timestamp',                          '2001-01-01 23:59:59'),
+('timestamp(6)',                       '2001-01-01 23:59:59.123456'),
+
+('binary(10)',                         'test'),
+('binary(20)',                         'test'),
+('binary(10)',                         'test test'),
+('binary(20)',                         'test test'),
+
+('char(10) character set latin1',      'test'),
+('char(10) character set utf8mb4',     'test'),
+('varchar(10) character set latin1',   'test'),
+('varchar(10) character set utf8mb4',  'test'),
+('tinytext character set latin1',      'test'),
+('tinytext character set utf8mb4',     'test'),
+('text character set latin1',          'test'),
+('text character set utf8mb4',         'test'),
+('mediumtext character set latin1',    'test'),
+('mediumtext character set utf8mb4',   'test'),
+('longtext character set latin1',      'test'),
+('longtext character set utf8mb4',     'test'),
+
+('char(255) character set latin1',     REPEAT('test ',50)),
+('char(255) character set utf8mb4',    REPEAT('test ',50)),
+('varchar(255) character set latin1',  REPEAT('test ',50)),
+('varchar(255) character set utf8mb4', REPEAT('test ',50)),
+('tinytext character set latin1',      REPEAT('test ',50)),
+('tinytext character set utf8mb4',     REPEAT('test ',50)),
+('text character set latin1',          REPEAT('test ',50)),
+('text character set utf8mb4',         REPEAT('test ',50)),
+('mediumtext character set latin1',    REPEAT('test ',50)),
+('mediumtext character set utf8mb4',   REPEAT('test ',50)),
+('longtext character set latin1',      REPEAT('test ',50)),
+('longtext character set utf8mb4',     REPEAT('test ',50)),
+
+('text character set latin1',          REPEAT('test ',(256*256-1)/5)),
+('text character set utf8mb4',         REPEAT('test ',(256*256-1)/5)),
+('mediumtext character set latin1',    REPEAT('test ',(256*256-1)/5)),
+('mediumtext character set utf8mb4',   REPEAT('test ',(256*256-1)/5)),
+('longtext character set latin1',      REPEAT('test ',(256*256-1)/5)),
+('longtext character set utf8mb4',     REPEAT('test ',(256*256-1)/5)),
+
+('mediumtext character set utf8mb4',   REPEAT('test ',(256*256*256-1)/5)),
+('longtext character set utf8mb4',     REPEAT('test ',(256*256*256-1)/5 + 1));
+
+
+DELIMITER $$;
+CREATE PROCEDURE test_type(rec dtypes%ROWTYPE) AS
+  TYPE assoc_t IS TABLE OF t1.val%TYPE INDEX BY INTEGER;
+  assoc assoc_t;
+  val LONGTEXT;
+BEGIN
+  IF rec.val LIKE 'bit:%'
+  THEN
+    assoc(0) := CAST(REPLACE(rec.val,'bit:','') AS UNSIGNED);
+    SHOW WARNINGS;
+    SELECT assoc(0)+0 AS `assoc(0)`;
+  ELSIF rec.dtype LIKE 'binary%'
+  THEN
+    assoc(0):= rec.val;
+    SHOW WARNINGS;
+    SELECT HEX(assoc(0)), LENGTH(assoc(0));
+  ELSE
+    assoc(0) := rec.val;
+    SHOW WARNINGS;
+    IF LENGTH(rec.val) > 64
+    THEN
+      SELECT LEFT(assoc(0),30) ||
+             '..' || LENGTH(assoc(0)) || '.. ' ||
+             RIGHT(assoc(0),30) AS `assoc(0)`;
+    ELSE
+      SELECT assoc(0);
+    END IF;
+  END IF;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PROCEDURE test_types AS
+BEGIN
+  FOR rec IN (SELECT * FROM dtypes)
+  LOOP
+    EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (val DTYPE)','DTYPE',rec.dtype);
+    SELECT
+      COLUMN_TYPE AS ``, COALESCE(CHARACTER_SET_NAME,'') AS ``
+    FROM
+      INFORMATION_SCHEMA.COLUMNS
+    WHERE
+      TABLE_SCHEMA='test' AND TABLE_NAME='t1' AND COLUMN_NAME='val';
+    INSERT INTO t1 VALUES (rec.val);
+    CALL test_type(rec);
+    DROP TABLE t1;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+CALL test_types;
+
+DROP PROCEDURE test_type;
+DROP PROCEDURE test_types;
+DROP TABLE dtypes;

@@ -48,7 +48,6 @@
 #include "sql_servers.h"  // servers_free, servers_init
 #include "init.h"         // unireg_init
 #include "derror.h"       // init_errmessage
-#include "des_key_file.h" // load_des_key_file
 #include "sql_manager.h"  // stop_handle_manager, start_handle_manager
 #include "sql_expression_cache.h" // subquery_cache_miss, subquery_cache_hit
 #include "sys_vars_shared.h"
@@ -301,12 +300,17 @@ static const char *tc_heuristic_recover_names[]=
 static TYPELIB tc_heuristic_recover_typelib=
 {
   array_elements(tc_heuristic_recover_names)-1,"",
-  tc_heuristic_recover_names, NULL
+  tc_heuristic_recover_names, NULL, NULL
 };
+#ifdef HAVE_REPLICATION
+static TYPELIB master_use_gtid_typelib=
+  CREATE_TYPELIB_FOR(master_use_gtid_names);
+#endif
 
 const char *first_keyword= "first";
 const char *my_localhost= "localhost",
-           *delayed_user= "delayed", *slave_user= "<replication_slave>";
+           *delayed_user= "delayed", *slave_user= "<replication_slave>",
+           *wsrep_user= "<wsrep_applier>";
 
 bool opt_large_files= sizeof(my_off_t) > 4;
 static my_bool opt_autocommit; ///< for --autocommit command-line option
@@ -368,6 +372,11 @@ char server_uid[SERVER_UID_SIZE+1];   // server uid will be written here
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
+static bool opt_bin_log_nonempty, opt_bin_log_path;
+char *opt_binlog_storage_engine= const_cast<char *>("");
+static plugin_ref opt_binlog_engine_plugin;
+const char *opt_binlog_directory;
+handlerton *opt_binlog_engine_hton;
 bool opt_bin_log_compress;
 uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
@@ -423,7 +432,6 @@ ulong read_only= 0, opt_readonly= 0;
 my_bool use_temp_pool, relay_log_purge;
 my_bool relay_log_recovery;
 my_bool opt_sync_frm, opt_allow_suspicious_udfs;
-my_bool opt_secure_auth= 0;
 my_bool opt_require_secure_transport= 0;
 char* opt_secure_file_priv;
 my_bool lower_case_file_system= 0;
@@ -448,6 +456,7 @@ my_bool opt_noacl;
 my_bool sp_automatic_privileges= 1;
 
 ulong opt_binlog_rows_event_max_size;
+uint opt_binlog_row_event_fragment_threshold;
 ulong binlog_row_metadata;
 my_bool opt_binlog_gtid_index= TRUE;
 uint opt_binlog_gtid_index_page_size= 4096;
@@ -608,7 +617,7 @@ const double log_10[] = {
 time_t server_start_time;
 
 char mysql_home[FN_REFLEN], pidfile_name[FN_REFLEN], system_time_zone[30];
-char *default_tz_name;
+char *default_tz_name, *opt_path;
 char log_error_file[FN_REFLEN], glob_hostname[FN_REFLEN], *opt_log_basename;
 char mysql_real_data_home[FN_REFLEN],
      lc_messages_dir[FN_REFLEN], reg_ext[FN_EXTLEN],
@@ -773,6 +782,7 @@ mysql_rwlock_t LOCK_all_status_vars;
 mysql_prlock_t LOCK_system_variables_hash;
 mysql_cond_t COND_start_thread;
 pthread_t signal_thread;
+bool signal_thread_needs_join= false;
 pthread_attr_t connection_attrib;
 mysql_mutex_t LOCK_server_started;
 mysql_cond_t COND_server_started;
@@ -782,8 +792,9 @@ File_parser_dummy_hook file_parser_dummy_hook;
 
 /* replication parameters */
 uint report_port= 0;
-ulong master_retry_count=100000;
 char *master_info_file;
+// Options do not reset to default if the default is `nullptr`, so use `auto`.
+char *master_heartbeat_period_str= autoset_my_option;
 char *relay_log_info_file, *report_user, *report_password, *report_host;
 char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
 char *opt_logname, *opt_slow_logname, *opt_bin_logname;
@@ -926,20 +937,14 @@ PSI_file_key key_file_relaylog, key_file_relaylog_index,
              key_file_relaylog_cache, key_file_relaylog_index_cache;
 PSI_file_key key_file_binlog_state, key_file_gtid_index;
 
-#ifdef HAVE_des
-char *des_key_file;
-PSI_file_key key_file_des_key_file;
-PSI_mutex_key key_LOCK_des_key_file;
-mysql_mutex_t LOCK_des_key_file;
-#endif /* HAVE_des */
-
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
 PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active, key_LOCK_pool,
   key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
 
-PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
+PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_binlog_use,
+  key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
   key_LOCK_binlog_end_pos,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
@@ -997,11 +1002,8 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_pool, "TC_LOG_MMAP::LOCK_pending_checkpoint", 0},
 #endif /* HAVE_MMAP */
 
-#ifdef HAVE_des
-  { &key_LOCK_des_key_file, "LOCK_des_key_file", PSI_FLAG_GLOBAL},
-#endif /* HAVE_des */
-
   { &key_BINLOG_LOCK_index, "MYSQL_BIN_LOG::LOCK_index", 0},
+  { &key_BINLOG_LOCK_binlog_use, "MYSQL_BIN_LOG::LOCK_binlog_use", 0},
   { &key_BINLOG_LOCK_xid_list, "MYSQL_BIN_LOG::LOCK_xid_list", 0},
   { &key_BINLOG_LOCK_binlog_background_thread, "MYSQL_BIN_LOG::LOCK_binlog_background_thread", 0},
   { &key_LOCK_binlog_end_pos, "MYSQL_BIN_LOG::LOCK_binlog_end_pos", 0 },
@@ -1104,7 +1106,7 @@ static PSI_rwlock_info all_server_rwlocks[]=
 PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;
 #endif /* HAVE_MMAP */
 
-PSI_cond_key key_BINLOG_COND_xid_list,
+PSI_cond_key key_BINLOG_COND_binlog_use, key_BINLOG_COND_xid_list,
   key_BINLOG_COND_bin_log_updated, key_BINLOG_COND_relay_log_updated,
   key_BINLOG_COND_binlog_background_thread,
   key_BINLOG_COND_binlog_background_thread_end,
@@ -1141,6 +1143,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_TC_LOG_MMAP_COND_queue_busy, "TC_LOG_MMAP::COND_queue_busy", 0},
 #endif /* HAVE_MMAP */
   { &key_BINLOG_COND_bin_log_updated, "MYSQL_BIN_LOG::COND_bin_log_updated", 0}, { &key_BINLOG_COND_relay_log_updated, "MYSQL_BIN_LOG::COND_relay_log_updated", 0},
+  { &key_BINLOG_COND_binlog_use, "MYSQL_BIN_LOG::COND_binlog_use", 0},
   { &key_BINLOG_COND_xid_list, "MYSQL_BIN_LOG::COND_xid_list", 0},
   { &key_BINLOG_COND_binlog_background_thread, "MYSQL_BIN_LOG::COND_binlog_background_thread", 0},
   { &key_BINLOG_COND_binlog_background_thread_end, "MYSQL_BIN_LOG::COND_binlog_background_thread_end", 0},
@@ -1501,6 +1504,7 @@ my_bool plugins_are_initialized= FALSE;
 
 #ifndef DBUG_OFF
 static const char* default_dbug_option;
+bool is_in_ddl_recovery= false;
 #endif
 #ifdef HAVE_LIBWRAP
 const char *libwrapName= NULL;
@@ -1990,6 +1994,8 @@ static void clean_up(bool print_message)
   injector::free_instance();
   mysql_bin_log.cleanup();
   Gtid_index_writer::gtid_index_cleanup();
+  if (opt_binlog_engine_plugin)
+    plugin_unlock(0, opt_binlog_engine_plugin);
 
   my_tz_free();
   my_dboptions_cache_free();
@@ -2122,7 +2128,11 @@ static void wait_for_signal_thread_to_end()
   {
     sql_print_warning("Signal handler thread did not exit in a timely manner. "
                       "Continuing to wait for it to stop..");
+  }
+  if (signal_thread_needs_join)
+  {
     pthread_join(signal_thread, NULL);
+    signal_thread_needs_join= false;
   }
 #endif
 }
@@ -2148,9 +2158,6 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_global_table_stats);
   mysql_mutex_destroy(&LOCK_global_index_stats);
 #ifdef HAVE_OPENSSL
-#ifdef HAVE_des
-  mysql_mutex_destroy(&LOCK_des_key_file);
-#endif /* HAVE_des */
 #if defined(HAVE_OPENSSL10) && !defined(HAVE_WOLFSSL)
   for (int i= 0; i < CRYPTO_num_locks(); ++i)
     mysql_rwlock_destroy(&openssl_stdlocks[i].lock);
@@ -3221,6 +3228,7 @@ static void start_signal_handler(void)
       error,errno);
     exit(1);
   }
+  signal_thread_needs_join= true;
   mysql_cond_wait(&COND_start_thread, &LOCK_start_thread);
   mysql_mutex_unlock(&LOCK_start_thread);
 
@@ -3360,7 +3368,7 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
   DBUG_ASSERT((MyFlags & ~(ME_BELL | ME_ERROR_LOG | ME_ERROR_LOG_ONLY |
                            ME_NOTE | ME_WARNING | ME_FATAL)) == 0);
 
-  DBUG_ASSERT(str[strlen(str)-1] != '\n');
+  DBUG_ASSERT(str[strlen(str)-1] != '\n' || strlen(str) == MYSQL_ERRMSG_SIZE-1);
 
   if (MyFlags & ME_NOTE)
   {
@@ -3986,6 +3994,7 @@ static int init_common_variables()
 
   my_tzset();
   my_tzname(system_time_zone, sizeof(system_time_zone));
+  init_oracle_data_locale();                    // For TO_DATE()
 
   /*
     We set SYSTEM time zone as reasonable default and
@@ -4267,6 +4276,7 @@ static int init_common_variables()
   global_system_variables.lc_messages= my_default_lc_messages;
   global_system_variables.errmsgs= my_default_lc_messages->errmsgs->errmsgs;
   init_client_errs();
+  check_new_mode_value(NULL, &global_system_variables.new_behavior);
   mysql_library_init(unused,unused,unused); /* for replication */
   lex_init();
   if (item_create_init())
@@ -4398,6 +4408,11 @@ static int init_common_variables()
     make_default_log_name(&opt_logname, ".log", false);
   if (!opt_slow_logname || !*opt_slow_logname)
     make_default_log_name(&opt_slow_logname, "-slow.log", false);
+
+  String sqlpath(const_cast<const char*>(opt_path), strlen(opt_path),
+                 character_set_filesystem);
+  if (global_system_variables.path.from_text(global_system_variables, &sqlpath))
+    return 1;
 
 #if defined(ENABLED_DEBUG_SYNC)
   /* Initialize the debug sync facility. See debug_sync.cc. */
@@ -4544,10 +4559,6 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_temp_pool, &LOCK_temp_pool, MY_MUTEX_INIT_FAST);
 
 #ifdef HAVE_OPENSSL
-#ifdef HAVE_des
-  mysql_mutex_init(key_LOCK_des_key_file,
-                   &LOCK_des_key_file, MY_MUTEX_INIT_FAST);
-#endif /* HAVE_des */
 #if defined(HAVE_OPENSSL10) && !defined(HAVE_WOLFSSL)
   openssl_stdlocks= (openssl_lock_t*) OPENSSL_malloc(CRYPTO_num_locks() *
                                                      sizeof(openssl_lock_t));
@@ -4776,10 +4787,6 @@ static void init_ssl()
   {
     have_ssl= SHOW_OPTION_DISABLED;
   }
-#ifdef HAVE_des
-  if (des_key_file)
-    load_des_key_file(des_key_file);
-#endif /* HAVE_des */
 #endif /* HAVE_OPENSSL */
 #endif /* !EMBEDDED_LIBRARY */
 }
@@ -4949,9 +4956,40 @@ static int adjust_optimizer_costs(const LEX_CSTRING *, OPTIMIZER_COSTS *oc, TABL
   { option, OPT_REMOVED_OPTION, \
    0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
 
+
+static int
+create_dir_path_if_needed(const char *dir)
+{
+  MY_STAT stat_buf;
+  char buf[FN_REFLEN];
+  char *end= strmake(buf, dir, FN_REFLEN-1);
+  size_t len= dirname_length(buf);
+  if (len > 0 && end == buf + len)
+  {
+    /* Ends in trailing '/', strip it. */
+    buf[len-1]= '\0';
+    len= dirname_length(buf);
+  }
+  if (my_stat(dir, &stat_buf, MYF(0)))
+    return 0;  // Already exists
+  if (len > 1)
+  {
+    /* Create any parent directory as well. */
+    strmake(buf, dir, len);
+    if (create_dir_path_if_needed(buf))
+      return 1;
+  }
+  if(my_mkdir(dir, 0777, MYF(MY_WME)) && my_errno != EEXIST)
+    return 1;
+  return 0;
+}
+
+
 static int init_server_components()
 {
   DBUG_ENTER("init_server_components");
+  bool binlog_engine_used= false;
+
   /*
     We need to call each of these following functions to ensure that
     all things are initialized so that unireg_abort() doesn't fail
@@ -5047,11 +5085,17 @@ static int init_server_components()
     Print source revision hash, as one of the first lines, if not the
     first in error log, for troubleshooting and debugging purposes
   */
-  if (!opt_help)
+  if (!opt_help) {
     sql_print_information("Starting MariaDB %s source revision %s "
                           "server_uid %s as process %lu",
                           server_version, SOURCE_REVISION, server_uid,
                           (ulong) getpid());
+#if SERVER_MATURITY_LEVEL < MariaDB_PLUGIN_MATURITY_STABLE
+    sql_print_information("Help others discover MariaDB."
+        " Star it on GitHub: https://github.com/MariaDB/server");
+#endif
+  }
+
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
@@ -5124,32 +5168,62 @@ static int init_server_components()
 
   if (opt_bin_log)
   {
+    if (opt_binlog_storage_engine && *opt_binlog_storage_engine)
+      binlog_engine_used= true;
+
     /* Reports an error and aborts, if the --log-bin's path 
        is a directory.*/
     if (opt_bin_logname[0] && 
         opt_bin_logname[strlen(opt_bin_logname) - 1] == FN_LIBCHAR)
     {
       sql_print_error("Path '%s' is a directory name, please specify "
-                      "a file name for --log-bin option", opt_bin_logname);
+                      "a file name for --log-bin option, or use "
+                      "--binlog-directory", opt_bin_logname);
       unireg_abort(1);
     }
 
-    /* Reports an error and aborts, if the --log-bin-index's path 
-       is a directory.*/
-    if (opt_binlog_index_name && 
-        opt_binlog_index_name[strlen(opt_binlog_index_name) - 1] 
-        == FN_LIBCHAR)
+    if (!binlog_engine_used)
     {
-      sql_print_error("Path '%s' is a directory name, please specify "
-                      "a file name for --log-bin-index option",
-                      opt_binlog_index_name);
-      unireg_abort(1);
+      /* Reports an error and aborts, if the --log-bin-index's path 
+         is a directory.*/
+      if (opt_binlog_index_name && 
+          opt_binlog_index_name[strlen(opt_binlog_index_name) - 1] 
+          == FN_LIBCHAR)
+      {
+        sql_print_error("Path '%s' is a directory name, please specify "
+                        "a file name for --log-bin-index option",
+                        opt_binlog_index_name);
+        unireg_abort(1);
+      }
     }
 
-    char buf[FN_REFLEN];
+    char buf[FN_REFLEN], buf2[FN_REFLEN];
     const char *ln;
     ln= mysql_bin_log.generate_name(opt_bin_logname, "-bin", 1, buf);
-    if (!opt_bin_logname[0] && !opt_binlog_index_name)
+    /* Add in opt_binlog_directory, if given. */
+    if (opt_binlog_directory && opt_binlog_directory[0])
+    {
+      if (strlen(opt_binlog_directory) + 1 + strlen(ln) + 1 > FN_REFLEN)
+      {
+        sql_print_error("The combination of --binlog-directory path '%s' with "
+                        "filename '%s' from --log-bin results in a too long "
+                        "path", opt_binlog_directory, ln);
+        unireg_abort(1);
+      }
+      if (create_dir_path_if_needed(opt_binlog_directory))
+      {
+        sql_print_error("Failed to create the directory '%s' specified in "
+                        "--binlog-directory, error code: %d",
+                        opt_binlog_directory, my_errno);
+        unireg_abort(1);
+      }
+      const char *end= &buf2[FN_REFLEN-1];
+      char *p= strmake(buf2, opt_binlog_directory, FN_REFLEN - 2);
+      *p++= FN_LIBCHAR;
+      strmake(p, ln, end - p - 1);
+      ln= buf2;
+    }
+    if (!binlog_engine_used && !opt_bin_logname[0] && !opt_binlog_index_name)
     {
       /*
         User didn't give us info to name the binlog index file.
@@ -5168,6 +5242,8 @@ static int init_server_components()
     }
     if (ln == buf)
       opt_bin_logname= my_once_strdup(buf, MYF(MY_WME));
+    else if (ln == buf2)
+      opt_bin_logname= my_once_strdup(buf2, MYF(MY_WME));
   }
 
   /*
@@ -5200,6 +5276,12 @@ static int init_server_components()
 
   if (WSREP_ON && !wsrep_recovery && !opt_abort)
   {
+    if (binlog_engine_used)
+    {
+      sql_print_error("Galera cannot be used with the "
+                      "--binlog-storage-engine option");
+      unireg_abort(1);
+    }
     if (opt_bootstrap) // bootstrap option given - disable wsrep functionality
     {
       wsrep_provider_init(WSREP_NONE);
@@ -5232,7 +5314,7 @@ static int init_server_components()
   }
 #endif /* WITH_WSREP */
 
-  if (!opt_help && opt_bin_log)
+  if (!opt_help && !binlog_engine_used && opt_bin_log)
   {
     if (mysql_bin_log.open_index_file(opt_binlog_index_name, opt_bin_logname,
                                       TRUE))
@@ -5447,6 +5529,11 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("big-tables"),
       MARIADB_REMOVED_OPTION("large-page-size"),
       MARIADB_REMOVED_OPTION("storage-engine"),
+
+      /* removed in 13.0 */
+      MARIADB_REMOVED_OPTION("des-key-file"),
+      MARIADB_REMOVED_OPTION("secure-auth"),
+      MARIADB_REMOVED_OPTION("old"),
       {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
     };
     /*
@@ -5460,8 +5547,14 @@ static int init_server_components()
 #endif
 
     if ((ho_error= handle_options(&remaining_argc, &remaining_argv, removed_opts,
-                                  mysqld_get_one_option)))
+                                  mysqld_get_one_option))) {
+#ifdef WITH_WSREP
+      Wsrep_server_state::instance().disable_node_reset();
+#endif
+
       unireg_abort(ho_error);
+    }
+
     /* Add back the program name handle_options removes */
     remaining_argc++;
     remaining_argv--;
@@ -5553,6 +5646,71 @@ static int init_server_components()
   if (init_gtid_pos_auto_engines())
     unireg_abort(1);
 
+  if (opt_binlog_directory && opt_binlog_directory[0] &&
+      opt_bin_log_path)
+  {
+    sql_print_error("Cannot specify a directory path for the binlog in "
+                    "--log-bin when --binlog-directory-path is also used");
+    unireg_abort(1);
+  }
+
+  if (binlog_engine_used)
+  {
+    LEX_CSTRING name= { opt_binlog_storage_engine, strlen(opt_binlog_storage_engine) };
+    opt_binlog_engine_plugin= ha_resolve_by_name(0, &name, false);
+    if (!opt_binlog_engine_plugin ||
+        !ha_storage_engine_is_enabled(opt_binlog_engine_hton=
+                                      plugin_hton(opt_binlog_engine_plugin)))
+    {
+      if (!opt_binlog_engine_plugin)
+        sql_print_error("Unknown/unsupported storage engine: %s",
+                        opt_binlog_storage_engine);
+      else
+        sql_print_error("Engine %s is not available for "
+                        "--binlog-storage-engine",
+                        opt_binlog_storage_engine);
+      unireg_abort(1);
+    }
+    if (!opt_binlog_engine_hton->binlog_write_direct ||
+        !opt_binlog_engine_hton->get_binlog_reader)
+    {
+      sql_print_error("Engine %s does not support --binlog-storage-engine",
+                      opt_binlog_storage_engine);
+      unireg_abort(1);
+    }
+
+    if (opt_bin_log_nonempty)
+    {
+      sql_print_error("Binlog name can not be set with --log-bin=NAME when "
+                      "--binlog-storage-engine is used. Use --log-bin "
+                      "(without argument) to enable the binlog, and use "
+                      "--binlog-directory to specify a separate directory "
+                      "for binlogs");
+      unireg_abort(1);
+    }
+#ifdef HAVE_REPLICATION
+    if (rpl_semi_sync_master_enabled)
+    {
+      sql_print_error("Semi-synchronous replication is not yet supported "
+                      "with --binlog-storage-engine");
+      unireg_abort(1);
+    }
+    if (rpl_status != RPL_AUTH_MASTER)
+    {
+      sql_print_error("The --init-rpl-role option is not available with "
+                      "--binlog-storage-engine");
+      unireg_abort(1);
+    }
+    if (encrypt_binlog)
+    {
+      sql_print_error("Binlog encryption is not available with "
+                      "--binlog-storage-engine. Using full-disk encryption on "
+                      "the operating system level is recommended instead");
+      unireg_abort(1);
+    }
+#endif
+  }
+
 #ifdef USE_ARIA_FOR_TMP_TABLES
   if (!ha_storage_engine_is_enabled(maria_hton) && !opt_bootstrap)
   {
@@ -5585,6 +5743,13 @@ static int init_server_components()
   start_handle_manager();
 #endif
 
+  /*
+    When binlog is stored in InnoDB, checksums are done on the page level, so
+    set the default for per-event checksums to OFF.
+  */
+  if (opt_binlog_engine_hton)
+    binlog_checksum_options= 0;
+
   tc_log= get_tc_log_implementation();
 
   if (tc_log->open(opt_bin_log ? opt_bin_logname : opt_tc_log_file))
@@ -5600,17 +5765,25 @@ static int init_server_components()
 
   if (opt_bin_log)
   {
-    int error;
     mysql_mutex_t *log_lock= mysql_bin_log.get_log_lock();
+    bool error;
     mysql_mutex_lock(log_lock);
-    error= mysql_bin_log.open(opt_bin_logname, 0, 0,
-                              WRITE_CACHE, max_binlog_size, 0, TRUE);
+    if (opt_binlog_engine_hton)
+    {
+      error= mysql_bin_log.open_engine(opt_binlog_engine_hton, max_binlog_size,
+                                       opt_binlog_directory);
+    }
+    else
+    {
+      error= mysql_bin_log.open(opt_bin_logname, 0, 0,
+                                WRITE_CACHE, max_binlog_size, 0, TRUE);
+    }
     mysql_mutex_unlock(log_lock);
     if (unlikely(error))
       unireg_abort(1);
   }
 
-  if (unlikely(init_binlog_cache_dir()))
+  if (!binlog_engine_used && unlikely(init_binlog_cache_dir()))
     unireg_abort(1);
 
 #ifdef HAVE_REPLICATION
@@ -5620,9 +5793,12 @@ static int init_server_components()
 
   if (opt_bin_log)
   {
-    if (binlog_space_limit)
-      mysql_bin_log.count_binlog_space_with_mutex();
-    mysql_bin_log.purge(1);
+    if (!opt_binlog_engine_hton)
+    {
+      if (binlog_space_limit)
+        mysql_bin_log.count_binlog_space_with_mutex();
+      mysql_bin_log.purge(1);
+    }
   }
   else
   {
@@ -5636,8 +5812,14 @@ static int init_server_components()
   }
 #endif
 
+#ifndef DBUG_OFF
+  is_in_ddl_recovery= true;
+#endif
   if (ddl_log_execute_recovery() > 0)
     unireg_abort(1);
+#ifndef DBUG_OFF
+  is_in_ddl_recovery= false;
+#endif
   ha_signal_ddl_recovery_done();
 
   if (opt_myisam_log)
@@ -6704,9 +6886,6 @@ struct my_option my_long_options[]=
    &debug_assert_on_not_freed_memory, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0,
    0},
 #endif /* DBUG_OFF */
-  /* default-storage-engine should have "MyISAM" as def_value. Instead
-     of initializing it here it is done in init_common_variables() due
-     to a compiler bug in Sun Studio compiler. */
   {"default-storage-engine", 0, "The default storage engine for new tables",
    &default_storage_engine, 0, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0 },
@@ -6725,12 +6904,6 @@ struct my_option my_long_options[]=
    &opt_debug_sync_timeout, 0,
    0, GET_UINT, OPT_ARG, 0, 0, UINT_MAX, 0, 0, 0},
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-#ifdef HAVE_des
-  {"des-key-file", 0,
-   "Load keys for des_encrypt() and des_encrypt from given file",
-   &des_key_file, &des_key_file, 0, GET_STR, REQUIRED_ARG,
-   0, 0, 0, 0, 0, 0},
-#endif /* HAVE_des */
 #ifdef HAVE_STACKTRACE
   {"stack-trace", 0 , "Print a symbolic stack trace on failure",
    &opt_stack_trace, &opt_stack_trace, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
@@ -6782,7 +6955,9 @@ struct my_option my_long_options[]=
    "names at once (in 'datadir') and is normally the only option you need "
    "for specifying log files. Sets names for --log-bin, --log-bin-index, "
    "--relay-log, --relay-log-index, --general-log-file, "
-   "--log-slow-query-file, --log-error-file, and --pid-file",
+   "--log-slow-query-file, --log-error-file, and --pid-file. "
+   "If log-basename includes a path, the path will apply for all above "
+   "variables except pid-file that will use it without the path",
    &opt_log_basename, &opt_log_basename, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
   {"log-bin", OPT_BIN_LOG,
@@ -6819,11 +6994,86 @@ struct my_option my_long_options[]=
    "more than one storage engine, when binary log is disabled)",
    &opt_tc_log_file, &opt_tc_log_file, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"master-retry-count", 0,
-   "The number of tries the slave will make to connect to the master before giving up",
-   &master_retry_count, &master_retry_count, 0, GET_ULONG,
-   REQUIRED_ARG, static_cast<longlong>(master_retry_count), 0, 0, 0, 0, 0},
 #ifdef HAVE_REPLICATION
+  {"master-connect-retry", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_CONNECT_RETRY, "
+   "the interval in integer seconds between each try to connect to the master",
+   &master_connect_retry, nullptr, nullptr, GET_UINT,
+   REQUIRED_ARG, master_connect_retry, 0, 0, nullptr, 0, nullptr},
+  {"master-heartbeat-period", OPT_MASTER_HEARTBEAT_PERIOD,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_HEARTBEAT_PERIOD, "
+   "the interval in DECIMAL(10, 3) seconds between replication heartbeats; "
+   "the autoset value is @@slave_net_timeout/2 calculated on use",
+   /*TODO
+     Like the filters, it is easier to parse from a string than to implement
+     new option types. Compromises would not be necessary if the options
+     parser isn't stuck with the lack of heterogenous types back in your day,
+     let alone the (in)accessiblity to C++'s @std::optional.
+   */
+   &master_heartbeat_period_str, nullptr, nullptr, GET_STR|GET_AUTO,
+   REQUIRED_ARG, reinterpret_cast<longlong>(master_heartbeat_period_str),
+   /* ignored for @ref GET_STR */ 0, 0, nullptr, 0, nullptr},
+  {"master-use-gtid", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_USE_GTID, which "
+   "specifies which GTID record (or neither) to start replicating from; the "
+   "autoset value is Slave_Pos, or No if that master does not support GTIDs",
+   &master_use_gtid, nullptr,
+   &master_use_gtid_typelib, GET_ENUM|GET_AUTO, REQUIRED_ARG,
+   static_cast<longlong>(master_use_gtid), 0, 0, nullptr, 0, nullptr},
+  {"master-retry-count", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_RETRY_COUNT, "
+   "the number of tries to connect to the master before giving up",
+   &master_retry_count, nullptr, 0, GET_ULL, REQUIRED_ARG,
+   static_cast<longlong>(master_retry_count), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL, "
+   "which is whether to use TLS to connect to the master",
+   &master_ssl, nullptr, nullptr, GET_BOOL, NO_ARG,
+   master_ssl, 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-ca", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL_CA, "
+   "an optional path to a Certificate Authorities' "
+   "certificates file for TLS replication",
+   &master_ssl_ca, nullptr, nullptr, GET_STR, REQUIRED_ARG,
+   reinterpret_cast<longlong>(master_ssl_ca), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-capath", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL_CAPATH, "
+   "an optional path to a directory of Certificate Authority's "
+   "certificate files for TLS replication, ",
+   &master_ssl_capath, nullptr, nullptr, GET_STR, REQUIRED_ARG,
+   reinterpret_cast<longlong>(master_ssl_capath), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-cert", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL_CERT, "
+   "an optional path to the master's certificate for TLS replication",
+   &master_ssl_cert, nullptr, nullptr, GET_STR, REQUIRED_ARG,
+   reinterpret_cast<longlong>(master_ssl_cert), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-cipher", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL_CIPHER, "
+   "a list of permitted ciphers for TLS replication",
+   &master_ssl_cipher, nullptr, nullptr, GET_STR, REQUIRED_ARG,
+   reinterpret_cast<longlong>(master_ssl_cipher), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-crl", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL_CRL, "
+   "an optional path to a revoked certificates file for TLS replication",
+   &master_ssl_crl, nullptr, nullptr, GET_STR, REQUIRED_ARG,
+   reinterpret_cast<longlong>(master_ssl_crl), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-crlpath", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL_CRLPATH, "
+   "an optional path to a directory of revoked "
+   "certificate files for TLS replication",
+   &master_ssl_crlpath, nullptr, nullptr, GET_STR, REQUIRED_ARG,
+   reinterpret_cast<longlong>(master_ssl_crlpath), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-key", 0,
+   "The DEFAULT value for the CHANGE MASTER option MASTER_SSL_KEY, "
+   "an optional path to the master's private key for TLS replication",
+   &master_ssl_key, nullptr, nullptr, GET_STR, REQUIRED_ARG,
+   reinterpret_cast<longlong>(master_ssl_key), 0, 0, nullptr, 0, nullptr},
+  {"master-ssl-verify-server-cert", 0,
+   "The DEFAULT value for the CHANGE MASTER "
+   "option MASTER_SSL_VERIFY_SERVER_CERT, "
+   "which is whether to validate the master's certificate in TLS replication",
+   &master_ssl_verify_server_cert, nullptr, nullptr, GET_BOOL, NO_ARG,
+   master_ssl_verify_server_cert, 0, 0, nullptr, 0, nullptr},
   {"init-rpl-role", 0, "Set the replication role",
    &rpl_status, &rpl_status, &rpl_role_typelib,
    GET_ENUM, REQUIRED_ARG, RPL_AUTH_MASTER, 0, 0, 0, 0, 0},
@@ -6998,6 +7248,9 @@ struct my_option my_long_options[]=
    "start", &wsrep_new_cluster, &wsrep_new_cluster, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
 #endif
+  {"path", 0, "Comma-separated list of schema names that defines the search "
+   "order for stored routines", &opt_path, &opt_path, 0,
+   GET_STR, REQUIRED_ARG, (longlong)(intptr)"CURRENT_SCHEMA", 0, 0, 0, 0, 0 },
 };
 
 static int show_queries(THD *thd, SHOW_VAR *var, void *,
@@ -7110,7 +7363,8 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, void *buff,
       get_master_info(&thd->variables.default_master_connection,
                       Sql_condition::WARN_LEVEL_NOTE))
   {
-    sprintf(static_cast<char*>(buff), "%.3f", mi->heartbeat_period);
+    sprintf(static_cast<char*>(buff), "%.3lf",
+            mi->master_heartbeat_period/1000.0);
     mi->release();
     var->type= SHOW_CHAR;
     var->value= buff;
@@ -7619,6 +7873,7 @@ SHOW_VAR status_vars[]= {
   {"Feature_application_time_periods", (char*) offsetof(STATUS_VAR, feature_application_time_periods), SHOW_LONG_STATUS},
   {"Feature_timezone",         (char*) offsetof(STATUS_VAR, feature_timezone), SHOW_LONG_STATUS},
   {"Feature_trigger",          (char*) offsetof(STATUS_VAR, feature_trigger), SHOW_LONG_STATUS},
+  {"Feature_vector_index",     (char*) offsetof(STATUS_VAR, feature_vector_index), SHOW_LONG_STATUS},
   {"Feature_window_functions", (char*) offsetof(STATUS_VAR, feature_window_functions), SHOW_LONG_STATUS},
   {"Feature_xml",              (char*) offsetof(STATUS_VAR, feature_xml), SHOW_LONG_STATUS},
   {"Handler_commit",           (char*) offsetof(STATUS_VAR, ha_commit_count), SHOW_LONG_STATUS},
@@ -7882,7 +8137,6 @@ static void print_help()
   sys_var_add_options(&all_options, sys_var::PARSE_EARLY);
   add_plugin_options(&all_options, &mem_root);
   sort_dynamic(&all_options, (qsort_cmp) option_cmp);
-  sort_dynamic(&all_options, (qsort_cmp) option_cmp);
   add_terminator(&all_options);
 
   my_print_help((my_option*) all_options.buffer);
@@ -7980,7 +8234,6 @@ static int mysql_init_variables(void)
   opt_log_basename= 0;
   opt_tc_log_file= (char *)"tc.log";      // no hostname in tc_log file name !
   opt_ddl_recovery_file= (char *) "ddl_recovery.log";
-  opt_secure_auth= 0;
   opt_bootstrap= opt_myisam_log= 0;
   disable_log_notes= 0;
   mqh_used= 0;
@@ -8122,9 +8375,6 @@ static int mysql_init_variables(void)
   libwrapName= NullS;
 #endif
 #ifdef HAVE_OPENSSL
-#ifdef HAVE_des
-  des_key_file = 0;
-#endif /* HAVE_des */
 #ifndef EMBEDDED_LIBRARY
   ssl_acceptor_fd= 0;
 #endif /* ! EMBEDDED_LIBRARY */
@@ -8183,6 +8433,9 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     else
       var->value_origin= sys_var::COMMAND_LINE;
   }
+  // Handle `GET_AUTO` for `--master-heartbeat-period` and `--master-use-gtid`
+  if (argument == autoset_my_option)
+    my_getopt_init_one_value(opt, opt->value, opt->def_value);
 
   switch(opt->id) {
   case '#':
@@ -8274,23 +8527,25 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     test_flags= argument ? ((uint) atoi(argument) & ~TEST_BLOCKING) : 0;
     opt_endinfo=1;
     break;
-  case OPT_SECURE_AUTH:
-    warn_deprecated<1006>("--secure-auth");
-    break;
   case (int) OPT_ISAM_LOG:
     opt_myisam_log=1;
     break;
   case (int) OPT_BIN_LOG:
     opt_bin_log= MY_TEST(argument != disabled_my_option);
     opt_bin_log_used= 1;
+    opt_bin_log_nonempty= (argument && argument[0]);
+    opt_bin_log_path= argument &&
+      (strchr(argument, FN_LIBCHAR) || strchr(argument, FN_LIBCHAR2));
     break;
   case (int) OPT_LOG_BASENAME:
   {
     if (opt_log_basename[0] == 0 || strchr(opt_log_basename, FN_EXTCHAR) ||
-        strchr(opt_log_basename,FN_LIBCHAR) ||
+        !my_basename(opt_log_basename)[0] ||
         !is_filename_allowed(opt_log_basename, strlen(opt_log_basename), FALSE))
     {
-      sql_print_error("Wrong argument for --log-basename. It can't be empty or contain '.' or '" FN_DIRSEP "'. It must be valid filename.");
+      sql_print_error("Wrong argument for --log-basename. It can't be empty, "
+                      "contain '.' or be a directory name'. "
+                      "It must be valid filename.");
       return 1;
     }
     if (log_error_file_ptr != disabled_my_option)
@@ -8324,7 +8579,8 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     {
       SYSVAR_AUTOSIZE(pidfile_name_ptr, pidfile_name);
       /* PID file */
-      strmake(pidfile_name, argument, sizeof(pidfile_name)-5);
+      strmake(pidfile_name, my_basename(opt_log_basename),
+              sizeof(pidfile_name)-5);
       strmov(fn_ext(pidfile_name),".pid");
     }
     break;
@@ -8414,6 +8670,31 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     }
     break;
   }
+  case OPT_MASTER_HEARTBEAT_PERIOD:
+    if (master_heartbeat_period_str == autoset_my_option)
+      master_heartbeat_period.reset();
+    else
+    {
+      bool overprecise;
+      if (Master_info_file::Heartbeat_period_value::from_chars(
+        master_heartbeat_period, master_heartbeat_period_str,
+        strchr(master_heartbeat_period_str, '\0'), overprecise, '\0')
+      )
+      {
+        sql_print_error(
+          "Bad value for master-heartbeat-period; "
+          "should be between 0 and %s seconds inclusive.",
+          Master_info_file::Heartbeat_period_value::MAX
+        );
+        return true;
+      }
+      if (unlikely(!*master_heartbeat_period && overprecise))
+        sql_print_warning(
+          "master-heartbeat-period rounded to 0, "
+          "meaning that heartbeating will effectively be disabled."
+        );
+    }
+    break;
 #endif /* HAVE_REPLICATION */
   case (int) OPT_SAFE:
     opt_specialflag|= SPECIAL_SAFE_MODE | SPECIAL_NO_NEW_FUNC;
@@ -8740,6 +9021,9 @@ static void option_error_reporter(enum loglevel level, const char *format, ...)
 
 C_MODE_END
 
+extern const char **new_mode_default_names;
+
+
 /**
   Get server options from the command line,
   and perform related server initializations.
@@ -8790,13 +9074,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     between options, setting of multiple variables, etc.
     Do them here.
   */
-
-  if (global_system_variables.old_mode)
-  {
-    global_system_variables.old_behavior|= (OLD_MODE_NO_PROGRESS_INFO |
-                                           OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN |
-                                           OLD_MODE_COMPAT_5_1_CHECKSUM);
-  }
 
   if (global_system_variables.net_buffer_length > 
       global_system_variables.max_allowed_packet)
@@ -9126,10 +9403,11 @@ bool is_secure_file_path(char *path)
   }
   else
   {
+    my_bool use_prefix;
     if (files_charset_info->strnncoll(buff2, strlen(buff2),
                                       opt_secure_file_priv,
                                       opt_secure_file_priv_len,
-                                      TRUE))
+                                      &use_prefix))
       return FALSE;
   }
   return TRUE;
@@ -9365,7 +9643,8 @@ void refresh_global_status()
 #endif
 
   /* Reset the counters of all key caches (default and named). */
-  process_key_caches(reset_key_cache_counters, 0);
+  process_key_caches(reset_key_cache_counters, 0); // MyISAM page caches
+  aria_reset_pagecache_counters();                 // Aria page cache
   global_status_var.flush_status_time= my_time(0);
   mysql_mutex_unlock(&LOCK_status);
 
@@ -9444,9 +9723,6 @@ static PSI_file_info all_server_files[]=
   { &key_file_io_cache, "io_cache", 0},
   { &key_file_casetest, "casetest", 0},
   { &key_file_dbopt, "dbopt", 0},
-#ifdef HAVE_des
-  { &key_file_des_key_file, "des_key_file", 0},
-#endif
   { &key_file_ERRMSG, "ERRMSG", 0},
   { &key_select_to_file, "select_to_file", 0},
   { &key_file_fileparser, "file_parser", 0},
@@ -9483,6 +9759,7 @@ PSI_stage_info stage_alter_inplace_prepare= { 0, "preparing for alter table", 0}
 PSI_stage_info stage_alter_inplace= { 0, "altering table", 0};
 PSI_stage_info stage_alter_inplace_commit= { 0, "Committing alter table to storage engine", 0};
 PSI_stage_info stage_apply_event= { 0, "Apply log event", 0};
+PSI_stage_info stage_buffer_partial_rows= { 0, "Buffering Partial_rows_log_event", 0};
 PSI_stage_info stage_changing_master= { 0, "Changing master", 0};
 PSI_stage_info stage_checking_master_version= { 0, "Checking master version", 0};
 PSI_stage_info stage_checking_permissions= { 0, "checking permissions", 0};
@@ -9491,6 +9768,7 @@ PSI_stage_info stage_checking_query_cache_for_query= { 0, "Checking query cache 
 PSI_stage_info stage_cleaning_up= { 0, "Reset for next command", 0};
 PSI_stage_info stage_closing_tables= { 0, "closing tables", 0};
 PSI_stage_info stage_connecting_to_master= { 0, "Connecting to master", 0};
+PSI_stage_info stage_constructing_rows_ev= { 0, "Constructing Rows_log_event from buffer of fragments", 0};
 PSI_stage_info stage_converting_heap_to_myisam= { 0, "Converting HEAP to " TMP_ENGINE_NAME, 0};
 PSI_stage_info stage_copying_to_group_table= { 0, "Copying to group table", 0};
 PSI_stage_info stage_copying_to_tmp_table= { 0, "Copying to tmp table", 0};
@@ -9617,6 +9895,7 @@ PSI_stage_info stage_waiting_for_deadlock_kill= { 0, "Waiting for parallel repli
 PSI_stage_info stage_starting= { 0, "starting", 0};
 PSI_stage_info stage_waiting_for_flush= { 0, "Waiting for non trans tables to be flushed", 0};
 PSI_stage_info stage_waiting_for_ddl= { 0, "Waiting for DDLs", 0};
+PSI_stage_info stage_waiting_for_reset_master= { 0, "Waiting for a running RESET MASTER to complete", 0};
 
 #ifdef WITH_WSREP
 // Additional Galera thread states
@@ -9708,6 +9987,7 @@ PSI_memory_key key_memory_user_var_entry;
 PSI_memory_key key_memory_user_var_entry_value;
 PSI_memory_key key_memory_String_value;
 PSI_memory_key key_memory_WSREP;
+PSI_memory_key key_memory_trace_ddl_info;
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -9726,6 +10006,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_binlog_processing_checkpoint_notify,
   & stage_binlog_stopping_background_thread,
   & stage_binlog_waiting_background_tasks,
+  & stage_buffer_partial_rows,
   & stage_changing_master,
   & stage_checking_master_version,
   & stage_checking_permissions,
@@ -9736,6 +10017,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_commit,
   & stage_commit_implicit,
   & stage_connecting_to_master,
+  & stage_constructing_rows_ev,
   & stage_converting_heap_to_myisam,
   & stage_copy_to_tmp_table,
   & stage_copying_to_group_table,
@@ -9846,7 +10128,8 @@ PSI_stage_info *all_server_stages[]=
   & stage_waiting_for_semi_sync_slave,
   & stage_reading_semi_sync_ack,
   & stage_waiting_for_deadlock_kill,
-  & stage_starting
+  & stage_starting,
+  & stage_waiting_for_reset_master
 #ifdef WITH_WSREP
   ,
   & stage_waiting_isolation,
@@ -9954,7 +10237,8 @@ static PSI_memory_info all_server_memory[]=
   { &key_memory_Query_cache, "Query_cache", PSI_FLAG_GLOBAL},
   { &key_memory_Table_trigger_dispatcher, "Table_trigger_dispatcher::m_mem_root", 0},
   { &key_memory_native_functions, "native_functions", PSI_FLAG_GLOBAL},
-  { &key_memory_WSREP, "wsrep", 0 }
+  { &key_memory_WSREP, "wsrep", 0 },
+  { &key_memory_trace_ddl_info, "TRACE_DDL_INFO", 0}
 };
 
 /**

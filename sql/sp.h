@@ -22,6 +22,7 @@
 #include "sql_string.h"                         // LEX_STRING
 #include "sql_cmd.h"
 #include "mdl.h"
+#include "sql_hset.h"
 
 class Field;
 class Open_tables_backup;
@@ -39,6 +40,7 @@ class sp_expr_lex;
 class Database_qualified_name;
 struct st_sp_chistics;
 class Stored_program_creation_ctx;
+struct Sql_path;
 struct LEX;
 struct TABLE;
 struct TABLE_LIST;
@@ -62,6 +64,7 @@ enum enum_sp_type
 
 class Sp_handler
 {
+public:
   bool sp_resolve_package_routine_explicit(THD *thd,
                                            sp_head *caller,
                                            sp_name *name,
@@ -85,6 +88,7 @@ protected:
   int db_load_routine(THD *thd, const Database_qualified_name *name,
                       sp_head **sphp,
                       sql_mode_t sql_mode,
+                      const Sql_path &sql_path,
                       const LEX_CSTRING &params,
                       const LEX_CSTRING &returns,
                       const LEX_CSTRING &body,
@@ -198,6 +202,8 @@ public:
   virtual sp_head *sp_find_routine(THD *thd,
                                    const Database_qualified_name *name,
                                    bool cache_only) const;
+  int sp_routine_exists(THD *thd,
+                        const Database_qualified_name *name) const;
   virtual int sp_cache_routine(THD *thd, const Database_qualified_name *name,
                                sp_head **sp) const;
 
@@ -613,6 +619,7 @@ enum
   MYSQL_PROC_FIELD_DB_COLLATION,
   MYSQL_PROC_FIELD_BODY_UTF8,
   MYSQL_PROC_FIELD_AGGREGATE,
+  MYSQL_PROC_FIELD_PATH,
   MYSQL_PROC_FIELD_COUNT
 };
 
@@ -671,16 +678,20 @@ public:
 
   int sp_cache_routine(THD *thd, sp_head **sp) const;
 };
+typedef Hash_set<Sroutine_hash_entry> Sroutine_hash;
 
+bool is_package_public_routine(THD *thd, const Lex_ident_db &db,
+                               const LEX_CSTRING &package,
+                               const LEX_CSTRING &routine, enum_sp_type type);
 
 bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
                          const MDL_key *key,
                          const Sp_handler *handler,
                          TABLE_LIST *belong_to_view);
 void sp_remove_not_own_routines(Query_tables_list *prelocking_ctx);
-bool sp_update_sp_used_routines(HASH *dst, HASH *src);
+bool sp_update_sp_used_routines(Sroutine_hash *dst, HASH *src);
 void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
-                                  HASH *src, TABLE_LIST *belong_to_view);
+                                  Sroutine_hash *src, TABLE_LIST *belong_to_view);
 void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
                                   SQL_I_List<Sroutine_hash_entry> *src,
                                   TABLE_LIST *belong_to_view);

@@ -29,16 +29,24 @@ set transaction isolation level read uncommitted;
 select count(*) from t1 where ST_Within(t1.c2, @g1);
 --enable_ps2_protocol
 disconnect con1;
-
---source include/wait_until_disconnected.inc
-
 connection a;
 commit;
 disconnect a;
---source include/wait_until_disconnected.inc
-
 connection default;
 drop table t1;
 
+--echo #
+--echo # MDEV-38372 ASAN error in InnoDB on malformed WKB
+--echo #
+create table t1 (
+    id int auto_increment primary key,
+    geom geometry not null,
+    spatial index (geom)
+) engine=innodb;
 
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+insert t1 (geom) values (X'000000000107000000FF000000');
+drop table t1;
+
+--echo # End of 10.6 tests
 

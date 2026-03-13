@@ -1371,33 +1371,15 @@ Event_job_data::execute(THD *thd, bool drop)
   wsrep_open(thd);
   wsrep_before_command(thd);
 #endif /* WITH_WSREP */
-  /*
-    MySQL parser currently assumes that current database is either
-    present in THD or all names in all statements are fully specified.
-    And yet not fully specified names inside stored programs must be 
-    be supported, even if the current database is not set:
-    CREATE PROCEDURE db1.p1() BEGIN CREATE TABLE t1; END//
-    -- in this example t1 should be always created in db1 and the statement
-    must parse even if there is no current database.
-
-    To support this feature and still address the parser limitation,
-    we need to set the current database here.
-    We don't have to call mysql_change_db, since the checks performed
-    in it are unnecessary for the purpose of parsing, and
-    mysql_change_db will be invoked anyway later, to activate the
-    procedure database before it's executed.
-  */
-  thd->set_db(&dbname);
 
   lex_start(thd);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  if (event_sctx.change_security_context(thd,
-                                         &definer_user, &definer_host,
-                                         &dbname, &save_sctx))
+  if (event_sctx.change_security_context(thd, &definer_user, &definer_host,
+                                         &dbname, &save_sctx) ||
+      mysql_change_db(thd, dbname, FALSE))
   {
-    sql_print_error("Event Scheduler: "
-                    "[%s].[%s.%s] execution failed, "
+    sql_print_error("Event Scheduler: [%s].[%s.%s] execution failed, "
                     "failed to authenticate the user.",
                     definer.str, dbname.str, name.str);
     goto end;
@@ -1412,8 +1394,7 @@ Event_job_data::execute(THD *thd, bool drop)
       privilege is revoked from trigger definer,
       triggers are not executed.
     */
-    sql_print_error("Event Scheduler: "
-                    "[%s].[%s.%s] execution failed, "
+    sql_print_error("Event Scheduler: [%s].[%s.%s] execution failed, "
                     "user no longer has EVENT privilege.",
                     definer.str, dbname.str, name.str);
     goto end;
@@ -1493,8 +1474,9 @@ end:
       We must do it here since here we're under the right authentication
       ID of the event definer.
     */
-    sql_print_information("Event Scheduler: Dropping %s.%s",
-                          (const char *) dbname.str, (const char *) name.str);
+    if (global_system_variables.log_warnings > 2)
+      sql_print_information("Event Scheduler: Dropping %s.%s",
+                            dbname.str, name.str);
     /*
       Construct a query for the binary log, to ensure the event is dropped
       on the slave

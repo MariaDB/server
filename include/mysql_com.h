@@ -214,7 +214,7 @@ enum enum_indicator_type
 
 #define REFRESH_QUERY_CACHE     (1ULL << 16) /* clear the query cache */
 #define REFRESH_QUERY_CACHE_FREE (1ULL << 17) /* pack query cache */
-#define REFRESH_DES_KEY_FILE    (1ULL << 18)
+/* unused                       (1ULL << 18) */
 #define REFRESH_USER_RESOURCES  (1ULL << 19)
 #define REFRESH_FOR_EXPORT      (1ULL << 20) /* FLUSH TABLES ... FOR EXPORT */
 #define REFRESH_SSL             (1ULL << 21)
@@ -406,6 +406,13 @@ enum mariadb_field_attr_t
 
 #define SERVER_STATUS_ANSI_QUOTES       32768U
 
+/*
+  Set for stored procedures if the select query returned a row
+  To check for an empty query, one must also check thd::get_sent_row_count()
+*/
+
+#define SERVER_STATUS_RETURNED_ROW      (1U << 16)
+
 /**
   Server status flags that must be cleared when starting
   execution of a new SQL statement.
@@ -422,7 +429,8 @@ enum mariadb_field_attr_t
                                  SERVER_STATUS_DB_DROPPED |\
                                  SERVER_STATUS_CURSOR_EXISTS|\
                                  SERVER_STATUS_LAST_ROW_SENT|\
-                                 SERVER_SESSION_STATE_CHANGED)
+                                 SERVER_SESSION_STATE_CHANGED|\
+                                 SERVER_STATUS_RETURNED_ROW)
 
 #define MYSQL_ERRMSG_SIZE	512
 #define NET_READ_TIMEOUT	30		/* Timeout on read */

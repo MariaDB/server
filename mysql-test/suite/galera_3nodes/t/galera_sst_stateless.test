@@ -1,0 +1,51 @@
+#
+# Test that a node marked as stateless is not chosen as a donor.
+# For that purpose
+# - set stateless flag for node2 in .cnf
+# - configure node3 to prefer node2 as SST donor in .cnf
+# - force SST for node3 after node2 is fully initialized
+# - check that node2 was not chosen as SST donor
+#
+
+--source include/galera_cluster.inc
+--source include/have_perfschema.inc
+--source include/big_test.inc
+
+# Make sure that the test is operating on the right version of galera library.
+--let $galera_version=26.4.23
+source ../wsrep/include/check_galera_version.inc;
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source suite/galera/include/auto_increment_offset_save.inc
+
+--connection node_3
+--source include/shutdown_mysqld.inc
+--remove_file $MYSQLTEST_VARDIR/mysqld.3/data/grastate.dat
+
+# make sure node_2 is ready to be a DONOR
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+
+--connection node_3
+--source include/start_mysqld.inc
+
+--source suite/galera/include/auto_increment_offset_restore.inc
+
+--let $assert_only_after = CURRENT_TEST
+--let $assert_text = DONOR
+--let $assert_select = DONOR
+
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_count = 6
+--source include/assert_grep.inc
+
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_count = 0
+--source include/assert_grep.inc

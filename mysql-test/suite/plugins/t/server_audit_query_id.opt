@@ -1,0 +1,5 @@
+--plugin-load-add=server_audit
+--server_audit_mode=0
+--server_audit_file_path='server_audit_query_id.log'
+--server_audit_output_type=file
+--server_audit_events='QUERY'

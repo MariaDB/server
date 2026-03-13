@@ -1,0 +1,28 @@
+include/reset_master.inc
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, c LONGBLOB) ENGINE=InnoDB;
+*** Test that an active transaction with OOB data prevents PURGE and RESET MASTER.
+connect con1,localhost,root,,;
+BEGIN;
+INSERT INTO t1 VALUES (1, 1, REPEAT('$', 100000));
+connection default;
+INSERT INTO t1 VALUES (2, 0, 'abd');
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (3, 0, 'def');
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (4, 0, 'ghi');
+FLUSH BINARY LOGS;
+SET @old_min_slaves= @@GLOBAL.slave_connections_needed_for_purge;
+SET GLOBAL slave_connections_needed_for_purge= 0;
+PURGE BINARY LOGS TO 'binlog-000001.ibb';
+ERROR HY000: A purgeable log is in use, will not purge
+RESET MASTER;
+ERROR HY000: Cannot execute RESET MASTER as the binlog is in use by an active transaction
+connection con1;
+COMMIT;
+disconnect con1;
+connection default;
+PURGE BINARY LOGS TO 'binlog-000001.ibb';
+RESET MASTER;
+connection default;
+SET GLOBAL slave_connections_needed_for_purge= @old_min_slaves;
+DROP TABLE t1;

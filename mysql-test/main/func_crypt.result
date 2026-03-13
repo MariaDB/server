@@ -45,6 +45,8 @@ select password(NULL);
 password(NULL)
 
 set global old_passwords=on;
+Warnings:
+Warning	4200	The setting 'old_passwords' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 select password('');
 password('')
 
@@ -58,20 +60,26 @@ select old_password('idkfa');
 old_password('idkfa')
 5c078dc54ca0fcca
 set old_passwords=on;
+Warnings:
+Warning	4200	The setting 'old_passwords' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 select password('idkfa');
 password('idkfa')
-5c078dc54ca0fcca
+*B669C9DAC3AA6F2254B03CDEF8DFDD6B2D1054BA
 select old_password('idkfa');
 old_password('idkfa')
 5c078dc54ca0fcca
 set global old_passwords=off;
+Warnings:
+Warning	4200	The setting 'old_passwords' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 select password('idkfa');
 password('idkfa')
-5c078dc54ca0fcca
+*B669C9DAC3AA6F2254B03CDEF8DFDD6B2D1054BA
 select old_password('idkfa');
 old_password('idkfa')
 5c078dc54ca0fcca
 set old_passwords=off;
+Warnings:
+Warning	4200	The setting 'old_passwords' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 select password('idkfa ');
 password('idkfa ')
 *2DC31D90647B4C1ABC9231563D2236E96C9A2DB2

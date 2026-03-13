@@ -165,13 +165,6 @@ fts_ast_add_node(
 	fts_ast_node_t*	list,			/*!< in: list node instance */
 	fts_ast_node_t*	node);			/*!< in: (sub) expr to add */
 /********************************************************************
-Print the AST node recursively.*/
-extern
-void
-fts_ast_node_print(
-/*===============*/
-	fts_ast_node_t*	node);			/*!< in: ast node to print */
-/********************************************************************
 Free node and expr allocations.*/
 extern
 void

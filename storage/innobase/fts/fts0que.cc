@@ -1105,15 +1105,6 @@ fts_query_difference(
 
 	ut_a(query->oper == FTS_IGNORE);
 
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	{
-		ib::info	out;
-		out << "DIFFERENCE: Searching: '";
-		out.write(token->f_str, token->f_len);
-		out << "'";
-	}
-#endif
-
 	if (query->doc_ids) {
 		n_doc_ids = rbt_size(query->doc_ids);
 	}
@@ -1207,15 +1198,6 @@ fts_query_intersect(
 	dict_table_t*		table = query->index->table;
 
 	ut_a(query->oper == FTS_EXIST);
-
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	{
-		ib::info	out;
-		out << "INTERSECT: Searching: '";
-		out.write(token->f_str, token->f_len);
-		out << "'";
-	}
-#endif
 
 	/* If the words set is not empty and multi exist is true,
 	we know the intersection set is empty in advance. */
@@ -1397,15 +1379,6 @@ fts_query_union(
 
 	ut_a(query->oper == FTS_NONE || query->oper == FTS_DECR_RATING ||
 	     query->oper == FTS_NEGATE || query->oper == FTS_INCR_RATING);
-
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	{
-		ib::info	out;
-		out << "UNION: Searching: '";
-		out.write(token->f_str, token->f_len);
-		out << "'";
-	}
-#endif
 
 	if (query->doc_ids) {
 		n_doc_ids = rbt_size(query->doc_ids);
@@ -2550,10 +2523,6 @@ fts_query_search_phrase(
 	ut_a(get_doc.index_cache != NULL);
 
 	mysql_mutex_unlock(&cache->lock);
-
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	ib::info() << "Start phrase search";
-#endif
 
 	/* Read the document from disk and do the actual
 	match, matching documents will be added to the current
@@ -3893,10 +3862,6 @@ fts_query_parse(
 		fts_ast_state_free(&state);
 	} else {
 		query->root = state.root;
-
-		if (UNIV_UNLIKELY(fts_enable_diag_print) && query->root) {
-			fts_ast_node_print(query->root);
-		}
 	}
 
 	DBUG_RETURN(state.root);
@@ -3951,7 +3916,6 @@ fts_query(
 	bool		boolean_mode;
 	trx_t*		query_trx; /* FIXME: use provided trx */
 	CHARSET_INFO*	charset;
-	ulint		start_time_ms;
 	bool		will_be_ignored = false;
 
 	boolean_mode = flags & FTS_BOOL;
@@ -3960,8 +3924,6 @@ fts_query(
 	memset(&query, 0x0, sizeof(query));
 	query_trx = trx_create();
 	query_trx->op_info = "FTS query";
-
-	start_time_ms = ut_time_ms();
 
 	query.trx = query_trx;
 	query.index = index;
@@ -4117,25 +4079,6 @@ fts_query(
 
 	ut_free(lc_query_str);
 
-	if (UNIV_UNLIKELY(fts_enable_diag_print) && (*result)) {
-		ulint	diff_time = ut_time_ms() - start_time_ms;
-
-		ib::info() << "FTS Search Processing time: "
-			<< diff_time / 1000 << " secs: " << diff_time % 1000
-			<< " millisec: row(s) "
-			<< ((*result)->rankings_by_id
-			    ? lint(rbt_size((*result)->rankings_by_id))
-			    : -1);
-
-		/* Log memory consumption & result size */
-		ib::info() << "Full Search Memory: " << query.total_size
-			<< " (bytes),  Row: "
-			<< ((*result)->rankings_by_id
-			    ? rbt_size((*result)->rankings_by_id)
-			    : 0)
-			<< ".";
-	}
-
 func_exit:
 	fts_query_free(&query);
 
@@ -4203,34 +4146,6 @@ fts_query_sort_result_on_rank(
 	result->rankings_by_rank = ranked;
 }
 
-/*******************************************************************//**
-A debug function to print result doc_id set. */
-static
-void
-fts_print_doc_id(
-/*=============*/
-	fts_query_t*	query)	/*!< in : tree that stores doc_ids.*/
-{
-	const ib_rbt_node_t*	node;
-
-	/* Iterate each member of the doc_id set */
-	for (node = rbt_first(query->doc_ids);
-	     node;
-	     node = rbt_next(query->doc_ids, node)) {
-		fts_ranking_t*	ranking;
-		ranking = rbt_value(fts_ranking_t, node);
-
-		ib::info() << "doc_ids info, doc_id: " << ranking->doc_id;
-
-		ulint		pos = 0;
-		fts_string_t	word;
-
-		while (fts_ranking_words_get_next(query, ranking, &pos, &word)) {
-			ib::info() << "doc_ids info, value: " << word.f_str;
-		}
-	}
-}
-
 /*************************************************************//**
 This function implements a simple "blind" query expansion search:
 words in documents found in the first search pass will be used as
@@ -4272,10 +4187,6 @@ fts_expand_query(
 	result_doc.parser = index_cache->index->parser;
 
 	query->total_size += SIZEOF_RBT_CREATE;
-
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		fts_print_doc_id(query);
-	}
 
 	for (node = rbt_first(query->doc_ids);
 	     node;

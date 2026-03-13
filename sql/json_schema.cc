@@ -300,16 +300,18 @@ static st_json_schema_keyword_map empty_func_map=
   keyname, then we want to check if it validates for "patternProperties".
   In this case "patterProperties" will be alternate schema for "properties".
 */
-bool Json_schema_keyword::fall_back_on_alternate_schema(const json_engine_t
-                                                                          *je,
-                                                        const uchar* k_start,
-                                                        const uchar* k_end)
+bool Json_schema_keyword::
+                    fall_back_on_alternate_schema(const json_engine_t *je,
+                                                  MEM_ROOT *current_mem_root,
+                                                  const uchar* k_start,
+                                                  const uchar* k_end)
 {
   if (alternate_schema)
   {
     if (alternate_schema->allowed)
     {
-      if (alternate_schema->validate_as_alternate(je, k_start, k_end))
+      if (alternate_schema->validate_as_alternate(je, k_start, k_end,
+                                                  current_mem_root))
         return true;
     }
     else
@@ -318,7 +320,9 @@ bool Json_schema_keyword::fall_back_on_alternate_schema(const json_engine_t
   return false;
 }
 
-bool Json_schema_annotation::handle_keyword(THD *thd, json_engine_t *je, 
+bool Json_schema_annotation::handle_keyword(THD *thd,
+                                            MEM_ROOT *current_mem_root,
+                                            json_engine_t *je,
                                             const char* key_start,
                                             const char* key_end,
                                             List<Json_schema_keyword>
@@ -362,7 +366,9 @@ bool Json_schema_annotation::handle_keyword(THD *thd, json_engine_t *je,
   return res;
 }
 
-bool Json_schema_format::handle_keyword(THD *thd, json_engine_t *je,              
+bool Json_schema_format::handle_keyword(THD *thd,
+                                        MEM_ROOT *current_mem_root,
+                                        json_engine_t *je,
                                         const char* key_start,
                                         const char* key_end,
                                         List<Json_schema_keyword>
@@ -376,13 +382,16 @@ bool Json_schema_format::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_type::validate(const json_engine_t *je,
+                                MEM_ROOT *current_mem_root,
                                 const uchar *k_start,
                                 const uchar* k_end)
 {
   return !((1 << je->value_type) & type);
 }
 
-bool Json_schema_type::handle_keyword(THD *thd, json_engine_t *je,   
+bool Json_schema_type::handle_keyword(THD *thd,
+                                      MEM_ROOT *current_mem_root,
+                                      json_engine_t *je,
                                       const char* key_start,
                                       const char* key_end,
                                       List<Json_schema_keyword>
@@ -411,6 +420,7 @@ bool Json_schema_type::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_const::validate(const json_engine_t *je,
+                                 MEM_ROOT *current_mem_root,
                                  const uchar *k_start,
                                  const uchar* k_end)
 {
@@ -419,7 +429,6 @@ bool Json_schema_const::validate(const json_engine_t *je,
   const char *start= (char*)curr_je.value;
   const char *end= (char*)curr_je.value+curr_je.value_len;
   json_engine_t temp_je= *je;
-  json_engine_t temp_je_2;
   String a_res("", 0, curr_je.s.cs);
   int err= 0;
 
@@ -449,9 +458,11 @@ bool Json_schema_const::validate(const json_engine_t *je,
         curr_je= temp_je;
         return true;
       }
-      json_get_normalized_string(&temp_je_2, &a_res, &err);
+      json_get_normalized_string(&temp_je_2, &a_res, &err, current_mem_root, &temp_je_arg, &stack);
       if (err)
-       return true;
+      {
+        return true;
+      }
     }
     else
       a_res.append(val.ptr(), val.length(), temp_je.s.cs);
@@ -459,13 +470,18 @@ bool Json_schema_const::validate(const json_engine_t *je,
     if (a_res.length() == strlen(const_json_value) &&
         !strncmp((const char*)const_json_value, a_res.ptr(),
                   a_res.length()))
+    {
       return false;
+    }
     return true;
   }
+
   return false;
 }
 
-bool Json_schema_const::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_const::handle_keyword(THD *thd,
+                                       MEM_ROOT *current_mem_root,
+                                       json_engine_t *je,
                                        const char* key_start,
                                        const char* key_end,
                                        List<Json_schema_keyword>
@@ -475,6 +491,20 @@ bool Json_schema_const::handle_keyword(THD *thd, json_engine_t *je,
   json_engine_t temp_je;
   String a_res("", 0, je->s.cs);
   int err;
+
+  mem_root_dynamic_array_init(current_mem_root, PSI_INSTRUMENT_MEM,
+                                &temp_je.stack,
+                                 sizeof(int), NULL,
+                                 JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+  mem_root_dynamic_array_init(current_mem_root, PSI_INSTRUMENT_MEM,
+                              &temp_je_arg.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+  mem_root_dynamic_array_init(current_mem_root, PSI_INSTRUMENT_MEM,
+                              &stack, sizeof(struct json_norm_value*), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+  mem_root_dynamic_array_init(current_mem_root, PSI_INSTRUMENT_MEM,
+                              &temp_je_2.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
 
   type= je->value_type;
 
@@ -492,10 +522,14 @@ bool Json_schema_const::handle_keyword(THD *thd, json_engine_t *je,
   if (je->value_type != JSON_VALUE_STRING)
   {
     if (json_read_value(&temp_je))
+    {
       return true;
-    json_get_normalized_string(&temp_je, &a_res, &err);
+    }
+    json_get_normalized_string(&temp_je, &a_res, &err, current_mem_root, &temp_je_arg, &stack);
     if (err)
+    {
       return true;
+    }
   }
   else
     a_res.append(val.ptr(), val.length(), je->s.cs);
@@ -503,7 +537,9 @@ bool Json_schema_const::handle_keyword(THD *thd, json_engine_t *je,
   this->const_json_value= (char*)alloc_root(thd->mem_root,
                                             a_res.length()+1);
   if (!const_json_value)
-    return true;
+  {
+    return 1;
+  }
 
   const_json_value[a_res.length()]= '\0';
   strncpy(const_json_value, (const char*)a_res.ptr(), a_res.length());
@@ -512,6 +548,7 @@ bool Json_schema_const::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_enum::validate(const json_engine_t *je,
+                                MEM_ROOT *current_mem_root,
                                 const uchar *k_start,
                                 const uchar* k_end)
 {
@@ -530,7 +567,7 @@ bool Json_schema_enum::validate(const json_engine_t *je,
     else
       return false;
   }
-  json_get_normalized_string(&temp_je, &a_res, &err);
+  json_get_normalized_string(&temp_je, &a_res, &err, current_mem_root, &temp_je_arg, &stack);
   if (err)
     return true;
 
@@ -543,13 +580,22 @@ bool Json_schema_enum::validate(const json_engine_t *je,
     return true;
 }
 
-bool Json_schema_enum::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_enum::handle_keyword(THD *thd, MEM_ROOT *current_mem_root,
+                                      json_engine_t *je,
                                       const char* key_start,
                                       const char* key_end,
                                       List<Json_schema_keyword>
                                            *all_keywords)
 {
   int count= 0;
+
+  mem_root_dynamic_array_init(current_mem_root, PSI_INSTRUMENT_MEM,
+                              &temp_je_arg.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+  mem_root_dynamic_array_init(current_mem_root, PSI_INSTRUMENT_MEM,
+                              &stack, sizeof(struct json_norm_value*), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+
   if (my_hash_init(PSI_INSTRUMENT_ME,
                    &this->enum_values,
                    je->s.cs, 1024, 0, 0, get_key_name,
@@ -580,7 +626,7 @@ bool Json_schema_enum::handle_keyword(THD *thd, json_engine_t *je,
         int err= 1;
         String a_res("", 0, je->s.cs);
 
-        json_get_normalized_string(je, &a_res, &err);
+        json_get_normalized_string(je, &a_res, &err, current_mem_root, &temp_je_arg, &stack);
         if (err)
           return true;
 
@@ -621,6 +667,7 @@ bool Json_schema_enum::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_maximum::validate(const json_engine_t *je,
+                                   MEM_ROOT *current_mem_root,
                                    const uchar *k_start,
                                    const uchar* k_end)
 {
@@ -635,7 +682,8 @@ bool Json_schema_maximum::validate(const json_engine_t *je,
   return (val <= value) ? false : true;
 }
 
-bool Json_schema_maximum::handle_keyword(THD *thd, json_engine_t *je, 
+bool Json_schema_maximum::handle_keyword(THD *thd, MEM_ROOT *current_mem_root,
+                                         json_engine_t *je,
                                          const char* key_start,
                                          const char* key_end,
                                          List<Json_schema_keyword>
@@ -658,6 +706,7 @@ bool Json_schema_maximum::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_minimum::validate(const json_engine_t *je,
+                                   MEM_ROOT *current_mem_root,
                                    const uchar *k_start,
                                    const uchar* k_end)
 {
@@ -672,7 +721,8 @@ bool Json_schema_minimum::validate(const json_engine_t *je,
   return val >= value ? false : true;
 }
 
-bool Json_schema_minimum::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_minimum::handle_keyword(THD *thd, MEM_ROOT *current_mem_root,
+                                         json_engine_t *je,
                                          const char* key_start,
                                          const char* key_end,
                                          List<Json_schema_keyword>
@@ -695,6 +745,7 @@ bool Json_schema_minimum::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_ex_minimum::validate(const json_engine_t *je,
+                                      MEM_ROOT *current_mem_root,
                                       const uchar *k_start,
                                       const uchar* k_end)
 {
@@ -709,7 +760,9 @@ bool Json_schema_ex_minimum::validate(const json_engine_t *je,
   return (val > value) ? false : true;
 }
 
-bool Json_schema_ex_minimum::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_ex_minimum::handle_keyword(THD *thd,
+                                            MEM_ROOT *current_mem_root,
+                                            json_engine_t *je,
                                             const char* key_start,
                                             const char* key_end,
                                             List<Json_schema_keyword>
@@ -732,6 +785,7 @@ bool Json_schema_ex_minimum::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_ex_maximum::validate(const json_engine_t *je,
+                                      MEM_ROOT *current_mem_root,
                                       const uchar *k_start,
                                       const uchar* k_end)
 {
@@ -746,7 +800,9 @@ bool Json_schema_ex_maximum::validate(const json_engine_t *je,
   return (val < value) ? false : true;
 }
 
-bool Json_schema_ex_maximum::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_ex_maximum::handle_keyword(THD *thd,
+                                            MEM_ROOT *current_mem_root,
+                                            json_engine_t *je,
                                             const char* key_start,
                                             const char* key_end,
                                             List<Json_schema_keyword>
@@ -768,6 +824,7 @@ bool Json_schema_ex_maximum::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_multiple_of::validate(const json_engine_t *je,
+                                       MEM_ROOT *current_mem_root,
                                        const uchar *k_start,
                                        const uchar* k_end)
 {
@@ -785,7 +842,9 @@ bool Json_schema_multiple_of::validate(const json_engine_t *je,
   return val % multiple_of;
 }
 
-bool Json_schema_multiple_of::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_multiple_of::handle_keyword(THD *thd,
+                                             MEM_ROOT *current_mem_root,
+                                             json_engine_t *je,
                                              const char* key_start,
                                              const char* key_end,
                                              List<Json_schema_keyword>
@@ -811,6 +870,7 @@ bool Json_schema_multiple_of::handle_keyword(THD *thd, json_engine_t *je,
 
 
 bool Json_schema_max_len::validate(const json_engine_t *je,
+                                  MEM_ROOT *current_mem_root,
                                    const uchar *k_start,
                                    const uchar* k_end)
 {
@@ -819,7 +879,9 @@ bool Json_schema_max_len::validate(const json_engine_t *je,
   return (uint)(je->value_len) <= value ? false : true;
 }
 
-bool Json_schema_max_len::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_max_len::handle_keyword(THD *thd,
+                                         MEM_ROOT *current_mem_root,
+                                         json_engine_t *je,
                                          const char* key_start,
                                          const char* key_end,
                                          List<Json_schema_keyword>
@@ -846,6 +908,7 @@ bool Json_schema_max_len::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_min_len::validate(const json_engine_t *je,
+                                   MEM_ROOT *current_mem_root,
                                    const uchar *k_start,
                                    const uchar* k_end)
 {
@@ -854,7 +917,8 @@ bool Json_schema_min_len::validate(const json_engine_t *je,
   return (uint)(je->value_len) >= value ? false : true;
 }
 
-bool Json_schema_min_len::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_min_len::handle_keyword(THD *thd, MEM_ROOT *current_mem_root,
+                                         json_engine_t *je,
                                          const char* key_start,
                                          const char* key_end,
                                          List<Json_schema_keyword>
@@ -882,6 +946,7 @@ bool Json_schema_min_len::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_pattern::validate(const json_engine_t *je,
+                                   MEM_ROOT *current_mem_root,
                                    const uchar *k_start,
                                    const uchar* k_end)
 {
@@ -919,7 +984,8 @@ bool Json_schema_pattern::validate(const json_engine_t *je,
   return pattern_matches ? false : true;
 }
 
-bool Json_schema_pattern::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_pattern::handle_keyword(THD *thd, MEM_ROOT *current_mem_root,
+                                         json_engine_t *je,
                                          const char* key_start,
                                          const char* key_end,
                                          List<Json_schema_keyword>
@@ -942,6 +1008,7 @@ bool Json_schema_pattern::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_max_items::validate(const json_engine_t *je,
+                                     MEM_ROOT *current_mem_root,
                                      const uchar *k_start,
                                      const uchar* k_end)
 {
@@ -968,7 +1035,9 @@ bool Json_schema_max_items::validate(const json_engine_t *je,
   return count > value ? true : false;
 }
 
-bool Json_schema_max_items::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_max_items::handle_keyword(THD *thd,
+                                           MEM_ROOT *current_mem_root,
+                                           json_engine_t *je,
                                            const char* key_start,
                                            const char* key_end,
                                            List<Json_schema_keyword>
@@ -996,6 +1065,7 @@ bool Json_schema_max_items::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_min_items::validate(const json_engine_t *je,
+                                     MEM_ROOT *current_mem_root,
                                      const uchar *k_start,
                                      const uchar* k_end)
 {
@@ -1022,7 +1092,9 @@ bool Json_schema_min_items::validate(const json_engine_t *je,
   return count < value ? true : false;
 }
 
-bool Json_schema_min_items::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_min_items::handle_keyword(THD *thd,
+                                           MEM_ROOT *current_mem_root,
+                                           json_engine_t *je,
                                            const char* key_start,
                                            const char* key_end,
                                            List<Json_schema_keyword>
@@ -1049,11 +1121,13 @@ bool Json_schema_min_items::handle_keyword(THD *thd, json_engine_t *je,
   return false;
 }
 
-bool Json_schema_max_contains::handle_keyword(THD *thd, json_engine_t *je,
-                                          const char* key_start,
-                                          const char* key_end,
-                                          List<Json_schema_keyword>
-                                               *all_keywords)
+bool Json_schema_max_contains::handle_keyword(THD *thd,
+                                              MEM_ROOT *current_mem_root,
+                                              json_engine_t *je,
+                                              const char* key_start,
+                                              const char* key_end,
+                                              List<Json_schema_keyword>
+                                                 *all_keywords)
 {
 
   int err= 0;
@@ -1077,11 +1151,13 @@ bool Json_schema_max_contains::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 
-bool Json_schema_min_contains::handle_keyword(THD *thd, json_engine_t *je,
-                                          const char* key_start,
-                                          const char* key_end,
-                                          List<Json_schema_keyword>
-                                               *all_keywords)
+bool Json_schema_min_contains::handle_keyword(THD *thd,
+                                              MEM_ROOT *current_mem_root,
+                                              json_engine_t *je,
+                                              const char* key_start,
+                                              const char* key_end,
+                                              List<Json_schema_keyword>
+                                                 *all_keywords)
 {
   int err= 0;
   char *end;
@@ -1106,11 +1182,13 @@ bool Json_schema_min_contains::handle_keyword(THD *thd, json_engine_t *je,
 
 
 bool Json_schema_contains::validate(const json_engine_t *je,
+                                    MEM_ROOT *current_mem_root,
                                     const uchar *k_start,
                                     const uchar* k_end)
 {
   uint contains_count=0;
-  json_engine_t curr_je;  curr_je= *je;
+  json_engine_t curr_je;
+  curr_je= *je;
   int level= je->stack_p;
   bool validated= true;
 
@@ -1122,7 +1200,7 @@ bool Json_schema_contains::validate(const json_engine_t *je,
     if (json_read_value(&curr_je))
      return true;
     validated= true;
-    if (validate_schema_items(&curr_je, &contains))
+    if (validate_schema_items(&curr_je, current_mem_root, &contains))
       validated= false;
     if (!json_value_scalar(&curr_je))
     {
@@ -1142,7 +1220,9 @@ bool Json_schema_contains::validate(const json_engine_t *je,
   return true;
 }
 
-bool Json_schema_contains::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_contains::handle_keyword(THD *thd,
+                                          MEM_ROOT *current_mem_root,
+                                          json_engine_t *je,
                                           const char* key_start,
                                           const char* key_end,
                                           List<Json_schema_keyword>
@@ -1153,15 +1233,17 @@ bool Json_schema_contains::handle_keyword(THD *thd, json_engine_t *je,
     my_error(ER_JSON_INVALID_VALUE_FOR_KEYWORD, MYF(0), "contains");
     return true;
   }
-  return create_object_and_handle_keyword(thd, je, &contains, all_keywords);
+  return create_object_and_handle_keyword(thd, current_mem_root, je,
+                                         &contains, all_keywords);
 }
 
 
-bool Json_schema_items::handle_keyword(THD *thd, json_engine_t *je,
-                                               const char* key_start,
-                                               const char* key_end,
-                                               List<Json_schema_keyword>
-                                                   *all_keywords)
+bool Json_schema_items::handle_keyword(THD *thd, MEM_ROOT *current_mem_root,
+                                       json_engine_t *je,
+                                       const char* key_start,
+                                       const char* key_end,
+                                       List<Json_schema_keyword>
+                                            *all_keywords)
 {
   if (je->value_type == JSON_VALUE_FALSE)
   {
@@ -1170,7 +1252,8 @@ bool Json_schema_items::handle_keyword(THD *thd, json_engine_t *je,
   }
   if (je->value_type == JSON_VALUE_OBJECT)
   {
-    return create_object_and_handle_keyword(thd, je, &items_schema,
+    return create_object_and_handle_keyword(thd, current_mem_root, je,
+                              &items_schema,
                                             all_keywords);
   }
   else if (je->value_type != JSON_VALUE_TRUE)
@@ -1183,16 +1266,18 @@ bool Json_schema_items::handle_keyword(THD *thd, json_engine_t *je,
 
 bool Json_schema_items::validate_as_alternate(const json_engine_t *je,
                                               const uchar *k_start,
-                                              const uchar* k_end)
+                                              const uchar* k_end,
+                                              MEM_ROOT *current_mem_root)
 {
   /*
     The indexes in prefix array were less than that in the json array.
     So validate remaining using the json schema
   */
-  return validate_schema_items(je, &items_schema);
+  return validate_schema_items(je, current_mem_root, &items_schema);
 }
 
 bool Json_schema_items::validate(const json_engine_t *je,
+                                 MEM_ROOT *current_mem_root,
                                  const uchar *k_start,
                                  const uchar* k_end)
 {
@@ -1216,7 +1301,7 @@ bool Json_schema_items::validate(const json_engine_t *je,
     if (json_read_value(&curr_je))
       return true;
     count++;
-    if (validate_schema_items(&curr_je, &items_schema))
+    if (validate_schema_items(&curr_je, current_mem_root, &items_schema))
       return true;
   }
 
@@ -1224,6 +1309,7 @@ bool Json_schema_items::validate(const json_engine_t *je,
 }
 
 bool Json_schema_prefix_items::validate(const json_engine_t *je,
+                                        MEM_ROOT *current_mem_root,
                                         const uchar *k_start,
                                         const uchar* k_end)
 {
@@ -1242,7 +1328,7 @@ bool Json_schema_prefix_items::validate(const json_engine_t *je,
       return true;
     if (!(curr_prefix=it1++))
     {
-      if (fall_back_on_alternate_schema(&curr_je))
+      if (fall_back_on_alternate_schema(&curr_je, current_mem_root))
         return true;
       else
       {
@@ -1255,7 +1341,8 @@ bool Json_schema_prefix_items::validate(const json_engine_t *je,
     }
     else
     {
-      if (validate_schema_items(&curr_je, &(*curr_prefix)))
+      if (validate_schema_items(&curr_je, current_mem_root,
+                                &(*curr_prefix)))
         return true;
       if (!json_value_scalar(&curr_je))
       {
@@ -1267,36 +1354,48 @@ bool Json_schema_prefix_items::validate(const json_engine_t *je,
   return false;
 }
 
-bool Json_schema_prefix_items::handle_keyword(THD *thd, json_engine_t *je,
-                                               const char* key_start,
-                                               const char* key_end,
-                                               List<Json_schema_keyword>
+bool Json_schema_prefix_items::handle_keyword(THD *thd,
+                                              MEM_ROOT *current_mem_root,
+                                              json_engine_t *je,
+                                              const char* key_start,
+                                              const char* key_end,
+                                              List<Json_schema_keyword>
                                                    *all_keywords)
 {
+  json_engine_t temp_je;
+  int level= je->stack_p;
+
   if (je->value_type != JSON_VALUE_ARRAY)
   {
     my_error(ER_JSON_INVALID_VALUE_FOR_KEYWORD, MYF(0), "prefixItems");
     return true;
   }
 
-  int level= je->stack_p;
+  mem_root_dynamic_array_init(current_mem_root, PSI_INSTRUMENT_MEM,
+                              &temp_je.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+
   while(json_scan_next(je)==0 && je->stack_p >= level)
   {
-    json_engine_t temp_je;
     char *begin, *end;
     int len;
 
       if (json_read_value(je))
+      {
         return true;
+      }
       if (je->value_type != JSON_VALUE_OBJECT)
       {
        my_error(ER_JSON_INVALID_VALUE_FOR_KEYWORD, MYF(0), "items");
        return true;
       }
+
       begin= (char*)je->value;
 
     if (json_skip_level(je))
+    {
       return true;
+    }
 
     end= (char*)je->s.c_str;
     len= (int)(end-begin);
@@ -1307,10 +1406,15 @@ bool Json_schema_prefix_items::handle_keyword(THD *thd, json_engine_t *je,
                         new (thd->mem_root) List<Json_schema_keyword>;
 
       if (!keyword_list)
+      {
         return true;
-      if (create_object_and_handle_keyword(thd, &temp_je, keyword_list,
+      }
+      if (create_object_and_handle_keyword(thd, current_mem_root,
+                                        &temp_je, keyword_list,
                                            all_keywords))
+      {
         return true;
+      }
 
       prefix_items.push_back(keyword_list, thd->mem_root);
   }
@@ -1319,6 +1423,7 @@ bool Json_schema_prefix_items::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_unique_items::validate(const json_engine_t *je,
+                                        MEM_ROOT *current_mem_root,
                                         const uchar *k_start,
                                         const uchar* k_end)
 {
@@ -1343,7 +1448,7 @@ bool Json_schema_unique_items::validate(const json_engine_t *je,
     if (json_read_value(&curr_je))
       goto end;
 
-    json_get_normalized_string(&curr_je, &a_res, &err);
+    json_get_normalized_string(&curr_je, &a_res, &err, current_mem_root, &temp_je_arg, &stack);
 
     if (err)
       goto end;
@@ -1391,12 +1496,21 @@ bool Json_schema_unique_items::validate(const json_engine_t *je,
   return res;
 }
 
-bool Json_schema_unique_items::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_unique_items::handle_keyword(THD *thd,
+                                              MEM_ROOT *current_mem_root,
+                                              json_engine_t *je,
                                               const char* key_start,
                                               const char* key_end,
                                               List<Json_schema_keyword>
                                                   *all_keywords)
 {
+  mem_root_dynamic_array_init(current_mem_root, PSI_INSTRUMENT_MEM,
+                              &temp_je_arg.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+  mem_root_dynamic_array_init(current_mem_root, PSI_INSTRUMENT_MEM,
+                              &stack, sizeof(struct json_norm_value*), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+
   if (je->value_type == JSON_VALUE_TRUE)
     is_unique= true;
   else if (je->value_type == JSON_VALUE_FALSE)
@@ -1411,6 +1525,7 @@ bool Json_schema_unique_items::handle_keyword(THD *thd, json_engine_t *je,
 
 
 bool Json_schema_max_prop::validate(const json_engine_t *je,
+                                    MEM_ROOT *current_mem_root,
                                     const uchar *k_start,
                                     const uchar* k_end)
 {
@@ -1442,7 +1557,9 @@ bool Json_schema_max_prop::validate(const json_engine_t *je,
   return properties_count > value ? true : false;
 }
 
-bool Json_schema_max_prop::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_max_prop::handle_keyword(THD *thd,
+                                          MEM_ROOT *current_mem_root,
+                                          json_engine_t *je,
                                           const char* key_start,
                                           const char* key_end,
                                           List<Json_schema_keyword>
@@ -1470,6 +1587,7 @@ bool Json_schema_max_prop::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_min_prop::validate(const json_engine_t *je,
+                                    MEM_ROOT *current_mem_root,
                                     const uchar *k_start,
                                     const uchar* k_end)
 {
@@ -1501,7 +1619,9 @@ bool Json_schema_min_prop::validate(const json_engine_t *je,
   return properties_count < value ? true : false;
 }
 
-bool Json_schema_min_prop::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_min_prop::handle_keyword(THD *thd,
+                                          MEM_ROOT *current_mem_root,
+                                          json_engine_t *je,
                                           const char* key_start,
                                           const char* key_end,
                                           List<Json_schema_keyword>
@@ -1529,6 +1649,7 @@ bool Json_schema_min_prop::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_required::validate(const json_engine_t *je,
+                                    MEM_ROOT *current_mem_root,
                                     const uchar *k_start,
                                     const uchar* k_end)
 {
@@ -1593,7 +1714,9 @@ bool Json_schema_required::validate(const json_engine_t *je,
   return res;
 }
 
-bool Json_schema_required::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_required::handle_keyword(THD *thd,
+                                          MEM_ROOT *current_mem_root,
+                                          json_engine_t *je,
                                           const char* key_start,
                                           const char* key_end,
                                           List<Json_schema_keyword>
@@ -1626,8 +1749,9 @@ bool Json_schema_required::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_dependent_required::validate(const json_engine_t *je,
-                                          const uchar *k_start,
-                                          const uchar* k_end)
+                                              MEM_ROOT *current_mem_root,
+                                              const uchar *k_start,
+                                              const uchar* k_end)
 {
   json_engine_t curr_je= *je;
   HASH properties;
@@ -1706,11 +1830,13 @@ bool Json_schema_dependent_required::validate(const json_engine_t *je,
   return res;
 }
 
-bool Json_schema_dependent_required::handle_keyword(THD *thd, json_engine_t *je,
-                                                const char* key_start,
-                                                const char* key_end,
-                                                List<Json_schema_keyword>
-                                                    *all_keywords)
+bool Json_schema_dependent_required::handle_keyword(THD *thd,
+                                                    MEM_ROOT *current_mem_root,
+                                                    json_engine_t *je,
+                                                    const char* key_start,
+                                                    const char* key_end,
+                                                    List<Json_schema_keyword>
+                                                     *all_keywords)
 {
   if (je->value_type == JSON_VALUE_OBJECT)
   {
@@ -1789,6 +1915,7 @@ bool Json_schema_dependent_required::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_property_names::validate(const json_engine_t *je,
+                                          MEM_ROOT *current_mem_root,
                                           const uchar *k_start,
                                           const uchar* k_end)
 {
@@ -1823,7 +1950,7 @@ bool Json_schema_property_names::validate(const json_engine_t *je,
         Json_schema_keyword *curr_schema= NULL;
         while((curr_schema= it1++))
         {
-          if (curr_schema->validate(&curr_je, k_start, k_end))
+          if (curr_schema->validate(&curr_je, current_mem_root, k_start, k_end))
             return true;
         }
       }
@@ -1833,19 +1960,21 @@ bool Json_schema_property_names::validate(const json_engine_t *je,
   return false;
 }
 
-bool Json_schema_property_names::handle_keyword(THD *thd, json_engine_t *je,
-                                            const char* key_start,
-                                            const char* key_end,
-                                            List<Json_schema_keyword>
-                                                 *all_keywords)
+bool Json_schema_property_names::handle_keyword(THD *thd,
+                                                MEM_ROOT *current_mem_root,
+                                                json_engine_t *je,
+                                                const char* key_start,
+                                                const char* key_end,
+                                                List<Json_schema_keyword>
+                                                   *all_keywords)
 {
   if (je->value_type != JSON_VALUE_OBJECT)
   {
     my_error(ER_JSON_INVALID_VALUE_FOR_KEYWORD, MYF(0), "propertyNames");
     return true;
   }
-  if (create_object_and_handle_keyword(thd, je, &property_names,
-                                             all_keywords))
+  if (create_object_and_handle_keyword(thd, current_mem_root, je,
+                         &property_names, all_keywords))
     return true;
 
   return false;
@@ -1859,6 +1988,7 @@ bool Json_schema_property_names::handle_keyword(THD *thd, json_engine_t *je,
 */
 bool
 Json_schema_additional_and_unevaluated::handle_keyword(THD *thd,
+                                                       MEM_ROOT *current_mem_root,
                                                       json_engine_t *je,
                                                       const char* key_start,
                                                       const char* key_end,
@@ -1872,7 +2002,8 @@ Json_schema_additional_and_unevaluated::handle_keyword(THD *thd,
   }
   else if (je->value_type == JSON_VALUE_OBJECT)
   {
-    return create_object_and_handle_keyword(thd, je, &schema_list,
+    return create_object_and_handle_keyword(thd, current_mem_root, je,
+                                            &schema_list,
                                             all_keywords);
   }
   if (je->value_type != JSON_VALUE_TRUE)
@@ -1893,7 +2024,8 @@ Json_schema_additional_and_unevaluated::handle_keyword(THD *thd,
 */
 bool Json_schema_properties::validate_as_alternate(const json_engine_t *je,
                                                    const uchar* k_start,
-                                                   const uchar* k_end)
+                                                   const uchar* k_end,
+                                                   MEM_ROOT *current_mem_root)
 {
   st_property *curr_property= NULL;
   json_engine_t curr_je= *je;
@@ -1902,7 +2034,8 @@ bool Json_schema_properties::validate_as_alternate(const json_engine_t *je,
                                 (const uchar*)k_start,
                                 (size_t)(k_end-k_start))))
   {
-    if (validate_schema_items(&curr_je, curr_property->curr_schema))
+    if (validate_schema_items(&curr_je, current_mem_root,
+                              curr_property->curr_schema))
       return true;
     if (!json_value_scalar(&curr_je))
     {
@@ -1912,7 +2045,9 @@ bool Json_schema_properties::validate_as_alternate(const json_engine_t *je,
   }
   else
   {
-    if (alternate_schema && alternate_schema->validate_as_alternate(je, k_start, k_end))
+    if (alternate_schema && alternate_schema->validate_as_alternate(je, k_start,
+                                                                    k_end,
+                                                                    current_mem_root))
     {
       return true;
     }
@@ -1924,11 +2059,12 @@ bool
 Json_schema_additional_and_unevaluated::
                                validate_as_alternate(const json_engine_t *je,
                                                      const uchar* k_start,
-                                                     const uchar* k_end)
+                                                     const uchar* k_end,
+                                                     MEM_ROOT  *current_mem_root)
 {
   if (!allowed)
     return true;
-  return validate_schema_items(je, &schema_list);
+  return validate_schema_items(je, current_mem_root, &schema_list);
 }
 
 
@@ -1937,6 +2073,7 @@ Json_schema_additional_and_unevaluated::
   properties, patternProperties.
 */
 bool Json_schema_unevaluated_properties::validate(const json_engine_t *je,
+                                                  MEM_ROOT *current_mem_root,
                                                   const uchar *k_start,
                                                   const uchar* k_end)
 {
@@ -1955,7 +2092,7 @@ bool Json_schema_unevaluated_properties::validate(const json_engine_t *je,
     if (json_read_value(&curr_je))
       return true;
     count++;
-    if (validate_schema_items(&curr_je, &schema_list))
+    if (validate_schema_items(&curr_je, current_mem_root, &schema_list))
       return true;
   }
   return has_false ? (!count ? false: true) : false;
@@ -1966,6 +2103,7 @@ bool Json_schema_unevaluated_properties::validate(const json_engine_t *je,
   without existence of properties and patternProperties,
 */
 bool Json_schema_additional_properties::validate(const json_engine_t *je,
+                                                 MEM_ROOT *current_mem_root,
                                                  const uchar *k_start,
                                                  const uchar* k_end)
 {
@@ -1982,7 +2120,7 @@ bool Json_schema_additional_properties::validate(const json_engine_t *je,
       case JST_KEY:
         if (json_read_value(&curr_je))
           return true;
-        if (validate_schema_items(&curr_je, &schema_list))
+        if (validate_schema_items(&curr_je, current_mem_root, &schema_list))
          return true;
       }
   }
@@ -2000,12 +2138,14 @@ bool Json_schema_additional_properties::validate(const json_engine_t *je,
   So additional Properties on its own will not make sense.
 */
 bool Json_schema_additional_items::validate(const json_engine_t *je,
+                                            MEM_ROOT *current_mem_root,
                                             const uchar *k_start,
                                             const uchar* k_end)
 {
  return false;
 }
 bool Json_schema_unevaluated_items::validate(const json_engine_t *je,
+                                             MEM_ROOT *current_mem_root,
                                              const uchar *k_start,
                                              const uchar* k_end)
 {
@@ -2027,7 +2167,7 @@ bool Json_schema_unevaluated_items::validate(const json_engine_t *je,
     if (json_read_value(&curr_je))
       return true;
     count++;
-   if (validate_schema_items(&curr_je, &schema_list))
+   if (validate_schema_items(&curr_je, current_mem_root, &schema_list))
      return true;
   }
 
@@ -2035,6 +2175,7 @@ bool Json_schema_unevaluated_items::validate(const json_engine_t *je,
 }
 
 bool Json_schema_properties::validate(const json_engine_t *je,
+                                      MEM_ROOT *current_mem_root,
                                       const uchar *k_start,
                                       const uchar* k_end)
 {
@@ -2065,12 +2206,14 @@ bool Json_schema_properties::validate(const json_engine_t *je,
                                                    (const uchar*)k_start,
                                                     (size_t)(k_end-k_start))))
         {
-          if (validate_schema_items(&curr_je, curr_property->curr_schema))
+          if (validate_schema_items(&curr_je, current_mem_root,
+                      curr_property->curr_schema))
             return true;
         }
         else
         {
-          if (fall_back_on_alternate_schema(&curr_je, k_start, k_end))
+          if (fall_back_on_alternate_schema(&curr_je, current_mem_root,
+                                            k_start, k_end))
             return true;
         }
         if (!json_value_scalar(&curr_je))
@@ -2085,7 +2228,9 @@ bool Json_schema_properties::validate(const json_engine_t *je,
   return false;
 }
 
-bool Json_schema_properties::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_properties::handle_keyword(THD *thd,
+                                            MEM_ROOT *current_mem_root,
+                                            json_engine_t *je,
                                             const char* key_start,
                                             const char* key_end,
                                             List<Json_schema_keyword>
@@ -2136,7 +2281,7 @@ bool Json_schema_properties::handle_keyword(THD *thd, json_engine_t *je,
             curr_property->key_name[(int)(k_end-k_start)]= '\0';
             strncpy((char*)curr_property->key_name, (const char*)k_start,
                     (size_t)(k_end-k_start));
-            if (create_object_and_handle_keyword(thd, je,
+            if (create_object_and_handle_keyword(thd, current_mem_root, je,
                                              curr_property->curr_schema,
                                              all_keywords))
               return true;
@@ -2153,7 +2298,8 @@ bool Json_schema_properties::handle_keyword(THD *thd, json_engine_t *je,
 bool Json_schema_pattern_properties::
                            validate_as_alternate(const json_engine_t *curr_je,
                                                  const uchar *k_start,
-                                                 const uchar* k_end)
+                                                 const uchar* k_end,
+                                                 MEM_ROOT *current_mem_root)
 {
   bool match_found= false;
   List_iterator <st_pattern_to_property> it1 (pattern_properties);
@@ -2171,14 +2317,15 @@ bool Json_schema_pattern_properties::
     if (curr_pattern_property->re.match())
     {
       match_found= true;
-      if (validate_schema_items(curr_je, curr_pattern_property->curr_schema))
+      if (validate_schema_items(curr_je, current_mem_root,
+                   curr_pattern_property->curr_schema))
             return true;
         break;
     }
   }
   if (!match_found)
   {
-    if (fall_back_on_alternate_schema(curr_je))
+    if (fall_back_on_alternate_schema(curr_je, current_mem_root))
      return true;
   }
   return false;
@@ -2186,6 +2333,7 @@ bool Json_schema_pattern_properties::
 
 
 bool Json_schema_pattern_properties::validate(const json_engine_t *je,
+                                              MEM_ROOT *current_mem_root,
                                               const uchar *k_start,
                                               const uchar* k_end)
 {
@@ -2209,7 +2357,8 @@ bool Json_schema_pattern_properties::validate(const json_engine_t *je,
         } while (json_read_keyname_chr(&curr_je) == 0);
 
         str->str_value.set_or_copy_aligned((const char*)k_start,
-                                     (size_t)(k_end-k_start), curr_je.s.cs);
+                                     (size_t)(k_end-k_start),
+                                           curr_je.s.cs);
 
         if (json_read_value(&curr_je))
           return true;
@@ -2226,13 +2375,16 @@ bool Json_schema_pattern_properties::validate(const json_engine_t *je,
           if (curr_pattern_property->re.match())
           {
             match_found= true;
-            if (validate_schema_items(&curr_je, curr_pattern_property->curr_schema))
+            if (validate_schema_items(&curr_je, current_mem_root,
+                        curr_pattern_property->curr_schema))
               return true;
           }
         }
         if (!match_found)
         {
-          if (fall_back_on_alternate_schema(&curr_je, k_start, k_end))
+          if (fall_back_on_alternate_schema(&curr_je,
+                                            current_mem_root,
+                                            k_start, k_end))
             return true;
         }
       }
@@ -2244,6 +2396,7 @@ bool Json_schema_pattern_properties::validate(const json_engine_t *je,
 
 
 bool Json_schema_pattern_properties::handle_keyword(THD *thd,
+                                                    MEM_ROOT *current_mem_root,
                                                     json_engine_t *je,
                                                     const char* key_start,
                                                     const char* key_end,
@@ -2291,8 +2444,8 @@ bool Json_schema_pattern_properties::handle_keyword(THD *thd,
 
           if (curr_pattern_to_property->curr_schema)
           {
-            if (create_object_and_handle_keyword(thd, je,
-                                                 curr_pattern_to_property->curr_schema,
+            if (create_object_and_handle_keyword(thd, current_mem_root, je,
+                                    curr_pattern_to_property->curr_schema,
                                                  all_keywords))
               return true;
           }
@@ -2305,31 +2458,42 @@ bool Json_schema_pattern_properties::handle_keyword(THD *thd,
   return false;
 }
 
-bool Json_schema_logic::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_logic::handle_keyword(THD *thd,
+                                       MEM_ROOT *current_mem_root,
+                                       json_engine_t *je,
                                        const char* key_start,
                                        const char* key_end,
                                        List<Json_schema_keyword>
                                                  *all_keywords)
 {
+  json_engine_t temp_je;
+  int level= je->stack_p;
+
+  mem_root_dynamic_array_init(current_mem_root, PSI_INSTRUMENT_MEM,
+                              &temp_je.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+
   if (je->value_type != JSON_VALUE_ARRAY)
   {
     my_error(ER_JSON_INVALID_VALUE_FOR_KEYWORD, MYF(0), keyword_map->func_name.str);
     return true;
   }
 
-  int level= je->stack_p;
   while(json_scan_next(je)==0 && je->stack_p >= level)
   {
-    json_engine_t temp_je;
     char *begin, *end;
     int len;
 
     if (json_read_value(je))
+    {
       return true;
+    }
     begin= (char*)je->value;
 
     if (json_skip_level(je))
+    {
       return true;
+    }
 
     end= (char*)je->s.c_str;
     len= (int)(end-begin);
@@ -2340,18 +2504,23 @@ bool Json_schema_logic::handle_keyword(THD *thd, json_engine_t *je,
                         new (thd->mem_root) List<Json_schema_keyword>;
 
     if (!keyword_list)
+    {
       return true;
-    if (create_object_and_handle_keyword(thd, &temp_je, keyword_list,
+    }
+    if (create_object_and_handle_keyword(thd, current_mem_root,
+                                      &temp_je, keyword_list,
                                          all_keywords))
+    {
       return true;
+    }
 
     schema_items.push_back(keyword_list, thd->mem_root);
   }
-
   return false;
 }
 
 bool Json_schema_logic::check_validation(const json_engine_t *je,
+                                         MEM_ROOT *current_mem_root,
                                          const uchar *k_start,
                                          const uchar *k_end)
 {
@@ -2376,7 +2545,7 @@ bool Json_schema_logic::check_validation(const json_engine_t *je,
     {
       if (!curr_keyword->alternate_schema)
         curr_keyword->alternate_schema= curr_alternate_schema;
-      if (curr_keyword->validate(je))
+      if (curr_keyword->validate(je, current_mem_root))
       {
         validated= false;
         break;
@@ -2396,13 +2565,15 @@ bool Json_schema_logic::check_validation(const json_engine_t *je,
   return false;
 }
 bool Json_schema_logic::validate(const json_engine_t *je,
+                                 MEM_ROOT *current_mem_root,
                                  const uchar *k_start,
                                  const uchar* k_end)
 {
-  return check_validation(je, k_start, k_end);
+  return check_validation(je, current_mem_root, k_start, k_end);
 }
 
-bool Json_schema_not::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_not::handle_keyword(THD *thd, MEM_ROOT *current_mem_root,
+                                     json_engine_t *je,
                                      const char* key_start,
                                      const char* key_end,
                                      List<Json_schema_keyword>
@@ -2416,7 +2587,8 @@ bool Json_schema_not::handle_keyword(THD *thd, json_engine_t *je,
     return true;
   }
 
-  res= create_object_and_handle_keyword(thd, je, &schema_list, all_keywords);
+  res= create_object_and_handle_keyword(thd, current_mem_root, je,
+                          &schema_list, all_keywords);
 
   schema_items.push_back(&schema_list, thd->mem_root);
 
@@ -2425,6 +2597,7 @@ bool Json_schema_not::handle_keyword(THD *thd, json_engine_t *je,
 
 
 bool Json_schema_keyword::validate_schema_items(const json_engine_t *je,
+                                                MEM_ROOT *current_mem_root,
                                                 List<Json_schema_keyword>
                                                              *schema_items)
 {
@@ -2434,7 +2607,7 @@ bool Json_schema_keyword::validate_schema_items(const json_engine_t *je,
 
   while((curr_schema= it1++))
   {
-    if (curr_schema->validate(&curr_je))
+    if (curr_schema->validate(&curr_je, current_mem_root))
       return true;
   }
 
@@ -2442,18 +2615,19 @@ bool Json_schema_keyword::validate_schema_items(const json_engine_t *je,
 }
 
 bool Json_schema_conditional::validate(const json_engine_t *je,
+                                       MEM_ROOT *current_mem_root,
                                        const uchar *k_start,
                                        const uchar *k_end)
 {
   if (if_cond)
   {
-    if (!if_cond->validate_schema_items(je,
-                                        if_cond->get_validation_keywords()))
+    if (!if_cond->validate_schema_items(je, current_mem_root,
+                          if_cond->get_validation_keywords()))
     {
       if (then_cond)
       {
-        if (then_cond->validate_schema_items(je,
-                                             then_cond->get_validation_keywords()))
+        if (then_cond->validate_schema_items(je, current_mem_root,
+                                then_cond->get_validation_keywords()))
           return true;
       }
     }
@@ -2461,8 +2635,8 @@ bool Json_schema_conditional::validate(const json_engine_t *je,
     {
       if (else_cond)
       {
-        if (else_cond->validate_schema_items(je,
-                                             else_cond->get_validation_keywords()))
+        if (else_cond->validate_schema_items(je, current_mem_root,
+                               else_cond->get_validation_keywords()))
           return true;
       }
     }
@@ -2471,25 +2645,30 @@ bool Json_schema_conditional::validate(const json_engine_t *je,
 }
 
 
-bool Json_schema_conditional::handle_keyword(THD *thd, json_engine_t *je,
-                                               const char* key_start,
-                                               const char* key_end,
-                                               List<Json_schema_keyword>
-                                                        *all_keywords)
+bool Json_schema_conditional::handle_keyword(THD *thd,
+                                             MEM_ROOT *current_mem_root,
+                                             json_engine_t *je,
+                                             const char* key_start,
+                                             const char* key_end,
+                                             List<Json_schema_keyword>
+                                                   *all_keywords)
 {
   if (je->value_type != JSON_VALUE_OBJECT)
   {
      my_error(ER_JSON_INVALID_VALUE_FOR_KEYWORD, MYF(0), keyword_map->func_name.str);
     return true;
   }
-  return create_object_and_handle_keyword(thd, je, &conditions_schema,
+  return create_object_and_handle_keyword(thd, current_mem_root, je,
+                            &conditions_schema,
                                           all_keywords);
 }
 
-bool Json_schema_dependent_schemas::handle_keyword(THD *thd, json_engine_t *je,
-                                               const char* key_start,
-                                               const char* key_end,
-                                               List<Json_schema_keyword>
+bool Json_schema_dependent_schemas::handle_keyword(THD *thd,
+                                                   MEM_ROOT *current_mem_root,
+                                                   json_engine_t *je,
+                                                   const char* key_start,
+                                                   const char* key_end,
+                                                   List<Json_schema_keyword>
                                                         *all_keywords)
 {
   if (je->value_type != JSON_VALUE_OBJECT)
@@ -2536,7 +2715,7 @@ bool Json_schema_dependent_schemas::handle_keyword(THD *thd, json_engine_t *je,
             curr_property->key_name[(int)(k_end-k_start)]= '\0';
             strncpy((char*)curr_property->key_name, (const char*)k_start,
                     (size_t)(k_end-k_start));
-            if (create_object_and_handle_keyword(thd, je,
+            if (create_object_and_handle_keyword(thd, current_mem_root, je,
                                              curr_property->curr_schema,
                                              all_keywords))
               return true;
@@ -2551,8 +2730,9 @@ bool Json_schema_dependent_schemas::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 bool Json_schema_dependent_schemas::validate(const json_engine_t *je,
-                                         const uchar *k_start,
-                                         const uchar *k_end)
+                                            MEM_ROOT *current_mem_root,
+                                            const uchar *k_start,
+                                            const uchar *k_end)
 {
   json_engine_t curr_je= *je;
 
@@ -2581,7 +2761,7 @@ bool Json_schema_dependent_schemas::validate(const json_engine_t *je,
                                                    (const uchar*)k_start,
                                                     (size_t)(k_end-k_start))))
         {
-          if (validate_schema_items(je, curr_property->curr_schema))
+          if (validate_schema_items(je, current_mem_root, curr_property->curr_schema))
             return true;
           if (!json_value_scalar(&curr_je))
           {
@@ -2596,10 +2776,12 @@ bool Json_schema_dependent_schemas::validate(const json_engine_t *je,
   return false;
 }
 
-bool Json_schema_media_string::handle_keyword(THD *thd, json_engine_t *je,
-                                               const char* key_start,
-                                               const char* key_end,
-                                               List<Json_schema_keyword>
+bool Json_schema_media_string::handle_keyword(THD *thd,
+                                              MEM_ROOT *current_mem_root,
+                                              json_engine_t *je,
+                                              const char* key_start,
+                                              const char* key_end,
+                                              List<Json_schema_keyword>
                                                         *all_keywords)
 {
   if (je->value_type != JSON_VALUE_STRING)
@@ -2612,7 +2794,9 @@ bool Json_schema_media_string::handle_keyword(THD *thd, json_engine_t *je,
   return false;
 }
 
-bool Json_schema_reference::handle_keyword(THD *thd, json_engine_t *je,
+bool Json_schema_reference::handle_keyword(THD *thd,
+                                           MEM_ROOT *current_mem_root,
+                                           json_engine_t *je,
                                            const char* key_start,
                                            const char* key_end,
                                            List<Json_schema_keyword>
@@ -2776,7 +2960,8 @@ add_schema_interdependence(THD *thd, List<Json_schema_keyword> *temporary,
  list. Once scanning is done, adjust the dependency if needed, and
  add the keywords in keyword_list
 */
-bool create_object_and_handle_keyword(THD *thd, json_engine_t *je,
+bool create_object_and_handle_keyword(THD *thd, MEM_ROOT *current_mem_root,
+                                      json_engine_t *je,
                                       List<Json_schema_keyword> *keyword_list,
                                       List<Json_schema_keyword> *all_keywords)
 {
@@ -2810,7 +2995,7 @@ bool create_object_and_handle_keyword(THD *thd, json_engine_t *je,
                                                          key_start, key_end);
         if (all_keywords)
             all_keywords->push_back(curr_keyword, thd->mem_root);
-        if (curr_keyword->handle_keyword(thd, je,
+        if (curr_keyword->handle_keyword(thd, current_mem_root, je,
                                      (const char*)key_start,
                                      (const char*)key_end, all_keywords))
         {

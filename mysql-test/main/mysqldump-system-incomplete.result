@@ -1,0 +1,6 @@
+#
+# MDEV-38642 Missing Null terminator in the definition of mysqldump's
+#  --system typelib
+#
+# Should not crash
+# End of 10.6 tests

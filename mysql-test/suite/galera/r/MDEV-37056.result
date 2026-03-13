@@ -1,0 +1,15 @@
+connection node_2;
+connection node_1;
+connection node_1;
+SET SESSION wsrep_on=OFF;
+SET default_storage_engine=MYISAM;
+CREATE SEQUENCE t;
+SET SESSION wsrep_on=ON;
+CREATE INDEX idx ON t (a);
+ERROR HY000: Sequence 'test.t' table structure is invalid (Sequence tables cannot have any keys)
+DROP SEQUENCE t;
+SET default_storage_engine='MYISAM';
+CREATE SEQUENCE t INCREMENT BY 0 CACHE=0 ENGINE=InnoDB;
+CREATE INDEX c ON t (c);
+ERROR HY000: Sequence 'test.t' table structure is invalid (Sequence tables cannot have any keys)
+DROP SEQUENCE t;

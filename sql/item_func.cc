@@ -697,7 +697,7 @@ void Item_func::print_op(String *str, enum_query_type query_type)
 }
 
 
-bool Item_func::eq(const Item *item, bool binary_cmp) const
+bool Item_func::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -718,7 +718,7 @@ bool Item_func::eq(const Item *item, bool binary_cmp) const
        !Lex_ident_routine(func_name_cstring()).
          streq(item_func->func_name_cstring())))
     return 0;
-  return Item_args::eq(item_func, binary_cmp);
+  return Item_args::eq(item_func, config);
 }
 
 
@@ -1762,22 +1762,22 @@ bool Item_func_mod::fix_length_and_dec(THD *thd)
   DBUG_RETURN(FALSE);
 }
 
-static void calc_hash_for_unique(ulong &nr1, ulong &nr2, String *str)
+static void calc_hash_for_unique(my_hasher_st *hasher, String *str)
 {
   CHARSET_INFO *cs;
   uchar l[4];
   int4store(l, str->length());
   cs= str->charset();
-  cs->hash_sort(l, sizeof(l), &nr1, &nr2);
+  cs->hash_sort(hasher, l, sizeof(l));
   cs= str->charset();
-  cs->hash_sort((uchar *)str->ptr(), str->length(), &nr1, &nr2);
+  cs->hash_sort(hasher, (uchar *)str->ptr(), str->length());
 }
 
 longlong  Item_func_hash_mariadb_100403::val_int()
 {
   DBUG_EXECUTE_IF("same_long_unique_hash", return 9;);
   unsigned_flag= true;
-  ulong nr1= 1,nr2= 4;
+  my_hasher_st hasher= my_hasher_mysql5x();
   String * str;
   for(uint i= 0;i<arg_count;i++)
   {
@@ -1787,10 +1787,10 @@ longlong  Item_func_hash_mariadb_100403::val_int()
       null_value= 1;
       return 0;
     }
-   calc_hash_for_unique(nr1, nr2, str);
+    calc_hash_for_unique(&hasher, str);
   }
   null_value= 0;
-  return   (longlong)nr1;
+  return   (longlong)hasher.m_nr1;
 }
 
 
@@ -3264,7 +3264,10 @@ longlong Item_func_locate::val_int()
     start0= start= args[2]->val_int();
 
     if ((start <= 0) || (start > a->length()))
+    {
+      null_value= args[2]->is_null();
       return 0;
+    }
     start0--; start--;
 
     /* start is now sufficiently valid to pass to charpos function */
@@ -4032,6 +4035,13 @@ longlong Item_master_pos_wait::val_int()
     sql_print_information("Could not get master info for %s", connection_name.str);
     goto err;
   }
+
+  if (mi->binlog_storage_engine)
+  {
+    my_error(ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG, MYF(0), "master_pos_wait()");
+    mi->release();
+    goto err;
+  }
   if ((event_count = mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
   {
     null_value = 1;
@@ -4198,7 +4208,7 @@ public:
 const uchar *ull_get_key(const void *ptr, size_t *length, my_bool)
 {
   User_level_lock *ull = (User_level_lock*) ptr;
-  MDL_key *key = ull->lock->get_key();
+  const MDL_key *key = ull->lock->get_key();
   *length= key->length();
   return key->ptr();
 }
@@ -4855,7 +4865,7 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     break;
   case ROW_RESULT:
     DBUG_ASSERT(0);
-    set_handler(&type_handler_row);
+    set_handler(args[0]->type_handler());
     break;
   }
   if (thd->lex->current_select)
@@ -4910,7 +4920,7 @@ Item_func_set_user_var::fix_length_and_dec(THD *thd)
   Mark field in read_map
 
   NOTES
-    This is used by filesort to register used fields in a a temporary
+    This is used by filesort to register used fields in a temporary
     column read set or to register used fields in a view
 */
 
@@ -4923,7 +4933,8 @@ bool Item_func_set_user_var::register_field_in_read_map(void *arg)
       bitmap_set_bit(result_field->table->read_set, result_field->field_index);
     if (result_field->vcol_info)
       return result_field->vcol_info->
-               expr->walk(&Item::register_field_in_read_map, 1, arg);
+               expr->walk(&Item::register_field_in_read_map,
+                          arg, WALK_SUBQUERY);
   }
   return 0;
 }
@@ -5832,7 +5843,7 @@ void Item_func_get_user_var::print(String *str, enum_query_type query_type)
 }
 
 
-bool Item_func_get_user_var::eq(const Item *item, bool binary_cmp) const
+bool Item_func_get_user_var::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -6228,7 +6239,7 @@ double Item_func_get_system_var::val_real()
 }
 
 
-bool Item_func_get_system_var::eq(const Item *item, bool binary_cmp) const
+bool Item_func_get_system_var::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -6513,7 +6524,7 @@ err:
 }
 
 
-bool Item_func_match::eq(const Item *item, bool binary_cmp) const
+bool Item_func_match::eq(const Item *item, const Eq_config &config) const
 {
   if (item->type() != FUNC_ITEM ||
       ((Item_func*)item)->functype() != FT_FUNC ||
@@ -6523,7 +6534,7 @@ bool Item_func_match::eq(const Item *item, bool binary_cmp) const
   Item_func_match *ifm=(Item_func_match*) item;
 
   if (key == ifm->key && table == ifm->table &&
-      key_item()->eq(ifm->key_item(), binary_cmp))
+      key_item()->eq(ifm->key_item(), config))
     return 1;
 
   return 0;
@@ -6873,12 +6884,29 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     DBUG_RETURN(TRUE);
   }
 
+  Query_arena *arena, backup;
+  /*
+    Allocation an instance of Item_func_sp used for initialization of
+    sp_result_field taken place inside the method init_result_field() is done
+    on sp_head's mem_root since Item_sp also allocated on this memory root.
+
+    Switching to SP/PS memory root is done explicitly before calling the method
+    init_result_field() instead doing that inside init_result_field()
+    since for the case when rollup aggregate function is handled
+    (@see Item_sum_sp::copy_or_same, @see JOIN::rollup_make_fields)
+    the runtime arena used for operations, so switching to SP/PS arena for this
+    case would result in assertion failure on second execution of the same
+    prepared statement because the memory root be already marked as read only.
+  */
+  arena= thd->activate_stmt_arena_if_needed(&backup);
   /*
     We must call init_result_field before Item_func::fix_fields()
     to make m_sp and result_field members available to fix_length_and_dec(),
     which is called from Item_func::fix_fields().
   */
   res= init_result_field(thd, max_length, maybe_null(), &null_value, &name);
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
 
   if (res)
     DBUG_RETURN(TRUE);
@@ -7148,12 +7176,17 @@ longlong Item_func_nextval::val_int()
   longlong value;
   int error;
   const char *key;
+  DBUG_ENTER("Item_func_nextval::val_int");
+  if (table_list->is_pure_alias())
+  {
+    my_error(ER_NOT_SEQUENCE2, MYF(0), table_list->alias.str);
+    DBUG_RETURN(0);
+  }
   uint length= get_table_def_key(table_list, &key);
   THD *thd;
   SEQUENCE_LAST_VALUE *entry;
   char buff[80];
   String key_buff(buff,sizeof(buff), &my_charset_bin);
-  DBUG_ENTER("Item_func_nextval::val_int");
   update_table();
   DBUG_ASSERT(table);
   DBUG_ASSERT(table->s->sequence);

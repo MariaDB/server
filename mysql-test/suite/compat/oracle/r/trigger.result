@@ -98,3 +98,108 @@ SELECT * FROM t1;
 a	b	total
 10	20	30
 DROP TABLE t1;
+#
+# MDEV-36996: Implement INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS table
+# Tests for oralce mode
+#
+CREATE TABLE t (a INT, b INT, c INT);
+INSERT INTO t VALUES (1, 2, 3);
+CREATE TABLE t1 (a_old INT, b_old INT, a_new INT, b_new INT);
+CREATE TABLE t2 (a_old INT, b_old INT, a_new INT, b_new INT);
+# Test BEFORE UPDATE trigger
+CREATE TRIGGER trigger_before_update BEFORE UPDATE OF a, b ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, OLD.b, NEW.a, NEW.b);
+UPDATE t SET a = 10 WHERE a = 1;
+SELECT * FROM t;
+a	b	c
+10	2	3
+SELECT * FROM t1;
+a_old	b_old	a_new	b_new
+1	2	10	2
+SHOW CREATE TRIGGER trigger_before_update;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+trigger_before_update	#	CREATE DEFINER="root"@"localhost" TRIGGER trigger_before_update BEFORE UPDATE OF a, b ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, OLD.b, NEW.a, NEW.b)	#	#	#	#
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 'trigger_before_update';
+TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	EVENT_OBJECT_COLUMN
+def	test	trigger_before_update	def	test	t	a
+def	test	trigger_before_update	def	test	t	b
+# Test AFTER UPDATE trigger
+CREATE TRIGGER trigger_after_update AFTER UPDATE OF a, b ON t FOR EACH ROW INSERT INTO t2 VALUES (OLD.a, OLD.b, NEW.a, NEW.b);
+UPDATE t SET a = -10 WHERE a = 10;
+SELECT * FROM t;
+a	b	c
+-10	2	3
+SELECT * FROM t2;
+a_old	b_old	a_new	b_new
+10	2	-10	2
+SHOW CREATE TRIGGER trigger_after_update;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+trigger_after_update	#	CREATE DEFINER="root"@"localhost" TRIGGER trigger_after_update AFTER UPDATE OF a, b ON t FOR EACH ROW INSERT INTO t2 VALUES (OLD.a, OLD.b, NEW.a, NEW.b)	#	#	#	#
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 'trigger_after_update';
+TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	EVENT_OBJECT_COLUMN
+def	test	trigger_after_update	def	test	t	a
+def	test	trigger_after_update	def	test	t	b
+DROP TABLE t1, t2;
+# Multiple triggers on same table but on different columns
+CREATE TABLE t1 (a_old INT, a_new INT);
+CREATE TABLE t2 (b_old INT, b_new INT);
+CREATE TABLE t3 (c_old INT, c_new INT);
+CREATE TRIGGER t_bu1 BEFORE UPDATE OF a ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, NEW.a);
+CREATE TRIGGER t_bu2 BEFORE UPDATE OF b ON t FOR EACH ROW INSERT INTO t2 VALUES (OLD.b, NEW.b);
+CREATE TRIGGER t_au1 AFTER UPDATE OF c ON t FOR EACH ROW INSERT INTO t3 VALUES (OLD.c, NEW.c);
+SHOW CREATE TRIGGER t_bu1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t_bu1	#	CREATE DEFINER="root"@"localhost" TRIGGER t_bu1 BEFORE UPDATE OF a ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, NEW.a)	#	#	#	#
+SHOW CREATE TRIGGER t_bu2;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t_bu2	#	CREATE DEFINER="root"@"localhost" TRIGGER t_bu2 BEFORE UPDATE OF b ON t FOR EACH ROW INSERT INTO t2 VALUES (OLD.b, NEW.b)	#	#	#	#
+SHOW CREATE TRIGGER t_au1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t_au1	#	CREATE DEFINER="root"@"localhost" TRIGGER t_au1 AFTER UPDATE OF c ON t FOR EACH ROW INSERT INTO t3 VALUES (OLD.c, NEW.c)	#	#	#	#
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME LIKE 't\_%';
+TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	EVENT_OBJECT_COLUMN
+def	test	t_bu1	def	test	t	a
+def	test	t_bu2	def	test	t	b
+def	test	t_au1	def	test	t	c
+DROP TABLE t1, t2, t3, t;
+# Tests with Multi-update
+CREATE TABLE t (a INT, b INT, c INT);
+INSERT INTO t VALUES (1, 2, -3), (2, 3, -4);
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (a INT, b INT);
+# Test Multi-update with BEFORE_UPDATE trigger
+CREATE TRIGGER trigger_before_update BEFORE UPDATE OF b ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, OLD.b);
+UPDATE t, t1 SET t.c = t.c + 10 WHERE t.b = t1.a;
+SHOW CREATE TRIGGER trigger_before_update;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+trigger_before_update	#	CREATE DEFINER="root"@"localhost" TRIGGER trigger_before_update BEFORE UPDATE OF b ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, OLD.b)	#	#	#	#
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 'trigger_before_update';
+TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	EVENT_OBJECT_COLUMN
+def	test	trigger_before_update	def	test	t	b
+# Test Multi-update with AFTER_UPDATE trigger
+CREATE TRIGGER trigger_after_update AFTER UPDATE OF a ON t FOR EACH ROW INSERT INTO t2 VALUES (OLD.a, OLD.b);
+SHOW CREATE TRIGGER trigger_after_update;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+trigger_after_update	#	CREATE DEFINER="root"@"localhost" TRIGGER trigger_after_update AFTER UPDATE OF a ON t FOR EACH ROW INSERT INTO t2 VALUES (OLD.a, OLD.b)	#	#	#	#
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 'trigger_after_update';
+TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	EVENT_OBJECT_COLUMN
+def	test	trigger_after_update	def	test	t	a
+DROP TABLE t, t1, t2;
+# Test with normal trigger without list of columns. This should not list any rows in TRIGGERED_UPDATE_COLUMNS
+CREATE TABLE t (a INT, b INT, c INT);
+INSERT INTO t VALUES (1, 2, -3), (2, 3, -4);
+CREATE TABLE t1 (a INT, b INT);
+CREATE TRIGGER trigger_before_update BEFORE UPDATE ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, OLD.b);
+SHOW CREATE TRIGGER trigger_before_update;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+trigger_before_update	#	CREATE DEFINER="root"@"localhost" TRIGGER trigger_before_update BEFORE UPDATE ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, OLD.b)	#	#	#	#
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 'trigger_before_update';
+TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	EVENT_OBJECT_COLUMN
+# Trigger on view is not supported in mariadb
+CREATE VIEW vt AS SELECT * FROM t;
+CREATE TRIGGER t_on_view BEFORE UPDATE OF a, b ON vt FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, OLD.b);
+ERROR HY000: 'test.vt' is not of type 'BASE TABLE'
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_on_view';
+TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	EVENT_OBJECT_COLUMN
+DROP VIEW IF EXISTS vt;
+DROP TABLE t, t1;
+# End of 12.2 tests

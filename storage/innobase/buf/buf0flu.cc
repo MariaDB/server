@@ -41,6 +41,7 @@ Created 11/11/1995 Heikki Tuuri
 #include "log0crypt.h"
 #include "srv0mon.h"
 #include "fil0pagecompress.h"
+#include "fsp_binlog.h"
 #include "lzo/lzo1x.h"
 #include "snappy-c.h"
 
@@ -1461,7 +1462,16 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
         buf_pool.delete_from_flush_list(bpage);
       skip:
         bpage= prev;
-        continue;
+        if (scanned & 31)
+          continue;
+        /* Release the buf_pool.flush_list_mutex every now and then
+        in order to reduce the wait time in buf_flush_ahead().
+        We attempt to preserve the pointer position while yielding.
+        Any thread that would remove 'prev' from buf_pool.flush_list
+        must adjust the hazard pointer. */
+        buf_pool.flush_hp.set(prev);
+        mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+        goto next;
       }
 
       ut_ad(oldest_modification > 2);
@@ -1489,51 +1499,54 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
       buf_pool.flush_hp.set(prev);
     }
 
-    const page_id_t page_id(bpage->id());
-    const uint32_t space_id= page_id.space();
-    if (!space || space->id != space_id)
     {
-      if (last_space_id != space_id)
+      const page_id_t page_id(bpage->id());
+      const uint32_t space_id= page_id.space();
+      if (!space || space->id != space_id)
+      {
+        if (last_space_id != space_id)
+        {
+          mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+          mysql_mutex_unlock(&buf_pool.mutex);
+          if (space)
+            space->release();
+          auto p= buf_flush_space(space_id);
+          space= p.first;
+          last_space_id= space_id;
+          mysql_mutex_lock(&buf_pool.mutex);
+          buf_pool.stat.n_pages_written+= p.second;
+          mysql_mutex_lock(&buf_pool.flush_list_mutex);
+        }
+        else
+          ut_ad(!space);
+      }
+      else if (space->is_stopping_writes())
+      {
+        space->release();
+        space= nullptr;
+      }
+
+      if (!space)
+        buf_flush_discard_page(bpage);
+      else
       {
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-        mysql_mutex_unlock(&buf_pool.mutex);
-        if (space)
-          space->release();
-        auto p= buf_flush_space(space_id);
-        space= p.first;
-        last_space_id= space_id;
-        mysql_mutex_lock(&buf_pool.mutex);
-        buf_pool.stat.n_pages_written+= p.second;
-        mysql_mutex_lock(&buf_pool.flush_list_mutex);
+        do
+        {
+          if (neighbors && space->is_rotational())
+            count+= buf_flush_try_neighbors(space, page_id, bpage,
+                                            neighbors == 1, count, max_n);
+          else if (bpage->flush(space))
+            ++count;
+          else
+            continue;
+          mysql_mutex_lock(&buf_pool.mutex);
+        }
+        while (0);
       }
-      else
-        ut_ad(!space);
-    }
-    else if (space->is_stopping_writes())
-    {
-      space->release();
-      space= nullptr;
     }
 
-    if (!space)
-      buf_flush_discard_page(bpage);
-    else
-    {
-      mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-      do
-      {
-        if (neighbors && space->is_rotational())
-          count+= buf_flush_try_neighbors(space, page_id, bpage,
-                                          neighbors == 1, count, max_n);
-        else if (bpage->flush(space))
-          ++count;
-        else
-          continue;
-        mysql_mutex_lock(&buf_pool.mutex);
-      }
-      while (0);
-    }
-
+  next:
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
     bpage= buf_pool.flush_hp.get();
   }
@@ -2035,6 +2048,27 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
   return true;
 }
 
+void mtr_t::write_binlog(page_id_t page_id, uint16_t offset,
+                         const void *buf, size_t size) noexcept
+{
+  ut_ad(!srv_read_only_mode);
+  ut_ad(m_log_mode == MTR_LOG_ALL);
+
+  bool alloc{size < mtr_buf_t::MAX_DATA_SIZE - (1 + 3 + 3 + 5 + 5)};
+  byte *end= log_write<WRITE>(page_id, nullptr, size, alloc, offset);
+  if (alloc)
+  {
+    ::memcpy(end, buf, size);
+    m_log.close(end + size);
+  }
+  else
+  {
+    m_log.close(end);
+    m_log.push(static_cast<const byte*>(buf), uint32_t(size));
+  }
+  m_modifications= true;
+}
+
 /** Make a checkpoint. Note that this function does not flush dirty
 blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
@@ -2055,11 +2089,13 @@ static bool log_checkpoint() noexcept
 #endif
 
   fil_flush_file_spaces();
+  binlog_write_up_to_now();
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
   const lsn_t end_lsn= log_sys.get_lsn();
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   const lsn_t oldest_lsn= buf_pool.get_oldest_modification(end_lsn);
+  // FIXME: limit oldest_lsn below binlog split write LSN
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   return log_checkpoint_low(oldest_lsn, end_lsn);
 }
@@ -2183,10 +2219,24 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious) noexcept
     if (limit < lsn)
     {
       limit= lsn;
-      buf_pool.page_cleaner_set_idle(false);
-      pthread_cond_signal(&buf_pool.do_flush_list);
       if (furious)
+      {
+        /* Request any concurrent threads to wait for this batch to complete,
+        in log_free_check(). */
         log_sys.set_check_for_checkpoint();
+        /* Immediately wake up buf_flush_page_cleaner(), even when it
+        is in the middle of a 1-second my_cond_timedwait(). */
+      wake:
+        buf_pool.page_cleaner_set_idle(false);
+        pthread_cond_signal(&buf_pool.do_flush_list);
+      }
+      else if (buf_pool.page_cleaner_idle())
+        /* In non-furious mode, concurrent writes to the log will remain
+        possible, and we are gently requesting buf_flush_page_cleaner()
+        to do more work to avoid a later call with furious=true.
+        We will only wake the buf_flush_page_cleaner() from an indefinite
+        my_cond_wait(), but we will not disturb the regular 1-second sleep. */
+        goto wake;
     }
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   }
@@ -2241,12 +2291,14 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
 
   os_aio_wait_until_no_pending_writes(false);
   fil_flush_file_spaces();
+  binlog_write_up_to_now();
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
   const lsn_t newest_lsn= log_sys.get_lsn();
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   lsn_t measure= buf_pool.get_oldest_modification(0);
   const lsn_t checkpoint_lsn= measure ? measure : newest_lsn;
+  // FIXME: limit checkpoint_lsn below binlog split write LSN
 
   if (!recv_recovery_is_on() &&
       checkpoint_lsn > log_sys.last_checkpoint_lsn + SIZE_OF_FILE_CHECKPOINT)

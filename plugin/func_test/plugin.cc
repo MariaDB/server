@@ -42,7 +42,7 @@ public:
   }
   const Lex_ident_routine fully_qualified_func_name() const override
   { return Lex_ident_routine("sysconst_test()"_LEX_CSTRING); }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_sysconst_test>(thd, this); }
 };
 
@@ -136,7 +136,7 @@ public:
     static LEX_CSTRING name= "strnxfrm_source_length_used"_LEX_CSTRING;
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   {
     return get_item_copy<Self>(thd, this);
   }
@@ -189,7 +189,7 @@ public:
     static LEX_CSTRING name= "strnxfrm_warnings"_LEX_CSTRING;
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   {
     return get_item_copy<Self>(thd, this);
   }
@@ -245,7 +245,7 @@ public:
     static LEX_CSTRING name= "strnxfrm"_LEX_CSTRING;
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   {
     return get_item_copy<Self>(thd, this);
   }

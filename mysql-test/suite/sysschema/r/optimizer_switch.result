@@ -41,3 +41,4 @@ mrr	off
 mrr_cost_based	off
 mrr_sort_keys	off
 not_null_range_scan	off
+reorder_outer_joins	off

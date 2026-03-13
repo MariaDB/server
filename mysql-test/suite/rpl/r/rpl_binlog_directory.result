@@ -1,0 +1,52 @@
+include/master-slave.inc
+[connection master]
+*** Test the --binlog-directory variable with legacy binlog.
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=Slave_pos;
+connection master;
+SELECT @@GLOBAL.binlog_storage_engine;
+@@GLOBAL.binlog_storage_engine
+NULL
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
+INSERT INTO t1 VALUES (1, 10);
+include/rpl_stop_server.inc [server_number=1]
+include/rpl_start_server.inc [server_number=1 parameters: --binlog-directory=binlog_dir]
+INSERT INTO t1 VALUES (2, 11);
+include/rpl_stop_server.inc [server_number=1]
+include/rpl_start_server.inc [server_number=1]
+INSERT INTO t1 VALUES (3, 12);
+include/save_master_gtid.inc
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000002	#
+*** Contents of master-bin.index (including directory path):
+./master-bin.000001
+binlog_dir/master-bin.000002
+./master-bin.000002
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	10
+2	11
+3	12
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	10
+2	11
+3	12
+connection slave;
+include/stop_slave.inc
+SET GLOBAL gtid_slave_pos= '';
+connection master;
+include/kill_binlog_dump_threads.inc
+RESET MASTER;
+connection slave;
+include/start_slave.inc
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

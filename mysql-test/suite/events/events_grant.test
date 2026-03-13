@@ -100,9 +100,7 @@ DROP EVENT one_event;
 connection default;
 --echo "One event should not be there"
 SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS ORDER BY EVENT_SCHEMA, EVENT_NAME;
-connection ev_con1;
 disconnect ev_con1;
---source include/wait_until_disconnected.inc
 connection default;
 DROP USER ev_test@localhost;
 DROP DATABASE events_test2;

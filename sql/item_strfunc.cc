@@ -39,7 +39,6 @@
 #include "set_var.h"
 #include "sql_base.h"
 #include "sql_time.h"
-#include "des_key_file.h"       // st_des_keyschedule, st_des_keyblock
 #include "password.h"           // my_make_scrambled_password,
                                 // my_make_scrambled_password_323
 #include <m_ctype.h>
@@ -290,7 +289,7 @@ String *Item_func_sha2::val_str_ascii(String *str)
   /* Convert the large number to a string-hex representation. */
   array_to_hex((char *) str->ptr(), digest_buf, (uint)digest_length);
 
-  /* We poked raw bytes in.  We must inform the the String of its length. */
+  /* We poked raw bytes in.  We must inform the String of its length. */
   str->length((uint) digest_length*2); /* Each byte as two nybbles */
 
   null_value= FALSE;
@@ -891,222 +890,6 @@ bool Item_func_concat::fix_length_and_dec(THD *thd)
   return FALSE;
 }
 
-/**
-  @details
-  Function des_encrypt() by tonu@spam.ee & monty
-  Works only if compiled with OpenSSL library support.
-  @return
-    A binary string where first character is CHAR(128 | key-number).
-    If one uses a string key key_number is 127.
-    Encryption result is longer than original by formula:
-  @code new_length= org_length + (8-(org_length % 8))+1 @endcode
-*/
-bool Item_func_des_encrypt::fix_length_and_dec(THD *thd)
-{
-  set_maybe_null();
-  /* 9 = MAX ((8- (arg_len % 8)) + 1) */
-  max_length = args[0]->max_length + 9;
-  warn_deprecated<1010>(thd, func_name_cstring().str);
-  return FALSE;
-}
-
-
-String *Item_func_des_encrypt::val_str(String *str)
-{
-  DBUG_ASSERT(fixed());
-#if defined(HAVE_des) && !defined(EMBEDDED_LIBRARY)
-  uint code= ER_WRONG_PARAMETERS_TO_PROCEDURE;
-  DES_cblock ivec;
-  struct st_des_keyblock keyblock;
-  struct st_des_keyschedule keyschedule;
-  const char *append_str="********";
-  uint key_number, res_length, tail;
-  String *res= args[0]->val_str(&tmp_value);
-
-  if ((null_value= args[0]->null_value))
-    return 0;                                   // ENCRYPT(NULL) == NULL
-  if ((res_length=res->length()) == 0)
-    return make_empty_result(str);
-  if (arg_count == 1)
-  {
-    /* Protect against someone doing FLUSH DES_KEY_FILE */
-    mysql_mutex_lock(&LOCK_des_key_file);
-    keyschedule= des_keyschedule[key_number=des_default_key];
-    mysql_mutex_unlock(&LOCK_des_key_file);
-  }
-  else if (args[1]->result_type() == INT_RESULT)
-  {
-    key_number= (uint) args[1]->val_int();
-    if (key_number > 9)
-      goto error;
-    mysql_mutex_lock(&LOCK_des_key_file);
-    keyschedule= des_keyschedule[key_number];
-    mysql_mutex_unlock(&LOCK_des_key_file);
-  }
-  else
-  {
-    String *keystr= args[1]->val_str(str);
-    if (!keystr)
-      goto error;
-    key_number=127;				// User key string
-
-    /* We make good 24-byte (168 bit) key from given plaintext key with MD5 */
-    bzero((char*) &ivec,sizeof(ivec));
-    if (!EVP_BytesToKey(EVP_des_ede3_cbc(),EVP_md5(),NULL,
-		   (uchar*) keystr->ptr(), (int) keystr->length(),
-		   1, (uchar*) &keyblock,ivec))
-      goto error;
-    DES_set_key_unchecked(&keyblock.key1,&keyschedule.ks1);
-    DES_set_key_unchecked(&keyblock.key2,&keyschedule.ks2);
-    DES_set_key_unchecked(&keyblock.key3,&keyschedule.ks3);
-  }
-
-  /*
-     The problem: DES algorithm requires original data to be in 8-bytes
-     chunks. Missing bytes get filled with '*'s and result of encryption
-     can be up to 8 bytes longer than original string. When decrypted,
-     we do not know the size of original string :(
-     We add one byte with value 0x1..0x8 as the last byte of the padded
-     string marking change of string length.
-  */
-
-  tail= 8 - (res_length % 8);                   // 1..8 marking extra length
-  res_length+=tail;
-  if (tmp_arg.alloc(res_length))
-    goto error;
-  tmp_arg.length(0);
-  tmp_arg.append(res->ptr(), res->length());
-  code= ER_OUT_OF_RESOURCES;
-  if (tmp_arg.append(append_str, tail) || str->alloc(res_length+1))
-    goto error;
-  tmp_arg[res_length-1]=tail;                   // save extra length
-  str->length(res_length+1);
-  str->set_charset(&my_charset_bin);
-  (*str)[0]=(char) (128 | key_number);
-  // Real encryption
-  bzero((char*) &ivec,sizeof(ivec));
-  DES_ede3_cbc_encrypt((const uchar*) (tmp_arg.ptr()),
-		       (uchar*) (str->ptr()+1),
-		       res_length,
-		       &keyschedule.ks1,
-		       &keyschedule.ks2,
-		       &keyschedule.ks3,
-		       &ivec, TRUE);
-  return str;
-
-error:
-  THD *thd= current_thd;
-  push_warning_printf(thd,Sql_condition::WARN_LEVEL_WARN,
-                      code, ER_THD(thd, code),
-                      "des_encrypt");
-#else
-  THD *thd= current_thd;
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                      ER_FEATURE_DISABLED, ER_THD(thd, ER_FEATURE_DISABLED),
-                      "des_encrypt", "openssl des cipher (HAVE_des)");
-#endif /* defined(HAVE_des) && !defined(EMBEDDED_LIBRARY) */
-  null_value=1;
-  return 0;
-}
-
-
-bool Item_func_des_decrypt::fix_length_and_dec(THD *thd)
-{
-  set_maybe_null();
-  /* 9 = MAX ((8- (arg_len % 8)) + 1) */
-  max_length= args[0]->max_length;
-  if (max_length >= 9U)
-    max_length-= 9U;
-  warn_deprecated<1010>(thd, func_name_cstring().str);
-  return FALSE;
-}
-
-
-String *Item_func_des_decrypt::val_str(String *str)
-{
-  DBUG_ASSERT(fixed());
-#if defined(HAVE_des) && !defined(EMBEDDED_LIBRARY)
-  uint code= ER_WRONG_PARAMETERS_TO_PROCEDURE;
-  DES_cblock ivec;
-  struct st_des_keyblock keyblock;
-  struct st_des_keyschedule keyschedule;
-  String *res= args[0]->val_str(&tmp_value);
-  uint length,tail;
-
-  if ((null_value= args[0]->null_value))
-    return 0;
-  length= res->length();
-  if (length < 9 || (length % 8) != 1 || !((*res)[0] & 128))
-    return res;				// Skip decryption if not encrypted
-
-  if (arg_count == 1)			// If automatic uncompression
-  {
-    uint key_number=(uint) (*res)[0] & 127;
-    // Check if automatic key and that we have privilege to uncompress using it
-    if (!(current_thd->security_ctx->master_access & PRIV_DES_DECRYPT_ONE_ARG) ||
-        key_number > 9)
-      goto error;
-
-    mysql_mutex_lock(&LOCK_des_key_file);
-    keyschedule= des_keyschedule[key_number];
-    mysql_mutex_unlock(&LOCK_des_key_file);
-  }
-  else
-  {
-    // We make good 24-byte (168 bit) key from given plaintext key with MD5
-    String *keystr= args[1]->val_str(str);
-    if (!keystr)
-      goto error;
-
-    bzero((char*) &ivec,sizeof(ivec));
-    if (!EVP_BytesToKey(EVP_des_ede3_cbc(),EVP_md5(),NULL,
-		   (uchar*) keystr->ptr(),(int) keystr->length(),
-		   1,(uchar*) &keyblock,ivec))
-      goto error;
-    // Here we set all 64-bit keys (56 effective) one by one
-    DES_set_key_unchecked(&keyblock.key1,&keyschedule.ks1);
-    DES_set_key_unchecked(&keyblock.key2,&keyschedule.ks2);
-    DES_set_key_unchecked(&keyblock.key3,&keyschedule.ks3);
-  }
-  code= ER_OUT_OF_RESOURCES;
-  if (str->alloc(length-1))
-    goto error;
-
-  bzero((char*) &ivec,sizeof(ivec));
-  DES_ede3_cbc_encrypt((const uchar*) res->ptr()+1,
-		       (uchar*) (str->ptr()),
-		       length-1,
-		       &keyschedule.ks1,
-		       &keyschedule.ks2,
-		       &keyschedule.ks3,
-		       &ivec, FALSE);
-  /* Restore old length of key */
-  if ((tail=(uint) (uchar) (*str)[length-2]) > 8)
-    goto wrong_key;				     // Wrong key
-  str->length(length-1-tail);
-  str->set_charset(&my_charset_bin);
-  return str;
-
-error:
-  {
-    THD *thd= current_thd;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        code, ER_THD(thd, code),
-                        "des_decrypt");
-  }
-wrong_key:
-#else
-  {
-    THD *thd= current_thd;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_FEATURE_DISABLED, ER_THD(thd, ER_FEATURE_DISABLED),
-                        "des_decrypt", "openssl des cipher (HAVE_des)");
-  }
-#endif /* defined(HAVE_des) && !defined(EMBEDDED_LIBRARY) */
-  null_value=1;
-  return 0;
-}
-
 
 /**
   concat with separator. First arg is the separator
@@ -1618,7 +1401,18 @@ String *Item_func_sformat::val_str(String *res)
   /* Create the string output  */
   try
   {
+#ifdef _MSC_VER
+/*
+  C4834 : "discarding return value of function with [[nodiscard]] attribute"
+  in fmt 12.1 template code, for isalpha()
+*/
+#pragma warning(push)
+#pragma warning(disable : 4834)
+#endif
     auto text = fmt::vformat(fmt_locale, fmt_arg->c_ptr_safe(), arg_store);
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
     res->length(0);
     res->set_charset(collation.collation);
     res->append(text.c_str(), text.size(), fmt_arg->charset());
@@ -3354,32 +3148,32 @@ String *Item_func_make_set::val_str(String *str)
     if (bits & 1)
     {
       String *res= (*ptr)->val_str(str);
-      if (res)					// Skip nulls
+      if (res)                                  // Skip nulls
       {
-	if (!first_found)
-	{					// First argument
-	  first_found=1;
-	  if (res != str)
-	    result=res;				// Use original string
-	  else
-	  {
-	    if (tmp_str.copy(*res))		// Don't use 'str'
+        if (!first_found)
+        {                                       // First argument
+          first_found=1;
+          if (res->ptr() != str->ptr())
+            result=res;                         // Use original string
+          else
+          {
+            if (tmp_str.copy(*res))             // Don't use 'str'
               return make_empty_result(str);
-	    result= &tmp_str;
-	  }
-	}
-	else
-	{
-	  if (result != &tmp_str)
-	  {					// Copy data to tmp_str
-	    if (tmp_str.alloc(result->length()+res->length()+1) ||
-		tmp_str.copy(*result))
+            result= &tmp_str;
+          }
+        }
+        else
+        {
+          if (result != &tmp_str)
+          {                                     // Copy data to tmp_str
+            if (tmp_str.alloc(result->length()+res->length()+1) ||
+                tmp_str.copy(*result))
               return make_empty_result(str);
-	    result= &tmp_str;
-	  }
-	  if (tmp_str.append(STRING_WITH_LEN(","), &my_charset_bin) || tmp_str.append(*res))
+            result= &tmp_str;
+          }
+          if (tmp_str.append(STRING_WITH_LEN(","), &my_charset_bin) || tmp_str.append(*res))
             return make_empty_result(str);
-	}
+        }
       }
     }
   }
@@ -3640,6 +3434,12 @@ String *Item_func_binlog_gtid_pos::val_str(String *str)
 #else
   String name_str, *name;
   longlong pos;
+
+  if (opt_binlog_engine_hton)
+  {
+    my_error(ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG, MYF(0), "BINLOG_GTID_POS()");
+    goto err;
+  }
 
   name= args[0]->val_str(&name_str);
   pos= args[1]->val_int();
@@ -4080,9 +3880,10 @@ bool Item_func_set_collation::fix_length_and_dec(THD *thd)
 }
 
 
-bool Item_func_set_collation::eq(const Item *item, bool binary_cmp) const
+bool Item_func_set_collation::eq(const Item *item,
+                                 const Eq_config &config) const
 {
-  return Item_func::eq(item, binary_cmp) &&
+  return Item_func::eq(item, config) &&
          collation.collation == item->collation.collation;
 }
 
@@ -4257,9 +4058,21 @@ String *Item_func_hex::val_str_ascii_from_val_str(String *str)
 {
   DBUG_ASSERT(&tmp_value != str);
   String *res= args[0]->val_str(&tmp_value);
-  DBUG_ASSERT(res != str);
+  THD *thd= current_thd;
+
   if ((null_value= (res == NULL)))
     return NULL;
+
+  if (res->length()*2 > thd->variables.max_allowed_packet)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+                        ER_THD(thd, ER_WARN_ALLOWED_PACKET_OVERFLOWED),
+                        func_name(), thd->variables.max_allowed_packet);
+    null_value= true;
+    return NULL;
+  }
+
   return str->set_hex(res->ptr(), res->length()) ? make_empty_result(str) : str;
 }
 
@@ -6340,3 +6153,20 @@ longlong Item_func_wsrep_sync_wait_upto::val_int()
 }
 
 #endif /* WITH_WSREP */
+
+
+String *Item_func_current_path::val_str(String *str)
+{
+  DBUG_ASSERT(fixed());
+  THD *thd= current_thd;
+
+  auto length= thd->variables.path.text_format_nbytes_needed();
+  if (str->realloc(length))
+    return NULL;
+
+  length= thd->variables.path.print(&(*str)[0], str->alloced_length());
+  str->length(length);
+
+  null_value= 0;
+  return str;
+}

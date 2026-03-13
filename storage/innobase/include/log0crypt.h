@@ -79,11 +79,10 @@ ATTRIBUTE_COLD bool log_decrypt(byte* buf, lsn_t lsn, ulint size);
 @return buf */
 byte *log_decrypt_buf(const byte *iv, byte *buf, const byte *data, uint len);
 
-/** Decrypt a log snippet.
-@param iv    initialization vector
-@param buf   buffer to be replaced with encrypted contents
-@param end   pointer past the end of buf */
-void log_decrypt_buf(const byte *iv, byte *buf, const byte *const end);
+/** Decrypt a mini-transaction in place.
+@param buf   start of the mini-transaction
+@param end   end of data (followed by sequence byte and the 8-byte nonce) */
+void log_decrypt_mtr(byte *buf, const byte *end) noexcept;
 
 /** Encrypt or decrypt a temporary file block.
 @param[in]	src		block to encrypt or decrypt

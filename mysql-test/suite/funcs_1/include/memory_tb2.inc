@@ -1,11 +1,8 @@
 ##### suite/funcs_1/include/memory_tb2.inc
 
---disable_warnings
-drop table if exists tb2 ;
---enable_warnings
-
 --enable_prepare_warnings
 
+set old_mode=2_digit_year;
 create table tb2 (
 f59 numeric (0) unsigned,
 f60 numeric (64) unsigned,
@@ -59,6 +56,7 @@ f107 year(4) not null default 2000,
 f108 enum("1enum","2enum") not null default "1enum",
 f109 set("1set","2set") not null default "1set"
 ) engine = memory;
+set old_mode=default;
 
 --replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
 eval

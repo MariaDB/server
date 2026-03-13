@@ -18,7 +18,7 @@ INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
 DROP TABLE t2, t1;
 --source include/wait_all_purged.inc
 
-select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
+let $fsize=`select file_size from information_schema.innodb_sys_tablespaces where space = 0`;
 
 set GLOBAL innodb_fast_shutdown= 0;
 --source include/restart_mysqld.inc
@@ -30,7 +30,8 @@ let SEARCH_PATTERN=InnoDB: Moving the data from extents 4096 through 22016;
 let SEARCH_PATTERN=InnoDB: Defragmentation of system tablespace is successful;
 --source include/search_pattern_in_file.inc
 
-select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
+evalp select name, file_size<$fsize shrunk
+from information_schema.innodb_sys_tablespaces where space=0;
 
 --source include/shutdown_mysqld.inc
 

@@ -1,3 +1,6 @@
+#
+# MDEV-6610 Assertion `thd->is_error() || thd->killed' failed in mysql_execute_command on executing an SP with repeated CREATE TABLE .. SELECT
+#
 CREATE TABLE t1 (i INT);
 SET @a = 2;
 CREATE TABLE IF NOT EXISTS t2 (i INT) ENGINE = MyISAM 
@@ -59,4 +62,103 @@ call p2('2');
 drop table t1;
 drop procedure p1;
 drop procedure p2;
+#
+# MDEV-26115: Crash when calling stored function in FOR loop argument
+#
+CREATE OR REPLACE FUNCTION cnt()
+RETURNS INTEGER NO SQL
+BEGIN
+RETURN 3;
+END;
+$
+CREATE OR REPLACE PROCEDURE p1()
+NO SQL
+BEGIN
+DECLARE i INTEGER;
+FOR i IN 1..cnt() DO
+SELECT 1;
+END FOR;
+END;
+$
+CALL p1();
+1
+1
+1
+1
+1
+1
+CALL p1();
+1
+1
+1
+1
+1
+1
+# Clean up
+DROP FUNCTION cnt;
+DROP PROCEDURE p1;
+#
+# MDEV-37710 ASAN errors in find_type2 upon executing a procedure from sys schema
+#
+set names utf8mb3 collate utf8mb3_general_ci;
+create procedure p1()
+begin
+declare found int;
+repeat
+set found = exists (select * from information_schema.routines where routine_name='f');
+if (sys.ps_is_consumer_enabled('events_waits_history_long') = 'yes') then
+select * from mysql.user;
+end if;
+select release_all_locks();
+until found end repeat;
+end$$
+select get_lock('p1', 300);
+get_lock('p1', 300)
+1
+call p1();
+connect con1,localhost,root,,;
+select get_lock('p1', 300);
+get_lock('p1', 300)
+1
+create function f() returns int return 1;
+connection default;
+drop function f;
+drop procedure p1;
+set names utf8mb3;
 # End of 10.11 tests
+#
+# MDEV-26115: Crash when calling stored function in FOR loop argument
+#
+CREATE FUNCTION sp_returns_row() RETURNS ROW(a INT, b VARCHAR(32))
+NO SQL
+BEGIN
+RETURN ROW(1,'b1');
+END;
+$$
+CREATE FUNCTION sp_returns_int(r ROW(a INT, b VARCHAR(32))) RETURNS INT
+NO SQL
+RETURN r.a
+$$
+CREATE PROCEDURE p1()
+NO SQL
+BEGIN
+DECLARE i INTEGER;
+FOR i IN 0..sp_returns_int(sp_returns_row()) DO
+SELECT i;
+END FOR;
+END;
+$$
+CALL p1;
+i
+0
+i
+1
+CALL p1;
+i
+0
+i
+1
+DROP PROCEDURE p1;
+DROP FUNCTION sp_returns_int;
+DROP FUNCTION sp_returns_row;
+# End of 11.8 tests

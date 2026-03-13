@@ -55,6 +55,7 @@ DROP TABLE t1;
 #
 SHOW VARIABLES like '%storage_engine';
 Variable_name	Value
+binlog_storage_engine	
 default_storage_engine	ROCKSDB
 default_tmp_storage_engine	Aria
 enforce_storage_engine	

@@ -44,6 +44,7 @@ static int create_flag= 0, srand_arg= 0, checkpoint= 0;
 static my_bool opt_versioning= 0;
 static uint use_blob= 0, update_count= 0;
 static ulong pagecache_size=8192*32;
+static ulong pagecache_segments= 1;
 static enum data_file_type record_type= DYNAMIC_RECORD;
 
 static uint keys=MARIA_KEYS,recant=1000;
@@ -88,8 +89,9 @@ int main(int argc, char *argv[])
 
   /* Maria requires that we always have a page cache */
   if (maria_init() ||
-      (init_pagecache(maria_pagecache, pagecache_size, 0, 0,
-		      maria_block_size, 0, MY_WME) == 0) ||
+      (multi_init_pagecache(&maria_pagecaches, pagecache_segments,
+                            pagecache_size, 0, 0,
+                            maria_block_size, 0, MY_WME)) ||
       ma_control_file_open_or_create() ||
       (init_pagecache(maria_log_pagecache,
 		      TRANSLOG_PAGECACHE_SIZE, 0, 0,
@@ -982,6 +984,7 @@ end:
     goto err;
   }
   file= 0;
+  multi_update_pagecache_stats();
   maria_panic(HA_PANIC_CLOSE);			/* Should close log */
   if (!silent)
   {
@@ -989,7 +992,7 @@ end:
     printf("Write records: %d\nUpdate records: %d\nSame-key-read: %d\nDelete records: %d\n", write_count,update,dupp_keys,opt_delete);
     if (rec_pointer_size)
       printf("Record pointer size:  %d\n",rec_pointer_size);
-    printf("maria_block_size:    %lu\n", maria_block_size);
+    printf("maria_block_size:    %u\n", maria_block_size);
     if (write_cacheing)
       puts("Key cache resized");
     if (write_cacheing)
@@ -1009,12 +1012,12 @@ w_requests: %10lu\n\
 writes:     %10lu\n\
 r_requests: %10lu\n\
 reads:      %10lu\n",
-           (ulong) maria_pagecache->blocks_used,
-           (ulong) maria_pagecache->global_blocks_changed,
-           (ulong) maria_pagecache->global_cache_w_requests,
-           (ulong) maria_pagecache->global_cache_write,
-           (ulong) maria_pagecache->global_cache_r_requests,
-           (ulong) maria_pagecache->global_cache_read);
+           (ulong) pagecache_stats.blocks_used,
+           (ulong) pagecache_stats.global_blocks_changed,
+           (ulong) pagecache_stats.global_cache_w_requests,
+           (ulong) pagecache_stats.global_cache_write,
+           (ulong) pagecache_stats.global_cache_r_requests,
+           (ulong) pagecache_stats.global_cache_read);
   }
   maria_end();
   my_free(blob_buffer);
@@ -1126,6 +1129,10 @@ static void get_options(int argc, char **argv)
     case 'P':
       pack_type=0;			/* Don't use DIFF_LENGTH */
       pack_seg=0;
+      break;
+    case 'p':                           /* Segmented page cache */
+      pagecache_segments= atoi(++pos);
+      pagecache_size*= pagecache_segments;
       break;
     case 'R':				/* Length of record pointer */
       rec_pointer_size=atoi(++pos);

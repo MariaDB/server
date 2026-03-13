@@ -97,7 +97,6 @@ typedef struct st_S3_BLOCK
   size_t length;
 } S3_BLOCK;
 
-
 /* file descriptor for Maria */
 typedef struct st_pagecache_file
 {
@@ -120,6 +119,7 @@ typedef struct st_pagecache_file
 
   /** Cannot be NULL */
   uchar *callback_data;
+  struct st_pagecache *pagecache;
 } PAGECACHE_FILE;
 
 /* declare structures that is used by  st_pagecache */
@@ -216,7 +216,7 @@ typedef struct st_pagecache
   my_bool resize_in_flush;       /* true during flush of resize operation    */
   my_bool can_be_used;           /* usage of cache for read/write is allowed */
   my_bool in_init;		/* Set to 1 in MySQL during init/resize     */
-  my_bool extra_debug;	        /* set to 1 if one wants extra logging */
+  my_bool multi;                /* If part of segmented pagecache */
   HASH    files_in_flush;       /**< files in flush_pagecache_blocks_int() */
 } PAGECACHE;
 
@@ -338,7 +338,8 @@ extern my_bool pagecache_delete_pages(PAGECACHE *pagecache,
 extern void end_pagecache(PAGECACHE *keycache, my_bool cleanup)__attribute__((visibility("default"))) ;
 extern my_bool pagecache_collect_changed_blocks_with_lsn(PAGECACHE *pagecache,
                                                          LEX_STRING *str,
-                                                         LSN *min_lsn);
+                                                         LSN *min_lsn,
+                                                         uint *dirt_pages);
 extern int reset_pagecache_counters(const char *name, PAGECACHE *pagecache);
 extern uchar *pagecache_block_link_to_buffer(PAGECACHE_BLOCK_LINK *block);
 
@@ -347,19 +348,59 @@ extern void pagecache_add_level_by_link(PAGECACHE_BLOCK_LINK *block,
 					uint level);
 
 /* Functions to handle multiple key caches */
-extern my_bool multi_pagecache_init(void);
-extern void multi_pagecache_free(void);
-extern PAGECACHE *multi_pagecache_search(uchar *key, uint length,
-                                         PAGECACHE *def);
-extern my_bool multi_pagecache_set(const uchar *key, uint length,
-				   PAGECACHE *pagecache);
-extern void multi_pagecache_change(PAGECACHE *old_data,
-				   PAGECACHE *new_data);
+
+typedef struct st_pagecaches
+{
+  PAGECACHE *caches;
+  ulonglong requests;
+  uint segments;
+  my_bool initialized;
+} PAGECACHES;
+
+my_bool multi_init_pagecache(PAGECACHES *pagecaches, ulong segments,
+                             size_t use_mem, uint division_limit,
+                             uint age_threshold,
+                             uint block_size, uint changed_blocks_hash_size,
+                             myf my_readwrite_flags);
+extern void multi_end_pagecache(PAGECACHES *pagecaches);
+extern my_bool
+multi_pagecache_collect_changed_blocks_with_lsn(PAGECACHES *pagecaches,
+                                                LEX_STRING *str,
+                                                LSN *min_rec_lsn,
+                                                uint *dirty_pages);
+
+static inline PAGECACHE *multi_get_pagecache(PAGECACHES *pagecaches)
+{
+  return pagecaches->caches + (pagecaches->requests++ % pagecaches->segments);
+}
+
+/* Pagecache stats */
+
+struct st_pagecache_stats
+{
+  size_t blocks_used;          /* maximum number of concurrently used blocks */
+  size_t blocks_unused;          /* number of currently unused blocks        */
+  size_t blocks_changed;         /* number of currently dirty blocks         */
+
+  size_t global_blocks_changed;	/* number of currently dirty blocks          */
+  ulonglong global_cache_w_requests;/* number of write requests (write hits) */
+  ulonglong global_cache_write;     /* number of writes from cache to files  */
+  ulonglong global_cache_r_requests;/* number of read requests (read hits)   */
+  ulonglong global_cache_read;      /* number of reads from files to cache   */
+};
+
+/* Stats will be updated when multi_update_pagecache_stats() is called */
+extern struct st_pagecache_stats pagecache_stats;
+extern void multi_update_pagecache_stats();
+extern ulonglong multi_global_cache_writes(PAGECACHES *pagecaches);
+extern void multi_reset_pagecache_counters(PAGECACHES *pagecaches);
+
 #ifndef DBUG_OFF
 void pagecache_file_no_dirty_page(PAGECACHE *pagecache, PAGECACHE_FILE *file);
 #else
 #define pagecache_file_no_dirty_page(A,B) {}
 #endif
 
+
 C_MODE_END
-#endif /* _keycache_h */
+#endif /* _ma_pagecache_h */

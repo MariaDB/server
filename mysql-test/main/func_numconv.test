@@ -1,0 +1,953 @@
+--echo #
+--echo # MDEV-20022 sql_mode="oracle" does not support TO_NUMBER() function
+--echo #
+
+--echo #
+--echo # to_number() with one argument
+--echo #
+
+--error ER_OPERAND_COLUMNS
+SELECT to_number(ROW(1,1));
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT to_number(point(1,1));
+
+--echo # With one arg, to_number() works similarly CAST(expr AS DOUBLE)
+CREATE TABLE t1 AS SELECT
+  to_number('123') AS c1,
+  to_number(123) AS c2,
+  to_number(123e0) AS c3,
+  to_number(123.0) AS c4;
+SHOW COLUMNS IN t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# However, it returns NULL in case of
+# empty input, out of range values, trailing garbage
+
+SELECT to_number('') AS c1;
+SELECT to_number('1E+400') AS c1;
+SELECT to_number('123x') AS c1;
+
+
+--echo #
+--echo # With two args only string+string are allowed
+--echo #
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT to_number(point(1,1), '');
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT to_number('',point(1,1));
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT to_number(1,'');
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT to_number('',1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT to_number(1e0,'');
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT to_number('',1e0);
+
+
+--echo #
+--echo # Multiple dollar or B signs are not allowed
+--echo #
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', '99$99$');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', '$9999$');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', '$9.99$');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', '9$9.9$99EEEE');
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', '99B99B');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'B99B99B');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'B999B');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'B9.99B');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', '9B9.9B99EEEE');
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', '.9$9BB$0B');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', '.0$0BB$9B');
+
+--echo # Comma and G cannot co-exist
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '9G9,9G9');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '9,9G9,9');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '0G0,0G0');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '0,0G0,0');
+
+
+--echo #
+--echo # Dollar and C,L,U cannot co-exist
+--echo #
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '$C');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '$L');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '$U');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '$C99');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '$L99');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '$U99');
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '0$C');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '0$L');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '0$U');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '9$C');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '9$L');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '9$U');
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', 'C0$');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', 'L0$');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', 'U0$');
+--error ER_WRONG_VALUE_FOR_TYPE
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '.$C');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '.$L');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '.$U');
+--error ER_WRONG_VALUE_FOR_TYPE
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', 'D$C');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', 'D$L');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', 'D$U');
+--error ER_WRONG_VALUE_FOR_TYPE
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', 'V$C');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', 'V$L');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', 'V$U');
+--error ER_WRONG_VALUE_FOR_TYPE
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '$.C');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '$.L');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '$.U');
+--error ER_WRONG_VALUE_FOR_TYPE
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '$DC');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '$DL');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '$DU');
+--error ER_WRONG_VALUE_FOR_TYPE
+
+
+--echo #
+--echo # Test that non-constant wrong formats raise a warning (not an error)
+--echo #
+
+CREATE TABLE t1 (fmt VARCHAR(32));
+INSERT INTO t1 VALUES ('$999$'),('C999');
+SELECT to_number('9999', fmt) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # An empty format is allowed and returns NULL
+--echo #
+
+SELECT to_number('', '');
+SELECT to_number('1', '');
+
+
+--echo #
+--echo # B/dollar can go alone, in combination, with FM, and return NULL
+--echo #
+
+SELECT to_number('1', 'B');
+SELECT to_number('1', '$');
+SELECT to_number('1', 'B$');
+SELECT to_number('1', '$B');
+
+SELECT to_number('$', '$');
+SELECT to_number('$', 'B$');
+SELECT to_number('$', '$B');
+
+SELECT to_number('1', 'FMB');
+SELECT to_number('1', 'FM$');
+SELECT to_number('1', 'FMB$');
+SELECT to_number('1', 'FM$B');
+
+SELECT to_number('$', 'FM$');
+SELECT to_number('$', 'FMB$');
+SELECT to_number('$', 'FM$B');
+
+
+--echo #
+--echo # . can go alone
+--echo #
+
+SELECT to_number('.', '.');
+SELECT to_number('1', '.');
+
+
+--echo #
+--echo # 'S', 'MI', 'PR' alone are allowed (optionally with FM), NULL returned
+--echo #
+
+SELECT to_number('-', 'S');
+SELECT to_number('-', 'MI');
+SELECT to_number('<>', 'PR');
+SELECT to_number('-', 'FMS');
+SELECT to_number('-', 'SFM');
+SELECT to_number('-', 'FMMI');
+SELECT to_number('<>', 'FMPR');
+
+SELECT to_number('1', 'S');
+SELECT to_number('1', 'MI');
+SELECT to_number('1', 'PR');
+SELECT to_number('1', 'FMMI');
+SELECT to_number('1', 'FMPR');
+
+
+--echo #
+--echo # Integer
+--echo #
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', 'x999');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '999x');
+
+--echo # Correct formats
+
+SELECT to_number('1', '999');
+
+SELECT to_number('$12', '$99');
+SELECT to_number('$12', '9$9');
+SELECT to_number('$12', '99$');
+
+SELECT to_number('1', 'B99');
+SELECT to_number('1', '9B9');
+SELECT to_number('1', '99B');
+
+SELECT to_number('$1', 'B$9');
+SELECT to_number('$1', '9B$');
+
+SELECT to_number('$1', '$B9');
+SELECT to_number('$1', '9$B');
+
+SELECT to_number('1', '9,9,9,9');
+
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', '9G9G9G9');
+SELECT to_number('1', '0000');
+SELECT to_number('1', '0,0,0,0');
+SELECT to_number('1', '9999');
+SELECT to_number('1', '9,9,9,9');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', '0G0G0G0');
+
+SELECT to_number('1', '00009999');
+SELECT to_number('1', '99999999');
+SELECT to_number('1', '0,0,0,0,9,9,9,9');
+SELECT to_number('1', '9,9,9,9,9,9,9,9');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', '0G0G0G0G9G9G9G9');
+
+SELECT to_number('1', '99990000');
+SELECT to_number('1', '99999999');
+SELECT to_number('1', '9,9,9,9,0,0,0,0');
+SELECT to_number('1', '9,9,9,9,9,9,9,9');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', '9G9G9G9G0G0G0G0');
+
+SELECT to_number('123456.123456', '999999.999999') AS c1;
+SELECT to_number('123,456.123456', '999,999.999999') AS c1;
+SELECT to_number('1,2,3,4,5,6.123456', '9,9,9,9,9,9.999999') AS c1;
+
+--echo #
+--echo # Integer: 0 vs 9
+--echo #
+
+CREATE TABLE t1 (fmt VARCHAR(32));
+INSERT INTO t1 VALUES
+('0'),('9'),
+('00'),('09'),('90'),('99'),
+('000'),('009'),('090'),('099'), ('900'),('909'),('990'),('999');
+CREATE TABLE t2 (sbj VARCHAR(32));
+INSERT INTO t2 VALUES ('0'),('00'),('000'),('0000');
+
+--echo # Expect NULL if
+--echo # - the subject is shorter than the format, or
+--echo # - if there's a format 0 outside of the subject length
+
+SELECT
+  fmt, sbj, to_number(sbj,fmt),
+  IF(length(fmt)<length(sbj) OR
+     (fmt LIKE '0_' AND sbj LIKE '_') OR
+     (fmt LIKE '0__' AND sbj LIKE '__') OR
+     (fmt LIKE '0__' AND sbj LIKE '_') OR
+     (fmt LIKE '_0_' AND sbj LIKE '_'),
+     'Expect NULL','') AS comment
+FROM t1, t2
+WHERE length(fmt)>=length(sbj)
+ORDER BY length(fmt),fmt,sbj;
+
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # Fraction
+--echo #
+
+SELECT to_number('.', '.');
+SELECT to_number('.', 'B.');
+SELECT to_number('.', 'B.9');
+SELECT to_number('.1', 'B.9');
+
+SELECT to_number('1', 'B.');
+SELECT to_number('1', 'B.9');
+
+
+--echo #
+--echo # Fraction + dollar
+--echo #
+
+SELECT to_number('$.', '$.');
+SELECT to_number('1', '$.');
+
+SELECT to_number('.1', '.9999');
+SELECT to_number('.1', '.99990000');
+SELECT to_number('$.1', '.9$9B');
+
+SELECT to_number('.1', '.0000');
+SELECT to_number('.1', '.00009999');
+SELECT to_number('$.1', '.0$0B');
+
+SELECT to_number('1', '$.9');
+SELECT to_number('1', '$.9');
+
+
+--echo #
+--echo # Decimal
+--echo #
+
+SELECT to_number('1', '9999.');
+SELECT to_number('1', '9999.9999');
+SELECT to_number('1', '9999.99990000');
+SELECT to_number('1', '9999.00009999');
+
+SELECT to_number('1', '9999.');
+SELECT to_number('1', '9999.9999');
+SELECT to_number('1', '9999.99990000');
+SELECT to_number('1', '9999.00009999');
+
+--echo # The subject has more integer digits than the format
+SELECT to_number('111.1','9.9');
+
+--echo # The subject has more fractional digits than the format
+SELECT to_number('1.111','9.9');
+
+--echo # Multiple dollar and B prefix flags are not allowed
+--error ER_WRONG_VALUE_FOR_TYPE
+select to_number('$1','$$9.9');
+--error ER_WRONG_VALUE_FOR_TYPE
+select to_number('11','BB9.9');
+
+--echo #
+--echo # Decimal starting with zeros
+--echo #
+
+CREATE TABLE t1 (num VARCHAR(32), fmt VARCHAR(64));
+INSERT INTO t1 VALUES
+('1', '0.999'),
+('111', '000.999'),
+('111111','000999.999'),
+('11111111','00090909.999');
+
+SELECT to_number(num, fmt), fmt FROM t1;
+SELECT to_number(num, @fmt:=REPLACE(fmt,'.','D')), @fmt FROM t1;
+SELECT to_number(num, @fmt:=REPLACE(fmt,'.','V')), @fmt FROM t1;
+SELECT to_number(num, @fmt:=REPLACE(fmt,'.','C')), @fmt FROM t1;
+SELECT to_number(num, @fmt:=REPLACE(fmt,'.','L')), @fmt FROM t1;
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # Decimal + flags B/dollar + signs
+--echo #
+
+# B/$ can follow a leading sign
+SELECT to_number('-1', 'SB');
+SELECT to_number('-$1', 'S$');
+SELECT to_number('-$1', 'SB$');
+SELECT to_number('-$1', 'S$B');
+
+# B/$ can be followed by a trailing sign
+SELECT to_number('1', 'BS');
+SELECT to_number('1', 'BMI');
+SELECT to_number('1', 'BPR');
+SELECT to_number('1', '$S');
+SELECT to_number('1', '$MI');
+SELECT to_number('1', '$PR');
+
+# B/$ can be followed a currency
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'BC');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'BL');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'BU');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'BC99');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'BL99');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'BU99');
+
+# B/$ can be followed a V
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'BV');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'BV99');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', '$V');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', '$V99');
+
+# B/$ can be followed a decimal point
+SELECT to_number('1', 'B.');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'BD');
+SELECT to_number('1', 'B.99');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'BD99');
+
+SELECT to_number('1', '$.');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', '$D');
+SELECT to_number('1', '$.99');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', '$D99');
+
+
+--echo #
+--echo # Number1 (i.e. not starting with zeros)
+--echo #
+
+# Positional_currency+B cannot be followed by ,G
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', 'CB,999');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', 'CBG999');
+
+
+# Correct formats
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'C999');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'C000');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'CB999');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'CB000');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'C');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'C.');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'CD');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'CV');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'C.99');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'CD99');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'CV99');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'CB.999');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'CBD999');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'CB');
+
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'L999');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'L000');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'LB999');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'LB000');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'L');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'L.');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'LD');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'LV');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'L.99');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'LD99');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'LV99');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'LB.999');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'LBD999');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'LB');
+
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'U999');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'U000');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'UB999');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'UB000');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'U');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'U.');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'UD');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'UV');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'U.99');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'UD99');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'UV99');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'UB.999');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'UBD999');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'UB');
+
+
+--echo #
+--echo # Number0: zeros + postfix sign
+--echo #
+
+SELECT to_number('12-', '00S');
+SELECT to_number('12+', '00S');
+SELECT to_number('12-', '00MI');
+SELECT to_number('12 ', '00MI');
+SELECT to_number('<12>', '00PR');
+SELECT to_number(' 12 ', '00PR');
+SELECT to_number('[12]', '00PR');
+
+SELECT to_number('<1234>', '999999PR') AS c1;
+SELECT to_number(' 1234 ', '999999PR') AS c1;
+
+
+--echo #
+--echo # Postfix sign
+--echo #
+
+SELECT to_number('12-', '99S');
+SELECT to_number('12+', '99S');
+SELECT to_number('12-', '99MI');
+SELECT to_number('12 ', '99MI');
+SELECT to_number('<12>', '99PR');
+SELECT to_number(' 12 ', '99PR');
+
+--echo #
+--echo # Prefix sign
+--echo #
+
+SELECT to_number('-1', 'S');
+SELECT to_number('-1', 'S00');
+SELECT to_number('-12', 'S00');
+SELECT to_number('-1', 'S99');
+
+SELECT to_number('1', 'FMS');
+SELECT to_number('-12', 'FMS00');
+SELECT to_number('-12', 'FMS99');
+
+SELECT to_number('1', 'SFM');
+SELECT to_number('-12', 'SFM00');
+SELECT to_number('-12', 'SFM99');
+
+
+--echo #
+--echo # Prefix-signed currency
+--echo #
+
+--echo # CLU are not supported yet
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'S00.99C');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'S99.99L');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'S99.99U');
+
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'S00D99C');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'S99D99L');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'S99D99U');
+
+
+SELECT to_number('-$12,345.67', 'S$999,099.99') AS c1;
+SELECT to_number('+$12,345.67', 'S$999,099.99') AS c1;
+SELECT to_number('-$12,345.67', 'S$999,999.99') AS c1;
+SELECT to_number('+$12,345.67', 'S$999,999.99') AS c1;
+SELECT to_number('$12,345.67', 'S$999,099.99')  AS c1, 'Missing sign' AS comment;
+
+SELECT to_number('-$45', 'S$999,099.99') AS c1;
+SELECT to_number('+$45', 'S$999,099.99') AS c1;
+SELECT to_number('$45', 'S$999,099.99')  AS c1, 'Missing sign' AS comment;
+
+SELECT to_number('-$45', 'S$999,999.99') AS c1;
+SELECT to_number('+$45', 'S$999,999.99') AS c1;
+SELECT to_number('$45', 'S$999,999.99')  AS c1, 'Missing sign' AS comment;
+
+SELECT to_number('+$5', 'S$999,099.99') AS c1;
+SELECT to_number('+$45', 'S$999,099.99') AS c1;
+SELECT to_number('+$045', 'S$999,099.99') AS c1;
+SELECT to_number('+$0,045', 'S$999,099.99') AS c1;
+SELECT to_number('+$00,045', 'S$999,099.99') AS c1;
+SELECT to_number('+$000,045', 'S$999,099.99') AS c1;
+SELECT to_number('+$0000,045', 'S$999,099.99') AS c1;
+
+
+--echo #
+--echo # FM
+--echo #
+
+SELECT to_number('1', 'FM');
+SELECT to_number('1', 'FM9');
+SELECT to_number('1,2', 'FM9,9');
+SELECT to_number('1.2', 'FM9.9');
+SELECT to_number('1-', 'FM9S');
+SELECT to_number('-1', 'FMS9');
+
+SELECT to_number('12-', 'FM00S');
+SELECT to_number('12-', 'FM99S');
+SELECT to_number('12-', 'FM99S');
+SELECT to_number('12-', 'FM00.99S');
+SELECT to_number('12-', 'FM99.99S');
+SELECT to_number('12-', 'FM99.99S');
+SELECT to_number('12.34-', 'FM00.99S');
+SELECT to_number('12.34-', 'FM99.99S');
+SELECT to_number('12.34-', 'FM99.99S');
+
+
+--echo #
+--echo # Long examples
+--echo #
+
+SELECT to_number('123,456,789','999,999,999') AS c1;
+SELECT to_number('111,222,333,444,555','999,999,999,999,999') AS c1;
+SELECT to_number('111,222,333,444,555,666,777,888,999',
+                 '999,999,999,999,999,999,999,999,999') AS c1;
+
+
+--echo #
+--echo # EEEE specific tests
+--echo #
+
+--echo # EEEE cannot go without any integer digits
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('', 'EEEE');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('', '.EEEE');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('', '.9EEEE');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '.999EEEE');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '.9$9EEEE');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '.9B9EEEE');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', '$EEEE');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('1', 'BEEEE');
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('', 'S.9EEEE');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('', 'S.9EEEES');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('', 'FM.EEEE');
+
+--echo #
+--echo # EEEE correct formats
+--echo #
+
+--echo # Currency CLU is not supported yet
+
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'C0EEEE');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'L0EEEE');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'U0EEEE');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'C9EEEE');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'L9EEEE');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'U9EEEE');
+
+--echo #
+--echo # The following formats are not supported in Oracle.
+--echo # However, it works if change C/L/U to dollar sign.
+--echo # Looks like a bug in Oracle.
+--echo # Anyway, CLU is not supported yet.
+--echo #
+
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'S00.99CEEEE');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'S99.99LEEEE');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'S99.99UEEEE');
+
+--echo # Trailing gargabe:
+SELECT to_number('1E+3x', '99EEEE');
+SELECT to_number('$1E+3x', '$99EEEE');
+
+
+--echo #
+--echo # Simple examples with EEEE
+--echo #
+
+SELECT to_number('1', '9EEEE');
+SELECT to_number('1', '9.9EEEE');
+SELECT to_number('1.2', '9.9EEEE');
+
+--echo #
+--echo # EEEE formats starting with zeros
+--echo #
+
+SELECT to_number('1', '00EEEE');
+
+CREATE TABLE t1 (num VARCHAR(32), fmt VARCHAR(64));
+INSERT INTO t1 VALUES
+('1', '0.999'),
+('111', '000.999'),
+('111111','000999.999'),
+('11111111','00090909.999');
+
+SELECT to_number(num, @fmt:=CONCAT(fmt,'EEEE')), @fmt FROM t1;
+SELECT to_number(num, @fmt:=CONCAT(REPLACE(fmt,'.','D'),'EEEE')), @fmt FROM t1;
+SELECT to_number(num, @fmt:=CONCAT(REPLACE(fmt,'.','V'),'EEEE')), @fmt FROM t1;
+SELECT to_number(num, @fmt:=CONCAT(REPLACE(fmt,'.','C'),'EEEE')), @fmt FROM t1;
+SELECT to_number(num, @fmt:=CONCAT(REPLACE(fmt,'.','L'),'EEEE')), @fmt FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # B and dollar inside a EEEE format
+--echo #
+
+SELECT to_number('1', 'B0EEEE');
+SELECT to_number('1', 'B9EEEE');
+SELECT to_number('1', 'B0.EEEE');
+SELECT to_number('1', 'B9.EEEE');
+SELECT to_number('1', 'B0.9EEEE');
+SELECT to_number('1', 'B9.9EEEE');
+
+SELECT to_number('$1E+1', '$0EEEE');
+SELECT to_number('$1E+1', '$9EEEE');
+SELECT to_number('$1E+1', '$0.EEEE');
+SELECT to_number('$1E+1', '$9.EEEE');
+SELECT to_number('$1.E+1', '$0.EEEE');
+SELECT to_number('$1.E+1', '$9.EEEE');
+SELECT to_number('$1.2E+1', '$0.EEEE');
+SELECT to_number('$1.2E+1', '$9.EEEE');
+SELECT to_number('$1.2E+1', '$0.9EEEE');
+SELECT to_number('$1.2E+1', '$9.9EEEE');
+
+SELECT to_number('1', '999EEEE');
+SELECT to_number('1', '999.EEEE');
+SELECT to_number('1', '999.9999EEEE');
+
+SELECT to_number ('$1', '9$9EEEE');
+SELECT to_number ('$1', '9$9.EEEE');
+
+SELECT to_number('1', '9B9EEEE');
+SELECT to_number('1', '9B9.EEEE');
+
+
+--echo #
+--echo # EEEE formats with prefix and postfix signs and FM
+--echo #
+
+SELECT to_number('1.2E+1-',  '99EEEES');
+SELECT to_number('1.2E+1+',  '99EEEES');
+SELECT to_number('1.2E+1-',  '99EEEEMI');
+SELECT to_number('1.2E+1 ',  '99EEEEMI');
+SELECT to_number('<1.2E+1>', '99EEEEPR');
+SELECT to_number(' 1.2E+1 ', '99EEEEPR');
+
+SELECT to_number('-12.34E+2', 'S00.99EEEE');
+SELECT to_number('-12.34E+2', 'S99.99EEEE');
+
+SELECT to_number('$1.2E+1-',  '$9.9EEEES');
+SELECT to_number('$1.2E+1+',  '$9.9EEEES');
+SELECT to_number('$1.2E+1-',  '$9.9EEEEMI');
+SELECT to_number('$1.2E+1 ',  '$9.9EEEEMI');
+SELECT to_number('<$1.2E+1>', '$9.9EEEEPR');
+# Oracle returns an error on ' $1.2E+1 '
+# but works with ' $1.2E+1' in the next
+# Looks like a bug in Oracle:
+SELECT to_number(' $1.2E+1 ', '$9.9EEEEPR');
+
+SELECT to_number('12.34E+2-', 'FM00.99EEEES');
+SELECT to_number('12.34E+2-', 'FM99.99EEEES');
+
+
+--echo #
+--echo # X formats (hexadecimal)
+--echo #
+
+--echo # X cannot co-exist with dollar, B, dec, group, signs, currency
+
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', '$X');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'BX');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'X,X');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'XGX');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'X.X');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'XCX');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'XLX');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'XUX');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'SX');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', '$X');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'CX');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'LX');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'UX');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'X$');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'XC');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'XL');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'XU');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'XMI');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'XPR');
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('0', 'XS');
+
+
+--echo #
+--echo # FM and X can co-exist
+--echo #
+
+SELECT to_number('F', 'FMXXXX');
+SELECT to_number('FF', 'FMXXXX');
+SELECT to_number('FFF', 'FMXXXX');
+SELECT to_number('FFFF', 'FMXXXX');
+
+
+--echo #
+--echo # X simple exaples
+--echo #
+
+SELECT to_number('0', 'X');
+SELECT to_number('20', 'XX');
+SELECT to_number('020', 'XXX');
+SELECT to_number('2020', 'XXXX');
+SELECT to_number('02020', 'XXXXX');
+SELECT to_number('202020', 'XXXXXX');
+SELECT to_number('202020', 'XXXXX');
+
+
+--echo #
+--echo # Zeros + xchain
+--echo #
+
+SELECT to_number('061', '00X');
+SELECT to_number('0061', '00XX');
+SELECT to_number('00061', '00XXX');
+SELECT to_number('000061', '00XXXX');
+SELECT to_number('0000061', '00XXXXX');
+SELECT to_number('00000061', '00XXXXXX');
+
+--echo #
+--echo # 0 vs X
+--echo #
+
+CREATE TABLE t1 (fmt VARCHAR(32));
+CREATE TABLE t2 (sbj VARCHAR(32));
+DELIMITER $$;
+FOR i IN 0..3 DO
+  INSERT INTO t1 VALUES (CONCAT(REPEAT('0',i), REPEAT('X',4-i)));
+END FOR;
+$$
+FOR i IN 0..4 DO
+  INSERT INTO t2 VALUES (REPEAT('1',i));
+END FOR;
+$$
+DELIMITER ;$$
+--disable_warnings
+SELECT fmt, sbj, to_number(sbj, fmt) AS c1 FROM t1, t2 ORDER BY fmt, sbj;
+--enable_warnings
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # Format TM is not supported by to_number(), only supported by to_char()
+--echo #
+
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'TM');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'TM9');
+--error ER_NOT_SUPPORTED_YET
+SELECT to_number('1', 'TME');

@@ -1,0 +1,39 @@
+include/master-slave.inc
+[connection master]
+connection master;
+set @old_binlog_cache_size= @@global.binlog_cache_size;
+set @@global.binlog_cache_size=4096;
+CALL mtr.add_suppression('Error writing file');
+#
+# Initialize test data
+connection master;
+create table t1 (a int, b longtext default NULL) engine=innodb;
+#
+# Create transaction with cache data larger than the binlog_cache_size
+# so it spills into a tmp file, then simulate ENOSPC while flushing
+# the tmp file.
+#
+set @@session.debug_dbug="+d,simulate_binlog_tmp_file_no_space_left_on_flush";
+insert into t1 values (2, repeat("y", 8192));
+ERROR HY000: Error writing file '.../tmp/<FILENAME>' (Errcode: 28 "No space left on device")
+set @@session.debug_dbug="";
+#
+# Create another transaction to make sure the server/replication can
+# continue working normally after the error
+#
+insert into t1 values (3, repeat("z", 8192));
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.t1,slave:test.t1]
+#
+# Cleanup
+connection master;
+drop table t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+connection master;
+set @@global.binlog_cache_size= @old_binlog_cache_size;
+include/rpl_end.inc
+# End of rpl_row_binlog_tmp_file_flush_enospc.test

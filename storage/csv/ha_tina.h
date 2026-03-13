@@ -130,7 +130,7 @@ public:
         (stats.records+stats.deleted) * ROW_NEXT_FIND_COST };
   }
   /* The next method will never be called */
-  virtual bool fast_key_read() { return 1;}
+  bool fast_key_read() { return 1;}
   /* 
     TODO: return actual upper bound of number of records in the table.
     (e.g. save number of records seen on full table scan and/or use file size

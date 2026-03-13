@@ -1,4 +1,3 @@
-drop table if exists t1;
 SET SQL_WARNINGS=1;
 create table t1 (this int unsigned);
 insert into t1 values (1);
@@ -14,6 +13,7 @@ this
 0
 4294967295
 drop table t1;
+# End of 4.1 tests
 create table t1 (a bigint unsigned, b mediumint unsigned);
 insert t1 values (1,2),(0xffffffffffffffff,0xffffff);
 select coalesce(a,b), coalesce(b,a) from t1;
@@ -33,9 +33,6 @@ a
 2
 16777215
 drop table t1, t2;
-#
-# Start of 10.0 tests
-#
 #
 # MDEV-6950 Bad results with joins comparing DATE and INT/ENUM/VARCHAR columns
 #
@@ -69,9 +66,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 Warnings:
 Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`a` of type `int unsigned` = "`t1`.`a`" of type `date`
 DROP TABLE t1,t2;
-#
 # End of 10.0 tests
-#
 #
 # MDEV-32203 Raise notes when an index cannot be used on data type mismatch
 #
@@ -230,10 +225,16 @@ Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: '2001-01-01 10:20:30'
 SELECT * FROM t1 WHERE indexed_col=DATE'2001-01-01';
 indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `bigint unsigned` = "DATE'2001-01-01'" of type `date`
 SELECT * FROM t1 WHERE indexed_col=TIME'10:20:30';
 indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `bigint unsigned` = "TIME'10:20:30'" of type `time`
 SELECT * FROM t1 WHERE indexed_col=TIMESTAMP'2001-01-01 10:20:30';
 indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `bigint unsigned` = "TIMESTAMP'2001-01-01 10:20:30'" of type `datetime`
 SELECT * FROM t1 WHERE indexed_col=0x00;
 indexed_col
 SELECT * FROM t1 WHERE indexed_col=_utf8mb3'0' COLLATE utf8mb3_bin;
@@ -325,3 +326,22 @@ Warning	1292	Truncated incorrect INTEGER value: '2001-01-02'
 DROP TABLE t2;
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+#
+# MDEV-38283 Incorrect results for NULLIF function
+#
+create table t1 (c1 int unsigned);
+insert t1 values (18);
+select nullif(cast(0 as datetime), c1) from t1;
+nullif(cast(0 as datetime), c1)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '18' for column `test`.`t1`.`c1` at row 1
+create table t2 (c2 bigint unsigned);
+insert t2 values (18);
+select nullif(cast(0 as datetime), c2) from t2;
+nullif(cast(0 as datetime), c2)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '18' for column `test`.`t2`.`c2` at row 1
+drop table t1, t2;
+# End of 10.11 tests

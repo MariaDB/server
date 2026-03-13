@@ -26,10 +26,12 @@ install_manifest*.txt
 CPackConfig.cmake
 CPackSourceConfig.cmake
 CTestTestfile.cmake
+mariadb-plugin-columnstore.install.generated
 Docs/INFO_BIN
 Docs/INFO_SRC
 Makefile
 TAGS
+mariadb-plugin-columnstore.install.generated
 Testing/
 tmp/
 VERSION.dep

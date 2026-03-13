@@ -48,8 +48,18 @@ enum opt_hints_enum
   JOIN_SUFFIX_HINT_ENUM,
   JOIN_ORDER_HINT_ENUM,
   JOIN_FIXED_ORDER_HINT_ENUM,
+  DERIVED_CONDITION_PUSHDOWN_HINT_ENUM,
+  MERGE_HINT_ENUM,
+  SPLIT_MATERIALIZED_HINT_ENUM,
+  INDEX_HINT_ENUM,
+  JOIN_INDEX_HINT_ENUM,
+  GROUP_INDEX_HINT_ENUM,
+  ORDER_INDEX_HINT_ENUM,
+  ROWID_FILTER_HINT_ENUM,
+  INDEX_MERGE_HINT_ENUM,
   MAX_HINT_ENUM // This one must be the last in the list
 };
+
 
 /**
   Environment data for the name resolution phase
@@ -60,6 +70,7 @@ struct Parse_context {
   st_select_lex * select;       ///< Current SELECT_LEX object
 
   Parse_context(THD *thd, st_select_lex *select);
+  Parse_context(Parse_context *pc, st_select_lex *select);
 };
 
 
@@ -112,7 +123,25 @@ public:
     keyword_JOIN_PREFIX,
     keyword_JOIN_SUFFIX,
     keyword_JOIN_ORDER,
-    keyword_JOIN_FIXED_ORDER
+    keyword_JOIN_FIXED_ORDER,
+    keyword_DERIVED_CONDITION_PUSHDOWN,
+    keyword_NO_DERIVED_CONDITION_PUSHDOWN,
+    keyword_MERGE,
+    keyword_NO_MERGE,
+    keyword_SPLIT_MATERIALIZED,
+    keyword_NO_SPLIT_MATERIALIZED,
+    keyword_INDEX,
+    keyword_NO_INDEX,
+    keyword_JOIN_INDEX,
+    keyword_NO_JOIN_INDEX,
+    keyword_GROUP_INDEX,
+    keyword_NO_GROUP_INDEX,
+    keyword_ORDER_INDEX,
+    keyword_NO_ORDER_INDEX,
+    keyword_ROWID_FILTER,
+    keyword_NO_ROWID_FILTER,
+    keyword_INDEX_MERGE,
+    keyword_NO_INDEX_MERGE
   };
 
   class Token: public Lex_cstring
@@ -268,41 +297,24 @@ private:
 
   // Rules consisting of a single token
 
-  class TokenAT: public TOKEN<Parser, TokenID::tAT>
-  {
-  public:
-    using TOKEN::TOKEN;
-  };
+  using TokenAT= TokenParser<Parser, TokenID::tAT>;
 
-  class TokenEOF: public TOKEN<Parser, TokenID::tEOF>
-  {
-  public:
-    using TOKEN::TOKEN;
-  };
+  using TokenEOF= TokenParser<Parser, TokenID::tEOF>;
 
-  class Keyword_QB_NAME: public TOKEN<Parser, TokenID::keyword_QB_NAME>
-  {
-  public:
-    using TOKEN::TOKEN;
-  };
+  using Keyword_QB_NAME= TokenParser<Parser, TokenID::keyword_QB_NAME>;
 
-  class Keyword_MAX_EXECUTION_TIME:
-      public TOKEN<Parser, TokenID::keyword_MAX_EXECUTION_TIME>
-  {
-  public:
-    using TOKEN::TOKEN;
-  };
+  using Keyword_MAX_EXECUTION_TIME=
+          TokenParser<Parser, TokenID::keyword_MAX_EXECUTION_TIME>;
 
-  class Keyword_SUBQUERY: public TOKEN<Parser, TokenID::keyword_SUBQUERY>
-  {
-  public:
-    using TOKEN::TOKEN;
-  };
+  using Keyword_SUBQUERY= TokenParser<Parser, TokenID::keyword_SUBQUERY>;
 
-  class Identifier: public TOKEN<Parser, TokenID::tIDENT>
+  class Identifier: public TokenParser<Parser, TokenID::tIDENT>
   {
   public:
-    using TOKEN::TOKEN;
+    using TokenParser::TokenParser;
+    Identifier(Token &&tok)
+     :TokenParser(std::move(tok))
+    { }
     Lex_ident_cli_st to_ident_cli() const
     {
       Lex_ident_cli_st cli;
@@ -317,10 +329,10 @@ private:
     }
   };
 
-  class Unsigned_Number: public TOKEN<Parser, TokenID::tUNSIGNED_NUMBER>
+  class Unsigned_Number: public TokenParser<Parser, TokenID::tUNSIGNED_NUMBER>
   {
   public:
-    using TOKEN::TOKEN;
+    using TokenParser::TokenParser;
 
     /*
       Converts token string to a non-negative number ( >=0 ).
@@ -339,17 +351,9 @@ private:
     }
   };
 
-  class LParen: public TOKEN<Parser, TokenID::tLPAREN>
-  {
-  public:
-    using TOKEN::TOKEN;
-  };
+  using LParen= TokenParser<Parser, TokenID::tLPAREN>;
 
-  class RParen: public TOKEN<Parser, TokenID::tRPAREN>
-  {
-  public:
-    using TOKEN::TOKEN;
-  };
+  using RParen= TokenParser<Parser, TokenID::tRPAREN>;
 
 
   // Rules consisting of multiple choices of tokens
@@ -363,7 +367,13 @@ private:
       return id == TokenID::keyword_BKA ||
              id == TokenID::keyword_BNL ||
              id == TokenID::keyword_NO_BKA ||
-             id == TokenID::keyword_NO_BNL;
+             id == TokenID::keyword_NO_BNL ||
+             id == TokenID::keyword_DERIVED_CONDITION_PUSHDOWN ||
+             id == TokenID::keyword_NO_DERIVED_CONDITION_PUSHDOWN ||
+             id == TokenID::keyword_MERGE ||
+             id == TokenID::keyword_NO_MERGE ||
+             id == TokenID::keyword_SPLIT_MATERIALIZED ||
+             id == TokenID::keyword_NO_SPLIT_MATERIALIZED;
     }
   };
   class Table_level_hint_type: public TokenChoice<Parser,
@@ -374,7 +384,11 @@ private:
   };
 
 
-  // index_level_hint_type ::= MRR | NO_RANGE_OPTIMIZATION | NO_ICP | NO_MRR
+  /*
+    index_level_hint_type ::= MRR | NO_RANGE_OPTIMIZATION | NO_ICP | NO_MRR |
+      INDEX | NO_INDEX | JOIN_INDEX | NO_JOIN_INDEX | ORDER_INDEX |
+      NO_ORDER_INDEX | GROUP_INDEX | NO_GROUP_INDEX
+  */
   class Index_level_hint_type_cond
   {
   public:
@@ -383,7 +397,19 @@ private:
       return id == TokenID::keyword_MRR ||
              id == TokenID::keyword_NO_RANGE_OPTIMIZATION ||
              id == TokenID::keyword_NO_ICP ||
-             id == TokenID::keyword_NO_MRR;
+             id == TokenID::keyword_NO_MRR ||
+             id == TokenID::keyword_INDEX ||
+             id == TokenID::keyword_NO_INDEX ||
+             id == TokenID::keyword_JOIN_INDEX ||
+             id == TokenID::keyword_NO_JOIN_INDEX ||
+             id == TokenID::keyword_ORDER_INDEX ||
+             id == TokenID::keyword_NO_ORDER_INDEX ||
+             id == TokenID::keyword_GROUP_INDEX ||
+             id == TokenID::keyword_NO_GROUP_INDEX ||
+             id == TokenID::keyword_ROWID_FILTER ||
+             id == TokenID::keyword_NO_ROWID_FILTER ||
+             id == TokenID::keyword_INDEX_MERGE ||
+             id == TokenID::keyword_NO_INDEX_MERGE;
     }
   };
   class Index_level_hint_type: public TokenChoice<Parser,
@@ -604,18 +630,28 @@ private:
     using AND2::AND2;
   };
 
-
+public:
   // index_level_hint ::= index_level_hint_type ( index_level_hint_body )
   class Index_level_hint: public AND4<Parser,
                                       Index_level_hint_type,
                                       LParen,
                                       Index_level_hint_body,
-                                      RParen>
+                                      RParen>,
+                           public Printable_parser_rule
   {
   public:
     using AND4::AND4;
-    
+
+    /*
+      If no index names are given, this is a table level hint, for example:
+      GROUP_INDEX(t1), NO_MRR(t2).
+      Otherwise this is an index-level hints:
+      NO_INDEX(t1 idx1, idx2) NO_ICP(t2 idx_a, idx_b, idx_c)
+    */
+    bool is_table_level_hint() const { return is_empty(); }
+
     bool resolve(Parse_context *pc) const;
+    void append_args(THD *thd, String *str) const override;
   };
 
 
@@ -650,6 +686,7 @@ public:
     ulonglong get_milliseconds() const;
   };
 
+private:
   // semijoin_hint_type ::= SEMIJOIN | NO_SEMIJOIN
   class Semijoin_hint_type_cond
   {

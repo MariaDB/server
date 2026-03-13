@@ -275,6 +275,7 @@ call mtr.add_suppression("InnoDB: Operating system error number .* in a file ope
 call mtr.add_suppression("InnoDB: Error number .* means");
 call mtr.add_suppression("InnoDB: Cannot create file");
 call mtr.add_suppression("InnoDB: Failed to create");
+call mtr.add_suppression("InnoDB: The file '.*test/FTS_[0-9a-f]*_BEING_DELETED\\.ibd' already exists");
 CREATE TABLE t1(a TEXT, FTS_DOC_ID BIGINT UNSIGNED NOT NULL UNIQUE) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FULLTEXT(a), ALGORITHM=INPLACE;
 ERROR HY000: Got error 11 "Resource temporarily unavailable" from storage engine InnoDB
@@ -334,3 +335,13 @@ ALTER TABLE t ADD FULLTEXT INDEX ft1(f1);
 ALTER TABLE t ADD FULLTEXT INDEX ft2(f2);
 INSERT INTO t (f1,f2,f3) VALUES ('bar','baz','qux');
 DROP TABLE t;
+#
+#  MDEV-31892 Server crash upon moving InnoDB table
+#	with fulltext index between databases
+#
+CREATE DATABASE db;
+CREATE TABLE db.t (pk INT PRIMARY KEY, c CHAR(120), FULLTEXT KEY(c)) ENGINE=InnoDB;
+INSERT INTO db.t VALUES (1,'foo'),(2,'bar');
+ALTER TABLE db.t FORCE, RENAME to test.t;
+DROP DATABASE db;
+DROP TABLE IF EXISTS test.t;

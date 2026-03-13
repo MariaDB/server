@@ -22,11 +22,6 @@
 
 source include/have_log_bin.inc;
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
-
 --echo '#--------------------FN_DYNVARS_063_01-------------------------#'
 ########################################################################
 #    Setting initial value of variable to 0 and verifying whether user
@@ -139,6 +134,7 @@ DROP FUNCTION f1;
 --echo ## Dropping table t1 & t2 ##
 DROP TABLE t1,t2;
 
+disconnect test_con1;
 disconnect test_con2;
 
 connection default;

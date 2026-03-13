@@ -6,10 +6,6 @@
 # TODO: remove this when P_S works with embedded.
 --source include/not_embedded.inc
 
-# make sure we're alone
-let $count_sessions= 1;
---source include/wait_until_count_sessions.inc
-
 # basic performance_schema.session_connect_attrs tests
 
 # check the presence of the pre-defined attributes
@@ -78,6 +74,3 @@ SELECT SUM(ISNULL(ATTR_VALUE)), COUNT(*)
 change_user root,,test;
 
 DROP USER wl5924@localhost;
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc

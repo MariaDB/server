@@ -51,6 +51,7 @@ send SET GLOBAL innodb_log_file_size=7340032;
 let $ignore= `SELECT @id := $ID`;
 KILL QUERY @id;
 --connection con1
+--error 0,ER_QUERY_INTERRUPTED
 reap;
 
 --connection default

@@ -211,3 +211,38 @@ set @trace=json_extract((select trace from information_schema.optimizer_trace), 
 select json_pretty(json_search(@trace, 'all', 'key1'));
 drop table t1;
 
+--echo #
+--echo # MDEV-37510: Crash in sel_arg_and_weight_heuristic
+--echo #
+SET @save_optimizer_trace=@@optimizer_trace;
+SET @save_optimizer_max_sel_arg_weight=@@optimizer_max_sel_arg_weight;
+
+SET optimizer_trace= 'enabled=on';
+SET optimizer_max_sel_arg_weight=1;
+
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(10), c3 VARCHAR(10));
+CREATE TABLE t2 (c1 INT, c2 VARCHAR(10), c3 VARCHAR(10));
+
+INSERT INTO t1 values (2, 'two', 'prime'), (3, 'three', 'prime');
+INSERT INTO t2 values (2, 'two', '2_table'), (4, 'four', '2_table');
+
+select * from
+t1
+JOIN
+(
+  SELECT c1, c2, c3 FROM t2
+  UNION
+  SELECT c1, c2, c3 FROM t2
+) dt1
+ON ((t1.c1 = dt1.c1 OR dt1.c1 IS NULL) AND
+    (t1.c2 = dt1.c2 OR dt1.c3 IS NULL));
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @json= json_detailed(json_extract(@trace, '$**.setup_range_conditions'));
+select left(@json, 2500);
+
+DROP TABLE t1, t2;
+
+SET optimizer_trace=@save_optimizer_trace;
+SET optimizer_max_sel_arg_weight=@save_optimizer_max_sel_arg_weight;
+--echo # end of 11.4 tests

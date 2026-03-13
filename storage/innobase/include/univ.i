@@ -151,8 +151,6 @@ using the call command. */
 #define UNIV_STATS_DEBUG			/* prints various stats
 						related debug info from
 						dict0stats.c */
-#define FTS_INTERNAL_DIAG_PRINT                 /* FTS internal debugging
-                                                info output */
 #endif
 
 // #define UNIV_SQL_DEBUG
@@ -481,6 +479,12 @@ extern mysql_pfs_key_t trx_pool_mutex_key;
 extern mysql_pfs_key_t trx_pool_manager_mutex_key;
 extern mysql_pfs_key_t lock_wait_mutex_key;
 extern mysql_pfs_key_t srv_threads_mutex_key;
+extern mysql_pfs_key_t fsp_active_binlog_mutex_key;
+extern mysql_pfs_key_t fsp_binlog_durable_mutex_key;
+extern mysql_pfs_key_t fsp_binlog_durable_cond_key;
+extern mysql_pfs_key_t fsp_purge_binlog_mutex_key;
+extern mysql_pfs_key_t fsp_page_fifo_mutex_key;
+extern mysql_pfs_key_t ibb_xid_hash_mutex_key;
 # endif /* UNIV_PFS_MUTEX */
 
 # ifdef UNIV_PFS_RWLOCK

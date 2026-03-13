@@ -110,7 +110,6 @@ while ($iter)
 	--let $_k = $k
   while ($k)
   {
-		--source include/count_sessions.inc
 		--connect(con$k,localhost,root,,)
     #
     # create XA events alternating gtid domains to run them in parallel on slave.
@@ -124,7 +123,6 @@ while ($iter)
 
 		--disconnect con$k
     --connection master
-    --source include/wait_until_count_sessions.inc
 
 		--dec $k
   }

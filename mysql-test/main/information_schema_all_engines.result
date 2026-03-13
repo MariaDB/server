@@ -68,6 +68,7 @@ TABLESPACES
 TABLE_CONSTRAINTS
 TABLE_PRIVILEGES
 TABLE_STATISTICS
+TRIGGERED_UPDATE_COLUMNS
 TRIGGERS
 USERS
 USER_PRIVILEGES
@@ -155,6 +156,7 @@ TABLESPACES	TABLESPACE_NAME
 TABLE_CONSTRAINTS	CONSTRAINT_SCHEMA
 TABLE_PRIVILEGES	TABLE_SCHEMA
 TABLE_STATISTICS	TABLE_SCHEMA
+TRIGGERED_UPDATE_COLUMNS	TRIGGER_SCHEMA
 TRIGGERS	TRIGGER_SCHEMA
 USERS	USER
 USER_PRIVILEGES	GRANTEE
@@ -242,6 +244,7 @@ TABLESPACES	TABLESPACE_NAME
 TABLE_CONSTRAINTS	CONSTRAINT_SCHEMA
 TABLE_PRIVILEGES	TABLE_SCHEMA
 TABLE_STATISTICS	TABLE_SCHEMA
+TRIGGERED_UPDATE_COLUMNS	TRIGGER_SCHEMA
 TRIGGERS	TRIGGER_SCHEMA
 USERS	USER
 USER_PRIVILEGES	GRANTEE
@@ -328,6 +331,7 @@ TABLESPACES	information_schema.TABLESPACES	1
 TABLE_CONSTRAINTS	information_schema.TABLE_CONSTRAINTS	1
 TABLE_PRIVILEGES	information_schema.TABLE_PRIVILEGES	1
 TABLE_STATISTICS	information_schema.TABLE_STATISTICS	1
+TRIGGERED_UPDATE_COLUMNS	information_schema.TRIGGERED_UPDATE_COLUMNS	1
 TRIGGERS	information_schema.TRIGGERS	1
 USERS	information_schema.USERS	1
 USER_PRIVILEGES	information_schema.USER_PRIVILEGES	1
@@ -405,6 +409,7 @@ Database: information_schema
 | TABLE_CONSTRAINTS                     |
 | TABLE_PRIVILEGES                      |
 | TABLE_STATISTICS                      |
+| TRIGGERED_UPDATE_COLUMNS              |
 | TRIGGERS                              |
 | USERS                                 |
 | USER_PRIVILEGES                       |
@@ -482,6 +487,7 @@ Database: INFORMATION_SCHEMA
 | TABLE_CONSTRAINTS                     |
 | TABLE_PRIVILEGES                      |
 | TABLE_STATISTICS                      |
+| TRIGGERED_UPDATE_COLUMNS              |
 | TRIGGERS                              |
 | USERS                                 |
 | USER_PRIVILEGES                       |
@@ -495,5 +501,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	72
+information_schema	73
 mysql	31

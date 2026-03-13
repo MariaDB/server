@@ -1,5 +1,3 @@
-drop tables if exists t1, t2;
-drop view if exists v1;
 delete from mysql.user where user like 'mysqltest\_%';
 delete from mysql.db where user like 'mysqltest\_%';
 delete from mysql.tables_priv where user like 'mysqltest\_%';
@@ -90,3 +88,4 @@ connection default;
 disconnect tzuser3;
 drop table t1;
 drop user mysqltest_1@localhost;
+# End of 5.0 tests

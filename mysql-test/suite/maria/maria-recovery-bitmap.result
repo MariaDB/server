@@ -58,5 +58,6 @@ ok
 connection default;
 use mysqltest;
 drop table t1;
+flush global status;
 drop database mysqltest_for_comparison;
 drop database mysqltest;

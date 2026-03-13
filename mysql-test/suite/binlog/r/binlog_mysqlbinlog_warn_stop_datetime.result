@@ -3,6 +3,7 @@ SET TIMESTAMP= UNIX_TIMESTAMP('2024-12-01 10:20:30.123456');
 # Clear the existing binary log state, and start fresh using
 # the timestamp variable set above
 #
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 create table t1 (a int);
 insert into t1 values (1);

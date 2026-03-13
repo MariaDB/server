@@ -1,0 +1,98 @@
+--source include/have_partition.inc
+--source include/not_embedded.inc
+--echo # MDEV-9826 better hash algorithms for PARTITION BY KEY
+
+--echo ## Test mysqldump
+
+let $outf=$MYSQLTEST_VARDIR/tmp/mdev_9826.sql;
+let $algo=;
+eval
+create table t1(c1 int, c2 date) partition by key $algo (c2) partitions 8;
+show create table t1;
+insert into t1 values
+(1, NULL),
+(1, '2014-04-22'),
+(1, '2014-04-23'),
+(1, '2014-04-24'),
+(1, '2014-04-25'),
+(1, '2014-04-26'),
+(1, '2014-04-27'),
+(1, '2014-04-28'),
+(1, '2014-04-29'),
+(1, '2014-04-30');
+exec $MYSQL_DUMP test t1 > $outf;
+drop table t1;
+exec $MYSQL test < $outf;
+remove_file $outf;
+select * from t1;
+show create table t1;
+drop table t1;
+
+let $algo=ALGORITHM=1;
+eval
+create table t1(c1 int, c2 date) partition by key $algo (c2) partitions 8;
+show create table t1;
+insert into t1 values
+(1, NULL),
+(1, '2014-04-22'),
+(1, '2014-04-23'),
+(1, '2014-04-24'),
+(1, '2014-04-25'),
+(1, '2014-04-26'),
+(1, '2014-04-27'),
+(1, '2014-04-28'),
+(1, '2014-04-29'),
+(1, '2014-04-30');
+exec $MYSQL_DUMP test t1 > $outf;
+drop table t1;
+exec $MYSQL test < $outf;
+remove_file $outf;
+select * from t1;
+show create table t1;
+drop table t1;
+
+let $algo=ALGORITHM=MYSQL55;
+eval
+create table t1(c1 int, c2 date) partition by key $algo (c2) partitions 8;
+show create table t1;
+insert into t1 values
+(1, NULL),
+(1, '2014-04-22'),
+(1, '2014-04-23'),
+(1, '2014-04-24'),
+(1, '2014-04-25'),
+(1, '2014-04-26'),
+(1, '2014-04-27'),
+(1, '2014-04-28'),
+(1, '2014-04-29'),
+(1, '2014-04-30');
+exec $MYSQL_DUMP test t1 > $outf;
+drop table t1;
+exec $MYSQL test < $outf;
+remove_file $outf;
+select * from t1;
+show create table t1;
+drop table t1;
+
+let $algo=ALGORITHM=XXH3;
+eval
+create table t1(c1 int, c2 date) partition by key $algo (c2) partitions 8;
+show create table t1;
+insert into t1 values
+(1, NULL),
+(1, '2014-04-22'),
+(1, '2014-04-23'),
+(1, '2014-04-24'),
+(1, '2014-04-25'),
+(1, '2014-04-26'),
+(1, '2014-04-27'),
+(1, '2014-04-28'),
+(1, '2014-04-29'),
+(1, '2014-04-30');
+exec $MYSQL_DUMP test t1 > $outf;
+drop table t1;
+exec $MYSQL test < $outf;
+remove_file $outf;
+select * from t1;
+show create table t1;
+drop table t1;

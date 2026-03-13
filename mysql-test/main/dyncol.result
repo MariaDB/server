@@ -1427,9 +1427,9 @@ SELECT
 column_get(column_create(1, -999999999999999 AS int), 1 AS TIME) AS t1,
 column_get(column_create(1, -9223372036854775808 AS int), 1 AS TIME) AS t2;
 t1	t2
--838:59:59	-838:59:59
+NULL	-838:59:59
 Warnings:
-Warning	1292	Truncated incorrect time value: '-999999999999999'
+Warning	1292	Incorrect time value: '-999999999999999'
 Warning	1292	Truncated incorrect time value: '-9223372036854775808'
 #
 # end of 5.3 tests

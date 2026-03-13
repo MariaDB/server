@@ -34,6 +34,8 @@ select pk1, count(*) from t2 group by pk1;
 --echo # The following should use range(ux_pk1_fd5), two key parts (key_len=5+8=13)
 EXPLAIN SELECT * FROM t2 USE INDEX(ux_pk1_fd5) WHERE pk1=9 AND fd5 < 500 ORDER BY fd5 DESC LIMIT 10;
 --echo # This also must use range, not ref. key_len must be 13
+--echo #   Note: this uses "Using where" instead of "Using index condition"
+--echo #         due to effect described in MDEV-38231
 EXPLAIN SELECT * FROM t2                       WHERE pk1=9 AND fd5 < 500 ORDER BY fd5 DESC LIMIT 10;
 
 drop table t2;

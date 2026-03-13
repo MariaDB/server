@@ -117,8 +117,9 @@ ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR blocked';
 BEGIN;
-SELECT * FROM mysql.innodb_table_stats FOR UPDATE;
-database_name	table_name	last_update	n_rows	clustered_index_size	sum_of_other_index_sizes
+SELECT database_name, table_name FROM mysql.innodb_table_stats FOR UPDATE;
+database_name	table_name
+test	t1
 SET DEBUG_SYNC='now SIGNAL go';
 connection con1;
 connection default;

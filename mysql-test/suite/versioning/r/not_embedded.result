@@ -65,9 +65,9 @@ Grants for mysqltest_1@localhost
 GRANT ALL PRIVILEGES ON *.* TO `mysqltest_1`@`localhost`
 GRANT DELETE HISTORY ON `mysqltest`.* TO `mysqltest_1`@`localhost`
 GRANT DELETE HISTORY ON `mysqltest`.`t` TO `mysqltest_1`@`localhost`
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
 disconnect root;
 connection default;
 #
@@ -87,7 +87,7 @@ connection default;
 set timestamp= unix_timestamp('2000-01-01 01:00:00');
 update t set a= a + 3;
 connection con1;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 1.0 sec exceeded
 disconnect con1;
 connection default;
 commit;

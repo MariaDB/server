@@ -1,0 +1,96 @@
+call mtr.add_suppression('failed to read private_key.pem: 2 "No such file or directory"');
+call mtr.add_suppression('Authentication requires either RSA keys or secure transport');
+
+if ($CLIENT_TLS_LIBRARY == "GnuTLS") {
+    skip Test requires client library, which is not built with GnuTLS;
+}
+
+source init.inc;
+
+query_vertical select * from information_schema.system_variables where variable_name like 'caching_sha2_password%' order by 1;
+
+--error ER_PASSWD_LENGTH
+create user test3@'%' identified via caching_sha2_password using 'pwd';
+--error ER_PASSWD_LENGTH
+create user test3@'%' identified via caching_sha2_password using '0000000000000000000000000000000000000000000000000000000000000000000000';
+
+replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error 2061;
+connect con1, localhost,test1,pwd,,,,TCP NOSSL;
+replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error 2061;
+connect con3, localhost,test1,wrong_pwd,,,,TCP NOSSL;
+connect con4, localhost,test2,,,,,TCP NOSSL;
+call checkme();
+disconnect con4;
+replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error ER_ACCESS_DENIED_ERROR;
+connect con5, localhost,test2 pwd,,,,,TCP NOSSL;
+
+connection default;
+
+let $restart_parameters= --caching_sha2_password-auto_generate_rsa_keys;
+source include/restart_mysqld.inc;
+select length(variable_value) from information_schema.global_status
+              where variable_name like 'caching_sha2_password%';
+let pubkey=`select variable_value from information_schema.global_status
+              where variable_name like 'caching_sha2_password%'`;
+
+let $restart_parameters= --caching_sha2_password-auto_generate_rsa_keys;
+source include/restart_mysqld.inc;
+evalp select variable_value="$pubkey" as 'key did not change'
+        from information_schema.global_status
+        where variable_name like 'caching_sha2_password%';
+
+
+# again, this time with keys
+connect con1, localhost,test1,pwd,,,,TCP NOSSL;
+call checkme();
+disconnect con1;
+connect con2, localhost,test1,pwd,,,,TCP NOSSL;
+call checkme();
+disconnect con2;
+replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error ER_ACCESS_DENIED_ERROR;
+connect con3, localhost,test1,wrong_pwd,,,,TCP NOSSL;
+connect con4, localhost,test2,,,,,TCP NOSSL;
+call checkme();
+disconnect con4;
+replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error ER_ACCESS_DENIED_ERROR;
+connect con5, localhost,test2 pwd,,,,,TCP NOSSL;
+connection default;
+
+#
+# Compatibility with MySQL password hashes
+#
+create user u1@localhost identified via caching_sha2_password using '$A$005$5dx;X)z |kX]\ZNx7QTrl0oTy2C0/f4bggQMFIDnSDeZ7koLoO417jc9D';
+create user u2@localhost identified via caching_sha2_password using '$A$005$dL\Zq]<7d[YAbk}x!;^.qMuuUUBmB5aF7x7GsAKZzpb24p94NCCs8qPgwAvwc1';
+create user u3@localhost identified via caching_sha2_password using '$A$005$L9\ZKiwT''=%dMoqrPGFbywI9G8NecJqiy9D04S2abTLRvD32powG8nIxI9';
+
+grant execute on test.* to u1@localhost, u2@localhost, u3@localhost;
+
+connect u1,localhost,u1,abcd,,,,TCP NOSSL;
+call checkme();
+disconnect u1;
+connect u2,localhost,u2,efghi,,,,TCP NOSSL;
+call checkme();
+disconnect u2;
+connect u3,localhost,u3,xyz,,,,TCP NOSSL;
+call checkme();
+disconnect u3;
+
+# cleanup
+connection default;
+
+drop user u1@localhost;
+drop user u2@localhost;
+drop user u3@localhost;
+
+let datadir=`select @@datadir`;
+remove_file $datadir/private_key.pem;
+remove_file $datadir/public_key.pem;
+let $restart_parameters=;
+source include/restart_mysqld.inc;
+show status like 'caching_sha2_password%';
+source fini.inc;

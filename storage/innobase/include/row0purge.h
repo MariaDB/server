@@ -83,6 +83,8 @@ struct purge_node_t
   dtuple_t *row;
   /** nullptr, or the next index of table whose record should be handled */
   dict_index_t *index;
+  /** dummy transaction associated with current_thd */
+  trx_t *trx;
   /** memory heap used as auxiliary storage; must be emptied between rows */
   mem_heap_t *heap;
   /** persistent cursor to the clustered index record */

@@ -2292,22 +2292,6 @@ drop function func_1;
 drop procedure proc_1;
 prepare abc from "flush master";
 deallocate prepare abc;
-create procedure proc_1() flush des_key_file;
-call proc_1();
-call proc_1();
-call proc_1();
-create function func_1() returns int begin flush des_key_file; return 1; end|
-ERROR 0A000: FLUSH is not allowed in stored function or trigger
-create function func_1() returns int begin call proc_1(); return 1; end|
-select func_1(), func_1(), func_1() from dual;
-ERROR 0A000: FLUSH is not allowed in stored function or trigger
-drop function func_1;
-drop procedure proc_1;
-prepare abc from "flush des_key_file";
-execute abc;
-execute abc;
-execute abc;
-deallocate prepare abc;
 create procedure proc_1() flush user_resources;
 call proc_1();
 call proc_1();
@@ -5538,13 +5522,13 @@ EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 F
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
-Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where 0)
+Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where multiple equal(NULL, NULL, `test`.`a21`.`c2`))
 PREPARE stmt FROM "EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 )";
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
-Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where 0)
+Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where multiple equal(NULL, NULL, `test`.`a21`.`c2`))
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, t2, t3;
 #
@@ -6018,6 +6002,18 @@ a	b	c
 1	1970-01-01 09:00:01	6
 DROP TABLE t;
 # End of 10.6 tests
+# Beginning of 10.11 test
+#
+# MDEV-30277: Assertion failure in Diagnostics_area::set_error_status
+# / Reprepare_observer::report_error
+#
+CREATE TABLE t (a INT);
+PREPARE stmt FROM " DELETE FROM t LIMIT ?";
+ALTER TABLE t FORCE;
+EXECUTE stmt USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP TABLE t;
+# End of 10.11 test
 #
 # MDEV-34322: ASAN heap-buffer-overflow in Field::is_null / Item_param::assign_default or bogus ER_BAD_NULL_ERROR
 #
@@ -6103,6 +6099,17 @@ a	?	?
 1	700	900
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
+#
+# MDEV-38620: Server crashes in setup_returning_fields upon 2nd
+# execution of multi-table-styled DELETE from a view
+#
+CREATE TABLE t (a INT);
+CREATE VIEW v AS SELECT * FROM t;
+PREPARE stmt FROM "DELETE v FROM v";
+EXECUTE stmt;
+EXECUTE stmt;
+DROP VIEW v;
+DROP TABLE t;
 # End of 11.4 tests
 #
 # MDEV-25008 Delete query gets stuck on mariadb , same query works on MySQL 8.0.21

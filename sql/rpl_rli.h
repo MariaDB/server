@@ -17,6 +17,7 @@
 #ifndef RPL_RLI_H
 #define RPL_RLI_H
 
+#include "rpl_relay_log_info_file.h"
 #include "rpl_tblmap.h"
 #include "rpl_reporting.h"
 #include "rpl_utility.h"
@@ -59,7 +60,8 @@ class Rpl_filter;
 struct rpl_group_info;
 struct inuse_relaylog;
 
-class Relay_log_info : public Slave_reporting_capability
+class Relay_log_info:
+  public Relay_log_info_file, public Slave_reporting_capability
 {
 public:
   /**
@@ -138,7 +140,7 @@ public:
   /* The following variables are safe to read any time */
 
   /* IO_CACHE of the info file - set only during init or end */
-  IO_CACHE info_file;
+  IO_CACHE &info_file= Info_file::file;
 
   /*
     List of temporary tables used by this connection.
@@ -209,8 +211,8 @@ public:
     !belongs_to_client(); client thread executing BINLOG statement if
     belongs_to_client()).
   */
-  char group_relay_log_name[FN_REFLEN];
-  ulonglong group_relay_log_pos;
+  char (&group_relay_log_name)[FN_REFLEN]= relay_log_file.buf;
+  my_off_t &group_relay_log_pos= relay_log_pos.value;
   char event_relay_log_name[FN_REFLEN];
   ulonglong event_relay_log_pos;
   ulonglong future_event_relay_log_pos;
@@ -231,8 +233,8 @@ public:
     !belongs_to_client(); client thread executing BINLOG statement if
     belongs_to_client()).
   */
-  char group_master_log_name[FN_REFLEN];
-  volatile my_off_t group_master_log_pos;
+  char (&group_master_log_name)[FN_REFLEN]= read_master_log_file.buf;
+  my_off_t &group_master_log_pos= read_master_log_pos.value;
 
   /*
     Handling of the relay_log_space_limit optional constraint.
@@ -259,7 +261,7 @@ public:
   bool sql_thread_caught_up;
   /**
     Simple setter for @ref worker_threads_caught_up;
-    sets it `false` to to indicate new user events in queue
+    sets it `false` to indicate new user events in queue
     @pre @ref data_lock held to prevent race with is_threads_caught_up()
   */
   inline void unset_worker_threads_caught_up()
@@ -587,7 +589,7 @@ private:
     slave SQL thread is running, since the SQL thread reads it without
     a lock when executing Relay_log_info::flush().
   */
-  int sql_delay;
+  uint32_t &sql_delay= Relay_log_info_file::sql_delay.value;
 
   /**
     During a delay, specifies the point in time when the delay ends.
@@ -950,6 +952,16 @@ struct rpl_group_info
   Query_log_event *start_alter_ev;
   bool direct_commit_alter;
   start_alter_info *sa_info;
+  bool is_new_trans;                 // marker of start_new_trans context
+
+  /*
+    Use the scope of an RGI to re-assemble partial row log events into the
+    original rows log event. That is, the re-assembly and execution of a row
+    event happens happens in Partial_rows_log_event::do_apply_event(), so then
+    regardless of if the slave is running on parallel or serial mode, the
+    logic remains the same.
+  */
+  Rows_log_event_assembler *assembler;
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
@@ -1016,6 +1028,15 @@ struct rpl_group_info
     }
   }
 
+  RPL_TABLE_LIST *get_table_data(TABLE *table_arg)
+  {
+    for (RPL_TABLE_LIST *ptr= tables_to_lock ; ptr ;
+         ptr= (RPL_TABLE_LIST*) ptr->next_global)
+      if (ptr->table == table_arg)
+        return ptr;
+    return (RPL_TABLE_LIST*) 0;
+  }
+
   void clear_tables_to_lock();
   void cleanup_context(THD *, bool, bool keep_domain_owner= false);
   void slave_close_thread_tables(THD *);
@@ -1074,6 +1095,30 @@ struct rpl_group_info
   }
 
 };
+
+/**
+  The function
+  @return true    when the slave applier context is normal
+          false   when either no slave applier around or
+                  the applier is executing start_new_trans
+ */
+inline bool not_new_trans(rpl_group_info* rgi)
+{
+  return rgi && !rgi->is_new_trans;
+}
+/**
+  The following functions for start_new_trans' ctor and dtor.
+*/
+inline void mark_in_new_trans(rpl_group_info* rgi)
+{
+  if (rgi)
+    rgi->is_new_trans= true;
+}
+inline void unmark_in_new_trans(rpl_group_info* rgi)
+{
+  if (rgi)
+    rgi->is_new_trans= false;
+}
 
 
 /*

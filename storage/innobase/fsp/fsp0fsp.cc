@@ -1055,8 +1055,8 @@ fsp_alloc_from_free_frag(buf_block_t *header, buf_block_t *xdes, xdes_t *descr,
 @param[in]	offset		page number of the allocated page
 @param[in,out]	mtr		mini-transaction
 @return block, initialized */
-static buf_block_t* fsp_page_create(fil_space_t *space, uint32_t offset,
-                                    mtr_t *mtr) noexcept
+buf_block_t* fsp_page_create(fil_space_t *space, uint32_t offset,
+                             mtr_t *mtr) noexcept
 {
   buf_block_t *free_block= buf_LRU_get_free_block(have_no_mutex),
     *block= buf_page_create(space, offset, space->zip_size(), mtr, free_block);
@@ -1685,8 +1685,7 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr, dberr_t *err,
 {
 	fseg_inode_t*	inode;
 	ib_id_t		seg_id;
-	uint32_t	n_reserved;
-	bool		reserved_extent = false;
+	uint32_t	n_reserved = 0;
 
 	DBUG_ENTER("fseg_create");
 
@@ -1713,16 +1712,16 @@ inode_alloc:
 	if (!inode) {
 		block = nullptr;
 reserve_extent:
-		if (!has_done_reservation && !reserved_extent) {
+		if (!has_done_reservation && !n_reserved) {
 			*err = fsp_reserve_free_extents(&n_reserved, space, 2,
 							FSP_NORMAL, mtr);
 			if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 				DBUG_RETURN(nullptr);
 			}
 
+			ut_ad(n_reserved > 0);
 			/* Extents reserved successfully. So
 			try allocating the page or inode */
-			reserved_extent = true;
 			if (inode) {
 				goto page_alloc;
 			}
@@ -1792,7 +1791,8 @@ page_alloc:
 				       + block->page.frame, space->id);
 
 funct_exit:
-	if (!has_done_reservation && reserved_extent) {
+	if (n_reserved) {
+		ut_ad(!has_done_reservation);
 		space->release_free_extents(n_reserved);
 	}
 
@@ -2176,8 +2176,6 @@ take_hinted_page:
 		buf_block_t* block = fsp_alloc_free_page(
 			space, hint, mtr, init_mtr, err);
 
-		ut_ad(block || !has_done_reservation || *err);
-
 		if (block) {
 			/* Put the page in the fragment page array of the
 			segment */
@@ -2190,6 +2188,8 @@ take_hinted_page:
 			fseg_set_nth_frag_page_no(
 				seg_inode, iblock, n,
 				block->page.id().page_no(), mtr);
+		} else {
+			ut_ad(*err != DB_SUCCESS);
 		}
 
 		/* fsp_alloc_free_page() invoked fsp_init_file_page()
@@ -2546,7 +2546,7 @@ fseg_free_page_low(
 #ifdef BTR_CUR_HASH_ADAPT
 	if (ahi) {
 		btr_search_drop_page_hash_when_freed(
-			page_id_t(space->id, offset));
+			mtr, page_id_t(space->id, offset));
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -2672,27 +2672,28 @@ dberr_t fseg_free_page(fseg_header_t *seg_header, fil_space_t *space,
 }
 
 /** Determine whether a page is allocated.
+@param mtr     mini-transaction
 @param space   tablespace
 @param page    page number
 @return error code
 @retval DB_SUCCESS             if the page is marked as free
 @retval DB_SUCCESS_LOCKED_REC  if the page is marked as allocated */
-dberr_t fseg_page_is_allocated(fil_space_t *space, unsigned page)
+dberr_t fseg_page_is_allocated(mtr_t *mtr, fil_space_t *space, unsigned page)
+  noexcept
 {
-  mtr_t mtr;
   uint32_t dpage= xdes_calc_descriptor_page(space->zip_size(), page);
   const unsigned zip_size= space->zip_size();
   dberr_t err= DB_SUCCESS;
+  const auto sp= mtr->get_savepoint();
 
-  mtr.start();
   if (!space->is_owner())
-    mtr.x_lock_space(space);
+    mtr->x_lock_space(space);
 
   if (page >= space->free_limit || page >= space->size_in_header);
   else if (const buf_block_t *b=
            buf_page_get_gen(page_id_t(space->id, dpage), space->zip_size(),
                             RW_S_LATCH, nullptr, BUF_GET_POSSIBLY_FREED,
-                            &mtr, &err))
+                            mtr, &err))
   {
     if (!dpage &&
         (space->free_limit !=
@@ -2709,7 +2710,7 @@ dberr_t fseg_page_is_allocated(fil_space_t *space, unsigned page)
         : DB_SUCCESS_LOCKED_REC;
   }
 
-  mtr.commit();
+  mtr->rollback_to_savepoint(sp);
   return err;
 }
 
@@ -2762,6 +2763,7 @@ fseg_free_extent(
 				if the page is found in the pool and
 				is hashed */
 				btr_search_drop_page_hash_when_freed(
+					mtr,
 					page_id_t(space->id,
 						 first_page_in_extent + i));
 			}
@@ -3615,7 +3617,7 @@ public:
   dberr_t get_unused(uint16_t boffset, inode_info *unused) const
   {
     dberr_t err= DB_SUCCESS;
-    buf_block_t *block= buf_pool.page_fix(page_id_t{0, 0}, &err,
+    buf_block_t *block= buf_pool.page_fix(page_id_t{0, 0}, &err, nullptr,
                                           buf_pool_t::FIX_WAIT_READ);
     if (!block)
       return err;
@@ -3633,7 +3635,7 @@ public:
         break;
       }
 
-      block= buf_pool.page_fix(page_id_t{0, addr.page}, &err,
+      block= buf_pool.page_fix(page_id_t{0, addr.page}, &err, nullptr,
                                buf_pool_t::FIX_WAIT_READ);
       if (!block)
         break;
@@ -3693,7 +3695,7 @@ static dberr_t fsp_table_inodes_root(inode_info *inodes, uint32_t root)
     return DB_SUCCESS;
 
   dberr_t err= DB_SUCCESS;
-  buf_block_t *block= buf_pool.page_fix(page_id_t{0, root}, &err,
+  buf_block_t *block= buf_pool.page_fix(page_id_t{0, root}, &err, nullptr,
                                         buf_pool_t::FIX_WAIT_READ);
   if (!block)
     return err;
@@ -3780,7 +3782,7 @@ static dberr_t fsp_get_sys_used_segment(inode_info *inodes, mtr_t *mtr)
   buf_block_t *block= nullptr;
   /* Get TRX_SYS_FSEG_HEADER, TRX_SYS_DOUBLEWRITE_FSEG from
   TRX_SYS_PAGE */
-  block= buf_pool.page_fix(page_id_t{0, TRX_SYS_PAGE_NO}, &err,
+  block= buf_pool.page_fix(page_id_t{0, TRX_SYS_PAGE_NO}, &err, nullptr,
                            buf_pool_t::FIX_WAIT_READ);
   if (!block)
     return err;
@@ -3804,7 +3806,7 @@ static dberr_t fsp_get_sys_used_segment(inode_info *inodes, mtr_t *mtr)
   if (err)
     return err;
 
-  block= buf_pool.page_fix(page_id_t{0, DICT_HDR_PAGE_NO}, &err,
+  block= buf_pool.page_fix(page_id_t{0, DICT_HDR_PAGE_NO}, &err, nullptr,
                            buf_pool_t::FIX_WAIT_READ);
   if (!block)
     return err;
@@ -3818,7 +3820,7 @@ static dberr_t fsp_get_sys_used_segment(inode_info *inodes, mtr_t *mtr)
     return err;
 
   block= buf_pool.page_fix(page_id_t{0, FSP_IBUF_HEADER_PAGE_NO},
-                           &err, buf_pool_t::FIX_WAIT_READ);
+                           &err, nullptr, buf_pool_t::FIX_WAIT_READ);
   if (!block)
     return err;
   if (!inodes->insert_seg(block->page.frame + PAGE_DATA))
@@ -3834,7 +3836,7 @@ static dberr_t fsp_get_sys_used_segment(inode_info *inodes, mtr_t *mtr)
     if (rseg->space->id == 0)
     {
       block= buf_pool.page_fix(rseg->page_id(), &err,
-                               buf_pool_t::FIX_WAIT_READ);
+                               nullptr, buf_pool_t::FIX_WAIT_READ);
       if (!block)
         break;
       if (!inodes->insert_seg(block->page.frame + TRX_RSEG +
@@ -3857,7 +3859,7 @@ static dberr_t fseg_inode_free(uint32_t page_no, uint16_t offset)
 {
   fil_space_t *space= fil_system.sys_space;
   dberr_t err= DB_SUCCESS;
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   mtr.x_lock_space(space);
   buf_block_t *iblock= buf_page_get_gen(page_id_t{0, page_no}, 0,
@@ -3950,7 +3952,7 @@ dberr_t fil_space_t::garbage_collect(bool shutdown)
 
   ut_a(id == 0);
   /* Collect all the used segment inode entries */
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   inode_info used_inodes, unused_inodes;
   dberr_t err= fsp_get_sys_used_segment(&used_inodes, &mtr);
@@ -4272,7 +4274,7 @@ static dberr_t fseg_validate(fil_space_t *space,
                              dict_index_t *index) noexcept
 {
   /* Validate all FSP list in system tablespace */
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   dberr_t err= fseg_validate_low(space, index, &mtr);
   mtr.commit();
@@ -5240,7 +5242,7 @@ class SpaceDefragmenter final
   /** Collect the extent information from tablespace */
   dberr_t extract_extent_state() noexcept
   {
-    mtr_t mtr;
+    mtr_t mtr{nullptr};
     dberr_t err= DB_SUCCESS;
     uint32_t last_descr_page_no= 0;
     fil_space_t *space= fil_system.sys_space;
@@ -5654,7 +5656,7 @@ err_exit:
 
 dberr_t IndexDefragmenter::defragment(SpaceDefragmenter *space_defrag) noexcept
 {
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   dberr_t err= DB_SUCCESS;
   m_index.lock.x_lock(SRW_LOCK_CALL);
@@ -5694,7 +5696,7 @@ dberr_t IndexDefragmenter::defragment(SpaceDefragmenter *space_defrag) noexcept
 @retval DB_CORRUPTION if any error encountered */
 static dberr_t user_tables_exists() noexcept
 {
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   btr_pcur_t pcur;
   dberr_t err= DB_SUCCESS;
   mtr.start();
@@ -5721,6 +5723,14 @@ corrupt:
       goto corrupt;
     if (!dict_sys.is_sys_table(mach_read_from_8(field)))
     {
+      const byte *name_field = rec_get_nth_field_old(
+        rec, DICT_FLD__SYS_TABLES__NAME, &len);
+      if (len != UNIV_SQL_NULL && len > 0)
+      {
+        sql_print_information(
+          "InnoDB: Found unexpected table in system tablespace: %.*s",
+          (int)len, (const char *)name_field);
+      }
       err= DB_SUCCESS_LOCKED_REC;
       btr_pcur_close(&pcur);
       goto func_exit;
@@ -5738,7 +5748,7 @@ dberr_t fil_space_t::defragment() noexcept
   if (err == DB_SUCCESS_LOCKED_REC)
   {
     sql_print_information(
-      "InnoDB: User table exists in the system tablespace."
+      "InnoDB: Unexpected table exists in the system tablespace."
       "Please try to move the data from system tablespace "
       "to separate tablespace before defragment the "
       "system tablespace.");
@@ -5779,7 +5789,7 @@ void fsp_system_tablespace_truncate(bool shutdown)
     }
   }
 
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   mtr.x_lock_space(space);
   err= fsp_traverse_extents(space, &last_used_extent, &mtr);
@@ -5932,7 +5942,7 @@ void fsp_shrink_temp_space()
 {
   uint32_t last_used_extent= 0;
   fil_space_t *space= fil_system.temp_space;
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   mtr.set_log_mode(MTR_LOG_NO_REDO);
   mtr.x_lock_space(space);

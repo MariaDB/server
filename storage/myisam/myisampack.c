@@ -250,9 +250,6 @@ int main(int argc, char **argv)
   free_defaults(default_argv);
   my_end(verbose ? MY_CHECK_ERROR | MY_GIVE_INFO : MY_CHECK_ERROR);
   exit(error ? 2 : 0);
-#ifndef _lint
-  return 0;					/* No compiler warning */
-#endif
 }
 
 enum options_mp {OPT_CHARSETS_DIR_MP=256};

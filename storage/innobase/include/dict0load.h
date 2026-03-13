@@ -61,14 +61,19 @@ dict_load_table_on_id(
 	table_id_t		table_id,	/*!< in: table id */
 	dict_err_ignore_t	ignore_err);	/*!< in: errors to ignore
 						when loading the table */
-/********************************************************************//**
-This function is called when the database is booted.
-Loads system table index definitions except for the clustered index which
-is added to the dictionary cache at booting before calling this function. */
-void
-dict_load_sys_table(
-/*================*/
-	dict_table_t*	table);	/*!< in: system table */
+/** Load definitions for table indexes. Adds them to the data dictionary cache.
+@param mtr         mini-transaction
+@param table       table definition
+@param uncommitted false=READ COMMITTED, true=READ UNCOMMITTED
+@param heap        memory heap for temporary storage
+@param ignore_err  errors to be ignored when loading the index definition
+@return error code
+@retval DB_SUCCESS if all indexes were successfully loaded
+@retval DB_CORRUPTION if corruption of dictionary table
+@retval DB_UNSUPPORTED if table has unknown index type */
+MY_ATTRIBUTE((nonnull))
+dberr_t dict_load_indexes(mtr_t *mtr, dict_table_t *table, bool uncommitted,
+                          mem_heap_t *heap, dict_err_ignore_t ignore_err);
 /***********************************************************************//**
 Loads foreign key constraints where the table is either the foreign key
 holder or where the table is referenced by a foreign key. Adds these
@@ -82,6 +87,7 @@ cache, then it is added to the output parameter (fk_tables).
 dberr_t
 dict_load_foreigns(
 /*===============*/
+	mtr_t&			mtr,		/*!< in/out: mini-transaction*/
 	const char*		table_name,	/*!< in: table name */
 	const char**		col_names,	/*!< in: column names, or NULL
 						to use table->col_names */
@@ -96,7 +102,7 @@ dict_load_foreigns(
 						which must be loaded
 						subsequently to load all the
 						foreign key constraints. */
-	MY_ATTRIBUTE((nonnull(1)));
+	MY_ATTRIBUTE((nonnull(2)));
 
 /********************************************************************//**
 This function opens a system table, and return the first record.

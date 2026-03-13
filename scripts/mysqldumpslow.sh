@@ -50,9 +50,21 @@ GetOptions(\%opt,
     'h=s',	# hostname/basename of db server for *-slow.log filename (can be wildcard)
     'i=s',	# name of server instance (if using mysql.server startup script)
     'l!',	# don't subtract lock time from total time
+    'json|j!', # print as a JSON-formatted string
 ) or usage("bad option");
 
 $opt{'help'} and usage();
+
+# check if JSON module is available
+if ($opt{json}) {
+    eval {
+        require JSON;
+        JSON->import();
+        1;
+    } or do {
+        die "JSON module not found. Please install the JSON module to use --json option.\n";
+    };
+}
 
 unless (@ARGV) {
     my $defaults   = `my_print_defaults --mysqld`;
@@ -99,14 +111,16 @@ warn "\nReading mysql slow query log from @ARGV\n";
 my @pending;
 my %stmt;
 $/ = ";\n#";		# read entire statements using paragraph mode
-while ( defined($_ = shift @pending) or defined($_ = <>) ) {
+while (<>) {
     warn "[[$_]]\n" if $opt{d};	# show raw paragraph being read
 
-    my @chunks = split /^\/.*Version.*started with[\000-\377]*?Time.*Id.*Command.*Argument.*\n/m;
-    if (@chunks > 1) {
-	unshift @pending, map { length($_) ? $_ : () } @chunks;
-	warn "<<".join(">>\n<<",@chunks).">>" if $opt{d};
-	next;
+    # remove fluff that mysqld writes to log when it (re)starts:
+    s!^.*Version.*started with:.*\n!!mg;
+    s!^Tcp port: \d+  Unix socket: \S+\n!!mg;
+    s!^Time.*Id.*Command.*Argument.*\n!!mg;
+    # if there is only header info, skip
+    if ($_ eq '') {
+        next;
     }
 
     s/^#? Time: \d{6}\s+\d+:\d+:\d+.*\n//;
@@ -120,18 +134,13 @@ while ( defined($_ = shift @pending) or defined($_ = <>) ) {
 
     $t -= $l unless $opt{l};
 
-    # remove fluff that mysqld writes to log when it (re)starts:
-    s!^/.*Version.*started with:.*\n!!mg;
-    s!^Tcp port: \d+  Unix socket: \S+\n!!mg;
-    s!^Time.*Id.*Command.*Argument.*\n!!mg;
-
     # Remove optimizer info
     s!^# QC_Hit: \S+\s+Full_scan: \S+\s+Full_join: \S+\s+Tmp_table: \S+\s+Tmp_table_on_disk: \S+[^\n]+\n!!mg;
     s!^# Filesort: \S+\s+Filesort_on_disk: \S+[^\n]+\n!!mg;
     s!^# Full_scan: \S+\s+Full_join: \S+[^\n]+\n!!mg;
 
-    s/^use \w+;\n//;	# not consistently added
-    s/^SET timestamp=\d+;\n//;
+    s!^SET timestamp=\d+;\n!!m; # remove the redundant timestamp that is always added to each query
+    s!^use \w+;\n!!m; # not consistently added
 
     s/^[ 	]*\n//mg;	# delete blank lines
     s/^[ 	]*/  /mg;	# normalize leading whitespace
@@ -181,15 +190,86 @@ my @sorted = sort { $stmt{$b}->{$opt{s}} <=> $stmt{$a}->{$opt{s}} } keys %stmt;
 @sorted = @sorted[0 .. $opt{t}-1] if $opt{t};
 @sorted = reverse @sorted         if $opt{r};
 
-foreach (@sorted) {
-    my $v = $stmt{$_} || die;
-    my ($c, $t, $at, $l, $al, $r, $ar, $e, $ae, $a, $aa) = @{ $v }{qw(c t at l al r ar e ae a aa)};
-    my @users = keys %{$v->{users}};
-    my $user  = (@users==1) ? $users[0] : sprintf "%dusers",scalar @users;
-    my @hosts = keys %{$v->{hosts}};
-    my $host  = (@hosts==1) ? $hosts[0] : sprintf "%dhosts",scalar @hosts;
-    printf "Count: %d  Time=%.2fs (%ds)  Lock=%.2fs (%ds)  Rows_sent=%.1f (%d), Rows_examined=%.1f (%d), Rows_affected=%.1f (%d), $user\@$host\n%s\n\n",
-	    $c, $at,$t, $al,$l, $ar,$r, $ae, $e, $aa, $a, $_;
+if(!$opt{json}) {
+    foreach (@sorted) {
+        my $v = $stmt{$_} || die;
+        my ($c, $t, $at, $l, $al, $r, $ar, $e, $ae, $a, $aa) = @{ $v }{qw(c t at l al r ar e ae a aa)};
+        my @users = keys %{$v->{users}};
+        my $user  = (@users==1) ? $users[0] : sprintf "%dusers",scalar @users;
+        my @hosts = keys %{$v->{hosts}};
+        my $host  = (@hosts==1) ? $hosts[0] : sprintf "%dhosts",scalar @hosts;
+        printf "Count: %d  Time=%.2fs (%ds)  Lock=%.2fs (%ds)  Rows_sent=%.1f (%d), Rows_examined=%.1f (%d), Rows_affected=%.1f (%d), $user\@$host\n%s\n\n",
+            $c, $at,$t, $al,$l, $ar,$r, $ae, $e, $aa, $a, $_;
+    }
+} else {
+    my @json_output;
+    foreach (@sorted) {
+        my $v = $stmt{$_} || die;
+        my ($c, $t, $at, $l, $al, $r, $ar, $e, $ae, $a, $aa) = @{ $v }{qw(c t at l al r ar e ae a aa)};
+        my @users = keys %{$v->{users}};
+        my $user  = (@users==1) ? $users[0] : sprintf "%dusers",scalar @users;
+        my @hosts = keys %{$v->{hosts}};
+        my $host  = (@hosts==1) ? $hosts[0] : sprintf "%dhosts",scalar @hosts;
+
+        # parse the engine data
+        my %engine;
+        if ($_ =~ /^\s*#\s*Pages_accessed:\s*(\S+)\s+Pages_read:\s*(\S+)\s+Pages_prefetched:\s*(\S+)\s+Pages_updated:\s*(\S+)\s+Old_rows_read:\s*(\S+)/m) {
+            @engine{qw(Pages_accessed Pages_read Pages_prefetched Pages_updated Old_rows_read)} = ($1, $2, $3, $4, $5);
+        }
+        if ($_ =~ /^\s*#\s*Pages_read_time:\s*(\S+)\s+Engine_time:\s*(\S+)/m) {
+            @engine{qw(Pages_read_time Engine_time)} = ($1, $2);
+        }
+        # convert engine data to numbers
+        map { $engine{$_} += 0 } keys %engine if $opt{a};
+
+        # build a structured explain output
+        my @explain_lines = ($_ =~ /^\s*# explain: (.+)$/mg);
+        my $explain;
+        if (@explain_lines >= 2) {
+            my @headers = split /\s+/, shift @explain_lines;
+            $explain = [
+                map {
+                    my @values = split /\s+/, $_;
+                    my %row;
+                    @row{@headers} = @values;
+                    \%row;
+                } @explain_lines
+            ];
+            # normalize the explain data
+            foreach my $row (@$explain) {
+                foreach my $key (keys %$row) {
+                    my $val = $row->{$key};
+                    $row->{$key} = undef     if $val eq 'NULL';
+                    $row->{$key} = $val + 0  if $opt{a} and $val =~ /^\d+(?:\.\d+)?$/;
+                }
+            }
+        }
+
+        # get the query string
+        (my $query = $_) =~ s/^\s*#.*\n//mg;
+        $query =~ s/^\s+|\s+$//g; # trim leading/trailing whitespace
+
+        # output the data as JSON
+        push @json_output, {
+            count           => $c,
+            avg_time        => $at,
+            total_time      => $t,
+            avg_lock        => $al,
+            total_lock      => $l,
+            avg_rows_sent   => $ar,
+            total_rows_sent => $r,
+            avg_examined    => $ae,
+            total_examined  => $e,
+            avg_affected    => $aa,
+            total_affected  => $a,
+            user            => $user,
+            host            => $host,
+            query           => $query,
+            engine          => (%engine ? \%engine : undef),
+            explain         => ($explain ? $explain : undef),
+        };
+    }
+    print JSON->new->canonical(1)->pretty->encode(\@json_output);
 }
 
 sub usage {
@@ -202,6 +282,7 @@ Parse and summarize the MySQL slow query log. Options are
   --verbose    verbose
   --debug      debug
   --help       write this text to standard output
+  --json       print as a JSON-formatted string
 
   -v           verbose
   -d           debug
@@ -226,6 +307,7 @@ Parse and summarize the MySQL slow query log. Options are
                default is '*', i.e. match all
   -i NAME      name of server instance (if using mysql.server startup script)
   -l           don't subtract lock time from total time
+  -j           print as a JSON-formatted string
 
 HERE
     if ($str) {

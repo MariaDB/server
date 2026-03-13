@@ -2,8 +2,6 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
---source include/count_sessions.inc
-
 SET NAMES utf8;
 
 CREATE TABLE ① (
@@ -156,7 +154,7 @@ ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR blocked';
 BEGIN;
-SELECT * FROM mysql.innodb_table_stats FOR UPDATE;
+SELECT database_name, table_name FROM mysql.innodb_table_stats FOR UPDATE;
 SET DEBUG_SYNC='now SIGNAL go';
 
 connection con1;
@@ -201,6 +199,3 @@ SET debug_dbug=@save_dbug;
 DROP TABLE t1;
 
 --echo # End of 10.6 tests
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc

@@ -1,5 +1,4 @@
 set @start_read_only= @@global.read_only;
-DROP TABLE IF EXISTS t1,t2,t3;
 create user test@localhost;
 grant CREATE, SELECT, DROP on *.* to test@localhost;
 grant ALL on test.* to test@localhost;
@@ -178,8 +177,10 @@ CREATE USER user1@localhost;
 GRANT ALTER ON test1.* TO user1@localhost;
 CREATE DATABASE test1;
 SET GLOBAL read_only=1;
+change_user user1,,;
 ALTER DATABASE test1 CHARACTER SET utf8;
 ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
+change_user root,,;
 SET GLOBAL read_only=0;
 DROP DATABASE test1;
 DROP USER user1@localhost;
@@ -330,11 +331,11 @@ ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK_NO_ADMIN
 select count(*) from t1,(select a from t1 LOCK IN SHARE MODE) as t2;
 ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK_NO_ADMIN option so it cannot execute this statement
 commit;
+disconnect con1;
 SET GLOBAL read_only=0;
 select count(*) from t1;
 count(*)
 4
 drop table t1;
 drop user user1;
-disconnect con1;
 # End of 11.8 tests

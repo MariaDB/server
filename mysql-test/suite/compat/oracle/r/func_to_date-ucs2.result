@@ -1,0 +1,15 @@
+#
+# MDEV-19683 Add support for Oracle TO_DATE()
+#
+SET NAMES utf8mb3;
+SET time_zone=_latin1'+03:00';
+SET timestamp=1100000000;
+SELECT TO_DATE('1920я12',convert('YYYY"я"MM' using ucs2)) AS c;
+c
+1920-12-09 00:00:00
+SELECT TO_DATE(convert('1920я12' using ucs2),'YYYY"я"MM') AS c;
+c
+1920-12-09 00:00:00
+SELECT TO_DATE(convert('1920я12' using ucs2),convert('YYYY"я"MM' using ucs2)) AS c;
+c
+1920-12-09 00:00:00

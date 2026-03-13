@@ -43,6 +43,7 @@ select count(*) from information_schema.query_cache_info;
 count(*)
 0
 connection default;
+disconnect conn1;
 drop user mysqltest;
 drop table t1;
 set @@global.query_cache_size=@save_query_cache_size;

@@ -437,3 +437,32 @@ DROP FUNCTION f;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-36876 Crash during the Item_subselect::init - outer_select is NULL
+--echo #
+--echo # Vectors are not allowed for SOME/ANY
+--error ER_OPERAND_COLUMNS
+select row(1, 2) = some(select row(1, 2));
+--echo # Fine
+select 1 = some(select 1) = all(select 1);
+--echo # Comparison between vector and scalar
+--error ER_OPERAND_COLUMNS
+select row(1, 2) = some(select 1) = all(select 1);
+
+--echo # Same
+--error ER_OPERAND_COLUMNS
+create table t1 (dt datetime(6) default row(1, 2) = some(select 1) = all(select 1));
+
+delimiter $$;
+create procedure test_proc (id varchar(255))
+begin
+  declare dt datetime(6) default row(1, 2) = some(select 1) = all(select 1);
+end$$
+delimiter ;$$
+
+drop procedure test_proc;
+
+--echo #
+--echo # End of 11.8 tests
+--echo #

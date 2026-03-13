@@ -12,5 +12,6 @@ Grants for @localhost
 GRANT `r1` TO ``@`localhost`
 GRANT USAGE ON *.* TO ``@`localhost`
 connection default;
+disconnect con1;
 drop role r1;
 drop user ''@localhost;

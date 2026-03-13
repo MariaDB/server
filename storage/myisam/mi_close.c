@@ -82,7 +82,7 @@ int mi_close(register MI_INFO *info)
         (the server might want to reopen it, and mi_lock_database() only
         writes the state for non-temp ones)
       */
-      if (share->mode != O_RDONLY &&
+      if (share->index_mode != O_RDONLY &&
           (mi_is_crashed(info) || (share->temporary && !share->deleting)))
 	mi_state_info_write(share->kfile, &share->state, 1);
       /* Decrement open count must be last I/O on this file. */

@@ -33,6 +33,7 @@ eval CREATE TABLE tbl_a (
 --disable_ps_protocol
 --disable_view_protocol
 SELECT MIN(t2.a) AS f1, t1.b AS f2 FROM tbl_a AS t1 JOIN tbl_a AS t2 GROUP BY f2 ORDER BY f1, f2;
+SELECT MIN(t2.a) AS f1, t1.b AS f2 FROM tbl_a AS t1 JOIN tbl_a AS t2 GROUP BY f2 ORDER BY MIN(t2.a), MAX(t2.a), f2;
 --enable_view_protocol
 --enable_ps_protocol
 

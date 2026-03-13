@@ -1,5 +1,6 @@
 source include/have_innodb.inc;
 source include/have_sequence.inc;
+set rand_seed1=1, rand_seed2=2;
 
 create table t1 (id int auto_increment primary key, v vector(8) not null, vector index (v)) engine=innodb;
 show create table t1;

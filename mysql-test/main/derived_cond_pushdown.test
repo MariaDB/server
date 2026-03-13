@@ -4280,6 +4280,9 @@ INSERT INTO t1 VALUES
 (97,3290777,983,'2021-02-15 19:00:10'),(98,3290811,488,'2021-02-15 19:00:10'),
 (99,3290917,1283,'2021-02-15 19:00:36'),(100,3290858,482,'2021-02-15 19:00:42');
 
+insert into t1 select seq, 3300000+seq, 100+seq, '2021-02-09 18:31:35'
+from seq_101_to_1000;
+
 CREATE TABLE t2 (a int) ENGINE=MYISAM;
 INSERT INTO t2 VALUES
 (3289475),(3289496),(3289562),(3289593),(3289594),(3289595),(3289626),
@@ -4496,6 +4499,28 @@ drop table t;
 --echo # End of 10.5 tests
 
 --echo #
+--echo # MDEV-38487: Prevent aggregate functions cloning when pushing HAVING into WHERE
+--echo #
+
+CREATE TABLE t (a INT, b INT);
+INSERT INTO t VALUES (1, 10), (1, 20), (2, 50), (3, 100);
+
+# outer where to inner having pushdown
+let $q= SELECT * FROM (SELECT a, MAX(b) as max_b FROM t GROUP BY a) as dt WHERE dt.max_b > 25;
+eval explain format=JSON $q;
+eval $q;
+
+CREATE VIEW v AS SELECT a, MAX(b) as max_b FROM t GROUP BY a;
+let $q= SELECT * FROM v where max_b > 25;
+eval explain format=JSON $q;
+eval $q;
+
+DROP VIEW v;
+DROP TABLE t;
+
+--echo # End of 10.6 tests
+
+--echo #
 --echo # MDEV-28958: condition pushable into view after simplification
 --echo #             contains constant TRUE/FALSE as subformula
 --echo #
@@ -4515,3 +4540,18 @@ drop view v1,v2;
 drop table t1,t2;
 
 --echo # End of 10.7 tests
+
+--echo #
+--echo # MDEV-36686: Crash with DEFAULT() in WHERE clause with nested views
+--echo #
+
+create table t1 (a varchar(128));
+create view v1 as select a, count(*) from t1 group by a;
+create view v2 as select * from v1;
+
+select * from v2 where greatest(a, default(a));
+
+drop view v2, v1;
+drop table t1;
+
+--echo # End of 10.11 tests

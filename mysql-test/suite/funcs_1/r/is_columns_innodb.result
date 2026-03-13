@@ -79,7 +79,9 @@ Note	1265	Data truncated for column 'f49' at row 0
 Note	1265	Data truncated for column 'f51' at row 0
 load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/innodb_tb1.txt'
 into table tb1;
-drop table if exists tb2 ;
+set old_mode=2_digit_year;
+Warnings:
+Warning	1287	'2_DIGIT_YEAR' is deprecated and will be removed in a future release
 create table tb2 (
 f59 numeric (0) unsigned,
 f60 numeric (64) unsigned,
@@ -135,6 +137,7 @@ f109 set("1set","2set") not null default "1set"
 ) engine = innodb;
 Warnings:
 Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
+set old_mode=default;
 load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/innodb_tb2.txt'
 into table tb2;
 drop table if exists tb3 ;
@@ -204,7 +207,9 @@ Note	1265	Data truncated for column 'f151' at row 0
 Note	1265	Data truncated for column 'f152' at row 0
 load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/innodb_tb3.txt'
 into table tb3;
-drop table if exists tb4;
+set old_mode=2_digit_year;
+Warnings:
+Warning	1287	'2_DIGIT_YEAR' is deprecated and will be removed in a future release
 create table tb4 (
 f176 numeric (0) unsigned not null DEFAULT 9,
 f177 numeric (64) unsigned not null DEFAULT 9,
@@ -267,10 +272,13 @@ f241 char(100)
 ) engine = innodb;
 Warnings:
 Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
+set old_mode=default;
 load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/innodb_tb4.txt'
 into table tb4;
 USE test1;
-drop table if exists tb2 ;
+set old_mode=2_digit_year;
+Warnings:
+Warning	1287	'2_DIGIT_YEAR' is deprecated and will be removed in a future release
 create table tb2 (
 f59 numeric (0) unsigned,
 f60 numeric (64) unsigned,
@@ -326,6 +334,7 @@ f109 set("1set","2set") not null default "1set"
 ) engine = innodb;
 Warnings:
 Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
+set old_mode=default;
 load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/innodb_tb2.txt'
 into table tb2;
 USE test;

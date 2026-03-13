@@ -1,5 +1,3 @@
---source include/count_sessions.inc
-
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
 
 set @save_table_definition_cache=@@table_definition_cache;
@@ -162,6 +160,3 @@ disconnect con2;
 
 --echo # Cleanup
 drop table t1, t2;
-
-# Wait till all disconnects are completed
--- source include/wait_until_count_sessions.inc

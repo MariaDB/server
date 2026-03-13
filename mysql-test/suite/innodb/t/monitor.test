@@ -5,6 +5,11 @@
 # sys_vars.innodb_monitor_enable_basic
 
 --source include/have_innodb.inc
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: Cannot reset all values for monitor counter");
+--enable_query_log
+
 select name, if(enabled,'enabled','disabled') status
 from information_schema.innodb_metrics;
 

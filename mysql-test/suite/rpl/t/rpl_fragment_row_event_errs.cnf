@@ -1,0 +1,9 @@
+!include ../my.cnf
+
+[mysqld]
+binlog_row_event_fragment_threshold=1024
+net_buffer_length=1024
+
+
+
+

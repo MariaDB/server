@@ -417,9 +417,7 @@ JS
             "cost": 0.573622393,
             "covering": false,
             "chosen": true
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;

@@ -1116,6 +1116,13 @@ class QUICK_RANGE :public Sql_alloc {
 class QUICK_SELECT_I
 {
 public:
+  /*
+    An INDEX_MERGE hint was present in the query that created this
+    QUICK_SELECT.  This QUICK_SELECT will use that fact to override
+    plan selection during best_access_path.
+  */
+  bool force_index_merge{false};
+
   ha_rows records;  /* estimate of # of records to be retrieved */
   double  read_time; /* time to perform this retrieval          */
   TABLE   *head;
@@ -1303,6 +1310,13 @@ public:
   virtual void add_used_key_part_to_set()=0;
 };
 
+inline bool is_index_merge(int qtype)
+{
+  return qtype == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
+    qtype == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE ||
+    qtype == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT ||
+    qtype == QUICK_SELECT_I::QS_TYPE_ROR_UNION;
+}
 
 struct st_qsel_param;
 class PARAM;
@@ -1572,6 +1586,7 @@ public:
 
 
 
+/* Index merge sort union */
 class QUICK_INDEX_MERGE_SELECT : public QUICK_INDEX_SORT_SELECT
 {
 private:
@@ -1589,6 +1604,7 @@ public:
   void add_keys_and_lengths(String *key_names, String *used_lengths) override;
 };
 
+/* Index merge sort intersection */
 class QUICK_INDEX_INTERSECT_SELECT : public QUICK_INDEX_SORT_SELECT
 {
 protected:
@@ -1607,6 +1623,8 @@ public:
 
 
 /*
+  Index merge intersection
+
   Rowid-Ordered Retrieval (ROR) index intersection quick select.
   This quick select produces intersection of row sequences returned
   by several QUICK_RANGE_SELECTs it "merges".
@@ -1694,6 +1712,8 @@ public:
 
 
 /*
+  Index merge union
+
   Rowid-Ordered Retrieval index union select.
   This quick select produces union of row sequences returned by several
   quick select it "merges".
@@ -1873,6 +1893,7 @@ public:
   Explain_quick_select *get_explain(MEM_ROOT *alloc) override;
 };
 
+bool using_with_ties_and_group_min_max(JOIN *join);
 
 class QUICK_SELECT_DESC: public QUICK_RANGE_SELECT
 {

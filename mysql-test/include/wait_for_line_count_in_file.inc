@@ -15,4 +15,5 @@ perl;
       die "Timeout waiting for $search_count lines in $search_file\n";
     sleep(0.1);
   }
+  print "Line count in file: $search_count\n";
 EOF

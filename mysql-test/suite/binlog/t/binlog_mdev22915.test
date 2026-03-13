@@ -1,0 +1,33 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+
+RESET MASTER;
+
+# This sequence of statements triggered a bug, where the pending LOCK TABLES
+# would skip flusing the pending row event for INSERT to the trx cache. And
+# Then the pending event would be overwritten by the SAVEPOINT, leaving an
+# invalid state in the THD. And then a later connection would pick the THD
+# with invalid state and trigger an assertion.
+--connect (con1,localhost,root,,)
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE  TRIGGER tr BEFORE UPDATE ON t1 FOR EACH ROW BEGIN END;
+LOCK TABLES t1 WRITE;
+--error ER_TABLE_NOT_LOCKED
+LOAD DATA INFILE 'x' INTO TABLE x;
+SET AUTOCOMMIT= OFF;
+INSERT INTO t1 VALUES (1);
+SAVEPOINT A;
+COMMIT;
+--disconnect con1
+
+--connect (con2,localhost,root,,)
+SELECT 1;
+ 
+# Cleanup
+--disconnect con2
+--connection default
+# Show the binlog events.
+# When the bug occurs, the Write_rows event is missing STMT_END_F.
+--source include/show_binlog_events.inc
+
+DROP TABLE t1;

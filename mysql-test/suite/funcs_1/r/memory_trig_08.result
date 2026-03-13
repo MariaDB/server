@@ -535,6 +535,8 @@ Rollback;
 END//
 ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 connection default;
+disconnect con2_general;
+disconnect con2_super;
 drop user test_general@localhost;
 drop user test_general;
 drop user test_super@localhost;

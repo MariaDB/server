@@ -141,12 +141,6 @@ IF(MYSQL_DOCS_LOCATION)
   EXECUTE_PROCESS(COMMAND ${CMAKE_COMMAND} -E copy_directory "${MYSQL_DOCS_LOCATION}" "${PACKAGE_DIR}")
 ENDIF()
 
-# Ensure there is an "INFO_SRC" file.
-INCLUDE(${CMAKE_BINARY_DIR}/info_macros.cmake)
-IF(NOT EXISTS ${PACKAGE_DIR}/Docs/INFO_SRC)
-  CREATE_INFO_SRC(${PACKAGE_DIR}/Docs)
-ENDIF()
-
 INCLUDE(${CMAKE_SOURCE_DIR}/cmake/generate_submodule_info.cmake)
 GENERATE_SUBMODULE_INFO(${PACKAGE_DIR}/cmake/submodule_info.cmake)
 

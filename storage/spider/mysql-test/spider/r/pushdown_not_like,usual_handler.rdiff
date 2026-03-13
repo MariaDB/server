@@ -1,0 +1,11 @@
+--- ../src/storage/spider/mysql-test/spider/r/pushdown_not_like.result	2024-05-01 14:39:20.122241957 +1000
++++ ../src/storage/spider/mysql-test/spider/r/pushdown_not_like.reject	2025-10-22 17:41:34.179643884 +1100
+@@ -41,7 +41,7 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select%';
+ argument
+-select t0.`a` `a`,t0.`b` `b`,t0.`c` `c` from `auto_test_remote`.`ta_r` t0 where (t0.`b` not like 'a%')
++select `a`,`b`,`c` from `auto_test_remote`.`ta_r` where (`b` not like 'a%')
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select%'
+ 
+ deinit

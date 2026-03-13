@@ -343,16 +343,6 @@ inline uint32_t dtype_form_prtype(ulint old_prtype, ulint charset_coll)
 }
 
 /*********************************************************************//**
-Determines if a MySQL string type is a subset of UTF-8.  This function
-may return false negatives, in case further character-set collation
-codes are introduced in MySQL later.
-@return whether a subset of UTF-8 */
-UNIV_INLINE
-bool
-dtype_is_utf8(
-/*==========*/
-	ulint	prtype);/*!< in: precise data type */
-/*********************************************************************//**
 Gets the type length.
 @return fixed length of the type, in bytes, or 0 if variable-length */
 UNIV_INLINE

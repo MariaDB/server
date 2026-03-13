@@ -143,7 +143,7 @@ Item* Item_func_in::varchar_upper_cmp_transformer(THD *thd, uchar *arg)
     Item *tmp;
     if ((tmp= is_upper_key_col(arg0)))
     {
-      Item_func_in *cl= (Item_func_in*)build_clone(thd);
+      Item_func_in *cl= (Item_func_in*)deep_copy_with_checks(thd);
       Item *res;
       cl->arguments()[0]= tmp;
       cl->walk(&Item::cleanup_excluding_const_fields_processor, 0, 0);

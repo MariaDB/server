@@ -1,0 +1,4 @@
+[thread]
+--thread-handling=one-thread-per-connection
+[pool]
+--loose-thread-handling=pool-of-threads

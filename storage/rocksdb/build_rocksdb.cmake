@@ -507,6 +507,10 @@ if(MSVC)
   # Workaround Win8.1 SDK bug, that breaks /permissive-
   string(REPLACE "/permissive-" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 else()
+  set_source_files_properties(${ROCKSDB_SOURCE_DIR}/options/db_options.cc
+    PROPERTIES COMPILE_FLAGS "-Wframe-larger-than=40960")
+  set_source_files_properties(${ROCKSDB_SOURCE_DIR}/options/cf_options.cc
+    PROPERTIES COMPILE_FLAGS "-Wframe-larger-than=32768")
   set(CMAKE_REQUIRED_FLAGS "-msse4.2 -mpclmul ${CXX11_FLAGS}")
 
   CHECK_CXX_SOURCE_COMPILES("

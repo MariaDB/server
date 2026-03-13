@@ -239,6 +239,11 @@ public:
     m_cs(cs)
   { }
 
+  CHARSET_INFO *charset() const
+  {
+    return m_cs;
+  }
+
   // Skip all leading spaces
   void get_spaces()
   {

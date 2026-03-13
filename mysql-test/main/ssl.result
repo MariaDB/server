@@ -1,5 +1,5 @@
 connect  ssl_con,localhost,root,,,,,SSL;
-select variable_name from performance_schema.status_by_thread where VARIABLE_NAME LIKE 'Ssl%';
+select variable_name from performance_schema.status_by_thread where VARIABLE_NAME LIKE 'Ssl%' and thread_id in($default_id, $ssl_con_id);
 variable_name
 Ssl_cipher
 Ssl_cipher_list

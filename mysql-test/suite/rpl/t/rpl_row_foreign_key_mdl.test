@@ -1,0 +1,55 @@
+#
+# Test ensures that MDL locks for foreign keys are taken correctly for Write
+# rows log events. That is, when slave_exec_mode=STRICT, MDL locks for only
+# target tables are taken. When slave_exec_mode=IDEMPOTENT, MDL locks for
+# target tables and tables referenced in foreign keys are taken.
+#
+# References:
+#   MDEV-25039: MDL BF-BF conflict because of foreign key
+#
+source include/have_innodb.inc;
+source include/have_debug_sync.inc;
+source include/have_binlog_format_row.inc;
+source include/master-slave.inc;
+
+--echo #
+--echo # Initialize test data
+connection master;
+CREATE TABLE t1 (
+  id INTEGER PRIMARY KEY AUTO_INCREMENT,
+  f2 INTEGER
+) engine=innodb;
+
+CREATE TABLE t2 (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  t1_id INT NOT NULL,
+  f2 INTEGER NOT NULL,
+  KEY key_t1_id(t1_id),
+  CONSTRAINT key_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id) ON UPDATE CASCADE ON DELETE CASCADE
+) engine=innodb;
+
+INSERT INTO t1 (f2) VALUES (0);
+INSERT INTO t1 (f2) VALUES (0);
+INSERT INTO t2 (t1_id, f2) VALUES (1,1234);
+--sync_slave_with_master
+
+--echo #
+--echo # slave_exec_mode = IDEMPOTENT
+--let $fk_slave_exec_mode = IDEMPOTENT
+--source rpl_row_foreign_key_mdl.inc
+
+--echo #
+--echo # slave_exec_mode = STRICT
+--let $fk_slave_exec_mode = STRICT
+--source rpl_row_foreign_key_mdl.inc
+
+#
+# Cleanup
+#
+--connection master
+DROP TABLE t2;
+DROP TABLE t1;
+--sync_slave_with_master
+
+--source include/rpl_end.inc
+--echo # End of rpl_row_foreign_key_mdl.test

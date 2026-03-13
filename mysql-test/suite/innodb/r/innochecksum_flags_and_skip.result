@@ -1,0 +1,31 @@
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
+SET GLOBAL innodb_log_checkpoint_now=ON;
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
+INSERT INTO t1 SET a=1;
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
+# Skip InnoDB Doublewrite Buffer
+Should not exist when summary excludes dblwr pages
+Should exist when summary includes dblwr pages
+# restart
+CREATE TABLE ibd_1(f1 INT PRIMARY KEY)ENGINE=InnoDB;
+INSERT INTO ibd_1 VALUES(1), (2), (3), (4);
+SET GLOBAL innodb_file_per_table=0;
+CREATE TABLE ibd_2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
+INSERT INTO ibd_2 SELECT seq FROM seq_1_to_8451;
+# Pass wrong tablespace flag for ibdata2
+FOUND 1 /Error: Page 0 checksum mismatch/ in result.log
+# Pass wrong tablespace flag for ibdata1
+FOUND 1 /Error: Mismatch between provided tablespace flags/ in result.log
+# Pass invalid tablespace flag for ibdata1
+FOUND 1 /Error: Provided --tablespace-flags is not valid/ in result.log
+# innochecksum should be succesfull
+NOT FOUND /Fail/ in result.log
+# Create a tablespace with page number > 2^31
+# Test innochecksum with the modified ibdata3
+FOUND 1 /Error: First page of the tablespace file should be 0, but encountered page number 2147483649/ in result.log
+# Test innochecksum with the modified ibdata3 with tablespace flags
+FOUND 1 /Exceeded the maximum allowed checksum mismatch/ in result.log
+# restart
+DROP TABLE t1, ibd_1, ibd_2;

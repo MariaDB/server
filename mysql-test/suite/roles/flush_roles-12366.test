@@ -316,8 +316,10 @@ SELECT COUNT(1) FROM oms_live_th.b;
 SELECT COUNT(1) FROM oms_live_th.c;
 SELECT COUNT(1) FROM oms_live_th.d;
 
-
-connect(con4,localhost,root,,);
+connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
 
 DROP DATABASE bob_live_sg;
 DROP DATABASE oms_live_sg;

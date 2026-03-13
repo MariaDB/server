@@ -3,12 +3,6 @@
 #
 --source have_engine.inc
 
---source include/count_sessions.inc
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 # We will be changing the GLOBAL value of low_priority_updates
 # due to bug#64892 
 # (Session-level low_priority_updates does not work for INSERT)
@@ -86,8 +80,6 @@ SET GLOBAL concurrent_insert = @concur_insert;
 
 # Cleanup
 DROP TABLE t1;
-
---source include/wait_until_count_sessions.inc
 
 --source cleanup_engine.inc
 

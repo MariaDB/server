@@ -42,7 +42,7 @@ SET SESSION wsrep_sync_wait=0;
 --send CREATE UNIQUE INDEX i1 ON t1(f2);
 
 --connection node_1a
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'acquiring total order%' or STATE LIKE 'Waiting for table metadata%'
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Waiting for table metadata lock%' OR STATE LIKE 'acquiring total order isolation%' OR STATE LIKE 'Waiting to execute in isolation%';
 --source include/wait_condition.inc
 
 --echo # Signal DDL 1
@@ -66,7 +66,6 @@ SET SESSION wsrep_sync_wait=0;
 
 SELECT COUNT(*) AS EXPECT_3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
 SELECT COUNT(*) AS EXPECT_2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
-SHOW CREATE TABLE t1;
 SELECT COUNT(*) AS EXPECT_1001 FROM t1;
 
 --connection node_1
@@ -79,7 +78,6 @@ SELECT COUNT(*) AS EXPECT_1001 FROM t1;
 
 SELECT COUNT(*) AS EXPECT_3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
 SELECT COUNT(*) AS EXPECT_2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
-SHOW CREATE TABLE t1;
 SELECT COUNT(*) AS EXPECT_1001 FROM t1;
 
 DROP TABLE t1;

@@ -1,6 +1,7 @@
+--source include/no_view_protocol.inc
+
 SET @old_log_output=                @@global.log_output;
 SET @old_log_disable_statements=    @@global.log_disabled_statements;
-
 
 CREATE TABLE t1 (i INT PRIMARY KEY AUTO_INCREMENT, j VARCHAR(255) ) ENGINE=MyISAM;
 insert into t1 (j) values ('a'),('b'),('c'),('d');

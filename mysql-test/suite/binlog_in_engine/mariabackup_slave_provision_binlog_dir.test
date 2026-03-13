@@ -1,0 +1,4 @@
+--source include/not_embedded.inc
+--let $backup_args=
+--let $copy_back_args= --binlog-directory=binlogs
+--source include/mariabackup_slave_provision.inc

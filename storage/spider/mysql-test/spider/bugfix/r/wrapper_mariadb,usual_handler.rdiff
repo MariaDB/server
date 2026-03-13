@@ -1,0 +1,11 @@
+--- ../src/storage/spider/mysql-test/spider/bugfix/r/wrapper_mariadb.result	2024-05-01 14:39:20.118241872 +1000
++++ ../src/storage/spider/mysql-test/spider/bugfix/r/wrapper_mariadb.reject	2025-10-22 17:40:53.351347717 +1100
+@@ -47,7 +47,7 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+-select t0.`pkey` `pkey` from `auto_test_remote`.`tbl_a` t0 order by `pkey`
++select `pkey` from `auto_test_remote`.`tbl_a` order by `pkey`
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+ SELECT pkey FROM tbl_a ORDER BY pkey;
+ pkey

@@ -13,12 +13,8 @@
 --let $node_2=node_2
 --source include/auto_increment_offset_save.inc
 
---connection node_2
-call mtr.add_suppression("WSREP: TO isolation failed for: ");
-
 --connection node_1
 --let $wsrep_cluster_address_orig = `SELECT @@wsrep_cluster_address`
-call mtr.add_suppression("CREATE TABLE isolation failure");
 
 --connection node_2
 --source include/kill_galera.inc
@@ -42,5 +38,9 @@ CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 # Restore original auto_increment_offset values.
 --let $node_2=node_2a
 --source include/auto_increment_offset_restore.inc
+
+--connection node_1
+call mtr.add_suppression("WSREP: TO isolation error timeout_error for : test.t1");
+call mtr.add_suppression("WSREP: CREATE TABLE isolation failure");
 
 --source include/galera_end.inc

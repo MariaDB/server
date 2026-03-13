@@ -647,9 +647,6 @@ ERROR 0A000: FLUSH is not allowed in stored function or trigger
 create function bug8409() returns int begin flush master;
 return 1; end|
 ERROR 0A000: FLUSH is not allowed in stored function or trigger
-create function bug8409() returns int begin flush des_key_file;
-return 1; end|
-ERROR 0A000: FLUSH is not allowed in stored function or trigger
 create function bug8409() returns int begin flush user_resources;
 return 1; end|
 ERROR 0A000: FLUSH is not allowed in stored function or trigger
@@ -1416,7 +1413,7 @@ CREATE DATABASE mysqltest;
 USE mysqltest;
 DROP DATABASE mysqltest;
 SELECT inexistent(), 1 + ,;
-ERROR 42000: FUNCTION inexistent does not exist
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 SELECT inexistent();
 ERROR 42000: FUNCTION inexistent does not exist
 SELECT .inexistent();

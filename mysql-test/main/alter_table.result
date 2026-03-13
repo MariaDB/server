@@ -1539,13 +1539,13 @@ t2	CREATE TABLE `t2` (
   KEY `fk` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t2 ADD FOREIGN KEY (id) REFERENCES t1(id);
-ALTER TABLE t2 ADD FOREIGN KEY IF NOT EXISTS t2_ibfk_1(id) REFERENCES t1(id);
+ALTER TABLE t2 ADD FOREIGN KEY IF NOT EXISTS `1`(id) REFERENCES t1(id);
 Warnings:
-Note	1061	Duplicate key name 't2_ibfk_1'
-ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS t2_ibfk_1;
-ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS t2_ibfk_1;
+Note	1061	Duplicate key name '1'
+ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS `1`;
+ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS `1`;
 Warnings:
-Note	1091	Can't DROP FOREIGN KEY `t2_ibfk_1`; check that it exists
+Note	1091	Can't DROP FOREIGN KEY `1`; check that it exists
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -1780,7 +1780,6 @@ DROP TABLE t1;
 # --enable_info allows us to see how many rows were updated
 # by ALTER TABLE. in-place will show 0 rows, while copy > 0.
 #
-DROP TABLE IF EXISTS ti1, ti2, ti3, tm1, tm2, tm3;
 # Single operation tests
 CREATE TABLE ti1(a INT NOT NULL, b INT, c INT) engine=InnoDB;
 CREATE TABLE tm1(a INT NOT NULL, b INT, c INT) engine=MyISAM;
@@ -3153,12 +3152,36 @@ DROP TABLE t;
 # End of 10.7 tests
 #
 #
+# MDEV-37275 Cannot remove default value of NOT NULL column
+#
+create table t1 (d time default '00:00:00');
+alter table t1 alter column d drop default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `d` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create table t2 (d datetime not null default current_timestamp());
+alter table t2 alter column d drop default;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `d` datetime NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create table t3 (d datetime not null);
+alter table t3 alter column d set default current_timestamp();
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `d` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop tables t1, t2, t3;
+# End of 10.11 tests
+#
 # MDEV-33655 Remove alter_algorithm
 #
 CREATE TABLE t1 (a INT) ENGINE=MyISAM;
 CREATE TABLE t2 (a INT) ENGINE=MERGE, UNION(t1);
 ALTER TABLE t2 COMMENT 'x', LOCK=SHARED;
 DROP TABLE t2,t1;
-#
 # End of 11.5 tests
-#

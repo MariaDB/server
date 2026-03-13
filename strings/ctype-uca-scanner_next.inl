@@ -81,7 +81,7 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner,
     const uint16 *cweight;
 
 #if MY_UCA_ASCII_OPTIMIZE && !defined(SCANNER_NEXT_NCHARS)
-    if (scanner->sbeg + 1 < scanner->send)
+    if (scanner->send - scanner->sbeg > 1)
     {
       const MY_UCA_2BYTES_ITEM *ww;
       ww= my_uca_level_booster_2bytes_item_addr_const(param->level->booster,

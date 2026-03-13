@@ -1,0 +1,63 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb_binlog.inc
+
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, c LONGBLOB) ENGINE=InnoDB;
+
+--echo *** Test restarting the server on an existing binlog
+
+# Reset the binlogs here to get maximally predictable binlog offsets
+--source include/reset_master.inc
+
+# Try to hit exactly the end of page 2 before restart.
+# There was a bug where restarting the binlog on an exact page boundary
+# would initialize the page fifo incorrectly.
+# Note a page has 16384 - 4 = 16380 bytes of data available due to CRC.
+--let $target= `SELECT 16384*3 - 4`
+--let $initial= `SELECT 2*16380 - 1000`
+--let $length= 100
+
+# First try some value a bit too small and see where we end.
+SET SESSION binlog_annotate_row_events= 0;
+eval INSERT INTO t1 VALUES (1, 0, REPEAT('@', $initial));
+eval INSERT INTO t1 VALUES (2, 0, REPEAT('@', $length));
+--let $boundary=query_get_value(SHOW MASTER STATUS, Position, 1)
+
+# Now calculate the length required to hit exactly the end of the third
+# page (page_no=2). We aim for 1 byte before the end, which will then
+# fill up with one filler byte.
+--let $length= `SELECT $length + ($target - $boundary) - 1`
+
+# Now try again with the calculated length; should make the binlog end
+# exactly at the page boundary.
+RESET MASTER;
+eval INSERT INTO t1 VALUES (3, 0, REPEAT('&', $initial));
+evalp INSERT INTO t1 VALUES (4, 0, REPEAT('&', $length));
+
+# Now restart the server and let it continue at the current point of
+# the binlog. There was a bug when we restarted exactly on a page boundary
+# that would initialize the page fifo incorrectly and assert.
+--source include/restart_mysqld.inc
+
+
+# Now try to fill up exactly one binlog file, and restart with the
+# current position at the end of one file / start of the next one.
+# The test is designed to run with binlog size 256K which is 16 pages.
+SELECT @@GLOBAL.max_binlog_size;
+RESET MASTER;
+--let $target= `SELECT 16384*16 - 4`
+--let $initial= `SELECT 15*16380 - 2000`
+--let $length= 100
+
+eval INSERT INTO t1 VALUES (5, 0, REPEAT('@', $initial));
+eval INSERT INTO t1 VALUES (6, 0, REPEAT('@', $length));
+--let $boundary=query_get_value(SHOW MASTER STATUS, Position, 1)
+
+--let $length= `SELECT $length + ($target - $boundary) - 1`
+
+RESET MASTER;
+eval INSERT INTO t1 VALUES (7, 0, REPEAT('&', $initial));
+evalp INSERT INTO t1 VALUES (8, 0, REPEAT('&', $length));
+
+--source include/restart_mysqld.inc
+
+DROP TABLE t1;

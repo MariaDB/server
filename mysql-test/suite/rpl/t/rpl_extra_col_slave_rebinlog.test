@@ -1,0 +1,55 @@
+#
+# Test to show that if the slave re-binlog correctly if it has extra
+# columns.
+# Part of MDEV-36290: ALTER TABLE with multi-master can cause data loss
+#
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--let $rpl_topology=1->2, 2->3
+--source include/rpl_init.inc
+
+--echo #
+--echo # Initialize test data
+--connection server_1
+create table t1 (a int) engine=innodb;
+--source include/save_master_gtid.inc
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+--echo #
+--echo # Server 2 uses '5' as its default for its slave-specific column
+--connection server_2
+set statement sql_log_bin=0 for alter table t1 add column b int default 5 after a;
+
+--echo #
+--echo # Server 3 uses '10' as its default for its slave-specific column
+--connection server_3
+set statement sql_log_bin=0 for alter table t1 add column b int default 10 after a;
+
+--connection server_1
+insert into t1 values (1);
+--source include/save_master_gtid.inc
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+--echo # Slave 3 t1 should match slave 2 t1
+--connection server_2
+select * from t1;
+--connection server_3
+select * from t1;
+--let $diff_tables=server_2:test.t1, server_3:test.t1
+--source include/diff_tables.inc
+
+--echo #
+--echo # Cleanup
+--connection server_1
+drop table t1;
+--source include/save_master_gtid.inc
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc

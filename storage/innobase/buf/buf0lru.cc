@@ -993,6 +993,23 @@ ATTRIBUTE_COLD void buf_pool_t::free_block(buf_block_t *block) noexcept
   mysql_mutex_unlock(&mutex);
 }
 
+inline void
+buf_pool_t::page_hash_table::remove(buf_pool_t::hash_chain &chain,
+                                    buf_page_t *bpage) noexcept
+{
+  mysql_mutex_assert_owner(&buf_pool.mutex);
+
+  ut_ad(bpage->in_page_hash);
+  buf_page_t **prev= &chain.first;
+  while (*prev != bpage)
+  {
+    ut_ad((*prev)->in_page_hash);
+    prev= &(*prev)->hash;
+  }
+  *prev= bpage->hash;
+  ut_d(bpage->in_page_hash= false);
+  bpage->hash= nullptr;
+}
 
 /** Remove bpage from buf_pool.LRU and buf_pool.page_hash.
 
@@ -1256,7 +1273,7 @@ void buf_LRU_truncate_temp(uint32_t threshold)
          0, fil_system.temp_space->free_limit);
        cur_xdes_page >= threshold;)
   {
-    mtr_t mtr;
+    mtr_t mtr{nullptr};
     mtr.start();
     if (buf_block_t* block= buf_page_get_gen(
           page_id_t(SRV_TMP_SPACE_ID, cur_xdes_page), 0, RW_X_LATCH,

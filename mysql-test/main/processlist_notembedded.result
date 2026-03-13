@@ -29,6 +29,4 @@ Warnings:
 Note	1003	select sleep(100000)
 KILL QUERY $con_id;
 disconnect con1;
-#
 # End of 10.2 tests
-#

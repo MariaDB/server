@@ -1159,11 +1159,13 @@ connection default;
 GRANT SELECT ON mysql.* TO very_long_user_name_number_1;
 GRANT SELECT ON mysql.* TO very_long_user_name_number_2;
 GRANT ALL ON *.* TO even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost WITH GRANT OPTION;
+change_user even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length,,;
 GRANT INSERT ON mysql.user TO very_long_user_name_number_1;
 GRANT INSERT ON mysql.user TO very_long_user_name_number_2;
 GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_1;
 GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_2;
 CREATE PROCEDURE test.pr() BEGIN END;
+change_user root,,;
 Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
@@ -2370,7 +2372,8 @@ name	dl
 # Check that mysql_upgrade can be run on mysqldump
 # of mysql schema from previous versions
 #
-call mtr.add_suppression("innodb_(table|index)_stats has length mismatch in the column name table_name");
+call mtr.add_suppression("InnoDB: Fetch of persistent statistics requested for table `mysql`\\.`gtid_slave_pos` but the required system tables mysql\\.innodb_table_stats and mysql\\.innodb_index_stats are not present or have unexpected structure");
+call mtr.add_suppression("InnoDB: Unexpected length of mysql\\.innodb_table_stats\\.table_name");
 call mtr.add_suppression("Column count of mysql.proc is wrong. Expected 21, found 20.");
 #
 # Upgrade from version 5.5

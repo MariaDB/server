@@ -96,13 +96,15 @@ void sp_instr::print_cmd_and_array_element(String *str,
                                            const LEX_CSTRING &cmd,
                                            const LEX_CSTRING &rcontext_name,
                                            const LEX_CSTRING &array_name,
-                                           uint index_offset) const
+                                           uint index_offset,
+                                           size_t extra_reserve) const
 {
   const sp_variable *pv= m_ctx->find_variable(index_offset);
   size_t rsrv= cmd.length + 1/*space*/ +
                rcontext_name.length +
                array_name.length + 2/*[]*/ +
-               (pv ? pv->name.length + 1/*@*/ + SP_INSTR_UINT_MAXLEN : 0);
+               (pv ? pv->name.length + 1/*@*/ + SP_INSTR_UINT_MAXLEN : 0) +
+               extra_reserve;
   if (str->reserve(rsrv))
     return;
   str->qs_append(cmd.str, cmd.length);
@@ -276,6 +278,25 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
   DBUG_RETURN(false);
 }
 
+
+#ifndef DBUG_OFF
+/*
+  Check if all rewrittable query params in an instruction are fixed.
+  They can be fixed e.g. if append_for_log() already happened.
+*/
+bool dbug_rqp_are_fixed(sp_instr *instr)
+{
+  for (Item *item= instr->free_list; item; item= item->next)
+  {
+    Rewritable_query_parameter *rqp= item->get_rewritable_query_parameter();
+    if (rqp && rqp->pos_in_query && !item->fixed())
+      return false;
+  }
+  return true;
+}
+#endif
+
+
 /**
   Prepare LEX and thread for execution of instruction, if requested open
   and lock LEX's tables, execute instruction's core function, perform
@@ -322,7 +343,14 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
   thd->transaction->stmt.m_unsafe_rollback_flags= 0;
 
   DBUG_ASSERT(!thd->derived_tables);
-  DBUG_ASSERT(thd->Item_change_list::is_empty());
+  /*
+    Item*::append_for_log() called from subst_spvars (which already happened
+    at this point) can create new Items in some cases. For example:
+      INSERT INTO t1 VALUES
+       (assoc_array(spvar_latin1 || CONVERT(' ' USING ucs2)));
+    wraps CONVERT into Item_func_conv_charset.
+  */
+  DBUG_ASSERT(dbug_rqp_are_fixed(instr) || thd->Item_change_list::is_empty());
   /*
     Use our own lex.
     We should not save old value since it is saved/restored in
@@ -873,11 +901,10 @@ bool sp_lex_instr::setup_memroot_for_reparsing(sp_head *sphead,
 
 LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
 {
-  String sql_query;
+  sql_query_cache.free();
+  get_query(&sql_query_cache);
 
-  get_query(&sql_query);
-
-  if (sql_query.length() == 0)
+  if (sql_query_cache.length() == 0)
   {
     /**
       The instruction has returned zero-length query string. That means, the
@@ -927,7 +954,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   state= STMT_INITIALIZED_FOR_SP;
 
   /*
-    First, set up a men_root for the statement is going to re-compile.
+    First, set up a mem_root for the statement is going to re-compile.
   */
   bool mem_root_allocated;
   if (setup_memroot_for_reparsing(sp, &mem_root_allocated))
@@ -943,7 +970,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
 
   Parser_state parser_state;
 
-  if (parser_state.init(thd, sql_query.c_ptr(), sql_query.length()))
+  if (parser_state.init(thd, sql_query_cache.c_ptr(), sql_query_cache.length()))
     return nullptr;
 
   /*
@@ -1042,7 +1069,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
     the current statement being parsed.
   */
   const char *m_tmp_query_bak= sp->m_tmp_query;
-  sp->m_tmp_query= sql_query.c_ptr();
+  sp->m_tmp_query= sql_query_cache.c_ptr();
 
   /*
     Hint the parser that re-parsing of a failed SP instruction is in progress
@@ -1304,6 +1331,143 @@ sp_instr_set::print(String *str)
 }
 
 
+/*
+  sp_instr_set_ps_placeholder class functions
+
+  It evaluates one expression in the USING clause and
+  - Caches it in m_value, or
+  - Assigns it directly to Prepared_statement::param_array[idx]
+  depending on whether we're handling a SYS_REFCURSOR variable or
+  a normal CURSOR.
+*/
+
+int
+sp_instr_set_ps_placeholder::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_set_ps_placeholder::execute");
+  DBUG_PRINT("info", ("offset: %u", m_offset));
+
+  DBUG_RETURN(m_lex_keeper.validate_lex_and_exec_core(thd, nextp, true, this));
+}
+
+
+int
+sp_instr_set_ps_placeholder::exec_core(THD *thd, uint *nextp)
+{
+  Sp_eval_expr_state state(thd);
+  Item *expr_item;
+  if (!(expr_item= thd->sp_fix_func_item(&m_expr)) ||
+      expr_item->check_is_evaluable_expression_or_error())
+    return -1;
+
+  if (m_deref_rcontext_handler != nullptr)
+  {
+    /*
+      This is a SYS_REFCURSOR variable.
+      We're in a statement like: OPEN c FOR 'SELECT ?' USING 1;
+      Evaluate the USING clause expression and store its result into m_value.
+      We cannot store directly into Prepared_statement::param_array[idx] yet,
+      because Prepare_statement has not been created yet. It'll be created
+      during the following sp_instr_copen_by_ref::exec_core() call.
+
+      Cache the type handler and the attributes before evaluation.
+      This is needed because Item::cleanup() will be called for expr_item
+      after this->execute(). Reading expr_item's type handler and attributes
+      after cleanup() would be wrong and would cause an assert.
+      The cached type handler and attributes will be used later during
+      a call for Prepared_statement::set_placeholders_from_instr()
+      called during the sp_instr_copen_by_ref::exec_core() execution.
+    */
+
+    set_handler(expr_item->type_handler());
+    const LEX_CSTRING str_cursor_param= {STRING_WITH_LEN("<using expression>")};
+    if (type_handler()->Item_hybrid_func_fix_attributes(thd, str_cursor_param,
+                                                        this/*type handler*/,
+                                                        this/*attributes*/,
+                                                        &expr_item, 1))
+      return -1; // E.g. ROW type expression
+    m_decimal_precision= expr_item->decimal_precision();
+
+    expr_item->save_in_value(thd, &m_value);
+    if (thd->is_error())
+      return -1;
+    *nextp = m_ip+1;
+    return 0;
+  }
+
+  /*
+    We're in a script like this:
+      DECLARE c CURSOR FOR stmt;
+      PREPARE stmt FROM 'SELECT ?';
+      OPEN c USING 1;
+    The Prepared_statement instance was created during the PREPARE command.
+    Let's assign the value directly to Prepared_statement::param_array[idx].
+
+    Non-local rcontext handler will be possible when this task is done:
+      MDEV-36053 CURSOR declarations in PACKAGE BODY
+  */
+  DBUG_ASSERT(m_rcontext_handler == &sp_rcontext_handler_local);
+  const sp_pcursor *pcursor;
+  if (!(pcursor= m_ctx->find_cursor(m_offset)))
+    return -1;
+
+  if (mysql_sql_stmt_set_placeholder(thd, pcursor->lex()->get_ps_name(),
+                                     m_using_clause_offset, expr_item))
+    return -1;
+
+  *nextp = m_ip+1;
+  return 0;
+}
+
+
+void
+sp_instr_set_ps_placeholder::print(String *str)
+{
+  constexpr LEX_CSTRING str_set= {STRING_WITH_LEN("set")};
+  constexpr LEX_CSTRING str_using= {STRING_WITH_LEN(".using")};
+  if (m_deref_rcontext_handler)
+  {
+    /*
+      Print for a SYS_REFCURSOR variable opened from a dynamic string:
+        set STMT.cursor[c@1].using[0] 'value'
+    */
+    size_t extra_reserve= str_using.length + 1 + SP_INSTR_UINT_MAXLEN + 2 + 20;
+    print_cmd_and_array_element(str, str_set,
+                                m_deref_rcontext_handler->get_name_prefix()[0],
+                                cursor_str, m_offset, extra_reserve);
+    str->qs_append(str_using.str, str_using.length);
+    str->qs_append('[');
+    str->qs_append(m_using_clause_offset);
+    str->qs_append(STRING_WITH_LEN("] "));
+    m_expr->print(str, enum_query_type(QT_ORDINARY |
+                                       QT_ITEM_ORIGINAL_FUNC_NULLIF));
+    return;
+  }
+
+  /*
+    Print for a normal CURSOR opened from a SELECT expression:
+      set c@0.using[0] 'value'
+  */
+  const sp_pcursor *cursor= m_ctx->find_cursor(m_offset);
+  const LEX_CSTRING *cursor_name= cursor;
+  size_t rsrv = str_set.length + str_using.length + cursor_name->length +
+                SP_INSTR_UINT_MAXLEN * 2 + 20;
+
+  str->reserve(rsrv);
+  str->qs_append(str_set.str, str_set.length);
+  str->qs_append(' ');
+  str->qs_append(cursor_name->str, cursor_name->length);
+  str->qs_append('@');
+  str->qs_append(m_offset);
+  str->qs_append(str_using.str, str_using.length);
+  str->qs_append('[');
+  str->qs_append(m_using_clause_offset);
+  str->append(STRING_WITH_LEN("] "));
+  m_expr->print(str, enum_query_type(QT_ORDINARY |
+                                     QT_ITEM_ORIGINAL_FUNC_NULLIF));
+}
+
+
 int sp_instr_set_default_param::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_set_default_param::execute");
@@ -1396,13 +1560,25 @@ sp_instr_set_row_field::print(String *str)
 
 
 /*
-  sp_instr_set_field_by_name class functions
+  sp_instr_set_composite_field_by_name class functions
 */
 
 int
-sp_instr_set_row_field_by_name::exec_core(THD *thd, uint *nextp)
+sp_instr_set_composite_field_by_name::exec_core(THD *thd, uint *nextp)
 {
-  int res= get_rcontext(thd)->set_variable_row_field_by_name(thd, m_offset,
+  StringBuffer<64> buffer;
+  if (m_key)
+  {
+    auto var= get_rcontext(thd)->get_variable(m_offset);
+    auto handler= var->type_handler()->to_composite();
+    DBUG_ASSERT(handler);
+
+    m_field_name= handler->key_to_lex_cstring(thd, *this, &m_key, &buffer);
+    if (!m_field_name.str)
+      return true;
+  }
+
+  int res= get_rcontext(thd)->set_variable_composite_by_name(thd, m_offset,
                                                              m_field_name,
                                                              &m_value);
   *nextp= m_ip + 1;
@@ -1411,30 +1587,95 @@ sp_instr_set_row_field_by_name::exec_core(THD *thd, uint *nextp)
 
 
 void
-sp_instr_set_row_field_by_name::print(String *str)
+sp_instr_set_composite_field_by_name::print(String *str)
 {
   /* set name.field@offset["field"] ... */
-  size_t rsrv= SP_INSTR_UINT_MAXLEN + 6 + 6 + 3 + 2;
+  /* set name.field["key"] ... */
   sp_variable *var= m_ctx->find_variable(m_offset);
   const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
   DBUG_ASSERT(var);
-  DBUG_ASSERT(var->field_def.is_table_rowtype_ref() ||
-              var->field_def.is_cursor_rowtype_ref());
+  DBUG_ASSERT(dynamic_cast<const Type_handler_composite*>(var->type_handler()));
 
-  rsrv+= var->name.length + 2 * m_field_name.length + prefix->length;
-  if (str->reserve(rsrv))
-    return;
-  str->qs_append(STRING_WITH_LEN("set "));
-  str->qs_append(prefix);
-  str->qs_append(&var->name);
-  str->qs_append('.');
-  str->qs_append(&m_field_name);
-  str->qs_append('@');
-  str->qs_append(m_offset);
-  str->qs_append("[\"",2);
-  str->qs_append(&m_field_name);
-  str->qs_append("\"]",2);
-  str->qs_append(' ');
+  str->append(STRING_WITH_LEN("set "));
+  str->append(prefix);
+  str->append(&var->name);
+
+  if (!m_key)
+  {
+    str->append('.');
+    str->append(&m_field_name);
+  }
+
+  str->append('@');
+  str->append_ulonglong(m_offset);
+
+  if (!m_key)
+  {
+    str->append(STRING_WITH_LEN("[\""));
+    str->append(&m_field_name);
+    str->append(STRING_WITH_LEN("\"]"));
+  }
+  else
+  {
+    str->append('[');
+    m_key->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
+    str->append(']');
+  }
+
+  str->append(' ');
+  m_value->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
+}
+
+
+/*
+  sp_instr_set_composite_field_by_key class functions
+*/
+
+int
+sp_instr_set_composite_field_by_key::exec_core(THD *thd, uint *nextp)
+{
+  auto var= get_rcontext(thd)->get_variable(m_offset);
+  auto handler= var->type_handler()->to_composite();
+  DBUG_ASSERT(handler);
+
+  StringBuffer<64> buffer;
+  const LEX_CSTRING key= handler->key_to_lex_cstring(thd, *this, &m_key,
+                                                     &buffer);
+  if (!key.str)
+    return true;
+
+  int res= get_rcontext(thd)->set_variable_composite_field_by_key(thd,
+                                                                  m_offset,
+                                                                  key,
+                                                                  m_field_name,
+                                                                  &m_value);
+  *nextp= m_ip + 1;
+  return res;
+}
+
+
+void
+sp_instr_set_composite_field_by_key::print(String *str)
+{
+  sp_variable *var= m_ctx->find_variable(m_offset);
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
+  DBUG_ASSERT(var);
+  DBUG_ASSERT(dynamic_cast<const Type_handler_composite*>(var->type_handler()));
+
+  str->append(STRING_WITH_LEN("set "));
+  str->append(prefix);
+  str->append(&var->name);
+  str->append('@');
+  str->append_ulonglong(m_offset);
+  str->append('[');
+  m_key->print(str, enum_query_type(QT_ORDINARY |
+                                    QT_ITEM_ORIGINAL_FUNC_NULLIF));
+  str->append(']');
+  str->append('.');
+  str->append(&m_field_name);
+  str->append(' ');
   m_value->print(str, enum_query_type(QT_ORDINARY |
                                       QT_ITEM_ORIGINAL_FUNC_NULLIF));
 }
@@ -1997,13 +2238,19 @@ int
 sp_instr_cpush::exec_core(THD *thd, uint *nextp)
 {
   sp_cursor *c = thd->spcont->get_cursor(m_cursor);
-  return c ? c->open(thd) : true;
+  if (!c)
+    return true;
+  const Lex_ident_sys &ps_name= m_lex_keeper.lex()->get_lex_for_cursor()->
+                                  get_ps_name();
+
+  return ps_name.is_null() ? c->open(thd) : c->open_from_ps(thd, ps_name);
 }
 
 void
 sp_instr_cpush::print(String *str)
 {
-  const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
+  const sp_pcursor *pcursor= m_ctx->find_cursor(m_cursor);
+  const LEX_CSTRING *cursor_name= pcursor;
 
   /* cpush name@offset */
   size_t rsrv= SP_INSTR_UINT_MAXLEN+7;
@@ -2019,6 +2266,15 @@ sp_instr_cpush::print(String *str)
     str->qs_append('@');
   }
   str->qs_append(m_cursor);
+  const Lex_ident_sys &ps_name= pcursor->lex()->get_ps_name();
+  if (!ps_name.is_null())
+  {
+    // This is 'DECLARE cursor_name FOR prepared_statement_name'
+    constexpr LEX_CSTRING for_str= {STRING_WITH_LEN(" for ")};
+    str->reserve(for_str.length + ps_name.length);
+    str->qs_append(for_str.str, for_str.length);
+    str->qs_append(ps_name.str, ps_name.length);
+  }
 }
 
 
@@ -2383,6 +2639,15 @@ sp_instr_copen_by_ref::execute(THD *thd, uint *nextp)
 int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_copen_by_ref::exec_core");
+  const Item *code= m_lex_keeper.lex()->get_lex_for_cursor()->
+                                          prepared_stmt.code();
+  DBUG_ASSERT(m_ip >= m_set_ps_placeholder_count);
+  const sp_instr_set_ps_placeholder *set_placeholder_first=
+    dynamic_cast<const sp_instr_set_ps_placeholder*>(
+      thd->lex->sphead->get_instr(m_ip - m_set_ps_placeholder_count));
+  DBUG_ASSERT(set_placeholder_first || !m_set_ps_placeholder_count);
+  uint set_placeholder_first_ip= set_placeholder_first ?
+                                 set_placeholder_first->m_ip : 0;
   sp_cursor *cursor;
   if (thd->open_cursors_counter() < thd->variables.max_open_cursors)
   {
@@ -2404,7 +2669,10 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
     // TODO: check with DmitryS if hiding ROOT_FLAG_READ_ONLY is OK:
     auto flags_backup= thd->lex->query_arena()->mem_root->flags;
     thd->lex->query_arena()->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
-    int rc= cursor->open(thd);
+    int rc= !code ? cursor->open(thd) :
+                    cursor->open_from_dynamic_string(thd,
+                                            set_placeholder_first_ip,
+                                            m_set_ps_placeholder_count);
     thd->lex->query_arena()->mem_root->flags= flags_backup;
     DBUG_RETURN(rc);
   }
@@ -2428,7 +2696,9 @@ int sp_instr_copen_by_ref::exec_core(THD *thd, uint *nextp)
     DBUG_RETURN(-1);
   }
   cursor->reset_for_reopen(thd);
-  DBUG_RETURN(cursor->open(thd, false/*don't check max_open_cursors*/));
+  DBUG_RETURN(!code ? cursor->open(thd, false/*don't check max_open_cursors*/) :
+              cursor->open_from_dynamic_string(thd, set_placeholder_first_ip,
+                                               m_set_ps_placeholder_count));
 }
 
 

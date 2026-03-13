@@ -120,12 +120,16 @@ drop sequence s;
 #
 CREATE SEQUENCE s engine=innodb;
 ALTER TABLE s sequence=0;
+connect  prevent_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
 delete from s;
 FLUSH TABLES;
 CHECK TABLE s;
 Table	Op	Msg_type	Msg_text
-test.s	check	Error	Fewer than one row in the table
+test.s	check	Warning	InnoDB: Encountered delete marked record in sequence table test/s.
 test.s	check	error	Corrupt
+disconnect prevent_purge;
 DROP SEQUENCE s;
 CREATE SEQUENCE s engine=innodb;
 CHECK TABLE s;
@@ -138,6 +142,6 @@ insert into s values (2,1,9223372036854775806,1,1,1000,0,0);
 FLUSH TABLES;
 CHECK TABLE s;
 Table	Op	Msg_type	Msg_text
-test.s	check	Warning	More than one row in the table
-test.s	check	status	OK
+test.s	check	Warning	InnoDB: Should have only one record in sequence table test/s. But it has 2 records.
+test.s	check	error	Corrupt
 DROP SEQUENCE s;

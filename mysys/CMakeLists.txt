@@ -47,7 +47,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
 				my_rdtsc.c psi_noop.c
                                 my_atomic_writes.c my_cpu.c my_likely.c my_largepage.c
                                 file_logger.c my_dlerror.c   crc32/crc32c.cc
-                                my_timezone.cc  my_thread_name.cc
+                                my_timezone.cc my_compr_int.cc my_thread_name.cc
                                 my_virtual_mem.c)
 
 IF (WIN32)
@@ -193,6 +193,20 @@ ENDIF(WIN32)
 IF(CMAKE_USE_PTHREADS_INIT AND CMAKE_C_FLAGS MATCHES "-fsanitize=")
   TARGET_LINK_LIBRARIES(mysys pthread)
 ENDIF()
+
+# This is a workaround for the warning about duplicate libraries on macOS.
+# The issue is as follows: mysys depends on dbug and dbug depends on mysys.
+# This causes cmake to append dbug twice when you append mysys as a library.
+# And you get a warning from the MacOSX linker.
+# TODO: to remove the circular dependency and this workaround.
+IF(APPLE AND (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18"))
+  include(CheckLinkerFlag)
+  CHECK_LINKER_FLAG(C "LINKER:-no_warn_duplicate_libraries" HAVE_NO_WARN_DUPLICATE_LIBRARIES)
+  IF(HAVE_NO_WARN_DUPLICATE_LIBRARIES)
+    TARGET_LINK_OPTIONS(mysys INTERFACE LINKER:-no_warn_duplicate_libraries)
+  ENDIF()
+ENDIF()
+
 
 ADD_EXECUTABLE(thr_lock thr_lock.c)
 TARGET_LINK_LIBRARIES(thr_lock mysys)

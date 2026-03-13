@@ -1,0 +1,36 @@
+# group by hander doesn't matter here, let's not run this test twice
+source include/have_group_by_handler.inc;
+
+install plugin spider soname 'ha_spider';
+
+--echo #
+--echo # MDEV-38368 Spider crash on fake loop detection variables
+--echo #
+
+set global spider_same_server_link=1;
+
+evalp create server srv1
+  foreign data wrapper mysql
+  options (
+    host 'localhost',
+    user 'root',
+    socket '$MASTER_1_MYSOCK'
+  );
+
+create table t1 (id int primary key, data varchar(255));
+insert into t1 values (1, 'test'), (2, 'data');
+
+create table st1 (id int primary key, data varchar(255)) engine=spider
+comment='wrapper "mysql", srv "srv1", table "t1"';
+
+set @`spider_lc_./test/st1` = concat('-', repeat('x', 900000), '-pid-tbl-');
+select * from st1 limit 1;
+
+drop table st1, t1;
+drop server srv1;
+
+uninstall plugin spider;
+drop tables mysql.spider_link_failed_log, mysql.spider_link_mon_servers, mysql.spider_tables, mysql.spider_table_crd, mysql.spider_table_position_for_recovery, mysql.spider_table_sts, mysql.spider_xa, mysql.spider_xa_failed_log, mysql.spider_xa_member;
+truncate mysql.func;
+
+--echo # End of 10.6 tests

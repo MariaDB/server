@@ -54,6 +54,8 @@
 ################################################################################
 
 # Basic preparations
+let $count_sessions= 1;
+source include/wait_until_count_sessions.inc;
 --error 0, ER_CANNOT_USER
 DROP USER test_user@'localhost';
 CREATE USER test_user@'localhost';

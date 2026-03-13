@@ -156,9 +156,8 @@ Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs)
   @param name        String searched for
   @param list_names  A list of names searched in
 
-  @return True if if the name is in the list.
-    @retval true   String found
-    @retval false  String not found
+  @retval true   String found
+  @retval false  String not found
 */
 
 static bool is_name_in_list(const Lex_ident_partition &name,
@@ -831,8 +830,8 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     goto end;
   table->get_fields_in_item_tree= true;
 
-  func_expr->walk(&Item::change_context_processor, 0,
-                  &lex.first_select_lex()->context);
+  func_expr->walk(&Item::change_context_processor,
+                  &lex.first_select_lex()->context, 0);
   thd->where= THD_WHERE::PARTITION_FUNCTION;
   /*
     In execution we must avoid the use of thd->change_item_tree since
@@ -857,7 +856,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     thd->lex->allow_sum_func.clear_all();
 
     if (likely(!(error= func_expr->fix_fields_if_needed(thd, (Item**)&func_expr))))
-      func_expr->walk(&Item::post_fix_fields_part_expr_processor, 0, NULL);
+      func_expr->walk(&Item::post_fix_fields_part_expr_processor, 0, 0);
 
     /*
       Restore agg_field/agg_func  and allow_sum_func,
@@ -887,7 +886,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     easier maintenance. This exception should be deprecated at some point
     in future so that we always throw an error.
   */
-  if (func_expr->walk(&Item::check_valid_arguments_processor, 0, NULL))
+  if (func_expr->walk(&Item::check_valid_arguments_processor, 0, 0))
   {
     if (is_create_table_ind)
     {
@@ -1566,7 +1565,21 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
     part_info->range_int_array[el->id]= el->range_value=
       my_tz_OFFSET0->TIME_to_gmt_sec(&ltime, &error);
     if (error)
-      goto err;
+    {
+      if (error == ER_WARN_DATA_OUT_OF_RANGE)
+      {
+        /* Partial interval partition must be last history partition */
+        if (el->id < hist_parts - 1)
+          goto err;
+        /* range_value is open endpoint (less than TIMESTAMP_MAX_VALUE) */
+        part_info->range_int_array[el->id]= el->range_value= TIMESTAMP_MAX_VALUE;
+        vers_info->hist_part= el;
+        el= it++;
+        break;
+      }
+      else
+        goto err;
+    }
     if (vers_info->hist_part->range_value <= (longlong) thd->query_start())
       vers_info->hist_part= el;
   }
@@ -2129,7 +2142,7 @@ static int add_keyword_string(String *str, const char *keyword,
 
 
 /**
-  @brief  Truncate the partition file name from a path it it exists.
+  @brief  Truncate the partition file name from a path it exists.
 
   @note  A partition file name will contain one or more '#' characters.
 One of the occurrences of '#' will be either "#P#" or "#p#" depending
@@ -2223,28 +2236,11 @@ static int add_server_part_options(String *str, partition_element *p_elem)
   }
   if (p_elem->part_comment)
     err+= add_keyword_string(str, "COMMENT", true, p_elem->part_comment);
-  if (p_elem->connect_string.length)
-    err+= add_keyword_string(str, "CONNECTION", true,
-                             p_elem->connect_string.str);
   err += add_keyword_string(str, "ENGINE", false,
                          ha_resolve_storage_engine_name(p_elem->engine_type));
   return err;
 }
 
-static int add_engine_part_options(String *str, partition_element *p_elem)
-{
-  engine_option_value *opt= p_elem->option_list;
-
-  for (; opt; opt= opt->next)
-  {
-    if (!opt->value.str)
-      continue;
-    if ((add_keyword_string(str, opt->name.str, opt->quoted_value,
-                                 opt->value.str)))
-      return 1;
-  }
-  return 0;
-}
 
 /*
   Find the given field's Create_field object using name of field
@@ -2471,10 +2467,30 @@ static int add_key_with_algorithm(String *str, const partition_info *part_info)
   int err= 0;
   err+= str->append(STRING_WITH_LEN("KEY "));
 
-  if (part_info->key_algorithm == partition_info::KEY_ALGORITHM_51)
+  if (part_info->key_algorithm != partition_info::KEY_ALGORITHM_NONE &&
+      part_info->key_algorithm != partition_info::KEY_ALGORITHM_55)
   {
     err+= str->append(STRING_WITH_LEN("ALGORITHM = "));
-    err+= str->append_longlong(part_info->key_algorithm);
+    switch (part_info->key_algorithm)
+    {
+      case partition_info::KEY_ALGORITHM_51:
+        err+= str->append(STRING_WITH_LEN("MYSQL51"));
+        break;
+      case partition_info::KEY_ALGORITHM_BASE31:
+        err+= str->append(STRING_WITH_LEN("BASE31"));
+        break;
+      case partition_info::KEY_ALGORITHM_CRC32C:
+        err+= str->append(STRING_WITH_LEN("CRC32C"));
+        break;
+      case partition_info::KEY_ALGORITHM_XXH32:
+        err+= str->append(STRING_WITH_LEN("XXH32"));
+        break;
+      case partition_info::KEY_ALGORITHM_XXH3:
+        err+= str->append(STRING_WITH_LEN("XXH3"));
+        break;
+      default:
+        DBUG_ASSERT(0 && "wrong part_info->key_algorithm");
+    }
     err+= str->append(' ');
   }
   return err;
@@ -2699,6 +2715,7 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
 
   if (!part_info->use_default_partitions)
   {
+    bool allow_bad= thd->variables.sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS;
     bool first= TRUE;
     err+= str.append(STRING_WITH_LEN("\n("));
     i= 0;
@@ -2721,7 +2738,8 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
           if (show_partition_options)
           {
             err+= add_server_part_options(&str, part_elem);
-            err+= add_engine_part_options(&str, part_elem);
+            append_create_options(thd, &str, part_elem->option_list,
+                            !allow_bad, part_elem->engine_type->table_options);
           }
         }
         else
@@ -2957,8 +2975,9 @@ static uint32 get_part_id_key(handler *file,
                               longlong *func_value)
 {
   DBUG_ENTER("get_part_id_key");
-  *func_value= ha_partition::calculate_key_hash_value(field_array);
-  DBUG_RETURN((uint32) (*func_value % num_parts));
+  uint64 hash= ha_partition::calculate_key_hash_value(field_array);
+  *func_value= (longlong) hash;
+  DBUG_RETURN((uint32) (hash % num_parts));
 }
 
 
@@ -2984,7 +3003,7 @@ static uint32 get_part_id_linear_key(partition_info *part_info,
 {
   DBUG_ENTER("get_part_id_linear_key");
 
-  *func_value= ha_partition::calculate_key_hash_value(field_array);
+  *func_value= (longlong) ha_partition::calculate_key_hash_value(field_array);
   DBUG_RETURN(get_part_id_from_linear_hash(*func_value,
                                            part_info->linear_hash_mask,
                                            num_parts));
@@ -3404,7 +3423,7 @@ uint32 get_list_array_idx_for_endpoint(partition_info *part_info,
       '2000-00-00' can be compared to '2000-01-01' but TO_DAYS('2000-00-00')
       returns NULL which cannot be compared used <, >, <=, >= etc.
 
-      Otherwise, just return the the first index (lowest value).
+      Otherwise, just return the first index (lowest value).
     */
     enum_monotonicity_info monotonic;
     monotonic= part_info->part_expr->get_monotonicity_info();
@@ -3501,13 +3520,14 @@ int vers_get_partition_id(partition_info *part_info, uint32 *part_id,
       goto done; // fastpath
 
     ts= row_end->get_timestamp(&unused);
-    if ((loc_hist_id == 0 || range_value[loc_hist_id - 1] < (longlong) ts) &&
-        (loc_hist_id == max_hist_id || range_value[loc_hist_id] >= (longlong) ts))
+    if ((loc_hist_id == 0 || range_value[loc_hist_id - 1] <= (longlong) ts) &&
+        (loc_hist_id == max_hist_id || (longlong) ts < range_value[loc_hist_id]))
       goto done; // fastpath
 
     while (max_hist_id > min_hist_id)
     {
       loc_hist_id= (max_hist_id + min_hist_id) / 2;
+      /* Left boundary is closed */
       if (range_value[loc_hist_id] <= (longlong) ts)
         min_hist_id= loc_hist_id + 1;
       else
@@ -4860,6 +4880,21 @@ static void check_datadir_altered_for_innodb(THD *thd,
 }
 
 
+static bool check_name_in_fields(const Field * const *fields, Lex_ident_column &name)
+{
+  if (!fields)
+    return FALSE;
+
+  for (; *fields; fields++)
+  {
+    if ((*fields)->field_name.streq(name))
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
+
 /*
   Prepare for ALTER TABLE of partition structure
 
@@ -4907,6 +4942,31 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
   {
     my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
     DBUG_RETURN(TRUE);
+  }
+
+  if (table->part_info && alter_info->partition_flags == 0 &&
+      (alter_info->flags & ALTER_PARSER_DROP_COLUMN))
+  {
+    List_iterator<Alter_drop> drop_it(alter_info->drop_list);
+    Alter_drop *drop;
+
+    while ((drop= drop_it++))
+    {
+      if (drop->type != Alter_drop::COLUMN)
+        continue;
+
+      if (check_name_in_fields(table->part_info->part_field_array,
+                               drop->name) ||
+          check_name_in_fields(table->part_info->subpart_field_array,
+                               drop->name))
+      {
+        /*
+          The ALTER drops column used in partitioning expression.
+          That cannot be done INPLACE.
+        */
+        *partition_changed= TRUE;
+      }
+    }
   }
 
   partition_info *alt_part_info= thd->lex->part_info;
@@ -5423,16 +5483,15 @@ that are reorganised.
           partition_element *part_elem= alt_it++;
           if (*fast_alter_table)
             part_elem->part_state= PART_TO_BE_ADDED;
-          if (unlikely(tab_part_info->partitions.push_back(part_elem,
-                                                           thd->mem_root)))
+          part_elem->id= tab_part_info->partitions.elements;
+          if (tab_part_info->partitions.push_back(part_elem, thd->mem_root))
             goto err;
         } while (++part_count < num_new_partitions);
         tab_part_info->num_parts+= num_new_partitions;
         if (tab_part_info->part_type == VERSIONING_PARTITION)
         {
           DBUG_ASSERT(now_part);
-          if (unlikely(tab_part_info->partitions.push_back(now_part,
-                                                           thd->mem_root)))
+          if (tab_part_info->partitions.push_back(now_part, thd->mem_root))
             goto err;
         }
       }

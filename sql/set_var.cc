@@ -428,15 +428,13 @@ void sys_var::do_deprecated_warning(THD *thd)
 {
   if (option.deprecation_substitute != NULL)
   {
-    char buf1[NAME_CHAR_LEN + 3];
-    strxnmov(buf1, sizeof(buf1)-1, "@@", name.str, 0);
-
     if (option.comment == UNUSED_HELP ||
         strcmp(option.comment, UNUSED_HELP) == 0)
-      my_error(ER_VARIABLE_IGNORED, MYF(ME_WARNING), buf1);
+      my_error(ER_VARIABLE_IGNORED, MYF(ME_WARNING), name.str);
     else
     {
-      char buf2[NAME_CHAR_LEN + 3];
+      char buf1[NAME_CHAR_LEN + 3], buf2[NAME_CHAR_LEN + 3];
+      strxnmov(buf1, sizeof(buf1)-1, "@@", name.str, 0);
       if (!IS_DEPRECATED_NO_REPLACEMENT(option.deprecation_substitute))
         strxnmov(buf2, sizeof(buf2)-1, "@@", option.deprecation_substitute, 0);
       else
@@ -1265,9 +1263,21 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
       strbuf.length(0);
       for (i=0; i < tl->count; i++)
       {
-        const char *name= tl->type_names[i];
-        strbuf.append(name, strlen(name));
-        strbuf.append(',');
+        bool show= TRUE;
+        if (tl->hidden_values)
+        {
+          for (uint j= 0; tl->hidden_values[j] >= 0; j++)
+          {
+            if (tl->hidden_values[j] == (int)i)
+              show= FALSE;
+          }
+        }
+        if (show)
+        {
+          const char *name= tl->type_names[i];
+          strbuf.append(name, strlen(name));
+          strbuf.append(',');
+        }
       }
       if (!strbuf.is_empty())
         strbuf.chop();

@@ -11,9 +11,15 @@ connection node_1_ctrl;
 SET DEBUG_SYNC = "now WAIT_FOR sync_point_reached";
 connection node_2;
 connection node_1_ctrl;
+# Node should be in Donor/Desynced state as node_2 has not yet joined
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+Variable_name	Value
+wsrep_local_state_comment	Donor/Desynced
 SET DEBUG_SYNC = "now SIGNAL sync_point_continue";
 connection node_1;
 SET DEBUG_SYNC = "RESET";
 connection node_2;
 connection node_1;
 DROP TABLE t1;
+disconnect node_2;
+disconnect node_1;

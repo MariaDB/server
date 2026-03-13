@@ -1611,7 +1611,9 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
     if (Tdbp->Xpand)
       n = Tdbp->Limit;
 
+    auto oLong = Long;
     new(this) XMULCOL(Value);        // Change the class of this column
+    Long = oLong;
     } // endif Inod
 
   Valbuf = (char*)PlugSubAlloc(g, NULL, n * (Long + 1));

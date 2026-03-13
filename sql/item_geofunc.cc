@@ -124,6 +124,16 @@ String *Item_func_geometry_from_wkb::val_str(String *str)
   return str;
 }
 
+bool Item_func_geometry_from_json::fix_length_and_dec(THD *thd)
+{
+  mem_root_dynamic_array_init(thd->mem_root, PSI_INSTRUMENT_MEM,
+                              &je.stack,
+                              sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+
+  return Item_geometry_func::fix_length_and_dec(thd);
+}
+
 
 String *Item_func_geometry_from_json::val_str(String *str)
 {
@@ -132,7 +142,6 @@ String *Item_func_geometry_from_json::val_str(String *str)
   String *js= args[0]->val_str_ascii(&tmp_js);
   uint32 srid= 0;
   longlong options= 0;
-  json_engine_t je;
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -1420,6 +1429,38 @@ exit:
 }
 
 
+static void handle_sp_crosses_func_case(Gcalc_function &func,
+                                        Gcalc_operation_transporter &trn,
+                                        Geometry_ptr_with_buffer_and_mbr &g1,
+                                        Geometry_ptr_with_buffer_and_mbr &g2,
+                                        uint &shape_a, uint &shape_b,
+                                        bool &null_value)
+{
+  func.add_operation(Gcalc_function::op_intersection, 2);
+  if (func.reserve_op_buffer(3))
+    return;
+  func.add_operation(Gcalc_function::v_find_t |
+                     Gcalc_function::op_intersection, 2);
+  shape_a= func.get_next_expression_pos();
+  if ((null_value= g1.store_shapes(&trn)))
+    return;
+  shape_b= func.get_next_expression_pos();
+  if ((null_value= g2.store_shapes(&trn)))
+    return;
+  if (func.reserve_op_buffer(7))
+    return;
+  func.add_operation(Gcalc_function::op_intersection, 2);
+  func.add_operation(Gcalc_function::v_find_t |
+                     Gcalc_function::op_difference, 2);
+  func.repeat_expression(shape_a);
+  func.repeat_expression(shape_b);
+  func.add_operation(Gcalc_function::v_find_t |
+                     Gcalc_function::op_difference, 2);
+  func.repeat_expression(shape_b);
+  func.repeat_expression(shape_a);
+}
+
+
 bool Item_func_spatial_precise_rel::val_bool()
 {
   DBUG_ENTER("Item_func_spatial_precise_rel::val_int");
@@ -1481,29 +1522,21 @@ bool Item_func_spatial_precise_rel::val_bool()
       null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     case SP_OVERLAPS_FUNC:
+    {
+      // Both geometries must have the same number of dimensions.
+      uint32 g1_dim, g2_dim;
+      const char *dummy;
+      g1.geom->dimension(&g1_dim, &dummy);
+      g2.geom->dimension(&g2_dim, &dummy);
+      if (g1_dim != g2_dim)
+        DBUG_RETURN(0);
+      handle_sp_crosses_func_case(func, trn, g1, g2,
+                                  shape_a, shape_b, null_value);
+      break;
+    }
     case SP_CROSSES_FUNC:
-      func.add_operation(Gcalc_function::op_intersection, 2);
-      if (func.reserve_op_buffer(3))
-        break;
-      func.add_operation(Gcalc_function::v_find_t |
-                         Gcalc_function::op_intersection, 2);
-      shape_a= func.get_next_expression_pos();
-      if ((null_value= g1.store_shapes(&trn)))
-        break;
-      shape_b= func.get_next_expression_pos();
-      if ((null_value= g2.store_shapes(&trn)))
-        break;
-      if (func.reserve_op_buffer(7))
-        break;
-      func.add_operation(Gcalc_function::op_intersection, 2);
-      func.add_operation(Gcalc_function::v_find_t |
-                         Gcalc_function::op_difference, 2);
-      func.repeat_expression(shape_a);
-      func.repeat_expression(shape_b);
-      func.add_operation(Gcalc_function::v_find_t |
-                         Gcalc_function::op_difference, 2);
-      func.repeat_expression(shape_b);
-      func.repeat_expression(shape_a);
+      handle_sp_crosses_func_case(func, trn, g1, g2,
+                                  shape_a, shape_b, null_value);
       break;
     case SP_TOUCHES_FUNC:
       if (func.reserve_op_buffer(5))

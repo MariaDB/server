@@ -43,7 +43,7 @@ static const char *protocol_types[]= {"Auto", "Original", "Amazon", "Legacy", "P
 TYPELIB s3_protocol_typelib= CREATE_TYPELIB_FOR(protocol_types);
 
 static const char *providers[]= {"Default", "Amazon", "Huawei", NullS};
-TYPELIB s3_provider_typelib = {array_elements(providers)-1,"",providers, NULL};
+TYPELIB s3_provider_typelib = CREATE_TYPELIB_FOR(providers);
 
 /******************************************************************************
  Allocations handler for libmarias3
@@ -410,7 +410,7 @@ int aria_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
                      O_RDONLY | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
                      MYF(MY_WME))) < 0)
     DBUG_RETURN(1);
-  if ((error= aria_get_capabilities(file, &cap)))
+  if ((error= aria_get_capabilities(file, table_name, &cap)))
   {
     fprintf(stderr, "Got error %d when reading Aria header from %s\n",
             error, path);

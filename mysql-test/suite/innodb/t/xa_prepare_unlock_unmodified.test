@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/count_sessions.inc
 --source include/have_debug.inc
 --source include/have_sequence.inc
 
@@ -95,4 +94,3 @@ $$
 DELIMITER ;$$
 
 DROP TABLE t1;
---source include/wait_until_count_sessions.inc

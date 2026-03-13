@@ -1109,8 +1109,8 @@ ISCLOSED(CONVERT(CONCAT('     ', 0x2), BINARY(20)))
 # BUG#12537203 - CRASH WHEN SUBSELECTING GLOBAL VARIABLES IN 
 # GEOMETRY FUNCTION ARGUMENTS
 #
-SELECT GEOMETRYCOLLECTION((SELECT @@OLD));
-ERROR HY000: Illegal parameter data type bigint for operation 'geometrycollection'
+SELECT GEOMETRYCOLLECTION((SELECT @@OLD_MODE));
+ERROR HY000: Illegal parameter data type varchar for operation 'geometrycollection'
 #
 # MDEV-4252 geometry query crashes server
 #

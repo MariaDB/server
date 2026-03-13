@@ -112,6 +112,20 @@ void test_timezone(const char *tz_env, const char **expected_tznames,
     }
   }
   ok(found, "%s: timezone_name = %s", tz_env, timezone_name);
+
+#if defined __linux__ && !defined __GLIBC__ && !defined __UCLIBC__
+  /*
+    MUSL incorrectly calculates UTC offsets and abbreviations
+    for certain values of TZ (DST related). See MDEV-38029
+    Skip tests in this case.
+  */
+  if (!strcmp(tz_env, "PST8PDT") || !strcmp(tz_env, "GST-1GDT"))
+  {
+    skip(6, "musl UTC offset/abbreviation bug, tzname %s, see MDEV-38029", tz_env);
+    return;
+  }
+#endif
+
   my_tzinfo(SUMMER_TIMESTAMP, &tz);
   ok(summer_gmt_off == tz.seconds_offset, "%s: Summer GMT offset %ld", tz_env, tz.seconds_offset);
   check_utc_offset(SUMMER_TIMESTAMP,tz.seconds_offset, tz_env);

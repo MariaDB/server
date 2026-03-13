@@ -27,6 +27,7 @@
 #  NUMERIC_PRECISION                        same as for COLUMNS
 #  NUMERIC_SCALE                            same as for COLUMNS
 #  DTD_IDENTIFIER                           same as for PARAMETERS
+#  PARAMETER_DEFAULT                        the parameter's default value
 ###############################################################################
 -- echo # ========== parameters.1 ==========
 USE INFORMATION_SCHEMA;

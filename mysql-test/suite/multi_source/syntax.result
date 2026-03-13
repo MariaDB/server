@@ -70,7 +70,7 @@ select master_pos_wait('master-bin.999999',0,2);
 master_pos_wait('master-bin.999999',0,2)
 -1
 Warnings:
-Note	1105	Timeout waiting for master-bin.999999:4. Current pos is master-bin.000001:329
+Note	1105	Timeout waiting for master-bin.999999:4. Current pos is master-bin.000001:330
 set @@default_master_connection='';
 #
 # checking variables

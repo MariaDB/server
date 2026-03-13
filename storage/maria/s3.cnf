@@ -1,9 +1,3 @@
-[mariadbd]
-#
-# Uncomment line to enable
-#
-#plugin-maturity = alpha
-
 [mariadb]
 #
 # Uncomment line to enable

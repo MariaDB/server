@@ -51,12 +51,14 @@
 #include "rpl_rli.h"             // class rpl_group_info
 #include "rpl_mi.h"              // class Master_info
 #include "vector_mhnsw.h"
+#include "opt_group_by_cardinality.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_schema.h"
 #endif
 #include "log_event.h"           // MAX_TABLE_MAP_ID
 #include "sql_class.h"
+#include "opt_hints.h"
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -788,7 +790,8 @@ err_not_open:
   DBUG_RETURN(share->error);
 }
 
-static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
+static bool create_key_infos(THD *thd, const uchar *strpos,
+                             const uchar *frm_image_end,
                              uint keys, KEY *keyinfo, uint new_frm_ver,
                              uint *ext_key_parts, TABLE_SHARE *share, uint len,
                              KEY *first_keyinfo, LEX_STRING *keynames)
@@ -845,6 +848,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       keyinfo->algorithm= HA_KEY_ALG_UNDEF;
       strpos+=4;
     }
+    if (keyinfo->algorithm == HA_KEY_ALG_VECTOR)
+      thd->status_var.feature_vector_index++;
 
     if (i == 0)
     {
@@ -1126,6 +1131,25 @@ Item_func_hash *TABLE_SHARE::make_long_hash_func(THD *thd,
   return new (mem_root) Item_func_hash(thd, *field_list);
 }
 
+/*
+  Update index covering for a vcol field, by merging its existing
+  index covering with the intersection of all index coverings of leaf
+  fields of the vcol expr
+*/
+static void update_vcol_key_covering(Field *vcol_field)
+{
+  Item *item= vcol_field->vcol_info->expr;
+  /* Collect indexes that cover vcol's expression */
+  key_map part_of_key= vcol_field->table->s->keys_for_keyread;
+  item->walk(&Item::intersect_field_part_of_key, &part_of_key, WALK_SUBQUERY);
+
+  vcol_field->vcol_direct_part_of_key= vcol_field->part_of_key;
+  /*
+    part_of_key includes indexes that cover vcol and also indexes that cover
+    vcol's expression
+  */
+  vcol_field->part_of_key.merge(part_of_key);
+}
 
 /** Parse TABLE_SHARE::vcol_defs
 
@@ -1157,7 +1181,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     static bool check(Field *field, Virtual_column_info *vcol)
     {
       return vcol &&
-             vcol->expr->walk(&Item::check_field_expression_processor, 0, field);
+             vcol->expr->walk(&Item::check_field_expression_processor,
+                              field, 0);
     }
     static bool check(Field *field)
     {
@@ -1265,11 +1290,20 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
         goto end;
       }
       table->map= 0;
+      if (vcol)
+        update_vcol_key_covering(*field_ptr);
       break;
     case VCOL_DEFAULT:
       vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
                                       &((*field_ptr)->default_value),
                                       error_reported);
+      if (vcol &&
+          field_ptr[0]->check_assignability_from(vcol->expr->type_handler(),
+                                                 false))
+      {
+        *error_reported= true;
+        goto end;
+      }
       *(dfield_ptr++)= *field_ptr;
       if (vcol && (vcol->flags & (VCOL_NON_DETERMINISTIC | VCOL_SESSION_FUNC)))
         table->s->non_determinstic_insert= true;
@@ -1374,7 +1408,10 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     *vfield_ptr= 0;
 
   if (dfield_ptr)
+  {
+    DBUG_ASSERT(table->default_field != dfield_ptr);
     *dfield_ptr= 0;
+  }
 
   if (check_constraint_ptr)
     *check_constraint_ptr= 0;
@@ -1389,7 +1426,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     }
     if ((*field_ptr)->check_constraint)
         (*field_ptr)->check_constraint->expr->
-          walk(&Item::update_func_default_processor, 0, *field_ptr);
+          walk(&Item::update_func_default_processor, *field_ptr, 0);
   }
 
   table->find_constraint_correlated_indexes();
@@ -1568,7 +1605,7 @@ void TABLE::find_constraint_correlated_indexes()
   for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
   {
     constraint_dependent_keys.clear_all();
-    (*chk)->expr->walk(&Item::check_index_dependence, 0, this);
+    (*chk)->expr->walk(&Item::check_index_dependence, this, 0);
 
     if (constraint_dependent_keys.bits_set() <= 1)
       continue;
@@ -1850,6 +1887,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   extra2_fields extra2;
   bool extra_index_flags_present= FALSE;
   key_map sort_keys_in_use(0);
+  LEX_CSTRING connect_string= {0, 0};
+  static const Lex_ident_ci connect_keyword={ STRING_WITH_LEN("CONNECTION") };
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
 
   keyinfo= &first_keyinfo;
@@ -2039,15 +2078,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (buff_end >= frm_image_end)
       goto err;
 
-    share->connect_string.length= uint2korr(next_chunk);
-    if (!(share->connect_string.str= strmake_root(&share->mem_root,
-                                                  (char*) next_chunk + 2,
-                                                  share->connect_string.
-                                                  length)))
-    {
+    connect_string.length= uint2korr(next_chunk);
+    if (!(connect_string.str= strmake_root(thd->mem_root, (char*) next_chunk+2,
+                                           connect_string.length)))
       goto err;
-    }
-    next_chunk+= share->connect_string.length + 2;
+    next_chunk+= connect_string.length + 2;
     if (next_chunk + 2 < buff_end)
     {
       uint str_db_type_length= uint2korr(next_chunk);
@@ -2100,7 +2135,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     share->set_use_ext_keys_flag(plugin_hton(se_plugin)->flags &
                                  HTON_SUPPORTS_EXTENDED_KEYS);
 
-    if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
+    if (create_key_infos(thd, disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, &ext_key_parts,
                          share, len, &first_keyinfo, &keynames))
       goto err;
@@ -2200,7 +2235,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
   else
   {
-    if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
+    if (create_key_infos(thd, disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, &ext_key_parts,
                          share, len, &first_keyinfo, &keynames))
       goto err;
@@ -3436,6 +3471,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (parse_engine_table_options(thd, handler_file->partition_ht(), share))
     goto err;
 
+  /* convert legacy CONNECTION option to engine option */
+  if (connect_string.length &&
+      add_as_engine_option(thd, handler_file->partition_ht(), &share->mem_root,
+                           connect_keyword, connect_string, TRUE,
+                           share->option_struct_table, &share->option_list))
+    goto err;
+  connect_string= null_clex_str;
+
   if (share->hlindexes())
   {
     DBUG_ASSERT(share->hlindexes() == 1);
@@ -3717,7 +3760,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   if (frm.str)
   {
     option_list= 0;             // cleanup existing options ...
-    option_struct= 0;           // ... if it's an assisted discovery
+    option_struct_table= 0;     // ... if it's an assisted discovery
     error= init_from_binary_frm_image(thd, write, frm.str, frm.length);
   }
 
@@ -3826,28 +3869,6 @@ bool Virtual_column_info::cleanup_session_expr()
 {
   DBUG_ASSERT(need_refix());
   return expr->walk(&Item::cleanup_excluding_fields_processor, 0, 0);
-}
-
-
-bool
-Virtual_column_info::is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
-                                  const Virtual_column_info* vcol, bool &error) const
-{
-  error= true;
-  Item *cmp_expr= vcol->expr->build_clone(thd);
-  if (!cmp_expr)
-    return false;
-  Item::func_processor_rename_table param;
-  param.old_db=    Lex_ident_db(vcol_share->db);
-  param.old_table= Lex_ident_table(vcol_share->table_name);
-  param.new_db=    Lex_ident_db(share->db);
-  param.new_table= Lex_ident_table(share->table_name);
-  cmp_expr->walk(&Item::rename_table_processor, 1, &param);
-
-  error= false;
-  return type_handler()  == vcol->type_handler()
-      && is_stored() == vcol->is_stored()
-      && expr->eq(cmp_expr, true);
 }
 
 
@@ -4014,7 +4035,7 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
   */
   Item::vcol_func_processor_result res;
 
-  int error= expr->walk(&Item::check_vcol_func_processor, 0, &res);
+  int error= expr->walk(&Item::check_vcol_func_processor, &res, 0);
   if (unlikely(error || (res.errors & VCOL_IMPOSSIBLE)))
   {
     // this can only happen if the frm was corrupted
@@ -4057,7 +4078,7 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
 bool Virtual_column_info::check_access(THD *thd)
 {
   return flags & VCOL_NEXTVAL &&
-         expr->walk(&Item::check_sequence_privileges, 0, thd);
+         expr->walk(&Item::check_sequence_privileges, thd, 0);
 }
 
 
@@ -4079,7 +4100,7 @@ bool Virtual_column_info::check_access(THD *thd)
     table 'table' and parses it, building an item object for it. The
     pointer to this item is placed into in a Virtual_column_info object
     that is created. After this the function performs
-    semantic analysis of the item by calling the the function
+    semantic analysis of the item by calling the function
     fix_and_check_vcol_expr().  Since the defining expression is part of the table
     definition the item for it is created in table->memroot within the
     special arena TABLE::expr_arena or in the thd memroot for INSERT DELAYED
@@ -4103,6 +4124,7 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
   LEX *old_lex= thd->lex;
   LEX lex;
   bool error;
+  TABLE_LIST *sequence, *last;
   DBUG_ENTER("unpack_vcol_info_from_frm");
 
   DBUG_ASSERT(vcol->expr == NULL);
@@ -4120,11 +4142,12 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
   if (unlikely(error))
     goto end;
 
-  if (lex.current_select->table_list.first[0].next_global)
+  if ((sequence= lex.current_select->table_list.first[0].next_global))
   {
-    /* We are using NEXT VALUE FOR sequence. Remember table name for open */
-    TABLE_LIST *sequence= lex.current_select->table_list.first[0].next_global;
-    sequence->next_global= table->internal_tables;
+    /* We are using NEXT VALUE FOR sequence. Remember table for open */
+    for (last= sequence ; last->next_global ; last= last->next_global)
+      ;
+    last->next_global= table->internal_tables;
     table->internal_tables= sequence;
   }
 
@@ -4594,8 +4617,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
       thd->restore_active_arena(&part_func_arena, &backup_arena);
       goto partititon_err;
     }
-    if (parse_engine_part_options(thd, outparam))
-      goto err;
     outparam->part_info->is_auto_partitioned= share->auto_partitioned;
     DBUG_PRINT("info", ("autopartitioned: %u", share->auto_partitioned));
     /* 
@@ -4604,6 +4625,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     */
     if (!work_part_info_used)
       tmp= fix_partition_func(thd, outparam, is_create_table);
+    if (parse_engine_part_options(thd, outparam))
+      goto err;
     thd->stmt_arena= backup_stmt_arena_ptr;
     thd->restore_active_arena(&part_func_arena, &backup_arena);
     if (!tmp)
@@ -4684,6 +4707,7 @@ partititon_err:
     else
       ha_open_flags|= HA_OPEN_IGNORE_IF_LOCKED;
 
+    outparam->file->option_struct= share->option_struct_table;
     int ha_err= outparam->file->ha_open(outparam, share->normalized_path.str,
                                  (db_stat & HA_READ_ONLY ? O_RDONLY : O_RDWR),
                                  ha_open_flags, 0, partitions_to_open);
@@ -5851,10 +5875,9 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
 
   mysql_mutex_assert_owner(&tdc->LOCK_table_share);
   DBUG_ASSERT(tdc->flushed);
+  DBUG_ASSERT(mdl_context->m_wait.get_status() == MDL_wait::EMPTY);
 
   tdc->m_flush_tickets.push_front(&ticket);
-
-  mdl_context->m_wait.reset_status();
 
   mysql_mutex_unlock(&tdc->LOCK_table_share);
 
@@ -5872,6 +5895,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   mysql_cond_broadcast(&tdc->COND_release);
   mysql_mutex_unlock(&tdc->LOCK_table_share);
 
+  mdl_context->m_wait.reset_status();
 
   /*
     In cases when our wait was aborted by KILL statement,
@@ -6183,7 +6207,8 @@ bool TABLE_LIST::create_field_translation(THD *thd)
       It's needed because some items in the select list, like IN subselects,
       might be substituted for optimized ones.
     */
-    if (is_view() && get_unit()->prepared && !field_translation_updated)
+    if (is_merged_derived() &&
+        get_unit()->prepared && !field_translation_updated)
     {
       field_translation_updated= TRUE;
       if (static_cast<uint>(field_translation_end - field_translation) <
@@ -7807,6 +7832,11 @@ static void do_mark_index_columns(TABLE *table, uint index,
       table->s->primary_key != MAX_KEY && table->s->primary_key != index)
     do_mark_index_columns(table, table->s->primary_key, bitmap, read);
 
+  if (table->versioned(VERS_TRX_ID))
+  {
+    table->vers_start_field()->register_field_in_read_map();
+    table->vers_end_field()->register_field_in_read_map();
+  }
 }
 /*
   mark columns used by key, but don't reset other fields
@@ -8139,6 +8169,19 @@ void TABLE::mark_columns_per_binlog_row_image()
   if (file->row_logging &&
       !ha_check_storage_engine_flag(s->db_type(), HTON_NO_BINLOG_ROW_OPT))
   {
+#ifdef WITH_WSREP
+    /**
+     The marking of all columns will prevent update/set column values for the
+     sequence table. For the sequence table column bitmap sent from master is
+     used.
+    */
+    if (WSREP(thd) && wsrep_thd_is_applying(thd) &&
+        s->sequence && s->primary_key >= MAX_KEY)
+    {
+      DBUG_VOID_RETURN;
+    }
+#endif /* WITH_WSREP */
+
     /* if there is no PK, then mark all columns for the BI. */
     if (s->primary_key >= MAX_KEY)
     {
@@ -8358,7 +8401,7 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
     read_set= s->check_set;
 
     for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
-      (*chk)->expr->walk(&Item::register_field_in_read_map, 1, 0);
+      (*chk)->expr->walk(&Item::register_field_in_read_map, 0, WALK_SUBQUERY);
     read_set= save_read_set;
   }
 
@@ -8377,7 +8420,7 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
     {
       if ((*vfield_ptr)->flags & PART_KEY_FLAG)
         (*vfield_ptr)->vcol_info->expr->walk(&Item::add_field_to_set_processor,
-                                             1, this);
+                                             this, WALK_SUBQUERY);
     }
     for (uint i= 0 ; i < s->fields ; i++)
     {
@@ -8416,7 +8459,7 @@ void TABLE::mark_default_fields_for_write(bool is_insert)
     {
       bitmap_set_bit(write_set, field->field_index);
       field->default_value->expr->
-        walk(&Item::register_field_in_read_map, 1, 0);
+        walk(&Item::register_field_in_read_map, 0, WALK_SUBQUERY);
     }
     else if (!is_insert && field->has_update_default_function())
       bitmap_set_bit(write_set, field->field_index);
@@ -8646,6 +8689,7 @@ bool TABLE::check_tmp_key(uint key, uint key_parts,
          key_parts <= tmp_table_max_key_parts();
 }
 
+
 /**
   @brief
   Add one key to a temporary table
@@ -8704,6 +8748,9 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   bzero(keyinfo->rec_per_key, sizeof(ulong)*key_parts);
   keyinfo->read_stats= NULL;
   keyinfo->collected_stats= NULL;
+  keyinfo->table= this;
+  keyinfo->all_nulls_key_parts= 0;
+  keyinfo->stat_storage_length= 0;
 
   for (i= 0; i < key_parts; i++)
   {
@@ -8724,25 +8771,10 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   */
   keyinfo->index_flags= file->index_flags(key, 0, 1);
 
-  /*
-    For the case when there is a derived table that would give distinct rows,
-    the index statistics are passed to the join optimizer to tell that a ref
-    access to all the fields of the derived table will produce only one row.
-  */
-
   st_select_lex_unit* derived= pos_in_table_list ?
                                pos_in_table_list->derived: NULL;
   if (derived)
-  {
-    st_select_lex* first= derived->first_select();
-    uint select_list_items= first->get_item_list()->elements;
-    if (key_parts == select_list_items)
-    {
-      if ((!first->is_part_of_union() && (first->options & SELECT_DISTINCT)) ||
-          derived->check_distinct_in_union())
-        keyinfo->rec_per_key[key_parts - 1]= 1;
-    }
-  }
+    infer_derived_key_statistics(derived, keyinfo, key_parts);
 
   set_if_bigger(s->max_key_length, keyinfo->key_length);
   s->keys++;
@@ -8978,7 +9010,8 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
 {
   /* initialize the result variables */
   tbl->keys_in_use_for_query= tbl->keys_in_use_for_group_by= 
-    tbl->keys_in_use_for_order_by= tbl->s->usable_indexes(tbl->in_use);
+    tbl->keys_in_use_for_order_by= tbl->keys_in_use_for_rowid_filter=
+      tbl->s->usable_indexes(tbl->in_use);
 
   /* index hint list processing */
   if (index_hints)
@@ -9103,6 +9136,9 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
     tbl->keys_in_use_for_group_by.subtract (index_group[INDEX_HINT_IGNORE]);
   }
 
+  // Keys for building ROWID filters are the same as for retrieving data
+   tbl->keys_in_use_for_rowid_filter= tbl->keys_in_use_for_query;
+
   /* make sure covering_keys don't include indexes disabled with a hint */
   tbl->covering_keys.intersect(tbl->keys_in_use_for_query);
   return 0;
@@ -9203,19 +9239,6 @@ bool is_simple_order(ORDER *order)
 }
 
 /*
-  to satisfy marked_for_write_or_computed() Field's assert we temporarily
-  mark field for write before storing the generated value in it
-*/
-#ifdef DBUG_ASSERT_EXISTS
-#define DBUG_FIX_WRITE_SET(f) bool _write_set_fixed= !bitmap_fast_test_and_set(write_set, (f)->field_index)
-#define DBUG_RESTORE_WRITE_SET(f) if (_write_set_fixed) bitmap_clear_bit(write_set, (f)->field_index)
-#else
-#define DBUG_FIX_WRITE_SET(f)
-#define DBUG_RESTORE_WRITE_SET(f)
-#endif
-
-
-/*
   @brief Compute values for virtual columns used in query
 
   @param  update_mode Specifies what virtual column are computed
@@ -9253,8 +9276,6 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
   bool handler_pushed= 0, update_all_columns= 1;
   DBUG_ASSERT(vfield);
 
-  if (h->keyread_enabled())
-    DBUG_RETURN(0);
   /*
     TODO: this imposes memory leak until table flush when save_in_field()
           does expr_arena allocation. F.ex. case in
@@ -9297,8 +9318,22 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     bool update= 0, swap_values= 0;
     switch (update_mode) {
     case VCOL_UPDATE_FOR_READ:
-      update= (!vcol_info->is_stored() &&
-               bitmap_is_set(read_set, vf->field_index));
+      if (!bitmap_is_set(read_set, vf->field_index))
+        update= false;
+      else if (h->keyread_enabled())
+      {
+        /*
+          Compute vcol if it is not directly present in the index
+          but can be computed from index columns.
+        */
+        update= (!vf->vcol_direct_part_of_key.is_set(h->keyread) &&
+                 vf->part_of_key.is_set(h->keyread));
+      }
+      else
+      {
+        /* Compute vcol if it is not stored */
+        update= !vcol_info->is_stored();
+      }
       swap_values= 1;
       break;
     case VCOL_UPDATE_FOR_DELETE:
@@ -9336,12 +9371,12 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     if (update)
     {
       /* Compute the actual value of the virtual fields */
-      DBUG_FIX_WRITE_SET(vf);
+      DBUG_FIX_WRITE_SET(vf, write_set);
 # ifdef DBUG_TRACE
       int field_error=
 # endif
       vcol_info->expr->save_in_field(vf, 0);
-      DBUG_RESTORE_WRITE_SET(vf);
+      DBUG_RESTORE_WRITE_SET(vf, write_set);
       DBUG_PRINT("info", ("field '%s' - updated  error: %d",
                           vf->field_name.str, field_error));
       if (swap_values && (vf->flags & BLOB_FLAG))
@@ -9397,10 +9432,10 @@ int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
   */
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
   bitmap_clear_all(&tmp_set);
-  vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &tmp_set);
-  DBUG_FIX_WRITE_SET(vf);
+  vf->vcol_info->expr->walk(&Item::update_vcol_processor, &tmp_set, 0);
+  DBUG_FIX_WRITE_SET(vf, write_set);
   vf->vcol_info->expr->save_in_field(vf, 0);
-  DBUG_RESTORE_WRITE_SET(vf);
+  DBUG_RESTORE_WRITE_SET(vf, write_set);
   in_use->restore_active_arena(expr_arena, &backup_arena);
   in_use->pop_internal_handler();
   if (ignore_warnings)
@@ -10132,6 +10167,29 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
     bool forced_no_merge_for_update_delete=
            belong_to_view ? belong_to_view->updating :
                            !unit->outer_select()->outer_select();
+
+    if (with && updating)
+    {
+      /*
+        We are trying to update or delete from a CTE. This is not allowed.
+        Don't merge it, then the check for update of non-updatable table
+        will catch this and report an error.
+      */
+      set_materialized_derived();
+    }
+
+    /*
+       In the case where a table merge operation moves a derived table from
+       one select to another, table hints may be adjusted already.
+    */
+    if (select_lex->opt_hints_qb &&    // QB hints initialized
+        !this->opt_hints_table)        // Table hints are not adjusted yet
+      select_lex->opt_hints_qb->fix_hints_for_derived_table(this);
+
+    bool is_derived_merge_allowed=
+        hint_table_state(thd, this, MERGE_HINT_ENUM,
+            optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE));
+
     if (!is_materialized_derived() && unit->can_be_merged() &&
         /*
           Following is special case of
@@ -10148,7 +10206,7 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
          (!first_select->group_list.elements &&
           !first_select->order_list.elements)) &&
         (is_view() ||
-         optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE)) &&
+         is_derived_merge_allowed) &&
           !thd->lex->can_not_use_merged() &&
         !(!is_view() && forced_no_merge_for_update_delete &&
           (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
@@ -10439,12 +10497,68 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 }  
 
 
-double KEY::actual_rec_per_key(uint i) const
+/**
+  Get records-per-key estimate for an index prefix.
+
+  Returns average number of records per key value for the given index prefix.
+  Prefers engine-independent statistics (EITS) if available and falls back
+  to engine-dependent statistics otherwise.
+
+  @param last_key_part_in_prefix  Index of the last key part
+                                  in the prefix (0-based)
+
+  @return  Estimated records per key value:
+           - 0.0 if no statistics available
+           - avg_frequency from EITS if available
+           - rec_per_key from engine statistics if EITS is not available
+*/
+double KEY::actual_rec_per_key(uint last_key_part_in_prefix) const
 { 
-  if (rec_per_key == 0)
-    return 0;
-  return (is_statistics_from_stat_tables ?
-          read_stats->get_avg_frequency(i) : (double) rec_per_key[i]);
+  if (is_statistics_from_stat_tables)
+  {
+    // Use engine-independent statistics (EITS)
+    return read_stats->get_avg_frequency(last_key_part_in_prefix);
+  }
+  // Fall back to engine-dependent statistics if EITS is not available
+  return rec_per_key ? (double) rec_per_key[last_key_part_in_prefix] : 0.0;
+}
+
+
+/**
+  Get records-per-key estimate for an index prefix with NULL-aware optimization.
+
+  Returns average number of records per key value for the given index prefix.
+  When EITS statistics show avg_frequency == 0 (typically all NULL values) and
+  the query uses NULL-rejecting conditions (e.g., =), returns 1.0 to indicate
+  high selectivity since NULL = NULL never matches.
+
+  @param last_key_part_in_prefix  Index of the last key part
+                                  in the prefix (0-based)
+  @param notnull_part  Bitmap indicating which key parts have NULL-rejecting
+                       conditions (bit N set means key part N uses =, not <=>)
+
+  @return  Estimated records per key value:
+           - 0.0 if no statistics available
+           - avg_frequency from EITS if available
+           - 1.0 if all values are NULL with NULL-rejecting condition
+           - rec_per_key from engine statistics if EITS is not available
+*/
+double KEY::rec_per_key_null_aware(uint last_key_part_in_prefix,
+                                   key_part_map notnull_part) const
+{
+  if (notnull_part & all_nulls_key_parts)
+  {
+    /*
+      For NULL-rejecting conditions like `t1.key_col = t2.col`, we know
+      there will be no matches (since NULL = NULL is never true).
+      If at least one NULL-rejecting condition is present, and all
+      corresponding key part values are NULL, return number of records 1.0
+      (highly selective), indicating no expected matches.
+    */
+    return 1.0;
+  }
+
+  return actual_rec_per_key(last_key_part_in_prefix);
 }
 
 /*
@@ -10595,7 +10709,7 @@ bool TR_table::query(ulonglong trx_id)
   Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_TRX_ID]);
   Item *value= newx Item_int(thd, trx_id);
   COND *conds= newx Item_func_eq(thd, field, value);
-  if (unlikely((error= setup_conds(thd, this, dummy, &conds))))
+  if (unlikely((error= setup_conds(thd, this, dummy, &conds, NULL))))
     return false;
   select= make_select(table, 0, 0, conds, NULL, 0, &error);
   if (unlikely(error || !select))
@@ -10634,7 +10748,7 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
     conds= newx Item_func_ge(thd, field, value);
   else
     conds= newx Item_func_le(thd, field, value);
-  if (unlikely((error= setup_conds(thd, this, dummy, &conds))))
+  if (unlikely((error= setup_conds(thd, this, dummy, &conds, NULL))))
     return false;
   // FIXME: (performance) force index 'commit_timestamp'
   select= make_select(table, 0, 0, conds, NULL, 0, &error);
@@ -11015,4 +11129,17 @@ void TABLE::mark_table_for_reopen()
   THD *thd= in_use;
   DBUG_ASSERT(thd);
   thd->locked_tables_list.mark_table_for_reopen(this);
+}
+
+/*
+  @brief
+    Estimate how much space is required to store one index tuple
+*/
+size_t TABLE::key_storage_length(uint index)
+{
+  /* Use storage engine's statistics if it is available */
+  if (key_info[index].stat_storage_length)
+    return key_info[index].stat_storage_length;
+
+  return key_storage_length_from_ddl(index);
 }

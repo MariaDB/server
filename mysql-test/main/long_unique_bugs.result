@@ -843,3 +843,11 @@ insert into t (a) values (1);
 update t set a=2;
 drop table t;
 # End of 10.6 tests
+#
+# MDEV-37404 InnoDB: Failing assertion: node->pcur->rel_pos == BTR_PCUR_ON
+#
+create table t(c int primary key, c2 blob unique) engine=innodb;
+insert into t values (0, '');
+replace into t values (0, '123');
+drop table t;
+# End of 10.11 tests

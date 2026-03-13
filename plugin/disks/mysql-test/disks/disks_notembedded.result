@@ -18,5 +18,6 @@ select sum(Total) >= sum(Available), sum(Total) >= sum(Used) from information_sc
 sum(Total) >= sum(Available)	sum(Total) >= sum(Used)
 1	1
 connection default;
+disconnect con1;
 DROP USER user1@localhost;
 # End of 10.1 tests

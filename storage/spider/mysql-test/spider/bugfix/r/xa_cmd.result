@@ -36,10 +36,79 @@ INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 XA END 'test';
 XA PREPARE 'test';
 XA COMMIT 'test';
+# MDEV-37829 XA COMMIT ONE PHASE fails with "This xid does not
+# exist" if a trigger references a SPIDER table
+#
+# Below we test a version of the MDEV-37829 case that is not a
+# no-op on the spider table
+XA START 'test1';
+INSERT INTO tbl_a (pkey) VALUES (100);
+XA END 'test1';
+XA COMMIT 'test1' ONE PHASE;
+select * from tbl_a;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+100
+create table t (c int);
+insert into t values (1),(2);
+CREATE PROCEDURE tProc()
+BEGIN
+SET @t := TRUE;
+IF @t = TRUE THEN
+INSERT INTO tbl_a select max(pkey) + 1 from tbl_a;
+END IF;
+END$$
+CREATE TRIGGER t_au
+AFTER UPDATE
+ON t FOR EACH ROW
+BEGIN
+IF NEW.c < 50 THEN
+CALL tProc();
+END IF;
+END$$
+XA START 'test';
+update t set c = c + 1 where c = 1;
+XA END 'test';
+XA PREPARE 'test';
+XA COMMIT 'test';
+XA START 'test1';
+update t set c = c + 1 where c = 2;
+XA END 'test1';
+XA COMMIT 'test1' ONE PHASE;
+drop table t;
+select * from tbl_a;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+100
+101
+102
+103
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
 argument
 insert into `auto_test_remote`.`tbl_a`(`pkey`)values(0),(1),(2),(3),(4),(5),(6),(7),(8),(9)
+insert into `auto_test_remote`.`tbl_a`(`pkey`)values(100)
+insert high_priority into `auto_test_remote`.`tbl_a`(`pkey`)values(101)
+insert high_priority into `auto_test_remote`.`tbl_a`(`pkey`)values(102)
+insert high_priority into `auto_test_remote`.`tbl_a`(`pkey`)values(103)
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %'
 SELECT pkey FROM tbl_a ORDER BY pkey;
 pkey
@@ -53,6 +122,10 @@ pkey
 7
 8
 9
+100
+101
+102
+103
 
 deinit
 connection master_1;

@@ -111,6 +111,6 @@ CHANGE MASTER TO
  master_ssl_cert = '',
  master_ssl_key = '';
 
---echo End of 5.0 tests
+--echo # End of 5.0 tests
 --let $rpl_only_running_threads= 1
 --source include/rpl_end.inc

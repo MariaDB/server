@@ -57,6 +57,8 @@ include/assert.inc [Value returned by SSS and PS table for SSL_Key should be sam
 include/assert.inc [Value returned by SSS and PS table for SSL_Verify_Server_Certificate should be same.]
 connection master;
 drop user replssl@localhost;
+Warnings:
+Note	4227	Dropped users 'replssl'@'localhost' have active connections. Use KILL CONNECTION if they should not be used anymore.
 connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO

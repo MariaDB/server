@@ -5,7 +5,7 @@ ON UPDATE CASCADE)
 ENGINE=InnoDB;
 INSERT INTO child SET a=1;
 TRUNCATE TABLE parent;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `test`.`parent` (`a`))
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`parent` (`a`))
 TRUNCATE TABLE child;
 INSERT INTO child SET a=1;
 UPDATE parent SET a=2;
@@ -34,7 +34,7 @@ TRUNCATE TABLE child;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET DEBUG_SYNC='now SIGNAL go';
 connection dml;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON UPDATE CASCADE)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON UPDATE CASCADE)
 SELECT * FROM child;
 a
 3
@@ -85,13 +85,13 @@ SET FOREIGN_KEY_CHECKS=1;
 TRUNCATE t1;
 ERROR HY000: Cannot add foreign key constraint for `t1`
 INSERT INTO t1 VALUES (2,2);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t2` (`a`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t2` (`a`))
 SELECT * FROM t1;
 pk	a
 1	1
 UNLOCK TABLES;
 INSERT INTO t1 VALUES (2,2);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t2` (`a`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t2` (`a`))
 SET FOREIGN_KEY_CHECKS=0;
 INSERT INTO t1 VALUES (2,2);
 SELECT * FROM t1;

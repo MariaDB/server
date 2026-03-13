@@ -277,19 +277,23 @@ ERROR HY000: The MariaDB server is running with the --secure-timestamp=YES optio
 # restart: --secure-timestamp=REPLICATION
 create user nobody;
 grant all privileges on test.* to nobody;
+change_user nobody,,;
 set @@system_versioning_insert_history= 1;
 insert into test.t3(z, row_start, row_end) values (9, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 ERROR 42000: Access denied; you need (at least one of) the BINLOG REPLAY privilege(s) for this operation
 insert into test.t3 values (9, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 ERROR 42000: Access denied; you need (at least one of) the BINLOG REPLAY privilege(s) for this operation
+change_user root,,;
 # restart: --secure-timestamp=SUPER
 set @@system_versioning_insert_history= 1;
 insert into test.t3(z, row_start, row_end) values (10, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+change_user nobody,,;
 set @@system_versioning_insert_history= 1;
 insert into test.t3(z, row_start, row_end) values (7, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG REPLAY privilege(s) for this operation
 insert into test.t3 values (7, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG REPLAY privilege(s) for this operation
+change_user root,,;
 use test;
 # restart: --secure-timestamp=NO
 drop tables t1, t2, t3;

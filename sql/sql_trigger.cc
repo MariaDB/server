@@ -119,39 +119,33 @@ Trigger_creation_ctx::create(THD *thd,
   bool invalid_creation_ctx= FALSE;
   myf utf8_flag= thd->get_utf8_flag();
 
-  if (resolve_charset(client_cs_name->str,
+  if (resolve_charset(safe_str(client_cs_name),
                       thd->variables.character_set_client,
                       &client_cs, MYF(utf8_flag)))
   {
     sql_print_warning("Trigger for table '%s'.'%s': "
                       "invalid character_set_client value (%s).",
-                      (const char *) db_name,
-                      (const char *) table_name,
-                      (const char *) client_cs_name->str);
+                      db_name, table_name, safe_str(client_cs_name));
 
     invalid_creation_ctx= TRUE;
   }
 
-  if (resolve_collation(connection_cl_name->str,
+  if (resolve_collation(safe_str(connection_cl_name),
                         thd->variables.collation_connection,
                         &connection_cl,MYF(utf8_flag)))
   {
     sql_print_warning("Trigger for table '%s'.'%s': "
                       "invalid collation_connection value (%s).",
-                      (const char *) db_name,
-                      (const char *) table_name,
-                      (const char *) connection_cl_name->str);
+                      db_name, table_name, safe_str(connection_cl_name));
 
     invalid_creation_ctx= TRUE;
   }
 
-  if (resolve_collation(db_cl_name->str, NULL, &db_cl, MYF(utf8_flag)))
+  if (resolve_collation(safe_str(db_cl_name), NULL, &db_cl, MYF(utf8_flag)))
   {
     sql_print_warning("Trigger for table '%s'.'%s': "
                       "invalid database_collation value (%s).",
-                      (const char *) db_name,
-                      (const char *) table_name,
-                      (const char *) db_cl_name->str);
+                      db_name, table_name, safe_str(db_cl_name));
 
     invalid_creation_ctx= TRUE;
   }
@@ -162,8 +156,7 @@ Trigger_creation_ctx::create(THD *thd,
                         Sql_condition::WARN_LEVEL_WARN,
                         ER_TRG_INVALID_CREATION_CTX,
                         ER_THD(thd, ER_TRG_INVALID_CREATION_CTX),
-                        (const char *) db_name,
-                        (const char *) table_name);
+                        db_name, table_name);
   }
 
   /*
@@ -227,6 +220,11 @@ static File_option triggers_file_parameters[]=
     my_offsetof(class Table_triggers_list, hr_create_times),
     FILE_OPTIONS_ULLLIST
   },
+  {
+    { STRING_WITH_LEN("sql_path") },
+    my_offsetof(class Table_triggers_list, sql_paths),
+    FILE_OPTIONS_STRLIST
+  },
   { { 0, 0 }, 0, FILE_OPTIONS_STRING }
 };
 
@@ -246,7 +244,7 @@ File_option sql_modes_parameters=
   is regarded as ok.
 */
 
-static const int TRG_NUM_REQUIRED_PARAMETERS= 7;
+static const int TRG_NUM_REQUIRED_PARAMETERS= 8;
 
 /*
   Structure representing contents of .TRN file which are used to support
@@ -390,7 +388,7 @@ Trigger* Table_triggers_list::for_all_triggers(Triggers_processor func,
       for (Trigger *trigger= get_trigger(i,j) ;
            trigger ;
            trigger= trigger->next[i])
-        if (is_the_right_most_event_bit(trigger->events, (trg_event_type)i) &&
+        if (is_the_right_most_event_bit(trigger->events, i) &&
             (trigger->*func)(arg))
         {
           (trigger->*func)(arg);
@@ -1119,6 +1117,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   /* Populate the trigger object */
 
   trigger->sql_mode= thd->variables.sql_mode;
+  trigger->sql_path= thd->variables.path.lex_cstring(thd->mem_root);
   build_trig_stmt_query(thd, tables, stmt_query, &trigger_definition,
                         &trigger->definer, trg_definer_holder);
 
@@ -1183,6 +1182,7 @@ void Table_triggers_list::empty_lists()
 {
   definitions_list.empty();
   definition_modes_list.empty();
+  sql_paths.empty();
   definers_list.empty();
   client_cs_names.empty();
   connection_cl_names.empty();
@@ -1223,7 +1223,8 @@ bool Trigger::add_to_file_list(void* param_arg)
       base->client_cs_names.push_back(&client_cs_name, mem_root) ||
       base->connection_cl_names.push_back(&connection_cl_name, mem_root) ||
       base->db_cl_names.push_back(&db_cl_name, mem_root) ||
-      base->hr_create_times.push_back(&hr_create_time.val, mem_root))
+      base->hr_create_times.push_back(&hr_create_time.val, mem_root) ||
+      base->sql_paths.push_back(&sql_path, mem_root))
     return 1;
   return 0;
 }
@@ -1738,7 +1739,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
     if (is_equal(&triggers_file_type, parser->type()))
     {
       Handle_old_incorrect_sql_modes_hook sql_modes_hook(path.str);
-      LEX_CSTRING *trg_create_str;
+      LEX_CSTRING *trg_create_str, *trg_sql_path;
       ulonglong *trg_sql_mode, *trg_create_time;
       Trigger *trigger;
       Table_triggers_list *trigger_list=
@@ -1771,6 +1772,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
       status_var_increment(thd->status_var.feature_trigger);
 
       List_iterator_fast<ulonglong> itm(trigger_list->definition_modes_list);
+      List_iterator_fast<LEX_CSTRING> it_paths(trigger_list->sql_paths);
       List_iterator_fast<LEX_CSTRING> it_definer(trigger_list->definers_list);
       List_iterator_fast<LEX_CSTRING> it_client_cs_name(trigger_list->client_cs_names);
       List_iterator_fast<LEX_CSTRING> it_connection_cl_name(trigger_list->connection_cl_names);
@@ -1790,6 +1792,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
       {
         sp_head *sp;
         sql_mode_t sql_mode;
+        LEX_CSTRING sql_path;
         LEX_CSTRING *trg_definer;
         Trigger_creation_ctx *creation_ctx;
 
@@ -1800,6 +1803,9 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         */
         sql_mode= ((trg_sql_mode= itm++) ? *trg_sql_mode :
                    (ulonglong) global_system_variables.sql_mode);
+
+        sql_path= ((trg_sql_path= it_paths++) ? *trg_sql_path :
+                    global_system_variables.path.lex_cstring(&table->mem_root));
 
         trg_create_time= it_create_times++;     // May be NULL if old file
         trg_definer= it_definer++;              // May be NULL if old file
@@ -1836,6 +1842,8 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         Deprecated_trigger_syntax_handler error_handler;
         thd->push_internal_handler(&error_handler);
 
+        Sql_path_instant_set path_save(thd, sql_path);
+
         bool parse_error= parse_sql(thd, & parser_state, creation_ctx);
         thd->pop_internal_handler();
 
@@ -1858,14 +1866,15 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         if (lex.sphead)
           lex.sphead->m_sql_mode= sql_mode;
 
-        if (unlikely(!(trigger= (new (&table->mem_root)
-                                 Trigger(trigger_list, lex.sphead)))))
+        trigger= new (&table->mem_root) Trigger(trigger_list, lex.sphead);
+        if (unlikely(!trigger))
           goto err_with_lex_cleanup;
         lex.sphead= NULL; /* Prevent double cleanup. */
 
         sp= trigger->body;
 
         trigger->sql_mode= sql_mode;
+        trigger->sql_path= sql_path;
         trigger->definition= *trg_create_str;
         trigger->hr_create_time.val= trg_create_time ? *trg_create_time : 0;
         /*
@@ -1901,9 +1910,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
 
           trigger_list->add_trigger(lex.trg_chistics.events,
                                     lex.trg_chistics.action_time,
-                                    TRG_ORDER_NONE,
-                                    anchor_trg_name,
-                                    trigger);
+                                    TRG_ORDER_NONE, anchor_trg_name, trigger);
         }
 
         if (unlikely(parse_error))
@@ -1932,6 +1939,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           continue;
         }
 
+        sp->m_sql_path= thd->variables.path;
         sp->m_sql_mode= sql_mode;
         sp->set_creation_ctx(creation_ctx);
 

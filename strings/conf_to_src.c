@@ -482,7 +482,7 @@ main(int argc, char **argv  __attribute__((unused)))
       if ( (!simple_cs_is_full(cs)) && (cs->cs_name.str))
       {
         snprintf(filename, sizeof filename, "%s/%.*s.xml",
-                 argv[1], cs->csname.length, cs->csname.str);
+                 argv[1], (int) cs->cs_name.length, cs->cs_name.str);
         my_read_charset_file(filename);
       }
       cs->state|= MY_CS_LOADED;

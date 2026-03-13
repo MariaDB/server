@@ -62,7 +62,7 @@ Variable_name	Value
 Tmp_space_used	0
 set @@tmp_memory_table_size=0;
 flush status;
-# session.max_tmp_session_space_usage == global.max_tmp_session_space_usage
+# session.max_tmp_session_space_usage <= global.max_tmp_session_space_usage
 connect c1, localhost, root,,;
 connection default;
 create table t1 (a int primary key, v varchar(256), c int default(0)) engine=innodb;

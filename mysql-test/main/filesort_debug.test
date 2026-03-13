@@ -1,6 +1,5 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
---source include/count_sessions.inc
 
 call mtr.add_suppression("Sort aborted.*");
 
@@ -53,7 +52,6 @@ SET DEBUG_SYNC='now SIGNAL filesort_killed';
 connection default;
 disconnect con1;
 disconnect con2;
---source include/wait_until_count_sessions.inc
 SET DEBUG_SYNC= "RESET";
 DROP TABLE t1;
 

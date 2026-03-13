@@ -1617,8 +1617,7 @@ set statement optimizer_scan_setup_cost=0 for EXPLAIN SELECT MIN(d) FROM t1 wher
                     "range_scan_alternatives": [],
                     "analyzing_roworder_intersect": {
                       "cause": "too few roworder scans"
-                    },
-                    "analyzing_index_merge_union": []
+                    }
                   },
                   "group_index_range": {
                     "potential_group_range_indexes": [
@@ -1864,8 +1863,7 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
                     "range_scan_alternatives": [],
                     "analyzing_roworder_intersect": {
                       "cause": "too few roworder scans"
-                    },
-                    "analyzing_index_merge_union": []
+                    }
                   },
                   "group_index_range": {
                     "potential_group_range_indexes": [
@@ -2079,8 +2077,7 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                     "range_scan_alternatives": [],
                     "analyzing_roworder_intersect": {
                       "cause": "too few roworder scans"
-                    },
-                    "analyzing_index_merge_union": []
+                    }
                   },
                   "group_index_range": {
                     "potential_group_range_indexes": [
@@ -2357,8 +2354,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                     ],
                     "analyzing_roworder_intersect": {
                       "cause": "too few roworder scans"
-                    },
-                    "analyzing_index_merge_union": []
+                    }
                   },
                   "group_index_range": {
                     "chosen": false,
@@ -2579,8 +2575,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                     ],
                     "analyzing_roworder_intersect": {
                       "cause": "too few roworder scans"
-                    },
-                    "analyzing_index_merge_union": []
+                    }
                   },
                   "group_index_range": {
                     "chosen": false,
@@ -3762,8 +3757,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       },
                       "chosen": false,
                       "cause": "cost"
-                    },
-                    "analyzing_index_merge_union": []
+                    }
                   },
                   "group_index_range": {
                     "chosen": false,
@@ -4270,8 +4264,7 @@ explain delete from t0 where t0.a<3	{
               "cost": 0.005042291,
               "chosen": true
             }
-          ],
-          "analyzing_index_merge_union": []
+          ]
         },
         "group_index_range": {
           "chosen": false,
@@ -4402,8 +4395,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                     ],
                     "analyzing_roworder_intersect": {
                       "cause": "too few roworder scans"
-                    },
-                    "analyzing_index_merge_union": []
+                    }
                   },
                   "group_index_range": {
                     "chosen": false,
@@ -4477,8 +4469,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                     ],
                     "analyzing_roworder_intersect": {
                       "cause": "too few roworder scans"
-                    },
-                    "analyzing_index_merge_union": []
+                    }
                   },
                   "group_index_range": {
                     "chosen": false,
@@ -10420,9 +10411,7 @@ JS
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 explain select * from t1 where a >= 900 and b between 10 and 20;
@@ -10449,9 +10438,7 @@ JS
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 drop table t0,t1;
@@ -10481,9 +10468,7 @@ JS
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 drop table t1,one_k;
@@ -10521,9 +10506,7 @@ JS
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 drop table ten,t1;
@@ -10555,9 +10538,7 @@ JS
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 EXPLAIN SELECT * FROM t1 WHERE b IS NULL;
@@ -10584,9 +10565,7 @@ JS
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 drop table t1;
@@ -10621,9 +10600,7 @@ JS
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 ALTER TABLE t1 modify column b BINARY(10) AFTER i;
@@ -10651,9 +10628,7 @@ JS
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 ALTER TABLE t1 modify column b VARBINARY(10) AFTER i;
@@ -10681,9 +10656,7 @@ JS
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 drop table t1;
@@ -10714,9 +10687,7 @@ JS
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 drop table t1;
@@ -10750,9 +10721,7 @@ JS
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 drop table t1;
@@ -10784,9 +10753,7 @@ JS
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 drop table t1;
@@ -10842,9 +10809,7 @@ JS
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 drop table t1, t0, one_k;
@@ -11191,9 +11156,7 @@ JS
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 DROP TABLE t1;
@@ -12129,7 +12092,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
 1	PRIMARY	t2	ref	a	a	5	test.t1.b	2	Using where
 1	PRIMARY	t3	ref	a	a	5	test.t1.b	3	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	10	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	1	Using where
 2	LATERAL DERIVED	t10	ref	grp_id	grp_id	5	test.t1.b	100	
 2	LATERAL DERIVED	t11	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 select json_detailed(json_extract(trace, '$**.check_split_materialized')) as JS
@@ -12172,8 +12135,8 @@ JS
             "org_cost": 1.159965,
             "postjoin_cost": 4.020888502,
             "one_splitting_cost": 5.180853502,
-            "unsplit_postjoin_cost": 32.78652054,
-            "unsplit_cost": 148.7830205,
+            "unsplit_postjoin_cost": 159.1588125,
+            "unsplit_cost": 275.1553125,
             "rows": 100,
             "refills": 5,
             "total_splitting_cost": 25.90426751,
@@ -13057,8 +13020,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                     ],
                     "analyzing_roworder_intersect": {
                       "cause": "too few roworder scans"
-                    },
-                    "analyzing_index_merge_union": []
+                    }
                   },
                   "group_index_range": {
                     "chosen": false,
@@ -13453,8 +13415,7 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                     ],
                     "analyzing_roworder_intersect": {
                       "cause": "too few roworder scans"
-                    },
-                    "analyzing_index_merge_union": []
+                    }
                   },
                   "group_index_range": {
                     "chosen": false,
@@ -13701,8 +13662,7 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                       ],
                       "analyzing_roworder_intersect": {
                         "cause": "too few roworder scans"
-                      },
-                      "analyzing_index_merge_union": []
+                      }
                     },
                     "group_index_range": {
                       "chosen": false,

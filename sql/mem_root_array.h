@@ -17,6 +17,7 @@
 #ifndef MEM_ROOT_ARRAY_INCLUDED
 #define MEM_ROOT_ARRAY_INCLUDED
 
+#include <type_traits>
 #include <my_alloc.h>
 
 /**
@@ -44,7 +45,9 @@
           compilers we use.
 */
 
-template<typename Element_type, bool has_trivial_destructor>
+template<typename Element_type,
+         bool has_trivial_destructor=
+                     std::is_trivially_destructible<Element_type>::value>
 class Mem_root_array
 {
 public:
@@ -262,6 +265,5 @@ private:
     m_size= other.m_size;
   }
 };
-
 
 #endif  // MEM_ROOT_ARRAY_INCLUDED

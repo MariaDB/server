@@ -6,8 +6,6 @@
 
 --source have_engine.inc
 
---source include/count_sessions.inc
-
 SET lock_wait_timeout = 1;
 
 --let $create_definition = a $int_col
@@ -45,8 +43,6 @@ disconnect con1;
 
 connection default;
 DROP TABLE t1;
-
---source include/wait_until_count_sessions.inc
 
 --source cleanup_engine.inc
 

@@ -880,7 +880,7 @@ public:
     const ULonglong_null count= cursor_array(thd)->ref_count(offset);
     return (null_value= count.is_null()) ? 0LL : (longlong) count.value();
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_cursor_ref_count>(thd, this); }
 };
 
@@ -927,7 +927,7 @@ maria_declare_plugin(type_cursor)
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL // Maturity(see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_STABLE // Maturity(see include/mysql/plugin.h)*/
 }
 #ifndef DBUG_OFF
 ,
@@ -944,7 +944,7 @@ maria_declare_plugin(type_cursor)
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL // Maturity(see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_STABLE // Maturity(see include/mysql/plugin.h)*/
 }
 #endif
 maria_declare_plugin_end;

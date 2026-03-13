@@ -1,0 +1,763 @@
+SET NAMES utf8;
+SET time_zone=_latin1'+03:00';
+SET timestamp=1100000000;
+SELECT NOW();
+NOW()
+2004-11-09 14:33:20
+select weekday(NOW());
+weekday(NOW())
+1
+SELECT TO_DATE('2025/10/26', 'YYYY/MM/DD') as x;
+x
+2025-10-26 00:00:00
+SELECT TO_DATE('26-OCT-25', 'DD-MON-RR') as x;
+x
+2025-10-26 00:00:00
+SELECT TO_DATE('October 26, 2025', 'MONTH DD, YYYY') as x;
+x
+2025-10-26 00:00:00
+SELECT TO_DATE('20220109','YYYY-MM-DD') AS x;
+x
+2022-01-09 00:00:00
+# Two-Digit Year (RR)
+SELECT TO_DATE('26-OCT-60', 'DD-MON-RR') as x;
+x
+1960-10-26 00:00:00
+SELECT TO_DATE('26-OCT-25', 'DD-MON-RR') as x;
+x
+2025-10-26 00:00:00
+SELECT TO_DATE('26-OCT-15', 'DD-MON-RR') as x;
+x
+2015-10-26 00:00:00
+SELECT TO_DATE('26-OCT-5', 'DD-MON-RR') as x;
+x
+2005-10-26 00:00:00
+# Day of Year (DDD)
+SELECT TO_DATE('2025-300', 'YYYY-DDD') as x;
+x
+2025-10-27 00:00:00
+SELECT TO_DATE('2000-366', 'YYYY-DDD') as x;
+x
+2000-12-31 00:00:00
+SELECT TO_DATE('2000-365', 'YYYY-DDD') as x;
+x
+2000-12-30 00:00:00
+SELECT TO_DATE('2025-0', 'YYYY-DDD') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2025-0' for function to_date
+SELECT TO_DATE('2001-366', 'YYYY-DDD') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2001-366' for function to_date
+# Time Formats (HH24, MI, SS)
+SELECT TO_DATE('14:30:25', 'HH24:MI:SS') as x;
+x
+2004-11-09 14:30:25
+SELECT TO_DATE('08:30:25', 'HH:MI:SS') as x;
+x
+2004-11-09 08:30:25
+SELECT TO_DATE('08:30:25 PM', 'HH:MI:SS AM') as x;
+x
+2004-11-09 20:30:25
+SELECT TO_DATE('08:30:25 AM', 'HH:MI:SS AM') as x;
+x
+2004-11-09 08:30:25
+SELECT TO_DATE('08:30:25 AM', 'HH:MI:SS A.M.') as x;
+x
+2004-11-09 08:30:25
+SELECT TO_DATE('08:30:25 AM', 'HH:MI:SS P.M.') as x;
+x
+2004-11-09 08:30:25
+SELECT TO_DATE('2026-01' DEFAULT '10(12)AM' ON CONVERSION ERROR, 'MI(HH12)AM');
+TO_DATE('2026-01' DEFAULT '10(12)AM' ON CONVERSION ERROR, 'MI(HH12)AM')
+2004-11-09 00:10:00
+SELECT TO_DATE('2026-01' DEFAULT '10(11)AM' ON CONVERSION ERROR, 'MI(HH12)AM');
+TO_DATE('2026-01' DEFAULT '10(11)AM' ON CONVERSION ERROR, 'MI(HH12)AM')
+2004-11-09 11:10:00
+# Day of Week (DAY, DY). Uses current day
+SELECT TO_DATE('Tuesday', 'DAY') as x;
+x
+2004-11-09 00:00:00
+SELECT TO_DATE('26-OCT-25 Sunday', 'DD-MON-YY DAY') as x;
+x
+2025-10-26 00:00:00
+# Month of Year (MONTH, MON)
+SELECT TO_DATE('October', 'MONTH') as x;
+x
+2004-10-09 00:00:00
+SELECT TO_DATE('Oct', 'MON') as x;
+x
+2004-10-09 00:00:00
+# Fractional Seconds (FF)
+SELECT TO_DATE('2025-10-26 10:30:25.123456', 'YYYY-MM-DD HH:MI:SS.FF') AS result
+;
+result
+2025-10-26 10:30:25.123456
+SELECT TO_DATE('2025-10-26 10:30:25.123456', 'YYYY-MM-DD HH:MI:SS.FF6') as x;
+x
+2025-10-26 10:30:25.123456
+SELECT TO_DATE('2025-10-26 10:30:25.123', 'YYYY-MM-DD HH:MI:SS.FF') as x;
+x
+2025-10-26 10:30:25.123000
+SELECT TO_DATE('2025-10-26 10:30:25.12', 'YYYY-MM-DD HH:MI:SS.FF2') as x;
+x
+2025-10-26 10:30:25.120000
+SELECT TO_DATE('2025-10-26 10:30:25.129', 'YYYY-MM-DD HH:MI:SS.FF2') as x;
+x
+2025-10-26 10:30:25.120000
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '2025-10-26 10:30:25.129'
+SELECT TO_DATE('2025-10-26 10:30:123:34', 'YYYY-MM-DD HH:MI:FF3:SS') as x;
+x
+2025-10-26 10:30:34.123000
+SELECT TO_DATE('0', 'YYY') as x;
+x
+2000-11-09 00:00:00
+SELECT TO_DATE('25', 'YYY') as x;
+x
+2025-11-09 00:00:00
+SELECT TO_DATE('0', 'RRRR') as x;
+x
+2000-11-09 00:00:00
+SELECT TO_DATE('25', 'RRRR') as x;
+x
+2025-11-09 00:00:00
+SELECT TO_DATE('100', 'RRRR') as x;
+x
+0100-11-09 00:00:00
+SELECT TO_DATE('999', 'RRRR') as x;
+x
+0999-11-09 00:00:00
+SELECT TO_DATE('1000-12', 'RRRR-MM') as x;
+x
+1000-12-09 00:00:00
+SELECT TO_DATE('110322','DD-MM-RR') AS x;
+x
+2022-03-11 00:00:00
+SELECT TO_DATE('110322','DD-MM-RRRR') AS x;
+x
+2022-03-11 00:00:00
+SELECT TO_DATE('0', 'Y') as x;
+x
+2000-11-09 00:00:00
+SELECT TO_DATE('1', 'Y') as x;
+x
+2001-11-09 00:00:00
+SELECT TO_DATE('Tue', 'DY');
+TO_DATE('Tue', 'DY')
+2004-11-09 00:00:00
+SELECT TO_DATE('tue', 'DY');
+TO_DATE('tue', 'DY')
+2004-11-09 00:00:00
+SELECT TO_DATE('Mon', 'DY');
+TO_DATE('Mon', 'DY')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: 'Mon' for function to_date
+SELECT TO_DATE('0  a', 'YYY') as x;
+x
+2000-11-09 00:00:00
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '0  a'
+SET STATEMENT timestamp = UNIX_TIMESTAMP('2025-12-19') FOR SELECT TO_DATE('FRI', 'DY');
+TO_DATE('FRI', 'DY')
+2025-12-19 00:00:00
+SET timestamp = DEFAULT;
+CREATE TABLE t (d DATETIME, vd VARCHAR(32) AS (TO_DATE(d DEFAULT '2000-01-01' ON CONVERSION ERROR, 'YYYY-MM-DD')));
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `d` datetime DEFAULT NULL,
+  `vd` varchar(32) GENERATED ALWAYS AS (to_date(`d` DEFAULT '2000-01-01' ON CONVERSION ERROR,'YYYY-MM-DD')) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t;
+SET timestamp=1100000000;
+CREATE TABLE t1 (p int primary key, date char(30), format char(30));
+INSERT INTO t1 values (1,"2025-10-01", "YYYY-MM-DD"),
+(2,"2025-10-02", "YYYY-MM-XX"),
+(3,"2025-10-03 01:02:03", "YYYY-MM-DD HH:MI:SS");
+select TO_DATE(date,format) from t1;
+ERROR HY000: Invalid argument error: date format not recognized at XX in function to_date.
+select TO_DATE(date,format) from t1 where p != 2;
+TO_DATE(date,format)
+2025-10-01 00:00:00.000000
+2025-10-03 01:02:03.000000
+drop table t1;
+CREATE OR REPLACE VIEW v AS SELECT TO_DATE(NULL DEFAULT '2020-01-01' ON CONVERSION ERROR, 'YYYY-MM-DD') AS x FROM dual;
+select * from v;
+x
+2020-01-01 00:00:00
+drop view v;
+CREATE VIEW v AS SELECT TO_DATE('2026-01 MAIO,SEXTA-FEIRA', 'YYYY-DD MONTH, DAY','NLS_DATE_LANGUAGE=''BRAZILIAN PORTUGUESE''') AS f;
+SHOW CREATE VIEW v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select to_date('2026-01 MAIO,SEXTA-FEIRA','YYYY-DD MONTH, DAY','NLS_DATE_LANGUAGE=\'BRAZILIAN PORTUGUESE\'') AS `f`	utf8mb3	utf8mb3_uca1400_ai_ci
+DROP VIEW v;
+CREATE ALGORITHM=TEMPTABLE VIEW v AS select '2026-01-01' AS a;
+SELECT * FROM v WHERE TO_DATE('10','HH') = a;
+a
+DROP VIEW v;
+# AD
+SELECT TO_DATE('26-10-1000 AD', 'DD-MM-YYYY AD') as x;
+x
+1000-10-26 00:00:00
+SELECT TO_DATE('26-10-1000 A.D.', 'DD-MM-YYYY A.D.') as x;
+x
+1000-10-26 00:00:00
+NULL
+SELECT TO_DATE(NULL, 'YYYY-MM-DD') as x;
+x
+NULL
+#
+# Fuzzy string
+
+SELECT TO_DATE('0207','MM/YY');
+TO_DATE('0207','MM/YY')
+2007-02-09 00:00:00
+SELECT TO_DATE('02#07','MM/YY');
+TO_DATE('02#07','MM/YY')
+2007-02-09 00:00:00
+SELECT TO_DATE('2001 -- 10','YYYY - MM');
+TO_DATE('2001 -- 10','YYYY - MM')
+2001-10-09 00:00:00
+SELECT TO_DATE('1920-12','YYYY--MM');
+TO_DATE('1920-12','YYYY--MM')
+1920-12-09 00:00:00
+SELECT TO_DATE('1920--12','YYYY"--"MM');
+TO_DATE('1920--12','YYYY"--"MM')
+1920-12-09 00:00:00
+SELECT TO_DATE('-','-');
+TO_DATE('-','-')
+2004-11-09 00:00:00
+# Tab and space
+SELECT TO_DATE('25	05 3','YY MM DD');
+TO_DATE('25	05 3','YY MM DD')
+2025-05-03 00:00:00
+SELECT TO_DATE('25	05 3  ','YY MM DD');
+TO_DATE('25	05 3  ','YY MM DD')
+2025-05-03 00:00:00
+# Quotes
+select TO_DATE('2023-01-02 hello 03:04:05', 'YYYY-MM-DD "hello" HH24:MI:SS');
+TO_DATE('2023-01-02 hello 03:04:05', 'YYYY-MM-DD "hello" HH24:MI:SS')
+2023-01-02 03:04:05
+select TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD #HH24:MI:SS#');
+TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD #HH24:MI:SS#')
+2023-01-02 03:04:05
+select TO_DATE('2023X', 'YYYY"x"');
+TO_DATE('2023X', 'YYYY"x"')
+2023-11-09 00:00:00
+# Quotes with non-ASCII characters
+SELECT TO_DATE('2023-01-02 ПРИвет 03:04:05', 'YYYY-MM-DD "приВЕТ" HH24:MI:SS');
+TO_DATE('2023-01-02 ПРИвет 03:04:05', 'YYYY-MM-DD "приВЕТ" HH24:MI:SS')
+2023-01-02 03:04:05
+SELECT TO_DATE('2023-01-02 가 03:04:05', 'YYYY-MM-DD "가" HH24:MI:SS') AS c;
+c
+2023-01-02 03:04:05
+SELECT TO_DATE('2023-01-02 豈 03:04:05', 'YYYY-MM-DD "豈" HH24:MI:SS') AS c;
+c
+2023-01-02 03:04:05
+SELECT TO_DATE('2023-01-02 Ａ03:04:05', 'YYYY-MM-DD "ａ" HH24:MI:SS') AS c;
+c
+2023-01-02 03:04:05
+SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb3_general_ci,
+'YYYY-MM-DD "a" HH24:MI:SS') AS c;
+c
+2023-01-02 03:04:05
+SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb3_general_ci,
+'YYYY-MM-DD "A" HH24:MI:SS') AS c;
+c
+2023-01-02 03:04:05
+SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb3_bin,
+'YYYY-MM-DD "a" HH24:MI:SS') AS c;
+c
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2023-01-02 à 03:04:05' for function to_date
+SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb3_bin,
+'YYYY-MM-DD "à" HH24:MI:SS') AS c;
+c
+2023-01-02 03:04:05
+# NULL handling
+SELECT TO_DATE('2026-01-01', NULL);
+TO_DATE('2026-01-01', NULL)
+NULL
+SELECT TO_DATE(NULL, "YYYY") as x;
+x
+NULL
+SELECT TO_DATE('1921', '') as x;
+x
+NULL
+SELECT TO_DATE('','');
+TO_DATE('','')
+NULL
+#
+# Not allowed fuzzy string
+#
+SELECT TO_DATE('2001 - - 10','YYYY - MM');
+TO_DATE('2001 - - 10','YYYY - MM')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2001 - - 10' for function to_date
+SELECT TO_DATE('02#/07','MM/YY');
+TO_DATE('02#/07','MM/YY')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '02#/07' for function to_date
+SELECT TO_DATE('2023-01-02 helloa 03:04:05', 'YYYY-MM-DD "hello" HH24:MI:SS');
+TO_DATE('2023-01-02 helloa 03:04:05', 'YYYY-MM-DD "hello" HH24:MI:SS')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2023-01-02 helloa 03:04:05' for function to_date
+#
+# Handle sequence-of-digits
+#
+SELECT TO_DATE('201-02','Y-MM-DD') AS x;
+x
+2002-01-02 00:00:00
+SELECT TO_DATE('2-2-3','Y-MM-DD') AS x;
+x
+2002-02-03 00:00:00
+SELECT TO_DATE('202-03','Y-MM-DD') AS x;
+x
+2002-02-03 00:00:00
+SELECT TO_DATE('20220109 1','YYYY-MM-DD HH') AS x;
+x
+2022-01-09 01:00:00
+SELECT TO_DATE('202210', 'YYYYMM') as x;
+x
+2022-10-09 00:00:00
+SELECT TO_DATE('0012003','DDD-YYYY') AS x;
+x
+2003-01-01 00:00:00
+SELECT TO_DATE('2003001','DDD-YYYY') AS x;
+x
+3001-07-19 00:00:00
+# Errors
+SELECT TO_DATE('21-02','Y-MM-DD') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '21-02' for function to_date
+SELECT TO_DATE('21-01-09','Y-MM-DD');
+TO_DATE('21-01-09','Y-MM-DD')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '21-01-09' for function to_date
+SELECT TO_DATE('02--01','MM-Y-DD') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '02--01' for function to_date
+SELECT TO_DATE('202203019','YYYY-MM-DD') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '202203019' for function to_date
+SELECT TO_DATE('112022039','DD-YYYY-MM') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '112022039' for function to_date
+SELECT TO_DATE('110320229','DD-MM-YYYY') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '110320229' for function to_date
+SELECT TO_DATE('110320229','DD-MM-SYYYY') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '110320229' for function to_date
+SELECT TO_DATE('110320229','DD-MM-RRRR') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '110320229' for function to_date
+SELECT TO_DATE('1103229','DD-MM-RR') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '1103229' for function to_date
+SELECT TO_DATE('1103229','DD-MM-RRRR') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '1103229' for function to_date
+SELECT TO_DATE('20223','YYYY-MI') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '20223' for function to_date
+SELECT TO_DATE('20223','YYYY-SS') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '20223' for function to_date
+SELECT TO_DATE('00120031','DDD-YYYY') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '00120031' for function to_date
+SELECT TO_DATE('200301','YYYY-DDD') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '200301' for function to_date
+SELECT TO_DATE('202201091','SYYYY-MM-DD') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '202201091' for function to_date
+SELECT TO_DATE('0221', 'YYYYMM') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '0221' for function to_date
+#
+# Error Handling (Invalid/not supported formats)
+
+SELECT TO_DATE('Not a date', 'YYYY-MM-DD') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: 'Not a date' for function to_date
+SELECT TO_DATE('2025-02-30', 'YYYY-MM-DD') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2025-02-30' for function to_date
+SELECT TO_DATE('26-10-1000 BC', 'DD-MM-YYYY BC') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '26-10-1000 BC' for function to_date
+SELECT TO_DATE('Monday', 'DAY') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: 'Monday' for function to_date
+SELECT TO_DATE('26-abc-25', 'DD-MON-RR') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '26-abc-25' for function to_date
+SELECT TO_DATE('10', 'Y') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '10' for function to_date
+SELECT TO_DATE('100', 'YY') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '100' for function to_date
+SELECT TO_DATE('1000', 'YYY') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '1000' for function to_date
+SELECT TO_DATE('10000', 'RRRR') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '10000' for function to_date
+SELECT TO_DATE('10000', 'YYYY') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '10000' for function to_date
+SELECT TO_DATE('10000', 'SYYYY') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '10000' for function to_date
+SET timestamp=unix_timestamp("2025-01-31");
+SELECT TO_DATE('January', 'MONTH') as x;
+x
+2025-01-31 00:00:00
+SELECT TO_DATE('February', 'MONTH') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: 'February' for function to_date
+SELECT TO_DATE('08:30:25 PX', 'HH:MI:SS AM') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '08:30:25 PX' for function to_date
+# Wrong quoting
+select TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD """"HH24:MI:SS""""');
+TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD """"HH24:MI:SS""""')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2023-01-02 "03:04:05"' for function to_date
+select TO_DATE('2023-01-02 hello 03:04:05', 'YYYY-MM-DD HH24:MI:SS');
+TO_DATE('2023-01-02 hello 03:04:05', 'YYYY-MM-DD HH24:MI:SS')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2023-01-02 hello 03:04:05' for function to_date
+select TO_DATE('2023-01-02 03:04:05', 'YYYY-MM-DD "hello" HH24:MI:SS');
+TO_DATE('2023-01-02 03:04:05', 'YYYY-MM-DD "hello" HH24:MI:SS')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2023-01-02 03:04:05' for function to_date
+select TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD ""HH24:MI:SS""');
+TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD ""HH24:MI:SS""')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2023-01-02 "03:04:05"' for function to_date
+SELECT TO_DATE('1920-12','YYYY"--"MM');
+TO_DATE('1920-12','YYYY"--"MM')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '1920-12' for function to_date
+SELECT TO_DATE('1920-12','YYYY"-MM');
+ERROR HY000: Invalid argument error: date_format is missing end '"' in function to_date.
+SELECT TO_DATE('2023-01-02 helloa 03:04:05', 'YYYY-MM-DD "hello HH24:MI:SS');
+ERROR HY000: Invalid argument error: date_format is missing end '"' in function to_date.
+select TO_DATE('2023-01-02 hello 03:04:05', 'YYYY-MM-DD hello HH24:MI:SS');
+ERROR HY000: Invalid argument error: date format not recognized at hello HH in function to_date.
+SELECT TO_DATE('2025-10-26 10:30:25.123456', 'YYYY-MM-DD HH:MI:SS.FF0') as x;
+ERROR HY000: Invalid argument error: date format not recognized at 0 in function to_date.
+SELECT TO_DATE('2025-10-26 26', 'YYYY-MM-DD DD') as x;
+ERROR HY000: Invalid argument error: date format not recognized at DD in function to_date.
+SELECT TO_DATE('2025-2025-10-26', 'YYYY-YYYY-MM-DD DD') as x;
+ERROR HY000: Invalid argument error: date format not recognized at YYYY-MM- in function to_date.
+SELECT TO_DATE() AS x;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') AS x' at line 1
+SELECT TO_DATE(NULL) AS x;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') AS x' at line 1
+SELECT TO_DATE('2026-01-01') AS x;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') AS x' at line 1
+SELECT TO_DATE('2','IW') AS x;
+ERROR HY000: Invalid argument error: date format not recognized at IW in function to_date.
+SELECT TO_DATE('','hello') as x;
+ERROR HY000: Invalid argument error: date format not recognized at hello in function to_date.
+SELECT TO_DATE('','"hello"') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '' for function to_date
+SELECT TO_DATE('abc','"hello"') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: 'abc' for function to_date
+SELECT TO_DATE('2024-11-01 00:00:00', 'SYY-MM-DD HH24:MI:SS') as x;
+ERROR HY000: Invalid argument error: date format not recognized at SYY-MM-D in function to_date.
+SELECT TO_DATE('P.M','P.M') AS x;
+ERROR HY000: Invalid argument error: date format not recognized at P.M in function to_date.
+CREATE TABLE t (c GEOMETRYCOLLECTION);
+SELECT TO_DATE(c,'YYYY-MM-DD') FROM t;
+ERROR HY000: Illegal parameter data type geometrycollection for operation 'to_date'
+SELECT TO_DATE('2025-01-02',c) FROM t;
+ERROR HY000: Illegal parameter data type geometrycollection for operation 'to_date'
+SELECT TO_DATE('2025-01-02', DEFAULT c ON CONVERSION ERROR, 'YYYY-MM-DD') from t;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'c ON CONVERSION ERROR, 'YYYY-MM-DD') from t' at line 1
+DROP TABLE t;
+#
+# Default handling
+#
+SELECT TO_DATE(NULL DEFAULT '2024-01-02' ON CONVERSION ERROR, 'YYYY-MM-DD') as x;
+x
+2024-01-02 00:00:00
+SELECT TO_DATE('not a date' DEFAULT '2024-01-02' ON CONVERSION ERROR, 'YYYY-MM-DD') as x;
+x
+2024-01-02 00:00:00
+SELECT TO_DATE('2025' DEFAULT NULL ON CONVERSION ERROR, 'YYYY-MM-DD') as x;
+x
+NULL
+SELECT TO_DATE('2025-13-02' DEFAULT '2025-12-02' ON CONVERSION ERROR, 'YYYY-MM-DD') as x;
+x
+2025-12-02 00:00:00
+SELECT TO_DATE('2025-13-02' DEFAULT '2025-14-02' ON CONVERSION ERROR, 'YYYY-MM-DD') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2025-14-02' for function to_date
+#
+# Check virtual functions with TO_DATE
+#
+create or replace table t1 (
+c1 varchar(10),
+c2 datetime as (to_date(c1,'MM')) virtual,
+key(c2));
+ERROR HY000: Function or expression 'to_date()' cannot be used in the GENERATED ALWAYS AS clause of `c2`
+create or replace table t1 (
+c1 varchar(10),
+c2 datetime as (to_date(c1, "YYYY-MM-DD HH:MM:SS")) virtual,
+key(c2));
+ERROR HY000: Function or expression 'to_date()' cannot be used in the GENERATED ALWAYS AS clause of `c2`
+#
+# NLS_DATA functions
+#
+SELECT TO_DATE(' 2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'NLS_CALENDAR=GREGORIAN') AS x;
+x
+2024-11-01 00:00:00
+SELECT TO_DATE(' 2024-January-01 00:00:00', 'YYYY-MONTH-DD HH24:MI:SS', '  NLS_CALENDAR = GREGORIAN  NLS_DATE_LANGUAGE =en_AU   ') AS x;
+x
+2024-01-01 00:00:00
+SELECT TO_DATE(' 2024-February-01 00:00:00', 'YYYY-MONTH-DD HH24:MI:SS', '  NLS_CALENDAR = GREGORIAN  NLS_DATE_LANGUAGE ="en_AU"   ') AS x;
+x
+2024-02-01 00:00:00
+SELECT TO_DATE('January 15, 1989, 11:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = American') AS x;
+x
+1989-01-15 11:00:00
+SELECT TO_DATE('Januar 15, 1989, 11:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = German') AS x;
+x
+1989-01-15 11:00:00
+SELECT TO_DATE('Ja 15, 1989, 11:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = German') AS x;
+x
+1989-01-15 11:00:00
+SELECT TO_DATE('15 Heinäkuu 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=FINNISH') AS x;
+x
+2024-07-15 00:00:00
+SELECT TO_DATE('15 HEINÄKUU 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=FINNISH') AS x;
+x
+2024-07-15 00:00:00
+SELECT TO_DATE('15 HEINÄ 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=FINNISH') AS x;
+x
+2024-07-15 00:00:00
+SELECT TO_DATE('15 4月 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=JAPANESE') as x;
+x
+2024-04-15 00:00:00
+SELECT TO_DATE('15 tháng tư 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=VIETNAMESE') AS x;
+x
+2024-04-15 00:00:00
+SELECT TO_DATE('15 tháng 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=VIETNAMESE') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '15 tháng 2024' for function to_date
+SELECT 1 FROM DUAL WHERE TO_DATE( '2026 JANUARY 01', 'YYYY MONTH DD', 'NLS_DATE_LANGUAGE=ENGLISH' );
+1
+1
+CREATE TABLE t1 (a VARCHAR(32) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('2026-März-01');
+SELECT a, to_date(a, 'YYYY-MONTH-DD') AS d FROM t1;
+a	d
+2026-März-01	NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2026-März-01' for function to_date
+SELECT a, to_date(a, 'YYYY-MONTH-DD','NLS_DATE_LANGUAGE=GERMAN') AS d FROM t1;
+a	d
+2026-März-01	2026-03-01 00:00:00
+SET @@lc_time_names='de_DE';
+SELECT a, to_date(a, 'YYYY-MONTH-DD') AS d FROM t1;
+a	d
+2026-März-01	2026-03-01 00:00:00
+SET @@lc_time_names=DEFAULT;
+DROP TABLE t1;
+#
+# explain (to test printing of to_date)
+
+explain extended SELECT TO_DATE(' 2024-11-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS', 'NLS_CALENDAR=GREGORIAN') AS x;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select to_date(' 2024-11-01 00:00:00','YYYY-MM-DD HH24:MI:SS','NLS_CALENDAR=GREGORIAN') AS `x`
+explain extended SELECT TO_DATE(' 2024-11-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS') as x;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select to_date(' 2024-11-01 00:00:00','YYYY-MM-DD HH24:MI:SS') AS `x`
+explain extended SELECT TO_DATE(' 2024-11-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS') as x;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select to_date(' 2024-11-01 00:00:00','YYYY-MM-DD HH24:MI:SS') AS `x`
+explain extended SELECT TO_DATE('2025-13-02' DEFAULT '2025-10-02' ON CONVERSION ERROR, 'YYYY-MM-DD') as x;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select to_date('2025-13-02' DEFAULT '2025-10-02' ON CONVERSION ERROR,'YYYY-MM-DD') AS `x`
+#
+# Prepared statements
+#
+PREPARE stmt FROM "SELECT TO_DATE('2026-01-01' DEFAULT '2000-01-01' ON CONVERSION ERROR, ?)";
+execute stmt using "qqq";
+ERROR HY000: Invalid argument error: date format not recognized at qqq in function to_date.
+execute stmt using "YYYY-MM-DD";
+TO_DATE('2026-01-01' DEFAULT '2000-01-01' ON CONVERSION ERROR, ?)
+2026-01-01 00:00:00
+deallocate prepare stmt;
+#
+# NLS_DATA errors
+#
+SELECT TO_DATE('2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'NLS_CALENDAR=VICTORIAN') AS x;
+x
+2024-11-01 00:00:00
+Warnings:
+Warning	3047	Invalid argument error: NLS_CALENDAR=VICTORIAN in function to_date.
+SELECT TO_DATE('January 15, 1989, 11:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = German') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: 'January 15, 1989, 11:00 A.M.' for function to_date
+SELECT TO_DATE('January 15, 1989, 11:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = not_exists');
+ERROR HY000: Unknown locale: 'not_exists'
+SELECT TO_DATE('2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'NLS_XX=YYY') AS x;
+x
+2024-11-01 00:00:00
+Warnings:
+Warning	3047	Invalid argument error: NLS_XX=YYY in function to_date.
+SELECT TO_DATE('2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', '=YYY') AS x;
+x
+2024-11-01 00:00:00
+Warnings:
+Warning	3047	Invalid argument error: =YYY in function to_date.
+SELECT TO_DATE('2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'XX=') AS x;
+x
+2024-11-01 00:00:00
+Warnings:
+Warning	3047	Invalid argument error: XX= in function to_date.
+SELECT TO_DATE('2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'XX=') AS x;
+x
+2024-11-01 00:00:00
+Warnings:
+Warning	3047	Invalid argument error: XX= in function to_date.
+SELECT TO_DATE('2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'A=B C=') AS x;
+x
+2024-11-01 00:00:00
+Warnings:
+Warning	3047	Invalid argument error: A=B in function to_date.
+Warning	3047	Invalid argument error: C= in function to_date.
+SELECT TO_DATE('2024-11-01 00:00:00', 'SYYYY-MM-DD HH24:MI:SS', 'A=B =D') AS x;
+x
+2024-11-01 00:00:00
+Warnings:
+Warning	3047	Invalid argument error: A=B in function to_date.
+Warning	3047	Invalid argument error: =D in function to_date.
+/* H matches Heinäkuu and Helmikuu */
+SELECT TO_DATE('15 H 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=FINNISH') AS x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '15 H 2024' for function to_date
+SELECT TO_DATE('15 Heinäkuu 2024','DD "Heinäkuu" YYYY','NLS_DATE_LANGUAGE=FINNISH') AS x;
+x
+2024-01-15 00:00:00
+set @a='NLS_DATE_LANGUAGE = American';
+SELECT TO_DATE('January 15, 1989, 11:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', @a);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '@a)' at line 1
+#
+# Different results compared to Oracle
+#
+SELECT TO_DATE('10002610', 'RR-DD-MM') as '1000-26-10';
+1000-26-10
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '10002610' for function to_date
+SELECT TO_DATE('26-OCT-100', 'DD-MON-RR') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '26-OCT-100' for function to_date
+SELECT TO_DATE('26-OCT-1925', 'DD-MON-RR') as x;
+x
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '26-OCT-1925' for function to_date

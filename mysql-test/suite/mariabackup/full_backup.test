@@ -10,7 +10,7 @@ let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
 --error 1
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --parallel=10 --innodb-log-write-ahead-size=4095 > $backup_log 2>&1;
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --parallel=10 --innodb-log-write-ahead-size=10000 > $backup_log 2>&1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --parallel=10 --innodb-log-write-ahead-size=10000 --innodb_log_checkpoint_now=1 > $backup_log 2>&1;
 --enable_result_log
 
 # The following warning must not appear after MDEV-27343 fix

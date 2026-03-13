@@ -90,4 +90,6 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup -pxy
 --source include/search_pattern_in_file.inc
 rmdir $targetdir;
 
+--let $count_sessions= 1
+--source include/wait_until_count_sessions.inc
 DROP USER backup@localhost;

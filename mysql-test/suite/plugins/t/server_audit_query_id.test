@@ -1,0 +1,89 @@
+--source include/have_innodb.inc
+--source include/have_plugin_auth.inc
+--source include/not_embedded.inc
+
+if (!$SERVER_AUDIT_SO) {
+  skip No SERVER_AUDIT plugin;
+}
+
+# An unfortunate wait for check-testcase.inc to complete disconnect.
+let count_sessions= 1;
+source include/wait_until_count_sessions.inc;
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+let SEARCH_FILE= $MYSQLD_DATADIR/server_audit_query_id.log;
+
+--disable_ps_protocol
+
+set global server_audit_logging=on;
+
+USE test;
+
+CREATE TABLE source (
+  id bigint(20) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE dest (
+  id bigint(20) NOT NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE dest_2 (
+  id bigint(20) NOT NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+DELIMITER //;
+CREATE TRIGGER test_trigger
+AFTER INSERT ON source
+FOR EACH ROW
+INSERT INTO dest (id) VALUES(NEW.id)//
+DELIMITER ;//
+
+DELIMITER //;
+CREATE TRIGGER test_trigger_2
+AFTER INSERT ON dest
+FOR EACH ROW
+INSERT INTO dest_2 (id) VALUES(NEW.id)//
+DELIMITER ;//
+
+DELIMITER //;
+CREATE PROCEDURE test_procedure (IN id bigint(20))
+NOT DETERMINISTIC MODIFIES SQL DATA
+BEGIN
+  INSERT INTO source VALUES (id), (NULL);
+END;//
+DELIMITER ;//
+
+--echo # Insert a row to trigger the AFTER trigger
+INSERT INTO source VALUES (NULL);
+
+--echo # Insert another row to see the pattern
+INSERT INTO source VALUES (NULL);
+
+--echo # Test with multi-row insert
+INSERT INTO source VALUES (NULL), (NULL);
+
+--echo # Test with stored procedure
+CALL test_procedure(NULL);
+
+--echo # Clean up
+DROP PROCEDURE test_procedure;
+DROP TABLE source, dest, dest_2;
+
+set global server_audit_logging=off;
+
+--echo # Wait for audit events to be written
+--let SEARCH_FILE = $MYSQLD_DATADIR/server_audit_query_id.log
+--let SEARCH_PATTERN = set global server_audit_logging=off
+--source include/search_pattern_in_file.inc
+
+# Read and normalize the log
+--exec perl $MYSQL_TEST_DIR/suite/plugins/t/normalize_query_id.pl $SEARCH_FILE
+
+# Output the log without heavy replacements so we can see the actual order
+--replace_regex /\d\d\d\d\d\d\d\d \d\d:\d\d:\d\d/TIMESTAMP/ /,[^,]+,root,(localhost|localhost:[0-9]+),/,HOSTNAME,root,localhost,/
+
+cat_file $SEARCH_FILE;
+remove_file $SEARCH_FILE;

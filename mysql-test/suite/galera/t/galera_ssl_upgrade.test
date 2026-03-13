@@ -9,6 +9,7 @@
 --source include/have_ssl_communication.inc
 --source include/have_openssl.inc
 --source include/force_restart.inc
+--source include/have_perfschema.inc
 
 # Verify that SSL is handled by the provider.
 SELECT COUNT(*) `expect 0` FROM performance_schema.socket_instances WHERE EVENT_NAME LIKE '%wsrep%';

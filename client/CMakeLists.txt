@@ -64,8 +64,7 @@ TARGET_LINK_LIBRARIES(import_util PRIVATE pcre2-posix pcre2-8)
 TARGET_INCLUDE_DIRECTORIES(import_util PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 MYSQL_ADD_EXECUTABLE(mariadb-import mysqlimport.cc)
-TARGET_INCLUDE_DIRECTORIES(mariadb-import PRIVATE ${CMAKE_SOURCE_DIR}/tpool)
-TARGET_LINK_LIBRARIES(mariadb-import PRIVATE tpool ${CLIENT_LIB} import_util)
+TARGET_LINK_LIBRARIES(mariadb-import PRIVATE tpool_min ${CLIENT_LIB} import_util)
 
 
 MYSQL_ADD_EXECUTABLE(mariadb-upgrade mysql_upgrade.c COMPONENT Server)
@@ -78,7 +77,7 @@ TARGET_LINK_LIBRARIES(mariadb-show ${CLIENT_LIB})
 MYSQL_ADD_EXECUTABLE(mariadb-plugin mysql_plugin.c)
 TARGET_LINK_LIBRARIES(mariadb-plugin ${CLIENT_LIB})
 
-MYSQL_ADD_EXECUTABLE(mariadb-binlog mysqlbinlog.cc)
+MYSQL_ADD_EXECUTABLE(mariadb-binlog mysqlbinlog.cc mysqlbinlog-engine.cc)
 TARGET_LINK_LIBRARIES(mariadb-binlog ${CLIENT_LIB} mysys_ssl)
 
 MYSQL_ADD_EXECUTABLE(mariadb-admin mysqladmin.cc ../sql/password.c)

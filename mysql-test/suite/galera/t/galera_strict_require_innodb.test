@@ -17,8 +17,9 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source include/have_aria.inc
+--source include/force_restart.inc
 
-call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled\\. Storage engine ");
+call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled");
 
 CREATE TABLE t1(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=INNODB;
 CREATE TABLE t2(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=MYISAM;
@@ -47,7 +48,7 @@ INSERT INTO t3 values (3,'aria3');
 INSERT INTO t4 values (3,'memory3');
 
 # test warnings
---let $assert_count = 3
+--let $assert_count = 5
 --let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
 --let $assert_text = WSREP: wsrep_mode = STRICT_REPLICATION enabled.
 --let $assert_select = WSREP: wsrep_mode = STRICT_REPLICATION enabled.

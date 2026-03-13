@@ -1,0 +1,13 @@
+# Test for fix of MDEV-39035: Item_copy_string wrapping Item_in_subselect
+
+CREATE TABLE v0 (v1 INT, v2 INT, v3 INT);
+
+# Original test case (crash): AVG + row + NOT IN subquery
+SELECT ( AVG ( 69 ) , - 'x' ) NOT IN ( SELECT v3 , v1 = -1 OR ( v3 , v2 , v1 ) < ( 255 , 3 , 0 ) ) FROM v0;
+
+INSERT INTO v0 VALUES (1, 2, 3);
+SELECT ( AVG ( 69 ) , - 'x' ) NOT IN ( SELECT v3 , v1 = -1 OR ( v3 , v2 , v1 ) < ( 255 , 3 , 0 ) ) FROM v0;
+
+SELECT 1 IN (SELECT v3 FROM v0) FROM v0 GROUP BY v1;
+
+DROP TABLE v0;

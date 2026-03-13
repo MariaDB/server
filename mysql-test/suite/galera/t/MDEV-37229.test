@@ -1,0 +1,49 @@
+##
+## Test that mixed binlog replication works at the applier side.
+##
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_2
+--disable_query_log
+call mtr.add_suppression("Unsafe statement written to the binary log");
+--enable_query_log
+
+--connection node_1
+--disable_query_log
+call mtr.add_suppression("Unsafe statement written to the binary log");
+--enable_query_log
+
+CREATE TABLE t1 (i INT NOT NULL PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+
+# Try mixed replication: statement then row.
+SET GLOBAL wsrep_forced_binlog_format='STATEMENT';
+START TRANSACTION;
+INSERT INTO t1(i) VALUES(NULL);
+INSERT INTO t1(i) VALUES(NULL);
+SET GLOBAL wsrep_forced_binlog_format='ROW';
+INSERT INTO t1(i) VALUES(NULL);
+INSERT INTO t1(i) VALUES(NULL);
+COMMIT;
+
+# Try mixed replication: row then statement.
+SET GLOBAL wsrep_forced_binlog_format='ROW';
+START TRANSACTION;
+INSERT INTO t1(i) VALUES(NULL);
+INSERT INTO t1(i) VALUES(NULL);
+SET GLOBAL wsrep_forced_binlog_format='STATEMENT';
+INSERT INTO t1(i) VALUES(NULL);
+INSERT INTO t1(i) VALUES(NULL);
+COMMIT;
+
+SELECT * FROM t1 ORDER BY i;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 8 FROM t1;
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY i;
+
+--connection node_1
+SET GLOBAL wsrep_forced_binlog_format='NONE';
+DROP TABLE t1;

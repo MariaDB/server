@@ -1,9 +1,6 @@
 #
 # time functions
 #
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
 
 # Set timezone to GMT-3, to make it possible to use "interval 3 hour"
 set time_zone="+03:00";
@@ -3286,13 +3283,17 @@ SELECT UNIX_TIMESTAMP(MAX(a)) AS a FROM t1;
 SET @@time_zone=DEFAULT;
 DROP TABLE t1;
 
---echo #
 --echo # End of 10.5 tests
---echo #
 
 --echo #
---echo # Start of 11.6 tests
+--echo # MDEV-38006 Inconsistent behaviors when casting into time
 --echo #
+create table t1 (c1 char(20), c2 mediumint unsigned);
+insert into t1 values (9430886, 9430886), (9430816, 9430816);
+select cast(c1 as time), cast(c2 as time) from t1;
+drop table t1;
+
+--echo # End of 10.11 tests
 
 --echo #
 --echo # MDEV-34829 LOCALTIME returns a wrong data type
@@ -3307,13 +3308,7 @@ SELECT * FROM t1;
 DROP TABLE t1;
 SET timestamp=DEFAULT;
 
---echo #
 --echo # End of 11.6 tests
---echo #
-
---echo #
---echo # Start of 11.7 tests
---echo #
 
 --echo #
 --echo # MDEV-15751 CURRENT_TIMESTAMP should return a TIMESTAMP [WITH TIME ZONE?]
@@ -3337,7 +3332,6 @@ SELECT
   localtimestamp(6);
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
-
 
 CREATE TABLE t1 AS
 SELECT
@@ -3383,6 +3377,4 @@ SELECT
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
---echo #
 --echo # End of 11.7 tests
---echo #

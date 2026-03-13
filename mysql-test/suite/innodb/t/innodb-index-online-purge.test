@@ -1,9 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
 
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
-
 connect (con1,localhost,root,,);
 
 connect (con2,localhost,root,,);
@@ -67,7 +64,3 @@ disconnect con1;
 connection default;
 SET DEBUG_SYNC='RESET';
 DROP TABLE t,u;
-
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc

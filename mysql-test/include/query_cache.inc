@@ -189,7 +189,6 @@ show status like "Qcache_hits";
 
 # Final cleanup
 disconnect connection1;
---source include/wait_until_disconnected.inc
 connection default;
 set @@global.query_cache_size = @save_query_cache_size;
 drop table t2;

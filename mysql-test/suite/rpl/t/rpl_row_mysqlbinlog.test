@@ -98,6 +98,7 @@ sync_slave_with_master;
 stop slave;
 --source include/wait_for_slave_to_stop.inc
 connection master;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 connection slave;
 --source include/reset_slave.inc
@@ -165,6 +166,7 @@ sync_slave_with_master;
 stop slave;
 --source include/wait_for_slave_to_stop.inc
 connection master;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 connection slave;
 --source include/reset_slave.inc
@@ -228,6 +230,7 @@ sync_slave_with_master;
 stop slave;
 --source include/wait_for_slave_to_stop.inc
 connection master;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 connection slave;
 --source include/reset_slave.inc

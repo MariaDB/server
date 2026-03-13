@@ -44,13 +44,10 @@ ERROR 42000: Access denied; you need (at least one of) the CREATE USER privilege
 CREATE OR REPLACE ROLE developer;
 ERROR 42000: Access denied; you need (at least one of) the CREATE USER privilege(s) for this operation
 connection default;
+disconnect user_a;
 SELECT CURRENT_USER;
 CURRENT_USER
 root@localhost
-REVOKE ALL ON db1.* FROM mysqltest_1@localhost;
-DROP DATABASE IF EXISTS db2;
-Warnings:
-Note	1008	Can't drop database 'db2'; database doesn't exist
 DROP DATABASE db1;
 DROP USER mysqltest_1@localhost;
 set global sql_mode=default;

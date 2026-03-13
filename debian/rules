@@ -146,9 +146,6 @@ override_dh_auto_install:
 	# If mariadb-test package is removed, also remove most of it's files
 	grep --quiet "Package: mariadb-test" debian/control || rm -rf $(TMP)/usr/share/mariadb/mariadb-test
 
-	# Delete private files from libraries so they don't get shipped in the -dev packages
-	rm -r $(TMP)/usr/include/mariadb/server/private
-
 	# Don't ship sql-bench at all, just delete it completely even though it builds
 	rm -r $(TMP)/usr/sql-bench
 

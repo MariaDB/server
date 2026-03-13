@@ -1,6 +1,5 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
---source include/count_sessions.inc
 --source include/maybe_debug.inc
 
 let $ID= `SELECT @id := CONNECTION_ID()`;
@@ -69,7 +68,5 @@ reap;
 disconnect con1;
 connection default;
 DROP TABLE t3,t2,t1;
-
---source include/wait_until_count_sessions.inc
 
 --echo # End of 10.6 tests

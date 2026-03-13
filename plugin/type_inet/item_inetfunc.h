@@ -45,7 +45,7 @@ public:
     unsigned_flag= 1;
     return FALSE;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet_aton>(thd, this); }
 };
 
@@ -72,7 +72,7 @@ public:
     set_maybe_null();
     return FALSE;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet_ntoa>(thd, this); }
 };
 
@@ -118,7 +118,7 @@ public:
     set_maybe_null();
     return FALSE;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet6_aton>(thd, this); }
 
   String *val_str(String *to) override;
@@ -156,7 +156,7 @@ public:
     return FALSE;
   }
   String *val_str_ascii(String *to) override;
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet6_ntoa>(thd, this); }
 };
 
@@ -178,7 +178,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv4") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv4>(thd, this); }
 
   bool val_bool() override;
@@ -201,7 +201,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv6") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv6>(thd, this); }
 
   bool val_bool() override;
@@ -223,7 +223,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv4_compat") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv4_compat>(thd, this); }
   bool val_bool() override;
 };
@@ -244,7 +244,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv4_mapped") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv4_mapped>(thd, this); }
   bool val_bool() override;
 };

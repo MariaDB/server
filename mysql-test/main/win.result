@@ -4793,3 +4793,53 @@ DROP TABLE t1, t2;
 #
 # End of 10.6 tests
 #
+#
+# MDEV-31744: Assertion `order_list->elements == 1' failure 
+# during Frame_range_n_bottom object creation
+#
+CREATE TABLE t1 (a int, b int, c int, d int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,1,1,1);
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT 
+LEAD(a)  OVER (ORDER BY b, c) AS c1,
+COUNT(*) OVER (ORDER BY d RANGE BETWEEN CURRENT ROW AND 5 FOLLOWING) AS c2
+FROM v1;
+c1	c2
+NULL	1
+#
+# test similar query as above for Frame_range_n_top
+#
+SELECT 
+LEAD(a)  OVER (ORDER BY b, c) AS c1, 
+COUNT(*) OVER (ORDER BY d RANGE BETWEEN 5 PRECEDING AND CURRENT ROW) AS c2
+FROM v1;
+c1	c2
+NULL	1
+DROP TABLE t1;
+DROP VIEW v1;
+#
+# test queries as above but on the table instead of view 
+#
+CREATE TABLE t1 (a int) ENGINE=MyISAM;
+INSERT INTO t1 values (1), (2);
+SELECT 
+COUNT(*) OVER (ORDER BY 'abc', a) AS c1,
+COUNT(*) OVER (ORDER BY a RANGE BETWEEN CURRENT ROW AND 5 FOLLOWING) AS c2
+from t1;
+c1	c2
+1	2
+2	1
+#
+# similar query on table with Frame_range_n_top
+#
+SELECT 
+COUNT(*) OVER (ORDER BY 'abc', a) AS c1,
+COUNT(*) OVER (ORDER BY a RANGE BETWEEN 5 PRECEDING AND CURRENT ROW) AS c2
+from t1;
+c1	c2
+1	1
+2	2
+DROP TABLE t1;
+#
+# End of 10.11 tests
+#

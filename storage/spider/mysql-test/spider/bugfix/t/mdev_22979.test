@@ -12,7 +12,8 @@ let $PLUGIN_DIR=`select @@plugin_dir`;
 --write_file $MYSQLTEST_VARDIR/tmp/mdev_22979.sql
 drop table if exists foo.bar;
 EOF
---exec $MYSQLD_CMD --datadir=$MYSQLD_DATADIR --bootstrap --plugin-dir=$PLUGIN_DIR --plugin-load-add=ha_spider < $MYSQLTEST_VARDIR/tmp/mdev_22979.sql
+--exec $MYSQLD --defaults-group-suffix=.1.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --datadir=$MYSQLD_DATADIR --bootstrap --plugin-dir=$PLUGIN_DIR --plugin-load-add=ha_spider < $MYSQLTEST_VARDIR/tmp/mdev_22979.sql
 --source include/start_mysqld.inc
 --disable_query_log
 --source ../../include/clean_up_spider.inc
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev_22979.sql

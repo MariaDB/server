@@ -73,14 +73,6 @@ static bool dict_mem_table_is_system(const char *name)
 	return false;
 }
 
-/** The start of the table basename suffix for partitioned tables */
-const char table_name_t::part_suffix[4]
-#ifdef _WIN32
-= "#p#";
-#else
-= "#P#";
-#endif
-
 /** Display an identifier.
 @param[in,out]	s	output stream
 @param[in]	id_name	SQL identifier (other than table name)
@@ -1288,13 +1280,11 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 }
 
 /** Check if record in clustered index is historical row.
+@param[in,out]	mtr	mini-transaction
 @param[in]	rec	clustered row
 @param[in]	offsets	offsets
 @return true if row is historical */
-bool
-dict_index_t::vers_history_row(
-	const rec_t*		rec,
-	const rec_offs*		offsets)
+bool dict_index_t::vers_history_row(const rec_t *rec, const rec_offs *offsets)
 {
 	ut_ad(is_primary());
 
@@ -1312,11 +1302,13 @@ dict_index_t::vers_history_row(
 }
 
 /** Check if record in secondary index is historical row.
+@param[in,out]	mtr	mini-transaction
 @param[in]	rec	record in a secondary index
 @param[out]	history_row true if row is historical
 @return true on error */
 bool
 dict_index_t::vers_history_row(
+	mtr_t* mtr,
 	const rec_t* rec,
 	bool &history_row)
 {
@@ -1337,32 +1329,52 @@ dict_index_t::vers_history_row(
 		insert into t1 values (1, 1);
 	 */
 	bool error = false;
-	mem_heap_t* heap = NULL;
 	dict_index_t* clust_index = NULL;
 	rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs* offsets = offsets_;
 	rec_offs_init(offsets_);
 
-	mtr_t mtr;
-	mtr.start();
+	const auto sp = mtr->get_savepoint();
 
 	rec_t* clust_rec =
-	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, this, &clust_index, &mtr);
+	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, this, &clust_index, mtr);
 	if (clust_rec) {
+		mem_heap_t* heap = NULL;
 		offsets = rec_get_offsets(clust_rec, clust_index, offsets,
 					  clust_index->n_core_fields,
 					  ULINT_UNDEFINED, &heap);
 
 		history_row = clust_index->vers_history_row(clust_rec, offsets);
+		if (heap) {
+			mem_heap_free(heap);
+		}
         } else {
 		ib::error() << "foreign constraints: secondary index is out of "
 			       "sync";
 		ut_ad("secondary index is out of sync" == 0);
 		error = true;
 	}
-	mtr.commit();
-	if (heap) {
-		mem_heap_free(heap);
-	}
+
+	mtr->rollback_to_savepoint(sp);
 	return(error);
+}
+
+/** Checks whether the file name belongs to a partition of a table.
+@param	file_name	file name
+@return pointer to the end of the table name part of the file name
+@retval nullptr  if the file name does not belong to a partition. */
+const char *dict_is_partition(const char *file_name)
+{
+  /* We look for pattern #P# to see if the table is partitioned
+  MariaDB table. We also look for #p# pattern, because it was
+  previously used on Windows. */
+  for (const char *p= file_name;; p++)
+  {
+    p= strchr(p, '#');
+    if (!p)
+      break;
+    if ((p[1] == 'P' || p[1] == 'p') && p[2] == '#')
+      return p;
+  }
+  return nullptr;
 }

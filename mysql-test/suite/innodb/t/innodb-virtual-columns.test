@@ -317,3 +317,49 @@ INSERT INTO t1 (a,b) VALUES (1,'foo');
 ALTER TABLE t1 ADD FULLTEXT KEY(b);
 SELECT * FROM t1;
 DROP TABLE t1;
+
+#
+# MDEV-38140 : InnoDB index corruption after UPDATE affecting virtual columns
+#
+
+CREATE TABLE t1 (
+  id int primary key,value varchar(2),
+  vcomplete int AS (cast(substr(value,1,1) as int)),
+  va int AS (null),vb int AS (null),vc int AS (null),
+  vresult char(1) AS (substr(value,2)),
+  KEY key1(vresult,vcomplete)
+) ENGINE=InnoDB;
+
+BEGIN;
+INSERT INTO t1(id,value) VALUES (1,'0F');
+UPDATE t1 SET value = '1S';
+UPDATE t1 SET value = '0F';
+COMMIT;
+
+SET GLOBAL innodb_max_purge_lag_wait=0;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+# Test to check if all the stale secondary records are purged
+CREATE TABLE t1 (
+  col1 int primary key,
+  col2 int,
+  col3 int,
+  col4 varchar(5),
+  v_col1 char(1) AS (substr(col4,1,1)),
+  v_col2 char(1) AS (substr(col4,2,1)),
+  v_col3 char(1) AS (substr(col4,3,1)),
+  v_col4 char(1) AS (substr(col4,4,1)),
+  v_col5 char(1) AS (substr(col4,5,1)),
+  KEY key1(v_col2, v_col1, v_col3, v_col4, v_col5),
+  KEY key2(col2, col3)
+) ENGINE=InnoDB;
+
+
+INSERT INTO t1(col1,col2,col3,col4) VALUES (1,1,1,'ABCDE');
+UPDATE t1 SET col2=2, col4 = 'PQRST';
+SET GLOBAL innodb_max_purge_lag_wait=0;
+
+CHECK TABLE t1 EXTENDED;
+DROP TABLE t1;

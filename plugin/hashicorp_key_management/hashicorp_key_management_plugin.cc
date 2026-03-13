@@ -13,6 +13,7 @@
  along with this program; if not, write to the Free Software
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#include <my_global.h>
 #include <mysql/plugin_encryption.h>
 #include <mysqld_error.h>
 #include <my_alloca.h>
@@ -27,10 +28,15 @@
 #include <algorithm>
 #include <unordered_map>
 #include <mutex>
+#include <sql_i_s.h>
+#include "sql_acl.h"
 
 #define HASHICORP_DEBUG_LOGGING 0
 
 #define PLUGIN_ERROR_HEADER "hashicorp: "
+// Plugin version (increment this everytime when plugin is updated)
+#define PLUGIN_VERSION 0x0210
+#define PLUGIN_VERSION_STR "2.1"
 
 /* Key version information structure: */
 typedef struct VER_INFO
@@ -123,9 +129,12 @@ public:
   }
   void cache_clean ()
   {
+    mtx.lock();
     latest_version_cache.clear();
     key_info_cache.clear();
+    mtx.unlock();
   }
+  int fill_info_schema(THD *thd, TABLE *table);
 private:
   std::mutex mtx;
   VER_MAP latest_version_cache;
@@ -153,6 +162,7 @@ private:
 };
 
 static HCData data;
+static bool loaded= true;
 
 static clock_t cache_max_time;
 static clock_t cache_max_ver_time;
@@ -161,7 +171,7 @@ static clock_t cache_max_ver_time;
   Convert milliseconds to timer ticks with rounding
   to nearest integer:
 */
-static clock_t ms_to_ticks (long ms)
+static clock_t ms_to_ticks (long long ms)
 {
   long long ticks_1000 = ms * (long long) CLOCKS_PER_SEC;
   clock_t ticks = (clock_t) (ticks_1000 / 1000);
@@ -343,9 +353,11 @@ static int timeout;
 static int max_retries;
 static char caching_enabled;
 static char check_kv_version;
-static long cache_timeout;
-static long cache_version_timeout;
+#if MYSQL_VERSION_ID < 130300
+static long long cache_timeout;         // for KEY_MAP key_info_cache
 static char use_cache_on_timeout;
+#endif
+static long cache_version_timeout;      // for VER_MAP latest_version_cache
 
 static MYSQL_SYSVAR_STR(vault_ca, vault_ca,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -391,15 +403,15 @@ static void cache_timeout_update (MYSQL_THD thd,
                                   void *var_ptr,
                                   const void *save)
 {
-  long timeout = * (long *) save;
-  * (long *) var_ptr = timeout;
+  long long timeout = * (long long *) save;
+  * (long long *) var_ptr = timeout;
   cache_max_time = ms_to_ticks(timeout);
 }
 
-static MYSQL_SYSVAR_LONG(cache_timeout, cache_timeout,
-  PLUGIN_VAR_RQCMDARG,
+static MYSQL_SYSVAR_LONGLONG(cache_timeout, cache_timeout,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "Cache timeout for key data (in milliseconds)",
-  NULL, cache_timeout_update, 60000, 0, LONG_MAX, 1);
+  NULL, cache_timeout_update, INT64_MAX, 0, INT64_MAX, 1);
 
 static void
   cache_version_timeout_update (MYSQL_THD thd,
@@ -415,13 +427,13 @@ static void
 static MYSQL_SYSVAR_LONG(cache_version_timeout, cache_version_timeout,
   PLUGIN_VAR_RQCMDARG,
   "Cache timeout for key version (in milliseconds)",
-  NULL, cache_version_timeout_update, 0, 0, LONG_MAX, 1);
+  NULL, cache_version_timeout_update, 60*1000, 0, LONG_MAX, 1);
 
 static MYSQL_SYSVAR_BOOL(use_cache_on_timeout, use_cache_on_timeout,
-  PLUGIN_VAR_RQCMDARG,
-  "In case of timeout (when accessing the vault server) "
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
+  "In case of an error when accessing the vault server "
   "use the value taken from the cache",
-  NULL, NULL, 0);
+  NULL, NULL, 1);
 
 static struct st_mysql_sys_var *settings[] = {
   MYSQL_SYSVAR(vault_url),
@@ -532,7 +544,7 @@ int HCData::curl_run (const char *url, std::string *response,
                                      &http_code)) != CURLE_OK)
   {
     curl_easy_cleanup(curl);
-    if (soft_timeout && curl_res == CURLE_OPERATION_TIMEDOUT)
+    if (soft_timeout)
     {
       return OPERATION_TIMEOUT;
     }
@@ -1268,12 +1280,39 @@ storage_error:
   return 0;
 }
 
+/**
+  @brief Fill info schema table with latest key version for a key
+
+  @returns
+  1 - error
+  0 - success
+*/
+int HCData::fill_info_schema(THD *thd, TABLE *table)
+{
+  mtx.lock();
+  for (const auto& value : latest_version_cache)
+  {
+    table->field[0]->store(value.first);
+    table->field[1]->store(value.second.key_version);
+
+    if (schema_table_store_record(thd, table))
+    {
+      mtx.unlock();
+      return 1; // fail
+    }
+  }
+  mtx.unlock();
+
+  return 0; // success
+}
+
 static int hashicorp_key_management_plugin_init(void *p)
 {
   int rc = data.init();
   if (rc)
   {
     data.deinit();
+    loaded= false;
   }
   return rc;
 }
@@ -1282,6 +1321,49 @@ static int hashicorp_key_management_plugin_deinit(void *p)
 {
   data.cache_clean();
   data.deinit();
+  return 0;
+}
+
+static struct st_mysql_information_schema hashicorp_keys_info_plugin=
+                              { MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION };
+
+static ST_FIELD_INFO hashicorp_key_management_keys[]=
+{
+  Show::Column("KEY_ID",      Show::ULonglong(32), NOT_NULL, "KEY_ID"),
+  Show::Column("KEY_VERSION", Show::ULonglong(32), NOT_NULL, "KEY_VERSION"),
+  Show::CEnd()
+};
+
+static int fill_hashicorp_keys_table(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  TABLE *table= tables->table;
+  bool is_show= thd_sql_command(thd) == SQLCOM_SHOW_GENERIC;
+
+  if (check_global_access(thd, PROCESS_ACL, !is_show))
+    return is_show;
+
+  return data.fill_info_schema(thd, table);
+}
+
+static int flush_hashicorp_keys()
+{
+  if (caching_enabled)
+    data.cache_clean();
+  return 0;
+}
+
+static int hashicorp_info_schema_init(void *p)
+{
+  // don't load the I_S plugin if the main plugin is not installed
+  if (!loaded)
+    return 1;
+
+  ST_SCHEMA_TABLE *key_schema_table= (ST_SCHEMA_TABLE*)p;
+  key_schema_table->fields_info= hashicorp_key_management_keys;
+  key_schema_table->fill_table= fill_hashicorp_keys_table; //fill IS table
+  key_schema_table->hidden= false;
+  key_schema_table->reset_table= flush_hashicorp_keys; // flush
+
   return 0;
 }
 
@@ -1298,10 +1380,25 @@ maria_declare_plugin(hashicorp_key_management)
   PLUGIN_LICENSE_GPL,
   hashicorp_key_management_plugin_init,
   hashicorp_key_management_plugin_deinit,
-  0x0200 /* 2.0 */,
+  PLUGIN_VERSION /* 2.1 */,
   NULL, /* status variables */
   settings,
-  "2.0",
-  MariaDB_PLUGIN_MATURITY_STABLE
+  PLUGIN_VERSION_STR,
+  MariaDB_PLUGIN_MATURITY_GAMMA
+},
+{
+  MYSQL_INFORMATION_SCHEMA_PLUGIN,
+  &hashicorp_keys_info_plugin,
+  "hashicorp_key_management_cache",
+  "Raghunandan Bhat, MariaDB Corporation",
+  "Cache flush for HashiCorp Vault key management plugin",
+  PLUGIN_LICENSE_GPL,
+  hashicorp_info_schema_init,
+  NULL,
+  PLUGIN_VERSION,
+  NULL,
+  NULL,
+  PLUGIN_VERSION_STR,
+  MariaDB_PLUGIN_MATURITY_GAMMA
 }
 maria_declare_plugin_end;

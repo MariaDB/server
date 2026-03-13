@@ -1,0 +1,12 @@
+#
+# MDEV-37979 sys.ps_setup_save does not restore SQL_LOG_BIN after error, causes replication discrepancy
+#
+select @@sql_log_bin;
+@@sql_log_bin
+1
+call sys.ps_setup_save(-1);
+ERROR 90000: Could not lock the sys.ps_setup_save user lock, another thread has a saved configuration
+select @@sql_log_bin;
+@@sql_log_bin
+1
+# End of 10.11 tests

@@ -161,6 +161,7 @@ connection replica;
 STOP SLAVE;
 RESET SLAVE ALL;
 connection primary;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection node_1;
 disconnect primary;

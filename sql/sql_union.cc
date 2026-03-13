@@ -471,8 +471,8 @@ int select_unit::update_counter(Field* counter, longlong value)
 */
 
 bool select_unit_ext::disable_index_if_needed(SELECT_LEX *curr_sl)
-{ 
-  const bool oracle_mode= thd->variables.sql_mode & MODE_ORACLE;
+{
+  const bool oracle_mode= (thd->variables.sql_mode & IS_OR_WAS_ORACLE);
   if (is_index_enabled && 
       ((!oracle_mode &&
         curr_sl == curr_sl->master_unit()->union_distinct) ||
@@ -489,7 +489,7 @@ bool select_unit_ext::disable_index_if_needed(SELECT_LEX *curr_sl)
     table->no_keyread=1;
     /* In case of Oracle mode we unfold at the last operator */
     DBUG_ASSERT(!oracle_mode || !curr_sl->next_select());
-    return oracle_mode || !curr_sl->distinct;
+    return !curr_sl->distinct;
   }
   return false;
 }
@@ -1135,7 +1135,7 @@ bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
   {
     for (ORDER *ord= (ORDER *)sl->order_list.first; ord; ord= ord->next)
     {
-      (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+      (*ord->item)->walk(&Item::eliminate_subselect_processor, 0, 0);
     }
   }
   DBUG_RETURN(false);
@@ -1852,7 +1852,7 @@ cont:
       ORDER *ord;
       Item_func::Functype ft=  Item_func::FT_FUNC;
       for (ord= global_parameters()->order_list.first; ord; ord= ord->next)
-        if ((*ord->item)->walk (&Item::find_function_processor, FALSE, &ft))
+        if ((*ord->item)->walk (&Item::find_function_processor, &ft, 0))
         {
           my_error (ER_CANT_USE_OPTION_HERE, MYF(0), "MATCH()");
           goto err;
@@ -2094,7 +2094,7 @@ void st_select_lex_unit::optimize_bag_operation(bool is_outer_distinct)
       PREPARE ... FROM
       recursive
   */
-  if ((thd->variables.sql_mode & MODE_ORACLE) ||
+  if ((thd->variables.sql_mode & IS_OR_WAS_ORACLE) ||
     (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW) ||
     (fake_select_lex != NULL && thd->stmt_arena->is_stmt_prepare()) ||
     (with_element && with_element->is_recursive ))
@@ -2373,8 +2373,14 @@ bool st_select_lex_unit::exec_inner()
   if (!saved_error && !was_executed)
     save_union_explain(thd->lex->explain);
 
-  if (unlikely(saved_error))
-    return saved_error;
+  error= saved_error;
+
+  if (unlikely(error))
+  {
+  err:
+    thd->lex->current_select= lex_select_save;
+    return error;
+  }
 
   if (union_result)
   {
@@ -2465,7 +2471,8 @@ bool st_select_lex_unit::exec_inner()
           {
             table->file->print_error(error, MYF(0));
             DBUG_ASSERT(0);
-            return true;
+            error= true;
+            goto err;
           }
 	  table->no_keyread=1;
 	}
@@ -2473,24 +2480,24 @@ bool st_select_lex_unit::exec_inner()
 	{
 	  if (union_result->flush())
 	  {
-	    thd->lex->current_select= lex_select_save;
-	    return true;
+            error= true;
+            goto err;
 	  }
 	}
       }
       if (unlikely(saved_error))
       {
-	thd->lex->current_select= lex_select_save;
-	return saved_error;
+        error= saved_error;
+        goto err;
       }
       if (fake_select_lex != NULL)
       {
         /* Needed for the following test and for records_at_start in next loop */
-        int error= table->file->info(HA_STATUS_VARIABLE);
+        error= table->file->info(HA_STATUS_VARIABLE);
         if (unlikely(error))
         {
           table->file->print_error(error, MYF(0));
-          return true;
+          goto err;
         }
       }
       if (found_rows_for_union && !sl->braces &&
@@ -2511,11 +2518,6 @@ bool st_select_lex_unit::exec_inner()
           Stop execution of the remaining queries in the UNIONS, and produce
           the current result.
         */
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_QUERY_RESULT_INCOMPLETE,
-                            ER_THD(thd, ER_QUERY_RESULT_INCOMPLETE),
-                            "LIMIT ROWS EXAMINED",
-                            thd->lex->limit_rows_examined->val_uint());
         thd->reset_killed();
         break;
       }
@@ -2524,20 +2526,19 @@ bool st_select_lex_unit::exec_inner()
 
   DBUG_EXECUTE_IF("show_explain_probe_union_read", 
                    dbug_serve_apcs(thd, 1););
-  {
-    List<Item_func_match> empty_list;
-    empty_list.empty();
-    /*
-      Disable LIMIT ROWS EXAMINED in order to produce the possibly incomplete
-      result of the UNION without interruption due to exceeding the limit.
-    */
-    thd->lex->limit_rows_examined_cnt= ULONGLONG_MAX;
+  /*
+    Temporarily deactivate LIMIT ROWS EXAMINED to avoid producing potentially
+    incomplete result of the UNION due to exceeding of the limit. It will be
+    re-activated upon the function exit
+  */
+  const bool limit_rows_was_activated=
+    thd->lex->deactivate_limit_rows_examined();
 
-    // Check if EOM
-    if (fake_select_lex != NULL && likely(!thd->is_fatal_error))
-    {
-       /* Send result to 'result' */
-       saved_error= true;
+  // Check if EOM
+  if (fake_select_lex != NULL && likely(!thd->is_fatal_error))
+  {
+      /* Send result to 'result' */
+      saved_error= true;
 
       set_limit(global_parameters());
       JOIN *join= fake_select_lex->join;
@@ -2591,10 +2592,10 @@ bool st_select_lex_unit::exec_inner()
 	Mark for slow query log if any of the union parts didn't use
 	indexes efficiently
       */
-    }
   }
   thd->lex->current_select= lex_select_save;
-  thd->lex->set_limit_rows_examined();
+  if (limit_rows_was_activated)
+    thd->lex->set_limit_rows_examined();
   return saved_error;
 }
 
@@ -2726,13 +2727,14 @@ bool st_select_lex_unit::exec_recursive()
 
   thd->lex->current_select= lex_select_save;
 err:
-  thd->lex->set_limit_rows_examined();
   DBUG_RETURN(saved_error);    
 }
 
 
 bool st_select_lex_unit::cleanup()
 {
+  cleanup_stranded_units();
+
   bool error= 0;
   DBUG_ENTER("st_select_lex_unit::cleanup");
 
@@ -2762,7 +2764,8 @@ bool st_select_lex_unit::cleanup()
       With_element *with_elem= with_element;
       while ((with_elem= with_elem->get_next_mutually_recursive()) !=
              with_element)
-        with_elem->rec_result->cleanup_count++;
+        if (with_elem->rec_result)
+          with_elem->rec_result->cleanup_count++;
       DBUG_RETURN(FALSE);
     }
   }
@@ -2946,7 +2949,12 @@ bool st_select_lex::cleanup()
 
   cleanup_window_funcs(window_funcs);
 
-  if (join)
+  /*
+    In UPDATE/DELETE, it can be that leaf_tables has tables while the JOIN
+    object is not created yet (and then some error occurs and we get here).
+    In leaf_tables, recursive CTE references need cleanup.
+  */
+  if (leaf_tables.elements)
   {
     List_iterator<TABLE_LIST> ti(leaf_tables);
     TABLE_LIST *tbl;
@@ -2963,8 +2971,12 @@ bool st_select_lex::cleanup()
         error|= (bool) error | (uint) unit->cleanup();
       }
     }
+  }
+
+  if (join)
+  {
     DBUG_ASSERT((st_select_lex*)join->select_lex == this);
-    error= join->destroy();
+    error|= (bool)join->destroy();
     delete join;
     join= 0;
   }

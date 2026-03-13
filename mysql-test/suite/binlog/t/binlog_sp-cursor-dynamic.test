@@ -1,0 +1,117 @@
+if (`SELECT $SP_PROTOCOL > 0`)
+{
+   --skip Test requires: sp-protocol disabled
+}
+--source include/not_embedded.inc
+--source include/have_binlog_format_statement.inc
+
+--disable_query_log
+reset master; # get rid of previous tests binlog
+--enable_query_log
+
+--echo #
+--echo # MDEV-33830 Support for cursors on prepared statements
+--echo #
+
+--echo # Make sure that dynamic OPEN per se does not produce
+--echo # any binlog events
+
+CREATE TABLE t1 (a VARCHAR(64));
+INSERT INTO t1 VALUES (10),(11);
+CREATE TABLE t2 (a VARCHAR(64), b VARCHAR(64));
+
+
+--echo #
+--echo # SQL Standard dynamic cursor
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(lim_int INT, lim_str VARCHAR(32), b VARCHAR(32))
+BEGIN
+  DECLARE end_of_data BOOL DEFAULT FALSE;
+  DECLARE va INT;
+  DECLARE c CURSOR FOR stmt;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET end_of_data = 1;
+  PREPARE stmt FROM 'SELECT a FROM t1 ORDER BY a LIMIT ?';
+  IF lim_int IS NOT NULL THEN
+    OPEN c USING lim_int;
+  ELSE
+    OPEN c USING lim_str;
+  END IF;
+  loop1: LOOP
+    FETCH c INTO va;
+    IF end_of_data THEN LEAVE loop1; END IF;
+    INSERT INTO t2 VALUES (va, b);
+  END LOOP;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1(1, NULL, '1+NULL');
+CALL p1(2, NULL, '2+NULL');
+CALL p1(NULL, '1', 'NULL+1');
+CALL p1(NULL, '2', 'NULL+2');
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Oracle style dynamic cursor
+--echo #
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1(lim_int INT, lim_str VARCHAR(32), b VARCHAR(32))
+BEGIN
+  DECLARE end_of_data BOOL DEFAULT FALSE;
+  DECLARE va INT;
+  DECLARE c SYS_REFCURSOR;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET end_of_data = 1;
+  IF lim_int IS NOT NULL THEN
+    OPEN c FOR 'SELECT a FROM t1 ORDER BY a LIMIT ?' USING lim_int;
+  ELSE
+    OPEN c FOR 'SELECT a FROM t1 ORDER BY a LIMIT ?' USING lim_str;
+  END IF;
+  loop1: LOOP
+    FETCH c INTO va;
+    IF end_of_data THEN LEAVE loop1; END IF;
+    INSERT INTO t2 VALUES (va, b);
+  END LOOP;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1(1, NULL, '1+NULL');
+CALL p1(2, NULL, '2+NULL');
+CALL p1(NULL, '1', 'NULL+1');
+CALL p1(NULL, '2', 'NULL+2');
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Oracle style dynamic cursor - FOR select_statement
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE end_of_data BOOL DEFAULT FALSE;
+  DECLARE va INT;
+  DECLARE c SYS_REFCURSOR;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET end_of_data = 1;
+  OPEN c FOR SELECT * FROM t1 ORDER BY a;
+  loop1: LOOP
+    FETCH c INTO va;
+    IF end_of_data THEN LEAVE loop1; END IF;
+    INSERT INTO t2 VALUES (va, 'n/a');
+  END LOOP;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+DROP TABLE t1, t2;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;

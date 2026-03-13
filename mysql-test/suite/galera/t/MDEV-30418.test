@@ -1,0 +1,32 @@
+--source include/galera_cluster.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_2
+select @@wsrep_slave_threads;
+SET @cluster_address_orig = @@wsrep_cluster_address;
+SET GLOBAL wsrep_cluster_address=AUTO;
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL wsrep_slave_threads=12;
+SHOW WARNINGS;
+SET GLOBAL wsrep_cluster_address=ON;
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL wsrep_slave_threads=0;
+SHOW WARNINGS;
+SET GLOBAL wsrep_cluster_address='a';
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL wsrep_slave_threads=2;
+SHOW WARNINGS;
+--disable_query_log
+SET GLOBAL wsrep_cluster_address = @cluster_address_orig;
+--enable_query_log
+select @@wsrep_slave_threads;
+show status like 'wsrep_cluster_size';
+show status like 'wsrep_cluster_status';
+call mtr.add_suppression("WSREP:.*");
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

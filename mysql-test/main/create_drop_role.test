@@ -54,6 +54,7 @@ DROP ROLE IF EXISTS role_1;
 --error ER_CANNOT_USER
 DROP ROLE role_1;
 
+disconnect user_a;
 DROP USER u1@localhost;
 
 # MDEV-17942

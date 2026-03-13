@@ -1,0 +1,20 @@
+--source include/have_binlog_format_mixed.inc
+
+# MDEV-37903 ALTER TABLE ... ENGINE=MRG_MyISAM is not binlogged as DDL
+
+# Fix timestamp to avoid varying results.
+SET timestamp=1000000000;
+
+RESET MASTER;
+
+CREATE TABLE t (i1 int, i2 int, pk int) ;
+CREATE TABLE t3 LIKE t ;
+ALTER TABLE t3 ENGINE = MERGE UNION (t1,t2);
+insert into t values(1,1,1);
+
+flush logs;
+let $MYSQLD_DATADIR= `select @@datadir`;
+--replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /CRC32 0x[0-9a-f]*/CRC32 XXX/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/ /xid=\d*/xid=<xid>/
+--exec $MYSQL_BINLOG  --base64-output=decode-rows -v -v $MYSQLD_DATADIR/master-bin.000001
+
+drop table t,t3;

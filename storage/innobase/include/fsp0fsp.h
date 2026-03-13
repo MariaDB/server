@@ -333,6 +333,9 @@ fsp_header_check_encryption_key(
 dberr_t fsp_header_init(fil_space_t *space, uint32_t size, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+buf_block_t* fsp_page_create(fil_space_t *space, uint32_t offset,
+                             mtr_t *mtr) noexcept;
+
 /** Create a new segment.
 @param space                tablespace
 @param byte_offset          byte offset of the created segment header
@@ -452,12 +455,14 @@ fseg_free_page(
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Determine whether a page is allocated.
+@param mtr     mini-transaction
 @param space   tablespace
 @param page    page number
 @return error code
 @retval DB_SUCCESS             if the page is marked as free
 @retval DB_SUCCESS_LOCKED_REC  if the page is marked as allocated */
-dberr_t fseg_page_is_allocated(fil_space_t *space, unsigned page)
+dberr_t fseg_page_is_allocated(mtr_t *mtr, fil_space_t *space, unsigned page)
+  noexcept
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 MY_ATTRIBUTE((nonnull, warn_unused_result))

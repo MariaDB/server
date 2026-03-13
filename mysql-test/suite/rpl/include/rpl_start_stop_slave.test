@@ -187,13 +187,15 @@ sync_slave_with_master;
 # Testing how out of valid range position value is handled with an error.
 #
 
+--connection slave
+--source include/stop_slave.inc
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 let $master_pos= query_get_value(SHOW MASTER STATUS, Position, 1);
 let $master_pos= `SELECT $master_pos + 1`;
 
 --connection slave
---source include/stop_slave.inc
 --replace_regex /[0-9]+/MASTER_POS/
 eval CHANGE MASTER TO master_log_pos=$master_pos, master_use_gtid=no;
 
@@ -211,6 +213,7 @@ START SLAVE;
 RESET SLAVE;
 
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 # Slave is stopped by bug#3593869-64035 tests.

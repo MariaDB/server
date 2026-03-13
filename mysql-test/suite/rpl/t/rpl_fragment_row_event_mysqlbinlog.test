@@ -1,0 +1,291 @@
+#
+#   This file tests that row events which are larger than a server's configured
+# binlog_row_event_fragment_threshold will be fragmented into
+# Partial_rows_log_event, that the slave re-assembles to execute the event,
+# and that mysqlbinlog replay is consistent.
+#
+#   The following use cases are tested when replaying transactions via
+# traditional replication and mysqlbinlog.
+#
+#   Test cases done:
+#   1: Any Rows event type that surpasses binlog_row_event_fragment_threshold
+#     should be fragmented:
+#     a) Write_rows
+#     b) Update_rows
+#     c) Delete_rows
+#     d) Write_rows_compressed
+#     e) Update_rows_compressed
+#     f) Delete_rows_compressed
+#   2: A transaction with multiple Rows_log_events can be replicated
+#   3: Mysqlbinlog --database and --table filters work on
+#      Partial_rows_log_events
+#   4: Mysqlbinlog --read-from-remote-server when piped to a mysql client
+#      should correctly apply the transaction
+#
+#   Note this test users MTR variables to save old variables rather than user
+# variables because binlog_row_event_fragment_threshold is reset dynamically,
+# and connections are disconnected and reconnected to reset the value, as
+# FLUSH STATUS doesn't reset this value.
+#
+#   Also note this test duplicates some testing done in
+# rpl_fragment_row_event_main.test. This is because this file aims to test
+# mysqlbinlog replay correctness, and requires a debug build due to setting
+# debug_binlog_row_event_max_encoded_size, whereas the _main test does not need
+# a debug build, and does not test mysqlbinlog.
+#
+#
+# References:
+#   MDEV-28768: mysqlbinlog can produce events larger than max_allowed_packet
+#   MDEV-32570: Fragment ROW replication events larger than max_packet_size
+#
+
+# Debug is required for debug_binlog_row_event_max_encoded_size in .cnf file
+--source include/have_debug.inc
+
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--let $rpl_topology=1->2, 2->3
+--source include/rpl_init.inc
+
+
+--echo #
+--echo #
+--echo # Test setup
+
+# Option is enabled for all tests in this file
+--let $test_mysqlbinlog_replay= 1
+
+--connection server_1
+--let $server_1_old_binlog_frag_threshold= `SELECT @@global.binlog_row_event_fragment_threshold`
+--let $server_1_old_net_buf= `SELECT @@global.net_buffer_length`
+set @@global.binlog_row_event_fragment_threshold= 1024;
+set @@global.net_buffer_length= 1024;
+--disconnect server_1
+--source include/wait_until_disconnected.inc
+--connect (server_1,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+
+--connection server_2
+--source include/stop_slave.inc
+--let $server_2_old_binlog_frag_threshold= `SELECT @@global.binlog_row_event_fragment_threshold`
+--let $server_2_old_net_buf= `SELECT @@global.net_buffer_length`
+set @@global.binlog_row_event_fragment_threshold= 1024;
+set @@global.net_buffer_length= 1024;
+--disconnect server_2
+--source include/wait_until_disconnected.inc
+--connect (server_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
+--source include/start_slave.inc
+
+--connection server_3
+--source include/stop_slave.inc
+--let $server_3_old_binlog_frag_threshold= `SELECT @@global.binlog_row_event_fragment_threshold`
+--let $server_3_old_net_buf= `SELECT @@global.net_buffer_length`
+set @@global.binlog_row_event_fragment_threshold= 1024;
+set @@global.net_buffer_length= 1024;
+--disconnect server_3
+--source include/wait_until_disconnected.inc
+--connect (server_3,127.0.0.1,root,,test,$SERVER_MYPORT_3,)
+--source include/start_slave.inc
+
+
+--echo #
+--echo #
+--echo # Test cases 1a-1c) Regular row events that surpass
+--echo # binlog_row_event_fragment_threshold should be fragmented
+--source rpl_fragment_row_event.inc
+
+--echo #
+--echo #
+--echo # Test cases 1d-1f) Compressed row events that surpass
+--echo # binlog_row_event_fragment_threshold should be fragmented
+--connection server_1
+--let $old_s1_compress= `SELECT @@global.log_bin_compress`
+set @@global.log_bin_compress= 1;
+--connection server_2
+--let $old_s2_compress= `SELECT @@global.log_bin_compress`
+set @@global.log_bin_compress= 1;
+--connection server_3
+--let $old_s3_compress= `SELECT @@global.log_bin_compress`
+set @@global.log_bin_compress= 1;
+
+--source rpl_fragment_row_event.inc
+
+--connection server_1
+--eval set @@global.log_bin_compress= $old_s1_compress
+--connection server_2
+--eval set @@global.log_bin_compress= $old_s2_compress
+--connection server_3
+--eval set @@global.log_bin_compress= $old_s3_compress
+
+
+--echo #
+--echo #
+--echo # Test Case 2) A transaction with multiple Rows_log_events can be
+--echo # replicated
+
+--let $test_multi_table_trx= 1
+--let $test_show_binlog_events= 1
+--let $test_update= 0
+--let $test_delete= 0
+--source rpl_fragment_row_event.inc
+--let $test_multi_table_trx=
+--let $test_show_binlog_events=
+--let $test_update= 1
+--let $test_delete= 1
+
+
+--echo #
+--echo #
+--echo # Test Case 3) Mysqlbinlog --database and --table filters work on
+--echo # Partial_rows_log_events
+
+--echo # Stop slave because it will be used for mysqlbinlog on the next test case
+--connection server_2
+--source include/stop_slave.inc
+
+--connection server_1
+create table t1 (a int primary key, b longtext, c int) engine=innodb;
+create table t2 (a int primary key, b longtext, c int) engine=innodb;
+
+--echo # Transaction 1, Partial_rows_log_event counts for t1: 3, t2: 4
+BEGIN;
+insert into t1 values (1, repeat('b', 1024*2), 0);
+insert into t2 values (2, repeat('c', 1024*3), 0);
+COMMIT;
+
+--echo # Transaction 2, Partial_rows_log_event counts for t1: 5
+update t1 set c=1 where a=1;
+
+--let $mysqld_datadir=`select @@datadir`
+--let $binlog_filename= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_file_param= $mysqld_datadir/$binlog_filename
+--let $binlog_analysis_file= $MYSQLTEST_VARDIR/tmp/binlog_filtering_frags.out
+flush logs;
+
+--echo #
+--echo # 3a) A database filter configured to allow both transaction's database
+--echo # should show all Partial_rows_log_events
+--echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never --database=test
+--exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never --database=test
+--let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+--let SEARCH_FILE= $binlog_analysis_file
+--let SEARCH_OUTPUT= count
+--source include/search_pattern_in_file.inc
+--let SEARCH_OUTPUT= matches
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # 3b) A database filter configured to disallow both transaction's
+--echo # database should not show any Partial_rows_log_events
+--echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never --database=nonexistent
+--exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never --database=nonexistent
+--let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+--let SEARCH_FILE= $binlog_analysis_file
+--let SEARCH_OUTPUT= count
+--source include/search_pattern_in_file.inc
+--let SEARCH_OUTPUT= matches
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # 3c) A table filter configured to allow only t1's should only show the
+--echo # respective Partial_rows_log_events for t1
+--echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never --table=t1
+--exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never --table=t1
+--let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+--let SEARCH_FILE= $binlog_analysis_file
+--let SEARCH_OUTPUT= count
+--source include/search_pattern_in_file.inc
+--let SEARCH_OUTPUT= matches
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # 3d) A table filter configured to allow only t2's should only show the
+--echo # respective Partial_rows_log_events for t2
+--echo # table should not show any Partial_rows_log_events
+--echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never --table=t2
+--exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never --table=t2
+--let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+--let SEARCH_FILE= $binlog_analysis_file
+--let SEARCH_OUTPUT= count
+--source include/search_pattern_in_file.inc
+--let SEARCH_OUTPUT= matches
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # 3e) A database filter configured to disallow both transaction's
+--echo # tables should not show any Partial_rows_log_events
+--echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never --table=nonexistent
+--exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never --table=nonexistent
+--let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+--let SEARCH_FILE= $binlog_analysis_file
+--let SEARCH_OUTPUT= count
+--source include/search_pattern_in_file.inc
+--let SEARCH_OUTPUT= matches
+--source include/search_pattern_in_file.inc
+
+--echo # t1 and t2 are kept for the next test case
+
+
+--echo #
+--echo #
+--echo # Test Case 4) Mysqlbinlog --read-from-remote-server when piped to a
+--echo # mysql client should correctly apply the transaction
+--echo #
+--echo # Note: This test re-uses the binlog and tables/data from the last
+--echo # test-case
+--echo #
+
+--let $binlog_output_file= $MYSQLTEST_VARDIR/tmp/binlog_read_from_remote.sql
+
+--echo # MYSQL_BINLOG binlog_filename --result-file=binlog_output_file --read-from-remote-server
+--exec $MYSQL_BINLOG $binlog_filename --result-file=$binlog_output_file --read-from-remote-server
+
+--echo # MYSQL_SLAVE < binlog_output_file
+--exec $MYSQL_SLAVE < $binlog_output_file
+
+--echo # Tables on master and slave should be equivalent after mysqlbinlog replay...
+--let $diff_tables=server_1:t1,server_2:t1
+--source include/diff_tables.inc
+--let $diff_tables=server_1:t2,server_2:t2
+--source include/diff_tables.inc
+--echo # ..PASS
+
+--connection server_2
+# mysqlbinlog updated gtid_binlog_pos, switch it over to slave_pos
+CHANGE MASTER TO MASTER_DEMOTE_TO_SLAVE=1;
+--source include/start_slave.inc
+
+--connection server_1
+drop table t1, t2;
+
+
+--echo #
+--echo #
+--echo # Cleanup
+--connection server_1
+--eval set @@global.binlog_row_event_fragment_threshold= $server_1_old_binlog_frag_threshold
+--eval set @@global.net_buffer_length= $server_1_old_net_buf
+--disconnect server_1
+--source include/wait_until_disconnected.inc
+--connect (server_1,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+
+--connection server_2
+--source include/stop_slave.inc
+--eval set @@global.binlog_row_event_fragment_threshold= $server_2_old_binlog_frag_threshold
+--eval set @@global.net_buffer_length= $server_2_old_net_buf
+--source include/start_slave.inc
+--disconnect server_2
+--source include/wait_until_disconnected.inc
+--connect (server_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
+
+--connection server_3
+--source include/stop_slave.inc
+--eval set @@global.binlog_row_event_fragment_threshold= $server_3_old_binlog_frag_threshold
+--eval set @@global.net_buffer_length= $server_3_old_net_buf
+--source include/start_slave.inc
+--disconnect server_3
+--source include/wait_until_disconnected.inc
+--connect (server_3,127.0.0.1,root,,test,$SERVER_MYPORT_3,)
+
+--source include/rpl_end.inc
+--echo # End of rpl_fragment_row_event.test

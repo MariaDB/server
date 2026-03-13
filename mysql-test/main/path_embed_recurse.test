@@ -1,0 +1,84 @@
+--echo #
+--echo # MDEV-34391 Path resolution
+--echo # Path embedding with recursive routines
+--echo #
+
+CREATE DATABASE test2;
+DELIMITER /;
+CREATE FUNCTION test2.func2(val INT, t TEXT) RETURNS TEXT
+BEGIN
+  SET val:= val - 1;
+  IF val = 0 THEN
+    RETURN CONCAT(t, CAST(val AS CHAR(4)));
+  END IF;
+  RETURN func2(val, CONCAT(t, CAST(val AS CHAR(4))));
+END;
+/
+CREATE PROCEDURE test2.proc2(val INT, t TEXT)
+BEGIN
+  SET val:= val - 1;
+  IF val = 0 THEN
+    SELECT CONCAT(t, CAST(val AS CHAR(4)));
+  ELSE
+    CALL proc2(val, CONCAT(t, CAST(val AS CHAR(4))));
+  END IF;
+END;
+/
+SET PATH 'test2'/
+CREATE FUNCTION ff() RETURNS TEXT
+BEGIN
+  RETURN func2(5, '');
+END;
+/
+CREATE PROCEDURE pp()
+BEGIN
+  CALL proc2(5, '');
+END;
+/
+DELIMITER ;/
+SET PATH 'CURRENT_SCHEMA';
+
+--error ER_SP_NO_RECURSION
+SELECT ff();
+
+--error ER_SP_NO_RECURSION
+SELECT ff();
+
+--error ER_SP_RECURSION_LIMIT
+CALL pp();
+--error ER_SP_RECURSION_LIMIT
+CALL pp();
+
+SET max_sp_recursion_depth=10;
+CALL pp();
+CALL pp();
+SET max_sp_recursion_depth=0;
+
+DROP FUNCTION ff;
+DROP PROCEDURE pp;
+
+# SQL:2016, Part 2, 10.4 <routine invocation>
+# says that "If RN [routine name] does not contain a <schema name>, then the
+# candidate routines of RI [routine invocation] are the set union of invocable
+# routines of all schemas whose <schema name> is in DP [SQL-path].
+SET PATH 'test';
+CREATE FUNCTION test2.f(t TEXT) RETURNS TEXT
+  RETURN f(CONCAT(t, ' >> test2.f'));
+
+CREATE FUNCTION f(t TEXT) RETURNS TEXT
+  RETURN CONCAT(t, ' >> test.f');
+
+SELECT test2.f('*');
+
+DROP DATABASE test2;
+DROP FUNCTION f;
+
+--echo #
+--echo # MDEV-38483 UBSAN: SIGSEGV in Sp_handler::db_load_routine | Sp_handler::db_find_routine
+--echo #
+set path 'test';
+create procedure p() call p(sleep(1));
+--error ER_SP_RECURSION_LIMIT
+call p();
+drop procedure p;
+set path 'current_schema';

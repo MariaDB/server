@@ -12,5 +12,6 @@ set role r1;
 select * from information_schema.enabled_roles;
 
 connection default;
+disconnect con1;
 drop user foo@'127.0.0.1';
 drop role r1;

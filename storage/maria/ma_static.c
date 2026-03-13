@@ -33,7 +33,7 @@ uchar	maria_pack_file_magic[]=
 /* Unique number for this maria instance */
 uchar   maria_uuid[MY_UUID_SIZE];
 uint	maria_quick_table_bits=9;
-ulong	__attribute__((visibility("default"))) maria_block_size= MARIA_KEY_BLOCK_LENGTH;
+uint	__attribute__((visibility("default"))) maria_block_size= MARIA_KEY_BLOCK_LENGTH;
 my_bool maria_flush= 0, maria_single_user= 0;
 my_bool maria_delay_key_write= 0, maria_page_checksums= 1;
 my_bool maria_inited= FALSE;
@@ -55,10 +55,9 @@ ulong maria_concurrent_insert= 2;
 my_off_t maria_max_temp_length= MAX_FILE_SIZE;
 ulong    maria_bulk_insert_tree_size=8192*1024;
 ulong    maria_data_pointer_size= 6;
+ulong    maria_pagecache_segments;
 
-PAGECACHE maria_pagecache_var;
-PAGECACHE *maria_pagecache= &maria_pagecache_var;
-
+PAGECACHES maria_pagecaches;
 PAGECACHE maria_log_pagecache_var;
 PAGECACHE *maria_log_pagecache= &maria_log_pagecache_var;
 MY_TMPDIR *maria_tmpdir;                        /* Tempdir for redo */

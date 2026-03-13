@@ -1,9 +1,7 @@
 ##### suite/funcs_1/include/innodb_tb4.inc
 
---disable_warnings
-drop table if exists tb4;
---enable_warnings
 --enable_prepare_warnings
+set old_mode=2_digit_year;
 create table tb4 (
 f176 numeric (0) unsigned not null DEFAULT 9,
 f177 numeric (64) unsigned not null DEFAULT 9,
@@ -64,6 +62,7 @@ f239 varchar(20000) binary,
 f240 varchar(2000),
 f241 char(100)
 ) engine = innodb;
+set old_mode=default;
 
 --replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
 eval

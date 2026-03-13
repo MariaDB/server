@@ -223,9 +223,7 @@ handler t1 close;
 ERROR 42S02: Unknown table 't1' in HANDLER
 connection default;
 drop table t0;
-connection flush;
 disconnect flush;
-connection waiter;
 disconnect waiter;
 connection default;
 create table t1 (a int);
@@ -295,7 +293,6 @@ handler t1 close;
 connection con1;
 drop table t1;
 disconnect con1;
-connection con2;
 disconnect con2;
 connection default;
 USE information_schema;

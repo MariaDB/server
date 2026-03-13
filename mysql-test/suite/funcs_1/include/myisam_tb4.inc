@@ -1,8 +1,6 @@
 ##### suite/funcs_1/include/myisam_tb4.inc
 
---disable_warnings
-drop table if exists tb4 ;
---enable_warnings
+set old_mode=2_digit_year;
 create table tb4 (
 f176 numeric (0) unsigned not null DEFAULT 9,
 f177 numeric (64) unsigned not null DEFAULT 9,
@@ -72,6 +70,7 @@ f240 varchar(120),
 f241 char(100),
 f242 bit(30)
 ) engine = myisam;
+set old_mode=default;
 
 # The original columns. They are replaced by varbinary, because the funcs_1 tests should
 # not depend on the optional availability of the geometry feature.

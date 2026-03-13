@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2023 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -367,7 +367,7 @@ void wsrep_abort_thd(THD *bf_thd,
   /* Note that when you use RSU node is desynced from cluster, thus WSREP(thd)
   might not be true.
   */
-  if ((WSREP(bf_thd)
+  if ((WSREP_NNULL(bf_thd)
        || ((WSREP_ON || bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU)
            &&  wsrep_thd_is_toi(bf_thd))
        || bf_thd->lex->sql_command == SQLCOM_KILL)
@@ -464,8 +464,6 @@ uint wsrep_kill_thd(THD *thd, THD *victim_thd, killed_state kill_signal)
   DEBUG_SYNC(thd, "wsrep_kill_before_awake_no_mutex");
   victim_thd->wsrep_abort_by_kill= kill_signal;
   victim_thd->awake_no_mutex(kill_signal);
-  /* ha_abort_transaction() releases tmp->LOCK_thd_kill, so tmp
-     is not safe to access anymore. */
   ha_abort_transaction(thd, victim_thd, 1);
   DBUG_RETURN(0);
 }

@@ -49,14 +49,16 @@
     <Component Id="component.HeidiSQL_libmysql_6.1.dll" Guid="*" Win64="yes">
       <File Id="heidisql.libmysql_6.1.dll" Name="libmysql-6.1.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libmysql-6.1.dll" />
     </Component>
+    <Component Id="component.HeidiSQL_libmysql_8.4.0.dll" Guid="*" Win64="yes">
+      <File Id="heidisql.libmysql_8.4.0.dll" Name="libmysql-8.4.0.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libmysql-8.4.0.dll" />
+    </Component>
+    <Component Id="component.HeidiSQL_libmysql_9.4.0.dll" Guid="*" Win64="yes">
+      <File Id="heidisql.libmysql_9.4.0.dll" Name="libmysql-9.4.0.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libmysql-9.4.0.dll" />
+    </Component>
+
+
     <Component Id="component.HeidiSQL_libmariadb.dll" Guid="*" Win64="yes">
       <File Id="heidisql.libmariadb.dll" Name="libmariadb.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libmariadb.dll" />
-    </Component>
-    <Component Id="component.HeidiSQL_libssl_1_1.dll" Guid="*" Win64="yes">
-      <File Id="heidisql.libssl_1_1_x64.dll" Name="libssl-1_1.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libssl-1_1-x64.dll" />
-    </Component>
-	    <Component Id="component.HeidiSQL_libcrypto_1_1.dll" Guid="*" Win64="yes">
-      <File Id="heidisql.libcrypto_1_1_x64.dll" Name="libcrypto-1_1-x64.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libcrypto-1_1-x64.dll" />
     </Component>
     <Component Id="component.HeidiSQL_libssl_3.dll" Guid="*" Win64="yes">
       <File Id="heidisql.libssl_3.dll" Name="libssl-3-x64.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libssl-3-x64.dll" />
@@ -65,22 +67,15 @@
       <File Id="heidisql.libcrypto_3_x64.dll" Name="libcrypto-3-x64.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libcrypto-3-x64.dll" />
     </Component>
 
-
-    <Component Id="component.HeidiSQL_libpq_10.dll" Guid="*" Win64="yes">
-      <File Id="heidisql.libpq_10.dll" Name="libpq-10.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libpq-10.dll" />
-    </Component>
-	  <Component Id="component.HeidiSQL_libpq_12.dll" Guid="*" Win64="yes">
-      <File Id="heidisql.libpq_12.dll" Name="libpq-12.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libpq-12.dll" />
-    </Component>
-	  <Component Id="component.HeidiSQL_libpq_15.dll" Guid="*" Win64="yes">
+    <Component Id="component.HeidiSQL_libpq_15.dll" Guid="*" Win64="yes">
       <File Id="heidisql.libpq_15.dll" Name="libpq-15.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libpq-15.dll" />
     </Component>
 	  <Component Id="component.HeidiSQL_libpq_17.dll" Guid="*" Win64="yes">
       <File Id="heidisql.libpq_17.dll" Name="libpq-17.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libpq-17.dll" />
     </Component>
 
-    <Component Id="component.HeidiSQL_libintl_8.dll" Guid="*" Win64="yes">
-      <File Id="heidisql.libintl_8.dll" Name="libintl-8.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libintl-8.dll" />
+    <Component Id="component.HeidiSQL_libintl_9.dll" Guid="*" Win64="yes">
+      <File Id="heidisql.libintl_9.dll" Name="libintl-9.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libintl-9.dll" />
     </Component>
     <Component Id="component.HeidiSQL_libiconv_2.dll" Guid="*" Win64="yes">
       <File Id="heidisql.libiconv_2.dll" Name="libiconv-2.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libiconv-2.dll" />
@@ -137,19 +132,16 @@
   <ComponentRef Id="component.HeidiSQL_MenuShortcut"/>
   <ComponentRef Id="component.HeidiSQL_libmysql.dll"/>
   <ComponentRef Id="component.HeidiSQL_libmariadb.dll"/>
-  <ComponentRef Id="component.HeidiSQL_libssl_1_1.dll" />
-  <ComponentRef Id="component.HeidiSQL_libcrypto_1_1.dll" />
   <ComponentRef Id="component.HeidiSQL_libssl_3.dll" />
   <ComponentRef Id="component.HeidiSQL_libcrypto_3.dll" />
-  <ComponentRef Id="component.HeidiSQL_libpq_10.dll" />
-  <ComponentRef Id="component.HeidiSQL_libpq_12.dll" />
   <ComponentRef Id="component.HeidiSQL_libpq_15.dll" />
   <ComponentRef Id="component.HeidiSQL_libpq_17.dll" />
-  <ComponentRef Id="component.HeidiSQL_libcrypto_1_1.dll" />
-  <ComponentRef Id="component.HeidiSQL_libintl_8.dll" />
+  <ComponentRef Id="component.HeidiSQL_libintl_9.dll" />
   <ComponentRef Id="component.HeidiSQL_libiconv_2.dll" />
   <ComponentRef Id="component.HeidiSQL_sqlite3.dll" />
   <ComponentRef Id="component.HeidiSQL_libmysql_6.1.dll" />
+  <ComponentRef Id="component.HeidiSQL_libmysql_8.4.0.dll" />
+  <ComponentRef Id="component.HeidiSQL_libmysql_9.4.0.dll" />
   <ComponentRef Id="component.HeidiSQL_fbclient_4.0.dll" />
   <ComponentRef Id="component.HeidiSQL_libeay32.dll" />
   <ComponentRef Id="component.HeidiSQL_ssleay32.dll" />

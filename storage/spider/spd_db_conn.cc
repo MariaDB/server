@@ -3104,7 +3104,7 @@ int spider_db_store_result(
           result_list->quick_phase == 2
         ) {
           if (result_list->low_mem_read &&
-            result_list->current->result->limit_mode() == 0)
+            conn->db_conn->limit_mode() == 0)
           {
             do {
               spider_db_free_one_result(result_list,

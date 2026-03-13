@@ -63,6 +63,27 @@ SELECT TO_CHAR(c1, 'A.D.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'pmHH:MI:SS') AS C2, TO_
 SELECT TO_CHAR(c1, 'A.D.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'AMHH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD A.m.HH24:MI:SS') AS C3 FROM t_to_char1;
 SELECT TO_CHAR(c1, 'A.D.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'amHH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD a.M.HH24:MI:SS') AS C3 FROM t_to_char1;
 
+
+--echo #
+--echo # Test FF
+--echo #
+
+SELECT TO_CHAR('2025-10-11 12:13:14.123456', 'YYYY-MM-DD HH:MM:SS.FF');
+SELECT TO_CHAR('2025-10-11 12:13:14.123456', 'YYYY-MM-DD HH:MM:SS.FF6');
+SELECT TO_CHAR('2025-10-11 12:13:14.123456', 'YYYY-MM-DD HH:MM:SS.FF5');
+
+--echo #
+--echo # Test DDD, I*
+--echo #
+
+select c3,to_char(c3, 'DDD') from t_to_char1 where c0 = 3;
+select c3,to_char(c3, 'I') from t_to_char1 where c0 = 3;
+select c3,to_char(c3, 'I-MM') from t_to_char1 where c0 = 3;
+select c3,to_char(c3, 'IY') from t_to_char1 where c0 = 3;
+select c3,to_char(c3, 'IYY-MM') from t_to_char1 where c0 = 3;
+select c3, to_char(c3, 'IYYY-IW') from t_to_char1 where c0 between 3 and 4;
+select to_char("2001-01-01", "IYYY-IW");
+
 --echo #
 --echo # test format without order
 --echo #
@@ -118,6 +139,10 @@ select to_char(c3, 'YYYYxDDD') from t_to_char1 where c0 = 1;
 select to_char(c3, 'YYYY&DDD') from t_to_char1 where c0 = 1;
 --error ER_STD_INVALID_ARGUMENT
 select to_char(c3, 'xxYYYY-DD') from t_to_char1 where c0 = 1;
+--error ER_STD_INVALID_ARGUMENT
+SELECT TO_CHAR('2025-10-11 12:13:14.123456', 'YYYY-MM-DD HH:MM:SS.FF7');
+--error ER_STD_INVALID_ARGUMENT
+SELECT TO_CHAR('2025-10-11 12:13:14.123456', 'YYYY-MM-DD HH:MM:SS.FF0');
 
 SET character_set_client='latin1';
 SET character_set_connection='latin1';
@@ -154,19 +179,13 @@ select to_char(c3, "YYYY-MM-DD HH:MI:SS", "NLS_DATE_LANGUAGE = zh_CN") from t_to
 --echo # oracle support format but mariadb does not support
 --echo #
 --error ER_STD_INVALID_ARGUMENT
-select to_char(c3, 'DDD') from t_to_char1 where c0 = 1;
---error ER_STD_INVALID_ARGUMENT
 select to_char(c3, 'D') from t_to_char1 where c0 = 1;
 --error ER_STD_INVALID_ARGUMENT
 select to_char(c3, 'DS') from t_to_char1 where c0 = 1;
---error ER_STD_INVALID_ARGUMENT
-select to_char(c3, 'IY') from t_to_char1 where c0 = 1;
---error ER_STD_INVALID_ARGUMENT
-select to_char(c3, 'IYYY') from t_to_char1 where c0 = 1;
 
 --echo #
 --echo # test for first argument data type
---echo # 
+--echo #
 --error ER_STD_INVALID_ARGUMENT
 select to_char(1, 'yyyy');
 --error ER_STD_INVALID_ARGUMENT

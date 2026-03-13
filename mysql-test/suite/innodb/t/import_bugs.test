@@ -96,7 +96,7 @@ let $datadir=`select @@datadir`;
 UNLOCK TABLES;
 ALTER TABLE t2 DISCARD TABLESPACE;
 ALTER TABLE t2 ADD c3 INT FIRST;
---copy_file $datadir/test/imp_t1.ibd $datadir/test/t2.ibd
+--move_file $datadir/test/imp_t1.ibd $datadir/test/t2.ibd
 
 --replace_regex /opening '.*\/test\//opening '.\/test\//
 ALTER TABLE t2 IMPORT TABLESPACE;

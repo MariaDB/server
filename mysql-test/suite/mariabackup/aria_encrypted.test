@@ -1,0 +1,18 @@
+--source include/have_file_key_management.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-38246 aria_read index failed on encrypted database during backup
+--echo #
+
+CREATE TABLE t1 (product_id varchar(32) DEFAULT NULL, d1 date DEFAULT NULL, key(product_id)) engine=aria, row_format=page, transactional=1;
+CREATE TABLE t2 (product_id varchar(32) DEFAULT NULL, d1 date DEFAULT NULL, key(product_id)) engine=aria, row_format=page, transactional=0;
+
+insert into t1 select md5(seq), date_add("2025-05-05", interval seq day) from seq_1_to_10000;
+insert into t2 select md5(seq), date_add("2025-05-05", interval seq day) from seq_1_to_10000;
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir;
+drop table if exists t1,t2;

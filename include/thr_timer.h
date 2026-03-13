@@ -24,6 +24,7 @@ extern "C" {
 typedef struct st_timer {
   struct timespec expire_time;
   ulonglong period;
+  ulonglong timeout;  /* Timeout value in microseconds */
   my_bool expired;
   uint index_in_queue;
   void (*func)(void*);

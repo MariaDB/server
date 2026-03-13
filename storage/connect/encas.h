@@ -318,3 +318,4 @@
     case MSG_XPATH_CNTX_ERR:  p = "Unable to create new XPath context";                      break;
     case MSG_XPATH_EVAL_ERR:  p = "Unable to evaluate xpath location '%s'";                  break;
     case MSG_XPATH_NOT_SUPP:  p = "Unsupported Xpath for column %s";                         break;
+    case MSG_ARG_IS_NULL:     p = "Argument is NULL";                                        break;

@@ -3,7 +3,7 @@
 --source include/have_rocksdb.inc
 
 --connection node_1
-INSTALL PLUGIN IF NOT EXISTS connect SONAME 'ha_connect';
+--source include/check_connect.inc
 
 CREATE TABLE t1 (f INT) ENGINE=CONNECT;
 CREATE TABLE t2 (f INT) ENGINE=ROCKSDB;
@@ -12,6 +12,7 @@ CREATE TABLE t3 (f INT) ENGINE=SEQUENCE;
 show warnings;
 
 --connection node_2
+--error ER_NO_SUCH_TABLE
 show create table t1;
 show create table t2;
 --error ER_NO_SUCH_TABLE
@@ -19,4 +20,3 @@ show create table t3;
 
 --connection node_1
 DROP TABLE t1, t2;
-UNINSTALL PLUGIN IF EXISTS connect;

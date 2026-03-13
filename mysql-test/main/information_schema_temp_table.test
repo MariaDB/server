@@ -4,9 +4,10 @@
 --echo #             INNODB_TEMP_TABLE_INFO
 --echo #
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
 --source include/have_innodb.inc
+
+# service connection doesn't follow `use db`
+--disable_service_connection
 
 --echo # -------------------------------
 --echo # Test shadowing of a base table
@@ -85,8 +86,10 @@ create sequence s1;
 create temporary table t1 (b int);
 create temporary sequence s1;
 create temporary sequence s2;
+--disable_view_protocol
 select table_schema, table_name, table_type, temporary from information_schema.tables where table_schema = 'test'
   order by table_schema desc, table_name desc, table_type desc;
+--enable_view_protocol
 
 drop table t1;
 drop table t1;
@@ -106,9 +109,6 @@ drop table test.t_temp;
 
 drop database my_db;
 drop database some_db;
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # MDEV-28332: Alter on temporary table causes ER_TABLE_EXISTS_ERROR note
@@ -215,9 +215,11 @@ CREATE TABLE t1 (a INT) ENGINE=MyISAM;
 insert into t1 values (1);
 CREATE TEMPORARY TABLE t2 (a INT) ENGINE=MERGE UNION=(t1);
 CREATE TABLE t3 (a INT) ENGINE=MERGE UNION=(t1);
+--disable_view_protocol
 --sorted_result
 --replace_column 10 X 11 X 12 X 13 X 15 X 16 X 22 X
 SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test';
+--enable_view_protocol
 DROP TABLE t1,t2,t3;
 
 --echo #

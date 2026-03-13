@@ -85,6 +85,7 @@ select * from t2 ORDER BY f;
 f
 5
 7
+disconnect con3;
 drop table t1, t2;
 drop user zedjzlcsjhd@localhost;
 use test;

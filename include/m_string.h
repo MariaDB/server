@@ -80,12 +80,6 @@ extern const char _dig_vec_lower[];
 
 extern char *strmov_overlapp(char *dest, const char *src);
 
-#if defined(_lint) || defined(FORCE_INIT_OF_VARS)
-#define LINT_INIT_STRUCT(var) bzero(&var, sizeof(var)) /* No uninitialize-warning */
-#else
-#define LINT_INIT_STRUCT(var)
-#endif
-
 /* Prototypes for string functions */
 
 extern	void bmove_upp(uchar *dst,const uchar *src,size_t len);
@@ -325,6 +319,9 @@ static inline int safe_strcat(char *dst, size_t dst_size, const char *src)
 #ifdef __cplusplus
 static inline char *safe_str(char *str)
 { return str ? str : const_cast<char*>(""); }
+
+static inline const char *safe_str(const LEX_CSTRING *lcs)
+{ return lcs && lcs->str ? lcs->str : ""; }
 #endif
 
 static inline const char *safe_str(const char *str)

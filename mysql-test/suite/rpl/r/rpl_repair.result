@@ -1,0 +1,19 @@
+include/master-slave.inc
+[connection master]
+create table t (a int, key(a)) partition by range (a) (
+partition p0 values less than (10),
+partition p1 values less than (100)
+);
+insert into t values (5),(50);
+connection slave;
+flush tables;
+connection master;
+repair table t;
+Table	Op	Msg_type	Msg_text
+test.t	repair	status	OK
+connection slave;
+SET STATEMENT sql_log_bin=0 FOR
+CALL mtr.add_suppression('[[]Warning[]] Moved 1 misplaced rows');
+connection master;
+DROP TABLE t;
+include/rpl_end.inc

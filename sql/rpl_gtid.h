@@ -16,9 +16,10 @@
 #ifndef RPL_GTID_H
 #define RPL_GTID_H
 
-#include "hash.h"
 #include "queues.h"
 #include <atomic>
+#include "rpl_gtid_base.h"
+
 
 /* Definitions for MariaDB global transaction ID (GTID). */
 
@@ -29,19 +30,9 @@ class String;
 #ifdef MYSQL_SERVER
 struct TABLE;
 #endif
-struct slave_connection_state;
-
-#define PARAM_GTID(G) G.domain_id, G.server_id, G.seq_no
 
 #define GTID_MAX_STR_LENGTH (10+1+10+1+20)
-#define PARAM_GTID(G) G.domain_id, G.server_id, G.seq_no
-
-struct rpl_gtid
-{
-  uint32 domain_id;
-  uint32 server_id;
-  uint64 seq_no;
-};
+#define PARAM_GTID(G) (G).domain_id, (G).server_id, (G).seq_no
 
 inline bool operator==(const rpl_gtid& lhs, const rpl_gtid& rhs)
 {
@@ -307,38 +298,6 @@ struct rpl_slave_state
   rpl_binlog_state builds server logic on top of that like mutex locking,
   gtid_strict_mode handling, etc.
 */
-struct rpl_binlog_state_base
-{
-  struct element {
-    uint32 domain_id;
-    HASH hash;                /* Containing all server_id for one domain_id */
-    /* The most recent entry in the hash. */
-    rpl_gtid *last_gtid;
-    /* Counter to allocate next seq_no for this domain. */
-    uint64 seq_no_counter;
-
-    int update_element(const rpl_gtid *gtid);
-  };
-
-  /* Mapping from domain_id to collection of elements. */
-  HASH hash;
-  my_bool initialized;
-
-  rpl_binlog_state_base() : initialized(0) {}
-  ~rpl_binlog_state_base();
-  void init();
-  void reset_nolock();
-  void free();
-  bool load_nolock(struct rpl_gtid *list, uint32 count);
-  bool load_nolock(rpl_binlog_state_base *orig_state);
-  int update_nolock(const struct rpl_gtid *gtid);
-  int alloc_element_nolock(const rpl_gtid *gtid);
-  uint32 count_nolock();
-  int get_gtid_list_nolock(rpl_gtid *gtid_list, uint32 list_size);
-  rpl_gtid *find_nolock(uint32 domain_id, uint32 server_id);
-  bool is_before_pos(slave_connection_state *pos);
-};
-
 struct rpl_binlog_state : public rpl_binlog_state_base
 {
   /* Mutex protecting access to the state. */
@@ -370,7 +329,8 @@ struct rpl_binlog_state : public rpl_binlog_state_base
   bool append_state(String *str);
   rpl_gtid *find(uint32 domain_id, uint32 server_id);
   rpl_gtid *find_most_recent(uint32 domain_id);
-  const char* drop_domain(DYNAMIC_ARRAY *ids, Gtid_list_log_event *glev, char*);
+  const char* drop_domain(DYNAMIC_ARRAY *ids, rpl_binlog_state_base *init_state,
+                          char*);
 };
 
 

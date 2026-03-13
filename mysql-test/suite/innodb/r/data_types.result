@@ -1,4 +1,7 @@
 ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+SET OLD_MODE=2_DIGIT_YEAR;
+Warnings:
+Warning	1287	'2_DIGIT_YEAR' is deprecated and will be removed in a future release
 CREATE TABLE t1
 (
 t1_BIGINT BIGINT,
@@ -84,6 +87,7 @@ t1_VARMYSQL_0 VARCHAR(0) CHARACTER SET utf8
 ) ENGINE=InnoDB;
 Warnings:
 Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
+SET OLD_MODE=DEFAULT;
 INSERT INTO t1 () VALUES ();
 SELECT
 name,

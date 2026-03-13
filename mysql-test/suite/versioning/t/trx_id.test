@@ -6,9 +6,7 @@ if (!$TEST_VERSIONING_SO)
 --source include/have_partition.inc
 --source include/default_charset.inc
 
---disable_query_log
---eval install plugin test_versioning soname '$TEST_VERSIONING_SO'
---enable_query_log
+install plugin test_versioning soname 'test_versioning';
 
 set default_storage_engine= innodb;
 
@@ -40,15 +38,11 @@ alter table t1
   add period for system_time(s, e),
   add system versioning,
   algorithm=inplace;
---disable_cursor_protocol
 select s from t1 into @trx_start;
---enable_cursor_protocol
 select count(*) = 1 from mysql.transaction_registry where transaction_id = @trx_start;
 
 create or replace table t1 (x int);
---disable_cursor_protocol
 select count(*) from mysql.transaction_registry into @tmp;
---enable_cursor_protocol
 alter table t1
   add column s bigint unsigned as row start,
   add column e bigint unsigned as row end,
@@ -65,15 +59,11 @@ alter table t1
   add period for system_time(s, e),
   add system versioning,
   algorithm=copy;
---disable_cursor_protocol
 select s from t1 into @trx_start;
---enable_cursor_protocol
 select count(*) = 1 from mysql.transaction_registry where transaction_id = @trx_start;
 
 create or replace table t1 (x int);
---disable_cursor_protocol
 select count(*) from mysql.transaction_registry into @tmp;
---enable_cursor_protocol
 alter table t1
   add column s bigint unsigned as row start,
   add column e bigint unsigned as row end,
@@ -132,11 +122,9 @@ commit;
 --sleep 0.01
 set @ts3= sysdate(6);
 
---disable_cursor_protocol
 select sys_start from t1 where x = 1 into @trx_id1;
 select sys_start from t1 where x = 2 into @trx_id2;
 select sys_start from t1 where x = 3 into @trx_id3;
---enable_cursor_protocol
 
 select @trx_id1 < @trx_id2, @trx_id2 < @trx_id3;
 select @ts1 < @ts2, @ts2 < @ts3;
@@ -277,9 +265,7 @@ set @ts1= now(6);
 insert into t1 values (1);
 commit;
 
---disable_cursor_protocol
 select row_start from t1 into @trx_id;
---enable_cursor_protocol
 select trt_begin_ts(@trx_id) <= @ts1 as BEGIN_TS_GOOD;
 
 drop table t1;

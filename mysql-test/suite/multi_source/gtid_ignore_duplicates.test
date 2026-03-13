@@ -1,6 +1,7 @@
 --source include/not_embedded.inc
 --source include/have_innodb.inc
 --source include/have_debug.inc
+--source include/no_view_protocol.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");

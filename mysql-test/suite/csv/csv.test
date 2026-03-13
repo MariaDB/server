@@ -1808,7 +1808,6 @@ connect (con1,localhost,root,,);
 --error 29
 select * from t1;
 --disconnect con1
---source include/wait_until_disconnected.inc
 connection default;
 unlock tables;
 drop table t1;

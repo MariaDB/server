@@ -13,9 +13,6 @@
 set local sql_mode="";
 set global sql_mode="";
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
 create table t1(f1 int);
 insert into t1 values (5);
 
@@ -195,7 +192,7 @@ connection default;
 DROP USER bug42158@localhost;
 
 set global sql_mode=default;
---echo End of 5.1 tests
+--echo # End of 5.1 tests
 
 #
 # MDEV-9605 mysqlbinlog does not accept ssl-ca option as expected.

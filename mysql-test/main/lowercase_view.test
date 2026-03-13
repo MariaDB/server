@@ -1,3 +1,5 @@
+--source include/have_lowercase1.inc
+
 --disable_warnings
 drop table if exists t1Aa,t2Aa,v1Aa,v2Aa;
 drop view if exists t1Aa,t2Aa,v1Aa,v2Aa;

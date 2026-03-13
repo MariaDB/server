@@ -1,0 +1,63 @@
+set sql_mode=oracle;
+SET NAMES utf8mb4;
+#
+# MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+#
+#
+# Using assoc array scalar elements in a UNION
+#
+CREATE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF INT INDEX BY INT;
+assoc assoc_t:= assoc_t(1=>10,2=>20,3=>30);
+BEGIN
+SELECT assoc(1) AS c1 UNION SELECT assoc(2) UNION SELECT assoc(3);
+END;
+$$
+CALL p1;
+c1
+10
+20
+30
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF TEXT INDEX BY INT;
+assoc assoc_t:= assoc_t(1=>'10',2=>'20',3=>'30');
+BEGIN
+SELECT assoc(1) AS c1 UNION SELECT assoc(2) UNION SELECT assoc(3);
+END;
+$$
+CALL p1;
+c1
+10
+20
+30
+DROP PROCEDURE p1;
+#
+# Using assoc array record elements in a UNION
+#
+CREATE PROCEDURE p1 AS
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE assoc_t IS TABLE OF person_t INDEX BY INT;
+assoc assoc_t:= assoc_t(
+1=>person_t('Agnetha','Fältskog'),
+2=>person_t('Benny','Andersson'),
+3=>person_t('Björn', 'Ulvaeus'),
+4=>person_t('Anni-Frid','Lyngstad'));
+BEGIN
+SELECT assoc(1).first_name AS first_name, assoc(1).last_name AS last_name
+UNION SELECT assoc(2).first_name, assoc(2).last_name
+UNION SELECT assoc(3).first_name, assoc(3).last_name
+UNION SELECT assoc(4).first_name, assoc(4).last_name;
+END;
+$$
+CALL p1;
+first_name	last_name
+Agnetha	Fältskog
+Benny	Andersson
+Björn	Ulvaeus
+Anni-Frid	Lyngstad
+DROP PROCEDURE p1;

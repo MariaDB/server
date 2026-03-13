@@ -169,7 +169,7 @@ segments will be reset.
 @param[in]	xid		WSREP XID */
 void trx_rseg_update_wsrep_checkpoint(const XID* xid)
 {
-	mtr_t	mtr;
+	mtr_t mtr{nullptr};
 	mtr.start();
 	trx_rseg_update_wsrep_checkpoint(xid, &mtr);
 	mtr.commit();
@@ -246,7 +246,7 @@ static bool trx_rseg_init_wsrep_xid(const page_t* page, XID& xid)
 @return	whether the WSREP XID was found */
 bool trx_rseg_read_wsrep_checkpoint(XID& xid)
 {
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 	long long       max_xid_seqno = -1;
 	bool		found = false;
 
@@ -606,7 +606,7 @@ dberr_t trx_rseg_array_init()
 	wsrep_sys_xid.null();
 	bool wsrep_xid_in_rseg_found = false;
 #endif
-	mtr_t mtr;
+	mtr_t mtr{nullptr};
 	dberr_t err = DB_SUCCESS;
 	/* mariabackup --prepare only deals with the redo log and the data
 	files, not with	transactions or the data dictionary, that's why

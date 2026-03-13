@@ -2,8 +2,6 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
---source include/count_sessions.inc
-
 --echo #
 --echo # MDEV-26294 Duplicate entries in unique index not detected when
 --echo #	changing collation with INPLACE algorithm
@@ -153,4 +151,3 @@ SET SYSTEM_VERSIONING_ALTER_HISTORY= KEEP;
 ALTER TABLE t ADD COLUMN v VARCHAR(128) GENERATED ALWAYS AS (CRC32('MariaDB'));
 ALTER TABLE t ADD INDEX (v);
 DROP TABLE t;
---source include/wait_until_count_sessions.inc

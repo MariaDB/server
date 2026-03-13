@@ -1,0 +1,34 @@
+--source include/have_binlog_format_mixed.inc
+--source include/have_innodb_binlog.inc
+
+--error ER_NOT_YET_SUPPORTED_ENGINE_BINLOG
+SET GLOBAL rpl_semi_sync_master_enabled= 1;
+
+# The BINLOG_GTID_POS() function is not available and will not be, we
+# want to get away from old problematic filename/offset coordinates.
+--error ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG
+SELECT BINLOG_GTID_POS("binlog-000000.ibb", 4096);
+
+# MDEV-38465: Savepoint in trigger causes transactional inconsistency.
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+--delimiter $
+CREATE TRIGGER tr AFTER INSERT ON t FOR EACH ROW BEGIN SAVEPOINT A; DELETE FROM non_existing; END $
+--delimiter ;
+START TRANSACTION;
+--error ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG
+INSERT INTO t VALUES (1), (3);
+COMMIT;
+SELECT * FROM t ORDER BY a;
+DROP TRIGGER tr;
+
+--delimiter $
+CREATE TRIGGER tr AFTER INSERT ON t FOR EACH ROW BEGIN ROLLBACK TO SAVEPOINT B; DELETE FROM non_existing; END $
+--delimiter ;
+START TRANSACTION;
+SAVEPOINT B;
+--error ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG
+INSERT INTO t VALUES (11), (13);
+COMMIT;
+SELECT * FROM t ORDER BY a;
+DROP TRIGGER tr;
+DROP TABLE t;

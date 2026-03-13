@@ -145,4 +145,7 @@ bool engine_options_differ(void *old_struct, void *new_struct,
                            ha_create_table_option *rules);
 bool is_engine_option_known(engine_option_value *opt,
                             ha_create_table_option *rules);
+bool add_as_engine_option(THD *thd, handlerton *ht, MEM_ROOT *root,
+                   const Lex_ident_ci &nam, const LEX_CSTRING &val, bool quoted,
+                   void *option_struct, engine_option_value **option_list);
 #endif

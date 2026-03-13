@@ -41,12 +41,12 @@ static void movelink(HASH_LINK *array,uint pos,uint next_link,uint newlink);
 static int hashcmp(const HASH *hash, HASH_LINK *pos, const uchar *key,
                    size_t length);
 
-my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
-                                size_t length)
+my_hash_value_type my_hash_sort(CHARSET_INFO *cs,
+                                const uchar *key, size_t length)
 {
-  ulong nr1= 1, nr2= 4;
-  my_ci_hash_sort(cs, (uchar*) key, length, &nr1, &nr2);
-  return (my_hash_value_type) nr1;
+  my_hasher_st hasher= my_hasher_mysql5x();
+  my_ci_hash_sort(&hasher, cs, (uchar*) key, length);
+  return (my_hash_value_type) hasher.m_nr1;
 }
 
 /**

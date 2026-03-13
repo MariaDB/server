@@ -1,0 +1,57 @@
+include/reset_master.inc
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+# Flush all dirty pages from buffer pool
+SET @no_checkpoint_save_pct= @@GLOBAL.innodb_max_dirty_pages_pct;
+SET @no_checkpoint_save_pct_lwm= @@GLOBAL.innodb_max_dirty_pages_pct_lwm;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct= @no_checkpoint_save_pct;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm= @no_checkpoint_save_pct_lwm;
+
+BEGIN;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+COMMIT;
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+INSERT INTO t1 VALUES (6);
+INSERT INTO t1 VALUES (7);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+7
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+SELECT 1;
+Got one of the listed errors
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+binlog-000000.ibb	#	Gtid	#	#	GTID #-#-#
+binlog-000000.ibb	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1)
+binlog-000000.ibb	#	Xid	#	#	COMMIT /* XID */
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (2)
+binlog-000000.ibb	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (3)
+binlog-000000.ibb	#	Xid	#	#	COMMIT /* XID */
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (4)
+binlog-000000.ibb	#	Xid	#	#	COMMIT /* XID */
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (5)
+binlog-000000.ibb	#	Xid	#	#	COMMIT /* XID */
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (6)
+binlog-000000.ibb	#	Xid	#	#	COMMIT /* XID */
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (7)
+binlog-000000.ibb	#	Xid	#	#	COMMIT /* XID */
+binlog-000000.ibb	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+DROP TABLE t1;

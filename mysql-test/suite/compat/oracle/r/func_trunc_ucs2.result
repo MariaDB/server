@@ -1,0 +1,32 @@
+#
+# MDEV-20023 Implement Oracle TRUNC() function
+#
+SET NAMES utf8mb4, @@character_set_connection=ucs2;
+CREATE TABLE t1 (dt DATETIME);
+INSERT INTO t1 VALUES ('2001-02-03 10:20:30');
+SELECT trunc(dt, 'YYYY') FROM t1;
+trunc(dt, 'YYYY')
+2001-01-01 00:00:00
+SELECT trunc(dt, 'MM') FROM t1;
+trunc(dt, 'MM')
+2001-02-01 00:00:00
+SELECT trunc(dt, 'DD') FROM t1;
+trunc(dt, 'DD')
+2001-02-03 00:00:00
+CREATE TABLE t2 (fmt VARCHAR(32) CHARACTER SET ucs2);
+INSERT INTO t2 VALUES ('YYYY'),('MM'),('DD');
+SELECT trunc(dt, fmt) FROM t1, t2;
+trunc(dt, fmt)
+2001-01-01 00:00:00
+2001-02-01 00:00:00
+2001-02-03 00:00:00
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# Testing non-ASCII input in the format
+#
+SELECT trunc('2021-11-12 00:23:12','ŸŸŸŸ');
+trunc('2021-11-12 00:23:12','ŸŸŸŸ')
+NULL
+Warnings:
+Warning	1292	Incorrect TRUNC value: '????'

@@ -50,9 +50,12 @@ include/assert.inc [Value returned by SSS and PS table for Last_Error_Number sho
 Value returned by SSS and PS table for Last_Error_Message is same.
 connection master;
 drop table t;
-reset master;
 connection slave;
 include/stop_slave.inc
+connection master;
+include/kill_binlog_dump_threads.inc
+reset master;
+connection slave;
 reset slave;
 reset master;
 set @@global.gtid_slave_pos= "";

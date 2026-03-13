@@ -75,7 +75,6 @@ MARIA_HA *_ma_test_if_reopen(const char *filename)
   SYNOPSIS
     maria_clone_internal()
     share	Share of already open table
-    mode	Mode of table (O_RDONLY | O_RDWR)
     data_file   Filedescriptor of data file to use < 0 if one should open
 	        open it.
     internal_table <> 0 if this is an internal temporary table
@@ -86,7 +85,7 @@ MARIA_HA *_ma_test_if_reopen(const char *filename)
 */
 
 static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
-                                      int mode, File data_file,
+                                      File data_file,
                                       uint internal_table,
                                       struct ms3_st *s3)
 {
@@ -100,13 +99,11 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
   errpos= 0;
   bzero((uchar*) &info,sizeof(info));
 
-  if (mode == O_RDWR && share->mode == O_RDONLY)
-  {
-    my_errno=EACCES;				/* Can't open in write mode */
-    goto err;
-  }
   if (data_file >= 0)
+  {
     info.dfile.file= data_file;
+    info.dfile.pagecache= share->pagecache;
+  }
   else if (_ma_open_datafile(&info, share))
     goto err;
   errpos= 5;
@@ -261,7 +258,8 @@ err:
 MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
                      S3_INFO *s3)
 {
-  int open_mode= 0,save_errno;
+  int save_errno;
+  int open_mode= mode;
   uint i,j,len,errpos,head_length,base_pos,keys, realpath_err,
     key_parts,base_key_parts,unique_key_parts,fulltext_keys,uniques;
   uint internal_table= MY_TEST(open_flags & HA_OPEN_INTERNAL_TABLE);
@@ -293,6 +291,11 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 
 #ifndef WITH_S3_STORAGE_ENGINE
   DBUG_ASSERT(!s3);
+# ifdef _MSC_VER
+  __assume(!s3);
+# else
+  if (s3) __builtin_unreachable();
+# endif
 #else
   if (!s3)
 #endif /* WITH_S3_STORAGE_ENGINE */
@@ -332,9 +335,6 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     share= &share_buff;
     bzero((uchar*) &share_buff,sizeof(share_buff));
     share_buff.state.key_root=key_root;
-    share_buff.pagecache= multi_pagecache_search((uchar*) name_buff,
-						 (uint) strlen(name_buff),
-                                                 maria_pagecache);
 
     if (!s3)
     {
@@ -345,14 +345,25 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
                         goto err;
                       });
       DEBUG_SYNC_C("mi_open_kfile");
+
+      /*
+        We first try to open the file on read-write mode to ensure
+        that the table is usable for future read and write queries in
+        MariaDB.  Only if the read-write mode fails we try to readonly.
+      */
+      if (!(open_flags & HA_OPEN_FORCE_MODE))
+        open_mode= O_RDWR;
+
       if ((kfile=mysql_file_open(key_file_kfile, name_buff,
-                                 (open_mode=O_RDWR) | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
+                                 open_mode | O_SHARE |
+                                 O_NOFOLLOW | O_CLOEXEC,
                                  MYF(common_flag | MY_NOSYMLINKS))) < 0)
       {
-        if ((errno != EROFS && errno != EACCES) ||
+        if ((errno != EROFS && errno != EACCES) || open_mode == O_RDONLY ||
             mode != O_RDONLY ||
             (kfile=mysql_file_open(key_file_kfile, name_buff,
-                                   (open_mode=O_RDONLY) | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
+                                   (open_mode=O_RDONLY) | O_SHARE |
+                                   O_NOFOLLOW | O_CLOEXEC,
                                    MYF(common_flag | MY_NOSYMLINKS))) < 0)
           goto err;
       }
@@ -367,7 +378,6 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 #ifdef WITH_S3_STORAGE_ENGINE
     else
     {
-      open_mode= mode;
       errpos= 1;
       if (s3f.set_database_and_table_from_path(s3, name_buff))
       {
@@ -400,7 +410,9 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     }
 #endif /* WITH_S3_STORAGE_ENGINE */
 
-    share->mode=open_mode;
+    share->index_mode= share->data_mode= open_mode;
+    if (open_flags & HA_OPEN_DATA_READONLY)
+      share->data_mode= O_RDONLY;
     if (memcmp(share->state.header.file_version, maria_file_magic, 4))
     {
       DBUG_PRINT("error",("Wrong header in %s",name_buff));
@@ -447,7 +459,9 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
           my_errno= HA_WRONG_CREATE_OPTION;
           goto err;
         }
-        share->mode|= O_NOFOLLOW; /* all symlinks are resolved by realpath() */
+        /* all symlinks are resolved by realpath() */
+        share->index_mode|= O_NOFOLLOW;
+        share->data_mode|= O_NOFOLLOW;
       }
     }
     else
@@ -609,7 +623,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       with different block sizes.
     */
     if (share->base.block_size != maria_block_size &&
-        share_buff.pagecache->inited != 0)
+        maria_pagecaches.initialized)
     {
       DBUG_PRINT("error", ("Wrong block size %u; Expected %u",
                            (uint) share->base.block_size,
@@ -847,6 +861,10 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
                          share->base.pack_bytes +
                          MY_TEST(share->options & HA_OPTION_CHECKSUM));
     share->kfile.file= kfile;
+    /* Pagecaches are not initialize when using aria_chk */
+    if (maria_pagecaches.initialized)
+      share->pagecache= share->kfile.pagecache=
+        multi_get_pagecache(&maria_pagecaches);
 
     if (open_flags & HA_OPEN_COPY)
     {
@@ -955,7 +973,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     if (MY_TEST(share->base.extra_options & MA_EXTRA_OPTIONS_ENCRYPTED))
     {
       if (!(disk_pos= ma_crypt_read(share, disk_pos,
-                                    MY_TEST(open_flags & HA_OPEN_FOR_DROP))))
+                                    MY_TEST(open_flags & HA_OPEN_FOR_DROP), 0)))
         goto err;
     }
 
@@ -1168,7 +1186,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     s3f.free(&index_header);
 #endif /* WITH_S3_STORAGE_ENGINE */
 
-  if (!(m_info= maria_clone_internal(share, mode, data_file,
+  if (!(m_info= maria_clone_internal(share, data_file,
                                      internal_table, s3_client)))
     goto err;
 
@@ -1239,6 +1257,52 @@ err:
   my_errno= save_errno;
   DBUG_RETURN (NULL);
 } /* maria_open */
+
+
+/*
+  Read the crypt from a maria key file
+  Crypt_data stored in share->crypt_data
+*/
+
+my_bool maria_read_crypt_data(File kfile, MARIA_SHARE *share)
+{
+  size_t base_pos, info_length, crypt_length;
+  uchar *cache;
+  uint keys, key_segs, uniques, unique_key_parts, columns;
+  my_bool error;
+  DBUG_ENTER("maria_read_crypt_data");
+
+  DBUG_ASSERT(share->base.extra_options & MA_EXTRA_OPTIONS_ENCRYPTED);
+  keys=     (uint) share->state.header.keys;
+  key_segs=        mi_uint2korr(share->state.header.key_parts);
+  uniques=  (uint) share->state.header.uniques;
+  unique_key_parts= mi_uint2korr(share->state.header.unique_key_parts);
+  columns= share->base.fields;
+
+  base_pos= mi_uint2korr(share->state.header.base_pos);
+  /* Same calculation as in maria_create() */
+  info_length= base_pos+(uint) (MARIA_BASE_INFO_SIZE+
+                                keys * MARIA_KEYDEF_SIZE+
+                                uniques * MARIA_UNIQUEDEF_SIZE +
+                                (key_segs + unique_key_parts)*HA_KEYSEG_SIZE+
+                                columns*(MARIA_COLUMNDEF_SIZE + 2));
+  crypt_length= mi_uint2korr(share->state.header.header_length) - info_length;
+  if (crypt_length > 1024)
+  {
+    my_errno=HA_ERR_NOT_A_TABLE;
+    DBUG_RETURN(1);
+  }
+  cache= (uchar*) my_alloca(crypt_length);
+
+  error= 0;
+  if (mysql_file_pread(kfile, cache, crypt_length, info_length,
+                       MYF(MY_FNABP | MY_WME)) ||
+      !ma_crypt_read(share, cache, 0, 1))
+    error= 1;
+  my_afree(cache);
+
+  DBUG_RETURN(error);
+}
 
 
 /*
@@ -2050,12 +2114,14 @@ void _ma_set_index_pagecache_callbacks(PAGECACHE_FILE *file,
 
 int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share)
 {
-  myf flags= ((share->mode & O_NOFOLLOW) ? MY_NOSYMLINKS | MY_WME : MY_WME) |
-    share->malloc_flag;
+  myf flags= ((share->data_mode & O_NOFOLLOW) ?
+              MY_NOSYMLINKS | MY_WME : MY_WME) | share->malloc_flag;
   DEBUG_SYNC_C("mi_open_datafile");
   info->dfile.file= share->bitmap.file.file=
     mysql_file_open(key_file_dfile, share->data_file_name.str,
-                    share->mode | O_SHARE | O_CLOEXEC, flags);
+                    share->data_mode | O_SHARE | O_CLOEXEC, flags);
+  /* Note that share->pagecache may be 0 here if run from aria_chk */
+  info->dfile.pagecache= share->bitmap.file.pagecache= share->pagecache;
   return info->dfile.file >= 0 ? 0 : 1;
 }
 
@@ -2069,10 +2135,30 @@ int _ma_open_keyfile(MARIA_SHARE *share)
   mysql_mutex_lock(&share->intern_lock);
   share->kfile.file= mysql_file_open(key_file_kfile,
                                      share->unique_file_name.str,
-                                     share->mode | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
-                             MYF(MY_WME | MY_NOSYMLINKS));
+                                     share->index_mode | O_SHARE | O_NOFOLLOW |
+                                       O_CLOEXEC,
+                                     MYF(MY_WME | MY_NOSYMLINKS));
+  /*
+    share->kfile.pagecache is updated in the caller if needed.
+    This is needed as we don't want to change pagecache in ma_sort_index()
+    as we want to check pagecache concistency in ma_close().
+  */
   mysql_mutex_unlock(&share->intern_lock);
   return (share->kfile.file < 0);
+}
+
+
+/*
+  Update pagecaches for a table. Used by aria_check() which creates
+  the pagecache after the table has been opened.
+*/
+
+void ma_change_pagecache(MARIA_HA *info)
+{
+  MARIA_SHARE *share= info->s;
+  DBUG_ASSERT(share->pagecache == 0);
+  share->pagecache= share->bitmap.file.pagecache= share->kfile.pagecache=
+    info->dfile.pagecache= multi_get_pagecache(&maria_pagecaches);
 }
 
 
@@ -2162,7 +2248,7 @@ int maria_indexes_are_disabled(MARIA_HA *info)
 
   /*
     No keys or all are enabled. keys is the number of keys. Left shifted
-    gives us only one bit set. When decreased by one, gives us all all bits
+    gives us only one bit set. When decreased by one, gives us all bits
     up to this one set and it gets unset.
   */
   if (!share->base.keys ||

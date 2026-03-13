@@ -37,6 +37,7 @@
 #include "sql_time.h"
 #include "sql_type_geom.h"
 #include "item_vectorfunc.h"
+#include "item_numconvfunc.h"
 #include <mysql/plugin_function.h>
 
 
@@ -724,34 +725,6 @@ public:
 protected:
   Create_func_degrees() = default;
   ~Create_func_degrees() override = default;
-};
-
-
-class Create_func_des_decrypt : public Create_native_func
-{
-public:
-  Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list) override;
-
-  static Create_func_des_decrypt s_singleton;
-
-protected:
-  Create_func_des_decrypt() = default;
-  ~Create_func_des_decrypt() override = default;
-};
-
-
-class Create_func_des_encrypt : public Create_native_func
-{
-public:
-  Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list) override;
-
-  static Create_func_des_encrypt s_singleton;
-
-protected:
-  Create_func_des_encrypt() = default;
-  ~Create_func_des_encrypt() override = default;
 };
 
 
@@ -1916,6 +1889,18 @@ protected:
   ~Create_func_monthname() override = default;
 };
 
+class Create_func_months_between : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
+
+  static Create_func_months_between s_singleton;
+
+protected:
+  Create_func_months_between() = default;
+  ~Create_func_months_between() override = default;
+};
+
 
 class Create_func_name_const : public Create_func_arg2
 {
@@ -2590,6 +2575,41 @@ protected:
 };
 
 
+class Create_func_trunc : public Create_native_func
+{
+public:
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override
+  {
+    Item *a[2];
+    uint arg_count= item_list == nullptr ? 0 : item_list->elements;
+
+    for (uint i=0; i < MY_MIN(array_elements(a), arg_count); i++)
+      a[i]= item_list->pop();
+    switch (arg_count)
+    {
+    case 1:
+      {
+        a[1]= new (thd->mem_root) Item_string_sys(thd, "DD",  2);
+        if (unlikely(a[1] == nullptr))
+          return nullptr;
+      }
+      /*fall through*/
+    case 2:
+      return new (thd->mem_root) Item_func_trunc(thd, a[0], a[1]);
+    }
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    return NULL;
+  }
+
+  static Create_func_trunc s_singleton;
+
+protected:
+  Create_func_trunc() = default;
+  ~Create_func_trunc() override = default;
+};
+
+
 class Create_func_ucase : public Create_func_arg1
 {
 public:
@@ -2838,28 +2858,13 @@ Item*
 Create_qfunc::create_func(THD *thd, const LEX_CSTRING *name,
                           List<Item> *item_list)
 {
-  if (unlikely(! thd->db.str && ! thd->lex->sphead))
+  Lex_ident_db_normalized db;
+  if (thd->lex->sphead)
   {
-    /*
-      The proper error message should be in the lines of:
-        Can't resolve <name>() to a function call,
-        because this function:
-        - is not a native function,
-        - is not a user defined function,
-        - can not match a qualified (read: stored) function
-          since no database is selected.
-      Reusing ER_SP_DOES_NOT_EXIST have a message consistent with
-      the case when a default database exist, see Create_sp_func::create().
-    */
-    my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-             "FUNCTION", name->str);
-    return NULL;
+    db= thd->lex->copy_db_normalized();
+    if (!db.str)
+      return NULL; /*No db or EOM, error was already sent */
   }
-
-  Lex_ident_db_normalized db= thd->lex->copy_db_normalized();
-  if (!db.str)
-    return NULL; /*No db or EOM, error was already sent */
-
   return create_with_db(thd, db, Lex_ident_routine(*name), false, item_list);
 }
 
@@ -3010,12 +3015,19 @@ Create_sp_func::create_with_db(THD *thd,
     arg_count= item_list->elements;
 
   qname= new (thd->mem_root) sp_name(db, name, use_explicit_name);
-  if (unlikely(sph->sp_resolve_package_routine(thd, thd->lex->sphead,
-                                               qname, &sph, &pkgname)))
-    return NULL;
-  sph->add_used_routine(lex, thd, qname);
-  if (pkgname.m_name.length)
-    sp_handler_package_body.add_used_routine(lex, thd, &pkgname);
+  thd->variables.path.resolve(thd, lex->sphead, qname, &sph, &pkgname);
+  if (qname->m_db.str)
+  {
+    /*
+      Only add to used routine if m_db was resolved, we want to defer
+      error handling for ER_SP_DOES_NOT_EXIST until execution for error
+      message consistency
+    */
+    sph->add_used_routine(lex, thd, qname);
+    if (pkgname.m_name.length)
+      sp_handler_package_body.add_used_routine(lex, thd, &pkgname);
+  }
+
   Name_resolution_context *ctx= lex->current_context();
   if (arg_count > 0)
     func= new (thd->mem_root) Item_func_sp(thd, ctx, qname, sph, *item_list);
@@ -3757,80 +3769,6 @@ Create_func_degrees::create_1_arg(THD *thd, Item *arg1)
 {
   return new (thd->mem_root) Item_func_units(thd, (char*) "degrees", arg1,
                                              180/M_PI, 0.0);
-}
-
-
-Create_func_des_decrypt Create_func_des_decrypt::s_singleton;
-
-Item*
-Create_func_des_decrypt::create_native(THD *thd, const LEX_CSTRING *name,
-                                       List<Item> *item_list)
-{
-  Item *func= NULL;
-  int arg_count= 0;
-
-  if (item_list != NULL)
-    arg_count= item_list->elements;
-
-  switch (arg_count) {
-  case 1:
-  {
-    Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_decrypt(thd, param_1);
-    break;
-  }
-  case 2:
-  {
-    Item *param_1= item_list->pop();
-    Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_decrypt(thd, param_1, param_2);
-    break;
-  }
-  default:
-  {
-    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
-    break;
-  }
-  }
-
-  return func;
-}
-
-
-Create_func_des_encrypt Create_func_des_encrypt::s_singleton;
-
-Item*
-Create_func_des_encrypt::create_native(THD *thd, const LEX_CSTRING *name,
-                                       List<Item> *item_list)
-{
-  Item *func= NULL;
-  int arg_count= 0;
-
-  if (item_list != NULL)
-    arg_count= item_list->elements;
-
-  switch (arg_count) {
-  case 1:
-  {
-    Item *param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_encrypt(thd, param_1);
-    break;
-  }
-  case 2:
-  {
-    Item *param_1= item_list->pop();
-    Item *param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_des_encrypt(thd, param_1, param_2);
-    break;
-  }
-  default:
-  {
-    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
-    break;
-  }
-  }
-
-  return func;
 }
 
 
@@ -5340,6 +5278,15 @@ Create_func_monthname::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_months_between Create_func_months_between::s_singleton;
+
+Item*
+Create_func_months_between::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_months_between(thd, arg1, arg2);
+}
+
+
 Create_func_name_const Create_func_name_const::s_singleton;
 
 Item*
@@ -5986,6 +5933,9 @@ Create_func_to_seconds::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_trunc Create_func_trunc::s_singleton;
+
+
 Create_func_ucase Create_func_ucase::s_singleton;
 
 Item*
@@ -6399,8 +6349,6 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("DEGREES") }, BUILDER(Create_func_degrees)},
   { { STRING_WITH_LEN("DECODE_HISTOGRAM") }, BUILDER(Create_func_decode_histogram)},
   { { STRING_WITH_LEN("DECODE_ORACLE") }, BUILDER(Create_func_decode_oracle)},
-  { { STRING_WITH_LEN("DES_DECRYPT") }, BUILDER(Create_func_des_decrypt)},
-  { { STRING_WITH_LEN("DES_ENCRYPT") }, BUILDER(Create_func_des_encrypt)},
   { { STRING_WITH_LEN("ELT") }, BUILDER(Create_func_elt)},
   { { STRING_WITH_LEN("ENCODE") }, BUILDER(Create_func_encode)},
   { { STRING_WITH_LEN("ENCRYPT") }, BUILDER(Create_func_encrypt)},
@@ -6493,6 +6441,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("MICROSECOND") }, BUILDER(Create_func_microsecond)},
   { { STRING_WITH_LEN("MOD") }, BUILDER(Create_func_mod)},
   { { STRING_WITH_LEN("MONTHNAME") }, BUILDER(Create_func_monthname)},
+  { { STRING_WITH_LEN("MONTHS_BETWEEN") }, BUILDER(Create_func_months_between)},
   { { STRING_WITH_LEN("NAME_CONST") }, BUILDER(Create_func_name_const)},
   {  {STRING_WITH_LEN("NATURAL_SORT_KEY")}, BUILDER(Create_func_natural_sort_key)},
   { { STRING_WITH_LEN("NVL") }, BUILDER(Create_func_ifnull)},
@@ -6553,8 +6502,10 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("TIME_TO_SEC") }, BUILDER(Create_func_time_to_sec)},
   { { STRING_WITH_LEN("TO_BASE64") }, BUILDER(Create_func_to_base64)},
   { { STRING_WITH_LEN("TO_CHAR") }, BUILDER(Create_func_to_char)},
+  { { STRING_WITH_LEN("TO_NUMBER") }, &create_func_to_number},
   { { STRING_WITH_LEN("TO_DAYS") }, BUILDER(Create_func_to_days)},
   { { STRING_WITH_LEN("TO_SECONDS") }, BUILDER(Create_func_to_seconds)},
+  { { STRING_WITH_LEN("TRUNC") }, BUILDER(Create_func_trunc)},
   { { STRING_WITH_LEN("UCASE") }, BUILDER(Create_func_ucase)},
   { { STRING_WITH_LEN("UNCOMPRESS") }, BUILDER(Create_func_uncompress)},
   { { STRING_WITH_LEN("UNCOMPRESSED_LENGTH") }, BUILDER(Create_func_uncompressed_length)},

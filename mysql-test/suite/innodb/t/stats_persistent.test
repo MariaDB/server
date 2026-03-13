@@ -1,7 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
---source include/count_sessions.inc
 
 --echo #
 --echo # MDEV-23991 dict_table_stats_lock() has unnecessarily long scope
@@ -24,5 +23,3 @@ SET DEBUG_SYNC='now SIGNAL go';
 --reap
 SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;
-
---source include/wait_until_count_sessions.inc

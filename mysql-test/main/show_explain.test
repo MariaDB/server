@@ -933,10 +933,9 @@ connection con1;
 reap;
 SET debug_dbug=@old_debug;
 
-revoke all privileges on test.* from test2@localhost;
+disconnect con2;
 drop user test2@localhost;
 
-disconnect con2;
 --echo #
 --echo # Test that it is possible to KILL a SHOW EXPLAIN command that's waiting
 --echo # on its target thread
@@ -1330,3 +1329,12 @@ connection default;
 disconnect con1;
 set debug_sync='RESET';
 
+--echo #
+--echo # MDEV-36353: Server crashes with EXPLAIN/DESC FOR CONNECTION 
+--echo # instead of displaying an error.
+--echo #
+--error ER_SET_CONSTANTS_ONLY
+EXPLAIN FOR CONNECTION INTERVAL TRUE IN (SELECT 1) YEAR_MONTH + FALSE=TRUE NOT IN (SELECT 1);
+
+--error ER_SET_CONSTANTS_ONLY
+DESC FOR CONNECTION INTERVAL TRUE IN (SELECT 1) YEAR_MONTH + FALSE=TRUE NOT IN (SELECT 1);

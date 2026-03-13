@@ -2,9 +2,6 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 --echo #
 --echo # Bug #18451287 REDUNDANT DELETE MARKING AFTER DB_LOCK_WAIT
 --echo #
@@ -216,6 +213,3 @@ commit;
 drop table t3, t2, t1;
 
 set debug_sync = reset;
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc

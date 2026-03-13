@@ -77,7 +77,7 @@
 
   There are two complications caused by multiple wild_many characters.
   For, say, two wild_many characters, either can accept any number of utf8
-  characters, as long the the total amount of them is less then or equal to L.
+  characters, as long the total amount of them is less than or equal to L.
   Same logic applies to any number of non-consequent wild_many characters
   (consequent wild_many characters count as one). This gives the number of
   matching strings of

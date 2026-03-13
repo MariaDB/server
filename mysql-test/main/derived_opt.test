@@ -1,4 +1,6 @@
 # Initialize
+--source include/not_embedded.inc
+--source include/have_innodb.inc
 --disable_warnings
 drop table if exists t0,t1,t2,t3;
 drop database if exists test1;
@@ -437,6 +439,278 @@ DROP TABLE t1, t2;
 
 --echo #
 --echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-36321 keys generated on derived tables produce wrong out_rows estimates
+--echo #
+--source include/have_sequence.inc
+
+create table t1 (
+  grp_id int,
+  value int,
+  index (grp_id)
+);
+
+insert into t1 select
+  A.seq, B.seq
+from
+  seq_1_to_100 A,
+  seq_1_to_100 B;
+
+create table t2 (a int);
+insert into t2 select seq from seq_1_to_5;
+
+create table t3 (b int);
+insert into t3 select seq from seq_1_to_5;
+
+analyze table t1,t2;
+
+SET optimizer_trace='enabled=on';
+SET optimizer_trace_max_mem_size=10485760;
+
+select * from
+  t2,
+  (select max(value), grp_id from t1 group by grp_id) DT
+where
+  t2.a= DT.grp_id;
+
+select
+  json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+
+
+--echo # Same as above, but try a UNION:
+select * from
+  t2,
+  (select max(value), grp_id from t1 group by grp_id
+   union all
+   select max(value), grp_id from t1 group by grp_id) DT
+where
+  t2.a= DT.grp_id;
+select
+  json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+
+--echo # Same as the previous query but unhandled group by expression
+explain
+select * from
+  t2,
+  (select max(value), grp_id from t1 group by grp_id
+   union all
+   select max(value), grp_id from t1 group by MOD(grp_id,2)) DT
+where
+  t2.a= DT.grp_id;
+select
+  json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+
+--echo # view/cte/derived merged inside our derived table
+
+create view v1 as select * from t1;
+
+explain
+select * from
+  t2,
+  (select grp_id, max(value) as maxval from v1 group by grp_id) DT
+where
+  t2.a= DT.grp_id;
+
+drop view v1;
+
+explain
+with cte1 as (select * from t1)
+select * from
+  t2,
+  (select grp_id, max(value) as maxval from cte1 group by grp_id) DT
+where
+  t2.a= DT.grp_id;
+
+explain
+select * from
+  t2,
+  (
+    select grp_id, max(value) as maxval from
+    (
+      select * from t1, t3
+        where t1.grp_id = t3.b
+    ) dt1
+    group by grp_id
+  ) DT
+where
+  t2.a= DT.grp_id;
+
+--echo # Example with equalities on GROUP BY columns and other columns
+--echo # Must produce {table=<derived2>, ref=test.t2.col2,test.t2.a, rows=1}
+alter table t2 add col2 int;
+explain
+select * from
+  t2,
+  (select max(value) as maxval, grp_id from t1 group by grp_id) DT
+where
+  t2.col2=maxval and
+  t2.a= DT.grp_id;
+select
+  json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+
+# Same as above but swap the column order.
+#  Now we'll get {table=<derived2>, ref=test.t2.a,test.t2.col2, rows=1}
+explain
+select * from
+  t2,
+  (select grp_id, max(value) as maxval from t1 group by grp_id) DT
+where
+  t2.col2=maxval and
+  t2.a= DT.grp_id;
+
+
+delete from t1;
+insert into t1 select 1, a.seq from seq_1_to_10 a;
+
+analyze table t1;
+
+explain
+select * from
+  t2,
+  (select distinct grp_id from t1
+   union all
+   select distinct value from t1) DT
+where
+  t2.a= DT.grp_id;
+select
+  json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+
+drop table t1, t2;
+
+create table t1
+(
+  a int not null,
+  b int,
+  c int,
+  d int,
+  amount decimal,
+  key t1_ix1 (a,b)
+);
+
+--echo # More complex examples
+insert into t1 values (0, NULL, 0, NULL, 10.0000), (1, 1, 1, 1, 10.0000),
+(2, 2, 2, 2, 20.0000), (3, 3, 3, 3, 30.0000), (4, 4, 4, 4, 40.0000),
+(5, 5, 5, 5, NULL), (6, 6, 6, 6, NULL), (7, 7, 7, 7, 70.0000),
+(8, 8, 8, 8, 80.0000);
+
+create table t2
+(
+  a int NOT NULL,
+  b int,
+  name varchar(50),
+  key t2_ix1 (a,b)
+) engine = innodb;
+
+insert into t2 values (0, NULL, 'a'), (1, NULL, 'A'), (2, 2, 'B'), (3,3, 'C'),
+(4,4, 'D'), (5,5, NULL), (6,6, NULL), (7,7, 'E'), (8,8, 'F'), (9,9, 'G'),
+(10,10,'H'), (11,11, NULL), (12,12, NULL);
+
+drop table t3;
+
+create table t3
+(
+  a int not null,
+  b int,
+  description varchar(50),
+  key t3_ix1 (a,b)
+) engine = innodb;
+insert into t3 values (1, 1, 'bar'),(2,2,'buz'), (3,3, 'silver');
+insert into t3 select seq, seq, 'junk' from seq_3_to_13;
+
+create table t4
+(
+  c int not null,
+  d int,
+  descr varchar(50),
+  key t4_ix1 (c,d)
+) engine = innodb;
+insert into t4 values (1, 1, 'iron'), (2,2,'aluminium'), (3,3, 'silver');
+insert into t4 select seq, seq, 'junk' from seq_3_to_13;
+
+--echo # split materialized
+explain
+select * from t1
+join t2 on t1.a = t2.a and t1.b = t2.b
+join
+(
+  select a, b, description from t3 group by a, b
+) dt on dt.a = t1.a and dt.b = t1.b and dt.b = t2.b
+where dt.a < 1;
+select
+  json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+
+--echo # union with distinct rows
+explain
+select * from t1
+join t2 on t1.a = t2.a and t1.b = t2.b
+join
+(
+  select a, b, description from t3 group by a, b
+  union
+  select c, d, descr from t4 group by c, d
+) dt on dt.a = t1.a and dt.b = t1.b and dt.b = t2.b
+where dt.a < 1;
+select
+  json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+
+--echo # union without distinct rows
+explain
+select * from t1
+join t2 on t1.a = t2.a and t1.b = t2.b
+join
+(
+  select a, b, description from t3 group by a, b
+  union all
+  select c, d, descr from t4 group by c, d
+) dt on dt.a = t1.a and dt.b = t1.b and dt.b = t2.b
+where dt.a < 1;
+select
+  json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+
+--echo # union without distinct rows with simple non grouping 2nd select
+explain
+select * from t1
+join t2 on t1.a = t2.a and t1.b = t2.b
+join
+(
+  select a, b, description from t3 group by a, b
+  union all
+  select c, d, descr from t4
+) dt on dt.a = t1.a and dt.b = t1.b and dt.b = t2.b
+where dt.a < 1;
+select
+  json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+
+--echo # intersect
+explain
+select * from t1
+join t2 on t1.a = t2.a and t1.b = t2.b
+join
+(
+  select a, b, description from t3 group by a, b
+  intersect
+  select c, d, descr from t4 group by c, d
+) dt on dt.a = t1.a and dt.b = t1.b and dt.b = t2.b
+where dt.a > 2 and dt.a < 4;
+select
+  json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+
+drop table t1, t2, t3, t4;
+
+--echo #
+--echo # End of 11.4 tests
 --echo #
 
 # The following command must be the last one the file 

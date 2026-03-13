@@ -177,7 +177,6 @@ set session low_priority_updates=default;
 connect (con1,localhost,root,,);
 send select benchmark(200, (select sin(1))) > 1000;
 disconnect con1;
---source include/wait_until_disconnected.inc
 connection default;
 
 --echo End of 5.0 tests
@@ -361,9 +360,7 @@ unlock tables;
 connection default;
 unlock tables;
 
-connection con1;
 disconnect con1;
---source include/wait_until_disconnected.inc
 connection default;
 drop table t1, t2, t3;
 
@@ -490,12 +487,8 @@ commit;
 
 --echo # Cleanup
 
-connection con1;
 disconnect con1;
---source include/wait_until_disconnected.inc
-connection con2;
 disconnect con2;
---source include/wait_until_disconnected.inc
 connection default;
 drop table t1;
 --enable_view_protocol
@@ -571,12 +564,8 @@ connection default;
 handler t1 close;
 
 --echo # Cleanup.
-connection con1;
 disconnect con1;
---source include/wait_until_disconnected.inc
-connection con2;
 disconnect con2;
---source include/wait_until_disconnected.inc
 connection default;
 drop tables t1, t2;
 --enable_view_protocol
@@ -629,7 +618,6 @@ connect(con1, localhost, root);
 FLUSH TABLES WITH READ LOCK;
 UNLOCK TABLES;
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 connection default;
 COMMIT;

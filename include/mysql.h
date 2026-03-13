@@ -146,6 +146,7 @@ typedef unsigned long long my_ulonglong;
 #define ER_SPATIAL_CANT_HAVE_NULL ER_INDEX_CANNOT_HAVE_NULL
 #define ER_INNODB_NO_FT_TEMP_TABLE ER_NO_INDEX_ON_TEMPORARY
 #define ER_CANT_CHANGE_TX_CHARACTERISTICS ER_CANT_SET_IN_TRANSACTION
+#define ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRIGGER ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRG
 
 typedef struct st_mysql_rows {
   struct st_mysql_rows *next;		/* list of rows */

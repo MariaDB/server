@@ -618,5 +618,10 @@ Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where concat(`test`.`t1`.`c1`) = 'ä' and concat(`test`.`t1`.`c1`) like 'ae'
 DROP TABLE IF EXISTS t1;
 #
+# MDEV-38608 TO_DATE: Server crash in my_uca_strnncoll_multilevel_generic
+#
+CREATE TABLE t1 (f ENUM('foo','bar')) COLLATE uca1400_ai_cs;
+DROP TABLE t1;
+#
 # End of 10.0 tests
 #

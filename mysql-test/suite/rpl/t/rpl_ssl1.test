@@ -61,13 +61,15 @@ change master to master_user='root',master_password='', master_ssl=0;
 start slave;
 --source include/wait_for_slave_to_start.inc
 connection master;
+disable_warnings;
 drop user replssl@localhost;
+enable_warnings;
 drop table t1;
 
 sync_slave_with_master;
 source include/show_slave_status.inc;
 source include/check_slave_is_running.inc;
-# End of 4.1 tests
+--echo # End of 4.1 tests
 
 # Start replication with ssl_verify_server_cert turned on
 connection slave;

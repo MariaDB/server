@@ -1,0 +1,30 @@
+--source include/galera_cluster.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_2
+SET SESSION max_error_count=0;
+SET GLOBAL wsrep_ignore_apply_errors = 0;
+--error ER_PASSWORD_NO_MATCH
+GRANT SELECT ON *.* TO dummy@'localhost';
+SHOW WARNINGS;
+--echo # Node_2 is on inconsistency state so kill it
+SET SESSION wsrep_sync_wait = 0;
+--source include/kill_galera.inc
+
+--let $start_mysqld_params =
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/start_mysqld.inc
+--source include/wait_until_ready.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_2
+SET GLOBAL wsrep_ignore_apply_errors = DEFAULT;
+call mtr.add_suppression("Inconsistency detected: Inconsistent by consensus on");
+--source include/auto_increment_offset_restore.inc

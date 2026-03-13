@@ -92,22 +92,3 @@ srv_mon_calc_min_since_start(
 
 	return(MONITOR_MIN_VALUE_START(monitor));
 }
-
-/*************************************************************//**
-This function resets all values of a monitor counter */
-UNIV_INLINE
-void
-srv_mon_reset_all(
-/*==============*/
-	monitor_id_t	monitor)	/*!< in: monitor id */
-{
-	/* Do not reset all counter values if monitor is still on. */
-	if (MONITOR_IS_ON(monitor)) {
-		fprintf(stderr, "InnoDB: Cannot reset all values for"
-			" monitor counter %s while it is on. Please"
-			" turn it off and retry.\n",
-			srv_mon_get_name(monitor));
-	} else {
-		MONITOR_RESET_ALL(monitor);
-	}
-}

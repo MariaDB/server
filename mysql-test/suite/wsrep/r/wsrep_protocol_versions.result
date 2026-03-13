@@ -2,6 +2,6 @@
 show status like 'wsrep_protocol%';
 Variable_name	Value
 wsrep_protocol_application	4
-wsrep_protocol_gcs	5
+wsrep_protocol_gcs	6
 wsrep_protocol_replicator	11
 wsrep_protocol_version	11

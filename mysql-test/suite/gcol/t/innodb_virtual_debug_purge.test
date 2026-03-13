@@ -77,8 +77,6 @@ DROP TABLE t1;
 #
 # BUG#22082762 RE-ENABLE SUPPORT FOR ADDING VIRTUAL INDEX WHILE DROPPING VIRTUAL COLUMN
 #
---source include/count_sessions.inc
-
 connect (con1,localhost,root,,);
 connection default;
 
@@ -258,15 +256,6 @@ disconnect truncate;
 connection default;
 DROP TABLE t1, t2;
 
---disable_cursor_protocol
---disable_ps2_protocol
---enable_ps2_protocol
---enable_cursor_protocol
---disable_cursor_protocol
---disable_ps2_protocol
---enable_ps2_protocol
---enable_cursor_protocol
---source include/wait_until_count_sessions.inc
 set debug_sync=reset;
 
 SET GLOBAL innodb_stats_persistent = @saved_stats_persistent;

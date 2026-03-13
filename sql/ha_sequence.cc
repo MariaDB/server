@@ -85,6 +85,7 @@ int ha_sequence::open(const char *name, int mode, uint flags)
   DBUG_ASSERT(table->s == table_share && file);
 
   file->table= table;
+  file->option_struct= option_struct;
   if (likely(!(error= file->open(name, mode, flags))))
   {
     /*
@@ -185,6 +186,7 @@ int ha_sequence::create(const char *name, TABLE *form,
   DBUG_ASSERT(create_info->sequence);
   /* Sequence tables has one and only one row */
   create_info->max_rows= create_info->min_rows= 1;
+  file->option_struct= option_struct;
   return (file->create(name, form, create_info));
 }
 
@@ -273,14 +275,6 @@ int ha_sequence::write_row(const uchar *buf)
 #ifdef WITH_WSREP
   if (WSREP_ON && WSREP(thd) && wsrep_thd_is_local(thd))
   {
-    if (sequence_locked &&
-        (wsrep_thd_is_SR(thd) || wsrep_streaming_enabled(thd)))
-    {
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "SEQUENCEs with streaming replication in Galera cluster");
-      DBUG_RETURN(HA_ERR_UNSUPPORTED);
-    }
-
     /*
        We need to start Galera transaction for select NEXT VALUE FOR
        sequence if it is not yet started. Note that ALTER is handled

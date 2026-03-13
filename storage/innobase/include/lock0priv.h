@@ -269,7 +269,7 @@ is implicitly an s-lock, too, and the insert should be prevented.
 What if our transaction owns an x-lock to the next record, but there is
 a waiting s-lock request on the next record? If this s-lock was placed
 by a read cursor moving in the ascending order in the index, we cannot
-do the insert immediately, because when we finally commit our transaction,
+do the insert immediately, because when we override finally commit our transaction,
 the read cursor should see also the new inserted record. So we should
 move the read cursor backward from the next record for it to pass over
 the new inserted record. This move backward may be too cumbersome to

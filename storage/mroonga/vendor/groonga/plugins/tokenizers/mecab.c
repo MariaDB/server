@@ -37,7 +37,7 @@ static grn_plugin_mutex *sole_mecab_mutex = NULL;
 static grn_encoding sole_mecab_encoding = GRN_ENC_NONE;
 
 static grn_bool grn_mecab_chunked_tokenize_enabled = GRN_FALSE;
-static int grn_mecab_chunk_size_threshold = 8192;
+static ptrdiff_t grn_mecab_chunk_size_threshold = 8192;
 
 typedef struct {
   mecab_t *mecab;
@@ -186,7 +186,7 @@ static grn_bool
 chunked_tokenize_utf8(grn_ctx *ctx,
                       grn_mecab_tokenizer *tokenizer,
                       const char *string,
-                      unsigned int string_bytes)
+                      ptrdiff_t string_bytes)
 {
   const char *chunk_start;
   const char *current;

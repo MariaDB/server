@@ -323,6 +323,40 @@ while ($run)
 DROP TABLE t1;
 SET GLOBAL innodb_lru_scan_depth= @lru_depth.save;
 
+--echo #
+--echo # MDEV-38426: Clustered PK not used for Loose Index Scan optimization
+--echo #
+--source include/have_sequence.inc
+
+create table t1 (
+  col1 int not null,
+  col2 int not null,
+  col3 int,
+  primary key(col1, col2)
+) engine=innodb;
+insert into t1 select
+  A.seq,
+  B.seq,
+  A.seq
+from
+  seq_1_to_10 A,
+  seq_1_to_1000 B;
+analyze table t1;
+
+--echo # This must use Loose Scan:
+explain select distinct col1 from t1;
+
+--echo # This must use Loose Scan:
+explain select col1 from t1 group by col1;
+
+--echo # This must use Loose Scan:
+explain select col1, min(col2) from t1 group by col1;
+
+--echo # This will not use Loose Index Scan as col3 is not in PK:
+explain select col1, min(col2), col3 from t1 group by col1;
+
+drop table t1;
+
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
              @innodb_stats_persistent_sample_pages_save;

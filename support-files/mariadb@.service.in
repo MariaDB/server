@@ -181,10 +181,6 @@ PrivateNetwork=false
 # These are enabled by default
 AmbientCapabilities=CAP_IPC_LOCK
 
-# PrivateDevices=true implies NoNewPrivileges=true and
-# SUID auth_pam_tool suddenly doesn't do setuid anymore
-PrivateDevices=false
-
 # Prevent writes to /usr, /boot, and /etc
 ProtectSystem=full
 

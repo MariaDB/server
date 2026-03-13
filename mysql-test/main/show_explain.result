@@ -1046,9 +1046,8 @@ a
 1
 2
 SET debug_dbug=@old_debug;
-revoke all privileges on test.* from test2@localhost;
-drop user test2@localhost;
 disconnect con2;
+drop user test2@localhost;
 #
 # Test that it is possible to KILL a SHOW EXPLAIN command that's waiting
 # on its target thread
@@ -1442,3 +1441,11 @@ count(*) - count(*)
 connection default;
 disconnect con1;
 set debug_sync='RESET';
+#
+# MDEV-36353: Server crashes with EXPLAIN/DESC FOR CONNECTION 
+# instead of displaying an error.
+#
+EXPLAIN FOR CONNECTION INTERVAL TRUE IN (SELECT 1) YEAR_MONTH + FALSE=TRUE NOT IN (SELECT 1);
+ERROR HY000: You may only use constant expressions in this statement
+DESC FOR CONNECTION INTERVAL TRUE IN (SELECT 1) YEAR_MONTH + FALSE=TRUE NOT IN (SELECT 1);
+ERROR HY000: You may only use constant expressions in this statement

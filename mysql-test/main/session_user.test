@@ -48,6 +48,7 @@ SELECT USER(), SESSION_USER();
 
 --echo # Cleanup
 --connection default
+--disconnect test_user_con
 DROP USER 'test_user'@'%';
 DROP FUNCTION test.func_session_user;
 DROP VIEW test.view_session_user;

@@ -23,7 +23,7 @@ t1	CREATE TABLE `t1` (
   `a\\b` int(11) NOT NULL DEFAULT 2,
   `a\\` int(10) unsigned DEFAULT NULL,
   `name` varchar(32) DEFAULT 'name'
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1' `TABLE_TYPE`='MYSQL'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='MYSQL' `CONNECTION`='mysql://root@127.0.0.1:SLAVE_PORT/test/t1'
 INSERT INTO t1 (id, name) VALUES (1, 'foo');
 INSERT INTO t1 (id, name) VALUES (2, 'fee');
 SELECT * FROM t1;

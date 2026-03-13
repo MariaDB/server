@@ -2377,26 +2377,6 @@ prepare abc from "flush master";
 deallocate prepare abc;
 
 
-create procedure proc_1() flush des_key_file;
-call proc_1();
-call proc_1();
-call proc_1();
-delimiter |;
---error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
-create function func_1() returns int begin flush des_key_file; return 1; end|
-create function func_1() returns int begin call proc_1(); return 1; end|
-delimiter ;|
---error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
-select func_1(), func_1(), func_1() from dual;
-drop function func_1;
-drop procedure proc_1;
-prepare abc from "flush des_key_file";
-execute abc;
-execute abc;
-execute abc;
-deallocate prepare abc;
-
-
 create procedure proc_1() flush user_resources;
 call proc_1();
 call proc_1();
@@ -5499,6 +5479,24 @@ SELECT * FROM t;
 
 DROP TABLE t;
 --echo # End of 10.6 tests
+
+--echo # Beginning of 10.11 test
+
+--echo #
+--echo # MDEV-30277: Assertion failure in Diagnostics_area::set_error_status
+--echo # / Reprepare_observer::report_error
+--echo #
+
+CREATE TABLE t (a INT);
+PREPARE stmt FROM " DELETE FROM t LIMIT ?";
+ALTER TABLE t FORCE;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE stmt USING DEFAULT;
+
+DROP TABLE t;
+
+--echo # End of 10.11 test
+
 --echo #
 --echo # MDEV-34322: ASAN heap-buffer-overflow in Field::is_null / Item_param::assign_default or bogus ER_BAD_NULL_ERROR
 --echo #
@@ -5576,6 +5574,20 @@ EXECUTE stmt USING 700, 900;
 # Cleanup
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-38620: Server crashes in setup_returning_fields upon 2nd
+--echo # execution of multi-table-styled DELETE from a view
+--echo #
+
+CREATE TABLE t (a INT);
+CREATE VIEW v AS SELECT * FROM t;
+PREPARE stmt FROM "DELETE v FROM v";
+EXECUTE stmt;
+EXECUTE stmt;
+ 
+DROP VIEW v;
+DROP TABLE t;
 
 --echo # End of 11.4 tests
 

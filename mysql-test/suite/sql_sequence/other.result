@@ -382,6 +382,35 @@ disconnect con1;
 connection default;
 drop sequence s1;
 drop sequence s2;
-#
 # End of 10.4 tests
 #
+# MDEV-37906 Server crash or UBSAN errors in Item_func_nextval::update_table upon INSERT DELAYED
+#
+create sequence s engine=myisam;
+create table t (id bigint default(nextval(s))) engine=myisam;
+insert delayed into t () values();
+drop table t;
+drop sequence s;
+#
+# MDEV-37345 Item_func_nextval::val_int() crash on INSERT...SELECT with subqueries
+#
+create sequence s;
+create table t1 (a int, b int default(nextval(s)));
+insert into t1 () values ();
+create table t2 (c int);
+create procedure p() update t1 set a = 0;
+create trigger tr after insert on t2 for each row
+begin
+insert into t1 () values ();
+call p();
+end $
+insert into t2 values ();
+drop table t1, t2, s;
+drop procedure p;
+create sequence s;
+create temporary table t (f int);
+alter table t modify f int default(nextval(s));
+create or replace sequence s;
+insert into t values (default);
+drop sequence s;
+# End of 10.11 tests

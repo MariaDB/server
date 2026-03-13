@@ -61,16 +61,6 @@ void
 dict_foreign_free(
 /*==============*/
 	dict_foreign_t*	foreign);	/*!< in, own: foreign key struct */
-/*********************************************************************//**
-Finds the highest [number] for foreign key constraints of the table. Looks
-only at the >= 4.0.18-format id's, which are of the form
-databasename/tablename_ibfk_[number].
-@return highest number, 0 if table has no new format foreign key constraints */
-ulint
-dict_table_get_highest_foreign_id(
-/*==============================*/
-	dict_table_t*	table);		/*!< in: table in the dictionary
-					memory cache */
 /** Check whether the dict_table_t is a partition.
 A partitioned table on the SQL level is composed of InnoDB tables,
 where each InnoDB table is a [sub]partition including its secondary indexes
@@ -1535,16 +1525,19 @@ dict_fs2utf8(
 
 /** Flag an index corrupted both in the data dictionary cache
 and in the system table SYS_INDEXES.
+@param trx         transaction
 @param index       index to be flagged as corrupted
 @param ctx         context (for error log reporting) */
-void dict_set_corrupted(dict_index_t *index, const char *ctx)
+void dict_set_corrupted(trx_t *trx, dict_index_t *index, const char *ctx)
   ATTRIBUTE_COLD __attribute__((nonnull));
 
 /** Sets merge_threshold in the SYS_INDEXES
+@param[in]	thd		current_thd
 @param[in,out]	index		index
 @param[in]	merge_threshold	value to set */
 void
 dict_index_set_merge_threshold(
+	const THD&	thd,
 	dict_index_t*	index,
 	ulint		merge_threshold);
 

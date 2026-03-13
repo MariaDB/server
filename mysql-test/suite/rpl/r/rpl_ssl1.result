@@ -49,6 +49,7 @@ Master_SSL_CA_File = 'MYSQL_TEST_DIR/std_data/cacert.pem'
 Master_SSL_Cert = 'MYSQL_TEST_DIR/std_data/client-cert.pem'
 Master_SSL_Key = 'MYSQL_TEST_DIR/std_data/client-key.pem'
 include/check_slave_is_running.inc
+# End of 4.1 tests
 connection slave;
 stop slave;
 include/wait_for_slave_to_stop.inc
@@ -111,6 +112,8 @@ master_ssl_verify_server_cert=0,
 master_ssl=1;
 connection master;
 drop user replssl@127.0.0.1;
+Warnings:
+Note	4227	Dropped users 'replssl'@'127.0.0.1' have active connections. Use KILL CONNECTION if they should not be used anymore.
 connection slave;
 drop user replssl@127.0.0.1;
 include/rpl_end.inc

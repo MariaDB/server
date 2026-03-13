@@ -52,6 +52,11 @@ alter sequence s1 restart= 11;
 select * from s1;
 ERROR 42000: SELECT command denied to user 'only_alter'@'localhost' for table `mysqltest_1`.`s1`
 connection default;
+disconnect normal;
+disconnect read_only;
+disconnect read_write;
+disconnect alter;
+disconnect only_alter;
 drop user 'normal'@'%';
 drop user 'read_only'@'%';
 drop user 'read_write'@'%';

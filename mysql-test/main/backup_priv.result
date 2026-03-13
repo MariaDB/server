@@ -13,6 +13,7 @@ BACKUP STAGE FLUSH;
 SELECT lock_mode FROM information_schema.metadata_lock_info WHERE lock_type='Backup lock';
 lock_mode
 MDL_BACKUP_FLUSH
+change_user user2,,;
 SELECT lock_mode FROM information_schema.metadata_lock_info WHERE lock_type='Backup lock';
 lock_mode
 disconnect con1;

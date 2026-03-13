@@ -65,6 +65,7 @@ STOP SLAVE;
 include/wait_for_slave_to_stop.inc
 include/reset_slave.inc
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET SESSION BINLOG_FORMAT=STATEMENT;
 SET @foo = 12;

@@ -82,6 +82,8 @@
 */
 #define export /* not static */
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 
 static Sys_var_mybool Sys_pfs_enabled(
@@ -1313,14 +1315,22 @@ static bool update_binlog_space_limit(sys_var *, THD *,
 
   if (opt_bin_log)
   {
-    if (binlog_space_limit)
-      mysql_bin_log.count_binlog_space();
-    /* Inform can_purge_log() that it should do a recheck of log_in_use() */
-    sending_new_binlog_file++;
-    mysql_bin_log.unlock_index();
-    mysql_bin_log.purge(1);
-    mysql_mutex_lock(&LOCK_global_system_variables);
-    return 0;
+    if (opt_binlog_engine_hton)
+    {
+      if (loc_binlog_space_limit)
+        mysql_bin_log.engine_purge_logs_by_size(loc_binlog_space_limit);
+    }
+    else
+    {
+      if (loc_binlog_space_limit)
+        mysql_bin_log.count_binlog_space();
+      /* Inform can_purge_log() that it should do a recheck of log_in_use() */
+      sending_new_binlog_file++;
+      mysql_bin_log.unlock_index();
+      mysql_bin_log.purge(1);
+      mysql_mutex_lock(&LOCK_global_system_variables);
+      return 0;
+    }
   }
   mysql_bin_log.unlock_index();
   mysql_mutex_lock(&LOCK_global_system_variables);
@@ -1873,6 +1883,16 @@ Sys_max_binlog_size(
        BLOCK_SIZE(IO_SIZE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_max_binlog_size));
 
+
+static Sys_var_charptr_fscs Sys_binlog_directory(
+       "binlog_directory",
+       "Directory path (absolute or relative to datadir) where binlog files "
+       "are stored. If this is used, must not specify a directory path for "
+       "--log-bin",
+       READ_ONLY GLOBAL_VAR(opt_binlog_directory), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0));
+
+
 static bool fix_max_connections(sys_var *self, THD *thd, enum_var_type type)
 {
   return false;
@@ -1990,6 +2010,14 @@ static Sys_var_ulong Sys_metadata_locks_hash_instances(
        VALID_RANGE(1, 1024), DEFAULT(8),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
        DEPRECATED(1105, ""));
+
+static Sys_var_uint Sys_metadata_locks_instances(
+       "metadata_locks_instances",
+       "Number of fast lanes to create for metadata locks. Can be used to "
+       "improve DML scalability by eliminating MDL_lock::rwlock load. "
+       "Use 1 to disable MDL fast lanes. Supported MDL namespaces: BACKUP",
+       READ_ONLY GLOBAL_VAR(mdl_instances), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 256), DEFAULT(8), BLOCK_SIZE(1));
 
 static Sys_var_on_access_session<Sys_var_ulonglong,
                                  PRIV_SET_SYSTEM_SESSION_VAR_PSEUDO_THREAD_ID>
@@ -2384,7 +2412,7 @@ Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   bool first= true;
 
   str.length(0);
-  rpl_gtid gtid= thd->get_last_commit_gtid();
+  rpl_gtid gtid= *thd->get_last_commit_gtid();
   if ((gtid.seq_no > 0 &&
        rpl_slave_state_tostring_helper(&str, &gtid, &first)) ||
       !(p= thd->strmake(str.ptr(), str.length())))
@@ -2687,6 +2715,14 @@ static Sys_var_on_access_global<
         GLOBAL_VAR(slave_abort_blocking_timeout), CMD_LINE(REQUIRED_ARG),
         VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(LONG_TIMEOUT), NO_MUTEX_GUARD,
         NOT_IN_BINLOG);
+
+
+static Sys_var_charptr_fscs Sys_binlog_storage_engine(
+       "binlog_storage_engine",
+       "Use a more efficient binlog implementation integrated with the "
+       "storage engine. Only available for supporting engines",
+       READ_ONLY GLOBAL_VAR(opt_binlog_storage_engine), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0));
 #endif
 
 
@@ -2898,29 +2934,6 @@ static Sys_var_ulong Sys_net_retry_count(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_net_retry_count));
 
-static bool set_old_mode (sys_var *self, THD *thd, enum_var_type type)
-{
-  if (thd->variables.old_mode)
-  {
-    thd->variables.old_behavior|= (OLD_MODE_NO_PROGRESS_INFO |
-                                   OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN |
-                                   OLD_MODE_COMPAT_5_1_CHECKSUM);
-  }
-  else
-  {
-    thd->variables.old_behavior&= ~(OLD_MODE_NO_PROGRESS_INFO|
-                                    OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN |
-                                    OLD_MODE_COMPAT_5_1_CHECKSUM);
-  }
-
-  return false;
-}
-
-static Sys_var_mybool Sys_old_mode(
-       "old", "Use compatible behavior from previous MariaDB version",
-       SESSION_VAR(old_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE), 0, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(set_old_mode), DEPRECATED(1009, "old_mode"));
-
 static Sys_var_mybool Sys_opt_allow_suspicious_udfs(
        "allow_suspicious_udfs",
        "Allows use of user-defined functions (UDFs) consisting of only one symbol xxx() without corresponding xxx_init() or xxx_deinit(). That also means that one can load any function from any library, for example exit() from libc.so",
@@ -2955,18 +2968,11 @@ static Sys_var_enum Sys_alter_algorithm(
         ON_CHECK(variable_is_ignored), ON_UPDATE(0),
         DEPRECATED(1105,""));
 
-
-static bool check_old_passwords(sys_var *self, THD *thd, set_var *var)
-{
-  return mysql_user_table_is_in_short_password_format;
-}
 static Sys_var_mybool Sys_old_passwords(
-       "old_passwords",
-       "Use old password encryption method (needed for 4.0 and older clients)",
+       "old_passwords", UNUSED_HELP,
        SESSION_VAR(old_passwords), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(check_old_passwords));
-export sys_var *Sys_old_passwords_ptr= &Sys_old_passwords; // for sql_acl.cc
+       ON_CHECK(variable_is_ignored), ON_UPDATE(0), DEPRECATED(1300, ""));
 
 static Sys_var_ulong Sys_open_files_limit(
        "open_files_limit",
@@ -2999,7 +3005,7 @@ static Sys_var_ulong Sys_optimizer_selectivity_sampling_limit(
 static Sys_var_ulonglong Sys_optimizer_join_limit_pref_ratio(
        "optimizer_join_limit_pref_ratio",
        "For queries with JOIN and ORDER BY LIMIT : make the optimizer "
-       "consider a join order that allows to short-cut execution after "
+       "consider a join order that allows it to short-cut execution after "
        "producing #LIMIT matches if that promises N times speedup. "
        "(A conservative setting here would be is a high value, like 100 so "
        "the short-cutting plan is used if it promises a speedup of 100x or "
@@ -3083,6 +3089,7 @@ export const char *optimizer_switch_names[]=
   "hash_join_cardinality",
   "cset_narrowing",
   "sargable_casefold",
+  "reorder_outer_joins",
   "default",
   NullS
 };
@@ -3120,6 +3127,13 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
     "Maximum allowed size of an optimizer trace",
     SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
+
+static Sys_var_mybool Sys_optimizer_record_context(
+    "optimizer_record_context",
+    "Controls storing of optmizer context of all the tables "
+    "that are referenced in a query",
+    SESSION_VAR(optimizer_record_context), CMD_LINE(OPT_ARG),
+    DEFAULT(FALSE));
 
 static Sys_var_ulong Sys_optimizer_adjust_secondary_key_costs(
     "optimizer_adjust_secondary_key_costs",
@@ -3560,16 +3574,6 @@ static Sys_var_mybool Sys_query_cache_wlock_invalidate(
        SESSION_VAR(query_cache_wlock_invalidate), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE));
 
-static Sys_var_on_access_global<Sys_var_mybool,
-                                PRIV_SET_SYSTEM_GLOBAL_VAR_SECURE_AUTH>
-Sys_secure_auth(
-       "secure_auth",
-       "Disallow authentication for accounts that have old (pre-4.1) "
-       "passwords",
-       GLOBAL_VAR(opt_secure_auth), CMD_LINE(OPT_ARG, OPT_SECURE_AUTH),
-       DEFAULT(TRUE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED(1006, ""));
-
 static bool check_require_secure_transport(sys_var *self, THD *thd, set_var *var)
 {
 #ifndef _WIN32
@@ -3714,17 +3718,18 @@ Slave_run_triggers_for_rbr(
        slave_run_triggers_for_rbr_names,
        DEFAULT(SLAVE_RUN_TRIGGERS_FOR_RBR_NO));
 
-static const char *slave_type_conversions_name[]= {"ALL_LOSSY", "ALL_NON_LOSSY", 0};
-static Sys_var_on_access_global<Sys_var_set,
-                              PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_TYPE_CONVERSIONS>
-Slave_type_conversions(
-       "slave_type_conversions",
-       "Set of slave type conversions that are enabled."
-       " If the variable is empty, no conversions are"
-       " allowed and it is expected that the types match exactly",
-       GLOBAL_VAR(slave_type_conversions_options), CMD_LINE(REQUIRED_ARG),
-       slave_type_conversions_name,
-       DEFAULT(0));
+static const char *slave_type_conversions_name[]=
+{"ALL_LOSSY", "ALL_NON_LOSSY", "ERROR_IF_MISSING_FIELD", 0 };
+static Sys_var_on_access_global<
+    Sys_var_set, PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_TYPE_CONVERSIONS>
+    Slave_type_conversions(
+        "slave_type_conversions",
+        "Set of slave type conversions that are enabled. If the variable is "
+        "empty, no conversions are allowed and it is expected that the types "
+        "match exactly. In this case one will also not get any warnings about "
+        "missing columns on the slave",
+        GLOBAL_VAR(slave_type_conversions_options), CMD_LINE(REQUIRED_ARG),
+        slave_type_conversions_name, DEFAULT(0));
 
 static Sys_var_on_access_global<Sys_var_mybool,
                            PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_SQL_VERIFY_CHECKSUM>
@@ -3792,6 +3797,18 @@ Replicate_events_marked_for_skip
 
 /* new options for semisync */
 
+static bool
+check_rpl_semi_sync_master_enabled(sys_var *self, THD *thd, set_var *var)
+{
+  if (opt_binlog_engine_hton && var->save_result.ulonglong_value)
+  {
+    my_error(ER_NOT_YET_SUPPORTED_ENGINE_BINLOG, MYF(0),
+             "Semi-synchronous replication");
+    return true;
+  }
+  return false;
+}
+
 static bool fix_rpl_semi_sync_master_enabled(sys_var *self, THD *thd,
                                              enum_var_type type)
 {
@@ -3846,7 +3863,8 @@ Sys_semisync_master_enabled(
        "Enable semi-synchronous replication master (disabled by default)",
        GLOBAL_VAR(rpl_semi_sync_master_enabled),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_rpl_semi_sync_master_enabled),
        ON_UPDATE(fix_rpl_semi_sync_master_enabled));
 
 static Sys_var_on_access_global<Sys_var_ulong,
@@ -4115,6 +4133,7 @@ static const char *old_mode_names[]=
   "LOCK_ALTER_TABLE_COPY",              // 7: deprecated since 11.3
   "OLD_FLUSH_STATUS",                   // 8: deprecated since 11.5
   "SESSION_USER_IS_USER",               // 9: deprecated since 11.7
+  "2_DIGIT_YEAR",                       // 10: deprecated since 13.0
   0
 };
 
@@ -4140,6 +4159,9 @@ static bool old_mode_deprecated(sys_var *self, THD *thd, set_var *var)
   for (; i <= 9; i++)
     if ((1ULL<<i) & v)
       warn_deprecated<1107>(thd, old_mode_names[i]);
+  for (; i <= 10; i++)
+    if ((1ULL<<i) & v)
+      warn_deprecated<1300>(thd, old_mode_names[i]);
   return false;
 }
 
@@ -4149,6 +4171,77 @@ static Sys_var_set Sys_old_behavior(
        SESSION_VAR(old_behavior), CMD_LINE(REQUIRED_ARG),
        old_mode_names, DEFAULT(OLD_MODE_DEFAULT_VALUE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(old_mode_deprecated));
+
+
+/*
+  Current 'not yet default' @@new_mode flag names see sql_class.h /NEW_MODE_ 
+  These need to be be kept in the same order as the value of definitions above
+*/
+static const char *new_mode_all_names[]=
+{
+  "FIX_DISK_TMPTABLE_COSTS",        // Default from here, See NEW_MODE_MAX
+  "FIX_INDEX_STATS_FOR_ALL_NULLS",
+  "FIX_INDEX_LOOKUP_COST",
+  "TEST_WARNING1",
+  "TEST_WARNING2",
+  0
+};
+
+static int new_mode_hidden_names[] =
+{
+  0,  // FIX_DISK_TMPTABLE_COSTS
+  1,  // FIX_INDEX_STATS_FOR_ALL_NULLS
+  2,  // FIX_INDEX_LOOKUP_COST
+  3,  // TEST_WARNING1
+  4,  // TEST_WARNING2
+  -1
+};
+
+/*
+  @@new_mode flag names that are now default and thus not configurable
+  see previous comment
+*/
+const char **new_mode_default_names= &new_mode_all_names[NEW_MODE_MAX];
+
+
+/*
+  @brief
+    Emit warnings if the value of @@new_mode in *v contains flags that are
+    already included in the default behavior.
+
+  @param v INOUT  Bitmap where bits represent indexes in new_mode_all_names
+                  array.
+                  Bits representing obsolete elements will be cleared.
+*/
+
+void check_new_mode_value(THD *thd, ulonglong *v)
+{
+  ulonglong vl= *v >> NEW_MODE_MAX;
+  for (uint i=0; new_mode_default_names[i]; i++)
+  {
+    if ((1ULL<<i) & vl)
+    {
+      char buf1[NAME_CHAR_LEN*2 + 3];
+      strxnmov(buf1, sizeof(buf1)-1, "new_mode=", new_mode_default_names[i], 0);
+      my_error(ER_VARIABLE_IGNORED, MYF(ME_WARNING), buf1);
+      (*v)&= ~(1ULL << (i+NEW_MODE_MAX));
+    }
+  }
+}
+
+static bool check_new_mode_var_value(sys_var *self, THD *thd, set_var *var)
+{
+  check_new_mode_value(thd, &var->save_result.ulonglong_value);
+  return false;
+}
+
+static Sys_var_set Sys_new_behavior(
+       "new_mode",
+       "Used to introduce new behavior to existing MariaDB versions",
+       SESSION_VAR(new_behavior), CMD_LINE(REQUIRED_ARG),
+       new_mode_all_names, DEFAULT(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_new_mode_var_value), 0, 0,
+       new_mode_hidden_names);
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 #define SSL_OPT(X) CMD_LINE(REQUIRED_ARG,X)
@@ -5004,7 +5097,7 @@ static Sys_var_bit Sys_foreign_key_checks(
        " (including ON UPDATE and ON DELETE behavior) InnoDB tables are checked,"
        " while if set to 0, they are not checked. 0 is not recommended for normal "
        "use, though it can be useful in situations where you know the data is "
-       "consistent, but want to reload data in a different order from that that "
+       "consistent, but want to reload data in a different order from that "
        "specified by parent/child relationships. Setting this variable to 1 does "
        "not retrospectively check for inconsistencies introduced while set to 0",
        SESSION_VAR(option_bits), NO_CMD_LINE,
@@ -5337,10 +5430,8 @@ static Sys_var_mybool Sys_show_slave_auth_info(
 static Sys_var_mybool Sys_keep_files_on_create(
        "keep_files_on_create",
        "Don't overwrite stale .MYD and .MYI even if no directory is specified",
-       SESSION_VAR(keep_files_on_create), CMD_LINE(OPT_ARG),
-       DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED_NO_REPLACEMENT(1008));
+       SESSION_VAR(keep_files_on_create), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0));
 
 static char *license;
 static Sys_var_charptr Sys_license(
@@ -5983,6 +6074,20 @@ static Sys_var_ulong Sys_opt_binlog_rows_event_max_size(
       VALID_RANGE(256, UINT_MAX32 - (UINT_MAX32 % 256)), DEFAULT(8192),
       BLOCK_SIZE(256));
 
+static Sys_var_uint Sys_opt_binlog_partial_rows_event_max_size(
+      "binlog_row_event_fragment_threshold",
+      "When a Rows_log_event exceeds this threshold, it will be fragmented "
+      "into multiple Partial_rows_log_event events in the binary log, each of "
+      "this configured maximum size. That is, all Partial_rows_log_events up "
+      "to the last in the group will be this configured maximum size, and the "
+      "last event will take the remaining size. This is relevant for events "
+      "that would surpass slave_max_allowed_packet when sending to the slave, "
+      "and thereby a sensible value would reflect the slave's configured "
+      "slave_max_allowed_packet",
+      GLOBAL_VAR(opt_binlog_row_event_fragment_threshold),
+      CMD_LINE(REQUIRED_ARG), VALID_RANGE(1024, MAX_MAX_ALLOWED_PACKET),
+      DEFAULT(MAX_MAX_ALLOWED_PACKET), BLOCK_SIZE(1024));
+
 static Sys_var_on_access_global<Sys_var_uint,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_NET_TIMEOUT>
 Sys_slave_net_timeout(
@@ -6335,7 +6440,7 @@ static Sys_var_ulong Sys_wsrep_slave_threads(
        GLOBAL_VAR(wsrep_slave_threads), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 512), DEFAULT(1), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(0),
+       ON_CHECK(wsrep_slave_threads_check),
        ON_UPDATE(wsrep_slave_threads_update));
 
 static Sys_var_charptr Sys_wsrep_dbug_option(
@@ -6627,7 +6732,7 @@ static Sys_var_enum Sys_wsrep_trx_fragment_unit(
       wsrep_fragment_units,
       DEFAULT(WSREP_FRAG_BYTES),
       NO_MUTEX_GUARD, NOT_IN_BINLOG,
-      ON_CHECK(0),
+      ON_CHECK(wsrep_trx_fragment_unit_check),
       ON_UPDATE(wsrep_trx_fragment_unit_update));
 
 extern const char *wsrep_SR_store_types[];
@@ -6684,6 +6789,12 @@ static Sys_var_charptr Sys_wsrep_allowlist(
        "wsrep_allowlist", "Allowed IP addresses split by comma delimiter",
        READ_ONLY GLOBAL_VAR(wsrep_allowlist), CMD_LINE(REQUIRED_ARG),
        DEFAULT(""));
+
+static Sys_var_uint Sys_wsrep_applier_retry_count (
+       "wsrep_applier_retry_count", "Maximum number of applier retry attempts",
+       GLOBAL_VAR(wsrep_applier_retry_count), CMD_LINE(OPT_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 #endif /* WITH_WSREP */
 
@@ -7621,3 +7732,8 @@ static Sys_var_ulonglong Sys_binlog_large_commit_threshold(
   // Allow a smaller minimum value for debug builds to help with testing
   VALID_RANGE(IF_DBUG(100, 10240) * 1024, ULLONG_MAX),
   DEFAULT(128 * 1024 * 1024), BLOCK_SIZE(1));
+
+static Sys_var_path Sys_path(
+        "path", "Comma-separated list of schema names that defines the search "
+        "order for stored routines",
+        SESSION_VAR(path), NO_CMD_LINE, NOT_IN_BINLOG);

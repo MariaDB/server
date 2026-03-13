@@ -89,13 +89,12 @@ void set_tls_version_of_event(THD *thd, mysql_event_connection *event)
     event->tls_version = "";
     event->tls_version_length = 0;
 #ifdef HAVE_OPENSSL
-    Vio *vio= thd->net.vio;
-    SSL *ssl= (SSL *) vio->ssl_arg;
-    if (ssl)
-    {
-        event->tls_version = SSL_get_version(ssl);
-        event->tls_version_length = safe_strlen_uint(event->tls_version);
-    }
+    if (Vio *vio= thd->net.vio)
+      if (SSL *ssl= (SSL *) vio->ssl_arg)
+      {
+          event->tls_version = SSL_get_version(ssl);
+          event->tls_version_length = safe_strlen_uint(event->tls_version);
+      }
 #endif
 }
 
@@ -194,6 +193,8 @@ void mysql_audit_general(THD *thd, uint event_subtype,
       event.database= thd->db;
       event.query_id= thd->query_id;
       event.port= thd->peer_port;
+      DBUG_PRINT("info", ("mysql_audit_general: query_id=%lld, query=%.*s, subtype=%d, error_code=%d, msg=%s",
+                        thd->query_id, thd->query_length(), thd->query(), event_subtype, error_code, msg));
     }
     else
     {
@@ -206,7 +207,7 @@ void mysql_audit_general(THD *thd, uint event_subtype,
       event.general_rows= 0;
       event.database= null_clex_str;
       event.query_id= 0;
-      event.port= thd->peer_port;
+      event.port= 0;
     }
 
     mysql_audit_notify(thd, MYSQL_AUDIT_GENERAL_CLASS, &event);

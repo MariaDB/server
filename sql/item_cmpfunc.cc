@@ -403,6 +403,7 @@ void Item_func::convert_const_compared_to_int_field(THD *thd)
     {
       Item_field *field_item= (Item_field*) (args[field]->real_item());
       if (((field_item->field_type() == MYSQL_TYPE_LONGLONG &&
+            args[!field]->cmp_type() == STRING_RESULT &&
             field_item->type_handler() != &type_handler_vers_trx_id) ||
            field_item->field_type() ==  MYSQL_TYPE_YEAR))
         convert_const_to_int(thd, field_item, &args[!field]);
@@ -411,8 +412,7 @@ void Item_func::convert_const_compared_to_int_field(THD *thd)
 }
 
 
-bool Item_func::aggregate_args2_for_comparison_with_conversion(
-                                            THD *thd,
+bool Item_func::aggregate_args2_for_comparison_with_conversion(THD *thd,
                                             Type_handler_hybrid_field_type *th)
 {
   DBUG_ASSERT(arg_count >= 2);
@@ -1537,7 +1537,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
     - subqueries that were originally EXISTS subqueries (and were coinverted by
       the EXISTS->IN rewrite)
 
-   When Item_in_optimizer is not not working as a pass-through, it
+   When Item_in_optimizer is not working as a pass-through, it
     - caches its "left argument", args[0].
     - makes adjustments to subquery item's return value for proper NULL
       value handling
@@ -1551,17 +1551,17 @@ bool Item_in_optimizer::invisible_mode()
 
 
 bool Item_in_optimizer::walk(Item_processor processor,
-                             bool walk_subquery,
-                             void *arg)
+                             void *arg,
+                             item_walk_flags flags)
 {
   bool res= FALSE;
   if (args[1]->type() == Item::SUBSELECT_ITEM &&
       ((Item_subselect *)args[1])->substype() != Item_subselect::EXISTS_SUBS &&
       !(((Item_subselect *)args[1])->substype() == Item_subselect::IN_SUBS &&
         ((Item_in_subselect *)args[1])->test_strategy(SUBS_IN_TO_EXISTS)))
-    res= args[0]->walk(processor, walk_subquery, arg);
+    res= args[0]->walk(processor, arg,  flags);
   if (!res)
-    res= args[1]->walk(processor, walk_subquery, arg);
+    res= args[1]->walk(processor, arg, flags);
 
   return res || (this->*processor)(arg);
 }
@@ -1574,7 +1574,7 @@ bool Item_in_optimizer::walk(Item_processor processor,
 
   @details
   The function checks whether an expression cache is needed for this item
-  and if if so wraps the item into an item of the class
+  and if so wraps the item into an item of the class
   Item_cache_wrapper with an appropriate expression cache set up there.
 
   @note
@@ -1825,7 +1825,7 @@ bool Item_in_optimizer::is_null()
   @detail
     Recursively transform the left and the right operand of this Item. The
     Right operand is an Item_in_subselect or its subclass. To avoid the
-    creation of new Items, we use the fact the the left operand of the
+    creation of new Items, we use the fact the left operand of the
     Item_in_subselect is the same as the one of 'this', so instead of
     transforming its operand, we just assign the left operand of the
     Item_in_subselect to be equal to the left operand of 'this'.
@@ -1914,13 +1914,13 @@ bool Item_func_eq::val_bool()
 }
 
 
-Item *Item_func_eq::do_build_clone(THD *thd) const
+Item *Item_func_eq::deep_copy(THD *thd) const
 {
   /*
     Clone the parent and cast to the child class since there is nothing
     specific for Item_func_eq
   */
-  return (Item_func_eq*) Item_bool_rowready_func2::do_build_clone(thd);
+  return (Item_func_eq*) Item_bool_rowready_func2::deep_copy(thd);
 }
 
 
@@ -1995,7 +1995,7 @@ longlong Item_func_strcmp::val_int()
 }
 
 
-bool Item_func_opt_neg::eq(const Item *item, bool binary_cmp) const
+bool Item_func_opt_neg::eq(const Item *item, const Eq_config &config) const
 {
   /* Assume we don't have rtti */
   if (this == item)
@@ -2008,7 +2008,7 @@ bool Item_func_opt_neg::eq(const Item *item, bool binary_cmp) const
     return 0;
   if (negated != ((Item_func_opt_neg *) item_func)->negated)
     return 0;
-  return Item_args::eq(item_func, binary_cmp);
+  return Item_args::eq(item_func, config);
 }
 
 
@@ -2677,7 +2677,7 @@ void Item_func_nullif::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
 
 
 bool Item_func_nullif::walk(Item_processor processor,
-                            bool walk_subquery, void *arg)
+                            void *arg, item_walk_flags flags)
 {
   /*
     No needs to iterate through args[2] when it's just a copy of args[0].
@@ -2686,7 +2686,7 @@ bool Item_func_nullif::walk(Item_processor processor,
   uint tmp_count= arg_count == 2 || args[0] == args[2] ? 2 : 3;
   for (uint i= 0; i < tmp_count; i++)
   {
-    if (args[i]->walk(processor, walk_subquery, arg))
+    if (args[i]->walk(processor, arg, flags))
       return true;
   }
   return (this->*processor)(arg);
@@ -5034,6 +5034,33 @@ void Item_func_in::mark_as_condition_AND_part(TABLE_LIST *embedding)
 }
 
 
+bool Item_func_in::ora_join_processor(void *arg)
+{
+  if (with_ora_join())
+  {
+    if (args[0]->cols() > 1 && args[0]->with_ora_join())
+    {
+        // used in ROW operaton
+        my_error(ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC, MYF(0));
+        return TRUE;
+    }
+    uint n= argument_count();
+    DBUG_ASSERT(n >= 2);
+    // first argument (0) is right part of IN where oracle joins are allowed
+    for (uint i= 1; i < n; i++)
+    {
+      if (args[i]->with_ora_join())
+      {
+        // used in right part of IN
+        my_error(ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC, MYF(0));
+        return TRUE ;
+      }
+    }
+  }
+  return FALSE;
+}
+
+
 class Func_handler_bit_or_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
@@ -5422,14 +5449,15 @@ void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref,
 }
 
 
-bool Item_cond::walk(Item_processor processor, bool walk_subquery, void *arg)
+bool Item_cond::walk(Item_processor processor,
+                     void *arg, item_walk_flags flags)
 {
   List_iterator_fast<Item> li(list);
   Item *item;
   while ((item= li++))
-    if (item->walk(processor, walk_subquery, arg))
+    if (item->walk(processor, arg, flags))
       return 1;
-  return Item_func::walk(processor, walk_subquery, arg);
+  return Item_func::walk(processor, arg,  flags);
 }
 
 /**
@@ -5658,16 +5686,16 @@ void Item_cond::neg_arguments(THD *thd)
      0 if an error occurred
 */ 
 
-Item *Item_cond::do_build_clone(THD *thd) const
+Item *Item_cond::deep_copy(THD *thd) const
 {
-  Item_cond *copy= (Item_cond *) get_copy(thd);
+  Item_cond *copy= (Item_cond *) shallow_copy_with_checks(thd);
   if (!copy)
     return 0;
   copy->list.empty();
 
   for (const Item &item : list)
   {
-    Item *arg_clone= item.build_clone(thd);
+    Item *arg_clone= item.deep_copy_with_checks(thd);
     if (!arg_clone)
       return 0;
     if (copy->list.push_back(arg_clone, thd->mem_root))
@@ -5832,6 +5860,17 @@ bool Item_func_null_predicate::count_sargable_conds(void *arg)
 {
   ((SELECT_LEX*) arg)->cond_count++;
   return 0;
+}
+
+
+bool Item_func_null_predicate::check_arguments() const
+{
+  DBUG_ASSERT(arg_count == 1);
+  if (args[0]->type_handler()->has_null_predicate())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           args[0]->type_handler()->name().ptr(), func_name());
+  return true;
 }
 
 
@@ -7068,7 +7107,7 @@ void Item_equal::add_const(THD *thd, Item *c)
 
     - Also, Field_str::test_if_equality_guarantees_uniqueness() guarantees
     that the comparison collation of all equalities handled by Item_equal
-    match the the collation of the field.
+    match the collation of the field.
 
     Therefore, at Item_equal::add_const() time all constants constXXX
     should be directly comparable to each other without an additional
@@ -7556,16 +7595,17 @@ bool Item_equal::fix_length_and_dec(THD *thd)
 }
 
 
-bool Item_equal::walk(Item_processor processor, bool walk_subquery, void *arg)
+bool Item_equal::walk(Item_processor processor,
+                      void *arg, item_walk_flags flags)
 {
   Item *item;
   Item_equal_fields_iterator it(*this);
   while ((item= it++))
   {
-    if (item->walk(processor, walk_subquery, arg))
+    if (item->walk(processor, arg, flags))
       return 1;
   }
-  return Item_func::walk(processor, walk_subquery, arg);
+  return Item_func::walk(processor, arg, flags);
 }
 
 
@@ -8009,9 +8049,9 @@ bool Item_equal::create_pushable_equalities(THD *thd,
   if (right_item)
   {
     Item_func_eq *eq= 0;
-    Item *left_item_clone= left_item->build_clone(thd);
+    Item *left_item_clone= left_item->deep_copy_with_checks(thd);
     Item *right_item_clone= !clone_const ?
-                            right_item : right_item->build_clone(thd);
+                            right_item : right_item->deep_copy_with_checks(thd);
     if (!left_item_clone || !right_item_clone)
       return true;
     eq= new (thd->mem_root) Item_func_eq(thd,
@@ -8028,8 +8068,8 @@ bool Item_equal::create_pushable_equalities(THD *thd,
         where a fixed item has non-fixed items inside it.
       */
       int16 new_flag= MARKER_IMMUTABLE;
-      right_item->walk(&Item::set_extraction_flag_processor, false,
-                       (void*)&new_flag);
+      right_item->walk(&Item::set_extraction_flag_processor,
+                       (void*)&new_flag, 0);
     }
   }
 
@@ -8038,8 +8078,8 @@ bool Item_equal::create_pushable_equalities(THD *thd,
     if (checker && !((item->*checker) (arg)))
       continue;
     Item_func_eq *eq= 0;
-    Item *left_item_clone= left_item->build_clone(thd);
-    Item *right_item_clone= item->build_clone(thd);
+    Item *left_item_clone= left_item->deep_copy_with_checks(thd);
+    Item *right_item_clone= item->deep_copy_with_checks(thd);
     if (!(left_item_clone && right_item_clone))
       return true;
     left_item_clone->set_item_equal(NULL);

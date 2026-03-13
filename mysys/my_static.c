@@ -92,6 +92,7 @@ const char *soundex_map=	  "01230120022455012623010202";
 	/* from my_malloc */
 USED_MEM* my_once_root_block=0;			/* pointer to first block */
 uint	  my_once_extra=ONCE_ALLOC_INIT;	/* Memory to alloc / block */
+size_t    my_once_allocated= 0;
 
 
 	/* from errors.c */

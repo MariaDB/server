@@ -364,7 +364,7 @@ ER_CANT_GET_WD
         slo "Nemôžem zistiť pracovný adresár (chybový kód: %iE)"
         spa "No puedo obtener directorio de trabajo (Error: %iE)"
         sw "Haiwezi kupata saraka ya kufanya kazi (kosa: %iE)"
-        swe "Kan inte inte läsa aktivt bibliotek. (Felkod: %iE)"
+        swe "Kan inte läsa aktivt bibliotek. (Felkod: %iE)"
         ukr "Не можу визначити робочу теку (помилка: %iE)"
 ER_CANT_LOCK  
         chi "无法锁定文件（错误号码：%iE）"
@@ -2379,7 +2379,7 @@ ER_WRONG_SUB_KEY
         ita "Sotto-parte della chiave errata. La parte di chiave utilizzata non e` una stringa o la lunghezza e` maggiore della parte di chiave"
         jpn "キーのプレフィックスが不正です。キーが文字列ではないか、プレフィックス長がキーよりも長いか、ストレージエンジンが一意索引のプレフィックス指定をサポートしていません。"
         kor "부정확한 서버 파트 키. 사용된 키 파트가 스트링이 아니거나 키 파트의 길이가 너무 깁니다."
-        nla "Foutief sub-gedeelte van de zoeksleutel. De gebruikte zoeksleutel is geen onderdeel van een string of of de gebruikte lengte is langer dan de zoeksleutel"
+        nla "Foutief sub-gedeelte van de zoeksleutel. De gebruikte zoeksleutel is geen onderdeel van een string of de gebruikte lengte is langer dan de zoeksleutel"
         nor "Feil delnøkkel. Den brukte delnøkkelen er ikke en streng eller den oppgitte lengde er lengre enn nøkkel lengden"
         norwegian-ny "Feil delnykkel. Den brukte delnykkelen er ikkje ein streng eller den oppgitte lengda er lengre enn nykkellengden"
         pol "Błędna podczę?ć klucza. Użyta czę?ć klucza nie jest łańcuchem lub użyta długo?ć  jest większa niż czę?ć klucza"
@@ -4737,7 +4737,7 @@ ER_FT_MATCHING_KEY_NOT_FOUND
         eng "Can't find FULLTEXT index matching the column list"
         est "Ei suutnud leida FULLTEXT indeksit, mis kattuks kasutatud tulpadega"
         fre "Impossible de trouver un index FULLTEXT correspondant à cette liste de colonnes"
-        ger "Kann keinen FULLTEXT-Index finden, der der Feldliste entspricht"
+        ger "Kann keinen FULLTEXT-Index finden, der Feldliste entspricht"
         geo "სვეტების სიის შესაბამისი FULLTEXT ინდექსი ვერ ვიპოვე"
         ita "Impossibile trovare un indice FULLTEXT che corrisponda all'elenco delle colonne"
         jpn "列リストに対応する全文索引(FULLTEXT)が見つかりません。"
@@ -5858,12 +5858,12 @@ ER_SLAVE_IGNORED_SSL_PARAMS
         sw "Vigezo vya SSL katika CHANGE MASTER vinapuuzwa kwa sababu mtumwa huyu wa MariaDB aliundwa bila usaidizi wa SSL; vinaweza kutumika baadaye ikiwa mtumwa wa MariaDB aliye na SSL ataanzishwa"
 ER_SERVER_IS_IN_SECURE_AUTH_MODE  
         chi "服务器在--secure-auth模式下运行，但'%s'@'%s'具有旧格式的密码;请将密码更改为新格式"
-        eng "Server is running in --secure-auth mode, but '%s'@'%s' has a password in the old format; please change the password to the new format"
-        ger "Server läuft im Modus --secure-auth, aber '%s'@'%s' hat ein Passwort im alten Format. Bitte Passwort ins neue Format ändern"
+        eng "User '%s'@'%s' has a password in the old format; please change the password to the new format"
+        ger "'%s'@'%s' hat ein Passwort im alten Format. Bitte Passwort ins neue Format ändern"
         geo "სერვერი --secure-auth რეჟიმშია გაშვებული, მაგრამ '%s'@'%s'-ის პაროლი ძველ ფორმატშია. შეცვალეთ პაროლი ახალი ფორმატით"
         jpn "サーバーは --secure-auth モードで稼働しています。しかし '%s'@'%s' は古い形式のパスワードを使用しています。新しい形式のパスワードに変更してください。"
         por "Servidor está rodando em --secure-auth modo, porêm '%s'@'%s' tem senha no formato antigo; por favor troque a senha para o novo formato"
-        rus "Сервер запущен в режиме --secure-auth (безопасной авторизации), но для пользователя '%s'@'%s' пароль сохранён в старом формате; необходимо обновить формат пароля"
+        rus "Пароль пользователя '%s'@'%s' сохранён в старом формате; необходимо обновить формат пароля"
         spa "El servidor se está ejecutando en modo --secure-auth, pero '%s'@'%s' tiene una contraseña con formato antiguo; por favor cambie la contraseña al nuevo formato"
         sw "Seva inafanya kazi katika --secure-auth mode, lakini '%s'@'%s' ina nenosiri katika umbizo la zamani; tafadhali badilisha nenosiri hadi umbizo jipya"
 ER_WARN_FIELD_RESOLVED  
@@ -8482,11 +8482,11 @@ ER_SLAVE_HEARTBEAT_FAILURE
         spa "Datos inesperados de latido (heartbeat) de maestro (master): %s"
         sw "Data isiyotarajiwa ya mapigo ya moyo ya bwana: %s"
 ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
-        chi "心跳周期的请求值是负的或超过允许的最大值（%u秒）"
-        eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%u seconds)"
-        geo "გულისცემის პერიოდის მოთოხვნილი მნიშვნელობა ან უარყოფითა, ან მაქსიმალურ დაშვებულ მნიშვნელობას (%u წამი) აჭარბებს"
-        spa "El valor requerido para el período de latido o es negativo o excede al máximo permitido (%u segundos)"
-        sw "Thamani iliyoombwa kwa kipindi cha mpigo wa moyo ni hasi au inazidi kiwango cha juu kinachoruhusiwa (sekunde %u)"
+        chi "心跳周期的请求值是负的或超过允许的最大值（%s秒）"
+        eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%s seconds)"
+        geo "გულისცემის პერიოდის მოთოხვნილი მნიშვნელობა ან უარყოფითა, ან მაქსიმალურ დაშვებულ მნიშვნელობას (%s წამი) აჭარბებს"
+        spa "El valor requerido para el período de latido o es negativo o excede al máximo permitido (%s segundos)"
+        sw "Thamani iliyoombwa kwa kipindi cha mpigo wa moyo ni hasi au inazidi kiwango cha juu kinachoruhusiwa (sekunde %s)"
 ER_UNUSED_14
         eng "You should never see it"
         geo "ამას ვერ უნდა ხედავდეთ"
@@ -9406,7 +9406,7 @@ ER_TABLE_HAS_NO_FT
         spa "La tabla no tiene índice FULLTEXT que soporte esta consulta (query)"
         sw "Jedwali halina faharasa ya FULLTEXT kuruhusisha utekelezaji wa hoja hii"
 
-ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRIGGER
+ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRG
         chi "无法在存储的函数或触发器中设置系统变量%.200s"
         eng "The system variable %.200s cannot be set in stored functions or triggers"
         geo "სისტემური ცვლადის %.200s მნიშვნელობას დამახსოვრებული ფუნქციებიდან და ტრიგერებიდან ვერ დააყენებთ"
@@ -10516,10 +10516,10 @@ ER_PLUGIN_INSTALLED
         spa "Ya instalado el enchufe (plugin) '%-.192s'"
         sw "Programu-jalizi '%-.192s' tayari imesakinishwa"
 ER_STATEMENT_TIMEOUT 70100
-        chi "查询执行中断（超出MAX_STATEMENT_TIME）"
-        eng "Query execution was interrupted (max_statement_time exceeded)"
-        sw "Utekelezaji wa hoja ulikatizwa (muda_wa_max_statement umepitwa)"
-        spa "Se ha interrumpido la ejecución de una consulta (query) (excedido max_statement_time)
+        chi "查询被中断：执行时间限制 %s 已超出"
+        eng "Query was interrupted: execution time limit %s exceeded"
+        sw "Hoja ilikatizwa: kikomo cha muda wa utekelezaji %s kimepitwa"
+        spa "Consulta interrumpida: límite de tiempo de ejecución %s excedido"
 ER_SUBQUERIES_NOT_SUPPORTED 42000
         chi "%s不支持子查询或存储的函数"
         eng "%s does not support subqueries or stored functions"
@@ -12272,7 +12272,7 @@ ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_CONSTRAINTS
 ER_SEQUENCE_TABLE_ORDER_BY
         eng "ORDER BY"
 ER_VARIABLE_IGNORED
-        eng "The variable '%s' is ignored. It only exists for compatibility with old installations and will be removed in a future release"
+        eng "The setting '%s' is ignored. It only exists for compatibility with old installations and will be removed in a future release"
 ER_INCORRECT_COLUMN_NAME_COUNT
         eng "Incorrect column name count for derived table"
         chi "派生表的列名计数不正确"
@@ -12328,3 +12328,63 @@ ER_WARN_MALFORMED_HINT
         eng "Hint %s is ignored as malformed"
 ER_WARN_HINTS_ON_INSERT_PART_OF_INSERT_SELECT
         eng "Optimizer hints at the INSERT part of a INSERT..SELECT statement are not supported"
+ER_INIT_SLAVE_ERROR
+        eng "Slave SQL thread aborted. Can't execute init_slave query due to error code %u: %s"
+ER_ACTIVE_CONNECTIONS_FOR_USER_TO_DROP
+        eng "Dropped users %s have active connections. Use KILL CONNECTION if they should not be used anymore."
+ER_ASSOC_ARRAY_ELEM_NOT_FOUND
+        eng "Element not found with key '%s'"
+ER_NULL_FOR_ASSOC_ARRAY_INDEX
+        eng "NULL key used for associative array '%s'"
+ER_NEED_NAMED_ASSOCIATION
+        eng "Initializing %s requires named association"
+ER_INVALID_USE_OF_ORA_JOIN
+        eng "Invalid usage of (+) operator"
+ER_INVALID_USE_OF_ORA_JOIN_CYCLE
+        eng "Invalid usage of (+) operator: cycle dependencies"
+ER_INVALID_USE_OF_ORA_JOIN_OUTER_REF
+        eng "Invalid usage of (+) operator with outer reference %s"
+ER_INVALID_USE_OF_ORA_JOIN_ONE_TABLE
+        eng "Invalid usage of (+) operator: both tables %s and %s are of %s type in the relation"
+ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC
+        eng "Invalid usage of (+) operator: used in OR, IN or ROW operation"
+ER_INVALID_USE_OF_ORA_JOIN_MIX
+        eng "Invalid usage of (+) operator: mixed with other type of join"
+WARN_ORA_JOIN_IGNORED
+        eng "Oracle outer join operator (+) ignored in '%-.100s'"
+ER_WARN_CONFLICTING_INDEX_HINT_FOR_TABLE
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this table)"
+ER_WARN_CONFLICTING_INDEX_HINT_FOR_KEY
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this key)"
+ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_TABLE
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for this table)"
+ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_KEY
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for the key)"
+ER_WARN_NO_IMPLICIT_QB_NAMES_IN_VIEW
+	eng "Implicit query block names are ignored for hints specified within VIEWs"
+ER_BINLOG_IN_USE
+	eng "Cannot execute RESET MASTER as the binlog is in use by a connected slave or other RESET MASTER or binlog reader. Check SHOW PROCESSLIST for "Binlog Dump" commands and use KILL to stop such readers"
+ER_BINLOG_IN_USE_TRX
+	eng "Cannot execute RESET MASTER as the binlog is in use by an active transaction"
+ER_CANNOT_INIT_ENGINE_BINLOG_READER
+        eng "Cannot initialize binlog reader from storage engine %s"
+ER_ENGINE_BINLOG_REQUIRES_GTID
+        eng "GTID starting position is required on master with --binlog-storage-engine enabled"
+ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG
+	eng "%s is not available when --binlog-storage-engine is enabled"
+ER_NOT_YET_SUPPORTED_ENGINE_BINLOG
+	eng "%s is not yet supported with --binlog-storage-engine"
+ER_ENGINE_BINLOG_NO_DELETE_DOMAIN
+	eng "The binlog engine does not support DELETE_DOMAIN_ID"
+ER_BINLOG_CANNOT_READ_STATE
+	eng "Error reading GTID state from the binlog"
+ER_BINLOG_POS_INVALID
+	eng "The binlog offset %llu is invalid"
+ER_READING_BINLOG_FILE
+	eng "Error reading from page number %u in binlog file (error code: %d)"
+ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM
+        eng "Broken Partial_rows_log_event stream. Found %s, expected Partial_rows_log_event %u / %u"
+ER_SLAVE_INCOMPATIBLE_TABLE_DEF
+        eng "Table structure for binlog event is not compatible with the table definition on this slave: %s"
+ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+        eng "Data type '%-.64s' doesn't support %s attribute."

@@ -1676,6 +1676,7 @@ use test;
 # THD::create_tmp_table_def_key
 #
 connect con1,localhost,root,,;
+change_user root,,;
 CREATE TEMPORARY TABLE test.t (a INT);
 WITH cte AS (SELECT 1) SELECT * FROM cte;
 1

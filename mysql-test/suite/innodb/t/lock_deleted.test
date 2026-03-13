@@ -2,8 +2,6 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
---source include/count_sessions.inc
-
 connect(stop_purge, localhost, root,,);
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connect(delete, localhost, root,,);
@@ -68,5 +66,3 @@ disconnect stop_purge;
 
 connection default;
 DROP TABLE t1;
-
---source include/wait_until_count_sessions.inc

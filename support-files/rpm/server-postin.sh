@@ -1,5 +1,6 @@
 if [ -f /usr/lib/systemd/system/mariadb.service -a -x /usr/bin/systemctl ]; then
   systemd_conf=/etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf
+  systemd-tmpfiles --create mariadb.conf
   if [ -x %{_bindir}/mariadb-service-convert -a ! -f "${systemd_conf}" ]; then
     # Either fresh install or upgrade non-systemd -> systemd
     mkdir -p /etc/systemd/system/mariadb.service.d

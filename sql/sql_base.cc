@@ -17,6 +17,7 @@
 
 /* Basic functions needed by many modules */
 
+#include "lex_ident_sys.h"
 #include "mariadb.h"
 #include "sql_base.h"                           // setup_table_map
 #include "sql_list.h"
@@ -977,6 +978,8 @@ int close_thread_tables(THD *thd)
 
     if (thd->locked_tables_mode == LTM_LOCK_TABLES)
     {
+      if (thd->lock)
+        (void)thd->binlog_flush_pending_rows_event(TRUE);
       error= 0;
       goto end;
     }
@@ -1285,7 +1288,7 @@ TABLE_LIST* unique_table_in_select_list(THD *thd, TABLE_LIST *table, SELECT_LEX 
   Item *item;
   while ((item= it++))
   {
-    if (item->walk(&Item::subselect_table_finder_processor, FALSE, &param))
+    if (item->walk(&Item::subselect_table_finder_processor, &param, 0))
     {
       if (param.dup == NULL)
         return ERROR_TABLE;
@@ -2042,7 +2045,14 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
              table->query_id == 0))
         {
           int distance= ((int) table->reginfo.lock_type -
-                         (int) table_list->lock_type);
+                         (int) table_list->lock_type) * 2;
+          /*
+            if we need a table for inserting, make sure it has
+            its internal tables (a.k.a. sequences) ready
+          */
+          if (table->internal_tables &&
+              table_list->for_insert_data == !table->internal_tables->table)
+            distance|= 1;
 
           /*
             Find a table that either has the exact lock type requested,
@@ -2445,6 +2455,11 @@ retry_share:
   DBUG_ASSERT(table->file->pushed_cond == NULL);
   table_list->updatable= 1; // It is not derived table nor non-updatable VIEW
   table_list->table= table;
+  if (table_list->linked_table)
+  {
+    /* Update link for sequence tables in default */
+    table_list->linked_table->table= table;
+  }
 
   if (!from_share && table->vcol_fix_expr(thd))
     DBUG_RETURN(true);
@@ -3203,11 +3218,10 @@ check_and_update_table_version(THD *thd,
   @retval  FALSE success, version in Sroutine_hash_entry has been updated
 */
 
-static bool
-check_and_update_routine_version(THD *thd, Sroutine_hash_entry *rt,
-                                 sp_head *sp)
+static bool check_and_update_routine_version(THD *thd, Sroutine_hash_entry *rt,
+                                             sp_head *sp)
 {
-  ulong spc_version= sp_cache_version();
+  ulong spc_version= thd->sp_cache_version();
   /* sp is NULL if there is no such routine. */
   ulong version= sp ? sp->sp_cache_version() : spc_version;
   /*
@@ -3217,7 +3231,7 @@ check_and_update_routine_version(THD *thd, Sroutine_hash_entry *rt,
     Sic: version != spc_version <--> sp is not NULL.
   */
   if (rt->m_sp_cache_version != version ||
-      (version != spc_version && !sp->is_invoked()))
+      (version < spc_version && !sp->is_invoked()))
   {
     if (thd->m_reprepare_observer &&
         thd->m_reprepare_observer->report_error(thd))
@@ -3851,7 +3865,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
   switch (mdl_type)
   {
   case MDL_key::PACKAGE_BODY:
-    DBUG_ASSERT(rt != (Sroutine_hash_entry*)prelocking_ctx->sroutines_list.first);
+    DBUG_ASSERT(rt != prelocking_ctx->sroutines_list.first);
     /*
       No need to cache the package body itself.
       It gets cached during open_and_process_routine()
@@ -3872,7 +3886,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
         the binlog as only the statements in the called procedure show
         up there, not the CALL itself.
       */
-      if (rt != (Sroutine_hash_entry*)prelocking_ctx->sroutines_list.first ||
+      if (rt != prelocking_ctx->sroutines_list.first ||
           mdl_type != MDL_key::PROCEDURE)
       {
         /*
@@ -5033,11 +5047,12 @@ bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
 
 
 static TABLE_LIST *internal_table_exists(TABLE_LIST *global_list,
-                                         const char *table_name)
+                                         TABLE_LIST *table)
 {
   do
   {
-    if (global_list->table_name.str == table_name)
+    if (global_list->table_name.str == table->table_name.str &&
+        global_list->db.str == table->db.str)
       return global_list;
   } while ((global_list= global_list->next_global));
   return 0;
@@ -5058,8 +5073,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
     /*
       Skip table if already in the list. Can happen with prepared statements
     */
-    if ((tmp= internal_table_exists(global_table_list,
-                                    tables->table_name.str)))
+    if ((tmp= internal_table_exists(global_table_list, tables)))
     {
       /*
         Use the original value for the next local, used by the
@@ -5067,7 +5081,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
         next_local value as it may have been changed by a previous
         statement using the same table.
       */
-      tables->next_local= tmp;
+      tmp->linked_table= tables;
       continue;
     }
 
@@ -5082,10 +5096,10 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
                                       &prelocking_ctx->query_tables_last,
                                       tables->for_insert_data);
     /*
-      Store link to the new table_list that will be used by open so that
-      Item_func_nextval() can find it
+      Store link to the sequences table so that we can in open_table() update
+      it to point to the opened table.
     */
-    tables->next_local= tl;
+    tl->linked_table= tables;
     DBUG_PRINT("info", ("table name: %s added", tables->table_name.str));
   } while ((tables= tables->next_global));
   DBUG_RETURN(FALSE);
@@ -5199,11 +5213,31 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
 {
   DBUG_ENTER("handle_table");
   TABLE *table= table_list->table;
+  bool trigger_prelocking_needed=
+      (table_list->lock_type >= TL_FIRST_WRITE) ? TRUE : FALSE;
   /* We rely on a caller to check that table is going to be changed. */
   DBUG_ASSERT(table_list->lock_type >= TL_FIRST_WRITE ||
+              ((sql_command_flags[thd->lex->sql_command] & CF_INSERTS_DATA)
+               && table_list->lock_type == TL_READ) ||
               thd->lex->default_used);
 
-  if (table_list->trg_event_map && table_list->lock_type >= TL_FIRST_WRITE)
+#ifdef WITH_WSREP
+  /*
+    Only do trigger prelocking for tables that are doing to be modified (with
+    a write lock), but ignore rest for Galera additional keys for the
+    referenced/foreign table are needed to avoid potential MDL conflicts with
+    concurrent update and DDLs.
+  */
+  if (WSREP(thd) && !thd->wsrep_applier &&
+      wsrep_is_active(thd) &&
+      (sql_command_flags[thd->lex->sql_command] & CF_INSERTS_DATA) &&
+      table_list->trg_event_map && !table->triggers)
+  {
+    trigger_prelocking_needed= TRUE;
+  }
+#endif // WITH_WSREP
+
+  if (table_list->trg_event_map && trigger_prelocking_needed)
   {
     if (table->triggers)
     {
@@ -5460,12 +5494,6 @@ static bool check_lock_and_start_stmt(THD *thd,
   int error;
   thr_lock_type lock_type;
   DBUG_ENTER("check_lock_and_start_stmt");
-
-  /*
-    Prelocking placeholder is not set for TABLE_LIST that
-    are directly used by TOP level statement.
-  */
-  DBUG_ASSERT(table_list->prelocking_placeholder == TABLE_LIST::PRELOCK_NONE);
 
   /*
     TL_WRITE_DEFAULT and TL_READ_DEFAULT are supposed to be parser only
@@ -5980,6 +6008,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
         found_first_not_own= 1;
       if (!table->placeholder())
       {
+        DBUG_ASSERT(table->lock_type != TL_IGNORE);
         *(ptr++)= table->table;
         if (!found_first_not_own)
           table->table->query_id= thd->query_id;
@@ -6307,7 +6336,13 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
        the replacing item.
       */
       if (*ref && (*ref)->is_explicit_name())
+      {
+        if (arena) // We've activated and deactivated stmt arena above
+          arena= thd->activate_stmt_arena_if_needed(&backup);
         item->set_name(thd, (*ref)->name);
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
+      }
       if (register_tree_change)
         thd->change_item_tree(ref, item);
       else
@@ -8230,12 +8265,23 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
 
 int setup_returning_fields(THD* thd, TABLE_LIST* table_list)
 {
+  GRANT_INFO *saved_grant;
+  int res= 0;
+
   if (!thd->lex->has_returning())
     return 0;
-  return setup_wild(thd, table_list, thd->lex->returning()->item_list, NULL,
-                    thd->lex->returning(), true)
-      || setup_fields(thd, Ref_ptr_array(), thd->lex->returning()->item_list,
-                      MARK_COLUMNS_READ, NULL, NULL, 0, THD_WHERE::RETURNING);
+
+  saved_grant= &table_list->table->grant;
+  table_list->table->grant.want_privilege|= SELECT_ACL;
+
+  res= setup_wild(thd, table_list, thd->lex->returning()->item_list, NULL,
+                     thd->lex->returning(), true)
+       || setup_fields(thd, Ref_ptr_array(), thd->lex->returning()->item_list,
+                       MARK_COLUMNS_READ, NULL, NULL, 0, THD_WHERE::RETURNING);
+
+  table_list->table->grant= *saved_grant;
+
+  return res;
 }
 
 
@@ -8373,8 +8419,31 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
       {
         setup_table_map(table, table_list, tablenr);
 
-        if (table_list->process_index_hints(table))
-          DBUG_RETURN(1);
+        /*
+          Conditions to meet for optimizer hints resolution:
+          (1)  QB hints initialized
+          (2)  Table hints are not adjusted yet
+          (3)  Table is not in the INSERT part of INSERT..SELECT
+        */
+        if (qb_hints &&                          // (1)
+            !table_list->opt_hints_table &&      // (2)
+            !(select_insert && is_insert_part))  // (3)
+        {
+          table_list->opt_hints_table=
+              qb_hints->fix_hints_for_table(table_list->table,
+                                            table_list->alias);
+        }
+
+        if (!table_list->opt_hints_table ||
+            !table_list->opt_hints_table->update_index_hint_maps(thd, table))
+        {
+          /*
+            Old-style index hints are processed only if
+            new-style hints are not specified
+          */
+          if (table_list->process_index_hints(table))
+            DBUG_RETURN(1);
+        }
       }
       tablenr++;
       /*
@@ -8387,20 +8456,6 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
         DBUG_RETURN(1);
       }
 
-      /*
-        Conditions to meet for optimizer hints resolution:
-        (1)  QB hints initialized
-        (2)  Table hints are not adjusted yet
-        (3)  Table is not in the INSERT part of INSERT..SELECT
-      */
-      if (qb_hints &&                          // (1)
-          !table_list->opt_hints_table &&      // (2)
-          !(select_insert && is_insert_part))  // (3)
-      {
-        table_list->opt_hints_table=
-            qb_hints->fix_hints_for_table(table_list->table,
-                                          table_list->alias);
-      }
     }
     if (select_insert && is_insert_part)
     {
@@ -8425,12 +8480,22 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
       }
       else
       {
-        table_list->table->tablenr= table_list->tablenr_exec;
-        table_list->table->map= table_list->map_exec;
-        table_list->table->maybe_null= table_list->maybe_null_exec;
-        table_list->table->pos_in_table_list= table_list;
-        if (table_list->process_index_hints(table_list->table))
-          DBUG_RETURN(1);
+        TABLE *table= table_list->table;
+        table->tablenr= table_list->tablenr_exec;
+        table->map= table_list->map_exec;
+        table->maybe_null= table_list->maybe_null_exec;
+        table->pos_in_table_list= table_list;
+
+        if (!table_list->opt_hints_table ||
+            !table_list->opt_hints_table->update_index_hint_maps(thd, table))
+        {
+          /*
+            Old-style index hints are processed only if
+            new-style hints are not specified
+          */
+          if (table_list->process_index_hints(table))
+            DBUG_RETURN(1);
+        }
       }
       select_lex->leaf_tables.push_back(table_list);
     }
@@ -8903,15 +8968,17 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
   return FALSE;
 }
 
+
 /*
   Fix all conditions and outer join expressions.
 
   SYNOPSIS
     setup_conds()
-    thd     thread handler
-    tables  list of tables for name resolving (select_lex->table_list)
-    leaves  list of leaves of join table tree (select_lex->leaf_tables)
-    conds   WHERE clause
+    thd            thread handler
+    tables         list of tables for name resolving (select_lex->table_list)
+    leaves         list of leaves of join table tree (select_lex->leaf_tables)
+    conds          WHERE clause
+    all_fields     SELECT list + hidden fields
 
   DESCRIPTION
     TODO
@@ -8922,7 +8989,7 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
 */
 
 int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
-                COND **conds)
+                COND **conds, List<Item> *all_fields)
 {
   SELECT_LEX *select_lex= thd->lex->current_select;
   TABLE_LIST *table= NULL;	// For HP compilers
@@ -8974,6 +9041,10 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
       wrap_ident(thd, conds);
     (*conds)->mark_as_condition_AND_part(NO_JOIN_NEST);
     if ((*conds)->fix_fields_if_needed_for_bool(thd, conds))
+      goto err_no_arena;
+
+    if (setup_oracle_join(thd, conds, tables, select_lex->table_list,
+                          &select_lex->top_join_list, all_fields))
       goto err_no_arena;
   }
 
@@ -9048,8 +9119,8 @@ static void unwind_stored_field_offsets(const List<Item> &fields, Item_field *en
     if (f->stored_in_db())
     {
       TABLE *table= f->table;
-      f->move_field_offset((my_ptrdiff_t) (table->record[0] -
-                                           table->record[1]));
+      table->field[f->field_index]->move_field_offset(
+               (my_ptrdiff_t) (table->record[0] - table->record[1]));
     }
   }
 }
@@ -9148,8 +9219,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
         which contains row before update (see MDEV-13417)
       */
       if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
-        rfield->move_field_offset((my_ptrdiff_t) (table->record[1] -
-                                                  table->record[0]));
+        table->field[rfield->field_index]->move_field_offset(
+                 (my_ptrdiff_t) (table->record[1] - table->record[0]));
     }
   }
 
@@ -9203,7 +9274,8 @@ void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *table)
     Item *item;
 
     while ((item= it++))
-      item->walk(&Item::switch_to_nullable_fields_processor, 1, field);
+      item->walk(&Item::switch_to_nullable_fields_processor,
+                 field, WALK_SUBQUERY);
   }
 }
 
@@ -9229,7 +9301,9 @@ void switch_defaults_to_nullable_trigger_fields(TABLE *table)
     for (Field **field_ptr= table->default_field; *field_ptr ; field_ptr++)
     {
       Field *field= (*field_ptr);
-      field->default_value->expr->walk(&Item::switch_to_nullable_fields_processor, 1, trigger_field);
+      field->default_value->expr->
+        walk(&Item::switch_to_nullable_fields_processor,
+             trigger_field, WALK_SUBQUERY);
       *field_ptr= (trigger_field[field->field_index]);
     }
   }

@@ -76,6 +76,7 @@ Warnings:
 Note	1976	Can't drop role 'role_1'; it doesn't exist
 DROP ROLE role_1;
 ERROR HY000: Operation DROP ROLE failed for 'role_1'
+disconnect user_a;
 DROP USER u1@localhost;
 CREATE ROLE r;
 GRANT SHOW DATABASES ON *.* TO r;

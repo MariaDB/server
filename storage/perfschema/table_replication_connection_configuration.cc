@@ -184,6 +184,7 @@ void table_replication_connection_configuration::make_row(Master_info *mi)
 {
   DBUG_ENTER("table_replication_connection_configuration::make_row");
   char * temp_store;
+  const char *const_temp_store;
   bool error= false;
 
   m_row_exists= false;
@@ -214,50 +215,52 @@ void table_replication_connection_configuration::make_row(Master_info *mi)
   else
     m_row.using_gtid= PS_USE_GTID_SLAVE_POS;
 
-#ifdef HAVE_OPENSSL
-  m_row.ssl_allowed= mi->ssl? PS_SSL_ALLOWED_YES:PS_SSL_ALLOWED_NO;
-#else
-  m_row.ssl_allowed= mi->ssl? PS_SSL_ALLOWED_IGNORED:PS_SSL_ALLOWED_NO;
-#endif
+  m_row.ssl_allowed= mi->master_ssl ?
+  #ifdef HAVE_OPENSSL
+    PS_SSL_ALLOWED_YES
+  #else
+    PS_SSL_ALLOWED_IGNORED
+  #endif
+  : PS_SSL_ALLOWED_NO;
 
-  temp_store= (char*)mi->ssl_ca;
-  m_row.ssl_ca_file_length= static_cast<uint>(strlen(temp_store));
-  memcpy(m_row.ssl_ca_file, temp_store, m_row.ssl_ca_file_length);
+  const_temp_store= mi->master_ssl_ca;
+  m_row.ssl_ca_file_length= static_cast<uint>(strlen(const_temp_store));
+  memcpy(m_row.ssl_ca_file, const_temp_store, m_row.ssl_ca_file_length);
 
-  temp_store= (char*)mi->ssl_capath;
-  m_row.ssl_ca_path_length= static_cast<uint>(strlen(temp_store));
-  memcpy(m_row.ssl_ca_path, temp_store, m_row.ssl_ca_path_length);
+  const_temp_store= mi->master_ssl_capath;
+  m_row.ssl_ca_path_length= static_cast<uint>(strlen(const_temp_store));
+  memcpy(m_row.ssl_ca_path, const_temp_store, m_row.ssl_ca_path_length);
 
-  temp_store= (char*)mi->ssl_cert;
-  m_row.ssl_certificate_length= static_cast<uint>(strlen(temp_store));
-  memcpy(m_row.ssl_certificate, temp_store, m_row.ssl_certificate_length);
+  const_temp_store= mi->master_ssl_cert;
+  m_row.ssl_certificate_length= static_cast<uint>(strlen(const_temp_store));
+  memcpy(m_row.ssl_certificate, const_temp_store, m_row.ssl_certificate_length);
 
-  temp_store= (char*)mi->ssl_cipher;
-  m_row.ssl_cipher_length= static_cast<uint>(strlen(temp_store));
-  memcpy(m_row.ssl_cipher, temp_store, m_row.ssl_cipher_length);
+  const_temp_store= mi->master_ssl_cipher;
+  m_row.ssl_cipher_length= static_cast<uint>(strlen(const_temp_store));
+  memcpy(m_row.ssl_cipher, const_temp_store, m_row.ssl_cipher_length);
 
-  temp_store= (char*)mi->ssl_key;
-  m_row.ssl_key_length= static_cast<uint>(strlen(temp_store));
-  memcpy(m_row.ssl_key, temp_store, m_row.ssl_key_length);
+  const_temp_store= mi->master_ssl_key;
+  m_row.ssl_key_length= static_cast<uint>(strlen(const_temp_store));
+  memcpy(m_row.ssl_key, const_temp_store, m_row.ssl_key_length);
 
-  if (mi->ssl_verify_server_cert)
+  if (mi->master_ssl_verify_server_cert)
     m_row.ssl_verify_server_certificate= PS_RPL_YES;
   else
     m_row.ssl_verify_server_certificate= PS_RPL_NO;
 
-  temp_store= (char*)mi->ssl_crl;
-  m_row.ssl_crl_file_length= static_cast<uint>(strlen(temp_store));
-  memcpy(m_row.ssl_crl_file, temp_store, m_row.ssl_crl_file_length);
+  const_temp_store= mi->master_ssl_crl;
+  m_row.ssl_crl_file_length= static_cast<uint>(strlen(const_temp_store));
+  memcpy(m_row.ssl_crl_file, const_temp_store, m_row.ssl_crl_file_length);
 
-  temp_store= (char*)mi->ssl_crlpath;
-  m_row.ssl_crl_path_length= static_cast<uint>(strlen(temp_store));
-  memcpy(m_row.ssl_crl_path, temp_store, m_row.ssl_crl_path_length);
+  const_temp_store= mi->master_ssl_crlpath;
+  m_row.ssl_crl_path_length= static_cast<uint>(strlen(const_temp_store));
+  memcpy(m_row.ssl_crl_path, const_temp_store, m_row.ssl_crl_path_length);
 
   m_row.connection_retry_interval= (unsigned int) mi->connect_retry;
 
   m_row.connection_retry_count= mi->retry_count;
 
-  m_row.heartbeat_interval= (double)mi->heartbeat_period;
+  m_row.heartbeat_interval= mi->master_heartbeat_period / 1000.0;
 
   m_row.ignore_server_ids= convert_array_to_str(&mi->ignore_server_ids);
   if (m_row.ignore_server_ids == NULL)

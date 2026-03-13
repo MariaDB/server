@@ -39,9 +39,12 @@ SET DEBUG_SYNC = "now WAIT_FOR sync_point_reached";
 --write_line "restart:$start_mysqld_params" $_expect_file_name
 # If the bug is present, FTWRL times out on node_1 in couple of
 # seconds and node_2 fails to join.
---sleep 10
 
 --connection node_1_ctrl
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment' and VARIABLE_VALUE = 'Donor/Desynced'
+--source include/wait_condition.inc
+--echo # Node should be in Donor/Desynced state as node_2 has not yet joined
+SHOW STATUS LIKE 'wsrep_local_state_comment';
 SET DEBUG_SYNC = "now SIGNAL sync_point_continue";
 
 --connection node_1
@@ -56,3 +59,4 @@ SET DEBUG_SYNC = "RESET";
 DROP TABLE t1;
 
 --source include/auto_increment_offset_restore.inc
+--source include/galera_end.inc

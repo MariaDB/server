@@ -1,0 +1,18 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_2;
+SET SESSION max_error_count=0;
+SET GLOBAL wsrep_ignore_apply_errors = 0;
+GRANT SELECT ON *.* TO dummy@'localhost';
+ERROR 28000: Can't find any matching row in the user table
+SHOW WARNINGS;
+Level	Code	Message
+# Node_2 is on inconsistency state so kill it
+SET SESSION wsrep_sync_wait = 0;
+Killing server ...
+connection node_1;
+connection node_2;
+SET GLOBAL wsrep_ignore_apply_errors = DEFAULT;
+call mtr.add_suppression("Inconsistency detected: Inconsistent by consensus on");

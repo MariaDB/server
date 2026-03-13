@@ -762,6 +762,7 @@ connection user;
 CALL p_invoker();
 ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 CALL p_definer();
+disconnect user;
 connection default;
 DROP TABLE t1;
 DROP PROCEDURE p_definer;

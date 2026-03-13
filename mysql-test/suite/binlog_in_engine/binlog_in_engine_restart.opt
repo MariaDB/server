@@ -1,0 +1,2 @@
+--innodb-binlog-state-interval=65536
+--binlog-directory=binlogs

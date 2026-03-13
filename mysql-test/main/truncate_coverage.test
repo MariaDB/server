@@ -95,13 +95,11 @@ connection con1;
 --error ER_WRONG_MRG_TABLE
 --reap
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 connection con2;
 --echo # Reaping: FLUSH TABLES
 --reap
 disconnect con2;
---source include/wait_until_disconnected.inc
 
 connection default;
 SET DEBUG_SYNC= 'RESET';

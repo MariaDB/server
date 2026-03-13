@@ -544,7 +544,7 @@ int ha_tina::encode_quote(const uchar *buf)
   char attribute_buffer[1024];
   String attribute(attribute_buffer, sizeof(attribute_buffer),
                    &my_charset_bin);
-  bool ietf_quotes= table_share->option_struct->ietf_quotes;
+  bool ietf_quotes= option_struct->ietf_quotes;
   MY_BITMAP *org_bitmap= dbug_tmp_use_all_columns(table, &table->read_set);
   buffer.length(0);
 
@@ -679,7 +679,7 @@ int ha_tina::find_current_row(uchar *buf)
   int eoln_len;
   int error;
   bool read_all;
-  bool ietf_quotes= table_share->option_struct->ietf_quotes;
+  bool ietf_quotes= option_struct->ietf_quotes;
   DBUG_ENTER("ha_tina::find_current_row");
 
   free_root(&blobroot, MYF(0));
@@ -1813,8 +1813,7 @@ int ha_tina::reset(void)
 bool ha_tina::check_if_incompatible_data(HA_CREATE_INFO *info_arg,
 					   uint table_changes)
 {
-  if (info_arg->option_struct->ietf_quotes !=
-      table_share->option_struct->ietf_quotes)
+  if (info_arg->option_struct->ietf_quotes != option_struct->ietf_quotes)
     return COMPATIBLE_DATA_NO;
 
   return COMPATIBLE_DATA_YES;

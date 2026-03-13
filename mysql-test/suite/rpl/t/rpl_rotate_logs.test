@@ -39,7 +39,7 @@ start slave;
 chmod 0600  $MYSQLD_SLAVE_DATADIR/master.info;
 # It will fail again because the file is empty so the slave cannot get valuable
 # info about how to connect to the master from it (failure in
-# init_strvar_from_file() in init_master_info()).
+# InfoFile::Persistent::load_from() in init_master_info()).
 --error 1201
 start slave;
 --replace_result $MASTER_MYPORT MASTER_PORT

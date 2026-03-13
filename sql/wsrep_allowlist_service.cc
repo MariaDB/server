@@ -36,8 +36,31 @@ bool Wsrep_allowlist_service::allowlist_cb (
   const wsrep::const_buffer& value)
   WSREP_NOEXCEPT
 {
+  // Allow all connections if user has not given list of
+  // allowed addresses or stored them on mysql.wsrep_allowlist
+  // table. Note that table is available after SEs are initialized.
+  bool res=true; 
   std::string string_value(value.data());
-  bool res= wsrep_schema->allowlist_check(key, string_value);
+  if (wsrep_schema)
+  {
+    res= wsrep_schema->allowlist_check(key, string_value);
+  }
+  // If wsrep_schema is not initialized check if user has given
+  // list of addresses where connections are allowed
+  else if (wsrep_allowlist && wsrep_allowlist[0] != '\0')
+  {
+    res= false; // Allow only given addresses
+    std::vector<std::string> allowlist;
+    wsrep_split_allowlist(allowlist);
+    for(auto allowed : allowlist)
+    {
+      if (!string_value.compare(allowed))
+      {
+        res= true; // Address found allow connection
+        break;
+      }
+    }
+  }
   return res;
 }
 

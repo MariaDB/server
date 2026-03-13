@@ -155,13 +155,12 @@ public:
 		friend class mtr_buf_t;
 	};
 
-	typedef sized_ilist<block_t> list_t;
+	typedef ilist<block_t> list_t;
 
 	/** Default constructor */
 	mtr_buf_t()
 		:
-		m_heap(),
-		m_size()
+		m_heap()
 	{
 		push_back(&m_first_block);
 	}
@@ -183,11 +182,10 @@ public:
 			m_list.clear();
 			m_list.push_back(m_first_block);
 		} else {
+			ut_ad(front() == &m_first_block);
+			ut_ad(back() == &m_first_block);
 			m_first_block.init();
-			ut_ad(m_list.size() == 1);
 		}
-
-		m_size = 0;
 	}
 
 	/**
@@ -217,13 +215,7 @@ public:
 	void close(const byte* ptr)
 	{
 		ut_ad(!m_list.empty());
-		block_t*	block = back();
-
-		m_size -= block->used();
-
-		block->close(ptr);
-
-		m_size += block->used();
+		back()->close(ptr);
 	}
 
 	/**
@@ -241,8 +233,6 @@ public:
 
 		block = has_space(size) ? back() : add_block();
 
-		m_size += size;
-
 		/* See ISO C++03 14.2/4 for why "template" is required. */
 
 		return(block->template push<Type>(size));
@@ -257,73 +247,15 @@ public:
 		while (len > 0) {
 			uint32_t n_copied = std::min(len,
 						     uint32_t(MAX_DATA_SIZE));
-			::memmove(push<byte*>(n_copied), ptr, n_copied);
+			::memcpy(push<byte*>(n_copied), ptr, n_copied);
 
 			ptr += n_copied;
 			len -= n_copied;
 		}
 	}
 
-	/**
-	Returns a pointer to an element in the buffer. const version.
-	@param pos	position of element in bytes from start
-	@return	pointer to element */
-	template <typename Type>
-	const Type at(ulint pos) const
-	{
-		block_t*	block = const_cast<block_t*>(
-			const_cast<mtr_buf_t*>(this)->find(pos));
-
-		return(reinterpret_cast<Type>(block->begin() + pos));
-	}
-
-	/**
-	Returns a pointer to an element in the buffer. non const version.
-	@param pos	position of element in bytes from start
-	@return	pointer to element */
-	template <typename Type>
-	Type at(ulint pos)
-	{
-		block_t*	block = const_cast<block_t*>(find(pos));
-
-		return(reinterpret_cast<Type>(block->begin() + pos));
-	}
-
-	/**
-	Returns the size of the total stored data.
-	@return	data size in bytes */
-	ulint size() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-#ifdef UNIV_DEBUG
-		ulint	total_size = 0;
-
-		for (list_t::iterator it = m_list.begin(), end = m_list.end();
-		     it != end; ++it) {
-			total_size += it->used();
-		}
-
-		ut_ad(total_size == m_size);
-#endif /* UNIV_DEBUG */
-		return(m_size);
-	}
-
-	/**
-	Iterate over each block and call the functor.
-	@return	false if iteration was terminated. */
-	template <typename Functor>
-	bool for_each_block(const Functor& functor) const
-	{
-		for (list_t::iterator it = m_list.begin(), end = m_list.end();
-		     it != end; ++it) {
-
-			if (!functor(&*it)) {
-				return false;
-			}
-		}
-
-		return(true);
-	}
+	list_t::const_iterator begin() const { return m_list.begin(); }
+	list_t::const_iterator end() const { return m_list.end(); }
 
 	/**
 	@return the first block */
@@ -377,29 +309,6 @@ private:
 		return(back()->m_used + size <= MAX_DATA_SIZE);
 	}
 
-	/** Find the block that contains the pos.
-	@param pos	absolute offset, it is updated to make it relative
-			to the block
-	@return the block containing the pos. */
-	block_t* find(ulint& pos)
-	{
-		ut_ad(!m_list.empty());
-
-		for (list_t::iterator it = m_list.begin(), end = m_list.end();
-		     it != end; ++it) {
-
-			if (pos < it->used()) {
-				ut_ad(it->used() >= pos);
-
-				return &*it;
-			}
-
-			pos -= it->used();
-		}
-
-		return NULL;
-	}
-
 	/**
 	Allocate and add a new block to m_list */
 	block_t* add_block()
@@ -424,9 +333,6 @@ private:
 
 	/** Allocated blocks */
 	list_t			m_list;
-
-	/** Total size used by all blocks */
-	ulint			m_size;
 
 	/** The default block, should always be the first element. This
 	is for backwards compatibility and to avoid an extra heap allocation

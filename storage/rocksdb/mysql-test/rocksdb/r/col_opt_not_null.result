@@ -914,9 +914,11 @@ DROP TABLE t1;
 ########################
 set @col_opt_not_nullsave_time_zone=@@time_zone;
 set time_zone='UTC';
-DROP TABLE IF EXISTS t1;
 set @save_time_zone=@@time_zone;
 set time_zone='UTC';
+set old_mode=2_digit_year;
+Warnings:
+Warning	1287	'2_DIGIT_YEAR' is deprecated and will be removed in a future release
 CREATE TABLE t1 (
 d DATE NOT NULL,
 dt DATETIME NOT NULL,

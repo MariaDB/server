@@ -50,19 +50,6 @@ set local sql_mode="";
 # check that DDL statements on temporary tables
 # are compatible with FTRWL. 
 call mtr.add_suppression("BINLOG_BASE64_EVENT: Error executing row event.*error code: 1223");
-drop tables if exists t1_base, t2_base, t3_trans;
-drop tables if exists tm_base, tm_base_temp;
-drop database if exists mysqltest1;
-# We're going to test ALTER DATABASE UPGRADE
-drop database if exists `#mysql50#mysqltest-2`;
-drop procedure if exists p1;
-drop function if exists f1;
-drop view if exists v1;
-drop procedure if exists p2;
-drop function if exists f2_base;
-drop function if exists f2_temp;
-drop event if exists e1;
-drop event if exists e2;
 create table t1_base(i int) engine=myisam;
 create table t2_base(j int) engine=myisam;
 create table t3_trans(i int) engine=innodb;

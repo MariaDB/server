@@ -36,11 +36,13 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len);
   This function quite the same as MYSQL_BIN_LOG::write_cache(),
   with the exception that here we write in buffer instead of log file.
 
+  @param log_position position to start writing the cache from
   @param len  total amount of data written
   @return     wsrep error status
  */
 int  wsrep_write_cache(THD*      thd,
                        IO_CACHE* cache,
+                       size_t    log_position,
                        size_t*   len);
 
 /* Dump replication buffer to disk */

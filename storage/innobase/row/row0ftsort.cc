@@ -70,8 +70,8 @@ row_merge_create_fts_sort_index(
 				is created */
 	dict_table_t*	table,	/*!< in,out: table that FTS index
 				is being created on */
-	ibool*		opt_doc_id_size)
-				/*!< out: whether to use 4 bytes
+	bool		opt_doc_id_size)
+				/*!< in: whether to use 4 bytes
 				instead of 8 bytes integer to
 				store Doc ID during sort */
 {
@@ -117,29 +117,8 @@ row_merge_create_fts_sort_index(
 	field->col = static_cast<dict_col_t*>(
 		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->mtype = DATA_INT;
-	*opt_doc_id_size = FALSE;
 
-	/* Check whether we can use 4 bytes instead of 8 bytes integer
-	field to hold the Doc ID, thus reduce the overall sort size */
-	if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_ADD_DOC_ID)) {
-		/* If Doc ID column is being added by this create
-		index, then just check the number of rows in the table */
-		if (dict_table_get_n_rows(table) < MAX_DOC_ID_OPT_VAL) {
-			*opt_doc_id_size = TRUE;
-		}
-	} else {
-		doc_id_t	max_doc_id;
-
-		/* If the Doc ID column is supplied by user, then
-		check the maximum Doc ID in the table */
-		max_doc_id = fts_get_max_doc_id((dict_table_t*) table);
-
-		if (max_doc_id && max_doc_id < MAX_DOC_ID_OPT_VAL) {
-			*opt_doc_id_size = TRUE;
-		}
-	}
-
-	if (*opt_doc_id_size) {
+	if (opt_doc_id_size) {
 		field->col->len = sizeof(ib_uint32_t);
 		field->fixed_len = sizeof(ib_uint32_t);
 	} else {
@@ -846,19 +825,6 @@ loop:
 
 		num_doc_processed++;
 
-		if (UNIV_UNLIKELY(fts_enable_diag_print)
-		    && num_doc_processed % 10000 == 1) {
-			ib::info() << "Number of documents processed: "
-				<< num_doc_processed;
-#ifdef FTS_INTERNAL_DIAG_PRINT
-			for (i = 0; i < FTS_NUM_AUX_INDEX; i++) {
-				ib::info() << "ID " << psort_info->psort_id
-					<< ", partition " << i << ", word "
-					<< mycount[i];
-			}
-#endif
-		}
-
 		mem_heap_empty(blob_heap);
 
 		row_merge_fts_get_next_doc_item(psort_info, &doc_item);
@@ -999,10 +965,6 @@ exit:
 		}
 	}
 
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		DEBUG_FTS_SORT_PRINT("  InnoDB_FTS: start merge sort\n");
-	}
-
 	for (i = 0; i < FTS_NUM_AUX_INDEX; i++) {
 		if (!merge_file[i]->offset) {
 			continue;
@@ -1029,9 +991,6 @@ exit:
 	}
 
 func_exit:
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		DEBUG_FTS_SORT_PRINT("  InnoDB_FTS: complete merge sort\n");
-	}
 
 	mem_heap_free(blob_heap);
 
@@ -1540,12 +1499,10 @@ row_fts_merge_insert(
 	byte**			block;
 	byte**			crypt_block;
 	const mrec_t**		mrec;
-	ulint			count = 0;
 	int*			sel_tree;
 	ulint			height;
 	ulint			start;
 	fts_psort_insert_t	ins_ctx;
-	uint64_t		count_diag = 0;
 	fts_table_t		fts_table;
 	char			aux_table_name[MAX_FULL_NAME_LEN];
 	dict_table_t*		aux_table;
@@ -1604,13 +1561,6 @@ row_fts_merge_insert(
 
 		buf[i] = static_cast<mrec_buf_t*>(
 			mem_heap_alloc(heap, sizeof *buf[i]));
-
-		count_diag += psort_info[i].merge_file[id]->n_rec;
-	}
-
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		ib::info() << "InnoDB_FTS: to insert " << count_diag
-			<< " records";
 	}
 
 	/* Initialize related variables if creating FTS indexes */
@@ -1754,8 +1704,6 @@ row_fts_merge_insert(
 						offsets, index);
 		}
 
-		count++;
-
 		mem_heap_empty(tuple_heap);
 	}
 
@@ -1774,10 +1722,6 @@ exit:
 	trx->free();
 
 	mem_heap_free(heap);
-
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		ib::info() << "InnoDB_FTS: inserted " << count << " records";
-	}
 
 	return(error);
 }

@@ -125,7 +125,9 @@ set time_zone= @@global.time_zone;
 --echo # Restore from mysqldump
 --exec $MYSQL --user mariadb_test_restore --password=getitback --show-warnings  < $MYSQLTEST_VARDIR/tmp/dump1.sql
 
+--disable_warnings
 DROP USER mariadb_test_restore;
+--enable_warnings
 
 # successful restore?
 

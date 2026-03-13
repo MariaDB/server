@@ -236,7 +236,7 @@ int maria_recovery_from_log(void)
   trace_file= NULL; /* no trace file for being fast */
 #endif
   tprint(trace_file, "TRACE of the last Aria recovery from mysqld\n");
-  DBUG_ASSERT(maria_pagecache->inited);
+  DBUG_ASSERT(maria_pagecaches.initialized);
   res= maria_apply_log(LSN_IMPOSSIBLE, LSN_IMPOSSIBLE, 0, MARIA_LOG_APPLY,
                        trace_file, TRUE, TRUE, &warnings_count);
   if (!res)
@@ -687,7 +687,7 @@ prototype_redo_exec_hook(INCOMPLETE_LOG)
 {
   MARIA_HA *info;
 
-  /* We try to get table first, so that we get the table in in the trace log */
+  /* We try to get table first, so that we get the table in the trace log */
   info= get_MARIA_HA_from_REDO_record(rec);
 
   if (skip_DDLs)
@@ -1177,7 +1177,7 @@ prototype_redo_exec_hook(REDO_REPAIR_TABLE)
   my_bool quick_repair;
   DBUG_ENTER("exec_REDO_LOGREC_REDO_REPAIR_TABLE");
 
-  /* We try to get table first, so that we get the table in in the trace log */
+  /* We try to get table first, so that we get the table in the trace log */
   info= get_MARIA_HA_from_REDO_record(rec);
 
   if (!info)

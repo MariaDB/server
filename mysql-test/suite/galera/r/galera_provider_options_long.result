@@ -1,0 +1,16 @@
+connection node_2;
+connection node_1;
+#
+# wsrep_provider_options should be already > 2k length
+#
+AS_EXPECT_1
+1
+#
+# Setting single value should pass
+#
+SET GLOBAL wsrep_provider_options='pc.ignore_sb=false;pc.weight=2';
+#
+# This failed before change with ER_WRONG_STRING_LENGTH
+#
+disconnect node_2;
+disconnect node_1;

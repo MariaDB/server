@@ -1,5 +1,6 @@
 source include/platform.inc;
 source include/not_embedded.inc;
+source include/count_sessions.inc;
 
 if (`select count(*) = 0 from information_schema.plugins where plugin_name = 'parsec'`)
 {
@@ -41,6 +42,7 @@ if ($MTR_COMBINATION_WIN) {
 --echo # mysql -utest1 -ppwd --ssl-verify-server-cert -e "select test.have_ssl()"
 --exec $MYSQL --protocol tcp $host -utest1 -ppwd --ssl-verify-server-cert -e "select test.have_ssl()" 2>&1
 
+source include/wait_until_count_sessions.inc;
 drop function have_ssl;
 drop user test1@'%';
 
@@ -57,4 +59,5 @@ disconnect con4;
 --error ER_ACCESS_DENIED_ERROR
 connect con5, localhost, test2, "wrong_pwd";
 connection default;
+source include/wait_until_count_sessions.inc;
 drop user test2@'%';

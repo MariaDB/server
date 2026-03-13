@@ -7,6 +7,9 @@ select @v1a, @v2a, @v3a, @v4a, @v_unknown;
 Hello	World	65	NULL	NULL
 select VARIABLE_NAME, VARIABLE_VALUE
 from performance_schema.user_variables_by_thread
+inner join performance_schema.threads
+on user_variables_by_thread.thread_id=threads.thread_id
+where threads.processlist_id=connection_id()
 order by VARIABLE_NAME;
 VARIABLE_NAME	VARIABLE_VALUE
 v1a	Hello
@@ -23,6 +26,9 @@ select @v1b, @v2b, @v3b, @v4b, @v_unknown;
 Salut	La compagnie	12	NULL	NULL
 select VARIABLE_NAME, VARIABLE_VALUE
 from performance_schema.user_variables_by_thread
+inner join performance_schema.threads
+on user_variables_by_thread.thread_id=threads.thread_id
+where threads.processlist_id in ($default_id, connection_id())
 order by VARIABLE_NAME;
 VARIABLE_NAME	VARIABLE_VALUE
 v1a	Hello

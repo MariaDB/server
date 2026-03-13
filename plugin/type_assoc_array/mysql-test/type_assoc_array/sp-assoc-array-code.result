@@ -1,0 +1,205 @@
+SET sql_mode=ORACLE;
+SET NAMES utf8mb4;
+# 
+# MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+# 
+CREATE PROCEDURE p1() AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+marks marks_t:= marks_t('1' => 43, '2' => 99);
+BEGIN
+marks(1) := 62;
+SELECT marks(1);
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set marks@0 marks_t('1'=>43,'2'=>99)
+1	set marks@0[1] 62
+2	stmt 0 "SELECT marks(1)"
+3	destruct associative_array marks@0
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+person_by_nickname table_of_peson_t:=
+table_of_peson_t(
+'Monty' => person_t('Michael', 'Widenius'),
+'Serg' => person_t('Sergei ', 'Golubchik')) ;
+nick VARCHAR(20);
+BEGIN
+nick:= person_by_nickname.FIRST;
+person_by_nickname(nick).first_name:= 'Michael';
+person_by_nickname(nick):= person_t('Michael', 'Widenius');
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set person_by_nickname@0 table_of_peson_t('Monty'=>('Michael','Widenius'),'Serg'=>('Sergei ','Golubchik'))
+1	set nick@1 NULL
+2	set nick@1 person_by_nickname@0.first()
+3	set person_by_nickname@0[nick@1].first_name 'Michael'
+4	set person_by_nickname@0[nick@1] ('Michael','Widenius')
+5	destruct associative_array person_by_nickname@0
+DROP PROCEDURE p1;
+#
+# Make sure assoc array variables generate sp_instr_destruct_variable
+#
+CREATE PROCEDURE p1 AS
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+TYPE table_of_int_t IS TABLE OF INT INDEX BY INT;
+BEGIN
+SELECT '>block#0' AS comment;
+DECLARE
+assoc_of_record_0 table_of_peson_t;
+assoc_of_scalar_0 table_of_int_t;
+BEGIN
+SELECT '>block#1' AS comment;
+DECLARE
+assoc_of_record_1 table_of_peson_t;
+assoc_of_scalar_1 table_of_int_t;
+BEGIN
+SELECT '>block#2' AS comment;
+DECLARE
+assoc_of_record_2 table_of_peson_t;
+assoc_of_scalar_2 table_of_int_t;
+BEGIN
+SELECT '>block#3' AS comment;
+NULL;
+SELECT '<block#3' AS comment;
+END;
+SELECT '<block#2' AS comment;
+END;
+SELECT '<block#1' AS comment;
+END;
+SELECT '<block#0' AS comment;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	stmt 0 "SELECT '>block#0' AS comment"
+1	set assoc_of_record_0@0 NULL
+2	set assoc_of_scalar_0@1 NULL
+3	stmt 0 "SELECT '>block#1' AS comment"
+4	set assoc_of_record_1@2 NULL
+5	set assoc_of_scalar_1@3 NULL
+6	stmt 0 "SELECT '>block#2' AS comment"
+7	set assoc_of_record_2@4 NULL
+8	set assoc_of_scalar_2@5 NULL
+9	stmt 0 "SELECT '>block#3' AS comment"
+10	stmt 0 "SELECT '<block#3' AS comment"
+11	destruct associative_array assoc_of_scalar_2@5
+12	destruct associative_array assoc_of_record_2@4
+13	stmt 0 "SELECT '<block#2' AS comment"
+14	destruct associative_array assoc_of_scalar_1@3
+15	destruct associative_array assoc_of_record_1@2
+16	stmt 0 "SELECT '<block#1' AS comment"
+17	destruct associative_array assoc_of_scalar_0@1
+18	destruct associative_array assoc_of_record_0@0
+19	stmt 0 "SELECT '<block#0' AS comment"
+DROP PROCEDURE p1;
+#
+# Call an associative array procedure method directly
+#
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+m1 marks_t:= marks_t(1 => 61, 2 => 62, 3 => 63);
+BEGIN
+SELECT m1.count;
+m1.delete(2);
+SELECT m1.count, m1(1), m1(3);
+m1.delete;
+SELECT m1.count;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set m1@0 marks_t('1'=>61,'2'=>62,'3'=>63)
+1	stmt 0 "SELECT m1.count"
+2	stmt 74 "m1.delete(2)"
+3	stmt 0 "SELECT m1.count, m1(1), m1(3)"
+4	stmt 74 "m1.delete"
+5	stmt 0 "SELECT m1.count"
+6	destruct associative_array m1@0
+DROP PROCEDURE p1;
+#
+# Item_method_func::print()
+#
+CREATE PROCEDURE p1 AS
+TYPE salary IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+salary_list salary;
+name VARCHAR2(20);
+BEGIN
+WHILE name IS NOT NULL
+LOOP
+name:= salary_list.NEXT(name);
+END LOOP;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set salary_list@0 NULL
+1	set name@1 NULL
+2	jump_if_not 5(5) name@1 is not null
+3	set name@1 salary_list@0.next(name@1)
+4	jump 2
+5	destruct associative_array salary_list@0
+CALL p1;
+DROP PROCEDURE p1;
+#
+# Item_splocal_assoc_array_element::print()
+#
+CREATE PROCEDURE p1 AS
+TYPE salary IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+salary_list salary:= salary('Rajnisj'=> 62000);
+v0 NUMBER;
+BEGIN
+v0:= salary_list('Rajnisj');
+SELECT salary_list('Rajnisj') AS c0, v0;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set salary_list@0 salary('Rajnisj'=>62000)
+1	set v0@1 NULL
+2	set v0@1 salary_list@0['Rajnisj']
+3	stmt 0 "SELECT salary_list('Rajnisj') AS c0, v0"
+4	destruct associative_array salary_list@0
+CALL p1;
+c0	v0
+62000	62000
+DROP PROCEDURE p1;
+#
+# Item_splocal_assoc_array_element_field::print()
+#
+CREATE PROCEDURE p1 AS
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE list_t IS TABLE OF person_t INDEX BY INT;
+list list_t := list_t(1=>person_t('Agnetha', 'Faltskog'));
+BEGIN
+list(1).last_name:= REPLACE(list(1).last_name,'Fa','Fä');
+SELECT list(1).first_name AS first_name, list(1).last_name AS last_name;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set list@0 list_t('1'=>('Agnetha','Faltskog'))
+1	set list@0[1].last_name replace(list@0[1].last_name,'Fa','Fä')
+2	stmt 0 "SELECT list(1).first_name AS first_na..."
+3	destruct associative_array list@0
+CALL p1;
+first_name	last_name
+Agnetha	Fältskog
+DROP PROCEDURE p1;

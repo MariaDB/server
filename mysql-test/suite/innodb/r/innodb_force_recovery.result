@@ -4,21 +4,26 @@ insert into t1 values(1, 2);
 insert into t2 values(1, 2);
 SET GLOBAL innodb_fast_shutdown = 0;
 # restart: --innodb-force-recovery=4
-SELECT CAST(variable_value AS INTEGER) INTO @read1
-FROM INFORMATION_SCHEMA.GLOBAL_STATUS
-WHERE VARIABLE_NAME='innodb_buffer_pool_read_requests';
+select variable_name,variable_value from information_schema.global_status
+WHERE variable_name LIKE 'innodb_buffer_pool_%_requests';
+variable_name	variable_value
+INNODB_BUFFER_POOL_READ_REQUESTS	0
+INNODB_BUFFER_POOL_WRITE_REQUESTS	0
 select * from t1;
 f1	f2
 1	2
-SELECT CAST(variable_value AS INTEGER) INTO @read2
-FROM INFORMATION_SCHEMA.GLOBAL_STATUS
-WHERE VARIABLE_NAME='innodb_buffer_pool_read_requests';
-SELECT @read1>0, @read2>@read1;
-@read1>0	@read2>@read1
-1	1
+select variable_name from information_schema.global_status
+WHERE variable_name LIKE 'innodb_buffer_pool_%_requests' and variable_value>0;
+variable_name
+INNODB_BUFFER_POOL_READ_REQUESTS
 begin;
 insert into t1 values(2, 3);
 rollback;
+select variable_name from information_schema.global_status
+WHERE variable_name LIKE 'innodb_buffer_pool_%_requests' and variable_value>0;
+variable_name
+INNODB_BUFFER_POOL_READ_REQUESTS
+INNODB_BUFFER_POOL_WRITE_REQUESTS
 alter table t1 add f3 int not null, algorithm=copy;
 alter table t1 add f4 int not null, algorithm=inplace;
 drop index idx on t1;

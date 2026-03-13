@@ -1,0 +1,21 @@
+include/master-slave.inc
+[connection master]
+#
+# Initialize test data
+create table t1 (a int primary key, data longblob) engine=innodb;
+# Create a transaction which will fragment into multiple
+# Partial_rows_log_events that will span multiple relay logs
+set @blob = repeat('a', 1024 * 1024);
+insert into t1 values (1, @blob);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+# Ensure the transaction replicates correctly..
+include/diff_tables.inc [master:test.t1,slave:test.t1]
+# ..PASS
+#
+# Cleanup
+connection master;
+drop table t1;
+include/rpl_end.inc
+# End of rpl_fragment_row_event_span_relay_logs.test

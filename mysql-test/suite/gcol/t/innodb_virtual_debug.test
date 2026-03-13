@@ -1,7 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
 --source include/have_debug.inc
---source include/count_sessions.inc
 
 set default_storage_engine=innodb;
 # Ensure that the history list length will actually be decremented by purge.
@@ -343,5 +342,3 @@ connection default;
 SET DEBUG_SYNC=RESET;
 
 SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
-
---source include/wait_until_count_sessions.inc

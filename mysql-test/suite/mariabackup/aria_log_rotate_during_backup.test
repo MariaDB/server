@@ -34,11 +34,11 @@ CREATE TABLE test.t1(id INT, txt LONGTEXT) ENGINE=Aria;
 --source include/aria_log_control_load.inc
 CALL display_aria_log_control(@aria_log_control);
 
-
+let $backuplog= $MYSQLTEST_VARDIR/tmp/backup.log;
 --echo # Running --backup
 --let after_scanning_log_files=CALL test.populate_t1
 --disable_result_log
---exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10  --target-dir=$targetdir  --dbug=+d,mariabackup_events 2>&1
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$targetdir  --dbug=+d,mariabackup_events > $backuplog
 --let after_scanning_log_files=
 --enable_result_log
 
@@ -77,6 +77,7 @@ CALL display_aria_log_control(@aria_log_control);
 SELECT id, LENGTH(txt) FROM t1 ORDER BY id;
 DROP TABLE t1;
 rmdir $targetdir;
+remove_file $backuplog;
 
 DROP PROCEDURE populate_t1;
 DROP PROCEDURE display_aria_log_control;

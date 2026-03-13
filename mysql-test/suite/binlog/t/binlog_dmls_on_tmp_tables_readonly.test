@@ -22,7 +22,6 @@
 DROP TABLE IF EXISTS t1 ;
 --enable_warnings
 
---enable_connect_log
 --echo # READ_ONLY does nothing to SUPER users
 --echo # so we use a non-SUPER one:
 CREATE USER test@localhost;
@@ -89,4 +88,3 @@ SET GLOBAL READ_ONLY=0;
 
 disconnect con1;
 DROP USER test@localhost;
---disable_connect_log

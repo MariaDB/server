@@ -1,4 +1,3 @@
-drop table if exists t1;
 insert into t1 values(1);
 ERROR 42S02: Table 'test.t1' doesn't exist
 delete from t1;
@@ -170,12 +169,6 @@ UPDATE t1 SET a = 'new'
 WHERE COLUMN_CREATE( 1, 'v', 1, 'w' ) IS NULL;
 ERROR 22007: Illegal value used as argument of dynamic column function
 drop table t1;
-set @max_session_mem_used_save= @@max_session_mem_used;
-set max_session_mem_used = 50000;
-select * from seq_1_to_1000;
-set max_session_mem_used = 8192;
-select * from seq_1_to_1000;
-set max_session_mem_used = @max_session_mem_used_save;
 #
 # MDEV-20604: Duplicate key value is silently truncated to 64
 # characters in print_keydup_error
@@ -231,16 +224,3 @@ Error	1327	Undeclared variable: foo
 Error	1305	PROCEDURE P1 does not exist
 drop procedure P1;
 # End of 10.4 tests
-#
-# MDEV-35828: Assertion fails in alloc_root() when memory causes it to call itself
-#
-CREATE TEMPORARY TABLE t1 (a INT,b INT);
-INSERT INTO t1 VALUES (1,1),(2,2);
-SET
-@tmp=@@max_session_mem_used,
-max_session_mem_used=8192;
-SELECT * FROM (t1 AS t2 LEFT JOIN t1 AS t3 USING (a)),t1;
-ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
-DROP TABLE t1;
-SET max_session_mem_used=@tmp;
-# End of 10.6 tests

@@ -1,0 +1,136 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/maybe_debug.inc
+--echo #
+--echo # MDEV-36487  Fix ha_innobase::check() for sequences
+--echo #
+
+call mtr.add_suppression("InnoDB: Table test/s2 contains 1 indexes .*");
+call mtr.add_suppression("Table test/s2 has a primary key in InnoDB .*");
+# Sequence table which has NO_ROLLBACK flag set
+let $datadir=`select @@datadir`;
+CREATE SEQUENCE s ENGINE=InnoDB;
+copy_file $datadir/test/s.frm $datadir/test/s1.frm;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE s SEQUENCE=0, ALGORITHM=INPLACE;
+ALTER TABLE s SEQUENCE=0, ALGORITHM=COPY;
+FLUSH TABLES;
+remove_file $datadir/test/s.frm;
+move_file $datadir/test/s1.frm $datadir/test/s.frm;
+CHECK TABLE s;
+--error ER_TABLE_CORRUPT
+ALTER TABLE s SEQUENCE=1;
+DROP SEQUENCE s;
+
+# Checks for more than one index
+CREATE SEQUENCE s ENGINE=InnoDB;
+copy_file $datadir/test/s.frm $datadir/test/orig.frm;
+CREATE TABLE s2 LIKE s;
+ALTER TABLE s2 sequence=0;
+INSERT INTO s2 VALUES (3,1,9223372036854775806,1,1,1000,0,0);
+ALTER TABLE s2 ADD INDEX idx(start_value);
+FLUSH TABLES;
+move_file $datadir/test/orig.frm $datadir/test/s2.frm;
+CHECK TABLE s2;
+--error ER_TABLE_CORRUPT
+ALTER TABLE s2 SEQUENCE=1;
+DROP SEQUENCE s;
+DROP SEQUENCE s2;
+
+# Checks for generated clustered index
+CREATE SEQUENCE s ENGINE=InnoDB;
+copy_file $datadir/test/s.frm $datadir/test/orig.frm;
+CREATE TABLE s2 LIKE s;
+ALTER TABLE s2 sequence=0;
+INSERT INTO s2 VALUES (3,2,9223372036854775806,2,2,1000,0,0);
+ALTER TABLE s2 ADD PRIMARY KEY(start_value);
+FLUSH TABLES;
+move_file $datadir/test/orig.frm $datadir/test/s2.frm;
+CHECK TABLE s2;
+--error ER_TABLE_CORRUPT
+ALTER TABLE s2 SEQUENCE=1;
+DROP SEQUENCE s;
+DROP SEQUENCE s2;
+
+# Should contain only one record
+CREATE SEQUENCE s ENGINE=InnoDB;
+copy_file $datadir/test/s.frm $datadir/test/orig.frm;
+CREATE TABLE s2 LIKE s;
+ALTER TABLE s2 sequence=0;
+INSERT INTO s2 VALUES (3,1,9223372036854775806,1,1,1000,0,0);
+DELETE FROM s2;
+--source include/wait_all_purged.inc
+FLUSH TABLES;
+move_file $datadir/test/orig.frm $datadir/test/s2.frm;
+CHECK TABLE s2;
+--error ER_TABLE_CORRUPT
+ALTER TABLE s2 SEQUENCE=1;
+DROP SEQUENCE s;
+DROP SEQUENCE s2;
+
+# More than one page
+CREATE SEQUENCE s ENGINE=InnoDB;
+copy_file $datadir/test/s.frm $datadir/test/orig.frm;
+CREATE TABLE s2 LIKE s;
+ALTER TABLE s2 sequence=0;
+INSERT INTO s2 select seq, seq, seq, seq, seq, seq, 1, seq from
+seq_1_to_200;
+FLUSH TABLES;
+move_file $datadir/test/orig.frm $datadir/test/s2.frm;
+CHECK TABLE s2;
+--error ER_TABLE_CORRUPT
+ALTER TABLE s2 SEQUENCE=1;
+DROP SEQUENCE s;
+DROP SEQUENCE s2;
+
+# Checks for DB_TRX_ID & DB_ROLL_PTR in the record
+CREATE SEQUENCE s ENGINE=InnoDB;
+copy_file $datadir/test/s.frm $datadir/test/orig.frm;
+CREATE TABLE s2 LIKE s;
+ALTER TABLE s2 sequence=0;
+DELETE FROM s2;
+--source include/wait_all_purged.inc
+--connect (prevent_purge,localhost,root)
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+--connection default
+INSERT INTO s2 VALUES (3,1,9223372036854775806,1,1,1000,0,0);
+FLUSH TABLES;
+move_file $datadir/test/orig.frm $datadir/test/s2.frm;
+CHECK TABLE s2;
+--error ER_TABLE_CORRUPT
+ALTER TABLE s2 SEQUENCE=1;
+DROP SEQUENCE s;
+DROP SEQUENCE s2;
+
+# Insert a row into a sequence table updates that row
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+CHECK TABLE s1;
+
+--connection prevent_purge
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connection default
+INSERT INTO s1 VALUES (3,1,9223372036854775806,1,1,1000,0,0);
+SELECT * FROM s1;
+CHECK TABLE s1;
+--disable_ps2_protocol
+select nextval(s1);
+--enable_ps2_protocol
+--disconnect prevent_purge
+DROP SEQUENCE s1;
+
+if ($have_debug)
+{
+# Root page is corrupted
+CREATE SEQUENCE s ENGINE=InnoDB;
+copy_file $datadir/test/s.frm $datadir/test/s1.frm;
+ALTER TABLE s SEQUENCE=0;
+FLUSH TABLES;
+remove_file $datadir/test/s.frm;
+move_file $datadir/test/s1.frm $datadir/test/s.frm;
+SET STATEMENT DEBUG_DBUG="+d,fail_root_page" FOR
+CHECK TABLE s;
+--error ER_TABLE_CORRUPT
+ALTER TABLE s SEQUENCE=1;
+DROP SEQUENCE s;
+}

@@ -2,7 +2,7 @@
 
 [mysqld.1]
 wsrep_provider_options='pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=1M'
-auto_increment_increment=1
+auto_increment_increment=3
 auto_increment_offset=1
 # this will force server restarts before this test
 loose-galera-ist-gcache-rollover=1
@@ -10,7 +10,7 @@ wsrep-debug=1
 
 [mysqld.2]
 wsrep_provider_options='pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=1M'
-auto_increment_increment=2
+auto_increment_increment=3
 auto_increment_offset=2
 loose-galera-ist-gcache-rollover=2
 wsrep-debug=1

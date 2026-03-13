@@ -27,9 +27,8 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0undo_h
 #define trx0undo_h
 
-#ifndef UNIV_INNOCHECKSUM
 #include "trx0sys.h"
-
+#ifndef UNIV_INNOCHECKSUM
 /** The LSB of the "is insert" flag in DB_ROLL_PTR */
 #define ROLL_PTR_INSERT_FLAG_POS 55
 /** The LSB of the 7-bit trx_rseg_t::id in DB_ROLL_PTR */
@@ -153,7 +152,7 @@ dberr_t trx_undo_free_last_page(trx_undo_t *undo, mtr_t *mtr)
 /** Try to truncate the undo logs.
 @param trx transaction
 @return error code */
-dberr_t trx_undo_try_truncate(const trx_t &trx);
+dberr_t trx_undo_try_truncate(trx_t *trx);
 
 /** Truncate the head of an undo log.
 NOTE that only whole pages are freed; the header page is not
@@ -172,24 +171,20 @@ trx_undo_truncate_start(
 	undo_no_t	limit)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Mark that an undo log header belongs to a data dictionary transaction.
-@param[in]	trx	dictionary transaction
 @param[in,out]	undo	undo log
 @param[in,out]	mtr	mini-transaction */
-void trx_undo_mark_as_dict(const trx_t* trx, trx_undo_t* undo, mtr_t* mtr);
+void trx_undo_mark_as_dict(trx_undo_t* undo, mtr_t* mtr);
 /** Assign an undo log for a persistent transaction.
 A new undo log is created or a cached undo log reused.
-@param[in,out]	trx	transaction
-@param[out]	err	error code
 @param[in,out]	mtr	mini-transaction
+@param[out]	err	error code
 @return	the undo log block
 @retval	NULL	on error */
-buf_block_t*
-trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
+buf_block_t *trx_undo_assign(mtr_t* mtr, dberr_t *err) noexcept
 	MY_ATTRIBUTE((nonnull));
 /** Assign an undo log for a transaction.
 A new undo log is created or a cached undo log reused.
 @tparam is_temp  whether this is temporary undo log
-@param[in,out]	trx	transaction
 @param[in]	rseg	rollback segment
 @param[out]	undo	the undo log
 @param[in,out]	mtr	mini-transaction
@@ -198,18 +193,16 @@ A new undo log is created or a cached undo log reused.
 @retval	nullptr	on error */
 template<bool is_temp>
 buf_block_t*
-trx_undo_assign_low(trx_t *trx, trx_rseg_t *rseg, trx_undo_t **undo,
-                    mtr_t *mtr, dberr_t *err)
+trx_undo_assign_low(mtr_t *mtr, dberr_t *err, trx_rseg_t *rseg,
+                    trx_undo_t **undo)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Set the state of the undo log segment at a XA PREPARE or XA ROLLBACK.
-@param[in,out]	trx		transaction
 @param[in,out]	undo		undo log
 @param[in]	rollback	false=XA PREPARE, true=XA ROLLBACK
 @param[in,out]	mtr		mini-transaction */
-void trx_undo_set_state_at_prepare(trx_t *trx, trx_undo_t *undo, bool rollback,
-                                   mtr_t *mtr)
-  MY_ATTRIBUTE((nonnull));
+void trx_undo_set_state_at_prepare(trx_undo_t *undo, bool rollback, mtr_t *mtr)
+  noexcept MY_ATTRIBUTE((nonnull));
 
 /** At shutdown, frees the undo logs of a transaction. */
 void
@@ -312,8 +305,8 @@ class UndorecApplier
   mtr_t mtr;
 
 public:
-  UndorecApplier(page_id_t page_id, trx_id_t trx_id) :
-    page_id(page_id), trx_id(trx_id), heap(mem_heap_create(100))
+  UndorecApplier(page_id_t page_id, trx_t &trx) :
+    page_id(page_id), trx_id(trx.id), heap(mem_heap_create(100)), mtr(&trx)
   {
   }
 

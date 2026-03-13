@@ -1,0 +1,29 @@
+--source include/galera_cluster.inc
+
+--disable_warnings
+drop table if exists t1;
+drop view if exists t1;
+--enable_warnings
+
+--connection node_2
+SELECT @@character_set_server, @@collation_server;
+SELECT @@character_set_client, @@collation_connection;
+--connection node_1
+SET NAMES latin1 COLLATE latin1_bin;
+SELECT @@character_set_server, @@collation_server;
+SELECT @@character_set_client, @@collation_connection;
+create table t1 (a int);
+insert into t1 values (1);
+create view v1 as select a from t1;
+SHOW CREATE VIEW v1;
+SHOW CREATE TABLE t1;
+
+--connection node_2
+SHOW CREATE VIEW v1;
+SHOW CREATE TABLE t1;
+
+--connection node_1
+DROP VIEW v1;
+DROP TABLE t1;
+
+--source include/galera_end.inc

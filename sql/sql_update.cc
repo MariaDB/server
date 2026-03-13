@@ -431,19 +431,20 @@ bool Sql_cmd_update::update_single_table(THD *thd)
     table->mark_default_fields_for_write(false);
 
   switch_to_nullable_trigger_fields(*fields, table);
-  switch_to_nullable_trigger_fields(*values, table);
+  if (!(thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT))
+    switch_to_nullable_trigger_fields(*values, table);
 
   /*
-    Apply the IN=>EXISTS transformation to all constant subqueries
-    and optimize them.
+    Apply the IN=>EXISTS and other transformations to all subqueries and
+    optimize them.
 
-    It is too early to choose subquery optimization strategies without
-    an estimate of how many times the subquery will be executed so we
-    call optimize_unflattened_subqueries() with const_only= true, and
-    choose between materialization and in-to-exists later.
+    Constant subqueries are treated in a special way here: they can be
+    evaluated even in EXPLAIN statement, so their query plan must be
+    fully initialized for computation.
   */
-  if (select_lex->optimize_unflattened_subqueries(true))
+  if (select_lex->optimize_constant_subqueries())
     DBUG_RETURN(TRUE);
+
   need_to_optimize= TRUE;
 
   if (conds)
@@ -471,7 +472,8 @@ bool Sql_cmd_update::update_single_table(THD *thd)
                                           (uchar *) 0);
   }
 
-  if (conds && substitute_indexed_vcols_for_table(table, conds))
+  if ((conds || order) && substitute_indexed_vcols_for_table(table, conds,
+                                                             order, select_lex))
     DBUG_RETURN(1); // Fatal error
 
   // Don't count on usage of 'only index' when calculating which key to use
@@ -1885,7 +1887,7 @@ int multi_update::prepare(List<Item> &not_used_values,
 {
   TABLE_LIST *table_ref;
   SQL_I_List<TABLE_LIST> update_list;
-  Item_field *item;
+  Item *item;
   List_iterator_fast<Item> field_it(*fields);
   List_iterator_fast<Item> value_it(*values);
   uint i, max_fields;
@@ -1974,15 +1976,16 @@ int multi_update::prepare(List<Item> &not_used_values,
 
   /* Split fields into fields_for_table[] and values_by_table[] */
 
-  while ((item= (Item_field *) field_it++))
+  while ((item= field_it++))
   {
+    Item_field *item_field= (Item_field *)item->real_item();
     Item *value= value_it++;
-    uint offset= item->field->table->pos_in_table_list->shared;
+    uint offset= item_field->field->table->pos_in_table_list->shared;
 
-    if (value->associate_with_target_field(thd, item))
+    if (value->associate_with_target_field(thd, item_field))
       DBUG_RETURN(1);
 
-    fields_for_table[offset]->push_back(item, thd->mem_root);
+    fields_for_table[offset]->push_back(item_field, thd->mem_root);
     values_for_table[offset]->push_back(value, thd->mem_root);
   }
   if (unlikely(thd->is_fatal_error))
@@ -1997,7 +2000,8 @@ int multi_update::prepare(List<Item> &not_used_values,
     {
       TABLE *table= ((Item_field*)(fields_for_table[i]->head()))->field->table;
       switch_to_nullable_trigger_fields(*fields_for_table[i], table);
-      switch_to_nullable_trigger_fields(*values_for_table[i], table);
+      if (!(thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT))
+        switch_to_nullable_trigger_fields(*values_for_table[i], table);
     }
   }
   copy_field= new (thd->mem_root) Copy_field[max_fields];
@@ -2621,7 +2625,8 @@ int multi_update::do_updates()
     if (Field **vf= tbl->vfield)
       for (; *vf; vf++)
         if (bitmap_is_set(tbl->read_set, (*vf)->field_index))
-          (*vf)->vcol_info->expr->walk(&Item::register_field_in_read_map, 1, 0);
+          (*vf)->vcol_info->expr->walk(&Item::register_field_in_read_map,
+                                       0, WALK_SUBQUERY);
 
   for (cur_table= update_tables; cur_table; cur_table= cur_table->next_local)
   {
@@ -3186,7 +3191,18 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
   {
     List_iterator_fast<Item> fs(select_lex->item_list), vs(lex->value_list);
     while (Item *f= fs++)
-      vs++->associate_with_target_field(thd, static_cast<Item_field*>(f));
+    {
+      /*
+        note that if `f` is a non-updatable view field, it may be not
+        inherited from Item_field, and the cast below will essentially
+        produce garbage. But ER_NONUPDATEABLE_COLUMN will happen before it's
+        ever dereferenced.
+      */
+#ifndef DBUG_OFF
+      if (!dynamic_cast<Item_field*>(f)) f= (Item_field*)0x01; // let it crash
+#endif
+      vs++->associate_with_target_field(thd, reinterpret_cast<Item_field*>(f));
+    }
   }
 
   free_join= false;

@@ -3,6 +3,7 @@
 # i.e. lower_case_filesystem=OFF
 #
 -- source include/have_case_sensitive_file_system.inc
+-- source include/have_lowercase0.inc
 -- source include/not_embedded.inc
 -- source include/have_perfschema.inc
 
@@ -22,16 +23,14 @@ create database d2;
 --error ER_DBACCESS_DENIED_ERROR
 create database D1;
 disconnect sample;
---source include/wait_until_disconnected.inc
 
 connection master;
 drop user 'sample'@'localhost';
 drop database if exists d1;
 disconnect master;
---source include/wait_until_disconnected.inc
 connection default;
 
-# End of 4.1 tests
+--echo # End of 4.1 tests
 
 #
 # Bug#41049 does syntax "grant" case insensitive?

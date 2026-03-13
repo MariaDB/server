@@ -66,6 +66,11 @@ if ($MTR_COMBINATION_TRX_ID)
   let $sys_datatype_expl= bigint(20) unsigned;
   let $sys_datatype_expl_uc= BIGINT(20) UNSIGNED;
   let $sys_datatype_max= 18446744073709551615;
+  let $current_row= current_row;
+}
+if ($MTR_COMBINATION_TIMESTAMP)
+{
+  let $current_row= current_row_ts;
 }
 
 eval create or replace function current_row(sys_trx_end $sys_datatype_expl)
@@ -76,7 +81,7 @@ deterministic
 eval create or replace function current_row_ts(sys_trx_end timestamp(6))
 returns int
 deterministic
-  return convert_tz(sys_trx_end, '+00:00', @@time_zone) = $sys_time_max;
+  return convert_tz(sys_trx_end, @@time_zone, '+00:00') = $sys_time_max;
 
 delimiter ~~;
 eval create or replace function check_row(row_start $sys_datatype_expl, row_end $sys_datatype_expl)
@@ -87,7 +92,7 @@ begin
     return "ERROR: row_end < row_start";
   elseif row_end = row_start then
     return "ERROR: row_end == row_start";
-  elseif current_row(row_end) then
+  elseif $current_row(row_end) then
     return "CURRENT ROW";
   end if;
   return "HISTORICAL ROW";
@@ -99,7 +104,7 @@ eval create or replace function check_row_slave(row_start $sys_datatype_expl, ro
 returns varchar(255)
 deterministic
 begin
-  if current_row(row_end) then
+  if $current_row(row_end) then
     return "CURRENT ROW";
   end if;
   return "HISTORICAL ROW";

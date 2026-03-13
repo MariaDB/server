@@ -525,6 +525,7 @@ insert t1 select a+1, a+b from t1;
 FLUSH STATUS;
 --disable_ps2_protocol
 --disable_view_protocol
+--disable_cursor_protocol
 show status like 'Slow_queries';
 select count(*) from t1 where a=7;
 show status like 'Slow_queries';
@@ -538,6 +539,7 @@ show status like 'Slow_queries';
 flush status;
 select a from t1 where b not in (1,2,3) union select a from t1 where b not in (4,5,6); 
 show status like 'Slow_queries';
+--enable_cursor_protocol
 --enable_view_protocol
 --enable_ps2_protocol
 drop table t1;
@@ -1390,9 +1392,11 @@ INSERT INTO t3 VALUES (7), (8), (9);
 TRUNCATE table mysql.slow_log;
 --disable_ps2_protocol
 --disable_view_protocol
+--disable_cursor_protocol
 --sorted_result
 SELECT * FROM t17059925 UNION SELECT * FROM t2 UNION SELECT * FROM t3;
 SELECT sql_text, rows_examined FROM mysql.slow_log WHERE sql_text LIKE '%SELECT%t17059925%';
+--enable_cursor_protocol
 --enable_view_protocol
 --enable_ps_protocol
 DROP TABLE t17059925, t2, t3;

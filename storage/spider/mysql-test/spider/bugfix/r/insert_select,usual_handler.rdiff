@@ -1,0 +1,29 @@
+--- ../src/storage/spider/mysql-test/spider/bugfix/r/insert_select.result	2024-05-01 14:39:20.114241787 +1000
++++ ../src/storage/spider/mysql-test/spider/bugfix/r/insert_select.reject	2025-10-22 17:39:54.450930274 +1100
+@@ -60,16 +60,16 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+ argument
+-select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetime) `CAST(CONCAT(dt, ' ', tm) AS datetime)` from `auto_test_remote`.`tbl_a` t0 where ((t0.`skey` = 4) and (t0.`dt` > _latin1'2012-11-21')) lock in share mode
+-select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetime) `CAST(CONCAT(dt, ' ', tm) AS datetime)` from `auto_test_remote`.`tbl_a` t0 where ((t0.`skey` = 3) and (t0.`dt` > _latin1'2012-11-21')) lock in share mode
+-select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetime) `CAST(CONCAT(dt, ' ', tm) AS datetime)` from `auto_test_remote`.`tbl_a` t0 where ((t0.`skey` = 2) and (t0.`dt` > _latin1'2012-11-21')) lock in share mode
+-select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetime) `CAST(CONCAT(dt, ' ', tm) AS datetime)` from `auto_test_remote`.`tbl_a` t0 where ((t0.`skey` = 1) and (t0.`dt` > _latin1'2012-11-21')) lock in share mode
+-select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetime) `CAST(CONCAT(dt, ' ', tm) AS datetime)` from `auto_test_remote`.`tbl_a` t0 where ((t0.`skey` = 0) and (t0.`dt` > _latin1'2012-11-21')) lock in share mode
+-select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetime) `CAST(CONCAT(dt, ' ', tm) AS datetime)` from `auto_test_remote`.`tbl_a` t0 where ((t0.`skey` = 9) and (t0.`dt` > _latin1'2012-11-21')) lock in share mode
+-select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetime) `CAST(CONCAT(dt, ' ', tm) AS datetime)` from `auto_test_remote`.`tbl_a` t0 where ((t0.`skey` = 8) and (t0.`dt` > _latin1'2012-11-21')) lock in share mode
+-select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetime) `CAST(CONCAT(dt, ' ', tm) AS datetime)` from `auto_test_remote`.`tbl_a` t0 where ((t0.`skey` = 7) and (t0.`dt` > _latin1'2012-11-21')) lock in share mode
+-select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetime) `CAST(CONCAT(dt, ' ', tm) AS datetime)` from `auto_test_remote`.`tbl_a` t0 where ((t0.`skey` = 6) and (t0.`dt` > _latin1'2012-11-21')) lock in share mode
+-select t0.`skey` `skey`,cast((concat(t0.`dt` , _latin1' ' , t0.`tm`)) as datetime) `CAST(CONCAT(dt, ' ', tm) AS datetime)` from `auto_test_remote`.`tbl_a` t0 where ((t0.`skey` = 5) and (t0.`dt` > _latin1'2012-11-21')) lock in share mode
++select `skey`,`dt`,`tm` from `auto_test_remote`.`tbl_a` where `skey` = 4 and `dt` > _latin1'2012-11-21' and ((`skey` = 4) and (`dt` > _latin1'2012-11-21')) order by `dt`,`tm` lock in share mode
++select `skey`,`dt`,`tm` from `auto_test_remote`.`tbl_a` where `skey` = 3 and `dt` > _latin1'2012-11-21' and ((`skey` = 3) and (`dt` > _latin1'2012-11-21')) order by `dt`,`tm` lock in share mode
++select `skey`,`dt`,`tm` from `auto_test_remote`.`tbl_a` where `skey` = 2 and `dt` > _latin1'2012-11-21' and ((`skey` = 2) and (`dt` > _latin1'2012-11-21')) order by `dt`,`tm` lock in share mode
++select `skey`,`dt`,`tm` from `auto_test_remote`.`tbl_a` where `skey` = 1 and `dt` > _latin1'2012-11-21' and ((`skey` = 1) and (`dt` > _latin1'2012-11-21')) order by `dt`,`tm` lock in share mode
++select `skey`,`dt`,`tm` from `auto_test_remote`.`tbl_a` where `skey` = 0 and `dt` > _latin1'2012-11-21' and ((`skey` = 0) and (`dt` > _latin1'2012-11-21')) order by `dt`,`tm` lock in share mode
++select `skey`,`dt`,`tm` from `auto_test_remote`.`tbl_a` where `skey` = 9 and `dt` > _latin1'2012-11-21' and ((`skey` = 9) and (`dt` > _latin1'2012-11-21')) order by `dt`,`tm` lock in share mode
++select `skey`,`dt`,`tm` from `auto_test_remote`.`tbl_a` where `skey` = 8 and `dt` > _latin1'2012-11-21' and ((`skey` = 8) and (`dt` > _latin1'2012-11-21')) order by `dt`,`tm` lock in share mode
++select `skey`,`dt`,`tm` from `auto_test_remote`.`tbl_a` where `skey` = 7 and `dt` > _latin1'2012-11-21' and ((`skey` = 7) and (`dt` > _latin1'2012-11-21')) order by `dt`,`tm` lock in share mode
++select `skey`,`dt`,`tm` from `auto_test_remote`.`tbl_a` where `skey` = 6 and `dt` > _latin1'2012-11-21' and ((`skey` = 6) and (`dt` > _latin1'2012-11-21')) order by `dt`,`tm` lock in share mode
++select `skey`,`dt`,`tm` from `auto_test_remote`.`tbl_a` where `skey` = 5 and `dt` > _latin1'2012-11-21' and ((`skey` = 5) and (`dt` > _latin1'2012-11-21')) order by `dt`,`tm` lock in share mode
+ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
+ SELECT pkey, dt FROM tbl_b ORDER BY pkey;
+ pkey	dt

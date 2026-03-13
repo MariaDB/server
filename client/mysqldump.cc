@@ -133,7 +133,7 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_events= 0, opt_comments_used= 0,
                 opt_alltspcs=0, opt_notspcs= 0, opt_logging,
                 opt_header=0, opt_update_history= 0,
-                opt_drop_trigger= 0, opt_dump_history= 0;
+                opt_drop_trigger= 0, opt_dump_history= 0, opt_wildcards= 0;
 #define OPT_SYSTEM_ALL 1
 #define OPT_SYSTEM_USERS 2
 #define OPT_SYSTEM_PLUGINS 4
@@ -142,7 +142,7 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
 #define OPT_SYSTEM_STATS 32
 #define OPT_SYSTEM_TIMEZONES 64
 static const char *opt_system_type_values[]=
-  {"all", "users", "plugins",  "udfs", "servers", "stats", "timezones"};
+  {"all", "users", "plugins",  "udfs", "servers", "stats", "timezones", NullS};
 static TYPELIB opt_system_types=CREATE_TYPELIB_FOR(opt_system_type_values);
 static ulonglong opt_system= 0ULL;
 static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0,
@@ -327,8 +327,14 @@ static struct my_option my_long_options[] =
    "Include all MariaDB specific create options.",
    &create_options, &create_options, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"databases", 'B',
-   "Dump several databases. Note the difference in usage; in this case no tables are given. All name arguments are regarded as database names. 'USE db_name;' will be included in the output.",
+   "Dump several databases. Note the difference in usage; in this case no "
+   "tables are given. All name arguments are regarded as database names. "
+   "'USE db_name;' will be included in the output.",
    &opt_databases, &opt_databases, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+   {"wildcards", 'L', "Usage of wildcards in the table/database name. Without "
+    "option \"databases\" wildcards are only recognized in table names. "
+    "With the \"databases\" option - in databases names.",
+   &opt_wildcards, &opt_wildcards, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef DBUG_OFF
   {"debug", '#', "This is a non-debug version. Catch this and exit.",
    0,0, 0, GET_DISABLED, OPT_ARG, 0, 0, 0, 0, 0, 0},
@@ -441,7 +447,7 @@ static struct my_option my_long_options[] =
   {"ignore-database", OPT_IGNORE_DATABASE,
    "Do not dump the specified database. To specify more than one database to ignore, "
    "use the directive multiple times, once for each database. Only takes effect "
-   "when used together with --all-databases|-A",
+   "when used together with --all-databases or --wildcards --databases.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore-table-data", OPT_IGNORE_DATA,
    "Do not dump the specified table data. To specify more than one table "
@@ -492,7 +498,7 @@ static struct my_option my_long_options[] =
   {"max_allowed_packet", 0,
    "The maximum packet length to send to or receive from server.",
     &opt_max_allowed_packet, &opt_max_allowed_packet, 0,
-    GET_ULONG, REQUIRED_ARG, 24*1024*1024, 4096,
+    GET_ULONG, REQUIRED_ARG, 1024LL*1024*1024, 4096,
    (longlong) 2L*1024L*1024L*1024L, 0, 1024, 0},
   {"max-statement-time", 0,
    "Max statement execution time. If unset, overrides server default with 0.",
@@ -1344,10 +1350,11 @@ static int get_options(int *argc, char ***argv)
             my_progname_short);
     return(EX_USAGE);
   }
-  if (ignore_database.records && !opt_alldbs)
+  if (ignore_database.records && !opt_alldbs && !(opt_wildcards && opt_databases))
   {
     fprintf(stderr, 
-            "%s: --ignore-database can only be used together with --all-databases.\n",
+            "%s: --ignore-database can only be used together with --all-databases"
+            " or --wildcards --databases.\n",
 	    my_progname_short);
     return(EX_USAGE);
   }
@@ -1942,6 +1949,40 @@ static char *cover_definer_clause(const char *stmt_str,
   return query_str;
 }
 
+
+static char *format_fs_safe_filename(const char *from, char *to, size_t to_size)
+{
+  if (check_if_legal_tablename(from))
+    strxnmov(to, to_size - 1, from , "@@@", NULL);
+  else
+  {
+    uint errors, len;
+    len= my_convert(to, (uint32)(to_size - 1), &my_charset_filename,
+     from, (uint32) strlen(from), charset_info, &errors);
+    to[len]= 0;
+  }
+  return to;
+}
+
+static void format_fs_safe_output_dir(const char *db, char *out_dir, size_t out_size)
+{
+  DBUG_ASSERT(opt_dir);
+  char fs_safe_db[FN_REFLEN];
+  format_fs_safe_filename(db, fs_safe_db, sizeof(fs_safe_db));
+  my_snprintf(out_dir, out_size, "%s/%s", opt_dir, fs_safe_db);
+}
+
+static const char* build_path_for_table(char *to, const char *dir,
+                                        const char *table, const char *ext)
+{
+  char filename[FN_REFLEN], tmp_path[FN_REFLEN];
+  convert_dirname(tmp_path, dir, NULL);
+  my_load_path(tmp_path, tmp_path, NULL);
+  format_fs_safe_filename(table, filename, sizeof(filename));
+  return fn_format(to, filename, tmp_path, ext, MYF(MY_UNPACK_FILENAME));
+}
+
+
 /*
   Open a new .sql file to dump the table or view into
 
@@ -1957,18 +1998,17 @@ static char *cover_definer_clause(const char *stmt_str,
 static FILE* open_sql_file_for_table(const char *db, const char* table, int flags)
 {
   FILE* res;
-  char filename[FN_REFLEN], tmp_path[FN_REFLEN];
+  char filename[FN_REFLEN];
   char out_dir_buf[FN_REFLEN];
 
   char *out_dir= path;
   if (opt_dir)
   {
     out_dir= out_dir_buf;
-    my_snprintf(out_dir_buf, sizeof(out_dir_buf), "%s/%s", opt_dir, db);
+    format_fs_safe_output_dir(db, out_dir_buf, sizeof(out_dir_buf));
   }
 
-  convert_dirname(tmp_path, out_dir, NullS);
-  res= my_fopen(fn_format(filename, table, tmp_path, ".sql", 4),
+  res= my_fopen(build_path_for_table(filename, out_dir, table, ".sql"),
                 flags, MYF(MY_WME));
   return res;
 }
@@ -2155,11 +2195,9 @@ static void unescape(FILE *file,char *pos, size_t length)
 
 static my_bool test_if_special_chars(const char *str)
 {
-#if MYSQL_VERSION_ID >= 32300
   for ( ; *str ; str++)
     if (!my_isvar(charset_info,*str) && *str != '$')
       return 1;
-#endif
   return 0;
 } /* test_if_special_chars */
 
@@ -4290,12 +4328,12 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
 
   if (multi_file_output)
   {
-    char filename[FN_REFLEN], tmp_path[FN_REFLEN];
+    char filename[FN_REFLEN];
     char out_dir_buf[FN_REFLEN];
     char *out_dir= path;
     if (!out_dir)
     {
-      my_snprintf(out_dir_buf, sizeof(out_dir_buf), "%s/%s", opt_dir, db);
+      format_fs_safe_output_dir(db, out_dir_buf, sizeof(out_dir_buf));
       out_dir= out_dir_buf;
     }
 
@@ -4303,9 +4341,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       Convert the path to native os format
       and resolve to the full filepath.
     */
-    convert_dirname(tmp_path,out_dir,NullS);
-    my_load_path(tmp_path, tmp_path, NULL);
-    fn_format(filename, table, tmp_path, ".txt", MYF(MY_UNPACK_FILENAME));
+    build_path_for_table(filename, out_dir, table, ".txt");
 
     /* Must delete the file that 'INTO OUTFILE' will write to */
     my_delete(filename, MYF(0));
@@ -4314,7 +4350,6 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     to_unix_path(filename);
 
     /* now build the query string */
-
     dynstr_append_checked(&query_string, "SELECT /*!40001 SQL_NO_CACHE */ ");
     dynstr_append_checked(&query_string, select_field_names.str);
     dynstr_append_checked(&query_string, " INTO OUTFILE '");
@@ -4459,6 +4494,11 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       fprintf(md_result_file,"/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;\n");
       check_io(md_result_file);
     }
+    if (no_autocommit)
+    {
+      fprintf(md_result_file, "SET @OLD_AUTOCOMMIT=@@AUTOCOMMIT, @@AUTOCOMMIT=0;\n");
+      check_io(md_result_file);
+    }
     if (opt_lock)
     {
       fprintf(md_result_file,"LOCK TABLES %s WRITE;\n", opt_quoted_table);
@@ -4479,11 +4519,6 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     if (opt_xml)
       print_xml_tag(md_result_file, "\t", "\n", "table_data", "name=", table,
               NullS);
-    if (no_autocommit)
-    {
-      fprintf(md_result_file, "set autocommit=0;\n");
-      check_io(md_result_file);
-    }
 
     while ((row= mysql_fetch_row(res)))
     {
@@ -4755,7 +4790,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     }
     if (no_autocommit)
     {
-      fprintf(md_result_file, "commit;\n");
+      fprintf(md_result_file, "COMMIT;\nSET AUTOCOMMIT=@OLD_AUTOCOMMIT;\n");
       check_io(md_result_file);
     }
     if (versioned && !opt_xml && opt_dump_history)
@@ -5532,6 +5567,29 @@ static my_bool include_database(const char *hash_key)
 }
 
 
+/* check database name if it's INFORMATION_SCHEMA or PERFORMANCE_SCHEMA. */
+static bool is_IS_or_PS(const char *schema_name)
+{
+  if (mysql_get_server_version(mysql) >= FIRST_INFORMATION_SCHEMA_VERSION &&
+      !cmp_database(schema_name, INFORMATION_SCHEMA_DB_NAME))
+    return TRUE;
+
+  if (mysql_get_server_version(mysql) >= FIRST_PERFORMANCE_SCHEMA_VERSION &&
+      !cmp_database(schema_name, PERFORMANCE_SCHEMA_DB_NAME))
+    return TRUE;
+
+  return FALSE;
+}
+
+
+/* check database name if it's SYS_SCHEMA. */
+static bool is_SyS(const char *schema_name)
+{
+  return (mysql_get_server_version(mysql) >= FIRST_SYS_SCHEMA_VERSION &&
+          !cmp_database(schema_name, SYS_SCHEMA_DB_NAME));
+}
+
+
 static int dump_all_databases()
 {
   MYSQL_ROW row;
@@ -5542,17 +5600,8 @@ static int dump_all_databases()
     return 1;
   while ((row= mysql_fetch_row(tableres)))
   {
-    if (mysql_get_server_version(mysql) >= FIRST_INFORMATION_SCHEMA_VERSION &&
-        !cmp_database(row[0], INFORMATION_SCHEMA_DB_NAME))
+    if (is_IS_or_PS(row[0]) || is_SyS(row[0]))
       continue;
-
-    if (mysql_get_server_version(mysql) >= FIRST_PERFORMANCE_SCHEMA_VERSION &&
-        !cmp_database(row[0], PERFORMANCE_SCHEMA_DB_NAME))
-      continue;
-
-   if (mysql_get_server_version(mysql) >= FIRST_SYS_SCHEMA_VERSION &&
-       !cmp_database(row[0], SYS_SCHEMA_DB_NAME))
-     continue;
 
     if (include_database(row[0]))
       if (dump_all_tables_in_db(row[0]))
@@ -5570,16 +5619,7 @@ static int dump_all_databases()
     }
     while ((row= mysql_fetch_row(tableres)))
     {
-      if (mysql_get_server_version(mysql) >= FIRST_INFORMATION_SCHEMA_VERSION &&
-          !cmp_database(row[0], INFORMATION_SCHEMA_DB_NAME))
-        continue;
-
-      if (mysql_get_server_version(mysql) >= FIRST_PERFORMANCE_SCHEMA_VERSION &&
-          !cmp_database(row[0], PERFORMANCE_SCHEMA_DB_NAME))
-        continue;
-
-     if (mysql_get_server_version(mysql) >= FIRST_SYS_SCHEMA_VERSION &&
-        !cmp_database(row[0], SYS_SCHEMA_DB_NAME))
+      if (is_IS_or_PS(row[0]) || is_SyS(row[0]))
         continue;
 
       if (include_database(row[0]))
@@ -6187,11 +6227,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   end= pos;
 
   /* Can't LOCK TABLES in I_S / P_S, so don't try. */
-  if (lock_tables &&
-      !(mysql_get_server_version(mysql) >= FIRST_INFORMATION_SCHEMA_VERSION &&
-        !cmp_database(db, INFORMATION_SCHEMA_DB_NAME)) &&
-      !(mysql_get_server_version(mysql) >= FIRST_PERFORMANCE_SCHEMA_VERSION &&
-        !cmp_database(db, PERFORMANCE_SCHEMA_DB_NAME)))
+  if (lock_tables && !is_IS_or_PS(db))
   {
     if (mysql_real_query(mysql, lock_tables_query.str,
                          (ulong)lock_tables_query.length-1))
@@ -6328,7 +6364,7 @@ const char fmt_gtid_pos[]= "%sSET GLOBAL gtid_slave_pos='%s';\n";
 
 static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
                                  int have_mariadb_gtid, int use_gtid,
-                                 char *set_gtid_pos)
+                                 char *set_gtid_pos, size_t set_gtid_pos_size)
 {
   MYSQL_ROW row;
   MYSQL_RES *UNINIT_VAR(master);
@@ -6403,7 +6439,7 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
                     "CHANGE-MASTER settings to the slave gtid state is printed "
                     "later in the file.\n");
     }
-    sprintf(set_gtid_pos, fmt_gtid_pos,
+    snprintf(set_gtid_pos, set_gtid_pos_size, fmt_gtid_pos,
             (!use_gtid ? "-- " : comment_prefix), gtid_pos);
   }
 
@@ -6455,7 +6491,7 @@ static int do_stop_slave_sql(MYSQL *mysql_con)
       {
         char query[160];
         if (multi_source)
-          sprintf(query, "STOP SLAVE '%.80s' SQL_THREAD", row[0]);
+          snprintf(query, sizeof(query), "STOP SLAVE '%.80s' SQL_THREAD", row[0]);
         else
           strmov(query, "STOP SLAVE SQL_THREAD");
 
@@ -6494,7 +6530,8 @@ static int add_slave_statements(void)
 }
 
 static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
-                                int use_gtid, char* set_gtid_pos)
+                                int use_gtid, char* set_gtid_pos,
+                                size_t set_gtid_pos_size)
 {
   MYSQL_RES *UNINIT_VAR(slave);
   MYSQL_ROW row;
@@ -6539,7 +6576,8 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
                   "\n-- A corresponding to the below dump-slave "
                   "CHANGE-MASTER settings to the slave gtid state is printed "
                   "later in the file.\n");
-    sprintf(set_gtid_pos, fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
+    snprintf(set_gtid_pos, set_gtid_pos_size,
+             fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
   }
   if (use_gtid)
     print_comment(md_result_file, 0,
@@ -6615,7 +6653,8 @@ static int do_start_slave_sql(MYSQL *mysql_con)
       {
         char query[160];
         if (multi_source)
-          sprintf(query, "START SLAVE '%.80s' SQL_THREAD", row[0]);
+          snprintf(query, sizeof(query),
+                   "START SLAVE '%.80s' SQL_THREAD", row[0]);
         else
           strmov(query, "START SLAVE SQL_THREAD");
 
@@ -7288,6 +7327,85 @@ static void init_connection_pool(uint n_connections)
 }
 
 /*
+  Fix permissions and ownership of given directory to be the same
+  as the root output directory.
+
+  The function is used for newly created database directories,
+  together with --dir option
+
+  This function is not thread-safe, nor does it need to be, because
+  it is called from the main thread only.
+
+  chmod/chown errors are ignored after the first one, with a warning printed,
+  so it is really the best effort attempt. We might see an error later
+  if the server can't write into the directory, and this will be the
+  real error.
+
+  On Windows, this function does nothing, because the permissions are
+  inherited from the parent directory anyway.
+
+  @param dirpath  Directory path
+*/
+static void fix_permissions_and_owner(const char *dirpath)
+{
+#ifndef _WIN32
+  // Permissions and ownership of output directory (--dir)
+  static struct stat  st_out_dir;
+
+  static bool fix_perms= true; // Try fixing permission bits
+  static bool fix_ownership_uid= true; // Try fixing user+group ownership
+  static bool fix_ownership_gid= false; // Try fixing group ownership only
+
+  static bool first_time= true;
+  if (first_time)
+  {
+    /* Find out permissions and ownership of output directory */
+    first_time= false;
+    if (stat(opt_dir, &st_out_dir) != 0)
+    {
+      die(EX_CONSCHECK, "Error: cannot stat output directory %s, errno %d",
+          opt_dir, errno);
+    }
+  }
+
+  /* Change permissions to be the same as for the output directory*/
+  if (fix_perms &&
+      chmod(dirpath, st_out_dir.st_mode & (S_IRWXU|S_IRWXG|S_IRWXO)))
+  {
+    fprintf(stderr,
+        "Warning: cannot set permissions on directory %s, errno %d\n",
+        dirpath, errno);
+    fix_perms= false;
+  }
+
+  /*
+    Change ownership to be the same as backup root dir.
+    If user can't be changed, try changing owner group only.
+  */
+  if (fix_ownership_uid &&
+          chown(dirpath, st_out_dir.st_uid, st_out_dir.st_gid))
+  {
+    // No warning, error is expected, unless current user is root.
+    fix_ownership_uid= false;
+    fix_ownership_gid= true;
+  }
+
+  if (fix_ownership_gid && chown(dirpath, -1, st_out_dir.st_gid))
+  {
+    if (!(st_out_dir.st_mode & S_IWOTH))
+    {
+      /* Only warn if directory is not world-writable (group ownership
+         matters more in this case), to avoid spamming stderr.*/
+      fprintf(stderr,
+              "Warning: cannot set group ownership on directory %s, errno %d\n",
+              dirpath, errno);
+    }
+    fix_ownership_gid= false;
+  }
+#endif
+}
+
+/*
   If --dir option is in use, ensure that output directory for given db
   exists.
 */
@@ -7295,7 +7413,7 @@ static void ensure_out_dir_exists(const char *db)
 {
   DBUG_ASSERT(opt_dir);
   char outdir[FN_REFLEN];
-  my_snprintf(outdir, sizeof(outdir), "%s/%s", opt_dir, db);
+  format_fs_safe_output_dir(db, outdir, sizeof(outdir));
   struct stat st;
   if (stat(outdir, &st) == 0)
   {
@@ -7306,6 +7424,7 @@ static void ensure_out_dir_exists(const char *db)
   }
   if (my_mkdir(outdir, 0777, MYF(MY_WME)))
     die(EX_MYSQLERR, "Error creating directory %s", outdir);
+  fix_permissions_and_owner(outdir);
 }
 
 
@@ -7337,6 +7456,175 @@ static void do_print_set_gtid_slave_pos(const char *set_gtid_pos,
   }
   fprintf(md_result_file, "%s", set_gtid_pos);
 }
+
+void dump_tables_for_database_wild(const char *db,
+                                   int n_patterns, char **patterns)
+{
+  int num;
+  int number_of_tables= 0;
+  MYSQL_ROW row;
+  char *buff, quoted_buf[NAME_LEN*2+3];
+  MYSQL_RES *dbinfo;
+  char **tables_to_dump;
+  /* dbcopy - unquoted db; */
+  char dbcopy[2 * NAME_LEN + 30];
+  char hash_key[2*NAME_LEN+2];  /* "db.tablename" */
+  char *afterdot;
+  size_t len;
+  size_t buff_size= 108 + (NAME_LEN + 30)*n_patterns;
+
+  DBUG_ENTER("dump_tables_for_database_wild");
+  DBUG_ASSERT(n_patterns > 0);
+
+
+  if (*db == '`')
+  {
+    len= strlen(db);
+    memcpy(dbcopy, db + 1, len - 2);
+    dbcopy[len - 2] = 0;
+  }
+  else
+  {
+    strncpy(dbcopy, db, NAME_LEN + 1);
+  }
+
+  afterdot= strmov(hash_key, dbcopy);
+  *afterdot++= '.';
+
+  if (!(buff=(char*) my_malloc(PSI_NOT_INSTRUMENTED, buff_size, MYF(MY_WME))))
+    die(EX_MYSQLERR, "Couldn't allocate memory");
+
+  len= my_snprintf(buff, buff_size,
+              "SELECT table_name FROM INFORMATION_SCHEMA.TABLES"
+              " WHERE table_schema=%s", quote_for_equal(dbcopy, quoted_buf));
+
+  mysql_real_escape_string(mysql, quoted_buf,
+                           patterns[0], (ulong)strlen(patterns[0]));
+
+  len+= my_snprintf(buff+len, buff_size,
+              " AND (table_name LIKE '%s'", quoted_buf);
+
+  for (num=1; num<n_patterns; num++)
+  {
+    mysql_real_escape_string(mysql, quoted_buf,
+                             patterns[num], (ulong)strlen(patterns[num]));
+    len+= my_snprintf(buff+len, buff_size-len,
+                      " OR table_name LIKE '%s'", quoted_buf);
+  }
+
+  my_snprintf(buff+len, buff_size-len, ") ORDER BY table_name");
+
+  if(mysql_query_with_error_report(mysql, &dbinfo, buff))
+  {
+    fprintf(stderr,
+            "%s: Error: '%s' when trying to find tables satisfying pattern\n",
+            my_progname_short, mysql_error(mysql));
+    goto free_buf_and_exit;
+  }
+  if (!(tables_to_dump= (char **) my_malloc(
+            PSI_NOT_INSTRUMENTED,
+            (dbinfo->row_count + (int) 1) * sizeof(char *), MYF(MY_WME))))
+    die(EX_MYSQLERR, "Couldn't allocate memory");
+  while ((row= mysql_fetch_row(dbinfo)))
+  {
+    char *end= strmov(afterdot, row[0]);
+    if (include_table((uchar*) hash_key,end - hash_key))
+    {
+      tables_to_dump[number_of_tables++]= row[0];
+    }
+  }
+  tables_to_dump[number_of_tables]= NULL;
+  if (number_of_tables > 0)
+  {
+    if (!opt_alltspcs && !opt_notspcs)
+      dump_tablespaces_for_tables(dbcopy, tables_to_dump, number_of_tables);
+    dump_selected_tables(dbcopy, tables_to_dump, number_of_tables);
+  }
+  mysql_free_result(dbinfo);
+  my_free(tables_to_dump);
+
+free_buf_and_exit:
+  my_free(buff);
+  DBUG_VOID_RETURN;
+}
+
+
+/* pattern should be unquoted */
+void dump_databases_wild(int n_patterns, char **db_patterns)
+{
+  MYSQL_RES *dbinfo;
+  char *qwe_buff;
+  size_t qwe_buff_size= (NAME_LEN + 30)*n_patterns + 40;
+  size_t qwe_len;
+  MYSQL_ROW row;
+  int i;
+  char **databases_to_dump;
+  DBUG_ENTER("dump_databases_wild");
+  DBUG_ASSERT(n_patterns > 0);
+
+  if (!(qwe_buff= (char *) my_malloc(PSI_NOT_INSTRUMENTED,
+                                     qwe_buff_size, MYF(MY_WME))))
+    die(EX_MYSQLERR, "Couldn't allocate memory");
+
+
+  qwe_len= my_snprintf(qwe_buff, qwe_buff_size,
+                       "SHOW DATABASES WHERE Database LIKE '%s'", db_patterns[0]);
+  for (i=1; i<n_patterns; i++)
+    qwe_len+= my_snprintf(qwe_buff + qwe_len, qwe_buff_size-qwe_len,
+                          " OR Database LIKE '%s'", db_patterns[i]);
+  if (mysql_query_with_error_report(mysql, &dbinfo, qwe_buff))
+  {
+    fprintf(stderr,
+       "%s: Error: '%s' when trying to find databases satisfying pattern\n",
+       my_progname_short, mysql_error(mysql));
+    goto free_buf_and_exit;
+  }
+
+  if (!(databases_to_dump= (char **) my_malloc(
+            PSI_NOT_INSTRUMENTED,
+            (dbinfo->row_count + (int) 1) * sizeof(char *), MYF(MY_WME))))
+    die(EX_MYSQLERR, "Couldn't allocate memory");
+
+  i= 0;
+  while ((row= mysql_fetch_row(dbinfo)))
+  {
+    if (is_IS_or_PS(row[0]) || is_SyS(row[0]) || !include_database(row[0]))
+      continue;
+
+    databases_to_dump[i++]= row[0];
+  }
+
+  if (i == 0)  /* No database found to dump. */
+  {
+    fprintf(stderr, "%s: Error: no databases matching the ", my_progname_short);
+
+    if (n_patterns > 1)
+    {
+      fprintf(stderr, "patterns ['%s'", db_patterns[0]);
+      for (i=1; i<n_patterns-1; i++)
+        fprintf(stderr, ", '%s'", db_patterns[i]);
+      fprintf(stderr, ", '%s']", db_patterns[i]);
+    }
+    else
+      fprintf(stderr, "pattern '%s'", db_patterns[0]);
+
+    fprintf(stderr, " found.\n");
+    goto free_result_and_exit;
+  }
+
+  databases_to_dump[i]= NULL;
+  if (!opt_alltspcs && !opt_notspcs)
+    dump_tablespaces_for_databases(databases_to_dump);
+  dump_databases(databases_to_dump);
+
+free_result_and_exit:
+  my_free(databases_to_dump);
+  mysql_free_result(dbinfo);
+free_buf_and_exit:
+  my_free(qwe_buff);
+  DBUG_VOID_RETURN;
+}
+
 
 int main(int argc, char **argv)
 {
@@ -7465,11 +7753,13 @@ int main(int argc, char **argv)
 
   if (opt_master_data && do_show_master_status(mysql, consistent_binlog_pos,
                                                have_mariadb_gtid,
-                                               opt_use_gtid, master_set_gtid_pos))
+                                               opt_use_gtid, master_set_gtid_pos,
+                                               sizeof(master_set_gtid_pos)))
     goto err;
   if (opt_slave_data && do_show_slave_status(mysql,
                                              have_mariadb_gtid,
-                                             opt_use_gtid, slave_set_gtid_pos))
+                                             opt_use_gtid, slave_set_gtid_pos,
+                                             sizeof(slave_set_gtid_pos)))
     goto err;
   if (opt_single_transaction && do_unlock_tables(mysql)) /* unlock but no commit! */
     goto err;
@@ -7502,19 +7792,34 @@ int main(int argc, char **argv)
       }
     }
 
-    if (argc > 1 && !opt_databases)
+    if (opt_wildcards &&(opt_databases || argc > 1))
     {
-      /* Only one database and selected table(s) */
-      if (!opt_alltspcs && !opt_notspcs)
-        dump_tablespaces_for_tables(*argv, (argv + 1), (argc - 1));
-      dump_selected_tables(*argv, (argv + 1), (argc - 1));
+      if (argc > 1 && !opt_databases)
+        /* One database, tables matching the wildcard. */
+        dump_tables_for_database_wild(argv[0], argc-1, argv+1);
+      else if (argc > 0)
+        /* Databases matching the wildcards. */
+        dump_databases_wild(argc, argv);
+      else
+        die(EX_CONSCHECK,
+            "Incorrect usage of patterns \n");
     }
-    else if (argc > 0)
+    else
     {
-      /* One or more databases, all tables */
-      if (!opt_alltspcs && !opt_notspcs)
-        dump_tablespaces_for_databases(argv);
-      dump_databases(argv);
+      if (argc > 1 && !opt_databases)
+      {
+        /* Only one database and selected table(s) */
+        if (!opt_alltspcs && !opt_notspcs)
+          dump_tablespaces_for_tables(*argv, (argv + 1), (argc - 1));
+        dump_selected_tables(*argv, (argv + 1), (argc - 1));
+      }
+      else if (argc > 0)
+      {
+        /* One or more databases, all tables */
+        if (!opt_alltspcs && !opt_notspcs)
+          dump_tablespaces_for_databases(argv);
+        dump_databases(argv);
+      }
     }
   }
 

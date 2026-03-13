@@ -694,7 +694,7 @@ int key_tuple_cmp(KEY_PART_INFO *part, const uchar *key1, const uchar *key2,
 
 ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
 {
-  ulong nr=1, nr2=4;
+  my_hasher_st hasher= my_hasher_mysql5x();
   KEY_PART_INFO *key_part= key_info->key_part;
   KEY_PART_INFO *end_key_part= key_part + used_key_parts;
 
@@ -711,7 +711,7 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
       key++;                       /* Skip null byte */
       if (*pos)                    /* Found null */
       {
-        nr^= (nr << 1) | 1;
+        hasher.m_nr1^= (hasher.m_nr1 << 1) | 1;
         /* Add key pack length to key for VARCHAR segments */
         switch (key_part->type) {
         case HA_KEYTYPE_VARTEXT1:
@@ -764,20 +764,19 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
         In this case, the passed key tuple is already a prefix, no
         special handling is required.
       */
-      cs->hash_sort(pos+pack_length, length, &nr, &nr2);
+      cs->hash_sort(&hasher, pos+pack_length, length);
       key+= pack_length;
     }
     else
     {
       for (; pos < (uchar*)key ; pos++)
       {
-        nr^=(ulong) ((((uint) nr & 63)+nr2)*((uint) *pos)) + (nr << 8);
-        nr2+=3;
+        MY_HASH_ADD_MARIADB(hasher.m_nr1, hasher.m_nr2, *pos);
       }
     }
   }
-  DBUG_PRINT("exit", ("hash: %lx", nr));
-  return(nr);
+  DBUG_PRINT("exit", ("hash: %lx", hasher.m_nr1));
+  return(hasher.m_nr1);
 }
 
 

@@ -1,7 +1,6 @@
 connection node_2;
 connection node_1;
 connection node_1;
-INSTALL PLUGIN IF NOT EXISTS connect SONAME 'ha_connect';
 CREATE TABLE t1 (f INT) ENGINE=CONNECT;
 Warnings:
 Warning	1105	No table_type. Will be set to DOS
@@ -15,10 +14,7 @@ Error	1235	This version of MariaDB doesn't yet support 'non-InnoDB sequences in 
 Note	1235	ENGINE=SEQUENCE not supported by Galera
 connection node_2;
 show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `f` int(11) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ERROR 42S02: Table 'test.t1' doesn't exist
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -28,4 +24,3 @@ show create table t3;
 ERROR 42S02: Table 'test.t3' doesn't exist
 connection node_1;
 DROP TABLE t1, t2;
-UNINSTALL PLUGIN IF EXISTS connect;

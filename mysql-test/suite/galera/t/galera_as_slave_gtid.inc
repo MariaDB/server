@@ -82,13 +82,16 @@ RESET SLAVE ALL;
 --echo #cleanup
 --connection node_1
 set global wsrep_on=OFF;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 set global wsrep_on=ON;
 
 --connection node_2
 set global wsrep_on=OFF;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 set global wsrep_on=ON;
 
 --connection node_3
+--source include/kill_binlog_dump_threads.inc
 reset master;

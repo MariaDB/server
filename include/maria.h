@@ -147,6 +147,8 @@ extern int maria_create(const char *name, enum data_file_type record_type,
                         uint uniques, MARIA_UNIQUEDEF *uniquedef,
                         MARIA_CREATE_INFO *create_info, uint flags);
 
+extern void aria_reset_pagecache_counters();
+
 #ifdef	__cplusplus
 }
 #endif

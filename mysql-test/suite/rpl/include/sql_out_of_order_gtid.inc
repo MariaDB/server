@@ -1,39 +1,67 @@
 # SQL file with out of order GTIDs coming from various domains and servers
+#
+# Parameters:
+#   $blob_trx_size : Size of the blob to insert (used for binlog-in-innodb to
+#                    force out-of-band binlogging for events)
+#
 
 --disable_query_log
 
+if (!$blob_trx_size)
+{
+  --let $blob_trx_size= 1
+}
+
+--connection $con1
 # Save old state
 let $ORIG_GTID_DOMAIN_ID = `select @@session.gtid_domain_id`;
 let $ORIG_SERVER_ID = `select @@session.server_id`;
 
+--connection $con1
 SET @@session.gtid_domain_id= 0;
 SET @@session.server_id= 1;
-CREATE TABLE t1 (a int);
-INSERT INTO t1 values (1);
+CREATE TABLE t1 (a int, b longblob) engine=innodb;
+INSERT INTO t1 values (1, 'a1');
 
 SET @@session.server_id= 3;
-CREATE TABLE t2 (a int);
+CREATE TABLE t2 (a int, b longblob) engine=innodb;
 SET @@session.gtid_seq_no= 6;
-INSERT INTO t2 values (2);
-SET @@session.gtid_seq_no= 5;
-INSERT INTO t2 values (1);
-SET @@session.gtid_seq_no= 7;
-INSERT INTO t2 values (3);
+--send_eval INSERT INTO t2 values (2, repeat('b2', $blob_trx_size))
 
+
+--connection server_1
 SET @@session.gtid_domain_id= 1;
 SET @@session.server_id= 1;
-CREATE TABLE t3 (a int);
-INSERT INTO t3 values (1);
+CREATE TABLE t3 (a int, b longblob) engine=innodb;
+INSERT INTO t3 values (1, 'c1');
 SET @@session.gtid_seq_no= 4;
-INSERT INTO t3 values (3);
-SET @@session.gtid_seq_no= 3;
-INSERT INTO t3 values (2);
-SET @@session.gtid_seq_no= 5;
-INSERT INTO t3 values (4);
+--send_eval INSERT INTO t3 values (3, repeat('c3', $blob_trx_size))
 
-SET @@session.gtid_domain_id= 0;
+
+--connection $con1
+--reap
+SET @@session.gtid_seq_no= 5;
+--send_eval INSERT INTO t2 values (1, repeat('b1', $blob_trx_size))
+
+
+--connection server_1
+--reap
+SET @@session.gtid_seq_no= 3;
+--eval INSERT INTO t3 values (2, repeat('c2', $blob_trx_size))
+
+SET @@session.gtid_seq_no= 5;
+INSERT INTO t3 values (4,'c4');
+
+
+--connection $con1
+--reap
+SET @@session.gtid_seq_no= 7;
+BEGIN;
+INSERT INTO t2 values (3, 'b3');
+
 SET @@session.server_id= 1;
-INSERT INTO t1 values (2);
+BEGIN;
+INSERT INTO t1 values (2, 'a2');
 
 FLUSH LOGS;
 

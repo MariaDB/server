@@ -102,6 +102,10 @@ or the MySQL version that created the redo log file. */
 #define LOG_HEADER_CREATOR_END	48
 /* @} */
 
+/** Fake tablespace id for InnoDB-implemented binlog files. */
+static constexpr uint32_t LOG_BINLOG_ID_0= SRV_SPACE_ID_UPPER_BOUND;
+static constexpr uint32_t LOG_BINLOG_ID_1= SRV_SPACE_ID_UPPER_BOUND + 1;
+
 struct log_t;
 
 /** File abstraction */
@@ -153,6 +157,8 @@ struct log_t
   static constexpr uint32_t FORMAT_10_8= 0x50687973;
   /** The MariaDB 10.8.0 format with innodb_encrypt_log=ON */
   static constexpr uint32_t FORMAT_ENC_10_8= FORMAT_10_8 | FORMAT_ENCRYPTED;
+  /** The MariaDB 10.11 format with innodb_encrypt_log=ON */
+  static constexpr uint32_t FORMAT_ENC_11= 0xf09f979d;
 
   /** Location of the first checkpoint block */
   static constexpr size_t CHECKPOINT_1= 4096;
@@ -504,12 +510,18 @@ public:
 
   /** Set the log file format. */
   void set_latest_format(bool encrypted) noexcept
-  { format= encrypted ? FORMAT_ENC_10_8 : FORMAT_10_8; }
+  { format= encrypted ? FORMAT_ENC_11 : FORMAT_10_8; }
   /** @return whether the redo log is encrypted */
   bool is_encrypted() const noexcept { return format & FORMAT_ENCRYPTED; }
   /** @return whether the redo log is in the latest format */
   bool is_latest() const noexcept
-  { return (~FORMAT_ENCRYPTED & format) == FORMAT_10_8; }
+  { return format == FORMAT_10_8 || format == FORMAT_ENC_11; }
+  /** @return whether the redo log is in a format that can be recovered */
+  bool is_recoverable() const noexcept
+  {
+    return (format | FORMAT_ENCRYPTED) == FORMAT_ENC_10_8 ||
+      format == FORMAT_ENC_11;
+  }
 
   /** @return capacity in bytes */
   lsn_t capacity() const noexcept { return file_size - START_OFFSET; }

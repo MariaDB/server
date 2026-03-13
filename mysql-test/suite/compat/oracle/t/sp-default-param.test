@@ -106,6 +106,9 @@ $$
 DELIMITER ;$$
 CALL p1();
 
+# PARAMETER_DEFAULT column test- differnt types
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+
 DROP PROCEDURE p1;
 DROP TABLE t1;
 DROP DATABASE d1;
@@ -136,6 +139,9 @@ CALL p1(10);
 CALL p1();
 --enable_ps_protocol
 
+# PARAMETER_DEFAULT column test- function as default value
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
 DROP TABLE t1;
@@ -158,6 +164,9 @@ DELIMITER ;$$
 CALL p1();
 CALL p1(10);
 
+# PARAMETER_DEFAULT column test- subquery as default
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
@@ -176,6 +185,9 @@ DELIMITER ;$$
 
 CALL p1(10);
 CALL p1(10,20);
+
+# PARAMETER_DEFAULT column test- default value referencing another parameter
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
 
 DROP PROCEDURE p1;
 
@@ -242,6 +254,102 @@ CREATE PROCEDURE sp1(p1 IN INT DEFAULT 0, p2 INOUT INT)
 BEGIN
   SET p2 = p2 + 1;
 END;
+$$
 DELIMITER ;$$
 
 --echo # End of 11.8 tests
+
+--echo #
+--echo # MDEV-37054: Implement INFORMATION_SCHEMA.PARAMETERS.PARAMETER_DEFAULT column
+--echo #
+
+--echo # Default parameter values for procedure
+CREATE TABLE t (a INT);
+INSERT INTO t values (1);
+
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION func(a INT DEFAULT 123) RETURN INT
+AS
+BEGIN
+  RETURN a;
+END;
+$$
+
+CREATE PROCEDURE proc(p0 INT,                                           # no default value for parameter
+                      p1 INT DEFAULT 1,                                 # constant default value
+                      p2 INT DEFAULT p1+1,                              # expression referring other parameter
+                      p3 INT DEFAULT pow(2,p2),                         # function as default value
+                      p4 INT DEFAULT (SELECT a from t),                 # subquery as default value
+                      p5 VARCHAR(5) DEFAULT 'maria',                    # varchar default
+                      p6 VARCHAR(10) DEFAULT CONCAT(p5, NULL, 'db'),    # sql_mode specific function
+                      p7 INET6 DEFAULT INET6_NTOA(UNHEX('0A000101')),   # misc. functions as default
+                      p8 INT DEFAULT func(),                            # stored function as default
+                      p9 TIMESTAMP DEFAULT NOW(),                       # timestmap function as default
+                      p10 DATE DEFAULT CURDATE())                       # date function as default
+AS
+BEGIN
+  SELECT p6 FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+
+SHOW CREATE PROCEDURE proc;
+
+--echo # Default param value with sql_mode=ORACLE
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'proc';
+
+--echo # Default param value with sql_mode=DEFAULT
+SET sql_mode=DEFAULT;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'proc';
+SET sql_mode=ORACLE;
+
+DROP PROCEDURE proc;
+DROP FUNCTION func;
+DROP TABLE t;
+
+--echo # Default parameter values of functions
+CREATE TABLE t (a INT);
+INSERT INTO t values (1);
+
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f(a INT DEFAULT 123) RETURN INT
+AS
+BEGIN
+  RETURN a;
+END;
+$$
+
+CREATE FUNCTION func(p0 INT,                                           # no default value for parameter
+                     p1 INT DEFAULT 1,                                 # constant default value
+                     p2 INT DEFAULT p1+1,                              # expression referring other parameter
+                     p3 INT DEFAULT pow(2,p2),                         # function as default value
+                     p4 INT DEFAULT (SELECT a from t),                 # subquery as default value
+                     p5 VARCHAR(5) DEFAULT 'maria',                    # varchar default
+                     p6 VARCHAR(10) DEFAULT CONCAT(p5, NULL, 'db'),    # sql_mode specific function
+                     p7 INET6 DEFAULT INET6_NTOA(UNHEX('0A000101')),   # misc. functions as default
+                     p8 INT DEFAULT func(),                            # stored function as default
+                     p9 TIMESTAMP DEFAULT NOW(),                       # timestmap function as default
+                     p10 DATE DEFAULT CURDATE())                       # date function as default
+                     RETURN VARCHAR(10)
+AS
+BEGIN
+  RETURN p6;
+END;
+$$
+DELIMITER ;$$
+
+SHOW CREATE FUNCTION func;
+
+--echo # Default param value with sql_mode=ORACLE
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'func';
+
+--echo # Default param value with sql_mode=DEFAULT
+SET sql_mode=DEFAULT;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'func';
+SET sql_mode=ORACLE;
+
+DROP FUNCTION func;
+DROP FUNCTION f;
+DROP TABLE t;
+
+--echo # End of 12.2 tests

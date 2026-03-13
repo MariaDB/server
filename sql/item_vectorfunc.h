@@ -61,7 +61,7 @@ public:
     return NULL;
   }
   key_map part_of_sortkey() const override;
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_vec_distance>(thd, this); }
 };
 
@@ -82,7 +82,7 @@ public:
     static LEX_CSTRING name= { STRING_WITH_LEN("VEC_ToText") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_vec_totext>(thd, this); }
 };
 
@@ -90,6 +90,9 @@ public:
 class Item_func_vec_fromtext: public Item_str_func
 {
   String tmp_js;
+  MEM_ROOT current_mem_root;
+  bool mem_root_inited;
+  json_engine_t je;
 public:
   bool fix_length_and_dec(THD *thd) override;
   Item_func_vec_fromtext(THD *thd, Item *a);
@@ -99,7 +102,13 @@ public:
     static LEX_CSTRING name= { STRING_WITH_LEN("VEC_FromText") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_vec_fromtext>(thd, this); }
+   void cleanup() override
+  {
+    if (mem_root_inited)
+      free_root(&current_mem_root, MYF(0));
+    Item_str_func::cleanup();
+  }
 };
 #endif

@@ -633,7 +633,7 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
         goto return_null;
 
       char tmp[320];
-      sprintf(tmp, "%-20g", (double) get_float(ptr));
+      snprintf(tmp, sizeof(tmp), "%-20g", (double) get_float(ptr));
       my_b_printf(file, "%s", tmp); /* my_snprintf doesn't support %-20g */
       return 4;
     }
@@ -647,7 +647,7 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
 
       float8get(dbl, ptr);
       char tmp[320];
-      sprintf(tmp, "%-.20g", dbl); /* strmake doesn't support %-20g */
+      snprintf(tmp, sizeof(tmp), "%-.20g", dbl); /* strmake doesn't support %-20g */
       my_b_printf(file, tmp, "%s");
       return 8;
     }
@@ -1770,17 +1770,14 @@ bool Log_event::print_base64(IO_CACHE* file,
     {
     case TABLE_MAP_EVENT:
     {
-      Table_map_log_event *map; 
-      map= new Table_map_log_event(ptr, size, 
-                                   glob_description_event);
 #ifdef WHEN_FLASHBACK_REVIEW_READY
+      Table_map_log_event *map= static_cast<Table_map_log_event*>(this);
       if (need_flashback_review)
       {
         map->set_review_dbname(m_review_dbname.ptr());
         map->set_review_tablename(m_review_tablename.ptr());
       }
 #endif
-      print_event_info->m_table_map.set_table(map->get_table_id(), map);
       break;
     }
     case WRITE_ROWS_EVENT:
@@ -2506,7 +2503,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       double real_val;
       char real_buf[FMT_G_BUFSIZE(14)];
       float8get(real_val, val);
-      sprintf(real_buf, "%.14g", real_val);
+      snprintf(real_buf, sizeof(real_buf), "%.14g", real_val);
       if (my_b_printf(&cache, ":=%s%s\n", real_buf,
                       print_event_info->delimiter))
         goto err;
@@ -2836,12 +2833,13 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
     sizeof(fmt_delim)  + sizeof(fmt_n_delim)               +
     sizeof(fmt_binlog2) +
     3*PRINT_EVENT_INFO::max_delimiter_size;
+  size_t str_size;
 
   if (reinit_io_cache(cache, READ_CACHE, 0L, FALSE, FALSE))
     goto err;
 
-  if (!(to->str= (char*) my_malloc(PSI_NOT_INSTRUMENTED, (size_t)cache->end_of_file + fmt_size,
-                                   MYF(0))))
+  str_size= (size_t)cache->end_of_file + fmt_size;
+  if (!(to->str= (char*) my_malloc(PSI_NOT_INSTRUMENTED, str_size, MYF(0))))
   {
     perror("Out of memory: can't allocate memory in "
            "copy_cache_to_string_wrapped().");
@@ -2871,36 +2869,36 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
     char *str= to->str;
     size_t add_to_len;
 
-    str += (to->length= sprintf(str, fmt_frag, 0));
+    str += (to->length= snprintf(str, str_size - (str - to->str), fmt_frag, 0));
     if (my_b_read(cache, (uchar*) str, (uint32) (cache_size/2 + 1)))
       goto err;
     str += (add_to_len = (uint32) (cache_size/2 + 1));
     to->length += add_to_len;
-    str += (add_to_len= sprintf(str, fmt_n_delim, delimiter));
+    str += (add_to_len= snprintf(str, str_size - (str - to->str), fmt_n_delim, delimiter));
     to->length += add_to_len;
 
-    str += (add_to_len= sprintf(str, fmt_frag, 1));
+    str += (add_to_len= snprintf(str, str_size - (str - to->str), fmt_frag, 1));
     to->length += add_to_len;
     if (my_b_read(cache, (uchar*) str, uint32(cache->end_of_file - (cache_size/2 + 1))))
       goto err;
     str += (add_to_len= uint32(cache->end_of_file - (cache_size/2 + 1)));
     to->length += add_to_len;
     {
-      str += (add_to_len= sprintf(str , fmt_delim, delimiter));
+      str += (add_to_len= snprintf(str, str_size - (str - to->str), fmt_delim, delimiter));
       to->length += add_to_len;
     }
-    to->length += sprintf(str, fmt_binlog2, delimiter);
+    to->length += snprintf(str, str_size - (str - to->str), fmt_binlog2, delimiter);
   }
   else
   {
     char *str= to->str;
 
-    str += (to->length= sprintf(str, str_binlog));
+    str += (to->length= snprintf(str, str_size - (str - to->str), str_binlog));
     if (my_b_read(cache, (uchar*) str, (size_t)cache->end_of_file))
       goto err;
     str += cache->end_of_file;
     to->length += (size_t)cache->end_of_file;
-      to->length += sprintf(str , fmt_delim, delimiter);
+      to->length += snprintf(str, str_size - (str - to->str), fmt_delim, delimiter);
   }
 
   reinit_io_cache(cache, WRITE_CACHE, 0, FALSE, TRUE);
@@ -3174,19 +3172,23 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
 
     if (print_event_info->print_table_metadata)
     {
-      Optional_metadata_fields fields(m_optional_metadata,
-                                      m_optional_metadata_len);
-
+      MEM_ROOT root;
+      init_alloc_root(0, &root, 4096, 0, 0);
+      Optional_metadata_fields fields(&root, m_colcnt,
+                                      m_optional_metadata,
+                                      m_optional_metadata_len,
+                                      0);
+      if (fields.allocation_error)
+      {
+        free_root(&root, 0);
+        goto err;
+      }
       print_columns(&print_event_info->head_cache, fields);
       print_primary_key(&print_event_info->head_cache, fields);
+      free_root(&root, 0);
     }
-    bool do_print_encoded=
-      print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
-      print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
-      !print_event_info->short_form;
 
-    if (print_base64(&print_event_info->body_cache, print_event_info,
-                     do_print_encoded) ||
+    if (print_body(print_event_info) ||
         copy_event_cache_to_file_and_reinit(&print_event_info->head_cache,
                                             file))
       goto err;
@@ -3195,6 +3197,22 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
   return 0;
 err:
   return 1;
+}
+
+bool Table_map_log_event::print_body(PRINT_EVENT_INFO *print_event_info)
+{
+  if (!print_event_info->short_form || print_event_info->print_row_count)
+  {
+    bool do_print_encoded=
+        print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
+        print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
+        !print_event_info->short_form;
+
+    if (print_base64(&print_event_info->body_cache, print_event_info,
+                     do_print_encoded))
+      return 1;
+  }
+  return 0;
 }
 
 /**
@@ -3450,14 +3468,13 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
       Charset_iterator::create_charset_iterator(
           fields.m_enum_and_set_default_charset,
           fields.m_enum_and_set_column_charset);
-  std::vector<std::string>::const_iterator col_names_it=
-    fields.m_column_name.begin();
   std::vector<Optional_metadata_fields::str_vector>::const_iterator
     set_str_values_it= fields.m_set_str_value.begin();
   std::vector<Optional_metadata_fields::str_vector>::const_iterator
     enum_str_values_it= fields.m_enum_str_value.begin();
   std::vector<unsigned int>::const_iterator geometry_type_it=
     fields.m_geometry_type.begin();
+  LEX_CSTRING *col_names= fields.m_column_name;
 
   uint geometry_type= 0;
 
@@ -3480,13 +3497,12 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
       cs = enum_and_set_charset_it->next();
 
     // Print column name
-    if (col_names_it != fields.m_column_name.end())
+    if (col_names && col_names->str)
     {
-      pretty_print_identifier(file, col_names_it->c_str(), col_names_it->size());
+      pretty_print_identifier(file, col_names->str, col_names->length);
       my_b_printf(file, " ");
-      col_names_it++;
+      col_names++;
     }
-
 
     // update geometry_type for geometry columns
     if (real_type == MYSQL_TYPE_GEOMETRY)
@@ -3575,10 +3591,10 @@ void Table_map_log_event::print_primary_key
         my_b_printf(file, ", ");
 
       // Print column name or column index
-      if (it->first >= fields.m_column_name.size())
+      if (!fields.m_column_name)
         my_b_printf(file, "%u", it->first);
       else
-        my_b_printf(file, "%s", fields.m_column_name[it->first].c_str());
+        my_b_printf(file, "%s", fields.m_column_name[it->first].str);
 
       // Print prefix length
       if (it->second != 0)
@@ -3587,6 +3603,73 @@ void Table_map_log_event::print_primary_key
 
     my_b_printf(file, ")\n");
   }
+}
+
+bool Partial_rows_log_event::print(FILE *file,
+                                   PRINT_EVENT_INFO *print_event_info)
+{
+  IO_CACHE *const head= &print_event_info->head_cache;
+  IO_CACHE *const body= &print_event_info->body_cache;
+  IO_CACHE *const tail= &print_event_info->tail_cache;
+  bool do_print_encoded=
+      print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
+      print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
+      !print_event_info->short_form;
+
+  if (!print_event_info->short_form)
+    if (print_header(head, print_event_info, 0) ||
+        my_b_printf(head, "\tPartial_rows (%u / %u):\n", seq_no,
+                    total_fragments))
+      goto err;
+
+  if (!print_event_info->short_form || print_event_info->print_row_count)
+  {
+    DBUG_ASSERT(print_event_info->m_table_map.count() ||
+                print_event_info->m_table_map_ignored.count());
+    /*
+      For the last fragment, re-write the Table_map_log_event(s) into the start
+      of the BINLOG base64 statement. See the comment in the header file for
+      Partial_rows_log_event for more details why.
+    */
+    if (seq_no == total_fragments)
+    {
+      ulong n_tables= print_event_info->m_table_map.count();
+      ulonglong *table_ids= static_cast<ulonglong *>(my_malloc(
+          PSI_NOT_INSTRUMENTED, n_tables * sizeof(ulonglong), MYF(0)));
+      print_event_info->m_table_map.get_table_ids(&table_ids[0], n_tables);
+      for (ulong i= 0; i < n_tables; i++)
+      {
+        DBUG_PRINT("info", ("Table ID: %llu", table_ids[i]));
+        Table_map_log_event *tbl_map_to_print;
+
+        if (print_event_info->m_table_map_ignored.get_table(table_ids[i]))
+          continue;
+
+        tbl_map_to_print=
+            print_event_info->m_table_map.get_table(table_ids[i]);
+        if (tbl_map_to_print && tbl_map_to_print->print_body(print_event_info))
+        {
+          my_free(table_ids);
+          goto err;
+        }
+      }
+      my_free(table_ids);
+    }
+
+    if (print_base64(body, print_event_info, do_print_encoded))
+      goto err;
+  }
+
+  if (copy_event_cache_to_file_and_reinit(head, file) ||
+      copy_cache_to_file_wrapped(body, file, do_print_encoded,
+                                 print_event_info->delimiter,
+                                 print_event_info->verbose) ||
+      copy_event_cache_to_file_and_reinit(tail, file))
+    goto err;
+
+  return 0;
+err:
+  return 1;
 }
 
 
@@ -3780,6 +3863,8 @@ st_print_event_info::st_print_event_info()
   base64_output_mode=BASE64_OUTPUT_UNSPEC;
   m_is_event_group_active= TRUE;
   m_is_event_group_filtering_enabled= FALSE;
+  m_is_partial_rows_ev_group_active= TRUE;
+  partial_rows_rows_ev_flags= 0;
   open_cached_file(&head_cache, NULL, NULL, 0, flags);
   open_cached_file(&body_cache, NULL, NULL, 0, flags);
   open_cached_file(&tail_cache, NULL, NULL, 0, flags);

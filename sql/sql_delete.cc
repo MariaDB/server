@@ -129,6 +129,7 @@ bool Update_plan::save_explain_data_intern(THD *thd,
       (thd->variables.log_slow_verbosity &
        LOG_SLOW_VERBOSITY_ENGINE))
   {
+    explain->table_tracker.set_gap_tracker(&explain->extra_time_tracker);
     table->file->set_time_tracker(&explain->table_tracker);
 
     if (table->file->handler_stats && table->s->tmp_table != INTERNAL_TMP_TABLE)
@@ -159,11 +160,7 @@ bool Update_plan::save_explain_data_intern(THD *thd,
   /* Set jtype */
   if (select && select->quick)
   {
-    int quick_type= select->quick->get_type();
-    if ((quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE) ||
-        (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT) ||
-        (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT) ||
-        (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION))
+    if (is_index_merge(select->quick->get_type()))
       explain->jtype= JT_INDEX_MERGE;
     else
       explain->jtype= JT_RANGE;
@@ -289,32 +286,96 @@ int update_portion_of_time(THD *thd, TABLE *table,
   return res;
 }
 
-inline
-int TABLE::delete_row()
-{
-  if (!versioned(VERS_TIMESTAMP) || !vers_end_field()->is_max())
-    return file->ha_delete_row(record[0]);
+/**
+  Delete a record stored in:
+  replace= true: record[0]
+  replace= false: record[1]
 
-  store_record(this, record[1]);
-  vers_update_end();
-  int err;
-  if ((err= file->extra(HA_EXTRA_REMEMBER_POS)))
-    return err;
-  if ((err= file->ha_update_row(record[1], record[0])))
+  with regard to the treat_versioned flag, which can be false for a versioned
+  table in case of versioned->versioned replication.
+
+ For a versioned case, we detect a few conditions, under which we should delete
+ a row instead of updating it to a history row.
+ This includes:
+ * History deletion by user;
+ * History collision, in case of REPLACE or very fast sequence of dmls
+   so that timestamp doesn't change;
+ * History collision in the parent table
+
+ A normal delete is processed here as well.
+*/
+template <bool replace>
+int TABLE::delete_row(bool treat_versioned)
+{
+  int err= 0;
+  bool remembered_pos= false;
+  uchar *del_buf= record[replace ? 1 : 0];
+  bool delete_row= !treat_versioned
+                   || in_use->lex->vers_conditions.delete_history
+                   || versioned(VERS_TRX_ID)
+                   || !vers_end_field()->is_max(
+                           vers_end_field()->ptr_in_record(del_buf));
+
+  if (!delete_row)
   {
-    /*
-      MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got
-      history row with same trx_id which is the result of foreign key action,
-      so we don't need one more history row.
-    */
-    if (err == HA_ERR_FOREIGN_DUPLICATE_KEY)
-      file->ha_delete_row(record[0]);
-    else
+    if ((err= file->extra(HA_EXTRA_REMEMBER_POS)))
       return err;
+    remembered_pos= true;
+
+    if (replace)
+    {
+      store_record(this, record[2]);
+      restore_record(this, record[1]);
+    }
+    else
+    {
+      store_record(this, record[1]);
+    }
+    vers_update_end();
+
+    Field *row_start= vers_start_field();
+    Field *row_end= vers_end_field();
+    // Don't make history row with negative lifetime
+    delete_row= row_start->cmp(row_start->ptr, row_end->ptr) > 0;
+
+    if (likely(!delete_row))
+      err= file->ha_update_row(record[1], record[0]);
+    if (unlikely(err))
+    {
+      /*
+        MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got
+        history row with same trx_id which is the result of foreign key
+        action, so we don't need one more history row.
+
+        Additionally, delete the row if versioned record already exists.
+        This happens on replace, a very fast sequence of inserts and deletes,
+        or if timestamp is frozen.
+      */
+      delete_row= err == HA_ERR_FOUND_DUPP_KEY
+                  || err == HA_ERR_FOUND_DUPP_UNIQUE
+                  || err == HA_ERR_FOREIGN_DUPLICATE_KEY;
+      if (!delete_row)
+        return err;
+    }
+
+    if (delete_row)
+      del_buf= record[1];
+
+    if (replace)
+      restore_record(this, record[2]);
   }
-  return file->extra(HA_EXTRA_RESTORE_POS);
+
+  if (delete_row)
+    err= file->ha_delete_row(del_buf);
+
+  if (remembered_pos)
+    (void) file->extra(HA_EXTRA_RESTORE_POS);
+
+  return err;
 }
 
+template int TABLE::delete_row<true>(bool treat_versioned);
+template int TABLE::delete_row<false>(bool treat_versioned);
 
 /**
   @brief Special handling of single-table deletes after prepare phase
@@ -410,13 +471,13 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     Apply the IN=>EXISTS transformation to all constant subqueries
     and optimize them.
 
-    It is too early to choose subquery optimization strategies without
-    an estimate of how many times the subquery will be executed so we
-    call optimize_unflattened_subqueries() with const_only= true, and
-    choose between materialization and in-to-exists later.
+    Constant subqueries are treated in a special way here: they can be
+    evaluated even in EXPLAIN statement, so their query plan must be
+    fully initialized for computation.
   */
-  if (select_lex->optimize_unflattened_subqueries(true))
+  if (select_lex->optimize_constant_subqueries())
     DBUG_RETURN(TRUE);
+
   optimize_subqueries= TRUE;
 
   const_cond= (!conds || conds->const_item());
@@ -446,7 +507,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
       not in safe mode (not using option --safe-mode)
     - There is no limit clause
     - The condition is constant
-    - If there is a condition, then it it produces a non-zero value
+    - If there is a condition, then it produces a non-zero value
     - If the current command is DELETE FROM with no where clause, then:
       - We should not be binlogging this statement in row-based, and
       - there should be no delete triggers associated with the table.
@@ -517,7 +578,8 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
                                           (uchar *) 0);
   }
 
-  if (conds && substitute_indexed_vcols_for_table(table, conds))
+  if ((conds || order) && substitute_indexed_vcols_for_table(table, conds,
+                                                             order, select_lex))
    DBUG_RETURN(1); // Fatal error
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -1419,6 +1481,7 @@ int multi_delete::send_data(List<Item> &values)
               }
               found++;
           }
+          error= 0;
       }
     }
   }
@@ -1634,7 +1697,7 @@ int multi_delete::rowid_table_deletes(TABLE *table, bool ignore)
       during ha_delete_row.
       Also, don't execute the AFTER trigger if the row operation failed.
     */
-    if (unlikely(!local_error))
+    if (likely(!local_error))
     {
       deleted++;
       if (table->triggers &&
@@ -1804,6 +1867,13 @@ bool Sql_cmd_delete::precheck(THD *thd)
   else
   {
     if (multi_delete_precheck(thd, lex->query_tables))
+      return true;
+
+    SELECT_LEX *select_lex= lex->first_select_lex();
+    /* condition will be TRUE on SP re-excuting */
+    if (select_lex->item_list.elements != 0)
+      select_lex->item_list.empty();
+    if (add_item_to_list(thd, new (thd->mem_root) Item_null(thd)))
       return true;
   }
 
@@ -2134,3 +2204,47 @@ bool Sql_cmd_delete::execute_inner(THD *thd)
   status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
   return res;
 }
+
+
+void Multidelete_prelocking_strategy::reset(THD *thd)
+{
+  done= false;
+}
+
+
+/**
+  Call setup_tables() to populate lex->first_select_lex()->leaf_tables.
+  This is needed to properly cleanup the tables used in DELETE's top-level
+  select. See st_select_lex::cleanup().
+*/
+
+bool Multidelete_prelocking_strategy::handle_end(THD *thd)
+{
+  DBUG_ENTER("Multidelete_prelocking_strategy::handle_end");
+
+  if (done)
+    DBUG_RETURN(0);
+
+  LEX *lex= thd->lex;
+  SELECT_LEX *select_lex= lex->first_select_lex();
+  TABLE_LIST *table_list= lex->query_tables;
+
+  done= true;
+
+  /*
+    This is done to resolve other base tables within derived tables in the
+    outermost select.
+  */
+  if (mysql_handle_derived(lex, DT_INIT) ||
+      mysql_handle_derived(lex, DT_MERGE_FOR_INSERT) ||
+      mysql_handle_derived(lex, DT_PREPARE))
+    DBUG_RETURN(1);
+
+  if (setup_tables(thd, &select_lex->context, &select_lex->top_join_list,
+        table_list, select_lex->leaf_tables, false, true))
+    DBUG_RETURN(1);
+
+  DBUG_RETURN(0);
+}
+
+

@@ -482,7 +482,7 @@ Rpl_filter::add_table_rule(HASH* h, const char* table_spec)
 {
   const char* dot = strchr(table_spec, '.');
   if (!dot) return 1;
-  // len is always > 0 because we know the there exists a '.'
+  // len is always > 0 because we know there exists a '.'
   uint len = (uint)strlen(table_spec);
   TABLE_RULE_ENT* e = (TABLE_RULE_ENT*)my_malloc(key_memory_TABLE_RULE_ENT,
                                                  sizeof(TABLE_RULE_ENT) + len,

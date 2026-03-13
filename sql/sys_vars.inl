@@ -33,6 +33,7 @@
 #include "debug_sync.h"
 #include "sql_acl.h"    // check_global_access()
 #include "optimizer_defaults.h"   // create_optimizer_costs
+#include "sp_cache.h"
 
 /*
   a set of mostly trivial (as in f(X)=X) defines below to make system variable
@@ -320,7 +321,7 @@ public:
           ulonglong def_val, PolyLock *lock,
           enum binlog_status_enum binlog_status_arg,
           on_check_function on_check_func, on_update_function on_update_func,
-          const char *substitute)
+          const char *substitute, int *hidden_values)
     : sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id,
               getopt.arg_type, show_val_type_arg, def_val, lock,
               binlog_status_arg, on_check_func,
@@ -329,6 +330,7 @@ public:
     for (typelib.count= 0; values[typelib.count]; typelib.count++) /*no-op */;
     typelib.name="";
     typelib.type_names= values;
+    typelib.hidden_values= hidden_values;
     typelib.type_lengths= 0;    // only used by Fields_enum and Field_set
     option.typelib= &typelib;
   }
@@ -390,7 +392,7 @@ public:
     : Sys_var_typelib(name_arg, comment, flag_args, off, getopt,
                       SHOW_CHAR, values, def_val, lock,
                       binlog_status_arg, on_check_func, on_update_func,
-                      substitute)
+                      substitute, nullptr)
   {
     option.var_type|= GET_ENUM;
     option.min_value= 0;
@@ -461,7 +463,7 @@ public:
     : Sys_var_typelib(name_arg, comment, flag_args, off, getopt,
                       SHOW_MY_BOOL, bool_values, def_val, lock,
                       binlog_status_arg, on_check_func, on_update_func,
-                      substitute)
+                      substitute, nullptr)
   {
     option.var_type|= GET_BOOL;
     global_var(my_bool)= def_val;
@@ -509,7 +511,7 @@ public:
 */
 class Sys_var_charptr: public sys_var
 {
-  const size_t max_length= 2000;
+  const size_t max_length= 4096;
 public:
   Sys_var_charptr(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
@@ -535,7 +537,7 @@ public:
   }
   void cleanup() override
   {
-    if (flags & ALLOCATED)
+    if (flags & ALLOCATED && global_var(intptr) != (intptr)option.def_value)
     {
       my_free(global_var(char*));
       global_var(char *)= NULL;
@@ -607,8 +609,7 @@ public:
   }
   void global_update_finish(char *new_val)
   {
-    if (flags & ALLOCATED)
-      my_free(global_var(char*));
+    cleanup();
     flags|= ALLOCATED;
     global_var(char*)= new_val;
   }
@@ -1408,11 +1409,11 @@ public:
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
           on_update_function on_update_func=0,
-          const char *substitute=0)
+          const char *substitute=0, int *hidden_values=nullptr)
     : Sys_var_typelib(name_arg, comment, flag_args, off, getopt,
                       SHOW_CHAR, values, def_val, lock,
                       binlog_status_arg, on_check_func, on_update_func,
-                      substitute)
+                      substitute, hidden_values)
   {
     option.var_type|= GET_FLAGSET;
     global_var(ulonglong)= def_val;
@@ -1521,11 +1522,11 @@ public:
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
           on_update_function on_update_func=0,
-          const char *substitute=0)
+          const char *substitute=0,int *hidden_values=nullptr)
     : Sys_var_typelib(name_arg, comment, flag_args, off, getopt,
                       SHOW_CHAR, values, def_val, lock,
                       binlog_status_arg, on_check_func, on_update_func,
-                      substitute)
+                      substitute, hidden_values)
   {
     option.var_type|= GET_SET;
     option.min_value= 0;
@@ -1574,6 +1575,13 @@ public:
           !my_charset_latin1.strnncollsp(res->to_lex_cstring(), all_clex_str))
       {
         var->save_result.ulonglong_value= ((1ULL << (typelib.count)) -1);
+        if (typelib.hidden_values)
+        {
+          for (const int *p= typelib.hidden_values; *p >= 0; p++)
+          {
+            var->save_result.ulonglong_value &= ~(1ull << *p);
+          }
+        }
         error_len= 0;
       }
       /*
@@ -1972,11 +1980,11 @@ public:
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
           on_update_function on_update_func=0,
-          const char *substitute=0)
+          const char *substitute=0, int *hidden_values=nullptr)
     : Sys_var_typelib(name_arg, comment, flag_args, off, getopt,
                       SHOW_MY_BOOL, bool_values, def_val, lock,
                       binlog_status_arg, on_check_func, on_update_func,
-                      substitute)
+                      substitute, nullptr)
   {
     option.var_type|= GET_BIT;
     reverse_semantics= my_count_bits(bitmask_arg) > 1;
@@ -3017,8 +3025,7 @@ private:
 
   void session_save_default(THD *thd, set_var *var) override
   {
-    thd->variables.character_set_collations.set(
-      global_system_variables.character_set_collations, 1);
+    var->save_result.ptr= 0;
   }
 
   void global_save_default(THD *thd, set_var *var) override
@@ -3030,7 +3037,8 @@ private:
   {
     if (!var->value)
     {
-      session_save_default(thd, var);
+      thd->variables.character_set_collations.set(
+        global_system_variables.character_set_collations, 1);
       return false;
     }
     thd->variables.character_set_collations.
@@ -3061,5 +3069,124 @@ private:
   {
     return make_value_ptr(thd, global_system_variables.
                                  character_set_collations);
+  }
+};
+
+
+class Sys_var_path: public sys_var
+{
+public:
+  Sys_var_path(const char *name_arg, const char *comment, int flag_args,
+               ptrdiff_t off, size_t size, CMD_LINE getopt,
+               enum binlog_status_enum binlog_status_arg)
+   :sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id,
+            getopt.arg_type, SHOW_CHAR, DEFAULT(0), nullptr, binlog_status_arg,
+            nullptr, nullptr, nullptr)
+  {
+    option.var_type|= GET_STR;
+    SYSVAR_ASSERT(getopt.id < 0); // force NO_CMD_LINE
+  }
+
+private:
+
+  static bool from_item(THD *thd, Sql_path *path, Item *item)
+  {
+    String *value, buffer;
+    if (!(value= item->val_str_ascii(&buffer)))
+      return true;
+    return path->from_text(thd->variables, value);
+  }
+
+  static const uchar *make_value_ptr(THD *thd, const Sql_path &path)
+  {
+    size_t nbytes= path.text_format_nbytes_needed();
+    char *buf= thd->alloc(nbytes + 1);
+    size_t length= path.print(buf, nbytes);
+    buf[length]= '\0';
+    return (uchar *) buf;
+  }
+
+private:
+  bool do_check(THD *thd, set_var *var) override
+  {
+    Sql_path *path= new (thd->alloc<Sql_path>(1)) Sql_path();
+    if (!path || from_item(thd, path, var->value))
+    {
+      path->free();
+      return true;
+    }
+
+    var->save_result.ptr= path;
+    return false;
+  }
+
+  void session_save_default(THD *thd, set_var *var) override
+  {
+    var->save_result.ptr= 0;
+  }
+
+  void global_save_default(THD *thd, set_var *var) override
+  {
+    global_system_variables.path.init();
+  }
+
+  bool session_update(THD *thd, set_var *var) override
+  {
+    if (thd->spcont)
+    {
+      /*
+        Because we invalidate the sp caches, we can't set the session path
+        in a stored function.
+      */
+      my_error(ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRG, MYF(0), "PATH");
+      if (var->save_result.ptr)
+        ((Sql_path*) var->save_result.ptr)->free();
+
+      return true;
+    }
+
+    if (!var->value)
+    {
+      thd->variables.path.set(global_system_variables.path);
+      return false;
+    }
+    thd->variables.path.set(std::move(*(Sql_path*) var->save_result.ptr));
+
+    /*
+      Invalidate the sp caches, as the path has changed and the caches
+      may contain entries that needs to be resolved again
+    */
+    sp_cache_invalidate();
+    return false;
+  }
+
+  bool global_update(THD *thd, set_var *var) override
+  {
+    if (!var->value)
+    {
+      global_save_default(thd, var);
+      return false;
+    }
+
+    global_system_variables.path= std::move(*(Sql_path*) var->save_result.ptr);
+    return false;
+  }
+
+  const uchar *
+  session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
+  {
+    return make_value_ptr(thd, thd->variables.path);
+  }
+
+  const uchar *
+  global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
+  {
+    return make_value_ptr(thd, global_system_variables.path);
+  }
+
+  void cleanup() override
+  {
+    global_system_variables.path.free();
+    max_system_variables.path.free();
   }
 };

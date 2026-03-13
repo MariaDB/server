@@ -31,6 +31,10 @@ static inline void _ma_set_trn_for_table(MARIA_HA *tbl, TRN *newtrn)
 
   /* check that we are not calling this twice in a row */
   DBUG_ASSERT(newtrn->used_instances != (void*) tbl);
+  DBUG_ASSERT(newtrn != &dummy_transaction_object);
+  DBUG_ASSERT(tbl->trn == 0);
+  DBUG_ASSERT(tbl->trn_next == 0);
+  DBUG_ASSERT(tbl->trn_prev == 0);
 
   tbl->trn= newtrn;
   /* Link into used list */
@@ -63,16 +67,24 @@ static inline void _ma_set_tmp_trn_for_table(MARIA_HA *tbl, TRN *newtrn)
 
 static inline void _ma_reset_trn_for_table(MARIA_HA *tbl)
 {
+  TRN *trn __attribute__((unused))= tbl->trn;
   DBUG_PRINT("info",("table: %p  trn: %p -> NULL", tbl, tbl->trn));
 
   /* The following is only false if tbl->trn == &dummy_transaction_object */
   if (tbl->trn_prev)
   {
     if (tbl->trn_next)
+    {
+      DBUG_ASSERT(tbl->trn_next->trn == trn);
       tbl->trn_next->trn_prev= tbl->trn_prev;
+    }
     *tbl->trn_prev= tbl->trn_next;
     tbl->trn_prev= 0;
     tbl->trn_next= 0;
+  }
+  else
+  {
+    DBUG_ASSERT(tbl->trn_next == 0);
   }
   tbl->trn= 0;
 }

@@ -86,8 +86,10 @@ Note	1938	SLAVE 'stream1' stopped
 Note	1938	SLAVE 'stream2' stopped
 RESET SLAVE ALL;
 connection primary1;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection primary2;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection node_1;
 disconnect primary1;

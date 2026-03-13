@@ -1130,6 +1130,8 @@ command_schema_output_table(grn_ctx *ctx,
   grn_ctx_output_map_close(ctx);
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static void
 command_schema_output_tables(grn_ctx *ctx, grn_schema_data *data)
 {
@@ -1200,6 +1202,8 @@ command_schema_output_tables(grn_ctx *ctx, grn_schema_data *data)
 
   GRN_OBJ_FIN(ctx, &table_ids);
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static grn_obj *
 command_schema(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)

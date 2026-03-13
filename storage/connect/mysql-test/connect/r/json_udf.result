@@ -346,7 +346,7 @@ SELECT JsonGet_String(NULL json_, NULL);
 JsonGet_String(NULL json_, NULL)
 NULL
 Warnings:
-Warning	1105	
+Warning	1105	Argument is NULL
 SELECT department, JsonGet_String(Json_Make_Object(department, Json_Array_Grp(salary) "Json_salaries"),'salaries.[+]') Sumsal FROM t3 GROUP BY department;
 department	Sumsal
 0021	28500.000000

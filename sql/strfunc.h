@@ -28,7 +28,7 @@ ulonglong find_set_from_flags(TYPELIB *lib, uint default_name,
 uint find_type(const TYPELIB *lib, const char *find, size_t length,
                bool part_match);
 uint find_type2(const TYPELIB *lib, const char *find, size_t length,
-                CHARSET_INFO *cs);
+                my_bool *part_match, CHARSET_INFO *cs);
 void unhex_type2(TYPELIB *lib);
 uint check_word(TYPELIB *lib, const char *val, const char *end,
 		const char **end_of_word);

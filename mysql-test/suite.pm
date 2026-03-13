@@ -103,6 +103,10 @@ sub skip_combinations {
   $skip{'include/check_windows_admin.inc'} = 'Requires admin privileges'
     unless IS_WINDOWS and Win32::IsAdminUser();
 
+  # MDEV-38326. Chained TLS certificates fails verification for schannel clients
+  $skip{'main/chained_ssl_certificates.test'} = 'Skip if on Windows without OpenSSL'
+    unless !IS_WINDOWS || $openssl_ver;
+
   %skip;
 }
 

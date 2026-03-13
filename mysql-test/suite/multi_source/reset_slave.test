@@ -43,14 +43,16 @@ let read_master_log_pos=`select $binlog_start_pos + 608`;
 let relay_log_pos=`select 2*$binlog_start_pos + 652`;
 let relay_log_space=`select 3*$binlog_start_pos + 714`;
 
+# Master_Server_Id should be 1 (master's server_id from previous connection)
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space <relay_log_space>
-show slave 'master1' status;
+--query_vertical show slave 'master1' status
 --list_files $datadir mysqld*
 
 reset slave 'master1';
 
+# Master_Server_Id should be 0 (MDEV-15327: RESET SLAVE resets it)
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $relay_log_pos <relay_log_pos> $relay_log_space <relay_log_space>
-show slave 'master1' status;
+--query_vertical show slave 'master1' status
 --list_files $datadir mysqld*
 
 reset slave 'master1' all;

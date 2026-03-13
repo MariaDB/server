@@ -598,7 +598,6 @@ SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+when" IN BOOLEAN MODE);
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('the');
 
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 --echo "In connection default"
 --connection default

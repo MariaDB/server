@@ -1,0 +1,22 @@
+--echo #
+--echo # MDEV-36087 MariDB 11.7.2 - /usr/sbin/mariadbd got signal 11
+--echo #
+
+# This test simulates the scenario in MDEV-36087 by dropping the
+# column added in MDEV-34716
+let SEARCH_PATTERN= Column count of mysql\\.servers is wrong\\. Expected 10, found 9\\. The table is probably corrupted;
+evalp call mtr.add_suppression('$SEARCH_PATTERN');
+
+create server s foreign data wrapper mysql options (host "127.0.0.1", database "test", user "root", port 3306);
+show create server s;
+alter table mysql.servers drop column Options;
+show create server s;
+--source include/restart_mysqld.inc
+show create server s;
+ALTER TABLE mysql.servers
+  ADD Options JSON NOT NULL DEFAULT '{}' CHECK(JSON_VALID(Options));
+flush privileges;
+show create server s;
+drop server s;
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+--source include/search_pattern_in_file.inc

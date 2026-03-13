@@ -1,6 +1,5 @@
 --source include/have_innodb.inc
 --source include/have_file_key_management_plugin.inc
---source include/count_sessions.inc
 
 SET @save_threads = @@GLOBAL.innodb_encryption_threads;
 
@@ -75,4 +74,3 @@ drop table create_or_replace_t, table1_int_autoinc, table0_int_autoinc,
 table10_int_autoinc;
 
 SET GLOBAL innodb_encryption_threads = @save_threads;
---source include/wait_until_count_sessions.inc

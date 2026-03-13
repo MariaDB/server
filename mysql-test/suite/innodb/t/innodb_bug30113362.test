@@ -9,14 +9,9 @@
 # debug sync points times out when using valgrind
 --source include/not_valgrind.inc
 
---disable_query_log
 SET @old_innodb_limit_optimistic_insert_debug = @@innodb_limit_optimistic_insert_debug;
 SET @old_innodb_adaptive_hash_index = @@innodb_adaptive_hash_index;
 SET @old_innodb_stats_persistent = @@innodb_stats_persistent;
---enable_query_log
-
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
 
 SET GLOBAL innodb_adaptive_hash_index = false;
 SET GLOBAL innodb_stats_persistent = false;
@@ -235,10 +230,6 @@ SET DEBUG_SYNC = 'RESET';
 
 DROP TABLE t1;
 
---disable_query_log
 SET GLOBAL innodb_limit_optimistic_insert_debug = @old_innodb_limit_optimistic_insert_debug;
 SET GLOBAL innodb_adaptive_hash_index = @old_innodb_adaptive_hash_index;
 SET GLOBAL innodb_stats_persistent = @old_innodb_stats_persistent;
---enable_query_log
-
---source include/wait_until_count_sessions.inc

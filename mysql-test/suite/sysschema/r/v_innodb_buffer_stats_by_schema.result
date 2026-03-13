@@ -7,7 +7,11 @@ pages	bigint(21)	NO		0
 pages_hashed	bigint(21)	NO		0	
 pages_old	bigint(21)	NO		0	
 rows_cached	decimal(44,0)	YES		NULL	
-SELECT * FROM sys.innodb_buffer_stats_by_schema;
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+SELECT * FROM sys.innodb_buffer_stats_by_schema
+where object_schema = 'test';
+object_schema	allocated	data	pages	pages_hashed	pages_old	rows_cached
+test	16.00 KiB	   0 bytes	1	0	0	0
 DESC sys.x$innodb_buffer_stats_by_schema;
 Field	Type	Null	Key	Default	Extra
 object_schema	text	YES		NULL	
@@ -17,4 +21,8 @@ pages	bigint(21)	NO		0
 pages_hashed	bigint(21)	NO		0	
 pages_old	bigint(21)	NO		0	
 rows_cached	decimal(44,0)	NO		0	
-SELECT * FROM sys.x$innodb_buffer_stats_by_schema;
+SELECT * FROM sys.x$innodb_buffer_stats_by_schema
+where object_schema = 'test';
+object_schema	allocated	data	pages	pages_hashed	pages_old	rows_cached
+test	16384	0	1	0	0	0
+DROP TABLE t1;

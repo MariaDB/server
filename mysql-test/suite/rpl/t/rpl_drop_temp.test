@@ -18,8 +18,6 @@ create temporary table mysqltest.t1 (n int)ENGINE=MyISAM;
 create temporary table mysqltest.t2 (n int)ENGINE=MyISAM;
 
 disconnect con_temp;
---source include/wait_until_disconnected.inc
-
 connection master;
 if (`SELECT FIND_IN_SET(@@BINLOG_FORMAT,@@CREATE_TMP_TABLE_BINLOG_FORMATS) > 0`)
 {

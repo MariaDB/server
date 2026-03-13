@@ -36,6 +36,18 @@
 #include "sql_table.h"
 #include "transaction.h"
 
+/* Indexed by partition_info::enum_key_algorithm enums */
+my_hasher_st (*part_hashers[])(void)=
+{
+  my_hasher_mysql5x,            /* KEY_ALGORITHM_NONE */
+  my_hasher_mysql5x,            /* KEY_ALGORITHM_51 */
+  my_hasher_mysql5x,            /* KEY_ALGORITHM_55 */
+  my_hasher_base31,             /* KEY_ALGORITHM_BASE31 */
+  my_hasher_crc32c,             /* KEY_ALGORITHM_CRC32C */
+  my_hasher_xxh32,              /* KEY_ALGORITHM_XXH32 */
+  my_hasher_xxh3,               /* KEY_ALGORITHM_XXH3 */
+  my_hasher_mysql5x             /* KEY_ALGORITHM_END */
+};
 
 partition_info *partition_info::get_clone(THD *thd, bool empty_data_and_index_file)
 {
@@ -411,20 +423,19 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
     my_error(ER_TOO_MANY_PARTITIONS_ERROR, MYF(0));
     goto end;
   }
-  if (unlikely((!(default_name= create_default_partition_names(thd, 0,
-                                                               num_parts,
-                                                               start_no)))))
+  default_name= create_default_partition_names(thd, 0, num_parts, start_no);
+  if (unlikely(!default_name))
     goto end;
   i= 0;
   do
   {
     partition_element *part_elem= new partition_element();
-    if (likely(part_elem != 0 &&
-               (!partitions.push_back(part_elem))))
+    if (likely(part_elem != 0 && !partitions.push_back(part_elem)))
     {
       part_elem->engine_type= default_engine_type;
       part_elem->partition_name= Lex_cstring_strlen(default_name);
       part_elem->id= i;
+      part_elem->option_struct_part= file->option_struct;
       default_name+=MAX_PART_NAME_SIZE;
       if (part_type == VERSIONING_PARTITION)
       {
@@ -820,7 +831,9 @@ bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
     return 0;
   }
   else if (vers_info->interval.is_set() &&
-           vers_info->hist_part->range_value <= (longlong) thd->query_start())
+           /* Left boundary is closed */
+           vers_info->hist_part->range_value <= (longlong)thd->query_start() &&
+           vers_info->hist_part->range_value < TIMESTAMP_MAX_VALUE)
   {
     partition_element *next= NULL;
     bool error= true;
@@ -831,7 +844,8 @@ bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
     while ((next= it++) != vers_info->now_part)
     {
       vers_info->hist_part= next;
-      if (next->range_value > (longlong) thd->query_start())
+      /* Right boundary is open */
+      if ((longlong)thd->query_start() < next->range_value)
       {
         error= false;
         break;
@@ -1272,15 +1286,14 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
     if (!list_of_part_fields)
     {
       DBUG_ASSERT(part_expr);
-      err= part_expr->walk(&Item::check_partition_func_processor, 0, NULL);
+      err= part_expr->walk(&Item::check_partition_func_processor, 0, 0);
     }
 
     /* Check for sub partition expression. */
     if (!err && is_sub_partitioned() && !list_of_subpart_fields)
     {
       DBUG_ASSERT(subpart_expr);
-      err= subpart_expr->walk(&Item::check_partition_func_processor, 0,
-                              NULL);
+      err= subpart_expr->walk(&Item::check_partition_func_processor, 0, 0);
     }
 
     if (err)
@@ -1983,7 +1996,7 @@ bool partition_info::add_column_list_value(THD *thd, Item *item)
   else
     thd->where= THD_WHERE::PARTITION_FUNCTION;
 
-  if (item->walk(&Item::check_partition_func_processor, 0, NULL))
+  if (item->walk(&Item::check_partition_func_processor, 0, 0))
   {
     my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
     DBUG_RETURN(TRUE);
@@ -2320,7 +2333,7 @@ bool partition_info::fix_parser_data(THD *thd)
     if (part_type == HASH_PARTITION && list_of_part_fields)
     {
       /* KEY partitioning, check ALGORITHM = N. Should not pass the parser! */
-      if (key_algorithm > KEY_ALGORITHM_55)
+      if (key_algorithm >= KEY_ALGORITHM_END)
       {
         my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
         DBUG_RETURN(true);
@@ -2336,7 +2349,7 @@ bool partition_info::fix_parser_data(THD *thd)
   if (is_sub_partitioned() && list_of_subpart_fields)
   {
     /* KEY subpartitioning, check ALGORITHM = N. Should not pass the parser! */
-    if (key_algorithm > KEY_ALGORITHM_55)
+    if (key_algorithm >= KEY_ALGORITHM_END)
     {
       my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
       DBUG_RETURN(true);
@@ -2907,4 +2920,30 @@ bool partition_info::error_if_requires_values() const
     return true;
   }
   return false;
+}
+
+static partition_info::enum_key_algorithm
+key_algorithm_by_name(const LEX_CSTRING *str)
+{
+  if (lex_string_eq(str, STRING_WITH_LEN("MYSQL51")))
+    return partition_info::KEY_ALGORITHM_51;
+  if (lex_string_eq(str, STRING_WITH_LEN("MYSQL55")))
+    return partition_info::KEY_ALGORITHM_55;
+  DBUG_EXECUTE_IF("emulate_unknown_partition_algorithm",
+                  return partition_info::KEY_ALGORITHM_END;);
+  if (lex_string_eq(str, STRING_WITH_LEN("BASE31")))
+    return partition_info::KEY_ALGORITHM_BASE31;
+  if (lex_string_eq(str, STRING_WITH_LEN("CRC32C")))
+    return partition_info::KEY_ALGORITHM_CRC32C;
+  if (lex_string_eq(str, STRING_WITH_LEN("XXH32")))
+    return partition_info::KEY_ALGORITHM_XXH32;
+  if (lex_string_eq(str, STRING_WITH_LEN("XXH3")))
+    return partition_info::KEY_ALGORITHM_XXH3;
+  return partition_info::KEY_ALGORITHM_END;
+}
+
+bool partition_info::set_key_algorithm(const LEX_CSTRING *str)
+{
+  key_algorithm= key_algorithm_by_name(str);
+  return key_algorithm == KEY_ALGORITHM_END;
 }

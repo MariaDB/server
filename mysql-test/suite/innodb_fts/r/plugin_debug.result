@@ -176,7 +176,6 @@ MATCH(title, body) AGAINST('"mysql database"' IN BOOLEAN MODE);
 id	title	body
 DROP TABLE articles;
 # Test Part 6: Test Query Parser with Default/Internal Parser
-SET GLOBAL innodb_ft_enable_diag_print = 1;
 CREATE TABLE articles (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200),
@@ -301,7 +300,6 @@ SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('"计算机 数据库"' IN BOOLEAN MODE);
 id	title	body
 DROP TABLE articles;
-SET GLOBAL innodb_ft_enable_diag_print = 0;
 SET SESSION debug="-d,fts_instrument_use_default_parser";
 # Test Part 9:# Abort the operation in dict_create_index_step
 CREATE TABLE articles (

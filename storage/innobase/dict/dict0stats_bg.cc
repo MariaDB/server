@@ -118,18 +118,11 @@ static void dict_stats_recalc_pool_add(table_id_t id)
     dict_stats_schedule_now();
 }
 
-#ifdef WITH_WSREP
 /** Update the table modification counter and if necessary,
 schedule new estimates for table and index statistics to be calculated.
 @param[in,out]	table	persistent or temporary table
-@param[in]	thd	current session */
-void dict_stats_update_if_needed(dict_table_t *table, const trx_t &trx)
-#else
-/** Update the table modification counter and if necessary,
-schedule new estimates for table and index statistics to be calculated.
-@param[in,out]	table	persistent or temporary table */
-void dict_stats_update_if_needed_func(dict_table_t *table)
-#endif
+@param[in,out]	thd	current session */
+void dict_stats_update_if_needed(dict_table_t *table, trx_t &trx) noexcept
 {
         uint32_t stat{table->stat};
 
@@ -197,7 +190,7 @@ void dict_stats_update_if_needed_func(dict_table_t *table)
 
 	if (counter > threshold) {
 		/* this will reset table->stat_modified_counter to 0 */
-		dict_stats_update_transient(table);
+		dict_stats_update_transient(&trx, table);
 	}
 }
 
@@ -337,7 +330,7 @@ invalid_table_id:
     difftime(time(nullptr), table->stats_last_recalc) >= MIN_RECALC_INTERVAL;
 
   const dberr_t err= update_now
-    ? dict_stats_update_persistent_try(table)
+    ? dict_stats_update_persistent_try(nullptr, table)
     : DB_SUCCESS_LOCKED_REC;
 
   dict_table_close(table, thd, mdl);

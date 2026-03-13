@@ -3,7 +3,6 @@
 #
 
 --source include/have_innodb.inc
---source include/count_sessions.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
@@ -97,4 +96,3 @@ ROLLBACK;
 --enable_result_log
 DROP TABLE t1;
 DROP TABLE dl;
---source include/wait_until_count_sessions.inc

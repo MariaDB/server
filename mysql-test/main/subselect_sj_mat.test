@@ -2463,3 +2463,20 @@ ORDER BY l_orderkey, l_linenumber;
 DROP TABLE t1;
 
 --echo # end of 10.6 tests
+
+--echo #
+--echo # MDEV-30721: Assertion `fixed()' failed in Item_cond_and::val_bool()
+--echo # with degenerate JTBM semi-join
+--echo #
+
+CREATE TABLE t1 (c INT KEY);
+INSERT INTO t1 (c) VALUES (0);
+
+# This query triggered an assertion because the Item_cond_and created
+# during condition merging in and_new_conditions_to_optimized_cond()
+# was evaluated before being fixed.
+SELECT * FROM t1 WHERE (0,0) IN (SELECT MAX(c),MIN(c) FROM t1);
+
+DROP TABLE t1;
+
+--echo # end of 10.11 tests

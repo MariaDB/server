@@ -43,11 +43,11 @@ select @@global.read_only;
 show grants;
 --disable_result_log
 select * from performance_schema.setup_instruments;
+--enable_result_log
 --error ER_OPTION_PREVENTS_STATEMENT
 update performance_schema.setup_instruments set enabled='NO';
 --error ER_OPTION_PREVENTS_STATEMENT
 update performance_schema.setup_instruments set enabled='YES';
---enable_result_log
 
 connection default;
 
@@ -61,13 +61,11 @@ select @@global.read_only;
 show grants;
 --disable_result_log
 select * from performance_schema.setup_instruments;
+--enable_result_log
 update performance_schema.setup_instruments set enabled='NO';
 update performance_schema.setup_instruments set enabled='YES';
---enable_result_log
 
 disconnect con1;
---source include/wait_until_disconnected.inc
-
 connection default;
 
 set global read_only= @start_read_only;

@@ -1,0 +1,120 @@
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+--echo *** Test that the GTID state record is written correctly when inside a group commit.
+
+# The test needs a group commit to cross the file boundary, so needs the
+# binlog size to be as expected.
+SELECT @@GLOBAL.max_binlog_size;
+
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL, c TEXT, PRIMARY KEY(a, b)) ENGINE=InnoDB;
+# Get close to the end of the file.
+--let $i= 0
+while ($i < 10) {
+  eval INSERT INTO t1 VALUES (1, $i, REPEAT('$i', 24000));
+  inc $i;
+}
+--echo *** Check that we are still in binlog file 0:
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+--echo $file
+
+--echo *** Create a group commit that spans into file 1
+--connection master
+--let $i= 1
+while ($i <= 10) {
+  --connect (con_$i,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+  eval SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued$i WAIT_FOR master_cont NO_CLEAR_EVENT';
+  send_eval INSERT INTO t1 VALUES (2, $i, REPEAT(CHR(64 + $i), 400));
+  --connection master
+  eval SET debug_sync='now WAIT_FOR master_queued$i';
+  inc $i;
+}
+
+SET debug_sync= 'now SIGNAL master_cont';
+
+--let $i= 1
+while ($i <= 10) {
+  --connection con_$i
+  reap;
+  --connection master
+  --disconnect con_$i
+  inc $i;
+}
+SET debug_sync= 'RESET';
+
+--echo *** Check that we are now in binlog file 1:
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+--echo $file
+
+SELECT a, b, LENGTH(c) FROM t1 ORDER BY a, b;
+
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+SELECT a, b, LENGTH(c) FROM t1 ORDER BY a, b;
+
+--echo *** Stop and restart the slave.
+# There was a bug that the GTID state record at the start of the file
+# would containt the GTID for the _end_ of the group commit, not of the
+# point in the group commit where it crossed into the next file. And then
+# the slave would replicate from too early and get a duplicate key error.
+--source include/stop_slave.inc
+--source include/start_slave.inc
+
+
+--echo *** Test FLUSH BINARY LOGS in parallel with GTID allocation.
+
+--connection master
+INSERT INTO t1 VALUES (10, 1, 'before race');
+
+# Send a FLUSH BINARY LOGS.
+# Make the FLUSH sleep a little after releasing the LOCK_log but before reading
+# the current binlog GTID state, to make the race likely to hit. Using
+# debug_sync here will not be effective after fixing the bug, as the fix
+# will prevent the race and make the debug_sync time out.
+--connect (con1,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET SESSION debug_dbug= '+d,flush_binlog_sleep_after_release_lock_log';
+send FLUSH BINARY LOGS;
+
+--connection master
+# The FLUSH will sleep 0.2, sleep 0.1 here to have a high chance to hit the race.
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug= '+d,binlog_sleep_after_alloc_gtid';
+--sleep 0.1
+send INSERT INTO t1 VALUES (10, 2, 'race?');
+
+--connection con1
+reap;
+--disconnect con1
+
+--connection master
+reap;
+SET SESSION debug_dbug= @old_dbug;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--echo *** Stop and restart the slave, 2.
+# The bug was that the FLUSH could run after the new GTID was allocated, but
+# before it was written into the binlog. This would cause the wrong binlog
+# state at the start of the new binlog file, and a slave that reconnects at
+# that exact GTID will get a duplicate GTID.
+--source include/stop_slave.inc
+--source include/start_slave.inc
+
+--connection master
+INSERT INTO t1 VALUES (10, 3, 'check?');
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+
+# Cleanup.
+--connection master
+DROP TABLE t1;
+--source include/rpl_end.inc

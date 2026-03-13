@@ -16,7 +16,6 @@ SELECT @@transaction_read_only;
 SET SESSION TRANSACTION READ WRITE;
 SELECT @@transaction_read_only;
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 connection default;
 SELECT @@transaction_read_only;

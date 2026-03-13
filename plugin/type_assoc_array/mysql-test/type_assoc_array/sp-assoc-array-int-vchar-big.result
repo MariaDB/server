@@ -1,0 +1,45 @@
+SET sql_mode=oracle;
+SET NAMES utf8mb4;
+#
+# MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+#
+#
+# Create a relatively big array, then search in it
+#
+CREATE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR(32) INDEX BY INT;
+assoc assoc_t;
+BEGIN
+FOR i IN 0..1024*128
+LOOP
+assoc(i):= CONCAT('value', i);
+END LOOP;
+CREATE TEMPORARY TABLE t1 (a INT, b VARCHAR(32));
+FOR i IN 0..16
+LOOP
+INSERT INTO t1 VALUES (i*10, assoc(i*10));
+END LOOP;
+SELECT * FROM t1;
+DROP TEMPORARY TABLE t1;
+END;
+$$
+CALL p1;
+a	b
+0	value0
+10	value10
+20	value20
+30	value30
+40	value40
+50	value50
+60	value60
+70	value70
+80	value80
+90	value90
+100	value100
+110	value110
+120	value120
+130	value130
+140	value140
+150	value150
+160	value160
+DROP PROCEDURE p1;

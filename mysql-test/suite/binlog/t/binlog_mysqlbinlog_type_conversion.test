@@ -1,0 +1,61 @@
+#
+# This test ensures that type conversion checks happen for BINLOG statements.
+# It saves the binlog output of an INSERT command expecting the table to have
+# a column of type INT. Then it changes the table to have a column of type
+# CHAR(1) and attempts to replay the binlog. This should result in a type
+# conversion error.
+#
+# Additionally of note is that there is a second table added with a foreign
+# key reference to the first table. This is because of a finding of MDEV-37737,
+# which showed an assertion due to missed context cleanup when type conversion
+# failed.
+#
+# References:
+#   MDEV-37737: SIGABRT upon executing BINLOG statement
+#
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+
+call mtr.add_suppression("BINLOG_BASE64_EVENT: Column 1 of table 'test.t1' cannot be converted from type 'int' to type");
+
+--echo #
+--echo # Initialize test data
+create table t1 (a int, b int, key(a)) engine=innodb;
+create table t2 (a int, b int,foreign key(b) references t1 (a)) engine=innodb;
+flush logs;
+
+--let $datadir=`select @@datadir`
+--let $binlog_name = query_get_value(SHOW MASTER STATUS,File,1)
+--let $binlog_sql_file= $MYSQLTEST_VARDIR/tmp/binlog.sql
+insert into t1 values (1, 1);
+--echo #MYSQL_BINLOG datadir/binlog_name --result-file=binlog_sql_file
+--exec $MYSQL_BINLOG $datadir/$binlog_name --result-file=$binlog_sql_file
+
+flush logs;
+
+--echo # Change the type of the table
+delete from t1 where a=1;
+alter table t1 drop b;
+alter table t1 add column b char(1);
+
+--echo # Replay the binlog with the INSERT statement
+--echo # MYSQL -e "source binlog_sql_file"
+--exec $MYSQL -e "source $binlog_sql_file"
+
+let $err_log_name= `SELECT @@GLOBAL.log_error`;
+if(!$err_log_name)
+{
+    let $err_log_name = $MYSQLTEST_VARDIR/log/mysqld.1.err;
+}
+--let $assert_text= Ensure error log reports type conversion failure
+--let $assert_file= $err_log_name
+--let $assert_select= cannot be converted from type
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--echo #
+--echo # Cleanup
+drop table t2, t1;
+
+--echo # End of binlog_mysqlbinlog_type_conversion.test

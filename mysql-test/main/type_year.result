@@ -1,3 +1,6 @@
+set old_mode=2_DIGIT_YEAR;
+Warnings:
+Warning	1287	'2_DIGIT_YEAR' is deprecated and will be removed in a future release
 create table t1 (y year,y2 year(2));
 Warnings:
 Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
@@ -378,7 +381,16 @@ ALTER TABLE t1 MODIFY COLUMN c2 YEAR(2);
 Warnings:
 Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
+SET OLD_MODE='';
+ALTER TABLE t1 MODIFY COLUMN c2 INT;
+Warnings:
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 DROP TABLE t1;
+CREATE TABLE t1 (c1 YEAR(2), c2 YEAR(4));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ' c2 YEAR(4))' at line 1
+SET OLD_MODE=2_DIGIT_YEAR;
+Warnings:
+Warning	1287	'2_DIGIT_YEAR' is deprecated and will be removed in a future release
 #
 # End of 5.1 tests
 #

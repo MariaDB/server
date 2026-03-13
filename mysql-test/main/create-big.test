@@ -12,8 +12,6 @@
 # Some of tests below also use binlog to check that statements are
 # executed and logged in correct order
 --source include/have_binlog_format_mixed_or_statement.inc
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
 
 # Create auxiliary connections
 connect (addconroot1, localhost, root,,);
@@ -547,6 +545,3 @@ disconnect addconroot3;
 
 set debug_sync='RESET';
 source include/show_binlog_events.inc;
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc

@@ -1,0 +1,230 @@
+#
+# MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+#
+SET sql_mode=oracle;
+#
+# Scalar element self-assignment, array(key2):= array(key1)
+#
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE a_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+a a_t:= a_t('key1'=> 62000);
+BEGIN
+a('key2'):= a('key1');
+SELECT a('key1') AS c1, a('key2') AS c2;
+a('key2'):= a('key1') + 5;
+SELECT a('key1') AS c1, a('key2') AS c2;
+END;
+$$
+CALL p1;
+c1	c2
+62000	62000
+c1	c2
+62000	62005
+#
+# ROW element self-assignment, array(key2):= array(key1)
+#
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE r_t IS RECORD (a NUMBER, B NUMBER);
+TYPE a_t IS TABLE OF r_t INDEX BY VARCHAR2(20);
+a a_t:= a_t('key1'=> r_t(62000, 78000));
+BEGIN
+a('key2'):= a('key1');
+SELECT a('key1').a AS c1, a('key1').b AS c2,
+a('key2').a AS c3, a('key2').b AS c4;
+END;
+$$
+CALL p1;
+c1	c2	c3	c4
+62000	78000	62000	78000
+#
+# ROW element's field self-assignment, array(key2).field2:= array(key1).field1
+#
+CREATE OR REPLACE PROCEDURE p1(cmd TEXT) AS
+TYPE r_t IS RECORD (a NUMBER, B NUMBER);
+TYPE a_t IS TABLE OF r_t INDEX BY VARCHAR2(20);
+a a_t:= a_t('key1'=> r_t(62000, 78000),
+'key2'=> r_t(-1, -2));
+BEGIN
+CASE cmd
+WHEN 'key1 b:= key2 a'   THEN a('key1').b:= a('key2').a;
+WHEN 'key1 a:= key2 b'   THEN a('key1').a:= a('key2').b;
+WHEN 'key1 b:= key2 a+'  THEN a('key1').b:= a('key2').a + 5;
+WHEN 'key1 a:= key2 b+'  THEN a('key1').a:= a('key2').b + 5;
+WHEN 'key2 b:= key1 a'   THEN a('key2').b:= a('key1').a;
+WHEN 'key2 a:= key1 b'   THEN a('key2').a:= a('key1').b;
+WHEN 'key1 a:= key2 x'   THEN a('key1').a:= a('key2').x;
+WHEN 'key1 x:= key2 a'   THEN a('key1').x:= a('key2').a;
+WHEN 'key3 b:= key1 a'   THEN a('key3').b:= a('key1').a;
+WHEN 'key1 b:= key3 a'   THEN a('key1').b:= a('key3').a;
+WHEN 'key3 b:= key1 a+'  THEN a('key3').b:= a('key1').a + 5;
+WHEN 'key1 b:= key3 a+'  THEN a('key1').b:= a('key3').a + 5;
+END CASE;
+SELECT a('key1').a AS c1, a('key1').b AS c2,
+a('key2').a AS c3, a('key2').b AS c4;
+END;
+$$
+CALL p1('key1 b:= key2 a');
+c1	c2	c3	c4
+62000	-1	-1	-2
+CALL p1('key1 a:= key2 b');
+c1	c2	c3	c4
+-2	78000	-1	-2
+CALL p1('key1 b:= key2 a+');
+c1	c2	c3	c4
+62000	4	-1	-2
+CALL p1('key1 a:= key2 b+');
+c1	c2	c3	c4
+3	78000	-1	-2
+CALL p1('key2 b:= key1 a');
+c1	c2	c3	c4
+62000	78000	-1	62000
+CALL p1('key2 a:= key1 b');
+c1	c2	c3	c4
+62000	78000	78000	-2
+CALL p1('key1 a:= key2 x');
+ERROR HY000: Row variable 'a' does not have a field 'x'
+CALL p1('key1 x:= key2 a');
+ERROR HY000: Row variable 'a' does not have a field 'x'
+CALL p1('key3 b:= key1 a');
+ERROR HY000: Element not found with key 'key3'
+CALL p1('key1 b:= key3 a');
+ERROR HY000: Element not found with key 'key3'
+CALL p1('key3 b:= key1 a+');
+ERROR HY000: Element not found with key 'key3'
+CALL p1('key1 b:= key3 a+');
+ERROR HY000: Element not found with key 'key3'
+#
+# Whole array self-assignment, array:= array, we expect nothing to change
+#
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE r_t IS RECORD (a NUMBER, B NUMBER);
+TYPE a_t IS TABLE OF r_t INDEX BY VARCHAR2(20);
+a a_t:= a_t('key1'=> r_t(62000, 78000),
+'key2'=> r_t(-1, -2));
+BEGIN
+a:= a;
+SELECT a('key1').a AS c1, a('key1').b AS c2,
+a('key2').a AS c3, a('key2').b AS c4;
+END;
+$$
+CALL p1;
+c1	c2	c3	c4
+62000	78000	-1	-2
+DROP PROCEDURE p1;
+#
+# Bulk self assignments for scalar values
+#
+CREATE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR(64) INDEX BY INT;
+assoc assoc_t;
+counter INT := 0;
+BEGIN
+FOR i IN 0..999
+LOOP
+assoc(i):= 'value' || i;
+END LOOP;
+FOR i IN 0..499
+LOOP
+assoc(i):= assoc(i + 500) || 'new';
+END LOOP;
+FOR i IN 0..499
+LOOP
+IF (assoc(i) <> ('value' || (i + 500) || 'new'))
+THEN
+SELECT 'Something went wrong: key="' || i || '"'
+             ' value="' || assoc(i) || '"' AS err;
+ELSE
+counter:= counter + 1;
+END IF;
+END LOOP;
+SELECT counter || ' records matched' AS note;
+END;
+$$
+CALL p1;
+note
+500 records matched
+DROP PROCEDURE p1;
+#
+# Bulk self assignments for record values
+#
+CREATE PROCEDURE p1 AS
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE assoc_t IS TABLE OF person_t INDEX BY INT;
+assoc assoc_t;
+counter INT := 0;
+BEGIN
+FOR i IN 0..999
+LOOP
+assoc(i):= person_t('first' || i, 'last' || i);
+END LOOP;
+FOR i IN 0..499
+LOOP
+assoc(i):= person_t(assoc(i + 500).first_name || 'new',
+assoc(i + 500).last_name  || 'new');
+END LOOP;
+FOR i IN 0..499
+LOOP
+IF ((assoc(i).first_name <> ('first' || (i + 500) || 'new')) OR
+(assoc(i).last_name  <> ('last'  || (i + 500) || 'new')))
+THEN
+SELECT 'Something went wrong: key="' || i || '"'
+             ' value="' ||
+assoc(i).first_name || ' ' ||
+assoc(i).last_name ||
+'"' AS err;
+ELSE
+counter:= counter + 1;
+END IF;
+END LOOP;
+SELECT counter || ' records matched' AS note;
+END;
+$$
+CALL p1;
+note
+500 records matched
+DROP PROCEDURE p1;
+#
+# Bulk self assignments for record field values
+#
+CREATE PROCEDURE p1 AS
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE assoc_t IS TABLE OF person_t INDEX BY INT;
+assoc assoc_t;
+counter INT := 0;
+BEGIN
+FOR i IN 0..999
+LOOP
+assoc(i):= person_t('first' || i, 'last' || i);
+END LOOP;
+FOR i IN 0..499
+LOOP
+assoc(i).last_name:= assoc(i + 500).last_name  || 'new';
+END LOOP;
+FOR i IN 0..499
+LOOP
+IF (assoc(i).last_name <> ('last' || (i + 500) || 'new'))
+THEN
+SELECT 'Something went wrong: key="' || i || '"'
+             ' value="' ||
+assoc(i).first_name || ' ' ||
+assoc(i).last_name ||
+'"' AS err;
+ELSE
+counter:= counter + 1;
+END IF;
+END LOOP;
+SELECT counter || ' records matched' AS note;
+END;
+$$
+CALL p1;
+note
+500 records matched
+DROP PROCEDURE p1;

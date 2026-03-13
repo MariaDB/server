@@ -1,0 +1,205 @@
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+--let $NUM_CONNECTIONS= 5
+# $NUM_TRANSACTIONS is total, not per connection.
+--let $NUM_TRANSACTIONS=10
+--let $NUM_PIECES= 10
+--let $PIECE_SIZE= 2000
+
+# Test that PURGE BINARY LOGS avoids purging files containing OOB records
+# referenced from files that a dump thread is still active in.
+#
+# The test has --max-binlog-size=64k to have a larger number of binlog files
+# to test with. The --binlog-cache-size is set to 8k, so more event data than
+# that causes OOB binlogging.
+
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL, c TEXT, PRIMARY KEY(a, b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 0, 'Start');
+
+# Run twice. Once where the OOB references to earlier file numbers is kept
+# track of in-memory. And once, where server is restarted so the references
+# must be read from the file headers.
+--let $restart= 0
+while ($restart <= 1) {
+
+  --echo *** Test iteration, RESTART=$restart
+  --connection master
+  --let $D= `SELECT $restart*100000`
+  FLUSH BINARY LOGS;
+
+  # Start a transaction that will have OOB references in this specific binlog file.
+  --let $oob1_start= query_get_value(SHOW MASTER STATUS, File, 1)
+  --connection master1
+  --echo *** Create a transaction with active OOB records (to be committed).
+  --disable_query_log
+  BEGIN;
+  --let $i= 0
+  while ($i < 10) {
+    eval INSERT INTO t1 VALUES ($D+1, $i, REPEAT(CHR(65 + ($i MOD 26)), 2000));
+    inc $i;
+  }
+  --enable_query_log
+  # Leaving the transaction open, so the commit record will end up in a later
+  # binlog file and have a reference back that blocks purge.
+
+  # Also test an OOB record for a transaction that is later rolled back.
+  --connection default
+  --echo *** Create a transaction with active OOB records (to be rolled back).
+  --disable_query_log
+  BEGIN;
+  --let $i= 0
+  while ($i < 10) {
+    eval INSERT INTO t1 VALUES ($D+10, $i, REPEAT(CHR(65 + ($i MOD 26)), 2000));
+    inc $i;
+  }
+  --enable_query_log
+
+  --connection master
+  FLUSH BINARY LOGS;
+  --let $oob1_after= query_get_value(SHOW MASTER STATUS, File, 1)
+
+  # Generate a bunch of more transactions that contain OOB and flex the
+  # OOB refcounting.
+  --echo *** Generating $NUM_TRANSACTIONS large transactions in $NUM_CONNECTIONS interleaved connections
+  --disable_query_log
+  let $t= 0;
+  while ($t < $NUM_TRANSACTIONS) {
+    let $b= $t;
+    let $i= 1;
+    while ($i <= $NUM_CONNECTIONS) {
+      --connect(con$i,localhost,root,,)
+      START TRANSACTION;
+      eval INSERT INTO t1 VALUES ($D + 1000 + $b + $i, 0, 'Initial $i');
+      inc $i;
+      inc $t;
+    }
+
+    let $p= 1;
+    while ($p <= $NUM_PIECES) {
+      let $i= 1;
+      while ($i <= $NUM_CONNECTIONS) {
+	--connection con$i
+	eval INSERT INTO t1 VALUES ($D + 1000 + $b + $i, $p, REPEAT(CHR(65 + ($p + $i MOD 26)), $PIECE_SIZE));
+	inc $i;
+      }
+      inc $p;
+    }
+
+    let $i= 1;
+    while ($i <= $NUM_CONNECTIONS) {
+      --connection con$i
+      eval INSERT INTO t1 VALUES ($D + 1000 + $b + $i, $NUM_PIECES+1, 'Last $i');
+      COMMIT;
+      --disconnect con$i
+      inc $i;
+    }
+  }
+  --enable_query_log
+
+  --connection master
+  --let $oob1_later= query_get_value(SHOW MASTER STATUS, File, 1)
+  FLUSH BINARY LOGS;
+  eval INSERT INTO t1 VALUES ($D + 2, 0, "Park point 1 for dump thread");
+
+  # Now get the dump thread to the current point.
+  --source include/save_master_gtid.inc
+  SELECT COUNT(*) FROM t1;
+
+  --connection slave
+  --source include/sync_with_master_gtid.inc
+  SELECT COUNT(*) FROM t1;
+
+  if ($restart) {
+    --connection slave
+    --source include/stop_slave.inc
+
+    --connection master1
+    # Commit the transaction with OOB references back to an earlier binlog
+    # file, so that the reference will be there also after server restart.
+    COMMIT;
+    --connection default
+    # Roll back the other transaction with OOB.
+    ROLLBACK;
+
+    --connection master
+    --let $rpl_server_number=1
+    --let $rpl_server_parameters= --skip-slave-start
+    --source include/rpl_restart_server.inc
+  }
+
+  --connection master
+  SET @old_dbug= @@global.debug_dbug;
+  SET GLOBAL debug_dbug= "+d,dump_thread_wait_before_send_xid";
+  eval INSERT INTO t1 VALUES ($D + 2, 1, "Transaction to pause dump thread");
+  --let $oob1_current= query_get_value(SHOW MASTER STATUS, File, 1)
+
+  if ($restart) {
+    --connection slave
+    --source include/start_slave.inc
+    --connection master
+  }
+
+  let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+    WHERE Command = 'Binlog Dump' AND State = 'debug sync point: now';
+  --source include/wait_condition.inc
+
+  # At this point, we have a dump thread active in $oob1_current. But we still
+  # have an active OOB record in $oob1_start, so neither of $oob1_start or
+  # any other prior to $oob1_current must be purged.
+  # The file before $oob1_start is allowed to be purged, though.
+  --replace_result $oob1_start OOB1_START
+  eval PURGE BINARY LOGS TO '$oob1_start';
+  --replace_result $oob1_after OOB1_AFTER
+  --error ER_LOG_IN_USE
+  eval PURGE BINARY LOGS TO '$oob1_after';
+  --replace_result $oob1_later OOB1_LATER
+  --error ER_LOG_IN_USE
+  eval PURGE BINARY LOGS TO '$oob1_later';
+  --replace_result $oob1_current OOB1_CURRENT
+  --error ER_LOG_IN_USE
+  eval PURGE BINARY LOGS TO '$oob1_current';
+  if (!$restart) {
+    --connection master1
+    COMMIT;
+    --connection default
+    ROLLBACK;
+    --connection master
+    --replace_result $oob1_current OOB1_CURRENT
+    --error ER_LOG_IN_USE
+    eval PURGE BINARY LOGS TO '$oob1_current';
+  }
+
+  --echo *** Allow the dump thread to proceed, and see that purge is now possible.
+  SET GLOBAL debug_dbug= @old_dbug;
+  SET debug_sync= 'now SIGNAL signal.continue';
+  FLUSH BINARY LOGS;
+  eval INSERT INTO t1 VALUES ($D + 2, 2, 'Transaction to get dump thread to the next file');
+  SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+  --source include/save_master_gtid.inc
+  --connection slave
+  --source include/sync_with_master_gtid.inc
+  SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+
+  --connection master
+  SET debug_sync= 'RESET';
+  # Now the dump thread is past $oob1_current, so all PURGE should succeed.
+  --replace_result $oob1_start OOB1_START
+  eval PURGE BINARY LOGS TO '$oob1_start';
+  --replace_result $oob1_after OOB1_AFTER
+  eval PURGE BINARY LOGS TO '$oob1_after';
+  --replace_result $oob1_later OOB1_LATER
+  eval PURGE BINARY LOGS TO '$oob1_later';
+  --replace_result $oob1_current OOB1_CURRENT
+  eval PURGE BINARY LOGS TO '$oob1_current';
+
+  inc $restart;
+}
+
+# Cleanup.
+--connection master
+DROP TABLE t1;
+--source include/rpl_end.inc

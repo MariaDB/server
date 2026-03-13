@@ -1,0 +1,55 @@
+--source include/have_innodb.inc
+
+# MDEV-34686: Deadlock info available in session warnings
+# Verify deadlock info appears in SHOW WARNINGS when innodb_print_all_deadlocks=ON
+
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+call mtr.add_suppression("Transactions deadlock detected");
+
+SET @save = @@GLOBAL.innodb_print_all_deadlocks;
+SET GLOBAL innodb_print_all_deadlocks = ON;
+
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1), (2);
+# 10 rows: UPDATE creates ~20 weight (undo + locks) vs con1's ~3 weight
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+--connect(con1, localhost, root,,)
+
+# default: increase weight so con1 will be chosen as deadlock victim
+--connection default
+BEGIN;
+UPDATE t2 SET a = a + 1;
+SELECT * FROM t1 WHERE id = 2 FOR UPDATE;
+
+# con1: minimal weight
+--connection con1
+BEGIN;
+SELECT * FROM t1 WHERE id = 1 FOR UPDATE;
+
+# default waits for row 1
+--connection default
+--send SELECT * FROM t1 WHERE id = 1 FOR UPDATE
+
+# Wait for default to enter lock wait
+--connection con1
+let $wait_condition=
+  SELECT COUNT(*) >= 2 FROM information_schema.innodb_locks;
+--source include/wait_condition.inc
+
+# con1 triggers deadlock - will be victim due to lower weight
+--error ER_LOCK_DEADLOCK
+SELECT * FROM t1 WHERE id = 2 FOR UPDATE;
+
+# Deadlock info must appear as Note
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /0x[0-9a-f]+/0xTHD/ /OS thread handle [0-9]+/OS thread handle TID/ /::1 // /127\.0\.0\.1 // /localhost::[0-9]* // /thread id [0-9]+/thread id TID/ /query id [0-9]+/query id QID/ /trx id [0-9]+/trx id TRX_ID/ /TRANSACTION [0-9]+/TRANSACTION TRX_ID/ /space id [0-9]+/space id ID/ /page no [0-9]+/page no N/ /n bits [0-9]+/n bits N/ /n_fields [0-9]+/n_fields N/ /info bits [0-9]+/info bits N/ /ACTIVE [0-9]+ sec/ACTIVE N sec/ /heap size [0-9]+/heap size N/ /[0-9]+ lock struct\(s\)/N lock struct(s)/ /[0-9]+ row lock\(s\)/N row lock(s)/ /undo log entries [0-9]+/undo log entries N/ /hex [0-9a-f]+; asc .*;;/hex HEX; asc DATA;;/
+SHOW WARNINGS;
+
+--connection default
+--reap
+COMMIT;
+
+--disconnect con1
+DROP TABLE t1, t2;
+SET GLOBAL innodb_print_all_deadlocks = @save;

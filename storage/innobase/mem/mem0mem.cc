@@ -125,7 +125,8 @@ mem_heap_printf_low(
 
 				val = va_arg(ap, unsigned long);
 
-				plen = size_t(sprintf(tmp, "%lu", val));
+				plen = size_t(snprintf(tmp, sizeof(tmp),
+						       "%lu", val));
 				len += plen;
 
 				if (buf) {

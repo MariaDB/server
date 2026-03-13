@@ -1,5 +1,6 @@
 # Don't test with embedded server
 -- source include/not_embedded.inc
+-- source include/have_lowercase1.inc
 
 # Test of grants when lower_case_table_names is on
 use mysql;

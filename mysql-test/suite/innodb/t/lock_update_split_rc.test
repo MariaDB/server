@@ -1,6 +1,5 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
---source include/count_sessions.inc
 
 CREATE TABLE t (
   `a` INT NOT NULL,
@@ -72,5 +71,3 @@ DROP TABLE t;
 --disable_query_log
 SET GLOBAL innodb_limit_optimistic_insert_debug = @old_innodb_limit_optimistic_insert_debug;
 --enable_query_log
-
---source include/wait_until_count_sessions.inc

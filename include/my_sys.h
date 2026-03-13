@@ -89,6 +89,7 @@ C_MODE_START
 #define MY_FREE_ON_ERROR 128U	/* my_realloc() ; Free old ptr on error */
 #define MY_DONT_OVERWRITE_FILE 2048U /* my_copy: Don't overwrite file */
 #define MY_THREADSAFE 2048U     /* my_seek(): lock fd mutex */
+#define MY_BUFFER_NO_RESIZE 512U
 #define MY_SYNC       4096U     /* my_copy(): sync dst file */
 #define MY_SYNC_DIR   32768U    /* my_create/delete/rename: sync directory */
 #define MY_THREAD_SPECIFIC 0x10000U /* my_malloc(): thread specific */
@@ -154,12 +155,15 @@ char *guess_malloc_library();
 
 /* If we have our own safemalloc (for debugging) */
 #if defined(SAFEMALLOC)
-void sf_report_leaked_memory(my_thread_id id);
+my_bool sf_report_leaked_memory(my_thread_id id);
 int sf_sanity();
+my_bool sf_have_memory_leak();
 extern my_thread_id (*sf_malloc_dbug_id)(void);
 #define SAFEMALLOC_REPORT_MEMORY(X) if (!sf_leaking_memory) sf_report_leaked_memory(X)
+#define SAFEMALLOC_HAVE_MEMORY_LEAK sf_have_memory_leak()
 #else
 #define SAFEMALLOC_REPORT_MEMORY(X) do {} while(0)
+#define SAFEMALLOC_HAVE_MEMORY_LEAK 0
 #endif
 
 typedef void (*MALLOC_SIZE_CB) (long long size, my_bool is_thread_specific); 
@@ -361,6 +365,17 @@ typedef struct st_dynamic_array
   PSI_memory_key m_psi_key;
   myf malloc_flags;
 } DYNAMIC_ARRAY;
+
+typedef struct st_mem_root_dynamic_array
+{
+  MEM_ROOT *mem_root;
+  uchar *buffer;
+  size_t elements, max_element;
+  size_t alloc_increment;
+  size_t size_of_element;
+  PSI_memory_key m_psi_key;
+  myf malloc_flags;
+} MEM_ROOT_DYNAMIC_ARRAY;
 
 
 typedef struct st_dynamic_array_append
@@ -1175,6 +1190,74 @@ extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
 extern void thd_increment_bytes_sent(void *thd, size_t length);
 extern void thd_increment_bytes_received(void *thd, size_t length);
 extern void thd_increment_net_big_packet_count(void *thd, size_t length);
+
+extern int mem_root_dynamic_array_init(MEM_ROOT *mem_root,
+                                       PSI_memory_key psi_key,
+                                       MEM_ROOT_DYNAMIC_ARRAY *array,
+                                       size_t element_size, void *init_buffer,
+                                       size_t init_alloc,
+                                       size_t alloc_increment,
+                                       myf my_flags);
+int mem_root_allocate_dynamic(MEM_ROOT *mem_root,
+                              MEM_ROOT_DYNAMIC_ARRAY *array,
+                              size_t idx);
+extern void* mem_root_dynamic_array_get_val(MEM_ROOT_DYNAMIC_ARRAY *array, size_t idx);
+extern void mem_root_dynamic_array_reset(MEM_ROOT_DYNAMIC_ARRAY *array);
+extern int mem_root_dynamic_array_resize_not_allowed(MEM_ROOT_DYNAMIC_ARRAY *array);
+extern void mem_root_dynamic_array_copy_values(MEM_ROOT_DYNAMIC_ARRAY *dest, MEM_ROOT_DYNAMIC_ARRAY *src);
+static inline int mem_root_dynamic_array_set_val(MEM_ROOT_DYNAMIC_ARRAY *array,
+                                   const void *element, size_t idx)
+{
+  DBUG_ASSERT(idx < array->max_element);
+
+  memcpy(array->buffer+(idx * array->size_of_element), element,
+         array->size_of_element);
+  return TRUE;
+}
+static inline int mem_root_dynamic_array_resize_and_set_val(MEM_ROOT_DYNAMIC_ARRAY *array,
+                                   const void *element, size_t idx)
+{
+  if (array->malloc_flags & MY_BUFFER_NO_RESIZE)
+    return TRUE;
+
+  if (idx >= array->max_element)
+  {
+    if (mem_root_allocate_dynamic(array->mem_root, array, idx))
+      return 1;
+    array->elements++;
+  }
+
+  /*
+     Ensure the array size has increased and the index is
+     now well within the array bounds.
+  */
+  DBUG_ASSERT(idx < array->max_element);
+
+  memcpy(array->buffer+(idx * array->size_of_element), element,
+         array->size_of_element);
+
+  return FALSE;
+}
+
+static inline void* mem_root_dynamic_array_resize_and_get_val(MEM_ROOT_DYNAMIC_ARRAY *array, size_t idx)
+{
+  if (array->malloc_flags & MY_BUFFER_NO_RESIZE)
+    return NULL;
+
+  if (idx >= array->max_element)
+  {
+    if (mem_root_allocate_dynamic(array->mem_root, array, idx))
+      return NULL;
+  }
+
+  /*
+     Ensure the array size has increased and the index is
+     now well within the array bounds.
+  */
+  DBUG_ASSERT(idx < array->max_element);
+
+  return mem_root_dynamic_array_get_val(array, idx);
+}
 
 #include <mysql/psi/psi.h>
 

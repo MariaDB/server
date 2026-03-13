@@ -25,15 +25,6 @@
 #include "sql_class.h"                          // THD, set_var.h: THD
 #include "set_var.h"
 
-void Item_row::illegal_method_call(const char *method)
-{
-  DBUG_ENTER("Item_row::illegal_method_call");
-  DBUG_PRINT("error", ("!!! %s method was called for row item", method));
-  DBUG_ASSERT(0);
-  my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
-  DBUG_VOID_RETURN;
-}
-
 bool Item_row::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
@@ -180,7 +171,7 @@ void Item_row::bring_value()
 }
 
 
-Item* Item_row::do_build_clone(THD *thd) const
+Item* Item_row::deep_copy(THD *thd) const
 {
   Item **copy_args= static_cast<Item**>
     (alloc_root(thd->mem_root, sizeof(Item*) * arg_count));
@@ -188,12 +179,12 @@ Item* Item_row::do_build_clone(THD *thd) const
     return 0;
   for (uint i= 0; i < arg_count; i++)
   {
-    Item *arg_clone= args[i]->build_clone(thd);
+    Item *arg_clone= args[i]->deep_copy_with_checks(thd);
     if (!arg_clone)
       return 0;
     copy_args[i]= arg_clone;
   }
-  Item_row *copy= (Item_row *) get_copy(thd);
+  Item_row *copy= (Item_row *) shallow_copy_with_checks(thd);
   if (unlikely(!copy))
     return 0;
   copy->args= copy_args;

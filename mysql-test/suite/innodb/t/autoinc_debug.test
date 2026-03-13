@@ -5,6 +5,7 @@
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+call mtr.add_suppression("Transactions deadlock detected");
 --enable_query_log
 
 # Two parallel connection with autoinc column after restart.
@@ -101,6 +102,9 @@ SET DEBUG_SYNC='RESET';
 --echo # MDEV-33593: Auto increment deadlock error causes ASSERT in subsequent save point
 --echo #
 
+SET @saved_print_all_deadlocks = @@GLOBAL.innodb_print_all_deadlocks;
+SET GLOBAL innodb_print_all_deadlocks = ON;
+
 CREATE TABLE t1(col1 INT PRIMARY KEY AUTO_INCREMENT, col2 INT) ENGINE=InnoDB;
 CREATE TABLE t2(col1 INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1(col2) values(100);
@@ -131,6 +135,10 @@ SET debug_dbug = '+d,innodb_deadlock_victim_self';
 --error ER_AUTOINC_READ_FAILED
 INSERT INTO t1(col2) VALUES(200);
 
+--echo # Verify deadlock info is available in session warnings (MDEV-34686)
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /0x[0-9a-f]+/0xTHD/ /OS thread handle [0-9]+/OS thread handle TID/ /::1 // /127\.0\.0\.1 // /localhost::[0-9]* // /thread id [0-9]+/thread id TID/ /query id [0-9]+/query id QID/ /trx id [0-9]+/trx id TRX_ID/ /TRANSACTION [0-9]+/TRANSACTION TRX_ID/ /space id [0-9]+/space id ID/ /page no [0-9]+/page no N/ /n bits [0-9]+/n bits N/ /n_fields [0-9]+/n_fields N/ /info bits [0-9]+/info bits N/ /ACTIVE [0-9]+ sec/ACTIVE N sec/ /heap size [0-9]+/heap size N/ /[0-9]+ lock struct\(s\)/N lock struct(s)/ /[0-9]+ row lock\(s\)/N row lock(s)/ /undo log entries [0-9]+/undo log entries N/ /hex [0-9a-f]+; asc .*;;/hex HEX; asc DATA;;/
+SHOW WARNINGS;
+
 --echo # The transaction should have been rolled back
 SELECT * FROM t1;
 SELECT * FROM t2;
@@ -158,6 +166,7 @@ SELECT * FROM t2;
 DROP TABLE t2;
 
 SET DEBUG_SYNC='RESET';
+SET GLOBAL innodb_print_all_deadlocks = @saved_print_all_deadlocks;
 
 --echo #
 --echo # End of 10.5 tests

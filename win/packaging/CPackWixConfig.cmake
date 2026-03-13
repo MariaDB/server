@@ -54,7 +54,7 @@ add_component(Backup
  
 #Miscellaneous hidden components, part of server / or client programs
 foreach(comp connect-engine connect-engine-jdbc ClientPlugins aws-key-management rocksdb-engine
-       hashicorp-key-management)
+       hashicorp-key-management videx-engine)
   add_component(${comp} GROUP MySQLServer HIDDEN)
 endforeach()
 

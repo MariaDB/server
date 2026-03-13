@@ -28,31 +28,6 @@ Created 1/16/1996 Heikki Tuuri
 #include "ha_prototypes.h"
 
 /*********************************************************************//**
-Determines if a MySQL string type is a subset of UTF-8.  This function
-may return false negatives, in case further character-set collation
-codes are introduced in MySQL later.
-@return whether a subset of UTF-8 */
-UNIV_INLINE
-bool
-dtype_is_utf8(
-/*==========*/
-	ulint	prtype)	/*!< in: precise data type */
-{
-	/* These codes have been copied from strings/ctype-extra.c
-	and strings/ctype-utf8.c. */
-	switch (dtype_get_charset_coll(prtype)) {
-	case 11: /* ascii_general_ci */
-	case 65: /* ascii_bin */
-	case 33: /* utf8_general_ci */
-	case 83: /* utf8_bin */
-	case 254: /* utf8_general_cs */
-		return true;
-	}
-
-	return false;
-}
-
-/*********************************************************************//**
 Gets the MySQL type code from a dtype.
 @return MySQL type code; this is NOT an InnoDB type code! */
 UNIV_INLINE

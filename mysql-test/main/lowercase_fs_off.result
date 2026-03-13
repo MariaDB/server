@@ -20,6 +20,7 @@ drop user 'sample'@'localhost';
 drop database if exists d1;
 disconnect master;
 connection default;
+# End of 4.1 tests
 CREATE DATABASE d1;
 USE d1;
 CREATE TABLE T1(f1 INT);

@@ -294,8 +294,11 @@ my_bool BJNX::ParseJpath(PGLOBAL g)
 	if (Parsed)
 		return false;                       // Already done
 	else if (!Jpath)
+	{
 		//	Jpath = Name;
+		snprintf(g->Message, sizeof(g->Message), MSG(ARG_IS_NULL));
 		return true;
+	}
 
 	if (trace(1))
 		htrc("ParseJpath %s\n", SVP(Jpath));

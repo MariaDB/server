@@ -105,7 +105,9 @@ check_pid_and_port()
     local final
 
     if ! check_port $pid "$port" "$utils"; then
-        if [ $ss_available -ne 0 -o $sockstat_available -ne 0 ]; then
+        if [ $raw_socket_check -ne 0 ]; then
+            return 1
+        elif [ $ss_available -ne 0 -o $sockstat_available -ne 0 ]; then
             if [ $ss_available -ne 0 ]; then
                 port_info=$($socket_utility $ss_opts -t "( sport = :$port )" 2>/dev/null | \
                     grep -E '[[:space:]]users:[[:space:]]?\(' | \
@@ -163,7 +165,10 @@ check_pid_and_port()
         fi
     fi
 
-    check_pid "$pid_file" && [ $CHECK_PID -eq $pid ]
+    if [ $raw_socket_check -ne 0 ]; then
+	return 0
+    fi
+    check_pid "$pid_file" && [ "$CHECK_PID" -eq "$pid" ]
 }
 
 get_binlog

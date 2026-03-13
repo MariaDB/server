@@ -2,6 +2,7 @@
 #
 # Test of query cache with --lower-case-table-names
 #
+-- source include/have_lowercase1.inc
 -- source include/no_view_protocol.inc
 
 set @save_query_cache_size=@@query_cache_size;

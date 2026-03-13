@@ -48,9 +48,7 @@ JS
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
-        },
-        "analyzing_index_merge_union": 
-        []
+        }
     }
 ]
 drop table t1;

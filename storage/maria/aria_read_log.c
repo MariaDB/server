@@ -114,8 +114,8 @@ int main(int argc, char **argv)
     fprintf(stderr, "Can't find any log\n");
     goto err;
   }
-  if (init_pagecache(maria_pagecache, (size_t)opt_page_buffer_size, 0, 0,
-                     maria_block_size, 0, MY_WME) == 0)
+  if (multi_init_pagecache(&maria_pagecaches, 1, (size_t) opt_page_buffer_size,
+                           0, 0, maria_block_size, 0, MY_WME))
   {
     fprintf(stderr, "Got error in init_pagecache() (errno: %d)\n", errno);
     goto err;
@@ -206,6 +206,7 @@ err:
   /* don't touch anything more, in case we hit a bug */
   fprintf(stderr, "%s: FAILED\n", my_progname_short);
   free_tmpdir(&maria_chk_tmpdir);
+  my_hash_free(&tables_to_redo);
   free_defaults(default_argv);
   exit(1);
 }

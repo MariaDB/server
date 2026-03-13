@@ -46,7 +46,7 @@ select * from secret_db.t1 order by secret;
 insert into secret_db.t1 values ("|_33T|-|4><");
 
 connection default;
-
+disconnect test_user;
 
 drop role test_ROLE;
 drop role test_role;

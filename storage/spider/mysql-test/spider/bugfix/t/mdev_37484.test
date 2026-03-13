@@ -1,0 +1,110 @@
+--echo #
+--echo # MDEV-37484: `Sql_cmd_dml::execute_inner`, `Sql_cmd_update::execute_inner` do not call Select handler for the engine involved
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+set spider_same_server_link=1;
+
+evalp CREATE SERVER s FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test', user 'root');
+
+create table product_tag(product_id bigint);
+create table product (
+ `product_id` bigint(20) DEFAULT NULL,
+ `price` bigint(20) DEFAULT NULL,
+ `short_description` varchar(7998) DEFAULT NULL,
+ `brand` varchar(254) DEFAULT NULL,
+ `modified_dtm` datetime DEFAULT NULL,
+ `created_dtm` datetime DEFAULT NULL,
+ `modified_by` int(11) DEFAULT NULL
+);
+
+insert into product_tag values (1),(2),(3),(4);
+insert into product values (1,22,'fes','rets','2011-12-12 12:12:12','2011-12-13 1:1:10',343);
+insert into product values (3,22,'fes','rets','2011-12-12 12:12:12','2011-12-13 1:1:10',343);
+
+create table product_tag_spider (product_id bigint) ENGINE=SPIDER REMOTE_SERVER=s REMOTE_TABLE=product_tag;
+create table product_spider (
+ `product_id` bigint(20) DEFAULT NULL,
+ `price` bigint(20) DEFAULT NULL,
+ `short_description` varchar(7998) DEFAULT NULL,
+ `brand` varchar(254) DEFAULT NULL,
+ `modified_dtm` datetime DEFAULT NULL,
+ `created_dtm` datetime DEFAULT NULL,
+ `modified_by` int(11) DEFAULT NULL
+) ENGINE=SPIDER REMOTE_SERVER=s REMOTE_TABLE=product;
+
+select * from product_spider order by product_id;
+
+let $query=
+update
+    product_spider p join
+    (select product_id from product_tag_spider limit 1000) t using (product_id)
+    set brand=p.product_id, price=555, modified_dtm='2011-12-15 15:15:30',
+    short_description=concat(short_description,modified_by);
+
+eval explain $query;
+eval $query;
+
+select * from product_spider order by product_id;
+
+drop table product, product_tag, product_spider, product_tag_spider;
+
+create table t1 (id int);
+create table t2 (id int, op varchar(10), op_count int DEFAULT 0);
+
+insert into t1 values (1),(2),(3),(4);
+insert into t2 (id, op) values (1, 'inserted'), (2, 'inserted'), (3, 'inserted'), (4, 'inserted');
+
+CREATE TABLE t1_SPIDER (id int) ENGINE=SPIDER REMOTE_SERVER=s REMOTE_TABLE=t1;
+CREATE TABLE t2_SPIDER (id int, op varchar(10), op_count int DEFAULT 0) ENGINE=SPIDER REMOTE_SERVER=s REMOTE_TABLE=t2;
+
+select * from t2_SPIDER order by id;
+
+--echo # Update tests
+let $query=
+    update t2_SPIDER inner join t1_SPIDER on t2_SPIDER.id = t1_SPIDER.id
+        set t2_SPIDER.op = 'updated', t2_SPIDER.op_count = t2_SPIDER.op_count + 1
+        where t2_SPIDER.id in (1, 2);
+
+eval explain $query;
+eval $query;
+
+select * from t2_SPIDER order by id;
+
+PREPARE stmt_update FROM
+'update t2_SPIDER inner join t1_SPIDER on t2_SPIDER.id = t1_SPIDER.id set t2_SPIDER.op_count = t2_SPIDER.op_count + 1, t2_SPIDER.op="updated" where t2_SPIDER.id in (1, 2)';
+EXECUTE stmt_update;
+DEALLOCATE PREPARE stmt_update;
+
+select * from t2_SPIDER order by id;
+
+--echo # Delete tests
+explain
+    delete t2_SPIDER from t2_SPIDER inner join t1_SPIDER on t2_SPIDER.id = t1_SPIDER.id and t2_SPIDER.op = 'updated';
+
+delete t2_SPIDER from t2_SPIDER inner join t1_SPIDER on t2_SPIDER.id = t1_SPIDER.id and t2_SPIDER.op = 'updated';
+select * from t2_SPIDER order by id;
+
+PREPARE stmt_delete FROM
+'delete t2_SPIDER from t2_SPIDER inner join t1_SPIDER on t2_SPIDER.id = t1_SPIDER.id where t2_SPIDER.id = 3';
+EXECUTE stmt_delete;
+DEALLOCATE PREPARE stmt_delete;
+
+select * from t2_SPIDER order by id;
+
+drop table t1, t2, t1_SPIDER, t2_SPIDER;
+drop server s;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # end of test MDEV-37484
+--echo #

@@ -151,13 +151,13 @@ CALL PREPARE_EXECUTE_PROC();
 ------------------Test body end----------------------
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
 TIME	COUNT	TOTAL
-      1.000000	9	      4.500000
+      1.000000	12	      6.000000
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
 TIME	COUNT	TOTAL
-      1.000000	7	      3.500000
+      1.000000	8	      4.000000
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
 TIME	COUNT	TOTAL
-      1.000000	2	      1.000000
+      1.000000	4	      2.000000
 include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
 include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
 include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
@@ -223,13 +223,13 @@ DML_FUNC()
 ------------------Test body end----------------------
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
 TIME	COUNT	TOTAL
-      1.000000	5	      2.500000
+      1.000000	4	      2.000000
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
 TIME	COUNT	TOTAL
       1.000000	1	      0.500000
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
 TIME	COUNT	TOTAL
-      1.000000	4	      2.000000
+      1.000000	3	      1.500000
 include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
 include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
 include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
@@ -637,13 +637,13 @@ CALL PREPARE_EXECUTE_PROC();
 ------------------Test body end----------------------
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
 TIME	COUNT	TOTAL
-      1.000000	9	      4.500000
+      1.000000	12	      6.000000
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
 TIME	COUNT	TOTAL
-      1.000000	7	      3.500000
+      1.000000	8	      4.000000
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
 TIME	COUNT	TOTAL
-      1.000000	2	      1.000000
+      1.000000	4	      2.000000
 include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
 include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
 include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
@@ -709,13 +709,13 @@ DML_FUNC()
 ------------------Test body end----------------------
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
 TIME	COUNT	TOTAL
-      1.000000	5	      2.500000
+      1.000000	4	      2.000000
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
 TIME	COUNT	TOTAL
       1.000000	1	      0.500000
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
 TIME	COUNT	TOTAL
-      1.000000	4	      2.000000
+      1.000000	3	      1.500000
 include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
 include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
 include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]

@@ -125,13 +125,4 @@ SELECT f1(1);
 Got one of the listed errors
 DROP FUNCTION f1;
 SET debug_dbug= @saved_dbug;
-#
-# MDEV-27978 wrong option name in error when exceeding max_session_mem_used
-#
-SET SESSION max_session_mem_used = 8192;
-SELECT * FROM information_schema.processlist;
-ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
-SET SESSION max_session_mem_used = DEFAULT;
-#
 # End of 10.2 tests
-#

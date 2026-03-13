@@ -43,7 +43,7 @@ create database t;
 drop database t;
 
 connection default;
-
+disconnect foo;
 drop role simple;
 drop role admin;
 drop user foo;

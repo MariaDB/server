@@ -2,10 +2,11 @@ include/master-slave.inc
 [connection master]
 CREATE TABLE t1 (n INT);
 connection slave;
+include/stop_slave.inc
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
-STOP SLAVE;
 include/reset_slave.inc
 connection master;
 SELECT COUNT(*) FROM t1;

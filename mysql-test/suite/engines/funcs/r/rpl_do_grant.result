@@ -211,71 +211,9 @@ connection master;
 DROP TABLE t1;
 DROP PROCEDURE p1;
 connection slave;
-### ii) Test case in which REVOKE partially succeeds
-connection master;
-include/rpl_reset.inc
-connection master;
-CREATE TABLE t1(c1 INT);
-CREATE PROCEDURE p1() SELECT * FROM t1 |
-CREATE USER 'user49119'@'localhost';
-GRANT EXECUTE ON PROCEDURE p1 TO 'user49119'@'localhost';
-##############################################################
-### Showing grants for both users: root and user49119 (master)
-SHOW GRANTS FOR 'user49119'@'localhost';
-Grants for user49119@localhost
-GRANT USAGE ON *.* TO `user49119`@`localhost`
-GRANT EXECUTE ON PROCEDURE `test`.`p1` TO `user49119`@`localhost`
-SHOW GRANTS FOR CURRENT_USER;
-Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
-##############################################################
-connection slave;
-##############################################################
-### Showing grants for both users: root and user49119 (master)
-SHOW GRANTS FOR 'user49119'@'localhost';
-Grants for user49119@localhost
-GRANT USAGE ON *.* TO `user49119`@`localhost`
-GRANT EXECUTE ON PROCEDURE `test`.`p1` TO `user49119`@`localhost`
-SHOW GRANTS FOR CURRENT_USER;
-Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
-##############################################################
-connection master;
-## This statement will make the revoke fail because root has no
-## execute grant. However, it will still revoke the grant for
-## user49119.
-REVOKE EXECUTE ON PROCEDURE p1 FROM 'user49119'@'localhost', 'root'@'localhost';
-ERROR 42000: There is no such grant defined for user 'root' on host 'localhost' on routine 'p1'
-##############################################################
-### Showing grants for both users: root and user49119 (master)
-### after revoke statement failure
-SHOW GRANTS FOR 'user49119'@'localhost';
-Grants for user49119@localhost
-GRANT USAGE ON *.* TO `user49119`@`localhost`
-SHOW GRANTS FOR CURRENT_USER;
-Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
-##############################################################
-connection slave;
-#############################################################
-### Showing grants for both users: root and user49119 (slave)
-### after revoke statement failure (should match 
-SHOW GRANTS FOR 'user49119'@'localhost';
-Grants for user49119@localhost
-GRANT USAGE ON *.* TO `user49119`@`localhost`
-SHOW GRANTS FOR CURRENT_USER;
-Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
-##############################################################
-connection master;
-DROP TABLE t1;
-DROP PROCEDURE p1;
-DROP USER 'user49119'@'localhost';
-connection slave;
+#
+# TODO: Re-enable test-case after fixing MDEV-29848
+#
 include/rpl_reset.inc
 connection master;
 grant all on *.* to foo@"1.2.3.4";

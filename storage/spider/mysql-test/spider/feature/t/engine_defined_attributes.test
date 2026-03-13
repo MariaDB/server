@@ -129,7 +129,9 @@ SET @old_log_output = @@global.log_output;
 SET global general_log = 1;
 SET global log_output = "TABLE";
 --connection master_1
+--disable_view_protocol
 SELECT * FROM tbl_a;
+--enable_view_protocol
 --connection child2_1
 select argument from mysql.general_log where argument like "select sql_no_cache%" limit 1;
 SET global general_log = @old_general_log;

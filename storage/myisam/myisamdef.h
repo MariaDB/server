@@ -97,7 +97,8 @@ typedef struct st_mi_state_info
 #define MI_STATE_KEY_SIZE       8U
 #define MI_STATE_KEYBLOCK_SIZE  8U
 #define MI_STATE_KEYSEG_SIZE    4U
-#define MI_STATE_EXTRA_SIZE ((MI_MAX_KEY+MI_MAX_KEY_BLOCK_SIZE)*MI_STATE_KEY_SIZE + MI_MAX_KEY*HA_MAX_KEY_SEG*MI_STATE_KEYSEG_SIZE)
+#define MI_STATE_EXTRA_SIZE(K,P) (((K)+MI_MAX_KEY_BLOCK_SIZE)*MI_STATE_KEY_SIZE + (P)*MI_STATE_KEYSEG_SIZE)
+
 #define MI_KEYDEF_SIZE          (2+ 5*2)
 #define MI_UNIQUEDEF_SIZE       (2+1+1)
 #define HA_KEYSEG_SIZE          (6+ 2*2 + 4*2)
@@ -206,7 +207,8 @@ typedef struct st_mi_isam_share
   uint32 ftkeys;                        /* Number of full-text keys + 1 */
   File	kfile;				/* Shared keyfile */
   File	data_file;			/* Shared data file */
-  int	mode;				/* mode of file on open */
+  int	index_mode;			/* mode on index file on open */
+  int	data_mode;			/* mode of data file on open */
   uint	reopen;				/* How many times reopened */
   uint	w_locks,r_locks,tot_locks;	/* Number of read/write locks */
   uint	blocksize;			/* blocksize of keyfile */

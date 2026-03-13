@@ -40,6 +40,9 @@ const char *pushed_unit_operation_text[4]=
 
 const char *pushed_derived_text= "PUSHED DERIVED";
 const char *pushed_select_text= "PUSHED SELECT";
+/* See enum ha_parititon::partition_index_scan_method */
+const char *partitions_index_scan_method_str[]=
+  {NULL, "merge_ordered_scans", "iterate_over_partitions", "both"};
 
 static void write_item(Json_writer *writer, Item *item);
 static void append_item_to_str(String *out, Item *item);
@@ -2018,7 +2021,18 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   writer->add_member("table_name").add_str(table_name);
 
   if (used_partitions_set)
+  {
     print_json_array(writer, "partitions", used_partitions_list);
+    if (handler_for_stats)
+    {
+      assert(handler_for_stats->partition_engine());
+      const char* pi_scan_str= partitions_index_scan_method_str[
+        handler_for_stats->partition_index_scan_method()];
+      if (pi_scan_str)
+        writer->add_member("partitions_index_scan_method")
+          .add_str(pi_scan_str);
+    }
+  }
 
   writer->add_member("access_type").add_str(join_type_str[type]);
 
@@ -2932,8 +2946,8 @@ void Explain_update::print_explain_json(Explain_query *query,
 
     if (table_tracker.has_timed_statistics())
     {
-      writer->add_member("r_total_time_ms").
-              add_double(table_tracker.get_time_ms());
+      writer->add_member("r_table_time_ms").add_double(table_tracker.get_time_ms());
+      writer->add_member("r_other_time_ms").add_double(extra_time_tracker.get_time_ms());
     }
   }
 

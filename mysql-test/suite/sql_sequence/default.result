@@ -313,4 +313,37 @@ insert v1 values (default);
 ERROR HY000: The target table v1 of the INSERT is not insertable-into
 drop view v1;
 drop table t1;
+#
+# MDEV-37172 Server crashes in Item_func_nextval::update_table after
+# INSERT to the table, that uses expression with nextval() as default
+#
+create sequence s1;
+create sequence s2;
+create table t1 (id int default(nextval(s1)));
+create table t2 (id int default(nextval(s1)+nextval(s1)));
+create table t3 (id1 int default(nextval(s1)+nextval(s1)),
+id2 int default(nextval(s2)));
+insert t1 values ();
+select lastval(s1);
+lastval(s1)
+1
+select * from t1;
+id
+1
+insert t2 values ();
+select lastval(s1);
+lastval(s1)
+3
+select * from t2;
+id
+5
+insert t3 values ();
+select lastval(s1), lastval(s2);
+lastval(s1)	lastval(s2)
+5	1
+select * from t3;
+id1	id2
+9	1
+drop table t1,t2,t3;
+drop sequence s1,s2;
 # End of 10.6 tests

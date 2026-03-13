@@ -1,0 +1,69 @@
+set global server_audit_logging=on;
+USE test;
+CREATE TABLE source (
+id bigint(20) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE dest (
+id bigint(20) NOT NULL,
+PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE dest_2 (
+id bigint(20) NOT NULL,
+PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TRIGGER test_trigger
+AFTER INSERT ON source
+FOR EACH ROW
+INSERT INTO dest (id) VALUES(NEW.id)//
+CREATE TRIGGER test_trigger_2
+AFTER INSERT ON dest
+FOR EACH ROW
+INSERT INTO dest_2 (id) VALUES(NEW.id)//
+CREATE PROCEDURE test_procedure (IN id bigint(20))
+NOT DETERMINISTIC MODIFIES SQL DATA
+BEGIN
+INSERT INTO source VALUES (id), (NULL);
+END;//
+# Insert a row to trigger the AFTER trigger
+INSERT INTO source VALUES (NULL);
+# Insert another row to see the pattern
+INSERT INTO source VALUES (NULL);
+# Test with multi-row insert
+INSERT INTO source VALUES (NULL), (NULL);
+# Test with stored procedure
+CALL test_procedure(NULL);
+# Clean up
+DROP PROCEDURE test_procedure;
+DROP TABLE source, dest, dest_2;
+set global server_audit_logging=off;
+# Wait for audit events to be written
+FOUND 1 /set global server_audit_logging=off/ in server_audit_query_id.log
+TIMESTAMP,HOSTNAME,root,localhost,4,0,QUERY,test,'set global server_audit_logging=on',0
+TIMESTAMP,HOSTNAME,root,localhost,4,1,QUERY,test,'USE test',0
+TIMESTAMP,HOSTNAME,root,localhost,4,2,QUERY,test,'CREATE TABLE source (\nid bigint(20) NOT NULL AUTO_INCREMENT,\nPRIMARY KEY (id)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',0
+TIMESTAMP,HOSTNAME,root,localhost,4,3,QUERY,test,'CREATE TABLE dest (\nid bigint(20) NOT NULL,\nPRIMARY KEY (id)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',0
+TIMESTAMP,HOSTNAME,root,localhost,4,4,QUERY,test,'CREATE TABLE dest_2 (\nid bigint(20) NOT NULL,\nPRIMARY KEY (id)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',0
+TIMESTAMP,HOSTNAME,root,localhost,4,5,QUERY,test,'CREATE TRIGGER test_trigger\nAFTER INSERT ON source\nFOR EACH ROW\nINSERT INTO dest (id) VALUES(NEW.id)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,6,QUERY,test,'CREATE TRIGGER test_trigger_2\nAFTER INSERT ON dest\nFOR EACH ROW\nINSERT INTO dest_2 (id) VALUES(NEW.id)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,7,QUERY,test,'CREATE PROCEDURE test_procedure (IN id bigint(20))\nNOT DETERMINISTIC MODIFIES SQL DATA\nBEGIN\nINSERT INTO source VALUES (id), (NULL);\nEND',0
+TIMESTAMP,HOSTNAME,root,localhost,4,10,QUERY,test,'INSERT INTO dest_2 (id) VALUES(NEW.id)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,9,QUERY,test,'INSERT INTO dest (id) VALUES(NEW.id)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,8,QUERY,test,'INSERT INTO source VALUES (NULL)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,13,QUERY,test,'INSERT INTO dest_2 (id) VALUES(NEW.id)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,12,QUERY,test,'INSERT INTO dest (id) VALUES(NEW.id)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,11,QUERY,test,'INSERT INTO source VALUES (NULL)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,16,QUERY,test,'INSERT INTO dest_2 (id) VALUES(NEW.id)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,15,QUERY,test,'INSERT INTO dest (id) VALUES(NEW.id)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,18,QUERY,test,'INSERT INTO dest_2 (id) VALUES(NEW.id)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,17,QUERY,test,'INSERT INTO dest (id) VALUES(NEW.id)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,14,QUERY,test,'INSERT INTO source VALUES (NULL), (NULL)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,22,QUERY,test,'INSERT INTO dest_2 (id) VALUES(NEW.id)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,21,QUERY,test,'INSERT INTO dest (id) VALUES(NEW.id)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,24,QUERY,test,'INSERT INTO dest_2 (id) VALUES(NEW.id)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,23,QUERY,test,'INSERT INTO dest (id) VALUES(NEW.id)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,20,QUERY,test,'INSERT INTO source VALUES ( NAME_CONST(\'id\',NULL)), (NULL)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,19,QUERY,test,'CALL test_procedure(NULL)',0
+TIMESTAMP,HOSTNAME,root,localhost,4,25,QUERY,test,'DROP PROCEDURE test_procedure',0
+TIMESTAMP,HOSTNAME,root,localhost,4,26,QUERY,test,'DROP TABLE source, dest, dest_2',0
+TIMESTAMP,HOSTNAME,root,localhost,4,27,QUERY,test,'set global server_audit_logging=off',0

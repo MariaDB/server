@@ -2,6 +2,7 @@
 --disable_warnings
 DROP TABLE IF EXISTS t0,t1,t2,t3,t4,t5,t6,t7,t8,t9;
 --enable_warnings
+--source include/have_sequence.inc
 
 SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch=ifnull(@optimizer_switch_for_join_nested_test,'outer_join_with_cache=off');
@@ -1471,4 +1472,69 @@ SELECT 1 FROM  t1 WHERE i IN
     LEFT JOIN  (t1 a LEFT JOIN t1 b ON t1.i = b.i)  ON c.i = t1.i);
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-35206: Assertion in JOIN::dbug_verify_sj_inner_tables
+--echo #
+
+SET @save_optimizer_join_limit_pref_ratio= @@optimizer_join_limit_pref_ratio;
+SET @save_optimizer_search_depth= @@optimizer_search_depth;
+
+CREATE TABLE t1 (c1 VARCHAR(64) DEFAULT NULL, c2 VARCHAR(8) DEFAULT NULL);
+INSERT INTO t1 (c1) values ('one');
+INSERT INTO t1 (c2) values ('2');
+
+SET optimizer_join_limit_pref_ratio=10;
+SET optimizer_search_depth=1;
+
+SELECT 
+  c1 
+FROM 
+  t1
+WHERE 
+  c2 IN (SELECT c2
+          FROM t1
+          WHERE c1 IN (SELECT c1 
+                        FROM t1
+                        WHERE c1 IN (NULL)
+                      )
+        )
+ORDER BY c1 LIMIT 1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # similar issue with join::cur_embedding_map
+--echo #
+CREATE TABLE t10 (a int, b int, index(b));
+INSERT INTO t10 SELECT seq, seq FROM seq_1_to_10;
+
+CREATE TABLE t11(a int, b int);
+CREATE TABLE t12(a int, b int, index(b));
+
+INSERT INTO t11 select seq, seq FROM seq_1_to_20;
+INSERT INTO t12 select seq, seq FROM seq_1_to_40;
+
+CREATE TABLE t13(a int, b int);
+CREATE TABLE t14(a int, b int, index(b));
+
+INSERT INTO t13 select seq, seq FROM seq_1_to_20;
+INSERT INTO t14 select seq, seq FROM seq_1_to_40;
+
+ANALYZE TABLE t10, t11, t12;
+
+EXPLAIN SELECT *
+FROM
+  t10 LEFT JOIN 
+  (
+    t11 JOIN t12 ON t11.b=t12.b 
+     left join (t13 join t14 on t13.b=t14.b) on t13.a=t11.a
+  ) ON t10.a=t11.a
+ORDER BY t10.b LIMIT 1;
+
+DROP TABLE t10, t11, t12, t13, t14;
+
+SET optimizer_join_limit_pref_ratio= @save_optimizer_join_limit_pref_ratio;
+SET optimizer_search_depth= @save_optimizer_search_depth;
+
 --echo # end of 10.11 tests

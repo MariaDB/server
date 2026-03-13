@@ -108,7 +108,7 @@ public:
 		big_rec_t*      big_rec;
 		rec_t*          rec;
 		btr_cur_t       ins_cur;
-		mtr_t           mtr;
+		mtr_t           mtr{scan_mtr->trx};
 		rtr_info_t      rtr_info;
 		rec_offs*	ins_offsets = NULL;
 		dberr_t		error = DB_SUCCESS;
@@ -246,6 +246,7 @@ public:
 #define FTS_PENDING_DOC_MEMORY_LIMIT	1000000
 
 /** Insert sorted data tuples to the index.
+@param[in,out]	trx		transaction
 @param[in]	index		index to be inserted
 @param[in]	old_table	old table
 @param[in]	fd		file descriptor
@@ -269,6 +270,7 @@ and then stage->inc() will be called for each record that is processed.
 static	MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_merge_insert_index_tuples(
+	trx_t*			trx,
 	dict_index_t*		index,
 	const dict_table_t*	old_table,
 	const pfs_os_file_t&	fd,
@@ -1873,7 +1875,7 @@ row_merge_read_clustered_index(
 						data for virtual column */
 	btr_pcur_t		pcur;		/* Cursor on the clustered
 						index */
-	mtr_t			mtr;		/* Mini transaction */
+	mtr_t			mtr{trx};	/* Mini transaction */
 	bool			mtr_started = false;
 	dberr_t			err = DB_SUCCESS;/* Return code */
 	ulint			n_nonnull = 0;	/* number of columns
@@ -1915,16 +1917,12 @@ row_merge_read_clustered_index(
 
 	trx->op_info = "reading clustered index";
 
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	DEBUG_FTS_SORT_PRINT("FTS_SORT: Start Create Index\n");
-#endif
-
 	/* Create and initialize memory for record buffers */
 
 	merge_buf = static_cast<row_merge_buf_t**>(
 		ut_malloc_nokey(n_index * sizeof *merge_buf));
 
-	row_merge_dup_t	clust_dup = {index[0], table, col_map, 0};
+	row_merge_dup_t	clust_dup = {index[0], trx, table, col_map, 0};
 	dfield_t*	prev_fields = nullptr;
 	const ulint	n_uniq = dict_index_get_n_unique(index[0]);
 
@@ -2413,8 +2411,7 @@ end_of_index:
 		} else if (rec_trx_id < trx->id) {
 			/* Reset the DB_TRX_ID,DB_ROLL_PTR of old rows
 			for which history is not going to be
-			available after the rebuild operation.
-			This essentially mimics row_purge_reset_trx_id(). */
+			available after the rebuild operation. */
 			row->fields[new_trx_id_col].data
 				= const_cast<byte*>(reset_trx_id);
 			row->fields[new_trx_id_col + 1].data
@@ -2703,7 +2700,7 @@ write_buffers:
 					}
 
 					err = row_merge_insert_index_tuples(
-						index[i], old_table,
+						trx, index[i], old_table,
 						OS_FILE_CLOSED, NULL, buf,
 						clust_btr_bulk,
 						table_total_rows,
@@ -2754,7 +2751,8 @@ write_buffers:
 					}
 				} else if (dict_index_is_unique(buf->index)) {
 					row_merge_dup_t	dup = {
-						buf->index, table, col_map, 0};
+						buf->index, trx, table,
+						col_map, 0};
 
 					row_merge_buf_sort(buf, &dup);
 
@@ -2816,7 +2814,7 @@ write_buffers:
 					BtrBulk	btr_bulk(index[i], trx);
 
 					err = row_merge_insert_index_tuples(
-						index[i], old_table,
+						trx, index[i], old_table,
 						OS_FILE_CLOSED, NULL, buf,
 						&btr_bulk,
 						table_total_rows,
@@ -2962,9 +2960,6 @@ all_done:
 		mem_heap_free(conv_heap);
 	}
 
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Scan Table\n");
-#endif
 	if (UNIV_LIKELY_NULL(fts_parallel_sort_cond)) {
 wait_again:
                 /* Check if error occurs in child thread */
@@ -3005,9 +3000,6 @@ wait_again:
 		}
 	}
 
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Tokenization\n");
-#endif
 	for (ulint i = 0; i < n_index; i++) {
 		row_merge_buf_free(merge_buf[i]);
 	}
@@ -3688,6 +3680,7 @@ row_merge_mtuple_to_dtuple(
 static	MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_merge_insert_index_tuples(
+	trx_t*			trx,
 	dict_index_t*		index,
 	const dict_table_t*	old_table,
 	const pfs_os_file_t&	fd,
@@ -3715,8 +3708,7 @@ row_merge_insert_index_tuples(
 	double			curr_progress = 0;
 	dict_index_t*		old_index = NULL;
 	const mrec_t*		mrec  = NULL;
-	mtr_t			mtr;
-
+	mtr_t			mtr{trx};
 
 	DBUG_ENTER("row_merge_insert_index_tuples");
 
@@ -4710,14 +4702,32 @@ row_merge_build_indexes(
 		* static_cast<double>(n_indexes);
 	for (i = 0; i < n_indexes; i++) {
 		if (indexes[i]->type & DICT_FTS) {
-			ibool	opt_doc_id_size = FALSE;
+			bool	opt_doc_id_size = false;
 
 			/* To build FTS index, we would need to extract
 			doc's word, Doc ID, and word's position, so
 			we need to build a "fts sort index" indexing
 			on above three 'fields' */
+
+			/* Check whether we can use 4 bytes instead of 8 bytes
+			integer field to hold the Doc ID, thus reduce
+			the overall sort size. If the fulltext index is being
+			added for the first time then we should use 8 bytes Doc ID
+			size because table->stat_n_rows is an estimation and
+			not reliable to determine the Doc ID size. */
+			if (old_table->fts || !DICT_TF2_FLAG_IS_SET(
+					new_table, DICT_TF2_FTS_ADD_DOC_ID)) {
+				/* If the Doc ID column is supplied by user
+				or rebuilding the existing FTS table, then
+				check the maximum Doc ID in the old table */
+				doc_id_t max_doc_id =
+				  fts_get_max_doc_id((dict_table_t*) old_table);
+				opt_doc_id_size =
+				  (max_doc_id < MAX_DOC_ID_OPT_VAL);
+			}
+
 			fts_sort_idx = row_merge_create_fts_sort_index(
-				indexes[i], old_table, &opt_doc_id_size);
+				indexes[i], new_table, opt_doc_id_size);
 
 			row_merge_dup_t*	dup
 				= static_cast<row_merge_dup_t*>(
@@ -4818,13 +4828,10 @@ row_merge_build_indexes(
 					psort_info, 0);
 			}
 
-#ifdef FTS_INTERNAL_DIAG_PRINT
-			DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Insert\n");
-#endif
 		} else if (merge_files[k].fd != OS_FILE_CLOSED) {
 			char	buf[NAME_LEN + 1];
 			row_merge_dup_t	dup = {
-				sort_idx, table, col_map, 0};
+				sort_idx, trx, table, col_map, 0};
 
 			pct_cost = (COST_BUILD_INDEX_STATIC +
 				    (total_dynamic_cost
@@ -4893,7 +4900,7 @@ row_merge_build_indexes(
 				}
 
 				error = row_merge_insert_index_tuples(
-					sort_idx, old_table,
+					trx, sort_idx, old_table,
 					merge_files[k].fd, block, NULL,
 					&btr_bulk,
 					merge_files[k].n_rec, pct_progress, pct_cost,
@@ -4945,12 +4952,6 @@ row_merge_build_indexes(
 		if (error != DB_SUCCESS) {
 			trx->error_key_num = key_numbers[i];
 			goto func_exit;
-		}
-
-		if (indexes[i]->type & DICT_FTS
-		    && UNIV_UNLIKELY(fts_enable_diag_print)) {
-			ib::info() << "Finished building full-text index "
-				<< indexes[i]->name;
 		}
 	}
 
@@ -5193,7 +5194,7 @@ dberr_t row_merge_bulk_t::load_one_row(trx_t *trx)
   dict_index_t *index= m_merge_buf[0].index;
   BtrBulk btr_bulk(index, trx);
   ut_ad(m_merge_buf[0].n_tuples == 1);
-  dberr_t err= row_merge_insert_index_tuples(index, index->table,
+  dberr_t err= row_merge_insert_index_tuples(trx, index, index->table,
                                              OS_FILE_CLOSED, nullptr,
                                              &m_merge_buf[0], &btr_bulk,
                                              0, 0, 0, nullptr,
@@ -5204,7 +5205,7 @@ dberr_t row_merge_bulk_t::load_one_row(trx_t *trx)
   if (err != DB_SUCCESS)
     trx->error_info= index;
   else if (index->table->persistent_autoinc)
-    btr_write_autoinc(index, 1);
+    btr_write_autoinc(trx, index, 1);
   err= btr_bulk.finish(err);
   if (err == DB_SUCCESS && index->is_clust())
     index->table->stat_n_rows= 1;
@@ -5260,7 +5261,7 @@ add_to_buf:
 
     if (index->is_unique())
     {
-      row_merge_dup_t dup{index, nullptr, nullptr, 0};
+      row_merge_dup_t dup{index, trx, nullptr, nullptr, 0};
       row_merge_buf_sort(buf, &dup);
       if (dup.n_dup)
       {
@@ -5302,7 +5303,7 @@ dberr_t row_merge_bulk_t::write_to_index(ulint index_no, trx_t *trx)
   dict_index_t *index= buf.index;
   dict_table_t *table= index->table;
   BtrBulk btr_bulk(index, trx);
-  row_merge_dup_t dup = {index, nullptr, nullptr, 0};
+  row_merge_dup_t dup = {index, trx, nullptr, nullptr, 0};
 
   if (buf.n_tuples)
   {
@@ -5327,7 +5328,7 @@ dberr_t row_merge_bulk_t::write_to_index(ulint index_no, trx_t *trx)
     {
       /* Data got fit in merge buffer. */
       err= row_merge_insert_index_tuples(
-            index, table, OS_FILE_CLOSED, nullptr,
+            trx, index, table, OS_FILE_CLOSED, nullptr,
             &buf, &btr_bulk, 0, 0, 0, nullptr, table->space_id, nullptr,
             m_blob_file.fd == OS_FILE_CLOSED ? nullptr : &m_blob_file);
       goto func_exit;
@@ -5341,7 +5342,7 @@ dberr_t row_merge_bulk_t::write_to_index(ulint index_no, trx_t *trx)
     goto func_exit;
 
   err= row_merge_insert_index_tuples(
-        index, table, file->fd, m_block, nullptr,
+        trx, index, table, file->fd, m_block, nullptr,
         &btr_bulk, 0, 0, 0, m_crypt_block, table->space_id,
         nullptr, &m_blob_file);
 
@@ -5349,7 +5350,7 @@ func_exit:
   if (err != DB_SUCCESS)
     trx->error_info= index;
   else if (index->is_primary() && table->persistent_autoinc)
-    btr_write_autoinc(index, table->autoinc - 1);
+    btr_write_autoinc(trx, index, table->autoinc - 1);
   err= btr_bulk.finish(err);
   if (err == DB_SUCCESS && index->is_clust())
     table->stat_n_rows= (file && file->fd != OS_FILE_CLOSED)

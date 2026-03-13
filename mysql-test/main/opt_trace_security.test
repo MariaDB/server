@@ -1,4 +1,6 @@
 --source include/not_embedded.inc
+--disable_service_connection
+
 create database db1;
 use db1;
 create table t1(a int);
@@ -192,6 +194,8 @@ set optimizer_trace='enabled=off';
 --enable_view_protocol
 
 connection default;
+disconnect con_foo;
+disconnect con_bar;
 select current_user();
 select * from db1.v1;
 drop user foo@localhost, bar@localhost;

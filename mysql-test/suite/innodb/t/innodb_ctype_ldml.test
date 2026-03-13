@@ -181,10 +181,12 @@ create table t1 (c1 char(1) character set ucs2 collate ucs2_vn_ci);
 show create table t1;
 
 insert into t1 values (0x0061);
+--disable_view_protocol
 --enable_metadata
 set @@character_set_results=NULL;
 select * from t1;
 --disable_metadata
+--enable_view_protocol
 drop table t1;
 
 #
@@ -205,7 +207,7 @@ SET NAMES utf8;
 
 # make sure utf8mb4_test_400_ci is Unicode-4.0.0 based
 SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci));
-SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_400_ci));
+SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_400_ci)) AS 'Must be FFFD';
 SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a));
 SELECT hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a));
 SELECT hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a));
@@ -342,7 +344,7 @@ INSERT INTO t1 VALUES
 SELECT HEX(WEIGHT_STRING(a)), HEX(CONVERT(a USING ucs2)), HEX(a)
 FROM t1 ORDER BY a, BINARY(a);
 SELECT HEX(WEIGHT_STRING(a)) as wa,
-GROUP_CONCAT(HEX(CONVERT(a USING ucs2)) ORDER BY LENGTH(a), BINARY a)
+GROUP_CONCAT(HEX(CONVERT(a USING ucs2)) ORDER BY LENGTH(a), BINARY a) gc
 FROM t1 GROUP BY a ORDER BY a;
 DROP TABLE t1;
 

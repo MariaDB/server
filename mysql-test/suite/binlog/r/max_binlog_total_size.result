@@ -18,7 +18,7 @@ binary.000003	#
 binary.000004	#
 show status like "binlog_disk_use";
 Variable_name	Value
-Binlog_disk_use	1552
+Binlog_disk_use	1556
 set @@global.slave_connections_needed_for_purge= 0;
 # binary.000001 should be deleted now
 show binary logs;
@@ -28,7 +28,7 @@ binary.000003	#
 binary.000004	#
 show status like "binlog_disk_use";
 Variable_name	Value
-Binlog_disk_use	1183
+Binlog_disk_use	1186
 CREATE TABLE `t1` (
 `v1` int(11) DEFAULT NULL,
 `v2` varchar(8000) DEFAULT NULL,
@@ -37,7 +37,7 @@ KEY `v1` (`v1`)
 INSERT INTO t1 VALUES (0,repeat("a",3000));
 show status like "binlog_disk_use";
 Variable_name	Value
-Binlog_disk_use	3863
+Binlog_disk_use	3864
 # First binary should be binary.000004
 show binary logs;
 Log_name	File_size
@@ -65,7 +65,7 @@ binary.000009	#
 binary.000010	#
 show status like "binlog_disk_use";
 Variable_name	Value
-Binlog_disk_use	1225
+Binlog_disk_use	1228
 PURGE BINARY LOGS TO 'binary.000009';
 # First binary should be binary.000009
 show binary logs;
@@ -89,7 +89,7 @@ Log_name	File_size
 binary.000001	#
 show status like "binlog_disk_use";
 Variable_name	Value
-Binlog_disk_use	325
+Binlog_disk_use	326
 INSERT INTO t1 VALUES (5,"e");
 FLUSH LOGS;
 INSERT INTO t1 VALUES (6,repeat("f",3000));
@@ -98,7 +98,7 @@ Log_name	File_size
 binary.000002	#
 show status like "binlog_disk_use";
 Variable_name	Value
-Binlog_disk_use	3647
+Binlog_disk_use	3648
 INSERT INTO t1 VALUES (7,repeat("g",3000));
 # binary.000001 should be deleted now
 show binary logs;
@@ -107,17 +107,17 @@ binary.000002	#
 binary.000003	#
 show status like "binlog_disk_use";
 Variable_name	Value
-Binlog_disk_use	7338
+Binlog_disk_use	7340
 FLUSH LOGS;
 FLUSH LOGS;
 # binary.000002 should be deleted now
 show binary logs;
 Log_name	File_size
-binary.000003	423
-binary.000004	423
-binary.000005	379
+binary.000003	424
+binary.000004	424
+binary.000005	380
 show status like "binlog_disk_use";
 Variable_name	Value
-Binlog_disk_use	1225
+Binlog_disk_use	1228
 DROP TABLE IF EXISTS t1;
 set @@global.slave_connections_needed_for_purge= default;

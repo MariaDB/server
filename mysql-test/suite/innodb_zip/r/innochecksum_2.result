@@ -14,6 +14,12 @@ INSERT INTO t1 SELECT * from t1;
 INSERT INTO t1 SELECT * from t1;
 INSERT INTO t1 SELECT * from t1;
 INSERT INTO t1 SELECT * from t1;
+CREATE TABLE t2 (j LONGBLOB) ENGINE = InnoDB
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
+CREATE TABLE t3 (j LONGBLOB) ENGINE = InnoDB
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
+CREATE TABLE t4(c1 INT PRIMARY KEY,c2 VARCHAR(20),
+INDEX(c2(10))) ENGINE=InnoDB;
 # stop the server
 
 Variables (--variable-name=value)
@@ -35,6 +41,7 @@ log                               (No default value)
 leaf                              FALSE
 merge                             0
 skip-freed-pages                  FALSE
+tablespace-flags                  4294967295
 [1]:# check the both short and long options for "help"
 [2]:# Run the innochecksum when file isn't provided.
 # It will print the innochecksum usage similar to --help option.
@@ -69,6 +76,9 @@ See https://mariadb.com/kb/en/library/innochecksum/ for usage hints.
                       pages
   -r, --skip-freed-pages 
                       skip freed pages for the tablespace
+  --tablespace-flags=# 
+                      InnoDB tablespace flags (default: 4294967295 = read from
+                      page 0)
 
 Variables (--variable-name=value)
 and boolean options {FALSE|TRUE}  Value (after reading options)
@@ -88,10 +98,12 @@ log                               (No default value)
 leaf                              FALSE
 merge                             0
 skip-freed-pages                  FALSE
+tablespace-flags                  4294967295
 [3]:# check the both short and long options for "count" and exit
 Number of pages:#
 Number of pages:#
 [4]:# Print the version of innochecksum and exit
 innochecksum from #.#.#-MariaDB, client #.# for OS (ARCH)
+[5]:# check t1.ibd and t2.ibd summary with and without tablespace_flags
 # Restart the DB server
-DROP TABLE t1;
+DROP TABLE t4, t3, t2, t1;

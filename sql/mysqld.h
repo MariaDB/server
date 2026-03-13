@@ -109,6 +109,9 @@ uint temp_pool_set_next();
 
 extern bool opt_large_files;
 extern bool opt_bin_log, opt_error_log, opt_bin_log_compress;
+extern char *opt_binlog_storage_engine;
+extern const char *opt_binlog_directory;
+extern handlerton *opt_binlog_engine_hton;
 extern uint opt_bin_log_compress_min_len;
 extern my_bool opt_log, opt_bootstrap;
 extern my_bool opt_support_flashback;
@@ -132,7 +135,6 @@ extern ulonglong slave_type_conversions_options;
 extern ulong read_only, opt_readonly;
 extern MYSQL_PLUGIN_IMPORT my_bool lower_case_file_system;
 extern my_bool opt_enable_named_pipe, opt_sync_frm, opt_allow_suspicious_udfs;
-extern my_bool opt_secure_auth;
 extern my_bool opt_require_secure_transport;
 extern const char *current_dbug_option;
 extern char* opt_secure_file_priv;
@@ -244,6 +246,7 @@ extern ulonglong slave_max_statement_time;
 extern double slave_max_statement_time_double;
 extern double slave_abort_blocking_timeout;
 extern ulong opt_binlog_rows_event_max_size;
+extern uint opt_binlog_row_event_fragment_threshold;
 extern ulong binlog_row_metadata;
 extern my_bool opt_binlog_gtid_index;
 extern uint opt_binlog_gtid_index_page_size;
@@ -267,7 +270,7 @@ extern time_t server_start_time;
 extern char *opt_mysql_tmpdir, mysql_charsets_dir[];
 extern size_t mysql_unpacked_real_data_home_len;
 extern MYSQL_PLUGIN_IMPORT MY_TMPDIR mysql_tmpdir_list;
-extern const char *first_keyword, *delayed_user, *slave_user;
+extern const char *first_keyword, *delayed_user, *slave_user, *wsrep_user;
 extern MYSQL_PLUGIN_IMPORT const char  *my_localhost;
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;			/* Error messages */
 extern const Lex_ident_column in_left_expr_name, in_additional_cond, in_having_cond;
@@ -304,6 +307,9 @@ extern const char *encryption_algorithm_names[];
 extern long opt_secure_timestamp;
 extern uint default_password_lifetime;
 extern my_bool disconnect_on_expired_password;
+#ifndef DBUG_OFF
+extern bool is_in_ddl_recovery;
+#endif
 
 enum secure_timestamp { SECTIME_NO, SECTIME_SUPER, SECTIME_REPL, SECTIME_YES };
 bool is_set_timestamp_forbidden(THD *thd);
@@ -313,7 +319,8 @@ extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
        key_LOCK_pool, key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
 
-extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
+extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_binlog_use,
+  key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
   key_LOCK_binlog_end_pos,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
@@ -359,7 +366,7 @@ extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
 extern PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;
 #endif /* HAVE_MMAP */
 
-extern PSI_cond_key key_BINLOG_COND_xid_list,
+extern PSI_cond_key key_BINLOG_COND_binlog_use, key_BINLOG_COND_xid_list,
   key_BINLOG_COND_binlog_background_thread,
   key_BINLOG_COND_binlog_background_thread_end,
   key_COND_cache_status_changed, key_COND_manager, key_COND_server_started,
@@ -402,13 +409,6 @@ extern PSI_file_key key_file_relaylog, key_file_relaylog_index,
 extern PSI_socket_key key_socket_tcpip, key_socket_unix,
   key_socket_client_connection;
 extern PSI_file_key key_file_binlog_state, key_file_gtid_index;
-
-#ifdef HAVE_des
-extern char* des_key_file;
-extern PSI_file_key key_file_des_key_file;
-extern PSI_mutex_key key_LOCK_des_key_file;
-extern mysql_mutex_t LOCK_des_key_file;
-#endif
 
 #ifdef HAVE_PSI_INTERFACE
 void init_server_psi_keys();
@@ -498,6 +498,7 @@ extern PSI_memory_key key_memory_Query_cache;
 extern PSI_memory_key key_memory_Table_trigger_dispatcher;
 extern PSI_memory_key key_memory_native_functions;
 extern PSI_memory_key key_memory_WSREP;
+extern PSI_memory_key key_memory_trace_ddl_info;
 
 /*
   MAINTAINER: Please keep this list in order, to limit merge collisions.
@@ -512,6 +513,7 @@ extern PSI_stage_info stage_alter_inplace_prepare;
 extern PSI_stage_info stage_alter_inplace;
 extern PSI_stage_info stage_alter_inplace_commit;
 extern PSI_stage_info stage_after_apply_event;
+extern PSI_stage_info stage_buffer_partial_rows;
 extern PSI_stage_info stage_changing_master;
 extern PSI_stage_info stage_checking_master_version;
 extern PSI_stage_info stage_checking_permissions;
@@ -520,6 +522,7 @@ extern PSI_stage_info stage_checking_query_cache_for_query;
 extern PSI_stage_info stage_cleaning_up;
 extern PSI_stage_info stage_closing_tables;
 extern PSI_stage_info stage_connecting_to_master;
+extern PSI_stage_info stage_constructing_rows_ev;
 extern PSI_stage_info stage_converting_heap_to_myisam;
 extern PSI_stage_info stage_copying_to_group_table;
 extern PSI_stage_info stage_copying_to_tmp_table;
@@ -642,6 +645,7 @@ extern PSI_stage_info stage_slave_background_process_request;
 extern PSI_stage_info stage_slave_background_wait_request;
 extern PSI_stage_info stage_waiting_for_deadlock_kill;
 extern PSI_stage_info stage_starting;
+extern PSI_stage_info stage_waiting_for_reset_master;
 #ifdef WITH_WSREP
 // Additional Galera thread states
 extern PSI_stage_info stage_waiting_isolation;
@@ -804,9 +808,10 @@ enum options_mysqld
   OPT_SSL_KEY,
   OPT_WANT_CORE,
   OPT_MYSQL_COMPATIBILITY,
-  OPT_TLS_VERSION, OPT_SECURE_AUTH,
+  OPT_TLS_VERSION,
   OPT_MYSQL_TO_BE_IMPLEMENTED,
   OPT_SEQURE_FILE_PRIV,
+  OPT_MASTER_HEARTBEAT_PERIOD,
   OPT_which_is_always_the_last
 };
 #endif
@@ -879,7 +884,12 @@ enum enum_query_type
   QT_FOR_FRM= (1 << 13),
 
   // Print only the SELECT part, even for INSERT...SELECT
-  QT_SELECT_ONLY = (1 << 14)
+  QT_SELECT_ONLY = (1 << 14),
+  /// Used for printing default stored routine parameter for Information Schema.
+  /// Parameters are considered SP local variables and they're usually printed
+  /// in `var_name`@`var_index` format. Setting this prevents such formatting
+  /// and just prints the `var_name`
+  QT_DEFAULT_PARAM_INFO_SCHEMA = (1 << 15)
 };
 
 

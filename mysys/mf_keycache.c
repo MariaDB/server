@@ -981,7 +981,8 @@ void end_simple_key_cache(void *keycache_, my_bool cleanup)
 
   DBUG_PRINT("status", ("used: %lu  changed: %lu  w_requests: %lu  "
                         "writes: %lu  r_requests: %lu  reads: %lu",
-                        keycache->blocks_used, keycache->global_blocks_changed,
+                        (ulong) keycache->blocks_used,
+                        (ulong) keycache->global_blocks_changed,
                         (ulong) keycache->global_cache_w_requests,
                         (ulong) keycache->global_cache_write,
                         (ulong) keycache->global_cache_r_requests,
@@ -1600,7 +1601,7 @@ static void unreg_request(SIMPLE_KEY_CACHE_CB *keycache,
         keycache->warm_blocks--;
       block->temperature= BLOCK_HOT;
       KEYCACHE_DBUG_PRINT("unreg_request", ("#warm_blocks: %lu",
-                           keycache->warm_blocks));
+                                            (ulong) keycache->warm_blocks));
     }
     link_block(keycache, block, hot, (my_bool)at_end);
     block->last_hit_time= keycache->keycache_time;
@@ -1632,7 +1633,7 @@ static void unreg_request(SIMPLE_KEY_CACHE_CB *keycache,
         block->temperature= BLOCK_WARM;
       }
       KEYCACHE_DBUG_PRINT("unreg_request", ("#warm_blocks: %lu",
-                           keycache->warm_blocks));
+                                            (ulong) keycache->warm_blocks));
     }
   }
 }
@@ -3903,6 +3904,8 @@ static int flush_cached_blocks(SIMPLE_KEY_CACHE_CB *keycache,
     1  error
 */
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static int flush_key_blocks_int(SIMPLE_KEY_CACHE_CB *keycache,
 				File file, enum flush_type type)
 {
@@ -3911,7 +3914,8 @@ static int flush_key_blocks_int(SIMPLE_KEY_CACHE_CB *keycache,
   int last_errcnt= 0;
   DBUG_ENTER("flush_key_blocks_int");
   DBUG_PRINT("enter",("file: %d  blocks_used: %lu  blocks_changed: %lu",
-              file, keycache->blocks_used, keycache->blocks_changed));
+                      file, (ulong) keycache->blocks_used,
+                      (ulong) keycache->blocks_changed));
 
 #if !defined(DBUG_OFF) && defined(EXTRA_DEBUG)
   DBUG_EXECUTE("check_keycache",
@@ -4335,6 +4339,7 @@ err:
   DBUG_RETURN(last_errno != 0);
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /*
   Flush all blocks for a file from key buffers of a simple key cache 

@@ -98,6 +98,7 @@ typedef struct st_plugin_vio_info
 #ifdef _WIN32
   HANDLE handle;  /**< it's set, if the protocol is PIPE or MEMORY */
 #endif
+  int tls;
 } MYSQL_PLUGIN_VIO_INFO;
 
 /**

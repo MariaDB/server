@@ -530,12 +530,14 @@ rtr_info_reinit_in_cursor(
 					needed */
 
 /** Estimates the number of rows in a given area.
+@param[in,out]	trx	transaction
 @param[in]	index	index
 @param[in]	tuple	range tuple containing mbr, may also be empty tuple
 @param[in]	mode	search mode
 @return estimated number of rows */
 ha_rows
 rtr_estimate_n_rows_in_range(
+	trx_t*		trx,
 	dict_index_t*	index,
 	const dtuple_t*	tuple,
 	page_cur_mode_t	mode);

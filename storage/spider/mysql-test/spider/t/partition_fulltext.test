@@ -1,9 +1,4 @@
 --source ../include/partition_fulltext_init.inc
-if (!$HAVE_PARTITION)
-{
-  --source ../include/partition_fulltext_deinit.inc
-  skip Test requires partitioning;
-}
 
 --echo
 --echo drop and create databases
@@ -12,110 +7,73 @@ if (!$HAVE_PARTITION)
 DROP DATABASE IF EXISTS auto_test_local;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
-if ($USE_CHILD_GROUP2)
-{
   --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
     SET @old_log_output = @@global.log_output;
     SET GLOBAL log_output = 'TABLE,FILE';
-  }
   DROP DATABASE IF EXISTS auto_test_remote;
   CREATE DATABASE auto_test_remote;
   USE auto_test_remote;
   --connection child2_2
-  if ($USE_GENERAL_LOG)
-  {
     SET @old_log_output = @@global.log_output;
     SET GLOBAL log_output = 'TABLE,FILE';
-  }
   DROP DATABASE IF EXISTS auto_test_remote2;
   CREATE DATABASE auto_test_remote2;
   USE auto_test_remote2;
   --connection child2_3
-  if ($USE_GENERAL_LOG)
-  {
     SET @old_log_output = @@global.log_output;
     SET GLOBAL log_output = 'TABLE,FILE';
-  }
   DROP DATABASE IF EXISTS auto_test_remote3;
   CREATE DATABASE auto_test_remote3;
   USE auto_test_remote3;
-}
 --enable_warnings
 
 --echo
 --echo create table and insert
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
   --connection child2_1
-  if ($OUTPUT_CHILD_GROUP2)
-  {
     --disable_query_log
     echo CHILD2_1_DROP_TABLES;
     echo CHILD2_1_CREATE_TABLES;
-  }
   --disable_warnings
-  eval $CHILD2_1_DROP_TABLES;
+DROP TABLE IF EXISTS tbl_a;
   --enable_warnings
-  eval $CHILD2_1_CREATE_TABLES;
-  if ($OUTPUT_CHILD_GROUP2)
-  {
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+words text NOT NULL,
+PRIMARY KEY (pkey),
+FULLTEXT (words)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     --enable_query_log
-  }
-  if ($USE_GENERAL_LOG)
-  {
     TRUNCATE TABLE mysql.general_log;
-  }
   --connection child2_2
-  if ($OUTPUT_CHILD_GROUP2)
-  {
     --disable_query_log
     echo CHILD2_2_DROP_TABLES;
     echo CHILD2_2_CREATE_TABLES;
-  }
   --disable_warnings
-  eval $CHILD2_2_DROP_TABLES;
+DROP TABLE IF EXISTS tbl_a;
   --enable_warnings
-  eval $CHILD2_2_CREATE_TABLES;
-  if ($OUTPUT_CHILD_GROUP2)
-  {
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+words text NOT NULL,
+PRIMARY KEY (pkey),
+FULLTEXT (words)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     --enable_query_log
-  }
-  if ($USE_GENERAL_LOG)
-  {
     TRUNCATE TABLE mysql.general_log;
-  }
   --connection child2_3
-  if ($OUTPUT_CHILD_GROUP2)
-  {
     --disable_query_log
     echo CHILD2_3_DROP_TABLES;
     echo CHILD2_3_CREATE_TABLES;
-  }
   --disable_warnings
-  eval $CHILD2_3_DROP_TABLES;
+DROP TABLE IF EXISTS tbl_a;
   --enable_warnings
-  eval $CHILD2_3_CREATE_TABLES;
-  if ($OUTPUT_CHILD_GROUP2)
-  {
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+words text NOT NULL,
+PRIMARY KEY (pkey),
+FULLTEXT (words)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     --enable_query_log
-  }
-  if ($USE_GENERAL_LOG)
-  {
     TRUNCATE TABLE mysql.general_log;
-  }
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
 --connection master_1
 --disable_warnings
 DROP TABLE IF EXISTS tbl_a;
@@ -128,12 +86,17 @@ echo CREATE TABLE tbl_a (
     PRIMARY KEY (pkey),
     FULLTEXT (words)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
-eval CREATE TABLE tbl_a (
+CREATE TABLE tbl_a (
     pkey int NOT NULL,
     words text NOT NULL,
     PRIMARY KEY (pkey),
     FULLTEXT (words)
-) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", bka_mode "1"'
+  PARTITION BY KEY(pkey) (
+PARTITION pt1 COMMENT='srv "s_2_1"',
+PARTITION pt2 COMMENT='srv "s_2_2"',
+PARTITION pt3 COMMENT='srv "s_2_3"'
+  );
 --enable_query_log
 --disable_ps_protocol
 INSERT INTO tbl_a (pkey, words) VALUES (0, 'abc'),(1, 'def'),(2, 'ghi'),(3, 'jkl'),(4, 'mno'),(5, 'pqr'),(6, 'stu'),(7, 'vwx');
@@ -141,64 +104,26 @@ INSERT INTO tbl_a (pkey, words) VALUES (0, 'abc'),(1, 'def'),(2, 'ghi'),(3, 'jkl
 
 --echo
 --echo select test
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
   --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
     TRUNCATE TABLE mysql.general_log;
-  }
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
 --connection master_1
 --disable_ps2_protocol
 SELECT pkey, words FROM tbl_a WHERE match(words) against('+ghi' in boolean mode);
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
   --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
     --disable_view_protocol
-    eval $CHILD2_1_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     --enable_view_protocol
-  }
-  eval $CHILD2_1_SELECT_TABLES;
+SELECT pkey FROM tbl_a ORDER BY pkey;
   --connection child2_2
-  if ($USE_GENERAL_LOG)
-  {
     --disable_view_protocol
-    eval $CHILD2_2_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     --enable_view_protocol
-  }
-  eval $CHILD2_2_SELECT_TABLES;
+SELECT pkey FROM tbl_a ORDER BY pkey;
   --connection child2_3
-  if ($USE_GENERAL_LOG)
-  {
     --disable_view_protocol
-    eval $CHILD2_3_SELECT_ARGUMENT1;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     --enable_view_protocol
-  }
-  eval $CHILD2_3_SELECT_TABLES;
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
+SELECT pkey FROM tbl_a ORDER BY pkey;
 --enable_ps2_protocol
 
 --echo
@@ -206,27 +131,15 @@ if ($USE_CHILD_GROUP2)
 --disable_warnings
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;
-if ($USE_CHILD_GROUP2)
-{
   --connection child2_1
   DROP DATABASE IF EXISTS auto_test_remote;
-  if ($USE_GENERAL_LOG)
-  {
     SET GLOBAL log_output = @old_log_output;
-  }
   --connection child2_2
   DROP DATABASE IF EXISTS auto_test_remote2;
-  if ($USE_GENERAL_LOG)
-  {
     SET GLOBAL log_output = @old_log_output;
-  }
   --connection child2_3
   DROP DATABASE IF EXISTS auto_test_remote3;
-  if ($USE_GENERAL_LOG)
-  {
     SET GLOBAL log_output = @old_log_output;
-  }
-}
 --enable_warnings
 --source ../include/partition_fulltext_deinit.inc
 --echo

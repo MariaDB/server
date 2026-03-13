@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2024 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -80,16 +80,65 @@ wsrep_get_apply_format(THD* thd)
 
   DBUG_ASSERT(thd->wsrep_rgi);
 
-  return thd->wsrep_rgi->rli->relay_log.description_event_for_exec;
+  return thd->wsrep_rgi->rli->relay_log.description_event_for_sql_thread;
 }
 
-void wsrep_store_error(const THD* const thd,
-                       wsrep::mutable_buffer& dst,
-                       bool const include_msg)
+/* store error from rli */
+static void wsrep_store_error_rli(const THD* const thd,
+                                  wsrep::mutable_buffer& dst,
+                                  bool const include_msg)
 {
+  Slave_reporting_capability* const rli= thd->wsrep_rgi ?
+    thd->wsrep_rgi->rli : nullptr;
+  if (rli && rli->last_error().number != 0)
+  {
+    auto error= rli->last_error();
+    std::ostringstream os;
+    if (include_msg)
+    {
+      os << error.message << ",";
+    }
+    os << " Error_code: " << error.number << ';';
+    std::string const err_str= os.str();
+    dst.resize(err_str.length() + 1);
+    sprintf(dst.data(), "%s", err_str.c_str());
+
+    WSREP_DEBUG("Error buffer (RLI) for thd %u seqno %lld, %zu bytes: '%s'",
+                thd->thread_id, (long long)wsrep_thd_trx_seqno(thd),
+                dst.size(), dst.size() ? dst.data() : "(null)");
+  }
+}
+
+/* Helper function to print error message */
+static size_t wsrep_print_error(char* dst,
+                                const size_t dst_len,
+                                const bool include_msg,
+                                const uint err_code,
+                                const char* err_str)
+{
+  size_t len;
+  if (include_msg)
+  {
+    len= snprintf(dst, dst_len, " %s, Error_code: %d;",
+                  err_str, err_code);
+  }
+  else
+  {
+    len= snprintf(dst, dst_len, " Error_code: %d;",
+                  err_code);
+  }
+  return len;
+}
+
+/* store error from diagnostic area */
+static void wsrep_store_error_da(const THD* const thd,
+                                 wsrep::mutable_buffer& dst,
+                                 bool const include_msg)
+{
+  const Diagnostics_area* da= thd->get_stmt_da();
   Diagnostics_area::Sql_condition_iterator it=
-    thd->get_stmt_da()->sql_conditions();
-  const Sql_condition* cond;
+    da->sql_conditions();
+  const Sql_condition* cond=it++;
 
   static size_t const max_len= 2*MAX_SLAVE_ERRMSG; // 2x so that we have enough
 
@@ -98,23 +147,26 @@ void wsrep_store_error(const THD* const thd,
   char* slider= dst.data();
   const char* const buf_end= slider + max_len - 1; // -1: leave space for \0
 
-  for (cond= it++; cond && slider < buf_end; cond= it++)
+  if (cond)
   {
-    uint const err_code= cond->get_sql_errno();
-    const char* const err_str= cond->get_message_text();
-
-    if (include_msg)
+    for (; cond && slider < buf_end; cond= it++)
     {
-      slider+= snprintf(slider, buf_end - slider, " %s, Error_code: %d;",
-                        err_str, err_code);
-    }
-    else
-    {
-      slider+= snprintf(slider, buf_end - slider, " Error_code: %d;",
-                        err_code);
+      uint const err_code= cond->get_sql_errno();
+      const char* const err_str= cond->get_message_text();
+      slider+= wsrep_print_error(slider, buf_end-slider,
+                                 include_msg, err_code, err_str);
     }
   }
-
+  else if (da->is_error())
+  {
+    // For example during TOI SQL_condition_iterator
+    // could be nullptr, get error from Diagnostics
+    // area directly.
+    uint const err_code= da->sql_errno();
+    const char* const err_str= da->message();
+    slider+= wsrep_print_error(slider, buf_end-slider,
+                               include_msg, err_code, err_str);
+  }
   if (slider != dst.data())
   {
     *slider= '\0';
@@ -123,22 +175,48 @@ void wsrep_store_error(const THD* const thd,
 
   dst.resize(slider - dst.data());
 
-  WSREP_DEBUG("Error buffer for thd %llu seqno %lld, %zu bytes: '%s'",
+  WSREP_DEBUG("Error buffer (DA) for thd %llu seqno %lld, %zu bytes: '%s'",
               thd->thread_id, (long long)wsrep_thd_trx_seqno(thd),
               dst.size(), dst.size() ? dst.data() : "(null)");
 }
 
-int wsrep_apply_events(THD*        thd,
-                       Relay_log_info* rli,
-                       const void* events_buf,
-                       size_t      buf_len)
+/* store error info after applying error */
+void wsrep_store_error(const THD* const thd,
+                       wsrep::mutable_buffer& dst,
+                       bool const include_msg)
+{
+  dst.clear();
+  wsrep_store_error_da(thd, dst, include_msg);
+  if (dst.size() == 0)
+  {
+    wsrep_store_error_rli(thd, dst, include_msg);
+  }
+  if (dst.size() == 0)
+  {
+    WSREP_WARN("Failed to get apply error description from either "
+               "Relay_log_info or Diagnostics_area, will use random data.");
+    DBUG_ASSERT(0);
+    uintptr_t const n1= reinterpret_cast<uintptr_t>(&dst);
+    uintptr_t const n2= reinterpret_cast<uintptr_t>(thd);
+    uintptr_t const data= n1 ^ (n2 < 1);
+    const char* const data_ptr= reinterpret_cast<const char*>(&data);
+    dst.push_back(data_ptr, data_ptr + sizeof(data));
+  }
+}
+
+static int apply_events(THD*        thd,
+                        Relay_log_info* rli,
+                        const void* events_buf,
+			size_t      buf_len,
+                        const LEX_STRING &savepoint,
+                        bool set_savepoint)
 {
   char *buf= (char *)events_buf;
   int rcode= 0;
   int event= 1;
   Log_event_type typ;
 
-  DBUG_ENTER("wsrep_apply_events");
+  DBUG_ENTER("apply_events");
   if (!buf_len) WSREP_DEBUG("empty rbr buffer to apply: %lld",
                             (long long) wsrep_thd_trx_seqno(thd));
 
@@ -147,6 +225,15 @@ int wsrep_apply_events(THD*        thd,
     thd->variables.gtid_domain_id= wsrep_gtid_server.domain_id;
   else
     thd->variables.gtid_domain_id= global_system_variables.gtid_domain_id;
+
+  bool in_trans = thd->in_active_multi_stmt_transaction();
+  if (in_trans && set_savepoint) {
+    if (wsrep_applier_retry_count > 0 && !thd->wsrep_trx().is_streaming() &&
+        trans_savepoint(thd, savepoint)) {
+      rcode = 1;
+      goto error;
+    }
+  }
 
   while (buf_len)
   {
@@ -203,6 +290,30 @@ int wsrep_apply_events(THD*        thd,
       }
     }
 
+    /* Statement-based replication requires InnoDB repeatable read
+       transaction isolation level or higher.
+       The isolation level will be reset to the default upon
+       transaction termination.
+       Although the isolation level can only be set on a newly
+       started server transaction, it cannot be determined until
+       we see the first applied binlog event.
+
+       Even though the isolation level is changed for every next
+       applied event, it won't affect the overall setting for a
+       running transaction.
+       This should create an issue with the mixed replication mode
+       as applying query and row events should be performed with
+       different isolation levels, but now it doesn't surface.
+       */
+    if (LOG_EVENT_IS_QUERY(typ))
+    {
+      thd->tx_isolation= ISO_REPEATABLE_READ;
+    }
+    else
+    {
+      thd->tx_isolation= ISO_READ_COMMITTED;
+    }
+
     if (LOG_EVENT_IS_WRITE_ROW(typ) ||
         LOG_EVENT_IS_UPDATE_ROW(typ) ||
         LOG_EVENT_IS_DELETE_ROW(typ))
@@ -254,6 +365,19 @@ int wsrep_apply_events(THD*        thd,
       delete ev;
       goto error;
     }
+
+    /* Transaction was started by the event, set the savepoint to rollback to
+     * in case of failure. */
+    if (!in_trans && thd->in_active_multi_stmt_transaction()) {
+      in_trans = true;
+      if (wsrep_applier_retry_count > 0 && !thd->wsrep_trx().is_streaming()
+          && set_savepoint && trans_savepoint(thd, savepoint)) {
+        delete ev;
+        rcode = 1;
+        goto error;
+      }
+    }
+
     event++;
 
     delete_or_keep_event_post_apply(thd->wsrep_rgi, typ, ev);
@@ -266,4 +390,57 @@ error:
   wsrep_set_apply_format(thd, NULL);
 
   DBUG_RETURN(rcode);
+}
+
+int wsrep_apply_events(THD*                       thd,
+                        Relay_log_info*            rli,
+                        const wsrep::const_buffer& data,
+                        wsrep::mutable_buffer&     err,
+                        bool const                 include_msg)
+{
+  static char savepoint_name[20] = "wsrep_retry";
+  static size_t savepoint_name_len = strlen(savepoint_name);
+  static const LEX_STRING savepoint= { savepoint_name, savepoint_name_len };
+  uint n_retries = 0;
+  bool savepoint_exists = false;
+
+  int ret= apply_events(thd, rli, data.data(), data.size(), savepoint, true);
+
+  while (ret && n_retries < wsrep_applier_retry_count &&
+	 (savepoint_exists = trans_savepoint_exists(thd, savepoint))) {
+    /* applying failed, retry applying events */
+
+    /* rollback to savepoint without telling Wsrep-lib */
+    thd->variables.wsrep_on = false;
+    thd->wsrep_applier_in_rollback= true;
+    if (FALSE != trans_rollback_to_savepoint(thd, savepoint)) {
+      thd->variables.wsrep_on = true;
+      thd->wsrep_applier_in_rollback= false;
+      break;
+    }
+    thd->variables.wsrep_on = true;
+    thd->wsrep_applier_in_rollback= false;
+
+    /* reset THD object for retry */
+    thd->clear_error();
+    thd->reset_for_next_command();
+
+    /* retry applying events */
+    ret= apply_events(thd, rli, data.data(), data.size(), savepoint, false);
+    n_retries++;
+  }
+
+  if (savepoint_exists) {
+    trans_release_savepoint(thd, savepoint);
+  }
+
+  if (ret || wsrep_thd_has_ignored_error(thd))
+  {
+    if (ret) {
+      wsrep_store_error(thd, err, include_msg);
+    }
+    wsrep_dump_rbr_buf_with_header(thd, data.data(), data.size());
+  }
+
+  return ret;
 }

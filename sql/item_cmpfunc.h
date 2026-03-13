@@ -245,6 +245,16 @@ public:
     return val_bool();
   }
   bool val_bool() override= 0;
+  String *val_str(String *str) override final
+  {
+    DBUG_ASSERT(fixed());
+    bool res= val_bool();
+    if (null_value)
+      return 0;
+
+    str->set_int(res, false, collation.collation);
+    return str;
+  }
   bool fix_length_and_dec(THD *thd) override { decimals=0; max_length=1; return FALSE; }
   decimal_digits_t decimal_precision() const override { return 1; }
   bool need_parentheses_in_default() override { return true; }
@@ -266,6 +276,8 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   void print(String *str, enum_query_type query_type) override;
   enum precedence precedence() const override { return CMP_PRECEDENCE; }
+  table_map not_null_tables() const override
+  { return is_top_level_item() ? not_null_tables_cache : 0; }
   bool count_sargable_conds(void *arg) override;
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override;
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
@@ -279,6 +291,9 @@ public:
   {
     return negated_item(thd);
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 
 protected:
   Item_func_truth(THD *thd, Item *a, bool a_value, bool a_affirmative):
@@ -316,7 +331,9 @@ public:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value) override;
   Item *negated_item(THD *thd) const override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_istrue>(thd, this); }
 };
 
@@ -340,10 +357,12 @@ public:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value) override;
   bool find_not_null_fields(table_map allowed) override { return false; }
-  Item *do_get_copy(THD *thd) const override
-  { return get_item_copy<Item_func_isnottrue>(thd, this); }
   bool eval_not_null_tables(void *) override
   { not_null_tables_cache= 0; return false; }
+
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_isnottrue>(thd, this); }
 };
 
 
@@ -364,7 +383,9 @@ public:
   Item *negated_item(THD *thd) const override;
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_isfalse>(thd, this); }
 };
 
@@ -388,10 +409,12 @@ public:
   bool find_not_null_fields(table_map allowed) override { return false; }
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value) override;
-  Item *do_get_copy(THD *thd) const override
-  { return get_item_copy<Item_func_isnotfalse>(thd, this); }
   bool eval_not_null_tables(void *) override
   { not_null_tables_cache= 0; return false; }
+
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_isnotfalse>(thd, this); }
 };
 
 
@@ -458,15 +481,18 @@ public:
   void fix_after_pullout(st_select_lex *new_parent, Item **ref,
                          bool merge) override;
   bool invisible_mode();
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override;
   void reset_cache() { cache= NULL; }
   void print(String *str, enum_query_type query_type) override;
   void restore_first_argument();
   Item* get_wrapped_in_subselect_item()
   { return args[1]; }
-  Item *do_get_copy(THD *thd) const override
-  { return get_item_copy<Item_in_optimizer>(thd, this); }
   enum precedence precedence() const override { return args[1]->precedence(); }
+
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_in_optimizer>(thd, this); }
 };
 
 
@@ -643,10 +669,10 @@ public:
     return add_key_fields_optimize_op(join, key_fields, and_level,
                                       usable_tables, sargables, false);
   }
-  Item *do_build_clone(THD *thd) const override
+  Item *deep_copy(THD *thd) const override
   {
     Item_bool_rowready_func2 *clone=
-      (Item_bool_rowready_func2 *) Item_func::do_build_clone(thd);
+      (Item_bool_rowready_func2 *) Item_func::deep_copy(thd);
     if (clone)
     {
       clone->cmp.comparators= 0;
@@ -682,7 +708,8 @@ public:
     Item_args::propagate_equal_fields(thd, Context_boolean(), cond);
     return this;
   }
-  Item *do_get_copy(THD *thd) const override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_xor>(thd, this); }
 };
 
@@ -704,7 +731,8 @@ public:
   Item *neg_transformer(THD *thd) override;
   bool fix_fields(THD *, Item **) override;
   void print(String *str, enum_query_type query_type) override;
-  Item *do_get_copy(THD *thd) const override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_not>(thd, this); }
 };
 
@@ -757,7 +785,8 @@ public:
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                       uint *and_level, table_map usable_tables,
                       SARGABLE_PARAM **sargables) override;
-  Item *do_get_copy(THD *thd) const override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_trig_cond>(thd, this); }
 };
 
@@ -790,10 +819,10 @@ public:
   void set_sub_test(Item_maxmin_subselect *item) { test_sub_item= item; test_sum_item= 0;};
   bool empty_underlying_subquery();
   Item *neg_transformer(THD *thd) override;
-  Item *do_get_copy(THD *thd) const override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_not_all>(thd, this); }
 };
-
 
 class Item_func_nop_all :public Item_func_not_all
 {
@@ -807,10 +836,10 @@ public:
     return name;
   }
   Item *neg_transformer(THD *thd) override;
-  Item *do_get_copy(THD *thd) const override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_nop_all>(thd, this); }
 };
-
 
 class Item_func_eq :public Item_bool_rowready_func2
 {
@@ -853,9 +882,11 @@ public:
   Item* date_conds_transformer(THD *thd, uchar *arg) override
   { return do_date_conds_transformation(thd, this); }
   Item* varchar_upper_cmp_transformer(THD *thd, uchar *arg) override;
-  Item *do_get_copy(THD *thd) const override
+  Item *deep_copy(THD *thd) const override;
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_eq>(thd, this); }
-  Item *do_build_clone(THD *thd) const override;
 };
 
 class Item_func_equal final :public Item_bool_rowready_func2
@@ -884,8 +915,13 @@ public:
     return add_key_fields_optimize_op(join, key_fields, and_level,
                                       usable_tables, sargables, true);
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_equal>(thd, this); }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 };
 
 
@@ -904,7 +940,9 @@ public:
     return name;
   }
   Item *negated_item(THD *thd) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_ge>(thd, this); }
   Item* date_conds_transformer(THD *thd, uchar *arg) override
   { return do_date_conds_transformation(thd, this); }
@@ -926,7 +964,9 @@ public:
     return name;
   }
   Item *negated_item(THD *thd) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_gt>(thd, this); }
   Item* date_conds_transformer(THD *thd, uchar *arg) override
   { return do_date_conds_transformation(thd, this); }
@@ -948,7 +988,9 @@ public:
     return name;
   }
   Item *negated_item(THD *thd) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_le>(thd, this); }
   Item* date_conds_transformer(THD *thd, uchar *arg) override
   { return do_date_conds_transformation(thd, this); }
@@ -970,7 +1012,9 @@ public:
     return name;
   }
   Item *negated_item(THD *thd) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_lt>(thd, this); }
   Item* date_conds_transformer(THD *thd, uchar *arg) override
   { return do_date_conds_transformation(thd, this); }
@@ -997,7 +1041,9 @@ public:
   Item *negated_item(THD *thd) override;
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_ne>(thd, this); }
 };
 
@@ -1037,7 +1083,7 @@ public:
     negated= !negated;
     return this;
   }
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   CHARSET_INFO *compare_collation() const override
   {
     return cmp_collation.collation;
@@ -1112,9 +1158,6 @@ public:
                                       cond);
     return this;
   }
-  Item *do_get_copy(THD *thd) const override
-  { return get_item_copy<Item_func_between>(thd, this); }
-
   longlong val_int_cmp_string();
   longlong val_int_cmp_datetime();
   longlong val_int_cmp_time();
@@ -1124,6 +1167,10 @@ public:
   longlong val_int_cmp_decimal();
 
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
+
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_between>(thd, this); }
 };
 
 
@@ -1150,7 +1197,9 @@ public:
     fix_char_length(2); // returns "1" or "0" or "-1"
     return FALSE;
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_strcmp>(thd, this); }
 };
 
@@ -1188,8 +1237,13 @@ public:
     str->append(func_name_cstring());
     print_args(str, 0, query_type);
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_interval>(thd, this); }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 };
 
 
@@ -1216,13 +1270,21 @@ public:
     fix_attributes(args, arg_count);
     return FALSE;
   }
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  {
+    if (!maybe_null() && is_all_arg_maybe_null())
+      set_maybe_null();
+    return 0;
+  }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("coalesce") };
     return name;
   }
   table_map not_null_tables() const override { return 0; }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_coalesce>(thd, this); }
 };
 
@@ -1308,6 +1370,12 @@ public:
       return TRUE;
     return FALSE;
   }
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  {
+    if (!maybe_null() && is_all_arg_maybe_null())
+      set_maybe_null();
+    return 0;
+  }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("ifnull") };
@@ -1315,7 +1383,9 @@ public:
   }
 
   table_map not_null_tables() const override { return 0; }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_ifnull>(thd, this); }
 };
 
@@ -1400,7 +1470,9 @@ public:
   bool eval_not_null_tables(void *opt_arg) override;
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge)
     override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_if>(thd, this); }
 };
 
@@ -1424,7 +1496,9 @@ public:
   {
     return fix_length_and_dec2_eliminate_null(thd, args + 1);
   }
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_nvl2>(thd, this); }
 };
 
@@ -1493,7 +1567,8 @@ public:
     return Type_ref_null();
   }
   bool fix_length_and_dec(THD *thd) override;
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("nullif") };
@@ -1527,8 +1602,6 @@ public:
                                                            cond, &args[2]);
     return this;
   }
-  Item *do_get_copy(THD *thd) const override
-  { return get_item_copy<Item_func_nullif>(thd, this); }
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg) override
   { reset_first_arg_if_needed(); return this; }
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg) override
@@ -1539,6 +1612,10 @@ public:
   { reset_first_arg_if_needed(); return this; }
   Item *in_subq_field_transformer_for_having(THD *thd, uchar *arg) override
   { reset_first_arg_if_needed(); return this; }
+
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_nullif>(thd, this); }
 };
 
 
@@ -2470,7 +2547,9 @@ public:
     return this;
   }
   Item *find_item() override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_case_searched>(thd, this); }
 };
 
@@ -2520,16 +2599,18 @@ public:
   Item *propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
     override;
   Item *find_item() override;
-  Item *do_build_clone(THD *thd) const override
+protected:
+  Item *deep_copy(THD *thd) const override
   {
     Item_func_case_simple *clone= (Item_func_case_simple *)
-                                  Item_func_case::do_build_clone(thd);
+                                  Item_func_case::deep_copy(thd);
     uint ncases= when_count();
     if (clone && clone->Predicant_to_list_comparator::init_clone(thd, ncases))
       return NULL;
     return clone;
-  } 
-  Item *do_get_copy(THD *thd) const override
+  }
+
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_case_simple>(thd, this); }
 };
 
@@ -2549,7 +2630,9 @@ public:
   void print(String *str, enum_query_type query_type) override;
   bool fix_length_and_dec(THD *thd) override;
   Item *find_item() override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_decode_oracle>(thd, this); }
 };
 
@@ -2721,11 +2804,9 @@ public:
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge)
     override;
   bool count_sargable_conds(void *arg) override;
-  Item *do_get_copy(THD *thd) const override
-  { return get_item_copy<Item_func_in>(thd, this); }
-  Item *do_build_clone(THD *thd) const override
+  Item *deep_copy(THD *thd) const override
   {
-    Item_func_in *clone= (Item_func_in *) Item_func::do_build_clone(thd);
+    Item_func_in *clone= (Item_func_in *) Item_func::deep_copy(thd);
     if (clone)
     {
       clone->array= 0;
@@ -2743,6 +2824,11 @@ public:
   Item* varchar_upper_cmp_transformer(THD *thd, uchar *arg) override;
 
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
+  bool ora_join_processor(void *arg) override;
+
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_in>(thd, this); }
 };
 
 class cmp_item_row :public cmp_item
@@ -2804,6 +2890,7 @@ protected:
                        Item_func::Functype type, Item *value) override;
 public:
   Item_func_null_predicate(THD *thd, Item *a): Item_bool_func(thd, a) { }
+  bool check_arguments() const override;
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables)
     override;
@@ -2824,6 +2911,9 @@ public:
     base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   bool count_sargable_conds(void *arg) override;
 
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
@@ -2878,7 +2968,9 @@ public:
   table_map not_null_tables() const override { return 0; }
   bool find_not_null_fields(table_map allowed) override;
   Item *neg_transformer(THD *thd) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_isnull>(thd, this); }
 };
 
@@ -2931,7 +3023,9 @@ public:
   { return is_top_level_item() ? not_null_tables_cache : 0; }
   Item *neg_transformer(THD *thd) override;
   void print(String *str, enum_query_type query_type) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_isnotnull>(thd, this); }
 };
 
@@ -3096,23 +3190,25 @@ public:
     return this;
   }
 
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override
   {
-    return (walk_args(processor, walk_subquery, arg) ||
-            escape_item->walk(processor, walk_subquery, arg) ||
+    return (walk_args(processor, arg, flags) ||
+            escape_item->walk(processor, arg, flags) ||
             (this->*processor)(arg));
   }
 
   bool find_selective_predicates_list_processor(void *arg) override;
-  
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_like>(thd, this); }
 };
-
 
 typedef struct pcre2_real_code_8 pcre2_code;
 typedef struct pcre2_real_match_data_8 pcre2_match_data;
 #define PCRE2_SIZE size_t
+
 class Regexp_processor_pcre
 {
   pcre2_code *m_pcre;
@@ -3205,7 +3301,6 @@ public:
     return name;
   }
   enum precedence precedence() const override { return IN_PRECEDENCE; }
-  Item *do_get_copy(THD *thd) const override { return 0; }
   void print(String *str, enum_query_type query_type) override
   {
     print_op(str, query_type);
@@ -3213,6 +3308,8 @@ public:
 
   CHARSET_INFO *compare_collation() const override
   { return cmp_collation.collation; }
+protected:
+  Item *shallow_copy(THD *thd) const override { return nullptr; }
 };
 
 
@@ -3249,7 +3346,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("regexp_instr") };
     return name;
   }
-  Item *do_get_copy(THD *thd) const override { return 0; }
+protected:
+  Item *shallow_copy(THD *thd) const override { return nullptr; }
 };
 
 
@@ -3317,9 +3415,10 @@ public:
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                       List<Item> &fields, uint flags) override;
   friend int setup_conds(THD *thd, TABLE_LIST *tables, TABLE_LIST *leaves,
-                         COND **conds);
+                         COND **conds, List<Item> *all_fields);
   void copy_andor_arguments(THD *thd, Item_cond *item);
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override;
   Item *do_transform(THD *thd, Item_transformer transformer, uchar *arg,
                      bool toplevel);
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override
@@ -3348,7 +3447,7 @@ public:
   }
   bool eval_not_null_tables(void *opt_arg) override;
   bool find_not_null_fields(table_map allowed) override;
-  Item *do_build_clone(THD *thd) const override;
+  Item *deep_copy(THD *thd) const override;
   bool excl_dep_on_table(table_map tab_map) override;
   bool excl_dep_on_grouping_fields(st_select_lex *sel) override;
 
@@ -3453,7 +3552,7 @@ class Item_equal: public Item_bool_func
   List<Item> equal_items; 
   /* 
      TRUE <-> one of the items is a const item.
-     Such item is always first in in the equal_items list
+     Such item is always first in the equal_items list
   */
   bool with_const;        
   /* 
@@ -3528,7 +3627,8 @@ public:
                       uint *and_level, table_map usable_tables,
                       SARGABLE_PARAM **sargables) override;
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override;
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override;
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
   void print(String *str, enum_query_type query_type) override;
   const Type_handler *compare_type_handler() const { return m_compare_handler; }
@@ -3537,7 +3637,9 @@ public:
 
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }
   void set_link_equal_fields(bool flag) { link_equal_fields= flag; }
-  Item* do_get_copy(THD *thd) const override { return 0; }
+protected:
+  Item* shallow_copy(THD *thd) const override { return 0; }
+public:
   /*
     This does not comply with the specification of the virtual method,
     but Item_equal items are processed distinguishly anyway
@@ -3708,7 +3810,9 @@ public:
                       table_map usable_tables, SARGABLE_PARAM **sargables)
     override;
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override;
-  Item *do_get_copy(THD *thd) const override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cond_and>(thd, this); }
 };
 
@@ -3736,7 +3840,17 @@ public:
   table_map not_null_tables() const override { return and_tables_cache; }
   Item *copy_andor_structure(THD *thd) override;
   Item *neg_transformer(THD *thd) override;
-  Item *do_get_copy(THD *thd) const override
+  bool ora_join_processor(void *arg) override
+  {
+    if (with_ora_join())
+    {
+      // Oracle join operator is used in this OR clause.
+      ((ora_join_processor_param *) arg)->or_present= true;
+    }
+    return (FALSE);
+  }
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cond_or>(thd, this); }
 };
 
@@ -3751,7 +3865,8 @@ public:
     return name;
   }
   bool need_parentheses_in_default() override { return false; }
-  Item *do_get_copy(THD *thd) const override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_dyncol_check>(thd, this); }
 };
 
@@ -3767,7 +3882,8 @@ public:
     return name;
   }
   bool need_parentheses_in_default() override { return false; }
-  Item *do_get_copy(THD *thd) const override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_dyncol_exists>(thd, this); }
 };
 
@@ -3809,7 +3925,8 @@ public:
     return name;
   }
   bool val_bool() override;
-  Item *do_get_copy(THD *thd) const override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_cursor_isopen>(thd, this); }
 };
 
@@ -3828,7 +3945,8 @@ public:
     return name;
   }
   bool val_bool() override;
-  Item *do_get_copy(THD *thd) const override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_cursor_found>(thd, this); }
 };
 
@@ -3847,7 +3965,8 @@ public:
     return name;
   }
   bool val_bool() override;
-  Item *do_get_copy(THD *thd) const override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_cursor_notfound>(thd, this); }
 };
 

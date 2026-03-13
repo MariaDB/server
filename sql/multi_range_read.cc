@@ -76,9 +76,10 @@ void handler::calculate_costs(Cost_estimate *cost, uint keyno,
   {
     /* Clustered index */
     io_blocks= unassigned_single_point_ranges;
-    cost->index_cost= ha_keyread_time(keyno, n_ranges,
-                                      total_rows + multi_row_ranges,
-                                      io_blocks);
+    cost->index_cost=
+      ha_keyread_clustered_time(keyno, n_ranges,
+                                total_rows + multi_row_ranges,
+                                io_blocks);
     cost->copy_cost=  rows2double(total_rows) * ROW_COPY_COST;
   }
   /* Adjust io cost to data size */
@@ -164,7 +165,7 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   */
   ulonglong single_point_ranges= 0;
   /*
-    The counter of of single point ranges that we succeded to assign
+    The counter of single point ranges that we succeded to assign
     to some blocks
   */
   ulonglong assigned_single_point_ranges= 0;
@@ -179,11 +180,9 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   */
   ulonglong unassigned_single_point_ranges= 0;
 
-  uint len= table->key_info[keyno].key_length + table->file->ref_length;
-  if (table->file->is_clustering_key(keyno))
-    len= table->s->stored_rec_length;
+  size_t len= table->key_storage_length(keyno);
   /* Assume block is 75 % full */
-  uint avg_block_records= ((uint) (stats.block_size*3/4))/len + 1;
+  size_t avg_block_records= ((uint) (stats.block_size*3/4))/len + 1;
   uint limit= thd->variables.eq_range_index_dive_limit;
   bool use_statistics_for_eq_range= eq_ranges_exceeds_limit(seq,
                                                             seq_init_param,
@@ -1150,7 +1149,7 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
   buf_manager.redistribute_buffer_space= do_nothing;
 
   if (!hint_key_state(thd, table, h_arg->active_index,
-                      MRR_HINT_ENUM, OPTIMIZER_SWITCH_MRR) ||
+                MRR_HINT_ENUM, optimizer_flag(thd, OPTIMIZER_SWITCH_MRR)) ||
       mode & (HA_MRR_USE_DEFAULT_IMPL | HA_MRR_SORTED))
     goto use_default_impl;
   
@@ -1905,9 +1904,9 @@ bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
   TABLE_SHARE *share= primary_file->get_table_share();
 
   const bool mrr_on= hint_key_state(thd, table, keyno, MRR_HINT_ENUM,
-                                    OPTIMIZER_SWITCH_MRR);
+                                    optimizer_flag(thd, OPTIMIZER_SWITCH_MRR));
   const bool force_dsmrr_by_hints=
-    hint_key_state(thd, table, keyno, MRR_HINT_ENUM, 0) ||
+    hint_key_state(thd, table, keyno, MRR_HINT_ENUM, false) ||
     hint_table_state(thd, table, BKA_HINT_ENUM, false);
 
   bool doing_cpk_scan= check_cpk_scan(thd, share, keyno, *flags); 

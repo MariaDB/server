@@ -49,3 +49,42 @@ exec $XTRABACKUP  --prepare --target-dir=$targetdir;
 SELECT * FROM t1;
 DROP TABLE t1;
 rmdir $targetdir;
+
+--echo #
+--echo #  MDEV-38041 MariaBackup fails during rollback of
+--echo #		inplace FTS alter table
+--echo #
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+CREATE TABLE t1(f1 int, f2 char(100), fulltext(f2)) ENGINE=InnoDB;
+INSERT into t1 values(1, "MariaDB"), (1, "MySQL");
+
+connect  con2, localhost, root,,;
+set lock_wait_timeout=1;
+SET debug_sync='copy_data_between_tables_before_reset_backup_lock  SIGNAL go WAIT_FOR after_backup_stage_block_ddl';
+SET debug_sync='alter_table_after_temp_table_drop SIGNAL temp_table_dropped';
+DELIMITER |;
+send  SET debug_sync='now WAIT_FOR after_backup_stage_start';ALTER TABLE test.t1 ADD PRIMARY KEY(f1), algorithm=COPY;|
+DELIMITER ;|
+connection default;
+
+# setup mariabackup events
+let backup_fix_ddl=;
+let after_backup_stage_start=SET debug_sync='now SIGNAL after_backup_stage_start WAIT_FOR go';
+let after_backup_stage_block_commit=SET debug_sync='now SIGNAL after_backup_stage_block_ddl';
+let after_backup_fix_ddl=SET debug_sync='now WAIT_FOR temp_table_dropped';
+let $backup_log=$MYSQLTEST_VARDIR/tmp/backup.log;
+--disable_result_log
+exec  $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup  --target-dir=$targetdir --dbug=+d,mariabackup_events > $backup_log 2>&1;
+--enable_result_log
+
+connection con2;
+--error ER_DUP_ENTRY
+reap;
+SET debug_sync='RESET';
+disconnect con2;
+
+connection default;
+DROP TABLE t1;
+rmdir $targetdir;

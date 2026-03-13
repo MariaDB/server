@@ -84,7 +84,7 @@ create database testdb;
 use testdb;
 create procedure p1 () select 1;
 connect  testuser,localhost,testuser,,;
-select user,db from information_schema.processlist where user='root';
+select user,db from information_schema.processlist where id=$default_id;
 user	db
 call testdb.p1();
 ERROR 42000: execute command denied to user 'testuser'@'%' for routine 'testdb.p1'
@@ -93,7 +93,7 @@ GRANT PROCESS ON *.* to PUBLIC;
 GRANT EXECUTE ON testdb.* to PUBLIC;
 disconnect testuser;
 connect  testuser,localhost,testuser,,;
-select user,db from information_schema.processlist where user='root';
+select user,db from information_schema.processlist where id=$default_id;
 user	db
 root	testdb
 call testdb.p1();
@@ -104,7 +104,7 @@ disconnect testuser;
 # check that the privileges are correctly read by acl_load
 flush privileges;
 connect  testuser,localhost,testuser,,;
-select user,db from information_schema.processlist where user='root';
+select user,db from information_schema.processlist where id=$default_id;
 user	db
 root	testdb
 call testdb.p1();

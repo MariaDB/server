@@ -1,0 +1,100 @@
+SET @saved_debug_dbug= @@debug_dbug;
+SET @@debug_dbug='+d,numconv_format';
+#
+# MDEV-20022 sql_mode="oracle" does not support TO_NUMBER() function
+#
+CREATE FUNCTION bad(fmt VARCHAR(128)) RETURNS VARCHAR(128)
+BEGIN
+IF fmt RLIKE '(FM.*FM|B.*B|EEEE.*EEEE|[CLU$].*[CLU$]|[.VD].*[.VD]|(S|MI|PR).*(S|MI|PR))'
+  THEN
+RETURN 'FM/B/currency/dec/sign cannot repeat';
+END IF;
+IF fmt RLIKE '[09XBCDLUV,G.$].*FM' THEN RETURN 'Unexpected + FM'; END IF;
+IF fmt RLIKE '^[^09]*([.DV].*)?EEEE'         THEN RETURN 'EEEE with no int digits #1'; END IF;
+IF fmt RLIKE '^(FM|S)?[$B]+[CLU][0-9]*EEEE'  THEN RETURN 'EEEE with no int digits #2'; END IF;
+IF fmt RLIKE '.*EEEE.*(FM|[B09X.DV,GLCU$V])' THEN RETURN 'EEEE + unexpected'; END IF;
+IF fmt RLIKE '^([$BC.DLUVS]|FM)EEEE'         THEN RETURN '^Unexpected + EEEE immediately'; END IF;
+IF fmt RLIKE '(G.*,|,.*G)'          THEN RETURN 'comma and G cannot co-exist'; END IF;
+IF fmt RLIKE '^([$B]|[^09]|)*[,G]'  THEN RETURN 'group with no int digits'; END IF;
+IF fmt RLIKE '[.DV].*[,G]'          THEN RETURN 'dec + group'; END IF;
+IF fmt RLIKE '(FM|[S.DCLUV])[,G]'   THEN RETURN 'Unexpected + group immediately'; END IF;
+IF fmt RLIKE '(MI|PR).+' THEN RETURN 'Trailing sign + something'; END IF;
+IF fmt RLIKE '[$09BVCLUX.D,G].*TM' THEN RETURN 'Unexpected + TM'; END IF;
+IF fmt RLIKE 'TM([^E9].*|[E9].+)'  THEN RETURN 'TMx + something'; END IF;
+IF fmt RLIKE '([9BCDLUVS.,G$]|TM).*X' THEN RETURN 'Unexpected + X'; END IF;
+IF fmt RLIKE 'X[^X]'                  THEN RETURN 'X + unexpected'; END IF;
+-- Bad combinations consisting of three elements
+IF fmt RLIKE '[.VD].*[CLU].*[09]'                     THEN RETURN 'Dec + CLU + digit'; END IF;
+IF fmt RLIKE '[CLUV09.BD$].*[S].*([09$BVCLU.D]|EEEE)' THEN RETURN 'Trailing S sign + unexpected'; END IF;
+IF fmt RLIKE '[B09].*[CLUV].*[,GV.D]'                 THEN RETURN 'CLUV as dec + group/dec'; END IF;
+IF fmt RLIKE '[.DV].*[CLU].*[B]'                      THEN RETURN 'CLU as trailing currency + B'; END IF;
+RETURN '';
+END;
+$$
+CREATE TABLE t1 (fmt VARCHAR(32));
+INSERT INTO t1 VALUES ('');
+INSERT INTO t1 VALUES ('FM')                 /* leading flags */;
+INSERT INTO t1 VALUES ('.'),('D'),('V')      /* dec */;
+INSERT INTO t1 VALUES (','),('G')            /* group */;
+INSERT INTO t1 VALUES ('$'),('B')            /* inline flags */;
+INSERT INTO t1 VALUES ('C'),('L'),('U')      /* currency */;
+INSERT INTO t1 VALUES ('S')                  /* sign */;
+INSERT INTO t1 VALUES ('MI'),('PR')          /* trailing sign */;
+INSERT INTO t1 VALUES ('TM'),('TM9'),('TME') /* TM formats */;
+INSERT INTO t1 VALUES ('0'),('9'),('X')      /* digits */;
+INSERT INTO t1 VALUES ('EEEE')               /* approximate format */;
+SELECT fmt FROM t1 WHERE bad(fmt)='' AND to_number('1',fmt) IS NULL;
+fmt
+SELECT fmt FROM t1 WHERE bad(fmt)<>'' AND to_number('1',fmt) IS NOT NULL;
+fmt
+CREATE VIEW v2 AS SELECT CONCAT(t1.fmt, t2.fmt) AS fmt FROM t1 t1, t1 t2;
+SELECT fmt FROM v2 WHERE bad(fmt)='' AND to_number('1',fmt) IS NULL;
+fmt
+SELECT fmt FROM v2 WHERE bad(fmt)<>'' AND to_number('1',fmt) IS NOT NULL;
+fmt
+DROP VIEW v2;
+CREATE VIEW v3 AS SELECT CONCAT(t1.fmt, t2.fmt, t2.fmt) AS fmt FROM t1 t1, t1 t2, t1 t3;
+SELECT fmt FROM v3 WHERE bad(fmt)='' AND to_number('1',fmt) IS NULL;
+fmt
+SELECT fmt FROM v3 WHERE bad(fmt)<>'' AND to_number('1',fmt) IS NOT NULL;
+fmt
+DROP VIEW v3;
+DROP TABLE t1;
+CREATE TABLE t4 (fmt VARCHAR(32));
+INSERT INTO t4 VALUES ('.'),('D'),('V')      /* dec */;
+INSERT INTO t4 VALUES (','),('G')            /* group */;
+INSERT INTO t4 VALUES ('$'),('B')            /* inline flags */;
+INSERT INTO t4 VALUES ('C')                  /* currency - simplified */;
+INSERT INTO t4 VALUES ('0'),('9'),('X')      /* digits */;
+CREATE VIEW v4 AS
+SELECT CONCAT(t1.fmt, t2.fmt, t3.fmt,t4.fmt) AS fmt
+FROM t4 t1, t4 t2, t4 t3, t4 t4;
+SELECT fmt FROM v4 WHERE bad(fmt)='' AND to_number('1',fmt) IS NULL;
+fmt
+SELECT fmt FROM v4 WHERE bad(fmt)<>'' AND to_number('1',fmt) IS NOT NULL;
+fmt
+DROP VIEW v4;
+DROP TABLE t4;
+CREATE TABLE t4 (fmt VARCHAR(32));
+INSERT INTO t4 VALUES ('');
+INSERT INTO t4 VALUES ('FM')                 /* leading flags */;
+INSERT INTO t4 VALUES ('.')                  /* dec - simplified */;
+INSERT INTO t4 VALUES (',')                  /* group - simplified */;
+INSERT INTO t4 VALUES ('$'),('B')            /* inline flags */;
+INSERT INTO t4 VALUES ('C')                  /* currency - simplified */;
+INSERT INTO t4 VALUES ('S')                  /* sign */;
+INSERT INTO t4 VALUES ('MI')                 /* trailing sign - simplified */;
+INSERT INTO t4 VALUES ('TM9')                /* TM formats - simplified */;
+INSERT INTO t4 VALUES ('9'),('X')            /* digits - simplified */;
+INSERT INTO t4 VALUES ('EEEE')               /* approximate format */;
+CREATE VIEW v4 AS
+SELECT CONCAT(t1.fmt, t2.fmt, t3.fmt,t4.fmt) AS fmt
+FROM t4 t1, t4 t2, t4 t3, t4 t4;
+SELECT fmt FROM v4 WHERE bad(fmt)='' AND to_number('1',fmt) IS NULL;
+fmt
+SELECT fmt FROM v4 WHERE bad(fmt)<>'' AND to_number('1',fmt) IS NOT NULL;
+fmt
+DROP VIEW v4;
+DROP TABLE t4;
+DROP FUNCTION bad;
+SET debug_dbug= @saved_debug_dbug;

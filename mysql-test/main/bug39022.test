@@ -52,11 +52,9 @@ connection thread2;
 REAP;
 
 disconnect thread2;
---source include/wait_until_disconnected.inc
 
 connection thread1;
 disconnect thread1;
---source include/wait_until_disconnected.inc
 
 connection default;
 

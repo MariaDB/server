@@ -1,0 +1,30 @@
+include/master-slave.inc
+[connection master]
+*** Test GTID state record that exactly fills the page.
+connection master;
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a, b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 0);
+SET SESSION gtid_domain_id=1;
+INSERT INTO t1 VALUES (1, 1);
+connection master;
+FLUSH BINARY LOGS;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+*** Test that the slave can connect at GTID position correctly.
+connection master;
+INSERT INTO t1 VALUES (-2, 3);
+SELECT COUNT(*) AS full_count FROM t1;
+full_count
+4095
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT COUNT(*) AS full_count FROM t1;
+full_count
+4095
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

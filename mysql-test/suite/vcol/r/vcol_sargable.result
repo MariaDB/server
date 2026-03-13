@@ -287,10 +287,10 @@ insert into t1 (a) select seq from seq_1_to_100;
 #  Sargable_casefold is applied before vcol substitution:
 explain select * from t1 where UPPER(a)='abc';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	303	const	1	Using index condition
+1	SIMPLE	t1	ref	a	a	303	const	1	Using where; Using index
 explain select * from t1 ignore index(vcol) where UPPER(a)='abc';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	303	const	1	Using index condition
+1	SIMPLE	t1	ref	a	a	303	const	1	Using where; Using index
 explain select * from t1 ignore index(a) where UPPER(a)='abc';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
@@ -317,7 +317,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.002574553,
+    "cost": 0.001478954,
     "nested_loop": [
       {
         "table": {
@@ -329,9 +329,10 @@ EXPLAIN
           "used_key_parts": ["a"],
           "loops": 1,
           "rows": 1,
-          "cost": 0.002574553,
+          "cost": 0.001478954,
           "filtered": 100,
-          "index_condition": "t1.a between '2025-01-01' and '2025-12-31'"
+          "attached_condition": "t1.a between '2025-01-01' and '2025-12-31'",
+          "using_index": true
         }
       }
     ]

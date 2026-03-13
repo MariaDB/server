@@ -29,6 +29,7 @@
 extern struct st_maria_plugin *mysql_optional_plugins[];
 extern struct st_maria_plugin *mysql_mandatory_plugins[];
 static void encryption_plugin_init(int argc, char **argv);
+void initialize_default_encryption();
 
 extern char *xb_plugin_load;
 extern char *xb_plugin_dir;
@@ -140,7 +141,10 @@ void encryption_plugin_backup_init(MYSQL *mysql)
   }
   mysql_free_result(result);
   if (!plugin_load.length())
+  {
+    initialize_default_encryption();
     return;
+  }
 
   oss << "plugin_load=" << plugin_load.c_str() + 1 << std::endl;
 
@@ -248,3 +252,45 @@ static void encryption_plugin_init(int argc, char **argv)
   plugin_init(&argc, argv, PLUGIN_INIT_SKIP_PLUGIN_TABLE);
 }
 
+
+/*
+  Setup encryption_handler with default encryption to avoid crashes when
+  calling encryption_get_key
+*/
+uint no_get_key(uint, uint, uchar*, uint*)
+{
+  return ENCRYPTION_KEY_VERSION_INVALID;
+}
+uint no_key(uint)
+{
+  return ENCRYPTION_KEY_VERSION_INVALID;
+}
+
+static int ctx_init(void *ctx, const unsigned char* key, unsigned int klen,
+                    const unsigned char* iv, unsigned int ivlen, int flags,
+                    unsigned int key_id, unsigned int key_version)
+{
+  return my_aes_crypt_init(ctx, MY_AES_CBC, flags, key, klen, iv, ivlen);
+}
+
+static unsigned int get_length(unsigned int slen, unsigned int key_id,
+                               unsigned int key_version)
+{
+  return my_aes_get_size(MY_AES_CBC, slen);
+}
+
+uint ctx_size(unsigned int, unsigned int)
+{
+  return MY_AES_CTX_SIZE;
+}
+
+void initialize_default_encryption()
+{
+  encryption_handler.encryption_ctx_size_func= ctx_size;
+  encryption_handler.encryption_ctx_init_func= ctx_init;
+  encryption_handler.encryption_ctx_update_func= my_aes_crypt_update;
+  encryption_handler.encryption_ctx_finish_func= my_aes_crypt_finish;
+  encryption_handler.encryption_encrypted_length_func= get_length;
+  encryption_handler.encryption_key_get_func= no_get_key;
+  encryption_handler.encryption_key_get_latest_version_func= no_key;
+}

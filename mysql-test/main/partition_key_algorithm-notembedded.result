@@ -1,0 +1,170 @@
+# MDEV-9826 better hash algorithms for PARTITION BY KEY
+## Test mysqldump
+create table t1(c1 int, c2 date) partition by key  (c2) partitions 8;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY KEY (`c2`)
+PARTITIONS 8
+insert into t1 values
+(1, NULL),
+(1, '2014-04-22'),
+(1, '2014-04-23'),
+(1, '2014-04-24'),
+(1, '2014-04-25'),
+(1, '2014-04-26'),
+(1, '2014-04-27'),
+(1, '2014-04-28'),
+(1, '2014-04-29'),
+(1, '2014-04-30');
+drop table t1;
+select * from t1;
+c1	c2
+1	2014-04-22
+1	2014-04-26
+1	2014-04-30
+1	NULL
+1	2014-04-24
+1	2014-04-28
+1	2014-04-23
+1	2014-04-25
+1	2014-04-27
+1	2014-04-29
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY KEY (`c2`)
+PARTITIONS 8
+drop table t1;
+create table t1(c1 int, c2 date) partition by key ALGORITHM=1 (c2) partitions 8;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY KEY ALGORITHM = MYSQL51 (`c2`)
+PARTITIONS 8
+insert into t1 values
+(1, NULL),
+(1, '2014-04-22'),
+(1, '2014-04-23'),
+(1, '2014-04-24'),
+(1, '2014-04-25'),
+(1, '2014-04-26'),
+(1, '2014-04-27'),
+(1, '2014-04-28'),
+(1, '2014-04-29'),
+(1, '2014-04-30');
+drop table t1;
+select * from t1;
+c1	c2
+1	2014-04-22
+1	2014-04-26
+1	2014-04-30
+1	NULL
+1	2014-04-24
+1	2014-04-28
+1	2014-04-23
+1	2014-04-25
+1	2014-04-27
+1	2014-04-29
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY KEY ALGORITHM = MYSQL51 (`c2`)
+PARTITIONS 8
+drop table t1;
+create table t1(c1 int, c2 date) partition by key ALGORITHM=MYSQL55 (c2) partitions 8;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY KEY (`c2`)
+PARTITIONS 8
+insert into t1 values
+(1, NULL),
+(1, '2014-04-22'),
+(1, '2014-04-23'),
+(1, '2014-04-24'),
+(1, '2014-04-25'),
+(1, '2014-04-26'),
+(1, '2014-04-27'),
+(1, '2014-04-28'),
+(1, '2014-04-29'),
+(1, '2014-04-30');
+drop table t1;
+select * from t1;
+c1	c2
+1	2014-04-22
+1	2014-04-26
+1	2014-04-30
+1	NULL
+1	2014-04-24
+1	2014-04-28
+1	2014-04-23
+1	2014-04-25
+1	2014-04-27
+1	2014-04-29
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY KEY (`c2`)
+PARTITIONS 8
+drop table t1;
+create table t1(c1 int, c2 date) partition by key ALGORITHM=XXH3 (c2) partitions 8;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY KEY ALGORITHM = XXH3 (`c2`)
+PARTITIONS 8
+insert into t1 values
+(1, NULL),
+(1, '2014-04-22'),
+(1, '2014-04-23'),
+(1, '2014-04-24'),
+(1, '2014-04-25'),
+(1, '2014-04-26'),
+(1, '2014-04-27'),
+(1, '2014-04-28'),
+(1, '2014-04-29'),
+(1, '2014-04-30');
+drop table t1;
+select * from t1;
+c1	c2
+1	2014-04-26
+1	2014-04-24
+1	NULL
+1	2014-04-28
+1	2014-04-22
+1	2014-04-23
+1	2014-04-29
+1	2014-04-30
+1	2014-04-27
+1	2014-04-25
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY KEY ALGORITHM = XXH3 (`c2`)
+PARTITIONS 8
+drop table t1;

@@ -7648,6 +7648,16 @@ Warning	1292	Truncated incorrect DECIMAL value: 'e'
 DROP VIEW v1;
 DROP TABLE t1, t2, t3;
 # End of 10.10 tests
+#
+# MDEV-37905: UNCACHEABLE_RAND inconsistently set on unions
+#
+create table t1 (a int);
+insert into t1 (a) values (1);
+select * from t1 where 1 in (select 1 union select 2 union select RAND());
+a
+1
+drop table t1;
+# End of 12.2 tests
 set optimizer_switch=default;
 select @@optimizer_switch like '%subquery_cache=on%';
 @@optimizer_switch like '%subquery_cache=on%'

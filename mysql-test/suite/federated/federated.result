@@ -5,6 +5,9 @@ CREATE DATABASE federated;
 connection slave;
 CREATE DATABASE federated;
 connection master;
+#
+# MDEV-388 Creating a federated table with a non-existing server returns a random error code
+#
 CREATE TABLE t1 (a INT) ENGINE=FEDERATED CONNECTION='non_existing';
 ERROR HY000: server name: 'non_existing' doesn't exist!
 SHOW WARNINGS;
@@ -12,12 +15,22 @@ Level	Code	Message
 Error	1	server name: 'non_existing' doesn't exist!
 Error	1	Can't create/write to file 'non_existing' (Errcode: 14 "Bad address")
 Warning	1030	Got error 1 "Operation not permitted" from storage engine FEDERATED
+#
+# MDEV-4468 Assertion `error != 0' fails or timeout occurs on select from a FEDERATED table which points at a non-existent table
+#
 create table t1 (a int);
 create table fed (a int) engine=Federated CONNECTION='mysql://root@127.0.0.1:MASTER_PORT/test/t1';
 drop table t1;
 select * from fed;
 Got one of the listed errors
 drop table fed;
+# End of 5.5 tests
+#
+# MDEV-38039 SIGSEGV in parse_url on CREATE TABLE ... FEDERATED with empty CONNECTION
+#
+create table t1 (id int) engine=federated;
+ERROR HY000: server name: '' doesn't exist!
+# End of 12.3 tests
 connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;

@@ -1,0 +1,9 @@
+# Test:
+# master-retry-count= 4 and retry_count= 3,
+# after exhuasting master-retry-count attempts, the connection should abort.
+#
+
+--let $overflow= 0
+--let $retry_count= 3
+--let $expected_Slave_IO_Running_status= No
+--source rpl_retry_count.inc

@@ -81,7 +81,8 @@ ANALYZE
         "rows": 10,
         "r_rows": 10,
         "r_total_filtered": 30,
-        "r_total_time_ms": "REPLACED",
+        "r_table_time_ms": "REPLACED",
+        "r_other_time_ms": "REPLACED",
         "r_engine_stats": REPLACED,
         "attached_condition": "t1.a in (2,3,4)",
         "r_filtered": 30
@@ -106,7 +107,8 @@ ANALYZE
       "rows": 10,
       "r_rows": 10,
       "r_total_filtered": 0,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "r_engine_stats": REPLACED,
       "attached_condition": "t1.a in (20,30,40)",
       "r_filtered": 0

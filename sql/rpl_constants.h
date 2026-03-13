@@ -20,6 +20,9 @@
 #include <my_sys.h>
 #include <my_crypt.h>
 
+/** Size of the `"\xfe""bin"` magic mumber */
+#define BIN_LOG_HEADER_SIZE 4
+
 /**
    Enumeration of the incidents that can occur for the server.
  */

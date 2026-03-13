@@ -172,9 +172,6 @@ SELECT * FROM articles WHERE
 DROP TABLE articles;
 
 -- echo # Test Part 6: Test Query Parser with Default/Internal Parser
-let $innodb_ft_enable_diag_print_orig = `SELECT @@innodb_ft_enable_diag_print`;
-# Enable diag print to print query parse tree
-SET GLOBAL innodb_ft_enable_diag_print = 1;
 
 CREATE TABLE articles (
 	id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
@@ -281,8 +278,6 @@ SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('"计算机 数据库"' IN BOOLEAN MODE);
 
 DROP TABLE articles;
-
-eval SET GLOBAL innodb_ft_enable_diag_print = $innodb_ft_enable_diag_print_orig;
 
 # Disable use default parser
 SET SESSION debug="-d,fts_instrument_use_default_parser";

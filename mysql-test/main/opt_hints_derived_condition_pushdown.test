@@ -1,0 +1,415 @@
+--source include/have_sequence.inc
+create table t1 (a int, b int, c int);
+create table t2 (a int, b int, c int, d decimal);
+insert into t1 values
+  (1,21,345), (1,33,7), (8,33,114), (1,21,500), (1,19,107), (5,14,787),
+  (8,33,123), (9,10,211), (5,16,207), (1,33,988), (5,27,132), (1,21,104),
+  (6,20,309), (6,20,315), (1,21,101), (8,33,404), (9,10,800), (1,21,123),
+  (7,11,708), (6,20,214);
+create index t1_a on t1 (a);
+insert into t2 values
+  (2,3,207,207.0000), (1,21,909,12.0000), (7,13,312,406.0000),
+  (8,64,248,107.0000), (6,20,315,279.3333), (1,19,203,107.0000),
+  (8,80,800,314.0000), (3,12,231,190.0000), (6,23,303,909.0000);
+create view v1 as select a, b, max(c) as max_c, avg(c) as avg_c from t1
+  group by a,b having max_c < 707;
+create table t3 select 2*seq as a, 2*seq+1 as b from seq_0_to_1000;
+CREATE TABLE t4 (a INT, b INT);
+INSERT INTO t4 VALUES (1,2),(2,3),(3,4);
+create table t5 select seq as i, 10*seq as j from seq_1_to_10;
+create view v2 as select * from t5;
+create table t6 (a int primary key);
+insert into t6 select * from seq_1_to_50;
+create view v6 as select a from t6 where a mod 2 = 1;
+
+set @save_optimizer_switch=@@optimizer_switch;
+
+set session optimizer_switch='condition_pushdown_for_derived=on';
+
+--source include/explain-no-costs.inc
+explain format=json select /*+ NO_DERIVED_CONDITION_PUSHDOWN(v1) */ * from v1,t2 where
+  ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+    ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a));
+select /*+ NO_DERIVED_CONDITION_PUSHDOWN(v1) */ * from v1,t2 where
+  ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+    ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a));
+select * from v1,t2 where
+  ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+    ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a));
+
+--source include/explain-no-costs.inc
+explain format=json with cte as (
+  select /*+ QB_NAME(qb1) */ max_c, avg_c from v1,t2 where
+    ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+    ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a)))
+select /*+ NO_DERIVED_CONDITION_PUSHDOWN(v1@qb1) */ * from cte;
+with cte as (
+  select /*+ QB_NAME(qb1) */ max_c, avg_c from v1,t2 where
+    ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+    ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a)))
+select /*+ NO_DERIVED_CONDITION_PUSHDOWN(v1@qb1) */ * from cte;
+with cte as (
+  select /*+ QB_NAME(qb1) */ max_c, avg_c from v1,t2 where
+    ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+    ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a)))
+select * from cte;
+
+--source include/explain-no-costs.inc
+explain format=json with recursive cte as (
+  select max_c, avg_c from v1,t2 where
+  ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+  ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a))
+  union
+  select * from cte where max_c < 100
+) select /*+ NO_DERIVED_CONDITION_PUSHDOWN(cte) */ * from cte;
+with recursive cte as (
+  select max_c, avg_c from v1,t2 where
+  ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+  ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a))
+  union
+  select * from cte where max_c < 100
+) select /*+ NO_DERIVED_CONDITION_PUSHDOWN(cte) */ * from cte;
+with recursive cte as (
+  select max_c, avg_c from v1,t2 where
+  ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+  ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a))
+  union
+  select * from cte where max_c < 100
+) select * from cte;
+
+--source include/explain-no-costs.inc
+explain format=json select /*+ NO_DERIVED_CONDITION_PUSHDOWN(dt)*/ * from
+  (select t3.b as a from t3 group by t3.a) dt where (dt.a=3 or dt.a=5);
+select /*+ NO_DERIVED_CONDITION_PUSHDOWN(dt)*/ * from
+  (select t3.b as a from t3 group by t3.a) dt where (dt.a=3 or dt.a=5);
+select * from
+  (select t3.b as a from t3 group by t3.a) dt where (dt.a=3 or dt.a=5);
+
+--echo "This explain and query shows the result when no hints are specified, for comparison to hint cases in the next three explain and select pairs"
+--source include/explain-no-costs.inc
+explain format=json select * from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+select count(*) from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+
+--source include/explain-no-costs.inc
+explain format=json select /*+ NO_DERIVED_CONDITION_PUSHDOWN(dt)*/ * from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+select /*+ NO_DERIVED_CONDITION_PUSHDOWN(dt)*/ count(*) from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+
+--source include/explain-no-costs.inc
+explain format=json select /*+ NO_DERIVED_CONDITION_PUSHDOWN(du)*/ * from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+select /*+ NO_DERIVED_CONDITION_PUSHDOWN(du)*/ count(*) from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+
+--source include/explain-no-costs.inc
+explain format=json select /*+ NO_DERIVED_CONDITION_PUSHDOWN(dt,du)*/ * from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+select /*+ NO_DERIVED_CONDITION_PUSHDOWN(dt,du)*/ count(*) from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+
+--source include/explain-no-costs.inc
+explain format=json SELECT /*+ NO_DERIVED_CONDITION_PUSHDOWN(dt) */ * FROM (
+  SELECT t4.b AS a
+  FROM t4
+  GROUP BY t4.a
+) dt WHERE (dt.a=2);
+SELECT /*+ NO_DERIVED_CONDITION_PUSHDOWN(dt) */ * FROM (
+  SELECT t4.b AS a
+  FROM t4
+  GROUP BY t4.a
+) dt WHERE (dt.a=2);
+SELECT * FROM (
+  SELECT t4.b AS a
+  FROM t4
+  GROUP BY t4.a
+) dt WHERE (dt.a=2);
+
+--source include/explain-no-costs.inc
+explain format=json SELECT /*+ NO_DERIVED_CONDITION_PUSHDOWN(dt) */ * FROM (
+  SELECT qb.b AS a
+  FROM (
+    select 1*t4.b as b, 1*t4.a as a from t4
+  ) qb
+  GROUP BY qb.a
+) dt WHERE (dt.a=2);
+SELECT /*+ NO_DERIVED_CONDITION_PUSHDOWN(dt) */ * FROM (
+  SELECT qb.b AS a
+  FROM (
+    select 1*t4.b as b, 1*t4.a as a from t4
+  ) qb
+  GROUP BY qb.a
+) dt WHERE (dt.a=2);
+SELECT * FROM (
+  SELECT qb.b AS a
+  FROM (
+    select 1*t4.b as b, 1*t4.a as a from t4
+  ) qb
+  GROUP BY qb.a
+) dt WHERE (dt.a=2);
+
+--source include/explain-no-costs.inc
+explain format=json
+select /*+ NO_DERIVED_CONDITION_PUSHDOWN(@qb1 dv6) */ * from
+  (select /*+ QB_NAME(qb4) */ * from
+    (select /*+ QB_NAME(qb3) */ * from
+      (select /*+ QB_NAME(qb2) */ * from
+        (select /*+ QB_NAME(qb1) */ avg_a from
+          (select avg(a) as avg_a from v6) dv6
+        ) dv6) dv6) dv6) dv6 where avg_a <> 0;
+
+--source include/explain-no-costs.inc
+explain format=json
+select /*+ NO_DERIVED_CONDITION_PUSHDOWN(@qb2 dv6) */ * from
+  (select /*+ QB_NAME(qb4) */ * from
+    (select /*+ QB_NAME(qb3) */ * from
+      (select /*+ QB_NAME(qb2) */ * from
+        (select /*+ QB_NAME(qb1) */ avg_a from
+          (select avg(a) as avg_a from v6) dv6
+        ) dv6) dv6) dv6) dv6 where avg_a <> 0;
+
+--source include/explain-no-costs.inc
+explain format=json
+select /*+ NO_DERIVED_CONDITION_PUSHDOWN(@qb3 dv6) */ * from
+  (select /*+ QB_NAME(qb4) */ * from
+    (select /*+ QB_NAME(qb3) */ * from
+      (select /*+ QB_NAME(qb2) */ * from
+        (select /*+ QB_NAME(qb1) */ avg_a from
+          (select avg(a) as avg_a from v6) dv6
+        ) dv6) dv6) dv6) dv6 where avg_a <> 0;
+
+--source include/explain-no-costs.inc
+explain format=json
+select /*+ NO_DERIVED_CONDITION_PUSHDOWN(@qb4 dv6) */ * from
+  (select /*+ QB_NAME(qb4) */ * from
+    (select /*+ QB_NAME(qb3) */ * from
+      (select /*+ QB_NAME(qb2) */ * from
+        (select /*+ QB_NAME(qb1) */ avg_a from
+          (select avg(a) as avg_a from v6) dv6
+        ) dv6) dv6) dv6) dv6 where avg_a <> 0;
+
+set session optimizer_switch='condition_pushdown_for_derived=off';
+
+--source include/explain-no-costs.inc
+explain format=json select /*+ DERIVED_CONDITION_PUSHDOWN(v1) */ * from v1,t2 where
+  ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+    ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a));
+select /*+ DERIVED_CONDITION_PUSHDOWN(v1) */ * from v1,t2 where
+  ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+    ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a));
+select * from v1,t2 where
+  ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+    ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a));
+
+--source include/explain-no-costs.inc
+explain format=json with cte as (
+  select /*+ QB_NAME(qb1) */ max_c, avg_c from v1,t2 where
+    ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+    ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a)))
+select /*+ DERIVED_CONDITION_PUSHDOWN(v1@qb1) */ * from cte;
+with cte as (
+  select /*+ QB_NAME(qb1) */ max_c, avg_c from v1,t2 where
+    ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+    ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a)))
+select /*+ DERIVED_CONDITION_PUSHDOWN(v1@qb1) */ * from cte;
+with cte as (
+  select /*+ QB_NAME(qb1) */ max_c, avg_c from v1,t2 where
+    ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+    ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a)))
+select * from cte;
+
+--source include/explain-no-costs.inc
+explain format=json with recursive cte as (
+  select /*+ QB_NAME(qb1) */ max_c, avg_c from v1,t2 where
+  ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+  ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a))
+  union
+  select /*+ QB_NAME(qb2) */ * from cte where max_c < 100
+) select /*+ DERIVED_CONDITION_PUSHDOWN(v1@qb1) DERIVED_CONDITION_PUSHDOWN(cte) */ * from cte;
+with recursive cte as (
+  select /*+ QB_NAME(qb1) */ max_c, avg_c from v1,t2 where
+  ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+  ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a))
+  union
+  select /*+ QB_NAME(qb2) */ * from cte where max_c < 100
+) select /*+ DERIVED_CONDITION_PUSHDOWN(v1@qb1) DERIVED_CONDITION_PUSHDOWN(cte) */ * from cte;
+with recursive cte as (
+  select max_c, avg_c from v1,t2 where
+  ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+  ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a))
+  union
+  select * from cte where max_c < 100
+) select * from cte;
+
+--source include/explain-no-costs.inc
+explain format=json select /*+ DERIVED_CONDITION_PUSHDOWN(dt)*/ * from
+  (select t3.b as a from t3 group by t3.a) dt where (dt.a=3 or dt.a=5);
+select /*+ DERIVED_CONDITION_PUSHDOWN(dt)*/ * from
+  (select t3.b as a from t3 group by t3.a) dt where (dt.a=3 or dt.a=5);
+select * from
+  (select t3.b as a from t3 group by t3.a) dt where (dt.a=3 or dt.a=5);
+
+--source include/explain-no-costs.inc
+explain format=json SELECT /*+ DERIVED_CONDITION_PUSHDOWN(dt) */ * FROM (
+  SELECT t4.b AS a
+  FROM t4
+  GROUP BY t4.a
+) dt WHERE (dt.a=2);
+SELECT /*+ DERIVED_CONDITION_PUSHDOWN(dt) */ * FROM (
+  SELECT t4.b AS a
+  FROM t4
+  GROUP BY t4.a
+) dt WHERE (dt.a=2);
+SELECT * FROM (
+  SELECT t4.b AS a
+  FROM t4
+  GROUP BY t4.a
+) dt WHERE (dt.a=2);
+
+--source include/explain-no-costs.inc
+explain format=json SELECT /*+ DERIVED_CONDITION_PUSHDOWN(dt) */ * FROM (
+  SELECT qb.b AS a
+  FROM (
+    select 1*t4.b as b, 1*t4.a as a from t4
+  ) qb
+  GROUP BY qb.a
+) dt WHERE (dt.a=2);
+SELECT /*+ DERIVED_CONDITION_PUSHDOWN(dt) */ * FROM (
+  SELECT qb.b AS a
+  FROM (
+    select 1*t4.b as b, 1*t4.a as a from t4
+  ) qb
+  GROUP BY qb.a
+) dt WHERE (dt.a=2);
+SELECT * FROM (
+  SELECT qb.b AS a
+  FROM (
+    select 1*t4.b as b, 1*t4.a as a from t4
+  ) qb
+  GROUP BY qb.a
+) dt WHERE (dt.a=2);
+
+--echo "This explain and query shows the result when no hints are specified, for comparison to hint cases in the next three explain and select pairs"
+--source include/explain-no-costs.inc
+explain format=json select * from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+select count(*) from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+
+--source include/explain-no-costs.inc
+explain format=json select /*+ DERIVED_CONDITION_PUSHDOWN(dt)*/ * from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+select /*+ DERIVED_CONDITION_PUSHDOWN(dt)*/ count(*) from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+
+--source include/explain-no-costs.inc
+explain format=json select /*+ DERIVED_CONDITION_PUSHDOWN(du)*/ * from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+select /*+ DERIVED_CONDITION_PUSHDOWN(du)*/ count(*) from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+
+--source include/explain-no-costs.inc
+explain format=json select /*+ DERIVED_CONDITION_PUSHDOWN(dt,du)*/ * from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+select /*+ DERIVED_CONDITION_PUSHDOWN(dt,du)*/ count(*) from (
+  select t3.b as a from t3 group by t3.a
+) dt join (
+  select t3.a as a, t3.b as b from t3 where t3.a % 2 = 0 group by t3.b
+) du where (dt.a=3 or dt.a=5) and (du.a % 10 <> 0 or du.a % 5 <> 0);
+
+--source include/explain-no-costs.inc
+explain format=json
+select /*+ DERIVED_CONDITION_PUSHDOWN(@qb1 dv6) */ * from
+  (select /*+ QB_NAME(qb4) */ * from
+    (select /*+ QB_NAME(qb3) */ * from
+      (select /*+ QB_NAME(qb2) */ * from
+        (select /*+ QB_NAME(qb1) */ avg_a from
+          (select avg(a) as avg_a from v6) dv6
+        ) dv6) dv6) dv6) dv6 where avg_a <> 0;
+
+--source include/explain-no-costs.inc
+explain format=json
+select /*+ DERIVED_CONDITION_PUSHDOWN(@qb2 dv6) */ * from
+  (select /*+ QB_NAME(qb4) */ * from
+    (select /*+ QB_NAME(qb3) */ * from
+      (select /*+ QB_NAME(qb2) */ * from
+        (select /*+ QB_NAME(qb1) */ avg_a from
+          (select avg(a) as avg_a from v6) dv6
+        ) dv6) dv6) dv6) dv6 where avg_a <> 0;
+
+--source include/explain-no-costs.inc
+explain format=json
+select /*+ DERIVED_CONDITION_PUSHDOWN(@qb3 dv6) */ * from
+  (select /*+ QB_NAME(qb4) */ * from
+    (select /*+ QB_NAME(qb3) */ * from
+      (select /*+ QB_NAME(qb2) */ * from
+        (select /*+ QB_NAME(qb1) */ avg_a from
+          (select avg(a) as avg_a from v6) dv6
+        ) dv6) dv6) dv6) dv6 where avg_a <> 0;
+
+--source include/explain-no-costs.inc
+explain format=json
+select /*+ DERIVED_CONDITION_PUSHDOWN(@qb4 dv6) */ * from
+  (select /*+ QB_NAME(qb4) */ * from
+    (select /*+ QB_NAME(qb3) */ * from
+      (select /*+ QB_NAME(qb2) */ * from
+        (select /*+ QB_NAME(qb1) */ avg_a from
+          (select avg(a) as avg_a from v6) dv6
+        ) dv6) dv6) dv6) dv6 where avg_a <> 0;
+
+set optimizer_switch=@save_optimizer_switch;
+
+create table t7(a int);
+insert into t7 values (1),(2),(3);
+explain extended select /*+ NO_MERGE(t) NO_ICP(t key1) */ * from (select * from t7) t;
+explain extended select /*+ NO_MERGE(t) NO_ICP(t) */ * from (select * from t7) t;
+
+drop view v1, v2, v6;
+drop table t1, t2, t3, t4, t5, t6, t7;

@@ -1,0 +1,41 @@
+#
+#   This test ensures that a grouping of Partial_rows_log_event can be
+# replicated when the events span multiple relay logs. The .cnf file of this
+# test sets the binlog_row_event_fragment_threshold and max_relay_log_size for
+# the test appropriately.
+#
+# References:
+#   MDEV-32570: Fragment ROW replication events larger than max_packet_size
+#   MDEV-38639: Slave fails with Broken Partial_rows_log_event stream
+#
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # Initialize test data
+create table t1 (a int primary key, data longblob) engine=innodb;
+
+--echo # Create a transaction which will fragment into multiple
+--echo # Partial_rows_log_events that will span multiple relay logs
+set @blob = repeat('a', 1024 * 1024);
+insert into t1 values (1, @blob);
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--echo # Ensure the transaction replicates correctly..
+--disable_warnings
+--let $diff_tables=master:test.t1,slave:test.t1
+--source include/diff_tables.inc
+--enable_warnings
+--echo # ..PASS
+
+--echo #
+--echo # Cleanup
+--connection master
+drop table t1;
+
+--source include/rpl_end.inc
+--echo # End of rpl_fragment_row_event_span_relay_logs.test
+

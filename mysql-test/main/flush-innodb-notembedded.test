@@ -18,7 +18,6 @@ GRANT RELOAD, LOCK TABLES ON *.* TO user5@localhost;
 FLUSH TABLE db1.t1 FOR EXPORT;
 UNLOCK TABLES;
 --disconnect con1
---source include/wait_until_disconnected.inc
 
 --connection default
 
@@ -26,7 +25,6 @@ UNLOCK TABLES;
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 FLUSH TABLE db1.t1 FOR EXPORT;
 --disconnect con1
---source include/wait_until_disconnected.inc
 
 --connection default
 
@@ -34,7 +32,6 @@ FLUSH TABLE db1.t1 FOR EXPORT;
 --error ER_DBACCESS_DENIED_ERROR
 FLUSH TABLE db1.t1 FOR EXPORT;
 --disconnect con1
---source include/wait_until_disconnected.inc
 
 --connection default
 
@@ -42,7 +39,6 @@ FLUSH TABLE db1.t1 FOR EXPORT;
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 FLUSH TABLE db1.t1 FOR EXPORT;
 --disconnect con1
---source include/wait_until_disconnected.inc
 
 --connection default
 
@@ -50,7 +46,6 @@ FLUSH TABLE db1.t1 FOR EXPORT;
 --error ER_TABLEACCESS_DENIED_ERROR
 FLUSH TABLE db1.t1 FOR EXPORT;
 --disconnect con1
---source include/wait_until_disconnected.inc
 
 --connection default
 DROP USER user1@localhost, user2@localhost, user3@localhost,

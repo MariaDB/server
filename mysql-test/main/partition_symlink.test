@@ -8,10 +8,6 @@
 # symlinks must also work for files, not only directories
 # as in --skip-symbolic-links
 -- source include/not_windows.inc
--- disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP DATABASE IF EXISTS mysqltest2;
--- enable_warnings
 
 --echo #
 --echo # Test for WL#4445: EXCHANGE PARTITION
@@ -169,10 +165,10 @@ connection con1;
   );
 connection default;
 -- echo # user root (cleanup):
+  disconnect con1;
   DROP DATABASE mysqltest2;
   USE test;
   DROP USER mysqltest_1@localhost;
-  disconnect con1;
 
 #
 # Bug #24633 SQL MODE "NO_DIR_IN_CREATE" does not work with partitioned tables 

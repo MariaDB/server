@@ -1077,6 +1077,12 @@ void Field::make_sort_key_part(uchar *buff,uint length)
 }
 
 
+Item_field *Field::make_item_field_spvar(THD *thd, const Spvar_definition &def)
+{
+  return new (thd->mem_root) Item_field(thd, this);
+}
+
+
 /*
   @brief
     Create a packed sort key part
@@ -1153,7 +1159,7 @@ bool Field_longstr::val_bool()
   @details
   The function returns a double number between 0.0 and 1.0 as the relative
   position of the value of the this field in the numeric interval of [min,max].
-  If the value is not in the interval the the function returns 0.0 when
+  If the value is not in the interval the function returns 0.0 when
   the value is less than min, and, 1.0 when the value is greater than max.
 
   @param  min  value of the left end of the interval
@@ -1214,7 +1220,7 @@ static inline double safe_substract(ulonglong a, ulonglong b)
   @details
   The function returns a double number between 0.0 and 1.0 as the relative
   position of the value of the this field in the string interval of [min,max].
-  If the value is not in the interval the the function returns 0.0 when
+  If the value is not in the interval the function returns 0.0 when
   the value is less than min, and, 1.0 when the value is greater than max.
 
   @note
@@ -1932,7 +1938,7 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
   null_ptr(null_ptr_arg), table(0), orig_table(0),
   table_name(0), field_name(*field_name_arg), option_list(0),
   option_struct(0), key_start(0), part_of_key(0),
-  part_of_key_not_clustered(0), part_of_sortkey(0),
+  part_of_key_not_clustered(0), vcol_direct_part_of_key(0), part_of_sortkey(0),
   unireg_check(unireg_check_arg), invisible(VISIBLE), field_length(length_arg),
   null_bit(null_bit_arg), is_created_from_null_item(FALSE),
   read_stats(NULL), collected_stats(0), vcol_info(0), check_constraint(0),
@@ -2120,19 +2126,11 @@ int Field_blob::store_from_statistical_minmax_field(Field *stat_field,
    @param from
    Pointer to memory area where record representation of field is
    stored.
-
-   @param max_length
-   Maximum length of the field, as given in the column definition. For
-   example, for <code>CHAR(1000)</code>, the <code>max_length</code>
-   is 1000. This information is sometimes needed to decide how to pack
-   the data.
-
 */
 uchar *
-Field::pack(uchar *to, const uchar *from, uint max_length)
+Field::pack(uchar *to, const uchar *from) const
 {
   uint32 length= pack_length();
-  set_if_smaller(length, max_length);
   memcpy(to, from, length);
   return to+length;
 }
@@ -2532,7 +2530,9 @@ uint Field::fill_cache_field(CACHE_FIELD *copy)
 bool Field::get_date(MYSQL_TIME *to, date_mode_t mode)
 {
   StringBuffer<40> tmp;
-  Temporal::Warn_push warn(get_thd(), nullptr, nullptr, nullptr, to, mode);
+  Temporal::Warn_push warn(get_thd(), table ? table->s->db.str : nullptr,
+                           table ? table->s->table_name.str : nullptr,
+                           field_name.str, to, mode);
   Temporal_hybrid *t= new(to) Temporal_hybrid(get_thd(), &warn,
                                               val_str(&tmp), mode);
   return !t->is_valid_temporal();
@@ -2601,6 +2601,7 @@ Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
   tmp->table= new_table;
   tmp->key_start.init(0);
   tmp->part_of_key.init(0);
+  tmp->vcol_direct_part_of_key.init(0);
   tmp->part_of_sortkey.init(0);
   tmp->read_stats= NULL;
   /*
@@ -4824,17 +4825,17 @@ void Field_longlong::set_max()
   int8store(ptr, unsigned_flag ? ULONGLONG_MAX : LONGLONG_MAX);
 }
 
-bool Field_longlong::is_max()
+bool Field_longlong::is_max(const uchar *ptr_arg) const
 {
   DBUG_ASSERT(marked_for_read());
   if (unsigned_flag)
   {
     ulonglong j;
-    j= uint8korr(ptr);
+    j= uint8korr(ptr_arg);
     return j == ULONGLONG_MAX;
   }
   longlong j;
-  j= sint8korr(ptr);
+  j= sint8korr(ptr_arg);
   return j == LONGLONG_MAX;
 }
 
@@ -5886,16 +5887,16 @@ void Field_timestampf::set_max()
   DBUG_VOID_RETURN;
 }
 
-bool Field_timestampf::is_max()
+bool Field_timestampf::is_max(const uchar *ptr_arg) const
 {
-  longlong timestamp= mi_uint4korr(ptr);
+  longlong timestamp= mi_uint4korr(ptr_arg);
   DBUG_ENTER("Field_timestampf::is_max");
   DBUG_ASSERT(marked_for_read());
 
   /* Allow old max value and new max value */
   DBUG_RETURN((timestamp == TIMESTAMP_MAX_VALUE ||
                timestamp == INT_MAX32) &&
-              mi_uint3korr(ptr + 4) == TIME_MAX_SECOND_PART);
+              mi_uint3korr(ptr_arg + 4) == TIME_MAX_SECOND_PART);
 }
 
 my_time_t Field_timestampf::get_timestamp(const uchar *pos,
@@ -7601,12 +7602,6 @@ int Field_longstr::store_decimal(const my_decimal *d)
   return store(str.ptr(), str.length(), str.charset());
 }
 
-uint32 Field_longstr::max_data_length() const
-{
-  return field_length + (field_length > 255 ? 2 : 1);
-}
-
-
 Data_type_compatibility
 Field_longstr::cmp_to_string_with_same_collation(const Item_bool_func *cond,
                                                  const Item *item) const
@@ -7910,10 +7905,10 @@ void Field_string::sql_rpl_type(String *res) const
     Field_string::sql_type(*res);
  }
 
-uchar *Field_string::pack(uchar *to, const uchar *from, uint max_length)
+uchar *Field_string::pack(uchar *to, const uchar *from) const
 {
   DBUG_PRINT("debug", ("Packing field '%s'", field_name.str));
-  return StringPack(field_charset(), field_length).pack(to, from, max_length);
+  return StringPack(field_charset(), field_length).pack(to, from);
 }
 
 
@@ -7997,13 +7992,14 @@ Binlog_type_info Field_string::binlog_type_info() const
 }
 
 
-uint Field_string::packed_col_length(const uchar *data_ptr, uint length)
+uint Field_string::packed_col_length() const
 {
-  return StringPack::packed_col_length(data_ptr, length);
+  return StringPack(field_charset(), field_length).
+           packed_col_length(ptr);
 }
 
 
-uint Field_string::max_packed_col_length(uint max_length)
+uint Field_string::max_packed_col_length(uint max_length) const
 {
   return StringPack::max_packed_col_length(max_length);
 }
@@ -8388,19 +8384,16 @@ uint32 Field_varstring::data_length()
 
 /*
   Functions to create a packed row.
-  Here the number of length bytes are depending on the given max_length
 */
 
-uchar *Field_varstring::pack(uchar *to, const uchar *from, uint max_length)
+uchar *Field_varstring::pack(uchar *to, const uchar *from) const
 {
   uint length= length_bytes == 1 ? (uint) *from : uint2korr(from);
-  set_if_smaller(max_length, field_length);
-  if (length > max_length)
-    length=max_length;
+  DBUG_ASSERT(length <= field_length);
 
   /* Length always stored little-endian */
   *to++= length & 0xFF;
-  if (max_length > 255)
+  if (field_length > 255)
     *to++= (length >> 8) & 0xFF;
 
   /* Store bytes of string */
@@ -8459,15 +8452,15 @@ Field_varstring::unpack(uchar *to, const uchar *from, const uchar *from_end,
 }
 
 
-uint Field_varstring::packed_col_length(const uchar *data_ptr, uint length)
+uint Field_varstring::packed_col_length() const
 {
-  if (length > 255)
-    return uint2korr(data_ptr)+2;
-  return (uint) *data_ptr + 1;
+  if (field_length > 255)
+    return uint2korr(ptr) + 2;
+  return (uint) *ptr + 1;
 }
 
 
-uint Field_varstring::max_packed_col_length(uint max_length)
+uint Field_varstring::max_packed_col_length(uint max_length) const
 {
   return (max_length > 255 ? 2 : 1)+max_length;
 }
@@ -8869,6 +8862,7 @@ Field_blob::Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 
 
 void Field_blob::store_length(uchar *i_ptr, uint i_packlength, uint32 i_number)
+                                                                          const
 {
   store_lowendian(i_number, i_ptr, i_packlength);
 }
@@ -9333,7 +9327,7 @@ void Field_blob::sql_type(String &res) const
   }
 }
 
-uchar *Field_blob::pack(uchar *to, const uchar *from, uint max_length)
+uchar *Field_blob::pack(uchar *to, const uchar *from) const
 {
   uint32 length=get_length(from, packlength);			// Length of from string
 
@@ -9342,7 +9336,7 @@ uchar *Field_blob::pack(uchar *to, const uchar *from, uint max_length)
     length given is smaller than the actual length of the blob, we
     just store the initial bytes of the blob.
   */
-  store_length(to, packlength, MY_MIN(length, max_length));
+  store_length(to, packlength, length);
 
   /*
     Store the actual blob data, which will occupy 'length' bytes.
@@ -9393,15 +9387,13 @@ const uchar *Field_blob::unpack(uchar *to, const uchar *from,
 }
 
 
-uint Field_blob::packed_col_length(const uchar *data_ptr, uint length)
+uint Field_blob::packed_col_length() const
 {
-  if (length > 255)
-    return uint2korr(data_ptr)+2;
-  return (uint) *data_ptr + 1;
+  return (uint) read_lowendian(ptr, packlength) + packlength;
 }
 
 
-uint Field_blob::max_packed_col_length(uint max_length)
+uint Field_blob::max_packed_col_length(uint max_length) const
 {
   return (max_length > 255 ? 2 : 1)+max_length;
 }
@@ -9565,7 +9557,7 @@ int Field_enum::store(const char *from,size_t length,CHARSET_INFO *cs)
 
   /* Remove end space */
   length= (uint) field_charset()->lengthsp(from, length);
-  uint tmp=find_type2(m_typelib, from, length, field_charset());
+  uint tmp=find_type2(m_typelib, from, length, 0, field_charset());
   if (!tmp)
   {
     if (length < 6) // Can't be more than 99999 enums
@@ -9937,7 +9929,7 @@ bool Field_enum::is_equal(const Column_definition &new_field) const
 }
 
 
-uchar *Field_enum::pack(uchar *to, const uchar *from, uint max_length)
+uchar *Field_enum::pack(uchar *to, const uchar *from) const
 {
   DBUG_ENTER("Field_enum::pack");
   DBUG_PRINT("debug", ("packlength: %d", packlength));
@@ -10435,10 +10427,8 @@ void Field_bit::sql_type(String &res) const
 
 
 uchar *
-Field_bit::pack(uchar *to, const uchar *from, uint max_length)
+Field_bit::pack(uchar *to, const uchar *from) const
 {
-  DBUG_ASSERT(max_length > 0);
-  uint length;
   if (bit_len > 0)
   {
     /*
@@ -10463,9 +10453,8 @@ Field_bit::pack(uchar *to, const uchar *from, uint max_length)
     uchar bits= get_rec_bits(bit_ptr + (from - ptr), bit_ofs, bit_len);
     *to++= bits;
   }
-  length= MY_MIN(bytes_in_rec, max_length - (bit_len > 0));
-  memcpy(to, from, length);
-  return to + length;
+  memcpy(to, from, bytes_in_rec);
+  return to + bytes_in_rec;
 }
 
 
@@ -10822,7 +10811,7 @@ bool check_expression(Virtual_column_info *vcol, const Lex_ident_column &name,
     Walk through the Item tree checking if all items are valid
     to be part of the virtual column
   */
-  ret= vcol->expr->walk(&Item::check_vcol_func_processor, 0, &res);
+  ret= vcol->expr->walk(&Item::check_vcol_func_processor, &res, 0);
   vcol->flags= res.errors;
 
   uint filter= VCOL_IMPOSSIBLE;
@@ -11756,7 +11745,8 @@ void Field::register_field_in_read_map()
   if (vcol_info)
   {
     Item *vcol_item= vcol_info->expr;
-    vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
+    vcol_item->walk(&Item::register_field_in_read_map,
+                    0, WALK_SUBQUERY);
   }
   bitmap_set_bit(table->read_set, field_index);
 }
@@ -11890,7 +11880,7 @@ Virtual_column_info* Virtual_column_info::clone(THD *thd)
     return NULL;
   if (expr)
   {
-    dst->expr= expr->build_clone(thd);
+    dst->expr= expr->deep_copy_with_checks(thd);
     if (!dst->expr)
       return NULL;
   }

@@ -220,13 +220,9 @@ show create table t4;
 # mysqltest first does replace_regex, then replace_result
 # Embedded server doesn't chdir to data directory
 --replace_result $MYSQLD_DATADIR ./ master-data/ ''
-# a foreign key 'test/dc' already exists
---error ER_CANT_CREATE_TABLE
 alter table t3 add constraint dc foreign key (a) references t1(a);
-SET FOREIGN_KEY_CHECKS=0;
---error ER_FK_FAIL_ADD_SYSTEM
+alter table t3 drop foreign key dc;
 alter table t3 add constraint dc foreign key (a) references t1(a);
-SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
 show create table t3;
 --enable_info
 alter table t2 drop index b, add index (beta);
@@ -237,7 +233,6 @@ delete from t1;
 --error ER_CANT_DROP_FIELD_OR_KEY
 drop index dc on t4;
 --enable_info
---error ER_CANT_DROP_FIELD_OR_KEY
 alter table t3 drop foreign key dc;
 alter table t4 drop foreign key dc;
 --disable_info
@@ -1133,29 +1128,13 @@ CREATE TABLE t2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
 --let CLEANUP_IF_CHECKPOINT=DROP TABLE t1, t2;
 --source include/no_checkpoint_end.inc
 
-let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
-let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
-WHERE engine = 'innodb'
-AND support IN ('YES', 'DEFAULT', 'ENABLED');
-
 --echo # Wrong space_id in a dirty file and a missing file
-
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t0.ibd
 --move_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t1.ibd
 
 --source include/start_mysqld.inc
---eval $check_no_innodb
---source include/shutdown_mysqld.inc
-
---echo # Restore t1 and t2
-
---move_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
---move_file $MYSQLD_DATADIR/test/t0.ibd $MYSQLD_DATADIR/test/t1.ibd
-
---source include/start_mysqld.inc
-
-SELECT * FROM t1;
-SELECT * FROM t2;
+# Because the tables were created after the checkpoint,
+# InnoDB will start up, but the tables will be corrupted.
+CHECK TABLE t1, t2;
 
 DROP TABLE t1, t2;
 

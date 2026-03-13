@@ -1,9 +1,8 @@
 --source include/have_partition.inc
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
 --source include/default_optimizer_switch.inc
 --source include/have_innodb.inc
 --source include/test_db_charset_latin1.inc
+--source include/no_view_protocol.inc
 
 SET optimizer_switch='outer_join_with_cache=off';
 
@@ -2771,16 +2770,12 @@ connection user21261;
 UPDATE v1,t2 SET x=1 WHERE x=y;
 connection root;
 SELECT * FROM t1;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'user21261'@'localhost';
+disconnect user21261;
 DROP USER 'user21261'@'localhost';
-DROP VIEW v1;
-DROP TABLE t1;
 DROP DATABASE bug21261DB;
-
+disconnect root;
 connection default;
 USE test;
-disconnect root;
-disconnect user21261;
 
 set GLOBAL sql_mode=default;
 set LOCAL sql_mode=default;
@@ -4763,11 +4758,6 @@ CREATE VIEW v4 AS
 --echo # Cleanup
 DROP VIEW v1, v2, v3;
 
-
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc
-
 --echo #
 --echo # lp:833600 Wrong result with view + outer join + uncorrelated subquery (non-semijoin) 
 --echo #
@@ -5249,7 +5239,6 @@ DROP TABLE t1, t2;
 
 create view v1 as select 1;
 
---let $MYSQLD_DATADIR= `select @@datadir`
 --let SEARCH_FILE= $MYSQLD_DATADIR/test/v1.frm
 --let SEARCH_RANGE= 50000
 --let SEARCH_PATTERN=mariadb-version
@@ -6850,9 +6839,18 @@ DROP VIEW v1;
 DROP TABLE t1, t2;
 
 --echo #
---echo # End of 10.6 tests
+--echo # MDEV-36888: Assertion `typeid(*copy) == typeid(*this)' in
+--echo # Item_func_or_sum::do_build_clone
 --echo #
 
+CREATE TABLE t (a INT default 1);
+INSERT INTO t VALUES (0),(2);
+CREATE ALGORITHM=TEMPTABLE VIEW v AS SELECT * FROM t;
+EXECUTE IMMEDIATE "SELECT * FROM v WHERE COERCIBILITY(VALUE(a)) > a";
+drop view v;
+drop table t;
+
+--echo # End of 10.6 tests
 
 --echo #
 --echo # MDEV-29587: Allowing insert into a view with columns that
@@ -6903,7 +6901,18 @@ DROP VIEW view1;
 DROP TABLE table1;
 
 --echo #
---echo # End of 10.11 test
+--echo # MDEV-37920 Out-of-Bounds memory access in File_parser::parse()
 --echo #
+
+--write_file $MYSQLD_DATADIR/test/v1.frm
+TYPE=VIEW
+query=select `0_________1_________2_________3_________4_________5____`
+ 
+EOF
+--error ER_VIEW_INVALID
+select * from v1;
+drop view v1;
+
+--echo # End of 10.11 test
 
 --source include/test_db_charset_restore.inc

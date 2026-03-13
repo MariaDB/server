@@ -63,7 +63,6 @@ connect  con1, localhost, root;
 SET GLOBAL  debug_dbug= '';
 connection default;
 SET SESSION debug_dbug= '';
-connection con1;
 disconnect con1;
 connection default;
 SET GLOBAL  debug_dbug= '';
@@ -92,7 +91,6 @@ SET GLOBAL  debug_dbug= '';
 SET SESSION debug_dbug= '';
 connection default;
 SET SESSION debug_dbug= '';
-connection con1;
 disconnect con1;
 connection default;
 # Test 5 - Different trace files

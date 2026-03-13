@@ -22,6 +22,8 @@ connection slave;
 connection master;
 "Command: SHOW SLAVE HOSTS --> SHOW REPLICA HOSTS"
 DROP USER 'repl_user';
+Warnings:
+Note	4227	Dropped users 'repl_user'@'%' have active connections. Use KILL CONNECTION if they should not be used anymore.
 connection slave;
 "Command: SHOW SLAVE IO/SQL THREAD --> SHOW REPLICA IO/SQL THREAD"
 STOP REPLICA IO_THREAD;
@@ -32,6 +34,7 @@ include/wait_for_slave_sql_to_stop.inc
 RESET REPLICA ALL;
 set @@global.gtid_slave_pos= "";
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 CREATE TABLE t(f INT) ENGINE=INNODB;
 INSERT INTO t VALUES (10);

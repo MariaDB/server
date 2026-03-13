@@ -6,7 +6,6 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/have_log_bin.inc
---source include/count_sessions.inc
 
 SET @old_log_output = @@global.log_output;
 SET @old_slow_query_log = @@global.slow_query_log;
@@ -114,8 +113,6 @@ DROP TABLE t1,t2;
 
 disconnect con1;
 disconnect con2;
-
---source include/wait_until_count_sessions.inc
 
 -- echo # Restore slow log settings.
 SET GLOBAL log_output = @old_log_output;

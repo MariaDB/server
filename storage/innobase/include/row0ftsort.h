@@ -157,19 +157,6 @@ typedef struct fts_psort_insert	fts_psort_insert_t;
 #define FTS_PARENT_EXITING	2
 #define FTS_CHILD_COMPLETE	1
 
-/** Print some debug information */
-#define	FTSORT_PRINT
-
-#ifdef	FTSORT_PRINT
-#define	DEBUG_FTS_SORT_PRINT(str)		\
-	do {					\
-		ut_print_timestamp(stderr);	\
-		fprintf(stderr, str);		\
-	} while (0)
-#else
-#define DEBUG_FTS_SORT_PRINT(str)
-#endif	/* FTSORT_PRINT */
-
 /*************************************************************//**
 Create a temporary "fts sort index" used to merge sort the
 tokenized doc string. The index has three "fields":
@@ -187,8 +174,8 @@ row_merge_create_fts_sort_index(
 				is created */
 	dict_table_t*	table,	/*!< in,out: table that FTS index
 				is being created on */
-	ibool*		opt_doc_id_size);
-				/*!< out: whether to use 4 bytes
+	bool		opt_doc_id_size);
+				/*!< in: whether to use 4 bytes
 				instead of 8 bytes integer to
 				store Doc ID during sort */
 

@@ -64,7 +64,7 @@ struct Listener
   }
 
   /**
-    if not NULL, this handle can be be used in WaitForSingle/MultipleObject(s).
+    if not NULL, this handle can be used in WaitForSingle/MultipleObject(s).
     This handle will be closed when object is destroyed.
 
     If NULL, the completion notification happens in threadpool.

@@ -14,6 +14,7 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
+--source include/have_perfschema.inc
 
 --echo #
 --echo # 1. BF-BF conflict on MDL locks between: DROP TABLE t6 and UPDATE on t1

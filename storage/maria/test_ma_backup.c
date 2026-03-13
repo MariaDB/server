@@ -45,8 +45,9 @@ int main(int argc __attribute__((unused)), char *argv[])
 
   /* Maria requires that we always have a page cache */
   if (maria_init() ||
-      (init_pagecache(maria_pagecache, maria_block_size * 2000, 0, 0,
-                      maria_block_size, 0, MY_WME) == 0) ||
+      multi_init_pagecache(&maria_pagecaches, 1,
+                           maria_block_size * 2000, 0, 0,
+                           maria_block_size, 0, MY_WME) ||
       ma_control_file_open_or_create() ||
       (init_pagecache(maria_log_pagecache,
                       TRANSLOG_PAGECACHE_SIZE, 0, 0,
@@ -103,7 +104,7 @@ static int copy_table(const char *table_name, int stage)
                          O_RDONLY | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
                          MYF(MY_WME))) < 0)
     goto err;
-  if ((error= aria_get_capabilities(org_file, &cap)))
+  if ((error= aria_get_capabilities(org_file, table_name, &cap)))
   {
     fprintf(stderr, "aria_get_capabilities failed:  %d\n", error);
     goto err;

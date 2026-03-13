@@ -67,3 +67,156 @@ rm -fv crldir/*
 cp -v client-cert.crl crldir/`openssl x509 -in client-cert.pem -noout -issuer_hash`.r0
 
 rm -rf demoCA
+
+# --- Certificate Chain ---
+# These tests are inspired from the following commit from MySQL Server
+# https://github.com/mysql/mysql-server/commit/969afef933f1872c5f38ea93047ef05c4509c335
+#
+# Credits to salman.s.khan@oracle.com
+#
+# -------------------------------------------------------------------------------------
+#
+# STEPS TO GENERATE THE FOLLOWING CHAINED CERTIFICATES WHICH IS USED IN THE TEST CASE :
+#
+#                       +---------+
+#                       | Root CA |
+#                       +---------+
+#                            |
+#               /------------+-----------\
+#               |                        |
+#      +------------------+     +------------------+
+#      | Intermediate CA1 |     | Intermediate CA2 |
+#      +------------------+     +------------------+
+#               |                        |
+#        +-------------+          +-------------+
+#        |   Server    |          |   Client    |
+#        | certificate |          | certificate |
+#        +-------------+          +-------------+
+
+cd cachain
+
+mkdir ca
+mkdir server
+mkdir clients
+
+mkdir ca/root.certs
+touch ca/root.index.txt
+touch ca/root.index.txt.attr
+echo '01' > ca/root.serial
+
+cat > ca/root.cfg << EOF
+[ ca ]
+default_ca = CA_default
+[ CA_default ]
+dir = $PWD/ca
+certs = \$dir/certs
+database = \$dir/root.index.txt
+serial   = \$dir/root.serial
+policy= policy_match
+[ policy_match ]
+organizationName = match
+organizationalUnitName = optional
+commonName = supplied
+emailAddress = optional
+[ v3_ca ]
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid:always,issuer
+basicConstraints = critical,CA:TRUE
+keyUsage = critical,keyCertSign,cRLSign
+[ v3_ca_intermediate ]
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid:always,issuer
+basicConstraints = critical,CA:TRUE,pathlen:0
+keyUsage = critical,keyCertSign,cRLSign
+EOF
+
+# Generate Root CA key and cert
+openssl genrsa -out ca/root.key 4096
+openssl req -new -x509 '-sha256' -key ca/root.key -out ca/root.crt -days 7200 -subj "/O=MariaDB/OU=MariaDB/CN=Root CA" -config ca/root.cfg -extensions v3_ca
+
+# Generate Intermediate CA1 key and cert
+openssl genrsa -out ca/intermediate_ca1.key 4096
+openssl req -new '-sha256' -key ca/intermediate_ca1.key -out ca/intermediate_ca1.csr -subj "/O=MariaDB/OU=MariaDB/CN=Intermediate CA1"
+
+openssl ca -batch -days 7200 -notext -md sha256 -in ca/intermediate_ca1.csr -out ca/intermediate_ca1.crt -keyfile ca/root.key -cert ca/root.crt -outdir ca/root.certs/ -config ca/root.cfg -extensions v3_ca_intermediate
+
+mkdir ca/intermediate_ca1.certs
+touch ca/intermediate_ca1.index.txt
+touch ca/intermediate_ca1.index.txt.attr
+echo '01' > ca/intermediate_ca1.serial
+
+cat > ca/intermediate_ca1.cfg << EOF
+[ ca ]
+default_ca = CA_default
+[ CA_default ]
+dir = $PWD/ca
+certs = \$dir/intermediate_ca1.certs
+database = \$dir/intermediate_ca1.index.txt
+serial   = \$dir/intermediate_ca1.serial
+policy= policy_match
+[ policy_match ]
+commonName = supplied
+[ alt_names ]
+DNS.1 = localhost
+IP.1 = 127.0.0.1
+[ server_cert ]
+basicConstraints = CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+EOF
+
+# Generate Server key and cert
+openssl genrsa -out server/server.key 4096
+openssl req -new '-sha256' -key server/server.key -out server/server.csr -subj "/CN=localhost"
+
+openssl ca -batch -days 7200 -notext -md sha256 -in server/server.csr -out server/server.crt -keyfile ca/intermediate_ca1.key -cert ca/intermediate_ca1.crt -outdir ca/intermediate_ca1.certs/ -config ca/intermediate_ca1.cfg -extensions server_cert
+
+# Generate Intermediate CA2 key and cert
+openssl genrsa -out ca/intermediate_ca2.key 4096
+
+openssl req -new '-sha256' -key ca/intermediate_ca2.key -out ca/intermediate_ca2.csr -subj "/O=MariaDB/OU=MariaDB/CN=Intermediate CA2"
+openssl ca -batch -days 7200 -notext -md sha256 -in ca/intermediate_ca2.csr -out ca/intermediate_ca2.crt -keyfile ca/root.key -cert ca/root.crt -outdir ca/root.certs/ -config ca/root.cfg -extensions v3_ca_intermediate
+
+mkdir ca/intermediate_ca2.certs
+touch ca/intermediate_ca2.index.txt
+touch ca/intermediate_ca2.index.txt.attr
+echo '01' > ca/intermediate_ca2.serial
+
+cat > ca/intermediate_ca2.cfg << EOF
+[ ca ]
+default_ca = CA_default
+[ CA_default ]
+dir = $PWD/ca
+certs = \$dir/intermediate_ca2.certs
+database = \$dir/intermediate_ca2.index.txt
+serial   = \$dir/intermediate_ca2.serial
+policy= policy_match
+[ policy_match ]
+commonName = supplied
+[ client_cert ]
+basicConstraints = CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = clientAuth
+EOF
+
+# Generate Client key and cert
+openssl genrsa -out clients/client.key 4096
+openssl req -new '-sha256' -key clients/client.key -out clients/client.csr -subj "/CN=client"
+
+openssl ca -batch -days 7200 -notext -md sha256 -in clients/client.csr -out clients/client.crt -keyfile ca/intermediate_ca2.key -cert ca/intermediate_ca2.crt -outdir ca/intermediate_ca2.certs/ -config ca/intermediate_ca2.cfg -extensions client_cert
+
+cat server/server.crt ca/intermediate_ca1.crt > server/server.cachain
+
+cat clients/client.crt ca/intermediate_ca2.crt > clients/client.cachain
+
+cat ca/root.crt ca/intermediate_ca1.crt > ca/root_intermediate_ca1.crt
+
+# Generate Unrelated Root CA key and cert
+openssl genrsa -out ca/unrelated_root.key 4096
+openssl req -new -x509 '-sha256' -key ca/unrelated_root.key -out ca/unrelated_root.crt -days 7200 -subj "/O=MariaDB/OU=MariaDB/CN=Root CA" -config ca/root.cfg -extensions v3_ca
+
+cp -v ca/root.crt ca/root_intermediate_ca1.crt ca/unrelated_root.crt server/server.key server/server.cachain clients/client.key clients/client.cachain ./
+rm -rf ca server clients
+
+cd ..

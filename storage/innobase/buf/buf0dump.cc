@@ -404,7 +404,7 @@ done:
 
 	/* success */
 
-	ut_sprintf_timestamp(now);
+	ut_sprintf_timestamp(now, sizeof(now));
 
 	buf_dump_status(STATUS_INFO,
 			"Buffer pool(s) dump completed at %s", now);
@@ -487,7 +487,7 @@ buf_load()
 				dump_n * sizeof(*dump)));
 	} else {
 		fclose(f);
-		ut_sprintf_timestamp(now);
+		ut_sprintf_timestamp(now, sizeof(now));
 		buf_load_status(STATUS_INFO,
 				"Buffer pool(s) load completed at %s"
 				" (%s was empty)", now, full_filename);
@@ -553,7 +553,7 @@ buf_load()
 
 	if (dump_n == 0) {
 		ut_free(dump);
-		ut_sprintf_timestamp(now);
+		ut_sprintf_timestamp(now, sizeof(now));
 		buf_load_status(STATUS_INFO,
 				"Buffer pool(s) load completed at %s"
 				" (%s was empty or had errors)", now, full_filename);
@@ -585,7 +585,6 @@ buf_load()
 	so all pages from a given tablespace are consecutive. */
 	uint32_t	cur_space_id = dump[0].space();
 	fil_space_t*	space = fil_space_t::get(cur_space_id);
-	ulint		zip_size = space ? space->zip_size() : 0;
 
 	PSI_stage_progress*	pfs_stage_progress __attribute__((unused))
 		= mysql_set_stage(srv_stage_buffer_pool_load.m_key);
@@ -608,12 +607,6 @@ buf_load()
 
 			cur_space_id = this_space_id;
 			space = fil_space_t::get(cur_space_id);
-
-			if (!space) {
-				continue;
-			}
-
-			zip_size = space->zip_size();
 		}
 
 		/* JAN: TODO: As we use background page read below,
@@ -632,7 +625,7 @@ buf_load()
 		}
 
 		space->reacquire();
-		buf_read_page_background(space, dump[i], zip_size);
+		buf_read_page_background(dump[i], space, nullptr);
 
 		if (buf_load_abort_flag) {
 			if (space) {
@@ -668,7 +661,7 @@ buf_load()
 
   os_aio_wait_until_no_pending_reads(true);
 
-	ut_sprintf_timestamp(now);
+	ut_sprintf_timestamp(now, sizeof(now));
 
 	if (i == dump_n) {
 		buf_load_status(STATUS_INFO,

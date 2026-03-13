@@ -1,3 +1,4 @@
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 #
 # Test how do we handle locking in various cases when
 # we read data from InnoDB tables.
@@ -223,10 +224,8 @@ Success: 'show keys from t1' doesn't take row locks on 't1'.
 # written to the binary log as a whole (it is written
 # statement-by-statement) and thanks to MVCC we can always get
 # versions of rows prior to the update that has locked them.
-# But in practice InnoDB does locking reads for all statements
-# other than SELECT (unless READ UNCOMMITTED or READ COMMITTED).
 connection default;
-Success: 'call p1((select i + 5 from t1 where i = 1))' takes shared row locks on 't1'.
+Success: 'call p1((select i + 5 from t1 where i = 1))' doesn't take row locks on 't1'.
 #
 # 2.2 CREATE TABLE with a subquery.
 #
@@ -254,10 +253,9 @@ Success: 'delete t2 from t3, t2 where k = j and j in (select i from t1)' takes s
 #
 # 2.5 DO with a subquery.
 #
-# In theory should not take row locks as it is not logged.
-# In practice InnoDB takes shared row locks.
+# Should not take row locks as it is not logged.
 connection default;
-Success: 'do (select i from t1 where i = 1)' takes shared row locks on 't1'.
+Success: 'do (select i from t1 where i = 1)' doesn't take row locks on 't1'.
 #
 # 2.6 INSERT with a subquery.
 #
@@ -296,21 +294,19 @@ Success: 'select * from t2 where j in (select i from t1)' doesn't take row locks
 #
 # 2.10 SET with a subquery.
 #
-# In theory should not require locking as it is not written
-# to the binary log. In practice InnoDB acquires shared row
-# locks.
+# Should not require locking as it is not written
+# to the binary log.
 connection default;
-Success: 'set @a:= (select i from t1 where i = 1)' takes shared row locks on 't1'.
+Success: 'set @a:= (select i from t1 where i = 1)' doesn't take row locks on 't1'.
 #
 # 2.11 SHOW with a subquery.
 # 
-# Similarly to the previous case, in theory should not require locking
-# as it is not written to the binary log. In practice InnoDB
-# acquires shared row locks.
+# Similarly to the previous case, should not require locking
+# as it is not written to the binary log.
 connection default;
-Success: 'show tables from test where Tables_in_test = 't2' and (select i from t1 where i = 1)' takes shared row locks on 't1'.
+Success: 'show tables from test where Tables_in_test = 't2' and (select i from t1 where i = 1)' doesn't take row locks on 't1'.
 connection default;
-Success: 'show columns from t2 where (select i from t1 where i = 1)' takes shared row locks on 't1'.
+Success: 'show columns from t2 where (select i from t1 where i = 1)' doesn't take row locks on 't1'.
 #
 # 2.12 UPDATE with a subquery.
 #
@@ -366,14 +362,10 @@ Success: 'update v2 set j= j-10 where j = 3' takes shared row locks on 't1'.
 # There is no need to take row locks on the table
 # being selected from in SF as the call to such function
 # won't get into the binary log.
-#
-# However in practice innodb takes strong lock on tables
-# being selected from within SF, when SF is called from
-# non SELECT statements like 'set' statement below.
 connection default;
 Success: 'select f1()' doesn't take row locks on 't1'.
 connection default;
-Success: 'set @a:= f1()' takes shared row locks on 't1'.
+Success: 'set @a:= f1()' doesn't take row locks on 't1'.
 #
 # 4.2 INSERT (or other statement which modifies data) with
 #     a stored function which does not modify data and uses
@@ -404,18 +396,14 @@ Success: 'set @a:= f2()' takes shared row locks on 't1'.
 #
 # Call to this function won't get to the
 # binary log and thus no locking is needed.
-#
-# However in practice innodb takes strong lock on tables
-# being selected from within SF, when SF is called from
-# non SELECT statements like 'set' statement below.
 connection default;
 Success: 'select f3()' doesn't take row locks on 't1'.
 connection default;
-Success: 'set @a:= f3()' takes shared row locks on 't1'.
+Success: 'set @a:= f3()' doesn't take row locks on 't1'.
 connection default;
 Success: 'select f4()' doesn't take row locks on 't1'.
 connection default;
-Success: 'set @a:= f4()' takes shared row locks on 't1'.
+Success: 'set @a:= f4()' doesn't take row locks on 't1'.
 #
 # 4.5. INSERT (or other statement which modifies data) with
 #      a stored function which does not modify data and reads
@@ -448,18 +436,14 @@ Success: 'set @a:= f5()' takes shared row locks on 't1'.
 #
 # Calls to such functions won't get into
 # the binary log and thus don't need row locks.
-#
-# However in practice innodb takes strong lock on tables
-# being selected from within SF, when SF is called from
-# non SELECT statements like 'set' statement below.
 connection default;
 Success: 'select f6()' doesn't take row locks on 't1'.
 connection default;
-Success: 'set @a:= f6()' takes shared row locks on 't1'.
+Success: 'set @a:= f6()' doesn't take row locks on 't1'.
 connection default;
 Success: 'select f7()' doesn't take row locks on 't1'.
 connection default;
-Success: 'set @a:= f7()' takes shared row locks on 't1'.
+Success: 'set @a:= f7()' doesn't take row locks on 't1'.
 #
 # 4.8 INSERT which uses stored function which
 #     doesn't modify data and reads a table
@@ -700,3 +684,4 @@ connection default;
 disconnect con1;
 # Clean-up.
 drop tables t1, t2;
+# End of 5.5 tests

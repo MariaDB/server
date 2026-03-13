@@ -2710,7 +2710,7 @@ int Rdb_key_def::unpack_binary_or_utf8_varchar_space_pad(
 */
 
 void Rdb_key_def::make_unpack_unknown(
-    const Rdb_collation_codec *codec MY_ATTRIBUTE((__unused__)),
+    const Rdb_collation_codec *,
     const Field *const field, Rdb_pack_field_context *const pack_ctx) {
   pack_ctx->writer->write(field->ptr, field->pack_length());
 }
@@ -2724,9 +2724,9 @@ void Rdb_key_def::make_unpack_unknown(
 */
 
 void Rdb_key_def::dummy_make_unpack_info(
-    const Rdb_collation_codec *codec MY_ATTRIBUTE((__unused__)),
-    const Field *field MY_ATTRIBUTE((__unused__)),
-    Rdb_pack_field_context *pack_ctx MY_ATTRIBUTE((__unused__))) {
+    const Rdb_collation_codec *,
+    const Field *,
+    Rdb_pack_field_context *) {
   // Do nothing
 }
 
@@ -2759,7 +2759,7 @@ int Rdb_key_def::unpack_unknown(Rdb_field_packing *const fpi,
 */
 
 void Rdb_key_def::make_unpack_unknown_varchar(
-    const Rdb_collation_codec *const codec MY_ATTRIBUTE((__unused__)),
+    const Rdb_collation_codec *,
     const Field *const field, Rdb_pack_field_context *const pack_ctx) {
   const auto f = static_cast<const Field_varstring *>(field);
   uint len = f->length_bytes == 1 ? (uint)*f->ptr : uint2korr(f->ptr);
@@ -3378,6 +3378,11 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
         m_skip_func = Rdb_key_def::skip_variable_space_pad;
         m_pack_func = Rdb_key_def::pack_with_varchar_space_pad;
         m_make_unpack_info_func = Rdb_key_def::dummy_make_unpack_info;
+#if __has_feature(memory_sanitizer)
+        // dummy_make_unpack_info doesn't use arguments but MSAN expects
+        // them to be initialized.
+        m_charset_codec = nullptr;
+#endif
         m_segment_size = get_segment_size_from_collation(cs);
         m_max_image_len =
             (max_image_len_before_chunks / (m_segment_size - 1) + 1) *
@@ -3451,6 +3456,15 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
                                       : Rdb_key_def::make_unpack_unknown;
         m_unpack_func = is_varchar ? Rdb_key_def::unpack_unknown_varchar
                                    : Rdb_key_def::unpack_unknown;
+#if __has_feature(memory_sanitizer)
+       // Rdb_key_def::make_unpack_info_unknown and
+       // Rdb_key_def::make_unpack_unknown_varchar when called
+       // via m_make_unpack_info_func do not make use of the m_charset_codec
+       // provided as an argument. MemorySanitizer doesn't make the logical
+       // there is no risk in m_charset_codec being uninitialized. Therefore we
+       // initialize to make MemorySanitizer satisified.
+       m_charset_codec = nullptr;
+#endif
       } else {
         // Same as above: we don't know how to restore the value from its
         // mem-comparable form.

@@ -1,0 +1,99 @@
+--echo #
+--echo # MDEV-37829 XA COMMIT ONE PHASE fails with "This xid does not
+--echo # exist" if a trigger references a SPIDER table
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+--source include/have_innodb.inc
+set spider_same_server_link= 1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+# See also spider/bugfix.xa_cmd for a case that is not a no-op on
+# the spider table
+
+# 1. SETUP: Create local InnoDB tables and one remote SPIDER table
+
+# Local table to be updated
+CREATE TABLE t (
+    id INT auto_increment NOT NULL,
+    name varchar(100) NULL,
+    CONSTRAINT test_pk PRIMARY KEY (id)
+) ENGINE=InnoDB;
+
+INSERT INTO t(id, name) VALUES(1,'test1');
+
+# Remote table target
+CREATE TABLE t2 (
+    id INT auto_increment NOT NULL,
+    name varchar(100) NULL,
+    CONSTRAINT test2_pk PRIMARY KEY (id)
+) ENGINE=InnoDB;
+
+# SPIDER table pointing to the remote target
+CREATE TABLE t3 (
+    id INT auto_increment NOT NULL,
+    name varchar(100) NULL,
+    CONSTRAINT test3_pk PRIMARY KEY (id)
+) ENGINE=SPIDER COMMENT='wrapper "mysql", srv "srv", table "t2"';
+
+
+# 2. SETUP: Create a procedure and trigger that reference the SPIDER table
+
+DELIMITER $$;
+
+CREATE PROCEDURE tProc()
+BEGIN
+    # This conditional logic is intentionally FALSE.
+    # The SELECT on the SPIDER table will never run.
+    SET @t := FALSE;
+    IF @t = TRUE THEN
+        SELECT name INTO @b FROM t3 WHERE id = 1;
+    END IF;
+END$$
+
+CREATE TRIGGER t_au
+AFTER UPDATE
+ON t FOR EACH ROW
+BEGIN
+    # This condition will also be false in our test case.
+    IF NEW.name = '3' THEN
+        CALL tProc();
+    END IF;
+END$$
+
+DELIMITER ;$$
+
+
+# 3. TEST CASE 1: Two-phase commit
+SELECT "Using 2PC...";
+XA START 'TESTTRX_2P';
+UPDATE t SET name = 'abc' WHERE ID = 1;
+SHOW WARNINGS;
+XA END 'TESTTRX_2P';
+XA PREPARE 'TESTTRX_2P';
+XA COMMIT 'TESTTRX_2P';
+
+# 4. TEST CASE 2: One-phase commit
+
+SELECT "Using 1PC...";
+XA START 'TESTTRX_1P';
+UPDATE t SET name = 'abc' WHERE ID = 1;
+SHOW WARNINGS;
+XA END 'TESTTRX_1P';
+XA COMMIT 'TESTTRX_1P' ONE PHASE;
+
+drop trigger t_au;
+drop procedure tProc;
+drop table t, t2, t3;
+
+drop server srv;
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

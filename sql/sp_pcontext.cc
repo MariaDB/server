@@ -75,6 +75,11 @@ bool sp_condition_value::equals(const sp_condition_value *cv) const
 }
 
 
+sp_type_def_list::sp_type_def_list()
+ :m_type_defs(PSI_INSTRUMENT_MEM)
+{ }
+
+
 void sp_pcontext::init(uint var_offset,
                        uint cursor_offset,
                        int num_case_expressions)
@@ -94,7 +99,7 @@ sp_pcontext::sp_pcontext()
   m_parent(NULL), m_pboundary(0),
   m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
-  m_handlers(PSI_INSTRUMENT_MEM), m_records(PSI_INSTRUMENT_MEM),
+  m_handlers(PSI_INSTRUMENT_MEM),
   m_children(PSI_INSTRUMENT_MEM), m_scope(REGULAR_SCOPE)
 {
   init(0, 0, 0);
@@ -107,7 +112,7 @@ sp_pcontext::sp_pcontext(sp_pcontext *prev, sp_pcontext::enum_scope scope)
   m_parent(prev), m_pboundary(0),
   m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
-  m_handlers(PSI_INSTRUMENT_MEM), m_records(PSI_INSTRUMENT_MEM),
+  m_handlers(PSI_INSTRUMENT_MEM),
   m_children(PSI_INSTRUMENT_MEM), m_scope(scope)
 {
   init(prev->m_var_offset + prev->m_max_var_index,
@@ -427,35 +432,15 @@ sp_condition_value *sp_pcontext::find_condition(const LEX_CSTRING *name,
 }
 
 
-bool sp_pcontext::add_record(THD *thd, const Lex_ident_column &name,
-                             Row_definition_list *field)
+sp_type_def *sp_pcontext::find_type_def(const LEX_CSTRING &name,
+                                        bool current_scope_only) const
 {
-  sp_record *p= new (thd->mem_root) sp_record(name, field);
-
-  if (p == NULL)
-    return true;
-
-  return m_records.append(p);
-}
-
-
-sp_record *sp_pcontext::find_record(const LEX_CSTRING *name,
-                                    bool current_scope_only) const
-{
-  size_t i= m_records.elements();
-
-  while (i--)
-  {
-    sp_record *p= m_records.at(i);
-
-    if (p->eq_name(name))
-    {
-      return p;
-    }
-  }
+  auto p= sp_type_def_list::find_type_def(name);
+  if (p)
+     return p;
 
   return (!current_scope_only && m_parent) ?
-    m_parent->find_record(name, false) :
+    m_parent->find_type_def(name, false) :
     NULL;
 }
 
@@ -754,6 +739,16 @@ const sp_pcursor *sp_pcontext::find_cursor(uint offset) const
 
 bool sp_pcursor::check_param_count_with_error(uint param_count) const
 {
+  /*
+    Here we check the number of declared parameters:
+      DECLARE c(pa INT) FOR SELECT * FROM t1 WHERE t1.a=pa;
+      OPEN c(10);
+    It has nothing to do with placeholder parameters.
+    They are passed using the <using input clause>:
+      DECLARE c FOR prepared_stmt;
+      PREPARE c FROM 'SELECT * FROM t1 WHERE a=?';
+      OPEN c USING 10;
+  */
   if (param_count != (m_param_context ?
                       m_param_context->context_var_count() : 0))
   {

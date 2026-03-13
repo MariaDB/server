@@ -151,6 +151,7 @@ extern char		*opt_incremental_history_uuid;
 
 extern char		*opt_user;
 extern const char	*opt_password;
+extern bool		free_opt_binlog_directory;
 extern char		*opt_host;
 extern char		*opt_defaults_group;
 extern char		*opt_socket;
@@ -178,6 +179,7 @@ extern const char	*opt_history;
 enum binlog_info_enum { BINLOG_INFO_OFF, BINLOG_INFO_LOCKLESS, BINLOG_INFO_ON,
 			BINLOG_INFO_AUTO};
 
+extern bool backup_binlog;
 extern ulong opt_binlog_info;
 
 extern ulong xtrabackup_innodb_force_recovery;

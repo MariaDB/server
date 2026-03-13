@@ -25,8 +25,6 @@ CREATE TEMPORARY TABLE tmp (a INT);
 
 --send CREATE TABLE non_existing_db.t SELECT 1 AS b
 --disconnect con1
---source include/wait_until_disconnected.inc
-
 --connection master
 if (`SELECT FIND_IN_SET(@@BINLOG_FORMAT,@@CREATE_TMP_TABLE_BINLOG_FORMATS) > 0`)
 {

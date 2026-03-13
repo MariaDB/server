@@ -846,7 +846,7 @@ group by first_name, last_name
 order by first_name
 fetch first 2 rows with ties;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	t1_name	t1_name	206	NULL	3	Using where; Using index for group-by
+1	SIMPLE	t1	range	t1_name	t1_name	206	NULL	3	Using where; Using index for group-by; Using temporary; Using filesort
 select first_name, last_name
 from t1
 where first_name != 'John'
@@ -871,7 +871,7 @@ select * from temp_table
 order by first_name, last_name;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using filesort
-2	DERIVED	t1	range	t1_name	t1_name	206	NULL	3	Using where; Using index for group-by
+2	DERIVED	t1	range	t1_name	t1_name	206	NULL	3	Using where; Using index for group-by; Using temporary; Using filesort
 with temp_table as (
 select first_name, last_name
 from t1
@@ -1462,3 +1462,88 @@ a	b
 3	bar
 3	zzz
 DROP TABLE t1;
+#
+# MDEV-37901: Wrong result with Loose Scan on QUICK_GROUP_MIN_MAX_SELECT WITH TIES
+#
+create table t1 (
+country varchar(100),
+city varchar(100),
+user_score int,
+index (country, city, user_score)
+);
+insert into t1
+select 'China', 'Shenzhen', seq from seq_10_to_100;
+insert into t1
+select 'India', 'New Delhi', seq from seq_10_to_100;
+insert into t1
+select 'Sri Lanka', 'Colombo', seq from seq_10_to_100;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+insert into t1
+select 'Finland', 'Espoo', seq from seq_10_to_200;
+insert into t1
+select 'Greece', 'Chania', seq from seq_10_to_20;
+insert into t1
+select 'Estonia', 'Narva', seq from seq_10_to_20;
+insert into t1
+select 'Russia', 'St Petersburg', seq from seq_10_to_20;
+# Must use "Using index for group-by":
+explain
+select country, city, min(user_score)
+from t1
+where user_score between 9 and 199
+group by country, city
+order by country
+fetch first 5 rows with ties;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	country	811	NULL	4	Using where; Using index for group-by; Using temporary; Using filesort
+# Must not use "Using index for group-by":
+explain
+select country, city, sum(user_score)
+from t1
+where user_score between 9 and 199
+group by country, concat(city,'AA')
+order by country
+fetch first 5 rows with ties;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	country	811	NULL	273	Using where; Using index; Using temporary; Using filesort
+select country, city, sum(user_score)
+from t1
+where user_score between 9 and 199
+group by country, concat(city,'AA')
+order by country
+fetch first 5 rows with ties;
+country	city	sum(user_score)
+China	Shenzhen	5005
+Estonia	Narva	165
+Finland	Espoo	19855
+Greece	Chania	165
+India	New Delhi	5005
+# both using index and index with group by should produce same result
+select country, city, min(user_score)
+from t1
+where user_score between 9 and 199
+group by country, city
+order by country
+fetch first 5 rows with ties;
+country	city	min(user_score)
+China	Shenzhen	10
+Estonia	Narva	10
+Finland	Espoo	10
+Greece	Chania	10
+India	New Delhi	10
+select country, city, min(user_score)
+from t1 use index()
+where user_score between 9 and 199
+group by country, city
+order by country
+fetch first 5 rows with ties;
+country	city	min(user_score)
+China	Shenzhen	10
+Estonia	Narva	10
+Finland	Espoo	10
+Greece	Chania	10
+India	New Delhi	10
+drop table t1;

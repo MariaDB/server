@@ -68,12 +68,11 @@ is acceptable for the program to die with a clear assert failure. */
 
 /**************************************************************//**
 Checks and adjusts the root node of a tree during IMPORT TABLESPACE.
-@return error code, or DB_SUCCESS */
-dberr_t
-btr_root_adjust_on_import(
-/*======================*/
-	const dict_index_t*	index)	/*!< in: index tree */
-	MY_ATTRIBUTE((warn_unused_result));
+@param trx    transaction
+@param index  index tree
+@return error code */
+dberr_t btr_root_adjust_on_import(trx_t *trx, const dict_index_t *index)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Check a file segment header within a B-tree root page.
 @param offset      file segment header offset
@@ -185,8 +184,9 @@ void btr_free_if_exists(fil_space_t *space, uint32_t page,
                         index_id_t index_id, mtr_t *mtr);
 
 /** Drop a temporary table
+@param trx    transaction
 @param table   temporary table */
-void btr_drop_temporary_table(const dict_table_t &table);
+void btr_drop_temporary_table(trx_t *trx, const dict_table_t &table);
 
 /** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC.
 @param[in,out]	index	clustered index
@@ -210,13 +210,15 @@ uint64_t btr_read_autoinc_with_fallback(const dict_table_t *table,
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Write the next available AUTO_INCREMENT value to PAGE_ROOT_AUTO_INC.
+@param[in,out]	trx	transaction
 @param[in,out]	index	clustered index
 @param[in]	autoinc	the AUTO_INCREMENT value
 @param[in]	reset	whether to reset the AUTO_INCREMENT
 			to a possibly smaller value than currently
 			exists in the page */
 void
-btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset = false)
+btr_write_autoinc(trx_t *trx, dict_index_t *index, uint64_t autoinc,
+		  bool reset = false)
 	MY_ATTRIBUTE((nonnull));
 
 /** Write instant ALTER TABLE metadata to a root page.
@@ -506,8 +508,8 @@ dberr_t
 btr_validate_index(
 /*===============*/
 	dict_index_t*	index,	/*!< in: index */
-	const trx_t*	trx)	/*!< in: transaction or 0 */
-	MY_ATTRIBUTE((warn_unused_result));
+	trx_t*		trx)	/*!< in: transaction */
+	MY_ATTRIBUTE((warn_unused_result,nonnull));
 
 /** Remove a page from the level list of pages.
 @param[in]	block		page to remove

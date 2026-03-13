@@ -128,7 +128,10 @@ DROP TRIGGER trg;
 ####################################
 SELECT schema_name, digest, digest_text, count_star FROM performance_schema.events_statements_summary_by_digest;
 schema_name	digest	digest_text	count_star
-SELECT digest, digest_text FROM performance_schema.events_statements_current;
+SELECT digest, digest_text FROM performance_schema.events_statements_current
+INNER JOIN performance_schema.threads
+ON events_statements_current.thread_id=threads.thread_id
+WHERE threads.processlist_id=connection_id();
 digest	digest_text
 NULL	NULL
 ####################################

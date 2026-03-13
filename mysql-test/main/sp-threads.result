@@ -3,7 +3,6 @@ connect  con2root,localhost,root,,;
 connect  con3root,localhost,root,,;
 connection con1root;
 use test;
-drop table if exists t1;
 create table t1 (s1 int, s2 int, s3 int);
 create procedure bug4934()
 begin

@@ -4,6 +4,9 @@ Description=MariaDB @VERSION@ database server (socket activation)
 Documentation=man:mariadbd(8)
 Documentation=https://mariadb.com/kb/en/library/systemd/
 
+[Install]
+WantedBy=sockets.target
+
 [Socket]
 
 ##############################################################################

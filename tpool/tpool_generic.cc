@@ -46,43 +46,6 @@ namespace tpool
   static const std::chrono::milliseconds LONG_TASK_DURATION = std::chrono::milliseconds(500);
   static const int  OVERSUBSCRIBE_FACTOR = 2;
 
-/**
-  Process the cb synchronously
-*/
-void aio::synchronous(aiocb *cb)
-{
-#ifdef _WIN32
-  size_t ret_len;
-#else
-  ssize_t ret_len;
-#endif
-  int err= 0;
-  switch (cb->m_opcode)
-  {
-  case aio_opcode::AIO_PREAD:
-    ret_len= pread(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
-    break;
-  case aio_opcode::AIO_PWRITE:
-    ret_len= pwrite(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
-    break;
-  default:
-    abort();
-  }
-#ifdef _WIN32
-  if (static_cast<int>(ret_len) < 0)
-    err= GetLastError();
-#else
-  if (ret_len < 0)
-  {
-    err= errno;
-    ret_len= 0;
-  }
-#endif
-  cb->m_ret_len = ret_len;
-  cb->m_err = err;
-  if (ret_len)
-    finish_synchronous(cb);
-}
 
 
 /**
@@ -393,7 +356,9 @@ public:
     */
     void set_period(int period_ms)
     {
-      std::unique_lock<std::mutex> lk(m_mtx);
+      std::unique_lock<std::mutex> lk(m_mtx, std::defer_lock);
+      if (!lk.try_lock())
+        return;
       if (!m_on)
         return;
       if (!m_pool)

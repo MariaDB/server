@@ -54,6 +54,7 @@ Some Secret P4ssw0rd
 insert into secret_db.t1 values ("|_33T|-|4><");
 ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table `secret_db`.`t1`
 connection default;
+disconnect test_user;
 drop role test_ROLE;
 drop role test_role;
 drop user test_user;

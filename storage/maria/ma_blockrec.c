@@ -448,8 +448,10 @@ my_bool _ma_once_end_block_record(MARIA_SHARE *share)
   int res= _ma_bitmap_end(share);
   if (share->bitmap.file.file >= 0)
   {
-    if (flush_pagecache_blocks(share->pagecache, &share->bitmap.file,
-                       share->deleting ? FLUSH_IGNORE_CHANGED : FLUSH_RELEASE))
+    if (share->pagecache &&
+        flush_pagecache_blocks(share->pagecache, &share->bitmap.file,
+                               share->deleting ?
+                               FLUSH_IGNORE_CHANGED : FLUSH_RELEASE))
       res= 1;
     /*
       File must be synced as it is going out of the maria_open_list and so
@@ -953,14 +955,13 @@ void copy_not_changed_fields(MARIA_HA *info, MY_BITMAP *changed_fields,
                              uchar *to, uchar *from)
 {
   MARIA_COLUMNDEF *column, *end_column;
-  uchar *bitmap= (uchar*) changed_fields->bitmap;
   MARIA_SHARE *share= info->s;
-  uint bit= 1;
+  uint bit= 0;
 
   for (column= share->columndef, end_column= column+ share->base.fields;
-       column < end_column; column++)
+       column < end_column; column++, bit++)
   {
-    if (!(*bitmap & bit))
+    if (!bitmap_is_set(changed_fields, bit))
     {
       uint field_length= column->length;
       if (column->type == FIELD_VARCHAR)
@@ -971,11 +972,6 @@ void copy_not_changed_fields(MARIA_HA *info, MY_BITMAP *changed_fields,
           field_length= uint2korr(from + column->offset) + 2;
       }
       memcpy(to + column->offset, from + column->offset, field_length);
-    }
-    if ((bit= (bit << 1)) == 256)
-    {
-      bitmap++;
-      bit= 1;
     }
   }
 }
@@ -7617,7 +7613,7 @@ void _ma_print_block_info(MARIA_SHARE *share, uchar *buff)
          (uint)buff[DIR_COUNT_OFFSET],
          (uint)buff[DIR_FREE_OFFSET],
          (uint) uint2korr(buff + EMPTY_SPACE_OFFSET));
-  printf("Start of directory: %lu\n",
+  printf("Start of directory: %u\n",
          maria_block_size - PAGE_SUFFIX_SIZE -
          (uint) buff[DIR_COUNT_OFFSET] * DIR_ENTRY_SIZE);
   _ma_print_directory(share, stdout, buff, maria_block_size);

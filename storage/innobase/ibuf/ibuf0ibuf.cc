@@ -729,7 +729,7 @@ static dberr_t ibuf_merge(fil_space_t *space, btr_cur_t *cur, mtr_t *mtr)
   if (!block);
   else if (fil_page_get_type(block->page.frame) != FIL_PAGE_INDEX ||
            !page_is_leaf(block->page.frame) ||
-           DB_SUCCESS == fseg_page_is_allocated(space, page_no))
+           DB_SUCCESS == fseg_page_is_allocated(mtr, space, page_no))
     block= nullptr;
   else
     buffered= ibuf_bitmap_buffered(bitmap, block->page.id().page_no());
@@ -919,7 +919,7 @@ ATTRIBUTE_COLD dberr_t ibuf_upgrade()
 
   size_t spaces=0, pages= 0;
   dberr_t err;
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   mtr_x_lock_index(ibuf_index, &mtr);
 
@@ -1025,7 +1025,7 @@ ATTRIBUTE_COLD dberr_t ibuf_upgrade()
 
 dberr_t ibuf_upgrade_needed()
 {
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
   mtr.start();
   mtr.x_lock_space(fil_system.sys_space);
   dberr_t err;
@@ -1046,10 +1046,13 @@ dberr_t ibuf_upgrade_needed()
   if (!root)
     goto err_exit;
 
+  const size_t payload= fil_system.sys_space->full_crc32() ||
+    !fil_system.sys_space->crypt_data
+    ? FIL_PAGE_TYPE : FIL_PAGE_SPACE_ID;
+
   if (UNIV_LIKELY(!page_has_siblings(root->page.frame)) &&
-      UNIV_LIKELY(!memcmp(root->page.frame + FIL_PAGE_TYPE, field_ref_zero,
-                          srv_page_size -
-                          (FIL_PAGE_DATA_END + FIL_PAGE_TYPE))))
+      UNIV_LIKELY(!memcmp(root->page.frame + payload, field_ref_zero,
+                          srv_page_size - (FIL_PAGE_DATA_END + payload))))
     /* the change buffer was removed; no need to upgrade */;
   else if (page_is_comp(root->page.frame) ||
            btr_page_get_index_id(root->page.frame) != ibuf_index_id ||

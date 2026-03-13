@@ -28,16 +28,18 @@ DROP TABLE t1;
 connection node_1;
 connection node_2;
 connection node_3;
-RESET MASTER;
 connection node_1;
 STOP SLAVE;
 RESET SLAVE ALL;
 SET GLOBAL WSREP_ON=OFF;
+include/kill_binlog_dump_threads.inc
 reset master;
 SET GLOBAL WSREP_ON=ON;
 connection node_2;
 SET GLOBAL WSREP_ON=OFF;
+include/kill_binlog_dump_threads.inc
 reset master;
 SET GLOBAL WSREP_ON=ON;
 connection node_3;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;

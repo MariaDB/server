@@ -34,12 +34,14 @@ select @@global.read_only;
 ON
 alter user foo;
 ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
+disconnect a;
 # Grant READ_ONLY ADMIN privilege to the user.
 connection default;
 grant READ_ONLY ADMIN on *.* to foo;
 # We now have READ_ONLY ADMIN privilege. We should be able to run alter user.
 connect  b, localhost, foo;
 alter user foo;
+disconnect b;
 connection default;
 SET GLOBAL read_only = @start_read_only;
 #

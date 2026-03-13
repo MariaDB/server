@@ -1,9 +1,6 @@
 # Grant tests not performed with embedded server
 -- source include/not_embedded.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
 
 set GLOBAL sql_mode="";
@@ -14,19 +11,6 @@ SET NAMES binary;
 # GRANT tests that require several connections
 # (usually it's GRANT, reconnect as another user, try something)
 #
-
-
-# prepare playground before tests
---disable_warnings
-drop database if exists mysqltest;
-drop database if exists mysqltest_1;
---enable_warnings
-delete from mysql.user where user like 'mysqltest\_%';
-delete from mysql.db where user like 'mysqltest\_%';
-delete from mysql.tables_priv where user like 'mysqltest\_%';
-delete from mysql.columns_priv where user like 'mysqltest\_%';
-flush privileges;
-
 
 grant all privileges on `my\_1`.* to mysqltest_1@localhost with grant option;
 grant create user on *.* to mysqltest_1@localhost;
@@ -233,7 +217,7 @@ grant insert on test.* to 'mysqltest_2';
 grant update on test.t1 to 'mysqltest_2';
 grant update (c2) on test.t2 to 'mysqltest_2';
 --sorted_result
-select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%';
+select Host,User,Password,plugin,authentication_string from mysql.user where user like 'mysqltest_%';
 --sorted_result
 select host,db,user from mysql.db where user like 'mysqltest_%';
 --sorted_result
@@ -246,7 +230,7 @@ show grants for 'mysqltest_2';
 # Drop
 drop user 'mysqltest_1';
 --sorted_result
-select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%';
+select Host,User,Password,plugin,authentication_string from mysql.user where user like 'mysqltest_%';
 --sorted_result
 select host,db,user from mysql.db where user like 'mysqltest_%';
 --sorted_result
@@ -259,7 +243,7 @@ show grants for 'mysqltest_1';
 # Rename
 rename user 'mysqltest_2' to 'mysqltest_1';
 --sorted_result
-select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
+select Host,User,Password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
 --sorted_result
 select host,db,user from mysql.db where user like 'mysqltest_%' ;
 --sorted_result
@@ -401,7 +385,7 @@ select current_user();
 set password = password('changed');
 disconnect b12302;
 connection default;
-select host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
+select Host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
 revoke all on mysqltest_1.* from mysqltest_1@'127.0.0.1';
 delete from mysql.user where user like 'mysqltest\_1';
 flush privileges;
@@ -412,7 +396,7 @@ select current_user();
 set password = password('changed');
 disconnect b12302_2;
 connection default;
-select host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
+select Host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
 revoke all on mysqltest_1.* from mysqltest_1@'127.0.0.0/255.0.0.0';
 delete from mysql.user where user like 'mysqltest\_1';
 flush privileges;
@@ -1022,7 +1006,4 @@ DROP USER mysqltest_u3@localhost;
 DROP USER mysqltest_u4@localhost;
 DROP USER mysqltest_u5@localhost;
 
-
 set GLOBAL sql_mode=default;
-# Wait till we reached the initial number of concurrent sessions
---source include/wait_until_count_sessions.inc

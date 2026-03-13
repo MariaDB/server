@@ -27,7 +27,8 @@ Created May 26, 2009 Vasil Dimov
 #pragma once
 #include "ut0byte.h"
 
-/** All persistent tablespaces have a smaller fil_space_t::id than this. */
+/** All persistent tablespaces (except binlog tablespaces) have a smaller
+fil_space_t::id than this. */
 constexpr uint32_t SRV_SPACE_ID_UPPER_BOUND= 0xFFFFFFF0U;
 /** The fil_space_t::id of the innodb_temporary tablespace. */
 constexpr uint32_t SRV_TMP_SPACE_ID= 0xFFFFFFFEU;
@@ -149,6 +150,7 @@ enum fsp_reserve_t {
 	FSP_CLEANING,	/* reservation done during purge operations */
 	FSP_BLOB	/* reservation being done for BLOB insertion */
 };
+#endif /* UNIV_INNOCHECKSUM */
 
 /* Number of pages described in a single descriptor page: currently each page
 description takes less than 1 byte; a descriptor page is repeated every
@@ -181,6 +183,7 @@ every XDES_DESCRIBED_PER_PAGE pages in every tablespace. */
 /*--------------------------------------*/
 /* @} */
 
+#ifndef UNIV_INNOCHECKSUM
 /** Check if tablespace is system temporary.
 @param[in]      space_id        verify is checksum is enabled for given space.
 @return true if tablespace is system temporary. */

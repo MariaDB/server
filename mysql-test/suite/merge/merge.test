@@ -4,9 +4,6 @@
 
 --source include/test_db_charset_latin1.inc
 
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
-
 # MERGE tables require MyISAM tables
 set @save_default_storage_engine=@@global.default_storage_engine;
 set global default_storage_engine=myisam;
@@ -523,7 +520,7 @@ INSERT INTO t2 VALUES ('ss',2),(0xDF,2);
 SELECT COUNT(*) FROM t3 WHERE a=0xDF AND b=2;
 DROP TABLE t1,t2,t3;
 
-# End of 4.1 tests
+--echo # End of 4.1 tests
 
 #
 # BUG#19648 - Merge table does not work with bit types
@@ -632,7 +629,7 @@ SELECT * FROM m1;
 SELECT * FROM m2;
 DROP TABLE t1, t2, m1, m2;
 
---echo End of 5.0 tests
+--echo # End of 5.0 tests
 
 
 #
@@ -1829,7 +1826,7 @@ alter table tm_temp_temp insert_method=first;
 check table tm_temp_temp;
 drop temporary table t1_temp, tm_temp_temp;
 
---echo End of 5.1 tests
+--echo # End of 5.1 tests
 
 --echo # 
 --echo # MDEV-4277: Crash inside mi_killed_in_mariadb() with myisammrg
@@ -1866,7 +1863,7 @@ select * from t2, t5 where t5.a=999 and t5.b=999;
 drop table t5;
 drop table t1,t2,t3,t4;
 
---echo End of 5.3 tests
+--echo # End of 5.3 tests
 
 #
 # BUG#35274 - merge table doesn't need any base tables, gives error 124 when
@@ -2773,9 +2770,7 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, tmerge;
 
---echo #
 --echo # End of 5.5 tests
---echo #
 
 --echo #
 --echo # Additional coverage for refactoring which is made as part
@@ -2846,10 +2841,6 @@ DROP TABLE m1;
 
 set global default_storage_engine=@save_default_storage_engine;
 
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc
-
 --echo #
 --echo # MDEV-31083 ASAN use-after-poison in myrg_attach_children
 --echo #
@@ -2860,11 +2851,7 @@ CREATE TABLE mrg (f TEXT) ENGINE=MERGE, UNION(t1);
 SELECT * FROM mrg;
 DROP TABLE mrg, t1;
 
---echo End of 10.5 tests
-
---echo #
 --echo # End of 10.0 tests
---echo #
 
 --echo #
 --echo # MDEV-27407 Different ASC/DESC index attributes on MERGE and underlying table can cause wrong results
@@ -2886,9 +2873,23 @@ insert into tm () values ();
 select * from tm;
 drop table tm, t;
 
---echo #
 --echo # End of 10.8 tests
+
 --echo #
+--echo # MDEV-35816 ASAN use-after-poison in st_select_lex::print
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 (a) VALUES (1),(2),(3),(4),(5);
+SET SESSION optimizer_trace = 'enabled=on';
+PREPARE stmt FROM 'SELECT STRAIGHT_JOIN * FROM t1 WHERE a IN (WITH cte AS (SELECT a FROM t1) SELECT * FROM cte)';
+EXECUTE stmt;
+EXECUTE stmt;
+PREPARE nested FROM 'SELECT STRAIGHT_JOIN * FROM t1 WHERE a IN (WITH cte AS (WITH cte2 AS (SELECT a FROM t1) SELECT * from cte2) SELECT * FROM cte)';
+EXECUTE nested;
+EXECUTE nested;
+DROP TABLE t1;
+
+--echo # End of 10.11 tests
 
 --echo #
 --echo # MDEV-30088 Assertion `cond_selectivity <= 1.0' failed in get_range_limit_read_cost
@@ -2935,9 +2936,8 @@ EXPLAIN SELECT DISTINCT a FROM t1;
 drop table t1;
 set use_stat_tables=default;
 
---echo #
 --echo # End of 11.0 tests
---echo #
+
 --echo #
 --echo # MDEV-29174: UPDATE of view that uses MERGE table
 --echo #
@@ -2949,5 +2949,4 @@ DROP VIEW v1;
 DROP TABLE t1;
 
 --echo # End of 11.1 tests
-
 --source include/test_db_charset_restore.inc

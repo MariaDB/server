@@ -31,6 +31,9 @@ Created 11/26/1995 Heikki Tuuri
 #include "buf0buf.h"
 #include "small_vector.h"
 
+struct fsp_binlog_page_entry;
+
+
 /** Start a mini-transaction. */
 #define mtr_start(m)		(m)->start()
 
@@ -63,10 +66,13 @@ struct mtr_memo_slot_t
   void release() const;
 };
 
+class buf_dblwr_t;
+
 /** Mini-transaction handle and buffer */
 struct mtr_t {
-  mtr_t();
+  mtr_t(trx_t *trx/*= nullptr*/);
   ~mtr_t();
+  friend buf_dblwr_t;
 
   /** Start a mini-transaction. */
   void start();
@@ -429,10 +435,16 @@ public:
     m_memo.emplace_back(mtr_memo_slot_t{object, type});
   }
 
-  /** @return the size of the log is empty */
-  size_t get_log_size() const { return m_log.size(); }
+  /** @return the size of the log */
+  size_t get_log_size() const noexcept
+  {
+    size_t len= 0;
+    for (const mtr_buf_t::block_t &b : m_log)
+      len+= b.used();
+    return len;
+  }
   /** @return whether the log and memo are empty */
-  bool is_empty() const { return !get_savepoint() && !get_log_size(); }
+  bool is_empty() const { return !get_savepoint() && m_log.empty(); }
 
   /** Write an OPT_PAGE_CHECKSUM record. */
   inline void page_checksum(const buf_page_t &bpage);
@@ -612,10 +624,11 @@ public:
   @param type           file operation
   @param space_id       tablespace identifier
   @param path           file path
-  @param new_path       new file path for type=FILE_RENAME */
-  inline void log_file_op(mfile_type_t type, uint32_t space_id,
-                          const char *path,
-                          const char *new_path= nullptr);
+  @param new_path       new file path for type=FILE_RENAME
+  @return number of bytes written */
+  inline size_t log_file_op(mfile_type_t type, uint32_t space_id,
+                            const char *path,
+                            const char *new_path= nullptr) noexcept;
 
   /** Add freed page numbers to freed_pages */
   void add_freed_offset(fil_space_t *space, uint32_t page)
@@ -640,16 +653,9 @@ public:
   /** Note that log_sys.latch is no longer being held exclusively. */
   void flag_wr_unlock() noexcept { ut_ad(m_latch_ex); m_latch_ex= false; }
 
-  /** type of page flushing is needed during commit() */
-  enum page_flush_ahead
-  {
-    /** no need to trigger page cleaner */
-    PAGE_FLUSH_NO= 0,
-    /** asynchronous flushing is needed */
-    PAGE_FLUSH_ASYNC,
-    /** furious flushing is needed */
-    PAGE_FLUSH_SYNC
-  };
+  /* Binlog page release at mtr commit. */
+  fsp_binlog_page_entry *get_binlog_page() { return m_binlog_page; }
+  void set_binlog_page(fsp_binlog_page_entry *page) { m_binlog_page= page; }
 
 private:
   /** Handle any pages that were freed during the mini-transaction. */
@@ -686,39 +692,62 @@ private:
   tablespace was modified for the first time since fil_names_clear(). */
   ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void name_write() noexcept;
 
-  /** Encrypt the log */
-  ATTRIBUTE_NOINLINE void encrypt();
+  /** Encrypt the log
+  @return the total size in bytes, excluding the 8-byte nonce */
+  ATTRIBUTE_NOINLINE size_t encrypt() noexcept;
+
+  /** Calculate m_crc of m_log.
+  @return the total size in bytes, including the 5-byte trailer and CRC-32C */
+  ATTRIBUTE_NOINLINE size_t crc32c() noexcept;
 
   /** Commit the mini-transaction log.
   @tparam pmem log_sys.is_mmap()
   @param mtr   mini-transaction
-  @param lsns  {start_lsn,flush_ahead} */
+  @param lsns  {start_lsn,flush_ahead_lsn} */
   template<bool pmem>
-  static void commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
-    noexcept;
+  static void commit_log(mtr_t *mtr, std::pair<lsn_t,lsn_t> lsns) noexcept;
+
+  /** Release log_sys.latch. */
+  void commit_log_release() noexcept;
 
   /** Append the redo log records to the redo log buffer.
-  @return {start_lsn,flush_ahead} */
-  std::pair<lsn_t,page_flush_ahead> do_write();
+  @return {start_lsn,flush_ahead_lsn} */
+  std::pair<lsn_t,lsn_t> do_write() noexcept;
 
   /** Append the redo log records to the redo log buffer.
   @tparam mmap log_sys.is_mmap()
   @param mtr   mini-transaction
   @param len   number of bytes to write
-  @return {start_lsn,flush_ahead} */
+  @return {start_lsn,flush_ahead_lsn} */
   template<bool mmap> static
-  std::pair<lsn_t,page_flush_ahead> finish_writer(mtr_t *mtr, size_t len);
+  std::pair<lsn_t,lsn_t> finish_writer(mtr_t *mtr, size_t len);
 
   /** The applicable variant of commit_log() */
-  static void (*commit_logger)(mtr_t *, std::pair<lsn_t,page_flush_ahead>);
+  static void (*commit_logger)(mtr_t *, std::pair<lsn_t,lsn_t>);
   /** The applicable variant of finish_writer() */
-  static std::pair<lsn_t,page_flush_ahead> (*finisher)(mtr_t *, size_t);
+  static std::pair<lsn_t,lsn_t> (*finisher)(mtr_t *, size_t);
 
-  std::pair<lsn_t,page_flush_ahead> finish_write(size_t len)
+  std::pair<lsn_t,lsn_t> finish_write(size_t len)
   { return finisher(this, len); }
 public:
   /** Update finisher when spin_wait_delay is changing to or from 0. */
   static void finisher_update();
+
+  /** Decode the length of a record.
+  @param l     log record
+  @param size  total size of the record
+  @return the log record payload after the encoded length */
+  static const byte *parse_length(const byte *l, uint32_t *size) noexcept;
+
+  /** Write binlog data
+  @param page_id   binlog file id and page number
+  @param offset    offset within the page
+  @param buf       data
+  @param size      size of data
+  @return */
+  void write_binlog(page_id_t page_id, uint16_t offset,
+                    const void *buf, size_t size) noexcept;
+
 private:
 
   /** Release all latches. */
@@ -768,6 +797,12 @@ private:
 
   /** CRC-32C of m_log */
   uint32_t m_crc;
+public:
+  /** dummy or real transaction associated with the mini-transaction */
+  trx_t *const trx;
+private:
+  /** user tablespace that is being modified by the mini-transaction */
+  fil_space_t *m_user_space;
 
 #ifdef UNIV_DEBUG
   /** Persistent user tablespace associated with the
@@ -781,9 +816,6 @@ private:
   /** mini-transaction log */
   mtr_buf_t m_log;
 
-  /** user tablespace that is being modified by the mini-transaction */
-  fil_space_t* m_user_space;
-
   /** LSN at commit time */
   lsn_t m_commit_lsn;
 
@@ -791,4 +823,6 @@ private:
   fil_space_t *m_freed_space= nullptr;
   /** set of freed page ids */
   range_set *m_freed_pages= nullptr;
+  /** Latched binlog page to release at mtr commit*/
+  fsp_binlog_page_entry *m_binlog_page;
 };

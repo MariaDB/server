@@ -160,6 +160,8 @@ xa rollback '1';
 ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 connection master;
 xa rollback '1';
+disconnect master2;
+disconnect slave2;
 connection master;
 drop user test;
 drop table t1;

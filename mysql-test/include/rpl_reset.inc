@@ -31,6 +31,9 @@
 #     Set the timeout when waiting for slave threads to stop and
 #     start, respectively.  See include/wait_for_slave_param.inc
 #
+#   $rpl_skip_sync
+#     Don't sync the slaves before resetting them.
+#
 # Note:
 #   This script will fail if Last_SQL_Error or Last_IO_Error is
 #   nonempty.  If you expect an error in the SQL thread, you should
@@ -50,7 +53,10 @@ if (!$rpl_debug)
 }
 
 
---source include/rpl_sync.inc
+if (!$rpl_skip_sync)
+{
+  --source include/rpl_sync.inc
+}
 
 
 if ($rpl_debug)
@@ -63,11 +69,26 @@ while ($_rpl_server)
   --let $rpl_connection_name= server_$_rpl_server
   --source include/rpl_connection.inc
 
-  RESET MASTER;
   # Check if this server is configured to have a master
   if (`SELECT SUBSTRING('$rpl_master_list', 1 + ($_rpl_server - 1) * $rpl_server_count_length, $rpl_server_count_length) != ''`)
   {
     --source include/stop_slave.inc
+  }
+  --dec $_rpl_server
+}
+
+--let $_rpl_server= $rpl_server_count
+while ($_rpl_server)
+{
+  --let $rpl_connection_name= server_$_rpl_server
+  --source include/rpl_connection.inc
+
+  --source include/kill_binlog_dump_threads.inc
+  RESET MASTER;
+
+  # Check if this server is configured to have a master
+  if (`SELECT SUBSTRING('$rpl_master_list', 1 + ($_rpl_server - 1) * $rpl_server_count_length, $rpl_server_count_length) != ''`)
+  {
     --source include/reset_slave.inc
   }
   --dec $_rpl_server

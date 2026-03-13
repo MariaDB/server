@@ -276,7 +276,7 @@ ret_error:
    If keys are packed, then smaller or identical key is stored in buff
 
   @return
-  @retval <0, 0 , >0 depending on if if found is smaller, equal or bigger than
+  @retval <0, 0 , >0 depending on if found is smaller, equal or bigger than
           'key'
   @retval ret_pos   Points to where the identical or bigger key starts
   @retval last_key  Set to 1 if key is the last key in the page.

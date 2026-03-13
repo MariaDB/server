@@ -1,0 +1,28 @@
+#
+# MDEV-32397 join_read_first, keyread SEGV crash
+#
+CREATE TABLE t1 ( a double, key (a)) ;
+INSERT INTO t1 VALUES (1),(2),(-3);
+# We disable the result log because RAND() is unpredictable and seeding RAND
+# doesn't make it stable when using the PS protocol.
+--disable_result_log
+SELECT t1.a FROM ( SELECT a AS a1 FROM t1 ) dt
+JOIN t1 ON a1  LIKE EXISTS ( SELECT a + RAND () FROM t1 UNION SELECT a FROM t1) ;
+--enable_result_log
+DROP TABLE t1;
+
+#
+# MDEV-32403 test_if_quick_select: Segv
+#
+CREATE TABLE t1 ( a VARCHAR(100), b bool) ;
+INSERT INTO t1 VALUES ('-101',-87),('-95',59),(NULL,48);
+# We disable the result log because RAND() is unpredictable and seeding RAND
+# doesn't make it stable when using the PS protocol.
+--disable_result_log
+SELECT
+       (SELECT 1 FROM  (SELECT 1 HAVING rand() ) dt1
+	UNION
+	SELECT a FROM t1  WHERE b IN  (SELECT a FROM t1) LIMIT 1)
+FROM t1;
+--enable_result_log
+DROP TABLE t1;

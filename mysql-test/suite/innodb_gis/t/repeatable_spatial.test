@@ -95,7 +95,6 @@ SELECT COUNT(*) FROM tab;
 COMMIT;
 
 disconnect con2;
---source include/wait_until_disconnected.inc
 
 --echo "In connection 1"
 connection con1;
@@ -120,8 +119,6 @@ SELECT COUNT(*) FROM tab;
 SELECT c1,ST_AsText(c2),ST_AsText(c4),ST_AsText(c5) FROM tab;
 
 disconnect con1;
---source include/wait_until_disconnected.inc
-
 --connection default
 DROP TABLE tab; 
 
@@ -210,7 +207,6 @@ SELECT COUNT(*) FROM tab;
 COMMIT;
 
 disconnect con2;
---source include/wait_until_disconnected.inc
 
 --echo "In connection 1"
 connection con1;
@@ -235,7 +231,5 @@ SELECT COUNT(*) FROM tab;
 SELECT c1,ST_AsText(c2),ST_AsText(c4),ST_AsText(c5) FROM tab;
 
 disconnect con1;
---source include/wait_until_disconnected.inc
-
 --connection default
 DROP TABLE tab; 

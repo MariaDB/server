@@ -140,6 +140,7 @@ log                               (No default value)
 leaf                              FALSE
 merge                             0
 skip-freed-pages                  FALSE
+tablespace-flags                  4294967295
 [5]: Page type dump for with shortform for tab1.ibd
 
 

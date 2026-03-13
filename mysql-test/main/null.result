@@ -440,6 +440,9 @@ NOT NOT NULLIF(2,3)
 #
 # MDEV-7146 NULLIF returns unexpected result with a YEAR field
 #
+set old_mode=2_DIGIT_YEAR;
+Warnings:
+Warning	1287	'2_DIGIT_YEAR' is deprecated and will be removed in a future release
 CREATE TABLE t1 (a YEAR(2));
 Warnings:
 Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
@@ -451,6 +454,7 @@ SELECT a,NULLIF(a,2001),NULLIF(2001,a) FROM t1;
 a	NULLIF(a,2001)	NULLIF(2001,a)
 00	0	2001
 DROP TABLE t1;
+set old_mode=DEFAULT;
 #
 # MDEV-7005 NULLIF does not work as documented
 #

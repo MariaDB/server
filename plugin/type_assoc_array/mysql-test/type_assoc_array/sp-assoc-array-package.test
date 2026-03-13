@@ -1,0 +1,11 @@
+SET sql_mode=oracle;
+SET NAMES utf8mb4;
+
+--echo #
+--echo # MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+--echo #
+
+--source sp-assoc-array-package-00.inc
+--source sp-assoc-array-package-01.inc
+--source sp-assoc-array-package-02.inc
+--source sp-assoc-array-package-03.inc

@@ -34,11 +34,6 @@
 #include "field.h"
 #include "key.h"
 
-#if MYSQL_VERSION_ID	< 100000
-// Allow compatibility with build for 5.5.32
-#define user_defined_key_parts key_parts
-#endif
-
 static int debugid = 0;
 
 oqgraph3::vertex_id oqgraph3::edge_info::origid() const

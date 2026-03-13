@@ -1,0 +1,17 @@
+--echo #
+--echo # MDEV-38523 Freeing unallocated data THD::set_db when path-resolved routine in trigger
+--echo #
+create procedure p1() flush tables;
+create database test1;
+use test1;
+create table t1 (c int);
+set path 'test,test1';
+create trigger trg before insert on t1 for each row call p1;
+create temporary table tmp1 (a int);
+drop table tmp1;
+select * from t1;
+drop database test1;
+use test;
+drop procedure p1;
+
+--echo # End of 12.3 tests

@@ -7,6 +7,9 @@
 --source include/have_log_bin.inc
 --source include/have_binlog_format_row.inc
 call mtr.add_suppression("Write to binary log failed: Multi-statement transaction required more than .max_binlog_cache_size.*");
+if ($MTR_COMBINATION_POOL) {
+--source include/have_pool_of_threads.inc
+}
 SET AUTOCOMMIT=0;
 
 # Create 1st table

@@ -172,7 +172,14 @@
   Feel free to raise this by the smallest amount you can to get the
   "execution_constants" test to pass.
 */
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+#if defined(__clang__) && __has_feature(memory_sanitizer) && !defined(DBUG_OFF)
+#define STACK_MIN_SIZE          44000
+#else
 #define STACK_MIN_SIZE          16000   // Abort if less stack during eval.
+#endif
 
 #define STACK_MIN_SIZE_FOR_OPEN (1024*80)
 #define STACK_BUFF_ALLOC        352     ///< For stack overrun checks
@@ -205,7 +212,7 @@
   The following parameters is to decide when to use an extra cache to
   optimise seeks when reading a big table in sorted order
 */
-#define MIN_FILE_LENGTH_TO_USE_ROW_CACHE (10L*1024*1024)
+#define MIN_FILE_LENGTH_TO_USE_ROW_CACHE (10ULL*1024*1024)
 #define MIN_ROWS_TO_USE_TABLE_CACHE	 100
 #define MIN_ROWS_TO_USE_BULK_INSERT	 100
 

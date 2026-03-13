@@ -3,10 +3,8 @@
 
 SELECT @@wsrep_on;
 
-SET @wsrep_slave_threads_global_saved = @@global.wsrep_slave_threads;
 SET @wsrep_debug_saved = @@global.wsrep_debug;
 
---error ER_WRONG_ARGUMENTS
 SET SESSION wsrep_trx_fragment_size=DEFAULT;
 SELECT @@session.wsrep_trx_fragment_size;
 --error ER_WRONG_VALUE_FOR_VAR
@@ -15,16 +13,17 @@ SHOW WARNINGS;
 SELECT @@global.wsrep_start_position;
 SET GLOBAL wsrep_debug=1;
 SELECT @@global.wsrep_debug;
+--error ER_WRONG_ARGUMENTS
 SET GLOBAL wsrep_slave_threads=5;
 SELECT @@global.wsrep_slave_threads;
 --error ER_WRONG_ARGUMENTS
 SET GLOBAL wsrep_desync=1;
 SELECT @@global.wsrep_desync;
---error ER_WRONG_ARGUMENTS
+--error ER_WRONG_VALUE_FOR_VAR
 SET SESSION wsrep_trx_fragment_unit='rows';
+SHOW WARNINGS;
 SELECT @@session.wsrep_trx_fragment_unit;
 
 --disable_query_log
-SET @@global.wsrep_slave_threads = @wsrep_slave_threads_global_saved;
 SET @@global.wsrep_debug = @wsrep_debug_saved;
 --enable_query_log

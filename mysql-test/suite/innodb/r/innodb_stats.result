@@ -530,3 +530,16 @@ INDEX_TYPE	BTREE
 COMMENT	
 INDEX_COMMENT	
 IGNORED	NO
+#
+#  MDEV-31740 InnoDB statistics column length validation failed
+#
+call mtr.add_suppression("InnoDB: Unexpected length of mysql\\.innodb_table_stats\\.last_update");
+ALTER TABLE mysql.innodb_table_stats MODIFY LAST_UPDATE DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP() ON UPDATE CURRENT_TIMESTAMP();
+CREATE TABLE t (a INT KEY)Engine=InnoDB STATS_PERSISTENT=1;
+FOUND 1 /InnoDB: Unexpected length of mysql\.innodb_table_stats\.last_update/ in mysqld.1.err
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP() ON UPDATE CURRENT_TIMESTAMP();
+CREATE TABLE t2(a INT KEY)ENGINE=InnoDB STATS_PERSISTENT= 1;
+SELECT table_name FROM mysql.innodb_table_stats;
+table_name
+t2
+DROP TABLE t, t2;

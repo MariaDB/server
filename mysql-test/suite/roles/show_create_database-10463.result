@@ -58,6 +58,8 @@ table_schema	table_name
 db	t1
 db	t2
 connection default;
+disconnect con1;
+disconnect con2;
 drop database db;
 drop role r1;
 drop user beep;

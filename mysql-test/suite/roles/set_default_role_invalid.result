@@ -3,6 +3,7 @@ create role test_role;
 create role not_granted_role;
 grant select on *.* to test_role;
 grant test_role to test_user@localhost;
+change_user test_user,,;
 show grants;
 Grants for test_user@localhost
 GRANT `test_role` TO `test_user`@`localhost`
@@ -16,9 +17,11 @@ ERROR OP000: Invalid role specification `not_granted_role`
 set default role test_role;
 select user, host, default_role from mysql.user;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `mysql`.`user`
+change_user root,,;
 select user, host, default_role from mysql.user where user='test_user';
 User	Host	default_role
 test_user	localhost	test_role
+change_user test_user,,;
 show grants;
 Grants for test_user@localhost
 GRANT `test_role` TO `test_user`@`localhost`
@@ -33,9 +36,12 @@ ERROR OP000: Invalid role specification `invalid_role`
 select user, host, default_role from mysql.user where user='test_user';
 User	Host	default_role
 test_user	localhost	test_role
+change_user root,,;
 revoke test_role from test_user@localhost;
+change_user test_user,,;
 select user, host, default_role from mysql.user where user='test_user';
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `mysql`.`user`
+change_user root,,;
 drop role test_role;
 drop role not_granted_role;
 drop user test_user@localhost;
@@ -53,6 +59,7 @@ GRANT r1 TO b;
 GRANT r2 TO b;
 SET DEFAULT ROLE r1 FOR b;
 # Change user b
+change_user b,,;
 SELECT CURRENT_ROLE;
 CURRENT_ROLE
 r1
@@ -64,8 +71,10 @@ SET DEFAULT ROLE r1 FOR a;
 ERROR 42000: Access denied for user 'b'@'%' to database 'mysql'
 SET DEFAULT ROLE r2;
 # Change user root (session 1: select_priv to b)
+change_user root,,;
 GRANT SELECT ON mysql.* TO b;
 # Change user b (session 1: select_priv)
+change_user b,,;
 SHOW GRANTS FOR b;
 Grants for b@%
 GRANT `r1` TO `b`@`%`
@@ -90,8 +99,10 @@ ERROR 42000: Access denied for user 'b'@'%' to database 'mysql'
 SET DEFAULT ROLE none FOR a;
 ERROR 42000: Access denied for user 'b'@'%' to database 'mysql'
 # Change user root (session 2: adding update_priv to user b)
+change_user root,,;
 GRANT UPDATE ON mysql.* TO b;
 # Change user b
+change_user b,,;
 SHOW GRANTS FOR b;
 Grants for b@%
 GRANT `r1` TO `b`@`%`
@@ -107,14 +118,17 @@ SET DEFAULT ROLE invalid_role FOR a;
 ERROR OP000: Invalid role specification `invalid_role`
 SET DEFAULT ROLE none FOR a;
 # Change user root (session 3: Grant role to user a)
+change_user root,,;
 GRANT r1 TO a;
 SET DEFAULT ROLE r1 FOR a;
 # Change user a (verify session 3)
+change_user a,,;
 SELECT CURRENT_ROLE;
 CURRENT_ROLE
 r1
 SET DEFAULT ROLE None;
 # Change user b (session 3: role granted to user a)
+change_user b,,;
 SET DEFAULT ROLE r1 FOR a;
 SET DEFAULT ROLE r2 FOR a;
 ERROR OP000: User `a`@`%` has not been granted role `r2`
@@ -122,6 +136,7 @@ SET DEFAULT ROLE invalid_role;
 ERROR OP000: Invalid role specification `invalid_role`
 SET DEFAULT ROLE invalid_role FOR a;
 ERROR OP000: Invalid role specification `invalid_role`
+change_user root,,;
 SELECT user, host, default_role FROM mysql.user where user='a' or user='b';
 User	Host	default_role
 a	%	r1

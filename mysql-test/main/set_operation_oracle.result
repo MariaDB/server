@@ -7,34 +7,44 @@ insert into t3 values (1,1),(3,3);
 set SQL_MODE=ORACLE;
 (select a,b from t1) union (select c,d from t2) intersect (select e,f from t3) union (select 4,4);
 a	b
-4	4
 3	3
+4	4
 explain extended
 (select a,b from t1) union (select c,d from t2) intersect (select e,f from t3) union (select 4,4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	UNION	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-3	INTERSECT	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
-4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived6>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+6	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+5	INTERSECT	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+NULL	INTERSECT RESULT	<intersect4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+7	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union6,7>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	(/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1") union (/* select#2 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2") intersect (/* select#3 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3") union (/* select#4 */ select 4 AS "4",4 AS "4")
+Note	1003	/* select#1 */ select "__7"."a" AS "a","__7"."b" AS "b" from (/* select#6 */ select "__5"."a" AS "a","__5"."b" AS "b" from (/* select#4 */ select "__3"."a" AS "a","__3"."b" AS "b" from ((/* select#2 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1") union (/* select#3 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2")) "__3" intersect (/* select#5 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3")) "__5" union (/* select#7 */ select 4 AS "4",4 AS "4")) "__7"
 (select e,f from t3) intersect (select c,d from t2) union (select a,b from t1) union (select 4,4);
 e	f
-5	5
 3	3
+5	5
 6	6
 4	4
 explain extended
 (select e,f from t3) intersect (select c,d from t2) union (select a,b from t1) union (select 4,4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived6>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+6	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+5	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+7	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union6,7>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	(/* select#1 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3") intersect (/* select#2 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2") union (/* select#3 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1") union (/* select#4 */ select 4 AS "4",4 AS "4")
+Note	1003	/* select#1 */ select "__7"."e" AS "e","__7"."f" AS "f" from (/* select#6 */ select "__5"."e" AS "e","__5"."f" AS "f" from (/* select#4 */ select "__3"."e" AS "e","__3"."f" AS "f" from ((/* select#2 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3") intersect (/* select#3 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2")) "__3" union (/* select#5 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1")) "__5" union (/* select#7 */ select 4 AS "4",4 AS "4")) "__7"
 create table t12(c1 int);
 insert into t12 values(1);
 insert into t12 values(2);
@@ -61,18 +71,21 @@ insert into t3 values (1,1),(3,3);
 set SQL_MODE=ORACLE;
 select a,b from t1 union all select c,d from t2 intersect select e,f from t3 union all select 4,'4' from dual;
 a	b
-4	4
 3	3
+4	4
 explain extended
 select a,b from t1 union all select c,d from t2 intersect select e,f from t3 union all select 4,'4' from dual;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	UNION	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-3	INTERSECT	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
-4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived6>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+6	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+5	INTERSECT	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+NULL	INTERSECT RESULT	<intersect4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+7	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" union all /* select#2 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2" intersect /* select#3 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3" union all /* select#4 */ select 4 AS "4",'4' AS "4"
+Note	1003	/* select#1 */ select "__7"."a" AS "a","__7"."b" AS "b" from (/* select#6 */ select "__5"."a" AS "a","__5"."b" AS "b" from (/* select#4 */ select "__3"."a" AS "a","__3"."b" AS "b" from (/* select#2 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" union all /* select#3 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2") "__3" intersect /* select#5 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3") "__5" union all /* select#7 */ select 4 AS "4",'4' AS "4") "__7"
 select a,b from t1 union all select c,d from t2 intersect all select e,f from t3 union all select 4,'4' from dual;
 a	b
 3	3
@@ -80,29 +93,35 @@ a	b
 explain extended
 select a,b from t1 union all select c,d from t2 intersect all select e,f from t3 union all select 4,'4' from dual;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	UNION	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-3	INTERSECT	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
-4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived6>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+6	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+5	INTERSECT	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+NULL	INTERSECT RESULT	<intersect4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+7	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" union all /* select#2 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2" intersect all /* select#3 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3" union all /* select#4 */ select 4 AS "4",'4' AS "4"
+Note	1003	/* select#1 */ select "__7"."a" AS "a","__7"."b" AS "b" from (/* select#6 */ select "__5"."a" AS "a","__5"."b" AS "b" from (/* select#4 */ select "__3"."a" AS "a","__3"."b" AS "b" from (/* select#2 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" union all /* select#3 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2") "__3" intersect all /* select#5 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3") "__5" union all /* select#7 */ select 4 AS "4",'4' AS "4") "__7"
 select e,f from t3 intersect select c,d from t2 union all select a,b from t1 union all select 4,'4' from dual;
 e	f
-5	5
 3	3
+5	5
 6	6
 4	4
 explain extended
 select e,f from t3 intersect select c,d from t2 union all select a,b from t1 union all select 4,'4' from dual;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived6>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+6	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+5	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+7	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3" intersect /* select#2 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2" union all /* select#3 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" union all /* select#4 */ select 4 AS "4",'4' AS "4"
+Note	1003	/* select#1 */ select "__7"."e" AS "e","__7"."f" AS "f" from (/* select#6 */ select "__5"."e" AS "e","__5"."f" AS "f" from (/* select#4 */ select "__3"."e" AS "e","__3"."f" AS "f" from (/* select#2 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3" intersect /* select#3 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2") "__3" union all /* select#5 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1") "__5" union all /* select#7 */ select 4 AS "4",'4' AS "4") "__7"
 select e,f from t3 intersect all select c,d from t2 union all select a,b from t1 union all select 4,'4' from dual;
 e	f
 3	3
@@ -112,13 +131,16 @@ e	f
 explain extended
 select e,f from t3 intersect all select c,d from t2 union all select a,b from t1 union all select 4,'4' from dual;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	<derived6>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+6	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+5	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+7	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3" intersect all /* select#2 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2" union all /* select#3 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" union all /* select#4 */ select 4 AS "4",'4' AS "4"
+Note	1003	/* select#1 */ select "__7"."e" AS "e","__7"."f" AS "f" from (/* select#6 */ select "__5"."e" AS "e","__5"."f" AS "f" from (/* select#4 */ select "__3"."e" AS "e","__3"."f" AS "f" from (/* select#2 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3" intersect all /* select#3 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2") "__3" union all /* select#5 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1") "__5" union all /* select#7 */ select 4 AS "4",'4' AS "4") "__7"
 set SQL_MODE=default;
 drop table t1,t2,t3;
 set SQL_MODE=oracle;

@@ -286,6 +286,7 @@ FUNCTION(INSTALL_RUNTIME_DEPS)
       POST_EXCLUDE_REGEXES
       ".*system32/.*\\.dll" # Windows stuff
       POST_INCLUDE_REGEXES
+      "libssl" "libcrypto" # Account for OpenSSL libraries in system32
       DIRECTORIES
       $<$<BOOL:${VCPKG_INSTALLED_DIR}>:${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin
       $<$<AND:$<CONFIG:Debug>,$<BOOL:${VCPKG_INSTALLED_DIR}>>:${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin>

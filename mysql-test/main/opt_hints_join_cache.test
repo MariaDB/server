@@ -1,4 +1,3 @@
---disable_view_protocol # Since optimizer hints are not supported inside views
 
 set @tmp_jcl= @@join_cache_level;
 set @tmp_opt= @@optimizer_switch;

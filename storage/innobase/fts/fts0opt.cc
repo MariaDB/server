@@ -226,9 +226,6 @@ struct fts_msg_t {
 /** The number of words to read and optimize in a single pass. */
 ulong	fts_num_word_optimize;
 
-/** Whether to enable additional FTS diagnostic printout. */
-char	fts_enable_diag_print;
-
 /** ZLib compressed block size.*/
 static ulint FTS_ZIP_BLOCK_SIZE	= 1024;
 
@@ -1343,7 +1340,6 @@ fts_optimize_deleted_pos(
 	return(del_pos);
 }
 
-#define FTS_DEBUG_PRINT
 /**********************************************************************//**
 Compact the nodes for a word, we also remove any doc ids during the
 compaction pass.
@@ -1631,70 +1627,6 @@ fts_optimize_create(
 	return(optim);
 }
 
-#ifdef FTS_OPTIMIZE_DEBUG
-/**********************************************************************//**
-Get optimize start time of an FTS index.
-@return DB_SUCCESS if all OK else error code */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-fts_optimize_get_index_start_time(
-/*==============================*/
-	trx_t*		trx,			/*!< in: transaction */
-	dict_index_t*	index,			/*!< in: FTS index */
-	time_t*		start_time)		/*!< out: time in secs */
-{
-	return(fts_config_get_index_ulint(
-		       trx, index, FTS_OPTIMIZE_START_TIME,
-		       (ulint*) start_time));
-}
-
-/**********************************************************************//**
-Set the optimize start time of an FTS index.
-@return DB_SUCCESS if all OK else error code */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-fts_optimize_set_index_start_time(
-/*==============================*/
-	trx_t*		trx,			/*!< in: transaction */
-	dict_index_t*	index,			/*!< in: FTS index */
-	time_t		start_time)		/*!< in: start time */
-{
-	return(fts_config_set_index_ulint(
-		       trx, index, FTS_OPTIMIZE_START_TIME,
-		       (ulint) start_time));
-}
-
-/**********************************************************************//**
-Get optimize end time of an FTS index.
-@return DB_SUCCESS if all OK else error code */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-fts_optimize_get_index_end_time(
-/*============================*/
-	trx_t*		trx,			/*!< in: transaction */
-	dict_index_t*	index,			/*!< in: FTS index */
-	time_t*		end_time)		/*!< out: time in secs */
-{
-	return(fts_config_get_index_ulint(
-		       trx, index, FTS_OPTIMIZE_END_TIME, (ulint*) end_time));
-}
-
-/**********************************************************************//**
-Set the optimize end time of an FTS index.
-@return DB_SUCCESS if all OK else error code */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-fts_optimize_set_index_end_time(
-/*============================*/
-	trx_t*		trx,			/*!< in: transaction */
-	dict_index_t*	index,			/*!< in: FTS index */
-	time_t		end_time)		/*!< in: end time */
-{
-	return(fts_config_set_index_ulint(
-		       trx, index, FTS_OPTIMIZE_END_TIME, (ulint) end_time));
-}
-#endif
-
 /**********************************************************************//**
 Free the optimize prepared statements.*/
 static
@@ -1736,7 +1668,7 @@ fts_optimize_free(
 	mem_heap_t*	heap = static_cast<mem_heap_t*>(optim->self_heap->arg);
 
 	trx_commit_for_mysql(optim->trx);
-	optim->trx->free();
+	optim->trx->clear_and_free();
 	optim->trx = NULL;
 
 	fts_doc_ids_free(optim->to_delete);
@@ -1875,11 +1807,6 @@ fts_optimize_index_completed(
 	fts_string_t	word;
 	dberr_t		error;
 	byte		buf[sizeof(ulint)];
-#ifdef FTS_OPTIMIZE_DEBUG
-	time_t		end_time = time(NULL);
-
-	error = fts_optimize_set_index_end_time(optim->trx, index, end_time);
-#endif
 
 	/* If we've reached the end of the index then set the start
 	word to the empty string. */
@@ -2263,45 +2190,6 @@ fts_optimize_indexes(
 	for (i = 0; i < ib_vector_size(fts->indexes); ++i) {
 		dict_index_t*	index;
 
-#ifdef	FTS_OPTIMIZE_DEBUG
-		time_t	end_time;
-		time_t	start_time;
-
-		/* Get the start and end optimize times for this index. */
-		error = fts_optimize_get_index_start_time(
-			optim->trx, index, &start_time);
-
-		if (error != DB_SUCCESS) {
-			break;
-		}
-
-		error = fts_optimize_get_index_end_time(
-			optim->trx, index, &end_time);
-
-		if (error != DB_SUCCESS) {
-			break;
-		}
-
-		/* Start time will be 0 only for the first time or after
-		completing the optimization of all FTS indexes. */
-		if (start_time == 0) {
-			start_time = time(NULL);
-
-			error = fts_optimize_set_index_start_time(
-				optim->trx, index, start_time);
-		}
-
-		/* Check if this index needs to be optimized or not. */
-		if (difftime(end_time, start_time) < 0) {
-			error = fts_optimize_index(optim, index);
-
-			if (error != DB_SUCCESS) {
-				break;
-			}
-		} else {
-			++optim->n_completed;
-		}
-#endif
 		index = static_cast<dict_index_t*>(
 			ib_vector_getp(fts->indexes, i));
 		error = fts_optimize_index(optim, index);
@@ -2335,45 +2223,6 @@ fts_optimize_purge_snapshot(
 		/* Destroy the deleted doc id snapshot. */
 		error = fts_optimize_purge_deleted_doc_id_snapshot(optim);
 	}
-
-	if (error == DB_SUCCESS) {
-		fts_sql_commit(optim->trx);
-	} else {
-		fts_sql_rollback(optim->trx);
-	}
-
-	return(error);
-}
-
-/*********************************************************************//**
-Reset the start time to 0 so that a new optimize can be started.
-@return DB_SUCCESS if all OK */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-fts_optimize_reset_start_time(
-/*==========================*/
-	fts_optimize_t*	optim)	/*!< in: optimize instance */
-{
-	dberr_t		error = DB_SUCCESS;
-#ifdef FTS_OPTIMIZE_DEBUG
-	fts_t*		fts = optim->table->fts;
-
-	/* Optimization should have been completed for all indexes. */
-	ut_a(optim->n_completed == ib_vector_size(fts->indexes));
-
-	for (uint i = 0; i < ib_vector_size(fts->indexes); ++i) {
-		dict_index_t*	index;
-
-		time_t	start_time = 0;
-
-		/* Reset the start time to 0 for this index. */
-		error = fts_optimize_set_index_start_time(
-			optim->trx, index, start_time);
-
-		index = static_cast<dict_index_t*>(
-			ib_vector_getp(fts->indexes, i));
-	}
-#endif
 
 	if (error == DB_SUCCESS) {
 		fts_sql_commit(optim->trx);
@@ -2442,10 +2291,6 @@ fts_optimize_table(
 	fts_optimize_t*	optim = NULL;
 	fts_t*		fts = table->fts;
 
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		ib::info() << "FTS start optimize " << table->name;
-	}
-
 	optim = fts_optimize_create(table);
 
 	// FIXME: Call this only at the start of optimize, currently we
@@ -2494,11 +2339,6 @@ fts_optimize_table(
 		if (error == DB_SUCCESS
 		    && optim->n_completed == ib_vector_size(fts->indexes)) {
 
-			if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-				ib::info() << "FTS_OPTIMIZE: Completed"
-					" Optimize, cleanup DELETED table";
-			}
-
 			if (ib_vector_size(optim->to_delete->doc_ids) > 0) {
 
 				/* Purge the doc ids that were in the
@@ -2506,20 +2346,10 @@ fts_optimize_table(
 				the master deleted table. */
 				error = fts_optimize_purge_snapshot(optim);
 			}
-
-			if (error == DB_SUCCESS) {
-				/* Reset the start time of all the FTS indexes
-				so that optimize can be restarted. */
-				error = fts_optimize_reset_start_time(optim);
-			}
 		}
 	}
 
 	fts_optimize_free(optim);
-
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		ib::info() << "FTS end optimize " << table->name;
-	}
 
 	return(error);
 }
@@ -2698,11 +2528,6 @@ static bool fts_optimize_del_table(fts_msg_del_t *remove)
 		slot = static_cast<fts_slot_t*>(ib_vector_get(fts_slots, i));
 
 		if (slot->table == table) {
-			if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-				ib::info() << "FTS Optimize Removing table "
-					<< table->name;
-			}
-
 			mysql_mutex_lock(&fts_optimize_wq->mutex);
 			table->fts->in_queue = false;
 			pthread_cond_signal(remove->cond);

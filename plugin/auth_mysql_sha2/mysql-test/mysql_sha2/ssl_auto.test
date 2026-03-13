@@ -1,0 +1,27 @@
+source init.inc;
+
+let MYSQL=$MYSQL --protocol tcp;
+if ($MARIADB_UPGRADE_EXE) { # windows
+  # see ssl_autoverify.test
+  let MYSQL=$MYSQL --host=127.0.0.2;
+}
+
+--echo # mysql -utest1 -ppwd --disable-ssl-verify-server-cert -e "call test.checkme()"
+--exec $MYSQL  -utest1 -ppwd --disable-ssl-verify-server-cert -e "call test.checkme()" 2>&1
+
+--echo # mysql -utest1 -pwrong_pwd --disable-ssl-verify-server-cert -e "call test.checkme()"
+--error 1
+--exec $MYSQL  -utest1 -pwrong_pwd --disable-ssl-verify-server-cert -e "call test.checkme()" 2>&1
+
+--echo # mysql -utest2 --disable-ssl-verify-server-cert -e "call test.checkme()"
+--exec $MYSQL  -utest2 --disable-ssl-verify-server-cert -e "call test.checkme()" 2>&1
+
+--echo # mysql -utest2 -ppwd --disable-ssl-verify-server-cert -e "call test.checkme()"
+--error 1
+--exec $MYSQL  -utest2 -ppwd --disable-ssl-verify-server-cert -e "call test.checkme()" 2>&1
+
+--echo # mysql -utest1 -ppwd --ssl-verify-server-cert -e "call test.checkme()"
+--error 1
+--exec $MYSQL  -utest1 -ppwd --ssl-verify-server-cert -e "call test.checkme()" 2>&1
+
+source fini.inc;

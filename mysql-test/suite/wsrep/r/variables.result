@@ -44,6 +44,7 @@ wsrep_commit_window	#
 wsrep_local_state	#
 wsrep_local_state_comment	#
 wsrep_cert_index_size	#
+wsrep_causal_reads	#
 wsrep_cert_interval	#
 wsrep_open_transactions	#
 wsrep_open_connections	#

@@ -10,6 +10,7 @@
 # Test spatial index with table have no primary key column
 # Test spatial index with table have no auto_increment
 # Test spatial index with check constraint
+# Test spatial index with missing mysql.innodb_table_stats
 # **********************************************************
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
@@ -1165,20 +1166,15 @@ select 1 from t1 where st_intersects(
 );
 drop table t1;
 
-# Reproduce case for updating statistic after droping stats info table.
-CREATE TABLE t1(c1 POINT NOT NULL);
-DROP TABLE mysql.innodb_table_stats;
+# Test spatial index with missing mysql.innodb_table_stats
+--echo #
+--echo # MDEV-24558 : Assertion !index->is_spatial() failed
+--echo #
+CREATE TABLE t1(c1 POINT NOT NULL) ENGINE=InnoDB;
+RENAME TABLE mysql.innodb_table_stats TO mysql.innodb_table_stats_;
 CALL mtr.add_suppression("InnoDB: Table `mysql`.`innodb_table_stats` not found.");
 CALL mtr.add_suppression("InnoDB: Fetch of persistent statistics requested for table `test`.`t1` but the required system tables mysql.innodb_table_stats and mysql.innodb_index_stats are not present or have unexpected structure. Using transient stats instead.");
 CREATE SPATIAL INDEX idx2 ON t1(c1);
 
 DROP TABLE t1;
-CREATE TABLE mysql.innodb_table_stats (
-  database_name varchar(64) COLLATE utf8_bin NOT NULL,
-  table_name varchar(199) COLLATE utf8_bin NOT NULL,
-  last_update timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  n_rows bigint(20) unsigned NOT NULL,
-  clustered_index_size bigint(20) unsigned NOT NULL,
-  sum_of_other_index_sizes bigint(20) unsigned NOT NULL,
-  PRIMARY KEY (`database_name`,`table_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+RENAME TABLE mysql.innodb_table_stats_ TO mysql.innodb_table_stats;

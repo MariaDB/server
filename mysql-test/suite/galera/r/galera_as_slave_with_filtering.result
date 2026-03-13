@@ -1,0 +1,137 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_2;
+START SLAVE;
+connection node_3;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t3 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+connection node_2;
+connection node_1;
+#
+# Set up replication filtering this should work for slave
+#
+connection node_2;
+STOP SLAVE;
+SET GLOBAL replicate_ignore_table='test.t2,mysql.gtid_slave_pos';
+SELECT @@replicate_ignore_table;
+@@replicate_ignore_table
+mysql.gtid_slave_pos,test.t2
+START SLAVE;
+#
+# Set up replication filtering, this should not have any effect
+#
+connection node_1;
+SET GLOBAL replicate_ignore_table='test.t2,mysql.gtid_slave_pos';
+SELECT @@replicate_ignore_table;
+@@replicate_ignore_table
+mysql.gtid_slave_pos,test.t2
+#
+# Insert data to MariaDB master, inserts to t2 should not be on slave
+#
+connection node_3;
+INSERT INTO t1 SELECT * FROM seq_1_to_100;
+INSERT INTO t2 SELECT * FROM seq_1_to_100;
+INSERT INTO t3 SELECT * FROM seq_1_to_100;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+100
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+100
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+100
+connection node_2;
+SELECT COUNT(*) AS EXPECT_100 FROM t1;
+EXPECT_100
+100
+SELECT COUNT(*) AS EXPECT_0 FROM t2;
+EXPECT_0
+0
+SELECT COUNT(*) AS EXPECT_100 FROM t3;
+EXPECT_100
+100
+#
+# Insert data to Galera node_2, all these should be replicated
+#
+INSERT INTO t1 SELECT * FROM seq_101_to_200;
+INSERT INTO t2 SELECT * FROM seq_101_to_200;
+INSERT INTO t3 SELECT * FROM seq_101_to_200;
+SELECT COUNT(*) AS EXPECT_200 FROM t1;
+EXPECT_200
+200
+SELECT COUNT(*) AS EXPECT_100 FROM t2;
+EXPECT_100
+100
+SELECT COUNT(*) AS EXPECT_200 FROM t3;
+EXPECT_200
+200
+connection node_1;
+SELECT COUNT(*) AS EXPECT_200 FROM t1;
+EXPECT_200
+200
+SELECT COUNT(*) AS EXPECT_100 FROM t2;
+EXPECT_100
+100
+SELECT COUNT(*) AS EXPECT_200 FROM t3;
+EXPECT_200
+200
+#
+# Insert data to Galera node_1, all these should be replicated
+#
+INSERT INTO t1 SELECT * FROM seq_201_to_300;
+INSERT INTO t2 SELECT * FROM seq_201_to_300;
+INSERT INTO t3 SELECT * FROM seq_201_to_300;
+SELECT COUNT(*) AS EXPECT_300 FROM t1;
+EXPECT_300
+300
+SELECT COUNT(*) AS EXPECT_200 FROM t2;
+EXPECT_200
+200
+SELECT COUNT(*) AS EXPECT_300 FROM t3;
+EXPECT_300
+300
+connection node_3;
+SELECT @@GLOBAL.gtid_slave_pos;
+@@GLOBAL.gtid_slave_pos
+
+connection node_1;
+SELECT COUNT(*) AS EXPECT_300 FROM t1;
+EXPECT_300
+300
+SELECT COUNT(*) AS EXPECT_200 FROM t2;
+EXPECT_200
+200
+SELECT COUNT(*) AS EXPECT_300 FROM t3;
+EXPECT_300
+300
+SELECT @@GLOBAL.gtid_slave_pos;
+@@GLOBAL.gtid_slave_pos
+0-3-6
+connection node_2;
+SELECT COUNT(*) AS EXPECT_300 FROM t1;
+EXPECT_300
+300
+SELECT COUNT(*) AS EXPECT_200 FROM t2;
+EXPECT_200
+200
+SELECT COUNT(*) AS EXPECT_300 FROM t3;
+EXPECT_300
+300
+SELECT @@GLOBAL.gtid_slave_pos;
+@@GLOBAL.gtid_slave_pos
+0-3-6
+connection node_2;
+STOP SLAVE;
+RESET SLAVE ALL;
+SET GLOBAL replicate_ignore_table='';
+connection node_1;
+SET GLOBAL replicate_ignore_table='';
+connection node_3;
+DROP TABLE t1,t2,t3;
+connection node_2;
+DROP TABLE t1,t2,t3;
+connection node_3;
+RESET MASTER;

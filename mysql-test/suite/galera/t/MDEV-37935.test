@@ -1,0 +1,30 @@
+--source include/galera_cluster.inc
+--source include/have_aria.inc
+
+SET sql_mode='';
+SET SESSION autocommit=0;
+SET SESSION enforce_storage_engine=Aria;
+SET WSREP_OSU_METHOD = RSU;
+CREATE TABLE t1 (a TEXT) ;
+CREATE TABLE t2 (a TEXT) ;
+SET SESSION autocommit=1;
+--error ER_NOT_SUPPORTED_YET
+REPLACE INTO t2 (a) SELECT a from t1;
+--error ER_NOT_SUPPORTED_YET
+REPLACE INTO t2 (a) SELECT /*!99997 */ a from t1;
+SET WSREP_OSU_METHOD = TOI;
+DROP TABLE t1,t2;
+
+SET sql_mode='';
+SET SESSION autocommit=0;
+SET SESSION enforce_storage_engine=MyISAM;
+SET WSREP_OSU_METHOD = RSU;
+CREATE TABLE t1 (a TEXT) ;
+CREATE TABLE t2 (a TEXT) ;
+SET SESSION autocommit=1;
+--error ER_NOT_SUPPORTED_YET
+REPLACE INTO t2 (a) SELECT a from t1;
+--error ER_NOT_SUPPORTED_YET
+REPLACE INTO t2 (a) SELECT /*!99997 */ a from t1;
+SET WSREP_OSU_METHOD = TOI;
+DROP TABLE t1,t2;

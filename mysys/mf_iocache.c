@@ -76,6 +76,7 @@ int (*_my_b_encr_write)(IO_CACHE *info,const uchar *Buffer,size_t Count)= 0;
 
 static inline my_bool tmp_file_track(IO_CACHE *info, ulonglong file_size)
 {
+  DBUG_ENTER("tmp_file_track");
   if ((info->myflags & (MY_TRACK | MY_TRACK_WITH_LIMIT)) &&
       update_tmp_file_size)
   {
@@ -90,11 +91,11 @@ static inline my_bool tmp_file_track(IO_CACHE *info, ulonglong file_size)
         if (info->myflags & MY_WME)
           my_error(error, MYF(0));
         info->error= -1;
-        return 1;
+        DBUG_RETURN(1);
       }
     }
   }
-  return 0;
+  DBUG_RETURN(0);
 }
 
 my_bool io_cache_tmp_file_track(IO_CACHE *info, ulonglong file_size)
@@ -122,7 +123,8 @@ static void reset_tracking_io_cache(IO_CACHE *info)
 
 void truncate_io_cache(IO_CACHE *info)
 {
-  if (my_chsize(info->file, 0, 0, MYF(MY_WME)) == 0)
+  if (mysql_file_seek(info->file, 0L, MY_SEEK_END, MYF(0)) != 0 &&
+      my_chsize(info->file, 0, 0, MYF(MY_WME)) == 0)
     reset_tracking_io_cache(info);
 }
 
@@ -210,7 +212,7 @@ int init_io_cache_ext(IO_CACHE *info, File file, size_t cachesize,
 {
   size_t min_cache;
   my_off_t pos;
-  my_off_t end_of_file= ~(my_off_t) 0;
+  my_off_t end_of_file= MY_FILEPOS_ERROR;
   DBUG_ENTER("init_io_cache_ext");
   DBUG_PRINT("enter",("cache:%p  type: %d  pos: %llu",
 		      info, (int) type, (ulonglong) seek_offset));
@@ -513,7 +515,7 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
 	info->write_end=info->write_buffer+info->buffer_length;
 	info->seek_not_done=1;
       }
-      info->end_of_file = ~(my_off_t) 0;
+      info->end_of_file= MY_FILE_ERROR;
     }
     pos=info->request_pos+(seek_offset-info->pos_in_file);
     if (type == WRITE_CACHE)
@@ -584,7 +586,7 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
         info->write_end=(info->buffer + info->buffer_length -
                          (seek_offset & (IO_SIZE-1)));
       }
-      info->end_of_file= ~(my_off_t) 0;
+      info->end_of_file= MY_FILEPOS_ERROR;
     }
   }
   info->type=type;
@@ -1790,7 +1792,18 @@ int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
 
     if ((length=(size_t) (info->write_pos - info->write_buffer)))
     {
-      my_off_t eof= info->end_of_file + info->write_pos - info->append_read_pos;
+      /*
+        The write_function() updates info->pos_in_file. So compute the new end
+        position here before calling it, but update the value only after we
+        check for error return.
+      */
+      uchar *new_write_end= (info->write_buffer + info->buffer_length -
+                             ((info->pos_in_file + length) & (IO_SIZE - 1)));
+
+      my_off_t eof= info->end_of_file;
+      if (eof != MY_FILE_ERROR)
+        eof+= info->write_pos - info->append_read_pos;
+
       if (append_cache)
       {
         if (tmp_file_track(info, eof) ||
@@ -1815,8 +1828,7 @@ int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
         }
         set_if_bigger(info->end_of_file, info->pos_in_file);
       }
-      info->write_end= (info->write_buffer + info->buffer_length -
-                        ((info->pos_in_file + length) & (IO_SIZE - 1)));
+      info->write_end= new_write_end;
       info->write_pos= info->write_buffer;
       ++info->disk_writes;
       UNLOCK_APPEND_BUFFER;
@@ -1849,7 +1861,7 @@ int end_io_cache(IO_CACHE *info)
 {
   int error=0;
   DBUG_ENTER("end_io_cache");
-  DBUG_PRINT("enter",("cache: %p", info));
+  DBUG_PRINT("enter",("cache: %p  file: %d", info, info->file));
 
   /*
     Every thread must call remove_io_thread(). The last one destroys
@@ -1870,12 +1882,18 @@ int end_io_cache(IO_CACHE *info)
     /* Destroy allocated mutex */
     mysql_mutex_destroy(&info->append_buffer_lock);
   }
+  /*
+    We have to call reset_tracking_io_cache() also in case of file == -1
+    because close_cached_file() sets file to -1 to avoid flushing
+  */
   reset_tracking_io_cache(info);
   info->share= 0;
   info->type= TYPE_NOT_SET; /* Ensure that flush_io_cache() does nothing */
   info->write_end= 0;       /* Ensure that my_b_write() fails */
   info->write_function= 0;  /* my_b_write will crash if used */
 
+  DBUG_ASSERT(info->tracking.file_size == 0 &&
+              info->tracking.previous_file_size == 0);
   DBUG_RETURN(error);
 } /* end_io_cache */
 

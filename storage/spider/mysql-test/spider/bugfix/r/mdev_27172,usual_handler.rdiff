@@ -1,0 +1,12 @@
+--- ../src/storage/spider/mysql-test/spider/bugfix/r/mdev_27172.result	2024-11-15 17:14:27.541903833 +1100
++++ ../src/storage/spider/mysql-test/spider/bugfix/r/mdev_27172.reject	2025-10-22 17:40:25.831151167 +1100
+@@ -66,6 +66,9 @@
+ connection child2_1;
+ SELECT argument FROM mysql.general_log WHERE argument LIKE 'select `id`,`greeting` from %';
+ argument
++select `id`,`greeting` from `auto_test_remote`.`tbl_a` where `greeting` = 'Aloha!' and ((`greeting` = 'Aloha!') and ((case `greeting` when 'Aloha!' then _latin1'one' else _latin1'more' end) = _latin1'one'))
++select `id`,`greeting` from `auto_test_remote`.`tbl_b` where `greeting` like 'Aloha%' and ((`greeting` = 'Aloha!') and ((case `greeting` when 'Aloha!' then _latin1'one' else _latin1'more' end) = _latin1'one'))
++select `id`,`greeting` from `auto_test_remote`.`tbl_c` where `greeting` like 'Aloha%' and ((`greeting` = 'Aloha!') and ((case `greeting` when 'Aloha!' then _latin1'one' else _latin1'more' end) = _latin1'one'))
+ connection child2_1;
+ SET @@global.general_log = @general_log_backup;
+ SET @@global.log_output = @log_output_backup;

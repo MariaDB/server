@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2023 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -198,6 +198,18 @@ void wsrep_store_threadvars(THD *);
 */
 void wsrep_reset_threadvars(THD *);
 
+static inline enum wsrep::client_error wsrep_current_error(const THD* thd)
+{
+  return thd->wsrep_cs().current_error();
+}
+ 
+static inline enum wsrep::provider::status
+  wsrep_current_error_status(const THD* thd)
+{
+  return thd->wsrep_cs().current_error_status();
+}
+
+
 /**
    Helper functions to override error status
 
@@ -267,6 +279,7 @@ static inline void wsrep_override_error(THD* thd,
     }
     break;
   case wsrep::e_interrupted_error:
+    wsrep_report_query_interrupted(thd, __FILE__, __LINE__);
     wsrep_override_error(thd, ER_QUERY_INTERRUPTED);
     break;
   case wsrep::e_size_exceeded_error:

@@ -59,7 +59,7 @@ public:
     - We don't put this value as a static const inside the class,
       because "gdb" would display it every time when we do "print"
       for a time_round_mode_t value.
-    - We can't put into into a function returning this value, because
+    - We can't put into a function returning this value, because
       it's not allowed to use functions in static_assert.
   */
   enum known_values_t

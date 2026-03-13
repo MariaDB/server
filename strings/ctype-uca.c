@@ -33,6 +33,7 @@
 */
 
 #include "strings_def.h"
+#include "myisampack.h"
 #include <m_ctype.h>
 #include "ctype-uca.h"
 #include "ctype-uca0520.h"
@@ -32016,6 +32017,19 @@ my_uca_scanner_init_any(my_uca_scanner *scanner,
 }
 
 
+/*
+  Test if both scanners have reached the end of their strings,
+  so there is no data left to compare.
+*/
+static inline my_bool
+my_uca_scanner_eof2(const my_uca_scanner *scanner0,
+                    const my_uca_scanner *scanner1)
+{
+  return scanner0->sbeg >= scanner0->send &&
+         scanner1->sbeg >= scanner1->send;
+}
+
+
 static inline int
 my_space_weight(const MY_UCA_WEIGHT_LEVEL *level)
 {
@@ -34221,10 +34235,37 @@ my_uca_level_booster_weight2_populate(MY_UCA_LEVEL_BOOSTER *booster)
 
 
 static void
+my_uca_level_booster_1byte_to_1weight_standalone_populate(
+                                            MY_UCA_LEVEL_BOOSTER *dst,
+                                            const MY_UCA_WEIGHT_LEVEL *src)
+{
+  size_t i;
+  /* One array element for every possible byte value */
+  compile_time_assert(array_elements(dst->weight_1byte_to_1weight_standalone) ==
+                      256);
+  for (i= 0; i < 0x80; i++)
+  {
+    const uint16 *w= src->weights[0] + i * src->lengths[0];
+    dst->weight_1byte_to_1weight_standalone[i]= w[1] ? 0 : w[0];
+  }
+  for (i= 0x80; i < 0x100; i++)
+  {
+    /*
+      Invalid utf8 one-byte character.
+      Set weight to near-biggest possible uint16 value.
+      This makes a broken string greater than a non-broken string.
+    */
+    dst->weight_1byte_to_1weight_standalone[i]= (uint16) (0xFF00 + i);
+  }
+}
+
+
+static void
 my_uca_level_booster_populate(MY_UCA_LEVEL_BOOSTER *dst,
                               const MY_UCA_WEIGHT_LEVEL *src,
                               CHARSET_INFO *cs)
 {
+  my_uca_level_booster_1byte_to_1weight_standalone_populate(dst, src);
   my_uca_level_booster_2bytes_populate_pairs(dst, src, cs);
   my_uca_level_booster_2bytes_pupulate_ascii2_contractions(dst,
                                                            &src->contractions);
@@ -34261,29 +34302,157 @@ my_uca_level_booster_new(MY_CHARSET_LOADER *loader,
 
 
 /*
-  Skip the simple equal prefix of two string using
-  "One or two bytes produce one or two weights" optimization.
-  Return the prefix length.
+  A helper data type to store a compound value consisting of
+  two UCA 16-bit weights, in the form:
+    weight[0] * 0x10000 + weight[1]
 */
-static size_t
-my_uca_level_booster_equal_prefix_length(const MY_UCA_LEVEL_BOOSTER *booster,
-                                         const uchar *s, size_t slen,
-                                         const uchar *t, size_t tlen)
+typedef uint32 my_compound2_t;
+
+
+/*
+  Helper functions to handle compound weight values.
+
+  Make a compond value from weight[0] and weight[1].
+*/
+static inline my_compound2_t compound2_make(const uint16 *weights)
 {
-  const uchar *s0= s;
-  size_t simple_count= MY_MIN(slen, tlen) >> 1;
-  for ( ; simple_count; s+= 2, t+= 2, simple_count--)
+  return (my_compound2_t) weights[0] * 0x10000 + weights[1];
+}
+
+
+/*
+  Check if weight[0]s are equal in two compound values.
+*/
+static inline int compound2_weight0_equal(my_compound2_t a,
+                                          my_compound2_t b)
+{
+  return ((a ^ b) & 0xFFFF0000) == 0;
+}
+
+
+/*
+  Check if two compound values have incompatible weight[1]s.
+*/
+static inline int compound2_weight1_incompatible(my_compound2_t a,
+                                                 my_compound2_t b)
+{
+  return ((a & 0xFFFF) == 0) != ((b & 0xFFFF) == 0);
+}
+
+
+/*
+  Compare a simple prefix of two string using
+  "One or two bytes produce one or two weights" optimization.
+  Return the comparison result.
+*/
+static int
+my_uca_level_booster_simple_prefix_cmp(my_uca_scanner *sscanner,
+                                       my_uca_scanner *tscanner,
+                                       const MY_UCA_LEVEL_BOOSTER *booster)
+{
+  size_t slen= sscanner->send - sscanner->sbeg;
+  size_t tlen= tscanner->send - tscanner->sbeg;
+  size_t length= MY_MIN(slen, tlen);
+  for ( ; length >= 2; sscanner->sbeg+= 2, tscanner->sbeg+= 2, length-= 2)
   {
+    uint32 cws, cwt;
     const MY_UCA_WEIGHT2 *ws, *wt;
-    ws= my_uca_level_booster_simple_weight2_addr_const(booster, s[0], s[1]);
-    wt= my_uca_level_booster_simple_weight2_addr_const(booster, t[0], t[1]);
-    if (ws->weight[0] &&
-        ws->weight[0] == wt->weight[0] &&
-        ws->weight[1] == wt->weight[1])
+    ws= my_uca_level_booster_simple_weight2_addr_const(booster,
+                                                       sscanner->sbeg[0],
+                                                       sscanner->sbeg[1]);
+    wt= my_uca_level_booster_simple_weight2_addr_const(booster,
+                                                       tscanner->sbeg[0],
+                                                       tscanner->sbeg[1]);
+    /*
+      By implementation, if weight[0] is 0 then weight[1] is also 0.
+    */
+    DBUG_ASSERT(!ws->weight[1] || ws->weight[0]);
+    DBUG_ASSERT(!wt->weight[1] || wt->weight[0]);
+
+    /*
+      If either of the two strings has not produced any weights at this
+      position then return 0, to make the caller switch to the slow loop.
+      Note: XXXX, YYYY, AAAA, BBBB in the below comments mean non-zero
+      unsigned 16-bit hex numbers.
+    */
+
+    if ((cws= compound2_make(ws->weight)) == 0)
+    {
+      /* [0000][0000] */
+      return 0; /*Can't continue: the first string produced no weights*/
+    }
+
+    if (cws == (cwt= compound2_make(wt->weight)))
+    {
+      /*
+        Compound weights are not zero and are equal:
+        - at least weight[0]>0
+        - whether weight[1]>0 is not important here
+        So we have:
+        - [AAAA][0000] vs [AAAA][0000], or
+        - [AAAA][BBBB] vs [AAAA][BBBB]
+      */
       continue;
-    break;
+    }
+
+    if (cwt == 0)
+    {
+      /* [0000][0000] */
+      return 0; /*Can't continue: the second string produced no weights*/
+    }
+
+    /*
+      Handle a special case with incompatible weights:
+      If weight[1] are incompatible:
+      - weight[1] in one string is zero (meaning no second weight), and
+      - weight[1] in the other string is not zero (meaning a real second weight)
+      then we cannot return a comparison result if weight[0]s appear to
+      be equal. Let's return 0 in this case, to make the caller switch to
+      the slow loop.
+    */
+    if (compound2_weight1_incompatible(cws, cwt) &&
+        compound2_weight0_equal(cws, cwt))
+    {
+      /*
+        Can't continue: incompatible weights:
+        - [AAAA][BBBB] vs [XXXX][0000], or
+        - [AAAA][0000] vs [XXXX][YYYY]
+      */
+      return 0;
+    }
+
+    /*
+      Compatible weights:
+      - [AAAA][BBBB] vs [XXXX][YYYY], or
+      - [AAAA][0000] vs [XXXX][0000]
+      Let's return the sign of the difference.
+    */
+    return cws < cwt ? -1 : +1;
   }
-  return s - s0;
+
+  if (length == 1 &&
+      sscanner->send - sscanner->sbeg == 1 &&
+      tscanner->send - tscanner->sbeg == 1) /* One byte left on both sides */
+  {
+    uint16 ws, wt;
+    if ((ws= booster->weight_1byte_to_1weight_standalone[sscanner->sbeg[0]]) &&
+        (wt= booster->weight_1byte_to_1weight_standalone[tscanner->sbeg[0]]))
+    {
+      /*
+        The increments below are important only if the two weights are equal:
+          the caller will check if both scanners reached line ends to
+          decide if it needs to continue with a slower loop.
+        But it's not harmful to increment even of the weights are different:
+          the caller will return on "greater" or "less",
+          so scanner positions are not important any more.
+        Let's always increment, to avoid a conditional jump.
+      */
+      sscanner->sbeg++;
+      tscanner->sbeg++;
+      return (int) ws - (int) wt;
+    }
+  }
+  return 0;
 }
 
 

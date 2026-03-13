@@ -1,0 +1,74 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL, c TEXT, PRIMARY KEY(a, b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 0, 'Start');
+*** Generating 25 large transactions in 5 interleaved connections
+connection master;
+INSERT INTO t1 VALUES (0, 1, 'End');
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+2552	33150	128776	5000383
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+2552	33150	128776	5000383
+connection master;
+*** Test trx cache larger than binlog size is correctly split into multiple pieces when spilled as oob data ***
+connection master;
+CREATE TABLE t2 (a INT PRIMARY KEY, b LONGTEXT) ENGINE=InnoDB;
+SET @old_binlog_size= @@GLOBAL.max_binlog_size;
+SET STATEMENT sql_log_bin=0 FOR
+CALL mtr.add_suppression("Requested max_binlog_size is smaller than the minimum size supported by InnoDB");
+SET GLOBAL max_binlog_size= 4096;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+INSERT INTO t2 VALUES (10001, REPEAT('x', 1024*1024));
+SELECT COUNT(*), SUM(a), SUM(LENGTH(b)) FROM t1;
+COUNT(*)	SUM(a)	SUM(LENGTH(b))
+2602	50033150	4993
+include/save_master_gtid.inc
+SET GLOBAL max_binlog_size= @old_binlog_size;
+connection slave;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), SUM(LENGTH(b)) FROM t1;
+COUNT(*)	SUM(a)	SUM(LENGTH(b))
+2602	50033150	4993
+*** Test that triggers re-allocation of the oob stack due to large tree depth
+connection master;
+CREATE TABLE t3 (
+id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+a text NOT NULL DEFAULT '',
+b text DEFAULT '',
+PRIMARY KEY (id)
+) ENGINE=InnoDB;
+SET @old_cache_size= @@GLOBAL.binlog_cache_size;
+SET GLOBAL binlog_cache_size= 4096;
+INSERT INTO t3 SELECT seq, 'foo', 'bar' FROM seq_1_to_100;
+UPDATE t3 SET a = REPEAT('x', 65535);
+UPDATE t3 SET b = 'qux';
+SET GLOBAL binlog_cache_size= @old_cache_size;
+*** Test that single large OOB spill gets split into smaller pieces.
+SET GLOBAL binlog_cache_size= 4*1024*1024;
+connect my_con1,localhost,root,,;
+BEGIN;
+UPDATE t3 SET b = 'tmp' WHERE id = 1;
+UPDATE t3 SET a = REPEAT('y', 65535);
+UPDATE t3 SET b = 'wic';
+COMMIT;
+disconnect my_con1;
+connection master;
+SET GLOBAL binlog_cache_size= @old_cache_size;
+*** Test oob spilling of DDL
+connection master;
+ALTER TABLE t3
+PARTITION BY LIST(id)
+(PARTITION p1 VALUES IN ($long_list),
+PARTITION p2 VALUES IN (10000));
+CREATE TABLE t4 AS SELECT * FROM t3 LIMIT 10;
+ALTER TABLE t4 ENGINE=MyISAM;
+CREATE TABLE t5 AS SELECT * FROM t4;
+connection master;
+DROP TABLE t1, t2, t3, t4, t5;
+include/rpl_end.inc

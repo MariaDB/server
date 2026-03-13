@@ -21,6 +21,7 @@ select user, host from mysql.db;
 user	host
 grant select on mysql.* to test_role2;
 flush privileges;
+change_user test_user,,;
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `mysql`.`roles_mapping`
 select current_user(), current_role();
@@ -54,14 +55,18 @@ localhost	root	test_role1	Y
 localhost	root	test_role2	Y
 localhost	test_user	test_role1	N
 localhost	test_user	test_role2	N
+change_user root,,;
 create role test_role3;
 grant test_role3 to test_role2;
 create role test_role4;
 grant test_role4 to test_role3;
+change_user test_user,,;
 set role test_role1;
 delete from mysql.user where user='no such user';
 ERROR 42000: DELETE command denied to user 'test_user'@'localhost' for table `mysql`.`user`
+change_user root,,;
 grant delete on mysql.* to test_role4;
+change_user test_user,,;
 set role test_role1;
 delete from mysql.user where user='no such user';
 show grants;
@@ -78,5 +83,6 @@ GRANT `test_role2` TO `test_role1`
 GRANT `test_role2` TO `test_user`@`localhost`
 GRANT `test_role3` TO `test_role2`
 GRANT `test_role4` TO `test_role3`
+change_user root,,;
 drop user test_user@localhost;
 drop role test_role1, test_role2, test_role3, test_role4;

@@ -1,0 +1,75 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb_binlog.inc
+
+--let $datadir= `SELECT @@datadir`
+
+--source include/reset_master.inc
+
+set TIMESTAMP= UNIX_TIMESTAMP("1970-01-21 15:32:22");
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+
+--echo *** Test dumping all binlog files, including the last empty one.
+FLUSH BINARY LOGS;  # To make sure the CREATE TABLE is on disk
+--let $binlog_name= binlog-000002.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--exec $MYSQL_BINLOG --short-form --base64-output=never $datadir/binlog-000000.ibb $datadir/binlog-000001.ibb $datadir/binlog-000002.ibb 2>&1
+
+--let $gtid_start= `SELECT @@gtid_binlog_pos`
+INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0);
+UPDATE t1 SET b=1 WHERE a=1;
+DELETE FROM t1 WHERE a=2;
+REPLACE INTO t1 VALUES (3, 3);
+--let $gtid_stop= `SELECT @@gtid_binlog_pos`
+
+# Force rotate the binlog to make sure the one we want to dump is written
+# to disk.
+FLUSH BINARY LOGS;
+--let $binlog_name= binlog-000003.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--exec $MYSQL_BINLOG --short-form --base64-output=never $datadir/binlog-000001.ibb
+
+--echo *** Test dumping the last, pre-allocated, empty file.
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--exec $MYSQL_BINLOG --short-form --base64-output=never $datadir/binlog-000003.ibb 2>&1
+
+SELECT * FROM t1 ORDER BY a;
+
+# Test flashback from files specified with directory path.
+--exec $MYSQL_BINLOG --flashback --start-position=$gtid_start --stop-position=$gtid_stop $datadir/binlog-000000.ibb $datadir/binlog-000001.ibb > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_1.txt
+--exec $MYSQL --abort-source-on-error -e "source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_1.txt;" test
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_1.txt
+
+SELECT * FROM t1 ORDER BY a;
+
+# Test normal apply from binlog files in current directory
+--exec cd $datadir && $MYSQL_BINLOG --start-position=$gtid_start --stop-position=$gtid_stop binlog-000000.ibb binlog-000001.ibb > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_2.txt
+--exec $MYSQL -e "source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_2.txt;"
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_2.txt
+
+SELECT * FROM t1 ORDER BY a;
+
+SET SESSION binlog_format= MIXED;
+INSERT INTO t1 SELECT a+10, 10 FROM t1;
+UPDATE t1 SET b=11 WHERE a <= 12;
+--let $gtid_stop= `SELECT @@gtid_binlog_pos`
+
+SELECT * FROM t1 ORDER BY a;
+
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+
+# Test across multiple binlog files.
+# Need --gtid-strict-mode=0 here, as the previous replay duplicated the
+# original GTIDs.
+TRUNCATE t1;
+--exec $MYSQL_BINLOG --start-position=$gtid_start --stop-position=$gtid_stop --gtid-strict-mode=0 $datadir/binlog-000000.ibb $datadir/binlog-000001.ibb $datadir/binlog-000002.ibb > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_3.txt
+--exec $MYSQL -e "source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_3.txt;"
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_3.txt
+
+SELECT * FROM t1 ORDER BY a;
+
+DROP TABLE t1;

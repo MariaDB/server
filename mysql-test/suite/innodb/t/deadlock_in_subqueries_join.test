@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/count_sessions.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
@@ -82,4 +81,3 @@ COMMIT;
 
 --connection default
 DROP TABLE t1,t2,t3;
---source include/wait_until_count_sessions.inc

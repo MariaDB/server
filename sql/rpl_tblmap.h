@@ -76,6 +76,7 @@ public:
   int       remove_table(ulonglong table_id);
   void      clear_tables();
   ulong     count() const { return m_table_ids.records; }
+  void      get_table_ids(ulonglong *table_ids, size_t n_table_ids);
 
 private:
   /*

@@ -54,7 +54,7 @@ INSERT INTO t1 VALUES('2000-12-31 23:59:59.9999999');
 ALTER TABLE t1 MODIFY a DATE;
 Warnings:
 Note	1265	Data truncated for column 'a' at row 1
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 2
 Note	1265	Data truncated for column 'a' at row 2
 SELECT a FROM t1;
 a
@@ -90,7 +90,7 @@ a	CAST(a AS DATE)
 2000-12-31 23:59:59.9999	2000-12-31
 2000-12-31 23:59:59.9999999	2000-12-31
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2000-12-31 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2000-12-31 23:59:59.9999999' for column `test`.`t1`.`a` at row 2
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(38,10));
 INSERT INTO t1 VALUES(20001231235959.9999);
@@ -151,7 +151,7 @@ SELECT * FROM t1 WHERE a=DATE'2001-01-02';
 a
 2001-01-01 23:59:59.9999999
 Warnings:
-Note	1292	Truncated incorrect datetime value: '2001-01-01 23:59:59.9999999'
+Note	1292	Incorrect datetime value: '2001-01-01 23:59:59.9999999' for column `test`.`t1`.`a` at row 1
 SELECT * FROM t1 WHERE CONCAT(a)=DATE'2001-01-02';
 a
 2001-01-01 23:59:59.9999999
