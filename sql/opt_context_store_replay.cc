@@ -16,7 +16,7 @@
    USA */
 
 #include "sql_plugin.h"
-#include "opt_store_replay_context.h"
+#include "opt_context_store_replay.h"
 #include "sql_show.h"
 #include "my_json_writer.h"
 #include "mysql.h"
