@@ -108,13 +108,18 @@ class Saved_Table_stats;
 void init_optimizer_context_replay_if_needed(THD *thd);
 
 /*
-  This class stores the parsed optimizer context information
-  and then infuses read stats into the optimizer
+  Optimizer context that's loaded and can be used for replay.
 
-  Optimizer Context information that we've read from a JSON document.
+  - When this object is created, it will parse the context JSON document
+    from a user variable pointed by @@optimizer_replay_context.
 
-  The optimizer can use infuse_XXX() methods to get the saved values.
+  - The optimizer checks thd->opt_ctx_replay, if it is present, it will call
+
+       thd->opt_ctx_replay->infuse_XXX()
+
+    to get "infuse" the statistics records from the context.
 */
+
 class Optimizer_context_replay
 {
 public:
@@ -143,6 +148,8 @@ public:
                                const key_range *max_range, ha_rows *records);
 
 private:
+  bool infuse_table_rows(const TABLE *tbl, ha_rows *rows);
+
   THD *thd;
   /*
     Statistics that tables had before we've replaced them with values from
@@ -153,14 +160,14 @@ private:
   List<table_context_for_replay> ctx_list;
   bool parse();
   bool has_records();
-#ifndef DBUG_OFF
-  void dbug_print_read_stats();
-#endif
   List<ha_rows> *get_index_rec_per_key_list(const TABLE *tbl,
                                             const char *idx_name);
   void store_range_contexts(const TABLE *tbl, const char *idx_name,
                             List<Multi_range_read_const_call_record> *list);
   table_context_for_replay *find_table_context(const char *name);
+#ifndef DBUG_OFF
+  void dbug_print_read_stats();
+#endif
 };
 
 /*
