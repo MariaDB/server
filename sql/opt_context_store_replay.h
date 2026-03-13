@@ -103,7 +103,7 @@ bool store_optimizer_context(THD *thd);
 class table_context_for_replay;
 class index_context_for_replay;
 
-class Saved_Table_stats;
+class Saved_table_stats;
 
 void init_optimizer_context_replay_if_needed(THD *thd);
 
@@ -155,7 +155,7 @@ private:
     Statistics that tables had before we've replaced them with values from
     the saved context. To be used to restore the original values.
   */
-  List<Saved_Table_stats> saved_table_stats;
+  List<Saved_table_stats> saved_table_stats;
 
   List<table_context_for_replay> ctx_list;
   bool parse();
