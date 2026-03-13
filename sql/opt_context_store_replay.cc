@@ -781,7 +781,10 @@ void Optimizer_context_recorder::record_multi_range_read_info_const(
     ha_rows max_index_blocks,
     ha_rows max_row_blocks)
 {
-  /* Do not record calls made by "Range checked for each record" */
+  /*
+    Do not record calls that are made at execution phase by "Range checked
+    for each record"
+  */
   if (current_thd->lex->explain->is_query_plan_ready())
     return;
 
@@ -809,12 +812,7 @@ void Optimizer_context_recorder::record_multi_range_read_info_const(
     range_ctx->range_list.push_back(range_str, mem_root);
   }
 
-  /*
-    Store the ranges of every index of the table into the
-    table context.
-  */
   table_context_for_store *table_ctx= get_table_context(tbl);
-
   if (unlikely(!table_ctx))
     return; // OOM
 
@@ -976,7 +974,7 @@ public:
   They are restored once the query that used replay json stats is done
   execution.
 */
-class Saved_Index_stats : public Sql_alloc
+class Saved_index_stats : public Sql_alloc
 {
 public:
   KEY *key_info;
@@ -991,7 +989,7 @@ public:
   They are restored once the query that used replay json stats is done
   execution.
 */
-class Saved_Table_stats : public Sql_alloc
+class Saved_table_stats : public Sql_alloc
 {
 public:
   TABLE *table;
@@ -999,7 +997,7 @@ public:
     We do not restore table->file->stats.records, they are read from the
     storage engine for every query anyway.
   */
-  List<Saved_Index_stats> saved_indexstats_list;
+  List<Saved_index_stats> saved_index_stats;
 };
 
 /*
@@ -1675,7 +1673,7 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
   if (!has_records() || !is_base_table(table->pos_in_table_list))
     return;
 
-  Saved_Table_stats *saved_ts= new Saved_Table_stats();
+  Saved_table_stats *saved_ts= new Saved_table_stats();
 
   if (unlikely(!saved_ts))
     return; // OOM
@@ -1735,7 +1733,7 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
     saved_is->original_is_statistics_from_stat_tables=
         original_is_statistics_from_stat_tables;
     saved_is->original_read_stats= original_read_stats;
-    saved_ts->saved_indexstats_list.push_back(saved_is);
+    saved_ts->saved_index_stats.push_back(saved_is);
   }
 }
 
@@ -1792,11 +1790,11 @@ bool Optimizer_context_replay::infuse_records_in_range(
 */
 void Optimizer_context_replay::restore_modified_table_stats()
 {
-  List_iterator<Saved_Table_stats> table_li(saved_table_stats);
-  while (Saved_Table_stats *saved_ts= table_li++)
+  List_iterator<Saved_table_stats> table_li(saved_table_stats);
+  while (Saved_table_stats *saved_ts= table_li++)
   {
-    List_iterator<Saved_Index_stats> index_li(saved_ts->saved_indexstats_list);
-    while (Saved_Index_stats *saved_is= index_li++)
+    List_iterator<Saved_index_stats> index_li(saved_ts->saved_index_stats);
+    while (Saved_index_stats *saved_is= index_li++)
     {
       KEY *key= saved_is->key_info;
       key->is_statistics_from_stat_tables=
