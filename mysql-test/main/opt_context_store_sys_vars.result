@@ -14,12 +14,14 @@ insert into t1 select seq%2, seq%3 from seq_1_to_20;
 select count(*) from t1;
 count(*)
 20
-set @set_stmts= (select REGEXP_SUBSTR(
-context, '(SET .*)([\n\r].*)*(?=(set @opt_context=))')
+set @set_stmts=
+(select REGEXP_SUBSTR(context, '(SET .*)([\n\r].*)*(?=(CREATE DATABASE))')
 AS set_stmt from information_schema.optimizer_context);
 select @set_stmts;
 @set_stmts
-SET join_buffer_size=262144;
+SET NAMES utf8mb4;
+
+ SET join_buffer_size=262144;
 
 SET join_cache_level=2;
 
@@ -85,17 +87,7 @@ select context into
 dumpfile "dump1.sql" from information_schema.optimizer_context;
 ERROR HY000: The MariaDB server is running with the --secure-file-priv option so it cannot execute this statement
 drop table t1;
-CREATE DATABASE IF NOT EXISTS db1;
-Warnings:
-Note	1007	Can't create database 'db1'; database exists
-USE db1;
-CREATE TABLE `t1` (
-`a` int(11) DEFAULT NULL,
-`b` int(11) DEFAULT NULL,
-KEY `t1_idx_a` (`a`),
-KEY `t1_idx_b` (`b`),
-KEY `t1_idx_ab` (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+SET NAMES utf8mb4;
 SET join_buffer_size=262144;
 SET join_cache_level=2;
 SET optimizer_adjust_secondary_key_costs=0;
@@ -126,6 +118,17 @@ SET optimizer_trace='enabled=on';
 SET optimizer_trace_max_mem_size=1048576;
 SET optimizer_use_condition_selectivity=4;
 SET optimizer_where_cost=0.032000;
+CREATE DATABASE IF NOT EXISTS db1;
+Warnings:
+Note	1007	Can't create database 'db1'; database exists
+USE db1;
+CREATE TABLE `t1` (
+`a` int(11) DEFAULT NULL,
+`b` int(11) DEFAULT NULL,
+KEY `t1_idx_a` (`a`),
+KEY `t1_idx_b` (`b`),
+KEY `t1_idx_ab` (`a`,`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 set @opt_context='
 {
   "list_contexts": [
