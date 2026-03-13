@@ -914,7 +914,6 @@ public:
      i.e db_name.[table/view]_name
   */
   char *name;
-  char *ddl;
   ha_rows total_rows;
   double read_cost_io;
   double read_cost_cpu;
@@ -1186,7 +1185,6 @@ static int parse_table_context(THD *thd, json_engine_t *je, String *err_buf,
 
   Read_named_member array[]= {
       {"name", Read_string(thd, &table_ctx->name), false},
-      {"ddl", Read_string(thd, &table_ctx->ddl), true},
       {"num_of_records",
        Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->total_rows),
        false},
@@ -1861,7 +1859,6 @@ void Optimizer_context_replay::dbug_print_read_stats()
     DBUG_PRINT("info", ("New Table Context"));
     DBUG_PRINT("info", ("-----------------"));
     DBUG_PRINT("info", ("name: %s", tbl_ctx->name));
-    DBUG_PRINT("info", ("ddl: %s", tbl_ctx->ddl));
     DBUG_PRINT("info", ("num_of_records: %llx", tbl_ctx->total_rows));
 
     List_iterator<index_context_for_replay> index_itr(tbl_ctx->index_list);
@@ -2040,10 +2037,8 @@ void Optimizer_context_replay::store_range_contexts(
         tbl_ctx->ranges_list);
     while (range_context_for_replay *range_ctx= range_ctx_itr++)
     {
-      if (strcmp(idx_name, range_ctx->index_name) == 0)
-      {
+      if (!strcmp(idx_name, range_ctx->index_name))
         list->push_back(range_ctx);
-      }
     }
   }
 
@@ -2080,6 +2075,13 @@ Optimizer_context_capture::Optimizer_context_capture(THD *thd, String &ctx_arg)
   ctx.copy(ctx_arg);
 }
 
+
+/*
+  @brief
+    Put the SQL script from thd->captured_opt_ctx into I_S.OPTIMIZER_CONTEXT
+    pseudo-table.
+*/
+
 int fill_optimizer_context_capture_info(THD *thd, TABLE_LIST *tables, Item *)
 {
   TABLE *table= tables->table;
@@ -2103,7 +2105,6 @@ int fill_optimizer_context_capture_info(THD *thd, TABLE_LIST *tables, Item *)
 
 void clean_captured_ctx(THD *thd)
 {
-  if (thd->captured_opt_ctx)
-    delete thd->captured_opt_ctx;
+  delete thd->captured_opt_ctx;
   thd->captured_opt_ctx= nullptr;
 }
