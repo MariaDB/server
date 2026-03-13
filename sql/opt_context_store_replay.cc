@@ -144,7 +144,7 @@ public:
 class table_context_for_store : public Sql_alloc
 {
 public:
-  /* full name of the table or view i.e db_name.[table/view]_name */
+  /* full name of the table or view i.e db_name.{table|view}_name */
   char *name;
   size_t name_len;
   List<Multi_range_read_const_call_record> mrr_list;
@@ -161,7 +161,6 @@ ST_FIELD_INFO optimizer_context_capture_info[]= {
     Column("CONTEXT", Longtext(65535), NOT_NULL), CEnd()};
 } // namespace Show
 
-static char *strdup_root(MEM_ROOT *root, const String *buf);
 static void append_full_table_name(const TABLE_LIST *tbl, String *buf);
 static int parse_check_obj_start_in_array(json_engine_t *je, String *err_buf,
                                           const char *err_msg);
@@ -179,6 +178,12 @@ static bool parse_range_cost_estimate(THD *thd, json_engine_t *je,
 static int parse_records_in_range_context(THD *thd, json_engine_t *je,
                                           String *err_buf,
                                           records_in_range_call_record *rir_ctx);
+
+static char *strdup_root(MEM_ROOT *root, const String *str)
+{
+  return strmake_root(root, str->ptr(), str->length());
+}
+
 
 struct DDL_Key
 {
@@ -377,9 +382,7 @@ static bool is_optimizer_related_var(const char **sys_vars,
   for (uint i= 0; sys_vars[i] != NULL; i++)
   {
     if (!strcmp(sys_vars[i], var_name))
-    {
       return true;
-    }
   }
   return false;
 }
@@ -489,13 +492,14 @@ bool store_optimizer_context(THD *thd)
   sql_script.set_charset(system_charset_info);
   Json_writer ctx_writer;
   Json_writer_object context(&ctx_writer);
+  Json_writer_array context_list(&ctx_writer, "list_contexts");
+
   sql_script.append(STRING_WITH_LEN("CREATE DATABASE IF NOT EXISTS "));
   sql_script.append(thd->get_db(), strlen(thd->get_db()));
   sql_script.append(STRING_WITH_LEN(";\n\n"));
   sql_script.append(STRING_WITH_LEN("USE "));
   sql_script.append(thd->get_db(), strlen(thd->get_db()));
   sql_script.append(STRING_WITH_LEN(";\n\n"));
-  Json_writer_array context_list(&ctx_writer, "list_contexts");
   HASH hash;
   List<TABLE_LIST> tables_list;
 
@@ -565,13 +569,12 @@ bool store_optimizer_context(THD *thd)
       break;
     }
 
-    Json_writer_object ctx_wrapper(&ctx_writer);
-
     sql_script.append(ddl);
     sql_script.append(STRING_WITH_LEN(";\n\n"));
 
     if (!tbl->is_view())
     {
+      Json_writer_object ctx_wrapper(&ctx_writer);
       table_context_for_store *table_context= thd->opt_ctx_recorder->search(
           (uchar *) ddl_key->name, ddl_key->name_len);
       if (table_context)
@@ -817,11 +820,6 @@ void Optimizer_context_recorder::record_const_table_row(TABLE *tbl)
     return; // OOM
 
   table_ctx->const_tbl_ins_stmt_list.push_back(ins_stmt, mem_root);
-}
-
-static char *strdup_root(MEM_ROOT *root, const String *str)
-{
-  return strmake_root(root, str->ptr(), str->length());
 }
 
 /*
@@ -1656,8 +1654,8 @@ bool Optimizer_context_replay::infuse_records_in_range(
   if (table_context_for_replay *tbl_ctx=
           find_table_context(tbl_name.c_ptr_safe()))
   {
-    List_iterator<records_in_range_call_record> rir_itr(tbl_ctx->rir_list);
-    while (records_in_range_call_record *rec= rir_itr++)
+    List_iterator<records_in_range_call_record> iter(tbl_ctx->rir_list);
+    while (records_in_range_call_record *rec= iter++)
     {
       if (rec->keynr == keynr &&
           !strcmp(rec->min_key, min_key.c_ptr_safe()) &&
