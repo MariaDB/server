@@ -58,7 +58,7 @@ unless (@ARGV) {
     my $defaults   = `my_print_defaults --mysqld`;
 
     my $datadir = ($defaults =~ m/--datadir=(.*)/g)[-1];
-    if (!$datadir or $opt{i}) {
+    if ($opt{i}) {
 	# determine the datadir from the instances section of /etc/my.cnf, if any
 	my $instances  = `my_print_defaults instances`;
 	die "Can't determine datadir from 'my_print_defaults instances' output: $defaults"
