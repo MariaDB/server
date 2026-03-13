@@ -145,7 +145,7 @@ public:
 class table_context_for_store : public Sql_alloc
 {
 public:
-  /* full name of the table or view i.e db_name.{table|view}_name */
+  /* Full name of the table or view i.e db_name.{table|view}_name */
   char *name;
   size_t name_len;
   List<Multi_range_read_const_call_record> mrr_list;
@@ -956,10 +956,7 @@ public:
 class table_context_for_replay : public Sql_alloc
 {
 public:
-  /*
-     full name of the table or view
-     i.e db_name.[table/view]_name
-  */
+  /* Full name of the table or view i.e db_name.{table|view}_name */
   char *name;
   ha_rows total_rows;
   ha_rows file_stat_records;
