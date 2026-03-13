@@ -1,5 +1,8 @@
 IF (WITH_WSREP)
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql
                       ${CMAKE_SOURCE_DIR}/wsrep)
-  MYSQL_ADD_PLUGIN(WSREP_INFO plugin.cc MODULE_ONLY RECOMPILE_FOR_EMBEDDED)
+  MYSQL_ADD_PLUGIN(WSREP_INFO plugin.cc
+                   MODULE_ONLY RECOMPILE_FOR_EMBEDDED
+                   COMPONENT Server_Galera
+                   CONFIG wsrep_info.cnf)
 ENDIF()
