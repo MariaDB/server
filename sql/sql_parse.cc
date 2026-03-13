@@ -94,7 +94,7 @@
 #include "mysql/psi/mysql_sp.h"
 
 #include "my_json_writer.h"
-#include "opt_store_replay_context.h"
+#include "opt_context_store_replay.h"
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
 #ifdef WITH_ARIA_STORAGE_ENGINE

@@ -190,7 +190,7 @@ SET (SQL_SOURCE
                optimizer_costs.h optimizer_defaults.h
                opt_trace.cc
                sql_json_lib.cc
-               opt_store_replay_context.cc
+               opt_context_store_replay.cc
                table_cache.cc encryption.cc temporary_tables.cc
                json_table.cc
                proxy_protocol.cc backup.cc xa.cc
