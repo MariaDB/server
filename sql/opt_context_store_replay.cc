@@ -1693,7 +1693,7 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
     if (!index_freq_list || index_freq_list->is_empty())
       continue;
 
-    Saved_Index_stats *saved_is= new Saved_Index_stats();
+    Saved_index_stats *saved_is= new Saved_index_stats();
 
     if (unlikely(!saved_is))
       return; // OOM
