@@ -1,20 +1,23 @@
 --source include/have_innodb.inc
+--source include/not_embedded.inc
 --source include/have_sequence.inc
+--source include/have_partition.inc
 
 --echo #
 --echo # Test InnoDB index-level adaptive_hash_index options
 --echo #
 
-SET @start_global_value = @@global.innodb_adaptive_hash_index;
+SET @start_global_value= @@global.innodb_adaptive_hash_index;
 if ($MTR_COMBINATION_AHI) {
-  SET GLOBAL innodb_adaptive_hash_index=ON;
+  SET @combination_value= 'ON';
 }
 if ($MTR_COMBINATION_NO_AHI) {
-  SET GLOBAL innodb_adaptive_hash_index=OFF;
+  SET @combination_value= 'OFF';
 }
 if ($MTR_COMBINATION_IF_SPECIFIED) {
-  SET GLOBAL innodb_adaptive_hash_index=if_specified;
+  SET @combination_value= 'if_specified';
 }
+SET GLOBAL innodb_adaptive_hash_index= @combination_value;
 
 CREATE TABLE t1 (
   id INT PRIMARY KEY,
@@ -40,27 +43,30 @@ INSERT INTO t1 SELECT seq, seq, seq << 8, seq << 16 FROM seq_0_to_255;
 --disable_result_log
 DELIMITER $$;
 
-CREATE PROCEDURE run_and_check_idx(p_idx_num INT, p_rounds INT)
+CREATE PROCEDURE run_and_check_idx(p_rounds INT, p_idx_num INT, p_table_name VARCHAR(64))
 BEGIN
   DECLARE start_val BIGINT;
   DECLARE end_val BIGINT;
   DECLARE i INT DEFAULT 0;
-  DECLARE dummy INT;
 
   SELECT count INTO start_val FROM information_schema.innodb_metrics WHERE name = 'adaptive_hash_searches';
 
-  WHILE i < p_rounds DO
-    IF p_idx_num = 1 THEN
-      SELECT COUNT(*) INTO dummy FROM t1 FORCE INDEX(idx_1) WHERE col1 >= 0 AND col1 < (1 << 8);
-    ELSEIF p_idx_num = 2 THEN
-      SELECT COUNT(*) INTO dummy FROM t1 FORCE INDEX(idx_2) WHERE col1 = 50 AND col2 >= 0 AND col2 < (1 << 16);
-    ELSEIF p_idx_num = 3 THEN
-      SELECT COUNT(*) INTO dummy FROM t1 FORCE INDEX(idx_3) WHERE col1 = 50 AND col2 = (50 << 8) AND col3 >= 0 AND col3 < (1 << 24);
-    END IF;
-    SET i = i + 1;
-  END WHILE;
+  IF p_idx_num = 1 THEN
+    SET @query = CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_1) WHERE col1 >= 0 AND col1 < (1 << 8)');
+  ELSEIF p_idx_num = 2 THEN
+    SET @query = CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_2) WHERE col1 = 50 AND col2 >= 0 AND col2 < (1 << 16)');
+  ELSEIF p_idx_num = 3 THEN
+    SET @query = CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_3) WHERE col1 = 50 AND col2 = (50 << 8) AND col3 >= 0 AND col3 < (1 << 24)');
+  END IF;
 
-  IF dummy = 0 THEN
+  PREPARE stmt FROM @query;
+  WHILE i < p_rounds OR p_rounds < 0 DO
+    EXECUTE stmt;
+    SET i= i + 1;
+  END WHILE;
+  DEALLOCATE PREPARE stmt;
+
+  IF COALESCE(@dummy, 0) = 0 THEN
     SELECT '# WARNING: No rows selected' AS warning_msg;
   END IF;
 
@@ -78,33 +84,108 @@ DELIMITER ;$$
 --enable_result_log
 --enable_query_log
 
-SET GLOBAL innodb_monitor_enable = module_adaptive_hash;
+SET GLOBAL innodb_monitor_enable= module_adaptive_hash;
 let $query_rounds= 240;
 
-eval CALL run_and_check_idx(1, $query_rounds);
-eval CALL run_and_check_idx(2, $query_rounds);
-eval CALL run_and_check_idx(3, $query_rounds);
+eval CALL run_and_check_idx($query_rounds, 1, 't1');
+eval CALL run_and_check_idx($query_rounds, 2, 't1');
+eval CALL run_and_check_idx($query_rounds, 3, 't1');
 
 ALTER TABLE t1 adaptive_hash_index=OFF, ALGORITHM=INSTANT, LOCK=NONE;
 
-eval CALL run_and_check_idx(1, $query_rounds);
-eval CALL run_and_check_idx(2, $query_rounds);
-eval CALL run_and_check_idx(3, $query_rounds);
+eval CALL run_and_check_idx($query_rounds, 1, 't1');
+eval CALL run_and_check_idx($query_rounds, 2, 't1');
+eval CALL run_and_check_idx($query_rounds, 3, 't1');
 
 ALTER TABLE t1 adaptive_hash_index='ON', ALGORITHM=INSTANT, LOCK=NONE;
 
-eval CALL run_and_check_idx(1, $query_rounds);
-eval CALL run_and_check_idx(2, $query_rounds);
-eval CALL run_and_check_idx(3, $query_rounds);
+eval CALL run_and_check_idx($query_rounds, 1, 't1');
+eval CALL run_and_check_idx($query_rounds, 2, 't1');
+eval CALL run_and_check_idx($query_rounds, 3, 't1');
 
-DROP PROCEDURE run_and_check_idx;
+# Test concurrent modification of adaptive_hash_index
+connect(con1, localhost, root);
+let $con1_id= `SELECT CONNECTION_ID()`;
+--send CALL run_and_check_idx(-1, 1, 't1');
+
+connection default;
+--sleep 0.2
+
+# Toggle AHI status while con1 is reading
+SET GLOBAL innodb_adaptive_hash_index= OFF;
+eval CALL run_and_check_idx($query_rounds, 1, 't1');
+SET GLOBAL innodb_adaptive_hash_index= ON;
+eval CALL run_and_check_idx($query_rounds, 1, 't1');
+SET GLOBAL innodb_adaptive_hash_index= IF_SPECIFIED;
+eval CALL run_and_check_idx($query_rounds, 1, 't1');
+SET GLOBAL innodb_adaptive_hash_index= @combination_value;
+eval CALL run_and_check_idx($query_rounds, 1, 't1');
+
+--replace_result $con1_id con1_id
+eval KILL $con1_id;
+
+connection con1;
+--error 2013,ER_CONNECTION_KILLED
+--reap
+disconnect con1;
+
+connection default;
 DROP TABLE t1;
-SET @@global.innodb_adaptive_hash_index = @start_global_value;
-SET GLOBAL innodb_monitor_disable = module_adaptive_hash;
+
+--echo #
+--echo # Test AHI with partitioned tables
+--echo #
+
+CREATE TABLE t1_part (
+  id INT PRIMARY KEY,
+  col1 INT, col2 INT, col3 INT,
+  INDEX idx_1 (col1) adaptive_hash_index=DEFAULT,
+  INDEX idx_2 (col1, col2) adaptive_hash_index=YES,
+  INDEX idx_3 (col1, col2, col3) adaptive_hash_index=NO
+) ENGINE=InnoDB STATS_PERSISTENT=0 adaptive_hash_index=DEFAULT
+  PARTITION BY HASH(id) PARTITIONS 4;
+
+INSERT INTO t1_part SELECT seq, seq, seq << 8, seq << 16 FROM seq_0_to_511;
+
+eval CALL run_and_check_idx($query_rounds, 1, 't1_part');
+eval CALL run_and_check_idx($query_rounds, 2, 't1_part');
+eval CALL run_and_check_idx($query_rounds, 3, 't1_part');
+
+DROP TABLE t1_part;
+DROP PROCEDURE run_and_check_idx;
+SET @@global.innodb_adaptive_hash_index= @start_global_value;
+SET GLOBAL innodb_monitor_disable= module_adaptive_hash;
 --disable_warnings
-SET GLOBAL innodb_monitor_disable = default;
-SET GLOBAL innodb_monitor_enable = default;
+SET GLOBAL innodb_monitor_disable= default;
+SET GLOBAL innodb_monitor_enable= default;
 --enable_warnings
+
+--echo #
+--echo # Test AHI metadata retention after crash recovery
+--echo #
+
+CREATE TABLE t1_crash (
+  id INT PRIMARY KEY,
+  col1 INT, col2 INT, col3 INT,
+  INDEX idx_1 (col1) adaptive_hash_index=DEFAULT,
+  INDEX idx_2 (col1, col2) adaptive_hash_index=YES,
+  INDEX idx_3 (col1, col2, col3) adaptive_hash_index=NO
+) ENGINE=InnoDB STATS_PERSISTENT=0 adaptive_hash_index=DEFAULT;
+
+INSERT INTO t1_crash SELECT seq, seq, seq << 8, seq << 16 FROM seq_0_to_255;
+
+ALTER TABLE t1_crash ADD INDEX idx_9 (col3, col1, col2) adaptive_hash_index=YES complete_fields=2 bytes_from_incomplete_field=1 for_equal_hash_point_to_last_record=0;
+
+SHOW CREATE TABLE t1_crash;
+
+--source include/kill_mysqld.inc
+--source include/start_mysqld.inc
+
+SHOW CREATE TABLE t1_crash;
+
+SELECT COUNT(*) FROM t1_crash;
+
+DROP TABLE t1_crash;
 
 --echo #
 --echo # Test maximum number of fields per (secondary) index is 64 (32+32)

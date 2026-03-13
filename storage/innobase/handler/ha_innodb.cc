@@ -2922,25 +2922,47 @@ static void innodb_ahi_enable(dict_table_t *innodb_table,
     &UT_LIST_GET_FIRST(innodb_table->indexes)->search_info;
   for (auto i= table->s->keys; i--; )
   {
-    const KEY &key= table->key_info[i];
+    const KEY &key= table->s->key_info[i];
     dict_index_t *index=
         dict_table_get_index_on_name(innodb_table, key.name.str);
-    if (!index)
-      continue;
-    const uint8_t index_ahi=
+    if (!index || !index->n_uniq)
+      continue;  /* FTS indexes have n_uniq == 0; AHI is not applicable */
+
+    ut_ad(key.option_struct);
+    uint64_t fields= key.option_struct->complete_fields;
+    uint64_t bytes= key.option_struct->bytes_from_incomplete_field;
+    ut_ad(fields == ULONGLONG_MAX || fields <= max_complete_fields);
+    ut_ad(bytes == ULONGLONG_MAX || bytes <= max_bytes_from_incomplete_field);
+    const uint16_t n_uniq= index->n_uniq;
+    /* Clamp fields to the number of unique index fields */
+    if (UNIV_UNLIKELY(fields != ULONGLONG_MAX && fields > n_uniq))
+      fields= n_uniq;
+    ut_ad(fields == ULONGLONG_MAX || fields <= n_uniq);
+    /* If all unique fields are included, force bytes to 0 */
+    if (UNIV_UNLIKELY(fields != ULONGLONG_MAX && fields >= n_uniq))
+      bytes= 0;
+    /* If bytes is set and fields is not, force fields to 0 to
+    disambiguate which field are the bytes referring to */
+    if (UNIV_UNLIKELY(fields == ULONGLONG_MAX && bytes != ULONGLONG_MAX))
+      fields= 0;
+    /* If fields < n_uniq and bytes != ULONGLONG_MAX, there is no need
+    to clamp bytes, as rec_fold() will already do so */
+
+    uint8_t index_ahi=
       uint8_t((key.option_struct->adaptive_hash_index + 1) % 3);
+    /* fields==0 + bytes==0 is useless */
+    if (UNIV_UNLIKELY(index_ahi && fields == 0 && bytes == 0))
+      index_ahi= 0;  /* Force disable AHI */
     /* Use index preference if set, otherwise use table preference */
     const uint8_t mask= uint8_t(0 - (index_ahi & 1));
     /* mask == 0xFF if index_ahi == 1, indicates index preference unset */
     const uint8_t ahi= uint8_t((table_ahi & mask) | (index_ahi & ~mask));
-    const uint64_t fields= key.option_struct->complete_fields;
-    const uint64_t bytes= key.option_struct->bytes_from_incomplete_field;
+    ut_ad(ahi <= 2);
+
     const uint32_t right=
       key.option_struct->for_equal_hash_point_to_last_record;
-    ut_ad(ahi <= 2);
-    ut_ad(fields == ULONGLONG_MAX || fields <= max_complete_fields);
-    ut_ad(bytes == ULONGLONG_MAX || bytes <= max_bytes_from_incomplete_field);
     ut_ad(right <= TABLE_HINT_NO);
+
     static_assert((uint64_t(1) << 63) > max_complete_fields,
                   "Cannot use highest bit as unused flag");
     static_assert((uint64_t(1) << 63) > max_bytes_from_incomplete_field,
@@ -2954,6 +2976,7 @@ static void innodb_ahi_enable(dict_table_t *innodb_table,
       uint16_t(bytes),
       (right >> 1) & 1  /* right == TABLE_HINT_NO */
     );
+
     if (def_search_info == &index->search_info)
       def_search_info= nullptr;
   }
@@ -19509,7 +19532,7 @@ const char* innodb_ahi_names[] = {
 };
 
 /** Used to define an enumerate type of the system variable
-innodb_checksum_algorithm. */
+innodb_adaptive_hash_index. */
 TYPELIB innodb_ahi_typelib =
 			CREATE_TYPELIB_FOR(innodb_ahi_names);
 

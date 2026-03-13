@@ -3,8 +3,9 @@ SET GLOBAL DEBUG_DBUG='+d,index_ahi_option_debug_check';
 #
 # Test InnoDB index-level adaptive_hash_index options (debug)
 #
-SET @start_global_value = @@global.innodb_adaptive_hash_index;
-SET GLOBAL innodb_adaptive_hash_index=OFF;
+SET @start_global_value= @@global.innodb_adaptive_hash_index;
+SET @combination_value= 'OFF';
+SET GLOBAL innodb_adaptive_hash_index= @combination_value;
 CREATE TABLE t1_ahi_default (
 id INT PRIMARY KEY,
 col1 INT, col2 INT, col3 INT,
@@ -13,7 +14,7 @@ INDEX idx_2 (col1, col2) adaptive_hash_index=YES complete_fields=1 bytes_from_in
 INDEX idx_3 (col1, col2, col3) adaptive_hash_index=NO complete_fields=2 bytes_from_incomplete_field=2 for_equal_hash_point_to_last_record=1
 ) ENGINE=InnoDB STATS_PERSISTENT=0 adaptive_hash_index=DEFAULT;
 INSERT INTO t1_ahi_default SELECT seq, seq, seq << 8, seq << 16 FROM seq_0_to_255;
-SET GLOBAL innodb_monitor_enable = module_adaptive_hash;
+SET GLOBAL innodb_monitor_enable= module_adaptive_hash;
 CALL run_and_check_idx(240, 1, 't1_ahi_default');
 result_msg
 # No AHI used in SELECT (idx_1)
@@ -47,10 +48,11 @@ result_msg
 CALL run_and_check_idx(240, 3, 't1_ahi_yes');
 result_msg
 # No AHI used in SELECT (idx_3)
-ALTER TABLE t1_ahi_yes ADD INDEX idx_4 (col2) complete_fields=2;
-ALTER TABLE t1_ahi_yes ADD INDEX idx_5 (col3) bytes_from_incomplete_field=5;
-ALTER TABLE t1_ahi_yes ADD INDEX idx_6 (col2, col1) complete_fields=0 bytes_from_incomplete_field=0 for_equal_hash_point_to_last_record=0;
-ALTER TABLE t1_ahi_yes ADD INDEX idx_7 (col3, col2) complete_fields=0 bytes_from_incomplete_field=0 for_equal_hash_point_to_last_record=1;
+ALTER TABLE t1_ahi_yes ADD INDEX idx_4 (col2) complete_fields=3  /* complete_fields=3 > n_uniq==2 (col2 + id), will get clamped to 2 in innodb_ahi_enable() */;
+ALTER TABLE t1_ahi_yes ADD INDEX idx_5 (col3) bytes_from_incomplete_field=5  /* bytes_from_incomplete_field=5 > maximum of 4 (col3 INT), will get clamped in rec_fold() */;
+ALTER TABLE t1_ahi_yes ADD INDEX idx_6 (col2, col1) complete_fields=0 bytes_from_incomplete_field=0 for_equal_hash_point_to_last_record=0  /* complete_fields=0 bytes_from_incomplete_field=0 will disable AHI in innodb_ahi_enable() */;
+ALTER TABLE t1_ahi_yes ADD INDEX idx_7 (col3, col2) complete_fields=0 bytes_from_incomplete_field=0 for_equal_hash_point_to_last_record=1  /* complete_fields=0 bytes_from_incomplete_field=0 will disable AHI in innodb_ahi_enable() */;
+ALTER TABLE t1_ahi_yes ADD INDEX idx_8 (col3, col2, col1) complete_fields=4 bytes_from_incomplete_field=1  /* bytes_from_incomplete_field=1 is inapplicable since complete_fields=4 covers all unique fields (col3 + col2 + col1 + id), will get reset to 0 in innodb_ahi_enable() */;
 CALL run_and_check_idx(240, 4, 't1_ahi_yes');
 result_msg
 # No AHI used in SELECT (idx_4)
@@ -63,10 +65,50 @@ result_msg
 CALL run_and_check_idx(240, 7, 't1_ahi_yes');
 result_msg
 # No AHI used in SELECT (idx_7)
-DROP PROCEDURE run_and_check_idx;
+CALL run_and_check_idx(240, 8, 't1_ahi_yes');
+result_msg
+# No AHI used in SELECT (idx_8)
 DROP TABLE t1_ahi_yes;
-SET @@global.innodb_adaptive_hash_index = @start_global_value;
-SET GLOBAL innodb_monitor_disable = module_adaptive_hash;
-SET GLOBAL innodb_monitor_disable = default;
-SET GLOBAL innodb_monitor_enable = default;
 SET GLOBAL DEBUG_DBUG=@orig_debug;
+#
+# Test ALTER TABLE adaptive_hash_index=OFF with concurrent AHI access
+#
+CREATE TABLE t1_ahi_default_2 (
+id INT PRIMARY KEY,
+col1 INT,
+INDEX idx_1 (col1) adaptive_hash_index=DEFAULT complete_fields=0 bytes_from_incomplete_field=3 for_equal_hash_point_to_last_record=0
+) ENGINE=InnoDB STATS_PERSISTENT=0 adaptive_hash_index=DEFAULT;
+INSERT INTO t1_ahi_default_2 SELECT seq, seq FROM seq_0_to_255;
+CALL run_and_check_idx(240, 1, 't1_ahi_default_2');
+result_msg
+# No AHI used in SELECT (idx_1)
+connect con1, localhost, root;
+CALL run_and_check_idx(-1, 1, 't1_ahi_default_2');;
+connection default;
+SET GLOBAL innodb_adaptive_hash_index= OFF;
+CALL run_and_check_idx(240, 1, 't1_ahi_default_2');
+result_msg
+# No AHI used in SELECT (idx_1)
+SET GLOBAL innodb_adaptive_hash_index= ON;
+CALL run_and_check_idx(240, 1, 't1_ahi_default_2');
+result_msg
+# Used AHI in SELECT (idx_1)
+SET GLOBAL innodb_adaptive_hash_index= IF_SPECIFIED;
+CALL run_and_check_idx(240, 1, 't1_ahi_default_2');
+result_msg
+# No AHI used in SELECT (idx_1)
+SET GLOBAL innodb_adaptive_hash_index= @combination_value;
+CALL run_and_check_idx(240, 1, 't1_ahi_default_2');
+result_msg
+# No AHI used in SELECT (idx_1)
+KILL con1_id;
+connection con1;
+Got one of the listed errors
+disconnect con1;
+connection default;
+DROP TABLE t1_ahi_default_2;
+DROP PROCEDURE run_and_check_idx;
+SET @@global.innodb_adaptive_hash_index= @start_global_value;
+SET GLOBAL innodb_monitor_disable= module_adaptive_hash;
+SET GLOBAL innodb_monitor_disable= default;
+SET GLOBAL innodb_monitor_enable= default;

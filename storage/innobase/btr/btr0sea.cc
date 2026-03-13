@@ -427,8 +427,8 @@ ATTRIBUTE_COLD ulong btr_sea::disable() noexcept
 
 /** Enable the adaptive hash search system.
 @param resize whether buf_pool_t::resize() is the caller
-@param resize Type of adaptive_hash_index.
-	      1 (enable for all tables) or 2 (if_specified */
+@param enable_opt Type of adaptive_hash_index.
+	      1 (enable for all tables) or 2 (if_specified) */
 ATTRIBUTE_COLD void btr_sea::enable(bool resize, ulong enable_opt) noexcept
 {
   ut_ad(enable_opt > 0);
@@ -831,7 +831,7 @@ func_exit:
     const uint8_t enabled= info.get_ahi_enabled(ahi_enabled_fixed_mask);
     const char* idx_name= index->name;
     const char* table_name= index->table->name.m_name;
-    if (!fixed_mask_set) {}
+    if (!fixed_mask_set) { /* Do nothing */ }
     else if (!strcmp(idx_name, "idx_1"))
     {
       /*
@@ -910,7 +910,7 @@ func_exit:
     }
     else if (!strcmp(idx_name, "idx_4"))
     {
-      /* INDEX idx_4 (col2) complete_fields=2 */
+      /* INDEX idx_4 (col2) complete_fields=3 */
       if (!strcmp(table_name, "test/t1_ahi_no"))
         ut_ad(false);
       else if (!strcmp(table_name, "test/t1_ahi_default"))
@@ -919,7 +919,8 @@ func_exit:
         ut_ad(enabled == 2);
       else
         goto not_under_test;
-      ut_ad(mask == 0x0000FFFF);
+      ut_ad(mask == 0x7FFFFFFF);
+      /* complete_fields was clamped to 2 in innodb_ahi_enable() */
       ut_ad((fixed & mask) == 2);
     }
     else if (!strcmp(idx_name, "idx_5"))
@@ -933,7 +934,8 @@ func_exit:
         ut_ad(enabled == 2);
       else
         goto not_under_test;
-      ut_ad(mask == 0x7FFF0000);
+      ut_ad(mask == 0x7FFFFFFF);
+      /* complete_fields was forced to 0 in innodb_ahi_enable() */
       ut_ad((fixed & mask) == (5 << 16));
     }
     else if (!strcmp(idx_name, "idx_6"))
@@ -949,11 +951,9 @@ func_exit:
       else if (!strcmp(table_name, "test/t1_ahi_default"))
         ut_ad(false);
       else if (!strcmp(table_name, "test/t1_ahi_yes"))
-        ut_ad(enabled == 2);
+        ut_ad(false);
       else
         goto not_under_test;
-      ut_ad(mask == 0xFFFFFFFF);
-      ut_ad((fixed & mask) == buf_block_t::LEFT_SIDE);
     }
     else if (!strcmp(idx_name, "idx_7"))
     {
@@ -968,11 +968,28 @@ func_exit:
       else if (!strcmp(table_name, "test/t1_ahi_default"))
         ut_ad(false);
       else if (!strcmp(table_name, "test/t1_ahi_yes"))
+        ut_ad(false);
+      else
+        goto not_under_test;
+    }
+    else if (!strcmp(idx_name, "idx_8"))
+    {
+      /*
+      INDEX idx_8 (col3, col2, col1)
+      complete_fields=4
+      bytes_from_incomplete_field=1
+      */
+      if (!strcmp(table_name, "test/t1_ahi_no"))
+        ut_ad(false);
+      else if (!strcmp(table_name, "test/t1_ahi_default"))
+        ut_ad(false);
+      else if (!strcmp(table_name, "test/t1_ahi_yes"))
         ut_ad(enabled == 2);
       else
         goto not_under_test;
-      ut_ad(mask == 0xFFFFFFFF);
-      ut_ad((fixed & mask) == 0);
+      ut_ad(mask == 0x7FFFFFFF);
+      /* bytes_from_incomplete_field was forced to 0 in innodb_ahi_enable() */
+      ut_ad((fixed & mask) == 4);
     }
     else
     {
@@ -1305,7 +1322,7 @@ btr_search_guess_on_hash(
       !index->search_info.n_hash_potential)
   {
   ahi_unusable:
-    if (!index->table->is_temporary() && btr_search.get_enabled())
+    if (!index->table->is_temporary() && btr_search.is_enabled(index))
       cursor->flag= BTR_CUR_HASH_ABORT;
     return false;
   }
@@ -2050,7 +2067,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
 
   dict_index_t *index= block->index;
 
-  if (!index)
+  if (!index || !btr_search.is_enabled(index))
     return;
 
   ut_ad(block->page.id().space() == index->table->space_id);

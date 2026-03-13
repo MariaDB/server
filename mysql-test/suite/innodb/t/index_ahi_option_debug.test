@@ -11,16 +11,17 @@ SET GLOBAL DEBUG_DBUG='+d,index_ahi_option_debug_check';
 --echo # Test InnoDB index-level adaptive_hash_index options (debug)
 --echo #
 
-SET @start_global_value = @@global.innodb_adaptive_hash_index;
+SET @start_global_value= @@global.innodb_adaptive_hash_index;
 if ($MTR_COMBINATION_AHI) {
-  SET GLOBAL innodb_adaptive_hash_index=ON;
+  SET @combination_value= 'ON';
 }
 if ($MTR_COMBINATION_NO_AHI) {
-  SET GLOBAL innodb_adaptive_hash_index=OFF;
+  SET @combination_value= 'OFF';
 }
 if ($MTR_COMBINATION_IF_SPECIFIED) {
-  SET GLOBAL innodb_adaptive_hash_index=if_specified;
+  SET @combination_value= 'if_specified';
 }
+SET GLOBAL innodb_adaptive_hash_index= @combination_value;
 
 CREATE TABLE t1_ahi_default (
   id INT PRIMARY KEY,
@@ -41,54 +42,35 @@ BEGIN
   DECLARE start_val BIGINT;
   DECLARE end_val BIGINT;
   DECLARE i INT DEFAULT 0;
-  DECLARE dummy INT;
 
   SELECT count INTO start_val FROM information_schema.innodb_metrics WHERE name = 'adaptive_hash_searches';
 
-  IF p_table_name = 't1_ahi_default' THEN
-    WHILE i < p_rounds DO
-      IF p_idx_num = 1 THEN
-        SELECT COUNT(*) INTO dummy FROM t1_ahi_default FORCE INDEX(idx_1) WHERE col1 >= 0 AND col1 < (1 << 8);
-      ELSEIF p_idx_num = 2 THEN
-        SELECT COUNT(*) INTO dummy FROM t1_ahi_default FORCE INDEX(idx_2) WHERE col1 = 50 AND col2 >= 0 AND col2 < (1 << 16);
-      ELSEIF p_idx_num = 3 THEN
-        SELECT COUNT(*) INTO dummy FROM t1_ahi_default FORCE INDEX(idx_3) WHERE col1 = 50 AND col2 = (50 << 8) AND col3 >= 0 AND col3 < (1 << 24);
-      END IF;
-      SET i = i + 1;
-    END WHILE;
-  ELSEIF p_table_name = 't1_ahi_no' THEN
-    WHILE i < p_rounds DO
-      IF p_idx_num = 1 THEN
-        SELECT COUNT(*) INTO dummy FROM t1_ahi_no FORCE INDEX(idx_1) WHERE col1 >= 0 AND col1 < (1 << 8);
-      ELSEIF p_idx_num = 2 THEN
-        SELECT COUNT(*) INTO dummy FROM t1_ahi_no FORCE INDEX(idx_2) WHERE col1 = 50 AND col2 >= 0 AND col2 < (1 << 16);
-      ELSEIF p_idx_num = 3 THEN
-        SELECT COUNT(*) INTO dummy FROM t1_ahi_no FORCE INDEX(idx_3) WHERE col1 = 50 AND col2 = (50 << 8) AND col3 >= 0 AND col3 < (1 << 24);
-      END IF;
-      SET i = i + 1;
-    END WHILE;
-  ELSEIF p_table_name = 't1_ahi_yes' THEN
-    WHILE i < p_rounds DO
-      IF p_idx_num = 1 THEN
-        SELECT COUNT(*) INTO dummy FROM t1_ahi_yes FORCE INDEX(idx_1) WHERE col1 >= 0 AND col1 < (1 << 8);
-      ELSEIF p_idx_num = 2 THEN
-        SELECT COUNT(*) INTO dummy FROM t1_ahi_yes FORCE INDEX(idx_2) WHERE col1 = 50 AND col2 >= 0 AND col2 < (1 << 16);
-      ELSEIF p_idx_num = 3 THEN
-        SELECT COUNT(*) INTO dummy FROM t1_ahi_yes FORCE INDEX(idx_3) WHERE col1 = 50 AND col2 = (50 << 8) AND col3 >= 0 AND col3 < (1 << 24);
-      ELSEIF p_idx_num = 4 THEN
-        SELECT COUNT(*) INTO dummy FROM t1_ahi_yes FORCE INDEX(idx_4) WHERE col2 = (50 << 8);
-      ELSEIF p_idx_num = 5 THEN
-        SELECT COUNT(*) INTO dummy FROM t1_ahi_yes FORCE INDEX(idx_5) WHERE col3 = (50 << 16);
-      ELSEIF p_idx_num = 6 THEN
-        SELECT COUNT(*) INTO dummy FROM t1_ahi_yes FORCE INDEX(idx_6) WHERE col2 = (50 << 8) AND col1 = 50;
-      ELSEIF p_idx_num = 7 THEN
-        SELECT COUNT(*) INTO dummy FROM t1_ahi_yes FORCE INDEX(idx_7) WHERE col3 = (50 << 16) AND col2 = (50 << 8);
-      END IF;
-      SET i = i + 1;
-    END WHILE;
+  IF p_idx_num = 1 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_1) WHERE col1 >= 0 AND col1 < (1 << 8)');
+  ELSEIF p_idx_num = 2 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_2) WHERE col1 = 50 AND col2 >= 0 AND col2 < (1 << 16)');
+  ELSEIF p_idx_num = 3 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_3) WHERE col1 = 50 AND col2 = (50 << 8) AND col3 >= 0 AND col3 < (1 << 24)');
+  ELSEIF p_idx_num = 4 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_4) WHERE col2 = (50 << 8) AND id = 50 /* Need PK as well since complete_fields is clamped to 2 (col2 + id) */');
+  ELSEIF p_idx_num = 5 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_5) WHERE col3 = (50 << 16)');
+  ELSEIF p_idx_num = 6 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_6) WHERE col2 = (50 << 8) AND col1 = 50');
+  ELSEIF p_idx_num = 7 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_7) WHERE col3 = (50 << 16) AND col2 = (50 << 8)');
+  ELSEIF p_idx_num = 8 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_8) WHERE col3 = (50 << 16) AND col2 = (50 << 8) AND col1 = 50 AND id = 50 /* Need PK as well since complete_fields is 4 (col3 + col2 + col1 + id) */');
   END IF;
 
-  IF dummy = 0 THEN
+  PREPARE stmt FROM @query;
+  WHILE i < p_rounds OR p_rounds < 0 DO
+    EXECUTE stmt;
+    SET i= i + 1;
+  END WHILE;
+  DEALLOCATE PREPARE stmt;
+
+  IF COALESCE(@dummy, 0) = 0 THEN
     SELECT '# WARNING: No rows selected' AS warning_msg;
   END IF;
 
@@ -106,7 +88,7 @@ DELIMITER ;$$
 --enable_result_log
 --enable_query_log
 
-SET GLOBAL innodb_monitor_enable = module_adaptive_hash;
+SET GLOBAL innodb_monitor_enable= module_adaptive_hash;
 let $query_rounds= 240;
 
 eval CALL run_and_check_idx($query_rounds, 1, 't1_ahi_default');
@@ -130,23 +112,67 @@ eval CALL run_and_check_idx($query_rounds, 2, 't1_ahi_yes');
 eval CALL run_and_check_idx($query_rounds, 3, 't1_ahi_yes');
 
 # Test "illegal" options
-ALTER TABLE t1_ahi_yes ADD INDEX idx_4 (col2) complete_fields=2;
-ALTER TABLE t1_ahi_yes ADD INDEX idx_5 (col3) bytes_from_incomplete_field=5;
-ALTER TABLE t1_ahi_yes ADD INDEX idx_6 (col2, col1) complete_fields=0 bytes_from_incomplete_field=0 for_equal_hash_point_to_last_record=0;
-ALTER TABLE t1_ahi_yes ADD INDEX idx_7 (col3, col2) complete_fields=0 bytes_from_incomplete_field=0 for_equal_hash_point_to_last_record=1;
+ALTER TABLE t1_ahi_yes ADD INDEX idx_4 (col2) complete_fields=3  /* complete_fields=3 > n_uniq==2 (col2 + id), will get clamped to 2 in innodb_ahi_enable() */;
+ALTER TABLE t1_ahi_yes ADD INDEX idx_5 (col3) bytes_from_incomplete_field=5  /* bytes_from_incomplete_field=5 > maximum of 4 (col3 INT), will get clamped in rec_fold() */;
+ALTER TABLE t1_ahi_yes ADD INDEX idx_6 (col2, col1) complete_fields=0 bytes_from_incomplete_field=0 for_equal_hash_point_to_last_record=0  /* complete_fields=0 bytes_from_incomplete_field=0 will disable AHI in innodb_ahi_enable() */;
+ALTER TABLE t1_ahi_yes ADD INDEX idx_7 (col3, col2) complete_fields=0 bytes_from_incomplete_field=0 for_equal_hash_point_to_last_record=1  /* complete_fields=0 bytes_from_incomplete_field=0 will disable AHI in innodb_ahi_enable() */;
+ALTER TABLE t1_ahi_yes ADD INDEX idx_8 (col3, col2, col1) complete_fields=4 bytes_from_incomplete_field=1  /* bytes_from_incomplete_field=1 is inapplicable since complete_fields=4 covers all unique fields (col3 + col2 + col1 + id), will get reset to 0 in innodb_ahi_enable() */;
 
 eval CALL run_and_check_idx($query_rounds, 4, 't1_ahi_yes');
 eval CALL run_and_check_idx($query_rounds, 5, 't1_ahi_yes');
 eval CALL run_and_check_idx($query_rounds, 6, 't1_ahi_yes');
 eval CALL run_and_check_idx($query_rounds, 7, 't1_ahi_yes');
+eval CALL run_and_check_idx($query_rounds, 8, 't1_ahi_yes');
 
-DROP PROCEDURE run_and_check_idx;
 DROP TABLE t1_ahi_yes;
-SET @@global.innodb_adaptive_hash_index = @start_global_value;
-SET GLOBAL innodb_monitor_disable = module_adaptive_hash;
---disable_warnings
-SET GLOBAL innodb_monitor_disable = default;
-SET GLOBAL innodb_monitor_enable = default;
---enable_warnings
-
 SET GLOBAL DEBUG_DBUG=@orig_debug;
+
+--echo #
+--echo # Test ALTER TABLE adaptive_hash_index=OFF with concurrent AHI access
+--echo #
+
+CREATE TABLE t1_ahi_default_2 (
+  id INT PRIMARY KEY,
+  col1 INT,
+  INDEX idx_1 (col1) adaptive_hash_index=DEFAULT complete_fields=0 bytes_from_incomplete_field=3 for_equal_hash_point_to_last_record=0
+) ENGINE=InnoDB STATS_PERSISTENT=0 adaptive_hash_index=DEFAULT;
+
+INSERT INTO t1_ahi_default_2 SELECT seq, seq FROM seq_0_to_255;
+
+# Warm-up AHI
+eval CALL run_and_check_idx($query_rounds, 1, 't1_ahi_default_2');
+
+connect(con1, localhost, root);
+let $con1_id= `SELECT CONNECTION_ID()`;
+--send CALL run_and_check_idx(-1, 1, 't1_ahi_default_2');
+
+connection default;
+--sleep 0.2
+
+# Toggle AHI status while con1 is reading
+SET GLOBAL innodb_adaptive_hash_index= OFF;
+eval CALL run_and_check_idx($query_rounds, 1, 't1_ahi_default_2');
+SET GLOBAL innodb_adaptive_hash_index= ON;
+eval CALL run_and_check_idx($query_rounds, 1, 't1_ahi_default_2');
+SET GLOBAL innodb_adaptive_hash_index= IF_SPECIFIED;
+eval CALL run_and_check_idx($query_rounds, 1, 't1_ahi_default_2');
+SET GLOBAL innodb_adaptive_hash_index= @combination_value;
+eval CALL run_and_check_idx($query_rounds, 1, 't1_ahi_default_2');
+
+--replace_result $con1_id con1_id
+eval KILL $con1_id;
+
+connection con1;
+--error 2013,ER_CONNECTION_KILLED
+--reap
+disconnect con1;
+
+connection default;
+DROP TABLE t1_ahi_default_2;
+DROP PROCEDURE run_and_check_idx;
+SET @@global.innodb_adaptive_hash_index= @start_global_value;
+SET GLOBAL innodb_monitor_disable= module_adaptive_hash;
+--disable_warnings
+SET GLOBAL innodb_monitor_disable= default;
+SET GLOBAL innodb_monitor_enable= default;
+--enable_warnings

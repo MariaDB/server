@@ -1,8 +1,9 @@
 #
 # Test InnoDB index-level adaptive_hash_index options
 #
-SET @start_global_value = @@global.innodb_adaptive_hash_index;
-SET GLOBAL innodb_adaptive_hash_index=OFF;
+SET @start_global_value= @@global.innodb_adaptive_hash_index;
+SET @combination_value= 'OFF';
+SET GLOBAL innodb_adaptive_hash_index= @combination_value;
 CREATE TABLE t1 (
 id INT PRIMARY KEY,
 col1 INT, col2 INT, col3 INT,
@@ -11,42 +12,132 @@ INDEX idx_2 (col1, col2) adaptive_hash_index=YES,
 INDEX idx_3 (col1, col2, col3) adaptive_hash_index=NO
 ) ENGINE=InnoDB STATS_PERSISTENT=0 adaptive_hash_index=DEFAULT;
 INSERT INTO t1 SELECT seq, seq, seq << 8, seq << 16 FROM seq_0_to_255;
-SET GLOBAL innodb_monitor_enable = module_adaptive_hash;
-CALL run_and_check_idx(1, 240);
+SET GLOBAL innodb_monitor_enable= module_adaptive_hash;
+CALL run_and_check_idx(240, 1, 't1');
 result_msg
 # No AHI used in SELECT (idx_1)
-CALL run_and_check_idx(2, 240);
+CALL run_and_check_idx(240, 2, 't1');
 result_msg
 # No AHI used in SELECT (idx_2)
-CALL run_and_check_idx(3, 240);
+CALL run_and_check_idx(240, 3, 't1');
 result_msg
 # No AHI used in SELECT (idx_3)
 ALTER TABLE t1 adaptive_hash_index=OFF, ALGORITHM=INSTANT, LOCK=NONE;
-CALL run_and_check_idx(1, 240);
+CALL run_and_check_idx(240, 1, 't1');
 result_msg
 # No AHI used in SELECT (idx_1)
-CALL run_and_check_idx(2, 240);
+CALL run_and_check_idx(240, 2, 't1');
 result_msg
 # No AHI used in SELECT (idx_2)
-CALL run_and_check_idx(3, 240);
+CALL run_and_check_idx(240, 3, 't1');
 result_msg
 # No AHI used in SELECT (idx_3)
 ALTER TABLE t1 adaptive_hash_index='ON', ALGORITHM=INSTANT, LOCK=NONE;
-CALL run_and_check_idx(1, 240);
+CALL run_and_check_idx(240, 1, 't1');
 result_msg
 # No AHI used in SELECT (idx_1)
-CALL run_and_check_idx(2, 240);
+CALL run_and_check_idx(240, 2, 't1');
 result_msg
 # No AHI used in SELECT (idx_2)
-CALL run_and_check_idx(3, 240);
+CALL run_and_check_idx(240, 3, 't1');
 result_msg
 # No AHI used in SELECT (idx_3)
-DROP PROCEDURE run_and_check_idx;
+connect con1, localhost, root;
+CALL run_and_check_idx(-1, 1, 't1');;
+connection default;
+SET GLOBAL innodb_adaptive_hash_index= OFF;
+CALL run_and_check_idx(240, 1, 't1');
+result_msg
+# No AHI used in SELECT (idx_1)
+SET GLOBAL innodb_adaptive_hash_index= ON;
+CALL run_and_check_idx(240, 1, 't1');
+result_msg
+# Used AHI in SELECT (idx_1)
+SET GLOBAL innodb_adaptive_hash_index= IF_SPECIFIED;
+CALL run_and_check_idx(240, 1, 't1');
+result_msg
+# Used AHI in SELECT (idx_1)
+SET GLOBAL innodb_adaptive_hash_index= @combination_value;
+CALL run_and_check_idx(240, 1, 't1');
+result_msg
+# No AHI used in SELECT (idx_1)
+KILL con1_id;
+connection con1;
+Got one of the listed errors
+disconnect con1;
+connection default;
 DROP TABLE t1;
-SET @@global.innodb_adaptive_hash_index = @start_global_value;
-SET GLOBAL innodb_monitor_disable = module_adaptive_hash;
-SET GLOBAL innodb_monitor_disable = default;
-SET GLOBAL innodb_monitor_enable = default;
+#
+# Test AHI with partitioned tables
+#
+CREATE TABLE t1_part (
+id INT PRIMARY KEY,
+col1 INT, col2 INT, col3 INT,
+INDEX idx_1 (col1) adaptive_hash_index=DEFAULT,
+INDEX idx_2 (col1, col2) adaptive_hash_index=YES,
+INDEX idx_3 (col1, col2, col3) adaptive_hash_index=NO
+) ENGINE=InnoDB STATS_PERSISTENT=0 adaptive_hash_index=DEFAULT
+PARTITION BY HASH(id) PARTITIONS 4;
+INSERT INTO t1_part SELECT seq, seq, seq << 8, seq << 16 FROM seq_0_to_511;
+CALL run_and_check_idx(240, 1, 't1_part');
+result_msg
+# No AHI used in SELECT (idx_1)
+CALL run_and_check_idx(240, 2, 't1_part');
+result_msg
+# No AHI used in SELECT (idx_2)
+CALL run_and_check_idx(240, 3, 't1_part');
+result_msg
+# No AHI used in SELECT (idx_3)
+DROP TABLE t1_part;
+DROP PROCEDURE run_and_check_idx;
+SET @@global.innodb_adaptive_hash_index= @start_global_value;
+SET GLOBAL innodb_monitor_disable= module_adaptive_hash;
+SET GLOBAL innodb_monitor_disable= default;
+SET GLOBAL innodb_monitor_enable= default;
+#
+# Test AHI metadata retention after crash recovery
+#
+CREATE TABLE t1_crash (
+id INT PRIMARY KEY,
+col1 INT, col2 INT, col3 INT,
+INDEX idx_1 (col1) adaptive_hash_index=DEFAULT,
+INDEX idx_2 (col1, col2) adaptive_hash_index=YES,
+INDEX idx_3 (col1, col2, col3) adaptive_hash_index=NO
+) ENGINE=InnoDB STATS_PERSISTENT=0 adaptive_hash_index=DEFAULT;
+INSERT INTO t1_crash SELECT seq, seq, seq << 8, seq << 16 FROM seq_0_to_255;
+ALTER TABLE t1_crash ADD INDEX idx_9 (col3, col1, col2) adaptive_hash_index=YES complete_fields=2 bytes_from_incomplete_field=1 for_equal_hash_point_to_last_record=0;
+SHOW CREATE TABLE t1_crash;
+Table	Create Table
+t1_crash	CREATE TABLE `t1_crash` (
+  `id` int(11) NOT NULL,
+  `col1` int(11) DEFAULT NULL,
+  `col2` int(11) DEFAULT NULL,
+  `col3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_1` (`col1`),
+  KEY `idx_2` (`col1`,`col2`) `adaptive_hash_index`=YES,
+  KEY `idx_3` (`col1`,`col2`,`col3`) `adaptive_hash_index`=NO,
+  KEY `idx_9` (`col3`,`col1`,`col2`) `adaptive_hash_index`=YES `complete_fields`=2 `bytes_from_incomplete_field`=1 `for_equal_hash_point_to_last_record`=0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=0
+# Kill the server
+# restart
+SHOW CREATE TABLE t1_crash;
+Table	Create Table
+t1_crash	CREATE TABLE `t1_crash` (
+  `id` int(11) NOT NULL,
+  `col1` int(11) DEFAULT NULL,
+  `col2` int(11) DEFAULT NULL,
+  `col3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_1` (`col1`),
+  KEY `idx_2` (`col1`,`col2`) `adaptive_hash_index`=YES,
+  KEY `idx_3` (`col1`,`col2`,`col3`) `adaptive_hash_index`=NO,
+  KEY `idx_9` (`col3`,`col1`,`col2`) `adaptive_hash_index`=YES `complete_fields`=2 `bytes_from_incomplete_field`=1 `for_equal_hash_point_to_last_record`=0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=0
+SELECT COUNT(*) FROM t1_crash;
+COUNT(*)
+256
+DROP TABLE t1_crash;
 #
 # Test maximum number of fields per (secondary) index is 64 (32+32)
 #

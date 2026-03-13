@@ -1502,8 +1502,9 @@ bool buf_pool_t::create() noexcept
 
   buf_LRU_old_ratio_update(100 * 3 / 8, false);
 #ifdef BTR_CUR_HASH_ADAPT
-  if (btr_search.get_enabled())
-    btr_search.enable(false, btr_search.get_enabled());
+  const ulong ahi_enabled= btr_search.get_enabled();
+  if (ahi_enabled)
+    btr_search.enable(false, ahi_enabled);
 #endif
 
 #ifdef __linux__
