@@ -5520,10 +5520,22 @@ int Item_copy_string::save_in_field(Field *field, bool no_conversions)
 
 void Item_copy_string::copy()
 {
-  String *res=item->val_str(&str_value);
-  if (res && res != &str_value)
-    str_value.copy(*res);
-  null_value=item->null_value;
+  Item *real_item= item->real_item();
+  if (real_item->type() == Item::SUBSELECT_ITEM &&
+      static_cast<Item_subselect *>(real_item)->substype() == Item_subselect::IN_SUBS)
+  {
+    double d= item->val_real();
+    null_value= item->null_value;
+    if (!null_value)
+      str_value.set_real(d, 0, &my_charset_bin);
+  }
+  else
+  {
+    String *res= item->val_str(&str_value);
+    if (res && res != &str_value)
+      str_value.copy(*res);
+    null_value= item->null_value;
+  }
 #ifndef DBUG_OFF
   copied_in= 1;
 #endif
