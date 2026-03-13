@@ -7560,8 +7560,10 @@ int spider_db_open_item_int(
 
     if (!(tmp_str2 = item->val_str(tmp_str.get_str())))
     {
-      error_num = HA_ERR_OUT_OF_MEM;
-      goto end;
+      if (str->reserve(SPIDER_SQL_NULL_LEN))
+        error_num = HA_ERR_OUT_OF_MEM;
+      str->q_append(SPIDER_SQL_NULL_STR, SPIDER_SQL_NULL_LEN);
+      DBUG_RETURN(error_num);
     }
     tmp_str.mem_calc();
 
