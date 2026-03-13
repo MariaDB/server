@@ -15,8 +15,8 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335
    USA */
 
-#ifndef OPT_STORE_REPLAY_CONTEXT
-#define OPT_STORE_REPLAY_CONTEXT
+#ifndef OPT_CONTEXT_STORE_REPLAY
+#define OPT_CONTEXT_STORE_REPLAY
 
 #include "my_global.h"
 #include "sql_list.h"
