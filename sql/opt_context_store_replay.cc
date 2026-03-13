@@ -1000,41 +1000,7 @@ public:
   List<Saved_index_stats> saved_index_stats;
 };
 
-/*
-  Extends the Read_value interface to read a container of values,
-  for eg: array of numbers or strings, an object with several fields, etc...
-*/
-class Read_container_value : public Read_value
-{
-private:
-  int before_read(json_engine_t *je, const char *value_name, String *err_buf)
-  {
-    if (json_scan_next(je) || je->state != JST_ARRAY_START)
-    {
-      err_buf->append(STRING_WITH_LEN("error reading "));
-      err_buf->append(value_name, strlen(value_name));
-      err_buf->append(STRING_WITH_LEN(" value"));
-      return 1;
-    }
-    return 0;
-  }
-
-  int after_read(int rc) { return rc > 0; }
-
-public:
-  bool read_value(json_engine_t *je, const char *value_name,
-                  String *err_buf) override
-  {
-    int rc= before_read(je, value_name, err_buf);
-    if (rc <= 0)
-    {
-      rc= read_container(je, err_buf);
-    }
-    return after_read(rc);
-  }
-  virtual int read_container(json_engine_t *je, String *err_buf)= 0;
-};
-
+// psergey: Reads a JSON object
 class Read_range_cost_estimate : public Read_value
 {
   THD *thd;
@@ -1052,7 +1018,8 @@ public:
   }
 };
 
-class Read_list_of_ha_rows : public Read_container_value
+
+class Read_list_of_ha_rows : public Read_array
 {
   THD *thd;
   List<ha_rows> *list_values;
@@ -1089,14 +1056,18 @@ public:
   }
 };
 
-template <typename T> class Read_list_of_context : public Read_container_value
+/*
+  Read an array of JSON objects representing object T. 
+  Create instances of T and collect them in a List<T> 
+*/
+template <typename T> class Read_array_into_list : public Read_array
 {
   THD *thd;
   List<T> *list_ctx;
   int (*parse_context_fn)(THD *, json_engine_t *, String *, T *);
 
 public:
-  Read_list_of_context(THD *thd_arg, List<T> *list_ctx_arg,
+  Read_array_into_list(THD *thd_arg, List<T> *list_ctx_arg,
                        int (*parse_context_fn_arg)(THD *, json_engine_t *,
                                                    String *, T *))
       : thd(thd_arg), list_ctx(list_ctx_arg),
@@ -1129,7 +1100,7 @@ public:
   }
 };
 
-class Read_list_of_ranges : public Read_container_value
+class Read_list_of_ranges : public Read_array
 {
   THD *thd;
   List<char> *list_ranges;
@@ -1238,19 +1209,19 @@ static int parse_table_context(THD *thd, json_engine_t *je, String *err_buf,
       {"read_cost_io", Read_double(&table_ctx->read_cost_io), false},
       {"read_cost_cpu", Read_double(&table_ctx->read_cost_cpu), false},
       {"indexes",
-       Read_list_of_context<index_context_for_replay>(
+       Read_array_into_list<index_context_for_replay>(
            thd, &table_ctx->index_list, parse_index_context),
        true},
       {"list_ranges",
-       Read_list_of_context<Multi_range_read_const_call_record>(
+       Read_array_into_list<Multi_range_read_const_call_record>(
            thd, &table_ctx->ranges_list, parse_range_context),
        true},
       {"list_index_read_costs",
-       Read_list_of_context<cost_index_read_call_record>(
+       Read_array_into_list<cost_index_read_call_record>(
            thd, &table_ctx->irc_list, parse_index_read_cost_context),
        true},
       {"list_records_in_range",
-       Read_list_of_context<records_in_range_call_record>(
+       Read_array_into_list<records_in_range_call_record>(
            thd, &table_ctx->rir_list, parse_records_in_range_context),
        true},
       {NULL, Read_double(NULL), true}};
@@ -1830,7 +1801,7 @@ bool Optimizer_context_replay::parse()
   LEX_CSTRING varname= {var_name, strlen(var_name)};
 
   Read_named_member array[]= {{"list_contexts",
-                               Read_list_of_context<table_context_for_replay>(
+                               Read_array_into_list<table_context_for_replay>(
                                    thd, &ctx_list, parse_table_context),
                                false},
                               {NULL, Read_double(NULL), true}};
