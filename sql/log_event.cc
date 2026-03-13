@@ -3897,33 +3897,35 @@ static void parse_geometry_type(
                        field. Each column has an index and a prefix which are
                        stored as a unit_pair. prefix is always 0 for
                        SIMPLE_PRIMARY_KEY field.
+   @param[out] column_metadata store all column metadata here (including
+     primary key prefix lengths). Note: a prefix is always 0 for 
+     SIMPLE_PRIMARY_KEY field.
    @param[in]  field   SIMPLE_PRIMARY_KEY field in table_map_event.
    @param[in]  length  length of the field
  */
 static void parse_simple_pk(
-    Dynamic_array<Table_map_log_event::Optional_metadata_fields::uint_pair>
-        &vec,
+    Dynamic_array<Table_map_log_event::Optional_metadata_fields::Column_metadata>
+        &column_metadata,
     unsigned char *field, unsigned int length)
 {
   unsigned char* p= field;
 
   while (p < field + length)
-    vec.append(std::make_pair(net_field_length(&p), 0));
+    column_metadata.at(net_field_length(&p)).primary_key = 0;
 }
 
 /**
    Parses PRIMARY_KEY_WITH_PREFIX field.
 
-   @param[out] vec     stores primary key's column information extracted from
-                       field. Each column has an index and a prefix which are
-                       stored as a unit_pair.
+   @param[out] column_metadata store all column metadata here (including
+     primary key lengths)
    @param[in]  field   PRIMARY_KEY_WITH_PREFIX field in table_map_event.
    @param[in]  length  length of the field
  */
 
 static void parse_pk_with_prefix(
-    Dynamic_array<Table_map_log_event::Optional_metadata_fields::uint_pair>
-        &vec,
+    Dynamic_array<Table_map_log_event::Optional_metadata_fields::Column_metadata>
+        &column_metadata,
     unsigned char *field, unsigned int length)
 {
   unsigned char* p= field;
@@ -3932,7 +3934,7 @@ static void parse_pk_with_prefix(
   {
     unsigned int col_index= net_field_length(&p);
     unsigned int col_prefix= net_field_length(&p);
-    vec.append(std::make_pair(col_index, col_prefix));
+    column_metadata.at(col_index).primary_key = col_prefix;
   }
 }
 
@@ -3945,7 +3947,6 @@ Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
                          bool only_column_names)
     : m_column_charset(PSI_INSTRUMENT_MEM),
       m_enum_and_set_column_charset(PSI_INSTRUMENT_MEM),
-      m_primary_key(PSI_INSTRUMENT_MEM),
       m_column_metadata(PSI_INSTRUMENT_MEM, master_columns)
 {
   unsigned int len;
@@ -4008,10 +4009,10 @@ Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
       parse_geometry_type(m_column_metadata, field, len);
       break;
     case SIMPLE_PRIMARY_KEY:
-      parse_simple_pk(m_primary_key, field, len);
+      parse_simple_pk(m_column_metadata, field, len);
       break;
     case PRIMARY_KEY_WITH_PREFIX:
-      parse_pk_with_prefix(m_primary_key, field, len);
+      parse_pk_with_prefix(m_column_metadata, field, len);
       break;
     case ENUM_AND_SET_DEFAULT_CHARSET:
       parse_default_charset(m_enum_and_set_default_charset, field, len);

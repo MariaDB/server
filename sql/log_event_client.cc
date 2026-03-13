@@ -18,6 +18,7 @@
 
 
 #include "log_event.h"
+#include <algorithm>
 #ifndef MYSQL_CLIENT
 #error MYSQL_CLIENT must be defined here
 #endif
@@ -3442,7 +3443,7 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
 
   for (unsigned long i= 0; i < m_colcnt; i++)
   {
-    const Optional_metadata_fields::Column_metadata column_metadata = fields.m_column_metadata.at(i);
+    const Optional_metadata_fields::Column_metadata& column_metadata = fields.m_column_metadata.at(i);
     uint real_type = m_coltype[i];
     if (real_type == MYSQL_TYPE_STRING &&
         (*field_metadata_ptr == MYSQL_TYPE_ENUM ||
@@ -3526,26 +3527,36 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
 void Table_map_log_event::print_primary_key
   (IO_CACHE *file,const Optional_metadata_fields &fields)
 {
-  if (!fields.m_primary_key.empty())
+  auto& col_metadata= fields.m_column_metadata;
+  bool has_pk= std::any_of(col_metadata.front(), col_metadata.end(), [](const auto& col){
+    return col.primary_key.has_value();
+  });
+
+  if (has_pk)
   {
     my_b_printf(file, "# Primary Key(");
 
-    for (auto *it= fields.m_primary_key.front();
-         it != fields.m_primary_key.end(); it++)
+    bool printed_first_key = false;
+    for (uint col_idx = 0; col_idx < col_metadata.size(); col_idx++)
     {
-      if (it != fields.m_primary_key.front())
+      const auto& col= col_metadata.at(col_idx);
+      if (!col.primary_key.has_value())
+          continue;
+
+      if (printed_first_key)
         my_b_printf(file, ", ");
 
       // Print column name or column index
-      const LEX_CSTRING& column_name = fields.m_column_metadata.at(it->first).column_name;
+      const LEX_CSTRING& column_name = col.column_name;
       if (column_name.str)
         my_b_printf(file, "%s", column_name.str);
       else
-        my_b_printf(file, "%u", it->first);
+        my_b_printf(file, "%u", col_idx);
 
       // Print prefix length
-      if (it->second != 0)
-        my_b_printf(file, "(%u)", it->second);
+      if (col.primary_key.value() != 0)
+        my_b_printf(file, "(%u)", col.primary_key.value());
+      printed_first_key= true;
     }
 
     my_b_printf(file, ")\n");

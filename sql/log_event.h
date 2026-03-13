@@ -38,6 +38,7 @@
 #include <functional>
 #include <memory>
 #include <map>
+#include <optional>
 #include <lex_charset.h>
 
 static inline bool is_numeric_type(uint type)
@@ -4585,11 +4586,6 @@ public:
     Dynamic_array<uint> m_column_charset;
     // Character set number of every ENUM or SET column.
     Dynamic_array<uint> m_enum_and_set_column_charset;
-    /*
-      The uint_pair means <column index, prefix length>.  Prefix length is 0 if
-      whole column value is used.
-    */
-    Dynamic_array<uint_pair> m_primary_key;
 
     struct Column_metadata
     {
@@ -4602,6 +4598,11 @@ public:
         str_vector set_str_values{PSI_INSTRUMENT_MEM, 0};
 
         uint geometry_type{ 0 };
+        
+        // Prefix length of primary key (if applicable), where a value of 0
+        // indicates to use the entire column as a primary key
+        // (SIMPLE_PRIMARY_KEY).
+        std::optional<uint> primary_key{};
     };
 
     Dynamic_array<Column_metadata> m_column_metadata;
