@@ -360,9 +360,9 @@ drop table t0;
 drop database db1;
 use test;
 
-#
-#  Check that Optimizer Context recording in sub-statements doesnt assert
-#
+--echo #
+--echo #  Check that Optimizer Context recording in sub-statements doesnt assert
+--echo #
 create table t1 (a int);
 insert into t1 values (1),(2),(3);
 
@@ -382,3 +382,19 @@ select * from t2 where b >= func(a);
 
 drop function func;
 drop table t1,t2;
+
+--echo #
+--echo # Another testcase with sub-statements inside a PROCEDURE
+--echo #
+CREATE TABLE t1 (f1 INTEGER);
+CREATE TABLE t2 LIKE t1;
+delimiter |;
+CREATE PROCEDURE p1 () BEGIN SELECT f1 FROM t1 WHERE f1 IN (SELECT f1 FROM t2); END|
+delimiter ;|
+SET optimizer_record_context=1;
+CALL p1;
+ALTER TABLE t2 CHANGE COLUMN f1 my_column INT;
+CALL p1; ###CRASH
+DROP PROCEDURE p1;
+DROP TABLE t1,t2;
+
