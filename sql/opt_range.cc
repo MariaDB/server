@@ -12406,6 +12406,7 @@ public:
     seq.real_keyno= param->real_keynr[idx];
     seq.param= param;
     seq.start= keypart;
+    seq.is_ror_scan= false; // Don't care about checking it here.
     cur_key_part= keyinfo->key_part + keypart->part;
     seq_it= seq_if.init((void *) &seq, 0, 0);
   }
