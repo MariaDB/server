@@ -3939,25 +3939,25 @@ wsrep_error_label:
 
 int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
 {
-  LEX *lex= thd->lex;
   String stmt_query;
 
   LEX_CSTRING definer_user;
   LEX_CSTRING definer_host;
 
-  if (!lex->definer)
+  LEX_USER *definer= thd->lex->definer;
+  if (!definer)
   {
     if (!thd->slave_thread)
     {
-      if (!(lex->definer= create_default_definer(thd, false)))
+      if (!(definer= create_default_definer(thd, false)))
         return 1;
     }
   }
 
-  if (lex->definer)
+  if (definer)
   {
     /* SUID trigger. */
-    LEX_USER *d= get_current_user(thd, lex->definer);
+    LEX_USER *d= get_current_user(thd, definer);
 
     if (!d)
       return 1;
