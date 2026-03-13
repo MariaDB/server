@@ -752,3 +752,21 @@ REPLACE INTO db1.t0(a, b) VALUES (1, 'aaa\'bbb');
 drop table t1;
 drop table t0;
 drop database db1;
+use test;
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (a int, b int);
+insert into t2 values (3,3),(4,4),(5,5);
+create function func(i int) returns int
+begin
+select max(a) into @tmp from t1 where a <=i;
+return @tmp;
+end ||
+set optimizer_record_context=1;
+select * from t2 where b >= func(a);
+a	b
+3	3
+4	4
+5	5
+drop function func;
+drop table t1,t2;
