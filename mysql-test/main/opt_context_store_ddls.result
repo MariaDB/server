@@ -39,7 +39,7 @@ select @ddls;
 NULL
 #
 # disable optimizer_trace, but enable optimizer_record_context
-# there should be no trace here as well
+# The context will be recorded.
 #
 set optimizer_record_context=ON;
 select * from t1 where t1.a = 3;
@@ -57,9 +57,15 @@ from information_schema.optimizer_context);
 set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
 select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
 name
+db1.t1
 select @ddls;
 @ddls
-NULL
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
 #
 # enable optimizer_trace, but disable optimizer_record_context
 # trace result should be empty

@@ -1412,8 +1412,7 @@ void init_optimizer_context_replay_if_needed(THD *thd)
 
 void init_optimizer_context_recorder_if_needed(THD *thd)
 {
-  if (!thd->variables.optimizer_trace ||
-      !thd->variables.optimizer_record_context)
+  if (!thd->variables.optimizer_record_context)
   {
     clean_captured_ctx(thd);
     return ;
