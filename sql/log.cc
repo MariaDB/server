@@ -4744,6 +4744,7 @@ bool do_relaylog_recovery(MYSQL_BIN_LOG *relay_log, const char *log_name)
       }
       [[fallthrough]];
       default:
+#ifdef HAVE_REPLICATION
         switch (group_state) {
         case IN_STANDALONE:
           if (!event->is_part_of_group())
@@ -4754,6 +4755,7 @@ bool do_relaylog_recovery(MYSQL_BIN_LOG *relay_log, const char *log_name)
           if (event->is_part_of_group())
             group_state= IN_STANDALONE;
         }
+#endif
       }
       delete event;
 
@@ -4847,10 +4849,10 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
   DBUG_ASSERT(is_relay_log || !opt_binlog_engine_hton);
   mysql_mutex_assert_owner(&LOCK_log);
 
-  if (do_recovery && !binlog_state_recover_done)
+  if (!binlog_state_recover_done)
   {
     binlog_state_recover_done= true;
-    if (is_relay_log ? do_relaylog_recovery(this, log_name) :
+    if (do_recovery && is_relay_log ? do_relaylog_recovery(this, log_name) :
         do_binlog_recovery(opt_bin_logname, false))
       DBUG_RETURN(1);
   }
