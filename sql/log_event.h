@@ -59,6 +59,27 @@ static inline bool is_numeric_type(uint type)
   }
 }
 
+static inline bool is_character_type(uint type)
+{
+  switch (type)
+  {
+  case MYSQL_TYPE_STRING:
+  case MYSQL_TYPE_VAR_STRING:
+  case MYSQL_TYPE_VARCHAR:
+  case MYSQL_TYPE_BLOB:
+  // Base class is blob for geom type
+  case MYSQL_TYPE_GEOMETRY:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static inline bool is_enum_or_set_type(uint type)
+{
+  return type == MYSQL_TYPE_ENUM || type == MYSQL_TYPE_SET;
+}
+
 #ifdef MYSQL_CLIENT
 #include "sql_const.h"
 #include "rpl_utility.h"

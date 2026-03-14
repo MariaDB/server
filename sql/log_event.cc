@@ -17,8 +17,6 @@
 
 
 #include "mariadb.h"
-#include "mysql/psi/psi_base.h"
-#include "mysql_com.h"
 #include "sql_priv.h"
 #include "handler.h"
 #ifndef MYSQL_CLIENT
@@ -3802,7 +3800,11 @@ static void parse_column_charset(
 {
   unsigned char* p= field;
   for (uint col= 0; p < field + length && col < column_metadata.size(); col++)
+  {
+    if (!is_character_type(column_metadata.at(col).column_type))
+      continue;
     column_metadata.at(col).charset= net_field_length(&p);
+  }
 }
 
 /**
@@ -3818,7 +3820,11 @@ static void parse_enum_and_set_column_charset(
 {
   unsigned char* p= field;
   for (uint col= 0; p < field + length && col < column_metadata.size(); col++)
+  {
+    if (!is_enum_or_set_type(column_metadata.at(col).column_type))
+      continue;
     column_metadata.at(col).enum_and_set_column_charset= net_field_length(&p);
+  }
 }
 
 /**
