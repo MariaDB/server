@@ -3157,7 +3157,7 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     {
       MEM_ROOT root;
       init_alloc_root(0, &root, 4096, 0, 0);
-      Optional_metadata_fields fields(&root, 
+      Optional_metadata_fields fields(&root,
                                       m_colcnt,
                                       m_coltype,
                                       m_field_metadata,
@@ -3201,93 +3201,7 @@ bool Table_map_log_event::print_body(PRINT_EVENT_INFO *print_event_info)
   return 0;
 }
 
-/**
-  Interface for iterator over charset columns.
-*/
-class Table_map_log_event::Charset_iterator
-{
- public:
-  typedef Table_map_log_event::Optional_metadata_fields::Default_charset
-      Default_charset;
-  virtual const CHARSET_INFO *next()= 0;
-  virtual ~Charset_iterator(){};
-  /**
-    Factory method to create an instance of the appropriate subclass.
-  */
-  static std::unique_ptr<Charset_iterator> create_charset_iterator(
-      const Default_charset &default_charset,
-      const Dynamic_array<uint> &column_charset);
-};
 
-/**
-  Implementation of charset iterator for the DEFAULT_CHARSET type.
-*/
-class Table_map_log_event::Default_charset_iterator : public Charset_iterator
-{
- public:
-  Default_charset_iterator(const Default_charset &default_charset)
-      : m_iterator(default_charset.charset_pairs.front()),
-        m_end(default_charset.charset_pairs.end()), m_column_index(0),
-        m_default_charset_info(
-            get_charset(default_charset.default_charset, 0)) {}
-
-  const CHARSET_INFO *next() override {
-    const CHARSET_INFO *ret;
-    if (m_iterator != m_end && m_iterator->first == m_column_index) {
-      ret = get_charset(m_iterator->second, 0);
-      m_iterator++;
-    } else
-      ret = m_default_charset_info;
-    m_column_index++;
-    return ret;
-  }
-  ~Default_charset_iterator(){};
-
- private:
-  const Optional_metadata_fields::uint_pair *m_iterator;
-  const Optional_metadata_fields::uint_pair *m_end;
-  uint m_column_index;
-  const CHARSET_INFO *m_default_charset_info;
-};
-//Table_map_log_event::Default_charset_iterator::~Default_charset_iterator(){int a=8;a++; a--;};
-/**
-  Implementation of charset iterator for the COLUMNT_CHARSET type.
-*/
-class Table_map_log_event::Column_charset_iterator : public Charset_iterator
-{
- public:
-  Column_charset_iterator(const Dynamic_array<uint> &column_charset)
-      : m_iterator(column_charset.front()), m_end(column_charset.end())
-  {}
-
-  const CHARSET_INFO *next() override {
-    const CHARSET_INFO *ret = nullptr;
-    if (m_iterator != m_end) {
-      ret = get_charset(*m_iterator, 0);
-      m_iterator++;
-    }
-    return ret;
-  }
-
- ~Column_charset_iterator(){};
- private:
-  const uint *m_iterator;
-  const uint *m_end;
-};
-//Table_map_log_event::Column_charset_iterator::~Column_charset_iterator(){int a=8;a++; a--;};
-
-std::unique_ptr<Table_map_log_event::Charset_iterator>
-Table_map_log_event::Charset_iterator::create_charset_iterator(
-    const Default_charset &default_charset,
-    const Dynamic_array<uint> &column_charset)
-{
-  if (!default_charset.empty())
-    return std::unique_ptr<Charset_iterator>(
-        new Default_charset_iterator(default_charset));
-  else
-    return std::unique_ptr<Charset_iterator>(
-        new Column_charset_iterator(column_charset));
-}
 /**
    return the string name of a type.
 
@@ -3431,20 +3345,12 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
 {
   unsigned char* field_metadata_ptr= m_field_metadata;
 
-  std::unique_ptr<Charset_iterator> charset_it =
-      Charset_iterator::create_charset_iterator(fields.m_default_charset,
-                                                fields.m_column_charset);
-  std::unique_ptr<Charset_iterator> enum_and_set_charset_it =
-      Charset_iterator::create_charset_iterator(
-          fields.m_enum_and_set_default_charset,
-          fields.m_enum_and_set_column_charset);
-
   my_b_printf(file, "# Columns(");
 
   for (unsigned long i= 0; i < m_colcnt; i++)
   {
-    const Optional_metadata_fields::Column_metadata& column_metadata = fields.m_column_metadata.at(i);
-    uint real_type = m_coltype[i];
+    const Optional_metadata_fields::Column_metadata& column_metadata= fields.m_column_metadata.at(i);
+    uint real_type= m_coltype[i];
     if (real_type == MYSQL_TYPE_STRING &&
         (*field_metadata_ptr == MYSQL_TYPE_ENUM ||
          *field_metadata_ptr == MYSQL_TYPE_SET))
@@ -3452,11 +3358,22 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
 
     // Get current column's collation id if it is a character, enum,
     // or set column
-    const CHARSET_INFO *cs = NULL;
+    const CHARSET_INFO *cs= NULL;
     if (is_character_type(real_type))
-      cs = charset_it->next();
+    {
+      const auto& cs_num= column_metadata.charset.has_value() ?
+          column_metadata.charset : fields.m_default_charset;
+      if (cs_num.has_value())
+        cs= get_charset(*cs_num, 0);
+    }
     else if (is_enum_or_set_type(real_type))
-      cs = enum_and_set_charset_it->next();
+    {
+      const auto& cs_num= column_metadata.enum_and_set_column_charset.has_value() ?
+          column_metadata.enum_and_set_column_charset :
+          fields.m_enum_and_set_default_charset;
+      if (cs_num.has_value())
+        cs= get_charset(*cs_num, 0);
+    }
 
     // Print column name
     const LEX_CSTRING& col_name= column_metadata.column_name;
@@ -3536,18 +3453,18 @@ void Table_map_log_event::print_primary_key
   {
     my_b_printf(file, "# Primary Key(");
 
-    bool printed_first_key = false;
-    for (uint col_idx = 0; col_idx < col_metadata.size(); col_idx++)
+    bool printed_first_key= false;
+    for (uint col_idx= 0; col_idx < col_metadata.size(); col_idx++)
     {
       const auto& col= col_metadata.at(col_idx);
       if (!col.primary_key.has_value())
-          continue;
+        continue;
 
       if (printed_first_key)
         my_b_printf(file, ", ");
 
       // Print column name or column index
-      const LEX_CSTRING& column_name = col.column_name;
+      const LEX_CSTRING& column_name= col.column_name;
       if (column_name.str)
         my_b_printf(file, "%s", column_name.str);
       else

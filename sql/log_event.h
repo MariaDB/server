@@ -4468,7 +4468,7 @@ inline void advance_field_metadata_ptr(uint type, const uchar** meta_ptr)
   case MYSQL_TYPE_VARCHAR:
   case MYSQL_TYPE_VAR_STRING:
   case MYSQL_TYPE_STRING:
-    (*meta_ptr)+= 2;
+    (*meta_ptr) += 2;
     break;
   default:
     break;
@@ -4558,34 +4558,11 @@ public:
   };
   struct Optional_metadata_fields
   {
-    typedef std::pair<unsigned int, unsigned int> uint_pair;
     typedef Dynamic_array<LEX_CSTRING> str_vector;
     bool allocation_error; /* Set if allocation of data structures fails */
 
-    struct Default_charset
-    {
-      Default_charset() : default_charset(0), charset_pairs(PSI_INSTRUMENT_MEM)
-      {
-      }
-      bool empty() const { return default_charset == 0; }
-
-      // Default charset for the columns which are not in charset_pairs.
-      unsigned int default_charset;
-
-      /* The uint_pair means <column index, column charset number>. */
-      // std::vector<uint_pair> charset_pairs;
-      Dynamic_array<uint_pair> charset_pairs;
-    };
-
-    // Contents of DEFAULT_CHARSET field is converted into Default_charset.
-    Default_charset m_default_charset;
-    // Contents of ENUM_AND_SET_DEFAULT_CHARSET are converted into
-    // Default_charset.
-    Default_charset m_enum_and_set_default_charset;
-    // Character set number of every string column
-    Dynamic_array<uint> m_column_charset;
-    // Character set number of every ENUM or SET column.
-    Dynamic_array<uint> m_enum_and_set_column_charset;
+    std::optional<uint> m_default_charset{};
+    std::optional<uint> m_enum_and_set_default_charset{};
 
     struct Column_metadata
     {
@@ -4598,11 +4575,14 @@ public:
         str_vector set_str_values{PSI_INSTRUMENT_MEM, 0};
 
         uint geometry_type{ 0 };
-        
+
         // Prefix length of primary key (if applicable), where a value of 0
         // indicates to use the entire column as a primary key
         // (SIMPLE_PRIMARY_KEY).
         std::optional<uint> primary_key{};
+
+        std::optional<uint> charset{};
+        std::optional<uint> enum_and_set_column_charset{};
     };
 
     Dynamic_array<Column_metadata> m_column_metadata;
@@ -4762,11 +4742,7 @@ private:
   bool init_primary_key_field();
 #endif
 
-#ifdef MYSQL_CLIENT
-  class Charset_iterator;
-  class Default_charset_iterator;
-  class Column_charset_iterator;
-#endif
+
   char const    *m_dbnam;
   size_t         m_dblen;
   char const    *m_tblnam;
