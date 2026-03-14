@@ -1118,7 +1118,7 @@ public:
     while (je->state != JST_ARRAY_END)
     {
       char *value;
-      if (read_string(thd, je, "ranges", err_buf, value))
+      if (read_string(thd->mem_root, je, "ranges", err_buf, value))
         return 1;
 
       list_ranges->push_back(value);
@@ -1202,7 +1202,7 @@ static int parse_table_context(THD *thd, json_engine_t *je, String *err_buf,
   const char *err_msg= "Expected an object in the list_contexts array";
 
   Read_named_member array[]= {
-      {"name", Read_string(thd, &table_ctx->name), false},
+      {"name", Read_string(thd->mem_root, &table_ctx->name), false},
       {"file_stat_records",
        Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->file_stat_records),
        false},
@@ -1248,7 +1248,7 @@ static int parse_index_context(THD *thd, json_engine_t *je, String *err_buf,
   const char *err_msg= "Expected an object in the indexes array";
 
   Read_named_member array[]= {
-      {"index_name", Read_string(thd, &index_ctx->idx_name), false},
+      {"index_name", Read_string(thd->mem_root, &index_ctx->idx_name), false},
       {"rec_per_key", Read_list_of_ha_rows(thd, &index_ctx->list_rec_per_key),
        false},
       {NULL, Read_double(NULL), true}};
@@ -1275,7 +1275,7 @@ static int parse_range_context(THD *thd, json_engine_t *je, String *err_buf,
   const char *err_msg= "Expected an object in the list_ranges array";
 
   Read_named_member array[]= {
-      {"index_name", Read_string(thd, &out->idx_name), false},
+      {"index_name", Read_string(thd->mem_root, &out->idx_name), false},
       {"ranges", Read_list_of_ranges(thd, &out->range_list), false},
       {"num_rows",
        Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->rows),
@@ -1394,8 +1394,8 @@ static int parse_records_in_range_context(THD *thd, json_engine_t *je,
   Read_named_member array[]= {
       {"key_number", Read_non_neg_integer<uint, UINT_MAX>(&out->keynr),
        false},
-      {"min_key", Read_string(thd, &out->min_key), false},
-      {"max_key", Read_string(thd, &out->max_key), false},
+      {"min_key", Read_string(thd->mem_root, &out->min_key), false},
+      {"max_key", Read_string(thd->mem_root, &out->max_key), false},
       {"num_records",
        Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->records), false},
       {NULL, Read_double(NULL), true}};
