@@ -15,10 +15,9 @@
 #ifndef SQL_JSON_LIB
 #define SQL_JSON_LIB
 
-#include "my_global.h"
 #include "json_lib.h"
 #include "sql_string.h"
-#include "table.h"
+#include "mysqld.h"                             /* system_charset_info */
 
 /*
   A syntax sugar interface to json_string_t
@@ -126,7 +125,7 @@ int json_read_object(json_engine_t *je, Read_named_member *members,
 namespace json_reader
 { /* Things to use with Read_named_member */
 
-bool read_string(THD *thd, json_engine_t *je, const char *read_elem_key,
+bool read_string(MEM_ROOT *mem_root, json_engine_t *je, const char *read_elem_key,
                  String *err_buf, char *&value);
 
 bool read_double(json_engine_t *je, const char *read_elem_key, String *err_buf,
@@ -152,14 +151,16 @@ public:
 class Read_string : public Read_value
 {
   char **ptr;
-  THD *thd; /* The string will be allocated on thd->mem_root */
+  MEM_ROOT *mem_root; /* The string will be allocated on thd->mem_root */
 
 public:
-  Read_string(THD *thd_arg, char **ptr_arg) : ptr(ptr_arg), thd(thd_arg) {}
+  Read_string(MEM_ROOT *mem_root_arg, char **ptr_arg) :
+    ptr(ptr_arg), mem_root(mem_root_arg)
+  {}
   bool read_value(json_engine_t *je, const char *value_name,
                   String *err_buf) override
   {
-    return read_string(thd, je, value_name, err_buf, *ptr);
+    return read_string(mem_root, je, value_name, err_buf, *ptr);
   }
 };
 
