@@ -12,9 +12,8 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335
    USA */
 
+#include "my_global.h"
 #include "sql_json_lib.h"
-#include "mysql.h"
-#include "sql_select.h"
 
 namespace json_reader
 {
@@ -73,7 +72,7 @@ bool read_double(json_engine_t *je, const char *read_elem_key, String *err_buf,
     false  OK
     true  Parse Error
 */
-bool read_string(THD *thd, json_engine_t *je, const char *read_elem_key,
+bool read_string(MEM_ROOT *mem_root, json_engine_t *je, const char *read_elem_key,
                  String *err_buf, char *&value)
 {
   if (check_reading_of_elem_key(je, read_elem_key, err_buf))
@@ -89,7 +88,7 @@ bool read_string(THD *thd, json_engine_t *je, const char *read_elem_key,
     return true;
   }
 
-  value= strdup_root(thd->mem_root, val_buf.c_ptr_safe());
+  value= strdup_root(mem_root, val_buf.c_ptr_safe());
   return false;
 }
 
