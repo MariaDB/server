@@ -1,0 +1,83 @@
+--source include/not_embedded.inc
+--source include/have_pool_of_threads.inc
+
+--echo # MDEV-33070 Thread pool starvation at oversubscribe threshold
+
+# The server is started with a single thread group, a dedicated listener,
+# one worker thread, and thread_pool_oversubscribe=1.
+#
+# c1 and c2 run long queries and occupy the one worker plus the one allowed
+# oversubscribe slot. c3 submits a trivial INSERT which the listener can only
+# enqueue, because it is sent only after both c1 and c2 are confirmed running.
+#
+# Before the fix, after c1 was killed the worker stayed at the oversubscribe
+# threshold and went to sleep instead of dequeuing c3. Because
+# thread_pool_dedicated_listener=ON, only the worker can drain the queue, so if
+# c3 is still pending while c1 and c2 run and completes only after c1 is
+# killed, then the worker resumed dequeuing.
+
+CREATE TABLE t1 (a INT);
+
+--connect (c1, localhost, root,,)
+--connect (c2, localhost, root,,)
+--connect (c3, localhost, root,,)
+--connect (extra_con, 127.0.0.1, root,,test,$MASTER_EXTRA_PORT,)
+
+--connection c1
+--let $c1_id= `SELECT CONNECTION_ID()`
+--send SELECT SLEEP(1000)
+
+--connection extra_con
+let $wait_condition=
+  SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE STATE='User sleep' AND ID=$c1_id;
+--source include/wait_condition.inc
+
+--connection c2
+--let $c2_id= `SELECT CONNECTION_ID()`
+--send SELECT SLEEP(1000)
+
+--connection extra_con
+let $wait_condition=
+  SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE STATE='User sleep' AND ID=$c2_id;
+--source include/wait_condition.inc
+
+--connection c3
+--send INSERT INTO t1 VALUES (1)
+
+--connection extra_con
+--replace_result $c1_id c1_id
+eval KILL QUERY $c1_id;
+
+let $wait_timeout= 10;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+SELECT COUNT(*) = 1 FROM t1;
+
+--connection c1
+--error 0,ER_QUERY_INTERRUPTED,ER_STATEMENT_TIMEOUT
+--reap
+--disconnect c1
+
+--connection extra_con
+--replace_result $c2_id c2_id
+eval KILL QUERY $c2_id;
+
+--connection c2
+--error 0,ER_QUERY_INTERRUPTED
+--reap
+--disconnect c2
+
+--connection c3
+--reap
+--disconnect c3
+
+--connection extra_con
+SELECT COUNT(*) = 1 FROM t1;
+--disconnect extra_con
+
+--connection default
+DROP TABLE t1;
+--echo # End of MDEV-33070 tests
