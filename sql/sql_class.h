@@ -4594,7 +4594,7 @@ public:
     @retval  TRUE  if the thread was woken up
     @retval  FALSE otherwise.
    */
-  bool notify_shared_lock(MDL_context_owner *ctx_in_use,
+  bool notify_shared_lock(THD *ctx_in_use,
                           bool needs_thr_lock_abort,
                           bool needs_non_slave_abort) override;
 

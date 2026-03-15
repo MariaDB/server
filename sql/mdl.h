@@ -116,7 +116,7 @@ public:
   /**
      @see THD::notify_shared_lock()
    */
-  virtual bool notify_shared_lock(MDL_context_owner *in_use,
+  virtual bool notify_shared_lock(THD *in_use,
                                   bool needs_thr_lock_abort,
                                   bool needs_non_slave_abort) = 0;
 };
@@ -832,7 +832,7 @@ public:
   bool set_status(enum_wait_status result_arg);
   enum_wait_status get_status();
   void reset_status();
-  enum_wait_status timed_wait(MDL_context_owner *owner,
+  enum_wait_status timed_wait(THD *owner,
                               struct timespec *abs_timeout,
                               bool signal_timeout,
                               const PSI_stage_info *wait_state_name);
@@ -924,7 +924,7 @@ public:
   void release_explicit_locks();
   void rollback_to_savepoint(const MDL_savepoint &mdl_savepoint);
 
-  MDL_context_owner *get_owner() { return m_owner; }
+  THD *get_owner() { return m_owner; }
 
   /** @pre Only valid if we started waiting for lock. */
   inline uint get_deadlock_weight() const
@@ -938,7 +938,7 @@ public:
                     already has received some signal or closed
                     signal slot.
   */
-  void init(MDL_context_owner *arg) { m_owner= arg; reset(); }
+  void init(THD *arg) { m_owner= arg; reset(); }
   void reset() { m_deadlock_overweight= 0; }
 
   void set_needs_thr_lock_abort(bool needs_thr_lock_abort)
@@ -1019,7 +1019,7 @@ private:
       involved schemas and global intention exclusive lock.
   */
   Ticket_list m_tickets[MDL_DURATION_END];
-  MDL_context_owner *m_owner;
+  THD *m_owner;
   /**
     TRUE -  if for this context we will break protocol and try to
             acquire table-level locks while having only S lock on
@@ -1059,7 +1059,7 @@ private:
   bool fix_pins();
 
 public:
-  THD *get_thd() const { return m_owner->get_thd(); }
+  THD *get_thd() const { return m_owner; }
   bool has_explicit_locks();
   void find_deadlock();
 
