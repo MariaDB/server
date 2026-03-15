@@ -2982,6 +2982,8 @@ static bool parse_format_string(const String *format, uint16 *fmt_array,
       }
       else if (tmp1 == 'Y')
       {
+        if (for_to_date && formats_used(&used, FMT_DAY))
+          goto error;
         *tmp_fmt= FMT_DY;                       // Day name
         tmp_len+= 3;
         type_flags|= PARSE_TYPE_WEEKDAY | PARSE_TYPE_NON_DETERMINISTIC;
@@ -2989,6 +2991,8 @@ static bool parse_format_string(const String *format, uint16 *fmt_array,
       else if (tmp1 == 'A')
       {
         if (ptr + 2 == end || my_toupper(system_charset_info, *(ptr+2)) != 'Y')
+          goto error;
+        if (for_to_date && formats_used(&used, FMT_DAY))
           goto error;
         *tmp_fmt= FMT_DAY;                      // Day name
         tmp_len+= locale->max_day_name_length * my_charset_utf8mb3_bin.mbmaxlen;
