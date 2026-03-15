@@ -721,6 +721,21 @@ extract_oracle_date_time(THD *thd, uint16 *format_ptr,
       continue;
     }
 
+    /*
+      MDEV-38792: TO_DATE: Inconsistent treatment of different separators in the date and format strings.
+      Skip punctuation and spaces in the input string before matching the next
+      format token, but avoid skipping a '-' sign if it's followed by a digit
+      (as it might be part of a negative year in SYYYY).
+    */
+    while (val < val_end && !my_isalnum(val_cs, *val))
+    {
+      if (*val == '-' && (val + 1 < val_end) && my_isdigit(val_cs, *(val + 1)))
+      {
+        break;
+      }
+      val++;
+    }
+
     error= 0;
     if (!(val_len= (uint) (val_end - val)))
       goto error;

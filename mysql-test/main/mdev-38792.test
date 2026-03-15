@@ -1,0 +1,11 @@
+# TO_DATE: Inconsistent treatment of different separators in the date and format strings
+SET sql_mode = 'ORACLE';
+
+# case 1:
+SELECT TO_DATE('2002 AD', 'YYYY - AD') FROM DUAL;
+
+# case 2: The fixed bug:
+SELECT TO_DATE('2002 - AD', 'YYYY AD') FROM DUAL;
+
+# case 3:
+SELECT TO_DATE('2002 - AD', 'YYYY-AD') FROM DUAL;
