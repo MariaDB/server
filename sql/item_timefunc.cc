@@ -717,10 +717,24 @@ extract_oracle_date_time(THD *thd, uint16 *format_ptr,
             continue;
           }
         }
+        continue;
       }
-      continue;
     }
 
+    /*
+      Skip non-alphanumeric separators in the input before parsing each
+      format token. This allows extra or mismatched separators in the value,
+      matching Oracle's flexible parsing behaviour.
+      Preserve a leading '-' or '+' when the format is SYYYY and it is
+      followed by a digit, so signed years are parsed correctly.
+    */
+    while (val < val_end && !my_isalnum(val_cs, *val))
+    {
+      if ((*val == '-' || *val == '+') && format == FMT_SYYYY &&
+          (val + 1 < val_end) && my_isdigit(val_cs, *(val + 1)))
+        break;
+      val++;
+    }
     error= 0;
     if (!(val_len= (uint) (val_end - val)))
       goto error;
@@ -729,13 +743,26 @@ extract_oracle_date_time(THD *thd, uint16 *format_ptr,
       /* Year */
     case FMT_YYYY:
     case FMT_SYYYY:
-      tmp= (char*) val + MY_MIN(4, val_len);
+    {
+      uint max_len= 4;
+      if (format == FMT_SYYYY && (*val == '-' || *val == '+'))
+      {
+        max_len= 5;
+        const char *temp_val = val + 1;
+        while (temp_val < val_end && my_isspace(val_cs, *temp_val))
+        {
+          temp_val++;
+          max_len++;
+        }
+      }
+      tmp= (char*) val + MY_MIN(max_len, val_len);
       l_time->year= (int) val_cs->cset->strtoll10(val_cs, val, &tmp, &error);
       if (part_of_digits && (tmp-val) != 4)
         goto error;
       val= tmp;
       part_of_digits= 1;
       break;
+    }
     case FMT_YYY:
       tmp= (char*) val + MY_MIN(3, val_len);
       l_time->year= ((int) val_cs->cset->strtoll10(val_cs, val, &tmp, &error) +
@@ -970,6 +997,12 @@ extract_oracle_date_time(THD *thd, uint16 *format_ptr,
   if (check_date(l_time, fuzzydate, &was_cut))
     goto error;
 
+  /* Consume trailing non-alphanumeric chars to avoid false "truncated" warnings */
+  while (val < val_end && !my_isalnum(val_cs, *val))
+  {
+    val++;
+  }
+
   if (val != val_end)
   {
     /* There was more data than the format allowed.
@@ -988,7 +1021,7 @@ extract_oracle_date_time(THD *thd, uint16 *format_ptr,
         make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                                      &err, l_time->time_type,
                                      nullptr, nullptr, nullptr);
-	break;
+        break;
       }
     } while (++val != val_end);
   }

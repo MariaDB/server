@@ -492,4 +492,19 @@ SELECT TO_DATE('Wednesday, June 2, 2014', 'Day, Month DD, YYYY');
 --echo # locale as param to TO_DATE
 SELECT TO_DATE('Wednesday, June 2, 2014', 'Day, Month DD, YYYY', 'NLS_DATE_LANGUAGE=ar_DZ');
 
+--echo #
+--echo # MDEV-38792: TO_DATE Inconsistent treatment of different separators in the date and format strings
+--echo #
+
+SET lc_time_names='en_US';
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:00:00');
+
+SELECT TO_DATE('2002 - AD', 'YYYY AD') AS t;
+SELECT TO_DATE('2024---01---01', 'YYYYMMDD') AS t;
+SELECT TO_DATE('2024 . 05 . 10', 'YYYYMMDD') AS t;
+SELECT TO_DATE('2002 February 10', 'YYYY MONTH DD') AS t;
+
+--echo # Testing negative year (SYYYY) with separators
+SELECT TO_DATE('-2024-05-10', 'SYYYY-MM-DD') AS t;
+
 --echo # End of 12.3 tests
