@@ -845,3 +845,86 @@ x
 SELECT TO_DATE('20 серпня 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=UKRAINIAN') AS x FROM DUAL;
 x
 2024-08-20 00:00:00
+#
+# MDEV-38791: TO_DATE: Inconsistent treatment of duplicate or semantically similar format elements
+#
+SET sql_mode='ORACLE';
+# Year Family
+SELECT TO_DATE('2001 2001', 'YYYY YYYY') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at YYYY in function to_date.
+SELECT TO_DATE('2001 001', 'YYYY YYY') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at YYY in function to_date.
+SELECT TO_DATE('2025 2025', 'YYYY IYYY') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at IYYY in function to_date.
+SELECT TO_DATE('2025 2025', 'YYYY RRRR') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at RRRR in function to_date.
+SELECT TO_DATE('2025 25', 'YYYY YY') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at YY in function to_date.
+SELECT TO_DATE('2025 25', 'IYYY YY') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at IYYY YY in function to_date.
+SELECT TO_DATE('2025 25', 'RRRR RR') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at RR in function to_date.
+SELECT TO_DATE('25 25', 'YY RR') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at RR in function to_date.
+SELECT TO_DATE('025 025', 'YYY IYY') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at IYY in function to_date.
+SELECT TO_DATE('5 5', 'Y I') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at I in function to_date.
+# Month Family
+SELECT TO_DATE('February February', 'MONTH MONTH') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at MONTH in function to_date.
+SELECT TO_DATE('12 12', 'MM MM') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at MM in function to_date.
+SELECT TO_DATE('Feb February', 'MON MONTH') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at MONTH in function to_date.
+SELECT TO_DATE('12 Dec', 'MM MON') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at MON in function to_date.
+SELECT TO_DATE('12 December', 'MM MONTH') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at MONTH in function to_date.
+SELECT TO_DATE('12 XII', 'MM RM') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at RM in function to_date.
+SELECT TO_DATE('Dec XII', 'MON RM') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at RM in function to_date.
+SELECT TO_DATE('December XII', 'MONTH RM') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at RM in function to_date.
+# Day Family
+SELECT TO_DATE('Monday Mon', 'DAY DY') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at DY in function to_date.
+SELECT TO_DATE('Mon Mon', 'DY DY') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at DY in function to_date.
+SELECT TO_DATE('20 20', 'DD DD') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at DD in function to_date.
+SELECT TO_DATE('Monday 2', 'DAY D') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at D in function to_date.
+SELECT TO_DATE('Mon 2', 'DY D') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at D in function to_date.
+SELECT TO_DATE('15 150', 'DD DDD') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at DDD in function to_date.
+# Others
+SELECT TO_DATE('10 10', 'HH24 HH24') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at HH24 in function to_date.
+SELECT TO_DATE('30 30', 'MI MI') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at MI in function to_date.
+SELECT TO_DATE('45 45', 'SS SS') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at SS in function to_date.
+SELECT TO_DATE('10 10', 'HH HH12') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at HH12 in function to_date.
+SELECT TO_DATE('10 22', 'HH HH24') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at HH24 in function to_date.
+SELECT TO_DATE('10 22', 'HH12 HH24') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at HH24 in function to_date.
+SELECT TO_DATE('AM PM', 'AM PM') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at PM in function to_date.
+SELECT TO_DATE('A.M. P.M.', 'A.M. P.M.') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at P.M. in function to_date.
+SELECT TO_DATE('AM A.M.', 'AM A.M.') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at A.M. in function to_date.
+SELECT TO_DATE('1 2', 'WW IW') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at WW IW in function to_date.
+SELECT TO_DATE('123 456', 'FF FF') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at FF in function to_date.
+# YYYY and DDD are compatible (Year + Day of Year)
+SELECT TO_DATE('2026 100', 'YYYY DDD') FROM DUAL;
+TO_DATE('2026 100', 'YYYY DDD')
+2026-04-10 00:00:00
+# End of 12.3 tests
