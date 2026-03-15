@@ -233,8 +233,9 @@ public:
 
 /*
   Extends the Read_value interface to read an array of elements.
-  Descendant classes implement read_container()
-  // TODO: make it read_array_elem ?
+
+  This class will just start reading the JSON array.
+  Reading of array members is done by descendant classes in read_container().
 */
 class Read_array : public Read_value
 {
@@ -258,10 +259,43 @@ public:
   {
     int rc= before_read(je, value_name, err_buf);
     if (rc <= 0)
-      rc= read_container(je, err_buf);
+      rc= read_container(je, value_name, err_buf);
     return after_read(rc);
   }
-  virtual int read_container(json_engine_t *je, String *err_buf)= 0;
+  virtual int read_container(json_engine_t *je, const char *name,
+                             String *err_buf)= 0;
+};
+
+//
+// psergey-todo: why cannot this use Read_array_into_list ?
+class Read_array_of_strings : public Read_array
+{
+  MEM_ROOT *mem_root;
+  List<char> *strings;
+
+public:
+  Read_array_of_strings(MEM_ROOT *mem_root_arg, List<char> *list_ranges_arg)
+    : mem_root(mem_root_arg), strings(list_ranges_arg)
+  {}
+  int read_container(json_engine_t *je, const char *name, String *err_buf)
+      override
+  {
+    if (json_scan_next(je))
+      return 1;
+
+    while (je->state != JST_ARRAY_END)
+    {
+      char *value;
+      if (read_string(mem_root, je, name, err_buf, value))
+        return 1;
+
+      strings->push_back(value, mem_root);
+      if (json_scan_next(je))
+        return 1;
+    }
+
+    return 0;
+  }
 };
 
 }; /* namespace json_reader */
