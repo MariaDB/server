@@ -1030,13 +1030,14 @@ public:
       : mem_root(mem_root_arg), list_values(list_values_arg)
   {
   }
-  int read_container(json_engine_t *je, String *err_buf) override
+  int read_container(json_engine_t *je, const char *name, String *err_buf)
+    override
   {
     while (je->state != JST_ARRAY_END)
     {
       using json_reader::read_ha_rows_and_check_limit;
       ha_rows temp_value;
-      if (read_ha_rows_and_check_limit(je, "rec_per_key", err_buf, temp_value,
+      if (read_ha_rows_and_check_limit(je, name, err_buf, temp_value,
                                        ULONGLONG_MAX, "unsigned longlong",
                                        true))
       {
@@ -1058,8 +1059,8 @@ public:
 };
 
 /*
-  Read an array of JSON objects representing object T. 
-  Create instances of T and collect them in a List<T> 
+  Read an array of JSON objects representing object T.
+  Create instances of T and collect them in a List<T>
 */
 template <typename T> class Read_array_into_list : public Read_array
 {
@@ -1075,7 +1076,8 @@ public:
         parse_context_fn(parse_context_fn_arg)
   {
   }
-  int read_container(json_engine_t *je, String *err_buf) override
+  int read_container(json_engine_t *je, const char *name, String *err_buf)
+    override
   {
     int rc;
 
@@ -1096,35 +1098,6 @@ public:
   }
 };
 
-// psergey-todo: this is just array of strings right?
-class Read_list_of_ranges : public Read_array
-{
-  MEM_ROOT *mem_root;
-  List<char> *list_ranges;
-
-public:
-  Read_list_of_ranges(MEM_ROOT *mem_root_arg, List<char> *list_ranges_arg)
-    : mem_root(mem_root_arg), list_ranges(list_ranges_arg)
-  {}
-  int read_container(json_engine_t *je, String *err_buf) override
-  {
-    if (json_scan_next(je))
-      return 1;
-
-    while (je->state != JST_ARRAY_END)
-    {
-      char *value;
-      if (read_string(mem_root, je, "ranges", err_buf, value))
-        return 1;
-
-      list_ranges->push_back(value);
-      if (json_scan_next(je))
-        return 1;
-    }
-
-    return 0;
-  }
-};
 
 /*
   check if the next element being parsed is an object within an array.
@@ -1274,7 +1247,7 @@ static int parse_range_context(MEM_ROOT *mem_root, json_engine_t *je, String *er
 
   Read_named_member array[]= {
       {"index_name", Read_string(mem_root, &out->idx_name), false},
-      {"ranges", Read_list_of_ranges(mem_root, &out->range_list), false},
+      {"ranges", Read_array_of_strings(mem_root, &out->range_list), false},
       {"num_rows",
        Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->rows),
        false},
