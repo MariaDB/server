@@ -4906,6 +4906,12 @@ SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%'
 VARIABLE_NAME	VARIABLE_VALUE
 HANDLER_ICP_ATTEMPTS	100
 HANDLER_ICP_MATCH	0
+# Another testcase: check that we correctly handle the case
+# where the range starting with +inf has no matches due to ICP,
+# but there are other ranges with matches:
+select * from t1 where (a > 9990 and (a+1)<0) or a=23 order by a desc;
+a	b
+23	23
 DROP TABLE t1;
 #
 # End of 12.3 tests
