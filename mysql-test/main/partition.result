@@ -2921,3 +2921,17 @@ DROP TABLE mdev20498;
 #
 # End of 10.6 tests
 #
+#
+# MDEV-20195 Assertion `0' failed in ha_partition::handle_unordered_next upon HANDLER READ from partitioned table
+#
+CREATE TABLE t1 (a INT, KEY(a)) PARTITION BY HASH(a);
+HANDLER t1 OPEN h;
+HANDLER h READ a NEXT;
+a
+HANDLER h READ a NEXT;
+a
+HANDLER h CLOSE;
+DROP TABLE t1;
+#
+# End of 10.11 tests
+#
