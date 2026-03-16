@@ -13977,7 +13977,14 @@ int QUICK_SELECT_DESC::get_next()
       set_min_range(file, last_range);
       int local_error;
       if (unlikely((local_error= file->ha_index_last(record))))
-        DBUG_RETURN(local_error);		// Empty table
+      {
+        if (local_error != HA_ERR_KEY_NOT_FOUND &&
+            local_error != HA_ERR_END_OF_FILE)
+          DBUG_RETURN(local_error);
+
+        // Nothing found in this range, go to next range
+        continue;
+      }
       if (cmp_prev(last_range) == 0)
         DBUG_RETURN(0);
       // No match; go to next range
