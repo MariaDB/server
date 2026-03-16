@@ -480,10 +480,15 @@ int hp_rec_key_cmp(HP_KEYDEF *keydef, const uchar *rec1, const uchar *rec2,
       const uchar *data1;
       const uchar *data2;
 
-      if (len1 != len2)
-        return 1;
-      if (len1 == 0)
+      if (len1 == 0 && len2 == 0)
         continue;
+      /*
+        Only short-circuit on length mismatch for NO PAD collations.
+        PAD SPACE collations treat trailing spaces as insignificant,
+        so 'a' (len=1) and 'a  ' (len=3) must compare equal.
+      */
+      if ((seg->charset->state & MY_CS_NOPAD) && len1 != len2)
+        return 1;
 
       /* rec1: always input — dereference pointer */
       memcpy(&data1, pos1 + packlength, HP_PTR_SIZE);
@@ -630,10 +635,10 @@ int hp_key_cmp(HP_KEYDEF *keydef, const uchar *rec, const uchar *key,
       memcpy(&key_data, key + 4, HP_PTR_SIZE);
       key+= 4 + sizeof(uchar*);
 
-      if (rec_blob_len != key_blob_len)
-        return 1;
-      if (rec_blob_len == 0)
+      if (rec_blob_len == 0 && key_blob_len == 0)
         continue;
+      if ((seg->charset->state & MY_CS_NOPAD) && rec_blob_len != key_blob_len)
+        return 1;
 
       /* rec is stored — materialize from chain */
       {

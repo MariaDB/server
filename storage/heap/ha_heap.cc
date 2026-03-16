@@ -952,3 +952,15 @@ maria_declare_plugin(heap)
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
 maria_declare_plugin_end;
+
+#ifdef HEAP_UNIT_TESTS
+/*
+  Public wrapper for unit tests — exposes the static
+  heap_prepare_hp_create_info() for direct testing.
+*/
+int test_heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
+                                     HP_CREATE_INFO *hp_create_info)
+{
+  return heap_prepare_hp_create_info(table_arg, internal_table, hp_create_info);
+}
+#endif

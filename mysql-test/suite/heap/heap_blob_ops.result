@@ -1,0 +1,149 @@
+#
+# MDEV-38975: Blob/text operations exercising HEAP internal temp tables
+#
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY, k INT, text_col TEXT);
+INSERT INTO t1 (k, text_col) VALUES
+(1, 'alpha'), (1, 'alpha'), (1, 'beta'),
+(2, 'gamma'), (2, 'gamma'), (2, 'delta'),
+(3, 'alpha'), (3, 'epsilon'), (3, NULL),
+(4, NULL), (4, NULL), (4, 'beta');
+#
+# COUNT(DISTINCT text_col)
+#
+SELECT COUNT(DISTINCT text_col) FROM t1;
+COUNT(DISTINCT text_col)
+5
+#
+# COUNT(DISTINCT text_col) with GROUP BY
+#
+SELECT k, COUNT(DISTINCT text_col) FROM t1 GROUP BY k ORDER BY k;
+k	COUNT(DISTINCT text_col)
+1	2
+2	2
+3	2
+4	1
+#
+# IN-subquery with blob/text
+#
+CREATE TABLE t2 (text_col TEXT);
+INSERT INTO t2 VALUES ('alpha'), ('delta');
+SELECT id, text_col FROM t1 WHERE text_col IN (SELECT text_col FROM t2) ORDER BY id;
+id	text_col
+1	alpha
+2	alpha
+6	delta
+7	alpha
+#
+# GROUP BY text_col ORDER BY aggregate LIMIT
+#
+SELECT text_col, COUNT(*) AS cnt FROM t1 GROUP BY text_col ORDER BY cnt DESC, text_col LIMIT 3;
+text_col	cnt
+NULL	3
+alpha	3
+beta	2
+#
+# GROUP BY text_col WITH ROLLUP
+#
+SELECT text_col, COUNT(*) FROM t1 GROUP BY text_col WITH ROLLUP;
+text_col	COUNT(*)
+NULL	12
+NULL	3
+alpha	3
+beta	2
+delta	1
+epsilon	1
+gamma	2
+#
+# GROUP BY multiple columns WITH ROLLUP
+#
+SELECT k, text_col, COUNT(*) FROM t1 GROUP BY k, text_col WITH ROLLUP;
+k	text_col	COUNT(*)
+1	NULL	3
+1	alpha	2
+1	beta	1
+2	NULL	3
+2	delta	1
+2	gamma	2
+3	NULL	1
+3	NULL	3
+3	alpha	1
+3	epsilon	1
+4	NULL	2
+4	NULL	3
+4	beta	1
+NULL	NULL	12
+#
+# Window function with blob in SELECT list
+#
+SELECT id, text_col, ROW_NUMBER() OVER (PARTITION BY k ORDER BY id) AS rn
+FROM t1 WHERE k <= 2 ORDER BY id;
+id	text_col	rn
+1	alpha	1
+2	alpha	2
+3	beta	3
+4	gamma	1
+5	gamma	2
+6	delta	3
+#
+# RANK with blob column
+#
+SELECT text_col, k, RANK() OVER (ORDER BY text_col) AS rnk
+FROM t1 WHERE text_col IS NOT NULL ORDER BY text_col, k;
+text_col	k	rnk
+alpha	1	1
+alpha	1	1
+alpha	3	1
+beta	1	4
+beta	4	4
+delta	2	6
+epsilon	3	7
+gamma	2	8
+gamma	2	8
+#
+# Non-recursive CTE materializing blob column
+#
+WITH cte AS (SELECT text_col, k FROM t1 WHERE k <= 2)
+SELECT DISTINCT text_col FROM cte ORDER BY text_col;
+text_col
+alpha
+beta
+delta
+gamma
+#
+# CTE with self-join on blob column
+#
+WITH cte AS (SELECT text_col, k FROM t1 WHERE text_col IS NOT NULL)
+SELECT COUNT(*) FROM cte a JOIN cte b ON a.k = b.k AND a.text_col = b.text_col;
+COUNT(*)
+13
+#
+# CTE referenced twice (forces materialization)
+#
+WITH cte AS (SELECT DISTINCT text_col FROM t1 WHERE text_col IS NOT NULL)
+SELECT a.text_col, b.text_col
+FROM cte a JOIN cte b ON a.text_col > b.text_col ORDER BY a.text_col, b.text_col;
+text_col	text_col
+beta	alpha
+delta	alpha
+delta	beta
+epsilon	alpha
+epsilon	beta
+epsilon	delta
+gamma	alpha
+gamma	beta
+gamma	delta
+gamma	epsilon
+DROP TABLE t1, t2;
+#
+# PAD SPACE: COUNT(DISTINCT) on TEXT with trailing-space variants
+# PAD SPACE collations (latin1 default) treat trailing spaces as
+# insignificant, so 'abc' and 'abc   ' are the same value.
+#
+CREATE TABLE t_pad (id INT AUTO_INCREMENT PRIMARY KEY, t TEXT);
+INSERT INTO t_pad (t) VALUES ('abc'), ('abc   '), ('abc      '), ('def'), ('def  ');
+# Must return 2 (not 5): 'abc' variants = 1 group, 'def' variants = 1 group
+SELECT COUNT(DISTINCT t) FROM t_pad;
+COUNT(DISTINCT t)
+2
+DROP TABLE t_pad;
+# End of MDEV-38975 blob operations tests

@@ -1,14 +1,14 @@
 # Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
-# 
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; version 2 of the License.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
@@ -27,9 +27,22 @@ IF(CMAKE_SYSTEM_NAME MATCHES AIX AND CMAKE_BUILD_TYPE STREQUAL "DEBUG")
 ENDIF()
 
 IF(WITH_UNIT_TESTS)
+  TARGET_COMPILE_DEFINITIONS(heap PRIVATE HEAP_UNIT_TESTS)
+
   ADD_EXECUTABLE(hp_test1 hp_test1.c)
   TARGET_LINK_LIBRARIES(hp_test1 heap mysys dbug strings)
 
   ADD_EXECUTABLE(hp_test2 hp_test2.c)
   TARGET_LINK_LIBRARIES(hp_test2 heap mysys dbug strings)
+
+  MY_ADD_TESTS(hp_test_hash LINK_LIBRARIES heap mysys dbug strings)
+
+  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql
+                      ${CMAKE_SOURCE_DIR}/include)
+  ADD_EXECUTABLE(hp_test_key_setup-t
+    hp_test_key_setup-t.cc
+    ${CMAKE_SOURCE_DIR}/unittest/sql/dummy_builtins.cc)
+  TARGET_COMPILE_DEFINITIONS(hp_test_key_setup-t PRIVATE MYSQL_SERVER)
+  TARGET_LINK_LIBRARIES(hp_test_key_setup-t heap sql mytap)
+  MY_ADD_TEST(hp_test_key_setup)
 ENDIF()

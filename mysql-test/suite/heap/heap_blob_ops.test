@@ -1,0 +1,93 @@
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-38975: Blob/text operations exercising HEAP internal temp tables
+--echo #
+
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY, k INT, text_col TEXT);
+INSERT INTO t1 (k, text_col) VALUES
+  (1, 'alpha'), (1, 'alpha'), (1, 'beta'),
+  (2, 'gamma'), (2, 'gamma'), (2, 'delta'),
+  (3, 'alpha'), (3, 'epsilon'), (3, NULL),
+  (4, NULL), (4, NULL), (4, 'beta');
+
+--echo #
+--echo # COUNT(DISTINCT text_col)
+--echo #
+SELECT COUNT(DISTINCT text_col) FROM t1;
+
+--echo #
+--echo # COUNT(DISTINCT text_col) with GROUP BY
+--echo #
+SELECT k, COUNT(DISTINCT text_col) FROM t1 GROUP BY k ORDER BY k;
+
+--echo #
+--echo # IN-subquery with blob/text
+--echo #
+CREATE TABLE t2 (text_col TEXT);
+INSERT INTO t2 VALUES ('alpha'), ('delta');
+SELECT id, text_col FROM t1 WHERE text_col IN (SELECT text_col FROM t2) ORDER BY id;
+
+--echo #
+--echo # GROUP BY text_col ORDER BY aggregate LIMIT
+--echo #
+SELECT text_col, COUNT(*) AS cnt FROM t1 GROUP BY text_col ORDER BY cnt DESC, text_col LIMIT 3;
+
+--echo #
+--echo # GROUP BY text_col WITH ROLLUP
+--echo #
+--sorted_result
+SELECT text_col, COUNT(*) FROM t1 GROUP BY text_col WITH ROLLUP;
+
+--echo #
+--echo # GROUP BY multiple columns WITH ROLLUP
+--echo #
+--sorted_result
+SELECT k, text_col, COUNT(*) FROM t1 GROUP BY k, text_col WITH ROLLUP;
+
+--echo #
+--echo # Window function with blob in SELECT list
+--echo #
+SELECT id, text_col, ROW_NUMBER() OVER (PARTITION BY k ORDER BY id) AS rn
+FROM t1 WHERE k <= 2 ORDER BY id;
+
+--echo #
+--echo # RANK with blob column
+--echo #
+SELECT text_col, k, RANK() OVER (ORDER BY text_col) AS rnk
+FROM t1 WHERE text_col IS NOT NULL ORDER BY text_col, k;
+
+--echo #
+--echo # Non-recursive CTE materializing blob column
+--echo #
+WITH cte AS (SELECT text_col, k FROM t1 WHERE k <= 2)
+SELECT DISTINCT text_col FROM cte ORDER BY text_col;
+
+--echo #
+--echo # CTE with self-join on blob column
+--echo #
+WITH cte AS (SELECT text_col, k FROM t1 WHERE text_col IS NOT NULL)
+SELECT COUNT(*) FROM cte a JOIN cte b ON a.k = b.k AND a.text_col = b.text_col;
+
+--echo #
+--echo # CTE referenced twice (forces materialization)
+--echo #
+WITH cte AS (SELECT DISTINCT text_col FROM t1 WHERE text_col IS NOT NULL)
+SELECT a.text_col, b.text_col
+FROM cte a JOIN cte b ON a.text_col > b.text_col ORDER BY a.text_col, b.text_col;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # PAD SPACE: COUNT(DISTINCT) on TEXT with trailing-space variants
+--echo # PAD SPACE collations (latin1 default) treat trailing spaces as
+--echo # insignificant, so 'abc' and 'abc   ' are the same value.
+--echo #
+CREATE TABLE t_pad (id INT AUTO_INCREMENT PRIMARY KEY, t TEXT);
+INSERT INTO t_pad (t) VALUES ('abc'), ('abc   '), ('abc      '), ('def'), ('def  ');
+--echo # Must return 2 (not 5): 'abc' variants = 1 group, 'def' variants = 1 group
+SELECT COUNT(DISTINCT t) FROM t_pad;
+DROP TABLE t_pad;
+
+--echo # End of MDEV-38975 blob operations tests
