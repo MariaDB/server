@@ -1608,8 +1608,7 @@ bool os_file_set_size(const char *name, os_file_t file, os_offset_t size,
 	/* Write buffer full of zeros */
 	memset(buf, 0, buf_size);
 
-	while (current_size < size
-	       && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
+	while (current_size < size) {
 		ulint	n_bytes;
 
 		if (size - current_size < (os_offset_t) buf_size) {
