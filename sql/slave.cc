@@ -1693,6 +1693,27 @@ int init_intvar_from_file(int* var, IO_CACHE* f, int default_val)
   DBUG_RETURN(1);
 }
 
+int init_ulonglongvar_from_file(ulonglong* var, IO_CACHE* f,
+                                ulonglong default_val)
+{
+  char buf[MY_INT64_NUM_DECIMAL_DIGITS];
+  int error;
+  DBUG_ENTER("init_ulonglongvar_from_file");
+
+
+  if (my_b_gets(f, buf, sizeof(buf)))
+  {
+    *var = (ulonglong) my_strtoll10(buf, (char**) 0, &error);
+    DBUG_RETURN(0);
+  }
+  else if (default_val)
+  {
+    *var = default_val;
+    DBUG_RETURN(0);
+  }
+  DBUG_RETURN(1);
+}
+
 int init_floatvar_from_file(float* var, IO_CACHE* f, float default_val)
 {
   char buf[16];
@@ -7213,7 +7234,7 @@ dbug_gtid_accept:
 
         crc= my_checksum(crc, (const uchar *) buf,
                          event_len - BINLOG_CHECKSUM_LEN);
-        int4store(&buf[event_len - BINLOG_CHECKSUM_LEN], crc);
+        int4store(const_cast<uchar *>(& buf[event_len - BINLOG_CHECKSUM_LEN]), crc);
       }
     }
     if (likely(!rli->relay_log.write_event_buffer((uchar*)buf, event_len)))

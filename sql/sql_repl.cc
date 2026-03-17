@@ -449,7 +449,7 @@ inline void fix_checksum(enum_binlog_checksum_alg checksum_alg, String *packet,
   ha_checksum crc;
   crc= my_checksum(0, (uchar *)packet->ptr() + ev_offset, data_len -
                    BINLOG_CHECKSUM_LEN);
-  int4store(packet->ptr() + ev_offset + data_len - BINLOG_CHECKSUM_LEN, crc);
+  int4store(const_cast<char *>(packet->ptr() + ev_offset + data_len - BINLOG_CHECKSUM_LEN), crc);
 }
 
 
@@ -4137,7 +4137,8 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
            lex_mi->log_file_name || lex_mi->pos ||
            lex_mi->relay_log_name || lex_mi->relay_log_pos)
   {
-    if (lex_mi->use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_NO)
+    if (lex_mi->use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_NO &&
+        mi->using_gtid != Master_info::USE_GTID_NO)
     {
       push_warning_printf(
           thd, Sql_condition::WARN_LEVEL_NOTE, WARN_OPTION_CHANGING,
