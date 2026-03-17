@@ -35,7 +35,7 @@ XA COMMIT 'zombie';
 --echo # case 2: Successful innodb_undo_tablespace upgrade
 SET GLOBAL innodb_fast_shutdown=0;
 
-let $restart_parameters=--innodb_undo_tablespaces=2;
+let $restart_parameters=--innodb_undo_tablespaces=2 --innodb-log-recovery-start=0;
 --source include/restart_mysqld.inc
 
 --echo # Display 2 undo tablespaces
@@ -48,7 +48,7 @@ DROP TABLE t1;
 --source include/wait_all_purged.inc
 
 --echo # case 3: Reduce the innodb_undo_tablespace to 0
-let $restart_parameters=--innodb_undo_tablespaces=0;
+let $restart_parameters=--innodb_undo_tablespaces=0 --innodb-log-recovery-start=0;
 --source include/restart_mysqld.inc
 
 --echo # Display 0 undo tablespace
@@ -58,7 +58,7 @@ SELECT @@global.innodb_undo_tablespaces;
 list_files $MYSQLD_DATADIR undo*;
 
 --echo # case 4: Change undo tablespace when force_recovery < 5
-let $restart_parameters=--innodb_undo_tablespaces=2 --innodb_force_recovery=4;
+let $restart_parameters=--innodb_undo_tablespaces=2 --innodb_force_recovery=4 --innodb-log-recovery-start=0;
 --source include/restart_mysqld.inc
 
 --echo # Display 2 undo tablespace
@@ -68,7 +68,7 @@ SELECT @@global.innodb_undo_tablespaces;
 list_files $MYSQLD_DATADIR undo*;
 
 --echo # case 5: Fail to change undo tablespace when force_recovery > 4
-let $restart_parameters=--innodb_undo_tablespaces=4 --innodb_force_recovery=5;
+let $restart_parameters=--innodb_undo_tablespaces=4 --innodb_force_recovery=5 --innodb-log-recovery-start=0;
 --source include/restart_mysqld.inc
 
 --echo # Display 2 undo tablespace
@@ -83,13 +83,13 @@ list_files $MYSQLD_DATADIR undo*;
 --echo #
 
 SET GLOBAL innodb_fast_shutdown=0;
-let $restart_parameters=--innodb_undo_tablespaces=4;
+let $restart_parameters=--innodb_undo_tablespaces=4 --innodb-log-recovery-start=0;
 --source include/restart_mysqld.inc
 --echo # Should list 4 undo log tablespaces
 list_files $MYSQLD_DATADIR undo*;
 
 set global innodb_fast_shutdown=0;
-let $restart_parameters=--innodb_read_only=1;
+let $restart_parameters=--innodb_read_only=1 --innodb-log-recovery-start=0;
 --source include/restart_mysqld.inc
 
 set global innodb_fast_shutdown=0;
@@ -98,7 +98,7 @@ mkdir $bugdir;
 let undodir= $MYSQLTEST_VARDIR/tmp/undo_dir;
 mkdir $undodir;
 let $d= --innodb-data-file-path=ibdata1:1M:autoextend;
-let $d=$d --innodb_undo_directory=$undodir;
+let $d=$d --innodb_undo_directory=$undodir --innodb-log-recovery-start=0;
 let $restart_parameters= $d --innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir --innodb_undo_tablespaces=3;
 --source include/restart_mysqld.inc
 --echo # Should list 3 undo log tablespaces
@@ -114,7 +114,7 @@ let $restart_parameters= $d --innodb-data-home-dir=$bugdir_1 --innodb-log-group-
 list_files $undodir undo*;
 
 set global innodb_fast_shutdown=0;
-let $restart_parameters=;
+let $restart_parameters=--innodb-log-recovery-start=0;
 --source include/restart_mysqld.inc
 rmdir $bugdir;
 rmdir $bugdir_1;

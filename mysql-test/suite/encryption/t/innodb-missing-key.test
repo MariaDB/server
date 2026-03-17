@@ -39,7 +39,7 @@ INSERT INTO t3 SELECT * FROM t1;
 
 --echo
 --echo # Restart server with keys3.txt
--- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
+-- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt --innodb-log-recovery-start=0
 -- source include/restart_mysqld.inc
 
 set global innodb_encryption_rotate_key_age = 1;

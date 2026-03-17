@@ -3112,9 +3112,15 @@ void fil_names_dirty(fil_space_t *space) noexcept
 {
 	ut_ad(log_sys.latch_have_wr());
 	ut_ad(recv_recovery_is_on());
+	ut_ad(!srv_read_only_mode);
 	ut_ad(log_sys.get_lsn() != 0);
 	ut_ad(space->max_lsn == 0);
 	ut_d(fil_space_validate_for_mtr_commit(space));
+
+	if (UNIV_UNLIKELY(recv_sys.rpo != 0)) {
+		/* The log is read-only; do not write to it */
+		return;
+	}
 
 	fil_system.named_spaces.push_back(*space);
 	space->max_lsn = log_sys.get_lsn();
@@ -3174,7 +3180,7 @@ ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn) noexcept
 			checkpoint LSN. Remove it from the list, so
 			that if the tablespace is not going to be
 			modified any more, subsequent checkpoints will
-			avoid calling fil_names_write() on it. */
+			avoid calling fil_names_clear() on it. */
 			it->max_lsn = 0;
 			fil_system.named_spaces.erase(it);
 		}
@@ -3182,7 +3188,7 @@ ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn) noexcept
 		/* max_lsn is the last LSN where fil_names_dirty_and_write()
 		was called. If we kept track of "min_lsn" (the first LSN
 		where max_lsn turned nonzero), we could avoid the
-		fil_names_write() call if min_lsn > lsn. */
+		fil_names_clear() call if min_lsn > lsn. */
 		ut_ad(UT_LIST_GET_LEN((*it).chain) == 1);
 		size_t s = mtr.log_file_op(FILE_MODIFY, (*it).id, name);
 		ut_ad(s <= budget_left);

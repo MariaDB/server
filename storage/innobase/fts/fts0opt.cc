@@ -2434,7 +2434,9 @@ fts_optimize_table(
 /*===============*/
 	dict_table_t*	table)	/*!< in: table to optimiza */
 {
-	if (srv_read_only_mode) {
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
+	if (recv_sys.rpo) {
 		return DB_READ_ONLY;
 	}
 
@@ -2818,6 +2820,7 @@ Optimize all FTS tables.
 static void fts_optimize_callback(void *)
 {
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	static ulint	current;
 	static bool	done;
@@ -2955,6 +2958,7 @@ fts_optimize_init(void)
 	ib_alloc_t*     heap_alloc;
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	/* For now we only support one optimize thread. */
 	ut_a(!fts_optimize_wq);
@@ -2998,6 +3002,7 @@ void
 fts_optimize_shutdown()
 {
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	/* If there is an ongoing activity on dictionary, such as
 	srv_master_evict_from_table_cache(), wait for it */

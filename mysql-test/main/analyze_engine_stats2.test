@@ -32,6 +32,8 @@ from seq_1_to_16384;
 commit;
 
 SET GLOBAL innodb_fast_shutdown=0;
+# Avoid any crash recovery that would load pages.
+--let $restart_parameters=--innodb-log-recovery-start=0
 source include/restart_mysqld.inc;
 set log_slow_verbosity='engine';
 set long_query_time=0.0;

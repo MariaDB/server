@@ -248,6 +248,7 @@ SHOW CREATE TABLE t7_restart;
 --echo # Shutdown the server and make a backup of a tablespace
 --echo #
 --source include/shutdown_mysqld.inc
+--let $restart_parameters=--innodb-log-recovery-start=0
 
 --copy_file $MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd $MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd.bak
 --copy_file $MYSQL_DATA_DIR/test/t5_restart.isl $MYSQL_DATA_DIR/test/t5_restart.isl.bak
@@ -556,6 +557,7 @@ SHOW CREATE TABLE t77_restart;
 
 --echo #
 --echo # Start the server and check tablespaces.
+
 --echo #
 -- source include/start_mysqld.inc
 

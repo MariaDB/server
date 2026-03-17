@@ -2638,7 +2638,9 @@ fts_cmp_set_sync_doc_id(
 	doc_id_t           *doc_id,
 	trx_t	           *trx=nullptr)
 {
-	if (srv_read_only_mode) {
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
+	if (recv_sys.rpo) {
 		return DB_READ_ONLY;
 	}
 
@@ -2726,7 +2728,9 @@ fts_update_sync_doc_id(
 	fts_cache_t*	cache = table->fts->cache;
 	char		fts_name[MAX_FULL_NAME_LEN];
 
-	if (srv_read_only_mode) {
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
+	if (recv_sys.rpo) {
 		return DB_READ_ONLY;
 	}
 
@@ -2945,7 +2949,9 @@ fts_commit_table(
 /*=============*/
 	fts_trx_table_t*	ftt)		/*!< in: FTS table to commit*/
 {
-	if (srv_read_only_mode) {
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
+	if (recv_sys.rpo) {
 		return DB_READ_ONLY;
 	}
 
@@ -4275,7 +4281,9 @@ fts_sync(
 	bool		unlock_cache,
 	bool		wait)
 {
-	if (srv_read_only_mode) {
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
+	if (recv_sys.rpo) {
 		return DB_READ_ONLY;
 	}
 
@@ -5861,7 +5869,8 @@ fts_load_stopword(
 		trx->start_line = __LINE__;
 		trx->start_file = __FILE__;
 #endif
-		trx_start_internal_low(trx, !high_level_read_only);
+		trx_start_internal_low(trx, !high_level_read_only
+				       && !recv_sys.rpo);
 		trx->op_info = "upload FTS stopword";
 		new_trx = TRUE;
 	}

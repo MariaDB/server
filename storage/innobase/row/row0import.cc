@@ -4034,6 +4034,7 @@ dberr_t FetchIndexRootPages::run(const fil_iterator_t& iter,
   const bool full_crc32 = fil_space_t::full_crc32(m_space_flags);
   bool skip_checksum_check = false;
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
 
   if (!page_compress_buf)
     return DB_OUT_OF_MEMORY;
@@ -4134,6 +4135,7 @@ static dberr_t fil_iterate(
 
 	byte* page_compress_buf= static_cast<byte*>(malloc(get_buf_size()));
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	if (!page_compress_buf) {
 		return DB_OUT_OF_MEMORY;
@@ -4462,6 +4464,7 @@ fil_tablespace_iterate(
 
 	ut_a(n_io_buffers > 0);
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	DBUG_EXECUTE_IF("ib_import_trigger_corruption_1",
 			return(DB_CORRUPTION););
@@ -4740,6 +4743,7 @@ row_import_for_mysql(
 	/* The caller assured that this is not read_only_mode and that no
 	temorary tablespace is being imported. */
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	ut_ad(!table->is_temporary());
 
 	ut_ad(table->space_id);
