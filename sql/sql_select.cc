@@ -20561,6 +20561,7 @@ Create_tmp_table::Create_tmp_table(ORDER *group, bool distinct,
                                    ha_rows rows_limit)
    :m_alloced_field_count(0),
     m_using_unique_constraint(false),
+    m_heap_expected(false),
     m_temp_pool_slot(MY_BIT_NONE),
     m_group(group),
     m_distinct(distinct),
@@ -20687,6 +20688,22 @@ TABLE *Create_tmp_table::start(THD *thd,
   */
   fn_format(path, path, mysql_tmpdir, "", MY_REPLACE_EXT|MY_UNPACK_FILENAME);
 
+  /*
+    Early engine prediction: reclength is not known yet (fields haven't been
+    added), so pass 0 — this is safe because pick_engine()'s only reclength
+    check is "> HA_MAX_REC_LENGTH", which 0 never triggers.  Returns
+    heap_hton unless session-level overrides (big_tables,
+    tmp_memory_table_size=0, etc.) force a disk-based engine.  We use this
+    to avoid the too_big_for_varchar() / group_length >= MAX_BLOB_WIDTH
+    bail-outs that would force m_using_unique_constraint for HEAP tables
+    that natively support blob keys.
+
+    Note: pick_engine() also reads m_using_unique_constraint, which is
+    false at this point.  The guards below that set it to true are gated
+    by !m_heap_expected, so there is no circular dependency in practice.
+  */
+  m_heap_expected= (pick_engine(thd, 0) == heap_hton);
+
   if (m_group)
   {
     ORDER **prev= &m_group;
@@ -20710,10 +20727,10 @@ TABLE *Create_tmp_table::start(THD *thd,
           can't index BIT fields.
       */
       (*tmp->item)->marker= MARKER_NULL_KEY; // Store null in key
-      if ((*tmp->item)->too_big_for_varchar())
+      if (!m_heap_expected && (*tmp->item)->too_big_for_varchar())
         m_using_unique_constraint= true;
     }
-    if (param->group_length >= MAX_BLOB_WIDTH)
+    if (!m_heap_expected && param->group_length >= MAX_BLOB_WIDTH)
       m_using_unique_constraint= true;
     if (m_group)
       m_distinct= 0;                           // Can't use distinct
@@ -21030,41 +21047,41 @@ err:
 }
 
 
+/*
+  Predict which engine a temporary table will use, based on session
+  variables and the current m_using_unique_constraint / m_select_options
+  state.  Called early (before fields are added) with reclength=0 to set
+  m_heap_expected, and again from choose_engine() with the real reclength.
+*/
+
+handlerton *Create_tmp_table::pick_engine(THD *thd, uint reclength)
+{
+  if (m_using_unique_constraint ||
+      reclength > HA_MAX_REC_LENGTH ||
+      (thd->variables.big_tables &&
+       !(m_select_options & SELECT_SMALL_RESULT)) ||
+      (m_select_options & TMP_TABLE_FORCE_MYISAM) ||
+      thd->variables.tmp_memory_table_size == 0)
+    return TMP_ENGINE_HTON;
+  return heap_hton;
+}
+
+
 bool Create_tmp_table::choose_engine(THD *thd, TABLE *table,
                                      TMP_TABLE_PARAM *param)
 {
   TABLE_SHARE *share= table->s;
   DBUG_ENTER("Create_tmp_table::choose_engine");
-  /*
-    If result table is small; use a heap, otherwise TMP_TABLE_HTON (Aria).
-    HEAP now supports blob columns via continuation chains, so blob_fields
-    alone no longer forces a disk-based engine.  We still fall back to disk
-    when reclength exceeds HA_MAX_REC_LENGTH (HEAP's fixed-width rows would
-    waste too much memory for very wide records).
-    In the future we should try making storage engine selection more dynamic.
-  */
 
-  if (m_using_unique_constraint ||
-      share->reclength > HA_MAX_REC_LENGTH ||
-      (thd->variables.big_tables &&
-       !(m_select_options & SELECT_SMALL_RESULT)) ||
-      (m_select_options & TMP_TABLE_FORCE_MYISAM) ||
-      thd->variables.tmp_memory_table_size == 0)
-  {
-    share->db_plugin= ha_lock_engine(0, TMP_ENGINE_HTON);
-    table->file= get_new_handler(share, &table->mem_root,
-                                 share->db_type());
-    if (m_group &&
-	(param->group_parts > table->file->max_key_parts() ||
-	 param->group_length > table->file->max_key_length()))
-      m_using_unique_constraint= true;
-  }
-  else
-  {
-    share->db_plugin= ha_lock_engine(0, heap_hton);
-    table->file= get_new_handler(share, &table->mem_root,
-                                 share->db_type());
-  }
+  handlerton *engine= pick_engine(thd, share->reclength);
+  share->db_plugin= ha_lock_engine(0, engine);
+  table->file= get_new_handler(share, &table->mem_root, share->db_type());
+
+  if (engine == TMP_ENGINE_HTON && m_group &&
+      (param->group_parts > table->file->max_key_parts() ||
+       param->group_length > table->file->max_key_length()))
+    m_using_unique_constraint= true;
+
   DBUG_RETURN(!table->file);
 }
 
@@ -21136,8 +21153,10 @@ bool Create_tmp_table::finalize(THD *thd,
     share->reclength= 1;                // Dummy select
   share->stored_rec_length= share->reclength;
   /*
-    Use packed rows if there is blobs or a lot of space to gain.
-    HEAP requires fixed-width rows — it cannot use packed row format.
+    HEAP-specific: skip packed row format.
+    HEAP uses fixed-width base records (blob data is stored separately
+    in continuation chains), so use packed rows only for disk-based
+    engines when there are blobs or enough space to gain.
   */
   if (share->db_type() != heap_hton &&
       (share->blob_fields ||
@@ -21334,7 +21353,6 @@ bool Create_tmp_table::finalize(THD *thd,
 	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT1 ||
 	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT2) ?
 	0 : FIELDFLAG_BINARY;
-      m_key_part_info->key_part_flag= field->key_part_flag();
       if (!m_using_unique_constraint)
       {
         cur_group->buff=(char*) m_group_buff;
@@ -21352,13 +21370,58 @@ bool Create_tmp_table::finalize(THD *thd,
           (*cur_group->item)->base_flags&= ~item_base_t::MAYBE_NULL;
         }
 
+        /*
+          For blob/geometry GROUP BY keys, field->key_length() returns
+          0 (blobs) or packlength (geometry), both too small to hold
+          actual data.  Use the item's max_length capped to
+          MAX_BLOB_WIDTH so new_key_field gets a usable size.
+        */
+        uint32 key_field_length= m_key_part_info->length;
+        if ((field->flags & BLOB_FLAG) &&
+            key_field_length <= ((Field_blob*)field)->pack_length_no_ptr())
+        {
+          key_field_length= MY_MIN((*cur_group->item)->max_length,
+                                   (uint32)(MAX_BLOB_WIDTH - HA_KEY_BLOB_LENGTH));
+          /*
+            Check that the group buffer has room for this blob key field.
+            calc_group_buffer() may have sized the buffer before the field
+            was promoted to blob in the tmp table.  If the promoted blob
+            doesn't fit, fall back to m_using_unique_constraint.
+          */
+          uint32 need= key_field_length + 2 /* length_bytes */ +
+                        MY_TEST(maybe_null);
+          if (m_group_buff + need >
+              param->group_buff + param->group_length)
+          {
+            m_using_unique_constraint= true;
+            break;
+          }
+        }
+        /*
+          Set key_part_flag from the actual field type AFTER the overflow
+          check.  This ensures that if we break out due to a promoted
+          blob overflowing the group buffer, key_part_flag retains the
+          original SQL-layer value (HA_VAR_LENGTH_PART for varchar),
+          not HA_BLOB_PART.  This prevents rebuild_key_from_group_buff() from being
+          called on a key buffer that has varchar format.
+        */
+        m_key_part_info->key_part_flag= field->key_part_flag();
+
 	if (!(cur_group->field= field->new_key_field(thd->mem_root,table,
                                                      m_group_buff +
                                                      MY_TEST(maybe_null),
-                                                     m_key_part_info->length,
+                                                     key_field_length,
                                                      field->null_ptr,
                                                      field->null_bit)))
 	  goto err; /* purecov: inspected */
+
+        /*
+          Set store_length for all GROUP BY key parts so
+          rebuild_key_from_group_buff() can advance through the key buffer.
+          store_length = key field pack_length + null flag byte.
+        */
+        m_key_part_info->store_length=
+            cur_group->field->pack_length() + MY_TEST(maybe_null);
 
 	if (maybe_null)
 	{
@@ -21409,8 +21472,17 @@ bool Create_tmp_table::finalize(THD *thd,
       */
       share->uniques= 1;
     }
+    /*
+      HEAP-specific: skip null-bits helper key part.
+      HEAP handles NULLs per-segment in its hash index, so it does not
+      need the extra null-key-part that MyISAM/Aria use for unique blob
+      constraints.
+    */
+    bool need_null_key_part= share->uniques &&
+                             share->db_type() != heap_hton &&
+                             null_pack_length[distinct];
     keyinfo->user_defined_key_parts= m_field_count[distinct] +
-       (share->uniques ? MY_TEST(null_pack_length[distinct]) : 0);
+       MY_TEST(need_null_key_part);
     keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
     keyinfo->usable_key_parts= keyinfo->user_defined_key_parts;
     table->distinct= 1;
@@ -21453,17 +21525,24 @@ bool Create_tmp_table::finalize(THD *thd,
       blobs can distinguish NULL from 0. This extra field is not needed
       when we do not use UNIQUE indexes for blobs.
     */
-    if (null_pack_length[distinct] && share->uniques)
+    if (need_null_key_part)
     {
       m_key_part_info->null_bit=0;
       m_key_part_info->offset= null_pack_base[distinct];
       m_key_part_info->length= null_pack_length[distinct];
+      /*
+        Use empty_clex_str (not null_clex_str) for the field name:
+        HEAP keeps share->keys visible to EXPLAIN, which iterates
+        key parts and calls strlen() on the name.  A NULL name from
+        null_clex_str causes SIGSEGV in Explain_index_use::set().
+        Empty string keeps the implicit field invisible in output.
+      */
       m_key_part_info->field= new Field_string(table->record[0],
                                              (uint32) m_key_part_info->length,
                                              (uchar*) 0,
                                              (uint) 0,
                                              Field::NONE,
-                                             &null_clex_str, &my_charset_bin);
+                                             &empty_clex_str, &my_charset_bin);
       if (!m_key_part_info->field)
         goto err;
       m_key_part_info->field->init(table);
@@ -24772,6 +24851,38 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   if (unlikely(copy_funcs(join_tab->tmp_table_param->items_to_copy,
                           join->thd)))
     DBUG_RETURN(NESTED_LOOP_ERROR);           /* purecov: inspected */
+  /*
+    HEAP-specific: restore group key values after copy_funcs().
+    For blob GROUP BY keys, copy_funcs() overwrites record[0]'s blob
+    pointers with new expression results, but the GROUP BY key was
+    built from the group buffer's Field_varstring (not record[0]).
+    Restore the group buffer values into record[0] so hp_make_key()
+    in ha_write_tmp_row() builds the correct key.
+    Non-blob fields are unaffected: copy_funcs() writes directly into
+    the record[0] field slots that hp_make_key() reads from.
+  */
+  if (table->s->db_type() == heap_hton)
+  {
+    if (table->s->blob_fields)
+    {
+      String tmp_str;
+      for (group= table->group; group; group= group->next)
+      {
+        Field *tbl_field= (*group->item)->get_tmp_table_field();
+        if (tbl_field && tbl_field != group->field)
+        {
+          if (group->field->is_null())
+            tbl_field->set_null();
+          else
+          {
+            String *val= group->field->val_str(&tmp_str);
+            tbl_field->set_notnull();
+            tbl_field->store(val->ptr(), val->length(), val->charset());
+          }
+        }
+      }
+    }
+  }
   if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
   {
     if (create_internal_tmp_table_from_heap(join->thd, table,
@@ -27849,7 +27960,7 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
     if (field)
     {
       enum_field_types type;
-      if ((type= field->type()) == MYSQL_TYPE_BLOB)
+      if (is_any_blob_field_type(type= field->type()))
 	key_length+=MAX_BLOB_WIDTH;		// Can't be used as a key
       else if (type == MYSQL_TYPE_VARCHAR || type == MYSQL_TYPE_VAR_STRING)
         key_length+= field->field_length + HA_KEY_BLOB_LENGTH;
@@ -27888,7 +27999,7 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
       case STRING_RESULT:
       {
         enum enum_field_types type= group_item->field_type();
-        if (type == MYSQL_TYPE_BLOB)
+        if (is_any_blob_field_type(type))
           key_length+= MAX_BLOB_WIDTH;		// Can't be used as a key
         else
         {

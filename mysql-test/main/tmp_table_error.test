@@ -5,8 +5,6 @@ create table t1 (
   b text
 ) engine=innodb;
 
---replace_regex /'.*'/'tmp'/
---error 140
 create table t2 as
 select
     1
@@ -2634,4 +2632,4 @@ select
           b as c2626
         from t1
         ) as tt1;
-drop table t1;
+drop table t1, t2;

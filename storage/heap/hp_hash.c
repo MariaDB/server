@@ -28,7 +28,11 @@ hp_charpos(CHARSET_INFO *cs, const uchar *b, const uchar *e, size_t num)
 }
 
 
+#ifdef HEAP_UNIT_TESTS
+ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key);
+#else
 static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key);
+#endif
 
 
 /*
@@ -48,6 +52,34 @@ static size_t hp_blob_key_length(uint packlength, const uchar *pos)
   }
   return 0;
 }
+
+
+/*
+  Compute the key-buffer byte size of the variable-length portion of a
+  VARTEXT or BLOB segment in a pre-built hash key.
+
+  Used by hp_hashnr() and hp_key_cmp() to advance past a VARCHAR or
+  BLOB segment (both null and non-null) in the key buffer.
+
+  All VARCHAR key segments use a 2-byte length prefix — this is the
+  canonical key format shared between SQL-layer group_buff keys and
+  hp_make_key() output.  hp_make_key() normalizes 1-byte record
+  prefixes to 2-byte key prefixes to maintain this invariant.
+
+  Blob segments use a fixed 4-byte length + pointer layout.
+
+  @param seg  Key segment descriptor
+  @return     Number of bytes to skip in the key buffer for the variable-
+              length portion (does NOT include the null flag byte, which
+              the caller handles separately)
+*/
+
+static inline size_t hp_vartext_key_pack_size(const HA_KEYSEG *seg)
+{
+  return (seg->flag & HA_BLOB_PART) ? 4 + sizeof(uchar *) : 2;
+}
+
+
 /*
   Find out how many rows there is in the given range
 
@@ -250,7 +282,11 @@ void hp_movelink(HASH_INFO *pos, HASH_INFO *next_link, HASH_INFO *newlink)
 
 	/* Calc hashvalue for a key */
 
+#ifdef HEAP_UNIT_TESTS
+ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
+#else
 static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
+#endif
 {
   /*register*/ 
   ulong nr=1, nr2=4;
@@ -266,9 +302,8 @@ static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
       if (*pos)					/* Found null */
       {
 	nr^= (nr << 1) | 1;
-	/* Add key pack length to key for VARCHAR/BLOB segments */
         if (seg->type == HA_KEYTYPE_VARTEXT1)
-          key+= (seg->flag & HA_BLOB_PART) ? 4 + sizeof(uchar*) : 2;
+          key+= hp_vartext_key_pack_size(seg);
 	continue;
       }
       pos++;
@@ -514,9 +549,9 @@ int hp_rec_key_cmp(HP_KEYDEF *keydef, const uchar *rec1, const uchar *rec2,
     {
       uchar *pos1= (uchar*) rec1 + seg->start;
       uchar *pos2= (uchar*) rec2 + seg->start;
-      size_t char_length1, char_length2;
       size_t pack_length= seg->bit_start;
       CHARSET_INFO *cs= seg->charset;
+      size_t char_length1, char_length2;
       if (pack_length == 1)
       {
         char_length1= (size_t) *(uchar*) pos1++;
@@ -588,9 +623,8 @@ int hp_key_cmp(HP_KEYDEF *keydef, const uchar *rec, const uchar *key,
 	return 1;
       if (found_null)
       {
-        /* Add key pack length to key for VARCHAR/BLOB segments */
         if (seg->type == HA_KEYTYPE_VARTEXT1)
-          key+= (seg->flag & HA_BLOB_PART) ? 4 + sizeof(uchar*) : 2;
+          key+= hp_vartext_key_pack_size(seg);
 	continue;
       }
     }
@@ -738,7 +772,24 @@ void hp_make_key(HP_KEYDEF *keydef, uchar *key, const uchar *rec)
       set_if_smaller(char_length, seg->length); /* QQ: ok to remove? */
     }
     if (seg->type == HA_KEYTYPE_VARTEXT1)
-      char_length+= seg->bit_start;             /* Copy also length */
+    {
+      /*
+        Normalize VARCHAR to always use a 2-byte length prefix in the key
+        buffer, regardless of whether the record uses 1-byte or 2-byte
+        packing.  This keeps the key format consistent with what
+        hp_hashnr() and hp_key_cmp() expect (they always read 2 bytes).
+      */
+      uint native_pack= seg->bit_start;
+      size_t data_len= (native_pack == 1 ? (size_t) *(uchar*) pos
+                                          : uint2korr(pos));
+      set_if_smaller(data_len, char_length);
+      int2store(key, (uint16) data_len);
+      memcpy(key + 2, pos + native_pack, data_len);
+      if (data_len < char_length)
+        bzero(key + 2 + data_len, char_length - data_len);
+      key+= 2 + char_length;
+      continue;
+    }
     else if (seg->type == HA_KEYTYPE_BIT && seg->bit_length)
     {
       *key++= get_rec_bits(rec + seg->bit_pos,

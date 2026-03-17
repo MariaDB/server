@@ -126,4 +126,12 @@ public:
   int find_unique_row(uchar *record, uint unique_idx) override;
 private:
   void update_key_stats();
+  void materialize_heap_key_if_needed(uint key_index, const uchar *&key);
+  void rebuild_key_from_group_buff(HP_KEYDEF *keydef, const uchar *&key,
+                                   uint active_key_index);
+#ifdef HEAP_UNIT_TESTS
+  friend void test_rebuild_key_from_group_buff(ha_heap *, TABLE *, HP_INFO *,
+                                    HP_KEYDEF *, const uchar *, uint,
+                                    const uchar **);
+#endif
 };

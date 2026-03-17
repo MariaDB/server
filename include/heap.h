@@ -117,6 +117,7 @@ typedef struct st_hp_keydef		/* Key definition with open */
   uint length;				/* Length of key (automatic) */
   uint8 algorithm;			/* HASH / BTREE */
   my_bool has_blob_seg;			/* Key has HA_BLOB_PART segments */
+  my_bool needs_key_rebuild_from_group_buff; /* GROUP BY key must be rebuilt from group_buff */
   HA_KEYSEG *seg;
   HP_BLOCK block;			/* Where keys are saved */
   /*
@@ -131,6 +132,15 @@ typedef struct st_hp_keydef		/* Key definition with open */
 		   const uchar *record, uchar *recpos, int flag);
   uint (*get_key_length)(struct st_hp_keydef *keydef, const uchar *key);
 } HP_KEYDEF;
+
+static inline my_bool hp_keydef_has_blob_seg(const HP_KEYDEF *keydef)
+{
+  uint j;
+  for (j= 0; j < keydef->keysegs; j++)
+    if (keydef->seg[j].flag & HA_BLOB_PART)
+      return TRUE;
+  return FALSE;
+}
 
 typedef struct st_hp_blob_desc
 {

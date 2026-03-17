@@ -469,14 +469,14 @@ static void test_pad_space(void)
 
   The SQL layer builds lookup keys in varstring format (2B length prefix +
   inline data) via Field_blob::new_key_field() -> Field_varstring.  The HEAP
-  handler's rebuild_blob_key() converts this to record[0]'s blob descriptor
+  handler's rebuild_key_from_group_buff() converts this to record[0]'s blob descriptor
   format, then hp_make_key() builds the hash key.
 
   This test simulates the full round-trip:
     1. Build a record with blob data (as at INSERT time)
     2. Compute hp_rec_hashnr() (stored in HASH_INFO at write time)
     3. Build a varstring-format key (as the SQL layer would for lookup)
-    4. Parse the varstring key into a record's blob field (rebuild_blob_key)
+    4. Parse the varstring key into a record's blob field (rebuild_key_from_group_buff)
     5. hp_make_key() from that record, then hp_rec_hashnr() on the record
     6. Verify the hashes match
 */
@@ -510,7 +510,7 @@ static void test_distinct_key_format(void)
 
   /*
     Step 4: Parse varstring key into rec_lookup's blob field.
-    This is what rebuild_blob_key() does.
+    This is what rebuild_key_from_group_buff() does.
   */
   memset(rec_lookup, 0, REC_LENGTH);
   {
@@ -619,7 +619,7 @@ static void test_group_by_key_format(void)
   insert_hash= hp_rec_hashnr(&keydef, rec_insert);
 
   /*
-    Simulate rebuild_blob_key: parse varstring key, populate rec_lookup.
+    Simulate rebuild_key_from_group_buff: parse varstring key, populate rec_lookup.
     In GROUP BY, key_field_length = max_length (not 0, not pack_length).
   */
   /* no null bit for this test */
@@ -706,11 +706,206 @@ static void test_multi_seg_distinct(void)
 }
 
 
+/*
+  Test 11: hp_hashnr (key-based) must equal hp_rec_hashnr (record-based).
+
+  This directly tests that building a key via hp_make_key() and then
+  hashing it with hp_hashnr() produces the same hash as hp_rec_hashnr()
+  on the original record.  This catches divergence bugs where the two
+  functions process segments differently (e.g. VARCHAR pack_length
+  hardcoded to 2 in hp_hashnr but read from seg->bit_start in
+  hp_rec_hashnr).
+*/
+
+/* hp_hashnr is static by default; exposed via HEAP_UNIT_TESTS */
+extern ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key);
+
+/*
+  Record layout for mixed varchar + blob table:
+    byte 0:       null bitmap (bit 2 = city null, bit 4 = libname null)
+    bytes 1:      varchar length_bytes=1 (city: VARCHAR(21))
+    bytes 2-22:   varchar data (21 bytes)
+    bytes 23-24:  blob packlength=2 (libname: TEXT)
+    bytes 25-32:  blob data pointer (8 bytes on x86_64)
+    byte 33:      flags byte (visible offset)
+  Total reclength: 34, recbuffer: ALIGN(MAX(34,8)+1, 8) = 40
+*/
+#define MIX_NULL_OFFSET    0
+#define MIX_VARCHAR_OFFSET 1
+#define MIX_VARCHAR_LEN    21
+#define MIX_VARCHAR_LENBYTES 1
+#define MIX_BLOB_OFFSET    23
+#define MIX_BLOB_PACKLEN   2
+#define MIX_REC_LENGTH     34
+#define MIX_KEY_BUF_SIZE   256
+
+
+static void setup_mixed_keydef(HP_KEYDEF *keydef, HA_KEYSEG *segs)
+{
+  /* Segment 0: blob (city TEXT) at offset 23 */
+  memset(&segs[0], 0, sizeof(segs[0]));
+  segs[0].type=      HA_KEYTYPE_VARTEXT1;
+  segs[0].flag=      HA_BLOB_PART | HA_VAR_LENGTH_PART;
+  segs[0].start=     MIX_BLOB_OFFSET;
+  segs[0].length=    0;   /* blob key segments must have length=0 */
+  segs[0].bit_start= MIX_BLOB_PACKLEN;
+  segs[0].charset=   &my_charset_latin1;
+  segs[0].null_bit=  4;   /* bit 2 in null bitmap */
+  segs[0].null_pos=  MIX_NULL_OFFSET;
+
+  /* Segment 1: varchar (libname VARCHAR(21)) at offset 1 */
+  memset(&segs[1], 0, sizeof(segs[1]));
+  segs[1].type=      HA_KEYTYPE_VARTEXT1;
+  segs[1].flag=      HA_VAR_LENGTH_PART;
+  segs[1].start=     MIX_VARCHAR_OFFSET;
+  segs[1].length=    MIX_VARCHAR_LEN;
+  segs[1].bit_start= MIX_VARCHAR_LENBYTES;  /* 1-byte length prefix */
+  segs[1].charset=   &my_charset_latin1;
+  segs[1].null_bit=  8;   /* bit 3 in null bitmap */
+  segs[1].null_pos=  MIX_NULL_OFFSET;
+
+  setup_keydef(keydef, segs, 2);
+  keydef->has_blob_seg= 1;
+}
+
+
+static void build_mixed_record(uchar *rec, const uchar *blob_data,
+                                uint16 blob_len, const uchar *varchar_data,
+                                uint8 varchar_len,
+                                my_bool blob_null, my_bool varchar_null)
+{
+  memset(rec, 0, MIX_REC_LENGTH);
+
+  /* null bitmap */
+  if (blob_null)
+    rec[MIX_NULL_OFFSET] |= 4;
+  if (varchar_null)
+    rec[MIX_NULL_OFFSET] |= 8;
+
+  /* varchar: 1-byte length prefix + data */
+  rec[MIX_VARCHAR_OFFSET]= varchar_len;
+  if (varchar_data && varchar_len > 0)
+    memcpy(rec + MIX_VARCHAR_OFFSET + MIX_VARCHAR_LENBYTES,
+           varchar_data, varchar_len);
+
+  /* blob: packlength(2) + data pointer */
+  int2store(rec + MIX_BLOB_OFFSET, blob_len);
+  memcpy(rec + MIX_BLOB_OFFSET + MIX_BLOB_PACKLEN, &blob_data, PTR_SIZE);
+}
+
+
+static void test_key_vs_rec_hash_consistency(void)
+{
+  HA_KEYSEG segs[2];
+  HP_KEYDEF keydef;
+  uchar rec[MIX_REC_LENGTH];
+  uchar key_buf[MIX_KEY_BUF_SIZE];
+  ulong rec_hash, key_hash;
+
+  const uchar *city= (const uchar *) "New York";
+  uint16 city_len= 8;
+  const uchar *libname= (const uchar *) "New York Public Libra";
+  uint8 libname_len= 21;
+
+  setup_mixed_keydef(&keydef, segs);
+
+  /* Build record and compute record-based hash (used at INSERT time) */
+  build_mixed_record(rec, city, city_len, libname, libname_len,
+                     FALSE, FALSE);
+  rec_hash= hp_rec_hashnr(&keydef, rec);
+
+  /* Build key via hp_make_key and compute key-based hash (used at LOOKUP) */
+  hp_make_key(&keydef, key_buf, rec);
+  key_hash= hp_hashnr(&keydef, key_buf);
+
+  ok(rec_hash == key_hash,
+     "key_vs_rec_hash: rec_hash (%lu) == key_hash (%lu) "
+     "for mixed blob+varchar(1B) key",
+     rec_hash, key_hash);
+
+  /* Second test: different data to ensure it's not a coincidence */
+  {
+    const uchar *city2= (const uchar *) "San Fran";
+    uint16 city2_len= 8;
+    const uchar *libname2= (const uchar *) "SF Public Library";
+    uint8 libname2_len= 17;
+
+    build_mixed_record(rec, city2, city2_len, libname2, libname2_len,
+                       FALSE, FALSE);
+    rec_hash= hp_rec_hashnr(&keydef, rec);
+    hp_make_key(&keydef, key_buf, rec);
+    key_hash= hp_hashnr(&keydef, key_buf);
+
+    ok(rec_hash == key_hash,
+       "key_vs_rec_hash: rec_hash (%lu) == key_hash (%lu) "
+       "for second mixed blob+varchar(1B) data",
+       rec_hash, key_hash);
+  }
+
+  /* Third test: varchar with 2-byte length prefix (field_length >= 256) */
+  {
+    HA_KEYSEG segs2b[2];
+    HP_KEYDEF keydef2b;
+    uchar rec2b[MIX_REC_LENGTH + 256];
+    uchar key2b[MIX_KEY_BUF_SIZE + 256];
+
+    /*
+      Copy the setup but change varchar to 2-byte length prefix.
+      This should always work because hp_hashnr already hardcodes 2.
+    */
+    memcpy(segs2b, segs, sizeof(segs));
+    segs2b[1].bit_start= 2;  /* 2-byte length prefix */
+    segs2b[1].length= 256;
+    setup_keydef(&keydef2b, segs2b, 2);
+    keydef2b.has_blob_seg= 1;
+
+    memset(rec2b, 0, sizeof(rec2b));
+    /* blob */
+    rec2b[MIX_NULL_OFFSET]= 0;
+    int2store(rec2b + MIX_BLOB_OFFSET, city_len);
+    memcpy(rec2b + MIX_BLOB_OFFSET + MIX_BLOB_PACKLEN, &city, PTR_SIZE);
+    /* varchar with 2B length prefix */
+    int2store(rec2b + MIX_VARCHAR_OFFSET, libname_len);
+    memcpy(rec2b + MIX_VARCHAR_OFFSET + 2, libname, libname_len);
+
+    rec_hash= hp_rec_hashnr(&keydef2b, rec2b);
+    hp_make_key(&keydef2b, key2b, rec2b);
+    key_hash= hp_hashnr(&keydef2b, key2b);
+
+    ok(rec_hash == key_hash,
+       "key_vs_rec_hash: rec_hash (%lu) == key_hash (%lu) "
+       "for mixed blob+varchar(2B) key",
+       rec_hash, key_hash);
+  }
+
+  /* Fourth test: blob-only key (no varchar) — should always match */
+  {
+    HA_KEYSEG seg_blob;
+    HP_KEYDEF kd_blob;
+    uchar rec_b[REC_LENGTH];
+    uchar key_b[KEY_BUF_SIZE];
+
+    setup_blob_keyseg(&seg_blob, TRUE);
+    setup_keydef(&kd_blob, &seg_blob, 1);
+
+    build_record(rec_b, 1, city, city_len, FALSE);
+    rec_hash= hp_rec_hashnr(&kd_blob, rec_b);
+    hp_make_key(&kd_blob, key_b, rec_b);
+    key_hash= hp_hashnr(&kd_blob, key_b);
+
+    ok(rec_hash == key_hash,
+       "key_vs_rec_hash: rec_hash (%lu) == key_hash (%lu) "
+       "for blob-only key",
+       rec_hash, key_hash);
+  }
+}
+
+
 int main(int argc __attribute__((unused)),
          char **argv __attribute__((unused)))
 {
   MY_INIT("hp_test_hash");
-  plan(43);
+  plan(47);
 
   diag("Test 1: Hash consistency between record and key formats");
   test_hash_consistency();
@@ -741,6 +936,9 @@ int main(int argc __attribute__((unused)),
 
   diag("Test 10: Multi-segment DISTINCT key (sj-materialize)");
   test_multi_seg_distinct();
+
+  diag("Test 11: hp_hashnr vs hp_rec_hashnr consistency");
+  test_key_vs_rec_hash_consistency();
 
   my_end(0);
   return exit_status();

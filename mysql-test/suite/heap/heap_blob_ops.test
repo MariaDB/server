@@ -90,4 +90,32 @@ INSERT INTO t_pad (t) VALUES ('abc'), ('abc   '), ('abc      '), ('def'), ('def 
 SELECT COUNT(DISTINCT t) FROM t_pad;
 DROP TABLE t_pad;
 
+--echo #
+--echo # GROUP BY text_col must use HEAP (not Aria) for internal tmp tables
+--echo #
+CREATE TABLE t_grp (id INT AUTO_INCREMENT PRIMARY KEY, t TEXT);
+INSERT INTO t_grp (t) VALUES ('alpha'), ('alpha'), ('beta'), ('gamma'), ('gamma');
+FLUSH STATUS;
+SELECT t, COUNT(*) AS cnt FROM t_grp GROUP BY t ORDER BY t;
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+
+--echo #
+--echo # DISTINCT text_col must use HEAP (not Aria) for internal tmp tables
+--echo #
+FLUSH STATUS;
+SELECT DISTINCT t FROM t_grp ORDER BY t;
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+
+--echo #
+--echo # GROUP BY text_col with PAD SPACE trailing-space data
+--echo # PAD SPACE collations collapse 'abc' and 'abc   ' into one group
+--echo #
+CREATE TABLE t_grp_pad (id INT AUTO_INCREMENT PRIMARY KEY, t TEXT);
+INSERT INTO t_grp_pad (t) VALUES ('abc'), ('abc   '), ('abc      '), ('def'), ('def  ');
+FLUSH STATUS;
+--echo # Must return 2 groups, not 5
+SELECT t, COUNT(*) AS cnt FROM t_grp_pad GROUP BY t ORDER BY t;
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+DROP TABLE t_grp, t_grp_pad;
+
 --echo # End of MDEV-38975 blob operations tests

@@ -146,4 +146,46 @@ SELECT COUNT(DISTINCT t) FROM t_pad;
 COUNT(DISTINCT t)
 2
 DROP TABLE t_pad;
+#
+# GROUP BY text_col must use HEAP (not Aria) for internal tmp tables
+#
+CREATE TABLE t_grp (id INT AUTO_INCREMENT PRIMARY KEY, t TEXT);
+INSERT INTO t_grp (t) VALUES ('alpha'), ('alpha'), ('beta'), ('gamma'), ('gamma');
+FLUSH STATUS;
+SELECT t, COUNT(*) AS cnt FROM t_grp GROUP BY t ORDER BY t;
+t	cnt
+alpha	2
+beta	1
+gamma	2
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+Variable_name	Value
+Created_tmp_disk_tables	0
+#
+# DISTINCT text_col must use HEAP (not Aria) for internal tmp tables
+#
+FLUSH STATUS;
+SELECT DISTINCT t FROM t_grp ORDER BY t;
+t
+alpha
+beta
+gamma
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+Variable_name	Value
+Created_tmp_disk_tables	0
+#
+# GROUP BY text_col with PAD SPACE trailing-space data
+# PAD SPACE collations collapse 'abc' and 'abc   ' into one group
+#
+CREATE TABLE t_grp_pad (id INT AUTO_INCREMENT PRIMARY KEY, t TEXT);
+INSERT INTO t_grp_pad (t) VALUES ('abc'), ('abc   '), ('abc      '), ('def'), ('def  ');
+FLUSH STATUS;
+# Must return 2 groups, not 5
+SELECT t, COUNT(*) AS cnt FROM t_grp_pad GROUP BY t ORDER BY t;
+t	cnt
+abc	3
+def	2
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+Variable_name	Value
+Created_tmp_disk_tables	0
+DROP TABLE t_grp, t_grp_pad;
 # End of MDEV-38975 blob operations tests
