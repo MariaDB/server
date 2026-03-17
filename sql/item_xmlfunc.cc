@@ -3156,7 +3156,7 @@ String *Item_func_xml_update::val_str(String *str)
 
 class XMLSchema_tag;
 class XMLSchema_attribute;
-class XMLSchema_complex_type;
+class XMLSchema_type_def;
 
 class XMLSchema_item
 {
@@ -3165,6 +3165,10 @@ public:
   { return alloc_root(mem_root, size); }
 
   /* Parsing of the schema. */
+  virtual bool enter(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len)
+  {
+    return MY_XML_OK;
+  }
   virtual bool value(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len)
   {
     return MY_XML_OK;
@@ -3178,7 +3182,7 @@ public:
 
   virtual bool append_tag(XMLSchema_tag *el) { return TRUE; }
   virtual bool append_attribute(XMLSchema_attribute *at) { return TRUE; }
-  virtual bool append_complex_type(XMLSchema_complex_type *ct) { return TRUE; }
+  virtual bool append_type_def(XMLSchema_type_def *ct) { return TRUE; }
   virtual bool check_valid() { return TRUE; }
 
   /* Validation of an XML. */
@@ -3210,6 +3214,10 @@ public:
 };
 
 
+/*
+  That item reads the attribute value of some Schema tag and
+  pops from stack after it.
+*/
 class XMLSchema_tag_attribute: public XMLSchema_item
 {
 public:
@@ -3219,7 +3227,7 @@ public:
   XMLSchema_tag_attribute *m_next_attribute;
 
   XMLSchema_tag_attribute(const LEX_CSTRING &name): XMLSchema_item(),
-    m_name(name), m_val(NULL) {}
+    m_name(name), m_val(NULL), m_val_len(0) {}
   bool value(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len) override
   {
     m_val= attr;
@@ -3257,18 +3265,22 @@ public:
 class XMLSchema_tag: public XMLSchema_item
 {
 public:
-  XMLSchema_tag_attribute *m_attributes;
+  XMLSchema_tag_attribute *m_tag_attributes;
+  XMLSchema_tag_attribute m_id;
   XMLSchema_tag *m_next_tag;
   XMLSchema_tag *m_tags;
 
   bool declare_attribute(XMLSchema_tag_attribute *attr)
   {
-    attr->m_next_attribute= m_attributes;
-    m_attributes= attr;
+    attr->m_next_attribute= m_tag_attributes;
+    m_tag_attributes= attr;
     return FALSE;
   }
-  XMLSchema_tag(): XMLSchema_item(), m_attributes(NULL), m_tags(NULL) {}
-  XMLSchema_tag_attribute *find_attribute(const char *name, size_t len);
+  XMLSchema_tag(): XMLSchema_item(), m_tag_attributes(&m_id), m_tags(NULL)
+  {
+    m_id.m_next_attribute= NULL;
+  }
+  XMLSchema_tag_attribute *find_tag_attribute(const char *name, size_t len);
 
   bool attribute(MY_XML_VALIDATION_DATA *st,
                  const char *attr, size_t len) override;
@@ -3281,7 +3293,10 @@ public:
 };
 
 
-class XMLSchema_element: public XMLSchema_tag
+/*
+  Stores the description of an XML attribute and then validates it.
+*/
+class XMLSchema_attribute: public XMLSchema_tag
 {
   class element_type: public XMLSchema_tag_namespaced_attribute
   {
@@ -3302,38 +3317,31 @@ class XMLSchema_element: public XMLSchema_tag
                    const char *attr, size_t len) override;
   };
 
+public:
   XMLSchema_tag_attribute m_atr_name;
   element_type m_atr_type;
   XMLSchema_tag_attribute m_atr_default;
   XMLSchema_tag_attribute m_atr_fixed;
 
-  /* Attributes that the schema declared for that element. */
-  XMLSchema_attribute *m_attributes;
-  XMLSchema_attribute m_xmlns; /* namespace attributes always allowed in XML. */
-  XMLSchema_complex_type *m_complex_type;
-public:
+  XMLSchema_type_def *m_type_def;
+  XMLSchema_attribute *m_next_attribute;
   bool check_valid() override { return TRUE; }
-  XMLSchema_element(): XMLSchema_tag(),
+  XMLSchema_attribute(): XMLSchema_tag(),
     m_atr_name(X_CS("name")),
     m_atr_type(X_CS("type")),
     m_atr_default(X_CS("default")),
     m_atr_fixed(X_CS("fixed")),
-    m_attributes(&m_xmlns),
-    m_xmlns(X_CS("xmlns")), 
-    m_complex_type(NULL)
+    m_type_def(NULL)
   {
     declare_attribute(&m_atr_name);
     declare_attribute(&m_atr_type);
     declare_attribute(&m_atr_default);
     declare_attribute(&m_atr_fixed);
-
-    m_xmlns.m_next_attribute= NULL;
   }
 
-  bool append_attribute(XMLSchema_attribute *at) override;
-  bool append_complex_type(XMLSchema_complex_type *ct) override
+  bool append_type_def(XMLSchema_type_def *ct) override
   {
-    m_complex_type= ct;
+    m_type_def= ct;
     return FALSE;
   }
   int compare_tag_name(const char *name, size_t len) const override
@@ -3353,25 +3361,48 @@ public:
   bool validate_leave(MY_XML_VALIDATION_DATA *st,
                       const char *name, size_t len) override;
   bool validate_tag(MY_XML_VALIDATION_DATA *st,
+                    const char *name, size_t len) override
+  {
+    return MY_XML_ERROR;
+  }
+  bool validate_attr(MY_XML_VALIDATION_DATA *st,
+                     const char *name, size_t len) override
+  {
+    return MY_XML_ERROR;
+  }
+};
+
+
+class XMLSchema_element: public XMLSchema_attribute
+{
+  XMLSchema_attribute *find_attribute(const char *name, size_t len);
+public:
+  XMLSchema_tag_attribute m_minOccurs;
+  XMLSchema_tag_attribute m_maxOccurs;
+
+  XMLSchema_tag_attribute m_xmlns; /* namespace attributes always allowed in XML. */
+
+  /* Attributes that the schema declared for that element. */
+  XMLSchema_attribute *m_attributes;
+  XMLSchema_element(): XMLSchema_attribute(),
+    m_minOccurs(X_CS("minOccurs")),
+    m_maxOccurs(X_CS("maxOccurs")),
+    m_xmlns(X_CS("xmlns"))
+  {
+    declare_attribute(&m_xmlns);
+    declare_attribute(&m_minOccurs);
+    declare_attribute(&m_maxOccurs);
+  }
+  bool append_attribute(XMLSchema_attribute *at) override;
+
+  bool validate_tag(MY_XML_VALIDATION_DATA *st,
                     const char *name, size_t len) override;
   bool validate_attr(MY_XML_VALIDATION_DATA *st,
                      const char *name, size_t len) override;
-  {
-
-    return MY_XML_OK;
-  }
-
 };
 
 
-class XMLSchema_attribute: public XMLSchema_element
-{
-public:
-  XMLSchema_attribute *m_next_attribute;
-};
-
-
-const char *XMLSchema_element::element_type::typenames[]=
+const char *XMLSchema_attribute::element_type::typenames[]=
 {
   "string",
   "decimal",
@@ -3382,24 +3413,141 @@ const char *XMLSchema_element::element_type::typenames[]=
 };
 
 
-class XMLSchema_complex_type: public XMLSchema_tag
+class Base_type
+{
+
+};
+
+
+class XMLSchema_type_def: public XMLSchema_tag
 {
   XMLSchema_tag_attribute m_type_name;
-  XMLSchema_tag_attribute m_mixed;
+  XMLSchema_tag_attribute m_final;
 public:
-  XMLSchema_complex_type *m_next_complex_type;
+  XMLSchema_type_def *m_next_type_def;
 
-  XMLSchema_complex_type(): XMLSchema_tag(),
+  XMLSchema_type_def(): XMLSchema_tag(),
     m_type_name(X_CS("name")),
-    m_mixed(X_CS("mixed")),
-    m_next_complex_type(NULL)
+    m_final(X_CS("final")),
+    m_final(X_CS("id")),
+    m_next_type_def(NULL)
   {
-    declare_attribute(&m_mixed);
     declare_attribute(&m_type_name);
+    declare_attribute(&m_final);
+    declare_attribute(&m_id);
   }
-  bool check_valid() override { return TRUE; }
   bool leave(MY_XML_VALIDATION_DATA *st,
              const char *attr, size_t len) override;
+};
+
+
+class XMLSchema_facet: public XMLSchema_tag
+{
+  XMLSchema_tag_attribute m_value;
+  XMLSchema_tag_attribute m_fixed;
+public:
+  XMLSchema_facet(): XMLSchema_tag(),
+    m_value(X_CS("value")),
+    m_fixed(X_CS("fixed"))
+  {
+    declare_attribute(&m_value);
+    declare_attribute(&m_fixed);
+  }
+};
+
+
+class XMLSchema_restriction: public XMLSchema_tag
+{
+  XMLSchema_tag_attribute m_base;
+
+  /* for numeric types. */
+  XMLSchema_facet m_minInclusive, m_maxInclusive,
+                  m_minExclusive, m_maxExclusive,
+                  m_totalDigits, m_fractionDigits;
+
+  /* for strings. */
+  XMLSchema_facet m_length, m_minlength, m_maxLength,
+                  m_pattern, whiteSpace;
+
+  /* enum */
+  XMLSchema_facet m_enumeration;
+
+public:
+  XMLSchema_restriction(): XMLSchema_tag(),
+    m_value(X_CS("base"))
+  {
+    declare_attribute(&m_base);
+  }
+};
+
+
+class XMLSchema_simple_type: public XMLSchema_type_def
+{
+  XMLSchema_restriction m_restriction;
+  XMLSchema_list m_list;
+  XMLSchema_union m_union;
+public:
+};
+
+
+class XMLSchema_complex_type: public XMLSchema_type_def
+{
+  XMLSchema_tag_attribute m_mixed;
+  XMLSchema_tag_attribute m_abstract;
+  XMLSchema_tag_attribute m_block;
+
+  XMLSchema_tag *m_content;
+
+public:
+  XMLSchema_complex_type(): XMLSchema_type_def(),
+    m_mixed(X_CS("mixed")),
+    m_abstract(X_CS("abstract")),
+    m_block(X_CS("block")),
+    m_content(NULL)
+  {
+    declare_attribute(&m_mixed);
+    declare_attribute(&m_abstract);
+    declare_attribute(&m_block);
+  }
+  int enter_tag(MY_XML_VALIDATION_DATA *st,
+                const char *attr, size_t len) override
+  {
+    int result;
+
+    if ((result= XMLSchema_type_def::enter_tag))
+      return result;
+
+    if (cmp_name(X_CS("smipleContent"), attr, len))
+    {
+      content= new(st->mem_root) XMLSchema_simple_content;
+    }
+    else if (cmp_name(X_CS("complexContent"), attr, len))
+    {
+      content= new(st->mem_root) XMLSchema_complex_content;
+    }
+    else if (cmp_name(X_CS("sequence"), attr, len))
+    {
+      content= new(st->mem_root) XMLSchema_sequence;
+    }
+    else if (cmp_name(X_CS("choice"), attr, len))
+    {
+      content= new(st->mem_root) XMLSchema_choice;
+    }
+    else if (cmp_name(X_CS("all"), attr, len))
+    {
+      content= new(st->mem_root) XMLSchema_all;
+    }
+    else if (cmp_name(X_CS("group"), attr, len))
+    {
+      content= new(st->mem_root) XMLSchema_group;
+    }
+
+    /* Can have exactly one of these tags.. */
+    if (m_content && content)
+      return -1;
+
+    return MY_XML_OK;
+  }
 };
 
 
@@ -3411,7 +3559,7 @@ public:
   /*
   TODO: should be supported.
   XMLSchema_attribute_group *m_attribute_groups;
-  XMLSchema_complex_type *m_complex_types;
+  XMLSchema_type_def *m_type_defs;
   XMLSchema_simpleType *m_simple_types;
   */
 
@@ -3446,20 +3594,22 @@ bool XMLSchema_element::append_attribute(XMLSchema_attribute *at)
 
 static LEX_CSTRING element_names[]=
 {
-  {STRING_WITH_LEN("element")},
   {STRING_WITH_LEN("complexType")},
-  {STRING_WITH_LEN("sequence")},
+  {STRING_WITH_LEN("element")},
   {STRING_WITH_LEN("schema")},
+  {STRING_WITH_LEN("sequence")},
+  {STRING_WITH_LEN("simpleType")},
   {STRING_WITH_LEN("xml")},
   {STRING_WITH_LEN("")}
 };
 
 enum schema_element
 {
-  XML_SCHEMA_ELEMENT,
   XML_SCHEMA_COMPLEX_TYPE,
-  XML_SCHAMA_SEQUENCE,
+  XML_SCHEMA_ELEMENT,
   XML_SCHEMA_SCHEMA,
+  XML_SCHEMA_SEQUENCE,
+  XML_SCHEMA_SIMPLE_TYPE,
   XML_SCHEMA_XML,
 };
 
@@ -3492,14 +3642,14 @@ public:
   XMLSchema_item root;
   XMLSchema_item *s_stack;
   XMLSchema_schema *schema;
-  XMLSchema_complex_type *complex_types;
+  XMLSchema_type_def *type_defs;
   MEM_ROOT *mem_root;
 
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
 
   MY_XML_VALIDATION_DATA(): cur_element(XML_SCHEMA_NOT_FOUND),
-    s_stack(&root), schema(NULL), complex_types(NULL), mem_root(NULL)
+    s_stack(&root), schema(NULL), type_defs(NULL), mem_root(NULL)
   {
     root.m_next= NULL;
   }; 
@@ -3510,10 +3660,10 @@ public:
     s_stack= s;
   }
   void pop() { s_stack= s_stack->m_next; }
-  void append_complex_type(XMLSchema_complex_type *ct)
+  void append_type_def(XMLSchema_type_def *ct)
   {
-    ct->m_next_complex_type= complex_types;
-    complex_types= ct;
+    ct->m_next_type_def= type_defs;
+    type_defs= ct;
   }
 };
 
@@ -3560,19 +3710,11 @@ bool XMLSchema_element::element_type::attribute(MY_XML_VALIDATION_DATA *st,
 }
 
 
-bool XMLSchema_complex_type::leave(MY_XML_VALIDATION_DATA *st,
+bool XMLSchema_type_def::leave(MY_XML_VALIDATION_DATA *st,
                                    const char *attr, size_t len)
 {
   if (m_type_name.m_name.str)
-    st->append_complex_type(this);
-  return MY_XML_OK;
-}
-
-
-bool XMLSchema_element::validate_leave(MY_XML_VALIDATION_DATA *st,
-                                       const char *name, size_t len)
-{
-  st->pop();
+    st->append_type_def(this);
   return MY_XML_OK;
 }
 
@@ -3580,15 +3722,30 @@ bool XMLSchema_element::validate_leave(MY_XML_VALIDATION_DATA *st,
 bool XMLSchema_element::validate_tag(MY_XML_VALIDATION_DATA *st,
                                      const char *name, size_t len)
 {
-  if (!m_complex_type)
+  if (!m_type_def)
     return MY_XML_ERROR;
 
-  return m_complex_type->validate_tag(st, name, len);
+  return m_type_def->validate_tag(st, name, len);
 }
 
 
-bool XMLSchema_lement::validate_attr(MY_XML_VALIDATION_DATA *st,
-    const char *name, size_t len) override;
+XMLSchema_attribute *
+XMLSchema_element::find_attribute(const char *name, size_t len)
+{
+  for (XMLSchema_attribute *atr= m_attributes;
+       atr;
+       atr= atr->m_next_attribute)
+  {
+    if (len == atr->m_atr_name.m_val_len &&
+        memcmp(atr->m_atr_name.m_val, name, len) == 0)
+      return atr;
+  }
+  return NULL;
+}
+
+
+bool XMLSchema_element::validate_attr(MY_XML_VALIDATION_DATA *st,
+    const char *name, size_t len)
 {
   XMLSchema_attribute *attr= find_attribute(name, len);
   if (!attr)
@@ -3637,9 +3794,9 @@ static size_t find_schema_name(const LEX_CSTRING *collection,
 
 
 XMLSchema_tag_attribute *
-XMLSchema_tag::find_attribute(const char *name, size_t len)
+XMLSchema_tag::find_tag_attribute(const char *name, size_t len)
 {
-  for (XMLSchema_tag_attribute *atr= m_attributes;
+  for (XMLSchema_tag_attribute *atr= m_tag_attributes;
        atr;
        atr= atr->m_next_attribute)
   {
@@ -3654,7 +3811,7 @@ XMLSchema_tag::find_attribute(const char *name, size_t len)
 bool XMLSchema_tag::attribute(MY_XML_VALIDATION_DATA *st,
                               const char *attr, size_t len)
 {
-  XMLSchema_tag_attribute *atr= find_attribute(attr, len);
+  XMLSchema_tag_attribute *atr= find_tag_attribute(attr, len);
   if (!atr)
     return XMLSchema_item::attribute(st, attr, len);
   st->push(atr);
@@ -3662,8 +3819,8 @@ bool XMLSchema_tag::attribute(MY_XML_VALIDATION_DATA *st,
 }
 
 
-bool validate_leave(MY_XML_VALIDATION_DATA *st,
-    const char *attr, size_t len)
+bool XMLSchema_attribute::validate_leave(MY_XML_VALIDATION_DATA *st,
+                                         const char *attr, size_t len)
 {
   st->pop();
   return MY_XML_OK;
@@ -3689,14 +3846,21 @@ static int schema_enter(MY_XML_PARSER *st,const char *attr, size_t len)
         schema= el;
         break;
       }
-      case XML_SCHEMA_COMPLEX_TYPE:
+      case XML_SCHEMA_SIMPLE_TYPE:
       {
-        XMLSchema_complex_type *ct= new(data->mem_root) XMLSchema_complex_type;
-        data->s_stack->append_complex_type(ct);
+        XMLSchema_type_def *ct= new(data->mem_root) XMLSchema_type_def;
+        data->s_stack->append_type_def(ct);
         schema= ct;
         break;
       }
-      case XML_SCHAMA_SEQUENCE:
+      case XML_SCHEMA_COMPLEX_TYPE:
+      {
+        XMLSchema_complex_type *ct= new(data->mem_root) XMLSchema_complex_type;
+        data->s_stack->append_type_def(ct);
+        schema= ct;
+        break;
+      }
+      case XML_SCHEMA_SEQUENCE:
       {
         XMLSchema_sequence *s= new(data->mem_root) XMLSchema_sequence;
         data->s_stack->append_tag(s);
