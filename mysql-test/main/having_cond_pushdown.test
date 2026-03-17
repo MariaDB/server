@@ -1657,4 +1657,37 @@ execute stmt;
 
 drop table t1, t2;
 
+--echo #
+--echo # MDEV-38819: Logic Inconsistency between Direct HAVING Query and Derived Table Relocation
+--echo #
+
+CREATE TABLE t0(c0 INT, c1 INT UNIQUE);
+CREATE TABLE t1(c0 VARCHAR(100), c1 INT UNIQUE);
+INSERT INTO t1 VALUES ('C', -1833670268);
+INSERT INTO t1 VALUES ('\\', 1046230419);
+INSERT INTO t0 VALUES (500, -1016012686);
+
+let $q=
+SELECT t1.c1 AS g0, t0.c0 AS g1, t0.c1 AS g2
+FROM t1 STRAIGHT_JOIN t0
+GROUP BY t1.c1, t0.c0, t0.c1
+HAVING g2 NOT IN (g0, g0 != g1);
+eval $q;
+eval explain format=json $q;
+
+let $q=
+SELECT g0, g1, g2
+FROM (
+  SELECT t1.c1 AS g0, t0.c0 AS g1, t0.c1 AS g2,
+         t0.c1 NOT IN (t1.c1, t1.c1 != t0.c0) AS ref1
+  FROM t1 STRAIGHT_JOIN t0
+  GROUP BY t1.c1, t0.c0, t0.c1
+) AS s
+WHERE ref1;
+
+eval $q;
+eval explain format=json $q;
+
+drop table t0, t1;
+
 --echo # End of 10.11 tests

@@ -6090,4 +6090,135 @@ EXPLAIN
   }
 }
 drop table t1, t2;
+#
+# MDEV-38819: Logic Inconsistency between Direct HAVING Query and Derived Table Relocation
+#
+CREATE TABLE t0(c0 INT, c1 INT UNIQUE);
+CREATE TABLE t1(c0 VARCHAR(100), c1 INT UNIQUE);
+INSERT INTO t1 VALUES ('C', -1833670268);
+INSERT INTO t1 VALUES ('\\', 1046230419);
+INSERT INTO t0 VALUES (500, -1016012686);
+SELECT t1.c1 AS g0, t0.c0 AS g1, t0.c1 AS g2
+FROM t1 STRAIGHT_JOIN t0
+GROUP BY t1.c1, t0.c0, t0.c1
+HAVING g2 NOT IN (g0, g0 != g1);
+g0	g1	g2
+-1833670268	500	-1016012686
+1046230419	500	-1016012686
+explain format=json SELECT t1.c1 AS g0, t0.c0 AS g1, t0.c1 AS g2
+FROM t1 STRAIGHT_JOIN t0
+GROUP BY t1.c1, t0.c0, t0.c1
+HAVING g2 NOT IN (g0, g0 != g1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "sort_key": "t1.c1, t0.c0, t0.c1",
+      "temporary_table": {
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "index",
+              "key": "c1",
+              "key_length": "5",
+              "used_key_parts": ["c1"],
+              "rows": 2,
+              "filtered": 100,
+              "using_index": true
+            }
+          },
+          {
+            "range-checked-for-each-record": {
+              "keys": ["c1"],
+              "table": {
+                "table_name": "t0",
+                "access_type": "ALL",
+                "possible_keys": ["c1"],
+                "rows": 1,
+                "filtered": 100
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+SELECT g0, g1, g2
+FROM (
+SELECT t1.c1 AS g0, t0.c0 AS g1, t0.c1 AS g2,
+t0.c1 NOT IN (t1.c1, t1.c1 != t0.c0) AS ref1
+FROM t1 STRAIGHT_JOIN t0
+GROUP BY t1.c1, t0.c0, t0.c1
+) AS s
+WHERE ref1;
+g0	g1	g2
+-1833670268	500	-1016012686
+1046230419	500	-1016012686
+explain format=json SELECT g0, g1, g2
+FROM (
+SELECT t1.c1 AS g0, t0.c0 AS g1, t0.c1 AS g2,
+t0.c1 NOT IN (t1.c1, t1.c1 != t0.c0) AS ref1
+FROM t1 STRAIGHT_JOIN t0
+GROUP BY t1.c1, t0.c0, t0.c1
+) AS s
+WHERE ref1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100,
+          "attached_condition": "s.ref1 <> 0",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "filesort": {
+                "sort_key": "t1.c1, t0.c0, t0.c1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "index",
+                        "key": "c1",
+                        "key_length": "5",
+                        "used_key_parts": ["c1"],
+                        "rows": 2,
+                        "filtered": 100,
+                        "using_index": true
+                      }
+                    },
+                    {
+                      "block-nl-join": {
+                        "table": {
+                          "table_name": "t0",
+                          "access_type": "ALL",
+                          "rows": 1,
+                          "filtered": 100
+                        },
+                        "buffer_type": "flat",
+                        "buffer_size": "65",
+                        "join_type": "BNL",
+                        "attached_condition": "t0.c1 not in (t1.c1,t1.c1 <> t0.c0) <> 0"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+drop table t0, t1;
 # End of 10.11 tests
