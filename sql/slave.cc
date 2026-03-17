@@ -7571,7 +7571,7 @@ dbug_gtid_accept:
 
         crc= my_checksum(crc, (const uchar *) buf,
                          event_len - BINLOG_CHECKSUM_LEN);
-        int4store(&buf[event_len - BINLOG_CHECKSUM_LEN], crc);
+        int4store(const_cast<uchar *>(& buf[event_len - BINLOG_CHECKSUM_LEN]), crc);
       }
     }
     if (likely(!rli->relay_log.write_event_buffer((uchar*)buf, event_len)))
