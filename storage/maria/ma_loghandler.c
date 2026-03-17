@@ -4090,51 +4090,61 @@ my_bool translog_init_with_table(const char *directory,
   /* Check the last LSN record integrity */
   if (logs_found)
   {
-    TRANSLOG_SCANNER_DATA scanner;
+    TRANSLOG_SCANNER_DATA *scanner= my_malloc(PSI_INSTRUMENT_ME, sizeof(TRANSLOG_SCANNER_DATA), MYF(0));
     TRANSLOG_ADDRESS page_addr;
     LSN last_lsn= LSN_IMPOSSIBLE;
+    if (!scanner)
+       goto err;
     /*
       take very last page address and try to find LSN record on it
       if it fail take address of previous page and so on
     */
     page_addr= (log_descriptor.horizon -
                 ((log_descriptor.horizon - 1) % TRANSLOG_PAGE_SIZE + 1));
-    if (translog_scanner_init(page_addr, 1, &scanner, 1))
+    if (translog_scanner_init(page_addr, 1, scanner, 1))
+    {
+      my_free(scanner);
       goto err;
-    scanner.page_offset= page_overhead[scanner.page[TRANSLOG_PAGE_FLAGS]];
+    }
+    scanner->page_offset= page_overhead[scanner->page[TRANSLOG_PAGE_FLAGS]];
     for (;;)
     {
       uint chunk_1byte;
-      chunk_1byte= scanner.page[scanner.page_offset];
+      chunk_1byte= scanner->page[scanner->page_offset];
       while (!translog_is_LSN_chunk(chunk_1byte) &&
-             scanner.page != END_OF_LOG &&
-             scanner.page[scanner.page_offset] != TRANSLOG_FILLER &&
-             scanner.page_addr == page_addr)
+             scanner->page != END_OF_LOG &&
+             scanner->page[scanner->page_offset] != TRANSLOG_FILLER &&
+             scanner->page_addr == page_addr)
       {
-        if (translog_get_next_chunk(&scanner))
+        if (translog_get_next_chunk(scanner))
         {
-          translog_destroy_scanner(&scanner);
+          translog_destroy_scanner(scanner);
+          my_free(scanner);
           goto err;
         }
-        if (scanner.page != END_OF_LOG)
-          chunk_1byte= scanner.page[scanner.page_offset];
+        if (scanner->page != END_OF_LOG)
+          chunk_1byte= scanner->page[scanner->page_offset];
       }
       if (translog_is_LSN_chunk(chunk_1byte))
       {
-        last_lsn= scanner.page_addr + scanner.page_offset;
-        if (translog_get_next_chunk(&scanner))
+        last_lsn= scanner->page_addr + scanner->page_offset;
+        if (translog_get_next_chunk(scanner))
         {
-          translog_destroy_scanner(&scanner);
+          translog_destroy_scanner(scanner);
+          my_free(scanner);
           goto err;
         }
-        if (scanner.page == END_OF_LOG)
+        if (scanner->page == END_OF_LOG)
           break; /* it was the last record */
-        chunk_1byte= scanner.page[scanner.page_offset];
+        chunk_1byte= scanner->page[scanner->page_offset];
         continue; /* try to find other record on this page */
       }
 
       if (last_lsn != LSN_IMPOSSIBLE)
+      {
+        my_free(scanner);
         break; /* there is no more records on the page */
+      }
 
       /* We have to make step back */
       if (unlikely(LSN_OFFSET(page_addr) == TRANSLOG_PAGE_SIZE))
@@ -4152,6 +4162,7 @@ my_bool translog_init_with_table(const char *directory,
           DBUG_PRINT("info", ("previous_flush_horizon: " LSN_FMT,
                               LSN_IN_PARTS(log_descriptor.
                                            previous_flush_horizon)));
+          my_free(scanner);
           DBUG_RETURN(0);
         }
         file_no--;
@@ -4164,12 +4175,16 @@ my_bool translog_init_with_table(const char *directory,
       {
          page_addr-= TRANSLOG_PAGE_SIZE;
       }
-      translog_destroy_scanner(&scanner);
-      if (translog_scanner_init(page_addr, 1, &scanner, 1))
+      translog_destroy_scanner(scanner);
+      if (translog_scanner_init(page_addr, 1, scanner, 1))
+      {
+        my_free(scanner);
         goto err;
-      scanner.page_offset= page_overhead[scanner.page[TRANSLOG_PAGE_FLAGS]];
+      }
+      scanner->page_offset= page_overhead[scanner->page[TRANSLOG_PAGE_FLAGS]];
     }
-    translog_destroy_scanner(&scanner);
+    translog_destroy_scanner(scanner);
+    my_free(scanner);
 
     /* Now scanner points to the last LSN chunk, lets check it */
     {
