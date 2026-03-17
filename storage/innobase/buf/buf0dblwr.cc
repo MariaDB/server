@@ -174,9 +174,15 @@ fail:
     ut_ad(init_mtr.get_savepoint() == 1);
     ut_ad(init_mtr.m_memo[0].object == new_block);
     ut_ad(init_mtr.m_memo[0].type == MTR_MEMO_PAGE_X_MODIFY);
+    new_block->page.fix();
     init_mtr.m_memo[0].type= MTR_MEMO_PAGE_X_FIX;
     init_mtr.rollback_to_savepoint(0, 1);
     init_mtr.m_log.erase();
+    mysql_mutex_lock(&buf_pool.mutex);
+    new_block->page.unfix();
+    ut_d(bool freed=) buf_LRU_free_page(&new_block->page, true);
+    ut_ad(freed);
+    mysql_mutex_unlock(&buf_pool.mutex);
 
     if (i == size / 2)
       ut_a(id.page_no() == size);
@@ -202,11 +208,6 @@ fail:
   mtr.write<4>(*trx_sys_block, doublewrite + 24,
                TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N);
   mtr.commit();
-
-  buf_flush_wait_flushed(mtr.commit_lsn());
-
-  /* Remove doublewrite pages from LRU */
-  buf_pool_invalidate();
 
   sql_print_information("InnoDB: Doublewrite buffer created");
   goto start_again;
@@ -257,7 +258,7 @@ func_exit:
   init(TRX_SYS_DOUBLEWRITE + read_buf);
 
   const bool upgrade_to_innodb_file_per_table=
-    !srv_read_only_mode &&
+    !recv_sys.rpo &&
     mach_read_from_4(TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED +
                      TRX_SYS_DOUBLEWRITE + read_buf) !=
     TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N;
@@ -316,7 +317,7 @@ func_exit:
   else
   {
     alignas(8) char checkpoint[8];
-    mach_write_to_8(checkpoint, log_sys.next_checkpoint_lsn);
+    mach_write_to_8(checkpoint, log_sys.last_checkpoint_lsn);
     for (auto i= size * 2; i--; page += srv_page_size)
       if (memcmp_aligned<8>(page + FIL_PAGE_LSN, checkpoint, 8) >= 0)
         /* Valid pages are not older than the log checkpoint. */
@@ -333,7 +334,8 @@ void buf_dblwr_t::recover() noexcept
   if (!is_created())
     return;
   const lsn_t max_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
-  ut_ad(recv_sys.scanned_lsn == max_lsn);
+  ut_ad(recv_sys.scanned_lsn == max_lsn ||
+        (recv_sys.rpo && recv_sys.rpo < max_lsn));
   ut_ad(recv_sys.scanned_lsn >= recv_sys.lsn);
 
   uint32_t page_no_dblwr= 0;

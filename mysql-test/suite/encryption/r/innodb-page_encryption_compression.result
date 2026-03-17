@@ -49,7 +49,7 @@ select variable_value > 0 from information_schema.global_status
 where variable_name = 'INNODB_NUM_PAGES_PAGE_COMPRESSED';
 variable_value > 0
 1
-# restart: --innodb-encrypt-tables=OFF
+# restart: --innodb-encrypt-tables=OFF --innodb-log-recovery-start=0
 set global innodb_compression_algorithm = 1;
 alter table innodb_normal engine=innodb page_compressed=DEFAULT;
 show create table innodb_normal;

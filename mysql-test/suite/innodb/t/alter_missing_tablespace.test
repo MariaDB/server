@@ -32,6 +32,7 @@ INSERT INTO t1 VALUES(1),(2),(3);
 --remove_file $MYSQLD_DATADIR/test/t.ibd
 --remove_file $MYSQLD_DATADIR/test/x@002e@002ed.ibd
 
+--let $restart_parameters=--innodb-log-recovery-start=0
 --source include/start_mysqld.inc
 
 # The table does exist, only the tablespace does not exist.

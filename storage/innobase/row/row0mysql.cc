@@ -690,8 +690,8 @@ handle_new_error:
 		bulk buffer in row_mysql_handle_errors().
 		For ALTER TABLE ALGORITHM=COPY & CREATE TABLE...SELECT,
 		the bulk insert transaction will be rolled back inside
-		ha_innobase::extra(HA_EXTRA_ABORT_ALTER_COPY) */
-		trx->bulk_insert &= TRX_DDL_BULK;
+		ha_innobase::extra(HA_EXTRA_ABORT_COPY) */
+		trx->clear_dml_bulk();
 		trx->last_stmt_start = 0;
 		break;
 	case DB_LOCK_WAIT:
@@ -1240,6 +1240,8 @@ row_insert_for_mysql(
 	mem_heap_t*	blob_heap = NULL;
 
 	ut_ad(trx);
+	ut_ad(!high_level_read_only);
+	ut_ad(!recv_sys.rpo);
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->magic_n2 == ROW_PREBUILT_ALLOCATED);
 
@@ -1251,8 +1253,6 @@ row_insert_for_mysql(
 		return(DB_TABLESPACE_DELETED);
 	} else if (!table->is_readable()) {
 		return row_mysql_get_table_error(trx, table);
-	} else if (high_level_read_only) {
-		return(DB_READ_ONLY);
 	} else if (UNIV_UNLIKELY(table->corrupted)
 		   || dict_table_get_first_index(table)->is_corrupted()) {
 		return DB_TABLE_CORRUPT;
@@ -1276,12 +1276,7 @@ row_insert_for_mysql(
           node->vers_update_end(prebuilt, ins_mode == ROW_INS_HISTORICAL);
         }
 
-	/* Because we now allow multiple INSERT into the same
-	initially empty table in bulk insert mode, on error we must
-	roll back to the start of the transaction. For correctness, it
-	would suffice to roll back to the start of the first insert
-	into this empty table, but we will keep it simple and efficient. */
-	const undo_no_t savept{trx->bulk_insert ? 0 : trx->undo_no};
+	undo_no_t savept = trx->undo_no;
 
 	thr = que_fork_get_first_thr(prebuilt->ins_graph);
 
@@ -1307,6 +1302,24 @@ run_again:
 error_exit:
 		/* FIXME: What's this ? */
 		thr->lock_state = QUE_THR_LOCK_ROW;
+
+		/* Because we now allow multiple INSERT into the same
+		initially empty table in bulk insert mode, on error we must
+		roll back to the start of the transaction. For correctness, it
+		would suffice to roll back to the start of the first insert
+		into this empty table, but we will keep it simple and efficient.
+
+		In ALTER IGNORE...ALGORITHM=COPY (IGNORE_UNDO mode),
+		trx_undo_report_row_operation() rewrites the insert undo log to
+		retain only the latest record, resetting trx->undo_no to 0
+		before each new insert. We must use savept=0 so that partial
+		rollback targets the single surviving undo record. */
+		static_assert(TRX_DML_BULK & 2, "");
+		static_assert(TRX_DDL_BULK & 2, "");
+		static_assert(dict_table_t::IGNORE_UNDO == 2, "");
+		if ((trx->bulk_insert | table->skip_alter_undo) & 2) {
+			savept = 0;
+		}
 
 		was_lock_wait = row_mysql_handle_errors(
 			&err, trx, thr, &savept);
@@ -1598,6 +1611,8 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	DBUG_ENTER("row_update_for_mysql");
 
 	ut_ad(trx);
+	ut_ad(!high_level_read_only);
+	ut_ad(!recv_sys.rpo);
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->magic_n2 == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->template_type == ROW_MYSQL_WHOLE_ROW);
@@ -1605,10 +1620,6 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 
 	if (!table->is_readable()) {
 		return row_mysql_get_table_error(trx, table);
-	}
-
-	if (high_level_read_only) {
-		return(DB_READ_ONLY);
 	}
 
 	DEBUG_SYNC_C("innodb_row_update_for_mysql_begin");
@@ -2250,8 +2261,10 @@ row_discard_tablespace_foreign_key_checks(
 	const trx_t*		trx,	/*!< in: transaction handle */
 	const dict_table_t*	table)	/*!< in: table to be discarded */
 {
+	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
-	if (srv_read_only_mode || !trx->check_foreigns) {
+	if (!trx->check_foreigns) {
 		return(DB_SUCCESS);
 	}
 
@@ -2548,10 +2561,8 @@ row_rename_table_for_mysql(
 	ut_a(new_name != NULL);
 	ut_ad(trx->state == TRX_STATE_ACTIVE);
 	ut_ad(trx->dict_operation_lock_mode);
-
-	if (high_level_read_only) {
-		return(DB_READ_ONLY);
-	}
+	ut_ad(!high_level_read_only);
+	ut_ad(!recv_sys.rpo);
 
 	trx->op_info = "renaming table";
 

@@ -1559,9 +1559,8 @@ static bool alter_options_need_rebuild(
 	const ha_table_option_struct& alt_opt=
 			*ha_alter_info->create_info->option_struct;
 
-	/* Allow an instant change to enable page_compressed,
-	and any change of page_compression_level. */
-	if ((!alt_opt.page_compressed && opt.page_compressed)
+	/* Allow an instant change of page_compression_level. */
+	if ((alt_opt.page_compressed != opt.page_compressed)
 	    || alt_opt.encryption != opt.encryption
 	    || alt_opt.encryption_key_id != opt.encryption_key_id) {
 		return(true);
@@ -7976,6 +7975,7 @@ ha_innobase::prepare_inplace_alter_table(
 	DBUG_ASSERT(!ha_alter_info->handler_ctx);
 	DBUG_ASSERT(ha_alter_info->create_info);
 	DBUG_ASSERT(!srv_read_only_mode);
+	DBUG_ASSERT(!recv_sys.rpo);
 
 	/* Init online ddl status variables */
 	onlineddl_rowlog_rows = 0;
@@ -8783,9 +8783,7 @@ alter_templ_needs_rebuild(
 	const Alter_inplace_info*     ha_alter_info,
 	const dict_table_t*		table)
 {
-        ulint	i = 0;
-
-	for (Field** fp = altered_table->field; *fp; fp++, i++) {
+	for (Field** fp = altered_table->field; *fp; fp++) {
 		for (const Create_field& cf :
 		     ha_alter_info->alter_info->create_list) {
 			for (ulint j=0; j < table->n_cols; j++) {
@@ -8828,6 +8826,7 @@ ha_innobase::inplace_alter_table(
 	bool			rebuild_templ = false;
 	DBUG_ENTER("inplace_alter_table");
 	DBUG_ASSERT(!srv_read_only_mode);
+	DBUG_ASSERT(!recv_sys.rpo);
 
 	DEBUG_SYNC(m_user_thd, "innodb_inplace_alter_table_enter");
 
@@ -9651,13 +9650,11 @@ innobase_rename_columns_try(
 	trx_t*			trx,
 	const char*		table_name)
 {
-	uint	i = 0;
-
 	DBUG_ASSERT(ctx->need_rebuild());
 	DBUG_ASSERT(ha_alter_info->handler_flags
 		    & ALTER_COLUMN_NAME);
 
-	for (Field** fp = table->field; *fp; fp++, i++) {
+	for (Field** fp = table->field; *fp; fp++) {
 		if (!((*fp)->flags & FIELD_IS_RENAMED)) {
 			continue;
 		}
@@ -11285,6 +11282,7 @@ ha_innobase::commit_inplace_alter_table(
 
 	DBUG_ENTER("commit_inplace_alter_table");
 	DBUG_ASSERT(!srv_read_only_mode);
+	DBUG_ASSERT(!recv_sys.rpo);
 	DBUG_ASSERT(!ctx0 || ctx0->prebuilt == m_prebuilt);
 	DBUG_ASSERT(!ctx0 || ctx0->old_table == m_prebuilt->table);
 

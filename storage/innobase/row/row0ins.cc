@@ -679,6 +679,7 @@ row_ins_set_detailed(
 	dict_foreign_t*	foreign)	/*!< in: foreign key constraint */
 {
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	mysql_mutex_lock(&srv_misc_tmpfile_mutex);
 	rewind(srv_misc_tmpfile);
@@ -713,6 +714,7 @@ row_ins_foreign_trx_print(
 	ulint	heap_size;
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	{
 		TMLockMutexGuard g{SRW_LOCK_CALL};
@@ -750,10 +752,6 @@ row_ins_foreign_report_err(
 					table */
 {
 	std::string fk_str;
-
-	if (srv_read_only_mode) {
-		return;
-	}
 
 	FILE*	ef	= dict_foreign_err_file;
 	trx_t*	trx	= thr_get_trx(thr);
@@ -807,11 +805,6 @@ row_ins_foreign_report_add_err(
 					child table */
 {
 	std::string fk_str;
-
-	if (srv_read_only_mode) {
-		return;
-	}
-
 	FILE*	ef	= dict_foreign_err_file;
 
 	row_ins_set_detailed(trx, foreign);
@@ -2776,7 +2769,13 @@ err_exit:
 		if (!index->table->n_rec_locks
 		    && !index->table->versioned()
 		    && !index->table->is_temporary()
-		    && !index->table->has_spatial_index()) {
+		    && !index->table->has_spatial_index()
+		    /* Prevent ALTER IGNORE from using bulk insert
+		    optimization. since it requires to write undo log
+		    for each row operation that's incompatible with
+		    bulk operations */
+		    && index->table->skip_alter_undo !=
+		         dict_table_t::IGNORE_UNDO) {
 
 			ut_ad(!index->table->skip_alter_undo);
 			trx->bulk_insert = TRX_DML_BULK;
@@ -3316,7 +3315,7 @@ row_ins_clust_index_entry(
 	   skip the undo log and record lock checking for
 	   insertion operation.
 	*/
-	if (index->table->skip_alter_undo) {
+	if (index->table->skip_alter_undo == dict_table_t::NO_UNDO) {
 		flags |= BTR_NO_UNDO_LOG_FLAG | BTR_NO_LOCKING_FLAG;
 	}
 

@@ -1,18 +1,10 @@
 let $algorithm = $alter_algorithm;
-let $error_code = 0;
 
 --echo #
 --echo # sql_mode: $sql_mode   alter_algorithm: $alter_algorithm
 --echo #
 
-if ($algorithm == "NOCOPY") {
- let $error_code = ER_ALTER_OPERATION_NOT_SUPPORTED, ER_ALTER_OPERATION_NOT_SUPPORTED_REASON;
-}
-
-if ($algorithm == "INSTANT") {
- let $error_code = ER_ALTER_OPERATION_NOT_SUPPORTED, ER_ALTER_OPERATION_NOT_SUPPORTED_REASON;
-}
-
+--disable_abort_on_error
 CREATE TABLE t1(f1 INT NOT NULL,
 		f2 INT NOT NULL,
 		f3 INT NULL,
@@ -25,49 +17,33 @@ INSERT INTO t1(f1, f2, f3) VALUES(1, 1, 1);
 --echo # All the following cases needs table rebuild
 
 --echo # Add and Drop primary key
---error $error_code
 --eval ALTER TABLE t1 ADD COLUMN col1 INT NOT NULL,DROP PRIMARY KEY,ADD PRIMARY KEY(col1), ALGORITHM=$alter_algorithm
 
 --echo # Make existing column NULLABLE
---error $error_code
 --eval ALTER TABLE t1 MODIFY f2 INT, ALGORITHM=$alter_algorithm
 
 --echo # Drop Stored Column
---error $error_code
 --eval ALTER TABLE t1 DROP COLUMN f5, ALGORITHM=$alter_algorithm
 
 --echo # Add base non-generated column as a last column in the compressed table
---error $error_code
 --eval ALTER TABLE t1 ADD COLUMN f6 INT NOT NULL, ALGORITHM=$alter_algorithm
 
 --echo # Add base non-generated column but not in the last position
---error $error_code
 --eval ALTER TABLE t1 ADD COLUMN f7 INT NOT NULL after f3, ALGORITHM=$alter_algorithm
 
 --echo # Force the table to rebuild
---error $error_code
 --eval ALTER TABLE t1 FORCE, ALGORITHM=$alter_algorithm
 
 --echo # Row format changes
---error $error_code
 --eval ALTER TABLE t1 ROW_FORMAT=COMPRESSED, ALGORITHM=$alter_algorithm
 
 --echo # Engine table
---error $error_code
 --eval ALTER TABLE t1 ENGINE=INNODB, ALGORITHM=$alter_algorithm
 
 ALTER TABLE t1 FORCE, ALGORITHM=DEFAULT;
 
 DROP TABLE t1;
 --disable_info
-
-if ($algorithm == "NOCOPY") {
- let $error_code = 0;
-}
-
-if ($algorithm == "INSTANT") {
- let $error_code = ER_ALTER_OPERATION_NOT_SUPPORTED_REASON;
-}
 
 CREATE TABLE t1(f1 INT PRIMARY KEY, f2 INT NOT NULL,
 		f3 INT AS (f2 * f2) VIRTUAL,
@@ -82,20 +58,15 @@ CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL,
 INSERT INTO t1(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
 
 --enable_info
---error $error_code
 --eval ALTER TABLE t1 ADD INDEX idx1(f4), page_compressed=1, ALGORITHM=$alter_algorithm
 
---error $error_code
---eval ALTER TABLE t1 DROP INDEX idx, page_compression_level=5, ALGORITHM=$alter_algorithm
+--eval ALTER TABLE t1 DROP INDEX idx, page_compressed=1, page_compression_level=5, ALGORITHM=$alter_algorithm
 
---error $error_code
 --eval ALTER TABLE t1 ADD UNIQUE INDEX u1(f2), ALGORITHM=$alter_algorithm
 
---error $error_code
---eval ALTER TABLE t1 DROP INDEX f4, page_compression_level=9, ALGORITHM=$alter_algorithm
+--eval ALTER TABLE t1 DROP INDEX f4, page_compressed=1, page_compression_level=9, ALGORITHM=$alter_algorithm
 
 SET foreign_key_checks = 0;
---error $error_code
 --eval ALTER TABLE t1 ADD FOREIGN KEY(f5) REFERENCES t2(f1), ALGORITHM=$alter_algorithm
 
 DROP TABLE t2, t1;
@@ -142,3 +113,4 @@ SET foreign_key_checks = 1;
 
 DROP TABLE t3, t2;
 --disable_info
+--enable_abort_on_error

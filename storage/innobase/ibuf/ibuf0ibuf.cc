@@ -891,11 +891,8 @@ static dberr_t ibuf_open(btr_cur_t *cur, mtr_t *mtr)
 
 ATTRIBUTE_COLD dberr_t ibuf_upgrade()
 {
-  if (srv_read_only_mode)
-  {
-    sql_print_error("InnoDB: innodb_read_only_mode prevents an upgrade");
-    return DB_READ_ONLY;
-  }
+  ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
 
   sql_print_information("InnoDB: Upgrading the change buffer");
 
@@ -1028,7 +1025,7 @@ dberr_t ibuf_upgrade_needed()
   mtr_t mtr{nullptr};
   mtr.start();
   mtr.x_lock_space(fil_system.sys_space);
-  dberr_t err;
+  dberr_t err= DB_SUCCESS;
   const buf_block_t *header_page= recv_sys.recover(ibuf_header, &mtr, &err);
 
   if (!header_page)
@@ -1061,14 +1058,25 @@ dberr_t ibuf_upgrade_needed()
     err= DB_CORRUPTION;
     goto err_exit;
   }
-  else if (srv_read_only_mode)
-  {
-    sql_print_error("InnoDB: innodb_read_only=ON prevents an upgrade"
-                    " of the change buffer");
-    err= DB_READ_ONLY;
-  }
-  else if (srv_force_recovery != SRV_FORCE_NO_LOG_REDO)
-    err= DB_FAIL;
+  else
+    do
+    {
+      const char *reason;
+      if (srv_read_only_mode)
+        reason= "read_only=ON";
+      else if (recv_sys.rpo)
+        reason= "log_recovery_target";
+      else
+      {
+        if (srv_force_recovery != SRV_FORCE_NO_LOG_REDO)
+          err= DB_FAIL;
+        continue;
+      }
+      sql_print_error("InnoDB: innodb_%s prevents an upgrade"
+                      " of the change buffer", reason);
+      err= DB_READ_ONLY;
+    }
+    while (false);
 
   goto func_exit;
 }

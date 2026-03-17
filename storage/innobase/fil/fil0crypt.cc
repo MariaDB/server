@@ -334,7 +334,7 @@ void fil_space_destroy_crypt_data(fil_space_crypt_t **crypt_data)
 			*crypt_data = NULL;
 			mysql_mutex_unlock(&fil_crypt_threads_mutex);
 		} else {
-			ut_ad(srv_read_only_mode || !srv_was_started);
+			ut_ad(recv_sys.rpo || !srv_was_started);
 			c = *crypt_data;
 			*crypt_data = NULL;
 		}
@@ -2113,7 +2113,9 @@ Adjust thread count for key rotation
 @param[in]	enw_cnt		Number of threads to be used */
 void fil_crypt_set_thread_cnt(const uint new_cnt)
 {
-	if (srv_read_only_mode)
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
+	if (recv_sys.rpo)
 		return;
 
 	if (!fil_crypt_threads_inited) {
@@ -2270,6 +2272,7 @@ Init threads for key rotation */
 void fil_crypt_threads_init()
 {
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	if (!fil_crypt_threads_inited) {
 		pthread_cond_init(&fil_crypt_cond, nullptr);
