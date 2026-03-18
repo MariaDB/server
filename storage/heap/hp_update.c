@@ -42,7 +42,7 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
   p_lastinx= share->keydef + info->lastinx;
   for (keydef= share->keydef, end= keydef + share->keys; keydef < end; keydef++)
   {
-    if (hp_rec_key_cmp(keydef, old, heap_new, NULL))
+    if (hp_rec_key_cmp(keydef, heap_new, old, NULL))
     {
       if ((*keydef->delete_key)(info, keydef, old, pos, keydef == p_lastinx) ||
           (*keydef->write_key)(info, keydef, heap_new, pos))
@@ -244,7 +244,7 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
     }
     while (keydef >= share->keydef)
     {
-      if (hp_rec_key_cmp(keydef, old, heap_new, NULL))
+      if (hp_rec_key_cmp(keydef, heap_new, old, NULL))
       {
 	if ((*keydef->delete_key)(info, keydef, heap_new, pos, 0) ||
 	    (*keydef->write_key)(info, keydef, old, pos))
