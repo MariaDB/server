@@ -149,6 +149,12 @@ IF(UNIX AND NOT WITHOUT_SERVER)
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
     IF(WITH_WSREP)
+      CONFIGURE_FILE(galera.conf.in
+                     ${CMAKE_CURRENT_BINARY_DIR}/galera.conf @ONLY)
+      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/galera.conf
+              DESTINATION ${inst_location}/mariadb.service.d
+              COMPONENT server-galera)
+
       INSTALL(FILES use_galera_new_cluster.conf
               DESTINATION ${inst_location}/systemd COMPONENT server-galera)
     ENDIF()
@@ -185,6 +191,11 @@ IF(UNIX AND NOT WITHOUT_SERVER)
               ${CMAKE_CURRENT_BINARY_DIR}/mysqld.service
               DESTINATION ${INSTALL_SYSTEMD_UNITDIR} COMPONENT Server)
 
+      IF(WITH_WSREP)
+          INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/galera.conf
+                  DESTINATION ${INSTALL_SYSTEMD_UNITDIR}/mariadb.service.d
+                  COMPONENT server-galera)
+      ENDIF()
       # http://public.kitware.com/Bug/view.php?id=14782
       IF(NOT CMAKE_VERSION VERSION_LESS 3.3.0 OR NOT RPM)
         INSTALL(FILES use_galera_new_cluster.conf
