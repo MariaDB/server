@@ -1,6 +1,7 @@
 etc/mysql/mariadb.conf.d/wsrep_info.cnf
 debian/additions/mariadb.conf.d/60-galera.cnf etc/mysql/mariadb.conf.d
 lib/systemd/system/mariadb@bootstrap.service.d/use_galera_new_cluster.conf
+lib/systemd/system/mariadb.service.d/galera.conf
 usr/bin/galera_new_cluster
 usr/bin/galera_recovery
 usr/bin/wsrep_sst_common
