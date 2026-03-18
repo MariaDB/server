@@ -124,7 +124,7 @@ create database mysql_TEST character set latin2;
 create table mysql_TEST.T1 (a int);
 show create database mysql_TEST;
 Database	Create Database
-mysql_TEST	CREATE DATABASE `mysql_test` /*!40100 DEFAULT CHARACTER SET latin2 COLLATE latin2_general_ci */
+mysql_TEST	CREATE DATABASE `mysql_test` DEFAULT CHARACTER SET latin2 COLLATE latin2_general_ci
 show create table mysql_TEST.T1;
 Table	Create Table
 T1	CREATE TABLE `t1` (

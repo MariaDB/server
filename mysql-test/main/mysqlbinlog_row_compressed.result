@@ -13,9 +13,9 @@ UPDATE t2 SET f4=5 WHERE f4>0 or f4 is NULL;
 DELETE FROM t1;
 DELETE FROM t2;
 FLUSH BINARY LOGS;
-/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_delayed_threads=0*/;
-/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+SET @@SESSION.PSEUDO_SLAVE_MODE=1;
+SET @@session.max_delayed_threads=0;
+SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0;
 DELIMITER /*!*/;
 # at <pos>
 #<date> server id 1  end_log_pos # CRC32 XXX 	Start: xxx
@@ -440,8 +440,8 @@ COMMIT
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
-/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
-/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE;
+SET @@SESSION.PSEUDO_SLAVE_MODE=0;
 
 Test mysqlbinlog | mysql type point-in-time recovery with compressed events.
 

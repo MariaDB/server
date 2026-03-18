@@ -684,7 +684,7 @@ print_skip_replication_statement(PRINT_EVENT_INFO *pinfo, const Log_event *ev)
   cur_val= (ev->flags & LOG_EVENT_SKIP_REPLICATION_F) != 0;
   if (cur_val == pinfo->skip_replication)
     return;                                     /* Not changed. */
-  fprintf(result_file, "/*!50521 SET skip_replication=%d*/%s\n",
+  fprintf(result_file, "SET skip_replication=%d;%s\n",
           cur_val, pinfo->delimiter);
   pinfo->skip_replication= cur_val;
 }
@@ -3571,30 +3571,29 @@ int main(int argc, char** argv)
 
   if (!opt_raw_mode)
   {
-    fprintf(result_file, "/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;\n");
+    fprintf(result_file, "SET @@SESSION.PSEUDO_SLAVE_MODE=1;\n");
 
     fprintf(result_file,
-	    "/*!40019 SET @@session.max_delayed_threads=0*/;\n");
+	    "SET @@session.max_delayed_threads=0;\n");
 
     if (disable_log_bin)
       fprintf(result_file,
-              "/*!32316 SET @OLD_SQL_LOG_BIN=@@SQL_LOG_BIN, SQL_LOG_BIN=0*/;\n");
+              "SET @OLD_SQL_LOG_BIN=@@SQL_LOG_BIN, SQL_LOG_BIN=0;\n");
 
     /*
       In mysqlbinlog|mysql, don't want mysql to be disconnected after each
       transaction (which would be the case with GLOBAL.COMPLETION_TYPE==2).
     */
     fprintf(result_file,
-            "/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,"
-            "COMPLETION_TYPE=0*/;\n");
+            "SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,"
+            "COMPLETION_TYPE=0;\n");
 
     if (charset)
       fprintf(result_file,
-              "\n/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;"
-              "\n/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;"
-              "\n/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;"  
-              "\n/*!40101 SET NAMES %s */;\n", charset);
-  }
+              "\nSET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT;"
+              "\nSET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS;"
+              "\nSET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION;"
+              "\nSET NAMES %s;\n", charset);  }
 
   for (save_stop_position= stop_position, stop_position= ~(my_off_t)0 ;
        (--argc >= 0) ; )
@@ -3658,16 +3657,16 @@ int main(int argc, char** argv)
     */
     fprintf(result_file,
             "# End of log file\nROLLBACK /* added by mysqlbinlog */;\n"
-            "/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;\n");
+            "SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE;\n");
     if (disable_log_bin)
-      fprintf(result_file, "/*!32316 SET SQL_LOG_BIN=@OLD_SQL_LOG_BIN*/;\n");
+      fprintf(result_file, "SET SQL_LOG_BIN=@OLD_SQL_LOG_BIN;\n");
 
     if (charset)
       fprintf(result_file,
-              "/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;\n"
-              "/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;\n"
-              "/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;\n");
-    fprintf(result_file, "/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;\n");
+              "SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT;\n"
+              "SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS;\n"
+              "SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION;\n");
+    fprintf(result_file, "SET @@SESSION.PSEUDO_SLAVE_MODE=0;\n");
 
     if (gtid_event_filter)
     {

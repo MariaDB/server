@@ -1502,12 +1502,11 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   buffer.length(0);
   buffer.append(STRING_WITH_LEN("CREATE DATABASE "));
   if (options.if_not_exists())
-    buffer.append(STRING_WITH_LEN("/*!32312 IF NOT EXISTS*/ "));
+    buffer.append(STRING_WITH_LEN("IF NOT EXISTS "));
   append_identifier(thd, &buffer, dbname);
 
   if (create.default_table_charset)
   {
-    buffer.append(STRING_WITH_LEN(" /*!40100"));
     buffer.append(STRING_WITH_LEN(" DEFAULT CHARACTER SET "));
     buffer.append(create.default_table_charset->cs_name);
     if (Charset(create.default_table_charset).can_have_collate_clause())
@@ -1515,7 +1514,6 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
       buffer.append(STRING_WITH_LEN(" COLLATE "));
       buffer.append(create.default_table_charset->coll_name);
     }
-    buffer.append(STRING_WITH_LEN(" */"));
   }
 
   if (create.schema_comment)

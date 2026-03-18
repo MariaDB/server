@@ -3381,3 +3381,17 @@ DROP DATABASE test1;
 --exec $MYSQL_DUMP --skip-comments -L -B  a% 2>&1
 --replace_result mariadb-dump.exe mariadb-dump
 --exec $MYSQL_DUMP --skip-comments --databases --wildcards=ON perf% 2>&1
+
+--echo #
+--echo # MDEV-30295 mysqldump produces syntactically incorrect statement 
+--echo #
+
+use test;
+create table t (a int);
+create trigger /* here */ tr after insert on t for each row set @a=1;
+--exec $MYSQL_DUMP --skip-comments test > $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+--cat_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+drop table t;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+drop table t; 
+--remove_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
