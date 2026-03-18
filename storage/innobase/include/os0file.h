@@ -64,6 +64,7 @@ extern bool	os_has_said_disk_full;
 typedef ib_uint64_t os_offset_t;
 
 class buf_tmp_buffer_t;
+struct ext_buf_page_t;
 
 #ifdef _WIN32
 
@@ -129,9 +130,11 @@ enum os_file_create_t {
   OS_FILE_OPEN_RETRY,
   /** open a raw block device */
   OS_FILE_OPEN_RAW,
+  /** open file or create if it doesn't exist */
+  OS_FILE_OPEN_OR_CREATE,
 
   /** do not display diagnostic messages */
-  OS_FILE_ON_ERROR_SILENT= 4,
+  OS_FILE_ON_ERROR_SILENT= 8,
 
   OS_FILE_CREATE_SILENT= OS_FILE_CREATE | OS_FILE_ON_ERROR_SILENT,
   OS_FILE_OPEN_SILENT= OS_FILE_OPEN | OS_FILE_ON_ERROR_SILENT,
@@ -206,13 +209,28 @@ public:
     PUNCH_RANGE= WRITE_SYNC | 32,
   };
 
+  /* This ctor is used inside of fil_space_t::io(...) */
   constexpr IORequest(buf_page_t *bpage, buf_tmp_buffer_t *slot,
-                      fil_node_t *node, Type type) :
-    bpage(bpage), slot(slot), node(node), type(type) {}
+                      fil_node_t *node, Type type)
+      : node_ptr{node}, bpage_ptr(bpage), slot(slot), type(type)
+  {
+  }
 
+  /* This ctor is used by the callers of fil_space_t::io(...) */
   constexpr IORequest(Type type= READ_SYNC, buf_page_t *bpage= nullptr,
-                      buf_tmp_buffer_t *slot= nullptr) :
-    bpage(bpage), slot(slot), type(type) {}
+                      buf_tmp_buffer_t *slot= nullptr)
+      : bpage_ptr(bpage), slot(slot), type(type)
+  {
+  }
+
+  IORequest(buf_page_t *bpage, buf_tmp_buffer_t *slot,
+            ext_buf_page_t *ext_buf_page, Type type)
+      : ext_buf_page_ptr(ext_buf_page),
+        bpage_ptr(reinterpret_cast<buf_page_t *>(
+            reinterpret_cast<ptrdiff_t>(bpage) | 1)),
+        slot(slot), type(type)
+  {
+  }
 
   bool is_read() const noexcept { return (type & READ_SYNC) != 0; }
   bool is_write() const noexcept { return (type & WRITE_SYNC) != 0; }
@@ -224,7 +242,7 @@ public:
   IORequest doublewritten() const noexcept
   {
     ut_ad(type == WRITE_ASYNC || type == PUNCH);
-    return IORequest{bpage, slot, node, Type(type | 4)};
+    return IORequest{bpage(), slot, node(), Type(type | 4)};
   }
 
   void write_complete(int io_error) const noexcept;
@@ -237,7 +255,7 @@ public:
   @return DB_SUCCESS or error code */
   dberr_t maybe_punch_hole(os_offset_t off, ulint len) noexcept
   {
-    return off && len && node && (type & (PUNCH ^ WRITE_ASYNC))
+    return off && len && (type & (PUNCH ^ WRITE_ASYNC)) && node()
       ? punch_hole(off, len)
       : DB_SUCCESS;
   }
@@ -249,18 +267,50 @@ private:
   @return DB_SUCCESS or error code */
   dberr_t punch_hole(os_offset_t off, ulint len) const noexcept;
 
+  union
+  {
+    /** File descriptor */
+    fil_node_t *const node_ptr= nullptr;
+    /** External buffer pool page if the request is for external buffer pool
+    file, i.e. the lowest bit of bpage_ptr is set, nullptr otherwise */
+    ext_buf_page_t *const ext_buf_page_ptr;
+  };
+
+  /** Page to be written on write operation, the lowest bit shows if the
+  request is for external buffer pool or not */
+  buf_page_t *const bpage_ptr= nullptr;
+
 public:
-  /** Page to be written on write operation */
-  buf_page_t *const bpage= nullptr;
 
   /** Memory to be used for encrypted or page_compressed pages */
   buf_tmp_buffer_t *const slot= nullptr;
 
-  /** File descriptor */
-  fil_node_t *const node= nullptr;
+  buf_page_t *bpage() const noexcept
+  {
+    return reinterpret_cast<buf_page_t *>(
+        reinterpret_cast<ptrdiff_t>(bpage_ptr) & ~ptrdiff_t(1));
+  };
+
+  bool ext_buf() const noexcept
+  {
+    return reinterpret_cast<ptrdiff_t>(bpage_ptr) & 1;
+  }
+
+  fil_node_t *node() const noexcept
+  {
+    ut_ad(!ext_buf());
+    return node_ptr;
+  }
+
+  ext_buf_page_t *ext_buf_page() const noexcept
+  {
+    ut_ad(ext_buf());
+    return ext_buf_page_ptr;
+  };
 
   /** Request type bit flags */
   const Type type;
+
 };
 
 constexpr IORequest IORequestRead(IORequest::READ_SYNC);
@@ -998,6 +1048,17 @@ void os_aio_free() noexcept;
 @param type   fake read request
 @param offset additional context */
 void os_fake_read(const IORequest &type, os_offset_t offset) noexcept;
+
+/** Request a read or write.
+@param type		I/O request
+@param buf		buffer
+@param offset		file offset
+@param n		number of bytes
+@retval DB_SUCCESS if request was queued successfully
+@retval DB_IO_ERROR on I/O error */
+dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset,
+                       size_t n, pfs_os_file_t handle,
+                       const char *file_name) noexcept;
 
 /** Request a read or write.
 @param type		I/O request
