@@ -991,6 +991,13 @@ protected:
       res= NULL;
     return res;
   }
+  bool val_native_result_from_item(THD *thd, Item *item, Native *to)
+  {
+    DBUG_ASSERT(fixed());
+    null_value= item->val_native_result(thd, to);
+    DBUG_ASSERT(null_value == item->null_value);
+    return null_value;
+  }
   bool val_native_from_item(THD *thd, Item *item, Native *to)
   {
     DBUG_ASSERT(fixed());
