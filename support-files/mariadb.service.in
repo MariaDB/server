@@ -65,6 +65,8 @@ ProtectHome=true
 # Needed to create system tables etc.
 # ExecStartPre=@scriptdir@/mariadb-install-db
 
+# Reset
+ExecStart=
 # Start main service
 # MYSQLD_OPTS as a user environment variable is deprecated.
 # Please put equivalent configuration in the MariaDB configuration files.
