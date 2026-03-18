@@ -767,9 +767,9 @@ options that \fB\-\-tab\fR supports are also supported by \fB\-\-dir\fR, in part
 For each table, surround the
 INSERT
 statements with
-/*!40000 ALTER TABLE \fItbl_name\fR DISABLE KEYS */;
+ALTER TABLE \fItbl_name\fR DISABLE KEYS;
 and
-/*!40000 ALTER TABLE \fItbl_name\fR ENABLE KEYS */;
+ALTER TABLE \fItbl_name\fR ENABLE KEYS;
 statements\&. This makes loading the dump file faster because the indexes are created after all rows are inserted\&. This option is effective only for nonunique indexes of
 MyISAM
 tables\&.

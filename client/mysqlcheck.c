@@ -672,7 +672,7 @@ static int process_all_tables_in_db(char *database)
 
   if (use_db(database))
     DBUG_RETURN(1);
-  if ((mysql_query(sock, "SHOW /*!50002 FULL*/ TABLES") &&
+  if ((mysql_query(sock, "SHOW FULL TABLES") &&
        mysql_query(sock, "SHOW TABLES")) ||
       !(res= mysql_store_result(sock)))
   {

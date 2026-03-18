@@ -560,12 +560,12 @@ a1\`b1	CREATE TABLE `a1\``b1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 /*M!999999\- enable the sandbox mode */ 
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8mb4;
 CREATE TABLE `a1\``b1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+SET character_set_client = @saved_cs_client;
 INSERT INTO `a1\``b1` VALUES
 (1),
 (2);
@@ -592,12 +592,12 @@ a1\"b1	CREATE TABLE "a1\""b1" (
   "a" int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 /*M!999999\- enable the sandbox mode */ 
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8mb4;
 CREATE TABLE "a1\""b1" (
   "a" int(11) DEFAULT NULL
 );
-/*!40101 SET character_set_client = @saved_cs_client */;
+SET character_set_client = @saved_cs_client;
 INSERT INTO "a1\""b1" VALUES
 (1),
 (2);

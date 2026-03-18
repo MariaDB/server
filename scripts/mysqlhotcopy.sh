@@ -513,7 +513,7 @@ my $hc_started = time;	# count from time lock is granted
 if ( $opt{dryrun} ) {
     if ( $opt{old_server} ) {
         print "LOCK TABLES $hc_locks\n";
-        print "FLUSH TABLES /*!32323 $hc_tables */\n";
+        print "FLUSH TABLES $hc_tables\n";
     }
     else {
         # Lock base tables and views separately.
@@ -535,7 +535,7 @@ else {
 
         # flush tables to make on-disk copy up to date
         $start = time;
-        $dbh->do("FLUSH TABLES /*!32323 $hc_tables */");
+        $dbh->do("FLUSH TABLES $hc_tables");
         printf "Flushed tables ($hc_tables) in %d seconds.\n", time-$start unless $opt{quiet};
     }
     else {
@@ -560,7 +560,7 @@ else {
 
     if ( $opt{record_log_pos} ) {
 	record_log_pos( $dbh, $opt{record_log_pos} );
-	$dbh->do("FLUSH TABLES /*!32323 $hc_tables */");
+	$dbh->do("FLUSH TABLES $hc_tables");
     }
 }
 

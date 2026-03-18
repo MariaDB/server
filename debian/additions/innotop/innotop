@@ -263,7 +263,7 @@ sub get_dbh {
          $dbh = DBI->connect($cxn_string, $user, $pass, $defaults);
          # Immediately set character set and binmode on STDOUT.
          if ( my ($charset) = $cxn_string =~ m/charset=(\w+)/ ) {
-            my $sql = "/*!40101 SET NAMES $charset*/";
+            my $sql = "SET NAMES $charset";
             MKDEBUG && _d("$dbh: $sql");
             $dbh->do($sql);
             MKDEBUG && _d('Enabling charset for STDOUT');
@@ -298,7 +298,7 @@ sub get_dbh {
    MKDEBUG && _d('DBH info: ',
       $dbh,
       Dumper($dbh->selectrow_hashref(
-         'SELECT DATABASE(), CONNECTION_ID(), VERSION()/*!50038 , @@hostname*/')),
+         'SELECT DATABASE(), CONNECTION_ID(), VERSION(), @@hostname')),
       ' Connection info: ', ($dbh->{mariadb_hostinfo} || 'undef'),
       ' Character set info: ',
       Dumper($dbh->selectall_arrayref(
@@ -316,7 +316,7 @@ sub get_hostname {
       return $host;
    }
    my ( $hostname, $one ) = $dbh->selectrow_array(
-      'SELECT /*!50038 @@hostname, */ 1');
+      'SELECT @@hostname,  1');
    return $hostname;
 }
 

@@ -721,18 +721,18 @@ utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 ---> Dump of mysqltest1
 /*M!999999\- enable the sandbox mode */ 
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
+CREATE DATABASE IF NOT EXISTS `mysqltest1` DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci;
 
 USE `mysqltest1`;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+SET @saved_sql_mode       = @@sql_mode ;
+SET sql_mode              = '' ;
 ALTER DATABASE `mysqltest1` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = koi8r */ ;
-/*!50003 SET character_set_results = koi8r */ ;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;
+SET @saved_cs_client      = @@character_set_client ;
+SET @saved_cs_results     = @@character_set_results ;
+SET @saved_col_connection = @@collation_connection ;
+SET character_set_client  = koi8r ;
+SET character_set_results = koi8r ;
+SET collation_connection  = koi8r_general_ci ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`(
 INOUT парам1 CHAR(10),
@@ -754,20 +754,20 @@ SET парам2 = 'b';
 END
 ;;
 DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
+SET sql_mode              = @saved_sql_mode ;
+SET character_set_client  = @saved_cs_client ;
+SET character_set_results = @saved_cs_results ;
+SET collation_connection  = @saved_col_connection ;
 ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+SET @saved_sql_mode       = @@sql_mode ;
+SET sql_mode              = '' ;
 ALTER DATABASE `mysqltest1` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = koi8r */ ;
-/*!50003 SET character_set_results = koi8r */ ;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;
+SET @saved_cs_client      = @@character_set_client ;
+SET @saved_cs_results     = @@character_set_results ;
+SET @saved_col_connection = @@collation_connection ;
+SET character_set_client  = koi8r ;
+SET character_set_results = koi8r ;
+SET collation_connection  = koi8r_general_ci ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `p2`(
 INOUT парам1 CHAR(10) CHARACTER SET utf8,
@@ -789,10 +789,10 @@ SET парам2 = 'b';
 END
 ;;
 DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
+SET sql_mode              = @saved_sql_mode ;
+SET character_set_client  = @saved_cs_client ;
+SET character_set_results = @saved_cs_results ;
+SET collation_connection  = @saved_col_connection ;
 ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 
 ---> Dumping mysqltest1 to ddl_i18n_koi8r.sp.mysqltest1.sql
@@ -800,18 +800,18 @@ ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 ---> Dump of mysqltest2
 /*M!999999\- enable the sandbox mode */ 
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
+CREATE DATABASE IF NOT EXISTS `mysqltest2` DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci;
 
 USE `mysqltest2`;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+SET @saved_sql_mode       = @@sql_mode ;
+SET sql_mode              = '' ;
 ALTER DATABASE `mysqltest2` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = koi8r */ ;
-/*!50003 SET character_set_results = koi8r */ ;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;
+SET @saved_cs_client      = @@character_set_client ;
+SET @saved_cs_results     = @@character_set_results ;
+SET @saved_col_connection = @@collation_connection ;
+SET character_set_client  = koi8r ;
+SET character_set_results = koi8r ;
+SET collation_connection  = koi8r_general_ci ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `p3`(
 INOUT парам1 CHAR(10),
@@ -833,20 +833,20 @@ SET парам2 = 'b';
 END
 ;;
 DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
+SET sql_mode              = @saved_sql_mode ;
+SET character_set_client  = @saved_cs_client ;
+SET character_set_results = @saved_cs_results ;
+SET collation_connection  = @saved_col_connection ;
 ALTER DATABASE `mysqltest2` CHARACTER SET cp866 COLLATE cp866_general_ci ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+SET @saved_sql_mode       = @@sql_mode ;
+SET sql_mode              = '' ;
 ALTER DATABASE `mysqltest2` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = koi8r */ ;
-/*!50003 SET character_set_results = koi8r */ ;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;
+SET @saved_cs_client      = @@character_set_client ;
+SET @saved_cs_results     = @@character_set_results ;
+SET @saved_col_connection = @@collation_connection ;
+SET character_set_client  = koi8r ;
+SET character_set_results = koi8r ;
+SET collation_connection  = koi8r_general_ci ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `p4`(
 INOUT парам1 CHAR(10) CHARACTER SET utf8,
@@ -868,10 +868,10 @@ SET парам2 = 'b';
 END
 ;;
 DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
+SET sql_mode              = @saved_sql_mode ;
+SET character_set_client  = @saved_cs_client ;
+SET character_set_results = @saved_cs_results ;
+SET collation_connection  = @saved_col_connection ;
 ALTER DATABASE `mysqltest2` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 
 ---> Dumping mysqltest2 to ddl_i18n_koi8r.sp.mysqltest2.sql
@@ -1731,36 +1731,36 @@ DELETE FROM mysqltest2.log|
 ---> Dump of mysqltest1
 /*M!999999\- enable the sandbox mode */ 
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
+CREATE DATABASE IF NOT EXISTS `mysqltest1` DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci;
 
 USE `mysqltest1`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8mb4;
 CREATE TABLE `log` (
   `msg` varchar(255) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
+SET character_set_client = @saved_cs_client;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8mb4;
 CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+SET character_set_client = @saved_cs_client;
 INSERT INTO `t1` VALUES
 (1),
 (0),
 (1);
 ALTER DATABASE `mysqltest1` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = koi8r */ ;
-/*!50003 SET character_set_results = koi8r */ ;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+SET @saved_cs_client      = @@character_set_client ;
+SET @saved_cs_results     = @@character_set_results ;
+SET @saved_col_connection = @@collation_connection ;
+SET character_set_client  = koi8r ;
+SET character_set_results = koi8r ;
+SET collation_connection  = koi8r_general_ci ;
+SET @saved_sql_mode       = @@sql_mode ;
+SET sql_mode              = '' ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
+CREATE DEFINER=`root`@`localhost` TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
 BEGIN
 DECLARE перем1 CHAR(10);
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -1772,25 +1772,25 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @a1 = 'текст';
 SET @a1 = _koi8r    'текст';
 SET @a2 = _utf8 'я┌п╣п╨я│я┌';
-END 
-*/;;
+END
+;;
 DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
+SET sql_mode              = @saved_sql_mode ;
+SET character_set_client  = @saved_cs_client ;
+SET character_set_results = @saved_cs_results ;
+SET collation_connection  = @saved_col_connection ;
 ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 ALTER DATABASE `mysqltest1` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = koi8r */ ;
-/*!50003 SET character_set_results = koi8r */ ;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+SET @saved_cs_client      = @@character_set_client ;
+SET @saved_cs_results     = @@character_set_results ;
+SET @saved_col_connection = @@collation_connection ;
+SET character_set_client  = koi8r ;
+SET character_set_results = koi8r ;
+SET collation_connection  = koi8r_general_ci ;
+SET @saved_sql_mode       = @@sql_mode ;
+SET sql_mode              = '' ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER trg2 AFTER INSERT ON t1 FOR EACH ROW
+CREATE DEFINER=`root`@`localhost` TRIGGER trg2 AFTER INSERT ON t1 FOR EACH ROW
 BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -1802,13 +1802,13 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @b1 = 'текст';
 SET @b1 = _koi8r    'текст';
 SET @b2 = _utf8 'я┌п╣п╨я│я┌';
-END 
-*/;;
+END
+;;
 DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
+SET sql_mode              = @saved_sql_mode ;
+SET character_set_client  = @saved_cs_client ;
+SET character_set_results = @saved_cs_results ;
+SET collation_connection  = @saved_col_connection ;
 ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 
 ---> Dumping mysqltest1 to ddl_i18n_koi8r.triggers.mysqltest1.sql
@@ -1816,36 +1816,36 @@ ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 ---> Dump of mysqltest2
 /*M!999999\- enable the sandbox mode */ 
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
+CREATE DATABASE IF NOT EXISTS `mysqltest2` DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci;
 
 USE `mysqltest2`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8mb4;
 CREATE TABLE `log` (
   `msg` varchar(255) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
+SET character_set_client = @saved_cs_client;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8mb4;
 CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+SET character_set_client = @saved_cs_client;
 INSERT INTO `t1` VALUES
 (1),
 (0),
 (1);
 ALTER DATABASE `mysqltest2` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = koi8r */ ;
-/*!50003 SET character_set_results = koi8r */ ;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+SET @saved_cs_client      = @@character_set_client ;
+SET @saved_cs_results     = @@character_set_results ;
+SET @saved_col_connection = @@collation_connection ;
+SET character_set_client  = koi8r ;
+SET character_set_results = koi8r ;
+SET collation_connection  = koi8r_general_ci ;
+SET @saved_sql_mode       = @@sql_mode ;
+SET sql_mode              = '' ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER mysqltest2.trg3 BEFORE INSERT ON mysqltest2.t1 FOR EACH ROW
+CREATE DEFINER=`root`@`localhost` TRIGGER mysqltest2.trg3 BEFORE INSERT ON mysqltest2.t1 FOR EACH ROW
 BEGIN
 DECLARE перем1 CHAR(10);
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -1857,25 +1857,25 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @a1 = 'текст';
 SET @a1 = _koi8r    'текст';
 SET @a2 = _utf8 'я┌п╣п╨я│я┌';
-END 
-*/;;
+END
+;;
 DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
+SET sql_mode              = @saved_sql_mode ;
+SET character_set_client  = @saved_cs_client ;
+SET character_set_results = @saved_cs_results ;
+SET collation_connection  = @saved_col_connection ;
 ALTER DATABASE `mysqltest2` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 ALTER DATABASE `mysqltest2` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = koi8r */ ;
-/*!50003 SET character_set_results = koi8r */ ;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = '' */ ;
+SET @saved_cs_client      = @@character_set_client ;
+SET @saved_cs_results     = @@character_set_results ;
+SET @saved_col_connection = @@collation_connection ;
+SET character_set_client  = koi8r ;
+SET character_set_results = koi8r ;
+SET collation_connection  = koi8r_general_ci ;
+SET @saved_sql_mode       = @@sql_mode ;
+SET sql_mode              = '' ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER mysqltest2.trg4 AFTER INSERT ON mysqltest2.t1 FOR EACH ROW
+CREATE DEFINER=`root`@`localhost` TRIGGER mysqltest2.trg4 AFTER INSERT ON mysqltest2.t1 FOR EACH ROW
 BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -1887,13 +1887,13 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @b1 = 'текст';
 SET @b1 = _koi8r    'текст';
 SET @b2 = _utf8 'я┌п╣п╨я│я┌';
-END 
-*/;;
+END
+;;
 DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
+SET sql_mode              = @saved_sql_mode ;
+SET character_set_client  = @saved_cs_client ;
+SET character_set_results = @saved_cs_results ;
+SET collation_connection  = @saved_col_connection ;
 ALTER DATABASE `mysqltest2` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 
 ---> Dumping mysqltest2 to ddl_i18n_koi8r.triggers.mysqltest2.sql
@@ -2505,23 +2505,23 @@ END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	
 ---> Dump of mysqltest1
 /*M!999999\- enable the sandbox mode */ 
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
+CREATE DATABASE IF NOT EXISTS `mysqltest1` DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci;
 
 USE `mysqltest1`;
-/*!50106 SET @save_time_zone= @@TIME_ZONE */ ;
+SET @save_time_zone= @@TIME_ZONE ;
 DELIMITER ;;
 ALTER DATABASE `mysqltest1` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;;
-/*!50003 SET character_set_client  = koi8r */ ;;
-/*!50003 SET character_set_results = koi8r */ ;;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
-/*!50003 SET sql_mode              = '' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev1` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
+SET @saved_cs_client      = @@character_set_client ;;
+SET @saved_cs_results     = @@character_set_results ;;
+SET @saved_col_connection = @@collation_connection ;;
+SET character_set_client  = koi8r ;;
+SET character_set_results = koi8r ;;
+SET collation_connection  = koi8r_general_ci ;;
+SET @saved_sql_mode       = @@sql_mode ;;
+SET sql_mode              = '' ;;
+SET @saved_time_zone      = @@time_zone ;;
+SET time_zone             = 'SYSTEM' ;;
+CREATE DEFINER=`root`@`localhost` EVENT `ev1` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10);
 SELECT
 COLLATION(перем1) AS c1,
@@ -2530,27 +2530,27 @@ COLLATION(_koi8r    'текст') AS c3,
 COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END 
-*/ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;;
-/*!50003 SET character_set_results = @saved_cs_results */ ;;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;;
+END
+;;
+SET time_zone             = @saved_time_zone ;;
+SET sql_mode              = @saved_sql_mode ;;
+SET character_set_client  = @saved_cs_client ;;
+SET character_set_results = @saved_cs_results ;;
+SET collation_connection  = @saved_col_connection ;;
 ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;;
 DELIMITER ;;
 ALTER DATABASE `mysqltest1` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;;
-/*!50003 SET character_set_client  = koi8r */ ;;
-/*!50003 SET character_set_results = koi8r */ ;;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
-/*!50003 SET sql_mode              = '' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev2` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
+SET @saved_cs_client      = @@character_set_client ;;
+SET @saved_cs_results     = @@character_set_results ;;
+SET @saved_col_connection = @@collation_connection ;;
+SET character_set_client  = koi8r ;;
+SET character_set_results = koi8r ;;
+SET collation_connection  = koi8r_general_ci ;;
+SET @saved_sql_mode       = @@sql_mode ;;
+SET sql_mode              = '' ;;
+SET @saved_time_zone      = @@time_zone ;;
+SET time_zone             = 'SYSTEM' ;;
+CREATE DEFINER=`root`@`localhost` EVENT `ev2` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
 COLLATION(перем1) AS c1,
@@ -2559,39 +2559,39 @@ COLLATION(_koi8r    'текст') AS c3,
 COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END 
-*/ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;;
-/*!50003 SET character_set_results = @saved_cs_results */ ;;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;;
+END
+;;
+SET time_zone             = @saved_time_zone ;;
+SET sql_mode              = @saved_sql_mode ;;
+SET character_set_client  = @saved_cs_client ;;
+SET character_set_results = @saved_cs_results ;;
+SET collation_connection  = @saved_col_connection ;;
 ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;;
 DELIMITER ;
-/*!50106 SET TIME_ZONE= @save_time_zone */ ;
+SET TIME_ZONE= @save_time_zone ;
 
 ---> Dumping mysqltest1 to ddl_i18n_koi8r.events.mysqltest1.sql
 
 ---> Dump of mysqltest2
 /*M!999999\- enable the sandbox mode */ 
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
+CREATE DATABASE IF NOT EXISTS `mysqltest2` DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci;
 
 USE `mysqltest2`;
-/*!50106 SET @save_time_zone= @@TIME_ZONE */ ;
+SET @save_time_zone= @@TIME_ZONE ;
 DELIMITER ;;
 ALTER DATABASE `mysqltest2` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;;
-/*!50003 SET character_set_client  = koi8r */ ;;
-/*!50003 SET character_set_results = koi8r */ ;;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
-/*!50003 SET sql_mode              = '' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev3` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
+SET @saved_cs_client      = @@character_set_client ;;
+SET @saved_cs_results     = @@character_set_results ;;
+SET @saved_col_connection = @@collation_connection ;;
+SET character_set_client  = koi8r ;;
+SET character_set_results = koi8r ;;
+SET collation_connection  = koi8r_general_ci ;;
+SET @saved_sql_mode       = @@sql_mode ;;
+SET sql_mode              = '' ;;
+SET @saved_time_zone      = @@time_zone ;;
+SET time_zone             = 'SYSTEM' ;;
+CREATE DEFINER=`root`@`localhost` EVENT `ev3` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
 COLLATION(перем1) AS c1,
@@ -2600,27 +2600,27 @@ COLLATION(_koi8r    'текст') AS c3,
 COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END 
-*/ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;;
-/*!50003 SET character_set_results = @saved_cs_results */ ;;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;;
+END
+;;
+SET time_zone             = @saved_time_zone ;;
+SET sql_mode              = @saved_sql_mode ;;
+SET character_set_client  = @saved_cs_client ;;
+SET character_set_results = @saved_cs_results ;;
+SET collation_connection  = @saved_col_connection ;;
 ALTER DATABASE `mysqltest2` CHARACTER SET cp866 COLLATE cp866_general_ci ;;
 DELIMITER ;;
 ALTER DATABASE `mysqltest2` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;;
-/*!50003 SET character_set_client  = koi8r */ ;;
-/*!50003 SET character_set_results = koi8r */ ;;
-/*!50003 SET collation_connection  = koi8r_general_ci */ ;;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
-/*!50003 SET sql_mode              = '' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `ev4` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
+SET @saved_cs_client      = @@character_set_client ;;
+SET @saved_cs_results     = @@character_set_results ;;
+SET @saved_col_connection = @@collation_connection ;;
+SET character_set_client  = koi8r ;;
+SET character_set_results = koi8r ;;
+SET collation_connection  = koi8r_general_ci ;;
+SET @saved_sql_mode       = @@sql_mode ;;
+SET sql_mode              = '' ;;
+SET @saved_time_zone      = @@time_zone ;;
+SET time_zone             = 'SYSTEM' ;;
+CREATE DEFINER=`root`@`localhost` EVENT `ev4` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 SELECT
 COLLATION(перем1) AS c1,
@@ -2629,16 +2629,16 @@ COLLATION(_koi8r    'текст') AS c3,
 COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END 
-*/ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;;
-/*!50003 SET character_set_results = @saved_cs_results */ ;;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;;
+END
+;;
+SET time_zone             = @saved_time_zone ;;
+SET sql_mode              = @saved_sql_mode ;;
+SET character_set_client  = @saved_cs_client ;;
+SET character_set_results = @saved_cs_results ;;
+SET collation_connection  = @saved_col_connection ;;
 ALTER DATABASE `mysqltest2` CHARACTER SET cp866 COLLATE cp866_general_ci ;;
 DELIMITER ;
-/*!50106 SET TIME_ZONE= @save_time_zone */ ;
+SET TIME_ZONE= @save_time_zone ;
 
 ---> Dumping mysqltest2 to ddl_i18n_koi8r.events.mysqltest2.sql
 

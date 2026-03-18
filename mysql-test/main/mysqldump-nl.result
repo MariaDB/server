@@ -19,11 +19,11 @@ use test;
 -- 1tsetlqsym`
 --
 
-/*!40000 DROP DATABASE IF EXISTS `mysqltest1
-1tsetlqsym`*/;
+DROP DATABASE IF EXISTS `mysqltest1
+1tsetlqsym`;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1
-1tsetlqsym` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
+CREATE DATABASE IF NOT EXISTS `mysqltest1
+1tsetlqsym` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 
 USE `mysqltest1
 1tsetlqsym`;
@@ -33,14 +33,14 @@ USE `mysqltest1
 -- 1t`
 --
 
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8mb4;
 CREATE TABLE `t1
 1t` (
   `foobar
 raboof` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Dumping data for table `t1
@@ -54,34 +54,34 @@ raboof` int(11) DEFAULT NULL
 
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
-/*!50001 CREATE VIEW `v1
+CREATE VIEW `v1
 1v` AS SELECT
  NULL AS `foobar
-raboof` */;
+raboof`;
 SET character_set_client = @saved_cs_client;
 
 --
 -- Dumping routines for database 'mysqltest1
 -- 1tsetlqsym'
 --
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = latin1 */ ;
-/*!50003 SET character_set_results = latin1 */ ;
-/*!50003 SET collation_connection  = latin1_swedish_ci */ ;
+SET @saved_sql_mode       = @@sql_mode ;
+SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' ;
+SET @saved_cs_client      = @@character_set_client ;
+SET @saved_cs_results     = @@character_set_results ;
+SET @saved_col_connection = @@collation_connection ;
+SET character_set_client  = latin1 ;
+SET character_set_results = latin1 ;
+SET collation_connection  = latin1_swedish_ci ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `sp`()
 select * from `v1
 1v`
 ;;
 DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
+SET sql_mode              = @saved_sql_mode ;
+SET character_set_client  = @saved_cs_client ;
+SET character_set_results = @saved_cs_results ;
+SET collation_connection  = @saved_col_connection ;
 
 --
 -- Current Database: `mysqltest1
@@ -96,25 +96,23 @@ USE `mysqltest1
 -- 1v`
 --
 
-/*!50001 DROP VIEW IF EXISTS `v1
-1v`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = latin1 */;
-/*!50001 SET character_set_results     = latin1 */;
-/*!50001 SET collation_connection      = latin1_swedish_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v1
+DROP VIEW IF EXISTS `v1
+1v`;
+SET @saved_cs_client          = @@character_set_client;
+SET @saved_cs_results         = @@character_set_results;
+SET @saved_col_connection     = @@collation_connection;
+SET character_set_client      = latin1;
+SET character_set_results     = latin1;
+SET collation_connection      = latin1_swedish_ci;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1
 1v` AS select `t1
 1t`.`foobar
 raboof` AS `foobar
 raboof` from `t1
-1t` */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
+1t`;
+SET character_set_client      = @saved_cs_client;
+SET character_set_results     = @saved_cs_results;
+SET collation_connection      = @saved_col_connection;
 show tables from `mysqltest1
 1tsetlqsym`;
 Tables_in_mysqltest1
@@ -142,9 +140,9 @@ test`
 -- Current Database: `test```
 --
 
-/*!40000 DROP DATABASE IF EXISTS `test```*/;
+DROP DATABASE IF EXISTS `test```;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test``` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
+CREATE DATABASE IF NOT EXISTS `test``` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 
 USE `test```;
 
@@ -154,13 +152,13 @@ USE `test```;
 -- #`
 --
 
-/*!40000 DROP DATABASE IF EXISTS `test\``
+DROP DATABASE IF EXISTS `test\``
 \! ls
-#`*/;
+#`;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test\``
+CREATE DATABASE IF NOT EXISTS `test\``
 \! ls
-#` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
+#` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 
 USE `test\``
 \! ls

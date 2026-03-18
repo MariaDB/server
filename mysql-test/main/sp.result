@@ -2250,7 +2250,7 @@ t1	CREATE TABLE `t1` (
   `data` int(11) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 Database	Create Database
-test	CREATE DATABASE `test` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
+test	CREATE DATABASE `test` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
 Database (foo)
 Level	Code	Message
 Field	Type	Null	Key	Default	Extra
@@ -2271,7 +2271,7 @@ t1	CREATE TABLE `t1` (
   `data` int(11) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 Database	Create Database
-test	CREATE DATABASE `test` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
+test	CREATE DATABASE `test` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
 Database (foo)
 Level	Code	Message
 Field	Type	Null	Key	Default	Extra
@@ -4582,19 +4582,19 @@ use mysqltest1|
 call p1()|
 show create database mysqltest1|
 Database	Create Database
-mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET koi8r COLLATE koi8r_general_ci */
+mysqltest1	CREATE DATABASE `mysqltest1` DEFAULT CHARACTER SET koi8r COLLATE koi8r_general_ci
 show create database mysqltest2|
 Database	Create Database
-mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci */
+mysqltest2	CREATE DATABASE `mysqltest2` DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci
 alter database mysqltest1 character set utf8|
 use mysqltest2|
 call mysqltest1.p1()|
 show create database mysqltest1|
 Database	Create Database
-mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET koi8r COLLATE koi8r_general_ci */
+mysqltest1	CREATE DATABASE `mysqltest1` DEFAULT CHARACTER SET koi8r COLLATE koi8r_general_ci
 show create database mysqltest2|
 Database	Create Database
-mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci */
+mysqltest2	CREATE DATABASE `mysqltest2` DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci
 drop database mysqltest1|
 drop database mysqltest2|
 use test|

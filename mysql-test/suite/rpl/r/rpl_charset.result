@@ -6,28 +6,28 @@ set @@character_set_server=latin5;
 create database mysqltest3;
 show create database mysqltest2;
 Database	Create Database
-mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET latin2 COLLATE latin2_general_ci */
+mysqltest2	CREATE DATABASE `mysqltest2` DEFAULT CHARACTER SET latin2 COLLATE latin2_general_ci
 show create database mysqltest3;
 Database	Create Database
-mysqltest3	CREATE DATABASE `mysqltest3` /*!40100 DEFAULT CHARACTER SET latin5 COLLATE latin5_turkish_ci */
+mysqltest3	CREATE DATABASE `mysqltest3` DEFAULT CHARACTER SET latin5 COLLATE latin5_turkish_ci
 connection slave;
 show create database mysqltest2;
 Database	Create Database
-mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET latin2 COLLATE latin2_general_ci */
+mysqltest2	CREATE DATABASE `mysqltest2` DEFAULT CHARACTER SET latin2 COLLATE latin2_general_ci
 show create database mysqltest3;
 Database	Create Database
-mysqltest3	CREATE DATABASE `mysqltest3` /*!40100 DEFAULT CHARACTER SET latin5 COLLATE latin5_turkish_ci */
+mysqltest3	CREATE DATABASE `mysqltest3` DEFAULT CHARACTER SET latin5 COLLATE latin5_turkish_ci
 connection master;
 set @@collation_server=armscii8_bin;
 drop database mysqltest3;
 create database mysqltest3;
 show create database mysqltest3;
 Database	Create Database
-mysqltest3	CREATE DATABASE `mysqltest3` /*!40100 DEFAULT CHARACTER SET armscii8 COLLATE armscii8_bin */
+mysqltest3	CREATE DATABASE `mysqltest3` DEFAULT CHARACTER SET armscii8 COLLATE armscii8_bin
 connection slave;
 show create database mysqltest3;
 Database	Create Database
-mysqltest3	CREATE DATABASE `mysqltest3` /*!40100 DEFAULT CHARACTER SET armscii8 COLLATE armscii8_bin */
+mysqltest3	CREATE DATABASE `mysqltest3` DEFAULT CHARACTER SET armscii8 COLLATE armscii8_bin
 connection master;
 use mysqltest2;
 create table t1 (a int auto_increment primary key, b varchar(100));

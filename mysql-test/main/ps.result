@@ -1721,13 +1721,13 @@ prepare stmt from "create database mysqltest_1";
 execute stmt;
 show create database mysqltest_1;
 Database	Create Database
-mysqltest_1	CREATE DATABASE `mysqltest_1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysqltest_1	CREATE DATABASE `mysqltest_1` DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci
 drop database mysqltest_1;
 set @@character_set_server= utf8;
 execute stmt;
 show create database mysqltest_1;
 Database	Create Database
-mysqltest_1	CREATE DATABASE `mysqltest_1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
+mysqltest_1	CREATE DATABASE `mysqltest_1` DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci
 drop database mysqltest_1;
 deallocate prepare stmt;
 set @@character_set_server= @old_character_set_server;

@@ -931,7 +931,7 @@ static MYSQL *db_connect(char *host, char *database,
     if (mysql_query(mysql, "set unique_checks=0;"))
       db_error(mysql);
   }
-  if (mysql_query(mysql, "/*!40101 set @@character_set_database=binary */;"))
+  if (mysql_query(mysql, "set @@character_set_database=binary;"))
     db_error(mysql);
   if (mysql_query(mysql, "set @save_tz=@@session.time_zone"))
     db_error(mysql);

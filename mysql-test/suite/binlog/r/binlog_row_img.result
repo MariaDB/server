@@ -22,7 +22,7 @@ DELETE FROM t1 WHERE c1 = 1;
 
 # Verify that rows events are binlogged as expeced.
 
-/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0;
 DELIMITER /*!*/;
 # Warning: this binlog is either in use or was not closed properly.
 START TRANSACTION
@@ -159,7 +159,7 @@ COMMIT
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
-/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE;
 FLUSH BINARY LOGS;
 
 # t2 has no primary key.
@@ -176,7 +176,7 @@ DELETE FROM t2 WHERE c1 > 2;
 
 # Verify that rows events are binlogged as expeced.
 
-/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0;
 DELIMITER /*!*/;
 # Warning: this binlog is either in use or was not closed properly.
 START TRANSACTION
@@ -339,7 +339,7 @@ COMMIT
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
-/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE;
 DROP TABLE t1, t2;
 #
 # MINIMAL mode works as expected
@@ -364,7 +364,7 @@ DELETE FROM t1 WHERE c1 = 1;
 
 # Verify that rows events are binlogged as expeced.
 
-/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0;
 DELIMITER /*!*/;
 # Warning: this binlog is either in use or was not closed properly.
 START TRANSACTION
@@ -471,7 +471,7 @@ COMMIT
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
-/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE;
 FLUSH BINARY LOGS;
 
 # t2 has no primary key.
@@ -488,7 +488,7 @@ DELETE FROM t2 WHERE c1 > 2;
 
 # Verify that rows events are binlogged as expeced.
 
-/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0;
 DELIMITER /*!*/;
 # Warning: this binlog is either in use or was not closed properly.
 START TRANSACTION
@@ -651,7 +651,7 @@ COMMIT
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
-/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE;
 DROP TABLE t1, t2;
 #
 # NOBLOB mode works as expected
@@ -676,7 +676,7 @@ DELETE FROM t1 WHERE c1 = 1;
 
 # Verify that rows events are binlogged as expeced.
 
-/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0;
 DELIMITER /*!*/;
 # Warning: this binlog is either in use or was not closed properly.
 START TRANSACTION
@@ -819,7 +819,7 @@ COMMIT
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
-/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE;
 FLUSH BINARY LOGS;
 
 # t2 has no primary key.
@@ -836,7 +836,7 @@ DELETE FROM t2 WHERE c1 > 2;
 
 # Verify that rows events are binlogged as expeced.
 
-/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0;
 DELIMITER /*!*/;
 # Warning: this binlog is either in use or was not closed properly.
 START TRANSACTION
@@ -999,7 +999,7 @@ COMMIT
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
-/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE;
 DROP TABLE t1, t2;
 #
 # FULL mode works as expected
@@ -1024,7 +1024,7 @@ DELETE FROM t1 WHERE c1 = 1;
 
 # Verify that rows events are binlogged as expeced.
 
-/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0;
 DELIMITER /*!*/;
 # Warning: this binlog is either in use or was not closed properly.
 START TRANSACTION
@@ -1181,7 +1181,7 @@ COMMIT
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
-/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE;
 FLUSH BINARY LOGS;
 
 # t2 has no primary key.
@@ -1198,7 +1198,7 @@ DELETE FROM t2 WHERE c1 > 2;
 
 # Verify that rows events are binlogged as expeced.
 
-/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0;
 DELIMITER /*!*/;
 # Warning: this binlog is either in use or was not closed properly.
 START TRANSACTION
@@ -1361,7 +1361,7 @@ COMMIT
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
-/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE;
 DROP TABLE t1, t2;
 RESET MASTER;
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
