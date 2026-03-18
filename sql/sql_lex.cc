@@ -1258,6 +1258,7 @@ void LEX::start(THD *thd_arg)
   update_list.empty();
   set_var_list.empty();
   param_list.empty();
+  call_param_list.empty();
   view_list.empty();
   with_persistent_for_clause= FALSE;
   column_list= NULL;
@@ -10274,6 +10275,7 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
   const Sp_handler *sph= &sp_handler_procedure;
   sql_command= SQLCOM_CALL;
   value_list.empty();
+  call_param_list.empty();
 
   thd->variables.path.resolve(thd, sphead, name, &sph, &pkgname);
 
@@ -10313,6 +10315,7 @@ bool LEX::call_statement_start(THD *thd,
   Identifier_chain2 q_pkg_proc(*pkg, *proc);
   sp_name *spname;
   value_list.empty();
+  call_param_list.empty();
   sql_command= SQLCOM_CALL;
 
   const Lex_ident_db_normalized dbn= thd->to_ident_db_normalized_with_error(*db);
@@ -10377,12 +10380,29 @@ bool LEX::call_statement_start_or_lvalue_assign(THD *thd,
 }
 
 
+void LEX::build_value_list_from_call_params(THD *thd)
+{
+  if (call_param_list.elements == 0)
+    return;
+  value_list.empty();
+  List_iterator_fast<Call_param> it(call_param_list);
+  Call_param *cp;
+  while ((cp= it++))
+    value_list.push_back(cp->value, thd->mem_root);
+}
+
+
 bool LEX::direct_call(THD *thd, const Qualified_ident *ident,
                       List<Item> *args)
 {
   DBUG_ASSERT(ident);
   if (!ident->spvar())
     return false; // A procedure call
+  /*
+    Populate value_list from call_param_list so that args is ready for
+    SP variable method calls such as assoc_array_var.delete('key').
+  */
+  build_value_list_from_call_params(thd);
 
   /*
     ident->part(0) is a known SP variable.
