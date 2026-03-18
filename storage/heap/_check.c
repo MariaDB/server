@@ -81,9 +81,21 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
       deleted++;
     else if (hp_is_cont(current_ptr, share->visible))
     {
-      uint16 run_rec_count= hp_cont_rec_count(current_ptr);
-      cont_count+= run_rec_count;
-      pos+= run_rec_count - 1;  /* -1 because for-loop does pos++ */
+      /*
+        Case A (HP_BLOB_CASE_A_SINGLE_REC): single record, no header.
+        Case B/C: read run_rec_count from header and skip the entire run.
+      */
+      if (hp_blob_run_format(current_ptr, share->visible)
+          == HP_BLOB_CASE_A_SINGLE_REC)
+      {
+        cont_count++;
+      }
+      else
+      {
+        uint16 run_rec_count= hp_cont_rec_count(current_ptr);
+        cont_count+= run_rec_count;
+        pos+= run_rec_count - 1;  /* -1 because for-loop does pos++ */
+      }
     }
     else
       records++;

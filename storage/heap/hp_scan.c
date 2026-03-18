@@ -103,12 +103,21 @@ int heap_scan(register HP_INFO *info, uchar *record)
   */
   if (hp_is_cont(info->current_ptr, share->visible))
   {
-    uint16 run_rec_count= hp_cont_rec_count(info->current_ptr);
-    if (run_rec_count > 1)
+    /*
+      Case A (HP_BLOB_CASE_A_SINGLE_REC): single record, no header — skip
+      just this one record.
+      Case B/C: read run_rec_count from header and skip the entire run.
+    */
+    if (hp_blob_run_format(info->current_ptr, share->visible)
+        != HP_BLOB_CASE_A_SINGLE_REC)
     {
-      uint skip= run_rec_count - 1;
-      info->current_record+= skip;
-      info->current_ptr+= skip * share->block.recbuffer;
+      uint16 run_rec_count= hp_cont_rec_count(info->current_ptr);
+      if (run_rec_count > 1)
+      {
+        uint skip= run_rec_count - 1;
+        info->current_record+= skip;
+        info->current_ptr+= skip * share->block.recbuffer;
+      }
     }
     info->update= HA_STATE_PREV_FOUND | HA_STATE_NEXT_FOUND;
     DBUG_RETURN(my_errno=HA_ERR_RECORD_DELETED);

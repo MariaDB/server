@@ -37,6 +37,7 @@ C_MODE_START
 #define HP_ROW_HAS_CONT  2   /* Bit 1: primary record has continuation chain(s) */
 #define HP_ROW_IS_CONT   4   /* Bit 2: this record IS a continuation record */
 #define HP_ROW_CONT_ZEROCOPY 8 /* Bit 3: zero-copy layout (data in rec 1..N-1) */
+#define HP_ROW_SINGLE_REC   16 /* Bit 4: single-record run, no header — data at offset 0 */
 
 /*
   Continuation run header: next_cont pointer + run_rec_count.
@@ -96,24 +97,37 @@ static inline uint16 hp_cont_rec_count(const uchar *chain)
 }
 
 /*
-  Zero-copy case detection for stored continuation chains.
+  Blob continuation run storage format.
 
-  Case A: single record, single run — data fits in rec 0 payload after header.
-          run_rec_count == 1 AND next_cont == NULL.
-          IMPORTANT: run_rec_count == 1 alone is NOT sufficient — a multi-run
-          blob can have run_rec_count == 1 in its first run when free-list
-          fragmentation produces a single-slot fragment.
+  Case A (HP_BLOB_CASE_A_SINGLE_REC):  Single-record run, no header.
+      Data starts at offset 0, full `visible` bytes available for
+      payload.  Detected by HP_ROW_SINGLE_REC flag.
+      Zero-copy: blob pointer → chain.
 
-  Case B: single run, multiple records, zerocopy flag set — data in rec 1..N-1.
+  Case B (HP_BLOB_CASE_B_ZEROCOPY):    Single run, multiple records.
+      Header in rec 0, data contiguous in rec 1..N-1.  Detected by
+      HP_ROW_CONT_ZEROCOPY flag.
+      Zero-copy: blob pointer → chain + recbuffer.
+
+  Case C (HP_BLOB_CASE_C_MULTI_RUN):   One or more runs linked via
+      next_cont.  Header in each run's rec 0, data in rec 0 (after
+      header) + rec 1..N-1.  Requires reassembly into blob_buff.
 */
-static inline my_bool hp_is_case_a(const uchar *chain)
-{
-  return hp_cont_rec_count(chain) == 1 && hp_cont_next(chain) == NULL;
-}
+enum hp_blob_format {
+  HP_BLOB_CASE_A_SINGLE_REC,
+  HP_BLOB_CASE_B_ZEROCOPY,
+  HP_BLOB_CASE_C_MULTI_RUN
+};
 
-static inline my_bool hp_is_case_b(const uchar *chain, uint visible)
+static inline enum hp_blob_format hp_blob_run_format(const uchar *chain,
+                                                     uint visible)
 {
-  return (chain[visible] & HP_ROW_CONT_ZEROCOPY) != 0;
+  uchar flags= chain[visible];
+  if (flags & HP_ROW_SINGLE_REC)
+    return HP_BLOB_CASE_A_SINGLE_REC;
+  if (flags & HP_ROW_CONT_ZEROCOPY)
+    return HP_BLOB_CASE_B_ZEROCOPY;
+  return HP_BLOB_CASE_C_MULTI_RUN;
 }
 
 #define HP_CONT_MIN_RUN_BYTES  128
