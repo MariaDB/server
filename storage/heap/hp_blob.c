@@ -37,7 +37,7 @@
   Read blob data length from the record buffer.
 */
 
-static uint32 hp_blob_length(const HP_BLOB_DESC *desc, const uchar *record)
+uint32 hp_blob_length(const HP_BLOB_DESC *desc, const uchar *record)
 {
   switch (desc->packlength)
   {
@@ -317,8 +317,8 @@ static void hp_unlink_and_write_run(HP_SHARE *share, const uchar *data_ptr,
   @return 0 on success, my_errno on failure
 */
 
-static int hp_write_one_blob(HP_SHARE *share, const uchar *data_ptr,
-                             uint32 data_len, uchar **first_run_out)
+int hp_write_one_blob(HP_SHARE *share, const uchar *data_ptr,
+                      uint32 data_len, uchar **first_run_out)
 {
   uint visible= share->visible;
   uint recbuffer= share->block.recbuffer;

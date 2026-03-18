@@ -359,6 +359,27 @@ set @@max_heap_table_size= @save_max;
 drop table t1;
 
 --echo #
+--echo # UPDATE of non-blob column preserves unchanged blob chains
+--echo #
+create table t1 (a int not null, b blob, c blob, d int, primary key(a)) engine=memory;
+insert into t1 values (1, repeat('X', 5000), repeat('Y', 3000), 10);
+insert into t1 values (2, repeat('A', 200), repeat('B', 400), 20);
+# Update only the non-blob column — blobs must not be rewritten
+update t1 set d=99 where a=1;
+select a, length(b), left(b,3), length(c), left(c,3), d from t1 order by a;
+select a from t1 where b=repeat('X', 5000) and c=repeat('Y', 3000);
+# Update one blob, leave the other unchanged
+update t1 set b='changed' where a=1;
+select a, length(b), b, length(c), left(c,3), d from t1 order by a;
+select a from t1 where c=repeat('Y', 3000);
+# SET blob_col = same_value (different pointer, same data — INSERT ON DUP KEY pattern)
+update t1 set b=repeat('A', 200) where a=2;
+select a, length(b), left(b,3), length(c), left(c,3), d from t1 order by a;
+select a from t1 where b=repeat('A', 200) and c=repeat('B', 400);
+check table t1;
+drop table t1;
+
+--echo #
 --echo # Large blob exceeding uint16 run_rec_count cap (65535 records)
 --echo #
 --echo # With recbuffer=16, visible=15, a 1MB blob needs ~69906 records,

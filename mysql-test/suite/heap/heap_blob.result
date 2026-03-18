@@ -483,6 +483,40 @@ a
 set @@max_heap_table_size= @save_max;
 drop table t1;
 #
+# UPDATE of non-blob column preserves unchanged blob chains
+#
+create table t1 (a int not null, b blob, c blob, d int, primary key(a)) engine=memory;
+insert into t1 values (1, repeat('X', 5000), repeat('Y', 3000), 10);
+insert into t1 values (2, repeat('A', 200), repeat('B', 400), 20);
+update t1 set d=99 where a=1;
+select a, length(b), left(b,3), length(c), left(c,3), d from t1 order by a;
+a	length(b)	left(b,3)	length(c)	left(c,3)	d
+1	5000	XXX	3000	YYY	99
+2	200	AAA	400	BBB	20
+select a from t1 where b=repeat('X', 5000) and c=repeat('Y', 3000);
+a
+1
+update t1 set b='changed' where a=1;
+select a, length(b), b, length(c), left(c,3), d from t1 order by a;
+a	length(b)	b	length(c)	left(c,3)	d
+1	7	changed	3000	YYY	99
+2	200	AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA	400	BBB	20
+select a from t1 where c=repeat('Y', 3000);
+a
+1
+update t1 set b=repeat('A', 200) where a=2;
+select a, length(b), left(b,3), length(c), left(c,3), d from t1 order by a;
+a	length(b)	left(b,3)	length(c)	left(c,3)	d
+1	7	cha	3000	YYY	99
+2	200	AAA	400	BBB	20
+select a from t1 where b=repeat('A', 200) and c=repeat('B', 400);
+a
+2
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	note	The storage engine for the table doesn't support check
+drop table t1;
+#
 # Large blob exceeding uint16 run_rec_count cap (65535 records)
 #
 # With recbuffer=16, visible=15, a 1MB blob needs ~69906 records,

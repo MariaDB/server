@@ -209,6 +209,9 @@ extern ha_rows hp_rows_in_memory(size_t reclength, size_t index_size,
 extern size_t hp_memory_needed_per_row(size_t reclength);
 
 extern uchar *next_free_record_pos(HP_SHARE *info);
+extern uint32 hp_blob_length(const HP_BLOB_DESC *desc, const uchar *record);
+extern int hp_write_one_blob(HP_SHARE *share, const uchar *data_ptr,
+                             uint32 data_len, uchar **first_run_out);
 extern int hp_write_blobs(HP_INFO *info, const uchar *record, uchar *pos);
 extern int hp_read_blobs(HP_INFO *info, uchar *record, const uchar *pos);
 extern void hp_free_blobs(HP_SHARE *share, uchar *pos);
