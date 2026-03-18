@@ -1,0 +1,20 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-38904: latin7 collation corruption
+--echo #
+
+CREATE TABLE t1 (
+  c1 VARCHAR(10) CHARACTER SET latin7 COLLATE latin7_general_ci, 
+  KEY(c1)
+) ENGINE=InnoDB;
+
+--echo # Insert the exact values used in the MDEV-38904 bug report
+INSERT INTO t1 VALUES ('string1'), ('string2');
+
+CHECK TABLE t1;
+
+--echo # This SELECT triggers the my_convert infinite loop if the bug is present
+SELECT c1 FROM t1 ORDER BY c1;
+
+DROP  TABLE t1;
