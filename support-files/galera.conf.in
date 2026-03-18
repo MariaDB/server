@@ -22,6 +22,8 @@ ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
  VAR=`@bindir@/galera_recovery`; [ $? -eq 0 ] \
  && echo _WSREP_START_POSITION=$VAR > @INSTALL_RUNDATADIR@/wsrep-start-position || exit 1"
 
+# Reset of ExecStart list from base service
+ExecStart=
 # Start main service
 # _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
 ExecStart=@sbindir@/mariadbd $MYSQLD_OPTS $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
