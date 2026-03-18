@@ -1,0 +1,13 @@
+#!/bin/bash
+set -o pipefail
+
+set -e
+
+case "$1" in
+  remove)
+    if [ -d /run/systemd/system ]
+    then
+      systemctl --system daemon-reload
+    fi
+    ;;
+esac
