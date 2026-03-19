@@ -1575,7 +1575,12 @@ declare continue handler for 0 set @x=0;
 end$$
 ERROR HY000: Incorrect CONDITION value: '0'
 set @old_recursion_depth = @@max_sp_recursion_depth;
-set @@max_sp_recursion_depth = 255;
+set @l = 255;
+SELECT IF(global_value like 'MSAN%', 20,
+IF(global_value LIKE 'ASAN%', 200, 255)) INTO @l
+FROM information_schema.system_variables
+WHERE variable_name='have_sanitizer' AND version() LIKE '%debug%';
+set @@max_sp_recursion_depth = @l;
 create procedure p1(a int)
 begin
 declare continue handler for 1436 -- ER_STACK_OVERRUN_NEED_MORE
