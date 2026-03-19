@@ -10826,8 +10826,9 @@ Item *LEX::make_item_func_or_method_call(THD *thd,
   if (sys_a.is_null() || sys_b.is_null())
     return nullptr; // EOM
   sp_variable *spv;
+  const Sp_rcontext_handler *rh;
   if (spcont &&
-      (spv= spcont->find_variable(&sys_a, false)) &&
+      (spv= find_variable(&sys_a, &rh)) &&
       spv->type_handler()->has_methods())
   {
     if (Item *item= spv->type_handler()->
