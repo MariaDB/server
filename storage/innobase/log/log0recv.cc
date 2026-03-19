@@ -810,7 +810,7 @@ retry:
     log_sys.latch.wr_unlock();
     fil_space_t *space= fil_system.sys_space;
     buf_block_t *free_block= buf_LRU_get_free_block(false);
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock();
     mysql_mutex_lock(&recv_sys.mutex);
 
     for (auto d= defers.begin(); d != defers.end(); )
@@ -3898,7 +3898,7 @@ bool recv_sys_t::apply_batch(uint32_t space_id, fil_space_t *&space,
   unlock_relock:
     mysql_mutex_unlock(&mutex);
   relock:
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock();
   relock_last:
     mysql_mutex_lock(&mutex);
   get_last:
@@ -4178,7 +4178,7 @@ void recv_sys_t::apply(bool last_batch)
         recv_sys.mutex. */
         free_block= buf_LRU_get_free_block(false);
         if (!last_batch)
-          log_sys.latch.wr_lock(SRW_LOCK_CALL);
+          log_sys.latch.wr_lock();
         mysql_mutex_lock(&mutex);
         pages_it= pages.begin();
       }
@@ -4235,7 +4235,7 @@ void recv_sys_t::apply(bool last_batch)
   {
     buf_flush_sync_batch(lsn, false);
     buf_pool_invalidate();
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock();
   }
   else if (srv_operation == SRV_OPERATION_RESTORE ||
            srv_operation == SRV_OPERATION_RESTORE_EXPORT)
@@ -4835,7 +4835,7 @@ dberr_t recv_recovery_from_checkpoint_start()
 
 	recv_sys.recovery_on = true;
 
-	log_sys.latch.wr_lock(SRW_LOCK_CALL);
+	log_sys.latch.wr_lock();
 	log_sys.set_capacity();
 
 	/* Start reading the log from the checkpoint lsn. */

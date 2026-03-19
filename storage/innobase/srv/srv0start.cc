@@ -1062,7 +1062,7 @@ static ATTRIBUTE_COLD lsn_t srv_prepare_to_delete_redo_log_file() noexcept
                   DBUG_RETURN(0););
   DBUG_PRINT("ib_log", ("After innodb_log_abort_1"));
 
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock();
   const bool latest_format{log_sys.is_latest()};
   lsn_t flushed_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
 
@@ -1107,7 +1107,7 @@ static tpool::task rollback_all_recovered_task(trx_rollback_all_recovered,
 
 inline lsn_t log_t::init_lsn() noexcept
 {
-  latch.wr_lock(SRW_LOCK_CALL);
+  latch.wr_lock();
   ut_ad(!write_lsn_offset);
   write_lsn_offset= 0;
   const lsn_t lsn{base_lsn.load(std::memory_order_relaxed)};
@@ -1297,7 +1297,7 @@ dberr_t srv_start(bool create_new_db)
 			sql_print_information("InnoDB: innodb_force_recovery=6"
 					      " skips redo log apply");
 		} else {
-			log_sys.latch.wr_lock(SRW_LOCK_CALL);
+			log_sys.latch.wr_lock();
 			err = recv_sys.find_checkpoint();
 			log_sys.latch.wr_unlock();
 			if (err != DB_SUCCESS) {
@@ -1335,7 +1335,7 @@ dberr_t srv_start(bool create_new_db)
 
 	if (create_new_db) {
 		lsn_t flushed_lsn = log_sys.init_lsn();
-		log_sys.latch.wr_lock(SRW_LOCK_CALL);
+		log_sys.latch.wr_lock();
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
 		err = create_log_file(true, flushed_lsn);
