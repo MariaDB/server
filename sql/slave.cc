@@ -5740,6 +5740,15 @@ pthread_handler_t handle_slave_sql(void *arg)
     DBUG_ASSERT(debug_sync_service);
     DBUG_ASSERT(!debug_sync_set_action(current_thd, STRING_WITH_LEN(act)));
   };);
+#ifdef WITH_WSREP
+  DBUG_EXECUTE_IF("wsrep_async_slave_node_dropped_error",
+    if (WSREP(thd))
+    {
+      wsrep_node_dropped= TRUE;
+      goto err_before_start;
+    }
+  );
+#endif /* WITH_WSREP */
 #endif
 
   rli->parallel.reset();
@@ -5913,8 +5922,8 @@ pthread_handler_t handle_slave_sql(void *arg)
   mysql_mutex_unlock(&rli->data_lock);
 #ifdef WITH_WSREP
   wsrep_open(thd);
-  if (WSREP_ON_)
-    wsrep_wait_ready(thd);
+  if (WSREP_ON_ && !wsrep_wait_ready(thd))
+    goto err;
   if (wsrep_before_command(thd))
   {
     WSREP_WARN("Slave SQL wsrep_before_command() failed");
@@ -6137,21 +6146,25 @@ err_during_init:
   */
   if (WSREP(thd) && wsrep_node_dropped && wsrep_restart_slave)
   {
-    if (wsrep_ready_get())
-    {
-      WSREP_INFO("Slave error due to node temporarily non-primary"
-                 "SQL slave will continue");
       wsrep_node_dropped= FALSE;
       mysql_mutex_unlock(&rli->run_lock);
-      goto wsrep_restart_point;
-    }
-    else
-    {
       WSREP_INFO("Slave error due to node going non-primary");
       WSREP_INFO("wsrep_restart_slave was set and therefore slave will be "
                  "automatically restarted when node joins back to cluster");
-      wsrep_restart_slave_activated= TRUE;
-    }
+      if (wsrep_wait_ready(thd))
+      {
+        wsrep_close(thd);
+        delete serial_rgi;
+        if (thd_initialized)
+          server_threads.erase(thd);
+        delete thd;
+        goto wsrep_restart_point;
+      }
+      else
+      {
+        /* The node is being shutdown. Fallthrough. */
+        mysql_mutex_lock(&rli->run_lock);
+      }
   }
   wsrep_close(thd);
 #endif /* WITH_WSREP */
