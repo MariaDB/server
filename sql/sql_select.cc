@@ -21077,6 +21077,12 @@ bool Create_tmp_table::choose_engine(THD *thd, TABLE *table,
   share->db_plugin= ha_lock_engine(0, engine);
   table->file= get_new_handler(share, &table->mem_root, share->db_type());
 
+  /*
+    When a disk engine was chosen for reasons other than key limits
+    (e.g. big_tables, TMP_TABLE_FORCE_MYISAM, tmp_memory_table_size=0),
+    the GROUP BY key may still exceed the disk engine's max_key_parts()
+    or max_key_length().  Fall back to unique constraint hash dedup.
+  */
   if (engine == TMP_ENGINE_HTON && m_group &&
       (param->group_parts > table->file->max_key_parts() ||
        param->group_length > table->file->max_key_length()))

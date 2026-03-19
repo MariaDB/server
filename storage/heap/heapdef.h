@@ -130,7 +130,9 @@ static inline enum hp_blob_format hp_blob_run_format(const uchar *chain,
   return HP_BLOB_CASE_C_MULTI_RUN;
 }
 
+/* Minimum acceptable contiguous run size in bytes for free list reuse */
 #define HP_CONT_MIN_RUN_BYTES  128
+/* Minimum run size as a fraction of blob size: NUM/DEN = 1/10 */
 #define HP_CONT_RUN_FRACTION_NUM  1
 #define HP_CONT_RUN_FRACTION_DEN  10
 

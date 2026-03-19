@@ -1010,9 +1010,11 @@ bool Aggregator_distinct::add()
       if (!table->file->is_fatal_error(error, HA_CHECK_DUP))
         return FALSE;                           // duplicate, not an error
       /*
-        HEAP table full: convert to on-disk engine.
-        create_internal_tmp_table_from_heap() copies all existing rows
-        plus the overflow row (record[0]) to the new table.
+        Non-duplicate write error.  If the table is HEAP and the error
+        is HA_ERR_RECORD_FILE_FULL, create_internal_tmp_table_from_heap()
+        converts it to an on-disk engine and copies all rows plus the
+        overflow row (record[0]).  For any other error it reports a
+        fatal error and returns 1.
       */
       if (create_internal_tmp_table_from_heap(table->in_use, table,
                                               tmp_table_param->start_recinfo,
