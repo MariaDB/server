@@ -6151,13 +6151,57 @@ static Sys_var_uint Sys_opt_binlog_partial_rows_event_max_size(
       CMD_LINE(REQUIRED_ARG), VALID_RANGE(1024, MAX_MAX_ALLOWED_PACKET),
       DEFAULT(MAX_MAX_ALLOWED_PACKET), BLOCK_SIZE(1024));
 
+static bool check_slave_net_timeout(sys_var *self, THD *thd, set_var *var)
+{
+  uint timeout= (uint) var->save_result.ulonglong_value;
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (master_info_index)
+  {
+    for (uint i= 0; i < master_info_index->master_info_hash.records; i++)
+    {
+      Master_info *mi= (Master_info *)
+        my_hash_element(&master_info_index->master_info_hash, i);
+      /*
+        Skip connections that were never configured (e.g. the implicit
+        default connection), as START SLAVE does.
+        A DEFAULTed heartbeat period without --master-heartbeat-period
+        follows slave_net_timeout/2 and so can never exceed the new timeout.
+        get_value() would still report half of the old timeout, so skip it.
+      */
+      if (!*mi->host ||
+          (mi->master_heartbeat_period.is_default() &&
+           master_heartbeat_period_is_auto))
+        continue;
+      uint32 period= mi->master_heartbeat_period.get_value();
+      if (period <= timeout * 1000ULL)
+        continue;
+
+      const char *name= mi->connection_name.str ? mi->connection_name.str : "";
+      char detail[256];
+      my_snprintf(detail, sizeof(detail),
+                  "the heartbeat period (%.3f seconds) exceeds the requested "
+                  "slave_net_timeout (%u seconds); a sensible value for the "
+                  "period should be less than the timeout",
+                  period / 1000.0,
+                  timeout);
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_OPERATION_INVALIDATES_CONFIGURED_SLAVE,
+                          ER_THD(thd, ER_OPERATION_INVALIDATES_CONFIGURED_SLAVE),
+                          name, detail);
+    }
+  }
+  mysql_mutex_unlock(&LOCK_active_mi);
+  return false;
+}
+
 static Sys_var_on_access_global<Sys_var_uint,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_NET_TIMEOUT>
 Sys_slave_net_timeout(
        "slave_net_timeout", "Number of seconds to wait for more data "
        "from any master/slave connection before aborting the read",
        GLOBAL_VAR(slave_net_timeout), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, LONG_TIMEOUT), DEFAULT(SLAVE_NET_TIMEOUT), BLOCK_SIZE(1));
+       VALID_RANGE(1, LONG_TIMEOUT), DEFAULT(SLAVE_NET_TIMEOUT), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_slave_net_timeout));
 
 
 static Sys_var_uint Sys_master_connect_retry(

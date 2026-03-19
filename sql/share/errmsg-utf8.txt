@@ -12427,3 +12427,5 @@ ER_INVALID_HOST_NETMASK
         eng "Invalid masked host '%s' for user '%s'"
 ER_ACL_ENTRY_IGNORED_BAD_HOST_MASK
         eng "'%s' entry '%s' ignored, the host is not a valid ip/netmask"
+ER_OPERATION_INVALIDATES_CONFIGURED_SLAVE
+        eng "This operation leaves replication connection '%s' with an invalid configuration: %s"
