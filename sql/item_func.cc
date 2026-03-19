@@ -6377,49 +6377,8 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
   }
   if (!(table->file->ha_table_flags() & HA_CAN_FULLTEXT))
   {
-    /*
-      If this is an in-memory tmp table that hasn't been opened yet
-      (e.g. a derived table being prepared), convert it to a disk-based
-      engine that supports FULLTEXT.  This can happen when HEAP blob
-      support keeps a table in memory that would previously have been
-      forced to disk by blob columns alone.
-    */
-    if (table->s->tmp_table && !table->is_created() &&
-        table->s->db_type() == heap_hton)
-    {
-      /*
-        Replace the HEAP handler with a disk-based engine (Aria/MyISAM)
-        that supports FULLTEXT.  The table has not been opened yet, so
-        only the handler object and plugin reference need to be swapped.
-        This follows the same pattern as
-        create_internal_tmp_table_from_heap() in sql_select.cc.
-      */
-      delete table->file;
-      table->file= NULL;
-      /* Reset ha_share — old HEAP handler already set it via finalize() */
-      table->s->ha_share= NULL;
-      plugin_unlock(0, table->s->db_plugin);
-      table->s->db_plugin= ha_lock_engine(0, TMP_ENGINE_HTON);
-      if (!(table->file= get_new_handler(table->s, &table->mem_root,
-                                          table->s->db_type())))
-      {
-        my_error(ER_OUTOFMEMORY, MYF(ME_FATAL),
-                 static_cast<int>(sizeof(handler)));
-        return 1;
-      }
-      if (table->file->set_ha_share_ref(&table->s->ha_share))
-      {
-        delete table->file;
-        table->file= NULL;
-        return 1;
-      }
-      table->file->set_table(table);
-    }
-    else
-    {
-      my_error(ER_TABLE_CANT_HANDLE_FT, MYF(0), table->file->table_type());
-      return 1;
-    }
+    my_error(ER_TABLE_CANT_HANDLE_FT, MYF(0), table->file->table_type());
+    return 1;
   }
   table->fulltext_searched=1;
   return agg_arg_charsets_for_comparison(cmp_collation, args+1, arg_count-1);

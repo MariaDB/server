@@ -868,17 +868,28 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     SELECT is last SELECT of UNION).
   */
   thd->create_tmp_table_for_derived= TRUE;
-  if (!(derived->table) &&
-      derived->derived_result->create_result_table(thd, &unit->types, FALSE,
-                                                   (first_select->options |
-                                                   thd->variables.option_bits |
-                                                   TMP_TABLE_ALL_COLUMNS),
-                                                   &derived->alias,
-                                                   FALSE, FALSE, keep_row_order,
-                                                   0))
-  { 
-    thd->create_tmp_table_for_derived= FALSE;
-    goto exit;
+  {
+    ulonglong create_options= (first_select->options |
+                               thd->variables.option_bits |
+                               TMP_TABLE_ALL_COLUMNS);
+    /*
+      Force a disk-based engine when the outer query uses FULLTEXT
+      functions, since HEAP does not support FULLTEXT indexes.
+    */
+    if (derived->select_lex &&
+        derived->select_lex->ftfunc_list->elements)
+      create_options= create_options | TMP_TABLE_FORCE_MYISAM;
+
+    if (!(derived->table) &&
+        derived->derived_result->create_result_table(thd, &unit->types, FALSE,
+                                                     create_options,
+                                                     &derived->alias,
+                                                     FALSE, FALSE,
+                                                     keep_row_order, 0))
+    {
+      thd->create_tmp_table_for_derived= FALSE;
+      goto exit;
+    }
   }
   thd->create_tmp_table_for_derived= FALSE;
 
