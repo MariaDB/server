@@ -2,6 +2,16 @@ IF(NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/duckdb/CMakeLists.txt)
   return()
 ENDIF()
 
+IF(WIN32)
+  return()
+ENDIF()
+
+IF(NOT (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR
+        CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64" OR
+        CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64"))
+  return()
+ENDIF()
+
 # libduckdb_bundle.a is built without debug STL wrappers.
 # Mismatched _GLIBCXX_DEBUG changes sizeof(std::vector) → SIGSEGV.
 SET(CMAKE_CXX_FLAGS_DEBUG
