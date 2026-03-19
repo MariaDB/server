@@ -1058,7 +1058,8 @@ static ATTRIBUTE_COLD lsn_t srv_prepare_to_delete_redo_log_file() noexcept
   /* Clean the buffer pool. */
   buf_flush_sync_batch(0, false);
 
-  DBUG_EXECUTE_IF("innodb_log_abort_1", DBUG_RETURN(0););
+  DBUG_EXECUTE_IF("innodb_log_abort_1", recv_sys.recovery_on= false;
+                  DBUG_RETURN(0););
   DBUG_PRINT("ib_log", ("After innodb_log_abort_1"));
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
@@ -1550,16 +1551,17 @@ dberr_t srv_start(bool create_new_db)
 			assumption does not hold. */
 			ut_d(os_aio_wait_until_no_pending_writes(false));
 
-			/* Close the redo log file, so that we can replace it */
-			log_sys.close_file();
-
 			DBUG_EXECUTE_IF("innodb_log_abort_5",
-					srv_was_started = false;
+					recv_sys.recovery_on = false;
+					recv_no_log_write = false;
 					log_sys.latch.wr_unlock();
 					mysql_mutex_unlock(
 						&buf_pool.flush_list_mutex);
 					return(srv_init_abort(DB_ERROR)););
 			DBUG_PRINT("ib_log", ("After innodb_log_abort_5"));
+
+			/* Close the redo log file, so that we can replace it */
+			log_sys.close_file();
 
 			err = create_log_file(false, lsn);
 
