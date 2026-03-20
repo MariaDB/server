@@ -1,4 +1,3 @@
-
 --source include/no_protocol.inc
 --source include/not_embedded.inc
 
@@ -179,3 +178,12 @@ SET SESSION transaction_isolation='REPEATABLE-READ';
 --disable_session_track_info
 
 --echo # End of 11.1 tests
+
+--echo # Session tracking with database charset utf16
+CREATE DATABASE testdb CHARACTER SET utf16;
+--echo # tracking info on once
+--enable_session_track_info ONCE
+USE testdb;
+DROP DATABASE testdb;
+
+--echo # End of 11.4 tests
