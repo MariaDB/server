@@ -917,7 +917,7 @@ bool fil_space_free(uint32_t id, bool x_latched) noexcept
 		}
 
 		if (!recv_recovery_is_on()) {
-			log_sys.latch.wr_lock(SRW_LOCK_CALL);
+			log_sys.latch.wr_lock();
 
 			if (space->max_lsn) {
 				ut_d(space->max_lsn = 0);
@@ -1596,7 +1596,7 @@ fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
   fil_system.named_spaces. Before we set the STOPPING_WRITES flag, another
   concurrent operation could have marked the tablespace dirty again.
   This clean-up corresponds to fil_space_free(). */
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock();
   ut_ad((space->pending() & ~NEEDS_FSYNC) == (STOPPING | CLOSING));
   if (space->max_lsn != 0)
   {
