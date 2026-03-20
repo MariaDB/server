@@ -5053,6 +5053,8 @@ Needs to be done for indexes that are being added with inplace ALTER
 in a different thread, because from the server point of view these
 columns are not yet indexed.
 Also needed if the primary key is being updated.
+Also needed for an update of any indexed column, as the undo logging of
+such an update logs the values of all keys.
 */
 void ha_innobase::column_bitmaps_signal()
 {
@@ -5078,7 +5080,22 @@ void ha_innobase::column_bitmaps_signal()
     }
   }
 
-  if (!is_online_log && !upd_pk)
+  bool need_vcols= is_online_log || upd_pk;
+  if (!need_vcols)
+  {
+    for (uint i= 0; i < table->s->fields; i++)
+    {
+      if (!bitmap_is_set(table->write_set, i))
+        continue;
+      if (!table->field[i]->part_of_key.is_clear_all())
+      {
+        need_vcols= true;
+        break;
+      }
+    }
+  }
+
+  if (!need_vcols)
     return;
 
   uint num_v= 0;

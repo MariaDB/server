@@ -1,0 +1,22 @@
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+CREATE TABLE t1(
+pk INT AUTO_INCREMENT,
+a INT DEFAULT 0,
+b BLOB DEFAULT 0,
+KEY (a),
+PRIMARY KEY (pk),
+UNIQUE (b)
+) ENGINE=InnoDB STATS_PERSISTENT= 0;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connect  con1,localhost,root,,;
+INSERT INTO t1 (pk, b) VALUES(1, 0);
+DELETE FROM t1;
+INSERT INTO t1 (pk, b) VALUES(1, 0);
+UPDATE t1 SET a = 2;
+disconnect con1;
+connection default;
+COMMIT;
+InnoDB		0 transactions not purged
+DROP TABLE t1;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
