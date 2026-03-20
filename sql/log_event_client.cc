@@ -1132,7 +1132,11 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
                                          &m_cols, value,
                                          (const uchar*) "", TRUE)))
     {
-      fprintf(stderr, "\nError row length: %zu\n", length1);
+      fprintf(stderr,
+              "\nError parsing row event in mysqlbinlog --flashback:\n"
+              "  Row length: %zu\n"
+              "  Expected: valid row data (> 0 length)\n",
+              length1);
       exit(1);
     }
     value+= length1;
@@ -1155,7 +1159,11 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
                                            &m_cols, value,
                                            (const uchar*) "", TRUE)))
       {
-        fprintf(stderr, "\nError row length: %zu\n", length2);
+        fprintf(stderr,
+                "\nError parsing row event in mysqlbinlog --flashback:\n"
+                "  Row length: %zu\n"
+                "  Expected: valid row data (> 0 length)\n",
+                length2);
         exit(1);
       }
       value+= length2;
