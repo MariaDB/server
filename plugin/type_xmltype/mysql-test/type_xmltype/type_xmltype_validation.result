@@ -1,0 +1,132 @@
+set @schema= '<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+<xs:element name="note">
+  <xs:complexType>
+    <xs:sequence>
+      <xs:element name="to" type="xs:string"/>
+      <xs:element name="from" type="xs:string"/>
+      <xs:element name="heading" type="xs:string"/>
+      <xs:element name="body" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:element>
+
+</xs:schema>';
+
+
+set @xml= '<a> If <b> 123 </b> </a>';
+
+select XMLISVALID(@xml, @schema);
+XMLISVALID(@xml, @schema)
+0
+
+set @xml= '<?xml version="1.0"?>
+<note>
+  <to>JOHN</to>
+  <from>MARY</from>
+  <heading>Reminder</heading>
+  <body>Take care!</body>
+</note>';
+
+select XMLISVALID(@xml, @schema);
+XMLISVALID(@xml, @schema)
+1
+
+set @schema= '<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <!-- Order status type-->
+  <xs:simpleType name="StatusType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="New"/>
+      <xs:enumeration value="In process"/>
+      <xs:enumeration value="Finished"/>
+      <xs:enumeration value="Discarded"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Order content -->
+  <xs:element name="order">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="id" type="xs:integer"/>
+        <xs:element name="status" type="StatusType"/>
+        <xs:element name="amount" type="xs:decimal"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>';
+
+select XMLISVALID(@xml, @schema);
+XMLISVALID(@xml, @schema)
+0
+
+set @xml= '<?xml version="1.0"?>
+<order>
+  <id>1001</id>
+  <status>In process</status>
+  <amount>2500.50</amount>
+</order>';
+
+select XMLISVALID(@xml, @schema);
+
+set @schema= '<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <!-- Book type definition -->
+  <xs:complexType name="BookType">
+    <xs:sequence>
+      <xs:element name="title" type="xs:string"/>
+      <xs:element name="author" type="xs:string"/>
+      <xs:element name="year" type="xs:integer"/>
+      <xs:element name="price" type="xs:decimal"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <!-- Library element -->
+  <xs:element name="library">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="book" type="BookType" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>';
+
+select XMLISVALID(@xml, @schema);
+XMLISVALID(@xml, @schema)
+1
+
+set @xml= '<?xml version="1.0"?>
+<?xml version="1.0"?>
+<library>
+  <book id="b001">
+    <title>War and peace. Volume1</title>
+    <author>L.Tolstoy</author>
+    <year>1966</year>
+    <price>750.00</price>
+  </book>
+  <book id="b002">
+    <title>War and peace. Volume2</title>
+    <author>L.Tolstoy</author>
+    <year>1967</year>
+    <price>650.00</price>
+  </book>
+  <book id="b003">
+    <title>War and peace. Volume3</title>
+    <author>L.Tolstoy</author>
+    <year>1968</year>
+    <price>550.00</price>
+  </book>
+</library>';
+
+select XMLISVALID(@xml, @schema);
+XMLISVALID(@xml, @schema)
+0
+
+--echo # End of 11.8 tests
+
