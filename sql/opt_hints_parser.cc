@@ -852,7 +852,7 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
         */
         st_select_lex_unit *unit= target_select->master_unit();
         uint base_select_num= unit->first_select()->select_number;
-        uint target_select_num= base_select_num + (hint_select_num - 1);
+        uint target_select_num= base_select_num + (uint) (hint_select_num - 1);
         /*
           Traverse the global SELECT_LEX list to find SELECT_LEX
           with target_select_num
@@ -876,7 +876,7 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
             pc->thd, Sql_condition::WARN_LEVEL_WARN,
             ER_WARN_QB_NAME_PATH_SELECT_NOT_FOUND,
             ER_THD(pc->thd, ER_WARN_QB_NAME_PATH_SELECT_NOT_FOUND),
-            str.c_ptr_safe(), hint_select_num, elem_num);
+            str.c_ptr_safe(), (uint) hint_select_num, elem_num);
           return false;
         }
       }
