@@ -65,6 +65,18 @@
 #define NO_SET_STMT sys_var::NO_SET_STATEMENT+
 
 extern const char *UNUSED_HELP;
+/* Used by the sys_var class to store temporary values */
+union
+{
+  my_bool   my_bool_value;
+  int       int_value;
+  uint      uint_value;
+  long      long_value;
+  ulong     ulong_value;
+  ulonglong ulonglong_value;
+  double    double_value;
+  void      *ptr_value;
+} global_sys_var_tmp;
 
 /*
   Sys_var_bit meaning is reversed, like in
@@ -2013,8 +2025,11 @@ public:
 
   uchar *valptr(THD *thd, ulonglong val) const
   {
-    thd->sys_var_tmp.my_bool_value= (reverse_semantics == !(val & bitmask));
-    return (uchar*) &thd->sys_var_tmp.my_bool_value;
+    /* TODO: incomplete */
+    my_bool *ptr= thd ? &thd->sys_var_tmp.my_bool_value :
+                        &global_sys_var_tmp.my_bool_value;
+    *ptr= (reverse_semantics == !(val & bitmask));
+    return (uchar*) ptr;
   }
   const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, session_var(thd, ulonglong)); }

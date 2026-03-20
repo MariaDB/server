@@ -669,6 +669,7 @@ Rpl_filter* global_rpl_filter;
 Rpl_filter* binlog_filter;
 
 struct system_variables global_system_variables;
+Session_sysvars_tracker cached_sysvars_tracker;
 /**
   Following is just for options parsing, used with a difference against
   global_system_variables.
@@ -2071,6 +2072,7 @@ static void clean_up(bool print_message)
   free_error_messages();
   /* Tell main we are ready */
   logger.cleanup_end();
+  cached_sysvars_tracker.deinit();
   sys_var_end();
   free_charsets();
 
@@ -6014,6 +6016,9 @@ int mysqld_main(int argc, char **argv)
 
   if (init_server_components())
     unireg_abort(1);
+
+  cached_sysvars_tracker.enable(NULL);
+  cached_sysvars_tracker.store_all();
 
   init_ssl();
   network_init();

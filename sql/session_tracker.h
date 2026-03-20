@@ -169,21 +169,21 @@ class Session_sysvars_tracker: public State_tracker
                my_hash_element(&m_registered_sysvars, i));
     }
 
-    sysvar_node_st *insert_or_search(const sys_var *svar)
+    sysvar_node_st *insert_or_search(THD *thd, const sys_var *svar)
     {
       sysvar_node_st *res= search(svar);
       if (!res)
       {
         if (track_all)
         {
-          insert(svar);
+          insert(thd, svar);
           return search(svar);
         }
       }
       return res;
     }
 
-    bool insert(const sys_var *svar);
+    bool insert(THD* thd, const sys_var *svar);
     void reinit();
     void reset();
     inline bool is_enabled()
@@ -210,6 +210,7 @@ public:
   bool enable(THD *thd) override;
   bool update(THD *thd, set_var *var) override;
   bool store(THD *thd, String *buf) override;
+  bool store_all();
   void mark_as_changed(THD *thd, const sys_var *var);
   void mark_all_as_changed(THD *thd);
   void deinit() { orig_list.deinit(); }
@@ -218,6 +219,8 @@ public:
                                       my_bool);
 
   friend bool sysvartrack_global_update(THD *thd, char *str, size_t len);
+private:
+  StringBuffer<MYSQL_ERRMSG_SIZE + 10> m_cached_global_store;
 };
 
 

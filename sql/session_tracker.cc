@@ -79,13 +79,13 @@ sysvar_node_st *Session_sysvars_tracker::vars_list::search(const sys_var *svar)
   @retval true  error
 */
 
-bool Session_sysvars_tracker::vars_list::insert(const sys_var *svar)
+bool Session_sysvars_tracker::vars_list::insert(THD *thd, const sys_var *svar)
 {
   sysvar_node_st *node;
   if (!(node= (sysvar_node_st *) my_malloc(PSI_INSTRUMENT_ME,
                                            sizeof(sysvar_node_st),
                                            MYF(MY_WME |
-                                               (mysqld_server_initialized ?
+                                               (thd ?
                                                 MY_THREAD_SPECIFIC : 0)))))
     return true;
 
@@ -170,7 +170,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     }
     else if ((svar= find_sys_var(thd, var.str, var.length, throw_error)))
     {
-      if (insert(svar) == TRUE)
+      if (insert(thd, svar) == TRUE)
         return true;
     }
     else if (throw_error && thd)
@@ -368,8 +368,9 @@ bool Session_sysvars_tracker::enable(THD *thd)
 {
   orig_list.reinit();
   m_parsed= false;
-  m_enabled= thd->variables.session_track_system_variables &&
-             *thd->variables.session_track_system_variables;
+  system_variables *variables= thd ? &thd->variables : &global_system_variables;
+  m_enabled= variables->session_track_system_variables &&
+             *variables->session_track_system_variables;
   reset_changed();
   return false;
 }
@@ -456,7 +457,8 @@ bool Session_sysvars_tracker::vars_list::store(THD *thd, String *buf)
     show.name= svar->name.str;
     show.value= (char *) svar;
 
-    const char *value= get_one_variable(thd, &show, OPT_SESSION, SHOW_SYS, NULL,
+    enum_var_type vtype= thd ? OPT_SESSION : OPT_GLOBAL;
+    const char *value= get_one_variable(thd, &show, vtype, SHOW_SYS, NULL,
                                         &charset, val_buf, &val_length);
 
     if (is_plugin)
@@ -517,15 +519,24 @@ bool Session_sysvars_tracker::store(THD *thd, String *buf)
   return false;
 }
 
+bool Session_sysvars_tracker::store_all()
+{
+  mark_all_as_changed(NULL);
+  store(NULL, &m_cached_global_store);
+  return false;
+}
+
 /* Parse all session track system variables if not parsed yet. */
 void Session_sysvars_tracker::maybe_parse_all(THD *thd)
 {
+  system_variables *variables= thd ? &thd->variables : &global_system_variables;
   if (!m_parsed)
   {
-    DBUG_ASSERT(thd->variables.session_track_system_variables);
-    LEX_STRING tmp= { thd->variables.session_track_system_variables,
-                      strlen(thd->variables.session_track_system_variables) };
-    if (orig_list.parse_var_list(thd, tmp, true, thd->charset()))
+    DBUG_ASSERT(variables->session_track_system_variables);
+    LEX_STRING tmp= { variables->session_track_system_variables,
+                      strlen(variables->session_track_system_variables) };
+    if (orig_list.parse_var_list(thd, tmp, true,
+                                 variables->character_set_client))
     {
       orig_list.reinit();
       return;
@@ -553,7 +564,7 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd, const sys_var *var)
     Check if the specified system variable is being tracked, if so
     mark it as changed and also set the class's m_changed flag.
   */
-  if (orig_list.is_enabled() && (node= orig_list.insert_or_search(var)))
+  if (orig_list.is_enabled() && (node= orig_list.insert_or_search(thd, var)))
   {
     node->m_changed= true;
     set_changed(thd);
@@ -573,7 +584,8 @@ void Session_sysvars_tracker::mark_all_as_changed(THD *thd)
   for (ulong i= 0; i < orig_list.size(); i++)
   {
     orig_list.at(i)->m_changed= true;
-    set_changed(thd);
+    if (thd)
+      set_changed(thd);
   }
 }
 
