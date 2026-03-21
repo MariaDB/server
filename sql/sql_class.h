@@ -4568,7 +4568,6 @@ public:
     return;
   }
   int is_killed() { return killed; }
-  THD* get_thd() { return this; }
 
   /**
     A callback to the server internals that is used to address
