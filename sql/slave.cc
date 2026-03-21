@@ -26,6 +26,8 @@
 */
 
 #include "mariadb.h"
+#include "my_sys.h"
+#include "mysql.h"
 #include "sql_priv.h"
 #include "slave.h"
 #include "sql_parse.h"                         // execute_init_command
@@ -1706,17 +1708,37 @@ int init_strvar_from_file(char *var, int max_size, IO_CACHE *f,
 int init_intvar_from_file(int* var, IO_CACHE* f, int default_val)
 {
   char buf[32];
+  size_t length;
   DBUG_ENTER("init_intvar_from_file");
 
-
-  if (my_b_gets(f, buf, sizeof(buf)))
+  if ((length= my_b_gets(f, buf, sizeof(buf))))
   {
-    *var = atoi(buf);
+    char *end;
+    char *last_p= buf + length - 1;
+
+    if (*last_p != '\n')
+    {
+      //The line was truncated because it exceeded the buffer size.
+      int c;
+      while ((c= my_b_get(f)) != '\n' && c != my_b_EOF)
+          ;
+
+      sql_print_error("Numeric field in master.info exceeds maximum length");
+      DBUG_RETURN(1);
+    }
+
+    int error;
+    *var= (int) my_strtoll10(buf, &end, &error);
+    if (error || (*end != '\0' && *end != '\n'))
+    {
+      sql_print_error("Invalid numeric value in master.info: trailing garbage detected after integer field");
+      DBUG_RETURN(1);
+    }
     DBUG_RETURN(0);
   }
   else if (default_val)
   {
-    *var = default_val;
+    *var= default_val;
     DBUG_RETURN(0);
   }
   DBUG_RETURN(1);
@@ -1726,13 +1748,29 @@ int init_ulonglongvar_from_file(ulonglong* var, IO_CACHE* f,
                                 ulonglong default_val)
 {
   char buf[MY_INT64_NUM_DECIMAL_DIGITS];
-  int error;
+  size_t length;
   DBUG_ENTER("init_ulonglongvar_from_file");
 
 
-  if (my_b_gets(f, buf, sizeof(buf)))
+  if ((length=my_b_gets(f, buf, sizeof(buf))))  
   {
-    *var = (ulonglong) my_strtoll10(buf, (char**) 0, &error);
+    char *end;
+    char *last_p = buf + length - 1;
+    if(*last_p != '\n') {
+        // The line was truncated because it exceeded the buffer size
+        int c;
+        while((c=my_b_get(f)) != '\n' && c != my_b_EOF)
+            ;
+
+        sql_print_error("Numeric field in master.info exceeds maximum length.");
+        DBUG_RETURN(1);
+    }
+    int error;
+    *var = (ulonglong) my_strtoll10(buf, &end, &error);
+    if (error || (*end != '\0' && *end != '\n')) {
+        sql_print_error("Invalid numeric value in master.info: trailing garbage detected after integer field");
+        DBUG_RETURN(1);
+    }
     DBUG_RETURN(0);
   }
   else if (default_val)
@@ -1746,15 +1784,31 @@ int init_ulonglongvar_from_file(ulonglong* var, IO_CACHE* f,
 int init_floatvar_from_file(float* var, IO_CACHE* f, float default_val)
 {
   char buf[16];
+  size_t length;
+  char *end;
   DBUG_ENTER("init_floatvar_from_file");
 
 
-  if (my_b_gets(f, buf, sizeof(buf)))
+  if ((length=my_b_gets(f, buf, sizeof(buf))))
   {
-    if (sscanf(buf, "%f", var) != 1)
-      DBUG_RETURN(1);
-    else
-      DBUG_RETURN(0);
+    char *last_p = buf + length - 1;
+    if(*last_p != '\n') {
+        // The line was truncated because it exceeds the buffer size
+        int c;
+        while((c=my_b_get(f)) != '\n' && c != my_b_EOF)
+            ;
+
+        sql_print_error("Float field in master.info exceeds maximum length.");
+        DBUG_RETURN(1);
+    }
+    int error;
+    *var = (float) my_strtod(buf, &end, &error);
+    if (error || (*end != '\0' && *end != '\n')) {
+        sql_print_error("Invalid float value in master.info: trailing "
+                        "garbage detected after float field");
+        DBUG_RETURN(1);
+    }
+    DBUG_RETURN(0);
   }
   else if (default_val != 0.0)
   {
