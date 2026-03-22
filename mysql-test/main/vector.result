@@ -892,3 +892,20 @@ t	CREATE TABLE `t` (
   VECTOR KEY `v` (`v`) `distance`=cosine
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t;
+#
+# MDEV-35821 - vector index sizes are not in INDEX_LENGTH
+#
+create table t1 (id int primary key, v vector(1) not null, vector index (v));
+insert into t1 values (1, vec_fromtext('[1]'));
+select index_length > 0 as has_index_length
+from information_schema.tables
+where table_schema = database() and table_name = 't1';
+has_index_length
+1
+flush tables;
+select index_length > 0 as has_index_length
+from information_schema.tables
+where table_schema = database() and table_name = 't1';
+has_index_length
+1
+drop table t1;
