@@ -12,7 +12,7 @@ select * from t1;
 --enable_cursor_protocol
 select hits, statement_text from information_schema.query_cache_info;
 
-drop table t1;
+drop table t1, t2;
 # the query was invalidated
 select statement_schema, statement_text, result_blocks_count, result_blocks_size from information_schema.query_cache_info;
 

@@ -97,7 +97,7 @@ static ST_FIELD_INFO qc_info_fields[]=
   Column("CHARACTER_SET_CLIENT",  CSName(),                           NOT_NULL),
   Column("CHARACTER_SET_RESULT",  CSName(),                           NOT_NULL),
   Column("COLLATION",             CLName(),                           NOT_NULL),
-  Column("TIMEZONE",              Varchar(50),                        NOT_NULL),
+  Column("TIMEZONE",              Varchar(50),                        NULLABLE),
   Column("DEFAULT_WEEK_FORMAT",   SLong(),                            NOT_NULL),
   Column("DIV_PRECISION_INCREMENT",SLong(),                           NOT_NULL),
   Column("SQL_MODE",              Varchar(250),                       NOT_NULL),
@@ -203,11 +203,18 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
     else
       table->field[COLUMN_COLLATION]-> store(STRING_WITH_LEN(unknown), scs);
 
-    tz= flags.time_zone->get_name();
-    if (likely(tz))
-      table->field[COLUMN_TIMEZONE]->store(tz->ptr(), tz->length(), scs);
+    if (flags.time_zone)
+    {
+      tz= flags.time_zone->get_name();
+      if (likely(tz))
+        table->field[COLUMN_TIMEZONE]->store(tz->ptr(), tz->length(), scs);
+      else
+        table->field[COLUMN_TIMEZONE]->store(STRING_WITH_LEN(unknown), scs);
+    }
     else
-      table->field[COLUMN_TIMEZONE]-> store(STRING_WITH_LEN(unknown), scs);
+    {
+      table->field[COLUMN_TIMEZONE]->set_null();
+    }
     table->field[COLUMN_DEFAULT_WEEK_FORMAT]->store(flags.default_week_format, 0);
     table->field[COLUMN_DIV_PRECISION_INCREMENT]->store(flags.div_precision_increment, 0);
 
