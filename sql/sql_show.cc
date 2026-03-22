@@ -6072,6 +6072,17 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
         goto err;
       }
 
+      if (show_table->s->hlindexes())
+      {
+          // make sure hlindex is opened
+          if (show_table->hlindex || !show_table->hlindex_open(show_table->s->keys))
+          {
+              handler *hi= show_table->hlindex->file;
+              if (!hi->info(HA_STATUS_VARIABLE))
+                  file->stats.index_file_length+= hi->stats.data_file_length;
+          }
+      }
+
       enum row_type row_type = file->get_row_type();
       switch (row_type) {
       case ROW_TYPE_NOT_USED:
