@@ -1,5 +1,8 @@
 #ifndef _EVENT_DB_REPOSITORY_H_
 #define _EVENT_DB_REPOSITORY_H_
+
+#include "event_common.h"
+
 /* Copyright (c) 2006, 2011, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
@@ -71,7 +74,7 @@ events_table_scan_all(THD *thd, TABLE *schema_table, TABLE *event_table);
 class Event_basic;
 class Event_parse_data;
 
-class Event_db_repository
+class Event_db_repository : public Event_db_repository_common
 {
 public:
   Event_db_repository() = default;
@@ -99,9 +102,6 @@ public:
                    const LEX_CSTRING *name,
                    Event_basic *et);
 
-  static bool
-  open_event_table(THD *thd, enum thr_lock_type lock_type, TABLE **table);
-
   bool
   fill_schema_events(THD *thd, TABLE_LIST *tables, const char *db);
 
@@ -111,9 +111,7 @@ public:
                                  const LEX_CSTRING *event_name,
                                  my_time_t last_executed,
                                  ulonglong status);
-public:
-  static bool
-  check_system_tables(THD *thd);
+
 private:
   bool
   index_read_for_db_for_i_s(THD *thd, TABLE *schema_table, TABLE *event_table,

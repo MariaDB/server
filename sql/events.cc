@@ -83,7 +83,6 @@ Event_queue *Events::event_queue;
 Event_scheduler *Events::scheduler;
 Event_db_repository *Events::db_repository;
 ulong Events::opt_event_scheduler= Events::EVENTS_OFF;
-ulong Events::startup_state= Events::EVENTS_OFF;
 ulong Events::inited;
 
 
@@ -886,7 +885,7 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
     if (opt_event_scheduler == Events::EVENTS_ON)
       sql_print_error("Event Scheduler will not function when starting with %s",
                       opt_bootstrap ? "--bootstrap" : "--skip-grant-tables");
-    opt_event_scheduler= EVENTS_DISABLED;
+    opt_event_scheduler= Events::EVENTS_DISABLED;
     DBUG_RETURN(FALSE);
   }
 
