@@ -44,6 +44,7 @@
 #include "sp_pcontext.h"
 #include "set_var.h"
 #include "sql_trigger.h"
+#include "sql_sys_or_ddl_trigger.h"
 #include "sql_derived.h"
 #include "sql_statistics.h"
 #include "sql_connect.h"
@@ -2710,7 +2711,7 @@ static const LEX_CSTRING *view_algorithm(TABLE_LIST *table)
 }
 
 
-static bool append_at_host(THD *thd, String *buffer, const LEX_CSTRING *host)
+bool append_at_host(THD *thd, String *buffer, const LEX_CSTRING *host)
 {
   if (!host->str || !host->str[0])
     return false;
@@ -7359,6 +7360,25 @@ err:
 }
 
 
+/**
+  Fill in the table information_schema.triggers with data about
+  both DML and system triggers.
+
+  @param thd     thread handler
+  @param tables  an instance of the struct TABLE_LIST for the table
+                 information_schema.triggers
+
+  @return false on success, true on error
+*/
+
+static int fill_schema_triggers(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  return
+    get_all_tables(thd, tables, cond) ||
+    fill_schema_triggers_from_mysql_events(thd, tables);
+}
+
+
 static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
                                   bool res, const LEX_CSTRING *db_name,
 				  const LEX_CSTRING *table_name)
@@ -8533,6 +8553,9 @@ copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table)
   }
 
   if (!(!wild || !wild[0] || !wild_case_compare(scs, et.name.str, wild)))
+    DBUG_RETURN(0);
+
+  if (et.trigger_event)
     DBUG_RETURN(0);
 
   /*
@@ -9721,7 +9744,8 @@ bool optimize_schema_tables_reads(JOIN *join)
         continue;
 
       /* skip I_S optimizations specific to get_all_tables */
-      if (table_list->schema_table->fill_table != get_all_tables)
+      if (table_list->schema_table->fill_table != get_all_tables &&
+          table_list->schema_table->fill_table != fill_schema_triggers)
         continue;
 
       Item *cond= tab->select_cond;
@@ -9816,7 +9840,8 @@ bool get_schema_tables_result(JOIN *join,
 
       /* skip I_S optimizations specific to get_all_tables */
       if (lex->describe &&
-          (table_list->schema_table->fill_table != get_all_tables))
+          (table_list->schema_table->fill_table != get_all_tables &&
+           table_list->schema_table->fill_table != fill_schema_triggers))
         continue;
 
       /*
@@ -11052,7 +11077,7 @@ ST_SCHEMA_TABLE schema_tables[]=
    Show::table_privileges_fields_info, 0,
    fill_schema_table_privileges, 0, 0, -1, -1, 0, 0},
   {"TRIGGERS"_Lex_ident_i_s_table, Show::triggers_fields_info, 0,
-   get_all_tables, make_old_format, get_schema_triggers_record, 5, 6, 0,
+   fill_schema_triggers, make_old_format, get_schema_triggers_record, 5, 6, 0,
    OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
   {"TRIGGERED_UPDATE_COLUMNS"_Lex_ident_i_s_table,
    Show::triggered_update_columns_info, 0, get_all_tables, 0,
@@ -11141,6 +11166,81 @@ int finalize_schema_table(void *plugin_)
 
 
 /**
+  Construct and send header of SHOW CREATE TRIGGER statement to the client
+
+  @param thd       Thread context
+  @param mem_root  Memory root
+  @param trigger   Client protocol
+  @param trg_sql_mode_str  Text representation of sql_mode value
+  @param trg_sql_original_stmt  Original CREATE TRIGGER statement used to
+                                create the trigger
+
+  @return false on success, true on error
+*/
+
+bool send_show_create_trigger_metadata(THD *thd, MEM_ROOT *mem_root,
+                                       Protocol *p,
+                                       const LEX_CSTRING &trg_sql_mode_str,
+                                       LEX_CSTRING trg_sql_original_stmt)
+{
+  List<Item> fields;
+
+  /* Send header. */
+
+  fields.push_back(new (mem_root) Item_empty_string(thd, "Trigger", NAME_LEN),
+                   mem_root);
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "sql_mode",
+                                     (uint)trg_sql_mode_str.length),
+                   mem_root);
+
+  {
+    /*
+      NOTE: SQL statement field must be not less than 1024 in order not to
+      confuse old clients.
+    */
+
+    Item_empty_string *stmt_fld=
+      new (mem_root) Item_empty_string(
+        thd, "SQL Original Statement",
+        (uint)MY_MAX(trg_sql_original_stmt.length, 1024));
+
+    stmt_fld->set_maybe_null();
+
+    fields.push_back(stmt_fld, mem_root);
+  }
+
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "character_set_client",
+                                     MY_CS_CHARACTER_SET_NAME_SIZE),
+                   mem_root);
+
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "collation_connection",
+                                     MY_CS_COLLATION_NAME_SIZE),
+                   mem_root);
+
+  fields.push_back(new (mem_root)
+                   Item_empty_string(thd, "Database Collation",
+                                     MY_CS_COLLATION_NAME_SIZE),
+                   mem_root);
+
+  static const Datetime zero_datetime(Datetime::zero());
+  Item_datetime_literal *tmp= (new (mem_root)
+                               Item_datetime_literal(thd, &zero_datetime, 2));
+  tmp->set_name(thd, Lex_cstring(STRING_WITH_LEN("Created")));
+  fields.push_back(tmp, mem_root);
+
+  if (p->send_result_set_metadata(&fields,
+                                  Protocol::SEND_NUM_ROWS |
+                                  Protocol::SEND_EOF))
+    return true;
+
+  return false;
+}
+
+
+/**
   Output trigger information (SHOW CREATE TRIGGER) to the client.
 
   @param thd          Thread context.
@@ -11155,7 +11255,6 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
 {
   int ret_code;
   Protocol *p= thd->protocol;
-  List<Item> fields;
   LEX_CSTRING trg_sql_mode_str, trg_body;
   LEX_CSTRING trg_sql_original_stmt;
   LEX_STRING trg_definer;
@@ -11185,55 +11284,10 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
                       MYF(utf8_flag)))
     return TRUE;
 
-  /* Send header. */
-
-  fields.push_back(new (mem_root) Item_empty_string(thd, "Trigger", NAME_LEN),
-                   mem_root);
-  fields.push_back(new (mem_root)
-                   Item_empty_string(thd, "sql_mode", (uint)trg_sql_mode_str.length),
-                   mem_root);
-
-  {
-    /*
-      NOTE: SQL statement field must be not less than 1024 in order not to
-      confuse old clients.
-    */
-
-    Item_empty_string *stmt_fld=
-      new (mem_root) Item_empty_string(thd, "SQL Original Statement",
-                                       (uint)MY_MAX(trg_sql_original_stmt.length,
-                                              1024));
-
-    stmt_fld->set_maybe_null();
-
-    fields.push_back(stmt_fld, mem_root);
-  }
-
-  fields.push_back(new (mem_root)
-                   Item_empty_string(thd, "character_set_client",
-                                     MY_CS_CHARACTER_SET_NAME_SIZE),
-                   mem_root);
-
-  fields.push_back(new (mem_root)
-                   Item_empty_string(thd, "collation_connection",
-                                     MY_CS_COLLATION_NAME_SIZE),
-                   mem_root);
-
-  fields.push_back(new (mem_root)
-                   Item_empty_string(thd, "Database Collation",
-                                     MY_CS_COLLATION_NAME_SIZE),
-                   mem_root);
-
-  static const Datetime zero_datetime(Datetime::zero());
-  Item_datetime_literal *tmp= (new (mem_root) 
-                               Item_datetime_literal(thd, &zero_datetime, 2));
-  tmp->set_name(thd, Lex_cstring(STRING_WITH_LEN("Created")));
-  fields.push_back(tmp, mem_root);
-
-  if (p->send_result_set_metadata(&fields,
-                                  Protocol::SEND_NUM_ROWS |
-                                  Protocol::SEND_EOF))
-    return TRUE;
+  if (send_show_create_trigger_metadata(thd, mem_root, p,
+                                        trg_sql_mode_str,
+                                        trg_sql_original_stmt))
+    return true;
 
   /* Send data. */
 
@@ -11313,11 +11367,14 @@ TABLE_LIST *get_trigger_table(THD *thd, const sp_name *trg_name)
   LEX_CSTRING tbl_name;
   TABLE_LIST *table;
 
-  build_trn_path(thd, trg_name, (LEX_STRING*) &trn_path);
+  build_trn_path(trg_name, (LEX_STRING*) &trn_path);
 
   if (check_trn_exists(&trn_path))
   {
-    my_error(ER_TRG_DOES_NOT_EXIST, MYF(0));
+    /*
+      Don't call my_error(ER_TRG_DOES_NOT_EXIST) to set an error in DA
+      since it will be done later in the function show_create_sys_trigger()
+    */
     return NULL;
   }
 
@@ -11354,14 +11411,18 @@ TABLE_LIST *get_trigger_table(THD *thd, const sp_name *trg_name)
 
 bool show_create_trigger(THD *thd, const sp_name *trg_name)
 {
-  TABLE_LIST *lst= get_trigger_table(thd, trg_name);
   uint num_tables; /* NOTE: unused, only to pass to open_tables(). */
   Table_triggers_list *triggers;
   Trigger *trigger;
   bool error= TRUE;
 
+  /* First check whether the trigger is system trigger */
+
+  TABLE_LIST *lst= get_trigger_table(thd, trg_name);
+
+  /* lst == nullptr in case there is no any trigger on DML event */
   if (!lst)
-    return TRUE;
+    return show_create_sys_trigger(thd, trg_name);
 
   if (check_table_access(thd, TRIGGER_ACL, lst, FALSE, 1, TRUE))
   {

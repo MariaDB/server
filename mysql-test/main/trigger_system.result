@@ -1,0 +1,141 @@
+#
+# MDEV-30645: CREATE TRIGGER FOR { STARTUP | SHUTDOWN }
+#
+# Test 1: Check that AFTER STARTUP trigger and BEFORE SHUTDOWN trigger
+#         are fired at right time
+CREATE TABLE t1 (a VARCHAR(100));
+CREATE TRIGGER IF NOT EXISTS trg1 AFTER STARTUP INSERT INTO t1 VALUES('Startup');
+# BEFORE SHUTDOWN should be in action just after it has been created.
+# So, after restarting the server the record about server shutdown should
+# be inserted into the table t1.
+CREATE TRIGGER IF NOT EXISTS trg2 BEFORE SHUTDOWN INSERT INTO t1 VALUES('Shutdown');
+# restart
+SELECT * FROM t1;
+a
+Shutdown
+Startup
+# Clean up
+DROP TABLE t1;
+DROP TRIGGER trg1;
+DROP TRIGGER trg2;
+#
+# Test 2: Check that ON STARTUP/ON SHUTDOWN can't be created
+#         w/o the SUPER privilege
+#
+# Check that ON STARTUP/ON SHUTDOWN can be created w/o the SUPER privilege
+CREATE USER u1;
+GRANT SELECT ON test.* TO u1;
+connect  con1, localhost, u1, , test;
+# The following CREATE TRIGGER AFTER STARTUP statement should fail with
+# the error ER_SPECIFIC_ACCESS_DENIED_ERROR since the user `u1` doesn't
+# have the SUPER privilege
+CREATE TRIGGER IF NOT EXISTS trg1 AFTER STARTUP SET @a=1;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+# The following CREATE TRIGGER BEFORE SHUTDOWN statement should fail with
+# the error ER_SPECIFIC_ACCESS_DENIED_ERROR since the user `u1` doesn't
+# have the SUPER privilege
+CREATE TRIGGER IF NOT EXISTS trg1 BEFORE SHUTDOWN SET @b=1;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+connection default;
+disconnect con1;
+DROP USER u1;
+#
+# Test 3: Check that a user with the explicitly granted the SUPER privilege
+#         can create a system trigger on STARTUP/on SHUTDOWN
+#
+CREATE USER u1;
+GRANT SELECT ON test.* TO u1;
+GRANT SUPER ON *.* TO u1;
+connect  con1, localhost, u1, , test;
+# The following CREATE TRIGGER AFTER STARTUP statement and
+# CREATE TRIGGER BEFORE SHUTDOWN statement should succeed
+# since the SUPER privilege is granted to the user `u1`
+CREATE TRIGGER IF NOT EXISTS trg1 AFTER STARTUP INSERT INTO t1 VALUES('Startup');
+CREATE TRIGGER IF NOT EXISTS trg2 BEFORE SHUTDOWN INSERT INTO t1 VALUES('Shutdown');
+connection default;
+disconnect con1;
+# Clean up
+DROP TRIGGER trg1;
+DROP TRIGGER trg2;
+DROP USER u1;
+#
+# Test 4: Check that it is not possible to create a System trigger
+#         and a DML trigger with the same name
+#
+CREATE TABLE t1 (a INT);
+# First check that DML trigger can 't be created with the same name
+# as the existing system trigger
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET @a=1;
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+ERROR HY000: Trigger 'test.trg1' already exists
+DROP TRIGGER trg1;
+# And then check in reverse order: a system trigger can't be created
+# on presence of DML trigger with the same name
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET @a=1;
+ERROR HY000: Trigger 'test.trg1' already exists
+# Clean up
+DROP TRIGGER trg1;
+DROP TABLE t1;
+#
+# Test 5: Check that multiple triggers can be created on the same
+#         system event
+#
+CREATE TABLE t1 (a VARCHAR(100));
+CREATE TRIGGER IF NOT EXISTS trg1_ast AFTER STARTUP INSERT INTO t1 VALUES('Startup: first action');
+CREATE TRIGGER IF NOT EXISTS trg2_ast AFTER STARTUP INSERT INTO t1 VALUES('Startup: second action');
+# BEFORE SHUTDOWN should be in action just after it has been created.
+# So, after restarting the server the record about server shutdown should
+# be inserted into the table t1.
+CREATE TRIGGER IF NOT EXISTS trg3_bshd BEFORE SHUTDOWN INSERT INTO t1 VALUES('Shutdown: first action');
+CREATE TRIGGER IF NOT EXISTS trg4_bshd BEFORE SHUTDOWN INSERT INTO t1 VALUES('Shutdown: second action');
+# restart
+SELECT * FROM t1;
+a
+Shutdown: first action
+Shutdown: second action
+Startup: first action
+Startup: second action
+# Clean up
+DROP TABLE t1;
+DROP TRIGGER trg1_ast;
+DROP TRIGGER trg2_ast;
+DROP TRIGGER trg3_bshd;
+DROP TRIGGER trg4_bshd;
+#
+# Test 6: SHOW TRIGGERS on a system trigger
+#
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+SHOW TRIGGERS;
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+trg1	STARTUP		SET @b=1	AFTER	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+# Clean up
+DROP TRIGGER trg1;
+#
+# Test 7: SHOW CREATE TRIGGER on a system trigger
+#
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+SHOW CREATE TRIGGER trg1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+trg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER trg1 AFTER STARTUP SET @b=1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
+# Clean up
+DROP TRIGGER trg1;
+#
+# Test 8: Check that triggers and events have the same namespace
+#
+# Test 8.1 Check that attempt to create a trigger with the same name
+#          as existent event result in error
+CREATE EVENT ev1 ON SCHEDULE EVERY 1 YEAR DO SET @aaa=1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
+CREATE TRIGGER ev1 AFTER STARTUP SET @bbb=1;
+ERROR HY000: Event with the same name 'ev1' already exists
+# Clean up
+DROP EVENT ev1;
+# Test 8.2 Check that attempt to create an event with the same name as
+#          as existen trigger result in error
+CREATE TRIGGER trg1 AFTER STARTUP SET @bbb=1;
+CREATE EVENT trg1 ON SCHEDULE EVERY 1 YEAR DO SET @aaa=1;
+ERROR HY000: Trigger with the same name 'trg1' already exists
+# Clean up
+DROP TRIGGER trg1;
