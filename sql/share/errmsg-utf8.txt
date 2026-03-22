@@ -960,7 +960,7 @@ ER_OUTOFMEMORY HY001 S1001
         chi "内存不足; 重启后重试(需要 %d bytes)"
         cze "Málo paměti. Přestartujte daemona a zkuste znovu (je potřeba %d bytů)"
         dan "Ikke mere hukommelse. Genstart serveren og prøv igen (mangler %d bytes)"
-        eng "Out of memory; restart server and try again (needed %d bytes)"
+        eng "Out of memory; restart server and try again (needed %zu bytes)"
         est "Mälu  sai otsa. Proovi MariaDB uuesti käivitada (puudu jäi %d baiti)"
         fre "Manque de mémoire. Redémarrez le démon et ré-essayez (%d octets nécessaires)"
         ger "Kein Speicher vorhanden (%d Bytes benötigt). Bitte Server neu starten"

@@ -4317,7 +4317,7 @@ ibb_xid_hash::add_xid(const XID *xid, uint64_t refcnt_file_no, LF_PINS *pins,
     (xid_elem *)my_malloc(mem_key_binlog, sizeof(xid_elem), MYF(MY_WME));
   if (UNIV_UNLIKELY(!e))
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(xid_elem));
+    my_error(ER_OUTOFMEMORY, MYF(0), sizeof(xid_elem));
     return true;
   }
   e->xid.set(xid);

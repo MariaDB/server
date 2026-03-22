@@ -1258,7 +1258,7 @@ static bool login_connection(THD *thd)
   /*  Updates global user connection stats. */
   if (increment_connection_count(thd))
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int) (2*sizeof(USER_STATS)));
+    my_error(ER_OUTOFMEMORY, MYF(0), (2*sizeof(USER_STATS)));
     error= 1;
     goto exit;
   }
@@ -1317,7 +1317,7 @@ void end_connection(THD *thd)
              ? thd->get_stmt_da()->message() : ER_THD(thd, ER_UNKNOWN_ERROR));
 
   if (decrement_connection_count(thd))
-    my_error(ER_OUTOFMEMORY, MYF(ME_ERROR_LOG), (int) (2*sizeof(USER_STATS)));
+    my_error(ER_OUTOFMEMORY, MYF(ME_ERROR_LOG), (2*sizeof(USER_STATS)));
 }
 
 

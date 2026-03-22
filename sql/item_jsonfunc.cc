@@ -2500,7 +2500,7 @@ String *Item_func_json_array_insert::val_str(String *str)
       my_ptrdiff_t size= item_pos - js->ptr();
       if (append_simple(str, js->ptr(), size))
       {
-        my_error(ER_OUTOFMEMORY, MYF(0), (int) size);
+        my_error(ER_OUTOFMEMORY, MYF(0), size);
         goto return_null; /* Out of memory. */
       }
       if (n_item > 0 && str->append(" ", 1))
@@ -2526,7 +2526,7 @@ String *Item_func_json_array_insert::val_str(String *str)
       size= js->end() - item_pos;
       if (append_simple(str, item_pos, size))
       {
-        my_error(ER_OUTOFMEMORY, MYF(0), (int) size);
+        my_error(ER_OUTOFMEMORY, MYF(0), size);
         goto return_null; /* Out of memory. */
       }
     }
@@ -2539,7 +2539,7 @@ String *Item_func_json_array_insert::val_str(String *str)
       size= item_pos - js->ptr();
       if (append_simple(str, js->ptr(), size))
       {
-        my_error(ER_OUTOFMEMORY, MYF(0), (int) size);
+        my_error(ER_OUTOFMEMORY, MYF(0), size);
         goto return_null; /* Out of memory. */
       }
       if (n_item > 0 && str->append(", ", 2))
@@ -2555,7 +2555,7 @@ String *Item_func_json_array_insert::val_str(String *str)
       size= js->end() - item_pos;
       if (append_simple(str, item_pos, size))
       {
-         my_error(ER_OUTOFMEMORY, MYF(0), (int) size);
+         my_error(ER_OUTOFMEMORY, MYF(0), size);
          goto return_null; /* Out of memory. */
       }
     }
