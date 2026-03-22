@@ -162,6 +162,23 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
     { STRING_WITH_LEN("body_utf8") },
     { STRING_WITH_LEN("longblob") },
     { NULL, 0 }
+  },
+  {
+    { STRING_WITH_LEN("kind") },
+    { STRING_WITH_LEN("set('SCHEDULE','STARTUP','SHUTDOWN',"
+                      "'LOGON','LOGOFF','DDL')") },
+    { NULL, 0 }
+  },
+  {
+    { STRING_WITH_LEN("when") },
+    { STRING_WITH_LEN("enum('BEFORE','AFTER')") },
+    { NULL, 0 }
+  },
+  {
+    { STRING_WITH_LEN("ddl_type") },
+    { STRING_WITH_LEN("set('CREATE','ALTER','DROP','TRUNCATE',"
+                      "'ANALYZE','RENAME','GRANT','REVOKE')") },
+    { NULL, 0 }
   }
 };
 
