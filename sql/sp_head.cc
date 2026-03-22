@@ -2237,10 +2237,16 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
     for (uint i= 0 ; i < params ; i++)
     {
-      Item *arg_item= it_args++;
-
+      Item *arg_item= nullptr;
+      if (i < args->elements)
+        arg_item= it_args++;
       if (!arg_item)
-        break;
+      {
+        /* Omitted param: do not bind here. It has a default and will be set
+           by sp_instr_set_default_param when the procedure body runs (correct
+           context for resolving e.g. DEFAULT func()). */
+        continue;
+      }
 
       err_status= bind_input_param(thd, arg_item, i, octx, nctx, FALSE);
       if (err_status)
