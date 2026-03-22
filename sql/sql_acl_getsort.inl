@@ -205,7 +205,7 @@ static ulonglong get_magic_sort(const char *templ, ...)
     sort= (sort << magic_bits) + magic;
     IF_DBUG(bits_used+= magic_bits,);
   }
-  DBUG_ASSERT(bits_used < 8*sizeof(sort));
+  DBUG_ASSERT_NO_ASSUME(bits_used < 8*sizeof(sort));
   va_end(args);
   return ~sort;
 }

@@ -968,7 +968,7 @@ int thd_set_peer_addr(THD *thd,
       addr_data= &((struct sockaddr_in6 *)addr)->sin6_addr;
     if (!inet_ntop(addr->ss_family,addr_data, ip_string, sizeof(ip_string)))
     {
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       return 1;
     }
     ip= ip_string;

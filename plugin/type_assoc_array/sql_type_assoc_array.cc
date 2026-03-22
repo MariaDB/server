@@ -148,8 +148,8 @@ public:
 #ifndef DBUG_OFF
     StringBuffer<64> type;
     field->sql_type(type);
-    const uchar *pend=
 #endif
+    const uchar *pend=
     field->pack(start, field->ptr);
     DBUG_ASSERT((uint) (pend - start) == length);
     DBUG_EXECUTE_IF("assoc_array_pack",
@@ -1983,7 +1983,7 @@ bool Item_splocal_assoc_array_element::fix_fields(THD *thd, Item **ref)
 Item *
 Item_splocal_assoc_array_element::this_item()
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(m_key->fixed());
   StringBufferKey buffer;
@@ -1995,7 +1995,7 @@ Item_splocal_assoc_array_element::this_item()
 const Item *
 Item_splocal_assoc_array_element::this_item() const
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(m_key->fixed());
   StringBufferKey buffer;
@@ -2007,7 +2007,7 @@ Item_splocal_assoc_array_element::this_item() const
 Item **
 Item_splocal_assoc_array_element::this_item_addr(THD *thd, Item **ref)
 {
-  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(m_key->fixed());
   StringBufferKey buffer;
@@ -2105,7 +2105,7 @@ bool Item_splocal_assoc_array_element_field::fix_fields(THD *thd, Item **ref)
 Item *
 Item_splocal_assoc_array_element_field::this_item()
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
 
   StringBufferKey buffer;
@@ -2121,7 +2121,7 @@ Item_splocal_assoc_array_element_field::this_item()
 const Item *
 Item_splocal_assoc_array_element_field::this_item() const
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
 
   StringBufferKey buffer;
@@ -2137,7 +2137,7 @@ Item_splocal_assoc_array_element_field::this_item() const
 Item **
 Item_splocal_assoc_array_element_field::this_item_addr(THD *thd, Item **)
 {
-  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
 
   StringBufferKey buffer;

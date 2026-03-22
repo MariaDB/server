@@ -628,7 +628,7 @@ ulonglong retrieve_auto_increment(MI_INFO *info,const uchar *record)
     value= uint8korr(key);
     break;
   default:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     value=0;                                    /* Error */
     break;
   }

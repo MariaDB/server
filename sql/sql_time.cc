@@ -135,7 +135,7 @@ int append_interval(String *str, interval_type int_type, const INTERVAL &interva
     len= my_snprintf(buf,sizeof(buf),"%llu.%06llu", interval.second, interval.second_part);
     break;
   default:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     len= 0;
   }
   return str->append(buf, len) || str->append(' ') ||
@@ -568,7 +568,7 @@ const char *get_date_time_format_str(KNOWN_DATE_TIME_FORMAT *format,
   case MYSQL_TIMESTAMP_TIME:
     return format->time_format;
   default:
-    DBUG_ASSERT(0);				// Impossible
+    DBUG_ASSERT_NO_ASSUME(0);				// Impossible
     return 0;
   }
 }

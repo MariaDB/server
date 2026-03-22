@@ -425,9 +425,7 @@ static int keycache_pthread_cond_signal(mysql_cond_t *cond);
 static int fail_hlink(HASH_LINK *hlink);
 static int cache_empty(SIMPLE_KEY_CACHE_CB *keycache);
 #endif
-#ifdef DBUG_ASSERT_EXISTS
 static int fail_block(BLOCK_LINK *block);
-#endif
 
 static inline uint next_power(uint value)
 {
@@ -440,7 +438,7 @@ static inline uint next_power(uint value)
 
   SYNOPSIS
     init_simple_key_cache()
-    keycache                pointer to the control block of a simple key cache 
+    keycache                pointer to the control block of a simple key cache
     key_cache_block_size    size of blocks to keep cached data
     use_mem                 memory to use for the key cache buffers/structures
     division_limit          division limit (may be zero)
@@ -450,14 +448,14 @@ static inline uint next_power(uint value)
     This function is the implementation of the init_key_cache interface
     function that is employed by simple (non-partitioned) key caches.
     The function builds a simple key cache and initializes the control block
-    structure of the type SIMPLE_KEY_CACHE_CB that is used for this key cache. 
-    The parameter keycache is supposed to point to this structure. 
+    structure of the type SIMPLE_KEY_CACHE_CB that is used for this key cache.
+    The parameter keycache is supposed to point to this structure.
     The parameter key_cache_block_size specifies the size of the blocks in
     the key cache to be built. The parameters division_limit and age_threshold
     determine the initial values of those characteristics of the key cache
     that are used for midpoint insertion strategy. The parameter use_mem
     specifies the total amount of memory to be allocated for key cache blocks
-    and auxiliary structures.       
+    and auxiliary structures.
 
   RETURN VALUE
     number of blocks in the key cache, if successful,
@@ -651,15 +649,15 @@ err:
 
   SYNOPSIS
     prepare_resize_simple_key_cache()
-    keycache                pointer to the control block of a simple key cache	
+    keycache                pointer to the control block of a simple key cache
     release_lock            <=> release the key cache lock before return
 
   DESCRIPTION
     This function flushes all dirty pages from a simple key cache and after
-    this it destroys the key cache calling end_simple_key_cache. The function 
-    takes the parameter keycache as a pointer to the control block 
+    this it destroys the key cache calling end_simple_key_cache. The function
+    takes the parameter keycache as a pointer to the control block
     structure of the type SIMPLE_KEY_CACHE_CB for this key cache.
-    The parameter release_lock says whether the key cache lock must be 
+    The parameter release_lock says whether the key cache lock must be
     released before return from the function.
 
   RETURN VALUE
@@ -669,16 +667,16 @@ err:
   NOTES
     This function is the called by resize_simple_key_cache and
     resize_partitioned_key_cache that resize simple and partitioned key caches
-    respectively. 
+    respectively.
 */
 
-static 
+static
 int prepare_resize_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
                                     my_bool release_lock)
 {
   int res= 0;
-  DBUG_ENTER("prepare_resize_simple_key_cache"); 
- 
+  DBUG_ENTER("prepare_resize_simple_key_cache");
+
   keycache_pthread_mutex_lock(&keycache->cache_lock);
 
   /*
@@ -734,12 +732,12 @@ int prepare_resize_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
   */
   while (keycache->cnt_for_resize_op)
     wait_on_queue(&keycache->waiting_for_resize_cnt, &keycache->cache_lock);
-  
+
   end_simple_key_cache(keycache, 0);
 
 finish:
   if (release_lock)
-    keycache_pthread_mutex_unlock(&keycache->cache_lock);     
+    keycache_pthread_mutex_unlock(&keycache->cache_lock);
   DBUG_RETURN(res);
 }
 
@@ -749,10 +747,10 @@ finish:
 
   SYNOPSIS
     finish_resize_simple_key_cache()
-    keycache                pointer to the control block of a simple key cache		
+    keycache                pointer to the control block of a simple key cache
 
   DESCRIPTION
-    This function performs finalizing actions for the operation of 
+    This function performs finalizing actions for the operation of
     resizing a simple key cache. The function takes the parameter
     keycache as a pointer to the control block structure of the type
     SIMPLE_KEY_CACHE_CB for this key cache. The function sets the flag
@@ -764,22 +762,22 @@ finish:
   NOTES
     This function is the called by resize_simple_key_cache and
     resize_partitioned_key_cache that resize simple and partitioned key caches
-    respectively. 
+    respectively.
 */
 
-static 
+static
 void finish_resize_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache)
 {
   DBUG_ENTER("finish_resize_simple_key_cache");
 
   mysql_mutex_assert_owner(&keycache->cache_lock);
-			   
+
   /*
     Mark the resize finished. This allows other threads to start a
     resize or to request new cache blocks.
   */
   keycache->in_resize= 0;
-  
+
 
   /* Signal waiting threads. */
   release_whole_queue(&keycache->resize_queue);
@@ -807,13 +805,13 @@ void finish_resize_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache)
     function that is employed by simple (non-partitioned) key caches.
     The function takes the parameter keycache as a pointer to the
     control block structure of the type SIMPLE_KEY_CACHE_CB for the simple key
-    cache to be resized. 
+    cache to be resized.
     The parameter key_cache_block_size specifies the new size of the blocks in
     the key cache. The parameters division_limit and age_threshold
     determine the new initial values of those characteristics of the key cache
     that are used for midpoint insertion strategy. The parameter use_mem
     specifies the total amount of memory to be allocated for key cache blocks
-    and auxiliary structures in the new key cache.           
+    and auxiliary structures in the new key cache.
 
   RETURN VALUE
     number of blocks in the key cache, if successful,
@@ -848,13 +846,13 @@ int resize_simple_key_cache(void *keycache_,
 
   /*
     Note that the cache_lock mutex and the resize_queue are left untouched.
-    We do not lose the cache_lock and will release it only at the end of 
+    We do not lose the cache_lock and will release it only at the end of
     this function.
   */
   if (prepare_resize_simple_key_cache(keycache, 0))
     goto finish;
 
-  /* The following will work even if use_mem is 0 */ 
+  /* The following will work even if use_mem is 0 */
   blocks= init_simple_key_cache(keycache, key_cache_block_size, use_mem,
 			        division_limit, age_threshold,
                                 changed_blocks_hash_size);
@@ -891,7 +889,7 @@ static inline void dec_counter_for_resize_op(SIMPLE_KEY_CACHE_CB *keycache)
 
   SYNOPSIS
     change_simple_key_cache_param()
-    keycache                pointer to the control block of a simple key cache	
+    keycache                pointer to the control block of a simple key cache
     division_limit          new division limit (if not zero)
     age_threshold           new age threshold (if not zero)
 
@@ -911,8 +909,8 @@ static inline void dec_counter_for_resize_op(SIMPLE_KEY_CACHE_CB *keycache)
     Presently the function resets the key cache parameters concerning
     midpoint insertion strategy - division_limit and age_threshold.
     This function changes some parameters of a given key cache without
-    reformatting it. The function does not touch the contents the key 
-    cache blocks.    
+    reformatting it. The function does not touch the contents the key
+    cache blocks.
 */
 
 static
@@ -934,7 +932,7 @@ void change_simple_key_cache_param(void *keycache_, uint division_limit,
 
 
 /*
-  Destroy a simple key cache 
+  Destroy a simple key cache
 
   SYNOPSIS
     end_simple_key_cache()
@@ -948,7 +946,7 @@ void change_simple_key_cache_param(void *keycache_, uint division_limit,
     control block structure of the type SIMPLE_KEY_CACHE_CB for the simple key
     cache to be destroyed.
     The function frees the memory allocated for the key cache blocks and
-    auxiliary structures. If the value of the parameter cleanup is TRUE 
+    auxiliary structures. If the value of the parameter cleanup is TRUE
     then even the key cache mutex is freed.
 
   RETURN VALUE
@@ -1457,6 +1455,8 @@ static void link_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block,
 #endif
 }
 
+#undef DBUG_ASSERT
+#define DBUG_ASSERT(x) DBUG_ASSERT_NO_ASSUME(x)
 
 /*
   Unlink a block from the LRU chain
@@ -1752,7 +1752,6 @@ static void unlink_hash(SIMPLE_KEY_CACHE_CB *keycache, HASH_LINK *hash_link)
   hash_link->next= keycache->free_hash_list;
   keycache->free_hash_list= hash_link;
 }
-
 
 /*
   Get the hash link for a page
@@ -2278,7 +2277,7 @@ restart:
           DBUG_ASSERT(keycache->blocks_used <
                       (ulong) keycache->disk_blocks);
           block= &keycache->block_root[keycache->blocks_used];
-          block_mem_offset= 
+          block_mem_offset=
            ((size_t) keycache->blocks_used) * keycache->key_cache_block_size;
           block->buffer= ADD_TO_PTR(keycache->block_mem,
                                     block_mem_offset,
@@ -2735,7 +2734,7 @@ static void read_block_secondary(SIMPLE_KEY_CACHE_CB *keycache,
     level               determines the weight of the data
     buff                buffer to where the data must be placed
     length              length of the buffer
-    block_length        length of the read data from a key cache block 
+    block_length        length of the read data from a key cache block
     return_buffer       return pointer to the key cache buffer with the data
 
   DESCRIPTION
@@ -2751,15 +2750,15 @@ static void read_block_secondary(SIMPLE_KEY_CACHE_CB *keycache,
     of the buffer. The data is read into the buffer in key_cache_block_size
     increments. If the next portion of the data is not found in any key cache
     block, first it is read from file into the key cache.
-    If the parameter return_buffer is not ignored and its value is TRUE, and 
+    If the parameter return_buffer is not ignored and its value is TRUE, and
     the data to be read of the specified size block_length can be read from one
     key cache buffer, then the function returns a pointer to the data in the
     key cache buffer.
     The function takse into account parameters block_length and return buffer
     only in a single-threaded environment.
-    The parameter 'level' is used only by the midpoint insertion strategy 
-    when the data or its portion cannot be found in the key cache. 
-   
+    The parameter 'level' is used only by the midpoint insertion strategy
+    when the data or its portion cannot be found in the key cache.
+
   RETURN VALUE
     Returns address from where the data is placed if successful, 0 - otherwise.
 
@@ -2798,7 +2797,7 @@ uchar *simple_key_cache_read(void *keycache_,
                                 (ulong) (keycache->blocks_unused *
                                          keycache->key_cache_block_size));
     }
-  
+
     /*
       When the key cache is once initialized, we use the cache_lock to
       reliably distinguish the cases of normal operation, resizing, and
@@ -2987,7 +2986,7 @@ end:
 
   SYNOPSIS
     simple_key_cache_insert()
-    keycache            pointer to the control block of a simple key cache 
+    keycache            pointer to the control block of a simple key cache
     file                handler for the file to insert data from
     filepos             position of the block of data in the file to insert
     level               determines the weight of the data
@@ -3008,13 +3007,13 @@ end:
     increments.
     The parameter level is used to set one characteristic for the key buffers
     loaded with the data from buff. The characteristic is used only by the
-    midpoint insertion strategy.  
-   
+    midpoint insertion strategy.
+
   RETURN VALUE
     0 if a success, 1 - otherwise.
 
   NOTES
-    The function is used by MyISAM to move all blocks from a index file to 
+    The function is used by MyISAM to move all blocks from a index file to
     the key cache. It can be performed in parallel with reading the file data
     from the key buffers by other threads.
 
@@ -3246,8 +3245,8 @@ int simple_key_cache_insert(void *keycache_,
     simple_key_cache_write()
     keycache            pointer to the control block of a simple key cache
     file                handler for the file to write data to
-    file_extra          maps of key cache partitions containing 
-                        dirty pages from file 
+    file_extra          maps of key cache partitions containing
+                        dirty pages from file
     filepos             position in the file to write data to
     level               determines the weight of the data
     buff                buffer with the data
@@ -3275,9 +3274,9 @@ int simple_key_cache_insert(void *keycache_,
     The parameter file_extra currently makes sense only for simple key caches
     that are elements of a partitioned key cache. It provides a pointer to the
     shared bitmap of the partitions that may contains dirty pages for the file.
-    This bitmap is used to optimize the function 
-    flush_partitioned_key_cache_blocks. 
-      
+    This bitmap is used to optimize the function
+    flush_partitioned_key_cache_blocks.
+
   RETURN VALUE
     0 if a success, 1 - otherwise.
 
@@ -3288,7 +3287,7 @@ int simple_key_cache_insert(void *keycache_,
 
 static
 int simple_key_cache_write(void *keycache_,
-                           File file, void *file_extra __attribute__((unused)),                       
+                           File file, void *file_extra __attribute__((unused)),
                            my_off_t filepos, int level,
                            uchar *buff, uint length,
                            uint block_length  __attribute__((unused)),
@@ -3589,7 +3588,7 @@ end:
     dec_counter_for_resize_op(keycache);
     keycache_pthread_mutex_unlock(&keycache->cache_lock);
   }
-  
+
   if (MYSQL_KEYCACHE_WRITE_DONE_ENABLED())
   {
     MYSQL_KEYCACHE_WRITE_DONE((ulong) (keycache->blocks_used *
@@ -3597,7 +3596,7 @@ end:
                               (ulong) (keycache->blocks_unused *
                                        keycache->key_cache_block_size));
   }
-  
+
 #if !defined(DBUG_OFF) && defined(EXTRA_DEBUG)
   DBUG_EXECUTE("exec",
                test_key_cache(keycache, "end of key_cache_write", 1););
@@ -4342,15 +4341,15 @@ err:
 PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /*
-  Flush all blocks for a file from key buffers of a simple key cache 
+  Flush all blocks for a file from key buffers of a simple key cache
 
   SYNOPSIS
 
     flush_simple_key_blocks()
     keycache            pointer to the control block of a simple key cache
     file                handler for the file to flush to
-    file_extra          maps of key cache partitions containing 
-                        dirty pages from file (not used)         
+    file_extra          maps of key cache partitions containing
+                        dirty pages from file (not used)
     flush_type          type of the flush operation
 
   DESCRIPTION
@@ -4362,12 +4361,12 @@ PRAGMA_REENABLE_CHECK_STACK_FRAME
     In a general case the function flushes the data from all dirty key
     buffers related to the file 'file' into this file. The function does
     exactly this if the value of the parameter type is FLUSH_KEEP. If the
-    value of this parameter is FLUSH_RELEASE, the function additionally 
+    value of this parameter is FLUSH_RELEASE, the function additionally
     releases the key buffers containing data from 'file' for new usage.
     If the value of the parameter type is FLUSH_IGNORE_CHANGED the function
-    just releases the key buffers containing data from 'file'.  
+    just releases the key buffers containing data from 'file'.
     The parameter file_extra currently is not used by this function.
-      
+
   RETURN
     0   ok
     1  error
@@ -4811,8 +4810,9 @@ void keycache_debug_log_close(void)
 
 #endif /* defined(KEYCACHE_DEBUG) */
 
-#ifdef DBUG_ASSERT_EXISTS 
+#ifndef DBUG_OFF
 #define F_B_PRT(_f_, _v_) DBUG_PRINT("assert_fail", (_f_, _v_))
+#endif
 
 static int fail_block(BLOCK_LINK *block  __attribute__((unused)))
 {
@@ -4830,7 +4830,6 @@ static int fail_block(BLOCK_LINK *block  __attribute__((unused)))
 #endif
   return 0; /* Let the assert fail. */
 }
-#endif
 
 #ifndef DBUG_OFF
 static int fail_hlink(HASH_LINK *hlink  __attribute__((unused)))

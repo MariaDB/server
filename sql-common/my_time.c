@@ -103,7 +103,7 @@ static const ulonglong C_KNOWN_FLAGS= C_TIME_NO_ZERO_IN_DATE |
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
                    ulonglong flags, int *was_cut)
 {
-  DBUG_ASSERT(C_FLAGS_OK(flags));
+  DBUG_ASSERT_NO_ASSUME(C_FLAGS_OK(flags));
   if (ltime->time_type == MYSQL_TIMESTAMP_TIME)
     return FALSE;
   if (not_zero_date)
@@ -534,7 +534,7 @@ str_to_datetime_or_date_body(const char *str, size_t length, MYSQL_TIME *l_time,
   uint digits, year_length, not_zero_date;
   int warn= 0;
   DBUG_ENTER("str_to_datetime_or_date_body");
-  DBUG_ASSERT(C_FLAGS_OK(flags));
+  DBUG_ASSERT_NO_ASSUME(C_FLAGS_OK(flags));
   bzero(l_time, sizeof(*l_time));
   *number_of_fields= 0;
   *endptr= str;
@@ -685,7 +685,7 @@ str_to_datetime_or_date_or_time_body(const char *str, size_t length,
                                      my_bool allow_dates_numeric)
 {
   const char *endptr;
-  DBUG_ASSERT(C_FLAGS_OK(fuzzydate));
+  DBUG_ASSERT_NO_ASSUME(C_FLAGS_OK(fuzzydate));
 
   /* Check first if this is a full TIMESTAMP */
   if (is_datetime_body_candidate(str, length,
@@ -832,7 +832,7 @@ str_to_datetime_or_date_or_time(const char *str, size_t length,
                                 ulong time_err_hour)
 {
   my_bool neg;
-  DBUG_ASSERT(C_FLAGS_OK(mode));
+  DBUG_ASSERT_NO_ASSUME(C_FLAGS_OK(mode));
   my_time_status_init(status);
   return
     find_body(&neg, str, length, to, &status->warnings, &str, &length) ||
@@ -851,7 +851,7 @@ str_to_datetime_or_date_or_interval_hhmmssff(const char *str, size_t length,
                                              ulong time_err_hour)
 {
   my_bool neg;
-  DBUG_ASSERT(C_FLAGS_OK(mode));
+  DBUG_ASSERT_NO_ASSUME(C_FLAGS_OK(mode));
   my_time_status_init(status);
   return
     find_body(&neg, str, length, to, &status->warnings, &str, &length) ||
@@ -870,7 +870,7 @@ str_to_datetime_or_date_or_interval_day(const char *str, size_t length,
                                         ulong time_err_hour)
 {
   my_bool neg;
-  DBUG_ASSERT(C_FLAGS_OK(mode));
+  DBUG_ASSERT_NO_ASSUME(C_FLAGS_OK(mode));
   my_time_status_init(status);
   /*
     For backward compatibility we allow to parse non-delimited
@@ -893,7 +893,7 @@ str_to_datetime_or_date(const char *str, size_t length, MYSQL_TIME *l_time,
   my_bool neg;
   uint number_of_fields;
   const char *endptr;
-  DBUG_ASSERT(C_FLAGS_OK(flags));
+  DBUG_ASSERT_NO_ASSUME(C_FLAGS_OK(flags));
   my_time_status_init(status);
   return
     find_body(&neg, str, length, l_time, &status->warnings, &str, &length) ||
@@ -1630,7 +1630,7 @@ static char* fmt_usec(uint val, char *out, uint digits)
   case 6:
     return fmt_number6(val, out);
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return out;
 }
 
@@ -1824,7 +1824,7 @@ longlong number_to_datetime_or_date(longlong nr, ulong sec_part,
                                     ulonglong flags, int *was_cut)
 {
   long part1,part2;
-  DBUG_ASSERT(C_FLAGS_OK(flags));
+  DBUG_ASSERT_NO_ASSUME(C_FLAGS_OK(flags));
 
   *was_cut= 0;
   time_res->time_type=MYSQL_TIMESTAMP_DATE;

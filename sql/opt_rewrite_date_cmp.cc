@@ -101,7 +101,7 @@ bool Date_cmp_func_rewriter::check_cond_match_and_prepare(
 {
   if (thd->lex->is_ps_or_view_context_analysis())
   {
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return false;
   }
 
@@ -314,7 +314,7 @@ Item *Date_cmp_func_rewriter::create_cmp_func(Item_func::Functype func_type,
       res= new (thd->mem_root) Item_func_lt(thd, arg1, arg2);
       break;
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       res= NULL;
   }
   return res;

@@ -5075,7 +5075,7 @@ int spider_db_simple_action(
       );
       break;
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       error_num = HA_ERR_CRASHED;
       break;
   }

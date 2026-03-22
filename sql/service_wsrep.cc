@@ -195,9 +195,9 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd __attribute__((unused)),
     We should always be in victim_thd context, either client session is
     rolling back or rollbacker thread should be in control.
   */
-  DBUG_ASSERT(victim_thd);
-  DBUG_ASSERT(current_thd == victim_thd);
-  DBUG_ASSERT(wsrep_thd_is_SR(victim_thd));
+  DBUG_ASSERT_NO_ASSUME(victim_thd);
+  DBUG_ASSERT_NO_ASSUME(current_thd == victim_thd);
+  DBUG_ASSERT_NO_ASSUME(wsrep_thd_is_SR(victim_thd));
 
   /* Defensive measure to avoid crash in production. */
   if (!victim_thd) return;

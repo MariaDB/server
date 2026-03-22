@@ -8383,7 +8383,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, binlog_cache_data *cache_data,
     Check that any binlogging during DDL recovery preserves the FL_DLL flag
     on the GTID event.
   */
-  DBUG_ASSERT((gtid_event.flags2 & Gtid_log_event::FL_DDL) ||
+  DBUG_ASSERT_NO_ASSUME((gtid_event.flags2 & Gtid_log_event::FL_DDL) ||
               !is_in_ddl_recovery);
 
   if (opt_binlog_engine_hton)
@@ -9732,7 +9732,7 @@ int Event_log::write_cache_raw(THD *thd, IO_CACHE *cache)
       DBUG_RETURN(res);
     IF_DBUG(total-= read_len,);
   } while (my_b_fill(cache));
-  DBUG_ASSERT(total == 0);
+  DBUG_ASSERT_NO_ASSUME(total == 0);
   DBUG_RETURN(0);
 }
 

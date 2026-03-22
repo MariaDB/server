@@ -1647,7 +1647,7 @@ found_pos_check_gtid(const rpl_gtid *found_gtid, slave_connection_state *state,
       domain in earlier binlogs, and then we can not encounter it in any
       further GTIDs in the Gtid_list.
     */
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
   } else if (gtid->server_id == found_gtid->server_id &&
              gtid->seq_no == found_gtid->seq_no)
   {
