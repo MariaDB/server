@@ -974,7 +974,7 @@ update_begin:
 
   if (thd->lex->has_returning())
   {
-    if (unlikely(result->send_result_set_metadata(
+    if (unlikely(returning_result->send_result_set_metadata(
                             thd->lex->returning()->returning_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)))
       error= 1;
@@ -1075,7 +1075,7 @@ update_begin:
         }
 
         if (likely(!error) && thd->lex->has_returning() &&
-            result->send_data(thd->lex->returning()->returning_list) < 0)
+            returning_result->send_data(thd->lex->returning()->returning_list) < 0)
         {
           error= 1;
           break;
@@ -1350,7 +1350,7 @@ update_end:
             (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated);
 
     if (thd->lex->has_returning())
-      result->send_eof();
+      returning_result->send_eof();
     else
       my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ?
                   found : updated, id, buff);
@@ -3230,9 +3230,6 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
 
   free_join= false;
 
-  if (thd->lex->has_returning())
-    (void) result->prepare(thd->lex->returning()->returning_list, NULL);
-
 err:
 
   if (free_join)
@@ -3262,24 +3259,23 @@ bool Sql_cmd_update::execute_inner(THD *thd)
   {
     if (lex->has_returning())
     {
-      select_result *sel_result= NULL;
-      delete result;
       /* This is UPDATE ... RETURNING.  It will return output to the client */
       if (thd->lex->analyze_stmt)
       {
-        sel_result= new (thd->mem_root) select_send_analyze(thd);
+        returning_result= new (thd->mem_root) select_send_analyze(thd);
         save_protocol= thd->protocol;
         thd->protocol= new Protocol_discard(thd);
       }
       else
       {
-        if (!lex->result && !(sel_result= new
+        if (!(returning_result= new
                         (thd->mem_root) select_send(thd)))
         {
           return true;
         }
       }
-      result= lex->result ? lex->result : sel_result;
+      if (thd->lex->has_returning())
+        (void) returning_result->prepare(thd->lex->returning()->returning_list, NULL);
     }
   }
 
