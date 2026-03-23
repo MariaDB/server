@@ -8982,7 +8982,7 @@ bool Item_ref::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 
 bool Item_ref::val_native(THD *thd, Native *to)
 {
-  return val_native_from_item(thd, *ref, to);
+  return val_native_result_from_item(thd, *ref, to);
 }
 
 

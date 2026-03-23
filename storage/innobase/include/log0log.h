@@ -75,8 +75,9 @@ ATTRIBUTE_COLD void log_write_and_flush() noexcept;
 /** Make a checkpoint */
 ATTRIBUTE_COLD void log_make_checkpoint() noexcept;
 
-/** Make a checkpoint at the latest lsn on shutdown. */
-ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown() noexcept;
+/** Make a checkpoint at the latest lsn on shutdown.
+@return the shutdown LSN */
+ATTRIBUTE_COLD lsn_t logs_empty_and_mark_files_at_shutdown() noexcept;
 
 /******************************************************//**
 Prints info of the log. */
@@ -186,17 +187,22 @@ private:
 public:
   /** innodb_log_buffer_size (usable append_prepare() size in bytes) */
   unsigned buf_size;
+  /** set when there may be need to initiate a log checkpoint.
+  This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
+  std::atomic<bool> need_checkpoint;
+  /** next checkpoint number (protected by latch.wr_lock()) */
+  byte next_checkpoint_no;
   /** log file size in bytes, including the header */
   lsn_t file_size;
 
-#ifdef LOG_LATCH_DEBUG
-  typedef srw_lock_debug log_rwlock;
+#if defined LOG_LATCH_DEBUG && defined UNIV_DEBUG
+  typedef srw_lock_debug_simple log_rwlock;
 
   bool latch_have_wr() const { return latch.have_wr(); }
   bool latch_have_rd() const { return latch.have_rd(); }
   bool latch_have_any() const { return latch.have_any(); }
 #else
-  typedef srw_lock log_rwlock;
+  typedef srw_lock_low log_rwlock;
 # ifndef UNIV_DEBUG
 # elif defined SUX_LOCK_GENERIC
   bool latch_have_wr() const { return true; }
@@ -230,13 +236,6 @@ public:
   In write_buf(), buf and flush_buf may be swapped */
   byte *flush_buf;
 
-  /** set when there may be need to initiate a log checkpoint.
-  This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
-  std::atomic<bool> need_checkpoint;
-  /** whether a checkpoint is pending; protected by latch.wr_lock() */
-  Atomic_relaxed<bool> checkpoint_pending;
-  /** next checkpoint number (protected by latch.wr_lock()) */
-  byte next_checkpoint_no;
   /** Log sequence number when a log file overwrite (broken crash recovery)
   was noticed. Protected by latch.wr_lock(). */
   lsn_t overwrite_warned;
@@ -245,8 +244,6 @@ public:
   Atomic_relaxed<lsn_t> last_checkpoint_lsn;
   /** The log writer (protected by latch.wr_lock()) */
   lsn_t (*writer)() noexcept;
-  /** next checkpoint LSN (protected by latch.wr_lock()) */
-  lsn_t next_checkpoint_lsn;
 
   /** Log file */
   log_file_t log;
@@ -268,6 +265,8 @@ private:
 public:
   /** current innodb_log_write_ahead_size */
   uint write_size;
+  /** maximum write_size */
+  static constexpr uint WRITE_SIZE_MAX{4096};
   /** format of the redo log: e.g., FORMAT_10_8 */
   uint32_t format;
   /** whether the memory-mapped interface is enabled for the log */
@@ -457,11 +456,11 @@ public:
   void persist(lsn_t lsn) noexcept;
 #endif
 
-  bool check_for_checkpoint() const
+  bool check_for_checkpoint() const noexcept
   {
     return UNIV_UNLIKELY(need_checkpoint.load(std::memory_order_relaxed));
   }
-  void set_check_for_checkpoint(bool need= true)
+  void set_check_for_checkpoint(bool need) noexcept
   {
     need_checkpoint.store(need, std::memory_order_relaxed);
   }
@@ -544,8 +543,12 @@ public:
   }
 
   /** Write checkpoint information and invoke latch.wr_unlock().
+  @param checkpoint the new checkpoint LSN
   @param end_lsn    start LSN of the FILE_CHECKPOINT mini-transaction */
-  inline void write_checkpoint(lsn_t end_lsn) noexcept;
+  inline void write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept;
+
+  /** Wait for write_checkpoint() if necessary. */
+  ATTRIBUTE_COLD void checkpoint_margin() noexcept;
 
   /** Variations of write_buf() */
   enum resizing_and_latch {

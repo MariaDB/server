@@ -573,3 +573,25 @@ show grants for foo@bar;
 drop user foo@bar;
 
 --echo # End of 11.3 tests
+
+
+--echo #
+--echo # MDEV-38698 mysql_upgrade does not fix charset and collation for mysql.user
+--echo #
+
+--remove_file $MYSQLD_DATADIR/mysql/user.frm
+--copy_file std_data/upgrade/user-100625-utf8mb3.frm $MYSQLD_DATADIR/mysql/user.frm
+
+FLUSH TABLES mysql.user;
+FLUSH PRIVILEGES;
+SELECT CHARACTER_SET_CLIENT, COLLATION_CONNECTION FROM INFORMATION_SCHEMA.VIEWS
+WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';
+
+--replace_result $MYSQLTEST_VARDIR var
+--exec $MYSQL_UPGRADE --force --silent 2>&1
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+
+FLUSH TABLES mysql.user;
+FLUSH PRIVILEGES;
+SELECT CHARACTER_SET_CLIENT, COLLATION_CONNECTION FROM INFORMATION_SCHEMA.VIEWS
+WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';

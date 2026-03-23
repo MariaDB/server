@@ -139,8 +139,7 @@ DROP TABLE t;
 #
 CREATE TABLE t (a INT) ENGINE=InnoDB;
 START TRANSACTION;
-SELECT * FROM t;
-a
+INSERT t VALUES (0),(1);
 SAVEPOINT A;
 select @@in_transaction;
 @@in_transaction
@@ -149,8 +148,12 @@ CREATE TEMPORARY TABLE tmp (a TINYINT) ENGINE=InnoDB AS SELECT 256 AS a;
 ERROR 22003: Out of range value for column 'a' at row 1
 select @@in_transaction;
 @@in_transaction
-0
+1
 ROLLBACK TO SAVEPOINT A;
-ERROR 42000: SAVEPOINT A does not exist
+COMMIT;
+SELECT * FROM t;
+a
+0
+1
 DROP TABLE t;
 # End of 10.11 tests

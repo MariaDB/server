@@ -548,14 +548,17 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
   case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
     inspected = "HA_EXTRA_STARTING_ORDERED_INDEX_SCAN";
     break;
-  case HA_EXTRA_BEGIN_ALTER_COPY:
-    inspected = "HA_EXTRA_BEGIN_ALTER_COPY";
+  case HA_EXTRA_BEGIN_COPY:
+    inspected = "HA_EXTRA_BEGIN_COPY";
     break;
-  case HA_EXTRA_END_ALTER_COPY:
-    inspected = "HA_EXTRA_END_ALTER_COPY";
+  case HA_EXTRA_END_COPY:
+    inspected = "HA_EXTRA_END_COPY";
     break;
-  case HA_EXTRA_ABORT_ALTER_COPY:
-    inspected = "HA_EXTRA_ABORT_ALTER_COPY";
+  case HA_EXTRA_ABORT_COPY:
+    inspected = "HA_EXTRA_ABORT_COPY";
+    break;
+  case HA_EXTRA_BEGIN_ALTER_IGNORE_COPY:
+    inspected = "HA_EXTRA_BEGIN_ALTER_IGNORE_COPY";
     break;
 #ifdef MRN_HAVE_HA_EXTRA_EXPORT
   case HA_EXTRA_EXPORT:
@@ -582,19 +585,19 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
     inspected = "HA_EXTRA_SKIP_SERIALIZABLE_DD_VIEW";
     break;
 #endif
-#ifdef MRN_HAVE_HA_EXTRA_BEGIN_ALTER_COPY
-  case HA_EXTRA_BEGIN_ALTER_COPY:
-    inspected = "HA_EXTRA_BEGIN_ALTER_COPY";
+#ifdef MRN_HAVE_HA_EXTRA_BEGIN_COPY
+  case HA_EXTRA_BEGIN_COPY:
+    inspected = "HA_EXTRA_BEGIN_COPY";
     break;
 #endif
-#ifdef MRN_HAVE_HA_EXTRA_END_ALTER_COPY
-  case HA_EXTRA_END_ALTER_COPY:
-    inspected = "HA_EXTRA_END_ALTER_COPY";
+#ifdef MRN_HAVE_HA_EXTRA_END_COPY
+  case HA_EXTRA_END_COPY:
+    inspected = "HA_EXTRA_END_COPY";
     break;
 #endif
-#ifdef MRN_HAVE_HA_EXTRA_ABORT_ALTER_COPY
-  case HA_EXTRA_ABORT_ALTER_COPY:
-    inspected = "HA_EXTRA_ABORT_ALTER_COPY";
+#ifdef MRN_HAVE_HA_EXTRA_ABORT_COPY
+  case HA_EXTRA_ABORT_COPY:
+    inspected = "HA_EXTRA_ABORT_COPY";
     break;
 #endif
 #ifdef MRN_HAVE_HA_EXTRA_NO_AUTOINC_LOCKING
@@ -772,6 +775,27 @@ static MYSQL_SYSVAR_ENUM(log_level, mrn_log_level,
                          static_cast<ulong>(mrn_log_level),
                          &mrn_log_level_typelib);
 
+static int mrn_log_file_check(THD *thd, struct st_mysql_sys_var *var,
+                              void *save, struct st_mysql_value *value)
+{
+  MRN_DBUG_ENTER_FUNCTION();
+
+  char buf[STRING_BUFFER_USUAL_SIZE];
+  int len = sizeof(buf);
+  const char* new_value = value->val_str(value, buf, &len);
+
+  if (!new_value || len == 0) {
+    my_printf_error(ER_MRN_INVALID_NULL_VALUE_NUM,
+                    ER_MRN_INVALID_NULL_VALUE_STR,
+                    MYF(0),
+                    "mroonga_log_file");
+    DBUG_RETURN(1);
+  }
+
+  *((const char**)save) = thd->strmake(new_value, len);
+
+  DBUG_RETURN(0);
+}
 static void mrn_log_file_update(THD *thd, struct st_mysql_sys_var *var,
                                 void *var_ptr, const void *save)
 {
@@ -844,7 +868,7 @@ static void mrn_log_file_update(THD *thd, struct st_mysql_sys_var *var,
 static MYSQL_SYSVAR_STR(log_file, mrn_log_file_path,
                         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
                         "log file for " MRN_PLUGIN_NAME_STRING,
-                        NULL,
+                        mrn_log_file_check,
                         mrn_log_file_update,
                         MRN_LOG_FILE_PATH);
 
@@ -934,6 +958,12 @@ static void mrn_default_tokenizer_update(THD *thd, struct st_mysql_sys_var *var,
   char **old_value_ptr = (char **)var_ptr;
   grn_ctx *ctx = &mrn_ctx;
 
+  if(!new_value) {
+    new_value = "off";
+#ifndef MRN_NEED_FREE_STRING_MEMALLOC_PLUGIN_VAR
+    new_value = mrn_my_strdup(new_value, MYF(MY_WME));
+#endif
+  }
   mrn_change_encoding(ctx, system_charset_info);
   if (strcmp(*old_value_ptr, new_value) == 0) {
     GRN_LOG(ctx, GRN_LOG_NOTICE,

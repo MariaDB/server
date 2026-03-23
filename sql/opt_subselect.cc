@@ -5122,7 +5122,7 @@ int SJ_TMP_TABLE::sj_weedout_check_row(THD *thd)
   }
 
   // 3. Put the rowids
-  for (uint i=0; tab != tab_end; tab++, i++)
+  for (; tab != tab_end; tab++)
   {
     handler *h= tab->join_tab->table->file;
     if (tab->join_tab->table->maybe_null && tab->join_tab->table->null_row)

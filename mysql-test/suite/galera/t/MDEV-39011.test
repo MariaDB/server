@@ -1,0 +1,48 @@
+#
+# MDEV-39011: The node running async slave replication hangs in shutdown.
+# The problem was in a leaked THD_count on the error path when
+# wsrep_restart_slave is set.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+# node 3 is a native MariaDB server operating as async replication master
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connection node_3
+RESET MASTER;
+
+# nodes 1 and 2 form a Galera cluster, node 2 operates as a slave for the
+# native MariaDB master in node 3
+--connection node_2
+--disable_query_log
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
+--enable_query_log
+
+SET GLOBAL DEBUG_DBUG = "+d,delay_sql_thread_after_release_run_lock";
+START SLAVE;
+# Wait for the async slave thread to get started
+SET DEBUG_SYNC = "now WAIT_FOR sql_thread_run_lock_released";
+# Simulate a node dropped error for Wsrep to go to the restart point
+SET GLOBAL DEBUG_DBUG = "+d,wsrep_async_slave_node_dropped_error";
+SET DEBUG_SYNC = "now SIGNAL sql_thread_continue";
+# Now wait again as the execution should follow the error path and repeat
+SET DEBUG_SYNC = "now WAIT_FOR sql_thread_run_lock_released";
+# Don't follow the error path anymore
+SET GLOBAL DEBUG_DBUG = "-d,wsrep_async_slave_node_dropped_error";
+SET DEBUG_SYNC = "now SIGNAL sql_thread_continue";
+
+# Cleanup before restart
+SET DEBUG_SYNC = "RESET";
+SET GLOBAL DEBUG_DBUG = "";
+STOP SLAVE;
+RESET SLAVE;
+
+# Now try to restart the node: it should not hang in a shutdown
+--source include/restart_mysqld.inc
+
+--connection node_3
+RESET MASTER;
+--disconnect node_3

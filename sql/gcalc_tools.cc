@@ -227,7 +227,7 @@ exit:
         if (result == result_true)
         {
           c_op= (c_op & ~v_mask) | v_t_found;
-          int4store(sav_cur_func, c_op);
+          int4store(const_cast<char *>(sav_cur_func), c_op);
         }
         else
         {
@@ -239,7 +239,7 @@ exit:
         if (result == result_false)
         {
           c_op= (c_op & ~v_mask) | v_f_found;
-          int4store(sav_cur_func, c_op);
+          int4store(const_cast<char *>(sav_cur_func), c_op);
         }
         else
         {
@@ -1283,7 +1283,7 @@ inline int Gcalc_operation_reducer::get_single_result(res_point *res,
   if (res->intersection_point)
   {
     double x, y;
-    res->pi->calc_xy(&x, &y);
+    res->pi->calc_intersection_xy(&x, &y);
     if (storage->single_point(x,y))
       GCALC_DBUG_RETURN(1);
   }
@@ -1310,7 +1310,7 @@ int Gcalc_operation_reducer::get_result_thread(res_point *cur,
     {
       if (cur->intersection_point)
       {
-        cur->pi->calc_xy(&x, &y);
+        cur->pi->calc_intersection_xy(&x, &y);
       }
       else
       {

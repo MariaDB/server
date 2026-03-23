@@ -1560,9 +1560,8 @@ static bool alter_options_need_rebuild(
 			*ha_alter_info->create_info->option_struct;
 	const ha_table_option_struct& opt= *table->s->option_struct;
 
-	/* Allow an instant change to enable page_compressed,
-	and any change of page_compression_level. */
-	if ((!alt_opt.page_compressed && opt.page_compressed)
+	/* Allow an instant change of page_compression_level. */
+	if ((alt_opt.page_compressed != opt.page_compressed)
 	    || alt_opt.encryption != opt.encryption
 	    || alt_opt.encryption_key_id != opt.encryption_key_id) {
 		return(true);
@@ -2224,6 +2223,8 @@ ha_innobase::check_if_supported_inplace_alter(
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
 
+	ha_alter_info->file_per_table= !!srv_file_per_table;
+
 	if ((ha_alter_info->handler_flags
 	     & INNOBASE_ALTER_VERSIONED_REBUILD)
 	    && altered_table->versioned(VERS_TIMESTAMP)) {
@@ -2338,7 +2339,8 @@ innodb_instant_alter_column_allowed_reason:
 
 	switch (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
 	case ALTER_OPTIONS:
-		if ((srv_file_per_table && !m_prebuilt->table->space_id)
+		if ((ha_alter_info->file_per_table &&
+		     !m_prebuilt->table->space_id)
 		    || alter_options_need_rebuild(ha_alter_info, table)) {
 			reason_rebuild = my_get_err_msg(
 				ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD);
@@ -6603,7 +6605,7 @@ prepare_inplace_alter_table_dict(
 
 	create_table_info_t info(ctx->prebuilt->trx->mysql_thd, altered_table,
 				 ha_alter_info->create_info,
-				 srv_file_per_table);
+				 ha_alter_info->file_per_table);
 
 	/* The primary index would be rebuilt if a FTS Doc ID
 	column is to be added, and the primary index definition
@@ -8032,7 +8034,7 @@ ha_innobase::prepare_inplace_alter_table(
 	create_table_info_t	info(m_user_thd,
 				     altered_table,
 				     ha_alter_info->create_info,
-				     srv_file_per_table);
+				     ha_alter_info->file_per_table);
 
 	info.set_tablespace_type(indexed_table->space != fil_system.sys_space);
 
@@ -8631,15 +8633,6 @@ field_changed:
 			DBUG_RETURN(true);
 		}
 
-		if ((ha_alter_info->handler_flags & ALTER_OPTIONS)
-		    && ctx->page_compression_level
-		    && !ctx->old_table->not_redundant()) {
-			my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
-				 table_type(),
-				 "PAGE_COMPRESSED=1 ROW_FORMAT=REDUNDANT");
-			DBUG_RETURN(true);
-		}
-
 		if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
 		    && alter_templ_needs_rebuild(altered_table, ha_alter_info,
 						 ctx->new_table)
@@ -8798,9 +8791,7 @@ alter_templ_needs_rebuild(
 	const Alter_inplace_info*     ha_alter_info,
 	const dict_table_t*		table)
 {
-        ulint	i = 0;
-
-	for (Field** fp = altered_table->field; *fp; fp++, i++) {
+	for (Field** fp = altered_table->field; *fp; fp++) {
 		for (const Create_field& cf :
 		     ha_alter_info->alter_info->create_list) {
 			for (ulint j=0; j < table->n_cols; j++) {
@@ -9666,13 +9657,11 @@ innobase_rename_columns_try(
 	trx_t*			trx,
 	const char*		table_name)
 {
-	uint	i = 0;
-
 	DBUG_ASSERT(ctx->need_rebuild());
 	DBUG_ASSERT(ha_alter_info->handler_flags
 		    & ALTER_COLUMN_NAME);
 
-	for (Field** fp = table->field; *fp; fp++, i++) {
+	for (Field** fp = table->field; *fp; fp++) {
 		if (!((*fp)->flags & FIELD_IS_RENAMED)) {
 			continue;
 		}
