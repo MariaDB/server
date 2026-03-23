@@ -603,6 +603,9 @@ public:
 
   /** Checks whether a table is intact. */
   bool check(TABLE *table, const TABLE_FIELD_DEF *table_def);
+
+  /** Check table columns for right types */
+  bool check_columns(TABLE *table, const TABLE_FIELD_DEF *table_def);
 };
 
 

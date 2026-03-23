@@ -3,6 +3,7 @@
 #include <my_alloc.h>              // MEM_ROOT
 #include "event_common.h"
 #include "event_db_repository.h"   // enum enum_events_table_field
+#include "log.h"                   // sql_print_warning
 #include "sp.h"                    // load_charset
 #include "sql_base.h"              // MYSQL_LOCK_IGNORE_TIMEOUT
 #include "sql_class.h"             // THD
@@ -255,6 +256,8 @@ Event_db_repository_common::MYSQL_EVENT_NAME= { STRING_WITH_LEN("event") };
 const TABLE_FIELD_DEF
 Event_db_repository_common::event_table_def= {ET_FIELD_COUNT, event_table_fields, 0, (uint*) 0};
 
+static const TABLE_FIELD_DEF
+event_table_def_wo_trg= {ET_FIELD_COUNT - 3, event_table_fields, 0, (uint*) 0};
 
 /**
   Open mysql.event table for read.
@@ -281,7 +284,8 @@ Event_db_repository_common::event_table_def= {ET_FIELD_COUNT, event_table_fields
 bool
 Event_db_repository_common::open_event_table(THD *thd,
                                              enum thr_lock_type lock_type,
-                                             TABLE **table)
+                                             TABLE **table,
+                                             bool *enable_sys_trg)
 {
   TABLE_LIST tables;
   DBUG_ENTER("Event_db_repository::open_event_table");
@@ -296,15 +300,50 @@ Event_db_repository_common::open_event_table(THD *thd,
   /* NOTE: &tables pointer will be invalid after return */
   tables.table->pos_in_table_list= NULL;
 
-  if (table_intact.check(*table, &event_table_def))
+  /*
+    First, check that the most probable case: the table mysql.event
+    contains all columns required for support of system triggers, that is
+    in presence all columns of the table mysql.event version 12.3 plus
+    extra columns added for storing system triggers metadata
+  */
+  if (!table_intact.check(*table, &event_table_def))
   {
-    thd->commit_whole_transaction_and_close_tables();
-    *table= 0;                                  // Table is now closed
-    my_error(ER_EVENT_OPEN_TABLE_FAILED, MYF(0));
-    DBUG_RETURN(TRUE);
+    if (enable_sys_trg)
+      *enable_sys_trg= true;
+
+    DBUG_RETURN(false);
   }
 
-  DBUG_RETURN(FALSE);
+  if (enable_sys_trg != nullptr)
+  {
+    /*
+      Disable system triggers since the base structure of the table
+      mysql.event misses mandatory columns
+    */
+    *enable_sys_trg= false;
+    my_error(ER_SYSTEM_TRG_DISABLED, MYF(ME_WARNING));
+  }
+
+  /*
+    Check that the core subset of mysql.event table's columns are present.
+  */
+  if (!table_intact.check(*table, &event_table_def_wo_trg))
+  {
+    /*
+      Since the base structure of the table mysql.event contains
+      all columns required for running events, return success.
+
+      @note: Intentionally don't close the table since missing extra
+      columns required for system triggers support ins't treated
+      as error condition.
+    */
+    DBUG_RETURN(false);
+  }
+
+  thd->commit_whole_transaction_and_close_tables();
+  *table= 0;                                  // Table is now closed
+  my_error(ER_EVENT_OPEN_TABLE_FAILED, MYF(0));
+  DBUG_RETURN(true);
 }
 
 
@@ -341,7 +380,12 @@ Event_db_repository_common::check_system_tables(THD *thd)
   else
   {
     if (table_intact.check(tables.table, &event_table_def))
-      ret= 1;
+    {
+      if (table_intact.check(tables.table, &event_table_def_wo_trg))
+        ret= 1;
+      else
+        ret= 0;
+    }
     close_mysql_tables(thd);
   }
 

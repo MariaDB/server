@@ -6341,7 +6341,14 @@ int mysqld_main(int argc, char **argv)
   }
 #endif
 
-  if (run_after_startup_triggers())
+  /*
+    Since opt_noacl can be modified between calling the functions
+    run_after_startup_triggers and run_before_shutdown_triggers (on handling
+    the statement FLUSH PRIVILAGES), calculate the flag based on their
+    original values.
+  */
+  const bool bootstrap_or_noacl= (opt_bootstrap || opt_noacl);
+  if (run_after_startup_triggers(bootstrap_or_noacl))
     unireg_abort(1);
 
   /* Signal threads waiting for server to be started */
@@ -6358,7 +6365,7 @@ int mysqld_main(int argc, char **argv)
   run_main_loop();
 
   /* Shutdown requested */
-  run_before_shutdown_triggers();
+  run_before_shutdown_triggers(bootstrap_or_noacl);
 
   char *user= shutdown_user.load(std::memory_order_relaxed);
   sql_print_information(ER_DEFAULT(ER_NORMAL_SHUTDOWN), my_progname,

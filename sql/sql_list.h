@@ -671,7 +671,17 @@ inline void bubble_sort(List<T> *list_to_sort,
 struct ilink
 {
   struct ilink **prev,*next;
+  /*
+    Allocate a new memory for placing an instance of the class
+    inherited from ilink.
+
+    @note In case the OOM error happened on memory allocation, the flag MY_FAE
+    forces abnormal server termination via calling abort(). Therefore,
+    it makes sense to add compiler hint that null value can't be returned
+    for possible optimization.
+  */
   static void *operator new(size_t size) throw ()
+    __attribute__((returns_nonnull))
   {
     return (void*)my_malloc(PSI_INSTRUMENT_ME,
                             (uint)size, MYF(MY_WME | MY_FAE | ME_FATAL));

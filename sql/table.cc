@@ -5526,72 +5526,15 @@ bool check_column_name(const Lex_cstring &ident)
 }
 
 
-/**
-  Checks whether a table is intact. Should be done *just* after the table has
-  been opened.
-
-  @param[in] table             The table to check
-  @param[in] table_def         Expected structure of the table (column name
-                               and type)
-
-  @retval  FALSE  OK
-  @retval  TRUE   There was an error. An error message is output
-                  to the error log.  We do not push an error
-                  message into the error stack because this
-                  function is currently only called at start up,
-                  and such errors never reach the user.
-*/
-
-bool
-Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
+bool Table_check_intact::check_columns(TABLE *table,
+                                       const TABLE_FIELD_DEF *table_def)
 {
-  uint i;
-  my_bool error= FALSE;
   const TABLE_FIELD_TYPE *field_def= table_def->field;
-  DBUG_ENTER("table_check_intact");
-  DBUG_PRINT("info",("table: %s  expected_count: %d",
-                     table->alias.c_ptr(), table_def->count));
-
-  /* Whether the table definition has already been validated. */
-  if (table->s->table_field_def_cache == table_def)
-    goto end;
-
-  if (table->s->fields != table_def->count)
-  {
-    THD *thd= current_thd;
-    DBUG_PRINT("info", ("Column count has changed, checking the definition"));
-
-    /* previous MySQL version */
-    if (MYSQL_VERSION_ID > table->s->mysql_version)
-    {
-      report_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE,
-                   ER_THD(thd, ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE),
-                   table->alias.c_ptr(), table_def->count, table->s->fields,
-                   static_cast<int>(table->s->mysql_version),
-                   MYSQL_VERSION_ID);
-      DBUG_RETURN(TRUE);
-    }
-    else if (MYSQL_VERSION_ID == table->s->mysql_version)
-    {
-      report_error(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2,
-                   ER_THD(thd, ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2),
-                   table->s->db.str, table->s->table_name.str,
-                   table_def->count, table->s->fields);
-      DBUG_RETURN(TRUE);
-    }
-    /*
-      Something has definitely changed, but we're running an older
-      version of MySQL with new system tables.
-      Let's check column definitions. If a column was added at
-      the end of the table, then we don't care much since such change
-      is backward compatible.
-    */
-  }
-  else
-  {
   StringBuffer<1024> sql_type(system_charset_info);
+  bool error= false;
+
   sql_type.extra_allocation(256); // Allocate min 256 characters at once
-  for (i=0 ; i < table_def->count; i++, field_def++)
+  for (uint i=0 ; i < table_def->count; i++, field_def++)
   {
     sql_type.length(0);
     if (i < table->s->fields)
@@ -5639,7 +5582,7 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
                      table->alias.c_ptr(),
                      field_def->name.str, i, field_def->type.str,
                      sql_type.c_ptr_safe());
-        error= TRUE;
+        error= true;
       }
       else if (field_def->cset.str && !field->has_charset())
       {
@@ -5649,7 +5592,7 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
                      "character set.", table->s->db.str,
                      table->alias.c_ptr(),
                      field_def->name.str, i, field_def->cset.str);
-        error= TRUE;
+        error= true;
       }
       else if (field_def->cset.str &&
                strncmp(field->charset()->cs_name.str, field_def->cset.str,
@@ -5662,7 +5605,7 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
                      table->alias.c_ptr(),
                      field_def->name.str, i, field_def->cset.str,
                      field->charset()->cs_name.str);
-        error= TRUE;
+        error= true;
       }
     }
     else
@@ -5672,9 +5615,95 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
                    " but the column is not found.",
                    table->s->db.str, table->alias.c_ptr(),
                    field_def->name.str, i, field_def->type.str);
-      error= TRUE;
+      error= true;
     }
   }
+
+  return error;
+}
+
+
+/**
+  Checks whether a table is intact. Should be done *just* after the table has
+  been opened.
+
+  @param[in] table             The table to check
+  @param[in] table_def         Expected structure of the table (column name
+                               and type)
+
+  @retval  FALSE  OK
+  @retval  TRUE   There was an error. An error message is output
+                  to the error log.  We do not push an error
+                  message into the error stack because this
+                  function is currently only called at start up,
+                  and such errors never reach the user.
+*/
+
+bool
+Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
+{
+  uint i;
+  my_bool error= FALSE;
+  DBUG_ENTER("table_check_intact");
+  DBUG_PRINT("info",("table: %s  expected_count: %d",
+                     table->alias.c_ptr(), table_def->count));
+
+  /* Whether the table definition has already been validated. */
+  if (table->s->table_field_def_cache == table_def)
+    goto end;
+
+  if (table->s->fields != table_def->count)
+  {
+    THD *thd= current_thd;
+    DBUG_PRINT("info", ("Column count has changed, checking the definition"));
+
+    /* previous MySQL version */
+    if (MYSQL_VERSION_ID > table->s->mysql_version)
+    {
+      /*
+        If the table mysql.event has actually less columns than
+        expected by server, it could be possibly caused by attempt
+        to start server against the old data dictionary. In this case
+        check that every column of the mysql.event table has correct
+        structure, that is all required columns except those needed for
+        support of system trigger are presented.
+      */
+      if (table->s->fields < table_def->count)
+      {
+        bool ret= check_columns(table, table_def);
+        if (ret)
+          DBUG_RETURN(true);
+      }
+      else
+      {
+        report_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE,
+                     ER_THD(thd, ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE),
+                     table->alias.c_ptr(), table_def->count, table->s->fields,
+                     static_cast<int>(table->s->mysql_version),
+                     MYSQL_VERSION_ID);
+        DBUG_RETURN(TRUE);
+      }
+    }
+    else if (MYSQL_VERSION_ID == table->s->mysql_version)
+    {
+      report_error(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2,
+                   ER_THD(thd, ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2),
+                   table->s->db.str, table->s->table_name.str,
+                   table_def->count, table->s->fields);
+      DBUG_RETURN(TRUE);
+    }
+    /*
+      Something has definitely changed, but we're running an older
+      version of MySQL with new system tables.
+      Let's check column definitions. If a column was added at
+      the end of the table, then we don't care much since such change
+      is backward compatible.
+    */
+  }
+  else
+  {
+    if (check_columns(table, table_def))
+      DBUG_RETURN(true);
   }
 
   if (table_def->primary_key_parts)

@@ -31,6 +31,7 @@
 
 
 static LEX_CSTRING event_table_name{STRING_WITH_LEN("event")};
+static bool sys_triggers_enabled= false;
 
 /**
   Raise the error ER_TRG_ALREADY_EXISTS
@@ -502,6 +503,12 @@ bool mysql_create_sys_trigger(THD *thd)
   if (check_global_access(thd, SUPER_ACL))
     return true;
 
+  if (!sys_triggers_enabled)
+  {
+    my_error(ER_SYSTEM_TRG_DISABLED, MYF(0));
+    return true;
+  }
+
   if (!thd->lex->spname->m_db.length)
   {
     my_error(ER_NO_DB_ERROR, MYF(0));
@@ -688,13 +695,14 @@ bool mysql_drop_sys_or_ddl_trigger(THD *thd, bool *no_ddl_trigger_found)
   }
 
   /*
-    Check whether the trigger does exist. It is performed by a separate
-    function that opens the table mysql.event on reading within
-    a new independent transaction to handle the case when DROP TRIGGER
-    be executed in locked_tables_mode and there is no a trigger with
-    the supplied name.
+    First check whether support of system triggers enabled and then check
+    whether the trigger does exist. It is performed by a separate function
+    that opens the table mysql.event on reading within a new independent
+    transaction to handle the case when DROP TRIGGER be executed in
+    locked_tables_mode and there is no a trigger with the supplied name.
   */
-  if (!find_sys_trigger_by_name(thd, thd->lex->spname))
+  if (!sys_triggers_enabled ||
+      !find_sys_trigger_by_name(thd, thd->lex->spname))
   {
     /*
       The use case 'trigger not found' is handled at the function
@@ -1141,7 +1149,8 @@ static bool load_system_triggers(THD *thd)
   TABLE *event_table;
   start_new_trans new_trans(thd);
 
-  if (Event_db_repository::check_system_tables(thd))
+  if (Event_db_repository::open_event_table(thd, TL_WRITE, &event_table,
+                                            &sys_triggers_enabled))
   {
     /*
       In case events scheduler is enabled (in that case
@@ -1157,11 +1166,15 @@ static bool load_system_triggers(THD *thd)
                  "An error occurred when loading data from "
                  "the table mysql.event. System triggers not loaded",
                  MYF(ME_ERROR_LOG));
-    return false;
+
+    return true;
   }
 
-  if (Event_db_repository::open_event_table(thd, TL_WRITE, &event_table))
-    return true;
+  if (!sys_triggers_enabled)
+  {
+    close_thread_tables(thd);
+    return false;
+  }
 
   READ_RECORD read_record_info;
   if (init_read_record(&read_record_info, thd, event_table,
@@ -1246,7 +1259,14 @@ static void init_thd_for_on_startup_shutdown_triggers(void *stack_top)
   {
     original_thd= current_thd;
 
+    /*
+      operator new() for the class THD_PROCESS_WIDE invokes my_malloc
+      for memory allocaiton and passes it the flag MY_FAE that forces
+      calling abort() in case OOM error. It means that thd_for_sys_triggers
+      never equals nullptr.
+    */
     thd_for_sys_triggers= new THD_PROCESS_WIDE{0};
+    DBUG_ASSERT(thd_for_sys_triggers != nullptr);
     thd_for_sys_triggers->store_globals();
     thd_for_sys_triggers->set_query_inner(
       (char*) STRING_WITH_LEN("load_system_triggers"),
@@ -1268,11 +1288,14 @@ static void init_thd_for_on_startup_shutdown_triggers(void *stack_top)
 /**
   First, load system triggers from the table mysql.event and then run
   ON STARTUP triggers if ones present.
+
+  @param bootstrap_or_noacl  true in case server is run either with bootstrap
+                             or skip_grant_table option, else false
 */
 
-bool run_after_startup_triggers()
+bool run_after_startup_triggers(bool bootstrap_or_noacl)
 {
-  if (opt_bootstrap)
+  if (bootstrap_or_noacl)
     return false;
 
   bool stack_top;
@@ -1288,28 +1311,33 @@ bool run_after_startup_triggers()
   if (load_system_triggers(thd_for_sys_triggers))
   {
     delete thd_for_sys_triggers;
+    thd_for_sys_triggers= nullptr;
 
+    set_current_thd(original_thd);
     return true;
   }
 
-  /*
-    Then get a list of AFTER STARTUP triggers and execute them one by one
-  */
-  Sys_trigger *trg=
-    get_trigger_by_type(TRG_ACTION_AFTER, TRG_EVENT_STARTUP);
-  while (trg)
+  if (sys_triggers_enabled)
   {
     /*
-      Ignore errors that could happen on running any of 'on startup' triggers
-      to start the server regardless of possible trigger errors
+      Then get a list of AFTER STARTUP triggers and execute them one by one
     */
-    (void)trg->execute();
+    Sys_trigger *trg=
+      get_trigger_by_type(TRG_ACTION_AFTER, TRG_EVENT_STARTUP);
+    while (trg)
+    {
+      /*
+        Ignore errors that could happen on running any of 'on startup' triggers
+        to start the server regardless of possible trigger errors
+      */
+      (void)trg->execute();
 
-    trg= trg->next;
+      trg= trg->next;
+    }
   }
-
   thd_for_sys_triggers->thread_stack= nullptr;
   set_current_thd(original_thd);
+
   return false;
 }
 
@@ -1342,11 +1370,14 @@ static void destroy_sys_triggers()
 
 /**
   Run ON SHUTDOWN triggers
+
+  @param bootstrap_or_noacl  true in case server is run either with bootstrap
+                             or skip_grant_table option, else false
 */
 
-void run_before_shutdown_triggers()
+void run_before_shutdown_triggers(bool bootstrap_or_noacl)
 {
-  if (opt_bootstrap)
+  if (bootstrap_or_noacl)
     return;
 
   bool stack_top;
@@ -1463,6 +1494,21 @@ bool show_create_sys_trigger(THD *thd, const sp_name *trg_name)
   sql_mode_t saved_mode= thd->variables.sql_mode;
 
   thd->variables.sql_mode= 0;
+
+  if (!sys_triggers_enabled)
+  {
+    /*
+      The variable sys_triggers_enabled has the value true in case
+      the table mysql.event lacks some columns required for support of
+      system triggers. It is assumed that this use case is possible when
+      MariaDB server with support of system triggers is started against
+      database created by prior version of server w/o such support.
+      In this case raise the error ER_TRG_DOES_NOT_EXIST since a system
+      trigger can't exist in such database
+    */
+    my_error(ER_TRG_DOES_NOT_EXIST, MYF(0));
+    return true;
+  }
 
   if (Event_db_repository::open_event_table(thd, TL_READ, &event_table))
   {

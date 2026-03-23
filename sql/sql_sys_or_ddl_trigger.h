@@ -105,8 +105,8 @@ public:
   Sys_trigger *next;
 };
 
-bool run_after_startup_triggers();
-void run_before_shutdown_triggers();
+bool run_after_startup_triggers(bool bootstrap_or_noacl);
+void run_before_shutdown_triggers(bool bootstrap_or_noacl);
 
 bool show_create_sys_trigger(THD *thd, const sp_name *trg_name);
 bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables);

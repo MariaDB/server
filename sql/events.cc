@@ -110,6 +110,20 @@ int sortcmp_lex_string(const LEX_CSTRING *s, const LEX_CSTRING *t,
 
 
 /**
+  Return true if the sql command identifier corresponds to SHOW EVENTS or
+  SHOW CREATE EVENT statement; for other sql command identifiers return false.
+
+  @param sql_command  command id
+*/
+
+static inline bool is_not_show_event_related_cmd(enum_sql_command sql_command)
+{
+  return sql_command != SQLCOM_SHOW_EVENTS &&
+         sql_command != SQLCOM_SHOW_CREATE_EVENT;
+}
+
+
+/**
   Push an error into the error stack if the system tables are
   not up to date.
 */
@@ -118,7 +132,15 @@ bool Events::check_if_system_tables_error()
 {
   DBUG_ENTER("Events::check_if_system_tables_error");
 
-  if (opt_noacl)
+  /*
+    check_if_system_tables_error() is called for every DDL, DML event-related
+    commands (CREATE, ALTER, DROP, SHOW) including regular select from the
+    table information_schema.events. In case server is run with the option
+     --skip-grant-tables, any of events-related statements should be failed
+     except SHOW EVENTS/SHOW CREATE EVENT that is read-only statements
+     by its nature.
+  */
+  if (opt_noacl && is_not_show_event_related_cmd(current_thd->lex->sql_command))
   {
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
              opt_bootstrap ? "--bootstrap" : "--skip-grant-tables");
@@ -824,7 +846,7 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
     If we didn't start events because of --skip-grant-tables, return an
     empty set
   */
-  if (opt_noacl)
+  if (opt_noacl && thd->lex->sql_command != SQLCOM_SHOW_EVENTS)
     DBUG_RETURN(0);
 
   if (unlikely(check_if_system_tables_error()))

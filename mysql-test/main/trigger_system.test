@@ -2,6 +2,12 @@
 
 --source include/count_sessions.inc
 
+call mtr.add_suppression('Column count of mysql.event is wrong.');
+call mtr.add_suppression('Event Scheduler: An error occurred when initializing system tables. Disabling the Event Scheduler.');
+call mtr.add_suppression('An error occurred when loading data from the table mysql.event. System triggers not loaded');
+call mtr.add_suppression('Aborting');
+call mtr.add_suppression('Incorrect definition of table mysql.event: expected column');
+
 --echo #
 --echo # MDEV-30645: CREATE TRIGGER FOR { STARTUP | SHUTDOWN }
 --echo #
@@ -149,3 +155,67 @@ CREATE TRIGGER trg1 AFTER STARTUP SET @bbb=1;
 CREATE EVENT trg1 ON SCHEDULE EVERY 1 YEAR DO SET @aaa=1;
 --echo # Clean up
 DROP TRIGGER trg1;
+
+--echo #
+--echo # Test 9: Check that server can operate on database with
+--echo #         broken table mysql.event.
+CREATE TRIGGER trg1 AFTER STARTUP SET @bbb=1;
+
+--echo # Backup the mysql.event table
+CREATE TABLE event_copy LIKE mysql.event;
+INSERT INTO event_copy SELECT * FROM mysql.event;
+
+--echo # Drop column 'kind' in the table mysql.event to simulate a failure on
+--echo # loading triggers metadata from the table mysql.event
+ALTER TABLE mysql.event DROP COLUMN kind;
+
+--echo # Shutdown server and restart it to see how it handle broken
+--echo # table mysql.event
+--source include/shutdown_mysqld.inc
+
+--echo # Restart server. Expect start up failure
+--error 1
+--exec $MYSQLD_LAST_CMD
+
+--echo # Force server start up even on broken data dictionary.
+--let $restart_parameters=--skip-grant-tables
+--source include/start_mysqld.inc
+
+--echo # Restore original mysql.event from backup
+DROP TABLE mysql.event;
+RENAME TABLE event_copy TO mysql.event;
+
+--echo # Restart server. Should be successful.
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--echo # Clean up
+DROP TRIGGER trg1;
+
+--echo #
+--echo # Test 10: Check that server can be started up on the data dictionary
+--echo #          having the table mysql.event from previous version of
+--echo #          server (missing mandatory columns for support of system triggers)
+--echo #
+RENAME TABLE mysql.event TO mysql.ev_bk;
+--let $MYSQLD_DATADIR= `select @@datadir`
+
+--source include/shutdown_mysqld.inc
+
+--echo # Copy event table's files from previous server version (12.3)
+--echo # that doesn't contain columns required for system triggers support
+--copy_file $MYSQL_TEST_DIR/std_data/mdev-30645-event.MAI $MYSQLD_DATADIR/mysql/event.MAI
+--copy_file $MYSQL_TEST_DIR/std_data/mdev-30645-event.MAD $MYSQLD_DATADIR/mysql/event.MAD
+--copy_file $MYSQL_TEST_DIR/std_data/mdev-30645-event.frm $MYSQLD_DATADIR/mysql/event.frm
+
+#--let $restart_parameters=--skip-grant-tables
+--source include/start_mysqld.inc
+
+--error ER_SYSTEM_TRG_DISABLED
+CREATE TRIGGER ev1 AFTER STARTUP SET @bbb=1;
+
+# back to mariadb default
+DROP TABLE mysql.event;
+RENAME TABLE mysql.ev_bk TO mysql.event;
+
+--echo # End of Test 10.

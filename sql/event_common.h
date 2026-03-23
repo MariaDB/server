@@ -50,7 +50,8 @@ class Event_db_repository_common
 {
 public:
   static bool open_event_table(THD *thd, enum thr_lock_type lock_type,
-                               TABLE **table);
+                               TABLE **table,
+                               bool *enable_sys_trg= nullptr);
 
   static bool check_system_tables(THD *thd);
 

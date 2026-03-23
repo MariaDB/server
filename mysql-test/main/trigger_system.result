@@ -1,3 +1,8 @@
+call mtr.add_suppression('Column count of mysql.event is wrong.');
+call mtr.add_suppression('Event Scheduler: An error occurred when initializing system tables. Disabling the Event Scheduler.');
+call mtr.add_suppression('An error occurred when loading data from the table mysql.event. System triggers not loaded');
+call mtr.add_suppression('Aborting');
+call mtr.add_suppression('Incorrect definition of table mysql.event: expected column');
 #
 # MDEV-30645: CREATE TRIGGER FOR { STARTUP | SHUTDOWN }
 #
@@ -139,3 +144,39 @@ CREATE EVENT trg1 ON SCHEDULE EVERY 1 YEAR DO SET @aaa=1;
 ERROR HY000: Trigger with the same name 'trg1' already exists
 # Clean up
 DROP TRIGGER trg1;
+#
+# Test 9: Check that server can operate on database with
+#         broken table mysql.event.
+CREATE TRIGGER trg1 AFTER STARTUP SET @bbb=1;
+# Backup the mysql.event table
+CREATE TABLE event_copy LIKE mysql.event;
+INSERT INTO event_copy SELECT * FROM mysql.event;
+# Drop column 'kind' in the table mysql.event to simulate a failure on
+# loading triggers metadata from the table mysql.event
+ALTER TABLE mysql.event DROP COLUMN kind;
+# Shutdown server and restart it to see how it handle broken
+# table mysql.event
+# Restart server. Expect start up failure
+# Force server start up even on broken data dictionary.
+# restart: --skip-grant-tables
+# Restore original mysql.event from backup
+DROP TABLE mysql.event;
+RENAME TABLE event_copy TO mysql.event;
+# Restart server. Should be successful.
+# restart
+# Clean up
+DROP TRIGGER trg1;
+#
+# Test 10: Check that server can be started up on the data dictionary
+#          having the table mysql.event from previous version of
+#          server (missing mandatory columns for support of system triggers)
+#
+RENAME TABLE mysql.event TO mysql.ev_bk;
+# Copy event table's files from previous server version (12.3)
+# that doesn't contain columns required for system triggers support
+# restart
+CREATE TRIGGER ev1 AFTER STARTUP SET @bbb=1;
+ERROR HY000: The table mysql.event doesn't contain all mandatory columns required for support of system triggers. Operations with system triggers is disabled.
+DROP TABLE mysql.event;
+RENAME TABLE mysql.ev_bk TO mysql.event;
+# End of Test 10.
