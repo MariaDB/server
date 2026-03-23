@@ -1852,7 +1852,7 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
 
     if (!log_write_through)
       ut_a(log.flush());
-    latch.wr_lock(SRW_LOCK_CALL);
+    latch.wr_lock();
     resizing= resize_lsn.load(std::memory_order_relaxed);
   }
 
@@ -2007,7 +2007,7 @@ static void log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
   {
     log_sys.latch.wr_unlock();
     log_write_up_to(flush_lsn, true);
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock();
   }
 
   ut_ad(oldest_lsn > log_sys.last_checkpoint_lsn);
@@ -2034,7 +2034,7 @@ static void log_checkpoint() noexcept
 
   fil_flush_file_spaces();
 
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock();
   const lsn_t end_lsn= log_sys.get_lsn();
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   const lsn_t oldest_lsn= buf_pool.get_oldest_modification(end_lsn);
@@ -2081,7 +2081,7 @@ ATTRIBUTE_COLD void buf_flush_wait(lsn_t lsn, bool checkpoint) noexcept
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     os_aio_wait_until_no_pending_writes(false);
 
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock();
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
     if (checkpoint)
@@ -2201,7 +2201,7 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
   os_aio_wait_until_no_pending_writes(false);
   fil_flush_file_spaces();
 
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock();
   const lsn_t newest_lsn= log_sys.get_lsn();
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   lsn_t measure= buf_pool.get_oldest_modification(0);
@@ -2213,7 +2213,7 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
   {
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     log_checkpoint_low(checkpoint_lsn, newest_lsn);
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock();
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
     measure= buf_pool.get_oldest_modification(0);
   }
@@ -2776,7 +2776,7 @@ ATTRIBUTE_COLD void buf_flush_sync_batch(lsn_t lsn, bool checkpoint) noexcept
 {
   thd_wait_begin(nullptr, THD_WAIT_DISKIO);
   tpool::tpool_wait_begin();
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock();
   lsn= std::max(lsn, log_sys.get_lsn());
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   buf_flush_wait(lsn, checkpoint);

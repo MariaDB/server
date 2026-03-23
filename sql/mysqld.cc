@@ -6101,11 +6101,7 @@ int mysqld_main(int argc, char **argv)
     my_free(user);
 
 #ifdef WITH_WSREP
-  /* Stop wsrep threads in case they are running. */
-  if (wsrep_running_threads > 0)
-  {
-    wsrep_shutdown_replication();
-  }
+  wsrep_shutdown();
   /* Release threads if they are waiting in WSREP_SYNC_WAIT_UPTO_GTID */
   wsrep_gtid_server.signal_waiters(0, true);
 #endif

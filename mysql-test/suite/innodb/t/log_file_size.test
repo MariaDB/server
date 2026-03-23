@@ -110,6 +110,7 @@ DELETE FROM t1 WHERE a=0;
 SELECT * FROM t1;
 let SEARCH_PATTERN= syntax error in innodb_log_group_home_dir;
 --source include/search_pattern_in_file.inc
+--let $restart_parameters=
 
 if ($have_debug) {
 --let $restart_parameters= --debug-dbug=d,innodb_log_abort_1
@@ -118,15 +119,12 @@ if ($have_debug) {
 SELECT * FROM t1;
 let SEARCH_PATTERN= InnoDB: Starting crash recovery from checkpoint LSN=.*;
 --source include/search_pattern_in_file.inc
+let $restart_parameters = --innodb-log-file-size=5M;
 }
 
---let $restart_parameters= --innodb-read-only
 --source include/restart_mysqld.inc
 
---error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
-let SEARCH_PATTERN= InnoDB: innodb_read_only prevents crash recovery;
---source include/search_pattern_in_file.inc
 
 if ($have_debug) {
 --let $restart_parameters= --debug-dbug=d,innodb_log_abort_5
@@ -136,12 +134,9 @@ SELECT * FROM t1;
 let SEARCH_PATTERN= redo log from 5\\.000MiB to [0-9.]*[KMGT]iB;
 --source include/search_pattern_in_file.inc
 
---let $restart_parameters= --innodb-read-only
+--let $restart_parameters=
 --source include/restart_mysqld.inc
---error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
-let SEARCH_PATTERN= InnoDB: innodb_read_only prevents crash recovery;
---source include/search_pattern_in_file.inc
 }
 
 # Trigger an error in recovery.

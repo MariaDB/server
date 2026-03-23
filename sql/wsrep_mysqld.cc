@@ -117,8 +117,6 @@ uint  wsrep_gtid_domain_id=0;                   // Domain id on above structure
 
 /* Other configuration variables and their default values. */
 my_bool wsrep_incremental_data_collection= 0;   // Incremental data collection
-my_bool wsrep_restart_slave_activated= 0;       // Node has dropped, and slave
-                                                // restart will be needed
 bool wsrep_new_cluster= false;                  // Bootstrap the cluster?
 int wsrep_slave_count_change= 0;                // No. of appliers to stop/start
 int wsrep_to_isolation= 0;                      // No. of active TO isolation threads
@@ -271,11 +269,17 @@ static char provider_name[256]= { 0, };
 static char provider_version[256]= { 0, };
 static char provider_vendor[256]= { 0, };
 
+enum WsrepState {
+  NOT_READY,
+  READY,
+  IN_SHUTDOWN,
+};
+static std::atomic<WsrepState> wsrep_state(NOT_READY);
+
 /*
  * Wsrep status variables. LOCK_status must be locked When modifying
  * these variables,
  */
-std::atomic<bool> wsrep_ready(false);
 my_bool     wsrep_connected         = FALSE;
 const char* wsrep_cluster_state_uuid= cluster_uuid_str;
 long long   wsrep_cluster_conf_id   = WSREP_SEQNO_UNDEFINED;
@@ -582,7 +586,7 @@ void wsrep_verify_SE_checkpoint(const wsrep_uuid_t& uuid,
  */
 my_bool wsrep_ready_get (void)
 {
-  return wsrep_ready;
+  return wsrep_state == READY;
 }
 
 int wsrep_show_ready(THD *thd, SHOW_VAR *var, void *buff,
@@ -1167,12 +1171,23 @@ void wsrep_stop_replication(THD *thd)
   wsrep_stop_replication_common(thd);
 }
 
-void wsrep_shutdown_replication()
+void wsrep_shutdown()
 {
-  WSREP_INFO("Shutdown replication");
-  wsrep_stop_replication_common(nullptr);
-  /* Undocking the thread specific data. */
-  set_current_thd(nullptr);
+  /* Signal ready state waiters that we're shutting down. */
+  mysql_mutex_lock(&LOCK_wsrep_ready);
+  DBUG_ASSERT(wsrep_state != IN_SHUTDOWN);
+  wsrep_state = IN_SHUTDOWN;
+  mysql_cond_signal(&COND_wsrep_ready);
+  mysql_mutex_unlock(&LOCK_wsrep_ready);
+
+  /* Stop wsrep threads in case they are running. */
+  if (wsrep_running_threads > 0)
+  {
+    WSREP_INFO("Shutdown replication");
+    wsrep_stop_replication_common(nullptr);
+    /* Undocking the thread specific data. */
+    set_current_thd(nullptr);
+  }
 }
 
 bool wsrep_start_replication(const char *wsrep_cluster_address)
@@ -2856,11 +2871,11 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   WSREP_DEBUG("TOI Begin: %s", wsrep_thd_query(thd));
   DEBUG_SYNC(thd, "wsrep_toi_begin");
 
-  if (!wsrep_ready ||
+  if (!wsrep_ready_get() ||
       wsrep_can_run_in_toi(thd, db, table, table_list, create_info) == false)
   {
     WSREP_DEBUG("No TOI for %s", wsrep_thd_query(thd));
-    if (!wsrep_ready)
+    if (!wsrep_ready_get())
     {
       my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -4210,31 +4225,45 @@ bool wsrep_consistency_check(THD *thd)
   return thd->wsrep_consistency_check == CONSISTENCY_CHECK_RUNNING;
 }
 
-// Wait until wsrep has reached ready state
-void wsrep_wait_ready(THD *thd)
+bool wsrep_wait_ready(THD *thd)
 {
   // First check not locking the mutex.
-  if (wsrep_ready)
-    return;
+  switch (wsrep_state.load()) {
+  case NOT_READY:
+    break;
+  case READY:
+    return true;
+  case IN_SHUTDOWN:
+    return false;
+  }
 
   mysql_mutex_lock(&LOCK_wsrep_ready);
-  while(!wsrep_ready)
+  while(!wsrep_state)
   {
     WSREP_INFO("Waiting to reach ready state");
     mysql_cond_wait(&COND_wsrep_ready, &LOCK_wsrep_ready);
   }
-  WSREP_INFO("ready state reached");
   mysql_mutex_unlock(&LOCK_wsrep_ready);
+  WSREP_INFO("ready state reached");
+  /* It may happen we stop waiting and immediately transition
+     to not ready state when we reach this line. It's a spurious
+     wakeup we cannot deal with, but the best we can do is to return
+     readiness indication. That's why we should compare to
+     IN_SHUTDOWN rather than returning wsrep_ready_get(). */
+  return wsrep_state != IN_SHUTDOWN;
 }
 
 void wsrep_ready_set(bool ready_value)
 {
   WSREP_DEBUG("Setting wsrep_ready to %d", ready_value);
   mysql_mutex_lock(&LOCK_wsrep_ready);
-  wsrep_ready= ready_value;
-  // Signal if we have reached ready state
-  if (ready_value)
-    mysql_cond_signal(&COND_wsrep_ready);
+  /* Only transition if we're not shutting down. */
+  if (wsrep_state != IN_SHUTDOWN) {
+    wsrep_state= ready_value ? READY : NOT_READY;
+    // Signal if we have reached ready state
+    if (ready_value)
+      mysql_cond_signal(&COND_wsrep_ready);
+  }
   mysql_mutex_unlock(&LOCK_wsrep_ready);
 }
 

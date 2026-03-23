@@ -241,7 +241,7 @@ static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
     if (thd_kill_level(thd))
       break;
     /* Adjust for purge_coordinator_state::refresh() */
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock();
     const lsn_t last= log_sys.last_checkpoint_lsn,
       max_age= log_sys.max_checkpoint_age;
     const lsn_t lsn= log_sys.get_lsn();
@@ -565,7 +565,6 @@ mysql_pfs_key_t trx_i_s_cache_lock_key;
 mysql_pfs_key_t	trx_purge_latch_key;
 mysql_pfs_key_t trx_rseg_latch_key;
 mysql_pfs_key_t lock_latch_key;
-mysql_pfs_key_t	log_latch_key;
 
 /* all_innodb_rwlocks array contains rwlocks that are
 performance schema instrumented if "UNIV_PFS_RWLOCK"
@@ -581,7 +580,6 @@ static PSI_rwlock_info all_innodb_rwlocks[] =
   { &trx_purge_latch_key, "trx_purge_latch", 0 },
   { &trx_rseg_latch_key, "trx_rseg_latch", 0 },
   { &lock_latch_key, "lock_latch", 0 },
-  { &log_latch_key, "log_latch", 0 },
   { &index_tree_rw_lock_key, "index_tree_rw_lock", PSI_RWLOCK_FLAG_SX }
 };
 # endif /* UNIV_PFS_RWLOCK */
@@ -4684,7 +4682,7 @@ checkpoint complete when we have flushed the redo log.
 If we have already flushed all relevant redo log, we notify immediately.*/
 static void innodb_log_flush_request(void *cookie) noexcept
 {
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock();
   lsn_t flush_lsn= log_sys.get_flushed_lsn();
   /* Load lsn relaxed after flush_lsn was loaded from the same cache line */
   const lsn_t lsn= log_sys.get_lsn();
@@ -18415,7 +18413,7 @@ checkpoint_now_set(THD* thd, st_mysql_sys_var*, void*, const void *save)
   mysql_mutex_unlock(&LOCK_global_system_variables);
   while (!thd_kill_level(thd))
   {
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock();
     lsn_t cp= log_sys.last_checkpoint_lsn.load(std::memory_order_relaxed),
       lsn= log_sys.get_lsn();
     log_sys.latch.wr_unlock();
@@ -18673,7 +18671,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
         if (!resizing || !log_sys.resize_running(thd))
           break;
-        log_sys.latch.wr_lock(SRW_LOCK_CALL);
+        log_sys.latch.wr_lock();
         while (resizing > log_sys.get_lsn())
         {
           ut_ad(!log_sys.is_mmap());

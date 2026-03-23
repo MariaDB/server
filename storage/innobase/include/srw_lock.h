@@ -630,4 +630,54 @@ public:
   /** @return whether this thread is holding rd_lock() or wr_lock() */
   bool have_any() const noexcept;
 };
+
+# ifndef LOG_LATCH_DEBUG
+# elif !defined UNIV_PFS_RWLOCK
+typedef srw_lock_debug srw_lock_debug_simple;
+# else
+class srw_lock_debug_simple : private ssux_lock_impl<false>
+{
+  /** The owner of the exclusive lock (0 if none) */
+  std::atomic<pthread_t> writer;
+  /** Protects readers */
+  mutable srw_mutex readers_lock;
+  /** Threads that hold the lock in shared mode */
+  std::atomic<std::unordered_multiset<pthread_t>*> readers;
+
+  /** Register a read lock. */
+  void readers_register() noexcept;
+
+public:
+  void init() noexcept;
+  void destroy() noexcept;
+
+#ifndef SUX_LOCK_GENERIC
+  /** @return whether any lock may be held by any thread */
+  bool is_locked_or_waiting() const noexcept
+  { return ssux_lock_impl::is_locked_or_waiting(); }
+  /** @return whether an exclusive lock may be held by any thread */
+  bool is_write_locked() const noexcept
+  { return ssux_lock_impl::is_write_locked(); }
+#endif
+
+  /** Acquire an exclusive lock */
+  void wr_lock() noexcept;
+  /** @return whether an exclusive lock was acquired */
+  bool wr_lock_try() noexcept;
+  /** Release after wr_lock() */
+  void wr_unlock() noexcept;
+  /** Acquire a shared lock */
+  void rd_lock() noexcept;
+  /** @return whether a shared lock was acquired */
+  bool rd_lock_try() noexcept;
+  /** Release after rd_lock() */
+  void rd_unlock() noexcept;
+  /** @return whether this thread is between rd_lock() and rd_unlock() */
+  bool have_rd() const noexcept;
+  /** @return whether this thread is between wr_lock() and wr_unlock() */
+  bool have_wr() const noexcept;
+  /** @return whether this thread is holding rd_lock() or wr_lock() */
+  bool have_any() const noexcept;
+};
+# endif
 #endif

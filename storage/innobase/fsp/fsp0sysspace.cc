@@ -629,7 +629,7 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 	if (!log_sys.file_size && log_sys.format == log_t::FORMAT_3_23
 	    && srv_operation == SRV_OPERATION_NORMAL
 	    && srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
-		log_sys.latch.wr_lock(SRW_LOCK_CALL);
+		log_sys.latch.wr_lock();
 		/* Upgrade from 0-sized ib_logfile0. */
 		log_sys.last_checkpoint_lsn = mach_read_from_8(
 			first_page + 26/*FIL_PAGE_FILE_FLUSH_LSN*/);
