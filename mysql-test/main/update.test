@@ -973,4 +973,16 @@ DROP FUNCTION f;
 DROP TABLE t1;
 DROP TABLE t2;
 
+--echo #
+--echo # MDEV-39127: UBSAN : downcast of address X which does not point to an object of type
+--echo # 'multi_update' in sql/sql_update.cc | Sql_cmd_update::update_single_table
+--echo #
+--echo #
+
+CREATE OR REPLACE TABLE t3(a INT);
+INSERT INTO t3 VALUES (1);
+UPDATE t3 SET a = 10 RETURNING a;
+
+DROP TABLE t3;
+
 --echo # End of 13.0 test

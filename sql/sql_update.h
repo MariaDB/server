@@ -106,6 +106,7 @@ private:
     is supposed to be converted to multi-table update.
   */
   bool multitable;
+  select_result *returning_result;
 
   /* The prelocking strategy used when opening the used tables */
   Multiupdate_prelocking_strategy multiupdate_prelocking_strategy;
