@@ -68,6 +68,7 @@
 #include "create_tmp_table.h"
 #include "optimizer_defaults.h"
 #include "derived_handler.h"
+#include "item_windowfunc.h"
 #include "opt_hints.h"
 #include "opt_group_by_cardinality.h"
 
@@ -216,6 +217,9 @@ static COND *optimize_cond(JOIN *join, COND *conds,
                            int flags= 0);
 bool const_expression_in_where(COND *conds,Item *item, Item **comp_item);
 static int do_select(JOIN *join, Procedure *procedure);
+
+static enum_nested_loop_state
+end_send_streaming_wf(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 
 static enum_nested_loop_state evaluate_join_record(JOIN *, JOIN_TAB *, int);
 static enum_nested_loop_state
@@ -3333,12 +3337,20 @@ int JOIN::optimize_stage2()
   need_tmp= test_if_need_tmp_table();
 
   /*
-    If window functions are present then we can't have simple_order set to
+    For streaming window functions with ORDER BY, assign the
+    covering index to the driving JOIN_TAB
+  */
+  if (!need_tmp && select_lex->have_window_funcs())
+    setup_streaming_wf_index();
+
+  /*
+    If non-streaming window functions are present then we can't have simple_order set to
     TRUE as the window function needs a temp table for computation.
     ORDER BY is computed after the window function computation is done, so
     the sort will be done on the temp table.
   */
-  if (select_lex->have_window_funcs())
+  if (select_lex->have_window_funcs() &&
+      !window_funcs_can_stream())
     simple_order= FALSE;
 
   /*
@@ -3605,7 +3617,8 @@ setup_subq_exit:
     simple_order= TRUE;
     select_distinct= FALSE;
 
-    if (select_lex->have_window_funcs())
+    if (select_lex->have_window_funcs() &&
+        !window_funcs_can_stream())
     {
       if (!(join_tab= thd->alloc<JOIN_TAB>(1)))
         DBUG_RETURN(1);
@@ -4329,14 +4342,23 @@ bool JOIN::make_aggr_tables_info()
   */
   if (select_lex->window_funcs.elements)
   {
-    curr_tab= join_tab + total_join_tab_cnt();
-    if (!(curr_tab->window_funcs_step= new Window_funcs_computation))
-      DBUG_RETURN(true);
-    if (curr_tab->window_funcs_step->setup(thd, &select_lex->window_funcs,
-                                           curr_tab))
-      DBUG_RETURN(true);
-    /* Count that we're using window functions. */
-    status_var_increment(thd->status_var.feature_window_functions);
+    if (window_funcs_can_stream())
+    {
+      List_iterator_fast it(select_lex->window_funcs);
+      Item_window_func *wf;
+      while ((wf= it++))
+        wf->streaming_wf_init(thd);
+    }
+    else
+    {
+      curr_tab= join_tab + total_join_tab_cnt();
+      if (!(curr_tab->window_funcs_step= new Window_funcs_computation))
+        DBUG_RETURN(true);
+      if (curr_tab->window_funcs_step->setup(thd, &select_lex->window_funcs,
+                                             curr_tab))
+        DBUG_RETURN(true);
+      status_var_increment(thd->status_var.feature_window_functions);
+    }
   }
   if (select_lex->custom_agg_func_used())
     status_var_increment(thd->status_var.feature_custom_aggregate_functions);
@@ -4363,10 +4385,18 @@ bool JOIN::make_aggr_tables_info()
   fields= curr_fields_list;
   // Reset before execution
   set_items_ref_array(items0);
-  if (join_tab)
-    join_tab[exec_join_tab_cnt() + aggr_tables - 1].next_select=
-      setup_end_select_func(this);
   group= has_group_by;
+
+  if (join_tab)
+  {
+    JOIN_TAB *last_aggr_tab=
+      &join_tab[exec_join_tab_cnt() + aggr_tables - 1];
+
+    if (window_funcs_can_stream())
+      join_tab[top_join_tab_count - 1].next_select= end_send_streaming_wf;
+    else
+      last_aggr_tab->next_select= setup_end_select_func(this);
+  }
 
   DBUG_RETURN(false);
 }
@@ -23940,6 +23970,22 @@ Next_select_func setup_end_select_func(JOIN *join)
   return end_send;
 }
 
+static enum_nested_loop_state
+end_send_streaming_wf(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
+{
+  DBUG_ENTER("end_send_streaming_wf");
+
+  if (end_of_records)
+    DBUG_RETURN(end_send(join, join_tab, end_of_records));
+
+  List_iterator_fast it(join->select_lex->window_funcs);
+  Item_window_func *wf;
+  while ((wf= it++))
+    wf->streaming_wf_add();
+
+  DBUG_RETURN(end_send(join, join_tab, end_of_records));
+}
+
 
 /**
   Make a join of all tables and write it on socket or to table.
@@ -34646,6 +34692,216 @@ bool JOIN::transform_all_conds_and_on_exprs_in_join_list(
     }
   }
   return false;
+}
+
+/*
+  Check if we need to create a temporary table.
+  This has to be done if all tables are not already read (const tables)
+  and one of the following conditions holds:
+  - We are using DISTINCT (simple distinct's are already optimized away)
+  - We are using an ORDER BY or GROUP BY on fields not in the first table
+  - We are using different ORDER BY and GROUP BY orders
+  - The user wants us to buffer the result.
+  - We are using non-streaming WINDOW functions.
+  When the WITH ROLLUP modifier is present, we cannot skip temporary table
+  creation for the DISTINCT clause just because there are only const tables.
+*/
+
+bool JOIN::test_if_need_tmp_table()
+{
+  return ((const_tables != table_count &&
+          ((select_distinct || !simple_order || !simple_group) ||
+           (group_list && order) ||
+           MY_TEST(select_options & OPTION_BUFFER_RESULT))) ||
+          (rollup.state != ROLLUP::STATE_NONE && select_distinct) ||
+          (select_lex->have_window_funcs() &&
+          !window_funcs_can_stream()));
+}
+
+/*
+  Find the index on the driving table that covers the ORDER BY clause
+  of the given window spec.
+
+  @param spec   Window spec to check ORDER BY for
+  @param keyno  OUT: index number that covers the ORDER BY, if found
+
+  @return true if a matching index was found, false otherwise
+*/
+bool JOIN::find_wf_order_index(const Window_spec *spec, uint *keyno) const
+{
+  DBUG_ASSERT(spec->order_list->elements > 0);
+
+  /* Must not be called when all tables are const */
+  if (!join_tab || const_tables >= table_count)
+    return false;
+
+  JOIN_TAB *tab= join_tab + const_tables;
+  if (!tab || !tab->table)
+    return false;
+
+  TABLE *table=   tab->table;
+  uint   n_order= spec->order_list->elements;
+
+  for (uint k= 0; k < table->s->keys; k++)
+  {
+    KEY *key_info= table->key_info + k;
+
+    if (key_info->usable_key_parts < n_order)
+      continue;
+
+    bool matches= true;
+    uint i= 0;
+    for (ORDER *ord= spec->order_list->first; ord; ord= ord->next, i++)
+    {
+      Item *item= *ord->item;
+      if (item->type() != Item::FIELD_ITEM)
+      { matches= false; break; }
+
+      Item_field *ifield= (Item_field *) item;
+      if (ifield->field != key_info->key_part[i].field)
+      { matches= false; break; }
+
+      bool key_asc= !(key_info->key_part[i].key_part_flag & HA_REVERSE_SORT);
+      bool ord_asc= (ord->direction != ORDER::ORDER_DESC);
+      if (key_asc != ord_asc)
+      { matches= false; break; }
+    }
+
+    if (matches)
+    {
+      *keyno= k;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+
+/*
+  Check whether all streaming window functions have their ORDER BY
+  covered by an existing index.
+*/
+bool JOIN::window_funcs_can_stream() const
+{
+  if (!select_lex->have_streaming_window_funcs_candidates())
+    return false;
+
+  /* Streaming requires at least one real scan tab. */
+  if (top_join_tab_count == 0 ||
+      !join_tab             ||
+      const_tables >= table_count)
+    return false;
+
+  /*
+    Streaming is only supported for SELECT queries.
+    can we support other DML commands?
+  */
+  if (thd->lex->sql_command != SQLCOM_SELECT)
+    return false;
+
+  /*
+    Step 1: Find the window function with the most ORDER BY columns.
+  */
+  const Window_spec *widest_spec= NULL;
+  uint               widest_n=    0;
+
+  List_iterator_fast it(select_lex->window_funcs);
+  Item_window_func *wf;
+  while ((wf= it++))
+  {
+    uint n= wf->window_spec->order_list->elements;
+    if (n > widest_n)
+    {
+      widest_n=    n;
+      widest_spec= wf->window_spec;
+    }
+  }
+
+  /* All window functions have OVER() — no ORDER BY anywhere */
+  if (widest_n == 0)
+    return true;
+
+  /*
+    Step 2: Find an index that fully covers the widest ORDER BY.
+  */
+  uint keyno= 0;
+  if (!find_wf_order_index(widest_spec, &keyno))
+    return false;
+
+  /*
+    Step 3: Verify every other window function's ORDER BY is a prefix
+    of the widest ORDER BY.
+  */
+  it.rewind();
+  while ((wf= it++))
+  {
+    const Window_spec *spec= wf->window_spec;
+    uint n= spec->order_list->elements;
+
+    if (n == 0)
+      continue;
+
+    if (n == widest_n && spec == widest_spec)
+      continue;
+
+    /* Compare column by column against the widest spec */
+    ORDER *ord_wide= widest_spec->order_list->first;
+    ORDER *ord_this= spec->order_list->first;
+
+    for (; ord_this; ord_wide= ord_wide->next, ord_this= ord_this->next)
+    {
+      Item *item_wide= *ord_wide->item;
+      Item *item_this= *ord_this->item;
+
+      if (item_wide->type() != Item::FIELD_ITEM ||
+          item_this->type() != Item::FIELD_ITEM)
+        return false;
+
+      if (((Item_field*)item_wide)->field !=
+          ((Item_field*)item_this)->field)
+        return false;
+
+      if (ord_wide->direction != ord_this->direction)
+        return false;
+    }
+  }
+
+  return true;
+}
+
+
+/*
+  Assign the index that covers each streaming window function's ORDER BY
+  to the driving JOIN_TAB.
+*/
+void JOIN::setup_streaming_wf_index()
+{
+  const Window_spec *widest_spec= NULL;
+  uint               widest_n=    0;
+
+  List_iterator_fast it(select_lex->window_funcs);
+  Item_window_func *wf;
+  while ((wf= it++))
+  {
+    uint n= wf->window_spec->order_list->elements;
+    if (n > widest_n)
+    {
+      widest_n=    n;
+      widest_spec= wf->window_spec;
+    }
+  }
+
+  if (widest_n == 0)
+    return;
+
+  uint keyno= 0;
+  if (!find_wf_order_index(widest_spec, &keyno))
+    return;
+
+  JOIN_TAB *tab= join_tab + const_tables;
+  tab->index= keyno;
+  tab->type=  JT_NEXT;
 }
 
 static void init_join_plan_search_state(JOIN *join)

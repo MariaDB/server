@@ -1,0 +1,276 @@
+DROP TABLE IF EXISTS t1, t2, t_multi;
+CREATE TABLE t1 (id INT PRIMARY KEY AUTO_INCREMENT, val INT);
+INSERT INTO t1 (val) VALUES (10),(20),(30),(40),(50),(60),(70),(80),(90),(100);
+CREATE TABLE t2 (id INT PRIMARY KEY AUTO_INCREMENT, grp INT, INDEX idx_grp(grp));
+INSERT INTO t2 (grp) VALUES (1),(1),(2),(2),(3),(3);
+CREATE TABLE t_multi (
+id  INT PRIMARY KEY AUTO_INCREMENT,
+a   INT,
+b   INT,
+c   INT,
+INDEX idx_a_b_c (a, b, c),
+INDEX idx_b (b)
+);
+INSERT INTO t_multi (a, b, c) VALUES
+(1,1,1),(1,1,2),(1,2,1),(1,2,2),
+(2,1,1),(2,1,2),(2,2,1),(2,2,2);
+SELECT row_number() OVER () AS rn, val FROM t1 LIMIT 5;
+rn	val
+1	10
+2	20
+3	30
+4	40
+5	50
+FLUSH STATUS;
+SELECT row_number() OVER () AS rn FROM t1 LIMIT 3;
+rn
+1
+2
+3
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	0
+SELECT row_number() OVER (ORDER BY id) AS rn, id FROM t1 LIMIT 5;
+rn	id
+1	1
+2	2
+3	3
+4	4
+5	5
+FLUSH STATUS;
+SELECT row_number() OVER (ORDER BY id) AS rn FROM t1 LIMIT 3;
+rn
+1
+2
+3
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	0
+EXPLAIN SELECT row_number() OVER () AS rn FROM t1 LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	10	Using index
+EXPLAIN SELECT row_number() OVER (ORDER BY id) AS rn FROM t1 LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	10	Using index
+SELECT rank() OVER (ORDER BY id) AS rnk, id FROM t1 LIMIT 5;
+rnk	id
+1	1
+2	2
+3	3
+4	4
+5	5
+FLUSH STATUS;
+SELECT rank() OVER (ORDER BY id) AS rnk FROM t1 LIMIT 3;
+rnk
+1
+2
+3
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	0
+SELECT dense_rank() OVER (ORDER BY id) AS dr, id FROM t1 LIMIT 5;
+dr	id
+1	1
+2	2
+3	3
+4	4
+5	5
+FLUSH STATUS;
+SELECT dense_rank() OVER (ORDER BY id) AS dr FROM t1 LIMIT 3;
+dr
+1
+2
+3
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	0
+SELECT 1 + row_number() OVER () AS rn FROM t1 LIMIT 3;
+rn
+2
+3
+4
+SELECT
+row_number() OVER () AS rn1,
+row_number() OVER () AS rn2
+FROM t1 LIMIT 3;
+rn1	rn2
+1	1
+2	2
+3	3
+SELECT * FROM (
+SELECT row_number() OVER () AS rn, val FROM t1
+) sub WHERE rn <= 3;
+rn	val
+1	10
+2	20
+3	30
+SELECT rn, val FROM (
+SELECT row_number() OVER (ORDER BY id) AS rn, val, id FROM t1
+) sub WHERE rn BETWEEN 2 AND 4;
+rn	val
+2	20
+3	30
+4	40
+FLUSH STATUS;
+SELECT row_number() OVER () AS rn, t1.val, t2.grp
+FROM t1 JOIN t2 ON t1.id = t2.id LIMIT 3;
+rn	val	grp
+1	10	1
+2	20	1
+3	30	2
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	0
+SELECT row_number() OVER () AS rn, t1.id, t2.grp
+FROM t1 LEFT JOIN t2 ON t1.id = t2.id LIMIT 3;
+rn	id	grp
+1	1	1
+2	2	1
+3	3	2
+SELECT row_number() OVER () AS rn, val FROM t1 WHERE val > 50 LIMIT 3;
+rn	val
+1	60
+2	70
+3	80
+SELECT row_number() OVER (ORDER BY id) AS rn, id, val FROM t1 WHERE id > 5 LIMIT 3;
+rn	id	val
+1	6	60
+2	7	70
+3	8	80
+FLUSH STATUS;
+SELECT row_number() OVER (ORDER BY a, b, c) AS rn,
+rank()       OVER (ORDER BY a, b, c) AS rnk
+FROM t_multi LIMIT 5;
+rn	rnk
+1	1
+2	2
+3	3
+4	4
+5	5
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	0
+FLUSH STATUS;
+SELECT row_number() OVER (ORDER BY a, b, c) AS rn,
+rank()       OVER (ORDER BY a, b)    AS rnk
+FROM t_multi LIMIT 5;
+rn	rnk
+1	1
+2	1
+3	3
+4	3
+5	5
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	0
+FLUSH STATUS;
+SELECT row_number() OVER (ORDER BY a, b, c) AS rn,
+rank()       OVER (ORDER BY a, b)    AS rnk,
+dense_rank() OVER (ORDER BY a)       AS dr
+FROM t_multi LIMIT 5;
+rn	rnk	dr
+1	1	1
+2	1	1
+3	3	1
+4	3	1
+5	5	2
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	0
+FLUSH STATUS;
+SELECT row_number() OVER (ORDER BY a, b) AS rn,
+row_number()       OVER ()              AS rnk
+FROM t_multi LIMIT 5;
+rn	rnk
+1	1
+2	2
+3	3
+4	4
+5	5
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	0
+FLUSH STATUS;
+SELECT row_number() OVER (ORDER BY a, b, c) AS rn,
+rank()       OVER (ORDER BY b)       AS rnk
+FROM t_multi LIMIT 5;
+rn	rnk
+1	1
+2	1
+3	5
+4	5
+5	1
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	1
+FLUSH STATUS;
+SELECT row_number() OVER (ORDER BY a, b, c) AS rn,
+rank()       OVER (ORDER BY a, c)    AS rnk
+FROM t_multi LIMIT 5;
+rn	rnk
+1	1
+2	3
+3	1
+4	3
+5	5
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	1
+FLUSH STATUS;
+SELECT row_number() OVER (), sum(val) FROM t1;
+row_number() OVER ()	sum(val)
+1	550
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	1
+FLUSH STATUS;
+SELECT rank() OVER (PARTITION BY val ORDER BY id) AS rnk, val, id FROM t1 LIMIT 5;
+rnk	val	id
+1	10	1
+1	20	2
+1	30	3
+1	40	4
+1	50	5
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	1
+FLUSH STATUS;
+SELECT rank() OVER (ORDER BY val) AS rnk, val FROM t1 LIMIT 5;
+rnk	val
+1	10
+2	20
+3	30
+4	40
+5	50
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	1
+FLUSH STATUS;
+SELECT row_number() OVER (ORDER BY val) AS rn, val FROM t1 ORDER BY val LIMIT 5;
+rn	val
+1	10
+2	20
+3	30
+4	40
+5	50
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	1
+FLUSH STATUS;
+SELECT row_number() OVER (ORDER BY id),
+rank()       OVER (ORDER BY grp)
+FROM t2 LIMIT 3;
+row_number() OVER (ORDER BY id)	rank()       OVER (ORDER BY grp)
+1	1
+2	1
+3	3
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	1
+EXPLAIN SELECT rank() OVER (PARTITION BY val ORDER BY id) AS rnk FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+EXPLAIN SELECT rank() OVER (ORDER BY val) AS rnk FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+DROP TABLE t1, t2, t_multi;

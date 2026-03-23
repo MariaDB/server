@@ -3281,6 +3281,67 @@ bool st_select_lex::add_window_func(Item_window_func *win_func)
   return window_funcs.push_back(win_func);
 }
 
+bool Item_window_func::is_streamable() const
+{
+  const Window_spec *spec= window_spec;
+
+  // No PARTITION BY.
+  if (spec->partition_list->elements > 0)
+    return false;
+
+  // Frame must not reference future rows (no FOLLOWING)
+  if (spec->window_frame)
+  {
+    const Window_frame_bound *end_bound = spec->window_frame->top_bound;
+    if (end_bound &&
+        end_bound->precedence_type == Window_frame_bound::FOLLOWING)
+      return false;
+  }
+
+  // Supported function types only (ROW_NUMBER(), RANK(), DENSE_RANK())
+  const Item_sum *wf= window_func();
+  if (!dynamic_cast<const Item_sum_row_number*>(wf) &&
+      !dynamic_cast<const Item_sum_rank*>(wf)       &&
+      !dynamic_cast<const Item_sum_dense_rank*>(wf))
+    return false;
+
+  return true;
+}
+
+bool SELECT_LEX::have_streaming_window_funcs_candidates() const
+{
+  if (!have_window_funcs())
+    return false;
+
+  // No global ORDER BY or GROUP BY.
+  if (order_list.elements > 0 || group_list.elements > 0)
+    return false;
+
+  /*
+    Cannot stream when non-window aggregate functions are present.
+    TODO: Running aggregates supported later.
+  */
+  List_iterator_fast it1(const_cast<SELECT_LEX*>(this)->item_list);
+  Item *item;
+  while ((item= it1++))
+  {
+    if (item->with_sum_func() &&
+        item->type() != Item::WINDOW_FUNC_ITEM)
+      return false;
+  }
+
+  // Every window function in the SELECT list must be individually streamable.
+  List_iterator_fast it2(const_cast<SELECT_LEX*>(this)->window_funcs);
+  Item_window_func *wf;
+  while ((wf = it2++))
+  {
+    if (!wf->is_streamable())
+      return false;
+  }
+
+  return true;
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // Unneeded comments (will be removed when we develop a replacement for
 //  the feature that was attempted here

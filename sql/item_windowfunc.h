@@ -1086,15 +1086,32 @@ public:
     : Item_func_or_sum(thd, (Item *) win_func),
       window_name(win_name), window_spec(NULL), 
       force_return_blank(true),
-      read_value_from_result_field(false) {}
+      read_value_from_result_field(false),
+      m_is_streaming(false) {}
 
   Item_window_func(THD *thd, Item_sum *win_func, Window_spec *win_spec)
     : Item_func_or_sum(thd, (Item *) win_func), 
       window_name(NULL), window_spec(win_spec), 
       force_return_blank(true),
-      read_value_from_result_field(false) {}
+      read_value_from_result_field(false),
+      m_is_streaming(false) {}
 
   Item_sum *window_func() const { return (Item_sum *) args[0]; }
+  bool is_streamable() const;
+
+  void streaming_wf_init(THD *thd)
+  {
+    m_is_streaming= true;
+    Item_sum *wf= window_func();
+    if (window_spec->order_list->elements > 0 &&
+        (dynamic_cast<Item_sum_rank*>(wf) ||
+         dynamic_cast<Item_sum_dense_rank*>(wf)))
+      wf->setup_window_func(thd, window_spec);
+    else
+      wf->clear();
+  }
+
+  void streaming_wf_add() { window_func()->add(); }
 
   void update_used_tables() override;
 
@@ -1238,6 +1255,22 @@ private:
   */
   bool force_return_blank;
   bool read_value_from_result_field;
+
+  /*
+    When true, val_int()/val_real()/val_str()/val_decimal() delegate directly
+    to window_func()->val_*() instead of reading from result_field.
+
+    In the normal (non-streaming) execution path, window function values are
+    computed by compute_window_func() and stored in a temp table column
+    (result_field). val_int() then reads the pre-computed value from there
+    during the retrieval phase (read_value_from_result_field=true).
+
+    In streaming mode no temp table is created, so result_field is NULL.
+    Instead, the window function state (cur_rank, count, etc.) is updated
+    per-row by streaming_wf_add() just before val_int() is called, so
+    val_int() can read the current value directly from the Item_sum.
+  */
+  bool m_is_streaming;
   void print_for_percentile_functions(String *str, enum_query_type query_type);
 
 public:
@@ -1271,6 +1304,12 @@ public:
   double val_real() override 
   {
     double res;
+    if (m_is_streaming)
+    {
+      res= window_func()->val_real();
+      null_value= window_func()->null_value;
+      return res;
+    }
     if (force_return_blank)
     {
       res= 0.0;
@@ -1292,6 +1331,12 @@ public:
   longlong val_int() override
   {
     longlong res;
+    if (m_is_streaming)
+    {
+      res= window_func()->val_int();
+      null_value= window_func()->null_value;
+      return res;
+    }
     if (force_return_blank)
     {
       res= 0;
@@ -1313,6 +1358,12 @@ public:
   String* val_str(String* str) override
   {
     String *res;
+    if (m_is_streaming)
+    {
+      res= window_func()->val_str(str);
+      null_value= window_func()->null_value;
+      return res;
+    }
     if (force_return_blank)
     {
       null_value= true;
@@ -1335,6 +1386,10 @@ public:
 
   bool val_native(THD *thd, Native *to) override
   {
+    if (m_is_streaming)
+    {
+      return val_native_from_item(thd, window_func(), to);
+    }
     if (force_return_blank)
       return null_value= true;
     if (read_value_from_result_field)
@@ -1345,6 +1400,12 @@ public:
   my_decimal* val_decimal(my_decimal* dec) override
   {
     my_decimal *res;
+    if (m_is_streaming)
+    {
+      res= window_func()->val_decimal(dec);
+      null_value= window_func()->null_value;
+      return res;
+    }
     if (force_return_blank)
     {
       null_value= true;
