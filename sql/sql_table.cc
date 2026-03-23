@@ -115,9 +115,8 @@ static Lex_ident_column make_unique_key_name(THD *,
                                              const KEY *, const KEY *);
 static bool make_unique_constraint_name(THD *, LEX_CSTRING *, const char *,
                                         List<Virtual_column_info> *, uint *);
-static Lex_ident_column make_unique_invisible_field_name(THD *,
-                                             const Lex_ident_column &name,
-                                             List<Create_field> *);
+static Lex_ident_column make_internal_field_name(THD *, const char *,
+                                                 List<Create_field> *);
 static int copy_data_between_tables(THD *, TABLE *,TABLE *,
                                     bool, uint, ORDER *,
                                     ha_rows *, ha_rows *,
@@ -2703,6 +2702,8 @@ bool Column_definition::prepare_stage1_check_typelib_default()
   }
   return false;
 }
+
+#ifndef DBUG_OFF
 /*
    This function adds a invisible field to field_list
    SYNOPSIS
@@ -2719,25 +2720,16 @@ bool Column_definition::prepare_stage1_check_typelib_default()
     RETURN VALUE
       Create_field pointer
 */
-int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
+static int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
         const Lex_ident_column &field_name, Type_handler *type_handler,
         field_visibility_t invisible, Item* default_value)
 {
   Create_field *fld= new(thd->mem_root)Create_field();
   /* Get unique field name if invisible == INVISIBLE_FULL */
   if (invisible == INVISIBLE_FULL)
-  {
-    Lex_ident_column new_name;
-    if ((new_name= make_unique_invisible_field_name(thd, field_name,
-                                                    field_list)).str)
-      fld->field_name= new_name;
-    else
-      return 1;  //Should not happen
-  }
+    fld->field_name= make_internal_field_name(thd, field_name.str, field_list);
   else
-  {
     fld->field_name= thd->lex_ident_copy(field_name);
-  }
   fld->set_handler(type_handler);
   fld->invisible= invisible;
   if (default_value)
@@ -2750,6 +2742,7 @@ int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
   field_list->push_front(fld, thd->mem_root);
   return 0;
 }
+#endif
 
 #define INTERNAL_FIELD_NAME_LENGTH  30
 
@@ -2784,7 +2777,8 @@ static Create_field *add_internal_field(THD *thd, Type_handler *type_handler,
   return cf;
 }
 
-Key *
+#ifndef DBUG_OFF
+static Key *
 mysql_add_invisible_index(THD *thd, List<Key> *key_list,
         LEX_CSTRING* field_name, enum Key::Keytype type)
 {
@@ -2795,6 +2789,7 @@ mysql_add_invisible_index(THD *thd, List<Key> *key_list,
   key_list->push_back(key, thd->mem_root);
   return key;
 }
+#endif
 
 
 bool Type_handler_string::Key_part_spec_init_ft(Key_part_spec *part,
@@ -3183,7 +3178,7 @@ static bool mysql_prepare_create_table_stage1(THD *thd,
 
   DBUG_EXECUTE_IF("test_pseudo_invisible",{
           mysql_add_invisible_field(thd, &alter_info->create_list,
-                      "invisible"_Lex_ident_column,
+                      "invisible1"_Lex_ident_column,
                       &type_handler_slong, INVISIBLE_SYSTEM,
                       new (thd->mem_root)Item_int(thd, 9));
           });
@@ -3194,7 +3189,7 @@ static bool mysql_prepare_create_table_stage1(THD *thd,
                       new (thd->mem_root)Item_int(thd, 9));
           });
   DBUG_EXECUTE_IF("test_invisible_index",{
-          LEX_CSTRING temp= "invisible"_Lex_ident_column;
+          LEX_CSTRING temp= "invisible1"_Lex_ident_column;
           mysql_add_invisible_index(thd, &alter_info->key_list
                   , &temp, Key::MULTIPLE);
           });
@@ -5409,23 +5404,6 @@ check_if_keyname_exists(const Lex_ident_column &name,
   return 0;
 }
 
-/**
- Returns 1 if field name exists otherwise 0
-*/
-static bool
-check_if_field_name_exists(const Lex_ident_column &name,
-                           List<Create_field> * fields)
-{
-  Create_field *fld;
-  List_iterator<Create_field>it(*fields);
-  while ((fld = it++))
-  {
-    if (fld->field_name.streq(name))
-      return 1;
-  }
-  return 0;
-}
-
 static Lex_ident_column
 make_unique_key_name(THD *thd, const Lex_ident_column &field_name,
                      const KEY *start, const KEY *end)
@@ -5488,36 +5466,6 @@ static bool make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
     }
   }
   return FALSE;
-}
-
-/**
-  INVISIBLE_FULL are internally created. They are completely invisible
-  to Alter command (Opposite of SYSTEM_INVISIBLE which throws an
-  error when same name column is added by Alter). So in the case of when
-  user added a same column name as of INVISIBLE_FULL , we change
-  INVISIBLE_FULL column name.
-*/
-static Lex_ident_column
-make_unique_invisible_field_name(THD *thd,
-                                 const Lex_ident_column &field_name,
-                                 List<Create_field> *fields)
-{
-  if (!check_if_field_name_exists(field_name, fields))
-    return field_name;
-  char buff[MAX_FIELD_NAME], *buff_end;
-  buff_end= strmake_buf(buff, field_name.str);
-  if (buff_end - buff < 5)
-    return Lex_ident_column(); // Should not happen
-
-  for (uint i=1 ; i < 10000; i++)
-  {
-    char *real_end= int10_to_str(i, buff_end, 10);
-    const Lex_ident_column ident(buff, (size_t) (real_end - buff));
-    if (check_if_field_name_exists(ident, fields))
-      continue;
-    return thd->lex_ident_copy(ident);
-  }
-  return Lex_ident_column(); // Should not happen
 }
 
 /****************************************************************************
@@ -9122,16 +9070,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       continue;
     Lex_ident_column key_name(key_info->name);
     const bool primary_key= table->s->primary_key == i;
-    const bool explicit_pk= primary_key &&
-                            key_name.streq(primary_key_name);
+    const bool explicit_pk= primary_key && key_name.streq(primary_key_name);
     const bool implicit_pk= primary_key && !explicit_pk;
 
     Alter_drop *drop;
     drop_it.rewind();
     while ((drop=drop_it++))
     {
-      if (drop->type == Alter_drop::KEY &&
-          key_name.streq(drop->name))
+      if (drop->type == Alter_drop::KEY && key_name.streq(drop->name))
 	break;
     }
     if (drop)
