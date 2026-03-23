@@ -3479,6 +3479,8 @@ public:
     not support subqueries which comes standard with this rule, like
     KILL, HA_READ, CREATE/ALTER EVENT etc. Set this to a non-NULL
     clause name to get an error.
+
+    Note: see also table_or_sp_used().
   */
   const char *clause_that_disallows_subselect;
 
