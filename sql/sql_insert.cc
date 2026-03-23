@@ -2247,18 +2247,25 @@ int Write_record::insert_on_duplicate_update(ha_rows *inserted,
     if (error != HA_ERR_RECORD_IS_THE_SAME)
     {
       ++*updated;
-      if (table->versioned() &&
-          table->vers_check_update(*info->update_fields))
+      if (table->versioned())
       {
-        if (versioned)
+        if (table->vers_check_update(*info->update_fields))
         {
-          store_record(table, record[2]);
-          error= vers_insert_history_row(table);
-          restore_record(table, record[2]);
-          if (unlikely(error))
-            return on_ha_error(error);
+          if (versioned)
+          {
+            store_record(table, record[2]);
+            error= vers_insert_history_row(table);
+            restore_record(table, record[2]);
+            if (unlikely(error))
+              return on_ha_error(error);
+          }
+          ++*inserted;
         }
-        ++*inserted;
+        /*
+          INSERT will need it in the next bulk iteration
+          (see vers_check_update() and MDEV-25644).
+        */
+        table->vers_write= true;
       }
     }
     /*
