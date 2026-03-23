@@ -42,86 +42,6 @@ typedef unsigned short mdl_bitmap_t;
 
 
 /**
-  @def ENTER_COND(C, M, S, O)
-  Start a wait on a condition.
-  @param C the condition to wait on
-  @param M the associated mutex
-  @param S the new stage to enter
-  @param O the previous stage
-  @sa EXIT_COND().
-*/
-#define ENTER_COND(C, M, S, O) enter_cond(C, M, S, O, __func__, __FILE__, __LINE__)
-
-/**
-  @def EXIT_COND(S)
-  End a wait on a condition
-  @param S the new stage to enter
-*/
-#define EXIT_COND(S) exit_cond(S, __func__, __FILE__, __LINE__)
-
-/**
-   An interface to separate the MDL module from the THD, and the rest of the
-   server code.
- */
-
-class MDL_context_owner
-{
-public:
-  virtual ~MDL_context_owner() = default;
-
-  /**
-    Enter a condition wait.
-    For @c enter_cond() / @c exit_cond() to work the mutex must be held before
-    @c enter_cond(); this mutex is then released by @c exit_cond().
-    Usage must be: lock mutex; enter_cond(); your code; exit_cond().
-    @param cond the condition to wait on
-    @param mutex the associated mutex
-    @param [in] stage the stage to enter, or NULL
-    @param [out] old_stage the previous stage, or NULL
-    @param src_function function name of the caller
-    @param src_file file name of the caller
-    @param src_line line number of the caller
-    @sa ENTER_COND(), THD::enter_cond()
-    @sa EXIT_COND(), THD::exit_cond()
-  */
-  virtual void enter_cond(mysql_cond_t *cond, mysql_mutex_t *mutex,
-                          const PSI_stage_info *stage, PSI_stage_info *old_stage,
-                          const char *src_function, const char *src_file,
-                          int src_line) = 0;
-
-  /**
-    @def EXIT_COND(S)
-    End a wait on a condition
-    @param [in] stage the new stage to enter
-    @param src_function function name of the caller
-    @param src_file file name of the caller
-    @param src_line line number of the caller
-    @sa ENTER_COND(), THD::enter_cond()
-    @sa EXIT_COND(), THD::exit_cond()
-  */
-  virtual void exit_cond(const PSI_stage_info *stage,
-                         const char *src_function, const char *src_file,
-                         int src_line) = 0;
-  /**
-     Has the owner thread been killed?
-   */
-  virtual int  is_killed() = 0;
-
-  /**
-     This one is only used for DEBUG_SYNC.
-     (Do not use it to peek/poke into other parts of THD.)
-   */
-  virtual THD* get_thd() = 0;
-
-  /**
-     @see THD::notify_shared_lock()
-   */
-  virtual bool notify_shared_lock(MDL_context_owner *in_use,
-                                  bool needs_thr_lock_abort,
-                                  bool needs_non_slave_abort) = 0;
-};
-
-/**
   Type of metadata lock request.
 
   @sa Comments for MDL_object_lock::can_grant_lock() and
@@ -832,7 +752,7 @@ public:
   bool set_status(enum_wait_status result_arg);
   enum_wait_status get_status();
   void reset_status();
-  enum_wait_status timed_wait(MDL_context_owner *owner,
+  enum_wait_status timed_wait(THD *owner,
                               struct timespec *abs_timeout,
                               bool signal_timeout,
                               const PSI_stage_info *wait_state_name);
@@ -924,8 +844,6 @@ public:
   void release_explicit_locks();
   void rollback_to_savepoint(const MDL_savepoint &mdl_savepoint);
 
-  MDL_context_owner *get_owner() { return m_owner; }
-
   /** @pre Only valid if we started waiting for lock. */
   inline uint get_deadlock_weight() const
   { return m_waiting_for->get_deadlock_weight() + m_deadlock_overweight; }
@@ -938,7 +856,7 @@ public:
                     already has received some signal or closed
                     signal slot.
   */
-  void init(MDL_context_owner *arg) { m_owner= arg; reset(); }
+  void init(THD *arg) { m_owner= arg; reset(); }
   void reset() { m_deadlock_overweight= 0; }
 
   void set_needs_thr_lock_abort(bool needs_thr_lock_abort)
@@ -1019,7 +937,7 @@ private:
       involved schemas and global intention exclusive lock.
   */
   Ticket_list m_tickets[MDL_DURATION_END];
-  MDL_context_owner *m_owner;
+  THD *m_owner;
   /**
     TRUE -  if for this context we will break protocol and try to
             acquire table-level locks while having only S lock on
@@ -1059,7 +977,7 @@ private:
   bool fix_pins();
 
 public:
-  THD *get_thd() const { return m_owner->get_thd(); }
+  THD *get_thd() const { return m_owner; }
   bool has_explicit_locks();
   void find_deadlock();
 
