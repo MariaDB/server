@@ -15846,7 +15846,6 @@ int ha_innobase::can_be_renamed_to_backup() const noexcept
   int res= 0;                                  // ok to rename
   THD *thd= table->in_use;
 
-  m_prebuilt->trx->op_info = "getting list of foreign keys for create/replace";
   dict_sys.lock(SRW_LOCK_CALL);
 
   for (dict_foreign_set::iterator it = m_prebuilt->table->foreign_set.begin();
@@ -15881,7 +15880,6 @@ int ha_innobase::can_be_renamed_to_backup() const noexcept
   }
 
   dict_sys.unlock();
-  m_prebuilt->trx->op_info = "";
   return(res);
 }
 
