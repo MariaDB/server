@@ -17204,6 +17204,7 @@ keyword_sp_var_and_label:
         | MINUTE_SYM
         | MONTH_SYM
         | NEXTVAL_SYM
+        | OLD_VALUE_SYM
         | OVERLAPS_SYM
         | RECORD_SYM
 %ifdef MARIADB
@@ -17359,7 +17360,6 @@ reserved_keyword_udt_not_param_type:
         | NTILE_SYM
         | NULL_SYM
         | NTH_VALUE_SYM
-        | OLD_VALUE_SYM
         | ON
         | OPTIMIZE
         | OPTIONALLY
