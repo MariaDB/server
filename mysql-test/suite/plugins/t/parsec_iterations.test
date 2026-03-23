@@ -1,0 +1,137 @@
+--source include/platform.inc
+--source include/not_embedded.inc
+--source include/count_sessions.inc
+
+if (`select count(*) = 0 from information_schema.plugins where plugin_name = 'parsec'`)
+{
+  --skip Needs parsec plugin
+}
+
+if (!$PARSEC_SO) {
+  skip No auth_parsec plugin;
+}
+
+--echo # Verify the system variable exists and has a valid value
+SELECT @@global.parsec_pbkdf2_iterations BETWEEN 0 AND 15 AS valid_default;
+
+--echo # Verify that different iteration counts produce different PBKDF2 output
+SELECT
+  KDF('password', 'salt', 1024, 'pbkdf2_hmac', 256) !=
+  KDF('password', 'salt', 2048, 'pbkdf2_hmac', 256) AS different_iters_differ,
+  KDF('password', 'salt', 1024, 'pbkdf2_hmac', 256) =
+  KDF('password', 'salt', 1024, 'pbkdf2_hmac', 256) AS same_iters_match;
+
+--echo # Create user with default iterations
+create user iter_default@'%' identified via parsec using PASSWORD('test_pwd');
+--replace_regex /:[A-Za-z0-9+\/]{43}'/:password'/ /:[A-Za-z0-9+\/]{24}:/:salt:/ /P[0-9a-f]:/:iter:/
+show grants for iter_default@'%';
+
+--echo # Login should work with default iterations
+connect con_default, localhost, iter_default, test_pwd;
+select 'default_iterations_login_ok' as result;
+disconnect con_default;
+connection default;
+
+--echo # Set iterations to 0 (1024 iterations, legacy)
+SET GLOBAL parsec_pbkdf2_iterations = 0;
+SELECT @@global.parsec_pbkdf2_iterations;
+
+create user iter_zero@'%' identified via parsec using PASSWORD('test_pwd');
+--replace_regex /:[A-Za-z0-9+\/]{43}'/:password'/ /:[A-Za-z0-9+\/]{24}:/:salt:/
+show grants for iter_zero@'%';
+
+--echo # Login should work with iterations=0
+connect con_zero, localhost, iter_zero, test_pwd;
+select 'zero_iterations_login_ok' as result;
+disconnect con_zero;
+connection default;
+
+--echo # Set iterations to 3 (1024 << 3 = 8192 iterations)
+SET GLOBAL parsec_pbkdf2_iterations = 3;
+SELECT @@global.parsec_pbkdf2_iterations;
+
+create user iter_three@'%' identified via parsec using PASSWORD('test_pwd');
+--replace_regex /:[A-Za-z0-9+\/]{43}'/:password'/ /:[A-Za-z0-9+\/]{24}:/:salt:/
+show grants for iter_three@'%';
+
+--echo # Login should work with iterations=3
+connect con_three, localhost, iter_three, test_pwd;
+select 'three_iterations_login_ok' as result;
+disconnect con_three;
+connection default;
+
+--echo # Wrong password should still fail
+--replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT
+--error ER_ACCESS_DENIED_ERROR
+connect con_fail, localhost, iter_three, wrong_pwd;
+
+--echo # Test hex encoding: set to 10 (1024 << 10 = 1048576 iterations)
+SET GLOBAL parsec_pbkdf2_iterations = 10;
+SELECT @@global.parsec_pbkdf2_iterations;
+
+create user iter_ten@'%' identified via parsec using PASSWORD('test_pwd');
+--replace_regex /:[A-Za-z0-9+\/]{43}'/:password'/ /:[A-Za-z0-9+\/]{24}:/:salt:/
+show grants for iter_ten@'%';
+
+--echo # Login should work with iterations=10
+connect con_ten, localhost, iter_ten, test_pwd;
+select 'ten_iterations_login_ok' as result;
+disconnect con_ten;
+connection default;
+
+--echo # Test boundary: set to max value 15 (1024 << 15 = 33554432 iterations)
+SET GLOBAL parsec_pbkdf2_iterations = 15;
+SELECT @@global.parsec_pbkdf2_iterations;
+
+--echo # Test boundary: setting above max should be clamped
+SET GLOBAL parsec_pbkdf2_iterations = 16;
+SELECT @@global.parsec_pbkdf2_iterations;
+
+--echo # Test that users created with different iterations can all still 
+--echo # authenticate after changing the global setting
+SET GLOBAL parsec_pbkdf2_iterations = 5;
+
+connect con_zero2, localhost, iter_zero, test_pwd;
+select 'cross_iter_zero_ok' as result;
+disconnect con_zero2;
+
+connect con_three2, localhost, iter_three, test_pwd;
+select 'cross_iter_three_ok' as result;
+disconnect con_three2;
+
+connect con_default2, localhost, iter_default, test_pwd;
+select 'cross_iter_default_ok' as result;
+disconnect con_default2;
+
+connect con_ten2, localhost, iter_ten, test_pwd;
+select 'cross_iter_ten_ok' as result;
+disconnect con_ten2;
+
+connection default;
+
+--echo # ALTER USER should re-hash with current iterations setting
+SET GLOBAL parsec_pbkdf2_iterations = 2;
+ALTER USER iter_zero@'%' IDENTIFIED via parsec using PASSWORD('new_pwd');
+--replace_regex /:[A-Za-z0-9+\/]{43}'/:password'/ /:[A-Za-z0-9+\/]{24}:/:salt:/
+show grants for iter_zero@'%';
+
+--echo # Login with new password should work
+connect con_altered, localhost, iter_zero, new_pwd;
+select 'altered_user_login_ok' as result;
+disconnect con_altered;
+
+--echo # Login with old password should fail
+connection default;
+--replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT
+--error ER_ACCESS_DENIED_ERROR
+connect con_old_pwd, localhost, iter_zero, test_pwd;
+
+connection default;
+
+--echo # Cleanup
+SET GLOBAL parsec_pbkdf2_iterations = DEFAULT;
+--source include/wait_until_count_sessions.inc
+drop user iter_default@'%';
+drop user iter_zero@'%';
+drop user iter_three@'%';
+drop user iter_ten@'%';

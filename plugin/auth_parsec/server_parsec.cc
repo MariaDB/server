@@ -30,6 +30,39 @@
 #include <cstring>
 
 typedef unsigned char uchar;
+
+/*
+  The iteration exponent is stored as a single hex digit in the password hash
+*/
+constexpr uint DEFAULT_PARSEC_ITERATIONS= 8;
+constexpr uint MAX_PARSEC_ITERATIONS= 15;
+
+static uint parsec_pbkdf2_iterations;
+
+static MYSQL_SYSVAR_UINT(pbkdf2_iterations, parsec_pbkdf2_iterations,
+  PLUGIN_VAR_RQCMDARG,
+  "PBKDF2 iteration exponent for new passwords. Actual iterations = 1024 << N. "
+  "Default 8 (262144 iterations). Range 0-15.",
+  NULL, NULL, DEFAULT_PARSEC_ITERATIONS, 0, MAX_PARSEC_ITERATIONS, 1);
+
+static struct st_mysql_sys_var* vars[] = {
+  MYSQL_SYSVAR(pbkdf2_iterations),
+  NULL
+};
+
+static inline char iter_to_hex(uchar n)
+{
+  return (char)(n < 10 ? '0' + n : 'a' + n - 10);
+}
+
+static inline int hex_to_iter(uchar c)
+{
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  return -1;
+}
+
 constexpr size_t CHALLENGE_SCRAMBLE_LENGTH= 32;
 constexpr size_t CHALLENGE_SALT_LENGTH= 18;
 constexpr size_t ED25519_SIG_LENGTH= 64;
@@ -176,7 +209,7 @@ int hash_password(const char *password, size_t password_length,
 
   Passwd_in_memory memory;
   memory.algorithm= 'P';
-  memory.iterations= 0;
+  memory.iterations= (uchar)parsec_pbkdf2_iterations;
   my_random_bytes(memory.salt, sizeof(memory.salt));
 
   uchar derived_key[PBKDF2_HASH_LENGTH];
@@ -187,7 +220,7 @@ int hash_password(const char *password, size_t password_length,
     return 1;
 
   stored->algorithm= memory.algorithm;
-  stored->iterations= memory.iterations + '0';
+  stored->iterations= (uchar)iter_to_hex(memory.iterations);
   my_base64_encode(memory.salt, sizeof(memory.salt), stored->salt);
   my_base64_encode(memory.pub_key, sizeof(memory.pub_key), stored->pub_key);
   stored->colon= stored->colon2= ':';
@@ -207,7 +240,7 @@ int digest_to_binary(const char *hash, size_t hash_length,
 
   if (hash_length != sizeof (*stored) || *out_length < sizeof(*memory) ||
       stored->algorithm != 'P' ||
-      stored->iterations < '0' || stored->iterations > '3' ||
+      hex_to_iter(stored->iterations) < 0 ||
       stored->colon != ':' || stored->colon2 != ':')
   {
     my_printf_error(ER_PASSWD_LENGTH, "Wrong ext-salt format", 0);
@@ -216,7 +249,7 @@ int digest_to_binary(const char *hash, size_t hash_length,
 
   *out_length = sizeof(*memory);
   memory->algorithm= stored->algorithm;
-  memory->iterations= stored->iterations - '0';
+  memory->iterations= (uchar)hex_to_iter(stored->iterations);
 
   static_assert(base64_length(CHALLENGE_SALT_LENGTH) == base64_length_raw(CHALLENGE_SALT_LENGTH),
                 "Salt is base64-aligned");
@@ -313,7 +346,7 @@ maria_declare_plugin(auth_parsec)
   NULL,
   0x0100,
   NULL,
-  NULL,
+  vars,
   "1.0",
   MariaDB_PLUGIN_MATURITY_GAMMA
 }
