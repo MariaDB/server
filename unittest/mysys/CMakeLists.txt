@@ -14,7 +14,8 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 MY_ADD_TESTS(base64 bitmap byte_order crc32 dynstring lf my_atomic my_getopt
-  my_malloc my_rdtsc queues stack_allocation stacktrace waiting_threads
+  my_malloc my_rdtsc my_symlink queues stack_allocation stacktrace
+  waiting_threads
   LINK_LIBRARIES mysys)
 MY_ADD_TESTS(my_vsnprintf LINK_LIBRARIES strings mysys)
 ADD_DEFINITIONS(${SSL_DEFINES})
