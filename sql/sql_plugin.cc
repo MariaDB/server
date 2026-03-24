@@ -2963,24 +2963,28 @@ static void update_func_double(THD *thd, struct st_mysql_sys_var *var,
 ****************************************************************************/
 
 sys_var *find_sys_var(THD *thd, const char *str, size_t length,
-                      bool throw_error)
+                      bool throw_error, bool no_lock)
 {
   sys_var *var;
   sys_var_pluginvar *pi;
   DBUG_ENTER("find_sys_var");
   DBUG_PRINT("enter", ("var '%.*s'", (int)length, str));
 
-  mysql_prlock_rdlock(&LOCK_system_variables_hash);
+  if (!no_lock)
+    mysql_prlock_rdlock(&LOCK_system_variables_hash);
   if ((var= intern_find_sys_var(str, length)) &&
       (pi= var->cast_pluginvar()))
   {
-    mysql_mutex_lock(&LOCK_plugin);
+    if (!no_lock)
+      mysql_mutex_lock(&LOCK_plugin);
     if (!intern_plugin_lock(thd ? thd->lex : 0, plugin_int_to_ref(pi->plugin),
                             PLUGIN_IS_READY))
       var= NULL; /* failed to lock it, it must be uninstalling */
-    mysql_mutex_unlock(&LOCK_plugin);
+    if (!no_lock)
+      mysql_mutex_unlock(&LOCK_plugin);
   }
-  mysql_prlock_unlock(&LOCK_system_variables_hash);
+  if (!no_lock)
+    mysql_prlock_unlock(&LOCK_system_variables_hash);
 
   if (unlikely(!throw_error && !var))
     my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0),

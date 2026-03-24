@@ -168,7 +168,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     {
       track_all= true;
     }
-    else if ((svar= find_sys_var(thd, var.str, var.length, throw_error)))
+    else if ((svar= find_sys_var(thd, var.str, var.length, throw_error, true)))
     {
       if (insert(svar) == TRUE)
         return true;
