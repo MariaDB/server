@@ -68,10 +68,21 @@ case "$1" in
     mariadb_upgradedir=/var/lib/mysql-upgrade
 
     # If new mariadb data directory does not exist, assume we are continuing
-    # to use the legacy directory.
+    # to use the legacy directory. Add a config entry to override datadir's
+    # value back to the original.
     if [ ! -d "$mariadb_datadir" ]
     then
       mariadb_datadir="$legacy_mariadb_datadir"
+
+      mkdir -p /etc/mysql/mariadb.conf.d
+
+      {
+        echo "# Override the data directory config to continue using the legacy directory."
+        echo "[mariadbd]"
+        echo "datadir = $legacy_mariadb_datadir"
+      } > /etc/mysql/mariadb.conf.d/99-legacy-datadir.cnf
+
+      echo "Created /etc/mysql/mariadb.conf.d/99-legacy-datadir.cnf for MariaDB to continue using /var/lib/mysql on upgrade."
     fi
 
     # If the following symlink exists, it is a preserved copy the old data dir

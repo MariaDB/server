@@ -49,6 +49,8 @@ get_mariadb_upgrade_info_major_version() {
 #
 if [ "$1" = "purge" ]
 then
+  rm -f /etc/mysql/mariadb.conf.d/99-legacy-datadir.cnf
+
   # Mark data directories for removal if they match the current MariaDB version.
   remove_mariadb_datadir="false"
   remove_legacy_mariadb_datadir="false"

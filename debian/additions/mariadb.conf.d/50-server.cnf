@@ -15,7 +15,7 @@
 #user                    = mysql
 pid-file                = /run/mysqld/mysqld.pid
 basedir                 = /usr
-#datadir                 = /var/lib/mysql
+#datadir                 = /var/lib/mariadb  # Starting with MariaDB 1:11.8.6-5, /var/lib/mariadb is used by default for better MySQL co-installability in Debian/Ubuntu.
 #tmpdir                  = /tmp
 
 # Broken reverse DNS slows down connections considerably and name resolve is
