@@ -238,6 +238,7 @@ protected:
     int for SHOW_INT, longlong for SHOW_LONGLONG, etc).
   */
   virtual const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const;
+  virtual const uchar *session_no_lock_value_ptr(THD *thd, const LEX_CSTRING *base) const;
   virtual const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
 
   /**

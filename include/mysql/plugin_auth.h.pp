@@ -540,7 +540,7 @@ enum enum_mysql_show_type
 };
 enum enum_var_type
 {
-  SHOW_OPT_DEFAULT= 0, SHOW_OPT_SESSION, SHOW_OPT_GLOBAL
+  SHOW_OPT_DEFAULT= 0, SHOW_OPT_SESSION, SHOW_OPT_GLOBAL, SHOW_OPT_SESSION_NO_LOCK
 };
 struct st_mysql_show_var {
   const char *name;

@@ -5959,18 +5959,20 @@ Sys_slave_net_timeout(
 */
 
 ulonglong Sys_var_multi_source_ulonglong::
-get_master_info_ulonglong_value(THD *thd) const
+get_master_info_ulonglong_value(THD *thd, bool with_lock) const
 {
   Master_info *mi;
   ulonglong res= 0;                                  // Default value
-  mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (with_lock)
+    mysql_mutex_unlock(&LOCK_global_system_variables);
   if ((mi= get_master_info(&thd->variables.default_master_connection,
                            Sql_condition::WARN_LEVEL_WARN)))
   {
     res= (mi->*mi_accessor_func)();
     mi->release();
   }
-  mysql_mutex_lock(&LOCK_global_system_variables);
+  if (with_lock)
+    mysql_mutex_lock(&LOCK_global_system_variables);
   return res;
 }
   
