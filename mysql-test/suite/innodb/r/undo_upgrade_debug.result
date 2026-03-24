@@ -27,16 +27,12 @@ undo002
 undo001
 undo002
 undo003
-# case 4: Abort after re-creating new undo tablespaces
-# restart: --innodb_undo_tablespaces=4 --debug_dbug=+d,after_reinit_undo_abort
 # restart: --innodb_undo_tablespaces=4
 # Should list 4 undo log tablespaces
 undo001
 undo002
 undo003
 undo004
-# case 5: Abort after re-creating new undo tablespaces successfully
-# restart: --innodb_undo_tablespaces=2 --debug_dbug=+d,after_reinit_undo_success
 # restart: --innodb_undo_tablespaces=2
 # Should list 2 undo log tablespaces
 undo001

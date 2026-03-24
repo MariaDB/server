@@ -81,7 +81,7 @@ protected:
   bool extract(MEM_ROOT *mem_root, String *to, Item *js,
                Item *jp, CHARSET_INFO *cs,
                MEM_ROOT_DYNAMIC_ARRAY *,
-               LEX_CSTRING *func_name);
+               const char *func_name, bool allow_wildcard);
   void init_json_engine_stack(MEM_ROOT *mem_root);
 public:
   Json_path_extractor() {}

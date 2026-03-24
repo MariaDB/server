@@ -673,3 +673,15 @@ LIMIT ROWS EXAMINED 1;
 DROP TABLE t1;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-38683 SIGSEGV (dbg), SIGABRT or ER_EMPTY_QUERY when using
+--echo #            ROWS EXAMINED with log_output=TABLE
+--echo #
+
+SET GLOBAL general_log=ON, GLOBAL log_output='TABLE';
+CREATE TABLE t1 (c INT);
+EXPLAIN SELECT * FROM t1 LIMIT ROWS EXAMINED 1;
+select 1;
+drop table t1;
+SET GLOBAL log_output= default;

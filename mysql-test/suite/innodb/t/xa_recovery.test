@@ -31,13 +31,15 @@ connection default;
 disconnect con1;
 disconnect con2;
 connect (con1,localhost,root);
---send SELECT * FROM t1 LOCK IN SHARE MODE
+send
+SET STATEMENT innodb_lock_wait_timeout=1 FOR # work around MDEV-38741
+SELECT * FROM t1 LOCK IN SHARE MODE;
 
 connection default;
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
   where state = 'Sending data' and
-        info = 'SELECT * FROM t1 LOCK IN SHARE MODE';
+        info LIKE 'SET STATEMENT innodb_lock_wait_timeout%';
 --source include/wait_condition.inc
 
 SET innodb_lock_wait_timeout=1;

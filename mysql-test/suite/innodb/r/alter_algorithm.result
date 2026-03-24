@@ -8,6 +8,12 @@ f4 INT as (f2) STORED,
 f5 INT as (f3) STORED,
 PRIMARY KEY(f1))ROW_FORMAT=COMPRESSED, ENGINE=INNODB;
 INSERT INTO t1(f1, f2, f3) VALUES(1, 1, 1);
+CREATE TABLE t2(f1 INT PRIMARY KEY, f2 INT NOT NULL,
+f3 INT AS (f2 * f2) VIRTUAL,
+f4 INT NOT NULL UNIQUE,
+f5 INT NOT NULL,
+INDEX idx(f2))ENGINE=INNODB;
+INSERT INTO t2(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
 # All the following cases needs table rebuild
 # Add and Drop primary key
 ALTER TABLE t1 ADD COLUMN col1 INT NOT NULL,DROP PRIMARY KEY,ADD PRIMARY KEY(col1), ALGORITHM=COPY;
@@ -44,18 +50,23 @@ info: Records: 1  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 FORCE, ALGORITHM=DEFAULT;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t2 page_compressed=1, ALGORITHM=COPY;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
 DROP TABLE t1;
+affected rows: 0
+DROP TABLE t2;
 affected rows: 0
 CREATE TABLE t1(f1 INT PRIMARY KEY, f2 INT NOT NULL,
 f3 INT AS (f2 * f2) VIRTUAL,
 f4 INT NOT NULL UNIQUE,
 f5 INT NOT NULL,
-INDEX idx(f2))ENGINE=INNODB;
+INDEX idx(f2)) PAGE_COMPRESSED=1, ENGINE=INNODB;
 CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL,
 INDEX(f1),
 FOREIGN KEY fidx(f1) REFERENCES t1(f1))ENGINE=INNODB;
 INSERT INTO t1(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
-ALTER TABLE t1 ADD INDEX idx1(f4), page_compressed=1, ALGORITHM=COPY;
+ALTER TABLE t1 ADD INDEX idx1(f4), page_compression_level=7, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 DROP INDEX idx, page_compression_level=5, ALGORITHM=COPY;
@@ -132,6 +143,12 @@ f4 INT as (f2) STORED,
 f5 INT as (f3) STORED,
 PRIMARY KEY(f1))ROW_FORMAT=COMPRESSED, ENGINE=INNODB;
 INSERT INTO t1(f1, f2, f3) VALUES(1, 1, 1);
+CREATE TABLE t2(f1 INT PRIMARY KEY, f2 INT NOT NULL,
+f3 INT AS (f2 * f2) VIRTUAL,
+f4 INT NOT NULL UNIQUE,
+f5 INT NOT NULL,
+INDEX idx(f2))ENGINE=INNODB;
+INSERT INTO t2(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
 # All the following cases needs table rebuild
 # Add and Drop primary key
 ALTER TABLE t1 ADD COLUMN col1 INT NOT NULL,DROP PRIMARY KEY,ADD PRIMARY KEY(col1), ALGORITHM=INPLACE;
@@ -168,18 +185,23 @@ info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 FORCE, ALGORITHM=DEFAULT;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t2 page_compressed=1, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 DROP TABLE t1;
+affected rows: 0
+DROP TABLE t2;
 affected rows: 0
 CREATE TABLE t1(f1 INT PRIMARY KEY, f2 INT NOT NULL,
 f3 INT AS (f2 * f2) VIRTUAL,
 f4 INT NOT NULL UNIQUE,
 f5 INT NOT NULL,
-INDEX idx(f2))ENGINE=INNODB;
+INDEX idx(f2)) PAGE_COMPRESSED=1, ENGINE=INNODB;
 CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL,
 INDEX(f1),
 FOREIGN KEY fidx(f1) REFERENCES t1(f1))ENGINE=INNODB;
 INSERT INTO t1(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
-ALTER TABLE t1 ADD INDEX idx1(f4), page_compressed=1, ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD INDEX idx1(f4), page_compression_level=7, ALGORITHM=INPLACE;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 DROP INDEX idx, page_compression_level=5, ALGORITHM=INPLACE;
@@ -255,6 +277,12 @@ f4 INT as (f2) STORED,
 f5 INT as (f3) STORED,
 PRIMARY KEY(f1))ROW_FORMAT=COMPRESSED, ENGINE=INNODB;
 INSERT INTO t1(f1, f2, f3) VALUES(1, 1, 1);
+CREATE TABLE t2(f1 INT PRIMARY KEY, f2 INT NOT NULL,
+f3 INT AS (f2 * f2) VIRTUAL,
+f4 INT NOT NULL UNIQUE,
+f5 INT NOT NULL,
+INDEX idx(f2))ENGINE=INNODB;
+INSERT INTO t2(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
 # All the following cases needs table rebuild
 # Add and Drop primary key
 ALTER TABLE t1 ADD COLUMN col1 INT NOT NULL,DROP PRIMARY KEY,ADD PRIMARY KEY(col1), ALGORITHM=NOCOPY;
@@ -283,18 +311,22 @@ Got one of the listed errors
 ALTER TABLE t1 FORCE, ALGORITHM=DEFAULT;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t2 page_compressed=1, ALGORITHM=NOCOPY;
+Got one of the listed errors
 DROP TABLE t1;
+affected rows: 0
+DROP TABLE t2;
 affected rows: 0
 CREATE TABLE t1(f1 INT PRIMARY KEY, f2 INT NOT NULL,
 f3 INT AS (f2 * f2) VIRTUAL,
 f4 INT NOT NULL UNIQUE,
 f5 INT NOT NULL,
-INDEX idx(f2))ENGINE=INNODB;
+INDEX idx(f2)) PAGE_COMPRESSED=1, ENGINE=INNODB;
 CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL,
 INDEX(f1),
 FOREIGN KEY fidx(f1) REFERENCES t1(f1))ENGINE=INNODB;
 INSERT INTO t1(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
-ALTER TABLE t1 ADD INDEX idx1(f4), page_compressed=1, ALGORITHM=NOCOPY;
+ALTER TABLE t1 ADD INDEX idx1(f4), page_compression_level=7, ALGORITHM=NOCOPY;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 DROP INDEX idx, page_compression_level=5, ALGORITHM=NOCOPY;
@@ -370,6 +402,12 @@ f4 INT as (f2) STORED,
 f5 INT as (f3) STORED,
 PRIMARY KEY(f1))ROW_FORMAT=COMPRESSED, ENGINE=INNODB;
 INSERT INTO t1(f1, f2, f3) VALUES(1, 1, 1);
+CREATE TABLE t2(f1 INT PRIMARY KEY, f2 INT NOT NULL,
+f3 INT AS (f2 * f2) VIRTUAL,
+f4 INT NOT NULL UNIQUE,
+f5 INT NOT NULL,
+INDEX idx(f2))ENGINE=INNODB;
+INSERT INTO t2(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
 # All the following cases needs table rebuild
 # Add and Drop primary key
 ALTER TABLE t1 ADD COLUMN col1 INT NOT NULL,DROP PRIMARY KEY,ADD PRIMARY KEY(col1), ALGORITHM=INSTANT;
@@ -398,18 +436,22 @@ Got one of the listed errors
 ALTER TABLE t1 FORCE, ALGORITHM=DEFAULT;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t2 page_compressed=1, ALGORITHM=INSTANT;
+Got one of the listed errors
 DROP TABLE t1;
+affected rows: 0
+DROP TABLE t2;
 affected rows: 0
 CREATE TABLE t1(f1 INT PRIMARY KEY, f2 INT NOT NULL,
 f3 INT AS (f2 * f2) VIRTUAL,
 f4 INT NOT NULL UNIQUE,
 f5 INT NOT NULL,
-INDEX idx(f2))ENGINE=INNODB;
+INDEX idx(f2)) PAGE_COMPRESSED=1, ENGINE=INNODB;
 CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL,
 INDEX(f1),
 FOREIGN KEY fidx(f1) REFERENCES t1(f1))ENGINE=INNODB;
 INSERT INTO t1(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
-ALTER TABLE t1 ADD INDEX idx1(f4), page_compressed=1, ALGORITHM=INSTANT;
+ALTER TABLE t1 ADD INDEX idx1(f4), page_compression_level=7, ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 ALTER TABLE t1 DROP INDEX idx, page_compression_level=5, ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: DROP INDEX. Try ALGORITHM=NOCOPY

@@ -6701,6 +6701,8 @@ int TABLE::verify_constraints(bool ignore_failure)
           field_error.append('.');
         }
         field_error.append((*chk)->name);
+        if (ignore_failure)
+          in_use->clear_error();
         my_error(ER_CONSTRAINT_FAILED,
                  MYF(ignore_failure ? ME_WARNING : 0), field_error.c_ptr(),
                  s->db.str, s->table_name.str);
@@ -8295,8 +8297,7 @@ void TABLE::mark_columns_per_binlog_row_image()
     be added to read_set either.
 */
 
-bool TABLE::mark_virtual_columns_for_write(bool insert_fl
-                                           __attribute__((unused)))
+bool TABLE::mark_virtual_columns_for_write(bool insert_fl)
 {
   Field **vfield_ptr, *tmp_vfield;
   bool bitmap_updated= false;
@@ -8311,9 +8312,30 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl
              (tmp_vfield->flags & (PART_KEY_FLAG | FIELD_IN_PART_FUNC_FLAG |
                                    PART_INDIRECT_KEY_FLAG)))
     {
-      bitmap_set_bit(write_set, tmp_vfield->field_index);
-      mark_virtual_column_with_deps(tmp_vfield);
-      bitmap_updated= true;
+      if (insert_fl)
+      {
+        bitmap_set_bit(write_set, tmp_vfield->field_index);
+        mark_virtual_column_with_deps(tmp_vfield);
+        bitmap_updated= true;
+      }
+      else
+      {
+        MY_BITMAP *save_read_set= read_set;
+        Item *vcol_item= tmp_vfield->vcol_info->expr;
+        DBUG_ASSERT(vcol_item);
+        bitmap_clear_all(&tmp_set);
+        read_set= &tmp_set;
+        vcol_item->walk(&Item::register_field_in_read_map, nullptr,
+                        WALK_SUBQUERY);
+        read_set= save_read_set;
+        if (bitmap_is_overlapping(&tmp_set, write_set))
+        {
+          bitmap_set_bit(write_set, tmp_vfield->field_index);
+          bitmap_set_bit(read_set, tmp_vfield->field_index);
+          bitmap_union(read_set, &tmp_set);
+          bitmap_updated= true;
+        }
+      }
     }
   }
   if (bitmap_updated)
@@ -8933,6 +8955,7 @@ void TABLE_LIST::reinit_before_use(THD *thd)
          parent_embedding->nested_join->join_list.head() == embedded);
 
   mdl_request.ticket= NULL;
+  derived_result= NULL;
 }
 
 
@@ -9363,7 +9386,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       /* Read indexed fields that was not updated in VCOL_UPDATE_FOR_READ */
       update= (!vcol_info->is_stored() &&
                (vf->flags & (PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG)) &&
-               !bitmap_is_set(read_set, vf->field_index));
+               bitmap_is_set(read_set, vf->field_index));
       swap_values= 1;
       break;
     }

@@ -933,6 +933,7 @@ exit:
       if (derived->table && derived->table->s->tmp_table)
         free_tmp_table(thd, derived->table);
       delete derived->derived_result;
+      derived->derived_result= NULL;
     }
   }
   else

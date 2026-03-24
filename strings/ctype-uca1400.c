@@ -306,7 +306,8 @@ my_bool my_uca1400_collation_definition_add(MY_CHARSET_LOADER *loader, uint id)
                                                         param.nopad_flags);
   const MY_UCA1400_COLLATION_DEFINITION *def=
     &my_uca1400_collation_definitions[param.tailoring_id];
-
+  if (!src)
+    return FALSE;
   coll_name= my_uca1400_collation_build_name(coll_name_buffer,
                                              sizeof(coll_name_buffer),
                                              &src->cs_name,

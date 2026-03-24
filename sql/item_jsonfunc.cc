@@ -761,7 +761,7 @@ String *Item_func_json_value::val_str(String *to)
                                        args[1],
                                        collation.collation,
                                        &json_depth_array,
-                                       &func_name_str);
+                                       func_name_str.str, false);
   return null_value ? NULL : to;
 }
 
@@ -789,7 +789,7 @@ String *Item_func_json_query::val_str(String *to)
                                            args[1],
                                            collation.collation,
                                            &json_depth_array,
-                                           &func_name_str);
+                                           func_name_str.str, true);
     return null_value ? NULL : to;
   }
 
@@ -807,7 +807,7 @@ bool Json_path_extractor::extract(MEM_ROOT *mem_root, String *str,
                                   Item *item_js, Item *item_jp,
                                   CHARSET_INFO *cs,
                                   MEM_ROOT_DYNAMIC_ARRAY *array_counters,
-                                  LEX_CSTRING *func_name_str)
+                                  const char *func_name, bool allow_wildcard)
 {
   String *js= item_js->val_json(&tmp_js);
   json_path_step_t *tmp_ptr= NULL;
@@ -816,9 +816,29 @@ bool Json_path_extractor::extract(MEM_ROOT *mem_root, String *str,
   if (!parsed)
   {
     String *s_p= item_jp->val_str(&tmp_path);
-    if (s_p && path_setup_nwc(&p, s_p->charset(), (const uchar *) s_p->ptr(),
-                              (const uchar *) s_p->ptr() + s_p->length()))
+
+    if (allow_wildcard)
+    {
+      if (s_p &&
+        json_path_setup(&p, s_p->charset(), (const uchar *) s_p->ptr(),
+                       (const uchar *) s_p->ptr() + s_p->length()))
+        error= true;
+    }
+    else
+    {
+      if (s_p &&
+        path_setup_nwc(&p, s_p->charset(), (const uchar *) s_p->ptr(),
+                       (const uchar *) s_p->ptr() + s_p->length()))
+        error= true;
+    }
+
+    if (error)
+    {
+      report_path_error_ex(s_p->ptr(), &p, func_name, 1,
+                           Sql_condition::WARN_LEVEL_WARN);
       return true;
+    }
+
     parsed= constant;
   }
 
@@ -853,7 +873,7 @@ continue_search:
 
 error_return:
   report_json_error_ex(js->ptr(), (json_engine_t*)&je,
-                       (const char*)func_name_str->str , 0,
+                       func_name, 0,
                       Sql_condition::WARN_LEVEL_WARN);
   return true;
 }
@@ -1139,8 +1159,18 @@ bool Item_json_str_multipath::fix_length_and_dec(THD *thd)
 bool Item_func_json_extract::fix_length_and_dec(THD *thd)
 {
   collation.set(args[0]->collation);
-  max_length= args[0]->max_length * (arg_count - 1);
 
+  /* *2 accounts for LOOSE json_nice() formatting (spaces after : and ,). */
+  ulonglong char_length=
+    (ulonglong) args[0]->max_char_length() * (arg_count - 1) * 2;
+
+  if (arg_count > 2)
+  {
+    /* Multiple paths: result is wrapped as [val1, val2, ...]. */
+    char_length+= 2 + (arg_count - 2) * 2;
+  }
+
+  fix_char_length_ulonglong(char_length);
   mark_constant_paths(paths, args+1, arg_count-1);
   set_maybe_null();
 
@@ -4131,6 +4161,7 @@ skip_search:
     goto null_return;
   
   str->length(0);
+  str->set_charset(collation.collation);
   if (str->append('['))
     goto err_return; /* Out of memory. */
   /* Parse the OBJECT collecting the keys. */
@@ -4854,6 +4885,7 @@ String *Item_func_json_normalize::val_str(String *buf)
   }
 
   buf->length(0);
+  buf->set_charset(collation.collation);
   if (buf->append(normalized_json.str, normalized_json.length))
   {
     null_value= 1;
@@ -5572,37 +5604,30 @@ error_return:
 String* Item_func_json_key_value::val_str(String *str)
 {
 
-  if ((null_value= args[0]->null_value) ||
-    (null_value= args[1]->null_value))
-  {
-    goto return_null;
-  }
+  if ((null_value= args[0]->null_value || args[1]->null_value))
+    return NULL;
+
   null_value= Json_path_extractor::extract(current_thd->mem_root, &tmp_str,
                                            args[0], args[1],
                                            collation.collation,
                                            &json_depth_array,
-                                           &func_name_str);
+                                           func_name_str.str, true);
  if (null_value)
     return NULL;
 
   json_scan_start(&je, tmp_str.charset(), (const uchar *) tmp_str.ptr(),
                   (const uchar *) tmp_str.ptr() + tmp_str.length());
   if (json_read_value(&je))
-  {
-    report_json_error(str, &je, 0);
-    goto return_null;
-  }
+    goto return_error;
 
   str->length(0);
   if (get_key_value(&je, str))
-  {
-    report_json_error(str, &je, 0);
-    goto return_null;
-  }
+    goto return_error;
 
   return str;
 
-return_null:
+return_error:
+  report_json_error(str, &je, 0);
   null_value= 1;
   return NULL;
 }

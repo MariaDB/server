@@ -1795,6 +1795,30 @@ static bool trx_has_lock_x(const trx_t &trx, dict_table_t& table)
   return false;
 }
 
+/** For ALTER TABLE...IGNORE ALGORITHM=COPY, rewind the undo log
+to maintain only the latest insert undo record. This allows easy
+rollback of the last inserted row on duplicate key errors.
+@param mtr		mini-transaction
+@param undo_block	undo log page
+@param table  		table being altered
+@param trx		transaction
+@param undo  		insert undo log
+@return mod_tables entry after inserting the table */
+static ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
+std::pair<trx_mod_tables_t::iterator, bool>
+trx_undo_rewrite_ignore(mtr_t *mtr, buf_block_t *undo_block,
+			dict_table_t *table, trx_t *trx, trx_undo_t *undo)
+{
+  mtr->write<2>(*undo_block, undo_block->page.frame + TRX_UNDO_PAGE_HDR +
+                TRX_UNDO_PAGE_FREE, undo->old_offset);
+  ut_ad(trx->undo_no == 1);
+  undo->top_offset= undo->old_offset;
+  undo->top_undo_no= 0;
+  trx->undo_no= 0;
+  trx->mod_tables.clear();
+  return trx->mod_tables.emplace(table, 0);
+}
+
 /***********************************************************************//**
 Writes information to an undo log about an insert, update, or a delete marking
 of a clustered index record. This information is used in a rollback of the
@@ -1900,9 +1924,19 @@ trx_undo_report_row_operation(
 		ut_ad(!trx->read_only);
 		ut_ad(trx->id);
 		pundo = &trx->rsegs.m_redo.undo;
+		const bool clear_ignore = *pundo && trx->undo_no
+			&& (*pundo)->old_offset <= (*pundo)->top_offset
+			&& index->table->skip_alter_undo
+			== dict_table_t::IGNORE_UNDO;
+
 		rseg = trx->rsegs.m_redo.rseg;
 		undo_block = trx_undo_assign_low<false>(&mtr, &err,
 							rseg, pundo);
+		if (clear_ignore) {
+			ut_ad(!rec);
+			m = trx_undo_rewrite_ignore(&mtr, undo_block,
+						    index->table, trx, *pundo);
+		}
 	}
 
 	trx_undo_t*	undo	= *pundo;
@@ -1989,6 +2023,8 @@ err_exit:
 			/* Success */
 			undo->top_page_no = undo_block->page.id().page_no();
 			mtr.commit();
+
+			undo->old_offset = offset;
 			undo->top_offset  = offset;
 			undo->top_undo_no = trx->undo_no++;
 			undo->guess_block = undo_block;

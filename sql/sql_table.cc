@@ -9594,6 +9594,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   {
     Alter_drop *drop;
     drop_it.rewind();
+    List<LEX_CSTRING> dropped_fk;
     while ((drop=drop_it++)) {
       switch (drop->type) {
       case Alter_drop::KEY:
@@ -9622,7 +9623,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           while (FOREIGN_KEY_INFO *f_key= fk_key_it++)
           {
             if (Lex_ident_column(*f_key->foreign_id).streq(drop->name))
+            {
+              List_iterator<LEX_CSTRING> check_it(dropped_fk);
+              while (LEX_CSTRING *dropped_name = check_it++)
+                if (Lex_ident_column(*f_key->foreign_id).streq(*dropped_name))
+                  goto fk_not_found;
+              dropped_fk.push_back(f_key->foreign_id);
               goto fk_found;
+            }
           }
           goto fk_not_found;
         fk_found:
@@ -9914,6 +9922,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     when a foreign key has the same table as child and parent.
   */
   List_iterator<FOREIGN_KEY_INFO> fk_parent_key_it(fk_parent_key_list);
+  List<FOREIGN_KEY_INFO> keys_to_remove;
 
   while ((f_key= fk_parent_key_it++))
   {
@@ -9933,10 +9942,31 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
           drop->name.streq(*f_key->foreign_id) &&
           table->s->db.streq(*f_key->foreign_db) &&
           table->s->table_name.streq(*f_key->foreign_table))
-        fk_parent_key_it.remove();
+      {
+        keys_to_remove.push_back(f_key);
+        break;
+      }
     }
   }
 
+  IF_DBUG(uint removed= 0,);
+  /* Remove the identified keys */
+  List_iterator<FOREIGN_KEY_INFO> remove_it(keys_to_remove);
+  while ((f_key = remove_it++))
+  {
+    fk_parent_key_it.rewind();
+    while (FOREIGN_KEY_INFO *fk= fk_parent_key_it++)
+    {
+      if (fk == f_key)
+      {
+        fk_parent_key_it.remove();
+        IF_DBUG(removed++,);
+        break;
+      }
+    }
+  }
+  DBUG_ASSERT(keys_to_remove.elements == removed);
+  IF_DBUG(removed= 0,);
   /*
     If there are FKs in which this table is parent which were not
     dropped we need to prevent ALTER deleting rows from the table,
@@ -10007,6 +10037,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     by this ALTER TABLE.
   */
   List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
+  keys_to_remove.empty();
 
   while ((f_key= fk_key_it++))
   {
@@ -10018,9 +10049,30 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
       /* Names of foreign keys in InnoDB are case-insensitive. */
       if ((drop->type == Alter_drop::FOREIGN_KEY) &&
           (Lex_ident_column(*f_key->foreign_id).streq(drop->name)))
-        fk_key_it.remove();
+      {
+        keys_to_remove.push_back(f_key);
+        break;
+      }
     }
   }
+
+  /* Remove the identified keys */
+  List_iterator<FOREIGN_KEY_INFO> remove_it2(keys_to_remove);
+  while ((f_key = remove_it2++))
+  {
+    fk_key_it.rewind();
+    while (FOREIGN_KEY_INFO *fk= fk_key_it++)
+    {
+      if (fk == f_key)
+      {
+        fk_key_it.remove();
+        IF_DBUG(removed++,);
+        break;
+      }
+    }
+  }
+
+  DBUG_ASSERT(keys_to_remove.elements == removed);
 
   fk_key_it.rewind();
   while ((f_key= fk_key_it++))
@@ -12811,9 +12863,10 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   thd->progress.max_counter= from->file->records();
   time_to_report_progress= MY_HOW_OFTEN_TO_WRITE/10;
-  /* for now, InnoDB needs the undo log for ALTER IGNORE */
-  if (!ignore && !to->s->hlindexes())
-    to->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
+  static_assert(int{HA_EXTRA_BEGIN_ALTER_IGNORE_COPY} ==
+                int{HA_EXTRA_BEGIN_COPY} + 1, "");
+  if (!to->s->hlindexes())
+    to->file->extra(ha_extra_function(int{HA_EXTRA_BEGIN_COPY} + ignore));
 
   if (!(error= info.read_record()))
   {
@@ -13000,13 +13053,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
 
   bulk_insert_started= 0;
-  if (!ignore && !to->s->hlindexes() && error <= 0)
+  if (error <= 0 && !to->s->hlindexes())
   {
-    int alt_error= to->file->extra(HA_EXTRA_END_ALTER_COPY);
+    Abort_on_warning_instant_set save_abort_on_warning(thd, false);
+    int alt_error= to->file->extra(HA_EXTRA_END_COPY);
     if (alt_error > 0)
     {
       error= alt_error;
-      to->file->extra(HA_EXTRA_ABORT_ALTER_COPY);
+      to->file->extra(HA_EXTRA_ABORT_COPY);
       copy_data_error_ignore(error, false, to, thd, alter_ctx);
     }
   }
@@ -13142,6 +13196,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   if (error > 0 && !from->s->tmp_table)
   {
+    /* Abort the operation which invoked extra(HA_EXTRA_BEGIN_COPY)
+    or extra(HA_EXTRA_BEGIN_ALTER_IGNORE_COPY) */
+    to->file->extra(HA_EXTRA_ABORT_COPY);
     /* We are going to drop the temporary table */
     to->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
   }

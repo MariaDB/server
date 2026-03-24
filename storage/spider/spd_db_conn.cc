@@ -48,8 +48,6 @@ extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 
 #define SPIDER_SQL_COALESCE_STR "coalesce("
 #define SPIDER_SQL_COALESCE_LEN (sizeof(SPIDER_SQL_COALESCE_STR) - 1)
-#define SPIDER_SQL_HEX_STR "0x"
-#define SPIDER_SQL_HEX_LEN (sizeof(SPIDER_SQL_HEX_STR) - 1)
 
 #define SPIDER_SQL_SET_NAMES_STR "set names "
 #define SPIDER_SQL_SET_NAMES_LEN sizeof(SPIDER_SQL_SET_NAMES_STR) - 1
@@ -1127,7 +1125,7 @@ void spider_db_append_xid_str(
   spider_string *tmp_str,
   XID *xid
 ) {
-  char format_id[sizeof(long) + 3];
+  char format_id[3*sizeof(long) + 3];
   uint format_id_length;
   DBUG_ENTER("spider_db_append_xid_str");
 
@@ -7562,8 +7560,10 @@ int spider_db_open_item_int(
 
     if (!(tmp_str2 = item->val_str(tmp_str.get_str())))
     {
-      error_num = HA_ERR_OUT_OF_MEM;
-      goto end;
+      if (str->reserve(SPIDER_SQL_NULL_LEN))
+        error_num = HA_ERR_OUT_OF_MEM;
+      str->q_append(SPIDER_SQL_NULL_STR, SPIDER_SQL_NULL_LEN);
+      DBUG_RETURN(error_num);
     }
     tmp_str.mem_calc();
 
