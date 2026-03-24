@@ -92,6 +92,24 @@ int st_append_json(String *s,
     return 0;
   }
 
+  str_len= json_unescape(json_cs, js, js + js_len, s->charset(),
+                         (uchar *) s->end(), (uchar *) s->end() + str_len);
+  if (str_len > 0)
+    s->length(s->length() + str_len);
+
+  if (str_len >= 0)
+    return 0;
+
+  if (current_thd)
+  {
+    if (str_len == JSON_ERROR_OUT_OF_SPACE)
+      my_error(ER_OUTOFMEMORY, MYF(0), (size_t)js_len);
+    else if (str_len == JSON_ERROR_ILLEGAL_SYMBOL)
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                          0, "st_append_json", 0);
+  }
+
   return str_len;
 }
 
@@ -805,6 +823,15 @@ String *Item_func_json_unquote::val_str(String *str)
 
 error:
   report_json_error(js, &je, 0);
+  if (current_thd)
+  {
+    if (c_len == JSON_ERROR_OUT_OF_SPACE)
+      my_error(ER_OUTOFMEMORY, MYF(0), (size_t)je.value_len);
+    else if (c_len == JSON_ERROR_ILLEGAL_SYMBOL)
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                          0, "unquote", 0);
+  }
   return js;
 }
 
@@ -2108,6 +2135,38 @@ String *Item_func_json_array_insert::val_str(String *str)
           (n_item == 0  && str->append(" ", 1)) ||
           append_simple(str, item_pos, js->end() - item_pos))
         goto return_null; /* Out of memory. */
+      my_ptrdiff_t size= item_pos - js->ptr();
+      if (append_simple(str, js->ptr(), size))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (size_t) size);
+        goto return_null; /* Out of memory. */
+      }
+      if (n_item > 0 && str->append(" ", 1))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (size_t)1);
+        goto return_null; /* Out of memory. */
+      }
+      if (append_json_value(str, args[n_arg+1], &tmp_val))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (size_t)tmp_val.length());
+        goto return_null; /* Out of memory. */
+      }
+      if (str->append(",", 1))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (size_t)1);
+        goto return_null; /* Out of memory. */
+      }
+      if (n_item == 0 && str->append(" ", 1))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (size_t)1);
+        goto return_null; /* Out of memory. */
+      }
+      size= js->end() - item_pos;
+      if (append_simple(str, item_pos, size))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (size_t) size);
+        goto return_null; /* Out of memory. */
+      }
     }
     else
     {
@@ -2119,6 +2178,28 @@ String *Item_func_json_array_insert::val_str(String *str)
           append_json_value(str, args[n_arg+1], &tmp_val) ||
           append_simple(str, item_pos, js->end() - item_pos))
         goto return_null; /* Out of memory. */
+      size= item_pos - js->ptr();
+      if (append_simple(str, js->ptr(), size))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (size_t) size);
+        goto return_null; /* Out of memory. */
+      }
+      if (n_item > 0 && str->append(", ", 2))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (size_t)2);
+        goto return_null; /* Out of memory. */
+      }
+      if (append_json_value(str, args[n_arg+1], &tmp_val))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (size_t)tmp_val.length());
+        goto return_null; /* Out of memory. */
+      }
+      size= js->end() - item_pos;
+      if (append_simple(str, item_pos, size))
+      {
+         my_error(ER_OUTOFMEMORY, MYF(0), (size_t) size);
+         goto return_null; /* Out of memory. */
+      }
     }
 
     {
@@ -3688,6 +3769,19 @@ int Item_func_json_search::compare_json_value_wild(json_engine_t *je,
                            (uchar *) (esc_value.ptr() + 
                                       esc_value.alloced_length()));
     if (esc_len <= 0)
+    {
+      if (current_thd)
+      {
+        if (esc_len == JSON_ERROR_OUT_OF_SPACE)
+          my_error(ER_OUTOFMEMORY, MYF(0), (size_t)je->value_len);
+        else if (esc_len == JSON_ERROR_ILLEGAL_SYMBOL)
+        {
+          push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                              0, "comparison",
+                              (int)(je->s.c_str - je->value));
+        }
+      }
       return 0;
 
     return collation.collation->wildcmp(
@@ -3933,10 +4027,28 @@ int Arg_comparator::compare_json_str_basic(Item *j, Item *s)
      {
        if (value2.realloc_with_extra_if_needed(je.value_len) ||
          (c_len= json_unescape(js->charset(), je.value,
+       if (value2.realloc_with_extra_if_needed(je.value_len))
+       {
+         my_error(ER_OUTOFMEMORY, MYF(0), (size_t)je.value_len);
+         goto error;
+       }
+       if ((c_len= json_unescape(js->charset(), je.value,
                                je.value + je.value_len,
                                &my_charset_utf8mb3_general_ci,
                                (uchar *) value2.ptr(),
                                (uchar *) (value2.ptr() + je.value_len))) < 0)
+       {
+         if (current_thd)
+         {
+           if (c_len == JSON_ERROR_OUT_OF_SPACE)
+             my_error(ER_OUTOFMEMORY, MYF(0), (size_t)je.value_len);
+           else if (c_len == JSON_ERROR_ILLEGAL_SYMBOL)
+           {
+             push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                                 ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                                 0, "comparison", (int)((const char *) je.s.c_str - js->ptr()));
+           }
+         }
          goto error;
 
        value2.length(c_len);
@@ -3982,11 +4094,31 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
   {
     if (value1.realloc_with_extra_if_needed(value_len) ||
         (c_len= json_unescape(value1.charset(), (uchar *) value,
+    if (value1.realloc_with_extra_if_needed(value_len))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (size_t)value_len);
+      return 1;
+    }
+    if ((c_len= json_unescape(value1.charset(), (uchar *) value,
                               (uchar *) value+value_len,
                               &my_charset_utf8mb3_general_ci,
                               (uchar *) value1.ptr(),
                               (uchar *) (value1.ptr() + value_len))) < 0)
       return 1;
+    {
+      if (current_thd)
+      {
+        if (c_len == JSON_ERROR_OUT_OF_SPACE)
+          my_error(ER_OUTOFMEMORY, MYF(0), (size_t)value_len);
+        else if (c_len == JSON_ERROR_ILLEGAL_SYMBOL)
+        {
+          push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                              0, "equality comparison", 0);
+        }
+       }
+       return 1;
+    }
     value1.length(c_len);
     res1= &value1;
   }
