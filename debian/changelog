@@ -2,4 +2,4 @@ mariadb (1:11.8.0) unstable; urgency=medium
 
   * Initial Release
 
- -- Sergei Golubchik <serg@mariadb.org> Tue Aug 20 08:40:21 CEST 2024
+ -- Sergei Golubchik <serg@mariadb.org> Tue, 20 Aug 2024 08:40:21 +0200
