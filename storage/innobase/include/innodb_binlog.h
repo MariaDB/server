@@ -249,9 +249,10 @@ binlog_name_make(char name_buf[OS_FILE_MAX_PATH], uint64_t file_no)
 
 
 static inline void
-binlog_name_make_short(char *name_buf, uint64_t file_no)
+binlog_name_make_short(char *name_buf, size_t name_buf_size, uint64_t file_no)
 {
-  sprintf(name_buf, BINLOG_NAME_BASE "%06" PRIu64 BINLOG_NAME_EXT, file_no);
+  snprintf(name_buf, name_buf_size,
+           BINLOG_NAME_BASE "%06" PRIu64 BINLOG_NAME_EXT, file_no);
 }
 
 
