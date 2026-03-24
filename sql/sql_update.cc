@@ -46,6 +46,11 @@
 #include "sql_insert.h"  // For vers_insert_history_row() that may be
                          //   needed for System Versioning.
 
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h" // wsrep_max_ws_rows, wsrep_max_ws_size
+#include "wsrep_binlog.h" // WSREP_MAX_WS_SIZE
+#endif
+
 /**
    True if the table's input and output record buffers are comparable using
    compare_record(TABLE*).
@@ -2028,6 +2033,36 @@ bool mysql_multi_update(THD *thd, TABLE_LIST *table_list, List<Item> *fields,
 
   if (select_lex->vers_setup_conds(thd, table_list))
     DBUG_RETURN(1);
+
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    bool transactional= false;
+    bool non_trans= false;
+    for (TABLE_LIST *tablel= table_list; tablel; tablel= tablel->next_global)
+    {
+      TABLE *table= tablel->table;
+      if (table->file->has_transactions_and_rollback())
+	transactional= true;
+      else
+	non_trans= true;
+    }
+    /* In multi-table update Galera does not support update to both
+       transactional and non-transactional engines if write-set
+       size is limited. */
+    bool limited = (wsrep_max_ws_rows || wsrep_max_ws_size != WSREP_MAX_WS_SIZE);
+    if (transactional && non_trans && limited)
+    {
+      my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_GALERA_REPLICATION_NOT_SUPPORTED,
+                          "Galera does not support multi-table update",
+                          " to both transactional and non-transactional engines"
+                          " if write-set size is limited.");
+      DBUG_RETURN(1);
+    }
+  }
+#endif /* WITH_WSREP */
 
   res= mysql_select(thd,
                     table_list, total_list, conds,
