@@ -1,0 +1,112 @@
+connection node_2;
+connection node_1;
+CREATE TABLE ti (a INT UNSIGNED, b SMALLINT, id BIGINT NOT NULL, KEY(b), PRIMARY KEY(id)) ENGINE=InnoDB;
+CREATE TABLE tm (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=MyISAM;
+SET GLOBAL wsrep_max_ws_rows=2;
+START TRANSACTION;
+INSERT INTO tm SET b=NULL, a=2;
+INSERT INTO ti VALUES (1,2,4);
+UPDATE tm AS t1 SET t1.a=t1.a * 2;
+UPDATE ti AS t1 SET t1.a=t1.a * 2;
+UPDATE tm AS t1 SET t1.a=t1.a * 2;
+UPDATE ti AS t1 SET t1.a=t1.a * 2;
+ERROR HY000: Some non-transactional changed tables couldn't be rolled back
+SHOW WARNINGS;
+Level	Code	Message
+Error	1196	Some non-transactional changed tables couldn't be rolled back
+Error	1180	wsrep_max_ws_rows exceeded
+Error	1030	Got error 1180 "Unknown error 1180" from storage engine InnoDB
+COMMIT;
+SELECT * FROM ti;
+a	b	id
+SELECT * from tm;
+a	b
+8	NULL
+DROP TABLE ti,tm;
+CREATE TABLE ti (a INT UNSIGNED, b SMALLINT, id BIGINT NOT NULL, KEY(b), PRIMARY KEY(id)) ENGINE=InnoDB;
+CREATE TABLE tm (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=MyISAM;
+SET GLOBAL wsrep_max_ws_rows=2;
+START TRANSACTION;
+INSERT INTO tm SET b=NULL, a=2;
+SET sql_mode=only_full_group_by;
+INSERT INTO ti VALUES (1,2,4);
+UPDATE tm AS t1, ti AS t2 SET t1.a=t1.a * 2, t2.a=t2.a * 2;
+ERROR HY000: Galera replication not supported
+UPDATE tm AS t1, ti AS t2 SET t1.a=t1.a * 2, t2.a=t2.a * 2;
+ERROR HY000: Galera replication not supported
+COMMIT;
+SELECT * FROM ti;
+a	b	id
+1	2	4
+SELECT * from tm;
+a	b
+2	NULL
+DROP TABLE ti,tm;
+CREATE TABLE ti (a INT UNSIGNED, b SMALLINT, id BIGINT NOT NULL, KEY(b), PRIMARY KEY(id)) ENGINE=InnoDB;
+CREATE TABLE tm (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=MyISAM;
+START TRANSACTION;
+INSERT INTO tm SET b=NULL, a=2;
+SET sql_mode=only_full_group_by;
+INSERT INTO ti VALUES (1,2,4);
+SET GLOBAL wsrep_max_ws_rows=2;
+ERROR HY000: WSREP transaction is already active
+set GLOBAL wsrep_max_ws_size=2047;
+ERROR HY000: WSREP transaction is already active
+COMMIT;
+SELECT * FROM ti;
+a	b	id
+1	2	4
+SELECT * from tm;
+a	b
+2	NULL
+DROP TABLE ti,tm;
+CREATE TABLE ti (a INT UNSIGNED, b SMALLINT, id BIGINT NOT NULL, KEY(b), PRIMARY KEY(id)) ENGINE=InnoDB;
+CREATE TABLE tm (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=InnoDB;
+SET GLOBAL wsrep_max_ws_rows=2;
+START TRANSACTION;
+INSERT INTO tm SET b=NULL, a=2;
+INSERT INTO ti VALUES (1,2,4);
+UPDATE tm AS t1, ti AS t2 SET t1.a=t1.a * 2, t2.a=t2.a * 2;
+ERROR HY000: wsrep_max_ws_rows exceeded
+UPDATE tm AS t1, ti AS t2 SET t1.a=t1.a * 2, t2.a=t2.a * 2;
+COMMIT;
+SELECT * FROM ti;
+a	b	id
+SELECT * from tm;
+a	b
+DROP TABLE ti,tm;
+CREATE TABLE ti (a INT UNSIGNED, b SMALLINT, id BIGINT NOT NULL, KEY(b), PRIMARY KEY(id)) ENGINE=InnoDB;
+CREATE TABLE tm (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=MyISAM;
+SET GLOBAL wsrep_max_ws_rows=0;
+START TRANSACTION;
+INSERT INTO tm SET b=NULL, a=2;
+INSERT INTO ti VALUES (1,2,4);
+UPDATE tm AS t1, ti AS t2 SET t1.a=t1.a * 2, t2.a=t2.a * 2;
+UPDATE tm AS t1, ti AS t2 SET t1.a=t1.a * 2, t2.a=t2.a * 2;
+COMMIT;
+SELECT * FROM ti;
+a	b	id
+4	2	4
+SELECT * from tm;
+a	b
+8	NULL
+DROP TABLE ti,tm;
+CREATE TABLE t1 (col INT);
+INSERT INTO t1 VALUES (0xF4AB);
+CREATE TEMPORARY TABLE t1 (c1 INT) ENGINE=mrg_myisam UNION=(t1) insert_method=FIRST;
+SET GLOBAL wsrep_max_ws_rows=1;
+DROP TABLES t1;
+INSERT INTO t1 VALUES (6373);
+CREATE TABLE t2 ENGINE=heap SELECT * FROM t1;
+DROP TABLE t1, t2;
+SET default_storage_engine="HEAP";
+CREATE TABLE t1 (f1 BIGINT);
+SET GLOBAL wsrep_max_ws_rows = 1;
+INSERT INTO t1 VALUES (NOW()),(NOW()),(NOW());
+SELECT COUNT(*) AS EXPECT_3 FROM t1;
+EXPECT_3
+3
+DROP TABLE t1;
+CREATE TABLE t1 (i INT) ENGINE=MyISAM DEFAULT CHARSET=utf8 SELECT 1 as i;
+DROP TABLE t1;
+SET GLOBAL wsrep_max_ws_rows=0;
