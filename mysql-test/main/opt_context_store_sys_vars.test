@@ -1,5 +1,6 @@
 --source include/not_embedded.inc
 --source include/have_sequence.inc
+--source include/no_view_protocol.inc
 --echo #enable both optimizer_trace, and optimizer_record_context
 set optimizer_record_context=ON;
 set optimizer_trace=1;
