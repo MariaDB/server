@@ -10,9 +10,7 @@
 class ha_parquet final : public handler
 {
 public:
-  ha_parquet(handlerton *hton, TABLE_SHARE *table_arg)
-    : handler(hton, table_arg)
-  {}
+  ha_parquet(handlerton *hton, TABLE_SHARE *table_arg);
 
   ~ha_parquet() override = default;
 
@@ -95,10 +93,7 @@ public:
     return 0;
   }
 
-  int external_lock(THD *, int) override
-  {
-    return 0;
-  }
+  int external_lock(THD *, int) override;
 
   int delete_all_rows(void) override
   {
@@ -116,9 +111,9 @@ public:
   }
 
   THR_LOCK_DATA **store_lock(THD *, THR_LOCK_DATA **to,
-                             enum thr_lock_type) override
-  {
-    return to;
-  }
+                             enum thr_lock_type lock_type) override;
+
+private:
+  THR_LOCK_DATA lock;
 };
 #endif
