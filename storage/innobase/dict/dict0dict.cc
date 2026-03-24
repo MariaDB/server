@@ -917,6 +917,8 @@ void dict_sys_t::create() noexcept
 {
   ut_ad(this == &dict_sys);
   ut_ad(!is_initialised());
+  ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
   m_initialised= true;
   UT_LIST_INIT(table_LRU, &dict_table_t::table_LRU);
   UT_LIST_INIT(table_non_LRU, &dict_table_t::table_LRU);
@@ -930,7 +932,7 @@ void dict_sys_t::create() noexcept
 
   latch.SRW_LOCK_INIT(dict_operation_lock_key);
 
-  if (!srv_read_only_mode)
+  if (!recv_sys.rpo)
   {
     dict_foreign_err_file= os_file_create_tmpfile();
     ut_a(dict_foreign_err_file);
@@ -3165,6 +3167,8 @@ dict_foreign_parse_drop_constraints(
 	bool			if_exists = false;
 
 	ut_a(trx->mysql_thd);
+	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	cs = trx->mysql_thd->charset();
 
@@ -3207,7 +3211,7 @@ loop:
 
 	if (!success) {
 syntax_error:
-		if (!srv_read_only_mode) {
+		{
 			FILE*	ef = dict_foreign_err_file;
 
 			mysql_mutex_lock(&dict_foreign_err_mutex);
@@ -3251,9 +3255,7 @@ syntax_error:
 	    == table->foreign_set.end()) {
 		if (if_exists) {
 			goto loop;
-		}
-
-		if (!srv_read_only_mode) {
+		} else {
 			FILE*	ef = dict_foreign_err_file;
 
 			mysql_mutex_lock(&dict_foreign_err_mutex);
@@ -3685,7 +3687,7 @@ void dict_set_corrupted(trx_t *trx, dict_index_t *index, const char *ctx)
 
 	/* If this is read only mode, do not update SYS_INDEXES, just
 	mark it as corrupted in memory */
-	if (high_level_read_only) {
+	if (high_level_read_only || recv_sys.rpo) {
 		index->type |= DICT_CORRUPT;
 		goto func_exit;
 	}

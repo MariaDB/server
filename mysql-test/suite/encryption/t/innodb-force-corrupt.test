@@ -68,7 +68,9 @@ print FILE pack("H*", "c001cafedeadb017");
 close FILE or die "close";
 EOF
 
+--let $restart_parameters=--innodb-log-recovery-start=0
 --source include/start_mysqld.inc
+--let $restart_parameters=
 
 --error ER_TABLE_CORRUPT
 SELECT * FROM t1;

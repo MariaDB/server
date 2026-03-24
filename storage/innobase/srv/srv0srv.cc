@@ -693,7 +693,7 @@ srv_printf_innodb_monitor(
 
 	mysql_mutex_lock(&dict_foreign_err_mutex);
 
-	if (!srv_read_only_mode && ftell(dict_foreign_err_file) != 0L) {
+	if (!recv_sys.rpo && ftell(dict_foreign_err_file) != 0L) {
 		fputs("------------------------\n"
 		      "LATEST FOREIGN KEY ERROR\n"
 		      "------------------------\n", file);
@@ -815,9 +815,11 @@ void
 srv_export_innodb_status(void)
 /*==========================*/
 {
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
 	fil_crypt_stat_t	crypt_stat;
 
-	if (!srv_read_only_mode) {
+	if (!recv_sys.rpo) {
 		fil_crypt_total_stat(&crypt_stat);
 	}
 	innodb_io_slots_stats(tpool::aio_opcode::AIO_PREAD,
@@ -932,7 +934,7 @@ srv_export_innodb_status(void)
 	export_vars.innodb_onlineddl_rowlog_pct_used = onlineddl_rowlog_pct_used;
 	export_vars.innodb_onlineddl_pct_progress = onlineddl_pct_progress;
 
-	if (!srv_read_only_mode) {
+	if (!recv_sys.rpo) {
 		export_vars.innodb_encryption_rotation_pages_read_from_cache =
 			crypt_stat.pages_read_from_cache;
 		export_vars.innodb_encryption_rotation_pages_read_from_disk =
@@ -953,6 +955,7 @@ srv_export_innodb_status(void)
 	export_vars.innodb_lsn_current = log_sys.get_lsn();
 	export_vars.innodb_lsn_flushed = log_sys.get_flushed_lsn();
 	export_vars.innodb_lsn_last_checkpoint = log_sys.last_checkpoint_lsn;
+	export_vars.innodb_lsn_archived = log_sys.archived_lsn;
 	export_vars.innodb_checkpoint_max_age = static_cast<ulint>(
 		log_sys.max_checkpoint_age);
 	log_sys.latch.wr_unlock();
@@ -1012,7 +1015,7 @@ static void srv_monitor()
 		/* We don't create the temp files or associated
 		mutexes in read-only-mode */
 
-		if (!srv_read_only_mode && srv_innodb_status) {
+		if (!recv_sys.rpo && srv_innodb_status) {
 			mysql_mutex_lock(&srv_monitor_file_mutex);
 			rewind(srv_monitor_file);
 			if (!srv_printf_innodb_monitor(srv_monitor_file,
@@ -1090,6 +1093,7 @@ bool srv_any_background_activity()
   if (purge_sys.enabled() || srv_master_timer.get())
   {
     ut_ad(!srv_read_only_mode);
+    ut_ad(!recv_sys.rpo);
     return true;
   }
   return false;
@@ -1183,6 +1187,7 @@ void purge_sys_t::resume()
      return;
    }
    ut_ad(!srv_read_only_mode);
+   ut_ad(!recv_sys.rpo);
    ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
    purge_coordinator_task.enable();
    latch.wr_lock(SRW_LOCK_CALL);
@@ -1287,11 +1292,15 @@ void srv_master_callback(void*)
   ut_a(srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
   MONITOR_INC(MONITOR_MASTER_THREAD_SLEEP);
-  purge_sys.wake_if_not_active();
+  if (!recv_sys.rpo)
+    purge_sys.wake_if_not_active();
   ulonglong counter_time= microsecond_interval_timer();
-  srv_sync_log_buffer_in_background();
-  MONITOR_INC_TIME_IN_MICRO_SECS(MONITOR_SRV_LOG_FLUSH_MICROSECOND,
-				 counter_time);
+  if (!recv_sys.rpo)
+  {
+    srv_sync_log_buffer_in_background();
+    MONITOR_INC_TIME_IN_MICRO_SECS(MONITOR_SRV_LOG_FLUSH_MICROSECOND,
+                                   counter_time);
+  }
 
   if (srv_check_activity(&old_activity_count))
     srv_master_do_active_tasks(counter_time);
@@ -1344,6 +1353,7 @@ Fetch and execute a task from the work queue.
 static bool srv_task_execute(THD *thd)
 {
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
 
 	mysql_mutex_lock(&srv_sys.tasks_mutex);
@@ -1378,6 +1388,7 @@ void srv_update_purge_thread_count(uint n)
 inline void purge_coordinator_state::do_purge(trx_t *trx)
 {
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
 
   if (!purge_sys.enabled() || purge_sys.paused())
     return;
@@ -1493,6 +1504,7 @@ static void purge_worker_callback(void*)
 {
   ut_ad(!current_thd);
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
   ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
   void *ctx;
   THD *thd= acquire_thd(&ctx);
@@ -1543,6 +1555,7 @@ srv_que_task_enqueue_low(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	mysql_mutex_lock(&srv_sys.tasks_mutex);
 
 	UT_LIST_ADD_LAST(srv_sys.tasks, thr);
@@ -1557,6 +1570,7 @@ ulint srv_get_task_queue_length()
 	ulint	n_tasks;
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	mysql_mutex_lock(&srv_sys.tasks_mutex);
 
@@ -1588,7 +1602,8 @@ void srv_purge_shutdown()
     }
     purge_sys.coordinator_shutdown();
     srv_shutdown_purge_tasks();
-    if (!srv_fast_shutdown && !high_level_read_only && srv_was_started &&
+    if (!srv_fast_shutdown && !high_level_read_only &&
+        !recv_sys.rpo && srv_was_started &&
         !opt_bootstrap && srv_operation == SRV_OPERATION_NORMAL &&
         !srv_sys_space.is_shrink_fail())
       fsp_system_tablespace_truncate(true);

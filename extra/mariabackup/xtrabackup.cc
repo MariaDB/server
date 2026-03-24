@@ -2745,7 +2745,7 @@ static bool innodb_init()
     srv_log_group_home_dir= xtrabackup_target_dir;
 
   bool ret;
-  const std::string ib_logfile0{get_log_file_path()};
+  const std::string ib_logfile0{log_sys.get_circular_path()};
   os_file_delete_if_exists_func(ib_logfile0.c_str(), nullptr);
   os_file_t file= os_file_create_func(ib_logfile0.c_str(),
                                       OS_FILE_CREATE,
@@ -4925,6 +4925,8 @@ static bool backup_wait_for_commit_lsn()
   lsn_t last_lsn= recv_sys.lsn;
 
   /* read the latest checkpoint lsn */
+  log_sys.last_checkpoint_lsn= 0;
+  recv_sys.file_checkpoint= 0;
   if (recv_sys.find_checkpoint() == DB_SUCCESS && log_sys.is_latest())
   {
     metadata_to_lsn= log_sys.last_checkpoint_lsn;
@@ -5550,6 +5552,7 @@ static bool xtrabackup_backup_func()
 
 	srv_n_purge_threads = 1;
 	srv_read_only_mode = TRUE;
+	recv_sys.rpo = LSN_MAX;
 
 	srv_operation = SRV_OPERATION_BACKUP;
 	log_file_op = backup_file_op;
@@ -5642,10 +5645,11 @@ fail:
 
 	/* open the log file */
 	memset(&stat_info, 0, sizeof(MY_STAT));
-	dst_log_file = ds_open(backup_datasinks.m_redo, LOG_FILE_NAME, &stat_info);
+	dst_log_file =
+		ds_open(backup_datasinks.m_redo, "ib_logfile0", &stat_info);
 	if (dst_log_file == NULL) {
-		msg("Error: failed to open the target stream for '%s'.",
-		    LOG_FILE_NAME);
+		msg("Error: failed to open the target stream"
+		    " for 'ib_logfile0'.");
 		goto fail;
 	}
 

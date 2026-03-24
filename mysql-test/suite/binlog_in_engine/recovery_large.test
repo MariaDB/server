@@ -32,6 +32,7 @@ while ($i < $pre_count) {
 
 --let $no_checkpoint_flush= 1
 --let $no_checkpoint_kill= 1
+--source ../../suite/innodb/include/no_checkpoint_prepare.inc
 --source ../../suite/innodb/include/no_checkpoint_start.inc
 --let $file= query_get_value(SHOW MASTER STATUS, File, 1)
 --let $pos= query_get_value(SHOW MASTER STATUS, Position, 1)
