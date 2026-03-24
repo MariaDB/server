@@ -359,6 +359,19 @@ struct FVector
            dot_product(dims, other->dims, vec_len);
   }
 
+  float distance_manhattan(const FVector *other, size_t vec_len) const
+  {
+    float sum= 0.0f;
+    for (size_t i= 0; i < vec_len; i++)
+    {
+      float v1= static_cast<float>(dims[i]) * scale;
+      float v2= static_cast<float>(other->dims[i]) * other->scale;
+      float diff= v1 - v2;
+      sum+= (diff >= 0) ? diff : -diff;
+    }
+    return sum;
+  }
+
   float distance_greater_than(const FVector *other, size_t vec_len, float than,
                               Stats *stats) const
   {
@@ -555,7 +568,7 @@ public:
   {
     byte_len= len;
     vec_len= len / sizeof(float);
-    use_subdist= vec_len >= subdist_part * 2;
+    use_subdist= metric != MANHATTAN && vec_len >= subdist_part * 2;
   }
 
   static int acquire(MHNSW_Share **ctx, TABLE *table, bool for_update);
@@ -946,12 +959,19 @@ FVectorNode::FVectorNode(MHNSW_Share *ctx_, const void *tref_, uint8_t layer,
 
 float FVectorNode::distance_to(const FVector *other) const
 {
+  if (ctx->metric == MANHATTAN)
+    return vec->distance_manhattan(other, ctx->vec_len);
   return vec->distance_to(other, ctx->vec_len);
 }
 
 float FVectorNode::distance_greater_than(const FVector *other, float than,
                                          dgt_mode mode, Stats *stats) const
 {
+  if (ctx->metric == MANHATTAN)
+  {
+    float dist = distance_to(other);
+    return dist;
+  }
   static constexpr float mul[3]= {0, 10, subdist_margin };
   if (mode == NOSTAT_NOSUBDIST)
     return distance_to(other);

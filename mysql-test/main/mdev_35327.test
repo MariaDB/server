@@ -37,7 +37,7 @@ SELECT id, VEC_DISTANCE_EUCLIDEAN(v, VEC_FromText('[0,0,0]')) as dist FROM t1 OR
 --echo #
 --echo # With Vector Index
 --echo #
-CREATE VECTOR INDEX idx ON t1(v) DISTANCE=manhattan;
+CREATE VECTOR INDEX idx ON t1(v) DISTANCE=Manhattan;
 
 --echo # Output should be 3,5 and 6 again
 SELECT id, VEC_DISTANCE_MANHATTAN(v, VEC_FromText('[0,0,0]')) as dist FROM t1 FORCE INDEX (idx) ORDER BY dist LIMIT 3;
