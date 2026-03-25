@@ -38,17 +38,17 @@ int ha_parquet::create(const char *, TABLE *, HA_CREATE_INFO *)
   return 0;
 }
 
-int ha_parquet::write_row(const uchar *)
+int ha_parquet::write_row(const uchar *buf)
 {
   return HA_ERR_WRONG_COMMAND;
 }
 
-int ha_parquet::update_row(const uchar *, const uchar *)
+int ha_parquet::update_row(const uchar *old_data, const uchar *new_data)
 {
   return HA_ERR_WRONG_COMMAND;
 }
 
-int ha_parquet::delete_row(const uchar *)
+int ha_parquet::delete_row(const uchar *buf)
 {
   return HA_ERR_WRONG_COMMAND;
 }
@@ -89,7 +89,7 @@ int ha_parquet::external_lock(THD *, int)
   return 0;
 }
 
-THR_LOCK_DATA **ha_parquet::store_lock(THD *,
+THR_LOCK_DATA **ha_parquet::store_lock(THD *thd,
                                        THR_LOCK_DATA **to,
                                        enum thr_lock_type lock_type)
 {
@@ -136,9 +136,9 @@ maria_declare_plugin(parquet)
   PLUGIN_LICENSE_GPL,
   ha_parquet_init,                   /* Plugin Init      */
   ha_parquet_deinit,                 /* Plugin Deinit    */
-  0x0100,                       /* 1.0              */
-  NULL,             /* status variables */
-  NULL,             /* system variables */
+  0x0100,                            /* 1.0              */
+  NULL,                              /* status variables */
+  NULL,                               /* system variables */
   "1.0",                        /* string version   */
   MariaDB_PLUGIN_MATURITY_STABLE/* maturity         */
 }
