@@ -1,0 +1,8 @@
+--let  = $MYSQLTEST_VARDIR/log/master.err
+--let  = SQL mode MYSQL323 is deprecated and will be removed in future versions
+--source include/search_pattern_in_file.inc
+
+--let  = SQL mode MYSQL40 is deprecated and will be removed in future versions
+--source include/search_pattern_in_file.inc
+
+SELECT @@sql_mode;
