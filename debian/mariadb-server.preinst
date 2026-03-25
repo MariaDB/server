@@ -26,7 +26,8 @@ fi
 ${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
 
 export PATH=$PATH:/sbin:/usr/sbin:/bin:/usr/bin
-mariadb_datadir=/var/lib/mysql
+mariadb_datadir=/var/lib/mariadb
+legacy_mariadb_datadir=/var/lib/mysql
 mariadb_upgradedir=/var/lib/mysql-upgrade
 
 MARIADBD_USERS="root"
@@ -67,46 +68,53 @@ stop_server() {
   fi
 }
 
+# Check if the version file mariadb_upgrade_info or mysql_upgrade_info is
+# included with the provided data directory. If it is a MariaDB version, then
+# return the major version number only (XX.XX). Return empty if this directory
+# does not belong to MariaDB.
+get_mariadb_upgrade_info_major_version() {
+  datadir="$1"
+
+  # Check both mariadb_upgrade_info (higher priority) and mysql_upgrade_info.
+  if [ -f "$datadir/mysql_upgrade_info" ]
+  then
+    read -r full_version < "$datadir/mysql_upgrade_info"
+  fi
+
+  if [ -f "$datadir/mariadb_upgrade_info" ]
+  then
+    read -r full_version < "$datadir/mariadb_upgrade_info"
+  fi
+
+  # If version is not empty and contains 'MariaDB', get the version number.
+  if [ -n "$full_version" ] && echo "$full_version" | grep -q "MariaDB"
+  then
+    # The major version number should the first two components of the version
+    # string (e.g. 11.8 from 11.8.6).
+    echo "$full_version" | awk -F'.' '{print $1"."$2}'
+  fi
+}
+
 ################################ main() ##########################
 
-# @TODO: Rewrite this to use the new upstream /var/lib/mysql_upgrade_info file
-# instead of the legacy /var/lib/debian-XX.X.flag file
 this_version=__MARIADB_MAJOR_VER__
 max_upgradeable_version=5.7
 
-# Check if a flag file is found that indicates a previous MariaDB or MySQL
-# version was installed. If multiple flags are found, check which one was
-# the biggest version number.
-for flag in "$mariadb_datadir"/debian-*.flag
-do
+# Check for previous mariadb version in the new datadir.
+found_version=$(get_mariadb_upgrade_info_major_version "$mariadb_datadir")
 
-  # The for loop leaves $flag as the query string if there are no results,
-  # so the check below is needed to stop further processing when there are
-  # no real results.
-  if [ "$flag" = "$mariadb_datadir/debian-*.flag" ]
+# If nothing was found in the new datadir, check the legacy datadir to see if
+# it has a MariaDB instance.
+if [ -z "$found_version" ] && [ -d "$legacy_mariadb_datadir" ]
+then
+  found_version=$(get_mariadb_upgrade_info_major_version "$legacy_mariadb_datadir")
+
+  # If a mariadb version was found in the legacy datadir, continue using it.
+  if [ -n "$found_version" ]
   then
-    break
+    mariadb_datadir="$legacy_mariadb_datadir"
   fi
-
-  # The whole flag_version thing should be rewritten, so ignore minor Shellcheck
-  # nag for now
-  # shellcheck disable=SC2001
-  flag_version=$(echo "$flag" | sed 's/.*debian-\([0-9\.]\+\).flag/\1/')
-
-  # Initialize value if empty
-  if [ -z "$found_version" ]
-  then
-    found_version=$flag_version
-  fi
-
-  # Update value if now bigger then before
-  if dpkg --compare-versions "$flag_version" '>>' "$found_version"
-  then
-    found_version=$flag_version
-  fi
-
-done
-
+fi
 
 # If an upgrade is detected, proceed with it automatically without
 # requiring any user interaction.
@@ -117,16 +125,6 @@ done
 # than $max_upgradeable_version.
 if [ -n "$found_version" ]
 then
-
-  # MySQL 8.0 in Ubuntu has a bug in packaging and the file is name wrongly
-  # 'debian-5.7.flag', so in case '5.7' was encountered an extra check needs to
-  # be done to see is there is a file called undo_001, which is a sign of 8.0.
-  if [ "$found_version" == "5.7" ] && [ -f "$mariadb_datadir/undo_001" ]
-  then
-    # Seems to be a 8.0, flag has wrongly 5.7 (know bug)
-    found_version=8.0
-  fi
-
   echo "$mariadb_datadir: found previous version $found_version"
 
   if dpkg --compare-versions "$found_version" '>>' "$this_version"
@@ -140,19 +138,6 @@ then
     downgrade_detected=true
   fi
 
-fi
-
-# If there is no debian-*.flag, and no version was detected, but a file that
-# indicated MySQL 8.0 is found (undo_001 is created by default in MySQL 8.0+
-# installs), then that file is enough of additional indication to trigger the
-# move of the data directory.
-if [ -z "$found_version" ] &&
-   [ -z "$(find $mariadb_datadir/debian-*.flag 2> /dev/null)" ] &&
-   [ -f "$mariadb_datadir/undo_001" ]
-then
-  echo "$mariadb_datadir: no server version flag found, assuming MySQL 8.0 data encountered"
-  downgrade_detected=true
-  found_version="previous" # Just use dummy name as we don't know real version
 fi
 
 # Don't abort dpkg if downgrade is detected (as was done previously).
