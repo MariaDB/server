@@ -13937,7 +13937,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
     read_packet()
   */
   mpvio->cached_client_reply.pkt= passwd;
-  mpvio->cached_client_reply.pkt_len= passwd_len;
+  mpvio->cached_client_reply.pkt_len= (uint)passwd_len;
   mpvio->cached_client_reply.plugin= client_plugin;
   mpvio->status= MPVIO_EXT::RESTART;
 #endif
