@@ -1,0 +1,7 @@
+--echo # Test deprecated SQL modes
+
+SET sql_mode='MYSQL323';
+SHOW WARNINGS;
+
+SET sql_mode='MYSQL40';
+SHOW WARNINGS;
