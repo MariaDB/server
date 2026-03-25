@@ -1,0 +1,155 @@
+--source include/have_innodb.inc
+--source include/have_innodb_4k.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-38814: High rate of index_lock_upgrades due to
+--echo # btr_cur_need_opposite_intention() mostly returning true
+--echo #
+
+--echo # Test with simple table structure:
+--echo # Single INT primary key
+--echo # DATETIME column dt that starts NULL and gets updated to a
+--echo # distinct timestamp per row
+--echo #
+--echo # The NULL-to-DATETIME growth makes btr_cur_optimistic_update()
+--echo # fall through to the pessimistic path (BTR_MODIFY_TREE).
+CREATE TABLE t1 (
+  id INT NOT NULL,
+  dt DATETIME NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB;
+
+--disable_query_log
+SET GLOBAL innodb_monitor_enable= 'module_index';
+--enable_query_log
+
+let $lu0= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+               WHERE VARIABLE_NAME = 'Innodb_btr_cur_n_index_lock_upgrades'`;
+let $pu0= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+               WHERE VARIABLE_NAME = 'Innodb_btr_cur_pessimistic_update_calls'`;
+let $ou0= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+               WHERE VARIABLE_NAME = 'Innodb_btr_cur_pessimistic_update_optim_err_underflows'`;
+let $oo0= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+               WHERE VARIABLE_NAME = 'Innodb_btr_cur_pessimistic_update_optim_err_overflows'`;
+let $ps0= `SELECT COUNT_RESET FROM INFORMATION_SCHEMA.INNODB_METRICS
+               WHERE NAME = 'index_page_splits'`;
+let $ma0= `SELECT COUNT_RESET FROM INFORMATION_SCHEMA.INNODB_METRICS
+               WHERE NAME = 'index_page_merge_attempts'`;
+let $ms0= `SELECT COUNT_RESET FROM INFORMATION_SCHEMA.INNODB_METRICS
+               WHERE NAME = 'index_page_merge_successful'`;
+let $rs0= `SELECT COUNT_RESET FROM INFORMATION_SCHEMA.INNODB_METRICS
+               WHERE NAME = 'index_page_reorg_successful'`;
+let $pd0= `SELECT COUNT_RESET FROM INFORMATION_SCHEMA.INNODB_METRICS
+               WHERE NAME = 'index_page_discards'`;
+
+INSERT INTO t1 (id, dt) SELECT seq, NULL FROM seq_1_to_1000;
+
+--echo # Rows inserted with NULL DATETIME
+SELECT COUNT(*) AS rows_inserted FROM t1;
+SELECT COUNT(DISTINCT dt) AS distinct_timestamps FROM t1;
+
+let $lu1= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+               WHERE VARIABLE_NAME = 'Innodb_btr_cur_n_index_lock_upgrades'`;
+let $pu1= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+               WHERE VARIABLE_NAME = 'Innodb_btr_cur_pessimistic_update_calls'`;
+let $ou1= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+               WHERE VARIABLE_NAME = 'Innodb_btr_cur_pessimistic_update_optim_err_underflows'`;
+let $oo1= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+               WHERE VARIABLE_NAME = 'Innodb_btr_cur_pessimistic_update_optim_err_overflows'`;
+let $ps1= `SELECT COUNT_RESET FROM INFORMATION_SCHEMA.INNODB_METRICS
+               WHERE NAME = 'index_page_splits'`;
+let $ma1= `SELECT COUNT_RESET FROM INFORMATION_SCHEMA.INNODB_METRICS
+               WHERE NAME = 'index_page_merge_attempts'`;
+let $ms1= `SELECT COUNT_RESET FROM INFORMATION_SCHEMA.INNODB_METRICS
+               WHERE NAME = 'index_page_merge_successful'`;
+let $rs1= `SELECT COUNT_RESET FROM INFORMATION_SCHEMA.INNODB_METRICS
+               WHERE NAME = 'index_page_reorg_successful'`;
+let $pd1= `SELECT COUNT_RESET FROM INFORMATION_SCHEMA.INNODB_METRICS
+               WHERE NAME = 'index_page_discards'`;
+
+--disable_query_log
+eval SET @lu01= $lu1 - $lu0;
+eval SET @pu01= $pu1 - $pu0;
+eval SET @ou01= $ou1 - $ou0;
+eval SET @oo01= $oo1 - $oo0;
+eval SET @ps01= $ps1 - $ps0;
+eval SET @ma01= $ma1 - $ma0;
+eval SET @ms01= $ms1 - $ms0;
+eval SET @rs01= $rs1 - $rs0;
+eval SET @pd01= $pd1 - $pd0;
+--enable_query_log
+
+--echo # Index lock upgrades during inserts
+SELECT @lu01 AS index_lock_upgrades_insert;
+SELECT @pu01 AS pessimistic_update_calls_insert;
+SELECT @ou01 AS optim_err_underflows_insert;
+SELECT @oo01 AS optim_err_overflows_insert;
+SELECT @ps01 AS index_page_splits_insert;
+SELECT @ma01 AS index_page_merge_attempts_insert;
+SELECT @ms01 AS index_page_merge_successful_insert;
+SELECT @rs01 AS index_page_reorg_successful_insert;
+SELECT @pd01 AS index_page_discards_insert;
+
+--echo # Now update all rows (batch update)
+--echo # This changes DATETIME from NULL to a distinct timestamp per row,
+--echo # triggering the pessimistic path due to record size change.
+
+UPDATE t1 JOIN seq_1_to_1000 s ON t1.id = s.seq
+SET t1.dt= '2025-01-01' + INTERVAL s.seq SECOND;
+
+--echo # Rows updated
+SELECT COUNT(DISTINCT dt) AS distinct_timestamps FROM t1;
+
+let $lu2= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+               WHERE VARIABLE_NAME = 'Innodb_btr_cur_n_index_lock_upgrades'`;
+let $pu2= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+               WHERE VARIABLE_NAME = 'Innodb_btr_cur_pessimistic_update_calls'`;
+let $ou2= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+               WHERE VARIABLE_NAME = 'Innodb_btr_cur_pessimistic_update_optim_err_underflows'`;
+let $oo2= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+               WHERE VARIABLE_NAME = 'Innodb_btr_cur_pessimistic_update_optim_err_overflows'`;
+let $ps2= `SELECT COUNT_RESET FROM INFORMATION_SCHEMA.INNODB_METRICS
+               WHERE NAME = 'index_page_splits'`;
+let $ma2= `SELECT COUNT_RESET FROM INFORMATION_SCHEMA.INNODB_METRICS
+               WHERE NAME = 'index_page_merge_attempts'`;
+let $ms2= `SELECT COUNT_RESET FROM INFORMATION_SCHEMA.INNODB_METRICS
+               WHERE NAME = 'index_page_merge_successful'`;
+let $rs2= `SELECT COUNT_RESET FROM INFORMATION_SCHEMA.INNODB_METRICS
+               WHERE NAME = 'index_page_reorg_successful'`;
+let $pd2= `SELECT COUNT_RESET FROM INFORMATION_SCHEMA.INNODB_METRICS
+               WHERE NAME = 'index_page_discards'`;
+
+--disable_query_log
+eval SET @lu12= $lu2 - $lu1;
+eval SET @pu12= $pu2 - $pu1;
+eval SET @ou12= $ou2 - $ou1;
+eval SET @oo12= $oo2 - $oo1;
+eval SET @ps12= $ps2 - $ps1;
+eval SET @ma12= $ma2 - $ma1;
+eval SET @ms12= $ms2 - $ms1;
+eval SET @rs12= $rs2 - $rs1;
+eval SET @pd12= $pd2 - $pd1;
+--enable_query_log
+
+--echo # Index lock upgrades during updates
+SELECT @lu12 AS index_lock_upgrades_update;
+SELECT @pu12 AS pessimistic_update_calls_update;
+SELECT @ou12 AS optim_err_underflows_update;
+SELECT @oo12 AS optim_err_overflows_update;
+SELECT @ps12 AS index_page_splits_update;
+SELECT @ma12 AS index_page_merge_attempts_update;
+SELECT @ms12 AS index_page_merge_successful_update;
+SELECT @rs12 AS index_page_reorg_successful_update;
+SELECT @pd12 AS index_page_discards_update;
+
+--disable_query_log
+SET GLOBAL innodb_monitor_disable= 'module_index';
+--disable_warnings
+SET GLOBAL innodb_monitor_disable= default;
+SET GLOBAL innodb_monitor_enable= default;
+--enable_warnings
+--enable_query_log
+
+DROP TABLE t1;
