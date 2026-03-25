@@ -13,6 +13,77 @@ ha_parquet::ha_parquet(handlerton *hton, TABLE_SHARE *table_arg)
   thr_lock_data_init(&parquet_lock, &lock, NULL);
 }
 
+ulonglong ha_parquet::table_flags() const
+{
+  return HA_NO_TRANSACTIONS | HA_FILE_BASED;
+}
+
+ulong ha_parquet::index_flags(uint, uint, bool) const
+{
+  return 0;
+}
+
+int ha_parquet::open(const char *, int, uint)
+{
+  return 0;
+}
+
+int ha_parquet::close(void)
+{
+  return 0;
+}
+
+int ha_parquet::create(const char *, TABLE *, HA_CREATE_INFO *)
+{
+  return 0;
+}
+
+int ha_parquet::write_row(const uchar *)
+{
+  return HA_ERR_WRONG_COMMAND;
+}
+
+int ha_parquet::update_row(const uchar *, const uchar *)
+{
+  return HA_ERR_WRONG_COMMAND;
+}
+
+int ha_parquet::delete_row(const uchar *)
+{
+  return HA_ERR_WRONG_COMMAND;
+}
+
+int ha_parquet::rnd_init(bool)
+{
+  return 0;
+}
+
+int ha_parquet::rnd_next(uchar *)
+{
+  return HA_ERR_END_OF_FILE;
+}
+
+int ha_parquet::rnd_pos(uchar *, uchar *)
+{
+  return HA_ERR_WRONG_COMMAND;
+}
+
+void ha_parquet::position(const uchar *)
+{
+}
+
+int ha_parquet::info(uint)
+{
+  return 0;
+}
+
+enum_alter_inplace_result
+ha_parquet::check_if_supported_inplace_alter(TABLE *,
+                                             Alter_inplace_info *)
+{
+  return HA_ALTER_INPLACE_NOT_SUPPORTED;
+}
+
 int ha_parquet::external_lock(THD *, int)
 {
   return 0;
@@ -26,7 +97,7 @@ THR_LOCK_DATA **ha_parquet::store_lock(THD *,
     lock.type= lock_type;
   }
   
-  *to++= &lock;
+  *to++ = &lock;
   return to;
 }
 

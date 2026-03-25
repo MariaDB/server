@@ -14,101 +14,27 @@ public:
 
   ~ha_parquet() override = default;
 
-  const char *table_type() const override
-  {
-    return "PARQUET";
-  }
+  ulonglong table_flags() const override;
+  ulong index_flags(uint, uint, bool) const override;
 
-  const char *index_type(uint) override
-  {
-    return "NONE";
-  }
+  int open(const char *name, int mode, uint test_if_locked) override;
+  int close(void) override;
+  int create(const char *, TABLE *, HA_CREATE_INFO *) override;
 
-  ulonglong table_flags() const override
-  {
-    return 0;
-  }
 
-  ulong index_flags(uint, uint, bool) const override
-  {
-    return 0;
-  }
+  int write_row(const uchar *) override;
+  int update_row(const uchar *, const uchar *) override;
+  int delete_row(const uchar *) override;
+  
+  int rnd_init(bool scan) override;
+  int rnd_next(uchar *buf) override;
+  int rnd_pos(uchar *buf, uchar *pos) override;
+  void position(const uchar *record) override;
+  int info(uint) override;
 
-  uint max_supported_record_length() const override
-  {
-    return HA_MAX_REC_LENGTH;
-  }
-
-  int open(const char *name, int mode, uint test_if_locked) override
-  {
-    return 0;
-  }
-
-  int close(void) override
-  {
-    return 0;
-  }
-
-  int write_row(const uchar *) override
-  {
-    return HA_ERR_WRONG_COMMAND;
-  }
-
-  int update_row(const uchar *, const uchar *) override
-  {
-    return HA_ERR_WRONG_COMMAND;
-  }
-
-  int delete_row(const uchar *) override
-  {
-    return HA_ERR_WRONG_COMMAND;
-  }
-
-  int rnd_init(bool) override
-  {
-    return 0;
-  }
-
-  int rnd_next(uchar *) override
-  {
-    return HA_ERR_END_OF_FILE;
-  }
-
-  int rnd_pos(uchar *, uchar *) override
-  {
-    return HA_ERR_WRONG_COMMAND;
-  }
-
-  void position(const uchar *) override
-  {
-  }
-
-  int info(uint) override
-  {
-    return 0;
-  }
-
-  int extra(enum ha_extra_function) override
-  {
-    return 0;
-  }
+  enum_alter_inplace_result check_if_supported_inplace_alter(TABLE *altered_table, Alter_inplace_info *ha_alter_info) override;
 
   int external_lock(THD *, int) override;
-
-  int delete_all_rows(void) override
-  {
-    return HA_ERR_WRONG_COMMAND;
-  }
-
-  int rename_table(const char *, const char *) override
-  {
-    return HA_ERR_WRONG_COMMAND;
-  }
-
-  int create(const char *, TABLE *, HA_CREATE_INFO *) override
-  {
-    return 0;
-  }
 
   THR_LOCK_DATA **store_lock(THD *, THR_LOCK_DATA **to,
                              enum thr_lock_type lock_type) override;
