@@ -1358,18 +1358,18 @@ create sequence s12 as int unsigned;
 create sequence s13 as bigint unsigned;
 select * from information_schema.sequences order by sequence_name;
 SEQUENCE_CATALOG	SEQUENCE_SCHEMA	SEQUENCE_NAME	DATA_TYPE	NUMERIC_PRECISION	NUMERIC_PRECISION_RADIX	NUMERIC_SCALE	START_VALUE	MINIMUM_VALUE	MAXIMUM_VALUE	INCREMENT	CYCLE_OPTION
-def	test	s1	tinyint unsigned	8	2	0	1	1	254	23	0
-def	test	s10	smallint unsigned	16	2	0	1	1	65534	1	0
-def	test	s11	mediumint unsigned	24	2	0	1	1	16777214	1	0
-def	test	s12	int unsigned	32	2	0	1	1	4294967294	1	0
-def	test	s13	bigint unsigned	64	2	0	1	1	18446744073709551614	1	0
-def	test	s2	bigint	64	2	0	42	-9223372036854775807	9223372036854775806	1	0
-def	test	s3	bigint unsigned	64	2	0	12345678901234567890	1	18446744073709551614	1	1
-def	test	s4	tinyint	8	2	0	1	1	126	1	0
-def	test	s5	smallint	16	2	0	1	1	32766	1	0
-def	test	s6	mediumint	24	2	0	1	1	8388606	1	0
-def	test	s7	int	32	2	0	1	1	2147483646	1	0
-def	test	s8	bigint	64	2	0	1	1	9223372036854775806	1	0
-def	test	s9	tinyint unsigned	8	2	0	1	1	254	1	0
+def	test	s1	tinyint unsigned	8	2	0	1	1	254	23	NO
+def	test	s10	smallint unsigned	16	2	0	1	1	65534	1	NO
+def	test	s11	mediumint unsigned	24	2	0	1	1	16777214	1	NO
+def	test	s12	int unsigned	32	2	0	1	1	4294967294	1	NO
+def	test	s13	bigint unsigned	64	2	0	1	1	18446744073709551614	1	NO
+def	test	s2	bigint	64	2	0	42	-9223372036854775807	9223372036854775806	1	NO
+def	test	s3	bigint unsigned	64	2	0	12345678901234567890	1	18446744073709551614	1	YES
+def	test	s4	tinyint	8	2	0	1	1	126	1	NO
+def	test	s5	smallint	16	2	0	1	1	32766	1	NO
+def	test	s6	mediumint	24	2	0	1	1	8388606	1	NO
+def	test	s7	int	32	2	0	1	1	2147483646	1	NO
+def	test	s8	bigint	64	2	0	1	1	9223372036854775806	1	NO
+def	test	s9	tinyint unsigned	8	2	0	1	1	254	1	NO
 drop sequence s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13;
 # End of 11.5 tests
