@@ -96,6 +96,28 @@ row_ins_find_open_table_for_cascade_binlog(
 	return mysql_table;
 }
 
+static inline bool
+row_ins_allow_fk_cascade_binlog_for_table(const TABLE* table)
+{
+	if (table == NULL) {
+		return false;
+	}
+
+	if (table->s->primary_key != MAX_KEY) {
+		return true;
+	}
+
+	if (Field **vf = table->vfield) {
+		for (; *vf; vf++) {
+			if ((*vf)->flags & PART_KEY_FLAG) {
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
 is enough space in the redo log before for that operation. This is
@@ -1404,11 +1426,14 @@ row_ins_foreign_check_on_constraint(
 	child_mysql_table = row_ins_find_open_table_for_cascade_binlog(trx, table);
 	if (child_mysql_table != NULL) {
 		handler* file = child_mysql_table->file;
+		const bool allow_rpl_fk_cascade_binlog=
+			row_ins_allow_fk_cascade_binlog_for_table(child_mysql_table);
 		if (child_mysql_table->in_use == trx->mysql_thd
 		    && (trx->mysql_thd->is_current_stmt_binlog_format_row() ||
 		        wsrep_emulate_binlog(trx->mysql_thd))
-		    && (trx->mysql_thd->variables.rpl_use_binlog_events_for_fk_cascade ||
-		        wsrep_emulate_binlog(trx->mysql_thd))
+		    && ((wsrep_emulate_binlog(trx->mysql_thd)) ||
+		        (trx->mysql_thd->variables.rpl_use_binlog_events_for_fk_cascade &&
+		         allow_rpl_fk_cascade_binlog))
 		    && file->prepare_for_row_logging()) {
 			need_cascade_binlog = true;
 			before_mysql_rec = static_cast<byte*>(
@@ -1428,9 +1453,15 @@ row_ins_foreign_check_on_constraint(
 			MY_BITMAP* old_write_set = child_mysql_table->write_set;
 			MY_BITMAP* old_rpl_write_set = child_mysql_table->rpl_write_set;
 			child_mysql_table->column_bitmaps_set_no_signal(
-				&child_mysql_table->s->all_set, &child_mysql_table->s->all_set);
+				&child_mysql_table->tmp_set, &child_mysql_table->tmp_set);
+			bitmap_set_all(&child_mysql_table->tmp_set);
+			if (Field **vf = child_mysql_table->vfield) {
+				for (; *vf; vf++) {
+					bitmap_clear_bit(&child_mysql_table->tmp_set, (*vf)->field_index);
+				}
+			}
 			if (child_mysql_table->rpl_write_set == NULL) {
-				child_mysql_table->rpl_write_set = &child_mysql_table->s->all_set;
+				child_mysql_table->rpl_write_set = &child_mysql_table->tmp_set;
 			}
 			ib->rebuild_template_for_cascade_binlog_row_image();
 
@@ -1487,14 +1518,20 @@ row_ins_foreign_check_on_constraint(
 					row_prebuilt_t* prebuilt = ib->innobase_prebuilt();
 					if (prebuilt != NULL && prebuilt->mysql_template != NULL) {
 						MY_BITMAP* old_read_set = child_mysql_table->read_set;
-						MY_BITMAP* old_write_set = child_mysql_table->write_set;
-						MY_BITMAP* old_rpl_write_set = child_mysql_table->rpl_write_set;
-						child_mysql_table->column_bitmaps_set_no_signal(
-							&child_mysql_table->s->all_set, &child_mysql_table->s->all_set);
-						if (child_mysql_table->rpl_write_set == NULL) {
-							child_mysql_table->rpl_write_set = &child_mysql_table->s->all_set;
+					MY_BITMAP* old_write_set = child_mysql_table->write_set;
+					MY_BITMAP* old_rpl_write_set = child_mysql_table->rpl_write_set;
+					child_mysql_table->column_bitmaps_set_no_signal(
+						&child_mysql_table->tmp_set, &child_mysql_table->tmp_set);
+					bitmap_set_all(&child_mysql_table->tmp_set);
+					if (Field **vf = child_mysql_table->vfield) {
+						for (; *vf; vf++) {
+							bitmap_clear_bit(&child_mysql_table->tmp_set, (*vf)->field_index);
 						}
-						ib->rebuild_template_for_cascade_binlog_row_image();
+					}
+					if (child_mysql_table->rpl_write_set == NULL) {
+						child_mysql_table->rpl_write_set = &child_mysql_table->tmp_set;
+					}
+					ib->rebuild_template_for_cascade_binlog_row_image();
 
 						mem_heap_t* offs_heap = NULL;
 						rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
@@ -1539,9 +1576,15 @@ row_ins_foreign_check_on_constraint(
 			MY_BITMAP* old_rpl_write_set = child_mysql_table->rpl_write_set;
 
 			child_mysql_table->column_bitmaps_set_no_signal(
-				&child_mysql_table->s->all_set, &child_mysql_table->s->all_set);
+				&child_mysql_table->tmp_set, &child_mysql_table->tmp_set);
+			bitmap_set_all(&child_mysql_table->tmp_set);
+			if (Field **vf = child_mysql_table->vfield) {
+				for (; *vf; vf++) {
+					bitmap_clear_bit(&child_mysql_table->tmp_set, (*vf)->field_index);
+				}
+			}
 			if (child_mysql_table->rpl_write_set == NULL) {
-				child_mysql_table->rpl_write_set = &child_mysql_table->s->all_set;
+				child_mysql_table->rpl_write_set = &child_mysql_table->tmp_set;
 			}
 			Log_func* log_func = Delete_rows_log_event::binlog_row_logging_function;
 			file->binlog_log_row(child_mysql_table, before_mysql_rec, NULL, log_func);
