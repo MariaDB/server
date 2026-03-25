@@ -1310,6 +1310,17 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
                         files_charset_info);
     }
 
+    // IS_DEPRECATED
+    fields[15]->store(Show::Yes_or_no::value(var->option.deprecation_substitute != NULL), scs);
+
+    // DEPRECATED_REPLACEMENT
+    if (var->option.deprecation_substitute != NULL && !IS_DEPRECATED_NO_REPLACEMENT(var->option.deprecation_substitute))
+    {
+      fields[16]->set_notnull();
+      fields[16]->store(var->option.deprecation_substitute,
+                        strlen(var->option.deprecation_substitute), scs);
+    }
+
     if (schema_table_store_record(thd, tables->table))
       goto end;
     thd->get_stmt_da()->inc_current_row_for_warning();

@@ -1,0 +1,2 @@
+--source include/is_embedded.inc
+--source suite/sys_vars/t/i_s_system_variables_deprecated.inc
