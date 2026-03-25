@@ -16779,7 +16779,11 @@ ha_innobase::store_lock(
 		   || lock_type == TL_READ_WITH_SHARED_LOCKS
 		   || lock_type == TL_READ_SKIP_LOCKED
 		   || lock_type == TL_READ_NO_INSERT
-		   || (lock_type != TL_IGNORE && is_update_query(sql_command))) {
+		   || (lock_type != TL_IGNORE &&
+			(is_update_query(sql_command)
+			|| sql_command == SQLCOM_CHECKSUM
+			|| sql_command == SQLCOM_ANALYZE
+			|| sql_command == SQLCOM_HA_OPEN))) {
 
 		/* The OR cases above are in this order:
 		1) MySQL is doing LOCK TABLES ... READ LOCAL, or
