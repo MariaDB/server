@@ -1205,6 +1205,22 @@ public:
   /** The minimum allowed innodb_buffer_pool_size in garbage_collect() */
   size_t size_in_bytes_auto_min;
 #endif
+#if SIZEOF_SIZE_T < 8 || defined _AIX || defined HAVE_valgrind
+  /* In constrained environments, innodb_buffer_pool_size_max
+   will default to the initial innodb_buffer_pool_size, that is,
+   by default, it will not be possible to increase innodb_buffer_pool_size.
+
+   In MemorySanitizer and possibly Valgrind memcheck, any virtual memory
+   allocation would be backed by one or more copies of shadow bits of the
+   same size that could be allocated and initialized even for dummy
+   mappings created by mmap(2) with PROT_NONE. We do not want significant
+   overhead beyond the actual innodb_buffer_pool_size. */
+  static constexpr size_t size_in_bytes_max_default{0},
+    size_in_bytes_max_minimum{0};
+#else
+  static constexpr size_t size_in_bytes_max_default{8ULL << 40},
+    size_in_bytes_max_minimum{innodb_buffer_pool_extent_size};
+#endif
   /** The maximum allowed innodb_buffer_pool_size */
   size_t size_in_bytes_max;
 
