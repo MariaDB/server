@@ -3896,8 +3896,26 @@ export sql_mode_t expand_sql_mode(sql_mode_t sql_mode)
 }
 static bool check_sql_mode(sys_var *self, THD *thd, set_var *var)
 {
-  var->save_result.ulonglong_value=
+  var->save_result.ulonglong_value =
     (ulonglong) expand_sql_mode(var->save_result.ulonglong_value);
+
+  sql_mode_t new_mode = (sql_mode_t) var->save_result.ulonglong_value;
+
+  /* Deprecation warnings for old SQL modes */
+  if (new_mode & MODE_MYSQL323)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_DEPRECATED_SYNTAX,
+                        "SQL mode MYSQL323 is deprecated and will be removed in future versions");
+  }
+
+  if (new_mode & MODE_MYSQL40)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_DEPRECATED_SYNTAX,
+                        "SQL mode MYSQL40 is deprecated and will be removed in future versions");
+  }
+
   return false;
 }
 static bool fix_sql_mode(sys_var *self, THD *thd, enum_var_type type)
@@ -3926,7 +3944,13 @@ static const char *sql_mode_names[]=
   "IGNORE_BAD_TABLE_OPTIONS",
   "ONLY_FULL_GROUP_BY", "NO_UNSIGNED_SUBTRACTION", "NO_DIR_IN_CREATE",
   "POSTGRESQL", "ORACLE", "MSSQL", "DB2", "MAXDB", "NO_KEY_OPTIONS",
-  "NO_TABLE_OPTIONS", "NO_FIELD_OPTIONS", "MYSQL323", "MYSQL40", "ANSI",
+  "NO_TABLE_OPTIONS", "NO_FIELD_OPTIONS",
+
+  /* Deprecated SQL modes */
+  "MYSQL323",  // deprecated
+  "MYSQL40",   // deprecated
+
+  "ANSI",
   "NO_AUTO_VALUE_ON_ZERO", "NO_BACKSLASH_ESCAPES", "STRICT_TRANS_TABLES",
   "STRICT_ALL_TABLES", "NO_ZERO_IN_DATE", "NO_ZERO_DATE",
   "ALLOW_INVALID_DATES", "ERROR_FOR_DIVISION_BY_ZERO", "TRADITIONAL",
@@ -3950,6 +3974,7 @@ export bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
   set_to_string(thd, ls, sql_mode, sql_mode_names);
   return ls->str == 0;
 }
+
 /*
   sql_mode should *not* be IN_BINLOG: even though it is written to the binlog,
   the slave ignores the MODE_NO_DIR_IN_CREATE variable, so slave's value
@@ -3957,7 +3982,7 @@ export bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
 */
 static Sys_var_set Sys_sql_mode(
        "sql_mode",
-       "Sets the sql mode",
+       "Sets the sql mode (MYSQL323 and MYSQL40 are deprecated)",
        SESSION_VAR(sql_mode), CMD_LINE(REQUIRED_ARG),
        sql_mode_names,
        DEFAULT(MODE_STRICT_TRANS_TABLES |

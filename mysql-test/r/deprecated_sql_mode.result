@@ -1,0 +1,10 @@
+# Test deprecated SQL modes
+SET sql_mode='MYSQL323';
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1287	SQL mode MYSQL323 is deprecated and will be removed in future versions
+
+SET sql_mode='MYSQL40';
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1287	SQL mode MYSQL40 is deprecated and will be removed in future versions
