@@ -1071,6 +1071,13 @@ static SHOW_VAR innodb_status_variables[]= {
   /* InnoDB bulk operations */
   {"bulk_operations", &export_vars.innodb_bulk_operations, SHOW_SIZE_T},
 
+#ifdef UNIV_DEBUG
+  {"btr_index_lock_upgrades",
+   &btr_cur_n_index_lock_upgrades, SHOW_SIZE_T},
+  {"btr_need_opposite_intention_root",
+   &btr_cur_n_need_opposite_intention_root, SHOW_SIZE_T},
+#endif /* UNIV_DEBUG */
+
   {NullS, NullS, SHOW_LONG}
 };
 

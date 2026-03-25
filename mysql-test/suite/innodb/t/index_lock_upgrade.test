@@ -1,0 +1,74 @@
+--source include/have_innodb.inc
+--source include/have_innodb_4k.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-38814: btr_cur_need_opposite_intention() should not
+--echo # trigger index lock upgrade on the root page
+--echo #
+
+--echo # Test with simple table structure:
+--echo # Single INT primary key
+--echo # DATETIME column dt that starts NULL and gets updated to a
+--echo # distinct timestamp per row
+--echo #
+--echo # The NULL-to-DATETIME growth makes btr_cur_optimistic_update()
+--echo # return DB_UNDERFLOW (TODO: Why? DB_OVERFLOW was expected),
+--echo # falling through to the pessimistic path (BTR_MODIFY_TREE).
+CREATE TABLE t1 (
+  id INT NOT NULL,
+  dt DATETIME NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB;
+
+let $u0 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+               WHERE VARIABLE_NAME = 'Innodb_btr_index_lock_upgrades'`;
+let $r0 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+               WHERE VARIABLE_NAME = 'Innodb_btr_need_opposite_intention_root'`;
+
+INSERT INTO t1 (id, dt) SELECT seq, NULL FROM seq_1_to_1000;
+
+--echo # Rows inserted with NULL DATETIME
+SELECT COUNT(*) AS rows_inserted FROM t1;
+SELECT COUNT(DISTINCT dt) AS distinct_timestamps FROM t1;
+
+let $u1 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+              WHERE VARIABLE_NAME = 'Innodb_btr_index_lock_upgrades'`;
+let $r1 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+              WHERE VARIABLE_NAME = 'Innodb_btr_need_opposite_intention_root'`;
+
+--disable_query_log
+eval SET @u01 = $u1 - $u0;
+eval SET @r01 = $r1 - $r0;
+--enable_query_log
+
+--echo # Index lock upgrades during inserts (no reduction w.r.t. root page checks)
+SELECT @u01 AS index_lock_upgrades_insert;
+SELECT @r01 AS need_opposite_intention_root_insert;
+
+--echo # Now update all rows (batch update)
+--echo # This changes DATETIME from NULL to a distinct timestamp per row,
+--echo # triggering the pessimistic path due to record size change.
+
+UPDATE t1 JOIN seq_1_to_1000 s ON t1.id = s.seq
+SET t1.dt = '2025-01-01' + INTERVAL s.seq SECOND;
+
+--echo # Rows updated
+SELECT COUNT(DISTINCT dt) AS distinct_timestamps FROM t1;
+
+let $u2 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+              WHERE VARIABLE_NAME = 'Innodb_btr_index_lock_upgrades'`;
+let $r2 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+              WHERE VARIABLE_NAME = 'Innodb_btr_need_opposite_intention_root'`;
+
+--disable_query_log
+eval SET @u12 = $u2 - $u1;
+eval SET @r12 = $r2 - $r1;
+--enable_query_log
+
+--echo # Index lock upgrades during updates (with reduction w.r.t. root page checks)
+SELECT @u12 AS index_lock_upgrades_update;
+SELECT @r12 AS need_opposite_intention_root_update;
+
+DROP TABLE t1;
