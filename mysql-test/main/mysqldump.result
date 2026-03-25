@@ -2563,7 +2563,8 @@ if new.a > 10 then
 set new.a := 10;
 set new.a := 11;
 end if;
-end */;;
+end 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -2580,7 +2581,8 @@ DELIMITER ;
 DELIMITER ;;
 /*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 trigger trg2 before update on t1 for each row begin
 if old.a % 2 = 0 then set new.b := 12; end if;
-end */;;
+end 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -2600,7 +2602,8 @@ begin
 if new.a = -1 then
 set @fired:= "Yes";
 end if;
-end */;;
+end 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -2632,7 +2635,8 @@ begin
 if new.a > 10 then
 set @fired:= "No";
 end if;
-end */;;
+end 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -2836,7 +2840,8 @@ UNLOCK TABLES;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` FUNCTION `bug9056_func1`(a INT, b INT) RETURNS int(11)
-RETURN a+b ;;
+RETURN a+b
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -2856,7 +2861,8 @@ CREATE DEFINER=`root`@`localhost` FUNCTION `bug9056_func2`(f1 char binary) RETUR
 begin
 set f1= concat( 'hello', f1 );
 return f1;
-end ;;
+end
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -2873,7 +2879,8 @@ DELIMITER ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 DELIMITER ;;
 CREATE DEFINER="root"@"localhost" PROCEDURE "a'b"()
-select 1 ;;
+select 1
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -2890,7 +2897,8 @@ DELIMITER ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `bug9056_proc1`(IN a INT, IN b INT, OUT c INT)
-BEGIN SELECT a+b INTO c; end ;;
+BEGIN SELECT a+b INTO c; end
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -2909,7 +2917,8 @@ DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `bug9056_proc2`(OUT a INT)
 BEGIN
 select sum(id) from t1 into a;
-END ;;
+END
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -3079,7 +3088,8 @@ UNLOCK TABLES;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
 /*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `test trig` BEFORE INSERT ON `t1 test` FOR EACH ROW BEGIN
-INSERT INTO `t2 test` SET a2 = NEW.a1; END */;;
+INSERT INTO `t2 test` SET a2 = NEW.a1; END 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -3291,7 +3301,8 @@ DELIMITER ;;
 FOR EACH ROW
 BEGIN
 SET new.a = 0;
-END */;;
+END 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -3927,7 +3938,8 @@ mariadb-dump: user2 has insufficient privileges to SHOW CREATE PROCEDURE `sp1`!
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 DELIMITER ;;
 CREATE DEFINER=`user1`@`%` PROCEDURE `sp1`()
-select 'hello' ;;
+select 'hello'
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -4811,7 +4823,8 @@ ALTER DATABASE `test-database` CHARACTER SET latin1 COLLATE latin1_swedish_ci ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
 /*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `trig` BEFORE INSERT ON `test` FOR EACH ROW BEGIN
-END */;;
+END 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -5522,7 +5535,8 @@ ALTER DATABASE `a\"'``b` CHARACTER SET latin1 COLLATE latin1_swedish_ci ;
 /*!50003 SET collation_connection  = utf8mb3_general_ci */ ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
-BEGIN END ;;
+BEGIN END
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -5791,7 +5805,8 @@ USE `test`;
 /*!50032 DROP TRIGGER IF EXISTS tt1_t1 */;
 DELIMITER ;;
 /*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER tt1_t1 BEFORE INSERT ON t1 FOR EACH ROW 
-SET NEW.b=NEW.a + 10 */;;
+SET NEW.b=NEW.a + 10 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -6547,7 +6562,8 @@ DELIMITER ;;
 /*!50003 SET sql_mode              = '' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `e1` ON SCHEDULE EVERY 1 YEAR STARTS '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO select not_a_value */ ;;
+/*!50106 CREATE*/ /*!50117 DEFINER=`root`@`localhost`*/ /*!50106 EVENT `e1` ON SCHEDULE EVERY 1 YEAR STARTS '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO select not_a_value 
+*/ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
@@ -6565,7 +6581,8 @@ DELIMITER ;
 /*!50003 SET collation_connection  = utf8mb3_general_ci */ ;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` FUNCTION `f2`() RETURNS int(11)
-return 2 ;;
+return 2
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -6668,4 +6685,45 @@ drop table `con_schöne_grüße`;
 drop table `con`;
 drop table `con/bar`;
 drop table `con@fame`;
+#
+# MDEV-36183 mariadb-dump backup corrupt if stored procedure ends with comment
+#
+CREATE TABLE t1 (f1 INT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET @f1 = 1 #comment;
+CREATE PROCEDURE pr1()
+BEGIN
+SELECT 1;
+END
+-- comment-end
+$
+CREATE TRIGGER tr2 BEFORE UPDATE ON t1 FOR EACH ROW 
+BEGIN
+SET @f1 = 2;
+END
+-- comment-end
+$
+CREATE FUNCTION f1() RETURNS TINYINT DETERMINISTIC
+BEGIN
+RETURN 1;
+END 
+-- comment-end
+$
+CREATE PROCEDURE pr2 () SELECT "a" #comment;
+CREATE EVENT ev1 ON SCHEDULE AT '2030-01-01 00:00:00' DO SELECT "a" #comment;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
+DROP PROCEDURE pr1;
+DROP PROCEDURE pr2;
+DROP TRIGGER tr1;
+DROP TRIGGER tr2;
+DROP TABLE t1;
+DROP EVENT ev1;
+DROP FUNCTION f1;
+DROP PROCEDURE pr1;
+DROP PROCEDURE pr2;
+DROP TRIGGER tr1;
+DROP TRIGGER tr2;
+DROP TABLE t1;
+DROP EVENT ev1;
+DROP FUNCTION f1;
 # End of 10.6 tests

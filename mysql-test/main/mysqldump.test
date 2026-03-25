@@ -3075,4 +3075,59 @@ drop table `con`;
 drop table `con/bar`;
 drop table `con@fame`;
 
+
+--echo #
+--echo # MDEV-36183 mariadb-dump backup corrupt if stored procedure ends with comment
+--echo #
+
+CREATE TABLE t1 (f1 INT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET @f1 = 1 #comment;
+
+--delimiter $
+ 
+CREATE PROCEDURE pr1()
+BEGIN
+SELECT 1;
+END
+-- comment-end
+$
+
+CREATE TRIGGER tr2 BEFORE UPDATE ON t1 FOR EACH ROW 
+BEGIN
+SET @f1 = 2;
+END
+-- comment-end
+$
+
+CREATE FUNCTION f1() RETURNS TINYINT DETERMINISTIC
+BEGIN
+ RETURN 1;
+END 
+-- comment-end
+$
+
+--delimiter ;
+
+CREATE PROCEDURE pr2 () SELECT "a" #comment;
+CREATE EVENT ev1 ON SCHEDULE AT '2030-01-01 00:00:00' DO SELECT "a" #comment;
+
+--exec $MYSQL_DUMP test  --compact --routines --triggers --events > $MYSQL_TMP_DIR/1.dump
+DROP PROCEDURE pr1;
+DROP PROCEDURE pr2;
+DROP TRIGGER tr1;
+DROP TRIGGER tr2;
+DROP TABLE t1;
+DROP EVENT ev1;
+DROP FUNCTION f1;
+
+--exec $MYSQL test < $MYSQL_TMP_DIR/1.dump
+ 
+DROP PROCEDURE pr1;
+DROP PROCEDURE pr2;
+DROP TRIGGER tr1;
+DROP TRIGGER tr2;
+DROP TABLE t1;
+DROP EVENT ev1;
+DROP FUNCTION f1;
+
 --echo # End of 10.6 tests
