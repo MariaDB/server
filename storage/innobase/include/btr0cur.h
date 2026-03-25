@@ -833,6 +833,10 @@ extern ulint	btr_cur_n_sea_old;
 #ifdef UNIV_DEBUG
 /* Flag to limit optimistic insert records */
 extern uint	btr_cur_limit_optimistic_insert_debug;
+/** Number of times index lock was upgraded from SX to X */
+extern Atomic_counter<size_t> btr_cur_n_index_lock_upgrades;
+/** Number of times btr_cur_need_opposite_intention() was called on the root */
+extern Atomic_counter<size_t> btr_cur_n_need_opposite_intention_root;
 #endif /* UNIV_DEBUG */
 
 #include "btr0cur.inl"
