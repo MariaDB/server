@@ -1,0 +1,9 @@
+--source include/have_feedback.inc
+
+--echo #
+--echo # MDEV-39126: Feedback plugin to use /etc/os-release
+--echo #
+
+--replace_column 2 MASKED_OS_INFO
+SELECT variable_name, variable_value FROM information_schema.feedback WHERE variable_name = 'os';  
+    
