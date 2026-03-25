@@ -13814,25 +13814,25 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   size_t passwd_len;
   if (!(thd->client_capabilities & CLIENT_SECURE_CONNECTION))
   {
-    passwd_len= strlen(passwd);
+    passwd_len= strnlen(passwd, end - passwd);
     db= passwd + passwd_len + 1;  /* +1 to skip null terminator */
-  }
-  else if (!(thd->client_capabilities & CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA))
-  {
-    passwd_len= (uchar)(*passwd++);
-    db= passwd + passwd_len;
   }
   else
   {
-    ulonglong len= safe_net_field_length_ll((uchar**)&passwd,
-                                            end - passwd);
-    if (len > packet_length)
+    if (thd->client_capabilities & CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA)
+    {
+      ulonglong len= safe_net_field_length_ll((uchar**)&passwd,
+                                              end - passwd);
+      passwd_len= (size_t)len;
+    }
+    else
+      passwd_len= (uchar)(*passwd++);
+    if (passwd_len > (size_t)(end - passwd))
     {
       my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
                  MYF(0));
       DBUG_RETURN(1);
     }
-    passwd_len= (size_t)len;
     db= passwd + passwd_len;
   }
   /*
