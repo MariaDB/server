@@ -2546,6 +2546,7 @@ sub setup_vardir() {
       mkpath($plugindir);
       if (IS_WINDOWS)
       {
+        $ENV{PATH} .= ";".$plugindir; # to load vcpkg dependencies (libcurl.dll etc)
         if (!$opt_embedded_server)
         {
           for (<$bindir/storage/*$multiconfig/*.dll>,
