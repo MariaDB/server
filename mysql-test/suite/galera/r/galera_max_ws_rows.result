@@ -49,9 +49,9 @@ INSERT INTO tm SET b=NULL, a=2;
 SET sql_mode=only_full_group_by;
 INSERT INTO ti VALUES (1,2,4);
 SET GLOBAL wsrep_max_ws_rows=2;
-ERROR HY000: WSREP transaction is already active
+ERROR HY000: WSREP transaction is active
 set GLOBAL wsrep_max_ws_size=2047;
-ERROR HY000: WSREP transaction is already active
+ERROR HY000: WSREP transaction is active
 COMMIT;
 SELECT * FROM ti;
 a	b	id
