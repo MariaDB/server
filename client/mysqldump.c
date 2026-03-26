@@ -3242,13 +3242,13 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
             The actual column value doesn't matter anyway, since the view will
             be dropped at run time.
           */
-          fprintf(sql_file, " 1 AS %s",
+          fprintf(sql_file, " NULL AS %s",
                   quote_name(row[0], name_buff, 0));
 
           while((row= mysql_fetch_row(result)))
           {
             /* col name, col type */
-            fprintf(sql_file, ",\n  1 AS %s",
+            fprintf(sql_file, ",\n NULL AS %s",
                     quote_name(row[0], name_buff, 0));
           }
 
