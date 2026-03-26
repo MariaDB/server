@@ -58,6 +58,7 @@
 #endif
 #include "log_event.h"           // MAX_TABLE_MAP_ID
 #include "sql_class.h"
+#include <new>
 #include "opt_hints.h"
 
 /* For MySQL 5.7 virtual fields */
@@ -10649,8 +10650,16 @@ TR_table::~TR_table()
 {
   if (table)
   {
-    thd->temporary_tables= NULL;
-    close_log_table(thd, open_tables_backup);
+    try
+    {
+      thd->temporary_tables= NULL;
+      close_log_table(thd, open_tables_backup);
+    }
+    catch (const std::bad_alloc&)
+    {
+      sql_print_warning("~TR_table():"
+                        " memory allocation failure");
+    }
   }
   delete open_tables_backup;
 }

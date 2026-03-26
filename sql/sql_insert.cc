@@ -59,6 +59,7 @@
 #include "mariadb.h"                 /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_list.h"
 #include "sql_priv.h"
+#include <new>
 #include "sql_insert.h"
 #include "sql_update.h"                         // compare_record
 #include "sql_base.h"                           // close_thread_tables
@@ -2711,7 +2712,16 @@ public:
       delete row;
     if (table)
     {
-      close_thread_tables(&thd);
+      try
+      {
+        close_thread_tables(&thd);
+      }
+      catch (const std::bad_alloc&)
+      {
+        sql_print_warning("~Delayed_insert():"
+                          " close_thread_tables():"
+                          " memory allocation failure");
+      }
       thd.mdl_context.release_transactional_locks(&thd);
     }
     mysql_mutex_destroy(&mutex);
