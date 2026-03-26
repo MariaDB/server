@@ -2577,6 +2577,16 @@ row_import_cfg_read_index_fields(
 		/* Include the NUL byte in the length. */
 		ulint	len = mach_read_from_4(ptr);
 
+		/* FIXME: What is the maximum field name length? */
+		if (len == 0 || len > 128) {
+			ib_errf(thd, IB_LOG_LEVEL_ERROR,
+				ER_IO_READ_ERROR,
+				"Field name length " ULINTPF
+				", is invalid", len);
+
+			return(DB_CORRUPTION);
+		}
+
 		byte*	name = UT_NEW_ARRAY_NOKEY(byte, len);
 
 		/* Trigger OOM */
@@ -2713,7 +2723,7 @@ row_import_read_index_data(
 		/* The NUL byte is included in the name length. */
 		ulint	len = mach_read_from_4(ptr);
 
-		if (len > OS_FILE_MAX_PATH) {
+		if (len == 0 || len > OS_FILE_MAX_PATH) {
 			ib_errf(thd, IB_LOG_LEVEL_ERROR,
 				ER_INNODB_INDEX_CORRUPT,
 				"Index name length (" ULINTPF ") is too long, "
@@ -2972,6 +2982,15 @@ row_import_read_v1(
 
 	ulint	len = mach_read_from_4(value);
 
+	if (len == 0 || len > OS_FILE_MAX_PATH) {
+		ib_errf(thd, IB_LOG_LEVEL_ERROR,
+			ER_IO_READ_ERROR,
+			"Hostname length " ULINTPF
+			", is invalid", len);
+
+		return(DB_CORRUPTION);
+	}
+
 	/* NUL byte is part of name length. */
 	cfg->m_hostname = UT_NEW_ARRAY_NOKEY(byte, len);
 
@@ -3013,6 +3032,15 @@ row_import_read_v1(
 	}
 
 	len = mach_read_from_4(value);
+
+	if (len == 0 || len > OS_FILE_MAX_PATH) {
+		ib_errf(thd, IB_LOG_LEVEL_ERROR,
+			ER_IO_READ_ERROR,
+			"Table name length " ULINTPF
+			", is invalid", len);
+
+		return(DB_CORRUPTION);
+	}
 
 	/* NUL byte is part of name length. */
 	cfg->m_table_name = UT_NEW_ARRAY_NOKEY(byte, len);
