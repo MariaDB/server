@@ -62,6 +62,8 @@ const Type_handler *Type_collection_xmltype::aggregate_for_num_op(
 }
 
 
+constexpr LEX_CSTRING Type_handler_xmltype::name_on_client;
+
 const Type_handler *Type_handler_xmltype::type_handler_for_comparison() const
 {
   return &type_handler_xmltype;
