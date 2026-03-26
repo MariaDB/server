@@ -2082,10 +2082,10 @@ char *jsonvalue(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			PJVAL jvp = MakeValue(g, args, 0);
 
 			if (!(str = Serialize(g, jvp, NULL, 0)))
-				str = strcpy(result, g->Message);
+				safe_strcpy(result, 255, g->Message), str = result;
 
 		} else
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? str : NULL;
@@ -2128,10 +2128,10 @@ char *json_make_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			arp->InitArray(g);
 
 			if (!(str = Serialize(g, arp, NULL, 0)))
-				str = strcpy(result, g->Message);
+				safe_strcpy(result, 255, g->Message), str = result;
 
 		} else
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? str : NULL;
@@ -2679,7 +2679,7 @@ char *json_make_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		} // endif CheckMemory
 
 		if (!str)
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? str : NULL;
@@ -2729,7 +2729,7 @@ char *json_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		} // endif CheckMemory
 
 		if (!str)
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? str : NULL;
@@ -2781,7 +2781,7 @@ char *json_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		} // endif CheckMemory
 
 		if (!str)
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? str : NULL;
@@ -3232,7 +3232,7 @@ char *json_array_grp(UDF_INIT *initid, UDF_ARGS *, char *result,
 		str = NULL;
 
 	if (!str)
-		str = strcpy(result, g->Message);
+		safe_strcpy(result, 255, g->Message), str = result;
 
 	*res_length = strlen(str);
   return str;
@@ -3303,7 +3303,7 @@ char *json_object_grp(UDF_INIT *initid, UDF_ARGS *, char *result,
     PUSH_WARNING("Result truncated to json_grp_size values");
 
   if (!objp || !(str = Serialize(g, objp, NULL, 0)))
-    str = strcpy(result, g->Message);
+    safe_strcpy(result, 255, g->Message), str = result;
 
   *res_length = strlen(str);
   return str;
@@ -5901,7 +5901,7 @@ char *json_serialize(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			JsonSubSet(g);
 
 			if (!(str = Serialize(g, bsp->Jsp, NULL, 0)))
-				str = strcpy(result, g->Message);
+				safe_strcpy(result, 255, g->Message), str = result;
 
 			// Keep result of constant function
 			g->Xchk = (initid->const_item) ? str : NULL;
@@ -6028,9 +6028,9 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		FILE *fin;
 
 		if (!(fin = global_fopen(g, msgid, fn, "rt")))
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 		else if (!(fout = global_fopen(g, msgid, ofn, "wb")))
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 		else if ((buf = (char*)PlgDBSubAlloc(g, NULL, lrecl)) &&
 						 (binszp = (size_t*)PlgDBSubAlloc(g, NULL, sizeof(size_t)))) {
 			JsonMemSave(g);
@@ -6043,7 +6043,7 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 					if (!fgets(buf, lrecl, fin)) {
 						if (!feof(fin)) {
 							snprintf(g->Message, sizeof(g->Message), "Error %d reading %zu bytes from %s", errno, lrecl, fn);
-							str = strcpy(result, g->Message);
+							safe_strcpy(result, 255, g->Message), str = result;
 						}	else
 							str = strcpy(result, ofn);
 
@@ -6058,16 +6058,16 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 							if (fwrite(binszp, sizeof(binszp), 1, fout) != 1) {
 								snprintf(g->Message, sizeof(g->Message), "Error %d writing %zu bytes to %s",
 																		errno, sizeof(binszp), ofn);
-								str = strcpy(result, g->Message);
+								safe_strcpy(result, 255, g->Message), str = result;
 							} else if (fwrite(jsp, *binszp, 1, fout) != 1) {
 								snprintf(g->Message, sizeof(g->Message), "Error %d writing %zu bytes to %s",
 																		errno, *binszp, ofn);
-								str = strcpy(result, g->Message);
+								safe_strcpy(result, 255, g->Message), str = result;
 							} else
 								loop = true;
 
 						} else {
-							str = strcpy(result, g->Message);
+							safe_strcpy(result, 255, g->Message), str = result;
 						}	// endif jsp
 
 					} else
@@ -6076,13 +6076,13 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 				} while (loop);
 
 			} catch (int) {
-				str = strcpy(result, g->Message);
+				safe_strcpy(result, 255, g->Message), str = result;
 			} catch (const char* msg) {
 				str = strcpy(result, msg);
 			} // end catch
 
 		} else
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 
 		if (fin) fclose(fin);
 		if (fout) fclose(fout);
@@ -6092,7 +6092,7 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	if (!str) {
 		if (g->Message[0] != '\0')
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 		else
 			str = strcpy(result, "Unexpected error");
 
