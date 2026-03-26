@@ -282,33 +282,33 @@ USE `test`;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v1` AS SELECT
- 1 AS `a+b`,
-  1 AS `c` */;
+ NULL AS `a+b`,
+ NULL AS `c` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v2` AS SELECT
- 1 AS `a+b`,
-  1 AS `c`,
-  1 AS `current_role()` */;
+ NULL AS `a+b`,
+ NULL AS `c`,
+ NULL AS `current_role()` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v3` AS SELECT
- 1 AS `a+b`,
-  1 AS `c` */;
+ NULL AS `a+b`,
+ NULL AS `c` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v4` AS SELECT
- 1 AS `a+b`,
-  1 AS `c` */;
+ NULL AS `a+b`,
+ NULL AS `c` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v5` AS SELECT
- 1 AS `a+b`,
-  1 AS `c` */;
+ NULL AS `a+b`,
+ NULL AS `c` */;
 SET character_set_client = @saved_cs_client;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
