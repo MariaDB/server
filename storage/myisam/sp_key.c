@@ -51,6 +51,11 @@ uint sp_make_key(register MI_INFO *info, uint keynr, uchar *key,
     my_errno= HA_ERR_NULL_IN_SPATIAL;
     return 0;
   }
+  if (dlen < 4)
+  {
+    my_errno= HA_ERR_WRONG_IN_RECORD;
+    return 0;
+  }
   sp_mbr_from_wkb(dptr + 4, dlen - 4, SPDIMS, mbr);	/* SRID */
   
   for (i = 0, keyseg = keyinfo->seg; keyseg->type; keyseg++, i++)

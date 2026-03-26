@@ -61,6 +61,11 @@ MARIA_KEY *_ma_sp_make_key(MARIA_HA *info, MARIA_KEY *ret_key, uint keynr,
     my_errno= HA_ERR_NULL_IN_SPATIAL;
     DBUG_RETURN(0);
   }
+  if (dlen < 4)
+  {
+    my_errno= HA_ERR_WRONG_IN_RECORD;
+    DBUG_RETURN(0);
+  }
 
   sp_mbr_from_wkb(dptr + 4, dlen - 4, SPDIMS, mbr);	/* SRID */
 
