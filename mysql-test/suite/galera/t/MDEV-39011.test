@@ -9,6 +9,10 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
 # node 3 is a native MariaDB server operating as async replication master
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
@@ -46,3 +50,5 @@ RESET SLAVE;
 --connection node_3
 RESET MASTER;
 --disconnect node_3
+
+--source include/auto_increment_offset_restore.inc
