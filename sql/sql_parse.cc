@@ -8510,6 +8510,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     MDL_REQUEST_INIT(&ptr->mdl_request, MDL_key::TABLE, ptr->db.str,
                      ptr->table_name.str, mdl_type, MDL_TRANSACTION);
   }
+  else
+    ptr->mdl_request.type= MDL_NOT_INITIALIZED;
   DBUG_RETURN(ptr);
 }
 
