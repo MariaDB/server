@@ -1,0 +1,18 @@
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+# TODO (newbie): compile all innodb_bug*.test into this file
+
+--echo #
+--echo # MDEV-27569 Valgrind/MSAN errors in ha_partition::swap_blobs
+--echo #
+create table t (id int, a int, b text, key(a), primary key (id)) engine=innodb
+partition by hash(id) partitions 2;
+insert into t (id,a) select seq, seq%10 from seq_1_to_20;
+select * from t where id >= 1900 or a in (2,4) limit 1;
+
+# cleanup
+drop table t;
+
+--echo # End of 10.11 tests

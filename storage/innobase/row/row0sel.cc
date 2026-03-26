@@ -3889,6 +3889,13 @@ row_sel_prefetch_cache_init(
 		mach_write_to_4(ptr, ROW_PREBUILT_FETCH_MAGIC_N);
 		ptr += 4;
 
+		for (ulint j = 0; j < prebuilt->n_template; j++) {
+			const mysql_row_templ_t*templ = &prebuilt->mysql_template[j];
+			if (templ->mysql_null_bit_mask) {
+				ptr[templ->mysql_null_byte_offset] = 0;
+			}
+		}
+
 		prebuilt->fetch_cache[i] = ptr;
 		ptr += prebuilt->mysql_row_len;
 
