@@ -1646,8 +1646,17 @@ void setup_mysql_connection_for_master(MYSQL *mysql, Master_info *mi,
                   mi->master_ssl_capath, mi->master_ssl_cipher);
     mysql_options(mysql, MYSQL_OPT_SSL_CRL, mi->master_ssl_crl);
     mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, mi->master_ssl_crlpath);
+    /*
+      mysql_options() expects a pointer to my_bool. master_ssl_verify_server_cert
+      is a trilean that can be -1 (default), 0 (no), or 1 (yes). When the default
+      value is used, the bool() conversion operator redirects to the global option
+      ::master_ssl_verify_server_cert. We must use this conversion rather than
+      passing a pointer directly, as (my_bool*)&trilean would not handle the
+      default case correctly.
+    */
+    bool ssl_verify_server_cert= mi->master_ssl_verify_server_cert;
     mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                  &mi->master_ssl_verify_server_cert);
+                  &ssl_verify_server_cert);
   }
   else
 #endif
