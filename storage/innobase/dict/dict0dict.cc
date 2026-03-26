@@ -37,6 +37,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "fts0fts.h"
 #include "fil0fil.h"
 #include <algorithm>
+#include <new>
 #include "sql_class.h"
 #include "sql_table.h"
 
@@ -516,7 +517,18 @@ dict_index_get_nth_field_pos(
 void mdl_release(THD *thd, MDL_ticket *mdl) noexcept
 {
   if (thd && mdl)
-    thd->mdl_context.release_lock(mdl);
+  {
+    try
+    {
+      thd->mdl_context.release_lock(mdl);
+    }
+    catch (const std::bad_alloc&)
+    {
+      sql_print_warning(
+        "InnoDB: mdl_release():"
+        " memory allocation failure");
+    }
+  }
 }
 
 /** Parse the table file name into table name and database name.
@@ -1087,6 +1099,47 @@ bool dict_stats::open(THD *thd) noexcept
   ut_ad(!mdl_context);
 
   mdl_context= &thd->mdl_context;
+
+  try
+  {
+    return open_impl();
+  }
+  catch (const std::bad_alloc&)
+  {
+    sql_print_warning(
+      "InnoDB: dict_stats::open():"
+      " memory allocation failure");
+  }
+
+  /* Clean up any partially acquired resources. */
+  if (table_stats)
+  {
+    table_stats->release();
+    table_stats= nullptr;
+  }
+  if (index_stats)
+  {
+    index_stats->release();
+    index_stats= nullptr;
+  }
+  try
+  {
+    if (mdl_index)
+      mdl_context->release_lock(mdl_index);
+    if (mdl_table)
+      mdl_context->release_lock(mdl_table);
+  }
+  catch (...)
+  {
+  }
+  mdl_table= nullptr;
+  mdl_index= nullptr;
+  return true;
+}
+
+
+bool dict_stats::open_impl()
+{
   /* FIXME: use compatible type, and maybe remove this parameter altogether! */
   const double timeout= double(global_system_variables.lock_wait_timeout);
   MDL_request request;
@@ -1121,8 +1174,17 @@ void dict_stats::close() noexcept
 {
   table_stats->release();
   index_stats->release();
-  mdl_context->release_lock(mdl_table);
-  mdl_context->release_lock(mdl_index);
+  try
+  {
+    mdl_context->release_lock(mdl_table);
+    mdl_context->release_lock(mdl_index);
+  }
+  catch (const std::bad_alloc&)
+  {
+    sql_print_warning(
+      "InnoDB: dict_stats::close():"
+      " memory allocation failure");
+  }
 }
 
 /**********************************************************************//**
