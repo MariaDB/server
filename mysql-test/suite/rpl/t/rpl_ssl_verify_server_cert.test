@@ -1,0 +1,105 @@
+#
+# Test for master_ssl_verify_server_cert option
+#
+# This test verifies that master_ssl_verify_server_cert correctly controls
+# SSL certificate verification during replication.
+#
+# Test strategy:
+# - Use debug point to simulate SSL certificate verification failure
+# - Test 1: master_ssl_verify_server_cert=0 -> connection succeeds (no verification)
+# - Test 2: master_ssl_verify_server_cert=1 -> connection fails (verification enabled)
+#
+
+--source include/have_debug.inc
+--source include/have_ssl_communication.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # Test 1: master_ssl_verify_server_cert=0 should PASS
+--echo # (verification disabled, simulated cert failure should not matter)
+--echo #
+
+--connection slave
+--source include/stop_slave.inc
+
+# Enable debug point to simulate SSL certificate verification failure
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug = '+d,simulate_ssl_unable_to_get_issuer_cert';
+
+# Use SSL with verification disabled - simulated cert failure should not matter
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO
+  master_host='127.0.0.1',
+  master_port=$MASTER_MYPORT,
+  master_user='root',
+  master_ssl=1,
+  master_ssl_verify_server_cert=0;
+
+--let $status_items= Master_SSL_Allowed, Master_SSL_Verify_Server_Cert
+--source include/show_slave_status.inc
+
+START SLAVE IO_THREAD;
+
+# Wait for the connection to establish
+--let $slave_param= Slave_IO_Running
+--let $slave_param_value= Yes
+--let $slave_timeout= 30
+--source include/wait_for_slave_param.inc
+
+--echo # IO thread started successfully - verification was correctly disabled
+
+--echo #
+--echo # Test 2: master_ssl_verify_server_cert=1 should FAIL
+--echo # (verification enabled, simulated cert failure should be caught)
+--echo #
+
+STOP SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_stop.inc
+
+# Use SSL with verification enabled - connection should fail
+# because of simulated certificate verification failure
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO
+  master_host='127.0.0.1',
+  master_port=$MASTER_MYPORT,
+  master_user='root',
+  master_ssl=1,
+  master_ssl_verify_server_cert=1;
+
+--let $status_items= Master_SSL_Allowed, Master_SSL_Verify_Server_Cert
+--source include/show_slave_status.inc
+
+START SLAVE IO_THREAD;
+
+# Wait for SSL connection error (2026 = CR_SSL_CONNECTION_ERROR)
+# The slave will keep retrying, so we check Last_IO_Errno instead of waiting for IO thread to stop
+--let $slave_param= Last_IO_Errno
+--let $slave_param_value= 2026
+--let $slave_timeout= 30
+--source include/wait_for_slave_param.inc
+
+--echo # IO thread failed as expected - verification correctly caught the failure
+
+--echo #
+--echo # Cleanup
+--echo #
+
+STOP SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_stop.inc
+
+SET GLOBAL debug_dbug = @saved_dbug;
+
+RESET SLAVE ALL;
+
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO
+  master_host='127.0.0.1',
+  master_port=$MASTER_MYPORT,
+  master_user='root',
+  master_ssl=1,
+  master_ssl_verify_server_cert=0;
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc
+
+--echo # End of rpl_ssl_verify_server_cert.test
