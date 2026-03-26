@@ -34,9 +34,6 @@ SET(CPACK_COMPONENTS_ALL Server IniFiles Server_Scripts SupportFiles
                          Client SharedLibraries ClientPlugins Backup
                          TestSymlinks BackupSymlinks DevelopmentSymlinks
 )
-IF(WITH_WSREP)
-  SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} Server_Galera)
-ENDIF()
 
 SET(CPACK_RPM_PACKAGE_NAME ${CPACK_PACKAGE_NAME})
 SET(CPACK_RPM_PACKAGE_VERSION ${CPACK_PACKAGE_VERSION})
