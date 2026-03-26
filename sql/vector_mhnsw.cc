@@ -28,7 +28,7 @@
 static constexpr float NEAREST = -1.0f;
 
 // Algorithm parameters
-static constexpr float alpha = 1.1f;
+static constexpr float leniency= 1.1f;
 static constexpr uint ef_construction= 10;
 static constexpr uint max_ef= 10000;
 static constexpr size_t subdist_part= 192;
@@ -1179,11 +1179,11 @@ static int select_neighbors(MHNSW_param *p, FVectorNode *target,
   {
     Visited *vec= pq.pop();
     FVectorNode * const node= vec->node;
-    const float target_dista= std::max(32*FLT_EPSILON, vec->distance_to_target / alpha);
+    const float target_dista= std::max(32*FLT_EPSILON, vec->distance_to_target);
     bool discard= false;
     for (size_t i=0; i < neighbors.num; i++)
       if ((discard= node->distance_greater_than(neighbors.links[i]->vec,
-                            target_dista, p->mode, &p->acc) <= target_dista))
+                            target_dista, p->mode, &p->acc) < target_dista))
         break;
     if (!discard)
       target->push_neighbor(p->layer, node);
@@ -1294,7 +1294,6 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
   Queue<Visited> candidates, best;
   bool skip_deleted;
   uint ef= result_size;
-  const float leniency= 1.1f + p->ctx->M/500.0f;
 
   if (construction)
   {
