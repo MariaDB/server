@@ -1,2 +1,0 @@
-[server]
-plugin-load-add=wsrep_info.so
