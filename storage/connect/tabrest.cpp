@@ -160,8 +160,7 @@ XGETREST GetRestFunction(PGLOBAL g)
 		DWORD rc = GetLastError();
 
 		snprintf(g->Message, sizeof(g->Message), MSG(DLL_LOAD_ERROR), rc, soname);
-		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+		FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
 			(LPTSTR)buf, sizeof(buf), NULL);
 		strcat(strcat(g->Message, ": "), buf);
 		return NULL;
@@ -173,8 +172,7 @@ XGETREST GetRestFunction(PGLOBAL g)
 		DWORD rc = GetLastError();
 
 		snprintf(g->Message, sizeof(g->Message), MSG(PROCADD_ERROR), rc, "restGetFile");
-		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+		FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
 			(LPTSTR)buf, sizeof(buf), NULL);
 		strcat(strcat(g->Message, ": "), buf);
 		FreeLibrary((HMODULE)Hdll);

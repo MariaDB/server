@@ -115,8 +115,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info)
 		DWORD rc = GetLastError();
 
 		snprintf(g->Message, sizeof(g->Message), MSG(DLL_LOAD_ERROR), rc, soname);
-		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+		FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
 			(LPTSTR)buf, sizeof(buf), NULL);
 		safe_strcat(g->Message, sizeof(g->Message), ": ");
 		safe_strcat(g->Message, sizeof(g->Message), buf);
@@ -639,8 +638,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
       DWORD rc = GetLastError();
 
       snprintf(g->Message, sizeof(g->Message), MSG(DLL_LOAD_ERROR), rc, soname);
-      FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                    FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+      FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
                     (LPTSTR)buf, sizeof(buf), NULL);
       safe_strcat(g->Message, sizeof(g->Message), ": ");
       safe_strcat(g->Message, sizeof(g->Message), buf);
@@ -660,8 +658,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     DWORD rc = GetLastError();
 
     snprintf(g->Message, sizeof(g->Message), MSG(PROCADD_ERROR), rc, getname);
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-      FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
       (LPTSTR)buf, sizeof(buf), NULL);
     safe_strcat(g->Message, sizeof(g->Message), ": ");
     safe_strcat(g->Message, sizeof(g->Message), buf);
