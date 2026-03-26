@@ -4354,9 +4354,8 @@ my_bool Query_cache::move_by_type(uchar **border,
     nlist_root->prev = tprev;
     tprev->next = nlist_root;
     DBUG_PRINT("qcache",
-	       ("list_root: %p tnext %p tprev %p tprev->next %p tnext->prev %p",
-		 list_root, tnext, tprev,
-		tprev->next,tnext->prev));
+               ("list_root: %p parent %P tnext %p tprev %p tprev->next %p tnext->prev %p",
+                list_root, tnext->parent, tnext, tprev, tprev->next, tnext->prev));
     /*
       Go through all queries that uses this table and change them to
       point to the new table object
@@ -4364,6 +4363,7 @@ my_bool Query_cache::move_by_type(uchar **border,
     Query_cache_table *new_block_table=new_block->table();
     for (;tnext != nlist_root; tnext=tnext->next)
       tnext->parent= new_block_table;
+    DBUG_PRINT("qcache", ("nlist_root: %p parent %p", nlist_root, new_block_table));
     *border += len;
     *before = new_block;
     /* Fix pointer to table name */
@@ -4378,7 +4378,7 @@ my_bool Query_cache::move_by_type(uchar **border,
   case Query_cache_block::QUERY:
   {
     HASH_SEARCH_STATE record_idx;
-    DBUG_PRINT("qcache", ("block %p QUERY", block));
+    DBUG_PRINT("qcache", ("block %p (%zu bytes) QUERY", block, block->length));
     if (*border == 0)
       break;
     DBUG_ASSERT(*gap > 0);
@@ -4416,10 +4416,14 @@ my_bool Query_cache::move_by_type(uchar **border,
     if (queries_blocks == block)
       queries_blocks = new_block;
     longlong move_distance= (uchar *) ntable_0 - (uchar *) table_0;
-      
+
+    DBUG_PRINT("qcache", ("move_distance: %lld", move_distance));
+
     for (TABLE_COUNTER_TYPE j=0; j < n_tables; j++)
     {
       ntable_j= new_block->table(j);
+      DBUG_PRINT("qcache", ("Updating new_block->table(%u): %p; intra-block range: [%p, %p)",
+                            j, ntable_j, table_0, table_n));
 
       /*
         Use aligment from beginning of table if 'next' is in same block:
@@ -4430,6 +4434,7 @@ my_bool Query_cache::move_by_type(uchar **border,
       if ((table_0 <= ntable_j->next) && (ntable_j->next < table_n))
       {
         shifted= (Query_cache_block_table *) ((uchar *) ntable_j->next + move_distance);
+        DBUG_PRINT("qcache", ("Intra-block next:%p = %p", ntable_j->next, shifted));
         ntable_j->next= shifted;
       }
 
@@ -4437,9 +4442,14 @@ my_bool Query_cache::move_by_type(uchar **border,
       if ((table_0 <= ntable_j->prev) && (ntable_j->prev < table_n))
       {
         shifted= (Query_cache_block_table *) ((uchar *) ntable_j->prev + move_distance);
+        DBUG_PRINT("qcache", ("Intra-block prev:%p = %p", ntable_j->prev, shifted));
         ntable_j->prev= shifted;
       }
 
+      DBUG_PRINT("qcache", ("n:%p->p:%p = %p", ntable_j->next,
+                            ntable_j->next->prev, ntable_j));
+      DBUG_PRINT("qcache", ("p:%p->n:%p = %p", ntable_j->prev,
+                            ntable_j->prev->next, ntable_j));
       ntable_j->next->prev= ntable_j;
       ntable_j->prev->next= ntable_j;
     }
