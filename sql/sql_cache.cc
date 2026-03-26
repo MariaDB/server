@@ -4402,7 +4402,7 @@ my_bool Query_cache::move_by_type(uchar **border,
     const Query_cache_block_table *table_0= block->table(0),
       *table_n= block->table(n_tables),
       *ntable_0= new_block->table(0);
-    Query_cache_block_table *shifted, *ntable_j;
+    Query_cache_block_table *shifted, *table_j, *ntable_j;
     const size_t move_size= (uchar *) table_n - (uchar *) table_0;
     DBUG_ASSERT(move_size == n_tables * sizeof(Query_cache_block_table));
     // Move table of used tables
@@ -4421,9 +4421,10 @@ my_bool Query_cache::move_by_type(uchar **border,
 
     for (TABLE_COUNTER_TYPE j=0; j < n_tables; j++)
     {
+      table_j= block->table(j);
       ntable_j= new_block->table(j);
       DBUG_PRINT("qcache", ("Updating new_block->table(%u): %p; intra-block range: [%p, %p)",
-                            j, ntable_j, table_0, table_n));
+                            j, ntable_j, table_j, table_n));
 
       /*
         Use aligment from beginning of table if 'next' is in same block:
@@ -4431,7 +4432,7 @@ my_bool Query_cache::move_by_type(uchar **border,
         If ntable_j->next is intra-block (inside old block->table() elements),
         then shift it by memmove() distance.
       */
-      if ((table_0 <= ntable_j->next) && (ntable_j->next < table_n))
+      if ((table_j <= ntable_j->next) && (ntable_j->next < table_n))
       {
         shifted= (Query_cache_block_table *) ((uchar *) ntable_j->next + move_distance);
         DBUG_PRINT("qcache", ("Intra-block next:%p = %p", ntable_j->next, shifted));
@@ -4439,7 +4440,7 @@ my_bool Query_cache::move_by_type(uchar **border,
       }
 
       // use aligment from beginning of table if 'prev' is in same block
-      if ((table_0 <= ntable_j->prev) && (ntable_j->prev < table_n))
+      if ((table_j <= ntable_j->prev) && (ntable_j->prev < table_n))
       {
         shifted= (Query_cache_block_table *) ((uchar *) ntable_j->prev + move_distance);
         DBUG_PRINT("qcache", ("Intra-block prev:%p = %p", ntable_j->prev, shifted));
