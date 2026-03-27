@@ -34,7 +34,7 @@ public:
 
   enum_alter_inplace_result check_if_supported_inplace_alter(TABLE *altered_table, Alter_inplace_info *ha_alter_info) override;
 
-  int external_lock(THD *, int) override;
+  int ha_parquet_external_lock(THD *, int) override;
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
                              enum thr_lock_type lock_type) override;
