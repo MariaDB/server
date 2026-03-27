@@ -3,5 +3,5 @@ IF (WITH_WSREP)
                       ${CMAKE_SOURCE_DIR}/wsrep)
   MYSQL_ADD_PLUGIN(WSREP_INFO plugin.cc
                    MODULE_ONLY RECOMPILE_FOR_EMBEDDED
-                   COMPONENT Server_Galera)
+                   COMPONENT server-galera)
 ENDIF()
