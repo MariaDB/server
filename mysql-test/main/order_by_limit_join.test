@@ -326,7 +326,7 @@ SET foreign_key_checks=default;
 
 analyze table actor, logging;
 
---replace_regex /("rows": )[0-9]+/\1"REPLACED"/
+let $q=
 explain format=json
 SELECT log_id, log_type, log_action, log_timestamp, log_deleted
   FROM `logging` JOIN `actor` ON (actor_id=log_actor)
@@ -342,6 +342,13 @@ SELECT log_id, log_type, log_action, log_timestamp, log_deleted
     (log_deleted & 4) != 4
   ORDER BY log_timestamp DESC,log_id DESC LIMIT 2;
 
+set optimizer_adjust_secondary_key_costs="fix_order_by_index_choice";
+--replace_regex /("rows": )[0-9]+/\1"REPLACED"/
+eval $q;
+
+set optimizer_adjust_secondary_key_costs= default;
+--replace_regex /("rows": )[0-9]+/\1"REPLACED"/
+eval $q;
 drop table actor, logging, foo;
 
 SET GLOBAL innodb_stats_persistent=default;

@@ -579,6 +579,7 @@ test.actor	analyze	status	OK
 test.logging	analyze	status	Engine-independent statistics collected
 test.logging	analyze	Warning	Engine-independent statistics are not collected for column 'log_params'
 test.logging	analyze	status	OK
+set optimizer_adjust_secondary_key_costs="fix_order_by_index_choice";
 explain format=json
 SELECT log_id, log_type, log_action, log_timestamp, log_deleted
 FROM `logging` JOIN `actor` ON (actor_id=log_actor)
@@ -625,6 +626,61 @@ EXPLAIN
           "key": "log_actor_time",
           "key_length": "8",
           "used_key_parts": ["log_actor"],
+          "rows": "REPLACED",
+          "filtered": 48.42499924,
+          "attached_condition": "logging.log_actor <=> 406 and logging.log_type not in ('sgqkwlqeplosa','aoaltwlqeplosa','zdlsihdatjtd','qwzstyolatdgdoxqatrtaqols','qwzstyolatdwlheptrrhkqojioa','qwzstyolatd-gdhateatr-xqds','hqai','eitepzstd-atkghdqdb-qeehzja','eitepzstd-gdoxqat-txtja','ogojyh','szggdtss') and logging.log_deleted & 4 <> 4"
+        }
+      }
+    ]
+  }
+}
+set optimizer_adjust_secondary_key_costs= default;
+explain format=json
+SELECT log_id, log_type, log_action, log_timestamp, log_deleted
+FROM `logging` JOIN `actor` ON (actor_id=log_actor)
+WHERE
+(
+log_type NOT IN
+('sgqkwlqeplosa','aoaltwlqeplosa','zdlsihdatjtd',
+'qwzstyolatdgdoxqatrtaqols','qwzstyolatdwlheptrrhkqojioa',
+'qwzstyolatd-gdhateatr-xqds','hqai','eitepzstd-atkghdqdb-qeehzja',
+'eitepzstd-gdoxqat-txtja','ogojyh','szggdtss')
+) AND
+actor_name = 'DGG' AND
+(log_deleted & 4) != 4
+ORDER BY log_timestamp DESC,log_id DESC LIMIT 2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "actor",
+          "access_type": "const",
+          "possible_keys": ["PRIMARY", "actor_name"],
+          "key": "actor_name",
+          "key_length": "257",
+          "used_key_parts": ["actor_name"],
+          "ref": ["const"],
+          "rows": "REPLACED",
+          "filtered": 100,
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "logging",
+          "access_type": "index",
+          "possible_keys": [
+            "log_actor_type_time",
+            "log_type_action",
+            "log_type_time",
+            "log_actor_time"
+          ],
+          "key": "log_times",
+          "key_length": "14",
+          "used_key_parts": ["log_timestamp"],
           "rows": "REPLACED",
           "filtered": 48.42499924,
           "attached_condition": "logging.log_actor <=> 406 and logging.log_type not in ('sgqkwlqeplosa','aoaltwlqeplosa','zdlsihdatjtd','qwzstyolatdgdoxqatrtaqols','qwzstyolatdwlheptrrhkqojioa','qwzstyolatd-gdhateatr-xqds','hqai','eitepzstd-atkghdqdb-qeehzja','eitepzstd-gdoxqat-txtja','ogojyh','szggdtss') and logging.log_deleted & 4 <> 4"

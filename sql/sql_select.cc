@@ -31815,6 +31815,12 @@ test_if_cheaper_ordering(bool in_join_optimizer,
         }
         possible_key.add("index_scan_time", index_scan_time);
 
+        /*
+          (1) - The plan we've picked w/o regard to ORDER BY was a full scan.
+          (2) - ???
+          (3) - It is cheaper to read #LIMIT rows with "key" than to use the
+                original plan.
+        */
         if ((ref_key < 0 &&
              (group_forces_index_usage || table->force_index || is_covering)) ||
             index_scan_time < read_time)
@@ -31825,7 +31831,11 @@ test_if_cheaper_ordering(bool in_join_optimizer,
                                         table->covering_keys.is_set(ref_key)) ?
                                         refkey_rows_estimate :
                                         HA_POS_ERROR;
-          if (is_best_covering && !is_covering)
+          bool fix_orderby_choice=
+              (thd->variables.optimizer_adjust_secondary_key_costs &
+               OPTIMIZER_ADJ_FIX_ORDER_BY_INDEX_CHOICE);
+
+          if (is_best_covering && !is_covering && !fix_orderby_choice)
           {
             possible_key.add("chosen", false);
             possible_key.add("cause", "covering index already found");
@@ -31842,12 +31852,20 @@ test_if_cheaper_ordering(bool in_join_optimizer,
           if (table->opt_range_keys.is_set(nr))
             quick_records= table->opt_range[nr].rows;
           possible_key.add("records", quick_records);
+
+          bool pick_this_index= false;
+
           if (best_key < 0 ||
-              (select_limit <= MY_MIN(quick_records,best_records) &&
-                 is_covering ?
+              (select_limit <= MY_MIN(quick_records,best_records) ?
                keyinfo->user_defined_key_parts < best_key_parts :
                quick_records < best_records) ||
               (!is_best_covering && is_covering))
+            pick_this_index=true;
+
+          if (fix_orderby_choice)
+            pick_this_index= (best_key < 0 || index_scan_time < read_time);
+
+          if (pick_this_index)
           {
             possible_key.add("chosen", true);
             best_key= nr;
@@ -31860,6 +31878,9 @@ test_if_cheaper_ordering(bool in_join_optimizer,
             best_select_limit= select_limit;
             if ((thd->variables.optimizer_adjust_secondary_key_costs &
                  OPTIMIZER_ADJ_DISABLE_FORCE_INDEX_GROUP_BY) && group)
+              set_if_smaller(read_time, index_scan_time);
+
+            if (fix_orderby_choice)
               set_if_smaller(read_time, index_scan_time);
           }
           else
