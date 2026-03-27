@@ -2295,6 +2295,16 @@ sub environment_setup {
   $ENV{'MARIADB_MIGRATE_CONFIG_FILE'}= native_path($exe_mariadb_migrate_config_file) if $exe_mariadb_migrate_config_file;
 
   # ----------------------------------------------------
+  # resolveip (not built on Windows)
+  # ----------------------------------------------------
+  unless (IS_WINDOWS) {
+    my $exe_resolveip=
+      mtr_exe_exists("$bindir/extra$multiconfig/resolveip",
+		     "$path_client_bindir/resolveip");
+    $ENV{'MYSQL_RESOLVEIP'}= native_path($exe_resolveip);
+  }
+
+  # ----------------------------------------------------
   # myisam tools
   # ----------------------------------------------------
   $ENV{'MYISAMLOG'}= tool_arguments("storage/myisam", "myisamlog", );

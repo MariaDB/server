@@ -16,7 +16,7 @@
 
 /* Resolves IP's to hostname and hostnames to IP's */
 
-#define VER "2.3"
+#define VER "2.4"
 
 #include <my_global.h>
 #include <m_ctype.h>
@@ -33,9 +33,6 @@
 #include <my_getopt.h>
 #include <welcome_copyright_notice.h>
 
-#if !defined(_AIX) && !defined(h_errno)
-extern int h_errno;
-#endif
 
 static my_bool silent;
 
@@ -104,9 +101,7 @@ static int get_options(int *argc,char ***argv)
 
 int main(int argc, char **argv)
 {
-  struct hostent *hpaddr;
-  in_addr_t taddr;
-  char *ip,**q;
+  char *ip;
   int error=0;
 
   MY_INIT(argv[0]);
@@ -119,92 +114,135 @@ int main(int argc, char **argv)
 
   while (argc--)
   {
-    my_bool do_more;
-#ifndef WIN32
-    struct in_addr addr;
-#endif
-    ip = *argv++;    
+    struct in_addr addr4;
+    struct in6_addr addr6;
+    int is_ipv4, is_ipv6;
 
-    /* Not compatible with IPv6!  Probably should use getnameinfo(). */
-#ifdef WIN32
-    taddr = inet_addr(ip);
-    do_more= (taddr != INADDR_NONE);
-#else
-    if ((do_more= (inet_aton(ip, &addr) != 0)))
-      taddr= addr.s_addr;
-#endif
-    if (do_more)
+    ip = *argv++;
+
+    is_ipv4= (inet_pton(AF_INET, ip, &addr4) == 1);
+    is_ipv6= (!is_ipv4 && inet_pton(AF_INET6, ip, &addr6) == 1);
+
+    if (is_ipv4 || is_ipv6)
     {
-      if (taddr == htonl(INADDR_BROADCAST))
-      {	
-	puts("Broadcast");
-	continue;
-      }
-      if (taddr == htonl(INADDR_ANY)) 
-      {
-	if (!taddr) 
-	  puts("Null-IP-Addr");
-	else
-	  puts("Old-Bcast");
-	continue;
-      }
+      /* Reverse lookup: IP address -> hostname */
 
-      hpaddr = gethostbyaddr((char*) &(taddr), sizeof(struct in_addr),AF_INET);
-      if (hpaddr) 
+      if (is_ipv4)
       {
-	if (silent)
-	  puts(hpaddr->h_name);
-	else
+	in_addr_t taddr= addr4.s_addr;
+	if (taddr == htonl(INADDR_BROADCAST))
 	{
-	  printf ("Host name of %s is %s", ip,hpaddr->h_name);
-	  for (q = hpaddr->h_aliases; *q != 0; q++)
-	    (void) printf(", %s", *q);
-	  puts("");
+	  puts("Broadcast");
+	  continue;
+	}
+	if (taddr == htonl(INADDR_ANY))
+	{
+	  if (!taddr)
+	    puts("Null-IP-Addr");
+	  else
+	    puts("Old-Bcast");
+	  continue;
 	}
       }
-      else
+      else if (IN6_IS_ADDR_UNSPECIFIED(&addr6))
       {
-	error=2;
-	fprintf(stderr,"%s: Unable to find hostname for '%s'\n",my_progname,
-		ip);
+	puts("Null-IP-Addr");
+	continue;
+      }
+
+      {
+	struct sockaddr_storage sa;
+	socklen_t sa_len;
+	char hostname[NI_MAXHOST];
+	int err;
+
+	memset(&sa, 0, sizeof(sa));
+
+	if (is_ipv4)
+	{
+	  struct sockaddr_in *sa4= (struct sockaddr_in *) &sa;
+	  sa4->sin_family= AF_INET;
+	  sa4->sin_addr= addr4;
+	  sa_len= sizeof(struct sockaddr_in);
+	}
+	else
+	{
+	  struct sockaddr_in6 *sa6= (struct sockaddr_in6 *) &sa;
+	  sa6->sin6_family= AF_INET6;
+	  sa6->sin6_addr= addr6;
+	  sa_len= sizeof(struct sockaddr_in6);
+	}
+
+	err= getnameinfo((struct sockaddr *) &sa, sa_len,
+			  hostname, sizeof(hostname), NULL, 0, NI_NAMEREQD);
+	if (err == 0)
+	{
+	  if (silent)
+	    puts(hostname);
+	  else
+	    printf("Host name of %s is %s\n", ip, hostname);
+	}
+	else
+	{
+	  error= 2;
+	  fflush(stdout);
+	  fprintf(stderr, "%s: Unable to find hostname for '%s'\n",
+		  my_progname, ip);
+	}
       }
     }
     else
     {
-      hpaddr = gethostbyname(ip);
-      if (!hpaddr)
+      /* Forward lookup: hostname -> IP address(es) */
+
+      struct addrinfo hints, *res, *rp;
+      int err;
+
+      memset(&hints, 0, sizeof(hints));
+      hints.ai_family= AF_UNSPEC;
+      hints.ai_socktype= SOCK_STREAM;
+
+      err= getaddrinfo(ip, NULL, &hints, &res);
+      if (err != 0)
       {
-	const char *err;
-	fprintf(stderr,"%s: Unable to find hostid for '%s'",my_progname,ip);
-	switch (h_errno) {
-	case HOST_NOT_FOUND: err="host not found"; break;
-	case TRY_AGAIN: err="try again"; break;
-	case NO_RECOVERY: err="no recovery"; break;
-	case NO_DATA: err="no_data"; break;
-	default: err=0;
-	}
-	if (err)
-	  fprintf(stderr,": %s\n",err);
-	else
-	  fprintf(stderr,"\n");
-	error=2;
+	fflush(stdout);
+	fprintf(stderr, "%s: Unable to find hostid for '%s': %s\n",
+		my_progname, ip, gai_strerror(err));
+	error= 2;
       }
       else if (silent)
       {
-	struct in_addr in;
-	memcpy((char*) &in.s_addr, (char*) *hpaddr->h_addr_list,
-	       sizeof (in.s_addr));
-	puts(inet_ntoa(in));
+	char addr_str[INET6_ADDRSTRLEN];
+	const void *addr_ptr;
+
+	if (res->ai_family == AF_INET)
+	  addr_ptr= &((struct sockaddr_in *) res->ai_addr)->sin_addr;
+	else
+	  addr_ptr= &((struct sockaddr_in6 *) res->ai_addr)->sin6_addr;
+
+	if (inet_ntop(res->ai_family, addr_ptr, addr_str, sizeof(addr_str)))
+	  puts(addr_str);
+
+	freeaddrinfo(res);
       }
       else
       {
-	char **p;
-	for (p = hpaddr->h_addr_list; *p != 0; p++)
+	for (rp= res; rp != NULL; rp= rp->ai_next)
 	{
-	  struct in_addr in;
-	  memcpy(&in.s_addr, *p, sizeof (in.s_addr));
-	  printf ("IP address of %s is %s\n",ip,inet_ntoa(in));
+	  char addr_str[INET6_ADDRSTRLEN];
+	  const void *addr_ptr;
+
+	  if (rp->ai_family == AF_INET)
+	    addr_ptr= &((struct sockaddr_in *) rp->ai_addr)->sin_addr;
+	  else if (rp->ai_family == AF_INET6)
+	    addr_ptr= &((struct sockaddr_in6 *) rp->ai_addr)->sin6_addr;
+	  else
+	    continue;
+
+	  if (inet_ntop(rp->ai_family, addr_ptr, addr_str, sizeof(addr_str)))
+	    printf("IP address of %s is %s\n", ip, addr_str);
 	}
+	freeaddrinfo(res);
       }
     }
   }
