@@ -6,6 +6,6 @@
  @@GLOBAL.innodb_buffer_pool_size	@@GLOBAL.innodb_buffer_pool_size_auto_min	@@GLOBAL.innodb_buffer_pool_size_max
 -17825792	16777216	25165824
 +17825792	16777216	18874368
- CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB CHARSET=latin1;
  SET GLOBAL innodb_limit_optimistic_insert_debug=2;
  SET STATEMENT unique_checks=0, foreign_key_checks=0 FOR
