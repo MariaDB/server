@@ -2286,6 +2286,16 @@ sub environment_setup {
   $ENV{'MYSQL_MY_PRINT_DEFAULTS'}= native_path($exe_my_print_defaults);
 
   # ----------------------------------------------------
+  # resolveip (not built on Windows)
+  # ----------------------------------------------------
+  unless (IS_WINDOWS) {
+    my $exe_resolveip=
+      mtr_exe_exists("$bindir/extra$multiconfig/resolveip",
+		     "$path_client_bindir/resolveip");
+    $ENV{'MYSQL_RESOLVEIP'}= native_path($exe_resolveip);
+  }
+
+  # ----------------------------------------------------
   # myisam tools
   # ----------------------------------------------------
   $ENV{'MYISAMLOG'}= tool_arguments("storage/myisam", "myisamlog", );
