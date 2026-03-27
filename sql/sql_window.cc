@@ -2973,7 +2973,7 @@ static ORDER* concat_order_lists(MEM_ROOT *mem_root, ORDER *list1, ORDER *list2)
     for (ORDER *cur= cur_list; cur; cur= cur->next)
     {
       ORDER *copy= (ORDER*)alloc_root(mem_root, sizeof(ORDER));
-      memcpy(copy, cur, sizeof(ORDER));
+      memcpy((void *) copy, (void *) cur, sizeof(ORDER));
       if (prev)
         prev->next= copy;
       prev= copy;
@@ -3148,7 +3148,7 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
        field. We don't care of the particular sorting result in this case.
      */
     ORDER *order= (ORDER *)alloc_root(thd->mem_root, sizeof(ORDER));
-    memset(order, 0, sizeof(*order));
+    memset((void *) order, 0, sizeof(*order));
     Item_field *item=
         new (thd->mem_root) Item_field(thd, join_tab->table->field[0]);
     if (item)
