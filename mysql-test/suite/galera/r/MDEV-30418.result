@@ -2,7 +2,9 @@ connection node_2;
 connection node_1;
 connection node_1;
 connection node_2;
+SET SESSION wsrep_sync_wait=0;
 connection node_2;
+SET SESSION wsrep_sync_wait=0;
 select @@wsrep_slave_threads;
 @@wsrep_slave_threads
 1

@@ -134,4 +134,4 @@ DROP TABLE t1,t2,t3;
 connection node_2;
 DROP TABLE t1,t2,t3;
 connection node_3;
-RESET MASTER;
+include/reset_master.inc

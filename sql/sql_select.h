@@ -2674,7 +2674,8 @@ bool open_tmp_table(TABLE *table);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
 void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
 bool sort_and_filter_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse,
-                            bool skip_unprefixed_keyparts);
+                            bool skip_unprefixed_keyparts,
+                            bool is_splitting= false);
 
 struct TMPTABLE_COSTS
 {

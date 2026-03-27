@@ -113,3 +113,14 @@ Warnings:
 Warning	1088	Error updating stats for table after table rebuild: Lock wait timeout
 SET innodb_lock_wait_timeout = @lock_wait_timeout;
 DROP TABLE t;
+#
+#  MDEV-38882 Assertion in diagnostics area on DDL stats
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+connect  con1,localhost,root,,;
+ALTER TABLE t1 NOWAIT FORCE, ALGORITHM=COPY;;
+connection default;
+ALTER TABLE t2 FORCE, ALGORITHM=COPY;
+connection con1;
+DROP TABLE t1, t2;
