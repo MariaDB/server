@@ -207,7 +207,7 @@ WHERE variable_name LIKE 'INNODB_LSN%';
 --let $restart_parameters= --innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 SELECT variable_name, variable_value FROM information_schema.global_status
-WHERE variable_name LIKE 'INNODB_LSN%ED';
+WHERE variable_name = 'INNODB_LSN_ARCHIVED';
 
 let SEARCH_PATTERN = InnoDB: ignoring .*ffffffffffc00000\\.log;
 --source include/search_pattern_in_file.inc
