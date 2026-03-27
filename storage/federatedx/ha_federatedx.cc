@@ -3130,8 +3130,38 @@ int ha_federatedx::info(uint flag)
 error:
   if (iop && *iop)
   {
-    my_printf_error((*iop)->error_code(), "Received error: %d : %s", MYF(0),
-                    (*iop)->error_code(), (*iop)->error_str());
+    uint remote_err= (uint)(*iop)->error_code();
+    /*
+      Only downgrade to a warning for errors that mean the remote server
+      or table is temporarily unreachable (connection failure, table
+      dropped on remote side). All other errors including access-denied
+      must remain hard errors so callers receive the correct errno.
+    */
+    switch (remote_err)
+    {
+    case 2002: /* CR_CONNECTION_ERROR  - can't connect via socket    */
+    case 2003: /* CR_CONN_HOST_ERROR   - can't connect to host       */
+    case 2005: /* CR_UNKNOWN_HOST      - unknown host                */
+    case 2006: /* CR_SERVER_GONE_ERROR - server has gone away        */
+    case 2013: /* CR_SERVER_LOST       - lost connection during query */
+    case 1146: /* ER_NO_SUCH_TABLE     - remote table dropped        */
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_GET_ERRMSG,
+                          "FederatedX: Table '%s' is inaccessible: "
+                          "%d : %s",
+                          share->table_name,
+                          (*iop)->error_code(),
+                          (*iop)->error_str());
+      error_code= 0;
+      break;
+    default:
+      my_printf_error((*iop)->error_code(),
+                      "Received error: %d : %s", MYF(0),
+                      (*iop)->error_code(),
+                      (*iop)->error_str());
+      error_code= (*iop)->error_code();
+      break;
+    }
   }
   else if (remote_error_number != -1 /* error already reported */)
   {
