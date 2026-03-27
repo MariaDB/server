@@ -264,7 +264,9 @@ local_close(ds_file_t *file)
 		ret = set_eof(fd);
 	}
 
-	my_close(fd, MYF(MY_WME));
+	if (my_close(fd, MYF(MY_WME)) != 0)
+	  ret= 1;
+
 	my_free(file);
 	return ret;
 }
