@@ -7,6 +7,11 @@
 #ifndef XXH_IMPLEMENTATION
 #define XXH_IMPLEMENTATION 1
 #endif // !defined(XXH_IMPLEMENTATION)
+#ifndef NDEBUG
+#ifndef XXH_NO_INLINE_HINTS
+#define XXH_NO_INLINE_HINTS 1
+#endif // !defined(XXH_NO_INLINE_HINTS)
+#endif // !defined(NDEBUG)
 #include "../mysys/xxhash.h"
 
 static void my_hasher_xxh32_hash_str(my_hasher_st *hasher, const uchar *key, size_t len)
