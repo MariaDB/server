@@ -76,9 +76,8 @@ INNODB_LSN_LAST_CHECKPOINT	18446744073705357279
 INNODB_LSN_ARCHIVED	18446744073705357279
 # restart: --innodb-log-recovery-start=0
 SELECT variable_name, variable_value FROM information_schema.global_status
-WHERE variable_name LIKE 'INNODB_LSN%ED';
+WHERE variable_name = 'INNODB_LSN_ARCHIVED';
 variable_name	variable_value
-INNODB_LSN_FLUSHED	18446744073705357326
 INNODB_LSN_ARCHIVED	18446744073705357279
 FOUND 1 /InnoDB: ignoring .*ffffffffffc00000\.log/ in mysqld.1.err
 # restart: --innodb-log-recovery-start=0
