@@ -1909,7 +1909,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     if (!item_eq)
       goto restore_tl_and_exit;
     if (left_exp_orig != left_exp)
-      thd->change_item_tree(item_eq->arguments(), left_exp);
+      *item_eq->arguments()= left_exp;
     item_eq->in_equality_no= 0;
     sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
   }
@@ -1932,8 +1932,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       DBUG_ASSERT(left_exp->element_index(i)->fixed());
       if (left_exp_orig->element_index(i) !=
           left_exp->element_index(i))
-        thd->change_item_tree(item_eq->arguments(),
-                              left_exp->element_index(i));
+        *item_eq->arguments()= left_exp->element_index(i);
       item_eq->in_equality_no= i;
       sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
     }
@@ -1957,7 +1956,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     for (uint i= 0; i < row->cols(); i++)
     {
       if (row->element_index(i) != subq_lex->ref_pointer_array[i])
-        thd->change_item_tree(row->addr(i), subq_lex->ref_pointer_array[i]);
+        *row->addr(i)= subq_lex->ref_pointer_array[i];
     }
     item_eq->in_equality_no= 0;
     sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
