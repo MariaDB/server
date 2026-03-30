@@ -81,7 +81,7 @@ ALTER TABLE t1 ADD COLUMN x xmltype;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
-CREATE FUNCTION xmi(id int) RETURNS xmltype RETURN 'aaa';
+CREATE FUNCTION xmi(id int) RETURNS xmltype RETURN '<a></a>';
 
 SELECT xmi(1);
 CREATE TABLE t1 SELECT xmi(10) as x;
@@ -153,6 +153,37 @@ DROP SEQUENCE s;
 
 CREATE TABLE t1 AS SELECT UpdateXML('<a><b>ccc</b><d></d></a>', '/a', '<e>fff</e>') as x;
 SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(a XMLTYPE);
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+INSERT INTO t1 VALUES(1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+INSERT INTO t1 VALUES(11.2);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+INSERT INTO t1 VALUES(11e-2);
+
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES("one");
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES("<a><b></b>");
+
+INSERT INTO t1 VALUES("<a><b></b></a>");
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES("<to>JOHN</to><from></from>");
+
+INSERT INTO t1 VALUES('<note><to>JOHN</to><from></from></note>');
+INSERT INTO t1 VALUES('<?xml version="1.0" ?> <note><to>JOHN</to><from></from></note>');
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES('<?xml version="1.0" ?> <?xml?> <note><to>JOHN</to><from></from></note>');
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES('<note><to>JOHN</to><from></from></note> <?xml version="1.0" ?> ');
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES('<?somePI pi content ?> <?xml version="1.0" ?> <note><from>Lisa</from></note>');
+INSERT INTO t1 VALUES('<?somePI pi content ?> <note><from>Lisa</from></note>');
+INSERT INTO t1 VALUES('<?xml version="1.0" ?> <note><?somePI pi content ?><from>Lisa</from></note>');
+
 DROP TABLE t1;
 
 --echo # End of 11.8 tests

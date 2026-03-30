@@ -5267,9 +5267,9 @@ DROP TABLE t1,t2;
 #
 # MDEV-18205 Assertion `str_length < len' failed in Binary_string::realloc_raw
 #
-SELECT GROUP_CONCAT( UpdateXML( '<a>new year</a>', '/a', '2019-01-01 00:00:00' ), ENCODE('text','pass') ) AS f;
+SELECT GROUP_CONCAT( UpdateXML( '<a>new year</a>', '/a', '<z>2019-01-01 00:00:00</z>' ), ENCODE('text','pass') ) AS f;
 f
-2019-01-01 00:00:00F}^i
+<z>2019-01-01 00:00:00</z>F}^i
 #
 # MDEV-31184 Remove parser tokens DECODE_MARIADB_SYM and DECODE_ORACLE_SYM
 #

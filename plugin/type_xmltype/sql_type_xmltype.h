@@ -117,6 +117,8 @@ public:
 
   void sql_type(String &str) const override;
   uint size_of() const  override { return sizeof(*this); }
+  int  store(const char *to, size_t length, CHARSET_INFO *charset) override;
+  using Field_str::store;
 };
 
 
