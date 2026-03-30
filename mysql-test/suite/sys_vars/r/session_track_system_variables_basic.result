@@ -254,6 +254,16 @@ select @@session.session_track_system_variables;
 @@session.session_track_system_variables
 character_set_client,example_int_var,max_connections,sql_slave_skip_counter
 connection default;
+disconnect foo;
+set global session_track_system_variables='sql_slave_skip_counter,*';
+select @@global.session_track_system_variables;
+@@global.session_track_system_variables
+*
+connect foo,localhost,root;
+select @@session.session_track_system_variables;
+@@session.session_track_system_variables
+*
+connection default;
 SET global session_track_system_variables = @global_saved_tmp;
 disconnect foo;
 uninstall soname 'ha_example.so';

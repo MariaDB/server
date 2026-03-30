@@ -166,6 +166,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
   token= var_list.str;
 
   track_all= false;
+  mysql_prlock_rdlock(&LOCK_system_variables_hash);
   for (;;)
   {
     sys_var *svar;
@@ -189,7 +190,8 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     {
       track_all= true;
     }
-    else if ((svar= find_sys_var(thd, var.str, var.length, throw_error)))
+    else if ((svar= find_sys_var(thd, var.str, var.length, throw_error,
+                                 /*hash_already_locked=*/true)))
     {
       if (insert(svar) == TRUE)
         return true;
@@ -209,6 +211,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     else
       break;
   }
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
   return false;
 }
 
