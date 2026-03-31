@@ -241,6 +241,11 @@ const uchar *sys_var::session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   return session_var_ptr(thd);
 }
 
+const uchar *sys_var::session_no_lock_value_ptr(THD *thd, const LEX_CSTRING *base) const
+{
+  return session_value_ptr(thd, base);
+}
+
 const uchar *sys_var::global_value_ptr(THD *thd, const LEX_CSTRING *base) const
 {
   return global_var_ptr();
@@ -284,6 +289,8 @@ const uchar *sys_var::value_ptr(THD *thd, enum_var_type type,
     AutoRLock lock(guard);
     return global_value_ptr(thd, base);
   }
+  else if (type == SHOW_OPT_SESSION_NO_LOCK)
+    return session_no_lock_value_ptr(thd, base);
   else
     return session_value_ptr(thd, base);
 }
@@ -806,6 +813,7 @@ int set_var::check(THD *thd)
   switch (type) {
   case SHOW_OPT_DEFAULT:
   case SHOW_OPT_SESSION:
+  case SHOW_OPT_SESSION_NO_LOCK:
     DBUG_ASSERT(var->scope() != sys_var::GLOBAL);
     if (var->on_check_access_session(thd))
       return -1;

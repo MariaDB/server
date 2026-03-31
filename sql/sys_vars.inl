@@ -2571,19 +2571,27 @@ public:
     /* Use value given in variable declaration */
     global_save_default(thd, var);
   }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
+  uchar *value_ptr_internal(THD *thd, const LEX_CSTRING *base, bool with_lock) const
   {
     ulonglong *tmp, res;
     tmp= (ulonglong*) (((uchar*)&(thd->variables)) + offset);
-    res= get_master_info_ulonglong_value(thd);
+    res= get_master_info_ulonglong_value(thd, with_lock);
     *tmp= res;
     return (uchar*) tmp;
   }
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
+  {
+    return value_ptr_internal(thd, base, true);
+  }
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
-    return session_value_ptr(thd, base);
+    return value_ptr_internal(thd, base, true);
   }
-  ulonglong get_master_info_ulonglong_value(THD *thd) const;
+  const uchar *session_no_lock_value_ptr(THD *thd, const LEX_CSTRING *base) const override
+  {
+    return value_ptr_internal(thd, base, false);
+  }
+  ulonglong get_master_info_ulonglong_value(THD *thd, bool with_lock) const;
   bool update_variable(THD *thd, Master_info *mi)
   {
     return update_multi_source_variable_func(this, thd, mi);

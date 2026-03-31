@@ -58,6 +58,13 @@ class sys_var: protected Value_source // for double_from_string_with_check
 public:
   sys_var *next;
   LEX_CSTRING name;
+
+  /*
+    - For non-plugin system variables: always true (static_test_load)
+    - For plugin global var: always false (static_unload)
+    - For plugin session var: true on plugin init, false on plugin
+      deinit
+ */
   bool *test_load;
   enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
                    READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096,
@@ -238,6 +245,7 @@ protected:
     int for SHOW_INT, longlong for SHOW_LONGLONG, etc).
   */
   virtual const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const;
+  virtual const uchar *session_no_lock_value_ptr(THD *thd, const LEX_CSTRING *base) const;
   virtual const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
 
   /**

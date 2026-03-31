@@ -202,3 +202,59 @@ connect foo,localhost,root;
 connection default;
 disconnect foo;
 # End of tests 11.5
+#
+# MDEV-38179 regression in t_connect
+#
+# myisam_block_size is a global only plugin var and is not
+# added to the session_track_system_variables.
+# example_int_var is a session plugin var and is included.
+install soname 'ha_example.so';
+set global session_track_system_variables='sql_slave_skip_counter,character_set_client,example_int_var';
+select @@global.session_track_system_variables;
+@@global.session_track_system_variables
+character_set_client,example_int_var,sql_slave_skip_counter
+connect foo,localhost,root;
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- character_set_client: latin1
+-- example_int_var: 0
+-- sql_slave_skip_counter: 0
+
+select @@session.session_track_system_variables;
+@@session.session_track_system_variables
+character_set_client,example_int_var,sql_slave_skip_counter
+connection default;
+disconnect foo;
+set global session_track_system_variables='sql_slave_skip_counter,myisam_block_size,character_set_client,example_int_var';
+select @@global.session_track_system_variables;
+@@global.session_track_system_variables
+character_set_client,example_int_var,sql_slave_skip_counter
+connect foo,localhost,root;
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- character_set_client: latin1
+-- example_int_var: 0
+-- sql_slave_skip_counter: 0
+
+select @@session.session_track_system_variables;
+@@session.session_track_system_variables
+character_set_client,example_int_var,sql_slave_skip_counter
+connection default;
+disconnect foo;
+set global session_track_system_variables='sql_slave_skip_counter,myisam_block_size,max_connections,character_set_client,example_int_var';
+select @@global.session_track_system_variables;
+@@global.session_track_system_variables
+character_set_client,example_int_var,max_connections,sql_slave_skip_counter
+connect foo,localhost,root;
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- character_set_client: latin1
+-- example_int_var: 0
+-- max_connections: 151
+-- sql_slave_skip_counter: 0
+
+select @@session.session_track_system_variables;
+@@session.session_track_system_variables
+character_set_client,example_int_var,max_connections,sql_slave_skip_counter
+connection default;
+SET global session_track_system_variables = @global_saved_tmp;
+disconnect foo;
+uninstall soname 'ha_example.so';
+# End of tests 11.8
