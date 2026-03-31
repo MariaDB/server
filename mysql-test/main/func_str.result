@@ -5421,4 +5421,13 @@ x
 NULL
 Warnings:
 Warning	1301	Result of hex() was larger than max_allowed_packet (16777216) - truncated
+#
+# MDEV-32758: TRIM uses memory after freed
+#
+CREATE TABLE t0 (i DOUBLE);
+INSERT INTO t0 VALUES (1);
+SELECT LOCATE(a , 'data1-data2', a) AS c FROM (SELECT TRIM(i) AS a FROM t0 )dt;
+c
+5
+DROP TABLE t0;
 # End of 10.6 tests
