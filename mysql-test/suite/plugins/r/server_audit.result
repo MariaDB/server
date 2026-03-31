@@ -556,8 +556,8 @@ TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*M! SELECT 5 */',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*!100100 SELECT 6 */',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*M!100100 SELECT 7 */',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*!! SELECT 8 */',0
-TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*!!999999 SELECT 9 */',0
-TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*M!!999999 SELECT 10 */',0
+TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*!!       SELECT 9 */',0
+TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*M!!       SELECT 10 */',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'CREATE USER u1 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'GRANT ALL ON sa_db TO u2 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'CREATE USER u3 IDENTIFIED BY *****',0
