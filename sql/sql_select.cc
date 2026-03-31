@@ -32305,7 +32305,10 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       }
 
       if (key_name_buf.length())
-        eta->key.set_pseudo_key(thd->mem_root, key_name_buf.c_ptr_safe());
+      {
+        Lex_ident_column tmp(key_name_buf.ptr(), key_name_buf.length());
+        eta->key.set_pseudo_key(thd->mem_root, &tmp);
+      }
     }
   }
   

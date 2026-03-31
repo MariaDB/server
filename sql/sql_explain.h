@@ -59,6 +59,7 @@ class String_list: public List<char>
 {
 public:
   const char *append_str(MEM_ROOT *mem_root, const char *str);
+  const char *append_str(MEM_ROOT *mem_root, const Lex_ident_column *str);
 };
 
 class Json_writer;
@@ -663,7 +664,7 @@ public:
     filter_len= (uint)-1;
   }
   bool set(MEM_ROOT *root, KEY *key_name, uint key_len_arg);
-  bool set_pseudo_key(MEM_ROOT *root, const char *key_name);
+  bool set_pseudo_key(MEM_ROOT *root, const Lex_ident_column *key_name);
 
   inline const char *get_key_name() const { return key_name; }
   inline uint get_key_len() const { return key_len; }
