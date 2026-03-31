@@ -1848,7 +1848,6 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
         resize_buf= nullptr;
         first_lsn+= capacity();
         file_size= resize_target;
-        buf_size= unsigned(capacity());
         goto unmap_old_checkpoint;
       }
       else if (c && is_mmap())
@@ -1873,9 +1872,7 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
 #ifdef HAVE_PMEM
         if (!c)
         {
-          buf_size= unsigned(capacity());
         first_checkpoint_in_new_archive:
-          ut_ad(buf_size == capacity());
           c= buf;
           ut_ad(!memcmp_aligned<512>(c, field_ref_zero, START_OFFSET));
         }

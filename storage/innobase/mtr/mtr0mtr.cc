@@ -342,7 +342,6 @@ void mtr_t::release()
 ATTRIBUTE_COLD lsn_t log_t::archived_mmap_switch_complete() noexcept
 {
   ut_ad(latch_have_wr());
-  ut_ad(buf_size == capacity());
   if (!archive)
     return 0;
   ut_ad(file_size <= ARCHIVE_FILE_SIZE_MAX);
@@ -359,7 +358,6 @@ ATTRIBUTE_COLD lsn_t log_t::archived_mmap_switch_complete() noexcept
   resize_buf= nullptr;
   first_lsn= last_lsn;
   file_size= resize_target;
-  buf_size= unsigned(capacity());
   return lsn;
 }
 
@@ -950,9 +948,10 @@ log_t::append_prepare<log_t::ARCHIVED_MMAP>(size_t size, bool ex) noexcept
   ut_ad(ex ? latch_have_wr() : latch_have_rd());
   ut_ad(is_mmap());
   ut_ad(is_mmap_writeable());
-  ut_ad(buf_size == capacity());
   ut_ad(archive);
   ut_ad(archived_lsn);
+  static_assert(ARCHIVE_FILE_SIZE_MAX - START_OFFSET < 1ULL << 32,
+                "replace buf_size with capacity() below");
 
   uint64_t l, lsn;
   static_assert(WRITE_TO_BUF == WRITE_BACKOFF << 1, "");
@@ -1062,11 +1061,11 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
   static_assert(mode == WRITE_NORMAL || mode == CIRCULAR_MMAP, "");
   ut_ad(bool(mode) == is_mmap());
   ut_ad(is_mmap() == is_mmap_writeable());
-  ut_ad(!mode || buf_size == capacity());
   uint64_t l;
   static_assert(WRITE_TO_BUF == WRITE_BACKOFF << 1, "");
   while (UNIV_UNLIKELY((l= write_lsn_offset.fetch_add(size + WRITE_TO_BUF) &
-                        (WRITE_TO_BUF - 1)) >= buf_size - size))
+                        (WRITE_TO_BUF - 1)) >=
+                       (mode ? capacity() : buf_size) - size))
   {
     /* The following is inlined here instead of being part of
     append_prepare_wait(), in order to increase the locality of reference
@@ -1084,7 +1083,7 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
     set_check_for_checkpoint(true);
 
   return {lsn,
-          buf + size_t(mode ? FIRST_LSN + (lsn - first_lsn) % buf_size : l)};
+          buf + size_t(mode ? FIRST_LSN + (lsn - first_lsn) % capacity() : l)};
 }
 
 /** Finish appending data to the log.
