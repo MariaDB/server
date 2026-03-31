@@ -3219,6 +3219,7 @@ static xs_word xs_substitutionGroup(STRING_WITH_LEN("substitutionGroup"));
 static xs_word xs_targetNamespace(STRING_WITH_LEN("targetNamespace"));
 static xs_word xs_totalDigits(STRING_WITH_LEN("totalDigits"));
 static xs_word xs_type(STRING_WITH_LEN("type"));
+static xs_word xs_unbounded(STRING_WITH_LEN("unbounded"));
 static xs_word xs_unique(STRING_WITH_LEN("unique"));
 static xs_word xs_union(STRING_WITH_LEN("union"));
 static xs_word xs_value(STRING_WITH_LEN("value"));
@@ -3404,6 +3405,49 @@ public:
 };
 
 
+class XMLSchema_tag_integer_attribute: public XMLSchema_tag_attribute
+{
+  int m_error;
+public:
+  longlong m_value_int;
+
+  XMLSchema_tag_integer_attribute(const xs_word *name, longlong def_value= 1):
+    XMLSchema_tag_attribute(name), m_error(0), m_value_int(def_value) {}
+  bool value(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len) override
+  {
+    char *tmp= (char *) attr + len;
+    m_value_int= (longlong) my_strtoll10(attr, &tmp, &m_error);
+
+    (void) XMLSchema_tag_attribute::value(st, attr, len);
+
+    return m_error ? MY_XML_ERROR : MY_XML_OK;
+  }
+};
+
+
+class XMLSchema_tag_unbounded_integer_attribute:
+  public XMLSchema_tag_integer_attribute
+{
+public:
+  XMLSchema_tag_unbounded_integer_attribute(const xs_word *name,
+                                            longlong def_value= 1):
+    XMLSchema_tag_integer_attribute(name, def_value) {}
+  bool value(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len) override
+  {
+    if (XMLSchema_tag_integer_attribute::value(st, attr, len) == MY_XML_OK)
+      return MY_XML_OK;
+
+    if (xs_unbounded.eq(attr, len))
+    {
+      m_value_int= LONGLONG_MAX;
+      return MY_XML_OK;
+    }
+
+    return MY_XML_ERROR;
+  }
+};
+
+
 class XMLSchema_tag_namespaced_attribute:public XMLSchema_tag_attribute
 {
 public:
@@ -3525,6 +3569,19 @@ public:
 
   bool enter_attr(MY_XML_VALIDATION_DATA *st,
                   const char *attr, size_t len) override;
+
+  virtual bool validate_min_counter() const
+  {
+    return true;
+  }
+  virtual bool validate_max_counter() const
+  {
+    return true;
+  }
+  virtual void push_self(MY_XML_VALIDATION_DATA *st)
+  {
+    st->push(this);
+  }
 };
 
 
@@ -3629,8 +3686,8 @@ public:
 class XMLSchema_any: public XMLSchema_anyAttribute
 {
 public:
-  XMLSchema_tag_attribute m_minOccurs;
-  XMLSchema_tag_attribute m_maxOccurs;
+  XMLSchema_tag_integer_attribute           m_minOccurs;
+  XMLSchema_tag_unbounded_integer_attribute m_maxOccurs;
 
   XMLSchema_any(): XMLSchema_anyAttribute(),
     m_minOccurs(&xs_minOccurs),
@@ -3735,15 +3792,25 @@ public:
 };
 
 
+class XMLSchema_string_builtin_type: public XMLSchema_builtin_type
+{
+public:
+  bool valid_value(const char *value, size_t len) override;
+};
+
+
+/* Just to make type control possible. */
 class XMLSchema_type: public XMLSchema_tag
 {
 };
 
 
-class XMLSchema_simple_builtin_type: public XMLSchema_tag
+class XMLSchema_simple_builtin_type: public XMLSchema_type
 {
 public:
   XMLSchema_builtin_type *m_int_type;
+  XMLSchema_simple_builtin_type(XMLSchema_builtin_type *int_type):
+    XMLSchema_type(), m_int_type(int_type) {}
   bool validate_tag(MY_XML_VALIDATION_DATA *st,
                     const char *attr, size_t len) override
   {
@@ -3769,7 +3836,7 @@ class XMLSchema_user_type: public XMLSchema_type
   XMLSchema_tag_attribute m_final;
 public:
   XMLSchema_tag *m_compositor;
-  XMLSchema_type *m_next_type;
+  XMLSchema_user_type *m_next_type;
 
   XMLSchema_user_type(): XMLSchema_type(),
     m_type_name(&xs_name),
@@ -3830,6 +3897,11 @@ public:
                     const char *attr, size_t len) override
   {
     return m_compositor->validate_tag(st, attr, len);
+  }
+  bool validate_leave(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override
+  {
+    return m_compositor->validate_leave(st, attr, len);
   }
 };
 
@@ -3966,8 +4038,8 @@ public:
 class XMLSchema_union: public XMLSchema_tag
 {
   XMLSchema_tag_attribute m_attr_memberTypes;
-  XMLSchema_type *m_nested_types; /* we have to preserver the order here */
-  XMLSchema_type **m_nested_hook;
+  XMLSchema_user_type *m_nested_types; /* we have to preserver the order here */
+  XMLSchema_user_type **m_nested_hook;
 public:
   XMLSchema_union(): XMLSchema_tag(),
     m_attr_memberTypes(&xs_memberTypes),
@@ -4015,9 +4087,8 @@ class XMLSchema_element_global;
 
 class XMLSchema_all: public XMLSchema_tag
 {
-  XMLSchema_tag_attribute m_minOccurs;
-  XMLSchema_tag_attribute m_maxOccurs;
-
+  XMLSchema_tag_integer_attribute           m_minOccurs;
+  XMLSchema_tag_unbounded_integer_attribute m_maxOccurs;
   XMLSchema_tag **m_tags_hook;
 
 public:
@@ -4042,6 +4113,11 @@ public:
     *m_tags_hook= NULL;
     return XMLSchema_tag::leave(st, attr, len);
   }
+  void validate_prepare() override
+  {
+    for (XMLSchema_tag *cur= m_tags; cur; cur= cur->m_next_tag)
+      cur->validate_prepare();
+  }
 };
 
 
@@ -4054,11 +4130,14 @@ public:
   void validate_prepare() override
   {
     m_cur_tag= m_tags;
+    XMLSchema_all::validate_prepare();
   }
   bool validate_done() override { return m_cur_tag == NULL; }
 
   bool validate_tag(MY_XML_VALIDATION_DATA *st,
                     const char *attr, size_t len) override;
+  bool validate_leave(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override;
 };
 
 
@@ -4088,8 +4167,8 @@ public:
 
 class XMLSchema_group_reference: public XMLSchema_tag
 {
-  XMLSchema_tag_attribute m_minOccurs;
-  XMLSchema_tag_attribute m_maxOccurs;
+  XMLSchema_tag_integer_attribute           m_minOccurs;
+  XMLSchema_tag_unbounded_integer_attribute m_maxOccurs;
   XMLSchema_tag_attribute m_ref;
   XMLSchema_group_def *m_group;
 public:
@@ -4144,15 +4223,19 @@ public:
                       const char *attr, size_t len) override;
   bool validate_tag(MY_XML_VALIDATION_DATA *st,
                     const char *attr, size_t len) override;
+  bool validate_leave(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override;
+
 };
 
 
 class XMLSchema_element_local: public XMLSchema_element_global
 {
 public:
+  int m_counter;
   XMLSchema_tag_attribute m_atr_ref;
-  XMLSchema_tag_attribute m_atr_minOccurs;
-  XMLSchema_tag_attribute m_atr_maxOccurs;
+  XMLSchema_tag_integer_attribute           m_atr_minOccurs;
+  XMLSchema_tag_unbounded_integer_attribute m_atr_maxOccurs;
   XMLSchema_tag_attribute m_atr_form;
 
   XMLSchema_element_local(): XMLSchema_element_global(),
@@ -4165,6 +4248,27 @@ public:
     declare_attribute(&m_atr_minOccurs);
     declare_attribute(&m_atr_maxOccurs);
     declare_attribute(&m_atr_form);
+  }
+  virtual void validate_prepare()
+  {
+    m_counter= 0;
+  }
+  bool validate_name(const char *attr, size_t len) override
+  {
+    return XMLSchema_element_global::validate_name(attr, len);
+  }
+  bool validate_min_counter() const override
+  {
+    return m_counter >= m_atr_minOccurs.m_value_int;
+  }
+  bool validate_max_counter() const override
+  {
+    return m_counter < m_atr_maxOccurs.m_value_int;
+  }
+  void push_self(MY_XML_VALIDATION_DATA *st) override
+  {
+    m_counter++;
+    st->push(this);
   }
 };
 
@@ -4264,7 +4368,8 @@ public:
     declare_attribute(&m_atr_xml_lang);
   }
 
-  XMLSchema_type *find_type_by_name(const char *name, size_t len) const;
+  XMLSchema_type *find_type_by_name(MY_XML_VALIDATION_DATA *st,
+                                    const char *name, size_t len) const;
   XMLSchema_attributeGroup_def *find_attribute_group_by_name(const char *name,
                                                              size_t len) const
   {
@@ -4285,6 +4390,8 @@ public:
                         const char *attr, size_t len);
   bool enter_tag(MY_XML_VALIDATION_DATA *st,
                  const char *attr, size_t len) override;
+  XMLSchema_type *find_simple_type(const char *name, size_t len) const;
+  XMLSchema_type *find_complex_type(const char *name, size_t len) const;
 };
 
 
@@ -4342,8 +4449,8 @@ static xs_word xs_ENTITY(STRING_WITH_LEN("ENTITY"));
 static xs_word xs_base64Binary(STRING_WITH_LEN("base64Binary"));
 static xs_word xs_hexBinary(STRING_WITH_LEN("hexBinary"));
 
-XMLSchema_builtin_type *get_builtin_type_by_name(MY_XML_VALIDATION_DATA *st,
-                                                 const char *name, size_t len)
+XMLSchema_builtin_type *XMLSchema_builtin_type::get_builtin_type_by_name(
+  MY_XML_VALIDATION_DATA *st, const char *name, size_t len)
 {
   if (xs_string.eq(name, len))
     return new(st->mem_root) XMLSchema_builtin_type;
@@ -4463,7 +4570,8 @@ bool XMLSchema_attribute::leave(MY_XML_VALIDATION_DATA *st,
   else
   {
     m_type=
-      st->schema->find_type_by_name(m_atr_type.m_val, m_atr_type.m_val_len);
+      st->schema->find_type_by_name(
+                    st, m_atr_type.m_val, m_atr_type.m_val_len);
     if (!m_type)
       return MY_XML_ERROR;
   }
@@ -4663,7 +4771,7 @@ bool XMLSchema_list::leave(MY_XML_VALIDATION_DATA *st,
   if (!m_attr_itemType.is_set())
     return MY_XML_ERROR; /* type must be specified. */
 
-  m_type= st->schema->find_type_by_name(attr, len);
+  m_type= st->schema->find_type_by_name(st, attr, len);
 
   return m_type ? res : MY_XML_ERROR;
 }
@@ -4815,13 +4923,47 @@ bool XMLSchema_sequence::enter_tag(MY_XML_VALIDATION_DATA *st,
 bool XMLSchema_sequence::validate_tag(MY_XML_VALIDATION_DATA *st,
                                       const char *attr, size_t len)
 {
-  if (m_cur_tag && m_cur_tag->validate_name(attr, len))
+  for (;;)
   {
-    st->push(m_cur_tag);
-    m_cur_tag= m_cur_tag->m_next_tag;
-    return MY_XML_OK;
+    if (!m_cur_tag)
+      return validate_failed(st); /* no more elements possible. */
+
+    if (m_cur_tag->validate_name(attr, len))
+    {
+      if (m_cur_tag->validate_max_counter())
+        break;
+      /* can't have another element with this name. */
+      return validate_failed(st);
+    }
+    else
+    {
+      if (!m_cur_tag->validate_min_counter())
+      {
+        /* had to be another one with this name. */
+        return validate_failed(st);
+      }
+      m_cur_tag= m_cur_tag->m_next_tag;
+    }
   }
-  return validate_failed(st);
+
+  m_cur_tag->push_self(st);
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_sequence::validate_leave(MY_XML_VALIDATION_DATA *st,
+                                        const char *attr, size_t len)
+{
+  while (m_cur_tag) /* not all tags were met */
+  {
+    if (!m_cur_tag->validate_min_counter())
+    {
+      return validate_failed(st);
+    }
+    m_cur_tag= m_cur_tag->m_next_tag;
+  }
+
+  return MY_XML_OK;
 }
 
 
@@ -4891,23 +5033,29 @@ bool XMLSchema_element_global::enter_tag(MY_XML_VALIDATION_DATA *st,
 bool XMLSchema_element_global::validate_attr(MY_XML_VALIDATION_DATA *st,
                                              const char *attr, size_t len)
 {
-  return validate_failed(st);
+  return m_type->validate_attr(st, attr, len);
 }
 
 
 bool XMLSchema_element_global::validate_value(MY_XML_VALIDATION_DATA *st,
                                               const char *attr, size_t len)
 {
-  return validate_failed(st);
+  return m_type->validate_value(st, attr, len);
 }
 
 
 bool XMLSchema_element_global::validate_tag(MY_XML_VALIDATION_DATA *st,
                                             const char *attr, size_t len)
 {
-  if (m_type == NULL)
-    return MY_XML_OK;
   return m_type->validate_tag(st, attr, len);
+}
+
+
+bool XMLSchema_element_global::validate_leave(MY_XML_VALIDATION_DATA *st,
+                                              const char *attr, size_t len)
+{
+  st->pop();
+  return m_type->validate_leave(st, attr, len);
 }
 
 
@@ -4967,10 +5115,65 @@ bool XMLSchema_schema::enter_tag(MY_XML_VALIDATION_DATA *st,
 }
 
 
-XMLSchema_type *XMLSchema_schema::find_type_by_name(
-   const char *name, size_t len) const
+XMLSchema_type *XMLSchema_schema::find_simple_type(
+                                    const char *name, size_t len) const
 {
+  XMLSchema_user_type *t= m_global_simpleTypes;
+  for(; t; t= t->m_next_type)
+  {
+    if (t->validate_name(name, len))
+      return t;
+  }
   return NULL;
+}
+
+
+XMLSchema_type *XMLSchema_schema::find_complex_type(
+                                    const char *name, size_t len) const
+{
+  XMLSchema_user_type *t= m_global_complexTypes;
+  for(; t; t= t->m_next_type)
+  {
+    if (t->validate_name(name, len))
+      return t;
+  }
+  return NULL;
+}
+
+
+XMLSchema_type *XMLSchema_schema::find_type_by_name(
+   MY_XML_VALIDATION_DATA *st, const char *name, size_t len) const
+{
+  size_t col_pos= 0;
+  XMLSchema_builtin_type *builtin_type;
+  XMLSchema_type *result;
+
+  /* TODO check the namespace properly. */
+  while (col_pos < len)
+  {
+    if (name[col_pos++] == MY_XPATH_LEX_COLON)
+    {
+      name+= col_pos;
+      len-= col_pos;
+      break;
+    }
+  }
+
+  builtin_type= XMLSchema_builtin_type::get_builtin_type_by_name(
+      st, name, len);
+
+  if (builtin_type)
+  {
+    result= new(st->mem_root) XMLSchema_simple_builtin_type(builtin_type);
+  }
+  else
+  {
+    result= find_simple_type(name, len);
+    if (!result)
+      result= find_complex_type(name, len);
+  }
+
+  return result;
 }
 
 bool XMLSchema_schema::validate_element(MY_XML_VALIDATION_DATA *st,
@@ -5085,7 +5288,7 @@ static int schema_enter(MY_XML_PARSER *st,const char *attr, size_t len)
 }
 
 
-int schema_value(MY_XML_PARSER *st,const char *attr, size_t len)
+static int schema_value(MY_XML_PARSER *st,const char *attr, size_t len)
 {
   MY_XML_VALIDATION_DATA *data= (MY_XML_VALIDATION_DATA *) st->user_data;
 
@@ -5093,7 +5296,7 @@ int schema_value(MY_XML_PARSER *st,const char *attr, size_t len)
 }
 
 
-int schema_leave(MY_XML_PARSER *st,const char *attr, size_t len)
+static int schema_leave(MY_XML_PARSER *st,const char *attr, size_t len)
 {
   MY_XML_VALIDATION_DATA *data= (MY_XML_VALIDATION_DATA *) st->user_data;
 

@@ -352,7 +352,8 @@ int my_xml_parse(MY_XML_PARSER *p,const char *str, size_t len)
       {
         a.beg+= 9;
         a.end-= 3;
-        my_xml_value(p, a.beg, (size_t) (a.end-a.beg));
+        if (MY_XML_OK != my_xml_value(p, a.beg, (size_t) (a.end-a.beg)))
+          return MY_XML_ERROR;
         continue;
       }
       
@@ -479,7 +480,8 @@ gt:
         my_xml_norm_text(&a);
       if (a.beg != a.end)
       {
-        my_xml_value(p,a.beg,(size_t) (a.end-a.beg));
+        if (MY_XML_OK != my_xml_value(p, a.beg, (size_t) (a.end-a.beg)))
+          return MY_XML_ERROR;
       }
     }
   }
