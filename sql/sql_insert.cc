@@ -5109,6 +5109,8 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   DEBUG_SYNC(thd,"create_table_select_before_lock");
 
   table->reginfo.lock_type=TL_WRITE;
+  if (parent_global_tmp_table)
+    parent_global_tmp_table->reginfo.lock_type= TL_WRITE;
 
   /*
     Ensure that decide_logging_format(), called by mysql_lock_tables(), works

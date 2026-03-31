@@ -1328,4 +1328,18 @@ update t set c=c+1;
 unlock tables;
 truncate t;
 drop table t;
+# MDEV-38931 GTT error: Table was locked with a READ lock after CREATE OR REPLACE
+create table t2 (c int);
+lock tables t2 write;
+create or replace global temporary table t2 select 0;
+alter table t2 force;
+flush table t2;
+drop table t2;
+create table t2 (c int);
+lock tables t2 write;
+create or replace global temporary table t2 select 0;
+create or replace global temporary table t2 select 0;
+alter table t2 force;
+flush table t2;
+drop table t2;
 disconnect con1;
