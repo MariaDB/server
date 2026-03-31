@@ -49,11 +49,6 @@
 --exec $MYSQL_RESOLVEIP -s ::1 2>&1 | sed 's/.*/HOSTNAME/'
 
 --echo #
---echo # IPv6 IPv4-mapped address
---echo #
---exec $MYSQL_RESOLVEIP ::ffff:127.0.0.1 2>&1 | sed 's/Host name of ::ffff:127\.0\.0\.1 is .*/Host name of ::ffff:127.0.0.1 is HOSTNAME/'
-
---echo #
 --echo # IPv6 full form address
 --echo #
 --exec $MYSQL_RESOLVEIP 0000:0000:0000:0000:0000:0000:0000:0001 2>&1 | sed 's/Host name of 0000:0000:0000:0000:0000:0000:0000:0001 is .*/Host name of 0000:0000:0000:0000:0000:0000:0000:0001 is HOSTNAME/'

@@ -1,0 +1,8 @@
+--source include/not_windows.inc
+--source include/check_ipv6.inc
+--source include/check_ipv4_mapped.inc
+
+--echo #
+--echo # IPv6 IPv4-mapped address
+--echo #
+--exec $MYSQL_RESOLVEIP ::ffff:127.0.0.1 2>&1 | sed 's/Host name of ::ffff:127\.0\.0\.1 is .*/Host name of ::ffff:127.0.0.1 is HOSTNAME/'
