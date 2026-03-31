@@ -494,7 +494,6 @@ void log_t::create(lsn_t lsn) noexcept
     ut_ad(is_mmap_writeable());
     ut_ad(is_opened() == archive);
     mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
-    buf_size= unsigned(capacity());
     if (archive)
       goto create_archive_header;
     memset_aligned<4096>(buf, 0, 4096);
@@ -1888,7 +1887,6 @@ void log_t::clear_mmap() noexcept
 #ifdef HAVE_PMEM
   if (is_mmap_writeable() && !recv_sys.rpo)
   {
-    buf_size= unsigned(capacity());
     mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
     ut_ad(next_checkpoint_no <= START_OFFSET / 4);
     if (archive)
@@ -1921,7 +1919,7 @@ void log_t::clear_mmap() noexcept
 
       close_file(false);
       log_mmap= false;
-      buf_size= std::min(buf_size, unsigned(capacity()));
+      buf_size= unsigned(std::min(uint64_t{buf_size}, capacity()));
       ut_a(attach(log, file_size, READ_WRITE));
       ut_ad(!is_mmap());
 
