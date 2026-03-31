@@ -57,7 +57,7 @@ rmdir $MYSQLD_DATADIR/db5;
 
 --let $backup_log=$MYSQLTEST_VARDIR/tmp/backup.log
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --export --prepare --target-dir="$targetdir" > $backup_log;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --export --prepare --target-dir="$targetdir" --skip-rollback-xa > $backup_log;
 --enable_result_log
 
 --let SEARCH_FILE=$backup_log

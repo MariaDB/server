@@ -79,6 +79,9 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <row0quiesce.h>
 #include <srv0start.h>
 #include "trx0sys.h"
+#include "trx0trx.h"
+#include "trx0roll.h"
+#include <buf0flu.h>
 #include <buf0dblwr.h>
 #include <buf0flu.h>
 #include "ha_innodb.h"
@@ -150,6 +153,8 @@ my_bool xtrabackup_mysqld_args;
 my_bool xtrabackup_help;
 my_bool xtrabackup_export;
 my_bool ignored_option;
+
+my_bool xtrabackup_rollback_xa;
 
 longlong xtrabackup_use_memory;
 
@@ -1354,6 +1359,7 @@ enum options_xtrabackup
   OPT_XTRA_BACKUP,
   OPT_XTRA_PREPARE,
   OPT_XTRA_EXPORT,
+  OPT_XTRA_ROLLBACK_XA,
   OPT_XTRA_PRINT_PARAM,
   OPT_XTRA_USE_MEMORY,
   OPT_XTRA_THROTTLE,
@@ -1477,6 +1483,13 @@ struct my_option xb_client_options[]= {
      "create files to import to another database when prepare.",
      (G_PTR *) &xtrabackup_export, (G_PTR *) &xtrabackup_export, 0, GET_BOOL,
      NO_ARG, 0, 0, 0, 0, 0, 0},
+    {"rollback-xa", OPT_XTRA_ROLLBACK_XA,
+     "Rollback prepared XA transactions on --prepare. Enabled by default; "
+     "use --skip-rollback-xa to disable. "
+     "After preparing target directory with this option "
+     "it can no longer be a base for incremental backup.",
+     (G_PTR *) &xtrabackup_rollback_xa, (G_PTR *) &xtrabackup_rollback_xa, 0,
+     GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
     {"print-param", OPT_XTRA_PRINT_PARAM,
      "print parameter of mysqld needed for copyback.",
      (G_PTR *) &xtrabackup_print_param, (G_PTR *) &xtrabackup_print_param, 0,
@@ -6900,8 +6913,26 @@ error:
 		if (!ok) goto cleanup;
 	}
 
+         /* Prevent incompatible combination of --rollback_xa and --export
+           options. These options cannot be used together because:
+           - --export sets SRV_OPERATION_RESTORE_EXPORT which makes the redo
+             log mapping read-only for consistency during table export
+           - --rollback_xa requires write access to the log system to modify
+             transaction state during XA rollback
+           The combination creates mmap state inconsistency in InnoDB's MTR
+           system, leading to crash.
+        */
+        if (xtrabackup_rollback_xa && xtrabackup_export) {
+          msg("mariabackup: ERROR: --rollback_xa and --export options cannot "
+              "be used together. This combination causes internal mmap state "
+              "inconsistency leading to crashes.");
+          goto error;
+        }
+
 	srv_operation = xtrabackup_export
-		? SRV_OPERATION_RESTORE_EXPORT : SRV_OPERATION_RESTORE;
+		? SRV_OPERATION_RESTORE_EXPORT
+		: (xtrabackup_rollback_xa ? SRV_OPERATION_RESTORE_ROLLBACK_XA
+					  : SRV_OPERATION_RESTORE);
 
 	if (innodb_init_param()) {
 		goto error;
@@ -6920,12 +6951,46 @@ error:
 		srv_max_dirty_pages_pct_lwm = srv_max_buf_pool_modified_pct;
 	}
 
+	if (xtrabackup_rollback_xa)
+		srv_fast_shutdown = 0;
+
 	recv_sys.recovery_on = false;
 	if (innodb_init()) {
 		goto error;
 	}
 
-	ut_ad(!fil_system.freeze_space_list);
+        if (xtrabackup_rollback_xa) {
+          /* Roll back recovered prepared XA transactions.
+          The backup does not contain the binary log needed
+          to resolve them. (MDEV-36025) */
+          XID *xid_list =
+            (XID *) my_malloc(PSI_NOT_INSTRUMENTED,
+                              MAX_XID_LIST_SIZE * sizeof(XID),
+                              MYF(0));
+          if (!xid_list) {
+            msg("Can't allocate memory for XID list");
+            ok = false;
+            goto cleanup;
+          }
+          ut_ad(recv_no_log_write);
+          ut_d(recv_no_log_write = false);
+          int got;
+          while ((got = trx_recover_for_mysql(xid_list,
+                                              MAX_XID_LIST_SIZE)) > 0) {
+            for (int i = 0; i < got; i++) {
+              trx_t *trx = trx_get_trx_by_xid(&xid_list[i]);
+              if (trx) {
+                trx_rollback_for_mysql(trx);
+                trx->free();
+                msg("Rolled back prepared XA transaction");
+              }
+            }
+          }
+          my_free(xid_list);
+          ut_d(recv_no_log_write = true);
+        }
+
+        ut_ad(!fil_system.freeze_space_list);
 
         corrupted_pages.read_from_file(MB_CORRUPTED_PAGES_FILE);
         if (xtrabackup_incremental)
@@ -6982,9 +7047,21 @@ error:
 	else if (ok) xb_write_galera_info(xtrabackup_incremental);
 #endif
 
-        innodb_shutdown();
+        /* Without buf_flush_sync(), the rolled-back changes would exist only
+           in the buffer pool and be lost on shutdown, leaving the data files in
+           an inconsistent state.
+           In the innodb_preshutdown(), the condition was updated to include
+           SRV_OPERATION_RESTORE_ROLLBACK_XA so it waits for transactions when
+           srv_fast_shutdown == 0. The innodb_preshutdown() is called by
+           innodb_shutdown(), which will wait for any active transactions to
+           finish and shut down purge and undo background sources for
+           SRV_OPERATION_RESTORE_ROLLBACK_XA. */
+	if (xtrabackup_rollback_xa)
+          buf_flush_sync_batch(0, false);
 
-        innodb_free_param();
+	innodb_shutdown();
+
+	innodb_free_param();
 
 	/* output to metadata file */
 	if (ok) {

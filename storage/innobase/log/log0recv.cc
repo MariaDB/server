@@ -717,7 +717,7 @@ static struct
     mysql_mutex_assert_owner(&recv_sys.mutex);
     const char *filename= f_name.c_str();
 
-    if (srv_operation == SRV_OPERATION_RESTORE)
+    if (is_mariabackup_restore())
     {
       /* Replace absolute DATA DIRECTORY file paths with
       short names relative to the backup directory. */
@@ -894,7 +894,7 @@ processed:
                                             crypt_data);
     ut_ad(space);
     const char *filename= name.c_str();
-    if (srv_operation == SRV_OPERATION_RESTORE)
+    if (is_mariabackup_restore())
     {
       if (const char *tbl_name= strrchr(filename, '/'))
       {
@@ -904,7 +904,7 @@ processed:
       }
     }
     pfs_os_file_t handle= OS_FILE_CLOSED;
-    if (srv_operation == SRV_OPERATION_RESTORE)
+    if (is_mariabackup_restore())
     {
       /* During mariadb-backup --backup, a table could be renamed,
       created and dropped, and we may be missing the file at this
@@ -1308,8 +1308,7 @@ static void fil_name_process(const char *name, ulint len, uint32_t space_id,
                              mfile_type_t ftype, lsn_t lsn, bool if_exists)
 {
 	ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
-	      || srv_operation == SRV_OPERATION_RESTORE
-	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+	      || is_mariabackup_restore_or_export());
 
 	/* We will also insert space=NULL into the map, so that
 	further checks can ensure that a FILE_MODIFY record was
@@ -1405,7 +1404,7 @@ same_space:
 			FILE_* record. */
 			ut_ad(space == NULL);
 
-			if (srv_operation == SRV_OPERATION_RESTORE && d
+			if (is_mariabackup_restore() && d
 			    && ftype == FILE_RENAME) {
 rename:
 				d->file_name = fname.name;
@@ -1418,7 +1417,7 @@ rename:
 			}
 
 			if (srv_force_recovery
-			    || srv_operation == SRV_OPERATION_RESTORE) {
+			    || is_mariabackup_restore()) {
 				/* Without innodb_force_recovery,
 				missing tablespaces will only be
 				reported in
@@ -1438,7 +1437,7 @@ rename:
 
 		case FIL_LOAD_DEFER:
 			if (d && ftype == FILE_RENAME
-			    && srv_operation == SRV_OPERATION_RESTORE) {
+			    && is_mariabackup_restore()) {
 				goto rename;
 			}
 			/* Skip the deferred spaces
@@ -4113,8 +4112,7 @@ ATTRIBUTE_COLD static void buf_pool_invalidate() noexcept
 void recv_sys_t::apply(bool last_batch)
 {
   ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED ||
-        srv_operation == SRV_OPERATION_RESTORE ||
-        srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+        is_mariabackup_restore_or_export());
 
   mysql_mutex_assert_owner(&mutex);
 
@@ -4147,9 +4145,7 @@ void recv_sys_t::apply(bool last_batch)
   if (!pages.empty())
   {
     recv_no_ibuf_operations = !last_batch ||
-      srv_operation == SRV_OPERATION_RESTORE ||
-      srv_operation == SRV_OPERATION_RESTORE_EXPORT;
-    ut_ad(!last_batch || lsn == scanned_lsn);
+      is_mariabackup_restore_or_export();
     progress_time= time(nullptr);
     report_progress();
 
@@ -4237,8 +4233,7 @@ void recv_sys_t::apply(bool last_batch)
     buf_pool_invalidate();
     log_sys.latch.wr_lock();
   }
-  else if (srv_operation == SRV_OPERATION_RESTORE ||
-           srv_operation == SRV_OPERATION_RESTORE_EXPORT)
+  else if (is_mariabackup_restore_or_export())
     buf_flush_sync_batch(lsn, false);
   else
     /* Instead of flushing, last_batch sorts the buf_pool.flush_list
@@ -4488,6 +4483,7 @@ recv_init_missing_space(dberr_t err, const recv_spaces_t::const_iterator& i)
 	default:
 		break;
 	case SRV_OPERATION_RESTORE:
+	case SRV_OPERATION_RESTORE_ROLLBACK_XA:
 	case SRV_OPERATION_RESTORE_EXPORT:
 		if (i->second.name.find("/#sql") == std::string::npos) {
 			sql_print_warning("InnoDB: Tablespace " UINT32PF
@@ -4820,8 +4816,7 @@ dberr_t recv_recovery_from_checkpoint_start()
 	dberr_t err = DB_SUCCESS;
 
 	ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
-	      || srv_operation == SRV_OPERATION_RESTORE
-	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+	      || is_mariabackup_restore_or_export());
 	ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
 	ut_ad(UT_LIST_GET_LEN(buf_pool.LRU) == 0);
 	ut_ad(UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0);
@@ -4989,8 +4984,8 @@ err_exit:
 	}
 	recv_sys.apply_log_recs = true;
 	recv_no_ibuf_operations = false;
-	ut_d(recv_no_log_write = srv_operation == SRV_OPERATION_RESTORE
-	     || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+	ut_d(recv_no_log_write = is_mariabackup_restore_or_export());
+
 	if (srv_operation == SRV_OPERATION_NORMAL) {
 		err = recv_rename_files();
 	}

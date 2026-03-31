@@ -15,7 +15,7 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10
 
 echo # xtrabackup prepare export;
 --disable_result_log
-exec $XTRABACKUP --prepare --export --target-dir=$targetdir;
+exec $XTRABACKUP --prepare --export --target-dir=$targetdir --skip-rollback-xa;
 --enable_result_log
 
 --source include/start_mysqld.inc

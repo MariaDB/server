@@ -2769,8 +2769,7 @@ ATTRIBUTE_COLD void buf_flush_page_cleaner_init() noexcept
 {
   ut_ad(!buf_page_cleaner_is_active);
   ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED ||
-        srv_operation == SRV_OPERATION_RESTORE ||
-        srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+        is_mariabackup_restore_or_export());
   buf_flush_async_lsn= 0;
   buf_flush_sync_lsn= 0;
   buf_page_cleaner_is_active= true;
