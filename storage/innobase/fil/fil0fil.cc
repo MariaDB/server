@@ -301,7 +301,6 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 
 	node->size = size;
 
-	node->init_size = size;
 	node->max_size = max_pages;
 
 	node->space = this;

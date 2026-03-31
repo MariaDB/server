@@ -46,14 +46,14 @@ CREATE TABLE `t2` (
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v1` AS SELECT
- 1 AS `a0`,
-  1 AS `b0` */;
+ NULL AS `a0`,
+ NULL AS `b0` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v2` AS SELECT
- 1 AS `a0`,
-  1 AS `b0` */;
+ NULL AS `a0`,
+ NULL AS `b0` */;
 SET character_set_client = @saved_cs_client;
 /*!50001 DROP VIEW IF EXISTS `v1`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
