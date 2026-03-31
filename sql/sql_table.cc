@@ -6239,6 +6239,13 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
     return TRUE;
   }
 
+  if (source->table_category != TABLE_CATEGORY_USER)
+  {
+    my_error(ER_WRONG_OBJECT, MYF(0), source->db.str, source->table_name.str,
+             "BASE TABLE");
+    return TRUE;
+  }
+
   /*
     First, lookup in tmp tables list for cases like "t join t"
     This also could happen if tl->open_type is OT_BASE_ONLY

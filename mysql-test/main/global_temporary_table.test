@@ -1223,4 +1223,14 @@ alter table t2 force;
 flush table t2;
 drop table t2;
 
+--echo # MDEV-37968 GTT: is allowed to us as mysql.help_topic, causing various assertion failures
+rename table mysql.help_topic to mysql.help_topic1;
+create global temporary table test.t1 (help_topic_id int unsigned,name char);
+rename table test.t1 to mysql.help_topic;
+--error ER_WRONG_OBJECT
+help '';
+
+drop table mysql.help_topic;
+rename table mysql.help_topic1 to mysql.help_topic;
+
 --disconnect con1
