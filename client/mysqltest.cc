@@ -6239,7 +6239,7 @@ void func_abs(Expression_value args[], int count, Expression_value *result)
   if (!args[0].is_numeric)
     die("abs() requires numeric argument");
 
-  result->set_int(abs(args[0].to_int()));
+  result->set_int(llabs(args[0].to_int()));
 }
 
 

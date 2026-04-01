@@ -1,4 +1,5 @@
 /* Copyright 2008-2025 Codership Oy <http://www.codership.com>
+   Copyright 2025-2026 MariaDB plc <http://www.mariadb.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -995,6 +996,11 @@ bool wsrep_max_ws_size_check(sys_var *self, THD* thd, set_var* var)
     my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
     return true;
   }
+  if (thd->wsrep_trx().active())
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP transaction is active", MYF(0));
+    return true;
+  }
   return false;
 }
 
@@ -1219,5 +1225,22 @@ bool wsrep_slave_threads_check (sys_var *self, THD* thd, set_var* var)
     return true;
   }
 
+  return false;
+}
+
+bool wsrep_max_ws_rows_check(sys_var *self, THD* thd, set_var* var)
+{
+  unsigned long long max_rows= (unsigned long long)var->save_result.ulonglong_value;
+
+  // Default 0 is always allowed
+  if (max_rows == 0)
+    return false;
+
+  // Note that we allow changing this even when WSREP is not on
+  if (thd->wsrep_trx().active())
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP transaction is active", MYF(0));
+    return true;
+  }
   return false;
 }
