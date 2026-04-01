@@ -5649,4 +5649,14 @@ select cast(make_set(3, cast(c1 as binary), 0) as char) from t1;
 cast(make_set(3, cast(c1 as binary), 0) as char)
 9067,0
 drop table t1;
+#
+# MDEV-39111 The query returns an incorrect value when using LPAD and REPLACE
+#
+create table t0 (c0 decimal(10,0));
+insert into t0 values (-1453243642), (0);
+select c0 from t0
+where   (lpad('0', c0 + 1, '1') or replace(cast(false as char), false, c0))
+and not (lpad('0', c0 + 1, '1') or replace(cast(false as char), false, c0));
+c0
+drop table t0;
 # End of 10.11 tests
