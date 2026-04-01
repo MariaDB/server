@@ -198,3 +198,12 @@ SET SESSION transaction_isolation='REPEATABLE-READ';
 -- tx_isolation: REPEATABLE-READ
 
 # End of 11.1 tests
+# Session tracking with database charset utf16
+CREATE DATABASE testdb CHARACTER SET utf16;
+# tracking info on once
+USE testdb;
+-- Tracker : SESSION_TRACK_SCHEMA
+-- testdb
+
+DROP DATABASE testdb;
+# End of 11.4 tests

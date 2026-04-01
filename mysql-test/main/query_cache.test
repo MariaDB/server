@@ -1903,4 +1903,55 @@ set global query_cache_type= @qcache;
 
 --echo # End of 10.10 tests
 
+--echo #
+--echo # MDEV-25365 Server hangs or crashes in Query_cache::move_by_type upon FLUSH QUERY CACHE
+--echo #
+set @qcache= @@global.query_cache_type;
+set global query_cache_type= on;
+set query_cache_type= on;
+
+create table t1 (a int);
+create table t2 (b int);
+create table t3 (c int);
+create table t4 (d int);
+create view v4 as select * from t4;
+create table t5 (e int);
+create view v5 as select * from t5;
+create table t6 (f int);
+create view v6 as select * from t6;
+create table t7 (g int);
+
+# in the next 3 queries the exact tables or views seem to be important
+# (but not the length of the query)
+
+select * from t1, t2;
+select * from t2;
+select t7.* from t3 t3a, t3 t3b, t3 t3c, t3 t3d, t3 t3e, v4 v4a, v4 v4b, v4 v4c, v4 v4d, v5, v6, t6, t7;
+
+# this most likely correlates with the first select,
+# to kick it out from the cache but to keep everything else
+
+alter table t1 force;
+
+# here the length of the query and the presence of (at least) two tables
+# seems to be important, while the exact tables are not
+# the comment compensates for the length
+
+select * from t5, t6 /* this query needs to be of a certain length, so i am trying to make the comment at least 175 symbols long. now i am out of ideas what to write, so.............................. */;
+
+# this is the query cache magic which causes the hang or crash
+
+flush QUERY cache;
+reset query cache;
+FLUSH query cache;
+
+# cleanup
+drop view v4;
+drop view v5;
+drop view v6;
+drop table t1, t2, t3, t4, t5, t6, t7;
+set global query_cache_type= @qcache;
+
+--echo # End of 10.11 tests
+
 --enable_ps2_protocol

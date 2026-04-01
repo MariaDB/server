@@ -8063,7 +8063,11 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
   order->direction= (asc ? ORDER::ORDER_ASC : ORDER::ORDER_DESC);
   order->used=0;
   order->counter_used= 0;
-  order->fast_field_copier_setup= 0; 
+  order->fast_field_copier_setup= 0;
+  if (thd->lex->clause_winfuncs.is_empty())
+    order->window_funcs.empty();
+  else if (order->window_funcs.copy(&thd->lex->clause_winfuncs, thd->mem_root))
+    DBUG_RETURN(1);
   list.insert(order, &order->next);
   DBUG_RETURN(0);
 }
@@ -8257,6 +8261,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     MDL_REQUEST_INIT(&ptr->mdl_request, MDL_key::TABLE, ptr->db.str,
                      ptr->table_name.str, mdl_type, MDL_TRANSACTION);
   }
+  else
+    ptr->mdl_request.type= MDL_NOT_INITIALIZED;
   DBUG_RETURN(ptr);
 }
 

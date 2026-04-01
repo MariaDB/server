@@ -4319,7 +4319,8 @@ my_bool Query_cache::move_by_type(uchar **border,
     DBUG_PRINT("qcache", ("block %p TABLE", block));
     if (*border == 0)
       break;
-    size_t len = block->length, used = block->used;
+    DBUG_ASSERT(*gap > 0);
+    const size_t len = block->length, used = block->used;
     Query_cache_block_table *list_root = block->table(0);
     Query_cache_block_table *tprev = list_root->prev,
 			    *tnext = list_root->next;
@@ -4352,9 +4353,8 @@ my_bool Query_cache::move_by_type(uchar **border,
     nlist_root->prev = tprev;
     tprev->next = nlist_root;
     DBUG_PRINT("qcache",
-	       ("list_root: %p tnext %p tprev %p tprev->next %p tnext->prev %p",
-		 list_root, tnext, tprev,
-		tprev->next,tnext->prev));
+               ("list_root: %p parent %p tnext %p tprev %p tprev->next %p tnext->prev %p",
+                list_root, tnext->parent, tnext, tprev, tprev->next, tnext->prev));
     /*
       Go through all queries that uses this table and change them to
       point to the new table object
@@ -4362,6 +4362,7 @@ my_bool Query_cache::move_by_type(uchar **border,
     Query_cache_table *new_block_table=new_block->table();
     for (;tnext != nlist_root; tnext=tnext->next)
       tnext->parent= new_block_table;
+    DBUG_PRINT("qcache", ("nlist_root: %p parent %p", nlist_root, new_block_table));
     *border += len;
     *before = new_block;
     /* Fix pointer to table name */
@@ -4376,11 +4377,12 @@ my_bool Query_cache::move_by_type(uchar **border,
   case Query_cache_block::QUERY:
   {
     HASH_SEARCH_STATE record_idx;
-    DBUG_PRINT("qcache", ("block %p QUERY", block));
+    DBUG_PRINT("qcache", ("block %p (%zu bytes) QUERY", block, block->length));
     if (*border == 0)
       break;
+    DBUG_ASSERT(*gap > 0);
     BLOCK_LOCK_WR(block);
-    size_t len = block->length, used = block->used;
+    const size_t len = block->length, used = block->used;
     TABLE_COUNTER_TYPE n_tables = block->n_tables;
     Query_cache_block	*prev = block->prev,
 			*next = block->next,
@@ -4396,9 +4398,14 @@ my_bool Query_cache::move_by_type(uchar **border,
     my_hash_first(&queries, key, key_length, &record_idx);
     block->query()->unlock_n_destroy();
     block->destroy();
+    const Query_cache_block_table *table_0= block->table(0),
+      *table_n= block->table(n_tables),
+      *ntable_0= new_block->table(0);
+    Query_cache_block_table *shifted, *table_j, *ntable_j;
+    const size_t move_size= (uchar *) table_n - (uchar *) table_0;
+    DBUG_ASSERT(move_size == n_tables * sizeof(Query_cache_block_table));
     // Move table of used tables
-    memmove((char*) new_block->table(0), (char*) block->table(0),
-	   ALIGN_SIZE(n_tables*sizeof(Query_cache_block_table)));
+    memmove((char*) ntable_0, (char*) table_0, ALIGN_SIZE(move_size));
     new_block->init(len);
     new_block->type=Query_cache_block::QUERY;
     new_block->used=used;
@@ -4407,33 +4414,44 @@ my_bool Query_cache::move_by_type(uchar **border,
     relink(block, new_block, next, prev, pnext, pprev);
     if (queries_blocks == block)
       queries_blocks = new_block;
-    Query_cache_block_table *beg_of_table_table= block->table(0),
-      *end_of_table_table= block->table(n_tables);
-    uchar *beg_of_new_table_table= (uchar*) new_block->table(0);
-      
+    longlong move_distance= (uchar *) ntable_0 - (uchar *) table_0;
+
+    DBUG_PRINT("qcache", ("move_distance: %lld", move_distance));
+
     for (TABLE_COUNTER_TYPE j=0; j < n_tables; j++)
     {
-      Query_cache_block_table *block_table = new_block->table(j);
+      table_j= block->table(j);
+      ntable_j= new_block->table(j);
+      DBUG_PRINT("qcache", ("Updating new_block->table(%u): %p; intra-block range: [%p, %p)",
+                            j, ntable_j, table_j, table_n));
 
-      // use aligment from beginning of table if 'next' is in same block
-      if ((beg_of_table_table <= block_table->next) &&
-	  (block_table->next < end_of_table_table))
-	((Query_cache_block_table *)(beg_of_new_table_table + 
-				     (((uchar*)block_table->next) -
-				      ((uchar*)beg_of_table_table))))->prev=
-	 block_table;
-      else
-	block_table->next->prev= block_table;
+      /*
+        Use aligment from beginning of table if 'next' is in same block:
+
+        If ntable_j->next is intra-block (inside old block->table() elements),
+        then shift it by memmove() distance.
+      */
+      if ((table_j <= ntable_j->next) && (ntable_j->next < table_n))
+      {
+        shifted= (Query_cache_block_table *) ((uchar *) ntable_j->next + move_distance);
+        DBUG_PRINT("qcache", ("Intra-block next:%p = %p", ntable_j->next, shifted));
+        ntable_j->next= shifted;
+      }
 
       // use aligment from beginning of table if 'prev' is in same block
-      if ((beg_of_table_table <= block_table->prev) &&
-	  (block_table->prev < end_of_table_table))
-	((Query_cache_block_table *)(beg_of_new_table_table + 
-				     (((uchar*)block_table->prev) -
-				      ((uchar*)beg_of_table_table))))->next=
-	  block_table;
-      else
-	block_table->prev->next = block_table;
+      if ((table_j <= ntable_j->prev) && (ntable_j->prev < table_n))
+      {
+        shifted= (Query_cache_block_table *) ((uchar *) ntable_j->prev + move_distance);
+        DBUG_PRINT("qcache", ("Intra-block prev:%p = %p", ntable_j->prev, shifted));
+        ntable_j->prev= shifted;
+      }
+
+      DBUG_PRINT("qcache", ("n:%p->p:%p = %p", ntable_j->next,
+                            ntable_j->next->prev, ntable_j));
+      DBUG_PRINT("qcache", ("p:%p->n:%p = %p", ntable_j->prev,
+                            ntable_j->prev->next, ntable_j));
+      ntable_j->next->prev= ntable_j;
+      ntable_j->prev->next= ntable_j;
     }
     DBUG_PRINT("qcache", ("after circle tt"));
     *border += len;
@@ -4475,11 +4493,12 @@ my_bool Query_cache::move_by_type(uchar **border,
                (int) block->type));
     if (*border == 0)
       break;
+    DBUG_ASSERT(*gap > 0);
     Query_cache_block *query_block= block->result()->parent();
     BLOCK_LOCK_WR(query_block);
     Query_cache_block *next= block->next, *prev= block->prev;
     Query_cache_block::block_type type= block->type;
-    size_t len = block->length, used = block->used;
+    const size_t len = block->length, used = block->used;
     Query_cache_block *pprev = block->pprev,
 		      *pnext = block->pnext,
 		      *new_block =(Query_cache_block*) *border;

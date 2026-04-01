@@ -437,3 +437,29 @@ DROP USER foo@localhost;
 CREATE USER foo@localhost IDENTIFIED VIA not_installed_plugin;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-37256: The permission check of LOAD INDEX INTO CACHE and CACHE INDEX is broken
+--echo #
+create table t1 (c int primary key);
+insert t1 values (1),(2);
+create user foo@localhost;
+--connect foo,localhost,foo
+--error ER_DBACCESS_DENIED_ERROR
+use test;
+--error ER_TABLEACCESS_DENIED_ERROR
+cache index test.t1 in default;
+--error ER_TABLEACCESS_DENIED_ERROR
+load index into cache test.t1 key (primary);
+--error ER_TABLEACCESS_DENIED_ERROR
+# Check that the error for non-existing and existing tables are the same
+cache index test.t2 in default;
+--error ER_TABLEACCESS_DENIED_ERROR
+load index into cache test.t2 key (i2);
+--disconnect foo
+--connection default
+# Cleanup
+drop table t1;
+drop user foo@localhost;
+
+--echo # End of 10.11 tests

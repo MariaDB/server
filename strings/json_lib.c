@@ -1306,9 +1306,13 @@ int json_skip_level_and_count(json_engine_t *j, int *n_items_skipped)
 int json_skip_array_and_count(json_engine_t *je, int *n_items)
 {
   json_engine_t j= *je;
+  int res;
   *n_items= 0;
 
-  return json_skip_level_and_count(&j, n_items); 
+  res= json_skip_level_and_count(&j, n_items);
+  if (res)
+    je->s.error= j.s.error;
+  return res;
 }
 
 
