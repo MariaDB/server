@@ -1,0 +1,41 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # Regression test: ensure authentication parsing handles invalid inputs safely
+--echo # and does not affect subsequent valid connections.
+--echo #
+
+--disable_warnings
+DROP USER IF EXISTS bounded_ok@localhost;
+--enable_warnings
+CREATE USER bounded_ok@localhost IDENTIFIED BY 'bounded_ok_pwd';
+
+--echo #
+--echo # Invalid authentication attempts must fail cleanly.
+--echo #
+
+--error ER_ACCESS_DENIED_ERROR
+connect (fail_unknown_user,localhost,bounded_missing,bounded_ok_pwd,test);
+
+--error ER_ACCESS_DENIED_ERROR
+connect (fail_wrong_password,localhost,bounded_ok,wrong_pwd,test);
+
+--error ER_ACCESS_DENIED_ERROR
+connect (fail_empty_username,localhost,,wrong_pwd,test);
+
+--echo #
+--echo # Valid authentication still works after failures.
+--echo #
+
+connect (ok_conn1,localhost,bounded_ok,bounded_ok_pwd,test);
+connection ok_conn1;
+SELECT 1;
+disconnect ok_conn1;
+
+connect (ok_conn2,localhost,bounded_ok,bounded_ok_pwd,test);
+connection ok_conn2;
+SELECT 1;
+disconnect ok_conn2;
+
+connection default;
+DROP USER bounded_ok@localhost;

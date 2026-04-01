@@ -1,0 +1,27 @@
+#
+# Regression test: ensure authentication parsing handles invalid inputs safely
+# and does not affect subsequent valid connections.
+#
+DROP USER IF EXISTS bounded_ok@localhost;
+CREATE USER bounded_ok@localhost IDENTIFIED BY 'bounded_ok_pwd';
+#
+# Invalid authentication attempts must fail cleanly.
+#
+ERROR 28000: Access denied for user 'bounded_missing'@'localhost' (using password: YES)
+ERROR 28000: Access denied for user 'bounded_ok'@'localhost' (using password: YES)
+ERROR 28000: Access denied for user ''@'localhost' (using password: YES)
+#
+# Valid authentication still works after failures.
+#
+connection ok_conn1;
+SELECT 1;
+1
+1
+disconnect ok_conn1;
+connection ok_conn2;
+SELECT 1;
+1
+1
+disconnect ok_conn2;
+connection default;
+DROP USER bounded_ok@localhost;
