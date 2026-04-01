@@ -5327,9 +5327,14 @@ longlong Item_copy_string::val_int()
 {
   DBUG_ASSERT(copied_in);
   int err;
-  return null_value ? 0 : str_value.charset()->strntoll(str_value.ptr(),
-                                                        str_value.length(), 10,
-                                                        (char**) 0, &err);
+  if (null_value)
+    return 0;
+  if (unsigned_flag)
+    return (longlong)
+        str_value.charset()->strntoull(str_value.ptr(), str_value.length(),
+                                       10, 0, &err);
+  return str_value.charset()->strntoll(str_value.ptr(), str_value.length(),
+                                       10, 0, &err);
 }
 
 
