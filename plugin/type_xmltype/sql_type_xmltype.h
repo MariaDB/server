@@ -101,6 +101,9 @@ public:
   { return &type_handler_xmltype; }
   void sql_type(String &str) const override;
   uint size_of() const  override { return sizeof(*this); }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const override;
 };
 
 

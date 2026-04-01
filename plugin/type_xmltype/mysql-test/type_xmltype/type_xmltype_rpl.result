@@ -1,0 +1,11 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (a xmltype);
+INSERT INTO t1 VALUES ('<a></a>');
+connection slave;
+SELECT * from t1;
+a
+<a></a>
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc
