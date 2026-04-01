@@ -2994,11 +2994,16 @@ void st_select_lex_unit::remember_my_cleanup()
 
 void st_select_lex_unit::cleanup_stranded_units()
 {
-  if (!stranded_clean_list)
-    return;
-
-  stranded_clean_list->cleanup();
+  st_select_lex_unit *cur= stranded_clean_list;
   stranded_clean_list= nullptr;
+
+  while (cur)
+  {
+    st_select_lex_unit *next= cur->stranded_clean_list;
+    cur->stranded_clean_list= nullptr;
+    cur->cleanup();
+    cur= next;
+  }
 }
 
 
