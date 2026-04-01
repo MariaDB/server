@@ -43,12 +43,11 @@ drop table t1, t3_ok, t8;
 --echo #
 --echo # Bug#33141966 - INCONSISTENT BEHAVIOR IF A COLUMN OF TYPE SERIAL IS SET AS GENERATED
 --echo #
+
 --error ER_PARSE_ERROR
 create table t1 (a int, b serial as (a+1));
 
---echo #
 --echo # End of 10.2 tests
---echo #
 
 --error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (a int, b real as (rand()), c real as (b) stored);
@@ -61,9 +60,7 @@ create table t1 (a int auto_increment primary key,
 create table t1 (a int auto_increment primary key,
                  b int as (a+1), c int as (b+1) unique);
 
---echo #
 --echo # End of 10.3 tests
---echo #
 
 --echo #
 --echo # MDEV-29155 CREATE OR REPLACE with self-referencing CHECK hangs forever, cannot be killed
@@ -94,6 +91,27 @@ create table t3 (c int default (select a from t1));
 create table t3 (c int, d int generated always as (select a from t1 limit 1));
 drop tables t1, t2, t3;
 
---echo #
 --echo # End of 10.4 tests
---echo #
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a varchar(64), b datetime as (str_to_date(a,'%m/%d/%Y')) stored);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a char(2), b int as (ascii(a)) stored);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a long, b datetime as (from_unixtime(a)) stored);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a long, b time as (sec_to_time(a)) stored);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a varchar(1024), b varchar(1024) as (aes_encrypt(aes_decrypt(a,'adf'),'adf')) stored);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a date, b varchar(100) as (monthname(a)) stored);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a date, b varchar(100) as (dayname(a)) stored);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a date, b varchar(100) as (date_format(a, '%W %a %M %b')) stored);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 ( a char, b varchar(32) as (current_user()) stored);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a char, b varchar(1024) as (uncompressed_length(compress(repeat(a,30)))) stored);
+
+--echo # End of 12.3 test

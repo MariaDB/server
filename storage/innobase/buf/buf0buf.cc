@@ -1391,7 +1391,6 @@ bool buf_pool_t::create() noexcept
   }
 
   MEM_UNDEFINED(memory_unaligned, size);
-  ut_dontdump(memory_unaligned, size, true);
   memory= memory_unaligned + alignment_waste;
   size_unaligned= size;
   size-= alignment_waste;
@@ -1406,7 +1405,7 @@ bool buf_pool_t::create() noexcept
 #ifdef UNIV_PFS_MEMORY
   PSI_MEMORY_CALL(memory_alloc)(mem_key_buf_buf_pool, actual_size, &owner);
 #endif
-#ifdef _WIN32
+#ifndef _AIX
   if (!my_virtual_mem_commit(memory, actual_size))
   {
     my_virtual_mem_release(memory_unaligned, size_unaligned);
@@ -1414,6 +1413,7 @@ bool buf_pool_t::create() noexcept
     memory_unaligned= nullptr;
     goto oom;
   }
+  ut_dontdump(memory_unaligned, size_unaligned, true);
 #else
   update_malloc_size(actual_size, 0);
 #endif
@@ -1893,12 +1893,6 @@ inline void buf_pool_t::shrunk(size_t size, size_t reduced) noexcept
   ut_ad(size + reduced == size_in_bytes);
   size_in_bytes_requested= size;
   size_in_bytes= size;
-# ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
-  /* Only page_guess() may read this memory, which after
-  my_virtual_mem_decommit() may be zeroed out or preserve its original
-  contents.  Try to catch any unintended reads outside page_guess(). */
-  MEM_UNDEFINED(memory + size, size_in_bytes_max - size);
-# else
   for (size_t n= page_hash.pad(page_hash.n_cells), i= 0; i < n;
        i+= page_hash.ELEMENTS_PER_LATCH + 1)
   {
@@ -1909,7 +1903,6 @@ inline void buf_pool_t::shrunk(size_t size, size_t reduced) noexcept
     guess before we invoke my_virtual_mem_decommit() below. */
     latch.unlock();
   }
-# endif
   my_virtual_mem_decommit(memory + size, reduced);
 #ifdef UNIV_PFS_MEMORY
   PSI_MEMORY_CALL(memory_free)(mem_key_buf_buf_pool, reduced, owner);
@@ -1978,6 +1971,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
       return;
     }
 
+    ut_dontdump(memory + old_size, size - old_size, true);
     size_in_bytes_requested= size;
     size_in_bytes= size;
 
@@ -2648,38 +2642,18 @@ uint32_t buf_pool_t::page_guess(buf_block_t *b, page_hash_latch &latch,
   /* On at least two Intel Xeon of different generation, it turns out
   that transactional_shared_lock_guard would perform worse here. */
   latch.lock_shared();
-#ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
-  /* shrunk() and my_virtual_mem_decommit() could retain the original
-  contents of the virtual memory range or zero it out immediately or
-  with a delay.  Any zeroing out may lead to a false positive for
-  b->page.id() == id but never for b->page.state().  At the time of
-  the shrunk() call, shrink() and buf_LRU_block_free_non_file_page()
-  should guarantee that b->page.state() is equal to
-  buf_page_t::NOT_USED (0) for all to-be-freed blocks. */
-#else
   /* shrunk() made the memory inaccessible. */
   if (UNIV_UNLIKELY(reinterpret_cast<char*>(b) >= memory + size_in_bytes))
   {
     latch.unlock_shared();
     return 0;
   }
-#endif
   /* This synchronizes with buf_page_t::init() */
   uint32_t state{b->page.zip.fix.load(std::memory_order_acquire)};
   const page_id_t block_id{b->page.id()};
-#ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
-  /* shrunk() may have invoked MEM_UNDEFINED() on this memory to be able
-  to catch any unintended access elsewhere in our code. */
-  MEM_MAKE_DEFINED(&block_id, sizeof block_id);
-#endif
 
   if (id == block_id)
   {
-#ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
-    /* shrunk() may have invoked MEM_UNDEFINED() on this memory to be able
-    to catch any unintended access elsewhere in our code. */
-    MEM_MAKE_DEFINED(&state, sizeof state);
-#endif
     /* Ignore guesses that point to read-fixed blocks.  We can only
     avoid a race condition by looking up the block via page_hash. */
     if ((state >= buf_page_t::FREED && state < buf_page_t::READ_FIX) ||
@@ -3752,15 +3726,15 @@ ATTRIBUTE_COLD void buf_pool_t::clear_hash_index() noexcept
 @retval nullptr if all freed */
 void buf_pool_t::assert_all_freed() noexcept
 {
-  mysql_mutex_lock(&mutex);
+  mysql_mutex_assert_owner(&mutex);
 
-    for (char *extent= memory,
-           *end= memory + block_descriptors_in_bytes(n_blocks);
-         extent < end; extent+= innodb_buffer_pool_extent_size)
-      for (buf_block_t *block= reinterpret_cast<buf_block_t*>(extent),
-             *extent_end= block +
-             pages_in_extent[srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN];
-           block < extent_end && reinterpret_cast<char*>(block) < end; block++)
+  for (char *extent= memory,
+         *end= memory + block_descriptors_in_bytes(n_blocks);
+       extent < end; extent+= innodb_buffer_pool_extent_size)
+    for (buf_block_t *block= reinterpret_cast<buf_block_t*>(extent),
+           *extent_end= block +
+           pages_in_extent[srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN];
+         block < extent_end && reinterpret_cast<char*>(block) < end; block++)
     {
       if (!block->page.in_file())
         continue;
@@ -3790,8 +3764,6 @@ void buf_pool_t::assert_all_freed() noexcept
       fixed_or_dirty:
         ib::fatal() << "Page " << block->page.id() << " still fixed or dirty";
     }
-
-  mysql_mutex_unlock(&mutex);
 }
 #endif /* UNIV_DEBUG */
 
@@ -3800,33 +3772,6 @@ void buf_refresh_io_stats() noexcept
 {
 	buf_pool.last_printout_time = time(NULL);
 	buf_pool.old_stat = buf_pool.stat;
-}
-
-/** Invalidate all pages in the buffer pool.
-All pages must be in a replaceable state (not modified or latched). */
-void buf_pool_invalidate() noexcept
-{
-	/* It is possible that a write batch that has been posted
-	earlier is still not complete. For buffer pool invalidation to
-	proceed we must ensure there is NO write activity happening. */
-
-	os_aio_wait_until_no_pending_writes(false);
-	ut_d(buf_pool.assert_all_freed());
-	mysql_mutex_lock(&buf_pool.mutex);
-
-	while (UT_LIST_GET_LEN(buf_pool.LRU)) {
-		buf_LRU_scan_and_free_block();
-	}
-
-	ut_ad(UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0);
-
-	buf_pool.freed_page_clock = 0;
-	buf_pool.LRU_old = NULL;
-	buf_pool.LRU_old_len = 0;
-	buf_pool.stat.init();
-
-	buf_refresh_io_stats();
-	mysql_mutex_unlock(&buf_pool.mutex);
 }
 
 #ifdef UNIV_DEBUG

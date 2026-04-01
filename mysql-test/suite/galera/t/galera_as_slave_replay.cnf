@@ -2,11 +2,10 @@
 
 [mysqld]
 binlog-format=row
+loose-galera-slave-replay=1
 
 [mysqld.1]
-wsrep_restart_slave=1
 wsrep-debug=1
 
 [mysqld.2]
-wsrep_restart_slave=1
 wsrep-debug=1

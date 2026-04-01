@@ -1481,7 +1481,7 @@ static bool check_master_connection(sys_var *self, THD *thd, set_var *var)
 static Sys_var_lexstring Sys_default_master_connection(
        "default_master_connection",
        "Master connection to use for all slave variables and slave commands",
-       SESSION_ONLY(default_master_connection), NO_CMD_LINE, DEFAULT(""),
+       SESSION_VAR(default_master_connection), CMD_LINE(REQUIRED_ARG), DEFAULT(""),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_master_connection));
 #endif
 
@@ -6698,9 +6698,10 @@ static Sys_var_ulong Sys_wsrep_mysql_replication_bundle(
 
 static Sys_var_mybool Sys_wsrep_slave_FK_checks(
        "wsrep_slave_FK_checks", "Should slave thread do "
-       "foreign key constraint checks",
+       "foreign key constraint checks (deprecated, has no effect)",
        GLOBAL_VAR(wsrep_slave_FK_checks), 
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0), ON_UPDATE(0), DEPRECATED(1203, "")); // since 10.6.26
 
 static Sys_var_mybool Sys_wsrep_slave_UK_checks(
        "wsrep_slave_UK_checks", "Should slave thread do "

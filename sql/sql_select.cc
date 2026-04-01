@@ -7886,7 +7886,8 @@ static void remember_if_eq_ref_key(JOIN *join, KEYUSE *use)
 */
 
 bool sort_and_filter_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse,
-                            bool skip_unprefixed_keyparts)
+                            bool skip_unprefixed_keyparts,
+                            bool is_splitting)
 {
   THD *thd= join->thd;
   KEYUSE key_end, *prev, *save_pos, *use;
@@ -7914,7 +7915,8 @@ bool sort_and_filter_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse,
   {
     if (!use->is_for_hash_join())
     {
-      if (!(use->used_tables & ~OUTER_REF_TABLE_BIT) && 
+      if (!is_splitting &&
+          !(use->used_tables & ~OUTER_REF_TABLE_BIT) &&
           use->optimize != KEY_OPTIMIZE_REF_OR_NULL)
         use->table->const_key_parts[use->key]|= use->keypart_map;
       if (use->keypart != FT_KEYPART)

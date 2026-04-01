@@ -990,7 +990,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 #endif /* EMBEDDED_LIBRARY */
   {
     if (prepare_for_replace(table, info.handle_duplicates, info.ignore))
-      DBUG_RETURN(1);
+      goto abort;
+    
     /**
       This is a simple check for the case when the table has a trigger
       that reads from it, or when the statement invokes a stored function
@@ -4620,7 +4621,7 @@ bool select_insert::prepare_eof(bool in_create_table)
     /* Don't convert the warning to error in case
     statistics updation fails */
     Abort_on_warning_instant_set save_abort_on_warning(thd, false);
-    error= table->file->extra(HA_EXTRA_END_ALTER_COPY);
+    error= table->file->extra(HA_EXTRA_END_COPY);
     if (error == HA_ERR_FOUND_DUPP_KEY)
     {
       uint key_nr= table->file->get_dup_key(error);
@@ -4778,7 +4779,7 @@ void select_insert::abort_result_set()
     finalize_replace(table, info.handle_duplicates, info.ignore);
     table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
-    if (table->file->extra(HA_EXTRA_ABORT_ALTER_COPY) == HA_ERR_ROLLBACK)
+    if (table->file->extra(HA_EXTRA_ABORT_COPY) == HA_ERR_ROLLBACK)
       thd->transaction_rollback_request= true;
     /*
       If at least one row has been inserted/modified and will stay in
@@ -5261,8 +5262,13 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
       !table->s->long_unique_table && !table->s->hlindexes())
   {
     table->file->ha_start_bulk_insert((ha_rows) 0);
-    if (thd->lex->duplicates == DUP_ERROR && !thd->lex->ignore)
-      table->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
+    if (thd->lex->duplicates == DUP_ERROR)
+    {
+      static_assert(int{HA_EXTRA_BEGIN_ALTER_IGNORE_COPY} ==
+                    int{HA_EXTRA_BEGIN_COPY} + 1, "");
+      table->file->extra(ha_extra_function(int{HA_EXTRA_BEGIN_COPY} +
+                                           thd->lex->ignore));
+    }
     table->file->extra(HA_EXTRA_WRITE_CACHE);
   }
   thd->abort_on_warning= !info.ignore && thd->is_strict_mode();

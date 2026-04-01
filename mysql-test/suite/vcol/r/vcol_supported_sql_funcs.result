@@ -2401,6 +2401,21 @@ a	b
 04/30/2004	2004-04-30 00:00:00
 drop table t1;
 set sql_warnings = 0;
+# STR_TO_DATE() STORED
+set sql_warnings = 1;
+create table t1 (a varchar(64), b datetime as (str_to_date(a,'%d %M %Y','en_US')) stored);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(64) DEFAULT NULL,
+  `b` datetime GENERATED ALWAYS AS (str_to_date(`a`,'%d %M %Y','en_US')) STORED
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert into t1 values ('04 April 2004',default);
+select * from t1;
+a	b
+04 April 2004	2004-04-04 00:00:00
+drop table t1;
+set sql_warnings = 0;
 # SUBDATE()
 set sql_warnings = 1;
 create table t1 (a datetime, b datetime as (subdate(a,interval 1 month)));

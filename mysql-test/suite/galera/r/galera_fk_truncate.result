@@ -1,5 +1,12 @@
 connection node_2;
 connection node_1;
+connection node_1;
+set global auto_increment_offset=1;
+set global auto_increment_increment=2;
+connection node_2;
+set global auto_increment_offset=2;
+set global auto_increment_increment=2;
+connection node_1;
 CREATE TABLE author (
 id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
 name VARCHAR(100) NOT NULL
@@ -45,3 +52,6 @@ id	name
 SELECT * FROM book;
 id	title	author_id
 DROP TABLE book, author;
+set global auto_increment_increment=2;
+connection node_2;
+set global auto_increment_offset=2;

@@ -1475,13 +1475,25 @@ int main(int argc,char *argv[])
       if (verbose)
 	tee_fprintf(stdout, "Reading history-file %s\n",histfile);
       read_history(histfile);
-      if (!(histfile_tmp= (char*) my_malloc(PSI_NOT_INSTRUMENTED,
-                                            strlen(histfile) + 5, MYF(MY_WME))))
       {
-	fprintf(stderr, "Couldn't allocate memory for temp histfile!\n");
-	exit(1);
+        /* Extra space for the suffix appended to histfile:
+             "."     - separator       (sizeof = 2, includes NUL)
+             + PID   - up to 20 digits (ULONG_MAX = 18446744073709551615)
+             + ".TMP"- extension       (sizeof = 5, includes NUL, doubles
+                                        as the string NUL terminator)
+           sizeof(".")  and sizeof(".TMP") each carry a NUL, so the sum
+           over-allocates by one byte, which is intentional. */
+        size_t hlen= strlen(histfile) + sizeof(".") + 20 + sizeof(".TMP");
+        if (!(histfile_tmp= (char*) my_malloc(PSI_NOT_INSTRUMENTED, hlen, MYF(MY_WME))))
+        {
+          fprintf(stderr, "Couldn't allocate memory for temp histfile!\n");
+          exit(1);
+        }
+        /* Include PID in name to avoid rename collision when concurrent sessions exit. */
+        /* pid_t is signed but getpid() always returns a non-negative value (POSIX). */
+        snprintf(histfile_tmp, hlen, "%s.%lu.TMP", histfile,
+                 (unsigned long) getpid());
       }
-      sprintf(histfile_tmp, "%s.TMP", histfile);
     }
   }
 
@@ -3654,7 +3666,6 @@ static int com_go(String *buffer, char *)
   timer= microsecond_interval_timer();
   executing_query= 1;
   error= mysql_real_query_for_lazy(buffer->ptr(),buffer->length());
-  report_progress_end();
 
 #ifdef HAVE_READLINE
   if (status.add_to_history) 
@@ -3692,6 +3703,7 @@ static int com_go(String *buffer, char *)
         goto end;
     }
 
+    report_progress_end();
     if (verbose >= 3 || !opt_silent)
       end_timer(timer, time_buff);
     else
@@ -3999,6 +4011,16 @@ print_as_hex(FILE *output_file, const char *str, size_t len, size_t total_bytes_
     tee_putc((int)' ', output_file);
 }
 
+static inline MYSQL_ROW fetch_row(MYSQL_RES *result)
+{
+  MYSQL_ROW row = mysql_fetch_row(result);
+#ifndef EMBEDDED_LIBRARY
+  if (last_progress_report_length) {
+    report_progress_end();
+  }
+#endif
+  return row;
+}
 
 static void
 print_table_data(MYSQL_RES *result)
@@ -4055,7 +4077,7 @@ print_table_data(MYSQL_RES *result)
     tee_puts((char*) separator.ptr(), PAGER);
   }
 
-  while ((cur= mysql_fetch_row(result)))
+  while ((cur = fetch_row(result)))
   {
     if (interrupted_query)
       break;
@@ -4227,7 +4249,7 @@ static void print_table_data_html(MYSQL_RES *result)
     }
     (void) tee_fputs("</TR>", PAGER);
   }
-  while ((cur = mysql_fetch_row(result)))
+  while ((cur = fetch_row(result)))
   {
     if (interrupted_query)
       break;
@@ -4263,7 +4285,7 @@ print_table_data_xml(MYSQL_RES *result)
             PAGER);
 
   fields = mysql_fetch_fields(result);
-  while ((cur = mysql_fetch_row(result)))
+  while ((cur = fetch_row(result)))
   {
     if (interrupted_query)
       break;
@@ -4307,7 +4329,7 @@ print_table_data_vertically(MYSQL_RES *result)
   }
 
   mysql_field_seek(result,0);
-  for (uint row_count=1; (cur= mysql_fetch_row(result)); row_count++)
+  for (uint row_count=1; (cur = fetch_row(result)); row_count++)
   {
     if (interrupted_query)
       break;
@@ -4508,7 +4530,7 @@ print_tab_data(MYSQL_RES *result)
     }
     (void) tee_fputs("\n", PAGER);
   }
-  while ((cur = mysql_fetch_row(result)))
+  while ((cur = fetch_row(result)))
   {
     lengths=mysql_fetch_lengths(result);
     field= mysql_fetch_fields(result);

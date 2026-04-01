@@ -131,7 +131,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t	const	f2	NULL	NULL	NULL	0	Impossible ON condition
 1	PRIMARY	<derived2>	const	key0,key1	NULL	NULL	NULL	0	Impossible ON condition
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t2	ALL	PRIMARY	NULL	NULL	NULL	3	Using temporary; Using filesort
+2	DERIVED	t2	index	PRIMARY	PRIMARY	4	NULL	3	
 set statement optimizer_switch='split_materialized=off' for explain select t.f2
 from t1
 left join
@@ -998,7 +998,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	PRIMARY	t2	ref	a	a	5	test.t1.a	1	Using where; Using index
 1	PRIMARY	<derived2>	ref	key0	key0	5	func	1	Using where
-2	DERIVED	t10	index	grp_id	grp_id	5	NULL	10000	Using index; Using temporary; Using filesort
+2	DERIVED	t10	index	grp_id	grp_id	5	NULL	10000	Using index
 drop table t1,t2, t10;
 drop view v1;
 #
@@ -1258,7 +1258,7 @@ EXPLAIN
                     "loops": 1,
                     "rows": 1,
                     "cost": "REPLACED",
-                    "filtered": 100,
+                    "filtered": 7.142857075,
                     "index_condition": "t3.a < 1 and t3.b <=> t1.b and t3.b <=> t2.b and t3.a = t2.a"
                   }
                 }
@@ -1376,4 +1376,36 @@ a	b	c	d	amount	a	b	name	a	b	description
 0	NULL	0	NULL	10	0	NULL	a	0	NULL	gold
 drop table t1, t2, t3;
 # End of 11.4 tests
+#
+# MDEV-38877: Unnecessary filesort on derived table materialization
+#
+CREATE TABLE t1 (
+groups_20 int NOT NULL,
+groups_20_2 int NOT NULL,
+b int,
+PRIMARY KEY (groups_20, groups_20_2)
+);
+CREATE TABLE t2 (a int, b int, index(a));
+INSERT INTO t1 SELECT seq/1000, seq+1, seq from seq_1_to_10000;
+INSERT INTO t2 SELECT seq, seq from seq_1_to_1000;
+ANALYZE TABLE t1, t2;
+EXPLAIN
+SELECT
+a,
+SUM(b)
+FROM (
+SELECT
+groups_20
+FROM t1
+GROUP BY groups_20
+HAVING COUNT(*) != 1000
+) DT
+JOIN t2 ON a = groups_20
+GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	a	NULL	NULL	NULL	1000	Using where; Using temporary; Using filesort
+1	PRIMARY	<derived2>	ref	key0	key0	4	test.t2.a	1	
+2	DERIVED	t1	index	PRIMARY	PRIMARY	8	NULL	10000	Using index
+DROP TABLE t1, t2;
+# End of 12.3 tests
 SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;
