@@ -956,15 +956,13 @@ log_t::append_prepare<log_t::ARCHIVED_MMAP>(size_t size, bool ex) noexcept
   ut_ad(is_mmap_writeable());
   ut_ad(archive);
   ut_ad(archived_lsn);
-  static_assert(ARCHIVE_FILE_SIZE_MAX - START_OFFSET < 1ULL << 32,
-                "replace buf_size with capacity() below");
 
   uint64_t l, lsn;
   static_assert(WRITE_TO_BUF == WRITE_BACKOFF << 1, "");
   while (UNIV_UNLIKELY((l= write_lsn_offset.fetch_add(size + WRITE_TO_BUF) &
-                        (WRITE_TO_BUF - 1)) + size +
-                       (lsn= base_lsn.load(std::memory_order_relaxed)) >=
-                       first_lsn + buf_size) &&
+                        (WRITE_TO_BUF - 1)) +
+                       (lsn= base_lsn.load(std::memory_order_relaxed)) +
+                       size + START_OFFSET >= first_lsn + file_size) &&
          !resize_buf && !checkpoint_buf)
   {
     /* The following is inlined here instead of being part of
