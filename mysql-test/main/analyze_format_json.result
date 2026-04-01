@@ -1415,3 +1415,72 @@ ANALYZE
   }
 }
 drop table t1, t2;
+#
+# MDEV#37904: Valgrind warning - uninitialized value in tag_to_json()
+#
+CREATE TABLE t1 (a VARCHAR(8)) DEFAULT CHARSET latin7;
+INSERT INTO t1 VALUES ('x'),('xx');
+CREATE TABLE t2 (b varchar(8)) DEFAULT CHARSET latin7;
+INSERT INTO t2 VALUES ('foo'),('bar');
+ANALYZE FORMAT=JSON
+SELECT b FROM t2 WHERE 'x' IN (SELECT a FROM t1);
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 1,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 50,
+          "r_filtered": 100,
+          "attached_condition": "t1.a = 'x'",
+          "first_match": ""
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 1,
+            "r_loops": 1,
+            "rows": 2,
+            "r_rows": 2,
+            "cost": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 100,
+            "r_filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "120",
+          "join_type": "BNL",
+          "r_loops": 1,
+          "r_filtered": 100,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 2
+        }
+      }
+    ]
+  }
+}
+DROP TABLE t1, t2;
+End of 10.11 tests

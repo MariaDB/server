@@ -23,3 +23,27 @@ SELECT * FROM t;
 DROP TABLE t;
 rmdir $targetdir;
 
+--echo #
+--echo # MDEV-38562: mariabackup exits with success (0) despite "No space left on device" errors
+--echo #
+
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
+
+--echo # Simulate close() failure (Disk Full / ENOSPC)
+--error 1
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --dbug=+d,my_close_fail >$MYSQLTEST_VARDIR/tmp/backup.log 2>&1
+
+--echo # Verify that "completed OK!" is NOT in the log
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/backup.log
+--let SEARCH_PATTERN=completed OK!
+--source include/search_pattern_in_file.inc
+
+--echo # Verify that "FATAL ERROR" is in the log
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/backup.log
+--let SEARCH_PATTERN=FATAL ERROR
+--source include/search_pattern_in_file.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/backup.log
+rmdir $targetdir;
+
+--echo # End of 10.6 tests

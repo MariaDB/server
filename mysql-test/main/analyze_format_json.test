@@ -291,3 +291,19 @@ delete from t1
 where t1.pk > (select max(a) from t2 where t2.pk+1 = t1.pk+1 ) - 10;
 
 drop table t1, t2;
+
+--echo #
+--echo # MDEV#37904: Valgrind warning - uninitialized value in tag_to_json()
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(8)) DEFAULT CHARSET latin7;
+INSERT INTO t1 VALUES ('x'),('xx');
+CREATE TABLE t2 (b varchar(8)) DEFAULT CHARSET latin7;
+INSERT INTO t2 VALUES ('foo'),('bar');
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON
+  SELECT b FROM t2 WHERE 'x' IN (SELECT a FROM t1);
+
+DROP TABLE t1, t2;
+
+--echo End of 10.11 tests
