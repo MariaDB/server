@@ -4396,10 +4396,15 @@ public:
   virtual int restart_rnd_next(uchar *buf)
     { return HA_ERR_WRONG_COMMAND; }
 
+  ha_rows ha_records_in_range(uint inx, const key_range *min_key,
+                              const key_range *max_key,
+                              page_range *res);
+protected:
   virtual ha_rows records_in_range(uint inx, const key_range *min_key,
                                    const key_range *max_key,
                                    page_range *res)
     { return (ha_rows) 10; }
+public:
   /*
     If HA_PRIMARY_KEY_REQUIRED_FOR_POSITION is set, then it sets ref
     (reference to the row, aka position, with the primary key given in

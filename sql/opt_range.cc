@@ -7170,7 +7170,7 @@ static double ror_scan_selectivity(const ROR_INTERSECT_INFO *info,
       min_range.length= max_range.length= (uint) (key_ptr - key_val);
       min_range.keypart_map= max_range.keypart_map= keypart_map;
       records= (info->param->table->file->
-                records_in_range(scan->keynr, &min_range, &max_range, &pages));
+                ha_records_in_range(scan->keynr, &min_range, &max_range, &pages));
       if (cur_covered)
       {
         /* uncovered -> covered */

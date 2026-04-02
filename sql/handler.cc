@@ -9471,3 +9471,12 @@ void handler::set_optimizer_costs(THD *thd)
   optimizer_where_cost=      thd->variables.optimizer_where_cost;
   optimizer_scan_setup_cost= thd->variables.optimizer_scan_setup_cost;
 }
+
+ha_rows handler::ha_records_in_range(uint inx, const key_range *min_key,
+                                            const key_range *max_key,
+                                            page_range *res)
+{
+  fast_increment_statistics(&SSV::ha_records_in_range_count);
+  return records_in_range(inx, min_key, max_key, res);
+}
+
