@@ -27,6 +27,7 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_class.h"
+#include <mysql/service_thd_fk_cascade.h>
 #include "sql_cache.h"                          // query_cache_abort
 #include "sql_base.h"                           // close_thread_tables
 #include "sql_time.h"                         // date_time_format_copy
@@ -92,6 +93,420 @@ extern "C" const uchar *get_var_key(const void *entry_, size_t *length,
   *length= entry->name.length;
   return reinterpret_cast<const uchar *>(entry->name.str);
 }
+
+void THD::binlog_mark_fk_cascade_events()
+{
+  binlog_fk_cascade_events= true;
+
+  if (binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr())
+  {
+    /*
+      Also set the  NO_FOREIGN_KEY_CHECKS_F. An older slave does
+      not understand FK_CASCADE_EVENTS_F, but it does understand
+      NO_FOREIGN_KEY_CHECKS_F, so setting it makes such a slave disable foreign
+      key checks for these events.
+    */
+    if (Rows_log_event *pending= binlog_get_pending_rows_event(
+          cache_mngr, use_trans_cache(this, false)))
+      pending->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F |
+                         Rows_log_event::NO_FOREIGN_KEY_CHECKS_F);
+
+    if (Rows_log_event *pending= binlog_get_pending_rows_event(
+          cache_mngr, use_trans_cache(this, true)))
+      pending->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F |
+                         Rows_log_event::NO_FOREIGN_KEY_CHECKS_F);
+  }
+}
+
+/*
+  Queue an FK-cascade row change reported by a storage engine, for binlogging.
+  The record image(s) are copied so the caller may reuse or free its buffers
+  once this returns. Marking the current statement as carrying cascade events
+  here  ensures the originating statement's own pending event is flagged too.
+*/
+void THD::binlog_report_cascade_row(TABLE *table, bool is_delete,
+                                    const uchar *before_record,
+                                    const uchar *after_record)
+{
+  DBUG_ASSERT(table);
+  DBUG_ASSERT(before_record);
+  DBUG_ASSERT(is_delete == (after_record == NULL));
+
+  const size_t len= table->s->reclength;
+  uchar *before_copy= (uchar *) my_malloc(PSI_INSTRUMENT_ME, len, MYF(MY_WME));
+  uchar *after_copy= NULL;
+  if (!is_delete)
+    after_copy= (uchar *) my_malloc(PSI_INSTRUMENT_ME, len, MYF(MY_WME));
+
+  if (!before_copy || (!is_delete && !after_copy))
+  {
+    my_free(before_copy);
+    my_free(after_copy);
+    return;
+  }
+
+  memcpy(before_copy, before_record, len);
+  if (!is_delete)
+    memcpy(after_copy, after_record, len);
+
+  Cascade_binlog_row_event ev;
+  ev.table= table;
+  ev.before_record= before_copy;
+  ev.after_record= after_copy;
+  ev.is_delete= is_delete;
+
+  if (pending_cascade_binlog_row_events.append(ev))
+  {
+    my_free(before_copy);
+    my_free(after_copy);
+    return;
+  }
+
+  /* Flag the originating statement's own (already pending) row event. */
+  binlog_mark_fk_cascade_events();
+}
+
+/*
+  Flush the queued FK-cascade row changes into the binary log, in the order the
+  cascade operations executed. Deferring here keeps the root statement's own
+  events ahead of the derived ones, and keeps interleaved cascade operations
+  in execution order. 
+  Events written here are additionally marked FK_CASCADE_DERIVED_F.
+*/
+void THD::flush_pending_cascade_binlog()
+{
+  if (pending_cascade_binlog_row_events.elements() == 0)
+    return;
+
+  binlog_mark_fk_cascade_events();
+  binlog_begin_fk_cascade_derived();
+
+  for (size_t i= 0; i < pending_cascade_binlog_row_events.elements(); i++)
+  {
+    Cascade_binlog_row_event &ev= pending_cascade_binlog_row_events.at(i);
+    TABLE *table= ev.table;
+    if (!table || !table->file ||
+        table->s->tmp_table != NO_TMP_TABLE)
+    {
+      my_free(ev.before_record);
+      my_free(ev.after_record);
+      continue;
+    }
+
+    MY_BITMAP *old_read_set= table->read_set;
+    MY_BITMAP *old_write_set= table->write_set;
+    MY_BITMAP *old_rpl_write_set= table->rpl_write_set;
+
+    table->column_bitmaps_set_no_signal(&table->s->all_set,
+                                        &table->s->all_set);
+    if (table->rpl_write_set == NULL)
+      table->rpl_write_set= &table->s->all_set;
+
+    Log_func *log_func= ev.is_delete
+      ? Delete_rows_log_event::binlog_row_logging_function
+      : Update_rows_log_event::binlog_row_logging_function;
+    table->file->binlog_log_row(ev.before_record, ev.after_record, log_func);
+
+    table->column_bitmaps_set_no_signal(old_read_set, old_write_set);
+    table->rpl_write_set= old_rpl_write_set;
+
+    my_free(ev.before_record);
+    my_free(ev.after_record);
+  }
+
+  binlog_end_fk_cascade_derived();
+  pending_cascade_binlog_row_events.clear();
+}
+
+/*
+  Drop the queued FK-cascade row changes without logging them.
+*/
+void THD::discard_pending_cascade_binlog()
+{
+  for (size_t i= 0; i < pending_cascade_binlog_row_events.elements(); i++)
+  {
+    Cascade_binlog_row_event &ev= pending_cascade_binlog_row_events.at(i);
+    my_free(ev.before_record);
+    my_free(ev.after_record);
+  }
+  pending_cascade_binlog_row_events.clear();
+}
+
+/*
+  Server-side handling of FK cascade actions reported by a storage engine.
+  See include/mysql/service_thd_fk_cascade.h for the contract.
+*/
+
+void THD::fk_cascade_free_images()
+{
+  my_free(fk_cascade_before_image);
+  my_free(fk_cascade_after_image);
+  fk_cascade_before_image= NULL;
+  fk_cascade_after_image= NULL;
+}
+
+
+/*
+  Is this child table's row image safe to reconstruct without cascade context?
+
+  A table with no primary key and a virtual column participating in a key
+  cannot be identified unambiguously from a full row image, so we decline to
+  report cascades on it rather than produce something a consumer would apply
+  to the wrong row.
+*/
+static bool fk_cascade_table_eligible(const TABLE *table)
+{
+  if (!table)
+    return false;
+
+  if (table->s->primary_key != MAX_KEY)
+    return true;
+
+  if (Field **vf= table->vfield)
+    for (; *vf; vf++)
+      if ((*vf)->flags & PART_KEY_FLAG)
+        return false;
+
+  return true;
+}
+
+
+/*
+  Checking if FK cascade events may be captured
+
+  Eligibility is a property of one table, but the event flag that stops the
+  replica re-running the cascade is a property of the whole statement: the
+  first captured child row calls binlog_mark_fk_cascade_events(), and from
+  then on every row event of the statement carries FK_CASCADE_EVENTS_F |
+  NO_FOREIGN_KEY_CHECKS_F. The replica therefore stops cascading for *all*
+  children of that statement, not just the captured one.
+
+  Deciding per child would then let an eligible child switch off the replica's
+  cascade on behalf of an ineligible sibling whose rows were never logged: the
+  replica neither receives those rows nor recreates them, and silently keeps
+  the orphans. The decision has to be all-or-nothing across the statement.
+
+  The FK prelocking set is what makes that decidable up front.
+  prepare_fk_prelocking_list() has already enumerated, transitively, every
+  child table this statement can write through a cascade, and opened each one
+  (children needed only for read-only FK checks are OPEN_STUB and never reach
+  thd->open_tables). If any of them is ineligible we decline the feature for
+  the whole statement and let the classic replica-side cascade handle all of
+  it.
+
+*/
+static bool fk_cascade_stmt_capturable(THD *thd)
+{
+  if (thd->fk_cascade_stmt_query_id == thd->query_id)
+    return thd->fk_cascade_stmt_ok;
+
+  bool capturable= true;
+  for (TABLE *t= thd->open_tables; t; t= t->next)
+  {
+    TABLE_LIST *tl= t->pos_in_table_list;
+    if (tl && tl->prelocking_placeholder == TABLE_LIST::PRELOCK_FK &&
+        tl->lock_type >= TL_FIRST_WRITE &&
+        !fk_cascade_table_eligible(t))
+    {
+      capturable= false;
+      break;
+    }
+  }
+
+  thd->fk_cascade_stmt_query_id= thd->query_id;
+  thd->fk_cascade_stmt_ok= capturable;
+  return capturable;
+}
+
+
+/*
+  Switch the table's column bitmaps to the full row image the cascade
+  consumers need, saving the statement's own bitmaps for restoring afterwards.
+  Virtual columns are excluded: they are recomputed rather than stored.
+
+  This is server policy, not engine policy, which is why it lives here and not
+  in the engine performing the cascade.
+*/
+static void fk_cascade_begin_full_row_image(TABLE *table,
+                                            MY_BITMAP **saved_read,
+                                            MY_BITMAP **saved_write,
+                                            MY_BITMAP **saved_rpl_write)
+{
+  *saved_read=      table->read_set;
+  *saved_write=     table->write_set;
+  *saved_rpl_write= table->rpl_write_set;
+
+  bitmap_set_all(&table->tmp_set);
+  if (Field **vf= table->vfield)
+    for (; *vf; vf++)
+      bitmap_clear_bit(&table->tmp_set, (*vf)->field_index);
+
+  table->column_bitmaps_set_no_signal(&table->tmp_set, &table->tmp_set);
+  if (table->rpl_write_set == NULL)
+    table->rpl_write_set= &table->tmp_set;
+}
+
+
+static void fk_cascade_end_full_row_image(TABLE *table,
+                                          MY_BITMAP *saved_read,
+                                          MY_BITMAP *saved_write,
+                                          MY_BITMAP *saved_rpl_write)
+{
+  table->column_bitmaps_set_no_signal(saved_read, saved_write);
+  table->rpl_write_set= saved_rpl_write;
+}
+
+
+extern "C"
+int thd_fk_cascade_wanted(THD *thd, TABLE *table)
+{
+  if (!thd || !table || table->in_use != thd)
+    return 0;
+
+  const bool emulate_binlog= WSREP_EMULATE_BINLOG(thd);
+
+  /*
+    Consumer 1: binary logging of the cascaded rows.
+
+    This is the only consumer wired up so far. The remaining ones below are
+    the point of routing cascades through the server at all: each is a
+    separate known gap in how FK cascades behave, and each becomes an arm of
+    this same predicate plus an arm of thd_fk_cascade_row() rather than new
+    machinery inside every engine that cascades.
+
+    Eligibility is checked twice over: this child must be eligible, and so
+    must every other child the statement can cascade into -- see
+    fk_cascade_stmt_capturable() for why a per-child answer is not safe.
+
+    Note that the session variable is required even under Galera: emulating
+    the binary log makes the *format* and *eligibility* conditions moot (a
+    writeset is always row-based, and is not subject to the row-image caveat
+    fk_cascade_table_eligible() guards against), but it does not by itself
+    turn the feature on. Widening this to "emulate_binlog is enough" enables
+    cascade capture for every Galera session and breaks cascade replication.
+  */
+  if (thd->variables.rpl_use_binlog_events_for_fk_cascade &&
+      (emulate_binlog || thd->is_current_stmt_binlog_format_row()) &&
+      (emulate_binlog || (fk_cascade_table_eligible(table) &&
+                          fk_cascade_stmt_capturable(thd))) &&
+      table->file->prepare_for_row_logging())
+    return 1;
+
+  /*
+    Consumer 2: triggers on the child table (not wired up).
+
+    Cannot simply be answered here: firing a trigger runs a stored program,
+    which may execute arbitrary SQL and re-enter the engine, so it cannot run
+    at the point the engine reports the cascade. It would have to be queued
+    and run at statement end, and BEFORE triggers -- which may modify or skip
+    the row -- cannot be honoured at all once the engine has already performed
+    the cascade.
+
+      if (table->triggers)
+        return 1;
+
+    Consumer 3: CHECK constraints on the child table (not wired up).
+
+    Unlike triggers this one is safe to evaluate inline, since
+    TABLE::verify_constraints() only evaluates expressions over record[0] and
+    touches no other table.
+
+      if (table->check_constraints)
+        return 1;
+  */
+
+  return 0;
+}
+
+
+extern "C"
+int thd_fk_cascade_capture(THD *thd, TABLE *table, int which)
+{
+  if (!thd || !table)
+    return 1;
+
+  const size_t len= table->s->reclength;
+  uchar **slot= (which == FK_CASCADE_IMAGE_BEFORE ?
+                 &thd->fk_cascade_before_image : &thd->fk_cascade_after_image);
+
+  if (!*slot && !(*slot= (uchar *) my_malloc(PSI_INSTRUMENT_ME, len,
+                                             MYF(MY_WME))))
+    return 1;
+
+  MY_BITMAP *saved_read, *saved_write, *saved_rpl_write;
+  fk_cascade_begin_full_row_image(table, &saved_read, &saved_write,
+                                  &saved_rpl_write);
+
+  const int rc= table->file->fk_cascade_fetch_row(*slot);
+
+  fk_cascade_end_full_row_image(table, saved_read, saved_write,
+                                saved_rpl_write);
+
+  if (rc)
+  {
+    my_free(*slot);
+    *slot= NULL;
+  }
+  return rc;
+}
+
+
+extern "C"
+void thd_fk_cascade_row(THD *thd, TABLE *table, int action)
+{
+  if (!thd || !table || !thd->fk_cascade_before_image)
+  {
+    if (thd)
+      thd->fk_cascade_free_images();
+    return;
+  }
+
+  const bool is_delete= (action == FK_CASCADE_ACTION_DELETE);
+
+  if (!is_delete && !thd->fk_cascade_after_image)
+  {
+    /* An update we could not capture the result of: report nothing. */
+    thd->fk_cascade_free_images();
+    return;
+  }
+
+  /*
+    Dispatch to each interested consumer. This is the whole point of the
+    arrangement: the decisions live here, in one place, rather than in every
+    storage engine that performs cascades internally.
+  */
+
+  /* Consumer 1: binary logging. Deferred -- queued now, written to the
+  binary log at statement end, so that the cascaded rows follow the
+  originating statement's own row events and keep their execution order. */
+  if (thd->variables.rpl_use_binlog_events_for_fk_cascade ||
+      WSREP_EMULATE_BINLOG(thd))
+    thd->binlog_report_cascade_row(table, is_delete,
+                                   thd->fk_cascade_before_image,
+                                   thd->fk_cascade_after_image);
+
+  /*
+    Consumer 2: triggers (not wired up). Would queue TRG_EVENT_DELETE /
+    TRG_EVENT_UPDATE for the child row, to be run at statement end alongside
+    the binlog flush -- process_triggers() cannot run here, see
+    thd_fk_cascade_wanted().
+
+    Consumer 3: CHECK constraints (not wired up). Would run inline, by
+    pointing the table's record[0] at the after-image and calling
+    table->verify_constraints().
+  */
+
+  thd->fk_cascade_free_images();
+}
+
+
+extern "C"
+void thd_fk_cascade_abort(THD *thd)
+{
+  if (thd)
+    thd->fk_cascade_free_images();
+}
+
 
 extern "C" void free_user_var(void *entry_)
 {
@@ -908,6 +1323,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   mysys_var=0;
   binlog_evt_union.do_union= FALSE;
   binlog_table_maps= FALSE;
+  binlog_fk_cascade_events= FALSE;
+  binlog_fk_cascade_derived= FALSE;
   binlog_xid= 0;
   enable_slow_log= 0;
   durability_property= HA_REGULAR_DURABILITY;
@@ -1907,6 +2324,10 @@ THD::~THD()
   THD *orig_thd= current_thd;
   THD_CHECK_SENTRY(this);
   DBUG_ENTER("~THD()");
+  /* Backstop: free any FK-cascade row buffers not drained by commit/rollback */
+  discard_pending_cascade_binlog();
+  /* Likewise for an in-flight cascade capture the engine never reported */
+  fk_cascade_free_images();
   /* Make sure threads are not available via server_threads.  */
   assert_not_linked();
   if (m_psi)

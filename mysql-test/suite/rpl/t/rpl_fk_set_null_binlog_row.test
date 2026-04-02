@@ -1,0 +1,105 @@
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/have_binlog_format_row.inc
+
+--source include/master-slave.inc
+
+SET @old_binlog_format := @@session.binlog_format;
+SET @old_default_storage_engine := @@session.default_storage_engine;
+SET @old_rpl_use_binlog_events_for_fk_cascade := @@session.rpl_use_binlog_events_for_fk_cascade;
+
+SET SESSION default_storage_engine=InnoDB;
+SET SESSION binlog_format=ROW;
+
+# Phase A: feature OFF (no explicit FK SET NULL row events in binlog)
+SET SESSION rpl_use_binlog_events_for_fk_cascade=0;
+
+CREATE TABLE p (
+  id INT PRIMARY KEY,
+  v INT
+) ENGINE=InnoDB;
+
+CREATE TABLE c (
+  id INT PRIMARY KEY,
+  pid INT NULL,
+  v INT,
+  KEY(pid),
+  CONSTRAINT fk FOREIGN KEY (pid) REFERENCES p(id)
+    ON DELETE SET NULL
+    ON UPDATE SET NULL
+) ENGINE=InnoDB;
+
+INSERT INTO p VALUES (1, 10);
+INSERT INTO c VALUES (100, 1, 20);
+
+UPDATE p SET id=2 WHERE id=1;
+
+sync_slave_with_master;
+SELECT pid FROM c ORDER BY id;
+
+connection master;
+
+--let $binlog = query_get_value(SHOW MASTER STATUS, File, 1)
+--let $datadir = `SELECT @@datadir`
+
+FLUSH BINARY LOGS;
+
+--exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog > $MYSQLTEST_VARDIR/tmp/fk_set_null_binlog_row_off.sql
+
+--let SEARCH_PATTERN= ### UPDATE `test`.`c`
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/fk_set_null_binlog_row_off.sql
+--let SEARCH_ABORT= FOUND
+--source include/search_pattern_in_file.inc
+
+DROP TABLE c, p;
+
+# Phase B: feature ON (explicit FK SET NULL row events in binlog)
+SET SESSION rpl_use_binlog_events_for_fk_cascade=1;
+
+CREATE TABLE p (
+  id INT PRIMARY KEY,
+  v INT
+) ENGINE=InnoDB;
+
+CREATE TABLE c (
+  id INT PRIMARY KEY,
+  pid INT NULL,
+  v INT,
+  KEY(pid),
+  CONSTRAINT fk FOREIGN KEY (pid) REFERENCES p(id)
+    ON DELETE SET NULL
+    ON UPDATE SET NULL
+) ENGINE=InnoDB;
+
+INSERT INTO p VALUES (1, 10);
+INSERT INTO c VALUES (100, 1, 20);
+
+UPDATE p SET id=2 WHERE id=1;
+
+sync_slave_with_master;
+SELECT pid FROM c ORDER BY id;
+
+connection master;
+
+--let $binlog = query_get_value(SHOW MASTER STATUS, File, 1)
+--let $datadir = `SELECT @@datadir`
+
+FLUSH BINARY LOGS;
+
+--exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog > $MYSQLTEST_VARDIR/tmp/fk_set_null_binlog_row_on.sql
+
+--let SEARCH_PATTERN= ### UPDATE `test`.`c`
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/fk_set_null_binlog_row_on.sql
+--let SEARCH_ABORT= NOT FOUND|FOUND 0|FOUND [2-9]
+--source include/search_pattern_in_file.inc
+
+DROP TABLE c, p;
+
+SET SESSION default_storage_engine=@old_default_storage_engine;
+SET SESSION binlog_format=@old_binlog_format;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=@old_rpl_use_binlog_events_for_fk_cascade;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/fk_set_null_binlog_row_off.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/fk_set_null_binlog_row_on.sql
+
+--source include/rpl_end.inc

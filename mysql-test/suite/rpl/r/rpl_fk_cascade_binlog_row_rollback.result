@@ -1,0 +1,140 @@
+include/master-slave.inc
+[connection master]
+SET @old_binlog_format := @@session.binlog_format;
+SET @old_default_storage_engine := @@session.default_storage_engine;
+SET @old_rpl_use_binlog_events_for_fk_cascade := @@session.rpl_use_binlog_events_for_fk_cascade;
+SET SESSION default_storage_engine=InnoDB;
+SET SESSION binlog_format=ROW;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=1;
+CREATE TABLE p (
+id INT PRIMARY KEY,
+v INT
+) ENGINE=InnoDB;
+CREATE TABLE c (
+id INT PRIMARY KEY,
+pid INT,
+v INT,
+KEY(pid),
+CONSTRAINT fk FOREIGN KEY (pid) REFERENCES p(id)
+ON DELETE CASCADE
+ON UPDATE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO p VALUES (1, 10);
+INSERT INTO c VALUES (100, 1, 20);
+connection slave;
+connection master;
+#
+# Phase 1: full transaction ROLLBACK
+#
+FLUSH BINARY LOGS;
+BEGIN;
+UPDATE p SET id=2 WHERE id=1;
+ROLLBACK;
+# master: parent and child unchanged
+SELECT * FROM p ORDER BY id;
+id	v
+1	10
+SELECT * FROM c ORDER BY id;
+id	pid	v
+100	1	20
+connection slave;
+connection slave;
+# slave: child unchanged
+SELECT * FROM c ORDER BY id;
+id	pid	v
+100	1	20
+connection master;
+FLUSH BINARY LOGS;
+# no cascade child row event must be present
+NOT FOUND /### UPDATE `test`.`c`/ in fk_cascade_rollback_full.sql
+#
+# Phase 2: ROLLBACK TO SAVEPOINT (surviving work before the savepoint)
+#
+FLUSH BINARY LOGS;
+BEGIN;
+INSERT INTO p VALUES (3, 30);
+SAVEPOINT sp1;
+UPDATE p SET id=2 WHERE id=1;
+ROLLBACK TO SAVEPOINT sp1;
+COMMIT;
+# master: cascade undone, INSERT before savepoint kept
+SELECT * FROM p ORDER BY id;
+id	v
+1	10
+3	30
+SELECT * FROM c ORDER BY id;
+id	pid	v
+100	1	20
+connection slave;
+connection slave;
+# slave: child unchanged, parent has surviving row
+SELECT * FROM p ORDER BY id;
+id	v
+1	10
+3	30
+SELECT * FROM c ORDER BY id;
+id	pid	v
+100	1	20
+connection master;
+FLUSH BINARY LOGS;
+# cascade child row event must be absent
+NOT FOUND /### UPDATE `test`.`c`/ in fk_cascade_rollback_sp.sql
+# surviving INSERT before the savepoint must be replicated
+FOUND 1 /### INSERT INTO `test`.`p`/ in fk_cascade_rollback_sp.sql
+DROP TABLE c, p;
+#
+# Phase 3: statement rollback, transaction continues and commits
+#
+CREATE TABLE p (
+id INT PRIMARY KEY,
+u INT,
+UNIQUE KEY uq_u(u)
+) ENGINE=InnoDB;
+CREATE TABLE c (
+cid INT PRIMARY KEY,
+pid INT,
+KEY(pid),
+CONSTRAINT fk FOREIGN KEY (pid) REFERENCES p(id)
+ON UPDATE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO p VALUES (1, 100), (2, 200);
+INSERT INTO c VALUES (11, 1);
+connection slave;
+connection master;
+FLUSH BINARY LOGS;
+BEGIN;
+UPDATE p SET id=id+10, u=100 WHERE id IN (1,2) ORDER BY id;
+ERROR 23000: Duplicate entry '100' for key 'uq_u'
+INSERT INTO p VALUES (9, 900);
+COMMIT;
+# master: failed UPDATE rolled back, INSERT committed
+SELECT * FROM p ORDER BY id;
+id	u
+1	100
+2	200
+9	900
+SELECT * FROM c ORDER BY cid;
+cid	pid
+11	1
+connection slave;
+connection slave;
+# slave: child unchanged, parent has committed row
+SELECT * FROM p ORDER BY id;
+id	u
+1	100
+2	200
+9	900
+SELECT * FROM c ORDER BY cid;
+cid	pid
+11	1
+connection master;
+FLUSH BINARY LOGS;
+# discarded cascade child row event must be absent
+NOT FOUND /### UPDATE `test`.`c`/ in fk_cascade_rollback_stmt.sql
+# committed INSERT must be replicated
+FOUND 1 /### INSERT INTO `test`.`p`/ in fk_cascade_rollback_stmt.sql
+DROP TABLE c, p;
+SET SESSION default_storage_engine=@old_default_storage_engine;
+SET SESSION binlog_format=@old_binlog_format;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=@old_rpl_use_binlog_events_for_fk_cascade;
+include/rpl_end.inc
