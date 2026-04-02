@@ -92,7 +92,8 @@ DELIMITER ;;
 CREATE DEFINER="root"@"localhost" PROCEDURE "p1"(a INT)
 AS BEGIN
 NULL;
-END ;;
+END
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;

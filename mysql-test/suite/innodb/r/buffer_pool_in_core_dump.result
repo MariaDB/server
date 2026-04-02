@@ -1,0 +1,31 @@
+set @old_innodb_buffer_pool_in_core_dump = @@innodb_buffer_pool_in_core_dump;
+#
+# Confirm innodb_buffer_pool_in_core_dump works
+#
+SELECT @@global.innodb_buffer_pool_in_core_dump;
+@@global.innodb_buffer_pool_in_core_dump
+0
+Buffer pool not part of core dump.
+#
+# Confirm dynamicity of innodb_buffer_pool_in_core_dump
+#
+SET GLOBAL innodb_buffer_pool_in_core_dump = ON;
+Buffer pool part of core dump.
+SET GLOBAL innodb_buffer_pool_in_core_dump = OFF;
+Buffer pool not part of core dump.
+SET GLOBAL innodb_buffer_pool_in_core_dump = ON;
+Buffer pool part of core dump.
+SET GLOBAL innodb_buffer_pool_in_core_dump = OFF;
+Buffer pool not part of core dump.
+#
+# Confirm innodb_pool_in_core_dump works even
+# after resizing of buffer pool.
+#
+set @old_innodb_buffer_pool_size = @@innodb_buffer_pool_size;
+set global innodb_buffer_pool_size = 64*1024*1024;
+Buffer pool not part of core dump.
+set global innodb_buffer_pool_size = 96*1024*1024;
+Buffer pool not part of core dump.
+set global innodb_buffer_pool_size = @old_innodb_buffer_pool_size;
+set global innodb_buffer_pool_in_core_dump = @old_innodb_buffer_pool_in_core_dump;
+# End of 10.11 tests

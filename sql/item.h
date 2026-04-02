@@ -110,12 +110,6 @@ struct ora_join_processor_param
 };
 
 
-#ifdef DBUG_OFF
-static inline const char *dbug_print_item(Item *item) { return NULL; }
-#else
-const char *dbug_print_item(Item *item);
-#endif
-
 class Virtual_tmp_table;
 class sp_head;
 class sp_rcontext;

@@ -1,0 +1,52 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-34482 visibility of event worker threads to non-privileded user
+--echo #
+
+call mtr.add_suppression("Event Scheduler: .*Query execution was interrupted");
+
+# Verify that a user without PROCESS privilege can see their own events
+# run by event scheduler.
+
+CREATE USER u@localhost;
+GRANT EVENT ON *.* TO u@localhost;
+
+# Ensure event scheduler running
+SET GLOBAL event_scheduler = ON;
+--source include/running_event_scheduler.inc
+
+# Connect as the unprivileged user and create an event that runs a long sleep
+connect c1,localhost,u,,;
+
+CREATE EVENT e
+  ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 0.1 SECOND
+  DO SELECT SLEEP(10000);
+
+# Wait until the event worker appears in PROCESSLIST for the current user
+let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+                     WHERE INFO LIKE '%SLEEP(10000)%' AND ID <> CONNECTION_ID();
+--source include/wait_condition.inc
+
+# Check that show processlist works
+--replace_column 1 #
+--replace_regex /:[0-9]+// /Execute/Query/
+show processlist;
+
+# Stop event execution
+let $id= `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE '%SLEEP(10000)%' AND ID <> CONNECTION_ID()`;
+--replace_result $id id
+eval KILL QUERY $id;
+
+# Cleanup
+--disconnect c1
+--connection default
+
+SET GLOBAL event_scheduler = OFF;
+--error 0,ER_EVENT_DOES_NOT_EXIST
+DROP EVENT e;
+--source include/check_events_off.inc
+let $count_sessions= 1;
+--source include/wait_until_count_sessions.inc
+DROP USER u@localhost;
+

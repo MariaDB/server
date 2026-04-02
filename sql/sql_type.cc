@@ -639,7 +639,7 @@ Year::Year(longlong value, bool unsigned_flag, uint length)
 }
 
 
-uint Year::year_precision(const Item *item) const
+uint Year::year_precision(const Item *item)
 {
   return item->type_handler() == &type_handler_year2 ? 2 : 4;
 }

@@ -1722,8 +1722,12 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
         /* We have to keep the lock type for sequence tables */
         if (!tbl->sequence)
 	  tbl->lock_type= view_table_alias->lock_type;
-        tbl->mdl_request.set_type(view_table_alias->mdl_request.type);
-        tbl->updating= view_table_alias->updating;
+        /* VIEWs with derived are non-writable */
+        if (!tbl->is_pure_alias())
+        {
+          tbl->mdl_request.set_type(view_table_alias->mdl_request.type);
+          tbl->updating= view_table_alias->updating;
+        }
       }
       /*
         If the view is mergeable, we might want to
@@ -1860,7 +1864,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
       {
         view_table_alias->select_lex->order_list.
           push_back(&view_query_lex->first_select_lex()->order_list);
-        view_query_lex->first_select_lex()->order_list.empty();
+        view_query_lex->first_select_lex()->optimize_out_order_list();
       }
       else
       {

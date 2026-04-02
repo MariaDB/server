@@ -3578,29 +3578,12 @@ static MYSQL_SYSVAR_SIZE_T(buffer_pool_size_auto_min,
   innodb_buffer_pool_extent_size);
 #endif
 
-#if SIZEOF_SIZE_T < 8 || defined _AIX || defined HAVE_valgrind
-/* In constrained environments, innodb_buffer_pool_size_max
-will default to the initial innodb_buffer_pool_size, that is,
-by default, it will not be possible to increase innodb_buffer_pool_size.
-
-In MemorySanitizer and possibly Valgrind memcheck, any virtual memory
-allocation would be backed by one or more copies of shadow bits of the
-same size that could be allocated and initialized even for dummy
-mappings created by mmap(2) with PROT_NONE. We do not want significant
-overhead beyond the actual innodb_buffer_pool_size. */
-static constexpr size_t innodb_buffer_pool_size_max_default{0},
-  innodb_buffer_pool_size_max_minimum{0};
-#else
-static constexpr size_t innodb_buffer_pool_size_max_default{8ULL << 40},// 8TiB
-  innodb_buffer_pool_size_max_minimum{innodb_buffer_pool_extent_size};
-#endif
-
 static MYSQL_SYSVAR_SIZE_T(buffer_pool_size_max, buf_pool.size_in_bytes_max,
                            PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
                            "Maximum innodb_buffer_pool_size",
                            nullptr, nullptr,
-                           innodb_buffer_pool_size_max_default,
-                           innodb_buffer_pool_size_max_minimum,
+                           buf_pool.size_in_bytes_max_default,
+                           buf_pool.size_in_bytes_max_minimum,
                            size_t(-ssize_t(innodb_buffer_pool_extent_size)),
                            innodb_buffer_pool_extent_size);
 
@@ -3724,6 +3707,20 @@ static int innodb_init_params()
   min= ut_calc_align<size_t>
     (buf_pool.blocks_in_bytes(BUF_LRU_MIN_LEN + BUF_LRU_MIN_LEN / 4),
      1U << 20);
+
+#ifdef RLIMIT_AS
+  if (buf_pool.size_in_bytes_max_default != 0 &&
+      buf_pool.size_in_bytes_max == buf_pool.size_in_bytes_max_default)
+  {
+    struct rlimit rlimit_as;
+    if (!getrlimit(RLIMIT_AS, &rlimit_as) &&
+        rlimit_as.rlim_cur != RLIM_INFINITY &&
+        rlimit_as.rlim_cur / 4 < buf_pool.size_in_bytes_max)
+    buf_pool.size_in_bytes_max= size_t(rlimit_as.rlim_cur / 4) &
+      ~innodb_buffer_pool_extent_size;
+  }
+#endif
+
   const size_t innodb_buffer_pool_size= buf_pool.size_in_bytes_requested;
 
   if (innodb_buffer_pool_size > buf_pool.size_in_bytes_max ||
@@ -15655,7 +15652,7 @@ get_foreign_key_info(
 	FOREIGN_KEY_INFO*	pf_key_info;
 	uint			i = 0;
 	size_t			len;
-	char			tmp_buff[NAME_LEN+1];
+	char			tmp_buff[MAX_DATABASE_NAME_LEN+1];
 	char			name_buff[NAME_LEN+1];
 	const char*		ptr = foreign->sql_id();
 	LEX_CSTRING*		name = NULL;
@@ -19431,6 +19428,23 @@ static MYSQL_SYSVAR_BOOL(buffer_pool_dump_at_shutdown, srv_buffer_pool_dump_at_s
   "Dump the buffer pool into a file named @@innodb_buffer_pool_filename",
   NULL, NULL, TRUE);
 
+#if defined __linux__ || defined __FreeBSD__
+/** Update the system variable innodb_buffer_pool_in_core_dump.
+@param save    to-be-assigned value */
+static void innodb_buffer_pool_in_core_dump_update(THD *, st_mysql_sys_var *,
+                                                   void *, const void *save)
+{
+  mysql_mutex_lock(&buf_pool.mutex);
+  buf_pool.in_core_dump= *static_cast<const my_bool*>(save);
+  buf_pool.core_advise();
+  mysql_mutex_unlock(&buf_pool.mutex);
+}
+
+static MYSQL_SYSVAR_BOOL(buffer_pool_in_core_dump, buf_pool.in_core_dump,
+  PLUGIN_VAR_OPCMDARG, "Include the buffer pool in core dump",
+  nullptr, innodb_buffer_pool_in_core_dump_update, IF_DBUG(true,false));
+#endif
+
 static MYSQL_SYSVAR_ULONG(buffer_pool_dump_pct, srv_buf_pool_dump_pct,
   PLUGIN_VAR_RQCMDARG,
   "Dump only the hottest N% of each buffer pool, defaults to 25",
@@ -20060,6 +20074,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(buffer_pool_filename),
   MYSQL_SYSVAR(buffer_pool_dump_now),
   MYSQL_SYSVAR(buffer_pool_dump_at_shutdown),
+#if defined __linux__ || defined __FreeBSD__
+  MYSQL_SYSVAR(buffer_pool_in_core_dump),
+#endif
   MYSQL_SYSVAR(buffer_pool_dump_pct),
 #ifdef UNIV_DEBUG
   MYSQL_SYSVAR(buffer_pool_evict),
