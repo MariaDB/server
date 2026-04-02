@@ -5036,7 +5036,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       Make sure to set/clear them before executing the main body of
       the event.
     */
-    if (get_flags(NO_FOREIGN_KEY_CHECKS_F))
+    /*
+      FK_CASCADE_EVENTS_F marks row events that the master emitted for the
+      changes performed by cascading foreign key operations. The applier must
+      not re-run the cascade, so foreign key checks are disabled for these
+      events just as they are for NO_FOREIGN_KEY_CHECKS_F.
+    */
+    if (get_flags(NO_FOREIGN_KEY_CHECKS_F) || get_flags(FK_CASCADE_EVENTS_F))
         thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
     else
         thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;

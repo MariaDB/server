@@ -44,6 +44,14 @@ Created 3/26/1996 Heikki Tuuri
 struct mtr_t;
 struct rw_trx_hash_element_t;
 class ha_handler_stats;
+struct TABLE;
+
+struct trx_cascade_binlog_row_event {
+	TABLE*		table;
+	unsigned char*	before_record;
+	unsigned char*	after_record;
+	void*		log_func;
+};
 
 /******************************************************************//**
 Set detailed error message for the transaction. */
@@ -962,6 +970,13 @@ public:
 					transaction branch */
 	trx_mod_tables_t mod_tables;	/*!< List of tables that were modified
 					by this transaction */
+
+	std::vector<trx_cascade_binlog_row_event>	pending_cascade_binlog_row_events;
+
+	/** Free the events of any queued FK-cascade binlog row events and empty
+	the list. Used both to discard events whose row changes are being rolled
+	back and to reclaim memory for events that were never flushed. */
+	void free_cascade_binlog_row_events();
 	/*------------------------------*/
 	char*		detailed_error;	/*!< detailed error message for last
 					error, or empty. */

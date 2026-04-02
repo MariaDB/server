@@ -4792,6 +4792,8 @@ public:
      */
     COMPLETE_ROWS_F = (1U << 3),
 
+    FK_CASCADE_EVENTS_F = (1U << 4),
+
     /* Value of the OPTION_NO_CHECK_CONSTRAINT_CHECKS flag in thd->options */
     NO_CHECK_CONSTRAINT_CHECKS_F = (1U << 7)
   };
