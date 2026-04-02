@@ -2936,6 +2936,39 @@ static const char *thread_state_info(THD *tmp)
 }
 
 
+/*
+  Check if user can see a THD in "show processlist" or in I_S.processlist.
+
+  Non-privileged users can see own foreground THDs and also event worker
+  threads that run in user's security context.
+
+  Privileged users can see all THDs.
+
+  @param user - user name or NULL for privileged users.
+  @param thd  - THD
+
+  @retval true  - THD visible in processlist
+  @retval false - THD not visible in processlist
+*/
+static bool thd_visible_in_processlist(const char *user, THD *thd)
+{
+  if (!thd->vio_ok() && !thd->system_thread)
+    return false; // "something bad happened" thread, don't show it
+
+  if (!user)
+    return true; // privileged user can see all threads
+
+  const char *thd_user= thd->security_ctx->user;
+  if (!thd_user)
+    return false; // dunno if this ever happens, safety first
+
+  bool user_or_event_worker_thread=
+       !thd->system_thread ||  thd->system_thread & SYSTEM_THREAD_EVENT_WORKER;
+
+  return user_or_event_worker_thread && !strcmp(thd_user, user);
+}
+
+
 struct list_callback_arg
 {
   list_callback_arg(const char *u, THD *t, ulong m):
@@ -2952,9 +2985,7 @@ static my_bool list_callback(THD *tmp, list_callback_arg *arg)
 
   Security_context *tmp_sctx= tmp->security_ctx;
   bool got_thd_data;
-  if ((tmp->vio_ok() || tmp->system_thread) &&
-      (!arg->user || (!tmp->system_thread &&
-                      tmp_sctx->user && !strcmp(tmp_sctx->user, arg->user))))
+  if (thd_visible_in_processlist(arg->user, tmp))
   {
     thread_info *thd_info= new (arg->thd->mem_root) thread_info;
 
@@ -3461,9 +3492,7 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
           arg->thd->security_ctx->master_access & PRIV_STMT_SHOW_PROCESSLIST ?
           NullS : arg->thd->security_ctx->priv_user;
 
-  if ((!tmp->vio_ok() && !tmp->system_thread) ||
-      (user && (tmp->system_thread || !tmp_sctx->user ||
-                strcmp(tmp_sctx->user, user))))
+  if (!thd_visible_in_processlist(user, tmp))
     return 0;
 
   restore_record(arg->table, s->default_values);

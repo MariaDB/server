@@ -27,7 +27,6 @@ usr/share/doc/mariadb-server/COPYING (related file: "debian/tmp/usr/share/mariad
 usr/share/doc/mariadb-server/CREDITS
 usr/share/doc/mariadb-server/INSTALL-BINARY
 usr/share/doc/mariadb-server/README.md
-usr/share/doc/mariadb-server/README-wsrep
 usr/share/doc/mariadb-server/THIRDPARTY
 usr/share/groonga/COPYING
 usr/share/groonga-normalizer-mysql/lgpl-2.0.txt
@@ -58,9 +57,11 @@ usr/share/mariadb/policy/selinux/mariadb.te # In MariaDB we don't want to use SE
 usr/share/mariadb/policy/selinux/README # In MariaDB we don't want to use SELinux at the moment
 usr/share/mariadb/systemd/mariadb-extra@.socket # Installed by rules file
 usr/share/mariadb/systemd/mariadb.service # Installed by rules file
+usr/share/mariadb/mariadb.service.d/galera.conf # installed in systemd location directly
 usr/share/mariadb/systemd/mariadb@.service # Installed by rules file
 usr/share/mariadb/systemd/mariadb@.socket # Installed by rules file
 usr/share/mariadb/systemd/mysqld.service  # Installed by rules file
 usr/share/mariadb/systemd/mysql.service  # Installed by rules file
 usr/share/mariadb/systemd/use_galera_new_cluster.conf
+usr/share/mariadb/wsrep.cnf
 usr/share/man/man1/wsrep_sst_backup.1

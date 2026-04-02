@@ -3620,7 +3620,6 @@ void TABLE_SHARE::update_optimizer_costs(handlerton *hton)
   else
   {
     bzero(&optimizer_costs, sizeof(optimizer_costs));
-    MEM_UNDEFINED(&optimizer_costs, sizeof(optimizer_costs));
   }
 }
 

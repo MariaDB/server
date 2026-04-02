@@ -48,6 +48,7 @@ void report_path_error_ex(const char *ps, json_path_t *p,
 void report_json_error_ex(const char *js, json_engine_t *je,
                           const char *fname, int n_param,
                           Sql_condition::enum_warning_level lv);
+int st_append_escaped(String *s, const String *a);
 
 class Json_engine_scan: public json_engine_t
 {

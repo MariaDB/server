@@ -271,7 +271,7 @@ Protocol::net_send_ok(THD *thd,
 
   if (unlikely(server_status & SERVER_SESSION_STATE_CHANGED))
   {
-    store.set_charset(thd->variables.collation_database);
+    store.set_charset(&my_charset_bin);
     thd->session_tracker.store(thd, &store);
     thd->server_status&= ~SERVER_SESSION_STATE_CHANGED;
   }

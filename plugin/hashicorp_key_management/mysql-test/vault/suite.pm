@@ -5,16 +5,21 @@ use My::Platform;
 
 use strict;
 
-return "Hashicorp Key Management plugin tests are currently not available on Windows"
-  if IS_WINDOWS;
+
+if (IS_WINDOWS) {
+  # On Windows, use 'where' to check for vault binary
+  return "Hashicorp Vault key management utility not found"
+    unless `where vault 2> NUL`;
+} else {
+  # On Unix, use 'command -v'
+  return "Hashicorp Vault key management utility not found"
+    unless `sh -c "command -v vault"`;
+}
 
 return "You need to set the value of the VAULT_ADDR variable"
   unless $ENV{VAULT_ADDR};
 
 return "You need to set the value of the VAULT_TOKEN variable"
   unless $ENV{VAULT_TOKEN};
-
-return "Hashicorp Vault key management utility not found"
-  unless `sh -c "command -v vault"`;
 
 bless {};

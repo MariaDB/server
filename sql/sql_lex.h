@@ -1564,7 +1564,7 @@ public:
                        SQL_I_List<ORDER> win_order_list,
                        Window_frame *win_frame);
   List<Item_window_func> window_funcs;
-  bool add_window_func(Item_window_func *win_func);
+  bool add_window_func(THD *thd, Item_window_func *win_func);
 
   bool have_window_funcs() const { return (window_funcs.elements !=0); }
   ORDER *find_common_window_func_partition_fields(THD *thd);
@@ -1629,6 +1629,7 @@ public:
                          const LEX_CSTRING *db_name,
                          const LEX_CSTRING *table_name);
   bool optimize_constant_subqueries();
+  void optimize_out_order_list();
   void set_optimizer_hints(Optimizer_hint_parser_output *hl)
   { 
     parsed_optimizer_hints= hl;
@@ -3643,6 +3644,7 @@ public:
   Window_frame_bound *frame_top_bound;
   Window_frame_bound *frame_bottom_bound;
   Window_spec *win_spec;
+  List<Item_window_func> clause_winfuncs;
 
   Item *upd_del_where;
 
