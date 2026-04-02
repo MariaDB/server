@@ -113,6 +113,7 @@
 
 #include <functional>
 #include "my_config.h"
+#include "opt_hints_structs.h"
 #include "sql_alloc.h"
 #include "sql_list.h"
 #include "mem_root_array.h"
