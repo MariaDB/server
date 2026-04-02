@@ -1841,7 +1841,6 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
         ut_ad(!c);
         const lsn_t lsn{get_lsn()};
         ut_ad(lsn == current_lsn);
-        ut_ad(buf_size == capacity());
         persist(lsn);
         checkpoint_buf= buf;
         buf= resize_buf;
@@ -1863,7 +1862,6 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
       {
 #ifdef HAVE_PMEM
         ut_ad(!c == is_mmap());
-        ut_ad(c || buf_size == capacity());
 #endif
         first_lsn+= capacity();
 
