@@ -2,6 +2,7 @@
 # MDEV-34482 visibility of event worker threads to non-privileded user
 #
 call mtr.add_suppression("Event Scheduler: .*Query execution was interrupted");
+call mtr.add_suppression("Event Scheduler: .*Unknown event 'e'");
 CREATE USER u@localhost;
 GRANT EVENT ON *.* TO u@localhost;
 SET GLOBAL event_scheduler = ON;
