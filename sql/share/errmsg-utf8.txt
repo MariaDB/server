@@ -12388,3 +12388,7 @@ ER_SLAVE_INCOMPATIBLE_TABLE_DEF
         eng "Table structure for binlog event is not compatible with the table definition on this slave: %s"
 ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
         eng "Data type '%-.64s' doesn't support %s attribute."
+ER_CANT_SET_SERVER_ID_IN_TRANSACTION
+        eng "Cannot set @@session.server_id within a transaction"
+ER_CANT_SET_SERVER_ID_IN_SUBSTATEMENT
+        eng "Cannot set @@session.server_id within a trigger or stored program"
