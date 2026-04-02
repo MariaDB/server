@@ -1274,6 +1274,9 @@ The following specify which files/extra groups are read (specified before remain
  play when stop slave is executed.
  --rpl-semi-sync-slave-trace-level=# 
  The tracing level for semi-sync replication.
+ --rpl-use-binlog-events-for-fk-cascade 
+ If enabled, the master will write row events for foreign
+ key cascade operations.
  --safe-mode         Skip some optimize stages (for testing). Deprecated.
  --safe-user-create  Don't allow new user creation by the user who has no
  write privileges to the mysql.user table.
@@ -1952,6 +1955,7 @@ rpl-semi-sync-slave-delay-master FALSE
 rpl-semi-sync-slave-enabled FALSE
 rpl-semi-sync-slave-kill-conn-timeout 5
 rpl-semi-sync-slave-trace-level 32
+rpl-use-binlog-events-for-fk-cascade FALSE
 safe-user-create FALSE
 secure-auth TRUE
 secure-file-priv (No default value)

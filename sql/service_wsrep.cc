@@ -425,3 +425,8 @@ extern "C" my_bool wsrep_thd_is_local_transaction(const THD *thd)
   return (wsrep_thd_is_local(thd) &&
 	  thd->wsrep_cs().transaction().active());
 }
+
+extern "C" my_bool wsrep_emulate_binlog(const THD *thd)
+{
+  return WSREP_EMULATE_BINLOG_NNULL(thd);
+}
