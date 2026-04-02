@@ -972,7 +972,7 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size, void *thd)
       status= RESIZE_NO_CHANGE;
       /* When the current log becomes full and a new archivable log file
       is being created, it will be of this size. At that point we will assign
-      file_size= resize_target (and buf_size= capacity() for HAVE_PMEM). */
+      file_size= resize_target for HAVE_PMEM). */
       resize_target= size;
     }
   }
