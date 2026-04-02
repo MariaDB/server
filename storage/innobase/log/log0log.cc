@@ -880,6 +880,9 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
     {
       std::swap(old_name, new_name);
       header_rewrite(archive);
+      std::string spare{get_next_archive_path()};
+      sql_print_information("InnoDB: deleting spare %s", spare.c_str());
+      IF_WIN(DeleteFile(spare.c_str()), unlink(spare.c_str()));
     }
 #if defined HAVE_PMEM && !defined _WIN32
     else if (is_mmap())
@@ -1193,6 +1196,7 @@ ATTRIBUTE_COLD void log_t::archive_new_write(const byte *buf, size_t length,
   ut_ad(!resize_in_progress());
   ut_ad(resize_target >= FILE_SIZE_MIN);
   ut_ad(length);
+  ut_ad(!is_mmap());
   ut_a(offset + length + START_OFFSET <= file_size + resize_target);
   ut_ad(is_latest());
 
@@ -1214,14 +1218,40 @@ ATTRIBUTE_COLD void log_t::archive_new_write(const byte *buf, size_t length,
     buf+= first;
   }
 
+  archive_create(true);
+  if (length)
+    log.write(START_OFFSET, {buf, length});
+}
+
+ATTRIBUTE_COLD void log_t::archive_create(bool ex) noexcept
+{
+  ut_ad(ex ? latch_have_wr() : latch_have_rd());
+  ut_ad(archive);
+
+  if (UNIV_UNLIKELY(resize_log.is_opened()))
+  {
+    ut_a(!ex);
+    return;
+  }
+
   std::string path{get_next_archive_path()};
   bool success;
-  pfs_os_file_t file=
+  os_file_t file=
     os_file_create_func(path.c_str(), OS_FILE_CREATE, OS_LOG_FILE,
                         false, &success);
   ut_ad(success == (file != OS_FILE_CLOSED));
+
   if (file == OS_FILE_CLOSED)
   {
+    sql_print_information("InnoDB: %d failed to create %s",
+                          int{ex}, path.c_str());
+
+    if (!ex)
+      /* The file already exists, and we were only attempting to
+      create and allocate it in advance. Assume that our work is
+      already done. */
+      return;
+
     file= os_file_create_func(path.c_str(), OS_FILE_OPEN, OS_LOG_FILE,
                               false, &success);
     ut_ad(success == (file != OS_FILE_CLOSED));
@@ -1230,17 +1260,47 @@ ATTRIBUTE_COLD void log_t::archive_new_write(const byte *buf, size_t length,
 
   if (file != OS_FILE_CLOSED)
   {
-    if (os_file_set_size(path.c_str(), file, resize_target))
+    success= os_file_set_size(path.c_str(), file, resize_target);
+    if (success && ex)
     {
-      resize_log= log;
-      log.m_file= file;
-      if (length)
-        log.write(START_OFFSET, {buf, length});
-      return;
+#ifdef HAVE_PMEM
+      if (is_mmap())
+      {
+        ut_ad(is_mmap_writeable());
+        ut_ad(!resize_buf);
+        bool is_pmem;
+        resize_buf=
+          static_cast<byte*>(::log_mmap(file, is_pmem,
+                                        resize_target, READ_WRITE));
+        if (resize_buf == MAP_FAILED);
+        else if (!is_pmem)
+          my_munmap(resize_buf, resize_target);
+        else
+          goto success;
+        resize_buf= nullptr;
+      }
+      else
+      {
+      success:
+#endif
+        /* Will be closed in write_checkpoint() */
+        resize_log= log;
+        log= file;
+        return;
+#ifdef HAVE_PMEM
+      }
+#endif
     }
     os_file_close(file);
-    IF_WIN(DeleteFile(path.c_str()), unlink(path.c_str()));
+    if (!ex)
+      return;
   }
+  else if (!ex)
+  {
+    sql_print_information("InnoDB: failed to open spare %s", path.c_str());
+    return;
+  }
+
   sql_print_error("[FATAL] InnoDB: Failed to create %s of %" PRIu64
                   " bytes", path.c_str(), resize_target);
   abort();
@@ -1434,52 +1494,7 @@ void log_t::archived_mmap_switch_prepare(bool late, bool ex) noexcept
     ut_ad(log.is_opened());
     ut_ad(!resize_log.is_opened());
 
-    do
-    {
-      std::string path{get_next_archive_path()};
-      bool success;
-      os_file_t file=
-        os_file_create_func(path.c_str(), OS_FILE_CREATE, OS_LOG_FILE,
-                            false, &success);
-      ut_ad(success == (file != OS_FILE_CLOSED));
-      if (file == OS_FILE_CLOSED)
-      {
-        file= os_file_create_func(path.c_str(), OS_FILE_OPEN, OS_LOG_FILE,
-                                  false, &success);
-        ut_ad(success == (file != OS_FILE_CLOSED));
-        ut_ad(file == OS_FILE_CLOSED ||
-              os_file_get_size(file) < FILE_SIZE_MIN);
-      }
-      if (file != OS_FILE_CLOSED)
-      {
-        if (os_file_set_size(path.c_str(), file, resize_target))
-        {
-          bool is_pmem;
-          resize_buf=
-            static_cast<byte*>(::log_mmap(file, is_pmem,
-                                          resize_target, READ_WRITE));
-          if (resize_buf == MAP_FAILED);
-          else if (!is_pmem)
-            my_munmap(resize_buf, resize_target);
-          else
-          {
-            /* Will be closed in write_checkpoint() */
-            resize_log= log;
-            log= file;
-            continue;
-          }
-          resize_buf= nullptr;
-          os_file_close(file);
-        }
-      }
-
-      IF_WIN(DeleteFile(path.c_str()), unlink(path.c_str()));
-      sql_print_error("[FATAL] InnoDB: Failed to create and map %s of %" PRIu64
-                      " bytes", path.c_str(), resize_target);
-      abort();
-    }
-    while (false);
-
+    archive_create(true);
     ut_ad(lsn - get_flushed_lsn(std::memory_order_relaxed) < capacity());
     persist(lsn);
     /* Above we cleared the WRITE_BACKOFF flag,

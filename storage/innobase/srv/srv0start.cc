@@ -1459,6 +1459,11 @@ dberr_t srv_start(bool create_new_db)
 		log_sys.latch.wr_lock();
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
+		if (log_sys.archive) {
+			log_sys.file_size = srv_log_file_size;
+			log_sys.archive_set_size();
+		}
+
 		err = create_log_file(true, flushed_lsn);
 
 		if (err != DB_SUCCESS) {
@@ -1555,8 +1560,6 @@ dberr_t srv_start(bool create_new_db)
 		if (log_sys.resize_rename()) {
 			return(srv_init_abort(DB_ERROR));
 		}
-
-		if (log_sys.archive) log_sys.archive_set_size();
 	} else {
 		/* We always try to do a recovery, even if the database had
 		been shut down normally: this is the normal startup path */

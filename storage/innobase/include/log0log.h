@@ -540,6 +540,11 @@ public:
     ut_ad(latch_have_any());
     return UNIV_UNLIKELY(archive && resize_buf);
   }
+
+  /** Try to create an archive log file.
+  @param ex whether we are holding exclusive latch (and must succeed) */
+  ATTRIBUTE_COLD void archive_create(bool ex) noexcept;
+
   /** Create a new log file when the current one will fill up.
   @param buf     log records to append
   @param length  size of the log records, in bytes

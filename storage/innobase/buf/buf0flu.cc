@@ -2119,7 +2119,15 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
     writer_update(false);
   }
 
+  const my_bool archive{log_sys.archive};
   log_resize_release();
+  if (archive)
+  {
+    log_sys.latch.rd_lock();
+    if (UNIV_LIKELY(log_sys.archive))
+      log_sys.archive_create(false);
+    log_sys.latch.rd_unlock();
+  }
 
   if (UNIV_LIKELY(resizing <= 1));
   else if (resizing > checkpoint)

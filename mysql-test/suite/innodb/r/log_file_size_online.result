@@ -52,7 +52,7 @@ SET GLOBAL innodb_log_file_size=4294967296;
 SELECT @@GLOBAL.innodb_log_file_size<=10485760;
 @@GLOBAL.innodb_log_file_size<=10485760
 1
-SET GLOBAL innodb_log_archive=OFF;
+SET GLOBAL innodb_log_checkpoint_now=ON, innodb_log_archive=OFF;
 connection default;
 SET GLOBAL innodb_log_file_size=5242880;
 connection con1;
