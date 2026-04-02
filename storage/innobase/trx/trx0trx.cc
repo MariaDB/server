@@ -161,6 +161,21 @@ trx_init(
 #endif /* WITH_WSREP */
 }
 
+void trx_t::free_cascade_binlog_row_events()
+{
+	/* The before/after record images are allocated in
+	row_ins_foreign_check_on_constraint() and are normally freed when
+	ha_innobase::flush_pending_cascade_binlog() emits them at commit.
+	If the transaction rolls back, or the events are never flushed,
+	the buffers would otherwise leak, so free them here.
+	Note: my_free(NULL) is a no-op. */
+	for (auto& ev : pending_cascade_binlog_row_events) {
+		my_free(ev.before_record);
+		my_free(ev.after_record);
+	}
+	pending_cascade_binlog_row_events.clear();
+}
+
 /** For managing the life-cycle of the trx_t instance that we get
 from the pool. */
 struct TrxFactory {
@@ -178,6 +193,9 @@ struct TrxFactory {
 		new(&trx->autoinc_locks) trx_t::autoinc_lock_vector();
 
 		new(&trx->mod_tables) trx_mod_tables_t();
+
+		new(&trx->pending_cascade_binlog_row_events)
+			std::vector<trx_cascade_binlog_row_event>();
 
 		new(&trx->lock.table_locks) lock_list();
 
@@ -243,6 +261,9 @@ struct TrxFactory {
 		trx->autoinc_locks.~small_vector();
 
 		trx->mod_tables.~trx_mod_tables_t();
+
+		trx->free_cascade_binlog_row_events();
+		trx->pending_cascade_binlog_row_events.~vector();
 
 		ut_ad(!trx->read_view.is_open());
 
@@ -410,6 +431,8 @@ void trx_t::free() noexcept
   trx_sys.deregister_trx(this);
   check_unique_secondary= true;
   check_foreigns= true;
+
+  free_cascade_binlog_row_events();
   assert_freed();
   trx_sys.rw_trx_hash.put_pins(this);
   mysql_thd= nullptr;
@@ -930,7 +953,7 @@ trx_start_low(
 	/* Check whether it is an AUTOCOMMIT SELECT */
         if (const THD* thd = trx->mysql_thd) {
 		trx->auto_commit = !(thd->variables.option_bits
-                                     & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+	                                     & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 			&& thd->lex->sql_command == SQLCOM_SELECT;
 		trx->read_only = (!trx->dict_operation && thd->tx_read_only)
 			|| srv_read_only_mode;
