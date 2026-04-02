@@ -1,0 +1,201 @@
+#
+# MDEV-38243
+#
+# When rpl_use_binlog_events_for_fk_cascade is enabled the master collects
+# row events for FK cascade operations. If the row changes those events
+# describe are rolled back, the events must be discarded (freed) and must not
+# end up in the binary log. This test exercises the three rollback paths that
+# discard the queued cascade events:
+#
+#   1. full transaction ROLLBACK            (ha_rollback_trans, all=true)
+#   2. ROLLBACK TO SAVEPOINT                (ha_rollback_to_savepoint)
+#   3. statement rollback, transaction kept (ha_rollback_trans, all=false)
+#
+# In every case the cascaded child row event (### UPDATE `test`.`c`) must be
+# absent from the binary log, the master and slave data must stay consistent,
+# and any surviving work in the same transaction must still replicate.
+#
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/have_binlog_format_row.inc
+
+--source include/master-slave.inc
+
+SET @old_binlog_format := @@session.binlog_format;
+SET @old_default_storage_engine := @@session.default_storage_engine;
+SET @old_rpl_use_binlog_events_for_fk_cascade := @@session.rpl_use_binlog_events_for_fk_cascade;
+
+SET SESSION default_storage_engine=InnoDB;
+SET SESSION binlog_format=ROW;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=1;
+
+CREATE TABLE p (
+  id INT PRIMARY KEY,
+  v INT
+) ENGINE=InnoDB;
+
+CREATE TABLE c (
+  id INT PRIMARY KEY,
+  pid INT,
+  v INT,
+  KEY(pid),
+  CONSTRAINT fk FOREIGN KEY (pid) REFERENCES p(id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO p VALUES (1, 10);
+INSERT INTO c VALUES (100, 1, 20);
+
+sync_slave_with_master;
+connection master;
+
+--echo #
+--echo # Phase 1: full transaction ROLLBACK
+--echo #
+FLUSH BINARY LOGS;
+--let $binlog = query_get_value(SHOW MASTER STATUS, File, 1)
+
+BEGIN;
+UPDATE p SET id=2 WHERE id=1;
+ROLLBACK;
+
+--echo # master: parent and child unchanged
+SELECT * FROM p ORDER BY id;
+SELECT * FROM c ORDER BY id;
+
+sync_slave_with_master;
+connection slave;
+--echo # slave: child unchanged
+SELECT * FROM c ORDER BY id;
+
+connection master;
+FLUSH BINARY LOGS;
+--let $datadir = `SELECT @@datadir`
+--exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog > $MYSQLTEST_VARDIR/tmp/fk_cascade_rollback_full.sql
+
+--echo # no cascade child row event must be present
+--let SEARCH_PATTERN= ### UPDATE `test`.`c`
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/fk_cascade_rollback_full.sql
+--let SEARCH_ABORT= FOUND
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # Phase 2: ROLLBACK TO SAVEPOINT (surviving work before the savepoint)
+--echo #
+FLUSH BINARY LOGS;
+--let $binlog = query_get_value(SHOW MASTER STATUS, File, 1)
+
+BEGIN;
+INSERT INTO p VALUES (3, 30);
+SAVEPOINT sp1;
+UPDATE p SET id=2 WHERE id=1;
+ROLLBACK TO SAVEPOINT sp1;
+COMMIT;
+
+--echo # master: cascade undone, INSERT before savepoint kept
+SELECT * FROM p ORDER BY id;
+SELECT * FROM c ORDER BY id;
+
+sync_slave_with_master;
+connection slave;
+--echo # slave: child unchanged, parent has surviving row
+SELECT * FROM p ORDER BY id;
+SELECT * FROM c ORDER BY id;
+
+connection master;
+FLUSH BINARY LOGS;
+--let $datadir = `SELECT @@datadir`
+--exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog > $MYSQLTEST_VARDIR/tmp/fk_cascade_rollback_sp.sql
+
+--echo # cascade child row event must be absent
+--let SEARCH_PATTERN= ### UPDATE `test`.`c`
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/fk_cascade_rollback_sp.sql
+--let SEARCH_ABORT= FOUND
+--source include/search_pattern_in_file.inc
+
+--echo # surviving INSERT before the savepoint must be replicated
+--let SEARCH_PATTERN= ### INSERT INTO `test`.`p`
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/fk_cascade_rollback_sp.sql
+--let SEARCH_ABORT= NOT FOUND
+--source include/search_pattern_in_file.inc
+
+DROP TABLE c, p;
+
+--echo #
+--echo # Phase 3: statement rollback, transaction continues and commits
+--echo #
+# The parent has a secondary UNIQUE key. A multi-row UPDATE cascades on the
+# first row (queuing a child cascade event) and then hits a duplicate-key
+# error on the second row, which rolls back the statement. The transaction
+# stays open and commits later work. The discarded cascade event must not be
+# flushed into the binary log at COMMIT.
+CREATE TABLE p (
+  id INT PRIMARY KEY,
+  u INT,
+  UNIQUE KEY uq_u(u)
+) ENGINE=InnoDB;
+
+CREATE TABLE c (
+  cid INT PRIMARY KEY,
+  pid INT,
+  KEY(pid),
+  CONSTRAINT fk FOREIGN KEY (pid) REFERENCES p(id)
+    ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO p VALUES (1, 100), (2, 200);
+INSERT INTO c VALUES (11, 1);
+
+sync_slave_with_master;
+connection master;
+
+FLUSH BINARY LOGS;
+--let $binlog = query_get_value(SHOW MASTER STATUS, File, 1)
+
+BEGIN;
+# row id=1: id 1->11 cascades c.pid 1->11 (event queued), u 100->100 (no change)
+# row id=2: u 200->100 duplicates row 1's u -> ER_DUP_ENTRY -> statement rollback
+--error ER_DUP_ENTRY
+UPDATE p SET id=id+10, u=100 WHERE id IN (1,2) ORDER BY id;
+INSERT INTO p VALUES (9, 900);
+COMMIT;
+
+--echo # master: failed UPDATE rolled back, INSERT committed
+SELECT * FROM p ORDER BY id;
+SELECT * FROM c ORDER BY cid;
+
+sync_slave_with_master;
+connection slave;
+--echo # slave: child unchanged, parent has committed row
+SELECT * FROM p ORDER BY id;
+SELECT * FROM c ORDER BY cid;
+
+connection master;
+FLUSH BINARY LOGS;
+--let $datadir = `SELECT @@datadir`
+--exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog > $MYSQLTEST_VARDIR/tmp/fk_cascade_rollback_stmt.sql
+
+--echo # discarded cascade child row event must be absent
+--let SEARCH_PATTERN= ### UPDATE `test`.`c`
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/fk_cascade_rollback_stmt.sql
+--let SEARCH_ABORT= FOUND
+--source include/search_pattern_in_file.inc
+
+--echo # committed INSERT must be replicated
+--let SEARCH_PATTERN= ### INSERT INTO `test`.`p`
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/fk_cascade_rollback_stmt.sql
+--let SEARCH_ABORT= NOT FOUND
+--source include/search_pattern_in_file.inc
+
+DROP TABLE c, p;
+
+SET SESSION default_storage_engine=@old_default_storage_engine;
+SET SESSION binlog_format=@old_binlog_format;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=@old_rpl_use_binlog_events_for_fk_cascade;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/fk_cascade_rollback_full.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/fk_cascade_rollback_sp.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/fk_cascade_rollback_stmt.sql
+
+--source include/rpl_end.inc
