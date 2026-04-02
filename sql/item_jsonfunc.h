@@ -839,6 +839,8 @@ public:
   longlong val_int() override { return 0; }
   my_decimal *val_decimal(my_decimal *decimal_value) override
   {
+    if (null_value)
+      return 0;
     my_decimal_set_zero(decimal_value);
     return decimal_value;
   }

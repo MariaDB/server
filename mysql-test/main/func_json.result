@@ -5518,4 +5518,13 @@ FROM (SELECT '{"booleanValue": true}' AS val UNION ALL SELECT '{"booleanValue": 
 json_type	value	value_if	value_eq
 BOOLEAN	true	1	1
 BOOLEAN	false	0	0
+#
+# MDEV-39135 JSON_OBJECTAGG(NULL) in decimal context
+#
+create table t0(c0 boolean);
+insert t0 values (false);
+select 1 ^ json_objectagg(NULL, 'a') from t0;
+1 ^ json_objectagg(NULL, 'a')
+NULL
+drop table t0;
 # End of 11.8 Test

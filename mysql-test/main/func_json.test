@@ -4305,4 +4305,12 @@ SELECT JSON_TYPE(JSON_EXTRACT(x.val, '$.booleanValue')) AS json_type,
        JSON_EXTRACT(x.val, '$.booleanValue') = true AS value_eq
 FROM (SELECT '{"booleanValue": true}' AS val UNION ALL SELECT '{"booleanValue": false}' AS val ) AS x;
 
+--echo #
+--echo # MDEV-39135 JSON_OBJECTAGG(NULL) in decimal context
+--echo #
+create table t0(c0 boolean);
+insert t0 values (false);
+select 1 ^ json_objectagg(NULL, 'a') from t0;
+drop table t0;
+
 --echo # End of 11.8 Test
