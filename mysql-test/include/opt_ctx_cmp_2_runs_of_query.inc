@@ -36,6 +36,7 @@ eval drop table $table_name;
 -- source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
 -- enable_query_log
 
+set optimizer_replay_context= 'opt_context';
 let $explain_output=`$explain_query`;
 evalp set @explain_output= '$explain_output';
 set @explain_output= (select json_pretty(round_cost(@explain_output)));

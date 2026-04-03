@@ -159,5 +159,11 @@ set optimizer_replay_context='opt_context';
 select count(*) from t1;
 count(*)
 0
-drop table t1;
+set optimizer_replay_context='';
+create table t2( a int);
+#
+# MDEV-39222: Errors shown when inserting data into a new table
+#
+insert into t2 select seq from seq_1_to_10;
+drop table t1, t2;
 drop database db1;
