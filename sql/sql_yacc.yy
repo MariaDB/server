@@ -385,9 +385,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 70
+%expect 72
 %else
-%expect 71
+%expect 73
 %endif
 
 /*
@@ -473,6 +473,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <NONE> SHIFT_LEFT             /* OPERATOR */
 %token  <NONE> SHIFT_RIGHT            /* OPERATOR */
 %token  <NONE> ARROW_SYM              /* OPERATOR */
+%token  <NONE> JSON_SEPARATOR_SYM            /* OPERATOR */
+%token  <NONE> JSON_UNQUOTED_SEPARATOR_SYM   /* OPERATOR */
 
 
 /*
@@ -1234,6 +1236,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   SHIFT_LEFT SHIFT_RIGHT
 %left   '-' '+' ORACLE_CONCAT_SYM
 %left   '*' '/' '%' DIV_SYM MOD_SYM
+%left   JSON_SEPARATOR_SYM JSON_UNQUOTED_SEPARATOR_SYM
 %left   '^'
 %left   MYSQL_CONCAT_SYM
 /*
@@ -1595,7 +1598,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         boolean_test
         predicate bit_expr parenthesized_expr
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
-        primary_expr string_factor_expr mysql_concatenation_expr
+        primary_expr primary_base_expr string_factor_expr mysql_concatenation_expr
         select_sublist_qualified_asterisk
         expr_or_ignore expr_or_ignore_or_default
         signed_literal expr_or_literal
@@ -10626,7 +10629,7 @@ column_default_non_parenthesized_expr:
         }
         ;
 
-primary_expr:
+primary_base_expr:
           column_default_non_parenthesized_expr
         | explicit_cursor_attr
         | '(' parenthesized_expr ')' { $$= $2; }
@@ -10635,6 +10638,44 @@ primary_expr:
             if (!($$= Lex->create_item_query_expression(thd, $1->master_unit())))
               MYSQL_YYABORT;
           }
+        ;
+
+primary_expr:
+          primary_base_expr
+        | primary_base_expr JSON_SEPARATOR_SYM TEXT_STRING
+          {
+            Item *path= new (thd->mem_root) Item_string(thd, $3.str, $3.length,
+                                                        thd->variables.collation_connection);
+            if (unlikely(path == NULL))
+              MYSQL_YYABORT;
+            List<Item> *list= new (thd->mem_root) List<Item>;
+            if (unlikely(list == NULL ||
+                         list->push_back($1, thd->mem_root) ||
+                         list->push_back(path, thd->mem_root)))
+              MYSQL_YYABORT;
+            $$= new (thd->mem_root) Item_func_json_extract(thd, *list);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | primary_base_expr JSON_UNQUOTED_SEPARATOR_SYM TEXT_STRING
+          {
+            Item *path= new (thd->mem_root) Item_string(thd, $3.str, $3.length,
+                                                        thd->variables.collation_connection);
+            if (unlikely(path == NULL))
+              MYSQL_YYABORT;
+            List<Item> *list= new (thd->mem_root) List<Item>;
+            if (unlikely(list == NULL ||
+                         list->push_back($1, thd->mem_root) ||
+                         list->push_back(path, thd->mem_root)))
+              MYSQL_YYABORT;
+            Item *extract= new (thd->mem_root) Item_func_json_extract(thd, *list);
+            if (unlikely(extract == NULL))
+              MYSQL_YYABORT;
+            $$= new (thd->mem_root) Item_func_json_unquote(thd, extract);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        ;
         ;
 
 string_factor_expr:

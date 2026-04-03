@@ -2091,6 +2091,16 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       return((int) c);
 
     case MY_LEX_MINUS_OR_COMMENT:
+      if (yyPeek() == '>')
+      {
+        yySkip();
+        if (yyPeek() == '>')
+        {
+          yySkip();
+          return JSON_UNQUOTED_SEPARATOR_SYM;
+        }
+        return JSON_SEPARATOR_SYM;
+      }
       if (yyPeek() == '-' &&
           (my_isspace(cs,yyPeekn(1)) ||
            my_iscntrl(cs,yyPeekn(1))))
