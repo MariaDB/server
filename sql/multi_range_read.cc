@@ -240,10 +240,13 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
       */
       single_point_ranges++;
     }
-    else if (use_statistics_for_eq_range &&
-             !(range.range_flag & NULL_RANGE) &&
+    else if (!(range.range_flag & NULL_RANGE) &&
              (range.range_flag & EQ_RANGE) &&
-             table->key_info[keyno].actual_rec_per_key(keyparts_used - 1) > 0.5)
+             (use_statistics_for_eq_range ||
+              (thd->variables.optimizer_min_point_range_size_to_use_stats >
+               table->key_info[keyno].actual_rec_per_key(keyparts_used - 1))
+             ) &&
+             table->key_info[keyno].actual_rec_per_key(keyparts_used - 1) > 0.5 )
     {
       rows= ((ha_rows) table->key_info[keyno].
              actual_rec_per_key(keyparts_used-1));

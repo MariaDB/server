@@ -3102,6 +3102,16 @@ static Sys_var_ulong Sys_optimizer_adjust_secondary_key_costs(
     NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
     DEPRECATED(1100, ""));
 
+static Sys_var_harows Sys_optimizer_min_point_range_size_to_use_stats(
+    "optimizer_min_point_range_size_to_use_stats",
+    "Minimum point range size for which the optimizer will use "
+    "statistics instead of records_in_range call",
+    SESSION_VAR(optimizer_min_point_range_size_to_use_stats),
+    CMD_LINE(REQUIRED_ARG),
+    VALID_RANGE(0, HA_POS_ERROR), DEFAULT(0), BLOCK_SIZE(1),
+    NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+    ON_UPDATE(0));
+
 static Sys_var_charptr_fscs Sys_pid_file(
        "pid_file", "Pid file used by mariadbd-safe",
        READ_ONLY GLOBAL_VAR(pidfile_name_ptr), CMD_LINE(REQUIRED_ARG),

@@ -849,6 +849,9 @@ The following specify which files/extra groups are read (specified before remain
  The maximum number of SEL_ARG objects created when
  optimizing a range. If more objects would be needed, the
  range will not be used by the optimizer
+ --optimizer-min-point-range-size-to-use-stats=# 
+ Minimum point range size for which the optimizer will use
+ statistics instead of records_in_range call
  --optimizer-prune-level=# 
  Controls the heuristic(s) applied during query
  optimization to prune less-promising partial plans from
@@ -1883,6 +1886,7 @@ optimizer-key-lookup-cost 0.435777
 optimizer-key-next-find-cost 0.082347
 optimizer-max-sel-arg-weight 32000
 optimizer-max-sel-args 16000
+optimizer-min-point-range-size-to-use-stats 0
 optimizer-prune-level 2
 optimizer-row-copy-cost 0.060866
 optimizer-row-lookup-cost 0.130839

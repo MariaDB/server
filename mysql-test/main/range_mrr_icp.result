@@ -3869,6 +3869,92 @@ l_orderkey
 291
 DROP TABLE lineitem;
 #
+# MDEV-39251: Add an option to count records_in_range calls and skip them for point lookups
+#
+create table t1 (
+a int,
+b int,
+index(a),
+index(b)
+);
+insert into t1 select seq, floor(seq/10) from seq_1_to_100;
+#
+# The default behavior is to make records_in_range calls:
+#
+flush status;
+explain select * from t1 where a in (1,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	Using index condition; Rowid-ordered scan
+show status like 'Handler_records_in_range';
+Variable_name	Value
+Handler_records_in_range	2
+flush status;
+explain select * from t1 where a=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	5	const	1	
+show status like 'Handler_records_in_range';
+Variable_name	Value
+Handler_records_in_range	1
+flush status;
+explain select * from t1 where b=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	b	b	5	const	5	
+show status like 'Handler_records_in_range';
+Variable_name	Value
+Handler_records_in_range	1
+#
+# Now, INDEX(a) should be handled without records_in_range:
+#
+set @tmp=@@optimizer_min_point_range_size_to_use_stats;
+set optimizer_min_point_range_size_to_use_stats=5;
+flush status;
+explain select * from t1 where a in (1,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	Using index condition; Rowid-ordered scan
+show status like 'Handler_records_in_range';
+Variable_name	Value
+Handler_records_in_range	0
+flush status;
+explain select * from t1 where a=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	5	const	1	
+show status like 'Handler_records_in_range';
+Variable_name	Value
+Handler_records_in_range	0
+flush status;
+explain select * from t1 where b=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	b	b	5	const	5	
+show status like 'Handler_records_in_range';
+Variable_name	Value
+Handler_records_in_range	1
+#
+# Now, both INDEX(a) and INDEX(a) should be handled without records_in_range:
+#
+set optimizer_min_point_range_size_to_use_stats=30;
+flush status;
+explain select * from t1 where a in (1,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	Using index condition; Rowid-ordered scan
+show status like 'Handler_records_in_range';
+Variable_name	Value
+Handler_records_in_range	0
+flush status;
+explain select * from t1 where a=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	5	const	1	
+show status like 'Handler_records_in_range';
+Variable_name	Value
+Handler_records_in_range	0
+flush status;
+explain select * from t1 where b=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	b	b	5	const	9	
+show status like 'Handler_records_in_range';
+Variable_name	Value
+Handler_records_in_range	0
+set optimizer_min_point_range_size_to_use_stats=@tmp;
+#
 # End of 11.0 tests
 #
 set optimizer_switch=@mrr_icp_extra_tmp;

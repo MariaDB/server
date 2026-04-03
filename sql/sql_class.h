@@ -775,6 +775,7 @@ typedef struct system_variables
   ha_rows select_limit;
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
+  ha_rows optimizer_min_point_range_size_to_use_stats;
 
 #ifdef WITH_WSREP
   /*

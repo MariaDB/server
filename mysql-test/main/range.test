@@ -2639,5 +2639,68 @@ SELECT DISTINCT l_orderkey FROM lineitem FORCE KEY (i_l_orderkey, i_l_receiptdat
 DROP TABLE lineitem;
 
 --echo #
+--echo # MDEV-39251: Add an option to count records_in_range calls and skip them for point lookups
+--echo #
+create table t1 (
+  a int,
+  b int,
+  index(a),
+  index(b)
+);
+insert into t1 select seq, floor(seq/10) from seq_1_to_100;
+
+--echo #
+--echo # The default behavior is to make records_in_range calls:
+--echo #
+flush status;
+explain select * from t1 where a in (1,2);
+show status like 'Handler_records_in_range';
+
+flush status;
+explain select * from t1 where a=1;
+show status like 'Handler_records_in_range';
+
+flush status;
+explain select * from t1 where b=1;
+show status like 'Handler_records_in_range';
+
+--echo #
+--echo # Now, INDEX(a) should be handled without records_in_range:
+--echo #
+set @tmp=@@optimizer_min_point_range_size_to_use_stats;
+set optimizer_min_point_range_size_to_use_stats=5;
+
+flush status;
+explain select * from t1 where a in (1,2);
+show status like 'Handler_records_in_range';
+
+flush status;
+explain select * from t1 where a=1;
+show status like 'Handler_records_in_range';
+
+flush status;
+explain select * from t1 where b=1;
+show status like 'Handler_records_in_range';
+
+--echo #
+--echo # Now, both INDEX(a) and INDEX(a) should be handled without records_in_range:
+--echo #
+set optimizer_min_point_range_size_to_use_stats=30;
+
+flush status;
+explain select * from t1 where a in (1,2);
+show status like 'Handler_records_in_range';
+
+flush status;
+explain select * from t1 where a=1;
+show status like 'Handler_records_in_range';
+
+flush status;
+explain select * from t1 where b=1;
+show status like 'Handler_records_in_range';
+
+set optimizer_min_point_range_size_to_use_stats=@tmp;
+
+--echo #
 --echo # End of 11.0 tests
 --echo #
