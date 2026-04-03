@@ -4614,7 +4614,8 @@ found:
     if (n_used < 1 || n_used >= m_extent_size)
       return DB_CORRUPTION;
 
-    if (n_used < m_extent_size)
+    /* check whether the extent will be FULL after allocation */
+    if (n_used + 1 < m_extent_size)
       return DB_SUCCESS;
 
     byte *lst= m_iblock->page.frame + uint16_t(m_ioffset + FSEG_NOT_FULL);
@@ -4687,7 +4688,8 @@ found:
     if (n_used < 1 || n_used >= m_extent_size)
       return DB_CORRUPTION;
 
-    if (n_used < m_extent_size)
+    /* check whether the extent will be FULL after allocation */
+    if (n_used + 1 < m_extent_size)
       return DB_SUCCESS;
 
     byte *lst= m_header_block->page.frame + FSP_HEADER_OFFSET + FSP_FREE_FRAG;
@@ -5376,10 +5378,30 @@ func_exit:
 
     sql_print_information("InnoDB: System tablespace defragmentation "
                           "process starts");
-    sql_print_information("InnoDB: Moving the data from extents %"
-                          PRIu32 " through %" PRIu32,
-                          m_extent_map.begin()->first,
-                          m_extent_map.rbegin()->first);
+
+    if (m_extent_map.size() == 1)
+    {
+      auto it= m_extent_map.begin();
+      sql_print_information("InnoDB: Moving the data from extent %"
+                            PRIu32 " to extent %" PRIu32, it->first,
+                            it->second);
+    }
+    else
+    {
+      sql_print_information("InnoDB: Moving the data from extents %"
+		            PRIu32 " through %" PRIu32,
+                            m_extent_map.begin()->first,
+                            m_extent_map.rbegin()->first);
+
+      uint32_t min_dest= UINT32_MAX, max_dest= 0;
+      for (const auto &entry : m_extent_map)
+      {
+        min_dest= std::min(min_dest, entry.second);
+        max_dest= std::max(max_dest, entry.second);
+      }
+      sql_print_information("InnoDB: Destination extent range: %"
+                            PRIu32 " through %" PRIu32, min_dest, max_dest);
+    }
     return DB_SUCCESS;
   }
 
@@ -5626,6 +5648,12 @@ err_exit:
                 block->page.frame + FIL_PAGE_TYPE,
                 srv_page_size - FIL_PAGE_TYPE - 8);
 
+    if (level)
+    {
+      err= get_child_pages(new_block);
+      if (err) goto err_exit;
+    }
+
     /* Assign the new block page number in left, right
     and parent block */
     related_pages.complete(new_page_no, parent_offset);
@@ -5635,11 +5663,6 @@ err_exit:
     /* Add the new page in inode fragment array */
     operation.assign_frag_slot();
 
-    if (level)
-    {
-      err= get_child_pages(new_block);
-      if (err) return err;
-    }
     goto fetch_next_page;
   }
 
