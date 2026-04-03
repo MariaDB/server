@@ -610,6 +610,7 @@ bool store_optimizer_context(THD *thd)
     sql_script.append(STRING_WITH_LEN(";\n\n"));
     sql_script.append(thd->query(), thd->query_length());
     sql_script.append(STRING_WITH_LEN(";\n\n"));
+    sql_script.append(STRING_WITH_LEN("set optimizer_replay_context='';\n\n"));
     thd->captured_opt_ctx= new Optimizer_context_capture(thd, sql_script);
     if (!thd->captured_opt_ctx)
       return true; // OOM

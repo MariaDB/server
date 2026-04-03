@@ -35,7 +35,13 @@ drop table t1;
 
 --source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
 
+create table t2( a int);
+--echo #
+--echo # MDEV-39222: Errors shown when inserting data into a new table
+--echo #
+insert into t2 select seq from seq_1_to_10;
+
 --remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
 
-drop table t1;
+drop table t1, t2;
 drop database db1;
