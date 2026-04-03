@@ -1206,8 +1206,9 @@ static enum install_status plugin_add(MEM_ROOT *tmp_root, bool if_not_exists,
       goto err;
     if (my_hash_insert(&plugin_hash[plugin->type], (uchar*)tmp_plugin_ptr))
       tmp_plugin_ptr->state= PLUGIN_IS_FREED;
-    init_alloc_root(key_memory_plugin_int_mem_root, &tmp_plugin_ptr->mem_root,
-                    4096, 4096, MYF(0));
+    else
+      init_alloc_root(key_memory_plugin_int_mem_root, &tmp_plugin_ptr->mem_root,
+                      4096, 4096, MYF(0));
 
     if (name->str)
       DBUG_RETURN(INSTALL_GOOD); // all done
