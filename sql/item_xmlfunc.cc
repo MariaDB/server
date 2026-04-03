@@ -3799,6 +3799,103 @@ public:
 };
 
 
+enum xml_num_char_classes {
+  N_MNS,
+  N_PLS,
+  N_DIG,
+  N_PNT,
+  N_EXP,
+  N_SPC,
+  N_NUM_CLASSES,
+  n_er
+};
+
+
+static enum xml_num_char_classes xml_num_chr_map[128] = {
+  n_er, n_er,  n_er,  n_er, n_er, n_er,  n_er, n_er,
+  n_er, N_SPC, N_SPC, n_er, n_er, N_SPC, n_er, n_er,
+  n_er, n_er,  n_er,  n_er, n_er, n_er,  n_er, n_er,
+  n_er, n_er,  n_er,  n_er, n_er, n_er,  n_er, n_er,
+
+  N_SPC, n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /* !"#$%&'*/
+  n_er,  n_er,  n_er,  N_PLS, n_er,  N_MNS, N_PNT, n_er, /*()*+,-./ */
+  N_DIG, N_DIG, N_DIG, N_DIG, N_DIG, N_DIG, N_DIG, N_DIG,/*01234567*/
+  N_DIG, N_DIG, n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*89:;<=>?*/
+
+  n_er,  n_er,  n_er,  n_er,  n_er,  N_EXP, n_er,  n_er, /*@ABCDEFG*/
+  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*HIJKLMNO*/
+  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*PQRSTUVW*/
+  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*XYZ[\]^_*/
+
+  n_er,  n_er,  n_er,  n_er,  n_er,  N_EXP, n_er,  n_er, /*`abcdefg*/
+  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*hijklmno*/
+  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*pqrstuvw*/
+  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*xyz{|}~ */
+};
+
+
+enum xml_num_states {
+  NS_GO,  /* Initial state. */
+  NS_END, /* Number ended. */
+  NS_GO1, /* If the number starts with '-' or '+'. */
+  NS_INT, /* Integer part. */
+  NS_FRAC,/* Fractional part. */
+  NS_EXP, /* Exponential part begins. */
+  NS_EX1, /* Exponential part started with + or -. */
+  NS_EX2, /* Exponential part continues. */
+  NS_NUM_STATES
+};
+
+static int xml_integer_states[NS_INT][N_NUM_CLASSES]=
+{
+/*         -        +        0..9   POINT   E      SPACE */
+/*GO*/   { NS_GO1, NS_GO1, NS_INT, E_SYN,  E_SYN,  NS_GO  },
+/*END*/  { E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN,  NS_END },
+/*GO1*/  { E_SYN,  E_SYN,  NS_INT, E_SYN,  E_SYN,  E_SYN  },
+/*INT*/  { E_SYN,  E_SYN,  NS_INT, E_SYN,  E_SYN,  NS_END },
+};
+
+
+static int xml_decimal_states[NS_FRAC][N_NUM_CLASSES]=
+{
+/*         -        +        0..9   POINT   E      SPACE */
+/*GO*/   { NS_GO1, NS_GO1, NS_INT, NS_FRC, E_SYN,  NS_GO  },
+/*END*/  { E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN,  NS_END },
+/*GO1*/  { E_SYN,  E_SYN,  NS_INT, E_SYN,  E_SYN,  E_SYN  },
+/*INT*/  { E_SYN,  E_SYN,  NS_INT, E_SYN,  E_SYN,  NS_END },
+/*FRC*/  { E_SYN,  E_SYN,  NS_FRC, E_SYN,  E_SYN,  NS_END },
+};
+
+
+static int xml_float_states[NS_NUM_STATES][N_NUM_CLASSES]=
+{
+/*         -        +        0..9   POINT   E      SPACE */
+/*GO*/   { NS_GO1, NS_GO1, NS_INT, NS_FRC, E_SYN,  NS_GO  },
+/*END*/  { E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN,  NS_END },
+/*GO1*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, E_SYN,  E_SYN  },
+/*INT*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, NS_EXP, NS_END },
+/*FRC*/  { E_SYN,  E_SYN,  NS_FRC, E_SYN,  NS_EXP, NS_END },
+/*EXP*/  { NS_EX1, NS_EX1, NS_EX2, E_SYN,  E_SYN,  E_SYN  },
+/*EX1*/  { E_SYN,  E_SYN,  NS_EX2, E_SYN,  E_SYN,  E_SYN  },
+/*EX2*/  { E_SYN,  E_SYN,  NS_EX2, E_SYN,  E_SYN,  NS_END }
+};
+
+
+static uint xml_num_state_flags[NS_NUM_STATES]=
+{
+/*OK*/   0,
+/*GO*/   0,
+/*GO1*/  JSON_NUM_NEG,
+/*ZERO*/ 0,
+/*ZE1*/  0,
+/*INT*/  0,
+/*FRAC*/ JSON_NUM_FRAC_PART,
+/*EX*/   JSON_NUM_EXP,
+/*EX1*/  0,
+};
+
+
+
 /* Just to make type control possible. */
 class XMLSchema_type: public XMLSchema_tag
 {
