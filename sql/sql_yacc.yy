@@ -3548,6 +3548,8 @@ sp_param_name_and_mode_init_vars:
           {
             Lex->sp_variable_declarations_init(thd, 1);
             $$= $1;
+            LEX *lex=Lex;
+            lex->parsing_options.lookup_keywords_after_qualifier= true;
           }
         ;
 
@@ -19291,15 +19293,19 @@ sp_parameters:
 sf_returned_type_clause:
           RETURNS_SYM
           {
-            Lex->init_last_field(&Lex->sphead->m_return_field_def,
+            LEX *lex= Lex;
+            lex->init_last_field(&Lex->sphead->m_return_field_def,
                                  &empty_clex_str);
+            lex->parsing_options.lookup_keywords_after_qualifier= true;
           }
           sf_return_type
         ;
 
 sf_return_type:
-          field_type
+          qualified_field_type
           {
+            LEX *lex=Lex;
+            lex->parsing_options.lookup_keywords_after_qualifier= false;
             if (unlikely(Lex->sf_return_fill_definition($1)))
               MYSQL_YYABORT;
           }
@@ -19505,8 +19511,10 @@ sp_param_name_and_mode:
         ;
 
 sp_param_init_vars:
-          sp_param_name_and_mode_init_vars field_type
+          sp_param_name_and_mode_init_vars qualified_field_type
           {
+            LEX *lex=Lex;
+            lex->parsing_options.lookup_keywords_after_qualifier= false;
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
           }
@@ -19791,13 +19799,17 @@ sf_returned_type_clause:
             LEX *lex= Lex;
             lex->init_last_field(&lex->sphead->m_return_field_def,
                                  &empty_clex_str);
+            lex->parsing_options.lookup_keywords_after_qualifier= true;
+
           }
           sf_return_type
         ;
 
 sf_return_type:
-          field_type
+          qualified_field_type
           {
+            LEX *lex=Lex;
+            lex->parsing_options.lookup_keywords_after_qualifier= false;
             if (unlikely(Lex->sf_return_fill_definition($1)))
               MYSQL_YYABORT;
           }
@@ -20424,8 +20436,10 @@ sp_param_name_and_mode:
         ;
 
 sp_param_init_vars:
-          sp_param_name_and_mode_init_vars field_type
+          sp_param_name_and_mode_init_vars qualified_field_type
           {
+            LEX *lex=Lex;
+            lex->parsing_options.lookup_keywords_after_qualifier= false;
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
           }
