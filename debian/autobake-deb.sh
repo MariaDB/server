@@ -177,6 +177,14 @@ then
   fi
 fi
 
+# Enable DuckDB storage engine plugin packaging
+if grep -q "$architecture" storage/duckdb/duckdb/debian/control
+then
+  cp -v storage/duckdb/duckdb/debian/mariadb-plugin-duckdb.* debian/
+  echo >> debian/control
+  cat storage/duckdb/duckdb/debian/control >> debian/control
+fi
+
 if [ -n "${AUTOBAKE_PREP_CONTROL_RULES_ONLY:-}" ]
 then
   exit 0
