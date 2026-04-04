@@ -1939,6 +1939,7 @@ drop table if exists t1;drop table if exists t1;
 drop table if exists t1;drop table if exists t1;
 drop table if exists t1;drop table if exists t1;
 INIT_FILE	
+INIT_RPL_ROLE	MASTER
 INIT_SLAVE	
 set global init_connect="";
 create table t0 select * from information_schema.global_status where VARIABLE_NAME='COM_SELECT';

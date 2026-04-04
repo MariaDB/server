@@ -67,6 +67,7 @@
 #include "semisync_master.h"
 #include "semisync_slave.h"
 #include <ssl_compat.h>
+#include "repl_failsafe.h"
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 #endif
@@ -1505,6 +1506,16 @@ Sys_init_slave(
        DEFAULT(""), &PLock_sys_init_slave,
        NOT_IN_BINLOG, ON_CHECK(check_init_string));
 
+#ifdef HAVE_REPLICATION 
+static Sys_var_enum Sys_init_rpl_role(  
+       "init_rpl_role",
+       "The replication role the server starts with. "
+       "Can be set to help recover "
+       "special semi-sync replication situations. "
+       "Possible values are MASTER and SLAVE",
+       READ_ONLY GLOBAL_VAR(init_rpl_role_val), CMD_LINE(REQUIRED_ARG),
+       rpl_role_type, DEFAULT(RPL_AUTH_MASTER));
+#endif
 static Sys_var_ulong Sys_interactive_timeout(
        "interactive_timeout",
        "The number of seconds the server waits for activity on an interactive "
