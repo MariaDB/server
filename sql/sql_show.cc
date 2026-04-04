@@ -191,6 +191,8 @@ static bool trylock_short(mysql_mutex_t *mutex)
   return 1;
 }
 
+extern ST_FIELD_INFO removed_startup_options_fields_info[];
+int fill_schema_removed_startup_options(THD *thd, TABLE_LIST *tables, COND *cond);
 
 /***************************************************************************
 ** List all table types supported
@@ -11017,6 +11019,9 @@ ST_SCHEMA_TABLE schema_tables[]=
    Show::referential_constraints_fields_info,
    0, get_all_tables, 0, get_referential_constraints_record,
    1, 9, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
+  {"REMOVED_STARTUP_OPTIONS"_Lex_ident_i_s_table,
+   removed_startup_options_fields_info, 0,
+   fill_schema_removed_startup_options, 0, 0, -1, -1, 0, 0},
   {"ROUTINES"_Lex_ident_i_s_table, Show::proc_fields_info, 0,
    fill_schema_proc, make_proc_old_format, 0, 2, 3, 0, 0},
   {"SCHEMATA"_Lex_ident_i_s_table, Show::schema_fields_info, 0,

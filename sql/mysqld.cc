@@ -136,6 +136,8 @@
 
 #include <source_revision.h>
 
+#include "removed_option_registry.h"
+
 #define mysqld_charset &my_charset_latin1
 
 extern "C" {					// Because of SCO 3.2V4.2
@@ -1984,6 +1986,8 @@ static void clean_up(bool print_message)
   DBUG_PRINT("exit",("clean_up"));
   if (cleanup_done++)
     return; /* purecov: inspected */
+
+  free_removed_startup_option_registry();
 
 #ifdef HAVE_REPLICATION
   // We must call end_slave() as clean_up may have been called during startup
@@ -4999,6 +5003,9 @@ static int init_server_components()
 {
   DBUG_ENTER("init_server_components");
   bool binlog_engine_used= false;
+
+   if (init_removed_startup_option_registry())
+    unireg_abort(1);
 
   /*
     We need to call each of these following functions to ensure that
@@ -8470,6 +8477,8 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
 #endif
     break;
   case OPT_REMOVED_OPTION:
+    if (register_removed_startup_option(opt->name, argument, filename))
+      sql_print_warning("Failed to record removed option '%s'", opt->name);
     sql_print_warning("'%s' was removed. It does nothing now and exists only "
                       "for compatibility with old my.cnf files.", opt->name);
     /* Restore default value (to show that the option cannot be used) */
