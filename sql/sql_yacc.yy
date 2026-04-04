@@ -1592,6 +1592,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         boolean_test
         predicate bit_expr parenthesized_expr
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
+        sp_cparam
         primary_expr string_factor_expr mysql_concatenation_expr
         select_sublist_qualified_asterisk
         expr_or_ignore expr_or_ignore_or_default
@@ -3498,13 +3499,32 @@ opt_sp_cparams:
         ;
 
 sp_cparams:
-          sp_cparams ',' expr
+          sp_cparams ',' sp_cparam
           {
             ($$= $1)->push_back($3, thd->mem_root);
           }
-        | expr
+        | sp_cparam
           {
             ($$= &Lex->value_list)->push_back($1, thd->mem_root);
+          }
+        ;
+
+sp_cparam:
+          expr
+          {
+            if (Lex->has_named_call_param)
+            {
+              thd->parse_error();
+              MYSQL_YYABORT;
+            }
+            $$= $1;
+          }
+        | ident ARROW_SYM expr
+          {
+            Lex->has_named_call_param= true;
+            $3->base_flags|= item_base_t::IS_EXPLICIT_NAME;
+            $3->set_name(thd, $1);
+            $$= $3;
           }
         ;
 

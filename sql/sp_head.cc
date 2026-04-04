@@ -2177,12 +2177,87 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
   if (m_parent && m_parent->instantiate_if_needed(thd))
     DBUG_RETURN(true);
 
-  if (args->elements < (params - default_params) ||
-      args->elements > params)
+  if (!thd->lex->has_named_call_param &&
+      (args->elements < (params - default_params) ||
+      args->elements > params))
   {
     my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "PROCEDURE",
              ErrConvDQName(this).ptr(), params, args->elements);
     DBUG_RETURN(TRUE);
+  }
+
+  /* Reorder named arguments to match formal parameter positions */
+  List<Item> reordered_args;
+  if (thd->lex->has_named_call_param)
+  {
+    Item **arg_array= (Item**) thd->calloc(sizeof(Item*) * params);
+    bool *param_assigned= (bool*) thd->calloc(sizeof(bool) * params);
+    if (!arg_array || !param_assigned)
+      DBUG_RETURN(TRUE);
+
+    List_iterator<Item> it(*args);
+    uint positional_count= 0;
+    Item *item;
+
+    while ((item= it++))
+    {
+      if (item->is_explicit_name())
+      {
+        bool found= false;
+        for (uint j= 0; j < params; j++)
+        {
+          sp_variable *spvar= m_pcont->get_context_variable(j);
+          if (spvar->name.streq(item->name))
+          {
+            if (param_assigned[j])
+            {
+              my_error(ER_SP_UNDECLARED_VAR, MYF(0), item->name.str);
+              DBUG_RETURN(TRUE);
+            }
+            arg_array[j]= item;
+            param_assigned[j]= true;
+            found= true;
+            break;
+          }
+        }
+        if (!found)
+        {
+          my_error(ER_SP_UNDECLARED_VAR, MYF(0), item->name.str);
+          DBUG_RETURN(TRUE);
+        }
+      }
+      else
+      {
+        if (param_assigned[positional_count])
+        {
+          my_error(ER_SP_UNDECLARED_VAR, MYF(0),
+                   m_pcont->get_context_variable(positional_count)->name.str);
+          DBUG_RETURN(TRUE);
+        }
+        arg_array[positional_count]= item;
+        param_assigned[positional_count]= true;
+        positional_count++;
+      }
+    }
+
+    for (uint j= 0; j < params; j++)
+    {
+      if (!param_assigned[j])
+      {
+        sp_variable *spvar= m_pcont->get_context_variable(j);
+        if (!spvar->default_value)
+        {
+          my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "PROCEDURE",
+                   ErrConvDQName(this).ptr(), params, args->elements);
+          DBUG_RETURN(TRUE);
+        }
+        arg_array[j]= spvar->default_value;
+      }
+    }
+
+    for (uint j= 0; j < params; j++)
+      reordered_args.push_back(arg_array[j], thd->mem_root);
+    args= &reordered_args;
   }
 
   save_spcont= octx= thd->spcont;

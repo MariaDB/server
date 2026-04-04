@@ -1,0 +1,66 @@
+#
+# MDEV-38329: Named Parameters in Invocation of Stored Routines
+#
+# Test setup
+CREATE PROCEDURE p1(a INT, b INT, c INT)
+BEGIN
+SELECT a, b, c;
+END;
+$$
+# All positional (existing behavior)
+CALL p1(1, 2, 3);
+a	b	c
+1	2	3
+# All named
+CALL p1(a => 1, b => 2, c => 3);
+a	b	c
+1	2	3
+# Named in different order
+CALL p1(c => 3, a => 1, b => 2);
+a	b	c
+1	2	3
+# Mixed positional and named
+CALL p1(1, b => 2, c => 3);
+a	b	c
+1	2	3
+# Mixed: first two positional, last named
+CALL p1(1, 2, c => 3);
+a	b	c
+1	2	3
+# Positional after named should fail
+CALL p1(a => 1, 2, 3);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ' 3)' at line 1
+# Unknown parameter name
+CALL p1(a => 1, b => 2, x => 3);
+ERROR 42000: Undeclared variable: x
+# Duplicate parameter name
+CALL p1(a => 1, a => 2, b => 3);
+ERROR 42000: Undeclared variable: a
+DROP PROCEDURE p1;
+#
+# Test with default values
+#
+CREATE PROCEDURE p2(a INT, b INT DEFAULT 20, c INT DEFAULT 30)
+BEGIN
+SELECT a, b, c;
+END;
+$$
+# Skip middle param (use default for b)
+CALL p2(a => 1, c => 3);
+a	b	c
+1	20	3
+# Only required param
+CALL p2(a => 1);
+a	b	c
+1	20	30
+# All named with defaults overridden
+CALL p2(a => 10, b => 20, c => 30);
+a	b	c
+10	20	30
+# Missing required param should fail
+CALL p2(b => 2, c => 3);
+ERROR 42000: Incorrect number of arguments for PROCEDURE test.p2; expected 3, got 2
+DROP PROCEDURE p2;
+#
+# End of tests
+#
