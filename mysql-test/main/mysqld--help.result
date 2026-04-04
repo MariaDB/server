@@ -465,7 +465,9 @@ The following specify which files/extra groups are read (specified before remain
  (unless the user has SUPER privilege)
  --init-file=name    Read SQL commands from this file at startup
  --init-rpl-role=name 
- Set the replication role. One of: MASTER, SLAVE
+ The replication role the server starts with. Can be set
+ to help recover special semi-sync replication situations.
+ Possible values are MASTER and SLAVE
  --init-slave=name   Command(s) that are executed by a slave server each time
  the SQL thread starts
  --interactive-timeout=# 
