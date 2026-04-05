@@ -8968,6 +8968,10 @@ void st_select_lex::collect_grouping_fields_for_derived(THD *thd,
 
 /**
   Collect fields that are used in the GROUP BY of this SELECT
+
+  @retval
+    true  - no grouping fields or an error
+    false - collected group fields successfully
 */
 
 bool st_select_lex::collect_grouping_fields(THD *thd)
@@ -8987,7 +8991,7 @@ bool st_select_lex::collect_grouping_fields(THD *thd)
     Field_pair *grouping_tmp_field=
       new Field_pair(((Item_field *)item->real_item())->field, item);
     if (grouping_tmp_fields.push_back(grouping_tmp_field, thd->mem_root))
-      return false;
+      return true;
   }
   if (grouping_tmp_fields.elements)
     return false;
