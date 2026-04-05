@@ -200,6 +200,40 @@ struct FVector
   {
     bzero(dims + vec_len, (MY_ALIGN(vec_len, AVX2_dims) - vec_len)*2);
   }
+
+  AVX2_IMPLEMENTATION
+  float distance_manhattan(const FVector *other, size_t vec_len) const
+  {
+    float sum= 0.0f;
+    __m256i abs_mask      = _mm256_set1_epi32(0x7FFFFFFF);
+    __m256 abs_mask_ps    = _mm256_castsi256_ps(abs_mask);
+    __m256 scale_ps       = _mm256_set1_ps(scale);
+    __m256 other_scale_ps = _mm256_set1_ps(other->scale);
+    __m256 final_res      = _mm256_setzero_ps();
+    size_t i = 0;
+    for (; i + 8 < vec_len; i+=8)
+    {
+      __m256 v1 = _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i*)&dims[i])));
+      __m256 v2 = _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i*)&other->dims[i])));
+      v1 = _mm256_mul_ps(v1,scale_ps);
+      v2 = _mm256_mul_ps(v2,other_scale_ps);
+      __m256 diff = _mm256_sub_ps(v1,v2);
+      __m256 res  = _mm256_and_ps(diff,abs_mask_ps);
+      final_res=_mm256_add_ps(final_res,res);
+    }
+
+    alignas(32) float temp_sum[8];
+    _mm256_storeu_ps(temp_sum, final_res);
+    sum = temp_sum[0] + temp_sum[1] + temp_sum[2] + temp_sum[3] + temp_sum[4] + temp_sum[5] + temp_sum[6] + temp_sum[7];
+
+    for(; i < vec_len; i++)
+    {
+      float diff = dims[i] * scale - other->dims[i] * other->scale;
+      sum += (diff>0) ? diff : -diff;
+    }
+
+    return sum;
+  }
 #endif
 
 #ifdef AVX512_IMPLEMENTATION
@@ -351,6 +385,18 @@ struct FVector
 
   DEFAULT_IMPLEMENTATION
   void fix_tail(size_t) { }
+
+  DEFAULT_IMPLEMENTATION
+  float distance_manhattan(const FVector *other, size_t vec_len) const
+  {
+    float sum= 0.0f;
+    for (size_t i= 0; i < vec_len; i++)
+    {
+      float diff= dims[i] * scale - other->dims[i] * other->scale;
+      sum += (diff > 0) ? diff : -diff;
+    }
+    return sum;
+  }
 #endif
 
   float distance_to(const FVector *other, size_t vec_len) const
@@ -359,17 +405,10 @@ struct FVector
            dot_product(dims, other->dims, vec_len);
   }
 
-  float distance_manhattan(const FVector *other, size_t vec_len) const
+  float distance_greater_than_manhattan(const FVector *other, size_t vec_len,
+                                        float than) const
   {
-    float sum= 0.0f;
-    for (size_t i= 0; i < vec_len; i++)
-    {
-      float v1= static_cast<float>(dims[i]) * scale;
-      float v2= static_cast<float>(other->dims[i]) * other->scale;
-      float diff= v1 - v2;
-      sum+= (diff >= 0) ? diff : -diff;
-    }
-    return sum;
+    return distance_manhattan(other, vec_len);
   }
 
   float distance_greater_than(const FVector *other, size_t vec_len, float than,
@@ -968,10 +1007,7 @@ float FVectorNode::distance_greater_than(const FVector *other, float than,
                                          dgt_mode mode, Stats *stats) const
 {
   if (ctx->metric == MANHATTAN)
-  {
-    float dist = distance_to(other);
-    return dist;
-  }
+    return vec->distance_greater_than_manhattan(other, ctx->vec_len, than);
   static constexpr float mul[3]= {0, 10, subdist_margin };
   if (mode == NOSTAT_NOSUBDIST)
     return distance_to(other);
