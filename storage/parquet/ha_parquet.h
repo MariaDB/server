@@ -7,6 +7,13 @@
 #include "thr_lock.h"
 #include "my_base.h"
 
+#include <vector>
+#include <string>
+
+struct parquet_trx_data {
+  std::vector<std::string> s3_file_paths;
+};
+
 class ha_parquet final : public handler
 {
 public:
@@ -35,7 +42,7 @@ public:
 
   enum_alter_inplace_result check_if_supported_inplace_alter(TABLE *altered_table, Alter_inplace_info *ha_alter_info) override;
 
-  int external_lock(THD *, int) override;
+  int external_lock(THD *thd, int lock_type) override;
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
                              enum thr_lock_type lock_type) override;

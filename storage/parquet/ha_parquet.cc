@@ -84,9 +84,33 @@ ha_parquet::check_if_supported_inplace_alter(TABLE *,
   return HA_ALTER_INPLACE_NOT_SUPPORTED;
 }
 
-int ha_parquet::external_lock(THD *, int)
-{
-  return 0;
+int ha_parquet::ha_parquet_external_lock(THD *thd, int lock_type) {
+
+  DBUG_ENTER("ha_parquet::external_lock");
+
+  if (lock_type == F_RDLCK) {
+    trans_register_ha(thd, false, ht, 0);
+
+    parquet_trx_data *trx = (parquet_trx_data *) thd_get_ha_data(thd, ht);
+
+    if (trx == NULL) {
+      trx = new parquet_trx_data();
+      thd_set_ha_data(thd, ht, trx);
+    }
+  } else if (lock_type == F_WRLCK) {
+    parquet_trx_data *trx = (parquet_trx_data *) thd_get_ha_data(thd, ht);
+
+    if (trx == NULL) {
+      trx = new parquet_trx_data();
+      thd_set_ha_data(thd, ht, trx);
+    }
+  } else if (lock_type == F_UNLCK) {
+    // flush remaining buffered rows to S3
+    
+  }
+
+
+  
 }
 
 THR_LOCK_DATA **ha_parquet::store_lock(THD *thd,
