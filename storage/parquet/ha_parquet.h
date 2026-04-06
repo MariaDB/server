@@ -49,5 +49,10 @@ public:
 
 private:
   THR_LOCK_DATA lock;
+
+  uint64_t row_count;
+  uint64_t flush_threshold;
+  bool duckdb_initialized;
+
 };
 #endif

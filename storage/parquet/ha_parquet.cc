@@ -25,7 +25,35 @@ ulong ha_parquet::index_flags(uint, uint, bool) const
 
 int ha_parquet::open(const char *, int, uint)
 {
-  return 0;
+
+  DBUG_ENTER("ha_parquet::open");
+
+  row_count = 0;
+  flush_threshold = -1; // filler for now; ik that BlOCK_SIZE should be capped at 16MB, 
+  // but I'm not sure how many rows (on average) that would be 
+  duckdb_initialized = false;
+
+
+  // Steps to get DuckDB stuff to work:
+  // 1: Create the in-memory DuckDB database and connection
+  //     - Code should look something like this (putting on heap so we can use it in other methods (like write_row() for example)):
+  //        db = new duckdb::DuckDB(nullptr);
+  //        con = new duckdb::Connection(*db);
+  //.       con->Query("SET memory_limit='32MB'"); // memory_limit size isn't mentioned in the systems design document, so I set it to 32MB for now (double the BLOCK_SIZE)
+  // 2: View Iceberg Table in DuckDB
+  //     - Code should look something like this:
+  //        con->Query("INSTALL iceberg;");   runs only once when needed; skips otherwise
+  //        con->Query("LOAD iceberg;");      this needs to run everytime
+  //        std::string s3_path = our path to s3 storage;
+  //        std::string create_view_iceberg_query = "CREATE VIEW iceberg_view AS SELECT * FROM iceberg_scan('" + s3_path + "')";
+  //        con->Query(create_view_iceberg_query);
+  
+
+
+  DBUG_RETURN(0);
+  duckdb_initialized = true;
+
+
 }
 
 int ha_parquet::close(void)
@@ -84,7 +112,7 @@ ha_parquet::check_if_supported_inplace_alter(TABLE *,
   return HA_ALTER_INPLACE_NOT_SUPPORTED;
 }
 
-int ha_parquet::ha_parquet_external_lock(THD *thd, int lock_type) {
+int ha_parquet::external_lock(THD *thd, int lock_type) {
 
   DBUG_ENTER("ha_parquet::external_lock");
 
@@ -98,6 +126,7 @@ int ha_parquet::ha_parquet_external_lock(THD *thd, int lock_type) {
       thd_set_ha_data(thd, ht, trx);
     }
   } else if (lock_type == F_WRLCK) {
+    trans_register_ha(thd, false, ht, 0);
     parquet_trx_data *trx = (parquet_trx_data *) thd_get_ha_data(thd, ht);
 
     if (trx == NULL) {
@@ -108,9 +137,8 @@ int ha_parquet::ha_parquet_external_lock(THD *thd, int lock_type) {
     // flush remaining buffered rows to S3
     
   }
-
-
   
+  DBUG_RETURN(0);
 }
 
 THR_LOCK_DATA **ha_parquet::store_lock(THD *thd,
