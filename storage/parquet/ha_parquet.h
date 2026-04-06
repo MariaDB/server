@@ -17,6 +17,7 @@ public:
   ulonglong table_flags() const override;
   ulong index_flags(uint idx, uint part, bool all_parts) const override;
 
+  
   int open(const char *name, int mode, uint test_if_locked) override;
   int close(void) override;
   int create(const char *name, TABLE *table_arg, HA_CREATE_INFO *create_info) override;
