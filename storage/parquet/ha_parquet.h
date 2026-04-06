@@ -49,5 +49,6 @@ public:
 
 private:
   THR_LOCK_DATA lock;
+  std::string helper_db_path;
 };
 #endif

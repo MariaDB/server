@@ -1,14 +1,17 @@
 #define MYSQL_SERVER 1
 
 #include "ha_parquet.h"
+
 #include "sql_class.h"
 #include "handler.h"
+#include "duckdb.hpp"
+#include "sql/table.h"
+#include "sql/handler.h"
 
 handlerton *parquet_hton= 0;
 static THR_LOCK parquet_lock;
 
-ha_parquet::ha_parquet(handlerton *hton, TABLE_SHARE *table_arg)
-  : handler(hton, table_arg)
+ha_parquet::ha_parquet(handlerton *hton, TABLE_SHARE *table_arg) : handler(hton, table_arg)
 {
   thr_lock_data_init(&parquet_lock, &lock, NULL);
 }
@@ -33,10 +36,119 @@ int ha_parquet::close(void)
   return 0;
 }
 
-int ha_parquet::create(const char *, TABLE *, HA_CREATE_INFO *)
-{
-  return 0;
+// int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *create_info)
+// {
+//   // auto *options= create_info ? create_info->option_struct : nullptr;
+
+//   auto *options = nullptr;
+
+//   if(create_info->option_struct){
+//     options = create_info;
+//   }
+
+//   if (!options || !options->file_name || !*options->file_name)
+//   {
+//     my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "PARQUET", "FILE_NAME");
+//     return HA_ERR_GENERIC;
+//   }
+
+//   if ((create_info->options & HA_LEX_CREATE_TMP_TABLE) != 0)
+//   {
+//     my_error(ER_UNSUPPORTED_EXTENSION, MYF(0), "TEMPORARY PARQUET tables");
+//     return HA_ERR_GENERIC;
+//   }
+
+//   try
+//   {
+//     ParquetTableNames dt(name);
+//     std::string parquet_file= options->file_name;
+    // std::string catalog_path= make_catalog_path(name);
+
+//     duckdb::DuckDB db(catalog_path);
+//     duckdb::Connection con(db);
+
+//     std::string error;
+//     if (!validate_parquet_schema(table_arg, con, parquet_file, error))
+//     {
+//       my_error(ER_UNKNOWN_ERROR, MYF(0), error.c_str());
+//       return HA_ERR_GENERIC;
+//     }
+
+//     std::ostringstream sql;
+//     sql << "CREATE SCHEMA IF NOT EXISTS " << sql_quote_identifier(dt.db_name)
+//         << "; CREATE OR REPLACE VIEW "
+//         << sql_quote_identifier(dt.db_name) << "."
+//         << sql_quote_identifier(dt.table_name)
+//         << " AS SELECT * FROM read_parquet(" << sql_quote_string(parquet_file)
+//         << ")";
+
+//     auto create_result= con.Query(sql.str());
+//     if (!create_result || create_result->HasError())
+//     {
+//       const std::string error_msg=
+//           create_result ? create_result->GetError() : "DuckDB query failed";
+//       my_error(ER_UNKNOWN_ERROR, MYF(0), error_msg.c_str());
+//       return HA_ERR_GENERIC;
+//     }
+//   }
+//   catch (const std::exception &ex)
+//   {
+//     my_error(ER_UNKNOWN_ERROR, MYF(0), ex.what());
+//     return HA_ERR_GENERIC;
+//   }
+
+//   return 0;
+// }
+
+
+int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *create_info) {
+
+    
+  
+    std::string table_path(name);
+    // Setting the helper_db_path if it is empty, if not then it already exists so we can use it. 
+    if(helper_db_path.empty()){
+        size_t pos  = table_path.find_last_of("/\\");
+        
+        if(pos == std::string::npos) {
+          helper_db_path = "duckdb_helper.duckdb";
+
+         }
+        else {
+           helper_db_path = table_path.substr(0, pos) + "/duckdb_helper.duckdb";
+        }
+    }
+
+
+    duckdb::DuckDB db(helper_db_path);
+    duckdb::Connection con(db);
+
+    // Path to the parquet file
+    std::string parquet_file = std::string(name) + ".parquet";
+
+
+    // Getting the table name itself (It will alwaus be the end of the file path like /database/table) get the table
+    std::string table_name;
+    size_t pos = table_path.find_last_of("/\\");
+    if(pos == std::string::npos){
+      table_name = table_path;
+    }
+    else{
+      table_name = table_path.substr(pos+1);
+    }
+
+    // Now build the query
+    std::string query;
+    
+
+
+    auto result = con.Query(query);
+
+    
+
+    return 0;
 }
+
 
 int ha_parquet::write_row(const uchar *buf)
 {
@@ -84,7 +196,7 @@ ha_parquet::check_if_supported_inplace_alter(TABLE *,
   return HA_ALTER_INPLACE_NOT_SUPPORTED;
 }
 
-int ha_parquet::ha_parquet_external_lock(THD *thd, int lock_type) {
+int ha_parquet::external_lock(THD *thd, int lock_type) {
 
   DBUG_ENTER("ha_parquet::external_lock");
 
@@ -109,8 +221,7 @@ int ha_parquet::ha_parquet_external_lock(THD *thd, int lock_type) {
     
   }
 
-
-  
+  DBUG_RETURN(0);
 }
 
 THR_LOCK_DATA **ha_parquet::store_lock(THD *thd,
