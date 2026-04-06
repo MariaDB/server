@@ -163,6 +163,21 @@ then
   fi
 fi
 
+# DuckDB is explicitly disabled in the native Debian build. Enable it
+# now when build is triggered by autobake-deb.sh (MariaDB.org) and when the
+# build is not running on Gitlab-CI.
+if [[ ! $GITLAB_CI ]] && [[ -d storage/duckdb/duckdb/debian ]]
+then
+  sed '/-DPLUGIN_DUCKDB=NO/d' -i debian/rules
+  # Take the files and part of control from DuckDB directory
+  if [[ ! -f debian/mariadb-plugin-duckdb.install ]]
+  then
+    cp -v storage/duckdb/duckdb/debian/mariadb-plugin-duckdb.* debian/
+    echo >> debian/control
+    cat storage/duckdb/duckdb/debian/control >> debian/control
+  fi
+fi
+
 if [ -n "${AUTOBAKE_PREP_CONTROL_RULES_ONLY:-}" ]
 then
   exit 0
