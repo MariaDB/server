@@ -6935,8 +6935,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
          new_key < new_key_end;
          new_key++)
     {
-      if (!lex_string_cmp(system_charset_info, &table_key->name,
-                          &new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (new_key >= new_key_end)
@@ -6986,8 +6985,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
     /* Search an old key with the same name. */
     for (table_key= table->key_info; table_key < table_key_end; table_key++)
     {
-      if (!lex_string_cmp(system_charset_info, &table_key->name,
-                          &new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (table_key >= table_key_end)
@@ -7019,8 +7017,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
         continue;
       }
 
-      DBUG_ASSERT(
-          lex_string_cmp(system_charset_info, &old_key->name, &new_key->name));
+      DBUG_ASSERT(cmp(&old_key->name, &new_key->name));
 
       ha_alter_info->handler_flags|= ALTER_RENAME_INDEX;
       ha_alter_info->rename_keys.push_back(
@@ -7292,8 +7289,7 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     /* Search a key with the same name. */
     for (new_key= key_info_buffer; new_key < new_key_end; new_key++)
     {
-      if (!lex_string_cmp(system_charset_info, &table_key->name,
-                          &new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (new_key >= new_key_end)
@@ -7332,8 +7328,7 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     /* Search a key with the same name. */
     for (table_key= table->s->key_info; table_key < table_key_end; table_key++)
     {
-      if (!lex_string_cmp(system_charset_info, &table_key->name,
-                          &new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (table_key >= table_key_end)
