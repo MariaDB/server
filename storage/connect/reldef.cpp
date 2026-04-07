@@ -625,7 +625,12 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
   if (check_valid_path(Module, strlen(Module))) {
     safe_strcpy(g->Message, sizeof(g->Message), "Module cannot contain a path");
     return NULL;
-  } else
+	}
+	else if (strlen(Subtype)+1+3 >= sizeof(getname)) {
+		safe_strcpy(g->Message, sizeof(g->Message), "Subtype string too long");
+		return NULL;
+	}
+  else
 //  PlugSetPath(soname, Module, GetPluginDir());  // Crashes on Fedora
     snprintf(soname, sizeof(soname), "%s%s", GetPluginDir(), Module);
 
