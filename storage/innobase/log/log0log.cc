@@ -1255,7 +1255,6 @@ ATTRIBUTE_COLD void log_t::archive_create(bool ex) noexcept
     file= os_file_create_func(path.c_str(), OS_FILE_OPEN, OS_LOG_FILE,
                               false, &success);
     ut_ad(success == (file != OS_FILE_CLOSED));
-    ut_ad(file == OS_FILE_CLOSED || os_file_get_size(file) < FILE_SIZE_MIN);
   }
 
   if (file != OS_FILE_CLOSED)
@@ -1833,6 +1832,8 @@ repeat:
 void log_t::set_recovered_lsn(lsn_t lsn) noexcept
 {
   ut_ad(latch_have_wr());
+  if (archive)
+    unstash_archive_file();
   uint64_t lsn_offset= ((write_size - 1) & (lsn - first_lsn));
   write_lsn_offset= lsn_offset;
   base_lsn.store(lsn - lsn_offset, std::memory_order_relaxed);

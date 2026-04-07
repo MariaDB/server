@@ -1724,6 +1724,28 @@ inline void log_t::stash_archive_file() noexcept
   writer= nullptr;
 }
 
+/** @return whether the log file header is all zero */
+ATTRIBUTE_COLD static bool log_file_is_zero() noexcept
+{
+  ut_ad(log_sys.latch_have_wr());
+  ut_ad(log_sys.archive);
+  ut_ad(log_sys.is_mmap() == !log_sys.checkpoint_buf);
+
+  size_t size= log_sys.write_size;
+  if (const byte *buf= log_sys.checkpoint_buf)
+  {
+    if (memcmp_aligned<512>(buf, field_ref_zero, size))
+      return false;
+  }
+  else
+    return !memcmp_aligned<512>(log_sys.buf, field_ref_zero,
+                                UNIV_PAGE_SIZE_MAX);
+
+  size= UNIV_PAGE_SIZE_MAX - size;
+  return log_sys.log.read(0, {log_sys.buf, size}) == DB_SUCCESS &&
+    !memcmp_aligned<512>(log_sys.buf, field_ref_zero, size);
+}
+
 dberr_t recv_sys_t::find_checkpoint()
 {
   byte *buf;
@@ -1869,9 +1891,7 @@ dberr_t recv_sys_t::find_checkpoint()
           found_recovery_start= prev;
         if (i == end)
           break;
-        if (last == i->first)
-          prev->second.access= log_t::READ_ONLY;
-        else
+        if (last != i->first)
         {
           log_archive.erase(log_archive.begin(), start= i);
           found_recovery_start= end;
@@ -1909,10 +1929,8 @@ dberr_t recv_sys_t::find_checkpoint()
         }
         read_only= bool(i->second.access);
         ut_ad(log_t::log_access(read_only) == i->second.access);
+        read_only|= !!uint16_t(~last_checkpoint_no);
         const bool open_read_only{read_only || rpo || srv_read_only_mode};
-        i->second.access= log_t::log_access(open_read_only);
-        static_assert(log_t::READ_WRITE == log_t::log_access(false), "");
-        static_assert(log_t::READ_ONLY == log_t::log_access(true), "");
         file=
           os_file_create_func(log_sys.append_archive_name(path, i->first).
                               c_str(), OS_FILE_OPEN, OS_LOG_FILE,
@@ -1973,8 +1991,15 @@ dberr_t recv_sys_t::find_checkpoint()
               goto circular_log_recovery;
             }
             /* fall through */
+            goto found_bad_header;
           default:
-            last_checkpoint_no= uint16_t(8 * log_sys.is_encrypted());
+            if (log_file_is_zero())
+              /* There is no checkpoint in this file. There may be
+              some log records, or this is a zero-filled preallocated
+              file. We will know at log_t::set_recovered_lsn(). */;
+            else
+            found_bad_header:
+              last_checkpoint_no= uint16_t(8 * log_sys.is_encrypted());
           }
         }
         else if (err == DB_SUCCESS)
