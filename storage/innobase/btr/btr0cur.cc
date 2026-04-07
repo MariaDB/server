@@ -3611,10 +3611,10 @@ any_extern:
 		goto func_exit;
 	}
 
-	if (UNIV_UNLIKELY(page_get_data_size(page)
+	if (UNIV_UNLIKELY((new_rec_size < old_rec_size) && page_get_data_size(page)
 			  - old_rec_size + new_rec_size
 			  < BTR_CUR_PAGE_COMPRESS_LIMIT(index))) {
-		/* The page would become too empty */
+		/* The page would become too empty due to record shrinkage */
 		err = DB_UNDERFLOW;
 		goto func_exit;
 	}
