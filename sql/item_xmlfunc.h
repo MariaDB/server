@@ -172,7 +172,8 @@ class MY_XML_VALIDATION_DATA;
 class Item_func_xml_isvalid: public Item_bool_func
 {
 protected:
-  String m_tmp_str;
+  String m_tmp_schema;
+  String m_tmp_xml;
   MY_XML_VALIDATION_DATA *m_data;
 
 public:

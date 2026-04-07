@@ -3180,7 +3180,7 @@ static xs_word xs_default(STRING_WITH_LEN("default"));
 static xs_word xs_encoding(STRING_WITH_LEN("encoding"));
 static xs_word xs_element(STRING_WITH_LEN("element"));
 static xs_word xs_elementFormDefault(STRING_WITH_LEN("elementFormDefault"));
-static xs_word xs_enumeration(STRING_WITH_LEN("enumration"));
+static xs_word xs_enumeration(STRING_WITH_LEN("enumeration"));
 static xs_word xs_extension(STRING_WITH_LEN("extersion"));
 static xs_word xs_final(STRING_WITH_LEN("final"));
 static xs_word xs_fixed(STRING_WITH_LEN("fixed"));
@@ -3642,11 +3642,7 @@ public:
 
   void validate_prepare() override;
   bool validate_value(MY_XML_VALIDATION_DATA *st,
-                      const char *attr, size_t len) override
-  {
-    return MY_XML_OK;
-  }
-
+                      const char *attr, size_t len) override;
   bool validate_leave(MY_XML_VALIDATION_DATA *st,
                       const char *attr, size_t len) override;
   bool validate_tag(MY_XML_VALIDATION_DATA *st,
@@ -3723,6 +3719,7 @@ public:
       -1 if an error happened
   */
   int enter_tag(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len);
+  int validate_attr(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len);
 };
 
 
@@ -3769,6 +3766,12 @@ public:
 
   bool leave(MY_XML_VALIDATION_DATA *st,
             const char *attr, size_t len) override;
+  bool validate_attr(MY_XML_VALIDATION_DATA *st,
+                     const char *attr, size_t len) override
+  {
+    /* TODO return MY_XML_OK if name found */
+    return MY_XML_ERROR;
+  }
 };
 
 
@@ -3789,13 +3792,14 @@ public:
   virtual bool valid_value(const char *value, size_t len) { return TRUE; }
   static XMLSchema_builtin_type *get_builtin_type_by_name(
            MY_XML_VALIDATION_DATA *st, const char *name, size_t len);
+
+  XMLSchema_builtin_type() {}
 };
 
 
 class XMLSchema_string_builtin_type: public XMLSchema_builtin_type
 {
 public:
-  bool valid_value(const char *value, size_t len) override;
 };
 
 
@@ -3806,12 +3810,13 @@ enum xml_num_char_classes {
   N_PNT,
   N_EXP,
   N_SPC,
-  N_NUM_CLASSES,
-  n_er
+  N_EOF,
+  n_er,
+  N_NUM_CLASSES
 };
 
 
-static enum xml_num_char_classes xml_num_chr_map[128] = {
+static enum xml_num_char_classes xml_num_chr_map[104] = {
   n_er, n_er,  n_er,  n_er, n_er, n_er,  n_er, n_er,
   n_er, N_SPC, N_SPC, n_er, n_er, N_SPC, n_er, n_er,
   n_er, n_er,  n_er,  n_er, n_er, n_er,  n_er, n_er,
@@ -3827,78 +3832,130 @@ static enum xml_num_char_classes xml_num_chr_map[128] = {
   n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*PQRSTUVW*/
   n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*XYZ[\]^_*/
 
-  n_er,  n_er,  n_er,  n_er,  n_er,  N_EXP, n_er,  n_er, /*`abcdefg*/
-  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*hijklmno*/
-  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*pqrstuvw*/
-  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er,  n_er, /*xyz{|}~ */
+  n_er,  n_er,  n_er,  n_er,  n_er,  N_EXP, n_er,  n_er  /*`abcdefg*/
 };
 
 
 enum xml_num_states {
   NS_GO,  /* Initial state. */
   NS_END, /* Number ended. */
-  NS_GO1, /* If the number starts with '-' or '+'. */
+  NS_GMI, /* If the number starts with '-'. */
+  NS_GPL, /* If the number starts with '+'. */
   NS_INT, /* Integer part. */
-  NS_FRAC,/* Fractional part. */
+  NS_FRC, /* Fractional part. */
   NS_EXP, /* Exponential part begins. */
   NS_EX1, /* Exponential part started with + or -. */
   NS_EX2, /* Exponential part continues. */
-  NS_NUM_STATES
-};
-
-static int xml_integer_states[NS_INT][N_NUM_CLASSES]=
-{
-/*         -        +        0..9   POINT   E      SPACE */
-/*GO*/   { NS_GO1, NS_GO1, NS_INT, E_SYN,  E_SYN,  NS_GO  },
-/*END*/  { E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN,  NS_END },
-/*GO1*/  { E_SYN,  E_SYN,  NS_INT, E_SYN,  E_SYN,  E_SYN  },
-/*INT*/  { E_SYN,  E_SYN,  NS_INT, E_SYN,  E_SYN,  NS_END },
+  NS_NUM_STATES,
+  E_SYN   /* Syntax error. */
 };
 
 
-static int xml_decimal_states[NS_FRAC][N_NUM_CLASSES]=
+static int xml_num_states[NS_NUM_STATES][N_NUM_CLASSES]=
 {
-/*         -        +        0..9   POINT   E      SPACE */
-/*GO*/   { NS_GO1, NS_GO1, NS_INT, NS_FRC, E_SYN,  NS_GO  },
-/*END*/  { E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN,  NS_END },
-/*GO1*/  { E_SYN,  E_SYN,  NS_INT, E_SYN,  E_SYN,  E_SYN  },
-/*INT*/  { E_SYN,  E_SYN,  NS_INT, E_SYN,  E_SYN,  NS_END },
-/*FRC*/  { E_SYN,  E_SYN,  NS_FRC, E_SYN,  E_SYN,  NS_END },
+/*         -        +        0..9   POINT   E      SPACE   EOF   BAD_SYM*/
+/*GO*/   { NS_GMI, NS_GPL, NS_INT, NS_FRC, E_SYN,  NS_GO,  E_SYN,  E_SYN},
+/*END*/  { E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN,  NS_END, NS_END, E_SYN},
+/*GMI*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, E_SYN,  E_SYN,  E_SYN,  E_SYN},
+/*GPL*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, E_SYN,  E_SYN,  E_SYN,  E_SYN},
+/*INT*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, NS_EXP, NS_END, NS_END, E_SYN},
+/*FRC*/  { E_SYN,  E_SYN,  NS_FRC, E_SYN,  NS_EXP, NS_END, NS_END, E_SYN},
+/*EXP*/  { NS_EX1, NS_EX1, NS_EX2, E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN},
+/*EX1*/  { E_SYN,  E_SYN,  NS_EX2, E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN},
+/*EX2*/  { E_SYN,  E_SYN,  NS_EX2, E_SYN,  E_SYN,  NS_END, NS_END, E_SYN}
 };
 
 
-static int xml_float_states[NS_NUM_STATES][N_NUM_CLASSES]=
+enum xml_num_types
 {
-/*         -        +        0..9   POINT   E      SPACE */
-/*GO*/   { NS_GO1, NS_GO1, NS_INT, NS_FRC, E_SYN,  NS_GO  },
-/*END*/  { E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN,  NS_END },
-/*GO1*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, E_SYN,  E_SYN  },
-/*INT*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, NS_EXP, NS_END },
-/*FRC*/  { E_SYN,  E_SYN,  NS_FRC, E_SYN,  NS_EXP, NS_END },
-/*EXP*/  { NS_EX1, NS_EX1, NS_EX2, E_SYN,  E_SYN,  E_SYN  },
-/*EX1*/  { E_SYN,  E_SYN,  NS_EX2, E_SYN,  E_SYN,  E_SYN  },
-/*EX2*/  { E_SYN,  E_SYN,  NS_EX2, E_SYN,  E_SYN,  NS_END }
+  NUM_TYPE_NEG=1,       /* Number is negative. */
+  NUM_TYPE_FRAC_PART=2, /* The fractional part is not empty. */
+  NUM_TYPE_EXP=4,       /* The number has the 'e' part. */
 };
+const uint NUM_TYPE_UINT= NUM_TYPE_NEG | NUM_TYPE_FRAC_PART | NUM_TYPE_EXP;
+const uint NUM_TYPE_INT= NUM_TYPE_FRAC_PART | NUM_TYPE_EXP;
+const uint NUM_TYPE_DEC= NUM_TYPE_EXP;
+const uint NUM_TYPE_FLOAT= 0; 
 
-
-static uint xml_num_state_flags[NS_NUM_STATES]=
+static uint xml_num_state_types[NS_NUM_STATES]=
 {
-/*OK*/   0,
 /*GO*/   0,
-/*GO1*/  JSON_NUM_NEG,
-/*ZERO*/ 0,
-/*ZE1*/  0,
+/*END*/  0,
+/*GMI*/  NUM_TYPE_NEG,
+/*GPL*/  0,
 /*INT*/  0,
-/*FRAC*/ JSON_NUM_FRAC_PART,
-/*EX*/   JSON_NUM_EXP,
+/*FRC*/  NUM_TYPE_FRAC_PART,
+/*EXP*/  NUM_TYPE_EXP,
 /*EX1*/  0,
+/*EX2*/  0,
 };
 
+
+class XMLSchema_num_builtin_type: public XMLSchema_builtin_type
+{
+public:
+  int m_disallowed_types;
+  XMLSchema_num_builtin_type(int disallowed_types): XMLSchema_builtin_type(),
+    m_disallowed_types(disallowed_types) {}
+  bool valid_value(const char *value, size_t len) override
+  {
+    int state= NS_GO;
+    size_t pos= 0;
+
+    while (len > pos)
+    {
+      int c= (int) value[pos++];
+      if (c > 103)
+        return 0;
+
+      state= xml_num_states[state][xml_num_chr_map[c]];
+      if (state == E_SYN ||
+          xml_num_state_types[state] & m_disallowed_types)
+        return 0;
+    }
+
+    return xml_num_states[state][N_EOF] == NS_END;
+  }
+};
 
 
 /* Just to make type control possible. */
 class XMLSchema_type: public XMLSchema_tag
 {
+};
+
+
+class XMLSchema_any_type: public XMLSchema_type
+{
+public:
+  int m_level;
+  XMLSchema_any_type(): XMLSchema_type(), m_level(0) {}
+
+  bool validate_leave(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override
+  {
+    if (m_level == 0)
+      return MY_XML_ERROR;
+
+    m_level--;
+    return MY_XML_OK;
+  }
+  bool validate_tag(MY_XML_VALIDATION_DATA *st,
+                    const char *attr, size_t len) override
+  {
+    m_level++;
+    return MY_XML_OK;
+  }
+  bool validate_attr(MY_XML_VALIDATION_DATA *st,
+                     const char *attr, size_t len) override
+  {
+    m_level++;
+    return MY_XML_OK;
+  }
+  bool validate_done() override
+  {
+    return m_level == 0 ? MY_XML_OK : MY_XML_ERROR;
+  }
 };
 
 
@@ -3929,19 +3986,26 @@ public:
 
 class XMLSchema_user_type: public XMLSchema_type
 {
+protected:
+  XMLSchema_schema *m_schema;
   XMLSchema_tag_attribute m_type_name;
   XMLSchema_tag_attribute m_final;
 public:
   XMLSchema_tag *m_compositor;
   XMLSchema_user_type *m_next_type;
 
-  XMLSchema_user_type(): XMLSchema_type(),
+  XMLSchema_user_type(XMLSchema_schema *schema): XMLSchema_type(),
+    m_schema(schema),
     m_type_name(&xs_name),
     m_final(&xs_final),
     m_compositor(NULL)
   {
     declare_attribute(&m_type_name);
     declare_attribute(&m_final);
+  }
+  bool validate_name(const char *attr, size_t len) override
+  {
+    return m_type_name.eq_value(attr, len);
   }
   void validate_prepare() override
   {
@@ -3958,13 +4022,17 @@ public:
 class XMLSchema_simpleType: public XMLSchema_user_type
 {
 public:
+  XMLSchema_simpleType(XMLSchema_schema *schema=NULL):
+    XMLSchema_user_type(schema) {}
   bool enter_tag(MY_XML_VALIDATION_DATA *st,
                  const char *attr, size_t len) override;
+  bool leave(MY_XML_VALIDATION_DATA *st,
+             const char *attr, size_t len) override;
 
   bool validate_value(MY_XML_VALIDATION_DATA *st,
                     const char *attr, size_t len) override
   {
-    return MY_XML_OK;
+    return m_compositor->validate_value(st, attr, len);
   }
 };
 
@@ -3978,7 +4046,8 @@ class XMLSchema_complexType: public XMLSchema_user_type
 
   XMLSchema_std_attributes m_attributes;
 public:
-  XMLSchema_complexType(): XMLSchema_user_type(),
+  XMLSchema_complexType(XMLSchema_schema *schema=NULL):
+    XMLSchema_user_type(schema),
     m_mixed(&xs_mixed),
     m_abstract(&xs_abstract),
     m_block(&xs_block)
@@ -3989,7 +4058,14 @@ public:
   }
   bool enter_tag(MY_XML_VALIDATION_DATA *st,
                  const char *attr, size_t len) override;
+  bool leave(MY_XML_VALIDATION_DATA *st,
+             const char *attr, size_t len) override;
 
+  bool validate_attr(MY_XML_VALIDATION_DATA *st,
+                     const char *attr, size_t len) override
+  {
+    return m_attributes.validate_attr(st, attr, len);
+  }
   bool validate_tag(MY_XML_VALIDATION_DATA *st,
                     const char *attr, size_t len) override
   {
@@ -4005,6 +4081,7 @@ public:
 
 class XMLSchema_facet: public XMLSchema_tag
 {
+protected:
   XMLSchema_tag_attribute m_value;
   XMLSchema_tag_attribute m_fixed;
 public:
@@ -4024,11 +4101,16 @@ class XMLSchema_enum_facet: public XMLSchema_facet
 {
 public:
   XMLSchema_enum_facet *m_next_enum;
+  bool eq(const char *value, size_t len) const
+  {
+    return m_value.eq_value(value, len);
+  }
 };
 
 
 class XMLSchema_restriction_in_simpleType: public XMLSchema_tag
 {
+  XMLSchema_type *m_base_type;
   XMLSchema_tag_attribute m_base;
 
   /* for numeric types. */
@@ -4045,6 +4127,7 @@ class XMLSchema_restriction_in_simpleType: public XMLSchema_tag
 
 public:
   XMLSchema_restriction_in_simpleType(): XMLSchema_tag(),
+    m_base_type(NULL),
     m_base(&xs_base),
     m_enumeration(NULL)
   {
@@ -4052,6 +4135,10 @@ public:
   }
   bool enter_tag(MY_XML_VALIDATION_DATA *st,
                  const char *attr, size_t len) override;
+  bool leave(MY_XML_VALIDATION_DATA *st,
+            const char *attr, size_t len) override;
+  bool validate_value(MY_XML_VALIDATION_DATA *st,
+                      const char *attr, size_t len) override;
 };
 
 
@@ -4226,8 +4313,7 @@ public:
                  const char *attr, size_t len) override;
   void validate_prepare() override
   {
-    m_cur_tag= m_tags;
-    XMLSchema_all::validate_prepare();
+    m_cur_tag= NULL;
   }
   bool validate_done() override { return m_cur_tag == NULL; }
 
@@ -4346,7 +4432,7 @@ public:
     declare_attribute(&m_atr_maxOccurs);
     declare_attribute(&m_atr_form);
   }
-  virtual void validate_prepare()
+  void validate_prepare() override
   {
     m_counter= 0;
   }
@@ -4365,6 +4451,7 @@ public:
   void push_self(MY_XML_VALIDATION_DATA *st) override
   {
     m_counter++;
+    m_type->validate_prepare();
     st->push(this);
   }
 };
@@ -4432,13 +4519,13 @@ class XMLSchema_schema: public XMLSchema_tag
   XMLSchema_tag_attribute m_atr_version;
   XMLSchema_tag_attribute m_atr_xml_lang;
 
+public:
   XMLSchema_user_type *m_global_simpleTypes;
   XMLSchema_user_type *m_global_complexTypes;
   XMLSchema_attribute *m_global_attributes;
   XMLSchema_element_global *m_global_elements;
   XMLSchema_attributeGroup_def *m_global_attr_groups;
 
-public:
   /*
   TODO: should be supported.
   XMLSchema_attribute_group *m_attribute_groups;
@@ -4516,10 +4603,12 @@ static xs_word xs_decimal(STRING_WITH_LEN("decimal"));
 static xs_word xs_double(STRING_WITH_LEN("double"));
 static xs_word xs_float(STRING_WITH_LEN("float"));
 static xs_word xs_boolean(STRING_WITH_LEN("boolean"));
+static xs_word xs_true(STRING_WITH_LEN("true"));
+static xs_word xs_false(STRING_WITH_LEN("false"));
 
 /* strings */
 static xs_word xs_string(STRING_WITH_LEN("string"));
-static xs_word xs_anyURL(STRING_WITH_LEN("anyURL"));
+static xs_word xs_anyURI(STRING_WITH_LEN("anyURI"));
 static xs_word xs_QName(STRING_WITH_LEN("QName"));
 static xs_word xs_NOTATION(STRING_WITH_LEN("NOTATION"));
 static xs_word xs_normalizedString(STRING_WITH_LEN("normalizedString"));
@@ -4546,16 +4635,74 @@ static xs_word xs_ENTITY(STRING_WITH_LEN("ENTITY"));
 static xs_word xs_base64Binary(STRING_WITH_LEN("base64Binary"));
 static xs_word xs_hexBinary(STRING_WITH_LEN("hexBinary"));
 
+
+class XMLSchema_bool_builtin_type: public XMLSchema_builtin_type
+{
+public:
+  bool valid_value(const char *value, size_t len) override
+  {
+    return xs_true.eq(value, len) || xs_false.eq(value, len);
+  }
+};
+
+
 XMLSchema_builtin_type *XMLSchema_builtin_type::get_builtin_type_by_name(
   MY_XML_VALIDATION_DATA *st, const char *name, size_t len)
 {
-  if (xs_string.eq(name, len))
-    return new(st->mem_root) XMLSchema_builtin_type;
+  /* strings */
+  if (xs_string.eq(name, len) ||
+      xs_anyURI.eq(name, len) ||
+      xs_QName.eq(name, len) ||
+      xs_NOTATION.eq(name, len) ||
+      xs_normalizedString.eq(name, len) ||
+      xs_language.eq(name, len) ||
+      xs_NMTOKEN.eq(name, len))
+    return new(st->mem_root) XMLSchema_string_builtin_type;
 
+  /* integers */
   if (xs_integer.eq(name, len))
-    return new(st->mem_root) XMLSchema_builtin_type;
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_INT);
 
+  if (xs_long.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_INT);
+
+  if (xs_int.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_INT);
+
+  if (xs_short.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_INT);
+
+  if (xs_byte.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_INT);
+
+/* non-negative integers */
+  if (xs_nonNegativeInteger.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_UINT);
+
+  if (xs_positiveInteger.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_UINT);
+
+  if (xs_unsignedInt.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_UINT);
+
+  if (xs_unsignedLong.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_UINT);
+
+/* numeric */
   if (xs_decimal.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_DEC);
+
+  if (xs_double.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_FLOAT);
+
+  if (xs_float.eq(name, len))
+    return new(st->mem_root) XMLSchema_num_builtin_type(NUM_TYPE_FLOAT);
+
+  if (xs_boolean.eq(name, len))
+    return new(st->mem_root) XMLSchema_bool_builtin_type;
+
+  /* various types */
+  if (xs_anySimpleType.eq(name, len))
     return new(st->mem_root) XMLSchema_builtin_type;
 
   return NULL;
@@ -4633,6 +4780,32 @@ int XMLSchema_std_attributes::enter_tag(MY_XML_VALIDATION_DATA *st,
 }
 
 
+int XMLSchema_std_attributes::validate_attr(MY_XML_VALIDATION_DATA *st,
+                                            const char *attr, size_t len)
+{
+  for (XMLSchema_attribute *atr= m_attributes;
+       atr; atr= atr->m_next_attribute)
+  {
+    if (atr->validate_name(attr, len))
+    {
+      atr->push_self(st);
+      return MY_XML_OK;
+    }
+  }
+
+  for (XMLSchema_attributeGroup_reference *g= m_groups;
+       g; g= g->m_next_ref)
+  {
+    if (g->validate_attr(st, attr, len) == MY_XML_OK)
+      return MY_XML_OK;
+
+    /* attribute wasn't found in the group. */
+  }
+  /* TODO handle anyAttributes */
+  return MY_XML_ERROR;
+}
+
+
 bool XMLSchema_attribute::enter_tag(MY_XML_VALIDATION_DATA *st,
                                     const char *attr, size_t len)
 {
@@ -4666,9 +4839,8 @@ bool XMLSchema_attribute::leave(MY_XML_VALIDATION_DATA *st,
   }
   else
   {
-    m_type=
-      st->schema->find_type_by_name(
-                    st, m_atr_type.m_val, m_atr_type.m_val_len);
+    m_type= st->schema->find_type_by_name(
+                          st, m_atr_type.m_val, m_atr_type.m_val_len);
     if (!m_type)
       return MY_XML_ERROR;
   }
@@ -4723,6 +4895,21 @@ bool XMLSchema_simpleType::enter_tag(MY_XML_VALIDATION_DATA *st,
 }
 
 
+bool XMLSchema_simpleType::leave(MY_XML_VALIDATION_DATA *st,
+                                 const char *attr, size_t len)
+{
+  if (m_schema)
+  {
+    if (!m_type_name.is_set())
+      return MY_XML_OK; /* type neme should be specified here. */
+
+    m_next_type= m_schema->m_global_simpleTypes;
+    m_schema->m_global_simpleTypes= this;
+  }
+  return XMLSchema_user_type::leave(st, attr, len);
+}
+
+
 bool XMLSchema_complexType::enter_tag(MY_XML_VALIDATION_DATA *st,
                                       const char *attr, size_t len)
 {
@@ -4772,6 +4959,21 @@ bool XMLSchema_complexType::enter_tag(MY_XML_VALIDATION_DATA *st,
   }
 
   return MY_XML_OK;
+}
+
+
+bool XMLSchema_complexType::leave(MY_XML_VALIDATION_DATA *st,
+                                  const char *attr, size_t len)
+{
+  if (m_schema)
+  {
+    if (!m_type_name.is_set())
+      return MY_XML_OK; /* type neme should be specified here. */
+
+    m_next_type= m_schema->m_global_complexTypes;
+    m_schema->m_global_complexTypes= this;
+  }
+  return XMLSchema_user_type::leave(st, attr, len);
 }
 
 
@@ -4833,6 +5035,47 @@ bool XMLSchema_restriction_in_simpleType::enter_tag(MY_XML_VALIDATION_DATA *st,
   else
     return XMLSchema_tag::enter_tag(st, attr, len);
 
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_restriction_in_simpleType::leave(
+    MY_XML_VALIDATION_DATA *st, const char *attr, size_t len)
+{
+  if (m_base.is_set())
+  {
+    if (m_base_type)
+      return MY_XML_ERROR; /* type should be specified only once. */
+
+    m_base_type= st->schema->find_type_by_name(
+                               st, m_base.m_val, m_base.m_val_len);
+    if (!m_base_type)
+      return MY_XML_ERROR;
+  }
+  else
+  {
+    if (!m_base_type)
+      return MY_XML_ERROR; /* no type specified. */
+  }
+
+  return XMLSchema_tag::leave(st, attr, len);
+}
+
+
+bool XMLSchema_restriction_in_simpleType::validate_value(
+            MY_XML_VALIDATION_DATA *st, const char *attr, size_t len)
+{
+  if (m_enumeration)
+  {
+    for (XMLSchema_enum_facet *en= m_enumeration; en; en= en->m_next_enum)
+    {
+      if (en->eq(attr, len))
+        return MY_XML_OK;
+    }
+    return MY_XML_ERROR;
+  }
+
+  /* TODO check other facets. */
   return MY_XML_OK;
 }
 
@@ -5020,11 +5263,15 @@ bool XMLSchema_sequence::enter_tag(MY_XML_VALIDATION_DATA *st,
 bool XMLSchema_sequence::validate_tag(MY_XML_VALIDATION_DATA *st,
                                       const char *attr, size_t len)
 {
+  if (!m_cur_tag)
+  {
+    if (!(m_cur_tag= m_tags))
+      return MY_XML_ERROR;
+    m_cur_tag->validate_prepare();
+  }
+
   for (;;)
   {
-    if (!m_cur_tag)
-      return validate_failed(st); /* no more elements possible. */
-
     if (m_cur_tag->validate_name(attr, len))
     {
       if (m_cur_tag->validate_max_counter())
@@ -5039,7 +5286,9 @@ bool XMLSchema_sequence::validate_tag(MY_XML_VALIDATION_DATA *st,
         /* had to be another one with this name. */
         return validate_failed(st);
       }
-      m_cur_tag= m_cur_tag->m_next_tag;
+      if (!(m_cur_tag= m_cur_tag->m_next_tag))
+        return MY_XML_ERROR;
+      m_cur_tag->validate_prepare();
     }
   }
 
@@ -5177,17 +5426,11 @@ bool XMLSchema_schema::enter_tag(MY_XML_VALIDATION_DATA *st,
   }
   else if (xs_complexType.eq(attr, len))
   {
-    XMLSchema_complexType *t= new(st->mem_root) XMLSchema_complexType;
-    t->m_next_type= m_global_complexTypes;
-    m_global_complexTypes= t;
-    def= t;
+    def= new(st->mem_root) XMLSchema_complexType(this);
   }
   else if (xs_simpleType.eq(attr, len))
   {
-    XMLSchema_simpleType *t= new(st->mem_root) XMLSchema_simpleType;
-    t->m_next_type= m_global_simpleTypes;
-    m_global_simpleTypes= t;
-    def= t;
+    def= new(st->mem_root) XMLSchema_simpleType(this);
   }
   else if (xs_group.eq(attr, len))
   {
@@ -5265,9 +5508,14 @@ XMLSchema_type *XMLSchema_schema::find_type_by_name(
   }
   else
   {
-    result= find_simple_type(name, len);
-    if (!result)
-      result= find_complex_type(name, len);
+    if (xs_anyType.eq(name, len))
+      result= new(st->mem_root) XMLSchema_any_type;
+    else
+    {
+      result= find_simple_type(name, len);
+      if (!result)
+        result= find_complex_type(name, len);
+    }
   }
 
   return result;
@@ -5334,11 +5582,18 @@ void XMLSchema_attribute::validate_prepare()
 }
 
 
+bool XMLSchema_attribute::validate_value(MY_XML_VALIDATION_DATA *st,
+                                         const char *attr, size_t len)
+{
+  return m_type->validate_value(st, attr, len);
+}
+
+
 bool XMLSchema_attribute::validate_leave(MY_XML_VALIDATION_DATA *st,
                                          const char *attr, size_t len)
 {
   st->pop();
-  return MY_XML_OK;
+  return m_type->validate_leave(st, attr, len);
 }
 
 
@@ -5462,7 +5717,7 @@ bool Item_func_xml_isvalid::fix_length_and_dec(THD *thd)
                     "Only constant XML Schema-s are supported.", MYF(0));
     return TRUE;
   }
-  if (!(schema_str= args[1]->val_str(&m_tmp_str)))
+  if (!(schema_str= args[1]->val_str(&m_tmp_schema)))
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WRONG_VALUE,
@@ -5507,21 +5762,7 @@ int validation_value(MY_XML_PARSER *st,const char *attr, size_t len)
 {
   MY_XML_VALIDATION_DATA *data= (MY_XML_VALIDATION_DATA *) st->user_data;
 
-  if (len > 0 && isspace(attr[0]))
-  {
-    size_t spaces= 1;
-    do
-    {
-      if (!isspace(attr[spaces]))
-        break;
-
-    } while (++spaces < len);
-    attr+= spaces;
-    len-= spaces;
-  }
-
-  return len ? data->s_stack->validate_value(data, attr, len) :
-               MY_XML_OK;
+  return data->s_stack->validate_value(data, attr, len);
 }
 
 
@@ -5560,7 +5801,7 @@ static int validate_schema(const String *xml,
 
 bool Item_func_xml_isvalid::val_bool()
 {
-  String *xml= args[0]->val_str(&m_tmp_str);
+  String *xml= args[0]->val_str(&m_tmp_xml);
 
   if ((null_value= !xml || m_data == NULL))
     return FALSE;
