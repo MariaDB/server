@@ -1414,3 +1414,14 @@ Description: MariaDB database regression test suite - data files
  ease of use.
  .
  This package has the architecture independent data files for the test suite.
+
+Package: mariadb-plugin-duckdb
+Architecture: amd64 arm64
+Depends:
+ mariadb-server (= ${server:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: DuckDB storage engine for MariaDB server
+ The DuckDB storage engine embeds DuckDB as an analytical engine inside
+ MariaDB server, enabling OLAP queries on DuckDB-managed tables.
+ This package contains the DuckDB plugin for MariaDB server.

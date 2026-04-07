@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -e
+
+if mariadb-admin ping --silent 2>/dev/null; then
+    mariadb < /usr/share/mariadb/duckdb/uninstall.sql || true
+fi
+
+#DEBHELPER#
