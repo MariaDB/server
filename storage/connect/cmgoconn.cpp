@@ -867,7 +867,7 @@ char *CMgoConn::Mini(PGLOBAL g, PCOL colp, const bson_t *bson, bool b)
 					} else if (dbl && n > m) {
 						Mbuf[k] = 0;
 						d = atof(Mbuf + j);
-						n = sprintf(Mbuf + j, "%.*f", m, d);
+						n = snprintf(Mbuf + j, (size_t)colp->GetLength() + 1 - j, "%.*f", m, d);
 						k = j + n;
 						j = n = 0;
 					} else if (j)
@@ -1019,7 +1019,7 @@ bool CMgoConn::AddValue(PGLOBAL g, PCOL colp, bson_t *doc, char *key, bool upd)
 				bson_t        *bsn = bson_new_from_json(val, -1, &Error);
 
 				if (!bsn) {
-					sprintf (g->Message, "AddValue: %s", Error.message);
+					snprintf(g->Message, sizeof(g->Message), "AddValue: %s", Error.message);
 					return true;
 				} else if (*key) {
 					if (*val == '[')

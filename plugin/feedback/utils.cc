@@ -104,15 +104,15 @@ static int uname(struct utsname *buf)
 
   buf->nodename[0]= 0;
   strcpy(buf->sysname, "Windows");
-  sprintf(buf->release, "%d.%d", (int)ver.dwMajorVersion, (int)ver.dwMinorVersion);
+  snprintf(buf->release, sizeof(buf->release), "%d.%d", (int)ver.dwMajorVersion, (int)ver.dwMinorVersion);
 
   const char *version_str= get_os_version_name(&ver);
   if(version_str && version_str[0])
-    sprintf(buf->version, "%s %s",version_str, ver.szCSDVersion);
+    snprintf(buf->version, sizeof(buf->version), "%s %s",version_str, ver.szCSDVersion);
   else
   {
     /* Fallback for unknown versions, e.g "Windows <major_ver>.<minor_ver>" */
-    sprintf(buf->version, "Windows %d.%d%s",
+    snprintf(buf->version, sizeof(buf->version), "Windows %d.%d%s",
       (int)ver.dwMajorVersion, (int)ver.dwMinorVersion,
       (ver.wProductType == VER_NT_WORKSTATION ? "" : " Server"));
   }

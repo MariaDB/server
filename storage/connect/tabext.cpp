@@ -355,22 +355,22 @@ bool TDBEXT::MakeSrcdef(PGLOBAL g)
 
 		if (!stricmp(ph, "W") && n_placeholders <= 1) {
 			Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil1));
-			Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil1));
+			Query->SetLength(snprintf(Query->GetStr(), Query->GetSize(), Srcdef, fil1));
 		}
 		else if (!stricmp(ph, "WH") && n_placeholders <= 2)
 		{
 			Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil1) + strlen(fil2));
-			Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil1, fil2));
+			Query->SetLength(snprintf(Query->GetStr(), Query->GetSize(), Srcdef, fil1, fil2));
 		}
 		else if (!stricmp(ph, "H") && n_placeholders <= 1)
 		{
 			Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil2));
-			Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil2));
+			Query->SetLength(snprintf(Query->GetStr(), Query->GetSize(), Srcdef, fil2));
 		}
 		else if (!stricmp(ph, "HW") && n_placeholders <= 2)
 		{
 			Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil1) + strlen(fil2));
-			Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil2, fil1));
+			Query->SetLength(snprintf(Query->GetStr(), Query->GetSize(), Srcdef, fil2, fil1));
 		} else {
 			safe_strcpy(g->Message, sizeof(g->Message), "MakeSQL: Wrong place holders specification");
 			return true;

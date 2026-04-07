@@ -237,7 +237,8 @@ int main(int argc, char* const argv[] )
   sigaction(SIGCHLD, &sa,NULL);
   sigaction(SIGABRT, &sa_abort,NULL);
 
-  sprintf(safe_process_name, "safe_process[%ld]", (long) own_pid);
+  snprintf(safe_process_name, sizeof(safe_process_name),
+           "safe_process[%ld]", (long) own_pid);
 
   message("Started");
 

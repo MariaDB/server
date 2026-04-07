@@ -1024,7 +1024,7 @@ void ARRAY::Prints(PGLOBAL, char *ps, uint z)
   if (z < 16)
     return;
 
-  sprintf(ps, "ARRAY: type=%d\n", Type);
+  snprintf(ps, z, "ARRAY: type=%d\n", Type);
   // More to be implemented later
 } // end of Prints
 

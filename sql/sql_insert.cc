@@ -1430,14 +1430,14 @@ values_loop_end:
                      info.touched : info.updated);
 
     if (ignore)
-      sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
-              (lock_type == TL_WRITE_DELAYED) ? (ulong) 0 :
-              (ulong) (info.records - info.copied),
-              (long) thd->get_stmt_da()->current_statement_warn_count());
+      snprintf(buff, sizeof(buff), ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
+               (lock_type == TL_WRITE_DELAYED) ? (ulong) 0 :
+               (ulong) (info.records - info.copied),
+               (long) thd->get_stmt_da()->current_statement_warn_count());
     else
-      sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
-              (ulong) (info.deleted + updated),
-              (long) thd->get_stmt_da()->current_statement_warn_count());
+      snprintf(buff, sizeof(buff), ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
+               (ulong) (info.deleted + updated),
+               (long) thd->get_stmt_da()->current_statement_warn_count());
     if (returning)
       result->send_eof();
     else if (!(thd->in_sub_stmt & SUB_STMT_TRIGGER))

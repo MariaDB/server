@@ -7751,11 +7751,11 @@ static void reset_binlog_unsafe_suppression(ulonglong now)
   Auxiliary function to print warning in the error log.
 */
 static void print_unsafe_warning_to_log(THD *thd, int unsafe_type, char* buf,
-                                        char* query)
+                                        size_t buf_size, char* query)
 {
   DBUG_ENTER("print_unsafe_warning_in_log");
-  sprintf(buf, ER_THD(thd, ER_BINLOG_UNSAFE_STATEMENT),
-          ER_THD(thd, LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
+  snprintf(buf, buf_size, ER_THD(thd, ER_BINLOG_UNSAFE_STATEMENT),
+           ER_THD(thd, LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
   sql_print_warning(ER_THD(thd, ER_MESSAGE_AND_STATEMENT), buf, query);
   DBUG_VOID_RETURN;
 }
@@ -7897,7 +7897,8 @@ void THD::issue_unsafe_warnings()
                           ER_THD(this, LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
       if (global_system_variables.log_warnings > 0 &&
           !protect_against_unsafe_warning_flood(unsafe_type))
-        print_unsafe_warning_to_log(this, unsafe_type, buf, query());
+        print_unsafe_warning_to_log(this, unsafe_type, buf,
+                                    sizeof(buf), query());
     }
   }
   DBUG_VOID_RETURN;

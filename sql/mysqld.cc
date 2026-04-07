@@ -2474,8 +2474,8 @@ static void activate_tcp_port(uint port,
       {
         char buff[100];
         int s_errno= socket_errno;
-        sprintf(buff, "Can't start server: Bind on TCP/IP port. Got error: %d",
-                (int) s_errno);
+        snprintf(buff, sizeof(buff), "Can't start server: Bind on TCP/IP port. Got error: %d",
+                 (int) s_errno);
         sql_perror(buff);
         /*
           Linux will quite happily bind to addresses not present. The
@@ -7029,7 +7029,8 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, void *buff,
       get_master_info(&thd->variables.default_master_connection,
                       Sql_condition::WARN_LEVEL_NOTE))
   {
-    sprintf(static_cast<char*>(buff), "%.3f", mi->heartbeat_period);
+    snprintf(static_cast<char*>(buff), SHOW_VAR_FUNC_BUFF_SIZE, "%.3f",
+             mi->heartbeat_period);
     mi->release();
     var->type= SHOW_CHAR;
     var->value= buff;
