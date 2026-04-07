@@ -439,8 +439,9 @@ PQRYRES ODBCSrcCols(PGLOBAL g, char *dsn, char *src, POPARM sop)
 
 	if (strstr(src, "%s")) {
 		// Place holder for an eventual where clause
-		sqry = (char*)PlugSubAlloc(g, NULL, strlen(src) + 3);
-		sprintf(sqry, src, "1=1", "1=1");			 // dummy where clause
+		size_t sqry_size = strlen(src) + 3;
+		sqry = (char*)PlugSubAlloc(g, NULL, sqry_size);
+		snprintf(sqry, sqry_size, src, "1=1", "1=1");			 // dummy where clause
 	} else
 		sqry = src;
 

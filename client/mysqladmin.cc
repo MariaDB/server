@@ -752,7 +752,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 
       if (opt_shutdown_wait_for_slaves)
       {
-        sprintf(buff, "SHUTDOWN WAIT FOR ALL SLAVES");
+        snprintf(buff, sizeof(buff), "SHUTDOWN WAIT FOR ALL SLAVES");
         if (mysql_query(mysql, buff))
         {
           my_printf_error(0, "%s failed; error: '%-.200s'",

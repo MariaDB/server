@@ -838,7 +838,7 @@ static void write_footer(FILE *sql_file)
     if (opt_dump_date)
     {
       char time_str[20];
-      get_date(time_str, GETDATE_DATE_TIME, 0);
+      get_date(time_str, sizeof(time_str), GETDATE_DATE_TIME, 0);
       print_comment(sql_file, 0, "-- Dump completed on %s\n", time_str);
     }
     else
@@ -6165,7 +6165,8 @@ const char fmt_gtid_pos[]= "%sSET GLOBAL gtid_slave_pos='%s';\n";
 
 static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
                                  int have_mariadb_gtid, int use_gtid,
-                                 char *set_gtid_pos)
+                                 char *set_gtid_pos,
+                                 size_t set_gtid_pos_size)
 {
   MYSQL_ROW row;
   MYSQL_RES *UNINIT_VAR(master);
@@ -6240,8 +6241,8 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
                     "CHANGE-MASTER settings to the slave gtid state is printed "
                     "later in the file.\n");
     }
-    sprintf(set_gtid_pos, fmt_gtid_pos,
-            (!use_gtid ? "-- " : comment_prefix), gtid_pos);
+    snprintf(set_gtid_pos, set_gtid_pos_size, fmt_gtid_pos,
+             (!use_gtid ? "-- " : comment_prefix), gtid_pos);
   }
 
   /* SHOW MASTER STATUS reports file and position */
@@ -6331,7 +6332,8 @@ static int add_slave_statements(void)
 }
 
 static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
-                                int use_gtid, char* set_gtid_pos)
+                                int use_gtid, char *set_gtid_pos,
+                                size_t set_gtid_pos_size)
 {
   MYSQL_RES *UNINIT_VAR(slave);
   MYSQL_ROW row;
@@ -6376,7 +6378,8 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
                   "\n-- A corresponding to the below dump-slave "
                   "CHANGE-MASTER settings to the slave gtid state is printed "
                   "later in the file.\n");
-    sprintf(set_gtid_pos, fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
+    snprintf(set_gtid_pos, set_gtid_pos_size, fmt_gtid_pos,
+             gtid_comment_prefix, gtid_pos);
   }
   if (use_gtid)
     print_comment(md_result_file, 0,
@@ -7248,11 +7251,15 @@ int main(int argc, char **argv)
 
   if (opt_master_data && do_show_master_status(mysql, consistent_binlog_pos,
                                                have_mariadb_gtid,
-                                               opt_use_gtid, master_set_gtid_pos))
+                                               opt_use_gtid,
+                                               master_set_gtid_pos,
+                                               sizeof(master_set_gtid_pos)))
     goto err;
   if (opt_slave_data && do_show_slave_status(mysql,
                                              have_mariadb_gtid,
-                                             opt_use_gtid, slave_set_gtid_pos))
+                                             opt_use_gtid,
+                                             slave_set_gtid_pos,
+                                             sizeof(slave_set_gtid_pos)))
     goto err;
   if (opt_single_transaction && do_unlock_tables(mysql)) /* unlock but no commit! */
     goto err;

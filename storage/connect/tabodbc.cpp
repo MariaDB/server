@@ -286,7 +286,7 @@ void TDBODBC::SetFile(PGLOBAL g, PCSZ fn)
     } // endif n
 
     // Make the complete connect string
-    sprintf(Connect, MulConn, fn);
+    snprintf(Connect, BufSize, MulConn, fn);
   } // endif MultConn
 
   DBQ = PlugDup(g, fn);

@@ -6664,11 +6664,15 @@ longlong Field_year::val_int(void)
 String *Field_year::val_str(String *val_buffer,
 			    String *val_ptr __attribute__((unused)))
 {
-  DBUG_ASSERT(field_length < 5);
-  val_buffer->alloc(5);
+  /* "YYYY" + NUL terminator */
+  static const size_t YEAR_STR_BUFF_LEN= 5;
+  DBUG_ASSERT(field_length < YEAR_STR_BUFF_LEN);
+  val_buffer->alloc(YEAR_STR_BUFF_LEN);
   val_buffer->length(field_length);
   char *to=(char*) val_buffer->ptr();
-  sprintf(to,field_length == 2 ? "%02d" : "%04d",(int) Field_year::val_int());
+  snprintf(to, YEAR_STR_BUFF_LEN,
+           field_length == 2 ? "%02d" : "%04d",
+           (int) Field_year::val_int());
   val_buffer->set_charset(&my_charset_numeric);
   return val_buffer;
 }

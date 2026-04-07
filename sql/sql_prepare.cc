@@ -3969,8 +3969,9 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
     /* Error will be sent in execute call */
     stmt->state= Query_arena::STMT_ERROR;
     stmt->last_errno= ER_WRONG_ARGUMENTS;
-    sprintf(stmt->last_error, ER_THD(thd, ER_WRONG_ARGUMENTS),
-            "mysqld_stmt_send_long_data");
+    snprintf(stmt->last_error, sizeof(stmt->last_error),
+             ER_THD(thd, ER_WRONG_ARGUMENTS),
+             "mysqld_stmt_send_long_data");
     DBUG_VOID_RETURN;
   }
 #endif

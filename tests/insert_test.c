@@ -46,7 +46,7 @@ int main(int argc, char **argv)
   count = 0;
   while (count < num)
   {
-    sprintf(qbuf,INSERT_QUERY,count,count);
+    snprintf(qbuf,sizeof(qbuf),INSERT_QUERY,count,count);
     if(mysql_query(sock,qbuf))
     {
       fprintf(stderr,"Query failed (%s)\n",mysql_error(sock));

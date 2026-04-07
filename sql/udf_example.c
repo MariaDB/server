@@ -849,11 +849,11 @@ char *reverse_lookup(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
       *null_value=1;
       return 0;
     }
-    sprintf(result,"%d.%d.%d.%d",
-	    (int) *((longlong*) args->args[0]),
-	    (int) *((longlong*) args->args[1]),
-	    (int) *((longlong*) args->args[2]),
-	    (int) *((longlong*) args->args[3]));
+    snprintf(result, MYSQL_UDF_MAX_RESULT_LENGTH, "%d.%d.%d.%d",
+	     (int) *((longlong*) args->args[0]),
+	     (int) *((longlong*) args->args[1]),
+	     (int) *((longlong*) args->args[2]),
+	     (int) *((longlong*) args->args[3]));
   }
   else
   {					/* string argument */
@@ -1245,9 +1245,9 @@ char * is_const(UDF_INIT *initid, UDF_ARGS *args __attribute__((unused)),
                 uchar *is_null,uchar *error __attribute__((unused)))
 {
   if (initid->ptr != 0) {
-    sprintf(result, "const");
+    snprintf(result, MYSQL_UDF_MAX_RESULT_LENGTH, "const");
   } else {
-    sprintf(result, "not const");
+    snprintf(result, MYSQL_UDF_MAX_RESULT_LENGTH, "not const");
   }
   *is_null= 0;
   *length= (uint) strlen(result);

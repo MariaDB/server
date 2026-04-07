@@ -957,7 +957,7 @@ void DIRCOL::SetTimeValue(PGLOBAL g, FILETIME& ftime)
 	SYSTEMTIME stp;
 
 	if (FileTimeToSystemTime(&ftime, &stp)) {
-		sprintf(tsp, "%04d-%02d-%02d %02d:%02d:%02d",
+		snprintf(tsp, sizeof(tsp), "%04d-%02d-%02d %02d:%02d:%02d",
 			stp.wYear, stp.wMonth, stp.wDay, stp.wHour, stp.wMinute, stp.wSecond);
 
 		if (Value->GetType() != TYPE_STRING) {

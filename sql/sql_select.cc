@@ -20672,13 +20672,14 @@ TABLE *Create_tmp_table::start(THD *thd,
     m_temp_pool_slot = temp_pool_set_next();
 
   if (m_temp_pool_slot != MY_BIT_NONE) // we got a slot
-    sprintf(path, "%s-%s-%lx-%i", tmp_file_prefix, param->tmp_name,
-            current_pid, m_temp_pool_slot);
+    snprintf(path, sizeof(path), "%s-%s-%lx-%i", tmp_file_prefix, param->tmp_name,
+             current_pid, m_temp_pool_slot);
   else
   {
     /* if we run out of slots or we are not using tempool */
-    sprintf(path, "%s-%s-%lx-%llx-%x", tmp_file_prefix, param->tmp_name,
-            current_pid, thd->thread_id, thd->tmp_table++);
+    snprintf(path, sizeof(path), "%s-%s-%lx-%llx-%x",
+             tmp_file_prefix, param->tmp_name,
+             current_pid, thd->thread_id, thd->tmp_table++);
   }
 
   /*
