@@ -3521,4 +3521,12 @@ SELECT ST_DISTANCE_SPHERE(st_geomfromtext('linestring( 2 2, 2 8) '), ST_GeomFrom
 --echo #
 SELECT ST_ASTEXT(ST_POINTONSURFACE(ST_GeomFromText('POLYGON((-1 0, 1 2, 1 0, -1 0))'))) as T;
 
+--echo #
+--echo # MDEV-39279 ASAN error on malformed WKB
+--echo #
+SELECT ST_NumPoints(x'000000000102000000');
+SELECT ST_NumGeometries(x'000000000104000000');
+SELECT ST_NumGeometries(x'000000000105000000');
+SELECT ST_NumGeometries(x'000000000106000000');
+
 --echo # End of 10.6 tests

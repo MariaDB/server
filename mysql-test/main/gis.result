@@ -5513,4 +5513,19 @@ ERROR HY000: Calling geometry function st_distance_sphere with unsupported types
 SELECT ST_ASTEXT(ST_POINTONSURFACE(ST_GeomFromText('POLYGON((-1 0, 1 2, 1 0, -1 0))'))) as T;
 T
 POINT(0.5 1)
+#
+# MDEV-39279 ASAN error on malformed WKB
+#
+SELECT ST_NumPoints(x'000000000102000000');
+ST_NumPoints(x'000000000102000000')
+NULL
+SELECT ST_NumGeometries(x'000000000104000000');
+ST_NumGeometries(x'000000000104000000')
+NULL
+SELECT ST_NumGeometries(x'000000000105000000');
+ST_NumGeometries(x'000000000105000000')
+NULL
+SELECT ST_NumGeometries(x'000000000106000000');
+ST_NumGeometries(x'000000000106000000')
+NULL
 # End of 10.6 tests

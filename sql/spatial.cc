@@ -1433,6 +1433,8 @@ int Gis_line_string::is_closed(int *closed) const
 
 int Gis_line_string::num_points(uint32 *n_points) const
 {
+  if (no_data(m_data, 4))
+    return 1;
   *n_points= uint4korr(m_data);
   return 0;
 }
@@ -2260,6 +2262,8 @@ bool Gis_multi_point::get_mbr(MBR *mbr, const char **end) const
 
 int Gis_multi_point::num_geometries(uint32 *num) const
 {
+  if (no_data(m_data, 4))
+    return 1;
   *num= uint4korr(m_data);
   return 0;
 }
@@ -2346,7 +2350,8 @@ int Gis_multi_point::spherical_distance_multipoints(Geometry *g, const double r,
      we are sure that there will be multiple points and we have to construct
      Point geometry and return the smallest result.
   */
-  num_geometries(&num_of_points1);
+  if (num_geometries(&num_of_points1))
+    return 1;
   DBUG_ASSERT(num_of_points1 >= 1);
   g->num_geometries(&num_of_points2);
   DBUG_ASSERT(num_of_points2 >= 1);
@@ -2666,6 +2671,8 @@ bool Gis_multi_line_string::get_mbr(MBR *mbr, const char **end) const
 
 int Gis_multi_line_string::num_geometries(uint32 *num) const
 {
+  if (no_data(m_data, 4))
+    return 1;
   *num= uint4korr(m_data);
   return 0;
 }
@@ -3097,6 +3104,8 @@ bool Gis_multi_polygon::get_mbr(MBR *mbr, const char **end) const
 
 int Gis_multi_polygon::num_geometries(uint32 *num) const
 {
+  if (no_data(m_data, 4))
+    return 1;
   *num= uint4korr(m_data);
   return 0;
 }
