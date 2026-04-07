@@ -102,9 +102,8 @@ SELECT * FROM graph WHERE latch='Ω Ohms Tennis Ball 〄' and origid=666;
 SELECT * FROM graph WHERE latch='Ω Ohms Tennis Ball 〄' and origid is NULL;
 
 #--echo # Expect no result, because of NULL latch
-#-- FIXME - in v2 according to http://openquery.com/graph/doc NULL latch should
-#-- FIXME - return same as select * from graph;
-#--https://bugs.launchpad.net/oqgraph/+bug/1196021
+#-- FIXME - in v2, NULL latch should
+#-- FIXME - return same as select * from graph.
 --echo # Return all edges when latch is NULL
 SELECT * FROM graph WHERE latch is NULL;
 SELECT * FROM graph WHERE latch is NULL and destid=2 and origid=1;
@@ -118,14 +117,13 @@ SELECT * FROM graph WHERE latch is NULL and origid is NULL;
 INSERT INTO graph_base(from_id, to_id) VALUES (1,2);
 
 DELETE FROM graph_base;
-#-- Uncomment the following after fixing https://bugs.launchpad.net/oqgraph/+bug/1195735
 SELECT * FROM graph;
 
 FLUSH TABLES;
 
 TRUNCATE TABLE graph_base;
-#-- Uncomment the following after fixing https://bugs.launchpad.net/oqgraph/+bug/xxxxxxx - Causes the later select to not fail!
-#-- For now don't report a separate bug as it may be a manifestation of https://bugs.launchpad.net/oqgraph/+bug/1195735
+#-- Uncomment the following after fixing - Causes the later select to not fail!
+#-- For now don't report a separate bug as it may be a manifestation of above FIXME
 SELECT * FROM graph;
 
 #-- Expect error if we pull the table out from under
