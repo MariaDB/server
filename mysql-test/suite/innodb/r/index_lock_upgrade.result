@@ -62,19 +62,19 @@ distinct_timestamps
 # Index lock upgrades during updates
 SELECT @lu12 AS index_lock_upgrades_update;
 index_lock_upgrades_update
-114
+6
 SELECT @pu12 AS pessimistic_update_calls_update;
 pessimistic_update_calls_update
-114
+6
 SELECT @ou12 AS optim_err_underflows_update;
 optim_err_underflows_update
 0
 SELECT @oo12 AS optim_err_overflows_update;
 optim_err_overflows_update
-114
+6
 SELECT @ps12 AS index_page_splits_update;
 index_page_splits_update
-5
+6
 SELECT @ma12 AS index_page_merge_attempts_update;
 index_page_merge_attempts_update
 0
@@ -83,7 +83,7 @@ index_page_merge_successful_update
 0
 SELECT @rs12 AS index_page_reorg_successful_update;
 index_page_reorg_successful_update
-98
+40
 SELECT @pd12 AS index_page_discards_update;
 index_page_discards_update
 0
