@@ -4,9 +4,10 @@
 
 #include "sql_class.h"
 #include "handler.h"
-#include "duckdb.hpp"
-#include "sql/table.h"
-#include "sql/handler.h"
+//#include "duckdb.hpp"
+//#include "sql/table.h"
+//#include "sql/handler.h"
+#include <iostream>
 
 handlerton *parquet_hton= 0;
 static THR_LOCK parquet_lock;
@@ -100,6 +101,75 @@ int ha_parquet::close(void)
 //   return 0;
 // }
 
+//helper to convert mariadb type to duckdb type
+std::string mariadb_type_to_duckdb(Field *f) {
+    enum_field_types t = f->type();
+
+    switch (t) {
+        case MYSQL_TYPE_TINY:
+            return "TINYINT";
+
+        case MYSQL_TYPE_SHORT:
+            return "SMALLINT";
+
+        case MYSQL_TYPE_INT24:
+        case MYSQL_TYPE_LONG:
+            return "INTEGER";
+
+        case MYSQL_TYPE_LONGLONG:
+            return "BIGINT";
+
+        case MYSQL_TYPE_FLOAT:
+            return "FLOAT";
+
+        case MYSQL_TYPE_DOUBLE:
+            return "DOUBLE";
+
+        case MYSQL_TYPE_DECIMAL:
+        case MYSQL_TYPE_NEWDECIMAL:
+            return "DECIMAL";
+
+        case MYSQL_TYPE_VARCHAR:
+        case MYSQL_TYPE_VAR_STRING:
+        case MYSQL_TYPE_STRING:
+        case MYSQL_TYPE_ENUM:
+        case MYSQL_TYPE_SET:
+            return "VARCHAR";
+
+        case MYSQL_TYPE_TINY_BLOB:
+        case MYSQL_TYPE_MEDIUM_BLOB:
+        case MYSQL_TYPE_LONG_BLOB:
+        case MYSQL_TYPE_BLOB:
+            // make sure text is not becoming BLOB
+            if (f->charset() == &my_charset_bin) {
+                return "BLOB";
+            }
+            return "VARCHAR";
+
+        case MYSQL_TYPE_DATE:
+        case MYSQL_TYPE_NEWDATE:
+            return "DATE";
+
+        case MYSQL_TYPE_TIME:
+        case MYSQL_TYPE_TIME2:
+            return "TIME";
+
+        case MYSQL_TYPE_DATETIME:
+        case MYSQL_TYPE_DATETIME2:
+        case MYSQL_TYPE_TIMESTAMP:
+        case MYSQL_TYPE_TIMESTAMP2:
+            return "TIMESTAMP";
+
+        case MYSQL_TYPE_YEAR:
+            return "SMALLINT";
+
+        case MYSQL_TYPE_BIT:
+            return "BOOLEAN";
+
+        default:
+            return "";
+    }
+}
 
 int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *create_info) {
 
@@ -120,8 +190,8 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
     }
 
 
-    duckdb::DuckDB db(helper_db_path);
-    duckdb::Connection con(db);
+    //duckdb::DuckDB db(helper_db_path);
+    //duckdb::Connection con(db);
 
     // Path to the parquet file
     std::string parquet_file = std::string(name) + ".parquet";
@@ -138,11 +208,25 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
     }
 
     // Now build the query
-    std::string query;
-    
+    std::string query = "CREATE TABLE " + table_name + " (";
+    //add the column name and type
+    bool first = true; //comma after the first col
+    for (Field **field = table_arg->s->field; *field; ++field) {
+      Field *f = *field;
+      std::string col_name = f->field_name.str;
+      enum_field_types t = f->type();
+      std::string duck_type = mariadb_type_to_duckdb(f);
+      
+      if (duck_type.empty()) return HA_ERR_UNSUPPORTED; //this means we are missing a type
+      
+      if (!first)query += ", ";
+      first = false;
+      query += col_name + " " + duck_type;
+    }
+    query += ")";
 
-
-    auto result = con.Query(query);
+    std::cout << "DuckDB query: " << query << std::endl;
+    //auto result = con.Query(query);
 
     
 
