@@ -37,69 +37,8 @@ int ha_parquet::close(void)
   return 0;
 }
 
-// int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *create_info)
-// {
-//   // auto *options= create_info ? create_info->option_struct : nullptr;
 
-//   auto *options = nullptr;
 
-//   if(create_info->option_struct){
-//     options = create_info;
-//   }
-
-//   if (!options || !options->file_name || !*options->file_name)
-//   {
-//     my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "PARQUET", "FILE_NAME");
-//     return HA_ERR_GENERIC;
-//   }
-
-//   if ((create_info->options & HA_LEX_CREATE_TMP_TABLE) != 0)
-//   {
-//     my_error(ER_UNSUPPORTED_EXTENSION, MYF(0), "TEMPORARY PARQUET tables");
-//     return HA_ERR_GENERIC;
-//   }
-
-//   try
-//   {
-//     ParquetTableNames dt(name);
-//     std::string parquet_file= options->file_name;
-    // std::string catalog_path= make_catalog_path(name);
-
-//     duckdb::DuckDB db(catalog_path);
-//     duckdb::Connection con(db);
-
-//     std::string error;
-//     if (!validate_parquet_schema(table_arg, con, parquet_file, error))
-//     {
-//       my_error(ER_UNKNOWN_ERROR, MYF(0), error.c_str());
-//       return HA_ERR_GENERIC;
-//     }
-
-//     std::ostringstream sql;
-//     sql << "CREATE SCHEMA IF NOT EXISTS " << sql_quote_identifier(dt.db_name)
-//         << "; CREATE OR REPLACE VIEW "
-//         << sql_quote_identifier(dt.db_name) << "."
-//         << sql_quote_identifier(dt.table_name)
-//         << " AS SELECT * FROM read_parquet(" << sql_quote_string(parquet_file)
-//         << ")";
-
-//     auto create_result= con.Query(sql.str());
-//     if (!create_result || create_result->HasError())
-//     {
-//       const std::string error_msg=
-//           create_result ? create_result->GetError() : "DuckDB query failed";
-//       my_error(ER_UNKNOWN_ERROR, MYF(0), error_msg.c_str());
-//       return HA_ERR_GENERIC;
-//     }
-//   }
-//   catch (const std::exception &ex)
-//   {
-//     my_error(ER_UNKNOWN_ERROR, MYF(0), ex.what());
-//     return HA_ERR_GENERIC;
-//   }
-
-//   return 0;
-// }
 
 //helper to convert mariadb type to duckdb type
 std::string mariadb_type_to_duckdb(Field *f) {
@@ -171,6 +110,34 @@ std::string mariadb_type_to_duckdb(Field *f) {
     }
 }
 
+
+
+std::string build_query(std::string table_name, TABLE *table_arg){
+    std::string query = "CREATE TABLE " + table_name + " (";
+
+      
+    //add the column name and type
+    bool first = true; //comma after the first col
+    for (Field **field = table_arg->s->field; *field; ++field) {
+      Field *f = *field;
+      std::string col_name = f->field_name.str;
+      enum_field_types t = f->type();
+      std::string duck_type = mariadb_type_to_duckdb(f);
+      
+      if (duck_type.empty()) return ""; //this means we are missing a type
+      
+      if (!first)query += ", ";
+      first = false;
+      query += col_name + " " + duck_type;
+    }
+    query += ")";
+
+    std::cout << "DuckDB query: " << query << std::endl;
+
+    return query;
+}
+
+
 int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *create_info) {
 
     
@@ -197,7 +164,7 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
     std::string parquet_file = std::string(name) + ".parquet";
 
 
-    // Getting the table name itself (It will alwaus be the end of the file path like /database/table) get the table
+    // Getting the table name itself (It will always be the end of the file path like /database/table)
     std::string table_name;
     size_t pos = table_path.find_last_of("/\\");
     if(pos == std::string::npos){
@@ -208,24 +175,9 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
     }
 
     // Now build the query
-    std::string query = "CREATE TABLE " + table_name + " (";
-    //add the column name and type
-    bool first = true; //comma after the first col
-    for (Field **field = table_arg->s->field; *field; ++field) {
-      Field *f = *field;
-      std::string col_name = f->field_name.str;
-      enum_field_types t = f->type();
-      std::string duck_type = mariadb_type_to_duckdb(f);
-      
-      if (duck_type.empty()) return HA_ERR_UNSUPPORTED; //this means we are missing a type
-      
-      if (!first)query += ", ";
-      first = false;
-      query += col_name + " " + duck_type;
-    }
-    query += ")";
 
-    std::cout << "DuckDB query: " << query << std::endl;
+    std::string query = build_query(table_name, table_arg);
+
     //auto result = con.Query(query);
 
     
