@@ -4589,4 +4589,22 @@ SET @value= '
 
 SELECT JSON_SCHEMA_VALID(@schema, @value);
 
+--echo #
+--echo # MDEV-39212: JSON_MERGE_PATCH depth crash
+--echo #
+
+SET @deep = CONCAT(REPEAT('{"a":', 10000), '1', REPEAT('}', 10000));
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT JSON_MERGE_PATCH('1', @deep);
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT JSON_MERGE_PATCH('[1,2,3]', @deep);
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT JSON_MERGE_PATCH('{}', '1', @deep);
+
 --echo # End of 12.3 tests

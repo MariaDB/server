@@ -2955,6 +2955,11 @@ static int copy_value_patch(String *str, json_engine_t *je)
 {
   int first_key= 1;
 
+  DBUG_EXECUTE_IF("json_check_min_stack_requirement",
+                  return dbug_json_check_min_stack_requirement(););
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return 1;
+
   if (je->value_type != JSON_VALUE_OBJECT)
   {
     const uchar *beg, *end;

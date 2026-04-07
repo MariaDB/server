@@ -5918,4 +5918,14 @@ SET @value= '
 SELECT JSON_SCHEMA_VALID(@schema, @value);
 JSON_SCHEMA_VALID(@schema, @value)
 1
+#
+# MDEV-39212: JSON_MERGE_PATCH depth crash
+#
+SET @deep = CONCAT(REPEAT('{"a":', 10000), '1', REPEAT('}', 10000));
+SELECT JSON_MERGE_PATCH('1', @deep);
+ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
+SELECT JSON_MERGE_PATCH('[1,2,3]', @deep);
+ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
+SELECT JSON_MERGE_PATCH('{}', '1', @deep);
+ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
 # End of 12.3 tests
