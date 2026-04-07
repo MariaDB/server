@@ -4006,8 +4006,17 @@ btr_cur_pessimistic_update(
 		goto return_after_reservations;
 	}
 
-	rec = btr_cur_insert_if_possible(cursor, new_entry,
-					 offsets, offsets_heap, n_ext, mtr);
+	if (optim_err == DB_OVERFLOW
+	    && !buf_block_get_page_zip(block)
+	    && page_get_max_insert_size_after_reorganize(
+	        block->page.frame, 1) < BTR_CUR_PAGE_REORGANIZE_LIMIT) {
+		/* The page is too full: force a split instead of
+		reinserting on the same page. */
+		rec = NULL;
+	} else {
+		rec = btr_cur_insert_if_possible(cursor, new_entry,
+						 offsets, offsets_heap, n_ext, mtr);
+	}
 
 	if (rec) {
 		page_cursor->rec = rec;
