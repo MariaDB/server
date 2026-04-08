@@ -5,6 +5,7 @@
 --echo #
 
 call mtr.add_suppression("Event Scheduler: .*Query execution was interrupted");
+call mtr.add_suppression("Event Scheduler: .*Unknown event 'e'");
 
 # Verify that a user without PROCESS privilege can see their own events
 # run by event scheduler.
