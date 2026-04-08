@@ -1099,8 +1099,8 @@ public:
 };
 
 Field_pair *get_corresponding_field_pair(Item *item,
-                                         List<Field_pair> pair_list);
-Field_pair *find_matching_field_pair(Item *item, List<Field_pair> pair_list);
+                                         List<Field_pair> &pair_list);
+Field_pair *find_matching_field_pair(Item *item, List<Field_pair> & pair_list);
 
 
 #define TOUCHED_SEL_COND 1/* WHERE/HAVING/ON should be reinited before use */
