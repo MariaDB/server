@@ -6,6 +6,12 @@
 #include "handler.h"
 #include "thr_lock.h"
 #include "my_base.h"
+#include <string>
+
+struct parquet_txn_state {
+  std::string staged_file;
+  bool has_writes;
+};
 
 class ha_parquet final : public handler
 {
@@ -41,5 +47,6 @@ public:
 
 private:
   THR_LOCK_DATA lock;
+  parquet_txn_state* get_txn_state(THD *thd);
 };
 #endif

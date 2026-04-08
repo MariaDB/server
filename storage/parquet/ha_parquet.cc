@@ -16,7 +16,7 @@ ha_parquet::ha_parquet(handlerton *hton, TABLE_SHARE *table_arg)
 
 ulonglong ha_parquet::table_flags() const
 {
-  return HA_NO_TRANSACTIONS | HA_FILE_BASED;
+  return HA_FILE_BASED;
 }
 
 ulong ha_parquet::index_flags(uint, uint, bool) const
@@ -237,15 +237,32 @@ static int ha_parquet_rollback(handlerton *hton, THD *thd, bool all)
 {
   if (!all) return 0;
 
-  // PLACEHOLDER: real S3 file path will come from THD state once handler team implements close()
-  // const char *s3_file_path = "s3://placeholder-bucket/placeholder.parquet";
+  parquet_txn_state *state = (parquet_txn_state*) thd_get_ha_data(thd, hton);
+  if (!state) return 0;
 
-  // TODO: once DuckDB is integrated, use DuckDB to delete the orphaned S3 file
-  // DuckDB handles S3 authentication so we don't need to manage credentials here
-  // Something like: duckdb_connection.Query("DELETE FROM '" + s3_file_path + "'");
+  if (state->has_writes) {
+    std::string cmd = "aws s3 rm " + state->staged_file;
+    system(cmd.c_str());
+  }
+
+  delete state;
+  thd_set_ha_data(thd, hton, NULL);
 
   return 0;
+}
 
+parquet_txn_state* ha_parquet::get_txn_state(THD *thd)
+{
+  void *ptr = thd_get_ha_data(thd, parquet_hton);
+
+  if (!ptr) {
+    auto *state = new parquet_txn_state();
+    state->has_writes = false;
+    thd_set_ha_data(thd, parquet_hton, state);
+    return state;
+  }
+
+  return (parquet_txn_state*)ptr;
 }
 
 static int ha_parquet_init(void *p)
