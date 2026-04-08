@@ -18,6 +18,7 @@ evalp BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
 
 BACKUP STAGE END;
 --connection backup
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --error 21
 evalp SET STATEMENT max_statement_time=0.1 FOR
 BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';

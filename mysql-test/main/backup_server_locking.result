@@ -12,6 +12,6 @@ BACKUP STAGE END;
 connection backup;
 SET STATEMENT max_statement_time=0.1 FOR
 BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
-ERROR HY000: Can't create directory '/dev/shm/s/mysql-test/var/some_directory' (Errcode: 17 "File exists")
+ERROR HY000: Can't create directory 'MYSQLTEST_VARDIR/some_directory' (Errcode: 17 "File exists")
 disconnect backup;
 connection default;
