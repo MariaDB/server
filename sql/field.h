@@ -4554,7 +4554,7 @@ public:
   int cmp(const uchar *a, uint32 a_length, const uchar *b, uint32 b_length)
     const;
   int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U) const
-     override;
+    override;
   int key_cmp(const uchar *,const uchar*) const override;
   int key_cmp(const uchar *str, uint length) const override;
   /* Never update the value of min_val for a blob field */
@@ -4598,10 +4598,10 @@ public:
     store_length(ptr, packlength, (uint32)number);
   }
   inline uint32 get_length(my_ptrdiff_t row_offset= 0) const
-  { return get_length(ptr+row_offset, this->packlength); }
+  { return get_length(ptr+row_offset, packlength); }
   uint32 get_length(const uchar *ptr, uint packlength) const;
   uint32 get_length(const uchar *ptr_arg) const
-  { return get_length(ptr_arg, this->packlength); }
+  { return get_length(ptr_arg, packlength); }
   inline uchar *get_ptr() const { return get_ptr(ptr); }
   inline uchar *get_ptr(const uchar *ptr_arg) const
   {
@@ -4788,6 +4788,51 @@ private:
   Binlog_type_info binlog_type_info() const override;
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type) override;
 };
+
+
+/*
+  class for using Blob keys for internal temporary tables.
+
+  The difference to Field_blob is that the blob key is stored as
+  [length (4 bytes) ] [pointer to data (8 bytes)]
+  This allows us to use the whole blob as a key and also avoids copying
+  the blob value to the key.
+*/
+
+class Field_blob_key final :public Field_blob {
+public:
+  Field_blob_key(uchar *ptr_arg, uchar *null_ptr_arg,
+                 uchar null_bit_arg, enum utype unireg_check_arg,
+                 const LEX_CSTRING *field_name_arg, TABLE_SHARE *share,
+                 const DTCollation &collation) :
+    Field_blob(ptr_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
+               field_name_arg, share, 4, collation)
+    {}
+  Field_blob_key(uint32 len_arg, bool maybe_null_arg,
+                 const LEX_CSTRING *field_name_arg,
+                 const DTCollation &collation)
+    :Field_blob(len_arg, maybe_null_arg, field_name_arg, collation)
+  {}
+
+  uint16 key_part_length_bytes() const override { return 4; }
+  int key_cmp(const uchar *,const uchar*) const override;
+  int key_cmp(const uchar *str, uint length) const override;
+  uint get_key_image(uchar *buff, uint length,
+                     const uchar *ptr_arg, imagetype type) const override
+  {
+    /* Internal temporary tables doesn't use key-only-reads */
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  void set_key_image(const uchar *buff,uint length) override;
+  enum ha_base_keytype key_type() const override
+    { return binary() ? HA_KEYTYPE_VARBINARY4 : HA_KEYTYPE_VARTEXT4; }
+  uint32 key_length() const override { return 4 + portable_sizeof_char_ptr; }
+  Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
+                       uchar *new_ptr, uint32 length,
+                       uchar *new_null_ptr, uint new_null_bit) override;
+};
+
 
 
 class Field_enum :public Field_str {

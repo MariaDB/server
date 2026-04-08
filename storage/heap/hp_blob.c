@@ -259,40 +259,17 @@ static void hp_unlink_and_write_run(HP_SHARE *share, const uchar *data_ptr,
                                     uint recbuffer, uint32 *data_offset,
                                     uchar **first_run, uchar **prev_run_start)
 {
-  uint32 remaining= data_len - *data_offset;
-  uint32 records_needed;
-  uint16 records_to_use;
-  uint32 unlinked= 0;
-  uchar **prev_link= &share->del_link;
-  uchar *cur;
-  uint32 first_payload= visible - HP_CONT_HEADER_SIZE;
+  DBUG_ASSERT(share->del_link == run_start + (run_count-1) * recbuffer);
+  DBUG_ASSERT(share->del_link >= run_start &&
+              share->del_link < run_start + run_count * recbuffer);
 
-  if (remaining <= first_payload)
-    records_needed= 1;
-  else
-    records_needed= 1 + (remaining - first_payload + recbuffer - 1) / recbuffer;
-  records_to_use= (records_needed > run_count) ? run_count :
-                  (uint16) records_needed;
-
-  cur= share->del_link;
-  while (cur && unlinked < records_to_use)
-  {
-    uchar *next= *((uchar**) cur);
-    if (cur >= run_start &&
-        cur < run_start + records_to_use * recbuffer)
-    {
-      *prev_link= next;
-      share->deleted--;
-      share->total_records++;
-      unlinked++;
-    }
-    else
-      prev_link= (uchar**) cur;
-    cur= next;
-  }
+  share->del_link= *(uchar**) (share->del_link -
+                               (run_count-1) * recbuffer);
+  share->deleted-= run_count;
+  share->total_records+= run_count;
 
   hp_write_run_data(share, data_ptr, data_len, run_start,
-                    records_to_use, HP_BLOB_CASE_C_MULTI_RUN, data_offset);
+                    run_count, HP_BLOB_CASE_C_MULTI_RUN, data_offset);
 
   if (*prev_run_start)
     memcpy(*prev_run_start, &run_start, sizeof(run_start));
@@ -327,6 +304,10 @@ int hp_write_one_blob(HP_SHARE *share, const uchar *data_ptr,
   uchar *first_run= NULL;
   uchar *prev_run_start= NULL;
   uint32 data_offset= 0;
+  uint32 first_payload= visible - HP_CONT_HEADER_SIZE;
+  uint32 total_records_needed=
+    (data_len <= first_payload ? 1 :
+     1 + (data_len - first_payload + recbuffer - 1) / recbuffer);
 
   /*
     Calculate minimum acceptable contiguous run size for free-list reuse.
@@ -357,71 +338,82 @@ int hp_write_one_blob(HP_SHARE *share, const uchar *data_ptr,
   min_run_records= (min_run_bytes + recbuffer - 1) / recbuffer;
   if (min_run_records < 2)
     min_run_records= 2;
-  {
-    uint32 first_payload= visible - HP_CONT_HEADER_SIZE;
-    uint32 total_records_needed= data_len <= first_payload ? 1 :
-        1 + (data_len - first_payload + recbuffer - 1) / recbuffer;
-    if (total_records_needed < min_run_records)
-      min_run_records= total_records_needed;
-  }
+
+  if (total_records_needed < min_run_records)
+    min_run_records= total_records_needed;
 
   /*
-    Step 1: Try to allocate contiguous runs from the free list.
+    Step 1: Try to allocate contiguous runs from the top of the free list.
 
     Peek at free list records by walking next pointers without unlinking.
     Track contiguous groups (descending addresses — LIFO order from
     hp_free_run_chain).  On discontinuity: if the group qualifies
-    (>= min_run_records), unlink and use it; if it doesn't, the free
-    list is too fragmented — stop and fall through to tail allocation.
+    (>= min_run_records), unlink and use it; if it doesn't, the tail
+    of the delete_link is too small. Instead of continue searching
+    for a larger block, we stop searching.
   */
   {
-    uchar *run_start= NULL;
-    uint16 run_count= 0;
-    uchar *prev_pos= NULL;
+    uchar *run_start;
+    uint16 run_count= 1;
+    uchar *prev_pos;
     uchar *pos;
+    uint32 max_run= MY_MIN(total_records_needed, UINT_MAX16);
 
-    for (pos= share->del_link;
-         pos && data_offset < data_len;
-         pos= *((uchar**) pos))
+    if ((run_start= share->del_link))
     {
-      /*
-        Only check descending direction: hp_free_run_chain() frees records
-        in ascending address order (j=0..N), so LIFO pushes them onto the
-        free list in reverse — consecutive free list entries have descending
-        addresses.  Ascending adjacency from unrelated deletes is ignored
-        intentionally; we only recover runs that were freed together.
-      */
-      if (prev_pos && pos == prev_pos - recbuffer && run_count < UINT_MAX16)
+      prev_pos= run_start;
+      pos= *((uchar**) run_start);
+      run_count= 1;
+      for (; pos ; pos= *((uchar**) pos))
       {
-        run_start= pos;
-        run_count++;
-        prev_pos= pos;
-        continue;
-      }
+        /*
+          Only check descending direction: hp_free_run_chain() frees records
+          in ascending address order (j=0..N), so LIFO pushes them onto the
+          free list in reverse — consecutive free list entries have descending
+          addresses.  Ascending adjacency from unrelated deletes is ignored
+          intentionally; we only recover runs that were freed together.
+        */
+        if (run_count == total_records_needed)
+          break;                           /* Use this run */
+
+        if (prev_pos && pos == prev_pos - recbuffer)
+        {
+          run_start= pos;
+          run_count++;
+          if (run_count < max_run)
+            continue;
+          if (run_count == total_records_needed)
+            break;                           /* Use this run */
+          /* run_count is now UINT_MAX16 */
+        }
 
       /*
         Discontinuity.  If the accumulated group qualifies, use it.
-        If not, the free list is fragmented — give up entirely.
+        If not, the top of the free list is fragmented — give up entirely.
       */
-      if (run_count > 0)
-      {
         if (run_count < min_run_records)
           break;
         hp_unlink_and_write_run(share, data_ptr, data_len, run_start,
                                 run_count, visible, recbuffer,
                                 &data_offset, &first_run, &prev_run_start);
+
+        pos= share->del_link;
+        total_records_needed-= run_count;
+
+        /* This cannot be last run */
+        DBUG_ASSERT(data_offset < data_len && pos);
+        DBUG_ASSERT(total_records_needed != 0);
+
+        run_start= pos;
+        run_count= 1;
       }
 
-      run_start= pos;
-      run_count= 1;
-      prev_pos= pos;
+      /* Handle the last group after the loop ends */
+      if (run_count >= min_run_records && data_offset < data_len)
+        hp_unlink_and_write_run(share, data_ptr, data_len, run_start,
+                                run_count, visible, recbuffer,
+                                &data_offset, &first_run, &prev_run_start);
     }
-
-    /* Handle the last group after the loop ends */
-    if (run_count >= min_run_records && data_offset < data_len)
-      hp_unlink_and_write_run(share, data_ptr, data_len, run_start,
-                              run_count, visible, recbuffer,
-                              &data_offset, &first_run, &prev_run_start);
   }
 
   /*

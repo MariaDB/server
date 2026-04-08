@@ -9021,7 +9021,7 @@ int Field_blob::cmp_binary(const uchar *a_ptr, const uchar *b_ptr,
 uint Field_blob::get_key_image_itRAW(const uchar *ptr_arg, uchar *buff,
                                      uint length) const
 {
-  size_t blob_length= get_length(ptr_arg);
+  uint32 blob_length= get_length(ptr_arg);
   const uchar *blob= get_ptr(ptr_arg);
   size_t local_char_length= length / mbmaxlen();
   local_char_length= field_charset()->charpos(blob, blob + blob_length,
@@ -9055,7 +9055,7 @@ void Field_blob::set_key_image(const uchar *buff,uint length)
 int Field_blob::key_cmp(const uchar *key_ptr, uint max_key_length) const
 {
   uchar *blob1;
-  size_t blob_length=get_length(ptr);
+  uint32 blob_length=get_length(ptr);
   memcpy(&blob1, ptr+packlength, sizeof(char*));
   CHARSET_INFO *cs= charset();
   size_t local_char_length= max_key_length / cs->mbmaxlen;
@@ -9085,9 +9085,10 @@ static struct blob_storage_check
 Field *Field_blob::make_new_field(MEM_ROOT *root, TABLE *newt, bool keep_type)
 {
   DBUG_ASSERT((intptr(newt->blob_storage) & blob_storage_check.val.p) == 0);
-  if (newt->group_concat)
-    return new (root) Field_blob(field_length, maybe_null(), &field_name,
-                                 charset());
+  if (newt->group_concat ||
+      (newt->s->tmp_table == INTERNAL_TMP_TABLE && type() == MYSQL_TYPE_BLOB))
+    return new (root) Field_blob_key(field_length, maybe_null(), &field_name,
+                                     charset());
   return Field::make_new_field(root, newt, keep_type);
 }
 
@@ -9393,6 +9394,51 @@ Binlog_type_info Field_blob_compressed::binlog_type_info() const
   return Binlog_type_info(Field_blob_compressed::binlog_type(),
                           pack_length_no_ptr(), 1, charset());
 }
+
+
+/****************************************************************************
+** Field_blob_key
+** Used for blob keys in internal temporary tables
+****************************************************************************/
+
+void Field_blob_key::set_key_image(const uchar *data,uint length)
+{
+  DBUG_ASSERT(packlength == 4);
+  int4store(ptr, length);
+  memcpy(ptr+packlength, &data, sizeof(char*));
+}
+
+
+int Field_blob_key::key_cmp(const uchar *key_ptr, uint max_key_length) const
+{
+  uchar *blob1;
+  uint32 blob_length= get_length(ptr);
+  memcpy(&blob1, ptr + packlength, sizeof(char*));
+  return Field_blob_key::cmp(blob1, (uint32) blob_length,
+                             key_ptr + 4, uint4korr(key_ptr));
+}
+
+int Field_blob_key::key_cmp(const uchar *a,const uchar *b) const
+{
+  return Field_blob_key::cmp(a + 4, uint4korr(a), b+ 4, uint4korr(b));
+}
+
+
+Field *Field_blob_key::new_key_field(MEM_ROOT *root, TABLE *new_table,
+                                     uchar *new_ptr, uint32 length,
+                                     uchar *new_null_ptr, uint new_null_bit)
+{
+  Field_blob_key *res= new (root) Field_blob_key(new_ptr,
+                                                 new_null_ptr,
+                                                 new_null_bit, Field::NONE,
+                                                 &field_name,
+                                                 table->s, charset());
+  res->init(new_table);
+  /* key_fields are not stored in the table. Don't count this one */
+  table->s->blob_fields--;
+  return res;
+}
+
 
 /****************************************************************************
 ** enum type.

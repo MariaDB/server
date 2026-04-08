@@ -9045,6 +9045,30 @@ end:
 }
 
 
+/*
+  Remove field form blob list if we replaced it with a varchar field
+*/
+
+static void remove_field_from_blob_list(TABLE *table, uint fieldnr)
+{
+  uint *blob_field= table->s->blob_field;
+  uint *end= blob_field+ table->s->blob_fields;
+
+  for (; blob_field < end ; blob_field++)
+  {
+    if (*blob_field == fieldnr)
+    {
+      if (blob_field+1 < end)
+        bmove(blob_field, blob_field+1,
+              (char*) end - (char*) blob_field - sizeof(*blob_field));
+        table->s->blob_fields--;
+        return;
+    }
+  }
+  DBUG_ASSERT(0);                               // Field not found
+}
+
+
 bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
 {
   DBUG_ENTER("optimize_schema_tables_memory_usage");
@@ -9087,6 +9111,7 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
         }
         else
         {
+          bool was_blob= field->flags & BLOB_FLAG;
           field= new (thd->mem_root) Field_string(cur, 0, field->null_ptr,
                                 field->null_bit, Field::NONE,
                                 &field->field_name, field->dtcollation());
@@ -9094,6 +9119,8 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
           field->field_index= i;
           DBUG_ASSERT(field->pack_length_in_rec() == 0);
           table->field[i]= field;
+          if (was_blob)
+            remove_field_from_blob_list(table, i);
         }
       }
       if ((table->s->reclength= (ulong)(cur - table->record[0])) == 0)

@@ -21394,7 +21394,7 @@ bool Create_tmp_table::finalize(THD *thd,
             was promoted to blob in the tmp table.  If the promoted blob
             doesn't fit, fall back to m_using_unique_constraint.
           */
-          uint32 need= key_field_length + 2 /* length_bytes */ +
+          uint32 need= key_field_length + 4 /* length_bytes */ +
                         MY_TEST(maybe_null);
           if (m_group_buff + need >
               param->group_buff + param->group_length)
@@ -21408,11 +21408,12 @@ bool Create_tmp_table::finalize(THD *thd,
           check.  This ensures that if we break out due to a promoted
           blob overflowing the group buffer, key_part_flag retains the
           original SQL-layer value (HA_VAR_LENGTH_PART for varchar),
-          not HA_BLOB_PART.  This prevents rebuild_key_from_group_buff() from being
-          called on a key buffer that has varchar format.
+          not HA_BLOB_PART.  This prevents rebuild_key_from_group_buff()
+          from being called on a key buffer that has varchar format.
         */
         m_key_part_info->key_part_flag= field->key_part_flag();
 
+        /* Create a new field which value is stored in the group buffer */
 	if (!(cur_group->field= field->new_key_field(thd->mem_root,table,
                                                      m_group_buff +
                                                      MY_TEST(maybe_null),
@@ -22451,6 +22452,8 @@ free_tmp_table(THD *thd, TABLE *entry)
   /* free blobs */
   for (Field **ptr=entry->field ; *ptr ; ptr++)
     (*ptr)->free();
+  for (ORDER *group= entry->group ; group ; group= group->next)
+    group->field->free();
 
   if (entry->temp_pool_slot != MY_BIT_NONE)
     temp_pool_clear_bit(entry->temp_pool_slot);
@@ -24867,7 +24870,7 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     Non-blob fields are unaffected: copy_funcs() writes directly into
     the record[0] field slots that hp_make_key() reads from.
   */
-  if (table->s->db_type() == heap_hton)
+  if (table->s->db_type() == heap_hton && 0)
   {
     if (table->s->blob_fields)
     {
@@ -24875,6 +24878,7 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
       for (group= table->group; group; group= group->next)
       {
         Field *tbl_field= (*group->item)->get_tmp_table_field();
+        DBUG_ASSERT(tbl_field);
         if (tbl_field && tbl_field != group->field)
         {
           if (group->field->is_null())

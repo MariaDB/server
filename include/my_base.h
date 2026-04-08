@@ -268,7 +268,10 @@ enum ha_base_keytype {
   /* Varchar (0-65535 bytes) with length packed with 2 bytes */
   HA_KEYTYPE_VARTEXT2=17,		/* Key is sorted as letters */
   HA_KEYTYPE_VARBINARY2=18,		/* Key is sorted as unsigned chars */
-  HA_KEYTYPE_BIT=19
+  HA_KEYTYPE_BIT=19,
+  /* blob (length 4 bytes, pointer 8 bytes) used for internal tmp tables */
+  HA_KEYTYPE_VARTEXT4=20,		/* Key is sorted as letters */
+  HA_KEYTYPE_VARBINARY4=21,		/* Key is sorted as unsigned chars */
 };
 
 #define HA_MAX_KEYTYPE	31		/* Must be log2-1 */

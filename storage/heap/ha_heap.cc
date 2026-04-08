@@ -404,6 +404,7 @@ void ha_heap::rebuild_key_from_group_buff(HP_KEYDEF *keydef, const uchar *&key,
 */
 void ha_heap::materialize_heap_key_if_needed(uint key_index, const uchar *&key)
 {
+#ifdef QQ
   HP_KEYDEF *keydef= file->s->keydef + key_index;
   if (keydef->has_blob_seg)
   {
@@ -415,6 +416,7 @@ void ha_heap::materialize_heap_key_if_needed(uint key_index, const uchar *&key)
       key= (const uchar*) file->lastkey;
     }
   }
+#endif
 }
 
 
@@ -816,57 +818,25 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
         if ((seg->type = field->key_type()) != (int) HA_KEYTYPE_TEXT &&
             seg->type != HA_KEYTYPE_VARTEXT1 &&
             seg->type != HA_KEYTYPE_VARTEXT2 &&
+            seg->type != HA_KEYTYPE_VARTEXT4 &&
             seg->type != HA_KEYTYPE_VARBINARY1 &&
             seg->type != HA_KEYTYPE_VARBINARY2 &&
+            seg->type != HA_KEYTYPE_VARBINARY4 &&
             seg->type != HA_KEYTYPE_BIT)
           seg->type= HA_KEYTYPE_BINARY;
       }
       seg->start=   (uint) key_part->offset;
       seg->length=  (uint) key_part->length;
-      /*
-        Use field->key_part_flag() instead of key_part->key_part_flag
-        because some SQL layer paths (SJ weedout, expression cache)
-        leave key_part_flag uninitialized.  Garbage HA_BLOB_PART bits
-        cause seg->length to be zeroed (the blob convention), corrupting
-        hash/compare for non-blob VARCHAR/VARBINARY keys.
-      */
-      seg->flag=    field->key_part_flag();
-      /*
-        HEAP blob key segments must have seg->length=0.  hp_hashnr()
-        advances key by seg->length (fixed part) THEN by 4+sizeof(ptr)
-        (blob encoding); non-zero length double-counts the advance
-        and hashes wrong data.  The SQL layer's key_part.length may be
-        pack_length() (e.g. DISTINCT key path) — override it here.
+      seg->flag =   key_part->key_part_flag;
+      DBUG_ASSERT((seg->flag & HA_BLOB_PART) ==
+                  (key_part->key_part_flag & HA_BLOB_PART));
 
-        Also widen key_part->length to max_data_length() so the SQL
-        layer's new_key_field() creates a Field_varstring large enough
-        for the full blob data.  Without this, DISTINCT/sj-materialize
-        lookup keys are truncated to pack_length() bytes.
-      */
       if (seg->flag & HA_BLOB_PART)
       {
-        seg->length= 0;
-        uint32 blob_max= field->max_data_length();
-        /*
-          Widen key_part->length for blob segments where the SQL layer
-          set it to pack_length() (e.g. DISTINCT key path).  Skip when
-          key_part->length <= pack_length_no_ptr(), which covers:
-          - Regular blobs: key_length()=0 (GROUP BY path where
-            finalize() sizes the group buffer separately)
-          - Geometry blobs: key_length()=packlength=4 (GROUP BY path,
-            also sized separately by finalize())
-          Without this guard, geometry GROUP BY triggers overflow in
-          store_length (len_delta ≈ 4 billion), causing
-          rebuild_key_from_group_buff() to jump to uninitialized memory.
-        */
-        uint pack_no_ptr= ((Field_blob*)field)->pack_length_no_ptr();
-        if (key_part->length > pack_no_ptr && key_part->length < blob_max)
-        {
-          uint len_delta= blob_max - key_part->length;
-          key_part->length= blob_max;
-          key_part->store_length+= len_delta;
-          pos->key_length+= len_delta;
-        }
+        DBUG_ASSERT(seg->length== 4 + portable_sizeof_char_ptr);
+        DBUG_ASSERT(field->key_type() == HA_KEYTYPE_VARBINARY4 ||
+                    field->key_type() == HA_KEYTYPE_VARTEXT4);
+        keydef[key].has_blob_seg= 1;
       }
 
       if (field->flags & (ENUM_FLAG | SET_FLAG))
@@ -907,24 +877,7 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
         seg->bit_pos= 0;
       }
     }
-    /*
-      Pre-compute has_blob_seg so callers (materialize_heap_key_if_needed,
-      unit tests) can use it before heap_create() runs.  heap_create()
-      recomputes this from the normalized segments.
-    */
-    keydef[key].has_blob_seg= hp_keydef_has_blob_seg(&keydef[key]);
   }
-  /*
-    Detect GROUP BY keys with blob segments that need rebuild_key_from_group_buff().
-    When table->group is set, key 0 is the GROUP BY key.  If it has
-    HA_BLOB_PART segments, finalize() set up the group buffer with
-    blob format and rebuild_key_from_group_buff() must parse it during lookups.
-    Without this flag, index_read_map() falls back to hp_make_key(record[0])
-    which may use stale blob pointers after copy_funcs().
-  */
-  if (keys > 0)
-    keydef[0].needs_key_rebuild_from_group_buff=
-      (table_arg->group && hp_keydef_has_blob_seg(&keydef[0]));
 
   if (table_arg->found_next_number_field)
   {
@@ -946,35 +899,30 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
       return my_errno;
     }
     {
-      uint real_blob_count= 0;
+      uint blob_count= 0;
       for (uint b= 0; b < share->blob_fields; b++)
       {
         Field *field= table_arg->field[share->blob_field[b]];
-        /*
-          BLOB_FLAG may be set on non-Field_blob fields (e.g. long
-          Field_string in INFORMATION_SCHEMA temp tables). Only include
-          true Field_blob types in the HEAP blob descriptor array.
-          Field_geom (MYSQL_TYPE_GEOMETRY) extends Field_blob and must
-          also be included.
-        */
-        if (field->type() == MYSQL_TYPE_BLOB ||
-            field->type() == MYSQL_TYPE_GEOMETRY)
-        {
-          Field_blob *blob= (Field_blob*) field;
-          blob_descs[real_blob_count].offset=
+        Field_blob *blob= (Field_blob*) field;
+
+        DBUG_ASSERT(field->type() == MYSQL_TYPE_BLOB ||
+                    field->type() == MYSQL_TYPE_GEOMETRY);
+
+          blob_descs[blob_count].offset=
             (uint) blob->offset(table_arg->record[0]);
-          blob_descs[real_blob_count].packlength= blob->pack_length_no_ptr();
-          real_blob_count++;
-        }
+          blob_descs[blob_count].packlength= blob->pack_length_no_ptr();
+          blob_count++;
       }
       hp_create_info->blob_descs= blob_descs;
-      hp_create_info->blob_count= real_blob_count;
+      hp_create_info->blob_count= blob_count;
     }
   }
 
   hp_create_info->auto_key= auto_key;
   hp_create_info->auto_key_type= auto_key_type;
-  hp_create_info->max_table_size= MY_MAX(current_thd->variables.max_heap_table_size, sizeof(HP_PTRS));
+  hp_create_info->max_table_size=
+    MY_MAX(current_thd->variables.max_heap_table_size,
+           sizeof(HP_PTRS));
   hp_create_info->with_auto_increment= found_real_auto_increment;
   hp_create_info->internal_table= internal_table;
 

@@ -133,15 +133,6 @@ typedef struct st_hp_keydef		/* Key definition with open */
   uint (*get_key_length)(struct st_hp_keydef *keydef, const uchar *key);
 } HP_KEYDEF;
 
-static inline my_bool hp_keydef_has_blob_seg(const HP_KEYDEF *keydef)
-{
-  uint j;
-  for (j= 0; j < keydef->keysegs; j++)
-    if (keydef->seg[j].flag & HA_BLOB_PART)
-      return TRUE;
-  return FALSE;
-}
-
 typedef struct st_hp_blob_desc
 {
   uint offset;       /* Byte offset of blob descriptor within record buffer */

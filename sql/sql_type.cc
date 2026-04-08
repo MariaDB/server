@@ -162,6 +162,7 @@ Named_type_handler<Type_handler_varchar_compressed> type_handler_varchar_compres
 Named_type_handler<Type_handler_tiny_blob> type_handler_tiny_blob("tinyblob");
 Named_type_handler<Type_handler_medium_blob> type_handler_medium_blob("mediumblob");
 Named_type_handler<Type_handler_long_blob> type_handler_long_blob("longblob");
+Named_type_handler<Type_handler_blob_key> type_handler_blob_key("blob_key");
 Named_type_handler<Type_handler_blob> type_handler_blob("blob");
 Named_type_handler<Type_handler_blob_compressed> type_handler_blob_compressed("blob");
 
@@ -1474,6 +1475,12 @@ const Type_handler *
 Type_handler::blob_type_handler(const Item *item)
 {
   return blob_type_handler(item->max_length);
+}
+
+const Type_handler *
+Type_handler::blob_key_type_handler()
+{
+  return &type_handler_blob_key;
 }
 
 /**
@@ -3998,6 +4005,18 @@ Field *Type_handler_long_blob::make_table_field(MEM_ROOT *root,
          Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name, share,
                     4, attr.collation);
+}
+
+Field *Type_handler_blob_key::make_table_field(MEM_ROOT *root,
+                                               const LEX_CSTRING *name,
+                                               const Record_addr &addr,
+                                               const Type_all_attributes &attr,
+                                               TABLE_SHARE *share) const
+
+{
+  return new (root)
+         Field_blob_key(addr.ptr(), addr.null_ptr(), addr.null_bit(),
+                        Field::NONE, name, share, attr.collation);
 }
 
 

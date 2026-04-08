@@ -55,32 +55,6 @@ static size_t hp_blob_key_length(uint packlength, const uchar *pos)
 
 
 /*
-  Compute the key-buffer byte size of the variable-length portion of a
-  VARTEXT or BLOB segment in a pre-built hash key.
-
-  Used by hp_hashnr() and hp_key_cmp() to advance past a VARCHAR or
-  BLOB segment (both null and non-null) in the key buffer.
-
-  All VARCHAR key segments use a 2-byte length prefix — this is the
-  canonical key format shared between SQL-layer group_buff keys and
-  hp_make_key() output.  hp_make_key() normalizes 1-byte record
-  prefixes to 2-byte key prefixes to maintain this invariant.
-
-  Blob segments use a fixed 4-byte length + pointer layout.
-
-  @param seg  Key segment descriptor
-  @return     Number of bytes to skip in the key buffer for the variable-
-              length portion (does NOT include the null flag byte, which
-              the caller handles separately)
-*/
-
-static inline size_t hp_vartext_key_pack_size(const HA_KEYSEG *seg)
-{
-  return (seg->flag & HA_BLOB_PART) ? 4 + sizeof(uchar *) : 2;
-}
-
-
-/*
   Find out how many rows there is in the given range
 
   SYNOPSIS
@@ -295,15 +269,15 @@ static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
   for (seg=keydef->seg,endseg=seg+keydef->keysegs ; seg < endseg ; seg++)
   {
     uchar *pos=(uchar*) key;
-    key+=seg->length;
+    key+= seg->length;
     if (seg->null_bit)
     {
       key++;					/* Skip null byte */
       if (*pos)					/* Found null */
       {
 	nr^= (nr << 1) | 1;
-        if (seg->type == HA_KEYTYPE_VARTEXT1)
-          key+= hp_vartext_key_pack_size(seg);
+        if (seg->type != HA_KEYTYPE_BIT)
+          key+= seg->bit_length;
 	continue;
       }
       pos++;
@@ -320,17 +294,6 @@ static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
        }
        my_ci_hash_sort(cs, pos, length, &nr, &nr2);
     }
-    else if (seg->type == HA_KEYTYPE_VARTEXT1 && (seg->flag & HA_BLOB_PART))
-    {
-       /* Blob segment in pre-built key: 4-byte length + data pointer */
-       CHARSET_INFO *cs= seg->charset;
-       uint32 blob_len= uint4korr(pos);
-       const uchar *blob_data;
-       memcpy(&blob_data, pos + 4, HP_PTR_SIZE);
-       if (blob_data && blob_len > 0)
-         my_ci_hash_sort(cs, blob_data, blob_len, &nr, &nr2);
-       key+= 4 + sizeof(uchar*);
-    }
     else if (seg->type == HA_KEYTYPE_VARTEXT1)  /* Any VARCHAR segments */
     {
        CHARSET_INFO *cs= seg->charset;
@@ -345,7 +308,17 @@ static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
          set_if_smaller(length, char_length);
        }
        my_ci_hash_sort(cs, pos+pack_length, length, &nr, &nr2);
-       key+= pack_length;
+       key+= seg->bit_length;
+    }
+    else if (seg->type == HA_KEYTYPE_VARTEXT4) /* All blob segments */
+    {
+       /* Blob segment in pre-built key: 4-byte length + data pointer */
+       CHARSET_INFO *cs= seg->charset;
+       uint32 blob_len= uint4korr(pos);
+       const uchar *blob_data;
+       memcpy(&blob_data, pos + 4, HP_PTR_SIZE);
+       if (blob_data && blob_len > 0)
+         my_ci_hash_sort(cs, blob_data, blob_len, &nr, &nr2);
     }
     else
     {
@@ -371,7 +344,7 @@ ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
 
   for (seg=keydef->seg,endseg=seg+keydef->keysegs ; seg < endseg ; seg++)
   {
-    uchar *pos=(uchar*) rec+seg->start,*end=pos+seg->length;
+    const uchar *pos=(uchar*) rec+seg->start, *end=pos+seg->length;
     if (seg->null_bit)
     {
       if (rec[seg->null_pos] & seg->null_bit)
@@ -392,22 +365,13 @@ ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
       }
       my_ci_hash_sort(cs, pos, char_length, &nr, &nr2);
     }
-    else if (seg->type == HA_KEYTYPE_VARTEXT1 && (seg->flag & HA_BLOB_PART))
-    {
-      /* Blob segment in input record: dereference data pointer */
-      CHARSET_INFO *cs= seg->charset;
-      uint packlength= seg->bit_start;
-      size_t blob_len= hp_blob_key_length(packlength, pos);
-      const uchar *blob_data;
-      memcpy(&blob_data, pos + packlength, HP_PTR_SIZE);
-      if (blob_data && blob_len > 0)
-        my_ci_hash_sort(cs, blob_data, blob_len, &nr, &nr2);
-    }
     else if (seg->type == HA_KEYTYPE_VARTEXT1)  /* Any VARCHAR segments */
     {
       CHARSET_INFO *cs= seg->charset;
       size_t pack_length= seg->bit_start;
       size_t length= (pack_length == 1 ? (size_t) *(uchar*) pos : uint2korr(pos));
+      DBUG_ASSERT(!((seg->flag & HA_BLOB_PART)));
+
       if (cs->mbmaxlen > 1)
       {
         size_t char_length;
@@ -419,6 +383,17 @@ ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
       else
         set_if_smaller(length, seg->length);
       my_ci_hash_sort(cs, pos+pack_length, length, &nr, &nr2);
+    }
+    else if (seg->type == HA_KEYTYPE_VARTEXT4) /* All blob segments */
+    {
+      /* Blob segment in input record: dereference data pointer */
+      CHARSET_INFO *cs= seg->charset;
+      const uint packlength= 4;
+      size_t blob_len= hp_blob_key_length(packlength, pos);
+      const uchar *blob_data;
+      memcpy(&blob_data, pos + packlength, HP_PTR_SIZE);
+      if (blob_data && blob_len > 0)
+        my_ci_hash_sort(cs, blob_data, blob_len, &nr, &nr2);
     }
     else
     {
@@ -500,14 +475,14 @@ int hp_rec_key_cmp(HP_KEYDEF *keydef, const uchar *rec1, const uchar *rec2,
                             pos2, char_length2))
 	return 1;
     }
-    else if (seg->type == HA_KEYTYPE_VARTEXT1 && (seg->flag & HA_BLOB_PART))
+    else if (seg->type == HA_KEYTYPE_VARTEXT4) /* All blob segments */
     {
       /*
         Blob segment comparison.
         rec1 always has valid blob pointers (input record).
         rec2 may be stored (chain pointers) when info != NULL.
       */
-      uint packlength= seg->bit_start;
+      uint packlength= 4;
       uchar *pos1= (uchar*) rec1 + seg->start;
       uchar *pos2= (uchar*) rec2 + seg->start;
       size_t len1= hp_blob_key_length(packlength, pos1);
@@ -518,7 +493,7 @@ int hp_rec_key_cmp(HP_KEYDEF *keydef, const uchar *rec1, const uchar *rec2,
       if (len1 == 0 && len2 == 0)
         continue;
       /*
-        Only short-circuit on length mismatch for NO PAD collations.
+       Only short-circuit on length mismatch for NO PAD collations.
         PAD SPACE collations treat trailing spaces as insignificant,
         so 'a' (len=1) and 'a  ' (len=3) must compare equal.
       */
@@ -623,8 +598,8 @@ int hp_key_cmp(HP_KEYDEF *keydef, const uchar *rec, const uchar *key,
 	return 1;
       if (found_null)
       {
-        if (seg->type == HA_KEYTYPE_VARTEXT1)
-          key+= hp_vartext_key_pack_size(seg);
+        if (seg->type != HA_KEYTYPE_BIT)
+          key+= seg->bit_length;
 	continue;
       }
     }
@@ -653,13 +628,13 @@ int hp_key_cmp(HP_KEYDEF *keydef, const uchar *rec, const uchar *key,
                             key, char_length_key))
 	return 1;
     }
-    else if (seg->type == HA_KEYTYPE_VARTEXT1 && (seg->flag & HA_BLOB_PART))
+    else if (seg->type == HA_KEYTYPE_VARTEXT4)
     {
       /*
         Blob segment: rec side is stored (chain pointers), key side has
         4-byte length + data pointer from hp_make_key.
       */
-      uint packlength= seg->bit_start;
+      uint packlength= 4;
       uchar *pos= (uchar*) rec + seg->start;
       size_t rec_blob_len= hp_blob_key_length(packlength, pos);
       uint32 key_blob_len= uint4korr(key);
@@ -667,7 +642,6 @@ int hp_key_cmp(HP_KEYDEF *keydef, const uchar *rec, const uchar *key,
       const uchar *rec_data;
 
       memcpy(&key_data, key + 4, HP_PTR_SIZE);
-      key+= 4 + sizeof(uchar*);
 
       if (rec_blob_len == 0 && key_blob_len == 0)
         continue;
@@ -750,19 +724,10 @@ void hp_make_key(HP_KEYDEF *keydef, uchar *key, const uchar *rec)
     uchar *pos= (uchar*) rec + seg->start;
     if (seg->null_bit)
       *key++= MY_TEST(rec[seg->null_pos] & seg->null_bit);
-    if (seg->type == HA_KEYTYPE_VARTEXT1 && (seg->flag & HA_BLOB_PART))
+    if (seg->type == HA_KEYTYPE_VARTEXT4)
     {
-      /*
-        Blob segment in input record: store 4-byte length + data pointer
-        in key buffer for later use by hp_hashnr/hp_key_cmp.
-      */
-      uint packlength= seg->bit_start;
-      uint32 blob_len= (uint32) hp_blob_key_length(packlength, pos);
-      const uchar *blob_data;
-      memcpy(&blob_data, pos + packlength, HP_PTR_SIZE);
-      int4store(key, blob_len);
-      memcpy(key + 4, &blob_data, HP_PTR_SIZE);
-      key+= 4 + sizeof(uchar*);
+      memcpy(key, pos, char_length);
+      key+= char_length;
       continue;
     }
     if (cs->mbmaxlen > 1)
@@ -937,6 +902,7 @@ uint hp_rb_pack_key(HP_KEYDEF *keydef, uchar *key, const uchar *old,
       }
       continue;
     }
+    DBUG_ASSERT(!(seg->flag & HA_BLOB_PART));
     if (seg->flag & (HA_VAR_LENGTH_PART | HA_BLOB_PART))
     {
       /* Length of key-part used with heap_rkey() always 2 */

@@ -3718,6 +3718,7 @@ public:
   */
   static const Type_handler *varstring_type_handler(const Item *item);
   static const Type_handler *blob_type_handler(const Item *item);
+  static const Type_handler *blob_key_type_handler();
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
   static const Type_handler *get_handler_by_real_type(enum_field_types type);
   static const Type_collection *
@@ -7234,7 +7235,7 @@ public:
   const Type_handler *type_handler_for_tmp_table(const Item *item) const
     override
   {
-    return blob_type_handler(item);
+    return blob_key_type_handler();
   }
   const Type_handler *type_handler_for_union(const Item *item) const override
   {
@@ -7345,6 +7346,18 @@ public:
                           const Type_all_attributes &attr,
                           TABLE_SHARE *share) const override;
   uint max_octet_length() const override { return UINT_MAX32; }
+};
+
+
+class Type_handler_blob_key: public Type_handler_long_blob
+{
+public:
+  virtual ~Type_handler_blob_key() = default;
+  Field *make_table_field(MEM_ROOT *root,
+                          const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE_SHARE *share) const override;
 };
 
 
@@ -7682,6 +7695,7 @@ extern Named_type_handler<Type_handler_hex_hybrid>  type_handler_hex_hybrid;
 extern Named_type_handler<Type_handler_tiny_blob>   type_handler_tiny_blob;
 extern Named_type_handler<Type_handler_medium_blob> type_handler_medium_blob;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_long_blob>   type_handler_long_blob;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_blob_key>   type_handler_blob_key;
 extern Named_type_handler<Type_handler_blob>        type_handler_blob;
 extern Named_type_handler<Type_handler_blob_compressed> type_handler_blob_compressed;
 
