@@ -1054,21 +1054,20 @@ static void trx_purge_close_tables(purge_node_t *node, THD *thd) noexcept
 {
   for (auto &t : node->tables)
   {
-    dict_table_t *table= t.second.first;
+    dict_table_t *table= t.second.table;
     if (table != nullptr && table != reinterpret_cast<dict_table_t*>(-1))
       dict_table_close(table);
   }
 
   MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
-
   for (auto &t : node->tables)
   {
-    dict_table_t *table= t.second.first;
+    dict_table_t *table= t.second.table;
     if (table != nullptr && table != reinterpret_cast<dict_table_t*>(-1))
     {
-      t.second.first= reinterpret_cast<dict_table_t*>(-1);
-      if (mdl_context != nullptr && t.second.second != nullptr)
-        mdl_context->release_lock(t.second.second);
+      t.second.table= reinterpret_cast<dict_table_t*>(-1);
+      if (mdl_context != nullptr && t.second.mdl_ticket != nullptr)
+        mdl_context->release_lock(t.second.mdl_ticket);
     }
   }
 }
@@ -1080,71 +1079,21 @@ void purge_sys_t::wait_FTS(bool also_sys)
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 }
 
-__attribute__((nonnull))
-/** Acquire a metadata lock on a table.
-@param table        table handle
-@param mdl_context  metadata lock acquisition context
-@param mdl          metadata lock
-@return table handle
-@retval nullptr if the table is not found or accessible
-@retval -1      if the purge of history must be suspended due to DDL */
-static dict_table_t *trx_purge_table_acquire(dict_table_t *table,
-                                             MDL_context *mdl_context,
-                                             MDL_ticket **mdl) noexcept
-{
-  ut_ad(dict_sys.frozen_not_locked());
-  *mdl= nullptr;
-
-  if (!table->is_readable() || table->corrupted)
-    return nullptr;
-
-  size_t db_len= dict_get_db_name_len(table->name.m_name);
-  if (db_len == 0)
-  {
-    /* InnoDB system tables are not covered by MDL */
-  got_table:
-    table->acquire();
-    return table;
-  }
-
-  if (purge_sys.must_wait_FTS())
-  must_wait:
-    return reinterpret_cast<dict_table_t*>(-1);
-
-  char db_buf[NAME_LEN + 1];
-  char tbl_buf[NAME_LEN + 1];
-  size_t tbl_len;
-
-  if (!table->parse_name<true>(db_buf, tbl_buf, &db_len, &tbl_len))
-    /* The name of an intermediate table starts with #sql */
-    goto got_table;
-
-  {
-    MDL_request request;
-    MDL_REQUEST_INIT(&request,MDL_key::TABLE, db_buf, tbl_buf, MDL_SHARED,
-                     MDL_EXPLICIT);
-    if (mdl_context->try_acquire_lock(&request))
-      goto must_wait;
-    *mdl= request.ticket;
-    if (!*mdl)
-      goto must_wait;
-  }
-
-  goto got_table;
-}
-
 /** Open a table handle for the purge of committed transaction history
 @param table_id     InnoDB table identifier
 @param mdl_context  metadata lock acquisition context
 @param mdl          metadata lock
+@param maria_table  MariaDB TABLE* handle
 @return table handle
 @retval nullptr if the table is not found or accessible
 @retval -1      if the purge of history must be suspended due to DDL */
 static dict_table_t *trx_purge_table_open(table_id_t table_id,
                                           MDL_context *mdl_context,
-                                          MDL_ticket **mdl) noexcept
+                                          MDL_ticket **mdl,
+                                          TABLE **maria_table) noexcept
 {
   dict_table_t *table;
+  *maria_table = nullptr;
 
   for (;;)
   {
@@ -1158,26 +1107,74 @@ static dict_table_t *trx_purge_table_open(table_id_t table_id,
     dict_sys.unlock();
     if (!table)
       return nullptr;
-    /* At this point, the freshly loaded table may already have been evicted.
-    We must look it up again while holding a shared dict_sys.latch.  We keep
-    trying this until the table is found in the cache or it cannot be found
-    in the dictionary (because the table has been dropped or rebuilt). */
   }
 
-  table= trx_purge_table_acquire(table, mdl_context, mdl);
+  if (!table->is_readable() || table->corrupted)
+  {
+    dict_sys.unfreeze();
+    return nullptr;
+  }
+
+  char db_buf[NAME_LEN + 1];
+  char tbl_buf[NAME_LEN + 1];
+  size_t db_len = dict_get_db_name_len(table->name.m_name);
+  size_t tbl_len;
+
+  if (db_len == 0)
+    /* InnoDB system tables are not covered by MDL */
+    goto got_table;
+
+  if (purge_sys.must_wait_FTS())
+  {
+must_wait:
+    dict_sys.unfreeze();
+    return reinterpret_cast<dict_table_t*>(-1);
+  }
+
+  if (!table->parse_name<true>(db_buf, tbl_buf, &db_len, &tbl_len))
+  {
+    /* The name of an intermediate table starts with #sql */
+    goto got_table;
+  }
+
+  {
+    MDL_request request;
+    MDL_REQUEST_INIT(&request, MDL_key::TABLE, db_buf, tbl_buf, MDL_SHARED,
+                     MDL_EXPLICIT);
+    if (mdl_context->try_acquire_lock(&request))
+      goto must_wait;
+    *mdl = request.ticket;
+    if (!*mdl)
+      goto must_wait;
+  }
+
+got_table:
+  table->acquire();
   dict_sys.unfreeze();
+
+  /* Open MariaDB TABLE for tables with virtual columns */
+  if (*mdl && table->n_v_cols)
+  {
+    THD *thd= current_thd;
+    *maria_table= innobase_open_purge_table(thd, db_buf, db_len, tbl_buf,
+                                            tbl_len, *mdl);
+    if (*maria_table && table->vc_templ)
+      table->vc_templ->mysql_table= *maria_table;
+  }
   return table;
 }
 
 ATTRIBUTE_COLD
 dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
-                                            MDL_ticket **mdl)
+                                            MDL_ticket **mdl,
+                                            TABLE **maria_table)
 {
   MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
   ut_ad(mdl_context);
  retry:
   ut_ad(m_active);
 
+  innobase_close_thread_tables(thd);
   for (que_thr_t *thr= UT_LIST_GET_FIRST(purge_sys.query->thrs); thr;
        thr= UT_LIST_GET_NEXT(thrs, thr))
     trx_purge_close_tables(static_cast<purge_node_t*>(thr->child), thd);
@@ -1186,7 +1183,7 @@ dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
   wait_FTS(false);
   m_active= true;
 
-  dict_table_t *table= trx_purge_table_open(id, mdl_context, mdl);
+  dict_table_t *table= trx_purge_table_open(id, mdl_context, mdl, maria_table);
   if (table == reinterpret_cast<dict_table_t*>(-1))
     goto retry;
 
@@ -1196,16 +1193,19 @@ dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
     purge_node_t *node= static_cast<purge_node_t*>(thr->child);
     for (auto &t : node->tables)
     {
-      if (t.second.first)
+      if (!t.second.table)
+        continue;
+
+      t.second.table= trx_purge_table_open(t.first, mdl_context,
+                                           &t.second.mdl_ticket,
+                                           &t.second.maria_table);
+      if (t.second.table == reinterpret_cast<dict_table_t*>(-1))
       {
-        t.second.first= trx_purge_table_open(t.first, mdl_context,
-                                             &t.second.second);
-        if (t.second.first == reinterpret_cast<dict_table_t*>(-1))
-        {
-          if (table)
-            dict_table_close(table, false, thd, *mdl);
-          goto retry;
-        }
+        if (table)
+          dict_table_close(table);
+        if (mdl_context && *mdl)
+          mdl_context->release_lock(*mdl);
+        goto retry;
       }
     }
   }
@@ -1265,23 +1265,27 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
       ut_ad(!table_node->in_progress);
     if (!table_node)
     {
-      std::pair<dict_table_t *, MDL_ticket *> p;
-      p.first= trx_purge_table_open(table_id, mdl_context, &p.second);
-      if (p.first == reinterpret_cast<dict_table_t *>(-1))
-        p.first= purge_sys.close_and_reopen(table_id, thd, &p.second);
+      purge_table_ctx_t purge_ctx;
+      purge_ctx.table= trx_purge_table_open(table_id, mdl_context,
+                                            &purge_ctx.mdl_ticket,
+                                            &purge_ctx.maria_table);
 
+      if (purge_ctx.table == reinterpret_cast<dict_table_t *>(-1))
+        purge_ctx.table=
+          purge_sys.close_and_reopen(table_id, thd,
+                                     &purge_ctx.mdl_ticket,
+                                     &purge_ctx.maria_table);
       if (!thr || !(thr= UT_LIST_GET_NEXT(thrs, thr)))
         thr= UT_LIST_GET_FIRST(purge_sys.query->thrs);
       ++*n_work_items;
       table_node= static_cast<purge_node_t *>(thr->child);
-
       ut_a(que_node_get_type(table_node) == QUE_NODE_PURGE);
-      ut_d(auto pair=) table_node->tables.emplace(table_id, p);
+      ut_d(auto pair=) table_node->tables.emplace(table_id, purge_ctx);
       ut_ad(pair.second);
-      if (p.first)
+      if (purge_ctx.table)
         goto enqueue;
     }
-    else if (table_node->tables[table_id].first)
+    else if (table_node->tables[table_id].table)
     {
     enqueue:
       table_node->undo_recs.push(purge_rec);
@@ -1444,6 +1448,7 @@ TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, ulint history_size)
     if (workers)
       trx_purge_wait_for_workers_to_complete();
 
+    innobase_close_thread_tables(thd);
     for (thr= UT_LIST_GET_FIRST(purge_sys.query->thrs); thr && n_work--;
          thr= UT_LIST_GET_NEXT(thrs, thr))
     {

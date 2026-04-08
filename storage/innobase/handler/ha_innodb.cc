@@ -124,9 +124,8 @@ TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 			  const char *table, size_t table_len);
 MYSQL_THD create_background_thd();
 void reset_thd(MYSQL_THD thd);
-TABLE *get_purge_table(THD *thd);
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
-			const char *tb, size_t tblen);
+			const char *tb, size_t tblen, MDL_ticket *mdl_ticket);
 void close_thread_tables(THD* thd);
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -20071,20 +20070,11 @@ ha_innobase::multi_range_read_explain_info(
 for purge thread */
 static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 {
-	TABLE *mysql_table;
-	const bool  bg_thread = THDVAR(thd, background_thread);
-
-	if (bg_thread) {
-		if ((mysql_table = get_purge_table(thd))) {
-			return mysql_table;
-		}
-	} else {
-		if (table->vc_templ->mysql_table_query_id
-		    == thd_get_query_id(thd)) {
-			return table->vc_templ->mysql_table;
-		}
+	if (table->vc_templ->mysql_table_query_id == thd_get_query_id(thd)) {
+		return table->vc_templ->mysql_table;
 	}
 
+	TABLE *mysql_table;
 	char	db_buf[NAME_LEN + 1];
 	char	tbl_buf[NAME_LEN + 1];
 	ulint	db_buf_len, tbl_buf_len;
@@ -20092,12 +20082,6 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 	if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
 		return NULL;
 	}
-
-	if (bg_thread) {
-		return open_purge_table(thd, db_buf, db_buf_len,
-					tbl_buf, tbl_buf_len);
-	}
-
 	mysql_table = find_fk_open_table(thd, db_buf, db_buf_len,
 					 tbl_buf, tbl_buf_len);
 	table->vc_templ->mysql_table = mysql_table;
@@ -21305,4 +21289,17 @@ void alter_stats_rebuild(dict_table_t *table, THD *thd)
                         ER_ALTER_INFO, "Error updating stats for table after"
                         " table rebuild: %s", ut_strerr(ret));
   DBUG_VOID_RETURN;
+}
+
+TABLE* innobase_open_purge_table(THD *thd, const char *db_buf,
+                                 size_t db_len, const char *tbl_buf,
+                                 size_t tbl_len,
+                                 MDL_ticket *mdl_ticket) noexcept
+{
+  return open_purge_table(thd, db_buf, db_len, tbl_buf, tbl_len, mdl_ticket);
+}
+
+void innobase_close_thread_tables(THD *thd) noexcept
+{
+  return close_thread_tables(thd);
 }

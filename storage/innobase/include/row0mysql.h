@@ -40,6 +40,7 @@ Created 9/17/2000 Heikki Tuuri
 struct row_prebuilt_t;
 class ha_innobase;
 class ha_handler_stats;
+class MDL_ticket;
 
 /*******************************************************************//**
 Frees the blob heap in prebuilt when no longer needed. */
@@ -829,6 +830,26 @@ dbname and tbname to be renamed. */
 void
 innobase_rename_vc_templ(
 	dict_table_t*	table);
+
+/** Open a table for purge operations with MariaDB TABLE handle.
+This is a wrapper to make open_purge_table() accessible from InnoDB
+purge subsystem.
+@param thd     thread handle
+@param db_buf  database name buffer
+@param db_len  database name length
+@param tbl_buf table name buffer
+@param tbl_len table name length
+@return MariaDB TABLE handle, or NULL if not opened */
+TABLE* innobase_open_purge_table(THD *thd, const char *db_buf,
+                                 size_t db_len, const char *tbl_buf,
+                                 size_t tbl_len,
+                                 MDL_ticket *mdl_ticket) noexcept;
+
+/** Close all tables opened by the thread.
+This is a wrapper to make close_thread_tables() accessible from
+InnoDB purge subsytem.
+@param thd thread handle */
+void innobase_close_thread_tables(THD *thd) noexcept;
 
 #define ROW_PREBUILT_FETCH_MAGIC_N	465765687
 

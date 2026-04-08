@@ -494,8 +494,13 @@ static bool row_purge_is_unsafe(const purge_node_t &node,
 					clust_index->n_core_fields,
 					ULINT_UNDEFINED, &heap);
 
+	TABLE *maria_table= nullptr;
 	if (dict_index_has_virtual(index)) {
 		v_heap = mem_heap_create(100);
+		auto it= node.tables.find(index->table->id);
+		if (it != node.tables.end()) {
+			maria_table = it->second.maria_table;
+		}
 	}
 
 	if (!rec_get_deleted_flag(rec, rec_offs_comp(clust_offsets))) {
@@ -534,7 +539,8 @@ static bool row_purge_is_unsafe(const purge_node_t &node,
 			    || dbug_v_purge) {
 
 				if (!row_vers_build_clust_v_col(
-					    row, clust_index, index, heap)) {
+					    row, clust_index, index, heap,
+					    maria_table)) {
 					goto unsafe_to_purge;
 				}
 
@@ -613,7 +619,8 @@ unsafe_to_purge:
 
 		cur_vrow = row_vers_build_cur_vrow(
 			rec, clust_index, &clust_offsets,
-			index, trx_id, roll_ptr, heap, v_heap, mtr);
+			index, trx_id, roll_ptr, heap, v_heap, mtr,
+			maria_table);
 	}
 
 	version = rec;
@@ -1462,13 +1469,13 @@ row_purge_parse_undo_rec(
 	}
 
 	auto &tables_entry= node->tables[table_id];
-	node->table = tables_entry.first;
+	node->table = tables_entry.table;
 	if (!node->table) {
 		return false;
 	}
 
 #ifndef DBUG_OFF
-	if (MDL_ticket* mdl = tables_entry.second) {
+	if (MDL_ticket* mdl = tables_entry.mdl_ticket) {
 		static_cast<MDL_context*>(thd_mdl_context(current_thd))
 			->lock_warrant = mdl->get_ctx();
 	}
@@ -1643,7 +1650,8 @@ inline que_node_t *purge_node_t::end(THD *thd)
   DBUG_ASSERT(common.type == QUE_NODE_PURGE);
   ut_ad(undo_recs.empty());
   ut_d(in_progress= false);
-  innobase_reset_background_thd(thd);
+  if (srv_n_purge_threads > 1)
+    innobase_reset_background_thd(thd);
 #ifndef DBUG_OFF
   static_cast<MDL_context*>(thd_mdl_context(thd))->lock_warrant= nullptr;
 #endif

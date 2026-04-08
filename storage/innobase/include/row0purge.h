@@ -67,6 +67,25 @@ row_purge_step(
 	que_thr_t*	thr)	/*!< in: query thread */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+/** Table handles used during purge thread */
+struct purge_table_ctx_t
+{
+  /** InnoDB table handle */
+  dict_table_t *table;
+
+  /** MDL ticket for the table */
+  MDL_ticket *mdl_ticket;
+
+  /** MariaDB TABLE handle (for virtual column computation) */
+  TABLE *maria_table;
+
+  purge_table_ctx_t()
+    : table(nullptr), mdl_ticket(nullptr), maria_table(nullptr) {}
+
+  purge_table_ctx_t(dict_table_t *t, MDL_ticket *m, TABLE *mt)
+    : table(t), mdl_ticket(m), maria_table(mt) {}
+};
+
 /** Purge worker context */
 struct purge_node_t
 {
@@ -111,8 +130,9 @@ struct purge_node_t
   /** Undo recs to purge */
   std::queue<trx_purge_rec_t> undo_recs;
 
-  /** map of table identifiers to table handles and meta-data locks */
-  std::unordered_map<table_id_t, std::pair<dict_table_t*,MDL_ticket*>> tables;
+  /** map of table identifiers to table handles, meta-data locks and
+  MySQL table object */
+  std::unordered_map<table_id_t, purge_table_ctx_t> tables;
 
   /** Constructor */
   explicit purge_node_t(que_thr_t *parent) :

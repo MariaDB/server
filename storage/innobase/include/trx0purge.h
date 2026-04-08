@@ -317,7 +317,9 @@ public:
   void resume();
 
   /** Close and reopen all tables in case of a MDL conflict with DDL */
-  dict_table_t *close_and_reopen(table_id_t id, THD *thd, MDL_ticket **mdl);
+  dict_table_t *close_and_reopen(table_id_t id, THD *thd,
+                                 MDL_ticket **mdl,
+                                 TABLE **maria_table);
 private:
   /** Suspend purge during a DDL operation on FULLTEXT INDEX tables */
   void wait_FTS(bool also_sys);
