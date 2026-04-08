@@ -24,13 +24,19 @@ Error	host2
 Warning	host2
 Error Error Error Error	host2
 Warning Warning Warning Warning	host2
-SELECT *,       MATCH(host)    AGAINST("host2" IN NATURAL LANGUAGE MODE) AS score
+SELECT *, MATCH(host) AGAINST("host2" IN NATURAL LANGUAGE MODE) AS score
 FROM logs
 WHERE    MATCH(message) AGAINST("Error" IN NATURAL LANGUAGE MODE)
-ORDER BY MATCH(host)    AGAINST("host2" IN NATURAL LANGUAGE MODE);
+ORDER BY MATCH(host)    AGAINST("host2" IN NATURAL LANGUAGE MODE),
+message;
 message	host	score
 Error Error Error	host1	0
-Error Error	host2	116509
 Error	host2	116509
+Error Error	host2	116509
 Error Error Error Error	host2	116509
+show status like "Created_tmp%";
+Variable_name	Value
+Created_tmp_disk_tables	0
+Created_tmp_files	0
+Created_tmp_tables	6
 DROP TABLE logs;

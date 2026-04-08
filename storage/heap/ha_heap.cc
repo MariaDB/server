@@ -286,144 +286,12 @@ int ha_heap::delete_row(const uchar * buf)
   return res;
 }
 
-/*
-  Rebuild GROUP BY key from group_buff into HEAP's hp_make_key format.
-
-  The GROUP BY path (end_update) stores item values into the group
-  buffer's Field_varstring fields, NOT into record[0]'s Field_blob.
-  After copy_funcs(), record[0]'s blob fields may be stale.
-
-  This method iterates all SQL-layer key parts (blob, varchar, and
-  fixed-length), using store_length for offset advancement.  It copies
-  each part's data from the group buffer into record[0], then calls
-  hp_make_key() to build the HEAP-format key.
-
-  Only called when needs_key_rebuild_from_group_buff is set (GROUP BY key 0 with
-  blob segments).  DISTINCT/SJ-materialize keys use hp_make_key()
-  directly from record[0].
-*/
-void ha_heap::rebuild_key_from_group_buff(HP_KEYDEF *keydef, const uchar *&key,
-                               uint active_key_index)
-{
-  KEY *sql_key= &table->key_info[active_key_index];
-  const uchar *key_pos= key;
-
-  for (uint i= 0; i < sql_key->user_defined_key_parts; i++)
-  {
-    KEY_PART_INFO *key_part= &sql_key->key_part[i];
-    const uchar *data_pos= key_pos;
-    Field *field= key_part->field;
-
-    bool is_null= false;
-    if (key_part->null_bit)
-    {
-      is_null= *data_pos != 0;
-      data_pos++;                               /* skip null flag byte */
-    }
-
-    if (is_null)
-    {
-      /* NULL: set the field's null bit in record[0] */
-      if (field->null_ptr)
-        field->null_ptr[0] |= field->null_bit;
-    }
-    else
-    {
-      /* Non-NULL: clear null bit, then copy data into record[0] */
-      if (key_part->null_bit && field->null_ptr)
-        field->null_ptr[0] &= ~field->null_bit;
-
-      if (key_part->key_part_flag & HA_BLOB_PART)
-      {
-        /*
-          Blob GROUP BY key: stored as Field_varstring in group_buff
-          (2B length prefix + inline data).  Copy into record[0]'s
-          blob field (packlength + data pointer) so hp_make_key()
-          can build the HEAP-format key (4B length + data pointer).
-
-          The key field is always Field_varstring with 2B length
-          (key_field_length >= 256 from MAX_BLOB_WIDTH cap).
-        */
-        uint16 data_len= uint2korr(data_pos);
-        const uchar *data_ptr= data_pos + 2;
-
-        Field_blob *blob= (Field_blob*) field;
-        DBUG_ASSERT(blob->flags & BLOB_FLAG);
-        uint packlength= blob->pack_length_no_ptr();
-        uchar *blob_field= table->record[0] + key_part->offset;
-        store_lowendian((ulonglong) data_len, blob_field, packlength);
-        memcpy(blob_field + packlength, &data_ptr, sizeof(void*));
-      }
-      else if (key_part->key_part_flag & HA_VAR_LENGTH_PART)
-      {
-        /*
-          VARCHAR GROUP BY key: stored as Field_varstring in group_buff.
-          The key buffer always uses HA_KEY_BLOB_LENGTH (2) bytes for
-          the length prefix (Field_varstring::key_part_length_bytes()),
-          but record[0]'s Field_varstring may use 1 or 2 bytes
-          depending on field_length.  Read 2B from key, write the
-          field's native length_bytes to record[0].
-        */
-        uint16 key_data_len= uint2korr(data_pos);
-        const uchar *key_data_ptr= data_pos + HA_KEY_BLOB_LENGTH;
-
-        Field_varstring *vs= (Field_varstring*) field;
-        uint rec_length_bytes= vs->length_bytes;
-        uchar *rec_field= table->record[0] + key_part->offset;
-        set_if_smaller(key_data_len, vs->field_length);
-        if (rec_length_bytes == 1)
-          rec_field[0]= (uchar) key_data_len;
-        else
-          int2store(rec_field, key_data_len);
-        memcpy(rec_field + rec_length_bytes, key_data_ptr, key_data_len);
-      }
-      else
-      {
-        /* Fixed-length: copy from key directly into record[0] */
-        memcpy(table->record[0] + key_part->offset, data_pos,
-               key_part->length);
-      }
-    }
-
-    key_pos+= key_part->store_length;
-  }
-  hp_make_key(keydef, (uchar*) file->lastkey, table->record[0]);
-  key= (const uchar*) file->lastkey;
-}
-
-
-/*
-  Ensure the key is in HEAP's native format for blob indexes.
-
-  GROUP BY (needs_key_rebuild_from_group_buff): parse the SQL-layer group_buff
-  into record[0] and rebuild via hp_make_key(), because record[0]'s
-  blob fields may be stale after copy_funcs().
-
-  DISTINCT / SJ-materialize: record[0] already has correct blob
-  values; build the HEAP key directly from record[0].
-*/
-void ha_heap::materialize_heap_key_if_needed(uint key_index, const uchar *&key)
-{
-  HP_KEYDEF *keydef= file->s->keydef + key_index;
-  if (keydef->has_blob_seg)
-  {
-    if (keydef->needs_key_rebuild_from_group_buff)
-      rebuild_key_from_group_buff(keydef, key, key_index);
-    else
-    {
-      hp_make_key(keydef, (uchar*) file->lastkey, table->record[0]);
-      key= (const uchar*) file->lastkey;
-    }
-  }
-}
-
 
 int ha_heap::index_read_map(uchar *buf, const uchar *key,
                             key_part_map keypart_map,
                             enum ha_rkey_function find_flag)
 {
   DBUG_ASSERT(inited==INDEX);
-  materialize_heap_key_if_needed(active_index, key);
   int error = heap_rkey(file,buf,active_index, key, keypart_map, find_flag);
   return error;
 }
@@ -432,7 +300,6 @@ int ha_heap::index_read_last_map(uchar *buf, const uchar *key,
                                  key_part_map keypart_map)
 {
   DBUG_ASSERT(inited==INDEX);
-  materialize_heap_key_if_needed(active_index, key);
   int error= heap_rkey(file, buf, active_index, key, keypart_map,
 		       HA_READ_PREFIX_LAST);
   return error;
@@ -442,7 +309,6 @@ int ha_heap::index_read_idx_map(uchar *buf, uint index, const uchar *key,
                                 key_part_map keypart_map,
                                 enum ha_rkey_function find_flag)
 {
-  materialize_heap_key_if_needed(index, key);
   int error = heap_rkey(file, buf, index, key, keypart_map, find_flag);
   return error;
 }
@@ -816,56 +682,37 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
         if ((seg->type = field->key_type()) != (int) HA_KEYTYPE_TEXT &&
             seg->type != HA_KEYTYPE_VARTEXT1 &&
             seg->type != HA_KEYTYPE_VARTEXT2 &&
+            seg->type != HA_KEYTYPE_VARTEXT4 &&
             seg->type != HA_KEYTYPE_VARBINARY1 &&
             seg->type != HA_KEYTYPE_VARBINARY2 &&
+            seg->type != HA_KEYTYPE_VARBINARY4 &&
             seg->type != HA_KEYTYPE_BIT)
           seg->type= HA_KEYTYPE_BINARY;
       }
       seg->start=   (uint) key_part->offset;
       seg->length=  (uint) key_part->length;
-      /*
-        Use field->key_part_flag() instead of key_part->key_part_flag
-        because some SQL layer paths (SJ weedout, expression cache)
-        leave key_part_flag uninitialized.  Garbage HA_BLOB_PART bits
-        cause seg->length to be zeroed (the blob convention), corrupting
-        hash/compare for non-blob VARCHAR/VARBINARY keys.
-      */
-      seg->flag=    field->key_part_flag();
-      /*
-        HEAP blob key segments must have seg->length=0.  hp_hashnr()
-        advances key by seg->length (fixed part) THEN by 4+sizeof(ptr)
-        (blob encoding); non-zero length double-counts the advance
-        and hashes wrong data.  The SQL layer's key_part.length may be
-        pack_length() (e.g. DISTINCT key path) — override it here.
+      seg->flag=    key_part->key_part_flag;
+      seg->bit_length= seg->bit_start= 0;
+      seg->bit_pos= 0;
 
-        Also widen key_part->length to max_data_length() so the SQL
-        layer's new_key_field() creates a Field_varstring large enough
-        for the full blob data.  Without this, DISTINCT/sj-materialize
-        lookup keys are truncated to pack_length() bytes.
-      */
+      DBUG_ASSERT((seg->flag & HA_BLOB_PART) ==
+                  (field->key_part_flag() & HA_BLOB_PART));
+
       if (seg->flag & HA_BLOB_PART)
       {
-        seg->length= 0;
-        uint32 blob_max= field->max_data_length();
-        /*
-          Widen key_part->length for blob segments where the SQL layer
-          set it to pack_length() (e.g. DISTINCT key path).  Skip when
-          key_part->length <= pack_length_no_ptr(), which covers:
-          - Regular blobs: key_length()=0 (GROUP BY path where
-            finalize() sizes the group buffer separately)
-          - Geometry blobs: key_length()=packlength=4 (GROUP BY path,
-            also sized separately by finalize())
-          Without this guard, geometry GROUP BY triggers overflow in
-          store_length (len_delta ≈ 4 billion), causing
-          rebuild_key_from_group_buff() to jump to uninitialized memory.
-        */
-        uint pack_no_ptr= ((Field_blob*)field)->pack_length_no_ptr();
-        if (key_part->length > pack_no_ptr && key_part->length < blob_max)
+        if (seg->type == HA_KEYTYPE_VARBINARY2 ||
+            seg->type == HA_KEYTYPE_VARTEXT2)
         {
-          uint len_delta= blob_max - key_part->length;
-          key_part->length= blob_max;
-          key_part->store_length+= len_delta;
-          pos->key_length+= len_delta;
+          /* This is is a geometry field using VARCHAR packing */
+          seg->flag&= ~HA_BLOB_PART;
+        }
+        else
+        {
+          /* Blob key with a 4 byte length and a pointer to data */
+          DBUG_ASSERT(seg->length == 4 + portable_sizeof_char_ptr);
+          DBUG_ASSERT(field->key_type() == HA_KEYTYPE_VARBINARY4 ||
+                      field->key_type() == HA_KEYTYPE_VARTEXT4);
+          seg->bit_start= ((Field_blob*) field)->pack_length_no_ptr();
         }
       }
 
@@ -901,30 +748,8 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
         seg->bit_pos= (uint) (((Field_bit *) field)->bit_ptr -
                                           (uchar*) table_arg->record[0]);
       }
-      else
-      {
-        seg->bit_length= seg->bit_start= 0;
-        seg->bit_pos= 0;
-      }
     }
-    /*
-      Pre-compute has_blob_seg so callers (materialize_heap_key_if_needed,
-      unit tests) can use it before heap_create() runs.  heap_create()
-      recomputes this from the normalized segments.
-    */
-    keydef[key].has_blob_seg= hp_keydef_has_blob_seg(&keydef[key]);
   }
-  /*
-    Detect GROUP BY keys with blob segments that need rebuild_key_from_group_buff().
-    When table->group is set, key 0 is the GROUP BY key.  If it has
-    HA_BLOB_PART segments, finalize() set up the group buffer with
-    blob format and rebuild_key_from_group_buff() must parse it during lookups.
-    Without this flag, index_read_map() falls back to hp_make_key(record[0])
-    which may use stale blob pointers after copy_funcs().
-  */
-  if (keys > 0)
-    keydef[0].needs_key_rebuild_from_group_buff=
-      (table_arg->group && hp_keydef_has_blob_seg(&keydef[0]));
 
   if (table_arg->found_next_number_field)
   {
@@ -946,35 +771,30 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
       return my_errno;
     }
     {
-      uint real_blob_count= 0;
+      uint blob_count= 0;
       for (uint b= 0; b < share->blob_fields; b++)
       {
         Field *field= table_arg->field[share->blob_field[b]];
-        /*
-          BLOB_FLAG may be set on non-Field_blob fields (e.g. long
-          Field_string in INFORMATION_SCHEMA temp tables). Only include
-          true Field_blob types in the HEAP blob descriptor array.
-          Field_geom (MYSQL_TYPE_GEOMETRY) extends Field_blob and must
-          also be included.
-        */
-        if (field->type() == MYSQL_TYPE_BLOB ||
-            field->type() == MYSQL_TYPE_GEOMETRY)
-        {
-          Field_blob *blob= (Field_blob*) field;
-          blob_descs[real_blob_count].offset=
+        Field_blob *blob= (Field_blob*) field;
+
+        DBUG_ASSERT(field->type() == MYSQL_TYPE_BLOB ||
+                    field->type() == MYSQL_TYPE_GEOMETRY);
+
+          blob_descs[blob_count].offset=
             (uint) blob->offset(table_arg->record[0]);
-          blob_descs[real_blob_count].packlength= blob->pack_length_no_ptr();
-          real_blob_count++;
-        }
+          blob_descs[blob_count].packlength= blob->pack_length_no_ptr();
+          blob_count++;
       }
       hp_create_info->blob_descs= blob_descs;
-      hp_create_info->blob_count= real_blob_count;
+      hp_create_info->blob_count= blob_count;
     }
   }
 
   hp_create_info->auto_key= auto_key;
   hp_create_info->auto_key_type= auto_key_type;
-  hp_create_info->max_table_size= MY_MAX(current_thd->variables.max_heap_table_size, sizeof(HP_PTRS));
+  hp_create_info->max_table_size=
+    MY_MAX(current_thd->variables.max_heap_table_size,
+           sizeof(HP_PTRS));
   hp_create_info->with_auto_increment= found_real_auto_increment;
   hp_create_info->internal_table= internal_table;
 
@@ -1123,29 +943,3 @@ maria_declare_plugin(heap)
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
 maria_declare_plugin_end;
-
-#ifdef HEAP_UNIT_TESTS
-int test_heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
-                                     HP_CREATE_INFO *hp_create_info)
-{
-  return heap_prepare_hp_create_info(table_arg, internal_table, hp_create_info);
-}
-
-/*
-  Test wrapper: rebuild_key_from_group_buff with a fake HP_INFO.
-  Sets up the handler's file pointer with the provided HP_INFO,
-  binds the handler to the given TABLE, then calls rebuild_key_from_group_buff.
-*/
-void test_rebuild_key_from_group_buff(ha_heap *handler, TABLE *tbl,
-                           HP_INFO *fake_file, HP_KEYDEF *keydef,
-                           const uchar *key, uint key_index,
-                           const uchar **rebuilt_key)
-{
-  handler->file= fake_file;
-  handler->set_table(tbl);
-  const uchar *k= key;
-  handler->rebuild_key_from_group_buff(keydef, k, key_index);
-  *rebuilt_key= k;
-}
-
-#endif

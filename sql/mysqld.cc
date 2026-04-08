@@ -1933,6 +1933,7 @@ static void mysqld_exit(int exit_code)
   shutdown_performance_schema();        // we do it as late as possible
 #endif
   set_malloc_size_cb(NULL);
+  OPENSSL_cleanup();
   if (global_status_var.global_memory_used)
   {
     fprintf(stderr, "Warning: Memory not freed: %lld\n",

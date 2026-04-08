@@ -34,7 +34,7 @@ SELECT * FROM diaries;
 
 SELECT *,       MATCH(title) AGAINST("groonga" IN BOOLEAN MODE) AS score
        FROM diaries
-       ORDER BY MATCH(title) AGAINST("groonga" IN BOOLEAN MODE);
+       ORDER BY MATCH(title) AGAINST("groonga" IN BOOLEAN MODE), title;
 
 DROP TABLE diaries;
 

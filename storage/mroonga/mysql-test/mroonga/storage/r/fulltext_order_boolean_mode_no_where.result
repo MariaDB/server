@@ -14,7 +14,7 @@ Start mroonga
 Start groonga and Ruby
 SELECT *,       MATCH(title) AGAINST("groonga" IN BOOLEAN MODE) AS score
 FROM diaries
-ORDER BY MATCH(title) AGAINST("groonga" IN BOOLEAN MODE);
+ORDER BY MATCH(title) AGAINST("groonga" IN BOOLEAN MODE), title;
 title	score
 Start mroonga	0
 Start groonga	1

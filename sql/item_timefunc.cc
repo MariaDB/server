@@ -3268,7 +3268,8 @@ public:
   const Type_handler *
     type_handler_for_create_select(const Item_handled_func *item) const override
   {
-    return return_type_handler(item)->type_handler_for_tmp_table(item);
+    return return_type_handler(item)->type_handler_for_tmp_table(item,
+                                                                 0);
   }
 
   bool fix_length_and_dec(Item_handled_func *item) const override

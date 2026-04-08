@@ -4804,7 +4804,8 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
       key_part_info->offset= field->offset(table->record[0]);
       key_part_info->length= (uint16) field->key_length();
       key_part_info->type=   (uint8) field->key_type();
-      key_part_info->key_type = FIELDFLAG_BINARY;
+      key_part_info->key_type= FIELDFLAG_BINARY;
+      key_part_info->key_part_flag=  field->key_part_flag();
       if (!using_unique_constraint)
       {
 	if (!(key_field= field->new_key_field(thd->mem_root, table,

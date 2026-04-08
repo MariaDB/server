@@ -22,13 +22,13 @@ Error
 Warning
 Error Error Error Error
 Warning Warning Warning Warning
-SELECT *,       MATCH(message) AGAINST("Error" IN NATURAL LANGUAGE MODE) AS score
+SELECT *, MATCH(message) AGAINST("Error" IN NATURAL LANGUAGE MODE) AS score
 FROM logs
-ORDER BY MATCH(message) AGAINST("Error" IN NATURAL LANGUAGE MODE);
+ORDER BY MATCH(message) AGAINST("Error" IN NATURAL LANGUAGE MODE), message;
 message	score
-Warning Warning Warning	0
-Warning Warning	0
 Warning	0
+Warning Warning	0
+Warning Warning Warning	0
 Warning Warning Warning Warning	0
 Error	174763
 Error Error	349526

@@ -1454,7 +1454,7 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
       {
         Field *f;
         if (!(f= *trg_fld= (*fld)->make_new_field(&table->mem_root, table,
-                                                  table == (*fld)->table)))
+                                                  table == (*fld)->table,0)))
           return 1;
 
         f->flags= (*fld)->flags;
@@ -1495,7 +1495,7 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
     for (fld= table->field, trg_fld= record1_field; *fld; fld++, trg_fld++)
     {
       if (!(*trg_fld= (*fld)->make_new_field(&table->mem_root, table,
-                                             table == (*fld)->table)))
+                                             table == (*fld)->table, 0)))
         return 1;
       (*trg_fld)->move_field_offset((my_ptrdiff_t)(table->record[1] -
                                                    table->record[0]));

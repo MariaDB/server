@@ -54,8 +54,8 @@ const char field_separator=',';
 #define DOUBLE_TO_STRING_CONVERSION_BUFFER_SIZE FLOATING_POINT_BUFFER
 #define LONGLONG_TO_STRING_CONVERSION_BUFFER_SIZE 128
 #define DECIMAL_TO_STRING_CONVERSION_BUFFER_SIZE 128
-#define BLOB_PACK_LENGTH_TO_MAX_LENGH(arg) \
-                        ((ulong) ((1LL << MY_MIN(arg, 4) * 8) - 1))
+#define BLOB_PACK_LENGTH_TO_MAX_LENGTH(arg) \
+                        ((ulong) ((1ULL << MY_MIN(arg, 4) * 8) - 1))
 
 // Column marked for read or the field set to read out of record[0]
 bool Field::marked_for_read() const
@@ -2092,6 +2092,11 @@ int Field_blob::store_from_statistical_minmax_field(Field *stat_field,
   return 0;
 }
 
+void Field_blob::set_pack_length(uint32 packlength_arg)
+{
+  packlength= packlength_arg;
+  field_length= BLOB_PACK_LENGTH_TO_MAX_LENGTH(packlength);
+}
 
 /**
    Pack the field into a format suitable for storage and transfer.
@@ -2582,7 +2587,9 @@ bool Field::optimize_range(uint idx, uint part) const
 
 
 Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
-                             bool keep_type __attribute__((unused)))
+                             bool keep_type __attribute__((unused)),
+                             const Tmp_field_param *param
+                             __attribute__((unused)))
 {
   Field *tmp;
   if (!(tmp= (Field*) memdup_root(root,(char*) this,size_of())))
@@ -2613,7 +2620,7 @@ Field *Field::new_key_field(MEM_ROOT *root, TABLE *new_table,
                             uchar *new_null_ptr, uint new_null_bit)
 {
   Field *tmp;
-  if ((tmp= make_new_field(root, new_table, table == new_table)))
+  if ((tmp= make_new_field(root, new_table, table == new_table, 0)))
   {
     tmp->ptr=      new_ptr;
     tmp->null_ptr= new_null_ptr;
@@ -2638,11 +2645,13 @@ Field *Field::new_key_field(MEM_ROOT *root, TABLE *new_table,
 */
 
 Field *Field::create_tmp_field(MEM_ROOT *mem_root, TABLE *new_table,
-                               bool maybe_null_arg)
+                               bool maybe_null_arg,
+                               const Tmp_field_param *param)
 {
   Field *new_field;
 
-  if ((new_field= make_new_field(mem_root, new_table, new_table == table)))
+  if ((new_field= make_new_field(mem_root, new_table, new_table == table,
+                                 param)))
   {
     new_field->init_for_tmp_table(this, new_table);
     new_field->flags|= flags & NO_DEFAULT_VALUE_FLAG;
@@ -3379,10 +3388,11 @@ void Field_decimal::sql_type(String &res) const
 
 
 Field *Field_decimal::make_new_field(MEM_ROOT *root, TABLE *new_table,
-                                     bool keep_type)
+                                     bool keep_type,
+                                     const Tmp_field_param *param)
 {
   if (keep_type)
-    return Field_real::make_new_field(root, new_table, keep_type);
+    return Field_real::make_new_field(root, new_table, keep_type, param);
 
   Field *field= new (root) Field_new_decimal(NULL, field_length,
                                              maybe_null() ? (uchar*) "" : 0, 0,
@@ -7909,11 +7919,12 @@ uint Field_string::get_key_image(uchar *buff, uint length, const uchar *ptr_arg,
 
 
 Field *Field_string::make_new_field(MEM_ROOT *root, TABLE *new_table,
-                                    bool keep_type)
+                                    bool keep_type,
+                                    const Tmp_field_param *param)
 {
   Field *field;
   if (type() != MYSQL_TYPE_VAR_STRING || keep_type)
-    field= Field::make_new_field(root, new_table, keep_type);
+    field= Field::make_new_field(root, new_table, keep_type, param);
   else if ((field= new (root) Field_varstring(field_length, maybe_null(),
                                               &field_name,
                                               new_table->s, charset())))
@@ -7921,7 +7932,7 @@ Field *Field_string::make_new_field(MEM_ROOT *root, TABLE *new_table,
     /*
       Old VARCHAR field which should be modified to a VARCHAR on copy
       This is done to ensure that ALTER TABLE will convert old VARCHAR fields
-      to now VARCHAR fields.
+      to new VARCHAR fields.
     */
     field->init_for_make_new_field(new_table, orig_table);
   }
@@ -8417,22 +8428,27 @@ int Field_varstring::cmp_binary(const uchar *a_ptr, const uchar *b_ptr,
 
 
 Field *Field_varstring::make_new_field(MEM_ROOT *root, TABLE *new_table,
-                                       bool keep_type)
+                                       bool keep_type,
+                                       const Tmp_field_param *param)
 {
   Field_varstring *res= (Field_varstring*) Field::make_new_field(root,
                                                                  new_table,
-                                                                 keep_type);
+                                                                 keep_type,
+                                                                 param);
   if (res)
     res->length_bytes= length_bytes;
   return res;
 }
 
 
-Field *Field_varstring_compressed::make_new_field(MEM_ROOT *root, TABLE *new_table,
-                                                  bool keep_type)
+Field *Field_varstring_compressed::make_new_field(MEM_ROOT *root,
+                                                  TABLE *new_table,
+                                                  bool keep_type,
+                                                  const Tmp_field_param *param)
 {
   Field_varstring *res;
-  if (new_table->s->is_optimizer_tmp_table())
+  if (new_table->s->is_optimizer_tmp_table() ||
+      (param && param->part_of_unique_key()))
   {
     /*
       Compressed field cannot be part of a key. For optimizer temporary
@@ -8449,24 +8465,34 @@ Field *Field_varstring_compressed::make_new_field(MEM_ROOT *root, TABLE *new_tab
     }
   }
   else
-    res= (Field_varstring*) Field::make_new_field(root, new_table, keep_type);
+    res= (Field_varstring*) Field::make_new_field(root, new_table, keep_type,
+                                                  param);
   if (res)
     res->length_bytes= length_bytes;
   return res;
 }
 
 Field *Field_blob_compressed::make_new_field(MEM_ROOT *root, TABLE *new_table,
-                                                  bool keep_type)
+                                             bool keep_type,
+                                             const Tmp_field_param *param)
 {
   Field_blob *res;
-  if (new_table->s->is_optimizer_tmp_table())
+  if (new_table->s->is_optimizer_tmp_table() ||
+      (param && param->part_of_unique_key()))
   {
     /*
       Compressed field cannot be part of a key. For optimizer temporary
       table we create uncompressed substitute.
+      Compressed fields can also not be part of GROUP_CONCAT().
     */
-    res= new (root) Field_blob(ptr, null_ptr, null_bit, Field::NONE, &field_name,
-                               new_table->s, packlength, charset());
+    if (param && param->part_of_unique_key())
+      res= new (root) Field_blob_key(ptr, null_ptr, null_bit, Field::NONE,
+                                     &field_name,
+                                     new_table->s, packlength, charset());
+    else
+      res= new (root) Field_blob(ptr, null_ptr, null_bit, Field::NONE,
+                                 &field_name,
+                                 new_table->s, packlength, charset());
     if (res)
     {
       res->init_for_make_new_field(new_table, orig_table);
@@ -8475,7 +8501,8 @@ Field *Field_blob_compressed::make_new_field(MEM_ROOT *root, TABLE *new_table,
     }
   }
   else
-    res= (Field_blob *) Field::make_new_field(root, new_table, keep_type);
+    res= (Field_blob *) Field_blob::make_new_field(root, new_table, keep_type,
+                                                   param);
   return res;
 }
 
@@ -8739,7 +8766,7 @@ Field_blob::Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
                        const LEX_CSTRING *field_name_arg,
                        TABLE_SHARE *share, uint blob_pack_length,
 		       const DTCollation &collation)
-  :Field_longstr(ptr_arg, BLOB_PACK_LENGTH_TO_MAX_LENGH(blob_pack_length),
+  :Field_longstr(ptr_arg, BLOB_PACK_LENGTH_TO_MAX_LENGTH(blob_pack_length),
                  null_ptr_arg, null_bit_arg, unireg_check_arg, field_name_arg,
                  collation),
    packlength(blob_pack_length)
@@ -9021,7 +9048,7 @@ int Field_blob::cmp_binary(const uchar *a_ptr, const uchar *b_ptr,
 uint Field_blob::get_key_image_itRAW(const uchar *ptr_arg, uchar *buff,
                                      uint length) const
 {
-  size_t blob_length= get_length(ptr_arg);
+  uint32 blob_length= get_length(ptr_arg);
   const uchar *blob= get_ptr(ptr_arg);
   size_t local_char_length= length / mbmaxlen();
   local_char_length= field_charset()->charpos(blob, blob + blob_length,
@@ -9055,7 +9082,7 @@ void Field_blob::set_key_image(const uchar *buff,uint length)
 int Field_blob::key_cmp(const uchar *key_ptr, uint max_key_length) const
 {
   uchar *blob1;
-  size_t blob_length=get_length(ptr);
+  uint32 blob_length=get_length(ptr);
   memcpy(&blob1, ptr+packlength, sizeof(char*));
   CHARSET_INFO *cs= charset();
   size_t local_char_length= max_key_length / cs->mbmaxlen;
@@ -9082,13 +9109,20 @@ static struct blob_storage_check
   blob_storage_check() { val.p= -1; val.b= false; }
 } blob_storage_check;
 #endif
-Field *Field_blob::make_new_field(MEM_ROOT *root, TABLE *newt, bool keep_type)
+Field *Field_blob::make_new_field(MEM_ROOT *root, TABLE *newt, bool keep_type,
+                                  const Tmp_field_param *param)
 {
   DBUG_ASSERT((intptr(newt->blob_storage) & blob_storage_check.val.p) == 0);
-  if (newt->group_concat)
-    return new (root) Field_blob(field_length, maybe_null(), &field_name,
-                                 charset());
-  return Field::make_new_field(root, newt, keep_type);
+  if (param && param->part_of_unique_key())
+  {
+    Field_blob_key *res;
+    res= new (root) Field_blob_key(field_length, maybe_null(), &field_name,
+                                   charset());
+    if (res)
+      res->init_for_make_new_field(newt, orig_table);
+    return res;
+  }
+  return Field::make_new_field(root, newt, keep_type, param);
 }
 
 
@@ -9394,6 +9428,55 @@ Binlog_type_info Field_blob_compressed::binlog_type_info() const
                           pack_length_no_ptr(), 1, charset());
 }
 
+
+/****************************************************************************
+** Field_blob_key
+** Used for blob keys in internal temporary tables
+****************************************************************************/
+
+void Field_blob_key::set_key_image(const uchar *data,uint length)
+{
+  store_length(length);
+  memcpy(ptr+packlength, &data, sizeof(char*));
+}
+
+
+int Field_blob_key::key_cmp(const uchar *key_ptr, uint max_key_length) const
+{
+  uchar *blob1;
+  uint32 blob_length= get_length(ptr);
+  memcpy(&blob1, ptr + packlength, sizeof(char*));
+  return Field_blob_key::cmp(blob1, (uint32) blob_length,
+                             key_ptr + 4, uint4korr(key_ptr));
+}
+
+int Field_blob_key::key_cmp(const uchar *a,const uchar *b) const
+{
+  return Field_blob_key::cmp(a + 4, uint4korr(a), b+ 4, uint4korr(b));
+}
+
+
+Field *Field_blob_key::new_key_field(MEM_ROOT *root, TABLE *new_table,
+                                     uchar *new_ptr, uint32 length,
+                                     uchar *new_null_ptr, uint new_null_bit)
+{
+  Field_blob_key *res;
+  /*
+    length comes from blob->key_length which includes portable_sizeof_char_ptr
+  */
+  length-= portable_sizeof_char_ptr;
+  DBUG_ASSERT(length > 0 && length <= 4);
+
+  res= new (root) Field_blob_key(new_ptr, new_null_ptr, new_null_bit,
+                                 Field::NONE, &field_name,
+                                 table->s, length, charset());
+  res->init(new_table);
+  /* key_fields are not stored in the table. Don't count this one */
+  table->s->blob_fields--;
+  return res;
+}
+
+
 /****************************************************************************
 ** enum type.
 ** This is a string which only can have a selection of different values.
@@ -9592,10 +9675,10 @@ void Field_enum::sql_type(String &res) const
 
 
 Field *Field_enum::make_new_field(MEM_ROOT *root, TABLE *new_table,
-                                  bool keep_type)
+                                  bool keep_type, const Tmp_field_param *param)
 {
   Field_enum *res= (Field_enum*) Field::make_new_field(root, new_table,
-                                                       keep_type);
+                                                       keep_type, param);
   if (res)
     res->typelib= copy_typelib(root, typelib);
   return res;

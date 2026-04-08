@@ -49,16 +49,16 @@ extern "C" {
 typedef struct st_HA_KEYSEG		/* Key-portion */
 {
   CHARSET_INFO *charset;
-  uint32 start;				/* Start of key in record */
-  uint32 null_pos;			/* position to NULL indicator */
-  uint16 bit_pos;                       /* Position to bit part */
+  uint32 start;                /* Start of key in record */
+  uint32 null_pos;             /* position to NULL indicator */
+  uint16 bit_pos;              /* Position to bit part */
   uint16 flag;
-  uint16 length;			/* Keylength */
+  uint16 length;               /* Keylength */
   uint16 language;
-  uint8  type;				/* Type of key (for sort) */
-  uint8  null_bit;			/* bitmask to test for NULL */
-  uint8  bit_start;
-  uint8  bit_length;                    /* Length of bit part */
+  uint8  type;                 /* Type of key (for sort) */
+  uint8  null_bit;             /* bitmask to test for NULL */
+  uint8  bit_start;            /* Start of bit or length of record packing */
+  uint8  bit_length;           /* Length of bit part or length of key packing */
 } HA_KEYSEG;
 
 #define get_key_length(length,key) \

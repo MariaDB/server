@@ -3226,7 +3226,8 @@ void Item_field::set_field(Field *field_par)
     any_privileges= 0;
 
   if (field->table->s->tmp_table == SYSTEM_TMP_TABLE ||
-      field->table->s->tmp_table == INTERNAL_TMP_TABLE)
+      field->table->s->tmp_table == INTERNAL_TMP_TABLE ||
+      field->table->s->tmp_table == RESULT_TMP_TABLE)
     set_refers_to_temp_table();
 }
 

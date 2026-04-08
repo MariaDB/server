@@ -20295,7 +20295,7 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
     */
     Record_addr rec(orig_item ? orig_item->maybe_null() : maybe_null());
     const Type_handler *handler= type_handler()->
-                                   type_handler_for_tmp_table(this);
+      type_handler_for_tmp_table(this, param);
     result= handler->make_and_init_table_field(root, new_name,
                                                rec, *this, new_table);
   }
@@ -20312,7 +20312,7 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
   {
     bool tmp_maybe_null= param->modify_item() ? maybe_null() :
                                                 field->maybe_null();
-    result= field->create_tmp_field(root, new_table, tmp_maybe_null);
+    result= field->create_tmp_field(root, new_table, tmp_maybe_null, param);
     if (result && ! param->modify_item())
       result->field_name= *new_name;
   }
@@ -20387,6 +20387,33 @@ Field *Item_ref::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
 }
 
 
+
+Field *Item_type_holder::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
+                                             Tmp_field_src *src,
+                                             const Tmp_field_param *param)
+{
+  Type_handler const *type_handler= Item_type_holder::real_type_handler();
+  Type_handler_blob_common const *blob_handler;
+  if (param->part_of_unique_key() &&
+      (blob_handler=
+       dynamic_cast<const Type_handler_blob_common*>(type_handler)))
+  {
+    Field_blob *blob_field= (Field_blob*) type_handler_blob_key.
+      make_and_init_table_field(root, &name, Record_addr(maybe_null()),
+                                *this, table);
+    if (blob_field)
+    {
+      /* Fix length of blob to be able to return the original blob type */
+      blob_field->set_pack_length(blob_handler->length_bytes());
+    }
+    return blob_field;
+  }
+  return type_handler->
+    make_and_init_table_field(root, &name, Record_addr(maybe_null()),
+                              *this, table);
+}
+
+
 void Item_result_field::get_tmp_field_src(Tmp_field_src *src,
                                           const Tmp_field_param *param)
 {
@@ -20408,7 +20435,7 @@ Item_result_field::create_tmp_field_ex_from_handler(
                                           TABLE *table,
                                           Tmp_field_src *src,
                                           const Tmp_field_param *param,
-                                          const Type_handler *h)
+                                          const Type_handler *type_handler)
 {
   /*
     Possible Item types:
@@ -20421,10 +20448,26 @@ Item_result_field::create_tmp_field_ex_from_handler(
   DBUG_ASSERT(type() != NULL_ITEM);
   get_tmp_field_src(src, param);
   Field *result;
-  if ((result= h->make_and_init_table_field(root, &name,
-                                            Record_addr(maybe_null()),
-                                            *this, table)) &&
-      param->modify_item())
+  Type_handler_blob_common const *blob_handler;
+
+  if (param->part_of_unique_key() &&
+      (blob_handler=
+       dynamic_cast<const Type_handler_blob_common*>(type_handler)))
+  {
+    result= type_handler_blob_key.
+      make_and_init_table_field(root, &name, Record_addr(maybe_null()),
+                                *this, table);
+    if (result)
+    {
+      /* Fix length of blob to be able to return the original blob type */
+      ((Field_blob*) result)->set_pack_length(blob_handler->length_bytes());
+    }
+  }
+  else
+    result= type_handler->make_and_init_table_field(root, &name,
+                                                    Record_addr(maybe_null()),
+                                                    *this, table);
+  if (result && param->modify_item())
     result_field= result;
   return result;
 }
@@ -20436,7 +20479,7 @@ Field *Item_func_sp::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
 {
   Field *result;
   get_tmp_field_src(src, param);
-  if ((result= sp_result_field->create_tmp_field(root, table)))
+  if ((result= sp_result_field->create_tmp_field(root, table, param)))
   {
     result->field_name= name;
     if (param->modify_item())
@@ -20490,6 +20533,8 @@ static bool make_json_valid_expr(TABLE *table, Field *field)
   @param make_copy_field
                        Set when using with rollup when we want to have
                        an exact copy of the field.
+  @param part_of_unique_key
+                       Field is part of unique key
   @retval
     0                  on error
   @retval
@@ -20502,11 +20547,12 @@ Field *create_tmp_field(TABLE *table, Item *item,
                         Field **default_field,
                         bool group, bool modify_item,
                         bool table_cant_handle_bit_fields,
-                        bool make_copy_field)
+                        bool make_copy_field,
+                        bool part_of_unique_key)
 {
   Tmp_field_src src;
   Tmp_field_param prm(group, modify_item, table_cant_handle_bit_fields,
-                      make_copy_field);
+                      make_copy_field, part_of_unique_key || group);
   Field *result= item->create_tmp_field_ex(table->in_use->mem_root,
                                            table, &src, &prm);
   if (is_json_type(item) && make_json_valid_expr(table, result))
@@ -20516,6 +20562,10 @@ Field *create_tmp_field(TABLE *table, Item *item,
   *default_field= src.default_field();
   if (src.item_result_field())
     *((*copy_func)++)= src.item_result_field();
+  if (part_of_unique_key)
+    result->flags|= FIELD_PART_OF_TMP_UNIQUE | UNIQUE_KEY_FLAG;
+  if (group)
+    result->flags|= UNIQUE_KEY_FLAG;
   return result;
 }
 
@@ -20718,10 +20768,9 @@ TABLE *Create_tmp_table::start(THD *thd,
         param->group_parts--;
         continue;
       }
-      else
-        prev= &(tmp->next);
+      prev= &(tmp->next);
       /*
-        marker == 4 means two things:
+        marker == MARKER_NULL_KEY means two things:
         - store NULLs in the key, and
         - convert BIT fields to 64-bit long, needed because MEMORY tables
           can't index BIT fields.
@@ -20812,6 +20861,7 @@ TABLE *Create_tmp_table::start(THD *thd,
 
   table->s= share;
   init_tmp_table_share(thd, share, "", 0, "(temporary)", tmpname);
+  share->tmp_table= RESULT_TMP_TABLE;
   share->blob_field= blob_field;
   share->table_charset= param->table_charset;
   share->primary_key= MAX_KEY;               // Indicate no primary key
@@ -20913,9 +20963,11 @@ bool Create_tmp_table::add_fields(THD *thd,
             create_tmp_field(table, arg, &copy_func,
                              tmp_from_field, &m_default_field[fieldnr],
                              m_group != 0, not_all_columns,
-                             distinct_record_structure , false);
+                             distinct_record_structure, false,
+                             (current_counter == distinct));
           if (!new_field)
             goto err;					// Should be OOM
+
           tmp_from_field++;
 
           thd->mem_root= mem_root_save;
@@ -20939,8 +20991,6 @@ bool Create_tmp_table::add_fields(THD *thd,
             */
             arg->set_maybe_null();
           }
-          if (current_counter == distinct)
-            new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
         }
       }
     }
@@ -20977,13 +21027,15 @@ bool Create_tmp_table::add_fields(THD *thd,
                          */
                          item->marker == MARKER_NULL_KEY ||
                          param->bit_fields_as_long,
-                         param->force_copy_fields);
+                         param->force_copy_fields,
+                         (current_counter == distinct));
       if (unlikely(!new_field))
       {
         if (unlikely(thd->is_fatal_error))
           goto err;                             // Got OOM
         continue;                               // Some kind of const item
       }
+
       if (type == Item::SUM_FUNC_ITEM)
       {
         Item_sum *agg_item= (Item_sum *) item;
@@ -21021,8 +21073,6 @@ bool Create_tmp_table::add_fields(THD *thd,
         m_group_null_items++;
         new_field->flags|= GROUP_FLAG;
       }
-      if (current_counter == distinct)
-        new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
     }
   }
 
@@ -21091,6 +21141,13 @@ bool Create_tmp_table::choose_engine(THD *thd, TABLE *table,
   DBUG_RETURN(!table->file);
 }
 
+bool is_text_key_segment(KEY_PART_INFO *m_key_part_info)
+{
+  return ((ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_TEXT ||
+          (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT1 ||
+          (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT2 ||
+          (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT4);
+};
 
 bool Create_tmp_table::finalize(THD *thd,
                                 TABLE *table,
@@ -21321,7 +21378,7 @@ bool Create_tmp_table::finalize(THD *thd,
   if (m_group)
   {
     DBUG_PRINT("info",("Creating group key in temporary table"));
-    table->group= m_group;				/* Table is grouped by key */
+    table->group= m_group;               /* Table is grouped by key */
     param->group_buff= m_group_buff;
     share->keys=1;
     share->uniques= MY_TEST(m_using_unique_constraint);
@@ -21331,7 +21388,8 @@ bool Create_tmp_table::finalize(THD *thd,
     keyinfo->key_part= m_key_part_info;
     keyinfo->flags=HA_NOSAME | HA_BINARY_PACK_KEY | HA_PACK_KEY;
     keyinfo->ext_key_flags= keyinfo->flags;
-    keyinfo->usable_key_parts=keyinfo->user_defined_key_parts= param->group_parts;
+    keyinfo->usable_key_parts=keyinfo->user_defined_key_parts=
+      param->group_parts;
     keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
     keyinfo->key_length=0;
     keyinfo->rec_per_key=NULL;
@@ -21354,11 +21412,9 @@ bool Create_tmp_table::finalize(THD *thd,
       m_key_part_info->offset= field->offset(table->record[0]);
       m_key_part_info->length= (uint16) field->key_length();
       m_key_part_info->type=   (uint8) field->key_type();
-      m_key_part_info->key_type =
-	((ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_TEXT ||
-	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT1 ||
-	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT2) ?
-	0 : FIELDFLAG_BINARY;
+      m_key_part_info->key_type= (is_text_key_segment(m_key_part_info) ?
+                                  0 : FIELDFLAG_BINARY);
+      m_key_part_info->key_part_flag= field->key_part_flag();
       if (!m_using_unique_constraint)
       {
         cur_group->buff=(char*) m_group_buff;
@@ -21387,14 +21443,15 @@ bool Create_tmp_table::finalize(THD *thd,
             key_field_length <= ((Field_blob*)field)->pack_length_no_ptr())
         {
           key_field_length= MY_MIN((*cur_group->item)->max_length,
-                                   (uint32)(MAX_BLOB_WIDTH - HA_KEY_BLOB_LENGTH));
+                                   (uint32)(MAX_BLOB_WIDTH -
+                                            HA_KEY_BLOB_LENGTH));
           /*
             Check that the group buffer has room for this blob key field.
             calc_group_buffer() may have sized the buffer before the field
             was promoted to blob in the tmp table.  If the promoted blob
             doesn't fit, fall back to m_using_unique_constraint.
           */
-          uint32 need= key_field_length + 2 /* length_bytes */ +
+          uint32 need= key_field_length + 4 /* length_bytes */ +
                         MY_TEST(maybe_null);
           if (m_group_buff + need >
               param->group_buff + param->group_length)
@@ -21408,11 +21465,12 @@ bool Create_tmp_table::finalize(THD *thd,
           check.  This ensures that if we break out due to a promoted
           blob overflowing the group buffer, key_part_flag retains the
           original SQL-layer value (HA_VAR_LENGTH_PART for varchar),
-          not HA_BLOB_PART.  This prevents rebuild_key_from_group_buff() from being
-          called on a key buffer that has varchar format.
+          not HA_BLOB_PART.  This prevents rebuild_key_from_group_buff()
+          from being called on a key buffer that has varchar format.
         */
         m_key_part_info->key_part_flag= field->key_part_flag();
 
+        /* Create a new field which value is stored in the group buffer */
 	if (!(cur_group->field= field->new_key_field(thd->mem_root,table,
                                                      m_group_buff +
                                                      MY_TEST(maybe_null),
@@ -21427,7 +21485,7 @@ bool Create_tmp_table::finalize(THD *thd,
           store_length = key field pack_length + null flag byte.
         */
         m_key_part_info->store_length=
-            cur_group->field->pack_length() + MY_TEST(maybe_null);
+            cur_group->field->key_pack_length() + MY_TEST(maybe_null);
 
 	if (maybe_null)
 	{
@@ -21444,7 +21502,7 @@ bool Create_tmp_table::finalize(THD *thd,
           cur_group->buff++;                        // Pointer to field data
 	  m_group_buff++;                         // Skipp null flag
 	}
-        m_group_buff+= cur_group->field->pack_length();
+        m_group_buff+= cur_group->field->key_pack_length();
       }
       keyinfo->key_length+=  m_key_part_info->length;
     }
@@ -21555,6 +21613,7 @@ bool Create_tmp_table::finalize(THD *thd,
       m_key_part_info->key_type=FIELDFLAG_BINARY;
       m_key_part_info->type=    HA_KEYTYPE_BINARY;
       m_key_part_info->fieldnr= m_key_part_info->field->field_index + 1;
+      m_key_part_info->key_part_flag= m_key_part_info->field->key_part_flag();
       m_key_part_info++;
     }
     /* Create a distinct key over the columns we are going to return */
@@ -21562,19 +21621,21 @@ bool Create_tmp_table::finalize(THD *thd,
          i < share->fields;
          i++, reg_field++)
     {
-      if (!((*reg_field)->flags & FIELD_PART_OF_TMP_UNIQUE))
+      Field *field= *reg_field;
+      if (!(field->flags & FIELD_PART_OF_TMP_UNIQUE))
         continue;
-      m_key_part_info->field= *reg_field;
-      (*reg_field)->flags |= PART_KEY_FLAG;
+      m_key_part_info->field= field;
+      field->flags |= PART_KEY_FLAG;
       if (m_key_part_info == keyinfo->key_part)
-        (*reg_field)->key_start.set_bit(0);
-      m_key_part_info->null_bit= (*reg_field)->null_bit;
-      m_key_part_info->null_offset= (uint) ((*reg_field)->null_ptr -
+        field->key_start.set_bit(0);
+      m_key_part_info->null_bit= field->null_bit;
+      m_key_part_info->null_offset= (uint) (field->null_ptr -
                                           (uchar*) table->record[0]);
 
-      m_key_part_info->offset=   (*reg_field)->offset(table->record[0]);
-      m_key_part_info->length=   (uint16) (*reg_field)->pack_length();
-      m_key_part_info->fieldnr= (*reg_field)->field_index + 1;
+      m_key_part_info->offset=   field->offset(table->record[0]);
+      m_key_part_info->length=   (uint16) field->key_pack_length();
+      m_key_part_info->fieldnr= field->field_index + 1;
+      m_key_part_info->key_part_flag= field->key_part_flag();
       /* TODO:
         The below method of computing the key format length of the
         key part is a copy/paste from opt_range.cc, and table.cc.
@@ -21585,22 +21646,17 @@ bool Create_tmp_table::finalize(THD *thd,
       */
       m_key_part_info->store_length= m_key_part_info->length;
 
-      if ((*reg_field)->real_maybe_null())
+      if (field->real_maybe_null())
       {
         m_key_part_info->store_length+= HA_KEY_NULL_LENGTH;
         m_key_part_info->key_part_flag |= HA_NULL_PART;
       }
-      m_key_part_info->key_part_flag|= (*reg_field)->key_part_flag();
-      m_key_part_info->store_length+= (*reg_field)->key_part_length_bytes();
+      m_key_part_info->store_length+= field->key_part_length_bytes();
       keyinfo->key_length+= m_key_part_info->store_length;
 
-      m_key_part_info->type=     (uint8) (*reg_field)->key_type();
-      m_key_part_info->key_type =
-	((ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_TEXT ||
-	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT1 ||
-	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT2) ?
-	0 : FIELDFLAG_BINARY;
-
+      m_key_part_info->type=     (uint8) field->key_type();
+      m_key_part_info->key_type= (is_text_key_segment(m_key_part_info) ?
+                                  0 : FIELDFLAG_BINARY);
       m_key_part_info++;
     }
   }
@@ -22032,8 +22088,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 	seg->type=
 	((keyinfo->key_part[i].key_type & FIELDFLAG_BINARY) ?
 	 HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2);
-	seg->bit_start= (uint8)(field->pack_length() -
-                                portable_sizeof_char_ptr);
+	seg->bit_start= (uint8) ((Field_blob*) field)->pack_length_no_ptr();
 	seg->flag= HA_BLOB_PART;
 	seg->length=0;			// Whole blob in unique constraint
       }
@@ -22226,7 +22281,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 	seg->type=
 	((keyinfo->key_part[i].key_type & FIELDFLAG_BINARY) ?
 	 HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2);
-	seg->bit_start= (uint8)(field->pack_length() - portable_sizeof_char_ptr);
+        seg->bit_start= (uint8) ((Field_blob*) field)->pack_length_no_ptr();
 	seg->flag= HA_BLOB_PART;
 	seg->length=0;			// Whole blob in unique constraint
       }
@@ -22451,6 +22506,9 @@ free_tmp_table(THD *thd, TABLE *entry)
   /* free blobs */
   for (Field **ptr=entry->field ; *ptr ; ptr++)
     (*ptr)->free();
+  for (ORDER *group= entry->group ; group ; group= group->next)
+    if (group->field)
+      group->field->free();
 
   if (entry->temp_pool_slot != MY_BIT_NONE)
     temp_pool_clear_bit(entry->temp_pool_slot);
@@ -24867,7 +24925,7 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     Non-blob fields are unaffected: copy_funcs() writes directly into
     the record[0] field slots that hp_make_key() reads from.
   */
-  if (table->s->db_type() == heap_hton)
+  if (table->s->db_type() == heap_hton && 0)
   {
     if (table->s->blob_fields)
     {
@@ -24875,6 +24933,7 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
       for (group= table->group; group; group= group->next)
       {
         Field *tbl_field= (*group->item)->get_tmp_table_field();
+        DBUG_ASSERT(tbl_field);
         if (tbl_field && tbl_field != group->field)
         {
           if (group->field->is_null())
@@ -24932,7 +24991,7 @@ end_unique_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     DBUG_RETURN(NESTED_LOOP_OK);
 
   init_tmptable_sum_functions(join->sum_funcs);
-  copy_fields(join_tab->tmp_table_param);		// Groups are copied twice.
+  copy_fields(join_tab->tmp_table_param);     // Groups are copied twice.
   if (copy_funcs(join_tab->tmp_table_param->items_to_copy, join->thd))
     DBUG_RETURN(NESTED_LOOP_ERROR);           /* purecov: inspected */
 
@@ -27976,7 +28035,7 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
         key_length+= 8;                         // Big enough
       }
       else
-	key_length+= field->pack_length();
+	key_length+= field->key_pack_length();
     }
     else
     { 
@@ -28010,7 +28069,7 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
         else
         {
           /*
-            Group strings are taken as varstrings and require an length field.
+            Group strings are taken as varstrings and require a length field.
             A field is not yet created by create_tmp_field_ex()
             and the sizes should match up.
           */
@@ -28263,7 +28322,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 	*/
 	field= item->field;
 	item->result_field=field->make_new_field(thd->mem_root,
-                                                 field->table, 1);
+                                                 field->table, 1, 0);
         /*
           We need to allocate one extra byte for null handling and
           another extra byte to not get warnings from purify in
@@ -29587,7 +29646,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       be able to print the engine statistics.
     */
     if (table->file->handler_stats &&
-        table->s->tmp_table != INTERNAL_TMP_TABLE)
+        table->s->tmp_table != RESULT_TMP_TABLE)
       eta->handler_for_stats= table->file;
 
     if (likely(thd->lex->analyze_stmt))

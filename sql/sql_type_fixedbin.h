@@ -897,7 +897,7 @@ public:
                                             const override
     {
       if (item->max_length > MAX_FIELD_VARCHARLENGTH)
-        return Type_handler::blob_type_handler(item->max_length);
+        return Type_handler::blob_type_handler(item->max_length, 0);
       if (item->max_length > 255)
         return &type_handler_varchar;
       return &type_handler_string;

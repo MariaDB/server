@@ -6,11 +6,6 @@
      max_data_length().  The DISTINCT key path sets key_part.length =
      pack_length() = 10, and the SQL layer's new_key_field() then
      creates Field_varstring(10), which truncates blob data.
-
-  2. garbage_key_part_flag: heap_prepare_hp_create_info() must use
-     field->key_part_flag() instead of key_part->key_part_flag, because
-     SJ weedout and expression cache paths leave key_part_flag
-     uninitialized.  Garbage HA_BLOB_PART bits corrupt the hash index.
 */
 
 #include <my_global.h>
@@ -298,8 +293,7 @@ public:
     local_kpi.offset= V_REC_VARCHAR_OFFSET;
     local_kpi.length= (uint16) vs_field->key_length();
     local_kpi.type= vs_field->key_type();
-    /* Poison key_part_flag with garbage including HA_BLOB_PART (0x20) */
-    local_kpi.key_part_flag= 0xA5A5;  /* garbage from uninitialized memory */
+    local_kpi.key_part_flag= 0;
 
     memset(&local_sql_key, 0, sizeof(local_sql_key));
     local_sql_key.user_defined_key_parts= 1;
@@ -330,9 +324,6 @@ public:
 
   void test_garbage_key_part_flag()
   {
-    /* Verify setup: key_part_flag has HA_BLOB_PART set (the poison) */
-    ok((local_kpi.key_part_flag & HA_BLOB_PART) != 0,
-       "garbage_flag setup: key_part_flag has HA_BLOB_PART set (garbage)");
     ok(local_kpi.length == V_REC_VARCHAR_LEN,
        "garbage_flag setup: key_part.length = %u (field_length)",
        (uint) local_kpi.length);

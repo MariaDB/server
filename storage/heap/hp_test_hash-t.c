@@ -43,16 +43,16 @@
 #define KEY_BUF_SIZE     64
 
 /* Avoids -Wsizeof-pointer-memaccess with sizeof(uchar*) */
-#define PTR_SIZE sizeof(void*)
+#define PTR_SIZE portable_sizeof_char_ptr
 
 
 static void setup_blob_keyseg(HA_KEYSEG *seg, my_bool nullable)
 {
   memset(seg, 0, sizeof(*seg));
-  seg->type=      HA_KEYTYPE_VARTEXT1;
+  seg->type=      HA_KEYTYPE_VARTEXT4;
   seg->flag=      HA_BLOB_PART | HA_VAR_LENGTH_PART;
   seg->start=     REC_BLOB_OFFSET;
-  seg->length=    0;    /* blob key segments must have length=0 */
+  seg->length=    4+portable_sizeof_char_ptr; /* Length of blob key */
   seg->bit_start= REC_BLOB_PACKLEN;  /* actual packlength */
   seg->charset=   &my_charset_latin1;
   if (nullable)
@@ -76,7 +76,6 @@ static void setup_keydef(HP_KEYDEF *keydef, HA_KEYSEG *seg, uint keysegs)
   keydef->algorithm= HA_KEY_ALG_HASH;
   keydef->flag=      HA_NOSAME;
   keydef->length=    0;  /* computed below */
-  keydef->has_blob_seg= 1;
 
   /* Compute keydef->length: sum of key part sizes */
   for (i= 0; i < keysegs; i++)
@@ -744,10 +743,10 @@ static void setup_mixed_keydef(HP_KEYDEF *keydef, HA_KEYSEG *segs)
 {
   /* Segment 0: blob (city TEXT) at offset 23 */
   memset(&segs[0], 0, sizeof(segs[0]));
-  segs[0].type=      HA_KEYTYPE_VARTEXT1;
+  segs[0].type=      HA_KEYTYPE_VARTEXT4;
   segs[0].flag=      HA_BLOB_PART | HA_VAR_LENGTH_PART;
   segs[0].start=     MIX_BLOB_OFFSET;
-  segs[0].length=    0;   /* blob key segments must have length=0 */
+  segs[0].length=    4+portable_sizeof_char_ptr; /* Length of blob key */
   segs[0].bit_start= MIX_BLOB_PACKLEN;
   segs[0].charset=   &my_charset_latin1;
   segs[0].null_bit=  4;   /* bit 2 in null bitmap */
@@ -765,7 +764,6 @@ static void setup_mixed_keydef(HP_KEYDEF *keydef, HA_KEYSEG *segs)
   segs[1].null_pos=  MIX_NULL_OFFSET;
 
   setup_keydef(keydef, segs, 2);
-  keydef->has_blob_seg= 1;
 }
 
 
@@ -857,7 +855,6 @@ static void test_key_vs_rec_hash_consistency(void)
     segs2b[1].bit_start= 2;  /* 2-byte length prefix */
     segs2b[1].length= 256;
     setup_keydef(&keydef2b, segs2b, 2);
-    keydef2b.has_blob_seg= 1;
 
     memset(rec2b, 0, sizeof(rec2b));
     /* blob */

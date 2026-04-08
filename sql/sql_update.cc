@@ -2393,8 +2393,10 @@ multi_update::initialize_tables(JOIN *join)
     TABLE *table=table_ref->table;
     uint cnt= table_ref->shared;
     List<Item> temp_fields;
-    ORDER     group;
     TMP_TABLE_PARAM *tmp_param;
+    ORDER *group= (ORDER*) alloc_root(thd->mem_root, sizeof(*group));
+    if (!group)
+      DBUG_RETURN(1);
 
     if (ignore)
       table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
@@ -2490,21 +2492,22 @@ loop_end:
     temp_fields.append(fields_for_table[cnt]);
 
     /* Make an unique key over the first field to avoid duplicated updates */
-    bzero((char*) &group, sizeof(group));
-    group.direction= ORDER::ORDER_ASC;
-    group.item= (Item**) temp_fields.head_ref();
+    bzero((char*) group, sizeof(*group));
+    group->direction= ORDER::ORDER_ASC;
+    group->item= (Item**) temp_fields.head_ref();
 
     tmp_param->init();
     tmp_param->tmp_name="update";
     tmp_param->field_count= temp_fields.elements;
     tmp_param->func_count=  temp_fields.elements - 1;
-    calc_group_buffer(tmp_param, &group);
+    calc_group_buffer(tmp_param, group);
     /* small table, ignore @@big_tables */
     my_bool save_big_tables= thd->variables.big_tables; 
     thd->variables.big_tables= FALSE;
     tmp_tables[cnt]=create_tmp_table(thd, tmp_param, temp_fields,
-                                     (ORDER*) &group, 0, 0,
-                                     TMP_TABLE_ALL_COLUMNS, HA_POS_ERROR, &empty_clex_str);
+                                     (ORDER*) group, 0, 0,
+                                     TMP_TABLE_ALL_COLUMNS, HA_POS_ERROR,
+                                     &empty_clex_str);
     thd->variables.big_tables= save_big_tables;
     if (!tmp_tables[cnt])
       DBUG_RETURN(1);

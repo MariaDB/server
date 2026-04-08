@@ -13,6 +13,7 @@
 *.mri.tpl
 /.cproject
 /.project
+/.serena
 .gdb_history
 .vs/
 /.settings/

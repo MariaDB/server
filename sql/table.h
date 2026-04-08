@@ -365,8 +365,12 @@ typedef struct st_grant_info
 
 enum tmp_table_type
 {
-  NO_TMP_TABLE= 0, NON_TRANSACTIONAL_TMP_TABLE, TRANSACTIONAL_TMP_TABLE,
-  INTERNAL_TMP_TABLE, SYSTEM_TMP_TABLE
+  NO_TMP_TABLE= 0,                  // Normal table
+  NON_TRANSACTIONAL_TMP_TABLE,      // CREATE TEMPORARY ... TRANSACTIONAL=0
+  TRANSACTIONAL_TMP_TABLE,	    // CREATE TEMPORARY ... TRANSACTIONAL=1
+  INTERNAL_TMP_TABLE,               // Table created for different purposes
+  RESULT_TMP_TABLE,                 // Holds intermediate SELECT results
+  SYSTEM_TMP_TABLE                  // Created by mysql_schema_table
 };
 enum release_type { RELEASE_NORMAL, RELEASE_WAIT_FOR_DROP };
 
@@ -1111,7 +1115,7 @@ struct TABLE_SHARE
 
   bool is_optimizer_tmp_table()
   {
-    return tmp_table == INTERNAL_TMP_TABLE && !db.length && table_name.length;
+    return tmp_table == RESULT_TMP_TABLE;
   }
 
   bool visit_subgraph(Wait_for_flush *waiting_ticket,

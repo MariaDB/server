@@ -4173,7 +4173,7 @@ bool Column_definition::prepare_blob_field(THD *thd)
         real_field_type() == FIELD_TYPE_MEDIUM_BLOB)
     {
       /* The user has given a length to the blob column */
-      set_handler(Type_handler::blob_type_handler((uint) length));
+      set_handler(Type_handler::blob_type_handler((uint) length, 0));
       pack_length= type_handler()->calc_pack_length(0);
     }
     length= 0;

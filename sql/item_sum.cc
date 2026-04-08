@@ -1327,7 +1327,7 @@ Field *Item_sum_min_max::create_tmp_field(MEM_ROOT *root,
   if (args[0]->type() == Item::FIELD_ITEM)
   {
     Field *field= ((Item_field*) args[0])->field;
-    if ((field= field->create_tmp_field(root, table, true)))
+    if ((field= field->create_tmp_field(root, table, true, 0)))
     {
       DBUG_ASSERT((field->flags & NOT_NULL_FLAG) == 0);
       field->field_name= name;
@@ -3685,12 +3685,6 @@ extern "C" int group_concat_key_cmp_with_order(void *arg, const void *key1,
        order_item++)
   {
     Item *item= *(*order_item)->item;
-    /* 
-      If field_item is a const item then either get_tmp_table_field returns 0
-      or it is an item over a const table. 
-    */
-    if (item->const_item())
-      continue;
     /*
       If item is a const item then either get_tmp_table_field returns 0
       or it is an item over a const table.
@@ -3884,6 +3878,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
       Field *field= (*arg)->get_tmp_table_field();
       if (field)
       {
+        /* Note that field->table can be different table! */
         uint offset= (field->offset(field->table->record[0]) -
                       table->s->null_bytes);
         DBUG_ASSERT(offset < table->s->reclength);

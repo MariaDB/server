@@ -39,10 +39,13 @@ INSERT INTO logs VALUES("Warning Warning Warning Warning", "host2");
 
 SELECT * FROM logs;
 
-SELECT *,       MATCH(host)    AGAINST("host2" IN NATURAL LANGUAGE MODE) AS score
+SELECT *, MATCH(host) AGAINST("host2" IN NATURAL LANGUAGE MODE) AS score
        FROM logs
        WHERE    MATCH(message) AGAINST("Error" IN NATURAL LANGUAGE MODE)
-       ORDER BY MATCH(host)    AGAINST("host2" IN NATURAL LANGUAGE MODE);
+       ORDER BY MATCH(host)    AGAINST("host2" IN NATURAL LANGUAGE MODE),
+       message;
+
+show status like "Created_tmp%";
 
 DROP TABLE logs;
 

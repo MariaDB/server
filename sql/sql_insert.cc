@@ -3056,7 +3056,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   found_next_number_field= table->found_next_number_field;
   for (org_field= table->field; *org_field; org_field++, field++)
   {
-    if (!(*field= (*org_field)->make_new_field(client_thd->mem_root, copy, 1)))
+    if (!(*field= (*org_field)->make_new_field(client_thd->mem_root, copy, 1,
+                                               0)))
       goto error;
     (*field)->unireg_check= (*org_field)->unireg_check;
     (*field)->invisible= (*org_field)->invisible;
@@ -4752,7 +4753,7 @@ void select_insert::abort_result_set()
 
 Field *Item::create_field_for_create_select(MEM_ROOT *root, TABLE *table)
 {
-  static Tmp_field_param param(false, false, false, false);
+  static Tmp_field_param param(false, false, false, false, false);
   Tmp_field_src src;
   return create_tmp_field_ex(root, table, &src, &param);
 }
