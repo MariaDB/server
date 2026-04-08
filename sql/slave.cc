@@ -822,19 +822,19 @@ static void make_slave_skip_errors_printable(void)
   DBUG_ASSERT(sizeof(slave_skip_error_names) > MIN_ROOM);
   DBUG_ASSERT(MAX_SLAVE_ERROR <= 999999); // 6 digits
 
-  /* Make @@slave_skip_errors show the nice human-readable value.  */
-  opt_slave_skip_errors= slave_skip_error_names;
 
   if (!use_slave_mask || bitmap_is_clear_all(&slave_error_mask))
   {
     /* purecov: begin tested */
     memcpy(slave_skip_error_names, STRING_WITH_LEN("OFF"));
+    slave_skip_error_names[3]= '\0';
     /* purecov: end */
   }
   else if (bitmap_is_set_all(&slave_error_mask))
   {
     /* purecov: begin tested */
     memcpy(slave_skip_error_names, STRING_WITH_LEN("ALL"));
+    slave_skip_error_names[3]= '\0';
     /* purecov: end */
   }
   else
@@ -885,13 +885,20 @@ bool init_slave_skip_errors(const char* arg)
   if (!arg || !*arg)                            // No errors defined
     goto end;
 
-  if (my_bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR))
-    DBUG_RETURN(1);
+  if (!slave_error_mask.bitmap)
+  {
+    if (my_bitmap_init(&slave_error_mask, 0, MAX_SLAVE_ERROR))
+      DBUG_RETURN(1);
+  }
+  else
+  {
+    bitmap_clear_all(&slave_error_mask);
+  }
 
   use_slave_mask= 1;
   for (;my_isspace(system_charset_info,*arg);++arg)
     /* empty */;
-  if (!system_charset_info->strnncoll((uchar*)arg,4,(const uchar*)"all",4))
+  if (strlen(arg) == 3 && !system_charset_info->strnncoll((uchar*)arg,3,(const uchar*)"all",3))
   {
     bitmap_set_all(&slave_error_mask);
     bitmap_clear_bit(&slave_error_mask,ER_CONNECTION_KILLED);
@@ -924,6 +931,13 @@ bool init_slave_skip_errors(const char* arg)
 
 end:
   make_slave_skip_errors_printable();
+  char *temp = my_strdup(PSI_NOT_INSTRUMENTED, slave_skip_error_names, MYF(0));
+  if (!temp)
+  {
+    DBUG_RETURN(1);
+  }
+  my_free(opt_slave_skip_errors);  
+  opt_slave_skip_errors= temp;
   DBUG_RETURN(0);
 }
 
