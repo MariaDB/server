@@ -927,4 +927,22 @@ ERROR HY000: Invalid argument error: date format not recognized at FF in functio
 SELECT TO_DATE('2026 100', 'YYYY DDD') FROM DUAL;
 TO_DATE('2026 100', 'YYYY DDD')
 2026-04-10 00:00:00
+#
+# MDEV-39721: SIGSEGV in check_word|(extract_date_time|extract_oracle_date_time)
+#
+# Oracle Mode
+SET sql_mode=ORACLE;
+# locale as session var
+SET SESSION lc_time_names='ar_DZ';
+SELECT TO_DATE('Wednesday, June 2, 2014', 'Day, Month DD, YYYY');
+TO_DATE('Wednesday, June 2, 2014', 'Day, Month DD, YYYY')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: 'Wednesday, June 2, 2014' for function to_date
+# locale as param to TO_DATE
+SELECT TO_DATE('Wednesday, June 2, 2014', 'Day, Month DD, YYYY', 'NLS_DATE_LANGUAGE=ar_DZ');
+TO_DATE('Wednesday, June 2, 2014', 'Day, Month DD, YYYY', 'NLS_DATE_LANGUAGE=ar_DZ')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: 'Wednesday, June 2, 2014' for function to_date
 # End of 12.3 tests
