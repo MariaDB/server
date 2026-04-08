@@ -5107,6 +5107,46 @@ static int init_server_components()
   }
 
 
+  /*
+    Print notice about AppArmor on Debian/Ubuntu systems to help users diagnose
+    permission issues that may be caused by AppArmor denials on systems where
+    the AppArmor profile is active.
+  */
+  if (!opt_help && !opt_bootstrap)
+  {
+    MY_STAT stat_info;
+    if (my_stat("/sys/kernel/security/apparmor/profiles", &stat_info, MYF(0)))
+    {
+      /* Check if mariadbd profile is loaded by reading the profiles file */
+      FILE *fp = fopen("/sys/kernel/security/apparmor/profiles", "r");
+      if (fp)
+      {
+        char line[256];
+        bool mariadb_profile_active = false;
+        while (fgets(line, sizeof(line), fp))
+        {
+          if (strstr(line, "mariadbd"))
+          {
+            mariadb_profile_active = true;
+            break;
+          }
+        }
+        fclose(fp);
+
+        if (mariadb_profile_active)
+        {
+          sql_print_information(
+            "AppArmor profile 'mariadbd' is active. "
+            "If permission errors occur, check: 'aa-status | grep mariadb' "
+            "or 'sudo dmesg | grep -i apparmor'. "
+            "To disable enforcement: 'aa-complain /etc/apparmor.d/mariadbd'. "
+            "To add local overrides, create /etc/apparmor.d/local/mariadbd "
+            "(see /usr/share/doc/mariadb-server/NEWS.Debian.gz).");
+        }
+      }
+    }
+  }
+
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
     Parsing the performance schema command line option may have reported
