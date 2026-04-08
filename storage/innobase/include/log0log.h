@@ -223,6 +223,8 @@ private:
   /** whether !archive log records may have been written with
   get_sequence_bit()==0 */
   bool circular_recovery_from_sequence_bit_0:1;
+  /** whether we are between backup_start() and backup_stop() */
+  bool backup:1;
 public:
   /** the default value of log_mmap */
   static constexpr bool log_mmap_default=
@@ -290,8 +292,9 @@ public:
   Atomic_relaxed<lsn_t> last_checkpoint_lsn;
   /** The log writer (protected by latch.wr_lock()) */
   lsn_t (*writer)() noexcept;
-  /** end_lsn of the first available checkpoint, or 0;
-  protected by latch.wr_lock() */
+  /** the earliest available checkpoint; protected by latch.wr_lock() */
+  lsn_t archived_checkpoint;
+  /** end_lsn of archived_checkpoint; protected by latch.wr_lock() */
   lsn_t archived_lsn;
 
   /** Log file */
@@ -371,11 +374,24 @@ public:
     RESIZE_NO_CHANGE, RESIZE_IN_PROGRESS, RESIZE_STARTED, RESIZE_FAILED
   };
 
+private:
   /** Start resizing the log and release the exclusive latch.
+  @param size   requested new file_size
+  @param thd    the current thread identifier
+  @param backup whether the caller is backup_start() or backup_stop()
+  @return whether the resizing was started successfully */
+  resize_start_status resize_start(uint64_t size, void *thd, bool backup)
+    noexcept;
+public:
+  /** Start resizing the log.
   @param size  requested new file_size
   @param thd   the current thread identifier
   @return whether the resizing was started successfully */
-  resize_start_status resize_start(os_offset_t size, void *thd) noexcept;
+  resize_start_status resize_start(uint64_t size, void *thd) noexcept
+  { return resize_start(size, thd, false); }
+
+  /** Wait for the completion of resize_start() == RESIZE_STARTED */
+  void resize_finish(THD *thd) noexcept;
 
   /** Abort a resize_start() that we started.
   @param thd  thread identifier that had been passed to resize_start() */
@@ -399,10 +415,31 @@ public:
       resize_write_low<mmap>(lsn, end, len, seq);
   }
 
+private:
+  /** SET GLOBAL innodb_log_archive, or start/stop BACKUP SERVER
+  @param archive  the new value of innodb_log_archive
+  @param thd      SQL connection
+  @param backup   whether the caller is backup_start() or backup_stop()
+  @return whether the operation failed */
+  bool set_archive(my_bool archive, THD *thd, bool backup) noexcept;
+public:
   /** SET GLOBAL innodb_log_archive
   @param archive  the new value of innodb_log_archive
-  @param thd      SQL connection */
-  void set_archive(my_bool archive, THD *thd) noexcept;
+  @param thd      SQL connection
+  @return whether the operation failed */
+  bool set_archive(my_bool archive, THD *thd) noexcept
+  { return set_archive(archive, thd, false); }
+
+  /** Start BACKUP SERVER.
+  @param old_size  the old file_size, or 0 on failure or when
+                   already running innodb_log_archive=ON
+  @param thd       SQL connection
+  @return whether the operation failed */
+  bool backup_start(uint64_t *old_size, THD *thd) noexcept;
+  /** Stop BACKUP SERVER.
+  @param old_size  the value returned by backup_start()
+  @param thd       SQL connection */
+  void backup_stop(uint64_t old_size, THD *thd) noexcept;
 
 private:
   /** Replicate a write to the log.

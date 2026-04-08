@@ -760,9 +760,12 @@ void log_t::header_rewrite(my_bool archive) noexcept
 
 /** SET GLOBAL innodb_log_archive
 @param archive  the new value of innodb_log_archive
-@param thd      SQL connection */
-void log_t::set_archive(my_bool archive, THD *thd) noexcept
+@param thd      SQL connection
+@param backup   whether the caller is backup_start() or backup_stop()
+@return whether the operation failed */
+bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
 {
+  bool fail= false;
   thd_wait_begin(thd, THD_WAIT_DISKIO);
   tpool::tpool_wait_begin();
 
@@ -774,17 +777,24 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       my_printf_error(ER_WRONG_USAGE,
                       "SET GLOBAL innodb_log_file_size is in progress",
                       MYF(0));
+    fail:
+      fail= true;
       break;
     }
     if (archive && file_size > ARCHIVE_FILE_SIZE_MAX)
     {
       my_printf_error(ER_WRONG_USAGE, "innodb_log_file_size>4G", MYF(0));
-      break;
+      goto fail;
     }
     if (archive == this->archive)
       break;
-    if (thd_kill_level(thd))
-      break;
+    if ((!backup || archive) && thd_kill_level(thd))
+      goto fail;
+    if (!backup && this->backup)
+    {
+      my_printf_error(ER_WRONG_USAGE, "BACKUP SERVER is in progress", MYF(0));
+      goto fail;
+    }
 
     lsn_t wait_lsn;
 
@@ -896,7 +906,7 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       if (!log.is_opened())
       {
         my_error(ER_ERROR_ON_READ, MYF(0), old_name, errno);
-        break;
+        goto fail;
       }
     }
 #endif
@@ -921,7 +931,7 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
     {
       my_error(ER_ERROR_ON_RENAME, MYF(0), old_name, new_name, my_errno);
       first_lsn= old_first_lsn;
-      break;
+      goto fail;
     }
 
     if (archive)
@@ -939,14 +949,81 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
   IF_WIN(log_resize_release(), latch.wr_unlock());
   tpool::tpool_wait_end();
   thd_wait_end(thd);
+  return fail;
 }
 
-/** Start resizing the log and release the exclusive latch.
-@param size  requested new file_size
-@param thd   the current thread identifier
+bool log_t::backup_start(uint64_t *old_size, THD *thd) noexcept
+{
+  latch.wr_lock();
+  ut_ad(!backup);
+  backup= true;
+  const bool was_archived= bool(archive);
+  const uint64_t old_file_size{file_size};
+  latch.wr_unlock();
+  if (was_archived)
+  {
+    *old_size= 0;
+    return false;
+  }
+  if (old_file_size > ARCHIVE_FILE_SIZE_MAX)
+  {
+    if (resize_start(ARCHIVE_FILE_SIZE_MAX, thd, true) == RESIZE_STARTED)
+      resize_finish(thd);
+    latch.wr_lock();
+    if (file_size > ARCHIVE_FILE_SIZE_MAX)
+      goto too_big;
+    latch.wr_unlock();
+  }
+  if (!set_archive(true, thd, true))
+  {
+    *old_size= old_file_size;
+    return false;
+  }
+  latch.wr_lock();
+ too_big:
+  ut_ad(backup);
+  backup= false;
+  const uint64_t new_file_size{file_size};
+  latch.wr_unlock();
+  if (old_file_size != new_file_size && old_file_size &&
+      resize_start(old_file_size, thd) == RESIZE_STARTED)
+    resize_finish(thd);
+  *old_size= 0;
+  return true;
+}
+
+void log_t::backup_stop(uint64_t old_size, THD *thd) noexcept
+{
+  /* We will be invoked with old_size=0 after a failed backup_start(),
+  or if innodb_log_archive=ON held during a successful backup_start(). */
+  if (UNIV_LIKELY(old_size != 0))
+  {
+    ut_d(latch.wr_lock());
+    ut_ad(backup);
+    ut_ad(!resize_in_progress());
+    ut_ad(archive);
+    ut_d(latch.wr_unlock());
+    ut_d(bool fail=) set_archive(false, thd, true);
+    ut_ad(!fail);
+  }
+  latch.wr_lock();
+  ut_ad(!old_size || !resize_in_progress());
+  ut_ad(!old_size || backup);
+  backup= false;
+  const uint64_t new_size{file_size};
+  latch.wr_unlock();
+  if (old_size && old_size != new_size &&
+      resize_start(old_size, thd) == RESIZE_STARTED)
+    resize_finish(thd);
+}
+
+/** Start resizing the log.
+@param size   requested new file_size
+@param thd    the current thread identifier
+@param backup whether the caller is backup_start() or backup_stop()
 @return whether the resizing was started successfully */
-log_t::resize_start_status log_t::resize_start(os_offset_t size, void *thd)
-  noexcept
+log_t::resize_start_status log_t::resize_start(uint64_t size, void *thd,
+                                               bool backup) noexcept
 {
   ut_ad(size >= 4U << 20);
   ut_ad(!(size & 4095));
@@ -979,6 +1056,9 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size, void *thd)
       resize_target= size;
     }
   }
+  else if (!backup && this->backup)
+    /* backup_start() or backup_stop() is running */
+    status= RESIZE_FAILED;
   else
   {
     lsn_t start_lsn;
@@ -1078,6 +1158,44 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size, void *thd)
 
   log_resize_release();
   return status;
+}
+
+/** Wait for the completion of resize_start() == RESIZE_STARTED */
+void log_t::resize_finish(THD *thd) noexcept
+{
+  for (timespec abstime;;)
+  {
+    if (thd_kill_level(thd))
+    {
+      resize_abort(thd);
+      break;
+    }
+
+    set_timespec(abstime, 5);
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
+    lsn_t resizing= resize_in_progress();
+    if (resizing > buf_pool.get_oldest_modification(0))
+    {
+      buf_pool.page_cleaner_wakeup(true);
+      my_cond_timedwait(&buf_pool.done_flush_list,
+                        &buf_pool.flush_list_mutex.m_mutex, &abstime);
+      resizing= resize_in_progress();
+    }
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+    if (!resizing || !resize_running(thd))
+      break;
+    latch.wr_lock();
+    while (resizing > get_lsn())
+    {
+      ut_ad(!is_mmap());
+      /* The server is almost idle. Write dummy FILE_CHECKPOINT records
+      to ensure that the log resizing will complete. */
+      mtr_t mtr{nullptr};
+      mtr.start();
+      mtr.commit_files(last_checkpoint_lsn);
+    }
+    latch.wr_unlock();
+  }
 }
 
 /** Abort a resize_start() that we started. */

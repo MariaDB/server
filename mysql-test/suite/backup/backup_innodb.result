@@ -1,0 +1,21 @@
+CREATE TABLE t(i INT PRIMARY KEY) ENGINE=INNODB;
+INSERT INTO t VALUES(1);
+BEGIN;
+DELETE FROM t;
+connect backup,localhost,root;
+BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+disconnect backup;
+connection default;
+COMMIT;
+SELECT * FROM t;
+i
+ibdata1
+mysql
+test
+undo001
+undo002
+undo003
+# restart
+SELECT * FROM t;
+i
+DROP TABLE t;

@@ -50,6 +50,7 @@
 #include "sql_alter.h"                         // Sql_cmd_alter_table*
 #include "sql_truncate.h"                      // Sql_cmd_truncate_table
 #include "sql_admin.h"                         // Sql_cmd_analyze/Check..._table
+#include "sql_backup.h"
 #include "sql_partition_admin.h"               // Sql_cmd_alter_table_*_part.
 #include "sql_handler.h"                       // Sql_cmd_handler_*
 #include "sql_signal.h"
@@ -15513,6 +15514,11 @@ backup_statements:
               my_yyabort_error((ER_SP_BADSTATEMENT, MYF(0), "BACKUP UNLOCK"));
 	    /* Table list is empty for unlock */
             Lex->sql_command= SQLCOM_BACKUP_LOCK;
+          }
+        | SERVER_SYM TO_SYM TEXT_STRING_sys
+          {
+            Lex->sql_command= SQLCOM_BACKUP_SERVER;
+            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_backup($3);
           }
         ;
 

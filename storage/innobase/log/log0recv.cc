@@ -2101,6 +2101,7 @@ dberr_t recv_sys_t::find_checkpoint()
     memset_aligned<4096>(const_cast<byte*>(field_ref_zero), 0, 4096);
     /* Mark the redo log for upgrading. */
     lsn= file_checkpoint= log_sys.last_checkpoint_lsn;
+    log_sys.archived_checkpoint= lsn;
     log_sys.set_recovered_lsn(lsn);
     if (rpo && rpo != lsn)
     {
@@ -2179,12 +2180,14 @@ dberr_t recv_sys_t::find_checkpoint()
         log_sys.set_recovered_checkpoint(checkpoint_lsn, lsn= end_lsn,
                                          field == log_t::CHECKPOINT_1);
     }
-    if (!log_sys.last_checkpoint_lsn)
+    log_sys.archived_checkpoint= log_sys.last_checkpoint_lsn;
+    if (!log_sys.archived_checkpoint)
       goto got_no_checkpoint;
     else if (!log_sys.archived_lsn)
       log_sys.archived_lsn= lsn;
     if (recv_sys_invalid_rpo(lsn))
       return DB_READ_ONLY;
+
     if (!memcmp(creator, "Backup ", 7) &&
         !recv_sys.rpo && !high_level_read_only)
       srv_start_after_restore= true;
@@ -5716,6 +5719,8 @@ dberr_t recv_sys_t::find_checkpoint_archived(lsn_t first_lsn, bool silent)
     checkpoint= log_sys.last_checkpoint_lsn;
     ut_ad(checkpoint);
     ut_ad(checkpoint < lsn);
+    if (!log_sys.archived_checkpoint)
+      log_sys.archived_checkpoint= checkpoint;
     if (!log_sys.archived_lsn)
       log_sys.archived_lsn= parse_start;
     end_lsn= parse_start;
@@ -5757,7 +5762,7 @@ dberr_t recv_sys_t::find_checkpoint_archived(lsn_t first_lsn, bool silent)
     return DB_CORRUPTION;
   }
 
-  if (recovery_start < log_sys.get_first_lsn());
+  if (!recovery_start);
   else if (recovery_start_checkpoint)
     checkpoint= recovery_start_checkpoint, end_lsn= recovery_start;
   else

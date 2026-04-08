@@ -1,0 +1,10 @@
+--let $datadir=`select @@datadir`
+--error ER_WRONG_ARGUMENTS
+evalp BACKUP SERVER TO '$datadir/some_directory';
+evalp BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error 21
+evalp BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+--rmdir $MYSQLTEST_VARDIR/some_directory
+evalp BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+--rmdir $MYSQLTEST_VARDIR/some_directory

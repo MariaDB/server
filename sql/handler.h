@@ -1892,8 +1892,40 @@ struct handlerton : public transaction_participant
   /*********************************************************************
     backup
   **********************************************************************/
+
+  /** BACKUP STAGE START */
   void (*prepare_for_backup)(void);
+  /** BACKUP STAGE END */
   void (*end_backup)(void);
+
+  /**
+     Start of BACKUP SERVER: collect all files to be backed up
+     @param thd     current session
+     @param target  target directory
+     @return error code
+     @retval 0 on success
+  */
+  int (*backup_start)(THD *thd, IF_WIN(const char*,int) target);
+  /**
+     Process a file that was collected in backup_start().
+     @param thd   current session
+     @return number of files remaining, or negative on error
+     @retval 0 on completion
+  */
+  int (*backup_step)(THD *thd);
+  /**
+     Finish copying and determine the logical time of the backup snapshot.
+     @param thd   current sesssion
+     @param abort whether BACKUP SERVER was aborted
+     @return error code
+     @retval 0 on success
+  */
+  int (*backup_end)(THD *thd, bool abort);
+  /**
+     After a successful backup_end(), finalize the backup.
+     @param thd   current sesssion
+  */
+  void (*backup_finalize)(THD *thd);
 
   /**********************************************************************
    WSREP specific
