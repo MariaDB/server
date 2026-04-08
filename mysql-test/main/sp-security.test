@@ -1647,6 +1647,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+SET sql_mode=@save_sql_mode;
 
 use test;
 
@@ -1674,6 +1675,28 @@ disconnect conn1;
 drop user user@localhost;
 drop database test_db;
 
---echo #
 --echo # End of 11.3 tests
+
 --echo #
+--echo # MDEV-39288 SHOW CREATE ROUTINE does not apply to roles
+--echo #
+create user u@localhost;
+create role r;
+create procedure p1() select 10 as ten;
+grant execute on procedure test.p1 to u@localhost;
+grant execute on procedure test.p1 to r;
+grant r to u@localhost;
+
+connect u, localhost, u;
+call p1();
+query_vertical show create procedure p1;
+set role r;
+query_vertical Show create procedure p1;
+disconnect u;
+
+connection default;
+drop role r;
+drop user u@localhost;
+drop procedure p1;
+
+--echo # End of 11.4 tests

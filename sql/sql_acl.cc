@@ -9137,7 +9137,7 @@ bool check_routine_level_acl(THD *thd, privilege_t acl,
                                          NULL, db,
                                          sctx->priv_role,
                                          name, sph, 0)))
-      no_routine_acl= !(grant_proc->privs & SHOW_PROC_WITHOUT_DEFINITION_ACLS);
+      no_routine_acl= !(grant_proc->privs & acl);
   }
   mysql_rwlock_unlock(&LOCK_grant);
   return no_routine_acl;

@@ -1641,6 +1641,7 @@ BEGIN
 pkv:=2;
 END;
 $$
+SET sql_mode=@save_sql_mode;
 use test;
 connect conn1, localhost, user, , "*NO-ONE*";
 show create procedure test_db.sp;
@@ -1727,6 +1728,38 @@ connection default;
 disconnect conn1;
 drop user user@localhost;
 drop database test_db;
-#
 # End of 11.3 tests
 #
+# MDEV-39288 SHOW CREATE ROUTINE does not apply to roles
+#
+create user u@localhost;
+create role r;
+create procedure p1() select 10 as ten;
+grant execute on procedure test.p1 to u@localhost;
+grant execute on procedure test.p1 to r;
+grant r to u@localhost;
+connect u, localhost, u;
+call p1();
+ten
+10
+show create procedure p1;
+Procedure	p1
+sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+Create Procedure	NULL
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+Database Collation	latin1_swedish_ci
+set role r;
+Show create procedure p1;
+Procedure	p1
+sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+Create Procedure	NULL
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+Database Collation	latin1_swedish_ci
+disconnect u;
+connection default;
+drop role r;
+drop user u@localhost;
+drop procedure p1;
+# End of 11.4 tests
