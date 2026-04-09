@@ -21,6 +21,13 @@ CREATE TABLE t1(f1 INT NOT NULL,
 		PRIMARY KEY(f1))ROW_FORMAT=COMPRESSED, ENGINE=INNODB;
 INSERT INTO t1(f1, f2, f3) VALUES(1, 1, 1);
 
+CREATE TABLE t2(f1 INT PRIMARY KEY, f2 INT NOT NULL,
+		f3 INT AS (f2 * f2) VIRTUAL,
+		f4 INT NOT NULL UNIQUE,
+		f5 INT NOT NULL,
+		INDEX idx(f2))ENGINE=INNODB;
+INSERT INTO t2(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
+
 --enable_info
 --echo # All the following cases needs table rebuild
 
@@ -58,7 +65,11 @@ INSERT INTO t1(f1, f2, f3) VALUES(1, 1, 1);
 
 ALTER TABLE t1 FORCE, ALGORITHM=DEFAULT;
 
+--error $error_code
+eval ALTER TABLE t2 page_compressed=1, ALGORITHM=$alter_algorithm;
+
 DROP TABLE t1;
+DROP TABLE t2;
 --disable_info
 
 if ($algorithm == "NOCOPY") {
@@ -73,7 +84,7 @@ CREATE TABLE t1(f1 INT PRIMARY KEY, f2 INT NOT NULL,
 		f3 INT AS (f2 * f2) VIRTUAL,
 		f4 INT NOT NULL UNIQUE,
 		f5 INT NOT NULL,
-		INDEX idx(f2))ENGINE=INNODB;
+		INDEX idx(f2)) PAGE_COMPRESSED=1, ENGINE=INNODB;
 
 CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL,
 		INDEX(f1),
@@ -83,7 +94,7 @@ INSERT INTO t1(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
 
 --enable_info
 --error $error_code
---eval ALTER TABLE t1 ADD INDEX idx1(f4), page_compressed=1, ALGORITHM=$alter_algorithm
+--eval ALTER TABLE t1 ADD INDEX idx1(f4), page_compression_level=7, ALGORITHM=$alter_algorithm
 
 --error $error_code
 --eval ALTER TABLE t1 DROP INDEX idx, page_compression_level=5, ALGORITHM=$alter_algorithm

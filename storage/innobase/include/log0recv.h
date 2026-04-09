@@ -44,11 +44,6 @@ ATTRIBUTE_COLD MY_ATTRIBUTE((nonnull, warn_unused_result))
 @return whether the page was recovered correctly */
 bool recv_recover_page(fil_space_t* space, buf_page_t* bpage);
 
-/** Read the latest checkpoint information from log file
-and store it in log_sys.next_checkpoint and recv_sys.file_checkpoint
-@return error code or DB_SUCCESS */
-dberr_t recv_recovery_read_checkpoint();
-
 /** Start recovering from a redo log checkpoint.
 of first system tablespace page
 @return error code or DB_SUCCESS */
@@ -230,7 +225,10 @@ public:
 
   /** whether we are applying redo log records during crash recovery.
   This can be cleared when holding mutex, or when pages.empty() and
-  we are holding exclusive log_sys.latch. */
+  we are holding exclusive log_sys.latch. When this is set,
+  buf_flush_page_cleaner() will not invoke log_checkpoint_low(),
+  buf_pool.flush_list may be unsorted by buf_page_t::oldest_modification(),
+  and garbage_collect() replaces buf_pool_t::running_out(). */
   Atomic_relaxed<bool> recovery_on= false;
   /** whether recv_recover_page(), invoked from buf_page_t::read_complete(),
   should apply log records*/

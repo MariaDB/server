@@ -187,6 +187,14 @@ SELECT @@skip_grant_tables AS EXPECT_0;
 --echo # End of 10.10 tests
 
 --echo #
+--echo # MDEV-38811 crash in information_schema.table_constraints when --skip-grant-tables
+--echo #
+--sorted_result
+select * from information_schema.table_constraints;
+
+--echo # End of 10.11 tests
+
+--echo #
 --echo # MDEV-36351 MariaDB crashes when trying to access information_schema.users under --skip-grant-tables
 --echo #
 select * from information_schema.users;

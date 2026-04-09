@@ -1697,7 +1697,8 @@ static void lock_rec_add_to_queue(const conflicting_lock_info &c_lock_info,
                                   unsigned type_mode, const hash_cell_t &cell,
                                   const page_id_t id, const page_t *page,
                                   ulint heap_no, dict_index_t *index,
-                                  trx_t *trx, bool caller_owns_trx_mutex)
+                                  trx_t *trx, bool caller_owns_trx_mutex,
+                                  bool report_waits= false)
 {
 	ut_d(lock_sys.hash_get(type_mode).assert_locked(id));
 	ut_ad(xtest() || caller_owns_trx_mutex == trx->mutex_is_owner());
@@ -1758,6 +1759,7 @@ static void lock_rec_add_to_queue(const conflicting_lock_info &c_lock_info,
 		const bool bypass_mode = !is_supremum
 			&& lock_t::is_rec_exclusive_not_gap(type_mode);
 		bool has_s_lock_or_stronger = false;
+		bool do_create= false;
 		for (lock_t* lock = first_lock;;) {
 			if (!lock_rec_get_nth_bit(lock, heap_no))
 				goto cont;
@@ -1776,12 +1778,25 @@ static void lock_rec_add_to_queue(const conflicting_lock_info &c_lock_info,
 			else if (lock->is_waiting()
 				 && (!bypass_mode || !has_s_lock_or_stronger
 				     || !lock->is_gap()))
+			{
+#ifdef HAVE_REPLICATION
+				if (report_waits)
+				{
+					do_create= true;
+					thd_rpl_deadlock_check(lock->trx->mysql_thd,
+							       trx->mysql_thd);
+				}
+				else
+#endif
 					goto create;
+			}
 cont:
 			if (!(lock = lock_rec_get_next_on_page(lock))) {
 				break;
 			}
 		}
+		if (do_create)
+			goto create;
 
 		const lock_t *bypassed = c_lock_info.insert_after
 			? lock_rec_get_next(heap_no, c_lock_info.insert_after)
@@ -1969,7 +1984,8 @@ lock_rec_lock(
         {
           /* Set the requested lock on the record. */
           lock_rec_add_to_queue(c_lock_info, mode, g.cell(), id,
-                                block->page.frame, heap_no, index, trx, true);
+                                block->page.frame, heap_no, index, trx, true,
+                                true);
           err= DB_SUCCESS_LOCKED_REC;
         }
       }

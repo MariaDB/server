@@ -2232,11 +2232,10 @@ void THD::disconnect()
 }
 
 
-bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
+bool THD::notify_shared_lock(THD *in_use,
                              bool needs_thr_lock_abort,
                              bool needs_non_slave_abort)
 {
-  THD *in_use= ctx_in_use->get_thd();
   bool signalled= FALSE;
   DBUG_ENTER("THD::notify_shared_lock");
   DBUG_PRINT("enter",("needs_thr_lock_abort: %d", needs_thr_lock_abort));

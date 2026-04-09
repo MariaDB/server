@@ -267,10 +267,10 @@ SET character_set_results='utf8';
 SET lc_time_names='zh_TW';
 SELECT TO_CHAR(c1, 'YYYY-MON-DAY') FROM t_to_char1;
 TO_CHAR(c1, 'YYYY-MON-DAY')
-1000- 1月-週三
-9999-12月-週五
-2021- 1月-週日
-2021- 7月-週六
+1000-1月-星期三
+9999-12月-星期五
+2021-1月-星期日
+2021-7月-星期六
 SET lc_time_names='de_DE';
 SELECT TO_CHAR(c1, 'YYYY-MON-DAY') FROM t_to_char1;
 TO_CHAR(c1, 'YYYY-MON-DAY')
@@ -288,10 +288,10 @@ TO_CHAR(c1, 'YYYY-MON-DAY')
 SET lc_time_names='zh_CN';
 SELECT TO_CHAR(c1, 'YYYY-MON-DAY') FROM t_to_char1;
 TO_CHAR(c1, 'YYYY-MON-DAY')
-1000- 1月-星期三
+1000-1月-星期三
 9999-12月-星期五
-2021- 1月-星期日
-2021- 7月-星期六
+2021-1月-星期日
+2021-7月-星期六
 #
 # test for invalid format
 #

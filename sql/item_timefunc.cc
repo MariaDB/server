@@ -103,6 +103,8 @@ static DATE_TIME_FORMAT time_24hrs_format= {{0}, '\0', 0,
                             %r) and this parameter is pointer to place where
                             pointer to end of string matching this specifier
                             should be stored.
+  @param locale             The locale to use for Month/Day names (e.g., %M, %W)
+  @param cs                 The character set of the input string 'val'
 
   @note
     Possibility to parse strings matching to patterns equivalent to compound
@@ -126,7 +128,9 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
                               timestamp_type cached_timestamp_type,
                               const char **sub_pattern_end,
                               const char *date_time_type,
-                              date_conv_mode_t fuzzydate)
+                              date_conv_mode_t fuzzydate,
+                              const MY_LOCALE *locale,
+                              CHARSET_INFO *cs)
 {
   int weekday= 0, yearday= 0, daypart= 0;
   int week_number= -1;
@@ -141,7 +145,6 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
   const char *val_end= val + length;
   const char *ptr= format->format.str;
   const char *end= ptr + format->format.length;
-  CHARSET_INFO *cs= &my_charset_bin;
   DBUG_ENTER("extract_date_time");
 
   if (!sub_pattern_end)
@@ -187,12 +190,15 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
 	val= tmp;
 	break;
       case 'M':
-	if ((l_time->month= check_word(my_locale_en_US.month_names,
-				       val, val_end, &val)) <= 0)
+       if ((l_time->month= check_word(cs, locale->month_names,
+				       val, val_end, &val)) <= 0 &&
+          (locale->month_names == locale->month_names_formatting ||
+          (l_time->month= check_word(cs, locale->month_names_formatting,
+               val, val_end, &val)) <= 0))
 	  goto err;
 	break;
       case 'b':
-	if ((l_time->month= check_word(my_locale_en_US.ab_month_names,
+       if ((l_time->month= check_word(cs, locale->ab_month_names,
 				       val, val_end, &val)) <= 0)
 	  goto err;
 	break;
@@ -263,11 +269,11 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
 
 	/* Exotic things */
       case 'W':
-	if ((weekday= check_word(my_locale_en_US.day_names, val, val_end, &val)) <= 0)
+       if ((weekday= check_word(cs, locale->day_names, val, val_end, &val)) <= 0)
 	  goto err;
 	break;
       case 'a':
-	if ((weekday= check_word(my_locale_en_US.ab_day_names, val, val_end, &val)) <= 0)
+       if ((weekday= check_word(cs, locale->ab_day_names, val, val_end, &val)) <= 0)
 	  goto err;
 	break;
       case 'w':
@@ -319,7 +325,8 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
         */
         if (extract_date_time(thd, &time_ampm_format, val,
                               (uint)(val_end - val), l_time,
-                              cached_timestamp_type, &val, "time", fuzzydate))
+                              cached_timestamp_type, &val, "time", fuzzydate,
+                              locale, cs))
           DBUG_RETURN(1);
         break;
 
@@ -327,7 +334,8 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
       case 'T':
         if (extract_date_time(thd, &time_24hrs_format, val,
                               (uint)(val_end - val), l_time,
-                              cached_timestamp_type, &val, "time", fuzzydate))
+                              cached_timestamp_type, &val, "time", fuzzydate,
+                              locale, cs))
           DBUG_RETURN(1);
         break;
 
@@ -428,7 +436,7 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
       goto err;
   }
 
-  if (l_time->month > 12 || l_time->day > 31 || l_time->hour > 23 || 
+  if (l_time->month > 12 || l_time->day > 31 || l_time->hour > 23 ||
       l_time->minute > 59 || l_time->second > 59)
     goto err;
 
@@ -440,9 +448,9 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
   {
     do
     {
-      if (!my_isspace(&my_charset_latin1,*val))
+      if (!my_isspace(cs, *val))
       {
-        ErrConvString err(val_begin, length, &my_charset_bin);
+        ErrConvString err(val_begin, length, cs);
         make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                                      &err, cached_timestamp_type,
                                      nullptr, nullptr, nullptr);
@@ -574,70 +582,6 @@ uint oracle_year_2000_handling(uint year)
     year+=100;
   return year;
 }
-
-
-/*
-  Like check_word() in strfunc, with the following differnces for
-  multi-byte characters:
-  - Word can contain numbers (needed for matching Japanese months)
-  - If multiple partial matches and next character is space, try
-    matching with two words (needed for matching vietnamese months)
-*/
-
-uint check_word(CHARSET_INFO *cs, TYPELIB *lib, const char *val,
-                const char *end, const char **end_of_word)
-{
-  int res, rc=0, round;
-  const char *ptr, *val_start= val;
-  my_bool part_match;
-  my_wc_t wc= 0;
-
-  if (cs->mbmaxlen == 1)
-    return check_word(lib, val, end, end_of_word);
-
-  /*
-    Try to match one word or two words.
-    Needed for matching vietnamese months which are two words
-  */
-  for (round= 0 ; round < 2 ; round++, val= ptr+1)
-  {
-    /*
-      Find end of word. Words ends with single letter non alpha character or
-      end of string.
-    */
-    for (ptr=val ; ptr < end ; ptr+= rc)
-    {
-      if ((rc= cs->mb_wc(&wc, (const uchar*) ptr,
-                         (const uchar*) end)) <= 0 ||
-          (rc == 1 && !my_isalnum(cs, wc)))
-        break;
-    }
-    if ((res= find_type2(lib, val_start, (size_t) (ptr - val_start),
-                         &part_match, cs)) > 0)
-    {
-      *end_of_word= ptr;
-      return res;
-    }
-    if (!part_match || ptr == end || rc != 1 || !my_isspace(cs, wc))
-      return res;
-  }
-  return 0;                                     // No match
-}
-
-
-uint check_word_sp(CHARSET_INFO *cs, TYPELIB *lib, const char *val,
-                   const char *end, const char **end_of_word)
-{
-  int res;
-  const char *ptr;
-
-  /* Find end of word */
-  ptr= val+ cs->scan(val, end, MY_SEQ_NONSPACES);
-  if ((res= find_type2(lib, val, (size_t) (ptr - val), 0, cs)) > 0)
-    *end_of_word= ptr;
-  return res;
-}
-
 
 /**
   Extract datetime value to MYSQL_TIME struct from string value
@@ -848,9 +792,8 @@ extract_oracle_date_time(THD *thd, uint16 *format_ptr,
     case FMT_BC:
     case FMT_BC_DOT:
     {
-      int period;
-      if ((period= check_word_sp(val_cs, &ad_bc_typelib, val, val_end,
-                                 &val)) <= 0)
+      int period= check_word(val_cs, &ad_bc_typelib, val, val_end, &val);
+      if (period <= 0)
         goto error;
       before_christ= period > 2;
       break;
@@ -867,8 +810,11 @@ extract_oracle_date_time(THD *thd, uint16 *format_ptr,
       break;
     case FMT_MONTH:
       if ((l_time->month= check_word(val_cs, locale->month_names,
-                                     val, val_end, &val)) <= 0)
-        goto error;
+                                     val, val_end, &val)) <= 0 &&
+         (locale->month_names == locale->month_names_formatting ||
+         (l_time->month= check_word(val_cs, locale->month_names_formatting,
+                                     val, val_end, &val)) <= 0))
+         goto error;
       break;
     case FMT_MON:
       if ((l_time->month= check_word(val_cs, locale->ab_month_names,
@@ -1103,6 +1049,13 @@ static bool make_date_time(THD *thd, const String *format,
       ptr+= mblen;
 
       switch (wc) {
+      case 'B':
+        if (type == MYSQL_TIMESTAMP_TIME || !l_time->month)
+          return 1;
+        str->append(locale->month_names_formatting->type_names[l_time->month-1],
+                    (uint) strlen(locale->month_names_formatting->type_names[l_time->month-1]),
+                    system_charset_info);
+        break;
       case 'M':
         if (type == MYSQL_TIMESTAMP_TIME || !l_time->month)
           return 1;
@@ -1531,13 +1484,13 @@ longlong Item_func_to_days::val_int_endpoint(bool left_endp, bool *incl_endp)
       *incl_endp= TRUE;
     return res;
   }
-  
+
   if (args[0]->field_type() == MYSQL_TYPE_DATE)
   {
     // TO_DAYS() is strictly monotonic for dates, leave incl_endp intact
     return res;
   }
- 
+
   /*
     Handle the special but practically useful case of datetime values that
     point to day bound ("strictly less" comparison stays intact):
@@ -1734,7 +1687,7 @@ longlong Item_func_weekday::val_int()
 bool Item_func_dayname::fix_length_and_dec(THD *thd)
 {
   CHARSET_INFO *cs= thd->variables.collation_connection;
-  locale= thd->variables.lc_time_names;  
+  locale= thd->variables.lc_time_names;
   collation.set(cs, DERIVATION_COERCIBLE, locale->repertoire());
   decimals=0;
   max_length= locale->max_day_name_length * collation.collation->mbmaxlen;
@@ -1817,7 +1770,7 @@ longlong Item_func_year::val_int_endpoint(bool left_endp, bool *incl_endp)
       col < '2007-09-15 23:00:00'  -> YEAR(col) <= 2007
   */
   const MYSQL_TIME &ltime= dt.get_mysql_time()[0];
-  if (!left_endp && ltime.day == 1 && ltime.month == 1 && 
+  if (!left_endp && ltime.day == 1 && ltime.month == 1 &&
       dt.hhmmssff_is_zero())
     ; /* do nothing */
   else
@@ -1865,7 +1818,7 @@ longlong Item_func_unix_timestamp::int_op()
 {
   if (arg_count == 0)
     return (longlong) current_thd->query_start();
-  
+
   ulong second_part;
   my_time_t seconds;
   if (get_timestamp_value(&seconds, &second_part))
@@ -2115,7 +2068,7 @@ bool get_interval_value(THD *thd, Item *args,
     interval->second_part= array[1];
     break;
   case INTERVAL_LAST: /* purecov: begin deadcode */
-    DBUG_ASSERT(0); 
+    DBUG_ASSERT(0);
     break;            /* purecov: end */
   }
   return 0;
@@ -2167,7 +2120,7 @@ void Item_func_curdate_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 void Item_func_curdate_utc::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 {
   my_tz_UTC->gmt_sec_to_TIME(now_time, thd->query_start());
-  /* 
+  /*
     We are not flagging this query as using time zone, since it uses fixed
     UTC-SYSTEM time-zone.
   */
@@ -2257,7 +2210,7 @@ void Item_func_curtime_utc::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
   now_time->year= now_time->month= now_time->day= 0;
   now_time->time_type= MYSQL_TIMESTAMP_TIME;
   set_sec_part(thd->query_start_sec_part(), now_time, this);
-  /* 
+  /*
     We are not flagging this query as using time zone, since it uses fixed
     UTC-SYSTEM time-zone.
   */
@@ -2299,7 +2252,7 @@ void Item_func_now_utc::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 {
   my_tz_UTC->gmt_sec_to_TIME(now_time, thd->query_start());
   set_sec_part(thd->query_start_sec_part(), now_time, this);
-  /* 
+  /*
     We are not flagging this query as using time zone, since it uses fixed
     UTC-SYSTEM time-zone.
   */
@@ -2355,9 +2308,8 @@ bool Item_func_date_format::fix_length_and_dec(THD *thd)
   {
     if (arg_count < 3)
       locale= thd->variables.lc_time_names;
-    else
-      if (args[2]->basic_const_item())
-        locale= args[2]->locale_from_val_str();
+    else if (args[2]->basic_const_item())
+      locale= args[2]->locale_from_val_str();
   }
 
   /*
@@ -2434,6 +2386,7 @@ uint Item_func_date_format::format_length(const String *format)
     {
       switch(*++ptr) {
       case 'M': /* month, textual */
+      case 'B': /* month, formatting */
       case 'W': /* day (of the week), textual */
 	size += 64; /* large for UTF8 locale data */
 	break;
@@ -2511,7 +2464,7 @@ String *Item_func_date_format::val_str(String *str)
   if ((null_value= args[0]->get_date(thd, &l_time,
                                      Temporal::Options(mode, thd))))
     return 0;
-  
+
   if (!(format= args[1]->val_str(&format_buffer)) || !format->length())
     goto null_date;
 
@@ -3730,9 +3683,9 @@ bool Item_date_add_interval::eq(const Item *item, const Eq_config &config) const
 
 static const char *interval_names[]=
 {
-  "year", "quarter", "month", "week", "day",  
+  "year", "quarter", "month", "week", "day",
   "hour", "minute", "second", "microsecond",
-  "year_month", "day_hour", "day_minute", 
+  "year_month", "day_hour", "day_minute",
   "day_second", "hour_minute", "hour_second",
   "minute_second", "day_microsecond",
   "hour_microsecond", "minute_microsecond",
@@ -4170,14 +4123,14 @@ Item_char_typecast::fix_length_and_dec_native_to_binary(uint32 octet_length)
 void Item_char_typecast::fix_length_and_dec_internal(CHARSET_INFO *from_cs)
 {
   uint32 char_length;
-  /* 
+  /*
      We always force character set conversion if cast_cs
      is a multi-byte character set. It guarantees that the
      result of CAST is a well-formed string.
      For single-byte character sets we allow just to copy
      from the argument. A single-byte character sets string
-     is always well-formed. 
-     
+     is always well-formed.
+
      There is a special trick to convert form a number to ucs2.
      As numbers have my_charset_bin as their character set,
      it wouldn't do conversion to ucs2 without an additional action.
@@ -4260,7 +4213,7 @@ Sql_mode_dependency Item_datetime_typecast::value_depends_on_sql_mode() const
 
 
 /**
-  MAKEDATE(a,b) is a date function that creates a date value 
+  MAKEDATE(a,b) is a date function that creates a date value
   from a year and day value.
 
   NOTES:
@@ -4311,7 +4264,7 @@ bool Item_func_add_time::fix_length_and_dec(THD *thd)
     The field type for the result of an Item_func_add_time function is defined
     as follows:
 
-    - If first arg is a MYSQL_TYPE_DATETIME or MYSQL_TYPE_TIMESTAMP 
+    - If first arg is a MYSQL_TYPE_DATETIME or MYSQL_TYPE_TIMESTAMP
       result is MYSQL_TYPE_DATETIME
     - If first arg is a MYSQL_TYPE_TIME result is MYSQL_TYPE_TIME
     - Otherwise the result is MYSQL_TYPE_STRING
@@ -4342,7 +4295,7 @@ bool Item_func_add_time::fix_length_and_dec(THD *thd)
 
 
 /**
-  TIMEDIFF(t,s) is a time function that calculates the 
+  TIMEDIFF(t,s) is a time function that calculates the
   time value between a start and end time.
 
   t and s: time_or_datetime_expression
@@ -4395,7 +4348,7 @@ bool Item_func_timediff::get_date(THD *thd, MYSQL_TIME *ltime,
 
 
 /**
-  MAKETIME(h,m,s) is a time function that calculates a time value 
+  MAKETIME(h,m,s) is a time function that calculates a time value
   from the total number of hours, minutes, and seconds.
   Result: Time value
 */
@@ -4533,15 +4486,15 @@ longlong Item_func_timestamp_diff::val_int()
     return months/3*neg;
   case INTERVAL_MONTH:
     return months*neg;
-  case INTERVAL_WEEK:          
+  case INTERVAL_WEEK:
     return ((longlong) (seconds / SECONDS_IN_24H / 7L)) * neg;
-  case INTERVAL_DAY:		
+  case INTERVAL_DAY:
     return ((longlong) (seconds / SECONDS_IN_24H)) * neg;
-  case INTERVAL_HOUR:		
+  case INTERVAL_HOUR:
     return ((longlong) (seconds / 3600L)) * neg;
-  case INTERVAL_MINUTE:		
+  case INTERVAL_MINUTE:
     return ((longlong) (seconds / 60L)) * neg;
-  case INTERVAL_SECOND:		
+  case INTERVAL_SECOND:
     return ((longlong) seconds) * neg;
   case INTERVAL_MICROSECOND:
     /*
@@ -4574,21 +4527,21 @@ void Item_func_timestamp_diff::print(String *str, enum_query_type query_type)
   case INTERVAL_MONTH:
     str->append(STRING_WITH_LEN("MONTH"));
     break;
-  case INTERVAL_WEEK:          
+  case INTERVAL_WEEK:
     str->append(STRING_WITH_LEN("WEEK"));
     break;
-  case INTERVAL_DAY:		
+  case INTERVAL_DAY:
     str->append(STRING_WITH_LEN("DAY"));
     break;
   case INTERVAL_HOUR:
     str->append(STRING_WITH_LEN("HOUR"));
     break;
-  case INTERVAL_MINUTE:		
+  case INTERVAL_MINUTE:
     str->append(STRING_WITH_LEN("MINUTE"));
     break;
   case INTERVAL_SECOND:
     str->append(STRING_WITH_LEN("SECOND"));
-    break;		
+    break;
   case INTERVAL_MICROSECOND:
     str->append(STRING_WITH_LEN("MICROSECOND"));
     break;
@@ -4614,7 +4567,7 @@ String *Item_func_get_format::val_str_ascii(String *str)
   ulong val_len;
 
   if ((null_value= args[0]->null_value))
-    return 0;    
+    return 0;
 
   val_len= val->length();
   for (format= &known_date_time_formats[0];
@@ -4624,7 +4577,7 @@ String *Item_func_get_format::val_str_ascii(String *str)
     uint format_name_len;
     format_name_len= (uint) strlen(format_name);
     if (val_len == format_name_len &&
-	!my_charset_latin1.strnncoll(val->ptr(), val_len, 
+	!my_charset_latin1.strnncoll(val->ptr(), val_len,
 		                     format_name, val_len))
     {
       const char *format_str= get_date_time_format_str(format, type);
@@ -4686,7 +4639,7 @@ get_date_time_result_type(const char *format, uint length)
   const char *time_part_frms= "HISThiklrs";
   const char *date_part_frms= "MVUXYWabcjmvuxyw";
   bool date_part_used= 0, time_part_used= 0, frac_second_used= 0;
-  
+
   const char *val= format;
   const char *end= format + length;
 
@@ -4727,17 +4680,28 @@ get_date_time_result_type(const char *format, uint length)
 
 bool Item_func_str_to_date::fix_length_and_dec(THD *thd)
 {
-  if (!args[0]->type_handler()->is_traditional_scalar_type() ||
-      !args[1]->type_handler()->is_traditional_scalar_type())
+ const Type_handler *wrong_type;
+ if (!(wrong_type= args[0]->type_handler())->is_traditional_scalar_type() ||
+     !(wrong_type= args[1]->type_handler())->is_traditional_scalar_type() ||
+     (arg_count == 3 && !(wrong_type= args[2]->type_handler())->is_traditional_scalar_type()))
   {
-    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
-             args[0]->type_handler()->name().ptr(),
-             args[1]->type_handler()->name().ptr(), func_name());
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             wrong_type->name().ptr(), func_name());
     return TRUE;
   }
-  if (agg_arg_charsets(collation, args, 2, MY_COLL_ALLOW_CONV, 1))
+
+  if (agg_arg_charsets(collation, args, arg_count, MY_COLL_ALLOW_CONV, 1))
     return TRUE;
-  if (collation.collation->mbminlen > 1)
+
+  if (arg_count < 3)
+    locale= thd->variables.lc_time_names;
+  else if (args[2]->basic_const_item())
+    locale= args[2]->locale_from_val_str();
+  else
+    locale= 0;
+
+  if (collation.collation->mbminlen > 1 || !locale || !locale->is_ascii ||
+      arg_count >= 3)
     internal_charset= &my_charset_utf8mb4_general_ci;
 
   set_maybe_null();
@@ -4762,6 +4726,10 @@ bool Item_func_str_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
   DATE_TIME_FORMAT date_time_format;
   StringBuffer<64> val_string, format_str;
   String *val, *format;
+  const MY_LOCALE *lc= locale;
+
+  if (!lc && !(lc= args[2]->locale_from_val_str()))
+    return (null_value= 1);
 
   val=    args[0]->val_str(&val_string, &subject_converter, internal_charset);
   format= args[1]->val_str(&format_str, &format_converter, internal_charset);
@@ -4773,7 +4741,9 @@ bool Item_func_str_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
   if (extract_date_time(thd, &date_time_format, val->ptr(), val->length(),
 			ltime, tstype, 0, "datetime",
                         date_conv_mode_t(fuzzydate) |
-                        sql_mode_for_dates(thd)))
+                        sql_mode_for_dates(thd),
+                        lc,
+                        val->charset()))
     return (null_value=1);
   return (null_value= 0);
 }

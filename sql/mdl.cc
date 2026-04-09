@@ -1039,8 +1039,8 @@ class MDL_lock
       {
         MDL_context *conflicting_ctx= conflicting_ticket.get_ctx();
 
-        ctx->get_owner()->
-          notify_shared_lock(conflicting_ctx->get_owner(),
+        ctx->get_thd()->
+          notify_shared_lock(conflicting_ctx->get_thd(),
                              conflicting_ctx->get_needs_thr_lock_abort(),
                              abort_blocking);
       }
@@ -1830,7 +1830,7 @@ void MDL_wait::reset_status()
 /**
   Wait for the status to be assigned to this wait slot.
 
-  @param owner           MDL context owner.
+  @param owner           THD of the owning thread.
   @param abs_timeout     Absolute time after which waiting should stop.
   @param set_status_on_timeout TRUE  - If in case of timeout waiting
                                        context should close the wait slot by
@@ -1842,7 +1842,7 @@ void MDL_wait::reset_status()
 */
 
 MDL_wait::enum_wait_status
-MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
+MDL_wait::timed_wait(THD *owner, struct timespec *abs_timeout,
                      bool set_status_on_timeout,
                      const PSI_stage_info *wait_state_name)
 {
@@ -1863,9 +1863,9 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
 #ifdef WITH_WSREP
 # ifdef ENABLED_DEBUG_SYNC
     // Allow tests to block thread before MDL-wait
-    DEBUG_SYNC(owner->get_thd(), "wsrep_before_mdl_wait");
+    DEBUG_SYNC(owner, "wsrep_before_mdl_wait");
 # endif
-    if (WSREP_ON && wsrep_thd_is_BF(owner->get_thd(), false))
+    if (WSREP_ON && wsrep_thd_is_BF(owner, false))
     {
       wait_result= mysql_cond_wait(&m_COND_wait_status, &m_LOCK_wait_status);
     }
@@ -2962,7 +2962,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   bool abort_blocking_enabled= false;
   double abort_blocking_timeout= slave_abort_blocking_timeout;
   if (abort_blocking_timeout < lock_wait_timeout &&
-      m_owner->get_thd()->rgi_slave)
+      m_owner->rgi_slave)
   {
     /*
       After @@slave_abort_blocking_timeout seconds, kill non-replication
@@ -3005,7 +3005,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     if (wait_status != MDL_wait::EMPTY)
       break;
     /* Check if the client is gone while we were waiting. */
-    if (! thd_is_connected(m_owner->get_thd()))
+    if (! thd_is_connected(m_owner))
     {
       /*
        * The client is disconnected. Don't wait forever:

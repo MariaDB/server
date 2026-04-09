@@ -54,7 +54,7 @@ DECLARE c SYS_REFCURSOR;
 SELECT STR_TO_DATE(c, '%W, %M %e, %Y');
 END;
 $$
-ERROR HY000: Illegal parameter data types sys_refcursor and varchar for operation 'str_to_date'
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'str_to_date'
 BEGIN NOT ATOMIC
 DECLARE c SYS_REFCURSOR;
 SELECT DATE_FORMAT('2009-10-04 22:23:00', c); -- can_return_text

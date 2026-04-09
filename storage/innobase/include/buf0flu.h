@@ -81,11 +81,10 @@ bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed= nullptr)
   noexcept
   MY_ATTRIBUTE((warn_unused_result));
 
-/** Wait until a LRU flush batch ends. */
-void buf_flush_wait_LRU_batch_end() noexcept;
 /** Wait until all persistent pages are flushed up to a limit.
-@param sync_lsn   buf_pool.get_oldest_modification(LSN_MAX) to wait for */
-ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn) noexcept;
+@param sync_lsn   minimum checkpoint
+@param checkpoint whether an empty checkpoint needs to be written */
+ATTRIBUTE_COLD void buf_flush_wait(lsn_t sync_lsn, bool checkpoint) noexcept;
 /** Initiate more eager page flushing if the log checkpoint age is too old.
 @param lsn      buf_pool.get_oldest_modification(LSN_MAX) target
 @param furious  true=furious flushing, false=limit to innodb_io_capacity */
@@ -94,18 +93,13 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious) noexcept;
 /** Initialize page_cleaner. */
 ATTRIBUTE_COLD void buf_flush_page_cleaner_init() noexcept;
 
-/** Flush the buffer pool on shutdown. */
-ATTRIBUTE_COLD void buf_flush_buffer_pool() noexcept;
-
 #ifdef UNIV_DEBUG
 /** Validate the flush list. */
 void buf_flush_validate() noexcept;
 #endif /* UNIV_DEBUG */
 
-/** Synchronously flush dirty blocks during recv_sys_t::apply().
-NOTE: The calling thread is not allowed to hold any buffer page latches! */
-void buf_flush_sync_batch(lsn_t lsn) noexcept;
-
-/** Synchronously flush dirty blocks.
-NOTE: The calling thread is not allowed to hold any buffer page latches! */
-void buf_flush_sync() noexcept;
+/** Wait for the persistent data to be written out.
+NOTE: The calling thread is not allowed to hold any buffer page latches!
+@param lsn        minimum checkpoint to wait for
+@param checkpoint whether an empty checkpoint needs to be written */
+ATTRIBUTE_COLD void buf_flush_sync_batch(lsn_t lsn, bool checkpoint) noexcept;

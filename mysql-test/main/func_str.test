@@ -1626,6 +1626,7 @@ SELECT format(12345678901234567890.123, 3, 'en_IN');
 SELECT format(12345678901234567890.123, 3, 'en_US');
 --enable_cursor_protocol
 SELECT format(12345678901234567890.123, 3, 'it_CH');
+SELECT format(12345678901234567890.123, 3, 'it_IT');
 SELECT format(12345678901234567890.123, 3, 'ru_RU');
 #check after fix MDEV-31512
 --disable_cursor_protocol

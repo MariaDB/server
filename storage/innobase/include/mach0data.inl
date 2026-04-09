@@ -30,6 +30,7 @@ Created 11/28/1995 Heikki Tuuri
 
 #include "mtr0types.h"
 #include "ut0byte.h"
+#include "my_byteorder.h"
 
 /*******************************************************//**
 The following function is used to store data in one byte. */
@@ -63,8 +64,8 @@ mach_write_to_2(
 	ut_ad((n & ~0xFFFFUL) == 0);
 #endif
 
-	b[0] = (byte)(n >> 8);
-	b[1] = (byte)(n);
+	uint16_t v = my_htobe16(uint16_t(n));
+	memcpy(b, &v, 2);
 }
 
 /** The following function is used to fetch data from one byte.
@@ -87,7 +88,9 @@ uint16_t
 mach_read_from_2(
 	const byte*	b)
 {
-	return(uint16_t(uint16_t(b[0]) << 8 | b[1]));
+	uint16_t v;
+	memcpy(&v, b, 2);
+	return my_betoh16(v);
 }
 
 #ifndef UNIV_INNOCHECKSUM
@@ -135,8 +138,7 @@ mach_write_to_3(
 {
 	ut_ad((n & ~0xFFFFFFUL) == 0);
 
-	b[0] = (byte)(n >> 16);
-	b[1] = (byte)(n >> 8);
+	mach_write_to_2(b, n >> 8);
 	b[2] = (byte)(n);
 }
 
@@ -149,10 +151,7 @@ uint32_t
 mach_read_from_3(
 	const byte*	b)
 {
-	return( (static_cast<uint32_t>(b[0]) << 16)
-		| (static_cast<uint32_t>(b[1]) << 8)
-		| static_cast<uint32_t>(b[2])
-		);
+	return (uint32_t(mach_read_from_2(b)) << 8) | uint32_t(b[2]);
 }
 #endif /* !UNIV_INNOCHECKSUM */
 
@@ -166,10 +165,8 @@ mach_write_to_4(
 	byte*	b,	/*!< in: pointer to four bytes where to store */
 	ulint	n)	/*!< in: ulint integer to be stored */
 {
-	b[0] = (byte)(n >> 24);
-	b[1] = (byte)(n >> 16);
-	b[2] = (byte)(n >> 8);
-	b[3] = (byte) n;
+	uint32_t v = my_htobe32(uint32_t(n));
+	memcpy(b, &v, 4);
 }
 
 /** The following function is used to fetch data from 4 consecutive
@@ -181,11 +178,9 @@ uint32_t
 mach_read_from_4(
 	const byte*	b)
 {
-	return( (static_cast<uint32_t>(b[0]) << 24)
-		| (static_cast<uint32_t>(b[1]) << 16)
-		| (static_cast<uint32_t>(b[2]) << 8)
-		| static_cast<uint32_t>(b[3])
-		);
+	uint32_t v;
+	memcpy(&v, b, 4);
+	return my_betoh32(v);
 }
 
 #ifndef UNIV_INNOCHECKSUM
@@ -343,8 +338,8 @@ mach_write_to_8(
 	void*		b,	/*!< in: pointer to 8 bytes where to store */
 	ib_uint64_t	n)	/*!< in: 64-bit integer to be stored */
 {
-	mach_write_to_4(static_cast<byte*>(b), (ulint) (n >> 32));
-	mach_write_to_4(static_cast<byte*>(b) + 4, (ulint) n);
+	uint64_t v = my_htobe64(n);
+	memcpy(b, &v, 8);
 }
 
 #endif /* !UNIV_INNOCHECKSUM */
@@ -359,13 +354,10 @@ mach_read_from_8(
 /*=============*/
 	const byte*	b)	/*!< in: pointer to 8 bytes */
 {
-	ib_uint64_t	u64;
+	uint64_t v;
 
-	u64 = mach_read_from_4(b);
-	u64 <<= 32;
-	u64 |= mach_read_from_4(b + 4);
-
-	return(u64);
+	memcpy(&v, b, 8);
+	return my_betoh64(v);
 }
 
 #ifndef UNIV_INNOCHECKSUM
@@ -723,7 +715,7 @@ mach_read_from_2_little_endian(
 /*===========================*/
 	const byte*	buf)		/*!< in: from where to read */
 {
-	return((ulint)(buf[0]) | ((ulint)(buf[1]) << 8));
+	return uint2korr(buf);
 }
 
 /*********************************************************//**
@@ -736,13 +728,7 @@ mach_write_to_2_little_endian(
 	ulint	n)		/*!< in: unsigned long int to write */
 {
 	ut_ad(n < 256 * 256);
-
-	*dest = (byte)(n & 0xFFUL);
-
-	n = n >> 8;
-	dest++;
-
-	*dest = (byte)(n & 0xFFUL);
+	int2store(dest, n);
 }
 
 /*********************************************************//**
