@@ -14,7 +14,8 @@ This is m33020_db1.sp
 This is m33020_db1.sp
 SELECT object_type, object_schema, object_name, count_star, count_statements, sum_rows_sent
 FROM performance_schema.events_statements_summary_by_program
-WHERE object_type='procedure' AND LOWER(object_schema)='m33020_db1';
+WHERE object_type='procedure' AND LOWER(object_schema)='m33020_db1'
+ORDER BY object_schema, object_name;
 object_type	object_schema	object_name	count_star	count_statements	sum_rows_sent
 PROCEDURE	m33020_DB1	sp	1	1	1
 PROCEDURE	m33020_db1	sp	1	1	1
