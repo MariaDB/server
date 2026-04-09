@@ -38,24 +38,26 @@ int ha_parquet::open(const char *, int, uint)
   duckdb_initialized = false;
 
 
+
   // Steps to get DuckDB stuff to work:
   // 1: Create the in-memory DuckDB database and connection
   //     - Code should look something like this (putting on heap so we can use it in other methods (like write_row() for example)):
-  //        db = new duckdb::DuckDB(nullptr);
-  //        con = new duckdb::Connection(*db);
-  //.       con->Query("SET memory_limit='32MB'"); // memory_limit size isn't mentioned in the systems design document, so I set it to 32MB for now (double the BLOCK_SIZE)
+  db = new duckdb::DuckDB(nullptr);
+  con = new duckdb::Connection(*db);
+  con->Query("SET memory_limit='32MB'"); // memory_limit size isn't mentioned in the systems design document, so I set it to 32MB for now (double the BLOCK_SIZE)
   // 2: View Iceberg Table in DuckDB
   //     - Code should look something like this:
-  //        con->Query("INSTALL iceberg;");   runs only once when needed; skips otherwise
-  //        con->Query("LOAD iceberg;");      this needs to run everytime
-  //        std::string s3_path = our path to s3 storage;
-  //        std::string create_view_iceberg_query = "CREATE VIEW iceberg_view AS SELECT * FROM iceberg_scan('" + s3_path + "')";
-  //        con->Query(create_view_iceberg_query);
+  con->Query("INSTALL iceberg;");   //runs only once when needed; skips otherwise
+  con->Query("LOAD iceberg;");      //this needs to run everytime
+  std::string s3_path = our path to s3 storage;
+  std::string create_view_iceberg_query = "CREATE VIEW iceberg_view AS SELECT * FROM iceberg_scan('" + s3_path + "')";
+  con->Query(create_view_iceberg_query);
   
 
 
-  DBUG_RETURN(0);
+  
   duckdb_initialized = true;
+  DBUG_RETURN(0);
 
 
 }
@@ -308,7 +310,6 @@ ha_parquet::check_if_supported_inplace_alter(TABLE *,
   return HA_ALTER_INPLACE_NOT_SUPPORTED;
 }
 
-int ha_parquet::external_lock(THD *thd, int lock_type) {
 int ha_parquet::external_lock(THD *thd, int lock_type) {
 
   DBUG_ENTER("ha_parquet::external_lock");

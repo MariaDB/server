@@ -53,6 +53,11 @@ private:
   uint64_t row_count;
   uint64_t flush_threshold;
   bool duckdb_initialized;
+  bool buffer_table_created = false;
+  
+  duckdb::DuckDB *db = nullptr;
+  duckdb::Connection *con = nullptr;
+
 
 };
 #endif
