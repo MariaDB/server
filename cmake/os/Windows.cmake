@@ -221,3 +221,6 @@ include(${_SCRIPT_DIR}/WindowsCache.cmake)
 # this is out of place, not really a system check
 set(FN_NO_CASE_SENSE 1)
 set(USE_SYMDIR 1)
+
+# debug
+set(GRN_WITH_LLAMA_CPP "no" CACHE STRING "" FORCE)
