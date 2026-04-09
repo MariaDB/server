@@ -22,7 +22,7 @@ CALL m33020_DB1.sp();
 CREATE PROCEDURE m33020_DB1.sp2() SELECT 'This is m33020_DB1.sp2';
 CALL m33020_db1.sp();
 
-SELECT object_type, object_schema, object_name, count_star, count_statements, sum_rows_sent
+SELECT object_type, object_schema, object_name
 FROM performance_schema.events_statements_summary_by_program
 WHERE object_type='procedure' AND LOWER(object_schema)='m33020_db1';
 
