@@ -16,9 +16,7 @@
 
 /* ======================================================================
    Open Query Graph Computation Engine, based on a concept by Arjen Lentz
-   v3 implementation by Antony Curtis, Arjen Lentz, Andrew McDonnell
-   For more information, documentation, support, enhancement engineering,
-   see http://openquery.com/graph or contact graph@openquery.com
+   v3 implementation by Antony Curtis, Arjen Lentz, Andrew McDonnella.
    ======================================================================
 */
 
