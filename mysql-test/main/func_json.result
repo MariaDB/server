@@ -1774,5 +1774,11 @@ null<=>json_extract('1',json_object(null,'{ }',null,null),'{}')
 Warnings:
 Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 1
 #
+# MDEV-39213: json range syntax crash
+#
+SELECT JSON_EXISTS(CONCAT('[', REPEAT('[', 4000), 'Y', REPEAT(']', 4000), ', 1]'), '$[100]');
+JSON_EXISTS(CONCAT('[', REPEAT('[', 4000), 'Y', REPEAT(']', 4000), ', 1]'), '$[100]')
+NULL
+#
 # End of 10.6 tests
 #

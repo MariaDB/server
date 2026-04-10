@@ -1371,14 +1371,16 @@ int json_find_path(json_engine_t *je,
         json_skip_array_item(je);
       break;
     case JST_OBJ_END:
-      do
+      while (*p_cur_step > p->steps)
       {
         (*p_cur_step)--;
-      } while (*p_cur_step > p->steps &&
-               array_counters[*p_cur_step - p->steps] == SKIPPED_STEP_MARK);
+        if (array_counters[*p_cur_step - p->steps] != SKIPPED_STEP_MARK)
+           break;
+      }
       break;
     case JST_ARRAY_END:
-      (*p_cur_step)--;
+      if (*p_cur_step > p->steps)
+        (*p_cur_step)--;
       break;
     default:
       DBUG_ASSERT(0);

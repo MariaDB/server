@@ -1238,6 +1238,11 @@ FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
 
 select null<=>json_extract('1',json_object(null,'{ }',null,null),'{}');
 
+--echo #
+--echo # MDEV-39213: json range syntax crash
+--echo #
+
+SELECT JSON_EXISTS(CONCAT('[', REPEAT('[', 4000), 'Y', REPEAT(']', 4000), ', 1]'), '$[100]');
 
 --echo #
 --echo # End of 10.6 tests
