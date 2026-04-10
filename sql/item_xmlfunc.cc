@@ -3919,6 +3919,139 @@ public:
 };
 
 
+enum xml_time_char_classes {
+  T_MNS,
+  T_PLS,
+  T_DIG,
+  T_Z,
+  T_T,
+  T_PNT,
+  T_CLN,
+  T_SPC,
+  T_EOF,
+  t_er,
+  T_TIME_CLASSES
+};
+
+
+static enum xml_time_char_classes xml_time_chr_map[96] = {
+  t_er, t_er,  t_er,  t_er, t_er, t_er,  t_er, t_er,
+  t_er, T_SPC, T_SPC, t_er, t_er, T_SPC, t_er, t_er,
+  t_er, t_er,  t_er,  t_er, t_er, t_er,  t_er, t_er,
+  t_er, t_er,  t_er,  t_er, t_er, t_er,  t_er, t_er,
+
+  T_SPC, t_er,  t_er,  t_er,  t_er,  t_er,  t_er,  t_er, /* !"#$%&'*/
+  t_er,  t_er,  t_er,  T_PLS, t_er,  T_MNS, T_PNT, t_er, /*()*+,-./ */
+  T_DIG, T_DIG, T_DIG, T_DIG, T_DIG, T_DIG, T_DIG, T_DIG,/*01234567*/
+  T_DIG, T_DIG, T_CLN, t_er,  t_er,  t_er,  t_er,  t_er, /*89:;<=>?*/
+
+  t_er,  t_er,  t_er,  t_er,  t_er,  T_EXP, t_er,  t_er, /*@ABCDEFG*/
+  t_er,  t_er,  t_er,  t_er,  t_er,  t_er,  t_er,  t_er, /*HIJKLMNO*/
+  t_er,  t_er,  t_er,  t_er,  T_T,   t_er,  t_er,  t_er, /*PQRSTUVW*/
+  t_er,  t_er,  T_Z,   t_er,  t_er,  t_er,  t_er,  t_er  /*XYZ[\]^_*/
+};
+
+
+enum xml_time_states {
+  TS_GO,  /* Initial state. */
+  TS_END, /* Datetime ended. */
+  TS_YMI, /* If the year starts with '-'. */
+  TS_YN,
+  TS_M1,
+  TS_M2,
+  TS_D1,
+  TS_D2,
+  TS_H1,
+  TS_H2,
+  TS_MI1,
+  TS_MI2,
+  TS_S1,
+  TS_S2,
+  TS_SFR,
+  TS_NUM_STATES,
+  T_SYN   /* Syntax error. */
+};
+
+
+static int xml_time_states[TS_NUM_STATES][T_NUM_CLASSES]=
+{
+/*         -        +        0..9   .       T       Z       :      SPACE   EOF   BAD_SYM*/
+/*GO*/   { TS_YMI, TS_YN,  TS_Y1,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_GO,  T_SYN, T_SYN},
+/*END*/  { T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_END, T_SYN, T_SYN},
+/*YMI*/  { T_SYN,  T_SYN,  TS_Y1,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
+/*Y1*/   { T_SYN,  T_SYN,  TS_Y2,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
+/*Y2*/   { T_SYN,  T_SYN,  TS_Y3,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
+/*Y3*/   { T_SYN,  T_SYN,  TS_Y4,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
+/*Y4*/   { T_SYN,  T_SYN,  TS_Y4,  T_SYN,  T_SYN,  T_SYN,  T_M1,   TS_SYN, T_SYN, T_SYN},
+/*M1*/   { T_SYN,  T_SYN,  TS_M2,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
+/*M2*/   { T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_D1,   TS_SYN, T_SYN, T_SYN},
+/*D1*/   { T_SYN,  T_SYN,  TS_D2,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
+/*D2*/   { T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_H1,   T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
+/*H1*/   { T_SYN,  T_SYN,  TS_H2,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
+/*H2*/   { T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_H1,   T_SYN,  T_MI1,  TS_SYN, T_SYN, T_SYN},
+/*MI1*/  { T_SYN,  T_SYN,  TS_MI2, T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
+/*MI2*/  { T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_S1,   TS_SYN, T_SYN, T_SYN},
+/*S1*/   { T_SYN,  T_SYN,  TS_MI2, T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
+/*S2*/   { T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_S1,   TS_SYN, T_SYN, T_SYN},
+
+/*END*/  { E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN,  NS_END, NS_END, E_SYN},
+/*GMI*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, E_SYN,  E_SYN,  E_SYN,  E_SYN},
+/*GPL*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, E_SYN,  E_SYN,  E_SYN,  E_SYN},
+/*INT*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, NS_EXP, NS_END, NS_END, E_SYN},
+/*FRC*/  { E_SYN,  E_SYN,  NS_FRC, E_SYN,  NS_EXP, NS_END, NS_END, E_SYN},
+/*EXP*/  { NS_EX1, NS_EX1, NS_EX2, E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN},
+/*EX1*/  { E_SYN,  E_SYN,  NS_EX2, E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN},
+/*EX2*/  { E_SYN,  E_SYN,  NS_EX2, E_SYN,  E_SYN,  NS_END, NS_END, E_SYN}
+};
+
+
+enum xml_time_types
+{
+  TIME_TYPE_YEAR,
+  TIME_TYPE_MONTH,
+  TIME_TYPE_DAY,
+  TIME_TYPE_DATETIME
+};
+
+static uint xml_timestate_types[NS_NUM_STATES]=
+{
+/*GO*/   0,
+/*END*/  0,
+/*GMI*/  NUM_TYPE_NEG,
+/*GPL*/  0,
+/*INT*/  0,
+/*FRC*/  NUM_TYPE_FRAC_PART,
+/*EXP*/  NUM_TYPE_EXP,
+/*EX1*/  0,
+/*EX2*/  0,
+};
+
+class XMLSchema_datetime_builtin_type: public XMLSchema_builtin_type
+{
+public:
+  int m_type;
+  XMLSchema_num_builtin_type(int type): XMLSchema_builtin_type(),
+    m_type(type) {}
+  bool valid_value(const char *value, size_t len) override
+  {
+    int state= TS_GO;
+    size_t pos= 0;
+
+    while (len > pos)
+    {
+      int c= (int) value[pos++];
+      if (c > 103)
+        return 0;
+
+      state= xml_time_states[state][xml_time_chr_map[c]];
+      if (state == T_SYN ||
+          xml_time_state_types[state] == m_type)
+        return 0;
+    }
+
+    return xml_time_states[state][T_EOF] == TS_END;
+  }
+};
 /* Just to make type control possible. */
 class XMLSchema_type: public XMLSchema_tag
 {

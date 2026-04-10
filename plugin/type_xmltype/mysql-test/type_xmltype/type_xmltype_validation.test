@@ -120,5 +120,37 @@ set @xml= '<?xml version="1.0"?>
 
 select XMLISVALID(@xml, @schema);
 
+set @schema= '<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="order">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="id" type="xs:integer"/>
+        <xs:element name="date" type="xs:date"/>
+        <xs:element name="datetime" type="xs:dateTime"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>';
+
+set @xml= '<?xml version="1.0"?>
+<order>
+  <id>1001</id>
+  <date>2026-04-10</date>
+  <datetime>2026-04-10T11:31:00Z</datetime>
+</order>';
+
+select XMLISVALID(@xml, @schema);
+
+set @xml= '<?xml version="1.0"?>
+<order>
+  <id>1001</id>
+  <date>2026-4-10</date>
+  <datetime>2026-04-10T11:31:00Z</datetime>
+</order>';
+
+select XMLISVALID(@xml, @schema);
+
 --echo # End of 11.8 tests
 
