@@ -11,7 +11,7 @@
   #include <tap.h>
 
 
-std::string build_query(std::string table_name, TABLE *table_arg);
+std::string build_query_create(std::string table_name, TABLE *table_arg);
 
 static void test_build_query_basic_schema()
 {
@@ -29,7 +29,7 @@ static void test_build_query_basic_schema()
   Field *fields[]= {&id_field, &name_field, nullptr};
   share.field= fields;
 
-  std::string query= build_query("users", &table);
+  std::string query= build_query_create("users", &table);
   ok(query == "CREATE TABLE users (id INTEGER, name VARCHAR)",
      "build_query maps INTEGER and VARCHAR columns");
 }
@@ -48,7 +48,7 @@ static void test_build_query_blob_mapping()
   Field *fields[]= {&payload_field, nullptr};
   share.field= fields;
 
-  std::string query= build_query("files", &table);
+  std::string query= build_query_create("files", &table);
   ok(query == "CREATE TABLE files (payload BLOB)",
      "build_query maps binary blob columns to BLOB");
 }

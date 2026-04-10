@@ -4,9 +4,7 @@
 
 #include "sql_class.h"
 #include "handler.h"
-//#include "duckdb.hpp"
-//#include "sql/table.h"
-//#include "sql/handler.h"
+#include "duckdb.hpp"
 #include <iostream>
 
 handlerton *parquet_hton= 0;
@@ -110,9 +108,25 @@ std::string mariadb_type_to_duckdb(Field *f) {
     }
 }
 
+static std::string quote_string_literal(const std::string &value)
+{
+    std::string quoted = "'";
+
+    for (char ch : value) {
+      if (ch == '\'') {
+        quoted += "''";
+      } else {
+        quoted += ch;
+      }
+    }
+
+    quoted += "'";
+    return quoted;
+}
 
 
-std::string build_query(std::string table_name, TABLE *table_arg){
+
+std::string build_query_create(std::string table_name, TABLE *table_arg){
     std::string query = "CREATE TABLE " + table_name + " (";
 
       
@@ -123,10 +137,16 @@ std::string build_query(std::string table_name, TABLE *table_arg){
       std::string col_name = f->field_name.str;
       enum_field_types t = f->type();
       std::string duck_type = mariadb_type_to_duckdb(f);
-      
-      if (duck_type.empty()) return ""; //this means we are missing a type
-      
-      if (!first)query += ", ";
+            
+      if (duck_type.empty()){
+        return ""; // Missing a type
+      }
+
+      if(!first){
+        query += ", ";
+      }
+
+
       first = false;
       query += col_name + " " + duck_type;
     }
@@ -137,11 +157,18 @@ std::string build_query(std::string table_name, TABLE *table_arg){
     return query;
 }
 
+static std::string build_copy_to_parquet_query(const std::string &table_name,
+                                               const std::string &parquet_file)
+{
+    return "COPY " + table_name + " TO " +
+           quote_string_literal(parquet_file) + " (FORMAT PARQUET)";
+}
+
 
 int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *create_info) {
 
-    
-  
+    (void) create_info;
+
     std::string table_path(name);
     // Setting the helper_db_path if it is empty, if not then it already exists so we can use it. 
     if(helper_db_path.empty()){
@@ -155,10 +182,6 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
            helper_db_path = table_path.substr(0, pos) + "/duckdb_helper.duckdb";
         }
     }
-
-
-    //duckdb::DuckDB db(helper_db_path);
-    //duckdb::Connection con(db);
 
     // Path to the parquet file
     std::string parquet_file = std::string(name) + ".parquet";
@@ -176,12 +199,30 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
 
     // Now build the query
 
-    std::string query = build_query(table_name, table_arg);
+    std::string query = build_query_create(table_name, table_arg);
+    if (query.empty()) {
+      return HA_ERR_UNSUPPORTED;
+    }
 
-    //auto result = con.Query(query);
+    try {
+      duckdb::DuckDB db(helper_db_path);
+      duckdb::Connection con(db);
 
-    
+      auto create_result = con.Query(query);
+      if (!create_result || create_result->HasError()) {
+        return HA_ERR_INTERNAL_ERROR;
+      }
 
+      auto copy_result = con.Query(build_copy_to_parquet_query(table_name, parquet_file));
+      if (!copy_result || copy_result->HasError()) {
+        return HA_ERR_INTERNAL_ERROR;
+      }
+        
+    } catch (const duckdb::Exception &) {
+      return HA_ERR_INTERNAL_ERROR;
+    } catch (const std::exception &) {
+      return HA_ERR_INTERNAL_ERROR;
+    }
     return 0;
 }
 
