@@ -187,13 +187,16 @@ INSERT INTO t1 VALUES(2);
 # restart
 DROP TABLE t1;
 #
-# MDEV-34222 Alter operation on redundant table aborts the server
+# MDEV-38079 Crash recovery fails after ALTER TABLE…PAGE_COMPRESSED=1
 #
 SET @df_row = @@global.INNODB_DEFAULT_ROW_FORMAT;
 SET GLOBAL INNODB_DEFAULT_ROW_FORMAT=REDUNDANT;
 CREATE TABLE t1 (c CHAR(1)) ENGINE=InnoDB;
+ALTER TABLE t1 PAGE_COMPRESSED=1, ALGORITHM=INPLACE;
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'PAGE_COMPRESSED'
+ALTER TABLE t1 PAGE_COMPRESSED=1, ALGORITHM=COPY;
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SET GLOBAL INNODB_DEFAULT_ROW_FORMAT=compact;
-ALTER TABLE t1 PAGE_COMPRESSED=1;
-ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'PAGE_COMPRESSED=1 ROW_FORMAT=REDUNDANT'
+ALTER TABLE t1 PAGE_COMPRESSED=1, ALGORITHM=COPY;
 DROP TABLE t1;
 SET @@global.INNODB_DEFAULT_ROW_FORMAT = @df_row;

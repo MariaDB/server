@@ -9012,6 +9012,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   {
     Alter_drop *drop;
     drop_it.rewind();
+    List<LEX_CSTRING> dropped_fk;
     while ((drop=drop_it++)) {
       switch (drop->type) {
       case Alter_drop::KEY:
@@ -9041,7 +9042,17 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           {
             if (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
                               drop->name) == 0)
+            {
+              List_iterator<LEX_CSTRING> check_it(dropped_fk);
+              while (LEX_CSTRING *dropped_name = check_it++)
+              {
+                if (my_strcasecmp(system_charset_info, dropped_name->str,
+                                  f_key->foreign_id->str) == 0)
+                  goto fk_not_found;
+              }
+              dropped_fk.push_back(f_key->foreign_id);
               goto fk_found;
+            }
           }
           goto fk_not_found;
         fk_found:
@@ -9336,6 +9347,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     when a foreign key has the same table as child and parent.
   */
   List_iterator<FOREIGN_KEY_INFO> fk_parent_key_it(fk_parent_key_list);
+  List<FOREIGN_KEY_INFO> keys_to_remove;
 
   while ((f_key= fk_parent_key_it++))
   {
@@ -9358,10 +9370,31 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
                           &table->s->db) == 0) &&
           (lex_string_cmp(table_alias_charset, f_key->foreign_table,
                           &table->s->table_name) == 0))
-        fk_parent_key_it.remove();
+      {
+        keys_to_remove.push_back(f_key);
+        break;
+      }
     }
   }
 
+  IF_DBUG(uint removed= 0,);
+  /* Remove the identified keys */
+  List_iterator<FOREIGN_KEY_INFO> remove_it(keys_to_remove);
+  while ((f_key = remove_it++))
+  {
+    fk_parent_key_it.rewind();
+    while (FOREIGN_KEY_INFO *fk= fk_parent_key_it++)
+    {
+      if (fk == f_key)
+      {
+        fk_parent_key_it.remove();
+        IF_DBUG(removed++,);
+        break;
+      }
+    }
+  }
+  DBUG_ASSERT(keys_to_remove.elements == removed);
+  IF_DBUG(removed= 0,);
   /*
     If there are FKs in which this table is parent which were not
     dropped we need to prevent ALTER deleting rows from the table,
@@ -9432,6 +9465,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     by this ALTER TABLE.
   */
   List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
+  keys_to_remove.empty();
 
   while ((f_key= fk_key_it++))
   {
@@ -9444,9 +9478,30 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
       if ((drop->type == Alter_drop::FOREIGN_KEY) &&
           (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
                          drop->name) == 0))
-        fk_key_it.remove();
+      {
+        keys_to_remove.push_back(f_key);
+        break;
+      }
     }
   }
+
+  /* Remove the identified keys */
+  List_iterator<FOREIGN_KEY_INFO> remove_it2(keys_to_remove);
+  while ((f_key = remove_it2++))
+  {
+    fk_key_it.rewind();
+    while (FOREIGN_KEY_INFO *fk= fk_key_it++)
+    {
+      if (fk == f_key)
+      {
+        fk_key_it.remove();
+        IF_DBUG(removed++,);
+        break;
+      }
+    }
+  }
+
+  DBUG_ASSERT(keys_to_remove.elements == removed);
 
   fk_key_it.rewind();
   while ((f_key= fk_key_it++))
@@ -11819,7 +11874,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
   }
   bulk_insert_started= 0;
   if (!ignore)
+  {
+    bool save_abort_on_warning= thd->abort_on_warning;
+    thd->abort_on_warning= false;
     to->file->extra(HA_EXTRA_END_ALTER_COPY);
+    thd->abort_on_warning= save_abort_on_warning;
+  }
 
   cleanup_done= 1;
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);

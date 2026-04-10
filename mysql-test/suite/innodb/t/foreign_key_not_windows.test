@@ -75,3 +75,15 @@ DROP TABLE u;
 eval DROP DATABASE `$d255`;
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo #  MDEV-24356 InnoDB: Failing assertion: len < sizeof(tmp_buff)
+--echo #               in get_foreign_key_info
+--echo #
+CREATE DATABASE `db_new..............................................end`;
+USE `db_new..............................................end`;
+SET STATEMENT foreign_key_checks=0 for
+CREATE TABLE t1(f1 INT UNSIGNED,f2 INT UNSIGNED,
+               FOREIGN KEY (f2)REFERENCES t2 (f1))ENGINE=InnoDB;
+ALTER TABLE t1 FORCE;
+DROP DATABASE `db_new..............................................end`;

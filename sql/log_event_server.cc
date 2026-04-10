@@ -8178,17 +8178,17 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
       found.  I can see no scenario where it would be incorrect to
       chose the row to change only using a PK or an UNNI.
     */
-    if (table->key_info->flags & HA_NOSAME)
+    if (m_key_info->flags & HA_NOSAME)
     {
       /* Unique does not have non nullable part */
-      if (!(table->key_info->flags & (HA_NULL_PART_KEY)))
+      if (!(m_key_info->flags & (HA_NULL_PART_KEY)))
       {
         error= 0;
         goto end;
       }
       else
       {
-        KEY *keyinfo= table->key_info;
+        KEY *keyinfo= m_key_info;
         /*
           Unique has nullable part. We need to check if there is any
           field in the BI image that is null and part of UNNI.

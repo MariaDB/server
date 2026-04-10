@@ -100,12 +100,6 @@ public:
 };
 
 
-#ifdef DBUG_OFF
-static inline const char *dbug_print_item(Item *item) { return NULL; }
-#else
-const char *dbug_print_item(Item *item);
-#endif
-
 class Virtual_tmp_table;
 class sp_head;
 class Protocol;
@@ -8347,7 +8341,11 @@ public:
   bool excl_dep_on_grouping_fields(st_select_lex *sel) override
   { return m_item->excl_dep_on_grouping_fields(sel); }
   bool is_expensive() override { return m_item->is_expensive(); }
-  void set_item(Item *item) { m_item= item; }
+  void set_item(Item *item)
+  {
+    m_item= item;
+    ref= &m_item;
+  }
   Item *deep_copy(THD *thd) const override
   {
     Item *clone_item= m_item->deep_copy_with_checks(thd);

@@ -384,7 +384,7 @@ extern PSI_cond_key key_TABLE_SHARE_COND_rotation;
 extern PSI_thread_key key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_kill_server, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand,
-  key_thread_slave_background, key_rpl_parallel_thread;
+  key_thread_slave_deadlock_handler, key_rpl_parallel_thread;
 
 extern PSI_file_key key_file_binlog, key_file_binlog_cache,
        key_file_binlog_index, key_file_binlog_index_cache, key_file_casetest,
@@ -753,7 +753,8 @@ extern mysql_mutex_t
        LOCK_error_log, LOCK_delayed_insert, LOCK_short_uuid_generator,
        LOCK_delayed_status, LOCK_delayed_create, LOCK_crypt, LOCK_timezone,
        LOCK_active_mi, LOCK_manager, LOCK_user_conn,
-       LOCK_prepared_stmt_count, LOCK_error_messages,  LOCK_backup_log;
+       LOCK_prepared_stmt_count, LOCK_error_messages,
+       LOCK_slave_deadlock_handler, LOCK_backup_log;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_global_system_variables;
 extern mysql_rwlock_t LOCK_all_status_vars;
 extern mysql_mutex_t LOCK_start_thread;
@@ -764,6 +765,7 @@ extern mysql_rwlock_t LOCK_ssl_refresh;
 extern mysql_prlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_start_thread;
 extern mysql_cond_t COND_manager;
+extern mysql_cond_t COND_slave_deadlock_handler;
 
 extern my_bool opt_use_ssl;
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,

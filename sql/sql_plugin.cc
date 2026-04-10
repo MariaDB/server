@@ -3839,7 +3839,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
   char *comment= static_cast<char*>(alloc_root(mem_root, max_comment_len + 1));
   char *optname;
 
-  int index= 0, UNINIT_VAR(offset);
+  int UNINIT_VAR(offset);
   st_mysql_sys_var *opt, **plugin_option;
   st_bookmark *v;
 
@@ -3892,7 +3892,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
   */
 
   for (plugin_option= tmp->plugin->system_vars;
-       plugin_option && *plugin_option; plugin_option++, index++)
+       plugin_option && *plugin_option; plugin_option++)
   {
     opt= *plugin_option;
 
@@ -3949,7 +3949,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
   }
 
   for (plugin_option= tmp->plugin->system_vars;
-       plugin_option && *plugin_option; plugin_option++, index++)
+       plugin_option && *plugin_option; plugin_option++)
   {
     switch ((opt= *plugin_option)->flags & PLUGIN_VAR_TYPEMASK) {
     case PLUGIN_VAR_BOOL:
