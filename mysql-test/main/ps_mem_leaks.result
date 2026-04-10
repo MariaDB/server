@@ -367,4 +367,25 @@ a
 # Clean up
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
+#
+# MDEV-39265: Assertion `(mem_root->flags & 4) == 0` failed upon 2nd execution `USING DEFAULT` with sequence
+#
+CREATE SEQUENCE s;
+CREATE TABLE t (a INT DEFAULT(NEXTVAL(s)));
+INSERT INTO t VALUES (1), (2);
+PREPARE stmt FROM "UPDATE t SET a = ?";
+# Verify no SIGABRT
+EXECUTE stmt USING 3;
+EXECUTE stmt USING DEFAULT;
+# Verify the there are no repeated allocations on statement mem_root
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,assert_no_alloc_internal_tables";
+EXECUTE stmt USING DEFAULT;
+EXECUTE stmt USING 4;
+EXECUTE stmt USING DEFAULT;
+EXECUTE stmt USING DEFAULT;
+SET SESSION debug_dbug= @saved_dbug;
+DEALLOCATE PREPARE stmt;
+DROP SEQUENCE s;
+DROP TABLE t;
 # End of 10.6 tests
