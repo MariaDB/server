@@ -309,32 +309,33 @@ IF(WIN32)
     INSTALL_SCRIPT(${CMAKE_CURRENT_BINARY_DIR}/${file}.pl COMPONENT Server_Scripts)
   ENDFOREACH()
 ELSE()
-  IF(WITH_WSREP)
+  IF(WITH_WSREP AND NOT WITHOUT_SERVER)
     SET(WSREP_SCRIPTS
       wsrep_sst_mysqldump
       wsrep_sst_rsync
       wsrep_sst_mariabackup
       wsrep_sst_backup
     )
-    # The following script is sourced from other SST scripts, so it should
-    # not be made executable.
-    SET(WSREP_SOURCE
-      wsrep_sst_common
-    )
-
     INSTALL_LINK(wsrep_sst_rsync wsrep_sst_rsync_wan ${INSTALL_BINDIR} server-galera)
-    FOREACH(file ${WSREP_SOURCE})
+    FOREACH(file ${WSREP_SCRIPTS})
       CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh
         ${CMAKE_CURRENT_BINARY_DIR}/${file} ESCAPE_QUOTES @ONLY)
-      IF(NOT ${file}_COMPONENT)
-        SET(${file}_COMPONENT Server)
-      ENDIF()
-      INSTALL(FILES
+      INSTALL_SCRIPT(
         ${CMAKE_CURRENT_BINARY_DIR}/${file}
         DESTINATION ${INSTALL_BINDIR}
-        COMPONENT ${${file}_COMPONENT}
+        COMPONENT server-galera
       )
     ENDFOREACH()
+
+    # The following script is sourced from other SST scripts, so it should
+    # not be made executable.
+    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/wsrep_sst_common.sh
+      ${CMAKE_CURRENT_BINARY_DIR}/wsrep_sst_common ESCAPE_QUOTES @ONLY)
+    INSTALL(FILES
+      ${CMAKE_CURRENT_BINARY_DIR}/wsrep_sst_common
+      DESTINATION ${INSTALL_BINDIR}
+      COMPONENT server-galera
+    )
   ENDIF()
   IF (NOT WITHOUT_SERVER)
     SET(SERVER_SCRIPTS
@@ -362,7 +363,6 @@ ELSE()
     mytop
     mariadb-hotcopy
     ${SERVER_SCRIPTS}
-    ${WSREP_SCRIPTS}
   )
 
   FOREACH(file ${BIN_SCRIPTS})
