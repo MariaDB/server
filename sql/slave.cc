@@ -1699,48 +1699,73 @@ int init_strvar_from_file(char *var, int max_size, IO_CACHE *f,
   DBUG_RETURN(1);
 }
 
-/*
-  when moving these functions to mysys, don't forget to
-  remove slave.cc from libmysqld/CMakeLists.txt
-*/
+/* Check if numeric string parsing has trailing gaarbage */
+static bool is_numeric_line_corrupted(const char *endptr, int error)
+{
+  if (error)
+    return true;
+
+  while (*endptr != '\0' &&
+         (my_isspace(system_charset_info, *endptr) || 
+          my_iscntrl(system_charset_info, *endptr)))
+  {
+    endptr++;
+  }
+
+  return *endptr != '\0';
+}
+
 int init_intvar_from_file(int* var, IO_CACHE* f, int default_val)
 {
   char buf[32];
   DBUG_ENTER("init_intvar_from_file");
 
+  *var= default_val;
 
-  if (my_b_gets(f, buf, sizeof(buf)))
+  if (!my_b_gets(f, buf, sizeof(buf)))
   {
-    *var = atoi(buf);
+    if (!default_val)
+      DBUG_RETURN(1);
     DBUG_RETURN(0);
   }
-  else if (default_val)
-  {
-    *var = default_val;
-    DBUG_RETURN(0);
-  }
-  DBUG_RETURN(1);
+
+  char *endptr= buf + strlen(buf);
+  int error= 0;
+  longlong val= my_strtoll10(buf, &endptr, &error);
+
+  if (is_numeric_line_corrupted(endptr, error))
+    DBUG_RETURN(1);
+
+  if (val < 0 || val > UINT_MAX)
+    DBUG_RETURN(1);
+
+  *var= (int) val;
+  DBUG_RETURN(0);
 }
 
 int init_ulonglongvar_from_file(ulonglong* var, IO_CACHE* f,
                                 ulonglong default_val)
 {
   char buf[MY_INT64_NUM_DECIMAL_DIGITS];
-  int error;
+  int error= 0;
   DBUG_ENTER("init_ulonglongvar_from_file");
 
+  *var= default_val;
 
-  if (my_b_gets(f, buf, sizeof(buf)))
+  if (!my_b_gets(f, buf, sizeof(buf)))
   {
-    *var = (ulonglong) my_strtoll10(buf, (char**) 0, &error);
+    if (!default_val)
+      DBUG_RETURN(1);
     DBUG_RETURN(0);
   }
-  else if (default_val)
-  {
-    *var = default_val;
-    DBUG_RETURN(0);
-  }
-  DBUG_RETURN(1);
+
+  char *endptr= buf + strlen(buf);
+  *var= (ulonglong) my_strtoll10(buf, &endptr, &error);
+
+  if (is_numeric_line_corrupted(endptr, error))
+    DBUG_RETURN(1);
+
+  DBUG_RETURN(0);
 }
 
 int init_floatvar_from_file(float* var, IO_CACHE* f, float default_val)
@@ -1748,20 +1773,24 @@ int init_floatvar_from_file(float* var, IO_CACHE* f, float default_val)
   char buf[16];
   DBUG_ENTER("init_floatvar_from_file");
 
+  *var= default_val;
 
-  if (my_b_gets(f, buf, sizeof(buf)))
+  if (!my_b_gets(f, buf, sizeof(buf)))
   {
-    if (sscanf(buf, "%f", var) != 1)
+    if (default_val == 0.0)
       DBUG_RETURN(1);
-    else
-      DBUG_RETURN(0);
-  }
-  else if (default_val != 0.0)
-  {
-    *var = default_val;
     DBUG_RETURN(0);
   }
-  DBUG_RETURN(1);
+
+  char *endptr= buf + strlen(buf);
+  int error= 0;
+  double val= my_strtod(buf, &endptr, &error);
+
+  if (is_numeric_line_corrupted(endptr, error))
+    DBUG_RETURN(1);
+
+  *var= (float) val;
+  DBUG_RETURN(0);
 }
 
 
