@@ -1572,6 +1572,9 @@ The following specify which files/extra groups are read (specified before remain
  --sort-buffer-size=# 
  Each thread that needs to do a sort allocates a buffer of
  this size
+ --sql-generate-invisible-primary-key 
+ Automatically generate an invisible auto-increment
+ primary key for tables created without a primary key
  --sql-mode=name     Sets the sql mode. Any combination of: REAL_AS_FLOAT, 
  PIPES_AS_CONCAT, ANSI_QUOTES, IGNORE_SPACE, 
  IGNORE_BAD_TABLE_OPTIONS, ONLY_FULL_GROUP_BY, 
@@ -2144,6 +2147,7 @@ slave-type-conversions
 slow-launch-time 2
 slow-query-log FALSE
 sort-buffer-size 2097152
+sql-generate-invisible-primary-key FALSE
 sql-mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 sql-safe-updates FALSE
 stack-trace TRUE

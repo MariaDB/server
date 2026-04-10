@@ -2784,18 +2784,33 @@ static Create_field *add_internal_field(THD *thd, Type_handler *type_handler,
   return cf;
 }
 
-Key *
-mysql_add_invisible_index(THD *thd, List<Key> *key_list,
-        LEX_CSTRING* field_name, enum Key::Keytype type)
+Key *mysql_add_invisible_index(THD *thd, List<Key> *key_list,
+                               LEX_CSTRING *field_name, enum Key::Keytype type,
+                               bool generated_arg= false)
 {
-  Key *key= new (thd->mem_root) Key(type, &null_clex_str, HA_KEY_ALG_UNDEF,
-                                    false, DDL_options(DDL_options::OPT_NONE));
+  Key *key= new (thd->mem_root)
+      Key(type, &null_clex_str, HA_KEY_ALG_UNDEF, generated_arg,
+          DDL_options(DDL_options::OPT_NONE));
   key->columns.push_back(new(thd->mem_root) Key_part_spec(field_name, 0, true),
           thd->mem_root);
   key_list->push_back(key, thd->mem_root);
   return key;
 }
 
+static int add_generated_invisible_pk(THD *thd, List<Create_field> *field_list,
+                                      Alter_info *alter_info)
+{
+  Create_field *fld=
+      add_internal_field(thd, &type_handler_ulonglong,
+                         AUTO_INCREMENT_FLAG | UNSIGNED_FLAG | UNIQUE_KEY_FLAG,
+                         "_inv_PK_", field_list);
+  if (fld->check(thd))
+    return 1;
+  Key *key= mysql_add_invisible_index(thd, &(alter_info->key_list),
+                                      &(fld->field_name), Key::PRIMARY, true);
+  key->invisible= true;
+  return 0;
+}
 
 bool Type_handler_string::Key_part_spec_init_ft(Key_part_spec *part,
                                                 const Column_definition &def)
@@ -3300,6 +3315,40 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       DBUG_RETURN(TRUE);
   }
 
+  /*
+    Check if primary_key exists. If a primary key does not exist, and
+    the generate_invisible_primary_key option is set, and the handler
+    supports auto increment, and there are no existing auto-increment
+    fields, add an INVISIBLE_FULL primary key (MDEV-21181)
+  */
+  if (!create_info->sequence &&
+      thd->variables.generate_invisible_primary_key &&
+      !(file->ha_table_flags() & HA_NO_AUTO_INCREMENT))
+  {
+    List_iterator<Key> auto_pk_key_iterator(alter_info->key_list);
+    List_iterator<Create_field> auto_pk_field_iterator(
+        alter_info->create_list);
+    bool has_primary_key= 0;
+    bool has_auto_increment= 0;
+    Key *auto_pk_key;
+    while (!has_primary_key && (auto_pk_key= auto_pk_key_iterator++))
+    {
+      if (auto_pk_key->type == Key::PRIMARY)
+        has_primary_key= 1;
+    }
+    while (!has_auto_increment && (sql_field= auto_pk_field_iterator++))
+    {
+      if (sql_field->flags & AUTO_INCREMENT_FLAG)
+      {
+        has_auto_increment= 1;
+      }
+    }
+
+    if (!has_primary_key && !has_auto_increment)
+      if (add_generated_invisible_pk(thd, &alter_info->create_list,
+                                     alter_info))
+        DBUG_RETURN(TRUE);
+  }
 
   for (field_no=0; (sql_field=it++) ; field_no++)
   {
@@ -8717,7 +8766,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
   {
     if (field->invisible == INVISIBLE_FULL)
-        continue;
+      continue;
     Alter_drop *drop;
     if (field->type() == MYSQL_TYPE_VARCHAR)
       create_info->varchar= TRUE;
