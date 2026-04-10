@@ -7154,6 +7154,10 @@ public:
   { return NULL; }
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg) override
   { return NULL; }
+  /*
+    Note that grouping_field_transformer_for_where() is not implemented for
+    some reason.
+  */
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override;
 
