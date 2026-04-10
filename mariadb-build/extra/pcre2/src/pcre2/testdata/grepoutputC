@@ -1,0 +1,74 @@
+--- Test 1 ---
+Arg1: [T] [he ] [ ] Arg2: |T| () () (0)
+The quick brown
+Arg1: [T] [his] [s] Arg2: |T| () () (0)
+This time it jumps and jumps and jumps.
+Arg1: [T] [his] [s] Arg2: |T| () () (0)
+This line contains \E and (regex) *meta* [characters].
+Arg1: [T] [he ] [ ] Arg2: |T| () () (0)
+The word is cat in this line
+Arg1: [T] [he ] [ ] Arg2: |T| () () (0)
+The caterpillar sat on the mat
+Arg1: [T] [he ] [ ] Arg2: |T| () () (0)
+The snowcat is not an animal
+RC=0
+--- Test 2 ---
+Arg1: [qu] [qu]
+The quick brown
+Arg1: [ t] [ t]
+This time it jumps and jumps and jumps.
+Arg1: [ l] [ l]
+This line contains \E and (regex) *meta* [characters].
+Arg1: [wo] [wo]
+The word is cat in this line
+Arg1: [ca] [ca]
+The caterpillar sat on the mat
+Arg1: [sn] [sn]
+The snowcat is not an animal
+RC=0
+--- Test 3 ---
+0:T
+The quick brown
+0:T
+This time it jumps and jumps and jumps.
+0:T
+This line contains \E and (regex) *meta* [characters].
+0:T
+The word is cat in this line
+0:T
+The caterpillar sat on the mat
+0:T
+The snowcat is not an animal
+RC=0
+--- Test 4 ---
+0:T
+
+The quick brown
+0:T
+
+This time it jumps and jumps and jumps.
+0:T
+
+This line contains \E and (regex) *meta* [characters].
+0:T
+
+The word is cat in this line
+0:T
+
+The caterpillar sat on the mat
+0:T
+
+The snowcat is not an animal
+RC=0
+--- Test 5 ---
+T
+T
+T
+T
+T
+T
+RC=1
+--- Test 6 ---
+0:T:AA
+The quick brown
+RC=0

@@ -1,0 +1,88 @@
+#pattern framesize, memory
+
+/abcd/
+Memory allocation (code space): 15
+Frame size for pcre2_match(): 128
+    abcd\=memory
+malloc  20480
+ 0: abcd
+    abcd\=find_limits
+Minimum heap limit = 1
+Minimum match limit = 2
+Minimum depth limit = 2
+ 0: abcd
+
+/(((((((((((((((((((((((((((((( (^abc|xyz){1,20}$  ))))))))))))))))))))))))))))))/x
+Memory allocation (code space): 855
+Frame size for pcre2_match(): 624
+    abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcX\=memory
+malloc  40960
+free unremembered block
+No match
+    abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcX\=find_limits
+Minimum heap limit = 22
+Minimum match limit = 37
+Minimum depth limit = 35
+No match
+
+/ab(cd)/
+Memory allocation (code space): 23
+Frame size for pcre2_match(): 144
+    abcd\=memory
+ 0: abcd
+ 1: cd
+    abcd\=memory,ovector=0
+free    40960
+free unremembered block
+malloc    128
+malloc  20480
+ 0: abcd
+ 1: cd
+
+/\[(a)]{1000}/expand,framesize
+Memory allocation (code space): 10007
+Frame size for pcre2_match(): 16128
+    \[a]{1000}\=ovector=1
+Matched, but too many substrings
+ 0: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+# The heapframes_size option gets pcre2test to show the size of the heapframes
+# vector that after pcre2_match() has run. Running a match with ovector=0
+# causes the match data block to be freed, thus releasing that vector.
+
+/\[(a)]{1000}/expand,framesize
+Memory allocation (code space): 10007
+Frame size for pcre2_match(): 16128
+    \[a]{1000}\=ovector=1,heapframes_size
+Matched, but too many substrings
+ 0: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+Heapframes size in match_data: 20643840
+    
+/a/heapframes_size,framesize
+Memory allocation (code space): 9
+Frame size for pcre2_match(): 128
+    a\=ovector=0 
+ 0: a
+Heapframes size in match_data: 20480
+    
+/a|(b){200}/g,expand,heapframes_size
+Memory allocation (code space): 2012
+Frame size for pcre2_match(): 144
+    abacus z\[b]{200}z
+ 0: a
+ 0: a
+ 0: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+ 1: b
+Heapframes size in match_data: 40960
+    a\=ovector=0 
+ 0: a
+Heapframes size in match_data: 20480
+
+/(a)/replace=>$1<
+Memory allocation (code space): 17
+Frame size for pcre2_match(): 144
+    cat\=heapframes_size
+ 1: c>a<t
+Heapframes size in match_data: 20480
+
+# End

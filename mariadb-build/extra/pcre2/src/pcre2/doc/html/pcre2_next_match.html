@@ -1,0 +1,55 @@
+<html>
+<head>
+<title>pcre2_next_match specification</title>
+</head>
+<body bgcolor="#FFFFFF" text="#00005A" link="#0066FF" alink="#3399FF" vlink="#2222BB">
+<h1>pcre2_next_match man page</h1>
+<p>
+Return to the <a href="index.html">PCRE2 index page</a>.
+</p>
+<p>
+This page is part of the PCRE2 HTML documentation. It was generated
+automatically from the original man page. If there is any nonsense in it,
+please consult the man page, in case the conversion went wrong.
+<br>
+<h2>
+SYNOPSIS
+</h2>
+<p>
+<b>#include &#60;pcre2.h&#62;</b>
+</p>
+<p>
+<b>int pcre2_next_match(pcre2_match_data *<i>match_data</i>,</b>
+<b>  PCRE2_SIZE *<i>pstart_offset</i>, uint32_t *<i>poptions</i>);</b>
+</p>
+<h2>
+DESCRIPTION
+</h2>
+<p>
+This function can be called after one of the match functions
+(<b>pcre2_match()</b>, <b>pcre2_dfa_match()</b>, or <b>pcre2_jit_match()</b>), and
+must be provided with the same <i>match_data</i> parameter. It outputs the
+appropriate parameters for searching for the next match in the same subject
+string, and is suitable for applications providing "global" matching behaviour
+(for example, replacing all matches in the subject, or splitting the subject on
+all matches, or simply counting the number of matches).
+</p>
+<p>
+It returns 0 ("false") if there is no need to make any further match attempts,
+or 1 ("true") if another match should be attempted.
+</p>
+<p>
+The *<i>pstart_offset</i> and *<i>poptions</i> are set if the function returns 1.
+The *<i>pstart_offset</i> should be passed to the next match attempt directly,
+and the *<i>poptions</i> should be passed to the next match attempt by combining
+with the application's match options using OR.
+</p>
+<p>
+There is a complete description of the PCRE2 native API in the
+<a href="pcre2api.html"><b>pcre2api</b></a>
+page and a description of the POSIX API in the
+<a href="pcre2posix.html"><b>pcre2posix</b></a>
+page.
+<p>
+Return to the <a href="index.html">PCRE2 index page</a>.
+</p>

@@ -1,0 +1,30 @@
+.TH PCRE2_SET_NEWLINE 3 "11 August 2023" "PCRE2 10.47"
+.SH NAME
+PCRE2 - Perl-compatible regular expressions (revised API)
+.SH SYNOPSIS
+.rs
+.sp
+.B #include <pcre2.h>
+.PP
+.nf
+.B int pcre2_set_max_varlookbehind(pcre2_compile_context *\fIccontext\fP,
+.B "  uint32_t \fIvalue\fP);"
+.fi
+.
+.SH DESCRIPTION
+.rs
+.sp
+This sets a maximum length for the number of characters matched by a
+variable-length lookbehind assertion. The default is set when PCRE2 is built,
+with the ultimate default being 255, the same as Perl. Lookbehind assertions
+without a bounding length are not supported. The result is always zero.
+.P
+There is a complete description of the PCRE2 native API in the
+.\" HREF
+\fBpcre2api\fP
+.\"
+page and a description of the POSIX API in the
+.\" HREF
+\fBpcre2posix\fP
+.\"
+page.

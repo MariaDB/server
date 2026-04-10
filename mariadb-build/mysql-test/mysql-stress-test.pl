@@ -1,0 +1,1 @@
+./mariadb-stress-test.pl

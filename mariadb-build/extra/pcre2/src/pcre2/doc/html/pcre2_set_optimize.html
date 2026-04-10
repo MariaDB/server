@@ -1,0 +1,57 @@
+<html>
+<head>
+<title>pcre2_set_optimize specification</title>
+</head>
+<body bgcolor="#FFFFFF" text="#00005A" link="#0066FF" alink="#3399FF" vlink="#2222BB">
+<h1>pcre2_set_optimize man page</h1>
+<p>
+Return to the <a href="index.html">PCRE2 index page</a>.
+</p>
+<p>
+This page is part of the PCRE2 HTML documentation. It was generated
+automatically from the original man page. If there is any nonsense in it,
+please consult the man page, in case the conversion went wrong.
+<br>
+<h2>
+SYNOPSIS
+</h2>
+<p>
+<b>#include &#60;pcre2.h&#62;</b>
+</p>
+<p>
+<b>int pcre2_set_optimize(pcre2_compile_context *<i>ccontext</i>,</b>
+<b>  uint32_t <i>directive</i>);</b>
+</p>
+<h2>
+DESCRIPTION
+</h2>
+<p>
+This function controls which performance optimizations will be applied
+by <b>pcre2_compile()</b>. It can be called multiple times with the same compile
+context; the effects are cumulative, with the effects of later calls taking
+precedence over earlier ones.
+</p>
+<p>
+The result is zero for success, PCRE2_ERROR_NULL if <i>ccontext</i> is NULL,
+or PCRE2_ERROR_BADOPTION if <i>directive</i> is unknown. The latter could be
+useful to detect if a certain optimization is available.
+</p>
+<p>
+The list of possible values for the <i>directive</i> parameter are:
+<pre>
+  PCRE2_OPTIMIZATION_FULL   Enable all optimizations (default)
+  PCRE2_OPTIMIZATION_NONE   Disable all optimizations
+  PCRE2_AUTO_POSSESS        Enable auto-possessification
+  PCRE2_AUTO_POSSESS_OFF    Disable auto-possessification
+  PCRE2_DOTSTAR_ANCHOR      Enable implicit dotstar anchoring
+  PCRE2_DOTSTAR_ANCHOR_OFF  Disable implicit dotstar anchoring
+  PCRE2_START_OPTIMIZE      Enable start-up optimizations at match time
+  PCRE2_START_OPTIMIZE_OFF  Disable start-up optimizations at match time
+</pre>
+There is a complete description of the PCRE2 native API, including detailed
+descriptions <i>directive</i> parameter values in the
+<a href="pcre2api.html"><b>pcre2api</b></a>
+page.
+<p>
+Return to the <a href="index.html">PCRE2 index page</a>.
+</p>

@@ -1,0 +1,12 @@
+# This tests the EBCDIC support in PCRE2, specifically when NL has been
+# configured to be 0x25.
+
+/^\x25$/
+  \n
+ 0: \x0a
+
+/\cU/
+  \x0a
+No match
+  \x85
+ 0: \x85

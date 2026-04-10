@@ -1,0 +1,12 @@
+# This is a generated file and its contents are an internal implementation detail.
+# The download step will be re-executed if anything in this file changes.
+# No other meaning or use of this file is supported.
+
+method=url
+command=/opt/homebrew/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/Users/aryankancherla/Downloads/DLAB_MariaDB/server/mariadb-build/extra/pcre2/src/pcre2-stamp/download-pcre2.cmake;COMMAND;/opt/homebrew/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/Users/aryankancherla/Downloads/DLAB_MariaDB/server/mariadb-build/extra/pcre2/src/pcre2-stamp/verify-pcre2.cmake;COMMAND;/opt/homebrew/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/Users/aryankancherla/Downloads/DLAB_MariaDB/server/mariadb-build/extra/pcre2/src/pcre2-stamp/extract-pcre2.cmake
+source_dir=/Users/aryankancherla/Downloads/DLAB_MariaDB/server/mariadb-build/extra/pcre2/src/pcre2
+work_dir=/Users/aryankancherla/Downloads/DLAB_MariaDB/server/mariadb-build/extra/pcre2/src
+url(s)=https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.47/pcre2-10.47.zip
+hash=MD5=7906aec38f872b74f1b925122dde9069
+      no_extract=
+

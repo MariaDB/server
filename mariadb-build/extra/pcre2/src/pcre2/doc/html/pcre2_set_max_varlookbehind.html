@@ -1,0 +1,42 @@
+<html>
+<head>
+<title>pcre2_set_max_varlookbehind specification</title>
+</head>
+<body bgcolor="#FFFFFF" text="#00005A" link="#0066FF" alink="#3399FF" vlink="#2222BB">
+<h1>pcre2_set_max_varlookbehind man page</h1>
+<p>
+Return to the <a href="index.html">PCRE2 index page</a>.
+</p>
+<p>
+This page is part of the PCRE2 HTML documentation. It was generated
+automatically from the original man page. If there is any nonsense in it,
+please consult the man page, in case the conversion went wrong.
+<br>
+<h2>
+SYNOPSIS
+</h2>
+<p>
+<b>#include &#60;pcre2.h&#62;</b>
+</p>
+<p>
+<b>int pcre2_set_max_varlookbehind(pcre2_compile_context *<i>ccontext</i>,</b>
+<b>  uint32_t <i>value</i>);</b>
+</p>
+<h2>
+DESCRIPTION
+</h2>
+<p>
+This sets a maximum length for the number of characters matched by a
+variable-length lookbehind assertion. The default is set when PCRE2 is built,
+with the ultimate default being 255, the same as Perl. Lookbehind assertions
+without a bounding length are not supported. The result is always zero.
+</p>
+<p>
+There is a complete description of the PCRE2 native API in the
+<a href="pcre2api.html"><b>pcre2api</b></a>
+page and a description of the POSIX API in the
+<a href="pcre2posix.html"><b>pcre2posix</b></a>
+page.
+<p>
+Return to the <a href="index.html">PCRE2 index page</a>.
+</p>

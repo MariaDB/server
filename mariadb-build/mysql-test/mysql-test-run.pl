@@ -1,0 +1,1 @@
+./mariadb-test-run.pl

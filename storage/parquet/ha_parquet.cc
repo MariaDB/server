@@ -4,9 +4,11 @@
 
 #include "sql_class.h"
 #include "handler.h"
-//#include "duckdb.hpp"
-//#include "sql/table.h"
-//#include "sql/handler.h"
+#include "duckdb.hpp"
+#include "sql/table.h"
+#include "sql/handler.h"
+#include "thr_lock.h"
+#include "my_base.h"
 #include <iostream>
 
 handlerton *parquet_hton= 0;
@@ -49,9 +51,9 @@ int ha_parquet::open(const char *, int, uint)
   //     - Code should look something like this:
   con->Query("INSTALL iceberg;");   //runs only once when needed; skips otherwise
   con->Query("LOAD iceberg;");      //this needs to run everytime
-  std::string s3_path = our path to s3 storage;
-  std::string create_view_iceberg_query = "CREATE VIEW iceberg_view AS SELECT * FROM iceberg_scan('" + s3_path + "')";
-  con->Query(create_view_iceberg_query);
+  //std::string s3_path = "";     //our path to s3 storage;
+  //std::string create_view_iceberg_query = "CREATE VIEW iceberg_view AS SELECT * FROM iceberg_scan('" + s3_path + "')";
+  //con->Query(create_view_iceberg_query);
   
 
 

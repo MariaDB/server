@@ -1,0 +1,20 @@
+# 
+#  pkg_config.pc.in
+#
+#  pkg_config configuration file 
+#  For a detailed description of options, please visit
+#  Dan Nicholson’s Guide to pkg-config (http://www.freedesktop.org/wiki/Software/pkg-config/)
+#
+
+prefix=/usr/local/mysql
+includedir=${prefix}/include/mysql/
+libdir=${prefix}/lib/
+
+Name: libmariadb
+Version: 3.4.9
+Description: MariaDB Connector/C dynamic library
+Cflags: -I${includedir}
+Libs: -L${libdir} -lmariadb
+Libs.private: -l/Library/Developer/CommandLineTools/SDKs/MacOSX15.sdk/usr/lib/libz.tbd -lwolfssl -lgnutls
+
+

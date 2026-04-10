@@ -1,0 +1,153 @@
+# This tests the EBCDIC support in PCRE2. It catches cases where explicit values
+# such as 0x0a have been used instead of names like CHAR_LF.
+#
+# This test file however is checked in to the repository encoded as ISO-8859-1,
+# using a reversible mapping from EBCDIC. This lets us easily author test cases.
+# However, they will only be run against a genuine EBCDIC when the input and
+# output files are converted to EBCDIC.
+#
+# There is also a special mode, on ASCII systems, where pcre2test takes ASCII
+# input (actually, ISO-8859-1), and then does the transcoding internally before
+# calling the genuinely-EBCDIC version of PCRE2.
+
+# Test default newline and variations
+
+/^A/m
+    ABC
+    12\nABC
+
+/^A/m,newline=any
+    12\nABC
+    12\rABC
+    12\r\nABC
+    12\x85ABC
+
+/^A/m,newline=anycrlf
+    12\nABC
+    12\rABC
+    12\r\nABC
+\= Expect no match
+    12\x85ABC
+
+# Test \h
+
+/^A\h/
+    A B
+    A\tB
+    A\xA0B
+
+# Test \H
+
+/^A\H/
+    AB
+    A\x42B
+\= Expect no match
+    A B
+
+# Test \R
+
+/^A\R/
+    A\nB
+    A\rB
+    A\x85B
+    A\x0bB
+    A\x0cB
+\= Expect no match
+    A B
+
+# Test \v
+
+/^A\v/
+    A\nB
+    A\rB
+    A\x85B
+    A\x0bB
+    A\x0cB
+\= Expect no match
+    A B
+
+# Test \V
+
+/^A\V/
+    A B
+\= Expect no match
+    A\nB
+    A\rB
+    A\x85B
+    A\x0bB
+    A\x0cB
+
+# For repeated items, use an atomic group so that the output is the same
+# for DFA matching (otherwise it may show multiple matches).
+
+# Test \h+
+
+/^A(?>\h+)/
+    A B
+
+# Test \H+
+
+/^A(?>\H+)/
+    AB
+\= Expect no match
+    A B
+
+# Test \R+
+
+/^A(?>\R+)/
+    A\nB
+    A\rB
+    A\x85B
+    A\x0bB
+    A\x0cB
+\= Expect no match
+    A B
+
+# Test \v+
+
+/^A(?>\v+)/
+    A\nB
+    A\rB
+    A\x85B
+    A\x0bB
+    A\x0cB
+\= Expect no match
+    A B
+
+# Test \V+
+
+/^A(?>\V+)/
+    A B
+\= Expect no match
+    A\nB
+    A\rB
+    A\x85B
+    A\x0bB
+    A\x0cB
+
+# Test \c functionality
+
+/\c@\cA\cb\cC\cd\cE\cf\cG\ch\cI\cJ\cK\cl\cm\cN\cO\cp\cq\cr\cS\cT\cV\cW\cX\cy\cZ/
+  \x00\x01\x02\x03\x9c\x09\x86\x7f\x97\x8d\x8e\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x9d\x08\x87\x18\x19\x92
+  \x00\x01\x02\x03\x9c\x09\x86\x7f\x97\x8d\x8e\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x9d\x08\x87\x18\x19\x92
+
+#if !ebcdic-nl25
+
+/^\x15$/
+  \n
+
+/\cU/
+  \x0a
+  \x85
+
+#endif
+
+/\c[\c\\c]\c^\c_/
+    \x8f\x1c\x1d\x1e\x1f
+
+/\c?/
+    A\x9fB
+
+/\c&/
+
+# End

@@ -1,0 +1,182 @@
+# This set of tests checks local-specific features, using the "fr_FR" locale. 
+# It is almost Perl-compatible. When run via RunTest, the locale is edited to
+# be whichever of "fr_FR", "french", or "fr" is found to exist. There is
+# different version of this file called wintestinput3 for use on Windows,
+# where the locale is called "french" and the tests are run using
+# RunTest.bat. 
+
+#forbid_utf
+
+/^[\w]+/
+\= Expect no match
+    École
+No match
+
+/^[\w]+/locale=fr_FR
+    École
+ 0: \xc9cole
+
+/^[\W]+/
+    École
+ 0: \xc9
+
+/^[\W]+/locale=fr_FR
+\= Expect no match
+    École
+No match
+
+/[\b]/
+    \b
+ 0: \x08
+\= Expect no match
+    a
+No match
+
+/[\b]/locale=fr_FR
+    \b
+ 0: \x08
+\= Expect no match
+    a
+No match
+
+/^\w+/
+\= Expect no match
+    École
+No match
+
+/^\w+/locale=fr_FR
+    École
+ 0: \xc9cole
+
+/(.+)\b(.+)/
+    École
+ 0: \xc9cole
+ 1: \xc9
+ 2: cole
+
+/(.+)\b(.+)/locale=fr_FR
+\= Expect no match
+    École
+No match
+
+/École/i
+    École
+ 0: \xc9cole
+\= Expect no match
+    école
+No match
+
+/École/i,locale=fr_FR
+    École
+ 0: \xc9cole
+    école
+ 0: \xe9cole
+
+/\w/I
+Capture group count = 0
+Starting code units: 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P
+  Q R S T U V W X Y Z _ a b c d e f g h i j k l m n o p q r s t u v w x y z
+Subject length lower bound = 1
+
+/\w/I,locale=fr_FR
+Capture group count = 0
+Starting code units: 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P
+  Q R S T U V W X Y Z _ a b c d e f g h i j k l m n o p q r s t u v w x y z
+  \xaa \xb5 \xba \xc0 \xc1 \xc2 \xc3 \xc4 \xc5 \xc6 \xc7 \xc8 \xc9 \xca \xcb
+  \xcc \xcd \xce \xcf \xd0 \xd1 \xd2 \xd3 \xd4 \xd5 \xd6 \xd8 \xd9 \xda \xdb
+  \xdc \xdd \xde \xdf \xe0 \xe1 \xe2 \xe3 \xe4 \xe5 \xe6 \xe7 \xe8 \xe9 \xea
+  \xeb \xec \xed \xee \xef \xf0 \xf1 \xf2 \xf3 \xf4 \xf5 \xf6 \xf8 \xf9 \xfa
+  \xfb \xfc \xfd \xfe \xff
+Subject length lower bound = 1
+
+# All remaining tests are in the fr_FR locale, so set the default.
+
+#pattern locale=fr_FR
+
+/^[\xc8-\xc9]/i
+    École
+ 0: \xc9
+    école
+ 0: \xe9
+
+/^[\xc8-\xc9]/
+    École
+ 0: \xc9
+\= Expect no match
+    école
+No match
+
+/\xb5/i
+    µ
+ 0: \xb5
+\= Expect no match
+    \x9c
+No match
+
+/ÿ/i
+    \xff
+ 0: \xff
+\= Expect no match
+    y
+No match
+
+/(.)\1/i
+    \xfe\xde
+ 0: \xfe\xde
+ 1: \xfe
+
+/\W+/
+    >>>\xaa<<<
+ 0: >>>
+    >>>\xba<<< 
+ 0: >>>
+
+/[\W]+/
+    >>>\xaa<<<
+ 0: >>>
+    >>>\xba<<< 
+ 0: >>>
+
+/[^[:alpha:]]+/
+    >>>\xaa<<<
+ 0: >>>
+    >>>\xba<<< 
+ 0: >>>
+
+/\w+/
+    >>>\xaa<<<
+ 0: \xaa
+    >>>\xba<<< 
+ 0: \xba
+
+/[\w]+/
+    >>>\xaa<<<
+ 0: \xaa
+    >>>\xba<<< 
+ 0: \xba
+
+/[[:alpha:]]+/
+    >>>\xaa<<<
+ 0: \xaa
+    >>>\xba<<< 
+ 0: \xba
+    
+/[[:alpha:]][[:lower:]][[:upper:]]/IB
+------------------------------------------------------------------
+        Bra
+        [A-Za-z\xaa\xb5\xba\xc0-\xd6\xd8-\xf6\xf8-\xff]
+        [a-z\xaa\xb5\xba\xdf-\xf6\xf8-\xff]
+        [A-Z\xc0-\xd6\xd8-\xde]
+        Ket
+        End
+------------------------------------------------------------------
+Capture group count = 0
+Starting code units: A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+  a b c d e f g h i j k l m n o p q r s t u v w x y z \xaa \xb5 \xba \xc0 \xc1
+  \xc2 \xc3 \xc4 \xc5 \xc6 \xc7 \xc8 \xc9 \xca \xcb \xcc \xcd \xce \xcf \xd0
+  \xd1 \xd2 \xd3 \xd4 \xd5 \xd6 \xd8 \xd9 \xda \xdb \xdc \xdd \xde \xdf \xe0
+  \xe1 \xe2 \xe3 \xe4 \xe5 \xe6 \xe7 \xe8 \xe9 \xea \xeb \xec \xed \xee \xef
+  \xf0 \xf1 \xf2 \xf3 \xf4 \xf5 \xf6 \xf8 \xf9 \xfa \xfb \xfc \xfd \xfe \xff
+Subject length lower bound = 3
+
+# End of testinput3 

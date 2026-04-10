@@ -1,0 +1,436 @@
+# This set of tests is run only with the 8-bit library. They must not require 
+# UTF-8 or Unicode property support. */
+    
+#forbid_utf
+#newline_default lf any anycrlf
+
+#if !ebcdic
+
+/a\xc4\xa3b/
+    a\N{U+123}b
+ 0: a\xc4\xa3b
+\= Expect no match # error message (too big char)
+    a\x{0123}b
+** Character \x{123} is greater than 255 and UTF-8 mode is not enabled.
+** Truncation will probably give the wrong result.
+No match
+    a\o{00443}b
+** Character \x{123} is greater than 255 and UTF-8 mode is not enabled.
+** Truncation will probably give the wrong result.
+No match
+    a\443b
+** Character \x{123} is greater than 255 and UTF-8 mode is not enabled.
+** Truncation will probably give the wrong result.
+No match
+
+/fd bf bf bf bf bf/I,hex
+Capture group count = 0
+First code unit = \xfd
+Last code unit = \xbf
+Subject length lower bound = 6
+\= Expect warning
+    \N{U+7fffffff}
+** Warning: character \N{U+7fffffff} is greater than 0x10ffff and should not be encoded as UTF-8
+ 0: \xfd\xbf\xbf\xbf\xbf\xbf
+\= Expect no match # error message (too big char)
+    \x{7fffffff}
+** Character \x{7fffffff} is greater than 255 and UTF-8 mode is not enabled.
+** Truncation will probably give the wrong result.
+No match
+
+#endif
+
+/\x{100}/I
+Failed: error 134 at offset 6: character code point value in \x{} or \o{} is too large
+        here: \x{100 |<--| }
+
+/\o{400}/I
+Failed: error 134 at offset 6: character code point value in \x{} or \o{} is too large
+        here: \o{400 |<--| }
+
+#if !ebcdic
+
+/  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*                          # optional leading comment
+(?:    (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|
+" (?:                      # opening quote...
+[^\\\x80-\xff\n\015"]                #   Anything except backslash and quote
+|                     #    or
+\\ [^\x80-\xff]           #   Escaped something (something != CR)
+)* "  # closing quote
+)                    # initial word
+(?:  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  \.  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*   (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|
+" (?:                      # opening quote...
+[^\\\x80-\xff\n\015"]                #   Anything except backslash and quote
+|                     #    or
+\\ [^\x80-\xff]           #   Escaped something (something != CR)
+)* "  # closing quote
+)  )* # further okay, if led by a period
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  @  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*    (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                           # initial subdomain
+(?:                                  #
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  \.                        # if led by a period...
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*   (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                     #   ...further okay
+)*
+# address
+|                     #  or
+(?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|
+" (?:                      # opening quote...
+[^\\\x80-\xff\n\015"]                #   Anything except backslash and quote
+|                     #    or
+\\ [^\x80-\xff]           #   Escaped something (something != CR)
+)* "  # closing quote
+)             # one word, optionally followed by....
+(?:
+[^()<>@,;:".\\\[\]\x80-\xff\000-\010\012-\037]  |  # atom and space parts, or...
+\(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)       |  # comments, or...
+
+" (?:                      # opening quote...
+[^\\\x80-\xff\n\015"]                #   Anything except backslash and quote
+|                     #    or
+\\ [^\x80-\xff]           #   Escaped something (something != CR)
+)* "  # closing quote
+# quoted strings
+)*
+<  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*                     # leading <
+(?:  @  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*    (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                           # initial subdomain
+(?:                                  #
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  \.                        # if led by a period...
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*   (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                     #   ...further okay
+)*
+
+(?:  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  ,  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  @  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*    (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                           # initial subdomain
+(?:                                  #
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  \.                        # if led by a period...
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*   (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                     #   ...further okay
+)*
+)* # further okay, if led by comma
+:                                # closing colon
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  )? #       optional route
+(?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|
+" (?:                      # opening quote...
+[^\\\x80-\xff\n\015"]                #   Anything except backslash and quote
+|                     #    or
+\\ [^\x80-\xff]           #   Escaped something (something != CR)
+)* "  # closing quote
+)                    # initial word
+(?:  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  \.  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*   (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|
+" (?:                      # opening quote...
+[^\\\x80-\xff\n\015"]                #   Anything except backslash and quote
+|                     #    or
+\\ [^\x80-\xff]           #   Escaped something (something != CR)
+)* "  # closing quote
+)  )* # further okay, if led by a period
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  @  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*    (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                           # initial subdomain
+(?:                                  #
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  \.                        # if led by a period...
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*   (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                     #   ...further okay
+)*
+#       address spec
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  > #                  trailing >
+# name and address
+)  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*                       # optional trailing comment
+/Ix
+Capture group count = 0
+Contains explicit CR or LF match
+Options: extended
+Starting code units: \x09 \x20 ! " # $ % & ' ( * + - / 0 1 2 3 4 5 6 7 8
+  9 = ? A B C D E F G H I J K L M N O P Q R S T U V W X Y Z ^ _ ` a b c d e
+  f g h i j k l m n o p q r s t u v w x y z { | } ~ \x7f
+Subject length lower bound = 3
+
+#endif
+
+/\h/I
+Capture group count = 0
+Starting code units: \x09 \x20 \xa0
+Subject length lower bound = 1
+
+/\H/I
+Capture group count = 0
+Subject length lower bound = 1
+
+/\v/I
+Capture group count = 0
+Starting code units: \x0a \x0b \x0c \x0d \x85
+Subject length lower bound = 1
+
+/\V/I
+Capture group count = 0
+Subject length lower bound = 1
+
+/\R/I
+Capture group count = 0
+Starting code units: \x0a \x0b \x0c \x0d \x85
+Subject length lower bound = 1
+
+/[\h]/B
+------------------------------------------------------------------
+        Bra
+        [\x09 \xa0]
+        Ket
+        End
+------------------------------------------------------------------
+    >\x09<
+ 0: \x09
+
+/[\h]+/B
+------------------------------------------------------------------
+        Bra
+        [\x09 \xa0]++
+        Ket
+        End
+------------------------------------------------------------------
+    >\x09\x20\xa0<
+ 0: \x09 \xa0
+
+/[\v]/B
+------------------------------------------------------------------
+        Bra
+        [\x0a-\x0d\x85]
+        Ket
+        End
+------------------------------------------------------------------
+
+/[\H]/B
+------------------------------------------------------------------
+        Bra
+        [\x00-\x08\x0a-\x1f!-\x9f\xa1-\xff]
+        Ket
+        End
+------------------------------------------------------------------
+
+/[^\h]/B
+------------------------------------------------------------------
+        Bra
+        [^\x09 \xa0]
+        Ket
+        End
+------------------------------------------------------------------
+
+/[\V]/B
+------------------------------------------------------------------
+        Bra
+        [\x00-\x09\x0e-\x84\x86-\xff]
+        Ket
+        End
+------------------------------------------------------------------
+
+#if !ebcdic
+
+/[\x0a\V]/B
+------------------------------------------------------------------
+        Bra
+        [\x00-\x0a\x0e-\x84\x86-\xff]
+        Ket
+        End
+------------------------------------------------------------------
+
+#endif
+
+/\777/I
+Failed: error 151 at offset 4: octal value is greater than \377 in 8-bit non-UTF-8 mode
+        here: \777 |<--|
+
+/(*:0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF)XX/mark
+Failed: error 176 at offset 259: name is too long in (*MARK), (*PRUNE), (*SKIP), or (*THEN)
+        here: ...6789ABCDEF |<--| )XX
+    XX
+     
+/(*:0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF)XX/mark,alt_verbnames
+Failed: error 176 at offset 259: name is too long in (*MARK), (*PRUNE), (*SKIP), or (*THEN)
+        here: ...6789ABCDEF |<--| )XX
+    XX
+     
+/(*:0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDE)XX/mark
+    XX
+ 0: XX
+MK: 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDE
+
+/(*:0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDE)XX/mark,alt_verbnames
+    XX
+ 0: XX
+MK: 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDE
+
+/\u0100/alt_bsux,allow_empty_class,match_unset_backref,dupnames
+Failed: error 177 at offset 6: character code point value in \u.... sequence is too large
+        here: \u0100 |<--|
+
+/[\u0100-\u0200]/alt_bsux,allow_empty_class,match_unset_backref,dupnames
+Failed: error 177 at offset 7: character code point value in \u.... sequence is too large
+        here: [\u0100 |<--| -\u0200]
+
+#if !ebcdic
+
+/[^\x00-a]{12,}[^b-\xff]*/B
+------------------------------------------------------------------
+        Bra
+        [^\x00-a]{12,}+
+        [^b-\xff]*+
+        Ket
+        End
+------------------------------------------------------------------
+
+#endif
+
+/[^\s]*\s* [^\W]+\W+ [^\d]*?\d0 [^\d\w]{4,6}?\w*A/B
+------------------------------------------------------------------
+        Bra
+        [^\x09-\x0d ]*+
+        \s*
+         
+        [0-9A-Z_a-z]++
+        \W+
+         
+        [^0-9]*+
+        \d
+        0 
+        [^0-9A-Z_a-z]{4,6}+
+        \w*
+        A
+        Ket
+        End
+------------------------------------------------------------------
+
+/(*MARK:a\x{100}b)z/alt_verbnames 
+Failed: error 134 at offset 14: character code point value in \x{} or \o{} is too large
+        here: ...RK:a\x{100 |<--| }b)z
+
+/(*:*++++++++++++''''''''''''''''''''+''+++'+++x+++++++++++++++++++++++++++++++++++(++++++++++++++++++++:++++++%++:''''''''''''''''''''''''+++++++++++++++++++++++++++++++++++++++++++++++++++++-++++++++k+++++++''''+++'+++++++++++++++++++++++''''++++++++++++':ƿ)/
+Failed: error 176 at offset 259: name is too long in (*MARK), (*PRUNE), (*SKIP), or (*THEN)
+        here: ...++++++':ƿ |<--| )
+
+/(?i:A{1,}\6666666666)/
+Failed: error 151 at offset 13: octal value is greater than \377 in 8-bit non-UTF-8 mode
+        here: ...:A{1,}\666 |<--| 6666666)
+    A\x{1b6}6666666
+
+# Should cause an error
+/abc/substitute_extended,replace=>\777<
+    abc
+Failed: error -57 at offset 5 in replacement: bad escape sequence in replacement string
+        here: >\777 |<--| <
+
+# Should cause an error
+/abc/substitute_extended,replace=>\o{012345}<
+    abc
+Failed: error -57 at offset 10 in replacement: bad escape sequence in replacement string
+        here: >\o{012345 |<--| }<
+
+/i/turkish_casing
+Failed: error 204 at offset 0: PCRE2_EXTRA_TURKISH_CASING require Unicode (UTF or UCP) mode
+
+# End of testinput9

@@ -1,0 +1,113 @@
+# This set of tests checks local-specific features, using the "fr_FR" locale. 
+# It is almost Perl-compatible. When run via RunTest, the locale is edited to
+# be whichever of "fr_FR", "french", or "fr" is found to exist. There is
+# different version of this file called wintestinput3 for use on Windows,
+# where the locale is called "french" and the tests are run using
+# RunTest.bat. 
+
+#forbid_utf
+
+/^[\w]+/
+\= Expect no match
+    École
+
+/^[\w]+/locale=french
+    École
+
+/^[\W]+/
+    École
+
+/^[\W]+/locale=french
+\= Expect no match
+    École
+
+/[\b]/
+    \b
+\= Expect no match
+    a
+
+/[\b]/locale=french
+    \b
+\= Expect no match
+    a
+
+/^\w+/
+\= Expect no match
+    École
+
+/^\w+/locale=french
+    École
+
+/(.+)\b(.+)/
+    École
+
+/(.+)\b(.+)/locale=french
+\= Expect no match
+    École
+
+/École/i
+    École
+\= Expect no match
+    école
+
+/École/i,locale=french
+    École
+    école
+
+/\w/I
+
+/\w/I,locale=french
+
+# All remaining tests are in the french locale, so set the default.
+
+#pattern locale=french
+
+/^[\xc8-\xc9]/i
+    École
+    école
+
+/^[\xc8-\xc9]/
+    École
+\= Expect no match 
+    école
+
+/\xb5/i
+    µ
+\= Expect no match
+    \x9c
+
+/ÿ/i
+    \xff
+\= Expect no match
+    y
+
+/(.)\1/i
+    \xfe\xde
+
+/\W+/
+    >>>\xaa<<<
+    >>>\xba<<< 
+
+/[\W]+/
+    >>>\xaa<<<
+    >>>\xba<<< 
+
+/[^[:alpha:]]+/
+    >>>\xaa<<<
+    >>>\xba<<< 
+
+/\w+/
+    >>>\xaa<<<
+    >>>\xba<<< 
+
+/[\w]+/
+    >>>\xaa<<<
+    >>>\xba<<< 
+
+/[[:alpha:]]+/
+    >>>\xaa<<<
+    >>>\xba<<< 
+    
+/[[:alpha:]][[:lower:]][[:upper:]]/IB
+
+# End of wintestinput3 

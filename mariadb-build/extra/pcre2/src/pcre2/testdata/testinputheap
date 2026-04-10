@@ -1,0 +1,35 @@
+#pattern framesize, memory
+
+/abcd/
+    abcd\=memory
+    abcd\=find_limits
+
+/(((((((((((((((((((((((((((((( (^abc|xyz){1,20}$  ))))))))))))))))))))))))))))))/x
+    abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcX\=memory
+    abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcX\=find_limits
+
+/ab(cd)/
+    abcd\=memory
+    abcd\=memory,ovector=0
+
+/\[(a)]{1000}/expand,framesize
+    \[a]{1000}\=ovector=1
+
+# The heapframes_size option gets pcre2test to show the size of the heapframes
+# vector that after pcre2_match() has run. Running a match with ovector=0
+# causes the match data block to be freed, thus releasing that vector.
+
+/\[(a)]{1000}/expand,framesize
+    \[a]{1000}\=ovector=1,heapframes_size
+    
+/a/heapframes_size,framesize
+    a\=ovector=0 
+    
+/a|(b){200}/g,expand,heapframes_size
+    abacus z\[b]{200}z
+    a\=ovector=0 
+
+/(a)/replace=>$1<
+    cat\=heapframes_size
+
+# End

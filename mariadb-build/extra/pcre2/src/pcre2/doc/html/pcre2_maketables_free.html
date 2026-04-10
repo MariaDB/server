@@ -1,0 +1,44 @@
+<html>
+<head>
+<title>pcre2_maketables_free specification</title>
+</head>
+<body bgcolor="#FFFFFF" text="#00005A" link="#0066FF" alink="#3399FF" vlink="#2222BB">
+<h1>pcre2_maketables_free man page</h1>
+<p>
+Return to the <a href="index.html">PCRE2 index page</a>.
+</p>
+<p>
+This page is part of the PCRE2 HTML documentation. It was generated
+automatically from the original man page. If there is any nonsense in it,
+please consult the man page, in case the conversion went wrong.
+<br>
+<h2>
+SYNOPSIS
+</h2>
+<p>
+<b>#include &#60;pcre2.h&#62;</b>
+</p>
+<p>
+<b>void pcre2_maketables_free(pcre2_general_context *<i>gcontext</i>,</b>
+<b>  const uint8_t *<i>tables</i>);</b>
+</p>
+<h2>
+DESCRIPTION
+</h2>
+<p>
+This function discards a set of character tables that were created by a call
+to
+<a href="pcre2_maketables.html"><b>pcre2_maketables()</b>.</a>
+</p>
+<p>
+The <i>gcontext</i> parameter should match what was used in that call to
+account for any custom allocators that might be in use; if it is NULL
+the system <b>free()</b> is used.
+</p>
+<p>
+There is a complete description of the PCRE2 native API in the
+<a href="pcre2api.html"><b>pcre2api</b></a>
+page.
+<p>
+Return to the <a href="index.html">PCRE2 index page</a>.
+</p>

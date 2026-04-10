@@ -1,0 +1,504 @@
+# This set of tests is for the 16-bit and 32-bit libraries' basic (non-UTF)
+# features that are not compatible with the 8-bit library, or which give
+# different output in 16-bit or 32-bit mode. The output for the two widths is
+# different, so they have separate output files.
+    
+#forbid_utf
+#newline_default LF ANY ANYCRLF
+
+/[^\x{c4}]/IB
+  
+/\x{100}/I
+
+/  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*                          # optional leading comment
+(?:    (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|
+" (?:                      # opening quote...
+[^\\\x80-\xff\n\015"]                #   Anything except backslash and quote
+|                     #    or
+\\ [^\x80-\xff]           #   Escaped something (something != CR)
+)* "  # closing quote
+)                    # initial word
+(?:  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  \.  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*   (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|
+" (?:                      # opening quote...
+[^\\\x80-\xff\n\015"]                #   Anything except backslash and quote
+|                     #    or
+\\ [^\x80-\xff]           #   Escaped something (something != CR)
+)* "  # closing quote
+)  )* # further okay, if led by a period
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  @  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*    (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                           # initial subdomain
+(?:                                  #
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  \.                        # if led by a period...
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*   (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                     #   ...further okay
+)*
+# address
+|                     #  or
+(?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|
+" (?:                      # opening quote...
+[^\\\x80-\xff\n\015"]                #   Anything except backslash and quote
+|                     #    or
+\\ [^\x80-\xff]           #   Escaped something (something != CR)
+)* "  # closing quote
+)             # one word, optionally followed by....
+(?:
+[^()<>@,;:".\\\[\]\x80-\xff\000-\010\012-\037]  |  # atom and space parts, or...
+\(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)       |  # comments, or...
+
+" (?:                      # opening quote...
+[^\\\x80-\xff\n\015"]                #   Anything except backslash and quote
+|                     #    or
+\\ [^\x80-\xff]           #   Escaped something (something != CR)
+)* "  # closing quote
+# quoted strings
+)*
+<  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*                     # leading <
+(?:  @  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*    (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                           # initial subdomain
+(?:                                  #
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  \.                        # if led by a period...
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*   (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                     #   ...further okay
+)*
+
+(?:  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  ,  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  @  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*    (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                           # initial subdomain
+(?:                                  #
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  \.                        # if led by a period...
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*   (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                     #   ...further okay
+)*
+)* # further okay, if led by comma
+:                                # closing colon
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  )? #       optional route
+(?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|
+" (?:                      # opening quote...
+[^\\\x80-\xff\n\015"]                #   Anything except backslash and quote
+|                     #    or
+\\ [^\x80-\xff]           #   Escaped something (something != CR)
+)* "  # closing quote
+)                    # initial word
+(?:  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  \.  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*   (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|
+" (?:                      # opening quote...
+[^\\\x80-\xff\n\015"]                #   Anything except backslash and quote
+|                     #    or
+\\ [^\x80-\xff]           #   Escaped something (something != CR)
+)* "  # closing quote
+)  )* # further okay, if led by a period
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  @  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*    (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                           # initial subdomain
+(?:                                  #
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  \.                        # if led by a period...
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*   (?:
+[^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]+    # some number of atom characters...
+(?![^(\040)<>@,;:".\\\[\]\000-\037\x80-\xff]) # ..not followed by something that could be part of an atom
+|   \[                         # [
+(?: [^\\\x80-\xff\n\015\[\]] |  \\ [^\x80-\xff]  )*    #    stuff
+\]                        #           ]
+)                     #   ...further okay
+)*
+#       address spec
+(?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*  > #                  trailing >
+# name and address
+)  (?: [\040\t] |  \(
+(?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  |  \( (?:  [^\\\x80-\xff\n\015()]  |  \\ [^\x80-\xff]  )* \)  )*
+\)  )*                       # optional trailing comment
+/Ix
+
+/[\h]/B
+    >\x09<
+
+/[\h]+/B
+    >\x09\x20\xa0<
+
+/[\v]/B
+
+/[^\h]/B
+
+/\h+/I
+    \x{1681}\x{200b}\x{1680}\x{2000}\x{202f}\x{3000}
+    \x{3001}\x{2fff}\x{200a}\xa0\x{2000}
+
+/[\h\x{dc00}]+/IB
+    \x{1681}\x{200b}\x{1680}\x{2000}\x{202f}\x{3000}
+    \x{3001}\x{2fff}\x{200a}\xa0\x{2000}
+
+/\H+/I
+    \x{1680}\x{180e}\x{167f}\x{1681}\x{180d}\x{180f}
+    \x{2000}\x{200a}\x{1fff}\x{200b}
+    \x{202f}\x{205f}\x{202e}\x{2030}\x{205e}\x{2060}
+    \xa0\x{3000}\x9f\xa1\x{2fff}\x{3001}
+
+/[\H\x{d800}]+/
+    \x{1680}\x{180e}\x{167f}\x{1681}\x{180d}\x{180f}
+    \x{2000}\x{200a}\x{1fff}\x{200b}
+    \x{202f}\x{205f}\x{202e}\x{2030}\x{205e}\x{2060}
+    \xa0\x{3000}\x9f\xa1\x{2fff}\x{3001}
+
+/\v+/I
+    \x{2027}\x{2030}\x{2028}\x{2029}
+    \x09\x0e\x84\x86\x85\x0a\x0b\x0c\x0d
+
+/[\v\x{dc00}]+/IB
+    \x{2027}\x{2030}\x{2028}\x{2029}
+    \x09\x0e\x84\x86\x85\x0a\x0b\x0c\x0d
+
+/\V+/I
+    \x{2028}\x{2029}\x{2027}\x{2030}
+    \x85\x0a\x0b\x0c\x0d\x09\x0e\x84\x86
+
+/[\V\x{d800}]+/
+    \x{2028}\x{2029}\x{2027}\x{2030}
+    \x85\x0a\x0b\x0c\x0d\x09\x0e\x84\x86
+
+/\R+/I,bsr=unicode
+    \x{2027}\x{2030}\x{2028}\x{2029}
+    \x09\x0e\x84\x86\x85\x0a\x0b\x0c\x0d
+
+/\x{d800}\x{d7ff}\x{dc00}\x{dc00}\x{dcff}\x{dd00}/I
+    \x{d800}\x{d7ff}\x{dc00}\x{dc00}\x{dcff}\x{dd00}
+
+/[^\x{80}][^\x{ff}][^\x{100}][^\x{1000}][^\x{ffff}]/B
+
+/[^\x{80}][^\x{ff}][^\x{100}][^\x{1000}][^\x{ffff}]/Bi
+
+/[^\x{100}]*[^\x{1000}]+[^\x{ffff}]??[^\x{8000}]{4,}[^\x{7fff}]{2,9}?[^\x{100}]{5,6}+/B
+
+/[^\x{100}]*[^\x{1000}]+[^\x{ffff}]??[^\x{8000}]{4,}[^\x{7fff}]{2,9}?[^\x{100}]{5,6}+/Bi
+
+/(*:0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF)XX/mark
+    XX
+     
+/(*:0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDE)XX/mark
+    XX
+
+/\u0100/B,alt_bsux,allow_empty_class,match_unset_backref
+
+/[\u0100-\u0200]/B,alt_bsux,allow_empty_class,match_unset_backref
+
+/\ud800/B,alt_bsux,allow_empty_class,match_unset_backref
+
+/^\x{ffff}+/i
+    \x{ffff}
+
+/^\x{ffff}?/i
+    \x{ffff}
+
+/^\x{ffff}*/i
+    \x{ffff}
+
+/^\x{ffff}{3}/i
+    \x{ffff}\x{ffff}\x{ffff}
+
+/^\x{ffff}{0,3}/i
+    \x{ffff}
+
+/[^\x00-a]{12,}[^b-\xff]*/B
+
+/[^\s]*\s* [^\W]+\W+ [^\d]*?\d0 [^\d\w]{4,6}?\w*A/B
+
+/a*[b-\x{200}]?a#a*[b-\x{200}]?b#[a-f]*[g-\x{200}]*#[g-\x{200}]*[a-c]*#[g-\x{200}]*[a-h]*/B
+
+/^[\x{1234}\x{4321}]{2,4}?/
+    \x{1234}\x{1234}\x{1234}
+
+# Check maximum non-UTF character size for the 16-bit library.
+
+/\x{ffff}/
+    A\x{ffff}B
+
+/\x{10000}/
+
+/\o{20000}/
+
+# Check maximum character size for the 32-bit library. These will all give
+# errors in the 16-bit library.
+
+/\x{110000}/
+
+/\x{7fffffff}/
+
+/\x{80000000}/
+
+/\x{ffffffff}/
+
+/\x{100000000}/
+
+/\o{17777777777}/
+
+/\o{20000000000}/
+
+/\o{37777777777}/
+
+/\o{40000000000}/
+
+/\x{7fffffff}\x{7fffffff}/I
+
+/\x{80000000}\x{80000000}/I
+
+/\x{ffffffff}\x{ffffffff}/I
+
+# Non-UTF characters 
+
+/.{2,3}/
+    \x{400000}\x{400001}\x{400002}\x{400003}
+
+/\x{400000}\x{800000}/IBi
+
+# Check character ranges 
+
+/[\H]/IB
+
+/[\V]/IB
+
+/(*THEN:\[A]{65501})/expand
+
+# We can use pcre2test's utf8_input modifier to create wide pattern characters,
+# even though this test is run when UTF is not supported.
+
+/a\x{d800}b/utf8_input
+    aí €b
+    a\x{d800}b
+    a\o{154000}b
+\= Expect warning unless 32bit
+    a\N{U+d800}b
+
+/a\x{ffff}b/utf8_input
+    aï¿¿b
+    a\x{ffff}b
+    a\o{177777}b
+    a\N{U+ffff}b
+
+/abý¿¿¿¿¿z/utf8_input
+    abý¿¿¿¿¿z
+    ab\x{7fffffff}z
+    ab\o{17777777777}z
+    ab\N{U+7fffffff}z
+
+/abÿý¿¿¿¿¿z/utf8_input
+    abÿý¿¿¿¿¿z
+    ab\x{ffffffff}z 
+
+/abÿAz/utf8_input
+    abÿAz
+    ab\x{80000041}z 
+\= Expect no match
+    abAz
+    aAz
+    ab\377Az
+    ab\xff\N{U+0041}z
+    ab\N{U+ff}\N{U+41}z
+
+/ab\x{80000041}z/
+    ab\x{80000041}z
+
+/(?i:A{1,}\6666666666)/
+    A\x{1b6}6666666
+
+/abc/substitute_extended,replace=>\777<
+    abc
+
+/abc/substitute_extended,replace=>\o{012345}<
+    abc
+
+# Character range merging tests
+
+/[\x{100}-\x{200}\H\x{8000}-\x{9000}]/B
+
+/[\x{100}-\x{200}\V\x{8000}-\x{9000}]/B
+
+/[\x00-\x{6000}\x{3000}-\x{ffff}]#[\x00-\x{6000}\x{3000}-\x{ffff}]{5,7}?/B
+
+/[\x00-\x{6000}\x{3000}-\x{ffffffff}]#[\x00-\x{6000}\x{3000}-\x{ffffffff}]{5,7}?/B
+
+/[\x00-\x2f\x11-\xff]*?!/B
+    abcd!e
+
+/i/turkish_casing
+
+# Character list tests
+
+/([\x{100}-\x{7fff}\x{9000}\x{9002}\x{9004}\x{9006}\x{9008}\x{10000}-\x{7fffffff}]{3,8}?).#/B
+  \x{9001}\x{9007}\x{8000}\x{ffff}\x{9002}\x{7fff}\x{10000}\x{7fffffff}\x{500000}\x{9006}#
+
+/([\x{3000}\x{3001}\x{3003}\x{3004}\x{3006}\x{3007}\x{8000}-\x{ffff}\x{100001}\x{100002}\x{100004}\x{100005}\x{100007}\x{100008}\x{10000a}\x{10000b}\x{80000000}-\x{ffffffff}]{5,}).#/B
+  \x{2fff}\x{3002}\x{7fff}\x{100000}\x{7fffffff}\x{3000}\x{3007}\x{8000}\x{ffff}\x{100001}\x{10000b}\x{80000000}\x{ffffffff}\x{3000}#
+
+/([^\x{4000}\x{4002}\x{4004}\x{4005}\x{4007}\x{4009}\x{400a}\x{f000}\x{f002}\x{f004}\x{f005}\x{f007}\x{f009}\x{f00a}\x{100000}\x{100002}\x{100004}\x{100005}\x{100007}\x{100009}\x{10000a}\x{a0000000}\x{a0000002}\x{a0000004}\x{a0000005}\x{a0000007}\x{a0000009}\x{a000000a}]+).#/B
+  \x{4000}\x{4002}\x{4004}\x{4005}\x{4007}\x{4009}\x{400a}\x{3fff}\x{4001}\x{4003}\x{4006}\x{4008}\x{400b}\x{100}#
+  \x{f000}\x{f002}\x{f004}\x{f005}\x{f007}\x{f009}\x{f00a}\x{efff}\x{f001}\x{f003}\x{f006}\x{f008}\x{f00b}\x{100}#
+  \x{100000}\x{100002}\x{100004}\x{100005}\x{100007}\x{100009}\x{10000a}\x{fffff}\x{100001}\x{100003}\x{100006}\x{100008}\x{10000b}\x{100}#
+  \x{a0000000}\x{a0000002}\x{a0000004}\x{a0000005}\x{a0000007}\x{a0000009}\x{a000000a}\x{9fffffff}\x{a0000001}\x{a0000003}\x{a0000006}\x{a0000008}\x{a000000b}\x{100}#
+
+# --------------
+
+# EXTENDED CHARACTER CLASSES (UTS#18)
+
+# META_BIGVALUE tests
+
+/\x{80000000}/B
+    \x{80000000}
+\= Expect no match
+    \x{7fffffff}
+    \x{80000001}
+
+/[\x{80000000}-\x{8000000f}\x{8fffffff}]/B
+    \x{80000002}
+    \x{8fffffff}
+\= Expect no match
+    \x{7fffffff}
+    \x{90000000}
+
+/\x{80000000}/B,alt_extended_class
+    \x{80000000}
+\= Expect no match
+    \x{7fffffff}
+    \x{80000001}
+
+/[\x{80000000}-\x{8000000f}\x{8fffffff}]/B,alt_extended_class
+    \x{80000002}
+    \x{8fffffff}
+\= Expect no match
+    \x{7fffffff}
+    \x{90000000}
+
+/[\x{80000000}-\x{8000000f}--\x{80000002}]/B,alt_extended_class
+    \x{80000001}
+    \x{80000003}
+\= Expect no match
+    \x{80000002}
+
+/[[\x{80000000}-\x{8000000f}]--[\x{80000002}]]/B,alt_extended_class
+    \x{80000001}
+    \x{80000003}
+\= Expect no match
+    \x{80000002}
+
+# --------------
+
+# EXTENDED CHARACTER CLASSES (Perl)
+
+# META_BIGVALUE tests
+
+/(?[[\x{80000000}-\x{8000000f}]+\x{8fffffff}])/B
+    \x{80000002}
+    \x{8fffffff}
+\= Expect no match
+    \x{7fffffff}
+    \x{90000000}
+
+/(?[[\x{80000000}-\x{8000000f}]-\x{80000002}])/B
+    \x{80000001}
+    \x{80000003}
+\= Expect no match
+    \x{80000002}
+
+/(?[[\x{80000000}-\x{8000000f}]-\x{80000002}])/B
+    \x{80000001}
+    \x{80000003}
+\= Expect no match
+    \x{80000002}
+
+# --------------
+
+# End of testinput11

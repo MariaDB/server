@@ -1,5 +1,13 @@
+SET(DUCKDB_SUBMODULE_DIR
+  "${CMAKE_SOURCE_DIR}/storage/duckdb/duckdb/third_parties/duckdb")
+SET(DUCKDB_INCLUDE_DIR "${DUCKDB_SUBMODULE_DIR}/src/include")
+ 
+INCLUDE_DIRECTORIES(BEFORE SYSTEM "${DUCKDB_INCLUDE_DIR}")
+
+
 MYSQL_ADD_PLUGIN(parquet
   ha_parquet.cc
   STORAGE_ENGINE
   MANDATORY
+  LINK_LIBRARIES libduckdb
 )

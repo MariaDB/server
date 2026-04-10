@@ -1,0 +1,14 @@
+# Package Information for pkg-config
+
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: libpcre2-8
+Description: PCRE2 - Perl compatible regular expressions C library (2nd API) with 8 bit character support
+Version: 10.47
+License: BSD-3-Clause WITH PCRE2-exception
+Libs: -L${libdir} -lpcre2-8
+Libs.private:  
+Cflags: -I${includedir} -DPCRE2_STATIC

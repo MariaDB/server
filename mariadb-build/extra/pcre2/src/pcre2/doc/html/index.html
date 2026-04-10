@@ -1,0 +1,346 @@
+<html>
+<!-- This is a manually maintained file that is the root of the HTML version of
+     the PCRE2 documentation. When the HTML documents are built from the man
+     page versions, the entire doc/html directory is emptied, this file is then
+     copied into doc/html/index.html, and the remaining files therein are
+     created by the 132html script.
+-->
+<head>
+<title>PCRE2 specification</title>
+<style>
+table, caption, tbody, tfoot, thead, tr, th, td {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: inherit;
+  vertical-align: baseline;
+}
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+td {
+  padding: 4px 16px 0 0;
+}
+</style>
+</head>
+<body bgcolor="#FFFFFF" text="#00005A" link="#0066FF" alink="#3399FF" vlink="#2222BB">
+<h1>Perl-compatible Regular Expressions (revised API: PCRE2)</h1>
+<p>
+The HTML documentation for PCRE2 consists of a number of pages that are listed
+below in alphabetical order. If you are new to PCRE2, please read the first one
+first.
+</p>
+
+<table>
+<tr><td><a href="pcre2.html">pcre2</a></td>
+    <td>Introductory page</td></tr>
+
+<tr><td><a href="pcre2-config.html">pcre2-config</a></td>
+    <td>Information about the installation configuration</td></tr>
+
+<tr><td><a href="pcre2api.html">pcre2api</a></td>
+    <td>PCRE2's native API</td></tr>
+
+<tr><td><a href="pcre2build.html">pcre2build</a></td>
+    <td>Building PCRE2</td></tr>
+
+<tr><td><a href="pcre2callout.html">pcre2callout</a></td>
+    <td>The <i>callout</i> facility</td></tr>
+
+<tr><td><a href="pcre2compat.html">pcre2compat</a></td>
+    <td>Compability with Perl</td></tr>
+
+<tr><td><a href="pcre2convert.html">pcre2convert</a></td>
+    <td>Experimental foreign pattern conversion functions</td></tr>
+
+<tr><td><a href="pcre2demo.html">pcre2demo</a></td>
+    <td>A demonstration C program that uses the PCRE2 library</td></tr>
+
+<tr><td><a href="pcre2grep.html">pcre2grep</a></td>
+    <td>The <b>pcre2grep</b> command</td></tr>
+
+<tr><td><a href="pcre2jit.html">pcre2jit</a></td>
+    <td>Discussion of the just-in-time optimization support</td></tr>
+
+<tr><td><a href="pcre2limits.html">pcre2limits</a></td>
+    <td>Details of size and other limits</td></tr>
+
+<tr><td><a href="pcre2matching.html">pcre2matching</a></td>
+    <td>Discussion of the two matching algorithms</td></tr>
+
+<tr><td><a href="pcre2partial.html">pcre2partial</a></td>
+    <td>Using PCRE2 for partial matching</td></tr>
+
+<tr><td><a href="pcre2pattern.html">pcre2pattern</a></td>
+    <td>Specification of the regular expressions supported by PCRE2</td></tr>
+
+<tr><td><a href="pcre2perform.html">pcre2perform</a></td>
+    <td>Some comments on performance</td></tr>
+
+<tr><td><a href="pcre2posix.html">pcre2posix</a></td>
+    <td>The POSIX API to the PCRE2 8-bit library</td></tr>
+
+<tr><td><a href="pcre2sample.html">pcre2sample</a></td>
+    <td>Discussion of the pcre2demo program</td></tr>
+
+<tr><td><a href="pcre2serialize.html">pcre2serialize</a></td>
+    <td>Serializing functions for saving precompiled patterns</td></tr>
+
+<tr><td><a href="pcre2syntax.html">pcre2syntax</a></td>
+    <td>Syntax quick-reference summary</td></tr>
+
+<tr><td><a href="pcre2test.html">pcre2test</a></td>
+    <td>The <b>pcre2test</b> command for testing PCRE2</td></tr>
+
+<tr><td><a href="pcre2unicode.html">pcre2unicode</a></td>
+    <td>Discussion of Unicode and UTF-8/UTF-16/UTF-32 support</td></tr>
+</table>
+
+<p>
+There are also individual pages that summarize the interface for each function
+in the library.
+</p>
+
+<table>
+
+<tr><td><a href="pcre2_callout_enumerate.html">pcre2_callout_enumerate</a></td>
+    <td>Enumerate callouts in a compiled pattern</td></tr>
+
+<tr><td><a href="pcre2_code_copy.html">pcre2_code_copy</a></td>
+    <td>Copy a compiled pattern</td></tr>
+
+<tr><td><a href="pcre2_code_copy_with_tables.html">pcre2_code_copy_with_tables</a></td>
+    <td>Copy a compiled pattern and its character tables</td></tr>
+
+<tr><td><a href="pcre2_code_free.html">pcre2_code_free</a></td>
+    <td>Free a compiled pattern</td></tr>
+
+<tr><td><a href="pcre2_compile.html">pcre2_compile</a></td>
+    <td>Compile a regular expression pattern</td></tr>
+
+<tr><td><a href="pcre2_compile_context_copy.html">pcre2_compile_context_copy</a></td>
+    <td>Copy a compile context</td></tr>
+
+<tr><td><a href="pcre2_compile_context_create.html">pcre2_compile_context_create</a></td>
+    <td>Create a compile context</td></tr>
+
+<tr><td><a href="pcre2_compile_context_free.html">pcre2_compile_context_free</a></td>
+    <td>Free a compile context</td></tr>
+
+<tr><td><a href="pcre2_config.html">pcre2_config</a></td>
+    <td>Show build-time related configuration options</td></tr>
+
+<tr><td><a href="pcre2_convert_context_copy.html">pcre2_convert_context_copy</a></td>
+    <td>Copy a convert context</td></tr>
+
+<tr><td><a href="pcre2_convert_context_create.html">pcre2_convert_context_create</a></td>
+    <td>Create a convert context</td></tr>
+
+<tr><td><a href="pcre2_convert_context_free.html">pcre2_convert_context_free</a></td>
+    <td>Free a convert context</td></tr>
+
+<tr><td><a href="pcre2_converted_pattern_free.html">pcre2_converted_pattern_free</a></td>
+    <td>Free converted foreign pattern</td></tr>
+
+<tr><td><a href="pcre2_dfa_match.html">pcre2_dfa_match</a></td>
+    <td>Match a compiled pattern to a subject string
+    (DFA algorithm; <i>not</i> Perl compatible)</td></tr>
+
+<tr><td><a href="pcre2_general_context_copy.html">pcre2_general_context_copy</a></td>
+    <td>Copy a general context</td></tr>
+
+<tr><td><a href="pcre2_general_context_create.html">pcre2_general_context_create</a></td>
+    <td>Create a general context</td></tr>
+
+<tr><td><a href="pcre2_general_context_free.html">pcre2_general_context_free</a></td>
+    <td>Free a general context</td></tr>
+
+<tr><td><a href="pcre2_get_error_message.html">pcre2_get_error_message</a></td>
+    <td>Get textual error message for error number</td></tr>
+
+<tr><td><a href="pcre2_get_mark.html">pcre2_get_mark</a></td>
+    <td>Get a (*MARK) name</td></tr>
+
+<tr><td><a href="pcre2_get_match_data_size.html">pcre2_get_match_data_size</a></td>
+    <td>Get the size of a match data block</td></tr>
+
+<tr><td><a href="pcre2_get_ovector_count.html">pcre2_get_ovector_count</a></td>
+    <td>Get the ovector count</td></tr>
+
+<tr><td><a href="pcre2_get_ovector_pointer.html">pcre2_get_ovector_pointer</a></td>
+    <td>Get a pointer to the ovector</td></tr>
+
+<tr><td><a href="pcre2_get_startchar.html">pcre2_get_startchar</a></td>
+    <td>Get the starting character offset</td></tr>
+
+<tr><td><a href="pcre2_jit_compile.html">pcre2_jit_compile</a></td>
+    <td>Process a compiled pattern with the JIT compiler</td></tr>
+
+<tr><td><a href="pcre2_jit_free_unused_memory.html">pcre2_jit_free_unused_memory</a></td>
+    <td>Free unused JIT memory</td></tr>
+
+<tr><td><a href="pcre2_jit_match.html">pcre2_jit_match</a></td>
+    <td>Fast path interface to JIT matching</td></tr>
+
+<tr><td><a href="pcre2_jit_stack_assign.html">pcre2_jit_stack_assign</a></td>
+    <td>Assign stack for JIT matching</td></tr>
+
+<tr><td><a href="pcre2_jit_stack_create.html">pcre2_jit_stack_create</a></td>
+    <td>Create a stack for JIT matching</td></tr>
+
+<tr><td><a href="pcre2_jit_stack_free.html">pcre2_jit_stack_free</a></td>
+    <td>Free a JIT matching stack</td></tr>
+
+<tr><td><a href="pcre2_maketables.html">pcre2_maketables</a></td>
+    <td>Build character tables in current locale</td></tr>
+
+<tr><td><a href="pcre2_maketables_free.html">pcre2_maketables_free</a></td>
+    <td>Free character tables</td></tr>
+
+<tr><td><a href="pcre2_match.html">pcre2_match</a></td>
+    <td>Match a compiled pattern to a subject string
+    (Perl compatible)</td></tr>
+
+<tr><td><a href="pcre2_match_context_copy.html">pcre2_match_context_copy</a></td>
+    <td>Copy a match context</td></tr>
+
+<tr><td><a href="pcre2_match_context_create.html">pcre2_match_context_create</a></td>
+    <td>Create a match context</td></tr>
+
+<tr><td><a href="pcre2_match_context_free.html">pcre2_match_context_free</a></td>
+    <td>Free a match context</td></tr>
+
+<tr><td><a href="pcre2_match_data_create.html">pcre2_match_data_create</a></td>
+    <td>Create a match data block</td></tr>
+
+<tr><td><a href="pcre2_match_data_create_from_pattern.html">pcre2_match_data_create_from_pattern</a></td>
+    <td>Create a match data block getting size from pattern</td></tr>
+
+<tr><td><a href="pcre2_match_data_free.html">pcre2_match_data_free</a></td>
+    <td>Free a match data block</td></tr>
+
+<tr><td><a href="pcre2_next_match.html">pcre2_next_match</a></td>
+    <td>Get the match parameters for the next match</td></tr>
+
+<tr><td><a href="pcre2_pattern_convert.html">pcre2_pattern_convert</a></td>
+    <td>Experimental foreign pattern converter</td></tr>
+
+<tr><td><a href="pcre2_pattern_info.html">pcre2_pattern_info</a></td>
+    <td>Extract information about a pattern</td></tr>
+
+<tr><td><a href="pcre2_serialize_decode.html">pcre2_serialize_decode</a></td>
+    <td>Decode serialized compiled patterns</td></tr>
+
+<tr><td><a href="pcre2_serialize_encode.html">pcre2_serialize_encode</a></td>
+    <td>Serialize compiled patterns for save/restore</td></tr>
+
+<tr><td><a href="pcre2_serialize_free.html">pcre2_serialize_free</a></td>
+    <td>Free serialized compiled patterns</td></tr>
+
+<tr><td><a href="pcre2_serialize_get_number_of_codes.html">pcre2_serialize_get_number_of_codes</a></td>
+    <td>Get number of serialized compiled patterns</td></tr>
+
+<tr><td><a href="pcre2_set_bsr.html">pcre2_set_bsr</a></td>
+    <td>Set \R convention</td></tr>
+
+<tr><td><a href="pcre2_set_callout.html">pcre2_set_callout</a></td>
+    <td>Set up a callout function</td></tr>
+
+<tr><td><a href="pcre2_set_character_tables.html">pcre2_set_character_tables</a></td>
+    <td>Set character tables</td></tr>
+
+<tr><td><a href="pcre2_set_compile_extra_options.html">pcre2_set_compile_extra_options</a></td>
+    <td>Set compile time extra options</td></tr>
+
+<tr><td><a href="pcre2_set_compile_recursion_guard.html">pcre2_set_compile_recursion_guard</a></td>
+    <td>Set up a compile recursion guard function</td></tr>
+
+<tr><td><a href="pcre2_set_depth_limit.html">pcre2_set_depth_limit</a></td>
+    <td>Set the match backtracking depth limit</td></tr>
+
+<tr><td><a href="pcre2_set_glob_escape.html">pcre2_set_glob_escape</a></td>
+    <td>Set glob escape character</td></tr>
+
+<tr><td><a href="pcre2_set_glob_separator.html">pcre2_set_glob_separator</a></td>
+    <td>Set glob separator character</td></tr>
+
+<tr><td><a href="pcre2_set_heap_limit.html">pcre2_set_heap_limit</a></td>
+    <td>Set the match backtracking heap limit</td></tr>
+
+<tr><td><a href="pcre2_set_match_limit.html">pcre2_set_match_limit</a></td>
+    <td>Set the match limit</td></tr>
+
+<tr><td><a href="pcre2_set_max_pattern_compiled_length.html">pcre2_set_max_pattern_compiled_length</a></td>
+    <td>Set the maximum length of a compiled pattern</td></tr>
+
+<tr><td><a href="pcre2_set_max_pattern_length.html">pcre2_set_max_pattern_length</a></td>
+    <td>Set the maximum length of a pattern</td></tr>
+
+<tr><td><a href="pcre2_set_max_varlookbehind.html">pcre2_set_max_varlookbehind</a></td>
+    <td>Set the maximum match length for a variable-length lookbehind</td></tr>
+
+<tr><td><a href="pcre2_set_newline.html">pcre2_set_newline</a></td>
+    <td>Set the newline convention</td></tr>
+
+<tr><td><a href="pcre2_set_offset_limit.html">pcre2_set_offset_limit</a></td>
+    <td>Set the offset limit</td></tr>
+
+<tr><td><a href="pcre2_set_optimize.html">pcre2_set_optimize</a></td>
+    <td>Set an optimization directive</td></tr>
+
+<tr><td><a href="pcre2_set_parens_nest_limit.html">pcre2_set_parens_nest_limit</a></td>
+    <td>Set the parentheses nesting limit</td></tr>
+
+<tr><td><a href="pcre2_set_recursion_limit.html">pcre2_set_recursion_limit</a></td>
+    <td>Obsolete: use pcre2_set_depth_limit</td></tr>
+
+<tr><td><a href="pcre2_set_recursion_memory_management.html">pcre2_set_recursion_memory_management</a></td>
+    <td>Obsolete function that (from 10.30 onwards) does nothing</td></tr>
+
+<tr><td><a href="pcre2_set_substitute_callout.html">pcre2_set_substitute_callout</a></td>
+    <td>Set a substitution callout function</td></tr>
+
+<tr><td><a href="pcre2_set_substitute_case_callout.html">pcre2_set_substitute_case_callout</a></td>
+    <td>Set a substitution case callout function</td></tr>
+
+<tr><td><a href="pcre2_substitute.html">pcre2_substitute</a></td>
+    <td>Match a compiled pattern to a subject string and do
+    substitutions</td></tr>
+
+<tr><td><a href="pcre2_substring_copy_byname.html">pcre2_substring_copy_byname</a></td>
+    <td>Extract named substring into given buffer</td></tr>
+
+<tr><td><a href="pcre2_substring_copy_bynumber.html">pcre2_substring_copy_bynumber</a></td>
+    <td>Extract numbered substring into given buffer</td></tr>
+
+<tr><td><a href="pcre2_substring_free.html">pcre2_substring_free</a></td>
+    <td>Free extracted substring</td></tr>
+
+<tr><td><a href="pcre2_substring_get_byname.html">pcre2_substring_get_byname</a></td>
+    <td>Extract named substring into new memory</td></tr>
+
+<tr><td><a href="pcre2_substring_get_bynumber.html">pcre2_substring_get_bynumber</a></td>
+    <td>Extract numbered substring into new memory</td></tr>
+
+<tr><td><a href="pcre2_substring_length_byname.html">pcre2_substring_length_byname</a></td>
+    <td>Find length of named substring</td></tr>
+
+<tr><td><a href="pcre2_substring_length_bynumber.html">pcre2_substring_length_bynumber</a></td>
+    <td>Find length of numbered substring</td></tr>
+
+<tr><td><a href="pcre2_substring_list_free.html">pcre2_substring_list_free</a></td>
+    <td>Free list of extracted substrings</td></tr>
+
+<tr><td><a href="pcre2_substring_list_get.html">pcre2_substring_list_get</a></td>
+    <td>Extract all substrings into new memory</td></tr>
+
+<tr><td><a href="pcre2_substring_nametable_scan.html">pcre2_substring_nametable_scan</a></td>
+    <td>Find table entries for given string name</td></tr>
+
+<tr><td><a href="pcre2_substring_number_from_name.html">pcre2_substring_number_from_name</a></td>
+    <td>Convert captured string name to number</td></tr>
+</table>
+
+</html>
+

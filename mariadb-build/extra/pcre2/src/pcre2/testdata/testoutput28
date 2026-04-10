@@ -1,0 +1,217 @@
+# This tests the EBCDIC support in PCRE2. It catches cases where explicit values
+# such as 0x0a have been used instead of names like CHAR_LF.
+#
+# This test file however is checked in to the repository encoded as ISO-8859-1,
+# using a reversible mapping from EBCDIC. This lets us easily author test cases.
+# However, they will only be run against a genuine EBCDIC when the input and
+# output files are converted to EBCDIC.
+#
+# There is also a special mode, on ASCII systems, where pcre2test takes ASCII
+# input (actually, ISO-8859-1), and then does the transcoding internally before
+# calling the genuinely-EBCDIC version of PCRE2.
+
+# Test default newline and variations
+
+/^A/m
+    ABC
+ 0: A
+    12\nABC
+ 0: A
+
+/^A/m,newline=any
+    12\nABC
+ 0: A
+    12\rABC
+ 0: A
+    12\r\nABC
+ 0: A
+    12\x85ABC
+ 0: A
+
+/^A/m,newline=anycrlf
+    12\nABC
+ 0: A
+    12\rABC
+ 0: A
+    12\r\nABC
+ 0: A
+\= Expect no match
+    12\x85ABC
+No match
+
+# Test \h
+
+/^A\h/
+    A B
+ 0: A 
+    A\tB
+ 0: A\x09
+    A\xA0B
+ 0: A\xa0
+
+# Test \H
+
+/^A\H/
+    AB
+ 0: AB
+    A\x42B
+ 0: AB
+\= Expect no match
+    A B
+No match
+
+# Test \R
+
+/^A\R/
+    A\nB
+ 0: A\x0a
+    A\rB
+ 0: A\x0d
+    A\x85B
+ 0: A\x85
+    A\x0bB
+ 0: A\x0b
+    A\x0cB
+ 0: A\x0c
+\= Expect no match
+    A B
+No match
+
+# Test \v
+
+/^A\v/
+    A\nB
+ 0: A\x0a
+    A\rB
+ 0: A\x0d
+    A\x85B
+ 0: A\x85
+    A\x0bB
+ 0: A\x0b
+    A\x0cB
+ 0: A\x0c
+\= Expect no match
+    A B
+No match
+
+# Test \V
+
+/^A\V/
+    A B
+ 0: A 
+\= Expect no match
+    A\nB
+No match
+    A\rB
+No match
+    A\x85B
+No match
+    A\x0bB
+No match
+    A\x0cB
+No match
+
+# For repeated items, use an atomic group so that the output is the same
+# for DFA matching (otherwise it may show multiple matches).
+
+# Test \h+
+
+/^A(?>\h+)/
+    A B
+ 0: A 
+
+# Test \H+
+
+/^A(?>\H+)/
+    AB
+ 0: AB
+\= Expect no match
+    A B
+No match
+
+# Test \R+
+
+/^A(?>\R+)/
+    A\nB
+ 0: A\x0a
+    A\rB
+ 0: A\x0d
+    A\x85B
+ 0: A\x85
+    A\x0bB
+ 0: A\x0b
+    A\x0cB
+ 0: A\x0c
+\= Expect no match
+    A B
+No match
+
+# Test \v+
+
+/^A(?>\v+)/
+    A\nB
+ 0: A\x0a
+    A\rB
+ 0: A\x0d
+    A\x85B
+ 0: A\x85
+    A\x0bB
+ 0: A\x0b
+    A\x0cB
+ 0: A\x0c
+\= Expect no match
+    A B
+No match
+
+# Test \V+
+
+/^A(?>\V+)/
+    A B
+ 0: A B
+\= Expect no match
+    A\nB
+No match
+    A\rB
+No match
+    A\x85B
+No match
+    A\x0bB
+No match
+    A\x0cB
+No match
+
+# Test \c functionality
+
+/\c@\cA\cb\cC\cd\cE\cf\cG\ch\cI\cJ\cK\cl\cm\cN\cO\cp\cq\cr\cS\cT\cV\cW\cX\cy\cZ/
+  \x00\x01\x02\x03\x9c\x09\x86\x7f\x97\x8d\x8e\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x9d\x08\x87\x18\x19\x92
+ 0: \x00\x01\x02\x03\x9c\x09\x86\x7f\x97\x8d\x8e\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x9d\x08\x87\x18\x19\x92
+  \x00\x01\x02\x03\x9c\x09\x86\x7f\x97\x8d\x8e\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x9d\x08\x87\x18\x19\x92
+ 0: \x00\x01\x02\x03\x9c\x09\x86\x7f\x97\x8d\x8e\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x9d\x08\x87\x18\x19\x92
+
+#if !ebcdic-nl25
+
+/^\x15$/
+  \n
+ 0: \x0a
+
+/\cU/
+  \x0a
+ 0: \x0a
+  \x85
+No match
+
+#endif
+
+/\c[\c\\c]\c^\c_/
+    \x8f\x1c\x1d\x1e\x1f
+ 0: \x8f\x1c\x1d\x1e\x1f
+
+/\c?/
+    A\x9fB
+ 0: \x9f
+
+/\c&/
+Failed: error 168 at offset 3: \c must be followed by a letter or one of @[\]^_?
+        here: \c& |<--|
+
+# End
