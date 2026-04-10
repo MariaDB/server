@@ -4762,7 +4762,29 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
       continue;
     }
 
+    /*
+      Debug hook: Verify we only allocate once per internal table.
+    */
+     DBUG_EXECUTE_IF("assert_no_alloc_internal_tables", { DBUG_ASSERT(0); });
+
+    /*
+      When a prepared statement uses DEFAULT (like sequence tables) in its
+      second or further execution AND if the table is not already on statement's
+      mem_root, temporarily allow allocating on statement mem_root.
+    */
+#ifdef PROTECT_STATEMENT_MEMROOT
+    const bool read_only_mem_root= (thd->mem_root->flags & ROOT_FLAG_READ_ONLY);
+    if (read_only_mem_root)
+      thd->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
+#endif
+
     TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+    if (read_only_mem_root)
+      thd->mem_root->flags|= ROOT_FLAG_READ_ONLY;
+#endif
+
     if (!tl)
       DBUG_RETURN(TRUE);
     tl->init_one_table_for_prelocking(&tables->db,
