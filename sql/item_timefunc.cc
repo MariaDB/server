@@ -1358,6 +1358,8 @@ void thd_TIME_to_str(MYSQL_THD thd, const MYSQL_TIME *ltime, const char *format,
 {
   String str(buf, buf_len, system_charset_info);
   String fmt(format, strlen(format), system_charset_info);
+  DBUG_ASSERT(buf_len > 0);
+
   /*
     The String(char*, ...) constructor sets both the allocated capacity and the
     current string length to buf_len. We must reset the current length to 0 to
