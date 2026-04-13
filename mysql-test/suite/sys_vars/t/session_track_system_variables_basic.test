@@ -125,7 +125,7 @@ SET SESSION session_track_system_variables="sql_slave_skip_counter", sql_slave_s
 --echo # Restoring the original values.
 SET @@global.session_track_system_variables = @global_saved_tmp;
 
---echo # End of tests.
+--echo # End of 10.2 tests.
 
 --echo #
 --echo # MDEV-39207 plugin variables disappear from session_track_system_variables list
@@ -151,8 +151,12 @@ set session example_int_var = -1;
 disable_session_track_info;
 
 connection default;
+--disable_ps_protocol
+--disable_cursor_protocol
 disconnect foo;
 uninstall soname 'ha_example.so';
+--enable_cursor_protocol
+--enable_ps_protocol
 SET @@global.session_track_system_variables = @global_saved_tmp;
 
 --echo # End of 10.11 tests
