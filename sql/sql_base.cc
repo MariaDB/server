@@ -7927,7 +7927,8 @@ store_top_level_join_columns(THD *thd, TABLE_LIST *table_ref,
         swapped in the first loop.
       */
       if (same_level_left_neighbor &&
-          cur_table_ref->outer_join & JOIN_TYPE_RIGHT)
+          (cur_table_ref->outer_join & JOIN_TYPE_RIGHT) &&
+          !(cur_table_ref->outer_join & JOIN_TYPE_FULL))
       {
         /* This can happen only for JOIN ... ON. */
         DBUG_ASSERT(table_ref->nested_join->join_list.elements == 2);
@@ -8865,23 +8866,38 @@ insert_fields(THD *thd, Name_resolution_context *context,
       {
         DBUG_ASSERT((tables->field_translation == NULL && table) ||
                     tables->is_natural_join);
-        DBUG_ASSERT(item->type() == Item::FIELD_ITEM);
-        Item_field *fld= (Item_field*) item;
-        const char *field_db_name= field_iterator.get_db_name().str;
-        const char *field_table_name= field_iterator.get_table_name().str;
-
-        if (!tables->schema_table && 
-            !(fld->have_privileges=
-              (get_column_grant(thd, field_iterator.grant(),
-                                field_db_name,
-                                field_table_name, fld->field_name) &
-               VIEW_ANY_ACL)))
+        if (item->type() == Item::FIELD_ITEM)
         {
-          my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "ANY",
-                   thd->security_ctx->priv_user,
-                   thd->security_ctx->host_or_ip,
-                   field_db_name, field_table_name);
-          DBUG_RETURN(TRUE);
+          Item_field *fld= (Item_field*) item;
+          const char *field_db_name= field_iterator.get_db_name().str;
+          const char *field_table_name= field_iterator.get_table_name().str;
+
+          if (!tables->schema_table &&
+              !(fld->have_privileges=
+                (get_column_grant(thd, field_iterator.grant(),
+                                  field_db_name,
+                                  field_table_name, fld->field_name) &
+                 VIEW_ANY_ACL)))
+          {
+            my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "ANY",
+                     thd->security_ctx->priv_user,
+                     thd->security_ctx->host_or_ip,
+                     field_db_name, field_table_name);
+            DBUG_RETURN(TRUE);
+          }
+        }
+        else
+        {
+          /*
+            For NATURAL FULL JOIN, common columns are represented
+            as COALESCE expressions rather than plain Item_field.  The
+            per-column privilege check is skipped because the underlying
+            fields already had their privileges verified during name
+            resolution.  Assert that this is indeed a FULL JOIN context.
+          */
+          DBUG_ASSERT(tables->is_natural_join && tables->nested_join &&
+                      (tables->nested_join->join_list.head()->outer_join &
+                       JOIN_TYPE_FULL));
         }
       }
 #endif

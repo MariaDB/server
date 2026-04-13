@@ -8631,7 +8631,8 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
         left_op->first_leaf_for_name_resolution();
     }
 
-    if (!(tbl->outer_join & JOIN_TYPE_RIGHT))
+    if (!(tbl->outer_join & JOIN_TYPE_RIGHT) ||
+        (tbl->outer_join & JOIN_TYPE_FULL))
     {
       pair_tbl= tbl;
       tbl= li++;
@@ -8648,6 +8649,15 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
     cj_nest->on_expr= tbl->on_expr;
     cj_nest->embedding= tbl->embedding;
     cj_nest->join_list= jl;
+    /*
+      Transfer FULL JOIN state to the new nest: tbl is being replaced
+      by cj_nest in the join tree, so the partner pointer must follow
+      (and the partner's back-pointer must be retargeted).
+    */
+    cj_nest->foj_partner= tbl->foj_partner;
+    cj_nest->on_context= tbl->on_context;
+    if (cj_nest->foj_partner)
+      cj_nest->foj_partner->foj_partner= cj_nest;
     cj_nest->alias.str= "(nest_last_join)";
     cj_nest->alias.length= sizeof("(nest_last_join)")-1;
     li.replace(cj_nest);
@@ -8673,6 +8683,8 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
   tbl->on_expr= 0;
   tbl->straight= straight_fl;
   tbl->natural_join= 0;
+  tbl->foj_partner= 0;
+  tbl->on_context= 0;
   tbl->embedding= cj_nest;
   tbl->join_list= cjl;
 

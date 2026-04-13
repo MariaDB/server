@@ -202,6 +202,7 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
                                              bool do_substitution);
 static COND *simplify_joins(JOIN *join, List<TABLE_LIST> *join_list,
                             COND *conds, bool in_sj);
+static bool check_full_join_base_tables(List<TABLE_LIST> *join_list);
 static bool check_interleaving_with_nj(JOIN_TAB *next);
 static void restore_prev_nj_state(JOIN_TAB *last);
 static uint reset_nj_counters(JOIN *join, List<TABLE_LIST> *join_list);
@@ -451,6 +452,121 @@ bool dbug_user_var_equals_str(THD *thd, const char *name, const char* value)
   return FALSE;
 }
 #endif /* DBUG_OFF */
+
+
+/*
+  Duplicate-row filter for FULL JOIN execution.
+
+  During the first (LEFT JOIN) pass of a FULL JOIN, the filter records
+  the rowids of right-side rows that were matched.  During the second
+  (null-complement) pass, the filter is consulted to skip rows that
+  were already emitted, so that only unmatched right-side rows produce
+  NULL-complemented output.
+
+  Internally this reuses the semi-join weedout infrastructure
+  (SJ_TMP_TABLE).
+*/
+class full_join_duplicate_filter : public Sql_alloc
+{
+  // Weedout temp table that stores seen rowids.
+  SJ_TMP_TABLE tbl;
+
+public:
+  /*
+    Allocate and populate the weedout temp table for the right side of
+    a FULL JOIN.  Builds an SJ_TMP_TABLE whose record is the right
+    table's rowid.  Returns true on error.
+  */
+  bool init(THD *thd, JOIN_TAB *right_tab)
+  {
+    DBUG_ASSERT(thd);
+    DBUG_ASSERT(right_tab);
+
+    tbl.tmp_table= NULL;
+    tbl.is_degenerate= false;
+    tbl.have_degenerate_row= false;
+    tbl.next_flush_table= nullptr;
+
+    if (!(tbl.tabs= thd->alloc<SJ_TMP_TABLE::TAB>(1)))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));
+      return true;
+    }
+
+    uint jt_rowid_offset= 0;
+    uint jt_null_bits= 0;
+
+    tbl.tabs[0].join_tab= right_tab;
+    tbl.tabs[0].rowid_offset= jt_rowid_offset;
+    jt_rowid_offset+= right_tab->table->file->ref_length;
+    if (right_tab->table->maybe_null)
+    {
+      tbl.tabs[0].null_byte= jt_null_bits / 8;
+      tbl.tabs[0].null_bit= jt_null_bits++;
+    }
+
+    tbl.tabs_end= tbl.tabs + 1;
+    tbl.rowid_len= jt_rowid_offset;
+    tbl.null_bits= jt_null_bits;
+    tbl.null_bytes= (jt_null_bits + 7) / 8;
+
+    right_tab->table->prepare_for_position();
+    right_tab->keep_current_rowid= TRUE;
+
+    if (tbl.create_sj_weedout_tmp_table(thd))
+      return true;
+    return false;
+  }
+
+  /*
+    Record the current right-side rowid during the first (LEFT JOIN)
+    pass.  Duplicate-key errors are silently ignored because, during
+    the first pass, we only need to remember that the rowid was seen at
+    least once.  Returns 0 on success, 1 on error.
+  */
+  int remember_rowids(THD *thd)
+  {
+    DBUG_ASSERT(thd);
+    int res= tbl.sj_weedout_check_row(thd);
+    if (res == -1)
+      return 1;
+    return 0;
+  }
+
+  /*
+    Check whether the current right-side rowid was already emitted.
+    Called during the second (null-complement) pass: if the rowid is
+    already in the temp table, sets *is_duplicate so the caller can
+    skip emitting a NULL-complemented row for a right-side row that
+    was already matched.  Returns 0 on success, 1 on error.
+  */
+  int check_rowids(THD *thd, bool *is_duplicate)
+  {
+    DBUG_ASSERT(thd);
+    DBUG_ASSERT(is_duplicate);
+    int res= tbl.sj_weedout_check_row(thd);
+    if (res == -1)
+      return 1;
+    *is_duplicate= (res == 1);
+    return 0;
+  }
+
+  /*
+    Delete all recorded rows and free the weedout temp table.  Must
+    be called after FULL JOIN execution is complete.
+  */
+  void cleanup(THD *thd)
+  {
+    tbl.sj_weedout_delete_rows();
+    if (tbl.tmp_table)
+    {
+      tbl.tmp_table->file->ha_index_or_rnd_end();
+      free_tmp_table(thd, tbl.tmp_table);
+      tbl.tmp_table= NULL;
+    }
+  }
+};
+
 
 /*
   Intialize POSITION structure.
@@ -2340,6 +2456,9 @@ JOIN::optimize_inner()
   }
 #endif
 
+  if (check_full_join_base_tables(join_list))
+    DBUG_RETURN(1);
+
   SELECT_LEX *sel= select_lex;
   if (sel->first_cond_optimization)
   {
@@ -3065,19 +3184,6 @@ int JOIN::optimize_stage2()
 
   if (setup_semijoin_loosescan(this))
     DBUG_RETURN(1);
-
-  /*
-    Temporary gate.  As the FULL JOIN implementation matures, this keeps moving
-    deeper into the server until it's eventually eliminated.
-  */
-  if (thd->lex->full_join_count)
-  {
-    if (!thd->lex->describe)
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "FULL JOINs that cannot be converted to LEFT, RIGHT, or "
-               "INNER JOINs");
-    DBUG_RETURN(0);
-  }
 
   if (make_join_select(this, select, conds))
   {
@@ -5922,18 +6028,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   join->const_table_map= no_rows_const_tables;
   join->const_tables= const_count;
   eliminate_tables(join);
-
-  /*
-    Temporary gate.  As the FULL JOIN implementation matures, this keeps moving
-    deeper into the server until it's eventually eliminated.
-  */
-  if (thd->lex->full_join_count && !thd->lex->describe)
-  {
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-             "FULL JOINs that cannot be converted to LEFT, RIGHT, or "
-             "INNER JOINs");
-    goto error;
-  }
 
   join->const_table_map &= ~no_rows_const_tables;
   const_count= join->const_tables;
@@ -14291,6 +14385,17 @@ make_outerjoin_info(JOIN *join)
 
     if (tbl->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT))
     {
+      /*
+        Skip the LEFT side of a FULL JOIN.  Its null-complementing is
+        handled by the fj_dups mechanism, not by the standard nested
+        loop outer join machinery.  Setting up an outer join scope
+        here would cause the ON condition to be pushed into
+        this table's select_cond, filtering out rows before they reach
+        the right side and preventing null-complement generation.
+      */
+      if ((tbl->outer_join & JOIN_TYPE_FULL) &&
+          (tbl->outer_join & JOIN_TYPE_LEFT))
+        goto skip_outer_join_setup;
       /* 
         Table tab is the only one inner table for outer join.
         (Like table t4 for the table reference t3 LEFT JOIN t4 ON t3.a=t4.a
@@ -14304,7 +14409,8 @@ make_outerjoin_info(JOIN *join)
     }
     else if (!embedding)
       tab->table->reginfo.not_exists_optimize= 0;
-          
+
+skip_outer_join_setup:
     for ( ; embedding ; embedding= embedding->embedding)
     {
       if (embedding->is_active_sjm())
@@ -14321,6 +14427,13 @@ make_outerjoin_info(JOIN *join)
         tab->table->reginfo.not_exists_optimize= 0;
         continue;
       }
+      /*
+        Again, skip the LEFT side of a FULL JOIN (see above comment
+        for details).
+      */
+      if ((embedding->outer_join & JOIN_TYPE_FULL) &&
+          (embedding->outer_join & JOIN_TYPE_LEFT))
+        continue;
       NESTED_JOIN *nested_join= embedding->nested_join;
       if (!nested_join->counter)
       {
@@ -14410,6 +14523,121 @@ bool build_tmp_join_prefix_cond(JOIN *join, JOIN_TAB *last_tab, Item **ret)
       break;
   }
   *ret= all_conds? all_conds: res;
+  return false;
+}
+
+
+/*
+  Push parts of an outer-join ON expression to tables that appear
+  after the inner tables in the execution order.
+
+  The caller (make_join_select) has a loop that walks the inner tables
+  of each outer join, extracting conjuncts from the ON expression
+  and pushing them to each inner table's select_cond.  But that loop
+  only visits tables from [start_from...last_tab], building used_tables2
+  as it goes.  If the ON expression references a table that the
+  optimizer placed after last_tab, no conjunct is ever extracted for
+  it, and the condition is silently lost.
+
+  This happens with FULL JOIN.  For example, if:
+
+      (A FULL JOIN B ON A.x = B.x) RIGHT JOIN C ON B.x = C.x
+
+  is rewritten to:
+
+      C LEFT JOIN (A, B) ON B.x = C.x
+
+  then the optimizer may order these tables as A, B, C.  The inner
+  scope of the LEFT JOIN is {A, B} with last_tab = B, but the ON
+  expression "B.x = C.x" references C, which comes after B.  The main
+  loop never reaches C, so "B.x = C.x" is never pushed.
+
+  This function picks up where the main loop left off: it scans
+  tables after last_tab and, for each one referenced by on_expr,
+  extracts the relevant conjuncts, wraps them in the same trigcond
+  guards used for outer-join conditions (found + not_null_compl),
+  and attaches them to that table's select_cond.
+
+  @param used_tables  Cumulative bitmap of tables visited so far
+                      (updated in place so the caller sees the new
+                      tables we covered).
+  @return true on error.
+*/
+static bool
+push_on_expr_to_later_outer_tables(THD *thd, JOIN *join, JOIN_TAB *last_tab,
+                                   JOIN_TAB *first_inner_tab, Item *on_expr,
+                                   table_map *used_tables)
+{
+  /*
+    Every table referenced by on_expr is already in used_tables;
+    nothing left to push.
+  */
+  if (!(on_expr->used_tables() & ~(*used_tables)))
+    return false;
+
+  JOIN_TAB *end_tab= join->join_tab + join->top_join_tab_count;
+  for (JOIN_TAB *outer_tab= last_tab + 1; outer_tab < end_tab; outer_tab++)
+  {
+    if (!outer_tab->table)
+      continue;
+
+    /*
+      Always add the table to used_tables even if on_expr doesn't
+      reference it.  make_cond_for_table needs used_tables to include
+      all tables up to and including the one being extracted for.
+    */
+    table_map current_map= outer_tab->table->map;
+    *used_tables|= current_map;
+    if (!(on_expr->used_tables() & current_map))
+      continue;
+
+    /*
+      Extract the conjuncts from on_expr that can be evaluated once
+      this table's row is available.
+    */
+    COND *tmp_cond= make_cond_for_table(thd, on_expr, *used_tables,
+                                        current_map, -1,
+                                        FALSE, FALSE);
+    if (thd->is_error())
+      return true;
+    if (!tmp_cond)
+      continue;
+
+    /*
+      Wrap in the two "standard" outer-join trigcond guards:
+
+        trigcond(found, <cond>)         -- disabled until a match is found
+        trigcond(not_null_compl, ...)   -- disabled during null-complement
+
+      This makes the pushed condition behave identically to conditions
+      pushed to inner tables by the main loop.
+    */
+    DBUG_ASSERT(tmp_cond->fixed());
+    if (!(tmp_cond= add_found_match_trig_cond(thd, first_inner_tab,
+                                              tmp_cond, 0)))
+      return true;
+
+    tmp_cond= new (thd->mem_root)
+      Item_func_trig_cond(thd, tmp_cond, &first_inner_tab->not_null_compl);
+    if (!tmp_cond)
+      return true;
+    tmp_cond->quick_fix_field();
+
+    /* AND the wrapped condition into this table's select_cond. */
+    DBUG_ASSERT(!outer_tab->select_cond || outer_tab->select_cond->fixed());
+    outer_tab->select_cond=
+      !outer_tab->select_cond ? tmp_cond :
+      new (thd->mem_root)
+        Item_cond_and(thd, outer_tab->select_cond, tmp_cond);
+    if (!outer_tab->select_cond)
+      return true;
+
+    outer_tab->select_cond->quick_fix_field();
+    outer_tab->select_cond->update_used_tables();
+    if (outer_tab->select)
+      outer_tab->select->cond= outer_tab->select_cond;
+  }
+
   return false;
 }
 
@@ -15024,33 +15252,33 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
            join_tab != end_with;
            join_tab++)
       {
-        if (*join_tab->on_expr_ref)
+        if (!*join_tab->on_expr_ref || !join_tab->first_inner)
+          continue;
+
+        JOIN_TAB *cond_tab= join_tab->first_inner;
+        COND *tmp_cond= make_cond_for_table(thd, *join_tab->on_expr_ref,
+                                            join->const_table_map,
+                                            (table_map) 0, -1, FALSE, FALSE);
+        if (!tmp_cond)
         {
-          JOIN_TAB *cond_tab= join_tab->first_inner;
-          COND *tmp_cond= make_cond_for_table(thd, *join_tab->on_expr_ref,
-                                              join->const_table_map,
-                                              (table_map) 0, -1, FALSE, FALSE);
-          if (!tmp_cond)
-          {
-            if (!thd->is_error())
-              continue;
-            DBUG_RETURN(1);
-          }
-          tmp_cond= new (thd->mem_root) Item_func_trig_cond(thd, tmp_cond,
-                                            &cond_tab->not_null_compl);
-          if (!tmp_cond)
-            DBUG_RETURN(1);
-          tmp_cond->quick_fix_field();
-          cond_tab->select_cond= !cond_tab->select_cond ? tmp_cond :
-                                 new (thd->mem_root) Item_cond_and(thd, cond_tab->select_cond,
-                                                   tmp_cond);
-          if (!cond_tab->select_cond)
-	    DBUG_RETURN(1);
-          cond_tab->select_cond->quick_fix_field();
-          cond_tab->select_cond->update_used_tables();
-          if (cond_tab->select)
-            cond_tab->select->cond= cond_tab->select_cond; 
-        }       
+          if (!thd->is_error())
+            continue;
+          DBUG_RETURN(1);
+        }
+        tmp_cond= new (thd->mem_root) Item_func_trig_cond(thd, tmp_cond,
+                                          &cond_tab->not_null_compl);
+        if (!tmp_cond)
+          DBUG_RETURN(1);
+        tmp_cond->quick_fix_field();
+        cond_tab->select_cond= !cond_tab->select_cond ? tmp_cond :
+                               new (thd->mem_root) Item_cond_and(thd, cond_tab->select_cond,
+                                                 tmp_cond);
+        if (!cond_tab->select_cond)
+          DBUG_RETURN(1);
+        cond_tab->select_cond->quick_fix_field();
+        cond_tab->select_cond->update_used_tables();
+        if (cond_tab->select)
+          cond_tab->select->cond= cond_tab->select_cond;
       }
 
 
@@ -15185,7 +15413,12 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               cond_tab->select->cond= cond_tab->select_cond;
           }
         }
-        first_inner_tab= first_inner_tab->first_upper;       
+
+        if (push_on_expr_to_later_outer_tables(thd, join, last_tab,
+                                               first_inner_tab, on_expr,
+                                               &used_tables2))
+          DBUG_RETURN(1);
+        first_inner_tab= first_inner_tab->first_upper;
       }
       if (!tab->bush_children)
         i++;
@@ -15927,6 +16160,29 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 #endif
 */
 
+
+/*
+  Return true if the given TABLE_LIST is a FULL JOIN operand or is
+  embedded (at any depth) within a FULL JOIN nest.  Join caching is
+  disabled for such tables because the null-complement rescan requires a
+  plain sequential scan of the right side (rather than one that reads
+  from a buffered join cache).
+*/
+static inline bool is_in_full_join_scope(TABLE_LIST *tl)
+{
+  if (tl->outer_join & JOIN_TYPE_FULL)
+    return true;
+  for (TABLE_LIST *embedding= tl->embedding;
+       embedding;
+       embedding= embedding->embedding)
+  {
+    if (embedding->outer_join & JOIN_TYPE_FULL)
+      return true;
+  }
+  return false;
+}
+
+
 static
 uint check_join_cache_usage(JOIN_TAB *tab,
                             ulonglong options,
@@ -15954,6 +16210,9 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   bool hint_forces_bka= hint_table_state(join->thd, tab->tab_list->table,
                                          BKA_HINT_ENUM, false);
   join->return_tab= 0;
+
+  if (is_in_full_join_scope(tab->tab_list))
+    goto no_join_cache;
 
   if (tab->no_forced_join_cache || (hint_disables_bnl && no_bka_cache))
     goto no_join_cache;
@@ -19913,6 +20172,17 @@ static void rewrite_full_to_left(TABLE_LIST *left_table,
   */
   DBUG_ASSERT(right_table->on_expr);
 
+  /*
+    Clear the left table's ON expression and prep_on_expr.  The
+    parser set on_expr on both sides of the FULL JOIN via
+    add_join_on(), but after the rewrite to LEFT JOIN only the
+    right table should carry the ON clause.  Clear prep_on_expr
+    too so reinit_before_use() won't restore a stale expression
+    for prepared statement re-execution.
+  */
+  left_table->on_expr= nullptr;
+  left_table->prep_on_expr= nullptr;
+
   // Only the right table in a LEFT JOIN has the naming context in the grammar
   left_table->on_context= nullptr;
 }
@@ -19962,9 +20232,17 @@ static void rewrite_full_to_right(TABLE_LIST *left_table,
     of a FULL JOIN.
   */
   DBUG_ASSERT(right_table->on_expr);
-  DBUG_ASSERT(left_table->on_expr == nullptr);
   left_table->on_expr= right_table->on_expr;
   right_table->on_expr= nullptr;
+
+  /*
+    Update prep_on_expr to match the post-rewrite state so that
+    reinit_before_use() restores the correct ON expressions for
+    prepared statement re-execution.  The ON expression moved from
+    the right table to the left, so prep_on_expr must follow.
+  */
+  left_table->prep_on_expr= right_table->prep_on_expr;
+  right_table->prep_on_expr= nullptr;
 
   /*
     Prepare the right table to become the left table by
@@ -20025,19 +20303,7 @@ static COND *rewrite_full_outer_joins(JOIN *join,
     that).
   */
   if ((*right_table)->outer_join & JOIN_TYPE_LEFT)
-  {
-    if (join->thd->lex->describe)
-      DBUG_RETURN(conds);
-
-    /*
-      We always see the RIGHT table before the LEFT table, so nothing to
-      do here for JOIN_TYPE_LEFT.
-    */
-    my_error(ER_NOT_SUPPORTED_YET, MYF(ME_FATAL),
-             "FULL JOINs that cannot be converted to LEFT, RIGHT, or "
-             "INNER JOINs");
-    DBUG_RETURN(nullptr);
-  }
+    DBUG_RETURN(conds);
 
   /*
     Must always see the right table before the left.  Down below, we deal
@@ -20102,16 +20368,50 @@ static COND *rewrite_full_outer_joins(JOIN *join,
       If the left table, be it a nested join or not, rejects nulls for
       the WHERE condition, then rewrite.
     */
-    *not_null_tables= left_not_null_tables;
     if (left_used_tables & *not_null_tables)
     {
       rewrite_full_to_left(left_table, *right_table);
       --join->thd->lex->full_join_count;
     }
+    *not_null_tables= left_not_null_tables;
     // else the FULL JOIN cannot be rewritten, pass it along.
   }
 
   DBUG_RETURN(conds);
+}
+
+
+/**
+  Check that the right side of every FULL JOIN is a base table.
+
+  Returns TRUE and raises ER_FULL_JOIN_BASE_TABLES_ONLY if a derived table
+  or view is found on the right side of any FULL JOIN.
+*/
+
+static bool
+check_full_join_base_tables(List<TABLE_LIST> *join_list)
+{
+  TABLE_LIST *table;
+  List_iterator<TABLE_LIST> li(*join_list);
+
+  while ((table= li++))
+  {
+    if ((table->outer_join & JOIN_TYPE_FULL) &&
+        (table->outer_join & JOIN_TYPE_RIGHT))
+    {
+      if (table->derived || table->is_view())
+      {
+        my_error(ER_FULL_JOIN_BASE_TABLES_ONLY, MYF(0), table->alias.str);
+        return true;
+      }
+    }
+
+    if (table->nested_join &&
+        check_full_join_base_tables(&table->nested_join->join_list))
+      return true;  // already set thd error state
+  }
+
+  return false;
 }
 
 
@@ -20255,19 +20555,33 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
   bool straight_join= MY_TEST(join->select_options & SELECT_STRAIGHT_JOIN);
   DBUG_ENTER("simplify_joins");
 
-  /* 
+  /*
     Try to simplify join operations from join_list.
-    The most outer join operation is checked for conversion first. 
+    The most outer join operation is checked for conversion first.
   */
   while ((table= li++))
   {
-    // We only support FULL JOIN on base tables.
-    if (table->outer_join & JOIN_TYPE_FULL &&
-        !table->is_non_derived())
+    /*
+      The join list is in reverse, so we see the right side of a FULL
+      JOIN before the left and attempted the rewrite on that earlier
+      iteration.  If the FULL JOIN was rewritten, JOIN_TYPE_FULL is
+      cleared on both sides.  If it is still set, then no rewrite
+      occurred and this is the LEFT side of a FULL JOIN.
+
+      So we still need to propagate this side's bits into the embedding's
+      used_tables bitmap so downstream machinery knows that this table
+      participates in the nest.
+    */
+    if ((table->outer_join & JOIN_TYPE_FULL) &&
+        (table->outer_join & JOIN_TYPE_LEFT))
     {
-      my_error(ER_FULL_JOIN_BASE_TABLES_ONLY, MYF(0),
-               table->alias.str);
-      DBUG_RETURN(nullptr);
+      if (table->embedding)
+      {
+        table->embedding->nested_join->used_tables |=
+          table->nested_join ? table->nested_join->used_tables
+                             : table->get_map();
+      }
+      continue;
     }
 
     table_map used_tables;
@@ -20282,14 +20596,14 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
       if (table->on_expr)
       {
         Item *expr= table->on_expr;
-        /* 
-           If an on expression E is attached to the table, 
+        /*
+           If an on expression E is attached to the table,
            check all null rejected predicates in this expression.
            If such a predicate over an attribute belonging to
            an inner table of an embedded outer join is found,
            the outer join is converted to an inner join and
-           the corresponding on expression is added to E. 
-	*/ 
+           the corresponding on expression is added to E.
+        */
         expr= simplify_joins(join, &nested_join->join_list,
                              expr, in_sj || table->sj_on_expr);
         if (!expr && join->thd->is_error())
@@ -20299,8 +20613,17 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
         {
           DBUG_ASSERT(expr);
 
+          /*
+            Preserve our ON expression, and if we're a FULL JOIN,
+            then preserve our partner's ON expression too.
+          */
           table->on_expr= expr;
           table->prep_on_expr= expr->copy_andor_structure(join->thd);
+          if (table->outer_join & JOIN_TYPE_FULL)
+          {
+            table->foj_partner->on_expr= expr;
+            table->foj_partner->prep_on_expr= table->prep_on_expr;
+          }
         }
       }
       conds= simplify_nested_join(join, table, conds, in_sj,
@@ -20882,6 +21205,65 @@ static void restore_prev_nj_state(JOIN_TAB *last)
 
 
 /*
+  Compute full_join_nest_tables, the union of direct_children_map of
+  every join nest that transitively contains a FULL JOIN table.
+
+  The optimizer must place all tables of such a nest before placing
+  tables outside it, because the FULL JOIN null-complement algorithm
+  requires its tables to be adjacent in the join order.
+*/
+
+static void
+compute_full_join_nest_tables(JOIN *join, SELECT_LEX *lex)
+{
+  join->full_join_nest_tables= 0;
+  if (!join->thd->lex->full_join_count)
+    return;
+
+  TABLE_LIST *tl;
+  List_iterator<TABLE_LIST> ti(lex->leaf_tables);
+  while ((tl= ti++))
+  {
+    if (!(tl->outer_join & JOIN_TYPE_FULL))
+      continue;
+
+    for (TABLE_LIST *embedding= tl->embedding;
+         embedding;
+         embedding= embedding->embedding)
+    {
+      if (embedding->nested_join)
+        join->full_join_nest_tables|=
+          embedding->nested_join->direct_children_map;
+    }
+  }
+}
+
+
+/*
+  If any FULL JOIN nest tables in the candidate pool are still
+  unplaced, return just those tables; otherwise return 0 to indicate
+  no restriction.
+
+  The null-complement algorithm requires FULL JOIN tables to be
+  adjacent in the execution order.  Allowing an outside table to be
+  interleaved between FULL JOIN partners would break the algorithm.
+*/
+
+static table_map
+restrict_to_unplaced_fj_tables(JOIN *join, uint idx, table_map pool)
+{
+  if (!join->full_join_nest_tables)
+    return 0;
+
+  table_map remaining= 0;
+  for (uint i= idx; i < join->table_count; i++)
+    remaining|= join->best_ref[i]->table->map;
+
+  return join->full_join_nest_tables & remaining & pool;
+}
+
+
+/*
   Compute allowed_top_level_tables - a bitmap of tables one can put into the
   join order if the last table in the join prefix is not inside any outer
   join nest.
@@ -20929,33 +21311,33 @@ void JOIN::calc_allowed_top_level_tables(SELECT_LEX *lex)
       embedding= embedding->embedding;
     }
 
-    // Ok we are in the parent nested outer join nest.
-    if (!embedding)
+    /*
+      Walk through all upper join nests, adding this table to each
+      nest's direct_children_map.  This must traverse the entire chain
+      so that deeply nested FULL JOINs are handled correctly.
+      The original code only walked two levels (parent and
+      grandparent), which caused an assertion failure when four or
+      more tables were chained with FULL JOINs.
+    */
+    while (true)
     {
-      allowed_top_level_tables |= map;
-      continue;
-    }
-    embedding->nested_join->direct_children_map |= map;
-
-    // Walk to grand-parent join nest.
-    embedding= embedding->embedding;
-
-    // Walk out of any semi-join nests
-    while (embedding && !embedding->on_expr)
-    {
-      DBUG_ASSERT(embedding->sj_on_expr);
+      if (!embedding)
+      {
+        allowed_top_level_tables |= map;
+        break;
+      }
       embedding->nested_join->direct_children_map |= map;
       embedding= embedding->embedding;
+      // Walk out of any semi-join nests
+      while (embedding && !embedding->on_expr)
+      {
+        embedding->nested_join->direct_children_map |= map;
+        embedding= embedding->embedding;
+      }
     }
-
-    if (embedding)
-    {
-      DBUG_ASSERT(embedding->on_expr);          // Impossible, see above
-      embedding->nested_join->direct_children_map |= map;
-    }
-    else
-      allowed_top_level_tables |= map;
   }
+
+  compute_full_join_nest_tables(this, lex);
   DBUG_VOID_RETURN;
 }
 
@@ -20985,10 +21367,21 @@ table_map JOIN::get_allowed_nj_tables(uint idx)
       }
     }
   }
-  // Return bitmap of tables not in any join nest
-  if (emb_sjm_nest)
-    return emb_sjm_nest->nested_join->direct_children_map;
-  return allowed_top_level_tables;
+
+  /*
+    Select the set of tables the optimizer may pick from next.  When
+    placing tables inside a materialized semijoin, that set is the
+    SJM nest's direct children.  Otherwise it is the set of top-level
+    tables.
+  */
+  const table_map pool= emb_sjm_nest
+    ? emb_sjm_nest->nested_join->direct_children_map
+    : allowed_top_level_tables;
+
+  if (table_map fj_only= restrict_to_unplaced_fj_tables(this, idx, pool))
+    return fj_only;
+
+  return pool;
 }
 
 
@@ -24456,6 +24849,67 @@ Next_select_func setup_end_select_func(JOIN *join)
     -1  if error should be sent
 */
 
+/*
+  Allocate a full_join_duplicate_filter for each right-side FULL JOIN
+  table in the top-level join-tab range [start_tab, start_tab+count).
+
+  The filter records right-side rowids matched during the LEFT JOIN
+  pass so the null-complement rescan can skip them.  Only base tables
+  are supported on the right side of a FULL JOIN, but a query may
+  contain multiple (possibly nested) FULL JOINs, so each right-side
+  tab gets its own filter.
+
+  Returns true on allocation failure (error already reported).
+*/
+
+static bool alloc_full_join_duplicate_filters(JOIN *join, JOIN_TAB *start_tab,
+                                              uint count)
+{
+  if (!join->thd->lex->full_join_count)
+    return false;
+
+  for (uint i= 0; i < count; ++i)
+  {
+    start_tab[i].fj_dups= nullptr;
+    start_tab[i].fj_null_complement_done= false;
+    if (!(start_tab[i].tab_list->outer_join & JOIN_TYPE_FULL) ||
+        !(start_tab[i].tab_list->outer_join & JOIN_TYPE_RIGHT))
+      continue;
+
+    DBUG_ASSERT(count >= 2);
+    auto fj_dups= join->thd->alloc<full_join_duplicate_filter>(1);
+    if (!fj_dups)
+      return true;
+    if (fj_dups->init(join->thd, &start_tab[i]))
+      return true;
+    start_tab[i].fj_dups= fj_dups;
+  }
+  return false;
+}
+
+
+/*
+  Release the temp tables backing each FULL JOIN duplicate filter
+  allocated by alloc_full_join_duplicate_filters.
+*/
+
+static void free_full_join_duplicate_filters(JOIN *join, JOIN_TAB *start_tab,
+                                              uint count)
+{
+  if (!join->thd->lex->full_join_count)
+    return;
+
+  for (uint i= 0; i < count; ++i)
+  {
+    if (!(start_tab[i].tab_list->outer_join & JOIN_TYPE_FULL) ||
+        start_tab[i].fj_dups == nullptr)
+      continue;
+    start_tab[i].fj_dups->cleanup(join->thd);
+    start_tab[i].fj_dups= nullptr;
+  }
+}
+
+
 static int
 do_select(JOIN *join, Procedure *procedure)
 {
@@ -24582,14 +25036,20 @@ do_select(JOIN *join, Procedure *procedure)
       join->join_tab[top_level_tables-1].cached_pfs_batch_update=
         join->join_tab[top_level_tables-1].pfs_batch_update();
 
-    JOIN_TAB *join_tab= join->join_tab +
+    JOIN_TAB *start_tab= join->join_tab +
                         (join->tables_list ? join->const_tables : 0);
+
+    if (alloc_full_join_duplicate_filters(join, start_tab, top_level_tables))
+      DBUG_RETURN(-1);
+
     if (join->outer_ref_cond && !join->outer_ref_cond->val_bool())
       error= NESTED_LOOP_NO_MORE_ROWS;
     else
-      error= join->first_select(join,join_tab,0);
+      error= join->first_select(join,start_tab,0);
     if (error >= NESTED_LOOP_OK && likely(join->thd->killed != ABORT_QUERY))
-      error= join->first_select(join,join_tab,1);
+      error= join->first_select(join,start_tab,1);
+
+    free_full_join_duplicate_filters(join, start_tab, top_level_tables);
   }
 
   join->thd->limit_found_rows= join->send_records - join->duplicate_rows;
@@ -24756,7 +25216,7 @@ sub_select_postjoin_aggr(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   {
     rc= aggr->end_send();
     if (rc >= NESTED_LOOP_OK)
-      rc= sub_select(join, join_tab, end_of_records);
+      rc= sub_select(join, join_tab, true);
     DBUG_RETURN(rc);
   }
 
@@ -24979,6 +25439,67 @@ sub_select_cache(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     return one of enum_nested_loop_state, except NESTED_LOOP_NO_MORE_ROWS.
 */
 
+/*
+  Rescan the right table of a FULL JOIN to emit null-complemented
+  rows for the right-side rows that were not matched during the first
+  (LEFT JOIN) pass.
+
+  The rescan is forced to a plain sequential scan (not the original
+  JT_REF / JT_EQ_REF access method, which would look up keys derived
+  from the now-nullified left side and return zero rows).  The pushed
+  SQL_SELECT and on_precond are cleared for the rescan and restored
+  afterwards so that subsequent executions (prepared statement
+  re-execution, correlated subquery iterations) see the original
+  access method.
+
+  Runs at end_of_records, so it is safe to restore without restarting
+  the handler scan.  Caller guarantees that join_tab is the RIGHT side
+  of a FULL JOIN and writing_null_complements is currently false.
+*/
+
+static enum_nested_loop_state
+run_fj_null_complement_pass(JOIN *join, JOIN_TAB *join_tab)
+{
+  join_tab->writing_null_complements= true;
+  Item *saved_on_precond= join_tab->on_precond;
+  join_tab->on_precond= nullptr;
+
+  // Restart reading from the right table as a full scan.
+  join_tab->table->file->ha_end_keyread();
+  if (join_tab->type == JT_FT)
+    join_tab->table->file->ha_ft_end();
+  else if (join_tab->table->hlindex &&
+           join_tab->table->hlindex->context)
+    join_tab->table->hlindex_read_end();
+  else
+    join_tab->table->file->ha_index_or_rnd_end();
+
+  // Save-off important state before restarting the full scan.
+  READ_RECORD saved_read_record= join_tab->read_record;
+  READ_RECORD::Setup_func saved_read_first= join_tab->read_first_record;
+  SQL_SELECT *saved_select= join_tab->select;
+  join_tab->read_first_record= join_init_read_record;
+  join_tab->select= nullptr;
+
+  // full scan of right table and null-complement generation
+  enum_nested_loop_state nls= sub_select(join, join_tab, 0);
+  if (nls >= NESTED_LOOP_OK)
+    nls= sub_select(join, join_tab, 1);
+
+  // restore the saved-off state.
+  join_tab->read_first_record= saved_read_first;
+  join_tab->read_record= saved_read_record;
+  join_tab->select= saved_select;
+  join_tab->writing_null_complements= false;
+  join_tab->fj_null_complement_done= true;
+  join_tab->on_precond= saved_on_precond;
+
+  if (nls == NESTED_LOOP_NO_MORE_ROWS)
+    nls= NESTED_LOOP_OK;
+  return nls;
+}
+
+
 enum_nested_loop_state
 sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
 {
@@ -25008,8 +25529,40 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
 
   if (end_of_records)
   {
-    enum_nested_loop_state nls=
-      (*join_tab->next_select)(join,join_tab+1,end_of_records);
+    enum_nested_loop_state nls= NESTED_LOOP_OK;
+
+    // eor means 'end of records'
+    bool eor_forwarded_by_rescan= false;
+
+    /*
+      For chained FULL JOINs (e.g. A FJ B FJ C), the inner FJ's
+      null-complement rescan can produce rows that match the outer
+      FJ's right side.  Those matches must be recorded in the outer
+      fj_dups filter before the outer's own rescan runs, otherwise
+      the outer re-emits an already-matched right-side row as
+      "unmatched".  Therefore, run *this tab's rescan first, and only
+      then propagate end_of_records deeper (which triggers the next
+      tab's rescan, now with updated fj_dups state).  The
+      fj_null_complement_done flag prevents a subsequent EOR from
+      re-triggering this same rescan.
+
+      run_fj_null_complement_pass internally calls
+      sub_select(self, true) which already forwards EOR down the
+      chain, so we must not forward it a second time below.
+    */
+    if (join_tab->fj_dups &&  // is the right side of a FULL JOIN
+        !join_tab->writing_null_complements &&
+        !join_tab->fj_null_complement_done &&
+        (join_tab->tab_list->outer_join & JOIN_TYPE_FULL) &&
+        (join_tab->tab_list->outer_join & JOIN_TYPE_RIGHT))
+    {
+      nls= run_fj_null_complement_pass(join, join_tab);
+      eor_forwarded_by_rescan= true;
+    }
+
+    if (!eor_forwarded_by_rescan && nls >= NESTED_LOOP_OK)
+      nls= (*join_tab->next_select)(join,join_tab+1,end_of_records);
+
     DBUG_RETURN(nls);
   }
   join_tab->tracker->r_scans++;
@@ -25118,7 +25671,15 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
 
   if (rc == NESTED_LOOP_NO_MORE_ROWS)
   {
-    if (join_tab->last_inner && !join_tab->found)
+    /*
+      Skip the standard outer-join null complement when we are doing a
+      FULL JOIN null-complement rescan of the right table.  During
+      that rescan the evaluate_join_record() early-exit path handles
+      unmatched rows directly, and the normal "no match found" path
+      must not fire because join_tab->found is not being maintained.
+    */
+    if (join_tab->last_inner && !join_tab->found &&
+        !join_tab->writing_null_complements)
     {
       rc= evaluate_null_complemented_join_record(join, join_tab);
       if (rc == NESTED_LOOP_NO_MORE_ROWS)
@@ -25133,6 +25694,101 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
 
   DBUG_RETURN(rc);
 }
+
+
+/*
+  Recursively mark all base tables within a TABLE_LIST as null rows.
+  Handles both single tables and nested joins (where table is NULL
+  but nested_join contains child TABLE_LISTs).
+*/
+static void mark_table_list_as_null_row(TABLE_LIST *tl)
+{
+  if (tl->table)
+    mark_as_null_row(tl->table);
+  else if (tl->nested_join)
+  {
+    List_iterator<TABLE_LIST> li(tl->nested_join->join_list);
+    TABLE_LIST *child;
+    while ((child= li++))
+      mark_table_list_as_null_row(child);
+  }
+}
+
+
+/* Reverse of mark_table_list_as_null_row: restore real row data. */
+static void unmark_table_list_as_null_row(TABLE_LIST *tl)
+{
+  if (tl->table)
+    unmark_as_null_row(tl->table);
+  else if (tl->nested_join)
+  {
+    List_iterator<TABLE_LIST> li(tl->nested_join->join_list);
+    TABLE_LIST *child;
+    while ((child= li++))
+      unmark_table_list_as_null_row(child);
+  }
+}
+
+
+/*
+  Handle a single row read during a FULL JOIN null-complement rescan.
+
+  Called from evaluate_join_record when writing_null_complements is
+  set and the current table has an fj_dups filter (i.e. it is the
+  right side of a FULL JOIN).  The steps are:
+
+    1. Skip rows whose rowid was already recorded during the first
+       (LEFT JOIN) pass.
+    2. Null-complement the FULL JOIN partner side.
+    3. Apply WHERE (only) to the null-complemented row.  select_cond
+       has the structure
+         trigcond(found, WHERE) AND trigcond(not_null_compl, ON)
+       so setting found=1 activates WHERE while not_null_compl=0
+       disables ON (which returns TRUE when its trigcond is off).
+       Restore both flags after evaluation.
+    4. Forward the row through the remaining join tabs.
+    5. Unmark the partner side before returning.
+*/
+
+static enum_nested_loop_state
+evaluate_fj_null_complement_row(JOIN *join, JOIN_TAB *join_tab,
+                                COND *select_cond)
+{
+  bool is_dup= false;
+  if (join_tab->fj_dups->check_rowids(join->thd, &is_dup))
+    return NESTED_LOOP_ERROR;
+  if (is_dup)
+    return NESTED_LOOP_OK;
+
+  mark_table_list_as_null_row(join_tab->tab_list->foj_partner);
+
+  if (select_cond)
+  {
+    bool saved_found= join_tab->found;
+    bool saved_nnc= join_tab->not_null_compl;
+    join_tab->found= 1;
+    join_tab->not_null_compl= 0;
+    bool where_ok= select_cond->val_bool();
+    join_tab->found= saved_found;
+    join_tab->not_null_compl= saved_nnc;
+    if (!where_ok)
+    {
+      unmark_table_list_as_null_row(join_tab->tab_list->foj_partner);
+      return NESTED_LOOP_OK;
+    }
+  }
+
+  enum_nested_loop_state rc=
+    (*join_tab->next_select)(join, join_tab+1, false);
+  join->thd->get_stmt_da()->inc_current_row_for_warning();
+
+  unmark_table_list_as_null_row(join_tab->tab_list->foj_partner);
+
+  if (rc != NESTED_LOOP_OK && rc != NESTED_LOOP_NO_MORE_ROWS)
+    return rc;
+  return NESTED_LOOP_OK;
+}
+
 
 /**
   @brief Process one row of the nested loop join.
@@ -25172,6 +25828,10 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
   {
     DBUG_RETURN(NESTED_LOOP_KILLED);            /* purecov: inspected */
   }
+
+  // FULL JOIN null-complement generation.
+  if (join_tab->writing_null_complements && join_tab->fj_dups)
+    DBUG_RETURN(evaluate_fj_null_complement_row(join, join_tab, select_cond));
 
   join_tab->tracker->r_rows++;
 
@@ -25304,6 +25964,18 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
     join->thd->inc_examined_row_count_fast();
     DBUG_PRINT("counts", ("examined_rows: %llu  found: %d",
                           (ulonglong) join->thd->m_examined_row_count, (int) found));
+
+    /*
+      For FULL JOIN: reaching this point means the ON condition matched
+      (because when 'found' is still 0, the WHERE trigcond is disabled).
+      Remember the right-side rowid so the null-complement pass skips
+      it, even if the WHERE later rejects the row and clears found.
+    */
+    if (join_tab->fj_dups && !join_tab->writing_null_complements)
+    {
+      if (join_tab->fj_dups->remember_rowids(join->thd))
+        DBUG_RETURN(NESTED_LOOP_ERROR);
+    }
 
     if (found)
     {
@@ -26388,8 +27060,7 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     to get fields from previous tab.
   */
   DBUG_ASSERT(join_tab == NULL || join_tab != join->join_tab);
-  //TODO pass fields via argument
-  List<Item> *fields= join_tab ? (join_tab-1)->fields : join->fields;
+  List<Item> *fields= join->fields;
 
   if (end_of_records)
   {
@@ -27169,7 +27840,7 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
 {
   table_map rand_table_bit= (table_map) RAND_TABLE_BIT;
 
-  if (used_table && !(cond->used_tables() & used_table))
+  if (!cond || (used_table && !(cond->used_tables() & used_table)))
     return (COND*) 0;				// Already checked
 
   if (cond->type() == Item::COND_ITEM)

@@ -10241,6 +10241,8 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
         hint_table_state(thd, this, MERGE_HINT_ENUM,
             optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE));
 
+    DBUG_ASSERT(!(outer_join & JOIN_TYPE_FULL) || foj_partner);
+
     if (!is_materialized_derived() && unit->can_be_merged() &&
         /*
           Following is special case of
@@ -10268,7 +10270,13 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
            (thd->lex->sql_command == SQLCOM_DELETE &&
             (((Sql_cmd_delete *) thd->lex->m_sql_cmd)->is_multitable() ||
              thd->lex->query_tables->is_multitable())))) &&
-        !is_recursive_with_table())
+        !is_recursive_with_table() &&
+        /*
+          Derived tables that participate in a FULL JOIN must not be
+          merged because the FULL JOIN null-complement logic only
+          works when the physical table is available.
+        */
+        !foj_partner)
       set_merged_derived();
     else
       set_materialized_derived();
