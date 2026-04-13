@@ -13,6 +13,14 @@
 --source include/have_wsrep.inc
 --source ../include/wait_for_pfs_thread_count.inc
 
+# SSL/TLS bypasses PFS socket I/O instrumentation
+# (SSL_read/SSL_write instead of recv/send)
+--let $have_ssl= `SELECT VARIABLE_VALUE != '' FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher'`
+if ($have_ssl)
+{
+  --skip Socket I/O not available over SSL/TLS
+}
+
 --disable_query_log
 
 create user user1@localhost;

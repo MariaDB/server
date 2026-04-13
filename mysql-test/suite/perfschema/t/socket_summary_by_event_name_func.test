@@ -22,6 +22,14 @@
 # Wait for any clients from previous tests to disconnect
 --source ../include/wait_for_pfs_thread_count.inc
 
+# SSL/TLS bypasses PFS socket I/O instrumentation
+# (SSL_read/SSL_write instead of recv/send)
+--let $have_ssl= `SELECT VARIABLE_VALUE != '' FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher'`
+if ($have_ssl)
+{
+  --skip Socket I/O not available over SSL/TLS
+}
+
 # The values in the performance_schema tables depend on how much communication
 # happens per SQL statement within our MTR tests. And there is a significant
 # difference between standard statement execution and execution via
