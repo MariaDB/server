@@ -268,7 +268,9 @@ public:
       queue.clear();
     ut_ad(queue.empty());
     mutex.wr_unlock();
-    return 0;
+    int fail= 0;
+    log_sys.backup_stop(old_size, thd);
+    return fail;
   }
 
   /**
@@ -281,7 +283,6 @@ public:
     ut_ad(queue.empty());
     ut_d(mutex.wr_unlock());
     mutex.destroy();
-    log_sys.backup_stop(old_size, thd);
   }
 
 private:
