@@ -11210,6 +11210,443 @@ const char *dbug_print(Item *x)            { return dbug_print_item(x);   }
 const char *dbug_print(SELECT_LEX *x)      { return dbug_print_select(x); }
 const char *dbug_print(SELECT_LEX_UNIT *x) { return dbug_print_unit(x);   }
 
+
+/*
+  Debugger helper functions for visualizing TABLE_LIST join structures.
+
+  All functions return const char* into a static buffer, following the same
+  pattern as dbug_print_item() above.
+
+    (gdb) p dbug_print(join_list)
+    (gdb) p dbug_print(table)
+    (gdb) p dbug_print(table->nested_join)
+
+
+  NOTE: for nice formatting in gdb:
+    (gdb) printf "%s", dbug_print(join_tab)
+
+  NOTE: for nice formatting in lldb:
+    (lldb) p printf("%s", dbug_print(table))
+*/
+
+static char dbug_join_print_buf[16384];
+
+static void dbug_join_indent(String *out, int depth)
+{
+  for (int i= 0; i < depth; i++)
+    out->append("  ", 2);
+}
+
+static const char *dbug_join_type_str(uint outer_join)
+{
+  if (!outer_join)
+    return "INNER";
+  if (outer_join & JOIN_TYPE_RIGHT)
+    return "RIGHT";
+  if (outer_join & JOIN_TYPE_LEFT)
+    return "LEFT";
+  if (outer_join & JOIN_TYPE_OUTER)
+    return "OUTER(marker)";
+  return "???";
+}
+
+static const char *dbug_safe_alias(const TABLE_LIST *tbl)
+{
+  if (tbl->alias.str && tbl->alias.length)
+    return tbl->alias.str;
+  if (tbl->table_name.str && tbl->table_name.length)
+    return tbl->table_name.str;
+  return "<unnamed>";
+}
+
+static void dbug_str_append(String *out, const char *s)
+{
+  out->append(s, strlen(s));
+}
+
+static void dbug_str_append_ptr(String *out, const void *p)
+{
+  char tmp[32];
+  size_t len= (size_t)snprintf(tmp, sizeof(tmp), "%p", p);
+  out->append(tmp, len);
+}
+
+static void dbug_str_append_uint(String *out, uint val)
+{
+  char tmp[16];
+  size_t len= (size_t)snprintf(tmp, sizeof(tmp), "%u", val);
+  out->append(tmp, len);
+}
+
+static void dbug_str_append_hex(String *out, ulonglong val)
+{
+  char tmp[32];
+  size_t len= (size_t)snprintf(tmp, sizeof(tmp), "0x%llx", val);
+  out->append(tmp, len);
+}
+
+static void dbug_str_append_item(String *out, Item *item)
+{
+  if (!item)
+    out->append("NULL", 4);
+  else
+    item->print(out, QT_ORDINARY);
+}
+
+static void dbug_dump_table_to_str(String *out, const TABLE_LIST *tbl,
+                                   int depth)
+{
+  if (!tbl)
+  {
+    dbug_join_indent(out, depth);
+    out->append("(null TABLE_LIST*)\n", 19);
+    return;
+  }
+
+  dbug_join_indent(out, depth);
+
+  out->append('[');
+  dbug_str_append_ptr(out, tbl);
+  out->append("] \"", 3);
+  dbug_str_append(out, dbug_safe_alias(tbl));
+  out->append('"');
+
+  out->append("  join=", 7);
+  dbug_str_append(out, dbug_join_type_str(tbl->outer_join));
+  out->append(" (outer_join=", 13);
+  dbug_str_append_uint(out, tbl->outer_join);
+  out->append(')');
+
+  if (tbl->table)
+  {
+    out->append("  map=", 6);
+    dbug_str_append_hex(out, (ulonglong) tbl->table->map);
+  }
+
+  if (tbl->nested_join)
+  {
+    out->append("  nested_join=", 14);
+    dbug_str_append_ptr(out, tbl->nested_join);
+    out->append(" (elements=", 11);
+    dbug_str_append_uint(out, tbl->nested_join->join_list.elements);
+    out->append(')');
+  }
+
+  if (tbl->sj_on_expr)
+    out->append("  SJ_NEST", 9);
+
+  out->append('\n');
+
+  if (tbl->on_expr)
+  {
+    dbug_join_indent(out, depth + 1);
+    out->append("ON: ", 4);
+    dbug_str_append_item(out, tbl->on_expr);
+    out->append('\n');
+  }
+
+  if (tbl->sj_on_expr)
+  {
+    dbug_join_indent(out, depth + 1);
+    out->append("SJ_ON: ", 7);
+    dbug_str_append_item(out, tbl->sj_on_expr);
+    out->append('\n');
+  }
+
+  if (tbl->prep_on_expr && tbl->prep_on_expr != tbl->on_expr)
+  {
+    dbug_join_indent(out, depth + 1);
+    out->append("PREP_ON: ", 9);
+    dbug_str_append_item(out, tbl->prep_on_expr);
+    out->append('\n');
+  }
+
+  if (tbl->dep_tables)
+  {
+    dbug_join_indent(out, depth + 1);
+    out->append("dep_tables: ", 12);
+    dbug_str_append_hex(out, (ulonglong) tbl->dep_tables);
+    out->append('\n');
+  }
+
+  if (tbl->on_expr_dep_tables)
+  {
+    dbug_join_indent(out, depth + 1);
+    out->append("on_expr_dep_tables: ", 20);
+    dbug_str_append_hex(out, (ulonglong) tbl->on_expr_dep_tables);
+    out->append('\n');
+  }
+}
+
+static void dbug_dump_join_list_to_str(String *out, List<TABLE_LIST> *jl,
+                                       int depth, bool recurse);
+
+static void dbug_dump_nested_join_to_str(String *out, const NESTED_JOIN *nj,
+                                         int depth)
+{
+  if (!nj)
+  {
+    dbug_join_indent(out, depth);
+    out->append("(null NESTED_JOIN*)\n", 20);
+    return;
+  }
+  dbug_join_indent(out, depth);
+  out->append("NESTED_JOIN [", 13);
+  dbug_str_append_ptr(out, nj);
+  out->append("]\n", 2);
+  dbug_join_indent(out, depth + 1);
+  out->append("used_tables:     ", 17);
+  dbug_str_append_hex(out, (ulonglong) nj->used_tables);
+  out->append('\n');
+  dbug_join_indent(out, depth + 1);
+  out->append("not_null_tables: ", 17);
+  dbug_str_append_hex(out, (ulonglong) nj->not_null_tables);
+  out->append('\n');
+  dbug_join_indent(out, depth + 1);
+  out->append("n_tables:        ", 17);
+  dbug_str_append_uint(out, nj->n_tables);
+  out->append('\n');
+  dbug_join_indent(out, depth + 1);
+  out->append("counter:         ", 17);
+  dbug_str_append_uint(out, nj->counter);
+  out->append('\n');
+  dbug_join_indent(out, depth + 1);
+  out->append("nest_type:       ", 17);
+  dbug_str_append_uint(out, nj->nest_type);
+  if (nj->nest_type & JOIN_OP_NEST)
+    out->append(" (JOIN_OP_NEST)", 15);
+  if (nj->nest_type & REBALANCED_NEST)
+    out->append(" (REBALANCED_NEST)", 18);
+  out->append('\n');
+  dbug_join_indent(out, depth + 1);
+  out->append("nj_map:          ", 17);
+  dbug_str_append_hex(out, (ulonglong) nj->nj_map);
+  out->append('\n');
+  dbug_join_indent(out, depth + 1);
+  out->append("join_list:\n", 11);
+  dbug_dump_join_list_to_str(out,
+                             &const_cast<NESTED_JOIN*>(nj)->join_list,
+                             depth + 2, true);
+}
+
+static void dbug_dump_join_list_to_str(String *out, List<TABLE_LIST> *jl,
+                                       int depth, bool recurse)
+{
+  if (!jl)
+  {
+    dbug_join_indent(out, depth);
+    out->append("(null join_list)\n", 17);
+    return;
+  }
+
+  dbug_join_indent(out, depth);
+  out->append("join_list ", 10);
+  dbug_str_append_ptr(out, jl);
+  out->append(" [", 2);
+  dbug_str_append_uint(out, jl->elements);
+  out->append(" element(s)]:\n", 14);
+
+  List_iterator<TABLE_LIST> it(*jl);
+  TABLE_LIST *tbl;
+  uint idx= 0;
+  while ((tbl= it++))
+  {
+    dbug_join_indent(out, depth);
+    out->append("--- #", 5);
+    dbug_str_append_uint(out, idx++);
+    out->append(" ---\n", 5);
+    dbug_dump_table_to_str(out, tbl, depth + 1);
+
+    if (recurse && tbl->nested_join)
+    {
+      dbug_dump_nested_join_to_str(out, tbl->nested_join, depth + 2);
+    }
+  }
+}
+
+static const char *dbug_return_join_buf(String *str, char *buf)
+{
+  if (str->c_ptr_safe() == buf)
+    return buf;
+  else
+    return "Couldn't fit into buffer";
+}
+
+const char *dbug_print_table(const TABLE_LIST *tbl)
+{
+  char *buf= dbug_join_print_buf;
+  String str(buf, sizeof(dbug_join_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!tbl)
+    return "(TABLE_LIST*)NULL";
+  dbug_dump_table_to_str(&str, tbl, 0);
+  return dbug_return_join_buf(&str, buf);
+}
+
+const char *dbug_print_join_list(List<TABLE_LIST> *jl)
+{
+  char *buf= dbug_join_print_buf;
+  String str(buf, sizeof(dbug_join_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!jl)
+    return "(List<TABLE_LIST>*)NULL";
+  dbug_dump_join_list_to_str(&str, jl, 0, false);
+  return dbug_return_join_buf(&str, buf);
+}
+
+const char *dbug_print_join_tree(List<TABLE_LIST> *jl)
+{
+  char *buf= dbug_join_print_buf;
+  String str(buf, sizeof(dbug_join_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!jl)
+    return "(List<TABLE_LIST>*)NULL";
+  dbug_dump_join_list_to_str(&str, jl, 0, true);
+  return dbug_return_join_buf(&str, buf);
+}
+
+const char *dbug_print_embedding(const TABLE_LIST *tbl)
+{
+  char *buf= dbug_join_print_buf;
+  String str(buf, sizeof(dbug_join_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!tbl)
+    return "(TABLE_LIST*)NULL";
+
+  int depth= 0;
+  for (const TABLE_LIST *cur= tbl; cur; cur= cur->embedding)
+  {
+    dbug_join_indent(&str, depth);
+    str.append('[');
+    dbug_str_append_ptr(&str, cur);
+    str.append("] \"", 3);
+    dbug_str_append(&str, dbug_safe_alias(cur));
+    str.append("\"  join=", 8);
+    dbug_str_append(&str, dbug_join_type_str(cur->outer_join));
+    str.append("  nested_join=", 14);
+    dbug_str_append_ptr(&str, cur->nested_join);
+    if (cur->on_expr)
+    {
+      str.append("  ON=<", 6);
+      dbug_str_append_item(&str, cur->on_expr);
+      str.append('>');
+    }
+    str.append('\n');
+    depth++;
+  }
+  return dbug_return_join_buf(&str, buf);
+}
+
+const char *dbug_print_nested_join(const NESTED_JOIN *nj)
+{
+  char *buf= dbug_join_print_buf;
+  String str(buf, sizeof(dbug_join_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!nj)
+    return "(NESTED_JOIN*)NULL";
+  dbug_dump_nested_join_to_str(&str, nj, 0);
+  return dbug_return_join_buf(&str, buf);
+}
+
+const char *dbug_print_join(JOIN *j)
+{
+  char *buf= dbug_join_print_buf;
+  String str(buf, sizeof(dbug_join_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!j)
+    return "(JOIN*)NULL";
+  if (!j->join_list)
+  {
+    str.append("JOIN [", 6);
+    dbug_str_append_ptr(&str, j);
+    str.append("]: join_list is NULL\n", 21);
+    return dbug_return_join_buf(&str, buf);
+  }
+  str.append("JOIN [", 6);
+  dbug_str_append_ptr(&str, j);
+  str.append("]  table_count=", 15);
+  dbug_str_append_uint(&str, j->table_count);
+  str.append("  const_tables=", 15);
+  dbug_str_append_uint(&str, j->const_tables);
+  str.append('\n');
+  if (j->conds)
+  {
+    str.append("  WHERE: ", 9);
+    dbug_str_append_item(&str, j->conds);
+    str.append('\n');
+  }
+  dbug_dump_join_list_to_str(&str, j->join_list, 0, true);
+  return dbug_return_join_buf(&str, buf);
+}
+
+/*
+  Debugger helper function for visualizing a result set row.
+
+  Prints the name and current value of each Item in the row list,
+  as they would be sent to the client by Protocol::send_result_set_row().
+  The output format matches dbug_print_table_row():
+
+    result_set_row(name1, name2, ...)=(val1, val2, ...)
+
+    (gdb)  p dbug_print_result_set_row(&items)
+    (lldb) p dbug_print_result_set_row(&items)
+*/
+
+const char *dbug_print_result_set_row(List<Item> *row_items)
+{
+  char *buf= dbug_join_print_buf;
+  String str(buf, sizeof(dbug_join_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!row_items)
+    return "(List<Item>*)NULL";
+
+  str.append(STRING_WITH_LEN("("));
+
+  List_iterator_fast<Item> name_it(*row_items);
+  bool first= true;
+  for (Item *item= name_it++; item; item= name_it++)
+  {
+    if (first)
+      first= false;
+    else
+      str.append(STRING_WITH_LEN(", "));
+
+    if (item->name.str)
+      str.append(item->name.str, item->name.length);
+    else
+      str.append(STRING_WITH_LEN("(no name)"));
+  }
+
+  str.append(STRING_WITH_LEN(")=("));
+
+  List_iterator_fast<Item> val_it(*row_items);
+  String val_tmp;
+  first= true;
+  for (Item *item= val_it++; item; item= val_it++)
+  {
+    if (first)
+      first= false;
+    else
+      str.append(STRING_WITH_LEN(", "));
+
+    String *val= item->val_str(&val_tmp);
+    if (val)
+      str.append(val->ptr(), val->length());
+    else
+      str.append(&NULL_clex_str);
+  }
+
+  str.append(')');
+
+  return dbug_return_join_buf(&str, buf);
+}
+
+const char *dbug_print(const TABLE_LIST *x)  { return dbug_print_table(x); }
+const char *dbug_print(List<TABLE_LIST> *x)  { return dbug_print_join_tree(x); }
+const char *dbug_print(const NESTED_JOIN *x) { return dbug_print_nested_join(x); }
+const char *dbug_print(JOIN *x)              { return dbug_print_join(x); }
+const char *dbug_print(List<Item> *x)        { return dbug_print_result_set_row(x); }
+
 #endif /*DBUG_OFF*/
 
 void Item::register_in(THD *thd)
