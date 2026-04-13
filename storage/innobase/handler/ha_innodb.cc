@@ -15875,7 +15875,7 @@ ha_innobase::extra(
 			handler::extra(HA_EXTRA_BEGIN_ALTER_COPY). */
 			log_buffer_flush_to_disk();
 		}
-		alter_stats_rebuild(m_prebuilt->table, thd);
+		alter_stats_rebuild(m_prebuilt->table, thd, true);
 		break;
 	default:/* Do nothing */
 		;
@@ -21292,11 +21292,13 @@ ulint buf_pool_size_align(ulint size) noexcept
 Remove statistics for dropped indexes, add statistics for created indexes
 and rename statistics for renamed indexes.
 @param table InnoDB table that was rebuilt by ALTER TABLE
-@param thd   alter table thread */
-void alter_stats_rebuild(dict_table_t *table, THD *thd)
+@param thd   alter table thread
+@param copy  Caller is from COPY alter algorithm*/
+void alter_stats_rebuild(dict_table_t *table, THD *thd, bool copy)
 {
   DBUG_ENTER("alter_stats_rebuild");
-  if (!table->space || !dict_stats_is_persistent_enabled(table))
+  if (!table->space || !dict_stats_is_persistent_enabled(table) ||
+      (copy && !table->name.is_temporary()))
     DBUG_VOID_RETURN;
 
   dberr_t ret= dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT);
