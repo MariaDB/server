@@ -2586,7 +2586,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
     {
       Virtual_column_info *check= table->check_constraints[i];
       // period constraint is implicit
-      if (share->period.constr_name.streq(check->name))
+      if (share->period.constr_name.streq_safe(check->name))
         continue;
 
       str.set_buffer_if_not_allocated(&my_charset_utf8mb4_general_ci);

@@ -306,7 +306,7 @@ uint Alter_info::check_vcol_field(Item_field *item) const
   }
   for (Create_field &cf: create_list)
   {
-    if (item->field_name.streq(cf.field_name))
+    if (item->field_name.streq_safe(cf.field_name))
       return cf.vcol_info ? cf.vcol_info->flags : 0;
   }
   return 0;

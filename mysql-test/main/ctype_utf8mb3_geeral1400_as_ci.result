@@ -23,3 +23,10 @@ DROP TABLE t1;
 #
 # End of 11.5 tests
 #
+#
+# MDEV-35717: UBSAN: runtime error: applying zero offset to null pointer in `my_strnncoll_utf8mb3_general1400_as_ci`
+#
+CREATE TABLE t (c INT,c2 CHAR,c3 DATE,CHECK (c>0));
+ALTER TABLE t ADD INDEX (c2) USING HASH;
+DROP TABLE t;
+# End of 11.8 tests

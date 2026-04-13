@@ -4072,7 +4072,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
               key->type != Key::FOREIGN_KEY)
             continue;
 
-          if (check->name.streq(key->name))
+          if (check->name.streq_safe(key->name))
           {
             my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
             DBUG_RETURN(TRUE);
@@ -6441,7 +6441,7 @@ drop_create_field:
       }
       else if (drop->type == Alter_drop::PERIOD)
       {
-        if (table->s->period.name.streq(Lex_ident(drop->name)))
+        if (table->s->period.name.streq_safe(Lex_ident(drop->name)))
           remove_drop= FALSE;
       }
       else /* Alter_drop::KEY and Alter_drop::FOREIGN_KEY */
@@ -6752,7 +6752,7 @@ remove_key:
            c < share->table_check_constraints ; c++)
       {
         Virtual_column_info *dup= table->check_constraints[c];
-        if (check->name.streq(dup->name))
+        if (check->name.streq_safe(dup->name))
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
             ER_DUP_CONSTRAINT_NAME, ER_THD(thd, ER_DUP_CONSTRAINT_NAME),
@@ -9477,7 +9477,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
       }
 
-      if (share->period.constr_name.streq(check->name))
+      if (share->period.constr_name.streq_safe(check->name))
       {
         if (!drop_period && !keep)
         {

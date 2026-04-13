@@ -3618,12 +3618,14 @@ extern Lex_ident_table MYSQL_PROC_NAME;
 
 inline bool is_infoschema_db(const LEX_CSTRING *name)
 {
-  return INFORMATION_SCHEMA_NAME.streq(*name);
+  DBUG_ASSERT(name->str || !name->length);
+  return name->length && INFORMATION_SCHEMA_NAME.streq(*name);
 }
 
 inline bool is_perfschema_db(const LEX_CSTRING *name)
 {
-  return PERFORMANCE_SCHEMA_DB_NAME.streq(*name);
+  DBUG_ASSERT(name->str || !name->length);
+  return name->length && PERFORMANCE_SCHEMA_DB_NAME.streq(*name);
 }
 
 inline void mark_as_null_row(TABLE *table)
