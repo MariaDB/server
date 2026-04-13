@@ -6649,7 +6649,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
                                           thd->lex->use_only_table_context ?
                                             REPORT_ALL_ERRORS :
                                             IGNORE_EXCEPT_NON_UNIQUE,
-                                          !any_privileges,
+                                          !any_privileges &&
+                                            !synthesized_join_operand,
                                           TRUE)) ==
 	not_found_field)
     {

@@ -12780,9 +12780,13 @@ join_table:
           }
           expr
           {
+            /*
+              Attach the ON expression to the right side only, the same
+              way LEFT JOIN does.  Code that needs the ON for the left
+              side reaches it through foj_partner.
+            */
             add_join_on(thd, $5, $8);
-            $1->on_context= Lex->pop_context();
-            $5->on_context= $1->on_context;
+            $5->on_context= Lex->pop_context();
             Select->parsing_place= NO_MATTER;
             $$= $1;
             ++Lex->full_join_count;

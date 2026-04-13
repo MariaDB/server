@@ -1,0 +1,3064 @@
+--source include/have_aria.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-37932 / MDEV-39014: FULL [OUTER] JOIN
+--echo #
+--echo # Tests are grouped by feature.  Within each group, a FULL JOIN
+--echo # query is generally paired with an equivalent LEFT JOIN UNION
+--echo # RIGHT JOIN formulation to verify correctness.
+--echo #
+
+--echo # ========================================================
+--echo # Section 1: Parser and syntax acceptance
+--echo #
+--echo # FULL JOIN, FULL OUTER JOIN, NATURAL FULL [OUTER] JOIN, and
+--echo # their appearance inside views, derived tables, UNIONs, and
+--echo # CTEs.
+--echo # ========================================================
+
+create table t1 (a int);
+insert into t1 (a) values (1),(2);
+create table t2 (a int);
+insert into t2 (a) values (1),(3);
+create table t3 (a int);
+insert into t3 (a) values (1),(4);
+
+--echo # Basic FULL [OUTER] JOIN syntax.
+select * from t1 full join t2 on t1.a = t2.a;
+select * from t1 left join t2 on t1.a = t2.a union select * from t1 right join t2 on t1.a = t2.a;
+explain extended select * from t1 full join t2 on t1.a = t2.a;
+
+select * from t1 full outer join t2 on t1.a = t2.a;
+select * from t1 left outer join t2 on t1.a = t2.a union select * from t1 right outer join t2 on t1.a = t2.a;
+explain extended select * from t1 full outer join t2 on t1.a = t2.a;
+
+--echo # NATURAL FULL [OUTER] JOIN.
+select * from t1 natural full outer join t2;
+select * from t1 natural left outer join t2 union select * from t1 natural right outer join t2;
+explain extended select * from t1 natural full outer join t2;
+
+select * from t1 natural full join t2;
+select * from t1 natural left join t2 union select * from t1 natural right join t2;
+explain extended select * from t1 natural full join t2;
+
+--echo # FULL JOIN inside a view.
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 full join t2 on t1.a = t2.a;
+select * from v1;
+select t1.a as t1a, t2.a as t2a from t1 left join t2 on t1.a = t2.a union select t1.a as t1a, t2.a as t2a from t1 right join t2 on t1.a = t2.a;
+explain extended select * from v1;
+drop view v1;
+
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 full outer join t2 on t1.a = t2.a;
+select * from v1;
+select t1.a as t1a, t2.a as t2a from t1 left outer join t2 on t1.a = t2.a union select t1.a as t1a, t2.a as t2a from t1 right outer join t2 on t1.a = t2.a;
+explain extended select * from v1;
+drop view v1;
+
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 natural full join t2;
+select * from v1;
+select t1.a as t1a, t2.a as t2a from t1 natural left join t2 union select t1.a as t1a, t2.a as t2a from t1 natural right join t2;
+explain extended select * from v1;
+drop view v1;
+
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 natural full outer join t2;
+select * from v1;
+select t1.a as t1a, t2.a as t2a from t1 natural left outer join t2 union select t1.a as t1a, t2.a as t2a from t1 natural right outer join t2;
+explain extended select * from v1;
+drop view v1;
+
+--echo # FULL JOIN inside a derived table combined with UNION.
+select * from (select t1.a from t1 full join t2 on t1.a = t2.a union select * from t1) dt;
+select * from (select t1.a from t1 left join t2 on t1.a = t2.a union select t1.a from t1 right join t2 on t1.a = t2.a union select * from t1) dt;
+
+select * from (select t1.a from t1 full outer join t2 on t1.a = t2.a union select * from t1) dt;
+select * from (select t1.a from t1 left outer join t2 on t1.a = t2.a union select t1.a from t1 right outer join t2 on t1.a = t2.a union select * from t1) dt;
+
+select * from (select t1.a from t1 natural full join t2 union select * from t1) dt;
+select * from (select t1.a from t1 natural left join t2 union select t1.a from t1 natural right join t2 union select * from t1) dt;
+explain extended select * from (select t1.a from t1 natural full join t2 union select * from t1) dt;
+
+select * from (select t1.a from t1 natural full outer join t2 union select * from t1) dt;
+select * from (select t1.a from t1 natural left outer join t2 union select t1.a from t1 natural right outer join t2 union select * from t1) dt;
+explain extended select * from (select t1.a from t1 natural full outer join t2 union select * from t1) dt;
+
+--echo # FULL JOIN inside a CTE.
+with cte as (select t1.a from t1 natural full join t2) select * from cte;
+with cte as (select t1.a from t1 natural left join t2 union select t1.a from t1 natural right join t2) select * from cte;
+explain extended with cte as (select t1.a from t1 natural full join t2) select * from cte;
+
+--echo # FULL JOIN referencing a missing table must error cleanly.
+--error ER_NO_SUCH_TABLE
+select * from t1, t2 full join t_not_exist on t2.c=t_not_exist.e and t_not_exist.f=t1.a;
+
+--error ER_NO_SUCH_TABLE
+select * from t1, t2 full outer join t_not_exist on t2.c=t_not_exist.e and t_not_exist.f=t1.a;
+
+--error ER_NO_SUCH_TABLE
+select * from t1, t2 natural full join t_not_exist;
+
+--error ER_NO_SUCH_TABLE
+select * from t1, t2 natural full outer join t_not_exist;
+
+--echo # FULL JOIN where one operand is a derived table (on the left).
+select * from (select * from t1) dt natural full join t2;
+select * from (select * from t1) dt natural left join t2 union select * from (select * from t1) dt natural right join t2;
+
+select * from (select * from t2) du natural full join t1;
+select * from (select * from t2) du natural left join t1 union select * from (select * from t2) du natural right join t1;
+
+--echo # FULL JOIN with a constant ON clause.
+select * from t1 full join t2 on true;
+select * from t1 left join t2 on true union select * from t1 right join t2 on true;
+
+
+--echo # ========================================================
+--echo # Section 2: Basic FULL JOIN with nested joins on the left
+--echo #
+--echo # Each FULL JOIN query is followed by an equivalent
+--echo # LEFT/RIGHT/UNION formulation; the two must match.
+--echo # ========================================================
+
+select * from t1 inner join t2 full join t3 on t1.a=t3.a;
+select * from t1 inner join t2 left join t3 on t1.a=t3.a union select * from t1 inner join t2 right join t3 on t1.a=t3.a;
+
+select * from t1 inner join t2 on t1.a=t2.a full join t3 on t1.a=t3.a;
+select * from t1 inner join t2 on t1.a=t2.a left join t3 on t1.a=t3.a union select * from t1 inner join t2 on t1.a=t2.a right join t3 on t1.a=t3.a;
+
+select * from t1 cross join t2 full join t3 on t1.a=t3.a;
+select * from t1 cross join t2 left join t3 on t1.a=t3.a union select * from t1 cross join t2 right join t3 on t1.a=t3.a;
+
+select * from t1 cross join t2 on t1.a=t2.a full join t3 on t1.a=t3.a;
+select * from t1 cross join t2 on t1.a=t2.a left join t3 on t1.a=t3.a union select * from t1 cross join t2 on t1.a=t2.a right join t3 on t1.a=t3.a;
+
+select * from (t1 left join t2 on t1.a=t2.a) full join t3 on t1.a=t3.a;
+select * from (t1 left join t2 on t1.a=t2.a) left join t3 on t1.a=t3.a union select * from (t1 left join t2 on t1.a=t2.a) right join t3 on t1.a=t3.a;
+
+select * from (t1 right join t2 on t1.a=t2.a) full join t3 on t1.a=t3.a;
+select * from (t1 right join t2 on t1.a=t2.a) left join t3 on t1.a=t3.a union select * from (t1 right join t2 on t1.a=t2.a) right join t3 on t1.a=t3.a;
+
+--echo # Nested NATURAL JOIN on the left of FULL JOIN.
+select * from (t1 natural join t2) full join t3 on t1.a=t3.a;
+select * from (t1 natural join t2) left join t3 on t1.a=t3.a union select * from (t1 natural join t2) right join t3 on t1.a=t3.a;
+
+--echo # Nested FULL JOIN on the left of FULL JOIN.
+--echo # The inner FULL JOIN's unmatched right-side rows must appear
+--echo # in the result even when the outer FULL JOIN condition does
+--echo # not reference the inner right-side table.
+--echo # Data: t1(1,2) t2(1,3) t3(1,4)
+--sorted_result
+select * from (t1 full join t2 on t1.a=t2.a) full join t3 on t1.a=t3.a;
+--sorted_result
+select * from (t1 left join t2 on t1.a=t2.a) left join t3 on t1.a=t3.a union select * from (t1 right join t2 on t1.a=t2.a) left join t3 on t1.a=t3.a union select * from (t1 right join t2 on t1.a=t2.a) right join t3 on t1.a=t3.a;
+
+--echo # Chained FULL JOINs with the second ON referencing the middle table.
+--sorted_result
+select * from t1 full join t2 on t1.a=t2.a full join t3 on t2.a=t3.a;
+--sorted_result
+select * from t1 left join t2 on t1.a=t2.a left join t3 on t2.a=t3.a union select * from t1 right join t2 on t1.a=t2.a left join t3 on t2.a=t3.a union select * from (t1 left join t2 on t1.a=t2.a) right join t3 on t2.a=t3.a union select * from (t1 right join t2 on t1.a=t2.a) right join t3 on t2.a=t3.a;
+
+--echo # Nested FULL JOIN with duplicate rows.
+create table d1 (a int);
+insert into d1 values (1),(1),(2);
+create table d2 (a int);
+insert into d2 values (1),(3),(3);
+--sorted_result
+select * from (d1 full join d2 on d1.a=d2.a) full join t3 on d1.a=t3.a;
+--sorted_result
+select * from (d1 left join d2 on d1.a=d2.a) left join t3 on d1.a=t3.a union all select * from (d1 right join d2 on d1.a=d2.a) left join t3 on d1.a=t3.a where d1.a is null union all select * from (d1 right join d2 on d1.a=d2.a) right join t3 on d1.a=t3.a where d1.a is null and d2.a is null;
+drop table d1, d2;
+
+drop table t1, t2, t3;
+
+
+--echo # ========================================================
+--echo # Section 3: FULL JOIN rewrites to LEFT, RIGHT, and INNER
+--echo #
+--echo # When a NULL-rejecting WHERE predicate selects one or both
+--echo # sides, simplify_joins() rewrites the FULL JOIN accordingly.
+--echo # The (re)written form must produce the same result as the
+--echo # direct LEFT/RIGHT/INNER formulation.
+--echo # ========================================================
+
+create table t1 (pk int auto_increment, x int, y int, primary key (pk));
+create table t2 (pk int auto_increment, x int, y int, primary key (pk));
+insert into t1 (x, y) values (-5,-5),(-4,-4),(-3,-3),(-2,-2),(-1,-1),(0,0),(1,1),(2,2),(3,3),(4,4),(5,5);
+insert into t2 (x, y) values (-5,25),(-4,16),(-3,9),(-2,4),(-1,1),(0,0),(1,1),(2,4),(3,9),(4,16),(5,25);
+
+--echo # FULL to RIGHT JOIN, these two queries should be equal:
+select * from t1  full join t2 on t1.y = t2.y where t2.pk is not null;
+select * from t1 right join t2 on t1.y = t2.y;
+
+--echo # FULL to RIGHT JOIN, these two queries should be equal:
+select * from t1  full join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1 where t2.pk is not null;
+select * from t1 right join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1;
+
+--echo # FULL to INNER JOIN, these two queries should be equal:
+select * from t1  full join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1 where t1.pk is not null and t2.pk is not null;
+select * from t1 inner join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1;
+
+--echo # FULL to LEFT JOIN, these two queries should be equal:
+select * from t1 full join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1 where t1.pk is not null;
+select * from t1 left join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1;
+
+--echo # FULL NATURAL to INNER JOIN, these two queries should be equal:
+select * from t1 natural full join t2 where t1.pk is not null and t2.pk is not null;
+select * from t1 inner join t2 on t1.x = t2.x and t1.y = t2.y;
+
+--echo # FULL NATURAL to LEFT JOIN, these two queries should be equal:
+select * from t1 natural full join t2 where t1.pk is not null;
+select * from t1 left join t2 on t2.pk = t1.pk and t2.x = t1.x and t2.y = t1.y;
+
+--echo # FULL NATURAL to RIGHT JOIN
+select * from t1 natural full join t2 where t2.pk is not null;
+select * from t1 right join t2 on t1.pk = t2.pk and t1.x = t2.x and t1.y = t2.y;
+
+--sorted_result
+select * from t1 full join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1;
+--sorted_result
+select * from t1 left join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1 union select * from t1 right join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1;
+
+--sorted_result
+select * from t1 natural full join t2;
+--sorted_result
+select * from t1 natural left join t2 union select * from t1 natural right join t2;
+
+drop table t1, t2;
+
+--echo # Rewrites with nested joins.
+create table t1 (v int);
+insert into t1 (v) values (1);
+create table t2 (v int);
+insert into t2 (v) values (2);
+create table t3 (v int);
+insert into t3 (v) values (3);
+
+--echo # (FULL)FULL to (INNER)INNER JOIN
+select * from t1 full join t2 on t1.v = t2.v full join t3 on t2.v = t3.v where t1.v is not null and t2.v is not null and t3.v is not null;
+select * from t1 inner join t2 on t1.v = t2.v inner join t3 on t2.v = t3.v;
+
+--echo # (FULL)FULL to (RIGHT)LEFT JOIN
+select * from t1 full join t2 on t1.v = t2.v full join t3 on t1.v = t3.v where t2.v is not null;
+select * from t1 right join t2 on t1.v = t2.v left join t3 on t1.v = t3.v;
+
+--echo # (FULL)FULL to (LEFT)LEFT JOIN
+select * from t1 full join t2 on t1.v = t2.v full join t3 on t1.v = t3.v where t1.v is not null;
+select * from t1 left join t2 on t2.v = t1.v left join t3 on t3.v = t1.v;
+
+--echo # (FULL)LEFT to (LEFT)LEFT JOIN
+select * from t1 full join t2 on t1.v = t2.v left join t3 on t2.v = t3.v where t1.v is not null;
+select * from t1 left join t2 on t1.v = t2.v left join t3 on t2.v = t3.v;
+
+--echo # (FULL)LEFT to (RIGHT)LEFT JOIN
+select * from t1 full join t2 on t1.v = t2.v left join t3 on t2.v = t3.v where t2.v is not null;
+select * from t1 right join t2 on t1.v = t2.v left join t3 on t3.v = t2.v;
+
+--echo # (LEFT)FULL to (LEFT)RIGHT JOIN
+select * from t1 left join t2 on t1.v = t2.v full join t3 on t2.v = t3.v where t3.v is not null;
+select * from t1 left join t2 on t1.v = t2.v right join t3 on t2.v = t3.v;
+
+--echo # (LEFT)FULL to (LEFT)LEFT JOIN
+insert into t1 (v) values (2),(3);
+insert into t2 (v) values (1);
+truncate t3;
+insert into t3 (v) values (1);
+select * from t1;
+select * from t2;
+select * from t3;
+select * from t1 left join t2 on t1.v = t2.v full join t3 on t2.v = t3.v where t3.v = 1;
+select * from t3 left join t1 on t1.v = 1 left join t2 on t2.v = 1;
+
+--echo # FULL to INNER, two variables.
+select * from (select t1.v from t1 full join t2 on t1.v = t2.v where t1.v > 1 and t2.v > 1) as dt;
+select t1.v from t2 inner join t1 where t2.v = t1.v and t1.v > 1 and t1.v > 1;
+
+--echo # FULL to INNER with a UNION.
+select t1.v from t1 full join t2 on t1.v = t2.v where t1.v > 1 and t2.v > 1 union select * from t1;
+select t1.v from t2 inner join t1 where t1.v = t2.v and t2.v > 1 and t2.v > 1 union select * from t1;
+
+drop table t1, t2, t3;
+
+
+--echo # ========================================================
+--echo # Section 4: NATURAL FULL JOIN and COALESCE
+--echo #
+--echo # Common columns surface as COALESCE expressions rather than
+--echo # plain fields.
+--echo # ========================================================
+
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+create table t3 (a int, b int);
+insert into t1 (a,b) values (1,1),(2,2);
+insert into t2 (a,b) values (1,1),(3,3);
+insert into t3 (a,b) values (3,3),(4,4);
+
+select * from t1 natural full join t2 where
+  t1.a is not null and t1.b is not null and
+  t2.a is not null and t2.b is not null;
+
+select * from t1 natural left join t2 where
+  t1.a is not null and t1.b is not null and
+  t2.a is not null and t2.b is not null
+union
+select * from t1 natural right join t2 where
+  t1.a is not null and t1.b is not null and
+  t2.a is not null and t2.b is not null;
+
+explain extended
+select * from t1 natural full join t2 where
+  t1.a is not null and t1.b is not null and
+  t2.a is not null and t2.b is not null;
+
+select coalesce(t1.a, t2.a) AS a, coalesce(t1.b, t2.b) AS b from
+  t2 join t1 where
+    t2.a = t1.a and t2.b = t1.b and
+    t1.a is not null and t1.b is not null;
+
+
+select * from t1 natural full join t2 where t1.a is not null;
+
+select * from t1 natural left join t2 where t1.a is not null
+union
+select * from t1 natural right join t2 where t1.a is not null;
+
+explain extended select * from t1 natural full join t2 where t1.a is not null;
+
+select coalesce(t1.a, t2.a) AS a, coalesce(t1.b, t2.b) AS b from
+  t1 left join t2 on t2.a = t1.a and t2.b = t1.b where t1.a is not null;
+
+
+select * from t1 natural full join t2 where t2.a is not null;
+
+select * from t1 natural left join t2 where t2.a is not null
+union
+select * from t1 natural right join t2 where t2.a is not null;
+
+explain extended select * from t1 natural full join t2 where t2.a is not null;
+
+select coalesce(t1.a, t2.a) AS a, coalesce(t1.b, t2.b) AS b from
+  t2 left join t1 on t1.a = t2.a and t1.b = t2.b where t2.a is not null;
+
+select * from (t1 natural join t2) right join t2 t3 on t1.a=t3.a;
+
+# Disabling VIEW protocol here because duplicate column names are
+# replaced by generating unique names that have 'My_exp_' prefixes
+# in VIEW protocol mode.  That changes the result file output.
+--disable_view_protocol
+# `(t1 natural full join t2) right join t3` rewritten as
+# `t3 LEFT JOIN (t1 natural full join t2)`, putting the FULL JOIN on
+# the inner side of the outer join -- rejected.
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+select * from (t1 natural full join t2) right join t2 t3 on t1.a=t3.a;
+--enable_view_protocol
+
+select t1.a from t1 natural full join (t2 natural join t3) where
+  t1.a is not null;
+
+select t1.a from t1 natural left join (t2 natural join t3) where t1.a is not null
+union
+select t1.a from t1 natural right join (t2 natural join t3) where t1.a is not null;
+
+explain extended select t1.a from
+  t1 natural full join (t2 natural join t3) where t1.a is not null;
+
+select t1.a AS a from t1 left join (t2 join t3) on
+  t2.a = t1.a and t3.a = t1.a and t2.b = t1.b and t3.b = t1.b where
+  t1.a is not null;
+
+
+explain extended select *, avg(t2.a) from t1 natural full join t2 group by t1.a;
+
+
+select *, avg(t2.a) from t1 natural full join t2 where t1.a is not null group by t1.a;
+
+--echo # UNION equivalent of the aggregate above.
+select dt.a, dt.b, avg(dt.t2a) as `avg(t2.a)` from (
+  select t1.a as a, t1.b as b, t2.a as t2a from t1 natural left join t2
+  union
+  select t1.a, t1.b, t2.a from t1 natural right join t2) dt
+where dt.a is not null group by dt.a;
+
+explain extended select *, avg(t2.a) from t1 natural full join t2 where
+  t1.a is not null group by t1.a;
+
+select coalesce(t1.a, t2.a) AS a, coalesce(t1.b, t2.b) AS b,
+  avg(t2.a) AS avg_t2_a from
+    t1 left join t2 on t2.a = t1.a and t2.b = t1.b where
+      t1.a is not null group by t1.a;
+
+--echo # --------------------------------------------------------
+--echo # 4b: unqualified references see the COALESCE
+--echo #
+--echo # An unqualified name of a NATURAL FULL JOIN common column
+--echo # resolves to COALESCE(left_col, right_col) wherever it
+--echo # appears -- WHERE, HAVING, GROUP BY, ORDER BY, USING,
+--echo # views, prepared statements, and outer queries over a
+--echo # derived table.  Qualified names like t1.a stay raw.
+--echo # --------------------------------------------------------
+
+drop table t1, t2, t3;
+create table t1 (a int, b int);
+create table t2 (a int, c int);
+insert into t1 (a,b) values (1,10),(2,20);
+insert into t2 (a,c) values (2,200),(3,300);
+
+# Right-only row: a = 3 lives only in t2.  The WHERE must see the
+# COALESCE, otherwise the right-only (3, NULL, 300) row is filtered
+# out because raw t1.a is NULL for it.
+select * from t1 natural full join t2 where a = 3;
+select coalesce(t1.a, t2.a) AS a, t1.b, t2.c from
+  t1 left join t2 on t1.a = t2.a where coalesce(t1.a, t2.a) = 3
+union
+select coalesce(t1.a, t2.a) AS a, t1.b, t2.c from
+  t1 right join t2 on t1.a = t2.a where coalesce(t1.a, t2.a) = 3;
+
+# Left-only row: a = 1 lives only in t1.
+select * from t1 natural full join t2 where a = 1;
+select coalesce(t1.a, t2.a) AS a, t1.b, t2.c from
+  t1 left join t2 on t1.a = t2.a where coalesce(t1.a, t2.a) = 1
+union
+select coalesce(t1.a, t2.a) AS a, t1.b, t2.c from
+  t1 right join t2 on t1.a = t2.a where coalesce(t1.a, t2.a) = 1;
+
+# Matched row.
+select * from t1 natural full join t2 where a = 2;
+
+# Qualified t2.a stays raw.  Raw t2.a is NULL only on the left-only
+# row (a = 1), so IS NULL filters down to that row.
+select * from t1 natural full join t2 where t2.a is null;
+
+# GROUP BY and HAVING also see the COALESCE.  Without the fix the
+# right-only and left-only rows would be grouped under raw t1.a = NULL.
+--sorted_result
+select a, count(*) from t1 natural full join t2 group by a;
+select a, count(*) from t1 natural full join t2 group by a having a = 3;
+
+# ORDER BY of the unqualified column.
+select a from t1 natural full join t2 order by a;
+
+# FULL JOIN ... USING(col) goes through the same join_columns path.
+select * from t1 full join t2 using(a) where a = 3;
+
+# Derived table over a NATURAL FULL JOIN, then outer WHERE references
+# the coalesced column by its propagated name.
+select * from (select * from t1 natural full join t2) dt where a = 3;
+
+# Subquery in WHERE -- the outer's a still resolves to the COALESCE.
+select * from t1 natural full join t2 where a in (select 3);
+
+# View over a NATURAL FULL JOIN: queries against the view see the
+# coalesced column.
+create view v1 as select * from t1 natural full join t2;
+select * from v1 where a = 3;
+drop view v1;
+
+# Prepared statement: execute twice to confirm the substitution is
+# applied on every execute, not just on prepare.
+prepare stmt from 'select * from t1 natural full join t2 where a = ?';
+set @v = 3;
+execute stmt using @v;
+set @v = 1;
+execute stmt using @v;
+set @v = 2;
+execute stmt using @v;
+deallocate prepare stmt;
+
+# Stored procedure: parameter binds the coalesced column.
+delimiter |;
+create procedure sp_find_a(in p int)
+  select * from t1 natural full join t2 where a = p|
+delimiter ;|
+call sp_find_a(3);
+call sp_find_a(1);
+drop procedure sp_find_a;
+
+# NATURAL LEFT / RIGHT JOIN do not coalesce -- unqualified a stays
+# bound to t1.a (LEFT) or t2.a (RIGHT) as before.
+select * from t1 natural left join t2 where a = 1;
+select * from t1 natural right join t2 where a = 3;
+
+# (NFJ) joined to a third table.  Qualified t1.a still raw on the
+# left side of the inner join.
+create table t3 (a int, d int);
+insert into t3 (a,d) values (1,1000),(3,3000);
+# Disabling VIEW protocol here because the coalesced a and t3.a are
+# both named a, so view creation renames one with a 'My_exp_' prefix,
+# changing the result file output.
+--disable_view_protocol
+select * from (t1 natural full join t2) join t3 on t1.a = t3.a
+  order by t3.a;
+--enable_view_protocol
+
+drop table t1, t2, t3;
+
+--echo # --------------------------------------------------------
+--echo # 4c: chained NATURAL FULL JOIN nests the COALESCE
+--echo #
+--echo # (t1 NFJ t2) NFJ t3 is left-associative, so the common
+--echo # column of the inner join is COALESCE(t1.a, t2.a) and the
+--echo # outer join coalesces that with t3.a, giving
+--echo # COALESCE(COALESCE(t1.a, t2.a), t3.a).  The inner COALESCE
+--echo # must drive both the output column and the synthesized
+--echo # outer join equality, otherwise a row that came only from
+--echo # t2 carries a NULL a into the outer join and fails to match
+--echo # an equal t3 row.
+--echo # --------------------------------------------------------
+
+create table t1 (a int, b int);
+create table t2 (a int, c int);
+create table t3 (a int, d int);
+create table t4 (a int, e int);
+insert into t1 (a,b) values (1,10),(2,20);
+insert into t2 (a,c) values (2,200),(5,500),(6,600);
+insert into t3 (a,d) values (5,5000),(4,4000);
+insert into t4 (a,e) values (6,60000),(7,70000);
+
+--echo # No UNION companion: the LEFT/RIGHT permutation UNION form
+--echo # over-approximates for chained joins (see the note above
+--echo # Section 6).  The recorded result is the oracle.
+
+--echo # a=5 lives in t2 and t3; the inner COALESCE carries 5 from
+--echo # t2 into the outer equality so the two rows match.  a=6 is
+--echo # t2-only with no t3 match and must surface with a=6, not
+--echo # NULL.  a=1 is t1-only, a=4 is t3-only.
+--sorted_result
+select a, b, c, d from (t1 natural full join t2) natural full join t3;
+
+--echo # The unqualified a in WHERE sees the nested COALESCE.
+--sorted_result
+select a, b, c, d from (t1 natural full join t2) natural full join t3
+  where a = 6;
+
+--echo # Three levels deep: a=6 originates in t2, survives the t3
+--echo # level as the nested COALESCE, and matches t4 at the third
+--echo # level.  a=7 is t4-only.
+--sorted_result
+select a, b, c, d, e from
+  ((t1 natural full join t2) natural full join t3) natural full join t4;
+
+drop table t1, t2, t3, t4;
+
+--echo # --------------------------------------------------------
+--echo # 4d: node aliasing of the shared COALESCE
+--echo #
+--echo # The COALESCE built for a common column is shared by every
+--echo # reference to that column.  The oracle for each query is the
+--echo # explicit FULL JOIN with COALESCE(t1.col, t2.col) written out,
+--echo # so the two row sets match when the unqualified name resolves
+--echo # to that COALESCE.
+--echo # --------------------------------------------------------
+
+create table t1 (a int, b int);
+create table t2 (a int, c int);
+insert into t1 (a,b) values (1,10),(2,20);
+insert into t2 (a,c) values (2,200),(3,300);
+
+--echo # An explicit alias must name only its own reference.  The
+--echo # COALESCE is shared, so renaming it in place would change the
+--echo # column name for resolution and would make a second reference
+--echo # by the original name fail.  The original name and an aliased
+--echo # reference appear together here with distinct names.
+--sorted_result
+select a, a as a2 from t1 natural full join t2;
+--sorted_result
+select coalesce(t1.a, t2.a) as a, coalesce(t1.a, t2.a) as a2
+  from t1 full join t2 on t1.a = t2.a;
+
+--echo # Aliased reference first, then the original name in WHERE.
+--sorted_result
+select a as a2 from t1 natural full join t2 where a >= 2;
+--sorted_result
+select coalesce(t1.a, t2.a) as a2 from t1 full join t2 on t1.a = t2.a
+  where coalesce(t1.a, t2.a) >= 2;
+
+--echo # GROUP BY, COUNT, and SUM over the coalesced column.
+--sorted_result
+select a, count(*) as cnt, sum(a) as s from t1 natural full join t2
+  group by a;
+--sorted_result
+select coalesce(t1.a, t2.a) as a, count(*) as cnt,
+       sum(coalesce(t1.a, t2.a)) as s
+  from t1 full join t2 on t1.a = t2.a group by coalesce(t1.a, t2.a);
+
+--echo # Aggregates directly over the coalesced column, no GROUP BY.
+select count(distinct a) as cd, min(a) as mn, max(a) as mx
+  from t1 natural full join t2;
+select count(distinct coalesce(t1.a, t2.a)) as cd,
+       min(coalesce(t1.a, t2.a)) as mn, max(coalesce(t1.a, t2.a)) as mx
+  from t1 full join t2 on t1.a = t2.a;
+
+--echo # HAVING over the coalesced column.
+--sorted_result
+select a, count(*) as cnt from t1 natural full join t2
+  group by a having a >= 2;
+--sorted_result
+select * from (select coalesce(t1.a, t2.a) as a, count(*) as cnt
+  from t1 full join t2 on t1.a = t2.a group by coalesce(t1.a, t2.a)) dt
+  where a >= 2;
+
+--echo # Window functions over the coalesced column.
+select a, row_number() over (order by a) as rn, count(*) over () as tot
+  from t1 natural full join t2 order by a;
+select coalesce(t1.a, t2.a) as a,
+       row_number() over (order by coalesce(t1.a, t2.a)) as rn,
+       count(*) over () as tot
+  from t1 full join t2 on t1.a = t2.a order by coalesce(t1.a, t2.a);
+
+--echo # DISTINCT over the coalesced column.
+--sorted_result
+select distinct a from t1 natural full join t2;
+--sorted_result
+select distinct coalesce(t1.a, t2.a) as a
+  from t1 full join t2 on t1.a = t2.a;
+
+--echo # The same column in SELECT, WHERE, and ORDER BY at once.
+select a, a + 0 as a2 from t1 natural full join t2
+  where a is not null order by a desc;
+select coalesce(t1.a, t2.a) as a, coalesce(t1.a, t2.a) + 0 as a2
+  from t1 full join t2 on t1.a = t2.a
+  where coalesce(t1.a, t2.a) is not null
+  order by coalesce(t1.a, t2.a) desc;
+
+drop table t1, t2;
+
+--echo # --------------------------------------------------------
+--echo # 4e: multi-column NATURAL FULL JOIN
+--echo #
+--echo # Two common columns each get their own COALESCE.  Unqualified
+--echo # references to either resolve to its COALESCE, including under
+--echo # aliases.
+--echo # --------------------------------------------------------
+
+create table t1 (a int, b int, x int);
+create table t2 (a int, b int, y int);
+insert into t1 values (1,1,10),(2,2,20);
+insert into t2 values (2,2,200),(3,3,300);
+
+--sorted_result
+select a, b, x, y from t1 natural full join t2;
+--sorted_result
+select coalesce(t1.a, t2.a) as a, coalesce(t1.b, t2.b) as b, x, y
+  from t1 full join t2 on t1.a = t2.a and t1.b = t2.b;
+
+--echo # Aliased references to both common columns, with the original
+--echo # names used again in WHERE.
+--sorted_result
+select a as ka, b as kb from t1 natural full join t2
+  where a >= 2 and b >= 2;
+--sorted_result
+select coalesce(t1.a, t2.a) as ka, coalesce(t1.b, t2.b) as kb
+  from t1 full join t2 on t1.a = t2.a and t1.b = t2.b
+  where coalesce(t1.a, t2.a) >= 2 and coalesce(t1.b, t2.b) >= 2;
+
+drop table t1, t2;
+
+
+--echo # ========================================================
+--echo # Section 5: NULL handling
+--echo #
+--echo # NULL = NULL is false, so rows whose join key is NULL never
+--echo # match and must surface from their side unmatched.  The
+--echo # NULL-safe <=> operator matches NULL to NULL.
+--echo # ========================================================
+
+create table t1 (a int, b int);
+insert into t1 values (NULL, NULL), (1, 10), (NULL, NULL);
+create table t2 (a int, b int);
+insert into t2 values (NULL, NULL), (2, 20), (NULL, NULL);
+
+--echo # Both sides have all-NULL rows; no match possible.
+--sorted_result
+select * from t1 full join t2 on t1.a = t2.a;
+--sorted_result
+--echo # The UNION formulation eliminates duplicate all-NULL rows; this
+--echo # is expected to differ.  PostgreSQL agrees with the FULL JOIN
+--echo # result above.
+select * from t1 left join t2 on t1.a = t2.a union select * from t1 right join t2 on t1.a = t2.a;
+
+--echo # IS NULL in the ON clause — all-NULL rows now match.
+--sorted_result
+select * from t1 full join t2 on t1.a is null and t2.a is null;
+--sorted_result
+select * from t1 left join t2 on t1.a is null and t2.a is null union select * from t1 right join t2 on t1.a is null and t2.a is null;
+
+--echo # NULL-safe equality operator (<=>).
+--sorted_result
+select * from t1 full join t2 on t1.a <=> t2.a;
+--sorted_result
+select * from t1 left join t2 on t1.a <=> t2.a union select * from t1 right join t2 on t1.a <=> t2.a;
+
+--echo # Table with only all-NULL rows on one side.
+create table t3 (a int, b int);
+insert into t3 values (NULL, NULL), (NULL, NULL);
+--sorted_result
+select * from t1 full join t3 on t1.a = t3.a;
+--sorted_result
+select * from t1 left join t3 on t1.a = t3.a union select * from t1 right join t3 on t1.a = t3.a;
+
+drop table t1, t2, t3;
+
+
+--echo # ========================================================
+--echo # Section 6: Deeply nested FULL JOINs
+--echo # ========================================================
+
+create table t1 (a int);
+insert into t1 values (1), (2);
+create table t2 (a int);
+insert into t2 values (2), (3);
+create table t3 (a int);
+insert into t3 values (3), (4);
+create table t4 (a int);
+insert into t4 values (1), (4);
+create table t5 (a int);
+insert into t5 values (2), (5);
+
+--echo # The LEFT/RIGHT-permutation UNION form is not a valid oracle
+--echo # for chained FULL JOINs: it over-approximates by emitting a
+--echo # right-side null-complement row for C rows that were already
+--echo # matched against the inner FJ's own null-complement row.  Per
+--echo # SQL:2016 §7.10, (A FJ B) FJ C is left-associative and treats
+--echo # R1 = (A FJ B) as a single relation; a C row matched against
+--echo # any R1 row (including a null-complement row) is matched, and
+--echo # must not appear again as unmatched.  Therefore the chained
+--echo # cases below have no UNION companion; the recorded result is
+--echo # the oracle.
+
+--echo # Three-level nested FULL JOINs.
+--sorted_result
+select * from t1
+  full join t2 on t1.a = t2.a
+  full join t3 on t2.a = t3.a;
+
+--echo # Four-level chained FULL JOINs.
+--sorted_result
+select * from t1
+  full join t2 on t1.a = t2.a
+  full join t3 on t2.a = t3.a
+  full join t4 on t3.a = t4.a;
+
+--echo # Mixed FULL and INNER joins, deeply nested.
+--sorted_result
+select * from t1
+  inner join t2 on t1.a = t2.a
+  full join t3 on t2.a = t3.a
+  full join t4 on t3.a = t4.a;
+
+drop table t1, t2, t3, t4, t5;
+
+
+--echo # ========================================================
+--echo # Section 7: Mixed data types
+--echo # ========================================================
+
+create table t1 (
+  id int,
+  str_val varchar(20),
+  dec_val decimal(10,2),
+  dt_val date
+);
+insert into t1 values
+  (1, 'hello', 10.50, '2024-01-01'),
+  (2, 'world', 20.75, '2024-06-15'),
+  (3, NULL, NULL, NULL);
+
+create table t2 (
+  id int,
+  str_val varchar(20),
+  dec_val decimal(10,2),
+  dt_val date
+);
+insert into t2 values
+  (2, 'WORLD', 20.75, '2024-06-15'),
+  (4, 'test', 99.99, '2025-12-31'),
+  (NULL, NULL, NULL, NULL);
+
+--echo # FULL JOIN on integer column with mixed-type rows.
+--sorted_result
+select * from t1 full join t2 on t1.id = t2.id;
+--sorted_result
+select * from t1 left join t2 on t1.id = t2.id union select * from t1 right join t2 on t1.id = t2.id;
+
+--echo # FULL JOIN on varchar column (case-sensitive match depends on collation).
+--sorted_result
+select t1.id as id1, t1.str_val as sv1, t2.id as id2, t2.str_val as sv2
+from t1 full join t2 on t1.str_val = t2.str_val;
+--sorted_result
+select t1.id as id1, t1.str_val as sv1, t2.id as id2, t2.str_val as sv2
+from t1 left join t2 on t1.str_val = t2.str_val
+union
+select t1.id as id1, t1.str_val as sv1, t2.id as id2, t2.str_val as sv2
+from t1 right join t2 on t1.str_val = t2.str_val;
+
+--echo # FULL JOIN on decimal column.
+--sorted_result
+select t1.id as id1, t1.dec_val as d1, t2.id as id2, t2.dec_val as d2
+from t1 full join t2 on t1.dec_val = t2.dec_val;
+--sorted_result
+select t1.id as id1, t1.dec_val as d1, t2.id as id2, t2.dec_val as d2
+from t1 left join t2 on t1.dec_val = t2.dec_val
+union
+select t1.id as id1, t1.dec_val as d1, t2.id as id2, t2.dec_val as d2
+from t1 right join t2 on t1.dec_val = t2.dec_val;
+
+--echo # FULL JOIN on date column.
+--sorted_result
+select t1.id as id1, t1.dt_val as dt1, t2.id as id2, t2.dt_val as dt2
+from t1 full join t2 on t1.dt_val = t2.dt_val;
+--sorted_result
+select t1.id as id1, t1.dt_val as dt1, t2.id as id2, t2.dt_val as dt2
+from t1 left join t2 on t1.dt_val = t2.dt_val
+union
+select t1.id as id1, t1.dt_val as dt1, t2.id as id2, t2.dt_val as dt2
+from t1 right join t2 on t1.dt_val = t2.dt_val;
+
+--echo # FULL JOIN with cross-type comparison (int vs decimal).
+create table t3 (a int);
+insert into t3 values (1), (2), (3);
+create table t4 (a decimal(5,1));
+insert into t4 values (1.0), (2.5), (3.0);
+--sorted_result
+select * from t3 full join t4 on t3.a = t4.a;
+--sorted_result
+select * from t3 left join t4 on t3.a = t4.a union select * from t3 right join t4 on t3.a = t4.a;
+
+--echo # FULL JOIN with cross-type comparison (int vs varchar).
+create table t5 (a varchar(10));
+insert into t5 values ('1'), ('2'), ('four');
+--sorted_result
+select * from t3 full join t5 on t3.a = t5.a;
+--sorted_result
+select * from t3 left join t5 on t3.a = t5.a union select * from t3 right join t5 on t3.a = t5.a;
+
+--echo # FULL JOIN on multiple mixed-type columns simultaneously.
+--sorted_result
+select * from t1 full join t2
+  on t1.id = t2.id and t1.dec_val = t2.dec_val;
+--sorted_result
+select * from t1 left join t2
+  on t1.id = t2.id and t1.dec_val = t2.dec_val
+union
+select * from t1 right join t2
+  on t1.id = t2.id and t1.dec_val = t2.dec_val;
+
+drop table t1, t2, t3, t4, t5;
+
+
+--echo # ========================================================
+--echo # Section 8: Aggregates with FULL JOIN
+--echo # ========================================================
+
+create table t1 (grp char(1), val int);
+insert into t1 values ('a',10), ('a',20), ('b',30), ('c',40);
+create table t2 (grp char(1), val int);
+insert into t2 values ('b',100), ('c',200), ('c',300), ('d',400);
+
+--echo # COUNT and SUM over a FULL JOIN.
+--sorted_result
+select coalesce(t1.grp, t2.grp) as grp,
+       count(*) as cnt,
+       sum(t1.val) as s1,
+       sum(t2.val) as s2
+from t1 full join t2 on t1.grp = t2.grp
+group by coalesce(t1.grp, t2.grp);
+--sorted_result
+select coalesce(dt.grp1, dt.grp2) as grp,
+       count(*) as cnt,
+       sum(dt.val1) as s1,
+       sum(dt.val2) as s2
+from (select t1.grp as grp1, t1.val as val1, t2.grp as grp2, t2.val as val2
+      from t1 left join t2 on t1.grp = t2.grp
+      union
+      select t1.grp, t1.val, t2.grp, t2.val
+      from t1 right join t2 on t1.grp = t2.grp) dt
+group by coalesce(dt.grp1, dt.grp2);
+
+--echo # AVG and MAX over a FULL JOIN.
+--sorted_result
+select coalesce(t1.grp, t2.grp) as grp,
+       avg(t1.val) as avg1,
+       max(t2.val) as max2
+from t1 full join t2 on t1.grp = t2.grp
+group by coalesce(t1.grp, t2.grp);
+--sorted_result
+select coalesce(dt.grp1, dt.grp2) as grp,
+       avg(dt.val1) as avg1,
+       max(dt.val2) as max2
+from (select t1.grp as grp1, t1.val as val1, t2.grp as grp2, t2.val as val2
+      from t1 left join t2 on t1.grp = t2.grp
+      union
+      select t1.grp, t1.val, t2.grp, t2.val
+      from t1 right join t2 on t1.grp = t2.grp) dt
+group by coalesce(dt.grp1, dt.grp2);
+
+--echo # HAVING clause with FULL JOIN aggregate.
+--sorted_result
+select coalesce(t1.grp, t2.grp) as grp,
+       count(*) as cnt
+from t1 full join t2 on t1.grp = t2.grp
+group by coalesce(t1.grp, t2.grp)
+having count(*) > 1;
+--sorted_result
+select coalesce(t1.grp, t2.grp) as grp,
+       count(*) as cnt from t1
+left join t2 on t1.grp = t2.grp group by
+coalesce(t1.grp, t2.grp) having count(*) > 1
+union
+select coalesce(t1.grp, t2.grp) as grp,
+       count(*) as cnt from t1
+right join t2 on t1.grp = t2.grp group by
+coalesce(t1.grp, t2.grp) having count(*) > 1;
+
+--echo # COUNT(*) with no GROUP BY — total row count of the FULL JOIN.
+select count(*) from t1 full join t2 on t1.grp = t2.grp;
+select count(*) from (select t1.grp as g1, t1.val as v1, t2.grp as g2, t2.val as v2
+                      from t1 left join t2 on t1.grp = t2.grp
+                      union
+                      select t1.grp, t1.val, t2.grp, t2.val
+                      from t1 right join t2 on t1.grp = t2.grp) dt;
+
+--echo # GROUP_CONCAT over a FULL JOIN.
+--sorted_result
+select coalesce(t1.grp, t2.grp) as grp,
+       group_concat(t1.val order by t1.val) as vals1,
+       group_concat(t2.val order by t2.val) as vals2
+from t1 full join t2 on t1.grp = t2.grp
+group by coalesce(t1.grp, t2.grp);
+--sorted_result
+select coalesce(dt.grp1, dt.grp2) as grp,
+       group_concat(dt.val1 order by dt.val1) as vals1,
+       group_concat(dt.val2 order by dt.val2) as vals2
+from (select t1.grp as grp1, t1.val as val1, t2.grp as grp2, t2.val as val2
+      from t1 left join t2 on t1.grp = t2.grp
+      union
+      select t1.grp, t1.val, t2.grp, t2.val
+      from t1 right join t2 on t1.grp = t2.grp) dt
+group by coalesce(dt.grp1, dt.grp2);
+
+drop table t1, t2;
+
+
+--echo # ========================================================
+--echo # Section 9: Window functions with FULL JOIN
+--echo #
+--echo # Adapted from main.win: ROW_NUMBER, RANK, DENSE_RANK,
+--echo # LEAD/LAG, and aggregate windows (SUM/COUNT with frames)
+--echo # applied to FULL JOIN result sets.
+--echo # ========================================================
+
+create table t1 (a int, grp int, val int);
+insert into t1 values (1,10,100), (2,10,200), (3,20,300), (4,20,400);
+create table t2 (a int, grp int, val int);
+insert into t2 values (3,20,3000), (4,20,4000), (5,30,5000), (6,30,6000);
+
+--echo # ROW_NUMBER() over a FULL JOIN ordered by the coalesced key.
+select coalesce(t1.a, t2.a) as a,
+       row_number() over (order by coalesce(t1.a, t2.a)) as rn
+from t1 full join t2 on t1.a = t2.a
+order by a;
+
+--echo # Equivalent: row-number over LEFT UNION RIGHT.
+select a, row_number() over (order by a) as rn
+from (select coalesce(t1.a, t2.a) as a
+      from t1 left join t2 on t1.a = t2.a
+      union
+      select coalesce(t1.a, t2.a)
+      from t1 right join t2 on t1.a = t2.a) u
+order by a;
+
+--echo # RANK() with PARTITION BY over FULL JOIN.
+--sorted_result
+select coalesce(t1.grp, t2.grp) as grp,
+       coalesce(t1.val, 0) + coalesce(t2.val, 0) as v,
+       rank() over (partition by coalesce(t1.grp, t2.grp)
+                    order by coalesce(t1.val, 0) + coalesce(t2.val, 0)) as rk
+from t1 full join t2 on t1.a = t2.a;
+--sorted_result
+select coalesce(t1grp, t2grp) as grp,
+       coalesce(t1val, 0) + coalesce(t2val, 0) as v,
+       rank() over (partition by coalesce(t1grp, t2grp)
+                    order by coalesce(t1val, 0) + coalesce(t2val, 0)) as rk
+from (select t1.a as t1a, t1.grp as t1grp, t1.val as t1val,
+             t2.a as t2a, t2.grp as t2grp, t2.val as t2val
+      from t1 left join t2 on t1.a = t2.a
+      union
+      select t1.a, t1.grp, t1.val, t2.a, t2.grp, t2.val
+      from t1 right join t2 on t1.a = t2.a) u;
+
+--echo # DENSE_RANK() over FULL JOIN.
+--sorted_result
+select coalesce(t1.grp, t2.grp) as grp,
+       dense_rank() over (order by coalesce(t1.grp, t2.grp)) as dr
+from t1 full join t2 on t1.a = t2.a;
+--sorted_result
+select coalesce(t1grp, t2grp) as grp,
+       dense_rank() over (order by coalesce(t1grp, t2grp)) as dr
+from (select t1.a as t1a, t1.grp as t1grp, t1.val as t1val,
+             t2.a as t2a, t2.grp as t2grp, t2.val as t2val
+      from t1 left join t2 on t1.a = t2.a
+      union
+      select t1.a, t1.grp, t1.val, t2.a, t2.grp, t2.val
+      from t1 right join t2 on t1.a = t2.a) u;
+
+--echo # LEAD() and LAG() over FULL JOIN.
+select coalesce(t1.a, t2.a) as a,
+       lag(coalesce(t1.a, t2.a))
+         over (order by coalesce(t1.a, t2.a)) as prev_a,
+       lead(coalesce(t1.a, t2.a))
+         over (order by coalesce(t1.a, t2.a)) as next_a
+from t1 full join t2 on t1.a = t2.a
+order by a;
+select coalesce(t1a, t2a) as a,
+       lag(coalesce(t1a, t2a))
+         over (order by coalesce(t1a, t2a)) as prev_a,
+       lead(coalesce(t1a, t2a))
+         over (order by coalesce(t1a, t2a)) as next_a
+from (select t1.a as t1a, t1.grp as t1grp, t1.val as t1val,
+             t2.a as t2a, t2.grp as t2grp, t2.val as t2val
+      from t1 left join t2 on t1.a = t2.a
+      union
+      select t1.a, t1.grp, t1.val, t2.a, t2.grp, t2.val
+      from t1 right join t2 on t1.a = t2.a) u
+order by a;
+
+--echo # SUM() window with rows-BETWEEN frame over FULL JOIN.
+select coalesce(t1.a, t2.a) as a,
+       coalesce(t1.val, 0) + coalesce(t2.val, 0) as v,
+       sum(coalesce(t1.val, 0) + coalesce(t2.val, 0))
+         over (order by coalesce(t1.a, t2.a)
+               rows between 1 preceding and 1 following) as window_sum
+from t1 full join t2 on t1.a = t2.a
+order by a;
+select coalesce(t1a, t2a) as a,
+       coalesce(t1val, 0) + coalesce(t2val, 0) as v,
+       sum(coalesce(t1val, 0) + coalesce(t2val, 0))
+         over (order by coalesce(t1a, t2a)
+               rows between 1 preceding and 1 following) as window_sum
+from (select t1.a as t1a, t1.grp as t1grp, t1.val as t1val,
+             t2.a as t2a, t2.grp as t2grp, t2.val as t2val
+      from t1 left join t2 on t1.a = t2.a
+      union
+      select t1.a, t1.grp, t1.val, t2.a, t2.grp, t2.val
+      from t1 right join t2 on t1.a = t2.a) u
+order by a;
+
+--echo # COUNT() window partitioned by group, ordered within group.
+--sorted_result
+select coalesce(t1.grp, t2.grp) as grp,
+       coalesce(t1.a, t2.a) as a,
+       count(*) over (partition by coalesce(t1.grp, t2.grp)
+                      order by coalesce(t1.a, t2.a)
+                      rows between unbounded preceding and current row) as cnt
+from t1 full join t2 on t1.a = t2.a;
+--sorted_result
+select coalesce(t1grp, t2grp) as grp,
+       coalesce(t1a, t2a) as a,
+       count(*) over (partition by coalesce(t1grp, t2grp)
+                      order by coalesce(t1a, t2a)
+                      rows between unbounded preceding and current row) as cnt
+from (select t1.a as t1a, t1.grp as t1grp, t1.val as t1val,
+             t2.a as t2a, t2.grp as t2grp, t2.val as t2val
+      from t1 left join t2 on t1.a = t2.a
+      union
+      select t1.a, t1.grp, t1.val, t2.a, t2.grp, t2.val
+      from t1 right join t2 on t1.a = t2.a) u;
+
+--echo # Window function combined with GROUP BY on the FULL JOIN.
+--echo # Exercises the AGGR_OP::end_send path after the null-complement
+--echo # pass completes (this previously asserted in create_sort_index).
+--sorted_result
+select coalesce(t1.grp, t2.grp) as grp,
+       sum(coalesce(t1.val, 0) + coalesce(t2.val, 0)) as s,
+       rank() over (order by sum(coalesce(t1.val, 0) + coalesce(t2.val, 0))) as rk
+from t1 full join t2 on t1.a = t2.a
+group by coalesce(t1.grp, t2.grp);
+--sorted_result
+select coalesce(t1grp, t2grp) as grp,
+       sum(coalesce(t1val, 0) + coalesce(t2val, 0)) as s,
+       rank() over (order by sum(coalesce(t1val, 0) + coalesce(t2val, 0))) as rk
+from (select t1.a as t1a, t1.grp as t1grp, t1.val as t1val,
+             t2.a as t2a, t2.grp as t2grp, t2.val as t2val
+      from t1 left join t2 on t1.a = t2.a
+      union
+      select t1.a, t1.grp, t1.val, t2.a, t2.grp, t2.val
+      from t1 right join t2 on t1.a = t2.a) u
+group by coalesce(t1grp, t2grp);
+
+drop table t1, t2;
+
+
+--echo # ========================================================
+--echo # Section 10: CTEs
+--echo # ========================================================
+
+create table t1 (id int, val varchar(10));
+insert into t1 values (1,'a'), (2,'b'), (3,'c');
+create table t2 (id int, val varchar(10));
+insert into t2 values (2,'x'), (3,'y'), (4,'z');
+
+--echo # Simple CTE wrapping a FULL JOIN.
+--sorted_result
+with fj as (
+  select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+  from t1 full join t2 on t1.id = t2.id
+)
+select * from fj;
+--sorted_result
+select * from t1 left join t2 on t1.id = t2.id union select * from t1 right join t2 on t1.id = t2.id;
+
+--echo # CTE on the left side of a FULL JOIN.
+--sorted_result
+with vals as (select id, val from t1 where id <= 2)
+select v1.id as id1, v1.val as val1, t2.id as id2, t2.val as val2
+from vals v1 full join t2 on v1.id = t2.id;
+--sorted_result
+with vals as (select id, val from t1 where id <= 2)
+select v1.id as id1, v1.val as val1, t2.id as id2, t2.val as val2
+from vals v1 left join t2 on v1.id = t2.id
+union
+select v1.id as id1, v1.val as val1, t2.id as id2, t2.val as val2
+from vals v1 right join t2 on v1.id = t2.id;
+
+--echo # Recursive CTE used in a FULL JOIN.
+--sorted_result
+with recursive seq as (
+  select 1 as n
+  union all
+  select n + 1 from seq where n < 4
+)
+select s1.n as n1, s2.id as n2
+from seq s1 full join t2 s2 on s1.n = s2.id;
+--sorted_result
+with recursive seq as (
+  select 1 as n
+  union all
+  select n + 1 from seq where n < 4
+)
+select s1.n as n1, s2.id as n2
+from seq s1 left join t2 s2 on s1.n = s2.id
+union
+select s1.n as n1, s2.id as n2
+from seq s1 right join t2 s2 on s1.n = s2.id;
+
+--echo # CTE on the left side of a FULL JOIN with filtering.
+--sorted_result
+with left_cte as (select * from t1 where id in (1,2))
+select l.id as lid, l.val as lval, t2.id as rid, t2.val as rval
+from left_cte l full join t2 on l.id = t2.id;
+--sorted_result
+with left_cte as (select * from t1 where id in (1,2))
+select l.id as lid, l.val as lval, t2.id as rid, t2.val as rval
+from left_cte l left join t2 on l.id = t2.id
+union
+select l.id as lid, l.val as lval, t2.id as rid, t2.val as rval
+from left_cte l right join t2 on l.id = t2.id;
+
+drop table t1, t2;
+
+
+--echo # ========================================================
+--echo # Section 11: Views over FULL JOIN
+--echo # ========================================================
+
+create table t1 (a int, b int);
+insert into t1 values (1,10), (2,20), (3,30);
+create table t2 (a int, b int);
+insert into t2 values (2,200), (3,300), (4,400);
+
+--echo # Simple view over a FULL JOIN.
+create view v_full as
+  select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+  from t1 full join t2 on t1.a = t2.a;
+--sorted_result
+select * from v_full;
+--sorted_result
+select * from t1 left join t2 on t1.a = t2.a union select * from t1 right join t2 on t1.a = t2.a;
+
+--echo # Query the view with additional filtering.
+--sorted_result
+select * from v_full where a1 is not null and a2 is not null;
+--sorted_result
+select * from t1 inner join t2 on t1.a = t2.a;
+
+--echo # View joined with another table via FULL JOIN.
+create table t3 (a int, c varchar(10));
+insert into t3 values (1,'x'), (2,'y'), (4,'z');
+--sorted_result
+select v_full.a1, v_full.a2, t3.c
+from v_full full join t3 on coalesce(v_full.a1, v_full.a2) = t3.a;
+--echo # The LEFT JOIN is allowed (v_full is the outer side, so the
+--echo # FULL JOIN inside v_full is on the outer side of the LEFT JOIN).
+--echo # The RIGHT JOIN is equivalent to
+--echo # `t3 LEFT JOIN v_full`, which puts v_full (the FULL JOIN) on the
+--echo # inner side -- rejected.
+--sorted_result
+select v_full.a1, v_full.a2, t3.c
+from v_full left join t3 on coalesce(v_full.a1, v_full.a2) = t3.a;
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+select v_full.a1, v_full.a2, t3.c
+from v_full right join t3 on coalesce(v_full.a1, v_full.a2) = t3.a;
+
+--echo # View that filters the FULL JOIN result.
+create view v_full_filtered as
+  select t1.a as a1, t2.a as a2
+  from t1 full join t2 on t1.a = t2.a
+  where t1.a is not null;
+--sorted_result
+select * from v_full_filtered;
+--sorted_result
+select t1.a as a1, t2.a as a2 from t1 left join t2 on t1.a = t2.a;
+
+drop view v_full, v_full_filtered;
+drop table t1, t2, t3;
+
+
+--echo # ========================================================
+--echo # Section 12: Prepared statements
+--echo # ========================================================
+
+create table t1 (a int, b varchar(10));
+insert into t1 values (1,'one'), (2,'two'), (3,'three');
+create table t2 (a int, b varchar(10));
+insert into t2 values (2,'TWO'), (3,'THREE'), (4,'FOUR');
+
+--echo # Basic prepared statement with FULL JOIN.
+prepare stmt1 from
+  'select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+   from t1 full join t2 on t1.a = t2.a';
+--sorted_result
+execute stmt1;
+--sorted_result
+select * from t1 left join t2 on t1.a = t2.a union select * from t1 right join t2 on t1.a = t2.a;
+
+--echo # Re-execute to verify PS re-execution stability.
+--sorted_result
+execute stmt1;
+deallocate prepare stmt1;
+
+--echo # Parameter in the ON clause.
+prepare stmt2 from
+  'select t1.a as a1, t2.a as a2
+   from t1 full join t2 on t1.a = t2.a and t1.a > ?';
+set @threshold = 1;
+--sorted_result
+execute stmt2 using @threshold;
+--sorted_result
+select t1.a as a1, t2.a as a2
+from t1 left join t2 on t1.a = t2.a and t1.a > 1
+union
+select t1.a as a1, t2.a as a2
+from t1 right join t2 on t1.a = t2.a and t1.a > 1;
+
+--echo # Re-execute with a different parameter value.
+set @threshold = 2;
+--sorted_result
+execute stmt2 using @threshold;
+--sorted_result
+select t1.a as a1, t2.a as a2
+from t1 left join t2 on t1.a = t2.a and t1.a > 2
+union
+select t1.a as a1, t2.a as a2
+from t1 right join t2 on t1.a = t2.a and t1.a > 2;
+deallocate prepare stmt2;
+
+--echo # Parameter in the WHERE clause.
+prepare stmt3 from
+  'select t1.a, t2.a
+   from t1 full join t2 on t1.a = t2.a
+   where t1.a is not null or t2.a > ?';
+set @minval = 3;
+--sorted_result
+execute stmt3 using @minval;
+--sorted_result
+execute stmt3 using @minval;
+deallocate prepare stmt3;
+
+drop table t1, t2;
+
+
+--echo # ========================================================
+--echo # Section 13: Stored procedures
+--echo # ========================================================
+
+create table t1 (a int, b varchar(20));
+insert into t1 values (1,'alpha'), (2,'beta'), (3,'gamma');
+create table t2 (a int, b varchar(20));
+insert into t2 values (2,'BETA'), (4,'DELTA'), (5,'EPSILON');
+
+delimiter |;
+
+--echo # SP that performs a FULL JOIN.
+create procedure sp_full_join()
+begin
+  select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+  from t1 full join t2 on t1.a = t2.a;
+end|
+
+--echo # SP with a FULL JOIN and a parameter.
+create procedure sp_full_join_param(in min_a int)
+begin
+  select t1.a as a1, t2.a as a2
+  from t1 full join t2 on t1.a = t2.a
+  where coalesce(t1.a, t2.a) >= min_a;
+end|
+
+--echo # SP using FULL JOIN with INSERT ... SELECT.
+create procedure sp_full_join_insert()
+begin
+  create temporary table t3 (a1 int, b1 varchar(20), a2 int, b2 varchar(20));
+  insert into t3
+    select t1.a, t1.b, t2.a, t2.b
+    from t1 full join t2 on t1.a = t2.a;
+  select * from t3;
+  drop temporary table t3;
+end|
+
+delimiter ;|
+
+--sorted_result
+call sp_full_join();
+--sorted_result
+select * from t1 left join t2 on t1.a = t2.a union select * from t1 right join t2 on t1.a = t2.a;
+
+--sorted_result
+call sp_full_join_param(3);
+--sorted_result
+select t1.a as a1, t2.a as a2
+from t1 left join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) >= 3
+union
+select t1.a as a1, t2.a as a2
+from t1 right join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) >= 3;
+
+--echo # Call the SPs twice to test re-execution.
+--sorted_result
+call sp_full_join();
+--sorted_result
+call sp_full_join_param(1);
+
+--sorted_result
+call sp_full_join_insert();
+
+drop procedure sp_full_join;
+drop procedure sp_full_join_param;
+drop procedure sp_full_join_insert;
+drop table t1, t2;
+
+
+--echo # ========================================================
+--echo # Section 14: Subqueries and semijoins with FULL JOIN
+--echo # ========================================================
+
+create table t1 (a int, b int);
+insert into t1 values (1,10), (2,20), (3,30);
+create table t2 (a int, b int);
+insert into t2 values (2,200), (3,300), (4,400);
+create table t3 (a int);
+insert into t3 values (1), (3), (5);
+
+--echo # IN subquery (semijoin) on the result of a FULL JOIN.
+--sorted_result
+select * from t1 full join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) in (select a from t3);
+--sorted_result
+select * from t1 left join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) in (select a from t3)
+union
+select * from t1 right join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) in (select a from t3);
+
+--echo # EXISTS subquery filtering a FULL JOIN.
+--sorted_result
+select * from t1 full join t2 on t1.a = t2.a
+where exists (select 1 from t3 where t3.a = coalesce(t1.a, t2.a));
+--sorted_result
+select * from t1 left join t2 on t1.a = t2.a
+where exists (select 1 from t3 where t3.a = coalesce(t1.a, t2.a))
+union
+select * from t1 right join t2 on t1.a = t2.a
+where exists (select 1 from t3 where t3.a = coalesce(t1.a, t2.a));
+
+--echo # NOT IN (anti-semijoin) with a FULL JOIN.
+--sorted_result
+select * from t1 full join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) not in (select a from t3);
+--sorted_result
+select * from t1 left join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) not in (select a from t3)
+union
+select * from t1 right join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) not in (select a from t3);
+
+--echo # FULL JOIN inside a subquery used as a semijoin predicate.
+select * from t3
+where t3.a in (
+  select coalesce(t1.a, t2.a)
+  from t1 full join t2 on t1.a = t2.a
+);
+select * from t3
+where t3.a in (
+  select coalesce(t1.a, t2.a)
+  from t1 left join t2 on t1.a = t2.a
+  union
+  select coalesce(t1.a, t2.a)
+  from t1 right join t2 on t1.a = t2.a
+);
+
+--echo # Correlated subquery with FULL JOIN.
+--sorted_result
+select * from t3
+where exists (
+  select 1 from t1 full join t2 on t1.a = t2.a
+  where coalesce(t1.a, t2.a) = t3.a
+);
+--sorted_result
+select * from t3
+where exists (
+  select 1 from t1 left join t2 on t1.a = t2.a
+  where coalesce(t1.a, t2.a) = t3.a
+  union
+  select 1 from t1 right join t2 on t1.a = t2.a
+  where coalesce(t1.a, t2.a) = t3.a
+);
+
+drop table t1, t2, t3;
+
+
+--echo # ========================================================
+--echo # Section 15: Indexed access (PK, secondary, composite, unique)
+--echo #
+--echo # Exercises JT_EQ_REF / JT_REF access paths on the right
+--echo # side of a FULL JOIN, including NULLable unique keys.
+--echo # ========================================================
+
+--echo # Primary key join (JT_EQ_REF).
+create table t1 (id int primary key, val varchar(10));
+insert into t1 values (1,'a'), (2,'b'), (3,'c');
+create table t2 (id int primary key, val varchar(10));
+insert into t2 values (2,'x'), (3,'y'), (4,'z');
+
+--sorted_result
+select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+from t1 full join t2 on t1.id = t2.id;
+--sorted_result
+select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+from t1 left join t2 on t1.id = t2.id
+union
+select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+from t1 right join t2 on t1.id = t2.id;
+
+--echo # PK join with WHERE filter.
+--sorted_result
+select t1.id as id1, t2.id as id2
+from t1 full join t2 on t1.id = t2.id
+where coalesce(t1.id, t2.id) > 2;
+--sorted_result
+select t1.id as id1, t2.id as id2
+from t1 left join t2 on t1.id = t2.id
+where coalesce(t1.id, t2.id) > 2
+union
+select t1.id as id1, t2.id as id2
+from t1 right join t2 on t1.id = t2.id
+where coalesce(t1.id, t2.id) > 2;
+
+--echo # PK join with aggregate.
+select count(*) from t1 full join t2 on t1.id = t2.id;
+select count(*) from (select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+                      from t1 left join t2 on t1.id = t2.id
+                      union
+                      select t1.id, t1.val, t2.id, t2.val
+                      from t1 right join t2 on t1.id = t2.id) dt;
+
+drop table t1, t2;
+
+--echo # Secondary index join (JT_REF) with duplicates.
+create table t1 (id int, grp int, val varchar(10), key(grp));
+insert into t1 values (1,10,'a'), (2,20,'b'), (3,20,'c'), (4,30,'d');
+create table t2 (id int, grp int, val varchar(10), key(grp));
+insert into t2 values (5,20,'x'), (6,30,'y'), (7,30,'z'), (8,40,'w');
+
+--sorted_result
+select t1.id as id1, t1.grp as g1, t2.id as id2, t2.grp as g2
+from t1 full join t2 on t1.grp = t2.grp;
+--sorted_result
+select t1.id as id1, t1.grp as g1, t2.id as id2, t2.grp as g2
+from t1 left join t2 on t1.grp = t2.grp
+union
+select t1.id as id1, t1.grp as g1, t2.id as id2, t2.grp as g2
+from t1 right join t2 on t1.grp = t2.grp;
+
+select count(*) from t1 full join t2 on t1.grp = t2.grp;
+select count(*) from (select t1.id as id1, t1.grp as g1, t1.val as v1,
+                             t2.id as id2, t2.grp as g2, t2.val as v2
+                      from t1 left join t2 on t1.grp = t2.grp
+                      union
+                      select t1.id, t1.grp, t1.val, t2.id, t2.grp, t2.val
+                      from t1 right join t2 on t1.grp = t2.grp) dt;
+
+drop table t1, t2;
+
+--echo # Composite index join.
+create table t1 (a int, b int, val varchar(10), primary key(a, b));
+insert into t1 values (1,1,'p'), (1,2,'q'), (2,1,'r');
+create table t2 (a int, b int, val varchar(10), primary key(a, b));
+insert into t2 values (1,2,'s'), (2,1,'t'), (2,2,'u');
+
+--sorted_result
+select t1.a as a1, t1.b as b1, t1.val as v1,
+       t2.a as a2, t2.b as b2, t2.val as v2
+from t1 full join t2 on t1.a = t2.a and t1.b = t2.b;
+--sorted_result
+select t1.a as a1, t1.b as b1, t1.val as v1,
+       t2.a as a2, t2.b as b2, t2.val as v2
+from t1 left join t2 on t1.a = t2.a and t1.b = t2.b
+union
+select t1.a as a1, t1.b as b1, t1.val as v1,
+       t2.a as a2, t2.b as b2, t2.val as v2
+from t1 right join t2 on t1.a = t2.a and t1.b = t2.b;
+
+--echo # Composite index: join on partial key (first column only).
+--sorted_result
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 full join t2 on t1.a = t2.a;
+--sorted_result
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 right join t2 on t1.a = t2.a;
+
+drop table t1, t2;
+
+--echo # UNIQUE index with NULLable column.
+create table t1 (id int auto_increment primary key, val int, unique key(val));
+insert into t1 (val) values (1), (NULL), (3), (NULL);
+create table t2 (id int auto_increment primary key, val int, unique key(val));
+insert into t2 (val) values (2), (3), (NULL), (NULL);
+
+--sorted_result
+select t1.val as v1, t2.val as v2
+from t1 full join t2 on t1.val = t2.val;
+--sorted_result
+select t1.val as v1, t2.val as v2
+from t1 left join t2 on t1.val = t2.val
+union
+select t1.val as v1, t2.val as v2
+from t1 right join t2 on t1.val = t2.val;
+
+drop table t1, t2;
+
+--echo # Vector index on the right side of FULL JOIN.  The vector index
+--echo # does not affect FULL JOIN semantics, but the right table now
+--echo # carries an hlindex object; this confirms the rowid weedout
+--echo # and null-complement pass still work when it does.  Three rows
+--echo # are expected: one left-only (1, NULL, NULL), one match
+--echo # (2, 2, [1,0]), one right-only (NULL, 3, [2,0]).
+create table t1 (a int);
+insert into t1 values (1), (2);
+create table t2 (id int, v vector(2) not null, vector(v));
+insert into t2 values (2, vec_fromtext('[1,0]')),
+                     (3, vec_fromtext('[2,0]'));
+
+--sorted_result
+select t1.a as a1, t2.id as id2, vec_totext(t2.v) as v2
+from t1 full join t2 on t1.a = t2.id;
+--sorted_result
+select t1.a as a1, t2.id as id2, vec_totext(t2.v) as v2
+from t1 left join t2 on t1.a = t2.id
+union
+select t1.a as a1, t2.id as id2, vec_totext(t2.v) as v2
+from t1 right join t2 on t1.a = t2.id;
+
+drop table t1, t2;
+
+--echo # Vector indexes on both sides of FULL JOIN.  Three rows are
+--echo # expected: one left-only (1, [1,0], NULL, NULL), one match
+--echo # (2, [2,0], 2, [3,0]), one right-only (NULL, NULL, 3, [4,0]).
+create table t1 (id int, v vector(2) not null, vector(v));
+insert into t1 values (1, vec_fromtext('[1,0]')),
+                     (2, vec_fromtext('[2,0]'));
+create table t2 (id int, v vector(2) not null, vector(v));
+insert into t2 values (2, vec_fromtext('[3,0]')),
+                     (3, vec_fromtext('[4,0]'));
+
+--sorted_result
+select t1.id as id1, vec_totext(t1.v) as v1,
+       t2.id as id2, vec_totext(t2.v) as v2
+from t1 full join t2 on t1.id = t2.id;
+--sorted_result
+select t1.id as id1, vec_totext(t1.v) as v1,
+       t2.id as id2, vec_totext(t2.v) as v2
+from t1 left join t2 on t1.id = t2.id
+union
+select t1.id as id1, vec_totext(t1.v) as v1,
+       t2.id as id2, vec_totext(t2.v) as v2
+from t1 right join t2 on t1.id = t2.id;
+
+drop table t1, t2;
+
+--echo # There were rows missing because not all null-complements were
+--echo # generated.
+create table t10 (a int, b int, index(a));
+create table t11 (a int, b int, index(a));
+insert into t10 select seq, seq from seq_1_to_10;
+insert into t11 select seq*2, seq*2 from seq_1_to_10;
+create table t20 (a varchar(100), b varchar(100), index(a));
+create table t21 (a varchar(100), b varchar(100), index(a));
+insert into t20 values('match','match'), ('no-match-t20', 'no-match-t20');
+insert into t21 values('match','match'), ('no-match-t21', 'no-match-t21');
+--sorted_result
+select * from (t10 full outer join t11 on t10.a=t11.a) , (t20 full outer join t21 on t20.a=t21.a);
+--echo # Join order under straight_join with FULL JOIN
+create table two (c int);
+insert into two values (1),(2);
+explain select * from two, (t10 full outer join t11 on t10.a=t11.a);
+--sorted_result
+select * from two, (t10 full outer join t11 on t10.a=t11.a);
+explain select * from (t10 full outer join t11 on t10.a=t11.a), two;
+--sorted_result
+select * from (t10 full outer join t11 on t10.a=t11.a), two;
+explain select straight_join * from two, (t10 full outer join t11 on t10.a=t11.a);
+--sorted_result
+select straight_join * from two, (t10 full outer join t11 on t10.a=t11.a);
+explain select straight_join * from (t10 full outer join t11 on t10.a=t11.a), two;
+--sorted_result
+select straight_join * from (t10 full outer join t11 on t10.a=t11.a), two;
+
+--echo # FULL JOIN tables must be contiguous but no longer must appear
+--echo # at the start of the join order.
+create table ten(a int primary key);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table one_k(a int primary key);
+insert into one_k select a.a + b.a* 10 + c.a * 100 from ten a, ten b, ten c;
+
+create table t1 (
+  a int,
+  b int
+);
+create table t2 (
+  a int,
+  b int
+);
+insert into t1 select a, a from one_k where a between 1 and 100;
+insert into t2 select a, a from one_k where a between 95 and 195;
+--sorted_result
+select * from t1 full outer join t2 on (t1.a=t2.a and t1.b>90 and t2.b<110);
+
+drop table t10, t11, t20, t21, two, ten, one_k, t1, t2;
+
+--echo # ========================================================
+--echo # Section 16: Storage engines (MyISAM, Aria, mixed)
+--echo #
+--echo # The null-complement rescan must work regardless of
+--echo # underlying storage engine and across mixed-engine joins
+--echo # (different rowid formats in the weedout temp table).
+--echo # ========================================================
+
+--echo # Both sides MyISAM.
+create table t1 (a int, b varchar(10)) engine=MyISAM;
+insert into t1 values (1,'a'), (2,'b'), (3,'c');
+create table t2 (a int, b varchar(10)) engine=MyISAM;
+insert into t2 values (2,'x'), (3,'y'), (4,'z');
+
+--sorted_result
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 full join t2 on t1.a = t2.a;
+--sorted_result
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 right join t2 on t1.a = t2.a;
+
+select count(*) from t1 full join t2 on t1.a = t2.a;
+select count(*) from (select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+                      from t1 left join t2 on t1.a = t2.a
+                      union
+                      select t1.a, t1.b, t2.a, t2.b
+                      from t1 right join t2 on t1.a = t2.a) dt;
+
+drop table t1, t2;
+
+--echo # Both sides Aria.
+create table t1 (a int, b varchar(10)) engine=Aria;
+insert into t1 values (1,'a'), (2,'b'), (3,'c');
+create table t2 (a int, b varchar(10)) engine=Aria;
+insert into t2 values (2,'x'), (3,'y'), (4,'z');
+
+--sorted_result
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 full join t2 on t1.a = t2.a;
+--sorted_result
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 right join t2 on t1.a = t2.a;
+
+select count(*) from t1 full join t2 on t1.a = t2.a;
+select count(*) from (select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+                      from t1 left join t2 on t1.a = t2.a
+                      union
+                      select t1.a, t1.b, t2.a, t2.b
+                      from t1 right join t2 on t1.a = t2.a) dt;
+
+drop table t1, t2;
+
+--echo # Mixed engines: InnoDB and MyISAM.
+create table t1 (a int, b varchar(10)) engine=InnoDB;
+insert into t1 values (1,'a'), (2,'b'), (3,'c');
+create table t2 (a int, b varchar(10)) engine=MyISAM;
+insert into t2 values (2,'x'), (3,'y'), (4,'z');
+
+--echo # InnoDB on left, MyISAM on right.
+--sorted_result
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 full join t2 on t1.a = t2.a;
+--sorted_result
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 right join t2 on t1.a = t2.a;
+
+--echo # MyISAM on left, InnoDB on right.
+--sorted_result
+select t2.a as a1, t2.b as b1, t1.a as a2, t1.b as b2
+from t2 full join t1 on t2.a = t1.a;
+--sorted_result
+select t2.a as a1, t2.b as b1, t1.a as a2, t1.b as b2
+from t2 left join t1 on t2.a = t1.a
+union
+select t2.a as a1, t2.b as b1, t1.a as a2, t1.b as b2
+from t2 right join t1 on t2.a = t1.a;
+
+drop table t1, t2;
+
+--echo # Mixed engines: InnoDB and Aria.
+create table t1 (a int, b varchar(10)) engine=InnoDB;
+insert into t1 values (1,'a'), (2,'b'), (3,'c');
+create table t2 (a int, b varchar(10)) engine=Aria;
+insert into t2 values (2,'x'), (3,'y'), (4,'z');
+
+--echo # InnoDB on left, Aria on right.
+--sorted_result
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 full join t2 on t1.a = t2.a;
+--sorted_result
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 right join t2 on t1.a = t2.a;
+
+--echo # Aria on left, InnoDB on right.
+--sorted_result
+select t2.a as a1, t2.b as b1, t1.a as a2, t1.b as b2
+from t2 full join t1 on t2.a = t1.a;
+--sorted_result
+select t2.a as a1, t2.b as b1, t1.a as a2, t1.b as b2
+from t2 left join t1 on t2.a = t1.a
+union
+select t2.a as a1, t2.b as b1, t1.a as a2, t1.b as b2
+from t2 right join t1 on t2.a = t1.a;
+
+drop table t1, t2;
+
+--echo # Three-way mixed engine FULL JOIN.
+--echo # No UNION companion: see the note above the chained-FULL-JOIN
+--echo # section — the LEFT/RIGHT permutation UNION over-approximates
+--echo # for chained FULL JOINs.
+create table t1 (a int) engine=InnoDB;
+insert into t1 values (1), (2), (3);
+create table t2 (a int) engine=MyISAM;
+insert into t2 values (2), (3), (4);
+create table t3 (a int) engine=Aria;
+insert into t3 values (3), (4), (5);
+
+--sorted_result
+select t1.a as a1, t2.a as a2, t3.a as a3
+from t1
+  full join t2 on t1.a = t2.a
+  full join t3 on t2.a = t3.a;
+
+drop table t1, t2, t3;
+
+--echo # Indexed mixed-engine FULL JOIN chain.
+create table t1 (id int primary key, val varchar(10)) engine=InnoDB;
+insert into t1 values (1,'a'), (2,'b'), (3,'c');
+create table t2 (id int primary key, val varchar(10)) engine=MyISAM;
+insert into t2 values (2,'x'), (3,'y'), (4,'z');
+create table t3 (id int primary key, val varchar(10)) engine=Aria;
+insert into t3 values (3,'p'), (4,'q'), (5,'r');
+
+--echo # InnoDB PK full join MyISAM PK.
+--sorted_result
+select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+from t1 full join t2 on t1.id = t2.id;
+--sorted_result
+select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+from t1 left join t2 on t1.id = t2.id
+union
+select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+from t1 right join t2 on t1.id = t2.id;
+
+--echo # MyISAM PK full join Aria PK.
+--sorted_result
+select t2.id as id1, t2.val as v1, t3.id as id2, t3.val as v2
+from t2 full join t3 on t2.id = t3.id;
+--sorted_result
+select t2.id as id1, t2.val as v1, t3.id as id2, t3.val as v2
+from t2 left join t3 on t2.id = t3.id
+union
+select t2.id as id1, t2.val as v1, t3.id as id2, t3.val as v2
+from t2 right join t3 on t2.id = t3.id;
+
+--echo # Three-way: InnoDB PK, MyISAM PK, Aria PK.
+--echo # No UNION companion: see the note above the chained-FULL-JOIN
+--echo # section — the LEFT/RIGHT permutation UNION over-approximates
+--echo # for chained FULL JOINs.
+--sorted_result
+select t1.id as id1, t2.id as id2, t3.id as id3
+from t1
+  full join t2 on t1.id = t2.id
+  full join t3 on t2.id = t3.id;
+
+--echo # Indexed mixed-engine with WHERE filter.
+--sorted_result
+select t1.id as id1, t2.id as id2
+from t1 full join t2 on t1.id = t2.id
+where coalesce(t1.id, t2.id) between 2 and 3;
+--sorted_result
+select t1.id as id1, t2.id as id2
+from t1 left join t2 on t1.id = t2.id
+where coalesce(t1.id, t2.id) between 2 and 3
+union
+select t1.id as id1, t2.id as id2
+from t1 right join t2 on t1.id = t2.id
+where coalesce(t1.id, t2.id) between 2 and 3;
+
+--echo # Indexed mixed-engine with aggregate.
+select count(*) from t1 full join t2 on t1.id = t2.id;
+select count(*) from (select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+                      from t1 left join t2 on t1.id = t2.id
+                      union
+                      select t1.id, t1.val, t2.id, t2.val
+                      from t1 right join t2 on t1.id = t2.id) dt;
+
+drop table t1, t2, t3;
+
+
+--echo # ========================================================
+--echo # Section 17: Complex feature combinations
+--echo #
+--echo # Queries that stress FULL JOIN alongside other features at
+--echo # the same time: semi-joins with ranges, FULL-JOIN-in-FULL-
+--echo # JOIN inside a semi-join, CTEs combined with window
+--echo # functions, and HAVING over aggregates with FULL JOIN.
+--echo # ========================================================
+
+create table t3o (x int);
+insert into t3o values (1), (2), (3), (4), (5), (6), (7);
+create table t3l (k int, tag varchar(8));
+insert into t3l values (1,'L1'), (2,'L2'), (3,'L3'), (4,'L4');
+create table t3r (k int, tag varchar(8));
+insert into t3r values (3,'R3'), (4,'R4'), (5,'R5'), (6,'R6');
+create table t3m (k int, tag varchar(8));
+insert into t3m values (2,'M2'), (5,'M5'), (7,'M7');
+
+--echo # 17.1 FULL JOIN inside a materialized semijoin.
+--echo # Exercises get_allowed_nj_tables() with emb_sjm_nest set:
+--echo # the FULL JOIN adjacency check must apply inside the SJM
+--echo # nest so that siblings cannot interleave between partners.
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='materialization=on,semijoin=on';
+
+--sorted_result
+select * from t3o
+where t3o.x in (
+  select coalesce(t3l.k, t3r.k) from t3l full join t3r on t3l.k = t3r.k
+);
+--sorted_result
+select * from t3o
+where t3o.x in (
+  select coalesce(t3l.k, t3r.k) from t3l left join t3r on t3l.k = t3r.k
+  union
+  select coalesce(t3l.k, t3r.k) from t3l right join t3r on t3l.k = t3r.k
+);
+
+--echo # 17.2 FULL JOIN in semijoin with a range predicate on the
+--echo # FULL JOIN's coalesced key.
+--sorted_result
+select * from t3o
+where t3o.x in (
+  select coalesce(t3l.k, t3r.k) c
+  from t3l full join t3r on t3l.k = t3r.k
+  where coalesce(t3l.k, t3r.k) between 2 and 5
+);
+--sorted_result
+select * from t3o
+where t3o.x in (
+  select coalesce(t3l.k, t3r.k) c
+  from t3l left join t3r on t3l.k = t3r.k
+  where coalesce(t3l.k, t3r.k) between 2 and 5
+  union
+  select coalesce(t3l.k, t3r.k) c
+  from t3l right join t3r on t3l.k = t3r.k
+  where coalesce(t3l.k, t3r.k) between 2 and 5
+);
+
+--echo # 17.3 Nested FULL JOINs (a FULL JOIN of a FULL JOIN) inside
+--echo # a semijoin.
+--sorted_result
+select * from t3o
+where t3o.x in (
+  select coalesce(coalesce(t3l.k, t3r.k), t3m.k)
+  from (t3l full join t3r on t3l.k = t3r.k)
+       full join t3m on coalesce(t3l.k, t3r.k) = t3m.k
+);
+--sorted_result
+select * from t3o
+where t3o.x in (
+  select coalesce(coalesce(t3l.k, t3r.k), t3m.k)
+  from (t3l left join t3r on t3l.k = t3r.k)
+       left join t3m on coalesce(t3l.k, t3r.k) = t3m.k
+  union
+  select coalesce(coalesce(t3l.k, t3r.k), t3m.k)
+  from (t3l right join t3r on t3l.k = t3r.k)
+       left join t3m on coalesce(t3l.k, t3r.k) = t3m.k
+  union
+  select coalesce(coalesce(t3l.k, t3r.k), t3m.k)
+  from (t3l left join t3r on t3l.k = t3r.k)
+       right join t3m on coalesce(t3l.k, t3r.k) = t3m.k
+  union
+  select coalesce(coalesce(t3l.k, t3r.k), t3m.k)
+  from (t3l right join t3r on t3l.k = t3r.k)
+       right join t3m on coalesce(t3l.k, t3r.k) = t3m.k
+);
+
+set optimizer_switch= @save_optimizer_switch;
+
+--echo # 17.4 CTE that produces a FULL JOIN result, consumed by a
+--echo # window function in the outer query.
+--sorted_result
+with fj as (
+  select coalesce(t3l.k, t3r.k) as k,
+         t3l.tag as ltag,
+         t3r.tag as rtag
+  from t3l full join t3r on t3l.k = t3r.k
+)
+select k, ltag, rtag,
+       row_number() over (order by k) as rn,
+       count(*) over (order by k rows between unbounded preceding and current row) as running_cnt
+from fj;
+--sorted_result
+with fj as (
+  select coalesce(t3l.k, t3r.k) as k, t3l.tag as ltag, t3r.tag as rtag
+  from t3l left join t3r on t3l.k = t3r.k
+  union
+  select coalesce(t3l.k, t3r.k), t3l.tag, t3r.tag
+  from t3l right join t3r on t3l.k = t3r.k
+)
+select k, ltag, rtag,
+       row_number() over (order by k) as rn,
+       count(*) over (order by k rows between unbounded preceding and current row) as running_cnt
+from fj;
+
+--echo # 17.5 FULL JOIN + HAVING + ORDER BY + aggregate window.
+--sorted_result
+select coalesce(t3l.k, t3r.k) as k,
+       count(*) as cnt,
+       rank() over (order by count(*) desc) as rk
+from t3l full join t3r on t3l.k = t3r.k
+group by coalesce(t3l.k, t3r.k)
+having count(*) >= 1
+order by rk, k;
+--sorted_result
+select coalesce(t3lk, t3rk) as k,
+       count(*) as cnt,
+       rank() over (order by count(*) desc) as rk
+from (select t3l.k as t3lk, t3l.tag as ltag, t3r.k as t3rk, t3r.tag as rtag
+      from t3l left join t3r on t3l.k = t3r.k
+      union
+      select t3l.k, t3l.tag, t3r.k, t3r.tag
+      from t3l right join t3r on t3l.k = t3r.k) dt
+group by coalesce(t3lk, t3rk)
+having count(*) >= 1
+order by rk, k;
+
+--echo # 17.6 FULL JOIN + EXISTS subquery that itself contains a
+--echo # FULL JOIN, all filtered by a range condition.
+--sorted_result
+select coalesce(t3l.k, t3r.k) as k, t3l.tag as ltag, t3r.tag as rtag
+from t3l full join t3r on t3l.k = t3r.k
+where coalesce(t3l.k, t3r.k) between 1 and 5
+  and exists (
+    select 1 from t3l l2 full join t3m on l2.k = t3m.k
+    where coalesce(l2.k, t3m.k) = coalesce(t3l.k, t3r.k)
+  );
+--sorted_result
+select coalesce(t3l.k, t3r.k) as k, t3l.tag as ltag, t3r.tag as rtag
+from t3l full join t3r on t3l.k = t3r.k
+where coalesce(t3l.k, t3r.k) between 1 and 5
+  and coalesce(t3l.k, t3r.k) in (
+    select coalesce(l2.k, t3m.k) from t3l l2 left join t3m on l2.k = t3m.k
+    union
+    select coalesce(l2.k, t3m.k) from t3l l2 right join t3m on l2.k = t3m.k
+  );
+
+--echo # STRAIGHT_JOIN combined with FULL JOIN.  Each FULL JOIN pair
+--echo # must stay contiguous in the join order so its null-complement
+--echo # rescan can fire at the right partner with the LEFT JOIN pass
+--echo # complete, but non FULL JOIN tables may appear before, after,
+--echo # or between distinct FULL JOIN pairs.  STRAIGHT_JOIN cannot
+--echo # violate per-pair contiguity because the SQL grammar puts each
+--echo # pair's L and R syntactically adjacent in the FROM clause.
+
+--echo # FULL JOIN tables first.
+explain
+select straight_join coalesce(t3l.k, t3r.k) as k, t3o.x
+from t3l full join t3r on t3l.k = t3r.k, t3o
+where t3o.x between 3 and 4;
+--sorted_result
+select straight_join coalesce(t3l.k, t3r.k) as k, t3o.x
+from t3l full join t3r on t3l.k = t3r.k, t3o
+where t3o.x between 3 and 4;
+--sorted_result
+select coalesce(t3l.k, t3r.k) as k, t3o.x
+from t3l left join t3r on t3l.k = t3r.k, t3o
+where t3o.x between 3 and 4
+union
+select coalesce(t3l.k, t3r.k) as k, t3o.x
+from t3l right join t3r on t3l.k = t3r.k, t3o
+where t3o.x between 3 and 4;
+
+--echo # Non FULL JOIN table first.
+explain
+select straight_join coalesce(t3l.k, t3r.k) as k, t3o.x
+from t3o, t3l full join t3r on t3l.k = t3r.k
+where t3o.x between 3 and 4;
+--sorted_result
+select straight_join coalesce(t3l.k, t3r.k) as k, t3o.x
+from t3o, t3l full join t3r on t3l.k = t3r.k
+where t3o.x between 3 and 4;
+--sorted_result
+select coalesce(t3l.k, t3r.k) as k, t3o.x
+from t3o, t3l left join t3r on t3l.k = t3r.k
+where t3o.x between 3 and 4
+union
+select coalesce(t3l.k, t3r.k) as k, t3o.x
+from t3o, t3l right join t3r on t3l.k = t3r.k
+where t3o.x between 3 and 4;
+
+--echo # Two distinct FULL JOIN pairs with a non FULL JOIN table
+--echo # between them, under STRAIGHT_JOIN.  Each pair is internally
+--echo # contiguous so STRAIGHT_JOIN is honored and the result matches
+--echo # the cross of the two pairs' LEFT/RIGHT UNION oracle.
+create table t3n (k int);
+insert into t3n values (1), (3), (5), (7);
+explain
+select straight_join
+       coalesce(t3l.k, t3r.k) as klr, t3o.x,
+       coalesce(t3m.k, t3n.k) as kmn
+from (t3l full join t3r on t3l.k = t3r.k),
+     t3o,
+     (t3m full join t3n on t3m.k = t3n.k)
+where t3o.x between 3 and 4;
+--sorted_result
+select straight_join
+       coalesce(t3l.k, t3r.k) as klr, t3o.x,
+       coalesce(t3m.k, t3n.k) as kmn
+from (t3l full join t3r on t3l.k = t3r.k),
+     t3o,
+     (t3m full join t3n on t3m.k = t3n.k)
+where t3o.x between 3 and 4;
+--sorted_result
+select lr.klr, t3o.x, mn.kmn
+from (select coalesce(t3l.k, t3r.k) as klr
+        from t3l left join t3r on t3l.k = t3r.k
+      union
+      select coalesce(t3l.k, t3r.k)
+        from t3l right join t3r on t3l.k = t3r.k) lr,
+     t3o,
+     (select coalesce(t3m.k, t3n.k) as kmn
+        from t3m left join t3n on t3m.k = t3n.k
+      union
+      select coalesce(t3m.k, t3n.k)
+        from t3m right join t3n on t3m.k = t3n.k) mn
+where t3o.x between 3 and 4;
+drop table t3n;
+
+drop table t3o, t3l, t3r, t3m;
+
+
+--echo # ========================================================
+--echo # Section 18: Regressions
+--echo #
+--echo # Specific bugs that were fixed; kept as targeted cases so
+--echo # they don't silently regress.
+--echo # ========================================================
+
+--echo # FULL JOIN with GROUP BY: previously crashed on the
+--echo # create_sort_index assertion (filesort_result != 0) when
+--echo # AGGR_OP::end_send was called twice.
+create table t1 (grp char(1), val int);
+insert into t1 values ('a',10), ('a',20), ('b',30), ('c',40);
+create table t2 (grp char(1), val int);
+insert into t2 values ('b',100), ('c',200), ('c',300), ('d',400);
+--sorted_result
+select coalesce(t1.grp, t2.grp) as grp,
+       count(*) as cnt,
+       sum(t1.val) as s1,
+       sum(t2.val) as s2
+from t1 full join t2 on t1.grp = t2.grp
+group by coalesce(t1.grp, t2.grp);
+--sorted_result
+select coalesce(dt.grp1, dt.grp2) as grp,
+       count(*) as cnt,
+       sum(dt.val1) as s1,
+       sum(dt.val2) as s2
+from (select t1.grp as grp1, t1.val as val1, t2.grp as grp2, t2.val as val2
+      from t1 left join t2 on t1.grp = t2.grp
+      union
+      select t1.grp, t1.val, t2.grp, t2.val
+      from t1 right join t2 on t1.grp = t2.grp) dt
+group by coalesce(dt.grp1, dt.grp2);
+drop table t1, t2;
+
+--echo # simplify_joins: do not flatten an FULL JOIN nest when
+--echo # it is not at the top level.
+--echo #
+--echo # simplify_joins moves ON into WHERE and clears on_expr on the 
+--echo # nest, which would normally make the nest eligible for flattening.
+--echo # Flattening here would expose t1 and t2 at top level next to 
+--echo # t3, allow the optimizer pick a plan that interleaves t3 between
+--echo # the FULL JOIN tables.
+create table t1 (a int);
+insert into t1 values (2), (1), (7), (1), (2);
+create table t2 (b int);
+insert into t2 values (4),(5),(9), (4),(1),(7);
+create table t3 (c int);
+insert into t3 values (3),(1),(3),(9);
+create index idx_a on t1(a);
+--sorted_result
+select * from t3 inner join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5);
+--sorted_result
+select * from t3 inner join (t1 left join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5)
+union all
+select * from t3 inner join (t1 right join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5)
+where t1.a is null;
+drop table t1, t2, t3;
+
+--echo # simplify_joins: DO flatten an FJ-containing nest when it is the
+--echo # sole nest of its embedding.
+--echo #
+--echo # Allow the fj-nest to flatten `t1 FULL JOIN t2 ...` when it
+--echo # has no siblings, because adjacency is then trivially preserved.
+create table t1 (a int, b int);
+insert into t1 values (1,10), (2,20), (3,30);
+create table t2 (a int, b int);
+insert into t2 values (2,200), (3,300), (4,400);
+create table t3 (a int, c varchar(10));
+insert into t3 values (1,'x'), (2,'y'), (4,'z');
+--sorted_result
+select dt.a1, dt.a2, t3.c
+from (select t1.a as a1, t2.a as a2 from t1 full join t2 on t1.a=t2.a) dt
+     inner join t3 on coalesce(dt.a1, dt.a2) = t3.a;
+--sorted_result
+select dt.a1, dt.a2, t3.c
+from (select t1.a as a1, t2.a as a2 from t1 left join t2 on t1.a=t2.a
+      union
+      select t1.a as a1, t2.a as a2 from t1 right join t2 on t1.a=t2.a) dt
+     inner join t3 on coalesce(dt.a1, dt.a2) = t3.a;
+drop table t1, t2, t3;
+
+--echo # simplify_joins: do not flatten a nest that carries JOIN_TYPE_FULL
+--echo # on itself.
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (a int);
+insert into t2 values (2),(3),(4);
+create table t3 (a int);
+insert into t3 values (3),(4),(5);
+--sorted_result
+select t1.a as a1, t2.a as a2, t3.a as a3
+from (t1 join t2 on t1.a=t2.a) full join t3 on t2.a=t3.a;
+--sorted_result
+select t1.a as a1, t2.a as a2, t3.a as a3
+from (t1 join t2 on t1.a=t2.a) left join t3 on t2.a=t3.a
+union all
+select t1.a as a1, t2.a as a2, t3.a as a3
+from (t1 join t2 on t1.a=t2.a) right join t3 on t2.a=t3.a
+where t2.a is null;
+drop table t1, t2, t3;
+
+--echo # INNER / CROSS JOIN of an outer table with a FULL JOIN must not
+--echo # interleave the outer table between the FULL JOIN tables.
+create table t1 (a int);
+insert into t1 values (2), (1), (7), (1), (2);
+create table t2 (b int);
+insert into t2 values (4),(5),(9), (4),(1),(7);
+create table t3 (c int);
+insert into t3 values (3),(1),(3),(9);
+create index idx_a on t1(a);
+
+--sorted_result
+select * from t3 inner join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5);
+--sorted_result
+select * from t3 cross join (t1 full join t2 on t1.a=t2.b);
+
+# t3 LEFT JOIN (FJ) -- FJ is the inner of the outer join -- rejected.
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+select * from t3 left join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5) and t3.c != 9;
+# t3 RIGHT JOIN (FJ) canonicalizes to (FJ) LEFT JOIN t3; t3 is the
+# inner, so the FULL JOIN ends up on the outer side -- allowed.
+--sorted_result
+select * from t3 right join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5) and t3.c != 9;
+
+drop table t1, t2, t3;
+
+--echo # JOIN_ORDER hints around a FULL JOIN.  The partners of each
+--echo # FULL JOIN must remain contiguous in the join order so the
+--echo # null-complement pass can fire at the right partner with the
+--echo # LEFT JOIN pass complete; outside tables may sit before or
+--echo # after the pair.  A hint that names an outside table between
+--echo # the two partners is rejected with a conflict warning; a hint
+--echo # that names an outside table before (or after) the pair is
+--echo # honored.
+create table t1 (a int);
+insert into t1 values (2), (1), (7), (1), (2);
+create table t2 (b int);
+insert into t2 values (4), (5), (9), (4), (1), (7);
+create table t3 (c int);
+insert into t3 values (3), (1), (3), (9);
+--echo # No hint, base case, should match other results.
+explain extended select *
+from t3 inner join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5);
+--sorted_result
+select *
+from t3 inner join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5);
+
+--echo # Outside table before the FULL JOIN pair, honored.
+explain extended select /*+ join_order(t3,t1,t2) */ *
+from t3 inner join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5);
+--sorted_result
+select /*+ join_order(t3,t1,t2) */ *
+from t3 inner join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5);
+
+--echo # Outside table after the FULL JOIN pair, honored.
+explain extended select /*+ join_order(t1,t2,t3) */ *
+from t3 inner join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5);
+--sorted_result
+select /*+ join_order(t1,t2,t3) */ *
+from t3 inner join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5);
+
+--echo # Outside table between the two FULL JOIN partners, rejected.
+explain extended select /*+ join_order(t1,t3,t2) */ *
+from t3 inner join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5);
+--sorted_result
+select /*+ join_order(t1,t3,t2) */ *
+from t3 inner join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5);
+drop table t1, t2, t3;
+
+--echo # ((t1, t2) FULL JOIN t3) INNER JOIN t4 with the FULL JOIN on
+--echo # the left side of the INNER JOIN, the configuration phase 2
+--echo # supports.  The FULL JOIN block covers three tables; t4 sits
+--echo # outside and may go before or after the block but never
+--echo # between any two of t1, t2, t3.  The FULL JOIN ON
+--echo # condition is a simple equi-join so the query translates
+--echo # to PostgreSQL; the INNER JOIN ON is disjunctive so the
+--echo # FULL JOIN is not eligible for the LEFT/RIGHT/INNER
+--echo # rewrite and survives into the join optimizer.
+create table t1 (a int);
+insert into t1 values (1), (2);
+create table t2 (b int);
+insert into t2 values (3), (4);
+create table t3 (c int);
+insert into t3 values (1), (5);
+create table t4 (d int);
+insert into t4 values (1), (5);
+
+--echo # No hint, base case.
+explain extended select *
+from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
+  on (t4.d=t3.c or t4.d=5);
+--sorted_result
+select *
+from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
+  on (t4.d=t3.c or t4.d=5);
+
+--echo # Outside table before the FULL JOIN block, honored.
+explain extended select /*+ join_order(t4,t1,t2,t3) */ *
+from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
+  on (t4.d=t3.c or t4.d=5);
+--sorted_result
+select /*+ join_order(t4,t1,t2,t3) */ *
+from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
+  on (t4.d=t3.c or t4.d=5);
+
+--echo # Outside table after the FULL JOIN block, honored.
+explain extended select /*+ join_order(t1,t2,t3,t4) */ *
+from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
+  on (t4.d=t3.c or t4.d=5);
+--sorted_result
+select /*+ join_order(t1,t2,t3,t4) */ *
+from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
+  on (t4.d=t3.c or t4.d=5);
+
+--echo # Swap t1 and t2 within the (t1, t2) nest while keeping
+--echo # the FULL JOIN block contiguous, honored.
+explain extended select /*+ join_order(t4,t2,t1,t3) */ *
+from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
+  on (t4.d=t3.c or t4.d=5);
+--sorted_result
+select /*+ join_order(t4,t2,t1,t3) */ *
+from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
+  on (t4.d=t3.c or t4.d=5);
+
+--echo # Outside table sandwiched between two FULL JOIN partners
+--echo # of the (t1, t2) nest, rejected.
+explain extended select /*+ join_order(t1,t4,t2,t3) */ *
+from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
+  on (t4.d=t3.c or t4.d=5);
+--sorted_result
+select /*+ join_order(t1,t4,t2,t3) */ *
+from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
+  on (t4.d=t3.c or t4.d=5);
+
+--echo # Outside table sandwiched between (t1, t2) and t3
+--echo # across the FULL JOIN, rejected.
+explain extended select /*+ join_order(t1,t2,t4,t3) */ *
+from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
+  on (t4.d=t3.c or t4.d=5);
+--sorted_result
+select /*+ join_order(t1,t2,t4,t3) */ *
+from ((t1, t2) full join t3 on t3.c=t1.a) inner join t4
+  on (t4.d=t3.c or t4.d=5);
+drop table t1, t2, t3, t4;
+
+--echo # JOIN_PREFIX and JOIN_SUFFIX hints around a FULL JOIN,
+--echo # with the FULL JOIN on the left side of the INNER JOIN
+--echo # (the configuration phase 2 supports).  JOIN_PREFIX forces
+--echo # the listed tables to lead the join order; JOIN_SUFFIX
+--echo # forces them to trail it.  Both must respect the FULL JOIN
+--echo # contiguity invariant.  A hint that ends up putting a
+--echo # non-FULL-JOIN table between two FULL JOIN tables, once the
+--echo # implicit prefix or suffix dependencies are added, is
+--echo # rejected.
+create table t1 (a int);
+insert into t1 values (2), (1), (7), (1), (2);
+create table t2 (b int);
+insert into t2 values (4), (5), (9), (4), (1), (7);
+create table t3 (c int);
+insert into t3 values (3), (1), (3), (9);
+
+--echo # JOIN_PREFIX with the outside table, honored (was rejected
+--echo # before the FULL JOIN check was relaxed).
+explain extended select /*+ join_prefix(t3) */ *
+from (t1 full join t2 on t1.a=t2.b) inner join t3
+  on (t3.c=t1.a or t2.b=5);
+--sorted_result
+select /*+ join_prefix(t3) */ *
+from (t1 full join t2 on t1.a=t2.b) inner join t3
+  on (t3.c=t1.a or t2.b=5);
+
+--echo # JOIN_PREFIX with the FULL JOIN pair, honored.
+explain extended select /*+ join_prefix(t1, t2) */ *
+from (t1 full join t2 on t1.a=t2.b) inner join t3
+  on (t3.c=t1.a or t2.b=5);
+--sorted_result
+select /*+ join_prefix(t1, t2) */ *
+from (t1 full join t2 on t1.a=t2.b) inner join t3
+  on (t3.c=t1.a or t2.b=5);
+
+--echo # JOIN_PREFIX naming one FULL JOIN partner and the outside
+--echo # table forces the other partner after both, splitting the
+--echo # FULL JOIN block, rejected.
+explain extended select /*+ join_prefix(t1, t3) */ *
+from (t1 full join t2 on t1.a=t2.b) inner join t3
+  on (t3.c=t1.a or t2.b=5);
+--sorted_result
+select /*+ join_prefix(t1, t3) */ *
+from (t1 full join t2 on t1.a=t2.b) inner join t3
+  on (t3.c=t1.a or t2.b=5);
+
+--echo # JOIN_SUFFIX with the outside table, honored.
+explain extended select /*+ join_suffix(t3) */ *
+from (t1 full join t2 on t1.a=t2.b) inner join t3
+  on (t3.c=t1.a or t2.b=5);
+--sorted_result
+select /*+ join_suffix(t3) */ *
+from (t1 full join t2 on t1.a=t2.b) inner join t3
+  on (t3.c=t1.a or t2.b=5);
+
+--echo # JOIN_SUFFIX with the FULL JOIN pair, honored (was
+--echo # rejected before the FULL JOIN check was relaxed).
+explain extended select /*+ join_suffix(t1, t2) */ *
+from (t1 full join t2 on t1.a=t2.b) inner join t3
+  on (t3.c=t1.a or t2.b=5);
+--sorted_result
+select /*+ join_suffix(t1, t2) */ *
+from (t1 full join t2 on t1.a=t2.b) inner join t3
+  on (t3.c=t1.a or t2.b=5);
+
+--echo # JOIN_SUFFIX naming the outside table and one FULL JOIN
+--echo # partner forces the other partner before both, splitting
+--echo # the FULL JOIN block, rejected.
+explain extended select /*+ join_suffix(t3, t2) */ *
+from (t1 full join t2 on t1.a=t2.b) inner join t3
+  on (t3.c=t1.a or t2.b=5);
+--sorted_result
+select /*+ join_suffix(t3, t2) */ *
+from (t1 full join t2 on t1.a=t2.b) inner join t3
+  on (t3.c=t1.a or t2.b=5);
+drop table t1, t2, t3;
+
+--echo # Empty MyISAM FULL JOIN partner.  MyISAM reports an exact 0 row
+--echo # count, so the table used to be promoted to a JT_SYSTEM const
+--echo # NULL row at optimize time.  The synthesized NULL row drove the
+--echo # LEFT JOIN component to emit a bogus row of NULLs when the
+--echo # other partner was also empty.  Earlier still, the duplicate
+--echo # filter setup crashed in this scenario.  FULL JOIN tables
+--echo # bypass the const table optimization.
+create table t1 (pk int) ENGINE=MyISAM;
+create table t2 (pk int) ENGINE=InnoDB;
+--sorted_result
+select t1.pk from t1 full join t2 on (true);
+--sorted_result
+select t1.pk from t1 left join t2 on (true)
+union
+select t1.pk from t1 right join t2 on (true);
+drop table t1, t2;
+
+--echo # Both partners empty MyISAM.
+create table t1 (pk int) ENGINE=MyISAM;
+create table t2 (pk int) ENGINE=MyISAM;
+--sorted_result
+select * from t1 full join t2 on (true);
+--sorted_result
+select * from t1 left join t2 on (true)
+union
+select * from t1 right join t2 on (true);
+drop table t1, t2;
+
+--echo # Empty MyISAM on the left, InnoDB on the right with rows.  The
+--echo # bug was masked here because the phantom left NULL row happened
+--echo # to produce the same rows the null complement pass would.
+create table t1 (pk int) ENGINE=MyISAM;
+create table t2 (pk int) ENGINE=InnoDB;
+insert into t2 values (10), (20);
+--sorted_result
+select * from t1 full join t2 on (true);
+--sorted_result
+select * from t1 left join t2 on (true)
+union
+select * from t1 right join t2 on (true);
+drop table t1, t2;
+
+--echo # Empty MyISAM on the right (the side that does not normally
+--echo # become const) and empty InnoDB on the left.
+create table t1 (pk int) ENGINE=InnoDB;
+create table t2 (pk int) ENGINE=MyISAM;
+--sorted_result
+select * from t1 full join t2 on (true);
+--sorted_result
+select * from t1 left join t2 on (true)
+union
+select * from t1 right join t2 on (true);
+drop table t1, t2;
+
+--echo # MyISAM partners with one row each.  Without the guards, the
+--echo # stats.records <= 1 path would also have promoted them.
+create table t1 (a int) ENGINE=MyISAM;
+create table t2 (b int) ENGINE=MyISAM;
+insert into t1 values (1);
+insert into t2 values (2);
+--sorted_result
+select * from t1 full join t2 on t1.a = t2.b;
+--sorted_result
+select * from t1 left join t2 on t1.a = t2.b
+union
+select * from t1 right join t2 on t1.a = t2.b;
+drop table t1, t2;
+
+--echo # simplify_joins must not rewrite a FULL JOIN whose left side
+--echo # still contains an unrewritten FULL JOIN.  Without the fix,
+--echo # rewrite_full_to_right put the inner FULL JOIN on the inner
+--echo # side of the resulting LEFT JOIN, a shape the optimizer could
+--echo # not plan, and tripped the found_tables > 0 assertion in
+--echo # best_extension_by_limited_search.
+--echo #
+--echo # The trigger is a WHERE predicate that rejects nulls on the
+--echo # right base table of the outermost FULL JOIN in a chained FULL
+--echo # JOIN.  The fix keeps the FULL JOIN; the null complement pass
+--echo # runs and the WHERE filters any rows the rewrite would have
+--echo # eliminated.  Per Section 6, the LEFT JOIN UNION RIGHT JOIN
+--echo # oracle is not valid for chained FULL JOINs, so the recorded
+--echo # result is the oracle.
+create table t1 (a int);
+create table t2 (a int);
+create table t3 (a int);
+create table t4 (a int);
+insert into t1 values (1);
+insert into t2 values (10);
+insert into t3 values (100);
+insert into t4 values (1000), (2000);
+--sorted_result
+select t1.a, t2.a, t3.a, t4.a
+from t1 left join t2 on (true)
+        full join t3 on (true)
+        full join t4 on (true)
+where t4.a <= 3000;
+explain extended select t1.a, t2.a, t3.a, t4.a
+from t1 left join t2 on (true)
+        full join t3 on (true)
+        full join t4 on (true)
+where t4.a <= 3000;
+--echo # IS NOT NULL drives the same rewrite path.
+--sorted_result
+select t1.a, t2.a, t3.a, t4.a
+from t1 left join t2 on (true)
+        full join t3 on (true)
+        full join t4 on (true)
+where t4.a is not null;
+explain extended select t1.a, t2.a, t3.a, t4.a
+from t1 left join t2 on (true)
+        full join t3 on (true)
+        full join t4 on (true)
+where t4.a is not null;
+--echo # RIGHT JOIN canonicalizes to LEFT JOIN, same trigger applies.
+--sorted_result
+select t1.a, t2.a, t3.a, t4.a
+from t1 right join t2 on (true)
+        full join t3 on (true)
+        full join t4 on (true)
+where t4.a <= 3000;
+explain extended select t1.a, t2.a, t3.a, t4.a
+from t1 right join t2 on (true)
+        full join t3 on (true)
+        full join t4 on (true)
+where t4.a <= 3000;
+--echo # Reproducer matching the original ticket.  All left tables are
+--echo # empty so only null complement rows for t4 reach the WHERE,
+--echo # and GROUP BY collapses them.
+delete from t1;
+delete from t2;
+delete from t3;
+--sorted_result
+select t1.a as field1
+from t1 left join t2 on (true)
+        full join t3 on (true)
+        full join t4 on (true)
+where t4.a <= 3000
+group by field1;
+explain extended select t1.a as field1
+from t1 left join t2 on (true)
+        full join t3 on (true)
+        full join t4 on (true)
+where t4.a <= 3000
+group by field1;
+--echo # The guard must not block the normal FULL JOIN rewrite when
+--echo # the left side is a base table.  A plain t1 FULL JOIN t4 with
+--echo # the same WHERE predicate still rewrites and the UNION oracle
+--echo # matches.
+insert into t1 values (1);
+--sorted_result
+select t1.a, t4.a from t1 full join t4 on (true) where t4.a <= 3000;
+explain extended
+select t1.a, t4.a from t1 full join t4 on (true) where t4.a <= 3000;
+--sorted_result
+select t1.a, t4.a from t1 left join t4 on (true) where t4.a <= 3000
+union
+select t1.a, t4.a from t1 right join t4 on (true) where t4.a <= 3000;
+explain extended
+select t1.a, t4.a from t1 left join t4 on (true) where t4.a <= 3000
+union
+select t1.a, t4.a from t1 right join t4 on (true) where t4.a <= 3000;
+drop table t1, t2, t3, t4;
+
+--echo # Taller-tree variant of the chained FULL JOIN regression above.
+--echo # The guard at each level of rewrite_full_outer_joins runs after
+--echo # simplify_nested_join has descended into left_table, so a longer
+--echo # chain is handled recursively: each FULL JOIN whose left side
+--echo # still contains an unrewritten FULL JOIN stays as a FULL JOIN.
+--echo # With the null-rejecting WHERE only on the outermost right, no
+--echo # inner FULL JOIN can rewrite, so every FULL JOIN in the chain
+--echo # is preserved.
+create table t1 (a int);
+create table t2 (a int);
+create table t3 (a int);
+create table t4 (a int);
+create table t5 (a int);
+create table t6 (a int);
+insert into t1 values (1);
+insert into t2 values (10);
+insert into t3 values (100);
+insert into t4 values (1000);
+insert into t5 values (10000);
+insert into t6 values (100000), (200000);
+--sorted_result
+select t1.a, t2.a, t3.a, t4.a, t5.a, t6.a
+from t1 left join t2 on (true)
+        full join t3 on (true)
+        full join t4 on (true)
+        full join t5 on (true)
+        full join t6 on (true)
+where t6.a <= 300000;
+explain extended select t1.a, t2.a, t3.a, t4.a, t5.a, t6.a
+from t1 left join t2 on (true)
+        full join t3 on (true)
+        full join t4 on (true)
+        full join t5 on (true)
+        full join t6 on (true)
+where t6.a <= 300000;
+drop table t1, t2, t3, t4, t5, t6;
+
+--echo # Companion case: the guard must not fire pessimistically.  When
+--echo # a null-rejecting WHERE predicate sits on a middle base table
+--echo # rather than the outermost right, the inner FULL JOIN rewrites
+--echo # (its left side is a base-table-only LEFT JOIN, not yet
+--echo # containing a FULL JOIN), and the outer FULL JOIN's left side
+--echo # no longer contains a FULL JOIN by the time the guard checks
+--echo # it, so the outer FULL JOIN also rewrites.  Both FULL JOINs
+--echo # collapse to LEFT JOINs and the query is plannable without the
+--echo # null complement pass.
+--echo #
+--echo # Note: t3 is detected as a system const table in the recorded
+--echo # plan.  MDEV-38508 (commit 7d6a036c3a1) skips constant table
+--echo # promotion for tables whose outer_join carries JOIN_TYPE_FULL,
+--echo # but that guard reads the current outer_join bits and
+--echo # simplify_joins clears JOIN_TYPE_FULL when it rewrites a FULL
+--echo # JOIN to a LEFT JOIN.  Here both FULL JOINs are rewritten
+--echo # before make_join_statistics runs, so t3 is no longer an FJ
+--echo # partner at that point and the standard LEFT JOIN const-table
+--echo # path applies.  This is safe: the FULL JOIN's null complement
+--echo # pass is what made const promotion dangerous in MDEV-38508, and
+--echo # there is no null complement pass after the rewrite; any
+--echo # predicate that drove the rewrite is null-rejecting on the
+--echo # rewritten table and so rejects the synthesized NULL row anyway.
+create table t1 (a int);
+create table t2 (a int);
+create table t3 (a int);
+create table t4 (a int);
+insert into t1 values (1);
+insert into t2 values (10);
+insert into t3 values (100);
+insert into t4 values (1000);
+--sorted_result
+select t1.a, t2.a, t3.a, t4.a
+from t1 left join t2 on (true)
+        full join t3 on (true)
+        full join t4 on (true)
+where t3.a <= 1000;
+--echo # Verify the simplified shape: a plain LEFT JOIN chain, no FULL.
+explain extended select t1.a
+from t1 left join t2 on (true)
+        full join t3 on (true)
+        full join t4 on (true)
+where t3.a <= 1000;
+drop table t1, t2, t3, t4;
+
+--echo # MDEV-39605: a merged derived table containing a FULL JOIN previously
+--echo # hit an assertion in table elimination.  simplify_joins
+--echo # preserves the derived's nested join (no on_expr, not a semi-join)
+--echo # to keep the FULL JOIN tables adjacent in the parent join_list, but
+--echo # the table elimination iterator must descend into that nest
+--echo # without trying to eliminate it.
+create table t1 (a int);
+insert into t1 values (1), (2);
+--sorted_result
+select * from t1, (select alias1.a from t1 as alias1
+                                   full join t1 as alias2 on (true)) dt;
+--sorted_result
+select * from t1, (select alias1.a from t1 as alias1
+                                   left join t1 as alias2 on (true)
+                   union all
+                   select alias1.a from t1 as alias1
+                                   right join t1 as alias2 on (true)
+                                   where alias1.a is null) dt;
+drop table t1;
+
+--echo # When a constant table is a subquery, the duplicate filter
+--echo # allocation loop used to walk off the end of JOIN::join_tab list.
+create table t1 (pk int not null, primary key (pk));
+create table t2 (pk int);
+select t1.pk from (t1 full join t2 on (true))
+where exists (select t2.pk from (t1 right join t2 on (t2.pk = t1.pk)));
+insert into t1 values (1), (2);
+insert into t2 values (1), (null);
+--sorted_result
+select t1.pk from (t1 full join t2 on (true))
+where exists (select t2.pk from (t1 right join t2 on (t2.pk = t1.pk)));
+--sorted_result
+select t1.pk from (t1 left join t2 on (true))
+where exists (select t2.pk from (t1 right join t2 on (t2.pk = t1.pk)))
+union
+select t1.pk from (t1 right join t2 on (true))
+where exists (select t2.pk from (t1 right join t2 on (t2.pk = t1.pk)));
+drop table t1, t2;
+
+--echo # In a correlated subquery, the FULL JOIN null complement rescan
+--echo # on the right table used to disable the keyread on the
+--echo # index without re-enabling it.  The next iteration of the
+--echo # subquery then hit an assertion because the keyread
+--echo # was expected to still be active.
+create table t1 (pk int primary key);
+create table t2 (pk int primary key, a int);
+create table t3 (pk int primary key, a int, key idx(a));
+insert into t1 values (1), (2);
+insert into t2 values (1, 10);
+insert into t3 values (1, 100), (2, 200);
+--sorted_result
+select (select min(t2.pk) from (t2 full join t3 on true)
+        where t3.pk = t1.pk or t2.a = t2.a) as f
+from t1;
+--sorted_result
+select (select min(dt.t2pk) from
+          (select t2.pk as t2pk, t2.a as t2a, t3.pk as t3pk
+             from t2 left join t3 on true
+           union
+           select t2.pk, t2.a, t3.pk from t2 right join t3 on true
+                  where t2.pk is null) dt
+        where dt.t3pk = t1.pk or dt.t2a = dt.t2a) as f
+from t1;
+drop table t1, t2, t3;
+
+--echo # First, an inner FULL JOIN leaf that
+--echo # carries its own on_expr did not inherit dep_tables from the
+--echo # enclosing nests, so its dependency on the leftmost FULL JOIN
+--echo # table was lost and the optimizer would pick it as the first
+--echo # table.  Second, compute_full_join_nest_tables iterated only
+--echo # FULL JOIN leaves and walked their embedding chain, missing
+--echo # any FULL JOIN table whose left side was a nest of inner
+--echo # joins (where the nest carries JOIN_TYPE_FULL but its leaves
+--echo # do not).  These two issues led to an invalid FULL JOIN table
+--echo # order.
+create table t1 (pk int);
+create table t2 (pk int);
+create table t3 (pk int);
+create table t4 (pk int);
+create table t5 (pk int);
+select t2.pk as field1 from t1
+  full join t2
+  full join t4
+  full join t5 right join t3 on (true)
+                            on (true)
+  full join t5 as alias2 on (true)
+                         on (true)
+                         on t1.pk = alias2.pk;
+drop table t1, t2, t3, t4, t5;
+
+--echo # The FULL JOIN table can be a nest of inner joins, so in that
+--echo # case the nest carries JOIN_TYPE_FULL but its leaves do not.
+--echo # compute_full_join_nest_tables must still pick those leaves
+--echo # up.
+create table t1 (a int);
+create table t2 (a int);
+create table t3 (a int);
+select * from t1 inner join t2 full join t3 on t1.a=t3.a;
+drop table t1, t2, t3;
+
+--echo # Both FULL JOIN tables carried the ON expression which broke
+--echo # dependency propagation during make_join_statistics.  Rather
+--echo # than make changes there, just carry the ON expression on only
+--echo # one of the FULL JOIN tables, like the other join types do.
+create table t1 (pk int);
+create table t2 (pk int);
+create table t3 (pk int);
+create table t4 (pk int);
+insert into t1 values (1), (2);
+select max(t3.pk) from t1
+  full join t2
+  full join t3 on t2.pk = t3.pk
+  full join t1 as alias5
+  full join t4 on (true)
+  on t3.pk = alias5.pk
+  on t1.pk = alias5.pk;
+drop table t1, t2, t3, t4;
+
+--echo # Inner FULL JOIN tables carrying a constant ON expression did not
+--echo # inherit the dep_tables of their enclosing FULL JOIN nest because
+--echo # make_join_statistics, for any table whose on_expr was set, took
+--echo # an early exit that skipped embedding dependency propagation.
+create table t1 (pk int);
+create table t2 (pk int);
+create table t3 (pk int);
+create table t4 (pk int);
+insert into t1 values (1), (2);
+select t1.pk from t1
+  full join t2
+  full outer join t3 on (true)
+  full join t4 on (true)
+  on t1.pk = t4.pk;
+drop table t1, t2, t3, t4;
+
+--echo # When an inner table of a FULL JOIN sat inside a nest that was
+--echo # itself the LEFT side of an enclosing FULL JOIN,
+--echo # make_outerjoin_info skipped that nest while building the outer
+--echo # join scope chain, leaving the inner table's first_upper
+--echo # unlinked.  add_found_match_trig_cond walked off the broken
+--echo # chain and dereferenced NULL when make_join_select pushed an
+--echo # ON condition to that table.
+create table t1 (pk int);
+create table t2 (pk int);
+create table t3 (pk int);
+create table t4 (pk int);
+create table t5 (pk int);
+insert into t1 values (1), (2);
+insert into t2 values (1), (3);
+insert into t3 values (1), (4);
+insert into t4 values (1), (5);
+insert into t5 values (1), (6);
+--sorted_result
+select t1.pk
+  from t1
+       full join t2
+       full outer join t3 on (true)
+       full join t4 on t3.pk = t4.pk
+       left join t5 on t2.pk = t5.pk
+       on t1.pk = t4.pk;
+drop table t1, t2, t3, t4, t5;
+
+--echo # When an IN subquery in the ON clause of a JOIN to a FULL JOIN
+--echo # nest was converted into a semijoin, the semijoin nest was inserted
+--echo # as a child of the FULL JOIN nest.  Because the FULL JOIN nest cannot
+--echo # be flattened, the semijoin nest remained inside it.
+--echo # check_interleaving_with_nj walked through the semijoin nest
+--echo # transparently and incremented the FULL JOIN  nest's counter once for
+--echo # every semijoin table instead of once for the whole semijoin nest,
+--echo # eventually overflowing past n_tables and triggering the assertion in
+--echo # greedy_search.
+create table t1 (pk int);
+create table t2 (pk int);
+select table1.pk from t1 as table1
+  straight_join (select alias1.* from t2 as alias1
+                 full join t1 as alias2 on (true)) as table2
+  on (table1.pk in (select t2.pk from t1 left join t2 on (true)));
+drop table t1, t2;
+
+--echo # t1 is detected as a const table through the keyuse based const
+--echo # detection in make_join_statistics.  The HAVING predicate field2 = 8
+--echo # is field2 = t1.pk, and condition pushdown from HAVING moves it down
+--echo # as the equality t1.pk = 8.  That binds every part of t1's primary
+--echo # key to a constant, so make_join_statistics reads the single matching
+--echo # row at optimization time and marks t1 const.  That promotion path
+--echo # does not exclude FULL JOIN tables, so t1 folds to const even though
+--echo # it is the left side of a FULL JOIN.
+--echo # When the left side of a FULL JOIN has const table optimizations,
+--echo # then the right side table becomes the inner-most join tab and
+--echo # also its own null complement target.  sub_select started PFS batch
+--echo # mode for the inner-most tab and then, before ending it, ran the
+--echo # null complement pass, which calls sub_select again on that same tab
+--echo # and started batch mode a second time, tripping the m_psi_batch_mode
+--echo # assertion.
+create table t1 (pk int not null, primary key(pk));
+create table t2 (pk int);
+insert into t1 values (8);
+select t1.pk as field2 from t1 full join t2 on (true)
+  group by field2 having field2 = 8;
+select t1.pk as field2 from t1 full join t2 on (true)
+  group by field2 having t1.pk = 8;
+insert into t2 values (1), (8), (null);
+--sorted_result
+select t1.pk as a, t2.pk as b from t1 full join t2 on (t1.pk = t2.pk);
+--sorted_result
+select t1.pk as a, t2.pk as b from t1 left join t2 on (t1.pk = t2.pk)
+union
+select t1.pk as a, t2.pk as b from t1 right join t2 on (t1.pk = t2.pk);
+drop table t1, t2;
+
+--echo # A surviving FULL JOIN must have the right side ordered after the left.
+--echo # When the ON expression does not tie the right side to the left (a
+--echo # constant predicate, or a predicate over the right side alone) the
+--echo # right side had no dependency forcing that order, so the optimizer
+--echo # could place it first, either by const folding a constant key lookup
+--echo # or by cost when it was the cheaper scan, dropping the right side
+--echo # unmatched rows or producing a cross product.
+create table t1 (a int);
+insert into t1 values (1), (2);
+create table t2 (pk int primary key, b int);
+insert into t2 values (5, 50), (6, 60), (7, 70);
+--echo # Constant lookup on the right side's primary key.
+--sorted_result
+select * from t1 full join t2 on t2.pk = 5;
+--sorted_result
+select * from t1 left join t2 on t2.pk = 5
+union
+select * from t1 right join t2 on t2.pk = 5;
+--echo # Constant predicate over a non-indexed right side column, with the
+--echo # left side as the cheaper scan so it is ordered first.
+--sorted_result
+select * from t1 full join t2 on t2.b = 50;
+--sorted_result
+select * from t1 left join t2 on t2.b = 50
+union
+select * from t1 right join t2 on t2.b = 50;
+--echo # Impossible ON over the right side's primary key.
+--sorted_result
+select * from t1 full join t2 on t2.pk = 5 and t2.pk = 6;
+--sorted_result
+select * from t1 left join t2 on t2.pk = 5 and t2.pk = 6
+union
+select * from t1 right join t2 on t2.pk = 5 and t2.pk = 6;
+drop table t1, t2;
+--echo # The right side is the cheaper scan, so the optimizer ordered it
+--echo # first by cost, producing a cross product.
+create table t1 (a int);
+insert into t1 values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+create table t2 (pk int primary key, b int);
+insert into t2 values (5, 50), (6, 60), (7, 70);
+--sorted_result
+select * from t1 full join t2 on t2.b = 50;
+--sorted_result
+select * from t1 left join t2 on t2.b = 50
+union
+select * from t1 right join t2 on t2.b = 50;
+drop table t1, t2;
+
+--echo # ====================================================================
+--echo # Section 19: Right side of FULL JOIN must be a base table
+--echo # ====================================================================
+--echo #
+--echo # Derived tables, views, and subqueries on the right side of a FULL
+--echo # JOIN are not supported and must produce an error.
+
+create table t1 (a int);
+create table t2 (a int);
+
+--echo # Derived table on the right side of a simple FULL JOIN
+--error ER_FULL_JOIN_BASE_TABLES_ONLY
+select * from t1 full join (select * from t2) dt on t1.a = dt.a;
+
+--echo # View on the right side of a simple FULL JOIN
+create view v1 as select * from t2;
+--error ER_FULL_JOIN_BASE_TABLES_ONLY
+select * from t1 full join v1 on t1.a = v1.a;
+drop view v1;
+
+--echo # Derived table on the right side of a nested FULL JOIN
+create table t3 (a int);
+--error ER_FULL_JOIN_BASE_TABLES_ONLY
+select * from t1 full join t2 on t1.a = t2.a
+                full join (select * from t3) dt on t2.a = dt.a;
+drop table t1, t2, t3;
+
+--echo # ====================================================================
+--echo # Section 20: FULL JOIN not allowed on the inner side of a
+--echo #             LEFT or RIGHT JOIN
+--echo # ====================================================================
+--echo #
+--echo # The FULL JOIN null-complement pass emits right-unmatched rows at
+--echo # the end of its right partner's scan; it has no mechanism to pair
+--echo # those rows with each outer row of an enclosing LEFT/RIGHT JOIN
+--echo # when the FULL JOIN sits on that join's inner (null-complemented)
+--echo # side.  Rather than silently return wrong results, reject such
+--echo # queries.
+--echo #
+--echo # MariaDB's convert_right_join rewrites every RIGHT JOIN into an
+--echo # equivalent LEFT JOIN at parse time, so the notion of "inner" is
+--echo # unambiguous in the post-conversion shape -- it is the side that
+--echo # gets null-complemented.  The equivalences the check relies on:
+--echo #
+--echo #   t3 LEFT  JOIN (FJ)  : (FJ) is inner        -> rejected
+--echo #   t3 RIGHT JOIN (FJ)  : (FJ) LEFT JOIN t3    -> t3 is inner,
+--echo #                                                 FJ is outer
+--echo #                                              -> allowed
+--echo #   (FJ) LEFT  JOIN t3  : t3 is inner          -> allowed
+--echo #   (FJ) RIGHT JOIN t3  : t3 LEFT JOIN (FJ)    -> (FJ) is inner
+--echo #                                              -> rejected
+--echo #
+--echo # INNER JOIN has no inner/outer distinction; a FULL JOIN on either
+--echo # side of an INNER JOIN is allowed.
+
+create table t1 (a int);
+insert into t1 values (1), (2);
+create table t2 (b int);
+insert into t2 values (1), (3);
+create table t3 (c int);
+insert into t3 values (1), (4);
+
+--echo # t3 LEFT JOIN (FJ) -- FJ is inner -- rejected.
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+  on t3.c = t1.a;
+
+--echo # t3 RIGHT JOIN (FJ) -- canonicalizes to (FJ) LEFT JOIN t3;
+--echo # t3 is inner, FJ is outer -- allowed.
+select * from t3 right join (t1 full join t2 on t1.a = t2.b)
+  on t3.c = t1.a;
+
+--echo # t3 INNER JOIN (FJ) -- allowed.
+select * from t3 inner join (t1 full join t2 on t1.a = t2.b)
+  on t3.c = t1.a;
+
+--echo # t3 , (FJ) (comma = inner) -- allowed.
+select * from t3, (t1 full join t2 on t1.a = t2.b)
+  where t3.c = t1.a;
+
+--echo # (FJ) LEFT JOIN t3 -- t3 is inner -- allowed.
+select * from (t1 full join t2 on t1.a = t2.b) left join t3
+  on t1.a = t3.c;
+
+--echo # (FJ) RIGHT JOIN t3 -- canonicalizes to t3 LEFT JOIN (FJ);
+--echo # FJ is inner -- rejected.
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+select * from (t1 full join t2 on t1.a = t2.b) right join t3
+  on t1.a = t3.c;
+
+--echo # Derived table with FULL JOIN on the inner side -- rejected.
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+select dt.a1, dt.a2, t3.c
+from (select t1.a as a1, t2.b as a2 from t1 full join t2 on t1.a=t2.b) dt
+     right join t3 on coalesce(dt.a1, dt.a2) = t3.c;
+
+--echo # FULL JOIN in a more deeply nested LEFT JOIN's inner side --
+--echo # rejected.  Ensures the check descends through intermediate
+--echo # INNER JOIN nesting.
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+select * from t3 left join ((t1 full join t2 on t1.a = t2.b) join t3 t3b)
+  on t3.c = t1.a;
+
+--echo # CREATE VIEW must reject the same offending queries at VIEW
+--echo # creation time, not just at execution.
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+create view v_bad_left as
+  select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+    on t3.c = t1.a;
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+create view v_bad_fjright as
+  select * from (t1 full join t2 on t1.a = t2.b) right join t3
+    on t1.a = t3.c;
+
+--echo # CREATE VIEW with allowed FULL JOIN shapes.
+create view v_ok_left as
+  select * from (t1 full join t2 on t1.a = t2.b) left join t3
+    on t1.a = t3.c;
+create view v_ok_right as
+  select * from t3 right join (t1 full join t2 on t1.a = t2.b)
+    on t3.c = t1.a;
+create view v_ok_inner as
+  select * from t3 inner join (t1 full join t2 on t1.a = t2.b)
+    on t3.c = t1.a;
+drop view v_ok_left, v_ok_right, v_ok_inner;
+
+drop table t1, t2, t3;
+
+--echo # End of 12.3 tests

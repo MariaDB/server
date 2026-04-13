@@ -488,10 +488,51 @@ class AGGR_OP;
 class Filesort;
 struct SplM_plan_info;
 class SplM_opt_info;
+class full_join_duplicate_filter;
 
 typedef struct st_join_table {
-  TABLE		*table;
-  TABLE_LIST    *tab_list;
+  /*
+    Non-NULL only on the right side of a FULL JOIN.  Tracks right-side
+    rowids matched during the LEFT JOIN pass so the null-complement
+    rescan can skip them.
+  */
+  full_join_duplicate_filter *fj_dups;
+
+  /*
+    True when sending null-complemented rows to the result sink when
+    evaluating the right side of a FULL JOIN.
+  */
+  bool writing_null_complements{false};
+
+  /*
+    Linked list of FULL JOIN right side JOIN_TABs whose left-side
+    null-complement generation ends at this tab.  At the end of
+    sub_select(this, 0), each target's null-complement rescan runs so
+    the rescan participates in the enclosing nested loop and
+    cross-products with any outer scope tables.  This will be NULL on
+    tabs that are not the left-most JOIN_TAB of any FULL JOIN's left
+    side.  Ordered inside-out for chained FULL JOINs so that an inner
+    FJ's rescan runs before an outer FJ's rescan and can update the
+    outer fj_dups filter through the normal forward chain.
+
+    To visit this linked list, the first element is on fj_first_target
+    and subsequent elements are on fj_next_target (see function
+    alloc_full_join_duplicate_filters).
+  */
+  struct st_join_table *fj_first_target;
+
+  /*
+    Next pointer for the fj_first_target list.  Not NULL only on FULL
+    JOIN right side JOIN_TABs that share a left-most JOIN_TAB with
+    another FULL JOIN right side JOIN_TAB (like in the case of chained
+    FULL JOINs).  Put another way, one FULL JOIN's left-most JOIN_TAB
+    may be another's right JOIN_TAB.
+  */
+  struct st_join_table *fj_next_target;
+
+  TABLE         *table;        /**< pointer to table cursor */
+  TABLE_LIST    *tab_list;     /**< pointer to query table, e.g. `t1` */
+
   KEYUSE	*keyuse;       /**< pointer to first used key */
   KEY           *hj_key;       /**< descriptor of the used best hash join key
                                     not supported by any index               */
@@ -1432,6 +1473,7 @@ public:
   {};
 
   enum_nested_loop_state put_record() { return put_record(false); };
+
   /*
     Send the result of operation further (to a next operation/client)
     This function is called after all records were put into tmp table.
@@ -1653,6 +1695,12 @@ public:
   table_map eq_ref_tables;
 
   table_map allowed_top_level_tables;
+
+  /*
+    Tables in nests that contain FULL JOINs, along with their nest siblings.
+  */
+  table_map full_join_nest_tables;
+
   ha_rows  send_records,found_records, accepted_rows;
 
   /*

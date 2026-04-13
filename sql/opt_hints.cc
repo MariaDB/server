@@ -1513,6 +1513,48 @@ bool Opt_hints_qb::set_join_hint_deps(JOIN *join,
                nullptr, nullptr, nullptr, hint);
     return true;
   }
+
+  /*
+    The runtime keeps every FULL JOIN nest table contiguous in the
+    join order (see sql_select.cc, the function
+    restrict_to_unplaced_fj_tables).  Tables outside the FULL JOIN
+    block may sit before or after it, but never between two FULL
+    JOIN tables.  This invariant applies uniformly to JOIN_ORDER,
+    JOIN_PREFIX, and JOIN_SUFFIX hints because the differences
+    between them live entirely in the dependencies that
+    get_other_dep adds above; by the time we get here those extra
+    dependencies have already been merged in.  No total order can
+    satisfy both the hint and that invariant when, after
+    propagate_dependencies has formed the transitive closure, some
+    non-FULL-JOIN table T is a successor of one FULL JOIN table
+    and a predecessor of another, because that forces T to sit
+    between two FULL JOIN tables.  Detect this by intersecting the
+    predecessors of any FULL JOIN table with the successors of any
+    FULL JOIN table; if the intersection is non-empty the hint is
+    unachievable, so ignore it with a warning.
+  */
+  if (join->full_join_nest_tables)
+  {
+    table_map fj_preds= 0;
+    table_map fj_succs= 0;
+    for (uint i= 0; i < join->table_count; i++)
+    {
+      const JOIN_TAB *tab= &join->join_tab[i];
+      const table_map tab_map= tab->table->map;
+      if (tab_map & join->full_join_nest_tables)
+        fj_preds|= tab->dependent;
+      else if (tab->dependent & join->full_join_nest_tables)
+        fj_succs|= tab_map;
+    }
+    fj_preds&= ~(join->full_join_nest_tables | join->const_table_map);
+    if (fj_preds & fj_succs)
+    {
+      join->restore_table_dependencies(orig_dep_array);
+      print_warn(join->thd, ER_WARN_CONFLICTING_HINT, hint->hint_type,
+                 true, nullptr, nullptr, nullptr, hint);
+      return true;
+    }
+  }
   return false;
 }
 

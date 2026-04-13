@@ -3815,6 +3815,22 @@ public:
   /* field need any privileges (for VIEW creation) */
   bool any_privileges;
 
+  /*
+    True when this Item_field is an operand of the equijoin condition
+    synthesized for a NATURAL or USING join (see
+    natural_join_eq_operand).  The user never wrote this column
+    reference, so resolving it must not run the column level privilege
+    check.  Non-PS execution never reaches the check because the
+    operand is created already fixed and setup_conds skips it.  PS
+    execution clears the bound field on cleanup and resolves the
+    operand by name on every execute, which would otherwise run the
+    check and deny a column the statement only joins on.  The
+    privilege on the join column is still enforced through the user's
+    own reference to it, and for a NATURAL FULL JOIN through
+    check_coalesce_column_grants.
+  */
+  bool synthesized_join_operand= false;
+
 private:
   /*
     Indicates whether this Item_field refers to a regular or some kind of
@@ -6753,6 +6769,27 @@ class Item_direct_view_ref :public Item_direct_ref
     if (!view->is_inner_table_of_outer_join() ||
         !(null_ref_table= view->get_real_join_table()))
       null_ref_table= NO_NULL_TABLE;
+
+    if (view->is_inner_table_of_outer_join() &&
+        view->contains_full_join())
+    {
+      /*
+        For a derived table containing a FULL JOIN, every column
+        reference into the merged table share the same null_ref_table,
+        leading to a missing null-complement result from the right
+        side of the FULL JOIN.  Prefer the field's underlying actual
+        table for null_ref_table instead of the derived table's
+        leftmost real table.
+      */
+      Item *real= ref ? (*ref)->real_item() : nullptr;
+      if (real && real->type() == FIELD_ITEM &&
+          ((Item_field*) real)->field &&
+          ((Item_field*) real)->field->table)
+        null_ref_table= ((Item_field*) real)->field->table;
+      else if (TABLE *t= view->get_real_join_table())
+        null_ref_table= t;
+    }
+
     if (null_ref_table && null_ref_table != NO_NULL_TABLE)
       set_maybe_null();
   }

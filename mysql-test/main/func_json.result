@@ -5615,9 +5615,9 @@ json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'))
 #
 # MDEV-36808 json_array_intersect incorrect results after returning NULL in table scan
 #
-CREATE TABLE t1 (full text, overlap text);
+CREATE TABLE t1 (`full` text, overlap text);
 INSERT INTO t1 VALUES ('["2"]', '["2"]'), ('["2"]', '["0"]'),  ('["2"]', '["2"]');
-SELECT full, overlap, json_array_intersect(full, overlap) as jai from t1;
+SELECT `full`, overlap, json_array_intersect(`full`, overlap) as jai from t1;
 full	overlap	jai
 ["2"]	["2"]	["2"]
 ["2"]	["0"]	NULL
