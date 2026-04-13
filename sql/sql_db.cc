@@ -100,7 +100,7 @@ static inline bool
 cmp_db_names(const Lex_ident_db &db1_name, const Lex_ident_db &db2_name)
 {
   return (db1_name.length == 0 && db2_name.length == 0) ||
-         db1_name.streq(db2_name);
+         db1_name.streq_safe(db2_name);
 }
 
 #ifdef HAVE_PSI_INTERFACE

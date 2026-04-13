@@ -4704,7 +4704,7 @@ public:
 
     Table_period_info &info= create_info.period_info;
 
-    if (check_exists && info.name.streq(name))
+    if (check_exists && info.name.streq_safe(name))
       return 0;
 
     if (info.is_set())

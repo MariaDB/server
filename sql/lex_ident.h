@@ -128,6 +128,37 @@ public:
     DBUG_ASSERT(b.is_valid_ident());
     return Compare().charset_info()->streq(*this, b);
   }
+  /*
+   Compare two identifiers safely, handling NULL and empty identifiers.
+
+   Returns true if both are empty (length=0), false if one of them is empty.
+   Otherwise calls streq() for a deep character-set based comparison.
+   Treats "NULL identifier" and "empty identifier" as equal.
+
+   Replacement for streq calls that resulted in UBSAN error: applying
+   zero/non-zero offset to null pointer.
+  */
+  static bool streq_safe(const LEX_CSTRING &a, const LEX_CSTRING &b)
+  {
+    if (a.length == 0 || b.length == 0)
+      return a.length == b.length;
+    return Lex_ident::streq(a, b);
+  }
+  bool streq_safe(const LEX_CSTRING &rhs) const
+  {
+    DBUG_ASSERT(is_valid_ident());
+    if (length == 0 || rhs.length == 0)
+      return length == rhs.length;
+    return streq(rhs);
+  }
+  bool streq_safe(const Lex_ident &b) const
+  {
+    DBUG_ASSERT(is_valid_ident());
+    DBUG_ASSERT(b.is_valid_ident());
+    if (length == 0 || b.length == 0)
+      return length == b.length;
+    return streq(b);
+  }
 };
 
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *table_alias_charset;
