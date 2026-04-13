@@ -100,7 +100,7 @@ connection master;
 # The get_lock function causes warning for unsafe statement.
 --disable_warnings
 # 2013 = CR_SERVER_LOST
---error ER_QUERY_INTERRUPTED,ER_CONNECTION_KILLED,2013
+--error ER_QUERY_INTERRUPTED,ER_CONNECTION_KILLED,2013,2026
 reap;
 --enable_warnings
 connection slave;

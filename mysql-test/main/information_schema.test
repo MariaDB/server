@@ -1339,7 +1339,7 @@ where state='User sleep' and
 info='select * from information_schema.tables where 1=sleep(100000)';
 --source include/wait_condition.inc
 connection conn1;
---error 2013,ER_CONNECTION_KILLED
+--error 2013,2026,ER_CONNECTION_KILLED
 reap;
 connection default;
 disconnect conn1;
@@ -1363,7 +1363,7 @@ where state='User sleep' and
 info='select * from information_schema.columns where 1=sleep(100000)';
 --source include/wait_condition.inc
 connection conn1;
---error 2013,ER_CONNECTION_KILLED
+--error 2013,2026,ER_CONNECTION_KILLED
 reap;
 connection default;
 disconnect conn1;

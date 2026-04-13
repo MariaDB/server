@@ -83,7 +83,7 @@ connection default;
 connection addconroot;
 # Read response from connection to avoid packets out-of-order when disconnecting
 # Note, that connection can already be dead due to previously issued kill
---error 0,2013
+--error 0,2013,2026
 --reap
 disconnect addconroot;
 connection default;

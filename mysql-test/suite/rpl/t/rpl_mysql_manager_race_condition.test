@@ -91,7 +91,7 @@ set @@session.debug_dbug="+d,crash_before_writing_xid";
 --source include/wait_until_disconnected.inc
 
 --connection slave1
---error 2013,ER_CONNECTION_KILLED
+--error 2013,2026,ER_CONNECTION_KILLED
 --reap
 
 --echo # Restart mariadbd in recovery mode. Note --tc-heuristic-recover

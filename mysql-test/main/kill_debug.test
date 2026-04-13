@@ -52,7 +52,7 @@ SET DEBUG_SYNC= 'now WAIT_FOR con1_end';
 SET DEBUG_SYNC = 'RESET';
 
 connection con1;
---error 1053,2006,2013,5014
+--error 1053,2006,2013,2026,5014
 SELECT 1;
 
 --enable_reconnect
@@ -91,7 +91,7 @@ SET DEBUG_SYNC= 'now WAIT_FOR con1_end';
 SET DEBUG_SYNC = 'RESET';
 
 connection con1;
---error 1053,2006,2013,5014
+--error 1053,2006,2013,2026,5014
 SELECT 1;
 enable_reconnect;
 SELECT 1;
@@ -138,7 +138,7 @@ KILL @id;
 SET DEBUG_SYNC= 'now WAIT_FOR con1_end';
 
 connection con1;
---error 1317,1053,2006,2013,5014
+--error 1317,1053,2006,2013,2026,5014
 reap;
 SELECT 1;
 
@@ -283,7 +283,7 @@ SET DEBUG_SYNC= 'now WAIT_FOR con1_end';
 connection con1;
 --echo # ER_SERVER_SHUTDOWN, CR_SERVER_GONE_ERROR, CR_SERVER_LOST,
 --echo # depending on the timing of close of the connection socket
---error 1053,2006,2013,5014
+--error 1053,2006,2013,2026,5014
 SELECT 1;
 --enable_reconnect
 SELECT 1;

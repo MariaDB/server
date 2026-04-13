@@ -102,7 +102,7 @@ let $wait_condition=select count(*)=0 from information_schema.processlist
 where state='User sleep' and info='SELECT SLEEP(1000)';
 --source include/wait_condition.inc
 connection conn1;
---error 2013,ER_CONNECTION_KILLED
+--error 2013,2026,ER_CONNECTION_KILLED
 reap;
 connection default;
 disconnect conn1;

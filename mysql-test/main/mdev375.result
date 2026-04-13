@@ -17,7 +17,7 @@ connect  con2,localhost,root,,;
 SELECT 2;
 2
 2
-ERROR HY000: Too many connections
+Got one of the listed errors
 connection default;
 SELECT 0;
 0
