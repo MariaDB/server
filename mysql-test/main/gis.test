@@ -3529,4 +3529,16 @@ SELECT ST_NumGeometries(x'000000000104000000');
 SELECT ST_NumGeometries(x'000000000105000000');
 SELECT ST_NumGeometries(x'000000000106000000');
 
+--echo #
+--echo # MDEV-39319 crash with ST_GeomFromGeoJSON(, NULL)
+--echo #
+create table t1 (a int);
+insert t1 values (1),(NULL),(NULL),(2);
+select hex(st_geometryfromtext('point(1 1)', a)) x from t1;
+select hex(st_geometryfromwkb(st_aswkb(st_geometryfromtext('point(1 1)')), a)) x from t1;
+select hex(st_geometryfromwkb(x'0101000000000000000000f03f000000000000f03f', a)) x from t1;
+select hex(st_geomfromgeojson('{"type":"Point","coordinates":[1,1]}', a)) x from t1;
+select hex(st_geomfromgeojson('{"type":"Point","coordinates":[1,1]}', 1, a)) x from t1;
+drop table t1;
+
 --echo # End of 10.6 tests
