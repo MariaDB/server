@@ -553,6 +553,47 @@ Warning	4259	Hint QB_NAME(`qb_wrong`, `v1` .@`SEL_2`) is ignored. SEL_2 required
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`v3`.`a` AS `a`,`v3`.`b` AS `b`,`v3`.`c` AS `c` from `test`.`t1` join `test`.`v3` where `test`.`t1`.`a` < 10
 drop table t1, t2;
 drop view v1, v2, v3;
+#
+# MDEV-39304 QB_Name hint with path is silently ignored inside view definition
+#
+create table t1 (a int, b int, index(a), index(b));
+insert into t1 values (1,2), (3,4);
+create view v1 as select /*+ QB_NAME(dt1,dt2) */ * from
+(select a from t1) dt1, (select b from t1) dt2;
+Warnings:
+Warning	4261	Hint QB_NAME(`dt1`, `dt2`) is ignored. QB_NAME hints with path are not supported inside view definitions.
+create view v2 as select * from (select a from t1) dt1, (select b from t1) dt2;
+alter view v2 as select /*+ QB_NAME(dt1,dt2) */ * from
+(select a from t1) dt1, (select b from t1) dt2;
+Warnings:
+Warning	4261	Hint QB_NAME(`dt1`, `dt2`) is ignored. QB_NAME hints with path are not supported inside view definitions.
+# QB_NAME points to SEL#3 (dt2), so `no_index(t1@dt1)` hint correctly addresses t1 from dt2
+explain extended select /*+ no_index(t1@dt1) qb_name(dt1, @sel_3) */ * from
+(select a from t1) dt1, (select b from t1) dt2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	a	5	NULL	2	100.00	Using index
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ NO_INDEX(`t1`@`dt1`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` join `test`.`t1`
+# @dt1 addresses dt1 from `v1` definition, hint applied correctly
+explain extended select /*+ no_index(t1@dt1) */ * from v1, (select b from t1) dt2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t1	index	NULL	b	5	NULL	2	100.00	Using index; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	index	NULL	b	5	NULL	2	100.00	Using index; Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select /*+ NO_INDEX(`t1`@`dt1`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`b` AS `b` from `test`.`t1` join `test`.`t1` join `test`.`t1`
+# Ambiguity: there is dt1 both in `v1` definition and in top-level select, hint ignored
+explain extended select /*+ no_index(t1@dt1) */ * from v1, (select b from t1) dt1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	a	5	NULL	2	100.00	Using index
+1	SIMPLE	t1	index	NULL	b	5	NULL	2	100.00	Using index; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	index	NULL	b	5	NULL	2	100.00	Using index; Using join buffer (incremental, BNL join)
+Warnings:
+Warning	4256	Query block name `dt1` is ambiguous for NO_INDEX hint
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`b` AS `b` from `test`.`t1` join `test`.`t1` join `test`.`t1`
+drop view v1, v2;
+drop table t1;
 
 ================================================================
 set optimizer_switch= 'derived_merge=off';
@@ -1141,4 +1182,53 @@ Warning	4259	Hint QB_NAME(`qb_wrong`, `v1` .@`SEL_2`) is ignored. SEL_2 required
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`v3`.`a` AS `a`,`v3`.`b` AS `b`,`v3`.`c` AS `c` from `test`.`t1` join `test`.`v3` where `test`.`t1`.`a` < 10
 drop table t1, t2;
 drop view v1, v2, v3;
+#
+# MDEV-39304 QB_Name hint with path is silently ignored inside view definition
+#
+create table t1 (a int, b int, index(a), index(b));
+insert into t1 values (1,2), (3,4);
+create view v1 as select /*+ QB_NAME(dt1,dt2) */ * from
+(select a from t1) dt1, (select b from t1) dt2;
+Warnings:
+Warning	4261	Hint QB_NAME(`dt1`, `dt2`) is ignored. QB_NAME hints with path are not supported inside view definitions.
+create view v2 as select * from (select a from t1) dt1, (select b from t1) dt2;
+alter view v2 as select /*+ QB_NAME(dt1,dt2) */ * from
+(select a from t1) dt1, (select b from t1) dt2;
+Warnings:
+Warning	4261	Hint QB_NAME(`dt1`, `dt2`) is ignored. QB_NAME hints with path are not supported inside view definitions.
+# QB_NAME points to SEL#3 (dt2), so `no_index(t1@dt1)` hint correctly addresses t1 from dt2
+explain extended select /*+ no_index(t1@dt1) qb_name(dt1, @sel_3) */ * from
+(select a from t1) dt1, (select b from t1) dt2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	index	NULL	a	5	NULL	2	100.00	Using index
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_INDEX(`t1`@`dt1`) */ `dt1`.`a` AS `a`,`dt2`.`b` AS `b` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1`) `dt1` join (/* select#3 */ select /*+ QB_NAME(`dt1`) */ `test`.`t1`.`b` AS `b` from `test`.`t1`) `dt2`
+# @dt1 addresses dt1 from `v1` definition, hint applied correctly
+explain extended select /*+ no_index(t1@dt1) */ * from v1, (select b from t1) dt2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<derived5>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (incremental, BNL join)
+5	DERIVED	t1	index	NULL	b	5	NULL	2	100.00	Using index
+4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	index	NULL	b	5	NULL	2	100.00	Using index
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_INDEX(`t1`@`dt1`) */ `dt1`.`a` AS `a`,`dt2`.`b` AS `b`,`dt2`.`b` AS `b` from (/* select#4 */ select /*+ QB_NAME(`dt1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`) `dt1` join (/* select#5 */ select `test`.`t1`.`b` AS `b` from `test`.`t1`) `dt2` join (/* select#2 */ select `test`.`t1`.`b` AS `b` from `test`.`t1`) `dt2`
+# Ambiguity: there is dt1 both in `v1` definition and in top-level select, hint ignored
+explain extended select /*+ no_index(t1@dt1) */ * from v1, (select b from t1) dt1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<derived5>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (incremental, BNL join)
+5	DERIVED	t1	index	NULL	b	5	NULL	2	100.00	Using index
+4	DERIVED	t1	index	NULL	a	5	NULL	2	100.00	Using index
+2	DERIVED	t1	index	NULL	b	5	NULL	2	100.00	Using index
+Warnings:
+Warning	4256	Query block name `dt1` is ambiguous for NO_INDEX hint
+Note	1003	/* select#1 */ select `dt1`.`a` AS `a`,`dt2`.`b` AS `b`,`dt1`.`b` AS `b` from (/* select#4 */ select `test`.`t1`.`a` AS `a` from `test`.`t1`) `dt1` join (/* select#5 */ select `test`.`t1`.`b` AS `b` from `test`.`t1`) `dt2` join (/* select#2 */ select `test`.`t1`.`b` AS `b` from `test`.`t1`) `dt1`
+drop view v1, v2;
+drop table t1;
 set optimizer_switch= default;

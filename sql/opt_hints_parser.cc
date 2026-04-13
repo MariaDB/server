@@ -768,6 +768,17 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
   else
   {
     //  QB_NAME hint with path, for example QB_NAME(qb1, v1@sel_1 .@sel_2)
+    if (pc->thd->lex->sql_command == SQLCOM_CREATE_VIEW)
+    {
+      String str= get_hint_string(pc->thd);
+      push_warning_safe(
+              pc->thd, Sql_condition::WARN_LEVEL_WARN,
+              ER_WARN_QB_NAME_PATH_NOT_SUPPORTED_INSIDE_VIEW,
+              ER_THD(pc->thd, ER_WARN_QB_NAME_PATH_NOT_SUPPORTED_INSIDE_VIEW),
+              str.c_ptr_safe());
+      return false;
+    }
+
     const Query_block_path_list &qb_path_list= path;
 
     // Start from the current SELECT_LEX

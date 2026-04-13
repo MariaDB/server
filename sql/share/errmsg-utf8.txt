@@ -12398,3 +12398,5 @@ ER_WARN_QB_NAME_PATH_SELECT_NOT_FOUND
         eng "Hint %s is ignored. SEL_%u required at element #%u of the path is not found in the target query block."
 ER_WARN_QB_NAME_PATH_VIEW_NOT_FOUND
         eng "Hint %s is ignored. `%s` required at element #%u of the path is not found in the target query block."
+ER_WARN_QB_NAME_PATH_NOT_SUPPORTED_INSIDE_VIEW
+        eng "Hint %s is ignored. QB_NAME hints with path are not supported inside view definitions."

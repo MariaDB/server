@@ -314,3 +314,29 @@ explain extended
 
 drop table t1, t2;
 drop view v1, v2, v3;
+
+--echo #
+--echo # MDEV-39304 QB_Name hint with path is silently ignored inside view definition
+--echo #
+create table t1 (a int, b int, index(a), index(b));
+insert into t1 values (1,2), (3,4);
+
+create view v1 as select /*+ QB_NAME(dt1,dt2) */ * from
+  (select a from t1) dt1, (select b from t1) dt2;
+
+create view v2 as select * from (select a from t1) dt1, (select b from t1) dt2;
+alter view v2 as select /*+ QB_NAME(dt1,dt2) */ * from
+  (select a from t1) dt1, (select b from t1) dt2;
+
+--echo # QB_NAME points to SEL#3 (dt2), so `no_index(t1@dt1)` hint correctly addresses t1 from dt2
+explain extended select /*+ no_index(t1@dt1) qb_name(dt1, @sel_3) */ * from
+  (select a from t1) dt1, (select b from t1) dt2;
+
+--echo # @dt1 addresses dt1 from `v1` definition, hint applied correctly
+explain extended select /*+ no_index(t1@dt1) */ * from v1, (select b from t1) dt2;
+
+--echo # Ambiguity: there is dt1 both in `v1` definition and in top-level select, hint ignored
+explain extended select /*+ no_index(t1@dt1) */ * from v1, (select b from t1) dt1;
+
+drop view v1, v2;
+drop table t1;
