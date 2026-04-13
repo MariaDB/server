@@ -12419,4 +12419,6 @@ ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED
 ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED
         eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in %s"
 ER_FULL_JOIN_BASE_TABLES_ONLY
-        eng "FULL JOIN supported for base tables only, %s is not a base table"
+        eng "FULL JOIN is only supported with base tables on the right side; '%s' is not a base table"
+ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+        eng "FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN"

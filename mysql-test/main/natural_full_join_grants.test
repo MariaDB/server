@@ -1,0 +1,170 @@
+# Uses GRANT, which the embedded server does not enforce.
+--source include/not_embedded.inc
+
+--echo #
+--echo # NATURAL FULL JOIN column privileges
+--echo #
+--echo # The unqualified common column resolves to COALESCE of the operand
+--echo # columns, so reading it requires SELECT on every underlying column
+--echo # the COALESCE reads, including each leaf of a chained join.  A user
+--echo # holding only one side is denied.  The same enforcement covers
+--echo # views; the column grant required is on the view, not on its base
+--echo # table.
+--echo #
+--echo # A database other than test is used because the default test and
+--echo # test_% databases carry a wildcard grant that would mask the
+--echo # column level grants under test here.
+--echo #
+
+create database mysqltest_nfj;
+use mysqltest_nfj;
+create table t1 (a int, b int);
+create table t2 (a int, c int);
+create table t3 (a int, d int);
+insert into t1 values (1,10),(2,20);
+insert into t2 values (2,200),(3,300);
+insert into t3 values (2,2000),(9,9000);
+create user nfj_user@localhost;
+grant select (a,b) on mysqltest_nfj.t1 to nfj_user@localhost;
+grant select (c)   on mysqltest_nfj.t2 to nfj_user@localhost;
+grant select (d)   on mysqltest_nfj.t3 to nfj_user@localhost;
+
+connect (nfj_con, localhost, nfj_user,, mysqltest_nfj);
+
+--echo # nfj_user lacks SELECT on t2.a, so the coalesced a is denied in
+--echo # the SELECT list and in WHERE.
+--error ER_COLUMNACCESS_DENIED_ERROR
+select a from t1 natural full join t2;
+--error ER_COLUMNACCESS_DENIED_ERROR
+select b from t1 natural full join t2 where a = 3;
+
+--echo # A qualified reference to a granted column still works.
+select t1.b from t1 natural full join t2 where t1.a = 2;
+
+connection default;
+grant select (a) on mysqltest_nfj.t2 to nfj_user@localhost;
+connection nfj_con;
+
+--echo # With SELECT on both t1.a and t2.a the coalesced read works.
+--sorted_result
+select a from t1 natural full join t2;
+
+--echo # Chained join: t1.a and t2.a are granted but t3.a is not, so the
+--echo # denial is on t3.a -- the walk reached the deepest leaf.
+--error ER_COLUMNACCESS_DENIED_ERROR
+select a from (t1 natural full join t2) natural full join t3;
+
+connection default;
+grant select (a) on mysqltest_nfj.t3 to nfj_user@localhost;
+connection nfj_con;
+
+--echo # Every underlying column granted now, so the chained read works.
+--sorted_result
+select a from (t1 natural full join t2) natural full join t3;
+
+connection default;
+disconnect nfj_con;
+
+--echo # The same check covers views, and across view kinds.  A view on the
+--echo # right side of a FULL JOIN is rejected as a non-base table, so the
+--echo # executable shape is a view on the left.  Reading the coalesced
+--echo # column then requires the column grant on the view, however the view
+--echo # is materialized.
+--echo #
+--echo # v_merge  mergeable view
+--echo # v_tmp    temptable (materialized) view
+--echo # v_expr   view whose common column is a computed expression
+--echo # v_over   view defined over another view
+--echo # v_union  view whose body is a UNION
+create view v_merge as select a, b from t1;
+create algorithm=temptable view v_tmp as select a, b from t1;
+create view v_expr as select a + 0 as a, b from t1;
+create view v_over as select a, b from v_merge;
+create view v_union as select a, b from t1 union select a, b from t1;
+
+--echo # A view on the right side is rejected (run as the table owner).
+--error ER_FULL_JOIN_BASE_TABLES_ONLY
+select a from t2 natural full join v_merge;
+
+create user nfj_vuser@localhost;
+grant select (a,c) on mysqltest_nfj.t2 to nfj_vuser@localhost;
+grant select (b) on mysqltest_nfj.v_merge to nfj_vuser@localhost;
+grant select (b) on mysqltest_nfj.v_tmp   to nfj_vuser@localhost;
+grant select (b) on mysqltest_nfj.v_expr  to nfj_vuser@localhost;
+grant select (b) on mysqltest_nfj.v_over  to nfj_vuser@localhost;
+grant select (b) on mysqltest_nfj.v_union to nfj_vuser@localhost;
+connect (nfj_vcon, localhost, nfj_vuser,, mysqltest_nfj);
+
+--echo # nfj_vuser holds the base t2.a but not the view's a column, so the
+--echo # coalesced a is denied on the view for every view kind.
+--error ER_COLUMNACCESS_DENIED_ERROR
+select a from v_merge natural full join t2;
+--error ER_COLUMNACCESS_DENIED_ERROR
+select a from v_tmp natural full join t2;
+--error ER_COLUMNACCESS_DENIED_ERROR
+select a from v_expr natural full join t2;
+--error ER_COLUMNACCESS_DENIED_ERROR
+select a from v_over natural full join t2;
+--error ER_COLUMNACCESS_DENIED_ERROR
+select a from v_union natural full join t2;
+
+connection default;
+grant select (a) on mysqltest_nfj.v_merge to nfj_vuser@localhost;
+grant select (a) on mysqltest_nfj.v_tmp   to nfj_vuser@localhost;
+grant select (a) on mysqltest_nfj.v_expr  to nfj_vuser@localhost;
+grant select (a) on mysqltest_nfj.v_over  to nfj_vuser@localhost;
+grant select (a) on mysqltest_nfj.v_union to nfj_vuser@localhost;
+connection nfj_vcon;
+
+--echo # With the view's a column granted the coalesced read works for
+--echo # every view kind.
+--sorted_result
+select a from v_merge natural full join t2;
+--sorted_result
+select a from v_tmp natural full join t2;
+--sorted_result
+select a from v_expr natural full join t2;
+--sorted_result
+select a from v_over natural full join t2;
+--sorted_result
+select a from v_union natural full join t2;
+
+connection default;
+disconnect nfj_vcon;
+drop user nfj_vuser@localhost;
+drop view v_merge, v_tmp, v_expr, v_over, v_union;
+
+--echo #
+--echo # CREATE VIEW with SELECT * over a NATURAL FULL JOIN runs the "any
+--echo # privilege" column check while expanding the *.  A user that holds
+--echo # the common column but lacks a side column the * expands to is
+--echo # denied, and the error names the table of the missing column.  This
+--echo # check applies only during view creation, not on a plain SELECT.
+--echo #
+create user nfj_star@localhost;
+grant select (a)   on mysqltest_nfj.t1 to nfj_star@localhost;
+grant select (a,c) on mysqltest_nfj.t2 to nfj_star@localhost;
+grant create view on mysqltest_nfj.* to nfj_star@localhost;
+connect (nfj_starcon, localhost, nfj_star,, mysqltest_nfj);
+
+--echo # nfj_star lacks SELECT on t1.b, a column the * expands to.
+--error ER_TABLEACCESS_DENIED_ERROR
+create view v_star as select * from t1 natural full join t2;
+
+connection default;
+grant select (b) on mysqltest_nfj.t1 to nfj_star@localhost;
+connection nfj_starcon;
+
+--echo # With t1.b granted the view is created.
+create view v_star as select * from t1 natural full join t2;
+
+connection default;
+--sorted_result
+select * from v_star;
+
+disconnect nfj_starcon;
+drop view v_star;
+drop user nfj_star@localhost;
+
+drop user nfj_user@localhost;
+drop database mysqltest_nfj;

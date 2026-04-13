@@ -7282,6 +7282,44 @@ TABLE *TABLE_LIST::get_real_join_table()
 }
 
 
+/*
+  Return true when this view/derived table contains a FULL JOIN.
+*/
+static bool join_list_contains_full_join(List<TABLE_LIST> *join_list)
+{
+  List_iterator<TABLE_LIST> it(*join_list);
+  TABLE_LIST *tbl;
+
+  while ((tbl= it++))
+  {
+    if (tbl->outer_join & JOIN_TYPE_FULL)
+      return true;
+    if (tbl->nested_join &&
+        join_list_contains_full_join(&tbl->nested_join->join_list))
+      return true;
+  }
+
+  return false;
+}
+
+
+bool TABLE_LIST::contains_full_join() const
+{
+  List<TABLE_LIST> *join_list= nullptr;
+
+  if (view)
+    join_list= &view->first_select_lex()->top_join_list;
+  else if (derived)
+    join_list= &derived->first_select()->top_join_list;
+  else if (nested_join)
+    join_list= &nested_join->join_list;
+  else
+    return false;
+
+  return join_list_contains_full_join(join_list);
+}
+
+
 Natural_join_column::Natural_join_column(Field_translator *field_param,
                                          TABLE_LIST *tab)
 {
@@ -10298,6 +10336,8 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
         hint_table_state(thd, this, MERGE_HINT_ENUM,
             optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE)); // (2)
 
+    DBUG_ASSERT(!(outer_join & JOIN_TYPE_FULL) || foj_partner);
+
     if (!is_materialized_derived() && unit->can_be_merged() &&
         /*
           Following is special case of
@@ -10325,7 +10365,13 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
            (thd->lex->sql_command == SQLCOM_DELETE &&
             (((Sql_cmd_delete *) thd->lex->m_sql_cmd)->is_multitable() ||
              thd->lex->query_tables->is_multitable())))) &&
-        !is_recursive_with_table())
+        !is_recursive_with_table() &&
+        /*
+          Derived tables that participate in a FULL JOIN must not be
+          merged because the FULL JOIN null-complement logic only
+          works when the physical table is available.
+        */
+        !foj_partner)
       set_merged_derived();
     else
       set_materialized_derived();
