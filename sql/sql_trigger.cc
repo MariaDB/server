@@ -2654,7 +2654,7 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
       );
     }
   }
-  trigger_table->file->column_bitmaps_signal();
+  trigger_table->file->column_bitmaps_signal(false);
   DBUG_VOID_RETURN;
 }
 

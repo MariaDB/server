@@ -83,7 +83,7 @@ public:
 
 	const key_map* keys_to_use_for_scanning() override;
 
-	void column_bitmaps_signal() override;
+	void column_bitmaps_signal(bool mark_for_update) override;
 
 	/** Opens dictionary table object using table name. For partition, we need to
 	try alternative lower/upper case names to support moving data files across
