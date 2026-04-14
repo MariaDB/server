@@ -24,6 +24,7 @@
 #include <m_ctype.h>
 
 
+/* Daynumber from year 0 to 9999-12-31 */
 #define MAX_DAY_NUMBER 3652424L
 
 	/* Some functions to calculate dates */
@@ -920,11 +921,6 @@ void make_truncated_value_warning(THD *thd,
 }
 
 
-/* Daynumber from year 0 to 9999-12-31 */
-#define COMBINE(X)                                                      \
-               (((((X)->day * 24LL + (X)->hour) * 60LL +                \
-                   (X)->minute) * 60LL + (X)->second)*1000000LL +       \
-                   (X)->second_part)
 #define GET_PART(X, N) X % N ## LL; X/= N ## LL
 
 bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
@@ -964,7 +960,7 @@ bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
     if (time_type != MYSQL_TIMESTAMP_TIME)
       ltime->day+= calc_daynr(ltime->year, ltime->month, 1) - 1;
 
-    usec= COMBINE(ltime) + sign*COMBINE(&interval);
+    usec= interval2usec(ltime) + sign * interval2usec(&interval);
 
     if (usec < 0)
     {
