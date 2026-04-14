@@ -2901,7 +2901,12 @@ protected:
   {
     for (uint i= 0; i < arg_count; i++)
     {
-      if (args[i]->const_item())
+      /*
+        Constant expression doesn't need to be checked.
+        BUT if it still reports to have references to tables, we must check
+        that only allowed table is referred.
+      */
+      if (args[i]->const_item() && !args[i]->used_tables())
         continue;
       if (!args[i]->excl_dep_on_table(tab_map))
         return false;
