@@ -2,6 +2,8 @@
 --source include/have_innodb.inc
 --source include/maybe_debug.inc
 
+set @@session.time_zone='+00:00';
+
 --echo #
 --echo # MDEV-25529 Auto-create: Pre-existing historical data is not partitioned as specified by ALTER
 --echo #
@@ -25,7 +27,7 @@ create or replace table t1 (x int,
   index (row_start),
   index (row_end, x),
   index (x, row_end),
-  index (row_end)) with system versioning
+  index (row_end desc)) with system versioning
 partition by system_time limit 1000 partitions 6;
 
 show create table t1;
@@ -153,6 +155,31 @@ show create table t1;
 --echo # Switch hash -> system_time
 alter table t1 partition by system_time interval 9 hour
 starts '2001-01-01 00:00:00' auto force;
+show create table t1;
+
+--echo # Year/month interval
+delete history from t1;
+alter table t1 remove partitioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (77);
+delete from t1;
+alter table t1 partition by system_time interval 1 month auto force;
+show create table t1;
+set timestamp= unix_timestamp('2003-10-01 00:00:00');
+insert t1 values (88);
+delete from t1;
+alter table t1 partition by system_time interval 11 month auto force;
+show create table t1;
+alter table t1 partition by system_time interval 1 year auto force;
+show create table t1;
+
+--echo # No history
+delete history from t1;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+alter table t1 partition by system_time interval 1 hour auto force;
+show create table t1;
+insert t1 values (99);
+alter table t1 partition by system_time interval 1 hour auto force;
 show create table t1;
 
 --echo # Slow scan warning

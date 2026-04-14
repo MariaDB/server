@@ -1,3 +1,4 @@
+set @@session.time_zone='+00:00';
 #
 # MDEV-25529 Auto-create: Pre-existing historical data is not partitioned as specified by ALTER
 #
@@ -14,7 +15,7 @@ index (row_end, row_start),
 index (row_start),
 index (row_end, x),
 index (x, row_end),
-index (row_end)) with system versioning
+index (row_end desc)) with system versioning
 partition by system_time limit 1000 partitions 6;
 show create table t1;
 Table	Create Table
@@ -26,7 +27,7 @@ t1	CREATE TABLE `t1` (
   KEY `row_start` (`row_start`),
   KEY `row_end_2` (`row_end`,`x`),
   KEY `x` (`x`,`row_end`),
-  KEY `row_end_3` (`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME LIMIT 1000
@@ -57,7 +58,7 @@ select *, row_start, row_end from t1 partition (p4);
 x	row_start	row_end
 select *, row_start, row_end from t1 partition (pn);
 x	row_start	row_end
-4	2000-01-01 02:00:00.000000	2038-01-19 06:14:07.999999
+4	2000-01-01 02:00:00.000000	2038-01-19 03:14:07.999999
 set timestamp= default;
 ALTER table t1 partition by system_time
 interval 1 hour starts '2000-01-01 00:00:00';
@@ -77,7 +78,7 @@ select *, row_start, row_end from t1 partition (p4);
 x	row_start	row_end
 select *, row_start, row_end from t1 partition (pn);
 x	row_start	row_end
-4	2000-01-01 02:00:00.000000	2038-01-19 06:14:07.999999
+4	2000-01-01 02:00:00.000000	2038-01-19 03:14:07.999999
 alter TABLE t1 partition by system_time
 interval 1 hour;
 select *, row_start, row_end from t1 partition (p0);
@@ -96,7 +97,7 @@ select *, row_start, row_end from t1 partition (p4);
 x	row_start	row_end
 select *, row_start, row_end from t1 partition (pn);
 x	row_start	row_end
-4	2000-01-01 02:00:00.000000	2038-01-19 06:14:07.999999
+4	2000-01-01 02:00:00.000000	2038-01-19 03:14:07.999999
 set @@system_versioning_alter_history= keep;
 alter table t1 remove partitioning;
 select *, row_start, row_end from t1 for system_time all;
@@ -105,7 +106,7 @@ x	row_start	row_end
 1	2000-01-01 00:10:00.220000	2000-01-01 01:00:00.000000
 2	2000-01-01 01:00:00.000000	2000-01-01 01:30:00.000000
 3	2000-01-01 01:30:00.000000	2000-01-01 02:00:00.000000
-4	2000-01-01 02:00:00.000000	2038-01-19 06:14:07.999999
+4	2000-01-01 02:00:00.000000	2038-01-19 03:14:07.999999
 alter table t1 PARTITION by system_time interval 1 hour auto;
 show create table t1;
 Table	Create Table
@@ -117,7 +118,7 @@ t1	CREATE TABLE `t1` (
   KEY `row_start` (`row_start`),
   KEY `row_end_2` (`row_end`,`x`),
   KEY `x` (`x`,`row_end`),
-  KEY `row_end_3` (`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
@@ -132,7 +133,7 @@ x	row_start	row_end
 3	2000-01-01 01:30:00.000000	2000-01-01 02:00:00.000000
 select *, row_start, row_end from t1 partition (pn);
 x	row_start	row_end
-4	2000-01-01 02:00:00.000000	2038-01-19 06:14:07.999999
+4	2000-01-01 02:00:00.000000	2038-01-19 03:14:07.999999
 alter table t1 remove partitioning;
 alter table t1 partition by SYSTEM_TIME interval 1 hour starts '2000-01-01 00:00:00' auto;
 show create table t1;
@@ -145,7 +146,7 @@ t1	CREATE TABLE `t1` (
   KEY `row_start` (`row_start`),
   KEY `row_end_2` (`row_end`,`x`),
   KEY `x` (`x`,`row_end`),
-  KEY `row_end_3` (`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
@@ -160,7 +161,7 @@ x	row_start	row_end
 3	2000-01-01 01:30:00.000000	2000-01-01 02:00:00.000000
 select *, row_start, row_end from t1 partition (pn);
 x	row_start	row_end
-4	2000-01-01 02:00:00.000000	2038-01-19 06:14:07.999999
+4	2000-01-01 02:00:00.000000	2038-01-19 03:14:07.999999
 set timestamp= unix_timestamp('2000-01-02 03:01:23.456');
 delete from t1;
 alter table t1 remove partitioning;
@@ -175,7 +176,7 @@ t1	CREATE TABLE `t1` (
   KEY `row_start` (`row_start`),
   KEY `row_end_2` (`row_end`,`x`),
   KEY `x` (`x`,`row_end`),
-  KEY `row_end_3` (`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
@@ -208,7 +209,7 @@ t1	CREATE TABLE `t1` (
   KEY `row_start` (`row_start`),
   KEY `row_end_2` (`row_end`,`x`),
   KEY `x` (`x`,`row_end`),
-  KEY `row_end_3` (`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 20 MINUTE STARTS TIMESTAMP'2000-01-01 00:10:00' AUTO
@@ -245,7 +246,7 @@ t1	CREATE TABLE `t1` (
   KEY `row_start` (`row_start`),
   KEY `row_end_2` (`row_end`,`x`),
   KEY `x` (`x`,`row_end`),
-  KEY `row_end_3` (`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
@@ -265,7 +266,7 @@ t1	CREATE TABLE `t1` (
   KEY `row_start` (`row_start`),
   KEY `row_end_2` (`row_end`,`x`),
   KEY `x` (`x`,`row_end`),
-  KEY `row_end_3` (`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
@@ -285,7 +286,7 @@ t1	CREATE TABLE `t1` (
   KEY `row_start` (`row_start`),
   KEY `row_end_2` (`row_end`,`x`),
   KEY `x` (`x`,`row_end`),
-  KEY `row_end_3` (`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2005-01-01 00:00:00' AUTO
@@ -306,7 +307,7 @@ t1	CREATE TABLE `t1` (
   KEY `row_start` (`row_start`),
   KEY `row_end_2` (`row_end`,`x`),
   KEY `x` (`x`,`row_end`),
-  KEY `row_end_3` (`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 7 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
@@ -326,7 +327,7 @@ t1	CREATE TABLE `t1` (
   KEY `row_start` (`row_start`),
   KEY `row_end_2` (`row_end`,`x`),
   KEY `x` (`x`,`row_end`),
-  KEY `row_end_3` (`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 8 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
@@ -345,7 +346,7 @@ t1	CREATE TABLE `t1` (
   KEY `row_start` (`row_start`),
   KEY `row_end_2` (`row_end`,`x`),
   KEY `x` (`x`,`row_end`),
-  KEY `row_end_3` (`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 8 HOUR STARTS TIMESTAMP'2000-01-03 00:00:00' AUTO
@@ -364,7 +365,7 @@ t1	CREATE TABLE `t1` (
   KEY `row_start` (`row_start`),
   KEY `row_end_2` (`row_end`,`x`),
   KEY `x` (`x`,`row_end`),
-  KEY `row_end_3` (`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY HASH (`x`)
@@ -385,11 +386,104 @@ t1	CREATE TABLE `t1` (
   KEY `row_start` (`row_start`),
   KEY `row_end_2` (`row_end`,`x`),
   KEY `x` (`x`,`row_end`),
-  KEY `row_end_3` (`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 9 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
 PARTITIONS 7
+# Year/month interval
+delete history from t1;
+alter table t1 remove partitioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (77);
+delete from t1;
+alter table t1 partition by system_time interval 1 month auto force;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  KEY `row_end` (`row_end`,`row_start`),
+  KEY `row_start` (`row_start`),
+  KEY `row_end_2` (`row_end`,`x`),
+  KEY `x` (`x`,`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 MONTH STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 2
+set timestamp= unix_timestamp('2003-10-01 00:00:00');
+insert t1 values (88);
+delete from t1;
+alter table t1 partition by system_time interval 11 month auto force;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  KEY `row_end` (`row_end`,`row_start`),
+  KEY `row_start` (`row_start`),
+  KEY `row_end_2` (`row_end`,`x`),
+  KEY `x` (`x`,`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 11 MONTH STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 6
+alter table t1 partition by system_time interval 1 year auto force;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  KEY `row_end` (`row_end`,`row_start`),
+  KEY `row_start` (`row_start`),
+  KEY `row_end_2` (`row_end`,`x`),
+  KEY `x` (`x`,`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 YEAR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 5
+# No history
+delete history from t1;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+alter table t1 partition by system_time interval 1 hour auto force;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  KEY `row_end` (`row_end`,`row_start`),
+  KEY `row_start` (`row_start`),
+  KEY `row_end_2` (`row_end`,`x`),
+  KEY `x` (`x`,`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 5
+insert t1 values (99);
+alter table t1 partition by system_time interval 1 hour auto force;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  KEY `row_end` (`row_end`,`row_start`),
+  KEY `row_start` (`row_start`),
+  KEY `row_end_2` (`row_end`,`x`),
+  KEY `x` (`x`,`row_end`),
+  KEY `row_end_3` (`row_end` DESC),
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 5
 # Slow scan warning
 create or replace table t1 (x int,
 row_start timestamp(6) as row start invisible,
