@@ -220,7 +220,7 @@ void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
   @param pc   pointer to Parse_context object
 
   @return  pointer to Opt_hints object,
-           NULL if failed to create the object
+           NULL if failed to create the object (OOM)
 */
 
 Opt_hints_global *get_global_hints(Parse_context *pc)
@@ -235,6 +235,17 @@ Opt_hints_global *get_global_hints(Parse_context *pc)
   return lex->opt_hints_global;
 }
 
+
+/**
+  Returns a pointer to query block object (Opt_hints_qb), corresponding
+  to the parse context parameter.
+  If there is no query block object yet, the function creates it.
+
+  @param pc   pointer to Parse_context object
+
+  @return  pointer to Opt_hints_qb object,
+           NULL if failed to create the object (OOM)
+*/
 
 Opt_hints_qb *get_qb_hints(Parse_context *pc)
 {

@@ -313,7 +313,7 @@ void Parser::push_warning_syntax_error(THD *thd, uint start_lineno)
 
   @return false: no critical errors, warnings on duplicated hints,
                  unresolved query block names, etc. are allowed
-          true: critical errors detected, break further hints processing
+          true: critical error (like OOM), break further hints processing
 */
 bool Parser::Table_level_hint::resolve(Parse_context *pc) const
 {
@@ -451,7 +451,7 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
 
   @return false: no critical errors, warnings on duplicated hints,
                  unresolved query block names, etc. are allowed
-          true: critical errors detected, break further hints processing
+          true: critical error (like OOM), break further hints processing
 
   Taxonomy of index hints
   - 2 levels of hints:
@@ -751,7 +751,7 @@ extern void push_warning_safe(THD *thd, Sql_condition::enum_warning_level level,
 
   @return false: no critical errors, warnings on duplicated hints,
                  unresolved query block names, etc. are allowed
-          true: critical errors detected, break further hints processing
+          true: critical error (like OOM) detected, break further hints processing
 */
 bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
 {
@@ -925,7 +925,7 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
     Parse_context target_pc(pc->thd, target_select);
     target_qb= get_qb_hints(&target_pc);
     if (!target_qb)
-      return true;
+      return true;      /* purecov: inspected */
   }
 
   DBUG_ASSERT(target_qb);
@@ -1003,7 +1003,7 @@ void Parser::Semijoin_hint::add_strategy_to_map(TokenID token_id,
 
   @return false: no critical errors, warnings on duplicated hints,
                  unresolved query block names, etc. are allowed
-          true: critical errors detected, break further hints processing
+          true: critical error (like OOM), break further hints processing
 */
 bool Parser::Semijoin_hint::resolve(Parse_context *pc) const
 {
@@ -1077,7 +1077,7 @@ void Parser::Qb_name_hint::append_args(THD *thd, String *str) const
     }
     else
     {
-      DBUG_ASSERT(false);
+      DBUG_ASSERT(false);          /* purecov: deadcode */
     }
     if (select_num.length > 0)
     {
@@ -1169,7 +1169,7 @@ void Parser::Semijoin_hint::
 
   @return false: no critical errors, warnings on duplicated hints,
                  unresolved query block names, etc. are allowed
-          true: critical errors detected, break further hints processing
+          true: critical error (like OOM), break further hints processing
 */
 bool Parser::Subquery_hint::resolve(Parse_context *pc) const
 {
@@ -1331,7 +1331,7 @@ void Parser::Join_order_hint::append_args(THD *thd, String *str) const
 
   @return false: no critical errors, warnings on duplicated hints,
                  unresolved query block names, etc. are allowed
-          true: critical errors detected, break further hints processing
+          true: critical error (like OOM), break further hints processing
 */
 bool Parser::Join_order_hint::resolve(Parse_context *pc)
 {
@@ -1495,7 +1495,7 @@ ulonglong Parser::Max_execution_time_hint::get_milliseconds() const
 bool Parser::Hint_list::resolve(Parse_context *pc) const
 {
   if (!get_qb_hints(pc))
-    return true;
+    return true;          /* purecov: inspected */
 
   /*
     QB_NAME hints are resolved first so following hints can be attached to
@@ -1507,7 +1507,7 @@ bool Parser::Hint_list::resolve(Parse_context *pc) const
     if (const Qb_name_hint &qb_hint= hint)
     {
       if (qb_hint.resolve(pc))
-        return true;
+        return true;          /* purecov: inspected */
     }
   }
 
@@ -1517,32 +1517,32 @@ bool Parser::Hint_list::resolve(Parse_context *pc) const
     if (const Table_level_hint &table_hint= hint)
     {
       if (table_hint.resolve(pc))
-        return true;
+        return true;          /* purecov: inspected */
     }
     else if (const Index_level_hint &index_hint= hint)
     {
       if (index_hint.resolve(pc))
-        return true;
+        return true;          /* purecov: inspected */
     }
     else if (const Max_execution_time_hint &max_hint= hint)
     {
       if (max_hint.resolve(pc))
-        return true;
+        return true;          /* purecov: inspected */
     }
     else if (const Semijoin_hint &sj_hint= hint)
     {
       if (sj_hint.resolve(pc))
-        return true;
+        return true;          /* purecov: inspected */
     }
     else if (const Subquery_hint &subq_hint= hint)
     {
       if (subq_hint.resolve(pc))
-        return true;
+        return true;          /* purecov: inspected */
     }
     else if (Join_order_hint &join_order_hint= hint)
     {
       if (join_order_hint.resolve(pc))
-        return true;
+        return true;          /* purecov: inspected */
     }
     else if (const Qb_name_hint &qb_hint __attribute__((unused)) = hint)
     {
@@ -1550,7 +1550,7 @@ bool Parser::Hint_list::resolve(Parse_context *pc) const
       continue;
     }
     else {
-      DBUG_ASSERT(0);
+      DBUG_ASSERT(0);          /* purecov: deadcode */
     }
   }
   return false;
