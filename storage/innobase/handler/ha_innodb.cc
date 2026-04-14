@@ -2988,6 +2988,7 @@ innobase_register_trx(
 	trx_t*		trx)	/* in: transaction to register */
 {
   ut_ad(!trx->active_commit_ordered);
+  ut_ad(!trx->active_prepare);
   const trx_id_t trx_id= trx->id;
 
   trans_register_ha(thd, false, hton, trx_id);
