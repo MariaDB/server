@@ -10676,9 +10676,9 @@ ER_UNKNOWN_OPERATOR
         spa "El operador no existe: '%-.128s'"
 ER_UNUSED_29
 	eng "You should never see it"
-ER_PART_STARTS_BEYOND_INTERVAL
-        eng "%`s: STARTS is later than query time, first history partition may exceed INTERVAL value"
-        spa "%`s: STARTS es posterior al momento de consulta (query), la primera partición de historia puede exceder el valor INTERVAL"
+WARN_VERS_STARTS_BEYOND_INTERVAL
+        eng "%`s: STARTS timestamp %s is later than query timestamp %s, first history partition may exceed INTERVAL value"
+        spa "%`s: STARTS %s es posterior al momento de consulta (query) %s, la primera partición de historia puede exceder el valor INTERVAL"
 ER_GALERA_REPLICATION_NOT_SUPPORTED
         eng "Galera replication not supported"
         spa "La replicación en Galera no está soportada"

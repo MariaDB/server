@@ -8676,6 +8676,14 @@ bool THD::timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
 }
 
 
+bool THD::timestamp_to_string(String *str, uint dec, my_timespec_t ts)
+{
+  Temporal_hybrid th(this, ts);
+  used|= TIME_ZONE_USED;
+  return th.to_string(str, dec) == nullptr;
+}
+
+
 void THD::my_ok_with_recreate_info(const Recreate_info &info,
                                    ulong warn_count)
 {

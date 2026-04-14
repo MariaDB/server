@@ -279,6 +279,41 @@ enum interval_type
   INTERVAL_MINUTE_MICROSECOND, INTERVAL_SECOND_MICROSECOND, INTERVAL_LAST
 };
 
+typedef struct my_timespec
+{
+  my_time_t sec;
+  ulong usec;
+} my_timespec_t;
+
+inline
+int cmp(my_timespec_t a, my_timespec_t b)
+{
+  return ((a.sec > b.sec || (a.sec == b.sec && a.usec > b.usec)) ? 1 :
+         ((a.sec < b.sec || (a.sec == b.sec && a.usec < b.usec)) ? -1 : 0));
+}
+
 C_MODE_END
 
+#ifdef __cplusplus
+constexpr my_timespec_t MY_TIMESPEC_MIN= {MY_TIME_T_MIN, 0};
+constexpr my_timespec_t MY_TIMESPEC_MAX= {TIMESTAMP_MAX_VALUE, TIME_MAX_SECOND_PART};
+
+inline
+bool operator< (my_timespec_t a, my_timespec_t b)
+{
+  return cmp(a, b) < 0;
+}
+
+inline
+bool operator> (my_timespec_t a, my_timespec_t b)
+{
+  return cmp(a, b) > 0;
+}
+
+inline
+bool operator== (my_timespec_t a, my_timespec_t b)
+{
+  return (a.sec == b.sec) && (a.usec == b.usec);
+}
+#endif
 #endif /* _my_time_h_ */

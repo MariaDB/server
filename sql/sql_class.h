@@ -4140,6 +4140,11 @@ public:
   const Type_handler *type_handler_for_datetime() const;
   bool timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
                          ulong sec_part, date_mode_t fuzzydate);
+  bool timestamp_to_string(String *str, uint dec, my_timespec_t ts);
+  bool timestamp_to_string(String *str, uint dec, my_time_t ts)
+  {
+    return timestamp_to_string(str, dec, {ts, 0});
+  }
   inline my_time_t query_start() { return start_time; }
   inline ulong query_start_sec_part()
   { used|= QUERY_START_SEC_PART_USED; return start_time_sec_part; }
@@ -8420,6 +8425,25 @@ public:
 #ifdef WITH_WSREP
     wsrep_to_isolation= do_wsrep_iso && WSREP(m_thd);
 #endif
+  }
+};
+
+
+class TimestampString : public String
+{
+  THD *thd;
+  my_timespec_t ts;
+
+public:
+  TimestampString(THD *thd, my_timespec_t ts) : thd{thd}, ts{ts} {}
+  TimestampString(THD *thd, my_time_t sec) : thd{thd}, ts{sec, 0} {}
+
+  const char * cstr(uint dec= 0)
+  {
+    if (thd->timestamp_to_string(this, dec, ts))
+      return "ERROR";
+    else
+      return c_ptr_safe();
   }
 };
 
