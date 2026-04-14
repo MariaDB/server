@@ -4610,13 +4610,6 @@ found:
   @return error code */
   dberr_t alloc_from_fseg_prepare() noexcept
   {
-    uint32_t n_used= xdes_get_n_used(m_new_descr);
-    if (n_used < 1 || n_used >= m_extent_size)
-      return DB_CORRUPTION;
-
-    if (n_used < m_extent_size)
-      return DB_SUCCESS;
-
     byte *lst= m_iblock->page.frame + uint16_t(m_ioffset + FSEG_NOT_FULL);
     if (!mach_read_from_4(lst + FLST_LEN))
       return DB_CORRUPTION;
@@ -4683,13 +4676,6 @@ found:
   @return error code */
   dberr_t alloc_from_free_frag_prepare() noexcept
   {
-    uint32_t n_used= xdes_get_n_used(m_new_descr);
-    if (n_used < 1 || n_used >= m_extent_size)
-      return DB_CORRUPTION;
-
-    if (n_used < m_extent_size)
-      return DB_SUCCESS;
-
     byte *lst= m_header_block->page.frame + FSP_HEADER_OFFSET + FSP_FREE_FRAG;
     if (!mach_read_from_4(lst + FLST_LEN))
       return DB_CORRUPTION;
@@ -5085,14 +5071,15 @@ new_page:
     if (n_used == 0 || n_used >= m_extent_size)
       return DB_CORRUPTION;
 
-    /* Allocate the page from file segment */
-    if (m_seg_id != FIL_NULL && m_new_state == XDES_FSEG &&
-        mach_read_from_8(m_new_descr + XDES_ID) == m_seg_id)
+    if (n_used != m_extent_size - 1);
+      /* After allocating the page from extent, it doesn't get
+      full. There will be no change in other pages */
+    else if (m_new_state == XDES_FSEG && m_seg_id != FIL_NULL &&
+             mach_read_from_8(m_new_descr + XDES_ID) == m_seg_id)
       err= alloc_from_fseg_prepare();
-    /* Allocate the page from free frag */
     else if (m_new_state == XDES_FREE_FRAG || m_new_state == XDES_FULL_FRAG)
       err= alloc_from_free_frag_prepare();
-    else return DB_CORRUPTION;
+    else err= DB_CORRUPTION;
 
     if (err) return err;
     goto new_page;
@@ -5376,10 +5363,30 @@ func_exit:
 
     sql_print_information("InnoDB: System tablespace defragmentation "
                           "process starts");
-    sql_print_information("InnoDB: Moving the data from extents %"
-                          PRIu32 " through %" PRIu32,
-                          m_extent_map.begin()->first,
-                          m_extent_map.rbegin()->first);
+
+    if (m_extent_map.size() == 1)
+    {
+      auto it= m_extent_map.begin();
+      sql_print_information("InnoDB: Moving the data from extent "
+                            "%" PRIu32 " to extent %" PRIu32, it->first,
+                            it->second);
+    }
+    else
+    {
+      sql_print_information("InnoDB: Moving the data from extents "
+                            "%" PRIu32 " through %" PRIu32,
+                            m_extent_map.begin()->first,
+                            m_extent_map.rbegin()->first);
+
+      uint32_t min_dest= UINT32_MAX, max_dest= 0;
+      for (const auto &entry : m_extent_map)
+      {
+        min_dest= std::min(min_dest, entry.second);
+        max_dest= std::max(max_dest, entry.second);
+      }
+      sql_print_information("InnoDB: Destination extent range: "
+                            "%" PRIu32 " through %" PRIu32, min_dest, max_dest);
+    }
     return DB_SUCCESS;
   }
 
@@ -5626,6 +5633,12 @@ err_exit:
                 block->page.frame + FIL_PAGE_TYPE,
                 srv_page_size - FIL_PAGE_TYPE - 8);
 
+    if (level)
+    {
+      err= get_child_pages(new_block);
+      if (err) goto err_exit;
+    }
+
     /* Assign the new block page number in left, right
     and parent block */
     related_pages.complete(new_page_no, parent_offset);
@@ -5635,11 +5648,6 @@ err_exit:
     /* Add the new page in inode fragment array */
     operation.assign_frag_slot();
 
-    if (level)
-    {
-      err= get_child_pages(new_block);
-      if (err) return err;
-    }
     goto fetch_next_page;
   }
 
