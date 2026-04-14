@@ -17,13 +17,17 @@
 #ifndef MY_BIT_INCLUDED
 #define MY_BIT_INCLUDED
 
+#ifdef __cplusplus
+extern "C" {
+#else
+#define constexpr
+#endif
+
 /*
   Some useful bit functions
 */
 
-C_MODE_START
-
-extern const uchar _my_bits_reverse_table[256];
+extern const unsigned char _my_bits_reverse_table[256];
 
 
 /*
@@ -43,42 +47,42 @@ extern const uchar _my_bits_reverse_table[256];
   Let's return 0 for the input 0, for the code simplicity.
   See the 000x branch. It covers both (1<<0) and 0.
 */
-static inline CONSTEXPR uint my_bit_log2_hex_digit(uint8 value)
+static inline constexpr unsigned int my_bit_log2_hex_digit(unsigned char value)
 {
   return value & 0x0C ? /*1100*/ (value & 0x08 ? /*1000*/ 3 : /*0100*/ 2) :
                         /*0010*/ (value & 0x02 ? /*0010*/ 1 : /*000x*/ 0);
 }
-static inline CONSTEXPR uint my_bit_log2_uint8(uint8 value)
+static inline constexpr unsigned int my_bit_log2_uint8(unsigned char value)
 {
-  return value & 0xF0 ? my_bit_log2_hex_digit((uint8) (value >> 4)) + 4:
+  return value & 0xF0 ? my_bit_log2_hex_digit((unsigned char) (value >> 4)) + 4:
                         my_bit_log2_hex_digit(value);
 }
-static inline CONSTEXPR uint my_bit_log2_uint16(uint16 value)
+static inline constexpr unsigned int my_bit_log2_uint16(unsigned short value)
 {
-  return value & 0xFF00 ? my_bit_log2_uint8((uint8) (value >> 8)) + 8 :
-                          my_bit_log2_uint8((uint8) value);
+  return value & 0xFF00 ? my_bit_log2_uint8((unsigned char) (value >> 8)) + 8 :
+                          my_bit_log2_uint8((unsigned char) value);
 }
-static inline CONSTEXPR uint my_bit_log2_uint32(uint32 value)
+static inline constexpr unsigned int my_bit_log2_uint32(unsigned int value)
 {
   return value & 0xFFFF0000UL ?
-         my_bit_log2_uint16((uint16) (value >> 16)) + 16 :
-         my_bit_log2_uint16((uint16) value);
+         my_bit_log2_uint16((unsigned short) (value >> 16)) + 16 :
+         my_bit_log2_uint16((unsigned short) value);
 }
-static inline CONSTEXPR uint my_bit_log2_uint64(ulonglong value)
+static inline constexpr unsigned int my_bit_log2_uint64(unsigned long long int value)
 {
   return value & 0xFFFFFFFF00000000ULL ?
-         my_bit_log2_uint32((uint32) (value >> 32)) + 32 :
-         my_bit_log2_uint32((uint32) value);
+         my_bit_log2_uint32((unsigned int) (value >> 32)) + 32 :
+         my_bit_log2_uint32((unsigned int) value);
 }
-static inline CONSTEXPR uint my_bit_log2_size_t(size_t value)
+static inline constexpr unsigned int my_bit_log2_size_t(size_t value)
 {
 #ifdef __cplusplus
-  static_assert(sizeof(size_t) <= sizeof(ulonglong),
-                "size_t <= ulonglong is an assumption that needs to be fixed "
+  static_assert(sizeof(size_t) <= sizeof(unsigned long long int),
+                "size_t <= unsigned long long int is an assumption that needs to be fixed "
                 "for this architecture. Please create an issue on "
                 "https://jira.mariadb.org");
 #endif
-  return my_bit_log2_uint64((ulonglong) value);
+  return my_bit_log2_uint64((unsigned long long int) value);
 }
 
 
@@ -91,7 +95,7 @@ Count bits in 32bit integer
 
  (Original code public domain).
 */
-static inline uint my_count_bits_uint32(uint32 v)
+static inline unsigned int my_count_bits_uint32(unsigned int v)
 {
   v = v - ((v >> 1) & 0x55555555);
   v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
@@ -99,9 +103,9 @@ static inline uint my_count_bits_uint32(uint32 v)
 }
 
 
-static inline uint my_count_bits(ulonglong x)
+static inline unsigned int my_count_bits(unsigned long long int x)
 {
-  return my_count_bits_uint32((uint32)x) + my_count_bits_uint32((uint32)(x >> 32));
+  return my_count_bits_uint32((unsigned int)x) + my_count_bits_uint32((unsigned int)(x >> 32));
 }
 
 
@@ -126,7 +130,7 @@ static inline uint my_count_bits(ulonglong x)
     Comments shows how this works with 01100000000000000000000000001011
 */
 
-static inline uint32 my_round_up_to_next_power(uint32 v)
+static inline unsigned int my_round_up_to_next_power(unsigned int v)
 {
   v--;			/* 01100000000000000000000000001010 */
   v|= v >> 1;		/* 01110000000000000000000000001111 */
@@ -137,9 +141,9 @@ static inline uint32 my_round_up_to_next_power(uint32 v)
   return v+1;		/* 10000000000000000000000000000000 */
 }
 
-static inline uint32 my_clear_highest_bit(uint32 v)
+static inline unsigned int my_clear_highest_bit(unsigned int v)
 {
-  uint32 w=v >> 1;
+  unsigned int w=v >> 1;
   w|= w >> 1;
   w|= w >> 2;
   w|= w >> 4;
@@ -148,34 +152,34 @@ static inline uint32 my_clear_highest_bit(uint32 v)
   return v & w;
 }
 
-static inline uint32 my_reverse_bits(uint32 key)
+static inline unsigned int my_reverse_bits(unsigned int key)
 {
   return
-    ((uint32)_my_bits_reverse_table[ key      & 255] << 24) |
-    ((uint32)_my_bits_reverse_table[(key>> 8) & 255] << 16) |
-    ((uint32)_my_bits_reverse_table[(key>>16) & 255] <<  8) |
-     (uint32)_my_bits_reverse_table[(key>>24)      ];
+    ((unsigned int)_my_bits_reverse_table[ key      & 255] << 24) |
+    ((unsigned int)_my_bits_reverse_table[(key>> 8) & 255] << 16) |
+    ((unsigned int)_my_bits_reverse_table[(key>>16) & 255] <<  8) |
+     (unsigned int)_my_bits_reverse_table[(key>>24)      ];
 }
 
 /*
   a number with the n lowest bits set
   an overflow-safe version of  (1 << n) - 1
 */
-static inline uint64 my_set_bits(int n)
+static inline unsigned long long int my_set_bits(int n)
 {
   return (((1ULL << (n - 1)) - 1) << 1) | 1;
 }
 
 /* Create a mask of the significant bits for the last byte (1,3,7,..255) */
-static inline uchar last_byte_mask(uint bits)
+static inline unsigned char last_byte_mask(unsigned int bits)
 {
   /* Get the number of used bits-1 (0..7) in the last byte */
   unsigned int const used = (bits - 1U) & 7U;
   /* Return bitmask for the significant bits */
-  return (uchar) ((2U << used) - 1);
+  return (unsigned char) ((2U << used) - 1);
 }
 
-static inline uint my_bits_in_bytes(uint n)
+static inline unsigned int my_bits_in_bytes(unsigned int n)
 {
   return ((n + 7) / 8);
 }
@@ -188,7 +192,7 @@ static inline uint my_bits_in_bytes(uint n)
   Find the position of the first(least significant) bit set in
   the argument. Returns 64 if the argument was 0.
 */
-static inline uint my_find_first_bit(ulonglong n)
+static inline unsigned int my_find_first_bit(unsigned long long int n)
 {
   if(!n)
     return 64;
@@ -197,9 +201,9 @@ static inline uint my_find_first_bit(ulonglong n)
 #elif defined(_MSC_VER)
 #if defined(_M_IX86)
   unsigned long bit;
-  if( _BitScanForward(&bit, (uint)n))
+  if( _BitScanForward(&bit, (unsigned int)n))
     return bit;
-  _BitScanForward(&bit, (uint)(n>>32));
+  _BitScanForward(&bit, (unsigned int)(n>>32));
   return bit + 32;
 #else
   unsigned long bit;
@@ -208,18 +212,23 @@ static inline uint my_find_first_bit(ulonglong n)
 #endif
 #else
   /* Generic case */
-  uint  shift= 0;
-  static const uchar last_bit[16] = { 32, 0, 1, 0,
+  unsigned int  shift= 0;
+  static const unsigned char last_bit[16] = { 32, 0, 1, 0,
                                       2, 0, 1, 0,
                                       3, 0, 1, 0,
                                       2, 0, 1, 0};
-  uint bit;
+  unsigned int bit;
   while ((bit = last_bit[(n >> shift) & 0xF]) == 32)
     shift+= 4;
   return shift+bit;
 #endif
 }
-C_MODE_END
+
+#ifdef __cplusplus
+}
+#else
+#undef constexpr
+#endif
 
 /*
 The helper function my_nlz(x) calculates the number of leading zeros
