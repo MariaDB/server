@@ -113,10 +113,6 @@ trx_init(
 
 	trx->op_info = "";
 
-	trx->active_commit_ordered = false;
-
-	trx->active_prepare = false;
-
 	trx->isolation_level = TRX_ISO_REPEATABLE_READ;
 
 	trx->check_foreigns = true;
