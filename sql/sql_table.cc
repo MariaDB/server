@@ -12621,7 +12621,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   if (from_row_end)
     bitmap_set_bit(from->read_set, from_row_end->field_index);
 
-  from->file->column_bitmaps_signal();
+  from->file->column_bitmaps_signal(false);
 
   to->file->prepare_for_insert(0);
   DBUG_ASSERT(to->file->inited == handler::NONE);

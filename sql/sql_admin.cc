@@ -1042,7 +1042,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                                   ER_THD(thd, ER_NO_EIS_FOR_FIELD),
                                   column_name->str);
           }
-          tab->file->column_bitmaps_signal();
+          tab->file->column_bitmaps_signal(false);
         }
         if (!lex->index_list)
           tab->keys_in_use_for_query.init(tab->s->keys);

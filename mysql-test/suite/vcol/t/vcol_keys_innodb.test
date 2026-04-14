@@ -135,3 +135,25 @@ insert t1 (id,a,c) select seq,seq,seq from seq_1_to_330;
 select IF(@@innodb_sort_buffer_size < count(*)*200, 'GOOD', 'WRONG SIZE') from t1;
 alter table t1 drop column va;
 drop table t1;
+
+--echo #
+--echo #  MDEV-39081 InnoDB: tried to purge non-delete-marked record,
+--echo #   assertion fails in row_purge_del_mark_error
+--echo #
+CREATE TABLE t1(
+  pk INT AUTO_INCREMENT,
+  f1 INT DEFAULT 0,
+  f2 INT as (1 + 1) VIRTUAL,
+  KEY (f1), PRIMARY KEY (pk), UNIQUE (f2)) ENGINE=InnoDB;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+CONNECT(con1,localhost,root,,);
+INSERT INTO t1 (pk) VALUES(1);
+DELETE FROM t1;
+INSERT INTO t1 (pk) VALUES(1);
+UPDATE t1 set f1 = 2;
+DISCONNECT con1;
+CONNECTION default;
+COMMIT;
+--source ../innodb/include/wait_all_purged.inc
+DROP TABLE t1;

@@ -7655,7 +7655,7 @@ void TABLE::prepare_for_position()
   {
     mark_index_columns_for_read(s->primary_key);
     /* signal change */
-    file->column_bitmaps_signal();
+    file->column_bitmaps_signal(false);
   }
   DBUG_VOID_RETURN;
 }
@@ -7705,7 +7705,7 @@ void TABLE::restore_column_maps_after_keyread(MY_BITMAP *backup)
   DBUG_ENTER("TABLE::restore_column_maps_after_mark_index");
   file->ha_end_keyread();
   read_set= backup;
-  file->column_bitmaps_signal();
+  file->column_bitmaps_signal(false);
   DBUG_VOID_RETURN;
 }
 
@@ -7764,7 +7764,7 @@ void TABLE::mark_auto_increment_column(bool is_insert)
     bitmap_set_bit(write_set, found_next_number_field->field_index);
   if (s->next_number_keypart)
     mark_index_columns_for_read(s->next_number_index);
-  file->column_bitmaps_signal();
+  file->column_bitmaps_signal(false);
 }
 
 
@@ -7839,7 +7839,7 @@ void TABLE::mark_columns_needed_for_delete()
 #endif
 
   if (need_signal)
-    file->column_bitmaps_signal();
+    file->column_bitmaps_signal(false);
 }
 
 
@@ -7956,7 +7956,7 @@ void TABLE::mark_columns_needed_for_update()
   }
   mark_columns_per_binlog_row_image();
   if (need_signal)
-    file->column_bitmaps_signal();
+    file->column_bitmaps_signal(true);
   DBUG_VOID_RETURN;
 }
 
@@ -8144,13 +8144,13 @@ void TABLE::mark_columns_per_binlog_row_image()
         DBUG_ASSERT(FALSE);
       }
     }
-    file->column_bitmaps_signal();
+    file->column_bitmaps_signal(false);
   }
   else
   {
     /* If not using row format */
     rpl_write_set= write_set;
-    file->column_bitmaps_signal();
+    file->column_bitmaps_signal(false);
   }
 
   DBUG_VOID_RETURN;
@@ -8227,7 +8227,7 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl)
     }
   }
   if (bitmap_updated)
-    file->column_bitmaps_signal();
+    file->column_bitmaps_signal(false);
   DBUG_RETURN(bitmap_updated);
 }
 

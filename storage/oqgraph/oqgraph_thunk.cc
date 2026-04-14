@@ -551,7 +551,7 @@ oqgraph3::graph::graph(
   if (weight)
     bitmap_set_bit(table->read_set, weight->field_index);
 
-  table->file->column_bitmaps_signal();
+  table->file->column_bitmaps_signal(false);
 }
 
 oqgraph3::graph::~graph()
