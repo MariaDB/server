@@ -1,0 +1,196 @@
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/maybe_debug.inc
+
+--echo #
+--echo # MDEV-25529 Auto-create: Pre-existing historical data is not partitioned as specified by ALTER
+--echo #
+
+# Test both index and scan, compare the results between them
+if ($have_debug)
+{
+  set @old_dbug= @@debug_dbug;
+  set debug_dbug= '+d,test_mdev-25529';
+}
+
+create or replace table t1 (x int) with system versioning
+partition by system_time limit 1;
+alter table t1 partition by system_time limit 1 auto;
+
+create or replace table t1 (x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end),
+  index (row_end, row_start),
+  index (row_start),
+  index (row_end, x),
+  index (x, row_end),
+  index (row_end)) with system versioning
+partition by system_time limit 1000 partitions 6;
+
+show create table t1;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 00:10:00.22');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 1;
+
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p1);
+select *, row_start, row_end from t1 partition (p2);
+select *, row_start, row_end from t1 partition (p3);
+select *, row_start, row_end from t1 partition (p4);
+select *, row_start, row_end from t1 partition (pn);
+set timestamp= default;
+
+ALTER table t1 partition by system_time
+interval 1 hour starts '2000-01-01 00:00:00';
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p1);
+select *, row_start, row_end from t1 partition (p2);
+select *, row_start, row_end from t1 partition (p3);
+select *, row_start, row_end from t1 partition (p4);
+select *, row_start, row_end from t1 partition (pn);
+
+alter TABLE t1 partition by system_time
+interval 1 hour;
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p1);
+select *, row_start, row_end from t1 partition (p2);
+select *, row_start, row_end from t1 partition (p3);
+select *, row_start, row_end from t1 partition (p4);
+select *, row_start, row_end from t1 partition (pn);
+
+set @@system_versioning_alter_history= keep;
+alter table t1 remove partitioning;
+# First history:  2000-01-01 00:10:00.220000
+# Last history:   2000-01-01 02:00:00.00000021
+select *, row_start, row_end from t1 for system_time all;
+
+alter table t1 PARTITION by system_time interval 1 hour auto;
+
+show create table t1;
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p1);
+select *, row_start, row_end from t1 partition (pn);
+
+alter table t1 remove partitioning;
+alter table t1 partition by SYSTEM_TIME interval 1 hour starts '2000-01-01 00:00:00' auto;
+
+show create table t1;
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p1);
+select *, row_start, row_end from t1 partition (pn);
+
+set timestamp= unix_timestamp('2000-01-02 03:01:23.456');
+delete from t1;
+alter table t1 remove partitioning;
+alter table t1 partition by SYSTEM_TIME interval 1 hour auto;
+
+show create table t1;
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p1);
+select *, row_start, row_end from t1 partition (p2);
+select *, row_start, row_end from t1 partition (p27);
+select *, row_start, row_end from t1 partition (pn);
+
+set timestamp= unix_timestamp('2000-01-02 03:01:23.456');
+delete from t1;
+alter table t1 partition by system_time INTERVAL 20 minute auto force;
+show create table t1;
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p2);
+select *, row_start, row_end from t1 partition (p5);
+select *, row_start, row_end from t1 partition (pn);
+
+alter table t1 remove partitioning;
+alter table t1 partition by system_time interval 1 hour
+starts '2002-01-01 00:00:00' auto;
+
+--echo # STARTS changed and WARN_VERS_WRONG_STARTS is here
+alter table t1 force partition by system_time interval 1 hour
+starts '2003-01-01 00:00:00' auto;
+show create table t1;
+
+alter table t1 partition by system_time interval 1 hour
+starts '2004-01-01 00:00:00' auto force;
+show create table t1;
+
+--echo # STARTS doesn't change without FORCE
+alter table t1 partition by system_time interval 1 hour
+starts '2005-01-01 00:00:00' auto;
+show create table t1;
+
+--echo # min_ts == max_ts case, partitions decrease
+delete history from t1;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (77);
+delete from t1;
+alter table t1 partition by system_time interval 7 hour auto force;
+show create table t1;
+
+--echo # Explicit partition list ignores AUTO FORCE
+set timestamp= unix_timestamp('2000-01-03 00:00:00');
+insert t1 values (88);
+delete from t1;
+alter table t1 partition by system_time interval 8 hour auto force;
+show create table t1;
+
+alter table t1 partition by system_time interval 8 hour auto (
+  partition p0 history,
+  partition p1 history,
+  partition pn current) force;
+show create table t1;
+
+--echo # Switch system_time -> hash
+alter table t1 partition by hash(x) partitions 3;
+show create table t1;
+--echo # Switch hash -> system_time
+alter table t1 partition by system_time interval 9 hour
+starts '2001-01-01 00:00:00' auto force;
+show create table t1;
+
+--echo # Slow scan warning
+create or replace table t1 (x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end),
+  index (x, row_end, row_start),
+  index (row_start, row_end),
+  index (x, row_end)) with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (77);
+delete from t1;
+set timestamp= unix_timestamp('2000-01-03 00:00:00');
+insert t1 values (88);
+delete from t1;
+alter table t1 partition by system_time interval 10 hour auto;
+show create table t1;
+
+--echo # TRX_ID versioning
+create or replace table t1 (x int,
+  row_start bigint(20) unsigned as row start invisible,
+  row_end bigint(20) unsigned as row end invisible,
+  period for system_time (row_start, row_end),
+  index (row_end)) with system versioning engine innodb;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (77);
+delete from t1;
+set timestamp= unix_timestamp('2000-01-03 00:00:00');
+insert t1 values (88);
+delete from t1;
+--echo # Partitioning is not allowed for TRX_ID versioning
+--error ER_VERS_FIELD_WRONG_TYPE
+alter table t1 partition by system_time interval 11 hour auto;
+
+drop table t1;
+
+if ($have_debug)
+{
+  set debug_dbug= @old_dbug;
+}

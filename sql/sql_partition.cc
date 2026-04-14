@@ -6141,6 +6141,76 @@ the generated partition syntax in a correct manner.
         }
       }
 
+      if (table->versioned() &&
+          (alter_info->partition_flags & ALTER_PARTITION_INFO) &&
+          part_info->part_type == VERSIONING_PARTITION &&
+          part_info->vers_info->auto_hist &&
+          alt_part_info->use_default_partitions &&
+          (!*fast_alter_table || (alter_info->flags & ALTER_RECREATE)))
+      {
+        if (*fast_alter_table)
+          *fast_alter_table= false;
+        my_timespec_t min_ts, max_ts;
+        Vers_part_info *vers_info= part_info->vers_info;
+        auto &interval= vers_info->interval;
+        if (table->vers_get_history_range(thd, min_ts, max_ts))
+          DBUG_RETURN(true);
+        if (max_ts.sec > MY_TIME_T_MIN) /* there is history in the table */
+        {
+          DBUG_ASSERT(max_ts.sec < TIMESTAMP_MAX_VALUE);
+          DBUG_ASSERT(min_ts.sec <= max_ts.sec);
+          if (max_ts.usec)
+          {
+            max_ts.sec++;
+            max_ts.usec= 0;
+          }
+          if (vers_info->starts_clause)
+          {
+            if (interval.start > min_ts.sec)
+            {
+              TimestampString str_interval(thd, interval.start);
+              if (part_info->vers_set_starts(thd, min_ts.sec))
+              {
+                my_error(ER_PART_WRONG_VALUE, MYF(0),
+                         table->s->table_name.str, "STARTS");
+                DBUG_RETURN(true);
+              }
+              TimestampString str_min_ts(thd, min_ts);
+              TimestampString str_interval2(thd, interval.start);
+              push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                                  WARN_VERS_WRONG_STARTS, ER_THD(thd, WARN_VERS_WRONG_STARTS),
+                                  table->s->table_name.str,
+                                  str_interval.cstr(), str_min_ts.cstr(), str_interval2.cstr());
+
+            }
+          }
+          else if (part_info->vers_set_starts(thd, min_ts.sec))
+          {
+            my_error(ER_PART_WRONG_VALUE, MYF(0),
+                     table->s->table_name.str, "STARTS");
+            DBUG_RETURN(true);
+          }
+
+          part_info->use_default_num_partitions= false;
+          part_info->use_default_partitions= true;
+          part_info->default_partitions_setup= false;
+          part_info->partitions.empty();
+
+          my_time_t range= max_ts.sec - interval.start;
+          DBUG_ASSERT(range >= 0);
+          if (!range)
+            range++;
+          const longlong i_sec= interval2sec(&interval.step);
+          DBUG_ASSERT(i_sec > 0);
+          uint hist_parts= range / i_sec;
+          if (hist_parts * i_sec != range)
+            hist_parts++;
+          part_info->num_parts= hist_parts + 1;
+        } /* if (max_ts.sec > MY_TIME_T_MIN) */
+        else
+          DBUG_ASSERT(max_ts == MY_TIMESPEC_MIN); /* no history in table */
+      } /* if (need to get history range) */
+
       /*
         Set up partition default_engine_type either from the create_info
         or from the previus table
@@ -6166,7 +6236,7 @@ the generated partition syntax in a correct manner.
         DBUG_ASSERT(create_info->db_type);
         create_info->db_type= partition_hton;
       }
-    }
+    } /* if (thd->work_part_info) */
   }
   DBUG_RETURN(FALSE);
 err:

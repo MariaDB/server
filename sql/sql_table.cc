@@ -62,6 +62,7 @@
 #include "rpl_mi.h"
 #include "rpl_rli.h"
 #include "log.h"
+#include "key.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
@@ -2394,7 +2395,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
   }
 }
 
-static bool key_cmp(const Key_part_spec &a, const Key_part_spec &b)
+static bool key_eq(const Key_part_spec &a, const Key_part_spec &b)
 {
   return a.length == b.length && a.asc == b.asc &&
          !lex_string_cmp(system_charset_info, &a.field_name, &b.field_name);
@@ -2438,7 +2439,7 @@ static void check_duplicate_key(THD *thd, const Key *key, const KEY *key_info,
     }
 
     if (std::equal(key->columns.begin(), key->columns.end(), k.columns.begin(),
-                   key_cmp))
+                   key_eq))
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_DUP_INDEX,
                           ER_THD(thd, ER_DUP_INDEX), key_info->name.str);
@@ -13285,3 +13286,144 @@ bool HA_CREATE_INFO::
   }
   return false;
 }
+
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+bool TABLE::vers_get_history_range(THD *thd, my_timespec_t &min_ts,
+                                   my_timespec_t &max_ts)
+{
+  DBUG_ASSERT(versioned());
+  // Find best key
+  KEY *key= key_info, *best_key= NULL;
+  uint best_idx;
+  Field *end_field= vers_end_field();
+  const field_index_t end_field_idx= end_field->field_index;
+  for (uint idx= 0; idx < s->keys; idx++, key++)
+  {
+    DBUG_ASSERT(key->key_part->fieldnr > 0);
+    if (key->key_part->fieldnr - 1 == end_field_idx &&
+        !(key->key_part->key_part_flag & HA_REVERSE_SORT) &&
+        (!best_key || best_key->key_length > key->key_length))
+    {
+      best_key= key;
+      best_idx= idx;
+    }
+  }
+
+  int error;
+  my_timespec_t ts;
+  min_ts= MY_TIMESPEC_MAX;
+  max_ts= MY_TIMESPEC_MIN;
+#ifndef DBUG_OFF
+  my_timespec_t min_ts2, max_ts2;
+#endif /* DBUG_OFF */
+  MY_BITMAP *save_read_set=  read_set;
+  MY_BITMAP *save_write_set= write_set;
+  DBUG_ASSERT(save_read_set != &tmp_set);
+  bitmap_clear_all(&tmp_set);
+  column_bitmaps_set(&tmp_set, &tmp_set);
+  bitmap_set_bit(read_set, end_field->field_index);
+  file->column_bitmaps_signal();
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, s->db.str,
+                                              s->table_name.str, MDL_SHARED_READ));
+  if ((error= file->ha_external_lock(thd, F_RDLCK)))
+    goto end;
+
+  if (best_key)
+  {
+    uchar search_key[MAX_KEY_LENGTH];
+    KEY *best_key_info= key_info + best_idx;
+    end_field->set_max();
+    KEY_PART_INFO *key_part= best_key_info->key_part;
+    const uint key_prefix_len= key_part[0].store_length;
+    key_copy(search_key, record[0], best_key_info, key_prefix_len);
+
+    /* Get range from index */
+    if ((error= file->ha_index_init(best_idx, true)))
+      goto end_unlock;
+
+    if (!(error= file->ha_index_first(record[0])))
+    {
+      min_ts.sec= end_field->get_timestamp(&min_ts.usec);
+      error= file->ha_index_read_map(record[0], (uchar*) search_key,
+                                     (key_part_map) 1, HA_READ_BEFORE_KEY);
+      if (!error)
+      {
+        max_ts.sec= end_field->get_timestamp(&max_ts.usec);
+      }
+    }
+
+    file->ha_index_end();
+
+    if (error == HA_ERR_END_OF_FILE || error == HA_ERR_KEY_NOT_FOUND)
+      error= 0;
+    else if (error)
+      goto end_unlock;
+
+#ifndef DBUG_OFF
+    /* Test both index and scan, compare the results between them */
+    min_ts2= min_ts;
+    max_ts2= max_ts;
+    if (DBUG_IF("test_mdev-25529"))
+      goto jump_scan;
+#endif /* DBUG_OFF */
+  }
+  else
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        WARN_VERS_SLOW_ROW_END,
+                        ER_THD(thd, WARN_VERS_SLOW_ROW_END),
+                        s->table_name.str);
+#ifndef DBUG_OFF
+jump_scan:
+#endif /* DBUG_OFF */
+    /* Get range by scan */
+    if ((error= file->ha_rnd_init(1)))
+      goto end_unlock;
+
+    /* can_continue_handler_scan() is only for heap (record changed protection) */
+    while (!(error= file->can_continue_handler_scan()) &&
+          !(error= file->ha_rnd_next(record[0])))
+    {
+      ts.sec= end_field->get_timestamp(&ts.usec);
+      if (ts == MY_TIMESPEC_MAX)
+        continue;
+      if (ts < min_ts)
+        min_ts= ts;
+      if (ts > max_ts)
+        max_ts= ts;
+    }
+
+    file->ha_rnd_end();
+#ifndef DBUG_OFF
+    if (best_key)
+    {
+      DBUG_ASSERT(DBUG_IF("test_mdev-25529"));
+      DBUG_ASSERT(min_ts == min_ts2);
+      DBUG_ASSERT(max_ts == max_ts2);
+    }
+#endif /* DBUG_OFF */
+  }
+
+  if (error == HA_ERR_END_OF_FILE)
+    error= 0;
+
+end_unlock:
+  file->ha_external_unlock(thd);
+
+end:
+  if (error)
+  {
+    myf flags= 0;
+
+    if (file->is_fatal_error(error, HA_CHECK_ALL))
+      flags|= ME_FATAL; /* Other handler errors are fatal */
+
+    file->print_error(error, MYF(flags));
+  }
+
+  column_bitmaps_set(save_read_set, save_write_set);
+  file->column_bitmaps_signal();
+  return error;
+}
+#endif /* WITH_PARTITION_STORAGE_ENGINE */

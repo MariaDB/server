@@ -10758,3 +10758,11 @@ ER_CM_OPTION_MISSING_REQUIREMENT
         eng "CHANGE MASTER TO option '%s=%s' is missing requirement %s"
 ER_SLAVE_STATEMENT_TIMEOUT 70100
         eng "Slave log event execution was interrupted (slave_max_statement_time exceeded)"
+WARN_VERS_WRONG_STARTS
+        chi "%`s: STARTS 时间戳 %s 晚于最早历史日期 %s，已被设置为 %s"
+        eng "%`s: STARTS timestamp %s is above earliest history date %s and was set to %s"
+        spa "%`s: la marca de tiempo STARTS %s es posterior a la fecha histórica más temprana %s y se estableció en %s"
+WARN_VERS_SLOW_ROW_END
+        chi "%`s: 未找到 ROW END 索引，正在使用慢速扫描"
+        eng "%`s: ROW END index not found, using slow scan"
+        spa "%`s: no se encontró el índice ROW END, usando escaneo lento"
