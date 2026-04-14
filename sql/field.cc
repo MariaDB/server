@@ -1934,8 +1934,8 @@ String *Field::val_int_as_str(String *val_buffer, bool unsigned_val)
 Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
 	     uchar null_bit_arg,
 	     utype unireg_check_arg, const LEX_CSTRING *field_name_arg)
-  :ptr(ptr_arg),
-  null_ptr(null_ptr_arg), table(0), orig_table(0),
+  :ptr(ptr_arg),  ptr_old(nullptr),
+  null_ptr(null_ptr_arg), null_ptr_old(nullptr), table(0), orig_table(0),
   table_name(0), field_name(*field_name_arg), option_list(0),
   option_struct(0), key_start(0), part_of_key(0),
   part_of_key_not_clustered(0), vcol_direct_part_of_key(0), part_of_sortkey(0),

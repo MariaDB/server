@@ -48,7 +48,7 @@ public:
   ha_rows found{0}, updated{0};
   Sql_cmd_update(bool multitable_arg)
     : orig_multitable(multitable_arg), multitable(multitable_arg),
-    save_protocol(nullptr)
+     returning_result(nullptr), save_protocol(nullptr)
   {}
 
   enum_sql_command sql_command_code() const override

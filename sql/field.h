@@ -809,8 +809,10 @@ public:
   /**
      Byte where the @c NULL bit is stored inside a record. If this Field is a
      @c NOT @c NULL field, this member is @c NULL.
+     null_ptr_old points to old field.
   */
   uchar		*null_ptr;
+  uchar   *null_ptr_old;
   /*
     Note that you can use table->in_use as replacement for current_thd member
     only inside of val_*() and store() members (e.g. you can't use it in cons)

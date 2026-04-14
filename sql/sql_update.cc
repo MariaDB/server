@@ -391,6 +391,7 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   Explain_update *explain;
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
+  bool record_was_same, need_update, trg_skip_row;
 
   // For System Versioning (may need to insert new fields to a table).
   ha_rows rows_inserted= 0;
@@ -977,7 +978,7 @@ update_begin:
     if (unlikely(returning_result->send_result_set_metadata(
                             thd->lex->returning()->returning_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)))
-      error= 1;
+      goto error;
   }
 
   while (!(error=info.read_record()) && !thd->killed)
@@ -996,7 +997,7 @@ update_begin:
         cut_fields_for_portion_of_time(thd, table,
                                        table_list->period_conditions);
 
-      bool trg_skip_row= false;
+      trg_skip_row= false;
       if (fill_record_n_invoke_before_triggers(thd, table, *fields, *values, 0,
                                                TRG_EVENT_UPDATE,
                                                &trg_skip_row))
@@ -1011,8 +1012,8 @@ update_begin:
 
       found++;
 
-      bool record_was_same= false;
-      bool need_update= !can_compare_record || compare_record(table);
+      record_was_same= false;
+      need_update= !can_compare_record || compare_record(table);
 
       if (need_update)
       {
@@ -3262,7 +3263,10 @@ bool Sql_cmd_update::execute_inner(THD *thd)
       /* This is UPDATE ... RETURNING.  It will return output to the client */
       if (thd->lex->analyze_stmt)
       {
-        returning_result= new (thd->mem_root) select_send_analyze(thd);
+        if (!(returning_result= new (thd->mem_root) select_send_analyze(thd)))
+        {
+          return true;
+        }
         save_protocol= thd->protocol;
         thd->protocol= new Protocol_discard(thd);
       }
@@ -3294,6 +3298,7 @@ bool Sql_cmd_update::execute_inner(THD *thd)
   {
     delete thd->protocol;
     thd->protocol= save_protocol;
+    save_protocol= nullptr;
   }
   if (unlikely(res))
   {

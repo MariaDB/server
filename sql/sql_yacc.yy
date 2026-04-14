@@ -9935,6 +9935,7 @@ expr:
                 lex->sql_command == SQLCOM_UPDATE_MULTI))
             {
               my_error(ER_WRONG_USAGE, MYF(0), "OLD_VALUE", "non-UPDATE");
+              MYSQL_YYABORT;
             }
             $$= new (thd->mem_root)
                                 Item_old_field(thd,
@@ -14583,6 +14584,7 @@ opt_returning:
             {
               my_error(ER_NOT_SUPPORTED_YET, MYF(0),
                          "RETURNING for multi-table UPDATE");
+              MYSQL_YYABORT;
             }
 
             /*

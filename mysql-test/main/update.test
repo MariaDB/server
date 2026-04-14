@@ -995,4 +995,14 @@ UPDATE t3 SET a = 10 RETURNING OLD_VALUE(a) AS old_value;
 
 DROP TABLE t3;
 
+--echo #
+--echo # MDEV-39179: Incorrect NULL handling in UPDATE ... RETURNING result
+--echo #
+
+CREATE OR REPLACE TABLE t1(a VARCHAR(10));
+
+INSERT INTO t1 VALUES('') RETURNING *;
+UPDATE t1 SET a=NULL RETURNING OLD_VALUE(a) AS old, a AS new;
+DROP TABLE t1;
+
 --echo # End of 13.0 test
