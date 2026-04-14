@@ -926,9 +926,8 @@ bool Item_field::register_field_in_bitmap(void *arg)
   return 0;
 }
 
-bool Item_field::clear_null_only_fields_processor(void *arg)
+bool Item_field::clear_null_only_fields_processor(void *)
 {
-  (void) arg;
   if (field && field->table)
     bitmap_clear_bit(&field->table->isnull_only_set, field->field_index);
   return 0;

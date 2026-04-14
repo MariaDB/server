@@ -2019,6 +2019,12 @@ int JOIN::optimize()
   {
     if (!res && have_query_plan != QEP_DELETED)
       res= build_explain();
+    if (!res && !(select_options & SELECT_DESCRIBE))
+    {
+      ulong null_only_columns= select_lex->count_null_only_columns();
+      if (null_only_columns)
+        status_var_add(thd->status_var.null_only_columns, null_only_columns);
+    }
     optimization_state= JOIN::OPTIMIZATION_DONE;
   }
 
@@ -2049,6 +2055,12 @@ int JOIN::optimize_stage2_and_finish()
   {
     if (have_query_plan != JOIN::QEP_DELETED)
       res= build_explain();
+    if (!res && !(select_options & SELECT_DESCRIBE))
+    {
+      ulong null_only_columns= select_lex->count_null_only_columns();
+      if (null_only_columns)
+        status_var_add(thd->status_var.null_only_columns, null_only_columns);
+    }
     optimization_state= JOIN::OPTIMIZATION_DONE;
   }
   return res;

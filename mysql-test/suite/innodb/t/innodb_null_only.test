@@ -1,11 +1,5 @@
 --source innodb_default_row_format.inc
 
---disable_warnings
-SET GLOBAL innodb_monitor_disable='module_buffer_page';
-SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
-SET GLOBAL innodb_monitor_enable='module_buffer_page';
---enable_warnings
-
 CREATE TABLE t (
   id INT PRIMARY KEY,
   b MEDIUMBLOB NULL,
@@ -19,37 +13,35 @@ INSERT INTO t VALUES
   (4, NULL, 4);
 
 --let $restart_noprint=2
---echo # Restart to flush buffer pool state before measuring blob page reads.
+--echo # Restart with buffer pool dump/load disabled so blob-page-read metrics
+--echo # reflect a cold cache, not pages left from table setup.
 --let $restart_parameters=--innodb-buffer-pool-load-at-startup=0 --innodb-buffer-pool-dump-at-shutdown=0
 --source include/restart_mysqld.inc
 --let $restart_parameters=
 
---disable_warnings
 SET GLOBAL innodb_monitor_disable='module_buffer_page';
 SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
 SET GLOBAL innodb_monitor_enable='module_buffer_page';
---enable_warnings
+
+--echo # Reset innodb_metrics only before blob-read checks; use FLUSH STATUS
+--echo # to isolate per-query session status like Null_only_columns.
 
 FLUSH STATUS;
 SELECT COUNT(*) FROM t WHERE b IS NULL;
-SELECT VARIABLE_VALUE > 0 AS null_only_used
+SELECT VARIABLE_VALUE AS null_only_columns
   FROM information_schema.session_status
  WHERE VARIABLE_NAME='Null_only_columns';
 
+--echo # Sum the three blob-page-read counters to cover uncompressed and
+--echo # compressed off-page blob representations in one assertion.
 SELECT SUM(COUNT) AS blob_reads
   FROM information_schema.innodb_metrics
  WHERE NAME IN ('buffer_page_read_blob','buffer_page_read_zblob',
                 'buffer_page_read_zblob2');
-
---disable_warnings
-SET GLOBAL innodb_monitor_disable='module_buffer_page';
-SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
-SET GLOBAL innodb_monitor_enable='module_buffer_page';
---enable_warnings
 
 FLUSH STATUS;
 SELECT COUNT(*) FROM t WHERE b <=> NULL;
-SELECT VARIABLE_VALUE > 0 AS null_only_used
+SELECT VARIABLE_VALUE AS null_only_columns
   FROM information_schema.session_status
  WHERE VARIABLE_NAME='Null_only_columns';
 
@@ -58,32 +50,54 @@ SELECT SUM(COUNT) AS blob_reads
  WHERE NAME IN ('buffer_page_read_blob','buffer_page_read_zblob',
                 'buffer_page_read_zblob2');
 
+SET GLOBAL innodb_monitor_disable='module_buffer_page';
+SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
+SET GLOBAL innodb_monitor_enable='module_buffer_page';
+
 FLUSH STATUS;
+--echo # Positive case: ON-clause shape should still mark the
+--echo # column as null-only and avoid off-page blob reads.
 SELECT COUNT(*)
   FROM t t1 JOIN t t2
     ON t1.id= t2.id AND t1.b IS NULL;
-SELECT VARIABLE_VALUE > 0 AS null_only_used
+SELECT VARIABLE_VALUE AS null_only_columns
   FROM information_schema.session_status
  WHERE VARIABLE_NAME='Null_only_columns';
 
+SELECT SUM(COUNT) AS blob_reads
+  FROM information_schema.innodb_metrics
+ WHERE NAME IN ('buffer_page_read_blob','buffer_page_read_zblob',
+                'buffer_page_read_zblob2');
+
+SET GLOBAL innodb_monitor_disable='module_buffer_page';
+SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
+SET GLOBAL innodb_monitor_enable='module_buffer_page';
+
 FLUSH STATUS;
+--echo # Positive case: EXISTS shape should still mark the
+--echo # column as null-only and avoid off-page blob reads.
 SELECT COUNT(*)
   FROM t outer_t
  WHERE EXISTS (SELECT 1
                  FROM t inner_t
                 WHERE inner_t.id= outer_t.id
                   AND inner_t.b IS NULL);
-SELECT VARIABLE_VALUE > 0 AS null_only_used
+SELECT VARIABLE_VALUE AS null_only_columns
   FROM information_schema.session_status
  WHERE VARIABLE_NAME='Null_only_columns';
 
---disable_warnings
+SELECT SUM(COUNT) AS blob_reads
+  FROM information_schema.innodb_metrics
+ WHERE NAME IN ('buffer_page_read_blob','buffer_page_read_zblob',
+                'buffer_page_read_zblob2');
+
 SET GLOBAL innodb_monitor_disable='module_buffer_page';
 SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
 SET GLOBAL innodb_monitor_enable='module_buffer_page';
---enable_warnings
 
 FLUSH STATUS;
+--echo # Negative case: CRC32(b) needs the actual blob value, so SQL should
+--echo # clear the null-only candidate and InnoDB should read blob pages.
 SELECT SUM(CRC32(b)) FROM t WHERE b IS NULL OR c = 3;
 SELECT VARIABLE_VALUE = 0 AS null_only_used
   FROM information_schema.session_status
@@ -99,14 +113,17 @@ SELECT SUM(COUNT) > 0 AS blob_reads
 --source include/restart_mysqld.inc
 --let $restart_parameters=
 
---disable_warnings
 SET GLOBAL innodb_monitor_disable='module_buffer_page';
 SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
 SET GLOBAL innodb_monitor_enable='module_buffer_page';
---enable_warnings
 
+FLUSH STATUS;
+--echo # FOR UPDATE keeps the SQL-layer candidate, but InnoDB disables the
+--echo # optimization under LOCK_X and should still read blob pages.
 SELECT c FROM t WHERE b IS NULL FOR UPDATE;
-COMMIT;
+SELECT VARIABLE_VALUE AS null_only_columns
+  FROM information_schema.session_status
+ WHERE VARIABLE_NAME='Null_only_columns';
 
 SELECT SUM(COUNT) > 0 AS blob_reads
   FROM information_schema.innodb_metrics
@@ -115,8 +132,8 @@ SELECT SUM(COUNT) > 0 AS blob_reads
 
 DROP TABLE t;
 
---echo # ICP check: c-range on leading key part and direct NULL predicate
---echo # on second key part (d) should use index condition pushdown.
+--echo # ICP check: the same query should explain and execute with index
+--echo # condition pushdown, while SQL still marks d IS NULL as null-only.
 CREATE TABLE t_icp (
   id INT PRIMARY KEY,
   c INT NOT NULL,
@@ -139,9 +156,13 @@ EXPLAIN SELECT payload
   FROM t_icp FORCE INDEX (idx_cd)
  WHERE c > 0 AND d IS NULL;
 
-SELECT SUM(payload)
+SELECT payload
   FROM t_icp FORCE INDEX (idx_cd)
  WHERE c > 0 AND d IS NULL;
+
+SELECT VARIABLE_VALUE AS null_only_columns
+  FROM information_schema.session_status
+ WHERE VARIABLE_NAME='Null_only_columns';
 
 SELECT VARIABLE_VALUE > 0 AS icp_used
   FROM information_schema.session_status
@@ -166,13 +187,17 @@ INSERT INTO t_vcol (id, b) VALUES
 --source include/restart_mysqld.inc
 --let $restart_parameters=
 
---disable_warnings
 SET GLOBAL innodb_monitor_disable='module_buffer_page';
 SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
 SET GLOBAL innodb_monitor_enable='module_buffer_page';
---enable_warnings
 
+FLUSH STATUS;
+--echo # Virtual-column guardrail: SQL should not mark v as null-only, so
+--echo # the query should still force blob-page reads.
 SELECT COUNT(*) FROM t_vcol WHERE v IS NULL;
+SELECT VARIABLE_VALUE AS null_only_columns
+  FROM information_schema.session_status
+ WHERE VARIABLE_NAME='Null_only_columns';
 
 SELECT SUM(COUNT) > 0 AS blob_reads
   FROM information_schema.innodb_metrics
@@ -181,7 +206,5 @@ SELECT SUM(COUNT) > 0 AS blob_reads
 
 DROP TABLE t_vcol;
 
---disable_warnings
 SET GLOBAL innodb_monitor_disable='module_buffer_page';
 SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
---enable_warnings
