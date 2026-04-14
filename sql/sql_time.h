@@ -187,4 +187,15 @@ longlong pack_time(const MYSQL_TIME *my_time);
 void unpack_time(longlong packed, MYSQL_TIME *my_time,
                  enum_mysql_timestamp_type ts_type);
 
+template <typename T>
+inline longlong interval2sec(T x)
+{
+  return ((x->day * 24LL + x->hour) * 60LL + x->minute) * 60LL + x->second;
+}
+
+template <typename T>
+inline longlong interval2usec(T x)
+{
+  return interval2sec(x) * 1000000LL + x->second_part;
+}
 #endif /* SQL_TIME_INCLUDED */
