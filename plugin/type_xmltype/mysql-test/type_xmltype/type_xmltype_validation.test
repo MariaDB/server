@@ -152,5 +152,193 @@ set @xml= '<?xml version="1.0"?>
 
 select XMLISVALID(@xml, @schema);
 
+set @xs= '<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  elementFormDefault="qualified">
+  <!-- <xs:attribute name="commonAttr" type="xs:string"/> -->
+
+    <xs:element name="employee">
+        <xs:complexType>
+            <xs:sequence>
+              <xs:element name="dt1" type="xs:dateTime" />
+              <xs:element name="dt2" type="xs:dateTime" />
+              <xs:element name="dt3" type="xs:dateTime" />
+              <xs:element name="dt4" type="xs:dateTime" />
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+
+set @xml= '<?xml version="1.0"?>
+<employee>
+  <dt1>2026-04-12T10:11:20.33+01:00</dt1>
+  <dt2>-2026-04-12T10:11:20+01:00</dt2>
+  <dt3>2026-04-12T10:11:20Z</dt3>
+  <dt4>22026-04-12T10:11:20.33Z</dt4>
+</employee>';
+
+select XMLISVALID(@xml, @xs);
+
+set @xs= '<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  elementFormDefault="qualified">
+  <!-- <xs:attribute name="commonAttr" type="xs:string"/> -->
+
+    <xs:element name="employee">
+        <xs:complexType>
+            <xs:sequence>
+              <xs:element name="dt1" type="xs:date" />
+              <xs:element name="dt2" type="xs:date" />
+              <xs:element name="dt3" type="xs:date" />
+              <xs:element name="dt4" type="xs:date" />
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+
+set @xml= '<?xml version="1.0"?>
+<employee>
+  <dt1>2026-04-12</dt1>
+  <dt2>-2026-04-12+01:00</dt2>
+  <dt3>2026-04-12Z</dt3>
+  <dt4>22026-04-12Z</dt4>
+</employee>';
+
+select XMLISVALID(@xml, @xs);
+
+set @xs= '<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  elementFormDefault="qualified">
+  <!-- <xs:attribute name="commonAttr" type="xs:string"/> -->
+
+    <xs:element name="employee">
+        <xs:complexType>
+            <xs:sequence>
+              <xs:element name="dt1" type="xs:time" />
+              <xs:element name="dt2" type="xs:time" />
+              <xs:element name="dt3" type="xs:time" />
+              <xs:element name="dt4" type="xs:time" />
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+
+set @xml= '<?xml version="1.0"?>
+<employee>
+  <dt1>10:11:20.33+01:00</dt1>
+  <dt2>10:11:20+01:00</dt2>
+  <dt3>10:11:20Z</dt3>
+  <dt4>10:11:20.33Z</dt4>
+</employee>';
+
+select XMLISVALID(@xml, @xs);
+
+set @xs= '<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  elementFormDefault="qualified">
+  <!-- <xs:attribute name="commonAttr" type="xs:string"/> -->
+
+    <xs:element name="employee">
+        <xs:complexType>
+            <xs:sequence>
+              <xs:element name="dt1" type="xs:gYear" />
+              <xs:element name="dt2" type="xs:gYear" />
+              <xs:element name="dt3" type="xs:gYear" />
+              <xs:element name="dt4" type="xs:gYear" />
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+
+set @xml= '<?xml version="1.0"?>
+<employee>
+  <dt1>2026+01:00</dt1>
+  <dt2>-2026+01:00</dt2>
+  <dt3>2026</dt3>
+  <dt4>2226Z</dt4>
+</employee>';
+
+select XMLISVALID(@xml, @xs);
+
+set @xs= '<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  elementFormDefault="qualified">
+  <!-- <xs:attribute name="commonAttr" type="xs:string"/> -->
+
+    <xs:element name="employee">
+        <xs:complexType>
+            <xs:sequence>
+              <xs:element name="dt1" type="xs:gMonth" />
+              <xs:element name="dt2" type="xs:gMonth" />
+              <xs:element name="dt3" type="xs:gMonth" />
+              <xs:element name="dt4" type="xs:gMonth" />
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+
+set @xml= '<?xml version="1.0"?>
+<employee>
+  <dt1>-01+01:00</dt1>
+  <dt2>-12+01:00</dt2>
+  <dt3>-02</dt3>
+  <dt4>-03Z</dt4>
+</employee>';
+
+select XMLISVALID(@xml, @xs);
+
+set @xs= '<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  elementFormDefault="qualified">
+  <!-- <xs:attribute name="commonAttr" type="xs:string"/> -->
+
+    <xs:element name="employee">
+        <xs:complexType>
+            <xs:sequence>
+              <xs:element name="dt1" type="xs:gDay" />
+              <xs:element name="dt2" type="xs:gDay" />
+              <xs:element name="dt3" type="xs:gDay" />
+              <xs:element name="dt4" type="xs:gDay" />
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+
+set @xml= '<?xml version="1.0"?>
+<employee>
+  <dt1>--01+01:00</dt1>
+  <dt2>--12+01:00</dt2>
+  <dt3>--02</dt3>
+  <dt4>--03Z</dt4>
+</employee>';
+
+select XMLISVALID(@xml, @xs);
+
+set @xs= '<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  elementFormDefault="qualified">
+  <!-- <xs:attribute name="commonAttr" type="xs:string"/> -->
+
+    <xs:element name="employee">
+        <xs:complexType>
+            <xs:sequence>
+              <xs:element name="dt1" type="xs:gMonthDay" />
+              <xs:element name="dt2" type="xs:gMonthDay" />
+              <xs:element name="dt3" type="xs:gMonthDay" />
+              <xs:element name="dt4" type="xs:gMonthDay" />
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+
+set @xml= '<?xml version="1.0"?>
+<employee>
+  <dt1>-01-01+01:00</dt1>
+  <dt2>-12-12+01:00</dt2>
+  <dt3>-11-02</dt3>
+  <dt4>-01-03Z</dt4>
+</employee>';
+
+select XMLISVALID(@xml, @xs);
 --echo # End of 11.8 tests
 

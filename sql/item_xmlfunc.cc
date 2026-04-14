@@ -3920,138 +3920,234 @@ public:
 
 
 enum xml_time_char_classes {
-  T_MNS,
-  T_PLS,
-  T_DIG,
-  T_Z,
-  T_T,
-  T_PNT,
-  T_CLN,
-  T_SPC,
-  T_EOF,
-  t_er,
-  T_TIME_CLASSES
+  TC_MNS,
+  TC_PLS,
+  TC_DIG,
+  TC_PNT,
+  TC_T,
+  TC_Z,
+  TC_CLN,
+  TC_SPC,
+  TC_EOF,
+  tc_er,
+  TC_TIME_CLASSES
 };
 
 
 static enum xml_time_char_classes xml_time_chr_map[96] = {
-  t_er, t_er,  t_er,  t_er, t_er, t_er,  t_er, t_er,
-  t_er, T_SPC, T_SPC, t_er, t_er, T_SPC, t_er, t_er,
-  t_er, t_er,  t_er,  t_er, t_er, t_er,  t_er, t_er,
-  t_er, t_er,  t_er,  t_er, t_er, t_er,  t_er, t_er,
+  tc_er, tc_er,  tc_er,  tc_er, tc_er, tc_er,  tc_er, tc_er,
+  tc_er, TC_SPC, TC_SPC, tc_er, tc_er, TC_SPC, tc_er, tc_er,
+  tc_er, tc_er,  tc_er,  tc_er, tc_er, tc_er,  tc_er, tc_er,
+  tc_er, tc_er,  tc_er,  tc_er, tc_er, tc_er,  tc_er, tc_er,
 
-  T_SPC, t_er,  t_er,  t_er,  t_er,  t_er,  t_er,  t_er, /* !"#$%&'*/
-  t_er,  t_er,  t_er,  T_PLS, t_er,  T_MNS, T_PNT, t_er, /*()*+,-./ */
-  T_DIG, T_DIG, T_DIG, T_DIG, T_DIG, T_DIG, T_DIG, T_DIG,/*01234567*/
-  T_DIG, T_DIG, T_CLN, t_er,  t_er,  t_er,  t_er,  t_er, /*89:;<=>?*/
+  TC_SPC, tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er, /* !"#$%&'*/
+  tc_er,  tc_er,  tc_er,  TC_PLS, tc_er,  TC_MNS, TC_PNT, tc_er, /*()*+,-./ */
+  TC_DIG, TC_DIG, TC_DIG, TC_DIG, TC_DIG, TC_DIG, TC_DIG, TC_DIG,/*01234567*/
+  TC_DIG, TC_DIG, TC_CLN, tc_er,  tc_er,  tc_er,  tc_er,  tc_er, /*89:;<=>?*/
 
-  t_er,  t_er,  t_er,  t_er,  t_er,  T_EXP, t_er,  t_er, /*@ABCDEFG*/
-  t_er,  t_er,  t_er,  t_er,  t_er,  t_er,  t_er,  t_er, /*HIJKLMNO*/
-  t_er,  t_er,  t_er,  t_er,  T_T,   t_er,  t_er,  t_er, /*PQRSTUVW*/
-  t_er,  t_er,  T_Z,   t_er,  t_er,  t_er,  t_er,  t_er  /*XYZ[\]^_*/
+  tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er, /*@ABCDEFG*/
+  tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er,  tc_er, /*HIJKLMNO*/
+  tc_er,  tc_er,  tc_er,  tc_er,  TC_T,   tc_er,  tc_er,  tc_er, /*PQRSTUVW*/
+  tc_er,  tc_er,  TC_Z,   tc_er,  tc_er,  tc_er,  tc_er,  tc_er  /*XYZ[\]^_*/
 };
 
 
 enum xml_time_states {
-  TS_GO,  /* Initial state. */
-  TS_END, /* Datetime ended. */
-  TS_YMI, /* If the year starts with '-'. */
-  TS_YN,
-  TS_M1,
-  TS_M2,
-  TS_D1,
-  TS_D2,
-  TS_H1,
-  TS_H2,
-  TS_MI1,
-  TS_MI2,
-  TS_S1,
-  TS_S2,
-  TS_SFR,
-  TS_NUM_STATES,
+  /* datetime */
+  T_GO,  /* Initial state. */
+  T_END, /* Datetime ended. */
+  T_YMI, /* If the year starts with '-'. */
+  T_Y1,
+  T_Y2,
+  T_Y3,
+  T_Y4,
+  T_YE,
+  T_M1,
+  T_M2,
+  T_ME,
+  T_D1,
+  T_D2,
+  T_DE,
+  T_H1,
+  T_H2,
+  T_HE,
+  T_MI1,
+  T_MI2,
+  T_MIE,
+  T_S1,
+  T_S2,
+  T_SFP,
+  T_SFR,
+  T_ZH0,
+  T_ZH1,
+  T_ZH2,
+  T_ZHE,
+  T_ZM1,
+  T_ZM2,
+  T_Z,
+
+  /* date */
+  T_dGO,  /* Initial state. */
+  T_dYMI, /* If the year starts with '-'. */
+  T_dY1,
+  T_dY2,
+  T_dY3,
+  T_dY4,
+  T_dYE,
+
+  T_NUM_STATES,
   T_SYN   /* Syntax error. */
 };
 
 
-static int xml_time_states[TS_NUM_STATES][T_NUM_CLASSES]=
-{
-/*         -        +        0..9   .       T       Z       :      SPACE   EOF   BAD_SYM*/
-/*GO*/   { TS_YMI, TS_YN,  TS_Y1,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_GO,  T_SYN, T_SYN},
-/*END*/  { T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_END, T_SYN, T_SYN},
-/*YMI*/  { T_SYN,  T_SYN,  TS_Y1,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
-/*Y1*/   { T_SYN,  T_SYN,  TS_Y2,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
-/*Y2*/   { T_SYN,  T_SYN,  TS_Y3,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
-/*Y3*/   { T_SYN,  T_SYN,  TS_Y4,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
-/*Y4*/   { T_SYN,  T_SYN,  TS_Y4,  T_SYN,  T_SYN,  T_SYN,  T_M1,   TS_SYN, T_SYN, T_SYN},
-/*M1*/   { T_SYN,  T_SYN,  TS_M2,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
-/*M2*/   { T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_D1,   TS_SYN, T_SYN, T_SYN},
-/*D1*/   { T_SYN,  T_SYN,  TS_D2,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
-/*D2*/   { T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_H1,   T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
-/*H1*/   { T_SYN,  T_SYN,  TS_H2,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
-/*H2*/   { T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_H1,   T_SYN,  T_MI1,  TS_SYN, T_SYN, T_SYN},
-/*MI1*/  { T_SYN,  T_SYN,  TS_MI2, T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
-/*MI2*/  { T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_S1,   TS_SYN, T_SYN, T_SYN},
-/*S1*/   { T_SYN,  T_SYN,  TS_MI2, T_SYN,  T_SYN,  T_SYN,  T_SYN,  TS_SYN, T_SYN, T_SYN},
-/*S2*/   { T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_SYN,  T_S1,   TS_SYN, T_SYN, T_SYN},
+static int xml_time_states[T_NUM_STATES][TC_TIME_CLASSES]= {
+/*       -       +     0..9    .       T      Z     :     SPACE  EOF  BAD_SYM*/
+/* dateTime */
+/*GO*/ {T_YMI, T_SYN, T_Y1,  T_SYN, T_SYN, T_SYN, T_SYN, T_GO,  T_SYN, T_SYN},
+/*END*/{T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_END, T_SYN, T_SYN},
+/*YMI*/{T_SYN, T_SYN, T_Y1,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y1*/ {T_SYN, T_SYN, T_Y2,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y2*/ {T_SYN, T_SYN, T_Y3,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y3*/ {T_SYN, T_SYN, T_Y4,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y4*/ {T_YE,  T_SYN, T_Y4,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*YE*/ {T_SYN, T_SYN, T_M1,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M1*/ {T_SYN, T_SYN, T_M2,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M2*/ {T_ME,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*ME*/ {T_SYN, T_SYN, T_D1,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*D1*/ {T_SYN, T_SYN, T_D2,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*D2*/ {T_SYN, T_SYN, T_SYN, T_SYN, T_DE,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*DE*/ {T_SYN, T_SYN, T_H1,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
 
-/*END*/  { E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN,  NS_END, NS_END, E_SYN},
-/*GMI*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, E_SYN,  E_SYN,  E_SYN,  E_SYN},
-/*GPL*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, E_SYN,  E_SYN,  E_SYN,  E_SYN},
-/*INT*/  { E_SYN,  E_SYN,  NS_INT, NS_FRC, NS_EXP, NS_END, NS_END, E_SYN},
-/*FRC*/  { E_SYN,  E_SYN,  NS_FRC, E_SYN,  NS_EXP, NS_END, NS_END, E_SYN},
-/*EXP*/  { NS_EX1, NS_EX1, NS_EX2, E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN},
-/*EX1*/  { E_SYN,  E_SYN,  NS_EX2, E_SYN,  E_SYN,  E_SYN,  E_SYN,  E_SYN},
-/*EX2*/  { E_SYN,  E_SYN,  NS_EX2, E_SYN,  E_SYN,  NS_END, NS_END, E_SYN}
+/* time */
+/*       -       +     0..9    .       T      Z     :     SPACE  EOF  BAD_SYM*/
+/*H1*/ {T_SYN, T_SYN, T_H2,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*H2*/ {T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_HE,  T_SYN, T_SYN, T_SYN},
+/*HE*/ {T_SYN, T_SYN, T_MI1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*MI1*/{T_SYN, T_SYN, T_MI2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*MI2*/{T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_MIE, T_SYN, T_SYN, T_SYN},
+/*MIE*/{T_SYN, T_SYN, T_S1,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*S1*/ {T_SYN, T_SYN, T_S2,  T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*S2*/ {T_ZH0, T_ZH0, T_SYN, T_SFP, T_SYN, T_Z,   T_SYN, T_END, T_END, T_SYN},
+/*SFP*/{T_SYN, T_SYN, T_SFR, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*SFR*/{T_ZH0, T_ZH0, T_SFR, T_SYN, T_SYN, T_Z,   T_SYN, T_END, T_END, T_SYN},
+/*ZH0*/{T_SYN, T_SYN, T_ZH1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*ZH1*/{T_SYN, T_SYN, T_ZH2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*ZH2*/{T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_ZHE, T_SYN, T_SYN, T_SYN},
+/*ZHE*/{T_SYN, T_SYN, T_ZM1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*ZM1*/{T_SYN, T_SYN, T_ZM2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*ZM2*/{T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_END, T_END, T_SYN},
+/*Z*/  {T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_END, T_END, T_SYN},
+
+/* date */
+/*       -       +     0..9    .       T      Z     :     SPACE  EOF  BAD_SYM*/
+/*GO*/ {T_dYMI,T_SYN, T_dY1, T_SYN, T_SYN, T_SYN, T_SYN, T_dGO, T_SYN, T_SYN},
+/*YMI*/{T_SYN, T_SYN, T_dY1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y1*/ {T_SYN, T_SYN, T_dY2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y2*/ {T_SYN, T_SYN, T_dY3, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y3*/ {T_SYN, T_SYN, T_dY4, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y4*/ {T_dYE, T_SYN, T_dY4, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*YE*/ {T_SYN, T_SYN, T_dM1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M1*/ {T_SYN, T_SYN, T_dM2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M2*/ {T_dME, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*ME*/ {T_SYN, T_SYN, T_dD1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*D1*/ {T_SYN, T_SYN, T_dD2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*D2*/ {T_ZH0, T_ZH0, T_SYN, T_SYN, T_SYN, T_Z,   T_SYN, T_END, T_END, T_SYN},
+
+/* gYear "2026+01:00" */
+/*       -       +     0..9    .       T      Z     :     SPACE  EOF  BAD_SYM*/
+/*GO*/ {T_gYMI,T_SYN, T_gY1, T_SYN, T_SYN, T_SYN, T_SYN, T_dGO, T_SYN, T_SYN},
+/*YMI*/{T_SYN, T_SYN, T_gY1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y1*/ {T_SYN, T_SYN, T_gY2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y2*/ {T_SYN, T_SYN, T_gY3, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y3*/ {T_SYN, T_SYN, T_gY4, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*Y4*/ {T_ZH0, T_ZH0, T_gY4, T_SYN, T_SYN, T_SYN, T_SYN, T_END, T_END, T_SYN},
+
+/* gMonth "--02" */
+/*       -       +     0..9    .       T      Z     :     SPACE  EOF  BAD_SYM*/
+/*GO*/ {T_gM0, T_SYN, T_gM1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M1*/ {T_SYN, T_SYN, T_gM2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*M2*/ {T_ZH0, T_ZH0, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_END, T_END, T_SYN},
+
+/* gDay */
+/*       -       +     0..9    .       T      Z     :     SPACE  EOF  BAD_SYM*/
+/*ME*/ {T_SYN, T_SYN, T_dD1, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*D1*/ {T_SYN, T_SYN, T_dD2, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN, T_SYN},
+/*D2*/ {T_ZH0, T_ZH0, T_SYN, T_SYN, T_SYN, T_Z,   T_SYN, T_END, T_END, T_SYN},
 };
 
 
 enum xml_time_types
 {
-  TIME_TYPE_YEAR,
-  TIME_TYPE_MONTH,
-  TIME_TYPE_DAY,
-  TIME_TYPE_DATETIME
+  TIME_TYPE_YEAR=  0b00000001,
+  TIME_TYPE_MONTH= 0b00000010,
+  TIME_TYPE_DAY=   0b00000100,
+  TIME_TYPE_TIME=  0b00001000,
+  TIME_TYPE_TZ=    0b00010000,
 };
 
-static uint xml_timestate_types[NS_NUM_STATES]=
+
+static uint xml_timestate_types[T_NUM_STATES]=
 {
-/*GO*/   0,
-/*END*/  0,
-/*GMI*/  NUM_TYPE_NEG,
-/*GPL*/  0,
-/*INT*/  0,
-/*FRC*/  NUM_TYPE_FRAC_PART,
-/*EXP*/  NUM_TYPE_EXP,
-/*EX1*/  0,
-/*EX2*/  0,
+/*T_GO*/  0,
+/*T_END*/ 0,
+/*T_YMI*/ 0,
+/*T_Y1*/  TIME_TYPE_YEAR,
+/*T_Y2*/  0,
+/*T_Y3*/  0,
+/*T_Y4*/  0,
+/*T_YE*/  0,
+/*T_M1*/  TIME_TYPE_MONTH,
+/*T_M2*/  0,
+/*T_ME*/  0,
+/*T_D1*/  TIME_TYPE_DAY,
+/*T_D2*/  0,
+/*T_DE*/  0,
+/*T_H1*/  TIME_TYPE_TIME,
+/*T_H2*/  0,
+/*T_HE*/  0,
+/*T_MI1*/ 0,
+/*T_MI2*/ 0,
+/*T_MIE*/ 0,
+/*T_S1*/  0,
+/*T_S2*/  0,
+/*T_SFP*/ 0,
+/*T_SFR*/ 0,
+/*T_ZH0*/ TIME_TYPE_TZ,
+/*T_ZH1*/ 0,
+/*T_ZH2*/ 0,
+/*T_ZHE*/ 0,
+/*T_ZM1*/ 0,
+/*T_ZM2*/ 0,
+/*T_Z*/   TIME_TYPE_TZ
 };
 
 class XMLSchema_datetime_builtin_type: public XMLSchema_builtin_type
 {
 public:
   int m_type;
-  XMLSchema_num_builtin_type(int type): XMLSchema_builtin_type(),
-    m_type(type) {}
+  XMLSchema_datetime_builtin_type(): XMLSchema_builtin_type(),
+    m_type() {}
   bool valid_value(const char *value, size_t len) override
   {
-    int state= TS_GO;
+    int state= T_GO;
     size_t pos= 0;
 
     while (len > pos)
     {
       int c= (int) value[pos++];
-      if (c > 103)
+      if (c > 96)
         return 0;
 
       state= xml_time_states[state][xml_time_chr_map[c]];
-      if (state == T_SYN ||
-          xml_time_state_types[state] == m_type)
+      if (state == T_SYN)
         return 0;
     }
 
-    return xml_time_states[state][T_EOF] == TS_END;
+    return xml_time_states[state][TC_EOF] == T_END;
   }
 };
+
+
 /* Just to make type control possible. */
 class XMLSchema_type: public XMLSchema_tag
 {
@@ -4833,6 +4929,19 @@ XMLSchema_builtin_type *XMLSchema_builtin_type::get_builtin_type_by_name(
 
   if (xs_boolean.eq(name, len))
     return new(st->mem_root) XMLSchema_bool_builtin_type;
+
+  /* date/time types */
+  if (xs_dateTime.eq(name, len))
+    return new(st->mem_root) XMLSchema_datetime_builtin_type(T_GO);
+
+  if (xs_date.eq(name, len))
+    return new(st->mem_root) XMLSchema_datetime_builtin_type(T_dGO);
+
+  if (xs_time.eq(name, len))
+    return new(st->mem_root) XMLSchema_datetime_builtin_type(T_H1);
+
+  if (xs_gDby.eq(name, len))
+    return new(st->mem_root) XMLSchema_datetime_builtin_type(T_H1);
 
   /* various types */
   if (xs_anySimpleType.eq(name, len))
