@@ -41,6 +41,7 @@ struct Vers_part_info : public Sql_alloc
   Vers_part_info() :
     limit(0),
     auto_hist(false),
+    starts_clause(false),
     now_part(NULL),
     hist_part(NULL)
   {
@@ -50,6 +51,7 @@ struct Vers_part_info : public Sql_alloc
     interval(src.interval),
     limit(src.limit),
     auto_hist(src.auto_hist),
+    starts_clause(src.starts_clause),
     now_part(NULL),
     hist_part(NULL)
   {
@@ -59,6 +61,7 @@ struct Vers_part_info : public Sql_alloc
     interval= src.interval;
     limit= src.limit;
     auto_hist= src.auto_hist;
+    starts_clause= src.starts_clause;
     now_part= src.now_part;
     hist_part= src.hist_part;
     return *this;
@@ -91,6 +94,7 @@ struct Vers_part_info : public Sql_alloc
   } interval;
   ulonglong limit;
   bool auto_hist;
+  bool starts_clause;
   partition_element *now_part;
   partition_element *hist_part;
 };
@@ -417,6 +421,7 @@ public:
   bool vers_set_interval(THD *thd, Item *interval,
                          interval_type int_type, Item *starts,
                          bool auto_part, const char *table_name);
+  bool vers_set_starts(THD *thd, my_time_t ts);
   bool vers_set_limit(ulonglong limit, bool auto_part, const char *table_name);
   bool vers_set_hist_part(THD* thd, uint *create_count);
   bool vers_require_hist_part(THD *thd) const
