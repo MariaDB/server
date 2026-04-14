@@ -3144,3 +3144,20 @@ DROP TABLE mdev20498;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+--echo #
+--echo # MDEV-25529 ALTER TABLE FORCE syntax improved
+--echo #
+create table t1 (id int primary key);
+alter table t1 force partition by hash(id) partitions 2;
+alter table t1 force remove partitioning;
+alter table t1 partition by hash(id) partitions 2 force;
+alter table t1 remove partitioning force;
+--error ER_PARSE_ERROR
+alter table t1 force partition by hash(id) partitions 2 force;
+--error ER_PARSE_ERROR
+alter table t1 force remove partitioning force;
+# Strange syntax, but it exists since 2005 (cd483c55)
+alter table t1 add column x int partition by hash(id) partitions 2;
+alter table t1 remove partitioning add column y int;
+drop table t1;
