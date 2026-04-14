@@ -2873,7 +2873,9 @@ bool partition_info::vers_set_interval(THD* thd, Item* interval,
     }
     if (!table)
     {
-      if (thd->query_start() < vers_info->interval.start) {
+      if (thd->query_start() < vers_info->interval.start &&
+          !(auto_hist && (thd->lex->alter_info.flags & ALTER_RECREATE)))
+      {
         TimestampString str_interval(thd, vers_info->interval.start);
         TimestampString str_query(thd, thd->query_start());
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -2897,6 +2899,7 @@ interval_starts_error:
 }
 
 
+/* Round down STARTS to units based on INTERVAL value */
 bool partition_info::vers_set_starts(THD *thd, my_time_t ts)
 {
   MYSQL_TIME ltime;

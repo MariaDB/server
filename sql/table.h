@@ -1852,6 +1852,8 @@ public:
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   bool vers_switch_partition(THD *thd, TABLE_LIST *table_list,
                              Open_table_context *ot_ctx);
+  bool vers_get_history_range(THD *thd, my_timespec_t &min_ts,
+                              my_timespec_t &max_ts);
 #endif
 
   int update_generated_fields();

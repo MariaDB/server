@@ -2884,6 +2884,7 @@ public:
   {
     return get_date(ltime, fuzzydate, (ulonglong) val_int());
   }
+  my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const override;
   bool test_if_equality_guarantees_uniqueness(const Item *item) const override;
   Data_type_compatibility can_optimize_keypart_ref(const Item_bool_func *,
                                                    const Item *)

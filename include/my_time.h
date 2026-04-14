@@ -285,7 +285,7 @@ typedef struct my_timespec
   ulong usec;
 } my_timespec_t;
 
-inline
+static inline
 int cmp(my_timespec_t a, my_timespec_t b)
 {
   return ((a.sec > b.sec || (a.sec == b.sec && a.usec > b.usec)) ? 1 :

@@ -2372,6 +2372,32 @@ bool Field_vers_trx_id::get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate, ulong
 }
 
 
+my_time_t Field_vers_trx_id::get_timestamp(const uchar *pos, ulong *sec_part) const
+{
+  ulonglong trx_id= uint8korr(pos);
+  THD *thd= get_thd();
+  if (trx_id == ULONGLONG_MAX)
+  {
+    if (sec_part)
+    {
+      *sec_part= TIME_MAX_SECOND_PART;
+    }
+    return TIMESTAMP_MAX_VALUE;
+  }
+  TR_table trt(thd);
+  if (trt.query(trx_id))
+  {
+    return trt[TR_table::FLD_COMMIT_TS]->get_timestamp(sec_part);
+  }
+
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_VERS_NO_TRX_ID, ER_THD(thd, ER_VERS_NO_TRX_ID),
+                      (longlong) trx_id);
+
+  return -1;
+}
+
+
 Field_str::Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                      uchar null_bit_arg, utype unireg_check_arg,
                      const LEX_CSTRING *field_name_arg,
