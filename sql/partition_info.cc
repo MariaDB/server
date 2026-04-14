@@ -423,6 +423,7 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
   i= 0;
   do
   {
+    // FIXME (newbie): how is it freed? Explain in comment or remake via table->mem_root.
     partition_element *part_elem= new partition_element();
     if (likely(part_elem != 0 &&
                (!partitions.push_back(part_elem))))
@@ -442,7 +443,10 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
       }
     }
     else
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto end;
+    }
   } while (++i < num_parts);
   result= FALSE;
 end:
