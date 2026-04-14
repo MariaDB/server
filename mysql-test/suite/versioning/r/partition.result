@@ -484,7 +484,7 @@ PARTITIONS 2
 create or replace table t1 (i int) with system versioning
 partition by system_time interval 1 day starts '2000-01-01 00:00:01';
 Warnings:
-Warning	4164	`t1`: STARTS is later than query time, first history partition may exceed INTERVAL value
+Warning	4164	`t1`: STARTS timestamp 2000-01-01 00:00:01 is later than query timestamp 2000-01-01 00:00:00, first history partition may exceed INTERVAL value
 # Test default STARTS rounding
 set timestamp= unix_timestamp('1999-12-15 13:33:33');
 create or replace table t1 (i int) with system versioning
@@ -556,7 +556,7 @@ set time_zone="+03:00";
 create or replace table t1 (i int) with system versioning
 partition by system_time interval 1 day starts '2000-01-01 00:00:00';
 Warnings:
-Warning	4164	`t1`: STARTS is later than query time, first history partition may exceed INTERVAL value
+Warning	4164	`t1`: STARTS timestamp 2000-01-01 00:00:00 is later than query timestamp 1999-12-15 16:33:33, first history partition may exceed INTERVAL value
 set timestamp= unix_timestamp('2000-01-01 00:00:00');
 create or replace table t2 (i int) with system versioning
 partition by system_time interval 1 day;
@@ -616,7 +616,7 @@ create or replace table t1 (i int) with system versioning
 partition by system_time interval 1 day starts '2000-01-03 00:00:00'
 partitions 3;
 Warnings:
-Warning	4164	`t1`: STARTS is later than query time, first history partition may exceed INTERVAL value
+Warning	4164	`t1`: STARTS timestamp 2000-01-03 00:00:00 is later than query timestamp 2000-01-01 00:00:00, first history partition may exceed INTERVAL value
 insert into t1 values (0);
 set timestamp= unix_timestamp('2000-01-01 00:00:01');
 update t1 set i= i + 1;

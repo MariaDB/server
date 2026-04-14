@@ -438,6 +438,14 @@ Temporal_hybrid::Temporal_hybrid(THD *thd, Item *item, date_mode_t fuzzydate)
 }
 
 
+Temporal_hybrid::Temporal_hybrid(THD *thd, my_timespec_t time)
+{
+  thd->variables.time_zone->gmt_sec_to_TIME(this, time.sec);
+  DBUG_ASSERT(time.usec < 1000000);
+  second_part= time.usec;
+}
+
+
 uint Timestamp::binary_length_to_precision(uint length)
 {
   switch (length) {
