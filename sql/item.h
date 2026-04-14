@@ -4090,6 +4090,7 @@ public:
   bool send(Protocol *protocol, st_value *buffer) override;
   Type type() const override { return FIELD_OLD_ITEM; }
   bool fix_fields(THD *, Item **) override;
+  void change_field_ptr();
 
 private:
   uchar *saved_row_ref;

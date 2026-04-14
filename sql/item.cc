@@ -7978,11 +7978,17 @@ bool Item_old_field::send(Protocol *protocol, st_value *buffer)
 {
   bool result;
 
-  std::swap(field->ptr_old, field->ptr);
+  change_field_ptr();
   result= Item_field::send(protocol, buffer);
-  std::swap(field->ptr_old, field->ptr);
+  change_field_ptr();
 
   return result;
+}
+
+void Item_old_field::change_field_ptr()
+{
+  std::swap(field->ptr_old, field->ptr);
+  std::swap(field->null_ptr, field->null_ptr_old);
 }
 
 
@@ -7997,6 +8003,16 @@ bool Item_old_field::fix_fields(THD *thd, Item **reference)
   {
     field->ptr_old= field->table->record[1] +
                   field->offset(field->table->record[0]);
+    if (field->null_ptr)
+    {
+      field->null_ptr_old =
+        field->table->record[1] +
+        (field->null_ptr - field->table->record[0]);
+    }
+    else
+    {
+      field->null_ptr_old = nullptr;
+    }
   }
   else
   {
