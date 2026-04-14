@@ -2921,3 +2921,18 @@ DROP TABLE mdev20498;
 #
 # End of 10.6 tests
 #
+#
+# MDEV-25529 ALTER TABLE FORCE syntax improved
+#
+create table t1 (id int primary key);
+alter table t1 force partition by hash(id) partitions 2;
+alter table t1 force remove partitioning;
+alter table t1 partition by hash(id) partitions 2 force;
+alter table t1 remove partitioning force;
+alter table t1 force partition by hash(id) partitions 2 force;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'force' at line 1
+alter table t1 force remove partitioning force;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'force' at line 1
+alter table t1 add column x int partition by hash(id) partitions 2;
+alter table t1 remove partitioning add column y int;
+drop table t1;

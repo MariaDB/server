@@ -7361,8 +7361,12 @@ alter_commands:
           }
         | alter_list
           opt_partitioning
+        | partitioning
+          alter_list
         | alter_list
           remove_partitioning
+        | remove_partitioning
+          alter_list
         | remove_partitioning
         | partitioning
 /*
