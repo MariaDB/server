@@ -3113,7 +3113,7 @@ public:
   enum { RAND_USED=1, TIME_ZONE_USED=2, QUERY_START_SEC_PART_USED=4,
          THREAD_SPECIFIC_USED=8 };
 
-  used_t used;
+  used_t used; /* used by binlog */
 
 #ifndef MYSQL_CLIENT
   binlog_cache_mngr *  binlog_setup_trx_data();
