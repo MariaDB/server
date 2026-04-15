@@ -6529,11 +6529,9 @@ static int do_show_slave_status(MYSQL *mysql_con,
 
   if (have_info_schema_slave_status)
   {
-    if (mysql_query_with_error_report(
-      mysql_con, &slave, have_info_schema_slave_status ?
-        "SELECT Connection_name, Master_Host, Master_Port, Relay_Master_Log_File,"
-        " Exec_Master_Log_Pos FROM information_schema.SLAVE_STATUS" :
-        "SHOW ALL SLAVES STATUS"
+    if (mysql_query_with_error_report(mysql_con, &slave,
+      "SELECT Connection_name, Master_Host, Master_Port, Relay_Master_Log_File,"
+      " Exec_Master_Log_Pos FROM information_schema.SLAVE_STATUS"
     ))
     {
       if (!ignore_errors)
@@ -6544,7 +6542,11 @@ static int do_show_slave_status(MYSQL *mysql_con,
     }
   }
   else
+  {
+    // Reuse the SHOW ALL SLAVES STATUS results from do_stop_slave_sql()
+    mysql_data_seek(slave_status_res, 0);
     slave= slave_status_res;
+  }
 
   if (get_gtid_pos(gtid_pos, false))
   {
