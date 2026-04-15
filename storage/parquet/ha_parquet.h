@@ -6,6 +6,7 @@
 #include "handler.h"
 #include "thr_lock.h"
 #include "my_base.h"
+#include "duckdb.hpp"
 
 #include <vector>
 #include <string>
@@ -57,6 +58,8 @@ private:
   
   duckdb::DuckDB *db = nullptr;
   duckdb::Connection *con = nullptr;
+
+  std::string flush_remaining_rows_to_s3();
 
 
 };

@@ -261,10 +261,128 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
     return 0;
 }
 
+static bool needs_quoting(Field *f) {
+  switch (f->type())
+  {
+    case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_VAR_STRING:
+    case MYSQL_TYPE_STRING:
+    case MYSQL_TYPE_ENUM:
+    case MYSQL_TYPE_SET:
+    case MYSQL_TYPE_TINY_BLOB:
+    case MYSQL_TYPE_MEDIUM_BLOB:
+    case MYSQL_TYPE_LONG_BLOB:
+    case MYSQL_TYPE_BLOB:
+    case MYSQL_TYPE_DATE:
+    case MYSQL_TYPE_NEWDATE:
+    case MYSQL_TYPE_TIME:
+    case MYSQL_TYPE_TIME2:
+    case MYSQL_TYPE_DATETIME:
+    case MYSQL_TYPE_DATETIME2:
+    case MYSQL_TYPE_TIMESTAMP:
+    case MYSQL_TYPE_TIMESTAMP2:
+      return true;
+    default:
+      return false;
+  }
+}
+
+std::string ha_parquet::flush_remaining_rows_to_s3() {
+  if (row_count == 0) {
+    return "";
+  }
+
+  static uint64_t flush_counter = 0;
+  std::string s3_path = "s3://parquet-bucket/data/part_" + std::to_string(time(nullptr)) + "_" + std::to_string(flush_counter++) + ".parquet";
+  auto copy_result = con->Query(build_copy_to_parquet("buffer", s3_path));
+
+  if (copy_result->HasError() == true) {
+    return "";
+  }
+
+  auto delete_result = con->Query("DELETE FROM buffer");
+
+  if (delete_result->HasError() == true) {
+    return "";
+  }
+
+  row_count = 0;
+
+  return s3_path;
+}
+
 
 int ha_parquet::write_row(const uchar *buf)
 {
-  return HA_ERR_WRONG_COMMAND;
+  DBUG_ENTER("ha_parquet::write_row");
+
+  // AK notes - Initial setup stuff (just building CREATE if the buffer table hasn't been created yet)
+  if (buffer_table_created == false) {
+    std::string create_sql = build_query_create("buffer", table);
+
+    if (create_sql.empty() == true) {
+      DBUG_RETURN(HA_ERR_UNSUPPORTED);
+    }
+
+    auto result = con->Query(create_sql);
+
+    if (result->HasError() == true) {
+      DBUG_RETURN(HA_ERR_GENERIC);
+    }
+
+    buffer_table_created = true;
+  }
+
+  // AK notes - Creating the INSERT string for DuckDB
+  std::string insert_sql = "INSERT INTO buffer VALUES (";
+  bool first_flag = false;
+
+  for (Field **field = table->s->field; *field; ++field) {
+    Field *f = *field;
+
+    if (first_flag == true) {
+      insert_sql = insert_sql + ", ";
+    }
+
+    first_flag = true;
+
+    if (f->is_null() == true) {
+      insert_sql = insert_sql + "NULL";
+    } else {
+      String val;
+      f->val_str(&val);
+      std::string val_cpp(val.ptr(), val.length());
+
+      if (needs_quoting(f) == true) {
+        insert_sql = insert_sql + quote_string_literal(val_cpp);
+      } else {
+        insert_sql = insert_sql + val_cpp;
+      }
+    } 
+  }
+
+  insert_sql = insert_sql + ")";
+
+  auto result = con->Query(insert_sql);
+
+  if (result->HasError() == true) {
+    DBUG_RETURN(HA_ERR_GENERIC);
+  }
+
+  row_count = row_count + 1;
+
+  // AK Notes - This is the flushing stuff (flushing to S3)
+  if (row_count >= flush_threshold) {
+    std::string s3_path = flush_remaining_rows_to_s3();
+
+    parquet_trx_data *trx = (parquet_trx_data *) thd_get_ha_data(ha_thd(), ht);
+
+    if (trx && !s3_path.empty()) {
+      trx->s3_file_paths.push_back(s3_path);
+    }
+  }
+
+  DBUG_RETURN(0);
 }
 
 int ha_parquet::update_row(const uchar *old_data, const uchar *new_data)
@@ -330,6 +448,16 @@ int ha_parquet::external_lock(THD *thd, int lock_type) {
       thd_set_ha_data(thd, ht, trx);
     }
   } else if (lock_type == F_UNLCK) {
+
+    std::string s3_path = flush_remaining_rows_to_s3();
+
+    if (s3_path.empty() == true) {
+      parquet_trx_data *trx = (parquet_trx_data *) thd_get_ha_data(thd, ht);
+
+      if (trx) {
+        trx->s3_file_paths.push_back(s3_path);
+      }
+    }
     // flush remaining buffered rows to S3
     
   }
