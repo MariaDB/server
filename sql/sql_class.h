@@ -1665,7 +1665,169 @@ struct send_column_info_state
   }
 };
 
-extern uint sql_command_flags[];
+
+/* Bits in sql_command_flags */
+
+enum cf_flags_t : uint {
+  CF_CHANGES_DATA = 1U << 0,
+  CF_REPORT_PROGRESS = 1U << 1,
+  CF_STATUS_COMMAND = 1U << 2,
+  CF_SHOW_TABLE_COMMAND = 1U << 3,
+  CF_WRITE_LOGS_COMMAND = 1U << 4,
+
+/**
+  Must be set for SQL statements that may contain
+  Item expressions and/or use joins and tables.
+  Indicates that the parse tree of such statement may
+  contain rule-based optimizations that depend on metadata
+  (i.e. number of columns in a table), and consequently
+  that the statement must be re-prepared whenever
+  referenced metadata changes. Must not be set for
+  statements that themselves change metadata, e.g. RENAME,
+  ALTER and other DDL, since otherwise will trigger constant
+  reprepare. Consequently, complex item expressions and
+  joins are currently prohibited in these statements.
+*/
+  CF_REEXECUTION_FRAGILE = 1U << 5,
+/**
+  Implicitly commit before the SQL statement is executed.
+
+  Statements marked with this flag will cause any active
+  transaction to end (commit) before proceeding with the
+  command execution.
+
+  This flag should be set for statements that probably can't
+  be rolled back or that do not expect any previously metadata
+  locked tables.
+*/
+  CF_IMPLICIT_COMMIT_BEGIN = 1U << 6,
+/**
+  Implicitly commit after the SQL statement.
+
+  Statements marked with this flag are automatically committed
+  at the end of the statement.
+
+  This flag should be set for statements that will implicitly
+  open and take metadata locks on system tables that should not
+  be carried for the whole duration of a active transaction.
+*/
+  CF_IMPLICIT_COMMIT_END = 1U << 7,
+/**
+  CF_IMPLICT_COMMIT_BEGIN and CF_IMPLICIT_COMMIT_END are used
+  to ensure that the active transaction is implicitly committed
+  before and after every DDL statement and any statement that
+  modifies our currently non-transactional system tables.
+*/
+#define CF_AUTO_COMMIT_TRANS  (CF_IMPLICIT_COMMIT_BEGIN | CF_IMPLICIT_COMMIT_END)
+
+/**
+  Diagnostic statement.
+  Diagnostic statements:
+  - SHOW WARNING
+  - SHOW ERROR
+  - GET DIAGNOSTICS (WL#2111)
+  do not modify the diagnostics area during execution.
+*/
+  CF_DIAGNOSTIC_STMT = 1U << 8,
+
+/**
+  Identifies statements that may generate row events
+  and that may end up in the binary log.
+*/
+  CF_CAN_GENERATE_ROW_EVENTS = 1U << 9,
+
+/**
+  Identifies statements which may deal with temporary tables and for which
+  temporary tables should be pre-opened to simplify privilege checks.
+*/
+  CF_PREOPEN_TMP_TABLES = 1U << 10,
+
+/**
+  Identifies statements for which open handlers should be closed in the
+  beginning of the statement.
+*/
+  CF_HA_CLOSE = 1U << 11,
+
+/**
+  Identifies statements that can be explained with EXPLAIN.
+*/
+  CF_CAN_BE_EXPLAINED = 1U << 12,
+
+/** Identifies statements which may generate an optimizer trace */
+  CF_OPTIMIZER_TRACE = 1U << 14,
+
+/**
+   Identifies statements that should always be disallowed in
+   read only transactions.
+*/
+  CF_DISALLOW_IN_RO_TRANS = 1U << 15,
+
+/**
+  Statement that need the binlog format to be unchanged.
+*/
+  CF_FORCE_ORIGINAL_BINLOG_FORMAT = 1U << 16,
+
+/**
+  Statement that inserts new rows (INSERT, REPLACE, LOAD, ALTER TABLE)
+*/
+  CF_INSERTS_DATA = 1U << 17,
+
+/**
+  Statement that updates existing rows (UPDATE, multi-update)
+*/
+  CF_UPDATES_DATA = 1U << 18,
+
+/**
+  Not logged into slow log as "admin commands"
+*/
+  CF_ADMIN_COMMAND = 1U << 19,
+
+/**
+  SP Bulk execution safe
+*/
+  CF_PS_ARRAY_BINDING_SAFE = 1U << 20,
+/**
+  SP Bulk execution optimized
+*/
+  CF_PS_ARRAY_BINDING_OPTIMIZED = 1U << 21,
+/**
+  If command creates or drops a table
+*/
+  CF_SCHEMA_CHANGE = 1U << 22,
+/**
+  If command creates or drops a database
+*/
+  CF_DB_CHANGE = 1U << 23,
+/**
+  Statement that deletes existing rows (DELETE, DELETE_MULTI)
+*/
+  CF_DELETES_DATA = 1U << 24,
+
+#ifdef WITH_WSREP
+/**
+  DDL statement that may be subject to error filtering.
+*/
+  CF_WSREP_MAY_IGNORE_ERRORS = 1U << 25,
+/**
+   Basic DML statements that create writeset.
+*/
+  CF_WSREP_BASIC_DML = 1U << 26,
+#endif /* WITH_WSREP */
+
+};
+
+static inline constexpr cf_flags_t operator|(cf_flags_t a, cf_flags_t b)
+{
+  return static_cast<cf_flags_t>(static_cast<ulonglong>(a) |
+                                  static_cast<ulonglong>(b));
+}
+
+static inline cf_flags_t& operator|=(cf_flags_t &a, cf_flags_t b)
+{
+  return a= a | b;
+}
+
+extern cf_flags_t sql_command_flags[];
 
 
 /**
@@ -1747,7 +1909,7 @@ public:
   {
     set_query_inner(CSET_STRING());
   }
-  ulong sql_command_flags() const
+  cf_flags_t sql_command_flags() const
   {
     return ::sql_command_flags[lex->sql_command];
   }
@@ -7825,153 +7987,6 @@ public:
   bool check_simple_select() const override;
   void reset_for_next_ps_execution() override;
 };
-
-/* Bits in sql_command_flags */
-
-#define CF_CHANGES_DATA           (1U << 0)
-#define CF_REPORT_PROGRESS        (1U << 1)
-#define CF_STATUS_COMMAND         (1U << 2)
-#define CF_SHOW_TABLE_COMMAND     (1U << 3)
-#define CF_WRITE_LOGS_COMMAND     (1U << 4)
-
-/**
-  Must be set for SQL statements that may contain
-  Item expressions and/or use joins and tables.
-  Indicates that the parse tree of such statement may
-  contain rule-based optimizations that depend on metadata
-  (i.e. number of columns in a table), and consequently
-  that the statement must be re-prepared whenever
-  referenced metadata changes. Must not be set for
-  statements that themselves change metadata, e.g. RENAME,
-  ALTER and other DDL, since otherwise will trigger constant
-  reprepare. Consequently, complex item expressions and
-  joins are currently prohibited in these statements.
-*/
-#define CF_REEXECUTION_FRAGILE    (1U << 5)
-/**
-  Implicitly commit before the SQL statement is executed.
-
-  Statements marked with this flag will cause any active
-  transaction to end (commit) before proceeding with the
-  command execution.
-
-  This flag should be set for statements that probably can't
-  be rolled back or that do not expect any previously metadata
-  locked tables.
-*/
-#define CF_IMPLICIT_COMMIT_BEGIN   (1U << 6)
-/**
-  Implicitly commit after the SQL statement.
-
-  Statements marked with this flag are automatically committed
-  at the end of the statement.
-
-  This flag should be set for statements that will implicitly
-  open and take metadata locks on system tables that should not
-  be carried for the whole duration of a active transaction.
-*/
-#define CF_IMPLICIT_COMMIT_END    (1U << 7)
-/**
-  CF_IMPLICT_COMMIT_BEGIN and CF_IMPLICIT_COMMIT_END are used
-  to ensure that the active transaction is implicitly committed
-  before and after every DDL statement and any statement that
-  modifies our currently non-transactional system tables.
-*/
-#define CF_AUTO_COMMIT_TRANS  (CF_IMPLICIT_COMMIT_BEGIN | CF_IMPLICIT_COMMIT_END)
-
-/**
-  Diagnostic statement.
-  Diagnostic statements:
-  - SHOW WARNING
-  - SHOW ERROR
-  - GET DIAGNOSTICS (WL#2111)
-  do not modify the diagnostics area during execution.
-*/
-#define CF_DIAGNOSTIC_STMT        (1U << 8)
-
-/**
-  Identifies statements that may generate row events
-  and that may end up in the binary log.
-*/
-#define CF_CAN_GENERATE_ROW_EVENTS (1U << 9)
-
-/**
-  Identifies statements which may deal with temporary tables and for which
-  temporary tables should be pre-opened to simplify privilege checks.
-*/
-#define CF_PREOPEN_TMP_TABLES   (1U << 10)
-
-/**
-  Identifies statements for which open handlers should be closed in the
-  beginning of the statement.
-*/
-#define CF_HA_CLOSE             (1U << 11)
-
-/**
-  Identifies statements that can be explained with EXPLAIN.
-*/
-#define CF_CAN_BE_EXPLAINED       (1U << 12)
-
-/** Identifies statements which may generate an optimizer trace */
-#define CF_OPTIMIZER_TRACE        (1U << 14)
-
-/**
-   Identifies statements that should always be disallowed in
-   read only transactions.
-*/
-#define CF_DISALLOW_IN_RO_TRANS   (1U << 15)
-
-/**
-  Statement that need the binlog format to be unchanged.
-*/
-#define CF_FORCE_ORIGINAL_BINLOG_FORMAT (1U << 16)
-
-/**
-  Statement that inserts new rows (INSERT, REPLACE, LOAD, ALTER TABLE)
-*/
-#define CF_INSERTS_DATA (1U << 17)
-
-/**
-  Statement that updates existing rows (UPDATE, multi-update)
-*/
-#define CF_UPDATES_DATA (1U << 18)
-
-/**
-  Not logged into slow log as "admin commands"
-*/
-#define CF_ADMIN_COMMAND (1U << 19)
-
-/**
-  SP Bulk execution safe
-*/
-#define CF_PS_ARRAY_BINDING_SAFE (1U << 20)
-/**
-  SP Bulk execution optimized
-*/
-#define CF_PS_ARRAY_BINDING_OPTIMIZED (1U << 21)
-/**
-  If command creates or drops a table
-*/
-#define CF_SCHEMA_CHANGE (1U << 22)
-/**
-  If command creates or drops a database
-*/
-#define CF_DB_CHANGE (1U << 23)
-/**
-  Statement that deletes existing rows (DELETE, DELETE_MULTI)
-*/
-#define CF_DELETES_DATA (1U << 24)
-
-#ifdef WITH_WSREP
-/**
-  DDL statement that may be subject to error filtering.
-*/
-#define CF_WSREP_MAY_IGNORE_ERRORS (1U << 25)
-/**
-   Basic DML statements that create writeset.
-*/
-#define CF_WSREP_BASIC_DML (1u << 26)
-#endif /* WITH_WSREP */
 
 /* Bits in server_command_flags */
 /**

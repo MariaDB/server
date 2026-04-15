@@ -474,7 +474,7 @@ bool stmt_causes_implicit_commit(THD *thd, uint mask)
           a number of modified rows
 */
 
-uint sql_command_flags[SQLCOM_END+1];
+cf_flags_t sql_command_flags[SQLCOM_END+1];
 uint server_command_flags[COM_END+1];
 
 void init_update_queries(void)
