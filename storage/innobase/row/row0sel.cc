@@ -3920,13 +3920,14 @@ row_sel_fetch_last_buf(
 		/* Allocate memory for the fetch cache */
 		ut_ad(prebuilt->n_fetch_cached == 0);
 
+		MEM_UNDEFINED(prebuilt->fetch_cache[0], prebuilt->mysql_row_len);
 		row_sel_prefetch_cache_init(prebuilt);
-	}
+	} else {
+		MEM_UNDEFINED(prebuilt->fetch_cache[prebuilt->n_fetch_cached],
+			      prebuilt->mysql_row_len);
+        }
 
 	ut_ad(prebuilt->fetch_cache_first == 0);
-	MEM_UNDEFINED(prebuilt->fetch_cache[prebuilt->n_fetch_cached],
-		      prebuilt->mysql_row_len);
-
 	return(prebuilt->fetch_cache[prebuilt->n_fetch_cached]);
 }
 
