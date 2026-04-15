@@ -5024,10 +5024,10 @@ extern "C" const char *thd_priv_user(MYSQL_THD thd, size_t *length)
   have only one table open at any given time.
 */
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
-                        const char *tb, size_t tblen)
+                        const char *tb, size_t tblen,
+                        MDL_ticket *mdl_ticket) noexcept
 {
   DBUG_ENTER("open_purge_table");
-  DBUG_ASSERT(thd->open_tables == NULL);
   DBUG_ASSERT(thd->locked_tables_mode < LTM_PRELOCKED);
 
   /* Purge already hold the MDL for the table */
@@ -5038,6 +5038,7 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 
   tl->init_one_table(&db_name, &table_name, 0, TL_READ);
   tl->i_s_requested_object= OPEN_TABLE_ONLY;
+  tl->mdl_request.ticket= mdl_ticket;
 
   bool error= open_table(thd, tl, &ot_ctx);
 
@@ -5050,11 +5051,9 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
   DBUG_RETURN(error ? NULL : tl->table);
 }
 
-TABLE *get_purge_table(THD *thd)
+MDL_ticket *get_mdl_ticket(TABLE *table)
 {
-  /* see above, at most one table can be opened */
-  DBUG_ASSERT(thd->open_tables == NULL || thd->open_tables->next == NULL);
-  return thd->open_tables;
+  return table->mdl_ticket;
 }
 
 /** Find an open table in the list of prelocked tabled
@@ -5217,10 +5216,13 @@ void destroy_background_thd(MYSQL_THD thd)
 
 void reset_thd(MYSQL_THD thd)
 {
+  const char *proc_info= thd->proc_info;
+  thd->proc_info="reset";
   close_thread_tables(thd);
   thd->release_transactional_locks();
   thd->free_items();
   free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
+  thd->proc_info= proc_info;
 }
 
 /**

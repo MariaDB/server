@@ -43,6 +43,16 @@ Created 3/26/1996 Heikki Tuuri
 #include <mysql/service_wsrep.h>
 #include "log.h"
 
+TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
+                        const char *tb, size_t tblen,
+                        MDL_ticket *mdl_ticket) noexcept;
+int close_thread_tables(THD* thd) noexcept;
+MDL_ticket *get_mdl_ticket(TABLE *table) noexcept;
+
+#ifdef UNIV_DEBUG
+unsigned long long thd_get_query_id(const MYSQL_THD thd);
+#endif /* UNIV_DEBUG */
+
 /** Maximum allowable purge history length.  <=0 means 'infinite'. */
 ulong		srv_max_purge_lag = 0;
 
@@ -1047,29 +1057,65 @@ inline trx_purge_rec_t purge_sys_t::fetch_next_rec()
   return get_next_rec(roll_ptr);
 }
 
-/** Close all tables that were opened in a purge batch for a worker.
-@param node   purge task context
-@param thd    purge coordinator thread handle */
-static void trx_purge_close_tables(purge_node_t *node, THD *thd) noexcept
+inline MDL_ticket *purge_table::get_ticket() const noexcept
 {
-  for (auto &t : node->tables)
+  if (TABLE* t= get_maria_table())
+    return get_mdl_ticket(t);
+  return ticket;
+}
+
+inline void purge_table::set_mariadb_table(TABLE *t) noexcept
+{
+  mariadb_table= reinterpret_cast<uintptr_t>(t) | 1;
+}
+
+inline void purge_table::set_ticket(MDL_ticket *t) noexcept
+{
+  ticket= t;
+}
+
+/** Close all tables that were opened in a purge batch for a worker.
+@param thd           purge coordinator thread handle
+@param batch_cleanup if true, clears the list of opened tables
+                     in the purge node. */
+static void trx_purge_close_tables(THD *thd, bool batch_cleanup=false) noexcept
+{
+  MDL_context *mdl_context = static_cast<MDL_context*>(thd_mdl_context(thd));
+  std::vector<MDL_ticket *> mdl_tickets;
+  for (que_thr_t *thr= UT_LIST_GET_FIRST(purge_sys.query->thrs); thr;
+       thr= UT_LIST_GET_NEXT(thrs, thr))
   {
-    dict_table_t *table= t.second.first;
-    if (table != nullptr && table != reinterpret_cast<dict_table_t*>(-1))
-      dict_table_close(table);
+    purge_node_t* node = static_cast<purge_node_t*>(thr->child);
+    for (auto &t : node->tables)
+    {
+      purge_table& pt = t.second;
+      if (pt.table && !pt.must_wait())
+      {
+        if (pt.get_maria_table())
+        {
+          pt.table->lock_mutex_lock();
+          pt.table->vc_templ->mysql_table= nullptr;
+          pt.table->vc_templ->mysql_table_query_id= 0;
+          pt.table->lock_mutex_unlock();
+	}
+
+	dict_table_close(pt.table);
+	pt.table= nullptr;
+        MDL_ticket *ticket= t.second.get_ticket();
+        if (ticket)
+          mdl_tickets.push_back(ticket);
+      }
+    }
+    if (batch_cleanup)
+      node->tables.clear();
   }
 
-  MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
+  close_thread_tables(thd);
 
-  for (auto &t : node->tables)
+  for (auto mdl : mdl_tickets)
   {
-    dict_table_t *table= t.second.first;
-    if (table != nullptr && table != reinterpret_cast<dict_table_t*>(-1))
-    {
-      t.second.first= reinterpret_cast<dict_table_t*>(-1);
-      if (mdl_context != nullptr && t.second.second != nullptr)
-        mdl_context->release_lock(t.second.second);
-    }
+    if (mdl && mdl_context)
+      mdl_context->release_lock(mdl);
   }
 }
 
@@ -1136,81 +1182,105 @@ static dict_table_t *trx_purge_table_acquire(dict_table_t *table,
 /** Open a table handle for the purge of committed transaction history
 @param table_id     InnoDB table identifier
 @param mdl_context  metadata lock acquisition context
-@param mdl          metadata lock
-@return table handle
-@retval nullptr if the table is not found or accessible
-@retval -1      if the purge of history must be suspended due to DDL */
-static dict_table_t *trx_purge_table_open(table_id_t table_id,
-                                          MDL_context *mdl_context,
-                                          MDL_ticket **mdl) noexcept
+@return purge_table with dict_table_t* and TABLE* (or)MDL_ticket,
+possibly with must_wait() || table == nullptr */
+static purge_table trx_purge_table_open(table_id_t table_id,
+                                        MDL_context *mdl_context) noexcept
 {
-  dict_table_t *table;
+  purge_table result;
+  MDL_ticket *mdl= nullptr;
 
   for (;;)
   {
     dict_sys.freeze(SRW_LOCK_CALL);
-    table= dict_sys.find_table(table_id);
-    if (table)
+    result.table= dict_sys.find_table(table_id);
+    if (result.table)
       break;
     dict_sys.unfreeze();
     dict_sys.lock(SRW_LOCK_CALL);
-    table= dict_load_table_on_id(table_id, DICT_ERR_IGNORE_FK_NOKEY);
+    result.table= dict_load_table_on_id(table_id, DICT_ERR_IGNORE_FK_NOKEY);
     dict_sys.unlock();
-    if (!table)
-      return nullptr;
+    if (!result.table)
+      return result;
     /* At this point, the freshly loaded table may already have been evicted.
     We must look it up again while holding a shared dict_sys.latch.  We keep
     trying this until the table is found in the cache or it cannot be found
     in the dictionary (because the table has been dropped or rebuilt). */
   }
 
-  table= trx_purge_table_acquire(table, mdl_context, mdl);
+  result.table= trx_purge_table_acquire(result.table, mdl_context, &mdl);
   dict_sys.unfreeze();
-  return table;
+
+  if (mdl && result.table->has_virtual_index())
+  {
+    char db_buf[NAME_LEN + 1];
+    char tbl_buf[NAME_LEN + 1];
+    size_t db_len, tbl_len;
+
+    if (result.table->parse_name<false>(db_buf, tbl_buf, &db_len, &tbl_len))
+    {
+      THD *thd= current_thd;
+      TABLE *maria_table= open_purge_table(thd, db_buf, db_len,
+                                           tbl_buf, tbl_len, mdl);
+      if (maria_table)
+      {
+        if (result.table->vc_templ)
+        {
+          ut_ad(thd_get_query_id(thd) == 0);
+          result.table->lock_mutex_lock();
+          result.table->vc_templ->mysql_table= maria_table;
+          result.table->vc_templ->mysql_table_query_id= 0;
+          result.table->lock_mutex_unlock();
+        }
+        result.set_mariadb_table(maria_table);
+        return result;
+      }
+    }
+  }
+  result.set_ticket(mdl);
+  return result;
 }
 
 ATTRIBUTE_COLD
-dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
-                                            MDL_ticket **mdl)
+purge_table purge_sys_t::close_and_reopen(table_id_t id, THD *thd) noexcept
 {
   MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
   ut_ad(mdl_context);
- retry:
+retry:
   ut_ad(m_active);
-
-  for (que_thr_t *thr= UT_LIST_GET_FIRST(purge_sys.query->thrs); thr;
-       thr= UT_LIST_GET_NEXT(thrs, thr))
-    trx_purge_close_tables(static_cast<purge_node_t*>(thr->child), thd);
+  trx_purge_close_tables(thd);
 
   m_active= false;
   wait_FTS(false);
   m_active= true;
 
-  dict_table_t *table= trx_purge_table_open(id, mdl_context, mdl);
-  if (table == reinterpret_cast<dict_table_t*>(-1))
+  purge_table pt= trx_purge_table_open(id, mdl_context);
+  if (pt.must_wait())
     goto retry;
 
-  for (que_thr_t *thr= UT_LIST_GET_FIRST(purge_sys.query->thrs); thr;
+  /* Reopen all other tables from all nodes */
+  for (que_thr_t *thr= UT_LIST_GET_FIRST(query->thrs); thr;
        thr= UT_LIST_GET_NEXT(thrs, thr))
   {
     purge_node_t *node= static_cast<purge_node_t*>(thr->child);
-    for (auto &t : node->tables)
+    for (auto it = node->tables.begin(); it != node->tables.end(); )
     {
-      if (t.second.first)
+      it->second= trx_purge_table_open(it->first, mdl_context);
+      if (it->second.must_wait())
       {
-        t.second.first= trx_purge_table_open(t.first, mdl_context,
-                                             &t.second.second);
-        if (t.second.first == reinterpret_cast<dict_table_t*>(-1))
-        {
-          if (table)
-            dict_table_close(table, false, thd, *mdl);
-          goto retry;
-        }
+        if (pt.table)
+	  dict_table_close(pt.table, false, thd, pt.get_ticket());
+        goto retry;
       }
+#ifndef DBUG_OFF
+      if (MDL_ticket *mdl= it->second.get_ticket())
+        static_cast<MDL_context*>(thd_mdl_context(thd))->lock_warrant=
+          mdl->get_ctx();
+#endif
+      ++it;
     }
   }
-
-  return table;
+  return pt;
 }
 
 /** Run a purge batch.
@@ -1259,29 +1329,33 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
     }
 
     table_id_t table_id= trx_undo_rec_get_table_id(purge_rec.undo_rec);
-
     purge_node_t *&table_node= table_id_map[table_id];
     if (table_node)
       ut_ad(!table_node->in_progress);
     if (!table_node)
     {
-      std::pair<dict_table_t *, MDL_ticket *> p;
-      p.first= trx_purge_table_open(table_id, mdl_context, &p.second);
-      if (p.first == reinterpret_cast<dict_table_t *>(-1))
-        p.first= purge_sys.close_and_reopen(table_id, thd, &p.second);
+      purge_table pt= trx_purge_table_open(table_id, mdl_context);
+      if (pt.must_wait())
+        pt= purge_sys.close_and_reopen(table_id, thd);
 
       if (!thr || !(thr= UT_LIST_GET_NEXT(thrs, thr)))
         thr= UT_LIST_GET_FIRST(purge_sys.query->thrs);
       ++*n_work_items;
       table_node= static_cast<purge_node_t *>(thr->child);
-
       ut_a(que_node_get_type(table_node) == QUE_NODE_PURGE);
-      ut_d(auto pair=) table_node->tables.emplace(table_id, p);
-      ut_ad(pair.second);
-      if (p.first)
+
+      table_node->tables.emplace(table_id, pt);
+      if (pt.table)
+      {
+#ifndef DBUG_OFF
+      if (MDL_ticket *mdl= pt.get_ticket())
+        static_cast<MDL_context*>(thd_mdl_context(thd))->lock_warrant=
+            mdl->get_ctx();
+#endif
         goto enqueue;
+      }
     }
-    else if (table_node->tables[table_id].first)
+    else if (table_node->tables[table_id].table)
     {
     enqueue:
       table_node->undo_recs.push(purge_rec);
@@ -1365,6 +1439,13 @@ void purge_sys_t::batch_cleanup(const purge_sys_t::iterator &head)
 #ifdef SUX_LOCK_GENERIC
   end_latch.wr_unlock();
 #endif
+  coordinator_thd= nullptr;
+}
+
+
+inline void purge_sys_t::set_coordinator_thd(THD *thd) noexcept
+{
+  coordinator_thd= thd;
 }
 
 /**
@@ -1376,11 +1457,11 @@ TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, ulint history_size)
 {
   ut_ad(n_tasks > 0);
 
-  purge_sys.clone_oldest_view();
+  THD *const thd= current_thd;
+
+  purge_sys.clone_oldest_view(thd);
 
   ut_d(if (srv_purge_view_update_only_debug) return 0);
-
-  THD *const thd= current_thd;
 
   /* Fetch the UNDO recs that need to be purged. */
   ulint n_work= 0;
@@ -1410,12 +1491,12 @@ TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, ulint history_size)
     for (auto i= n_work; i--; )
     {
       if (!thr)
-	thr= UT_LIST_GET_FIRST(purge_sys.query->thrs);
+        thr= UT_LIST_GET_FIRST(purge_sys.query->thrs);
       else
-	thr= UT_LIST_GET_NEXT(thrs, thr);
+        thr= UT_LIST_GET_NEXT(thrs, thr);
 
       if (!thr)
-	break;
+        break;
 
       ut_ad(thr->state == QUE_THR_COMPLETED);
       thr->state= QUE_THR_RUNNING;
@@ -1444,13 +1525,7 @@ TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, ulint history_size)
     if (workers)
       trx_purge_wait_for_workers_to_complete();
 
-    for (thr= UT_LIST_GET_FIRST(purge_sys.query->thrs); thr && n_work--;
-         thr= UT_LIST_GET_NEXT(thrs, thr))
-    {
-      purge_node_t *node= static_cast<purge_node_t*>(thr->child);
-      trx_purge_close_tables(node, thd);
-      node->tables.clear();
-    }
+    trx_purge_close_tables(thd, true);
   }
 
   purge_sys.batch_cleanup(head);

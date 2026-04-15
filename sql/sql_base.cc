@@ -820,7 +820,7 @@ static inline bool check_field_pointers(const TABLE *table)
     leave prelocked mode if needed.
 */
 
-int close_thread_tables(THD *thd)
+int close_thread_tables(THD *thd) noexcept
 {
   TABLE *table;
   int error= 0;

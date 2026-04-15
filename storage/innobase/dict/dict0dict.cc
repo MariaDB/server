@@ -626,13 +626,13 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
     dict_sys.unfreeze();
 
   *db_name_len= filename_to_tablename(db_buf, db_name,
-                                      MAX_DATABASE_NAME_LEN + 1, true);
+                                      NAME_LEN + 1, true);
 
   if (is_temp)
     return false;
 
   *tbl_name_len= filename_to_tablename(tbl_buf, tbl_name,
-                                       MAX_TABLE_NAME_LEN + 1, true);
+                                       NAME_LEN + 1, true);
   return true;
 }
 

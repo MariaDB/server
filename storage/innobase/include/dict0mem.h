@@ -2551,6 +2551,17 @@ public:
   static dict_table_t *create(const span<const char> &name, fil_space_t *space,
                               ulint n_cols, ulint n_v_cols, ulint flags,
                               ulint flags2);
+
+  /** @return whether the table has any indexed virtual column */
+  bool has_virtual_index() const noexcept
+  {
+    if (UNIV_UNLIKELY(n_v_cols != 0))
+      for (dict_index_t *index = indexes.start;
+           index; index = UT_LIST_GET_NEXT(indexes, index))
+        if (index->has_virtual())
+          return true;
+   return false;
+  }
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const

@@ -420,11 +420,6 @@ MYSQL_THD innobase_create_background_thd(const char* name);
 @param[in]	thd	MYSQL_THD to destroy */
 void destroy_background_thd(MYSQL_THD thd);
 
-/** Close opened tables, free memory, delete items for a MYSQL_THD.
-@param[in]	thd	MYSQL_THD to reset */
-void
-innobase_reset_background_thd(MYSQL_THD);
-
 /** Open a table based on a database and table name.
 @param db     schema name
 @param name   table name within the schema

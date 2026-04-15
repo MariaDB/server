@@ -779,7 +779,7 @@ corrupted:
 		ib::info() << "Trx id counter is " << trx_sys.get_max_trx_id();
 	}
 
-	purge_sys.clone_oldest_view<true>();
+	purge_sys.clone_oldest_view<true>(nullptr);
 	return DB_SUCCESS;
 }
 
