@@ -1,13 +1,21 @@
-SET(DUCKDB_SUBMODULE_DIR
-  "${CMAKE_SOURCE_DIR}/storage/duckdb/duckdb/third_parties/duckdb")
-SET(DUCKDB_INCLUDE_DIR "${DUCKDB_SUBMODULE_DIR}/src/include")
- 
-INCLUDE_DIRECTORIES(BEFORE SYSTEM "${DUCKDB_INCLUDE_DIR}")
-
+cmake_minimum_required(VERSION 4.0)
+project(MariaDB_Parquet)
 
 MYSQL_ADD_PLUGIN(parquet
   ha_parquet.cc
   STORAGE_ENGINE
   MANDATORY
-  LINK_LIBRARIES libduckdb
 )
+
+if(TARGET parquet)
+  if(NOT TARGET libduckdb)
+    message(FATAL_ERROR
+      "The parquet plugin requires DuckDB support. "
+      "Enable the DuckDB build first so libduckdb is available.")
+  endif()
+
+  target_include_directories(parquet PRIVATE
+    ${CMAKE_SOURCE_DIR}/storage/duckdb/duckdb/third_parties/duckdb/src/include
+  )
+  target_link_libraries(parquet PRIVATE libduckdb)
+endif()
