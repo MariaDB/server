@@ -5215,7 +5215,6 @@ static int binlog_show_create_table_(THD *thd, TABLE *table,
   int result;
   TABLE_LIST tmp_table_list;
 
-  tmp_table_list.reset();
   tmp_table_list.table = table;
 
   result= show_create_table(thd, &tmp_table_list, &query,

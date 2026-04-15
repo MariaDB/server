@@ -5276,7 +5276,7 @@ sp_head::add_used_tables_to_table_list(THD *thd,
       LEX_CSTRING alias= { table_name.str + table_name.length + 1,
                            strlen(table_name.str + table_name.length + 1) };
 
-      table->init_one_table_for_prelocking(&db_name,
+      table->init_one_table_for_prelockn_r(&db_name,
                                            &table_name,
                                            &alias,
                                            stab->lock_type,

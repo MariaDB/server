@@ -2335,7 +2335,6 @@ mysql_rename_view(THD *thd,
       view definition parsing or use temporary 'view_def'
       object for it.
     */
-    view_def.reset();
     view_def.hr_timestamp.str= view_def.timestamp_buffer;
     view_def.view_suid= TRUE;
 

@@ -2025,7 +2025,7 @@ class Grant_tables
       TABLE_LIST *tl= tables + i;
       if (which_tables & (1 << i))
       {
-        tl->init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_TABLE_NAME[i],
+        tl->init_one_tab_r(&MYSQL_SCHEMA_NAME, &MYSQL_TABLE_NAME[i],
                            NULL, lock_type);
         tl->open_type= OT_BASE_ONLY;
         tl->i_s_requested_object= OPEN_TABLE_ONLY;
@@ -2068,7 +2068,7 @@ class Grant_tables
       TABLE *backup_open_tables= thd->open_tables;
       thd->set_open_tables(NULL);
 
-      tl->init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_TABLE_NAME_USER,
+      tl->init_one_tab_r(&MYSQL_SCHEMA_NAME, &MYSQL_TABLE_NAME_USER,
                          NULL, lock_type);
       tl->open_type= OT_BASE_ONLY;
       tl->i_s_requested_object= OPEN_TABLE_ONLY;

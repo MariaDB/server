@@ -303,7 +303,7 @@ static int open_table(THD *thd, const LEX_CSTRING *schema_name,
   const uint flags= (MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK |
                      MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY |
                      MYSQL_OPEN_IGNORE_FLUSH | MYSQL_LOCK_IGNORE_TIMEOUT);
-  table_list->init_one_table(schema_name, table_name, NULL, lock_type);
+  table_list->init_one_tab_r(schema_name, table_name, NULL, lock_type);
   thd->lex->query_tables_own_last= 0;
 
   // No need to open table if the query was bf aborted,

@@ -2611,7 +2611,7 @@ Locked_tables_list::init_locked_tables(THD *thd)
     memcpy((char*) table_name.str, table->s->table_name.str,
            table_name.length + 1);
     memcpy((char*) alias.str,      table->alias.c_ptr(), alias.length + 1);
-    dst_table_list->init_one_table(&db, &table_name,
+    dst_table_list->init_one_tab_r(&db, &table_name,
                                    &alias, table->reginfo.lock_type);
     dst_table_list->table= table;
     dst_table_list->mdl_request.ticket= src_table_list->mdl_request.ticket;
@@ -3448,7 +3448,7 @@ request_backoff_action(enum_open_table_action action_arg,
     m_failed_table= (TABLE_LIST*) m_thd->alloc(sizeof(TABLE_LIST));
     if (m_failed_table == NULL)
       return TRUE;
-    m_failed_table->init_one_table(&table->db, &table->table_name, &table->alias, TL_WRITE);
+    m_failed_table->init_one_tab_r(&table->db, &table->table_name, &table->alias, TL_WRITE);
     m_failed_table->open_strategy= table->open_strategy;
     m_failed_table->mdl_request.set_type(MDL_EXCLUSIVE);
     m_failed_table->vers_skip_create= table->vers_skip_create;
@@ -5056,7 +5056,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
     TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
     if (!tl)
       DBUG_RETURN(TRUE);
-    tl->init_one_table_for_prelocking(&tables->db,
+    tl->init_one_table_for_prelockn_r(&tables->db,
                                       &tables->table_name,
                                       NULL, tables->lock_type,
                                       TABLE_LIST::PRELOCK_NONE,
@@ -5131,7 +5131,7 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
       continue;
 
     TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
-    tl->init_one_table_for_prelocking(fk->foreign_db,
+    tl->init_one_table_for_prelockn_r(fk->foreign_db,
         fk->foreign_table,
         NULL, lock_type,
         TABLE_LIST::PRELOCK_FK,
