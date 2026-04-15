@@ -5035,7 +5035,7 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
   LEX_CSTRING db_name= {db, dblen };
   LEX_CSTRING table_name= { tb, tblen };
 
-  tl->init_one_table(&db_name, &table_name, 0, TL_READ);
+  tl->init_one_tab_r(&db_name, &table_name, 0, TL_READ);
   tl->i_s_requested_object= OPEN_TABLE_ONLY;
   tl->mdl_request.ticket= mdl_ticket;
 
