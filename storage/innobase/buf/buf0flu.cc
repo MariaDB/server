@@ -35,6 +35,7 @@ Created 11/11/1995 Heikki Tuuri
 #include "buf0buf.h"
 #include "buf0checksum.h"
 #include "buf0dblwr.h"
+#include "backup_innodb.h"
 #include "srv0start.h"
 #include "page0zip.h"
 #include "fil0fil.h"
@@ -2048,7 +2049,7 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
     /* Make the previous archived log file read-only */
 #ifdef _WIN32
     resize_log.close();
-    SetFileAttributesA(get_archive_path().c_str(),
+    SetFileAttributesA(get_archive_path(get_first_lsn() - capacity()).c_str(),
                        FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_ARCHIVE);
 #else
     struct stat st;
@@ -2058,9 +2059,10 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
       st.st_mode= 0444;
     if (fchmod(resize_log.m_file, st.st_mode))
       my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG),
-               get_archive_path().c_str(), errno);
+               get_archive_path(get_first_lsn() - capacity()).c_str(), errno);
     resize_log.close();
 #endif
+    innodb_backup_checkpoint();
   }
   else if (resize_log.m_file == log.m_file)
   {

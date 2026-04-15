@@ -41,6 +41,9 @@ send_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
 static inline ssize_t
 copy_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
 {
+#if 0 // work around https://github.com/rr-debugger/rr/issues/4059
+  errno= EOPNOTSUPP; return -1;
+#endif
   return copy_file_range(in_fd, offset, out_fd, nullptr, count, 0);
 }
 # endif
@@ -58,9 +61,6 @@ static ssize_t mmap_copy(int in_fd, int out_fd, off_t count)
 #if SIZEOF_SIZE_T < 8
   if (count != ssize_t(count))
     return 1;
-#endif
-#if 1
-  return 1;
 #endif
   void *p= mmap(nullptr, count, PROT_READ, MAP_SHARED, in_fd, 0);
   if (p == MAP_FAILED)
@@ -149,6 +149,9 @@ class InnoDB_backup
   /** mutex protecting the queue */
   srw_mutex_impl<false> mutex;
 
+  /** whether backup is active (1), not in progress (0), or has failed (-1) */
+  Atomic_relaxed<int> active;
+
   /** the original innodb_log_file_size, or 0 if innodb_log_archive=ON */
   uint64_t old_size;
 
@@ -174,12 +177,14 @@ public:
   {
     mutex.init();
     mutex.wr_lock();
+    ut_ad(!active);
     const bool fail{log_sys.backup_start(&old_size, thd)};
 
     if (!fail)
     {
       log_sys.latch.wr_lock();
-      checkpoint= log_sys.archived_checkpoint;
+      const lsn_t start{log_sys.archived_checkpoint};
+      checkpoint= start;
       checkpoint_end_lsn= log_sys.archived_lsn;
       log_sys.latch.wr_unlock();
 
@@ -209,11 +214,15 @@ public:
             as follows:
             (1) In log_parse_file() when processing FILE_CREATE
             (2) In deferred_spaces.create() */
-            space.get_create_lsn() < checkpoint)
+            space.get_create_lsn() < start)
           queue.emplace_back(space.id);
       mysql_mutex_unlock(&fil_system.mutex);
+      active= 1;
     }
+    else
+      active= -1;
     mutex.wr_unlock();
+    DEBUG_SYNC(thd, "innodb_backup_start");
     return fail;
   }
 
@@ -228,6 +237,16 @@ public:
   {
     uint32_t id= FIL_NULL;
     mutex.wr_lock();
+    ut_ad(active);
+    {
+      int fail{active};
+      if (fail < 0)
+      {
+        mutex.wr_unlock();
+        my_error(ER_ERROR_DURING_CHECKPOINT, MYF(0), -fail);
+        return fail;
+      }
+    }
     size_t size{queue.size()};
     if (size)
     {
@@ -264,11 +283,23 @@ public:
   int end(THD *thd, bool abort) noexcept
   {
     mutex.wr_lock();
+    ut_ad(active);
+    int fail= active;
     if (abort)
       queue.clear();
     ut_ad(queue.empty());
     mutex.wr_unlock();
-    int fail= 0;
+
+    if (abort)
+      fail= 0;
+    else if (fail == 1)
+    {
+      active= 0;
+      link_or_move(log_sys.get_first_lsn(), false);
+      fail= active;
+    }
+    else
+      my_error(ER_ERROR_DURING_CHECKPOINT, MYF(0), -active);
     log_sys.backup_stop(old_size, thd);
     return fail;
   }
@@ -279,10 +310,34 @@ public:
   */
   void fini(THD *thd) noexcept
   {
-    ut_d(mutex.wr_lock());
+    mutex.wr_lock();
     ut_ad(queue.empty());
-    ut_d(mutex.wr_unlock());
+    if (active)
+    {
+      ut_ad(active > 0);
+      active= 0;
+    }
+    else
+    {
+      // TODO: copy our hard copy of the last log until the final LSN
+    }
+    mutex.wr_unlock();
     mutex.destroy();
+  }
+
+  /**
+     Complete the first checkpoint in a new archive log file.
+  */
+  void checkpoint_complete() noexcept
+  {
+    ut_ad(log_sys.latch_have_wr());
+    if (active < 1)
+      return;
+    mutex.wr_lock();
+    if (active > 0)
+      link_or_move(log_sys.get_first_lsn() - log_sys.capacity(),
+                   bool(old_size));
+    mutex.wr_unlock();
   }
 
 private:
@@ -425,6 +480,46 @@ private:
     my_error(ER_CANT_CREATE_FILE, MYF(0), node->name, errno);
     return -1;
   }
+
+  /** Hard-link or rename an archive log file.
+  @param lsn   The first LSN in the file
+  @param move  false=link, true=rename */
+  void link_or_move(lsn_t lsn, bool move) noexcept
+  {
+    const std::string p{log_sys.get_archive_path(lsn)};
+    const char *const path= p.c_str(), *basename= strrchr(path, '/');
+    if (!basename)
+      basename= path;
+    else
+      basename++;
+#ifdef _WIN32
+    std::string b{target};
+    b.push_back('/');
+    b.append(basename);
+    basename= b.c_str();
+
+    if (move
+        ? !MoveFileEx(path, basename, 0)
+        : !CreateHardLinkA(path, basename, nullptr))
+    {
+      unsigned long err= GetLastError();
+      my_osmaperr(err);
+      active= -my_errno;
+      ut_ad(active);
+      my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), path, basename,
+               my_errno);
+    }
+#else
+    if (move
+        ? renameat(AT_FDCWD, path, target, basename)
+        : linkat(AT_FDCWD, path, target, basename, AT_SYMLINK_FOLLOW))
+    {
+      active= -errno;
+      ut_ad(active);
+      my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), path, basename, errno);
+    }
+#endif
+  }
 };
 
 /** The backup context */
@@ -449,4 +544,9 @@ int innodb_backup_end(THD *thd, bool abort) noexcept
 void innodb_backup_finalize(THD *thd) noexcept
 {
   backup.fini(thd);
+}
+
+void innodb_backup_checkpoint() noexcept
+{
+  backup.checkpoint_complete();
 }

@@ -1,20 +1,38 @@
+--source include/have_sequence.inc
 --source include/have_innodb.inc
+--source include/maybe_debug.inc
 
-CREATE TABLE t(i INT PRIMARY KEY) ENGINE=INNODB;
-INSERT INTO t VALUES(1);
+CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255) DEFAULT '' NOT NULL, INDEX(b))
+ENGINE=INNODB;
+INSERT INTO t SET a=1;
 BEGIN;
 DELETE FROM t;
 
 --connect backup,localhost,root
-evalp BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+if ($have_debug) {
+SET DEBUG_SYNC='innodb_backup_start SIGNAL start WAIT_FOR resume';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+send_eval BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR start';
+INSERT INTO t(a) SELECT * FROM seq_1_to_30000;
+SET DEBUG_SYNC='now SIGNAL resume';
+--connection backup
+--reap
+}
+if (!$have_debug) {
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+}
+
 --disconnect backup
 --connection default
-
-COMMIT;
+ROLLBACK;
 SELECT * FROM t;
 
 let $datadir=`SELECT @@datadir`;
 --source include/shutdown_mysqld.inc
+--remove_files_wildcard $MYSQLTEST_VARDIR/some_directory ib_*.log
 --list_files $MYSQLTEST_VARDIR/some_directory
 #--rmdir $datadir
 #--move_file $MYSQLTEST_VARDIR/some_directory $datadir

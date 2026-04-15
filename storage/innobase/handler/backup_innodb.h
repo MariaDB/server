@@ -44,3 +44,8 @@ int innodb_backup_end(THD *thd, bool abort) noexcept;
    @param thd   current session
 */
 void innodb_backup_finalize(THD *thd) noexcept;
+
+/**
+   Complete the first checkpoint in a new archive log file.
+*/
+void innodb_backup_checkpoint() noexcept;

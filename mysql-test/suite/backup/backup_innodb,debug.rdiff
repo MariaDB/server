@@ -1,0 +1,16 @@
+--- backup_innodb.result
++++ backup_innodb,debug.result
+@@ -4,7 +4,13 @@
+ BEGIN;
+ DELETE FROM t;
+ connect backup,localhost,root;
++SET DEBUG_SYNC='innodb_backup_start SIGNAL start WAIT_FOR resume';
+ BACKUP SERVER TO 'MYSQLTEST_VARDIR/some_directory';
++connection default;
++SET DEBUG_SYNC='now WAIT_FOR start';
++INSERT INTO t(a) SELECT * FROM seq_1_to_30000;
++SET DEBUG_SYNC='now SIGNAL resume';
++connection backup;
+ disconnect backup;
+ connection default;
+ ROLLBACK;
