@@ -4,8 +4,10 @@
 wsrep-gtid-mode=ON
 log-bin
 log-slave-updates
+loose-galera-slave-filtering=1
 
 [mariadbd.2]
 wsrep-gtid-mode=ON
 log-bin
 log-slave-updates
+loose-galera-slave-filtering=1

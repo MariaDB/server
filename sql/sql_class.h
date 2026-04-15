@@ -3173,7 +3173,6 @@ class THD: public THD_count, /* this must be first */
              For conventional execution it's always empty.
            */
            public Item_change_list,
-           public MDL_context_owner,
            public Open_tables_state,
            public Sp_caches,
            public Statement_rcontext
@@ -4539,7 +4538,7 @@ public:
   enter_cond(mysql_cond_t *cond, mysql_mutex_t* mutex,
              const PSI_stage_info *stage, PSI_stage_info *old_stage,
              const char *src_function, const char *src_file,
-             int src_line) override
+             int src_line)
   {
     mysql_mutex_assert_owner(mutex);
     mysys_var->current_mutex = mutex;
@@ -4551,7 +4550,7 @@ public:
   }
   inline void exit_cond(const PSI_stage_info *stage,
                         const char *src_function, const char *src_file,
-                        int src_line) override
+                        int src_line)
   {
     /*
       Putting the mutex unlock in thd->exit_cond() ensures that
@@ -4568,8 +4567,7 @@ public:
     mysql_mutex_unlock(&mysys_var->mutex);
     return;
   }
-  int is_killed() override { return killed; }
-  THD* get_thd() override { return this; }
+  int is_killed() { return killed; }
 
   /**
     A callback to the server internals that is used to address
@@ -4586,7 +4584,7 @@ public:
     @note This function does not wait for the thread to give away its
           locks. Waiting is done outside for all threads at once.
 
-    @param ctx_in_use           The MDL context owner (thread) to wake up.
+    @param in_use               The THD to wake up.
     @param needs_thr_lock_abort Indicates that to wake up thread
                                 this call needs to abort its waiting
                                 on table-level lock.
@@ -4594,11 +4592,9 @@ public:
     @retval  TRUE  if the thread was woken up
     @retval  FALSE otherwise.
    */
-  bool notify_shared_lock(MDL_context_owner *ctx_in_use,
+  bool notify_shared_lock(THD *in_use,
                           bool needs_thr_lock_abort,
-                          bool needs_non_slave_abort) override;
-
-  // End implementation of MDL_context_owner interface.
+                          bool needs_non_slave_abort);
 
   inline bool is_strict_mode() const
   {
@@ -8209,6 +8205,24 @@ void thd_exit_cond(MYSQL_THD thd, const PSI_stage_info *stage,
 
 #define THD_EXIT_COND(P1, P2) \
   thd_exit_cond(P1, P2, __func__, __FILE__, __LINE__)
+
+/**
+  @def ENTER_COND(C, M, S, O)
+  Start a wait on a condition.
+  @param C the condition to wait on
+  @param M the associated mutex
+  @param S the new stage to enter
+  @param O the previous stage
+  @sa EXIT_COND().
+*/
+#define ENTER_COND(C, M, S, O) enter_cond(C, M, S, O, __func__, __FILE__, __LINE__)
+
+/**
+  @def EXIT_COND(S)
+  End a wait on a condition
+  @param S the new stage to enter
+*/
+#define EXIT_COND(S) exit_cond(S, __func__, __FILE__, __LINE__)
 
 inline bool binlog_should_compress(size_t len)
 {

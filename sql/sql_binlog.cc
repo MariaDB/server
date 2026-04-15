@@ -35,7 +35,7 @@
 static int check_event_type(int type, Relay_log_info *rli)
 {
   Format_description_log_event *fd_event=
-    rli->relay_log.description_event_for_exec;
+    rli->relay_log.description_event_for_sql_thread;
 
   /*
     Convert event type id of certain old versions (see comment in
@@ -204,7 +204,7 @@ int save_restore_context_apply_event(Log_event *ev, rpl_group_info *rgi)
   BINLOG statement seen must be a base64 encoding of the
   Format_description_log_event, as outputted by mysqlbinlog.  This
   Format_description_log_event is cached in
-  rli->description_event_for_exec.
+  rli->description_event_for_sql_thread.
 
   @param thd Pointer to THD object for the client thread executing the
   statement.
@@ -308,8 +308,8 @@ void mysql_client_binlog_statement(THD* thd)
       This is used to read the real Format_description_log_event, or to read
       all events if there is none (as happens with --binlog-storage-engine).
     */
-    if (!rli->relay_log.description_event_for_exec &&
-        !(rli->relay_log.description_event_for_exec=
+    if (!rli->relay_log.description_event_for_sql_thread &&
+        !(rli->relay_log.description_event_for_sql_thread=
           new Format_description_log_event(4)))
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
@@ -359,7 +359,7 @@ void mysql_client_binlog_statement(THD* thd)
         goto end;
 
       ev= Log_event::read_log_event(bufptr, event_len, &error,
-                                    rli->relay_log.description_event_for_exec,
+                                    rli->relay_log.description_event_for_sql_thread,
                                     0);
 
       DBUG_PRINT("info",("binlog base64 err=%s", error));

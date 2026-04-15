@@ -133,6 +133,7 @@ struct KEY_FIELD;
 struct SARGABLE_PARAM;
 class RANGE_OPT_PARAM;
 class SEL_TREE;
+class sp_cursor;
 
 enum precedence {
   LOWEST_PRECEDENCE,
@@ -949,6 +950,13 @@ protected:
     if ((null_value= item->null_value))
       res= NULL;
     return res;
+  }
+  bool val_native_result_from_item(THD *thd, Item *item, Native *to)
+  {
+    DBUG_ASSERT(fixed());
+    null_value= item->val_native_result(thd, to);
+    DBUG_ASSERT(null_value == item->null_value);
+    return null_value;
   }
   bool val_native_from_item(THD *thd, Item *item, Native *to)
   {
@@ -3347,6 +3355,10 @@ public:
   Type type() const override { return m_type; }
   const Type_handler *type_handler() const override
   { return Type_handler_hybrid_field_type::type_handler(); }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return this_item()->type_extra_attributes();
+  }
   uint cols() const override { return this_item()->cols(); }
   Item* element_index(uint i) override
   { return this_item()->element_index(i); }
@@ -3831,6 +3843,18 @@ public:
   */
   Item_field(THD *thd, Field *field);
   Type type() const override { return FIELD_ITEM; }
+  /*
+    Resolve the data type from a cursor.
+    Example 1:
+      r0 cursor0%ROWTYPE;
+    Example 2:
+      c0 IS REF CURSOR RETURN cursor0%ROWTYPE;
+  */
+  virtual bool resolve_spvar_cursor_rowtype(THD *thd, const sp_cursor &cursor)
+  {
+    DBUG_ASSERT(0);
+    return false;
+  }
   bool eq(const Item *item, const Eq_config &config) const override;
   double val_real() override;
   longlong val_int() override;
@@ -4090,6 +4114,8 @@ public:
     }
     return false;
   }
+  virtual bool resolve_spvar_cursor_rowtype(THD *thd, const sp_cursor &cursor)
+                                                                     override;
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -8722,7 +8748,11 @@ public:
   bool excl_dep_on_grouping_fields(st_select_lex *sel) override
   { return m_item->excl_dep_on_grouping_fields(sel); }
   bool is_expensive() override { return m_item->is_expensive(); }
-  void set_item(Item *item) { m_item= item; }
+  void set_item(Item *item)
+  {
+    m_item= item;
+    ref= &m_item;
+  }
   Item *deep_copy(THD *thd) const override
   {
     Item *clone_item= m_item->deep_copy_with_checks(thd);

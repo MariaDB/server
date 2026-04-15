@@ -503,7 +503,7 @@ inline void fix_checksum(enum_binlog_checksum_alg checksum_alg, String *packet,
   ha_checksum crc;
   crc= my_checksum(0, (uchar *)packet->ptr() + ev_offset, data_len -
                    BINLOG_CHECKSUM_LEN);
-  int4store(packet->ptr() + ev_offset + data_len - BINLOG_CHECKSUM_LEN, crc);
+  int4store(const_cast<char *>(packet->ptr() + ev_offset + data_len - BINLOG_CHECKSUM_LEN), crc);
 }
 
 
@@ -4569,6 +4569,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   if (lex_mi->heartbeat_period)
     lex_mi->heartbeat_period(mi);
   mi->received_heartbeats= 0; // counter lives until master is CHANGEd
+  mi->reset_master_server_id();
 
   /*
     Reset the last time server_id list if the current CHANGE MASTER
@@ -4647,12 +4648,15 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
            lex_mi->log_file_name || lex_mi->pos ||
            lex_mi->relay_log_name || lex_mi->relay_log_pos)
   {
+    if (mi->using_gtid != Master_info::USE_GTID_NO)
+    {
       push_warning_printf(
           thd, Sql_condition::WARN_LEVEL_NOTE, WARN_OPTION_CHANGING,
           ER_THD(thd, WARN_OPTION_CHANGING), "CHANGE MASTER TO", "Using_Gtid",
           mi->using_gtid_astext(mi->using_gtid),
           mi->using_gtid_astext(Master_info::USE_GTID_NO));
-    mi->using_gtid= Master_info::USE_GTID_NO;
+      mi->using_gtid= Master_info::USE_GTID_NO;
+    }
   }
 
   /*

@@ -140,14 +140,10 @@ tab	1	idx6	1	c4	A	#	10	NULL		BTREE			NO
 SET @g1 = ST_GeomFromText('POLYGON((20 20,30 30,40 40,50 50,40 50,30 40,30 30,20 20))');
 SELECT c1,ST_Astext(c2),ST_Astext(c4) FROM tab WHERE ST_Crosses(tab.c4, @g1);
 c1	ST_Astext(c2)	ST_Astext(c4)
-2	POINT(20 20)	POLYGON((40 50,40 70,50 100,70 100,80 80,70 50,40 50))
-1	POINT(10 10)	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
 UPDATE tab SET C2 = ST_GeomFromText('POINT(1000 1000)')
 WHERE ST_Crosses(tab.c4, @g1);
 SELECT c1,ST_Astext(c2),ST_Astext(c4) FROM tab WHERE ST_Crosses(tab.c4, @g1);
 c1	ST_Astext(c2)	ST_Astext(c4)
-2	POINT(1000 1000)	POLYGON((40 50,40 70,50 100,70 100,80 80,70 50,40 50))
-1	POINT(1000 1000)	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
 DELETE FROM tab WHERE ST_Crosses(tab.c4, @g1);
 ALTER TABLE tab CHANGE COLUMN c2 c22 POINT NOT NULL;
 affected rows: 0
@@ -232,18 +228,20 @@ DELETE FROM tab WHERE MBREquals(tab.c4, @g1);
 SELECT c1,ST_Astext(c2),ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1);
 c1	ST_Astext(c2)	ST_Astext(c4)
 ALTER TABLE tab  DROP PRIMARY KEY;
-affected rows: 4
-info: Records: 4  Duplicates: 0  Warnings: 0
+affected rows: 6
+info: Records: 6  Duplicates: 0  Warnings: 0
 ALTER TABLE tab ADD PRIMARY KEY(c2) ;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 SELECT c1,ST_Astext(c2),ST_Astext(c4) FROM tab WHERE ST_Touches(tab.c4, @g1);
 c1	ST_Astext(c2)	ST_Astext(c4)
+2	POINT(20 20)	POLYGON((40 50,40 70,50 100,70 100,80 80,70 50,40 50))
 UPDATE tab SET C2 = ST_GeomFromText('POINT(3000 3000)') 
 WHERE ST_Touches(tab.c4, @g1);
 SELECT c1,ST_Astext(c2),ST_Astext(c4) FROM tab WHERE ST_Touches(tab.c4, @g1);
 c1	ST_Astext(c2)	ST_Astext(c4)
+2	POINT(3000 3000)	POLYGON((40 50,40 70,50 100,70 100,80 80,70 50,40 50))
 DELETE FROM tab WHERE ST_Touches(tab.c4, @g1);
 SELECT c1,ST_Astext(c2),ST_Astext(c4) FROM tab WHERE ST_Touches(tab.c4, @g1);
 c1	ST_Astext(c2)	ST_Astext(c4)
@@ -267,6 +265,7 @@ Table	Op	Msg_type	Msg_text
 test.tab	check	status	OK
 SELECT c1,ST_Astext(c2),ST_Astext(c4) FROM tab ORDER BY c1;
 c1	ST_Astext(c2)	ST_Astext(c4)
+1	POINT(10 10)	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
 6	POINT(3 3)	POLYGON((2010 2010,2020 2020,2030 2030,2040 2030,2020 2010,2010 2010))
 7	POINT(60 70)	POLYGON((3010 3010,3020 3020,3030 3030,3040 3030,3020 3010,3010 3010))
 8	POINT(0 0)	POLYGON((3010 3010,3020 3020,3030 3030,3040 3030,3020 3010,3010 3010))
@@ -290,8 +289,8 @@ SELECT c1,ST_Astext(c2),ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) OR
 c1	ST_Astext(c2)	ST_Astext(c4)
 INSERT INTO tab SELECT * FROM tab1;
 ALTER TABLE tab DROP PRIMARY KEY;
-affected rows: 1
-info: Records: 1  Duplicates: 0  Warnings: 0
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TEMPORARY TABLE temp_tab AS SELECT * FROM tab where c1 = c2;
 ERROR HY000: Illegal parameter data types int and point for operation '='

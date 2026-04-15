@@ -282,7 +282,6 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   Item_basic_constant *item_basic_constant;
   Key_part_spec *key_part;
   LEX *lex;
-  sp_instr_fetch_cursor *instr_fetch_cursor;
   sp_expr_lex *expr_lex;
   sp_assignment_lex *assignment_lex;
   class sp_lex_cursor *sp_cursor_stmt;
@@ -672,6 +671,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> REAL                          /* SQL-2003-R */
 %token  <kwd> RECURSIVE_SYM
 %token  <kwd> REFERENCES                    /* SQL-2003-R */
+%token  <kwd> REF_SYM
 %token  <kwd> REF_SYSTEM_ID_SYM
 %token  <kwd> REGEXP
 %token  <kwd> RELEASE_SYM                   /* SQL-2003-R */
@@ -1386,6 +1386,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         ident_sysvar_name
         ident_for_loop_index
         select_or_ps_name
+        fetch_statement_source
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -1655,9 +1656,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         sp_cursor_stmt_lex
         sp_cursor_stmt
         sp_cursor_stmt_for_open
-
-%type <instr_fetch_cursor>
-        sp_proc_stmt_fetch_head
 
 %type <fetch_target_list>
         sp_fetch_list
@@ -2420,14 +2418,14 @@ master_def:
             { mi->master_ssl_crlpath= path; };
           }
 
-        | MASTER_HEARTBEAT_PERIOD_SYM '=' num_or_default
+        | MASTER_HEARTBEAT_PERIOD_SYM '=' opt_plus num_or_default
           {
-            if ($3)
+            if ($4)
             {
               uint32_t milliseconds;
               bool overprecise;
               auto decimal_buf= my_decimal(),
-                  *decimal= $3->val_decimal(&decimal_buf);
+                  *decimal= $4->val_decimal(&decimal_buf);
               DBUG_ASSERT(decimal);
               if (Master_info_file::Heartbeat_period_value::from_decimal(
                 milliseconds, *decimal, overprecise
@@ -4560,28 +4558,17 @@ sp_proc_stmt_open:
           }
         ;
 
-sp_proc_stmt_fetch_head:
-          FETCH_SYM ident INTO
-          {
-            if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$2))))
-              MYSQL_YYABORT;
-          }
-        | FETCH_SYM FROM ident INTO
-          {
-            if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$3))))
-              MYSQL_YYABORT;
-          }
-       | FETCH_SYM NEXT_SYM FROM ident INTO
-          {
-            if (unlikely(!($$= Lex->sp_add_instr_fetch_cursor(thd, &$4))))
-              MYSQL_YYABORT;
-          }
+fetch_statement_source:
+          ident { $$= $1; }
+        | FROM ident { $$= $2; }
+        | NEXT_SYM FROM ident { $$= $3; }
         ;
 
 sp_proc_stmt_fetch:
-         sp_proc_stmt_fetch_head sp_fetch_list
+         FETCH_SYM fetch_statement_source INTO sp_fetch_list
          {
-           $1->set_fetch_target_list($2);
+           if (unlikely(Lex->sp_add_fetch_cursor(thd, $2, *$4)))
+             MYSQL_YYABORT;
          }
        | FETCH_SYM GROUP_SYM NEXT_SYM ROW_SYM
          {
@@ -6432,25 +6419,24 @@ field_spec:
         ;
 
 field_type_or_serial:
-          qualified_field_type
+          qualified_field_type field_def
           {
+            auto tmp= $1.charset_collation_attrs();
+            if (tmp.merge_column_charset_clause_and_collate_clause(
+                     thd, thd->variables.character_set_collations, $2))
+              MYSQL_YYABORT;
+            $1.set_charset_collation_attrs(tmp);
             if (Lex->last_field->set_attributes(thd, $1,
                                                 COLUMN_DEFINITION_TABLE_FIELD))
               MYSQL_YYABORT;
           }
-          field_def
-          {
-            auto tmp= $1.charset_collation_attrs();
-            if (tmp.merge_column_charset_clause_and_collate_clause(
-                     thd, thd->variables.character_set_collations, $3))
-              MYSQL_YYABORT;
-            Lex->last_field->set_charset_collation_attrs(
-                               thd, thd->variables.character_set_collations,
-                               tmp);
-          }
         | SERIAL_SYM
           {
-            Lex->last_field->set_handler(&type_handler_ulonglong);
+            Lex_field_type_st field_type;
+            field_type.set(&type_handler_ulonglong,
+                           Lex_length_and_dec_st::empty());
+            Lex->last_field->set_attributes(thd, field_type,
+                                            COLUMN_DEFINITION_TABLE_FIELD);
             Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG
                                      | UNSIGNED_FLAG | UNIQUE_KEY_FLAG;
             Lex->alter_info.flags|= ALTER_ADD_INDEX;
@@ -6668,9 +6654,9 @@ field_type_all_with_typedefs:
           {
             Lex->map_data_type(Lex_ident_sys(), &($$= $1));
           }
-        | udt_name float_options srid_option
+        | udt_name float_options srid_option opt_binary
           {
-            if (unlikely(Lex->set_field_type_udt_or_typedef(&$$, $1, $2)))
+            if (unlikely(Lex->set_field_type_udt_or_typedef(&$$, $1, $2, $4)))
               MYSQL_YYABORT;
           }
         ;
@@ -16627,6 +16613,7 @@ keyword_ident:
 %ifdef ORACLE
         | TYPE_SYM
 %endif
+        | REF_SYM
         ;
 
 keyword_sysvar_name:
@@ -17369,6 +17356,7 @@ reserved_keyword_udt_not_param_type:
         | READ_SYM
         | READ_WRITE_SYM
         | RECURSIVE_SYM
+        | REF_SYM
         | REF_SYSTEM_ID_SYM
         | REFERENCES
         | REGEXP
@@ -19315,7 +19303,7 @@ sf_returned_type_clause:
         ;
 
 sf_return_type:
-          field_type
+          field_type_all_with_typedefs
           {
             if (unlikely(Lex->sf_return_fill_definition($1)))
               MYSQL_YYABORT;
@@ -19522,7 +19510,7 @@ sp_param_name_and_mode:
         ;
 
 sp_param_init_vars:
-          sp_param_name_and_mode_init_vars field_type
+          sp_param_name_and_mode_init_vars field_type_all_with_typedefs
           {
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
@@ -19813,7 +19801,7 @@ sf_returned_type_clause:
         ;
 
 sf_return_type:
-          field_type
+          field_type_all_with_typedefs
           {
             if (unlikely(Lex->sf_return_fill_definition($1)))
               MYSQL_YYABORT;
@@ -20441,7 +20429,7 @@ sp_param_name_and_mode:
         ;
 
 sp_param_init_vars:
-          sp_param_name_and_mode_init_vars field_type
+          sp_param_name_and_mode_init_vars field_type_all_with_typedefs
           {
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
@@ -20573,11 +20561,27 @@ create_routine:
                                                 Lex->sp_chistics))))
               MYSQL_YYABORT;
             Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
+            /*
+              Let's call sp_block_init_package_body() to create
+              m_pcont->child_context(0), which is used to search for
+              typedef types. This is to have the code searching for
+              typedef types symmetric in the package specification and
+              the package body.
+            */
+            Lex->sp_block_init_package_body(thd);
           }
           sp_tail_is
           opt_package_specification_element_list END
           remember_end_opt opt_trailing_sp_name
           {
+            /*
+              Package specifications do not have yet variables, conditions,
+              cursors. So let's make an empty Lex_spblock. This will
+              change when we implement package wide declarations (MDEV 13139).
+            */
+            Lex_spblock spblock;
+            if (unlikely(Lex->sp_block_finalize(thd, spblock)))
+              MYSQL_YYABORT;
             if (unlikely(Lex->create_package_finalize(thd, $5, $12, $11)))
               MYSQL_YYABORT;
           }
@@ -20747,7 +20751,7 @@ sp_decl_type:
           {
             if (unlikely(Lex->declare_type_record(thd, $1, $4)))
               MYSQL_YYABORT;
-            $$.vars= $$.conds= $$.hndlrs= $$.curs= 0;
+            $$.init();
           }
         | typed_ident IS TABLE_SYM OF_SYM assoc_array_table_types
           {
@@ -20762,7 +20766,39 @@ sp_decl_type:
             auto def= static_cast<Spvar_definition*>(Lex->last_field);
             if (unlikely(Lex->declare_type_assoc_array(thd, $1, def, $5)))
               MYSQL_YYABORT;
-            $$.vars= $$.conds= $$.hndlrs= $$.curs= 0;
+            $$.init();
+          }
+        | typed_ident IS REF_SYM CURSOR_SYM
+          {
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, Lex_ident_sys(),
+                                                      nullptr, nullptr, $4)))
+              MYSQL_YYABORT;
+            $$.init();
+          }
+        | typed_ident IS REF_SYM CURSOR_SYM RETURN_ORACLE_SYM sp_decl_ident
+          {
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, $6,
+                                                      nullptr, nullptr, $5)))
+              MYSQL_YYABORT;
+            $$.init();
+          }
+        | typed_ident IS REF_SYM CURSOR_SYM RETURN_ORACLE_SYM
+          optionally_qualified_column_ident
+          PERCENT_ORACLE_SYM TYPE_SYM
+          {
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, Lex_ident_sys(),
+                                                      nullptr, $6, $8)))
+              MYSQL_YYABORT;
+            $$.init();
+          }
+        | typed_ident IS REF_SYM CURSOR_SYM RETURN_ORACLE_SYM
+          optionally_qualified_column_ident
+          PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
+          {
+            if (unlikely(Lex->declare_type_ref_cursor(thd, $1, Lex_ident_sys(),
+                                                      $6, nullptr, $8)))
+              MYSQL_YYABORT;
+            $$.init();
           }
         ;
 

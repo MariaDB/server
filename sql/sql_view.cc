@@ -1761,7 +1761,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
     if (view_query_lex->first_select_lex()->options & OPTION_TO_QUERY_CACHE)
       parent_query_lex->first_select_lex()->options|= OPTION_TO_QUERY_CACHE;
 
-    parent_query_lex->default_used= view_query_lex->default_used;
+    parent_query_lex->default_used|= view_query_lex->default_used;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (view_table_alias->view_suid)

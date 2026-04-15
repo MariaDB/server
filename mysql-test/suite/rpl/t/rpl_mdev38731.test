@@ -1,0 +1,21 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+CREATE TABLE t (a int, b int, c int, d int, KEY (d)) ENGINE=InnoDB;
+INSERT INTO t (a,b,d) VALUES
+  (1,NULL,4),(2,NULL,1),(3,NULL,1),
+  (4,NULL,1),(5,NULL,1),(6,NULL,1),
+  (7,0,NULL),(8,NULL,NULL);
+ALTER TABLE t ADD UNIQUE (b);
+--sync_slave_with_master
+ANALYZE TABLE t;
+--connection master
+UPDATE t SET c = 1;
+ALTER TABLE t ADD UNIQUE (a);
+
+--sync_slave_with_master
+
+--connection master
+DROP TABLE t;
+--source include/rpl_end.inc

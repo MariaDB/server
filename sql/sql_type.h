@@ -3546,6 +3546,14 @@ public:
 };
 
 
+class Type_generic_attributes
+{
+public:
+  virtual ~Type_generic_attributes() { }
+  virtual const Type_handler *type_handler() const = 0;
+};
+
+
 /*
   A container for very specific data type attributes.
   For now it provides space for:
@@ -3554,29 +3562,30 @@ public:
 */
 class Type_extra_attributes
 {
-  const void *m_attr_const_void_ptr[1];
+  const Type_generic_attributes *m_attr_const_generic_attributes_ptr[1];
   uint32 m_attr_uint32[1];
 public:
   Type_extra_attributes()
-   :m_attr_const_void_ptr{0},
+   :m_attr_const_generic_attributes_ptr{0},
     m_attr_uint32{0}
   { }
-  Type_extra_attributes(const void *const_void_ptr)
-   :m_attr_const_void_ptr{const_void_ptr},
+  Type_extra_attributes(const Type_generic_attributes *ptr)
+   :m_attr_const_generic_attributes_ptr{ptr},
     m_attr_uint32{0}
   { }
   /*
     Generic const pointer attributes.
     The ENUM and SET data types store TYPELIB information here.
   */
-  Type_extra_attributes & set_attr_const_void_ptr(uint i, const void *value)
+  Type_extra_attributes & set_attr_const_generic_ptr(uint i,
+                                          const Type_generic_attributes *value)
   {
-    m_attr_const_void_ptr[i]= value;
+    m_attr_const_generic_attributes_ptr[i]= value;
     return *this;
   }
-  const void *get_attr_const_void_ptr(uint i) const
+  const Type_generic_attributes *get_attr_const_generic_ptr(uint i) const
   {
-    return m_attr_const_void_ptr[i];
+    return m_attr_const_generic_attributes_ptr[i];
   }
   /*
     Generic uint32 attributes.
@@ -3591,49 +3600,57 @@ public:
   {
     return m_attr_uint32[i];
   }
-  /*
-    Helper methods for TYPELIB attributes.
-    They are mostly needed to simplify the code
-    in Column_definition_attributes and Column_definition methods.
-    Eventually we should move this code into Type_typelib_attributes
-    and remove these methods.
-  */
-  Type_extra_attributes & set_typelib(const TYPELIB *typelib)
+};
+
+
+class Type_typelib_attributes: public Sql_alloc,
+                               public Type_generic_attributes,
+                               public TYPELIB
+{
+public:
+  Type_typelib_attributes()
+   :TYPELIB{0, nullptr, nullptr, nullptr, nullptr}
+  { }
+  Type_typelib_attributes(const TYPELIB &typelib)
+   :TYPELIB(typelib)
+  { }
+  const Type_handler *type_handler() const override;
+  Type_typelib_attributes *deep_copy(MEM_ROOT *root) const
   {
-    return set_attr_const_void_ptr(0, typelib);
-  }
-  const TYPELIB *typelib() const
-  {
-    return (const TYPELIB*) get_attr_const_void_ptr(0);
+    TYPELIB *typelib= copy_typelib(root, this);
+    if (!typelib)
+      return nullptr;
+    return new (root) Type_typelib_attributes(*typelib);
   }
 };
 
 
-class Type_typelib_attributes
+class Type_typelib_ptr_attributes
 {
 protected:
-  const TYPELIB *m_typelib;
+  const Type_typelib_attributes *m_typelib_attr;
 public:
-  Type_typelib_attributes()
-   :m_typelib(nullptr)
+  Type_typelib_ptr_attributes()
+   :m_typelib_attr(nullptr)
   { }
-  Type_typelib_attributes(const TYPELIB *typelib)
-   :m_typelib(typelib)
+  Type_typelib_ptr_attributes(const Type_typelib_attributes *typelib)
+   :m_typelib_attr(typelib)
   { }
-  Type_typelib_attributes(const Type_extra_attributes &eattr)
-   :m_typelib((const TYPELIB *) eattr.get_attr_const_void_ptr(0))
+  Type_typelib_ptr_attributes(const Type_extra_attributes &eattr)
+   :m_typelib_attr(dynamic_cast<const Type_typelib_attributes *>
+                     (eattr.get_attr_const_generic_ptr(0)))
   { }
-  void store(Type_extra_attributes *to) const
+  void save_in_type_extra_attributes(Type_extra_attributes *to) const
   {
-    to->set_attr_const_void_ptr(0, m_typelib);
+    to->set_attr_const_generic_ptr(0, m_typelib_attr);
+  }
+  const Type_typelib_attributes *typelib_attr() const
+  {
+    return m_typelib_attr;
   }
   const TYPELIB *typelib() const
   {
-    return m_typelib;
-  }
-  void set_typelib(const TYPELIB *typelib)
-  {
-    m_typelib= typelib;
+    return m_typelib_attr;
   }
 };
 
@@ -3997,6 +4014,20 @@ public:
 
   void set_name(Name n) { DBUG_ASSERT(!m_name.ptr()); m_name= n; }
   const Name name() const { return m_name; }
+
+  /*
+    Check if the data type supports attributes (coming from the parser)
+    @param name           - requested name, e.g. as in TYPE (typedef)
+    @param length_and_dec - length and scale
+    @param coll           - character set and/or collation
+    @param srid           - SRID (spatial attribute)
+    @return true          - on error, SQL error is also raised to DA
+    @return false         - on success
+  */
+  bool check_data_type_attributes(const LEX_CSTRING &name,
+                              const Lex_length_and_dec_st &length_and_dec,
+                              const Lex_column_charset_collation_attrs_st &coll,
+                              uint32 srid) const;
   virtual const Name version() const;
   virtual const Name &default_value() const= 0;
   virtual uint32 flags() const { return 0; }
@@ -4202,6 +4233,15 @@ public:
                                             CHARSET_INFO *cs) const
   { return this; }
   /*
+    Resolve data type references in variable declarations:
+      var1 t1.col1%TYPE;
+      var2 ROW(a t1.col1%TYPE, b t1.col2.TYPE);
+    and in TYPE declarations:
+      TYPE rec0_t (a t1.col1%TYPE, b t1.col2.TYPE);
+  */
+  virtual bool Spvar_definition_resolve_type_refs(THD *thd,
+                                                  Spvar_definition *def) const;
+  /*
     Check if an Spvar_definition instance is of a complex data type,
     or contains a complex data type in its components (e.g. a ROW member).
   */
@@ -4335,8 +4375,6 @@ public:
                                                 const Lex_field_type_st &attr,
                                                 column_definition_type_t type)
                                                 const;
-  // Fix attributes after the parser
-  virtual bool Column_definition_fix_attributes(Column_definition *c) const= 0;
   /*
     Fix attributes from an existing field. Used for:
     - ALTER TABLE (for columns that do not change)
@@ -5097,6 +5135,11 @@ public:
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
                                  String *tmp) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const override;
@@ -5473,6 +5516,11 @@ public:
   {
     return type_limits_int()->char_length();
   }
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                                      const override;
   uint32 Item_decimal_notation_int_digits(const Item *item) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const LEX_CSTRING &name,
@@ -5807,7 +5855,6 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -5858,7 +5905,6 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -5909,7 +5955,6 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -6009,7 +6054,6 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -6074,7 +6118,11 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *mem_root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                                      const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -6120,7 +6168,11 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   void Column_definition_reuse_fix_attributes(THD *thd,
                                               Column_definition *c,
                                               const Field *field)
@@ -6185,7 +6237,11 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
@@ -6242,7 +6298,11 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -6297,7 +6357,11 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -6383,7 +6447,11 @@ public:
                                const override;
   void Column_definition_implicit_upgrade_to_this(
                                          Column_definition *old) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
                                           TABLE_SHARE *share,
@@ -6581,7 +6649,11 @@ public:
   bool validate_implicit_default_value(THD *thd,
                                        const Column_definition &def)
                                        const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const override;
@@ -6708,7 +6780,11 @@ public:
                                        const override;
   void Column_definition_implicit_upgrade_to_this(
                                          Column_definition *old) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
                                           TABLE_SHARE *share,
@@ -6880,7 +6956,11 @@ public:
   void sort_length(THD *thd,
                    const Type_std_attributes *item,
                    SORT_FIELD_ATTR *attr) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   decimal_digits_t Item_decimal_scale(const Item *item) const override
   {
     return Item_decimal_scale_with_seconds(item);
@@ -7003,7 +7083,6 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -7036,7 +7115,6 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
@@ -7093,7 +7171,6 @@ public:
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
   bool union_element_finalize(Item_type_holder* item) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
@@ -7171,7 +7248,6 @@ public:
                                         const Lex_field_type_st &attr,
                                         column_definition_type_t type)
                                         const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override;
@@ -7211,7 +7287,6 @@ public:
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   void show_binlog_type(const Conv_source &src, const Field &dst, String *str)
     const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -7268,7 +7343,6 @@ public:
                                         const Lex_field_type_st &attr,
                                         column_definition_type_t type)
                                         const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override;
@@ -7367,7 +7441,11 @@ public:
   }
   bool is_param_long_data_type() const override { return true; }
   uint calc_key_length(const Column_definition &def) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override;
@@ -7567,7 +7645,11 @@ public:
                                      TABLE *table, uint metadata,
                                      const Field *target)
                                      const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override;
@@ -7608,7 +7690,11 @@ public:
                                      TABLE *table, uint metadata,
                                      const Field *target)
                                      const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override;

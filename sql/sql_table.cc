@@ -115,9 +115,8 @@ static Lex_ident_column make_unique_key_name(THD *,
                                              const KEY *, const KEY *);
 static bool make_unique_constraint_name(THD *, LEX_CSTRING *, const char *,
                                         List<Virtual_column_info> *, uint *);
-static Lex_ident_column make_unique_invisible_field_name(THD *,
-                                             const Lex_ident_column &name,
-                                             List<Create_field> *);
+static Lex_ident_column make_internal_field_name(THD *, const char *,
+                                                 List<Create_field> *);
 static int copy_data_between_tables(THD *, TABLE *,TABLE *,
                                     bool, uint, ORDER *,
                                     ha_rows *, ha_rows *,
@@ -2703,6 +2702,8 @@ bool Column_definition::prepare_stage1_check_typelib_default()
   }
   return false;
 }
+
+#ifndef DBUG_OFF
 /*
    This function adds a invisible field to field_list
    SYNOPSIS
@@ -2719,25 +2720,16 @@ bool Column_definition::prepare_stage1_check_typelib_default()
     RETURN VALUE
       Create_field pointer
 */
-int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
+static int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
         const Lex_ident_column &field_name, Type_handler *type_handler,
         field_visibility_t invisible, Item* default_value)
 {
   Create_field *fld= new(thd->mem_root)Create_field();
   /* Get unique field name if invisible == INVISIBLE_FULL */
   if (invisible == INVISIBLE_FULL)
-  {
-    Lex_ident_column new_name;
-    if ((new_name= make_unique_invisible_field_name(thd, field_name,
-                                                    field_list)).str)
-      fld->field_name= new_name;
-    else
-      return 1;  //Should not happen
-  }
+    fld->field_name= make_internal_field_name(thd, field_name.str, field_list);
   else
-  {
     fld->field_name= thd->lex_ident_copy(field_name);
-  }
   fld->set_handler(type_handler);
   fld->invisible= invisible;
   if (default_value)
@@ -2750,6 +2742,7 @@ int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
   field_list->push_front(fld, thd->mem_root);
   return 0;
 }
+#endif
 
 #define INTERNAL_FIELD_NAME_LENGTH  30
 
@@ -2784,7 +2777,8 @@ static Create_field *add_internal_field(THD *thd, Type_handler *type_handler,
   return cf;
 }
 
-Key *
+#ifndef DBUG_OFF
+static Key *
 mysql_add_invisible_index(THD *thd, List<Key> *key_list,
         LEX_CSTRING* field_name, enum Key::Keytype type)
 {
@@ -2795,6 +2789,7 @@ mysql_add_invisible_index(THD *thd, List<Key> *key_list,
   key_list->push_back(key, thd->mem_root);
   return key;
 }
+#endif
 
 
 bool Type_handler_string::Key_part_spec_init_ft(Key_part_spec *part,
@@ -3183,7 +3178,7 @@ static bool mysql_prepare_create_table_stage1(THD *thd,
 
   DBUG_EXECUTE_IF("test_pseudo_invisible",{
           mysql_add_invisible_field(thd, &alter_info->create_list,
-                      "invisible"_Lex_ident_column,
+                      "invisible1"_Lex_ident_column,
                       &type_handler_slong, INVISIBLE_SYSTEM,
                       new (thd->mem_root)Item_int(thd, 9));
           });
@@ -3194,7 +3189,7 @@ static bool mysql_prepare_create_table_stage1(THD *thd,
                       new (thd->mem_root)Item_int(thd, 9));
           });
   DBUG_EXECUTE_IF("test_invisible_index",{
-          LEX_CSTRING temp= "invisible"_Lex_ident_column;
+          LEX_CSTRING temp= "invisible1"_Lex_ident_column;
           mysql_add_invisible_index(thd, &alter_info->key_list
                   , &temp, Key::MULTIPLE);
           });
@@ -5409,23 +5404,6 @@ check_if_keyname_exists(const Lex_ident_column &name,
   return 0;
 }
 
-/**
- Returns 1 if field name exists otherwise 0
-*/
-static bool
-check_if_field_name_exists(const Lex_ident_column &name,
-                           List<Create_field> * fields)
-{
-  Create_field *fld;
-  List_iterator<Create_field>it(*fields);
-  while ((fld = it++))
-  {
-    if (fld->field_name.streq(name))
-      return 1;
-  }
-  return 0;
-}
-
 static Lex_ident_column
 make_unique_key_name(THD *thd, const Lex_ident_column &field_name,
                      const KEY *start, const KEY *end)
@@ -5488,36 +5466,6 @@ static bool make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
     }
   }
   return FALSE;
-}
-
-/**
-  INVISIBLE_FULL are internally created. They are completely invisible
-  to Alter command (Opposite of SYSTEM_INVISIBLE which throws an
-  error when same name column is added by Alter). So in the case of when
-  user added a same column name as of INVISIBLE_FULL , we change
-  INVISIBLE_FULL column name.
-*/
-static Lex_ident_column
-make_unique_invisible_field_name(THD *thd,
-                                 const Lex_ident_column &field_name,
-                                 List<Create_field> *fields)
-{
-  if (!check_if_field_name_exists(field_name, fields))
-    return field_name;
-  char buff[MAX_FIELD_NAME], *buff_end;
-  buff_end= strmake_buf(buff, field_name.str);
-  if (buff_end - buff < 5)
-    return Lex_ident_column(); // Should not happen
-
-  for (uint i=1 ; i < 10000; i++)
-  {
-    char *real_end= int10_to_str(i, buff_end, 10);
-    const Lex_ident_column ident(buff, (size_t) (real_end - buff));
-    if (check_if_field_name_exists(ident, fields))
-      continue;
-    return thd->lex_ident_copy(ident);
-  }
-  return Lex_ident_column(); // Should not happen
 }
 
 /****************************************************************************
@@ -9122,16 +9070,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       continue;
     Lex_ident_column key_name(key_info->name);
     const bool primary_key= table->s->primary_key == i;
-    const bool explicit_pk= primary_key &&
-                            key_name.streq(primary_key_name);
+    const bool explicit_pk= primary_key && key_name.streq(primary_key_name);
     const bool implicit_pk= primary_key && !explicit_pk;
 
     Alter_drop *drop;
     drop_it.rewind();
     while ((drop=drop_it++))
     {
-      if (drop->type == Alter_drop::KEY &&
-          key_name.streq(drop->name))
+      if (drop->type == Alter_drop::KEY && key_name.streq(drop->name))
 	break;
     }
     if (drop)
@@ -9594,6 +9540,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   {
     Alter_drop *drop;
     drop_it.rewind();
+    List<LEX_CSTRING> dropped_fk;
     while ((drop=drop_it++)) {
       switch (drop->type) {
       case Alter_drop::KEY:
@@ -9622,7 +9569,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           while (FOREIGN_KEY_INFO *f_key= fk_key_it++)
           {
             if (Lex_ident_column(*f_key->foreign_id).streq(drop->name))
+            {
+              List_iterator<LEX_CSTRING> check_it(dropped_fk);
+              while (LEX_CSTRING *dropped_name = check_it++)
+                if (Lex_ident_column(*f_key->foreign_id).streq(*dropped_name))
+                  goto fk_not_found;
+              dropped_fk.push_back(f_key->foreign_id);
               goto fk_found;
+            }
           }
           goto fk_not_found;
         fk_found:
@@ -9914,6 +9868,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     when a foreign key has the same table as child and parent.
   */
   List_iterator<FOREIGN_KEY_INFO> fk_parent_key_it(fk_parent_key_list);
+  List<FOREIGN_KEY_INFO> keys_to_remove;
 
   while ((f_key= fk_parent_key_it++))
   {
@@ -9933,10 +9888,31 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
           drop->name.streq(*f_key->foreign_id) &&
           table->s->db.streq(*f_key->foreign_db) &&
           table->s->table_name.streq(*f_key->foreign_table))
-        fk_parent_key_it.remove();
+      {
+        keys_to_remove.push_back(f_key);
+        break;
+      }
     }
   }
 
+  IF_DBUG(uint removed= 0,);
+  /* Remove the identified keys */
+  List_iterator<FOREIGN_KEY_INFO> remove_it(keys_to_remove);
+  while ((f_key = remove_it++))
+  {
+    fk_parent_key_it.rewind();
+    while (FOREIGN_KEY_INFO *fk= fk_parent_key_it++)
+    {
+      if (fk == f_key)
+      {
+        fk_parent_key_it.remove();
+        IF_DBUG(removed++,);
+        break;
+      }
+    }
+  }
+  DBUG_ASSERT(keys_to_remove.elements == removed);
+  IF_DBUG(removed= 0,);
   /*
     If there are FKs in which this table is parent which were not
     dropped we need to prevent ALTER deleting rows from the table,
@@ -10007,6 +9983,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     by this ALTER TABLE.
   */
   List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
+  keys_to_remove.empty();
 
   while ((f_key= fk_key_it++))
   {
@@ -10018,9 +9995,30 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
       /* Names of foreign keys in InnoDB are case-insensitive. */
       if ((drop->type == Alter_drop::FOREIGN_KEY) &&
           (Lex_ident_column(*f_key->foreign_id).streq(drop->name)))
-        fk_key_it.remove();
+      {
+        keys_to_remove.push_back(f_key);
+        break;
+      }
     }
   }
+
+  /* Remove the identified keys */
+  List_iterator<FOREIGN_KEY_INFO> remove_it2(keys_to_remove);
+  while ((f_key = remove_it2++))
+  {
+    fk_key_it.rewind();
+    while (FOREIGN_KEY_INFO *fk= fk_key_it++)
+    {
+      if (fk == f_key)
+      {
+        fk_key_it.remove();
+        IF_DBUG(removed++,);
+        break;
+      }
+    }
+  }
+
+  DBUG_ASSERT(keys_to_remove.elements == removed);
 
   fk_key_it.rewind();
   while ((f_key= fk_key_it++))
@@ -12509,7 +12507,7 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
   thd->push_internal_handler(&hdeh);
   do
   {
-    const auto *descr_event= rgi->rli->relay_log.description_event_for_exec;
+    const auto *descr_event= rgi->rli->relay_log.description_event_for_sql_thread;
     auto *ev= Log_event::read_log_event(log_file, &error, descr_event, 0, 1, ~0UL);
     error= log_file->error;
     if (unlikely(!ev))
@@ -12527,7 +12525,7 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
     if(likely(!error))
       ev->online_alter_update_row_count(found_rows);
 
-    if (ev != rgi->rli->relay_log.description_event_for_exec)
+    if (ev != rgi->rli->relay_log.description_event_for_sql_thread)
       delete ev;
     thd_progress_report(thd, my_b_tell(log_file), thd->progress.max_counter);
     DEBUG_SYNC(thd, "alter_table_online_progress");
@@ -12811,9 +12809,10 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   thd->progress.max_counter= from->file->records();
   time_to_report_progress= MY_HOW_OFTEN_TO_WRITE/10;
-  /* for now, InnoDB needs the undo log for ALTER IGNORE */
-  if (!ignore && !to->s->hlindexes())
-    to->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
+  static_assert(int{HA_EXTRA_BEGIN_ALTER_IGNORE_COPY} ==
+                int{HA_EXTRA_BEGIN_COPY} + 1, "");
+  if (!to->s->hlindexes())
+    to->file->extra(ha_extra_function(int{HA_EXTRA_BEGIN_COPY} + ignore));
 
   if (!(error= info.read_record()))
   {
@@ -13000,13 +12999,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
 
   bulk_insert_started= 0;
-  if (!ignore && !to->s->hlindexes() && error <= 0)
+  if (error <= 0 && !to->s->hlindexes())
   {
-    int alt_error= to->file->extra(HA_EXTRA_END_ALTER_COPY);
+    Abort_on_warning_instant_set save_abort_on_warning(thd, false);
+    int alt_error= to->file->extra(HA_EXTRA_END_COPY);
     if (alt_error > 0)
     {
       error= alt_error;
-      to->file->extra(HA_EXTRA_ABORT_ALTER_COPY);
+      to->file->extra(HA_EXTRA_ABORT_COPY);
       copy_data_error_ignore(error, false, to, thd, alter_ctx);
     }
   }
@@ -13086,7 +13086,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     Cache_flip_event_log *binlog= from->s->online_alter_binlog;
     DBUG_ASSERT(binlog->is_open());
 
-    rli->relay_log.description_event_for_exec=
+    rli->relay_log.description_event_for_sql_thread=
                                             new Format_description_log_event(4);
 
     // We'll be filling from->record[0] from row events
@@ -13142,6 +13142,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   if (error > 0 && !from->s->tmp_table)
   {
+    /* Abort the operation which invoked extra(HA_EXTRA_BEGIN_COPY)
+    or extra(HA_EXTRA_BEGIN_ALTER_IGNORE_COPY) */
+    to->file->extra(HA_EXTRA_ABORT_COPY);
     /* We are going to drop the temporary table */
     to->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
   }

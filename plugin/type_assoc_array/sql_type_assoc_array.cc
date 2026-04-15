@@ -2399,31 +2399,49 @@ bool Type_handler_assoc_array::
                                                                  const
 {
   const sp_type_def_composite2 *tdef;
+
+  if (type == COLUMN_DEFINITION_ROUTINE_PARAM)
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             def->type_handler()->name().ptr(), "<routine parameter>");
+    return true;
+  }
+  if (type == COLUMN_DEFINITION_FUNCTION_RETURN)
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             def->type_handler()->name().ptr(), "RETURN");
+    return true;
+  }
+
   /*
     Disallow wrong use of associative_array:
       CREATE TABLE t1 (a ASSOCIATIVE_ARRAY);
       CREATE FUNCTION .. RETURN ASSOCIATEIVE ARRAY ..;
   */
-  if (!(tdef= reinterpret_cast<const sp_type_def_composite2*>
-                           (def->get_attr_const_void_ptr(0))))
+  if (!(tdef= dynamic_cast<const sp_type_def_composite2*>
+                           (def->get_attr_const_generic_ptr(0))))
   {
     my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), name().ptr());
     return true;
   }
 
-  if (unlikely(tdef->m_def[1]->type_handler() == this))
+  /*
+    Disallow complex types such as assoc array, ref cursors
+    as assoc array elements.
+  */
+  if (unlikely(tdef->def(1).type_handler()->is_complex()))
   {
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-             tdef->m_def[1]->type_handler()->name().ptr(),
+             tdef->def(1).type_handler()->name().ptr(),
              "<array element data type>");
     return true;
   }
-  if (unlikely(tdef->m_def[0]->type_handler() != &type_handler_varchar &&
+  if (unlikely(tdef->def(0).type_handler() != &type_handler_varchar &&
                !dynamic_cast<const Type_handler_general_purpose_int*>
-                                            (tdef->m_def[0]->type_handler())))
+                                            (tdef->def(0).type_handler())))
   {
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-             tdef->m_def[0]->type_handler()->name().ptr(),
+             tdef->def(0).type_handler()->name().ptr(),
              "<array index data type>");
     return true;
   }
@@ -2440,19 +2458,21 @@ bool Type_handler_assoc_array::
                                                             const
 {
   const sp_type_def_composite2 *spaa=
-                                  static_cast<const sp_type_def_composite2*>
-                                    (def.get_attr_const_void_ptr(0));
+                                  dynamic_cast<const sp_type_def_composite2*>
+                                    (def.get_attr_const_generic_ptr(0));
   DBUG_ASSERT(spaa);
-  DBUG_ASSERT(spaa->m_def[0]);
-  DBUG_ASSERT(spaa->m_def[1]);
-  Spvar_definition *key_def= spaa->m_def[0];
-  Spvar_definition *value_def= spaa->m_def[1];
+  DBUG_ASSERT(spaa->def(0).type_handler() != &type_handler_null);
+  DBUG_ASSERT(spaa->def(1).type_handler() != &type_handler_null ||
+              spaa->def(1).column_type_ref());
+  const Spvar_definition *key_def= &spaa->def(0);
+  Spvar_definition *value_def;
 
-  value_def= new (thd->mem_root) Spvar_definition(*value_def);
+  value_def= new (thd->mem_root) Spvar_definition(spaa->def(1));
   if (value_def->type_handler() == &type_handler_row)
   {
     if (const sp_type_def_record *sprec=
-        (sp_type_def_record *)value_def->get_attr_const_void_ptr(0))
+         dynamic_cast<const sp_type_def_record *>
+           (value_def->get_attr_const_generic_ptr(0)))
     {
       /*
         Hack to ensure that we don't call sp_head::row_fill_field_definitions()
@@ -2480,7 +2500,7 @@ bool Type_handler_assoc_array::
   if (unlikely(aa_def == nullptr))
     return true;
 
-  aa_def->push_back(key_def, thd->mem_root);
+  aa_def->push_back(new(thd->mem_root) Spvar_definition(*key_def), thd->mem_root);
   aa_def->push_back(value_def, thd->mem_root);
 
   for (uint i= 0 ; i < (uint) nvars ; i++)

@@ -1,0 +1,465 @@
+--source include/not_embedded.inc
+
+if (!$SERVER_AUDIT_SO) {
+  skip No SERVER_AUDIT plugin;
+}
+
+let count_sessions= 1;
+source include/wait_until_count_sessions.inc;
+
+--disable_ps_protocol
+--disable_view_protocol
+
+# The plugin is loaded via .opt file
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+let SEARCH_FILE= $MYSQLD_DATADIR/server_audit_timestamp.log;
+
+set global server_audit_logging=on;
+
+# Default format
+select 1;
+
+# Custom format 1: Just date
+set global server_audit_timestamp_format='CUSTOM-DATE %Y-%m-%d';
+select 2;
+
+# Custom format 2: Including timezone. It should use global timezone instead of session one.
+set time_zone='+05:00';
+set global server_audit_timestamp_format='CUSTOM-TZ %H:%i:%s %z';
+select 3;
+set time_zone=DEFAULT;
+
+# Revert to default
+set global server_audit_timestamp_format=DEFAULT;
+select 4;
+
+--echo #
+--echo # Error handling for long timestamp format
+--echo #
+set global server_audit_timestamp_format='%H:%i:%s';
+show variables like 'server_audit_timestamp_format';
+
+--echo # Attempting to set an excessively long format string.
+--error ER_WRONG_VALUE_FOR_VAR
+set global server_audit_timestamp_format=repeat('A', 130);
+
+--echo # Value should still be the old one
+show variables like 'server_audit_timestamp_format';
+
+--echo #
+--echo # Test large expansion (many %M specifiers)
+--echo #
+set global server_audit_timestamp_format='%M %M %M %M %M %M %M %M %M %M %M %M %M %M %M';
+select 5;
+set global server_audit_timestamp_format='CMD-LINE-%Y-%m-%d';
+
+set global server_audit_logging=off;
+
+# We use replace_regex to mask the actual volatile parts but keep our prefixes
+--replace_regex /\d{4}\d{2}\d{2} \d{2}:\d{2}:\d{2}/TIMESTAMP/ /CUSTOM-DATE \d{4}-\d{2}-\d{2}/CUSTOM-DATE TIMESTAMP/ /CUSTOM-TZ \d{2}:\d{2}:\d{2} [+-]\d{4}/CUSTOM-TZ TIMESTAMP/ /CUSTOM-TZ \d{2}:\d{2}:\d{2}/CUSTOM-TZ TIMESTAMP/ /CMD-LINE-\d{4}-\d{2}-\d{2}/CMD-LINE-TIMESTAMP/ /([A-Z][a-z]+ ){10,}[A-Z][a-z]+/TIMESTAMP/ /\d{2}:\d{2}:\d{2}/TIMESTAMP/ /,[^,]+,root,(localhost|localhost:[0-9]+),(\d+),(\d+),/,HOSTNAME,root,localhost,ID,ID,/
+cat_file $SEARCH_FILE;
+
+remove_file $SEARCH_FILE;
+
+#
+# More tests from Roel
+#
+
+--echo ########################################################################
+--echo # Section 1: Variable basics and boundary conditions
+--echo ########################################################################
+
+--echo # Default value
+set global server_audit_timestamp_format=DEFAULT;
+show variables like 'server_audit_timestamp_format';
+select @@global.server_audit_timestamp_format;
+
+--echo # Session scope is not allowed
+--error ER_GLOBAL_VARIABLE
+set session server_audit_timestamp_format='test';
+
+--echo # Boundary: exactly 127 chars (max valid length, TIMESTAMP_FORMAT_LENGTH=128)
+set global server_audit_timestamp_format=repeat('B', 127);
+select length(@@global.server_audit_timestamp_format);
+
+--echo # Boundary: exactly 128 chars (should fail, >= TIMESTAMP_FORMAT_LENGTH)
+--error ER_WRONG_VALUE_FOR_VAR
+set global server_audit_timestamp_format=repeat('C', 128);
+
+--echo # Verify value unchanged after failed SET
+select @@global.server_audit_timestamp_format = repeat('B', 127) as 'must be 1';
+
+--echo # 129 chars also fails
+--error ER_WRONG_VALUE_FOR_VAR
+set global server_audit_timestamp_format=repeat('D', 129);
+
+--echo # Empty string is accepted
+set global server_audit_timestamp_format='';
+show variables like 'server_audit_timestamp_format';
+
+--echo # Restore to default
+set global server_audit_timestamp_format=DEFAULT;
+show variables like 'server_audit_timestamp_format';
+
+--echo ########################################################################
+--echo # Section 2: Comprehensive format specifier coverage
+--echo ########################################################################
+
+let SEARCH_FILE= $MYSQLD_DATADIR/ts_ext_specifiers.log;
+set global server_audit_file_path='ts_ext_specifiers.log';
+set global server_audit_logging=on;
+
+--echo # 2a: Date components %Y-%m-%d
+set global server_audit_timestamp_format='DT=%Y-%m-%d';
+select 'fmt_date';
+
+--echo # 2b: Time components %H:%i:%s
+set global server_audit_timestamp_format='TM=%H:%i:%s';
+select 'fmt_time';
+
+--echo # 2c: 12-hour time %r and AM/PM %p
+set global server_audit_timestamp_format='HR=%r AP=%p';
+select 'fmt_12h';
+
+--echo # 2d: Full weekday %W and month name %M
+set global server_audit_timestamp_format='WD=%W MN=%M';
+select 'fmt_names';
+
+--echo # 2e: Abbreviated weekday %a and month %b
+set global server_audit_timestamp_format='AD=%a AB=%b';
+select 'fmt_abbr';
+
+--echo # 2f: Day of year %j and week number %U
+set global server_audit_timestamp_format='JD=%j WK=%U';
+select 'fmt_jweek';
+
+--echo # 2g: Literal percent %%
+set global server_audit_timestamp_format='100%% %Y';
+select 'fmt_pct';
+
+--echo # 2h: Ordinal day suffix %D
+set global server_audit_timestamp_format='OD=%D';
+select 'fmt_ord';
+
+--echo # 2i: Literal text only (no specifiers at all)
+set global server_audit_timestamp_format='STATIC-TEXT';
+select 'fmt_literal';
+
+--echo # 2j: ISO 8601 format
+set global server_audit_timestamp_format='%Y-%m-%dT%H:%i:%s';
+select 'fmt_iso';
+
+--echo # 2k: 24-hour time format %T
+set global server_audit_timestamp_format='T24=%T';
+select 'fmt_t24';
+
+--echo # 2l: Microseconds %f (always 000000 until MDEV-39307 is fixed)
+set global server_audit_timestamp_format='US=%f';
+select 'fmt_usec';
+
+--echo # 2m: Timezone offset %z
+set global server_audit_timestamp_format='TZ=%z';
+select 'fmt_tz';
+
+set global server_audit_logging=off;
+
+--echo # Verify each format specifier pattern appears in the audit log
+--let SEARCH_PATTERN=DT=\d{4}-\d{2}-\d{2}.*fmt_date
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=TM=\d{2}:\d{2}:\d{2}.*fmt_time
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=HR=\d{2}:\d{2}:\d{2} [AP]M AP=[AP]M.*fmt_12h
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=WD=\w+ MN=\w+.*fmt_names
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=AD=\w+ AB=\w+.*fmt_abbr
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=JD=\d{3} WK=\d{2}.*fmt_jweek
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=100% \d{4}.*fmt_pct
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=OD=\d+\w+.*fmt_ord
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=STATIC-TEXT.*fmt_literal
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*fmt_iso
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=T24=\d{2}:\d{2}:\d{2}.*fmt_t24
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=US=000000.*fmt_usec
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=TZ=[+-]\d{4}.*fmt_tz
+--source include/search_pattern_in_file.inc
+
+remove_file $SEARCH_FILE;
+
+--echo ########################################################################
+--echo # Section 3: All event types get custom timestamps
+--echo ########################################################################
+
+let SEARCH_FILE= $MYSQLD_DATADIR/ts_ext_events.log;
+set global server_audit_file_path='ts_ext_events.log';
+set global server_audit_events='connect,query,table';
+set global server_audit_timestamp_format='EV=%Y%m%d';
+set global server_audit_logging=on;
+
+--echo # Query event
+select 'query_event';
+
+--echo # Table events (CREATE, INSERT, SELECT, RENAME, DROP)
+create table test.ts_t1 (id int);
+insert into test.ts_t1 values (1);
+select * from test.ts_t1;
+alter table test.ts_t1 rename test.ts_t2;
+drop table test.ts_t2;
+
+--echo # Connect and disconnect events
+connect con1,localhost,root;
+select 'from_con1';
+disconnect con1;
+
+connection default;
+source include/wait_until_count_sessions.inc;
+
+set global server_audit_logging=off;
+
+--echo # Verify each event type has the EV= custom timestamp prefix
+--let SEARCH_PATTERN=^[^E];
+--source include/search_pattern_in_file.inc
+
+remove_file $SEARCH_FILE;
+
+--echo ########################################################################
+--echo # Section 4: Edge cases in format strings
+--echo ########################################################################
+
+--echo # 4a: Empty format produces a leading comma (no timestamp field)
+let SEARCH_FILE= $MYSQLD_DATADIR/ts_ext_empty.log;
+set global server_audit_file_path='ts_ext_empty.log';
+set global server_audit_events='query';
+set global server_audit_timestamp_format='';
+set global server_audit_logging=on;
+select 'empty_fmt';
+set global server_audit_logging=off;
+
+--let SEARCH_PATTERN=^,.*empty_fmt
+--source include/search_pattern_in_file.inc
+
+remove_file $SEARCH_FILE;
+
+--echo # 4b: Format with embedded commas (breaks CSV field structure)
+let SEARCH_FILE= $MYSQLD_DATADIR/ts_ext_comma.log;
+set global server_audit_file_path='ts_ext_comma.log';
+set global server_audit_timestamp_format='%Y,%m,%d';
+set global server_audit_logging=on;
+select 'comma_fmt';
+set global server_audit_logging=off;
+
+--let SEARCH_PATTERN=\d{4},\d{2},\d{2},.*comma_fmt
+--source include/search_pattern_in_file.inc
+
+remove_file $SEARCH_FILE;
+
+--echo # 4c: Format with single quotes
+let SEARCH_FILE= $MYSQLD_DATADIR/ts_ext_quote.log;
+set global server_audit_file_path='ts_ext_quote.log';
+set global server_audit_timestamp_format="ts'%Y'%m";
+set global server_audit_logging=on;
+select 'quote_fmt';
+set global server_audit_logging=off;
+
+--let SEARCH_PATTERN=ts'\d{4}'\d{2}.*quote_fmt
+--source include/search_pattern_in_file.inc
+
+remove_file $SEARCH_FILE;
+
+--echo # 4d: Format with backslashes
+let SEARCH_FILE= $MYSQLD_DATADIR/ts_ext_bslash.log;
+set global server_audit_file_path='ts_ext_bslash.log';
+set global server_audit_timestamp_format='ts\\%Y\\%m';
+set global server_audit_logging=on;
+select 'bslash_fmt';
+set global server_audit_logging=off;
+
+--let SEARCH_PATTERN=ts.*\d{4}.*bslash_fmt
+--source include/search_pattern_in_file.inc
+
+remove_file $SEARCH_FILE;
+
+--echo ########################################################################
+--echo # Section 5: Large query exercises big_buffer allocation path
+--echo ########################################################################
+
+let SEARCH_FILE= $MYSQLD_DATADIR/ts_ext_large.log;
+set global server_audit_file_path='ts_ext_large.log';
+set global server_audit_events='query';
+set global server_audit_timestamp_format='LQ=%Y%m%d';
+set global server_audit_logging=on;
+
+--echo # Query text larger than MAX_AUDIT_QUERY_LENGTH (2048) triggers big_buffer
+# Build a query whose TEXT (not result) exceeds 2048 bytes
+--disable_result_log
+eval select length('$(repeat("X", 3000))');
+--enable_result_log
+
+set global server_audit_logging=off;
+
+--echo # Verify large query log entry has custom timestamp
+--let SEARCH_PATTERN=LQ=\d{8}.*X{1008}
+--source include/search_pattern_in_file.inc
+
+--echo # Verify large query is truncated
+--let SEARCH_PATTERN=LQ=\d{8}.*X{1009}
+--source include/search_pattern_in_file.inc
+
+remove_file $SEARCH_FILE;
+
+--echo ########################################################################
+--echo # Section 6: Rapid format changes under load
+--echo ########################################################################
+
+let SEARCH_FILE= $MYSQLD_DATADIR/ts_ext_rapid.log;
+set global server_audit_file_path='ts_ext_rapid.log';
+set global server_audit_events='query';
+set global server_audit_timestamp_format=DEFAULT;
+set global server_audit_logging=on;
+
+--disable_query_log
+--disable_result_log
+let $i= 10;
+while ($i) {
+  eval set global server_audit_timestamp_format='RP$i=%Y%m%d';
+  eval select 'rapid_$i';
+  dec $i;
+}
+--enable_result_log
+--enable_query_log
+
+set global server_audit_logging=off;
+
+--echo # Verify first rapid change logged correctly
+--let SEARCH_PATTERN=RP10=\d{8}.*rapid_10
+--source include/search_pattern_in_file.inc
+
+--echo # Verify last rapid change logged correctly
+--let SEARCH_PATTERN=RP1=\d{8}.*rapid_1
+--source include/search_pattern_in_file.inc
+
+--echo # Verify a mid-range rapid change
+--let SEARCH_PATTERN=RP5=\d{8}.*rapid_5
+--source include/search_pattern_in_file.inc
+
+remove_file $SEARCH_FILE;
+
+--echo ########################################################################
+--echo # Section 7: Session timezone must NOT affect audit timestamps
+--echo ########################################################################
+
+let SEARCH_FILE= $MYSQLD_DATADIR/ts_ext_tz.log;
+set global server_audit_file_path='ts_ext_tz.log';
+set global server_audit_events='query';
+set global server_audit_timestamp_format='TZT=%z';
+set global server_audit_logging=on;
+
+--echo # Set session timezone to +10:00 (should NOT affect audit timestamps)
+set time_zone='+10:00';
+select 'tz_session_10';
+
+--echo # Change to a very different session timezone
+set time_zone='-11:00';
+select 'tz_session_neg11';
+
+set time_zone=DEFAULT;
+
+set global server_audit_logging=off;
+
+--echo # All entries must use the same (global) timezone offset
+--let SEARCH_PATTERN=TZT=\-0200,.*?tz_session
+--source include/search_pattern_in_file.inc
+
+remove_file $SEARCH_FILE;
+
+--echo ########################################################################
+--echo # Section 8: Format with maximum expansion (%M repeated)
+--echo ########################################################################
+
+let SEARCH_FILE= $MYSQLD_DATADIR/ts_ext_expand.log;
+set global server_audit_file_path='ts_ext_expand.log';
+set global server_audit_events='query';
+
+--echo # %M expands to full month name (up to 9 chars for "September")
+--echo # 20 repetitions could produce ~200 chars of output
+set global server_audit_timestamp_format='%M %M %M %M %M %M %M %M %M %M %M %M %M %M %M %M %M %M %M %M';
+set global server_audit_logging=on;
+
+select 'big_expand_test';
+
+set global server_audit_logging=off;
+
+--echo # Verify the expanded timestamp logged correctly
+--let SEARCH_PATTERN=\w+ \w+ \w+ \w+ \w+.*big_expand_test
+--source include/search_pattern_in_file.inc
+
+remove_file $SEARCH_FILE;
+
+--echo ########################################################################
+--echo # Section 9: Format persistence across logging on/off cycles
+--echo ########################################################################
+
+let SEARCH_FILE= $MYSQLD_DATADIR/ts_ext_persist.log;
+set global server_audit_file_path='ts_ext_persist.log';
+set global server_audit_events='query';
+set global server_audit_timestamp_format='PS=%Y%m%d';
+
+--echo # Cycle 1
+set global server_audit_logging=on;
+select 'persist_cycle1';
+set global server_audit_logging=off;
+
+--echo # Cycle 2 - format should be retained without resetting
+set global server_audit_logging=on;
+select 'persist_cycle2';
+set global server_audit_logging=off;
+
+--echo # Cycle 3 - change format between cycles
+set global server_audit_timestamp_format='P2=%Y%m%d';
+set global server_audit_logging=on;
+select 'persist_cycle3';
+set global server_audit_logging=off;
+
+--let SEARCH_PATTERN=PS=\d{8}.*persist_cycle1
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=PS=\d{8}.*persist_cycle2
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=P2=\d{8}.*persist_cycle3
+--source include/search_pattern_in_file.inc
+
+remove_file $SEARCH_FILE;
+
+--echo ########################################################################
+--echo # Cleanup: restore all settings
+--echo ########################################################################
+set global server_audit_timestamp_format='CMD-LINE-%Y-%m-%d';
+set global server_audit_events='query';
+set global server_audit_incl_users='';
+set global server_audit_excl_users='';
+set global server_audit_query_log_limit=1024;
+set global server_audit_file_path='server_audit_timestamp.log';
+
+--enable_ps_protocol
+--enable_ps2_protocol
+--enable_view_protocol

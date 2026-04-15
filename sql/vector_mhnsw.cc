@@ -28,7 +28,7 @@
 static constexpr float NEAREST = -1.0f;
 
 // Algorithm parameters
-static constexpr float alpha = 1.1f;
+static constexpr float leniency= 1.1f;
 static constexpr uint ef_construction= 10;
 static constexpr uint max_ef= 10000;
 static constexpr size_t subdist_part= 192;
@@ -1179,11 +1179,11 @@ static int select_neighbors(MHNSW_param *p, FVectorNode *target,
   {
     Visited *vec= pq.pop();
     FVectorNode * const node= vec->node;
-    const float target_dista= std::max(32*FLT_EPSILON, vec->distance_to_target / alpha);
+    const float target_dista= std::max(32*FLT_EPSILON, vec->distance_to_target);
     bool discard= false;
     for (size_t i=0; i < neighbors.num; i++)
       if ((discard= node->distance_greater_than(neighbors.links[i]->vec,
-                            target_dista, p->mode, &p->acc) <= target_dista))
+                            target_dista, p->mode, &p->acc) < target_dista))
         break;
     if (!discard)
       target->push_neighbor(p->layer, node);
@@ -1272,14 +1272,14 @@ static int update_second_degree_neighbors(MHNSW_param *p, FVectorNode *node)
   return 0;
 }
 
-static inline float generous_furthest(const Queue<Visited> &q, float maxd, float g)
+static inline float lenient_furthest(const Queue<Visited> &q, float maxd, float l)
 {
-  float d0=maxd*g/2;
+  float d0=maxd*l/2;
   float d= q.top()->distance_to_target;
   float k= 5;
   float x= (d-d0)/d0;
   float sigmoid= k*x/std::sqrt(1+(k*k-1)*x*x); // or any other sigmoid
-  return d*(1 + (g - 1)/2 * (1 - sigmoid));
+  return d*(1 + (l - 1)/2 * (1 - sigmoid));
 }
 
 /*
@@ -1294,7 +1294,6 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
   Queue<Visited> candidates, best;
   bool skip_deleted;
   uint ef= result_size;
-  const float generosity= 1.1f + p->ctx->M/500.0f;
 
   if (construction)
   {
@@ -1331,7 +1330,7 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
   }
 
   float furthest_best= best.is_empty() ? FLT_MAX
-                       : generous_furthest(best, p->acc.diameter, generosity);
+                       : lenient_furthest(best, p->acc.diameter, leniency);
   while (candidates.elements())
   {
     const Visited &cur= *candidates.pop();
@@ -1364,7 +1363,7 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
           if (skip_deleted && v->node->deleted)
             continue;
           best.push(v);
-          furthest_best= generous_furthest(best, p->acc.diameter, generosity);
+          furthest_best= lenient_furthest(best, p->acc.diameter, leniency);
         }
         else
         {
@@ -1381,7 +1380,7 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
             if (v->distance_to_target < best.top()->distance_to_target)
             {
               best.replace_top(v);
-              furthest_best= generous_furthest(best, p->acc.diameter, generosity);
+              furthest_best= lenient_furthest(best, p->acc.diameter, leniency);
             }
           }
         }

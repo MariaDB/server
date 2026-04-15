@@ -200,15 +200,13 @@ ulonglong my_timer_milliseconds(void)
   struct timeb ft;
   ftime(&ft);
   return (ulonglong)ft.time * 1000 + (ulonglong)ft.millitm;
-#elif defined(HAVE_TIME)
-  return (ulonglong) time(NULL) * 1000;
 #elif defined(_WIN32)
    FILETIME ft;
    GetSystemTimeAsFileTime( &ft );
    return ((ulonglong)ft.dwLowDateTime +
                   (((ulonglong)ft.dwHighDateTime) << 32))/10000;
 #else
-  return 0;
+  return (ulonglong) time(NULL) * 1000;
 #endif
 }
 
@@ -435,10 +433,8 @@ void my_timer_init(MY_TIMER_INFO *mti)
   mti->milliseconds.routine= MY_TIMER_ROUTINE_FTIME;
 #elif defined(_WIN32)
   mti->milliseconds.routine= MY_TIMER_ROUTINE_GETSYSTEMTIMEASFILETIME;
-#elif defined(HAVE_TIME)
-  mti->milliseconds.routine= MY_TIMER_ROUTINE_TIME;
 #else
-  mti->milliseconds.routine= 0;
+  mti->milliseconds.routine= MY_TIMER_ROUTINE_TIME;
 #endif
   if (!mti->milliseconds.routine || !my_timer_milliseconds())
   {

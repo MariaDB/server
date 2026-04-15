@@ -90,6 +90,10 @@ static void closelog() {}
 #ifndef USERNAME_CHAR_LENGTH
 #define USERNAME_CHAR_LENGTH 128
 #endif
+#define TIMESTAMP_FORMAT_LENGTH 128
+#define TIMESTAMP_OUTPUT_LENGTH 256
+#define MAX_AUDIT_PAYLOAD_LENGTH 1024
+#define MAX_AUDIT_QUERY_LENGTH 2048
 
 #ifndef DBUG_OFF
 #define PLUGIN_DEBUG_VERSION "-debug"
@@ -103,8 +107,9 @@ static void closelog() {}
 
 const char *(*thd_priv_host_ptr)(MYSQL_THD thd, size_t *length);
 static char *incl_users, *excl_users,
-            *file_path, *syslog_info;
+            *file_path, *syslog_info, *timestamp_format;
 static char path_buffer[FN_REFLEN];
+static char timestamp_format_buffer[TIMESTAMP_FORMAT_LENGTH];
 static unsigned int mode;
 static ulong output_type;
 static ulong syslog_facility, syslog_priority;
@@ -191,6 +196,10 @@ static void update_syslog_ident(MYSQL_THD thd, struct st_mysql_sys_var *var,
                                 void *var_ptr, const void *save);
 static void rotate_log(MYSQL_THD thd, struct st_mysql_sys_var *var,
                        void *var_ptr, const void *save);
+static int check_timestamp_format(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                                  void *save, struct st_mysql_value *value);
+static void update_timestamp_format(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                                    void *var_ptr, const void *save);
 static void sync_log(MYSQL_THD thd, struct st_mysql_sys_var *var,
                      void *var_ptr, const void *save);
 
@@ -269,6 +278,11 @@ static MYSQL_SYSVAR_STR(syslog_info, syslog_info,
 static MYSQL_SYSVAR_UINT(query_log_limit, query_log_limit,
        PLUGIN_VAR_OPCMDARG, "Limit on the length of the query string in a record",
        NULL, NULL, 1024, 0, 0x7FFFFFFF, 1);
+static MYSQL_SYSVAR_STR(timestamp_format, timestamp_format, 
+       PLUGIN_VAR_RQCMDARG,
+       "A format string used to print the timestamp into the audit log messages "
+       "The format used is the same as DATE_FORMAT",
+       check_timestamp_format, update_timestamp_format, "%Y%m%d %H:%i:%s");
 
 char locinfo_ini_value[sizeof(struct connection_info)+4];
 
@@ -353,6 +367,7 @@ static struct st_mysql_sys_var* vars[] = {
     MYSQL_SYSVAR(syslog_facility),
     MYSQL_SYSVAR(syslog_priority),
     MYSQL_SYSVAR(query_log_limit),
+    MYSQL_SYSVAR(timestamp_format),
     MYSQL_SYSVAR(loc_info),
     NULL
 };
@@ -1087,7 +1102,7 @@ static void change_connection(struct connection_info *cn,
   Write to the log
 */
 
-static int write_log(const char *message, size_t len)
+static int write_log(const char *message, size_t len, time_t ts)
 {
 #if defined _WIN32 || !defined SUX_LOCK_GENERIC
   DBUG_ASSERT(lock_operations.is_locked_or_waiting());
@@ -1098,7 +1113,34 @@ static int write_log(const char *message, size_t len)
   {
     if (logfile)
     {
-      if (!(is_active= (logger_write(logfile, message, len) == (int) len)))
+      MYSQL_TIME ltime;
+      thd_gmt_sec_to_TIME(NULL, &ltime, ts);
+
+      size_t ts_len= 0;
+      char *ts_start= (char *) message - TIMESTAMP_OUTPUT_LENGTH;
+
+      /*
+        Format the timestamp into the start of the gap. We use
+        TIMESTAMP_OUTPUT_LENGTH - 1 as the limit to ensure there is always at
+        least one byte available at the end of the gap for the trailing comma,
+        even if the formatted timestamp takes up the maximum allowed space
+        (including its null terminator).
+      */
+      thd_TIME_to_str(NULL, &ltime, timestamp_format_buffer,
+                      ts_start, TIMESTAMP_OUTPUT_LENGTH - 1);
+      ts_len= strlen(ts_start);
+
+      /* Append a comma as the CSV field separator. */
+      ts_start[ts_len++]= ',';
+      ts_start[ts_len]= 0;
+
+      if (ts_len > 0 && ts_len < TIMESTAMP_OUTPUT_LENGTH)
+        memmove((char *) message - ts_len, ts_start, ts_len);
+
+      char *final_message= (char *) message - ts_len;
+      size_t final_len= len + ts_len;
+
+      if (!(is_active= (logger_write(logfile, final_message, final_len) == (int) final_len)))
       {
         ++log_write_failures;
         result= 1;
@@ -1119,10 +1161,10 @@ static int write_log(const char *message, size_t len)
   Write to the log, acquiring the lock.
 */
 
-static int write_log_and_lock(const char *message, size_t len)
+static int write_log_and_lock(const char *message, size_t len, time_t ts)
 {
   lock_operations.rd_lock();
-  int result= write_log(message, len);
+  int result= write_log(message, len, ts);
   lock_operations.rd_unlock();
   return result;
 }
@@ -1133,17 +1175,16 @@ static int write_log_and_lock(const char *message, size_t len)
 
   @param lock  whether the caller did not acquire lock_operations
 */
-static int write_log_maybe_lock(const char *message, size_t len, bool lock)
+static int write_log_maybe_lock(const char *message, size_t len, bool lock, time_t ts)
 {
   if (unlikely(!lock))
-    return write_log(message, len);
+    return write_log(message, len, ts);
   else
-    return write_log_and_lock(message, len);
+    return write_log_and_lock(message, len, ts);
 }
 
 
 static size_t log_header(char *message, size_t message_len,
-                      time_t *ts,
                       const char *serverhost, size_t serverhost_len,
                       const char *username, unsigned int username_len,
                       const char *host, unsigned int host_len,
@@ -1151,7 +1192,6 @@ static size_t log_header(char *message, size_t message_len,
                       unsigned int connection_id, unsigned int port,
                       long long query_id, const char *operation)
 {
-  struct tm tm_time;
   char port_str[16];
   if (host_len == 0 && userip_len != 0)
   {
@@ -1168,25 +1208,14 @@ static size_t log_header(char *message, size_t message_len,
     That was added to find the possible cause of the MENT-1438.
     Supposed to be removed after that.
   */
-  if (username_len > 1024)
+  if (username_len > MAX_AUDIT_PAYLOAD_LENGTH)
   {
     username= "unknown_user";
     username_len= (unsigned int) strlen(username);
   }
 
-  if (output_type == OUTPUT_SYSLOG)
-    return my_snprintf(message, message_len,
-        "%.*s,%.*s,%.*s%s,%d,%lld,%s",
-        (int) serverhost_len, serverhost,
-        username_len, username,
-        host_len, host, port_str,
-        connection_id, query_id, operation);
-
-  (void) localtime_r(ts, &tm_time);
   return my_snprintf(message, message_len,
-      "%04d%02d%02d %02d:%02d:%02d,%.*s,%.*s,%.*s%s,%d,%lld,%s",
-      tm_time.tm_year+1900, tm_time.tm_mon+1, tm_time.tm_mday,
-      tm_time.tm_hour, tm_time.tm_min, tm_time.tm_sec,
+      "%.*s,%.*s,%.*s%s,%d,%lld,%s",
       (int) serverhost_len, serverhost,
       username_len, username,
       host_len, host, port_str,
@@ -1211,23 +1240,24 @@ static int log_proxy(const struct connection_info *cn,
 {
   time_t ctime;
   size_t csize;
-  char message[1024];
+  char raw_message[MAX_AUDIT_PAYLOAD_LENGTH + TIMESTAMP_OUTPUT_LENGTH];
+  char *message= raw_message + TIMESTAMP_OUTPUT_LENGTH;
 
   (void) time(&ctime);
-  csize= log_header(message, sizeof(message)-1, &ctime,
+  csize= log_header(message, MAX_AUDIT_PAYLOAD_LENGTH - 1,
                     servhost, servhost_len,
                     cn->user, cn->user_length,
                     cn->host, cn->host_length,
                     cn->ip, cn->ip_length,
                     event->thread_id, event->port,
                     0, "PROXY_CONNECT");
-  csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
+  csize+= my_snprintf(message+csize, MAX_AUDIT_PAYLOAD_LENGTH - 1 - csize,
     ",%.*s,`%.*s`@`%.*s`,%d", cn->db_length, cn->db,
                      cn->proxy_length, cn->proxy,
                      cn->proxy_host_length, cn->proxy_host,
                      event->status);
   message[csize]= '\n';
-  return write_log_and_lock(message, csize + 1);
+  return write_log_and_lock(message, csize + 1, ctime);
 }
 
 
@@ -1237,12 +1267,13 @@ static int log_connection(const struct connection_info *cn,
 {
   time_t ctime;
   size_t csize;
-  char message[1024];
+  char raw_message[MAX_AUDIT_PAYLOAD_LENGTH + TIMESTAMP_OUTPUT_LENGTH];
+  char *message= raw_message + TIMESTAMP_OUTPUT_LENGTH;
   char tls_obj[32];
   size_t obj_len;
 
   (void) time(&ctime);
-  csize= log_header(message, sizeof(message)-1, &ctime,
+  csize= log_header(message, MAX_AUDIT_PAYLOAD_LENGTH - 1,
                     servhost, servhost_len,
                     cn->user, cn->user_length,
                     cn->host, cn->host_length,
@@ -1250,11 +1281,11 @@ static int log_connection(const struct connection_info *cn,
                     event->thread_id, event->port, 0, type);
 
   obj_len= create_tls_obj(event, tls_obj, sizeof(tls_obj));
-  csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
+  csize+= my_snprintf(message+csize, MAX_AUDIT_PAYLOAD_LENGTH - 1 - csize,
     ",%.*s,%.*s,%d", cn->db_length, cn->db, (int) obj_len, tls_obj,
     event->status);
   message[csize]= '\n';
-  return write_log_and_lock(message, csize + 1);
+  return write_log_and_lock(message, csize + 1, ctime);
 }
 
 
@@ -1263,23 +1294,24 @@ static int log_connection_event(const struct mysql_event_connection *event,
 {
   time_t ctime;
   size_t csize;
-  char message[1024];
+  char raw_message[MAX_AUDIT_PAYLOAD_LENGTH + TIMESTAMP_OUTPUT_LENGTH];
+  char *message= raw_message + TIMESTAMP_OUTPUT_LENGTH;
   char tls_obj[32];
   size_t obj_len;
 
   (void) time(&ctime);
-  csize= log_header(message, sizeof(message)-1, &ctime,
+  csize= log_header(message, MAX_AUDIT_PAYLOAD_LENGTH - 1,
                     servhost, servhost_len,
                     event->user, event->user_length,
                     event->host, event->host_length,
                     event->ip, event->ip_length,
                     event->thread_id, event->port, 0, type);
   obj_len= create_tls_obj(event, tls_obj, sizeof(tls_obj));
-  csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
+  csize+= my_snprintf(message+csize, MAX_AUDIT_PAYLOAD_LENGTH - 1 - csize,
     ",%.*s,%.*s,%d", (int) event->database.length,event->database.str,
     (int) obj_len, tls_obj, event->status);
   message[csize]= '\n';
-  return write_log_and_lock(message, csize + 1);
+  return write_log_and_lock(message, csize + 1, ctime);
 }
 
 
@@ -1481,9 +1513,9 @@ static int log_statement_ex(struct connection_info *cn,
                             int error_code, const char *type, int take_lock)
 {
   size_t csize;
-  char message_loc[2048];
-  char *message= message_loc;
-  size_t message_size= sizeof(message_loc);
+  char raw_message_loc[MAX_AUDIT_QUERY_LENGTH + TIMESTAMP_OUTPUT_LENGTH];
+  char *message= raw_message_loc + TIMESTAMP_OUTPUT_LENGTH;
+  size_t message_size= MAX_AUDIT_QUERY_LENGTH;
   char *uh_buffer;
   size_t uh_buffer_size;
   const char *db;
@@ -1522,7 +1554,7 @@ static int log_statement_ex(struct connection_info *cn,
       return 0;
   }
 
-  csize= log_header(message, message_size-1, &ev_time,
+  csize= log_header(message, message_size-1,
                     servhost, servhost_len,
                     cn->user, cn->user_length,cn->host, cn->host_length,
                     cn->ip, cn->ip_length, thd_id, cn->port, query_id, type);
@@ -1535,13 +1567,14 @@ static int log_statement_ex(struct connection_info *cn,
 
   if (query_len > (message_size - csize)/2)
   {
-    size_t big_buffer_alloced= (query_len * 2 + csize + 4095) & ~4095L;
+    size_t big_buffer_alloced= (query_len * 2 + csize + 4095 + TIMESTAMP_OUTPUT_LENGTH) & ~4095L;
     if (!(big_buffer= static_cast<char*>(malloc(big_buffer_alloced))))
       return 0;
 
-    memcpy(big_buffer, message, csize);
-    message= big_buffer;
-    message_size= big_buffer_alloced;
+    char *new_message= big_buffer + TIMESTAMP_OUTPUT_LENGTH;
+    memcpy(new_message, message, csize);
+    message= new_message;
+    message_size= big_buffer_alloced - TIMESTAMP_OUTPUT_LENGTH;
   }
 
   uh_buffer= message + csize;
@@ -1586,7 +1619,7 @@ static int log_statement_ex(struct connection_info *cn,
   csize+= my_snprintf(message+csize, message_size - 1 - csize,
                       "\',%d", error_code);
   message[csize]= '\n';
-  result= write_log_maybe_lock(message, csize + 1, take_lock);
+  result= write_log_maybe_lock(message, csize + 1, take_lock, ev_time);
 
   if (cn->sync_statement && output_type == OUTPUT_FILE && logfile)
   {
@@ -1626,21 +1659,22 @@ static int log_table(const struct connection_info *cn,
                      const struct mysql_event_table *event, const char *type)
 {
   size_t csize;
-  char message[1024];
+  char raw_message[MAX_AUDIT_PAYLOAD_LENGTH + TIMESTAMP_OUTPUT_LENGTH];
+  char *message = raw_message + TIMESTAMP_OUTPUT_LENGTH;
   time_t ctime;
 
   (void) time(&ctime);
-  csize= log_header(message, sizeof(message)-1, &ctime,
+  csize= log_header(message, MAX_AUDIT_PAYLOAD_LENGTH - 1,
                     servhost, servhost_len,
                     event->user, SAFE_STRLEN_UI(event->user),
                     event->host, SAFE_STRLEN_UI(event->host),
                     event->ip, SAFE_STRLEN_UI(event->ip),
                     event->thread_id, event->port, cn->query_id, type);
-  csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize, ",%.*s,%.*s,",
+  csize+= my_snprintf(message+csize, MAX_AUDIT_PAYLOAD_LENGTH - 1 - csize, ",%.*s,%.*s,",
                      (int) event->database.length, event->database.str,
                      (int) event->table.length, event->table.str);
   message[csize]= '\n';
-  return write_log_and_lock(message, csize + 1);
+  return write_log_and_lock(message, csize + 1, ctime);
 }
 
 
@@ -1648,25 +1682,26 @@ static int log_rename(const struct connection_info *cn,
                       const struct mysql_event_table *event)
 {
   size_t csize;
-  char message[1024];
+  char raw_message[MAX_AUDIT_PAYLOAD_LENGTH + TIMESTAMP_OUTPUT_LENGTH];
+  char *message= raw_message + TIMESTAMP_OUTPUT_LENGTH;
   time_t ctime;
 
   (void) time(&ctime);
-  csize= log_header(message, sizeof(message)-1, &ctime,
+  csize= log_header(message, MAX_AUDIT_PAYLOAD_LENGTH - 1,
                     servhost, servhost_len,
                     event->user, SAFE_STRLEN_UI(event->user),
                     event->host, SAFE_STRLEN_UI(event->host),
                     event->ip, SAFE_STRLEN_UI(event->ip),
                     event->thread_id, event->port, 
                     cn->query_id, "RENAME");
-  csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
+  csize+= my_snprintf(message+csize, MAX_AUDIT_PAYLOAD_LENGTH - 1 - csize,
                       ",%.*s,%.*s|%.*s.%.*s,",
                       (int) event->database.length, event->database.str,
                       (int) event->table.length, event->table.str,
                       (int) event->new_database.length, event->new_database.str,
                       (int) event->new_table.length, event->new_table.str);
   message[csize]= '\n';
-  return write_log_and_lock(message, csize + 1);
+  return write_log_and_lock(message, csize + 1, ctime);
 }
 
 
@@ -2111,6 +2146,11 @@ static int server_audit_init(void*)
   {
     update_excl_users(NULL, NULL, NULL, &excl_users);
   }
+  if (timestamp_format && timestamp_format[0])
+  {
+    update_timestamp_format(NULL, NULL, NULL, &timestamp_format);
+  }
+
 
   error_header();
   fprintf(stderr, "MariaDB Audit Plugin version %s%s STARTED.\n",
@@ -2296,6 +2336,40 @@ static void update_file_path(MYSQL_THD thd, st_mysql_sys_var *, void *,
   file_path= path_buffer;
 exit_func:
   internal_stop_logging--;
+  lock_operations.wr_unlock();
+}
+
+
+static int check_timestamp_format(MYSQL_THD thd, st_mysql_sys_var *,
+                                  void *save, struct st_mysql_value *value)
+{
+  const char *format;
+  int len= 0;
+
+  format= value->val_str(value, NULL, &len);
+  if ((size_t) len >= TIMESTAMP_FORMAT_LENGTH)
+  {
+    error_header();
+    fprintf(stderr, "server_audit_timestamp_format can't exceed %d characters.\n",
+            TIMESTAMP_FORMAT_LENGTH - 1);
+    return 1;
+  }
+  *((const char **) save)= format;
+  return 0;
+}
+
+
+static void update_timestamp_format(MYSQL_THD thd, st_mysql_sys_var *, void *,
+                                    const void *save)
+{
+  char *new_val= *static_cast<char*const*>(save);
+  if (!new_val)
+    new_val= empty_str;
+
+  lock_operations.wr_lock();
+  strncpy(timestamp_format_buffer, new_val, sizeof(timestamp_format_buffer)-1);
+  timestamp_format_buffer[sizeof(timestamp_format_buffer)-1]= 0;
+  timestamp_format= timestamp_format_buffer;
   lock_operations.wr_unlock();
 }
 

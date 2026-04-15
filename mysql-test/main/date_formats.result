@@ -440,7 +440,7 @@ set lc_time_names=ru_RU;
 set names koi8r;
 select date_format('2004-01-01','%W (%a), %e %M (%b) %Y');
 date_format('2004-01-01','%W (%a), %e %M (%b) %Y')
-������� (���), 1 ������ (���) 2004
+������� (��), 1 ������ (���.) 2004
 set lc_time_names=de_DE;
 set names latin1;
 select date_format('2004-01-01','%W (%a), %e %M (%b) %Y');
@@ -526,9 +526,7 @@ SELECT DATE_FORMAT("2009-01-01",'%W %d %M %Y') as valid_date;
 valid_date
 Thursday 01 January 2009
 "End of 5.0 tests"
-#
 # Start of 5.1 tests
-#
 #
 # Bug#58005 utf8 + get_format causes failed assertion: !str || str != Ptr'
 #
@@ -537,9 +535,7 @@ SELECT LEAST('%', GET_FORMAT(datetime, 'eur'), CAST(GET_FORMAT(datetime, 'eur') 
 exp
 %
 SET NAMES latin1;
-#
 # End of 5.1 tests
-#
 select time_format('2001-01-01 02:02:02', '%d.%m.%Y');
 time_format('2001-01-01 02:02:02', '%d.%m.%Y')
 NULL
@@ -555,9 +551,7 @@ time_format('01 02:02:02', '%T')
 select time_format('2001-01-01 02:02:02', '%T');
 time_format('2001-01-01 02:02:02', '%T')
 02:02:02
-#
 # End of 10.2 test
-#
 #
 # MDEV-31684 Add timezone information to DATE_FORMAT
 #
@@ -625,6 +619,193 @@ DATE_FORMAT('2023-03-26 01:59:59', '%z %Z')
 SELECT DATE_FORMAT('2023-03-26 03:00:00', '%z %Z');
 DATE_FORMAT('2023-03-26 03:00:00', '%z %Z')
 +0200 MEST
-#
 # End of 11.3 test
 #
+MDEV-26112 STR_TO_DATE should work with lc_time_names
+#
+SET names utf8;
+set @@lc_time_names="uk_UA";
+select str_to_date("1 березень 2010", "%e %M %Y"), str_to_date("1 березня 2010", "%e %M %Y");
+str_to_date("1 березень 2010", "%e %M %Y")	str_to_date("1 березня 2010", "%e %M %Y")
+2010-03-01	2010-03-01
+select str_to_date("Березень 15. 2010", "%M %d. %Y");
+str_to_date("Березень 15. 2010", "%M %d. %Y")
+2010-03-15
+select str_to_date("пн 27 квітня 2026", "%a %e %M %Y"), str_to_date("неділя 28 грудня 2010", "%W %e %M %Y");
+str_to_date("пн 27 квітня 2026", "%a %e %M %Y")	str_to_date("неділя 28 грудня 2010", "%W %e %M %Y")
+2026-04-27	2010-12-28
+select str_to_date(date_format("2010-03-01","%e. %M %Y"), "%e. %M %Y");
+str_to_date(date_format("2010-03-01","%e. %M %Y"), "%e. %M %Y")
+2010-03-01
+set @@lc_time_names="de_DE";
+select str_to_date("1 März 2010", "%e %M %Y"), str_to_date("1 Juni 2010", "%e %M %Y");
+str_to_date("1 März 2010", "%e %M %Y")	str_to_date("1 Juni 2010", "%e %M %Y")
+2010-03-01	2010-06-01
+select str_to_date("1 Sep 2010", "%e %b %Y"), str_to_date("1 Mär 2010", "%e %b %Y");
+str_to_date("1 Sep 2010", "%e %b %Y")	str_to_date("1 Mär 2010", "%e %b %Y")
+2010-09-01	2010-03-01
+select str_to_date(date_format("2010-03-01","%e. %M %Y"), "%e. %M %Y");
+str_to_date(date_format("2010-03-01","%e. %M %Y"), "%e. %M %Y")
+2010-03-01
+set @@lc_time_names="vi_VN";
+select str_to_date("1 Tháng hai 2026", "%e %M %Y"), str_to_date("20 tháng 3 2010", "%e %M %Y");
+str_to_date("1 Tháng hai 2026", "%e %M %Y")	str_to_date("20 tháng 3 2010", "%e %M %Y")
+2026-02-01	2010-03-20
+select str_to_date("1 Tháng một 2026", "%e %M %Y");
+str_to_date("1 Tháng một 2026", "%e %M %Y")
+2026-01-01
+#
+MDEV-38967 add to STR_TO_DATE() locale parameter (optional)
+#
+SELECT str_to_date('15 квітня 2026', '%d %M %Y', 'uk_UA');
+str_to_date('15 квітня 2026', '%d %M %Y', 'uk_UA')
+2026-04-15
+SELECT str_to_date('20 févr. 2026', '%d %b %Y', 'fr_FR');
+str_to_date('20 févr. 2026', '%d %b %Y', 'fr_FR')
+2026-02-20
+SELECT str_to_date('Понеділок 01 листопад 2026', '%W %d %M %Y', 'uk_UA') as a;
+a
+2026-11-01
+SELECT str_to_date('mar. 02 Mars 2026', '%a %d %M %Y', 'fr_FR');
+str_to_date('mar. 02 Mars 2026', '%a %d %M %Y', 'fr_FR')
+2026-03-02
+select str_to_date("1 Tháng hai 2026", "%e %M %Y",'vi_VN'), str_to_date("20 tháng 3 2010", "%e %M %Y",'vi_VN');
+str_to_date("1 Tháng hai 2026", "%e %M %Y",'vi_VN')	str_to_date("20 tháng 3 2010", "%e %M %Y",'vi_VN')
+2026-02-01	2010-03-20
+select str_to_date("1 Tháng một 2026", "%e %M %Y",'vi_VN');
+str_to_date("1 Tháng một 2026", "%e %M %Y",'vi_VN')
+2026-01-01
+SET lc_time_names = 'de_DE';
+SELECT str_to_date('10 April 2026', '%d %M %Y','en_US');
+str_to_date('10 April 2026', '%d %M %Y','en_US')
+2026-04-10
+SELECT str_to_date('10 травня 2026', '%d %M %Y', 'uk_UA');
+str_to_date('10 травня 2026', '%d %M %Y', 'uk_UA')
+2026-05-10
+select str_to_date(date_format("2010-03-01","%e. %M %Y","uk_UA"), "%e. %M %Y","uk_UA") as a;
+a
+2010-03-01
+select str_to_date(date_format("2010-03-01","%e. %M %Y","it_IT"), "%e. %M %Y","uk_UA") as a;
+a
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '1. marzo 2010' for function str_to_date
+select str_to_date(date_format("2010-03-01","%e. %M %Y","it_IT"), "%e. %M %Y","it_CH") as a;
+a
+2010-03-01
+SELECT str_to_date('10 Dezember 2026', '%d %M %Y',NULL);
+str_to_date('10 Dezember 2026', '%d %M %Y',NULL)
+NULL
+SELECT str_to_date('10 Dezember 2026', '%d %M %Y',"");
+str_to_date('10 Dezember 2026', '%d %M %Y',"")
+NULL
+show warnings;
+Level	Code	Message
+Warning	1649	Unknown locale: ''
+Warning	1411	Incorrect datetime value: '10 Dezember 2026' for function str_to_date
+SELECT str_to_date('10 Dezember 2026', '%d %M %Y','aaaaa');
+str_to_date('10 Dezember 2026', '%d %M %Y','aaaaa')
+NULL
+show warnings;
+Level	Code	Message
+Warning	1649	Unknown locale: 'aaaaa'
+Warning	1411	Incorrect datetime value: '10 Dezember 2026' for function str_to_date
+SELECT str_to_date('10 December 2026', '%d %M %Y','aaaaa');
+str_to_date('10 December 2026', '%d %M %Y','aaaaa')
+2026-12-10
+show warnings;
+Level	Code	Message
+Warning	1649	Unknown locale: 'aaaaa'
+SELECT str_to_date('1 May 2026', '%d %M %Y','aaaaa');
+str_to_date('1 May 2026', '%d %M %Y','aaaaa')
+2026-05-01
+show warnings;
+Level	Code	Message
+Warning	1649	Unknown locale: 'aaaaa'
+SELECT DATE_FORMAT('2010-03-01', '%d %M %Y','1');
+DATE_FORMAT('2010-03-01', '%d %M %Y','1')
+01 March 2010
+show warnings;
+Level	Code	Message
+Warning	1649	Unknown locale: '1'
+SELECT DATE_FORMAT('2010-03-01', '%d %M %Y',POINT(1,1));
+ERROR HY000: Illegal parameter data type point for operation 'date_format'
+SELECT DATE_FORMAT('2010-03-01', '%d %M %Y','de_DE');
+DATE_FORMAT('2010-03-01', '%d %M %Y','de_DE')
+01 März 2010
+SELECT DATE_FORMAT('2010-03-01', '%d %M %Y',NULL);
+DATE_FORMAT('2010-03-01', '%d %M %Y',NULL)
+NULL
+SET @lc = 'de_DE';
+SELECT str_to_date('18 Oktober 2022', '%d %M %Y', @lc);
+str_to_date('18 Oktober 2022', '%d %M %Y', @lc)
+2022-10-18
+prepare stmt from "SELECT str_to_date(?, '%d %M %Y', ?);";
+execute stmt using '20 september 2026','da_DK';
+str_to_date(?, '%d %M %Y', ?)
+2026-09-20
+execute stmt using '20 вересня 2026','uk_UA';
+str_to_date(?, '%d %M %Y', ?)
+2026-09-20
+SELECT str_to_date('20.févr..2026', '%d.%b.%Y', 'fr_FR');
+str_to_date('20.févr..2026', '%d.%b.%Y', 'fr_FR')
+2026-02-20
+SELECT str_to_date('10.March.2026', '%d.%M.%Y', 'en_US');
+str_to_date('10.March.2026', '%d.%M.%Y', 'en_US')
+2026-03-10
+SELECT str_to_date('12. Mär 2026', '%d.%M %Y', 'de_DE');
+str_to_date('12. Mär 2026', '%d.%M %Y', 'de_DE')
+2026-03-12
+SELECT
+str_to_date('1 Tháng một 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng hai 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng ba 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng tư 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng năm 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng sáu 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng bảy 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng tám 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng chín 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng mười 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng mười một 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng mười hai 2026', '%d %M %Y','vi_VN');
+str_to_date('1 Tháng một 2026', '%d %M %Y','vi_VN')	2026-01-01
+str_to_date('1 Tháng hai 2026', '%d %M %Y','vi_VN')	2026-02-01
+str_to_date('1 Tháng ba 2026', '%d %M %Y','vi_VN')	2026-03-01
+str_to_date('1 Tháng tư 2026', '%d %M %Y','vi_VN')	2026-04-01
+str_to_date('1 Tháng năm 2026', '%d %M %Y','vi_VN')	2026-05-01
+str_to_date('1 Tháng sáu 2026', '%d %M %Y','vi_VN')	2026-06-01
+str_to_date('1 Tháng bảy 2026', '%d %M %Y','vi_VN')	2026-07-01
+str_to_date('1 Tháng tám 2026', '%d %M %Y','vi_VN')	2026-08-01
+str_to_date('1 Tháng chín 2026', '%d %M %Y','vi_VN')	2026-09-01
+str_to_date('1 Tháng mười 2026', '%d %M %Y','vi_VN')	2026-10-01
+str_to_date('1 Tháng mười một 2026', '%d %M %Y','vi_VN')	2026-11-01
+str_to_date('1 Tháng mười hai 2026', '%d %M %Y','vi_VN')	2026-12-01
+SELECT
+str_to_date('1 Tháng 1 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 2 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 3 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 4 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 5 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 6 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 7 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 8 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 9 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 10 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 11 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 12 2026', '%d %M %Y','vi_VN');
+str_to_date('1 Tháng 1 2026', '%d %M %Y','vi_VN')	2026-01-01
+str_to_date('1 Tháng 2 2026', '%d %M %Y','vi_VN')	2026-02-01
+str_to_date('1 Tháng 3 2026', '%d %M %Y','vi_VN')	2026-03-01
+str_to_date('1 Tháng 4 2026', '%d %M %Y','vi_VN')	2026-04-01
+str_to_date('1 Tháng 5 2026', '%d %M %Y','vi_VN')	2026-05-01
+str_to_date('1 Tháng 6 2026', '%d %M %Y','vi_VN')	2026-06-01
+str_to_date('1 Tháng 7 2026', '%d %M %Y','vi_VN')	2026-07-01
+str_to_date('1 Tháng 8 2026', '%d %M %Y','vi_VN')	2026-08-01
+str_to_date('1 Tháng 9 2026', '%d %M %Y','vi_VN')	2026-09-01
+str_to_date('1 Tháng 10 2026', '%d %M %Y','vi_VN')	2026-10-01
+str_to_date('1 Tháng 11 2026', '%d %M %Y','vi_VN')	2026-11-01
+str_to_date('1 Tháng 12 2026', '%d %M %Y','vi_VN')	2026-12-01
+# End of 12.3 test
+SET @@lc_time_names=DEFAULT;
+SET NAMES latin1;

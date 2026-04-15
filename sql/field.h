@@ -928,7 +928,8 @@ public:
 
   bool is_unsigned() const { return flags & UNSIGNED_FLAG; }
 
-  bool check_assignability_from(const Type_handler *from, bool ignore) const;
+  virtual bool check_assignability_from(const Type_handler *from,
+                                        bool prefer_warning_nor_error) const;
   bool check_assignability_from(const Field *from, bool ignore) const
   {
     return check_assignability_from(from->type_handler(), ignore);
@@ -944,6 +945,7 @@ public:
   {
     return to->get_copy_func(this);
   }
+  int store_field_maybe_null(Field *from, bool no_conversions);
   /* Store functions returns 1 on overflow and -1 on fatal error */
   virtual int  store_field(Field *from) { return from->save_in_field(this); }
   virtual int  save_in_field(Field *to)= 0;
@@ -4903,7 +4905,7 @@ private:
 
 
 class Field_enum :public Field_str,
-                  public Type_typelib_attributes
+                  public Type_typelib_ptr_attributes
 {
   static void do_field_enum(const Copy_field *copy_field);
   longlong val_int(const uchar *) const;
@@ -4917,11 +4919,11 @@ public:
              uchar null_bit_arg,
              enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
              uint packlength_arg,
-             const TYPELIB *typelib_arg,
+             const Type_typelib_attributes *typelib_arg,
              const DTCollation &collation)
     :Field_str(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
 	       unireg_check_arg, field_name_arg, collation),
-     Type_typelib_attributes(typelib_arg),
+     Type_typelib_ptr_attributes(typelib_arg),
     packlength(packlength_arg)
   {
       flags|=ENUM_FLAG;
@@ -4997,7 +4999,7 @@ public:
   decimal_digits_t decimals() const override { return 0; }
   const Type_extra_attributes type_extra_attributes() const override
   {
-    return Type_extra_attributes(m_typelib);
+    return Type_extra_attributes(m_typelib_attr);
   }
   uchar *pack(uchar *to, const uchar *from) const override;
   const uchar *unpack(uchar *to, const uchar *from, const uchar *from_end,
@@ -5039,7 +5041,8 @@ public:
   Field_set(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	    uchar null_bit_arg, enum utype unireg_check_arg,
             const LEX_CSTRING *field_name_arg, uint32 packlength_arg,
-	    const TYPELIB *typelib_arg, const DTCollation &collation)
+	    const Type_typelib_attributes *typelib_arg,
+	    const DTCollation &collation)
     :Field_enum(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
                 field_name_arg, packlength_arg, typelib_arg, collation)
     {
@@ -5368,6 +5371,14 @@ public:
                     const Type_handler *handler,
                     const LEX_CSTRING *field_name,
                     uint32 flags) const;
+  const Type_typelib_attributes *typelib_attr() const
+  {
+    return Type_typelib_ptr_attributes(*this).typelib_attr();
+  }
+  const TYPELIB *typelib() const
+  {
+    return typelib_attr();
+  }
   uint temporal_dec(uint intlen) const
   {
     return (uint) (length > intlen ? length - intlen - 1 : 0);
@@ -5794,6 +5805,24 @@ public:
      m_cursor_rowtype_offset(0),
      m_row_field_definitions(NULL)
   { }
+  Spvar_definition(const Type_handler *th,
+                   Row_definition_list *row_field_definitions)
+   :m_column_type_ref(NULL),
+    m_table_rowtype_ref(NULL),
+    m_cursor_rowtype_ref(false),
+    m_cursor_rowtype_offset(0),
+    m_row_field_definitions(row_field_definitions)
+  {
+    set_handler(th);
+  }
+  Spvar_definition(Table_ident *table_rowtype_ref,
+                   const sp_rcontext_addr &cursor_ref)
+   :m_column_type_ref(NULL),
+    m_table_rowtype_ref(table_rowtype_ref),
+    m_cursor_rowtype_ref(cursor_ref.rcontext_handler() != nullptr),
+    m_cursor_rowtype_offset(cursor_ref.offset()),
+    m_row_field_definitions(NULL)
+  { }
   const Type_handler *type_handler() const
   {
     return Type_handler_hybrid_field_type::type_handler();
@@ -5886,7 +5915,7 @@ public:
   Lex_ident_column change;		// Old column name if column is renamed by ALTER
   Lex_ident_column after;		// Put column after this one
   Field *field;				// For alter table
-  const TYPELIB *save_interval;         // Temporary copy for the above
+  const Type_typelib_attributes *save_typelib_attr;// Temporary copy
                                         // Used only for UCS2 intervals
 
   /** structure with parsed options (for comparing fields in ALTER TABLE) */

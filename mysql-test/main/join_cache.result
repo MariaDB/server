@@ -6334,7 +6334,7 @@ SET SESSION JOIN_cache_level=4;
 SET SESSION optimizer_switch='optimize_JOIN_buffer_size=OFF';
 SELECT * FROM information_schema.statistics JOIN information_schema.COLUMNS USING (table_name,column_name);
 ERROR HY001: Could not create a join buffer. Please check and adjust the value of the variables 'JOIN_BUFFER_SIZE (128)' and 'JOIN_BUFFER_SPACE_LIMIT (2097152)'
-SET JOIN_buffer_size=16384;
+SET JOIN_buffer_size=32768;
 SELECT * FROM information_schema.statistics JOIN information_schema.COLUMNS USING (table_name,column_name);
 #
 # MDEV-32351: Join buffer used for outer join with ON condition

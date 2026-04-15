@@ -2496,6 +2496,27 @@ public:
   bool sp_find_field_by_name_or_error(uint *idx,
                                       const LEX_CSTRING &var_name,
                                       const LEX_CSTRING &field_name) const;
+
+  /**
+    Check if the Item list has a compatible structure with "this"
+    in terms of assignability.
+  */
+  bool check_assignability_from(const List<Item> &items,
+                                const char *spvar_name,
+                                const char *op) const;
+
+  /**
+    Check if the table has a compatible structure with "this"
+    in terms of assignability.
+  */
+  bool check_assignability_from(const TABLE &table,
+                                const char *spvar_name,
+                                const char *op) const;
+
+  bool sp_set_from_select_list(THD *thd, const List<Item> &items);
+
+  bool sp_save_in_vtable(THD *thd, Virtual_tmp_table *to) const;
+  bool sp_save_in_target_list(THD *thd, const List<sp_fetch_target> &to) const;
 };
 
 
@@ -2674,7 +2695,8 @@ bool open_tmp_table(TABLE *table);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
 void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
 bool sort_and_filter_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse,
-                            bool skip_unprefixed_keyparts);
+                            bool skip_unprefixed_keyparts,
+                            bool is_splitting= false);
 
 struct TMPTABLE_COSTS
 {

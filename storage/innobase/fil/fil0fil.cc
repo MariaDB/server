@@ -934,7 +934,7 @@ bool fil_space_free(uint32_t id, bool x_latched) noexcept
 		}
 
 		if (!recv_recovery_is_on()) {
-			log_sys.latch.wr_lock(SRW_LOCK_CALL);
+			log_sys.latch.wr_lock();
 
 			if (space->max_lsn) {
 				ut_d(space->max_lsn = 0);
@@ -1726,7 +1726,7 @@ fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
   fil_system.named_spaces. Before we set the STOPPING_WRITES flag, another
   concurrent operation could have marked the tablespace dirty again.
   This clean-up corresponds to fil_space_free(). */
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock();
   ut_ad((space->pending() & ~NEEDS_FSYNC) == (STOPPING | CLOSING));
   if (space->max_lsn != 0)
   {
@@ -3170,7 +3170,7 @@ ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn) noexcept
 		auto next = std::next(it);
 
 		ut_ad(it->max_lsn > 0);
-		if (it->max_lsn < lsn) {
+		if (it->max_lsn <= lsn) {
 			/* The tablespace was last dirtied before the
 			checkpoint LSN. Remove it from the list, so
 			that if the tablespace is not going to be

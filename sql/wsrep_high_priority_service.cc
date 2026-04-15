@@ -68,9 +68,9 @@ static rpl_group_info* wsrep_relay_group_init(THD* thd, const char* log_fname)
 {
   Relay_log_info* rli= new Relay_log_info(false);
 
-  if (!rli->relay_log.description_event_for_exec)
+  if (!rli->relay_log.description_event_for_sql_thread)
   {
-    rli->relay_log.description_event_for_exec=
+    rli->relay_log.description_event_for_sql_thread=
       new Format_description_log_event(4, 0, BINLOG_CHECKSUM_ALG_OFF);
   }
 
@@ -115,9 +115,8 @@ static void wsrep_setup_uk_and_fk_checks(THD* thd)
   else
     thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
 
-  if (wsrep_slave_FK_checks == FALSE ||
-      (wsrep_check_mode(WSREP_MODE_APPLIER_SKIP_FK_CHECKS_IN_IST) &&
-       !wsrep_ready_get()))
+  if (wsrep_check_mode(WSREP_MODE_APPLIER_SKIP_FK_CHECKS_IN_IST) &&
+      !wsrep_ready_get())
     thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
   else
     thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;

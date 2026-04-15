@@ -4157,6 +4157,9 @@ public:
                                List_sp_assignment_lex *using_clause);
   bool sp_close(THD *thd, const Lex_ident_sys_st &name);
 
+  bool make_sp_instr_copy_struct_for_last_context_variables(THD *thd,
+                                                            uint nvars,
+                                                            uint cursor_offset);
   Item_splocal *create_item_for_sp_var(const Lex_ident_cli_st *name,
                                        sp_variable *spvar);
 
@@ -4775,8 +4778,9 @@ public:
     create_info.add(options);
     return check_create_options(create_info);
   }
-  sp_instr_fetch_cursor* sp_add_instr_fetch_cursor(THD *thd,
-                                                   const LEX_CSTRING *name);
+  bool sp_add_fetch_cursor(THD *thd,
+                           const Lex_ident_sys_st &name,
+                           const List<sp_fetch_target> &list);
   bool sp_add_agg_cfetch();
 
   bool set_command_with_check(enum_sql_command command,
@@ -5065,6 +5069,8 @@ public:
   void stmt_purge_to(const LEX_CSTRING &to);
   bool stmt_purge_before(Item *item);
 
+  bool check_ref_cursor_components(Row_definition_list *) const;
+
   SELECT_LEX *returning()
   { return &builtin_select; }
   bool has_returning()
@@ -5133,12 +5139,21 @@ public:
                                 const Lex_ident_sys_st &type_name,
                                 Spvar_definition *key,
                                 Spvar_definition *value);
+  bool declare_type_ref_cursor(THD *thd,
+                               const Lex_ident_sys_st &type_name,
+                               const Lex_ident_sys_st &return_type_name,
+                               const Qualified_column_ident *rowtype,
+                               const Qualified_column_ident *vartype,
+                               const Lex_ident_cli_st &syntax_error_token);
   bool set_field_type_typedef(Lex_field_type_st *type,
                               const LEX_CSTRING &name,
+                              const Lex_length_and_dec_st &attr,
+                              const Lex_column_charset_collation_attrs_st &coll,
                               bool *is_typedef);
   bool set_field_type_udt_or_typedef(Lex_field_type_st *type,
-                                     const LEX_CSTRING &name,
-                                     const Lex_length_and_dec_st &attr);
+                             const LEX_CSTRING &name,
+                             const Lex_length_and_dec_st &attr,
+                             const Lex_column_charset_collation_attrs_st &coll);
 
   bool map_data_type(const Lex_ident_sys_st &schema,
                      Lex_field_type_st *type) const;

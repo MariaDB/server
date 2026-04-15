@@ -375,4 +375,16 @@ Warning	4078	Cannot cast 'int' as 'vector' in assignment of `test`.`t1`.`v`
 Warning	1292	Incorrect vector value: '1' for column `test`.`t1`.`v` at row 1
 drop table t1;
 set sql_mode=default;
+#
+# MDEV-38349 Fix assert thd->abort_on_warning == 0 in mysql_insert
+#
+CREATE TABLE t1 (id INT KEY,v VECTOR (8) NOT NULL,VECTOR INDEX (v)) ENGINE=INNODB;
+CREATE TABLE t2 (id INT KEY,t_id INT,INDEX par_ind (t_id),FOREIGN KEY(t_id) REFERENCES t1 (id) ON DELETE CASCADE) ENGINE=INNODB;
+DROP TABLE t1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+INSERT INTO t1 VALUES (0,'');
+ERROR 42S02: Table 'test.t1' doesn't exist in engine
+DROP TABLE t2,t1;
+Warnings:
+Warning	1932	Table 'test.t1' doesn't exist in engine
 # End of 11.8 tests

@@ -594,11 +594,13 @@ public:
     Generate a code for an "OPEN cursor FOR" statement.
     @param thd              - current thd, for mem_root allocations
     @param spcont           - the context of the cursor
+    @param cursor_name      - the name of the cursor
     @param cursor_ref       - the cursor address or reference
     @param *stmt            - the cursor statement or query string
     @param using_clause     - the USING clause parameters
   */
   bool add_open_cursor_for_stmt(THD *thd, sp_pcontext *spcont,
+                                const Lex_ident_column &cursor_name,
                                 const sp_rcontext_ref &cursor_ref,
                                 sp_lex_cursor *stmt,
                                 List<sp_assignment_lex> *using_clause);
@@ -784,7 +786,6 @@ public:
     function return values.
 
     @param[in]  thd          Thread handle
-    @param[in]  lex          Yacc parsing context
     @param[out] field_def    An instance of create_field to be filled
 
     @retval false on success
@@ -792,9 +793,7 @@ public:
   */
   bool fill_field_definition(THD *thd, Column_definition *field_def)
   {
-    const Type_handler *h= field_def->type_handler();
-    return h->Column_definition_fix_attributes(field_def) ||
-           field_def->sp_prepare_create_field(thd, mem_root);
+    return field_def->sp_prepare_create_field(thd, mem_root);
   }
   bool row_fill_field_definitions(THD *thd, Row_definition_list *row)
   {

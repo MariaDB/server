@@ -33,6 +33,7 @@ public:
   const char *description;
   const bool is_ascii;
   TYPELIB *month_names;
+  TYPELIB *month_names_formatting;
   TYPELIB *ab_month_names;
   TYPELIB *day_names;
   TYPELIB *ab_day_names;
@@ -45,15 +46,21 @@ public:
   MY_LOCALE(uint number_par,
             const Lex_ident_locale &name_par,
             const char *descr_par, bool is_ascii_par,
-            TYPELIB *month_names_par, TYPELIB *ab_month_names_par,
-            TYPELIB *day_names_par, TYPELIB *ab_day_names_par,
+            TYPELIB *month_names_par,
+            TYPELIB *month_names_par_formatting,
+            TYPELIB *ab_month_names_par,
+            TYPELIB *day_names_par,
+            TYPELIB *ab_day_names_par,
             uint max_month_name_length_par, uint max_day_name_length_par,
             uint decimal_point_par, uint thousand_sep_par,
             const char *grouping_par, MY_LOCALE_ERRMSGS *errmsgs_par) :
     number(number_par),
     name(name_par), description(descr_par), is_ascii(is_ascii_par),
-    month_names(month_names_par), ab_month_names(ab_month_names_par),
-    day_names(day_names_par), ab_day_names(ab_day_names_par),
+    month_names(month_names_par),
+    month_names_formatting(month_names_par_formatting),
+    ab_month_names(ab_month_names_par),
+    day_names(day_names_par),
+    ab_day_names(ab_day_names_par),
     max_month_name_length(max_month_name_length_par),
     max_day_name_length(max_day_name_length_par),
     decimal_point(decimal_point_par),

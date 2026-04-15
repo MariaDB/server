@@ -595,8 +595,8 @@ int init_relay_log_pos(Relay_log_info* rli,const char* log,
     the description_event here, in case, so that there is no memory leak in
     running, say, CHANGE MASTER.
   */
-  delete rli->relay_log.description_event_for_exec;
-  rli->relay_log.description_event_for_exec= new Format_description_log_event(4);
+  delete rli->relay_log.description_event_for_sql_thread;
+  rli->relay_log.description_event_for_sql_thread= new Format_description_log_event(4);
 
   mysql_mutex_lock(log_lock);
 
@@ -662,8 +662,8 @@ int init_relay_log_pos(Relay_log_info* rli,const char* log,
       Format_description_log_event *fdev;
       if (!(fdev= read_relay_log_description_event(rli->cur_log, pos, errmsg)))
         goto err;
-      delete rli->relay_log.description_event_for_exec;
-      rli->relay_log.description_event_for_exec= fdev;
+      delete rli->relay_log.description_event_for_sql_thread;
+      rli->relay_log.description_event_for_sql_thread= fdev;
     }
     my_b_seek(rli->cur_log,(off_t)pos);
     DBUG_PRINT("info", ("my_b_tell(rli->cur_log)=%llu rli->event_relay_log_pos=%llu",
@@ -684,7 +684,7 @@ err:
 
   if (need_data_lock)
     mysql_mutex_unlock(&rli->data_lock);
-  if (!rli->relay_log.description_event_for_exec->is_valid() && !*errmsg)
+  if (!rli->relay_log.description_event_for_sql_thread->is_valid() && !*errmsg)
     *errmsg= "Invalid Format_description log event; could be out of memory";
 
   DBUG_PRINT("info", ("Returning %d from init_relay_log_pos", (*errmsg)?1:0));

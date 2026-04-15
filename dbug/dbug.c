@@ -141,19 +141,6 @@
 #define BOOLEAN my_bool
 
 /*
- *      Externally supplied functions.
- */
-
-#ifndef HAVE_PERROR
-static void perror(char *s)
-{
-  if (s && *s != '\0')
-    (void) fprintf(stderr, "%s: ", s);
-  (void) fprintf(stderr, "<unknown system error>\n");
-}
-#endif
-
-/*
  *      The user may specify a list of functions to trace or
  *      debug.  These lists are kept in a linear linked list,
  *      a very simple implementation.

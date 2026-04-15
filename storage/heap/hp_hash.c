@@ -435,7 +435,7 @@ int hp_rec_key_cmp(HP_KEYDEF *keydef, const uchar *rec1, const uchar *rec2)
         because some virtual implementations do not work correctly. For details see:
         https://jira.mariadb.org/browse/MDEV-38712
       */
-      if (cs->mbmaxlen > 1 && !(cs->state && MY_CS_NOPAD))
+      if (cs->mbmaxlen > 1 && !(cs->state & MY_CS_NOPAD))
       {
         size_t nchars= seg->length / cs->mbmaxlen;
         if (my_ci_strnncollsp_nchars(cs, 
@@ -550,7 +550,7 @@ int hp_key_cmp(HP_KEYDEF *keydef, const uchar *rec, const uchar *key)
       size_t char_length_key= uint2korr(key);
       pos+= pack_length;
       key+= 2;                                  /* skip key pack length */
-      if (cs->mbmaxlen > 1 && !(cs->state && MY_CS_NOPAD))
+      if (cs->mbmaxlen > 1 && !(cs->state & MY_CS_NOPAD))
       {
         size_t nchars= seg->length / cs->mbmaxlen; 
         if (my_ci_strnncollsp_nchars(cs,

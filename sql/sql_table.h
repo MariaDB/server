@@ -204,7 +204,6 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
                     const LEX_CSTRING *table_name, uint flags,
                     const char *table_path=0);
 void close_cached_table(THD *thd, TABLE *table);
-void sp_prepare_create_field(THD *thd, Column_definition *sql_field);
 bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags);
 int write_bin_log(THD *thd, bool clear_error,
                   char const *query, ulong query_length,

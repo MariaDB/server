@@ -16,6 +16,7 @@ connection default;
 disconnect con1;
 disconnect con2;
 connect  con1,localhost,root;
+SET STATEMENT innodb_lock_wait_timeout=1 FOR # work around MDEV-38741
 SELECT * FROM t1 LOCK IN SHARE MODE;
 connection default;
 SET innodb_lock_wait_timeout=1;

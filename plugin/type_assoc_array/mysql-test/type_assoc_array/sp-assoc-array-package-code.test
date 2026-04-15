@@ -10,3 +10,7 @@ SET names utf8mb4;
 
 --source sp-assoc-array-package-00.inc
 --source sp-assoc-array-package-01.inc
+
+# Please uncomment after this bug gets fixed:
+# MDEV-39045 SHOW PROCEDURE CODE crashes in a package with a body wide assoc array
+#--source sp-assoc-array-package-04.inc

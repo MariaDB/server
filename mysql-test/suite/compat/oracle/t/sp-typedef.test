@@ -1,0 +1,13 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-38883 Server crashes when creating a package with function with IN/OUT qualifier
+--echo #
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PACKAGE pkg AS
+  PROCEDURE p1 (a UNKNOWN);
+END;
+$$
+DELIMITER ;$$
