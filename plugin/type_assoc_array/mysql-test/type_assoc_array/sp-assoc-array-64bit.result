@@ -44,15 +44,15 @@ END;
 /
 CALL p1;
 id	diff
-p0	176
+p0	200
 id	diff
-p1	376
+p1	424
 id	diff
-p2	2624
+p2	2696
 id	diff
-p2upd	2624
+p2upd	2696
 id	diff
-p2del	376
+p2del	424
 diff1
 0
 DROP PROCEDURE p1;

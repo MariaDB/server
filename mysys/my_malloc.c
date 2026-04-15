@@ -26,7 +26,7 @@ struct my_memory_header
   PSI_memory_key m_key;
 };
 typedef struct my_memory_header my_memory_header;
-#define HEADER_SIZE 24
+#define HEADER_SIZE MY_ALIGN(sizeof(my_memory_header), 16)
 
 #define USER_TO_HEADER(P) ((my_memory_header*)((char *)(P) - HEADER_SIZE))
 #define HEADER_TO_USER(P) ((char*)(P) + HEADER_SIZE)
