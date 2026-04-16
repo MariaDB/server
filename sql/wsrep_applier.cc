@@ -100,8 +100,8 @@ static void wsrep_store_error_rli(const THD* const thd,
     }
     os << " Error_code: " << error.number << ';';
     std::string const err_str= os.str();
-    dst.resize(err_str.length() + 1);
-    sprintf(dst.data(), "%s", err_str.c_str());
+    dst.clear();
+    dst.push_back(err_str);
 
     WSREP_DEBUG("Error buffer (RLI) for thd %u seqno %lld, %zu bytes: '%s'",
                 thd->thread_id, (long long)wsrep_thd_trx_seqno(thd),

@@ -48,6 +48,7 @@ void report_json_error_ex(const char *js, json_engine_t *je,
                           const char *fname, int n_param,
                           Sql_condition::enum_warning_level lv);
 bool check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_whole);
+int st_append_escaped(String *s, const String *a);
 int json_find_overlap_with_object(json_engine_t *js,
                                               json_engine_t *value,
                                               bool compare_whole);
@@ -84,7 +85,8 @@ protected:
   virtual ~Json_path_extractor() { }
   virtual bool check_and_get_value(Json_engine_scan *je,
                                    String *to, int *error)=0;
-  bool extract(String *to, Item *js, Item *jp, CHARSET_INFO *cs);
+  bool extract(String *to, Item *js, Item *jp, CHARSET_INFO *cs,
+               LEX_CSTRING func_name, bool allow_wildcard);
 };
 
 
@@ -196,7 +198,7 @@ public:
   String *val_str(String *to) override
   {
     null_value= Json_path_extractor::extract(to, args[0], args[1],
-                                             collation.collation);
+                                             collation.collation, func_name_cstring(), false);
     return null_value ? NULL : to;
   }
   bool check_and_get_value(Json_engine_scan *je,
@@ -226,7 +228,7 @@ public:
   String *val_str(String *to) override
   {
     null_value= Json_path_extractor::extract(to, args[0], args[1],
-                                             collation.collation);
+                                             collation.collation, func_name_cstring(), true);
     return null_value ? NULL : to;
   }
   bool check_and_get_value(Json_engine_scan *je,

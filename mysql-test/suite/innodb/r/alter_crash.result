@@ -268,3 +268,10 @@ CHECK TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
+#
+# MDEV-38993 Assertion `trx->undo_no == 1' fails upon ALTER IGNORE
+#
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2),(1),(2);
+ALTER IGNORE TABLE t ADD UNIQUE(a);
+DROP TABLE t;

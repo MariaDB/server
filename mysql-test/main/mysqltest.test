@@ -2962,6 +2962,23 @@ SELECT 1 /* doesn't throw error */;
 
 --echo End of tests
 
+--echo #
+--echo # MDEV-38696: infinite loop in my_copy() function
+--echo #
+
+--let $srcdir= $MYSQLTEST_VARDIR/tmp/mdev_38696_srcdir
+--let $dstfile= $MYSQLTEST_VARDIR/tmp/mdev_38696_dstfile
+
+--mkdir $srcdir
+
+--error 1
+--copy_file $srcdir $dstfile
+--echo # caught error and exited my_copy()
+
+--rmdir $srcdir
+
+--echo # End of 10.11 tests
+
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc
 

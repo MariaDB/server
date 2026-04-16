@@ -2616,4 +2616,17 @@ a	b
 2	N
 drop table t1;
 set sql_mode=default;
+#
+# MDEV-39043 ENUM can be set to empty string by giving an index value as string "0"
+#
+set sql_mode=STRICT_ALL_TABLES;
+create table t1 (a enum('Value1', 'Value2') NOT NULL DEFAULT 'Value1');
+insert into t1 values ('0');
+ERROR 01000: Data truncated for column 'a' at row 1
+insert into t1 values (0);
+ERROR 01000: Data truncated for column 'a' at row 1
+select * from t1;
+a
+drop table t1;
+set sql_mode=default;
 # End of 10.11 tests

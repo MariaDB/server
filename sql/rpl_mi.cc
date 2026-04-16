@@ -448,7 +448,8 @@ file '%s')", fname);
     }
 
     mi->fd = fd;
-    int port, connect_retry, master_log_pos, lines;
+    int port, connect_retry, lines;
+    ulonglong master_log_pos;
     int ssl= 0, ssl_verify_server_cert= 0;
     float master_heartbeat_period= 0.0;
     char *first_non_digit;
@@ -496,7 +497,7 @@ file '%s')", fname);
     else
       lines= 7;
 
-    if (init_intvar_from_file(&master_log_pos, &mi->file, 4) ||
+    if (init_ulonglongvar_from_file(&master_log_pos, &mi->file, 4) ||
         init_strvar_from_file(mi->host, sizeof(mi->host), &mi->file, 0) ||
         init_strvar_from_file(mi->user, sizeof(mi->user), &mi->file, "test") ||
         init_strvar_from_file(mi->password, sizeof(mi->password),
@@ -760,19 +761,21 @@ int flush_master_info(Master_info* mi,
   */
   char* ignore_server_ids_buf;
   {
+    size_t ignore_buf_size=
+      (sizeof(global_system_variables.server_id) * 3 + 1) *
+      (1 + mi->ignore_server_ids.elements);
     ignore_server_ids_buf=
-      (char *) my_malloc(PSI_INSTRUMENT_ME,
-                         (sizeof(global_system_variables.server_id) * 3 + 1) *
-                         (1 + mi->ignore_server_ids.elements), MYF(MY_WME));
+      (char *) my_malloc(PSI_INSTRUMENT_ME, ignore_buf_size, MYF(MY_WME));
     if (!ignore_server_ids_buf)
       DBUG_RETURN(1);                           /* error */
-    ulong cur_len= sprintf(ignore_server_ids_buf, "%zu",
-                           mi->ignore_server_ids.elements);
+    ulong cur_len= snprintf(ignore_server_ids_buf, ignore_buf_size,
+                            "%zu", mi->ignore_server_ids.elements);
     for (ulong i= 0; i < mi->ignore_server_ids.elements; i++)
     {
       ulong s_id;
       get_dynamic(&mi->ignore_server_ids, (uchar*) &s_id, i);
-      cur_len+= sprintf(ignore_server_ids_buf + cur_len, " %lu", s_id);
+      cur_len+= snprintf(ignore_server_ids_buf + cur_len,
+                         ignore_buf_size - cur_len, " %lu", s_id);
     }
   }
 
@@ -1949,7 +1952,7 @@ char *Domain_id_filter::as_string(enum_list_type type)
     return NULL;
 
   // Store the total number of elements followed by the individual elements.
-  size_t cur_len= sprintf(buf, "%zu", ids->elements);
+  size_t cur_len= snprintf(buf, sz, "%zu", ids->elements);
   sz-= cur_len;
 
   for (uint i= 0; i < ids->elements; i++)
@@ -2003,17 +2006,17 @@ void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids)
     ulong id, len;
     char dbuff[FN_REFLEN];
     get_dynamic(ids, (void *) &id, i);
-    len= sprintf(dbuff, (i == 0 ? "%lu" : ", %lu"), id);
+    len= snprintf(dbuff, sizeof(dbuff), (i == 0 ? "%lu" : ", %lu"), id);
     if (cur_len + len + 4 > FN_REFLEN)
     {
       /*
         break the loop whenever remained space could not fit
         ellipses on the next cycle
       */
-      cur_len+= sprintf(dbuff + cur_len, "...");
+      cur_len+= snprintf(buff + cur_len, sizeof(buff) - cur_len, "...");
       break;
     }
-    cur_len+= sprintf(buff + cur_len, "%s", dbuff);
+    cur_len+= snprintf(buff + cur_len, sizeof(buff) - cur_len, "%s", dbuff);
   }
   thd->protocol->store(buff, cur_len, &my_charset_bin);
   return;

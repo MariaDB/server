@@ -972,7 +972,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           /* Fields we want to have statistics for */
           bitmap_clear_all(&tab->has_value_set);
 
-          for (uint fields= 0; *field_ptr; field_ptr++, fields++)
+          for (; *field_ptr; field_ptr++)
           {
             Field *field= *field_ptr;
             if (field->flags & LONG_UNIQUE_HASH_FIELD)
@@ -1500,6 +1500,15 @@ bool mysql_assign_to_keycache(THD* thd, TABLE_LIST* tables,
   KEY_CACHE *key_cache;
   DBUG_ENTER("mysql_assign_to_keycache");
 
+  if (check_some_access(thd, TABLE_ACLS, tables))
+  {
+    my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "CACHE INDEX",
+             thd->security_ctx->priv_user,
+             thd->security_ctx->host_or_ip,
+             tables->db.str, tables->table_name.str);
+    DBUG_RETURN(TRUE);
+  }
+
   THD_STAGE_INFO(thd, stage_finding_key_cache);
   check_opt.init();
   mysql_mutex_lock(&LOCK_global_system_variables);
@@ -1539,6 +1548,16 @@ bool mysql_assign_to_keycache(THD* thd, TABLE_LIST* tables,
 bool mysql_preload_keys(THD* thd, TABLE_LIST* tables)
 {
   DBUG_ENTER("mysql_preload_keys");
+
+  if (check_some_access(thd, TABLE_ACLS, tables))
+  {
+    my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "LOAD INDEX INTO CACHE",
+             thd->security_ctx->priv_user,
+             thd->security_ctx->host_or_ip,
+             tables->db.str, tables->table_name.str);
+    DBUG_RETURN(TRUE);
+  }
+
   /*
     We cannot allow concurrent inserts. The storage engine reads
     directly from the index file, bypassing the cache. It could read

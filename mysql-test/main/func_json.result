@@ -46,6 +46,8 @@ json_query('{"key1":123, "key1": [1,2,3]}', '$.key1')
 select json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000))) as exp;
 exp
 NULL
+Warnings:
+Warning	4043	Limit of 32 on JSON path depth is reached in argument 2 to function 'json_query' at position 65
 select json_array();
 json_array()
 []
@@ -662,6 +664,8 @@ JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path)
 SELECT JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]');
 JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]')
 NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_value'
 CREATE TABLE t1 (f INT NOT NULL);
 INSERT INTO t1 VALUES (0);
 SELECT JSON_KEYS(f) FROM t1 ORDER BY 1;
@@ -1456,6 +1460,8 @@ SET COLLATION_CONNECTION= ucs2_unicode_ci;
 SELECT JSON_VALUE('["foo"]', '$**[0]') AS f;
 f
 NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_value'
 SET @@COLLATION_CONNECTION= @old_collation_connection;
 #
 # MDEV-32587 JSON_VALID fail to validate integer zero in scientific notation
@@ -1768,6 +1774,26 @@ null<=>json_extract('1',json_object(null,'{ }',null,null),'{}')
 Warnings:
 Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 1
 # End of 10.6 tests
+SELECT json_extract(t.j, '$')
+FROM (SELECT json_extract('["a",1]', '$') AS j) AS t;
+json_extract(t.j, '$')
+["a", 1]
+SELECT json_extract(t.j, '$')
+FROM (SELECT json_extract('{"key":"value"}', '$') AS j) AS t;
+json_extract(t.j, '$')
+{"key": "value"}
+SELECT json_extract(t.j, '$[0]', '$[1]')
+FROM (SELECT json_extract('[{"a":1},{"b":2},{"c":3}]', '$') AS j) AS t;
+json_extract(t.j, '$[0]', '$[1]')
+[{"a": 1}, {"b": 2}]
+SELECT json_extract(t.j, '$')
+FROM (SELECT json_extract('{"name":"Ä Ö Ü ß","city":"München"}', '$') AS j) AS t;
+json_extract(t.j, '$')
+{"name": "Ä Ö Ü ß", "city": "München"}
+SELECT json_extract(t.j, '$.name')
+FROM (SELECT json_extract('{"name":"日本語テスト","val":[1,2]}', '$') AS j) AS t;
+json_extract(t.j, '$.name')
+"日本語テスト"
 #
 # MDEV-35614 JSON_UNQUOTE doesn't work with emojis
 #
@@ -2384,6 +2410,8 @@ SET @json= '[
 SELECT JSON_VALUE(@json, '$[0][1 to 2].key1');
 JSON_VALUE(@json, '$[0][1 to 2].key1')
 NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_value'
 SET @json='{
             "A": [0,
                   [1, 2, 3],
@@ -2400,7 +2428,7 @@ SET @json='{
            }';
 SELECT JSON_QUERY(@json, '$.A[-2][-3 to -1]');
 JSON_QUERY(@json, '$.A[-2][-3 to -1]')
-NULL
+[13, 14]
 SET @json= '[
              [1, {"key1": "value1"}, 3],
              [false, 5, 6],
@@ -2549,6 +2577,8 @@ SET @json1= '[
 SELECT JSON_VALUE(@json1, '$[2][1 to 2].key1');
 JSON_VALUE(@json1, '$[2][1 to 2].key1')
 NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_value'
 SET @json= '[
              [1.1, {"key1": "value1"}, 3],
              [false, 5, 6],
@@ -2559,9 +2589,13 @@ SET @json= '[
 SELECT JSON_VALUE(@json, '$[*][0]');
 JSON_VALUE(@json, '$[*][0]')
 NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_value'
 SELECT JSON_VALUE(@json, '$[2 to 3][0]');
 JSON_VALUE(@json, '$[2 to 3][0]')
 NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_value'
 #
 # MDEV-28072: JSON_EXTRACT has inconsistent behavior with '0' value in
 # json path (when range is used)
@@ -2770,4 +2804,65 @@ S1A1
 SELECT JSON_VALUE('{"a":[1,2]}', '$.a[*]');
 JSON_VALUE('{"a":[1,2]}', '$.a[*]')
 NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_value'
+#
+# MDEV-37640: Crash at String::append with json_normalize
+#
+SELECT ( WITH x AS ( WITH x AS ( SELECT 1.000000 ) SELECT ( REPEAT ( ( json_normalize ( ' 	-1' ) ) , 357 ) ) x ) SELECT x FROM x WHERE x IN ( x , x ) );
+( WITH x AS ( WITH x AS ( SELECT 1.000000 ) SELECT ( REPEAT ( ( json_normalize ( ' 	-1' ) ) , 357 ) ) x ) SELECT x FROM x WHERE x IN ( x , x ) )
+-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0
+#
+# MDEV-37640: Crash in JSON_KEYS
+#
+SELECT JSON_SET('{"c":4}', '$.a', 5) AS x HAVING (x IN (JSON_KEYS(x), ','));
+x
+#
+# MDEV-38264 Assertion in json_find_path() fails after computing
+# array size of invalid json structure
+#
+SELECT JSON_QUERY('{ "A": [0,] }', '$.A[-1]');
+JSON_QUERY('{ "A": [0,] }', '$.A[-1]')
+NULL
+SELECT JSON_VALUE('{ "A": [0,] }', '$.A[-1]');
+JSON_VALUE('{ "A": [0,] }', '$.A[-1]')
+NULL
+SELECT JSON_VALUE('{ "A": [5,] }', '$.A[-2]');
+JSON_VALUE('{ "A": [5,] }', '$.A[-2]')
+NULL
+SELECT JSON_VALUE('{ "A": [5] }', '$.A[-2]');
+JSON_VALUE('{ "A": [5] }', '$.A[-2]')
+NULL
+SELECT JSON_LENGTH('{ "A": [0,] }', '$.A');
+JSON_LENGTH('{ "A": [0,] }', '$.A')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' at position 11
+SELECT JSON_VALID('{ "A": [0,] }');
+JSON_VALID('{ "A": [0,] }')
+0
+#
+# MDEV-38264 Assertion in json_find_path() fails after computing
+# array size of invalid json structure
+#
+SELECT JSON_QUERY('{ "A": [0,] }', '$.A[-1]');
+JSON_QUERY('{ "A": [0,] }', '$.A[-1]')
+NULL
+SELECT JSON_VALUE('{ "A": [0,] }', '$.A[-1]');
+JSON_VALUE('{ "A": [0,] }', '$.A[-1]')
+NULL
+SELECT JSON_VALUE('{ "A": [5,] }', '$.A[-2]');
+JSON_VALUE('{ "A": [5,] }', '$.A[-2]')
+NULL
+SELECT JSON_VALUE('{ "A": [5] }', '$.A[-2]');
+JSON_VALUE('{ "A": [5] }', '$.A[-2]')
+NULL
+SELECT JSON_LENGTH('{ "A": [0,] }', '$.A');
+JSON_LENGTH('{ "A": [0,] }', '$.A')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' at position 11
+SELECT JSON_VALID('{ "A": [0,] }');
+JSON_VALID('{ "A": [0,] }')
+0
 # End of 10.11 Test

@@ -181,7 +181,7 @@ int main(int argc, const char** argv )
   PROCESS_INFORMATION process_info= {0};
   BOOL nocore= FALSE;
 
-  sprintf(safe_process_name, "safe_process[%lu]", pid);
+  snprintf(safe_process_name, sizeof(safe_process_name), "safe_process[%lu]", pid);
 
   /* Create an event for the signal handler */
   if ((shutdown_event=

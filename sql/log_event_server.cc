@@ -3853,7 +3853,7 @@ Gtid_log_event::pack_info(Protocol *protocol)
                    flags2 & FL_PREPARED_XA ? "XA START " : "BEGIN GTID "));
   if (flags2 & FL_PREPARED_XA)
   {
-    p+= sprintf(p, "%s GTID ", xid.serialize());
+    p+= snprintf(p, buf + sizeof(buf) - p, "%s GTID ", xid.serialize());
   }
   p= longlong10_to_str(domain_id, p, 10);
   *p++= '-';
@@ -3940,7 +3940,7 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
 
     thd->lex->xid= &xid;
     thd->lex->xa_opt= XA_NONE;
-    sprintf(buf_xa, fmt, xid.serialize());
+    snprintf(buf_xa, sizeof(buf_xa), fmt, xid.serialize());
     thd->set_query_and_id(buf_xa, static_cast<uint32>(strlen(buf_xa)),
                           &my_charset_bin, next_query_id());
     thd->lex->sql_command= SQLCOM_XA_START;
@@ -4576,9 +4576,9 @@ void XA_prepare_log_event::pack_info(Protocol *protocol)
 {
   char query[sizeof("XA COMMIT ONE PHASE") + 1 + ser_buf_size];
 
-  sprintf(query,
-          (one_phase ? "XA COMMIT %s ONE PHASE" :  "XA PREPARE %s"),
-          m_xid.serialize());
+  snprintf(query, sizeof(query),
+           (one_phase ? "XA COMMIT %s ONE PHASE" :  "XA PREPARE %s"),
+           m_xid.serialize());
 
   protocol->store(query, strlen(query), &my_charset_bin);
 }
@@ -5227,7 +5227,7 @@ void Append_block_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];
   uint length;
-  length= (uint) sprintf(buf, ";file_id=%u;block_len=%u", file_id, block_len);
+  length= (uint) snprintf(buf, sizeof(buf), ";file_id=%u;block_len=%u", file_id, block_len);
   protocol->store(buf, length, &my_charset_bin);
 }
 
@@ -5336,7 +5336,7 @@ void Delete_file_log_event::pack_info(Protocol *protocol)
 {
   char buf[64];
   uint length;
-  length= (uint) sprintf(buf, ";file_id=%u", (uint) file_id);
+  length= (uint) snprintf(buf, sizeof(buf), ";file_id=%u", (uint) file_id);
   protocol->store(buf, (int32) length, &my_charset_bin);
 }
 #endif
@@ -5384,7 +5384,7 @@ void Execute_load_log_event::pack_info(Protocol *protocol)
 {
   char buf[64];
   uint length;
-  length= (uint) sprintf(buf, ";file_id=%u", (uint) file_id);
+  length= (uint) snprintf(buf, sizeof(buf), ";file_id=%u", (uint) file_id);
   protocol->store(buf, (int32) length, &my_charset_bin);
 }
 
@@ -8435,17 +8435,17 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
       found.  I can see no scenario where it would be incorrect to
       chose the row to change only using a PK or an UNNI.
     */
-    if (table->key_info->flags & HA_NOSAME)
+    if (m_key_info->flags & HA_NOSAME)
     {
       /* Unique does not have non nullable part */
-      if (!(table->key_info->flags & (HA_NULL_PART_KEY)))
+      if (!(m_key_info->flags & (HA_NULL_PART_KEY)))
       {
         error= 0;
         goto end;
       }
       else
       {
-        KEY *keyinfo= table->key_info;
+        KEY *keyinfo= m_key_info;
         /*
           Unique has nullable part. We need to check if there is any
           field in the BI image that is null and part of UNNI.

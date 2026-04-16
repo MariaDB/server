@@ -144,7 +144,15 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
 
   dp= (struct dirent*) dirent_tmp;
   
+  /* readdir_r is deprecated on macOS but still used for older platforms */
+#ifdef __APPLE__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
   while (!(READDIR(dirp,(struct dirent*) dirent_tmp,dp)))
+#ifdef __APPLE__
+#pragma GCC diagnostic pop
+#endif
   {
     MY_STAT statbuf, *mystat= 0;
     

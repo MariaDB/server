@@ -86,8 +86,8 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
   uint         k;
   TABLE_SHARE *s;
 
-	k = sprintf(key, "%s", db) + 1;
-	k += sprintf(key + k, "%s", name);
+	k = snprintf(key, sizeof(key), "%s", db) + 1;
+	k += snprintf(key + k, sizeof(key) - k, "%s", name);
   key[++k] = 0;
 
 	if (!(s = alloc_table_share(db, name, key, ++k))) {

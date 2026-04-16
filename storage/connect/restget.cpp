@@ -79,7 +79,7 @@ int restGetFile(char *m, bool xt, PCSZ http, PCSZ uri, PCSZ fn)
 		if (xt)
 			fprintf(stderr, "Error exception: %s\n", e.what());
 
-		sprintf(m, "Error exception: %s", e.what());
+		snprintf(m, 4160, "Error exception: %s", e.what());
 		rc= 1;
   } // end try/catch
 

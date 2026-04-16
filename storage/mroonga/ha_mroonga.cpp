@@ -787,6 +787,27 @@ static MYSQL_SYSVAR_ENUM(log_level, mrn_log_level,
                          static_cast<ulong>(mrn_log_level),
                          &mrn_log_level_typelib);
 
+static int mrn_log_file_check(THD *thd, struct st_mysql_sys_var *var,
+                              void *save, struct st_mysql_value *value)
+{
+  MRN_DBUG_ENTER_FUNCTION();
+
+  char buf[STRING_BUFFER_USUAL_SIZE];
+  int len = sizeof(buf);
+  const char* new_value = value->val_str(value, buf, &len);
+
+  if (!new_value || len == 0) {
+    my_printf_error(ER_MRN_INVALID_NULL_VALUE_NUM,
+                    ER_MRN_INVALID_NULL_VALUE_STR,
+                    MYF(0),
+                    "mroonga_log_file");
+    DBUG_RETURN(1);
+  }
+
+  *((const char**)save) = thd->strmake(new_value, len);
+
+  DBUG_RETURN(0);
+}
 static void mrn_log_file_update(THD *thd, struct st_mysql_sys_var *var,
                                 void *var_ptr, const void *save)
 {
@@ -859,7 +880,7 @@ static void mrn_log_file_update(THD *thd, struct st_mysql_sys_var *var,
 static MYSQL_SYSVAR_STR(log_file, mrn_log_file_path,
                         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
                         "log file for " MRN_PLUGIN_NAME_STRING,
-                        NULL,
+                        mrn_log_file_check,
                         mrn_log_file_update,
                         MRN_LOG_FILE_PATH);
 
@@ -3732,8 +3753,9 @@ bool ha_mroonga::storage_create_foreign_key(TABLE *table,
     if (!grn_table_ref) {
       error = ER_CANT_CREATE_TABLE;
       char err_msg[MRN_BUFFER_SIZE];
-      sprintf(err_msg, "reference table [%s.%s] is not mroonga table",
-              table->s->db.str, ref_table_name.str);
+      snprintf(err_msg, MRN_BUFFER_SIZE,
+               "reference table [%s.%s] is not mroonga table",
+               table->s->db.str, ref_table_name.str);
       my_message(error, err_msg, MYF(0));
       DBUG_RETURN(false);
     }
@@ -3749,8 +3771,9 @@ bool ha_mroonga::storage_create_foreign_key(TABLE *table,
       grn_obj_unlink(ctx, grn_table_ref);
       error = ER_CANT_CREATE_TABLE;
       char err_msg[MRN_BUFFER_SIZE];
-      sprintf(err_msg, "reference table [%s.%s] is not found",
-              table->s->db.str, ref_table_name.str);
+      snprintf(err_msg, MRN_BUFFER_SIZE,
+               "reference table [%s.%s] is not found",
+               table->s->db.str, ref_table_name.str);
       my_message(error, err_msg, MYF(0));
       DBUG_RETURN(false);
     }
@@ -3762,8 +3785,9 @@ bool ha_mroonga::storage_create_foreign_key(TABLE *table,
       grn_obj_unlink(ctx, grn_table_ref);
       error = ER_CANT_CREATE_TABLE;
       char err_msg[MRN_BUFFER_SIZE];
-      sprintf(err_msg, "reference table [%s.%s] has no primary key",
-              table->s->db.str, ref_table_name.str);
+      snprintf(err_msg, MRN_BUFFER_SIZE,
+               "reference table [%s.%s] has no primary key",
+               table->s->db.str, ref_table_name.str);
       my_message(error, err_msg, MYF(0));
       DBUG_RETURN(false);
     }
@@ -3776,9 +3800,9 @@ bool ha_mroonga::storage_create_foreign_key(TABLE *table,
       grn_obj_unlink(ctx, grn_table_ref);
       error = ER_CANT_CREATE_TABLE;
       char err_msg[MRN_BUFFER_SIZE];
-      sprintf(err_msg,
-              "reference table [%s.%s] primary key is multiple column",
-              table->s->db.str, ref_table_name.str);
+      snprintf(err_msg, MRN_BUFFER_SIZE,
+               "reference table [%s.%s] primary key is multiple column",
+               table->s->db.str, ref_table_name.str);
       my_message(error, err_msg, MYF(0));
       DBUG_RETURN(false);
     }
@@ -3790,9 +3814,9 @@ bool ha_mroonga::storage_create_foreign_key(TABLE *table,
       grn_obj_unlink(ctx, grn_table_ref);
       error = ER_CANT_CREATE_TABLE;
       char err_msg[MRN_BUFFER_SIZE];
-      sprintf(err_msg,
-              "reference column [%s.%s.%s] is not used for primary key",
-              table->s->db.str, ref_table_name.str, ref_field_name.str);
+      snprintf(err_msg, MRN_BUFFER_SIZE,
+               "reference column [%s.%s.%s] is not used for primary key",
+               table->s->db.str, ref_table_name.str, ref_field_name.str);
       my_message(error, err_msg, MYF(0));
       DBUG_RETURN(false);
     }
@@ -9038,7 +9062,7 @@ void ha_mroonga::push_warning_unsupported_spatial_index_search(enum ha_rkey_func
   } else if (flag & HA_READ_MBR_EQUAL) {
     strcpy(search_name, "equal");
   } else {
-    sprintf(search_name, "unknown: %d", flag);
+    snprintf(search_name, MRN_BUFFER_SIZE, "unknown: %d", flag);
   }
   push_warning_printf(ha_thd(),
                       MRN_SEVERITY_WARNING,
@@ -9627,11 +9651,11 @@ grn_obj *ha_mroonga::find_tokenizer(const char *name, int name_length)
   tokenizer = grn_ctx_get(ctx, name, name_length);
   if (!tokenizer) {
     char message[MRN_BUFFER_SIZE];
-    sprintf(message,
-            "specified tokenizer for fulltext index <%.*s> doesn't exist. "
-            "The default tokenizer for fulltext index <%s> is used instead.",
-            name_length, name,
-            MRN_DEFAULT_TOKENIZER);
+    snprintf(message, MRN_BUFFER_SIZE,
+             "specified tokenizer for fulltext index <%.*s> doesn't exist. "
+             "The default tokenizer for fulltext index <%s> is used instead.",
+             name_length, name,
+             MRN_DEFAULT_TOKENIZER);
     push_warning(ha_thd(),
                  MRN_SEVERITY_WARNING, ER_UNSUPPORTED_EXTENSION,
                  message);
@@ -9796,9 +9820,9 @@ bool ha_mroonga::find_token_filters_put(grn_obj *token_filters,
     return true;
   } else {
     char message[MRN_BUFFER_SIZE];
-    sprintf(message,
-            "nonexistent token filter: <%.*s>",
-            token_filter_name_length, token_filter_name);
+    snprintf(message, MRN_BUFFER_SIZE,
+             "nonexistent token filter: <%.*s>",
+             token_filter_name_length, token_filter_name);
     push_warning(ha_thd(),
                  MRN_SEVERITY_WARNING, ER_UNSUPPORTED_EXTENSION,
                  message);
@@ -9853,12 +9877,12 @@ bool ha_mroonga::find_token_filters_fill(grn_obj *token_filters,
 break_loop:
   if (!name_start) {
     char message[MRN_BUFFER_SIZE];
-    sprintf(message,
-            "empty token filter name: "
-            "<%.*s|%.*s|%.*s>",
-            (int)(last_name_end - start), start,
-            (int)(current - last_name_end), last_name_end,
-            (int)(end - current), current);
+    snprintf(message, MRN_BUFFER_SIZE,
+             "empty token filter name: "
+             "<%.*s|%.*s|%.*s>",
+             (int)(last_name_end - start), start,
+             (int)(current - last_name_end), last_name_end,
+             (int)(end - current), current);
     push_warning(ha_thd(),
                  MRN_SEVERITY_WARNING, ER_UNSUPPORTED_EXTENSION,
                  message);

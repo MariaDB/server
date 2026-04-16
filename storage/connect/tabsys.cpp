@@ -633,11 +633,11 @@ int TDBXIN::GetRecpos(void)
   union {
     short X[2];                              // Section and Key offsets
     int   Xpos;                              // File position
-    }; // end of union
+    } d; // end of union
 
-  X[0] = (short)(Section - Seclist);
-  X[1] = (short)(Keycur - Keylist);
-  return Xpos;
+  d.X[0] = (short)(Section - Seclist);
+  d.X[1] = (short)(Keycur - Keylist);
+  return d.Xpos;
   } // end of GetRecpos
 
 /***********************************************************************/
@@ -648,16 +648,16 @@ bool TDBXIN::SetRecpos(PGLOBAL g, int recpos)
   union {
     short X[2];                              // Section and Key offsets
     int   Xpos;                              // File position
-    }; // end of union
+    } d; // end of union
 
-  Xpos = recpos;
+  d.Xpos = recpos;
 
-  if (X[0] != Oldsec) {
-    Section = Seclist + X[0];
-    Keycur = GetKeylist(g, Section) + X[1];
-    Oldsec = X[0];
+  if (d.X[0] != Oldsec) {
+    Section = Seclist + d.X[0];
+    Keycur = GetKeylist(g, Section) + d.X[1];
+    Oldsec = d.X[0];
   } else
-    Keycur = Keylist + X[1];
+    Keycur = Keylist + d.X[1];
 
   return false;
   } // end of SetRecpos

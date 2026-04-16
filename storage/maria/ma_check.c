@@ -7134,7 +7134,8 @@ static void print_bitmap_description(MARIA_SHARE *share,
                        MYF(MY_WME | MY_THREADSAFE));
   if (!tmp)
     return;
-  _ma_get_bitmap_description(&share->bitmap, bitmap_data, page, tmp);
+  _ma_get_bitmap_description(&share->bitmap, bitmap_data, page, tmp,
+                              MAX_BITMAP_INFO_LENGTH);
   printf("Bitmap page %lu\n%s", (ulong) page, tmp);
   my_free(tmp);
 }

@@ -2658,7 +2658,7 @@ static void log_hdr_init()
                   log_sys.format == log_t::FORMAT_ENC_11
                   ? log_t::FORMAT_ENC_11 : log_t::FORMAT_10_8);
   mach_write_to_8(LOG_HEADER_START_LSN + log_hdr_buf,
-                  log_sys.next_checkpoint_lsn);
+                  log_sys.last_checkpoint_lsn);
   snprintf(reinterpret_cast<char*>(LOG_HEADER_CREATOR + log_hdr_buf),
            16, "Backup %u.%u.%u",
            MYSQL_VERSION_ID / 10000, MYSQL_VERSION_ID / 100 % 100,
@@ -2666,7 +2666,7 @@ static void log_hdr_init()
   if (log_sys.is_encrypted())
     log_crypt_write_header(log_hdr_buf + LOG_HEADER_CREATOR_END);
   mach_write_to_4(508 + log_hdr_buf, my_crc32c(0, log_hdr_buf, 508));
-  mach_write_to_8(log_hdr_buf + 0x1000, log_sys.next_checkpoint_lsn);
+  mach_write_to_8(log_hdr_buf + 0x1000, log_sys.last_checkpoint_lsn);
   mach_write_to_8(log_hdr_buf + 0x1008, recv_sys.lsn);
   mach_write_to_4(log_hdr_buf + 0x103c,
                   my_crc32c(0, log_hdr_buf + 0x1000, 60));
@@ -2705,7 +2705,7 @@ static bool innodb_init()
   mysql_mutex_unlock(&recv_sys.mutex);
   recv_sys.debug_free();
 
-  buf_flush_sync_batch(LSN_MAX);
+  buf_flush_sync_batch(0, false);
   ut_ad(!os_aio_pending_reads());
   ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
   ut_ad(!buf_pool.get_oldest_modification(0));
@@ -2740,7 +2740,7 @@ static bool innodb_init()
     return true;
   }
 
-  recv_sys.lsn= log_sys.next_checkpoint_lsn=
+  recv_sys.lsn= log_sys.last_checkpoint_lsn=
     log_get_lsn() - SIZE_OF_FILE_CHECKPOINT;
   log_sys.set_latest_format(false); // not encrypted
   log_hdr_init();
@@ -3613,7 +3613,7 @@ static bool backup_wait_timeout(lsn_t lsn, lsn_t last_lsn)
     return true;
   msg("Was only able to copy log from " LSN_PF " to " LSN_PF
       ", not " LSN_PF "; try increasing innodb_log_file_size",
-      log_sys.next_checkpoint_lsn, last_lsn, lsn);
+      log_sys.last_checkpoint_lsn.load(), last_lsn, lsn);
   return false;
 }
 
@@ -4141,13 +4141,15 @@ next_file:
 
 	strcpy(info->name, ent->d_name);
 
+	size_t full_path_size= strlen(dirname) + strlen(ent->d_name) + 10;
 	full_path = static_cast<char*>(
-		ut_malloc_nokey(strlen(dirname) + strlen(ent->d_name) + 10));
+		ut_malloc_nokey(full_path_size));
 	if (!full_path) {
 		return -1;
 	}
 
-	sprintf(full_path, "%s/%s", dirname, ent->d_name);
+	snprintf(full_path, full_path_size,
+		 "%s/%s", dirname, ent->d_name);
 
 	ret = stat(full_path, &statinfo);
 
@@ -4871,9 +4873,9 @@ static bool backup_wait_for_commit_lsn()
   /* read the latest checkpoint lsn */
   if (recv_sys.find_checkpoint() == DB_SUCCESS && log_sys.is_latest())
   {
-    if (log_sys.next_checkpoint_lsn > lsn)
-      lsn= log_sys.next_checkpoint_lsn;
-    metadata_to_lsn= log_sys.next_checkpoint_lsn;
+    metadata_to_lsn= log_sys.last_checkpoint_lsn;
+    if (metadata_to_lsn > lsn)
+      lsn= metadata_to_lsn;
     msg("mariabackup: The latest check point (for incremental): '"
         LSN_PF "'", metadata_to_lsn);
   }
@@ -4949,14 +4951,14 @@ bool Backup_datasinks::backup_low()
 	if (xtrabackup_extra_lsndir) {
 		char	filename[FN_REFLEN];
 
-		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
+		snprintf(filename, sizeof(filename), "%s/%s", xtrabackup_extra_lsndir,
 			XTRABACKUP_METADATA_FILENAME);
 		if (!xtrabackup_write_metadata(filename)) {
 			msg("Error: failed to write metadata "
 			    "to '%s'.", filename);
 			return false;
 		}
-		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
+		snprintf(filename, sizeof(filename), "%s/%s", xtrabackup_extra_lsndir,
 			XTRABACKUP_INFO);
 		if (!write_xtrabackup_info(m_data,
 		                           mysql_connection, filename, false, false)) {
@@ -5515,7 +5517,7 @@ fail:
 
 	/* get current checkpoint_lsn */
 	{
-		log_sys.latch.wr_lock(SRW_LOCK_CALL);
+		log_sys.latch.wr_lock();
 		mysql_mutex_lock(&recv_sys.mutex);
 		dberr_t err = recv_sys.find_checkpoint();
 		log_sys.latch.wr_unlock();
@@ -5576,7 +5578,7 @@ fail:
 	}
 
 	/* label it */
-	recv_sys.file_checkpoint = log_sys.next_checkpoint_lsn;
+	recv_sys.file_checkpoint = log_sys.last_checkpoint_lsn;
 	log_hdr_init();
 	/* Write log header*/
 	if (ds_write(dst_log_file, log_hdr_buf, 12288)) {
@@ -5607,7 +5609,7 @@ fail:
 
 	mysql_mutex_lock(&recv_sys.mutex);
 	backup_log_parse = recv_sys.get_backup_parser();
-	recv_sys.lsn = log_sys.next_checkpoint_lsn;
+	recv_sys.lsn = log_sys.last_checkpoint_lsn;
 
 	const bool log_copy_failed = xtrabackup_copy_logfile(true);
 
@@ -5666,7 +5668,7 @@ fail:
 	backup_datasinks.destroy();
 
 	msg("Redo log (from LSN " LSN_PF " to " LSN_PF ") was copied.",
-	    log_sys.next_checkpoint_lsn, recv_sys.lsn);
+	    log_sys.last_checkpoint_lsn.load(), recv_sys.lsn);
 	xb_filters_free();
 
 	xb_data_files_close();
@@ -6820,8 +6822,8 @@ static bool xtrabackup_prepare_func(char** argv)
 	/*
 	  read metadata of target
 	*/
-	sprintf(metadata_path, "%s/%s", xtrabackup_target_dir,
-		XTRABACKUP_METADATA_FILENAME);
+	snprintf(metadata_path, sizeof(metadata_path), "%s/%s",
+		 xtrabackup_target_dir, XTRABACKUP_METADATA_FILENAME);
 
 	if (!xtrabackup_read_metadata(metadata_path)) {
 		msg("Error: failed to read metadata from '%s'\n",
@@ -6931,7 +6933,7 @@ error:
         if (xtrabackup_incremental)
         {
           char inc_filename[FN_REFLEN];
-          sprintf(inc_filename, "%s/%s", xtrabackup_incremental_dir,
+          snprintf(inc_filename, sizeof(inc_filename), "%s/%s", xtrabackup_incremental_dir,
                   MB_CORRUPTED_PAGES_FILE);
           corrupted_pages.read_from_file(inc_filename);
         }
@@ -7000,14 +7002,14 @@ error:
 			metadata_last_lsn = incremental_last_lsn;
 		}
 
-		sprintf(filename, "%s/%s", xtrabackup_target_dir, XTRABACKUP_METADATA_FILENAME);
+		snprintf(filename, sizeof(filename), "%s/%s", xtrabackup_target_dir, XTRABACKUP_METADATA_FILENAME);
 		if (!xtrabackup_write_metadata(filename)) {
 
 			msg("mariabackup: Error: failed to write metadata "
 			    "to '%s'", filename);
 			ok = false;
 		} else if (xtrabackup_extra_lsndir) {
-			sprintf(filename, "%s/%s", xtrabackup_extra_lsndir, XTRABACKUP_METADATA_FILENAME);
+			snprintf(filename, sizeof(filename), "%s/%s", xtrabackup_extra_lsndir, XTRABACKUP_METADATA_FILENAME);
 			if (!xtrabackup_write_metadata(filename)) {
 				msg("mariabackup: Error: failed to write "
 				    "metadata to '%s'", filename);
@@ -7781,7 +7783,9 @@ static int main_low(char** argv)
 	} else if (xtrabackup_backup && xtrabackup_incremental_basedir) {
 		char	filename[FN_REFLEN];
 
-		sprintf(filename, "%s/%s", xtrabackup_incremental_basedir, XTRABACKUP_METADATA_FILENAME);
+		snprintf(filename, sizeof(filename), "%s/%s",
+			 xtrabackup_incremental_basedir,
+			 XTRABACKUP_METADATA_FILENAME);
 
 		if (!xtrabackup_read_metadata(filename)) {
 			msg("mariabackup: error: failed to read metadata from "
@@ -7794,7 +7798,9 @@ static int main_low(char** argv)
 	} else if (xtrabackup_prepare && xtrabackup_incremental_dir) {
 		char	filename[FN_REFLEN];
 
-		sprintf(filename, "%s/%s", xtrabackup_incremental_dir, XTRABACKUP_METADATA_FILENAME);
+		snprintf(filename, sizeof(filename), "%s/%s",
+			 xtrabackup_incremental_dir,
+			 XTRABACKUP_METADATA_FILENAME);
 
 		if (!xtrabackup_read_metadata(filename)) {
 			msg("mariabackup: error: failed to read metadata from "
