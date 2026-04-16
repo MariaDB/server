@@ -123,7 +123,7 @@ ulong total_ha_2pc= 0;
 /*
   Number of non-mandatory 2pc handlertons whose initialization failed
   to estimate total_ha_2pc value under supposition of the failures
-  have not occured.
+  have not occurred.
 */
 ulong failed_ha_2pc= 0;
 #endif
