@@ -1,4 +1,11 @@
-@@ -39,7 +39,7 @@
+@@ -33,13 +33,13 @@
+ WHERE
+ table_name='records_in_range_test' AND stat_name = 'n_leaf_pages';
+ index_name	stat_name	stat_value
+-PRIMARY	n_leaf_pages	1
++PRIMARY	n_leaf_pages	4
+ SELECT index_name, stat_name, stat_value
+ FROM mysql.innodb_index_stats
  WHERE
  table_name='records_in_range_test' AND stat_name = 'size';
  index_name	stat_name	stat_value

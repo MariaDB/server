@@ -1,0 +1,192 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+# Test case to demonstrate different innodb_stats_method settings
+CREATE TABLE t_stats_method (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  col1 INT,
+  col2 INT,
+  INDEX idx_col1 (col1),
+  INDEX idx_col2 (col2)
+) ENGINE=InnoDB;
+
+# For col1: 50 NULLs, 10 distinct non-NULL values
+# For col2: 50 NULLs, 5 distinct non-NULL values
+INSERT INTO t_stats_method (col1, col2)
+SELECT
+  CASE
+    WHEN seq <= 50 THEN ((seq-1) % 10) + 1
+    ELSE NULL
+  END,
+  CASE
+    WHEN seq <= 50 THEN ((seq-1) % 5) + 1
+    ELSE NULL
+  END
+FROM seq_1_to_100;
+
+ANALYZE TABLE t_stats_method;
+
+# cardinality = number of distinct value
+# Nulls_equal:
+#==============
+# idx_col1: 50 NULLs + 10 distinct value = 11
+# idx_col2: 50 NULLs + 5 distinct value = 6
+
+# Nulls_unequal:
+#==============
+# idx_col1: 50 NULLs + 10 distinct value = 60
+# idx_col2: 50 NULLs + 5 distinct value = 55
+
+# Nulls_ignored:
+#===============
+
+# innodb_rec_per_key =
+#       number of non-null records / number of distinct keys
+#
+# cardinality = number of records / innodb_rec_per_key;
+# idx_col1: 50 NULLs + 10 distinct value
+
+# innodb_rec_per_key = 50/10 = 5
+# cardinality = 100 / 5 = 20
+
+# idx_col2: 50 NULLs + 5 distinct value
+# innodb_rec_per_key = 50 / 5 = 10
+# cardinality = 100 / 10 = 10
+
+SELECT @@global.innodb_stats_method AS stats_method,
+       index_name,
+       cardinality AS est_rows
+FROM information_schema.STATISTICS
+WHERE table_schema = 'test'
+  AND table_name = 't_stats_method';
+
+SELECT index_name, stat_name, stat_description, stat_value
+FROM mysql.innodb_index_stats
+WHERE table_name='t_stats_method'
+AND stat_name like 'n_nonnull_%';
+
+DROP TABLE t_stats_method;
+
+SET NAMES utf8mb4;
+# Test maximum number of index columns (64) for statistics calculation
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE c TEXT CHARACTER SET utf8mb4 DEFAULT (
+        SELECT CONCAT('CREATE TABLE t1(',
+         GROUP_CONCAT(CONCAT('`c', LPAD(seq, 2, '0'), '꠵',
+                      REPEAT('꠵', 59), '` INT') SEPARATOR ', '), ', ',
+         'PRIMARY KEY(',
+         (SELECT GROUP_CONCAT(CONCAT('`c', LPAD(seq, 2, '0'), '꠵',
+                      REPEAT('꠵', 59), '`') SEPARATOR ', ')
+          FROM seq_1_to_32),
+         '), KEY `idx_all`(',
+         (SELECT GROUP_CONCAT(CONCAT('`c', LPAD(seq, 2, '0'), '꠵',
+                      REPEAT('꠵', 59), '`') SEPARATOR ', ')
+          FROM seq_33_to_64),
+         ')) ENGINE=InnoDB STATS_PERSISTENT=1') 
+                        FROM seq_1_to_64);
+  EXECUTE IMMEDIATE c;
+END;
+$$
+DELIMITER ;$$
+  
+
+INSERT INTO t1
+SELECT seq, seq, seq, seq, seq, seq, seq, seq,
+       seq, seq, seq, seq, seq, seq, seq, seq,
+       seq, seq, seq, seq, seq, seq, seq, seq,
+       seq, seq, seq, seq, seq, seq, seq, seq,
+       seq, seq, seq, seq, seq, seq, seq, seq,
+       seq, seq, seq, seq, seq, seq, seq, seq,
+       seq, seq, seq, seq, seq, seq, seq, seq,
+       seq, seq, seq, seq, seq, seq, seq, seq
+FROM seq_1_to_320;
+
+ANALYZE TABLE t1;
+
+# stats_method appended at the end of stat_description in case
+# of non-default value
+SELECT stat_name, stat_description FROM mysql.innodb_index_stats
+where table_name="t1" and index_name="PRIMARY"
+and stat_name="n_diff_pfx01";
+
+# Truncation of stat_description
+SELECT stat_name, stat_description FROM mysql.innodb_index_stats
+where table_name="t1" and index_name="idx_all"
+and stat_name="n_diff_pfx07";
+
+DROP TABLE t1;
+
+# Test cardinality calculation with multi-level tree
+CREATE TABLE t_multilevel (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  col1 INT,
+  col2 INT,
+  col3 INT,
+  INDEX idx_col1 (col1),
+  INDEX idx_col2 (col2),
+  INDEX idx_col3 (col3)
+) ENGINE=InnoDB STATS_PERSISTENT=1 STATS_SAMPLE_PAGES=20;
+
+# col1: 8000 NULLs + 2000 non-NULLs with 500 distinct values
+# col2: 2000 NULLs + 8000 non-NULLs with 4000 distinct values
+# col3: 5000 NULLs + 5000 non-NULLs with 2500 distinct values
+INSERT INTO t_multilevel (col1, col2, col3)
+SELECT
+  CASE WHEN seq <= 2000 THEN ((seq-1) % 500) + 1 ELSE NULL END,
+  CASE WHEN seq <= 8000 THEN ((seq-1) % 4000) + 1 ELSE NULL END,
+  CASE WHEN seq <= 5000 THEN ((seq-1) % 2500) + 1 ELSE NULL END
+FROM seq_1_to_10000;
+
+ANALYZE TABLE t_multilevel;
+
+# Show detailed statistics for all columns
+SELECT @@global.innodb_stats_method AS stats_method,
+       index_name,
+       stat_name,
+       stat_value
+FROM mysql.innodb_index_stats
+WHERE table_name='t_multilevel'
+  AND index_name IN ('idx_col1', 'idx_col2', 'idx_col3')
+  AND stat_name IN ('n_diff_pfx01', 'n_nonnull_fld01', 'n_leaf_pages')
+ORDER BY index_name, stat_name;
+
+# Show cardinality from information_schema
+SELECT @@global.innodb_stats_method AS stats_method,
+       index_name,
+       cardinality
+FROM information_schema.STATISTICS
+WHERE table_schema = 'test'
+  AND table_name = 't_multilevel'
+  AND index_name IN ('idx_col1', 'idx_col2', 'idx_col3')
+ORDER BY index_name;
+
+DROP TABLE t_multilevel;
+
+# Test with NOT NULL columns to verify n_non_null_key_vals = n_diff_key_vals
+CREATE TABLE t_not_null (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  col_nullable INT,
+  col_not_null INT NOT NULL,
+  INDEX idx_nullable (col_nullable),
+  INDEX idx_not_null (col_not_null)
+) ENGINE=InnoDB STATS_PERSISTENT=1;
+
+# Insert data: nullable has NULLs, not_null has no NULLs
+INSERT INTO t_not_null (col_nullable, col_not_null)
+SELECT
+  CASE WHEN seq <= 50 THEN ((seq-1) % 10) + 1 ELSE NULL END,
+  ((seq-1) % 10) + 1
+FROM seq_1_to_100;
+
+ANALYZE TABLE t_not_null;
+
+# For NOT NULL column: n_nonnull should equal n_diff
+# For nullable column: n_nonnull should be less than total records
+SELECT index_name, stat_name, stat_value
+FROM mysql.innodb_index_stats
+WHERE table_name='t_not_null'
+AND stat_name IN ('n_diff_pfx01', 'n_nonnull_pfx01')
+ORDER BY index_name, stat_name;
+
+DROP TABLE t_not_null;
