@@ -490,7 +490,7 @@ select SUBSTR('abcdefg',1,-1) FROM DUAL;
 
 #
 # Test that fix_fields doesn't follow to upper level (to comparison)
-# when an error on a lower level (in concat) has occured:
+# when an error on a lower level (in concat) has occurred:
 #
 create table t7 (s1 char);
 --error 1267
