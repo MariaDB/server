@@ -18,9 +18,7 @@
 
 /* ======================================================================
    Open Query Graph Computation Engine, based on a concept by Arjen Lentz
-   v3 implementation by Antony Curtis, Arjen Lentz, Andrew McDonnell
-   For more information, documentation, support, enhancement engineering,
-   see http://openquery.com/graph or contact graph@openquery.com
+   v3 implementation by Antony Curtis, Arjen Lentz, Andrew McDonnell.
    ======================================================================
 */
 
@@ -1325,8 +1323,7 @@ void ha_oqgraph::update_create_info(HA_CREATE_INFO *create_info)
 
 
 static const char oqgraph_description[]=
-  "Open Query Graph Computation Engine "
-  "(http://openquery.com/graph)";
+  "Open Query Graph Computation Engine";
 
 struct st_mysql_storage_engine oqgraph_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };

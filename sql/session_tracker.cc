@@ -329,7 +329,9 @@ bool Session_sysvars_tracker::vars_list::construct_var_list(char *buf,
   }
   mysql_mutex_unlock(&LOCK_plugin);
 
-  buf--; buf[0]= '\0';
+  if (idx > 0)
+    buf--;
+  buf[0]= '\0';
   my_safe_afree(names, names_size);
 
   return false;

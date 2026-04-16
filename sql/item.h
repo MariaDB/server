@@ -2912,7 +2912,12 @@ protected:
   {
     for (uint i= 0; i < arg_count; i++)
     {
-      if (args[i]->const_item())
+      /*
+        Constant expression doesn't need to be checked.
+        BUT if it still reports to have references to tables, we must check
+        that only allowed table is referred.
+      */
+      if (args[i]->const_item() && !args[i]->used_tables())
         continue;
       if (!args[i]->excl_dep_on_table(tab_map))
         return false;
@@ -7195,6 +7200,10 @@ public:
   { return NULL; }
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg) override
   { return NULL; }
+  /*
+    Note that grouping_field_transformer_for_where() is not implemented for
+    some reason.
+  */
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override;
 

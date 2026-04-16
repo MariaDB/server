@@ -125,4 +125,38 @@ SET SESSION session_track_system_variables="sql_slave_skip_counter", sql_slave_s
 --echo # Restoring the original values.
 SET @@global.session_track_system_variables = @global_saved_tmp;
 
---echo # End of tests.
+--echo # End of 10.2 tests.
+
+--echo #
+--echo # MDEV-39207 plugin variables disappear from session_track_system_variables list
+--echo #
+
+install soname 'ha_example.so';
+
+--echo # Plugin global vars are not included
+set global session_track_system_variables='myisam_block_size';
+select @@global.session_track_system_variables;
+set global session_track_system_variables='example_int_var';
+select @@global.session_track_system_variables;
+set global session_track_system_variables='myisam_sort_buffer_size,example_int_var';
+select @@global.session_track_system_variables;
+set global session_track_system_variables='myisam_block_size,myisam_sort_buffer_size,character_set_client,example_int_var';
+select @@global.session_track_system_variables;
+
+--echo # Session tracking works as expected for plugin session var
+connect foo,localhost,root;
+enable_session_track_info;
+select @@session.session_track_system_variables;
+set session example_int_var = -1;
+disable_session_track_info;
+
+connection default;
+--disable_ps_protocol
+--disable_cursor_protocol
+disconnect foo;
+uninstall soname 'ha_example.so';
+--enable_cursor_protocol
+--enable_ps_protocol
+SET @@global.session_track_system_variables = @global_saved_tmp;
+
+--echo # End of 10.11 tests
