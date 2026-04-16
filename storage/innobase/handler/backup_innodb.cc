@@ -502,7 +502,7 @@ private:
     b.append(basename);
     basename= b.c_str();
 
-    unsinged long err;
+    unsigned long err;
     if (move)
     {
       if (!MoveFileEx(path, basename, MOVEFILE_COPY_ALLOWED))
