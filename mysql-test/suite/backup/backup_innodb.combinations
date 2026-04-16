@@ -1,5 +1,4 @@
 [archived]
 innodb_log_archive=ON
-innodb_log_file_size=4m
 [circular]
 innodb_log_archive=OFF

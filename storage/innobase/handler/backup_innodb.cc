@@ -26,7 +26,39 @@
 # include <sys/attr.h>
 # include <sys/clonefile.h>
 # include <copyfile.h>
+# define copy_file(src, dst, off) \
+  fcopyfile(src, dst, nullptr, COPYFILE_ALL | COPYFILE_CLONE)
 #else
+using copying_step= ssize_t(int,int,size_t,off_t*);
+template<copying_step step>
+static ssize_t copy(int in_fd, int out_fd, off_t c) noexcept
+{
+  ssize_t ret;
+  for (off_t offset{0};;)
+  {
+    off_t count= c;
+    if (count > INT_MAX >> 20 << 20)
+      count = INT_MAX >> 20 << 20;
+    ret= step(in_fd, out_fd, size_t(count), &offset);
+    if (ret < 0)
+      break;
+    c-= ret;
+    if (!c)
+      return 0;
+    if (!ret)
+      return -1;
+  }
+  return ret;
+}
+# if defined __linux__ || defined __FreeBSD__
+/* Copy between files in a single (type of) file system */
+static inline ssize_t
+copy_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
+{
+  return copy_file_range(in_fd, offset, out_fd, nullptr, count, 0);
+}
+#  define cfr(src,dst,size) copy<copy_step>(src, dst, size)
+# endif
 # ifdef __linux__
 #  include <sys/sendfile.h>
 /* Copy a file to a stream or to a regular file. */
@@ -35,19 +67,7 @@ send_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
 {
   return sendfile(out_fd, in_fd, offset, count);
 }
-# endif
-# if defined __linux__ || defined __FreeBSD__
-/* Copy between files in a single (type of) file system */
-static inline ssize_t
-copy_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
-{
-#if 0 // work around https://github.com/rr-debugger/rr/issues/4059
-  errno= EOPNOTSUPP; return -1;
-#endif
-  return copy_file_range(in_fd, offset, out_fd, nullptr, count, 0);
-}
-# endif
-# ifndef __linux__
+# else
 #  include <sys/mman.h>
 /** Copy a file using a memory mapping.
 @param in_fd   source file
@@ -119,26 +139,30 @@ static ssize_t pread_write(int in_fd, int out_fd, off_t count) noexcept
 }
 # endif
 
-using copying_step= ssize_t(int,int,size_t,off_t*);
-template<copying_step step>
-static ssize_t copy(int in_fd, int out_fd, off_t c) noexcept
+/** Copy a file.
+@param src  source file descriptor
+@param dst  target to append src to
+@param size amount of data to be copied
+@return error code (negative)
+@retval 0   on success */
+static int copy_file(int src, int dst, off_t size) noexcept
 {
   ssize_t ret;
-  for (off_t offset{0};;)
-  {
-    off_t count= c;
-    if (count > INT_MAX >> 20 << 20)
-      count = INT_MAX >> 20 << 20;
-    ret= step(in_fd, out_fd, size_t(count), &offset);
-    if (ret < 0)
-      break;
-    c-= ret;
-    if (!c)
-      return 0;
-    if (!ret)
-      return -1;
-  }
-  return ret;
+# ifdef cfr
+  if (!(ret= cfr(src, dst, size)))
+    return int(ret);
+#  ifdef __linux__
+  if (errno == EOPNOTSUPP)
+#  endif
+# endif
+# ifdef __linux__ // starting with Linux 2.6.33, we can rely on sendfile(2)
+    ret= copy<send_step>(src, dst, size);
+# else
+  if ((ret= mmap_copy(node->handle, f, size)) == 1)
+    ret= pread_write(node->handle, f, size);
+# endif
+  ut_ad(ret <= 0);
+  return int(ret);
 }
 #endif
 
@@ -149,14 +173,17 @@ class InnoDB_backup
   /** mutex protecting the queue */
   srw_mutex_impl<false> mutex;
 
-  /** whether backup is active (1), not in progress (0), or has failed (-1) */
-  Atomic_relaxed<int> active;
+  /** whether backup is active */
+  Atomic_relaxed<bool> active;
 
   /** the original innodb_log_file_size, or 0 if innodb_log_archive=ON */
   uint64_t old_size;
 
   /** collection of files to be copied */
   std::vector<uint32_t> queue;
+  /** collection of completed log archive files to be
+  hard-linked, copied, or moved */
+  std::vector<lsn_t> logs;
 
   /** target directory name or handle */
   IF_WIN(const char*,int) target;
@@ -217,10 +244,8 @@ public:
             space.get_create_lsn() < start)
           queue.emplace_back(space.id);
       mysql_mutex_unlock(&fil_system.mutex);
-      active= 1;
+      active= true;
     }
-    else
-      active= -1;
     mutex.wr_unlock();
     DEBUG_SYNC(thd, "innodb_backup_start");
     return fail;
@@ -236,19 +261,18 @@ public:
   int step(THD *thd) noexcept
   {
     uint32_t id= FIL_NULL;
+    lsn_t lsn= 0;
     mutex.wr_lock();
     ut_ad(active);
-    {
-      int fail{active};
-      if (fail < 0)
-      {
-        mutex.wr_unlock();
-        my_error(ER_ERROR_DURING_CHECKPOINT, MYF(0), -fail);
-        return fail;
-      }
-    }
     size_t size{queue.size()};
-    if (size)
+    if (!logs.empty())
+    {
+      lsn= logs.back();
+      logs.pop_back();
+      if (!size)
+        size= logs.size();
+    }
+    else if (size)
     {
       size--;
       id= queue.back();
@@ -256,7 +280,12 @@ public:
     }
     mutex.wr_unlock();
 
-    if (fil_space_t *space= fil_space_t::get(id))
+    if (lsn)
+    {
+      if (link_or_move(lsn, bool(old_size)))
+        return -1;
+    }
+    else if (fil_space_t *space= fil_space_t::get(id))
     {
       for (fil_node_t *node= UT_LIST_GET_FIRST(space->chain); node;
            node= UT_LIST_GET_NEXT(chain, node))
@@ -269,7 +298,6 @@ public:
     }
 
     size= std::min(size_t{std::numeric_limits<int>::max()}, size);
-
     return int(size);
   }
 
@@ -284,22 +312,26 @@ public:
   {
     mutex.wr_lock();
     ut_ad(active);
-    int fail= active;
     if (abort)
-      queue.clear();
-    ut_ad(queue.empty());
-    mutex.wr_unlock();
-
-    if (abort)
-      fail= 0;
-    else if (fail == 1)
     {
-      active= 0;
-      link_or_move(log_sys.get_first_lsn(), false);
-      fail= active;
+      queue.clear();
+      if (old_size)
+        for (const lsn_t lsn : logs)
+          IF_WIN(DeleteFile,unlink)(log_sys.get_archive_path(lsn).c_str());
+      logs.clear();
     }
-    else
-      my_error(ER_ERROR_DURING_CHECKPOINT, MYF(0), -active);
+    ut_ad(queue.empty());
+    ut_ad(logs.empty());
+
+    int fail= 0;
+    if (!abort)
+    {
+      const lsn_t lsn{log_sys.get_first_lsn()};
+      fail= link_or_move(lsn, false);
+      if (!fail)
+        logs.emplace_back(lsn);
+    }
+    mutex.wr_unlock();
     log_sys.backup_stop(old_size, thd);
     return fail;
   }
@@ -312,15 +344,16 @@ public:
   {
     mutex.wr_lock();
     ut_ad(queue.empty());
-    if (active)
+    ut_ad(logs.size() <= 1);
+    if (!logs.empty())
     {
-      ut_ad(active > 0);
-      active= 0;
+      ut_ad(active);
+      const lsn_t first_lsn{logs.back()};
+      logs.clear();
+      /* TODO: copy our hardlink of the last log until the final LSN */
+      sql_print_information("TODO: duplicate " LOG_ARCHIVE_NAME, first_lsn);
     }
-    else
-    {
-      // TODO: copy our hard copy of the last log until the final LSN
-    }
+    active= false;
     mutex.wr_unlock();
     mutex.destroy();
   }
@@ -331,13 +364,13 @@ public:
   void checkpoint_complete() noexcept
   {
     ut_ad(log_sys.latch_have_wr());
-    if (active < 1)
-      return;
-    mutex.wr_lock();
-    if (active > 0)
-      link_or_move(log_sys.get_first_lsn() - log_sys.capacity(),
-                   bool(old_size));
-    mutex.wr_unlock();
+    if (active)
+    {
+      mutex.wr_lock();
+      if (active)
+        logs.emplace_back(log_sys.get_first_lsn() - log_sys.capacity());
+      mutex.wr_unlock();
+    }
   }
 
 private:
@@ -432,45 +465,14 @@ private:
         }
         goto fail;
       }
-# ifdef __APPLE__
-      backup_start(node->space);
-      int err=
-        fcopyfile(node->handle, f, nullptr, COPYFILE_ALL | COPYFILE_CLONE);
-      f= close(f) || err;
-      backup_stop(node->space);
-      if (f)
-        goto fail;
-# else
-      do
-      {
-        /* FIXME: push down page-granularity locking */
-        backup_start(node->space);
-        const off_t size= off_t{node->size} * node->space->physical_size();
-#  if defined __linux__ || defined __FreeBSD__
-        if (!copy<copy_step>(node->handle, f, size))
-          continue;
-#   ifdef __linux__
-        if (errno == EOPNOTSUPP && !copy<send_step>(node->handle, f, size))
-          continue;
-#   endif
-#  endif
-#  ifndef __linux__ // starting with Linux 2.6.33, we can rely on sendfile(2)
-        ssize_t err= mmap_copy(node->handle, f, size);
-        if (err == 1)
-          err= pread_write(node->handle, f, size);
-        if (!err)
-          continue;
-#  endif
-        backup_stop(node->space);
-        std::ignore= close(f);
-        goto fail;
-      }
-      while (false);
 
+      /* TODO: push down page range locking */
+      backup_start(node->space);
+      int err= copy_file(node->handle, f,
+                         off_t{node->size} * node->space->physical_size());
       backup_stop(node->space);
-      if (close(f))
+      if (close(f) || err)
         goto fail;
-# endif
       break;
 #endif
     }
@@ -483,8 +485,10 @@ private:
 
   /** Hard-link or rename an archive log file.
   @param lsn   The first LSN in the file
-  @param move  false=link, true=rename */
-  void link_or_move(lsn_t lsn, bool move) noexcept
+  @param move  false=link, true=rename
+  @return error code
+  @retval 0 on success */
+  int link_or_move(lsn_t lsn, bool move) noexcept
   {
     const std::string p{log_sys.get_archive_path(lsn)};
     const char *const path= p.c_str(), *basename= strrchr(path, '/');
@@ -498,27 +502,58 @@ private:
     b.append(basename);
     basename= b.c_str();
 
-    if (move
-        ? !MoveFileEx(path, basename, 0)
-        : !CreateHardLinkA(path, basename, nullptr))
+    unsinged long err;
+    if (move)
     {
-      unsigned long err= GetLastError();
-      my_osmaperr(err);
-      active= -my_errno;
-      ut_ad(active);
-      my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), path, basename,
-               my_errno);
+      if (!MoveFileEx(path, basename, MOVEFILE_COPY_ALLOWED))
+      {
+      fail:
+        err= GetLastError();
+      got_err:
+        my_osmaperr(err);
+        my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), path, basename,
+                 my_errno);
+        return -1;
+      }
     }
+    else if (!CreateHardLinkA(path, basename, nullptr) &&
+             (err= GetLastError()) != ERROR_NOT_SAME_DEVICE)
+      goto got_err;
+    else if (!CopyFileExA(path, basename, nullptr, nullptr, nullptr,
+                          COPY_FILE_NO_BUFFERING))
+      goto fail;
 #else
     if (move
-        ? renameat(AT_FDCWD, path, target, basename)
-        : linkat(AT_FDCWD, path, target, basename, AT_SYMLINK_FOLLOW))
+        ? !renameat(AT_FDCWD, path, target, basename)
+        : !linkat(AT_FDCWD, path, target, basename, AT_SYMLINK_FOLLOW))
+      return 0;
+    else if (errno != EXDEV)
     {
-      active= -errno;
-      ut_ad(active);
+    fail:
       my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), path, basename, errno);
+      return -1;
+    }
+    else
+    {
+      int src= open(path, O_RDONLY);
+      if (src < 0)
+        goto fail;
+      if (move && unlink(path))
+      {
+      close_and_fail:
+        std::ignore= close(src);
+        goto fail;
+      }
+      int dst= openat(target, basename,
+                      O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
+      if (dst < 0)
+        goto close_and_fail;
+      int err= copy_file(src, dst, lseek(src, 0, SEEK_END));
+      if ((close(dst) | close(src)) || err)
+        goto fail;
     }
 #endif
+    return 0;
   }
 };
 
