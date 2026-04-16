@@ -13307,12 +13307,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         {
           Json_writer_object trace_const_cond(thd);
           trace_const_cond.add("condition_on_constant_tables", const_cond);
-          if (const_cond->is_expensive())
-          {
-            trace_const_cond.add("evaluated", "false")
-                            .add("cause", "expensive cond");
-          }
-          else
+          if (const_cond->can_eval_in_optimize())
           {
             bool const_cond_result;
             {
@@ -13327,6 +13322,11 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               join->exec_const_cond= NULL;
               DBUG_RETURN(1);
             }
+          }
+          else
+          {
+            trace_const_cond.add("evaluated", "false")
+                            .add("cause", "expensive cond");
           }
           join->exec_const_cond= const_cond;
         }
