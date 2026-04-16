@@ -172,7 +172,7 @@ For details see: row_undo_mod_sec_is_unsafe() and row_purge_poss_sec()
 */
 inline void ReadViewBase::snapshot(trx_t *trx)
 {
-  trx_sys.snapshot_ids(trx, &m_ids, &m_low_limit_id, &m_low_limit_no);
+  m_low_limit_no= trx_sys.snapshot_ids(m_ids, m_low_limit_id);
   if (m_ids.empty())
   {
     m_up_limit_id= m_low_limit_id;

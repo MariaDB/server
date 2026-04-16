@@ -629,6 +629,8 @@ private:
 
 
 public:
+  /** trx_sys.rw_trx_ids index, protected by trx_sys.rw_trx_ids.latch */
+  uint32_t rw_trx_ids_slot;
   /** Transaction identifier (0 if no locks were acquired).
   Set by trx_sys_t::register_rw() or trx_resurrect() before
   the transaction is added to trx_sys.rw_trx_hash.
