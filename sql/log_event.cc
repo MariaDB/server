@@ -1425,7 +1425,7 @@ code_name(int code)
   case Q_XID: return "XID";
   case Q_GTID_FLAGS3: return "Q_GTID_FLAGS3";
   }
-  sprintf(buf, "CODE#%d", code);
+  snprintf(buf, sizeof(buf), "CODE#%d", code);
   return buf;
 }
 #endif

@@ -5976,7 +5976,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(REST_SUPPORT)
       case TAB_REST:
         if (!topt->http)
-          sprintf(g->Message, "Missing %s HTTP address", topt->type);
+          snprintf(g->Message, sizeof(g->Message), "Missing %s HTTP address", topt->type);
         else
           ok= true;
 

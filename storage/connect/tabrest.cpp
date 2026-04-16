@@ -73,7 +73,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 	STARTUPINFO si;
 	PROCESS_INFORMATION pi;
 
-	sprintf(cmd, "curl \"%s\" -o \"%s\"", buf, filename);
+	snprintf(cmd, sizeof(cmd), "curl \"%s\" -o \"%s\"", buf, filename);
 
 	ZeroMemory(&si, sizeof(si));
 	si.cb = sizeof(si);
@@ -118,7 +118,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 #else
        pID = fork();
 #endif
-	sprintf(fn, "-o%s", filename);
+	snprintf(fn, sizeof(fn), "-o%s", filename);
 
 	if (pID == 0) {
 		// Code executed by child process

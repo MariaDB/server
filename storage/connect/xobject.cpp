@@ -141,25 +141,27 @@ bool CONSTANT::Compare(PXOB xp)
 /***********************************************************************/
 bool CONSTANT::Rephrase(PGLOBAL g, PSZ work)
   {
+  size_t cur_len = strlen(work);
+
   switch (Value->GetType()) {
     case TYPE_STRING:
-      sprintf(work + strlen(work), "'%s'", Value->GetCharValue());
+      snprintf(work + cur_len, MAX_STR - cur_len, "'%s'", Value->GetCharValue());
       break;
     case TYPE_SHORT:
-      sprintf(work + strlen(work), "%hd", Value->GetShortValue());
+      snprintf(work + cur_len, MAX_STR - cur_len, "%hd", Value->GetShortValue());
       break;
     case TYPE_INT:
     case TYPE_DATE:
-      sprintf(work + strlen(work), "%d", Value->GetIntValue());
+      snprintf(work + cur_len, MAX_STR - cur_len, "%d", Value->GetIntValue());
       break;
     case TYPE_DOUBLE:
-      sprintf(work + strlen(work), "%lf", Value->GetFloatValue());
+      snprintf(work + cur_len, MAX_STR - cur_len, "%lf", Value->GetFloatValue());
       break;
     case TYPE_BIGINT:
-      sprintf(work + strlen(work), "%lld", Value->GetBigintValue());
+      snprintf(work + cur_len, MAX_STR - cur_len, "%lld", Value->GetBigintValue());
       break;
     case TYPE_TINY:
-      sprintf(work + strlen(work), "%d", Value->GetTinyValue());
+      snprintf(work + cur_len, MAX_STR - cur_len, "%d", Value->GetTinyValue());
       break;
     default:
       snprintf(g->Message, sizeof(g->Message), MSG(BAD_CONST_TYPE), Value->GetType());

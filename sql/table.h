@@ -90,6 +90,7 @@ class Open_table_context;
 typedef ulonglong nested_join_map;
 
 #define VIEW_MD5_LEN 32
+#define MD5_BUFF_LENGTH (VIEW_MD5_LEN + 1) /* hex digest + NUL */
 
 
 #define tmp_file_prefix "#sql"			/**< Prefix for tmp tables */
@@ -2835,6 +2836,7 @@ struct TABLE_LIST
   List<String> *partition_names;
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
 
+  /* buffer must be at least MD5_BUFF_LENGTH bytes long */
   void calc_md5(char *buffer);
   int view_check_option(THD *thd, bool ignore_failure);
   bool create_field_translation(THD *thd);

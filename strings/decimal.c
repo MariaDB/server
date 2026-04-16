@@ -2618,7 +2618,7 @@ void test_s2d(const char *s, const char *orig, int ex)
 {
   char s1[100], *end;
   int res;
-  sprintf(s1, "'%s'", s);
+  snprintf(s1, sizeof(s1), "'%s'", s);
   end= strend(s);
   printf("len=%2d %-30s => res=%d    ", a.len, s1,
          (res= string2decimal(s, &a, &end)));
@@ -2632,7 +2632,7 @@ void test_d2f(const char *s, int ex)
   double x;
   int res;
 
-  sprintf(s1, "'%s'", s);
+  snprintf(s1, sizeof(s1), "'%s'", s);
   end= strend(s);
   string2decimal(s, &a, &end);
   res=decimal2double(&a, &x);
@@ -2647,7 +2647,7 @@ void test_d2b2d(const char *str, int p, int s, const char *orig, int ex)
   uchar buf[100];
   int res, i, size=decimal_bin_size(p, s);
 
-  sprintf(s1, "'%s'", str);
+  snprintf(s1, sizeof(s1), "'%s'", str);
   end= strend(str);
   string2decimal(str, &a, &end);
   res=decimal2bin(&a, buf, p, s);
@@ -2742,7 +2742,7 @@ void test_da(const char *s1, const char *s2, const char *orig, int ex)
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s' + '%s'", s1, s2);
+  snprintf(s, sizeof(s), "'%s' + '%s'", s1, s2);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   end= strend(s2);
@@ -2757,7 +2757,7 @@ void test_ds(const char *s1, const char *s2, const char *orig, int ex)
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s' - '%s'", s1, s2);
+  snprintf(s, sizeof(s), "'%s' - '%s'", s1, s2);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   end= strend(s2);
@@ -2772,7 +2772,7 @@ void test_dc(const char *s1, const char *s2, int orig)
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s' <=> '%s'", s1, s2);
+  snprintf(s, sizeof(s), "'%s' <=> '%s'", s1, s2);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   end= strend(s2);
@@ -2790,7 +2790,7 @@ void test_dm(const char *s1, const char *s2, const char *orig, int ex)
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s' * '%s'", s1, s2);
+  snprintf(s, sizeof(s), "'%s' * '%s'", s1, s2);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   end= strend(s2);
@@ -2805,7 +2805,7 @@ void test_dv(const char *s1, const char *s2, const char *orig, int ex)
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s' / '%s'", s1, s2);
+  snprintf(s, sizeof(s), "'%s' / '%s'", s1, s2);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   end= strend(s2);
@@ -2824,7 +2824,7 @@ void test_md(const char *s1, const char *s2, const char *orig, int ex)
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s' %% '%s'", s1, s2);
+  snprintf(s, sizeof(s), "'%s' %% '%s'", s1, s2);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   end= strend(s2);
@@ -2847,7 +2847,7 @@ void test_ro(const char *s1, int n, decimal_round_mode mode, const char *orig,
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s', %d, %s", s1, n, round_mode[mode]);
+  snprintf(s, sizeof(s), "'%s', %d, %s", s1, n, round_mode[mode]);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   res=decimal_round(&a, &b, n, mode);
@@ -2860,7 +2860,7 @@ void test_ro(const char *s1, int n, decimal_round_mode mode, const char *orig,
 void test_mx(int precision, int frac, const char *orig)
 {
   char s[100];
-  sprintf(s, "%d, %d", precision, frac);
+  snprintf(s, sizeof(s), "%d, %d", precision, frac);
   max_decimal(precision, frac, &a);
   printf("%-40s =>          ", s);
   print_decimal(&a, orig, 0, 0);
@@ -2876,8 +2876,9 @@ void test_pr(const char *s1, int prec, int dec, char filler, const char *orig,
   int slen= sizeof(s2);
   int res;
 
-  sprintf(s, filler ? "'%s', %d, %d, '%c'" : "'%s', %d, %d, '\\0'",
-          s1, prec, dec, filler);
+  snprintf(s, sizeof(s),
+           filler ? "'%s', %d, %d, '%c'" : "'%s', %d, %d, '\\0'",
+           s1, prec, dec, filler);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   res= decimal2string(&a, s2, &slen, prec, dec, filler);
@@ -2896,7 +2897,7 @@ void test_sh(const char *s1, int shift, const char *orig, int ex)
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s' %s %d", s1, ((shift < 0) ? ">>" : "<<"), abs(shift));
+  snprintf(s, sizeof(s), "'%s' %s %d", s1, ((shift < 0) ? ">>" : "<<"), abs(shift));
   end= strend(s1);
   string2decimal(s1, &a, &end);
   res= decimal_shift(&a, shift);
@@ -2909,7 +2910,7 @@ void test_sh(const char *s1, int shift, const char *orig, int ex)
 void test_fr(const char *s1, const char *orig)
 {
   char s[100], *end;
-  sprintf(s, "'%s'", s1);
+  snprintf(s, sizeof(s), "'%s'", s1);
   printf("%-40s =>          ", s);
   end= strend(s1);
   string2decimal(s1, &a, &end);

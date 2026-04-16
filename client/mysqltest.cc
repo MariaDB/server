@@ -2908,7 +2908,7 @@ VAR* var_get(const char *var_name, const char **var_name_end, my_bool raw,
 
   if (!raw && v->int_dirty)
   {
-    sprintf(v->str_val, "%d", v->int_val);
+    snprintf(v->str_val, v->alloced_len, "%d", v->int_val);
     v->int_dirty= false;
     v->str_val_len = strlen(v->str_val);
   }
@@ -2970,7 +2970,7 @@ void var_set(const char *var_name, const char *var_name_end,
   {
     if (v->int_dirty)
     {
-      sprintf(v->str_val, "%d", v->int_val);
+      snprintf(v->str_val, v->alloced_len, "%d", v->int_val);
       v->int_dirty=false;
       v->str_val_len= strlen(v->str_val);
     }
@@ -5234,7 +5234,8 @@ void do_sync_with_master2(struct st_command *command, long offset,
   if (!master_pos.file[0])
     die("Calling 'sync_with_master' without calling 'save_master_pos'");
 
-  snprintf(query_buf, sizeof(query_buf), "select master_pos_wait('%s', %ld, %d, '%s')",
+  snprintf(query_buf, sizeof(query_buf),
+          "select master_pos_wait('%s', %ld, %d, '%s')",
           master_pos.file, master_pos.pos + offset, timeout,
           connection_name);
 
@@ -10821,7 +10822,7 @@ void append_info(DYNAMIC_STRING *ds, ulonglong affected_rows,
                  const char *info)
 {
   char buf[40], buff2[21];
-  size_t len= sprintf(buf,"affected rows: %s\n", llstr(affected_rows, buff2));
+  size_t len= snprintf(buf, sizeof(buf), "affected rows: %s\n", llstr(affected_rows, buff2));
   dynstr_append_mem(ds, buf, len);
   if (info)
   {

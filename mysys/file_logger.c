@@ -109,9 +109,11 @@ int logger_close(LOGGER_HANDLE *log)
 }
 
 
-static char *logname(LOGGER_HANDLE *log, char *buf, unsigned int n_log)
+static char *logname(LOGGER_HANDLE *log, char *buf, size_t buf_size,
+                     unsigned int n_log)
 {
-  sprintf(buf+log->path_len, ".%0*u", n_dig(log->rotations), n_log);
+  snprintf(buf + log->path_len, buf_size - log->path_len,
+           ".%0*u", n_dig(log->rotations), n_log);
   return buf;
 }
 
@@ -128,11 +130,11 @@ static int do_rotate(LOGGER_HANDLE *log)
 
   memcpy(namebuf, log->path, log->path_len);
 
-  buf_new= logname(log, namebuf, log->rotations);
+  buf_new= logname(log, namebuf, sizeof(namebuf), log->rotations);
   buf_old= log->path;
   for (i=log->rotations-1; i>0; i--)
   {
-    logname(log, buf_old, i);
+    logname(log, buf_old, FN_REFLEN, i);
     if (!access(buf_old, F_OK) &&
         (result= my_rename(buf_old, buf_new, MYF(0))))
       goto exit;
@@ -143,7 +145,7 @@ static int do_rotate(LOGGER_HANDLE *log)
   if ((result= my_close(log->file, MYF(0))))
     goto exit;
   namebuf[log->path_len]= 0;
-  result= my_rename(namebuf, logname(log, log->path, 1), MYF(0));
+  result= my_rename(namebuf, logname(log, log->path, FN_REFLEN, 1), MYF(0));
   log->file= my_open(namebuf, LOG_FLAGS, MYF(0));
 exit:
   errno= my_errno;

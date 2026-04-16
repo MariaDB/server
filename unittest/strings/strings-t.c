@@ -623,7 +623,7 @@ str2hex(char *dst, size_t dstlen, const char *src, size_t srclen)
   const char *srcend= src + srclen;
   for (*dst= '\0' ; dst + 3 < dstend && src < srcend; )
   {
-    sprintf(dst, "%02X", (unsigned char) src[0]);
+    snprintf(dst, dstend - dst, "%02X", (unsigned char) src[0]);
     dst+=2;
     src++;
   }

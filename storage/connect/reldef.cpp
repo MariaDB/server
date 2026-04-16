@@ -754,9 +754,9 @@ bool OEMDEF::DefineAM(PGLOBAL g, LPCSTR, int)
   if (!*Module)
     Module = Subtype;
 
-  char *desc = (char*)PlugSubAlloc(g, NULL, strlen(Module)
-                                          + strlen(Subtype) + 3);
-  sprintf(desc, "%s(%s)", Module, Subtype);
+  size_t desc_size = strlen(Module) + strlen(Subtype) + 3;
+  char *desc = (char*)PlugSubAlloc(g, NULL, desc_size);
+  snprintf(desc, desc_size, "%s(%s)", Module, Subtype);
   Desc = desc;
 
 	// If define block not here yet, get it now

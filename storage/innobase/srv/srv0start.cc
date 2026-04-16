@@ -1205,16 +1205,18 @@ dberr_t srv_start(bool create_new_db)
 	if (!srv_read_only_mode) {
 		if (srv_innodb_status) {
 
+			size_t srv_monitor_file_name_size=
+				strlen(fil_path_to_mysql_datadir)
+				+ 20 + sizeof "/innodb_status.";
 			srv_monitor_file_name = static_cast<char*>(
-				ut_malloc_nokey(
-					strlen(fil_path_to_mysql_datadir)
-					+ 20 + sizeof "/innodb_status."));
+				ut_malloc_nokey(srv_monitor_file_name_size));
 
-			sprintf(srv_monitor_file_name,
-				"%s/innodb_status." ULINTPF,
-				fil_path_to_mysql_datadir,
-				static_cast<ulint>
-				(IF_WIN(GetCurrentProcessId(), getpid())));
+			snprintf(srv_monitor_file_name,
+				 srv_monitor_file_name_size,
+				 "%s/innodb_status." ULINTPF,
+				 fil_path_to_mysql_datadir,
+				 static_cast<ulint>
+				 (IF_WIN(GetCurrentProcessId(), getpid())));
 
 			srv_monitor_file = my_fopen(srv_monitor_file_name,
 						    O_RDWR|O_TRUNC|O_CREAT,

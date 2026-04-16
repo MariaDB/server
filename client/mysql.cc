@@ -1162,8 +1162,9 @@ static void print_table_data_xml(MYSQL_RES *result);
 static void print_tab_data(MYSQL_RES *result);
 static void print_table_data_vertically(MYSQL_RES *result);
 static void print_warnings(void);
-static void end_timer(ulonglong start_time, char *buff);
-static void nice_time(double sec,char *buff,bool part_second);
+static void end_timer(ulonglong start_time, char *buff, size_t buff_size);
+static void nice_time(double sec, char *buff, size_t buff_size,
+                      bool part_second);
 extern "C" sig_handler mysql_end(int sig) __attribute__ ((noreturn));
 extern "C" sig_handler handle_sigint(int sig);
 #if defined(HAVE_TERMIOS_H) && defined(GWINSZ_IN_SYS_IOCTL)
@@ -1418,10 +1419,13 @@ int main(int argc,char *argv[])
       histfile=my_strdup(PSI_NOT_INSTRUMENTED, getenv("MYSQL_HISTFILE"),MYF(MY_WME));
     else if (getenv("HOME"))
     {
+      size_t histfile_size=
+        strlen(getenv("HOME")) + strlen("/.mysql_history") + 2;
       histfile=(char*) my_malloc(PSI_NOT_INSTRUMENTED,
-            strlen(getenv("HOME")) + strlen("/.mysql_history")+2, MYF(MY_WME));
+            histfile_size, MYF(MY_WME));
       if (histfile)
-	sprintf(histfile,"%s/.mysql_history",getenv("HOME"));
+	snprintf(histfile, histfile_size,
+                 "%s/.mysql_history", getenv("HOME"));
       char link_name[FN_REFLEN];
       if (my_readlink(link_name, histfile, 0) == 0 &&
           strncmp(link_name, "/dev/null", 10) == 0)
@@ -3661,7 +3665,7 @@ static int com_go(String *buffer, char *)
     }
 
     if (verbose >= 3 || !opt_silent)
-      end_timer(timer, time_buff);
+      end_timer(timer, time_buff, sizeof(time_buff));
     else
       time_buff[0]= '\0';
 
@@ -3697,9 +3701,9 @@ static int com_go(String *buffer, char *)
 	  print_tab_data(result);
 	else
 	  print_table_data(result);
-	snprintf(buff, sizeof(buff), "%ld %s in set",
-		(long) mysql_num_rows(result),
-		(long) mysql_num_rows(result) == 1 ? "row" : "rows");
+	snprintf(buff, sizeof(buff), "%llu %s in set",
+		(unsigned long long) mysql_num_rows(result),
+		mysql_num_rows(result) == 1 ? "row" : "rows");
 	end_pager();
         if (mysql_errno(&mysql))
         {
@@ -3713,7 +3717,7 @@ static int com_go(String *buffer, char *)
       strmov(buff,"Query OK");
     else
       snprintf(buff, sizeof(buff), "Query OK, %llu %s affected",
-	      mysql_affected_rows(&mysql),
+	      (unsigned long long) mysql_affected_rows(&mysql),
 	      mysql_affected_rows(&mysql) == 1 ? "row" : "rows");
 
     pos=strend(buff);
@@ -3890,7 +3894,7 @@ static char *fieldflags2str(uint f) {
   ff2s_check_flag(ON_UPDATE_NOW);
 #undef ff2s_check_flag
   if (f)
-    snprintf(s, sizeof(buf), " unknows=0x%04x", f);
+    snprintf(s, sizeof(buf) - (size_t)(s - buf), " unknown=0x%04x", f);
   return buf;
 }
 
@@ -4604,8 +4608,10 @@ com_edit(String *buffer,char *)
   strxmov(buff,editor," ",filename,NullS);
   if ((error= system(buff)))
   {
-    char errmsg[100];
-    snprintf(errmsg, sizeof(errmsg), "Command '%.40s' failed", buff);
+#define EDITOR_FAIL_MSG "Command '%.40s' failed"
+    char errmsg[sizeof(EDITOR_FAIL_MSG) - 1 + 40];
+    snprintf(errmsg, sizeof(errmsg), EDITOR_FAIL_MSG, buff);
+#undef EDITOR_FAIL_MSG
     put_info(errmsg, INFO_ERROR, 0, NullS);
     goto err;
   }
@@ -5289,7 +5295,7 @@ static int com_status(String *, char *)
     tee_fprintf(stdout, "%.*s\t\t\t", (int) (pos-status_str), status_str);
     if ((status_str= str2int(pos,10,0,LONG_MAX,(long*) &sec)))
     {
-      nice_time((double) sec,buff,0);
+      nice_time((double) sec,buff, sizeof(buff),0);
       tee_puts(buff, stdout);			/* print nice time */
       while (*status_str == ' ')
         status_str++;  /* to next info */
@@ -5508,8 +5514,10 @@ void tee_putc(int c, FILE *file)
 
   len("4294967296 days, 23 hours, 59 minutes, 60.000 seconds")  ->  53
 */
-static void nice_time(double sec, char *buff, bool part_second)
+static void nice_time(double sec, char *buff, size_t buff_size,
+                      bool part_second)
 {
+  char *buff_end= buff + buff_size;
   ulong tmp;
   if (sec >= 3600.0*24)
   {
@@ -5533,21 +5541,23 @@ static void nice_time(double sec, char *buff, bool part_second)
     buff=strmov(buff," min ");
   }
   if (part_second)
-    sprintf(buff,"%.3f sec",sec);
+    snprintf(buff, buff_end - buff, "%.3f sec", sec);
   else
-    sprintf(buff,"%d sec",(int) sec);
+    snprintf(buff, buff_end - buff, "%d sec", (int) sec);
 }
 
 
-static void end_timer(ulonglong start_time, char *buff)
+static void end_timer(ulonglong start_time, char *buff, size_t buff_size)
 {
   double sec;
 
+  if (buff_size < 4)
+    return;
   buff[0]=' ';
   buff[1]='(';
   sec= (microsecond_interval_timer() - start_time) / (double) (1000 * 1000);
-  nice_time(sec, buff + 2, 1);
-  strmov(strend(buff),")");
+  nice_time(sec, buff + 2, buff_size - 2, 1);
+  snprintf(strend(buff), buff_size - (strend(buff) - buff), ")");
 }
 
 static const char *construct_prompt()
