@@ -2180,6 +2180,8 @@ bool Item_func_tochar::parse_format_string(const String *format, uint *fmt_len)
         goto error;
       break;
     case 'P':                                   // PM or P.M.
+      if (ptr + 1 == end)
+        goto error;
       next_char= my_toupper(system_charset_info, *(ptr+1));
       if (next_char == 'M')
       {
@@ -2187,7 +2189,7 @@ bool Item_func_tochar::parse_format_string(const String *format, uint *fmt_len)
         ptr+= 1;
         tmp_len+= 2;
       }
-      else if (next_char == '.' &&
+      else if (next_char == '.' && ptr + 3 < end &&
                my_toupper(system_charset_info, *(ptr+2)) == 'M' &&
                my_toupper(system_charset_info, *(ptr+3)) == '.')
       {

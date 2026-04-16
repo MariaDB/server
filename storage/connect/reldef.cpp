@@ -115,8 +115,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info)
 		DWORD rc = GetLastError();
 
 		snprintf(g->Message, sizeof(g->Message), MSG(DLL_LOAD_ERROR), rc, soname);
-		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+		FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
 			(LPTSTR)buf, sizeof(buf), NULL);
 		safe_strcat(g->Message, sizeof(g->Message), ": ");
 		safe_strcat(g->Message, sizeof(g->Message), buf);
@@ -626,7 +625,12 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
   if (check_valid_path(Module, strlen(Module))) {
     safe_strcpy(g->Message, sizeof(g->Message), "Module cannot contain a path");
     return NULL;
-  } else
+	}
+	else if (strlen(Subtype)+1+3 >= sizeof(getname)) {
+		safe_strcpy(g->Message, sizeof(g->Message), "Subtype string too long");
+		return NULL;
+	}
+  else
 //  PlugSetPath(soname, Module, GetPluginDir());  // Crashes on Fedora
     snprintf(soname, sizeof(soname), "%s%s", GetPluginDir(), Module);
 
@@ -639,8 +643,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
       DWORD rc = GetLastError();
 
       snprintf(g->Message, sizeof(g->Message), MSG(DLL_LOAD_ERROR), rc, soname);
-      FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                    FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+      FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
                     (LPTSTR)buf, sizeof(buf), NULL);
       safe_strcat(g->Message, sizeof(g->Message), ": ");
       safe_strcat(g->Message, sizeof(g->Message), buf);
@@ -660,8 +663,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     DWORD rc = GetLastError();
 
     snprintf(g->Message, sizeof(g->Message), MSG(PROCADD_ERROR), rc, getname);
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-      FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
       (LPTSTR)buf, sizeof(buf), NULL);
     safe_strcat(g->Message, sizeof(g->Message), ": ");
     safe_strcat(g->Message, sizeof(g->Message), buf);

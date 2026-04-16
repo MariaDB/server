@@ -2562,8 +2562,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   if (Hfile == INVALID_HANDLE_VALUE) {
     rc = GetLastError();
     snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR), rc, mode, filename);
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
                   (LPTSTR)filename, sizeof(filename), NULL);
     strcat(g->Message, filename);
     return true;
@@ -2756,8 +2755,7 @@ bool XHUGE::Read(PGLOBAL g, void *buf, int n, int size)
     char  buf[256];
     DWORD drc = GetLastError();
 
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, drc, 0,
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, drc, 0,
                   (LPTSTR)buf, sizeof(buf), NULL);
     snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR), "index file", buf);
     rc = true;
@@ -2796,8 +2794,7 @@ int XHUGE::Write(PGLOBAL g, void *buf, int n, int size, bool& rc)
     char msg[256];
     DWORD drc = GetLastError();
 
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, drc, 0,
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, drc, 0,
                   (LPTSTR)msg, sizeof(msg), NULL);
     snprintf(g->Message, sizeof(g->Message), MSG(WRITING_ERROR), "index file", msg);
     rc = true;

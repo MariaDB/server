@@ -63,8 +63,7 @@ void MACINFO::MakeErrorMsg(PGLOBAL g, DWORD drc)
   else if (drc == ERROR_NOT_SUPPORTED)
     snprintf(g->Message, sizeof(g->Message), "GetAdaptersInfo is not supported");
   else
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, GetLastError(),
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, GetLastError(),
                   0, g->Message, sizeof(g->Message), NULL);
 
   } // end of MakeErrorMsg
@@ -145,7 +144,7 @@ bool MACINFO::GetFixedInfo(PGLOBAL g)
     } // endif drc
 
   if (drc != ERROR_SUCCESS) {
-    snprintf(g->Message, sizeof(g->Message), "GetNetworkParams failed. Rc=%08x\n", drc);
+    snprintf(g->Message, sizeof(g->Message), "GetNetworkParams failed. Rc=%08x", drc);
     return true;
     } // endif drc
 

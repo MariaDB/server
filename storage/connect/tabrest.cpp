@@ -67,31 +67,16 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 	} else
 		my_snprintf(buf, sizeof(buf)-1, "%s", Http);
 
-#if defined(_WIN32)
-	char cmd[1024];
-	STARTUPINFO si;
-	PROCESS_INFORMATION pi;
-
-	sprintf(cmd, "curl \"%s\" -o \"%s\"", buf, filename);
-
-	ZeroMemory(&si, sizeof(si));
-	si.cb = sizeof(si);
-	ZeroMemory(&pi, sizeof(pi));
-
-	// Start the child process. 
-	if (CreateProcess(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
-		// Wait until child process exits.
-		WaitForSingleObject(pi.hProcess, INFINITE);
-
-		// Close process and thread handles. 
-		CloseHandle(pi.hProcess);
-		CloseHandle(pi.hThread);
-	} else {
-		snprintf(g->Message, sizeof(g->Message), "CreateProcess curl failed (%d)", GetLastError());
-		rc = 1;
-	}	// endif CreateProcess
-#else   // !_WIN32
 	char  fn[600];
+	snprintf(fn, sizeof(fn), "-o%s", filename);
+
+#if defined(_WIN32)
+	// Start the child process. 
+	if (_spawnlp(_P_WAIT, "curl", "curl", buf, fn, NULL)) {
+		my_snprintf(g->Message, sizeof(g->Message), "spawn curl failed (%M)", errno);
+		rc = 1;
+	}	// endif _spawnlp
+#else   // !_WIN32
 	pid_t pID;
 
 	// Check if curl package is availabe by executing subprocess
@@ -117,7 +102,6 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 #else
        pID = fork();
 #endif
-	sprintf(fn, "-o%s", filename);
 
 	if (pID == 0) {
 		// Code executed by child process
@@ -160,8 +144,7 @@ XGETREST GetRestFunction(PGLOBAL g)
 		DWORD rc = GetLastError();
 
 		snprintf(g->Message, sizeof(g->Message), MSG(DLL_LOAD_ERROR), rc, soname);
-		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+		FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
 			(LPTSTR)buf, sizeof(buf), NULL);
 		strcat(strcat(g->Message, ": "), buf);
 		return NULL;
@@ -173,8 +156,7 @@ XGETREST GetRestFunction(PGLOBAL g)
 		DWORD rc = GetLastError();
 
 		snprintf(g->Message, sizeof(g->Message), MSG(PROCADD_ERROR), rc, "restGetFile");
-		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+		FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
 			(LPTSTR)buf, sizeof(buf), NULL);
 		strcat(strcat(g->Message, ": "), buf);
 		FreeLibrary((HMODULE)Hdll);

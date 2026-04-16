@@ -1947,3 +1947,160 @@ select cast(1 as unsigned) - cast(2 as unsigned);
 set sql_mode=default;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-38670 Minus string is converted to -0
+--echo #
+
+--source include/have_innodb.inc
+
+--echo #
+--echo # Constant folding
+--echo #
+
+SELECT -(1e0-1e0);
+SELECT -(0e0-0e0);
+SELECT -(ROUND(0.4-0.4));
+SELECT -((1e0*0e0));
+
+
+# Test arithmetic operations
+--echo # Testing arithmetic operations with signed zero
+
+SELECT -0e1 + 0e1;
+SELECT 0e1 + -0e1;
+SELECT -0e1 + -0e1;
+
+SELECT -0e1 - 0e1;
+SELECT  0e1 - '';
+SELECT -0e1/1e1;
+SELECT -0e1/1e0;
+SELECT 1e1 * -0e1;
+SELECT 0e0*-1e0;
+SELECT -'';
+SELECT -''/1e1;
+
+
+
+SELECT ABS(-0e1);
+SELECT ABS(-'');
+
+
+SELECT -0e1 % 1e1;
+SELECT -'' % 1e1;
+
+
+--echo #
+--echo # Rounding functions must not produce negative zero
+--echo #
+
+SELECT ROUND(-0.4);
+SELECT ROUND(-0.1);
+SELECT TRUNCATE(-0.1,0);
+SELECT CEILING(-0.1);
+
+SELECT SIGN(ROUND(-0.4));
+SELECT SIGN(ROUND(-0.1));
+SELECT SIGN(TRUNCATE(-0.1,0));
+SELECT SIGN(CEILING(-0.1));
+
+--echo #
+--echo # Passthrough functions must preserve signed zero
+--echo #
+
+SELECT CONCAT(-'');
+SELECT CONCAT(0e1-0e1);
+SELECT CONCAT(ROUND(-0.4));
+SELECT CONCAT(TRUNCATE(-0.9,0));
+
+--echo #
+--echo # Aggregate functions
+--echo #
+
+SELECT SUM(0e1*-1e1);
+SELECT AVG(0e1*-1e1);
+SELECT MIN(0e1*-1e1);
+SELECT MAX(0e1*-1e1);
+SELECT CONCAT(SUM(0e1*-1e1));
+SELECT CONCAT(AVG(0e1*-1e1));
+
+--echo #
+--echo # Grouping and distinct behavior
+--echo #
+
+CREATE TABLE t_signed_zero (a DOUBLE);
+INSERT INTO t_signed_zero VALUES (-0e1),(0e1);
+
+SELECT COUNT(DISTINCT a) FROM t_signed_zero;
+SELECT a,COUNT(*) FROM t_signed_zero GROUP BY a;
+
+DROP TABLE t_signed_zero;
+
+
+# Test comparison functions
+--echo # Testing comparison functions with signed zero
+
+SELECT CASE WHEN -0e1=0e1 THEN 1.0 ELSE 0.0 END;
+SELECT CASE WHEN -''=0e1 THEN 1.0 ELSE 0.0 END;
+SELECT CASE WHEN -''=-0e1 THEN 1.0 ELSE 0.0 END;
+SELECT CASE WHEN 0e0*-1e0=0e1 THEN 1.0 ELSE 0.0 END;
+
+CREATE TABLE t_signed_zero (a DOUBLE);
+
+INSERT INTO t_signed_zero VALUES (0e0*-1e0);
+SELECT CONCAT(a) FROM t_signed_zero;
+
+DROP TABLE t_signed_zero;
+
+--echo #
+--echo # Temporary table materialization
+--echo #
+
+SELECT CONCAT(a) FROM (SELECT 0e0*-1e0 AS a) t;
+SELECT CONCAT(a) FROM (SELECT ROUND(-0.4) AS a) t;
+SELECT CONCAT(a) FROM (SELECT -(1e0-1e0) AS a) t;
+
+
+--echo #
+--echo # Prepared statements
+--echo #
+
+PREPARE s FROM 'SELECT CONCAT(-(1e0-1e0))';
+EXECUTE s;
+DEALLOCATE PREPARE s;
+
+PREPARE s FROM 'SELECT CONCAT(ROUND(-0.4))';
+EXECUTE s;
+DEALLOCATE PREPARE s;
+
+--echo #
+--echo # CASE arithmetic mix
+--echo #
+
+SELECT CONCAT(CASE WHEN 1 THEN 0e0*-1e0 END);
+SELECT CONCAT(CASE WHEN 0 THEN 1 ELSE 0e0*-1e0 END);
+SELECT CONCAT(CASE WHEN 1 THEN -(1e0-1e0) END);
+
+--echo #
+--echo # UNION handling
+--echo #
+
+SELECT CONCAT(0e0*-1e0)
+UNION ALL
+SELECT CONCAT(-(1e0-1e0));
+
+SELECT CONCAT(ROUND(-0.4))
+UNION
+SELECT CONCAT(TRUNCATE(-0.1,0));
+
+
+--echo #
+--echo # String conversion edge cases
+--echo #
+
+SELECT SIGN(-'0');
+SELECT SIGN(-'0.0');
+SELECT SIGN(-'00');
+SELECT SIGN(-' 0 ');
+
+--echo # End of 13 tests
