@@ -15,6 +15,7 @@
 handlerton *parquet_hton= 0;
 static THR_LOCK parquet_lock;
 
+
 ha_parquet::ha_parquet(handlerton *hton, TABLE_SHARE *table_arg) : handler(hton, table_arg)
 {
   thr_lock_data_init(&parquet_lock, &lock, NULL);
@@ -70,8 +71,79 @@ int ha_parquet::close(void)
   return 0;
 }
 
+//Walks the AST and converts it into a string. Check this. 
+static std::string item_to_sql(const Item *item)
+{
+  if (!item) return "";
 
+  // Check if it has binary operation >,<. =
+  const Item_func *func = dynamic_cast<const Item_func *>(item);
+  if (!func || func->argument_count() != 2) {
+    return "";
+  }
 
+  const Item *left = func->arguments()[0];
+  const Item *right = func->arguments()[1];
+
+  // Left must be a column
+  if (left->type() != Item::FIELD_ITEM) {
+    return "";
+  }
+
+  const Item_field *field = static_cast<const Item_field *>(left);
+  std::string col = field->field_name.str;
+
+  std::string val;
+
+  // Right must be a int or string
+  if (right->type() == Item::INT_ITEM) {
+    val = std::to_string(right->val_int());
+  }
+  else if (right->type() == Item::STRING_ITEM) {
+    String tmp;
+    String *s = right->val_str(&tmp);
+    if (!s) return "";
+    val = quote_string_literal(std::string(s->ptr(), s->length()));
+  }
+  else {
+    return "";
+  }
+
+  std::string op = func->func_name();
+
+  if (op == "=" || op == "eq") return col + " = " + val;
+  if (op == ">" || op == "gt") return col + " > " + val;
+  if (op == "<" || op == "lt") return col + " < " + val;
+
+  return "";
+}
+
+//Gets the condition information after WHERE and stores it in pushed_cond_sql
+//Takes in the WHERE clause as a tree
+const Item *ha_parquet::cond_push(const Item *cond)
+{
+  DBUG_ENTER("ha_parquet::cond_push");
+
+  pushed_cond_sql.clear();
+  has_pushed_cond = false;
+
+  if (cond) {
+    pushed_cond_sql = item_to_sql(cond);
+    if (!pushed_cond_sql.empty()) {
+      has_pushed_cond = true;
+      //std::cout << "Pushed condition: " << pushed_cond_sql << std::endl;
+    }
+  }
+
+  DBUG_RETURN(nullptr);
+}
+
+//Clears the current saved filter
+void ha_parquet::cond_pop()
+{
+  pushed_cond_sql.clear();
+  has_pushed_cond = false;
+}
 
 //helper to convert mariadb type to duckdb type
 std::string mariadb_type_to_duckdb(Field *f) {
@@ -395,14 +467,84 @@ int ha_parquet::delete_row(const uchar *buf)
   return HA_ERR_WRONG_COMMAND;
 }
 
-int ha_parquet::rnd_init(bool)
+int ha_parquet::rnd_init(bool scan)
 {
+  (void) scan;
+  DBUG_ENTER("ha_parquet::rnd_init");
+  
+  current_row = 0;
+  scan_result.reset();
+  
+  if (!duckdb_initialized || con == nullptr) DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+
+  std::string parquet_path = std::string(table->s->table_name.str) + ".parquet";
+  std::string query = "SELECT * FROM read_parquet(" + quote_string_literal(parquet_path) + ")";
+  std::cout << "rnd_init DuckDB query: " << query << std::endl;
+
+  try {
+    auto result = con->Query(query);
+
+    if (!result || result->HasError()) {
+      DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+    }
+
+    scan_result = std::move(result);
+  } catch (const duckdb::Exception &) {
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+  } catch (const std::exception &) {
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+  }
+
+  DBUG_RETURN(0);
+  
   return 0;
 }
 
-int ha_parquet::rnd_next(uchar *)
+int ha_parquet::rnd_next(uchar *buf)
 {
-  return HA_ERR_END_OF_FILE;
+  (void) buf;
+  DBUG_ENTER("ha_parquet::rnd_next");
+
+  if (!scan_result || current_row >= scan_result->RowCount()) {
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+  }
+
+  for (uint i = 0; i < table->s->fields; i++) {
+    Field *f = table->field[i];
+    auto val = scan_result->GetValue(i, current_row);
+
+    if (val.IsNull()) {
+      f->set_null();
+      continue;
+    }
+
+    enum_field_types t = f->type();
+
+    // integer family
+    if (t == MYSQL_TYPE_TINY || t == MYSQL_TYPE_SHORT ||
+        t == MYSQL_TYPE_INT24 || t == MYSQL_TYPE_LONG) {
+      f->store((longlong)val.GetValue<int32_t>(), false);
+    }
+
+    // bigint
+    else if (t == MYSQL_TYPE_LONGLONG) {
+      f->store((longlong)val.GetValue<int64_t>(), false);
+    }
+
+    // numeric
+    else if (t == MYSQL_TYPE_FLOAT || t == MYSQL_TYPE_DOUBLE) {
+      f->store(val.GetValue<double>());
+    }
+
+    // everything else → treat as string
+    else {
+      std::string s = val.ToString();
+      f->store(s.c_str(), s.length(), f->charset());
+    }
+  }
+
+  current_row++;
+  DBUG_RETURN(0);
 }
 
 int ha_parquet::rnd_pos(uchar *, uchar *)

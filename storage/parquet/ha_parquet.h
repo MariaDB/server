@@ -11,6 +11,7 @@
 #include <vector>
 #include <string>
 
+
 struct parquet_trx_data {
   std::vector<std::string> s3_file_paths;
 };
@@ -47,6 +48,8 @@ public:
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
                              enum thr_lock_type lock_type) override;
+  const Item *cond_push(const Item *cond) override;
+  void cond_pop() override;
 
 private:
   THR_LOCK_DATA lock;
@@ -60,6 +63,12 @@ private:
   duckdb::Connection *con = nullptr;
 
   std::string flush_remaining_rows_to_s3();
+
+  std::string pushed_cond_sql;
+  bool has_pushed_cond = false;
+
+  std::unique_ptr<duckdb::MaterializedQueryResult> scan_result;
+  size_t current_row = 0;
 
 
 };
