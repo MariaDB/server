@@ -440,6 +440,14 @@ public:
   @param old_size  the value returned by backup_start()
   @param thd       SQL connection */
   void backup_stop(uint64_t old_size, THD *thd) noexcept;
+#ifdef _WIN32
+  /** Close the log file if it starts at the specified LSN.
+  @param lsn  log sequence number to compare to
+  @return whether the log was closed */
+  bool close_file_if_at(lsn_t lsn) noexcept;
+  /** Resume after close_file_at() returned true. */
+  void resume_file() noexcept;
+#endif
 
 private:
   /** Replicate a write to the log.

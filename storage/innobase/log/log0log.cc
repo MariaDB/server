@@ -633,6 +633,30 @@ void log_t::set_buffered(bool buffered) noexcept
   log_resize_release();
 }
 #endif
+#ifdef _WIN32
+bool log_t::close_file_if_at(lsn_t lsn) noexcept
+{
+  log_resize_acquire();
+  ut_ad(first_lsn >= lsn);
+  if (first_lsn != lsn)
+  {
+    log_resize_release();
+    return false;
+  }
+  if (const dberr_t err= log.close())
+    log_close_failed(err);
+  return true;
+}
+
+void log_t::resume_file() noexcept
+{
+  bool success;
+  log.m_file= os_file_create_func(get_path().c_str(),
+                                  OS_FILE_OPEN, OS_LOG_FILE, false, &success);
+  ut_a(log.m_file != OS_FILE_CLOSED);
+  log_resize_release();
+}
+#endif
 
   /** Try to enable or disable durable writes (update log_write_through) */
 void log_t::set_write_through(bool write_through)

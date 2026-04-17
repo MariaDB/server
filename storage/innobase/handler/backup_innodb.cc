@@ -291,7 +291,7 @@ public:
 
     if (lsn)
     {
-      if (link_or_move(lsn, bool(old_size)))
+      if (link_or_move(lsn, false))
         return -1;
     }
     else if (fil_space_t *space= fil_space_t::get(id))
@@ -341,7 +341,7 @@ public:
       const lsn_t lsn{log_sys.get_first_lsn()};
       if (lsn > last_first_lsn)
       {
-        fail= link_or_move(lsn, false);
+        fail= link_or_move(lsn, true);
         if (fail)
           goto skip_log_dup;
       }
@@ -501,12 +501,12 @@ private:
     return -1;
   }
 
-  /** Hard-link or rename an archive log file.
+  /** Hard-link (copy) or rename (move) an archive log file.
   @param lsn   The first LSN in the file
-  @param move  false=link, true=rename
+  @param live  false=archived log, true=possibly live log
   @return error code
   @retval 0 on success */
-  int link_or_move(lsn_t lsn, bool move) noexcept
+  int link_or_move(lsn_t lsn, bool live) noexcept
   {
     const std::string p{log_sys.get_archive_path(lsn)};
     const char *const path= p.c_str(), *basename= strrchr(path, '/');
@@ -514,7 +514,11 @@ private:
       basename= path;
     else
       basename++;
+    const bool move{!live && old_size};
+
 #ifdef _WIN32
+    if (live)
+      live= log_sys.close_file_if_at(lsn);
     std::string b{target};
     b.push_back('/');
     b.append(basename);
@@ -531,6 +535,8 @@ private:
       got_err:
         my_osmaperr(err);
         my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), path, basename, errno);
+        if (live)
+          log_sys.resume_file();
         return -1;
       }
     }
@@ -546,6 +552,8 @@ private:
       sql_print_warning("InnoDB: CopyFileEx()=%lu", GetLastError());
       goto fail;
     }
+    if (live)
+      log_sys.resume_file();
 #else
     if (move
         ? !renameat(AT_FDCWD, path, target, basename)
