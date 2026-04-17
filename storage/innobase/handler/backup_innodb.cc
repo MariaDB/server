@@ -520,10 +520,10 @@ private:
         return -1;
       }
     }
-    else if (!CreateHardLinkA(path, basename, nullptr) &&
+    else if (!CreateHardLink(basename, path, nullptr) &&
              (err= GetLastError()) != ERROR_NOT_SAME_DEVICE)
     {
-      sql_print_warning("InnoDB: CreateHardLinkA()=%lu", err);
+      sql_print_warning("InnoDB: CreateHardLink()=%lu", err);
       goto got_err;
     }
     else if (!CopyFileExA(path, basename, nullptr, nullptr, nullptr,
