@@ -398,7 +398,7 @@ ATTRIBUTE_NOINLINE void mtr_t::commit_log_release<false>() noexcept
     log_sys.latch.rd_unlock();
 }
 
-static ATTRIBUTE_NOINLINE ATTRIBUTE_COLD
+ATTRIBUTE_NOINLINE ATTRIBUTE_COLD
 void mtr_flush_ahead(lsn_t flush_lsn) noexcept
 {
   buf_flush_ahead(flush_lsn, bool(flush_lsn & 1));
