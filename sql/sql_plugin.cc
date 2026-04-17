@@ -1107,6 +1107,21 @@ static st_plugin_int *plugin_insert_or_reuse(struct st_plugin_int *plugin)
   DBUG_RETURN(tmp);
 }
 
+static inline bool plugin_should_skip(const struct st_maria_plugin *p,
+                                      const struct st_plugin_dl *plugin_dl,
+                                      const LEX_CSTRING *name)
+{
+  if (p->type < 0 || p->type >= MYSQL_MAX_PLUGIN_TYPE_NUM)
+    return true;
+  if (p->type == MYSQL_UDF_PLUGIN ||
+      (p->type == MariaDB_PASSWORD_VALIDATION_PLUGIN &&
+       plugin_dl->mariaversion == 0))
+    return true;
+  if (name->str && system_charset_info->strnncoll(name->str, name->length,
+                                                  p->name, strlen(p->name)))
+    return true;
+  return false;
+}
 
 /*
   NOTE
@@ -1133,23 +1148,34 @@ static enum install_status plugin_add(MEM_ROOT *tmp_root, bool if_not_exists,
   fix_dl_name(tmp_root, dl);
   if (! (tmp.plugin_dl= plugin_dl_add(dl, MyFlags)))
     DBUG_RETURN(INSTALL_FAIL_NOT_OK);
+
+  /* Pre-validation: ensure plugin name of all plugins or the plugin to be installed are in pure ASCII */
+  for (plugin= tmp.plugin_dl->plugins; plugin->info; plugin++)
+  {
+    if (plugin_should_skip(plugin, tmp.plugin_dl, name))
+      continue;
+
+    if (MY_REPERTOIRE_ASCII !=
+        my_string_repertoire(&my_charset_latin1,
+                             plugin->name, strlen(plugin->name)))
+    {
+      my_printf_error(ER_PLUGIN_IS_NOT_LOADED,
+                "Plugin '%s': name must contain only ASCII characters",
+                MyFlags, plugin->name);
+      plugin_dl_del(tmp.plugin_dl);
+      DBUG_RETURN(INSTALL_FAIL_NOT_OK);
+    }
+  }
+
   /* Find plugin by name */
   for (plugin= tmp.plugin_dl->plugins; plugin->info; plugin++)
   {
+
+    if (plugin_should_skip(plugin, tmp.plugin_dl, name))
+      continue;
+
     tmp.name.str= (char *)plugin->name;
     tmp.name.length= strlen(plugin->name);
-
-    if (plugin->type < 0 || plugin->type >= MYSQL_MAX_PLUGIN_TYPE_NUM)
-      continue; // invalid plugin type
-
-    if (plugin->type == MYSQL_UDF_PLUGIN ||
-        (plugin->type == MariaDB_PASSWORD_VALIDATION_PLUGIN &&
-         tmp.plugin_dl->mariaversion == 0))
-      continue; // unsupported plugin type
-
-    if (name->str && system_charset_info->strnncoll(name->str, name->length,
-                                                    tmp.name.str, tmp.name.length))
-      continue; // plugin name doesn't match
 
     if (!name->str &&
         (maybe_dupe= plugin_find_internal(&tmp.name, MYSQL_ANY_PLUGIN)))
@@ -1678,6 +1704,13 @@ int plugin_init(int *argc, char **argv, int flags)
       tmp.plugin= plugin;
       tmp.name.str= (char *)plugin->name;
       tmp.name.length= strlen(plugin->name);
+      if (MY_REPERTOIRE_ASCII !=
+        my_string_repertoire(&my_charset_latin1, tmp.name.str,
+                         tmp.name.length))
+      {
+        print_init_failed_error(&tmp);
+        goto err_unlock;
+      }
       tmp.state= 0;
       tmp.load_option= mandatory ? PLUGIN_FORCE : PLUGIN_ON;
       DBUG_ASSERT(!mandatory ||
