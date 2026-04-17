@@ -8212,7 +8212,24 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   while ((item= it++))
   {
     if (make_pre_fix)
-      pre_fix->push_back(item, thd->active_stmt_arena_to_use()->mem_root);
+    {
+      DBUG_EXECUTE_IF("assert_no_alloc_pre_fix", { DBUG_ASSERT(0); });
+      Query_arena *arena= thd->active_stmt_arena_to_use();
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+      const bool read_only_mem_root= !arena->is_conventional() &&
+                                (arena->mem_root->flags & ROOT_FLAG_READ_ONLY);
+      if (read_only_mem_root)
+        arena->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
+#endif
+
+      pre_fix->push_back(item, arena->mem_root);
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+      if (read_only_mem_root)
+        arena->mem_root->flags|= ROOT_FLAG_READ_ONLY;
+#endif
+    }
 
     if (item->fix_fields_if_needed_for_scalar(thd, it.ref()))
     {

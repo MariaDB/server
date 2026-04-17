@@ -465,4 +465,35 @@ va
 # Clean up
 DROP PROCEDURE p1;
 DROP TABLE t1;
+#
+# MDEV-37491: Assertion `(mem_root->flags & 4) == 0` failed in `void *alloc_root(MEM_ROOT *, size_t)`
+#
+CREATE PROCEDURE p(x INT DEFAULT (SELECT 1))
+BEGIN
+SELECT x FROM DUAL;
+END;
+//
+CALL p(1);
+x
+1
+CALL p();
+x
+1
+# Verify the there are no repeated allocations on statement mem_root
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,assert_no_alloc_ref_array,assert_no_alloc_pre_fix";
+CALL p();
+x
+1
+CALL p();
+x
+1
+CALL p(1);
+x
+1
+CALL p();
+x
+1
+SET SESSION debug_dbug= @saved_dbug;
+DROP PROCEDURE p;
 # End of 11.8 tests
