@@ -509,7 +509,7 @@ private:
     {
       if (!MoveFileEx(path, basename, MOVEFILE_COPY_ALLOWED))
       {
-        sql_print_warning("InnoDB: MoveFileEx()=%lu", err);
+        sql_print_warning("InnoDB: MoveFileEx()=%lu", GetLastError());
       fail:
         err= GetLastError();
       got_err:
