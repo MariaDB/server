@@ -511,6 +511,7 @@ DROP TABLE t5;
 
 create table t1 (pk int not null, b1 blob compressed, v1 varbinary(100))engine=innodb;
 insert into t1 values (1,'ufhjdtv','f'),(2,'jdt',''),(3,'d','tvs');
+select t1.v1, t1.b1 from t1 join t1 as tt on (tt.pk != t1.pk) order by t1.v1;
 select group_concat(t1.v1, t1.b1 order by 1) from (t1 join t1 as tt on (tt.pk != t1.pk));
 drop table t1;
 

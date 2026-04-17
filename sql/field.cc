@@ -8472,12 +8472,13 @@ Field *Field_varstring_compressed::make_new_field(MEM_ROOT *root,
   return res;
 }
 
+
 Field *Field_blob_compressed::make_new_field(MEM_ROOT *root, TABLE *new_table,
                                              bool keep_type,
                                              const Tmp_field_param *param)
 {
   Field_blob *res;
-  if (new_table->s->is_optimizer_tmp_table() ||
+  if (new_table->s->is_optimizer_tmp_table() &&
       (param && param->part_of_unique_key()))
   {
     /*
@@ -8816,6 +8817,50 @@ int Field_blob::copy_value(Field_blob *from)
 }
 
 
+/*
+  Store blob value into table->blob_storage
+  Used with GROUP_CONCAT with ORDER BY/DISTINCT
+
+  If with_zero_prefix is true, prepend a 0x00 byte so that
+  Field_blob_compressed::val_str() treats the value as uncompressed.
+*/
+
+int Field_blob::handle_group_concat(const char *from, size_t length,
+                                    CHARSET_INFO *cs, bool with_zero_prefix)
+{
+  DBUG_ASSERT(!f_is_hex_escape(flags));
+  DBUG_ASSERT(field_charset() == cs);
+  DBUG_ASSERT(length <= max_data_length());
+
+  size_t new_length= length;
+  size_t copy_length= table->in_use->variables.group_concat_max_len;
+  if (new_length > copy_length)
+  {
+    new_length= Well_formed_prefix(cs, from, copy_length, new_length).length();
+    table->blob_storage->set_truncated_value(true);
+  }
+
+  char *tmp;
+  if (with_zero_prefix)
+  {
+    tmp= table->blob_storage->store_with_zero_prefix(from, new_length);
+    new_length++;                               // Count the extra 0
+  }
+  else
+    tmp= table->blob_storage->store(from, new_length);
+
+  if (!tmp)
+    goto oom_error;
+  Field_blob::store_length(new_length);
+  bmove(ptr + packlength, (uchar*) &tmp, sizeof(char*));
+  return 0;
+
+oom_error:
+  reset();
+  return -1;
+}
+
+
 int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
@@ -8839,27 +8884,7 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
   */
 
   if (table && table->blob_storage)    // GROUP_CONCAT with ORDER BY | DISTINCT
-  {
-    DBUG_ASSERT(!f_is_hex_escape(flags));
-    DBUG_ASSERT(field_charset() == cs);
-    DBUG_ASSERT(length <= max_data_length());
-    
-    new_length= length;
-    copy_length= table->in_use->variables.group_concat_max_len;
-    if (new_length > copy_length)
-    {
-      new_length= Well_formed_prefix(cs,
-                                     from, copy_length, new_length).length();
-      table->blob_storage->set_truncated_value(true);
-    }
-    if (!(tmp= table->blob_storage->store(from, new_length)))
-      goto oom_error;
-
-    Field_blob::store_length(new_length);
-    bmove(ptr + packlength, (uchar*) &tmp, sizeof(char*));
-    return 0;
-  }
-
+    return handle_group_concat(from, length, cs, false);
   /*
     If the 'from' address is in the range of the temporary 'value'-
     object we need to copy the content to a different location or it will be
@@ -8908,7 +8933,7 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
 
 oom_error:
   /* Fatal OOM error */
-  bzero(ptr,Field_blob::pack_length());
+  reset();
   return -1; 
 }
 
@@ -9371,6 +9396,10 @@ int Field_blob_compressed::store(const char *from, size_t length,
                                  CHARSET_INFO *cs)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
+
+ if (table && table->blob_storage)    // GROUP_CONCAT with ORDER BY | DISTINCT
+   return handle_group_concat(from, length, cs, true);
+
   uint compressed_length;
   uint max_length= max_data_length();
   uint to_length= (uint) MY_MIN(max_length, mbmaxlen() * length + 1);

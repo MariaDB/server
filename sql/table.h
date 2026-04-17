@@ -1242,6 +1242,20 @@ public:
   {
     return (char*) memdup_root(&storage, from, length);
   }
+  /*
+    Store string with a 0 prefix. This is used for storing
+    Field_blob_compressed fields in a not compressed format.
+  */
+  char *store_with_zero_prefix(const char *from, size_t length)
+  {
+    char *res= (char*) alloc_root(&storage, length+1);
+    if (res)
+    {
+      res[0]= 0;
+      memcpy(res+1, from, length);
+    }
+    return res;
+  }
   void set_truncated_value(bool is_truncated_value)
   {
     truncated_value= is_truncated_value;

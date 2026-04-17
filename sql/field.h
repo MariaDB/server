@@ -4435,6 +4435,8 @@ protected:
   static void do_copy_blob(Copy_field *copy);
   static void do_conv_blob(Copy_field *copy);
   uint get_key_image_itRAW(const uchar *ptr_arg, uchar *buff, uint length) const;
+  int handle_group_concat(const char *from, size_t length,
+                          CHARSET_INFO *cs, bool with_zero_prefix);
 public:
   Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
