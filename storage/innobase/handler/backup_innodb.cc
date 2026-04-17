@@ -158,8 +158,8 @@ static int copy_file(int src, int dst, off_t size) noexcept
 # ifdef __linux__ // starting with Linux 2.6.33, we can rely on sendfile(2)
     ret= copy<send_step>(src, dst, size);
 # else
-  if ((ret= mmap_copy(node->handle, f, size)) == 1)
-    ret= pread_write(node->handle, f, size);
+  if ((ret= mmap_copy(src, dst, size)) == 1)
+    ret= pread_write(src, dst, size);
 # endif
   ut_ad(ret <= 0);
   return int(ret);
@@ -173,7 +173,7 @@ class InnoDB_backup
   /** mutex protecting the queue */
   srw_mutex_impl<false> mutex;
 
-  /** whether backup is active */
+  /** whether backup is active; protected by mutex and log_sys.latch */
   Atomic_relaxed<bool> active;
 
   /** the original innodb_log_file_size, or 0 if innodb_log_archive=ON */
@@ -213,7 +213,6 @@ public:
       const lsn_t start{log_sys.archived_checkpoint};
       checkpoint= start;
       checkpoint_end_lsn= log_sys.archived_lsn;
-      log_sys.latch.wr_unlock();
 
       this->target= target;
       /* Collect all tablespaces that have been created before our
@@ -245,6 +244,7 @@ public:
           queue.emplace_back(space.id);
       mysql_mutex_unlock(&fil_system.mutex);
       active= true;
+      log_sys.latch.wr_unlock();
     }
     mutex.wr_unlock();
     DEBUG_SYNC(thd, "innodb_backup_start");
@@ -353,7 +353,9 @@ public:
       /* TODO: copy our hardlink of the last log until the final LSN */
       sql_print_information("TODO: duplicate " LOG_ARCHIVE_NAME, first_lsn);
     }
+    log_sys.latch.rd_lock(); /* prevent a race with checkpoint_complete() */
     active= false;
+    log_sys.latch.rd_unlock();
     mutex.wr_unlock();
     mutex.destroy();
   }
@@ -367,8 +369,8 @@ public:
     if (active)
     {
       mutex.wr_lock();
-      if (active)
-        logs.emplace_back(log_sys.get_first_lsn() - log_sys.capacity());
+      ut_ad(active);
+      logs.emplace_back(log_sys.get_first_lsn() - log_sys.capacity());
       mutex.wr_unlock();
     }
   }
@@ -507,6 +509,7 @@ private:
     {
       if (!MoveFileEx(path, basename, MOVEFILE_COPY_ALLOWED))
       {
+        sql_print_warning("InnoDB: MoveFileEx()=%lu", err);
       fail:
         err= GetLastError();
       got_err:
@@ -518,10 +521,16 @@ private:
     }
     else if (!CreateHardLinkA(path, basename, nullptr) &&
              (err= GetLastError()) != ERROR_NOT_SAME_DEVICE)
+    {
+      sql_print_warning("InnoDB: CreateHardLinkA()=%lu", err);
       goto got_err;
+    }
     else if (!CopyFileExA(path, basename, nullptr, nullptr, nullptr,
                           COPY_FILE_NO_BUFFERING))
+    {
+      sql_print_warning("InnoDB: CopyFileEx()=%lu", GetLastError());
       goto fail;
+    }
 #else
     if (move
         ? !renameat(AT_FDCWD, path, target, basename)
