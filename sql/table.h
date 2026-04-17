@@ -3105,6 +3105,13 @@ struct TABLE_LIST
     return tbl;
   }
   TABLE *get_real_join_table();
+
+  /*
+    returns true when *this represents either a VIEW,
+    derived table, or join nest which contains a FULL JOIN.
+   */
+  bool contains_full_join() const;
+
   bool is_leaf_for_name_resolution() const;
   inline TABLE_LIST *top_table()
     { return belong_to_view ? belong_to_view : this; }

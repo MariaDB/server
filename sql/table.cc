@@ -7241,6 +7241,44 @@ TABLE *TABLE_LIST::get_real_join_table()
 }
 
 
+/*
+  Return true when this view/derived table contains a FULL JOIN.
+*/
+static bool join_list_contains_full_join(List<TABLE_LIST> *join_list)
+{
+  List_iterator<TABLE_LIST> it(*join_list);
+  TABLE_LIST *tbl;
+
+  while ((tbl= it++))
+  {
+    if (tbl->outer_join & JOIN_TYPE_FULL)
+      return true;
+    if (tbl->nested_join &&
+        join_list_contains_full_join(&tbl->nested_join->join_list))
+      return true;
+  }
+
+  return false;
+}
+
+
+bool TABLE_LIST::contains_full_join() const
+{
+  List<TABLE_LIST> *join_list= nullptr;
+
+  if (view)
+    join_list= &view->first_select_lex()->top_join_list;
+  else if (derived)
+    join_list= &derived->first_select()->top_join_list;
+  else if (nested_join)
+    join_list= &nested_join->join_list;
+  else
+    return false;
+
+  return join_list_contains_full_join(join_list);
+}
+
+
 Natural_join_column::Natural_join_column(Field_translator *field_param,
                                          TABLE_LIST *tab)
 {

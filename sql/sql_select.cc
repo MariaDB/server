@@ -202,7 +202,7 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
                                              bool do_substitution);
 static COND *simplify_joins(JOIN *join, List<TABLE_LIST> *join_list,
                             COND *conds, bool in_sj);
-static bool check_full_join_base_tables(List<TABLE_LIST> *join_list);
+bool check_full_join_base_tables(List<TABLE_LIST> *join_list);
 static bool check_interleaving_with_nj(JOIN_TAB *next);
 static void restore_prev_nj_state(JOIN_TAB *last);
 static uint reset_nj_counters(JOIN *join, List<TABLE_LIST> *join_list);
@@ -20382,13 +20382,29 @@ static COND *rewrite_full_outer_joins(JOIN *join,
 
 
 /**
-  Check that the right side of every FULL JOIN is a base table.
+  FULL JOIN feature caveats:
 
-  Returns TRUE and raises ER_FULL_JOIN_BASE_TABLES_ONLY if a derived table
-  or view is found on the right side of any FULL JOIN.
+    (1) The right side of a FULL JOIN must be a base table; violations
+        trigger ER_FULL_JOIN_BASE_TABLES_ONLY.
+
+    (2) A FULL JOIN may not appear on the inner side of an enclosing
+        LEFT or RIGHT JOIN; violations trigger
+        ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN.  FULL JOIN is allowed
+        on the right side of an INNER JOIN and on the outer side of
+        any outer join (including another FULL JOIN).  The restriction
+        exists because the current FULL JOIN null-complement pass
+        cannot correctly pair its right-unmatched rows with each outer
+        row of an enclosing LEFT/RIGHT JOIN when the FULL JOIN sits on
+        that join's inner side.
+
+        MariaDB converts every RIGHT JOIN into the equivalent LEFT
+        JOIN via convert_right_join at parse time, so "inner of an
+        outer join" is unambiguous, it's the table that carries either
+        JOIN_TYPE_LEFT or JOIN_TYPE_RIGHT (and no JOIN_TYPE_FULL,
+        which would identify it as a FULL JOIN table).
 */
 
-static bool
+bool
 check_full_join_base_tables(List<TABLE_LIST> *join_list)
 {
   TABLE_LIST *table;
@@ -20396,6 +20412,9 @@ check_full_join_base_tables(List<TABLE_LIST> *join_list)
 
   while ((table= li++))
   {
+    /*
+      (1) The right partner of a FULL JOIN must be a base table.
+    */
     if ((table->outer_join & JOIN_TYPE_FULL) &&
         (table->outer_join & JOIN_TYPE_RIGHT))
     {
@@ -20404,6 +20423,19 @@ check_full_join_base_tables(List<TABLE_LIST> *join_list)
         my_error(ER_FULL_JOIN_BASE_TABLES_ONLY, MYF(0), table->alias.str);
         return true;
       }
+    }
+
+    /*
+      (2) The inner of any outer join must not contain a FULL JOIN.
+      The inner is identified by JOIN_TYPE_LEFT or JOIN_TYPE_RIGHT
+      with JOIN_TYPE_FULL absent.
+    */
+    if ((table->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT)) &&
+        !(table->outer_join & JOIN_TYPE_FULL) &&
+        table->contains_full_join())
+    {
+      my_error(ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN, MYF(0));
+      return true;
     }
 
     if (table->nested_join &&
@@ -20852,7 +20884,7 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
         continue;
       join->select_lex->sj_nests.push_back(table, join->thd->mem_root);
 
-      /* 
+      /*
         Also, walk through semi-join children and mark those that are now
         top-level
       */
@@ -20864,11 +20896,21 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
           tbl->table->maybe_null= FALSE;
       }
     }
-    else if (nested_join && !table->on_expr)
+    else if (nested_join && !table->on_expr &&
+             !(table->outer_join & JOIN_TYPE_FULL) &&
+             (!table->contains_full_join() ||
+              join_list->elements <= 1))
     {
+      /*
+        In general, perform flattening when the nest isn't a FULL JOIN
+        and doesn't contain a FULL JOIN.  Exception: the top-level has
+        no sibling tables that could get interleaved into a FULL JOIN
+        nest (such as a FULL JOIN of two base tables).
+       */
+
       TABLE_LIST *tbl;
       List_iterator<TABLE_LIST> it(nested_join->join_list);
-      List<TABLE_LIST> repl_list;  
+      List<TABLE_LIST> repl_list;
       while ((tbl= it++))
       {
         tbl->embedding= table->embedding;
@@ -20881,7 +20923,7 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool in_sj)
       li.replace(repl_list);
     }
   }
-  DBUG_RETURN(conds); 
+  DBUG_RETURN(conds);
 }
 
 

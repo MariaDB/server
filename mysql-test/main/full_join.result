@@ -98,10 +98,11 @@ t1a	t2a
 NULL	3
 explain extended select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1a`,`test`.`t2`.`a` AS `t2a` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) where 1
+Note	1003	/* select#1 */ select `v1`.`t1a` AS `t1a`,`v1`.`t2a` AS `t2a` from `test`.`v1`
 drop view v1;
 create view v1 as select t1.a as t1a, t2.a as t2a from t1 full outer join t2 on t1.a = t2.a;
 select * from v1;
@@ -116,10 +117,11 @@ t1a	t2a
 NULL	3
 explain extended select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1a`,`test`.`t2`.`a` AS `t2a` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) where 1
+Note	1003	/* select#1 */ select `v1`.`t1a` AS `t1a`,`v1`.`t2a` AS `t2a` from `test`.`v1`
 drop view v1;
 create view v1 as select t1.a as t1a, t2.a as t2a from t1 natural full join t2;
 select * from v1;
@@ -134,10 +136,11 @@ t1a	t2a
 NULL	3
 explain extended select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1a`,`test`.`t2`.`a` AS `t2a` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) where 1
+Note	1003	/* select#1 */ select `v1`.`t1a` AS `t1a`,`v1`.`t2a` AS `t2a` from `test`.`v1`
 drop view v1;
 create view v1 as select t1.a as t1a, t2.a as t2a from t1 natural full outer join t2;
 select * from v1;
@@ -152,10 +155,11 @@ t1a	t2a
 NULL	3
 explain extended select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `t1a`,`test`.`t2`.`a` AS `t2a` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) where 1
+Note	1003	/* select#1 */ select `v1`.`t1a` AS `t1a`,`v1`.`t2a` AS `t2a` from `test`.`v1`
 drop view v1;
 # FULL JOIN inside a derived table combined with UNION.
 select * from (select t1.a from t1 full join t2 on t1.a = t2.a union select * from t1) dt;
@@ -855,15 +859,7 @@ a	b	a	b
 1	1	1	1
 NULL	NULL	3	3
 select * from (t1 natural full join t2) right join t2 t3 on t1.a=t3.a;
-a	b	a	b
-1	1	1	1
-NULL	NULL	3	3
-select * from (t1 natural left join t2) right join t2 t3 on t1.a=t3.a
-union
-select * from (t1 natural right join t2) right join t2 t3 on t1.a=t3.a;
-a	b	a	b
-1	1	1	1
-NULL	NULL	3	3
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
 select t1.a from t1 natural full join (t2 natural join t3) where
 t1.a is not null;
 a
@@ -1683,16 +1679,21 @@ a1	a2	c
 2	2	y
 3	3	NULL
 NULL	4	z
+# The LEFT JOIN is allowed (v_full is the outer side, so the
+# FULL JOIN inside v_full is on the outer side of the LEFT JOIN).
+# The RIGHT JOIN is equivalent to
+# `t3 LEFT JOIN v_full`, which puts v_full (the FULL JOIN) on the
+# inner side -- rejected.
 select v_full.a1, v_full.a2, t3.c
-from v_full left join t3 on coalesce(v_full.a1, v_full.a2) = t3.a
-union
-select v_full.a1, v_full.a2, t3.c
-from v_full right join t3 on coalesce(v_full.a1, v_full.a2) = t3.a;
+from v_full left join t3 on coalesce(v_full.a1, v_full.a2) = t3.a;
 a1	a2	c
 1	NULL	x
 2	2	y
 3	3	NULL
 NULL	4	z
+select v_full.a1, v_full.a2, t3.c
+from v_full right join t3 on coalesce(v_full.a1, v_full.a2) = t3.a;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
 # View that filters the FULL JOIN result.
 create view v_full_filtered as
 select t1.a as a1, t2.a as a2
@@ -2667,6 +2668,173 @@ b	1	30	100
 c	2	80	500
 d	1	NULL	400
 drop table t1, t2;
+# simplify_joins: do not flatten an FULL JOIN nest when
+# it is not at the top level.
+#
+# simplify_joins moves ON into WHERE and clears on_expr on the 
+# nest, which would normally make the nest eligible for flattening.
+# Flattening here would expose t1 and t2 at top level next to 
+# t3, allow the optimizer pick a plan that interleaves t3 between
+# the FULL JOIN tables.
+create table t1 (a int);
+insert into t1 values (2), (1), (7), (1), (2);
+create table t2 (b int);
+insert into t2 values (4),(5),(9), (4),(1),(7);
+create table t3 (c int);
+insert into t3 values (3),(1),(3),(9);
+create index idx_a on t1(a);
+select * from t3 inner join (t1 full join t2 on t1.a=t2.b)
+on (t3.c=t1.a or t2.b=5);
+c	a	b
+1	1	1
+1	1	1
+1	NULL	5
+3	NULL	5
+3	NULL	5
+9	NULL	5
+select * from t3 inner join (t1 left join t2 on t1.a=t2.b)
+on (t3.c=t1.a or t2.b=5)
+union all
+select * from t3 inner join (t1 right join t2 on t1.a=t2.b)
+on (t3.c=t1.a or t2.b=5)
+where t1.a is null;
+c	a	b
+1	1	1
+1	1	1
+1	NULL	5
+3	NULL	5
+3	NULL	5
+9	NULL	5
+drop table t1, t2, t3;
+# simplify_joins: DO flatten an FJ-containing nest when it is the
+# sole nest of its embedding.
+#
+# Allow the fj-nest to flatten `t1 FULL JOIN t2 ...` when it
+# has no siblings, because adjacency is then trivially preserved.
+create table t1 (a int, b int);
+insert into t1 values (1,10), (2,20), (3,30);
+create table t2 (a int, b int);
+insert into t2 values (2,200), (3,300), (4,400);
+create table t3 (a int, c varchar(10));
+insert into t3 values (1,'x'), (2,'y'), (4,'z');
+select dt.a1, dt.a2, t3.c
+from (select t1.a as a1, t2.a as a2 from t1 full join t2 on t1.a=t2.a) dt
+inner join t3 on coalesce(dt.a1, dt.a2) = t3.a;
+a1	a2	c
+1	NULL	x
+2	2	y
+NULL	4	z
+select dt.a1, dt.a2, t3.c
+from (select t1.a as a1, t2.a as a2 from t1 left join t2 on t1.a=t2.a
+union
+select t1.a as a1, t2.a as a2 from t1 right join t2 on t1.a=t2.a) dt
+inner join t3 on coalesce(dt.a1, dt.a2) = t3.a;
+a1	a2	c
+1	NULL	x
+2	2	y
+NULL	4	z
+drop table t1, t2, t3;
+# simplify_joins: do not flatten a nest that carries JOIN_TYPE_FULL
+# on itself.
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (a int);
+insert into t2 values (2),(3),(4);
+create table t3 (a int);
+insert into t3 values (3),(4),(5);
+select t1.a as a1, t2.a as a2, t3.a as a3
+from (t1 join t2 on t1.a=t2.a) full join t3 on t2.a=t3.a;
+a1	a2	a3
+2	2	NULL
+3	3	3
+NULL	NULL	4
+NULL	NULL	5
+select t1.a as a1, t2.a as a2, t3.a as a3
+from (t1 join t2 on t1.a=t2.a) left join t3 on t2.a=t3.a
+union all
+select t1.a as a1, t2.a as a2, t3.a as a3
+from (t1 join t2 on t1.a=t2.a) right join t3 on t2.a=t3.a
+where t2.a is null;
+a1	a2	a3
+2	2	NULL
+3	3	3
+NULL	NULL	4
+NULL	NULL	5
+drop table t1, t2, t3;
+# INNER / CROSS JOIN of an outer table with a FULL JOIN must not
+# interleave the outer table between the FULL JOIN tables.
+create table t1 (a int);
+insert into t1 values (2), (1), (7), (1), (2);
+create table t2 (b int);
+insert into t2 values (4),(5),(9), (4),(1),(7);
+create table t3 (c int);
+insert into t3 values (3),(1),(3),(9);
+create index idx_a on t1(a);
+select * from t3 inner join (t1 full join t2 on t1.a=t2.b)
+on (t3.c=t1.a or t2.b=5);
+c	a	b
+1	1	1
+1	1	1
+1	NULL	5
+3	NULL	5
+3	NULL	5
+9	NULL	5
+select * from t3 cross join (t1 full join t2 on t1.a=t2.b);
+c	a	b
+1	1	1
+1	1	1
+1	2	NULL
+1	2	NULL
+1	7	7
+1	NULL	4
+1	NULL	4
+1	NULL	5
+1	NULL	9
+3	1	1
+3	1	1
+3	1	1
+3	1	1
+3	2	NULL
+3	2	NULL
+3	2	NULL
+3	2	NULL
+3	7	7
+3	7	7
+3	NULL	4
+3	NULL	4
+3	NULL	4
+3	NULL	4
+3	NULL	5
+3	NULL	5
+3	NULL	9
+3	NULL	9
+9	1	1
+9	1	1
+9	2	NULL
+9	2	NULL
+9	7	7
+9	NULL	4
+9	NULL	4
+9	NULL	5
+9	NULL	9
+select * from t3 left join (t1 full join t2 on t1.a=t2.b)
+on (t3.c=t1.a or t2.b=5) and t3.c != 9;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+select * from t3 right join (t1 full join t2 on t1.a=t2.b)
+on (t3.c=t1.a or t2.b=5) and t3.c != 9;
+c	a	b
+1	1	1
+1	1	1
+1	NULL	5
+3	NULL	5
+3	NULL	5
+NULL	2	NULL
+NULL	2	NULL
+NULL	7	7
+NULL	NULL	4
+NULL	NULL	4
+NULL	NULL	9
+drop table t1, t2, t3;
 # ====================================================================
 # Section 19: Right side of FULL JOIN must be a base table
 # ====================================================================
@@ -2688,5 +2856,105 @@ create table t3 (a int);
 select * from t1 full join t2 on t1.a = t2.a
 full join (select * from t3) dt on t2.a = dt.a;
 ERROR HY000: FULL JOIN is only supported with base tables on the right side; 'dt' is not a base table
+drop table t1, t2, t3;
+# ====================================================================
+# Section 20: FULL JOIN not allowed on the inner side of a
+#             LEFT or RIGHT JOIN
+# ====================================================================
+#
+# The FULL JOIN null-complement pass emits right-unmatched rows at
+# the end of its right partner's scan; it has no mechanism to pair
+# those rows with each outer row of an enclosing LEFT/RIGHT JOIN
+# when the FULL JOIN sits on that join's inner (null-complemented)
+# side.  Rather than silently return wrong results, reject such
+# queries.
+#
+# MariaDB's convert_right_join rewrites every RIGHT JOIN into an
+# equivalent LEFT JOIN at parse time, so the notion of "inner" is
+# unambiguous in the post-conversion shape -- it is the side that
+# gets null-complemented.  The equivalences the check relies on:
+#
+#   t3 LEFT  JOIN (FJ)  : (FJ) is inner        -> rejected
+#   t3 RIGHT JOIN (FJ)  : (FJ) LEFT JOIN t3    -> t3 is inner,
+#                                                 FJ is outer
+#                                              -> allowed
+#   (FJ) LEFT  JOIN t3  : t3 is inner          -> allowed
+#   (FJ) RIGHT JOIN t3  : t3 LEFT JOIN (FJ)    -> (FJ) is inner
+#                                              -> rejected
+#
+# INNER JOIN has no inner/outer distinction; a FULL JOIN on either
+# side of an INNER JOIN is allowed.
+create table t1 (a int);
+insert into t1 values (1), (2);
+create table t2 (b int);
+insert into t2 values (1), (3);
+create table t3 (c int);
+insert into t3 values (1), (4);
+# t3 LEFT JOIN (FJ) -- FJ is inner -- rejected.
+select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+on t3.c = t1.a;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+# t3 RIGHT JOIN (FJ) -- canonicalizes to (FJ) LEFT JOIN t3;
+# t3 is inner, FJ is outer -- allowed.
+select * from t3 right join (t1 full join t2 on t1.a = t2.b)
+on t3.c = t1.a;
+c	a	b
+1	1	1
+NULL	2	NULL
+NULL	NULL	3
+# t3 INNER JOIN (FJ) -- allowed.
+select * from t3 inner join (t1 full join t2 on t1.a = t2.b)
+on t3.c = t1.a;
+c	a	b
+1	1	1
+# t3 , (FJ) (comma = inner) -- allowed.
+select * from t3, (t1 full join t2 on t1.a = t2.b)
+where t3.c = t1.a;
+c	a	b
+1	1	1
+# (FJ) LEFT JOIN t3 -- t3 is inner -- allowed.
+select * from (t1 full join t2 on t1.a = t2.b) left join t3
+on t1.a = t3.c;
+a	b	c
+1	1	1
+2	NULL	NULL
+NULL	3	NULL
+# (FJ) RIGHT JOIN t3 -- canonicalizes to t3 LEFT JOIN (FJ);
+# FJ is inner -- rejected.
+select * from (t1 full join t2 on t1.a = t2.b) right join t3
+on t1.a = t3.c;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+# Derived table with FULL JOIN on the inner side -- rejected.
+select dt.a1, dt.a2, t3.c
+from (select t1.a as a1, t2.b as a2 from t1 full join t2 on t1.a=t2.b) dt
+right join t3 on coalesce(dt.a1, dt.a2) = t3.c;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+# FULL JOIN in a more deeply nested LEFT JOIN's inner side --
+# rejected.  Ensures the check descends through intermediate
+# INNER JOIN nesting.
+select * from t3 left join ((t1 full join t2 on t1.a = t2.b) join t3 t3b)
+on t3.c = t1.a;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+# CREATE VIEW must reject the same offending queries at VIEW
+# creation time, not just at execution.
+create view v_bad_left as
+select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+on t3.c = t1.a;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+create view v_bad_fjright as
+select * from (t1 full join t2 on t1.a = t2.b) right join t3
+on t1.a = t3.c;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+# CREATE VIEW with allowed FULL JOIN shapes.
+create view v_ok_left as
+select * from (t1 full join t2 on t1.a = t2.b) left join t3
+on t1.a = t3.c;
+create view v_ok_right as
+select * from t3 right join (t1 full join t2 on t1.a = t2.b)
+on t3.c = t1.a;
+create view v_ok_inner as
+select * from t3 inner join (t1 full join t2 on t1.a = t2.b)
+on t3.c = t1.a;
+drop view v_ok_left, v_ok_right, v_ok_inner;
 drop table t1, t2, t3;
 # End of 12.3 tests

@@ -345,10 +345,11 @@ select * from (t1 natural join t2) right join t2 t3 on t1.a=t3.a;
 # replaced by generating unique names that have 'My_exp_' prefixes
 # in VIEW protocol mode.  That changes the result file output.
 --disable_view_protocol
+# `(t1 natural full join t2) right join t3` rewritten as
+# `t3 LEFT JOIN (t1 natural full join t2)`, putting the FULL JOIN on
+# the inner side of the outer join -- rejected.
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
 select * from (t1 natural full join t2) right join t2 t3 on t1.a=t3.a;
-select * from (t1 natural left join t2) right join t2 t3 on t1.a=t3.a
-union
-select * from (t1 natural right join t2) right join t2 t3 on t1.a=t3.a;
 --enable_view_protocol
 
 select t1.a from t1 natural full join (t2 natural join t3) where
@@ -922,10 +923,15 @@ insert into t3 values (1,'x'), (2,'y'), (4,'z');
 --sorted_result
 select v_full.a1, v_full.a2, t3.c
 from v_full full join t3 on coalesce(v_full.a1, v_full.a2) = t3.a;
+--echo # The LEFT JOIN is allowed (v_full is the outer side, so the
+--echo # FULL JOIN inside v_full is on the outer side of the LEFT JOIN).
+--echo # The RIGHT JOIN is equivalent to
+--echo # `t3 LEFT JOIN v_full`, which puts v_full (the FULL JOIN) on the
+--echo # inner side -- rejected.
 --sorted_result
 select v_full.a1, v_full.a2, t3.c
-from v_full left join t3 on coalesce(v_full.a1, v_full.a2) = t3.a
-union
+from v_full left join t3 on coalesce(v_full.a1, v_full.a2) = t3.a;
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
 select v_full.a1, v_full.a2, t3.c
 from v_full right join t3 on coalesce(v_full.a1, v_full.a2) = t3.a;
 
@@ -1677,6 +1683,104 @@ from (select t1.grp as grp1, t1.val as val1, t2.grp as grp2, t2.val as val2
 group by coalesce(dt.grp1, dt.grp2);
 drop table t1, t2;
 
+--echo # simplify_joins: do not flatten an FULL JOIN nest when
+--echo # it is not at the top level.
+--echo #
+--echo # simplify_joins moves ON into WHERE and clears on_expr on the 
+--echo # nest, which would normally make the nest eligible for flattening.
+--echo # Flattening here would expose t1 and t2 at top level next to 
+--echo # t3, allow the optimizer pick a plan that interleaves t3 between
+--echo # the FULL JOIN tables.
+create table t1 (a int);
+insert into t1 values (2), (1), (7), (1), (2);
+create table t2 (b int);
+insert into t2 values (4),(5),(9), (4),(1),(7);
+create table t3 (c int);
+insert into t3 values (3),(1),(3),(9);
+create index idx_a on t1(a);
+--sorted_result
+select * from t3 inner join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5);
+--sorted_result
+select * from t3 inner join (t1 left join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5)
+union all
+select * from t3 inner join (t1 right join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5)
+where t1.a is null;
+drop table t1, t2, t3;
+
+--echo # simplify_joins: DO flatten an FJ-containing nest when it is the
+--echo # sole nest of its embedding.
+--echo #
+--echo # Allow the fj-nest to flatten `t1 FULL JOIN t2 ...` when it
+--echo # has no siblings, because adjacency is then trivially preserved.
+create table t1 (a int, b int);
+insert into t1 values (1,10), (2,20), (3,30);
+create table t2 (a int, b int);
+insert into t2 values (2,200), (3,300), (4,400);
+create table t3 (a int, c varchar(10));
+insert into t3 values (1,'x'), (2,'y'), (4,'z');
+--sorted_result
+select dt.a1, dt.a2, t3.c
+from (select t1.a as a1, t2.a as a2 from t1 full join t2 on t1.a=t2.a) dt
+     inner join t3 on coalesce(dt.a1, dt.a2) = t3.a;
+--sorted_result
+select dt.a1, dt.a2, t3.c
+from (select t1.a as a1, t2.a as a2 from t1 left join t2 on t1.a=t2.a
+      union
+      select t1.a as a1, t2.a as a2 from t1 right join t2 on t1.a=t2.a) dt
+     inner join t3 on coalesce(dt.a1, dt.a2) = t3.a;
+drop table t1, t2, t3;
+
+--echo # simplify_joins: do not flatten a nest that carries JOIN_TYPE_FULL
+--echo # on itself.
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (a int);
+insert into t2 values (2),(3),(4);
+create table t3 (a int);
+insert into t3 values (3),(4),(5);
+--sorted_result
+select t1.a as a1, t2.a as a2, t3.a as a3
+from (t1 join t2 on t1.a=t2.a) full join t3 on t2.a=t3.a;
+--sorted_result
+select t1.a as a1, t2.a as a2, t3.a as a3
+from (t1 join t2 on t1.a=t2.a) left join t3 on t2.a=t3.a
+union all
+select t1.a as a1, t2.a as a2, t3.a as a3
+from (t1 join t2 on t1.a=t2.a) right join t3 on t2.a=t3.a
+where t2.a is null;
+drop table t1, t2, t3;
+
+--echo # INNER / CROSS JOIN of an outer table with a FULL JOIN must not
+--echo # interleave the outer table between the FULL JOIN tables.
+create table t1 (a int);
+insert into t1 values (2), (1), (7), (1), (2);
+create table t2 (b int);
+insert into t2 values (4),(5),(9), (4),(1),(7);
+create table t3 (c int);
+insert into t3 values (3),(1),(3),(9);
+create index idx_a on t1(a);
+
+--sorted_result
+select * from t3 inner join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5);
+--sorted_result
+select * from t3 cross join (t1 full join t2 on t1.a=t2.b);
+
+# t3 LEFT JOIN (FJ) -- FJ is the inner of the outer join -- rejected.
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+select * from t3 left join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5) and t3.c != 9;
+# t3 RIGHT JOIN (FJ) canonicalizes to (FJ) LEFT JOIN t3; t3 is the
+# inner, so the FULL JOIN ends up on the outer side -- allowed.
+--sorted_result
+select * from t3 right join (t1 full join t2 on t1.a=t2.b)
+  on (t3.c=t1.a or t2.b=5) and t3.c != 9;
+
+drop table t1, t2, t3;
+
 --echo # ====================================================================
 --echo # Section 19: Right side of FULL JOIN must be a base table
 --echo # ====================================================================
@@ -1702,6 +1806,107 @@ create table t3 (a int);
 --error ER_FULL_JOIN_BASE_TABLES_ONLY
 select * from t1 full join t2 on t1.a = t2.a
                 full join (select * from t3) dt on t2.a = dt.a;
+drop table t1, t2, t3;
+
+--echo # ====================================================================
+--echo # Section 20: FULL JOIN not allowed on the inner side of a
+--echo #             LEFT or RIGHT JOIN
+--echo # ====================================================================
+--echo #
+--echo # The FULL JOIN null-complement pass emits right-unmatched rows at
+--echo # the end of its right partner's scan; it has no mechanism to pair
+--echo # those rows with each outer row of an enclosing LEFT/RIGHT JOIN
+--echo # when the FULL JOIN sits on that join's inner (null-complemented)
+--echo # side.  Rather than silently return wrong results, reject such
+--echo # queries.
+--echo #
+--echo # MariaDB's convert_right_join rewrites every RIGHT JOIN into an
+--echo # equivalent LEFT JOIN at parse time, so the notion of "inner" is
+--echo # unambiguous in the post-conversion shape -- it is the side that
+--echo # gets null-complemented.  The equivalences the check relies on:
+--echo #
+--echo #   t3 LEFT  JOIN (FJ)  : (FJ) is inner        -> rejected
+--echo #   t3 RIGHT JOIN (FJ)  : (FJ) LEFT JOIN t3    -> t3 is inner,
+--echo #                                                 FJ is outer
+--echo #                                              -> allowed
+--echo #   (FJ) LEFT  JOIN t3  : t3 is inner          -> allowed
+--echo #   (FJ) RIGHT JOIN t3  : t3 LEFT JOIN (FJ)    -> (FJ) is inner
+--echo #                                              -> rejected
+--echo #
+--echo # INNER JOIN has no inner/outer distinction; a FULL JOIN on either
+--echo # side of an INNER JOIN is allowed.
+
+create table t1 (a int);
+insert into t1 values (1), (2);
+create table t2 (b int);
+insert into t2 values (1), (3);
+create table t3 (c int);
+insert into t3 values (1), (4);
+
+--echo # t3 LEFT JOIN (FJ) -- FJ is inner -- rejected.
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+  on t3.c = t1.a;
+
+--echo # t3 RIGHT JOIN (FJ) -- canonicalizes to (FJ) LEFT JOIN t3;
+--echo # t3 is inner, FJ is outer -- allowed.
+select * from t3 right join (t1 full join t2 on t1.a = t2.b)
+  on t3.c = t1.a;
+
+--echo # t3 INNER JOIN (FJ) -- allowed.
+select * from t3 inner join (t1 full join t2 on t1.a = t2.b)
+  on t3.c = t1.a;
+
+--echo # t3 , (FJ) (comma = inner) -- allowed.
+select * from t3, (t1 full join t2 on t1.a = t2.b)
+  where t3.c = t1.a;
+
+--echo # (FJ) LEFT JOIN t3 -- t3 is inner -- allowed.
+select * from (t1 full join t2 on t1.a = t2.b) left join t3
+  on t1.a = t3.c;
+
+--echo # (FJ) RIGHT JOIN t3 -- canonicalizes to t3 LEFT JOIN (FJ);
+--echo # FJ is inner -- rejected.
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+select * from (t1 full join t2 on t1.a = t2.b) right join t3
+  on t1.a = t3.c;
+
+--echo # Derived table with FULL JOIN on the inner side -- rejected.
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+select dt.a1, dt.a2, t3.c
+from (select t1.a as a1, t2.b as a2 from t1 full join t2 on t1.a=t2.b) dt
+     right join t3 on coalesce(dt.a1, dt.a2) = t3.c;
+
+--echo # FULL JOIN in a more deeply nested LEFT JOIN's inner side --
+--echo # rejected.  Ensures the check descends through intermediate
+--echo # INNER JOIN nesting.
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+select * from t3 left join ((t1 full join t2 on t1.a = t2.b) join t3 t3b)
+  on t3.c = t1.a;
+
+--echo # CREATE VIEW must reject the same offending queries at VIEW
+--echo # creation time, not just at execution.
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+create view v_bad_left as
+  select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+    on t3.c = t1.a;
+--error ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+create view v_bad_fjright as
+  select * from (t1 full join t2 on t1.a = t2.b) right join t3
+    on t1.a = t3.c;
+
+--echo # CREATE VIEW with allowed FULL JOIN shapes.
+create view v_ok_left as
+  select * from (t1 full join t2 on t1.a = t2.b) left join t3
+    on t1.a = t3.c;
+create view v_ok_right as
+  select * from t3 right join (t1 full join t2 on t1.a = t2.b)
+    on t3.c = t1.a;
+create view v_ok_inner as
+  select * from t3 inner join (t1 full join t2 on t1.a = t2.b)
+    on t3.c = t1.a;
+drop view v_ok_left, v_ok_right, v_ok_inner;
+
 drop table t1, t2, t3;
 
 --echo # End of 12.3 tests
