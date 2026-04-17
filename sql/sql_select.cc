@@ -1174,7 +1174,7 @@ int SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables)
     if (!table->table)
       continue;
     vers_select_conds_t &conds= table->period_conditions;
-    if (!table->table->s->period.name.streq(conds.name))
+    if (!table->table->s->period.name.streq_safe(conds.name))
     {
       my_error(ER_PERIOD_NOT_FOUND, MYF(0), conds.name.str);
       if (arena)

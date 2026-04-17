@@ -29,4 +29,11 @@ DROP TABLE t1;
 CREATE TABLE t (c INT,c2 CHAR,c3 DATE,CHECK (c>0));
 ALTER TABLE t ADD INDEX (c2) USING HASH;
 DROP TABLE t;
+#
+# MDEV-39356: Server crashes when executing UPDATE ... FOR PORTION OF with a normal table
+#
+CREATE OR REPLACE TABLE t (id INT);
+UPDATE t FOR PORTION OF p FROM '2026-02-01' TO '2026-03-01'  SET id = 2;
+ERROR HY000: Period `p` is not found in table
+DROP TABLE t;
 # End of 11.8 tests
