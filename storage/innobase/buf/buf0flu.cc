@@ -1398,10 +1398,15 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
       flush:
         if (UNIV_UNLIKELY(to_withdraw != 0))
           to_withdraw= buf_flush_LRU_to_withdraw(to_withdraw, *bpage);
-        if (bpage->id().page_no() >= backup_page_end && bpage->flush(space))
+        if (bpage->id().page_no() < backup_page_end)
+          bpage->lock.u_unlock(true);
+        else if (bpage->flush(space))
+        {
           ++n->flushed;
-        else
-          continue;
+          goto reacquire_mutex;
+        }
+
+        continue;
       }
 
       goto reacquire_mutex;
@@ -1554,20 +1559,17 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
       else
       {
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-        do
+        if (neighbors && UNIV_LIKELY(!backup_page_end) &&
+            space->is_rotational())
+          count+= buf_flush_try_neighbors(space, page_id, bpage,
+                                          neighbors == 1, count, max_n);
+        else if (bpage->id().page_no() < backup_page_end)
+          bpage->lock.u_unlock(true);
+        else if (bpage->flush(space))
         {
-          if (neighbors && UNIV_LIKELY(!backup_page_end) &&
-              space->is_rotational())
-            count+= buf_flush_try_neighbors(space, page_id, bpage,
-                                            neighbors == 1, count, max_n);
-          else if (bpage->id().page_no() >= backup_page_end &&
-                   bpage->flush(space))
-            ++count;
-          else
-            continue;
+          ++count;
           mysql_mutex_lock(&buf_pool.mutex);
         }
-        while (0);
       }
     }
 
@@ -1719,6 +1721,7 @@ bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed) noexcept
         if (UNIV_UNLIKELY(space->writing_start()) &&
             space->backup_page_end() < bpage->id().page_no())
         {
+          bpage->lock.u_unlock(true);
           space->writing_stop();
         skip:
           mysql_mutex_lock(&buf_pool.mutex);
