@@ -833,7 +833,7 @@ int close_thread_tables_for_query(THD *thd)
     leave prelocked mode if needed.
 */
 
-int close_thread_tables(THD *thd)
+int close_thread_tables(THD *thd) noexcept
 {
   TABLE *table;
   int error= 0;

@@ -65,13 +65,15 @@ bool dtuple_vcol_data_missing(const dtuple_t &tuple,
 @param[in,out]	row		the cluster index row in dtuple form
 @param[in]	clust_index	clustered index
 @param[in]	index		the secondary index
-@param[in]	heap		heap used to build virtual dtuple. */
+@param[in]	heap		heap used to build virtual dtuple.
+@param[in]	maria_table	MariaDB table object */
 bool
 row_vers_build_clust_v_col(
 	dtuple_t*		row,
 	dict_index_t*		clust_index,
 	dict_index_t*		index,
-	mem_heap_t*		heap);
+	mem_heap_t*		heap,
+	TABLE*			maria_table= nullptr);
 /** Build a dtuple contains virtual column data for current cluster index
 @param[in]	rec		cluster index rec
 @param[in]	clust_index	cluster index
@@ -83,6 +85,7 @@ row_vers_build_clust_v_col(
 @param[in,out]	heap		heap memory
 @param[in,out]	v_heap		heap memory to keep virtual column tuple
 @param[in,out]	mtr		mini-transaction
+@param[in]	maria_table	MariaDB table object
 @return dtuple contains virtual column data */
 dtuple_t*
 row_vers_build_cur_vrow(
@@ -94,7 +97,8 @@ row_vers_build_cur_vrow(
 	roll_ptr_t		roll_ptr,
 	mem_heap_t*		heap,
 	mem_heap_t*		v_heap,
-	mtr_t*			mtr);
+	mtr_t*			mtr,
+	TABLE*			maria_table= nullptr);
 
 /*****************************************************************//**
 Constructs the version of a clustered index record which a consistent

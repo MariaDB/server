@@ -29,6 +29,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0sys.h"
 #include "que0types.h"
 #include "srw_lock.h"
+#include "row0purge.h"
 
 #include <queue>
 #include <unordered_map>
@@ -232,6 +233,15 @@ public:
 	trx_rseg_t*	rseg;		/*!< Rollback segment for the next undo
 					record to purge */
 private:
+	/** Coordinator thread's THD during batch processing.
+	The coordinator thread sets this at the start of trx_purge()
+	and clears it at the end. This is being used in
+	purge_node_t::end() to determine whether InnoDB should
+	call reset_thd(). The coordinator skips this call
+	because it manages table cleanup centrally in
+	trx_purge() after all workers complete. */
+	THD* coordinator_thd= nullptr;
+
 	uint32_t	page_no;	/*!< Page number for the next undo
 					record to purge, page number of the
 					log header, if dummy record */
@@ -318,8 +328,12 @@ public:
   /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
   void resume();
 
-  /** Close and reopen all tables in case of a MDL conflict with DDL */
-  dict_table_t *close_and_reopen(table_id_t id, THD *thd, MDL_ticket **mdl);
+  /** Close and reopen all tables in case of a MDL conflict with DDL
+  @param id   table identifier that triggered reopen
+  @param thd  coordinator thread
+  @return purge_table for the reopened table, or empty on error */
+  purge_table close_and_reopen(table_id_t id, THD *thd) noexcept;
+
 private:
   /** Suspend purge during a DDL operation on FULLTEXT INDEX tables */
   void wait_FTS(bool also_sys);
@@ -424,7 +438,7 @@ public:
 
   /** A wrapper around trx_sys_t::clone_oldest_view(). */
   template<bool also_end_view= false>
-  void clone_oldest_view()
+  void clone_oldest_view(THD *thd)
   {
     if (!also_end_view)
       wait_FTS(true);
@@ -434,6 +448,7 @@ public:
       (end_view= view).
         clamp_low_limit_id(head.trx_no ? head.trx_no : tail.trx_no);
     latch.wr_unlock();
+    coordinator_thd= thd;
   }
 
   /** Wake up the purge threads if there is work to do. */
@@ -484,6 +499,12 @@ public:
   marked for truncate.
   @param space undo tablespace being truncated */
   void cleanse_purge_queue(const fil_space_t &space);
+
+  /** Reset the state of a purge_worker_task at the end of a batch */
+  inline void reset_worker_thd(THD *thd) const noexcept;
+
+  /** Set coordinator thread */
+  inline void set_coordinator_thd(THD *thd) noexcept;
 };
 
 /** The global data structure coordinating a purge */
