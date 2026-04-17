@@ -108,9 +108,10 @@ bool Sql_cmd_backup::execute(THD *thd)
                                    PLUGIN_IS_DELETED|PLUGIN_IS_READY, nullptr);
 
   /* FIXME: Escalate to MDL_BACKUP_BLOCK_DDL or similar */
-  plugin_foreach_with_mask(thd, backup_end, MYSQL_STORAGE_ENGINE_PLUGIN,
-                           PLUGIN_IS_DELETED|PLUGIN_IS_READY,
-                           reinterpret_cast<void*>(fail));
+  fail=
+    plugin_foreach_with_mask(thd, backup_end, MYSQL_STORAGE_ENGINE_PLUGIN,
+                             PLUGIN_IS_DELETED|PLUGIN_IS_READY,
+                             reinterpret_cast<void*>(fail)) || fail;
 
   /* The final part will not interfere with the use of the server datadir.
   Release the locks. */
