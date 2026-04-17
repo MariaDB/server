@@ -184,10 +184,15 @@ static char *strdup_root(MEM_ROOT *root, const String *str)
   return strmake_root(root, str->ptr(), str->length());
 }
 
-
-struct DDL_Key
+struct TABLE_NAME_KEY
 {
   char *name; // full name of the table or view
+  size_t name_len;
+};
+
+struct DB_NAME_KEY
+{
+  const char *name; // database name
   size_t name_len;
 };
 
@@ -195,10 +200,22 @@ struct DDL_Key
   helper function to know the key portion of the record
   that is stored in hash.
 */
-static const uchar *get_rec_key(const void *entry_, size_t *length,
-                                my_bool flags)
+static const uchar *get_table_name_key(const void *entry_, size_t *length,
+                                       my_bool flags)
 {
-  auto entry= static_cast<const DDL_Key *>(entry_);
+  auto entry= static_cast<const TABLE_NAME_KEY *>(entry_);
+  *length= entry->name_len;
+  return reinterpret_cast<const uchar *>(entry->name);
+}
+
+/*
+  helper function to know the key portion of the record
+  that is stored in hash.
+*/
+static const uchar *get_db_name_key(const void *entry_, size_t *length,
+                                    my_bool flags)
+{
+  auto entry= static_cast<const DB_NAME_KEY *>(entry_);
   *length= entry->name_len;
   return reinterpret_cast<const uchar *>(entry->name);
 }
@@ -454,6 +471,49 @@ static void store_system_variables(THD *thd, String &sql_script)
 
 /*
   @brief
+    Append the "create database db_name" DDL statement to sql_script, if it is
+    not already present in the db_name_hash.
+    Also, append "use database db_name" if the flag req_use_db_stmt is set.
+
+  @return
+    0  OK
+    1  OOM error
+*/
+static bool store_db_ddl(THD *thd, HASH *db_name_hash, String &sql_script,
+                         const char *db_name, bool req_use_db_stmt)
+{
+  size_t db_name_len= strlen(db_name);
+
+  if (db_name_len &&
+      !my_hash_search(db_name_hash, (uchar *) db_name, db_name_len))
+  {
+    DB_NAME_KEY *db_name_key;
+    if (!(db_name_key= (DB_NAME_KEY *) thd->alloc(sizeof(DB_NAME_KEY))))
+      return true; // OOM
+
+    db_name_key->name= db_name;
+    db_name_key->name_len= db_name_len;
+
+    if (my_hash_insert(db_name_hash, (uchar *) db_name_key))
+      return true; // OOM
+
+    sql_script.append(STRING_WITH_LEN("CREATE DATABASE IF NOT EXISTS "));
+    sql_script.append(db_name, db_name_len);
+    sql_script.append(STRING_WITH_LEN(";\n\n"));
+
+    if (req_use_db_stmt)
+    {
+      sql_script.append(STRING_WITH_LEN("USE "));
+      sql_script.append(db_name, db_name_len);
+      sql_script.append(STRING_WITH_LEN(";\n\n"));
+    }
+  }
+
+  return false;
+}
+
+/*
+  @brief
     Dump definitions, basic stats of all tables and views used by the
     statement into the optimizer_context IS table.
     The goal is to eventually save everything that is needed to
@@ -483,8 +543,7 @@ bool store_optimizer_context(THD *thd)
     return false;
   }
 
-  if (!thd->opt_ctx_recorder ||
-      lex->query_tables == *(lex->query_tables_last))
+  if (!thd->opt_ctx_recorder || lex->query_tables == *(lex->query_tables_last))
   {
     return false;
   }
@@ -495,13 +554,8 @@ bool store_optimizer_context(THD *thd)
   Json_writer_array context_list(&ctx_writer, "list_contexts");
   sql_script.append(STRING_WITH_LEN("SET NAMES utf8mb4;\n\n "));
   store_system_variables(thd, sql_script);
-  sql_script.append(STRING_WITH_LEN("CREATE DATABASE IF NOT EXISTS "));
-  sql_script.append(thd->get_db(), strlen(thd->get_db()));
-  sql_script.append(STRING_WITH_LEN(";\n\n"));
-  sql_script.append(STRING_WITH_LEN("USE "));
-  sql_script.append(thd->get_db(), strlen(thd->get_db()));
-  sql_script.append(STRING_WITH_LEN(";\n\n"));
-  HASH hash;
+  HASH table_name_hash;
+  HASH db_name_hash;
   List<TABLE_LIST> tables_list;
 
   /*
@@ -521,32 +575,44 @@ bool store_optimizer_context(THD *thd)
 
   List_iterator li(tables_list);
   clean_captured_ctx(thd);
-  my_hash_init(key_memory_trace_ddl_info, &hash, system_charset_info, 16, 0, 0,
-               get_rec_key, NULL, HASH_UNIQUE);
+
+  if (my_hash_init(key_memory_trace_ddl_info, &table_name_hash,
+                   system_charset_info, 16, 0, 0, get_table_name_key, NULL,
+                   HASH_UNIQUE) ||
+      my_hash_init(key_memory_trace_ddl_info, &db_name_hash,
+                   system_charset_info, 16, 0, 0, get_db_name_key, NULL,
+                   HASH_UNIQUE) ||
+      store_db_ddl(thd, &db_name_hash, sql_script, thd->get_db(), true))
+  {
+    return true;
+  }
+
   bool res= false;
   List<TABLE_LIST> uniq_tables_list;
   for (TABLE_LIST *tbl= li++; tbl; tbl= li++)
   {
     String ddl;
-    String name;
-    DDL_Key *ddl_key;
-    append_full_table_name(tbl, &name);
+    String full_tbl_name;
+    TABLE_NAME_KEY *tbl_name_key;
+    append_full_table_name(tbl, &full_tbl_name);
 
     /*
-      A query can use the same table multiple times. Do not dump the DDL
-      multiple times.
+      A query can use the same table multiple times. Do not dump the
+      DDL multiple times.
     */
-    if (my_hash_search(&hash, (uchar *) name.c_ptr_safe(), name.length()))
+    if (my_hash_search(&table_name_hash, (uchar *) full_tbl_name.c_ptr_safe(),
+                       full_tbl_name.length()))
       continue;
 
-    if (!(ddl_key= (DDL_Key *) thd->alloc(sizeof(DDL_Key))))
+    if (store_db_ddl(thd, &db_name_hash, sql_script, tbl->get_db_name().str,
+                     false))
     {
       res= true;
       break;
     }
 
     if (tbl->is_view())
-      create_view_def(thd, tbl, &name, &ddl);
+      create_view_def(thd, tbl, &full_tbl_name, &ddl);
     else
     {
       if (show_create_table(thd, tbl, &ddl, NULL, WITH_DB_NAME))
@@ -556,15 +622,17 @@ bool store_optimizer_context(THD *thd)
       }
     }
 
-    if (!(ddl_key->name= strdup_root(thd->mem_root, &name)))
+    if (!(tbl_name_key=
+              (TABLE_NAME_KEY *) thd->alloc(sizeof(TABLE_NAME_KEY))) ||
+        !(tbl_name_key->name= strdup_root(thd->mem_root, &full_tbl_name)))
     {
-      res= true; // OOM
+      res= true;
       break;
     }
 
-    ddl_key->name_len= strlen(ddl_key->name);
+    tbl_name_key->name_len= strlen(tbl_name_key->name);
 
-    if (my_hash_insert(&hash, (uchar *) ddl_key))
+    if (my_hash_insert(&table_name_hash, (uchar *) tbl_name_key))
     {
       res= true; // OOM
       break;
@@ -577,7 +645,7 @@ bool store_optimizer_context(THD *thd)
     {
       Json_writer_object ctx_wrapper(&ctx_writer);
       table_context_for_store *table_context= thd->opt_ctx_recorder->search(
-          (uchar *) ddl_key->name, ddl_key->name_len);
+          (uchar *) tbl_name_key->name, tbl_name_key->name_len);
       if (table_context)
       {
         List_iterator inserts_li(table_context->const_tbl_ins_stmt_list);
@@ -587,8 +655,8 @@ bool store_optimizer_context(THD *thd)
           sql_script.append(STRING_WITH_LEN(";\n\n"));
         }
       }
-      dump_table_stats(thd, tbl, (uchar *) ddl_key->name, ddl_key->name_len,
-                       ctx_wrapper, &ctx_writer);
+      dump_table_stats(thd, tbl, (uchar *) tbl_name_key->name,
+                       tbl_name_key->name_len, ctx_wrapper, &ctx_writer);
     }
     uniq_tables_list.push_front(tbl);
   }
@@ -616,8 +684,8 @@ bool store_optimizer_context(THD *thd)
     if (!thd->captured_opt_ctx)
       return true; // OOM
   }
-  my_hash_free(&hash);
-
+  my_hash_free(&table_name_hash);
+  my_hash_free(&db_name_hash);
   return res;
 }
 
