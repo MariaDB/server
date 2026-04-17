@@ -630,3 +630,6 @@ versioninfo_dll.rc
 versioninfo_exe.rc
 win/packaging/ca/symlinks.cc
 server/mariadb-build
+
+# Remove mariadb-build
+mariadb-build
