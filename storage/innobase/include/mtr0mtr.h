@@ -54,6 +54,11 @@ struct fsp_binlog_page_entry;
 # define mtr_sx_lock_index(i,m)	(m)->u_lock(&(i)->lock)
 #endif
 
+/** Initiate a page flush to advance the log checkpoint.
+@param flush_lsn target checkpoint LSN, the LSB set for "furious flush" */
+ATTRIBUTE_NOINLINE ATTRIBUTE_COLD
+void mtr_flush_ahead(lsn_t flush_lsn) noexcept;
+
 /** Mini-transaction memo stack slot. */
 struct mtr_memo_slot_t
 {

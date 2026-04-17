@@ -768,9 +768,11 @@ bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
   bool fail= false;
   thd_wait_begin(thd, THD_WAIT_DISKIO);
   tpool::tpool_wait_begin();
+  lsn_t wait_lsn;
 
   for (;;)
   {
+    wait_lsn= 0;
     IF_WIN(log_resize_acquire(), latch.wr_lock());
     if (resize_in_progress())
     {
@@ -779,6 +781,7 @@ bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
                       MYF(0));
     fail:
       fail= true;
+      wait_lsn= 0;
       break;
     }
     if (archive && file_size > ARCHIVE_FILE_SIZE_MAX)
@@ -795,8 +798,6 @@ bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
       my_printf_error(ER_WRONG_USAGE, "BACKUP SERVER is in progress", MYF(0));
       goto fail;
     }
-
-    lsn_t wait_lsn;
 
     if (resize_log.is_opened())
     {
@@ -938,6 +939,18 @@ bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
     {
       header_rewrite(archive);
       archive_set_size();
+      wait_lsn= 0;
+    }
+    else
+    {
+      ut_ad(wait_lsn == get_lsn());
+      /* apply similar logic as log_close() */
+      const lsn_t checkpoint_age{wait_lsn - log_sys.last_checkpoint_lsn};
+      if (checkpoint_age < max_modified_age_async)
+        wait_lsn= 0;
+      else
+        wait_lsn= ((wait_lsn - max_checkpoint_age) & ~lsn_t{1}) |
+          lsn_t{checkpoint_age >= max_checkpoint_age};
     }
 
     archived_lsn= end_lsn;
@@ -949,6 +962,8 @@ bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
   IF_WIN(log_resize_release(), latch.wr_unlock());
   tpool::tpool_wait_end();
   thd_wait_end(thd);
+  if (wait_lsn)
+    mtr_flush_ahead(wait_lsn);
   return fail;
 }
 
