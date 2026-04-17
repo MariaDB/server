@@ -185,6 +185,8 @@ class InnoDB_backup
   /** collection of completed log archive files to be
   hard-linked, copied, or moved */
   std::vector<lsn_t> logs;
+  /** first LSN of last log to that was copied, or 0 */
+  lsn_t last_first_lsn;
 
   /** target directory name or handle */
   IF_WIN(const char*,int) target;
@@ -206,6 +208,10 @@ public:
     mutex.init();
     mutex.wr_lock();
     ut_ad(!active);
+    ut_ad(queue.empty());
+    ut_ad(logs.empty());
+    ut_ad(!last_first_lsn);
+
     const bool fail{log_sys.backup_start(&old_size, thd)};
 
     if (!fail)
@@ -269,6 +275,8 @@ public:
     if (!logs.empty())
     {
       lsn= logs.back();
+      if (last_first_lsn < lsn)
+        last_first_lsn= lsn;
       logs.pop_back();
       if (!size)
         size= logs.size();
@@ -325,13 +333,22 @@ public:
     ut_ad(logs.empty());
 
     int fail= 0;
-    if (!abort)
+    if (abort)
+    skip_log_dup:
+      last_first_lsn= 0;
+    else
     {
       const lsn_t lsn{log_sys.get_first_lsn()};
-      fail= link_or_move(lsn, false);
-      if (!fail)
-        logs.emplace_back(lsn);
+      if (lsn > last_first_lsn)
+      {
+        fail= link_or_move(lsn, false);
+        if (fail)
+          goto skip_log_dup;
+      }
+      else
+        goto skip_log_dup;
     }
+
     log_sys.latch.rd_lock(); /* prevent a race with checkpoint_complete() */
     active= false;
     log_sys.latch.rd_unlock();
@@ -349,14 +366,12 @@ public:
     mutex.wr_lock();
     ut_ad(!active);
     ut_ad(queue.empty());
-    ut_ad(logs.size() <= 1);
-    if (!logs.empty())
-    {
-      const lsn_t first_lsn{logs.back()};
-      logs.clear();
+    ut_ad(logs.empty());
+    if (last_first_lsn)
       /* TODO: copy our hardlink of the last log until the final LSN */
-      sql_print_information("TODO: duplicate " LOG_ARCHIVE_NAME, first_lsn);
-    }
+      sql_print_information("TODO: duplicate " LOG_ARCHIVE_NAME,
+                            last_first_lsn);
+    last_first_lsn= 0;
     mutex.wr_unlock();
     mutex.destroy();
   }
@@ -515,8 +530,7 @@ private:
         err= GetLastError();
       got_err:
         my_osmaperr(err);
-        my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), path, basename,
-                 my_errno);
+        my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), path, basename, errno);
         return -1;
       }
     }
