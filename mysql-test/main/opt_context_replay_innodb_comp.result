@@ -1,7 +1,6 @@
 set @opt_context_schema='$opt_context_schema';
 set session use_stat_tables='COMPLEMENTARY';
 set optimizer_record_context=OFF;
-set optimizer_trace=1;
 create database db1;
 use db1;
 create function round_cost(explain_output text)
@@ -214,7 +213,7 @@ select @explain_output;
                         "filtered": 20
                     },
                     "buffer_type": "flat",
-                    "buffer_size": "2Kb",
+                    "buffer_size": "2KiB",
                     "join_type": "BNL",
                     "attached_condition": "tt2.c1 = tt1.c1"
                 }
@@ -258,7 +257,7 @@ EXPLAIN
             "filtered": 20
           },
           "buffer_type": "flat",
-          "buffer_size": "2Kb",
+          "buffer_size": "2KiB",
           "join_type": "BNL",
           "attached_condition": "tt2.c1 = tt1.c1"
         }

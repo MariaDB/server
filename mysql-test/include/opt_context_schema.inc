@@ -17,6 +17,9 @@ let $opt_context_schema=
           "num_of_records": {
             "type": "number"
           },
+          "file_stat_records": {
+            "type": "number"
+          },
           "read_cost_io": {
             "type": "number"
           },
@@ -190,6 +193,7 @@ let $opt_context_schema=
           "name",
           "ddl",
           "num_of_records",
+          "file_stat_records",
           "read_cost_io",
           "read_cost_cpu"
         ]
