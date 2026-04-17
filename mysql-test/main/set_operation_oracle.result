@@ -200,3 +200,19 @@ drop view v3;
 drop view v4;
 set sql_mode=default;
 # End of 10.11 tests
+#
+# MDEV-38987 ASAN heap-use-after-free upon using a view through a trigger in ORACLE mode
+#
+set sql_mode = oracle;
+create table t1 (f int);
+create table t2 (a int);
+create view v as select 'x' union select 'x' union select 'x';
+create trigger tr before insert on t1 for each row delete from v;
+insert into t1 values (1);
+ERROR HY000: The target table v of the DELETE is not updatable
+drop view v;
+create view v as select * from t2;
+INSERT into t1 values (2);
+drop view v;
+drop table t1, t2;
+# End of 11.4 tests

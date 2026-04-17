@@ -108,6 +108,7 @@ extern my_bool opt_readonly;
 #include "fil0pagecompress.h"
 #include "ut0mem.h"
 #include "row0ext.h"
+#include "trx0undo.h"
 
 #include "lz4.h"
 #include "lzo/lzo1x.h"
@@ -240,7 +241,7 @@ static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
     if (thd_kill_level(thd))
       break;
     /* Adjust for purge_coordinator_state::refresh() */
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock();
     const lsn_t last= log_sys.last_checkpoint_lsn,
       max_age= log_sys.max_checkpoint_age;
     const lsn_t lsn= log_sys.get_lsn();
@@ -564,7 +565,6 @@ mysql_pfs_key_t trx_i_s_cache_lock_key;
 mysql_pfs_key_t	trx_purge_latch_key;
 mysql_pfs_key_t trx_rseg_latch_key;
 mysql_pfs_key_t lock_latch_key;
-mysql_pfs_key_t	log_latch_key;
 
 /* all_innodb_rwlocks array contains rwlocks that are
 performance schema instrumented if "UNIV_PFS_RWLOCK"
@@ -580,7 +580,6 @@ static PSI_rwlock_info all_innodb_rwlocks[] =
   { &trx_purge_latch_key, "trx_purge_latch", 0 },
   { &trx_rseg_latch_key, "trx_rseg_latch", 0 },
   { &lock_latch_key, "lock_latch", 0 },
-  { &log_latch_key, "log_latch", 0 },
   { &index_tree_rw_lock_key, "index_tree_rw_lock", PSI_RWLOCK_FLAG_SX }
 };
 # endif /* UNIV_PFS_RWLOCK */
@@ -3562,7 +3561,8 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	m_prebuilt->used_in_HANDLER = TRUE;
 
 	reset_template();
-	m_prebuilt->trx->bulk_insert &= TRX_DDL_BULK;
+
+	m_prebuilt->trx->clear_dml_bulk();
 }
 
 /*********************************************************************//**
@@ -3622,7 +3622,9 @@ static MYSQL_SYSVAR_SIZE_T(buffer_pool_size_auto_min,
 static MYSQL_SYSVAR_SIZE_T(buffer_pool_size_max, buf_pool.size_in_bytes_max,
                            PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
                            "Maximum innodb_buffer_pool_size",
-                           nullptr, nullptr, 0, 0,
+                           nullptr, nullptr,
+                           buf_pool.size_in_bytes_max_default,
+                           buf_pool.size_in_bytes_max_minimum,
                            size_t(-ssize_t(innodb_buffer_pool_extent_size)),
                            innodb_buffer_pool_extent_size);
 
@@ -3714,11 +3716,24 @@ static int innodb_init_params()
   min= ut_calc_align<size_t>
     (buf_pool.blocks_in_bytes(BUF_LRU_MIN_LEN + BUF_LRU_MIN_LEN / 4),
      1U << 20);
-  size_t innodb_buffer_pool_size= buf_pool.size_in_bytes_requested;
 
-  /* With large pages, buffer pool can't grow or shrink. */
-  if (!buf_pool.size_in_bytes_max || my_use_large_pages ||
-      innodb_buffer_pool_size > buf_pool.size_in_bytes_max)
+#ifdef RLIMIT_AS
+  if (buf_pool.size_in_bytes_max_default != 0 &&
+      buf_pool.size_in_bytes_max == buf_pool.size_in_bytes_max_default)
+  {
+    struct rlimit rlimit_as;
+    if (!getrlimit(RLIMIT_AS, &rlimit_as) &&
+        rlimit_as.rlim_cur != RLIM_INFINITY &&
+        rlimit_as.rlim_cur / 4 < buf_pool.size_in_bytes_max)
+    buf_pool.size_in_bytes_max= size_t(rlimit_as.rlim_cur / 4) &
+      ~innodb_buffer_pool_extent_size;
+  }
+#endif
+
+  const size_t innodb_buffer_pool_size= buf_pool.size_in_bytes_requested;
+
+  if (innodb_buffer_pool_size > buf_pool.size_in_bytes_max ||
+      my_use_large_pages /* large_pages=ON fixes innodb_buffer_pool_size */)
     buf_pool.size_in_bytes_max= ut_calc_align(innodb_buffer_pool_size,
                                               innodb_buffer_pool_extent_size);
 
@@ -4414,7 +4429,7 @@ static bool end_of_statement(trx_t *trx) noexcept
   undo_no_t savept= 0;
   trx->rollback(&savept);
   /* MariaDB will roll back the entire transaction. */
-  trx->bulk_insert&= TRX_DDL_BULK;
+  trx->clear_dml_bulk();
   trx->last_stmt_start= 0;
   return true;
 }
@@ -4664,7 +4679,7 @@ checkpoint complete when we have flushed the redo log.
 If we have already flushed all relevant redo log, we notify immediately.*/
 static void innodb_log_flush_request(void *cookie) noexcept
 {
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock();
   lsn_t flush_lsn= log_sys.get_flushed_lsn();
   /* Load lsn relaxed after flush_lsn was loaded from the same cache line */
   const lsn_t lsn= log_sys.get_lsn();
@@ -5032,28 +5047,28 @@ Ensure that indexed virtual columns will be computed.
 Needs to be done for indexes that are being added with inplace ALTER
 in a different thread, because from the server point of view these
 columns are not yet indexed.
+Also needed if the primary key is being updated.
+For update statement: Mark all indexed virtual column
+@param mark_for_update  whether to mark indexed virtual columns
+                        for UPDATE operations
 */
-void ha_innobase::column_bitmaps_signal()
+void ha_innobase::column_bitmaps_signal(bool mark_for_update)
 {
   if (!table->vfield || table->current_lock != F_WRLCK)
     return;
 
-  dict_index_t* clust_index= dict_table_get_first_index(m_prebuilt->table);
-  if (!clust_index->online_log)
-    return;
-
-  uint num_v= 0;
-  for (uint j = 0; j < table->s->virtual_fields; j++)
+  if (UNIV_UNLIKELY(dict_index_is_online_ddl(
+			dict_table_get_first_index(m_prebuilt->table))))
+    row_log_mark_virtual_cols(m_prebuilt->table, table);
+  else if (mark_for_update)
   {
-    if (table->vfield[j]->stored_in_db())
-      continue;
-
-    dict_col_t *col= &m_prebuilt->table->v_cols[num_v].m_col;
-    if (col->ord_part ||
-        (dict_index_is_online_ddl(clust_index) &&
-         row_log_col_is_indexed(clust_index, num_v)))
-      table->mark_virtual_column_with_deps(table->vfield[j]);
-    num_v++;
+    for (uint j = 0, num_v= 0; j < table->s->virtual_fields; j++)
+    {
+      Field *vf= table->vfield[j];
+      if (!vf->stored_in_db() &&
+          m_prebuilt->table->v_cols[num_v++].m_col.ord_part)
+        table->mark_virtual_column_with_deps(vf);
+    }
   }
 }
 
@@ -15519,7 +15534,7 @@ get_foreign_key_info(
 	FOREIGN_KEY_INFO*	pf_key_info;
 	uint			i = 0;
 	size_t			len;
-	char			tmp_buff[NAME_LEN+1];
+	char			tmp_buff[MAX_DATABASE_NAME_LEN+1];
 	char			name_buff[NAME_LEN+1];
 	const char*		ptr;
 	LEX_CSTRING*		name = NULL;
@@ -15761,6 +15776,15 @@ bool ha_innobase::referenced_by_foreign_key() const noexcept
   return !empty;
 }
 
+inline void trx_t::reset_and_truncate_undo() noexcept
+{
+  ut_ad(undo_no <= 1);
+  ut_ad(mod_tables.size() <= 1);
+  mod_tables.clear();
+  undo_no= 0;
+  trx_undo_try_truncate(this);
+}
+
 /*******************************************************************//**
 Tells something additional to the handler about how to do things.
 @return 0 or error number */
@@ -15790,7 +15814,7 @@ ha_innobase::extra(
 	stmt_boundary:
 		trx->bulk_insert_apply();
 		trx->end_bulk_insert(*m_prebuilt->table);
-		trx->bulk_insert &= TRX_DDL_BULK;
+		trx->clear_dml_bulk();
 		break;
 	case HA_EXTRA_NO_KEYREAD:
 		(void)check_trx_exists(thd);
@@ -15834,11 +15858,25 @@ ha_innobase::extra(
 			break;
 		}
 		goto stmt_boundary;
-	case HA_EXTRA_BEGIN_ALTER_COPY:
+	case HA_EXTRA_BEGIN_ALTER_IGNORE_COPY:
+	case HA_EXTRA_BEGIN_COPY:
 		trx = check_trx_exists(thd);
-		m_prebuilt->table->skip_alter_undo = 1;
-		if (m_prebuilt->table->is_temporary()
-		    || !m_prebuilt->table->versioned_by_id()) {
+		static_assert(int{HA_EXTRA_BEGIN_ALTER_IGNORE_COPY} ==
+			      int{HA_EXTRA_BEGIN_COPY} + 1, "");
+		static_assert(int{dict_table_t::NO_UNDO} + 1 ==
+			      int{dict_table_t::IGNORE_UNDO}, "");
+		if (m_prebuilt->table->is_temporary()) {
+			m_prebuilt->table->skip_alter_undo =
+				(HA_EXTRA_BEGIN_ALTER_IGNORE_COPY
+				 - operation + dict_table_t::NORMAL_UNDO) & 1;
+			break;
+		}
+
+		m_prebuilt->table->skip_alter_undo =
+			(operation - HA_EXTRA_BEGIN_COPY
+			 + dict_table_t::NO_UNDO) & 3;
+
+		if (!m_prebuilt->table->versioned_by_id()) {
 			break;
 		}
 		ut_ad(trx == m_prebuilt->trx);
@@ -15847,15 +15885,24 @@ ha_innobase::extra(
 			const_cast<dict_table_t*>(m_prebuilt->table), 0)
 			.first->second.set_versioned(0);
 		break;
-	case HA_EXTRA_END_ALTER_COPY:
+	case HA_EXTRA_END_COPY:
+	{
 		trx = check_trx_exists(thd);
-		if (!m_prebuilt->table->skip_alter_undo) {
+		const unsigned alter_undo = m_prebuilt->table->skip_alter_undo;
+		if (!alter_undo) {
 			/* This could be invoked inside INSERT...SELECT.
 			We do not want any extra log writes, because
 			they could cause a severe performance regression. */
 			break;
 		}
-		m_prebuilt->table->skip_alter_undo = 0;
+
+		if (alter_undo == dict_table_t::IGNORE_UNDO) {
+			trx->reset_and_truncate_undo();
+		}
+
+		m_prebuilt->table->skip_alter_undo =
+			dict_table_t::NORMAL_UNDO;
+
 		if (dberr_t err= trx->bulk_insert_apply<TRX_DDL_BULK>()) {
 			trx->rollback();
 			return convert_error_code_to_mysql(
@@ -15864,7 +15911,7 @@ ha_innobase::extra(
 		}
 
 		trx->end_bulk_insert(*m_prebuilt->table);
-		trx->bulk_insert &= TRX_DML_BULK;
+		trx->clear_ddl_bulk();
 		if (!m_prebuilt->table->is_temporary()
 		    && !high_level_read_only) {
 			/* During copy_data_between_tables(), InnoDB only
@@ -15879,16 +15926,22 @@ ha_innobase::extra(
 			because no undo log records were generated.
 			This log write will also be unnecessarily executed
 			during CREATE...SELECT, which is the other caller of
-			handler::extra(HA_EXTRA_BEGIN_ALTER_COPY). */
+			handler::extra(HA_EXTRA_ALTER_COPY). */
 			log_buffer_flush_to_disk();
 		}
 		alter_stats_rebuild(m_prebuilt->table, trx);
 		break;
-	case HA_EXTRA_ABORT_ALTER_COPY:
+	}
+	case HA_EXTRA_ABORT_COPY:
+		/* Abort the ALTER COPY operation. For ALTER IGNORE,
+		this prevents undo logs from being added to the
+		purge thread, allowing proper cleanup of the
+		temporary undo state. */
 		if (m_prebuilt->table->skip_alter_undo &&
 		    !m_prebuilt->table->is_temporary()) {
 			trx = check_trx_exists(ha_thd());
-			m_prebuilt->table->skip_alter_undo = 0;
+			m_prebuilt->table->skip_alter_undo =
+				dict_table_t::NORMAL_UNDO;
 			trx->rollback();
 			return(HA_ERR_ROLLBACK);
 		}
@@ -16175,7 +16228,7 @@ ha_innobase::external_lock(
 		if (!trx->bulk_insert) {
 			break;
 		}
-		trx->bulk_insert &= TRX_DDL_BULK;
+		trx->clear_dml_bulk();
 		trx->last_stmt_start = trx->undo_no;
 	}
 
@@ -18338,7 +18391,7 @@ checkpoint_now_set(THD* thd, st_mysql_sys_var*, void*, const void *save)
   mysql_mutex_unlock(&LOCK_global_system_variables);
   while (!thd_kill_level(thd))
   {
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock();
     lsn_t cp= log_sys.last_checkpoint_lsn.load(std::memory_order_relaxed),
       lsn= log_sys.get_lsn();
     log_sys.latch.wr_unlock();
@@ -18369,7 +18422,7 @@ buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
     os_aio_wait_until_no_pending_writes(true);
   }
   else
-    buf_flush_sync_batch(LSN_MAX);
+    buf_flush_sync_batch(0, false);
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
@@ -18596,7 +18649,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
         if (!resizing || !log_sys.resize_running(thd))
           break;
-        log_sys.latch.wr_lock(SRW_LOCK_CALL);
+        log_sys.latch.wr_lock();
         while (resizing > log_sys.get_lsn())
         {
           ut_ad(!log_sys.is_mmap());
@@ -19207,6 +19260,23 @@ static MYSQL_SYSVAR_BOOL(buffer_pool_dump_at_shutdown, srv_buffer_pool_dump_at_s
   PLUGIN_VAR_RQCMDARG,
   "Dump the buffer pool into a file named @@innodb_buffer_pool_filename",
   NULL, NULL, TRUE);
+
+#if defined __linux__ || defined __FreeBSD__
+/** Update the system variable innodb_buffer_pool_in_core_dump.
+@param save    to-be-assigned value */
+static void innodb_buffer_pool_in_core_dump_update(THD *, st_mysql_sys_var *,
+                                                   void *, const void *save)
+{
+  mysql_mutex_lock(&buf_pool.mutex);
+  buf_pool.in_core_dump= *static_cast<const my_bool*>(save);
+  buf_pool.core_advise();
+  mysql_mutex_unlock(&buf_pool.mutex);
+}
+
+static MYSQL_SYSVAR_BOOL(buffer_pool_in_core_dump, buf_pool.in_core_dump,
+  PLUGIN_VAR_OPCMDARG, "Include the buffer pool in core dump.",
+  nullptr, innodb_buffer_pool_in_core_dump_update, IF_DBUG(true,false));
+#endif
 
 static MYSQL_SYSVAR_ULONG(buffer_pool_dump_pct, srv_buf_pool_dump_pct,
   PLUGIN_VAR_RQCMDARG,
@@ -19827,6 +19897,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(buffer_pool_filename),
   MYSQL_SYSVAR(buffer_pool_dump_now),
   MYSQL_SYSVAR(buffer_pool_dump_at_shutdown),
+#if defined __linux__ || defined __FreeBSD__
+  MYSQL_SYSVAR(buffer_pool_in_core_dump),
+#endif
   MYSQL_SYSVAR(buffer_pool_dump_pct),
 #ifdef UNIV_DEBUG
   MYSQL_SYSVAR(buffer_pool_evict),

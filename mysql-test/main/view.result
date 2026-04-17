@@ -7152,4 +7152,15 @@ DROP TABLE table1;
 select * from v1;
 ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 drop view v1;
+#
+# MDEV-38798 Assertion `mdl_key->length() == 3' failed in MDL_map::find_or_insert
+#
+create view v as select * from (select 'foo' as a) sq;
+create procedure p() alter table v truncate partition p;
+caLL p;
+ERROR HY000: Partition management on a not partitioned table is not possible
+CAll p;
+ERROR HY000: Partition management on a not partitioned table is not possible
+drop procedure p;
+drop view v;
 # End of 10.11 test

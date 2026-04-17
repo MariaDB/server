@@ -2703,7 +2703,7 @@ static uint dump_events_for_db(char *db)
                                           C_STRING_WITH_LEN(" EVENT"));
 
           fprintf(sql_file,
-                  "/*!50106 %s */ %s\n",
+                  "/*!50106 %s \n*/ %s\n",
                   (const char *) (query_str != NULL ? query_str : row[3]),
                   (const char *) delimiter);
 
@@ -2929,7 +2929,8 @@ static uint dump_routines_for_db(char *db)
 
             fprintf(sql_file,
                     "DELIMITER ;;\n"
-                    "%s ;;\n"
+                    "%s\n"
+                    ";;\n"
                     "DELIMITER ;\n",
                     (const char *) row[2]);
 
@@ -3296,13 +3297,13 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
             The actual column value doesn't matter anyway, since the view will
             be dropped at run time.
           */
-          fprintf(sql_file, " 1 AS %s",
+          fprintf(sql_file, " NULL AS %s",
                   quote_name(row[0], name_buff, 0));
 
           while((row= mysql_fetch_row(result)))
           {
             /* col name, col type */
-            fprintf(sql_file, ",\n  1 AS %s",
+            fprintf(sql_file, ",\n NULL AS %s",
                     quote_name(row[0], name_buff, 0));
           }
 
@@ -3822,7 +3823,7 @@ static int dump_trigger(FILE *sql_file, MYSQL_RES *show_create_trigger_rs,
                                     C_STRING_WITH_LEN(" TRIGGER"));
     fprintf(sql_file,
             "DELIMITER ;;\n"
-            "/*!50003 %s */;;\n"
+            "/*!50003 %s \n*/;;\n"
             "DELIMITER ;\n",
             (const char *) (query_str != NULL ? query_str : row[2]));
 
@@ -6320,7 +6321,7 @@ static int do_stop_slave_sql(MYSQL *mysql_con)
       {
         char query[160];
         if (multi_source)
-          sprintf(query, "STOP SLAVE '%.80s' SQL_THREAD", row[0]);
+          snprintf(query, sizeof(query), "STOP SLAVE '%.80s' SQL_THREAD", row[0]);
         else
           strmov(query, "STOP SLAVE SQL_THREAD");
 
@@ -6480,7 +6481,7 @@ static int do_start_slave_sql(MYSQL *mysql_con)
       {
         char query[160];
         if (multi_source)
-          sprintf(query, "START SLAVE '%.80s' SQL_THREAD", row[0]);
+          snprintf(query, sizeof(query), "START SLAVE '%.80s' SQL_THREAD", row[0]);
         else
           strmov(query, "START SLAVE SQL_THREAD");
 

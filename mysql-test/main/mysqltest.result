@@ -999,3 +999,8 @@ SELECT 1 /* doesn't throw error */;
 1
 1
 End of tests
+#
+# MDEV-38696: infinite loop in my_copy() function
+#
+# caught error and exited my_copy()
+# End of 10.11 tests

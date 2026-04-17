@@ -1988,7 +1988,7 @@ exit:
   if (ii_cursor) {
     grn_ii_cursor_close(ctx, ii_cursor);
   }
-  grn_obj_unlink(ctx, &source_ids);
+  GRN_OBJ_FIN(ctx, &source_ids);
   {
     int i, n_sources;
     n_sources = GRN_BULK_VSIZE(&sources) / sizeof(grn_obj *);
@@ -1996,7 +1996,7 @@ exit:
       grn_obj *source = GRN_PTR_VALUE_AT(&sources, i);
       grn_obj_unlink(ctx, source);
     }
-    grn_obj_unlink(ctx, &sources);
+    GRN_OBJ_FIN(ctx, &sources);
   }
 }
 

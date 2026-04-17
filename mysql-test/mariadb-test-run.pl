@@ -1798,7 +1798,7 @@ sub collect_mysqld_features {
   my $args;
   mtr_init_args(\$args);
   mtr_add_arg($args, "--no-defaults");
-  mtr_add_arg($args, "--datadir=.");
+  mtr_add_arg($args, "--datadir=%s", $opt_vardir);
   mtr_add_arg($args, "--basedir=%s", $basedir);
   mtr_add_arg($args, "--lc-messages-dir=%s", $path_language);
   mtr_add_arg($args, "--skip-grant-tables");
@@ -2546,6 +2546,7 @@ sub setup_vardir() {
       mkpath($plugindir);
       if (IS_WINDOWS)
       {
+        $ENV{PATH} .= ";".$plugindir; # to load vcpkg dependencies (libcurl.dll etc)
         if (!$opt_embedded_server)
         {
           for (<$bindir/storage/*$multiconfig/*.dll>,

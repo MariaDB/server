@@ -16,9 +16,7 @@
 
 /* ======================================================================
    Open Query Graph Computation Engine, based on a concept by Arjen Lentz
-   v3 implementation by Antony Curtis, Arjen Lentz, Andrew McDonnell
-   For more information, documentation, support, enhancement engineering,
-   see http://openquery.com/graph or contact graph@openquery.com
+   v3 implementation by Antony Curtis, Arjen Lentz, Andrew McDonnell.
    ======================================================================
 */
 
@@ -551,7 +549,7 @@ oqgraph3::graph::graph(
   if (weight)
     bitmap_set_bit(table->read_set, weight->field_index);
 
-  table->file->column_bitmaps_signal();
+  table->file->column_bitmaps_signal(false);
 }
 
 oqgraph3::graph::~graph()

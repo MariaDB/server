@@ -77,3 +77,12 @@ ALTER TABLE t1 ADD FULLTEXT(f2);
 InnoDB		0 transactions not purged
 DROP TABLE t1;
 # End of 10.6 tests
+#
+# MDEV-38948  Assertion `time.valid(undo->top_undo_no)' fails
+#    upon ALTER IGNORE on partitioned table
+#
+CREATE TABLE t1(a INT) ENGINE=InnoDB PARTITION BY LIST (a)
+(PARTITION p0 VALUES IN (1,2), PARTITION pdef DEFAULT);
+INSERT INTO t1 VALUES (1),(6);
+ALTER IGNORE TABLE t1 FORCE, ALGORITHM=COPY;
+DROP TABLE t1;

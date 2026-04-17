@@ -1484,8 +1484,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
   if (item && is_unit_op() &&
       (item->is_in_predicate() || item->is_exists_predicate()))
   {
-    global_parameters()->order_list.first= NULL;
-    global_parameters()->order_list.elements= 0;
+    global_parameters()->optimize_out_order_list();
   }
 
   /* will only optimize once */
@@ -2688,8 +2687,6 @@ err:
 
 bool st_select_lex_unit::cleanup()
 {
-  cleanup_stranded_units();
-
   bool error= 0;
   DBUG_ENTER("st_select_lex_unit::cleanup");
 
@@ -2778,6 +2775,11 @@ bool st_select_lex_unit::cleanup()
   delete pushdown_unit;
   pushdown_unit= nullptr;
 
+  /*
+    Cleanup stranded units only after this unit has completed its own
+    cleanup, ensuring a parent-first (LIFO) cleanup order for merged tables.
+  */
+  cleanup_stranded_units();
   DBUG_RETURN(error);
 }
 

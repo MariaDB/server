@@ -63,6 +63,11 @@ void Session_sysvars_tracker::vars_list::copy(vars_list* from, THD *thd)
 Session_sysvars_tracker::
 sysvar_node_st *Session_sysvars_tracker::vars_list::search(const sys_var *svar)
 {
+  if (((sys_var *)svar)->cast_pluginvar())
+    return reinterpret_cast<sysvar_node_st*>(
+             my_hash_search(&m_registered_sysvars,
+                           reinterpret_cast<const uchar*>(&svar),
+                           sizeof(sys_var*)));
   return reinterpret_cast<sysvar_node_st*>(
            my_hash_search(&m_registered_sysvars,
                          reinterpret_cast<const uchar*>(&svar->offset),
@@ -329,7 +334,9 @@ bool Session_sysvars_tracker::vars_list::construct_var_list(char *buf,
   }
   mysql_mutex_unlock(&LOCK_plugin);
 
-  buf--; buf[0]= '\0';
+  if (idx > 0)
+    buf--;
+  buf[0]= '\0';
   my_safe_afree(names, names_size);
 
   return false;
@@ -569,8 +576,13 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd, const sys_var *var)
 const uchar *Session_sysvars_tracker::sysvars_get_key(const void *entry,
                                                       size_t *length, my_bool)
 {
-  ptrdiff_t *key=
-      &((static_cast<const sysvar_node_st *>(entry))->m_svar->offset);
+  sys_var *svar= (static_cast<const sysvar_node_st *>(entry))->m_svar;
+  if (svar->cast_pluginvar())
+  {
+    *length= sizeof(sys_var *);
+    return (uchar *) &(((sysvar_node_st *) entry)->m_svar);
+  }
+  ptrdiff_t *key= &(svar->offset);
   *length= sizeof(*key);
   return reinterpret_cast<const uchar *>(key);
 }

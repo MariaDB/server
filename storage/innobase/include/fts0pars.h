@@ -51,7 +51,6 @@ typedef union YYSTYPE
 {
 
 /* Line 2068 of yacc.c  */
-#line 61 "fts0pars.y"
 
 	int			oper;
 	fts_ast_string_t*	token;
@@ -60,7 +59,6 @@ typedef union YYSTYPE
 
 
 /* Line 2068 of yacc.c  */
-#line 64 "fts0pars.hh"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

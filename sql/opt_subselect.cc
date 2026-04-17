@@ -5115,7 +5115,7 @@ int SJ_TMP_TABLE::sj_weedout_check_row(THD *thd)
   }
 
   // 3. Put the rowids
-  for (uint i=0; tab != tab_end; tab++, i++)
+  for (; tab != tab_end; tab++)
   {
     handler *h= tab->join_tab->table->file;
     if (tab->join_tab->table->maybe_null && tab->join_tab->table->null_row)
@@ -7075,7 +7075,7 @@ bool Item::pushable_equality_checker_for_subquery(uchar *arg)
   NULL if the matching Field_pair wasn't found.
 */
 
-Field_pair *find_matching_field_pair(Item *item, List<Field_pair> pair_list)
+Field_pair *find_matching_field_pair(Item *item, List<Field_pair> &pair_list)
 {
   Field_pair *field_pair= get_corresponding_field_pair(item, pair_list);
   if (field_pair)

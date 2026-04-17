@@ -1322,6 +1322,12 @@ bool buf_pool_t::create() noexcept
   allocated before innodb initialization */
   ut_ad(srv_operation >= SRV_OPERATION_RESTORE || !field_ref_zero);
 
+#if defined(__aarch64__)
+  mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
+#else
+  mysql_mutex_init(buf_pool_mutex_key, &mutex, nullptr);
+#endif
+
   if (!field_ref_zero)
   {
     if (auto b= aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096))
@@ -1341,22 +1347,43 @@ bool buf_pool_t::create() noexcept
  init:
   DBUG_EXECUTE_IF("ib_buf_chunk_init_fails", goto oom;);
   size_t size= size_in_bytes_max;
-  sql_print_information("InnoDB: innodb_buffer_pool_size_max=%zum,"
-                        " innodb_buffer_pool_size=%zum",
-                        size >> 20, size_in_bytes_requested >> 20);
 
  retry:
   {
     NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
 #ifdef _WIN32
     memory_unaligned= my_virtual_mem_reserve(&size);
+    if (!memory_unaligned)
+      goto oom;
 #else
     memory_unaligned= my_large_virtual_alloc(&size);
+    if (memory_unaligned);
+# if defined __aarch64__ || defined __riscv || defined __mips__ || defined __loongarch64
+    else if (size_in_bytes_max_default != 0 &&
+             size_in_bytes_max == size_in_bytes_max_default)
+    {
+      /* Accommodate Linux ARMv8 CONFIG_ARM64_VA_BITS_39 or
+      RISC-V CONFIG_VA_BITS_SV39 or similar.
+
+      We assume that nobody would expect MariaDB to run with
+      CONFIG_ARM64_VA_BITS_36 (16 GiB virtual address space).
+      Should that be the case, an explicit innodb_buffer_pool_size_max
+      may be configured to allow InnoDB to start up.
+
+      On MIPS and LoongArch, the virtual addresses may be actually
+      be narrower than 40 bits, but we do not have any real world
+      experience. */
+
+      /* Let us aim for 128 GiB (a quarter of the 512 GiB), or the
+      initial innodb_buffer_pool_size, whichever is greater. */
+      size_in_bytes_max= std::max(size_t(1ULL << 37), size_in_bytes_requested);
+      goto init;
+    }
+# endif
+    else
+      goto oom;
 #endif
   }
-
-  if (!memory_unaligned)
-    goto oom;
 
   const size_t alignment_waste=
     ((~size_t(memory_unaligned) & (innodb_buffer_pool_extent_size - 1)) + 1) &
@@ -1370,8 +1397,10 @@ bool buf_pool_t::create() noexcept
     goto retry;
   }
 
+  sql_print_information("InnoDB: innodb_buffer_pool_size_max=%zum,"
+                        " innodb_buffer_pool_size=%zum",
+                        size >> 20, size_in_bytes_requested >> 20);
   MEM_UNDEFINED(memory_unaligned, size);
-  ut_dontdump(memory_unaligned, size, true);
   memory= memory_unaligned + alignment_waste;
   size_unaligned= size;
   size-= alignment_waste;
@@ -1386,7 +1415,7 @@ bool buf_pool_t::create() noexcept
 #ifdef UNIV_PFS_MEMORY
   PSI_MEMORY_CALL(memory_alloc)(mem_key_buf_buf_pool, actual_size, &owner);
 #endif
-#ifdef _WIN32
+#ifndef _AIX
   if (!my_virtual_mem_commit(memory, actual_size))
   {
     my_virtual_mem_release(memory_unaligned, size_unaligned);
@@ -1394,6 +1423,11 @@ bool buf_pool_t::create() noexcept
     memory_unaligned= nullptr;
     goto oom;
   }
+#if defined __linux__ || defined __FreeBSD__
+  ut_d(mysql_mutex_lock(&mutex));
+  core_advise();
+  ut_d(mysql_mutex_unlock(&mutex));
+#endif
 #else
   update_malloc_size(actual_size, 0);
 #endif
@@ -1438,12 +1472,6 @@ bool buf_pool_t::create() noexcept
       ut_d(block->page.in_free_list= true);
     }
   }
-
-#if defined(__aarch64__)
-  mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
-#else
-  mysql_mutex_init(buf_pool_mutex_key, &mutex, nullptr);
-#endif
 
   UT_LIST_INIT(withdrawn, &buf_page_t::list);
   UT_LIST_INIT(LRU, &buf_page_t::LRU);
@@ -1872,12 +1900,6 @@ inline void buf_pool_t::shrunk(size_t size, size_t reduced) noexcept
   ut_ad(size + reduced == size_in_bytes);
   size_in_bytes_requested= size;
   size_in_bytes= size;
-# ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
-  /* Only page_guess() may read this memory, which after
-  my_virtual_mem_decommit() may be zeroed out or preserve its original
-  contents.  Try to catch any unintended reads outside page_guess(). */
-  MEM_UNDEFINED(memory + size, size_in_bytes_max - size);
-# else
   for (size_t n= page_hash.pad(page_hash.n_cells), i= 0; i < n;
        i+= page_hash.ELEMENTS_PER_LATCH + 1)
   {
@@ -1888,7 +1910,6 @@ inline void buf_pool_t::shrunk(size_t size, size_t reduced) noexcept
     guess before we invoke my_virtual_mem_decommit() below. */
     latch.unlock();
   }
-# endif
   my_virtual_mem_decommit(memory + size, reduced);
 #ifdef UNIV_PFS_MEMORY
   PSI_MEMORY_CALL(memory_free)(mem_key_buf_buf_pool, reduced, owner);
@@ -1959,6 +1980,9 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
 
     size_in_bytes_requested= size;
     size_in_bytes= size;
+#if defined __linux__ || defined __FreeBSD__
+    core_advise();
+#endif
 
     {
       const size_t ssize= srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN;
@@ -2635,38 +2659,18 @@ uint32_t buf_pool_t::page_guess(buf_block_t *b, page_hash_latch &latch,
   /* On at least two Intel Xeon of different generation, it turns out
   that transactional_shared_lock_guard would perform worse here. */
   latch.lock_shared();
-#ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
-  /* shrunk() and my_virtual_mem_decommit() could retain the original
-  contents of the virtual memory range or zero it out immediately or
-  with a delay.  Any zeroing out may lead to a false positive for
-  b->page.id() == id but never for b->page.state().  At the time of
-  the shrunk() call, shrink() and buf_LRU_block_free_non_file_page()
-  should guarantee that b->page.state() is equal to
-  buf_page_t::NOT_USED (0) for all to-be-freed blocks. */
-#else
   /* shrunk() made the memory inaccessible. */
   if (UNIV_UNLIKELY(reinterpret_cast<char*>(b) >= memory + size_in_bytes))
   {
     latch.unlock_shared();
     return 0;
   }
-#endif
   /* This synchronizes with buf_page_t::init() */
   uint32_t state{b->page.zip.fix.load(std::memory_order_acquire)};
   const page_id_t block_id{b->page.id()};
-#ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
-  /* shrunk() may have invoked MEM_UNDEFINED() on this memory to be able
-  to catch any unintended access elsewhere in our code. */
-  MEM_MAKE_DEFINED(&block_id, sizeof block_id);
-#endif
 
   if (id == block_id)
   {
-#ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
-    /* shrunk() may have invoked MEM_UNDEFINED() on this memory to be able
-    to catch any unintended access elsewhere in our code. */
-    MEM_MAKE_DEFINED(&state, sizeof state);
-#endif
     /* Ignore guesses that point to read-fixed blocks.  We can only
     avoid a race condition by looking up the block via page_hash. */
     if ((state >= buf_page_t::FREED && state < buf_page_t::READ_FIX) ||

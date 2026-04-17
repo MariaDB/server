@@ -233,6 +233,7 @@ private:
 /* Order clause list element */
 
 typedef int (*fast_field_copier)(Field *to, Field *from);
+class Item_window_func;
 
 
 typedef struct st_order {
@@ -261,6 +262,7 @@ typedef struct st_order {
   char	 *buff;				/* If tmp-table group */
   table_map used; /* NOTE: the below is only set to 0 but is still used by eq_ref_table */
   table_map depend_map;
+  List<Item_window_func> window_funcs;
 } ORDER;
 
 /**
@@ -1651,7 +1653,7 @@ public:
   {
     read_set= read_set_arg;
     if (file)
-      file->column_bitmaps_signal();
+      file->column_bitmaps_signal(false);
   }
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg,
                                  MY_BITMAP *write_set_arg)
@@ -1659,7 +1661,7 @@ public:
     read_set= read_set_arg;
     write_set= write_set_arg;
     if (file)
-      file->column_bitmaps_signal();
+      file->column_bitmaps_signal(false);
   }
   inline void column_bitmaps_set_no_signal(MY_BITMAP *read_set_arg,
                                            MY_BITMAP *write_set_arg)

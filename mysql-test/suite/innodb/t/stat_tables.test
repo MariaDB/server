@@ -125,11 +125,11 @@ DROP TABLE t1;
 --echo #
 CREATE DATABASE test_1;
 CREATE TABLE test_1.t1(f1 INT NOT NULL)Engine=InnoDB;
-let $old_stats=`select @@global.innodb_stats_persistent`;
-let $flush_log_at_commit=`select @@global.innodb_flush_log_at_trx_commit`;
+SET @old_stats=@@global.innodb_stats_persistent;
+SET @flush_log_at_commit=@@global.innodb_flush_log_at_trx_commit;
 SET GLOBAL innodb_stats_persistent=OFF;
 SET GLOBAL innodb_flush_log_at_trx_commit=0;
 DROP TABLE test_1.t1;
 DROP DATABASE test_1;
-eval SET GLOBAL innodb_stats_persistent=$old_stats;
-eval SET GLOBAL innodb_flush_log_at_trx_commit=$flush_log_at_commit;
+SET GLOBAL innodb_stats_persistent=@old_stats;
+SET GLOBAL innodb_flush_log_at_trx_commit=@flush_log_at_commit;

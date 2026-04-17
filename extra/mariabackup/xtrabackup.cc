@@ -2645,7 +2645,7 @@ static void log_hdr_init()
                   log_sys.format == log_t::FORMAT_ENC_11
                   ? log_t::FORMAT_ENC_11 : log_t::FORMAT_10_8);
   mach_write_to_8(LOG_HEADER_START_LSN + log_hdr_buf,
-                  log_sys.next_checkpoint_lsn);
+                  log_sys.last_checkpoint_lsn);
   snprintf(reinterpret_cast<char*>(LOG_HEADER_CREATOR + log_hdr_buf),
            16, "Backup %u.%u.%u",
            MYSQL_VERSION_ID / 10000, MYSQL_VERSION_ID / 100 % 100,
@@ -2653,7 +2653,7 @@ static void log_hdr_init()
   if (log_sys.is_encrypted())
     log_crypt_write_header(log_hdr_buf + LOG_HEADER_CREATOR_END);
   mach_write_to_4(508 + log_hdr_buf, my_crc32c(0, log_hdr_buf, 508));
-  mach_write_to_8(log_hdr_buf + 0x1000, log_sys.next_checkpoint_lsn);
+  mach_write_to_8(log_hdr_buf + 0x1000, log_sys.last_checkpoint_lsn);
   mach_write_to_8(log_hdr_buf + 0x1008, recv_sys.lsn);
   mach_write_to_4(log_hdr_buf + 0x103c,
                   my_crc32c(0, log_hdr_buf + 0x1000, 60));
@@ -2692,7 +2692,7 @@ static bool innodb_init()
   mysql_mutex_unlock(&recv_sys.mutex);
   recv_sys.debug_free();
 
-  buf_flush_sync_batch(LSN_MAX);
+  buf_flush_sync_batch(0, false);
   ut_ad(!os_aio_pending_reads());
   ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
   ut_ad(!buf_pool.get_oldest_modification(0));
@@ -2727,7 +2727,7 @@ static bool innodb_init()
     return true;
   }
 
-  recv_sys.lsn= log_sys.next_checkpoint_lsn=
+  recv_sys.lsn= log_sys.last_checkpoint_lsn=
     log_get_lsn() - SIZE_OF_FILE_CHECKPOINT;
   log_sys.set_latest_format(false); // not encrypted
   log_hdr_init();
@@ -3634,7 +3634,7 @@ static bool backup_wait_timeout(lsn_t lsn, lsn_t last_lsn)
     return true;
   msg("Was only able to copy log from " LSN_PF " to " LSN_PF
       ", not " LSN_PF "; try increasing innodb_log_file_size",
-      log_sys.next_checkpoint_lsn, last_lsn, lsn);
+      log_sys.last_checkpoint_lsn.load(), last_lsn, lsn);
   return false;
 }
 
@@ -4822,11 +4822,14 @@ static ulong xb_set_max_open_files(rlim_t max_file_limit)
 		goto end;
 	}
 
-	rlimit.rlim_cur = rlimit.rlim_max = max_file_limit;
+	rlimit.rlim_cur = max_file_limit;
 
 	if (setrlimit(RLIMIT_NOFILE, &rlimit)) {
 		/* Use original value */
 		max_file_limit = static_cast<ulong>(old_cur);
+
+		msg( "setrlimit failed %d %s limit S: %" PRIu64 " H: %" PRIu64,
+		     errno, strerror(errno), rlimit.rlim_cur, rlimit.rlim_max);
 	} else {
 
 		rlimit.rlim_cur = 0;	/* Safety if next call fails */
@@ -4889,9 +4892,9 @@ static bool backup_wait_for_commit_lsn()
   /* read the latest checkpoint lsn */
   if (recv_sys.find_checkpoint() == DB_SUCCESS && log_sys.is_latest())
   {
-    if (log_sys.next_checkpoint_lsn > lsn)
-      lsn= log_sys.next_checkpoint_lsn;
-    metadata_to_lsn= log_sys.next_checkpoint_lsn;
+    metadata_to_lsn= log_sys.last_checkpoint_lsn;
+    if (metadata_to_lsn > lsn)
+      lsn= metadata_to_lsn;
     msg("mariabackup: The latest check point (for incremental): '"
         LSN_PF "'", metadata_to_lsn);
   }
@@ -5533,7 +5536,7 @@ fail:
 
 	/* get current checkpoint_lsn */
 	{
-		log_sys.latch.wr_lock(SRW_LOCK_CALL);
+		log_sys.latch.wr_lock();
 		mysql_mutex_lock(&recv_sys.mutex);
 		dberr_t err = recv_sys.find_checkpoint();
 		log_sys.latch.wr_unlock();
@@ -5594,7 +5597,7 @@ fail:
 	}
 
 	/* label it */
-	recv_sys.file_checkpoint = log_sys.next_checkpoint_lsn;
+	recv_sys.file_checkpoint = log_sys.last_checkpoint_lsn;
 	log_hdr_init();
 	/* Write log header*/
 	if (ds_write(dst_log_file, log_hdr_buf, 12288)) {
@@ -5625,7 +5628,7 @@ fail:
 
 	mysql_mutex_lock(&recv_sys.mutex);
 	backup_log_parse = recv_sys.get_backup_parser();
-	recv_sys.lsn = log_sys.next_checkpoint_lsn;
+	recv_sys.lsn = log_sys.last_checkpoint_lsn;
 
 	const bool log_copy_failed = xtrabackup_copy_logfile(true);
 
@@ -5684,7 +5687,7 @@ fail:
 	backup_datasinks.destroy();
 
 	msg("Redo log (from LSN " LSN_PF " to " LSN_PF ") was copied.",
-	    log_sys.next_checkpoint_lsn, recv_sys.lsn);
+	    log_sys.last_checkpoint_lsn.load(), recv_sys.lsn);
 	xb_filters_free();
 
 	xb_data_files_close();

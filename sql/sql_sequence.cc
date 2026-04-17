@@ -695,14 +695,14 @@ int sequence_definition::write(TABLE *table, bool all_fields)
   save_write_set= table->write_set;
   save_read_set=  table->read_set;
   table->read_set= table->write_set= &table->s->all_set;
-  table->file->column_bitmaps_signal();
+  table->file->column_bitmaps_signal(false);
   store_fields(table);
   if (unlikely((error= table->file->ha_write_row(table->record[0]))))
     table->file->print_error(error, MYF(0));
   table->rpl_write_set= save_rpl_write_set;
   table->read_set=  save_read_set;
   table->write_set= save_write_set;
-  table->file->column_bitmaps_signal();
+  table->file->column_bitmaps_signal(false);
   return error;
 }
 

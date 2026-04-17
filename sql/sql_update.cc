@@ -49,6 +49,11 @@
 #include "wsrep_mysqld.h"
 #endif
 
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h" // wsrep_max_ws_rows, wsrep_max_ws_size
+#include "wsrep_binlog.h" // WSREP_MAX_WS_SIZE
+#endif
+
 /**
    True if the table's input and output record buffers are comparable using
    compare_record(TABLE*).
@@ -288,7 +293,7 @@ static void prepare_record_for_error_message(int error, TABLE *table)
   /* Add all fields used by unique index to read_set. */
   bitmap_union(table->read_set, &unique_map);
   /* Tell the engine about the new set. */
-  table->file->column_bitmaps_signal();
+  table->file->column_bitmaps_signal(false);
 
   if ((error= table->file->ha_index_or_rnd_end()) ||
       (error= table->file->ha_rnd_init(0)))
@@ -1812,6 +1817,30 @@ int multi_update::prepare(List<Item> &not_used_values,
     my_message(ER_NO_TABLES_USED, ER_THD(thd, ER_NO_TABLES_USED), MYF(0));
     DBUG_RETURN(1);
   }
+
+#ifdef WITH_WSREP
+  if (WSREP(thd) &&
+      (wsrep_max_ws_rows || wsrep_max_ws_size != WSREP_MAX_WS_SIZE))
+  {
+    int trans{0};
+    while (TABLE_LIST *tablel= ti++)
+      trans|= 1 << tablel->table->file->has_transactions_and_rollback();
+    ti.rewind();
+    /* In multi-table update Galera does not support update to both
+       transactional and non-transactional engines if write-set
+       size is limited. */
+    if (trans == 3)
+    {
+      my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_GALERA_REPLICATION_NOT_SUPPORTED,
+                          "Galera does not support multi-table update",
+                          " to both transactional and non-transactional engines"
+                          " if write-set size is limited.");
+      DBUG_RETURN(1);
+    }
+  }
+#endif /* WITH_WSREP */
 
   /*
     We gather the set of columns read during evaluation of SET expression in

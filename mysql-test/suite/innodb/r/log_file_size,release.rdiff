@@ -1,7 +1,5 @@
 --- log_file_size.result
 +++ log_file_size,release.result
---- log_file_size.result
-+++ log_file_size,release.result
 @@ -21,8 +21,6 @@
  42
  INSERT INTO t1 VALUES (0),(123);
@@ -11,7 +9,7 @@
  DELETE FROM t1 WHERE a>0;
  # Persist the state of the above incomplete transaction by
  # causing a redo log write for another transaction.
-@@ -36,22 +34,10 @@
+@@ -36,19 +34,6 @@
  SELECT * FROM t1;
  ERROR 42000: Unknown storage engine 'InnoDB'
  FOUND 1 /syntax error in innodb_log_group_home_dir/ in mysqld.1.err
@@ -19,22 +17,19 @@
 -SELECT * FROM t1;
 -ERROR 42000: Unknown storage engine 'InnoDB'
 -FOUND 1 /InnoDB: Starting crash recovery from checkpoint LSN=.*/ in mysqld.1.err
- # restart: --innodb-read-only
- SELECT * FROM t1;
- ERROR 42000: Unknown storage engine 'InnoDB'
- FOUND 1 /InnoDB: innodb_read_only prevents crash recovery/ in mysqld.1.err
+-# restart: --innodb-log-file-size=5M
+-SELECT * FROM t1;
+-a
+-42
+-123
 -# restart: --debug-dbug=d,innodb_log_abort_5
 -SELECT * FROM t1;
 -ERROR 42000: Unknown storage engine 'InnoDB'
 -FOUND 1 /redo log from 5\.000MiB to [0-9.]*[KMGT]iB/ in mysqld.1.err
--# restart: --innodb-read-only
--SELECT * FROM t1;
--ERROR 42000: Unknown storage engine 'InnoDB'
--FOUND 2 /InnoDB: innodb_read_only prevents crash recovery/ in mysqld.1.err
  # restart
  SELECT * FROM t1;
- ERROR 42000: Unknown storage engine 'InnoDB'
-@@ -68,4 +54,4 @@
+ a
+@@ -70,4 +55,4 @@
  42
  123
  DROP TABLE t1;

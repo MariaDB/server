@@ -93,16 +93,6 @@ row_log_table_get_error(
 					that is being rebuilt online */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/** Check whether a virtual column is indexed in the new table being
-created during alter table
-@param[in]	index	cluster index
-@param[in]	v_no	virtual column number
-@return true if it is indexed, else false */
-bool
-row_log_col_is_indexed(
-	const dict_index_t*	index,
-	ulint			v_no);
-
 /******************************************************//**
 Logs a delete operation to a table that is being rebuilt.
 This will be merged in row_log_table_apply_delete(). */
@@ -218,6 +208,16 @@ unsigned row_log_get_n_core_fields(const dict_index_t *index);
 @return error code present in online log */
 dberr_t row_log_get_error(const dict_index_t *index);
 
+/** Mark all indexed virtual columns for computation during
+online DDL. Virtual columns that are part of any index must be
+computed and logged in the row log so their values are available
+for index building and concurrent DML replay during ALTER TABLE
+operations.
+@param table       InnoDB table object
+@param maria_table MariaDB table handle */
+ATTRIBUTE_COLD
+void row_log_mark_virtual_cols(const dict_table_t *table,
+                               TABLE *maria_table) noexcept;
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Estimate how much work is to be done by the log apply phase
 of an ALTER TABLE for this index.
