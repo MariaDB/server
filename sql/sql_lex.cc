@@ -3733,7 +3733,23 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
   if (!ref_pointer_array.is_null())
     return false;
 
-  Item **array= thd->active_stmt_arena_to_use()->calloc<Item*>(n_elems);
+  DBUG_EXECUTE_IF("assert_no_alloc_ref_array", { DBUG_ASSERT(0); });
+  Query_arena *arena= thd->active_stmt_arena_to_use();
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  const bool read_only_mem_root= !arena->is_conventional() &&
+                                 (arena->mem_root->flags & ROOT_FLAG_READ_ONLY);
+  if (read_only_mem_root)
+    arena->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
+#endif
+
+  Item **array= arena->calloc<Item*>(n_elems);
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  if (read_only_mem_root)
+    arena->mem_root->flags|= ROOT_FLAG_READ_ONLY;
+#endif
+
   if (likely(array != NULL))
     ref_pointer_array= Ref_ptr_array(array, n_elems);
   return array == NULL;
