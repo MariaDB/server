@@ -945,14 +945,21 @@ uint32 ha_archive::max_row_length(const uchar *record)
 unsigned int ha_archive::pack_row(const uchar *record, azio_stream *writer)
 {
   uchar *ptr;
+  uint32 max_len;
   my_ptrdiff_t const rec_offset= record - table->record[0];
   DBUG_ENTER("ha_archive::pack_row");
 
-  if (fix_rec_buff(max_row_length(record)))
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM); /* purecov: inspected */
+  max_len= max_row_length(record);
 
   if (writer->version == 1)
+  {
+    if (fix_rec_buff(max_len))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM); /* purecov: inspected */
     DBUG_RETURN(pack_row_v1(record));
+  }
+
+  if (fix_rec_buff(max_len + ARCHIVE_ROW_HEADER_SIZE))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
   /* Copy null bits */
   memcpy(record_buffer->buffer+ARCHIVE_ROW_HEADER_SIZE, 
@@ -1580,6 +1587,46 @@ int ha_archive::optimize(THD* thd, HA_CHECK_OPT* check_opt)
 
       while (!(rc= get_row(&archive, table->record[0])))
       {
+        /*
+          If the source is version 3, unpack_row() stores blob data in
+          record_buffer. Since pack_row() also uses record_buffer for
+          packing, we must copy blob data out first to avoid corruption.
+          Version 2 already stores blobs in the 'buffer' member.
+        */
+        if (archive.version >= 3)
+        {
+          uint *blob_ptr, *blob_end;
+          size_t total_blob_length= 0;
+          for (blob_ptr= table->s->blob_field,
+               blob_end= blob_ptr + table->s->blob_fields;
+               blob_ptr != blob_end; blob_ptr++)
+          {
+            Field_blob *blob= (Field_blob*) table->field[*blob_ptr];
+            if (!blob->is_null())
+              total_blob_length+= blob->get_length();
+          }
+          if (buffer.alloc(total_blob_length))
+          {
+            rc= HA_ERR_OUT_OF_MEM;
+            break;
+          }
+          char *pos= (char*) buffer.ptr();
+          for (blob_ptr= table->s->blob_field,
+               blob_end= blob_ptr + table->s->blob_fields;
+               blob_ptr != blob_end; blob_ptr++)
+          {
+            Field_blob *blob= (Field_blob*) table->field[*blob_ptr];
+            if (blob->is_null())
+              continue;
+            uint32 length= blob->get_length();
+            if (length)
+            {
+              memcpy(pos, blob->get_ptr(), length);
+              blob->set_ptr(length, (uchar*) pos);
+              pos+= length;
+            }
+          }
+        }
         real_write_row(table->record[0], &writer);
         /*
           Long term it should be possible to optimize this so that
@@ -1599,6 +1646,7 @@ int ha_archive::optimize(THD* thd, HA_CHECK_OPT* check_opt)
 
       tmp_restore_column_map(&table->read_set, org_bitmap);
       share->rows_recorded= (ha_rows)writer.rows;
+      buffer.free();
     }
 
     DBUG_PRINT("info", ("recovered %llu archive rows", 
