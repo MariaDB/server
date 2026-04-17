@@ -1385,8 +1385,8 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
         break;
       }
 
-      if (neighbors && UNIV_LIKELY(!to_withdraw) &&
-          UNIV_LIKELY(!backup_page_end) && space->is_rotational() && 
+      if (neighbors && UNIV_LIKELY(!(to_withdraw | backup_page_end)) &&
+          space->is_rotational() &&
           /* Skip neighbourhood flush from LRU list if we haven't yet reached
           half of the free page target. */
           UT_LIST_GET_LEN(buf_pool.free) * 2 >= free_limit)
@@ -1559,17 +1559,24 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
       else
       {
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-        if (neighbors && UNIV_LIKELY(!backup_page_end) &&
-            space->is_rotational())
-          count+= buf_flush_try_neighbors(space, page_id, bpage,
-                                          neighbors == 1, count, max_n);
-        else if (bpage->id().page_no() < backup_page_end)
-          bpage->lock.u_unlock(true);
-        else if (bpage->flush(space))
+        do
         {
-          ++count;
+          if (neighbors && UNIV_LIKELY(!backup_page_end) &&
+              space->is_rotational())
+            count+= buf_flush_try_neighbors(space, page_id, bpage,
+                                            neighbors == 1, count, max_n);
+          else if (bpage->id().page_no() < backup_page_end)
+          {
+            bpage->lock.u_unlock(true);
+            continue;
+          }
+          else if (bpage->flush(space))
+            ++count;
+          else
+            continue;
           mysql_mutex_lock(&buf_pool.mutex);
         }
+        while (0);
       }
     }
 
@@ -1719,7 +1726,7 @@ bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed) noexcept
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
         if (UNIV_UNLIKELY(space->writing_start()) &&
-            space->backup_page_end() < bpage->id().page_no())
+            bpage->id().page_no() < space->backup_page_end())
         {
           bpage->lock.u_unlock(true);
           space->writing_stop();
