@@ -173,7 +173,8 @@ class InnoDB_backup
   /** mutex protecting the queue */
   srw_mutex_impl<false> mutex;
 
-  /** whether backup is active; protected by mutex and log_sys.latch */
+  /** whether log copying during backup is active;
+  protected by mutex and log_sys.latch */
   Atomic_relaxed<bool> active;
 
   /** the original innodb_log_file_size, or 0 if innodb_log_archive=ON */
@@ -331,6 +332,9 @@ public:
       if (!fail)
         logs.emplace_back(lsn);
     }
+    log_sys.latch.rd_lock(); /* prevent a race with checkpoint_complete() */
+    active= false;
+    log_sys.latch.rd_unlock();
     mutex.wr_unlock();
     log_sys.backup_stop(old_size, thd);
     return fail;
@@ -343,19 +347,16 @@ public:
   void fini(THD *thd) noexcept
   {
     mutex.wr_lock();
+    ut_ad(!active);
     ut_ad(queue.empty());
     ut_ad(logs.size() <= 1);
     if (!logs.empty())
     {
-      ut_ad(active);
       const lsn_t first_lsn{logs.back()};
       logs.clear();
       /* TODO: copy our hardlink of the last log until the final LSN */
       sql_print_information("TODO: duplicate " LOG_ARCHIVE_NAME, first_lsn);
     }
-    log_sys.latch.rd_lock(); /* prevent a race with checkpoint_complete() */
-    active= false;
-    log_sys.latch.rd_unlock();
     mutex.wr_unlock();
     mutex.destroy();
   }
