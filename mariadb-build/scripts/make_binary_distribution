@@ -1,1 +1,0 @@
-cd /Users/aryankancherla/Downloads/DLAB_MariaDB/server/mariadb-build && '/opt/homebrew/bin/cpack' -G TGZ --config CPackConfig.cmake

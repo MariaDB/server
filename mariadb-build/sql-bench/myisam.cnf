@@ -1,3 +1,0 @@
-[mysqld]
-data=/data
-key_buffer_size=256M
