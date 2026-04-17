@@ -639,9 +639,6 @@ static void die(int error, const char* reason, ...)
 static void maybe_die(int error, const char* reason, ...)
   ATTRIBUTE_FORMAT(printf, 2, 3);
 static void write_header(FILE *sql_file, const char *db_name);
-static void print_value(FILE *file, MYSQL_RES  *result, MYSQL_ROW row,
-                        const char *prefix,const char *name,
-                        int string_value);
 static int dump_selected_tables(char *db, char **table_names, int tables);
 static int dump_all_tables_in_db(char *db);
 static int init_dumping_views(char *);
@@ -3284,9 +3281,11 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   if (opt_order_by_primary)
     order_by= primary_key_fields(result_table);
 
-  if (!opt_xml && !mysql_query_with_error_report(mysql, 0, query_buff))
+  if (!opt_xml)
   {
     int vers_hidden= opt_dump_history && *versioned;
+    if (mysql_query_with_error_report(mysql, 0, query_buff))
+      DBUG_RETURN(0);
     /* using SHOW CREATE statement */
     if (!opt_no_create_info)
     {
@@ -3605,9 +3604,6 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                                   "TABLE_SCHEMA = %s AND TABLE_NAME = %s "
                                   "ORDER BY ORDINAL_POSITION";
 
-    verbose_msg("%s: Warning: Can't set SQL_QUOTE_SHOW_CREATE option (%s)\n",
-                my_progname_short, mysql_error(mysql));
-
     my_snprintf(query_buff, sizeof(query_buff), show_fields_stmt,
                 quote_for_equal(db, temp_buff),
                 quote_for_equal(table, temp_buff2));
@@ -3618,51 +3614,16 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
     /* Make an sql-file, if path was given iow. option -T was given */
     if (!opt_no_create_info)
     {
-      if (multi_file_output)
-      {
-        if (!(sql_file= open_sql_file_for_table(db, table, O_WRONLY)))
-        {
-          mysql_free_result(result);
-          DBUG_RETURN(0);
-        }
-        write_header(sql_file, db);
-      }
-
       print_comment(sql_file, 0,
                     "\n--\n-- Table structure for table %s\n--\n\n",
                     fix_for_comment(result_table));
-      if (opt_drop)
-        fprintf(sql_file, "DROP TABLE IF EXISTS %s;\n", result_table);
-      if (!opt_xml)
-        fprintf(sql_file, "CREATE TABLE %s (\n", result_table);
-      else
-        print_xml_tag(sql_file, "\t", "\n", "table_structure", "name=", table, 
-                NullS);
+      print_xml_tag(sql_file, "\t", "\n", "table_structure", "name=", table,
+              NullS);
       check_io(sql_file);
-    }
-
-    if (write_data)
-    {
-      if (opt_replace_into)
-        dynstr_append_checked(&insert_pat, "REPLACE ");
-      else
-        dynstr_append_checked(&insert_pat, "INSERT ");
-      dynstr_append_checked(&insert_pat, insert_option);
-      dynstr_append_checked(&insert_pat, "INTO ");
-      dynstr_append_checked(&insert_pat, result_table);
-      if (complete_insert)
-        dynstr_append_checked(&insert_pat, " (");
-      else
-      {
-        dynstr_append_checked(&insert_pat, " VALUES ");
-        if (!extended_insert)
-          dynstr_append_checked(&insert_pat, "(");
-      }
     }
 
     while ((row= mysql_fetch_row(result)))
     {
-      ulong *lengths= mysql_fetch_lengths(result);
       /* VECTOR doesn't have a type code yet, must be detected by name */
       if (strncmp(row[SHOW_TYPE], STRING_WITH_LEN("vector(")) == 0)
         dynstr_append_checked(&field_flags, MYSQL_TYPE_VECTOR);
@@ -3670,56 +3631,19 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
         dynstr_append_checked(&field_flags, " ");
       if (init)
       {
-        if (!opt_xml && !opt_no_create_info)
-        {
-          fputs(",\n",sql_file);
-          check_io(sql_file);
-        }
         dynstr_append_checked(&select_field_names, ", ");
-        if (opt_header)
-          dynstr_append_checked(&select_field_names_for_header, ", ");
       }
       dynstr_append_checked(&select_field_names,
               quote_name(row[SHOW_FIELDNAME], name_buff, 0));
-      if (opt_header)
-        dynstr_append_checked(&select_field_names_for_header,
-                              quote_for_equal(row[SHOW_FIELDNAME], name_buff));
       init=1;
       if (!opt_no_create_info)
-      {
-        if (opt_xml)
-        {
-          print_xml_row(sql_file, "field", result, &row, NullS);
-          continue;
-        }
-
-        if (opt_keywords)
-          fprintf(sql_file, "  %s.%s %s", result_table,
-                  quote_name(row[SHOW_FIELDNAME],name_buff, 0), row[SHOW_TYPE]);
-        else
-          fprintf(sql_file, "  %s %s",
-                quote_name(row[SHOW_FIELDNAME], name_buff, 0), row[SHOW_TYPE]);
-        if (row[SHOW_DEFAULT])
-        {
-          fputs(" DEFAULT ", sql_file);
-          unescape(sql_file, row[SHOW_DEFAULT], lengths[SHOW_DEFAULT]);
-        }
-        if (!row[SHOW_NULL][0])
-          fputs(" NOT NULL", sql_file);
-        if (row[SHOW_EXTRA][0])
-          fprintf(sql_file, " %s",row[SHOW_EXTRA]);
-        check_io(sql_file);
-      }
+        print_xml_row(sql_file, "field", result, &row, NullS);
     }
-    if (complete_insert)
-      dynstr_append_checked(&insert_pat, select_field_names.str);
     num_fields= mysql_num_rows(result);
     mysql_free_result(result);
     if (!opt_no_create_info)
     {
-      /* Make an sql-file, if path was given iow. option -T was given */
       char buff[20+FN_REFLEN];
-      uint keynr,primary_key;
       my_snprintf(buff, sizeof(buff), "show keys from %s", result_table);
       if (mysql_query_with_error_report(mysql, &result, buff))
       {
@@ -3731,68 +3655,13 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
         }
         fprintf(stderr, "%s: Can't get keys for table %s (%s)\n",
                 my_progname_short, result_table, mysql_error(mysql));
-        if (multi_file_output)
-          my_fclose(sql_file, MYF(MY_WME));
         DBUG_RETURN(0);
       }
 
-      /* Find first which key is primary key */
-      keynr=0;
-      primary_key=INT_MAX;
       while ((row= mysql_fetch_row(result)))
-      {
-        if (atoi(row[3]) == 1)
-        {
-          keynr++;
-#ifdef FORCE_PRIMARY_KEY
-          if (atoi(row[1]) == 0 && primary_key == INT_MAX)
-            primary_key=keynr;
-#endif
-          if (!strcmp(row[2],"PRIMARY"))
-          {
-            primary_key=keynr;
-            break;
-          }
-        }
-      }
-      mysql_data_seek(result,0);
-      keynr=0;
-      while ((row= mysql_fetch_row(result)))
-      {
-        if (opt_xml)
-        {
-          print_xml_row(sql_file, "key", result, &row, NullS);
-          continue;
-        }
+        print_xml_row(sql_file, "key", result, &row, NullS);
 
-        if (atoi(row[3]) == 1)
-        {
-          if (keynr++)
-            putc(')', sql_file);
-          if (atoi(row[1]))       /* Test if duplicate key */
-            /* Duplicate allowed */
-            fprintf(sql_file, ",\n  KEY %s (",quote_name(row[2],name_buff,0));
-          else if (keynr == primary_key)
-            fputs(",\n  PRIMARY KEY (",sql_file); /* First UNIQUE is primary */
-          else
-            fprintf(sql_file, ",\n  UNIQUE %s (",quote_name(row[2],name_buff,
-                                                            0));
-        }
-        else
-          putc(',', sql_file);
-        fputs(quote_name(row[4], name_buff, 0), sql_file);
-        if (row[7])
-          fprintf(sql_file, " (%s)",row[7]);      /* Sub key */
-        check_io(sql_file);
-      }
       mysql_free_result(result);
-      if (!opt_xml)
-      {
-        if (keynr)
-          putc(')', sql_file);
-        fputs("\n)",sql_file);
-        check_io(sql_file);
-      }
 
       /* Get MySQL specific create options */
       if (create_options)
@@ -3818,26 +3687,11 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                   result_table,mysql_error(mysql));
         }
         else
-        {
-          if (opt_xml)
-            print_xml_row(sql_file, "options", result, &row, NullS);
-          else
-          {
-            fputs("/*!",sql_file);
-            print_value(sql_file,result,row,"engine=","Engine",0);
-            print_value(sql_file,result,row,"","Create_options",0);
-            print_value(sql_file,result,row,"comment=","Comment",1);
-            fputs(" */",sql_file);
-            check_io(sql_file);
-          }
-        }
+          print_xml_row(sql_file, "options", result, &row, NullS);
         mysql_free_result(result);              /* Is always safe to free */
       }
 continue_xml:
-      if (!opt_xml)
-        fputs(";\n", sql_file);
-      else
-        fputs("\t</table_structure>\n", sql_file);
+      fputs("\t</table_structure>\n", sql_file);
       check_io(sql_file);
     }
   }
@@ -6808,35 +6662,6 @@ static ulong find_set(TYPELIB *lib, const char *x, size_t length,
   }
   return found;
 }
-
-
-/* Print a value with a prefix on file */
-static void print_value(FILE *file, MYSQL_RES  *result, MYSQL_ROW row,
-                        const char *prefix, const char *name,
-                        int string_value)
-{
-  MYSQL_FIELD   *field;
-  mysql_field_seek(result, 0);
-
-  for ( ; (field= mysql_fetch_field(result)) ; row++)
-  {
-    if (!strcmp(field->name,name))
-    {
-      if (row[0] && row[0][0] && strcmp(row[0],"0")) /* Skip default */
-      {
-        fputc(' ',file);
-        fputs(prefix, file);
-        if (string_value)
-          unescape(file,row[0], strlen(row[0]));
-        else
-          fputs(row[0], file);
-        check_io(file);
-        return;
-      }
-    }
-  }
-  return;                                       /* This shouldn't happen */
-} /* print_value */
 
 
 /*
