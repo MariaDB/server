@@ -2084,3 +2084,14 @@ DELIMITER ;$$
 --source unusable_keys_joins.inc
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+
+--echo #
+--echo # MDEV-30255 0 changed to 0.0 caused by DISTINCT and UNION ALL
+--echo #
+
+create table t (c1 double);
+insert into t values (0.1);
+(select (c1 div 1)*0.1 from t) union all (select '1');
+drop table t;
+
+--echo # End of 10.11 tests

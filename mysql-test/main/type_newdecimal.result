@@ -3022,3 +3022,14 @@ Warning	1292	Truncated incorrect DECIMAL value: '2001-01-02'
 DROP TABLE t2;
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+#
+# MDEV-30255 0 changed to 0.0 caused by DISTINCT and UNION ALL
+#
+create table t (c1 double);
+insert into t values (0.1);
+(select (c1 div 1)*0.1 from t) union all (select '1');
+(c1 div 1)*0.1
+0.0
+1
+drop table t;
+# End of 10.11 tests
