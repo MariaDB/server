@@ -449,16 +449,18 @@ void subst_vcol_if_compatible(Vcol_subst_context *ctx,
   THD *thd= ctx->thd;
 
   const char *fail_cause= NULL;
-  if (vcol_expr->type_handler_for_comparison() !=
-      vcol_field->type_handler_for_comparison() ||
-      (vcol_expr->maybe_null() && !vcol_field->maybe_null()))
-    fail_cause="type mismatch";
-  else
+  if (!vcol_field->type_handler()->is_supertype(
+        vcol_field->type_std_attributes(),
+        vcol_field->type_extra_attributes(),
+        vcol_expr->type_handler(),
+        *vcol_expr /*Type_std_attributes*/,
+        vcol_expr->type_extra_attributes()))
+    fail_cause="failed supertype check";
+  else if (vcol_expr->maybe_null() && !vcol_field->maybe_null())
   {
-    CHARSET_INFO *cs= cond ? cond->compare_collation() : NULL;
-    if (vcol_expr->collation.collation != vcol_field->charset() &&
-        cs != vcol_field->charset())
-      fail_cause="collation mismatch";
+    /* NOT NULL is not allowed for vcol definition */
+    DBUG_ASSERT(0);
+    fail_cause= "nullability mismatch";
   }
 
   if (fail_cause)

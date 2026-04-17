@@ -6,7 +6,7 @@
 create table t (c int, key (c));
 insert into t select seq from seq_1_to_10000;
 alter table t
-  add column vc int as (c + 1),
+  add column vc bigint as (c + 1),
   add index(vc);
 
 explain select c from t order by c;
@@ -40,7 +40,7 @@ create table t (c int);
 insert into t select seq from seq_1_to_10000;
 
 alter table t
-  add column vc int as (c + 1),
+  add column vc bigint as (c + 1),
   add index(vc);
 
 explain select vc from t order by c + 1;
@@ -56,7 +56,7 @@ alter table t
   add column vc1 int as (c + 1),
   add index(vc1);
 alter table t
-  add column vc2 int as (vc1 * 2),
+  add column vc2 bigint as (vc1 * 2),
   add index(vc2);
 explain select c from t order by vc2;
 explain select vc2 from t order by vc1 * 2;
@@ -76,9 +76,9 @@ drop table t;
 create table t (c int);
 insert into t select seq from seq_1_to_10000;
 alter table t
-  add column vc1 int as (c + 1);
+  add column vc1 bigint as (c + 1);
 alter table t
-  add column vc2 int as (1 - c),
+  add column vc2 bigint as (1 - c),
   add index(vc1, vc2);
 explain select vc1, vc2 from t order by c + 1, 1 - c;
 drop table t;
@@ -87,7 +87,7 @@ drop table t;
 create table t (c int, key (c));
 insert into t select seq from seq_1_to_10000;
 alter table t
-  add column vc int as (c + 1),
+  add column vc bigint as (c + 1),
   add index(vc);
 
 explain select c from t group by c;
@@ -115,7 +115,7 @@ create table t (c int);
 insert into t select seq from seq_1_to_10000;
 
 alter table t
-  add column vc int as (c + 1),
+  add column vc bigint as (c + 1),
   add index(vc);
 
 explain select vc from t group by c + 1;
@@ -131,7 +131,7 @@ alter table t
   add column vc1 int as (c + 1),
   add index(vc1);
 alter table t
-  add column vc2 int as (vc1 * 2),
+  add column vc2 bigint as (vc1 * 2),
   add index(vc2);
 explain select c from t group by vc2;
 explain select vc2 from t group by vc1 * 2;
@@ -143,9 +143,9 @@ drop table t;
 create table t (c int);
 insert into t select seq from seq_1_to_10000;
 alter table t
-  add column vc1 int as (c + 1);
+  add column vc1 bigint as (c + 1);
 alter table t
-  add column vc2 int as (1 - c),
+  add column vc2 bigint as (1 - c),
   add index(vc1, vc2);
 explain select vc1, vc2 from t group by c + 1, 1 - c;
 drop table t;

@@ -4,7 +4,7 @@
 create table t (c int, key (c));
 insert into t select seq from seq_1_to_10000;
 alter table t
-add column vc int as (c + 1),
+add column vc bigint as (c + 1),
 add index(vc);
 set @old_optimizer_trace=@@optimizer_trace;
 set optimizer_trace=1;
@@ -43,10 +43,10 @@ drop table t;
 create table t (c int, key (c));
 insert into t select seq from seq_1_to_10000;
 alter table t
-add column vc1 int as (c + 1),
+add column vc1 bigint as (c + 1),
 add index(vc1);
 alter table t
-add column vc2 int as (1 - c),
+add column vc2 bigint as (1 - c),
 add index(vc2);
 set @old_optimizer_trace=@@optimizer_trace;
 set optimizer_trace=1;

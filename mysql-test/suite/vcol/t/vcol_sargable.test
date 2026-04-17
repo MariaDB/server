@@ -2,7 +2,7 @@
 --source include/not_embedded.inc
 
 --echo # Check various condition types
-create table t1 (a int, vcol1 int as (a+1), index(vcol1));
+create table t1 (a int, vcol1 bigint as (a+1), index(vcol1));
 insert into t1 (a) select seq from seq_1_to_100;
 explain select * from t1 where a+1=2;
 --echo # Try renaming the table
@@ -33,7 +33,7 @@ select @@collation_connection;
 --echo # Check VARCHAR
 create table t2 (
   a varchar(32),
-  vcol1 varchar(32) as (concat('hello-',a)),
+  vcol1 varchar(38) as (concat('hello-',a)),
   index(vcol1)
 );
 insert into t2 (a) select seq from seq_1_to_100;
@@ -91,7 +91,7 @@ set optimizer_trace=@tmp_trace;
 create table t3 (
   a varchar(32) collate utf8mb4_general_ci,
   vcol1 int as (concat('100',a)),
-  vcol2 varchar(32) collate utf8mb4_unicode_ci as (concat('hello-',a)),
+  vcol2 varchar(38) collate utf8mb4_unicode_ci as (concat('hello-',a)),
   index(vcol1),
   index(vcol2)
 );
@@ -110,7 +110,7 @@ insert into t1
 select seq, concat('{"size":', seq, ', "color":"hue', seq ,'"}') from seq_1_to_100;
 select * from t1 limit 3;
 
-alter table t1 add size1 int as (cast(json_extract(js1, '$.size') as int));
+alter table t1 add size1 bigint as (cast(json_extract(js1, '$.size') as int));
 alter table t1 add index(size1);
 explain select * from t1 where cast(json_extract(js1,'$.size') as int)=5 ;
 
@@ -120,7 +120,7 @@ explain select * from t1 where cast(json_extract(js1,'$.size') as int)=5 ;
 # Without COLLATE clause, the default is utf8mb4_uca1400_ai_ci.
 #
 alter table t1 add
-  color varchar(100) COLLATE utf8mb4_bin
+  color mediumtext COLLATE utf8mb4_bin
     as (json_unquote(json_extract(js1, '$.color')));
 alter table t1 add index(color);
 
@@ -163,7 +163,7 @@ select collation(json_value(js1, '$.color')) from t1 limit 1;
 
 --echo # If one is fine with _bin comparisons, they can use index access:
 alter table t1
-  add color1 varchar(100) collate utf8mb4_bin as (json_value(js1, '$.color')),
+  add color1 longtext collate utf8mb4_bin as (json_value(js1, '$.color')),
   add index(color1);
 explain select * from t1 where json_value(js1, '$.color')='hue10';
 alter table t1 drop column color1;
@@ -179,7 +179,7 @@ alter table t1 drop column color2;
 
 --echo # Explicitly specifying the collation helps:
 alter table t1
-  add color3 varchar(100) collate utf8mb4_unicode_ci as
+  add color3 longtext collate utf8mb4_unicode_ci as
   (json_value(js1, '$.color') collate utf8mb4_unicode_ci),
   add index(color3);
 explain select * from t1
@@ -196,7 +196,7 @@ create table t2(
 insert into t2 select js1 from t1;
 
 alter table t2
-  add color3 varchar(100) as (json_value(js1, '$.color')),
+  add color3 longtext as (json_value(js1, '$.color')),
   add index(color3);
 explain select * from t2
 where
@@ -254,7 +254,7 @@ CREATE TABLE t1 (
   id int,
   v2 int AS (id),
   v3 int AS (id+0),
-  a1 int AS (v2 + v3),
+  a1 bigint AS (v2 + v3),
   KEY a1 (a1)
 );
 insert t1(id) values (1),(2);

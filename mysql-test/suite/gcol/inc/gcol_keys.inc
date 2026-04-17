@@ -370,7 +370,7 @@ DROP TABLE t1;
 --echo #
 --echo # Test how optimizer picks indexes defined on a GC
 --echo #
-CREATE TABLE t1 (f1 int, gc int AS (f1 + 1) STORED, UNIQUE(gc));
+CREATE TABLE t1 (f1 int, gc bigint AS (f1 + 1) STORED, UNIQUE(gc));
 INSERT INTO t1(f1) VALUES (1),(2),(0),(9),(3),(4),(8),(7),(5),(6);
 ANALYZE TABLE t1;
 --echo # Should use index
@@ -411,7 +411,7 @@ EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > 7.0;
 DROP TABLE t1;
 --echo # Pick index with proper type
 CREATE TABLE t1 (f1 int,
-  gc_int int AS (f1 + 1) STORED,
+  gc_int bigint AS (f1 + 1) STORED,
   gc_date DATE AS (f1 + 1) STORED,
   KEY gc_int_idx(gc_int),
   KEY gc_date_idx(gc_date));
@@ -429,7 +429,7 @@ ANALYZE TABLE t1;
 
 --sorted_result
 SELECT * FROM t1 WHERE f1 + 1 > 070707;
---echo # INT column & index should be picked
+--echo # BIGINT column & index should be picked
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > 070707;
 --sorted_result
 SELECT * FROM t1 WHERE f1 + 1 > CAST(070707 AS DATE);

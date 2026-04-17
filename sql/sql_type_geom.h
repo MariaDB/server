@@ -218,6 +218,16 @@ public:
     override;
   bool Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *) const
     override;
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    return this == src_th ||
+      (geometry_type() == GEOM_GEOMETRY &&
+       dynamic_cast<const Type_handler_geometry*>(src_th));
+  }
 };
 
 

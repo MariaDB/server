@@ -4900,6 +4900,17 @@ public:
   void raise_bad_data_type_for_functor(const Qualified_ident &ident,
                                        const Lex_ident_sys &field=
                                          Lex_ident_sys()) const;
+  /*
+    Check (this, dst_std_attr, dst_extra_attr) is a supertype to
+    (src_th, src_std_attr, src_extra_attr).
+
+    The method has 100% precision, but may return false negatives.
+  */
+  virtual bool is_supertype(const Type_std_attributes &dst_std_attr,
+                            const Type_extra_attributes &dst_extra_attr,
+                            const Type_handler *src_th,
+                            const Type_std_attributes &src_std_attr,
+                            const Type_extra_attributes &src_extra_attr) const = 0;
 };
 
 
@@ -5057,6 +5068,19 @@ public:
   bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const override;
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    if (this != src_th)
+      return false;
+    if (dst_std_attr.unsigned_flag && !src_std_attr.unsigned_flag)
+      return false;
+    return dst_std_attr.max_length >= src_std_attr.max_length &&
+      dst_std_attr.decimals >= src_std_attr.decimals;
+  }
 };
 
 
@@ -5195,6 +5219,23 @@ public:
   bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const override;
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    if (type_handler_for_comparison() != src_th->type_handler_for_comparison())
+      return false;
+    if (dst_std_attr.unsigned_flag && !src_std_attr.unsigned_flag)
+      return false;
+    if (dst_std_attr.decimals < src_std_attr.decimals)
+      return false;
+    if (dst_std_attr.unsigned_flag == src_std_attr.unsigned_flag)
+      return dst_std_attr.max_length >= src_std_attr.max_length;
+    /* dst is signed and src is unsigned. compare the unsigned range */
+    return dst_std_attr.max_length - 1 >= src_std_attr.max_length;
+  }
 };
 
 
@@ -5248,6 +5289,24 @@ public:
   { }
   uint32 precision() const { return m_precision; }
   uint32 char_length() const { return m_char_length; }
+  bool contains(bool this_unsigned_flag,
+                const Type_limits_int &other,
+                bool other_unsigned_flag) const
+  {
+    if (!this_unsigned_flag && !other_unsigned_flag)
+      return min_signed() <= other.min_signed() &&
+        max_signed() >= other.max_signed();
+    if (this_unsigned_flag && other_unsigned_flag)
+      return max_unsigned() >= other.max_unsigned();
+    /*
+      Unsigned cannot be supertype of signed because it cannot be
+      negative.
+    */
+    if (this_unsigned_flag && !other_unsigned_flag)
+      return false;
+    /* !this_unsigned_flag && other_unsigned_flag */
+    return (ulonglong) max_signed() >= other.max_unsigned();
+  }
 };
 
 
@@ -5491,6 +5550,18 @@ public:
                                     partition_value_print_mode_t)
                                     const override;
   const Vers_type_handler *vers() const override { return &vers_type_trx; }
+  bool is_supertype(const Type_std_attributes &, const Type_extra_attributes &,
+                    const Type_handler *src_th, const Type_std_attributes &,
+                    const Type_extra_attributes &) const override
+  {
+    const Type_handler_general_purpose_int *src_gp=
+      dynamic_cast<const Type_handler_general_purpose_int*>(src_th);
+    if (!src_gp)
+      return false;
+    return type_limits_int()->contains(is_unsigned(),
+                                       *src_gp->type_limits_int(),
+                                       src_th->is_unsigned());
+  };
 };
 
 
@@ -5579,6 +5650,14 @@ public:
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
   const Vers_type_handler *vers() const override;
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    return this == src_th && dst_std_attr.decimals >= src_std_attr.decimals;
+  }
 };
 
 
@@ -6148,6 +6227,17 @@ public:
                                             date_mode_t fuzzydate)
                                             const override;
   const Vers_type_handler *vers() const override { return NULL; }
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    if (!dynamic_cast<const Type_handler_year *>(src_th))
+      return false;
+    /* YEAR(4) is a supertype of YEAR(2) */
+    return dst_std_attr.max_length >= src_std_attr.max_length;
+  }
 };
 
 
@@ -6212,6 +6302,16 @@ public:
                                    const Bit_addr &bit,
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const override;
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    if (this != src_th)
+      return false;
+    return dst_std_attr.max_length >= src_std_attr.max_length;
+  }
 };
 
 
@@ -7126,6 +7226,14 @@ public:
                                    uint32 flags) const override;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const override;
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    return this == src_th;
+  }
 };
 
 
@@ -7135,6 +7243,33 @@ public:
   bool type_can_have_key_part() const override
   {
     return true;
+  }
+  /*
+    BLOB/TEXT have a different max_length notation versus
+    CHAR/VARCHAR/BINARY/VARBINARY: max octet length vs max character
+    length.
+  */
+  virtual bool capacity_limit_is_in_characters() const { return true; };
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    /*
+      BLOB/TEXT have a different max_length notation versus
+      CHAR/VARCHAR/BINARY/VARBINARY: max octet length vs max character
+      length. So don't mix types of different notations for safety.
+    */
+    const Type_handler_longstr* src_th_longstr=
+      dynamic_cast<const Type_handler_longstr *>(src_th);
+    if (!src_th_longstr ||
+        capacity_limit_is_in_characters() !=
+          src_th_longstr->capacity_limit_is_in_characters())
+      return false;
+    if (dst_std_attr.collation.collation != src_std_attr.collation.collation)
+      return false;
+    return dst_std_attr.max_length >= src_std_attr.max_length;
   }
 };
 
@@ -7348,6 +7483,7 @@ public:
       return HA_BINARY_PACK_KEY | HA_VAR_LENGTH_KEY;
     return HA_PACK_KEY;
   }
+  bool capacity_limit_is_in_characters() const override { return false; };
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
@@ -7546,6 +7682,19 @@ public:
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const override;
   const Vers_type_handler *vers() const override { return NULL; }
+  bool is_supertype(const Type_std_attributes &,
+                    const Type_extra_attributes &,
+                    const Type_handler *,
+                    const Type_std_attributes &,
+                    const Type_extra_attributes &) const override
+  {
+    /*
+      We can implement this method to return true in some cases
+      eventually. It'll need deep comparison of the TYPELIBs of the
+      two sides. Let's skip for now for simplicity.
+    */
+    return false;
+  }
 };
 
 
