@@ -4,7 +4,7 @@ project(MariaDB_Parquet)
 MYSQL_ADD_PLUGIN(parquet
   ha_parquet.cc
   STORAGE_ENGINE
-  MANDATORY
+  MODULE_ONLY
 )
 
 if(TARGET parquet)
@@ -17,5 +17,5 @@ if(TARGET parquet)
   target_include_directories(parquet PRIVATE
     ${CMAKE_SOURCE_DIR}/storage/duckdb/duckdb/third_parties/duckdb/src/include
   )
-  target_link_libraries(parquet PRIVATE libduckdb)
+  target_link_libraries(parquet libduckdb)
 endif()

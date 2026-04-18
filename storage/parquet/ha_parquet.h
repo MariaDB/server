@@ -61,6 +61,7 @@ private:
   
   duckdb::DuckDB *db = nullptr;
   duckdb::Connection *con = nullptr;
+  std::string helper_db_path;
 
   std::string flush_remaining_rows_to_s3();
 

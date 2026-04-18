@@ -6,8 +6,8 @@
 #include "handler.h"
 #include "duckdb.hpp"
 #include "duckdb.hpp"
-#include "sql/table.h"
-#include "sql/handler.h"
+#include "table.h"
+
 #include "thr_lock.h"
 #include "my_base.h"
 #include <iostream>
@@ -71,6 +71,8 @@ int ha_parquet::close(void)
   return 0;
 }
 
+static std::string quote_string_literal(const std::string &value);
+
 //Walks the AST and converts it into a string. Check this. 
 static std::string item_to_sql(const Item *item)
 {
@@ -96,12 +98,12 @@ static std::string item_to_sql(const Item *item)
   std::string val;
 
   // Right must be a int or string
-  if (right->type() == Item::INT_ITEM) {
-    val = std::to_string(right->val_int());
+  if (right->cmp_type() == INT_RESULT) {
+    val = std::to_string(const_cast<Item *>(right)->val_int());
   }
-  else if (right->type() == Item::STRING_ITEM) {
+  else if (right->cmp_type() == STRING_RESULT) {
     String tmp;
-    String *s = right->val_str(&tmp);
+    String *s = const_cast<Item *>(right)->val_str(&tmp);
     if (!s) return "";
     val = quote_string_literal(std::string(s->ptr(), s->length()));
   }
@@ -366,7 +368,7 @@ std::string ha_parquet::flush_remaining_rows_to_s3() {
 
   static uint64_t flush_counter = 0;
   std::string s3_path = "s3://parquet-bucket/data/part_" + std::to_string(time(nullptr)) + "_" + std::to_string(flush_counter++) + ".parquet";
-  auto copy_result = con->Query(build_copy_to_parquet("buffer", s3_path));
+  auto copy_result = con->Query(build_copy_to_parquet_query("buffer", s3_path));
 
   if (copy_result->HasError() == true) {
     return "";
