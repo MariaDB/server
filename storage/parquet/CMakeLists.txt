@@ -7,14 +7,11 @@ MYSQL_ADD_PLUGIN(parquet
 )
 
 if(TARGET parquet)
-  if(NOT TARGET libduckdb)
-    message(FATAL_ERROR
-      "The parquet plugin requires DuckDB support. "
-      "Enable the DuckDB build first so libduckdb is available.")
-  endif()
-
   target_include_directories(parquet PRIVATE
     ${CMAKE_SOURCE_DIR}/storage/duckdb/duckdb/third_parties/duckdb/src/include
   )
-  target_link_libraries(parquet PRIVATE libduckdb CURL::libcurl)
+  target_link_libraries(parquet PRIVATE
+    ${CMAKE_BINARY_DIR}/storage/duckdb/duckdb/duckdb-build/src/libduckdb.dylib
+    CURL::libcurl
+  )
 endif()
