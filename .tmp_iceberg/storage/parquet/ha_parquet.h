@@ -6,12 +6,12 @@
 #include "handler.h"
 #include "thr_lock.h"
 #include "my_base.h"
-#include "duckdb.hpp"
-#include "parquet_metadata.h"
-#include "parquet_transaction.h"
-
-#include <memory>
 #include <string>
+
+struct parquet_txn_state {
+  std::string staged_file;
+  bool has_writes;
+};
 
 class ha_parquet final : public handler
 {
@@ -23,7 +23,6 @@ public:
   ulonglong table_flags() const override;
   ulong index_flags(uint idx, uint part, bool all_parts) const override;
 
-  
   int open(const char *name, int mode, uint test_if_locked) override;
   int close(void) override;
   int create(const char *name, TABLE *table_arg, HA_CREATE_INFO *create_info) override;
@@ -41,45 +40,13 @@ public:
 
   enum_alter_inplace_result check_if_supported_inplace_alter(TABLE *altered_table, Alter_inplace_info *ha_alter_info) override;
 
-  int external_lock(THD *thd, int lock_type) override;
+  int ha_parquet_external_lock(THD *, int) override;
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
                              enum thr_lock_type lock_type) override;
-  const Item *cond_push(const Item *cond) override;
-  void cond_pop() override;
 
 private:
-  enum class FlushStatus {
-    kNoRows,
-    kSuccess,
-    kError
-  };
-
   THR_LOCK_DATA lock;
-
-  uint64_t row_count = 0;
-  uint64_t buffered_bytes = 0;
-  uint64_t flush_threshold = 0;
-  bool duckdb_initialized = false;
-  bool buffer_table_created = false;
-  
-  duckdb::DuckDB *db = nullptr;
-  duckdb::Connection *con = nullptr;
-  std::unique_ptr<duckdb::Appender> buffer_appender;
-  parquet::TableOptions table_options;
-  parquet::LocalPaths local_paths;
-  parquet::TableMetadata table_metadata;
-  std::string pushed_condition_sql;
-
-  void resolve_local_metadata(const char *name);
-  int initialize_duckdb();
-  void teardown_duckdb();
-  FlushStatus flush_remaining_rows_to_stage(
-      parquet::ParquetStagedFile *staged_file);
-
-  std::unique_ptr<duckdb::MaterializedQueryResult> scan_result;
-  size_t current_row = 0;
-
-
+  parquet_txn_state* get_txn_state(THD *thd);
 };
 #endif
