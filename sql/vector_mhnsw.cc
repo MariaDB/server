@@ -23,6 +23,7 @@
 #include <scope.h>
 #include <my_atomic_wrapper.h>
 #include "bloom_filters.h"
+#include <sql_show.h>
 
 // distance can be a little bit < 0 because of fast math
 static constexpr float NEAREST = -1.0f;
@@ -502,6 +503,8 @@ protected:
 public:
   ulonglong version= 0;                 // protected by commit_lock
   mysql_rwlock_t commit_lock;
+  Atomic_relaxed<ulonglong> cache_overflow_count{0};
+
   size_t vec_len= 0;
   size_t byte_len= 0;
   FVectorNode *start= 0;
@@ -582,7 +585,10 @@ public:
     if (can_commit)
       mysql_rwlock_unlock(&commit_lock);
     if (root_size(&root) > mhnsw_max_cache_size)
+    {
+      cache_overflow_count.fetch_add(1);
       reset(share);
+    }
     if (--refcnt == 0)
       this->~MHNSW_Share(); // XXX reuse
   }
@@ -665,6 +671,27 @@ public:
     stats.ef_power= std::max(stats.ef_power, addend.ef_power);
     stats.subdist.add(addend.subdist);
     mysql_mutex_unlock(&cache_lock);
+  }
+  void get_cache_info(size_t *nodes, size_t *mem_size)
+  {
+    mysql_mutex_lock(&cache_lock);
+    *nodes= node_cache.size();
+    *mem_size= root_size(&root);
+    mysql_mutex_unlock(&cache_lock);
+  }
+  dgt_mode get_subdist_mode()
+  {
+    if (use_subdist)
+    {
+      Stats stats;
+      read_stats(&stats);
+      if (stats.subdist.n > subdist_stddev_valid)
+        return stats.subdist.stddev() < subdist_stddev_threshold
+               ? STAT_SUBDIST : NOSTAT_NOSUBDIST;
+      else
+        return STAT_NOSUBDIST;
+    }
+    return NOSTAT_NOSUBDIST;
   }
 };
 
@@ -1794,6 +1821,185 @@ static struct st_mysql_sys_var *mhnsw_sys_vars[]=
   NULL
 };
 
+//IS table
+
+namespace Show {
+
+static ST_FIELD_INFO vector_indexes_fields[] =
+{
+  Column("TABLE_SCHEMA",      Varchar(64),   NOT_NULL),
+  Column("TABLE_NAME",        Varchar(64),   NOT_NULL),
+  Column("INDEX_NAME",        Varchar(64),   NOT_NULL),
+  Column("VECTOR_DIMENSIONS", ULong(10),     NOT_NULL),
+  Column("INDEX_SIZE",        ULonglong(19), NULLABLE, OPEN_FULL_TABLE),
+  Column("TOTAL_NODES",       ULonglong(19), NOT_NULL, OPEN_FULL_TABLE),
+  Column("CACHED_NODES",      ULonglong(19), NOT_NULL, OPEN_FULL_TABLE),
+  Column("DELETED_ROWS",      ULonglong(19), NULLABLE, OPEN_FULL_TABLE),
+  Column("SUBDIST_ENABLED",   Varchar(3),    NULLABLE, OPEN_FULL_TABLE),
+  Column("MEMORY_SIZE",       ULonglong(19), NOT_NULL, OPEN_FULL_TABLE),
+  Column("CACHE_OVERFLOWS",   ULonglong(19), NULLABLE, OPEN_FULL_TABLE), 
+  CEnd()
+};
+
+} //end namespace
+
+
+static int get_schema_vector_indexes_record(THD *thd, TABLE_LIST *tables, TABLE *out_table,
+                                            bool res, const LEX_CSTRING *db_name,
+                                            const LEX_CSTRING *table_name)
+{
+  if (res)
+    return 0;
+
+  enum vector_indexes_fields_enum
+  {
+    TABLE_SCHEMA,
+    TABLE_NAME,
+    INDEX_NAME,
+    VECTOR_DIMENSIONS,
+    INDEX_SIZE,
+    TOTAL_NODES,
+    CACHED_NODES,
+    DELETED_ROWS,
+    SUBDIST_ENABLED,
+    MEMORY_SIZE,
+    CACHE_OVERFLOWS
+  };
+
+  TABLE *base_table= tables->table;
+  TABLE_SHARE *share= base_table->s;
+
+  if (!share->hlindexes())
+    return 0;
+
+  KEY *key= &share->key_info[share->keys];
+  if (key->algorithm != HA_KEY_ALG_VECTOR)
+    return 0;
+
+  CHARSET_INFO *cs= system_charset_info;
+  restore_record(out_table, s->default_values);
+
+  // TABLE_SCHEMA, TABLE_NAME, INDEX_NAME
+  out_table->field[TABLE_SCHEMA]->store(db_name->str, db_name->length, cs);
+  out_table->field[TABLE_NAME]->store(table_name->str, table_name->length, cs);
+  out_table->field[INDEX_NAME]->store(key->name.str, key->name.length, cs);
+
+  // VECTOR_DIMENSIONS
+  TABLE_SHARE *graph_share= share->hlindex;
+  auto ctx= graph_share
+            ? MHNSW_Share::get_from_share(share, nullptr)
+            : nullptr;
+
+  uint dims;
+  if (ctx && ctx->vec_len)
+    dims= (uint)ctx->vec_len;
+  else
+  {
+    Field *fld= key->key_part[0].field;
+    dims= fld ? fld->field_length / sizeof(float) : 0;
+  }
+  out_table->field[VECTOR_DIMENSIONS]->store(dims, true);
+
+  // SUBDIST_ENABLED
+  dgt_mode subdist_mode= NOSTAT_NOSUBDIST;
+  if (ctx)
+  {
+    subdist_mode= ctx->get_subdist_mode();
+  }
+  else if (dims >= subdist_part * 2)
+  {
+    subdist_mode= STAT_NOSUBDIST;
+  }
+
+  if (subdist_mode == STAT_NOSUBDIST)
+  {
+    out_table->field[SUBDIST_ENABLED]->set_null();
+  }
+  else
+  {
+    out_table->field[SUBDIST_ENABLED]->set_notnull();
+    if (subdist_mode == STAT_SUBDIST)
+      out_table->field[SUBDIST_ENABLED]->store("YES", 3, cs);
+    else
+      out_table->field[SUBDIST_ENABLED]->store("NO", 2, cs);
+  }
+
+  handler *graph_file= base_table->hlindex ? base_table->hlindex->file : nullptr;
+  handler *base_file= base_table->file;
+
+  bool graph_info_ok= false;
+  if (graph_file && !graph_file->info(HA_STATUS_VARIABLE))
+  {
+    graph_info_ok= true;
+    // INDEX_SIZE
+    out_table->field[INDEX_SIZE]->set_notnull();
+    out_table->field[INDEX_SIZE]->store(graph_file->stats.data_file_length, true);
+
+    // DELETED_ROWS
+    if (base_file && !base_file->info(HA_STATUS_VARIABLE))
+    {
+      ha_rows graph_records= graph_file->stats.records;
+      ha_rows base_records= base_file->stats.records;
+      longlong deleted_estimate= graph_records > base_records
+                                 ? (longlong)graph_records - (longlong)base_records
+                                 : 0;
+      out_table->field[DELETED_ROWS]->set_notnull();
+      out_table->field[DELETED_ROWS]->store(deleted_estimate, true);
+    }
+    else
+      out_table->field[DELETED_ROWS]->set_null();
+  }
+  else
+  {
+    out_table->field[INDEX_SIZE]->set_null();
+    out_table->field[DELETED_ROWS]->set_null();
+  }
+
+  // TOTAL_NODES
+  ulonglong disk_nodes= graph_info_ok
+                        ? (ulonglong)graph_file->stats.records
+                        : 0;
+  out_table->field[TOTAL_NODES]->store(disk_nodes, true);
+
+  // CACHED_NODES, MEMORY_SIZE, CACHE_OVERFLOWS
+  if (ctx)
+  {
+    size_t nodes, mem_size;
+    ctx->get_cache_info(&nodes, &mem_size);
+    out_table->field[CACHED_NODES]->store(nodes, true);
+    out_table->field[MEMORY_SIZE]->store(mem_size, true);
+    out_table->field[CACHE_OVERFLOWS]->set_notnull();
+    out_table->field[CACHE_OVERFLOWS]->store((ulonglong)ctx->cache_overflow_count, true);
+  }
+  else
+  {
+    out_table->field[CACHED_NODES]->store(0ULL, true);
+    out_table->field[MEMORY_SIZE]->store(0ULL, true);
+    out_table->field[CACHE_OVERFLOWS]->set_null();
+  }
+
+  if (ctx)
+    ctx->release(false, share);
+
+  return schema_table_store_record(thd, out_table);
+}
+
+static int vector_indexes_init(void *p)
+{
+  ST_SCHEMA_TABLE *schema= (ST_SCHEMA_TABLE *)p;
+  schema->fields_info= Show::vector_indexes_fields;
+  schema->fill_table= get_all_tables;
+  schema->process_table= get_schema_vector_indexes_record;
+  schema->idx_field1= 0; 
+  schema->idx_field2= 1;
+  schema->i_s_requested_object= OPEN_TABLE_ONLY | OPTIMIZE_I_S_TABLE;
+  return 0;
+}
+
+
+static struct st_mysql_information_schema vi_descriptor =
+{ MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION };
+
 maria_declare_plugin(mhnsw)
 {
   MYSQL_DAEMON_PLUGIN,
@@ -1801,5 +2007,18 @@ maria_declare_plugin(mhnsw)
   "A plugin for mhnsw vector index algorithm",
   PLUGIN_LICENSE_GPL, mhnsw_init, mhnsw_deinit, 0x0100, NULL,
   mhnsw_sys_vars, "1.0", MariaDB_PLUGIN_MATURITY_STABLE
+},
+{
+  MYSQL_INFORMATION_SCHEMA_PLUGIN,  
+  &vi_descriptor,                  
+  "VECTOR_INDEXES",               
+  "MariaDB plc",                 
+  "Information about vector indexes",
+  PLUGIN_LICENSE_GPL,
+  vector_indexes_init,              
+  NULL,                            
+  0x0100,                         
+  NULL, NULL, "1.0",
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
