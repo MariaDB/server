@@ -266,27 +266,61 @@ int prepare_linux_info()
 
 #ifdef TARGET_OS_LINUX
   /*
-    let's try to find what linux distribution it is
-    we read *[-_]{release,version} file in /etc.
+    Let's try to find what Linux distribution it is.
+    We first check for the modern and portable /etc/os-release:
 
-    Either it will be /etc/lsb-release, such as
+      ==> /etc/os-release <==
+      PRETTY_NAME="Ubuntu 22.04.2 LTS"
+
+    If not found, we fall back to /etc/lsb-release:
 
       ==> /etc/lsb-release <==
-      DISTRIB_ID=Ubuntu
-      DISTRIB_RELEASE=8.04
-      DISTRIB_CODENAME=hardy
       DISTRIB_DESCRIPTION="Ubuntu 8.04.4 LTS"
 
-   Or a one-liner with the description (/etc/SuSE-release has more
-   than one line, but the description is the first, so it can be
-   treated as a one-liner).
+    Or a one-liner with the description (/etc/SuSE-release has more
+    than one line, but the description is the first, so it can be
+    treated as a one-liner).
 
-   We'll read lsb-release first, and if it's not found will search
-   for other files (*-version *-release *_version *_release)
-*/
+    We'll read os-release first, then lsb-release, and if neither is found
+    we will search for other files (*-version *-release *_version *_release).
+  */
   int fd;
   have_distribution= false;
-  if ((fd= my_open("/etc/lsb-release", O_RDONLY, MYF(0))) != -1)
+
+  /* 1. First try the modern portable way: /etc/os-release */
+  if ((fd= my_open("/etc/os-release", O_RDONLY, MYF(0))) != -1)
+  {
+    size_t len= my_read(fd, (uchar*)distribution, sizeof(distribution)-1, MYF(0));
+    my_close(fd, MYF(0));
+    if (len != (size_t)-1)
+    {
+      distribution[len]= 0; // safety
+      char *found= strstr(distribution, "PRETTY_NAME=");
+      if (found)
+      {
+        have_distribution= true;
+        char *end= strstr(found, "\n");
+        if (end == NULL)
+          end= distribution + len;
+        found+= 12; // Length of "PRETTY_NAME="
+
+        if (*found == '"' && end[-1] == '"')
+        {
+          found++;
+          end--;
+        }
+        *end= 0;
+
+        size_t val_len= (size_t)(end - found);
+        memmove(distribution + 12, found, val_len);
+        distribution[12 + val_len]= '\0';
+        memcpy(distribution, "os-release: ", 12);
+      }
+    }
+  }
+
+  /* 2. Fallback to older /etc/lsb-release if os-release is not found */
+  if (!have_distribution && (fd= my_open("/etc/lsb-release", O_RDONLY, MYF(0))) != -1)
   {
     /* Cool, LSB-compliant distribution! */
     size_t len= my_read(fd, (uchar*)distribution, sizeof(distribution)-1, MYF(0));
@@ -301,7 +335,7 @@ int prepare_linux_info()
         char *end= strstr(found, "\n");
         if (end == NULL)
           end= distribution + len;
-        found+= 20;
+        found+= 20; // Length of "DISTRIB_DESCRIPTION="
 
         if (*found == '"' && end[-1] == '"')
         {
@@ -315,6 +349,7 @@ int prepare_linux_info()
       }
     }
   }
+
 
   /* if not an LSB-compliant distribution */
   for (uint i= 0; !have_distribution && i < array_elements(masks); i++)
