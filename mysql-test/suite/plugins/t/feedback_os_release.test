@@ -1,0 +1,68 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-39126: Feedback plugin to use /etc/os-release
+--echo #
+
+if (`select count(*) = 0 from information_schema.plugins
+     where plugin_name = 'feedback' and plugin_status='active'`)
+{
+  --skip Feedback plugin is not active
+}
+
+if (`select @@feedback_url = ""`)
+{
+  --skip Feedback plugin is not active
+}
+
+perl;
+  if (! -f '/etc/os-release') {
+    open(FILE, '>', $ENV{MYSQLTEST_VARDIR} . '/tmp/skip_mdev39126') or die;
+    close(FILE);
+  } else {
+    open(my $fh, '<', '/etc/os-release') or die "Cannot open /etc/os-release: $!";
+    my $pretty_name = '';
+    while (my $line = <$fh>) {
+      chomp $line;
+      if ($line =~ /^PRETTY_NAME=(.+)$/) {
+        $pretty_name = $1;
+        $pretty_name =~ s/^"(.*)"$/$1/;
+        last;
+      }
+    }
+    close($fh);
+    open(my $out, '>', $ENV{MYSQLTEST_VARDIR} . '/tmp/mdev39126_pretty_name') or die;
+    print $out "os-release: $pretty_name";
+    close($out);
+  }
+EOF
+
+# Skip if /etc/os-release was not found (written by perl block above)
+if (!`select LOAD_FILE('$MYSQLTEST_VARDIR/tmp/skip_mdev39126') IS NULL`)
+{
+  --skip /etc/os-release not available on this platform
+}
+
+let $plugin_val= `select variable_value from information_schema.feedback
+                  where variable_name = 'Uname_distribution'`;
+
+# Skip if plugin returned empty (e.g. FreeBSD with MTR_FEEDBACK_PLUGIN=0)
+if (`select '$plugin_val' = ''`)
+{
+  --skip Uname_distribution not available on this platform
+}
+
+let $expected_val= `select TRIM(LOAD_FILE('$MYSQLTEST_VARDIR/tmp/mdev39126_pretty_name'))`;
+
+if (`select '$plugin_val' != '$expected_val'`)
+{
+  --echo Mismatch! Plugin: '$plugin_val'
+  --echo Expected:         '$expected_val'
+  --die Uname_distribution does not match /etc/os-release PRETTY_NAME
+}
+
+--echo Uname_distribution matches /etc/os-release
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev39126_pretty_name
+
+--echo # End of 10.11 tests
