@@ -70,6 +70,7 @@ public:
 private:
  THR_LOCK_DATA lock;
  std::string helper_db_path;
+ std::string parquet_file_path;
 
 
  uint64_t row_count;
