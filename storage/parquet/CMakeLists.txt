@@ -5,6 +5,7 @@ MYSQL_ADD_PLUGIN(parquet
   ha_parquet.cc
   ha_parquet_pushdown.cc
   parquet_catalog.cc
+  parquet_iceberg.cc
   parquet_metadata.cc
   parquet_object_store.cc
   parquet_transaction.cc

@@ -2,6 +2,7 @@
 
 #include "ha_parquet.h"
 #include "ha_parquet_pushdown.h"
+#include "parquet_iceberg.h"
 
 #include "my_dir.h"
 #include "my_sys.h"
@@ -540,6 +541,18 @@ bool load_existing_table_metadata(const char *name,
   return false;
 }
 
+void synchronize_active_scan_paths(parquet::TableMetadata *metadata)
+{
+  if (metadata == nullptr) {
+    return;
+  }
+
+  if (!metadata->active_files.empty()) {
+    metadata->active_scan_paths =
+        parquet::ExtractActiveScanPaths(metadata->active_files);
+  }
+}
+
 bool configure_duckdb_for_table(duckdb::Connection *con,
                                 const parquet::TableMetadata &metadata,
                                 std::string *error)
@@ -732,6 +745,22 @@ std::string build_commit_temp_path(const std::string &canonical_parquet_path,
                                       flush_id + 1000000000ULL);
 }
 
+void delete_iceberg_artifact_files(const parquet::IcebergCommitArtifacts &artifacts)
+{
+  delete_local_file_if_exists(artifacts.manifest_local_path);
+  delete_local_file_if_exists(artifacts.manifest_list_local_path);
+}
+
+void delete_iceberg_artifact_objects(
+    const parquet::TableMetadata &table_metadata,
+    const parquet::IcebergCommitArtifacts &artifacts)
+{
+  parquet::ParquetObjectStoreClient object_store_client(
+      table_metadata.object_store_config);
+  (void) object_store_client.DeleteObject(artifacts.manifest_location);
+  (void) object_store_client.DeleteObject(artifacts.manifest_list_location);
+}
+
 bool finalize_table_staged_files(
     const std::vector<parquet::ParquetStagedFile> &staged_files,
     std::string *error)
@@ -747,6 +776,111 @@ bool finalize_table_staged_files(
   std::string metadata_error;
   const bool metadata_loaded = parquet::LoadTableMetadata(
       staged_files.front().table_path.c_str(), &table_metadata, &metadata_error);
+  synchronize_active_scan_paths(&table_metadata);
+
+  if (metadata_loaded && table_metadata.catalog_enabled) {
+    if (!table_metadata.object_store_enabled) {
+      if (error != nullptr) {
+        *error =
+            "catalog-backed PARQUET tables require object store metadata writes";
+      }
+      return false;
+    }
+
+    parquet::ParquetCatalogClient catalog_client(table_metadata.catalog_config);
+    auto status = catalog_client.BootstrapConfig();
+    if (!status.ok()) {
+      if (error != nullptr) {
+        *error = status.message;
+      }
+      return false;
+    }
+
+    parquet::CatalogLoadTableResult load_result;
+    status = catalog_client.LoadTable(table_metadata.catalog_table_ident,
+                                      &load_result,
+                                      table_metadata.access_delegation);
+    if (!status.ok()) {
+      if (error != nullptr) {
+        *error = status.message;
+      }
+      return false;
+    }
+
+    parquet::IcebergCommitArtifacts artifacts;
+    if (!parquet::BuildIcebergCommitArtifacts(table_metadata, load_result,
+                                              staged_files, &artifacts, error)) {
+      return false;
+    }
+
+    parquet::ParquetObjectStoreClient object_store_client(
+        table_metadata.object_store_config);
+    parquet::PutObjectRequest manifest_request;
+    manifest_request.local_file_path = artifacts.manifest_local_path;
+    manifest_request.location = artifacts.manifest_location;
+    manifest_request.content_type = "application/avro-binary";
+    auto object_status = object_store_client.PutFile(manifest_request);
+    if (!object_status.ok()) {
+      delete_iceberg_artifact_files(artifacts);
+      if (error != nullptr) {
+        *error = object_status.message;
+      }
+      return false;
+    }
+
+    parquet::PutObjectRequest manifest_list_request;
+    manifest_list_request.local_file_path = artifacts.manifest_list_local_path;
+    manifest_list_request.location = artifacts.manifest_list_location;
+    manifest_list_request.content_type = "application/avro-binary";
+    object_status = object_store_client.PutFile(manifest_list_request);
+    if (!object_status.ok()) {
+      delete_iceberg_artifact_objects(table_metadata, artifacts);
+      delete_iceberg_artifact_files(artifacts);
+      if (error != nullptr) {
+        *error = object_status.message;
+      }
+      return false;
+    }
+
+    parquet::CatalogCommitRequest request;
+    request.ident = table_metadata.catalog_table_ident;
+    request.request_json = artifacts.commit_request_json;
+    request.if_match = load_result.etag;
+
+    parquet::CatalogLoadTableResult commit_result;
+    status = catalog_client.CommitTable(request, &commit_result);
+    delete_iceberg_artifact_files(artifacts);
+    if (!status.ok()) {
+      if (!status.commit_state_unknown) {
+        delete_iceberg_artifact_objects(table_metadata, artifacts);
+      }
+      if (error != nullptr) {
+        *error = status.message;
+      }
+      return false;
+    }
+
+    table_metadata.table_uuid =
+        !commit_result.metadata.table_uuid.empty()
+            ? commit_result.metadata.table_uuid
+            : load_result.metadata.table_uuid;
+    table_metadata.current_snapshot_id =
+        !commit_result.metadata.current_snapshot_id.empty()
+            ? commit_result.metadata.current_snapshot_id
+            : std::to_string(artifacts.snapshot_id);
+    if (!commit_result.metadata.table_location.empty()) {
+      table_metadata.table_location = commit_result.metadata.table_location;
+    }
+    table_metadata.active_files = artifacts.active_files;
+    synchronize_active_scan_paths(&table_metadata);
+    (void) parquet::SaveTableMetadata(table_metadata, nullptr);
+
+    for (const auto &staged_file : staged_files) {
+      delete_local_file_if_exists(staged_file.local_parquet_path);
+    }
+    return true;
+  }
+
   const auto copy_table_options =
       metadata_loaded ? table_metadata.table_options
                       : parquet::ResolveDefaultTableOptions();
@@ -831,13 +965,20 @@ bool finalize_table_staged_files(
         if (!staged_file.target_object_path.empty()) {
           table_metadata.active_scan_paths.push_back(
               staged_file.target_object_path);
+          parquet::ActiveDataFile active_file;
+          active_file.path = staged_file.target_object_path;
+          active_file.record_count = staged_file.record_count;
+          active_file.file_size_bytes = staged_file.file_size_bytes;
+          table_metadata.active_files.push_back(std::move(active_file));
         }
       }
     } else {
+      table_metadata.active_files.clear();
       table_metadata.active_scan_paths.clear();
       table_metadata.active_scan_paths.push_back(canonical_parquet_path);
     }
 
+    synchronize_active_scan_paths(&table_metadata);
     if (!parquet::SaveTableMetadata(table_metadata, error)) {
       return false;
     }
@@ -987,6 +1128,7 @@ int ha_parquet::open(const char *name, int, uint)
   resolve_local_metadata(name);
   std::string metadata_error;
   load_existing_table_metadata(name, &table_metadata, &metadata_error);
+  synchronize_active_scan_paths(&table_metadata);
   table_metadata.local_paths = local_paths;
   table_metadata.metadata_file_path = parquet::ResolveMetadataFilePath(name);
   table_options = table_metadata.table_options;
@@ -1158,11 +1300,14 @@ int ha_parquet::create(const char *name, TABLE *table_arg,
     }
 
     table_metadata.catalog_enabled = true;
+    table_metadata.table_uuid = result.metadata.table_uuid;
     table_metadata.table_location = result.metadata.table_location;
+    table_metadata.current_snapshot_id = result.metadata.current_snapshot_id;
     maybe_apply_table_location_to_object_store(table_metadata.table_location,
                                                &table_metadata.object_store_config);
   }
 
+  synchronize_active_scan_paths(&table_metadata);
   if (!parquet::SaveTableMetadata(table_metadata, nullptr)) {
     return HA_ERR_INTERNAL_ERROR;
   }

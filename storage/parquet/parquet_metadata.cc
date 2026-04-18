@@ -125,6 +125,50 @@ std::map<std::string, std::string> JsonObjectToMap(const json &value)
   return out;
 }
 
+json ActiveDataFilesToJson(const std::vector<parquet::ActiveDataFile> &files)
+{
+  json out = json::array();
+
+  for (const auto &file : files) {
+    out.push_back({
+        {"path", file.path},
+        {"record_count", file.record_count},
+        {"file_size_bytes", file.file_size_bytes},
+        {"snapshot_id", file.snapshot_id},
+        {"data_sequence_number", file.data_sequence_number},
+        {"file_sequence_number", file.file_sequence_number},
+    });
+  }
+
+  return out;
+}
+
+std::vector<parquet::ActiveDataFile> JsonToActiveDataFiles(const json &value)
+{
+  std::vector<parquet::ActiveDataFile> files;
+
+  if (!value.is_array()) {
+    return files;
+  }
+
+  for (const auto &item : value) {
+    if (!item.is_object()) {
+      continue;
+    }
+
+    parquet::ActiveDataFile file;
+    file.path = item.value("path", std::string());
+    file.record_count = item.value("record_count", 0ULL);
+    file.file_size_bytes = item.value("file_size_bytes", 0ULL);
+    file.snapshot_id = item.value("snapshot_id", std::string());
+    file.data_sequence_number = item.value("data_sequence_number", 0ULL);
+    file.file_sequence_number = item.value("file_sequence_number", 0ULL);
+    files.push_back(std::move(file));
+  }
+
+  return files;
+}
+
 } // namespace
 
 namespace parquet
@@ -437,8 +481,24 @@ bool SaveTableMetadata(const TableMetadata &metadata, std::string *error)
             metadata.object_store_config.credentials.session_token},
            {"expiration", metadata.object_store_config.credentials.expiration},
        }}};
+  const auto active_scan_paths =
+      !metadata.active_scan_paths.empty()
+          ? metadata.active_scan_paths
+          : [&metadata]() {
+              std::vector<std::string> paths;
+              for (const auto &file : metadata.active_files) {
+                if (!file.path.empty()) {
+                  paths.push_back(file.path);
+                }
+              }
+              return paths;
+            }();
+
+  payload["table_uuid"] = metadata.table_uuid;
   payload["table_location"] = metadata.table_location;
-  payload["active_scan_paths"] = metadata.active_scan_paths;
+  payload["current_snapshot_id"] = metadata.current_snapshot_id;
+  payload["active_files"] = ActiveDataFilesToJson(metadata.active_files);
+  payload["active_scan_paths"] = active_scan_paths;
 
   std::ofstream stream(metadata_path, std::ios::binary | std::ios::trunc);
   if (!stream) {
@@ -569,11 +629,32 @@ bool LoadTableMetadata(const char *table_path, TableMetadata *metadata,
       }
     }
 
+    loaded.table_uuid = payload.value("table_uuid", std::string());
     loaded.table_location =
         payload.value("table_location", std::string());
+    loaded.current_snapshot_id =
+        payload.value("current_snapshot_id", std::string());
+    if (payload.contains("active_files")) {
+      loaded.active_files = JsonToActiveDataFiles(payload["active_files"]);
+    }
     if (payload.contains("active_scan_paths")) {
       loaded.active_scan_paths =
           payload["active_scan_paths"].get<std::vector<std::string>>();
+    }
+    if (loaded.active_scan_paths.empty() && !loaded.active_files.empty()) {
+      for (const auto &file : loaded.active_files) {
+        if (!file.path.empty()) {
+          loaded.active_scan_paths.push_back(file.path);
+        }
+      }
+    }
+    if (loaded.active_files.empty() && !loaded.active_scan_paths.empty()) {
+      for (const auto &path : loaded.active_scan_paths) {
+        ActiveDataFile file;
+        file.path = path;
+        file.snapshot_id = loaded.current_snapshot_id;
+        loaded.active_files.push_back(std::move(file));
+      }
     }
 
     *metadata = std::move(loaded);

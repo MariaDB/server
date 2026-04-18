@@ -26,6 +26,15 @@ struct LocalPaths {
   std::string parquet_file_path;
 };
 
+struct ActiveDataFile {
+  std::string path;
+  uint64_t record_count = 0;
+  uint64_t file_size_bytes = 0;
+  std::string snapshot_id;
+  uint64_t data_sequence_number = 0;
+  uint64_t file_sequence_number = 0;
+};
+
 struct TableMetadata {
   TableOptions table_options;
   LocalPaths local_paths;
@@ -35,8 +44,11 @@ struct TableMetadata {
   CatalogTableIdent catalog_table_ident;
   std::string access_delegation;
   ObjectStoreConfig object_store_config;
+  std::string table_uuid;
   std::string table_location;
+  std::string current_snapshot_id;
   std::string metadata_file_path;
+  std::vector<ActiveDataFile> active_files;
   std::vector<std::string> active_scan_paths;
 };
 

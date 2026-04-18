@@ -7,6 +7,7 @@
   #include "sql/field.h"
   #include "sql/sql_type.h"
   #include "parquet_catalog.h"
+  #include "parquet_iceberg.h"
   #include "parquet_metadata.h"
   #include "parquet_object_store.h"
   #include "parquet_transaction.h"
@@ -296,7 +297,17 @@ static void test_metadata_roundtrip()
   metadata.object_store_config.key_prefix= "iceberg/analytics/users";
   metadata.object_store_config.credentials.access_key_id= "minio";
   metadata.object_store_config.credentials.secret_access_key= "secret";
+  metadata.table_uuid= "9d4796f7-3c97-4f4f-b1af-3b87b77b4d53";
   metadata.table_location= "s3://warehouse/iceberg/analytics/users";
+  metadata.current_snapshot_id= "12345";
+  metadata.active_files= {{
+      "s3://warehouse/iceberg/analytics/users/data/flush_1.parquet",
+      7,
+      1024,
+      "12345",
+      3,
+      3,
+  }};
   metadata.active_scan_paths= {
       "s3://warehouse/iceberg/analytics/users/data/flush_1.parquet"};
 
@@ -311,6 +322,10 @@ static void test_metadata_roundtrip()
          loaded.object_store_enabled &&
          loaded.catalog_enabled &&
          loaded.catalog_table_ident.table_name == "users" &&
+         loaded.table_uuid == "9d4796f7-3c97-4f4f-b1af-3b87b77b4d53" &&
+         loaded.current_snapshot_id == "12345" &&
+         loaded.active_files.size() == 1 &&
+         loaded.active_files[0].record_count == 7 &&
          loaded.active_scan_paths.size() == 1 &&
          loaded.active_scan_paths[0] ==
              "s3://warehouse/iceberg/analytics/users/data/flush_1.parquet",
@@ -319,9 +334,85 @@ static void test_metadata_roundtrip()
   std::remove(metadata.metadata_file_path.c_str());
 }
 
+static void test_extract_active_scan_paths()
+{
+  std::vector<parquet::ActiveDataFile> active_files = {{
+      "s3://warehouse/db/t1/data/part-1.parquet", 3, 111, "7", 4, 4},
+      {"s3://warehouse/db/t1/data/part-2.parquet", 5, 222, "8", 5, 5},
+  };
+  auto paths = parquet::ExtractActiveScanPaths(active_files);
+  ok(paths.size() == 2 &&
+         paths[0] == "s3://warehouse/db/t1/data/part-1.parquet" &&
+         paths[1] == "s3://warehouse/db/t1/data/part-2.parquet",
+     "active scan paths are derived from active file lineage");
+}
+
+static void test_build_iceberg_commit_artifacts()
+{
+  parquet::TableMetadata table_metadata;
+  table_metadata.local_paths = parquet::ResolveLocalPaths("/tmp/iceberg_users");
+  table_metadata.catalog_enabled = true;
+  table_metadata.object_store_enabled = true;
+  table_metadata.catalog_table_ident.namespace_ident.parts = {"analytics"};
+  table_metadata.catalog_table_ident.table_name = "users";
+  table_metadata.object_store_config.endpoint = "https://minio.local:9000";
+  table_metadata.object_store_config.bucket = "warehouse";
+  table_metadata.object_store_config.key_prefix = "iceberg/analytics/users";
+  table_metadata.table_uuid = "c3163f0d-b617-4d47-bfab-8f5312fdc810";
+  table_metadata.table_location = "s3://warehouse/iceberg/analytics/users";
+
+  parquet::CatalogLoadTableResult load_result;
+  load_result.metadata.table_uuid = table_metadata.table_uuid;
+  load_result.metadata.format_version = 2;
+  load_result.metadata.raw_metadata_json =
+      R"json({
+        "format-version": 2,
+        "table-uuid": "c3163f0d-b617-4d47-bfab-8f5312fdc810",
+        "current-schema-id": 0,
+        "schemas": [{
+          "type": "struct",
+          "schema-id": 0,
+          "identifier-field-ids": [],
+          "fields": [{"id": 1, "name": "id", "required": true, "type": "long"}]
+        }],
+        "default-spec-id": 0,
+        "partition-specs": [{"spec-id": 0, "fields": []}],
+        "last-sequence-number": 0
+      })json";
+
+  std::vector<parquet::ParquetStagedFile> staged_files = {{
+      "/tmp/iceberg_users",
+      "users",
+      "/tmp/iceberg_users.stage_1.parquet",
+      "s3://warehouse/iceberg/analytics/users/data/flush_1.parquet",
+      3,
+      128,
+      1,
+  }};
+
+  parquet::IcebergCommitArtifacts artifacts;
+  std::string error;
+  ok(parquet::BuildIcebergCommitArtifacts(table_metadata, load_result,
+                                          staged_files, &artifacts, &error) &&
+         artifacts.snapshot_id != 0 &&
+         artifacts.sequence_number == 1 &&
+         artifacts.active_files.size() == 1 &&
+         artifacts.active_files[0].snapshot_id ==
+             std::to_string(artifacts.snapshot_id) &&
+         artifacts.commit_request_json.find("\"action\":\"add-snapshot\"") !=
+             std::string::npos &&
+         artifacts.commit_request_json.find("\"ref-name\":\"main\"") !=
+             std::string::npos,
+     "Iceberg commit artifacts include manifests, lineage, and commit updates");
+
+  ok(std::remove(artifacts.manifest_local_path.c_str()) == 0 &&
+         std::remove(artifacts.manifest_list_local_path.c_str()) == 0,
+     "temporary Iceberg manifest artifacts can be cleaned up locally");
+}
+
 int main()
 {
-  plan(22);
+  plan(25);
 
   test_build_query_basic_schema();
   test_build_query_blob_mapping();
@@ -342,6 +433,8 @@ int main()
   test_parse_catalog_connection();
   test_build_s3_uri_and_absolute_location();
   test_metadata_roundtrip();
+  test_extract_active_scan_paths();
+  test_build_iceberg_commit_artifacts();
 
   return exit_status();
 }
