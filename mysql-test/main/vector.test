@@ -441,3 +441,105 @@ insert into t values (0x31313131); # Optional, fails either way
 alter table t drop index v, add vector(v) distance=cosine;
 show create table t;
 drop table t;
+
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-34805 INFORMATION_SCHEMA.VECTOR_INDEXES
+--echo #
+
+--disable_warnings
+DROP TABLE IF EXISTS t_vec, t_cos, t_high, t_dim;
+--enable_warnings
+
+--echo # No vector tables yet in this schema
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+  WHERE TABLE_SCHEMA = DATABASE();
+
+--echo # On empty table
+CREATE TABLE t_vec (id INT PRIMARY KEY, v VECTOR(4) NOT NULL, VECTOR INDEX vi(v));
+SELECT TABLE_SCHEMA = DATABASE() AS schema_ok,
+       TABLE_NAME, INDEX_NAME, VECTOR_DIMENSIONS, SUBDIST_ENABLED
+  FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_vec';
+
+SELECT INDEX_SIZE IS NULL  AS index_size_null,
+       TOTAL_NODES = 0     AS nodes_zero,
+       MEMORY_SIZE = 0     AS mem_zero,
+       DELETED_ROWS IS NULL AS deleted_null
+  FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_vec';
+
+--echo # After INSERT
+INSERT INTO t_vec VALUES
+  (1, VEC_FromText('[1,1,1,1]')),
+  (2, VEC_FromText('[2,2,2,2]')),
+  (3, VEC_FromText('[3,3,3,3]'));
+
+SELECT INDEX_SIZE > 0  AS has_disk,
+       TOTAL_NODES > 0 AS has_nodes
+  FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_vec';
+
+--echo # After search
+--disable_result_log
+SELECT id FROM t_vec ORDER BY vec_distance_euclidean(v, VEC_FromText('[1,2,3,4]')) LIMIT 1;
+--enable_result_log
+
+SELECT MEMORY_SIZE > 0 AS has_mem
+  FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_vec';
+
+--echo # After FLUSH
+FLUSH TABLES t_vec;
+
+SELECT TABLE_NAME, INDEX_NAME, VECTOR_DIMENSIONS, SUBDIST_ENABLED
+  FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_vec';
+
+--echo # recover
+--disable_result_log
+SELECT id FROM t_vec ORDER BY vec_distance_euclidean(v, VEC_FromText('[1,2,3,4]')) LIMIT 1;
+--enable_result_log
+
+SELECT INDEX_SIZE > 0  AS has_disk,
+       TOTAL_NODES > 0 AS has_nodes,
+       MEMORY_SIZE > 0 AS has_mem
+  FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_vec';
+
+--echo # DELETED_ROWS approximation
+DELETE FROM t_vec WHERE id = 1;
+SELECT DELETED_ROWS >= 0 AS deleted_nonneg
+  FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_vec';
+
+--echo # VECTOR_DIMENSIONS
+CREATE TABLE t_dim (pk INT PRIMARY KEY, v VECTOR(7) NOT NULL, VECTOR INDEX vi(v));
+SELECT VECTOR_DIMENSIONS FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_dim';
+
+--echo # SUBDIST_ENABLED=NO for dims below threshold (subdist_part*2=384)
+SELECT SUBDIST_ENABLED FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_vec';
+
+--echo # SUBDIST_ENABLED=YES for dims >= 384
+CREATE TABLE t_high (pk INT PRIMARY KEY, v VECTOR(384) NOT NULL, VECTOR INDEX vi(v));
+INSERT INTO t_high VALUES (1, VEC_FromText(CONCAT('[', REPEAT('0,', 383), '0]')));
+SELECT SUBDIST_ENABLED FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_high';
+
+--echo # Multiple tables visible and ordered
+CREATE TABLE t_cos (pk INT PRIMARY KEY, v VECTOR(4) NOT NULL, VECTOR INDEX vi(v) distance=cosine);
+INSERT INTO t_cos VALUES (1, VEC_FromText('[1,1,1,1]'));
+SELECT TABLE_NAME, INDEX_NAME, VECTOR_DIMENSIONS
+  FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+  WHERE TABLE_SCHEMA = DATABASE()
+  ORDER BY TABLE_NAME;
+
+--echo # Dropping tables
+DROP TABLE t_vec, t_cos, t_high, t_dim;
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+  WHERE TABLE_SCHEMA = DATABASE();
+
+--echo # End of MDEV-34805 tests

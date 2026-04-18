@@ -23,6 +23,7 @@
 #include <scope.h>
 #include <my_atomic_wrapper.h>
 #include "bloom_filters.h"
+#include <sql_show.h>
 
 // distance can be a little bit < 0 because of fast math
 static constexpr float NEAREST = -1.0f;
@@ -502,6 +503,8 @@ protected:
 public:
   ulonglong version= 0;                 // protected by commit_lock
   mysql_rwlock_t commit_lock;
+  Atomic_relaxed<ulonglong> cache_overflow_count{0};
+
   size_t vec_len= 0;
   size_t byte_len= 0;
   FVectorNode *start= 0;
@@ -582,7 +585,10 @@ public:
     if (can_commit)
       mysql_rwlock_unlock(&commit_lock);
     if (root_size(&root) > mhnsw_max_cache_size)
+    {
+      cache_overflow_count.fetch_add(1);
       reset(share);
+    }
     if (--refcnt == 0)
       this->~MHNSW_Share(); // XXX reuse
   }
@@ -665,6 +671,17 @@ public:
     stats.ef_power= std::max(stats.ef_power, addend.ef_power);
     stats.subdist.add(addend.subdist);
     mysql_mutex_unlock(&cache_lock);
+  }
+  size_t cached_nodes()
+  {
+    mysql_mutex_lock(&cache_lock);
+    size_t n= node_cache.size();
+    mysql_mutex_unlock(&cache_lock);
+    return n;
+  }
+  size_t cache_mem_size()
+  {
+    return root_size(&root);
   }
 };
 
@@ -1795,6 +1812,140 @@ static struct st_mysql_sys_var *mhnsw_sys_vars[]=
   NULL
 };
 
+//IS table
+
+namespace Show {
+
+static ST_FIELD_INFO vector_indexes_fields[] =
+{
+  Column("TABLE_SCHEMA",      Varchar(64),   NOT_NULL),
+  Column("TABLE_NAME",        Varchar(64),   NOT_NULL),
+  Column("INDEX_NAME",        Varchar(64),   NOT_NULL),
+  Column("VECTOR_DIMENSIONS", ULong(10),     NOT_NULL),
+  Column("INDEX_SIZE",        ULonglong(19), NULLABLE, OPEN_FULL_TABLE),
+  Column("TOTAL_NODES",       ULonglong(19), NOT_NULL, OPEN_FULL_TABLE),
+  Column("DELETED_ROWS",      ULonglong(19), NULLABLE, OPEN_FULL_TABLE),
+  Column("SUBDIST_ENABLED",   Varchar(3),    NULLABLE, OPEN_FULL_TABLE),
+  Column("MEMORY_SIZE",       ULonglong(19), NOT_NULL, OPEN_FULL_TABLE),
+  Column("CACHE_OVERFLOWS",   ULonglong(19), NOT_NULL, OPEN_FULL_TABLE), 
+  CEnd()
+};
+
+} //end namespace
+
+
+static int get_schema_vector_indexes_record(THD *thd, TABLE_LIST *tables, TABLE *out_table,
+                                            bool res, const LEX_CSTRING *db_name,
+                                            const LEX_CSTRING *table_name)
+{
+  if (res)
+    return 0;
+
+  TABLE *base_table= tables->table;
+  TABLE_SHARE *share= base_table->s;
+
+  if (!share->hlindexes())
+    return 0;
+
+  KEY *key= &share->key_info[share->keys];
+  if (key->algorithm != HA_KEY_ALG_VECTOR)
+    return 0;
+
+  CHARSET_INFO *cs= system_charset_info;
+  restore_record(out_table, s->default_values);
+
+  // TABLE_SCHEMA, TABLE_NAME, INDEX_NAME
+  out_table->field[0]->store(db_name->str, db_name->length, cs);
+  out_table->field[1]->store(table_name->str, table_name->length, cs);
+  out_table->field[2]->store(key->name.str, key->name.length, cs);
+
+  // VECTOR_DIMENSIONS
+  TABLE_SHARE *graph_share= share->hlindex;
+  auto ctx= graph_share
+            ? static_cast<MHNSW_Share*>(graph_share->hlindex_data)
+            : nullptr;
+
+  uint dims;
+  if (ctx && ctx->vec_len)
+    dims= (uint)ctx->vec_len;
+  else
+  {
+    Field *fld= key->key_part[0].field;
+    dims= fld ? fld->field_length / sizeof(float) : 0;
+  }
+  out_table->field[3]->store(dims, true);
+
+  // SUBDIST_ENABLED
+  bool subdist= (dims >= subdist_part * 2);
+  out_table->field[7]->set_notnull();
+  out_table->field[7]->store(subdist ? "YES" : "NO", subdist ? 3 : 2, cs);
+
+  handler *graph_file= base_table->hlindex ? base_table->hlindex->file : nullptr;
+  handler *base_file= base_table->file;
+
+  if (graph_file && !graph_file->info(HA_STATUS_VARIABLE))
+  {
+    // INDEX_SIZE
+    out_table->field[4]->set_notnull();
+    out_table->field[4]->store(graph_file->stats.data_file_length, true);
+
+    // DELETED_ROWS
+    if (base_file && !base_file->info(HA_STATUS_VARIABLE))
+    {
+      ha_rows graph_records= graph_file->stats.records;
+      ha_rows base_records= base_file->stats.records;
+      longlong deleted_estimate= graph_records > base_records
+                                 ? (longlong)graph_records - (longlong)base_records
+                                 : 0;
+      out_table->field[6]->set_notnull();
+      out_table->field[6]->store(deleted_estimate, true);
+    }
+    else
+      out_table->field[6]->set_null();
+  }
+  else
+  {
+    out_table->field[4]->set_null();
+    out_table->field[6]->set_null();
+  }
+
+  // TOTAL_NODES, MEMORY_SIZE, CACHE_OVERFLOWS
+  if (ctx)
+  {
+    out_table->field[5]->store(ctx->cached_nodes(), true);
+    out_table->field[8]->store(ctx->cache_mem_size(), true);
+    out_table->field[9]->store((ulonglong)ctx->cache_overflow_count, true);
+  }
+  else
+  {
+    //approximate TOTAL_NODES
+    ulonglong disk_nodes= graph_file
+                          ? (ulonglong)graph_file->stats.records
+                          : 0;
+    out_table->field[5]->store(disk_nodes, true);
+    out_table->field[8]->store(0ULL, true);
+    out_table->field[9]->store(0ULL, true);
+  }
+
+  return schema_table_store_record(thd, out_table);
+}
+
+static int vector_indexes_init(void *p)
+{
+  ST_SCHEMA_TABLE *schema= (ST_SCHEMA_TABLE *)p;
+  schema->fields_info= Show::vector_indexes_fields;
+  schema->fill_table= get_all_tables;
+  schema->process_table= get_schema_vector_indexes_record;
+  schema->idx_field1= 0; 
+  schema->idx_field2= 1;
+  schema->i_s_requested_object= OPEN_TABLE_ONLY | OPTIMIZE_I_S_TABLE;
+  return 0;
+}
+
+
+static struct st_mysql_information_schema vi_descriptor =
+{ MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION };
+
 maria_declare_plugin(mhnsw)
 {
   MYSQL_DAEMON_PLUGIN,
@@ -1802,5 +1953,18 @@ maria_declare_plugin(mhnsw)
   "A plugin for mhnsw vector index algorithm",
   PLUGIN_LICENSE_GPL, mhnsw_init, mhnsw_deinit, 0x0100, NULL,
   mhnsw_sys_vars, "1.0", MariaDB_PLUGIN_MATURITY_STABLE
+},
+{
+  MYSQL_INFORMATION_SCHEMA_PLUGIN,  
+  &vi_descriptor,                  
+  "VECTOR_INDEXES",               
+  "MariaDB plc",                 
+  "Information about vector indexes",
+  PLUGIN_LICENSE_GPL,
+  vector_indexes_init,              
+  NULL,                            
+  0x0100,                         
+  NULL, NULL, "1.0",
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
