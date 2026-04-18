@@ -1149,7 +1149,7 @@ public:
     DBUG_RETURN(field_metadata);
   }
   /* Length of row data inc record not including packed length */
-  virtual uint row_pack_length() const { return 0; }
+  virtual uint row_pack_length() const { return pack_length(); }
 
   /* Return the current size of data stored in the record */
   virtual uint32 data_length() { return pack_length(); }
@@ -2141,7 +2141,6 @@ public:
     return to->store(val_int(), MY_TEST(flags & UNSIGNED_FLAG));
   }
   bool is_equal(const Column_definition &new_field) const override;
-  uint row_pack_length() const override { return pack_length(); }
   uint32 pack_length_from_metadata(uint field_metadata) const override
   {
     uint32 length= pack_length();
@@ -2518,7 +2517,6 @@ public:
   uint size_of() const override { return sizeof *this; }
   uint32 pack_length() const override { return bin_size; }
   uint pack_length_from_metadata(uint field_metadata) const override;
-  uint row_pack_length() const override { return pack_length(); }
   bool compatible_field_size(uint field_metadata, const Relay_log_info *rli,
                              uint16 mflags, int *order_var) const override;
   bool is_equal(const Column_definition &new_field) const override;
@@ -2952,7 +2950,6 @@ public:
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff, uint length) override;
   uint32 pack_length() const override { return sizeof(float); }
-  uint row_pack_length() const override { return pack_length(); }
   ulonglong get_max_int_value() const override
   {
     /*
@@ -3008,7 +3005,6 @@ public:
   int cmp(const uchar *,const uchar *) const override final;
   void sort_string(uchar *buff, uint length) override final;
   uint32 pack_length() const override final { return sizeof(double); }
-  uint row_pack_length() const override final { return pack_length(); }
   ulonglong get_max_int_value() const override final
   {
     /*
@@ -3435,7 +3431,6 @@ public:
   {
     return my_timestamp_binary_length(dec);
   }
-  uint row_pack_length() const override { return pack_length(); }
   uint pack_length_from_metadata(uint field_metadata) const override
   {
     DBUG_ENTER("Field_timestampf::pack_length_from_metadata");
@@ -3794,7 +3789,6 @@ public:
   {
     return my_time_binary_length(dec);
   }
-  uint row_pack_length() const override { return pack_length(); }
   uint pack_length_from_metadata(uint field_metadata) const override
   {
     DBUG_ENTER("Field_timef::pack_length_from_metadata");
@@ -4002,7 +3996,6 @@ public:
   {
     return my_datetime_binary_length(dec);
   }
-  uint row_pack_length() const override { return pack_length(); }
   uint pack_length_from_metadata(uint field_metadata) const override
   {
     DBUG_ENTER("Field_datetimef::pack_length_from_metadata");
@@ -4142,7 +4135,6 @@ public:
   }
   bool compatible_field_size(uint field_metadata, const Relay_log_info *rli,
                              uint16 mflags, int *order_var) const override;
-  uint row_pack_length() const override { return field_length; }
   uint packed_col_length(const uchar *to, uint length) override;
   uint max_packed_col_length(uint max_length) override;
   uint size_of() const override { return sizeof *this; }
@@ -4929,7 +4921,6 @@ public:
   uint size_of() const override { return sizeof *this; }
   uint pack_length_from_metadata(uint field_metadata) const override
   { return (field_metadata & 0x00ff); }
-  uint row_pack_length() const override { return pack_length(); }
   bool zero_pack() const override { return false; }
   bool optimize_range(uint, uint) const override { return false; }
   bool eq_def(const Field *field) const override;

@@ -715,7 +715,6 @@ public:
       return Data_type_compatibility::OK;
     }
 
-    uint row_pack_length() const override { return pack_length(); }
 
     Binlog_type_info binlog_type_info() const override
     {
