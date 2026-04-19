@@ -77,8 +77,8 @@ private:
  uint64_t flush_threshold;
  bool duckdb_initialized;
  bool buffer_table_created = false;
-  duckdb::DuckDB *db = nullptr;
- duckdb::Connection *con = nullptr;
+  //duckdb::DuckDB *db = nullptr;
+ //duckdb::Connection *con = nullptr;
 
 
  void flush_remaining_rows_to_s3(parquet_trx_data *trx);
