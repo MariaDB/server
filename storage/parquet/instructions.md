@@ -25,6 +25,45 @@ Important:
 - rebuild `mariadbd`, not only the `parquet` target, after changing Parquet engine code
 - when running the server, use the binary from `build/sql/mariadbd`, not `sql/mariadbd` from the source tree
 
+### Linux quick start
+
+For a fresh Ubuntu-style environment, install the common build prerequisites first:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  build-essential \
+  bison \
+  cmake \
+  flex \
+  libaio-dev \
+  libcurl4-openssl-dev \
+  libncurses5-dev \
+  libpcre2-dev \
+  libperl-dev \
+  libsnappy-dev \
+  libssl-dev \
+  libsystemd-dev \
+  ninja-build \
+  perl \
+  pkg-config \
+  zlib1g-dev
+```
+
+Then build from the repo root:
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWITH_UNIT_TESTS=OFF
+cmake --build build --target mariadbd --parallel 4
+```
+
+Start the server from the build directory:
+
+```bash
+cd build
+./sql/mariadbd --defaults-file=/absolute/path/to/your/mariadb-parquet.cnf
+```
+
 ## 2. Configure runtime settings in `.env`
 
 The Parquet engine now reads its LakeKeeper and S3 settings from a `.env` file in the repo root.
@@ -183,6 +222,16 @@ build/client/mariadb --defaults-file=/absolute/path/to/your/mariadb-parquet.cnf
 ```
 
 If your defaults file does not define the database, socket, or port, pass those explicitly.
+
+## 9a. Linux smoke test
+
+To verify that the Linux-built server starts and the Parquet engine is registered, run:
+
+```bash
+perl build/mysql-test/mysql-test-run.pl --suite=parquet linux_engine_smoke
+```
+
+That smoke test does not create a Parquet table and does not require LakeKeeper or S3.
 
 ## 10. Create and query a Parquet table
 

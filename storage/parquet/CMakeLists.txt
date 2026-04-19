@@ -1,5 +1,12 @@
 FIND_PACKAGE(CURL REQUIRED)
 
+if(NOT TARGET libduckdb)
+  MESSAGE(FATAL_ERROR
+    "Parquet storage engine requires DuckDB target 'libduckdb'. "
+    "Make sure the DuckDB submodule is initialized and configured "
+    "(for example: git submodule update --init --recursive storage/duckdb/duckdb).")
+endif()
+
 MYSQL_ADD_PLUGIN(parquet
   ha_parquet.cc
   ha_parquet_pushdown.cc
@@ -21,7 +28,7 @@ if(TARGET parquet)
     ${CMAKE_SOURCE_DIR}/storage/duckdb/duckdb/third_parties/duckdb/src/include
   )
   target_link_libraries(parquet PRIVATE
-    ${CMAKE_BINARY_DIR}/storage/duckdb/duckdb/duckdb-build/src/libduckdb.dylib
+    libduckdb
     CURL::libcurl
   )
 endif()
