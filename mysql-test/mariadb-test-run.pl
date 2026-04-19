@@ -282,6 +282,7 @@ our $opt_gprof;
 our %gprof_dirs;
 
 our $opt_replay_server;  # Start an extra server for replay
+our $opt_replay_server_manual;  # Print replay server command and wait for manual start
 
 my $config; # The currently running config
 my $current_config_name; # The currently running config file template
@@ -432,6 +433,10 @@ sub main {
     if ( $opt_replay_server )
     {
       start_replay_server();
+    }
+    elsif ( $opt_replay_server_manual )
+    {
+      start_replay_server_manual();
     }
   }
   if ($opt_dry_run)
@@ -605,7 +610,7 @@ sub main {
   remove_vardir_subs() if $opt_clean_vardir;
 
   # Stop replay server if it was started
-  stop_replay_server() if $opt_replay_server;
+  stop_replay_server() if ($opt_replay_server || $opt_replay_server_manual);
 
   exit(0);
 }
@@ -1295,6 +1300,7 @@ sub command_line_setup {
              'xml-report=s'             => \$opt_xml_report,
              'open-files-limit=i',      => \$opt_open_files_limit,
              'replay-server'            => \$opt_replay_server,
+             'replay-server-manual'     => \$opt_replay_server_manual,
 
              My::Debugger::options(),
              My::CoreDump::options(),
@@ -3096,8 +3102,158 @@ sub start_replay_server {
 }
 
 
+sub start_replay_server_manual {
+  mtr_report("Starting replay server in manual mode...");
+  
+  my $replay_server_num = 1;
+  
+  # Set required environment variables
+  $ENV{MYSQLTEST_VARDIR} = $opt_vardir unless $ENV{MYSQLTEST_VARDIR};
+  $ENV{MASTER_MYPORT} = $baseport unless $ENV{MASTER_MYPORT};
+  $ENV{MYSQL_TEST_DIR} = $glob_mysql_test_dir unless $ENV{MYSQL_TEST_DIR};
+  $ENV{MYSQLD} = find_mysqld($basedir) unless $ENV{MYSQLD};
+  
+  my $mysqld = $ENV{MYSQLD};
+  die "mysqld binary not found at $mysqld\n" unless -x $mysqld;
+  
+  # Calculate paths
+  my $base_port = $ENV{MASTER_MYPORT} || 10000;
+  my $port = $base_port + 10 + $replay_server_num;
+  my $socket = "$opt_vardir/extra_server_$replay_server_num/mysqld.sock";
+  my $server_dir = "$opt_vardir/extra_server_$replay_server_num";
+  my $datadir = "$server_dir/data";
+  my $install_db = "$opt_vardir/install.db";
+  my $pid_file = "$server_dir/mysqld.pid";
+  my $log_file = "$opt_vardir/log/extra_server_$replay_server_num.err";
+  my $general_log_file = "$opt_vardir/log/extra_server_$replay_server_num.log";
+  
+  die "install.db not found at $install_db\n" unless -d $install_db;
+  
+  # Create server directory
+  use File::Path qw(make_path remove_tree);
+  make_path($server_dir) unless -d $server_dir;
+  make_path("$opt_vardir/log") unless -d "$opt_vardir/log";
+  
+  # Prepare datadir
+  if (-d $datadir) {
+    mtr_report("Removing existing datadir: $datadir");
+    remove_tree($datadir);
+  }
+  
+  mtr_report("Copying $install_db to $datadir...");
+  system("cp", "-a", $install_db, $datadir) == 0
+    or die "Failed to copy $install_db to $datadir: $!\n";
+  
+  # Ensure proper permissions
+  system("chmod", "-R", "u+rwX", $datadir) == 0
+    or warn "Warning: Failed to set permissions on $datadir\n";
+  
+  # Build command line
+  my @mysqld_args = (
+    $mysqld,
+    "--no-defaults",
+    "--datadir=$datadir",
+    "--port=$port",
+    "--socket=$socket",
+    "--pid-file=$pid_file",
+    "--log-error=$log_file",
+    "--general-log=1",
+    "--general-log-file=$general_log_file",
+    "--skip-networking=0",
+    "--skip-grant-tables",
+    "--key-buffer-size=1M",
+    "--sort-buffer-size=256K",
+    "--max-heap-table-size=1M",
+  );
+  
+  # Print command line for user
+  mtr_report("=" x 70);
+  mtr_report("REPLAY SERVER MANUAL MODE");
+  mtr_report("=" x 70);
+  mtr_report("");
+  mtr_report("Please start the replay server with the following command:");
+  mtr_report("");
+  mtr_report(join(" \\\n  ", @mysqld_args));
+  mtr_report("");
+  mtr_report("Or run under gdb:");
+  mtr_report("gdb --args " . join(" \\\n  ", @mysqld_args));
+  mtr_report("");
+  mtr_report("Waiting for socket file to appear: $socket");
+  mtr_report("(Timeout: 300 seconds)");
+  mtr_report("=" x 70);
+  
+  # Wait for socket file to appear
+  my $max_wait = 300;  # 5 minutes
+  my $waited = 0;
+  my $last_msg = 0;
+  
+  while ($waited < $max_wait) {
+    if (-S $socket) {
+      mtr_report("Socket file detected: $socket");
+      last;
+    }
+    
+    sleep 1;
+    $waited++;
+    
+    # Print progress every 10 seconds
+    if ($waited - $last_msg >= 10) {
+      mtr_report("Still waiting for socket... ($waited seconds elapsed)");
+      $last_msg = $waited;
+    }
+  }
+  
+  if ($waited >= $max_wait) {
+    die "Timeout waiting for replay server socket to appear: $socket\n";
+  }
+  
+  # Give server a moment to be fully ready
+  sleep 2;
+  
+  # Detect PID
+  my $pid;
+  
+  # Try to read from pid file
+  if (-f $pid_file) {
+    open my $fh, '<', $pid_file or warn "Cannot read $pid_file: $!\n";
+    if ($fh) {
+      $pid = <$fh>;
+      chomp $pid if defined $pid;
+      close $fh;
+    }
+  }
+  
+  # Fallback: use lsof to find process using the socket
+  if (!$pid || !kill(0, $pid)) {
+    my $lsof_output = `lsof -t $socket 2>/dev/null`;
+    chomp $lsof_output if $lsof_output;
+    $pid = $lsof_output if $lsof_output && $lsof_output =~ /^\d+$/;
+  }
+  
+  # Fallback: use fuser
+  if (!$pid || !kill(0, $pid)) {
+    my $fuser_output = `fuser $socket 2>/dev/null`;
+    if ($fuser_output && $fuser_output =~ /(\d+)/) {
+      $pid = $1;
+    }
+  }
+  
+  if (!$pid || !kill(0, $pid)) {
+    die "Could not detect PID of replay server. Please check if it's running.\n";
+  }
+  
+  # Store for cleanup and export to environment
+  $ENV{REPLAY_SERVER_SOCKET} = $socket;
+  $ENV{REPLAY_SERVER_PID} = $pid;
+  
+  mtr_report("Replay server detected with PID: $pid");
+  mtr_report("Socket: $socket");
+  mtr_report("Replay server is ready!");
+}
+
+
 sub stop_replay_server {
-  return unless $opt_replay_server;
+  return unless ($opt_replay_server || $opt_replay_server_manual);
   return unless $ENV{REPLAY_SERVER_PID};
   
   mtr_report("Stopping replay server...");
@@ -6129,6 +6285,9 @@ Misc options
   verbose-restart       Write when and why servers are restarted
   replay-server         Start an extra server instance before running tests.
                         Socket path available via REPLAY_SERVER_SOCKET env var.
+  replay-server-manual  Print replay server command line and wait for user to
+                        start it manually. Useful for running under debugger.
+                        MTR will wait for socket and manage server lifecycle.
   start                 Only initialize and start the servers, using the
                         startup settings for the first specified test case
                         Example:
