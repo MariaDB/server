@@ -39,9 +39,10 @@ public:
 
 
   
-  int open(const char *name, int mode, uint test_if_locked) override;
+ int open(const char *name, int mode, uint test_if_locked) override;
  int close(void) override;
  int create(const char *name, TABLE *table_arg, HA_CREATE_INFO *create_info) override;
+ int delete_table(const char *name) override;
 
 
 
@@ -97,6 +98,5 @@ private:
 
 };
 #endif
-
 
 

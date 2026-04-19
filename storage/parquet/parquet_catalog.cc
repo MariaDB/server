@@ -3,6 +3,7 @@
 #include "my_global.h"
 
 #include "parquet_catalog.h"
+#include "parquet_shared.h"
 
 #include <curl/curl.h>
 #include <json.hpp>
@@ -244,6 +245,8 @@ HttpResponse ExecuteRequest(const CatalogClientConfig &config,
                             const std::vector<std::string> &headers)
 {
   EnsureCurlInitialized();
+  parquet_log_info("LakeKeeper request method='" + method + "' url='" + url +
+                   "' body=" + parquet_log_preview(body));
 
   HttpResponse response;
   CURL *curl = curl_easy_init();
@@ -283,6 +286,16 @@ HttpResponse ExecuteRequest(const CatalogClientConfig &config,
   }
 
   curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response.status_code);
+
+  if (response.curl_code == CURLE_OK) {
+    parquet_log_info("LakeKeeper response method='" + method + "' url='" + url +
+                     "' http_status=" + std::to_string(response.status_code) +
+                     " body=" + parquet_log_preview(response.body));
+  } else {
+    parquet_log_warning("LakeKeeper request failed method='" + method +
+                        "' url='" + url + "' error='" +
+                        response.curl_error + "'");
+  }
 
   curl_slist_free_all(curl_headers);
   curl_easy_cleanup(curl);

@@ -2,13 +2,16 @@
 
 
 #include "ha_parquet.h"
+#include "ha_parquet_pushdown.h"
+#include "parquet_shared.h"
 #include "sql_class.h"
 #include "handler.h"
 #include "duckdb.hpp"
 #include <iostream>
 #include <curl/curl.h>
 #include <mutex>
-#include <fstream>
+#include <cstdio>
+#include <cctype>
 
 
 static std::mutex g_duckdb_mutex;
@@ -47,23 +50,14 @@ int ha_parquet::open(const char *name, int, uint)
 
 
  duckdb_initialized = true;
+ parquet_log_info("handler open table='" + std::string(name) +
+                  "' parquet_file='" + parquet_file_path +
+                  "' helper_db='" + helper_db_path + "'");
  DBUG_RETURN(0);
 }
 
 
 int ha_parquet::close(void) { return 0; }
-
-
-static std::string quote_string_literal(const std::string &value)
-{
- std::string quoted = "'";
- for (char ch : value) {
-   if (ch == '\'') quoted += "''";
-   else quoted += ch;
- }
- quoted += "'";
- return quoted;
-}
 
 
 static std::string item_to_sql(const Item *item)
@@ -187,6 +181,16 @@ static std::string build_copy_to_parquet_query(const std::string &table_name,
         quote_string_literal(parquet_file) + " (FORMAT PARQUET)";
 }
 
+static std::string build_select_union_copy_to_parquet_query(
+    const std::string &existing_parquet_file,
+    const std::string &buffer_table_name,
+    const std::string &target_parquet_file)
+{
+ return "COPY (SELECT * FROM read_parquet(" +
+        quote_string_literal(existing_parquet_file) + ") UNION ALL SELECT * FROM " +
+        buffer_table_name + ") TO " +
+        quote_string_literal(target_parquet_file) + " (FORMAT PARQUET)";
+}
 
 static bool needs_quoting(Field *f)
 {
@@ -219,9 +223,7 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
 
   std::string parquet_file = std::string(name) + ".parquet";
   parquet_file_path = parquet_file;
-  size_t pos = table_path.find_last_of("/\\");
-  std::string table_name = (pos == std::string::npos) ?
-    table_path : table_path.substr(pos + 1);
+  std::string table_name = table_name_from_path(table_path);
 
   std::string buf_name = "buf_" + table_name;
   std::string query = build_query_create(buf_name, table_arg);
@@ -230,9 +232,15 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
   try {
     std::lock_guard<std::mutex> lock(g_duckdb_mutex);
     duckdb::Connection *con = new duckdb::Connection(*g_duckdb);
+    parquet_log_info("DuckDB create buffer connection table='" + table_name +
+                     "'");
+    parquet_log_info("DuckDB query [create/install] INSTALL parquet;");
     con->Query("INSTALL parquet;");
+    parquet_log_info("DuckDB query [create/load] LOAD parquet;");
     con->Query("LOAD parquet;");
 
+    parquet_log_info("DuckDB query [create/buffer-table] " +
+                     parquet_log_preview(query));
     auto create_result = con->Query(query);
     if (!create_result || create_result->HasError()) {
       std::cerr << "DuckDB CREATE error: " << create_result->GetError() << std::endl;
@@ -240,12 +248,19 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
       return HA_ERR_INTERNAL_ERROR;
     }
 
-    auto copy_result = con->Query(build_copy_to_parquet_query(buf_name, parquet_file));
+    const std::string copy_query =
+        build_copy_to_parquet_query(buf_name, parquet_file);
+    parquet_log_info("DuckDB query [create/seed-parquet] " +
+                     parquet_log_preview(copy_query));
+    auto copy_result = con->Query(copy_query);
     if (!copy_result || copy_result->HasError()) {
       std::cerr << "DuckDB COPY error: " << copy_result->GetError() << std::endl;
       delete con;
       return HA_ERR_INTERNAL_ERROR;
     }
+
+    parquet_log_info("DuckDB create table seed complete table='" + table_name +
+                     "' parquet_file='" + parquet_file + "'");
 
     delete con;
   } catch (const std::exception &e) {
@@ -254,10 +269,7 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
   }
 
   // register table in LakeKeeper Iceberg catalog
-  char lakekeeper_url[512];
-  snprintf(lakekeeper_url, sizeof(lakekeeper_url),
-    "http://localhost:8181/catalog/v1/"
-    "fe89d40e-3472-11f1-8805-6fc69e665327/namespaces/default/tables");
+  const std::string lakekeeper_url = lakekeeper_table_collection_url();
 
   std::string fields = "";
   int field_id = 1;
@@ -306,9 +318,12 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
     struct curl_slist *headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json");
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_URL, lakekeeper_url);
+    curl_easy_setopt(curl, CURLOPT_URL, lakekeeper_url.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    parquet_log_info("LakeKeeper create table begin table='" + table_name +
+                     "' url='" + lakekeeper_url + "' payload=" +
+                     parquet_log_preview(json_body));
     // suppress response output to terminal
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
       +[](char*, size_t s, size_t n, void*) -> size_t { return s*n; });
@@ -317,13 +332,59 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
-    if (res != CURLE_OK)
+    if (res != CURLE_OK) {
       std::cerr << "LakeKeeper create table error: " << curl_easy_strerror(res) << std::endl;
-    else if (http_code != 200 && http_code != 409)
+      return HA_ERR_INTERNAL_ERROR;
+    } else if (http_code != 200 && http_code != 201 && http_code != 409) {
       std::cerr << "LakeKeeper create table HTTP error: " << http_code << std::endl;
+      return HA_ERR_INTERNAL_ERROR;
+    }
+
+    parquet_log_info("LakeKeeper create table complete table='" + table_name +
+                     "' http_status=" + std::to_string(http_code));
   }
 
   return 0;
+}
+
+int ha_parquet::delete_table(const char *name)
+{
+ DBUG_ENTER("ha_parquet::delete_table");
+
+ const std::string table_path(name);
+ const std::string table_name = table_name_from_path(table_path);
+
+ const std::string lakekeeper_url = lakekeeper_table_url(table_name);
+
+ CURL *curl = curl_easy_init();
+ if (curl) {
+   parquet_log_info("LakeKeeper delete table begin table='" + table_name +
+                    "' url='" + lakekeeper_url + "'");
+   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+   curl_easy_setopt(curl, CURLOPT_URL, lakekeeper_url.c_str());
+   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
+     +[](char*, size_t s, size_t n, void*) -> size_t { return s * n; });
+   CURLcode res = curl_easy_perform(curl);
+   long http_code = 0;
+   curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+   curl_easy_cleanup(curl);
+
+   if (res != CURLE_OK) {
+     std::cerr << "LakeKeeper delete table error: " << curl_easy_strerror(res) << std::endl;
+     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+   }
+
+   if (http_code != 200 && http_code != 204 && http_code != 404) {
+     std::cerr << "LakeKeeper delete table HTTP error: " << http_code << std::endl;
+     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+   }
+
+   parquet_log_info("LakeKeeper delete table complete table='" + table_name +
+                    "' http_status=" + std::to_string(http_code));
+ }
+
+ std::remove((table_path + ".parquet").c_str());
+ DBUG_RETURN(0);
 }
 
 void ha_parquet::flush_remaining_rows_to_s3(parquet_trx_data *trx)
@@ -331,24 +392,41 @@ void ha_parquet::flush_remaining_rows_to_s3(parquet_trx_data *trx)
   if (row_count == 0 || !trx) return;
 
   std::string buf_name = "buf_" + std::string(table_share->table_name.str);
+  const std::string existing_snapshot_file =
+    fetch_current_snapshot_data_file(table_share->table_name.str);
 
   static uint64_t flush_counter = 0;
-  std::string s3_path = "s3://mariadb-parquet-demo/data/part_" +
-    std::to_string(time(nullptr)) + "_" +
-    std::to_string(flush_counter++) + ".parquet";
+  std::string s3_path = parquet_s3_object_path(
+    "part_" + std::to_string(time(nullptr)) + "_" +
+    std::to_string(flush_counter++) + ".parquet");
+  parquet_log_info("DuckDB flush begin table='" +
+                   std::string(table_share->table_name.str) + "' rows=" +
+                   std::to_string(row_count) + " target='" + s3_path +
+                   "' existing_snapshot='" +
+                   (existing_snapshot_file.empty() ? std::string("<empty>")
+                                                   : existing_snapshot_file) +
+                   "'");
 
   try {
     std::lock_guard<std::mutex> lock(g_duckdb_mutex);
     duckdb::Connection *con = new duckdb::Connection(*g_duckdb);
+    parquet_log_info("DuckDB query [flush/install] INSTALL parquet;");
     con->Query("INSTALL parquet;");
+    parquet_log_info("DuckDB query [flush/load] LOAD parquet;");
     con->Query("LOAD parquet;");
+    parquet_log_info("DuckDB query [flush/install-httpfs] INSTALL httpfs;");
     con->Query("INSTALL httpfs;");
+    parquet_log_info("DuckDB query [flush/load-httpfs] LOAD httpfs;");
     con->Query("LOAD httpfs;");
-    con->Query("SET s3_region='us-east-2'");
-    con->Query("SET s3_access_key_id='YOUR_AWS_ACCESS_KEY_ID'");
-    con->Query("SET s3_secret_access_key='YOUR_AWS_SECRET_ACCESS_KEY'");
+    configure_duckdb_s3(con);
 
-    auto copy_result = con->Query(build_copy_to_parquet_query(buf_name, s3_path));
+    std::string copy_query = existing_snapshot_file.empty()
+      ? build_copy_to_parquet_query(buf_name, s3_path)
+      : build_select_union_copy_to_parquet_query(existing_snapshot_file, buf_name, s3_path);
+
+    parquet_log_info("DuckDB query [flush/copy] " +
+                     parquet_log_preview(copy_query));
+    auto copy_result = con->Query(copy_query);
     if (!copy_result || copy_result->HasError()) {
       std::cerr << "flush COPY error: " << copy_result->GetError() << std::endl;
       delete con;
@@ -356,17 +434,25 @@ void ha_parquet::flush_remaining_rows_to_s3(parquet_trx_data *trx)
     }
 
     int64_t file_size = 0;
-    auto meta_result = con->Query(
-      "SELECT SUM(total_compressed_size) FROM parquet_metadata('" + s3_path + "')");
+    const std::string metadata_query =
+      "SELECT SUM(total_compressed_size) FROM parquet_metadata('" + s3_path + "')";
+    parquet_log_info("DuckDB query [flush/metadata] " +
+                     parquet_log_preview(metadata_query));
+    auto meta_result = con->Query(metadata_query);
     if (meta_result && !meta_result->HasError() && meta_result->RowCount() > 0)
       file_size = meta_result->GetValue(0, 0).GetValue<int64_t>();
 
+    parquet_log_info("DuckDB query [flush/clear-buffer] DELETE FROM " + buf_name);
     con->Query("DELETE FROM " + buf_name);
     delete con;
 
     trx->s3_file_paths.push_back(s3_path);
     trx->row_counts.push_back((int64_t)row_count);
     trx->file_sizes.push_back(file_size);
+    parquet_log_info("S3 staged object path='" + s3_path + "' table='" +
+                     std::string(table_share->table_name.str) + "' rows=" +
+                     std::to_string(row_count) + " bytes=" +
+                     std::to_string(file_size));
 
   } catch (const std::exception &e) {
     std::cerr << "flush exception: " << e.what() << std::endl;
@@ -376,96 +462,23 @@ void ha_parquet::flush_remaining_rows_to_s3(parquet_trx_data *trx)
   row_count = 0;
 }
 
-ha_parquet::FlushStatus ha_parquet::flush_remaining_rows_to_stage(
-    parquet::ParquetStagedFile *staged_file)
-{
-  if (staged_file == nullptr || !duckdb_initialized || con == nullptr) {
-    return FlushStatus::kError;
-  }
-
-  if (row_count == 0) {
-    return FlushStatus::kNoRows;
-  }
-
-  const auto flush_id = parquet_flush_counter.fetch_add(1);
-  const auto stage_path =
-      parquet::BuildLocalStagePath(local_paths.parquet_file_path, flush_id);
-  const auto rows_in_flush = row_count;
-
-  if (buffer_appender) {
-    buffer_appender->Close();
-    buffer_appender.reset();
-  }
-
-  auto copy_result = con->Query(
-      build_copy_to_parquet_query("buffer", stage_path, table_options));
-  if (!copy_result || copy_result->HasError()) {
-    return FlushStatus::kError;
-  }
-
-  uint64_t file_size_bytes = 0;
-  if (!read_local_file_size(stage_path, &file_size_bytes)) {
-    delete_local_file_if_exists(stage_path);
-    return FlushStatus::kError;
-  }
-
-  std::string object_path = stage_path;
-  if (table_metadata.object_store_enabled) {
-    const auto relative_key =
-        "data/flush_" + std::to_string(flush_id) + ".parquet";
-    const auto location = parquet::ResolveObjectLocation(
-        table_metadata.object_store_config, relative_key);
-    parquet::ParquetObjectStoreClient object_store_client(
-        table_metadata.object_store_config);
-    parquet::PutObjectRequest request;
-    request.local_file_path = stage_path;
-    request.location = location;
-    request.content_type = "application/octet-stream";
-    request.expected_content_length = file_size_bytes;
-
-    const auto status = object_store_client.PutFile(request);
-    if (!status.ok()) {
-      delete_local_file_if_exists(stage_path);
-      return FlushStatus::kError;
-    }
-
-    object_path = parquet::BuildS3Uri(location.bucket, location.key);
-  }
-
-  auto delete_result = con->Query("DELETE FROM buffer");
-  if (!delete_result || delete_result->HasError()) {
-    delete_local_file_if_exists(stage_path);
-    return FlushStatus::kError;
-  }
-
-  row_count = 0;
-  buffered_bytes = 0;
-  *staged_file = {table_metadata.local_paths.table_path,
-                  table_metadata.catalog_table_ident.table_name.empty()
-                      ? local_paths.table_name
-                      : table_metadata.catalog_table_ident.table_name,
-                  stage_path,
-                  object_path,
-                  rows_in_flush,
-                  file_size_bytes,
-                  flush_id};
-  return FlushStatus::kSuccess;
-}
-
 int ha_parquet::write_row(const uchar *buf)
 {
   DBUG_ENTER("ha_parquet::write_row");
 
   std::string buf_name = "buf_" + std::string(table->s->table_name.str);
-
   try {
     std::lock_guard<std::mutex> lock(g_duckdb_mutex);
     duckdb::Connection *con = new duckdb::Connection(*g_duckdb);
+    parquet_log_info("DuckDB query [write/install] INSTALL parquet;");
     con->Query("INSTALL parquet;");
+    parquet_log_info("DuckDB query [write/load] LOAD parquet;");
     con->Query("LOAD parquet;");
 
     std::string create_sql = build_query_create(buf_name, table);
     if (create_sql.empty()) { delete con; DBUG_RETURN(HA_ERR_UNSUPPORTED); }
+    parquet_log_info("DuckDB query [write/ensure-buffer] " +
+                     parquet_log_preview(create_sql));
     con->Query(create_sql);
 
     std::string insert_sql = "INSERT INTO " + buf_name + " VALUES (";
@@ -475,16 +488,22 @@ int ha_parquet::write_row(const uchar *buf)
       Field *f = *field;
       if (first_flag) insert_sql += ", ";
       first_flag = true;
-      if (f->is_null()) {
+      const bool is_null = f->is_null_in_record(buf);
+      if (is_null) {
         insert_sql += "NULL";
       } else {
         String val;
-        f->val_str(&val);
-        std::string val_cpp(val.ptr(), val.length());
+        String *res = f->val_str(&val, f->ptr_in_record(buf));
+        std::string val_cpp;
+        if (res != nullptr)
+          val_cpp.assign(res->ptr(), res->length());
         insert_sql += needs_quoting(f) ? quote_string_literal(val_cpp) : val_cpp;
       }
     }
+
     insert_sql += ")";
+    parquet_log_info("DuckDB query [write/insert-buffer-row] " +
+                     parquet_log_preview(insert_sql));
 
     auto result = con->Query(insert_sql);
     if (!result || result->HasError()) {
@@ -494,6 +513,9 @@ int ha_parquet::write_row(const uchar *buf)
     }
 
     row_count++;
+    parquet_log_info("DuckDB buffered row table='" +
+                     std::string(table->s->table_name.str) + "' row_count=" +
+                     std::to_string(row_count));
     delete con;
 
   } catch (const duckdb::Exception &e) {
@@ -519,71 +541,51 @@ int ha_parquet::rnd_init(bool scan)
   current_row = 0;
   scan_result.reset();
 
-  // get S3 file paths from LakeKeeper
-  char lakekeeper_url[512];
-  snprintf(lakekeeper_url, sizeof(lakekeeper_url),
-    "http://localhost:8181/catalog/v1/"
-    "fe89d40e-3472-11f1-8805-6fc69e665327/namespaces/default/tables/%s",
-    table->s->table_name.str);
-
   std::string response_body;
-  CURL *curl = curl_easy_init();
-  if (curl) {
-    auto write_cb = [](char *ptr, size_t size, size_t nmemb, void *userdata) -> size_t {
-      ((std::string*)userdata)->append(ptr, size * nmemb);
-      return size * nmemb;
-    };
-    curl_easy_setopt(curl, CURLOPT_URL, lakekeeper_url);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, +write_cb);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
-    curl_easy_perform(curl);
-    curl_easy_cleanup(curl);
+  long http_code = 0;
+  if (!fetch_lakekeeper_table_metadata(table->s->table_name.str, &response_body, &http_code)) {
+    std::cerr << "rnd_init: failed to fetch LakeKeeper metadata" << std::endl;
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+  }
+  if (http_code != 200) {
+    std::cerr << "rnd_init: LakeKeeper table load HTTP error: " << http_code << std::endl;
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
   }
 
-  // extract all manifest-list S3 paths from response
-  std::vector<std::string> s3_files;
-  size_t pos = 0;
-  while ((pos = response_body.find("manifest-list", pos)) != std::string::npos) {
-    size_t s3_start = response_body.find("s3://mariadb-parquet-demo", pos);
-    size_t next_manifest = response_body.find("manifest-list", pos + 1);
-    if (s3_start == std::string::npos) break;
-    if (next_manifest != std::string::npos && s3_start > next_manifest) {
-      pos = next_manifest;
-      continue;
-    }
-    size_t end = response_body.find('"', s3_start);
-    if (end != std::string::npos) {
-      std::string path = response_body.substr(s3_start, end - s3_start);
-      s3_files.push_back(path);
-    }
-    pos = s3_start + 1;
-  }
+  std::vector<std::string> s3_files = extract_manifest_paths(response_body);
 
   if (s3_files.empty()) {
     std::cerr << "rnd_init: no S3 files found in LakeKeeper" << std::endl;
     DBUG_RETURN(0);
   }
-  std::cerr << "rnd_init: found " << s3_files.size() << " S3 files" << std::endl;
 
-  // only read the current snapshot file — use the last one registered
-  // which corresponds to the current-snapshot-id
-  std::string current_snapshot_file = s3_files[0];
-  std::cerr << "rnd_init: reading from " << current_snapshot_file << std::endl;
+  std::string parquet_file_list = "[";
+  for (size_t i = 0; i < s3_files.size(); ++i) {
+    if (i != 0) parquet_file_list += ", ";
+    parquet_file_list += quote_string_literal(s3_files[i]);
+  }
+  parquet_file_list += "]";
 
-  std::string query = "SELECT * FROM read_parquet(" +
-                      quote_string_literal(current_snapshot_file) + ")";
+  std::string query = "SELECT * FROM read_parquet(" + parquet_file_list + ")";
+  parquet_log_info("DuckDB read init table='" +
+                   std::string(table->s->table_name.str) + "' files=" +
+                   std::to_string(s3_files.size()));
 
   try {
     std::lock_guard<std::mutex> lock(g_duckdb_mutex);
     duckdb::Connection *con = new duckdb::Connection(*g_duckdb);
+    parquet_log_info("DuckDB query [read/install] INSTALL parquet;");
     con->Query("INSTALL parquet;");
+    parquet_log_info("DuckDB query [read/load] LOAD parquet;");
     con->Query("LOAD parquet;");
+    parquet_log_info("DuckDB query [read/install-httpfs] INSTALL httpfs;");
     con->Query("INSTALL httpfs;");
+    parquet_log_info("DuckDB query [read/load-httpfs] LOAD httpfs;");
     con->Query("LOAD httpfs;");
-    con->Query("SET s3_region='us-east-2'");
-    con->Query("SET s3_access_key_id='YOUR_AWS_ACCESS_KEY_ID'");
-    con->Query("SET s3_secret_access_key='YOUR_AWS_SECRET_ACCESS_KEY'");
+    configure_duckdb_s3(con);
 
+    parquet_log_info("DuckDB query [read/scan] " +
+                     parquet_log_preview(query));
     auto result = con->Query(query);
     if (!result || result->HasError()) {
       std::cerr << "rnd_init read error: " << result->GetError() << std::endl;
@@ -614,9 +616,14 @@ int ha_parquet::rnd_next(uchar *buf)
  for (uint i = 0; i < table->s->fields; i++) {
    Field *f = table->field[i];
    auto val = scan_result->GetValue(i, current_row);
+   std::string val_string = val.ToString();
 
+   if (val.IsNull()) {
+     f->set_null();
+     continue;
+   }
 
-   if (val.IsNull()) { f->set_null(); continue; }
+   f->set_notnull();
 
 
    enum_field_types t = f->type();
@@ -628,7 +635,7 @@ int ha_parquet::rnd_next(uchar *buf)
    else if (t == MYSQL_TYPE_FLOAT || t == MYSQL_TYPE_DOUBLE)
      f->store(val.GetValue<double>());
    else {
-     std::string s = val.ToString();
+     std::string s = val_string;
      f->store(s.c_str(), s.length(), f->charset());
    }
  }
@@ -691,6 +698,7 @@ static handler *parquet_create_handler(handlerton *p_hton, TABLE_SHARE *table,
 
 static int ha_parquet_commit(THD *thd, bool all)
 {
+ const auto &config = parquet_runtime_config();
  parquet_trx_data *trx =
    (parquet_trx_data *) thd_get_ha_data(thd, parquet_hton);
 
@@ -705,18 +713,11 @@ static int ha_parquet_commit(THD *thd, bool all)
    static long long snapshot_counter = 0;
    long long snapshot_id = (long long)time(NULL) * 1000 + (snapshot_counter++ % 1000);
 
-
-   char lakekeeper_url[512];
-   snprintf(lakekeeper_url, sizeof(lakekeeper_url),
-     "http://localhost:8181/catalog/v1/"
-     "fe89d40e-3472-11f1-8805-6fc69e665327/transactions/commit");
-
-
    char json_body[4096];
    snprintf(json_body, sizeof(json_body),
      "{"
        "\"table-changes\": [{"
-         "\"identifier\": {\"namespace\": [\"default\"], \"name\": \"%s\"},"
+         "\"identifier\": {\"namespace\": [\"%s\"], \"name\": \"%s\"},"
          "\"requirements\": [],"
          "\"updates\": ["
            "{\"action\": \"add-snapshot\", \"snapshot\": {"
@@ -732,6 +733,7 @@ static int ha_parquet_commit(THD *thd, bool all)
          "]"
        "}]"
      "}",
+     config.lakekeeper_namespace.c_str(),
      trx->table_name.c_str(), snapshot_id, snapshot_id * 1000,
      trx->row_counts[i],
      trx->file_sizes[i],
@@ -745,9 +747,14 @@ static int ha_parquet_commit(THD *thd, bool all)
    struct curl_slist *headers = NULL;
    headers = curl_slist_append(headers, "Content-Type: application/json");
    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-   curl_easy_setopt(curl, CURLOPT_URL, lakekeeper_url);
+   const std::string lakekeeper_url = lakekeeper_transaction_commit_url();
+   curl_easy_setopt(curl, CURLOPT_URL, lakekeeper_url.c_str());
    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body);
    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+   parquet_log_info("LakeKeeper commit begin table='" + trx->table_name +
+                    "' snapshot_id=" + std::to_string(snapshot_id) +
+                    " manifest='" + s3_path + "' url='" + lakekeeper_url +
+                    "' payload=" + parquet_log_preview(json_body));
 
 
    CURLcode res = curl_easy_perform(curl);
@@ -761,8 +768,14 @@ static int ha_parquet_commit(THD *thd, bool all)
      std::cerr << "LakeKeeper commit error: " << curl_easy_strerror(res) << std::endl;
      delete trx; thd_set_ha_data(thd, parquet_hton, nullptr); return 1;
    }
-   if (http_code != 200)
+   if (http_code != 200) {
      std::cerr << "LakeKeeper commit HTTP error: " << http_code << std::endl;
+     delete trx; thd_set_ha_data(thd, parquet_hton, nullptr); return 1;
+   }
+
+   parquet_log_info("LakeKeeper commit complete table='" + trx->table_name +
+                    "' snapshot_id=" + std::to_string(snapshot_id) +
+                    " http_status=" + std::to_string(http_code));
  }
 
 
@@ -786,7 +799,8 @@ static int ha_parquet_rollback(THD *thd, bool all)
  // Production cleanup is handled by S3 lifecycle policies
  // or LakeKeeper's built-in garbage collection.
  for (const std::string &s3_path : trx->s3_file_paths)
-   std::cerr << "rollback: orphaned file will be GC'd: " << s3_path << std::endl;
+   parquet_log_warning("rollback orphaned staged object path='" + s3_path +
+                       "' will rely on external GC");
 
 
  delete trx;
@@ -799,12 +813,14 @@ static int ha_parquet_init(void *p)
 {
  parquet_hton = (handlerton *) p;
  parquet_hton->create   = parquet_create_handler;
+ parquet_hton->create_select = create_duckdb_select_handler;
  parquet_hton->commit   = ha_parquet_commit;
  parquet_hton->rollback = ha_parquet_rollback;
  thr_lock_init(&parquet_lock);
 
 
  g_duckdb = new duckdb::DuckDB(nullptr);
+ parquet_log_info("DuckDB global instance initialized");
 
 
  return 0;
@@ -815,6 +831,7 @@ static int ha_parquet_deinit(void *p)
 {
  delete g_duckdb;
  g_duckdb = nullptr;
+ parquet_log_info("DuckDB global instance deinitialized");
  parquet_hton = 0;
  thr_lock_delete(&parquet_lock);
  return 0;

@@ -3,6 +3,8 @@ FIND_PACKAGE(CURL REQUIRED)
 MYSQL_ADD_PLUGIN(parquet
   ha_parquet.cc
   ha_parquet_pushdown.cc
+  parquet_cross_engine_scan.cc
+  parquet_shared.cc
   parquet_catalog.cc
   parquet_iceberg.cc
   parquet_metadata.cc
@@ -14,6 +16,8 @@ MYSQL_ADD_PLUGIN(parquet
 
 if(TARGET parquet)
   target_include_directories(parquet PRIVATE
+    ${CMAKE_SOURCE_DIR}/storage/columnstore/columnstore/utils/json
+    ${CMAKE_SOURCE_DIR}/storage/duckdb/duckdb
     ${CMAKE_SOURCE_DIR}/storage/duckdb/duckdb/third_parties/duckdb/src/include
   )
   target_link_libraries(parquet PRIVATE

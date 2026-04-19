@@ -633,3 +633,4 @@ server/mariadb-build
 
 # Remove mariadb-build
 mariadb-build
+.env

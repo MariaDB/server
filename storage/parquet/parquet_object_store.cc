@@ -3,6 +3,7 @@
 #include "my_global.h"
 
 #include "parquet_object_store.h"
+#include "parquet_shared.h"
 
 #include <curl/curl.h>
 
@@ -238,6 +239,9 @@ HttpResponse ExecuteRequest(const ObjectStoreConfig &config,
                             const std::string &content_type)
 {
   EnsureCurlInitialized();
+  parquet_log_info("S3 request method='" + method + "' uri='" +
+                   BuildS3Uri(location.bucket, location.key) + "' url='" +
+                   location.url + "' bytes=" + std::to_string(upload_size));
 
   HttpResponse response;
   CURL *curl = curl_easy_init();
@@ -296,6 +300,17 @@ HttpResponse ExecuteRequest(const ObjectStoreConfig &config,
   }
 
   curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response.status_code);
+
+  if (response.curl_code == CURLE_OK) {
+    parquet_log_info("S3 response method='" + method + "' uri='" +
+                     BuildS3Uri(location.bucket, location.key) +
+                     "' http_status=" + std::to_string(response.status_code) +
+                     " body=" + parquet_log_preview(response.body));
+  } else {
+    parquet_log_warning("S3 request failed method='" + method + "' uri='" +
+                        BuildS3Uri(location.bucket, location.key) +
+                        "' error='" + response.curl_error + "'");
+  }
 
   curl_slist_free_all(headers);
   curl_easy_cleanup(curl);
@@ -463,6 +478,12 @@ ObjectStoreStatus ParquetObjectStoreClient::PutFile(
                       response.curl_error);
   }
 
+  parquet_log_info("S3 put object complete uri='" +
+                   BuildS3Uri(request.location.bucket, request.location.key) +
+                   "' local_file='" + request.local_file_path + "' bytes=" +
+                   std::to_string(file_size) + " http_status=" +
+                   std::to_string(response.status_code));
+
   return HttpStatusToObjectStatus(response.status_code, response.body);
 }
 
@@ -531,6 +552,10 @@ ObjectStoreStatus ParquetObjectStoreClient::DeleteObject(
     return MakeStatus(ObjectStoreStatusCode::kOk, response.status_code, false,
                       "");
   }
+
+  parquet_log_info("S3 delete object complete uri='" +
+                   BuildS3Uri(location.bucket, location.key) +
+                   "' http_status=" + std::to_string(response.status_code));
 
   return status;
 }
