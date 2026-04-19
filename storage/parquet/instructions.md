@@ -45,3 +45,40 @@ if(TARGET parquet)
     CURL::libcurl
   )
 endif()
+
+
+Lakekeeper Setup:
+1. Clone and start LakeKeeper:
+
+bashgit clone https://github.com/lakekeeper/lakekeeper
+cd lakekeeper/examples/minimal
+docker compose up -d
+
+2. Verify it's running:
+
+bashcurl http://localhost:8181/health
+
+3. Create the warehouse (one time):
+
+bashcurl -X POST http://localhost:8181/management/v1/warehouse \
+  -H "Content-Type: application/json" \
+  -d '{
+    "warehouse-name": "default",
+    "storage-profile": {
+      "type": "s3",
+      "bucket": "mariadb-parquet-demo",
+      "region": "us-east-2",
+      "flavor": "aws"
+    },
+    "storage-credential": {
+      "type": "access-key",
+      "aws-access-key-id": "YOUR_AWS_ACCESS_KEY_ID",
+      "aws-secret-access-key": "YOUR_AWS_SECRET_ACCESS_KEY"
+    }
+  }'
+
+4. The warehouse UUID it returns is what goes in ha_parquet.cc:
+fe89d40e-3472-11f1-8805-6fc69e665327
+
+5. UI is at:
+http://localhost:8181
