@@ -1,0 +1,34 @@
+include/start_extra_server.inc [server 1]
+Executing: perl MYSQL_TEST_DIR/lib/start_extra_server.pl 1
+Copying MYSQLTEST_VARDIR/install.db to MYSQLTEST_VARDIR/extra_server_1/data...
+Starting mysqld on port PORT with socket SOCKET...
+Command: MYSQLD --no-defaults --datadir=MYSQLTEST_VARDIR/extra_server_1/data --port=PORT --socket=SOCKET --pid-file=MYSQLTEST_VARDIR/extra_server_1/mysqld.pid --log-error=MYSQLTEST_VARDIR/log/extra_server_1.err --skip-networking=0 --skip-grant-tables --default-storage-engine=myisam --loose-skip-innodb --key-buffer-size=1M --sort-buffer-size=256K --max-heap-table-size=1M
+Server process started with PID PID
+Waiting for server to be ready...
+Socket file created: SOCKET
+Extra server 1 started successfully
+Connection info written to MYSQLTEST_VARDIR/tmp/extra_server_1.info
+  Host: 127.0.0.1
+  Port: PORT
+  Socket: SOCKET
+  Datadir: MYSQLTEST_VARDIR/extra_server_1/data
+Extra server 1 connection info:
+  PORT=PORT
+  SOCKET=SOCKET
+include/start_extra_server.inc [server 1]
+status
+Connected to extra server
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1), (2), (3);
+SELECT * FROM t1;
+id
+1
+2
+3
+status
+On default server
+include/stop_extra_server.inc [server 1]
+Stopping extra server 1 (PID: PID)...
+Server process PID has exited
+Extra server 1 stopped
+include/stop_extra_server.inc [server 1]

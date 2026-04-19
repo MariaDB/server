@@ -271,6 +271,11 @@ static const char *opt_plugin_dir;
 static const char *opt_suite_dir, *opt_overlay_dir;
 static size_t suite_dir_len, overlay_dir_len;
 
+/* ReplayTest mode variables */
+static MYSQL *replay_server_mysql= NULL;
+static const char *replay_server_socket= NULL;
+static my_bool replay_test_mode= FALSE;
+
 /* Precompiled re's */
 static regex_t ps_re;     /* the query can be run using PS protocol */
 static regex_t ps2_re;    /* the query can be run using PS protocol with second execution*/
@@ -1505,6 +1510,12 @@ void free_used_memory()
 {
   uint i;
   DBUG_ENTER("free_used_memory");
+
+  if (replay_server_mysql)
+  {
+    mysql_close(replay_server_mysql);
+    replay_server_mysql= NULL;
+  }
 
   if (connections)
   {
@@ -8319,6 +8330,273 @@ void run_close_stmt(struct st_connection *cn, struct st_command *command, const 
                     size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings);
 
 /*
+  ReplayTest mode helper functions
+*/
+
+/*
+  Ensure connection to replay server is established
+  Returns 0 on success, non-zero on error
+*/
+static int ensure_replay_server_connection()
+{
+  DBUG_ENTER("ensure_replay_server_connection");
+  
+  if (replay_server_mysql)
+    DBUG_RETURN(0);
+  
+  replay_server_mysql= mysql_init(NULL);
+  if (!replay_server_mysql)
+  {
+    fprintf(stdout, "ReplayTest: Failed to initialize MySQL handle for replay server\n");
+    DBUG_RETURN(1);
+  }
+  
+  if (!mysql_real_connect(replay_server_mysql, NULL, NULL, NULL, "test", 0,
+                          replay_server_socket, CLIENT_MULTI_STATEMENTS))
+  {
+    fprintf(stdout, "ReplayTest: Failed to connect to replay server at socket '%s': %d %s\n",
+            replay_server_socket, mysql_errno(replay_server_mysql),
+            mysql_error(replay_server_mysql));
+    mysql_close(replay_server_mysql);
+    replay_server_mysql= NULL;
+    DBUG_RETURN(1);
+  }
+  
+  verbose_msg("ReplayTest: Connected to replay server (database: test)");
+  DBUG_RETURN(0);
+}
+
+/*
+  Check if query starts with "EXPLAIN FORMAT=JSON"
+  Returns TRUE if it matches, FALSE otherwise
+*/
+static my_bool is_explain_format_json(const char *query, size_t query_len)
+{
+  const char *p= query;
+  const char *end= query + query_len;
+  
+  while (p < end && my_isspace(charset_info, *p))
+    p++;
+  
+  if (end - p < 7 || strncasecmp(p, "EXPLAIN", 7) != 0)
+    return FALSE;
+  p += 7;
+  
+  if (p >= end || !my_isspace(charset_info, *p))
+    return FALSE;
+  
+  while (p < end && my_isspace(charset_info, *p))
+    p++;
+  
+  if (end - p < 6 || strncasecmp(p, "FORMAT", 6) != 0)
+    return FALSE;
+  p += 6;
+  
+  while (p < end && my_isspace(charset_info, *p))
+    p++;
+  
+  if (p >= end || *p != '=')
+    return FALSE;
+  p++;
+  
+  while (p < end && my_isspace(charset_info, *p))
+    p++;
+  
+  if (end - p < 4 || strncasecmp(p, "JSON", 4) != 0)
+    return FALSE;
+  
+  return TRUE;
+}
+
+/*
+  Execute queries from SQL script on replay server
+  Split by ";\n" and execute each query
+  Append output from last query to ds
+*/
+static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
+{
+  DYNAMIC_STRING last_result;
+  const char *p= sql_script;
+  const char *query_start= p;
+  const char *last_query_start= NULL;
+  size_t last_query_len= 0;
+  DBUG_ENTER("execute_replay_queries");
+  
+  verbose_msg("ReplayTest: SQL script from optimizer_context:\n%s", sql_script);
+  
+  init_dynamic_string(&last_result, "", 1024, 1024);
+  
+  while (*p)
+  {
+    if (p[0] == ';' && p[1] == '\n')
+    {
+      size_t query_len= p - query_start;
+      const char *q= query_start;
+      const char *q_end= query_start + query_len;
+      
+      while (q < q_end && my_isspace(charset_info, *q))
+        q++;
+      
+      if (q < q_end)
+      {
+        last_query_start= query_start;
+        last_query_len= query_len;
+      }
+      
+      p += 2;
+      query_start= p;
+    }
+    else
+    {
+      p++;
+    }
+  }
+  
+  if (query_start < p)
+  {
+    const char *q= query_start;
+    const char *q_end= p;
+    while (q < q_end && my_isspace(charset_info, *q))
+      q++;
+    if (q < q_end)
+    {
+      last_query_start= query_start;
+      last_query_len= p - query_start;
+    }
+  }
+  
+  p= sql_script;
+  query_start= p;
+  
+  while (*p)
+  {
+    if (p[0] == ';' && p[1] == '\n')
+    {
+      size_t query_len= p - query_start;
+      const char *q= query_start;
+      const char *q_end= query_start + query_len;
+      
+      while (q < q_end && my_isspace(charset_info, *q))
+        q++;
+      
+      if (q < q_end)
+      {
+        my_bool is_last= (query_start == last_query_start && 
+                          query_len == last_query_len);
+        
+        verbose_msg("ReplayTest: Executing query on replay server (%s): %.*s",
+                    is_last ? "LAST" : "intermediate", (int)query_len, query_start);
+        
+        if (mysql_real_query(replay_server_mysql, query_start, query_len))
+        {
+          fprintf(stdout, "ReplayTest: Query failed on replay server: %d %s\n",
+                  mysql_errno(replay_server_mysql),
+                  mysql_error(replay_server_mysql));
+          fprintf(stdout, "ReplayTest: Failed query was: %.*s\n", (int)query_len, query_start);
+          dynstr_free(&last_result);
+          DBUG_VOID_RETURN;
+        }
+        
+        do
+        {
+          MYSQL_RES *res= mysql_store_result(replay_server_mysql);
+          if (res)
+          {
+            if (is_last)
+            {
+              MYSQL_FIELD *fields= mysql_fetch_fields(res);
+              uint num_fields= mysql_num_fields(res);
+              MYSQL_ROW row;
+              
+              if (!display_result_vertically)
+              {
+                append_table_headings(&last_result, fields, num_fields);
+              }
+              
+              while ((row= mysql_fetch_row(res)))
+              {
+                uint i;
+                ulong *lengths= mysql_fetch_lengths(res);
+                for (i= 0; i < num_fields; i++)
+                  append_field(&last_result, i, &fields[i],
+                              row[i], lengths[i], !row[i]);
+                if (!display_result_vertically)
+                  dynstr_append_mem(&last_result, "\n", 1);
+              }
+            }
+            mysql_free_result(res);
+          }
+        } while (mysql_next_result(replay_server_mysql) == 0);
+      }
+      
+      p += 2;
+      query_start= p;
+    }
+    else
+    {
+      p++;
+    }
+  }
+  
+  if (query_start < p)
+  {
+    const char *q= query_start;
+    const char *q_end= p;
+    while (q < q_end && my_isspace(charset_info, *q))
+      q++;
+    if (q < q_end)
+    {
+      size_t query_len= p - query_start;
+      
+      verbose_msg("ReplayTest: Executing final query on replay server: %.*s",
+                  (int)query_len, query_start);
+      
+      if (mysql_real_query(replay_server_mysql, query_start, query_len))
+      {
+        fprintf(stdout, "ReplayTest: Query failed on replay server: %d %s\n",
+                mysql_errno(replay_server_mysql),
+                mysql_error(replay_server_mysql));
+        fprintf(stdout, "ReplayTest: Failed query was: %.*s\n", (int)query_len, query_start);
+        dynstr_free(&last_result);
+        DBUG_VOID_RETURN;
+      }
+      
+      do
+      {
+        MYSQL_RES *res= mysql_store_result(replay_server_mysql);
+        if (res)
+        {
+          MYSQL_FIELD *fields= mysql_fetch_fields(res);
+          uint num_fields= mysql_num_fields(res);
+          MYSQL_ROW row;
+          
+          if (!display_result_vertically)
+          {
+            append_table_headings(&last_result, fields, num_fields);
+          }
+          
+          while ((row= mysql_fetch_row(res)))
+          {
+            uint i;
+            ulong *lengths= mysql_fetch_lengths(res);
+            for (i= 0; i < num_fields; i++)
+              append_field(&last_result, i, &fields[i],
+                          row[i], lengths[i], !row[i]);
+            if (!display_result_vertically)
+              dynstr_append_mem(&last_result, "\n", 1);
+          }
+          mysql_free_result(res);
+        }
+      } while (mysql_next_result(replay_server_mysql) == 0);
+    }
+  }
+  
+  dynstr_append_mem(ds, last_result.str, last_result.length);
+  dynstr_free(&last_result);
+  DBUG_VOID_RETURN;
+}
+
+/*
   Run query using MySQL C API
 
   SYNOPSIS
@@ -8338,6 +8616,7 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
   MYSQL_RES *res= 0;
   MYSQL *mysql= cn->mysql;
   int err= 0, counter= 0;
+  my_bool replay_mode_active= FALSE;
   DBUG_ENTER("run_query_normal");
   DBUG_PRINT("enter",("flags: %d", flags));
   DBUG_PRINT("enter", ("query: '%-.60s'", query));
@@ -8372,6 +8651,28 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
     break;
   default: /* not a prepared statement command */
     break;
+  }
+
+  /* ReplayTest mode: Set optimizer_record_context BEFORE sending EXPLAIN query */
+  if (replay_test_mode && (flags & QUERY_SEND_FLAG) && (flags & QUERY_REAP_FLAG) &&
+      is_explain_format_json(query, query_len))
+  {
+    replay_mode_active= TRUE;
+    verbose_msg("ReplayTest: Detected EXPLAIN FORMAT=JSON query, activating replay mode");
+    
+    /* Step 1: Set optimizer_record_context=1 */
+    if (mysql_real_query(mysql, "SET optimizer_record_context=1", 30))
+    {
+      fprintf(stdout, "ReplayTest: Failed to set optimizer_record_context: %d %s\n",
+              mysql_errno(mysql), mysql_error(mysql));
+      replay_mode_active= FALSE;
+    }
+    else
+    {
+      MYSQL_RES *tmp_res= mysql_store_result(mysql);
+      if (tmp_res)
+        mysql_free_result(tmp_res);
+    }
   }
 
   if (flags & QUERY_SEND_FLAG)
@@ -8431,7 +8732,61 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 	if (!display_result_vertically)
 	  append_table_headings(ds, fields, num_fields);
 
-	append_result(ds, res);
+	/* ReplayTest mode: Replace EXPLAIN result with replay server output */
+	if (replay_mode_active && counter == 0)
+	{
+	  /* Free the EXPLAIN result - we won't use it */
+	  mysql_free_result(res);
+	  res= 0;
+	  
+	  /* Step 2: Query optimizer_context */
+	  fprintf(stdout, "ReplayTest: Loading context \n");
+	  if (mysql_real_query(mysql, 
+	      "SELECT context FROM information_schema.optimizer_context", 56))
+	  {
+	    fprintf(stdout, "ReplayTest: Failed to query optimizer_context: %d %s\n",
+	            mysql_errno(mysql), mysql_error(mysql));
+	  }
+	  else
+	  {
+	    MYSQL_RES *context_res= mysql_store_result(mysql);
+	    if (context_res && mysql_num_rows(context_res) > 0)
+	    {
+	      MYSQL_ROW context_row= mysql_fetch_row(context_res);
+	      if (context_row && context_row[0])
+	      {
+	        const char *sql_script= context_row[0];
+	        
+	        /* Step 3: Connect to replay server and execute queries */
+	        if (ensure_replay_server_connection() == 0)
+	        {
+	          execute_replay_queries(sql_script, ds);
+	        }
+	        else
+	        {
+	          fprintf(stdout, "ReplayTest: Failed to connect to replay server\n");
+	        }
+	      }
+	      else
+	      {
+	        fprintf(stdout, "ReplayTest: optimizer_context returned NULL\n");
+	      }
+	      mysql_free_result(context_res);
+	    }
+	    else
+	    {
+	      fprintf(stdout, "ReplayTest: optimizer_context returned no rows\n");
+	      if (context_res)
+	        mysql_free_result(context_res);
+	    }
+	  }
+	  
+	  replay_mode_active= FALSE;
+	}
+	else
+	{
+	  append_result(ds, res);
+	}
       }
 
       /*
@@ -10301,6 +10656,15 @@ int main(int argc, char **argv)
   }
   var_set_string("MYSQLTEST_FILE", cur_file->file_name);
   init_re();
+
+  /* Check for ReplayTest mode */
+  replay_server_socket= getenv("REPLAY_SERVER_SOCKET");
+  if (replay_server_socket && replay_server_socket[0])
+  {
+    replay_test_mode= TRUE;
+    verbose_msg("ReplayTest mode enabled, replay server socket: %s", 
+                replay_server_socket);
+  }
 
   /* Cursor protocol implies ps protocol */
   if (cursor_protocol)

@@ -1,0 +1,89 @@
+================================================================================
+EXTRA SERVER QUICK START GUIDE
+================================================================================
+
+This feature allows you to start additional MariaDB server instances during
+test execution while mysql-test-run is already running.
+
+BASIC USAGE
+-----------
+
+1. In your test file (.test):
+
+   # Start extra server
+   --let $extra_server_num= 1
+   --source include/start_extra_server.inc
+   
+   # Connect to it
+   --connect (extra1, 127.0.0.1, root, , test, $EXTRA_SERVER_PORT)
+   CREATE TABLE t1 (id INT);
+   SELECT * FROM t1;
+   
+   # Stop it
+   --disconnect extra1
+   --let $extra_server_num= 1
+   --source include/stop_extra_server.inc
+
+2. Run the test:
+
+   cd mysql-test
+   ./mysql-test-run main.extra_server_example
+
+WHAT IT DOES
+------------
+
+✓ Creates new data directory: var/extra_server_N/data (copied from install.db)
+✓ Picks non-conflicting port: MASTER_MYPORT + 10 + N
+✓ Creates unique socket: var/tmp/extra_server_N.sock
+✓ Starts mysqld with --skip-grant-tables (no password needed)
+✓ Exports connection info: $EXTRA_SERVER_PORT, $EXTRA_SERVER_SOCKET, etc.
+
+AVAILABLE VARIABLES AFTER START
+--------------------------------
+
+$EXTRA_SERVER_PORT    - Port number (e.g., 10011 for server 1)
+$EXTRA_SERVER_SOCKET  - Socket path
+$EXTRA_SERVER_DATADIR - Data directory path
+$EXTRA_SERVER_PID     - Process ID
+
+CUSTOM PORT/SOCKET
+------------------
+
+--let $extra_server_num= 2
+--let $extra_server_port= 15000
+--let $extra_server_socket= /tmp/my_custom.sock
+--source include/start_extra_server.inc
+
+MULTIPLE SERVERS
+----------------
+
+--let $extra_server_num= 1
+--source include/start_extra_server.inc
+
+--let $extra_server_num= 2
+--source include/start_extra_server.inc
+
+# Now you have two extra servers running!
+
+FILES CREATED
+-------------
+
+lib/start_extra_server.pl         - Perl script (main implementation)
+include/start_extra_server.inc    - Test include to start server
+include/stop_extra_server.inc     - Test include to stop server
+main/extra_server_example.test    - Example test
+lib/EXTRA_SERVER_README.md        - Full documentation
+
+TROUBLESHOOTING
+---------------
+
+If server fails to start, check:
+  var/log/extra_server_N.err
+
+Connection info is stored in:
+  var/tmp/extra_server_N.info
+
+Direct invocation (from Perl or shell):
+  perl lib/start_extra_server.pl <server_num> [port] [socket]
+
+================================================================================

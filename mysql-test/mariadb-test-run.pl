@@ -281,6 +281,8 @@ our $opt_gcov;
 our $opt_gprof;
 our %gprof_dirs;
 
+our $opt_replay_server;  # Start an extra server for replay
+
 my $config; # The currently running config
 my $current_config_name; # The currently running config file template
 
@@ -425,6 +427,12 @@ sub main {
   {
     mysql_install_db(default_mysqld(), "$opt_vardir/install.db");
     make_readonly("$opt_vardir/install.db");
+    
+    # Start replay server if --replay-server option is specified
+    if ( $opt_replay_server )
+    {
+      start_replay_server();
+    }
   }
   if ($opt_dry_run)
   {
@@ -595,6 +603,9 @@ sub main {
   }
 
   remove_vardir_subs() if $opt_clean_vardir;
+
+  # Stop replay server if it was started
+  stop_replay_server() if $opt_replay_server;
 
   exit(0);
 }
@@ -1283,6 +1294,7 @@ sub command_line_setup {
              'skip-test-list=s'         => \@opt_skip_test_list,
              'xml-report=s'             => \$opt_xml_report,
              'open-files-limit=i',      => \$opt_open_files_limit,
+             'replay-server'            => \$opt_replay_server,
 
              My::Debugger::options(),
              My::CoreDump::options(),
@@ -3028,6 +3040,95 @@ sub initialize_servers {
       setup_vardir();
     }
   }
+}
+
+
+sub start_replay_server {
+  mtr_report("Starting replay server...");
+  
+  my $replay_server_num = 1;
+  my $script = "$glob_mysql_test_dir/lib/start_extra_server.pl";
+  
+  unless (-f $script) {
+    mtr_error("Replay server script not found: $script");
+  }
+  
+  # Set required environment variables for the script
+  # (environment_setup() has already been called, so most are already set)
+  $ENV{MYSQLTEST_VARDIR} = $opt_vardir unless $ENV{MYSQLTEST_VARDIR};
+  $ENV{MASTER_MYPORT} = $baseport unless $ENV{MASTER_MYPORT};
+  $ENV{MYSQL_TEST_DIR} = $glob_mysql_test_dir unless $ENV{MYSQL_TEST_DIR};
+  # MYSQLD should already be set by environment_setup(), but set it if not
+  $ENV{MYSQLD} = find_mysqld($basedir) unless $ENV{MYSQLD};
+  
+  # Use a custom socket path in the replay server directory to avoid cleanup
+  my $replay_socket = "$opt_vardir/extra_server_$replay_server_num/mysqld.sock";
+  
+  # Call the start_extra_server.pl script with custom socket
+  my $cmd = "perl $script $replay_server_num '' $replay_socket";
+  my $result = system($cmd);
+  
+  if ($result != 0) {
+    mtr_error("Failed to start replay server (exit code: $result)");
+  }
+  
+  # Read connection info
+  my $info_file = "$opt_vardir/tmp/extra_server_$replay_server_num.info";
+  unless (-f $info_file) {
+    mtr_error("Replay server info file not found: $info_file");
+  }
+  
+  open my $fh, '<', $info_file or mtr_error("Cannot read $info_file: $!");
+  my %info;
+  while (<$fh>) {
+    chomp;
+    if (/^(\w+)=(.+)/) {
+      $info{$1} = $2;
+    }
+  }
+  close $fh;
+  
+  # Store for cleanup and export to environment
+  $ENV{REPLAY_SERVER_SOCKET} = $info{SOCKET};
+  $ENV{REPLAY_SERVER_PID} = $info{PID};
+  
+  mtr_report("Replay server started on socket: $info{SOCKET}");
+}
+
+
+sub stop_replay_server {
+  return unless $opt_replay_server;
+  return unless $ENV{REPLAY_SERVER_PID};
+  
+  mtr_report("Stopping replay server...");
+  
+  my $pid = $ENV{REPLAY_SERVER_PID};
+  
+  # Send SIGTERM
+  if (kill 0, $pid) {
+    kill 'TERM', $pid;
+    
+    # Wait for process to exit (up to 10 seconds)
+    my $max_wait = 10;
+    my $waited = 0;
+    while ($waited < $max_wait) {
+      my $result = waitpid($pid, WNOHANG);
+      last if ($result == $pid || $result == -1);
+      sleep 1;
+      $waited++;
+    }
+    
+    # Force kill if still running
+    if ($waited >= $max_wait && kill 0, $pid) {
+      kill 'KILL', $pid;
+    }
+  }
+  
+  # Cleanup info file
+  my $info_file = "$opt_vardir/tmp/extra_server_1.info";
+  unlink $info_file if -f $info_file;
+  
+  mtr_report("Replay server stopped");
 }
 
 
@@ -6026,6 +6127,8 @@ Misc options
   timer                 Show test case execution time.
   verbose               More verbose output(use multiple times for even more)
   verbose-restart       Write when and why servers are restarted
+  replay-server         Start an extra server instance before running tests.
+                        Socket path available via REPLAY_SERVER_SOCKET env var.
   start                 Only initialize and start the servers, using the
                         startup settings for the first specified test case
                         Example:
