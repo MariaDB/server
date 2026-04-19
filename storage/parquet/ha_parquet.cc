@@ -235,7 +235,6 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
 
   try {
     std::lock_guard<std::mutex> lock(g_duckdb_mutex);
-    auto con = std::make_unique<duckdb::Connection>(*g_duckdb);
     duckdb::Connection *con = new duckdb::Connection(*g_duckdb);
     parquet_log_info("DuckDB create buffer connection table='" + table_name +
                      "'");
@@ -415,7 +414,7 @@ void ha_parquet::flush_remaining_rows_to_s3(parquet_trx_data *trx)
 
   try {
     std::lock_guard<std::mutex> lock(g_duckdb_mutex);
-    auto con = std::make_unique<duckdb::Connection>(*g_duckdb);
+    duckdb::Connection *con = new duckdb::Connection(*g_duckdb);
     parquet_log_info("DuckDB query [flush/install] INSTALL parquet;");
     con->Query("INSTALL parquet;");
     parquet_log_info("DuckDB query [flush/load] LOAD parquet;");
@@ -425,7 +424,6 @@ void ha_parquet::flush_remaining_rows_to_s3(parquet_trx_data *trx)
     parquet_log_info("DuckDB query [flush/load-httpfs] LOAD httpfs;");
     con->Query("LOAD httpfs;");
     configure_duckdb_s3(con);
-
 
     std::string copy_query = build_copy_to_parquet_query(buf_name, s3_path);
 
@@ -449,7 +447,7 @@ void ha_parquet::flush_remaining_rows_to_s3(parquet_trx_data *trx)
 
     parquet_log_info("DuckDB query [flush/clear-buffer] DELETE FROM " + buf_name);
     con->Query("DELETE FROM " + buf_name);
-    //delete con;
+    delete con;
 
     trx->s3_file_paths.push_back(s3_path);
     trx->row_counts.push_back((int64_t)row_count);
@@ -474,14 +472,14 @@ int ha_parquet::write_row(const uchar *buf)
   std::string buf_name = "buf_" + std::string(table->s->table_name.str);
   try {
     std::lock_guard<std::mutex> lock(g_duckdb_mutex);
-    auto con = std::make_unique<duckdb::Connection>(*g_duckdb);
+    duckdb::Connection *con = new duckdb::Connection(*g_duckdb);
     parquet_log_info("DuckDB query [write/install] INSTALL parquet;");
     con->Query("INSTALL parquet;");
     parquet_log_info("DuckDB query [write/load] LOAD parquet;");
     con->Query("LOAD parquet;");
 
     std::string create_sql = build_query_create(buf_name, table);
-    if (create_sql.empty()) { DBUG_RETURN(HA_ERR_UNSUPPORTED); }
+    if (create_sql.empty()) { delete con; DBUG_RETURN(HA_ERR_UNSUPPORTED); }
     parquet_log_info("DuckDB query [write/ensure-buffer] " +
                      parquet_log_preview(create_sql));
     con->Query(create_sql);
@@ -513,7 +511,7 @@ int ha_parquet::write_row(const uchar *buf)
     auto result = con->Query(insert_sql);
     if (!result || result->HasError()) {
       std::cerr << "INSERT error: " << (result ? result->GetError() : "null result") << std::endl;
-      //delete con;
+      delete con;
       DBUG_RETURN(HA_ERR_GENERIC);
     }
 
@@ -521,7 +519,7 @@ int ha_parquet::write_row(const uchar *buf)
     parquet_log_info("DuckDB buffered row table='" +
                      std::string(table->s->table_name.str) + "' row_count=" +
                      std::to_string(row_count));
-    //delete con;
+    delete con;
 
   } catch (const duckdb::Exception &e) {
     std::cerr << "write_row DuckDB exception: " << e.what() << std::endl;
@@ -571,8 +569,7 @@ int ha_parquet::rnd_init(bool scan)
   }
   parquet_file_list += "]";
 
-  std::string query = "SELECT * FROM read_parquet(" +
-                      quote_string_literal(current_snapshot_file) + ")";
+  std::string query = "SELECT * FROM read_parquet(" + parquet_file_list + ")";
 
   if (has_pushed_cond && !pushed_cond_sql.empty()) {
     query += " WHERE " + pushed_cond_sql;
@@ -580,7 +577,7 @@ int ha_parquet::rnd_init(bool scan)
 
   try {
     std::lock_guard<std::mutex> lock(g_duckdb_mutex);
-    auto con = std::make_unique<duckdb::Connection>(*g_duckdb);
+    duckdb::Connection *con = new duckdb::Connection(*g_duckdb);
     parquet_log_info("DuckDB query [read/install] INSTALL parquet;");
     con->Query("INSTALL parquet;");
     parquet_log_info("DuckDB query [read/load] LOAD parquet;");
@@ -596,11 +593,11 @@ int ha_parquet::rnd_init(bool scan)
     auto result = con->Query(query);
     if (!result || result->HasError()) {
       std::cerr << "rnd_init read error: " << (result ? result->GetError() : "null result") << std::endl;
-      //delete con;
+      delete con;
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
     }
     scan_result = std::move(result);
-    //delete con;
+    delete con;
 
   } catch (const std::exception &e) {
     std::cerr << "rnd_init exception: " << e.what() << std::endl;
@@ -629,8 +626,6 @@ int ha_parquet::rnd_next(uchar *buf)
      continue;
    }
 
-   if (val.IsNull()) { f->set_null(); continue; }
-
    f->set_notnull();
 
 
@@ -643,7 +638,7 @@ int ha_parquet::rnd_next(uchar *buf)
    else if (t == MYSQL_TYPE_FLOAT || t == MYSQL_TYPE_DOUBLE)
      f->store(val.GetValue<double>());
    else {
-     std::string s = val_string;
+     std::string s = val.ToString();
      f->store(s.c_str(), s.length(), f->charset());
    }
  }
@@ -682,8 +677,8 @@ int ha_parquet::external_lock(THD *thd, int lock_type)
  } else if (lock_type == F_UNLCK) {
    parquet_trx_data *trx = (parquet_trx_data *) thd_get_ha_data(thd, parquet_hton);
    flush_remaining_rows_to_s3(trx);
-   //if (trx && !trx->s3_file_paths.empty())    
-   //  ha_parquet_commit(thd, true);             
+   if (trx && !trx->s3_file_paths.empty())
+     ha_parquet_commit(thd, true);
  }
  
  
@@ -744,7 +739,7 @@ static int ha_parquet_commit(THD *thd, bool all)
        "}]"
      "}",
      config.lakekeeper_namespace.c_str(),
-     trx->table_name.c_str(), snapshot_id, snapshot_id,
+     trx->table_name.c_str(), snapshot_id, snapshot_id * 1000,
      trx->row_counts[i],
      trx->file_sizes[i],
      s3_path.c_str(), snapshot_id);
