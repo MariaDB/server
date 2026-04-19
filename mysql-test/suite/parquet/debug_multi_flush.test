@@ -19,9 +19,9 @@ SET SESSION debug_dbug = @old_debug_dbug;
 DROP TABLE t1;
 
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
---remove_file $MYSQLD_DATADIR/test/t1.parquet
---remove_file $MYSQLD_DATADIR/test/t1.parquet.meta
---remove_file $MYSQLD_DATADIR/test/duckdb_helper.duckdb
+--remove_files_wildcard $MYSQLD_DATADIR/test t1.parquet
+--remove_files_wildcard $MYSQLD_DATADIR/test t1.parquet.meta
+--remove_files_wildcard $MYSQLD_DATADIR/test duckdb_helper.duckdb
 --remove_files_wildcard $MYSQLD_DATADIR/test t1.stage_*.parquet
 
 if ($HA_PARQUET_SO) {
