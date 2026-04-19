@@ -420,9 +420,8 @@ void ha_parquet::flush_remaining_rows_to_s3(parquet_trx_data *trx)
     con->Query("LOAD httpfs;");
     configure_duckdb_s3(con);
 
-    std::string copy_query = existing_snapshot_file.empty()
-      ? build_copy_to_parquet_query(buf_name, s3_path)
-      : build_select_union_copy_to_parquet_query(existing_snapshot_file, buf_name, s3_path);
+
+    std::string copy_query = build_copy_to_parquet_query(buf_name, s3_path);
 
     parquet_log_info("DuckDB query [flush/copy] " +
                      parquet_log_preview(copy_query));
