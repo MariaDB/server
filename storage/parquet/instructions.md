@@ -1,33 +1,45 @@
-Add the access keys: Check groupchat for keys
-Replace placeholders in TWO different spots:
+## AWS Credentials
+Add the access keys: Check groupchat for keys.
+Replace placeholders in TWO different spots in `ha_parquet.cc`:
+```cpp
 con->Query("SET s3_access_key_id='YOUR_AWS_ACCESS_KEY_ID'");
 con->Query("SET s3_secret_access_key='YOUR_AWS_SECRET_ACCESS_KEY'");
+```
 
-1. Build MariaDB with DuckDB:
+## Build MariaDB with DuckDB
 
+```bash
 cd ~/MariaDB2/build-mariadb-duckdb
 cmake ../server \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DWITH_UNIT_TESTS=OFF \
   -DBISON_EXECUTABLE="$(brew --prefix bison)/bin/bison"
 cmake --build . --parallel 4
+```
 
-2. Initialize the database:
+## Initialize the database
 
+```bash
 sql/mariadb-install-db \
   --srcdir=../server \
   --defaults-file=~/mariadb-parquet.cnf
+```
 
-3. Start the server:
+## Start the server
 
+```bash
 sql/mariadbd --defaults-file=~/mariadb-parquet.cnf &
+```
 
-4. Connect:
+## Connect
 
+```bash
 client/mariadb --socket=/tmp/mariadb-parquet.sock
+```
 
+## CMakeLists.txt
 
-This cmakelists.txt worked for me: 
+```cmake
 FIND_PACKAGE(CURL REQUIRED)
 
 MYSQL_ADD_PLUGIN(parquet
@@ -45,22 +57,28 @@ if(TARGET parquet)
     CURL::libcurl
   )
 endif()
+```
 
+## LakeKeeper Setup
 
-Lakekeeper Setup:
-1. Clone and start LakeKeeper:
+### 1. Clone and start LakeKeeper
 
-bashgit clone https://github.com/lakekeeper/lakekeeper
+```bash
+git clone https://github.com/lakekeeper/lakekeeper
 cd lakekeeper/examples/minimal
 docker compose up -d
+```
 
-2. Verify it's running:
+### 2. Verify it's running
 
-bashcurl http://localhost:8181/health
+```bash
+curl http://localhost:8181/health
+```
 
-3. Create the warehouse (one time):
+### 3. Create the warehouse (one time)
 
-bashcurl -X POST http://localhost:8181/management/v1/warehouse \
+```bash
+curl -X POST http://localhost:8181/management/v1/warehouse \
   -H "Content-Type: application/json" \
   -d '{
     "warehouse-name": "default",
@@ -76,9 +94,17 @@ bashcurl -X POST http://localhost:8181/management/v1/warehouse \
       "aws-secret-access-key": "YOUR_AWS_SECRET_ACCESS_KEY"
     }
   }'
+```
 
-4. The warehouse UUID it returns is what goes in ha_parquet.cc:
-fe89d40e-3472-11f1-8805-6fc69e665327
+### 4. Warehouse UUID
 
-5. UI is at:
-http://localhost:8181
+The UUID returned goes in `ha_parquet.cc`:
+
+    fe89d40e-3472-11f1-8805-6fc69e665327
+
+### 5. UI
+
+    http://localhost:8181
+ENDOFFILE
+
+
