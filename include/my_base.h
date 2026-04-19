@@ -316,6 +316,7 @@ enum ha_base_keytype {
 #define HA_USES_PARSER           16384  /* Fulltext index uses [pre]parser */
 #define HA_USES_BLOCK_SIZE	 ((uint) 32768)
 #define HA_SORT_ALLOWS_SAME      512    /* Intern bit when sorting records */
+#define HA_BLOB_PART_KEY	 65536  /* Some key parts are blobs */
 
 /* This flag can be used only in KEY::ext_key_flags */
 #define HA_EXT_NOSAME            131072

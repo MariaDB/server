@@ -598,6 +598,11 @@ int maria_create(const char *name, enum data_file_type datafile_type,
                                  keyseg->type == HA_KEYTYPE_VARBINARY1) ?
                                 1 : 2);
           }
+          else
+          {
+            /* Ensure that that the blob has a fix max length */
+            DBUG_ASSERT(keyseg->length > 0);
+          }
           break;
 	default:
 	  break;

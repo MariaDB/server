@@ -1,0 +1,9 @@
+--echo #
+--echo # Test create_internal_tmp_table_from_heap() with blob/text columns.
+--echo #
+
+# Test with forcing conversion of temporary table to Aria
+
+SET @@tmp_memory_table_size = 65536;
+--source heap_blob_big.inc
+

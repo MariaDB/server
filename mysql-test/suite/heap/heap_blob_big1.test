@@ -1,0 +1,8 @@
+--echo #
+--echo # Test create_internal_tmp_table_from_heap() with blob/text columns.
+--echo #
+
+# Test with all data fitting in memory tables
+
+SET @@tmp_memory_table_size = 1024*1024;
+--source heap_blob_big.inc

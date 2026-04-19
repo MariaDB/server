@@ -21480,6 +21480,14 @@ bool Create_tmp_table::finalize(THD *thd,
 	  goto err; /* purecov: inspected */
 
         /*
+          Mark that a key segment is a blob. Needed for
+          create_internal_tmp_table_from_heap to convert keys with blobs
+          to unique.
+        */
+        if (cur_group->field->flags & BLOB_FLAG)
+          keyinfo->flags|= HA_BLOB_PART_KEY;
+
+        /*
           Set store_length for all GROUP BY key parts so
           rebuild_key_from_group_buff() can advance through the key buffer.
           store_length = key field pack_length + null flag byte.
@@ -21651,6 +21659,9 @@ bool Create_tmp_table::finalize(THD *thd,
         m_key_part_info->store_length+= HA_KEY_NULL_LENGTH;
         m_key_part_info->key_part_flag |= HA_NULL_PART;
       }
+      if (field->flags & BLOB_FLAG)
+        keyinfo->flags|= HA_BLOB_PART_KEY;
+
       m_key_part_info->store_length+= field->key_part_length_bytes();
       keyinfo->key_length+= m_key_part_info->store_length;
 
@@ -22039,7 +22050,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     */
     if (keyinfo->key_length > table->file->max_key_length() ||
 	keyinfo->user_defined_key_parts > table->file->max_key_parts() ||
-	share->uniques)
+	share->uniques || (keyinfo->flags & HA_BLOB_PART_KEY))
     {
       if (!share->uniques && !(keyinfo->flags & HA_NOSAME))
       {
