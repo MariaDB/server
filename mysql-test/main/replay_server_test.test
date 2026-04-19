@@ -1,0 +1,48 @@
+# Test that replay server is started and REPLAY_SERVER_SOCKET is set
+--source include/not_embedded.inc
+
+--perl
+if ($ENV{REPLAY_SERVER_SOCKET}) {
+  print "REPLAY_SERVER_SOCKET is set: $ENV{REPLAY_SERVER_SOCKET}\n";
+} else {
+  print "REPLAY_SERVER_SOCKET is NOT set\n";
+}
+EOF
+
+# Try to connect to the replay server if socket is set
+--perl
+if ($ENV{REPLAY_SERVER_SOCKET}) {
+  my $socket = $ENV{REPLAY_SERVER_SOCKET};
+  print "Checking socket: $socket\n";
+  print "Socket exists: ", (-e $socket ? "YES" : "NO"), "\n";
+  print "Is socket: ", (-S $socket ? "YES" : "NO"), "\n";
+  
+  # Check if PID is set and process is running
+  if ($ENV{REPLAY_SERVER_PID}) {
+    my $pid = $ENV{REPLAY_SERVER_PID};
+    print "Replay server PID: $pid\n";
+    my $running = kill 0, $pid;
+    print "Process running: ", ($running ? "YES" : "NO"), "\n";
+  }
+  
+  # List files in the socket directory
+  my $socket_dir = $socket;
+  $socket_dir =~ s{/[^/]+$}{};
+  print "Socket directory: $socket_dir\n";
+  if (-d $socket_dir) {
+    opendir(my $dh, $socket_dir);
+    my @files = grep { !/^\./ } readdir($dh);
+    closedir($dh);
+    print "Files in socket dir: ", join(", ", @files), "\n";
+  }
+}
+EOF
+
+# Test ReplayTest mode with EXPLAIN FORMAT=JSON
+CREATE TABLE t1 (a INT, b INT, KEY(a));
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+
+# This should trigger ReplayTest mode if REPLAY_SERVER_SOCKET is set
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a = 1;
+
+DROP TABLE t1;

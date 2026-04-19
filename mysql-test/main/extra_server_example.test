@@ -1,0 +1,22 @@
+# Test starting an extra server instance
+--source include/not_embedded.inc
+
+# Start extra server
+--let $extra_server_num= 1
+--source include/start_extra_server.inc
+
+# Connect to it
+--connect (extra1, 127.0.0.1, root, , test, $EXTRA_SERVER_PORT)
+SELECT "Connected to extra server" AS status;
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1), (2), (3);
+SELECT * FROM t1;
+
+# Back to default
+--connection default
+SELECT "On default server" AS status;
+
+# Stop extra server
+--disconnect extra1
+--let $extra_server_num= 1
+--source include/stop_extra_server.inc
