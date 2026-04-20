@@ -2928,11 +2928,35 @@ static void innodb_ahi_enable(dict_table_t *innodb_table,
     if (!index || !index->n_uniq)
       continue;  /* FTS indexes have n_uniq == 0; AHI is not applicable */
 
-    ut_ad(key.option_struct);
-    uint64_t fields= key.option_struct->complete_fields;
-    uint64_t bytes= key.option_struct->bytes_from_incomplete_field;
-    ut_ad(fields == ULONGLONG_MAX || fields <= max_complete_fields);
-    ut_ad(bytes == ULONGLONG_MAX || bytes <= max_bytes_from_incomplete_field);
+    uint64_t fields= ULONGLONG_MAX;
+    uint64_t bytes= ULONGLONG_MAX;
+    uint8_t index_ahi= 1;
+    uint32_t right= TABLE_HINT_DEFAULT;
+
+    /* Check if we can safely access InnoDB's ha_index_option_struct.
+    For partitioned InnoDB tables, db_type() returns partition_hton,
+    so we need to check default_part_plugin for the underlying engine.
+    For wrapper engines like mroonga, we must NOT access InnoDB's
+    structure as it has a different memory layout. */
+    bool is_innodb_table= table->s->db_type() == innodb_hton_ptr;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    if (!is_innodb_table && table->s->default_part_plugin)
+      is_innodb_table=
+        plugin_hton(table->s->default_part_plugin) == innodb_hton_ptr;
+#endif
+
+    if (key.option_struct && is_innodb_table)
+    {
+      fields= key.option_struct->complete_fields;
+      bytes= key.option_struct->bytes_from_incomplete_field;
+      ut_ad(fields == ULONGLONG_MAX || fields <= max_complete_fields);
+      ut_ad(bytes == ULONGLONG_MAX || bytes <= max_bytes_from_incomplete_field);
+      index_ahi=
+        uint8_t((key.option_struct->adaptive_hash_index + 1) % 3);
+      right= key.option_struct->for_equal_hash_point_to_last_record;
+      ut_ad(right <= TABLE_HINT_NO);
+    }
+
     const uint16_t n_uniq= index->n_uniq;
     /* Clamp fields to the number of unique index fields */
     if (UNIV_UNLIKELY(fields != ULONGLONG_MAX && fields > n_uniq))
@@ -2948,8 +2972,6 @@ static void innodb_ahi_enable(dict_table_t *innodb_table,
     /* If fields < n_uniq and bytes != ULONGLONG_MAX, there is no need
     to clamp bytes, as rec_fold() will already do so */
 
-    uint8_t index_ahi=
-      uint8_t((key.option_struct->adaptive_hash_index + 1) % 3);
     /* fields==0 + bytes==0 is useless */
     if (UNIV_UNLIKELY(index_ahi && fields == 0 && bytes == 0))
       index_ahi= 0;  /* Force disable AHI */
@@ -2958,10 +2980,6 @@ static void innodb_ahi_enable(dict_table_t *innodb_table,
     /* mask == 0xFF if index_ahi == 1, indicates index preference unset */
     const uint8_t ahi= uint8_t((table_ahi & mask) | (index_ahi & ~mask));
     ut_ad(ahi <= 2);
-
-    const uint32_t right=
-      key.option_struct->for_equal_hash_point_to_last_record;
-    ut_ad(right <= TABLE_HINT_NO);
 
     static_assert((uint64_t(1) << 63) > max_complete_fields,
                   "Cannot use highest bit as unused flag");
