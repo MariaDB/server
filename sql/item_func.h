@@ -1505,6 +1505,9 @@ protected:
 };
 
 
+
+
+
 class Item_func_signed :public Item_int_func
 {
 public:

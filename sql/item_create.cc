@@ -528,6 +528,19 @@ protected:
 };
 
 
+class Create_func_gtid_check_pos : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override;
+
+  static Create_func_gtid_check_pos s_singleton;
+
+protected:
+  Create_func_gtid_check_pos() = default;
+  ~Create_func_gtid_check_pos() override = default;
+};
+
+
 class Create_func_database : public Create_func_arg0
 {
 public:
@@ -3576,6 +3589,15 @@ Create_func_connection_id::create_builder(THD *thd)
 }
 
 
+Create_func_gtid_check_pos Create_func_gtid_check_pos::s_singleton;
+
+Item*
+Create_func_gtid_check_pos::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_gtid_check_pos(thd, arg1);
+}
+
+
 Create_func_database Create_func_database::s_singleton;
 
 Item*
@@ -6355,6 +6377,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("CONCAT_OPERATOR_ORACLE") }, BUILDER(Create_func_concat_operator_oracle)},
   { { STRING_WITH_LEN("CONCAT_WS") }, BUILDER(Create_func_concat_ws)},
   { { STRING_WITH_LEN("CONNECTION_ID") }, BUILDER(Create_func_connection_id)},
+  { { STRING_WITH_LEN("GTID_CHECK_POS") }, BUILDER(Create_func_gtid_check_pos)},
   { { STRING_WITH_LEN("CONV") }, BUILDER(Create_func_conv)},
   { { STRING_WITH_LEN("CONVERT_TZ") }, BUILDER(Create_func_convert_tz)},
   { { STRING_WITH_LEN("COS") }, BUILDER(Create_func_cos)},

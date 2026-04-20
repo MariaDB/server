@@ -32,6 +32,7 @@
 #include "semisync_slave.h"
 #include "mysys_err.h"
 #include "gtid_index.h"
+#include "item_cmpfunc.h"
 
 
 enum enum_gtid_until_state {
@@ -2120,6 +2121,9 @@ gtid_state_from_binlog_pos(const char *in_name, uint32 pos, String *out_str)
     return 1;
   return 0;
 }
+
+
+
 
 
 static bool
@@ -5836,6 +5840,68 @@ int compare_log_name(const char *log_1, const char *log_2) {
     res= (ext1 > ext2 ? 1 : ((ext1 == ext2) ? 0 : -1));
   }
   return res;
+}
+
+bool Item_func_gtid_check_pos::val_bool()
+{
+  DBUG_ASSERT(fixed());
+  String *gtid_str= args[0]->val_str(&tmp_value);
+  if ((null_value= args[0]->null_value))
+    return 0;
+
+  slave_connection_state state;
+  char buf[FN_REFLEN] = {0};
+  const char *errormsg;
+
+  if (!mysql_bin_log.is_open())
+  {
+    my_error(ER_NO_BINARY_LOGGING, MYF(0));
+    null_value= 1;
+    return 0;
+  }
+
+  if (state.load(gtid_str->ptr(), gtid_str->length()))
+  {
+    /* 
+      We purposefully do not swallow the error here. If the user passes an 
+      ill-formed string, state.load throws ER_INCORRECT_GTID_STATE which 
+      will correctly abort the statement and notify the user.
+    */
+    null_value= 1;
+    return 0;
+  }
+
+  /*
+    gtid_find_binlog_pos will natively iterate over the entire `state` hash,
+    evaluating every GTID provided in the comma-separated list.
+    
+    If ANY of the requested GTIDs are found to be purged from the binary logs, 
+    it returns a non-null error message pinpointing the purged GTID.
+    
+    If ALL GTIDs within the requested state natively resolve (meaning they exist
+    in our index/binlogs, or are safely in the future), it returns a null errormsg.
+    
+    We disregard `found_in_index` and `out_start_seek` counts since we are only doing 
+    boolean viability checking of the provided GTIDs, not actually initializing a dump thread.
+  */
+  bool found_in_index= false;
+  uint32 out_start_seek= 0;
+  rpl_binlog_state until_binlog_state;
+  until_binlog_state.init();
+  slave_connection_state until_gtid_state;
+  
+  errormsg= gtid_find_binlog_pos(&state, buf, &until_gtid_state, &until_binlog_state, &found_in_index, &out_start_seek);
+  
+  until_binlog_state.free();
+  
+  if (errormsg)
+  {
+    null_value= 0;
+    return 0; // At least one requested GTID has been purged.
+  }
+
+  null_value= 0;
+  return 1; // All requested GTIDs are currently viable/reachable.
 }
 
 #endif /* HAVE_REPLICATION */
