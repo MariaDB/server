@@ -106,6 +106,8 @@ Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
+Warnings:
+Note	1051	Unknown table 'db1.t1'
 EXPLAIN
 {
   "query_block": {
@@ -228,6 +230,8 @@ Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
+Warnings:
+Note	1051	Unknown table 'db1.t1'
 EXPLAIN
 {
   "query_block": {
@@ -345,6 +349,8 @@ Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
+Warnings:
+Note	1051	Unknown table 'db1.t1'
 EXPLAIN
 {
   "query_block": {
@@ -466,6 +472,8 @@ Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
+Warnings:
+Note	1051	Unknown table 'db1.t1'
 EXPLAIN
 {
   "query_block": {
@@ -591,6 +599,8 @@ Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
+Warnings:
+Note	1051	Unknown table 'db1.t1'
 EXPLAIN
 {
   "query_block": {
@@ -712,6 +722,8 @@ Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
+Warnings:
+Note	1051	Unknown table 'db1.t1'
 EXPLAIN
 {
   "query_block": {
@@ -818,6 +830,8 @@ Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
+Warnings:
+Note	1051	Unknown table 'db1.t1'
 EXPLAIN
 {
   "query_block": {
@@ -914,6 +928,8 @@ Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
+Warnings:
+Note	1051	Unknown table 'db1.t1'
 EXPLAIN
 {
   "query_block": {
@@ -992,6 +1008,8 @@ Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
+Warnings:
+Note	1051	Unknown table 'db1.t1'
 EXPLAIN
 {
   "query_block": {
@@ -1079,6 +1097,8 @@ Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
+Warnings:
+Note	1051	Unknown table 'db1.t1'
 EXPLAIN
 {
   "query_block": {
@@ -1164,6 +1184,8 @@ Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
+Warnings:
+Note	1051	Unknown table 'db1.t1'
 EXPLAIN
 {
   "query_block": {
@@ -1248,6 +1270,8 @@ Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
+Warnings:
+Note	1051	Unknown table 'db1.t1'
 EXPLAIN
 {
   "query_block": {
@@ -1357,6 +1381,8 @@ Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
+Warnings:
+Note	1051	Unknown table 'db1.t1'
 EXPLAIN
 {
   "query_block": {
@@ -1491,6 +1517,8 @@ Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
+Warnings:
+Note	1051	Unknown table 'db1.t1'
 EXPLAIN
 {
   "query_block": {

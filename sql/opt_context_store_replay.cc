@@ -613,9 +613,23 @@ bool store_optimizer_context(THD *thd)
     }
 
     if (tbl->is_view())
+    {
+      StringBuffer<64> drop;
+      drop.append(STRING_WITH_LEN("DROP VIEW IF EXISTS "));
+      drop.append(full_tbl_name);
+      drop.append(STRING_WITH_LEN(";\n"));
+      sql_script.append(drop);
+      
       create_view_def(thd, tbl, &full_tbl_name, &ddl);
+    }
     else
     {
+      StringBuffer<64> drop;
+      drop.append(STRING_WITH_LEN("DROP TABLE IF EXISTS "));
+      drop.append(full_tbl_name);
+      drop.append(STRING_WITH_LEN(";\n"));
+      sql_script.append(drop);
+
       if (show_create_table(thd, tbl, &ddl, NULL, WITH_DB_NAME))
       {
         res= true;
