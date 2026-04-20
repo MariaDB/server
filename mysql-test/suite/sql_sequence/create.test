@@ -2,7 +2,6 @@
 # Test create options with sequences
 #
 --source include/have_innodb.inc
---source include/have_archive.inc
 
 drop table if exists t1;
 
