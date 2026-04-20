@@ -248,7 +248,7 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
     auto create_result = con->Query(query);
     if (!create_result || create_result->HasError()) {
       std::cerr << "DuckDB CREATE error: " << (create_result ? create_result->GetError() : "null result") << std::endl;
-      //delete con;
+      delete con;
       return HA_ERR_INTERNAL_ERROR;
     }
 
@@ -259,14 +259,12 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
     auto copy_result = con->Query(copy_query);
     if (!copy_result || copy_result->HasError()) {
       std::cerr << "DuckDB COPY error: " << (copy_result ? copy_result->GetError() : "null result") << std::endl;
-      //delete con;
+      delete con;
       return HA_ERR_INTERNAL_ERROR;
     }
 
-    //delete con;
     parquet_log_info("DuckDB create table seed complete table='" + table_name +
                      "' parquet_file='" + parquet_file + "'");
-
     delete con;
   } catch (const std::exception &e) {
     std::cerr << "create exception: " << e.what() << std::endl;
@@ -397,8 +395,6 @@ void ha_parquet::flush_remaining_rows_to_s3(parquet_trx_data *trx)
   if (row_count == 0 || !trx) return;
 
   std::string buf_name = "buf_" + std::string(table_share->table_name.str);
-  const std::string existing_snapshot_file =
-    fetch_current_snapshot_data_file(table_share->table_name.str);
 
   static uint64_t flush_counter = 0;
   std::string s3_path = parquet_s3_object_path(
@@ -406,15 +402,12 @@ void ha_parquet::flush_remaining_rows_to_s3(parquet_trx_data *trx)
     std::to_string(flush_counter++) + ".parquet");
   parquet_log_info("DuckDB flush begin table='" +
                    std::string(table_share->table_name.str) + "' rows=" +
-                   std::to_string(row_count) + " target='" + s3_path +
-                   "' existing_snapshot='" +
-                   (existing_snapshot_file.empty() ? std::string("<empty>")
-                                                   : existing_snapshot_file) +
-                   "'");
+                   std::to_string(row_count) + " target='" + s3_path + "'");
 
+  duckdb::Connection *con = nullptr;
   try {
     std::lock_guard<std::mutex> lock(g_duckdb_mutex);
-    duckdb::Connection *con = new duckdb::Connection(*g_duckdb);
+    con = new duckdb::Connection(*g_duckdb);
     parquet_log_info("DuckDB query [flush/install] INSTALL parquet;");
     con->Query("INSTALL parquet;");
     parquet_log_info("DuckDB query [flush/load] LOAD parquet;");
@@ -432,13 +425,14 @@ void ha_parquet::flush_remaining_rows_to_s3(parquet_trx_data *trx)
     auto copy_result = con->Query(copy_query);
     if (!copy_result || copy_result->HasError()) {
       std::cerr << "flush COPY error: " << (copy_result ? copy_result->GetError() : "null result") << std::endl;
-      //delete con;
+      delete con;
       return;
     }
 
     int64_t file_size = 0;
     const std::string metadata_query =
-      "SELECT SUM(total_compressed_size) FROM parquet_metadata('" + s3_path + "')";
+      "SELECT SUM(total_compressed_size) FROM parquet_metadata(" +
+      quote_string_literal(s3_path) + ")";
     parquet_log_info("DuckDB query [flush/metadata] " +
                      parquet_log_preview(metadata_query));
     auto meta_result = con->Query(metadata_query);
@@ -458,6 +452,7 @@ void ha_parquet::flush_remaining_rows_to_s3(parquet_trx_data *trx)
                      std::to_string(file_size));
 
   } catch (const std::exception &e) {
+    delete con;
     std::cerr << "flush exception: " << e.what() << std::endl;
     return;
   }
@@ -470,9 +465,10 @@ int ha_parquet::write_row(const uchar *buf)
   DBUG_ENTER("ha_parquet::write_row");
 
   std::string buf_name = "buf_" + std::string(table->s->table_name.str);
+  duckdb::Connection *con = nullptr;
   try {
     std::lock_guard<std::mutex> lock(g_duckdb_mutex);
-    duckdb::Connection *con = new duckdb::Connection(*g_duckdb);
+    con = new duckdb::Connection(*g_duckdb);
     parquet_log_info("DuckDB query [write/install] INSTALL parquet;");
     con->Query("INSTALL parquet;");
     parquet_log_info("DuckDB query [write/load] LOAD parquet;");
@@ -522,9 +518,11 @@ int ha_parquet::write_row(const uchar *buf)
     delete con;
 
   } catch (const duckdb::Exception &e) {
+    delete con;
     std::cerr << "write_row DuckDB exception: " << e.what() << std::endl;
     DBUG_RETURN(HA_ERR_GENERIC);
   } catch (const std::exception &e) {
+    delete con;
     std::cerr << "write_row std exception: " << e.what() << std::endl;
     DBUG_RETURN(HA_ERR_GENERIC);
   }
@@ -575,9 +573,10 @@ int ha_parquet::rnd_init(bool scan)
     query += " WHERE " + pushed_cond_sql;
   }
 
+  duckdb::Connection *con = nullptr;
   try {
     std::lock_guard<std::mutex> lock(g_duckdb_mutex);
-    duckdb::Connection *con = new duckdb::Connection(*g_duckdb);
+    con = new duckdb::Connection(*g_duckdb);
     parquet_log_info("DuckDB query [read/install] INSTALL parquet;");
     con->Query("INSTALL parquet;");
     parquet_log_info("DuckDB query [read/load] LOAD parquet;");
@@ -600,6 +599,7 @@ int ha_parquet::rnd_init(bool scan)
     delete con;
 
   } catch (const std::exception &e) {
+    delete con;
     std::cerr << "rnd_init exception: " << e.what() << std::endl;
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
   }
