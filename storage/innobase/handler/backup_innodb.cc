@@ -168,16 +168,15 @@ static int copy_file(int src, int dst, off_t size) noexcept
 
 namespace
 {
+/** Backup state; protected by log_sys.latch */
 class InnoDB_backup
 {
-  /** mutex protecting the queue */
-  srw_mutex_impl<false> mutex;
+  /** log copying status */
+  enum activity { INACTIVE= 0, ACTIVE, END };
+  /** log copying status during backup */
+  activity active{INACTIVE};
 
-  /** whether log copying during backup is active;
-  protected by mutex and log_sys.latch */
-  Atomic_relaxed<bool> active;
-
-  /** the original innodb_log_file_size, or 0 if innodb_log_archive=ON */
+  /** the original innodb_log_file_size, or 0 */
   uint64_t old_size;
 
   /** collection of files to be copied */
@@ -185,7 +184,7 @@ class InnoDB_backup
   /** collection of completed log archive files to be
   hard-linked, copied, or moved */
   std::vector<lsn_t> logs;
-  /** first LSN of last log to that was copied, or 0 */
+  /** first LSN of last log that was copied, or 0 */
   lsn_t last_first_lsn;
 
   /** target directory name or handle */
@@ -205,8 +204,6 @@ public:
   */
   int init(THD *thd, IF_WIN(const char*,int) target) noexcept
   {
-    mutex.init();
-    mutex.wr_lock();
     ut_ad(!active);
     ut_ad(queue.empty());
     ut_ad(logs.empty());
@@ -250,10 +247,9 @@ public:
             space.get_create_lsn() < start)
           queue.emplace_back(space.id);
       mysql_mutex_unlock(&fil_system.mutex);
-      active= true;
+      active= ACTIVE;
       log_sys.latch.wr_unlock();
     }
-    mutex.wr_unlock();
     DEBUG_SYNC(thd, "innodb_backup_start");
     return fail;
   }
@@ -269,8 +265,8 @@ public:
   {
     uint32_t id= FIL_NULL;
     lsn_t lsn= 0;
-    mutex.wr_lock();
-    ut_ad(active);
+    log_sys.latch.wr_lock();
+    ut_ad(active == ACTIVE || active == END);
     size_t size{queue.size()};
     if (!logs.empty())
     {
@@ -279,7 +275,11 @@ public:
         last_first_lsn= lsn;
       logs.pop_back();
       if (!size)
+      {
         size= logs.size();
+        if (!size)
+          goto got_all;
+      }
     }
     else if (size)
     {
@@ -287,7 +287,14 @@ public:
       id= queue.back();
       queue.pop_back();
     }
-    mutex.wr_unlock();
+    else
+    {
+    got_all:
+      /* Tell checkpoint_complete() that we only need the current log file,
+      nothing more. */
+      active= END;
+    }
+    log_sys.latch.wr_unlock();
 
     if (lsn)
     {
@@ -319,40 +326,58 @@ public:
   */
   int end(THD *thd, bool abort) noexcept
   {
-    mutex.wr_lock();
-    ut_ad(active);
+    int fail= 0;
+    log_sys.latch.wr_lock();
+    ut_ad(queue.empty());
     if (abort)
     {
+      ut_ad(active == ACTIVE || active == END);
       queue.clear();
       if (old_size)
-        for (const lsn_t lsn : logs)
-          IF_WIN(DeleteFile,unlink)(log_sys.get_archive_path(lsn).c_str());
+        delete_logs();
       logs.clear();
-    }
-    ut_ad(queue.empty());
-    ut_ad(logs.empty());
-
-    int fail= 0;
-    if (abort)
     skip_log_dup:
       last_first_lsn= 0;
+    }
     else
     {
-      const lsn_t lsn{log_sys.get_first_lsn()};
-      if (lsn > last_first_lsn)
+      ut_ad(active == ACTIVE);
+      const lsn_t last_lsn{log_sys.get_lsn()};
+      while (!logs.empty())
       {
-        fail= link_or_move(lsn, true);
+        const lsn_t lsn{logs.back()};
+        if (lsn > last_lsn)
+          break;
+        if (lsn > last_first_lsn)
+          last_first_lsn= lsn;
+        logs.pop_back();
+        log_sys.latch.wr_unlock();
+        fail= link_or_move(lsn, false);
+        log_sys.latch.wr_lock();
         if (fail)
           goto skip_log_dup;
       }
-      else
-        goto skip_log_dup;
+
+      {
+        const lsn_t lsn{log_sys.get_first_lsn()};
+        if (lsn > last_first_lsn && lsn < last_lsn)
+        {
+          log_sys.latch.wr_unlock();
+          fail= link_or_move(lsn, true);
+          log_sys.latch.wr_lock();
+          if (fail)
+            goto skip_log_dup;
+        }
+        else
+          goto skip_log_dup;
+      }
     }
 
-    log_sys.latch.rd_lock(); /* prevent a race with checkpoint_complete() */
-    active= false;
-    log_sys.latch.rd_unlock();
-    mutex.wr_unlock();
+    active= INACTIVE;
+    if (old_size)
+      log_sys.backup_stop_archiving(thd);
+    else
+      log_sys.latch.wr_unlock();
     log_sys.backup_stop(old_size, thd);
     return fail;
   }
@@ -363,17 +388,19 @@ public:
   */
   void fini(THD *thd) noexcept
   {
-    mutex.wr_lock();
+    log_sys.latch.wr_lock();
     ut_ad(!active);
     ut_ad(queue.empty());
-    ut_ad(logs.empty());
-    if (last_first_lsn)
-      /* TODO: copy our hardlink of the last log until the final LSN */
-      sql_print_information("TODO: duplicate " LOG_ARCHIVE_NAME,
-                            last_first_lsn);
+    if (old_size)
+      delete_logs();
+    logs.clear();
+    const lsn_t lsn{last_first_lsn};
     last_first_lsn= 0;
-    mutex.wr_unlock();
-    mutex.destroy();
+    log_sys.latch.wr_unlock();
+
+    if (lsn)
+      /* TODO: copy our hardlink of the last log until the final LSN */
+      sql_print_information("TODO: duplicate " LOG_ARCHIVE_NAME, lsn);
   }
 
   /**
@@ -383,12 +410,7 @@ public:
   {
     ut_ad(log_sys.latch_have_wr());
     if (active)
-    {
-      mutex.wr_lock();
-      ut_ad(active);
       logs.emplace_back(log_sys.get_first_lsn() - log_sys.capacity());
-      mutex.wr_unlock();
-    }
   }
 
 private:
@@ -401,6 +423,14 @@ private:
   /* Stop backing up a tablespace */
   static void backup_stop(fil_space_t *space) noexcept
   { space->backup_stop(); }
+
+  /** Delete unnecessary logs that had been created for backup. */
+  void delete_logs() noexcept
+  {
+    ut_ad(old_size);
+    for (const lsn_t lsn : logs)
+      IF_WIN(DeleteFile,unlink)(log_sys.get_archive_path(lsn).c_str());
+  }
 
   /**
      Back up a persistent InnoDB data file.
@@ -529,28 +559,23 @@ private:
     {
       if (!MoveFileEx(path, basename, MOVEFILE_COPY_ALLOWED))
       {
-        sql_print_warning("InnoDB: MoveFileEx()=%lu", GetLastError());
       fail:
         err= GetLastError();
       got_err:
-        my_osmaperr(err);
-        my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), path, basename, errno);
         if (live)
           log_sys.resume_file();
+        my_osmaperr(err);
+        my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), path, basename, errno);
         return -1;
       }
     }
-    else if (!CreateHardLink(basename, path, nullptr) &&
-             (err= GetLastError()) != ERROR_NOT_SAME_DEVICE)
+    else if (!CreateHardLink(basename, path, nullptr))
     {
-      sql_print_warning("InnoDB: CreateHardLink()=%lu", err);
-      goto got_err;
-    }
-    else if (!CopyFileExA(path, basename, nullptr, nullptr, nullptr,
-                          COPY_FILE_NO_BUFFERING))
-    {
-      sql_print_warning("InnoDB: CopyFileEx()=%lu", GetLastError());
-      goto fail;
+      if ((err= GetLastError()) != ERROR_NOT_SAME_DEVICE)
+        goto got_err;
+      if (!CopyFileExA(path, basename, nullptr, nullptr, nullptr,
+                       COPY_FILE_NO_BUFFERING))
+        goto fail;
     }
     if (live)
       log_sys.resume_file();
@@ -589,8 +614,74 @@ private:
   }
 };
 
-/** The backup context */
+/** The backup context; protected by log_sys.latch */
 static InnoDB_backup backup;
+}
+
+bool log_t::backup_start(uint64_t *old_size, THD *thd) noexcept
+{
+  latch.wr_lock();
+  ut_ad(!backup);
+  backup= true;
+  const bool was_archived= bool(archive);
+  const uint64_t old_file_size{file_size};
+  latch.wr_unlock();
+  if (was_archived)
+  {
+    *old_size= 0;
+    return false;
+  }
+  if (old_file_size > ARCHIVE_FILE_SIZE_MAX)
+  {
+    if (resize_start(ARCHIVE_FILE_SIZE_MAX, thd, true) == RESIZE_STARTED)
+      resize_finish(thd);
+    latch.wr_lock();
+    if (file_size > ARCHIVE_FILE_SIZE_MAX)
+      goto too_big;
+    latch.wr_unlock();
+  }
+  if (!set_archive(true, thd, true))
+  {
+    *old_size= old_file_size;
+    return false;
+  }
+  latch.wr_lock();
+ too_big:
+  ut_ad(backup);
+  backup= false;
+  const uint64_t new_file_size{file_size};
+  latch.wr_unlock();
+  if (old_file_size != new_file_size && old_file_size &&
+      resize_start(old_file_size, thd) == RESIZE_STARTED)
+    resize_finish(thd);
+  *old_size= 0;
+  return true;
+}
+
+inline void log_t::backup_stop_archiving(THD *thd) noexcept
+{
+  ut_ad(latch_have_wr());
+  ut_ad(backup);
+  ut_ad(!resize_in_progress());
+  ut_ad(archive);
+  ut_d(latch.wr_unlock());
+  ut_d(bool fail=) set_archive(false, thd, true);
+  ut_ad(!fail);
+}
+
+void log_t::backup_stop(uint64_t old_size, THD *thd) noexcept
+{
+  /* We will be invoked with old_size=0 after a failed backup_start(),
+  or if innodb_log_archive=ON held during a successful backup_start(). */
+  latch.wr_lock();
+  ut_ad(!old_size || !resize_in_progress());
+  ut_ad(!old_size || backup);
+  backup= false;
+  const uint64_t new_size{file_size};
+  latch.wr_unlock();
+  if (old_size && old_size != new_size &&
+      resize_start(old_size, thd) == RESIZE_STARTED)
+    resize_finish(thd);
 }
 
 int innodb_backup_start(THD *thd, IF_WIN(const char*,int) target) noexcept

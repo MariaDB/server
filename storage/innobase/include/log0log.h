@@ -436,6 +436,10 @@ public:
   @param thd       SQL connection
   @return whether the operation failed */
   bool backup_start(uint64_t *old_size, THD *thd) noexcept;
+  /** Stop log archiving in BACKUP SERVER clean-up
+  @param thd       SQL connection */
+  inline void backup_stop_archiving(THD *thd) noexcept;
+
   /** Stop BACKUP SERVER.
   @param old_size  the value returned by backup_start()
   @param thd       SQL connection */

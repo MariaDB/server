@@ -11,12 +11,6 @@ ROLLBACK;
 SELECT * FROM t;
 a	b
 1	
-ibdata1
-mysql
-test
-undo001
-undo002
-undo003
 # restart
 SELECT * FROM t;
 a	b

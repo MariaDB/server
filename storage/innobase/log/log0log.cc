@@ -658,7 +658,7 @@ void log_t::resume_file() noexcept
 }
 #endif
 
-  /** Try to enable or disable durable writes (update log_write_through) */
+/** Try to enable or disable durable writes (update log_write_through) */
 void log_t::set_write_through(bool write_through)
 {
   if (is_mmap() || high_level_read_only || recv_sys.rpo)
@@ -989,71 +989,6 @@ bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
   if (wait_lsn)
     mtr_flush_ahead(wait_lsn);
   return fail;
-}
-
-bool log_t::backup_start(uint64_t *old_size, THD *thd) noexcept
-{
-  latch.wr_lock();
-  ut_ad(!backup);
-  backup= true;
-  const bool was_archived= bool(archive);
-  const uint64_t old_file_size{file_size};
-  latch.wr_unlock();
-  if (was_archived)
-  {
-    *old_size= 0;
-    return false;
-  }
-  if (old_file_size > ARCHIVE_FILE_SIZE_MAX)
-  {
-    if (resize_start(ARCHIVE_FILE_SIZE_MAX, thd, true) == RESIZE_STARTED)
-      resize_finish(thd);
-    latch.wr_lock();
-    if (file_size > ARCHIVE_FILE_SIZE_MAX)
-      goto too_big;
-    latch.wr_unlock();
-  }
-  if (!set_archive(true, thd, true))
-  {
-    *old_size= old_file_size;
-    return false;
-  }
-  latch.wr_lock();
- too_big:
-  ut_ad(backup);
-  backup= false;
-  const uint64_t new_file_size{file_size};
-  latch.wr_unlock();
-  if (old_file_size != new_file_size && old_file_size &&
-      resize_start(old_file_size, thd) == RESIZE_STARTED)
-    resize_finish(thd);
-  *old_size= 0;
-  return true;
-}
-
-void log_t::backup_stop(uint64_t old_size, THD *thd) noexcept
-{
-  /* We will be invoked with old_size=0 after a failed backup_start(),
-  or if innodb_log_archive=ON held during a successful backup_start(). */
-  if (UNIV_LIKELY(old_size != 0))
-  {
-    ut_d(latch.wr_lock());
-    ut_ad(backup);
-    ut_ad(!resize_in_progress());
-    ut_ad(archive);
-    ut_d(latch.wr_unlock());
-    ut_d(bool fail=) set_archive(false, thd, true);
-    ut_ad(!fail);
-  }
-  latch.wr_lock();
-  ut_ad(!old_size || !resize_in_progress());
-  ut_ad(!old_size || backup);
-  backup= false;
-  const uint64_t new_size{file_size};
-  latch.wr_unlock();
-  if (old_size && old_size != new_size &&
-      resize_start(old_size, thd) == RESIZE_STARTED)
-    resize_finish(thd);
 }
 
 /** Start resizing the log.
