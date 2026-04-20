@@ -63,6 +63,11 @@ void Session_sysvars_tracker::vars_list::copy(vars_list* from, THD *thd)
 Session_sysvars_tracker::
 sysvar_node_st *Session_sysvars_tracker::vars_list::search(const sys_var *svar)
 {
+  if (((sys_var *)svar)->cast_pluginvar())
+    return reinterpret_cast<sysvar_node_st*>(
+             my_hash_search(&m_registered_sysvars,
+                           reinterpret_cast<const uchar*>(&svar),
+                           sizeof(sys_var*)));
   return reinterpret_cast<sysvar_node_st*>(
            my_hash_search(&m_registered_sysvars,
                          reinterpret_cast<const uchar*>(&svar->offset),
@@ -92,6 +97,22 @@ bool Session_sysvars_tracker::vars_list::insert(const sys_var *svar)
   node->m_svar= (sys_var *)svar;
   node->test_load= node->m_svar->test_load;
   node->m_changed= false;
+  /*
+    No need to lock LOCK_plugin for non-plugin variables.
+  */
+  node->skip_plugin_lock= !node->m_svar->cast_pluginvar();
+  /*
+    No need to lock LOCK_global_system_variables for session or
+    session/global variables. Note that
+
+    1. Plugin global-only variables are not included in the session
+       sysvar tracker even if specified by the user
+    2. Plugin session variables require LOCK_global_system_variables
+       because of sync_dynamic_session_variables
+  */
+  node->skip_global_lock= (node->skip_plugin_lock &&
+                           node->m_svar->scope() == sys_var::SESSION);
+
   if (my_hash_insert(&m_registered_sysvars, (uchar *) node))
   {
     my_free(node);
@@ -145,6 +166,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
   token= var_list.str;
 
   track_all= false;
+  mysql_prlock_rdlock(&LOCK_system_variables_hash);
   for (;;)
   {
     sys_var *svar;
@@ -168,7 +190,8 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     {
       track_all= true;
     }
-    else if ((svar= find_sys_var(thd, var.str, var.length, throw_error)))
+    else if ((svar= find_sys_var(thd, var.str, var.length, throw_error,
+                                 /*hash_already_locked=*/true)))
     {
       if (insert(svar) == TRUE)
         return true;
@@ -188,6 +211,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     else
       break;
   }
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
   return false;
 }
 
@@ -294,6 +318,7 @@ bool Session_sysvars_tracker::vars_list::construct_var_list(char *buf,
   for (ulong i= 0; i < m_registered_sysvars.records; i++)
   {
     sysvar_node_st *node= at(i);
+    /* Global plugin variables are not included */
     if (*node->test_load)
       names[idx++]= &node->m_svar->name;
   }
@@ -329,7 +354,9 @@ bool Session_sysvars_tracker::vars_list::construct_var_list(char *buf,
   }
   mysql_mutex_unlock(&LOCK_plugin);
 
-  buf--; buf[0]= '\0';
+  if (idx > 0)
+    buf--;
+  buf[0]= '\0';
   my_safe_afree(names, names_size);
 
   return false;
@@ -438,30 +465,34 @@ bool Session_sysvars_tracker::vars_list::store(THD *thd, String *buf)
     SHOW_VAR show;
     CHARSET_INFO *charset;
     size_t val_length, length;
-    mysql_mutex_lock(&LOCK_global_system_variables);
-    mysql_mutex_lock(&LOCK_plugin);
+    if (!node->skip_global_lock)
+      mysql_mutex_lock(&LOCK_global_system_variables);
+    if (!node->skip_plugin_lock)
+      mysql_mutex_lock(&LOCK_plugin);
+    /* Happens if the corresponding plugin has been unloaded */
     if (!*node->test_load)
     {
+      DBUG_ASSERT(!node->skip_plugin_lock);
       mysql_mutex_unlock(&LOCK_plugin);
       mysql_mutex_unlock(&LOCK_global_system_variables);
       continue;
     }
     sys_var *svar= node->m_svar;
-    bool is_plugin= svar->cast_pluginvar();
-    if (!is_plugin)
-      mysql_mutex_unlock(&LOCK_plugin);
 
     /* As its always system variable. */
     show.type= SHOW_SYS;
     show.name= svar->name.str;
     show.value= (char *) svar;
 
-    const char *value= get_one_variable(thd, &show, OPT_SESSION, SHOW_SYS, NULL,
+    const enum enum_var_type vtype=
+      node->skip_global_lock ? SHOW_OPT_SESSION_NO_LOCK : OPT_SESSION;
+    const char *value= get_one_variable(thd, &show, vtype, SHOW_SYS, NULL,
                                         &charset, val_buf, &val_length);
 
-    if (is_plugin)
+    if (!node->skip_plugin_lock)
       mysql_mutex_unlock(&LOCK_plugin);
-    mysql_mutex_unlock(&LOCK_global_system_variables);
+    if (!node->skip_global_lock)
+      mysql_mutex_unlock(&LOCK_global_system_variables);
 
     length= net_length_size(svar->name.length) +
       svar->name.length +
@@ -591,8 +622,13 @@ void Session_sysvars_tracker::mark_all_as_changed(THD *thd)
 const uchar *Session_sysvars_tracker::sysvars_get_key(const void *entry,
                                                       size_t *length, my_bool)
 {
-  ptrdiff_t *key=
-      &((static_cast<const sysvar_node_st *>(entry))->m_svar->offset);
+  sys_var *svar= (static_cast<const sysvar_node_st *>(entry))->m_svar;
+  if (svar->cast_pluginvar())
+  {
+    *length= sizeof(sys_var *);
+    return (uchar *) &(((sysvar_node_st *) entry)->m_svar);
+  }
+  ptrdiff_t *key= &(svar->offset);
   *length= sizeof(*key);
   return reinterpret_cast<const uchar *>(key);
 }

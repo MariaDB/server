@@ -1213,8 +1213,8 @@ static dberr_t srv_load_tables(bool must_upgrade_ibuf) noexcept
   dberr_t err = dict_load_indexes(&mtr, dict_sys.sys_tables, false, heap,
                                   DICT_ERR_IGNORE_NONE);
   mem_heap_empty(heap);
-  if ((err == DB_SUCCESS || srv_force_recovery >= SRV_FORCE_NO_DDL_UNDO) &&
-      UNIV_UNLIKELY(must_upgrade_ibuf))
+  if (UNIV_UNLIKELY(must_upgrade_ibuf) &&
+      (err == DB_SUCCESS || srv_force_recovery >= SRV_FORCE_NO_DDL_UNDO))
   {
     dict_sys.unlock();
     dict_load_tablespaces(nullptr, true);
@@ -1408,10 +1408,7 @@ dberr_t srv_start(bool create_new_db)
 		      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 		ut_ad(!recv_sys.recovery_on);
 
-		if (srv_force_recovery >= SRV_FORCE_NO_LOG_REDO) {
-			sql_print_information("InnoDB: innodb_force_recovery=6"
-					      " skips redo log apply");
-		} else {
+		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 			log_sys.latch.wr_lock();
 			err = recv_sys.find_checkpoint();
 			log_sys.latch.wr_unlock();

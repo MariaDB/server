@@ -8068,6 +8068,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
     order->window_funcs.empty();
   else if (order->window_funcs.copy(&thd->lex->clause_winfuncs, thd->mem_root))
     DBUG_RETURN(1);
+  order->in_field_list= false;
   list.insert(order, &order->next);
   DBUG_RETURN(0);
 }

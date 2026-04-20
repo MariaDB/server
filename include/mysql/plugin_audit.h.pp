@@ -59,7 +59,7 @@ static inline int encryption_crypt(const unsigned char* src, unsigned int slen,
   int res1, res2;
   unsigned int d1, d2= *dlen;
   assert(*dlen >= slen);
-  assert((dst[*dlen - 1]= 1));
+  assert((dst[*dlen - 1]= 1) == 1);
   if (src < dst)
     assert(src + slen <= dst);
   else
@@ -540,7 +540,7 @@ enum enum_mysql_show_type
 };
 enum enum_var_type
 {
-  SHOW_OPT_DEFAULT= 0, SHOW_OPT_SESSION, SHOW_OPT_GLOBAL
+  SHOW_OPT_DEFAULT= 0, SHOW_OPT_SESSION, SHOW_OPT_GLOBAL, SHOW_OPT_SESSION_NO_LOCK
 };
 struct st_mysql_show_var {
   const char *name;

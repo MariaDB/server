@@ -311,14 +311,14 @@ drop prepare stmt;
 # Privileges
 create user alan;
 grant usage on *.* to alan;
-grant create, insert, drop on test.* to alan;
+grant create, insert on test.* to alan;
 connect alan,localhost,alan,,test;
 show grants for current_user;
 Grants for alan@%
 GRANT USAGE ON *.* TO `alan`@`%`
-GRANT INSERT, CREATE, DROP ON `test`.* TO `alan`@`%`
+GRANT INSERT, CREATE ON `test`.* TO `alan`@`%`
 alter table t1 convert partition p1 to table tp1;
-ERROR 42000: ALTER command denied to user 'alan'@'localhost' for table `test`.`t1`
+ERROR 42000: DROP command denied to user 'alan'@'localhost' for table `test`.`t1`
 connection default;
 revoke all on test.* from alan;
 grant create, insert, alter on test.* to alan;

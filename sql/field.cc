@@ -9562,7 +9562,7 @@ int Field_enum::store(const char *from,size_t length,CHARSET_INFO *cs)
       /* This is for reading numbers with LOAD DATA INFILE */
       char *end;
       tmp=(uint) cs->strntoul(from,length,10,&end,&err);
-      if (err || end != from + length || tmp > m_typelib->count)
+      if (err || end != from + length || !tmp || tmp > m_typelib->count)
       {
 	tmp=0;
 	set_warning(WARN_DATA_TRUNCATED, 1);

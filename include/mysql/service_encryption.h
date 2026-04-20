@@ -121,7 +121,7 @@ static inline int encryption_crypt(const unsigned char* src, unsigned int slen,
 
   // Verify dlen is initialized properly. See MDEV-30389
   assert(*dlen >= slen);
-  assert((dst[*dlen - 1]= 1));
+  assert((dst[*dlen - 1]= 1) == 1);
   // Verify buffers do not overlap
   if (src < dst)
     assert(src + slen <= dst);

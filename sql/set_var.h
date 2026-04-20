@@ -58,6 +58,13 @@ class sys_var: protected Value_source // for double_from_string_with_check
 public:
   sys_var *next;
   LEX_CSTRING name;
+
+  /*
+    - For non-plugin system variables: always true (static_test_load)
+    - For plugin global var: always false (static_unload)
+    - For plugin session var: true on plugin init, false on plugin
+      deinit
+ */
   bool *test_load;
   enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
                    READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096,
@@ -238,6 +245,7 @@ protected:
     int for SHOW_INT, longlong for SHOW_LONGLONG, etc).
   */
   virtual const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const;
+  virtual const uchar *session_no_lock_value_ptr(THD *thd, const LEX_CSTRING *base) const;
   virtual const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
 
   /**
@@ -431,7 +439,7 @@ SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type);
 int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond);
 
 sys_var *find_sys_var(THD *thd, const char *str, size_t length= 0,
-                      bool throw_error= false);
+                      bool throw_error= false, bool hash_already_locked= false);
 int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free);
 
 #define SYSVAR_AUTOSIZE(VAR,VAL)                        \

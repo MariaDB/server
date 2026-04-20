@@ -2963,14 +2963,15 @@ static void update_func_double(THD *thd, struct st_mysql_sys_var *var,
 ****************************************************************************/
 
 sys_var *find_sys_var(THD *thd, const char *str, size_t length,
-                      bool throw_error)
+                      bool throw_error, bool hash_already_locked)
 {
   sys_var *var;
   sys_var_pluginvar *pi;
   DBUG_ENTER("find_sys_var");
   DBUG_PRINT("enter", ("var '%.*s'", (int)length, str));
 
-  mysql_prlock_rdlock(&LOCK_system_variables_hash);
+  if (!hash_already_locked)
+    mysql_prlock_rdlock(&LOCK_system_variables_hash);
   if ((var= intern_find_sys_var(str, length)) &&
       (pi= var->cast_pluginvar()))
   {
@@ -2980,7 +2981,8 @@ sys_var *find_sys_var(THD *thd, const char *str, size_t length,
       var= NULL; /* failed to lock it, it must be uninstalling */
     mysql_mutex_unlock(&LOCK_plugin);
   }
-  mysql_prlock_unlock(&LOCK_system_variables_hash);
+  if (!hash_already_locked)
+    mysql_prlock_unlock(&LOCK_system_variables_hash);
 
   if (unlikely(!throw_error && !var))
     my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0),
@@ -4200,9 +4202,14 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
   struct st_bookmark *var;
   size_t len=0, count= EXTRA_OPTIONS;
   st_ptr_backup *tmp_backup= 0;
+  const char *plugin_name= tmp->plugin->name;
+  size_t plugin_name_len= strlen(plugin_name);
   DBUG_ENTER("test_plugin_options");
   DBUG_ASSERT(tmp->plugin && tmp->name.str);
 
+  char *plugin_name_ptr= static_cast<char*>(alloc_root(mem_root, plugin_name_len + 1));
+  safe_strcpy(plugin_name_ptr, plugin_name_len + 1, plugin_name);
+  my_casedn_str_latin1(plugin_name_ptr);
   if (tmp->plugin->system_vars || (*argc > 1))
   {
     for (opt= tmp->plugin->system_vars; opt && *opt; opt++)
@@ -4238,7 +4245,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
         sys_var *v;
 
         tmp_backup[tmp->nbackups++].save(&o->name);
-        if ((var= find_bookmark(tmp->name.str, o->name, o->flags)))
+        if ((var= find_bookmark(plugin_name_ptr, o->name, o->flags)))
         {
           varname= var->key + 1;
           var->loaded= TRUE;

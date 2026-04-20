@@ -684,7 +684,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       }
       if (maybe_disable_binlog(mysql))
         return -1;
-      sprintf(buff,"create database `%.*s`",FN_REFLEN,argv[1]);
+      snprintf(buff, sizeof(buff), "create database `%.*s`",FN_REFLEN,argv[1]);
       if (mysql_query(mysql,buff))
       {
 	my_printf_error(0,"CREATE DATABASE failed; error: '%-.200s'",
@@ -1128,7 +1128,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       }
       else
 	crypted_pw[0]=0;			/* No password */
-      sprintf(buff,"set password='%s',sql_log_off=0",crypted_pw);
+      snprintf(buff, sizeof(buff), "set password='%s',sql_log_off=0",crypted_pw);
 
       if (mysql_query(mysql,"set sql_log_off=1"))
       {
@@ -1373,7 +1373,7 @@ static int drop_db(MYSQL *mysql, const char *db)
       return -1;
     }
   }
-  sprintf(name_buff,"drop database `%.*s`",FN_REFLEN,db);
+  snprintf(name_buff, sizeof(name_buff), "drop database `%.*s`",FN_REFLEN,db);
   if (mysql_query(mysql,name_buff))
   {
     my_printf_error(0, "DROP DATABASE %s failed;\nerror: '%s'", error_flags,
