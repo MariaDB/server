@@ -20,3 +20,6 @@
 [submodule "storage/duckdb/duckdb"]
 	path = storage/duckdb/duckdb
 	url = git@github.com:drrtuy/duckdb-engine.git
+[submodule "lakekeeper"]
+	path = lakekeeper
+	url = https://github.com/lakekeeper/lakekeeper
