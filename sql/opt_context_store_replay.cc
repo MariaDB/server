@@ -332,6 +332,7 @@ static void dump_table_stats(THD *thd, TABLE_LIST *tbl, uchar *tbl_name,
   IO_AND_CPU_COST cost= table->file->ha_scan_time(records);
   ctx_wrapper.add("name", (char *) tbl_name, tbl_name_len);
   ctx_wrapper.add("num_of_records", records);
+  ctx_wrapper.add("file_stat_records", table->file->stats.records);
   ctx_wrapper.add("read_cost_io", cost.io);
   ctx_wrapper.add("read_cost_cpu", cost.cpu);
   if (!table->key_info)
@@ -857,6 +858,7 @@ public:
   */
   char *name;
   ha_rows total_rows;
+  ha_rows file_stat_records;
   double read_cost_io;
   double read_cost_cpu;
   List<index_context_for_replay> index_list;
@@ -891,7 +893,9 @@ class Saved_Table_stats : public Sql_alloc
 {
 public:
   TABLE *table;
-  ha_rows original_rows;
+  ha_rows original_rows; // this is table->used_stat_records
+  /* saved table->file->stats.records */ 
+  ha_rows original_file_stats_records;
   List<Saved_Index_stats> saved_indexstats_list;
 };
 
@@ -1129,6 +1133,9 @@ static int parse_table_context(THD *thd, json_engine_t *je, String *err_buf,
       {"name", Read_string(thd, &table_ctx->name), false},
       {"num_of_records",
        Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->total_rows),
+       false},
+      {"file_stat_records",
+       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->file_stat_records),
        false},
       {"read_cost_io", Read_double(&table_ctx->read_cost_io), false},
       {"read_cost_cpu", Read_double(&table_ctx->read_cost_cpu), false},
@@ -1572,15 +1579,13 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
 
   saved_ts->table= table;
   saved_ts->original_rows= table->used_stat_records;
+  saved_ts->original_file_stats_records= table->file->stats.records;
 
   if (saved_table_stats.push_back(saved_ts))
     return;
 
-  ha_rows temp_rows;
-  if (!infuse_table_rows(table, &temp_rows))
+  if (!infuse_table_rows(table))
   {
-    table->used_stat_records= temp_rows;
-
     KEY *key_info, *key_info_end;
     for (key_info= table->key_info, key_info_end= key_info + table->s->keys;
          key_info < key_info_end; key_info++)
@@ -1692,6 +1697,8 @@ void Optimizer_context_replay::restore_modified_table_stats()
   while (Saved_Table_stats *saved_ts= table_li++)
   {
     saved_ts->table->used_stat_records= saved_ts->original_rows;
+    saved_ts->table->file->stats.records= saved_ts->original_file_stats_records;
+
     List_iterator<Saved_Index_stats> index_li(saved_ts->saved_indexstats_list);
     while (Saved_Index_stats *saved_is= index_li++)
     {
@@ -1890,8 +1897,7 @@ void Optimizer_context_replay::dbug_print_read_stats()
     false  OK
     true  Error
 */
-bool Optimizer_context_replay::infuse_table_rows(const TABLE *tbl,
-                                                 ha_rows *rows)
+bool Optimizer_context_replay::infuse_table_rows(TABLE *tbl)
 {
   if (!has_records() || !is_base_table(tbl->pos_in_table_list))
     return true;
@@ -1902,7 +1908,8 @@ bool Optimizer_context_replay::infuse_table_rows(const TABLE *tbl,
   if (table_context_for_replay *tbl_ctx=
           find_table_context(tbl_name.c_ptr_safe()))
   {
-    *rows= tbl_ctx->total_rows;
+    tbl->used_stat_records= tbl_ctx->total_rows;
+    tbl->file->stats.records= tbl_ctx->file_stat_records;
     return false;
   }
 
