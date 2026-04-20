@@ -27,7 +27,7 @@ Created 12/19/1997 Heikki Tuuri
 #pragma once
 
 #include "data0data.h"
-#include "que0types.h"
+#include "dict0dict.h"
 #include "trx0types.h"
 #include "read0types.h"
 #include "row0types.h"
@@ -35,6 +35,16 @@ Created 12/19/1997 Heikki Tuuri
 #include "pars0sym.h"
 #include "btr0pcur.h"
 #include "row0mysql.h"
+
+MY_ATTRIBUTE((warn_unused_result))
+bool row_sel_store_mysql_rec(
+	byte*		mysql_rec,
+	row_prebuilt_t*	prebuilt,
+	const rec_t*	rec,
+	const dtuple_t*	vrow,
+	bool		rec_clust,
+	const dict_index_t* index,
+	const rec_offs*	offsets);
 
 /*********************************************************************//**
 Creates a select node struct.

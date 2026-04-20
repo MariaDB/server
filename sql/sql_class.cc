@@ -96,6 +96,22 @@ extern "C" const uchar *get_var_key(const void *entry_, size_t *length,
   return reinterpret_cast<const uchar *>(entry->name.str);
 }
 
+void THD::binlog_mark_fk_cascade_events()
+{
+  binlog_fk_cascade_events= true;
+
+  if (binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr())
+  {
+    if (Rows_log_event *pending= binlog_get_pending_rows_event(
+          cache_mngr, use_trans_cache(this, false)))
+      pending->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F);
+
+    if (Rows_log_event *pending= binlog_get_pending_rows_event(
+          cache_mngr, use_trans_cache(this, true)))
+      pending->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F);
+  }
+}
+
 extern "C" void free_user_var(void *entry_)
 {
   user_var_entry *entry= static_cast<user_var_entry *>(entry_);
@@ -512,6 +528,47 @@ int thd_sql_command(const THD *thd)
   return (int) thd->lex->sql_command;
 }
 
+extern "C"
+int thd_is_current_stmt_binlog_format_row(const THD *thd)
+{
+  return (int) thd->is_current_stmt_binlog_format_row();
+}
+
+extern "C"
+int thd_rpl_use_binlog_events_for_fk_cascade(const THD *thd)
+{
+  return (int) thd->variables.rpl_use_binlog_events_for_fk_cascade;
+}
+
+extern "C"
+void thd_binlog_mark_fk_cascade_events(THD *thd)
+{
+  thd->binlog_mark_fk_cascade_events();
+}
+
+extern "C"
+int thd_binlog_update_row(THD *thd, TABLE *table, Event_log *bin_log,
+                          binlog_cache_data *cache_data, int is_trans,
+                          unsigned long row_image,
+                          const unsigned char *before_record,
+                          const unsigned char *after_record)
+{
+  return thd->binlog_update_row(table, bin_log, cache_data, (bool) is_trans,
+                                (enum_binlog_row_image) row_image,
+                                before_record, after_record);
+}
+
+extern "C"
+int thd_binlog_delete_row(THD *thd, TABLE *table, Event_log *bin_log,
+                          binlog_cache_data *cache_data, int is_trans,
+                          unsigned long row_image,
+                          const unsigned char *before_record)
+{
+  return thd->binlog_delete_row(table, bin_log, cache_data, (bool) is_trans,
+                                (enum_binlog_row_image) row_image,
+                                before_record);
+}
+
 /*
   Returns options used with DDL's, like IF EXISTS etc...
   Will returns 'nonsense' if the command was not a DDL.
@@ -875,6 +932,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   mysys_var=0;
   binlog_evt_union.do_union= FALSE;
   binlog_table_maps= FALSE;
+  binlog_fk_cascade_events= FALSE;
   binlog_xid= 0;
   enable_slow_log= 0;
   durability_property= HA_REGULAR_DURABILITY;

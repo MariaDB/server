@@ -747,6 +747,26 @@ Sys_binlog_direct(
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(binlog_direct_check));
 
+static bool rpl_use_binlog_events_for_fk_cascade_check(sys_var *self, THD *thd, set_var *var)
+{
+  if (var->type == OPT_GLOBAL)
+    return false;
+
+  if (unlikely(error_if_in_trans_or_substatement(thd,
+                                                 ER_STORED_FUNCTION_PREVENTS_SWITCH_SQL_LOG_BIN,
+                                                 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SQL_LOG_BIN)))
+    return true;
+
+  return false;
+}
+
+static Sys_var_mybool Sys_rpl_use_binlog_events_for_fk_cascade(
+      "rpl_use_binlog_events_for_fk_cascade",
+      "If enabled, the master will write row events for foreign key cascade operations.",
+      SESSION_VAR(rpl_use_binlog_events_for_fk_cascade),
+      CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+      NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(rpl_use_binlog_events_for_fk_cascade_check));
+
 static bool deprecated_explicit_defaults_for_timestamp(sys_var *self, THD *thd,
                                                        set_var *var)
 {

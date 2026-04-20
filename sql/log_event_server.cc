@@ -4862,6 +4862,9 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     else
       thd->variables.option_bits&= ~OPTION_NO_CHECK_CONSTRAINT_CHECKS;
 
+    if (get_flags(FK_CASCADE_EVENTS_F))
+      thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
+
     /* A small test to verify that objects have consistent types */
     DBUG_ASSERT(sizeof(thd->variables.option_bits) == sizeof(OPTION_RELAXED_UNIQUE_CHECKS));
 
