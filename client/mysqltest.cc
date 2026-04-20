@@ -275,6 +275,8 @@ static size_t suite_dir_len, overlay_dir_len;
 static MYSQL *replay_server_mysql= NULL;
 static const char *replay_server_socket= NULL;
 static my_bool replay_test_mode= FALSE;
+static FILE *replay_log_file= NULL;
+static const char *replay_log_path= NULL;
 
 /* Precompiled re's */
 static regex_t ps_re;     /* the query can be run using PS protocol */
@@ -1515,6 +1517,18 @@ void free_used_memory()
   {
     mysql_close(replay_server_mysql);
     replay_server_mysql= NULL;
+  }
+
+  if (replay_log_file)
+  {
+    fclose(replay_log_file);
+    replay_log_file= NULL;
+  }
+
+  if (replay_log_path)
+  {
+    my_free((void*)replay_log_path);
+    replay_log_path= NULL;
   }
 
   if (connections)
@@ -8409,6 +8423,30 @@ static my_bool is_explain_format_json(const char *query, size_t query_len)
 }
 
 /*
+  Log the start of a new replay session
+*/
+static void log_replay_session_start()
+{
+  if (replay_log_file)
+  {
+    fprintf(replay_log_file, "### REPLAY SESSION ###\n");
+    fflush(replay_log_file);
+  }
+}
+
+/*
+  Log a query being sent to the replay server
+*/
+static void log_replay_query(const char *query, size_t query_len)
+{
+  if (replay_log_file)
+  {
+    fprintf(replay_log_file, "%.*s;\n", (int)query_len, query);
+    fflush(replay_log_file);
+  }
+}
+
+/*
   Execute queries from SQL script on replay server
   Split by ";\n" and execute each query
   Append output from last query to ds
@@ -8422,6 +8460,8 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
   DBUG_ENTER("execute_replay_queries");
   
   verbose_msg("ReplayTest: SQL script from optimizer_context:\n%s", sql_script);
+  
+  log_replay_session_start();
   
   init_dynamic_string(&result, "", 1024, 1024);
   
@@ -8446,6 +8486,9 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
         verbose_msg("ReplayTest: Executing query on replay server (%s): %.*s",
                     is_explain ? "EXPLAIN - will stop after this" : "intermediate",
                     (int)query_len, query_start);
+        
+        /* Log the query */
+        log_replay_query(query_start, query_len);
         
         /* Execute the query */
         if (mysql_real_query(replay_server_mysql, query_start, query_len))
@@ -8524,6 +8567,9 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
       verbose_msg("ReplayTest: Executing final query on replay server (%s): %.*s",
                   is_explain ? "EXPLAIN" : "last query",
                   (int)query_len, query_start);
+      
+      /* Log the query */
+      log_replay_query(query_start, query_len);
       
       if (mysql_real_query(replay_server_mysql, query_start, query_len))
       {
@@ -10646,6 +10692,30 @@ int main(int argc, char **argv)
     replay_test_mode= TRUE;
     verbose_msg("ReplayTest mode enabled, replay server socket: %s", 
                 replay_server_socket);
+    
+    /* Initialize replay query log file */
+    const char *vardir= getenv("MYSQLTEST_VARDIR");
+    if (vardir)
+    {
+      size_t path_len= strlen(vardir) + 30;  /* room for "/log/replay_queries.log" */
+      char *log_path= (char*)my_malloc(PSI_NOT_INSTRUMENTED, path_len, MYF(0));
+      if (log_path)
+      {
+        snprintf(log_path, path_len, "%s/log/replay_queries.log", vardir);
+        replay_log_path= log_path;
+        /* Use append mode - MTR cleans var directory on each run */
+        replay_log_file= fopen(replay_log_path, "a");
+        if (!replay_log_file)
+        {
+          fprintf(stderr, "Warning: Could not open replay log file: %s\n", 
+                  replay_log_path);
+        }
+        else
+        {
+          verbose_msg("ReplayTest: Logging queries to %s", replay_log_path);
+        }
+      }
+    }
   }
 
   /* Cursor protocol implies ps protocol */
