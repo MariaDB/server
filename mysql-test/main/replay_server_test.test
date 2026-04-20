@@ -41,6 +41,7 @@ EOF
 # Test ReplayTest mode with EXPLAIN FORMAT=JSON
 CREATE TABLE t1 (a INT, b INT, KEY(a));
 INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+analyze table t1;
 
 # This should trigger ReplayTest mode if REPLAY_SERVER_SOCKET is set
 EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a = 1;

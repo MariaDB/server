@@ -8415,17 +8415,17 @@ static my_bool is_explain_format_json(const char *query, size_t query_len)
 */
 static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
 {
-  DYNAMIC_STRING last_result;
+  DYNAMIC_STRING result;
   const char *p= sql_script;
   const char *query_start= p;
-  const char *last_query_start= NULL;
-  size_t last_query_len= 0;
+  my_bool found_explain= FALSE;
   DBUG_ENTER("execute_replay_queries");
   
   verbose_msg("ReplayTest: SQL script from optimizer_context:\n%s", sql_script);
   
-  init_dynamic_string(&last_result, "", 1024, 1024);
+  init_dynamic_string(&result, "", 1024, 1024);
   
+  /* Single-pass execution: stop at first EXPLAIN FORMAT=JSON */
   while (*p)
   {
     if (p[0] == ';' && p[1] == '\n')
@@ -8434,75 +8434,38 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
       const char *q= query_start;
       const char *q_end= query_start + query_len;
       
+      /* Skip leading whitespace */
       while (q < q_end && my_isspace(charset_info, *q))
         q++;
       
       if (q < q_end)
       {
-        last_query_start= query_start;
-        last_query_len= query_len;
-      }
-      
-      p += 2;
-      query_start= p;
-    }
-    else
-    {
-      p++;
-    }
-  }
-  
-  if (query_start < p)
-  {
-    const char *q= query_start;
-    const char *q_end= p;
-    while (q < q_end && my_isspace(charset_info, *q))
-      q++;
-    if (q < q_end)
-    {
-      last_query_start= query_start;
-      last_query_len= p - query_start;
-    }
-  }
-  
-  p= sql_script;
-  query_start= p;
-  
-  while (*p)
-  {
-    if (p[0] == ';' && p[1] == '\n')
-    {
-      size_t query_len= p - query_start;
-      const char *q= query_start;
-      const char *q_end= query_start + query_len;
-      
-      while (q < q_end && my_isspace(charset_info, *q))
-        q++;
-      
-      if (q < q_end)
-      {
-        my_bool is_last= (query_start == last_query_start && 
-                          query_len == last_query_len);
+        /* Check if this is EXPLAIN FORMAT=JSON */
+        my_bool is_explain= is_explain_format_json(query_start, query_len);
         
         verbose_msg("ReplayTest: Executing query on replay server (%s): %.*s",
-                    is_last ? "LAST" : "intermediate", (int)query_len, query_start);
+                    is_explain ? "EXPLAIN - will stop after this" : "intermediate",
+                    (int)query_len, query_start);
         
+        /* Execute the query */
         if (mysql_real_query(replay_server_mysql, query_start, query_len))
         {
           fprintf(stdout, "ReplayTest: Query failed on replay server: %d %s\n",
                   mysql_errno(replay_server_mysql),
                   mysql_error(replay_server_mysql));
           fprintf(stdout, "ReplayTest: Failed query was: %.*s\n", (int)query_len, query_start);
-          dynstr_free(&last_result);
+          dynstr_free(&result);
           DBUG_VOID_RETURN;
         }
         
+        /* Process results */
         do
         {
           MYSQL_RES *res= mysql_store_result(replay_server_mysql);
           if (res)
           {
-            if (is_last)
+            /* Capture output only if this is EXPLAIN FORMAT=JSON */
+            if (is_explain)
             {
               MYSQL_FIELD *fields= mysql_fetch_fields(res);
               uint num_fields= mysql_num_fields(res);
@@ -8510,7 +8473,7 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
               
               if (!display_result_vertically)
               {
-                append_table_headings(&last_result, fields, num_fields);
+                append_table_headings(&result, fields, num_fields);
               }
               
               while ((row= mysql_fetch_row(res)))
@@ -8518,15 +8481,23 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
                 uint i;
                 ulong *lengths= mysql_fetch_lengths(res);
                 for (i= 0; i < num_fields; i++)
-                  append_field(&last_result, i, &fields[i],
+                  append_field(&result, i, &fields[i],
                               row[i], lengths[i], !row[i]);
                 if (!display_result_vertically)
-                  dynstr_append_mem(&last_result, "\n", 1);
+                  dynstr_append_mem(&result, "\n", 1);
               }
             }
             mysql_free_result(res);
           }
         } while (mysql_next_result(replay_server_mysql) == 0);
+        
+        /* If this was EXPLAIN, we're done - stop processing */
+        if (is_explain)
+        {
+          found_explain= TRUE;
+          verbose_msg("ReplayTest: Found EXPLAIN FORMAT=JSON, stopping script execution");
+          break;
+        }
       }
       
       p += 2;
@@ -8538,7 +8509,8 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
     }
   }
   
-  if (query_start < p)
+  /* Handle final query if we haven't found EXPLAIN yet */
+  if (!found_explain && query_start < p)
   {
     const char *q= query_start;
     const char *q_end= p;
@@ -8547,8 +8519,10 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
     if (q < q_end)
     {
       size_t query_len= p - query_start;
+      my_bool is_explain= is_explain_format_json(query_start, query_len);
       
-      verbose_msg("ReplayTest: Executing final query on replay server: %.*s",
+      verbose_msg("ReplayTest: Executing final query on replay server (%s): %.*s",
+                  is_explain ? "EXPLAIN" : "last query",
                   (int)query_len, query_start);
       
       if (mysql_real_query(replay_server_mysql, query_start, query_len))
@@ -8557,7 +8531,7 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
                 mysql_errno(replay_server_mysql),
                 mysql_error(replay_server_mysql));
         fprintf(stdout, "ReplayTest: Failed query was: %.*s\n", (int)query_len, query_start);
-        dynstr_free(&last_result);
+        dynstr_free(&result);
         DBUG_VOID_RETURN;
       }
       
@@ -8572,7 +8546,7 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
           
           if (!display_result_vertically)
           {
-            append_table_headings(&last_result, fields, num_fields);
+            append_table_headings(&result, fields, num_fields);
           }
           
           while ((row= mysql_fetch_row(res)))
@@ -8580,19 +8554,27 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
             uint i;
             ulong *lengths= mysql_fetch_lengths(res);
             for (i= 0; i < num_fields; i++)
-              append_field(&last_result, i, &fields[i],
+              append_field(&result, i, &fields[i],
                           row[i], lengths[i], !row[i]);
             if (!display_result_vertically)
-              dynstr_append_mem(&last_result, "\n", 1);
+              dynstr_append_mem(&result, "\n", 1);
           }
           mysql_free_result(res);
         }
       } while (mysql_next_result(replay_server_mysql) == 0);
+      
+      if (is_explain)
+        found_explain= TRUE;
     }
   }
   
-  dynstr_append_mem(ds, last_result.str, last_result.length);
-  dynstr_free(&last_result);
+  if (!found_explain)
+  {
+    verbose_msg("ReplayTest: Warning - no EXPLAIN FORMAT=JSON found in script");
+  }
+  
+  dynstr_append_mem(ds, result.str, result.length);
+  dynstr_free(&result);
   DBUG_VOID_RETURN;
 }
 
