@@ -1,6 +1,5 @@
-#enable both optimizer_trace, and optimizer_record_context
+#enable optimizer_record_context
 set optimizer_record_context=ON;
-set optimizer_trace=1;
 set @saved_opt_context_var_name_1= 'saved_opt_context_1';
 set @saved_opt_context_var_name_2= 'saved_opt_context_2';
 set @opt_context_var_name= 'opt_context';
@@ -37,6 +36,12 @@ set @records=
 select *from json_table(@records,
 '$[*]' columns(num_of_records text path '$')) as jt;
 num_of_records
+20
+set @file_stat_records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
+select *from json_table(@file_stat_records,
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 20
 set @indexes=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
@@ -196,30 +201,10 @@ select @opt_context;
 @opt_context
 NULL
 #
-# with optimizer_trace OFF,
-# nothing gets printed to the trace
-#
-set optimizer_trace=0;
-select * from t1 where a < 3 and b > 6;
-a	b
-0	7
-0	7
-2	7
-2	7
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-select @opt_context;
-@opt_context
-NULL
-#
-# Now, after re-enabling optimizer_trace, and optimizer_record_context,
+# Now, after re-enabling optimizer_record_context,
 # Loaded stats should be picked by the planner instead of the analyzed table stats,
 # as the optimizer_replay_context is still set to a valid json containing other stats
 #
-set optimizer_trace=1;
 set optimizer_record_context=ON;
 select * from t1 where a < 3 and b > 6;
 a	b
@@ -358,7 +343,7 @@ set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].name');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "name" element not present at offset 1384.
+Warning	4253	Failed to parse saved optimizer context: "name" element not present at offset 1409.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].ddl');
 select * from t1 where a > 10;
 a	b
@@ -369,47 +354,52 @@ set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].num_of_re
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "num_of_records" element not present at offset 1380.
+Warning	4253	Failed to parse saved optimizer context: "num_of_records" element not present at offset 1405.
+set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].file_stat_records');
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4253	Failed to parse saved optimizer context: "file_stat_records" element not present at offset 1402.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].indexes[0].index_name');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "index_name" element not present at offset 141.
+Warning	4253	Failed to parse saved optimizer context: "index_name" element not present at offset 166.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].indexes[0].rec_per_key');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "rec_per_key" element not present at offset 145.
+Warning	4253	Failed to parse saved optimizer context: "rec_per_key" element not present at offset 170.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_ranges[0].index_name');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "index_name" element not present at offset 618.
+Warning	4253	Failed to parse saved optimizer context: "index_name" element not present at offset 643.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_ranges[0].ranges');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "ranges" element not present at offset 610.
+Warning	4253	Failed to parse saved optimizer context: "ranges" element not present at offset 635.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_ranges[0].num_rows');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "num_rows" element not present at offset 628.
+Warning	4253	Failed to parse saved optimizer context: "num_rows" element not present at offset 653.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_ranges[0].cost');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "cost" element not present at offset 412.
+Warning	4253	Failed to parse saved optimizer context: "cost" element not present at offset 437.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_ranges[0].max_index_blocks');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "max_index_blocks" element not present at offset 621.
+Warning	4253	Failed to parse saved optimizer context: "max_index_blocks" element not present at offset 646.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_ranges[0].max_row_blocks');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "max_row_blocks" element not present at offset 623.
+Warning	4253	Failed to parse saved optimizer context: "max_row_blocks" element not present at offset 648.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].indexes[0]');
 select * from t1 where a > 10;
 a	b
@@ -448,51 +438,51 @@ set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_inde
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "key_number" element not present at offset 510.
+Warning	4253	Failed to parse saved optimizer context: "key_number" element not present at offset 535.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].num_records');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "num_records" element not present at offset 509.
+Warning	4253	Failed to parse saved optimizer context: "num_records" element not present at offset 534.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].eq_ref');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "eq_ref" element not present at offset 514.
+Warning	4253	Failed to parse saved optimizer context: "eq_ref" element not present at offset 539.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].index_cost_io');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "index_cost_io" element not present at offset 507.
+Warning	4253	Failed to parse saved optimizer context: "index_cost_io" element not present at offset 532.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].index_cost_cpu');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "index_cost_cpu" element not present at offset 496.
+Warning	4253	Failed to parse saved optimizer context: "index_cost_cpu" element not present at offset 521.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].row_cost_io');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "row_cost_io" element not present at offset 509.
+Warning	4253	Failed to parse saved optimizer context: "row_cost_io" element not present at offset 534.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].row_cost_cpu');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "row_cost_cpu" element not present at offset 498.
+Warning	4253	Failed to parse saved optimizer context: "row_cost_cpu" element not present at offset 523.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].max_index_blocks');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "max_index_blocks" element not present at offset 504.
+Warning	4253	Failed to parse saved optimizer context: "max_index_blocks" element not present at offset 529.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].max_row_blocks');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "max_row_blocks" element not present at offset 506.
+Warning	4253	Failed to parse saved optimizer context: "max_row_blocks" element not present at offset 531.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].copy_cost');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "copy_cost" element not present at offset 511.
+Warning	4253	Failed to parse saved optimizer context: "copy_cost" element not present at offset 536.
 drop table t1;
 drop database db1;

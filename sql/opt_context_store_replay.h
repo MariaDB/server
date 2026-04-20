@@ -149,7 +149,7 @@ private:
                                             const char *idx_name);
   void store_range_contexts(const TABLE *tbl, const char *idx_name,
                             List<Multi_range_read_const_call_record> *list);
-  bool infuse_table_rows(const TABLE *tbl, ha_rows *rows);
+  bool infuse_table_rows(TABLE *tbl);
   table_context_for_replay *find_table_context(const char *name);
 };
 

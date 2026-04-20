@@ -1,6 +1,5 @@
-#enable both optimizer_trace, and optimizer_record_context
+#enable optimizer_record_context
 set optimizer_record_context=ON;
-set optimizer_trace=1;
 create database db1;
 use db1;
 create table t1
@@ -69,7 +68,7 @@ SET optimizer_selectivity_sampling_limit=100;
 
 SET optimizer_switch='index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,duplicateweedout=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,cset_narrowing=on,sargable_casefold=on';
 
-SET optimizer_trace='enabled=on';
+SET optimizer_trace='enabled=off';
 
 SET optimizer_trace_max_mem_size=1048576;
 
@@ -114,7 +113,7 @@ SET optimizer_scan_setup_cost=10.000000;
 SET optimizer_search_depth=62;
 SET optimizer_selectivity_sampling_limit=100;
 SET optimizer_switch='index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,duplicateweedout=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,cset_narrowing=on,sargable_casefold=on';
-SET optimizer_trace='enabled=on';
+SET optimizer_trace='enabled=off';
 SET optimizer_trace_max_mem_size=1048576;
 SET optimizer_use_condition_selectivity=4;
 SET optimizer_where_cost=0.032000;
@@ -135,6 +134,7 @@ set @opt_context='
     {
       "name": "db1.t1",
       "num_of_records": 0,
+      "file_stat_records": 20,
       "read_cost_io": 0,
       "read_cost_cpu": 0.0100356,
       "indexes": [
@@ -166,4 +166,70 @@ create table t2( a int);
 #
 insert into t2 select seq from seq_1_to_10;
 drop table t1, t2;
+#
+# MDEV-39382: Trace replay produces "Impossible WHERE noticed after reading const tables"
+#
+CREATE TABLE t1 (a INT, b INT, KEY(a)) engine=myisam;
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_record_context=1;
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a = 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.002024411,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.002024411,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+select context into dumpfile "../../tmp/dump1.sql" 
+from information_schema.optimizer_context;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain:
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a = 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.002024411,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.002024411,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+drop table t1;
 drop database db1;
