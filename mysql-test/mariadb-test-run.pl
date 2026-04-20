@@ -150,6 +150,11 @@ my $num_saved_cores= 0;  # Number of core files saved in vardir/log/ so far.
 
 our @global_suppressions;
 
+# Forward declarations for variables referenced in END block
+our $opt_replay_server;
+our $opt_replay_server_manual;
+our $replay_server_parent_pid;  # PID of process that started the replay server
+
 END {
   if ( defined $opt_tmpdir_pid and $opt_tmpdir_pid == $$ )
   {
@@ -163,6 +168,15 @@ END {
     {
       mtr_warning("tmpdir $opt_tmpdir should be removed after the server has finished");
     }
+  }
+
+  # Ensure replay server is stopped on any exit path (success or failure).
+  # Only run in the parent process that started it; safe to call even if
+  # already stopped (stop_replay_server clears REPLAY_SERVER_PID).
+  if (defined $replay_server_parent_pid and $replay_server_parent_pid == $$
+      and ($opt_replay_server || $opt_replay_server_manual))
+  {
+    eval { stop_replay_server(); };
   }
 }
 
@@ -3049,9 +3063,21 @@ sub initialize_servers {
 }
 
 
+sub _install_replay_server_signal_handlers {
+  # Ensure END block (which stops the replay server) runs on common
+  # termination signals. Perl END blocks don't run on uncaught signals;
+  # installing handlers that call exit() lets them run.
+  for my $sig (qw(INT TERM HUP)) {
+    $SIG{$sig} = sub { exit(1); };
+  }
+}
+
+
 sub start_replay_server {
   mtr_report("Starting replay server...");
-  
+  $replay_server_parent_pid = $$;
+  _install_replay_server_signal_handlers();
+
   my $replay_server_num = 1;
   my $script = "$glob_mysql_test_dir/lib/start_extra_server.pl";
   
@@ -3104,7 +3130,9 @@ sub start_replay_server {
 
 sub start_replay_server_manual {
   mtr_report("Starting replay server in manual mode...");
-  
+  $replay_server_parent_pid = $$;
+  _install_replay_server_signal_handlers();
+
   my $replay_server_num = 1;
   
   # Set required environment variables
@@ -3260,30 +3288,40 @@ sub stop_replay_server {
   
   my $pid = $ENV{REPLAY_SERVER_PID};
   
-  # Send SIGTERM
+  # Send SIGTERM. The replay server is NOT a direct child of this process
+  # (start_extra_server.pl is an intermediate), so waitpid() cannot be used
+  # to poll its exit status. Use `kill 0, $pid` (signal 0 - existence check)
+  # instead.
   if (kill 0, $pid) {
     kill 'TERM', $pid;
-    
+
     # Wait for process to exit (up to 10 seconds)
     my $max_wait = 10;
     my $waited = 0;
-    while ($waited < $max_wait) {
-      my $result = waitpid($pid, WNOHANG);
-      last if ($result == $pid || $result == -1);
+    while ($waited < $max_wait && kill(0, $pid)) {
       sleep 1;
       $waited++;
     }
-    
+
     # Force kill if still running
-    if ($waited >= $max_wait && kill 0, $pid) {
+    if (kill 0, $pid) {
       kill 'KILL', $pid;
+      # Wait briefly for KILL to take effect
+      my $kill_waited = 0;
+      while ($kill_waited < 3 && kill(0, $pid)) {
+        sleep 1;
+        $kill_waited++;
+      }
     }
   }
   
   # Cleanup info file
   my $info_file = "$opt_vardir/tmp/extra_server_1.info";
   unlink $info_file if -f $info_file;
-  
+
+  # Mark as stopped so subsequent calls (e.g. from END block) are no-ops
+  delete $ENV{REPLAY_SERVER_PID};
+
   mtr_report("Replay server stopped");
 }
 
