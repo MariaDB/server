@@ -1058,10 +1058,11 @@ static ATTRIBUTE_COLD lsn_t srv_prepare_to_delete_redo_log_file() noexcept
   /* Clean the buffer pool. */
   buf_flush_sync_batch(0, false);
 
-  DBUG_EXECUTE_IF("innodb_log_abort_1", DBUG_RETURN(0););
+  DBUG_EXECUTE_IF("innodb_log_abort_1", recv_sys.recovery_on= false;
+                  DBUG_RETURN(0););
   DBUG_PRINT("ib_log", ("After innodb_log_abort_1"));
 
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock();
   const bool latest_format{log_sys.is_latest()};
   lsn_t flushed_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
 
@@ -1106,7 +1107,7 @@ static tpool::task rollback_all_recovered_task(trx_rollback_all_recovered,
 
 inline lsn_t log_t::init_lsn() noexcept
 {
-  latch.wr_lock(SRW_LOCK_CALL);
+  latch.wr_lock();
   ut_ad(!write_lsn_offset);
   write_lsn_offset= 0;
   const lsn_t lsn{base_lsn.load(std::memory_order_relaxed)};
@@ -1204,16 +1205,18 @@ dberr_t srv_start(bool create_new_db)
 	if (!srv_read_only_mode) {
 		if (srv_innodb_status) {
 
+			size_t srv_monitor_file_name_size=
+				strlen(fil_path_to_mysql_datadir)
+				+ 20 + sizeof "/innodb_status.";
 			srv_monitor_file_name = static_cast<char*>(
-				ut_malloc_nokey(
-					strlen(fil_path_to_mysql_datadir)
-					+ 20 + sizeof "/innodb_status."));
+				ut_malloc_nokey(srv_monitor_file_name_size));
 
-			sprintf(srv_monitor_file_name,
-				"%s/innodb_status." ULINTPF,
-				fil_path_to_mysql_datadir,
-				static_cast<ulint>
-				(IF_WIN(GetCurrentProcessId(), getpid())));
+			snprintf(srv_monitor_file_name,
+				 srv_monitor_file_name_size,
+				 "%s/innodb_status." ULINTPF,
+				 fil_path_to_mysql_datadir,
+				 static_cast<ulint>
+				 (IF_WIN(GetCurrentProcessId(), getpid())));
 
 			srv_monitor_file = my_fopen(srv_monitor_file_name,
 						    O_RDWR|O_TRUNC|O_CREAT,
@@ -1296,7 +1299,7 @@ dberr_t srv_start(bool create_new_db)
 			sql_print_information("InnoDB: innodb_force_recovery=6"
 					      " skips redo log apply");
 		} else {
-			log_sys.latch.wr_lock(SRW_LOCK_CALL);
+			log_sys.latch.wr_lock();
 			err = recv_sys.find_checkpoint();
 			log_sys.latch.wr_unlock();
 			if (err != DB_SUCCESS) {
@@ -1334,7 +1337,7 @@ dberr_t srv_start(bool create_new_db)
 
 	if (create_new_db) {
 		lsn_t flushed_lsn = log_sys.init_lsn();
-		log_sys.latch.wr_lock(SRW_LOCK_CALL);
+		log_sys.latch.wr_lock();
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
 		err = create_log_file(true, flushed_lsn);
@@ -1550,16 +1553,17 @@ dberr_t srv_start(bool create_new_db)
 			assumption does not hold. */
 			ut_d(os_aio_wait_until_no_pending_writes(false));
 
-			/* Close the redo log file, so that we can replace it */
-			log_sys.close_file();
-
 			DBUG_EXECUTE_IF("innodb_log_abort_5",
-					srv_was_started = false;
+					recv_sys.recovery_on = false;
+					recv_no_log_write = false;
 					log_sys.latch.wr_unlock();
 					mysql_mutex_unlock(
 						&buf_pool.flush_list_mutex);
 					return(srv_init_abort(DB_ERROR)););
 			DBUG_PRINT("ib_log", ("After innodb_log_abort_5"));
+
+			/* Close the redo log file, so that we can replace it */
+			log_sys.close_file();
 
 			err = create_log_file(false, lsn);
 

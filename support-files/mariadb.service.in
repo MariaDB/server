@@ -162,7 +162,7 @@ LimitNOFILE=32768
 
 # Library substitutions. previously [mysqld_safe] malloc-lib with explicit paths
 # (in LD_LIBRARY_PATH) and library name (in LD_PRELOAD).
-# Environment="LD_LIBRARY_PATH=/path1 /path2" "LD_PRELOAD=
+# Environment="LD_LIBRARY_PATH=/path1 /path2" "LD_PRELOAD="
 
 # Flush caches. previously [mysqld_safe] flush-caches=1
 # ExecStartPre=sync

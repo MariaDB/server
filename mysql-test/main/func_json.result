@@ -2809,12 +2809,60 @@ Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to functi
 #
 # MDEV-37640: Crash at String::append with json_normalize
 #
-SELECT ( WITH x AS ( WITH x AS ( SELECT 1.000000 ) SELECT ( REPEAT ( ( json_normalize ( ' 	-1' ) ) , 357 ) ) x ) SELECT x FROM x WHERE x IN ( x , x ) );
-( WITH x AS ( WITH x AS ( SELECT 1.000000 ) SELECT ( REPEAT ( ( json_normalize ( ' 	-1' ) ) , 357 ) ) x ) SELECT x FROM x WHERE x IN ( x , x ) )
+SELECT ( WITH x AS ( WITH x AS ( SELECT 1.000000 ) SELECT ( REPEAT ( ( json_normalize ( ' 	-1' ) ) , 357 ) ) x ) SELECT x FROM x WHERE x IN ( x , x ) ) x;
+x
 -1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0
 #
 # MDEV-37640: Crash in JSON_KEYS
 #
 SELECT JSON_SET('{"c":4}', '$.a', 5) AS x HAVING (x IN (JSON_KEYS(x), ','));
 x
+#
+# MDEV-38264 Assertion in json_find_path() fails after computing
+# array size of invalid json structure
+#
+SELECT JSON_QUERY('{ "A": [0,] }', '$.A[-1]');
+JSON_QUERY('{ "A": [0,] }', '$.A[-1]')
+NULL
+SELECT JSON_VALUE('{ "A": [0,] }', '$.A[-1]');
+JSON_VALUE('{ "A": [0,] }', '$.A[-1]')
+NULL
+SELECT JSON_VALUE('{ "A": [5,] }', '$.A[-2]');
+JSON_VALUE('{ "A": [5,] }', '$.A[-2]')
+NULL
+SELECT JSON_VALUE('{ "A": [5] }', '$.A[-2]');
+JSON_VALUE('{ "A": [5] }', '$.A[-2]')
+NULL
+SELECT JSON_LENGTH('{ "A": [0,] }', '$.A');
+JSON_LENGTH('{ "A": [0,] }', '$.A')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' at position 11
+SELECT JSON_VALID('{ "A": [0,] }');
+JSON_VALID('{ "A": [0,] }')
+0
+#
+# MDEV-38264 Assertion in json_find_path() fails after computing
+# array size of invalid json structure
+#
+SELECT JSON_QUERY('{ "A": [0,] }', '$.A[-1]');
+JSON_QUERY('{ "A": [0,] }', '$.A[-1]')
+NULL
+SELECT JSON_VALUE('{ "A": [0,] }', '$.A[-1]');
+JSON_VALUE('{ "A": [0,] }', '$.A[-1]')
+NULL
+SELECT JSON_VALUE('{ "A": [5,] }', '$.A[-2]');
+JSON_VALUE('{ "A": [5,] }', '$.A[-2]')
+NULL
+SELECT JSON_VALUE('{ "A": [5] }', '$.A[-2]');
+JSON_VALUE('{ "A": [5] }', '$.A[-2]')
+NULL
+SELECT JSON_LENGTH('{ "A": [0,] }', '$.A');
+JSON_LENGTH('{ "A": [0,] }', '$.A')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' at position 11
+SELECT JSON_VALID('{ "A": [0,] }');
+JSON_VALID('{ "A": [0,] }')
+0
 # End of 10.11 Test

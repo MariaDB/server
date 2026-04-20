@@ -487,7 +487,7 @@ ANALYZE
                       "r_filtered": 100
                     },
                     "buffer_type": "flat",
-                    "buffer_size": "1Kb",
+                    "buffer_size": "1KiB",
                     "join_type": "BNL",
                     "attached_condition": "trigcond(t11.col1 = t10.col1)",
                     "r_loops": 500,

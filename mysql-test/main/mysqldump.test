@@ -3074,6 +3074,87 @@ drop table `con`;
 drop table `con/bar`;
 drop table `con@fame`;
 
+
+--echo #
+--echo # MDEV-36183 mariadb-dump backup corrupt if stored procedure ends with comment
+--echo #
+
+CREATE TABLE t1 (f1 INT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET @f1 = 1 #comment;
+
+--delimiter $
+ 
+CREATE PROCEDURE pr1()
+BEGIN
+SELECT 1;
+END
+-- comment-end
+$
+
+CREATE TRIGGER tr2 BEFORE UPDATE ON t1 FOR EACH ROW 
+BEGIN
+SET @f1 = 2;
+END
+-- comment-end
+$
+
+CREATE FUNCTION f1() RETURNS TINYINT DETERMINISTIC
+BEGIN
+ RETURN 1;
+END 
+-- comment-end
+$
+
+--delimiter ;
+
+CREATE PROCEDURE pr2 () SELECT "a" #comment;
+CREATE EVENT ev1 ON SCHEDULE AT '2030-01-01 00:00:00' DO SELECT "a" #comment;
+
+--exec $MYSQL_DUMP test  --compact --routines --triggers --events > $MYSQL_TMP_DIR/1.dump
+DROP PROCEDURE pr1;
+DROP PROCEDURE pr2;
+DROP TRIGGER tr1;
+DROP TRIGGER tr2;
+DROP TABLE t1;
+DROP EVENT ev1;
+DROP FUNCTION f1;
+
+--exec $MYSQL test < $MYSQL_TMP_DIR/1.dump
+ 
+DROP PROCEDURE pr1;
+DROP PROCEDURE pr2;
+DROP TRIGGER tr1;
+DROP TRIGGER tr2;
+DROP TABLE t1;
+DROP EVENT ev1;
+DROP FUNCTION f1;
+
+--echo #
+--echo # MDEV-32770 mariadb-dump produces not loadable dump due to temporary view structure
+--echo #
+
+create table t1 (f geometry);
+create view v2 AS select f from t1;
+create view v1 AS select st_contains(f,ST_GEOMFROMTEXT('POINT(1 1)')) from v2;
+
+create database db;
+--exec $MYSQL_DUMP test | $MYSQL db
+
+create or replace table t1 (id varchar(20) not null, ip inet6 not null);
+create or replace view v2 as select id, min(ip) as ip from t1 group by id;
+create or replace view v1 as select coalesce(v2.ip, t1.ip) as ip from t1 left join v2 using(id);
+create or replace view v4 as select cast(id as time) d1 from t1;
+create or replace view v3 as select to_char(d1,'MM') c1 FROM v4; 
+
+create or replace database db;
+--exec $MYSQL_DUMP test | $MYSQL db
+drop view v3,v4;
+
+# Cleanup
+drop database db;
+drop view v1,v2;
+drop table t1;
+
 --echo # End of 10.6 tests
 
 --echo #

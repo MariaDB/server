@@ -243,7 +243,7 @@ static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
     if (thd_kill_level(thd))
       break;
     /* Adjust for purge_coordinator_state::refresh() */
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock();
     const lsn_t last= log_sys.last_checkpoint_lsn,
       max_age= log_sys.max_checkpoint_age;
     const lsn_t lsn= log_sys.get_lsn();
@@ -616,7 +616,6 @@ mysql_pfs_key_t trx_i_s_cache_lock_key;
 mysql_pfs_key_t	trx_purge_latch_key;
 mysql_pfs_key_t trx_rseg_latch_key;
 mysql_pfs_key_t lock_latch_key;
-mysql_pfs_key_t	log_latch_key;
 
 /* all_innodb_rwlocks array contains rwlocks that are
 performance schema instrumented if "UNIV_PFS_RWLOCK"
@@ -632,7 +631,6 @@ static PSI_rwlock_info all_innodb_rwlocks[] =
   { &trx_purge_latch_key, "trx_purge_latch", 0 },
   { &trx_rseg_latch_key, "trx_rseg_latch", 0 },
   { &lock_latch_key, "lock_latch", 0 },
-  { &log_latch_key, "log_latch", 0 },
   { &index_tree_rw_lock_key, "index_tree_rw_lock", PSI_RWLOCK_FLAG_SX }
 };
 # endif /* UNIV_PFS_RWLOCK */
@@ -3689,29 +3687,12 @@ static MYSQL_SYSVAR_SIZE_T(buffer_pool_size_auto_min,
   innodb_buffer_pool_extent_size);
 #endif
 
-#if SIZEOF_SIZE_T < 8 || defined _AIX || defined HAVE_valgrind
-/* In constrained environments, innodb_buffer_pool_size_max
-will default to the initial innodb_buffer_pool_size, that is,
-by default, it will not be possible to increase innodb_buffer_pool_size.
-
-In MemorySanitizer and possibly Valgrind memcheck, any virtual memory
-allocation would be backed by one or more copies of shadow bits of the
-same size that could be allocated and initialized even for dummy
-mappings created by mmap(2) with PROT_NONE. We do not want significant
-overhead beyond the actual innodb_buffer_pool_size. */
-static constexpr size_t innodb_buffer_pool_size_max_default{0},
-  innodb_buffer_pool_size_max_minimum{0};
-#else
-static constexpr size_t innodb_buffer_pool_size_max_default{8ULL << 40},// 8TiB
-  innodb_buffer_pool_size_max_minimum{innodb_buffer_pool_extent_size};
-#endif
-
 static MYSQL_SYSVAR_SIZE_T(buffer_pool_size_max, buf_pool.size_in_bytes_max,
                            PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
                            "Maximum innodb_buffer_pool_size",
                            nullptr, nullptr,
-                           innodb_buffer_pool_size_max_default,
-                           innodb_buffer_pool_size_max_minimum,
+                           buf_pool.size_in_bytes_max_default,
+                           buf_pool.size_in_bytes_max_minimum,
                            size_t(-ssize_t(innodb_buffer_pool_extent_size)),
                            innodb_buffer_pool_extent_size);
 
@@ -3803,6 +3784,20 @@ static int innodb_init_params()
   min= ut_calc_align<size_t>
     (buf_pool.blocks_in_bytes(BUF_LRU_MIN_LEN + BUF_LRU_MIN_LEN / 4),
      1U << 20);
+
+#ifdef RLIMIT_AS
+  if (buf_pool.size_in_bytes_max_default != 0 &&
+      buf_pool.size_in_bytes_max == buf_pool.size_in_bytes_max_default)
+  {
+    struct rlimit rlimit_as;
+    if (!getrlimit(RLIMIT_AS, &rlimit_as) &&
+        rlimit_as.rlim_cur != RLIM_INFINITY &&
+        rlimit_as.rlim_cur / 4 < buf_pool.size_in_bytes_max)
+    buf_pool.size_in_bytes_max= size_t(rlimit_as.rlim_cur / 4) &
+      ~innodb_buffer_pool_extent_size;
+  }
+#endif
+
   const size_t innodb_buffer_pool_size= buf_pool.size_in_bytes_requested;
 
   if (innodb_buffer_pool_size > buf_pool.size_in_bytes_max ||
@@ -4736,7 +4731,7 @@ checkpoint complete when we have flushed the redo log.
 If we have already flushed all relevant redo log, we notify immediately.*/
 static void innodb_log_flush_request(void *cookie) noexcept
 {
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock();
   lsn_t flush_lsn= log_sys.get_flushed_lsn();
   /* Load lsn relaxed after flush_lsn was loaded from the same cache line */
   const lsn_t lsn= log_sys.get_lsn();
@@ -15273,7 +15268,7 @@ ha_innobase::check(
 	ulint		n_rows_in_table	= ULINT_UNDEFINED;
 	bool		is_ok		= true;
 	dberr_t		ret;
-        uint handler_flags= check_opt->handler_flags;
+	uint handler_flags= check_opt->handler_flags;
 
 	DBUG_ENTER("ha_innobase::check");
 	DBUG_ASSERT(thd == ha_thd());
@@ -15282,7 +15277,7 @@ ha_innobase::check(
 	ut_a(m_prebuilt->trx == thd_to_trx(thd));
 	ut_ad(m_prebuilt->trx->mysql_thd == thd);
 
-	if (handler_flags || check_for_upgrade(check_opt)) {
+	if (handler_flags) {
 		/* The file was already checked and fixed as part of open */
 		print_check_msg(thd, table->s->db.str, table->s->table_name.str,
 				"check", "note",
@@ -15291,9 +15286,10 @@ ha_innobase::check(
 				? "Auto_increment will be"
 				" checked on each open until"
 				" CHECK TABLE FOR UPGRADE is executed"
+				" when the server is not in a read-only state"
 				: "Auto_increment checked and"
 				" .frm file version updated", 1);
-		if (handler_flags && (check_opt->sql_flags & TT_FOR_UPGRADE)) {
+		if (check_opt->sql_flags & TT_FOR_UPGRADE) {
 			/*
 			  No other issues found (as handler_flags was only
 			  set if there as not other problems with the table
@@ -15507,7 +15503,7 @@ func_exit:
 }
 
 /**
-Check if we there is a problem with the InnoDB table.
+Check if there is a problem with the InnoDB table.
 @param check_opt     check options
 @retval HA_ADMIN_OK           if Table is ok
 @retval HA_ADMIN_NEEDS_ALTER  User should run ALTER TABLE FOR UPGRADE
@@ -15528,6 +15524,7 @@ int ha_innobase::check_for_upgrade(HA_CHECK_OPT *check_opt)
     if (m_prebuilt->table->get_index(*autoinc_col))
     {
       check_opt->handler_flags= 1;
+      // Prevent ha_check() from updating frm version if InnoDB (but not the server) is in a read-only state
       return (high_level_read_only && !opt_readonly)
         ? HA_ADMIN_FAILED : HA_ADMIN_NEEDS_CHECK;
     }
@@ -15589,7 +15586,7 @@ get_foreign_key_info(
 	FOREIGN_KEY_INFO*	pf_key_info;
 	uint			i = 0;
 	size_t			len;
-	char			tmp_buff[NAME_LEN+1];
+	char			tmp_buff[MAX_DATABASE_NAME_LEN+1];
 	char			name_buff[NAME_LEN+1];
 	const char*		ptr;
 	LEX_CSTRING*		name = NULL;
@@ -18467,7 +18464,7 @@ checkpoint_now_set(THD* thd, st_mysql_sys_var*, void*, const void *save)
   mysql_mutex_unlock(&LOCK_global_system_variables);
   while (!thd_kill_level(thd))
   {
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock();
     lsn_t cp= log_sys.last_checkpoint_lsn.load(std::memory_order_relaxed),
       lsn= log_sys.get_lsn();
     log_sys.latch.wr_unlock();
@@ -18694,7 +18691,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
         if (!resizing || !log_sys.resize_running(thd))
           break;
-        log_sys.latch.wr_lock(SRW_LOCK_CALL);
+        log_sys.latch.wr_lock();
         while (resizing > log_sys.get_lsn())
         {
           ut_ad(!log_sys.is_mmap());
@@ -18774,6 +18771,19 @@ innodb_encrypt_tables_update(THD*, st_mysql_sys_var*, void*, const void* save)
 	fil_crypt_set_encrypt_tables(*static_cast<const ulong*>(save));
 	mysql_mutex_lock(&LOCK_global_system_variables);
 }
+
+#if defined __linux__ || defined __FreeBSD__
+/** Update the system variable innodb_buffer_pool_in_core_dump.
+@param save    to-be-assigned value */
+static void innodb_buffer_pool_in_core_dump_update(THD *, st_mysql_sys_var *,
+                                                   void *, const void *save)
+{
+  mysql_mutex_lock(&buf_pool.mutex);
+  buf_pool.in_core_dump= *static_cast<const my_bool*>(save);
+  buf_pool.core_advise();
+  mysql_mutex_unlock(&buf_pool.mutex);
+}
+#endif
 
 static SHOW_VAR innodb_status_variables_export[]= {
 	SHOW_FUNC_ENTRY("Innodb", &show_innodb_vars),
@@ -19288,6 +19298,12 @@ static MYSQL_SYSVAR_BOOL(buffer_pool_dump_at_shutdown, srv_buffer_pool_dump_at_s
   PLUGIN_VAR_RQCMDARG,
   "Dump the buffer pool into a file named @@innodb_buffer_pool_filename",
   NULL, NULL, TRUE);
+
+#if defined __linux__ || defined __FreeBSD__
+static MYSQL_SYSVAR_BOOL(buffer_pool_in_core_dump, buf_pool.in_core_dump,
+  PLUGIN_VAR_OPCMDARG, "Include the buffer pool in core dump.",
+  nullptr, innodb_buffer_pool_in_core_dump_update, IF_DBUG(true,false));
+#endif
 
 static MYSQL_SYSVAR_ULONG(buffer_pool_dump_pct, srv_buf_pool_dump_pct,
   PLUGIN_VAR_RQCMDARG,
@@ -19983,6 +19999,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(buffer_pool_filename),
   MYSQL_SYSVAR(buffer_pool_dump_now),
   MYSQL_SYSVAR(buffer_pool_dump_at_shutdown),
+#if defined __linux__ || defined __FreeBSD__
+  MYSQL_SYSVAR(buffer_pool_in_core_dump),
+#endif
   MYSQL_SYSVAR(buffer_pool_dump_pct),
 #ifdef UNIV_DEBUG
   MYSQL_SYSVAR(buffer_pool_evict),
@@ -21214,7 +21233,7 @@ ib_foreign_warn(trx_t*	    trx,   /*!< in: trx */
 	}
 
 	va_start(args, format);
-	vsprintf(buf, format, args);
+	vsnprintf(buf, MAX_BUF_SIZE, format, args);
 	va_end(args);
 
 	mysql_mutex_lock(&dict_foreign_err_mutex);

@@ -127,3 +127,48 @@ drop table t1, t2;
 --echo #
 --echo # End of 10.10 tests
 --echo #
+
+--echo #
+--echo # MDEV-32868 SELECT NULL,NULL IN (SUBQUERY) returns 0 instead of NULL
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1);
+
+create table t2 (a int, b int);
+insert into t2 values (null, null);
+
+--echo # Scalar subquery returning NULLs as left part of IN
+--echo # All NULLs on left, no match possible -> NULL (subquery has rows)
+select (select null, null) in (select 1, 2 from t1) from t1;
+
+--echo # One NULL on left, other column matches -> NULL
+select (select null, 2) in (select 1, 2 from t1) from t1;
+
+--echo # One NULL on left, other column doesn't match -> FALSE
+select (select null, 3) in (select 1, 2 from t1) from t1;
+
+--echo # Table with NULLs as left part
+select (select * from t2) in (select 1, 2 from t1) from t1;
+
+--echo # Exact match -> TRUE
+select (select 1, 2) in (select 1, 2 from t1) from t1;
+
+--echo # No match, no NULLs -> FALSE
+select (select 3, 4) in (select 1, 2 from t1) from t1;
+
+--echo # Right side has NULLs
+create table t3 (a int, b int);
+insert into t3 values (1, null), (null, 2);
+
+--echo # Left matches one column, right has NULL in other -> NULL
+select (select 1, 2) in (select * from t3) from t1;
+
+--echo # Both sides have NULLs -> NULL
+select (select null, 2) in (select * from t3) from t1;
+
+drop table t1, t2, t3;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #

@@ -3706,7 +3706,9 @@ String *Item_func_lpad::val_str(String *str)
 
   if (count <= res_char_length)
   {
-    res->length(res->charpos((int) count));
+    int len= res->charpos((int) count);
+    res= copy_if_not_alloced(str, res, len);
+    res->length(len);
     return res;
   }
   

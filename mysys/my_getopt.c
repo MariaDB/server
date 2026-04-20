@@ -787,7 +787,7 @@ static int setval(const struct my_option *opts, void *value, char *argument,
       *((long*) value)= (long) getopt_ll(argument, opts, &err);
       break;
     case GET_ULONG:
-      *((long*) value)= (long) getopt_ull(argument, opts, &err);
+      *((ulong*) value)= (ulong) getopt_ull(argument, opts, &err);
       break;
     case GET_LL:
       *((longlong*) value)= getopt_ll(argument, opts, &err);

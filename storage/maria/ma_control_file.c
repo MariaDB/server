@@ -388,8 +388,8 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
   if (buffer[CF_VERSION_OFFSET] > CONTROL_FILE_VERSION)
   {
     error= CONTROL_FILE_BAD_VERSION;
-    sprintf(errmsg_buff, "File is from a future aria system: %d. Current version is: %d",
-            (int) buffer[CF_VERSION_OFFSET], CONTROL_FILE_VERSION);
+    snprintf(errmsg_buff, sizeof(errmsg_buff), "File is from a future aria system: %d. Current version is: %d",
+             (int) buffer[CF_VERSION_OFFSET], CONTROL_FILE_VERSION);
     errmsg= errmsg_buff;
     goto err;
   }
@@ -402,10 +402,10 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
       new_cf_create_time_size + new_cf_changeable_size > file_size)
   {
     error= CONTROL_FILE_INCONSISTENT_INFORMATION;
-    sprintf(errmsg_buff,
-            "Sizes stored in control file are inconsistent. "
-            "create_time_size: %u  changeable_size: %u  file_size: %llu",
-            new_cf_create_time_size, new_cf_changeable_size, (ulonglong) file_size);
+    snprintf(errmsg_buff, sizeof(errmsg_buff),
+             "Sizes stored in control file are inconsistent. "
+             "create_time_size: %u  changeable_size: %u  file_size: %llu",
+             new_cf_create_time_size, new_cf_changeable_size, (ulonglong) file_size);
     errmsg= errmsg_buff;
     goto err;
   }
@@ -414,9 +414,9 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
   if (new_block_size != maria_block_size && maria_block_size)
   {
     error= CONTROL_FILE_WRONG_BLOCKSIZE;
-    sprintf(errmsg_buff,
-            "Block size in control file (%u) is different than given aria_block_size: %u",
-            new_block_size, (uint) maria_block_size);
+    snprintf(errmsg_buff, sizeof(errmsg_buff),
+             "Block size in control file (%u) is different than given aria_block_size: %u",
+             new_block_size, (uint) maria_block_size);
     errmsg= errmsg_buff;
     goto err;
   }
@@ -727,10 +727,10 @@ my_bool print_aria_log_control()
       new_cf_create_time_size + new_cf_changeable_size > file_size)
   {
     error= CONTROL_FILE_INCONSISTENT_INFORMATION;
-    sprintf(errmsg_buff,
-            "Sizes stored in control file are inconsistent. "
-            "create_time_size: %u  changeable_size: %u  file_size: %llu",
-            new_cf_create_time_size, new_cf_changeable_size, (ulonglong) file_size);
+    snprintf(errmsg_buff, sizeof(errmsg_buff),
+             "Sizes stored in control file are inconsistent. "
+             "create_time_size: %u  changeable_size: %u  file_size: %llu",
+             new_cf_create_time_size, new_cf_changeable_size, (ulonglong) file_size);
     errmsg= errmsg_buff;
     goto err;
   }

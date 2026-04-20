@@ -1,0 +1,17 @@
+#
+# MDEV-5479: Prevent mysqld from unlinking a Unix socket
+#            file actively used by another process
+#
+#
+# Test 1: Server must refuse to start when a listener is
+#         already present on the socket path
+#
+FOUND 1 /\[ERROR\] Another process is already listening on the socket file/ in socket_conflict.err
+#
+# Test 2: Stale socket file must be cleaned up at startup
+#
+# restart
+SELECT 1;
+1
+1
+# End of 10.11 tests

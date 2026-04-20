@@ -32,7 +32,11 @@
 #else
 #include "sql_class.h"  // For class THD
 #include "log.h" // for sql_print_error
+#ifndef NDEBUG
 #define VALIDITY_ASSERT(x) DBUG_ASSERT(x)
+#else
+#define VALIDITY_ASSERT(x) do { } while (0)
+#endif
 #endif
 
 #include <type_traits>
@@ -523,8 +527,12 @@ public:
   }
   Json_writer_object& add(const char *name, const char *value, size_t num_bytes)
   {
-    add_member(name);
-    context.add_str(value, num_bytes);
+    DBUG_ASSERT(!closed);
+    if (my_writer)
+    {
+      add_member(name);
+      context.add_str(value, num_bytes);
+    }
     return *this;
   }
   Json_writer_object& add(const char *name, const LEX_CSTRING &value)

@@ -103,31 +103,32 @@ Sprintfs a timestamp to a buffer, 13..14 chars plus terminating NUL. */
 void
 ut_sprintf_timestamp(
 /*=================*/
-	char*	buf) /*!< in: buffer where to sprintf */
+	char*	buf, /*!< in: buffer where to sprintf */
+	size_t	buf_size) /*!< in: size of the buffer */
 {
 #ifdef _WIN32
 	SYSTEMTIME cal_tm;
 	GetLocalTime(&cal_tm);
 
-	sprintf(buf, "%02u%02u%02u %2u:%02u:%02u",
-		cal_tm.wYear % 100,
-		cal_tm.wMonth,
-		cal_tm.wDay,
-		cal_tm.wHour,
-		cal_tm.wMinute,
-		cal_tm.wSecond);
+	snprintf(buf, buf_size, "%02u%02u%02u %2u:%02u:%02u",
+		 cal_tm.wYear % 100,
+		 cal_tm.wMonth,
+		 cal_tm.wDay,
+		 cal_tm.wHour,
+		 cal_tm.wMinute,
+		 cal_tm.wSecond);
 #else
 	time_t	   tm;
 	struct tm  cal_tm;
 	time(&tm);
 	localtime_r(&tm, &cal_tm);
-	sprintf(buf, "%02d%02d%02d %2d:%02d:%02d",
-		cal_tm.tm_year % 100,
-		cal_tm.tm_mon + 1,
-		cal_tm.tm_mday,
-		cal_tm.tm_hour,
-		cal_tm.tm_min,
-		cal_tm.tm_sec);
+	snprintf(buf, buf_size, "%02d%02d%02d %2d:%02d:%02d",
+		 cal_tm.tm_year % 100,
+		 cal_tm.tm_mon + 1,
+		 cal_tm.tm_mday,
+		 cal_tm.tm_hour,
+		 cal_tm.tm_min,
+		 cal_tm.tm_sec);
 #endif
 }
 

@@ -4302,8 +4302,8 @@ bool change_password(THD *thd, LEX_USER *user)
   result= acl_cache_is_locked= 0;
   if (mysql_bin_log.is_open())
   {
-    query_length= sprintf(buff, "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
-           user->user.str, safe_str(user->host.str), auth.auth_string.str);
+    query_length= snprintf(buff, sizeof(buff), "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
+            user->user.str, safe_str(user->host.str), auth.auth_string.str);
     DBUG_ASSERT(query_length);
     thd->clear_error();
     result= thd->binlog_query(THD::STMT_QUERY_TYPE, buff, query_length,
@@ -4370,8 +4370,8 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
       (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0)))
   {
     query_length=
-      sprintf(buff,"SET DEFAULT ROLE '%-.120s' FOR '%-.120s'@'%-.120s'",
-              safe_str(rolename), user, safe_str(host));
+      snprintf(buff, sizeof(buff), "SET DEFAULT ROLE '%-.120s' FOR '%-.120s'@'%-.120s'",
+               safe_str(rolename), user, safe_str(host));
   }
 
   /*

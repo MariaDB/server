@@ -4141,13 +4141,15 @@ next_file:
 
 	strcpy(info->name, ent->d_name);
 
+	size_t full_path_size= strlen(dirname) + strlen(ent->d_name) + 10;
 	full_path = static_cast<char*>(
-		ut_malloc_nokey(strlen(dirname) + strlen(ent->d_name) + 10));
+		ut_malloc_nokey(full_path_size));
 	if (!full_path) {
 		return -1;
 	}
 
-	sprintf(full_path, "%s/%s", dirname, ent->d_name);
+	snprintf(full_path, full_path_size,
+		 "%s/%s", dirname, ent->d_name);
 
 	ret = stat(full_path, &statinfo);
 
@@ -4949,14 +4951,14 @@ bool Backup_datasinks::backup_low()
 	if (xtrabackup_extra_lsndir) {
 		char	filename[FN_REFLEN];
 
-		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
+		snprintf(filename, sizeof(filename), "%s/%s", xtrabackup_extra_lsndir,
 			XTRABACKUP_METADATA_FILENAME);
 		if (!xtrabackup_write_metadata(filename)) {
 			msg("Error: failed to write metadata "
 			    "to '%s'.", filename);
 			return false;
 		}
-		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
+		snprintf(filename, sizeof(filename), "%s/%s", xtrabackup_extra_lsndir,
 			XTRABACKUP_INFO);
 		if (!write_xtrabackup_info(m_data,
 		                           mysql_connection, filename, false, false)) {
@@ -5515,7 +5517,7 @@ fail:
 
 	/* get current checkpoint_lsn */
 	{
-		log_sys.latch.wr_lock(SRW_LOCK_CALL);
+		log_sys.latch.wr_lock();
 		mysql_mutex_lock(&recv_sys.mutex);
 		dberr_t err = recv_sys.find_checkpoint();
 		log_sys.latch.wr_unlock();
@@ -6820,8 +6822,8 @@ static bool xtrabackup_prepare_func(char** argv)
 	/*
 	  read metadata of target
 	*/
-	sprintf(metadata_path, "%s/%s", xtrabackup_target_dir,
-		XTRABACKUP_METADATA_FILENAME);
+	snprintf(metadata_path, sizeof(metadata_path), "%s/%s",
+		 xtrabackup_target_dir, XTRABACKUP_METADATA_FILENAME);
 
 	if (!xtrabackup_read_metadata(metadata_path)) {
 		msg("Error: failed to read metadata from '%s'\n",
@@ -6931,7 +6933,7 @@ error:
         if (xtrabackup_incremental)
         {
           char inc_filename[FN_REFLEN];
-          sprintf(inc_filename, "%s/%s", xtrabackup_incremental_dir,
+          snprintf(inc_filename, sizeof(inc_filename), "%s/%s", xtrabackup_incremental_dir,
                   MB_CORRUPTED_PAGES_FILE);
           corrupted_pages.read_from_file(inc_filename);
         }
@@ -7000,14 +7002,14 @@ error:
 			metadata_last_lsn = incremental_last_lsn;
 		}
 
-		sprintf(filename, "%s/%s", xtrabackup_target_dir, XTRABACKUP_METADATA_FILENAME);
+		snprintf(filename, sizeof(filename), "%s/%s", xtrabackup_target_dir, XTRABACKUP_METADATA_FILENAME);
 		if (!xtrabackup_write_metadata(filename)) {
 
 			msg("mariabackup: Error: failed to write metadata "
 			    "to '%s'", filename);
 			ok = false;
 		} else if (xtrabackup_extra_lsndir) {
-			sprintf(filename, "%s/%s", xtrabackup_extra_lsndir, XTRABACKUP_METADATA_FILENAME);
+			snprintf(filename, sizeof(filename), "%s/%s", xtrabackup_extra_lsndir, XTRABACKUP_METADATA_FILENAME);
 			if (!xtrabackup_write_metadata(filename)) {
 				msg("mariabackup: Error: failed to write "
 				    "metadata to '%s'", filename);
@@ -7781,7 +7783,9 @@ static int main_low(char** argv)
 	} else if (xtrabackup_backup && xtrabackup_incremental_basedir) {
 		char	filename[FN_REFLEN];
 
-		sprintf(filename, "%s/%s", xtrabackup_incremental_basedir, XTRABACKUP_METADATA_FILENAME);
+		snprintf(filename, sizeof(filename), "%s/%s",
+			 xtrabackup_incremental_basedir,
+			 XTRABACKUP_METADATA_FILENAME);
 
 		if (!xtrabackup_read_metadata(filename)) {
 			msg("mariabackup: error: failed to read metadata from "
@@ -7794,7 +7798,9 @@ static int main_low(char** argv)
 	} else if (xtrabackup_prepare && xtrabackup_incremental_dir) {
 		char	filename[FN_REFLEN];
 
-		sprintf(filename, "%s/%s", xtrabackup_incremental_dir, XTRABACKUP_METADATA_FILENAME);
+		snprintf(filename, sizeof(filename), "%s/%s",
+			 xtrabackup_incremental_dir,
+			 XTRABACKUP_METADATA_FILENAME);
 
 		if (!xtrabackup_read_metadata(filename)) {
 			msg("mariabackup: error: failed to read metadata from "

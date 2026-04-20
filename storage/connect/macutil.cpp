@@ -248,7 +248,7 @@ bool MACINFO::GetOneInfo(PGLOBAL g, int flag, void *v, int lv)
         if (i)
           strcat(p++, "-");
 
-        p += sprintf(p, "%.2X", Curp->Address[i]);
+        p += snprintf(p, sizeof(buf) - (p - buf), "%.2X", Curp->Address[i]);
         } // endfor i
 
       p = buf;
@@ -263,7 +263,7 @@ bool MACINFO::GetOneInfo(PGLOBAL g, int flag, void *v, int lv)
         case IF_LOOPBACK_ADAPTERTYPE:   p = "Loop Back Adapter";    break;
 //      case IF_SLIP_ADAPTERTYPE:       p = "Generic Slip Adapter"; break;
         default:
-          sprintf(buf, "Other Adapter, type=%d", Curp->Type);
+          snprintf(buf, sizeof(buf), "Other Adapter, type=%d", Curp->Type);
           p = buf;
         } // endswitch Type
 #endif // 0

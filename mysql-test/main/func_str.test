@@ -2596,4 +2596,23 @@ insert into t1 values (9067);
 select cast(make_set(3, cast(c1 as binary), 0) as char) from t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-39111 The query returns an incorrect value when using LPAD and REPLACE
+--echo #
+
+create table t0 (c0 decimal(10,0));
+insert into t0 values (-1453243642), (0);
+select c0 from t0
+where   (lpad('0', c0 + 1, '1') or replace(cast(false as char), false, c0))
+and not (lpad('0', c0 + 1, '1') or replace(cast(false as char), false, c0));
+drop table t0;
+
+--echo #
+--echo # MDEV-39112 The query returns incorrect results when using LPAD
+--echo #
+create table t0 (c0 text);
+insert into t0 values ('1'),('foo');
+select c0 from t0 where lpad('123', 2-c0, c0);
+drop table t0;
+
 --echo # End of 10.11 tests
