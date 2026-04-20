@@ -89,46 +89,144 @@ class buf_page_t;
 /** Compressed page descriptor */
 struct page_zip_des_t
 {
-	page_zip_t*	data;		/*!< compressed page data */
+  /** compressed page data */
+  page_zip_t *data;
 
-	uint32_t	m_end:16;	/*!< end offset of modification log */
-	uint32_t	m_nonempty:1;	/*!< TRUE if the modification log
-					is not empty */
-	uint32_t	n_blobs:12;	/*!< number of externally stored
-					columns on the page; the maximum
-					is 744 on a 16 KiB page */
-	uint32_t	ssize:PAGE_ZIP_SSIZE_BITS;
-					/*!< 0 or compressed page shift size;
-					the size in bytes is
-					(UNIV_ZIP_SIZE_MIN >> 1) << ssize. */
+  /** end offset of modification log */
+  uint16_t m_end;
+
 #ifdef UNIV_DEBUG
-	uint16_t	m_start;	/*!< start offset of modification log */
-	bool		m_external;	/*!< Allocated externally, not from the
-					buffer pool */
+  /** start offset of the modification log */
+  uint16_t m_start;
 #endif /* UNIV_DEBUG */
 
-	void clear() {
-		/* Clear everything except the member "fix". */
-		memset((void*) this, 0,
-		       reinterpret_cast<char*>(&fix)
-		       - reinterpret_cast<char*>(this));
-	}
+private:
+  /** ROW_FORMAT=COMPRESSED page size (0=not compressed) */
+  static constexpr unsigned SSIZE_BITS= PAGE_ZIP_SSIZE_BITS;
+  /** state flag: whether the modification log is empty */
+  static constexpr unsigned NONEMPTY= SSIZE_BITS + 1;
+  /** state flag: whether the block has been accessed recently */
+  static constexpr unsigned ACCESSED= SSIZE_BITS + 2;
+  /** state flag: whether the block is part of buf_pool.LRU_old */
+  static constexpr unsigned OLD= SSIZE_BITS + 3;
+  /** state component: number of number of externally stored columns;
+  the maximum is 744 in a 16 KiB page */
+  static constexpr unsigned N_BLOBS_SHIFT= SSIZE_BITS + 4;
 
-	page_zip_des_t() = default;
-	page_zip_des_t(const page_zip_des_t&) = default;
+  template<unsigned bit> bool test_and_reset()
+  {
+#if defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
+    /* Prevent MSVC 19.40 from emitting a loop around LOCK CMPXCHG */
+    return _interlockedbittestandreset
+      (reinterpret_cast<volatile long*>(&state), bit);
+#else
+    /* Starting with GCC 7 and clang 15, on x86 and x86-64 this translates
+    to the straightforward 80386 instructions LOCK BTR and SETB.
 
-	/* Initialize everything except the member "fix". */
-	page_zip_des_t(const page_zip_des_t& old, bool) {
-		memcpy((void*) this, (void*) &old,
-		       reinterpret_cast<char*>(&fix)
-		       - reinterpret_cast<char*>(this));
-	}
+    Luckily, GCC 7 is currently the oldest in currently supported GNU/Linux
+    distributions. Also, FreeBSD 14 ships with clang 16. */
+    return state.fetch_and(uint16_t(~(1U << bit)), std::memory_order_relaxed) &
+      (1U << bit);
+#endif
+  }
+  template<unsigned bit> void set()
+  {
+    /* On 80386, this translates into LOCK OR or LOCK BTS */
+    state.fetch_or(1U << bit, std::memory_order_relaxed);
+  }
+  template<unsigned bit> void reset()
+  {
+    /* On 80386, this translates into LOCK AND or LOCK BTR */
+    state.fetch_and(uint16_t(~(1U << bit)), std::memory_order_relaxed);
+  }
+
+public:
+  uint16_t get_state() const { return state.load(std::memory_order_relaxed); }
+
+  static bool is_nonempty(uint16_t state) { return state & 1U << NONEMPTY; }
+  bool is_nonempty() const { return is_nonempty(get_state()); }
+  void set_nonempty() { set<NONEMPTY>(); }
+
+  static bool is_accessed(uint16_t state) { return state & 1U << ACCESSED; }
+  bool is_accessed() const { return is_accessed(get_state()); }
+  void set_accessed() { set<ACCESSED>(); }
+  bool was_accessed() { return test_and_reset<ACCESSED>(); }
+
+  /** @return whether the block is part of buf_pool.LRU_old */
+  static bool old(uint16_t state) { return state & 1U << OLD; }
+  bool old() const { return old(get_state()); }
+  template<bool old> void set_old() { if (old) set<OLD>(); else reset<OLD>(); }
+
+  /** number of number of externally stored columns;
+  the maximum is 744 in a 16 KiB page */
+  static uint16_t n_blobs(uint16_t state)
+  { return uint16_t(state >> N_BLOBS_SHIFT); }
+  uint16_t n_blobs() const { return n_blobs(get_state()); }
+  void add_n_blobs(ulint n)
+  {
+    ut_d(uint16_t s=)
+    state.fetch_add(uint16_t(n << N_BLOBS_SHIFT), std::memory_order_relaxed);
+    ut_ad(n + n_blobs(s) < 1U << (16 - N_BLOBS_SHIFT));
+  }
+  void sub_n_blobs(ulint n)
+  {
+    ut_d(uint16_t s=)
+    state.fetch_sub(uint16_t(n << N_BLOBS_SHIFT), std::memory_order_relaxed);
+    ut_ad(n_blobs(s) >= n);
+  }
+
+  /** Set n_blobs() and clear is_nonempty() */
+  inline void set_n_blobs_and_empty(ulint n_blobs);
+
+  /** @return ROW_FORMAT=COMPRESSED page shift size
+  @retval 0 if the page is not in ROW_FORMAT=COMPRESSED */
+  static uint16_t ssize(uint16_t state)
+  { return state & ((1U << SSIZE_BITS) - 1); }
+  uint16_t ssize() const { return ssize(get_state()); }
+
+  /** @return the ROW_FORMAT=COMPRESSED page size
+  @retval 0 if the page is not in ROW_FORMAT=COMPRESSED */
+  unsigned get_size() const
+  {
+    auto ss= ssize();
+    return ss ? (UNIV_ZIP_SIZE_MIN >> 1) << ss : 0;
+  }
+
+  void clear(uint32_t fix_state, uint16_t ssize)
+  {
+    m_end= 0;
+    ut_d(m_start= 0);
+    ut_ad(ssize < 1U << SSIZE_BITS);
+    state.store(ssize, std::memory_order_relaxed);
+    fix= fix_state;
+  }
+
+  void clear()
+  {
+    data= 0;
+    m_end= 0;
+    ut_d(m_start= 0);
+    state.store(0, std::memory_order_relaxed);
+  }
+
+  page_zip_des_t() = default;
+  page_zip_des_t(const page_zip_des_t&) = default;
+
+  /** Copy everything except the member "fix". */
+  page_zip_des_t(const page_zip_des_t& old, bool) :
+    data(old.data), m_end(old.m_end),
+#ifdef UNIV_DEBUG
+    m_start(old.m_start),
+#endif
+    state(old.state.load(std::memory_order_relaxed)) {}
 
 private:
-	friend buf_pool_t;
-	friend buf_page_t;
-	/** fix count and state used in buf_page_t */
-	Atomic_relaxed<uint32_t> fix;
+  friend buf_pool_t;
+  friend buf_page_t;
+  /** page descriptor state */
+  Atomic_relaxed<uint16_t> state;
+  /** fix count and state used in buf_page_t */
+  Atomic_relaxed<uint32_t> fix;
 };
 
 /** Compression statistics for a given page size */
