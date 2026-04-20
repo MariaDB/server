@@ -792,27 +792,43 @@ static int ha_parquet_commit(THD *thd, bool all)
 
 static int ha_parquet_rollback(THD *thd, bool all)
 {
- parquet_trx_data *trx =
-   (parquet_trx_data *) thd_get_ha_data(thd, parquet_hton);
+    parquet_trx_data *trx = (parquet_trx_data *) thd_get_ha_data(thd, parquet_hton);
+    if (!trx) return 0;
 
+    for (const std::string &s3_path : trx->s3_file_paths) {
+        std::string no_prefix = s3_path.substr(5);
+        size_t slash = no_prefix.find('/');
+        std::string bucket = no_prefix.substr(0, slash);
+        std::string key    = no_prefix.substr(slash + 1);
+        std::string url    = "https://" + bucket + ".s3.us-east-2.amazonaws.com/" + key;
 
- if (!trx) return 0;
+        CURL *curl = curl_easy_init();
+        if (!curl) continue;
 
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+        curl_easy_setopt(curl, CURLOPT_AWS_SIGV4, "aws:amz:us-east-2:s3");
+        curl_easy_setopt(curl, CURLOPT_USERPWD, "YOUR_AWS_ACCESS_KEY_ID:YOUR_AWS_SECRET_ACCESS_KEY");
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
+            +[](char*, size_t s, size_t n, void*) -> size_t { return s*n; });
 
- // Orphaned S3 files are not registered in LakeKeeper
- // and are invisible to all query engines.
- // Production cleanup is handled by S3 lifecycle policies
- // or LakeKeeper's built-in garbage collection.
- for (const std::string &s3_path : trx->s3_file_paths)
-   parquet_log_warning("rollback orphaned staged object path='" + s3_path +
-                       "' will rely on external GC");
+        CURLcode res = curl_easy_perform(curl);
+        long http_code = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+        curl_easy_cleanup(curl);
 
+        if (res != CURLE_OK)
+            std::cerr << "rollback: failed to delete " << s3_path << ": " << curl_easy_strerror(res) << std::endl;
+        else if (http_code == 204)
+            std::cerr << "rollback: deleted " << s3_path << std::endl;
+        else
+            std::cerr << "rollback: delete HTTP " << http_code << " for " << s3_path << std::endl;
+    }
 
- delete trx;
- thd_set_ha_data(thd, parquet_hton, nullptr);
- return 0;
+    delete trx;
+    thd_set_ha_data(thd, parquet_hton, nullptr);
+    return 0;
 }
-
 
 static int ha_parquet_init(void *p)
 {
