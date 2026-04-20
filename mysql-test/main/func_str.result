@@ -5681,3 +5681,16 @@ Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 drop table t0;
 # End of 10.11 tests
+#
+# MDEV-39284 SELECT and DELETE/UPDATE return inconsistent row counts with identical WHERE clause
+#
+CREATE TABLE t (id INT);
+INSERT INTO t VALUES (1),(2),(3),(4),(5);
+SELECT COUNT(*) FROM t WHERE LPAD(LTRIM('v0px'), id) < LEFT('tutl', id);
+COUNT(*)
+1
+SELECT COUNT(*) FROM t WHERE RPAD(RTRIM('v0px'), id, 'x') = LEFT('v0px', id);
+COUNT(*)
+4
+DROP TABLE t;
+# End of MDEV-39284 tests

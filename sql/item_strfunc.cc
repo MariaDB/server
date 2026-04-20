@@ -3297,22 +3297,18 @@ String *Item_func_chr::val_str(String *str)
 inline String* alloc_buffer(String *res,String *str,String *tmp_value,
 			    ulong length)
 {
-  if (res->alloced_length() < length)
+  if (str->alloced_length() < length)
   {
-    if (str->alloced_length() >= length)
-    {
-      (void) str->copy(*res);
-      str->length(length);
-      return str;
-    }
     if (tmp_value->alloc(length))
       return 0;
     (void) tmp_value->copy(*res);
     tmp_value->length(length);
     return tmp_value;
   }
-  res->length(length);
-  return res;
+
+  (void) str->copy(*res);
+  str->length(length);
+  return str;
 }
 
 
@@ -3611,8 +3607,10 @@ String *Item_func_rpad::val_str(String *str)
 
   if (count <= (res_char_length= res->numchars()))
   {						// String to pad is big enough
-    res->length(res->charpos((int) count));	// Shorten result if longer
-    return (res);
+    if (str->copy(*res))
+      goto err;
+    str->length(str->charpos((int) count));
+    return str;
   }
 
   byte_count= count * collation.collation->mbmaxlen;
@@ -3706,10 +3704,10 @@ String *Item_func_lpad::val_str(String *str)
 
   if (count <= res_char_length)
   {
-    int len= res->charpos((int) count);
-    res= copy_if_not_alloced(str, res, len);
-    res->length(len);
-    return res;
+    if (str->copy(*res))
+      goto err;
+    str->length(str->charpos((int) count));
+    return str;
   }
   
   byte_count= count * collation.collation->mbmaxlen;

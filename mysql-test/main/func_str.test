@@ -2625,3 +2625,25 @@ select c0 from t0 where lpad('123', 2-c0, c0);
 drop table t0;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-39284 SELECT and DELETE/UPDATE return inconsistent row counts with identical WHERE clause
+--echo #
+
+CREATE TABLE t (id INT);
+INSERT INTO t VALUES (1),(2),(3),(4),(5);
+
+# bug: mutating cache, checked for lpad
+# Row 1 (id=1): truncates 'v0px' to 'v', poisons cache
+# Rows 2-5: without fix get ' v', '  v' etc due to corrupted str_length
+# Correct: 1, Buggy: 4
+SELECT COUNT(*) FROM t WHERE LPAD(LTRIM('v0px'), id) < LEFT('tutl', id);
+
+# bug: mutating cache, checked for rpad
+# RPAD('v0px', id) = LEFT('v0px', id) should match 4 rows (id=1..4)
+# Correct: 4, Buggy: 1
+SELECT COUNT(*) FROM t WHERE RPAD(RTRIM('v0px'), id, 'x') = LEFT('v0px', id);
+
+DROP TABLE t;
+
+--echo # End of MDEV-39284 tests
