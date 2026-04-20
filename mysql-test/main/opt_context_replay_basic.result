@@ -121,6 +121,9 @@ CREATE DATABASE IF NOT EXISTS db1;
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
 USE db1;
+DROP TABLE IF EXISTS db1.t1;
+Warnings:
+Note	1051	Unknown table 'db1.t1'
 CREATE TABLE `t1` (
 `a` int(11) DEFAULT NULL,
 `b` int(11) DEFAULT NULL,

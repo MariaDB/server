@@ -145,11 +145,13 @@ CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
+DROP TABLE IF EXISTS db1.t1;
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
+DROP VIEW IF EXISTS db1.view1;
 CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW db1.view1 AS (select `db1`.`t1`.`a` AS `a`,`db1`.`t1`.`b` AS `b`,`db1`.`t2`.`a` AS `c` from (`db1`.`t1` join `db1`.`t2`) where `db1`.`t1`.`a` = `db1`.`t2`.`a`);
 
 
@@ -180,6 +182,7 @@ CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
+DROP TABLE IF EXISTS db1.temp1;
 CREATE TEMPORARY TABLE `temp1` (
   `col1` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
@@ -241,11 +244,13 @@ CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
+DROP TABLE IF EXISTS db1.t1;
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
+DROP VIEW IF EXISTS db1.view1;
 CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW db1.view1 AS (select `db1`.`t1`.`a` AS `a`,`db1`.`t1`.`b` AS `b`,`db1`.`t2`.`a` AS `c` from (`db1`.`t1` join `db1`.`t2`) where `db1`.`t1`.`a` = `db1`.`t2`.`a`);
 
 
@@ -350,6 +355,7 @@ CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
+DROP TABLE IF EXISTS db1.t1;
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
@@ -391,6 +397,7 @@ CREATE TABLE `db2`.`t1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
+DROP TABLE IF EXISTS db1.t1;
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
@@ -430,6 +437,7 @@ CREATE TABLE `t1` (
 
 CREATE DATABASE IF NOT EXISTS db1;
 
+DROP TABLE IF EXISTS db1.t1;
 CREATE TABLE `db1`.`t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
@@ -509,6 +517,7 @@ CREATE TABLE `t2` (
 
 REPLACE INTO db1.t2(a, b) VALUES (1, 1);
 
+DROP TABLE IF EXISTS db1.t1;
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
@@ -670,6 +679,7 @@ CREATE TABLE `t2` (
   KEY `fk_id` (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
+DROP TABLE IF EXISTS db1.t1;
 CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(10) DEFAULT NULL,
@@ -709,6 +719,7 @@ CREATE TABLE `t2` (
   `id2` int(11) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
+DROP TABLE IF EXISTS db1.t1;
 CREATE TABLE `t1` (
   `id1` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id1`)
@@ -740,6 +751,7 @@ CREATE TABLE `t2` (
   `id2` int(11) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
+DROP TABLE IF EXISTS db1.t1;
 CREATE TABLE `t1` (
   `id1` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id1`)
