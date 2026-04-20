@@ -2910,9 +2910,22 @@ static void innodb_ahi_enable(dict_table_t *innodb_table,
 
   Index preference, if set to YES|NO, will override table preference.
   */
+  ut_ad(!option_struct || option_struct->adaptive_hash_index <= TABLE_HINT_NO);
   const uint8_t table_ahi= option_struct
     ? uint8_t((option_struct->adaptive_hash_index + 1) % 3)
     : uint8_t{1};
+
+  /* Check if we can safely access InnoDB's ha_index_option_struct.
+  For partitioned InnoDB tables, db_type() returns partition_hton,
+  so we need to check default_part_plugin for the underlying engine.
+  For wrapper engines like mroonga, we must NOT access InnoDB's
+  structure as it has a different memory layout. */
+  bool is_innodb_table= table->s->db_type() == innodb_hton_ptr;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (!is_innodb_table && table->s->default_part_plugin)
+    is_innodb_table=
+      plugin_hton(table->s->default_part_plugin) == innodb_hton_ptr;
+#endif
 
   /* In case there is no PRIMARY KEY or UNIQUE INDEX on NOT NULL
   columns, there will be GEN_CLUST_INDEX(DB_ROW_ID). Default to the
@@ -2933,24 +2946,13 @@ static void innodb_ahi_enable(dict_table_t *innodb_table,
     uint8_t index_ahi= 1;
     uint32_t right= TABLE_HINT_DEFAULT;
 
-    /* Check if we can safely access InnoDB's ha_index_option_struct.
-    For partitioned InnoDB tables, db_type() returns partition_hton,
-    so we need to check default_part_plugin for the underlying engine.
-    For wrapper engines like mroonga, we must NOT access InnoDB's
-    structure as it has a different memory layout. */
-    bool is_innodb_table= table->s->db_type() == innodb_hton_ptr;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (!is_innodb_table && table->s->default_part_plugin)
-      is_innodb_table=
-        plugin_hton(table->s->default_part_plugin) == innodb_hton_ptr;
-#endif
-
     if (key.option_struct && is_innodb_table)
     {
       fields= key.option_struct->complete_fields;
       bytes= key.option_struct->bytes_from_incomplete_field;
       ut_ad(fields == ULONGLONG_MAX || fields <= max_complete_fields);
       ut_ad(bytes == ULONGLONG_MAX || bytes <= max_bytes_from_incomplete_field);
+      ut_ad(key.option_struct->adaptive_hash_index <= TABLE_HINT_NO);
       index_ahi=
         uint8_t((key.option_struct->adaptive_hash_index + 1) % 3);
       right= key.option_struct->for_equal_hash_point_to_last_record;
