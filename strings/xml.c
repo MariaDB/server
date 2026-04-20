@@ -30,9 +30,9 @@
 #define MY_XML_SLASH	'/'
 #define MY_XML_COMMENT	'C'
 #define MY_XML_TEXT	'T'
-#define MY_XML_QUESTION	'?'
-#define MY_XML_EXCLAM   '!'
-#define MY_XML_CDATA    'D'
+#define MY_XML_PROCESSING_INSTRUCTION  '?'
+#define MY_XML_CDATA    'A'
+#define MY_XML_DTD      'D'
 
 typedef struct xml_attr_st
 {
@@ -95,8 +95,8 @@ static const char *lex2str(int lex)
     case MY_XML_SLASH:    return "'/'";
     case MY_XML_COMMENT:  return "COMMENT";
     case MY_XML_TEXT:     return "TEXT";
-    case MY_XML_QUESTION: return "'?'";
-    case MY_XML_EXCLAM:   return "'!'";
+    case MY_XML_PROCESSING_INSTRUCTION: return "'?'";
+    case MY_XML_DTD:      return "DTD";
   }
   return "unknown token";
 }
@@ -145,6 +145,43 @@ static int my_xml_scan(MY_XML_PARSER *p,MY_XML_ATTR *a)
     a->end=p->cur;
     lex=MY_XML_COMMENT;
   }
+  else if (!my_xml_parser_prefix_cmp(p, C_STRING_WITH_LEN("<?")))
+  {
+    lex= MY_XML_UNKNOWN;
+    p->cur+= 2;
+
+    a->beg= p->cur;
+    if (my_xml_is_id0(p->cur[0]))
+    {
+      int termination_expected= FALSE;
+
+      p->cur++;
+      while (p->cur < p->end && my_xml_is_id1(p->cur[0]))
+        p->cur++;
+
+      a->end=p->cur;
+      /*
+        After the target name the syntax requires the
+        terminating '?>' or some spaces then an
+        arbitrary string to the '>?'.
+      */
+      if (p->cur < p->end && !my_xml_is_space(p->cur[0]))
+        termination_expected= TRUE;
+
+      while (p->cur < p->end)
+      {
+        if (my_xml_parser_prefix_cmp(p, C_STRING_WITH_LEN("?>")) == 0)
+        {
+          lex= MY_XML_PROCESSING_INSTRUCTION;
+          p->cur+= 2;
+          break;
+        }
+        else if (termination_expected)
+          break;
+        p->cur++;
+      }
+    }
+  }
   else if (!my_xml_parser_prefix_cmp(p, C_STRING_WITH_LEN("<![CDATA[")))
   {
     p->cur+= 9;
@@ -159,7 +196,56 @@ static int my_xml_scan(MY_XML_PARSER *p,MY_XML_ATTR *a)
     }
     lex= MY_XML_CDATA;
   }
-  else if (strchr("?=/<>!",p->cur[0]))
+  else if (!my_xml_parser_prefix_cmp(p, C_STRING_WITH_LEN("<!DOCTYPE")))
+  {
+    /* skip <!DOCTYPE part. TODO: add parser for the DTD */
+    int in_quote= 0;
+    int level= 1;
+
+    p->cur+= 9;
+    lex= MY_XML_UNKNOWN;
+    for (; p->cur < p->end; p->cur++)
+    {
+      if (p->cur[0] == '"' || p->cur[0] == '\'')
+      {
+        if (!in_quote)
+          in_quote= p->cur[0];
+        else
+        {
+          if (p->cur[0] == in_quote)
+            in_quote= 0;
+        }
+      }
+
+      if (in_quote)
+        continue;
+
+      switch (p->cur[0])
+      {
+        case MY_XML_LT:
+        {
+          level++;
+          break;
+        }
+        case MY_XML_GT:
+        {
+          level--;
+          if (level == 0)
+          {
+            lex= MY_XML_DTD;
+            p->cur++;
+            goto dtd_end;
+          }
+        }
+        default:;
+      }
+    }
+
+dtd_end:
+    a->end= p->cur;
+  }
+
+  else if (strchr("=/<>",p->cur[0]))
   {
     p->cur++;
     a->end=p->cur;
@@ -340,19 +426,29 @@ int my_xml_parse(MY_XML_PARSER *p,const char *str, size_t len)
     if (p->cur[0] == '<')
     {
       int lex;
-      int question=0;
-      int exclam=0;
       
       lex=my_xml_scan(p,&a);
       
-      if (MY_XML_COMMENT == lex)
+      if (MY_XML_COMMENT == lex ||
+          MY_XML_DTD == lex)
         continue;
       
+      if (MY_XML_PROCESSING_INSTRUCTION == lex)
+      {
+        if (p->processing_instruction &&
+            MY_XML_OK != p->processing_instruction(p,
+              a.beg, (size_t) (a.end-a.beg),
+              a.end, (size_t) (p->cur - a.end - 2)))
+          return MY_XML_ERROR;
+        continue;
+      }
+
       if (lex == MY_XML_CDATA)
       {
         a.beg+= 9;
         a.end-= 3;
-        my_xml_value(p, a.beg, (size_t) (a.end-a.beg));
+        if (MY_XML_OK != my_xml_value(p, a.beg, (size_t) (a.end-a.beg)))
+          return MY_XML_ERROR;
         continue;
       }
       
@@ -371,16 +467,6 @@ int my_xml_parse(MY_XML_PARSER *p,const char *str, size_t len)
         goto gt;
       }
       
-      if (MY_XML_EXCLAM == lex)
-      {
-        lex=my_xml_scan(p,&a);
-        exclam=1;
-      }
-      else if (MY_XML_QUESTION == lex)
-      {
-        lex=my_xml_scan(p,&a);
-        question=1;
-      }
       
       if (MY_XML_IDENT == lex)
       {
@@ -395,8 +481,7 @@ int my_xml_parse(MY_XML_PARSER *p,const char *str, size_t len)
         return MY_XML_ERROR;
       }
       
-      while ((MY_XML_IDENT == (lex=my_xml_scan(p,&a))) ||
-             ((MY_XML_STRING == lex && exclam)))
+      while (MY_XML_IDENT == (lex=my_xml_scan(p,&a)))
       {
         MY_XML_ATTR b;
         if (MY_XML_EQ == (lex=my_xml_scan(p,&b)))
@@ -424,15 +509,6 @@ int my_xml_parse(MY_XML_PARSER *p,const char *str, size_t len)
               (MY_XML_OK != my_xml_leave(p,a.beg,(size_t) (a.end-a.beg))))
            return MY_XML_ERROR;
         }
-        else if ((MY_XML_STRING == lex) && exclam)
-        {
-          /*
-            We are in <!DOCTYPE>, e.g.
-            <!DOCTYPE name SYSTEM "SystemLiteral">
-            <!DOCTYPE name PUBLIC "PublicLiteral" "SystemLiteral">
-            Just skip "SystemLiteral" and "PublicidLiteral"
-          */
-        }
         else
           break;
       }
@@ -445,24 +521,6 @@ int my_xml_parse(MY_XML_PARSER *p,const char *str, size_t len)
       }
       
 gt:
-      if (question)
-      {
-        if (lex != MY_XML_QUESTION)
-        {
-          snprintf(p->errstr,sizeof(p->errstr),"%s unexpected ('?' wanted)",lex2str(lex));
-          return MY_XML_ERROR;
-        }
-        if (MY_XML_OK != my_xml_leave(p,NULL,0))
-          return MY_XML_ERROR;
-        lex=my_xml_scan(p,&a);
-      }
-      
-      if (exclam)
-      {
-        if (MY_XML_OK != my_xml_leave(p,NULL,0))
-          return MY_XML_ERROR;
-      }
-      
       if (lex != MY_XML_GT)
       {
         snprintf(p->errstr,sizeof(p->errstr),"%s unexpected ('>' wanted)",lex2str(lex));
@@ -479,7 +537,8 @@ gt:
         my_xml_norm_text(&a);
       if (a.beg != a.end)
       {
-        my_xml_value(p,a.beg,(size_t) (a.end-a.beg));
+        if (MY_XML_OK != my_xml_value(p, a.beg, (size_t) (a.end-a.beg)))
+          return MY_XML_ERROR;
       }
     }
   }
@@ -534,6 +593,14 @@ void my_xml_set_leave_handler(MY_XML_PARSER *p,
 					    size_t l))
 {
   p->leave_xml=action;
+}
+
+
+void my_xml_set_processing_instruction_handler(MY_XML_PARSER *p,
+    int (*p_i)(MY_XML_PARSER *, const char *, size_t,
+                                const char *, size_t))
+{
+  p->processing_instruction= p_i;
 }
 
 

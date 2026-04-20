@@ -16,6 +16,7 @@
 
 #define MYSQL_SERVER
 #include "mariadb.h"
+#include "my_xml.h"
 #include "sql_class.h"
 #include "sql_lex.h"
 #include "sql_type_xmltype.h"
@@ -181,6 +182,160 @@ int Field_xmltype::report_wrong_value(const ErrConv &val)
     table->s->db.str, table->s->table_name.str, field_name.str);
   reset();
   return 1;
+}
+
+
+struct MY_XML_WF_DATA
+{
+  int root_node_counter;
+  int root_items_counter;
+  int level;
+  MY_XML_WF_DATA(): root_node_counter(0), root_items_counter(0), level(0) {}
+};
+
+
+extern "C" {
+/*
+  An XML document must have exacly one root element
+  that wraps all other content.
+  So that the simple 'abc' or '123.4' and the 'abc <node> xyz </node>'
+  are not well-formed XML-s.
+  Though spaces are allowed, so we only return an error
+  if we get not-space-only string on the level 0.
+*/
+static int wf_value(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  MY_XML_WF_DATA *data= (MY_XML_WF_DATA *) st->user_data;
+
+  if (len == 0 || data->level > 0)
+    return MY_XML_OK;
+
+  while (isspace(*attr))
+  {
+    attr++;
+    if (--len == 0)
+      return MY_XML_OK;
+  }
+
+  return MY_XML_ERROR;
+}
+
+
+/*
+  decrease the level count.
+*/
+static int wf_leave(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  MY_XML_WF_DATA *data= (MY_XML_WF_DATA *) st->user_data;
+
+  data->level--;
+  return MY_XML_OK;
+}
+
+
+/*
+  The well-formed XML document must contain exactly one root element.
+  So we check this.
+  That root element can be preceded by preprocessing instructions
+  as <?xml ... ?>. So we allow it.
+
+    <?xml version="1.0"?>
+    <note>
+      <to>JOHN</to>
+      <from>MARY</from>
+      <heading>Reminder</heading>
+      <body>Take care!</body>
+    </note>
+*/
+static int wf_enter(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  MY_XML_WF_DATA *data= (MY_XML_WF_DATA *) st->user_data;
+
+  if (data->level == 0)
+  {
+    if (st->current_node_type == MY_XML_NODE_TAG)
+    {
+      /* no second root element allowed. */
+      if (data->root_node_counter++ > 0)
+        return MY_XML_ERROR;
+    }
+
+    data->root_items_counter++;
+  }
+
+  data->level++;
+  return MY_XML_OK;
+}
+
+
+/*
+  The preprocessing instruction can appear anywhere
+  except for the <?xml ..?>.
+  It has special meaning and if appears has to go before anything elese.
+    <?xml version="1.0"?>
+    <note>
+      <to>JOHN</to>
+      <from>MARY</from>
+      <heading>Reminder</heading>
+      <body>Take care!</body>
+    </note>
+*/
+int wf_processing_instruction(struct xml_stack_st *st,
+                              const char *target, size_t target_len,
+                              const char *value, size_t value_len)
+{
+  MY_XML_WF_DATA *data= (MY_XML_WF_DATA *) st->user_data;
+
+  data->root_items_counter++;
+
+  if (target_len == 3 && memcmp(target, "xml", 3) == 0)
+  {
+    if (data->root_items_counter > 1)
+      return MY_XML_ERROR;
+  }
+
+  return MY_XML_OK;
+}
+
+
+} /* extern "C" */
+
+
+static int check_parse_xml(const char *xml, size_t length, CHARSET_INFO *cs)
+{
+  MY_XML_PARSER p;
+  MY_XML_WF_DATA data;
+
+  /* Prepare XML parser */
+  my_xml_parser_create(&p);
+  p.flags= MY_XML_FLAG_RELATIVE_NAMES | MY_XML_FLAG_SKIP_TEXT_NORMALIZATION;
+
+  my_xml_set_enter_handler(&p, wf_enter);
+  my_xml_set_value_handler(&p, wf_value);
+  my_xml_set_leave_handler(&p, wf_leave);
+  my_xml_set_processing_instruction_handler(&p, wf_processing_instruction);
+  my_xml_set_user_data(&p, (void *) &data);
+
+  if (my_xml_parse(&p, xml, length))
+    return MY_XML_ERROR;
+
+  return data.root_node_counter == 1 ? MY_XML_OK : MY_XML_ERROR;
+}
+
+
+int Field_xmltype::store(const char *from, size_t length, CHARSET_INFO *cs)
+{
+  if (length < 4 ||
+      check_parse_xml(from, length, cs) != MY_XML_OK)
+    goto err;
+
+
+  return Field_blob::store(from, length, cs);
+
+err:
+  get_thd()->push_warning_wrong_value(
+               Sql_condition::WARN_LEVEL_WARN, "XML", from);
+  return -1;
 }
 
 

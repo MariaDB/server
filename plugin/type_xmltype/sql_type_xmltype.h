@@ -101,6 +101,8 @@ public:
   { return &type_handler_xmltype; }
   void sql_type(String &str) const override;
   uint size_of() const  override { return sizeof(*this); }
+  int  store(const char *to, size_t length, CHARSET_INFO *charset) override;
+  using Field_str::store;
 };
 
 
@@ -119,7 +121,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *shallow_copy(THD *thd) const override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_xmltype_typecast>(thd, this); }
 
   void print(String *str, enum_query_type query_type) override;
