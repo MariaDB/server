@@ -1,75 +1,96 @@
 # Local Setup Instructions (`/Users/ryanzhou/Desktop/server`)
 
-These instructions match the current working flow in this checkout.
+These instructions match a working local setup for this checkout and are written for the current tree layout under:
+
+`/Users/ryanzhou/Desktop/server`
+
+Use the exact absolute paths below unless your checkout lives somewhere else.
+
+## 0. Paths and current working values
+
+Important local paths:
 
 - source tree: `/Users/ryanzhou/Desktop/server`
 - build tree: `/Users/ryanzhou/Desktop/server/build`
 - runtime env file: `/Users/ryanzhou/Desktop/server/.env`
 - MariaDB config: `/Users/ryanzhou/Desktop/server/build/mariadb-parquet.cnf`
-- socket: `/tmp/mariadb-parquet.sock`
-- LakeKeeper warehouse UUID: `9a3b8dae-3bab-11f1-aa80-237d1c73ff26`
+- MariaDB socket: `/tmp/mariadb-parquet.sock`
+- LakeKeeper checkout: `/Users/ryanzhou/Desktop/server/lakekeeper`
 
-This Parquet engine currently depends on:
+Current non-secret runtime values in this checkout:
+THE LAKEKEEPER DEFAULT VALUES WILL NOT WORK IF YOU ARE HAVE NOT INITIALIZED LAKEKEEPER YET. REPLACE WITH YOUR OWN.
 
-- LakeKeeper at `http://localhost:8181`
-- an S3 bucket named `mariadb-parquet-demo`
-- valid AWS credentials in `/Users/ryanzhou/Desktop/server/.env`
+- `PARQUET_LAKEKEEPER_BASE_URL=http://localhost:8181/catalog/v1/`
+- `PARQUET_LAKEKEEPER_WAREHOUSE_ID=34222c1a-3c39-11f1-8407-8f978f046b38`
+- `PARQUET_LAKEKEEPER_NAMESPACE=data`
+- `PARQUET_S3_BUCKET=mariadb-parquet-demo`
+- `PARQUET_S3_DATA_PREFIX=data`
+- `PARQUET_S3_REGION=us-east-2`
 
-## 1. Build the server
+Important notes:
 
-Build `mariadbd`, not only the Parquet static library:
+- `PARQUET_LAKEKEEPER_BASE_URL` must include the `/catalog/v1/` suffix.
+- `PARQUET_S3_DATA_PREFIX=data` means Parquet objects are written under `s3://mariadb-parquet-demo/data/...`, not at the bucket root.
+- The Parquet engine reads LakeKeeper and S3 settings from `.env` when `mariadbd` starts, so restart the server after editing `.env`.
+- Do not commit real AWS access keys from `.env`.
+- LakeKeeper must be reachable before running `mariadb-install-db` for this setup, because Parquet code can touch LakeKeeper during bootstrap.
+
+## 1. Configure and build the server
+
+Run these from the repo root:
 
 ```bash
 cd /Users/ryanzhou/Desktop/server
-cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
-cmake --build /Users/ryanzhou/Desktop/server/build --target mariadbd --parallel 4
+
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build --target minbuild --parallel 4
+cmake --build build --target mariadbd --parallel 4
 ```
 
-## 2. Update `.env`
+Why both targets matter:
 
-Edit:
+- `mariadbd` builds the server binary you will run.
+- `minbuild` builds helper tools needed by out-of-tree bootstrap, such as `build/extra/my_print_defaults` and related scripts.
+
+After this step, you should have at least:
+
+- `/Users/ryanzhou/Desktop/server/build/sql/mariadbd`
+- `/Users/ryanzhou/Desktop/server/build/scripts/mariadb-install-db`
+- `/Users/ryanzhou/Desktop/server/build/build.ninja`
+
+## 2. Prepare `.env`
+
+Update:
 
 `/Users/ryanzhou/Desktop/server/.env`
 
-Current keys:
+Use this shape:
 
-- `PARQUET_LAKEKEEPER_BASE_URL`
-- `PARQUET_LAKEKEEPER_WAREHOUSE_ID`
-- `PARQUET_LAKEKEEPER_NAMESPACE`
-- `PARQUET_S3_BUCKET`
-- `PARQUET_S3_DATA_PREFIX`
-- `PARQUET_S3_REGION`
-- `PARQUET_S3_ACCESS_KEY_ID`
-- `PARQUET_S3_SECRET_ACCESS_KEY`
-
-The warehouse UUID should currently be:
-
-```text
-9a3b8dae-3bab-11f1-aa80-237d1c73ff26
+```dotenv
+PARQUET_LAKEKEEPER_BASE_URL=http://localhost:8181/catalog/v1/
+PARQUET_LAKEKEEPER_WAREHOUSE_ID=34222c1a-3c39-11f1-8407-8f978f046b38
+PARQUET_LAKEKEEPER_NAMESPACE=data
+PARQUET_S3_BUCKET=mariadb-parquet-demo
+PARQUET_S3_DATA_PREFIX=data
+PARQUET_S3_REGION=us-east-2
+PARQUET_S3_ACCESS_KEY_ID=REPLACE_ME
+PARQUET_S3_SECRET_ACCESS_KEY=REPLACE_ME
 ```
 
-If you want to use a different env file, set:
+If you want to keep the env file somewhere else, set:
 
 ```bash
 export PARQUET_ENV_FILE=/absolute/path/to/your/.env
 ```
 
-After editing `.env`, restart the server so `mariadbd` reloads the values:
-
-```bash
-kill $(pgrep -n mariadbd)
-
-/Users/ryanzhou/Desktop/server/build/sql/mariadbd \
-  --defaults-file=/Users/ryanzhou/Desktop/server/build/mariadb-parquet.cnf
-```
+Restart `mariadbd` after changing `.env`.
 
 ## 3. Start LakeKeeper
 
-If LakeKeeper is not already running:
+Use the checked-out LakeKeeper repo in this tree:
 
 ```bash
-git clone https://github.com/lakekeeper/lakekeeper
-cd lakekeeper/examples/minimal
+cd /Users/ryanzhou/Desktop/server/lakekeeper/examples/minimal
 docker compose up -d
 ```
 
@@ -79,9 +100,11 @@ Verify it:
 curl http://localhost:8181/health
 ```
 
-## 4. Create the warehouse
+You want a healthy response here before running MariaDB bootstrap.
 
-If the warehouse does not already exist:
+## 4. Create or verify the warehouse and namespace
+
+If you already created the warehouse with ID `34222c1a-3c39-11f1-8407-8f978f046b38`, you can keep using it. If you need a fresh warehouse, create one with your real AWS credentials:
 
 ```bash
 curl -X POST http://localhost:8181/management/v1/warehouse \
@@ -104,85 +127,127 @@ curl -X POST http://localhost:8181/management/v1/warehouse \
   }'
 ```
 
-## 5. Create the `default` namespace
+Copy the returned warehouse UUID into:
 
-The default namespace in `.env` is `default`.
+- `PARQUET_LAKEKEEPER_WAREHOUSE_ID`
 
-Create it once:
+The current `.env` uses namespace `data`, so create that namespace once:
 
 ```bash
 curl -X POST \
-  http://localhost:8181/catalog/v1/9a3b8dae-3bab-11f1-aa80-237d1c73ff26/namespaces \
+  http://localhost:8181/catalog/v1/34222c1a-3c39-11f1-8407-8f978f046b38/namespaces \
   -H "Content-Type: application/json" \
-  -d '{"namespace":["default"]}'
+  -d '{"namespace":["data"]}'
 ```
 
-## 6. Initialize the MariaDB data directory
+If you change the namespace in `.env`, create that namespace instead.
 
-```bash
-cd /Users/ryanzhou/Desktop/server/build
-scripts/mariadb-install-db \
-  --srcdir=/Users/ryanzhou/Desktop/server \
-  --defaults-file=/Users/ryanzhou/Desktop/server/build/mariadb-parquet.cnf
-```
+## 5. Initialize or reinitialize the MariaDB data directory
 
-## 7. Start MariaDB with the build binary
-
-Use the absolute build path. Do not use `/Users/ryanzhou/Desktop/server/sql/mariadbd`.
-
-```bash
-mkdir -p build/parquet-tmp
-
-/Users/ryanzhou/Desktop/server/build/sql/mariadbd \
-  --defaults-file=/Users/ryanzhou/Desktop/server/build/mariadb-parquet.cnf
-```
-
-If you want to verify the running executable:
-
-```bash
-lsof -p $(pgrep -n mariadbd) | awk '$4=="txt" {print $9}'
-```
-
-Expected:
-
-```text
-/Users/ryanzhou/Desktop/server/build/sql/mariadbd
-```
-
-## 8. Rebuild and restart after Parquet handler/select-handler changes
-
-If you change code under:
-
-- `/Users/ryanzhou/Desktop/server/storage/parquet/ha_parquet.cc`
-- `/Users/ryanzhou/Desktop/server/storage/parquet/ha_parquet_pushdown.cc`
-- `/Users/ryanzhou/Desktop/server/storage/parquet/parquet_cross_engine_scan.cc`
-
-rebuild `mariadbd`, not just the `parquet` target:
-
-```bash
-cd /Users/ryanzhou/Desktop/server
-cmake --build /Users/ryanzhou/Desktop/server/build --target mariadbd --parallel 4
-```
-
-Then restart the running server with the build binary:
+Before initializing, stop any old server bound to the test socket:
 
 ```bash
 kill $(lsof -t /tmp/mariadb-parquet.sock)
+```
 
+Create the temp directory used by the local config:
+
+```bash
+mkdir -p /Users/ryanzhou/Desktop/server/build/parquet-tmp
+```
+
+If you want a fresh local datadir, remove the old one first:
+
+```bash
+rm -rf /Users/ryanzhou/Desktop/server/build/parquet-data
+```
+
+Then run the out-of-tree bootstrap command from the repo root:
+
+```bash
+cd /Users/ryanzhou/Desktop/server
+
+build/scripts/mariadb-install-db \
+  --force \
+  --auth-root-authentication-method=socket \
+  --auth-root-socket-user="$(whoami)" \
+  --srcdir=/Users/ryanzhou/Desktop/server \
+  --builddir=/Users/ryanzhou/Desktop/server/build \
+  --defaults-file=/Users/ryanzhou/Desktop/server/build/mariadb-parquet.cnf
+```
+
+Why this exact command matters:
+
+- Use `build/scripts/mariadb-install-db`, not `scripts/mariadb-install-db` from the source tree.
+- Pass `--builddir=/Users/ryanzhou/Desktop/server/build` for an out-of-tree build.
+- `--auth-root-authentication-method=socket` keeps local socket auth enabled.
+- `--auth-root-socket-user="$(whoami)"` makes the current macOS user able to connect locally without adding `-u root`.
+
+If the bootstrap fails while LakeKeeper is down, you can end up with a partially initialized `mysql.global_priv` table and then see `ERROR 1045 (28000)` for both `ryanzhou` and `root`. In that case:
+
+1. Start LakeKeeper and confirm `/health` works.
+2. Remove `build/parquet-data`.
+3. Run the bootstrap command again.
+
+If you prefer the older passwordless-root style instead of socket auth, replace:
+
+```text
+--auth-root-authentication-method=socket
+```
+
+with:
+
+```text
+--auth-root-authentication-method=normal
+```
+
+## 6. Start MariaDB
+
+Run the build binary, not the source-tree path:
+
+```bash
 /Users/ryanzhou/Desktop/server/build/sql/mariadbd \
   --defaults-file=/Users/ryanzhou/Desktop/server/build/mariadb-parquet.cnf
 ```
 
-## 9. Connect to MariaDB
+If startup succeeds, the log at `/Users/ryanzhou/Desktop/server/build/mariadb-parquet.err` should eventually show:
 
-In another terminal:
+```text
+ready for connections
+```
+
+You can verify the socket owner with:
+
+```bash
+ls -l /tmp/mariadb-parquet.sock
+```
+
+## 7. Connect to MariaDB
+
+For the socket-auth flow above, connect as your current shell user:
 
 ```bash
 cd /Users/ryanzhou/Desktop/server
-build/client/mariadb --defaults-file=/Users/ryanzhou/Desktop/server/build/mariadb-parquet.cnf
+
+build/client/mariadb \
+  --defaults-file=/Users/ryanzhou/Desktop/server/build/mariadb-parquet.cnf \
+  --protocol=SOCKET
 ```
 
-## 10. Create and query a Parquet table
+To connect as `root` with socket auth:
+
+```bash
+sudo /Users/ryanzhou/Desktop/server/build/client/mariadb \
+  --defaults-file=/Users/ryanzhou/Desktop/server/build/mariadb-parquet.cnf \
+  --protocol=SOCKET \
+  -u root
+```
+
+If you initialized with `--auth-root-authentication-method=normal`, you may instead use the traditional root flow and set a password afterward.
+
+## 8. Quick Parquet smoke test
+
+Use a simple Parquet table first:
 
 ```sql
 CREATE DATABASE IF NOT EXISTS test;
@@ -214,9 +279,9 @@ Expected:
 +------+-------+
 ```
 
-## 11. Test cross-engine join pushdown
+## 9. Test cross-engine join pushdown
 
-To test the SELECT handler’s mixed-engine path, use one Parquet table and one non-Parquet table:
+To test the SELECT handler's mixed-engine path, use one Parquet table and one non-Parquet table:
 
 ```sql
 USE test;
@@ -280,6 +345,8 @@ Expected results:
 
 After running those queries, inspect the server log:
 
+IMPORTANT (makes sure the program is actually running as intended; the results may look good on the surface but the engine may actually be malfunctioning)
+
 ```bash
 grep "Parquet:" /Users/ryanzhou/Desktop/server/build/mariadb-parquet.err
 ```
@@ -294,43 +361,155 @@ For the cross-engine path, you should see log lines like:
 - `Parquet: _mdb_scan start table='i_customers' projected_columns=...`
 - `Parquet: _mdb_scan complete table='i_customers' rows=...`
 
-If the query returns the right result but none of those lines appear, you are probably not running the rebuilt `mariadbd` binary from:
+If the query returns the right result but none of those lines appear, you are probably not running the rebuilt binary from:
 
 ```text
 /Users/ryanzhou/Desktop/server/build/sql/mariadbd
 ```
 
-## 12. Notes and limits
+## 10. Fast rebuild loop after Parquet code changes
 
-- `UPDATE` and `DELETE` are not implemented
-- the MariaDB schema can be `test`, but the LakeKeeper namespace comes from `.env`
-- `DROP TABLE` only works cleanly after the newer delete hook is running
-- if reads return nothing, inspect `/Users/ryanzhou/Desktop/server/build/mariadb-parquet.err`
+If you change files under `storage/parquet/`, rebuild `mariadbd` and restart the server:
 
-## 13. Common issues
+```bash
+cd /Users/ryanzhou/Desktop/server
 
-### `Plugin 'parquet' already installed`
+cmake --build build --target mariadbd --parallel 4
+kill $(lsof -t /tmp/mariadb-parquet.sock)
 
-That is fine. Skip `INSTALL PLUGIN`.
-
-### `No database selected`
-
-Run:
-
-```sql
-CREATE DATABASE IF NOT EXISTS test;
-USE test;
+build/sql/mariadbd \
+  --defaults-file=/Users/ryanzhou/Desktop/server/build/mariadb-parquet.cnf
 ```
 
-### `Can't create table ... Internal (unspecified) error in handler`
+You do not need to rerun `mariadb-install-db` unless:
 
-Most likely causes:
+- you deleted `build/parquet-data`
+- bootstrap previously failed and left grants half-created
+- you intentionally want a fresh local data directory
 
-- LakeKeeper warehouse UUID is wrong
-- the namespace in `.env` does not exist in LakeKeeper
-- S3 credentials are invalid
+## 11. Full clean rebuild
 
-### Reads work only after restarting with the right binary
+Removing `build/` is a full local reset. It deletes:
+
+- the compiled binaries
+- `build/mariadb-parquet.cnf`
+- `build/parquet-data`
+- `build/parquet-tmp`
+- the local error log and pid file
+
+Use this when you want to wipe all local build outputs and start over:
+
+```bash
+kill $(lsof -t /tmp/mariadb-parquet.sock)
+
+cp /Users/ryanzhou/Desktop/server/build/mariadb-parquet.cnf /tmp/mariadb-parquet.cnf.backup
+rm -rf /Users/ryanzhou/Desktop/server/build
+
+cd /Users/ryanzhou/Desktop/server
+
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build --target minbuild --parallel 4
+cmake --build build --target mariadbd --parallel 4
+
+cp /tmp/mariadb-parquet.cnf.backup /Users/ryanzhou/Desktop/server/build/mariadb-parquet.cnf
+mkdir -p /Users/ryanzhou/Desktop/server/build/parquet-tmp
+
+cd /Users/ryanzhou/Desktop/server/lakekeeper/examples/minimal
+docker compose up -d
+curl http://localhost:8181/health
+
+cd /Users/ryanzhou/Desktop/server
+
+build/scripts/mariadb-install-db \
+  --force \
+  --auth-root-authentication-method=socket \
+  --auth-root-socket-user="$(whoami)" \
+  --srcdir=/Users/ryanzhou/Desktop/server \
+  --builddir=/Users/ryanzhou/Desktop/server/build \
+  --defaults-file=/Users/ryanzhou/Desktop/server/build/mariadb-parquet.cnf
+
+build/sql/mariadbd \
+  --defaults-file=/Users/ryanzhou/Desktop/server/build/mariadb-parquet.cnf
+```
+
+## 12. Minimal local `mariadb-parquet.cnf`
+
+If `build/mariadb-parquet.cnf` is missing, this is the minimal working local shape for this checkout:
+
+```ini
+[mariadbd]
+basedir=/Users/ryanzhou/Desktop/server/build
+datadir=/Users/ryanzhou/Desktop/server/build/parquet-data
+socket=/tmp/mariadb-parquet.sock
+port=3307
+pid-file=/Users/ryanzhou/Desktop/server/build/mariadb-parquet.pid
+log-error=/Users/ryanzhou/Desktop/server/build/mariadb-parquet.err
+tmpdir=/Users/ryanzhou/Desktop/server/build/parquet-tmp
+plugin-dir=/Users/ryanzhou/Desktop/server/build/mysql-test/var/plugins
+plugin-maturity=unknown
+bind-address=127.0.0.1
+character-set-server=utf8mb4
+collation-server=utf8mb4_uca1400_ai_ci
+secure-file-priv=
+
+[client]
+socket=/tmp/mariadb-parquet.sock
+port=3307
+```
+
+## 13. Notes and limits
+
+- `UPDATE` and `DELETE` are not implemented for Parquet tables.
+- The MariaDB schema can be `test`, but the LakeKeeper namespace comes from `.env`.
+- `DROP TABLE` behavior depends on LakeKeeper being reachable.
+- If reads return nothing or table creation fails, inspect `/Users/ryanzhou/Desktop/server/build/mariadb-parquet.err`.
+
+## 14. Common issues
+
+### `scripts/mariadb-install-db: no such file or directory`
+
+You are probably running the source-tree path or the wrong working directory. Use:
+
+```bash
+/Users/ryanzhou/Desktop/server/build/scripts/mariadb-install-db
+```
+
+or run `build/scripts/mariadb-install-db` from the repo root.
+
+### `Can't change dir to '/Users/ryanzhou/Desktop/server/build/parquet-data/'`
+
+The datadir does not exist yet. Run the bootstrap command in section 5 first.
+
+### `LakeKeeper delete table error: Couldn't connect to server`
+
+LakeKeeper is not up, the base URL is wrong, or `.env` is stale.
+
+Check:
+
+- `curl http://localhost:8181/health`
+- `PARQUET_LAKEKEEPER_BASE_URL=http://localhost:8181/catalog/v1/`
+- the warehouse UUID in `.env`
+- the namespace in `.env`
+
+If bootstrap already failed once, remove `build/parquet-data` and rerun it after LakeKeeper is healthy.
+
+### `ERROR 1045 (28000): Access denied for user ...`
+
+Most common causes:
+
+- bootstrap failed partway through and left grant tables incomplete
+- the datadir was initialized with a different auth mode than the one you are trying to use
+- you are connecting without `--protocol=SOCKET` after a socket-auth bootstrap
+
+For the local socket-auth flow in section 5, the safe recovery is:
+
+1. Start LakeKeeper.
+2. Stop MariaDB on `/tmp/mariadb-parquet.sock`.
+3. Remove `build/parquet-data`.
+4. Rerun `mariadb-install-db`.
+5. Connect with `build/client/mariadb --defaults-file=... --protocol=SOCKET`.
+
+### Query returns correct rows but Parquet debug lines do not appear
 
 Make sure the running executable is:
 
