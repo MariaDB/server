@@ -131,6 +131,8 @@ scripts/mariadb-install-db \
 Use the absolute build path. Do not use `/Users/ryanzhou/Desktop/server/sql/mariadbd`.
 
 ```bash
+mkdir -p build/parquet-tmp
+
 /Users/ryanzhou/Desktop/server/build/sql/mariadbd \
   --defaults-file=/Users/ryanzhou/Desktop/server/build/mariadb-parquet.cnf
 ```
