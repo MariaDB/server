@@ -8497,8 +8497,7 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
                   mysql_errno(replay_server_mysql),
                   mysql_error(replay_server_mysql));
           fprintf(stdout, "ReplayTest: Failed query was: %.*s\n", (int)query_len, query_start);
-          dynstr_free(&result);
-          DBUG_VOID_RETURN;
+          goto cleanup;
         }
         
         /* Process results */
@@ -8577,8 +8576,7 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
                 mysql_errno(replay_server_mysql),
                 mysql_error(replay_server_mysql));
         fprintf(stdout, "ReplayTest: Failed query was: %.*s\n", (int)query_len, query_start);
-        dynstr_free(&result);
-        DBUG_VOID_RETURN;
+        goto cleanup;
       }
       
       do
@@ -8618,9 +8616,34 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
   {
     verbose_msg("ReplayTest: Warning - no EXPLAIN FORMAT=JSON found in script");
   }
-  
+
+cleanup:
+  /* Preserve accumulated output (EXPLAIN / last-query) in ds BEFORE cleanup query */
   dynstr_append_mem(ds, result.str, result.length);
   dynstr_free(&result);
+
+  /* Reset optimizer_replay_context on the replay server, regardless of errors.
+     Drain and discard any output so ds is not affected. */
+  if (replay_server_mysql)
+  {
+    if (mysql_real_query(replay_server_mysql,
+                         "set optimizer_replay_context=''", 31))
+    {
+      fprintf(stdout, "ReplayTest: Warning - failed to reset optimizer_replay_context: %d %s\n",
+              mysql_errno(replay_server_mysql),
+              mysql_error(replay_server_mysql));
+    }
+    else
+    {
+      do
+      {
+        MYSQL_RES *res= mysql_store_result(replay_server_mysql);
+        if (res)
+          mysql_free_result(res);
+      } while (mysql_next_result(replay_server_mysql) == 0);
+    }
+  }
+
   DBUG_VOID_RETURN;
 }
 

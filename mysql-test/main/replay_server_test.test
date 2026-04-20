@@ -46,4 +46,6 @@ analyze table t1;
 # This should trigger ReplayTest mode if REPLAY_SERVER_SOCKET is set
 EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a = 1;
 
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a < 100;
+
 DROP TABLE t1;
