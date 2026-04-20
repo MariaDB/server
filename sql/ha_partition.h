@@ -569,13 +569,13 @@ public:
     m_file[part_id]->update_create_info(create_info);
   }
 
-  void column_bitmaps_signal() override
+  void column_bitmaps_signal(bool mark_for_update) override
   {
     for (uint i= bitmap_get_first_set(&m_opened_partitions);
         i < m_tot_parts;
         i= bitmap_get_next_set(&m_opened_partitions, i))
     {
-      m_file[i]->column_bitmaps_signal();
+      m_file[i]->column_bitmaps_signal(mark_for_update);
     }
   }
 

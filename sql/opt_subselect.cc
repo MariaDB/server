@@ -7083,7 +7083,7 @@ bool Item::pushable_equality_checker_for_subquery(uchar *arg)
   NULL if the matching Field_pair wasn't found.
 */
 
-Field_pair *find_matching_field_pair(Item *item, List<Field_pair> pair_list)
+Field_pair *find_matching_field_pair(Item *item, List<Field_pair> &pair_list)
 {
   Field_pair *field_pair= get_corresponding_field_pair(item, pair_list);
   if (field_pair)

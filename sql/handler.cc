@@ -4549,6 +4549,8 @@ int handler::update_auto_increment()
 /** @brief
   MySQL signal that it changed the column bitmap
 
+  @param mark_for_update  whether to mark indexed virtual columns
+			  for UPDATE operations
   USAGE
     This is for handlers that needs to setup their own column bitmaps.
     Normally the handler should set up their own column bitmaps in
@@ -4559,7 +4561,7 @@ int handler::update_auto_increment()
     rnd_init() call is made as after this, MySQL will not use the bitmap
     for any program logic checking.
 */
-void handler::column_bitmaps_signal()
+void handler::column_bitmaps_signal(bool mark_for_update)
 {
   DBUG_ENTER("column_bitmaps_signal");
   if (table)

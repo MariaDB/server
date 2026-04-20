@@ -5127,46 +5127,27 @@ Needs to be done for indexes that are being added with inplace ALTER
 in a different thread, because from the server point of view these
 columns are not yet indexed.
 Also needed if the primary key is being updated.
+For update statement: Mark all indexed virtual column
+@param mark_for_update  whether to mark indexed virtual columns
+                        for UPDATE operations
 */
-void ha_innobase::column_bitmaps_signal()
+void ha_innobase::column_bitmaps_signal(bool mark_for_update)
 {
   if (!table->vfield || table->current_lock != F_WRLCK)
     return;
 
-  dict_index_t* clust_index= dict_table_get_first_index(m_prebuilt->table);
-  bool is_online_log= clust_index->online_log;
-
-  /*
-    Check if the clustered index is being updated.
-    If so, it is necessary to compute virtual columns that are part of
-    secondary indexes, to be able to re-compute those indexes.
-  */
-  bool upd_pk= false;
-  for (uint j= 0; j < clust_index->n_user_defined_cols; ++j)
+  if (UNIV_UNLIKELY(dict_index_is_online_ddl(
+			dict_table_get_first_index(m_prebuilt->table))))
+    row_log_mark_virtual_cols(m_prebuilt->table, table);
+  else if (mark_for_update)
   {
-    dict_col_t *col= clust_index->fields[j].col;
-    if (bitmap_is_set(table->write_set, static_cast<uint>(col->ind)))
+    for (uint j = 0, num_v= 0; j < table->s->virtual_fields; j++)
     {
-      upd_pk= 1;
-      break;
+      Field *vf= table->vfield[j];
+      if (!vf->stored_in_db() &&
+          m_prebuilt->table->v_cols[num_v++].m_col.ord_part)
+        table->mark_virtual_column_with_deps(vf);
     }
-  }
-
-  if (!is_online_log && !upd_pk)
-    return;
-
-  uint num_v= 0;
-  for (uint j = 0; j < table->s->virtual_fields; j++)
-  {
-    if (table->vfield[j]->stored_in_db())
-      continue;
-
-    dict_col_t *col= &m_prebuilt->table->v_cols[num_v].m_col;
-    if (col->ord_part ||
-        (is_online_log && dict_index_is_online_ddl(clust_index) &&
-         row_log_col_is_indexed(clust_index, num_v)))
-      table->mark_virtual_column_with_deps(table->vfield[j]);
-    num_v++;
   }
 }
 

@@ -59,7 +59,7 @@ static inline int encryption_crypt(const unsigned char* src, unsigned int slen,
   int res1, res2;
   unsigned int d1, d2= *dlen;
   assert(*dlen >= slen);
-  assert((dst[*dlen - 1]= 1));
+  assert((dst[*dlen - 1]= 1) == 1);
   if (src < dst)
     assert(src + slen <= dst);
   else
