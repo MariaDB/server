@@ -8780,7 +8780,9 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 	if (display_metadata)
           append_metadata(ds, fields, num_fields);
 
-	if (!display_result_vertically)
+	/* In replay mode, headings come from the replay server's result */
+	if (!display_result_vertically &&
+	    !(replay_mode_active && counter == 0))
 	  append_table_headings(ds, fields, num_fields);
 
 	/* ReplayTest mode: Replace EXPLAIN result with replay server output */
