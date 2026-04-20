@@ -2452,6 +2452,15 @@ DROP TABLE t1;
 --echo #
 select hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex(hex('\\'))))))))))))))))))))))))))))))))))))))))))))) as x;
 
+--echo #
+--echo # MDEV-32758: TRIM uses memory after freed
+--echo #
+CREATE TABLE t0 (i DOUBLE);
+INSERT INTO t0 VALUES (1);
+SELECT LOCATE(a , 'data1-data2', a) AS c FROM (SELECT TRIM(i) AS a FROM t0 )dt;
+
+DROP TABLE t0;
+
 --echo # End of 10.6 tests
 
 --echo #

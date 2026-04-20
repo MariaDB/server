@@ -280,7 +280,6 @@ connection consistent;
 SELECT * FROM t1;
 ERROR HY000: Record has changed since last read in table 't1'
 COMMIT;
-disconnect consistent;
 connection default;
 DROP TABLE t1,t2;
 #
@@ -292,4 +291,25 @@ SELECT * FROM t1 FOR UPDATE;
 a
 DROP TABLE t1;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+#
+# MDEV-39263 Lost update despite innodb_snapshot_isolation
+#
+CREATE TABLE t1 (f1 INT PRIMARY KEY, val TEXT) ENGINE=InnoDB;
+connection consistent;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+SELECT * FROM t1 WHERE f1 = 1;
+f1	val
+connection default;
+SET DEBUG_SYNC="trx_after_commit_state SIGNAL committed WAIT_FOR cleanup";
+SET STATEMENT innodb_lock_wait_timeout=3 FOR INSERT INTO t1 VALUES(1,'6');
+connection consistent;
+SET DEBUG_SYNC="now WAIT_FOR committed";
+SET STATEMENT innodb_lock_wait_timeout=3 FOR
+UPDATE t1 SET val = CONCAT(val, ',', '3') WHERE f1 = 1;
+ERROR HY000: Record has changed since last read in table 't1'
+SET DEBUG_SYNC="now SIGNAL cleanup";
+disconnect consistent;
+connection default;
+SET DEBUG_SYNC="RESET";
+DROP TABLE t1;
 # End of 10.6 tests

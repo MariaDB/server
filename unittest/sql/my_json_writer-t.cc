@@ -393,7 +393,7 @@ int main(int args, char **argv)
     w.end_object();
     ok(json_output_eq(w,
        "{\n"
-       "  \"d\": -0\n"
+       "  \"d\": 0\n" /* the sign was removed in the fix of MDEV-38670 */
        "}"),
        "Double negative zero");
     ok(!w.invalid_json, "Double negative zero is valid");

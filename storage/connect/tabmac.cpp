@@ -111,8 +111,7 @@ void TDBMAC::MakeErrorMsg(PGLOBAL g, DWORD drc)
   else if (drc == ERROR_NOT_SUPPORTED)
     strcpy(g->Message, "GetAdaptersInfo is not supported");
   else
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, GetLastError(),
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, GetLastError(),
                   0, g->Message, sizeof(g->Message), NULL);
 
   } // end of MakeErrorMsg

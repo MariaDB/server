@@ -824,3 +824,76 @@ SELECT 'foo' AS f UNION SELECT BINARY( UpdateXML('<a></a>', '/a', '<b></b>')) AS
 --echo #
 --echo # Start of 10.5 tests
 --echo #
+
+--echo #
+--echo # ExtractValue/UpdateXML crash
+--echo #
+
+#view protocol generates additional warning
+--disable_view_protocol
+SELECT ExtractValue('<!a/><!b/>', '/a');
+SELECT UpdateXML('<!a/><!b/>', '/a', '<new/>');
+SELECT ExtractValue('<!a/><!b/><!c/>', '/a');
+SELECT ExtractValue('<?a/?><?b/?>', '/a');
+SELECT ExtractValue('<!a/><?b/?>', '/a');
+--enable_view_protocol
+
+SET @xml='<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE note [
+  <!ELEMENT note (to, from, heading, body)>
+  <!ELEMENT to (#PCDATA)>
+  <!ELEMENT from (#PCDATA)>
+  <!ELEMENT heading (#PCDATA)>
+  <!ELEMENT body (#PCDATA)>
+]>
+<note>
+  <to>Tove</to>
+  <from>Jani</from>
+  <heading>Reminder</heading>
+  <body>See you this weekend!</body>
+</note>
+';
+
+SELECT ExtractValue(@xml, '/note/from');
+
+set @xml= '<?xml version="1.0"?>
+<employee>
+  <dt1>--01--+01:00</dt1>
+  <dt2>--12--+01:00</dt2>
+  <?dt3 123456 ?>
+  <dt3>--02--</dt3>
+  <dt4>--03--Z</dt4>
+  <?dt4 123456 ?>
+</employee>
+<?employee ABSDEV !@#$ ?>';
+
+SELECT ExtractValue(@xml, '/employee/dt3');
+
+set @xml= '<? xml version="1.0"?>
+<employee>
+  <dt1>--01--+01:00</dt1>
+  <dt2>--12--+01:00</dt2>
+  <?dt3 123456 ?>
+  <dt3>--02--</dt3>
+  <dt4>--03--Z</dt4>
+  <?dt4 123456 ?>
+</employee>
+<?  employee ABSDEV !@#$ ?>';
+
+SELECT ExtractValue(@xml, '/employee/dt3');
+
+set @xml= '<?xml version="1.0"?>
+<employee>
+  <dt1>--01--+01:00</dt1>
+  <dt2>--12--+01:00</dt2>
+  <?dt3 123456 ?>
+  <dt3>--02--</dt3>
+  <dt4>--03--Z</dt4>
+  <?dt4 123456 ? >
+</employee>
+<?employee ABSDEV !@#$ ?>';
+
+SELECT ExtractValue(@xml, '/employee/dt3');
+--echo #
+--echo # Start of 10.6 tests
+--echo #
