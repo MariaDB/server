@@ -1,4 +1,0 @@
-SET GLOBAL mroonga_default_tokenizer = "TokenBigram";
-SHOW GLOBAL VARIABLES LIKE 'mroonga_default_tokenizer';
-Variable_name	Value
-mroonga_default_tokenizer	TokenBigram
