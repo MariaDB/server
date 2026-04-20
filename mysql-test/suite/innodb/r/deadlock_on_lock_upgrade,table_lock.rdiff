@@ -1,0 +1,12 @@
+--- /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/deadlock_on_lock_upgrade.result	2025-02-19 14:14:39.056154959 +1100
++++ /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/deadlock_on_lock_upgrade.reject	2026-03-05 16:41:41.114018319 +1100
+@@ -69,8 +69,7 @@
+ 2
+ COMMIT;
+ connection waiter;
+-id
+-1
++ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ connection default;
+ disconnect holder;
+ disconnect waiter;

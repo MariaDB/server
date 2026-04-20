@@ -1,0 +1,17 @@
+--- /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/lock_delete_updated.result	2025-01-22 12:27:31.316598027 +1100
++++ /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/lock_delete_updated.reject	2026-03-05 14:27:02.066267800 +1100
+@@ -10,13 +10,12 @@
+ UPDATE t SET a = 1;
+ COMMIT;
+ connection con1;
+-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ disconnect con1;
+ connection default;
+ # The above DELETE must delete all the rows in the table, so the
+ # following SELECT must show 0 rows.
+ SELECT count(*) FROM t;
+ count(*)
+-1
++0
+ SET DEBUG_SYNC="reset";
+ DROP TABLE t;

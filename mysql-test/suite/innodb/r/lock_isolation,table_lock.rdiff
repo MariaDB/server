@@ -1,0 +1,11 @@
+--- /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/lock_isolation.result	2025-09-05 14:46:23.964928913 +1000
++++ /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/lock_isolation.reject	2026-03-05 14:28:40.077672334 +1100
+@@ -110,7 +110,7 @@
+ connection default;
+ SELECT * FROM t;
+ a	b
+-10	1
++10	20
+ 10	20
+ TRUNCATE TABLE t;
+ #

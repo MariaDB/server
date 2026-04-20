@@ -11,6 +11,7 @@ connect con_2,localhost,root,,;
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 BEGIN;
 SET DEBUG_SYNC = 'lock_trx_handle_wait_before_unlocked_wait_lock_check SIGNAL upd_locked WAIT_FOR upd_cont';
+set session innodb_lock_wait_timeout = 1;
 UPDATE t SET b = 100;
 connection default;
 SET DEBUG_SYNC="now WAIT_FOR upd_locked";

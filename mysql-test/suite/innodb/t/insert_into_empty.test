@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/innodb_page_size.inc
+--source include/innodb_table_lock_on_full_scan.inc
 --source include/have_sequence.inc
 --source include/maybe_debug.inc
 --source include/have_partition.inc
@@ -171,10 +172,17 @@ SET GLOBAL innodb_limit_optimistic_insert_debug = 2;
 BEGIN;
 SELECT * FROM t1 LOCK IN SHARE MODE;
 INSERT INTO t1 VALUES (0),(1),(2);
+--disable_ps_protocol
 --error ER_WRONG_VALUE_COUNT_ON_ROW
 INSERT INTO t1 VALUES (0,1);
---error ER_DUP_ENTRY
-INSERT INTO t1 VALUES (2);
+--enable_ps_protocol
+if ($MTR_COMBINATION_ROW_LOCK) {
+  --error ER_DUP_ENTRY
+  INSERT INTO t1 VALUES (2);
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  INSERT INTO t1 VALUES (2);
+}
 COMMIT;
 
 --error 0,ER_UNKNOWN_SYSTEM_VARIABLE

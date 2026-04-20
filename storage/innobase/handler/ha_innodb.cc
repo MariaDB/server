@@ -863,6 +863,10 @@ static MYSQL_THDVAR_BOOL(ft_enable_stopword, PLUGIN_VAR_OPCMDARG,
   NULL, NULL,
   /* default */ TRUE);
 
+static MYSQL_THDVAR_BOOL(table_lock_on_full_scan, PLUGIN_VAR_OPCMDARG,
+  "Whether to acquire table lock when SQL layer advises full scan",
+  NULL, NULL, FALSE);
+
 static MYSQL_THDVAR_UINT(lock_wait_timeout, PLUGIN_VAR_RQCMDARG,
   "Timeout in seconds an InnoDB transaction may wait for a lock before being rolled back. The value 100000000 is infinite timeout.",
   NULL, NULL, 50, 0, 100000000, 0);
@@ -15953,6 +15957,31 @@ ha_innobase::extra(
 	return(0);
 }
 
+int
+ha_innobase::extra_opt(
+/*===============*/
+	enum ha_extra_function operation,
+			   /*!< in: HA_EXTRA_FLUSH or some other flag */
+	ulong arg)
+{
+	bool handled = false;
+	switch (operation) {
+	case HA_EXTRA_FULL_SCAN:
+		handled = true;
+		if (THDVAR(ha_thd(), table_lock_on_full_scan) &&
+				!m_prebuilt->skip_locked && arg == ULONG_MAX)
+			m_prebuilt->full_table_scan = true;
+		break;
+	default:/* Do nothing */
+		;
+	}
+
+	if (!handled)
+		return extra(operation);
+
+	return(0);
+}
+
 /**
 MySQL calls this method at the end of each statement */
 int
@@ -15973,6 +16002,7 @@ ha_innobase::reset()
 	m_prebuilt->autoinc_last_value = 0;
 
 	m_prebuilt->skip_locked = false;
+	m_prebuilt->full_table_scan = false;
 	return(0);
 }
 
@@ -19939,6 +19969,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_num_word_optimize),
   MYSQL_SYSVAR(ft_sort_pll_degree),
   MYSQL_SYSVAR(lock_wait_timeout),
+  MYSQL_SYSVAR(table_lock_on_full_scan),
   MYSQL_SYSVAR(deadlock_detect),
   MYSQL_SYSVAR(deadlock_report),
   MYSQL_SYSVAR(page_size),

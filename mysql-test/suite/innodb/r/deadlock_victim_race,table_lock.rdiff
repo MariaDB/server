@@ -1,0 +1,37 @@
+--- /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/deadlock_victim_race.result	2026-03-06 15:18:14.783771049 +1100
++++ /home/ycp/source/mariadb-server/11.4/src/mysql-test/suite/innodb/r/deadlock_victim_race.reject	2026-03-06 15:18:26.339686475 +1100
+@@ -12,7 +12,6 @@
+ connect con_2,localhost,root,,;
+ SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+ BEGIN;
+-SET DEBUG_SYNC = 'lock_trx_handle_wait_enter SIGNAL upd_locked WAIT_FOR upd_cont EXECUTE 2';
+ SET SESSION innodb_lock_wait_timeout=1;
+ UPDATE t SET b = 100;
+ connect con_3,localhost,root,,;
+@@ -21,23 +20,22 @@
+ SELECT * FROM t WHERE a = 30 FOR UPDATE;
+ a	b
+ 30	30
+-SET DEBUG_SYNC='now WAIT_FOR upd_locked';
+ SET DEBUG_SYNC = 'lock_wait_start SIGNAL sel_locked';
+ SELECT * FROM t WHERE a = 20 FOR UPDATE;
+ connection default;
+ SET DEBUG_SYNC='now WAIT_FOR sel_locked';
+ ROLLBACK;
+ SET DEBUG_SYNC='now SIGNAL upd_cont';
+-SET DEBUG_SYNC='now WAIT_FOR upd_locked';
+ SET SESSION innodb_lock_wait_timeout=1;
+ SELECT * FROM t WHERE a = 10 FOR UPDATE;
+-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
++a	b
++10	10
+ SET DEBUG_SYNC="now SIGNAL upd_cont";
+ connection con_3;
+ a	b
+ 20	20
+ connection con_2;
+-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
++ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ disconnect con_3;
+ disconnect con_2;
+ connection default;
