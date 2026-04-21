@@ -1,0 +1,20 @@
+# MDEV-10112
+#
+# MDEV-10112: mysql_secure_installation should use DDL (GRANT, REVOKE, etc)
+# instead of DML for Galera compatibility
+#
+#
+# Setup dummy accounts and database to be secured
+#
+CREATE USER 'root'@'remote_host' IDENTIFIED BY 'pass';
+CREATE USER 'test_user'@'localhost' IDENTIFIED BY 'pass';
+CREATE DATABASE msi_test_db;
+GRANT ALL PRIVILEGES ON msi_test_db.* TO 'test_user'@'localhost';
+# Verify: remote root account removed
+SELECT user, host FROM mysql.global_priv WHERE user = 'root' AND host = 'remote_host';
+user	host
+# Verify: test DB privileges removed from mysql.db
+SELECT user, host, db FROM mysql.db WHERE db = 'test' ORDER BY user, host, db;
+user	host	db
+DROP USER 'test_user'@'localhost';
+DROP DATABASE msi_test_db;
