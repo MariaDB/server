@@ -72,7 +72,7 @@ BEGIN
 
   SELECT count INTO end_val FROM information_schema.innodb_metrics WHERE name = 'adaptive_hash_searches';
 
-  IF end_val > start_val THEN
+  IF end_val > start_val + COALESCE(@ahi_check_threshold, 0) THEN
     SELECT CONCAT('# Used AHI in SELECT (idx_', p_idx_num, ')') AS result_msg;
   ELSE
     SELECT CONCAT('# No AHI used in SELECT (idx_', p_idx_num, ')') AS result_msg;
@@ -111,7 +111,20 @@ let $con1_id= `SELECT CONNECTION_ID()`;
 connection default;
 --sleep 0.2
 
-# Toggle AHI status while con1 is reading
+# Toggle AHI status while con1 is reading.
+#
+# After any transition that disables AHI (OFF, or IF_SPECIFIED for a
+# DEFAULT table), con1 may still have one in-flight ++btr_cur_n_sea:
+# the increment in btr_cur_t::search_leaf() is not protected by the
+# AHI partition latch, which was released earlier inside
+# btr_search_guess_on_hash().
+# If con1 is preempted between that latch release and the increment,
+# the stray lands after our start_val read. At most 1 such increment
+# can be pending (con1 is single-threaded); @ahi_check_threshold= 1
+# absorbs it for the entire concurrent block.
+--disable_query_log
+SET @ahi_check_threshold= 1;
+--enable_query_log
 SET GLOBAL innodb_adaptive_hash_index= OFF;
 eval CALL run_and_check_idx($query_rounds, 1, 't1');
 SET GLOBAL innodb_adaptive_hash_index= ON;
@@ -120,6 +133,9 @@ SET GLOBAL innodb_adaptive_hash_index= IF_SPECIFIED;
 eval CALL run_and_check_idx($query_rounds, 1, 't1');
 SET GLOBAL innodb_adaptive_hash_index= @combination_value;
 eval CALL run_and_check_idx($query_rounds, 1, 't1');
+--disable_query_log
+SET @ahi_check_threshold= NULL;
+--enable_query_log
 
 --replace_result $con1_id con1_id
 eval KILL $con1_id;

@@ -1145,6 +1145,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
     ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_GE);
     ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
     ut_ad(low_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
+    DBUG_EXECUTE_IF("btr_cur_n_sea_delay", my_sleep(200000););
     ++btr_cur_n_sea;
 
     return DB_SUCCESS;
