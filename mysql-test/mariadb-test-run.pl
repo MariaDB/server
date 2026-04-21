@@ -2233,10 +2233,11 @@ sub environment_setup {
   $ENV{'MYSQL_PLUGIN'}=             $exe_mysql_plugin;
   $ENV{'MYSQL_EMBEDDED'}=           $exe_mysql_embedded;
   $ENV{'MARIADB_CONV'}=             "$exe_mariadb_conv --character-sets-dir=$path_charsetsdir";
+  $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_maybe_exists("$bindir/sql/mariadb-install-db",
+                                                   "$bindir/bin/mariadb-install-db",
+                                                   "$bindir/scripts/mariadb-install-db");
   if(IS_WINDOWS)
   {
-     $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mariadb-install-db",
-       "$bindir/bin/mariadb-install-db");
      $ENV{'MARIADB_UPGRADE_SERVICE_EXE'}= mtr_exe_exists("$bindir/sql$multiconfig/mariadb-upgrade-service",
       "$bindir/bin/mariadb-upgrade-service");
      $ENV{'MARIADB_UPGRADE_EXE'}= mtr_exe_exists("$path_client_bindir/mariadb-upgrade");
@@ -2310,6 +2311,19 @@ sub environment_setup {
   if ($mysqlhotcopy)
   {
     $ENV{'MYSQLHOTCOPY'}= $mysqlhotcopy;
+  }
+
+  # ----------------------------------------------------
+  # mysql_secure_installation
+  # ----------------------------------------------------
+  my $mysql_secure_installation=
+    mtr_pl_maybe_exists("$bindir/scripts/mariadb-secure-installation") ||
+    mtr_pl_maybe_exists("$bindir/scripts/mysql_secure_installation") ||
+    mtr_pl_maybe_exists("$path_client_bindir/mariadb-secure-installation") ||
+    mtr_pl_maybe_exists("$path_client_bindir/mysql_secure_installation");
+  if ($mysql_secure_installation)
+  {
+    $ENV{'MYSQL_SECURE_INSTALLATION'}= $mysql_secure_installation;
   }
 
   # ----------------------------------------------------

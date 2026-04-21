@@ -1,0 +1,59 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--echo # MDEV-10112
+
+--echo #
+--echo # MDEV-10112: mysql_secure_installation should use DDL (GRANT, REVOKE, etc)
+--echo #             instead of DML for Galera compatibility
+--echo #
+
+--connection node_1
+--echo #
+--echo # Setup remote root account to be removed
+--echo #
+CREATE USER 'root'@'remote_host' IDENTIFIED BY 'pass';
+GRANT ALL ON *.* TO 'root'@'remote_host';
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM mysql.global_priv WHERE user = 'root' AND host = 'remote_host'
+--source include/wait_condition.inc
+SELECT user, host FROM mysql.global_priv WHERE user = 'root' AND host = 'remote_host';
+
+--connection node_1
+
+--write_file $MYSQLTEST_VARDIR/tmp/msi_galera_input.txt
+
+n
+n
+n
+Y
+Y
+Y
+EOF
+
+--exec $MYSQL_SECURE_INSTALLATION --basedir=$MYSQL_BINDIR -S $MASTER_MYSOCK < $MYSQLTEST_VARDIR/tmp/msi_galera_input.txt > $MYSQLTEST_VARDIR/tmp/msi_galera.log 2>&1
+
+--remove_file $MYSQLTEST_VARDIR/tmp/msi_galera_input.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/msi_galera.log
+
+--echo # Verify on node_1: remote root is gone
+SELECT user, host FROM mysql.global_priv WHERE user = 'root' AND host = 'remote_host';
+--echo # Verify on node_1: test database is gone
+SHOW DATABASES LIKE 'test';
+
+--echo # Now verify on node_2 (replication check)
+--connection node_2
+
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.global_priv WHERE user = 'root' AND host = 'remote_host'
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 0 FROM information_schema.schemata WHERE schema_name = 'test'
+--source include/wait_condition.inc
+
+--echo # Verify on node_2: remote root is gone (replicated)
+SELECT user, host FROM mysql.global_priv WHERE user = 'root' AND host = 'remote_host';
+--echo # Verify on node_2: test database is gone (replicated)
+SHOW DATABASES LIKE 'test';
+
+--source include/galera_end.inc
