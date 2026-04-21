@@ -1,4 +1,5 @@
 #include "parquet_metadata.h"
+#include "parquet_shared.h"
 
 #include <json.hpp>
 
@@ -169,6 +170,109 @@ std::vector<parquet::ActiveDataFile> JsonToActiveDataFiles(const json &value)
   return files;
 }
 
+void SetError(std::string *error, const std::string &message)
+{
+  if (error != nullptr) {
+    *error = message;
+  }
+}
+
+bool MetadataSidecarExists(const std::string &path)
+{
+  std::ifstream stream(path, std::ios::binary);
+  return stream.good();
+}
+
+std::vector<std::string> SplitNamespace(const std::string &value)
+{
+  std::vector<std::string> parts;
+  std::stringstream stream(value);
+  std::string part;
+  while (std::getline(stream, part, '.')) {
+    part = TrimAsciiWhitespace(part);
+    if (!part.empty()) {
+      parts.push_back(part);
+    }
+  }
+  return parts;
+}
+
+void ApplyCatalogDefaults(const ParquetPluginConfigSnapshot &defaults,
+                          parquet::TableMetadata *metadata)
+{
+  if (metadata == nullptr) {
+    return;
+  }
+
+  if (metadata->catalog_config.base_uri.empty()) {
+    metadata->catalog_config.base_uri = defaults.lakekeeper_base_url;
+  }
+  if (metadata->catalog_config.warehouse.empty()) {
+    metadata->catalog_config.warehouse = defaults.lakekeeper_warehouse_id;
+  }
+  if (metadata->catalog_table_ident.namespace_ident.parts.empty()) {
+    metadata->catalog_table_ident.namespace_ident.parts =
+        !defaults.lakekeeper_namespace.empty()
+            ? SplitNamespace(defaults.lakekeeper_namespace)
+            : std::vector<std::string>();
+  }
+  if (metadata->catalog_table_ident.namespace_ident.parts.empty()) {
+    if (!metadata->local_paths.database_name.empty()) {
+      metadata->catalog_table_ident.namespace_ident.parts.push_back(
+          metadata->local_paths.database_name);
+    } else {
+      metadata->catalog_table_ident.namespace_ident.parts.push_back("default");
+    }
+  }
+  if (metadata->catalog_table_ident.table_name.empty()) {
+    metadata->catalog_table_ident.table_name = metadata->local_paths.table_name;
+  }
+
+  metadata->catalog_config.bearer_token = defaults.lakekeeper_bearer_token;
+}
+
+void ApplyObjectStoreDefaults(const ParquetPluginConfigSnapshot &defaults,
+                              parquet::TableMetadata *metadata)
+{
+  if (metadata == nullptr) {
+    return;
+  }
+
+  if (metadata->object_store_config.bucket.empty()) {
+    metadata->object_store_config.bucket = defaults.s3_bucket;
+  }
+  if (metadata->object_store_config.key_prefix.empty()) {
+    metadata->object_store_config.key_prefix = defaults.s3_data_prefix;
+  }
+  if (metadata->object_store_config.region.empty()) {
+    metadata->object_store_config.region = defaults.s3_region;
+  }
+  if (metadata->object_store_config.endpoint.empty()) {
+    metadata->object_store_config.endpoint =
+        parquet_default_s3_endpoint_url(metadata->object_store_config.region);
+  }
+  if (metadata->object_store_config.url_style.empty()) {
+    metadata->object_store_config.url_style = "path";
+  }
+
+  metadata->object_store_config.credentials.access_key_id =
+      defaults.s3_access_key_id;
+  metadata->object_store_config.credentials.secret_access_key =
+      defaults.s3_secret_access_key;
+  metadata->object_store_config.credentials.session_token.clear();
+  metadata->object_store_config.credentials.expiration.clear();
+}
+
+void FinalizeResolvedMetadata(parquet::TableMetadata *metadata)
+{
+  if (metadata == nullptr) {
+    return;
+  }
+
+  metadata->catalog_enabled = true;
+  metadata->object_store_enabled = true;
+}
+
 } // namespace
 
 namespace parquet
@@ -277,10 +381,6 @@ CatalogTableIdent ResolveCatalogTableIdent(
         ident.namespace_ident.parts.push_back(part);
       }
     }
-  } else if (!local_paths.database_name.empty()) {
-    ident.namespace_ident.parts.push_back(local_paths.database_name);
-  } else {
-    ident.namespace_ident.parts.push_back("default");
   }
 
   auto table_it = options.find("table");
@@ -295,9 +395,7 @@ bool ParseObjectStoreConnectionString(const std::string &serialized,
                                       std::string *error)
 {
   if (config == nullptr) {
-    if (error != nullptr) {
-      *error = "object store config must not be null";
-    }
+    SetError(error, "object store config must not be null");
     return false;
   }
 
@@ -307,27 +405,34 @@ bool ParseObjectStoreConnectionString(const std::string &serialized,
   }
 
   ObjectStoreConfig parsed;
-  auto endpoint_it = options.find("endpoint");
-  auto bucket_it = options.find("bucket");
-
-  if (endpoint_it == options.end() || endpoint_it->second.empty()) {
-    if (error != nullptr) {
-      *error = "CONNECTION must include endpoint=...";
-    }
+  if (options.count("access_key_id")) {
+    SetError(error,
+             "CONNECTION must not include access_key_id=...; use parquet "
+             "plugin variables for secrets");
+    return false;
+  }
+  if (options.count("secret_access_key")) {
+    SetError(error,
+             "CONNECTION must not include secret_access_key=...; use parquet "
+             "plugin variables for secrets");
+    return false;
+  }
+  if (options.count("session_token")) {
+    SetError(error,
+             "CONNECTION must not include session_token=...; use parquet "
+             "plugin variables for secrets");
+    return false;
+  }
+  if (options.count("expiration")) {
+    SetError(error,
+             "CONNECTION must not include expiration=...; use parquet plugin "
+             "variables for secrets");
     return false;
   }
 
-  if (bucket_it == options.end() || bucket_it->second.empty()) {
-    if (error != nullptr) {
-      *error = "CONNECTION must include bucket=...";
-    }
-    return false;
-  }
-
-  parsed.endpoint = endpoint_it->second;
-  parsed.bucket = bucket_it->second;
-  parsed.region =
-      options.count("region") ? options["region"] : "us-east-1";
+  parsed.endpoint = options.count("endpoint") ? options["endpoint"] : "";
+  parsed.bucket = options.count("bucket") ? options["bucket"] : "";
+  parsed.region = options.count("region") ? options["region"] : "";
   parsed.key_prefix = options.count("key_prefix") ? options["key_prefix"] : "";
   parsed.url_style =
       options.count("url_style") ? options["url_style"] : "path";
@@ -349,15 +454,6 @@ bool ParseObjectStoreConnectionString(const std::string &serialized,
     parsed.timeout_ms = std::stol(options["timeout_ms"]);
   }
 
-  parsed.credentials.access_key_id =
-      options.count("access_key_id") ? options["access_key_id"] : "";
-  parsed.credentials.secret_access_key =
-      options.count("secret_access_key") ? options["secret_access_key"] : "";
-  parsed.credentials.session_token =
-      options.count("session_token") ? options["session_token"] : "";
-  parsed.credentials.expiration =
-      options.count("expiration") ? options["expiration"] : "";
-
   *config = parsed;
   return true;
 }
@@ -370,9 +466,7 @@ bool ParseCatalogConnectionString(const std::string &serialized,
                                   std::string *error)
 {
   if (config == nullptr || ident == nullptr || access_delegation == nullptr) {
-    if (error != nullptr) {
-      *error = "catalog outputs must not be null";
-    }
+    SetError(error, "catalog outputs must not be null");
     return false;
   }
 
@@ -382,19 +476,16 @@ bool ParseCatalogConnectionString(const std::string &serialized,
   }
 
   CatalogClientConfig parsed;
-  auto uri_it = options.find("uri");
-  if (uri_it == options.end() || uri_it->second.empty()) {
-    if (error != nullptr) {
-      *error = "CATALOG must include uri=...";
-    }
+  if (options.count("bearer_token")) {
+    SetError(error,
+             "CATALOG must not include bearer_token=...; use parquet plugin "
+             "variables for secrets");
     return false;
   }
 
-  parsed.base_uri = uri_it->second;
+  parsed.base_uri = options.count("uri") ? options["uri"] : "";
   parsed.warehouse = options.count("warehouse") ? options["warehouse"] : "";
   parsed.prefix = options.count("prefix") ? options["prefix"] : "";
-  parsed.bearer_token =
-      options.count("bearer_token") ? options["bearer_token"] : "";
 
   if (options.count("connect_timeout_ms")) {
     parsed.connect_timeout_ms = std::stol(options["connect_timeout_ms"]);
@@ -429,6 +520,148 @@ bool ParseCatalogConnectionString(const std::string &serialized,
   return true;
 }
 
+bool ResolveCreateTableMetadata(const char *table_path,
+                                const char *catalog_serialized,
+                                const char *connection_serialized,
+                                TableMetadata *metadata,
+                                std::string *error)
+{
+  if (metadata == nullptr) {
+    SetError(error, "metadata output pointer must not be null");
+    return false;
+  }
+
+  TableMetadata resolved;
+  resolved.table_options = ResolveDefaultTableOptions();
+  resolved.local_paths = ResolveLocalPaths(table_path);
+  resolved.metadata_file_path = ResolveMetadataFilePath(table_path);
+
+  if (!ParseCatalogConnectionString(
+          catalog_serialized != nullptr ? catalog_serialized : "",
+          resolved.local_paths, &resolved.catalog_config,
+          &resolved.catalog_table_ident, &resolved.access_delegation, error)) {
+    return false;
+  }
+
+  if (!ParseObjectStoreConnectionString(
+          connection_serialized != nullptr ? connection_serialized : "",
+          &resolved.object_store_config, error)) {
+    return false;
+  }
+
+  const auto defaults = parquet_plugin_config_snapshot();
+  ApplyCatalogDefaults(defaults, &resolved);
+  ApplyObjectStoreDefaults(defaults, &resolved);
+  FinalizeResolvedMetadata(&resolved);
+
+  *metadata = std::move(resolved);
+  return true;
+}
+
+bool ResolveRuntimeTableMetadata(const char *table_path, TableMetadata *metadata,
+                                 std::string *error)
+{
+  if (metadata == nullptr) {
+    SetError(error, "metadata output pointer must not be null");
+    return false;
+  }
+
+  TableMetadata resolved;
+  const auto metadata_path = ResolveMetadataFilePath(table_path);
+
+  if (MetadataSidecarExists(metadata_path)) {
+    if (!LoadTableMetadata(table_path, &resolved, error)) {
+      return false;
+    }
+  } else {
+    resolved.table_options = ResolveDefaultTableOptions();
+    resolved.local_paths = ResolveLocalPaths(table_path);
+    resolved.metadata_file_path = metadata_path;
+  }
+
+  if (resolved.local_paths.table_path.empty()) {
+    resolved.local_paths = ResolveLocalPaths(table_path);
+  }
+  if (resolved.metadata_file_path.empty()) {
+    resolved.metadata_file_path = metadata_path;
+  }
+
+  const auto defaults = parquet_plugin_config_snapshot();
+  ApplyCatalogDefaults(defaults, &resolved);
+  ApplyObjectStoreDefaults(defaults, &resolved);
+  FinalizeResolvedMetadata(&resolved);
+
+  *metadata = std::move(resolved);
+  return true;
+}
+
+bool ValidateCatalogConfig(const TableMetadata &metadata, std::string *error)
+{
+  if (metadata.catalog_config.base_uri.empty()) {
+    SetError(error,
+             "Parquet catalog base URI is missing; configure "
+             "parquet_lakekeeper_base_url or pass CATALOG='uri=...'");
+    return false;
+  }
+  if (metadata.catalog_config.warehouse.empty()) {
+    SetError(error,
+             "Parquet catalog warehouse is missing; configure "
+             "parquet_lakekeeper_warehouse_id or pass CATALOG='warehouse=...'");
+    return false;
+  }
+  if (metadata.catalog_table_ident.namespace_ident.parts.empty()) {
+    SetError(error,
+             "Parquet catalog namespace is missing; configure "
+             "parquet_lakekeeper_namespace or pass CATALOG='namespace=...'");
+    return false;
+  }
+  if (metadata.catalog_table_ident.table_name.empty()) {
+    SetError(error, "Parquet catalog table name is missing");
+    return false;
+  }
+  return true;
+}
+
+bool ValidateObjectStoreConfig(const TableMetadata &metadata,
+                               bool require_credentials,
+                               std::string *error)
+{
+  if (metadata.object_store_config.bucket.empty()) {
+    SetError(error,
+             "Parquet object store bucket is missing; configure "
+             "parquet_s3_bucket or pass CONNECTION='bucket=...'");
+    return false;
+  }
+  if (metadata.object_store_config.endpoint.empty()) {
+    SetError(error,
+             "Parquet object store endpoint is missing; pass "
+             "CONNECTION='endpoint=...' or configure a region default");
+    return false;
+  }
+  if (metadata.object_store_config.auth_mode ==
+      ObjectStoreAuthMode::kRemoteSigning) {
+    SetError(error,
+             "Parquet object store auth_mode=remote_signing is not supported "
+             "by the current handler path");
+    return false;
+  }
+  if (metadata.object_store_config.auth_mode ==
+      ObjectStoreAuthMode::kTemporaryCredentials) {
+    SetError(error,
+             "Parquet object store auth_mode=temporary is not yet supported "
+             "by the current handler path");
+    return false;
+  }
+  if (require_credentials &&
+      metadata.object_store_config.credentials.empty()) {
+    SetError(error,
+             "Parquet object store credentials are missing; configure "
+             "parquet_s3_access_key_id and parquet_s3_secret_access_key");
+    return false;
+  }
+  return true;
+}
+
 bool SaveTableMetadata(const TableMetadata &metadata, std::string *error)
 {
   const auto metadata_path = metadata.metadata_file_path.empty()
@@ -453,7 +686,6 @@ bool SaveTableMetadata(const TableMetadata &metadata, std::string *error)
       {"base_uri", metadata.catalog_config.base_uri},
       {"warehouse", metadata.catalog_config.warehouse},
       {"prefix", metadata.catalog_config.prefix},
-      {"bearer_token", metadata.catalog_config.bearer_token},
       {"client_properties",
        MapToJsonObject(metadata.catalog_config.client_properties)},
       {"namespace_parts", metadata.catalog_table_ident.namespace_ident.parts},
@@ -470,17 +702,7 @@ bool SaveTableMetadata(const TableMetadata &metadata, std::string *error)
       {"connect_timeout_ms", metadata.object_store_config.connect_timeout_ms},
       {"timeout_ms", metadata.object_store_config.timeout_ms},
       {"auth_mode",
-       ObjectStoreAuthModeToString(metadata.object_store_config.auth_mode)},
-      {"credentials",
-       {
-           {"access_key_id",
-            metadata.object_store_config.credentials.access_key_id},
-           {"secret_access_key",
-            metadata.object_store_config.credentials.secret_access_key},
-           {"session_token",
-            metadata.object_store_config.credentials.session_token},
-           {"expiration", metadata.object_store_config.credentials.expiration},
-       }}};
+       ObjectStoreAuthModeToString(metadata.object_store_config.auth_mode)}};
   const auto active_scan_paths =
       !metadata.active_scan_paths.empty()
           ? metadata.active_scan_paths
@@ -576,8 +798,6 @@ bool LoadTableMetadata(const char *table_path, TableMetadata *metadata,
           catalog.value("warehouse", std::string());
       loaded.catalog_config.prefix =
           catalog.value("prefix", std::string());
-      loaded.catalog_config.bearer_token =
-          catalog.value("bearer_token", std::string());
       if (catalog.contains("client_properties")) {
         loaded.catalog_config.client_properties =
             JsonObjectToMap(catalog["client_properties"]);
@@ -614,19 +834,6 @@ bool LoadTableMetadata(const char *table_path, TableMetadata *metadata,
           object_store.value("timeout_ms", 30000L);
       loaded.object_store_config.auth_mode = ParseObjectStoreAuthMode(
           object_store.value("auth_mode", std::string("static")));
-
-      if (object_store.contains("credentials") &&
-          object_store["credentials"].is_object()) {
-        const auto &credentials = object_store["credentials"];
-        loaded.object_store_config.credentials.access_key_id =
-            credentials.value("access_key_id", std::string());
-        loaded.object_store_config.credentials.secret_access_key =
-            credentials.value("secret_access_key", std::string());
-        loaded.object_store_config.credentials.session_token =
-            credentials.value("session_token", std::string());
-        loaded.object_store_config.credentials.expiration =
-            credentials.value("expiration", std::string());
-      }
     }
 
     loaded.table_uuid = payload.value("table_uuid", std::string());

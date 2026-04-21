@@ -1,0 +1,31 @@
+show variables like 'parquet_lakekeeper_%';
+Variable_name	Value
+parquet_lakekeeper_base_url	http://127.0.0.1:8181/catalog/v1/
+parquet_lakekeeper_bearer_token	*****
+parquet_lakekeeper_namespace	analytics
+parquet_lakekeeper_warehouse_id	warehouse-123
+show variables like 'parquet_s3_%';
+Variable_name	Value
+parquet_s3_access_key_id	*****
+parquet_s3_bucket	warehouse
+parquet_s3_data_prefix	iceberg/data
+parquet_s3_region	us-east-1
+parquet_s3_secret_access_key	*****
+set @@parquet_s3_bucket='other-bucket';
+ERROR HY000: Variable 'parquet_s3_bucket' is a read only variable
+set @@parquet_s3_access_key_id='other-access';
+ERROR HY000: Variable 'parquet_s3_access_key_id' is a read only variable
+set @@parquet_lakekeeper_bearer_token='other-token';
+ERROR HY000: Variable 'parquet_lakekeeper_bearer_token' is a read only variable
+create database if not exists test;
+use test;
+create table t_secret_conn (
+  id int
+) engine=parquet
+  connection='endpoint=https://minio.local:9000;bucket=warehouse;access_key_id=bad';
+ERROR HY000: CONNECTION must not include access_key_id=...; use parquet plugin variables for secrets
+create table t_secret_catalog (
+  id int
+) engine=parquet
+  catalog='uri=http://127.0.0.1:8181/catalog/v1/;bearer_token=bad';
+ERROR HY000: CATALOG must not include bearer_token=...; use parquet plugin variables for secrets

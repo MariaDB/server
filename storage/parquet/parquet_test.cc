@@ -10,6 +10,7 @@
   #include "parquet_iceberg.h"
   #include "parquet_metadata.h"
   #include "parquet_object_store.h"
+  #include "parquet_shared.h"
   #include "parquet_transaction.h"
 
   #include <cstdio>
@@ -18,6 +19,50 @@
 
 
 std::string build_query_create(std::string table_name, TABLE *table_arg);
+
+namespace {
+
+struct PluginConfigGuard {
+  char *lakekeeper_base_url = parquet_lakekeeper_base_url;
+  char *lakekeeper_warehouse_id = parquet_lakekeeper_warehouse_id;
+  char *lakekeeper_namespace = parquet_lakekeeper_namespace;
+  char *lakekeeper_bearer_token = parquet_lakekeeper_bearer_token;
+  char *s3_bucket = parquet_s3_bucket;
+  char *s3_data_prefix = parquet_s3_data_prefix;
+  char *s3_region = parquet_s3_region;
+  char *s3_access_key_id = parquet_s3_access_key_id;
+  char *s3_secret_access_key = parquet_s3_secret_access_key;
+
+  ~PluginConfigGuard()
+  {
+    parquet_lakekeeper_base_url = lakekeeper_base_url;
+    parquet_lakekeeper_warehouse_id = lakekeeper_warehouse_id;
+    parquet_lakekeeper_namespace = lakekeeper_namespace;
+    parquet_lakekeeper_bearer_token = lakekeeper_bearer_token;
+    parquet_s3_bucket = s3_bucket;
+    parquet_s3_data_prefix = s3_data_prefix;
+    parquet_s3_region = s3_region;
+    parquet_s3_access_key_id = s3_access_key_id;
+    parquet_s3_secret_access_key = s3_secret_access_key;
+  }
+};
+
+void set_test_plugin_config()
+{
+  parquet_lakekeeper_base_url =
+      const_cast<char *>("http://127.0.0.1:8181/catalog/v1/");
+  parquet_lakekeeper_warehouse_id =
+      const_cast<char *>("warehouse-123");
+  parquet_lakekeeper_namespace = const_cast<char *>("analytics.stage");
+  parquet_lakekeeper_bearer_token = const_cast<char *>("secret-token");
+  parquet_s3_bucket = const_cast<char *>("warehouse");
+  parquet_s3_data_prefix = const_cast<char *>("iceberg/analytics/users");
+  parquet_s3_region = const_cast<char *>("us-east-1");
+  parquet_s3_access_key_id = const_cast<char *>("minio");
+  parquet_s3_secret_access_key = const_cast<char *>("secret");
+}
+
+} // namespace
 
 static void test_build_query_basic_schema()
 {
@@ -228,15 +273,26 @@ static void test_parse_object_store_connection()
   std::string error;
   ok(parquet::ParseObjectStoreConnectionString(
          "endpoint=https://minio.local:9000;bucket=warehouse;region=us-east-1;"
-         "key_prefix=iceberg/db/t1;access_key_id=minio;secret_access_key=secret;"
-         "url_style=virtual-host",
+         "key_prefix=iceberg/db/t1;url_style=virtual-host",
          &config, &error) &&
          config.endpoint == "https://minio.local:9000" &&
          config.bucket == "warehouse" &&
          config.key_prefix == "iceberg/db/t1" &&
          config.url_style == "virtual-host" &&
-         config.credentials.access_key_id == "minio",
-     "object store connection parsing fills the Stage 1 config shape");
+         config.credentials.empty(),
+     "object store connection parsing accepts non-secret routing options");
+}
+
+static void test_parse_object_store_connection_rejects_secrets()
+{
+  parquet::ObjectStoreConfig config;
+  std::string error;
+  ok(!parquet::ParseObjectStoreConnectionString(
+         "endpoint=https://minio.local:9000;bucket=warehouse;"
+         "access_key_id=minio",
+         &config, &error) &&
+         error.find("must not include access_key_id") != std::string::npos,
+     "object store connection parsing rejects secrets in DDL");
 }
 
 static void test_parse_catalog_connection()
@@ -260,6 +316,21 @@ static void test_parse_catalog_connection()
          ident.table_name == "users_iceberg" &&
          access_delegation == "vended-credentials",
      "catalog connection parsing resolves table identity and delegation");
+}
+
+static void test_parse_catalog_connection_rejects_bearer_token()
+{
+  parquet::CatalogClientConfig config;
+  parquet::CatalogTableIdent ident;
+  std::string access_delegation;
+  std::string error;
+  auto local_paths= parquet::ResolveLocalPaths("/tmp/test_db/users");
+
+  ok(!parquet::ParseCatalogConnectionString(
+         "uri=http://127.0.0.1:8181/catalog;bearer_token=secret", local_paths,
+         &config, &ident, &access_delegation, &error) &&
+         error.find("must not include bearer_token") != std::string::npos,
+     "catalog connection parsing rejects secrets in DDL");
 }
 
 static void test_build_s3_uri_and_absolute_location()
@@ -295,6 +366,7 @@ static void test_metadata_roundtrip()
   metadata.object_store_config.endpoint= "https://minio.local:9000";
   metadata.object_store_config.bucket= "warehouse";
   metadata.object_store_config.key_prefix= "iceberg/analytics/users";
+  metadata.catalog_config.bearer_token= "secret-token";
   metadata.object_store_config.credentials.access_key_id= "minio";
   metadata.object_store_config.credentials.secret_access_key= "secret";
   metadata.table_uuid= "9d4796f7-3c97-4f4f-b1af-3b87b77b4d53";
@@ -326,10 +398,78 @@ static void test_metadata_roundtrip()
          loaded.current_snapshot_id == "12345" &&
          loaded.active_files.size() == 1 &&
          loaded.active_files[0].record_count == 7 &&
+         loaded.catalog_config.bearer_token.empty() &&
+         loaded.object_store_config.credentials.empty() &&
          loaded.active_scan_paths.size() == 1 &&
          loaded.active_scan_paths[0] ==
              "s3://warehouse/iceberg/analytics/users/data/flush_1.parquet",
-     "table metadata round-trips through the JSON sidecar");
+     "table metadata round-trips through the JSON sidecar without secrets");
+
+  std::remove(metadata.metadata_file_path.c_str());
+}
+
+static void test_resolve_create_table_metadata_merges_defaults()
+{
+  PluginConfigGuard guard;
+  set_test_plugin_config();
+
+  parquet::TableMetadata metadata;
+  std::string error;
+  ok(parquet::ResolveCreateTableMetadata(
+         "/tmp/test_db/users",
+         "table=users_iceberg;namespace=analytics.custom",
+         "endpoint=https://minio.local:9000;url_style=virtual-host",
+         &metadata, &error) &&
+         metadata.catalog_config.base_uri ==
+             "http://127.0.0.1:8181/catalog/v1/" &&
+         metadata.catalog_config.warehouse == "warehouse-123" &&
+         metadata.catalog_table_ident.namespace_ident.parts.size() == 2 &&
+         metadata.catalog_table_ident.namespace_ident.parts[0] == "analytics" &&
+         metadata.catalog_table_ident.namespace_ident.parts[1] == "custom" &&
+         metadata.catalog_table_ident.table_name == "users_iceberg" &&
+         metadata.object_store_config.endpoint == "https://minio.local:9000" &&
+         metadata.object_store_config.bucket == "warehouse" &&
+         metadata.object_store_config.key_prefix == "iceberg/analytics/users" &&
+         metadata.object_store_config.credentials.access_key_id == "minio" &&
+         metadata.object_store_config.credentials.secret_access_key ==
+             "secret",
+     "create metadata resolution merges global defaults and DDL overrides");
+}
+
+static void test_runtime_defaults_merge()
+{
+  PluginConfigGuard guard;
+  set_test_plugin_config();
+
+  parquet::TableMetadata metadata;
+  metadata.local_paths = parquet::ResolveLocalPaths("/tmp/runtime_merge");
+  metadata.metadata_file_path =
+      parquet::ResolveMetadataFilePath(metadata.local_paths.table_path.c_str());
+  metadata.catalog_enabled = true;
+  metadata.object_store_enabled = true;
+  metadata.catalog_config.base_uri = "http://custom/catalog/v1/";
+  metadata.catalog_table_ident.table_name = "runtime_merge";
+  metadata.object_store_config.endpoint = "https://minio.local:9000";
+
+  std::string error;
+  ok(parquet::SaveTableMetadata(metadata, &error),
+     "partial runtime metadata saves before default injection");
+
+  parquet::TableMetadata resolved;
+  ok(parquet::ResolveRuntimeTableMetadata(
+         metadata.local_paths.table_path.c_str(), &resolved, &error) &&
+         resolved.catalog_config.base_uri == "http://custom/catalog/v1/" &&
+         resolved.catalog_config.warehouse == "warehouse-123" &&
+         resolved.catalog_table_ident.namespace_ident.parts.size() == 2 &&
+         resolved.catalog_table_ident.namespace_ident.parts[0] == "analytics" &&
+         resolved.catalog_table_ident.namespace_ident.parts[1] == "stage" &&
+         resolved.object_store_config.bucket == "warehouse" &&
+         resolved.object_store_config.endpoint == "https://minio.local:9000" &&
+         resolved.object_store_config.region == "us-east-1" &&
+         resolved.object_store_config.credentials.access_key_id == "minio" &&
+         resolved.object_store_config.credentials.secret_access_key ==
+             "secret",
+     "runtime metadata resolution fills missing non-secrets and injects secrets");
 
   std::remove(metadata.metadata_file_path.c_str());
 }
@@ -430,9 +570,13 @@ int main()
   test_parse_s3_uri();
   test_parse_key_value_options();
   test_parse_object_store_connection();
+  test_parse_object_store_connection_rejects_secrets();
   test_parse_catalog_connection();
+  test_parse_catalog_connection_rejects_bearer_token();
   test_build_s3_uri_and_absolute_location();
   test_metadata_roundtrip();
+  test_resolve_create_table_metadata_merges_defaults();
+  test_runtime_defaults_merge();
   test_extract_active_scan_paths();
   test_build_iceberg_commit_artifacts();
 

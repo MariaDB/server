@@ -1,0 +1,24 @@
+show variables like 'parquet_lakekeeper_%';
+show variables like 'parquet_s3_%';
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set @@parquet_s3_bucket='other-bucket';
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set @@parquet_s3_access_key_id='other-access';
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set @@parquet_lakekeeper_bearer_token='other-token';
+
+create database if not exists test;
+use test;
+
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create table t_secret_conn (
+  id int
+) engine=parquet
+  connection='endpoint=https://minio.local:9000;bucket=warehouse;access_key_id=bad';
+
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create table t_secret_catalog (
+  id int
+) engine=parquet
+  catalog='uri=http://127.0.0.1:8181/catalog/v1/;bearer_token=bad';

@@ -3,6 +3,7 @@
 #include "ha_parquet_pushdown.h"
 
 #include "parquet_cross_engine_scan.h"
+#include "parquet_metadata.h"
 #include "parquet_shared.h"
 
 #include "field.h"
@@ -235,6 +236,18 @@ std::string describe_tables(const std::vector<TABLE_LIST *> &tables)
   return description;
 }
 
+bool duckdb_configs_compatible(const parquet::ObjectStoreConfig &left,
+                               const parquet::ObjectStoreConfig &right)
+{
+  return left.endpoint == right.endpoint && left.region == right.region &&
+         left.url_style == right.url_style &&
+         left.auth_mode == right.auth_mode &&
+         left.credentials.access_key_id == right.credentials.access_key_id &&
+         left.credentials.secret_access_key ==
+             right.credentials.secret_access_key &&
+         left.credentials.session_token == right.credentials.session_token;
+}
+
 bool can_pushdown_to_parquet(SELECT_LEX *sel_lex,
                              std::vector<TABLE_LIST *> &parquet_tables,
                              std::vector<TABLE_LIST *> &external_tables)
@@ -345,12 +358,44 @@ int ha_parquet_select_handler::init_scan()
   duckdb_con->Query("INSTALL httpfs;");
   parquet_log_info("DuckDB query [select/load-httpfs] LOAD httpfs;");
   duckdb_con->Query("LOAD httpfs;");
-  configure_duckdb_s3(duckdb_con.get());
+
+  parquet::ObjectStoreConfig scan_object_store_config;
+  bool have_scan_object_store_config = false;
 
   for (TABLE_LIST *tbl : parquet_tables) {
+    parquet::TableMetadata metadata;
+    std::string error_message;
+    if (!parquet::ResolveRuntimeTableMetadata(
+            tbl->table->s->normalized_path.str, &metadata, &error_message) ||
+        !parquet::ValidateCatalogConfig(metadata, &error_message) ||
+        !parquet::ValidateObjectStoreConfig(metadata, true, &error_message)) {
+      cleanup_external_registry();
+      my_error(ER_UNKNOWN_ERROR, MYF(0), error_message.c_str());
+      DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+    }
+
+    if (!have_scan_object_store_config) {
+      scan_object_store_config = metadata.object_store_config;
+      have_scan_object_store_config = true;
+    } else if (!duckdb_configs_compatible(scan_object_store_config,
+                                          metadata.object_store_config)) {
+      cleanup_external_registry();
+      my_error(ER_UNKNOWN_ERROR, MYF(0),
+               "Parquet pushdown currently requires matching object-store "
+               "credentials and endpoint settings across Parquet tables");
+      DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+    }
+
+    if (!configure_duckdb_s3(duckdb_con.get(), metadata.object_store_config,
+                             &error_message)) {
+      cleanup_external_registry();
+      my_error(ER_UNKNOWN_ERROR, MYF(0), error_message.c_str());
+      DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+    }
+
     std::vector<std::string> s3_files;
     long http_code = 0;
-    if (!resolve_parquet_data_files(tbl->table_name.str, &s3_files, &http_code)) {
+    if (!resolve_parquet_data_files(metadata, &s3_files, &http_code)) {
       cleanup_external_registry();
       my_error(ER_UNKNOWN_ERROR, MYF(0),
                "Failed to fetch LakeKeeper metadata for Parquet pushdown");
@@ -381,6 +426,16 @@ int ha_parquet_select_handler::init_scan()
       const std::string error_message =
           create_view_result ? create_view_result->GetError()
                              : "DuckDB returned a null result while creating a Parquet view";
+      my_error(ER_UNKNOWN_ERROR, MYF(0), error_message.c_str());
+      DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+    }
+  }
+
+  if (have_scan_object_store_config) {
+    std::string error_message;
+    if (!configure_duckdb_s3(duckdb_con.get(), scan_object_store_config,
+                             &error_message)) {
+      cleanup_external_registry();
       my_error(ER_UNKNOWN_ERROR, MYF(0), error_message.c_str());
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
     }

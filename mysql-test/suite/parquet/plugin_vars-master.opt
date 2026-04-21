@@ -1,0 +1,9 @@
+--parquet_lakekeeper_base_url=http://127.0.0.1:8181/catalog/v1/
+--parquet_lakekeeper_warehouse_id=warehouse-123
+--parquet_lakekeeper_namespace=analytics
+--parquet_lakekeeper_bearer_token=test-token
+--parquet_s3_bucket=warehouse
+--parquet_s3_data_prefix=iceberg/data
+--parquet_s3_region=us-east-1
+--parquet_s3_access_key_id=test-access
+--parquet_s3_secret_access_key=test-secret

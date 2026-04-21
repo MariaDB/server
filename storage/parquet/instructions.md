@@ -1,130 +1,97 @@
-# Parquet Engine Setup Instructions
+# Running The Refactored Parquet Engine
 
-These instructions are written to be portable across local checkouts.
+This guide is for the current Parquet engine after the config refactor:
 
-Assumptions:
+- no `.env`
+- no `PARQUET_*` environment variables
+- startup config comes from Parquet plugin/system variables
+- per-table non-secret routing comes from `CATALOG='...'` and
+  `CONNECTION='...'`
 
-- you are starting from the MariaDB server repo root
-- your build directory is named `build`
-- you have a MariaDB defaults file for this test setup
-- you want to use LakeKeeper plus S3-compatible storage
+These instructions are path-neutral for a macOS checkout. Start from the repo
+root and define a few reusable variables:
 
-If your build directory or config file uses a different name, substitute your local values.
+```bash
+cd /path/to/your/server/checkout
 
-## 1. Build the server
+export REPO_ROOT="$(pwd)"
+export BUILD_DIR="${BUILD_DIR:-$REPO_ROOT/build}"
+export CNF_PATH="${CNF_PATH:-$BUILD_DIR/mariadb-parquet.cnf}"
+export SOCKET_PATH="${SOCKET_PATH:-/tmp/mariadb-parquet.sock}"
+export TMP_DIR="${TMP_DIR:-$BUILD_DIR/parquet-tmp}"
+```
+
+If your build directory is not `build/`, set `BUILD_DIR` first and the rest of
+the commands below will still work.
+
+## 1. Build the new code
 
 From the repo root:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
-cmake --build build --target mariadbd --parallel 4
+cd "$REPO_ROOT"
+
+cmake --build "$BUILD_DIR" --target parquet --parallel 4
+cmake --build "$BUILD_DIR" --target mariadbd --parallel 4
+```
+
+If you changed Parquet code again, rerun those two commands before starting the
+server.
+
+## 2. Put Parquet startup config in `mariadb-parquet.cnf`
+
+Open:
+
+`$CNF_PATH`
+
+Add or update the `[mariadbd]` section with Parquet plugin vars:
+
+```ini
+[mariadbd]
+parquet_lakekeeper_base_url=http://localhost:8181/catalog/v1/
+parquet_lakekeeper_warehouse_id=REPLACE_WITH_WAREHOUSE_UUID
+parquet_lakekeeper_namespace=data
+parquet_lakekeeper_bearer_token=REPLACE_IF_YOU_USE_AUTH
+parquet_s3_bucket=mariadb-parquet-demo
+parquet_s3_data_prefix=data
+parquet_s3_region=us-east-2
+parquet_s3_access_key_id=REPLACE_ME
+parquet_s3_secret_access_key=REPLACE_ME
 ```
 
 Important:
 
-- rebuild `mariadbd`, not only the `parquet` target, after changing Parquet engine code
-- when running the server, use the binary from `build/sql/mariadbd`, not `sql/mariadbd` from the source tree
+- `parquet_lakekeeper_base_url` should include `/catalog/v1/`
+- secrets belong here, not in table DDL
+- these variables are startup/read-only, so restart `mariadbd` after changes
+- `SHOW VARIABLES LIKE 'parquet_%'` will mask secrets as `*****`
 
-### Linux quick start
+If you also need a standalone local socket for this run, make sure the config
+either already sets a socket path or add:
 
-For a fresh Ubuntu-style environment, install the common build prerequisites first:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y \
-  build-essential \
-  bison \
-  cmake \
-  flex \
-  libaio-dev \
-  libcurl4-openssl-dev \
-  libncurses5-dev \
-  libpcre2-dev \
-  libperl-dev \
-  libsnappy-dev \
-  libssl-dev \
-  libsystemd-dev \
-  ninja-build \
-  perl \
-  pkg-config \
-  zlib1g-dev
+```ini
+[mariadbd]
+socket=/tmp/mariadb-parquet.sock
 ```
 
-Then build from the repo root:
-
-```bash
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWITH_UNIT_TESTS=OFF
-cmake --build build --target mariadbd --parallel 4
-```
-
-Start the server from the build directory:
-
-```bash
-cd build
-./sql/mariadbd --defaults-file=/absolute/path/to/your/mariadb-parquet.cnf
-```
-
-## 2. Configure runtime settings in `.env`
-
-The Parquet engine now reads its LakeKeeper and S3 settings from a `.env` file in the repo root.
-
-Create or update:
-
-```text
-.env
-```
-
-Supported keys:
-
-- `PARQUET_LAKEKEEPER_BASE_URL`
-- `PARQUET_LAKEKEEPER_WAREHOUSE_ID`
-- `PARQUET_LAKEKEEPER_NAMESPACE`
-- `PARQUET_S3_BUCKET`
-- `PARQUET_S3_DATA_PREFIX`
-- `PARQUET_S3_REGION`
-- `PARQUET_S3_ACCESS_KEY_ID`
-- `PARQUET_S3_SECRET_ACCESS_KEY`
-
-Example:
-
-```dotenv
-PARQUET_LAKEKEEPER_BASE_URL=http://localhost:8181
-PARQUET_LAKEKEEPER_WAREHOUSE_ID=REPLACE_WITH_WAREHOUSE_UUID
-PARQUET_LAKEKEEPER_NAMESPACE=default
-PARQUET_S3_BUCKET=mariadb-parquet-demo
-PARQUET_S3_DATA_PREFIX=data
-PARQUET_S3_REGION=us-east-2
-PARQUET_S3_ACCESS_KEY_ID=REPLACE_ME
-PARQUET_S3_SECRET_ACCESS_KEY=REPLACE_ME
-```
-
-If you want to keep the env file somewhere else, set:
-
-```bash
-export PARQUET_ENV_FILE=/absolute/path/to/your/.env
-```
-
-Restart `mariadbd` after changing `.env`.
+If you use a different socket path, update `SOCKET_PATH` in your shell before
+running the client commands below.
 
 ## 3. Start LakeKeeper
 
-If you do not already have LakeKeeper running locally:
+If LakeKeeper is not already running:
 
 ```bash
-git clone https://github.com/lakekeeper/lakekeeper
-cd lakekeeper/examples/minimal
+cd "$REPO_ROOT/lakekeeper/examples/minimal"
 docker compose up -d
-```
-
-Verify it:
-
-```bash
 curl http://localhost:8181/health
 ```
 
-## 4. Create the warehouse
+You want a healthy response before you start MariaDB.
 
-Create the warehouse once, using your real bucket and credentials:
+## 4. Create the warehouse and namespace
+
+Create the warehouse once if you do not already have one:
 
 ```bash
 curl -X POST http://localhost:8181/management/v1/warehouse \
@@ -149,91 +116,70 @@ curl -X POST http://localhost:8181/management/v1/warehouse \
 
 Copy the returned warehouse UUID into:
 
-- `PARQUET_LAKEKEEPER_WAREHOUSE_ID`
+- `parquet_lakekeeper_warehouse_id`
 
-## 5. Create the namespace
-
-If your `.env` uses `PARQUET_LAKEKEEPER_NAMESPACE=default`, create that namespace once:
+If your config uses `parquet_lakekeeper_namespace=data`, create it once:
 
 ```bash
 curl -X POST \
   http://localhost:8181/catalog/v1/REPLACE_WITH_WAREHOUSE_UUID/namespaces \
   -H "Content-Type: application/json" \
-  -d '{"namespace":["default"]}'
+  -d '{"namespace":["data"]}'
 ```
 
-If you use a different namespace in `.env`, replace `default` in that request.
+## 5. Initialize the datadir if needed
 
-## 6. Initialize the MariaDB data directory
-
-From the build directory:
+If this local datadir already exists and is valid, you can skip this.
 
 ```bash
-cd build
-scripts/mariadb-install-db \
-  --srcdir=.. \
-  --defaults-file=/absolute/path/to/your/mariadb-parquet.cnf
+mkdir -p "$TMP_DIR"
+
+"$BUILD_DIR/scripts/mariadb-install-db" \
+  --force \
+  --auth-root-authentication-method=socket \
+  --auth-root-socket-user="$(whoami)" \
+  --srcdir="$REPO_ROOT" \
+  --builddir="$BUILD_DIR" \
+  --defaults-file="$CNF_PATH"
 ```
 
-Use your own MariaDB defaults file path here.
-
-## 7. Start the server
-
-From the build directory:
+## 6. Start MariaDB with the new Parquet code
 
 ```bash
-cd build
-./sql/mariadbd --defaults-file=/absolute/path/to/your/mariadb-parquet.cnf
+"$BUILD_DIR/sql/mariadbd" \
+  --defaults-file="$CNF_PATH"
 ```
 
-Important:
+If another local MariaDB is already using the same datadir or socket, stop it
+first or point this config at a different datadir/socket.
 
-- use `./sql/mariadbd` from the build directory
-- do not run `sql/mariadbd` from the source tree by mistake
-
-If you want to verify the running executable:
+## 7. Connect
 
 ```bash
-lsof -p $(pgrep -n mariadbd) | awk '$4=="txt" {print $9}'
+"$BUILD_DIR/client/mariadb" \
+  --defaults-file="$CNF_PATH" \
+  --protocol=SOCKET \
+  --socket="$SOCKET_PATH"
 ```
 
-Expected shape:
+## 8. Verify the Parquet startup variables
 
-```text
-.../build/sql/mariadbd
+Run:
+
+```sql
+SHOW VARIABLES LIKE 'parquet_%';
+SHOW VARIABLES LIKE 'parquet%token';
+SHOW VARIABLES LIKE 'parquet%s3%key%';
 ```
 
-## 8. Rebuild and restart after Parquet code changes
+You should see the new `parquet_*` plugin vars, and the secret values should
+appear as `*****`.
 
-If you change files under `storage/parquet/`, rebuild `mariadbd`:
+## 9. Create a Parquet table with the new config model
 
-```bash
-cmake --build build --target mariadbd --parallel 4
-```
+Use plugin vars for secrets, and keep table DDL non-secret.
 
-Then restart the server so the new code is loaded.
-
-## 9. Connect to MariaDB
-
-From the repo root:
-
-```bash
-build/client/mariadb --defaults-file=/absolute/path/to/your/mariadb-parquet.cnf
-```
-
-If your defaults file does not define the database, socket, or port, pass those explicitly.
-
-## 9a. Linux smoke test
-
-To verify that the Linux-built server starts and the Parquet engine is registered, run:
-
-```bash
-perl build/mysql-test/mysql-test-run.pl --suite=parquet linux_engine_smoke
-```
-
-That smoke test does not create a Parquet table and does not require LakeKeeper or S3.
-
-## 10. Create and query a Parquet table
+Example:
 
 ```sql
 CREATE DATABASE IF NOT EXISTS test;
@@ -244,143 +190,98 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
   id BIGINT,
   name VARCHAR(50)
-) ENGINE=PARQUET;
+) ENGINE=PARQUET
+  CATALOG='table=t1_iceberg;namespace=data'
+  CONNECTION='bucket=mariadb-test-parquet-2;key_prefix=data';
+```
 
+That example relies on startup vars for:
+
+- LakeKeeper base URL
+- warehouse ID
+- object-store region
+- access key
+- secret key
+
+You can override more non-secret routing per table:
+
+```sql
+CREATE TABLE t2 (
+  id BIGINT,
+  name VARCHAR(50)
+) ENGINE=PARQUET
+  CATALOG='uri=http://localhost:8181/catalog/v1/;warehouse=REPLACE_WITH_WAREHOUSE_UUID;namespace=data;table=t2_iceberg'
+  CONNECTION='endpoint=https://s3.us-east-2.amazonaws.com;bucket=mariadb-parquet-demo;region=us-east-2;key_prefix=data';
+```
+
+## 10. Confirm the table metadata behavior
+
+After creating a table, you should have:
+
+- a Parquet data file under your datadir, usually something like
+  `$BUILD_DIR/parquet-data/test/t1.parquet`
+- a metadata sidecar next to it, usually something like
+  `$BUILD_DIR/parquet-data/test/t1.parquet.meta`
+
+The exact datadir path depends on your MariaDB config. The `.parquet.meta`
+sidecar should contain resolved non-secret routing, but it should not contain:
+
+- bearer tokens
+- access keys
+- secret keys
+- session tokens
+
+## 11. Quick smoke queries
+
+```sql
 INSERT INTO t1 VALUES (1, 'alpha'), (2, 'beta');
-INSERT INTO t1 VALUES (3, 'gamma');
-
 SELECT * FROM t1 ORDER BY id;
-SELECT * FROM t1 WHERE id >= 2 ORDER BY id;
+SHOW CREATE TABLE t1;
 ```
 
-Expected result:
+`SHOW CREATE TABLE` should preserve the explicit `CATALOG`/`CONNECTION` options
+you wrote in the DDL, but it should not show plugin-defaulted secrets.
 
-```text
-+------+-------+
-| id   | name  |
-+------+-------+
-|    1 | alpha |
-|    2 | beta  |
-|    3 | gamma |
-+------+-------+
-```
+## 12. Useful local test commands
 
-## 11. Test cross-engine join pushdown
-
-Use one Parquet table and one non-Parquet table:
-
-```sql
-USE test;
-
-DROP TABLE IF EXISTS p_orders;
-DROP TABLE IF EXISTS i_customers;
-
-CREATE TABLE p_orders (
-  order_id BIGINT,
-  customer_id BIGINT,
-  amount BIGINT
-) ENGINE=PARQUET;
-
-CREATE TABLE i_customers (
-  customer_id BIGINT PRIMARY KEY,
-  customer_name VARCHAR(50)
-) ENGINE=InnoDB;
-
-INSERT INTO p_orders VALUES
-  (1, 10, 100),
-  (2, 20, 200),
-  (3, 10, 150);
-
-INSERT INTO i_customers VALUES
-  (10, 'Alice'),
-  (20, 'Bob'),
-  (30, 'Carol');
-
-SELECT p.order_id, p.amount, c.customer_name
-FROM p_orders AS p
-JOIN i_customers AS c
-  ON p.customer_id = c.customer_id
-ORDER BY p.order_id;
-
-SELECT p.order_id, c.customer_name
-FROM p_orders AS p
-JOIN i_customers AS c
-  ON p.customer_id = c.customer_id
-WHERE p.amount >= 150
-ORDER BY p.order_id;
-```
-
-Expected results:
-
-```text
-+----------+--------+---------------+
-| order_id | amount | customer_name |
-+----------+--------+---------------+
-|        1 |    100 | Alice         |
-|        2 |    200 | Bob           |
-|        3 |    150 | Alice         |
-+----------+--------+---------------+
-
-+----------+---------------+
-| order_id | customer_name |
-+----------+---------------+
-|        2 | Bob           |
-|        3 | Alice         |
-+----------+---------------+
-```
-
-## 12. Check select-handler logs
-
-After running the cross-engine queries, inspect the server log from your build:
+Parquet-only build:
 
 ```bash
-grep "Parquet:" build/mariadb-parquet.err
+cmake --build "$BUILD_DIR" --target parquet --parallel 4
 ```
 
-For mixed-engine pushdown, you should see lines like:
-
-- `Parquet: selected cross-engine pushdown handler`
-- `Parquet: cross-engine pushdown init parquet_tables=[...] external_tables=[...]`
-- `Parquet: cross-engine registry add key='...'`
-- `Parquet: replacement scan lookup schema='...' table='...'`
-- `Parquet: _mdb_scan bind table='...' columns=...`
-- `Parquet: _mdb_scan start table='...' projected_columns=...`
-- `Parquet: _mdb_scan complete table='...' rows=...`
-
-If the query result is correct but these lines do not appear, you are probably not running the rebuilt `build/sql/mariadbd` binary.
-
-## 13. Notes and current limits
-
-- `UPDATE` and `DELETE` are not implemented
-- the MariaDB schema and the LakeKeeper namespace are separate concepts
-- the LakeKeeper namespace comes from `.env`
-- after editing `.env`, restart the server
-- if reads return nothing, check the build’s error log
-
-## 14. Common issues
-
-### `Plugin 'parquet' already installed`
-
-That is fine. Skip `INSTALL PLUGIN`.
-
-### `No database selected`
-
-Run:
-
-```sql
-CREATE DATABASE IF NOT EXISTS test;
-USE test;
-```
-
-### Query results look stale after a code change
-
-Rebuild `mariadbd` and restart the server from the build directory.
-
-### The server starts, but new logging or fixes do not appear
-
-You are probably running the wrong binary. Start the server from:
+Parquet mysql-test smoke:
 
 ```bash
-cd build
-./sql/mariadbd --defaults-file=/absolute/path/to/your/mariadb-parquet.cnf
+perl "$BUILD_DIR/mysql-test/mysql-test-run.pl" \
+  --suite=parquet linux_engine_smoke
 ```
+
+Parquet plugin-var coverage:
+
+```bash
+perl "$BUILD_DIR/mysql-test/mysql-test-run.pl" \
+  --suite=parquet plugin_vars
+```
+
+If `mysql-test-run.pl` complains about socket path length on macOS, rerun it
+from a shorter absolute checkout path or shorten the temporary test layout.
+
+## 13. Troubleshooting
+
+If `SHOW VARIABLES LIKE 'parquet_%'` comes back empty:
+
+- make sure you rebuilt `mariadbd`, not just the Parquet target
+- fully restart the server after rebuilding
+- confirm your client is connecting to the same socket path that the rebuilt
+  server is actually using
+
+If secrets show up in cleartext instead of `*****`:
+
+- you are probably connected to an older `mariadbd` binary
+- restart the server from `"$BUILD_DIR/sql/mariadbd"` and reconnect
+
+If a second local MariaDB instance is already running:
+
+- use a different socket path in your config and in `SOCKET_PATH`
+- or shut down the conflicting local server before starting this one

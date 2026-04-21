@@ -11,17 +11,28 @@
 #include "duckdb.hpp"
 
 
+#include <cstdint>
+#include <map>
 #include <vector>
 #include <string>
 
 
+struct parquet_local_stage_file {
+ std::string local_path;
+ uint64_t    row_count = 0;
+};
 
+struct parquet_table_trx_data {
+ std::string table_name;
+ std::string table_path;
+ std::string statement_buffer_name;
+ uint64_t    statement_row_count = 0;
+ std::vector<parquet_local_stage_file> staged_files;
+ std::vector<std::string> uploaded_s3_file_paths;
+};
 
 struct parquet_trx_data {
- std::vector<std::string> s3_file_paths;
- std::vector<int64_t>     row_counts;
- std::vector<int64_t>     file_sizes;
- std::string table_name;
+ std::map<std::string, parquet_table_trx_data> tables;
 };
 
 
@@ -75,15 +86,9 @@ private:
  std::string parquet_file_path;
 
 
- uint64_t row_count;
- uint64_t flush_threshold;
  bool duckdb_initialized;
- bool buffer_table_created = false;
-  //duckdb::DuckDB *db = nullptr;
+ //duckdb::DuckDB *db = nullptr;
  //duckdb::Connection *con = nullptr;
-
-
- void flush_remaining_rows_to_s3(parquet_trx_data *trx);
 
 
  std::string pushed_cond_sql;
@@ -98,5 +103,3 @@ private:
 
 };
 #endif
-
-

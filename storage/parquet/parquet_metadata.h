@@ -71,6 +71,17 @@ bool ParseCatalogConnectionString(const std::string &serialized,
                                   CatalogTableIdent *ident,
                                   std::string *access_delegation,
                                   std::string *error);
+bool ResolveCreateTableMetadata(const char *table_path,
+                                const char *catalog_serialized,
+                                const char *connection_serialized,
+                                TableMetadata *metadata,
+                                std::string *error);
+bool ResolveRuntimeTableMetadata(const char *table_path, TableMetadata *metadata,
+                                 std::string *error);
+bool ValidateCatalogConfig(const TableMetadata &metadata, std::string *error);
+bool ValidateObjectStoreConfig(const TableMetadata &metadata,
+                               bool require_credentials,
+                               std::string *error);
 bool SaveTableMetadata(const TableMetadata &metadata, std::string *error);
 bool LoadTableMetadata(const char *table_path, TableMetadata *metadata,
                        std::string *error);

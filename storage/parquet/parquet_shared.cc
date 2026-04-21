@@ -2,24 +2,28 @@
 
 #include "parquet_shared.h"
 
+#include "parquet_catalog.h"
+#include "parquet_metadata.h"
+#include "parquet_object_store.h"
+
 #include "log.h"
 
 #include <curl/curl.h>
 
 #include <algorithm>
 #include <cctype>
-#include <cstdio>
-#include <cstdlib>
-#include <fstream>
-#include <mutex>
-#include <unordered_map>
+#include <string>
 #include <unordered_set>
-#include <limits.h>
-#include <unistd.h>
 
-#if defined(__APPLE__)
-#include <mach-o/dyld.h>
-#endif
+char *parquet_lakekeeper_base_url = nullptr;
+char *parquet_lakekeeper_warehouse_id = nullptr;
+char *parquet_lakekeeper_namespace = nullptr;
+char *parquet_lakekeeper_bearer_token = nullptr;
+char *parquet_s3_bucket = nullptr;
+char *parquet_s3_data_prefix = nullptr;
+char *parquet_s3_region = nullptr;
+char *parquet_s3_access_key_id = nullptr;
+char *parquet_s3_secret_access_key = nullptr;
 
 namespace {
 
@@ -31,133 +35,6 @@ std::string trim_copy(std::string value)
   value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(),
               value.end());
   return value;
-}
-
-std::string strip_matching_quotes(std::string value)
-{
-  if (value.size() >= 2) {
-    const char first = value.front();
-    const char last = value.back();
-    if ((first == '"' && last == '"') || (first == '\'' && last == '\''))
-      return value.substr(1, value.size() - 2);
-  }
-  return value;
-}
-
-std::string dirname_copy(const std::string &path)
-{
-  const size_t pos = path.find_last_of("/\\");
-  return (pos == std::string::npos) ? std::string() : path.substr(0, pos);
-}
-
-std::string join_path(const std::string &left, const std::string &right)
-{
-  if (left.empty())
-    return right;
-  if (left.back() == '/')
-    return left + right;
-  return left + "/" + right;
-}
-
-bool file_exists(const std::string &path)
-{
-  std::ifstream input(path);
-  return input.good();
-}
-
-std::string current_working_dir()
-{
-  char buffer[PATH_MAX];
-  if (getcwd(buffer, sizeof(buffer)) != nullptr)
-    return buffer;
-  return "";
-}
-
-std::string executable_dir()
-{
-#if defined(__APPLE__)
-  uint32_t size = 0;
-  _NSGetExecutablePath(nullptr, &size);
-  std::string path(size, '\0');
-  if (_NSGetExecutablePath(path.data(), &size) == 0)
-    return dirname_copy(std::string(path.c_str()));
-#elif defined(__linux__)
-  char buffer[PATH_MAX];
-  ssize_t len = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
-  if (len > 0) {
-    buffer[len] = '\0';
-    return dirname_copy(buffer);
-  }
-#endif
-  return "";
-}
-
-std::vector<std::string> parquet_env_candidate_paths()
-{
-  std::vector<std::string> candidates;
-
-  if (const char *explicit_path = std::getenv("PARQUET_ENV_FILE")) {
-    if (*explicit_path)
-      candidates.emplace_back(explicit_path);
-  }
-
-  const std::string cwd = current_working_dir();
-  if (!cwd.empty()) {
-    candidates.push_back(join_path(cwd, ".env"));
-    candidates.push_back(join_path(dirname_copy(cwd), ".env"));
-    candidates.push_back(join_path(dirname_copy(dirname_copy(cwd)), ".env"));
-  }
-
-  const std::string exe_dir = executable_dir();
-  if (!exe_dir.empty()) {
-    candidates.push_back(join_path(exe_dir, ".env"));
-    candidates.push_back(join_path(dirname_copy(exe_dir), ".env"));
-    candidates.push_back(join_path(dirname_copy(dirname_copy(exe_dir)), ".env"));
-  }
-
-  std::vector<std::string> unique_candidates;
-  std::unordered_set<std::string> seen;
-  for (const std::string &candidate : candidates) {
-    if (!candidate.empty() && seen.insert(candidate).second)
-      unique_candidates.push_back(candidate);
-  }
-
-  return unique_candidates;
-}
-
-void load_env_file(const std::string &path,
-                   std::unordered_map<std::string, std::string> *values)
-{
-  if (!values)
-    return;
-
-  std::ifstream input(path);
-  if (!input)
-    return;
-
-  std::string line;
-  while (std::getline(input, line)) {
-    line = trim_copy(line);
-    if (line.empty() || line[0] == '#')
-      continue;
-    if (line.rfind("export ", 0) == 0)
-      line = trim_copy(line.substr(7));
-
-    const size_t eq_pos = line.find('=');
-    if (eq_pos == std::string::npos)
-      continue;
-
-    std::string key = trim_copy(line.substr(0, eq_pos));
-    std::string value = trim_copy(line.substr(eq_pos + 1));
-    if (key.empty())
-      continue;
-
-    const size_t comment_pos = value.find(" #");
-    if (comment_pos != std::string::npos)
-      value = trim_copy(value.substr(0, comment_pos));
-
-    (*values)[key] = strip_matching_quotes(value);
-  }
 }
 
 std::string ensure_trailing_slash(const std::string &value)
@@ -176,6 +53,13 @@ std::string trim_slashes_copy(std::string value)
   return value;
 }
 
+std::string normalize_url_base(std::string value)
+{
+  while (!value.empty() && value.back() == '/')
+    value.pop_back();
+  return value;
+}
+
 std::string single_line_copy(std::string value)
 {
   for (char &ch : value) {
@@ -183,6 +67,13 @@ std::string single_line_copy(std::string value)
       ch = ' ';
   }
   return trim_copy(value);
+}
+
+std::string string_from_sysvar(const char *value, const char *fallback = "")
+{
+  if (value != nullptr)
+    return value;
+  return fallback;
 }
 
 size_t curl_write_to_string(char *ptr, size_t size, size_t nmemb,
@@ -193,57 +84,105 @@ size_t curl_write_to_string(char *ptr, size_t size, size_t nmemb,
   return size * nmemb;
 }
 
+std::string namespace_path_from_metadata(const parquet::TableMetadata &metadata)
+{
+  if (metadata.catalog_table_ident.namespace_ident.parts.empty()) {
+    parquet::CatalogNamespaceIdent default_ident{{"default"}};
+    return parquet::EncodeNamespaceForUrlPath(default_ident, "%1F");
+  }
+
+  return parquet::EncodeNamespaceForUrlPath(
+      metadata.catalog_table_ident.namespace_ident, "%1F");
+}
+
+void apply_catalog_auth_header(const parquet::CatalogClientConfig &config,
+                               struct curl_slist **headers)
+{
+  if (headers == nullptr || config.bearer_token.empty())
+    return;
+
+  *headers = curl_slist_append(
+      *headers, ("Authorization: Bearer " + config.bearer_token).c_str());
+}
+
+void apply_catalog_curl_options(CURL *curl,
+                                const parquet::CatalogClientConfig &config)
+{
+  curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+  curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, config.connect_timeout_ms);
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, config.timeout_ms);
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, config.verify_peer ? 1L : 0L);
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, config.verify_host ? 2L : 0L);
+}
+
+std::string duckdb_s3_endpoint_setting(const std::string &endpoint)
+{
+  auto trimmed = trim_copy(endpoint);
+  const std::string https_prefix = "https://";
+  const std::string http_prefix = "http://";
+
+  if (trimmed.rfind(https_prefix, 0) == 0)
+    trimmed.erase(0, https_prefix.size());
+  else if (trimmed.rfind(http_prefix, 0) == 0)
+    trimmed.erase(0, http_prefix.size());
+
+  while (!trimmed.empty() && trimmed.back() == '/')
+    trimmed.pop_back();
+
+  return trimmed;
+}
+
+bool duckdb_s3_use_ssl(const std::string &endpoint)
+{
+  return endpoint.rfind("http://", 0) != 0;
+}
+
+std::string duckdb_s3_url_style(const std::string &url_style)
+{
+  std::string lowered = url_style;
+  std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+                 [](unsigned char ch) {
+                   return static_cast<char>(std::tolower(ch));
+                 });
+
+  if (lowered == "virtual-host" || lowered == "virtual_host" ||
+      lowered == "vhost") {
+    return "vhost";
+  }
+
+  return "path";
+}
+
 } // namespace
 
-const ParquetRuntimeConfig &parquet_runtime_config()
+ParquetPluginConfigSnapshot parquet_plugin_config_snapshot()
 {
-  static ParquetRuntimeConfig config{
-      "http://localhost:8181/catalog/v1/",
-      "9a3b8dae-3bab-11f1-aa80-237d1c73ff26",
-      "default",
-      "mariadb-parquet-demo",
-      "data",
-      "us-east-2",
-      "PLACEHOLDER",
-      "PLACEHOLDER"};
-  static std::once_flag once;
-
-  std::call_once(once, [] {
-    std::unordered_map<std::string, std::string> values;
-    for (const std::string &candidate : parquet_env_candidate_paths()) {
-      if (file_exists(candidate)) {
-        load_env_file(candidate, &values);
-        break;
-      }
-    }
-
-    auto apply_value = [&](const char *key, std::string *target,
-                           bool ensure_slash = false) {
-      auto it = values.find(key);
-      if (it != values.end() && !it->second.empty())
-        *target = it->second;
-      if (const char *env_value = std::getenv(key)) {
-        if (*env_value)
-          *target = env_value;
-      }
-      if (ensure_slash)
-        *target = ensure_trailing_slash(*target);
-    };
-
-    apply_value("PARQUET_LAKEKEEPER_BASE_URL", &config.lakekeeper_base_url, true);
-    apply_value("PARQUET_LAKEKEEPER_WAREHOUSE_ID",
-                &config.lakekeeper_warehouse_id);
-    apply_value("PARQUET_LAKEKEEPER_NAMESPACE", &config.lakekeeper_namespace);
-    apply_value("PARQUET_S3_BUCKET", &config.s3_bucket);
-    apply_value("PARQUET_S3_DATA_PREFIX", &config.s3_data_prefix);
-    apply_value("PARQUET_S3_REGION", &config.s3_region);
-    apply_value("PARQUET_S3_ACCESS_KEY_ID", &config.s3_access_key_id);
-    apply_value("PARQUET_S3_SECRET_ACCESS_KEY", &config.s3_secret_access_key);
-
-    config.s3_data_prefix = trim_slashes_copy(config.s3_data_prefix);
-  });
-
+  ParquetPluginConfigSnapshot config;
+  config.lakekeeper_base_url =
+      ensure_trailing_slash(string_from_sysvar(
+          parquet_lakekeeper_base_url, "http://localhost:8181/catalog/v1/"));
+  config.lakekeeper_warehouse_id =
+      string_from_sysvar(parquet_lakekeeper_warehouse_id);
+  config.lakekeeper_namespace =
+      string_from_sysvar(parquet_lakekeeper_namespace, "default");
+  config.lakekeeper_bearer_token =
+      string_from_sysvar(parquet_lakekeeper_bearer_token);
+  config.s3_bucket = string_from_sysvar(parquet_s3_bucket);
+  config.s3_data_prefix =
+      trim_slashes_copy(string_from_sysvar(parquet_s3_data_prefix, "data"));
+  config.s3_region = string_from_sysvar(parquet_s3_region, "us-east-2");
+  config.s3_access_key_id = string_from_sysvar(parquet_s3_access_key_id);
+  config.s3_secret_access_key =
+      string_from_sysvar(parquet_s3_secret_access_key);
   return config;
+}
+
+std::string parquet_default_s3_endpoint_url(const std::string &region)
+{
+  if (region.empty() || region == "us-east-1")
+    return "https://s3.amazonaws.com";
+
+  return "https://s3." + region + ".amazonaws.com";
 }
 
 std::string quote_string_literal(const std::string &value)
@@ -278,46 +217,119 @@ void parquet_log_warning(const std::string &message)
   sql_print_warning("Parquet: %s", message.c_str());
 }
 
-std::string parquet_s3_object_path(const std::string &object_name)
+std::string parquet_s3_object_path(const parquet::ObjectStoreConfig &config,
+                                   const std::string &object_name)
 {
-  const auto &config = parquet_runtime_config();
-  std::string path = "s3://" + config.s3_bucket + "/";
-  if (!config.s3_data_prefix.empty())
-    path += config.s3_data_prefix + "/";
-  path += object_name;
-  return path;
+  const auto location = parquet::ResolveObjectLocation(config, object_name);
+  return parquet::BuildS3Uri(location.bucket, location.key);
 }
 
-void configure_duckdb_s3(duckdb::Connection *con)
+bool configure_duckdb_s3(duckdb::Connection *con,
+                         const parquet::ObjectStoreConfig &config,
+                         std::string *error)
 {
-  const auto &config = parquet_runtime_config();
-  parquet_log_info("DuckDB configuring S3 region='" + config.s3_region +
-                   "' bucket='" + config.s3_bucket + "' prefix='" +
-                   config.s3_data_prefix + "'");
-  con->Query("SET s3_region=" + quote_string_literal(config.s3_region));
+  if (con == nullptr) {
+    if (error != nullptr)
+      *error = "DuckDB connection must not be null";
+    return false;
+  }
+
+  if (config.bucket.empty()) {
+    if (error != nullptr)
+      *error = "object store bucket is missing";
+    return false;
+  }
+
+  if (config.auth_mode == parquet::ObjectStoreAuthMode::kRemoteSigning) {
+    if (error != nullptr) {
+      *error =
+          "object store auth_mode=remote_signing is not supported by the "
+          "current Parquet handler path";
+    }
+    return false;
+  }
+
+  if (config.credentials.empty()) {
+    if (error != nullptr) {
+      *error =
+          "object store credentials are missing; configure "
+          "parquet_s3_access_key_id and parquet_s3_secret_access_key";
+    }
+    return false;
+  }
+
+  if (config.auth_mode == parquet::ObjectStoreAuthMode::kTemporaryCredentials &&
+      config.credentials.session_token.empty()) {
+    if (error != nullptr) {
+      *error =
+          "object store auth_mode=temporary requires a session_token, which "
+          "is not currently available through Parquet plugin variables";
+    }
+    return false;
+  }
+
+  parquet_log_info("DuckDB configuring S3 endpoint='" + config.endpoint +
+                   "' region='" + config.region + "' bucket='" +
+                   config.bucket + "' key_prefix='" + config.key_prefix +
+                   "' url_style='" + config.url_style + "'");
+
+  if (!config.region.empty()) {
+    con->Query("SET s3_region=" + quote_string_literal(config.region));
+  }
   con->Query("SET s3_access_key_id=" +
-             quote_string_literal(config.s3_access_key_id));
+             quote_string_literal(config.credentials.access_key_id));
   con->Query("SET s3_secret_access_key=" +
-             quote_string_literal(config.s3_secret_access_key));
+             quote_string_literal(config.credentials.secret_access_key));
+  if (!config.credentials.session_token.empty()) {
+    con->Query("SET s3_session_token=" +
+               quote_string_literal(config.credentials.session_token));
+  }
+
+  if (!config.endpoint.empty()) {
+    con->Query("SET s3_endpoint=" +
+               quote_string_literal(duckdb_s3_endpoint_setting(config.endpoint)));
+    con->Query(std::string("SET s3_use_ssl=") +
+               (duckdb_s3_use_ssl(config.endpoint) ? "true" : "false"));
+  }
+  con->Query("SET s3_url_style=" +
+             quote_string_literal(duckdb_s3_url_style(config.url_style)));
+  return true;
 }
 
-std::string lakekeeper_table_collection_url()
+std::string lakekeeper_table_collection_url(
+    const parquet::TableMetadata &metadata)
 {
-  const auto &config = parquet_runtime_config();
-  return config.lakekeeper_base_url + config.lakekeeper_warehouse_id +
-         "/namespaces/" + config.lakekeeper_namespace + "/tables";
+  if (metadata.catalog_config.base_uri.empty() ||
+      metadata.catalog_config.warehouse.empty()) {
+    return "";
+  }
+
+  return normalize_url_base(
+             parquet::NormalizeCatalogBaseUri(metadata.catalog_config.base_uri)) +
+         "/" + metadata.catalog_config.warehouse + "/namespaces/" +
+         namespace_path_from_metadata(metadata) + "/tables";
 }
 
-std::string lakekeeper_table_url(const std::string &table_name)
+std::string lakekeeper_table_url(const parquet::TableMetadata &metadata)
 {
-  return lakekeeper_table_collection_url() + "/" + table_name;
+  const auto collection_url = lakekeeper_table_collection_url(metadata);
+  if (collection_url.empty() || metadata.catalog_table_ident.table_name.empty())
+    return "";
+
+  return collection_url + "/" + metadata.catalog_table_ident.table_name;
 }
 
-std::string lakekeeper_transaction_commit_url()
+std::string lakekeeper_transaction_commit_url(
+    const parquet::TableMetadata &metadata)
 {
-  const auto &config = parquet_runtime_config();
-  return config.lakekeeper_base_url + config.lakekeeper_warehouse_id +
-         "/transactions/commit";
+  if (metadata.catalog_config.base_uri.empty() ||
+      metadata.catalog_config.warehouse.empty()) {
+    return "";
+  }
+
+  return normalize_url_base(
+             parquet::NormalizeCatalogBaseUri(metadata.catalog_config.base_uri)) +
+         "/" + metadata.catalog_config.warehouse + "/transactions/commit";
 }
 
 std::string table_name_from_path(const std::string &table_path)
@@ -331,7 +343,8 @@ std::vector<std::string> extract_manifest_paths(const std::string &response_body
   std::vector<std::string> s3_files;
   std::unordered_set<std::string> seen_s3_files;
   size_t pos = 0;
-  while ((pos = response_body.find("\"manifest-list\"", pos)) != std::string::npos) {
+  while ((pos = response_body.find("\"manifest-list\"", pos)) !=
+         std::string::npos) {
     size_t colon = response_body.find(':', pos);
     if (colon == std::string::npos)
       break;
@@ -352,7 +365,7 @@ std::vector<std::string> extract_manifest_paths(const std::string &response_body
   return s3_files;
 }
 
-bool fetch_lakekeeper_table_metadata(const std::string &table_name,
+bool fetch_lakekeeper_table_metadata(const parquet::TableMetadata &metadata,
                                      std::string *response_body,
                                      long *http_code)
 {
@@ -362,36 +375,48 @@ bool fetch_lakekeeper_table_metadata(const std::string &table_name,
   response_body->clear();
   *http_code = 0;
 
-  const std::string lakekeeper_url = lakekeeper_table_url(table_name);
-  parquet_log_info("LakeKeeper load table metadata table='" + table_name +
-                   "' url='" + lakekeeper_url + "'");
+  const std::string lakekeeper_url = lakekeeper_table_url(metadata);
+  if (lakekeeper_url.empty())
+    return false;
+
+  parquet_log_info("LakeKeeper load table metadata table='" +
+                   metadata.catalog_table_ident.table_name + "' url='" +
+                   lakekeeper_url + "'");
 
   CURL *curl = curl_easy_init();
   if (!curl)
     return false;
 
+  struct curl_slist *headers = nullptr;
+  apply_catalog_auth_header(metadata.catalog_config, &headers);
   curl_easy_setopt(curl, CURLOPT_URL, lakekeeper_url.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, +curl_write_to_string);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, response_body);
+  apply_catalog_curl_options(curl, metadata.catalog_config);
+  if (headers != nullptr)
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
   CURLcode res = curl_easy_perform(curl);
   curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, http_code);
+  if (headers != nullptr)
+    curl_slist_free_all(headers);
   curl_easy_cleanup(curl);
 
   if (res == CURLE_OK) {
     parquet_log_info("LakeKeeper load table metadata complete table='" +
-                     table_name + "' http_status=" +
-                     std::to_string(*http_code) + " response=" +
-                     parquet_log_preview(*response_body));
+                     metadata.catalog_table_ident.table_name +
+                     "' http_status=" + std::to_string(*http_code) +
+                     " response=" + parquet_log_preview(*response_body));
   } else {
     parquet_log_warning("LakeKeeper load table metadata failed table='" +
-                        table_name + "' error='" +
+                        metadata.catalog_table_ident.table_name + "' error='" +
                         std::string(curl_easy_strerror(res)) + "'");
   }
 
   return res == CURLE_OK;
 }
 
-bool resolve_parquet_data_files(const std::string &table_name,
+bool resolve_parquet_data_files(const parquet::TableMetadata &metadata,
                                 std::vector<std::string> *s3_files,
                                 long *http_code)
 {
@@ -400,7 +425,8 @@ bool resolve_parquet_data_files(const std::string &table_name,
 
   std::string response_body;
   long local_http_code = 0;
-  if (!fetch_lakekeeper_table_metadata(table_name, &response_body, &local_http_code)) {
+  if (!fetch_lakekeeper_table_metadata(metadata, &response_body,
+                                       &local_http_code)) {
     if (http_code)
       *http_code = local_http_code;
     return false;
@@ -418,11 +444,12 @@ bool resolve_parquet_data_files(const std::string &table_name,
   return true;
 }
 
-std::string fetch_current_snapshot_data_file(const std::string &table_name)
+std::string fetch_current_snapshot_data_file(
+    const parquet::TableMetadata &metadata)
 {
   std::vector<std::string> s3_files;
   long http_code = 0;
-  if (!resolve_parquet_data_files(table_name, &s3_files, &http_code))
+  if (!resolve_parquet_data_files(metadata, &s3_files, &http_code))
     return "";
   if (http_code != 200 || s3_files.empty())
     return "";
