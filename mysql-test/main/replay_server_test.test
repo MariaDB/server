@@ -51,4 +51,10 @@ SELECT * FROM t1 WHERE a < 100;
 
 SELECT * FROM t1 WHERE a < 100;
 
+explain
+SELECT * FROM t1 WHERE a < 22;
+
+explain
+SELECT * FROM t1 WHERE b < 22;
+
 DROP TABLE t1;
