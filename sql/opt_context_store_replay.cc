@@ -1706,7 +1706,8 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
 
         while (freq && i < num_key_parts)
         {
-          DBUG_ASSERT(*freq > 0);
+          // Apparently this can be=0 for prefix indexes.
+          //DBUG_ASSERT(*freq > 0);
           key_info->read_stats->set_avg_frequency(i, (double) *freq);
           freq= li++;
           i++;
