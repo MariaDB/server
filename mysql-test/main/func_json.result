@@ -2952,7 +2952,7 @@ SELECT JSON_SCHEMA_VALID(@schema_number, '2');
 JSON_SCHEMA_VALID(@schema_number, '2')
 1
 # Checking string
-# checking format keyword. (not validating for now)
+# checking format keyword (annotation only, validation disabled by default)
 SET @schema_string= '{
   "type": "string",
   "format":"date-time"
@@ -3079,6 +3079,289 @@ SET @schema_string= '{
 SELECT JSON_SCHEMA_VALID(@schema_string, '"not_regex"');
 JSON_SCHEMA_VALID(@schema_string, '"not_regex"')
 1
+# Format validation when json_schema_format_validation is enabled (MDEV-30124)
+SET @save_json_schema_format_validation= @@json_schema_format_validation;
+SET json_schema_format_validation= ON;
+# format: date-time
+SET @schema= '{"type":"string","format":"date-time"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"2024-01-15T10:30:00Z"');
+JSON_SCHEMA_VALID(@schema, '"2024-01-15T10:30:00Z"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"2024-01-15T10:30:00+05:30"');
+JSON_SCHEMA_VALID(@schema, '"2024-01-15T10:30:00+05:30"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"2024-01-15T10:30:00.123Z"');
+JSON_SCHEMA_VALID(@schema, '"2024-01-15T10:30:00.123Z"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"not_date-time"');
+JSON_SCHEMA_VALID(@schema, '"not_date-time"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"2024-13-01T10:30:00Z"');
+JSON_SCHEMA_VALID(@schema, '"2024-13-01T10:30:00Z"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"2024-01-15 10:30:00Z"');
+JSON_SCHEMA_VALID(@schema, '"2024-01-15 10:30:00Z"')
+0
+# format: date
+SET @schema= '{"type":"string","format":"date"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"2024-01-15"');
+JSON_SCHEMA_VALID(@schema, '"2024-01-15"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"2024-02-29"');
+JSON_SCHEMA_VALID(@schema, '"2024-02-29"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"2023-02-29"');
+JSON_SCHEMA_VALID(@schema, '"2023-02-29"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"not_date"');
+JSON_SCHEMA_VALID(@schema, '"not_date"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"2024-13-01"');
+JSON_SCHEMA_VALID(@schema, '"2024-13-01"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"2024-00-15"');
+JSON_SCHEMA_VALID(@schema, '"2024-00-15"')
+0
+# format: time
+SET @schema= '{"type":"string","format":"time"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"10:30:00Z"');
+JSON_SCHEMA_VALID(@schema, '"10:30:00Z"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"23:59:59+05:30"');
+JSON_SCHEMA_VALID(@schema, '"23:59:59+05:30"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"10:30:00.123Z"');
+JSON_SCHEMA_VALID(@schema, '"10:30:00.123Z"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"not_time"');
+JSON_SCHEMA_VALID(@schema, '"not_time"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"25:00:00Z"');
+JSON_SCHEMA_VALID(@schema, '"25:00:00Z"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"10:30:00"');
+JSON_SCHEMA_VALID(@schema, '"10:30:00"')
+0
+# format: duration
+SET @schema= '{"type":"string","format":"duration"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"P1Y2M3D"');
+JSON_SCHEMA_VALID(@schema, '"P1Y2M3D"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"PT1H30M"');
+JSON_SCHEMA_VALID(@schema, '"PT1H30M"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"P1Y2M3DT4H5M6S"');
+JSON_SCHEMA_VALID(@schema, '"P1Y2M3DT4H5M6S"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"PT0.5S"');
+JSON_SCHEMA_VALID(@schema, '"PT0.5S"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"not_duration"');
+JSON_SCHEMA_VALID(@schema, '"not_duration"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"P"');
+JSON_SCHEMA_VALID(@schema, '"P"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"PT"');
+JSON_SCHEMA_VALID(@schema, '"PT"')
+0
+# format: email
+SET @schema= '{"type":"string","format":"email"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"user@example.com"');
+JSON_SCHEMA_VALID(@schema, '"user@example.com"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"a@b.c"');
+JSON_SCHEMA_VALID(@schema, '"a@b.c"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"not_email"');
+JSON_SCHEMA_VALID(@schema, '"not_email"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"@example.com"');
+JSON_SCHEMA_VALID(@schema, '"@example.com"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"user@"');
+JSON_SCHEMA_VALID(@schema, '"user@"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"user@@example.com"');
+JSON_SCHEMA_VALID(@schema, '"user@@example.com"')
+0
+# format: idn-email
+SET @schema= '{"type":"string","format":"idn-email"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"user@example.com"');
+JSON_SCHEMA_VALID(@schema, '"user@example.com"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"not_email"');
+JSON_SCHEMA_VALID(@schema, '"not_email"')
+0
+# format: hostname
+SET @schema= '{"type":"string","format":"hostname"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"example.com"');
+JSON_SCHEMA_VALID(@schema, '"example.com"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"sub.example.com"');
+JSON_SCHEMA_VALID(@schema, '"sub.example.com"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"-invalid.com"');
+JSON_SCHEMA_VALID(@schema, '"-invalid.com"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"invalid-.com"');
+JSON_SCHEMA_VALID(@schema, '"invalid-.com"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '""');
+JSON_SCHEMA_VALID(@schema, '""')
+0
+# format: idn-hostname
+SET @schema= '{"type":"string","format":"idn-hostname"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"example.com"');
+JSON_SCHEMA_VALID(@schema, '"example.com"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"-invalid.com"');
+JSON_SCHEMA_VALID(@schema, '"-invalid.com"')
+0
+# format: ipv4
+SET @schema= '{"type":"string","format":"ipv4"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"192.168.1.1"');
+JSON_SCHEMA_VALID(@schema, '"192.168.1.1"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"0.0.0.0"');
+JSON_SCHEMA_VALID(@schema, '"0.0.0.0"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"255.255.255.255"');
+JSON_SCHEMA_VALID(@schema, '"255.255.255.255"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"not_ipv4"');
+JSON_SCHEMA_VALID(@schema, '"not_ipv4"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"256.1.1.1"');
+JSON_SCHEMA_VALID(@schema, '"256.1.1.1"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"1.2.3"');
+JSON_SCHEMA_VALID(@schema, '"1.2.3"')
+0
+# format: ipv6
+SET @schema= '{"type":"string","format":"ipv6"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"::1"');
+JSON_SCHEMA_VALID(@schema, '"::1"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"2001:0db8:85a3:0000:0000:8a2e:0370:7334"');
+JSON_SCHEMA_VALID(@schema, '"2001:0db8:85a3:0000:0000:8a2e:0370:7334"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"not_ipv6"');
+JSON_SCHEMA_VALID(@schema, '"not_ipv6"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"12345::1"');
+JSON_SCHEMA_VALID(@schema, '"12345::1"')
+0
+# format: uri
+SET @schema= '{"type":"string","format":"uri"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"http://example.com"');
+JSON_SCHEMA_VALID(@schema, '"http://example.com"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"https://example.com/path?q=1#frag"');
+JSON_SCHEMA_VALID(@schema, '"https://example.com/path?q=1#frag"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"ftp://files.example.com"');
+JSON_SCHEMA_VALID(@schema, '"ftp://files.example.com"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"not a uri"');
+JSON_SCHEMA_VALID(@schema, '"not a uri"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"/relative/path"');
+JSON_SCHEMA_VALID(@schema, '"/relative/path"')
+0
+# format: uri-reference
+SET @schema= '{"type":"string","format":"uri-reference"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"http://example.com"');
+JSON_SCHEMA_VALID(@schema, '"http://example.com"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"/relative/path"');
+JSON_SCHEMA_VALID(@schema, '"/relative/path"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '""');
+JSON_SCHEMA_VALID(@schema, '""')
+1
+# format: uuid
+SET @schema= '{"type":"string","format":"uuid"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"550e8400-e29b-41d4-a716-446655440000"');
+JSON_SCHEMA_VALID(@schema, '"550e8400-e29b-41d4-a716-446655440000"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"not-a-uuid"');
+JSON_SCHEMA_VALID(@schema, '"not-a-uuid"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"550e8400-e29b-41d4-a716-44665544000g"');
+JSON_SCHEMA_VALID(@schema, '"550e8400-e29b-41d4-a716-44665544000g"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"550e8400e29b41d4a716446655440000"');
+JSON_SCHEMA_VALID(@schema, '"550e8400e29b41d4a716446655440000"')
+0
+# format: json-pointer
+SET @schema= '{"type":"string","format":"json-pointer"}';
+SELECT JSON_SCHEMA_VALID(@schema, '""');
+JSON_SCHEMA_VALID(@schema, '""')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"/foo/bar"');
+JSON_SCHEMA_VALID(@schema, '"/foo/bar"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"/foo/~0/~1"');
+JSON_SCHEMA_VALID(@schema, '"/foo/~0/~1"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"foo"');
+JSON_SCHEMA_VALID(@schema, '"foo"')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '"/foo/~2"');
+JSON_SCHEMA_VALID(@schema, '"/foo/~2"')
+0
+# format: relative-json-pointer
+SET @schema= '{"type":"string","format":"relative-json-pointer"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"0"');
+JSON_SCHEMA_VALID(@schema, '"0"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"1/foo"');
+JSON_SCHEMA_VALID(@schema, '"1/foo"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"0#"');
+JSON_SCHEMA_VALID(@schema, '"0#"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"/invalid"');
+JSON_SCHEMA_VALID(@schema, '"/invalid"')
+0
+# format: regex
+SET @schema= '{"type":"string","format":"regex"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"^[a-z]+$"');
+JSON_SCHEMA_VALID(@schema, '"^[a-z]+$"')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '"[invalid"');
+JSON_SCHEMA_VALID(@schema, '"[invalid"')
+0
+# format only applies to strings, non-string values always pass
+SET @schema= '{"format":"email"}';
+SELECT JSON_SCHEMA_VALID(@schema, '42');
+JSON_SCHEMA_VALID(@schema, '42')
+1
+SELECT JSON_SCHEMA_VALID(@schema, 'true');
+JSON_SCHEMA_VALID(@schema, 'true')
+1
+SELECT JSON_SCHEMA_VALID(@schema, 'null');
+JSON_SCHEMA_VALID(@schema, 'null')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '[1,2]');
+JSON_SCHEMA_VALID(@schema, '[1,2]')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '{"a":1}');
+JSON_SCHEMA_VALID(@schema, '{"a":1}')
+1
+# unknown format values are treated as annotation (always pass)
+SET @schema= '{"type":"string","format":"unknown-format"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"anything"');
+JSON_SCHEMA_VALID(@schema, '"anything"')
+1
+# verify annotation-only when disabled
+SET json_schema_format_validation= OFF;
+SET @schema= '{"type":"string","format":"email"}';
+SELECT JSON_SCHEMA_VALID(@schema, '"not_email"');
+JSON_SCHEMA_VALID(@schema, '"not_email"')
+1
+SET @@json_schema_format_validation= @save_json_schema_format_validation;
 # Validating other string keywords
 SET @schema_string= '{
   "type": "string",
