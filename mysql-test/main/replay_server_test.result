@@ -1,0 +1,72 @@
+REPLAY_SERVER_SOCKET is NOT set
+CREATE TABLE t1 (a INT, b INT, KEY(a));
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a = 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.002024411,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.002024411,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+EXPLAIN FORMAT=JSON
+SELECT * FROM t1 WHERE a < 100;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.005042291,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 3,
+          "cost": 0.005042291,
+          "filtered": 100,
+          "index_condition": "t1.a < 100"
+        }
+      }
+    ]
+  }
+}
+SELECT * FROM t1 WHERE a < 100;
+a	b
+1	1
+2	2
+3	3
+explain
+SELECT * FROM t1 WHERE a < 22;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	3	Using index condition
+explain
+SELECT * FROM t1 WHERE b < 22;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+DROP TABLE t1;

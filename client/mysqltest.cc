@@ -11283,7 +11283,8 @@ static my_bool is_explain_format_json(const char *query, size_t query_len)
   
   if (p >= end || !my_isspace(charset_info, *p))
     return FALSE;
-  
+/*
+  (Don't requre FORMAT=JSON)
   while (p < end && my_isspace(charset_info, *p))
     p++;
   
@@ -11303,7 +11304,7 @@ static my_bool is_explain_format_json(const char *query, size_t query_len)
   
   if (end - p < 4 || strncasecmp(p, "JSON", 4) != 0)
     return FALSE;
-  
+*/
   return TRUE;
 }
 
