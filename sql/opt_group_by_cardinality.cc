@@ -136,7 +136,8 @@ double estimate_post_group_cardinality(JOIN *join, double join_output_card)
 
 /*
   @brief
-    Compute number of groups for a GROUP BY list that refers to a single table
+    Compute number of groups for a sub-list of GROUP BY that has references
+    only to one table (which is in the current select).
 
   @detail
     Consider a query:
@@ -201,6 +202,10 @@ double estimate_post_group_cardinality(JOIN *join, double join_output_card)
                            points at 'end' or at the next table.
   @param end        IN     End of the above array.
 
+  @return
+    Number of groups produced by GROUP BY sub-list.
+    Also, *group_list will point to the position for first element of next
+    table or 'end' if no more tables.
 */
 
 double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
@@ -212,33 +217,15 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
   double card= 1.0;
   double table_records_after_where= DBL_MAX; // Safety
 
+  /* Compute cardinality for GROUP BY elements that refer only to this table */
   table_map table_bit= (**group_list)->used_tables();
-  /*
-    join->map2table is not set yet, so find our table in JOIN_TABs.
-  */
-  for (JOIN_TAB *tab= join->join_tab;
-       tab < join->join_tab + join->top_join_tab_count;
-       tab++)
-  {
-    if (tab->table->map == table_bit)
-    {
-      table= tab->table;
-      table_records_after_where= rows2double(tab->found_records);
-      break;
-    }
-  }
-  DBUG_ASSERT(table);
-
-  Json_writer_object trace_obj(join->thd);
-  trace_obj.add_table_name(table);
-  Json_writer_array trace_steps(join->thd, "steps");
 
   possible_keys.clear_all();
   bool found_complex_item= false;
 
   /*
     Walk through the group list and collect references to fields.
-    If there are other kinds of items, return table's cardinality.
+    If there are other kinds of items, return the table's cardinality.
   */
   Item **p;
   for (p= *group_list;
@@ -251,6 +238,11 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
       Field *field= ((Item_field*)real)->field;
       possible_keys.merge(field->part_of_key);
       columns.append(field->field_index);
+
+      // Also note the TABLE* for the table we're handling:
+      table= field->table;
+      table_records_after_where= rows2double(table->reginfo.join_tab->
+                                             found_records);
     }
     else
       found_complex_item= true;
@@ -259,117 +251,141 @@ double estimate_table_group_cardinality(JOIN *join, Item ***group_list,
   /* Tell the caller where group_list ended */
   *group_list= p;
 
-  if (found_complex_item)
+  Json_writer_object trace_obj(join->thd);
+
+  if (!table || found_complex_item)
     goto whole_table;
 
-  possible_keys.intersect(table->keys_in_use_for_query);
-  /*
-    Ok, group_list has only columns and we've got them in 'columns'.
-  */
-  while (!possible_keys.is_clear_all())
+  trace_obj.add_table_name(table);
   {
-    /* Find the index which has the longest prefix covered by columns. */
-    uint longest_key= UINT_MAX;
-    int longest_len= 0;
-    key_map::Iterator key_it(possible_keys);
-    uint key;
-    while ((key= key_it++) != key_map::Iterator::BITMAP_END)
-    {
-      const KEY *keyinfo= table->key_info + key;
+    Json_writer_array trace_steps(join->thd, "steps");
+    possible_keys.intersect(table->keys_in_use_for_query);
 
-      /* Find the length of index prefix covered by GROUP BY columns */
-      int part;
-      for (part= 0; part < (int)keyinfo->usable_key_parts; part++)
+    /*
+      Ok, group_list has only columns and we've got them in 'columns'.
+      Try to find index(es) that cover it.
+    */
+    while (!possible_keys.is_clear_all())
+    {
+      /* Find the index which has the longest prefix covered by columns. */
+      uint longest_key= UINT_MAX;
+      int longest_len= 0;
+      key_map::Iterator key_it(possible_keys);
+      uint key;
+      while ((key= key_it++) != key_map::Iterator::BITMAP_END)
+      {
+        const KEY *keyinfo= table->key_info + key;
+
+        /* Find the length of index prefix covered by GROUP BY columns */
+        int part;
+        for (part= 0; part < (int)keyinfo->usable_key_parts; part++)
+        {
+          uint field_index= keyinfo->key_part[part].field->field_index;
+          if (columns.find_first(field_index) == columns.NOT_FOUND)
+            break;
+        }
+
+        if (part > 0) // At least one column is covered
+        {
+          /* Make sure the index has statistics available */
+          if (!keyinfo->actual_rec_per_key(part - 1))
+          {
+            possible_keys.clear_bit(key);
+            continue;
+          }
+          if (part > longest_len)
+          {
+            longest_len= part;
+            longest_key= key;
+          }
+        }
+        else
+        {
+          /*
+            The index can't cover even one-column prefix. Remove it from
+            consideration.
+          */
+          possible_keys.clear_bit(key);
+        }
+      }
+
+      if (longest_key == UINT_MAX)
+        break; // No indexes are usable, stop.
+
+      possible_keys.clear_bit(longest_key);
+      /* Multiply cardinality by index prefix's cardinality */
+      const KEY *keyinfo= table->key_info + longest_key;
+      double index_card= (rows2double(table->stat_records()) /
+               keyinfo->actual_rec_per_key(longest_len-1));
+
+      /* Safety in case of inconsistent statistics: */
+      set_if_bigger(index_card, 1.0);
+
+      Json_writer_object trace_idx(join->thd);
+      trace_idx.add("index_name", keyinfo->name)
+               .add("cardinality", index_card);
+      card *= index_card;
+      if (card > table_records_after_where)
+        goto whole_table;
+
+      /* Remove the columns we've handled from consideration */
+      for (int part= 0; part < longest_len; part++)
       {
         uint field_index= keyinfo->key_part[part].field->field_index;
-        if (columns.find_first(field_index) == columns.NOT_FOUND)
-          break;
+        size_t idx= columns.find_first(field_index);
+        if (idx != columns.NOT_FOUND)
+          columns.del(idx);
+        else
+          DBUG_ASSERT(0); // Can't happen, we've found it above.
       }
 
-      if (part > 0) // At least one column is covered
-      {
-        /* Make sure the index has statistics available */
-        if (!keyinfo->actual_rec_per_key(part - 1))
-        {
-          possible_keys.clear_bit(key);
-          continue;
-        }
-        if (part > longest_len)
-        {
-          longest_len= part;
-          longest_key= key;
-        }
-      }
-      else
-      {
-        /*
-          The index can't cover even one-column prefix. Remove it from
-          consideration.
-        */
-        possible_keys.clear_bit(key);
-      }
+      if (!columns.size())
+        break; // If we've covered all columns, stop.
     }
 
-    if (longest_key == UINT_MAX)
-      break; // No indexes are usable, stop.
-
-    possible_keys.clear_bit(longest_key);
-    /* Multiply cardinality by index prefix's cardinality */
-    const KEY *keyinfo= table->key_info + longest_key;
-    double index_card= (rows2double(table->stat_records()) /
-             keyinfo->actual_rec_per_key(longest_len-1));
-
-    /* Safety in case of inconsistent statistics: */
-    set_if_bigger(index_card, 1.0);
-
-    Json_writer_object trace_idx(join->thd);
-    trace_idx.add("index_name", keyinfo->name)
-             .add("cardinality", index_card);
-    card *= index_card;
-    if (card > table_records_after_where)
-      goto whole_table;
-
-    /* Remove the columns we've handled from consideration */
-    for (int part= 0; part < longest_len; part++)
+    /*
+      If there are some columns left for which we couldn't get cardinality
+      from index statistics, try getting it from columns' histograms
+    */
+    for (size_t i=0; i < columns.size(); i++)
     {
-      uint field_index= keyinfo->key_part[part].field->field_index;
-      size_t idx= columns.find_first(field_index);
-      if (idx != columns.NOT_FOUND)
-        columns.del(idx);
-      else
-        DBUG_ASSERT(0); // Can't happen, we've found it above.
+      double freq;
+      Field *field= table->field[columns.at(i)];
+      if (!field->read_stats ||
+          (freq= field->read_stats->get_avg_frequency()) == 0.0)
+        goto whole_table;
+      double column_card= rows2double(table->stat_records()) / freq;
+      Json_writer_object trace_col(join->thd);
+      trace_col.add("column", field->field_name)
+               .add("cardinality", column_card);
+      card *= column_card;
+      if (card > table_records_after_where)
+        goto whole_table;
     }
-
-    if (!columns.size())
-      break; // If we've covered all columns, stop.
-  }
-
-  /*
-    If there are some columns left for which we couldn't get cardinality
-    from index statistics, try getting it from columns' histograms
-  */
-  for (size_t i=0; i < columns.size(); i++)
-  {
-    double freq;
-    Field *field= table->field[columns.at(i)];
-    if (!field->read_stats ||
-        (freq= field->read_stats->get_avg_frequency()) == 0.0)
-      goto whole_table;
-    double column_card= rows2double(table->stat_records()) / freq;
-    Json_writer_object trace_col(join->thd);
-    trace_col.add("column", field->field_name)
-             .add("cardinality", column_card);
-    card *= column_card;
-    if (card > table_records_after_where)
-      goto whole_table;
   }
 
 normal_exit:
-  trace_steps.end();
   trace_obj.add("cardinality", card);
   return card;
 
 whole_table:
+  /* Find the table in the SELECT if we don't have it yet */
+  if (!table)
+  {
+    List_iterator<TABLE_LIST> li(join->select_lex->leaf_tables);
+    TABLE_LIST *tbl;
+    while ((tbl= li++))
+    {
+      if (tbl->table->map == table_bit)
+      {
+        table= tbl->table;
+        table_records_after_where= rows2double(tbl->table->reginfo.
+                                               join_tab->found_records);
+        break;
+      }
+    }
+    trace_obj.add_table_name(table);
+  }
   card= table_records_after_where;
   goto normal_exit;
 }
