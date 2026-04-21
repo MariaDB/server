@@ -2622,6 +2622,7 @@ drop table t0;
 create table t0 (c0 text);
 insert into t0 values ('1'),('foo');
 select c0 from t0 where lpad('123', 2-c0, c0);
+select c0 from t0 where rpad('123', 2-c0, c0);
 drop table t0;
 
 --echo # End of 10.11 tests
