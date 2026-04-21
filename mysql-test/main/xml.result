@@ -1322,3 +1322,95 @@ foo
 #
 # Start of 10.5 tests
 #
+#
+# ExtractValue/UpdateXML crash
+#
+SELECT ExtractValue('<!a/><!b/>', '/a');
+ExtractValue('<!a/><!b/>', '/a')
+NULL
+Warnings:
+Warning	1525	Incorrect XML value: 'parse error at line 1 pos 2: unknown token unexpected (ident or '/' wanted)'
+SELECT UpdateXML('<!a/><!b/>', '/a', '<new/>');
+UpdateXML('<!a/><!b/>', '/a', '<new/>')
+NULL
+Warnings:
+Warning	1525	Incorrect XML value: 'parse error at line 1 pos 2: unknown token unexpected (ident or '/' wanted)'
+SELECT ExtractValue('<!a/><!b/><!c/>', '/a');
+ExtractValue('<!a/><!b/><!c/>', '/a')
+NULL
+Warnings:
+Warning	1525	Incorrect XML value: 'parse error at line 1 pos 2: unknown token unexpected (ident or '/' wanted)'
+SELECT ExtractValue('<?a/?><?b/?>', '/a');
+ExtractValue('<?a/?><?b/?>', '/a')
+NULL
+Warnings:
+Warning	1525	Incorrect XML value: 'parse error at line 1 pos 5: unknown token unexpected (ident wanted)'
+SELECT ExtractValue('<!a/><?b/?>', '/a');
+ExtractValue('<!a/><?b/?>', '/a')
+NULL
+Warnings:
+Warning	1525	Incorrect XML value: 'parse error at line 1 pos 2: unknown token unexpected (ident or '/' wanted)'
+SET @xml='<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE note [
+  <!ELEMENT note (to, from, heading, body)>
+  <!ELEMENT to (#PCDATA)>
+  <!ELEMENT from (#PCDATA)>
+  <!ELEMENT heading (#PCDATA)>
+  <!ELEMENT body (#PCDATA)>
+]>
+<note>
+  <to>Tove</to>
+  <from>Jani</from>
+  <heading>Reminder</heading>
+  <body>See you this weekend!</body>
+</note>
+';
+SELECT ExtractValue(@xml, '/note/from');
+ExtractValue(@xml, '/note/from')
+Jani
+set @xml= '<?xml version="1.0"?>
+<employee>
+  <dt1>--01--+01:00</dt1>
+  <dt2>--12--+01:00</dt2>
+  <?dt3 123456 ?>
+  <dt3>--02--</dt3>
+  <dt4>--03--Z</dt4>
+  <?dt4 123456 ?>
+</employee>
+<?employee ABSDEV !@#$ ?>';
+SELECT ExtractValue(@xml, '/employee/dt3');
+ExtractValue(@xml, '/employee/dt3')
+--02--
+set @xml= '<? xml version="1.0"?>
+<employee>
+  <dt1>--01--+01:00</dt1>
+  <dt2>--12--+01:00</dt2>
+  <?dt3 123456 ?>
+  <dt3>--02--</dt3>
+  <dt4>--03--Z</dt4>
+  <?dt4 123456 ?>
+</employee>
+<?  employee ABSDEV !@#$ ?>';
+SELECT ExtractValue(@xml, '/employee/dt3');
+ExtractValue(@xml, '/employee/dt3')
+NULL
+Warnings:
+Warning	1525	Incorrect XML value: 'parse error at line 1 pos 21: unknown token unexpected ('>' wanted)'
+set @xml= '<?xml version="1.0"?>
+<employee>
+  <dt1>--01--+01:00</dt1>
+  <dt2>--12--+01:00</dt2>
+  <?dt3 123456 ?>
+  <dt3>--02--</dt3>
+  <dt4>--03--Z</dt4>
+  <?dt4 123456 ? >
+</employee>
+<?employee ABSDEV !@#$ ?>';
+SELECT ExtractValue(@xml, '/employee/dt3');
+ExtractValue(@xml, '/employee/dt3')
+NULL
+Warnings:
+Warning	1525	Incorrect XML value: 'parse error at line 10 pos 27: unexpected END-OF-INPUT'
+#
+# Start of 10.6 tests
+#

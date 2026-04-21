@@ -1,0 +1,60 @@
+--source include/not_windows.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-5479: Prevent mysqld from unlinking a Unix socket
+--echo #            file actively used by another process
+--echo #
+
+# Shut down the server once; both tests run while it is down.
+--source include/shutdown_mysqld.inc
+
+--echo #
+--echo # Test 1: Server must refuse to start when a listener is
+--echo #         already present on the socket path
+--echo #
+
+# Create a fake listener on the default socket path.
+# The parent creates the socket, then exits (fork and exit).
+# The child blocks on accept(); when mysqld's connect() probe
+# hits the socket, accept() returns and the child exits,
+# leaving a stale socket file for Test 2.
+perl;
+  use IO::Socket::UNIX;
+  my $path= $ENV{MASTER_MYSOCK};
+  unlink $path;
+  close STDOUT;
+  my $srv= IO::Socket::UNIX->new(
+    Local  => $path,
+    Listen => 1,
+  ) or die "IO::Socket::UNIX->new($path): $!";
+  fork and exit;
+  exit if $srv->accept();
+EOF
+
+--let errorlog=$MYSQL_TMP_DIR/socket_conflict.err
+--let SEARCH_FILE=$errorlog
+
+# Use --loose-skip-innodb to skip InnoDB initialization, which
+# runs before network_init() and would otherwise be slow on CI.
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --loose-skip-innodb --log-error=$errorlog
+
+--let SEARCH_PATTERN=\[ERROR\] Another process is already listening on the socket file
+--source include/search_pattern_in_file.inc
+
+--remove_file $SEARCH_FILE
+
+--echo #
+--echo # Test 2: Stale socket file must be cleaned up at startup
+--echo #
+
+# The socket file from Test 1 is still on disk but has no
+# listener. The server should detect it as stale, remove it,
+# and bind successfully.
+--source include/start_mysqld.inc
+
+# Verify the server is operational
+SELECT 1;
+
+--echo # End of 10.11 tests

@@ -59,6 +59,9 @@ ProtectSystem=full
 # Doesn't yet work properly with SELinux enabled
 # NoNewPrivileges=true
 
+# Restrict modifications of cgroups from the MariaDB service context.
+ProtectControlGroups=true
+
 # Prevent accessing /home, /root and /run/user
 ProtectHome=true
 

@@ -2134,17 +2134,22 @@ int decimal_mul(const decimal_t *from1, const decimal_t *from2, decimal_t *to)
     }
     else                                         /* bounded fract part */
     {
-      j-=frac0;
-      i=j >> 1;
-      if (frac1 <= frac2)
+      dec1 *b1=buf1-1, *b2= buf2-1; /* shortcuts */
+      while (j > frac0)
       {
-        frac1-= i;
-        frac2-=j-i;
-      }
-      else
-      {
-        frac2-= i;
-        frac1-=j-i;
+        if (b1[frac1] == 0)      /* lossless */
+          frac1--;
+        else if (b2[frac2] == 0) /* lossless */
+          frac2--;
+        else if (frac1 > frac2)    /* lossy, MUST be after lossless */
+          frac1--;
+        else if (frac2 > frac1)
+          frac2--;
+        else if (b1[frac1] < b2[frac2])
+          frac1--;
+        else
+          frac2--;
+        j--;
       }
     }
   }
@@ -2181,21 +2186,26 @@ int decimal_mul(const decimal_t *from1, const decimal_t *from2, decimal_t *to)
     }
   }
 
-  /* Remove trailing zero words in frac part */
-  frac0= ROUND_UP(to->frac);
-
-  if (frac0 > 0 && to->buf[intg0 + frac0 - 1] == 0)
+  /* Now we have to check for -0.000 case */
+  if (to->sign)
   {
-    do
+    dec1 *buf= to->buf;
+    dec1 *end= to->buf + intg0 + frac0;
+    DBUG_ASSERT(buf != end);
+    for (;;)
     {
-      frac0--;
-    } while (frac0 > 0 && to->buf[intg0 + frac0 - 1] == 0);
-    to->frac= DIG_PER_DEC1 * frac0;
+      if (*buf)
+        break;
+      if (++buf == end)
+      {
+        /* We got decimal zero */
+        decimal_make_zero(to);
+        break;
+      }
+    }
   }
-
-  /* Remove heading zero words in intg part */
   buf1= to->buf;
-  d_to_move= intg0 + frac0;
+  d_to_move= intg0 + ROUND_UP(to->frac);
   while (!*buf1 && (to->intg > DIG_PER_DEC1))
   {
     buf1++;
@@ -2207,14 +2217,6 @@ int decimal_mul(const decimal_t *from1, const decimal_t *from2, decimal_t *to)
     dec1 *cur_d= to->buf;
     for (; d_to_move--; cur_d++, buf1++)
       *cur_d= *buf1;
-  }
-
-  /* Now we have to check for -0.000 case */
-  if (to->sign && to->frac == 0 && to->buf[0] == 0)
-  {
-    DBUG_ASSERT(to->intg <= DIG_PER_DEC1);
-    /* We got decimal zero */
-    decimal_make_zero(to);
   }
   return error;
 }

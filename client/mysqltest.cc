@@ -6116,9 +6116,9 @@ static int cmp_decimal(const My_string &a, const My_string &b)
   size_t b_len= b.length();
 
   // Skip leading whitespace
-  while (a_len > 0 && isspace(*a_ptr))
+  while (a_len > 0 && my_isspace(charset_info, *a_ptr))
     a_ptr++, a_len--;
-  while (b_len > 0 && isspace(*b_ptr))
+  while (b_len > 0 && my_isspace(charset_info, *b_ptr))
     b_ptr++, b_len--;
 
   // Handle empty strings (treat as 0)
@@ -6140,8 +6140,8 @@ static int cmp_decimal(const My_string &a, const My_string &b)
 
   // Find actual numeric length (digits only)
   size_t a_digits= 0, b_digits= 0;
-  for (size_t i= 0; i < a_len && isdigit(a_ptr[i]); i++) a_digits++;
-  for (size_t i= 0; i < b_len && isdigit(b_ptr[i]); i++) b_digits++;
+  for (size_t i= 0; i < a_len && my_isdigit(charset_info, a_ptr[i]); i++) a_digits++;
+  for (size_t i= 0; i < b_len && my_isdigit(charset_info, b_ptr[i]); i++) b_digits++;
 
   // Handle zero cases after removing leading zeros
   bool a_is_zero= (a_digits == 0);

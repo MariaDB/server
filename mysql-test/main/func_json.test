@@ -2053,7 +2053,7 @@ SELECT JSON_VALUE('{"a":[1,2]}', '$.a[*]');
 --echo # MDEV-37640: Crash at String::append with json_normalize
 --echo #
 
-SELECT ( WITH x AS ( WITH x AS ( SELECT 1.000000 ) SELECT ( REPEAT ( ( json_normalize ( ' 	-1' ) ) , 357 ) ) x ) SELECT x FROM x WHERE x IN ( x , x ) );
+SELECT ( WITH x AS ( WITH x AS ( SELECT 1.000000 ) SELECT ( REPEAT ( ( json_normalize ( ' 	-1' ) ) , 357 ) ) x ) SELECT x FROM x WHERE x IN ( x , x ) ) x;
 
 --echo #
 --echo # MDEV-37640: Crash in JSON_KEYS

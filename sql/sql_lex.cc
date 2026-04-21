@@ -2975,7 +2975,7 @@ void st_select_lex_node::init_query_common()
   into the front of the stranded_clean_list:
     before: root -> B -> A
      after: root -> this -> B -> A
-  During cleanup, the stranded units are cleaned in FIFO order.
+  During cleanup, the stranded units are cleaned in LIFO order (parent-first).
  */
 void st_select_lex_unit::remember_my_cleanup()
 {
@@ -2994,11 +2994,16 @@ void st_select_lex_unit::remember_my_cleanup()
 
 void st_select_lex_unit::cleanup_stranded_units()
 {
-  if (!stranded_clean_list)
-    return;
-
-  stranded_clean_list->cleanup();
+  st_select_lex_unit *cur= stranded_clean_list;
   stranded_clean_list= nullptr;
+
+  while (cur)
+  {
+    st_select_lex_unit *next= cur->stranded_clean_list;
+    cur->stranded_clean_list= nullptr;
+    cur->cleanup();
+    cur= next;
+  }
 }
 
 
@@ -8968,6 +8973,10 @@ void st_select_lex::collect_grouping_fields_for_derived(THD *thd,
 
 /**
   Collect fields that are used in the GROUP BY of this SELECT
+
+  @retval
+    true  - no grouping fields or an error
+    false - collected group fields successfully
 */
 
 bool st_select_lex::collect_grouping_fields(THD *thd)
@@ -8987,7 +8996,7 @@ bool st_select_lex::collect_grouping_fields(THD *thd)
     Field_pair *grouping_tmp_field=
       new Field_pair(((Item_field *)item->real_item())->field, item);
     if (grouping_tmp_fields.push_back(grouping_tmp_field, thd->mem_root))
-      return false;
+      return true;
   }
   if (grouping_tmp_fields.elements)
     return false;

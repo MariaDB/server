@@ -5421,6 +5421,15 @@ x
 NULL
 Warnings:
 Warning	1301	Result of hex() was larger than max_allowed_packet (16777216) - truncated
+#
+# MDEV-32758: TRIM uses memory after freed
+#
+CREATE TABLE t0 (i DOUBLE);
+INSERT INTO t0 VALUES (1);
+SELECT LOCATE(a , 'data1-data2', a) AS c FROM (SELECT TRIM(i) AS a FROM t0 )dt;
+c
+5
+DROP TABLE t0;
 # End of 10.6 tests
 #
 # MDEV-25704 Function random_bytes
@@ -5649,4 +5658,26 @@ select cast(make_set(3, cast(c1 as binary), 0) as char) from t1;
 cast(make_set(3, cast(c1 as binary), 0) as char)
 9067,0
 drop table t1;
+#
+# MDEV-39111 The query returns an incorrect value when using LPAD and REPLACE
+#
+create table t0 (c0 decimal(10,0));
+insert into t0 values (-1453243642), (0);
+select c0 from t0
+where   (lpad('0', c0 + 1, '1') or replace(cast(false as char), false, c0))
+and not (lpad('0', c0 + 1, '1') or replace(cast(false as char), false, c0));
+c0
+drop table t0;
+#
+# MDEV-39112 The query returns incorrect results when using LPAD
+#
+create table t0 (c0 text);
+insert into t0 values ('1'),('foo');
+select c0 from t0 where lpad('123', 2-c0, c0);
+c0
+1
+foo
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+drop table t0;
 # End of 10.11 tests

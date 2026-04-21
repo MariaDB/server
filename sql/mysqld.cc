@@ -2677,6 +2677,57 @@ err:
 }
 
 
+#ifdef HAVE_SYS_UN_H
+/*
+  Unlink an existing Unix socket file if no process is listening
+  on it, or abort startup if the socket is still active.
+*/
+static void unlink_socket_or_abort(const char *path)
+{
+  struct sockaddr_un addr;
+  MY_STAT stat_buf;
+  int fd;
+
+  if (!my_stat(path, &stat_buf, MYF(0)))
+    return;
+
+  if (!S_ISSOCK(stat_buf.st_mode))
+    goto do_unlink;
+
+  fd= socket(AF_UNIX, SOCK_STREAM, 0);
+  if (fd < 0)
+  {
+    sql_print_error("Cannot create a socket: %M. Aborting.",
+                    errno);
+    unireg_abort(1);
+  }
+
+  bzero((char*) &addr, sizeof(addr));
+  addr.sun_family= AF_UNIX;
+  strmov(addr.sun_path, path);
+  if (connect(fd, (struct sockaddr *) &addr, sizeof(addr)) == 0)
+  {
+    close(fd);
+    sql_print_error("Another process is already listening "
+                    "on the socket file '%s'. Aborting.",
+                    path);
+    unireg_abort(1);
+  }
+  if (errno != ECONNREFUSED && errno != ENOENT)
+  {
+    close(fd);
+    sql_print_error("Error checking socket file '%s': %M. "
+                    "Aborting.", path, errno);
+    unireg_abort(1);
+  }
+  close(fd);
+
+do_unlink:
+  (void) unlink(path);
+}
+#endif /* HAVE_SYS_UN_H */
+
+
 static void network_init(void)
 {
 #ifdef HAVE_SYS_UN_H
@@ -2754,7 +2805,7 @@ static void network_init(void)
     else
 #endif
     {
-      (void) unlink(mysqld_unix_port);
+      unlink_socket_or_abort(mysqld_unix_port);
       port_len= sizeof(UNIXaddr);
     }
     arg= 1;
