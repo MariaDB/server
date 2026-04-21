@@ -26,6 +26,7 @@
 #include "my_xml.h"
 #include "sp_pcontext.h"
 #include "sql_class.h"                          // THD
+#include "sql_parse.h"                          // for check_stack_overrun
 
 /*
   TODO: future development directions:
@@ -2210,6 +2211,9 @@ static int my_xpath_parse_FilterExpr(MY_XPATH *xpath)
 */
 static int my_xpath_parse_OrExpr(MY_XPATH *xpath)
 {
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return 1;
+
   if (!my_xpath_parse_AndExpr(xpath))
     return 0;
 
