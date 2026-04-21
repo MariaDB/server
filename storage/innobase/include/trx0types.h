@@ -62,7 +62,9 @@ enum trx_state_t {
 	/** XA PREPARE transaction that was returned to ha_recover() */
 	TRX_STATE_PREPARED_RECOVERED,
         /** The transaction has been committed (or completely rolled back) */
-	TRX_STATE_COMMITTED_IN_MEMORY
+	TRX_STATE_COMMITTED_IN_MEMORY,
+	/** The transaction holds context for BACKUP SERVER */
+	TRX_STATE_BACKUP
 };
 
 /** Transaction bulk insert operation @see trx_t::bulk_insert */

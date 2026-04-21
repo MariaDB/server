@@ -68,6 +68,7 @@ trx_state_eq(
 
 		return(true);
 	case TRX_STATE_ABORTED:
+	case TRX_STATE_BACKUP:
 		break;
 	}
 	ut_error;

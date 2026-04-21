@@ -2631,16 +2631,10 @@ innobase_trx_allocate(
 	DBUG_RETURN(trx);
 }
 
-/*********************************************************************//**
-Gets the InnoDB transaction handle for a MySQL handler object, creates
-an InnoDB transaction struct if the corresponding MySQL thread struct still
-lacks one.
-@return InnoDB transaction handle */
-static
-trx_t*
-check_trx_exists(
-/*=============*/
-	THD*	thd)	/*!< in: user thread handle */
+/** Associate a transaction with the current session
+@param thd   session
+@return InnoDB transaction */
+trx_t *check_trx_exists(THD *thd) noexcept
 {
 	if (trx_t* trx = thd_to_trx(thd)) {
 		ut_a(trx->magic_n == TRX_MAGIC_N);

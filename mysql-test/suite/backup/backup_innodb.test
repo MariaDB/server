@@ -4,7 +4,15 @@
 
 CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255) DEFAULT '' NOT NULL, INDEX(b))
 ENGINE=INNODB;
+BEGIN;
 INSERT INTO t SET a=1;
+
+evalp BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+--rmdir $MYSQLTEST_VARDIR/some_directory
+ROLLBACK;
+# BACKUP SERVER will implicitly commit the current transaction
+SELECT * FROM t;
+
 BEGIN;
 DELETE FROM t;
 

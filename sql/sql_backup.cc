@@ -53,7 +53,7 @@ static my_bool backup_finalize(THD *thd, plugin_ref plugin, void *) noexcept
 {
   handlerton *hton= plugin_hton(plugin);
   if (hton->backup_step)
-    hton->backup_finalize(thd);
+    return hton->backup_finalize(thd);
   return 0;
 }
 
@@ -102,6 +102,9 @@ bool Sql_cmd_backup::execute(THD *thd)
                                       PLUGIN_IS_DELETED|PLUGIN_IS_READY,
                                       IF_WIN(const_cast<char*>(target.str),
                                              reinterpret_cast<void*>(dir)));
+
+  /* The backup_step may be invoked in multiple concurrent threads.
+  At the time backup_end is invoked, all backup_step will have to complete. */
   if (!fail)
     fail= plugin_foreach_with_mask(thd, backup_step,
                                    MYSQL_STORAGE_ENGINE_PLUGIN,
@@ -113,7 +116,7 @@ bool Sql_cmd_backup::execute(THD *thd)
                              PLUGIN_IS_DELETED|PLUGIN_IS_READY,
                              reinterpret_cast<void*>(fail)) || fail;
 
-  /* The final part will not interfere with the use of the server datadir.
+  /* The final part must not interfere with the use of the server datadir.
   Release the locks. */
   thd->mdl_context.release_lock(mdl_request.ticket);
   plugin_foreach_with_mask(thd, backup_finalize, MYSQL_STORAGE_ENGINE_PLUGIN,

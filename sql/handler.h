@@ -1922,10 +1922,12 @@ struct handlerton : public transaction_participant
   */
   int (*backup_end)(THD *thd, bool abort);
   /**
-     After a successful backup_end(), finalize the backup.
-     @param thd   current sesssion
+     Clean up after any backup_end().
+     @param thd   the parameter on which backup_end() was invoked
+     @return error code
+     @retval 0 on success
   */
-  void (*backup_finalize)(THD *thd);
+  int (*backup_finalize)(THD *thd);
 
   /**********************************************************************
    WSREP specific

@@ -40,10 +40,12 @@ int innodb_backup_step(THD *thd) noexcept;
 int innodb_backup_end(THD *thd, bool abort) noexcept;
 
 /**
-   After a successful backup_end(), finalize the backup.
-   @param thd   current session
+   Clean up after innodb_backup_end().
+   @param thd   the parameter on which innodb_backup_end() had been invoked
+   @return error code
+   @retval 0 on success
 */
-void innodb_backup_finalize(THD *thd) noexcept;
+int innodb_backup_finalize(THD *thd) noexcept;
 
 /**
    Complete the first checkpoint in a new archive log file.

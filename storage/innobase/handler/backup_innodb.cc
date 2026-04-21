@@ -16,10 +16,13 @@
 #include "my_global.h"
 #include "sql_class.h"
 #include "backup_innodb.h"
-#include "log0log.h"
-#include "srw_lock.h"
-#include "fil0fil.h"
+#include "trx0trx.h"
 #include <vector>
+
+/** Associate a transaction with the current session
+@param thd   session
+@return InnoDB transaction */
+trx_t *check_trx_exists(THD *thd) noexcept;
 
 #ifdef _WIN32
 #elif defined __APPLE__
@@ -171,11 +174,9 @@ namespace
 /** Backup state; protected by log_sys.latch */
 class InnoDB_backup
 {
-  /** log copying status */
-  enum activity { INACTIVE= 0, ACTIVE, END };
-  /** log copying status during backup */
-  activity active{INACTIVE};
-
+  /** first LSN of last log that was copied (1 if none yet),
+  or 0 if backup is not active */
+  lsn_t last_first_lsn;
   /** the original innodb_log_file_size, or 0 */
   uint64_t old_size;
 
@@ -184,8 +185,6 @@ class InnoDB_backup
   /** collection of completed log archive files to be
   hard-linked, copied, or moved */
   std::vector<lsn_t> logs;
-  /** first LSN of last log that was copied, or 0 */
-  lsn_t last_first_lsn;
 
   /** target directory name or handle */
   IF_WIN(const char*,int) target;
@@ -204,16 +203,30 @@ public:
   */
   int init(THD *thd, IF_WIN(const char*,int) target) noexcept
   {
-    ut_ad(!active);
-    ut_ad(queue.empty());
-    ut_ad(logs.empty());
+    trx_t *trx= check_trx_exists(thd);
+    if (trx->id || trx->state != TRX_STATE_NOT_STARTED)
+    {
+      ut_ad(trx->state != TRX_STATE_BACKUP);
+      my_error(ER_CANT_DO_THIS_DURING_AN_TRANSACTION, MYF(0));
+      return 1;
+    }
+
+    log_sys.latch.wr_lock();
     ut_ad(!last_first_lsn);
+    ut_ad(queue.empty());
+    if (!logs.empty())
+    {
+      /* A new BACKUP SERVER is being invoked before a previous one
+      had been fully finalized. Clean up any log files. */
+      if (old_size)
+        delete_logs();
+      logs.clear();
+    }
 
     const bool fail{log_sys.backup_start(&old_size, thd)};
 
     if (!fail)
     {
-      log_sys.latch.wr_lock();
       const lsn_t start{log_sys.archived_checkpoint};
       checkpoint= start;
       checkpoint_end_lsn= log_sys.archived_lsn;
@@ -247,9 +260,10 @@ public:
             space.get_create_lsn() < start)
           queue.emplace_back(space.id);
       mysql_mutex_unlock(&fil_system.mutex);
-      active= ACTIVE;
-      log_sys.latch.wr_unlock();
+      last_first_lsn= 1;
+      trx->state= TRX_STATE_BACKUP;
     }
+    log_sys.latch.wr_unlock();
     DEBUG_SYNC(thd, "innodb_backup_start");
     return fail;
   }
@@ -266,7 +280,7 @@ public:
     uint32_t id= FIL_NULL;
     lsn_t lsn= 0;
     log_sys.latch.wr_lock();
-    ut_ad(active == ACTIVE || active == END);
+    ut_ad(last_first_lsn);
     size_t size{queue.size()};
     if (!logs.empty())
     {
@@ -275,24 +289,13 @@ public:
         last_first_lsn= lsn;
       logs.pop_back();
       if (!size)
-      {
         size= logs.size();
-        if (!size)
-          goto got_all;
-      }
     }
     else if (size)
     {
       size--;
       id= queue.back();
       queue.pop_back();
-    }
-    else
-    {
-    got_all:
-      /* Tell checkpoint_complete() that we only need the current log file,
-      nothing more. */
-      active= END;
     }
     log_sys.latch.wr_unlock();
 
@@ -319,6 +322,7 @@ public:
 
   /**
      Finish copying and determine the logical time of the backup snapshot.
+     fini() must be invoked on the same thd.
      @param thd   current session
      @param abort whether BACKUP SERVER was aborted
      @return error code
@@ -328,20 +332,21 @@ public:
   {
     int fail= 0;
     log_sys.latch.wr_lock();
-    ut_ad(queue.empty());
     if (abort)
     {
-      ut_ad(active == ACTIVE || active == END);
+    skip_log_dup:
       queue.clear();
       if (old_size)
         delete_logs();
       logs.clear();
-    skip_log_dup:
-      last_first_lsn= 0;
     }
     else
     {
-      ut_ad(active == ACTIVE);
+      ut_ad(last_first_lsn);
+      ut_ad(queue.empty());
+      trx_t *trx= thd_to_trx(thd);
+      if (!trx || trx->state != TRX_STATE_BACKUP)
+        goto skip_log_dup;
       const lsn_t last_lsn{log_sys.get_lsn()};
       while (!logs.empty())
       {
@@ -371,36 +376,53 @@ public:
         else
           goto skip_log_dup;
       }
+
+      trx->start_time_micro= last_first_lsn;
+      trx->commit_lsn= last_lsn;
     }
 
-    active= INACTIVE;
+    ut_ad(!log_sys.resize_in_progress());
+    ut_ad(log_sys.archive);
     if (old_size)
-      log_sys.backup_stop_archiving(thd);
-    else
+    {
       log_sys.latch.wr_unlock();
+      log_sys.backup_stop_archiving(thd);
+      log_sys.latch.wr_lock();
+    }
+    last_first_lsn= 0;
     log_sys.backup_stop(old_size, thd);
     return fail;
   }
 
   /**
      After a successful end(), finalize the backup.
-     @param thd   current session
+     @param thd   the parameter that had been passed to end()
+     @return error code
+     @retval 0 on success
   */
-  void fini(THD *thd) noexcept
+  int fini(THD *thd) noexcept
   {
     log_sys.latch.wr_lock();
-    ut_ad(!active);
-    ut_ad(queue.empty());
-    if (old_size)
-      delete_logs();
-    logs.clear();
-    const lsn_t lsn{last_first_lsn};
-    last_first_lsn= 0;
+    if (!last_first_lsn)
+    {
+      ut_ad(queue.empty());
+      if (old_size)
+        delete_logs();
+      logs.clear();
+    }
     log_sys.latch.wr_unlock();
 
-    if (lsn)
+    trx_t *trx= thd_to_trx(thd);
+    if (trx != nullptr && trx->state == TRX_STATE_BACKUP)
+    {
       /* TODO: copy our hardlink of the last log until the final LSN */
-      sql_print_information("TODO: duplicate " LOG_ARCHIVE_NAME, lsn);
+      sql_print_information("TODO: duplicate " LOG_ARCHIVE_NAME " to " LSN_PF,
+                            lsn_t{trx->start_time_micro}, trx->commit_lsn);
+      trx->start_time_micro= 0;
+      trx->commit_lsn= 0;
+      trx->state= TRX_STATE_NOT_STARTED;
+    }
+    return 0;
   }
 
   /**
@@ -409,7 +431,7 @@ public:
   void checkpoint_complete() noexcept
   {
     ut_ad(log_sys.latch_have_wr());
-    if (active)
+    if (last_first_lsn)
       logs.emplace_back(log_sys.get_first_lsn() - log_sys.capacity());
   }
 
@@ -620,17 +642,15 @@ static InnoDB_backup backup;
 
 bool log_t::backup_start(uint64_t *old_size, THD *thd) noexcept
 {
-  latch.wr_lock();
+  ut_ad(latch_have_wr());
   ut_ad(!backup);
   backup= true;
-  const bool was_archived= bool(archive);
+  *old_size= 0;
+  if (archive)
+    return false;
   const uint64_t old_file_size{file_size};
   latch.wr_unlock();
-  if (was_archived)
-  {
-    *old_size= 0;
-    return false;
-  }
+  bool fail;
   if (old_file_size > ARCHIVE_FILE_SIZE_MAX)
   {
     if (resize_start(ARCHIVE_FILE_SIZE_MAX, thd, true) == RESIZE_STARTED)
@@ -640,12 +660,13 @@ bool log_t::backup_start(uint64_t *old_size, THD *thd) noexcept
       goto too_big;
     latch.wr_unlock();
   }
-  if (!set_archive(true, thd, true))
+  fail= set_archive(true, thd, true);
+  latch.wr_lock();
+  if (!fail)
   {
     *old_size= old_file_size;
     return false;
   }
-  latch.wr_lock();
  too_big:
   ut_ad(backup);
   backup= false;
@@ -654,26 +675,15 @@ bool log_t::backup_start(uint64_t *old_size, THD *thd) noexcept
   if (old_file_size != new_file_size && old_file_size &&
       resize_start(old_file_size, thd) == RESIZE_STARTED)
     resize_finish(thd);
-  *old_size= 0;
+  latch.wr_lock();
   return true;
-}
-
-inline void log_t::backup_stop_archiving(THD *thd) noexcept
-{
-  ut_ad(latch_have_wr());
-  ut_ad(backup);
-  ut_ad(!resize_in_progress());
-  ut_ad(archive);
-  ut_d(latch.wr_unlock());
-  ut_d(bool fail=) set_archive(false, thd, true);
-  ut_ad(!fail);
 }
 
 void log_t::backup_stop(uint64_t old_size, THD *thd) noexcept
 {
+  ut_ad(latch_have_wr());
   /* We will be invoked with old_size=0 after a failed backup_start(),
   or if innodb_log_archive=ON held during a successful backup_start(). */
-  latch.wr_lock();
   ut_ad(!old_size || !resize_in_progress());
   ut_ad(!old_size || backup);
   backup= false;
@@ -699,9 +709,9 @@ int innodb_backup_end(THD *thd, bool abort) noexcept
   return backup.end(thd, abort);
 }
 
-void innodb_backup_finalize(THD *thd) noexcept
+int innodb_backup_finalize(THD *thd) noexcept
 {
-  backup.fini(thd);
+  return backup.fini(thd);
 }
 
 void innodb_backup_checkpoint() noexcept
