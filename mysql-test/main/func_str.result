@@ -5679,5 +5679,11 @@ c0
 foo
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+select c0 from t0 where rpad('123', 2-c0, c0);
+c0
+1
+foo
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 drop table t0;
 # End of 10.11 tests
