@@ -118,7 +118,7 @@ int CSORT::Qsort(PGLOBAL g, int nb)
       Dup->ProgMax = Cmpnum(nb);
       Dup->ProgCur = 0;
       Dup->Step = (char*)PlugSubAlloc(g, NULL, 32);
-      sprintf((char*)Dup->Step, MSG(SORTING_VAL), nb);
+      snprintf((char*)Dup->Step, 32, MSG(SORTING_VAL), nb);
     } else
       Dup = NULL;
 

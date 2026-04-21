@@ -2597,8 +2597,6 @@ err:
 
 bool st_select_lex_unit::cleanup()
 {
-  cleanup_stranded_units();
-
   bool error= 0;
   DBUG_ENTER("st_select_lex_unit::cleanup");
 
@@ -2683,6 +2681,12 @@ bool st_select_lex_unit::cleanup()
       table= 0; // Safety
     }
   }
+
+  /*
+    Cleanup stranded units only after this unit has completed its own
+    cleanup, ensuring a parent-first (LIFO) cleanup order for merged tables.
+  */
+  cleanup_stranded_units();
 
   DBUG_RETURN(error);
 }

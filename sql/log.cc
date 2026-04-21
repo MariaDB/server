@@ -2937,7 +2937,8 @@ static void setup_windows_event_source()
     nonzero if not possible to get unique filename.
 */
 
-static int find_uniq_filename(char *name, ulong min_log_number_to_use,
+static int find_uniq_filename(char *name, size_t name_size,
+                              ulong min_log_number_to_use,
                               ulong *last_used_log_number)
 {
   char                  buff[FN_REFLEN], ext_buf[FN_REFLEN];
@@ -2996,7 +2997,7 @@ updating the index files.", max_found);
   }
 
   next= max_found + 1;
-  if (sprintf(ext_buf, "%06lu", next)<0)
+  if (snprintf(ext_buf, sizeof(ext_buf), "%06lu", next)<0)
   {
     error= 1;
     goto end;
@@ -3017,7 +3018,7 @@ index files.", name, ext_buf, (strlen(ext_buf) + (end - name)));
     goto end;
   }
 
-  if (sprintf(end, "%06lu", next)<0)
+  if (snprintf(end, name + name_size - end, "%06lu", next)<0)
   {
     error= 1;
     goto end;
@@ -3048,8 +3049,9 @@ bool MYSQL_LOG::init_and_set_log_file_name(const char *log_name,
   {
     strmov(log_file_name, new_name);
   }
-  else if (!new_name && generate_new_name(log_file_name, log_name,
-                                          next_log_number))
+  else if (!new_name && generate_new_name(log_file_name,
+                                          sizeof(log_file_name),
+                                          log_name, next_log_number))
     return TRUE;
 
   return FALSE;
@@ -3262,21 +3264,23 @@ void MYSQL_LOG::cleanup()
 }
 
 
-int MYSQL_LOG::generate_new_name(char *new_name, const char *log_name,
+int MYSQL_LOG::generate_new_name(char *new_name, size_t name_size,
+                                 const char *log_name,
                                  ulong next_log_number)
 {
   fn_format(new_name, log_name, mysql_data_home, "", 4);
   return 0;
 }
 
-int MYSQL_BIN_LOG::generate_new_name(char *new_name, const char *log_name,
+int MYSQL_BIN_LOG::generate_new_name(char *new_name, size_t name_size,
+                                     const char *log_name,
                                      ulong next_log_number)
 {
   fn_format(new_name, log_name, mysql_data_home, "", 4);
   if (!fn_ext(log_name)[0])
   {
     if (DBUG_IF("binlog_inject_new_name_error") ||
-        unlikely(find_uniq_filename(new_name, next_log_number,
+        unlikely(find_uniq_filename(new_name, name_size, next_log_number,
                                     &last_used_log_number)))
     {
       THD *thd= current_thd;
@@ -3508,8 +3512,8 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
           my_b_write(&log_file, (uchar*) "\n", 1))
         goto err;
 
-    sprintf(query_time_buff, "%.6f", ulonglong2double(query_utime)/1000000.0);
-    sprintf(lock_time_buff,  "%.6f", ulonglong2double(lock_utime)/1000000.0);
+    snprintf(query_time_buff, sizeof(query_time_buff), "%.6f", ulonglong2double(query_utime)/1000000.0);
+    snprintf(lock_time_buff, sizeof(lock_time_buff),  "%.6f", ulonglong2double(lock_utime)/1000000.0);
     if (my_b_printf(&log_file,
                     "# Thread_id: %lu  Schema: %s  QC_hit: %s\n"
                     "# Query_time: %s  Lock_time: %s  Rows_sent: %lu  Rows_examined: %lu\n"
@@ -3529,12 +3533,12 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
     {
       ha_handler_stats *stats= &thd->handler_stats;
       double tracker_frequency= timer_tracker_frequency();
-      sprintf(query_time_buff, "%.4f",
-              1000.0 * ulonglong2double(stats->pages_read_time)/
-              tracker_frequency);
-      sprintf(lock_time_buff,  "%.4f",
-              1000.0 * ulonglong2double(stats->engine_time)/
-              tracker_frequency);
+      snprintf(query_time_buff, sizeof(query_time_buff), "%.4f",
+               1000.0 * ulonglong2double(stats->pages_read_time)/
+               tracker_frequency);
+      snprintf(lock_time_buff, sizeof(lock_time_buff),  "%.4f",
+               1000.0 * ulonglong2double(stats->engine_time)/
+               tracker_frequency);
 
       if (my_b_printf(&log_file,
                       "# Pages_accessed: %lu  Pages_read: %lu  "
@@ -5654,7 +5658,8 @@ int MYSQL_BIN_LOG::new_file_impl()
     We have to do this here and not in open as we want to store the
     new file name in the current binary log file.
   */
-  if (unlikely((error= generate_new_name(new_name, name, 0))))
+  if (unlikely((error= generate_new_name(new_name, sizeof(new_name),
+                                          name, 0))))
   {
     mysql_mutex_unlock(&LOCK_index);
     DBUG_RETURN(error);
@@ -7620,7 +7625,8 @@ static int do_delete_gtid_domain(DYNAMIC_ARRAY *domain_drop_lex)
   if (errmsg)
     goto end;
   errmsg= rpl_global_gtid_binlog_state.drop_domain(domain_drop_lex,
-                                                   glev, errbuf);
+                                                   glev, errbuf,
+                                                   sizeof(errbuf));
 
 end:
   if (errmsg)

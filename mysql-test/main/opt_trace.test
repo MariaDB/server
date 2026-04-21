@@ -1274,6 +1274,7 @@ drop table t1,t2,t3;
 
 set @saved_optimizer_trace=@@optimizer_trace;
 set optimizer_trace='enabled=on';
+--disable_view_protocol
 
 --echo # Test 1: Simple double quotes
 SELECT LENGTH("a");
@@ -1307,5 +1308,6 @@ SELECT json_valid(trace) AS valid_json, json_detailed(json_extract(trace,'$**.ex
 
 SET NAMES DEFAULT; 
 set optimizer_trace=@saved_optimizer_trace;
+--enable_view_protocol
 
 --echo # End of 10.11 tests

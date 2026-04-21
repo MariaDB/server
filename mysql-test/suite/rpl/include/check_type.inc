@@ -35,7 +35,7 @@ eval CREATE TABLE t1(
 sync_slave_with_master;
 if ($target_temp_format)
 {
-  --eval SET @@global.mysql56_temporal_format= $source_temp_format
+  --eval SET @@global.mysql56_temporal_format= $target_temp_format
 }
 eval ALTER TABLE t1 MODIFY a $target_type;
 

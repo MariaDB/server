@@ -20,31 +20,33 @@ USE test;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=t2 CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root&useSSL=false';
 SELECT * FROM t1;
 id	msg	tm	dt	dtm	ts
-455000000000	A very big number	18:10:25	2016-03-16	1999-12-11 23:01:52	2015-07-24 09:32:45
+455000000000	A very big number	17:10:25	2016-03-15	1999-12-11 22:01:52	2015-07-24 07:32:45
 INSERT INTO t1 VALUES(786325481247, 'Hello!', '19:45:03', '1933-08-10', '1985-11-12 09:02:44', '2014-06-17 10:32:01');
 Warnings:
 Note	1105	t2: 1 affected rows
 SELECT * FROM t1;
 id	msg	tm	dt	dtm	ts
-455000000000	A very big number	18:10:25	2016-03-16	1999-12-11 23:01:52	2015-07-24 09:32:45
-786325481247	Hello!	19:45:03	1933-08-10	1985-11-12 09:02:44	2014-06-17 10:32:01
+455000000000	A very big number	17:10:25	2016-03-15	1999-12-11 22:01:52	2015-07-24 07:32:45
+786325481247	Hello!	19:45:03	1933-08-09	1985-11-12 09:02:44	2014-06-17 10:32:01
 DELETE FROM t1 WHERE msg = 'Hello!';
 Warnings:
 Note	1105	t2: 1 affected rows
 SELECT * FROM t1;
 id	msg	tm	dt	dtm	ts
-455000000000	A very big number	18:10:25	2016-03-16	1999-12-11 23:01:52	2015-07-24 09:32:45
+455000000000	A very big number	17:10:25	2016-03-15	1999-12-11 22:01:52	2015-07-24 07:32:45
 DROP TABLE t1;
 #
 # Testing JDBC view
 #
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC SRCDEF='select id, msg, tm, dt, %s, %s from t2' CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root&useSSL=false';
+ERROR HY000: Execute: java.sql.SQLSyntaxErrorException: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '%s from t2' at line 1
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC SRCDEF='select id, msg, tm, dt from t2' CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root&useSSL=false';
 SELECT * FROM t1;
 id	msg	tm	dt
-455000000000	A very big number	18:10:25	2016-03-16
+455000000000	A very big number	17:10:25	2016-03-15
 SELECT msg, dt FROM t1;
 msg	dt
-A very big number	2016-03-16
+A very big number	2016-03-15
 DROP TABLE t1, connect.t2;
 #
 # Testing JDBC write operations
@@ -78,12 +80,12 @@ Mick	New York	1980-01-20	2002-09-11
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=boys CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root&useSSL=false' OPTION_LIST='scrollable=1';
 SELECT * FROM t1;
 name	city	birth	hired
-John	Boston	1986-01-25	2010-06-02
-Henry	Boston	1987-06-07	2008-04-01
-George	San Jose	1981-08-10	2010-06-02
-Sam	Chicago	1979-11-22	2007-10-10
-James	Dallas	1992-05-13	2009-12-14
-Bill	Boston	1986-09-11	2008-02-10
+John	Boston	1986-01-24	2010-06-01
+Henry	Boston	1987-06-06	2008-03-31
+George	San Jose	1981-08-09	2010-06-01
+Sam	Chicago	1979-11-21	2007-10-09
+James	Dallas	1992-05-12	2009-12-13
+Bill	Boston	1986-09-10	2008-02-09
 UPDATE t1 SET city = 'Phoenix' WHERE name = 'Henry';
 Warnings:
 Note	1105	boys: 1 affected rows
@@ -95,15 +97,15 @@ Warnings:
 Note	1105	boys: 1 affected rows
 SELECT * FROM t1;
 name	city	birth	hired
-John	Boston	1986-01-25	2010-06-02
-Henry	Phoenix	1987-06-07	2008-04-01
-George	San Jose	1981-08-10	2010-06-02
-Sam	Chicago	1979-11-22	2007-10-10
-James	Dallas	1992-05-13	2009-12-14
-Bill	Boston	1986-09-11	2008-02-10
-Donald	Atlanta	1999-04-01	2016-03-31
-Mick	New York	1980-01-20	2002-09-11
-Tom	Seatle	2002-03-15	NULL
+John	Boston	1986-01-24	2010-06-01
+Henry	Phoenix	1987-06-06	2008-03-31
+George	San Jose	1981-08-09	2010-06-01
+Sam	Chicago	1979-11-21	2007-10-09
+James	Dallas	1992-05-12	2009-12-13
+Bill	Boston	1986-09-10	2008-02-09
+Donald	Atlanta	1999-03-31	2016-03-30
+Mick	New York	1980-01-19	2002-09-10
+Tom	Seatle	2002-03-14	NULL
 DROP TABLE t3;
 #
 # Testing JDBC join operations
@@ -185,7 +187,7 @@ t1	CREATE TABLE `t1` (
   `department` char(4) NOT NULL,
   `secretary` char(5) NOT NULL,
   `salary` double(12,2) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mariadb://localhost:PORT/connect?user=root' `TABLE_TYPE`='JDBC' `TABNAME`='emp' `OPTION_LIST`='Driver=org.mariadb.jdbc.Driver'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='jdbc:mariadb://localhost:PORT/connect?user=root' `TABLE_TYPE`='JDBC' `TABNAME`='emp' `OPTION_LIST`='Driver=org.mariadb.jdbc.Driver'
 SELECT * FROM t1;
 serialno	name	sex	title	manager	department	secretary	salary
 74200	BANCROFT	2	SALESMAN	70012	0318	24888	9600.00
@@ -239,9 +241,9 @@ DROP TABLE t1, connect.emp;
 CREATE TABLE t2 (command varchar(128) not null,number int(5) not null flag=1,message varchar(255) flag=2) ENGINE=CONNECT TABLE_TYPE=JDBC CONNECTION='jdbc:mariadb://localhost:PORT/connect' OPTION_LIST='User=root,Execsrc=1';
 SELECT * FROM t2 WHERE command='drop table tx1';
 command	number	message
-drop table tx1	0	Execute: java.sql.SQLSyntaxErrorException: (conn:24) Unknown table 'connect.tx1'
+drop table tx1	0	Execute: java.sql.SQLSyntaxErrorException: (conn=28) Unknown table 'connect.tx1'
 Warnings:
-Warning	1105	Execute: java.sql.SQLSyntaxErrorException: (conn:24) Unknown table 'connect.tx1'
+Warning	1105	Execute: java.sql.SQLSyntaxErrorException: (conn=28) Unknown table 'connect.tx1'
 SELECT * FROM t2 WHERE command = 'create table tx1 (a int not null, b char(32), c double(8,2))';
 command	number	message
 create table tx1 (a int not null, b char(32), c double(8,2))	0	Affected rows
@@ -276,7 +278,58 @@ DROP TABLE t2;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC CATFUNC=tables CONNECTION='jdbc:mariadb://localhost:PORT/connect' option_list='User=root,Maxres=50';
 SELECT * FROM t1;
 Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
-connect	NULL	tx1	TABLE	
+mysql	NULL	columns_priv	SYSTEM TABLE	Column privileges
+mysql	NULL	column_stats	SYSTEM TABLE	Statistics on Columns
+mysql	NULL	db	SYSTEM TABLE	Database privileges
+mysql	NULL	event	SYSTEM TABLE	Events
+mysql	NULL	func	SYSTEM TABLE	User defined functions
+mysql	NULL	general_log	SYSTEM TABLE	General log
+mysql	NULL	global_priv	SYSTEM TABLE	Users and global privileges
+mysql	NULL	gtid_slave_pos	SYSTEM TABLE	Replication slave GTID position
+mysql	NULL	help_category	SYSTEM TABLE	help categories
+mysql	NULL	help_keyword	SYSTEM TABLE	help keywords
+mysql	NULL	help_relation	SYSTEM TABLE	keyword-topic relation
+mysql	NULL	help_topic	SYSTEM TABLE	help topics
+mysql	NULL	index_stats	SYSTEM TABLE	Statistics on Indexes
+mysql	NULL	innodb_index_stats	SYSTEM TABLE	Unknown storage engine 'InnoDB'
+mysql	NULL	innodb_table_stats	SYSTEM TABLE	Unknown storage engine 'InnoDB'
+mysql	NULL	plugin	SYSTEM TABLE	MySQL plugins
+mysql	NULL	proc	SYSTEM TABLE	Stored Procedures
+mysql	NULL	procs_priv	SYSTEM TABLE	Procedure privileges
+mysql	NULL	proxies_priv	SYSTEM TABLE	User proxy privileges
+mysql	NULL	roles_mapping	SYSTEM TABLE	Granted roles
+mysql	NULL	servers	SYSTEM TABLE	MySQL Foreign Servers table
+mysql	NULL	slow_log	SYSTEM TABLE	Slow log
+mysql	NULL	tables_priv	SYSTEM TABLE	Table privileges
+mysql	NULL	table_stats	SYSTEM TABLE	Statistics on Tables
+mysql	NULL	time_zone	SYSTEM TABLE	Time zones
+mysql	NULL	time_zone_leap_second	SYSTEM TABLE	Leap seconds information for time zones
+mysql	NULL	time_zone_name	SYSTEM TABLE	Time zone names
+mysql	NULL	time_zone_transition	SYSTEM TABLE	Time zone transitions
+mysql	NULL	time_zone_transition_type	SYSTEM TABLE	Time zone transition types
+mysql	NULL	transaction_registry	SYSTEM TABLE	Unknown storage engine 'InnoDB'
+performance_schema	NULL	accounts	SYSTEM TABLE	
+performance_schema	NULL	cond_instances	SYSTEM TABLE	
+performance_schema	NULL	events_stages_current	SYSTEM TABLE	
+performance_schema	NULL	events_stages_history	SYSTEM TABLE	
+performance_schema	NULL	events_stages_history_long	SYSTEM TABLE	
+performance_schema	NULL	events_stages_summary_by_account_by_event_name	SYSTEM TABLE	
+performance_schema	NULL	events_stages_summary_by_host_by_event_name	SYSTEM TABLE	
+performance_schema	NULL	events_stages_summary_by_thread_by_event_name	SYSTEM TABLE	
+performance_schema	NULL	events_stages_summary_by_user_by_event_name	SYSTEM TABLE	
+performance_schema	NULL	events_stages_summary_global_by_event_name	SYSTEM TABLE	
+performance_schema	NULL	events_statements_current	SYSTEM TABLE	
+performance_schema	NULL	events_statements_history	SYSTEM TABLE	
+performance_schema	NULL	events_statements_history_long	SYSTEM TABLE	
+performance_schema	NULL	events_statements_summary_by_account_by_event_name	SYSTEM TABLE	
+performance_schema	NULL	events_statements_summary_by_digest	SYSTEM TABLE	
+performance_schema	NULL	events_statements_summary_by_host_by_event_name	SYSTEM TABLE	
+performance_schema	NULL	events_statements_summary_by_program	SYSTEM TABLE	
+performance_schema	NULL	events_statements_summary_by_thread_by_event_name	SYSTEM TABLE	
+performance_schema	NULL	events_statements_summary_by_user_by_event_name	SYSTEM TABLE	
+performance_schema	NULL	events_statements_summary_global_by_event_name	SYSTEM TABLE	
+Warnings:
+Warning	1105	Result limited to 50 lines
 DROP TABLE t1;
 DROP TABLE connect.tx1;
 DROP DATABASE connect;

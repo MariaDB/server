@@ -131,6 +131,8 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_alltspcs=0, opt_notspcs= 0, opt_logging,
                 opt_header=0,
                 opt_drop_trigger= 0, opt_dump_history= 0;
+static my_bool opt_galera_info= 0;
+
 #define OPT_SYSTEM_ALL 1
 #define OPT_SYSTEM_USERS 2
 #define OPT_SYSTEM_PLUGINS 4
@@ -591,6 +593,9 @@ static struct my_option my_long_options[] =
   {"default_auth", 0, "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"galera-info", 0, "Include galera info at the end of dump.",
+   &opt_galera_info, &opt_galera_info, 0, GET_BOOL,
+   NO_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -628,6 +633,7 @@ static int dump_tablespaces_for_tables(char *db, char **table_names, int tables)
 static int dump_tablespaces_for_databases(char** databases);
 static int dump_tablespaces(char* ts_where);
 static void print_comment(FILE *, my_bool, const char *, ...);
+static int dump_galera_info(MYSQL *mysql_con);
 
 /*
   Print the supplied message if in verbose mode
@@ -838,7 +844,7 @@ static void write_footer(FILE *sql_file)
     if (opt_dump_date)
     {
       char time_str[20];
-      get_date(time_str, GETDATE_DATE_TIME, 0);
+      get_date(time_str, sizeof(time_str), GETDATE_DATE_TIME, 0);
       print_comment(sql_file, 0, "-- Dump completed on %s\n", time_str);
     }
     else
@@ -6165,7 +6171,8 @@ const char fmt_gtid_pos[]= "%sSET GLOBAL gtid_slave_pos='%s';\n";
 
 static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
                                  int have_mariadb_gtid, int use_gtid,
-                                 char *set_gtid_pos)
+                                 char *set_gtid_pos,
+                                 size_t set_gtid_pos_size)
 {
   MYSQL_ROW row;
   MYSQL_RES *UNINIT_VAR(master);
@@ -6240,8 +6247,8 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
                     "CHANGE-MASTER settings to the slave gtid state is printed "
                     "later in the file.\n");
     }
-    sprintf(set_gtid_pos, fmt_gtid_pos,
-            (!use_gtid ? "-- " : comment_prefix), gtid_pos);
+    snprintf(set_gtid_pos, set_gtid_pos_size, fmt_gtid_pos,
+             (!use_gtid ? "-- " : comment_prefix), gtid_pos);
   }
 
   /* SHOW MASTER STATUS reports file and position */
@@ -6331,7 +6338,8 @@ static int add_slave_statements(void)
 }
 
 static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
-                                int use_gtid, char* set_gtid_pos)
+                                int use_gtid, char *set_gtid_pos,
+                                size_t set_gtid_pos_size)
 {
   MYSQL_RES *UNINIT_VAR(slave);
   MYSQL_ROW row;
@@ -6376,7 +6384,8 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
                   "\n-- A corresponding to the below dump-slave "
                   "CHANGE-MASTER settings to the slave gtid state is printed "
                   "later in the file.\n");
-    sprintf(set_gtid_pos, fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
+    snprintf(set_gtid_pos, set_gtid_pos_size, fmt_gtid_pos,
+             gtid_comment_prefix, gtid_pos);
   }
   if (use_gtid)
     print_comment(md_result_file, 0,
@@ -7248,11 +7257,15 @@ int main(int argc, char **argv)
 
   if (opt_master_data && do_show_master_status(mysql, consistent_binlog_pos,
                                                have_mariadb_gtid,
-                                               opt_use_gtid, master_set_gtid_pos))
+                                               opt_use_gtid,
+                                               master_set_gtid_pos,
+                                               sizeof(master_set_gtid_pos)))
     goto err;
   if (opt_slave_data && do_show_slave_status(mysql,
                                              have_mariadb_gtid,
-                                             opt_use_gtid, slave_set_gtid_pos))
+                                             opt_use_gtid,
+                                             slave_set_gtid_pos,
+                                             sizeof(slave_set_gtid_pos)))
     goto err;
   if (opt_single_transaction && do_unlock_tables(mysql)) /* unlock but no commit! */
     goto err;
@@ -7325,6 +7338,8 @@ int main(int argc, char **argv)
   if (opt_slave_data && slave_set_gtid_pos[0])
     do_print_set_gtid_slave_pos(slave_set_gtid_pos, FALSE);
 
+  if (opt_galera_info && dump_galera_info(mysql)) goto err;
+
   /* add 'START SLAVE' to end of dump */
   if (opt_slave_apply && add_slave_statements())
     goto err;
@@ -7361,3 +7376,46 @@ err:
 
   return(first_error);
 } /* main */
+
+static int dump_galera_info(MYSQL *mysql_con)
+{
+  MYSQL_RES *wsrep_on_res;
+  MYSQL_ROW wsrep_on_row;
+  my_bool wsrep_on = FALSE;
+  char *wsrep_on_val = NULL;
+
+  // Galera information exists only if this node is part of cluster
+  if (mysql_query_with_error_report(mysql_con, &wsrep_on_res,
+                                    "SHOW VARIABLES LIKE 'wsrep_on'"))
+    return 1;
+
+  wsrep_on_row = mysql_fetch_row(wsrep_on_res);
+  wsrep_on_val = wsrep_on_row ? (char *)wsrep_on_row[1] : NULL;
+  wsrep_on = (wsrep_on_val && strcmp(wsrep_on_val, "OFF")) ? TRUE : FALSE;
+  mysql_free_result(wsrep_on_res);
+
+  if (wsrep_on)
+  {
+    MYSQL_RES *wsrep_checkpoint_res;
+    MYSQL_ROW wsrep_checkpoint_row;
+    char *wsrep_checkpoint_val = NULL;
+
+    if (mysql_query_with_error_report(mysql_con, &wsrep_checkpoint_res,
+                                      "SHOW STATUS LIKE 'wsrep_checkpoint_position'"))
+      return 1;
+
+    wsrep_checkpoint_row = mysql_fetch_row(wsrep_checkpoint_res);
+    wsrep_checkpoint_val = wsrep_checkpoint_row ? (char *)wsrep_checkpoint_row[1] : NULL;
+
+    if (wsrep_checkpoint_val)
+    {
+      fprintf(md_result_file,
+              "SET GLOBAL wsrep_start_position = '%s';\n",
+              wsrep_checkpoint_val);
+
+    }
+    mysql_free_result(wsrep_checkpoint_res);
+  }
+
+  return 0;
+}

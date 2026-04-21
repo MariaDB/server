@@ -15268,7 +15268,7 @@ ha_innobase::check(
 	ulint		n_rows_in_table	= ULINT_UNDEFINED;
 	bool		is_ok		= true;
 	dberr_t		ret;
-        uint handler_flags= check_opt->handler_flags;
+	uint handler_flags= check_opt->handler_flags;
 
 	DBUG_ENTER("ha_innobase::check");
 	DBUG_ASSERT(thd == ha_thd());
@@ -15277,7 +15277,7 @@ ha_innobase::check(
 	ut_a(m_prebuilt->trx == thd_to_trx(thd));
 	ut_ad(m_prebuilt->trx->mysql_thd == thd);
 
-	if (handler_flags || check_for_upgrade(check_opt)) {
+	if (handler_flags) {
 		/* The file was already checked and fixed as part of open */
 		print_check_msg(thd, table->s->db.str, table->s->table_name.str,
 				"check", "note",
@@ -15286,9 +15286,10 @@ ha_innobase::check(
 				? "Auto_increment will be"
 				" checked on each open until"
 				" CHECK TABLE FOR UPGRADE is executed"
+				" when the server is not in a read-only state"
 				: "Auto_increment checked and"
 				" .frm file version updated", 1);
-		if (handler_flags && (check_opt->sql_flags & TT_FOR_UPGRADE)) {
+		if (check_opt->sql_flags & TT_FOR_UPGRADE) {
 			/*
 			  No other issues found (as handler_flags was only
 			  set if there as not other problems with the table
@@ -15502,7 +15503,7 @@ func_exit:
 }
 
 /**
-Check if we there is a problem with the InnoDB table.
+Check if there is a problem with the InnoDB table.
 @param check_opt     check options
 @retval HA_ADMIN_OK           if Table is ok
 @retval HA_ADMIN_NEEDS_ALTER  User should run ALTER TABLE FOR UPGRADE
@@ -15523,6 +15524,7 @@ int ha_innobase::check_for_upgrade(HA_CHECK_OPT *check_opt)
     if (m_prebuilt->table->get_index(*autoinc_col))
     {
       check_opt->handler_flags= 1;
+      // Prevent ha_check() from updating frm version if InnoDB (but not the server) is in a read-only state
       return (high_level_read_only && !opt_readonly)
         ? HA_ADMIN_FAILED : HA_ADMIN_NEEDS_CHECK;
     }
@@ -15979,7 +15981,7 @@ ha_innobase::extra(
 			handler::extra(HA_EXTRA_ALTER_COPY). */
 			log_buffer_flush_to_disk();
 		}
-		alter_stats_rebuild(m_prebuilt->table, thd);
+		alter_stats_rebuild(m_prebuilt->table, thd, true);
 		break;
 	}
 	case HA_EXTRA_ABORT_COPY:
@@ -21231,7 +21233,7 @@ ib_foreign_warn(trx_t*	    trx,   /*!< in: trx */
 	}
 
 	va_start(args, format);
-	vsprintf(buf, format, args);
+	vsnprintf(buf, MAX_BUF_SIZE, format, args);
 	va_end(args);
 
 	mysql_mutex_lock(&dict_foreign_err_mutex);
@@ -21402,12 +21404,14 @@ void ins_node_t::vers_update_end(row_prebuilt_t *prebuilt, bool history_row)
 Remove statistics for dropped indexes, add statistics for created indexes
 and rename statistics for renamed indexes.
 @param table InnoDB table that was rebuilt by ALTER TABLE
-@param thd   alter table thread */
-void alter_stats_rebuild(dict_table_t *table, THD *thd)
+@param thd   alter table thread
+@param copy  Caller is from COPY alter algorithm*/
+void alter_stats_rebuild(dict_table_t *table, THD *thd, bool copy)
 {
   DBUG_ENTER("alter_stats_rebuild");
-  if (!table->space || !table->stats_is_persistent()
-      || dict_stats_persistent_storage_check(false) != SCHEMA_OK)
+  if (!table->space || !table->stats_is_persistent() ||
+      (copy && !table->name.is_temporary()) ||
+      dict_stats_persistent_storage_check(false) != SCHEMA_OK)
     DBUG_VOID_RETURN;
 
   dberr_t ret= dict_stats_update_persistent(table);

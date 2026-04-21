@@ -5957,7 +5957,7 @@ TABLE_LIST::TABLE_LIST(THD *thd,
 
   SYNOPSIS
     TABLE_LIST::calc_md5()
-    buffer	buffer for md5 writing
+    buffer	buffer for md5 writing, must be at least MD5_BUFF_LENGTH bytes
 */
 
 void  TABLE_LIST::calc_md5(char *buffer)
@@ -5965,12 +5965,12 @@ void  TABLE_LIST::calc_md5(char *buffer)
   uchar digest[16];
   compute_md5_hash(digest, select_stmt.str,
                    select_stmt.length);
-  sprintf(buffer,
-	    "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
-	    digest[0], digest[1], digest[2], digest[3],
-	    digest[4], digest[5], digest[6], digest[7],
-	    digest[8], digest[9], digest[10], digest[11],
-	    digest[12], digest[13], digest[14], digest[15]);
+  snprintf(buffer, MD5_BUFF_LENGTH,
+	   "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+	   digest[0], digest[1], digest[2], digest[3],
+	   digest[4], digest[5], digest[6], digest[7],
+	   digest[8], digest[9], digest[10], digest[11],
+	   digest[12], digest[13], digest[14], digest[15]);
 }
 
 
@@ -8525,8 +8525,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   keyinfo->is_statistics_from_stat_tables= FALSE;
   if (unique)
     keyinfo->flags|= HA_NOSAME;
-  sprintf(buf, "key%i", key);
-  keyinfo->name.length= strlen(buf);
+  keyinfo->name.length= snprintf(buf, sizeof(buf), "key%i", key);
   if (!(keyinfo->name.str= strmake_root(&mem_root, buf, keyinfo->name.length)))
     return TRUE;
   keyinfo->rec_per_key= (ulong*) alloc_root(&mem_root,

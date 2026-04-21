@@ -1759,6 +1759,7 @@ lock_rec_lock(
         ((LOCK_MODE_MASK | LOCK_TABLE) & mode) == LOCK_X);
   ut_ad(~mode & (LOCK_GAP | LOCK_REC_NOT_GAP));
   ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
+  ut_ad(block->page.lock.have_any());
   DBUG_EXECUTE_IF("innodb_report_deadlock", return DB_DEADLOCK;);
 #ifdef ENABLED_DEBUG_SYNC
   if (trx->mysql_thd)
@@ -6306,16 +6307,33 @@ lock_clust_rec_read_check_and_lock(
 		return DB_SUCCESS;
 	}
 
+	trx_id_t trx_id = 0;
+
 	if (heap_no > PAGE_HEAP_NO_SUPREMUM && gap_mode != LOCK_GAP
-            && trx->snapshot_isolation
+	    && trx->snapshot_isolation
 	    && trx->read_view.is_open()) {
-		trx_id_t trx_id= trx_read_trx_id(rec +
-						 row_trx_id_offset(rec, index));
-		if (!trx_sys.is_registered(trx, trx_id)
-		    && !trx->read_view.changes_visible(trx_id)
+		trx_id = trx_read_trx_id(rec + row_trx_id_offset(rec, index));
+		if (!trx->read_view.changes_visible(trx_id)
 		    && IF_WSREP(!(trx->is_wsrep()
 			&& wsrep_thd_skip_locking(trx->mysql_thd)), true)) {
-			return DB_RECORD_CHANGED;
+			/* Our record was last modified by a transaction that
+			we should not see. If that transaction has been
+			committed, we can return an error immediately,
+			without waiting for a record lock. */
+			if (!trx_sys.is_registered(trx, trx_id)) {
+				return DB_RECORD_CHANGED;
+			}
+			/* If lock_rec_lock() below returns DB_LOCK_WAIT,
+			there is a chance that the implicit lock holder will
+			be rolled back while we are waiting for a lock
+			timeout. In that case, this function would be invoked
+			again after the lock wait has been resolved.
+
+			If the lock_rec_lock() succeeds, we will have to
+			return this error. */
+		} else {
+			/* We are allowed to see this record. */
+			trx_id = 0;
 		}
 	}
 
@@ -6325,7 +6343,17 @@ lock_clust_rec_read_check_and_lock(
 	ut_ad(lock_rec_queue_validate(false, block->page.id(),
 				      rec, index, offsets));
 
+	ut_ad(block->page.lock.have_any());
 	DEBUG_SYNC_C("after_lock_clust_rec_read_check_and_lock");
+
+	if (UNIV_UNLIKELY(trx_id != 0) && err <= DB_SUCCESS_LOCKED_REC) {
+		/* The last modifier of rec had just been committed.
+		(It cannot be rolled back, because our caller is holding
+		block->page.lock, which protects rec.)
+		We already determined that rec is too new for us. */
+		ut_ad(err == DB_SUCCESS || err == DB_SUCCESS_LOCKED_REC);
+		err = DB_RECORD_CHANGED;
+	}
 
 	return(err);
 }
