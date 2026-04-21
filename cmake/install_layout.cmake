@@ -164,7 +164,12 @@ SET(INSTALL_SYSTEMD_UNITDIR_RPM         "/usr/lib/systemd/system")
 SET(INSTALL_SYSTEMD_SYSUSERSDIR_RPM     "/usr/lib/sysusers.d")
 SET(INSTALL_SYSTEMD_TMPFILESDIR_RPM     "/usr/lib/tmpfiles.d")
 SET(INSTALL_RUNDATADIR_RPM              "/run/mariadb")
-SET(INSTALL_PAMDIR_RPM                  "/${INSTALL_LIBDIR_RPM}/security")
+SET(INSTALL_PAMDIR_RPM                  "/usr/${INSTALL_LIBDIR_RPM}/security")
+IF(RPM MATCHES "^(opensuse|sles)([0-9]+)$")
+  IF(CMAKE_MATCH_2 LESS_EQUAL 1507)
+    SET(INSTALL_PAMDIR_RPM                  "/${INSTALL_LIBDIR_RPM}/security")
+  ENDIF()
+ENDIF()
 SET(INSTALL_PAMDATADIR_RPM              "/etc/security")
 
 #
