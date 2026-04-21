@@ -384,15 +384,15 @@ EXPLAIN
 SELECT a FROM t1 AS t, t2 as t2_out 
 WHERE t2_out.c = t.a AND t.b IN (SELECT b FROM t1, t2 WHERE b = t.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	b	b	7	NULL	10	Using index; Start temporary
-1	PRIMARY	t	ref	a,b	b	3	test.t1.b	2	Using index
-1	PRIMARY	t2	index	NULL	PRIMARY	4	NULL	11	Using index; End temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t	index	a,b	b	7	NULL	10	Using index
 1	PRIMARY	t2_out	eq_ref	PRIMARY	PRIMARY	4	test.t.a	1	Using index
+1	PRIMARY	t1	ref	b	b	3	test.t.b	2	Using index; Start temporary
+1	PRIMARY	t2	index	NULL	PRIMARY	4	NULL	11	Using index; End temporary; Using join buffer (flat, BNL join)
 SELECT a FROM t1 AS t, t2 as t2_out 
 WHERE t2_out.c = t.a AND t.b IN (SELECT b FROM t1, t2 WHERE b = t.b);
 a
 24
-Last_query_cost	0.120558
+Last_query_cost	0.140303
 DROP TABLE t1,t2;
 #
 # LP Bug #923236: hash join + extended_keys = on 
