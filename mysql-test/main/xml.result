@@ -1320,13 +1320,10 @@ f
 foo
 <b></b>
 #
-# Start of 10.5 tests
+# End of 10.5 tests
 #
 #
-# Start of 10.6 tests
-#
-#
-# MDEV-39210 ExtractValue/UpdateXML crash
+# ExtractValue/UpdateXML crash
 #
 SELECT ExtractValue('<!a/><!b/>', '/a');
 ExtractValue('<!a/><!b/>', '/a')
@@ -1421,4 +1418,12 @@ SELECT ExtractValue('<a/>', REPEAT('(', 100000));
 ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
 SELECT ExtractValue('<a/>', REPEAT('/n', 100000));
 ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
-# End of 10.6 tests
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-33843: Server crashes by stack-overflow with UPDATEXML
+#
+SELECT UPDATEXML(NULL, REPEAT('(', 100000), 1);
+ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
+# End of 10.6 test
