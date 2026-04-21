@@ -1,0 +1,26 @@
+#
+# MDEV-28911: Add --init-command option to mariadb-{admin,dump,binlog,check,import, show,slap,test}
+#
+SELECT COUNT(*) FROM information_schema.tables
+WHERE table_schema='test'
+  AND table_name IN ('mysql',
+'mysqladmin',
+'mysqlbinlog',
+'mysqlcheck',
+'mysqldump',
+'mysqlimport',
+'mysqlshow',
+'mysqlslap',
+'mysqltest');
+COUNT(*)
+9
+DROP TABLE test.mysql;
+DROP TABLE test.mysqladmin;
+DROP TABLE test.mysqlbinlog;
+DROP TABLE test.mysqlcheck;
+DROP TABLE test.mysqldump;
+DROP TABLE test.mysqlimport;
+DROP TABLE test.mysqlshow;
+DROP TABLE test.mysqlslap;
+DROP TABLE test.mysqltest;
+End of 13.0 tests

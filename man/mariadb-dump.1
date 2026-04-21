@@ -1089,6 +1089,22 @@ localhost\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mariadb-dump: init-command option
+.\" init-command option: mariadb-dump
+\fB\-\-init\-command=\fR\fB\fIstmt\fR\fR
+.sp
+SQL command to execute when connecting to MariaDB server\&.
+Will automatically be re\-executed when reconnecting\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mariadb-dump: ignore-table option
 .\" ignore-table option: mariadb-dump
 \fB\-\-ignore\-table=\fR\fB\fIdb_name\&.tbl_name\fR\fR

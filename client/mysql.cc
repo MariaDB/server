@@ -242,7 +242,7 @@ static MYSQL mysql;			/* The connection */
 static my_bool ignore_errors=0,wait_flag=0,quick=0,
                connected=0,opt_raw_data=0,unbuffered=0,output_tables=0,
 	       opt_rehash=1,skip_updates=0,safe_updates=0,one_database=0,
-	       opt_compress=0, using_opt_local_infile=0,
+	       using_opt_local_infile=0,
 	       vertical=0, line_numbers=1, column_names=1,opt_html=0,
                opt_xml=0,opt_nopager=1, opt_outfile=0, named_cmds= 0,
 	       tty_password= 0, opt_nobeep=0, opt_reconnect=1,
@@ -258,9 +258,8 @@ static my_bool preserve_comments= 0;
 static my_bool in_com_source, aborted= 0;
 static ulong opt_max_allowed_packet, opt_net_buffer_length;
 unsigned long quick_max_column_width= LONG_MAX;
-static uint verbose=0,opt_silent=0,opt_mysql_port=0, opt_local_infile=0;
+static uint verbose=0,opt_silent=0, opt_local_infile=0;
 static uint my_end_arg;
-static char * opt_mysql_unix_port=0;
 static int connect_flag=CLIENT_INTERACTIVE;
 static my_bool opt_binary_mode= FALSE;
 static my_bool opt_connect_expired_password= FALSE;
@@ -268,10 +267,9 @@ static int interrupted_query= 0;
 #ifdef USE_LIBEDIT_INTERFACE
 static int sigint_received= 0;
 #endif
-static char *current_host,*current_db,*current_user=0,*opt_password=0,
+static char *current_db, *opt_password=0,
             *current_prompt=0, *delimiter_str= 0,
-            *default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME,
-            *opt_init_command= 0;
+            *default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
 static char *histfile;
 static char *histfile_tmp;
 static String glob_buffer,old_buffer;
@@ -281,7 +279,6 @@ static int wait_time = 5;
 static STATUS status;
 static ulong select_limit,max_join_size,opt_connect_timeout=0;
 static char mysql_charsets_dir[FN_REFLEN+1];
-static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 static char *script_dir = NULL;
 static const char *xmlmeta[] = {
   "&", "&amp;",
@@ -304,9 +301,7 @@ static char delimiter[16]= DEFAULT_DELIMITER;
 static uint delimiter_length= 1;
 unsigned short terminal_width= 80;
 
-static uint opt_protocol=0;
-static const char *opt_protocol_type= "";
-
+#include "common-cli-vars.h"
 #include "sslopt-vars.h"
 
 const char *default_dbug_option="d:t:o,/tmp/mariadb.trace";
@@ -1391,7 +1386,7 @@ int main(int argc,char *argv[])
   completion_hash_init(&ht, 128);
   init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_mem_root, 16384, 0, MYF(0));
 
-  if (sql_connect(current_host,current_db,current_user,opt_password,
+  if (sql_connect(opt_host,current_db,opt_user,opt_password,
 		  opt_silent))
   {
     quick= 1;					// Avoid history
@@ -1542,14 +1537,12 @@ sig_handler mysql_end(int sig)
   glob_buffer.free();
   old_buffer.free();
   processed_prompt.free();
+  free_common_cli_vars();
   my_free(server_version);
   my_free(opt_password);
-  my_free(opt_mysql_unix_port);
   my_free(histfile);
   my_free(histfile_tmp);
   my_free(current_db);
-  my_free(current_host);
-  my_free(current_user);
   my_free(full_username);
   my_free(part_username);
   my_free(default_prompt);
@@ -1611,13 +1604,6 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
   if (opt_secure_auth)
     mysql_options(mysql, MYSQL_SECURE_AUTH, (char *) &opt_secure_auth);
   SET_SSL_OPTS_WITH_CHECK(mysql);
-  if (opt_protocol)
-    mysql_options(mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
-  if (opt_plugin_dir && *opt_plugin_dir)
-    mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
-
-  if (opt_default_auth && *opt_default_auth)
-    mysql_options(mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
 
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
@@ -1656,7 +1642,8 @@ bool kill_query(const char *reason)
   MYSQL *kill_mysql= NULL;
 
   kill_mysql= mysql_init(kill_mysql);
-  if (!do_connect(kill_mysql,current_host, current_user, opt_password, "", 0))
+  set_common_cli_vars(kill_mysql);
+  if (!do_connect(kill_mysql,opt_host, opt_user, opt_password, "", 0))
   {
     tee_fprintf(stdout, "%s -- sorry, cannot connect to server to kill query, giving up ...\n", reason);
     return true;
@@ -1797,9 +1784,6 @@ static struct my_option my_long_options[] =
    " The default is --skip-comments (discard comments), enable with --comments.",
    &preserve_comments, &preserve_comments,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"compress", 'C', "Use compression in server/client protocol.",
-   &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
-   0, 0, 0},
   {"connect-expired-password", 0,
    "Notify the server that this client is prepared to handle expired "
    "password sandbox mode even if --batch was specified.",
@@ -1822,9 +1806,7 @@ static struct my_option my_long_options[] =
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"debug-info", 'T', "Print some debug info at exit.", &debug_info_flag,
    &debug_info_flag, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"default-auth", 0, "Default authentication client-side plugin to use.",
-    &opt_default_auth, &opt_default_auth, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+#include "common-cli-longopts.h"
   {"default-character-set", 0,
    "Set the default character set.", &default_charset,
    &default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1838,17 +1820,10 @@ static struct my_option my_long_options[] =
   {"force", 'f',
     "Continue even if we get an SQL error. Sets abort-source-on-error to 0",
     &ignore_errors, &ignore_errors, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host. Defaults in the following order: "
-  "$MARIADB_HOST, $MYSQL_HOST, and then localhost",
-   &current_host, &current_host, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"html", 'H', "Produce HTML output.", &opt_html, &opt_html,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore-spaces", 'i', "Ignore space after function names.",
    &ignore_spaces, &ignore_spaces, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"init-command", 0,
-   "SQL Command to execute when connecting to MariaDB server. Will "
-   "automatically be re-executed when reconnecting.", &opt_init_command,
-   &opt_init_command, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"line-numbers", 0, "Write line numbers for errors.",
    &line_numbers, &line_numbers, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"skip-line-numbers", 'L', "Don't write line number for errors.", 0, 0, 0,
@@ -1896,15 +1871,6 @@ static struct my_option my_long_options[] =
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"plugin-dir", 0, "Directory for client-side plugins.", &opt_plugin_dir,
-    &opt_plugin_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"port", 'P', "Port number to use for connection or 0 for default to, in "
-   "order of preference, my.cnf, $MYSQL_TCP_PORT, "
-#if MYSQL_PORT_DEFAULT == 0
-   "/etc/services, "
-#endif
-   "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").", &opt_mysql_port,
-   &opt_mysql_port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"print-query-on-error", 0,
    "Print the query if there was an error. Is only enabled in --batch mode if verbose is not set (as then the query would be printed anyway)",
    &opt_print_query_on_error, &opt_print_query_on_error, 0, GET_BOOL, NO_ARG,
@@ -1916,9 +1882,6 @@ static struct my_option my_long_options[] =
   {"prompt", 0, "Set the command line prompt to this value.",
    &current_prompt, &current_prompt, 0, GET_STR_ALLOC,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"protocol", OPT_MYSQL_PROTOCOL, "The protocol to use for connection (tcp, socket, pipe).",
-   &opt_protocol_type, &opt_protocol_type, 0, GET_STR,  REQUIRED_ARG,
-   0, 0, 0, 0, 0, 0},
   {"quick", 'q',
    "Don't cache result, print it row by row. This may slow down the server "
    "if the output is suspended. Doesn't use history file.",
@@ -1956,9 +1919,6 @@ static struct my_option my_long_options[] =
     &opt_sigint_ignore, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"silent", 's', "Be more silent. Print results with a tab as separator, "
    "each row on new line.", 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"socket", 'S', "The socket file to use for connection.",
-   &opt_mysql_unix_port, &opt_mysql_unix_port, 0, GET_STR_ALLOC,
-   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #include "sslopt-longopts.h"
   {"table", 't', "Output in table format.", &output_tables,
    &output_tables, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1969,10 +1929,6 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"unbuffered", 'n', "Flush buffer after each query.", &unbuffered,
    &unbuffered, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-#ifndef DONT_ALLOW_USER_CHANGE
-  {"user", 'u', "User for login if not current user.", &current_user,
-   &current_user, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#endif
   {"verbose", 'v', "Write more. (-v -v -v gives the table output format).", 0,
    0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.", 0, 0, 0,
@@ -2226,16 +2182,11 @@ get_one_option(const struct my_option *opt, const char *argument,
 
 static int get_options(int argc, char **argv)
 {
-  char *tmp, *pagpoint;
+  char *pagpoint;
   int ho_error;
   MYSQL_PARAMETERS *mysql_params= mysql_get_parameters();
 
-  //MARIADB_HOST will be preferred over MYSQL_HOST.
-  tmp= getenv("MARIADB_HOST");
-  if (tmp == NULL)
-    tmp= getenv("MYSQL_HOST");
-  if (tmp)
-    current_host= my_strdup(PSI_NOT_INSTRUMENTED, tmp, MYF(MY_WME));
+  set_common_cli_host_from_env();
 
   pagpoint= getenv("PAGER");
   if (!((char*) (pagpoint)))
@@ -4816,8 +4767,8 @@ static int com_connect(String *buffer, char *line)
       tmp= get_arg(buff, GET_NEXT);
       if (tmp)
       {
-	my_free(current_host);
-	current_host=my_strdup(PSI_NOT_INSTRUMENTED, tmp,MYF(MY_WME));
+	my_free(opt_host);
+	opt_host=my_strdup(PSI_NOT_INSTRUMENTED, tmp,MYF(MY_WME));
       }
     }
     else
@@ -4829,7 +4780,7 @@ static int com_connect(String *buffer, char *line)
   }
   else
     opt_rehash= 0;
-  error=sql_connect(current_host,current_db,current_user,opt_password,0);
+  error=sql_connect(opt_host,current_db,opt_user,opt_password,0);
   opt_rehash= save_rehash;
 
   if (connected)
@@ -5171,18 +5122,16 @@ sql_real_connect(char *host,char *database,char *user,char *password,
     mysql_close(&mysql);
   }
   mysql_init(&mysql);
+  set_common_cli_vars_with_init_command(&mysql);
+
   if (!one_database)
     mysql_optionsv(&mysql, MARIADB_OPT_STATUS_CALLBACK, status_info_cb, NULL);
-  if (opt_init_command)
-    mysql_options(&mysql, MYSQL_INIT_COMMAND, opt_init_command);
   if (opt_connect_timeout)
   {
     uint timeout=opt_connect_timeout;
     mysql_options(&mysql,MYSQL_OPT_CONNECT_TIMEOUT,
 		  (char*) &timeout);
   }
-  if (opt_compress)
-    mysql_options(&mysql,MYSQL_OPT_COMPRESS,NullS);
   if (using_opt_local_infile)
     mysql_options(&mysql,MYSQL_OPT_LOCAL_INFILE, (char*) &opt_local_infile);
   if (safe_updates)
@@ -5750,7 +5699,7 @@ static const char *construct_prompt()
 	if (!full_username)
 	  init_username();
         name= (full_username ? full_username :
-               (current_user ?  current_user : "(unknown)"));
+               (opt_user ?  opt_user : "(unknown)"));
         processed_prompt.append(name, strlen(name));
 	break;
       }
@@ -5760,7 +5709,7 @@ static const char *construct_prompt()
 	if (!full_username)
 	  init_username();
         name= (part_username ? part_username :
-               (current_user ?  current_user : "(unknown)"));
+               (opt_user ?  opt_user : "(unknown)"));
         processed_prompt.append(name, strlen(name));
 	break;
       }

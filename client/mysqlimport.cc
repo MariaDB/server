@@ -61,21 +61,19 @@ static std::string parse_sql_script(const char *filepath, bool *tz_utc,
 
 static my_bool  verbose=0,lock_tables=0,ignore_errors=0,opt_delete=0,
                 replace, silent, ignore, ignore_foreign_keys,
-                opt_compress, opt_low_priority, tty_password;
+                opt_low_priority, tty_password;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
 static uint opt_use_threads=0, opt_local_file=0, my_end_arg= 0;
-static char	*opt_password=0, *current_user=0,
-		*current_host=0, *current_db=0, *fields_terminated=0,
+static char	*opt_password=0,
+		*current_db=0, *fields_terminated=0,
 		*lines_terminated=0, *enclosed=0, *opt_enclosed=0,
 		*escaped=0, *opt_columns=0, 
 		*default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
-static uint     opt_mysql_port= 0, opt_protocol= 0;
-static char * opt_mysql_unix_port=0;
-static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 static longlong opt_ignore_lines= -1;
 static char *opt_dir;
 static char opt_innodb_optimize_keys;
 
+#include <common-cli-vars.h>
 #include <sslopt-vars.h>
 
 static char **argv_to_free;
@@ -166,9 +164,6 @@ static struct my_option my_long_options[] =
    "Use only these columns to import the data to. Give the column names in a comma separated list. This is same as giving columns to LOAD DATA INFILE.",
    &opt_columns, &opt_columns, 0, GET_STR, REQUIRED_ARG, 0, 0, 0,
    0, 0, 0},
-  {"compress", 'C', "Use compression in server/client protocol.",
-   &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
-   0, 0, 0},
   {"debug",'#', "Output debug log. Often this is 'd:t:o,filename'.", 0, 0, 0,
    GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"debug-check", 0, "Check memory and open file usage at exit.",
@@ -177,10 +172,7 @@ static struct my_option my_long_options[] =
   {"debug-info", 0, "Print some debug info at exit.",
    &debug_info_flag, &debug_info_flag,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"default_auth", 0,
-   "Default authentication client-side plugin to use.",
-   &opt_default_auth, &opt_default_auth, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+#include <common-cli-longopts.h>
   {"delete", 'd', "First delete all rows from table.", &opt_delete,
    &opt_delete, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"fields-terminated-by", 0,
@@ -204,9 +196,6 @@ static struct my_option my_long_options[] =
    0, 0, 0, 0},
   {"help", '?', "Displays this help and exits.", 0, 0, 0, GET_NO_ARG, NO_ARG,
    0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host. Defaults in the following order: "
-  "$MARIADB_HOST, and then localhost",
-   &current_host, &current_host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore", 'i', "If duplicate unique key was found, keep old row.",
    &ignore, &ignore, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore-foreign-keys", 'k',
@@ -253,27 +242,10 @@ static struct my_option my_long_options[] =
   {"parallel", 'j', "Number of LOAD DATA jobs executed in parallel",
    &opt_use_threads, &opt_use_threads, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0,
    0, 0},
-  {"plugin_dir", 0, "Directory for client-side plugins.",
-   &opt_plugin_dir, &opt_plugin_dir, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"port", 'P', "Port number to use for connection or 0 for default to, in "
-   "order of preference, my.cnf, $MYSQL_TCP_PORT, "
-#if MYSQL_PORT_DEFAULT == 0
-   "/etc/services, "
-#endif
-   "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").",
-   &opt_mysql_port,
-   &opt_mysql_port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0,
-   0},
-  {"protocol", OPT_MYSQL_PROTOCOL, "The protocol to use for connection (tcp, socket, pipe).",
-   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"replace", 'r', "If duplicate unique key was found, replace old row.",
    &replace, &replace, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"silent", 's', "Be more silent.", &silent, &silent, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"socket", 'S', "The socket file to use for connection.",
-   &opt_mysql_unix_port, &opt_mysql_unix_port, 0, GET_STR,
-   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"table", OPT_TABLES,
    "Restore the specified table ignoring others. Use --table=dbname.tablename with this option. "
    "To specify more than one table to include, use the directive multiple times, once for each "
@@ -284,10 +256,6 @@ static struct my_option my_long_options[] =
   {"use-threads", 0, "Synonym for --parallel option",
    &opt_use_threads, &opt_use_threads, 0,
    GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#ifndef DONT_ALLOW_USER_CHANGE
-  {"user", 'u', "User for login if not current user.", &current_user,
-   &current_user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#endif
   {"verbose", 'v', "Print info about the various stages.", &verbose,
    &verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.", 0, 0, 0, GET_NO_ARG,
@@ -352,6 +320,7 @@ get_one_option(const struct my_option *opt, const char *argument,
 #ifdef _WIN32
   case 'W':
     opt_protocol = MYSQL_PROTOCOL_PIPE;
+    opt_protocol_type= "pipe";
     break;
 #endif
   case OPT_MYSQL_PROTOCOL:
@@ -426,8 +395,7 @@ static int get_options(int *argc, char ***argv)
 {
   int ho_error;
 
-  if (current_host == NULL)
-    current_host= getenv("MARIADB_HOST");
+  set_common_cli_host_from_env();
 
   if ((ho_error=handle_options(argc, argv, my_long_options, get_one_option)))
     exit(ho_error);
@@ -886,20 +854,11 @@ static MYSQL *db_connect(char *host, char *database,
   else
     if (!(mysql= mysql_init(NULL)))
       return 0;
-  if (opt_compress)
-    mysql_options(mysql,MYSQL_OPT_COMPRESS,NullS);
   if (opt_local_file)
     mysql_options(mysql,MYSQL_OPT_LOCAL_INFILE,
 		  (char*) &opt_local_file);
+  set_common_cli_vars_with_init_command(mysql);
   SET_SSL_OPTS(mysql);
-  if (opt_protocol)
-    mysql_options(mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
-
-  if (opt_plugin_dir && *opt_plugin_dir)
-    mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
-
-  if (opt_default_auth && *opt_default_auth)
-    mysql_options(mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
   mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset);
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
@@ -982,6 +941,7 @@ static void safe_exit(int error, MYSQL *mysql)
   }
   mysql_library_end();
   free_defaults(argv_to_free);
+  free_common_cli_vars();
   my_free(opt_password);
   my_end(my_end_arg); /* clean exit */
   exit(error);
@@ -1097,7 +1057,7 @@ static void init_tp_connections(size_t n)
   for (size_t i= 0; i < n; i++)
   {
     MYSQL *mysql=
-        db_connect(current_host, current_db, current_user, opt_password);
+        db_connect(opt_host, current_db, opt_user, opt_password);
     all_tp_connections.push_back(mysql);
   }
 }
@@ -1106,7 +1066,7 @@ static void close_tp_connections()
 {
   for (auto &conn : all_tp_connections)
   {
-    db_disconnect(current_host, conn);
+    db_disconnect(opt_host, conn);
   }
   all_tp_connections.clear();
 }
@@ -1327,7 +1287,7 @@ int main(int argc, char **argv)
     return 1;
   }
   MYSQL *mysql=
-      db_connect(current_host, current_db, current_user, opt_password);
+      db_connect(opt_host, current_db, opt_user, opt_password);
   if (!mysql)
   {
     free_defaults(argv_to_free);
