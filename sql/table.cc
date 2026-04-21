@@ -5922,7 +5922,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   range_rowid_filter_cost_info_ptr= NULL;
   range_rowid_filter_cost_info= NULL;
   vers_write= s->versioned;
-  opt_range_condition_rows=0;
+  opt_range_condition_rows= HA_ERR_END_OF_FILE;
   no_cache= false;
   initialize_opt_range_structures();
 
