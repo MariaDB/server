@@ -2017,6 +2017,7 @@ static void clean_up(bool print_message, bool use_dummy_thd)
   lex_free();				/* Free some memory */
   item_create_cleanup();
   cleanup_json_schema_keyword_hash();
+  Json_schema_format::cleanup_format_hash();
   tdc_start_shutdown(use_dummy_thd);
 #ifdef HAVE_REPLICATION
   semi_sync_master_deinit();
@@ -4341,6 +4342,7 @@ static int init_common_variables()
     return 1;
   item_init();
   setup_json_schema_keyword_hash();
+  Json_schema_format::setup_format_hash();
   /*
     Process a comma-separated character set list and choose
     the first available character set. This is mostly for
