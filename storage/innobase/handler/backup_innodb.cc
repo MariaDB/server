@@ -176,7 +176,7 @@ class InnoDB_backup
 {
   /** first LSN of last log that was copied (1 if none yet),
   or 0 if backup is not active */
-  lsn_t last_first_lsn;
+  lsn_t max_first_lsn;
   /** the original innodb_log_file_size, or 0 */
   uint64_t old_size;
 
@@ -212,7 +212,7 @@ public:
     }
 
     log_sys.latch.wr_lock();
-    ut_ad(!last_first_lsn);
+    ut_ad(!max_first_lsn);
     ut_ad(queue.empty());
     if (!logs.empty())
     {
@@ -260,7 +260,7 @@ public:
             space.get_create_lsn() < start)
           queue.emplace_back(space.id);
       mysql_mutex_unlock(&fil_system.mutex);
-      last_first_lsn= 1;
+      max_first_lsn= 1;
       trx->state= TRX_STATE_BACKUP;
     }
     log_sys.latch.wr_unlock();
@@ -280,13 +280,13 @@ public:
     uint32_t id= FIL_NULL;
     lsn_t lsn= 0;
     log_sys.latch.wr_lock();
-    ut_ad(last_first_lsn);
+    ut_ad(max_first_lsn);
     size_t size{queue.size()};
     if (!logs.empty())
     {
       lsn= logs.back();
-      if (last_first_lsn < lsn)
-        last_first_lsn= lsn;
+      if (max_first_lsn < lsn)
+        max_first_lsn= lsn;
       logs.pop_back();
       if (!size)
         size= logs.size();
@@ -301,19 +301,19 @@ public:
 
     if (lsn)
     {
-      if (link_or_move(lsn, false))
+      if (link_or_move(lsn, nullptr))
         return -1;
     }
     else if (fil_space_t *space= fil_space_t::get(id))
     {
+      int res= -1;
       for (fil_node_t *node= UT_LIST_GET_FIRST(space->chain); node;
            node= UT_LIST_GET_NEXT(chain, node))
-        if (int res= backup(node))
-        {
-          space->release();
-          return res;
-        }
+        if ((res= backup(node)))
+          break;
       space->release();
+      if (res)
+        return res;
     }
 
     size= std::min(size_t{std::numeric_limits<int>::max()}, size);
@@ -342,22 +342,22 @@ public:
     }
     else
     {
-      ut_ad(last_first_lsn);
+      ut_ad(max_first_lsn);
       ut_ad(queue.empty());
       trx_t *trx= thd_to_trx(thd);
       if (!trx || trx->state != TRX_STATE_BACKUP)
         goto skip_log_dup;
-      const lsn_t last_lsn{log_sys.get_lsn()};
+      const lsn_t last_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
       while (!logs.empty())
       {
         const lsn_t lsn{logs.back()};
         if (lsn > last_lsn)
           break;
-        if (lsn > last_first_lsn)
-          last_first_lsn= lsn;
+        if (lsn > max_first_lsn)
+          max_first_lsn= lsn;
         logs.pop_back();
         log_sys.latch.wr_unlock();
-        fail= link_or_move(lsn, false);
+        fail= link_or_move(lsn, nullptr);
         log_sys.latch.wr_lock();
         if (fail)
           goto skip_log_dup;
@@ -365,19 +365,23 @@ public:
 
       {
         const lsn_t lsn{log_sys.get_first_lsn()};
-        if (lsn > last_first_lsn && lsn < last_lsn)
+        if (lsn > max_first_lsn && lsn < last_lsn)
         {
+          max_first_lsn= lsn;
           log_sys.latch.wr_unlock();
-          fail= link_or_move(lsn, true);
+          bool live_hardlink= false;
+          fail= link_or_move(lsn, &live_hardlink);
           log_sys.latch.wr_lock();
           if (fail)
             goto skip_log_dup;
+          if (!live_hardlink)
+            max_first_lsn= 0;
         }
         else
           goto skip_log_dup;
       }
 
-      trx->start_time_micro= last_first_lsn;
+      trx->start_time_micro= max_first_lsn;
       trx->commit_lsn= last_lsn;
     }
 
@@ -389,21 +393,23 @@ public:
       log_sys.backup_stop_archiving(thd);
       log_sys.latch.wr_lock();
     }
-    last_first_lsn= 0;
+    max_first_lsn= 0;
     log_sys.backup_stop(old_size, thd);
     return fail;
   }
 
   /**
-     After a successful end(), finalize the backup.
-     @param thd   the parameter that had been passed to end()
+     Clean up after end().
+     @param thd     the parameter that had been passed to end()
+     @param target  target directory
      @return error code
      @retval 0 on success
   */
-  int fini(THD *thd) noexcept
+  int fini(THD *thd, IF_WIN(const char*,int) target) noexcept
   {
+    int fail= 0;
     log_sys.latch.wr_lock();
-    if (!last_first_lsn)
+    if (!max_first_lsn)
     {
       ut_ad(queue.empty());
       if (old_size)
@@ -413,16 +419,85 @@ public:
     log_sys.latch.wr_unlock();
 
     trx_t *trx= thd_to_trx(thd);
-    if (trx != nullptr && trx->state == TRX_STATE_BACKUP)
+    if (!trx || trx->state != TRX_STATE_BACKUP)
+      ut_ad("invalid state" == 0);
+    else
     {
-      /* TODO: copy our hardlink of the last log until the final LSN */
-      sql_print_information("TODO: duplicate " LOG_ARCHIVE_NAME " to " LSN_PF,
-                            lsn_t{trx->start_time_micro}, trx->commit_lsn);
-      trx->start_time_micro= 0;
+      ut_ad(!trx->id);
+      if (const lsn_t first_lsn{trx->start_time_micro})
+      {
+        trx->start_time_micro= 0;
+        /* Copy our clone of the last log until the final LSN */
+#ifdef _WIN32
+        std::string src{target};
+        src.push_back('/');
+        std::string dst{src};
+        src.push_back("ib_logfile101");
+        log_sys.append_archive_name(dst, first_lsn);
+        const char *s= src.c_str(), *d= dst.c_str();
+
+        if (!CopyFileExA(s, d, nullptr, nullptr, nullptr,
+                         COPY_FILE_NO_BUFFERING) ||
+            !MoveFileEx(d, s, MOVEFILE_REPLACE_EXISTING))
+        {
+          my_osmaperr(GetLastError());
+          my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), s, d, errno);
+          fail= 1;
+        }
+#else
+        int s= openat(target, "ib_logfile101", O_RDONLY);
+        std::string dst;
+        log_sys.append_archive_name(dst, first_lsn);
+        int d;
+        if (s == -1)
+        {
+          my_error(ER_FILE_NOT_FOUND, MYF(ME_ERROR_LOG), "ib_logfile101",
+                   errno);
+          fail= 1;
+          goto done;
+        }
+# ifdef __APPLE__
+        fail= clonefileat(s, target, dst.c_str(), 0);
+        if (!fail)
+          goto done;
+        if (errno != ENOTSUP)
+          goto fail;
+# endif
+        d= openat(target, dst.c_str(), O_CREAT | O_EXCL | O_TRUNC | O_WRONLY,
+                  0666);
+        if (d < 0)
+        {
+        fail:
+          fail= 1;
+          my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), s, d, errno);
+          close(s);
+        }
+        else
+        {
+          fail= copy_file(s, d,
+                          ((trx->commit_lsn - first_lsn) + 4095) & ~4095ULL);
+          if (close(d) || fail)
+            goto fail;
+          if (unlinkat(target, "ib_logfile101", 0))
+          {
+            my_error(ER_CANT_DELETE_FILE, MYF(ME_ERROR_LOG),
+                     "ib_logfile101", errno);
+            fail= 1;
+          }
+          if (close(s))
+          {
+            my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG), "ib_logfile101",
+                     errno);
+            fail= 1;
+          }
+        }
+      done:;
+#endif
+      }
       trx->commit_lsn= 0;
       trx->state= TRX_STATE_NOT_STARTED;
     }
-    return 0;
+    return fail;
   }
 
   /**
@@ -431,7 +506,7 @@ public:
   void checkpoint_complete() noexcept
   {
     ut_ad(log_sys.latch_have_wr());
-    if (last_first_lsn)
+    if (max_first_lsn)
       logs.emplace_back(log_sys.get_first_lsn() - log_sys.capacity());
   }
 
@@ -546,7 +621,6 @@ private:
       break;
 #endif
     }
-    sql_print_information("BACKUP SERVER: copy %s", node->name);
     return 0;
   fail:
     my_error(ER_CANT_CREATE_FILE, MYF(0), node->name, errno);
@@ -555,57 +629,77 @@ private:
 
   /** Hard-link (copy) or rename (move) an archive log file.
   @param lsn   The first LSN in the file
-  @param live  false=archived log, true=possibly live log
+  @param clone pointer to a flag that will be set if a live log was
+               hard-linked (needing deduplication),
+               or nullptr if the source log file is known to be read-only
   @return error code
   @retval 0 on success */
-  int link_or_move(lsn_t lsn, bool live) noexcept
+  int link_or_move(lsn_t lsn, bool *clone) noexcept
   {
+    ut_ad(!clone || !*clone);
     const std::string p{log_sys.get_archive_path(lsn)};
     const char *const path= p.c_str(), *basename= strrchr(path, '/');
     if (!basename)
       basename= path;
     else
       basename++;
-    const bool move{!live && old_size};
+    const bool move{!clone && old_size};
 
 #ifdef _WIN32
-    if (live)
-      live= log_sys.close_file_if_at(lsn);
+    const bool closed{clone && log_sys.close_file_if_at(lsn)};
     std::string b{target};
-    b.push_back('/');
-    b.append(basename);
-    basename= b.c_str();
+    if (clone)
+      b.push_back("/ib_logfile101");
+    else
+    {
+      b.push_back('/');
+      b.append(basename);
+    }
+    const char *destname= b.str();
 
     unsigned long err;
     if (move)
     {
-      if (!MoveFileEx(path, basename, MOVEFILE_COPY_ALLOWED))
+      if (!MoveFileEx(path, destname, MOVEFILE_COPY_ALLOWED))
       {
       fail:
         err= GetLastError();
       got_err:
-        if (live)
+        if (closed)
           log_sys.resume_file();
         my_osmaperr(err);
         my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), path, basename, errno);
         return -1;
       }
     }
-    else if (!CreateHardLink(basename, path, nullptr))
+    else if (!CreateHardLink(destname, path, nullptr))
     {
       if ((err= GetLastError()) != ERROR_NOT_SAME_DEVICE)
         goto got_err;
-      if (!CopyFileExA(path, basename, nullptr, nullptr, nullptr,
+      /* Hard-linking failed. Try copying with the final name. */
+      b.assign(target);
+      b.push_back('/');
+      b.append(basename);
+      destname= b.str();
+
+      if (!CopyFileExA(path, destname, nullptr, nullptr, nullptr,
                        COPY_FILE_NO_BUFFERING))
         goto fail;
     }
-    if (live)
+    else if (clone)
+      *clone= true;
+    if (closed)
       log_sys.resume_file();
 #else
     if (move
         ? !renameat(AT_FDCWD, path, target, basename)
-        : !linkat(AT_FDCWD, path, target, basename, AT_SYMLINK_FOLLOW))
+        : !linkat(AT_FDCWD, path, target, clone ? "ib_logfile101" : basename,
+                  AT_SYMLINK_FOLLOW))
+    {
+      if (clone)
+        *clone= !move;
       return 0;
+    }
     else if (errno != EXDEV)
     {
     fail:
@@ -709,9 +803,9 @@ int innodb_backup_end(THD *thd, bool abort) noexcept
   return backup.end(thd, abort);
 }
 
-int innodb_backup_finalize(THD *thd) noexcept
+int innodb_backup_finalize(THD *thd, IF_WIN(const char*,int) target) noexcept
 {
-  return backup.fini(thd);
+  return backup.fini(thd, target);
 }
 
 void innodb_backup_checkpoint() noexcept

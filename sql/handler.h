@@ -1923,11 +1923,12 @@ struct handlerton : public transaction_participant
   int (*backup_end)(THD *thd, bool abort);
   /**
      Clean up after any backup_end().
-     @param thd   the parameter on which backup_end() was invoked
+     @param thd     the parameter on which backup_end() was invoked
+     @param target  target directory
      @return error code
      @retval 0 on success
   */
-  int (*backup_finalize)(THD *thd);
+  int (*backup_finalize)(THD *thd, IF_WIN(const char*,int) target);
 
   /**********************************************************************
    WSREP specific

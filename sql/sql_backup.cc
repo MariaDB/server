@@ -49,11 +49,13 @@ static my_bool backup_step(THD *thd, plugin_ref plugin, void *) noexcept
   return res != 0;
 }
 
-static my_bool backup_finalize(THD *thd, plugin_ref plugin, void *) noexcept
+static my_bool backup_finalize(THD *thd, plugin_ref plugin, void *dst) noexcept
 {
   handlerton *hton= plugin_hton(plugin);
   if (hton->backup_step)
-    return hton->backup_finalize(thd);
+    return hton->backup_finalize
+      (thd, IF_WIN(static_cast<const char*>(dst),
+                   int(reinterpret_cast<uintptr_t>(dst))));
   return 0;
 }
 
@@ -120,7 +122,9 @@ bool Sql_cmd_backup::execute(THD *thd)
   Release the locks. */
   thd->mdl_context.release_lock(mdl_request.ticket);
   plugin_foreach_with_mask(thd, backup_finalize, MYSQL_STORAGE_ENGINE_PLUGIN,
-                           PLUGIN_IS_DELETED|PLUGIN_IS_READY, nullptr);
+                           PLUGIN_IS_DELETED|PLUGIN_IS_READY,
+                           IF_WIN(const_cast<char*>(target.str),
+                                  reinterpret_cast<void*>(dir)));
 #ifndef _WIN32
   close(dir);
 #endif

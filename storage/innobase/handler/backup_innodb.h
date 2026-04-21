@@ -41,11 +41,12 @@ int innodb_backup_end(THD *thd, bool abort) noexcept;
 
 /**
    Clean up after innodb_backup_end().
-   @param thd   the parameter on which innodb_backup_end() had been invoked
+   @param thd     the parameter on which innodb_backup_end() had been invoked
+   @param target  target directory
    @return error code
    @retval 0 on success
 */
-int innodb_backup_finalize(THD *thd) noexcept;
+int innodb_backup_finalize(THD *thd, IF_WIN(const char*,int) target) noexcept;
 
 /**
    Complete the first checkpoint in a new archive log file.
