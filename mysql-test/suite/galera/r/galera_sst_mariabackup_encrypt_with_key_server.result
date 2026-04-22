@@ -3,4 +3,24 @@ connection node_1;
 SELECT 1;
 1
 1
-include/assert_grep.inc [Using openssl based encryption with socat]
+FOUND 1 /Using openssl based encryption with socat: with key and crt/ in mysqld.1.err
+#
+# MDEV-39413 wsrep unsafe handling of parameters
+#
+call mtr.add_suppression('Invalid value for WSREP_SST_OPT_REMOTE_USER');
+call mtr.add_suppression('Failed to read from: wsrep_sst_mariabackup');
+call mtr.add_suppression('Process completed with error: wsrep_sst_mariabackup');
+call mtr.add_suppression('Command did not run: wsrep_sst_mariabackup');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('Will never receive state. Need to abort');
+call mtr.add_suppression('Error while getting data from donor node');
+call mtr.add_suppression('Cleanup after exit with status');
+call mtr.add_suppression('Removing .*/xtrabackup_galera_info file due to signal');
+connection node_2;
+# force SST again
+# using a cert with shell-unsafe CN
+# start the server
+# the server failed to start
+FOUND 1 /Invalid value for WSREP_SST_OPT_REMOTE_USER/ in mysqld.1.err
+# cleanup
+# restart
