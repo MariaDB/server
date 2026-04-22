@@ -879,7 +879,6 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       std::swap(old_name, new_name);
       header_rewrite(archive);
       std::string spare{get_next_archive_path()};
-      sql_print_information("InnoDB: deleting spare %s", spare.c_str());
       IF_WIN(DeleteFile(spare.c_str()), unlink(spare.c_str()));
     }
 #if defined HAVE_PMEM && !defined _WIN32
@@ -1239,9 +1238,6 @@ ATTRIBUTE_COLD void log_t::archive_create(bool ex) noexcept
 
   if (file == OS_FILE_CLOSED)
   {
-    sql_print_information("InnoDB: %d failed to create %s",
-                          int{ex}, path.c_str());
-
     if (!ex)
       /* The file already exists, and we were only attempting to
       create and allocate it in advance. Assume that our work is
@@ -1291,10 +1287,7 @@ ATTRIBUTE_COLD void log_t::archive_create(bool ex) noexcept
       return;
   }
   else if (!ex)
-  {
-    sql_print_information("InnoDB: failed to open spare %s", path.c_str());
     return;
-  }
 
   sql_print_error("[FATAL] InnoDB: Failed to create %s of %" PRIu64
                   " bytes", path.c_str(), resize_target);
