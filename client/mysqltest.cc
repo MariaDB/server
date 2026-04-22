@@ -110,15 +110,14 @@ enum {
 
 static int record= 0, opt_sleep= -1;
 static char *opt_db= 0, *opt_pass= 0;
-const char *opt_user= 0, *opt_host= 0, *unix_sock= 0, *opt_basedir= "./";
+const char *opt_basedir= "./";
 const char *opt_logdir= "";
 const char *opt_prologue= 0, *opt_charsets_dir;
-static int opt_port= 0;
 static int opt_max_connect_retries;
 static int opt_result_format_version;
 static int opt_max_connections= DEFAULT_MAX_CONN;
 static int error_count= 0;
-static my_bool opt_compress= 0, silent= 0, verbose= 0;
+static my_bool silent= 0, verbose= 0;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
 static my_bool tty_password= 0;
 static my_bool opt_mark_progress= 0;
@@ -267,7 +266,6 @@ static ulonglong timer_now(void);
 
 static ulong connection_retry_sleep= 100000; /* Microseconds */
 
-static const char *opt_plugin_dir;
 static const char *opt_suite_dir, *opt_overlay_dir;
 static size_t suite_dir_len, overlay_dir_len;
 
@@ -288,10 +286,9 @@ static int replace(DYNAMIC_STRING *ds_str,
                    const char *search_str, size_t search_len,
                    const char *replace_str, size_t replace_len);
 
-static uint opt_protocol=0;
-
 DYNAMIC_ARRAY q_lines;
 
+#include "common-cli-vars.h"
 #include "sslopt-vars.h"
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
@@ -8903,7 +8900,7 @@ enum use_ssl
 void do_connect(struct st_command *command)
 {
   uint protocol= opt_protocol;
-  int con_port= opt_port;
+  int con_port= (int)opt_mysql_port;
   char *con_options;
   char *ssl_cipher __attribute__((unused))= 0;
   enum use_ssl con_ssl __attribute__((unused))= USE_SSL_IF_POSSIBLE;
@@ -8970,7 +8967,7 @@ void do_connect(struct st_command *command)
   else
   {
     /* No socket specified, use default */
-    dynstr_set(&ds_sock, unix_sock);
+    dynstr_set(&ds_sock, opt_mysql_unix_port);
   }
   DBUG_PRINT("info", ("socket: %s", ds_sock.str));
 
@@ -9119,8 +9116,8 @@ void do_connect(struct st_command *command)
   else
     default_db= 0;
 
-  if (opt_plugin_dir && *opt_plugin_dir)
-    mysql_options(con_slot->mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
+  if (opt_client_plugin_dir && *opt_client_plugin_dir)
+    mysql_options(con_slot->mysql, MYSQL_PLUGIN_DIR, opt_client_plugin_dir);
 
   if (ds_default_auth.length)
     mysql_options(con_slot->mysql, MYSQL_DEFAULT_AUTH, ds_default_auth.str);
@@ -10151,9 +10148,6 @@ static struct my_option my_long_options[] =
   {"character-sets-dir", 0,
    "Directory for character set files.", &opt_charsets_dir,
    &opt_charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"compress", 'C', "Use the compressed server/client protocol.",
-   &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
-   0, 0, 0},
   {"continue-on-error", 0,
    "Continue test even if we got an error. "
    "This is mostly useful when testing a storage engine to see what from a test file it can execute, "
@@ -10178,8 +10172,7 @@ static struct my_option my_long_options[] =
   {"debug-info", 0, "Print some debug info at exit.",
    &debug_info_flag, &debug_info_flag,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host.", &opt_host, &opt_host, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+#include "common-cli-longopts.h"
   {"prologue", 0, "Include SQL before each test case.", &opt_prologue,
    &opt_prologue, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"logdir", OPT_LOG_DIR, "Directory for log files", &opt_logdir,
@@ -10198,15 +10191,6 @@ static struct my_option my_long_options[] =
    GET_INT, REQUIRED_ARG, DEFAULT_MAX_CONN, 8, 5120, 0, 0, 0},
   {"password", 'p', "Password to use when connecting to server.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-  {"protocol", OPT_MYSQL_PROTOCOL, "The protocol of connection (tcp,socket,pipe).",
-   0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"port", 'P', "Port number to use for connection or 0 for default to, in "
-   "order of preference, my.cnf, $MYSQL_TCP_PORT, "
-#if MYSQL_PORT_DEFAULT == 0
-   "/etc/services, "
-#endif
-   "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").",
-   &opt_port, &opt_port, 0, GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ps-protocol", 0, 
    "Use prepared-statement protocol for communication.",
    &ps_protocol, &ps_protocol, 0,
@@ -10236,9 +10220,6 @@ static struct my_option my_long_options[] =
   {"sleep", 'T', "Always sleep this many seconds on sleep commands.",
    &opt_sleep, &opt_sleep, 0, GET_INT, REQUIRED_ARG, -1, -1, 0,
    0, 0, 0},
-  {"socket", 'S', "The socket file to use for connection.",
-   &unix_sock, &unix_sock, 0, GET_STR, REQUIRED_ARG, 0, 0, 0,
-   0, 0, 0},
   {"sp-protocol", 0, "Use stored procedures for select.",
    &sp_protocol, &sp_protocol, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -10253,8 +10234,6 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"tmpdir", 't', "Temporary directory where sockets are put.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"user", 'u', "User for login.", &opt_user, &opt_user, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"verbose", 'v', "Write more.", &verbose, &verbose, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.",
@@ -10270,9 +10249,6 @@ static struct my_option my_long_options[] =
    "Number of seconds to wait for master_pos_wait",
    &opt_wait_for_pos_timeout, &opt_wait_for_pos_timeout, 0, GET_UINT,
    REQUIRED_ARG, default_wait_for_pos_timeout, 0, 3600 * 12, 0, 0, 0},
-  {"plugin_dir", 0, "Directory for client-side plugins.",
-    &opt_plugin_dir, &opt_plugin_dir, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"overlay-dir", 0, "Overlay directory.", &opt_overlay_dir,
     &opt_overlay_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"suite-dir", 0, "Suite directory.", &opt_suite_dir,
@@ -13155,20 +13131,13 @@ int main(int argc, char **argv)
   if (opt_connect_timeout)
     mysql_options(con->mysql, MYSQL_OPT_CONNECT_TIMEOUT,
                   (void *) &opt_connect_timeout);
-  if (opt_compress)
-    mysql_options(con->mysql,MYSQL_OPT_COMPRESS,NullS);
   mysql_options(con->mysql, MYSQL_SET_CHARSET_NAME,
                 charset_info->cs_name.str);
   if (opt_charsets_dir)
     mysql_options(con->mysql, MYSQL_SET_CHARSET_DIR,
                   opt_charsets_dir);
 
-  if (opt_protocol)
-    mysql_options(con->mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
-
-  if (opt_plugin_dir && *opt_plugin_dir)
-    mysql_options(con->mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
-
+  set_common_cli_vars_with_init_command(con->mysql);
   SET_SSL_OPTS(con->mysql);
 
   if (!(con->name = my_strdup(PSI_NOT_INSTRUMENTED, "default", MYF(MY_WME))))
@@ -13176,7 +13145,7 @@ int main(int argc, char **argv)
   mysql_options(con->mysql, MYSQL_OPT_NONBLOCK, 0);
 
   safe_connect(con->mysql, con->name, opt_host, opt_user, opt_pass,
-               opt_db, opt_port, unix_sock);
+               opt_db, (int)opt_mysql_port, opt_mysql_unix_port);
 
   /* Use all time until exit if no explicit 'start_timer' */
   timer_start= timer_now();

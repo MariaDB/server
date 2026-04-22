@@ -1,0 +1,57 @@
+--source include/not_embedded.inc
+--source include/have_log_bin.inc
+
+--echo #
+--echo # MDEV-28911: Add --init-command option to mariadb-{admin,dump,binlog,check,import, show,slap,test}
+--echo #
+
+--disable_query_log
+CREATE TABLE test.import_target(a INT);
+--write_file $MYSQLTEST_VARDIR/tmp/import_target.txt
+1
+EOF
+--write_file $MYSQLTEST_VARDIR/tmp/mysqltest.sql
+SELECT 1;
+EOF
+RESET MASTER;
+--enable_query_log
+
+--exec $MYSQL --init-command="CREATE TABLE test.mysql(a INT)" -e "SELECT 1" > /dev/null 2>&1
+--exec $MYSQLADMIN --init-command="CREATE TABLE test.mysqladmin(a INT)" ping > /dev/null 2>&1
+--exec $MYSQL_DUMP --init-command="CREATE TABLE test.mysqldump(a INT)" --skip-comments test mysqldump > /dev/null 2>&1
+--exec $MYSQL_SHOW --init-command="CREATE TABLE test.mysqlshow(a INT)" test > /dev/null 2>&1
+--exec $MYSQL_CHECK --init-command="CREATE TABLE test.mysqlcheck(a INT)" test mysqlcheck > /dev/null 2>&1
+--exec $MYSQL_IMPORT --silent --init-command="CREATE TABLE test.mysqlimport(a INT)" test $MYSQLTEST_VARDIR/tmp/import_target.txt > /dev/null 2>&1
+--exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT --init-command="CREATE TABLE test.mysqlbinlog(a INT)" master-bin.000001 > /dev/null 2>&1
+--exec $MYSQL_SLAP --create-schema=test --init-command="CREATE TABLE test.mysqlslap(a INT)" --silent --concurrency=1 --iterations=1 > /dev/null 2>&1
+--exec $MYSQL_TEST --init-command="CREATE TABLE test.mysqltest(a INT)" < $MYSQLTEST_VARDIR/tmp/mysqltest.sql > /dev/null 2>&1
+
+SELECT COUNT(*) FROM information_schema.tables
+WHERE table_schema='test'
+  AND table_name IN ('mysql',
+                     'mysqladmin',
+                     'mysqlbinlog',
+                     'mysqlcheck',
+                     'mysqldump',
+                     'mysqlimport',
+                     'mysqlshow',
+                     'mysqlslap',
+                     'mysqltest');
+
+--remove_file $MYSQLTEST_VARDIR/tmp/import_target.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqltest.sql
+DROP TABLE test.mysql;
+DROP TABLE test.mysqladmin;
+DROP TABLE test.mysqlbinlog;
+DROP TABLE test.mysqlcheck;
+DROP TABLE test.mysqldump;
+DROP TABLE test.mysqlimport;
+DROP TABLE test.mysqlshow;
+DROP TABLE test.mysqlslap;
+DROP TABLE test.mysqltest;
+
+--disable_query_log
+DROP TABLE test.import_target;
+--enable_query_log
+
+--echo End of 13.0 tests

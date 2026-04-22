@@ -27,22 +27,20 @@
 #include <mysqld_error.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <common-cli-vars.h>
 #include <sslopt-vars.h>
 #include <welcome_copyright_notice.h>   /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
-static char * host=0, *opt_password=0, *user=0;
-static my_bool opt_show_keys= 0, opt_compress= 0, opt_count=0, opt_status= 0;
+static char *opt_password=0;
+static my_bool opt_show_keys= 0, opt_count=0, opt_status= 0;
 static my_bool tty_password= 0, opt_table_type= 0;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
 static uint my_end_arg= 0;
 static uint opt_verbose=0;
 static char *default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
-static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 
-static uint opt_protocol=0;
 
 static void get_options(int *argc,char ***argv);
-static uint opt_mysql_port=0;
 static int list_dbs(MYSQL *mysql,const char *wild);
 static int list_tables(MYSQL *mysql,const char *db,const char *table);
 static int list_table_status(MYSQL *mysql,const char *db,const char *table);
@@ -58,7 +56,6 @@ static void print_res_row(MYSQL_RES *result,MYSQL_ROW cur);
 static const char *load_default_groups[]=
 { "mysqlshow", "mariadb-show", "client", "client-server", "client-mariadb",
   0 };
-static char * opt_mysql_unix_port=0;
 
 int main(int argc, char **argv)
 {
@@ -118,27 +115,18 @@ int main(int argc, char **argv)
     exit(1);
   }
   mysql_init(&mysql);
-  if (opt_compress)
-    mysql_options(&mysql,MYSQL_OPT_COMPRESS,NullS);
+  set_common_cli_vars_with_init_command(&mysql);
   SET_SSL_OPTS(&mysql);
-  if (opt_protocol)
-    mysql_options(&mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
 
   if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
     default_charset= (char *)my_default_csname();
   my_set_console_cp(default_charset);
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, default_charset);
 
-  if (opt_plugin_dir && *opt_plugin_dir)
-    mysql_options(&mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
-
-  if (opt_default_auth && *opt_default_auth)
-    mysql_options(&mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
-
   mysql_options(&mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(&mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqlshow");
-  if (!(mysql_real_connect(&mysql,host,user,opt_password,
+  if (!(mysql_real_connect(&mysql,opt_host,opt_user,opt_password,
 			   (first_argument_uses_wildcards) ? "" :
                            argv[0],opt_mysql_port,opt_mysql_unix_port,
 			   0)))
@@ -167,6 +155,7 @@ int main(int argc, char **argv)
   }
 error:
   mysql_close(&mysql);			/* Close & free connection */
+  free_common_cli_vars();
   my_free(opt_password);
   mysql_server_end();
   free_defaults(defaults_argv);
@@ -187,9 +176,6 @@ static struct my_option my_long_options[] =
    "Show number of rows per table (may be slow for non-MyISAM tables).",
    &opt_count, &opt_count, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
-  {"compress", 'C', "Use compression in server/client protocol.",
-   &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
-   0, 0, 0},
   {"debug", '#', "Output debug log. Often this is 'd:t:o,filename'.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"debug-check", 0, "Check memory and open file usage at exit.",
@@ -198,15 +184,9 @@ static struct my_option my_long_options[] =
   {"debug-info", 0, "Print some debug info at exit.",
    &debug_info_flag, &debug_info_flag,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"default_auth", 0,
-   "Default authentication client-side plugin to use.",
-   &opt_default_auth, &opt_default_auth, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+#include <common-cli-longopts.h>
   {"help", '?', "Display this help and exit.", 0, 0, 0, GET_NO_ARG, NO_ARG,
    0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host. Defaults in the following order: "
-  "$MARIADB_HOST, and then localhost",
-   &host, &host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"status", 'i', "Shows a lot of extra information about each table.",
    &opt_status, &opt_status, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
@@ -216,36 +196,14 @@ static struct my_option my_long_options[] =
    "Password to use when connecting to server. If password is not given, it's "
    "solicited on the tty.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-  {"plugin_dir", 0, "Directory for client-side plugins.",
-   &opt_plugin_dir, &opt_plugin_dir, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"port", 'P', "Port number to use for connection or 0 for default to, in "
-   "order of preference, my.cnf, $MYSQL_TCP_PORT, "
-#if MYSQL_PORT_DEFAULT == 0
-   "/etc/services, "
-#endif
-   "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").",
-   &opt_mysql_port,
-   &opt_mysql_port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0,
-   0},
 #ifdef _WIN32
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"protocol", OPT_MYSQL_PROTOCOL, 
-   "The protocol to use for connection (tcp, socket, pipe).",
-   0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"show-table-type", 't', "Show table type column.",
    &opt_table_type, &opt_table_type, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"socket", 'S', "The socket file to use for connection.",
-   &opt_mysql_unix_port, &opt_mysql_unix_port, 0, GET_STR,
-   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #include <sslopt-longopts.h>
-#ifndef DONT_ALLOW_USER_CHANGE
-  {"user", 'u', "User for login if not current user.", &user,
-   &user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#endif
   {"verbose", 'v',
    "More verbose output; you can use this multiple times to get even more "
    "verbose output.",
@@ -309,6 +267,7 @@ get_one_option(const struct my_option *opt, const char *argument,
   case 'W':
 #ifdef _WIN32
     opt_protocol = MYSQL_PROTOCOL_PIPE;
+    opt_protocol_type= "pipe";
 #endif
     break;
   case OPT_MYSQL_PROTOCOL:
@@ -364,8 +323,7 @@ get_options(int *argc,char ***argv)
 {
   int ho_error;
 
-  if (host == NULL)
-    host= getenv("MARIADB_HOST");
+  set_common_cli_host_from_env();
 
   if ((ho_error=handle_options(argc, argv, my_long_options, get_one_option)))
     exit(ho_error);

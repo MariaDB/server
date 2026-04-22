@@ -116,7 +116,7 @@ static void field_escape(DYNAMIC_STRING* in, const char *from);
 static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_med= 1,
                 quick= 1, extended_insert= 1,
                 lock_tables=1,ignore_errors=0,flush_logs=0,flush_privileges=0,
-                opt_drop=1,opt_keywords=0,opt_lock=1,opt_compress=0,
+                opt_drop=1,opt_keywords=0,opt_lock=1,
                 opt_copy_s3_tables=0,
                 opt_delayed=0,create_options=1,opt_quoted=0,opt_databases=0,
                 opt_alldbs=0,opt_create_db=0,opt_lock_all_tables=0,
@@ -152,8 +152,8 @@ static double opt_max_statement_time= 0.0;
 static MYSQL *mysql=0;
 static DYNAMIC_STRING insert_pat, select_field_names, field_flags,
                       select_field_names_for_header, insert_field_names;
-static char  *opt_password=0,*current_user=0,
-             *current_host=0,*path=0,*fields_terminated=0,
+static char  *opt_password=0,
+             *path=0,*fields_terminated=0,
              *lines_terminated=0, *enclosed=0, *opt_enclosed=0, *escaped=0,
              *where=0, *order_by=0,
              *err_ptr= 0,
@@ -168,11 +168,10 @@ static ulong opt_compatible_mode= 0;
 #define MYSQL_OPT_MASTER_DATA_COMMENTED_SQL 2
 #define MYSQL_OPT_SLAVE_DATA_EFFECTIVE_SQL 1
 #define MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL 2
-static uint opt_mysql_port= 0, opt_master_data;
+static uint opt_master_data;
 static uint opt_slave_data;
 static uint opt_use_gtid;
 static uint my_end_arg;
-static char * opt_mysql_unix_port=0;
 static int   first_error=0;
 /**
   `true` for 11.6 or above servers, `false` otherwise.
@@ -186,12 +185,11 @@ static MEM_ROOT glob_root;
 static MYSQL_RES *routine_res, *routine_list_res, *slave_status_res= NULL;
 
 
+#include <common-cli-vars.h>
 #include <sslopt-vars.h>
 FILE *md_result_file= 0;
 FILE *stderror_file=0;
 
-static uint opt_protocol= 0;
-static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 static uint opt_parallel= 0;
 static char *opt_dir;
 
@@ -315,8 +313,6 @@ static struct my_option my_long_options[] =
   {"complete-insert", 'c', "Use complete insert statements.",
    &opt_complete_insert, &opt_complete_insert, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"compress", 'C', "Use compression in server/client protocol.",
-   &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"copy_s3_tables", 0,
    "If 'no' S3 tables will be ignored, otherwise S3 tables will be copied as "
    " Aria tables and then altered to S3",
@@ -346,6 +342,7 @@ static struct my_option my_long_options[] =
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"debug-info", 0, "Print some debug info at exit.", &debug_info_flag,
     &debug_info_flag, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+#include <common-cli-longopts.h>
   {"default-character-set", OPT_DEFAULT_CHARSET,
    "Set the default character set.", &default_charset,
    &default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -440,9 +437,6 @@ static struct my_option my_long_options[] =
   {"hex-blob", 0, "Dump binary strings (BINARY, "
     "VARBINARY, BLOB) in hexadecimal format.",
    &opt_hex_blob, &opt_hex_blob, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host. Defaults in the following order: "
-  "$MARIADB_HOST, and then localhost",
-   &current_host, &current_host, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore-database", OPT_IGNORE_DATABASE,
    "Do not dump the specified database. To specify more than one database to ignore, "
    "use the directive multiple times, once for each database. Only takes effect "
@@ -544,12 +538,6 @@ static struct my_option my_long_options[] =
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"port", 'P', "Port number to use for connection.", &opt_mysql_port,
-   &opt_mysql_port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0,
-   0},
-  {"protocol", OPT_MYSQL_PROTOCOL, 
-   "The protocol to use for connection (tcp, socket, pipe).",
-   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"quick", 'q', "Don't buffer query, dump directly to stdout.",
    &quick, &quick, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"quote-names",'Q', "Quote table and column names with backticks (`).",
@@ -587,9 +575,6 @@ static struct my_option my_long_options[] =
   {"skip-opt", OPT_SKIP_OPTIMIZATION,
    "Disable --opt. Disables --add-drop-table, --add-locks, --create-options, --quick, --extended-insert, --lock-tables, --set-charset, and --disable-keys.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"socket", 'S', "The socket file to use for connection.",
-   &opt_mysql_unix_port, &opt_mysql_unix_port, 0, 
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #include <sslopt-longopts.h>
   {"system", 0, "Dump system tables as portable SQL",
    &opt_system, &opt_system, &opt_system_types, GET_SET, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -607,10 +592,6 @@ static struct my_option my_long_options[] =
    "Set connection time zone to UTC before commencing the dump and add "
    "SET TIME_ZONE=´+00:00´ to the top of the dump file.",
     &opt_tz_utc, &opt_tz_utc, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
-#ifndef DONT_ALLOW_USER_CHANGE
-  {"user", 'u', "User for login if not current user.", &current_user,
-    &current_user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#endif
   {"verbose", 'v', "Print info about the various stages.",
    &verbose, &verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version",'V', "Output version information and exit.", 0, 0, 0,
@@ -619,12 +600,6 @@ static struct my_option my_long_options[] =
    &where, &where, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"xml", 'X', "Dump a database as well formed XML.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"plugin_dir", 0, "Directory for client-side plugins.",
-   &opt_plugin_dir, &opt_plugin_dir, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"default_auth", 0, "Default authentication client-side plugin to use.",
-   &opt_default_auth, &opt_default_auth, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -796,7 +771,7 @@ static void write_header(FILE *sql_file, const char *db_name)
       print_comment(sql_file, 0, "-- MariaDB dump %s-%s, for %s (%s)\n--\n",
                     VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
       print_comment(sql_file, 0, "-- Host: %s    ",
-                    fix_for_comment(current_host ? current_host : "localhost"));
+                    fix_for_comment(opt_host ? opt_host : "localhost"));
       print_comment(sql_file, 0, "Database: %s\n",
                     fix_for_comment(db_name ? db_name : ""));
       print_comment(sql_file, 0,
@@ -931,6 +906,7 @@ get_one_option(const struct my_option *opt,
   case 'W':
 #ifdef _WIN32
     opt_protocol= MYSQL_PROTOCOL_PIPE;
+    opt_protocol_type= "pipe";
 #endif
     break;
   case 'N':
@@ -1113,13 +1089,9 @@ get_one_option(const struct my_option *opt,
 
 static int get_options(int *argc, char ***argv)
 {
-  char *tmp;
   int ho_error;
   MYSQL_PARAMETERS *mysql_params= mysql_get_parameters();
-
-  tmp= getenv("MARIADB_HOST");
-  if (tmp && current_host == NULL)
-    current_host= my_strdup(PSI_NOT_INSTRUMENTED, tmp, MYF(MY_WME));
+  set_common_cli_host_from_env();
 
   opt_max_allowed_packet= *mysql_params->p_max_allowed_packet;
   opt_net_buffer_length= *mysql_params->p_net_buffer_length;
@@ -2042,9 +2014,9 @@ static void free_resources()
     mysql_close(mysql);
     mysql= 0;
   }
+  free_common_cli_vars();
   my_free(order_by);
   my_free(opt_password);
-  my_free(current_host);
   free_root(&glob_root, MYF(0));
   if (my_hash_inited(&ignore_database))
     my_hash_free(&ignore_database);
@@ -2092,18 +2064,9 @@ static MYSQL* connect_to_db(char *host, char *user,char *passwd)
 
   verbose_msg("-- Connecting to %s...\n", host ? host : "localhost");
   MYSQL* con = mysql_init(NULL);
-  if (opt_compress)
-    mysql_options(con,MYSQL_OPT_COMPRESS,NullS);
+  set_common_cli_vars_with_init_command(con);
   SET_SSL_OPTS_WITH_CHECK(con);
-  if (opt_protocol)
-    mysql_options(con,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
   mysql_options(con, MYSQL_SET_CHARSET_NAME, default_charset);
-
-  if (opt_plugin_dir && *opt_plugin_dir)
-    mysql_options(con, MYSQL_PLUGIN_DIR, opt_plugin_dir);
-
-  if (opt_default_auth && *opt_default_auth)
-    mysql_options(con, MYSQL_DEFAULT_AUTH, opt_default_auth);
 
   mysql_options(con, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(con, MYSQL_OPT_CONNECT_ATTR_ADD,
@@ -2986,9 +2949,9 @@ static uint dump_routines_for_db(char *db)
                           query_buff);
             print_comment(sql_file, 1,
                           "-- does %s have permissions on mysql.proc?\n\n",
-                          fix_for_comment(current_user));
+                          fix_for_comment(opt_user));
             maybe_die(EX_MYSQLERR,"%s has insufficient privileges to %s!",
-                      current_user, query_buff);
+                      opt_user, query_buff);
           }
           else if (strlen(row[2]))
           {
@@ -7275,7 +7238,7 @@ static void init_connection_pool(uint n_connections)
 
   for (uint i= 0; i < n_connections; i++)
   {
-    MYSQL *c= connect_to_db(current_host, current_user, opt_password);
+    MYSQL *c= connect_to_db(opt_host, opt_user, opt_password);
     if (!c)
     {
       for (uint j= 0; j < i; j++)
@@ -7628,7 +7591,7 @@ int main(int argc, char **argv)
     }
   }
 
-  mysql= connect_to_db(current_host, current_user, opt_password);
+  mysql= connect_to_db(opt_host, opt_user, opt_password);
   if (!mysql)
   {
     free_resources();
@@ -7837,7 +7800,7 @@ err:
   if (opt_slave_data)
     do_start_slave_sql(mysql);
 
-  dbDisconnect(current_host);
+  dbDisconnect(opt_host);
   if (!multi_file_output)
     write_footer(md_result_file);
   free_resources();
