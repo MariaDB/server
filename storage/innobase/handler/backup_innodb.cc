@@ -457,9 +457,9 @@ public:
           goto done;
         }
 # ifdef __APPLE__
-        fail= clonefileat(s, target, s, dst.c_str(), 0);
+        fail= fclonefileat(s, target, dst.c_str(), 0);
         if (!fail)
-          goto done;
+          goto close;
         if (errno != ENOTSUP)
           goto fail;
 # endif
@@ -484,6 +484,9 @@ public:
                      "ib_logfile101", errno);
             fail= 1;
           }
+# ifdef __APPLE__
+        close:
+# endif
           if (close(s))
           {
             my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG), "ib_logfile101",
@@ -655,7 +658,7 @@ private:
       b.push_back('/');
       b.append(basename);
     }
-    const char *destname= b.str();
+    const char *destname= b.c_str();
 
     unsigned long err;
     if (move)
@@ -680,7 +683,7 @@ private:
       b.assign(target);
       b.push_back('/');
       b.append(basename);
-      destname= b.str();
+      destname= b.c_str();
 
       if (!CopyFileExA(path, destname, nullptr, nullptr, nullptr,
                        COPY_FILE_NO_BUFFERING))
