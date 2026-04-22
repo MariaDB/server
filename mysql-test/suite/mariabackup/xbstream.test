@@ -22,3 +22,10 @@ SELECT * FROM t;
 DROP TABLE t;
 rmdir $targetdir;
 
+--echo #
+--echo # MDEV-39408 mbstream insufficient path validation
+--echo #
+--replace_regex /\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d .*:/mbstream:/
+exec $XBSTREAM -x -C $MYSQL_TMP_DIR < $MYSQL_TEST_DIR/std_data/mdev-39408.mb 2>&1;
+
+--echo # End of 10.6 tests

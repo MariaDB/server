@@ -11,3 +11,8 @@ SELECT * FROM t;
 i
 1
 DROP TABLE t;
+#
+# MDEV-39408 mbstream insufficient path validation
+#
+[00] mbstream: invalid filename ../../data.dat
+# End of 10.6 tests
