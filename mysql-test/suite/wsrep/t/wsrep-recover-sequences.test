@@ -1,0 +1,69 @@
+#
+# Verify that committed sequence operations are recovered correctly
+# and that sequence operations not committed are lost in recovery.
+#
+# After each scenario server is killed and the recovered position
+# is validated.
+#
+
+--source include/have_wsrep.inc
+--source include/have_innodb.inc
+--source include/have_wsrep_provider.inc
+--source include/have_sequence.inc
+--source include/no_protocol.inc
+
+#
+# Binlog option for recovery run. This must be set in the test because
+# combinations file causes log-bin option to be set from command line,
+# not via my.cnf.
+#
+--let $log_bin = `SELECT @@log_bin`
+if ($log_bin) {
+--let $wsrep_recover_binlog_opt = --log-bin
+}
+
+#
+# Start transaction from 2-connections but do not commit them
+# verify that INSERTs to table are lost and reserved sequence
+# range is lost.
+#
+let $restart_noprint=2;
+
+CREATE SEQUENCE s INCREMENT=0 CACHE=5 ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INT PRIMARY KEY DEFAULT NEXTVAL(s), f2 INT) ENGINE=InnoDB;
+--echo # Reserve values 1..5 from sequence
+BEGIN;
+INSERT INTO t1(f2) SELECT * FROM seq_1_to_5;
+
+--echo # From second connection execute enough INSERTs to reserve
+--echo # new range from sequence 
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--echo # Reserve values 6..25 from sequence
+BEGIN;
+INSERT INTO t1(f2) SELECT * FROM seq_1_to_20;
+
+--echo # From third connection execute enough INSERTs to reserve
+--echo # new range from sequence and commit
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--echo # Reserve values 26..35 from sequence
+BEGIN;
+INSERT INTO t1(f2) SELECT * FROM seq_1_to_10;
+COMMIT;
+SET GLOBAL innodb_log_checkpoint_now=1;
+
+--connection default
+--echo # Killing server
+--source include/kill_mysqld.inc
+--source wsrep-recover-step.inc
+--echo Expect seqno 4
+--echo $wsrep_recover_start_position_seqno
+
+--let $restart_parameters = --wsrep-start-position=$wsrep_recover_start_position_uuid:$wsrep_recover_start_position_seqno
+--source include/start_mysqld.inc
+--source include/wait_wsrep_ready.inc
+
+--echo # Next free value is 36
+SELECT NEXTVAL(s) AS EXPECT_36;
+SELECT * from t1;
+DROP TABLE t1;
+DROP SEQUENCE s;
