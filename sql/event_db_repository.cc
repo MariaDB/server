@@ -319,6 +319,30 @@ mysql_event_fill_row(THD *thd,
     MYSQL_TIME time;
     my_tz_OFFSET0->gmt_sec_to_TIME(&time, et->execute_at);
 
+    /*
+      MDEV-38632: When ALTER EVENT changes execute_at, clear last_executed.
+      A new execute_at means the event hasn't been executed for this
+      schedule yet. Without this, compute_next_execution_time() would
+      see the stale last_executed and disable the event on reload.
+
+      Only clear when execute_at actually changed. Compare the new value
+      against the stored one before overwriting.
+    */
+    if (is_update)
+    {
+      bool schedule_changed= true;
+      MYSQL_TIME old_execute_at;
+
+      if (!fields[ET_FIELD_EXECUTE_AT]->is_null() &&
+          !fields[ET_FIELD_EXECUTE_AT]->get_date(&old_execute_at,
+                                                 TIME_NO_ZERO_DATE |
+                                                 thd->temporal_round_mode()))
+        schedule_changed= my_time_compare(&time, &old_execute_at) != 0;
+
+      if (schedule_changed)
+        fields[ET_FIELD_LAST_EXECUTED]->set_null();
+    }
+
     fields[ET_FIELD_EXECUTE_AT]->set_notnull();
     fields[ET_FIELD_EXECUTE_AT]->store_time(&time);
   }
