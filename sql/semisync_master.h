@@ -600,8 +600,12 @@ class Repl_semi_sync_master
   int commit_trx(const char* trx_wait_binlog_name,
                  my_off_t trx_wait_binlog_pos);
 
-  /*Wait for ACK after writing/sync binlog to file*/
-  int wait_after_sync(const char* log_file, my_off_t log_pos);
+  /*
+    Wait for ACK after writing/sync binlog to file. trans_thd is the thread
+    of the transaction which ends at (log_file, log_pos); it can differ from
+    the waiting thread, see report_binlog_update().
+  */
+  int wait_after_sync(THD *trans_thd, const char* log_file, my_off_t log_pos);
 
   /*Wait for ACK after committing the transaction*/
   int wait_after_commit(THD* thd, bool all);
@@ -610,6 +614,9 @@ class Repl_semi_sync_master
   int wait_after_rollback(THD *thd, bool all);
   /* Store the current binlog position in m_active_tranxs. This position should
    * be acked by slave.
+   *
+   * Nothing is stored for a transaction logged with @@skip_replication=1, see
+   * skips_ack().
    *
    * Inputs:
    *   trans_thd  Thread of the transaction which is executing the
@@ -625,6 +632,28 @@ class Repl_semi_sync_master
    */
   int report_binlog_update(THD *trans_thd, THD *waiter_thd,
                            const char *log_file, my_off_t log_pos);
+
+  /*
+    Returns true if the transaction of trans_thd does not take part in
+    semi-sync, so it must neither be registered for an ACK nor wait for one.
+
+    That is the case for a transaction logged with @@skip_replication=1: it is
+    marked on the master as not taking part in replication, so it does not
+    take part in semi-sync either, whatever each slave then does with it
+    (--replicate-events-marked-for-skip). Without this, a commit would wait
+    for an ACK which a FILTER_ON_MASTER slave never sends, until
+    rpl_semi_sync_master_timeout switches semi-sync off.
+
+    The session's OPTION_SKIP_REPLICATION is tested rather than the events'
+    LOG_EVENT_SKIP_REPLICATION_F, as the group commit path has no single event
+    to look at. Every event of the transaction takes its flag from that
+    option, which cannot change inside a transaction or a statement, so
+    registering and waiting always agree.
+  */
+  static bool skips_ack(THD *trans_thd)
+  {
+    return (trans_thd->variables.option_bits & OPTION_SKIP_REPLICATION) != 0;
+  }
 
   int dump_start(THD* thd,
                   const char *log_file,
