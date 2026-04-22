@@ -53,7 +53,10 @@ enum {
 	BTR_KEEP_POS_FLAG = 8,
 	/** the caller is creating the index or wants to bypass the
 	index->info.online creation log */
-	BTR_CREATE_FLAG = 16
+	BTR_CREATE_FLAG = 16,
+	/** purge: skip the page compress check in optimistic delete;
+	the caller will defer compression to the end of the batch */
+	BTR_PURGE_DELETE_FLAG = 32
 };
 
 #include "que0types.h"
