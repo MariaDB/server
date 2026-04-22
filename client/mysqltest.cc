@@ -8523,7 +8523,20 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
             mysql_free_result(res);
           }
         } while (mysql_next_result(replay_server_mysql) == 0);
-        
+
+        /* Collect warnings from the EXPLAIN query (replay server) */
+        if (is_explain && !disable_warnings)
+        {
+          DYNAMIC_STRING ds_warn;
+          init_dynamic_string(&ds_warn, "", 256, 256);
+          if (append_warnings(&ds_warn, replay_server_mysql) || ds_warn.length)
+          {
+            dynstr_append_mem(&result, "Warnings:\n", 10);
+            dynstr_append_mem(&result, ds_warn.str, ds_warn.length);
+          }
+          dynstr_free(&ds_warn);
+        }
+
         /* If this was EXPLAIN, we're done - stop processing */
         if (is_explain)
         {
@@ -8597,7 +8610,20 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
           mysql_free_result(res);
         }
       } while (mysql_next_result(replay_server_mysql) == 0);
-      
+
+      /* Collect warnings from the EXPLAIN query (replay server) */
+      if (is_explain && !disable_warnings)
+      {
+        DYNAMIC_STRING ds_warn;
+        init_dynamic_string(&ds_warn, "", 256, 256);
+        if (append_warnings(&ds_warn, replay_server_mysql) || ds_warn.length)
+        {
+          dynstr_append_mem(&result, "Warnings:\n", 10);
+          dynstr_append_mem(&result, ds_warn.str, ds_warn.length);
+        }
+        dynstr_free(&ds_warn);
+      }
+
       if (is_explain)
         found_explain= TRUE;
     }

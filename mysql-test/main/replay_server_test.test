@@ -54,6 +54,9 @@ SELECT * FROM t1 WHERE a < 100;
 explain
 SELECT * FROM t1 WHERE a < 22;
 
+explain extended
+SELECT * FROM t1 WHERE a < 22;
+
 explain
 SELECT * FROM t1 WHERE b < 22;
 
