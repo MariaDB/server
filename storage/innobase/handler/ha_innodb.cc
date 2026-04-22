@@ -4039,13 +4039,6 @@ skip_buffering_tweak:
     DBUG_RETURN(HA_ERR_INITIALIZATION);
   }
 
-  if (log_sys.archive && srv_log_file_size > log_sys.ARCHIVE_FILE_SIZE_MAX)
-  {
-    sql_print_error("InnoDB: innodb_log_archive=ON"
-                    " disallows innodb_log_file_size>4G");
-    DBUG_RETURN(HA_ERR_INITIALIZATION);
-  }
-
   if (!tpool::supports_native_aio())
     srv_use_native_aio= FALSE;
 

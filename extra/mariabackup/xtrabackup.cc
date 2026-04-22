@@ -2686,7 +2686,7 @@ static void log_hdr_init()
            MYSQL_VERSION_ID / 10000, MYSQL_VERSION_ID / 100 % 100,
            MYSQL_VERSION_ID % 100);
   if (log_sys.is_encrypted())
-    log_crypt_write_header(log_hdr_buf + LOG_HEADER_CREATOR_END);
+    log_crypt_write_header(log_hdr_buf + LOG_HEADER_CREATOR_END, false);
   mach_write_to_4(508 + log_hdr_buf, my_crc32c(0, log_hdr_buf, 508));
   mach_write_to_8(log_hdr_buf + 0x1000, log_sys.last_checkpoint_lsn);
   mach_write_to_8(log_hdr_buf + 0x1008, recv_sys.lsn);

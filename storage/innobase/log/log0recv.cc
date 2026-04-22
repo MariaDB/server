@@ -1833,7 +1833,6 @@ dberr_t recv_sys_t::find_checkpoint()
         filesize.LowPart= entry.nFileSizeLow;
         filesize.HighPart= entry.nFileSizeHigh;
         if ((filesize.LowPart & 4095) ||
-            lsn_t(filesize.QuadPart) > log_t::ARCHIVE_FILE_SIZE_MAX ||
             lsn_t(filesize.QuadPart) < log_t::FILE_SIZE_MIN)
         {
           sql_print_warning("InnoDB: ignoring %s", fn);
@@ -1861,7 +1860,6 @@ dberr_t recv_sys_t::find_checkpoint()
         struct stat st;
         if (stat(log_sys.append_archive_name(path, lsn).c_str(), &st) ||
             (st.st_size & 4095) ||
-            lsn_t(st.st_size) > log_t::ARCHIVE_FILE_SIZE_MAX ||
             lsn_t(st.st_size) < log_t::FILE_SIZE_MIN)
         {
           sql_print_warning("InnoDB: ignoring %s", path.c_str());
@@ -1955,7 +1953,7 @@ dberr_t recv_sys_t::find_checkpoint()
           if (err == DB_SUCCESS)
           {
             last_checkpoint_no= log_sys.next_checkpoint_no;
-            ut_ad(last_checkpoint_no > uint16_t(8 * log_sys.is_encrypted()));
+            ut_ad(last_checkpoint_no > uint16_t(4 * log_sys.is_encrypted()));
             ut_ad(last_checkpoint_no <= uint16_t{log_t::START_OFFSET});
             if (!recovery_start || i == found_recovery_start)
               return DB_SUCCESS;
@@ -1967,7 +1965,7 @@ dberr_t recv_sys_t::find_checkpoint()
               See also log_t::clear_mmap() and log_t::attach(). */
               const size_t bs{log_sys.write_size};
               memcpy(last_checkpoint_buf, checkpoint_buf, bs);
-              const size_t tail= (last_checkpoint_no * 4) & (bs - 1);
+              const size_t tail= (last_checkpoint_no * 8) & (bs - 1);
               memset(last_checkpoint_buf + tail, 0, bs - tail);
             }
             goto next;
@@ -1976,7 +1974,7 @@ dberr_t recv_sys_t::find_checkpoint()
           const byte *buf= log_sys.checkpoint_buf;
           if (!buf)
             buf= log_sys.buf;
-          switch (mach_read_from_4(my_assume_aligned<4>(buf))) {
+          switch (my_betoh32(*reinterpret_cast<const uint32_t*>(buf))) {
           case log_t::FORMAT_10_8:
           case log_t::FORMAT_ENC_11:
             if (recv_check_log_block(buf))
@@ -1999,7 +1997,7 @@ dberr_t recv_sys_t::find_checkpoint()
               file. We will know at log_t::set_recovered_lsn(). */;
             else
             found_bad_header:
-              last_checkpoint_no= uint16_t(8 * log_sys.is_encrypted());
+              last_checkpoint_no= uint16_t(4 * log_sys.is_encrypted());
           }
         }
         else if (err == DB_SUCCESS)
@@ -2152,7 +2150,7 @@ dberr_t recv_sys_t::find_checkpoint()
 
     if (!mach_read_from_4(buf + LOG_HEADER_CREATOR_END) &&
         log_sys.format == log_t::FORMAT_10_8);
-    else if (!log_crypt_read_header(buf + LOG_HEADER_CREATOR_END))
+    else if (!log_crypt_read_header(buf + LOG_HEADER_CREATOR_END, false))
     {
       sql_print_error("InnoDB: Reading log encryption info failed;"
                       " the log was created with %s.", creator);
@@ -5652,7 +5650,7 @@ dberr_t recv_sys_t::find_checkpoint_archived(lsn_t first_lsn, bool silent)
     buf= log_sys.buf;
   uint16_t n_checkpoint= 0;
   {
-    const uint32_t format{mach_read_from_4(my_assume_aligned<4>(buf))};
+    const uint64_t format{my_betoh64(*reinterpret_cast<const uint64_t*>(buf))};
     if (srv_encrypt_log ? format != 1 : format < log_t::START_OFFSET)
     {
       /* If we are able to start recovery from a previous file and
@@ -5669,11 +5667,11 @@ dberr_t recv_sys_t::find_checkpoint_archived(lsn_t first_lsn, bool silent)
     }
 
     if (!srv_encrypt_log);
-    else if (!log_crypt_read_header(buf))
+    else if (!log_crypt_read_header(buf, true))
       return DB_ERROR;
     else
     {
-      buf+= 32/*log_crypt_read_header()*/, n_checkpoint= 8/* 32/4 */;
+      buf+= 32/*log_crypt_read_header()*/, n_checkpoint= 4/* 32/8 */;
       if (!tmp_buf)
       {
         tmp_buf= static_cast<byte*>
@@ -5693,9 +5691,9 @@ dberr_t recv_sys_t::find_checkpoint_archived(lsn_t first_lsn, bool silent)
     get_parse_mmap<store::NO>(), get_parse_mmap<store::YES>()
   };
   ut_ad(recv_spaces.empty());
-  while (n_checkpoint < log_sys.START_OFFSET / 4)
+  while (n_checkpoint < log_sys.START_OFFSET / 8)
   {
-    const uint32_t d{mach_read_from_4(my_assume_aligned<4>(buf))};
+    const uint64_t d{my_betoh64(*reinterpret_cast<const uint64_t*>(buf))};
     if (d < log_sys.START_OFFSET || d >= log_sys.file_size)
       break;
     const lsn_t parse_start{first_lsn + d - log_sys.START_OFFSET};
@@ -5734,10 +5732,10 @@ dberr_t recv_sys_t::find_checkpoint_archived(lsn_t first_lsn, bool silent)
       break;
     }
 
-    buf+= 4;
+    buf+= 8;
     if (byte *c= log_sys.checkpoint_buf)
     {
-      uint offset(n_checkpoint * 4);
+      uint offset(n_checkpoint * 8);
       if (offset & (log_sys.write_size - 1) || offset == log_sys.START_OFFSET)
         continue;
       buf= c;

@@ -213,8 +213,6 @@ public:
   uint32_t format;
   /** the minimum log file size */
   static constexpr lsn_t FILE_SIZE_MIN{4 << 20};
-  /** the maximum log file size in innodb_log_archive=ON format */
-  static constexpr lsn_t ARCHIVE_FILE_SIZE_MAX{1ULL << 32};
 private:
 #ifdef HAVE_PMEM
   /** whether the memory-mapped interface is enabled for writing */

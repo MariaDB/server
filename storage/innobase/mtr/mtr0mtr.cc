@@ -350,8 +350,6 @@ ATTRIBUTE_COLD lsn_t log_t::archived_mmap_switch_complete() noexcept
   ut_ad(latch_have_wr());
   if (!archive)
     return 0;
-  ut_ad(file_size <= ARCHIVE_FILE_SIZE_MAX);
-  ut_ad(resize_target <= ARCHIVE_FILE_SIZE_MAX);
   if (!resize_buf)
     return 0;
   const lsn_t lsn{get_lsn()}, last_lsn{first_lsn + capacity()};

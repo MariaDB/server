@@ -40,13 +40,15 @@ The random parameters will be persisted in the log header.
 bool log_crypt_init();
 
 /** Add the encryption information to the log header buffer.
-@param buf   part of log header buffer */
-void log_crypt_write_header(byte *buf);
+@param buf   part of log header buffer
+@param archive  the expected value of innodb_log_archive */
+void log_crypt_write_header(byte *buf, bool archive) noexcept;
 
 /** Read the encryption information from a redo log checkpoint buffer.
 @param buf   part of checkpoint buffer
+@param archive  the expected value of innodb_log_archive
 @return whether the operation was successful */
-bool log_crypt_read_header(const byte *buf);
+bool log_crypt_read_header(const byte *buf, bool archive) noexcept;
 
 /** Read the MariaDB 10.1 checkpoint crypto (version, msg and iv) info.
 @param[in]	buf	checkpoint buffer

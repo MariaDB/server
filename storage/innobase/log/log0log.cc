@@ -419,7 +419,7 @@ bool log_t::attach(log_file_t file, os_offset_t size,
   if (archive)
   {
     const size_t offset=
-      std::min(size_t(START_OFFSET - 4), size_t(next_checkpoint_no * 4));
+      std::min(size_t(START_OFFSET - 8), size_t(next_checkpoint_no * 8));
     const size_t bs{write_size}, bs_1{bs - 1}, tail{offset & bs_1};
     if (!tail);
     else if (file.read(offset & ~bs_1, {checkpoint_buf, bs}) != DB_SUCCESS)
@@ -463,7 +463,7 @@ void log_t::header_write(byte *buf, lsn_t lsn, bool encrypted) noexcept
 #endif
 
   if (encrypted)
-    log_crypt_write_header(buf + LOG_HEADER_CREATOR_END);
+    log_crypt_write_header(buf + LOG_HEADER_CREATOR_END, false);
   mach_write_to_4(my_assume_aligned<4>(508 + buf), my_crc32c(0, buf, 508));
 }
 
@@ -474,7 +474,7 @@ void log_t::create(lsn_t lsn) noexcept
   ut_ad(is_latest());
   ut_ad(this == &log_sys);
 
-  next_checkpoint_no= 8 * is_encrypted();
+  next_checkpoint_no= 4 * is_encrypted();
   write_lsn_offset= 0;
   base_lsn.store(lsn, std::memory_order_relaxed);
   flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
@@ -517,7 +517,7 @@ void log_t::create(lsn_t lsn) noexcept
     create_archive_header:
 #endif
       if (is_encrypted())
-        log_crypt_write_header(buf);
+        log_crypt_write_header(buf, true);
   }
 }
 
@@ -697,18 +697,19 @@ void log_t::header_rewrite(my_bool archive) noexcept
     }
     else
     {
-      next_checkpoint_no= uint16_t(8 * is_encrypted() + 1);
-      const uint32_t d= uint32_t(end_lsn - first_lsn + START_OFFSET);
+      next_checkpoint_no= uint16_t(4 * is_encrypted() + 1);
+      uint64_t *C= reinterpret_cast<uint64_t*>(buf);
+      const uint64_t d{my_htobe64(end_lsn - first_lsn + START_OFFSET)};
       if (!is_encrypted())
       {
-        mach_write_to_4(buf, d);
-        memset_aligned<4>(buf + 4, 0, 64 - 4);
+        *C= d;
+        memset_aligned<8>(buf + 8, 0, 64 - 8);
       }
       else
       {
-        log_crypt_write_header(buf);
-        mach_write_to_4(buf + 32, d);
-        memset_aligned<4>(buf + 36, 0, 64 - 36);
+        log_crypt_write_header(buf, true);
+        C[4]= d;
+        memset_aligned<8>(buf + 40, 0, 64 - 40);
       }
       pmem_persist(buf, 64);
       memset_aligned<64>(buf + 64, 0, START_OFFSET - 64);
@@ -721,9 +722,10 @@ void log_t::header_rewrite(my_bool archive) noexcept
 
   if (!archive)
   {
-    mach_write_to_8(my_assume_aligned<8>(c), last_checkpoint_lsn);
-    mach_write_to_8(my_assume_aligned<8>(c + 8), end_lsn);
-    mach_write_to_4(my_assume_aligned<4>(c + 60), my_crc32c(0, c, 60));
+    uint64_t *C= reinterpret_cast<uint64_t*>(c);
+    C[0]= my_htobe64(last_checkpoint_lsn);
+    C[1]= my_htobe64(end_lsn);
+    *reinterpret_cast<uint32_t*>(c + 60)= my_htobe32(my_crc32c(0, c, 60));
     log.write(CHECKPOINT_1, {c, write_size});
     os_file_flush(log.m_file);
     memset_aligned<512>(c, 0, write_size);
@@ -740,14 +742,15 @@ void log_t::header_rewrite(my_bool archive) noexcept
   }
   else
   {
-    next_checkpoint_no= uint16_t(8 * is_encrypted() + 1);
-    const uint32_t d= uint32_t(end_lsn - first_lsn + START_OFFSET);
+    next_checkpoint_no= uint16_t(4 * is_encrypted() + 1);
+    const uint64_t d{my_htobe64(end_lsn - first_lsn + START_OFFSET)};
+    uint64_t *C= reinterpret_cast<uint64_t*>(c);
     if (!is_encrypted())
-      mach_write_to_4(c, d);
+      *C= d;
     else
     {
-      log_crypt_write_header(c);
-      mach_write_to_4(c + 32, d);
+      log_crypt_write_header(c, true);
+      C[4]= d;
     }
     log.write(0, {c, write_size});
     os_file_flush(log.m_file);
@@ -774,11 +777,6 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       my_printf_error(ER_WRONG_USAGE,
                       "SET GLOBAL innodb_log_file_size is in progress",
                       MYF(0));
-      break;
-    }
-    if (archive && file_size > ARCHIVE_FILE_SIZE_MAX)
-    {
-      my_printf_error(ER_WRONG_USAGE, "innodb_log_file_size>4G", MYF(0));
       break;
     }
     if (archive == this->archive)
@@ -963,9 +961,7 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size, void *thd)
     status= RESIZE_IN_PROGRESS;
   else if (archive)
   {
-    if (size > ARCHIVE_FILE_SIZE_MAX)
-      status= RESIZE_FAILED;
-    else if (resize_log.is_opened())
+    if (resize_log.is_opened())
       /* The resize_target must not be changed after
       archive_new_write() or archived_mmap_switch_prepare() and before
       write_checkpoint() has been invoked. */
@@ -1904,12 +1900,12 @@ void log_t::clear_mmap() noexcept
   if (is_mmap_writeable() && !recv_sys.rpo)
   {
     mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
-    ut_ad(next_checkpoint_no <= START_OFFSET / 4);
+    ut_ad(next_checkpoint_no <= START_OFFSET / 8);
     if (archive)
       /* Clear any garbage that may have been left behind by a
       crash during write_checkpoint() or set_archive(). */
-      memset_aligned<4>(buf + next_checkpoint_no * 4, 0,
-                        START_OFFSET - (next_checkpoint_no * 4));
+      memset_aligned<4>(buf + next_checkpoint_no * 8, 0,
+                        START_OFFSET - (next_checkpoint_no * 8));
   }
   else if (is_opened())
 #endif

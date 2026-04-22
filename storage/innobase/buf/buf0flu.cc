@@ -1796,9 +1796,7 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
   ut_ad(!recv_sys.rpo);
-  ut_ad(archive
-        ? file_size <= ARCHIVE_FILE_SIZE_MAX
-        : checkpoint >= first_lsn);
+  ut_ad(archive || checkpoint >= first_lsn);
   ut_ad(end_lsn >= checkpoint);
   ut_d(const lsn_t current_lsn{get_lsn()});
   ut_ad(end_lsn <= current_lsn);
@@ -1882,11 +1880,11 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
         ut_ad(current_lsn >= first_lsn);
         ut_ad(current_lsn < first_lsn + capacity());
         circular_recovery_from_sequence_bit_0= false;
-        next_checkpoint_no= uint16_t(8 * is_encrypted());
+        next_checkpoint_no= uint16_t(4 * is_encrypted());
         archive_header_was_reset= true;
 
         if (is_encrypted())
-          log_crypt_write_header(c);
+          log_crypt_write_header(c, true);
 
 #ifdef HAVE_PMEM
         c= checkpoint_buf;
@@ -1895,13 +1893,12 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
     }
 
     ut_ad(end_lsn >= first_lsn);
-    offset= next_checkpoint_no * 4;
-    ut_ad(offset >= 8 * is_encrypted());
+    offset= next_checkpoint_no * 8;
+    ut_ad(offset >= 4 * is_encrypted());
     if (UNIV_UNLIKELY(offset >= START_OFFSET))
       /* In case all slots are filled up, overwrite the last slot. */
-      offset= START_OFFSET - 4, next_checkpoint_no= START_OFFSET / 4 - 1;
+      offset= START_OFFSET - 8, next_checkpoint_no= START_OFFSET / 8 - 1;
     const lsn_t d{end_lsn - first_lsn + START_OFFSET};
-    ut_ad(d <= lsn_t{~uint32_t{0}});
     ut_ad(c == checkpoint_buf);
 
 #ifdef HAVE_PMEM
@@ -1915,27 +1912,27 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
     {
     archived_mmap:
       c+= offset;
-      ut_ad(next_checkpoint_no == uint16_t(8 * is_encrypted()) ||
-            (mach_read_from_4(c - 4) && mach_read_from_4(c - 4) < d));
-      ut_ad(!memcmp(c, field_ref_zero, 4) || offset == START_OFFSET - 4);
-      mach_write_to_4(my_assume_aligned<4>(c), uint32_t(d));
+      uint64_t* C= reinterpret_cast<uint64_t*>(c);
       c= reinterpret_cast<byte*>(uintptr_t(c) & ~63);
+      ut_ad(next_checkpoint_no == uint16_t(4 * is_encrypted()) ||
+            (C[-1] && my_betoh64(C[-1]) < d));
+      ut_ad(!*C || offset == START_OFFSET - 8);
+      *C= my_htobe64(d);
       goto persist_checkpoint;
     }
     else
 #endif
     {
       const size_t o{offset & (write_size - 1)};
+      uint64_t *C= reinterpret_cast<uint64_t*>(c + o);
       offset&= ~size_t(write_size - 1);
       if (!o)
         memset_aligned<512>(c, 0, write_size);
       else
-        ut_ad(next_checkpoint_no == uint16_t(8 * is_encrypted()) ||
-              (mach_read_from_4(c + o - 4) &&
-               mach_read_from_4(c + o - 4) < d));
-      ut_ad(!memcmp(c + o, field_ref_zero, 4) ||
-            offset + o == START_OFFSET - 4);
-      mach_write_to_4(my_assume_aligned<4>(c + o), uint32_t(d));
+        ut_ad(next_checkpoint_no == uint16_t(4 * is_encrypted()) ||
+              (C[-1] && my_betoh64(C[-1]) < d));
+      ut_ad(!*C || offset + o == START_OFFSET - 8);
+      *C= my_htobe64(d);
       if (resize_log.m_file == OS_FILE_CLOSED)
         resize_log= log; /* Block concurrent set_archive() */
       goto write_checkpoint;

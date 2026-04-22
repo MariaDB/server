@@ -24,7 +24,7 @@ my $file= "$ENV{DATADIR}/ib_ffffffffff803000.log";
 my $file_size= 4<<20;
 open(FILE, ">", $file) or die "Unable to open $file\n";
 binmode FILE;
-print FILE pack("N", $file_size - 1);
+print FILE pack("NN", 0, $file_size - 1);
 seek FILE, $file_size - 33, 0 or die "Unable to seek $file\n";
 my $polynomial = 0x82f63b78; # CRC-32C
 my $FILE_CHECKPOINT;
@@ -166,7 +166,7 @@ my $file= "$ENV{DATADIR}/ib_ffffffffff803000.log";
 my $file_size= 4<<20;
 open(FILE, "+<", $file) or die "Unable to open $file\n";
 binmode FILE;
-print FILE pack("Nx[12284]", $file_size - 33);
+print FILE pack("NNx[12280]", 0, $file_size - 33);
 seek FILE, $file_size - 17, 0 or die "Unable to seek $file\n";
 # WRITE to page 0:0 offset 0x7e
 print FILE "0~\0\0~incomplete..";
@@ -187,7 +187,7 @@ my $file= "$ENV{DATADIR}/ib_ffffffffff803000.log";
 my $file_size= 4<<20;
 open(FILE, "+<", $file) or die "Unable to open $file\n";
 binmode FILE;
-print FILE pack("N", $file_size - 33) x 3072;
+print FILE pack("NN", 0, $file_size - 33) x 1536;
 seek FILE, $file_size - 17, 0 or die "Unable to seek $file\n";
 my $polynomial = 0x82f63b78; # CRC-32C
 my $FILE_MODIFY=pack("CCxa*", 0xb9, 127, "a/b.ibd");
