@@ -1,0 +1,58 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39263 Lost update despite innodb_snapshot_isolation
+--echo #
+
+CREATE TABLE si_log(seq SERIAL, val INT UNSIGNED)
+ENGINE=InnoDB STATS_PERSISTENT=0;
+
+CREATE TABLE si_counter(val INT UNSIGNED) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO si_counter VALUES(0);
+
+delimiter |;
+CREATE PROCEDURE step()
+BEGIN NOT ATOMIC
+  DECLARE EXIT HANDLER FOR 1020, 1213, 1205 BEGIN ROLLBACK; END;
+  START TRANSACTION WITH CONSISTENT SNAPSHOT;
+  SELECT val INTO @val FROM si_counter;
+  UPDATE si_counter SET val=@val+1;
+  INSERT INTO si_log (val) VALUES (@val);
+  DO SLEEP(0.0001);
+  COMMIT;
+END|
+
+CREATE PROCEDURE test(c INT UNSIGNED)
+BEGIN
+  WHILE c DO
+    SET c=c-1;
+    call step();
+    START TRANSACTION;
+      SELECT COUNT(*) INTO @count FROM si_log;
+      SELECT SUM(val) INTO @sum FROM si_counter;
+    COMMIT;
+    IF (@count != @sum) THEN shutdown; END IF;
+  END WHILE;
+END|
+delimiter ;|
+
+--connect stop_purge,localhost,root
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+--connection default
+SET innodb_snapshot_isolation=ON;
+
+--disable_query_log
+send call test(800);
+--connect con1,localhost,root
+SET innodb_snapshot_isolation=ON;
+call test(800);
+--disconnect con1
+--connection default
+--reap
+
+--enable_query_log
+--disconnect stop_purge
+
+DROP TABLE si_log, si_counter;
+DROP PROCEDURE test;
+DROP PROCEDURE step;

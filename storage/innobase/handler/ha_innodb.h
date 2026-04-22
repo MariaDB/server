@@ -919,5 +919,6 @@ bool too_big_key_part_length(size_t max_field_len, const KEY& key);
 Remove statistics for dropped indexes, add statistics for created indexes
 and rename statistics for renamed indexes.
 @param table_name Table name in MySQL
-@param thd        alter table thread */
-void alter_stats_rebuild(dict_table_t *table, THD *thd);
+@param thd        alter table thread
+@param copy       caller is from COPY algorithm */
+void alter_stats_rebuild(dict_table_t *table, THD *thd, bool copy=false);

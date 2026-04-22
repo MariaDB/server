@@ -2997,7 +2997,9 @@ static const char *adjust_secondary_key_cost[]=
 {
   "adjust_secondary_key_cost", "disable_max_seek", "disable_forced_index_in_group_by",
   "fix_innodb_cardinality", "fix_reuse_range_for_ref",
-  "fix_card_multiplier", "fix_derived_table_read_cost", 0
+  "fix_card_multiplier", "fix_derived_table_read_cost",
+  "fix_order_by_index_choice",
+  0
 };
 
 
@@ -6215,7 +6217,7 @@ static Sys_var_charptr Sys_wsrep_start_position (
        CMD_LINE(REQUIRED_ARG),
        DEFAULT(WSREP_START_POSITION_ZERO),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(wsrep_start_position_check), 
+       ON_CHECK(wsrep_start_position_check),
        ON_UPDATE(wsrep_start_position_update));
 
 static Sys_var_ulong Sys_wsrep_max_ws_size (
@@ -6228,7 +6230,9 @@ static Sys_var_ulong Sys_wsrep_max_ws_size (
 static Sys_var_ulong Sys_wsrep_max_ws_rows (
        "wsrep_max_ws_rows", "Max number of rows in write set",
        GLOBAL_VAR(wsrep_max_ws_rows), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, 1048576), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, 1048576), DEFAULT(0),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_max_ws_rows_check), ON_UPDATE(0));
 
 static Sys_var_charptr Sys_wsrep_notify_cmd(
        "wsrep_notify_cmd", "",

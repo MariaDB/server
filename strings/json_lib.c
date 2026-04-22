@@ -1306,9 +1306,13 @@ int json_skip_level_and_count(json_engine_t *j, int *n_items_skipped)
 int json_skip_array_and_count(json_engine_t *je, int *n_items)
 {
   json_engine_t j= *je;
+  int res;
   *n_items= 0;
 
-  return json_skip_level_and_count(&j, n_items); 
+  res= json_skip_level_and_count(&j, n_items);
+  if (res)
+    je->s.error= j.s.error;
+  return res;
 }
 
 
@@ -1787,14 +1791,14 @@ int json_get_path_start(json_engine_t *je, CHARSET_INFO *i_cs,
                         json_path_t *p)
 {
   json_scan_start(je, i_cs, str, end);
-  p->last_step= p->steps - 1; 
+  p->last_step= NULL;
   return 0;
 }
 
 
 int json_get_path_next(json_engine_t *je, json_path_t *p)
 {
-  if (p->last_step < p->steps)
+  if (p->last_step == NULL)
   {
     if (json_read_value(je))
       return 1;

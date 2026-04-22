@@ -1421,6 +1421,7 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
         ut_ad(!l);
 #endif /* UNIV_DEBUG */
     commit_state();
+    DEBUG_SYNC_C("trx_after_commit_state");
 
     if (id)
     {

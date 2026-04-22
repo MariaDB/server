@@ -324,7 +324,8 @@ public:
   const char *generate_name(const char *log_name,
                             const char *suffix,
                             bool strip_ext, char *buff);
-  virtual int generate_new_name(char *new_name, const char *log_name,
+  virtual int generate_new_name(char *new_name, size_t name_size,
+                                const char *log_name,
                                 ulong next_log_number);
  protected:
   /* LOCK_log is inited by init_pthread_objects() */
@@ -723,7 +724,8 @@ public:
 
   int open(const char *opt_name) override;
   void close() override;
-  int generate_new_name(char *new_name, const char *log_name,
+  int generate_new_name(char *new_name, size_t name_size,
+                        const char *log_name,
                         ulong next_log_number) override;
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered) override;

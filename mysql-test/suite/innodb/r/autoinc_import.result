@@ -68,13 +68,13 @@ test.t1	check	status	OK
 test.t1b	check	status	OK
 test.t1t	check	status	OK
 test.t1z	check	status	OK
-test.t5_7	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t5_7	check	status	OK
-test.t5_7b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t5_7b	check	status	OK
-test.t10_1	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t10_1	check	status	OK
-test.t10_1b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t10_1b	check	status	OK
 CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
@@ -82,13 +82,13 @@ test.t1	check	status	OK
 test.t1b	check	status	OK
 test.t1t	check	status	OK
 test.t1z	check	status	OK
-test.t5_7	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t5_7	check	status	OK
-test.t5_7b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t5_7b	check	status	OK
-test.t10_1	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t10_1	check	status	OK
-test.t10_1b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t10_1b	check	status	OK
 # restart: --innodb-read-only --read-only
 CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b;
@@ -97,13 +97,13 @@ test.t1	check	status	OK
 test.t1b	check	status	OK
 test.t1t	check	status	OK
 test.t1z	check	status	OK
-test.t5_7	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t5_7	check	status	OK
-test.t5_7b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t5_7b	check	status	OK
-test.t10_1	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t10_1	check	status	OK
-test.t10_1b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t10_1b	check	status	OK
 CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
@@ -111,13 +111,13 @@ test.t1	check	status	OK
 test.t1b	check	status	OK
 test.t1t	check	status	OK
 test.t1z	check	status	OK
-test.t5_7	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t5_7	check	status	OK
-test.t5_7b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t5_7b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t5_7b	check	status	OK
-test.t10_1	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t10_1	check	status	OK
-test.t10_1b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed
+test.t10_1b	check	note	Auto_increment will be checked on each open until CHECK TABLE FOR UPGRADE is executed when the server is not in a read-only state
 test.t10_1b	check	status	OK
 # restart: --innodb-read-only
 CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b;

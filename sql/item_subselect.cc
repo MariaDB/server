@@ -1279,8 +1279,8 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
     if (thd->lex->describe)
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
-      sprintf(warn_buff, ER_THD(thd, ER_SELECT_REDUCED),
-              select_lex->select_number);
+      snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_SELECT_REDUCED),
+               select_lex->select_number);
       push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
 		   ER_SELECT_REDUCED, warn_buff);
     }
@@ -2069,8 +2069,8 @@ Item_in_subselect::single_value_transformer(JOIN *join)
     if (thd->lex->describe)
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
-      sprintf(warn_buff, ER_THD(thd, ER_SELECT_REDUCED),
-              select_lex->select_number);
+      snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_SELECT_REDUCED),
+               select_lex->select_number);
       push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                    ER_SELECT_REDUCED, warn_buff);
     }

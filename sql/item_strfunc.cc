@@ -3706,7 +3706,9 @@ String *Item_func_lpad::val_str(String *str)
 
   if (count <= res_char_length)
   {
-    res->length(res->charpos((int) count));
+    int len= res->charpos((int) count);
+    res= copy_if_not_alloced(str, res, len);
+    res->length(len);
     return res;
   }
   
@@ -5054,9 +5056,9 @@ String *Item_func_dyncol_json::val_str(String *str)
   if ((rc= mariadb_dyncol_json(&col, &json)))
   {
     dynamic_column_error_message(rc);
+    dynstr_free(&json);
     goto null;
   }
-  bzero(&col, sizeof(col));
   {
     /* Move result from DYNAMIC_COLUMN to str */
     char *ptr;
@@ -5069,7 +5071,6 @@ String *Item_func_dyncol_json::val_str(String *str)
   return str;
 
 null:
-  bzero(&col, sizeof(col));
   null_value= TRUE;
   return NULL;
 }

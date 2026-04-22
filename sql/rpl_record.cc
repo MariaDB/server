@@ -100,11 +100,15 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
           length is stored in little-endian format, since this is the
           format used for the binlog.
         */
-#if !defined DBUG_OFF && defined DBUG_TRACE
-        const uchar *old_pack_ptr= pack_ptr;
+#ifndef DBUG_OFF
+        uchar *old_pack_ptr= pack_ptr;
 #endif
         pack_ptr= field->pack(pack_ptr, field->ptr + offset,
                               field->max_data_length());
+        DBUG_EXECUTE_IF("rpl_pack_simulate_negation",
+          for (uchar *byte= old_pack_ptr; byte < pack_ptr; ++byte)
+            *byte= ~*byte;
+        );
         DBUG_PRINT("debug", ("field: %s; real_type: %d, pack_ptr: %p;"
                              " pack_ptr':%p; bytes: %d",
                              field->field_name.str, field->real_type(),
@@ -187,6 +191,8 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
    A generic, internal, error caused the unpacking to fail.
    @retval HA_ERR_CORRUPT_EVENT
    Found error when trying to unpack fields.
+   @retval HA_ERR_ROWS_EVENT_APPLY
+   Found error when validating field values.
  */
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 int
@@ -337,6 +343,38 @@ unpack_row(rpl_group_info *rgi,
                       f->field_name.str, table->s->db.str,
                       table->s->table_name.str);
           DBUG_RETURN(HA_ERR_CORRUPT_EVENT);
+        }
+
+        // Validate this external data
+        switch (f->type()) {
+          case MYSQL_TYPE_TIMESTAMP:
+          {
+            ulong microseconds;
+            my_time_t seconds= f->get_timestamp(&microseconds);
+            if (likely(microseconds <= TIME_MAX_SECOND_PART))
+            {
+              if (likely(seconds >= 0 && seconds <= TIMESTAMP_MAX_VALUE))
+                break;
+              else if (likely(seconds == UINT_MAX32)) // They are both signed.
+              {
+                // Normalize MariaDB 11.5.1+ Epochalypse
+                f->store_timestamp(TIMESTAMP_MAX_VALUE, microseconds);
+                break;
+              }
+            }
+            static const char unixtime_format[]=
+              "FROM_UNIXTIME(%ld + %lu/1""000""000)";
+            // + strlen("2147483648""16777215") - strlen("%ld""%lu")
+            char unixtime[sizeof(unixtime_format) + 12];
+            snprintf(unixtime, sizeof(unixtime), unixtime_format,
+              seconds, microseconds);
+            rgi->rli->report(ERROR_LEVEL, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
+              rgi->gtid_info(), ER(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
+              f->type_handler()->name().ptr(), unixtime, table->s->db.str,
+              table->s->table_name.str, f->field_name.str, 0lu);
+            DBUG_RETURN(HA_ERR_ROWS_EVENT_APPLY);
+          }
+          default:;
         }
       }
 

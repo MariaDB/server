@@ -397,14 +397,16 @@ void
 print_decimal(const my_decimal *dec)
 {
   int i, end;
-  char buff[512], *pos;
+  char buff[512], *pos, *buf_end;
   pos= buff;
-  pos+= sprintf(buff, "Decimal: sign: %d  intg: %d  frac: %d  { ",
-                dec->sign(), dec->intg, dec->frac);
+  buf_end= buff + sizeof(buff);
+  pos+= snprintf(buff, sizeof(buff),
+                 "Decimal: sign: %d  intg: %d  frac: %d  { ",
+                 dec->sign(), dec->intg, dec->frac);
   end= ROUND_UP(dec->frac)+ROUND_UP(dec->intg)-1;
   for (i=0; i < end; i++)
-    pos+= sprintf(pos, "%09d, ", dec->buf[i]);
-  pos+= sprintf(pos, "%09d }\n", dec->buf[i]);
+    pos+= snprintf(pos, buf_end - pos, "%09d, ", dec->buf[i]);
+  pos+= snprintf(pos, buf_end - pos, "%09d }\n", dec->buf[i]);
   fputs(buff, DBUG_FILE);
 }
 

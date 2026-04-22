@@ -63,8 +63,7 @@ void MACINFO::MakeErrorMsg(PGLOBAL g, DWORD drc)
   else if (drc == ERROR_NOT_SUPPORTED)
     snprintf(g->Message, sizeof(g->Message), "GetAdaptersInfo is not supported");
   else
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, GetLastError(),
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, GetLastError(),
                   0, g->Message, sizeof(g->Message), NULL);
 
   } // end of MakeErrorMsg
@@ -248,7 +247,7 @@ bool MACINFO::GetOneInfo(PGLOBAL g, int flag, void *v, int lv)
         if (i)
           strcat(p++, "-");
 
-        p += sprintf(p, "%.2X", Curp->Address[i]);
+        p += snprintf(p, sizeof(buf) - (p - buf), "%.2X", Curp->Address[i]);
         } // endfor i
 
       p = buf;
@@ -263,7 +262,7 @@ bool MACINFO::GetOneInfo(PGLOBAL g, int flag, void *v, int lv)
         case IF_LOOPBACK_ADAPTERTYPE:   p = "Loop Back Adapter";    break;
 //      case IF_SLIP_ADAPTERTYPE:       p = "Generic Slip Adapter"; break;
         default:
-          sprintf(buf, "Other Adapter, type=%d", Curp->Type);
+          snprintf(buf, sizeof(buf), "Other Adapter, type=%d", Curp->Type);
           p = buf;
         } // endswitch Type
 #endif // 0
