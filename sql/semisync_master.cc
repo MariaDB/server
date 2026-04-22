@@ -417,6 +417,7 @@ Active_tranx::is_thd_waiter(THD *thd_to_check, const char *log_file_name,
 Repl_semi_sync_master::Repl_semi_sync_master()
   : m_active_tranxs(NULL),
     m_init_done(false),
+    m_slaves_with_master_filtering(0),
     m_reply_file_name_inited(false),
     m_reply_file_pos(0L),
     m_wait_file_name_inited(false),
@@ -565,17 +566,24 @@ void Repl_semi_sync_master::unlock()
   mysql_mutex_unlock(&LOCK_binlog);
 }
 
-void Repl_semi_sync_master::add_slave()
+void Repl_semi_sync_master::add_slave(bool filter_skip_on_master)
 {
   lock();
   rpl_semi_sync_master_clients++;
+  if (filter_skip_on_master)
+    m_slaves_with_master_filtering++;
   unlock();
 }
 
-void Repl_semi_sync_master::remove_slave()
+void Repl_semi_sync_master::remove_slave(bool filter_skip_on_master)
 {
   lock();
   DBUG_ASSERT(rpl_semi_sync_master_clients > 0);
+  if (filter_skip_on_master)
+  {
+    DBUG_ASSERT(m_slaves_with_master_filtering > 0);
+    m_slaves_with_master_filtering--;
+  }
   if (!(--rpl_semi_sync_master_clients) && !rpl_semi_sync_master_wait_no_slave
       && get_master_enabled())
   {
@@ -588,6 +596,17 @@ void Repl_semi_sync_master::remove_slave()
                                               signal_waiting_transaction);
   }
   unlock();
+}
+
+
+bool Repl_semi_sync_master::all_semi_sync_slaves_filter_skip_replication()
+{
+  bool res;
+  lock();
+  DBUG_ASSERT(m_slaves_with_master_filtering <= rpl_semi_sync_master_clients);
+  res= (rpl_semi_sync_master_clients == m_slaves_with_master_filtering);
+  unlock();
+  return res;
 }
 
 
@@ -841,7 +860,15 @@ int Repl_semi_sync_master::dump_start(THD* thd,
     return 1;
   }
 
-  add_slave();
+  /*
+    MDEV-38486: A slave running with --replicate-events-marked-for-skip=
+    FILTER_ON_MASTER asks the master to filter @@skip_replication events by
+    issuing "SET skip_replication=1" on the dump connection, which sets
+    OPTION_SKIP_REPLICATION on this dump thread. Remember that here so the
+    commit path can tell whether any connected slave would actually receive
+    (and thus ACK) a skip_replication transaction.
+  */
+  add_slave((thd->variables.option_bits & OPTION_SKIP_REPLICATION) != 0);
   report_reply_binlog(thd->variables.server_id,
                       log_file + dirname_length(log_file), log_pos);
   sql_print_information("Start semi-sync binlog_dump to slave "
@@ -862,7 +889,7 @@ void Repl_semi_sync_master::dump_end(THD* thd)
   sql_print_information("Stop semi-sync binlog_dump to slave (server_id: %ld)",
                         (long) thd->variables.server_id);
 
-  remove_slave();
+  remove_slave((thd->variables.option_bits & OPTION_SKIP_REPLICATION) != 0);
   ack_receiver.remove_slave(thd);
 }
 

@@ -430,6 +430,15 @@ class Repl_semi_sync_master
    */
   mysql_mutex_t LOCK_binlog;
 
+  /* Number of connected semi-sync slaves (a subset of
+   * rpl_semi_sync_master_clients) that requested master-side filtering of
+   * @@skip_replication events, i.e. connected with
+   * --replicate-events-marked-for-skip=FILTER_ON_MASTER. Such slaves never
+   * receive skip_replication events and therefore never ACK them.
+   * Protected by LOCK_binlog.
+   */
+  ulong           m_slaves_with_master_filtering;
+
   /* This is set to true when m_reply_file_name contains meaningful data. */
   bool            m_reply_file_name_inited;
 
@@ -556,11 +565,26 @@ class Repl_semi_sync_master
   /* Disable the object to disable semi-sync replication inside the master. */
   void disable_master();
 
-  /* Add a semi-sync replication slave */
-  void add_slave();
-    
-  /* Remove a semi-sync replication slave */
-  void remove_slave();
+  /* Add a semi-sync replication slave. filter_skip_on_master is true when the
+     slave requested master-side filtering of @@skip_replication events
+     (--replicate-events-marked-for-skip=FILTER_ON_MASTER). */
+  void add_slave(bool filter_skip_on_master);
+
+  /* Remove a semi-sync replication slave. filter_skip_on_master must match the
+     value passed to the corresponding add_slave() call. */
+  void remove_slave(bool filter_skip_on_master);
+
+  /*
+    MDEV-38486: Returns true if every connected semi-sync slave requested
+    master-side filtering of @@skip_replication events (or if there are no
+    semi-sync slaves at all). In that case a skip_replication transaction is
+    sent to no slave and can never be ACKed, so the commit path must not
+    register it for a semi-sync wait -- otherwise the primary would hang until
+    rpl_semi_sync_master_timeout and degrade to async. When at least one
+    connected slave does not filter, that slave will receive and ACK the event,
+    so the normal semi-sync wait must still apply.
+  */
+  bool all_semi_sync_slaves_filter_skip_replication();
 
   /* It parses a reply packet and call report_reply_binlog to handle it. */
   int report_reply_packet(uint32 server_id, const uchar *packet,
