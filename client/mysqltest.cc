@@ -8398,28 +8398,7 @@ static my_bool is_explain_format_json(const char *query, size_t query_len)
   
   if (p >= end || !my_isspace(charset_info, *p))
     return FALSE;
-/*
-  (Don't requre FORMAT=JSON)
-  while (p < end && my_isspace(charset_info, *p))
-    p++;
-  
-  if (end - p < 6 || strncasecmp(p, "FORMAT", 6) != 0)
-    return FALSE;
-  p += 6;
-  
-  while (p < end && my_isspace(charset_info, *p))
-    p++;
-  
-  if (p >= end || *p != '=')
-    return FALSE;
-  p++;
-  
-  while (p < end && my_isspace(charset_info, *p))
-    p++;
-  
-  if (end - p < 4 || strncasecmp(p, "JSON", 4) != 0)
-    return FALSE;
-*/
+
   return TRUE;
 }
 
