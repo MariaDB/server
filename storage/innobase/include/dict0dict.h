@@ -1276,6 +1276,9 @@ constraint */
 and unique key errors */
 extern FILE*		dict_foreign_err_file;
 extern mysql_mutex_t dict_foreign_err_mutex;
+/** Number of foreign key constraint violations; writes are protected by
+dict_foreign_err_mutex */
+extern uint64_t 		dict_foreign_key_errors;
 
 /** InnoDB data dictionary cache */
 class dict_sys_t

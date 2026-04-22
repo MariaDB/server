@@ -760,6 +760,9 @@ row_ins_foreign_report_err(
 
 	row_ins_foreign_trx_print(trx);
 
+	dict_foreign_key_errors++;
+	mysql_mutex_assert_owner(&dict_foreign_err_mutex);
+
 	fputs("Foreign key constraint fails for table ", ef);
 	ut_print_name(ef, trx, foreign->foreign_table_name);
 	fputs(":\n", ef);
@@ -810,6 +813,8 @@ row_ins_foreign_report_add_err(
 	row_ins_set_detailed(trx, foreign);
 
 	row_ins_foreign_trx_print(trx);
+
+	dict_foreign_key_errors++;
 
 	fputs("Foreign key constraint fails for table ", ef);
 	ut_print_name(ef, trx, foreign->foreign_table_name);
@@ -1569,6 +1574,9 @@ row_ins_check_foreign_constraint(
 
 		row_ins_set_detailed(trx, foreign);
 		row_ins_foreign_trx_print(trx);
+
+		dict_foreign_key_errors++;
+		mysql_mutex_assert_owner(&dict_foreign_err_mutex);
 
 		fputs("Foreign key constraint fails for table ", ef);
 		ut_print_name(ef, trx, check_ref
