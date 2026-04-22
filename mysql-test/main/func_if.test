@@ -223,3 +223,28 @@ drop table t1;
 # Restore timezone to default
 set time_zone= @@global.time_zone;
 --enable_query_log
+
+--echo #
+--echo # MDEV-36763: Assertion failed in `Type_handler_json_common::json_type_handler_from_generic`
+--echo #
+
+--echo # Test for NULLIF()
+SELECT NULLIF(CASE WHEN 1 THEN NULL ELSE JSON_ARRAY() END, 1);
+SELECT NULLIF(JSON_OBJECT(), 1);
+SELECT NULLIF(JSON_ARRAY(), NULL);
+
+--echo # Tests for IF()
+DO IF(JSON_DEPTH(0), JSON_OBJECT(), NULL);
+SELECT IF(1, JSON_ARRAY(), NULL);
+SELECT IF(1, NULL, JSON_ARRAY());
+
+--echo # Tests for NVL2 (ORACLE mode)
+SET @save_sql_mode=@@sql_mode;
+SET sql_mode=ORACLE;
+
+SELECT NVL2(1, JSON_ARRAY(), NULL);
+SELECT NVL2(1, NULL, JSON_ARRAY());
+
+SET sql_mode=@save_sql_mode;
+
+--echo # End of 12.2 tests
