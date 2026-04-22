@@ -448,7 +448,7 @@ public:
         int s= openat(target, "ib_logfile101", O_RDONLY);
         std::string dst;
         log_sys.append_archive_name(dst, first_lsn);
-        int d;
+        int d{-1};
         if (s == -1)
         {
           my_error(ER_FILE_NOT_FOUND, MYF(ME_ERROR_LOG), "ib_logfile101",
@@ -487,12 +487,7 @@ public:
 # ifdef __APPLE__
         close:
 # endif
-          if (close(s))
-          {
-            my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG), "ib_logfile101",
-                     errno);
-            fail= 1;
-          }
+          std::ignore= close(s);
         }
       done:;
 #endif
