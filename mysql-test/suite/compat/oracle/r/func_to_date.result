@@ -298,14 +298,10 @@ NULL
 #
 SELECT TO_DATE('2001 - - 10','YYYY - MM');
 TO_DATE('2001 - - 10','YYYY - MM')
-NULL
-Warnings:
-Warning	1411	Incorrect datetime value: '2001 - - 10' for function to_date
+2001-10-09 00:00:00
 SELECT TO_DATE('02#/07','MM/YY');
 TO_DATE('02#/07','MM/YY')
-NULL
-Warnings:
-Warning	1411	Incorrect datetime value: '02#/07' for function to_date
+2007-02-09 00:00:00
 SELECT TO_DATE('2023-01-02 helloa 03:04:05', 'YYYY-MM-DD "hello" HH24:MI:SS');
 TO_DATE('2023-01-02 helloa 03:04:05', 'YYYY-MM-DD "hello" HH24:MI:SS')
 NULL
@@ -491,9 +487,7 @@ Warning	1411	Incorrect datetime value: '08:30:25 PX' for function to_date
 # Wrong quoting
 select TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD """"HH24:MI:SS""""');
 TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD """"HH24:MI:SS""""')
-NULL
-Warnings:
-Warning	1411	Incorrect datetime value: '2023-01-02 "03:04:05"' for function to_date
+2023-01-02 03:04:05
 select TO_DATE('2023-01-02 hello 03:04:05', 'YYYY-MM-DD HH24:MI:SS');
 TO_DATE('2023-01-02 hello 03:04:05', 'YYYY-MM-DD HH24:MI:SS')
 NULL
@@ -506,9 +500,7 @@ Warnings:
 Warning	1411	Incorrect datetime value: '2023-01-02 03:04:05' for function to_date
 select TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD ""HH24:MI:SS""');
 TO_DATE('2023-01-02 "03:04:05"', 'YYYY-MM-DD ""HH24:MI:SS""')
-NULL
-Warnings:
-Warning	1411	Incorrect datetime value: '2023-01-02 "03:04:05"' for function to_date
+2023-01-02 03:04:05
 SELECT TO_DATE('1920-12','YYYY"--"MM');
 TO_DATE('1920-12','YYYY"--"MM')
 NULL
@@ -927,4 +919,45 @@ ERROR HY000: Invalid argument error: date format not recognized at FF in functio
 SELECT TO_DATE('2026 100', 'YYYY DDD') FROM DUAL;
 TO_DATE('2026 100', 'YYYY DDD')
 2026-04-10 00:00:00
+#
+# MDEV-39721: SIGSEGV in check_word|(extract_date_time|extract_oracle_date_time)
+#
+# Oracle Mode
+SET sql_mode=ORACLE;
+# locale as session var
+SET SESSION lc_time_names='ar_DZ';
+SELECT TO_DATE('Wednesday, June 2, 2014', 'Day, Month DD, YYYY');
+TO_DATE('Wednesday, June 2, 2014', 'Day, Month DD, YYYY')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: 'Wednesday, June 2, 2014' for function to_date
+# locale as param to TO_DATE
+SELECT TO_DATE('Wednesday, June 2, 2014', 'Day, Month DD, YYYY', 'NLS_DATE_LANGUAGE=ar_DZ');
+TO_DATE('Wednesday, June 2, 2014', 'Day, Month DD, YYYY', 'NLS_DATE_LANGUAGE=ar_DZ')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: 'Wednesday, June 2, 2014' for function to_date
+#
+# MDEV-38792: TO_DATE Inconsistent treatment of different separators in the date and format strings
+#
+SET lc_time_names='en_US';
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:00:00');
+SELECT TO_DATE('2002 - AD', 'YYYY AD') AS t;
+t
+2002-01-01 00:00:00
+SELECT TO_DATE('2024---01---01', 'YYYYMMDD') AS t;
+t
+2024-01-01 00:00:00
+SELECT TO_DATE('2024 . 05 . 10', 'YYYYMMDD') AS t;
+t
+2024-05-10 00:00:00
+SELECT TO_DATE('2002 February 10', 'YYYY MONTH DD') AS t;
+t
+2002-02-10 00:00:00
+# Testing negative year (SYYYY) with separators
+SELECT TO_DATE('-2024-05-10', 'SYYYY-MM-DD') AS t;
+t
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '-2024-05-10' for function to_date
 # End of 12.3 tests

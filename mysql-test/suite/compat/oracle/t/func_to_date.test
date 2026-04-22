@@ -478,4 +478,33 @@ SELECT TO_DATE('123 456', 'FF FF') FROM DUAL;
 --echo # YYYY and DDD are compatible (Year + Day of Year)
 SELECT TO_DATE('2026 100', 'YYYY DDD') FROM DUAL;
 
+--echo #
+--echo # MDEV-39721: SIGSEGV in check_word|(extract_date_time|extract_oracle_date_time)
+--echo #
+
+--echo # Oracle Mode
+SET sql_mode=ORACLE;
+
+--echo # locale as session var
+SET SESSION lc_time_names='ar_DZ';
+SELECT TO_DATE('Wednesday, June 2, 2014', 'Day, Month DD, YYYY');
+
+--echo # locale as param to TO_DATE
+SELECT TO_DATE('Wednesday, June 2, 2014', 'Day, Month DD, YYYY', 'NLS_DATE_LANGUAGE=ar_DZ');
+
+--echo #
+--echo # MDEV-38792: TO_DATE Inconsistent treatment of different separators in the date and format strings
+--echo #
+
+SET lc_time_names='en_US';
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:00:00');
+
+SELECT TO_DATE('2002 - AD', 'YYYY AD') AS t;
+SELECT TO_DATE('2024---01---01', 'YYYYMMDD') AS t;
+SELECT TO_DATE('2024 . 05 . 10', 'YYYYMMDD') AS t;
+SELECT TO_DATE('2002 February 10', 'YYYY MONTH DD') AS t;
+
+--echo # Testing negative year (SYYYY) with separators
+SELECT TO_DATE('-2024-05-10', 'SYYYY-MM-DD') AS t;
+
 --echo # End of 12.3 tests
