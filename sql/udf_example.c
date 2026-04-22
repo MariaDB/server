@@ -60,6 +60,21 @@
 **
 ** Function 'myfunc_argument_name' returns name of argument.
 **
+** Aggregate function 'avgcost' returns the weighted average cost from
+** (quantity, price) pairs: sum of (price * quantity) divided by total
+** quantity across all rows.
+**
+** Aggregate function 'avg2' returns sum/count given (count, sum) pairs;
+** demonstrates an aggregate that also supports the remove operation
+** (usable as a window function).
+**
+** Function 'is_const' returns "const" if its argument is a constant
+** expression (known at query parse time), and "not const" otherwise.
+**
+** Function 'check_const_len' verifies that strlen() of its argument matches
+** the length reported by the server, returning "Correct length",
+** "Wrong length", or "Not constant".
+**
 ** On the end is a couple of functions that converts hostnames to ip and
 ** vice versa.
 **
@@ -85,6 +100,9 @@
 ** CREATE FUNCTION reverse_lookup RETURNS STRING SONAME "udf_example.so";
 ** CREATE AGGREGATE FUNCTION avgcost RETURNS REAL SONAME "udf_example.so";
 ** CREATE FUNCTION myfunc_argument_name RETURNS STRING SONAME "udf_example.so";
+** CREATE AGGREGATE FUNCTION avg2 RETURNS REAL SONAME "udf_example.so";
+** CREATE FUNCTION is_const RETURNS STRING SONAME "udf_example.so";
+** CREATE FUNCTION check_const_len RETURNS STRING SONAME "udf_example.so";
 **
 ** After this the functions will work exactly like native MySQL functions.
 ** Functions should be created only once.
@@ -98,6 +116,10 @@
 ** DROP FUNCTION reverse_lookup;
 ** DROP FUNCTION avgcost;
 ** DROP FUNCTION myfunc_argument_name;
+** DROP FUNCTION udf_sequence;
+** DROP FUNCTION avg2;
+** DROP FUNCTION is_const;
+** DROP FUNCTION check_const_len;
 **
 ** The CREATE FUNCTION and DROP FUNCTION update the func@mysql table. All
 ** Active function will be reloaded on every restart of server
@@ -117,32 +139,14 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #endif
 
-#ifdef STANDARD
-/* STANDARD is defined, don't use any mysql functions */
+#include <my_global.h>
+#include <my_pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#ifdef _WIN32
-typedef unsigned __int64 ulonglong;	/* Microsofts 64 bit types */
-typedef __int64 longlong;
-#else
-typedef unsigned long long ulonglong;
-typedef long long longlong;
-#endif /*_WIN32*/
-#else
-#include "mariadb.h"
-#include <my_sys.h>
-#if defined(MYSQL_SERVER)
-#include <m_string.h>		/* To get strmov() */
-#else
-/* when compiled as standalone */
-#include <string.h>
-#define strmov(a,b) stpcpy(a,b)
-#define bzero(a,b) memset(a,0,b)
-#endif
-#endif
-#include <mysql.h>
 #include <ctype.h>
+#include <assert.h>
+#include <mysql.h>
 
 
 #ifdef HAVE_DLOPEN
@@ -654,7 +658,7 @@ my_bool udf_sequence_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   if (args->arg_count > 1)
   {
-    strmov(message,"This function takes none or 1 argument");
+    strcpy(message,"This function takes none or 1 argument");
     return 1;
   }
   if (args->arg_count)
@@ -662,10 +666,10 @@ my_bool udf_sequence_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
   if (!(initid->ptr=(char*) malloc(sizeof(longlong))))
   {
-    strmov(message,"Couldn't allocate memory");
+    strcpy(message,"Couldn't allocate memory");
     return 1;
   }
-  bzero(initid->ptr,sizeof(longlong));
+  memset(initid->ptr, 0,sizeof(longlong));
   /* 
     udf_sequence() is a non-deterministic function : it has different value 
     even if called with the same arguments.
@@ -731,10 +735,10 @@ my_bool lookup_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   if (args->arg_count != 1 || args->arg_type[0] != STRING_RESULT)
   {
-    strmov(message,"Wrong arguments to lookup;  Use the source");
+    strcpy(message,"Wrong arguments to lookup;  Use the source");
     return 1;
   }
-  initid->max_length=11;
+  initid->max_length=15;              /* "xxx.xxx.xxx.xxx" */
   initid->maybe_null=1;
 #if !defined(HAVE_GETHOSTBYADDR_R) || !defined(HAVE_SOLARIS_STYLE_GETHOST)
   (void) pthread_mutex_init(&LOCK_hostname,MY_MUTEX_INIT_SLOW);
@@ -749,7 +753,7 @@ void lookup_deinit(UDF_INIT *initid __attribute__((unused)))
 #endif
 }
 
-char *lookup(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
+char *lookup(UDF_INIT *initid, UDF_ARGS *args,
              char *result, unsigned long *res_length, uchar *null_value,
              uchar *error __attribute__((unused)))
 {
@@ -762,6 +766,7 @@ char *lookup(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
   struct hostent tmp_hostent;
 #endif
   struct in_addr in;
+  const char *ip_str;
 
   if (!args->args[0] || !(length=args->lengths[0]))
   {
@@ -790,7 +795,12 @@ char *lookup(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
   pthread_mutex_unlock(&LOCK_hostname);
 #endif
   memcpy(&in, *hostent->h_addr_list, sizeof(in.s_addr));
-  *res_length= (ulong) (strmov(result, inet_ntoa(in)) - result);
+  ip_str= inet_ntoa(in);
+  *res_length= (ulong) strlen(ip_str);
+  if (*res_length > initid->max_length)
+    *res_length= initid->max_length;
+  memcpy(result, ip_str, *res_length);
+  result[*res_length]= 0;
   return result;
 }
 
@@ -810,11 +820,11 @@ my_bool reverse_lookup_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
       INT_RESULT;
   else
   {
-    strmov(message,
+    strcpy(message,
 	   "Wrong number of arguments to reverse_lookup;  Use the source");
     return 1;
   }
-  initid->max_length=32;
+  initid->max_length=255;             /* POSIX host name maximum */
   initid->maybe_null=1;
 #if !defined(HAVE_GETHOSTBYADDR_R) || !defined(HAVE_SOLARIS_STYLE_GETHOST)
   (void) pthread_mutex_init(&LOCK_hostname,MY_MUTEX_INIT_SLOW);
@@ -829,7 +839,7 @@ void reverse_lookup_deinit(UDF_INIT *initid __attribute__((unused)))
 #endif
 }
 
-char *reverse_lookup(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
+char *reverse_lookup(UDF_INIT *initid, UDF_ARGS *args,
                      char *result, unsigned long *res_length,
                      uchar *null_value, uchar *error __attribute__((unused)))
 {
@@ -849,7 +859,7 @@ char *reverse_lookup(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
       *null_value=1;
       return 0;
     }
-    sprintf(result,"%d.%d.%d.%d",
+    snprintf(result, sizeof("xxx.xxx.xxx.xxx"), "%d.%d.%d.%d",
 	    (int) *((longlong*) args->args[0]),
 	    (int) *((longlong*) args->args[1]),
 	    (int) *((longlong*) args->args[2]),
@@ -893,7 +903,12 @@ char *reverse_lookup(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
   }
   pthread_mutex_unlock(&LOCK_hostname);
 #endif
-  *res_length=(ulong) (strmov(result,hp->h_name) - result);
+  length= (uint) strlen(hp->h_name);
+  if (length >= initid->max_length)   /* leave room for NUL */
+    length= initid->max_length - 1;
+  memcpy(result, hp->h_name, length);
+  result[length]= 0;
+  *res_length= (ulong) length;
   return result;
 }
 
@@ -954,7 +969,7 @@ avgcost_init( UDF_INIT* initid, UDF_ARGS* args, char* message )
 
   if (!(data = (struct avgcost_data*) malloc(sizeof(struct avgcost_data))))
   {
-    strmov(message,"Couldn't allocate memory");
+    strcpy(message,"Couldn't allocate memory");
     return 1;
   }
   data->totalquantity	= 0;
@@ -1101,7 +1116,7 @@ avg2_init( UDF_INIT* initid, UDF_ARGS* args, char* message )
 
   if (!(data = (struct avg2_data*) malloc(sizeof(struct avg2_data))))
   {
-    strmov(message,"Couldn't allocate memory");
+    strcpy(message,"Couldn't allocate memory");
     return 1;
   }
   data->count	= 0;
@@ -1200,7 +1215,7 @@ my_bool myfunc_argument_name_init(UDF_INIT *initid, UDF_ARGS *args,
 {
   if (args->arg_count != 1)
   {
-    strmov(message,"myfunc_argument_name_init accepts only one argument");
+    strcpy(message,"myfunc_argument_name_init accepts only one argument");
     return 1;
   }
   initid->max_length= args->attribute_lengths[0];
@@ -1233,7 +1248,7 @@ my_bool is_const_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   if (args->arg_count != 1)
   {
-    strmov(message, "IS_CONST accepts only one argument");
+    strcpy(message, "IS_CONST accepts only one argument");
     return 1;
   }
   initid->ptr= (char*)((args->args[0] != NULL) ? (size_t)1 : (size_t)0);
@@ -1260,7 +1275,7 @@ my_bool check_const_len_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   if (args->arg_count != 1)
   {
-    strmov(message, "CHECK_CONST_LEN accepts only one argument");
+    strcpy(message, "CHECK_CONST_LEN accepts only one argument");
     return 1;
   }
   if (args->args[0] == 0)
@@ -1283,7 +1298,7 @@ char * check_const_len(UDF_INIT *initid, UDF_ARGS *args __attribute__((unused)),
                 char *result, unsigned long *length,
                 uchar *is_null,uchar *error __attribute__((unused)))
 {
-  strmov(result, initid->ptr);
+  strcpy(result, initid->ptr);
   *length= (uint) strlen(result);
   *is_null= 0;
   return result;
