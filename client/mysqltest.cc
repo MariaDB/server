@@ -8381,10 +8381,12 @@ static int ensure_replay_server_connection()
 }
 
 /*
-  Check if query starts with "EXPLAIN FORMAT=JSON"
-  Returns TRUE if it matches, FALSE otherwise
+  Check if query starts with "EXPLAIN"
+  Returns TRUE if it matches, FALSE otherwise.
+  Returns FALSE for "EXPLAIN FOR ..." (e.g. EXPLAIN FOR CONNECTION), since that
+  form does not trigger query optimization/recording.
 */
-static my_bool is_explain_format_json(const char *query, size_t query_len)
+static my_bool is_explain_query(const char *query, size_t query_len)
 {
   const char *p= query;
   const char *end= query + query_len;
@@ -8397,6 +8399,15 @@ static my_bool is_explain_format_json(const char *query, size_t query_len)
   p += 7;
   
   if (p >= end || !my_isspace(charset_info, *p))
+    return FALSE;
+
+  /* Skip whitespace between EXPLAIN and the next token */
+  while (p < end && my_isspace(charset_info, *p))
+    p++;
+
+  /* Reject "EXPLAIN FOR ..." (token "FOR" followed by whitespace or end) */
+  if (end - p >= 3 && strncasecmp(p, "FOR", 3) == 0 &&
+      (end - p == 3 || my_isspace(charset_info, p[3])))
     return FALSE;
 
   return TRUE;
@@ -8461,7 +8472,7 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
       if (q < q_end)
       {
         /* Check if this is EXPLAIN FORMAT=JSON */
-        my_bool is_explain= is_explain_format_json(query_start, query_len);
+        my_bool is_explain= is_explain_query(query_start, query_len);
         
         verbose_msg("ReplayTest: Executing query on replay server (%s): %.*s",
                     is_explain ? "EXPLAIN - will stop after this" : "intermediate",
@@ -8541,7 +8552,7 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
     if (q < q_end)
     {
       size_t query_len= p - query_start;
-      my_bool is_explain= is_explain_format_json(query_start, query_len);
+      my_bool is_explain= is_explain_query(query_start, query_len);
       
       verbose_msg("ReplayTest: Executing final query on replay server (%s): %.*s",
                   is_explain ? "EXPLAIN" : "last query",
@@ -8686,7 +8697,7 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 
   /* ReplayTest mode: Set optimizer_record_context BEFORE sending EXPLAIN query */
   if (replay_test_mode && (flags & QUERY_SEND_FLAG) && (flags & QUERY_REAP_FLAG) &&
-      is_explain_format_json(query, query_len))
+      is_explain_query(query, query_len))
   {
     replay_mode_active= TRUE;
     verbose_msg("ReplayTest: Detected EXPLAIN FORMAT=JSON query, activating replay mode");
