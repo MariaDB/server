@@ -107,8 +107,12 @@ ulint	btr_cur_n_sea_old;
 uint	btr_cur_limit_optimistic_insert_debug;
 /** Number of times index lock was upgraded from SX to X */
 Atomic_counter<size_t> btr_cur_n_index_lock_upgrades;
+/** Number of times btr_cur_pessimistic_insert() was called */
+Atomic_counter<size_t> btr_cur_pessimistic_insert_calls;
 /** Number of times btr_cur_pessimistic_update() was called */
 Atomic_counter<size_t> btr_cur_pessimistic_update_calls;
+/** Number of times btr_cur_pessimistic_delete() was called */
+Atomic_counter<size_t> btr_cur_pessimistic_delete_calls;
 /** Number of times DB_UNDERFLOW was returned as optimistic update error in btr_cur_pessimistic_update() */
 Atomic_counter<size_t> btr_cur_pessimistic_update_optim_err_underflows;
 /** Number of times DB_OVERFLOW was returned as optimistic update error in btr_cur_pessimistic_update() */
@@ -2582,6 +2586,8 @@ btr_cur_pessimistic_insert(
 	bool		inherit = false;
 	uint32_t	n_reserved	= 0;
 
+	ut_d(++btr_cur_pessimistic_insert_calls);
+
 	ut_ad(dtuple_check_typed(entry));
 	ut_ad(thr || !(~flags & (BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG)));
 
@@ -4523,6 +4529,7 @@ btr_cur_pessimistic_delete(
 	uint32_t	n_reserved	= 0;
 	ibool		ret		= FALSE;
 	mem_heap_t*	heap;
+
 	rec_offs*	offsets;
 #ifdef UNIV_DEBUG
 	bool		parent_latched	= false;
@@ -4531,6 +4538,8 @@ btr_cur_pessimistic_delete(
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
 	index = btr_cur_get_index(cursor);
+
+	ut_d(++btr_cur_pessimistic_delete_calls);
 
 	ut_ad(flags == 0 || flags == BTR_CREATE_FLAG);
 	ut_ad(!dict_index_is_online_ddl(index)

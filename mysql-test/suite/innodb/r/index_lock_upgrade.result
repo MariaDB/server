@@ -2,18 +2,14 @@
 # MDEV-38814: High rate of index_lock_upgrades due to
 # btr_cur_need_opposite_intention() mostly returning true
 #
-# Test with simple table structure:
-# Single INT primary key
-# DATETIME column dt that starts NULL and gets updated to a
-# distinct timestamp per row
-#
-# The NULL-to-DATETIME growth makes btr_cur_optimistic_update()
-# fall through to the pessimistic path (BTR_MODIFY_TREE).
+# Test with table t1 (primary key only)
 CREATE TABLE t1 (
 id INT NOT NULL,
 dt DATETIME NULL,
 PRIMARY KEY (id)
 ) ENGINE=InnoDB;
+# Insert rows with NULL DATETIME
+InnoDB		0 transactions not purged
 INSERT INTO t1 (id, dt) SELECT seq, NULL FROM seq_1_to_1000;
 # Rows inserted with NULL DATETIME
 SELECT COUNT(*) AS rows_inserted FROM t1;
@@ -22,69 +18,418 @@ rows_inserted
 SELECT COUNT(DISTINCT dt) AS distinct_timestamps FROM t1;
 distinct_timestamps
 0
-# Index lock upgrades during inserts
-SELECT @lu01 AS index_lock_upgrades_insert;
-index_lock_upgrades_insert
+InnoDB		0 transactions not purged
+index_lock_upgrades_t1_insert
 5
-SELECT @pu01 AS pessimistic_update_calls_insert;
-pessimistic_update_calls_insert
-0
-SELECT @ou01 AS optim_err_underflows_insert;
-optim_err_underflows_insert
-0
-SELECT @oo01 AS optim_err_overflows_insert;
-optim_err_overflows_insert
-0
-SELECT @ps01 AS index_page_splits_insert;
-index_page_splits_insert
+pessimistic_insert_calls_t1_insert
 6
-SELECT @ma01 AS index_page_merge_attempts_insert;
-index_page_merge_attempts_insert
+pessimistic_update_calls_t1_insert
 0
-SELECT @ms01 AS index_page_merge_successful_insert;
-index_page_merge_successful_insert
+pessimistic_delete_calls_t1_insert
 0
-SELECT @rs01 AS index_page_reorg_successful_insert;
-index_page_reorg_successful_insert
+optim_err_underflows_t1_insert
 0
-SELECT @pd01 AS index_page_discards_insert;
-index_page_discards_insert
+optim_err_overflows_t1_insert
 0
-# Now update all rows (batch update)
-# This changes DATETIME from NULL to a distinct timestamp per row,
-# triggering the pessimistic path due to record size change.
-UPDATE t1 JOIN seq_1_to_1000 s ON t1.id = s.seq
-SET t1.dt= '2025-01-01' + INTERVAL s.seq SECOND;
-# Rows updated
-SELECT COUNT(DISTINCT dt) AS distinct_timestamps FROM t1;
-distinct_timestamps
-1000
-# Index lock upgrades during updates
-SELECT @lu12 AS index_lock_upgrades_update;
-index_lock_upgrades_update
+index_x_lock_calls_t1_insert
+0
+index_page_splits_t1_insert
 6
-SELECT @pu12 AS pessimistic_update_calls_update;
-pessimistic_update_calls_update
-6
-SELECT @ou12 AS optim_err_underflows_update;
-optim_err_underflows_update
+index_page_merge_attempts_t1_insert
 0
-SELECT @oo12 AS optim_err_overflows_update;
-optim_err_overflows_update
-6
-SELECT @ps12 AS index_page_splits_update;
-index_page_splits_update
-6
-SELECT @ma12 AS index_page_merge_attempts_update;
-index_page_merge_attempts_update
+index_page_merge_successful_t1_insert
 0
-SELECT @ms12 AS index_page_merge_successful_update;
-index_page_merge_successful_update
+index_page_reorg_successful_t1_insert
 0
-SELECT @rs12 AS index_page_reorg_successful_update;
-index_page_reorg_successful_update
+index_page_discards_t1_insert
+0
+# Update all rows: NULL to DATETIME
+UPDATE t1 SET dt= '2025-01-01' + INTERVAL id SECOND;
+InnoDB		0 transactions not purged
+index_lock_upgrades_t1_update_null_to_notnull
+6
+pessimistic_insert_calls_t1_update_null_to_notnull
+6
+pessimistic_update_calls_t1_update_null_to_notnull
+6
+pessimistic_delete_calls_t1_update_null_to_notnull
+0
+optim_err_underflows_t1_update_null_to_notnull
+0
+optim_err_overflows_t1_update_null_to_notnull
+6
+index_x_lock_calls_t1_update_null_to_notnull
+0
+index_page_splits_t1_update_null_to_notnull
+6
+index_page_merge_attempts_t1_update_null_to_notnull
+0
+index_page_merge_successful_t1_update_null_to_notnull
+0
+index_page_reorg_successful_t1_update_null_to_notnull
 40
-SELECT @pd12 AS index_page_discards_update;
-index_page_discards_update
+index_page_discards_t1_update_null_to_notnull
+0
+# Update all rows: 2025 to 2026 (inplace update)
+UPDATE t1 SET dt= '2026-01-01' + INTERVAL id SECOND;
+InnoDB		0 transactions not purged
+index_lock_upgrades_t1_update_inplace
+0
+pessimistic_insert_calls_t1_update_inplace
+0
+pessimistic_update_calls_t1_update_inplace
+0
+pessimistic_delete_calls_t1_update_inplace
+0
+optim_err_underflows_t1_update_inplace
+0
+optim_err_overflows_t1_update_inplace
+0
+index_x_lock_calls_t1_update_inplace
+0
+index_page_splits_t1_update_inplace
+0
+index_page_merge_attempts_t1_update_inplace
+0
+index_page_merge_successful_t1_update_inplace
+0
+index_page_reorg_successful_t1_update_inplace
+0
+index_page_discards_t1_update_inplace
+0
+# Update all rows: DATETIME to NULL
+UPDATE t1 SET dt= NULL;
+InnoDB		0 transactions not purged
+index_lock_upgrades_t1_update_notnull_to_null
+422
+pessimistic_insert_calls_t1_update_notnull_to_null
+40
+pessimistic_update_calls_t1_update_notnull_to_null
+422
+pessimistic_delete_calls_t1_update_notnull_to_null
+46
+optim_err_underflows_t1_update_notnull_to_null
+382
+optim_err_overflows_t1_update_notnull_to_null
+40
+index_x_lock_calls_t1_update_notnull_to_null
+0
+index_page_splits_t1_update_notnull_to_null
+40
+index_page_merge_attempts_t1_update_notnull_to_null
+382
+index_page_merge_successful_t1_update_notnull_to_null
+46
+index_page_reorg_successful_t1_update_notnull_to_null
+36
+index_page_discards_t1_update_notnull_to_null
+0
+# Delete upper half of rows
+DELETE FROM t1 WHERE id > (SELECT MAX(id) FROM t1) / 2;
+# Rows remaining
+SELECT COUNT(*) AS rows_remaining FROM t1;
+rows_remaining
+500
+InnoDB		0 transactions not purged
+index_lock_upgrades_t1_delete_upper_half
+186
+pessimistic_insert_calls_t1_delete_upper_half
+0
+pessimistic_update_calls_t1_delete_upper_half
+0
+pessimistic_delete_calls_t1_delete_upper_half
+189
+optim_err_underflows_t1_delete_upper_half
+0
+optim_err_overflows_t1_delete_upper_half
+0
+index_x_lock_calls_t1_delete_upper_half
+0
+index_page_splits_t1_delete_upper_half
+0
+index_page_merge_attempts_t1_delete_upper_half
+186
+index_page_merge_successful_t1_delete_upper_half
+3
+index_page_reorg_successful_t1_delete_upper_half
+3
+index_page_discards_t1_delete_upper_half
+0
+# Delete even-numbered rows
+DELETE FROM t1 WHERE id % 2 = 0;
+# Rows remaining
+SELECT COUNT(*) AS rows_remaining FROM t1;
+rows_remaining
+250
+InnoDB		0 transactions not purged
+index_lock_upgrades_t1_delete_even
+13
+pessimistic_insert_calls_t1_delete_even
+0
+pessimistic_update_calls_t1_delete_even
+0
+pessimistic_delete_calls_t1_delete_even
+15
+optim_err_underflows_t1_delete_even
+0
+optim_err_overflows_t1_delete_even
+0
+index_x_lock_calls_t1_delete_even
+0
+index_page_splits_t1_delete_even
+0
+index_page_merge_attempts_t1_delete_even
+13
+index_page_merge_successful_t1_delete_even
+2
+index_page_reorg_successful_t1_delete_even
+2
+index_page_discards_t1_delete_even
+0
+# Delete rows in random order
+# Rows remaining
+SELECT COUNT(*) AS rows_remaining FROM t1;
+rows_remaining
+0
+InnoDB		0 transactions not purged
+index_lock_upgrades_t1_delete_random
+31
+pessimistic_insert_calls_t1_delete_random
+0
+pessimistic_update_calls_t1_delete_random
+0
+pessimistic_delete_calls_t1_delete_random
+32
+optim_err_underflows_t1_delete_random
+0
+optim_err_overflows_t1_delete_random
+0
+index_x_lock_calls_t1_delete_random
+0
+index_page_splits_t1_delete_random
+0
+index_page_merge_attempts_t1_delete_random
+31
+index_page_merge_successful_t1_delete_random
+2
+index_page_reorg_successful_t1_delete_random
+1
+index_page_discards_t1_delete_random
 0
 DROP TABLE t1;
+# Test with table t2 (primary key + secondary index on dt)
+CREATE TABLE t2 (
+id INT NOT NULL,
+dt DATETIME NULL,
+PRIMARY KEY (id),
+KEY (dt)
+) ENGINE=InnoDB;
+# Insert rows with NULL DATETIME
+InnoDB		0 transactions not purged
+INSERT INTO t2 (id, dt) SELECT seq, NULL FROM seq_1_to_1000;
+# Rows inserted with NULL DATETIME
+SELECT COUNT(*) AS rows_inserted FROM t2;
+rows_inserted
+1000
+SELECT COUNT(DISTINCT dt) AS distinct_timestamps FROM t2;
+distinct_timestamps
+0
+InnoDB		0 transactions not purged
+index_lock_upgrades_t2_insert
+7
+pessimistic_insert_calls_t2_insert
+9
+pessimistic_update_calls_t2_insert
+0
+pessimistic_delete_calls_t2_insert
+0
+optim_err_underflows_t2_insert
+0
+optim_err_overflows_t2_insert
+0
+index_x_lock_calls_t2_insert
+0
+index_page_splits_t2_insert
+9
+index_page_merge_attempts_t2_insert
+0
+index_page_merge_successful_t2_insert
+0
+index_page_reorg_successful_t2_insert
+0
+index_page_discards_t2_insert
+0
+# Update all rows: NULL to DATETIME
+UPDATE t2 SET dt= '2025-01-01' + INTERVAL id SECOND;
+InnoDB		0 transactions not purged
+index_lock_upgrades_t2_update_null_to_notnull
+608
+pessimistic_insert_calls_t2_update_null_to_notnull
+10
+pessimistic_update_calls_t2_update_null_to_notnull
+6
+pessimistic_delete_calls_t2_update_null_to_notnull
+601
+optim_err_underflows_t2_update_null_to_notnull
+0
+optim_err_overflows_t2_update_null_to_notnull
+6
+index_x_lock_calls_t2_update_null_to_notnull
+0
+index_page_splits_t2_update_null_to_notnull
+10
+index_page_merge_attempts_t2_update_null_to_notnull
+595
+index_page_merge_successful_t2_update_null_to_notnull
+0
+index_page_reorg_successful_t2_update_null_to_notnull
+40
+index_page_discards_t2_update_null_to_notnull
+3
+# Update all rows: 2025 to 2026 (inplace update)
+UPDATE t2 SET dt= '2026-01-01' + INTERVAL id SECOND;
+InnoDB		0 transactions not purged
+index_lock_upgrades_t2_update_inplace
+551
+pessimistic_insert_calls_t2_update_inplace
+3
+pessimistic_update_calls_t2_update_inplace
+0
+pessimistic_delete_calls_t2_update_inplace
+552
+optim_err_underflows_t2_update_inplace
+0
+optim_err_overflows_t2_update_inplace
+0
+index_x_lock_calls_t2_update_inplace
+0
+index_page_splits_t2_update_inplace
+3
+index_page_merge_attempts_t2_update_inplace
+544
+index_page_merge_successful_t2_update_inplace
+0
+index_page_reorg_successful_t2_update_inplace
+0
+index_page_discards_t2_update_inplace
+4
+# Update all rows: DATETIME to NULL
+UPDATE t2 SET dt= NULL;
+InnoDB		0 transactions not purged
+index_lock_upgrades_t2_update_notnull_to_null
+625
+pessimistic_insert_calls_t2_update_notnull_to_null
+43
+pessimistic_update_calls_t2_update_notnull_to_null
+422
+pessimistic_delete_calls_t2_update_notnull_to_null
+250
+optim_err_underflows_t2_update_notnull_to_null
+382
+optim_err_overflows_t2_update_notnull_to_null
+40
+index_x_lock_calls_t2_update_notnull_to_null
+0
+index_page_splits_t2_update_notnull_to_null
+43
+index_page_merge_attempts_t2_update_notnull_to_null
+582
+index_page_merge_successful_t2_update_notnull_to_null
+50
+index_page_reorg_successful_t2_update_notnull_to_null
+41
+index_page_discards_t2_update_notnull_to_null
+0
+# Delete upper half of rows
+DELETE FROM t2 WHERE id > (SELECT MAX(id) FROM t2) / 2;
+# Rows remaining
+SELECT COUNT(*) AS rows_remaining FROM t2;
+rows_remaining
+500
+InnoDB		0 transactions not purged
+index_lock_upgrades_t2_delete_upper_half
+343
+pessimistic_insert_calls_t2_delete_upper_half
+0
+pessimistic_update_calls_t2_delete_upper_half
+0
+pessimistic_delete_calls_t2_delete_upper_half
+347
+optim_err_underflows_t2_delete_upper_half
+0
+optim_err_overflows_t2_delete_upper_half
+0
+index_x_lock_calls_t2_delete_upper_half
+0
+index_page_splits_t2_delete_upper_half
+0
+index_page_merge_attempts_t2_delete_upper_half
+343
+index_page_merge_successful_t2_delete_upper_half
+4
+index_page_reorg_successful_t2_delete_upper_half
+4
+index_page_discards_t2_delete_upper_half
+0
+# Delete even-numbered rows
+DELETE FROM t2 WHERE id % 2 = 0;
+# Rows remaining
+SELECT COUNT(*) AS rows_remaining FROM t2;
+rows_remaining
+250
+InnoDB		0 transactions not purged
+index_lock_upgrades_t2_delete_even
+15
+pessimistic_insert_calls_t2_delete_even
+0
+pessimistic_update_calls_t2_delete_even
+0
+pessimistic_delete_calls_t2_delete_even
+18
+optim_err_underflows_t2_delete_even
+0
+optim_err_overflows_t2_delete_even
+0
+index_x_lock_calls_t2_delete_even
+0
+index_page_splits_t2_delete_even
+0
+index_page_merge_attempts_t2_delete_even
+15
+index_page_merge_successful_t2_delete_even
+4
+index_page_reorg_successful_t2_delete_even
+3
+index_page_discards_t2_delete_even
+0
+# Delete rows in random order
+# Rows remaining
+SELECT COUNT(*) AS rows_remaining FROM t2;
+rows_remaining
+0
+InnoDB		0 transactions not purged
+index_lock_upgrades_t2_delete_random
+31
+pessimistic_insert_calls_t2_delete_random
+0
+pessimistic_update_calls_t2_delete_random
+0
+pessimistic_delete_calls_t2_delete_random
+32
+optim_err_underflows_t2_delete_random
+0
+optim_err_overflows_t2_delete_random
+0
+index_x_lock_calls_t2_delete_random
+0
+index_page_splits_t2_delete_random
+0
+index_page_merge_attempts_t2_delete_random
+31
+index_page_merge_successful_t2_delete_random
+2
+index_page_reorg_successful_t2_delete_random
+1
+index_page_discards_t2_delete_random
+0
+DROP TABLE t2;
