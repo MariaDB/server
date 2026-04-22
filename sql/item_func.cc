@@ -7248,11 +7248,16 @@ longlong Item_func_lastval::val_int()
 {
   const char *key;
   SEQUENCE_LAST_VALUE *entry;
+  DBUG_ENTER("Item_func_lastval::val_int");
+  if (table_list->is_pure_alias())
+  {
+    my_error(ER_NOT_SEQUENCE2, MYF(0), table_list->alias.str);
+    DBUG_RETURN(0);
+  }
   uint length= get_table_def_key(table_list, &key);
   THD *thd;
   char buff[80];
   String key_buff(buff,sizeof(buff), &my_charset_bin);
-  DBUG_ENTER("Item_func_lastval::val_int");
   update_table();
   thd= table->in_use;
 
@@ -7302,6 +7307,11 @@ longlong Item_func_setval::val_int()
   int error;
   THD *thd;
   DBUG_ENTER("Item_func_setval::val_int");
+  if (table_list->is_pure_alias())
+  {
+    my_error(ER_NOT_SEQUENCE2, MYF(0), table_list->alias.str);
+    DBUG_RETURN(0);
+  }
 
   update_table();
   DBUG_ASSERT(table && table->s->sequence);
