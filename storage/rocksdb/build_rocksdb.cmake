@@ -511,7 +511,7 @@ else()
     PROPERTIES COMPILE_FLAGS "-Wframe-larger-than=40960")
   set_source_files_properties(${ROCKSDB_SOURCE_DIR}/options/cf_options.cc
     PROPERTIES COMPILE_FLAGS "-Wframe-larger-than=32768")
-  set(CMAKE_REQUIRED_FLAGS "-msse4.2 -mpclmul ${CXX11_FLAGS}")
+  set(CMAKE_REQUIRED_FLAGS "-msse4.2 -mpclmul")
 
   CHECK_CXX_SOURCE_COMPILES("
 #include <cstdint>
