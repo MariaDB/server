@@ -1,0 +1,33 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE federated;
+connection slave;
+CREATE DATABASE federated;
+connection slave;
+set time_zone='+00:00';
+create table federated.t1 (id int primary key, ts timestamp);
+insert into federated.t1 values (1, '2020-06-15 12:00:00');
+connection master;
+create table t1 engine=federated connection='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+select * from t1;
+id	ts
+1	2020-06-15 12:00:00
+connection slave;
+# restart
+connection master;
+select * from t1;
+select * from t1;
+id	ts
+1	2020-06-15 12:00:00
+connection master;
+drop table t1;
+connection slave;
+drop table federated.t1;
+set time_zone=default;
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;

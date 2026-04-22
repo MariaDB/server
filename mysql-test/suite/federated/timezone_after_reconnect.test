@@ -1,0 +1,51 @@
+# MDEV-39008: After remote server restart (or connection change), FederatedX must
+# set time_zone again so TIMESTAMP values remain correct.
+#
+# Debug builds (DBUG/SAFEMALLOC): reconnect path can leave a small allocation
+# reported as "Warning: Memory not freed" at server exit; MTR shutdown checks
+# then fail. Skip on debug per review (PR #4791); track root cause in a
+# follow-up JIRA if needed.
+#
+# 1) Create table on backend with TIMESTAMP, insert row
+# 2) Federated table on master, SELECT (establishes connection, sets time_zone)
+# 3) Restart backend server
+# 4) SELECT again via federated (reconnect; time_zone must be set again)
+# 5) Verify we get the same timestamp (no TZ shift)
+
+source include/not_debug.inc;
+source have_federatedx.inc;
+source include/federated.inc;
+
+connection slave;
+set time_zone='+00:00';
+create table federated.t1 (id int primary key, ts timestamp);
+insert into federated.t1 values (1, '2020-06-15 12:00:00');
+
+connection master;
+replace_result $SLAVE_MYPORT SLAVE_PORT;
+eval create table t1 engine=federated connection='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+# First read: establishes connection, sets time_zone='+00:00'
+select * from t1;
+
+# Restart backend so next query may hit stale connection (ER_NET_READ_ERROR) or reconnect
+connection slave;
+source include/restart_mysqld.inc;
+
+# First query after restart may fail (ER_NET_READ_ERROR) or succeed; accept both. Do not compare output.
+connection master;
+--disable_result_log
+--error 0,ER_NET_READ_ERROR
+select * from t1;
+--enable_result_log
+
+# Second query: (re)connect and time_zone set again (MDEV-39008 fix). Same timestamp.
+select * from t1;
+
+# Verify correct timestamp (no TZ shift)
+connection master;
+drop table t1;
+connection slave;
+drop table federated.t1;
+set time_zone=default;
+source include/federated_cleanup.inc;
