@@ -1,0 +1,7 @@
+!include ../my.cnf
+
+[mysqld.1]
+rpl_semi_sync_master_enabled=1
+
+[mysqld.2]
+rpl_semi_sync_slave_enabled=1
