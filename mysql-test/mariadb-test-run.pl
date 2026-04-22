@@ -295,8 +295,8 @@ our $opt_gcov;
 our $opt_gprof;
 our %gprof_dirs;
 
-our $opt_replay_server;  # Start an extra server for replay
-our $opt_replay_server_manual;  # Print replay server command and wait for manual start
+# $opt_replay_server and $opt_replay_server_manual are declared earlier in the
+# file for the END block. See the "Forward declarations" comment near the top.
 
 my $config; # The currently running config
 my $current_config_name; # The currently running config file template
@@ -443,7 +443,21 @@ sub main {
     mysql_install_db(default_mysqld(), "$opt_vardir/install.db");
     make_readonly("$opt_vardir/install.db");
     
-    # Start replay server if --replay-server option is specified
+    # Start replay server if --replay-server option is specified.
+    # Refuse if --parallel > 1 was explicitly requested; the replay server is
+    # a single shared instance and cannot serve multiple concurrent workers.
+    # (The "auto" case is resolved later and re-checked below.)
+    if ( $opt_replay_server || $opt_replay_server_manual )
+    {
+      if ($opt_parallel ne "auto" && $opt_parallel > 1)
+      {
+        mtr_error("--replay-server / --replay-server-manual cannot be used " .
+                  "together with --parallel > 1 (parallel=$opt_parallel). " .
+                  "The replay server is a single shared instance and cannot " .
+                  "serve multiple concurrent workers. " .
+                  "Re-run with --parallel=1.");
+      }
+    }
     if ( $opt_replay_server )
     {
       start_replay_server();
@@ -494,6 +508,14 @@ sub main {
     mtr_warning("Parallel cannot be used with --start-and-exit or --stress\n" .
                "Setting parallel to 1");
     $opt_parallel= 1;
+  }
+
+  if ($opt_parallel > 1 && ($opt_replay_server || $opt_replay_server_manual)) {
+    mtr_error("--replay-server and --replay-server-manual cannot be used " .
+              "together with --parallel > 1 (parallel=$opt_parallel). " .
+              "The replay server is a single shared instance and cannot " .
+              "serve multiple concurrent workers. " .
+              "Re-run with --parallel=1.");
   }
 
   # Create server socket on any free port
