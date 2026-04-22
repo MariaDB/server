@@ -1320,7 +1320,7 @@ f
 foo
 <b></b>
 #
-# Start of 10.5 tests
+# End of 10.5 tests
 #
 #
 # ExtractValue/UpdateXML crash
@@ -1414,3 +1414,9 @@ Warning	1525	Incorrect XML value: 'parse error at line 10 pos 27: unexpected END
 #
 # Start of 10.6 tests
 #
+#
+# MDEV-33843: Server crashes by stack-overflow with UPDATEXML
+#
+SELECT UPDATEXML(NULL, REPEAT('(', 100000), 1);
+ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
+# End of 10.6 test
