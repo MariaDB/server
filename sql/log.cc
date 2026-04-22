@@ -9145,7 +9145,7 @@ err:
         mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
         if (likely(!error) &&
-            repl_semisync_master->wait_after_sync(log_file_name, offset,
+            repl_semisync_master->wait_after_sync(thd, log_file_name, offset,
                                                   commit_gtid))
         {
           error=1;
@@ -11135,7 +11135,7 @@ void MYSQL_BIN_LOG::trx_group_commit_with_engines(group_commit_entry *leader,
     {
       last= current->next == NULL;
       if (likely(!current->error))
-        current->error= repl_semisync_master->wait_after_sync(
+        current->error= repl_semisync_master->wait_after_sync(current->thd,
             current->cache_mngr->last_commit_pos_file.legacy_name,
             (my_off_t)current->cache_mngr->last_commit_pos_offset,
             current->thd->get_last_commit_gtid());

@@ -1,0 +1,87 @@
+#
+# Purpose:
+#   A transaction logged with @@skip_replication=1 does not take part in
+# semi-sync: the master must neither request nor await an ACK for it, whatever
+# the slave's --replicate-events-marked-for-skip. Before MDEV-38486 the master
+# awaited an ACK for it, which a FILTER_ON_MASTER slave never sends, so the
+# commit blocked until rpl_semi_sync_master_timeout switched semi-sync off.
+#
+# Methodology:
+#   The scenario in rpl_semi_sync_skip_replication.inc is run for every
+# rpl_semi_sync_master_wait_point and every replicate_events_marked_for_skip
+# value. The wait point matters because the ACK is awaited in a different place
+# for each: the binlog group commit leader waits for AFTER_SYNC, while the user
+# thread waits after the engine commit for AFTER_COMMIT.
+#
+# References:
+#   MDEV-38486: Semi-sync master hangs on @@skip_replication transactions
+#
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+--source include/master-slave.inc
+
+--connection master
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+--sync_slave_with_master
+
+--connection master
+# The test restarts the slave for each replicate_events_marked_for_skip value.
+# When it reconnects, the master kills its previous dump thread, whose last
+# write then fails on the already shut down socket; with log_warnings > 3 that
+# is logged as an error.
+call mtr.add_suppression("Got an error writing communication packets");
+call mtr.add_suppression("Could not write packet:.* vio_errno: 1160");
+SET @old_master_enabled= @@global.rpl_semi_sync_master_enabled;
+SET @old_master_timeout= @@global.rpl_semi_sync_master_timeout;
+SET @old_wait_point= @@global.rpl_semi_sync_master_wait_point;
+# Keep the timeout short: if the master ever awaits an ACK which does not come,
+# it switches semi-sync off within this many milliseconds and the test fails on
+# Rpl_semi_sync_master_status instead of hanging.
+SET GLOBAL rpl_semi_sync_master_timeout= 2000;
+SET GLOBAL rpl_semi_sync_master_enabled= 1;
+
+--connect (con_skip,127.0.0.1,root,,test,$MASTER_MYPORT,)
+SET SESSION skip_replication= 1;
+--connect (con_normal,127.0.0.1,root,,test,$MASTER_MYPORT,)
+
+--connection slave
+--source include/stop_slave.inc
+SET @old_slave_enabled= @@global.rpl_semi_sync_slave_enabled;
+SET @old_skip= @@global.replicate_events_marked_for_skip;
+SET GLOBAL rpl_semi_sync_slave_enabled= 1;
+
+--let $wait_point= AFTER_SYNC
+--let $skip_mode= REPLICATE
+--source suite/rpl/t/rpl_semi_sync_skip_replication.inc
+--let $skip_mode= FILTER_ON_SLAVE
+--source suite/rpl/t/rpl_semi_sync_skip_replication.inc
+--let $skip_mode= FILTER_ON_MASTER
+--source suite/rpl/t/rpl_semi_sync_skip_replication.inc
+
+--let $wait_point= AFTER_COMMIT
+--let $skip_mode= REPLICATE
+--source suite/rpl/t/rpl_semi_sync_skip_replication.inc
+--let $skip_mode= FILTER_ON_SLAVE
+--source suite/rpl/t/rpl_semi_sync_skip_replication.inc
+--let $skip_mode= FILTER_ON_MASTER
+--source suite/rpl/t/rpl_semi_sync_skip_replication.inc
+
+--echo #
+--echo # Cleanup
+--echo #
+--disconnect con_skip
+--disconnect con_normal
+--connection master
+SET GLOBAL rpl_semi_sync_master_wait_point= @old_wait_point;
+SET GLOBAL rpl_semi_sync_master_enabled= @old_master_enabled;
+SET GLOBAL rpl_semi_sync_master_timeout= @old_master_timeout;
+DROP TABLE t1;
+
+--connection slave
+SET GLOBAL rpl_semi_sync_slave_enabled= @old_slave_enabled;
+SET GLOBAL replicate_events_marked_for_skip= @old_skip;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc
