@@ -486,6 +486,12 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     bool check_purge;
     /* Flag used to optimise around wait_for_prior_commit. */
     bool queued_by_other;
+    /*
+      Set during group commit if this transaction was deliberately not
+      registered for a semi-sync ACK, so that the wait for that ACK is skipped
+      as well.
+    */
+    bool semisync_skip_ack;
     ulong binlog_id;
     bool ro_1pc;  // passes the binlog_cache_mngr::ro_1pc value to Gtid ctor
   };
