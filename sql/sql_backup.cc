@@ -52,7 +52,7 @@ static my_bool backup_step(THD *thd, plugin_ref plugin, void *) noexcept
 static my_bool backup_finalize(THD *thd, plugin_ref plugin, void *dst) noexcept
 {
   handlerton *hton= plugin_hton(plugin);
-  if (hton->backup_step)
+  if (hton->backup_finalize)
     return hton->backup_finalize
       (thd, IF_WIN(static_cast<const char*>(dst),
                    int(reinterpret_cast<uintptr_t>(dst))));
