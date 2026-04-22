@@ -692,6 +692,12 @@ class MYSQL_BIN_LOG: public TC_LOG, public Event_log
       LOCK_commit_ordered has been released.
     */
     bool do_binlog_group_commit_ordered;
+    /*
+      Set during group commit if this transaction was deliberately not
+      registered for a semi-sync ACK, so that the wait for that ACK is skipped
+      as well.
+    */
+    bool semisync_skip_ack;
   };
 
   /*
