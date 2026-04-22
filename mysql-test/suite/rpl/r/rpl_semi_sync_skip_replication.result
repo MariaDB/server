@@ -1,0 +1,390 @@
+include/master-slave.inc
+[connection master]
+connection master;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+connection slave;
+connection master;
+call mtr.add_suppression("Got an error writing communication packets");
+call mtr.add_suppression("Could not write packet:.* vio_errno: 1160");
+SET @old_master_enabled= @@global.rpl_semi_sync_master_enabled;
+SET @old_master_timeout= @@global.rpl_semi_sync_master_timeout;
+SET @old_wait_point= @@global.rpl_semi_sync_master_wait_point;
+SET GLOBAL rpl_semi_sync_master_timeout= 2000;
+SET GLOBAL rpl_semi_sync_master_enabled= 1;
+connect  con_skip,127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET SESSION skip_replication= 1;
+connect  con_normal,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connection slave;
+include/stop_slave.inc
+SET @old_slave_enabled= @@global.rpl_semi_sync_slave_enabled;
+SET @old_skip= @@global.replicate_events_marked_for_skip;
+SET GLOBAL rpl_semi_sync_slave_enabled= 1;
+#
+# Wait point AFTER_SYNC, slave REPLICATE
+#
+connection master;
+SET GLOBAL rpl_semi_sync_master_wait_point= AFTER_SYNC;
+connection slave;
+SET GLOBAL replicate_events_marked_for_skip= REPLICATE;
+include/start_slave.inc
+connection master;
+SET SESSION skip_replication= 1;
+CREATE DATABASE db_skip;
+CREATE TABLE db_skip.t1 (a INT) ENGINE=InnoDB;
+INSERT INTO db_skip.t1 VALUES (1);
+DROP DATABASE db_skip;
+SET SESSION skip_replication= 0;
+# No ACK was requested, granted or missed for the skip_replication changes
+# Group commit led by con_skip, joined by con_normal
+connection master;
+connection con_skip;
+SET debug_sync= 'commit_after_get_LOCK_log SIGNAL leader_ready WAIT_FOR leader_go';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR leader_ready';
+connection con_normal;
+SET debug_sync= 'commit_after_release_LOCK_prepare_ordered SIGNAL follower_queued';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR follower_queued';
+SET debug_sync= 'now SIGNAL leader_go';
+connection con_skip;
+connection con_normal;
+connection master;
+SET debug_sync= 'RESET';
+# Exactly one ACK was requested and granted, for the ordinary transaction
+# Group commit led by con_normal, joined by con_skip
+connection master;
+connection con_normal;
+SET debug_sync= 'commit_after_get_LOCK_log SIGNAL leader_ready WAIT_FOR leader_go';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR leader_ready';
+connection con_skip;
+SET debug_sync= 'commit_after_release_LOCK_prepare_ordered SIGNAL follower_queued';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR follower_queued';
+SET debug_sync= 'now SIGNAL leader_go';
+connection con_normal;
+connection con_skip;
+connection master;
+SET debug_sync= 'RESET';
+# Exactly one ACK was requested and granted, for the ordinary transaction
+connection master;
+INSERT INTO t1 VALUES (1);
+# The ordinary transaction which followed was ACKed
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+#
+# Wait point AFTER_SYNC, slave FILTER_ON_SLAVE
+#
+connection master;
+SET GLOBAL rpl_semi_sync_master_wait_point= AFTER_SYNC;
+connection slave;
+SET GLOBAL replicate_events_marked_for_skip= FILTER_ON_SLAVE;
+include/start_slave.inc
+connection master;
+SET SESSION skip_replication= 1;
+CREATE DATABASE db_skip;
+CREATE TABLE db_skip.t1 (a INT) ENGINE=InnoDB;
+INSERT INTO db_skip.t1 VALUES (1);
+DROP DATABASE db_skip;
+SET SESSION skip_replication= 0;
+# No ACK was requested, granted or missed for the skip_replication changes
+# Group commit led by con_skip, joined by con_normal
+connection master;
+connection con_skip;
+SET debug_sync= 'commit_after_get_LOCK_log SIGNAL leader_ready WAIT_FOR leader_go';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR leader_ready';
+connection con_normal;
+SET debug_sync= 'commit_after_release_LOCK_prepare_ordered SIGNAL follower_queued';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR follower_queued';
+SET debug_sync= 'now SIGNAL leader_go';
+connection con_skip;
+connection con_normal;
+connection master;
+SET debug_sync= 'RESET';
+# Exactly one ACK was requested and granted, for the ordinary transaction
+# Group commit led by con_normal, joined by con_skip
+connection master;
+connection con_normal;
+SET debug_sync= 'commit_after_get_LOCK_log SIGNAL leader_ready WAIT_FOR leader_go';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR leader_ready';
+connection con_skip;
+SET debug_sync= 'commit_after_release_LOCK_prepare_ordered SIGNAL follower_queued';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR follower_queued';
+SET debug_sync= 'now SIGNAL leader_go';
+connection con_normal;
+connection con_skip;
+connection master;
+SET debug_sync= 'RESET';
+# Exactly one ACK was requested and granted, for the ordinary transaction
+connection master;
+INSERT INTO t1 VALUES (1);
+# The ordinary transaction which followed was ACKed
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+#
+# Wait point AFTER_SYNC, slave FILTER_ON_MASTER
+#
+connection master;
+SET GLOBAL rpl_semi_sync_master_wait_point= AFTER_SYNC;
+connection slave;
+SET GLOBAL replicate_events_marked_for_skip= FILTER_ON_MASTER;
+include/start_slave.inc
+connection master;
+SET SESSION skip_replication= 1;
+CREATE DATABASE db_skip;
+CREATE TABLE db_skip.t1 (a INT) ENGINE=InnoDB;
+INSERT INTO db_skip.t1 VALUES (1);
+DROP DATABASE db_skip;
+SET SESSION skip_replication= 0;
+# No ACK was requested, granted or missed for the skip_replication changes
+# Group commit led by con_skip, joined by con_normal
+connection master;
+connection con_skip;
+SET debug_sync= 'commit_after_get_LOCK_log SIGNAL leader_ready WAIT_FOR leader_go';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR leader_ready';
+connection con_normal;
+SET debug_sync= 'commit_after_release_LOCK_prepare_ordered SIGNAL follower_queued';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR follower_queued';
+SET debug_sync= 'now SIGNAL leader_go';
+connection con_skip;
+connection con_normal;
+connection master;
+SET debug_sync= 'RESET';
+# Exactly one ACK was requested and granted, for the ordinary transaction
+# Group commit led by con_normal, joined by con_skip
+connection master;
+connection con_normal;
+SET debug_sync= 'commit_after_get_LOCK_log SIGNAL leader_ready WAIT_FOR leader_go';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR leader_ready';
+connection con_skip;
+SET debug_sync= 'commit_after_release_LOCK_prepare_ordered SIGNAL follower_queued';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR follower_queued';
+SET debug_sync= 'now SIGNAL leader_go';
+connection con_normal;
+connection con_skip;
+connection master;
+SET debug_sync= 'RESET';
+# Exactly one ACK was requested and granted, for the ordinary transaction
+connection master;
+INSERT INTO t1 VALUES (1);
+# The ordinary transaction which followed was ACKed
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+#
+# Wait point AFTER_COMMIT, slave REPLICATE
+#
+connection master;
+SET GLOBAL rpl_semi_sync_master_wait_point= AFTER_COMMIT;
+connection slave;
+SET GLOBAL replicate_events_marked_for_skip= REPLICATE;
+include/start_slave.inc
+connection master;
+SET SESSION skip_replication= 1;
+CREATE DATABASE db_skip;
+CREATE TABLE db_skip.t1 (a INT) ENGINE=InnoDB;
+INSERT INTO db_skip.t1 VALUES (1);
+DROP DATABASE db_skip;
+SET SESSION skip_replication= 0;
+# No ACK was requested, granted or missed for the skip_replication changes
+# Group commit led by con_skip, joined by con_normal
+connection master;
+connection con_skip;
+SET debug_sync= 'commit_after_get_LOCK_log SIGNAL leader_ready WAIT_FOR leader_go';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR leader_ready';
+connection con_normal;
+SET debug_sync= 'commit_after_release_LOCK_prepare_ordered SIGNAL follower_queued';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR follower_queued';
+SET debug_sync= 'now SIGNAL leader_go';
+connection con_skip;
+connection con_normal;
+connection master;
+SET debug_sync= 'RESET';
+# Exactly one ACK was requested and granted, for the ordinary transaction
+# Group commit led by con_normal, joined by con_skip
+connection master;
+connection con_normal;
+SET debug_sync= 'commit_after_get_LOCK_log SIGNAL leader_ready WAIT_FOR leader_go';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR leader_ready';
+connection con_skip;
+SET debug_sync= 'commit_after_release_LOCK_prepare_ordered SIGNAL follower_queued';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR follower_queued';
+SET debug_sync= 'now SIGNAL leader_go';
+connection con_normal;
+connection con_skip;
+connection master;
+SET debug_sync= 'RESET';
+# Exactly one ACK was requested and granted, for the ordinary transaction
+connection master;
+INSERT INTO t1 VALUES (1);
+# The ordinary transaction which followed was ACKed
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+#
+# Wait point AFTER_COMMIT, slave FILTER_ON_SLAVE
+#
+connection master;
+SET GLOBAL rpl_semi_sync_master_wait_point= AFTER_COMMIT;
+connection slave;
+SET GLOBAL replicate_events_marked_for_skip= FILTER_ON_SLAVE;
+include/start_slave.inc
+connection master;
+SET SESSION skip_replication= 1;
+CREATE DATABASE db_skip;
+CREATE TABLE db_skip.t1 (a INT) ENGINE=InnoDB;
+INSERT INTO db_skip.t1 VALUES (1);
+DROP DATABASE db_skip;
+SET SESSION skip_replication= 0;
+# No ACK was requested, granted or missed for the skip_replication changes
+# Group commit led by con_skip, joined by con_normal
+connection master;
+connection con_skip;
+SET debug_sync= 'commit_after_get_LOCK_log SIGNAL leader_ready WAIT_FOR leader_go';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR leader_ready';
+connection con_normal;
+SET debug_sync= 'commit_after_release_LOCK_prepare_ordered SIGNAL follower_queued';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR follower_queued';
+SET debug_sync= 'now SIGNAL leader_go';
+connection con_skip;
+connection con_normal;
+connection master;
+SET debug_sync= 'RESET';
+# Exactly one ACK was requested and granted, for the ordinary transaction
+# Group commit led by con_normal, joined by con_skip
+connection master;
+connection con_normal;
+SET debug_sync= 'commit_after_get_LOCK_log SIGNAL leader_ready WAIT_FOR leader_go';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR leader_ready';
+connection con_skip;
+SET debug_sync= 'commit_after_release_LOCK_prepare_ordered SIGNAL follower_queued';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR follower_queued';
+SET debug_sync= 'now SIGNAL leader_go';
+connection con_normal;
+connection con_skip;
+connection master;
+SET debug_sync= 'RESET';
+# Exactly one ACK was requested and granted, for the ordinary transaction
+connection master;
+INSERT INTO t1 VALUES (1);
+# The ordinary transaction which followed was ACKed
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+#
+# Wait point AFTER_COMMIT, slave FILTER_ON_MASTER
+#
+connection master;
+SET GLOBAL rpl_semi_sync_master_wait_point= AFTER_COMMIT;
+connection slave;
+SET GLOBAL replicate_events_marked_for_skip= FILTER_ON_MASTER;
+include/start_slave.inc
+connection master;
+SET SESSION skip_replication= 1;
+CREATE DATABASE db_skip;
+CREATE TABLE db_skip.t1 (a INT) ENGINE=InnoDB;
+INSERT INTO db_skip.t1 VALUES (1);
+DROP DATABASE db_skip;
+SET SESSION skip_replication= 0;
+# No ACK was requested, granted or missed for the skip_replication changes
+# Group commit led by con_skip, joined by con_normal
+connection master;
+connection con_skip;
+SET debug_sync= 'commit_after_get_LOCK_log SIGNAL leader_ready WAIT_FOR leader_go';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR leader_ready';
+connection con_normal;
+SET debug_sync= 'commit_after_release_LOCK_prepare_ordered SIGNAL follower_queued';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR follower_queued';
+SET debug_sync= 'now SIGNAL leader_go';
+connection con_skip;
+connection con_normal;
+connection master;
+SET debug_sync= 'RESET';
+# Exactly one ACK was requested and granted, for the ordinary transaction
+# Group commit led by con_normal, joined by con_skip
+connection master;
+connection con_normal;
+SET debug_sync= 'commit_after_get_LOCK_log SIGNAL leader_ready WAIT_FOR leader_go';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR leader_ready';
+connection con_skip;
+SET debug_sync= 'commit_after_release_LOCK_prepare_ordered SIGNAL follower_queued';
+INSERT INTO t1 VALUES (2);
+connection master;
+SET debug_sync= 'now WAIT_FOR follower_queued';
+SET debug_sync= 'now SIGNAL leader_go';
+connection con_normal;
+connection con_skip;
+connection master;
+SET debug_sync= 'RESET';
+# Exactly one ACK was requested and granted, for the ordinary transaction
+connection master;
+INSERT INTO t1 VALUES (1);
+# The ordinary transaction which followed was ACKed
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+#
+# Cleanup
+#
+disconnect con_skip;
+disconnect con_normal;
+connection master;
+SET GLOBAL rpl_semi_sync_master_wait_point= @old_wait_point;
+SET GLOBAL rpl_semi_sync_master_enabled= @old_master_enabled;
+SET GLOBAL rpl_semi_sync_master_timeout= @old_master_timeout;
+DROP TABLE t1;
+connection slave;
+SET GLOBAL rpl_semi_sync_slave_enabled= @old_slave_enabled;
+SET GLOBAL replicate_events_marked_for_skip= @old_skip;
+include/start_slave.inc
+include/rpl_end.inc

@@ -945,11 +945,12 @@ Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
   DBUG_RETURN(0);
 }
 
-int Repl_semi_sync_master::wait_after_sync(const char *log_file,
+int Repl_semi_sync_master::wait_after_sync(THD *trans_thd,
+                                           const char *log_file,
                                            my_off_t log_pos,
                                            const rpl_gtid *gtid)
 {
-  if (!get_master_enabled())
+  if (!get_master_enabled() || skips_ack(trans_thd))
     return 0;
 
   int ret= 0;
@@ -1013,6 +1014,21 @@ int Repl_semi_sync_master::report_binlog_update(THD *trans_thd,
   {
     Trans_binlog_info *log_info;
     const char *file_name_without_dir= log_file + dirname_length(log_file);
+
+    if (skips_ack(trans_thd))
+    {
+      /*
+        Not registered for an ACK, so wait_after_commit() must not wait for
+        one either. It takes the position to wait for from semisync_info,
+        which may still hold that of an earlier transaction, so clear it.
+      */
+      if ((log_info= trans_thd->semisync_info))
+      {
+        log_info->log_file[0]= 0;
+        log_info->log_pos= 0;
+      }
+      return 0;
+    }
 
     if (!(log_info= trans_thd->semisync_info))
     {
