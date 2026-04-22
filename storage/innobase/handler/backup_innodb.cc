@@ -432,7 +432,7 @@ public:
         std::string src{target};
         src.push_back('/');
         std::string dst{src};
-        src.push_back("ib_logfile101");
+        src.append("ib_logfile101");
         log_sys.append_archive_name(dst, first_lsn);
         const char *s= src.c_str(), *d= dst.c_str();
 
@@ -457,7 +457,7 @@ public:
           goto done;
         }
 # ifdef __APPLE__
-        fail= clonefileat(s, target, dst.c_str(), 0);
+        fail= clonefileat(s, target, s, dst.c_str(), 0);
         if (!fail)
           goto done;
         if (errno != ENOTSUP)
@@ -649,7 +649,7 @@ private:
     const bool closed{clone && log_sys.close_file_if_at(lsn)};
     std::string b{target};
     if (clone)
-      b.push_back("/ib_logfile101");
+      b.append("/ib_logfile101");
     else
     {
       b.push_back('/');
