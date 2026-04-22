@@ -9171,10 +9171,10 @@ void Field_blob::sort_string(uchar *to,uint length)
 #ifdef DBUG_ASSERT_EXISTS
     size_t rc=
 #endif
-    field_charset()->strnxfrm(to, length, length,
-                              (const uchar *) buf.ptr(), buf.length(),
-                              MY_STRXFRM_PAD_WITH_SPACE |
-                              MY_STRXFRM_PAD_TO_MAXLEN);
+        field_charset()->strnxfrm(to, length, length / mbmaxlen(),
+                                  (const uchar *) buf.ptr(), buf.length(),
+                                  MY_STRXFRM_PAD_WITH_SPACE |
+                                      MY_STRXFRM_PAD_TO_MAXLEN);
     DBUG_ASSERT(rc == length);
   }
 }
