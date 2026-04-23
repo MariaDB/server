@@ -8664,6 +8664,78 @@ cleanup:
   DBUG_VOID_RETURN;
 }
 
+
+/*
+  Run an EXPLAIN query directly on the replay server (no context replay),
+  appending its output (headings + rows + warnings) to ds.
+
+  This is the fallback used when the test server produced an empty
+  optimizer_context for an EXPLAIN query.
+*/
+static void run_explain_directly_on_replay(const char *query, size_t query_len,
+                                           DYNAMIC_STRING *ds)
+{
+  DBUG_ENTER("run_explain_directly_on_replay");
+
+  if (ensure_replay_server_connection() != 0)
+  {
+    fprintf(stdout, "ReplayTest: Failed to connect to replay server\n");
+    DBUG_VOID_RETURN;
+  }
+
+  if (mysql_real_query(replay_server_mysql, query, (ulong)query_len))
+  {
+    fprintf(stdout,
+            "ReplayTest: Direct EXPLAIN failed on replay server: %d %s\n",
+            mysql_errno(replay_server_mysql),
+            mysql_error(replay_server_mysql));
+    fprintf(stdout, "ReplayTest: Failed query was: %.*s\n",
+            (int)query_len, query);
+    DBUG_VOID_RETURN;
+  }
+
+  do
+  {
+    MYSQL_RES *res= mysql_store_result(replay_server_mysql);
+    if (res)
+    {
+      MYSQL_FIELD *fields= mysql_fetch_fields(res);
+      uint num_fields= mysql_num_fields(res);
+      MYSQL_ROW row;
+
+      if (!display_result_vertically)
+        append_table_headings(ds, fields, num_fields);
+
+      while ((row= mysql_fetch_row(res)))
+      {
+        uint i;
+        ulong *lengths= mysql_fetch_lengths(res);
+        for (i= 0; i < num_fields; i++)
+          append_field(ds, i, &fields[i], row[i], lengths[i], !row[i]);
+        if (!display_result_vertically)
+          dynstr_append_mem(ds, "\n", 1);
+      }
+      mysql_free_result(res);
+    }
+  } while (mysql_next_result(replay_server_mysql) == 0);
+
+  /* Append warnings from the EXPLAIN query */
+  if (!disable_warnings)
+  {
+    DYNAMIC_STRING ds_warn;
+    init_dynamic_string(&ds_warn, "", 256, 256);
+    if (append_warnings(&ds_warn, replay_server_mysql) || ds_warn.length)
+    {
+      dynstr_append_mem(ds, "Warnings:\n", 10);
+      dynstr_append_mem(ds, ds_warn.str, ds_warn.length);
+    }
+    dynstr_free(&ds_warn);
+  }
+
+  DBUG_VOID_RETURN;
+}
+
+
 /*
   Run query using MySQL C API
 
@@ -8727,7 +8799,11 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
   {
     replay_mode_active= TRUE;
     verbose_msg("ReplayTest: Detected EXPLAIN FORMAT=JSON query, activating replay mode");
-    
+
+    /* Clear any previously-recorded context left over from an earlier query
+       (e.g. a prior EXPLAIN whose context must not leak into this one). */
+    (void) mysql_real_query(mysql, "SET optimizer_record_context=0", 30);
+
     /* Step 1: Set optimizer_record_context=1 */
     if (mysql_real_query(mysql, "SET optimizer_record_context=1", 30))
     {
@@ -8820,13 +8896,15 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 	  else
 	  {
 	    MYSQL_RES *context_res= mysql_store_result(mysql);
+	    my_bool have_context= FALSE;
 	    if (context_res && mysql_num_rows(context_res) > 0)
 	    {
 	      MYSQL_ROW context_row= mysql_fetch_row(context_res);
 	      if (context_row && context_row[0])
 	      {
 	        const char *sql_script= context_row[0];
-	        
+	        have_context= TRUE;
+
 	        /* Step 3: Connect to replay server and execute queries */
 	        if (ensure_replay_server_connection() == 0)
 	        {
@@ -8837,18 +8915,22 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 	          fprintf(stdout, "ReplayTest: Failed to connect to replay server\n");
 	        }
 	      }
-	      else
-	      {
-	        fprintf(stdout, "ReplayTest: optimizer_context returned NULL\n");
-	      }
+	    }
+	    if (context_res)
 	      mysql_free_result(context_res);
-	    }
-	    else
+
+	    if (!have_context)
 	    {
-	      fprintf(stdout, "ReplayTest: optimizer_context returned no rows\n");
-	      if (context_res)
-	        mysql_free_result(context_res);
+	      /* Empty context: fall back to running the EXPLAIN directly on the
+	         replay server. */
+	      verbose_msg("ReplayTest: empty optimizer_context, running EXPLAIN "
+	                  "directly on replay server");
+	      run_explain_directly_on_replay(query, query_len, ds);
 	    }
+
+	    /* Clear the test server's recorded context so it doesn't leak into
+	       the next EXPLAIN. */
+	    (void) mysql_real_query(mysql, "SET optimizer_record_context=0", 30);
 	  }
 	  
 	  replay_mode_active= FALSE;

@@ -3160,8 +3160,8 @@ sub _ping_replay_server {
          "--user=root",
          "--connect-timeout=3",
          "-N", "-B",
-         "-e", $sql);
-    POSIX::_exit(127);
+         "-e", $sql)
+      or POSIX::_exit(127);
   }
 
   # Parent: wait up to 5 seconds.

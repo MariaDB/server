@@ -60,4 +60,6 @@ SELECT * FROM t1 WHERE a < 22;
 explain
 SELECT * FROM t1 WHERE b < 22;
 
+explain extended select LENGTH(CONCAT('aa','bbb'));
+
 DROP TABLE t1;
