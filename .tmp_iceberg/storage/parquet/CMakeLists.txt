@@ -1,0 +1,5 @@
+MYSQL_ADD_PLUGIN(parquet
+  ha_parquet.cc
+  STORAGE_ENGINE
+  MANDATORY
+)

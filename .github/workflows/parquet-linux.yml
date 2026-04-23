@@ -1,0 +1,63 @@
+name: Parquet Linux build
+
+on:
+  push:
+    paths:
+      - 'storage/parquet/**'
+      - 'storage/duckdb/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+  pull_request:
+    paths:
+      - 'storage/parquet/**'
+      - 'storage/duckdb/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+
+jobs:
+  build-and-smoke:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            bison \
+            cmake \
+            flex \
+            libaio-dev \
+            libcurl4-openssl-dev \
+            libncurses5-dev \
+            libpcre2-dev \
+            libperl-dev \
+            libsnappy-dev \
+            libssl-dev \
+            libsystemd-dev \
+            ninja-build \
+            perl \
+            pkg-config \
+            zlib1g-dev
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DWITH_UNIT_TESTS=OFF
+
+      - name: Build
+        run: |
+          cmake --build build --target mariadbd --parallel 4
+
+      - name: Parquet Linux smoke test
+        run: |
+          perl build/mysql-test/mysql-test-run.pl --suite=parquet linux_engine_smoke
