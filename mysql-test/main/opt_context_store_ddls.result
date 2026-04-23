@@ -14,10 +14,9 @@ create table t2 (a int);
 insert into t2 values (1),(2);
 create view view1 as (select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a);
 #
-# disable both optimizer_trace and optimizer_record_context
-# there should be no trace
+# disable optimizer_record_context
+# there should be no context
 #
-set optimizer_trace=0;
 set optimizer_record_context=OFF;
 select * from t1 where t1.a = 3;
 a	b
@@ -38,7 +37,7 @@ select @ddls;
 @ddls
 NULL
 #
-# disable optimizer_trace, but enable optimizer_record_context
+# enable optimizer_record_context
 # The context will be recorded.
 #
 set optimizer_record_context=ON;
@@ -67,10 +66,9 @@ CREATE TABLE `t1` (
 
 
 #
-# enable optimizer_trace, but disable optimizer_record_context
-# trace result should be empty
+# disable again optimizer_record_context
+# context result should be empty
 #
-set optimizer_trace=1;
 set optimizer_record_context=OFF;
 select * from t1 where t1.a = 3;
 a	b
@@ -91,10 +89,9 @@ select @ddls;
 @ddls
 NULL
 #
-# enable both optimizer_trace and optimizer_record_context
-# trace result should have 1 ddl statement for table t1
+# enable optimizer_record_context
+# context result should have 1 ddl statement for table t1
 #
-set optimizer_trace=1;
 set optimizer_record_context=ON;
 select * from t1 where t1.a = 3;
 a	b
@@ -121,9 +118,8 @@ CREATE TABLE `t1` (
 
 
 #
-# enable both optimizer_trace and optimizer_record_context
 # test for view
-# trace result should have 3 ddl statements
+# context result should have 3 ddl statements
 #
 set optimizer_record_context=ON;
 select * from view1 where view1.a = 3;
@@ -158,9 +154,8 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 
 
 #
-# enable both optimizer_trace and optimizer_record_context
 # test for temp table
-# trace result should have 1 ddl statement for table t1
+# context result should have 1 ddl statement for table t1
 #
 create temporary table temp1(col1 int);
 insert into temp1 select * from t2;
@@ -256,7 +251,7 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 
 #
 # test for insert
-# there should be no trace for insert with values
+# there should be no context for insert with values
 #
 insert into t1 values ((select max(t2.a) from t2), (select min(t2.a) from t2));
 set @opt_context=
@@ -277,7 +272,7 @@ select @ddls;
 NULL
 #
 # test for delete
-# trace result should have 1 ddl statement for table t1
+# context result should have 1 ddl statement for table t1
 #
 delete from t1 where t1.a=3;
 set @opt_context=
@@ -304,7 +299,7 @@ CREATE TABLE `t1` (
 
 #
 # test for update
-# trace result should have 1 ddl statement for table t1
+# context result should have 1 ddl statement for table t1
 #
 update t1 set t1.b = t1.a;
 set @opt_context=
@@ -331,7 +326,7 @@ CREATE TABLE `t1` (
 
 #
 # test for insert as select
-# trace result should have 2 ddl statements for tables t1, t2
+# context result should have 2 ddl statements for tables t1, t2
 #
 insert into t1 (select t2.a as a, t2.a as b from t2);
 set @opt_context=
@@ -368,7 +363,7 @@ insert into t1 values (1),(2),(3);
 #
 # use database db1
 # test to select 2 tables with same name from 2 databases
-# trace result should have 2 ddl statements for tables db1.t1, db2.t1
+# context result should have 2 ddl statements for tables db1.t1, db2.t1
 #
 use db1;
 select db1_t1.b
@@ -405,7 +400,7 @@ CREATE TABLE `t1` (
 #
 # use database db2
 # test to select 2 tables with same name but from 2 databases
-# trace result should have 2 ddl statements for tables db1.t1, db2.t1
+# context result should have 2 ddl statements for tables db1.t1, db2.t1
 #
 use db2;
 select db1_t1.b
@@ -445,7 +440,7 @@ CREATE TABLE `db1`.`t1` (
 # use database db2
 # test to select from 2 tables from 2 different databases,
 # of which one is a mysql table, and other is a db1 table
-# trace result should have only 1 ddl
+# context result should have only 1 ddl
 #
 select t1.b
 FROM db1.t1 AS t1, mysql.db AS t2
@@ -524,7 +519,7 @@ drop table t1;
 drop table t2;
 #
 # query failure test
-# trace should not contain the failed query result
+# context should not contain the failed query result
 # no table definitions for t10, and t11 should be present
 #
 create table t10 (a int, b int);
@@ -553,7 +548,7 @@ drop table t10;
 drop table t11;
 #
 # partitioned table test
-# trace result should have 1 ddl
+# context result should have 1 ddl
 #
 create table t1 (
 pk int primary key,
@@ -602,7 +597,7 @@ drop table t1;
 #
 # test with insert delayed
 # test shouldn't fail
-# Also, trace result shouldn't have any ddls
+# Also, context result shouldn't have any ddls
 #
 CREATE TABLE t1 (
 a int(11) DEFAULT 1,
@@ -634,7 +629,7 @@ NULL
 drop table t1;
 #
 # test primary, and foreign key tables
-# trace result should have the ddls in correct order
+# context result should have the ddls in correct order
 #
 CREATE TABLE t1 (
 id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -686,7 +681,7 @@ drop table t1;
 drop table t2;
 #
 # MDEV-37207: test multi delete of 2 tables
-# trace result should have the ddls for both the tables
+# context result should have the ddls for both the tables
 #
 create table t1(id1 int not null auto_increment primary key);
 create table t2(id2 int not null);
@@ -721,7 +716,7 @@ CREATE TABLE `t1` (
 
 
 # rerun the same delete query
-# Now, trace result should have the ddls for all 2 tables,
+# Now, context result should have the ddls for all 2 tables,
 # even though no data is deleted
 delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
 set @opt_context=

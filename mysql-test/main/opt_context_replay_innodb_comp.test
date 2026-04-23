@@ -4,4 +4,4 @@
 --source include/opt_context_schema.inc
 
 set session use_stat_tables='COMPLEMENTARY';
---source include/opt_ctx_replay_innodb.inc
+--source include/opt_context_replay_innodb.inc
