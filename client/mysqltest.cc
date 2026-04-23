@@ -8517,6 +8517,13 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
                   mysql_error(replay_server_mysql));
           fprintf(stdout, "ReplayTest: Failed query was: %.*s\n", (int)query_len, query_start);
           print_replay_test_location(stdout);
+          
+          /* If this was an EXPLAIN query, add failure marker to result output */
+          if (is_explain)
+          {
+            dynstr_append_mem(&result, "*** REPLAY FAILED ***\n", 22);
+          }
+          
           goto cleanup;
         }
         
