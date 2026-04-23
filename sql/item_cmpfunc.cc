@@ -5736,6 +5736,49 @@ bool Item_cond::excl_dep_on_grouping_fields(st_select_lex *sel)
   return true;
 }
 
+Item *Item_cond::simplify_cond(THD *thd)
+{
+  List_iterator<Item> li(list);
+  Item *child;
+
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, NULL))
+    return this;
+
+  while ((child= li++))
+  {
+    if (child->type() == Item::COND_ITEM)
+    {
+      Item *new_child= static_cast<Item_cond *>(child)->simplify_cond(thd);
+      if (new_child != child)
+        li.replace(new_child);
+    }
+  }
+  bool is_and= functype() == Item_func::COND_AND_FUNC;
+  bool is_or= functype() == Item_func::COND_OR_FUNC;
+  if (is_and || is_or)
+  {
+    List_iterator<Item> li2(list);
+    while ((child= li2++))
+    {
+      Item *real= child->real_item();
+      if (real->is_bool_literal())
+      {
+        bool v= real->val_bool();
+        if (is_and && v)
+          li2.remove();
+        if (is_and && !v)
+          return new (thd->mem_root) Item_bool(thd, false);
+        if (is_or && v)
+          return new (thd->mem_root) Item_bool(thd, true);
+        if (is_or && !v)
+          li2.remove();
+      }
+    }
+    if (list.is_empty())
+      return new (thd->mem_root) Item_bool(thd, is_and);
+  }
+  return this;
+}
 
 void Item_cond_and::mark_as_condition_AND_part(TABLE_LIST *embedding)
 {

@@ -8213,7 +8213,23 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   {
     if (make_pre_fix)
       pre_fix->push_back(item, thd->active_stmt_arena_to_use()->mem_root);
-
+    /*
+      If item is a SELECT-list COND_ITEM, rewrite it on the first time this
+      query is optimized to fold boolean expressions
+    */
+    if (thd->lex->current_select->context_analysis_place == SELECT_LIST &&
+        item->type() == Item::COND_ITEM &&
+        thd->lex->current_select->first_cond_optimization)
+    {
+      Query_arena_stmt on_stmt_arena(thd);
+      Item *new_item= static_cast<Item_cond *>(item)->simplify_cond(thd);
+      if (new_item != item)
+      {
+        new_item->share_name_with(item);
+        it.replace(new_item);
+        item= new_item;
+      }
+    }
     if (item->fix_fields_if_needed_for_scalar(thd, it.ref()))
     {
       lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
