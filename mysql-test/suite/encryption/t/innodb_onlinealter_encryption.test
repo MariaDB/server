@@ -1,4 +1,5 @@
 -- source include/have_innodb.inc
+-- source include/skip_innodb_log_archive.inc # innodb_encrypt_log
 -- source include/have_file_key_management_plugin.inc
 # test uses restart
 -- source include/not_embedded.inc

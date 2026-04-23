@@ -73,7 +73,7 @@ SELECT * FROM t1 WHERE MATCH(b,c) AGAINST ('column');
 SHOW CREATE TABLE t1;
 CHECK TABLE t1;
 
---let $restart_parameters= --innodb-read-only
+--let $restart_parameters= --innodb-read-only --innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 --replace_regex /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
 
