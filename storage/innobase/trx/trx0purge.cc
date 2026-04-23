@@ -42,6 +42,7 @@ Created 3/26/1996 Heikki Tuuri
 #include <mysql/service_thd_mdl.h>
 #include <mysql/service_wsrep.h>
 #include "log.h"
+#include "table.h"
 
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
                         const char *tb, size_t tblen,
@@ -1064,48 +1065,58 @@ inline MDL_ticket *purge_table::get_ticket() const noexcept
   return ticket;
 }
 
-inline void purge_table::set_mariadb_table(TABLE *t) noexcept
+inline void purge_sys_t::reset_in_use(TABLE *table) const noexcept
 {
-  mariadb_table= reinterpret_cast<uintptr_t>(t) | 1;
+  if (table)
+    table->in_use= coordinator_thd;
 }
 
-inline void purge_table::set_ticket(MDL_ticket *t) noexcept
+/** Close a single purge table entry.
+Clears the cached TABLE* pointer from vc_templ, closes the
+dict_table_t, and collects the MDL_ticket forlater release.
+@param pt           purge_table entry to close
+@param mdl_tickets  vector to collect standalone MDL tickets */
+static void trx_purge_close_table(purge_table &pt,
+                                  std::vector<MDL_ticket *> &mdl_tickets)
 {
-  ticket= t;
+  if (pt.table && !pt.must_wait())
+  {
+    if (TABLE *maria_table= pt.get_maria_table())
+      purge_sys.reset_in_use(maria_table);
+    dict_table_close(pt.table);
+    pt.table= nullptr;
+  }
+
+  MDL_ticket *ticket= pt.get_ticket();
+  if (ticket)
+  {
+    mdl_tickets.push_back(ticket);
+    pt.set_ticket(nullptr);
+  }
 }
 
 /** Close all tables that were opened in a purge batch for a worker.
 @param thd           purge coordinator thread handle
+@param last_entry    additional table to close (not in node->tables),
+                     typically the table that triggered
+                     close_and_reopen(); nullptr if no additional
+                     table to close
 @param batch_cleanup if true, clears the list of opened tables
                      in the purge node. */
-static void trx_purge_close_tables(THD *thd, bool batch_cleanup=false) noexcept
+static void trx_purge_close_tables(THD *thd, purge_table *last_entry,
+                                   bool batch_cleanup=false) noexcept
 {
   MDL_context *mdl_context = static_cast<MDL_context*>(thd_mdl_context(thd));
   std::vector<MDL_ticket *> mdl_tickets;
+  if (last_entry)
+    trx_purge_close_table(*last_entry, mdl_tickets);
+
   for (que_thr_t *thr= UT_LIST_GET_FIRST(purge_sys.query->thrs); thr;
        thr= UT_LIST_GET_NEXT(thrs, thr))
   {
     purge_node_t* node = static_cast<purge_node_t*>(thr->child);
     for (auto &t : node->tables)
-    {
-      purge_table& pt = t.second;
-      if (pt.table && !pt.must_wait())
-      {
-        if (pt.get_maria_table())
-        {
-          pt.table->lock_mutex_lock();
-          pt.table->vc_templ->mysql_table= nullptr;
-          pt.table->vc_templ->mysql_table_query_id= 0;
-          pt.table->lock_mutex_unlock();
-	}
-
-	dict_table_close(pt.table);
-	pt.table= nullptr;
-        MDL_ticket *ticket= t.second.get_ticket();
-        if (ticket)
-          mdl_tickets.push_back(ticket);
-      }
-    }
+      trx_purge_close_table(t.second, mdl_tickets);
     if (batch_cleanup)
       node->tables.clear();
   }
@@ -1235,6 +1246,21 @@ static purge_table trx_purge_table_open(table_id_t table_id,
         result.set_mariadb_table(maria_table);
         return result;
       }
+      else
+      {
+        /* open_table() could be failed and return nullptr.
+        This can happen when:
+        1. FLUSH TABLES is executed concurrently: TABLE_SHARE is
+        marked as flushed and open_table() requests
+        OT_REOPEN_TABLES backoff
+        2. BACKUP STAGE operations trigger table cache flushes
+        3. Table is being rebuilt by ALTER TABLE and the old version
+        needs to be closed before opening the new version
+        The purge coordinator should close all open tables and retry
+        opening. */
+        dict_table_close(result.table);
+        result.table= reinterpret_cast<dict_table_t*>(-1);
+      }
     }
   }
   result.set_ticket(mdl);
@@ -1242,19 +1268,21 @@ static purge_table trx_purge_table_open(table_id_t table_id,
 }
 
 ATTRIBUTE_COLD
-purge_table purge_sys_t::close_and_reopen(table_id_t id, THD *thd) noexcept
+purge_table purge_sys_t::close_and_reopen(table_id_t id,
+                                          purge_table pt,
+                                          THD *thd) noexcept
 {
   MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
   ut_ad(mdl_context);
 retry:
   ut_ad(m_active);
-  trx_purge_close_tables(thd);
+  trx_purge_close_tables(thd, &pt);
 
   m_active= false;
   wait_FTS(false);
   m_active= true;
 
-  purge_table pt= trx_purge_table_open(id, mdl_context);
+  pt= trx_purge_table_open(id, mdl_context);
   if (pt.must_wait())
     goto retry;
 
@@ -1263,21 +1291,16 @@ retry:
        thr= UT_LIST_GET_NEXT(thrs, thr))
   {
     purge_node_t *node= static_cast<purge_node_t*>(thr->child);
-    for (auto it = node->tables.begin(); it != node->tables.end(); )
+    for (auto &t : node->tables)
     {
-      it->second= trx_purge_table_open(it->first, mdl_context);
-      if (it->second.must_wait())
-      {
-        if (pt.table)
-	  dict_table_close(pt.table, false, thd, pt.get_ticket());
+      t.second= trx_purge_table_open(t.first, mdl_context);
+      if (t.second.must_wait())
         goto retry;
-      }
 #ifndef DBUG_OFF
-      if (MDL_ticket *mdl= it->second.get_ticket())
+      if (MDL_ticket *mdl= t.second.get_ticket())
         static_cast<MDL_context*>(thd_mdl_context(thd))->lock_warrant=
           mdl->get_ctx();
 #endif
-      ++it;
     }
   }
   return pt;
@@ -1331,12 +1354,20 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
     table_id_t table_id= trx_undo_rec_get_table_id(purge_rec.undo_rec);
     purge_node_t *&table_node= table_id_map[table_id];
     if (table_node)
+    {
       ut_ad(!table_node->in_progress);
-    if (!table_node)
+      if (table_node->tables[table_id].table)
+      {
+enqueue:
+        table_node->undo_recs.push(purge_rec);
+        ut_ad(!table_node->in_progress);
+      }
+    }
+    else
     {
       purge_table pt= trx_purge_table_open(table_id, mdl_context);
       if (pt.must_wait())
-        pt= purge_sys.close_and_reopen(table_id, thd);
+        pt= purge_sys.close_and_reopen(table_id, pt, thd);
 
       if (!thr || !(thr= UT_LIST_GET_NEXT(thrs, thr)))
         thr= UT_LIST_GET_FIRST(purge_sys.query->thrs);
@@ -1354,12 +1385,6 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
 #endif
         goto enqueue;
       }
-    }
-    else if (table_node->tables[table_id].table)
-    {
-    enqueue:
-      table_node->undo_recs.push(purge_rec);
-      ut_ad(!table_node->in_progress);
     }
 
     if (purge_sys.n_pages_handled() >= max_pages)
@@ -1442,12 +1467,6 @@ void purge_sys_t::batch_cleanup(const purge_sys_t::iterator &head)
   coordinator_thd= nullptr;
 }
 
-
-inline void purge_sys_t::set_coordinator_thd(THD *thd) noexcept
-{
-  coordinator_thd= thd;
-}
-
 /**
 Run a purge batch.
 @param n_tasks       number of purge tasks to submit to the queue
@@ -1525,7 +1544,7 @@ TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, ulint history_size)
     if (workers)
       trx_purge_wait_for_workers_to_complete();
 
-    trx_purge_close_tables(thd, true);
+    trx_purge_close_tables(thd, nullptr, true);
   }
 
   purge_sys.batch_cleanup(head);

@@ -5042,11 +5042,9 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 
   bool error= open_table(thd, tl, &ot_ctx);
 
-  /* we don't recover here */
-  DBUG_ASSERT(!error || !ot_ctx.can_recover_from_failed_open());
-
-  if (unlikely(error))
-    close_thread_tables(thd);
+  /* FLUSH TABLES is executed concurrently - the TABLE_SHARE is marked
+  as flushed and open_table() requests OT_REOPEN_TABLES backoff.
+  So removed the assert */
 
   DBUG_RETURN(error ? NULL : tl->table);
 }
