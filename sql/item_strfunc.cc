@@ -4574,6 +4574,74 @@ longlong Item_func_crc32::val_int()
     (ulonglong{crc_func(uint32_t(crc), res->ptr(), res->length())});
 }
 
+static bool is_xxh_string_type(const Type_handler *handler)
+{
+  return dynamic_cast<const Type_handler_longstr *>(handler) != nullptr;
+}
+
+
+static bool xxh_illegal_param(const Type_handler *handler,
+                              const LEX_CSTRING &func_name)
+{
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), func_name.str);
+  return true;
+}
+
+
+static bool check_xxh_arg_type(Item *arg, const LEX_CSTRING &func_name)
+{
+  const Type_handler *handler= arg->type_handler();
+  if (handler == &type_handler_null || is_xxh_string_type(handler))
+    return false;
+
+  return xxh_illegal_param(handler, func_name);
+}
+
+
+static longlong hash_xxh_string_arg(my_hasher_st hasher_arg, Item *arg,
+                                    String *value, bool *null_value)
+{
+  Hasher hasher(hasher_arg);
+  String *input= arg->val_str(value);
+  if (!input)
+  {
+    *null_value= true;
+    return 0;
+  }
+
+  hasher.add(input->charset(), input->ptr(), input->length());
+  *null_value= false;
+  return static_cast<longlong>(hasher.finalize());
+}
+
+
+bool Item_func_xxh32::check_arguments() const
+{
+  return check_xxh_arg_type(args[0], func_name_cstring());
+}
+
+longlong Item_func_xxh32::val_int()
+{
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(arg_count == 1);
+
+  return hash_xxh_string_arg(my_hasher_xxh32(), args[0], &value, &null_value);
+}
+
+bool Item_func_xxh3::check_arguments() const
+{
+  return check_xxh_arg_type(args[0], func_name_cstring());
+}
+
+longlong Item_func_xxh3::val_int()
+{
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(arg_count == 1);
+
+  return hash_xxh_string_arg(my_hasher_xxh3(), args[0], &value, &null_value);
+}
+
 #ifdef HAVE_COMPRESS
 #include "zlib.h"
 

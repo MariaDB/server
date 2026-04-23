@@ -1,0 +1,68 @@
+## XXH32: sql function modulo distribution agrees with KEY partitioning
+CREATE OR REPLACE TABLE t1 (c1 VARCHAR(10))
+PARTITION BY KEY ALGORITHM=XXH32 (c1) PARTITIONS 7;
+INSERT INTO t1
+SELECT CAST(seq AS CHAR) FROM seq_735000_to_736000;
+SELECT partition_name, table_rows
+FROM information_schema.partitions
+WHERE table_schema=DATABASE() AND table_name='t1'
+ORDER BY partition_name;
+partition_name	table_rows
+p0	131
+p1	150
+p2	125
+p3	155
+p4	161
+p5	145
+p6	134
+CREATE OR REPLACE TABLE t2 (part_id INT, part_rows INT);
+INSERT INTO t2
+SELECT MOD(XXH32(c1), 7) AS part_id, COUNT(*)
+FROM t1
+GROUP BY part_id;
+SELECT CONCAT('p', part_id) AS partition_name, part_rows
+FROM t2
+ORDER BY partition_name;
+partition_name	part_rows
+p0	131
+p1	150
+p2	125
+p3	155
+p4	161
+p5	145
+p6	134
+DROP TABLE t1, t2;
+## XXH3: sql function modulo distribution agrees with KEY partitioning
+CREATE OR REPLACE TABLE t1 (c1 VARCHAR(10))
+PARTITION BY KEY ALGORITHM=XXH3 (c1) PARTITIONS 7;
+INSERT INTO t1
+SELECT CAST(seq AS CHAR) FROM seq_735000_to_736000;
+SELECT partition_name, table_rows
+FROM information_schema.partitions
+WHERE table_schema=DATABASE() AND table_name='t1'
+ORDER BY partition_name;
+partition_name	table_rows
+p0	146
+p1	136
+p2	155
+p3	146
+p4	148
+p5	138
+p6	132
+CREATE OR REPLACE TABLE t2 (part_id INT, part_rows INT);
+INSERT INTO t2
+SELECT MOD(XXH3(c1), 7) AS part_id, COUNT(*)
+FROM t1
+GROUP BY part_id;
+SELECT CONCAT('p', part_id) AS partition_name, part_rows
+FROM t2
+ORDER BY partition_name;
+partition_name	part_rows
+p0	146
+p1	136
+p2	155
+p3	146
+p4	148
+p5	138
+p6	132
+DROP TABLE t1, t2;
