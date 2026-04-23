@@ -104,8 +104,8 @@ static MYSQL_THDVAR_UINT(default_m, PLUGIN_VAR_RQCMDARG,
        "and higher memory consumption but more accurate results",
        nullptr, nullptr, 6, 3, 200, 1);
 
-enum metric_type : uint { EUCLIDEAN, COSINE };
-static const char *distance_names[]= { "euclidean", "cosine", nullptr };
+enum metric_type : uint { EUCLIDEAN, COSINE, MANHATTAN };
+static const char *distance_names[]= { "euclidean", "cosine", "manhattan", nullptr };
 static TYPELIB distances= CREATE_TYPELIB_FOR(distance_names);
 static MYSQL_THDVAR_ENUM(default_distance, PLUGIN_VAR_RQCMDARG,
        "Distance function to build the vector index for",
@@ -199,6 +199,40 @@ struct FVector
   void fix_tail(size_t vec_len)
   {
     bzero(dims + vec_len, (MY_ALIGN(vec_len, AVX2_dims) - vec_len)*2);
+  }
+
+  AVX2_IMPLEMENTATION
+  float distance_manhattan(const FVector *other, size_t vec_len) const
+  {
+    float sum= 0.0f;
+    __m256i abs_mask      = _mm256_set1_epi32(0x7FFFFFFF);
+    __m256 abs_mask_ps    = _mm256_castsi256_ps(abs_mask);
+    __m256 scale_ps       = _mm256_set1_ps(scale);
+    __m256 other_scale_ps = _mm256_set1_ps(other->scale);
+    __m256 final_res      = _mm256_setzero_ps();
+    size_t i = 0;
+    for (; i + 8 < vec_len; i+=8)
+    {
+      __m256 v1 = _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i*)&dims[i])));
+      __m256 v2 = _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i*)&other->dims[i])));
+      v1 = _mm256_mul_ps(v1,scale_ps);
+      v2 = _mm256_mul_ps(v2,other_scale_ps);
+      __m256 diff = _mm256_sub_ps(v1,v2);
+      __m256 res  = _mm256_and_ps(diff,abs_mask_ps);
+      final_res=_mm256_add_ps(final_res,res);
+    }
+
+    alignas(32) float temp_sum[8];
+    _mm256_storeu_ps(temp_sum, final_res);
+    sum = temp_sum[0] + temp_sum[1] + temp_sum[2] + temp_sum[3] + temp_sum[4] + temp_sum[5] + temp_sum[6] + temp_sum[7];
+
+    for(; i < vec_len; i++)
+    {
+      float diff = dims[i] * scale - other->dims[i] * other->scale;
+      sum += (diff>0) ? diff : -diff;
+    }
+
+    return sum;
   }
 #endif
 
@@ -351,12 +385,30 @@ struct FVector
 
   DEFAULT_IMPLEMENTATION
   void fix_tail(size_t) { }
+
+  DEFAULT_IMPLEMENTATION
+  float distance_manhattan(const FVector *other, size_t vec_len) const
+  {
+    float sum= 0.0f;
+    for (size_t i= 0; i < vec_len; i++)
+    {
+      float diff= dims[i] * scale - other->dims[i] * other->scale;
+      sum += (diff > 0) ? diff : -diff;
+    }
+    return sum;
+  }
 #endif
 
   float distance_to(const FVector *other, size_t vec_len) const
   {
     return abs2 + other->abs2 - scale * other->scale *
            dot_product(dims, other->dims, vec_len);
+  }
+
+  float distance_greater_than_manhattan(const FVector *other, size_t vec_len,
+                                        float than) const
+  {
+    return distance_manhattan(other, vec_len);
   }
 
   float distance_greater_than(const FVector *other, size_t vec_len, float than,
@@ -555,7 +607,7 @@ public:
   {
     byte_len= len;
     vec_len= len / sizeof(float);
-    use_subdist= vec_len >= subdist_part * 2;
+    use_subdist= metric != MANHATTAN && vec_len >= subdist_part * 2;
   }
 
   static int acquire(MHNSW_Share **ctx, TABLE *table, bool for_update);
@@ -946,12 +998,16 @@ FVectorNode::FVectorNode(MHNSW_Share *ctx_, const void *tref_, uint8_t layer,
 
 float FVectorNode::distance_to(const FVector *other) const
 {
+  if (ctx->metric == MANHATTAN)
+    return vec->distance_manhattan(other, ctx->vec_len);
   return vec->distance_to(other, ctx->vec_len);
 }
 
 float FVectorNode::distance_greater_than(const FVector *other, float than,
                                          dgt_mode mode, Stats *stats) const
 {
+  if (ctx->metric == MANHATTAN)
+    return vec->distance_greater_than_manhattan(other, ctx->vec_len, than);
   static constexpr float mul[3]= {0, 10, subdist_margin };
   if (mode == NOSTAT_NOSUBDIST)
     return distance_to(other);
@@ -1748,9 +1804,16 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
 
 Item_func_vec_distance::distance_kind mhnsw_uses_distance(const TABLE *table, KEY *keyinfo)
 {
-  if (keyinfo->option_struct->metric == EUCLIDEAN)
-    return Item_func_vec_distance::EUCLIDEAN;
-  return Item_func_vec_distance::COSINE;
+  switch (keyinfo->option_struct->metric) {
+    case EUCLIDEAN:
+      return Item_func_vec_distance::EUCLIDEAN;
+    case MANHATTAN:
+      return Item_func_vec_distance::MANHATTAN;
+    case COSINE:
+      return Item_func_vec_distance::COSINE;
+    default:
+      return Item_func_vec_distance::COSINE;
+  }
 }
 
 /*
