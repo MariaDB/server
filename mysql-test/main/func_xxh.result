@@ -1,0 +1,31 @@
+# Testing XXH SQL functions
+SELECT XXH32('abc') = 852579327 AS xxh32_expected;
+xxh32_expected
+1
+SELECT XXH32(11223344) = 408040606 AS xxh32_expected;
+xxh32_expected
+1
+SELECT XXH32('abc') = XXH32('abc') AS xxh32_eq;
+xxh32_eq
+1
+SELECT XXH32(NULL) IS NULL AS xxh32_null;
+xxh32_null
+1
+SELECT XXH32('') IS NULL AS xxh32_null;
+xxh32_null
+1
+SELECT XXH3('abc') = 8696274497037089104 AS xxh3_expected;
+xxh3_expected
+1
+SELECT XXH3(11223344) = 9329478082249925753 AS xxh3_expected;
+xxh3_expected
+1
+SELECT XXH3('abc') = XXH32('abc') AS xxh3_eq;
+xxh3_eq
+0
+SELECT XXH3(NULL) IS NULL AS xxh3_null;
+xxh3_null
+1
+SELECT XXH3('') IS NULL AS xxh3_null;
+xxh3_null
+1
