@@ -757,6 +757,14 @@ bool Item_ident::collect_outer_ref_processor(void *param)
   return FALSE;
 }
 
+bool Item_ident::get_context_for_vcol_processor(void *arg)
+{
+  Name_resolution_context **to_context= (Name_resolution_context **) arg;
+  if (!*to_context)
+    *to_context= context;
+  DBUG_ASSERT(*to_context == context);
+  return 0;
+}
 
 /**
   Store the pointer to this item field into a list if not already there.
@@ -3312,6 +3320,8 @@ Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
   }
   set_field(f);
   with_flags|= item_with_t::FIELD;
+  if (f->vcol_info)
+    f->vcol_info->context= context_arg;
 }
 
 

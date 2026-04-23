@@ -105,8 +105,6 @@ class Vcol_subst_context
   THD *thd;
   /* Indexed virtual columns that we can try substituting */
   List<Field> vcol_fields;
-  /* Name resolution context for new vcol Item_field's */
-  Name_resolution_context *context;
 
   /*
     How many times substitution was done. Used to determine whether to print
@@ -295,7 +293,6 @@ bool substitute_indexed_vcols_for_join(JOIN *join)
   if (!ctx.vcol_fields.elements)
     return false; // Ok, nothing to do
 
-  ctx.context= &join->select_lex->context;
   if (join->conds)
     subst_vcols_in_item(&ctx, join->conds, "WHERE");
   if (join->join_list)
@@ -472,7 +469,11 @@ void subst_vcol_if_compatible(Vcol_subst_context *ctx,
   Item_field *itf= new (thd->mem_root) Item_field(thd, vcol_field);
   if (!itf)
     return; // Out of memory, caller will know from thd->is_error()
-  itf->context= ctx->context;
+  if (!vcol_field->vcol_info->context)
+    vcol_expr->walk(&Item::get_context_for_vcol_processor,
+                    &vcol_field->vcol_info->context,
+                    WALK_SUBQUERY);
+  itf->context= vcol_field->vcol_info->context;
   bitmap_set_bit(vcol_field->table->read_set, vcol_field->field_index);
   DBUG_ASSERT(itf->fixed());
   thd->change_item_tree(vcol_expr_ref, itf);

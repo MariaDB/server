@@ -2294,7 +2294,14 @@ public:
     tree. Used for updating the index coverings of vcols.
   */
   virtual bool intersect_field_part_of_key(void *arg) { return 0; }
-
+  /*
+    Get the name resolution context from the item and assign it to
+    arg, which should be the context of a newly created Item_field of
+    an indexed vcol in an indexed vcol substitution and the vcol
+    should have the same expression as the item for which walk is
+    invoked with this processor
+  */
+  virtual bool get_context_for_vcol_processor(void *arg) { return 0; }
   virtual bool enumerate_field_refs_processor(void *arg) { return 0; }
   virtual bool mark_as_eliminated_processor(void *arg) { return 0; }
   virtual bool eliminate_subselect_processor(void *arg) { return 0; }
@@ -3770,6 +3777,7 @@ public:
                             const LEX_CSTRING &table_name,
                             List_iterator<Item> *it,
                             bool any_privileges, bool returning_field);
+  bool get_context_for_vcol_processor(void *arg) override;
 };
 
 

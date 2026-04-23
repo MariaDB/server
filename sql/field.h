@@ -604,12 +604,13 @@ public:
   Lex_ident_column name;                        /* Name of constraint */
   /* see VCOL_* (VCOL_FIELD_REF, ...) */
   uint flags;
+  Name_resolution_context *context;
 
   Virtual_column_info()
    :Type_handler_hybrid_field_type(&type_handler_null),
     vcol_type((enum_vcol_info_type)VCOL_TYPE_NONE),
     in_partitioning_expr(FALSE),
-    utf8(TRUE), automatic_name(FALSE), expr(NULL), flags(0)
+    utf8(TRUE), automatic_name(FALSE), expr(NULL), flags(0), context(NULL)
   {
     name.str= NULL;
     name.length= 0;

@@ -238,3 +238,43 @@ drop table t1;
 #
 # End of 12.1 tests
 #
+#
+# MDEV-39361 Server crashes in update_depend_map_for_order upon subquery and GROUP BY
+#
+## original case
+CREATE TABLE t1 (i INT, f INT AS (i) VIRTUAL, KEY(f));
+INSERT INTO t1 (i) VALUES (1),(2);
+SELECT i FROM (SELECT * FROM t1) AS sq GROUP BY i HAVING i > 0;
+i
+1
+2
+DROP TABLE t1;
+## nontrivial vcol expr
+CREATE TABLE t1 (i INT, f BIGINT AS (i + 1) VIRTUAL, KEY(f));
+INSERT INTO t1 (i) VALUES (1),(2);
+SELECT i + 1 as g FROM (SELECT * FROM t1) AS sq GROUP BY g HAVING g > 0;
+g
+2
+3
+DROP TABLE t1;
+## vcol on vcol
+CREATE TABLE t1 (i INT, f BIGINT AS (i + 1) VIRTUAL, g BIGINT as (f), KEY(g));
+INSERT INTO t1 (i) VALUES (1),(2);
+### no substitution because no index on intermediate vcol
+SELECT i + 1 as h FROM (SELECT * FROM t1) AS sq GROUP BY h HAVING h > 0;
+h
+2
+3
+SELECT f FROM (SELECT * FROM t1) AS sq GROUP BY f HAVING f > 0;
+f
+2
+3
+DROP TABLE t1;
+## const vcol (no substitution)
+CREATE TABLE t1 (i INT, f INT AS (1 + 1) VIRTUAL, KEY(f));
+INSERT INTO t1 (i) VALUES (1),(2);
+SELECT 1 + 1 as g FROM (SELECT * FROM t1) AS sq GROUP BY g HAVING g > 0;
+g
+2
+DROP TABLE t1;
+# End of 12.3 tests
