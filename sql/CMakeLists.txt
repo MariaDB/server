@@ -207,6 +207,10 @@ SET (SQL_SOURCE
                ${MYSYS_LIBWRAP_SOURCE}
 )
 
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64|i[3-6]86")
+  LIST(APPEND SQL_SOURCE vector_mhnsw_x86.cc)
+ENDIF()
+
 MY_CHECK_CXX_COMPILER_FLAG(-Wno-unused-but-set-variable)
 IF(have_CXX__Wno_unused_but_set_variable)
   IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64"
