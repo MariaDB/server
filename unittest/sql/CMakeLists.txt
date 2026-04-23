@@ -19,6 +19,12 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql
                     ${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/unittest/mytap
                     ${CMAKE_SOURCE_DIR}/extra/yassl/include)
+
+IF(CMAKE_SYSTEM_NAME MATCHES AIX)
+  # Workaround linker bug on AIX
+  SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-berok")
+ENDIF()
+
 ADD_EXECUTABLE(explain_filename-t explain_filename-t.cc  dummy_builtins.cc)
 
 

@@ -280,6 +280,11 @@ table_replication_applier_status_by_worker.cc
 #table_replication_group_member_stats.cc
 )
 
+# These may warning on warning: implicit declaration of function
+# which isn't good enough as a compile test.
+set(SAVED_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
+set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -Wall -Werror")
+
 # Check for pthread_threadid_np()
 CHECK_C_SOURCE_COMPILES("
 #include <pthread.h>
@@ -325,6 +330,9 @@ int main(int ac, char **av)
   return (tid != 0 ? 0 : 1);
 }"
 HAVE_PTHREAD_GETTHREADID_NP)
+
+# Restore original flags
+set(CMAKE_REQUIRED_FLAGS "${SAVED_CMAKE_REQUIRED_FLAGS}")
 
 # Check for pthread_self() returning an integer type
 CHECK_C_SOURCE_COMPILES("

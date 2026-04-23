@@ -28,8 +28,13 @@ typedef uint32 my_thread_os_id_t;
 #elif defined(HAVE_PTHREAD_GETTHREADID_NP)
 typedef int my_thread_os_id_t;
 #elif defined(HAVE_INTEGER_PTHREAD_SELF)
+#ifdef _AIX
+#include <sys/thread.h>
+typedef tid_t my_thread_os_id_t;
+#else /* _AIX */
 typedef uintptr_t my_thread_os_id_t;
-#else
+#endif /* _AIX */
+#else /* ! HAVE_INTEGER_PTHREAD_SELF */
 typedef unsigned long long my_thread_os_id_t;
 #endif
 
@@ -88,7 +93,7 @@ static inline my_thread_os_id_t my_thread_os_id()
   return getthrid();
 #else
 #ifdef HAVE_INTEGER_PTHREAD_SELF
-  /* NetBSD, and perhaps something else, fallback. */
+  /* NetBSD and AIX, and perhaps something else, fallback. */
   return (my_thread_os_id_t) pthread_self();
 #else
   /* Feature not available. */
