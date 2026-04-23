@@ -17,157 +17,21 @@
 #include "sql_class.h"
 #include "backup_innodb.h"
 #include "trx0trx.h"
+#include <my_backup.h>
 #include <vector>
+
+#ifdef __APPLE__
+# include <sys/attr.h>
+# include <sys/clonefile.h>
+# include <copyfile.h>
+#endif
+
+using namespace backup;
 
 /** Associate a transaction with the current session
 @param thd   session
 @return InnoDB transaction */
 trx_t *check_trx_exists(THD *thd) noexcept;
-
-#ifdef _WIN32
-#elif defined __APPLE__
-# include <sys/attr.h>
-# include <sys/clonefile.h>
-# include <copyfile.h>
-# define copy_file(src, dst, off) \
-  fcopyfile(src, dst, nullptr, COPYFILE_ALL | COPYFILE_CLONE)
-#else
-using copying_step= ssize_t(int,int,size_t,off_t*);
-template<copying_step step>
-static ssize_t copy(int in_fd, int out_fd, off_t c) noexcept
-{
-  ssize_t ret;
-  for (off_t offset{0};;)
-  {
-    off_t count= c;
-    if (count > INT_MAX >> 20 << 20)
-      count = INT_MAX >> 20 << 20;
-    ret= step(in_fd, out_fd, size_t(count), &offset);
-    if (ret < 0)
-      break;
-    c-= ret;
-    if (!c)
-      return 0;
-    if (!ret)
-      return -1;
-  }
-  return ret;
-}
-# if defined __linux__ || defined __FreeBSD__
-/* Copy between files in a single (type of) file system */
-static inline ssize_t
-copy_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
-{
-  return copy_file_range(in_fd, offset, out_fd, nullptr, count, 0);
-}
-#  define cfr(src,dst,size) copy<copy_step>(src, dst, size)
-# endif
-# ifdef __linux__
-#  include <sys/sendfile.h>
-/* Copy a file to a stream or to a regular file. */
-static inline ssize_t
-send_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
-{
-  return sendfile(out_fd, in_fd, offset, count);
-}
-# else
-#  include <sys/mman.h>
-/** Copy a file using a memory mapping.
-@param in_fd   source file
-@param out_fd  destination
-@param count   number of bytes to copy
-@return error code
-@retval 0  on success
-@retval 1  if a memory mapping failed */
-static ssize_t mmap_copy(int in_fd, int out_fd, off_t count)
-{
-#if SIZEOF_SIZE_T < 8
-  if (count != ssize_t(count))
-    return 1;
-#endif
-  void *p= mmap(nullptr, count, PROT_READ, MAP_SHARED, in_fd, 0);
-  if (p == MAP_FAILED)
-    return 1;
-  ssize_t ret;
-  size_t c= size_t(count);
-  for (const char *b= static_cast<const char*>(p);; b+= ret)
-  {
-    ret= write(out_fd, b, std::min(c, size_t(INT_MAX >> 20 << 20)));
-    if (ret < 0)
-      break;
-    c-= ret;
-    if (!c)
-    {
-      ret= 0;
-      break;
-    }
-    if (!ret)
-    {
-      ret= -1;
-      break;
-    }
-  }
-  munmap(p, count);
-  return ret;
-}
-
-static ssize_t pread_write(int in_fd, int out_fd, off_t count) noexcept
-{
-  constexpr size_t READ_WRITE_SIZE= 65536;
-  char *b= static_cast<char*>(aligned_malloc(READ_WRITE_SIZE, 4096));
-  if (!b)
-    return -1;
-  ssize_t ret;
-  for (off_t o= 0;; o+= ret)
-  {
-    ret= pread(in_fd, b, ssize_t(std::min(count, off_t{READ_WRITE_SIZE})), o);
-    if (ret > 0)
-      ret= write(out_fd, b, ret);
-    if (ret < 0)
-      break;
-    count-= ret;
-    if (!count)
-    {
-      ret= 0;
-      break;
-    }
-    if (!ret)
-    {
-      ret= -1;
-      break;
-    }
-  }
-  aligned_free(b);
-  return ret;
-}
-# endif
-
-/** Copy a file.
-@param src  source file descriptor
-@param dst  target to append src to
-@param size amount of data to be copied
-@return error code (negative)
-@retval 0   on success */
-static int copy_file(int src, int dst, off_t size) noexcept
-{
-  ssize_t ret;
-# ifdef cfr
-  if (!(ret= cfr(src, dst, size)))
-    return int(ret);
-#  ifdef __linux__
-  if (errno == EOPNOTSUPP)
-#  endif
-# endif
-# ifdef __linux__ // starting with Linux 2.6.33, we can rely on sendfile(2)
-    ret= copy<send_step>(src, dst, size);
-# else
-  if ((ret= mmap_copy(src, dst, size)) == 1)
-    ret= pread_write(src, dst, size);
-# endif
-  ut_ad(ret <= 0);
-  return int(ret);
-}
-#endif
 
 namespace
 {
@@ -187,7 +51,7 @@ class InnoDB_backup
   std::vector<lsn_t> logs;
 
   /** target directory name or handle */
-  IF_WIN(const char*,int) target;
+  target_dir_t target;
 
   /** the checkpoint from which the backup starts */
   lsn_t checkpoint;
@@ -201,7 +65,7 @@ public:
      @return error code
      @retval 0 on success
   */
-  int init(THD *thd, IF_WIN(const char*,int) target) noexcept
+  int init(THD *thd, target_dir_t target) noexcept
   {
     trx_t *trx= check_trx_exists(thd);
     if (trx->id || trx->state != TRX_STATE_NOT_STARTED)
@@ -405,7 +269,7 @@ public:
      @return error code
      @retval 0 on success
   */
-  int fini(THD *thd, IF_WIN(const char*,int) target) noexcept
+  int fini(THD *thd, target_dir_t target) noexcept
   {
     int fail= 0;
     log_sys.latch.wr_lock();
@@ -729,7 +593,7 @@ private:
 };
 
 /** The backup context; protected by log_sys.latch */
-static InnoDB_backup backup;
+static InnoDB_backup innodb_backup;
 }
 
 bool log_t::backup_start(uint64_t *old_size, THD *thd) noexcept
@@ -786,27 +650,27 @@ void log_t::backup_stop(uint64_t old_size, THD *thd) noexcept
     resize_finish(thd);
 }
 
-int innodb_backup_start(THD *thd, IF_WIN(const char*,int) target) noexcept
+int innodb_backup_start(THD *thd, target_dir_t target) noexcept
 {
-  return backup.init(thd, target);
+  return innodb_backup.init(thd, target);
 }
 
 int innodb_backup_step(THD *thd) noexcept
 {
-  return backup.step(thd);
+  return innodb_backup.step(thd);
 }
 
 int innodb_backup_end(THD *thd, bool abort) noexcept
 {
-  return backup.end(thd, abort);
+  return innodb_backup.end(thd, abort);
 }
 
-int innodb_backup_finalize(THD *thd, IF_WIN(const char*,int) target) noexcept
+int innodb_backup_finalize(THD *thd, target_dir_t target) noexcept
 {
-  return backup.fini(thd, target);
+  return innodb_backup.fini(thd, target);
 }
 
 void innodb_backup_checkpoint() noexcept
 {
-  backup.checkpoint_complete();
+  innodb_backup.checkpoint_complete();
 }

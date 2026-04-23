@@ -15,7 +15,9 @@
 
 #include "maria_def.h"
 #include "ma_backup.h"
+#include "my_backup.h"
 #include <mysqld_error.h>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -32,7 +34,7 @@
 */
 
 using namespace std::string_literals;
-
+using namespace backup;
 namespace
 {
   class Source_dir
@@ -93,7 +95,7 @@ namespace
       return ret_val;
     }
   private:
-    const IF_WIN(const char*,int) target_dir;
+    const target_dir_t target_dir;
     static const std::vector<std::string> data_exts;;
     const std::string log_file_prefix {"aria_log."};
     using dir_name = std::string;
@@ -160,18 +162,39 @@ namespace
     {
       for (const database_dir& dir : database_dirs)
       {
-         const char* dir_name = dir.first.c_str();
-         if (mkdirat(target_dir, dir_name, 0777) != 0)
-         {
-            if (errno != EEXIST)
-            {
-              my_error(ER_CANT_CREATE_FILE, MYF(0), dir_name, errno);
-              return 1;
-            }
-         }
-         if (copy_database(dir) != 0)
-           return 1;
+        const char* dir_name = dir.first.c_str();
+        if (ensure_target_subdir(dir_name) != 0)
+        {
+          my_error(ER_CANT_CREATE_FILE, MYF(0), dir_name, errno);
+          return 1;
+        }
+        if (copy_database(dir) != 0)
+          return 1;
       }
+      return 0;
+    }
+
+    /*
+       Create directory in the target directory if it does not exist.
+       Return 0 on success, non-0 on failure. Set errno in case of failure
+    */
+    int ensure_target_subdir(const char* name) noexcept
+    {
+#ifdef _WIN32
+      std::string dir_path= std::string(target_dir) + "/" + name;
+      if (!CreateDirectory(dir_path.c_str(), nullptr))
+      {
+        DWORD err = GetLastError();
+        if (err != ERROR_ALREADY_EXISTS)
+        {
+          my_osmaperr(err);
+          return 1;
+        }
+      }
+#else
+      if (mkdirat(target_dir, name, 0777) != 0)
+        return (errno != EEXIST);
+#endif
       return 0;
     }
 
@@ -206,7 +229,7 @@ namespace
     int copy_file(const std::string &path) const noexcept
     {
       std::string src_path= std::string(maria_data_root) + "/" + path;
-#ifdef __APPLE__
+#ifndef _WIN32
       int ret_val = 0;
       int src_fd = open(src_path.c_str(), O_RDONLY);
       if (src_fd < 0)
@@ -222,7 +245,7 @@ namespace
         ret_val = 1;
         goto finish;
       }
-      if (fcopyfile(src_fd, tgt_fd, nullptr, COPYFILE_DATA) != 0)
+      if (backup::copy_file(src_fd, tgt_fd) != 0)
       {
         my_error(ER_ERROR_ON_WRITE, MYF(0), path.c_str(), errno);
         ret_val = 1;
@@ -232,7 +255,15 @@ namespace
       close(src_fd);
       return ret_val;
 #else
-      return 1;
+      std::string dest_path= std::string(target_dir) + "/" + path;
+      if(!CopyFileExA(src_path.c_str(), dest_path.c_str(), nullptr, nullptr, nullptr,
+                      COPY_FILE_NO_BUFFERING))
+      {
+        my_osmaperr(GetLastError());
+        my_error(ER_CANT_CREATE_FILE, MYF(0), dest_path.c_str(), errno);
+        return 1;
+      }
+      return 0;
 #endif
     }
 
@@ -244,7 +275,8 @@ namespace
         if (ends_with(file_name, ext))
           return true;
       }
-      return false;
+      /* As a stop-gap db/opt files are also copied here, this should be done in SQL layer. */
+      return !strcmp(file_name, "db.opt");
     }
 
     static bool ends_with(const char* str, const std::string& suffix) noexcept
@@ -264,12 +296,13 @@ namespace
     }
   };
 
-  const std::vector<std::string> Aria_backup::data_exts {".MAD"s, ".MAI"s};
+  /* TODO: .frm failes are nto Aria-specific, they are copied here as a stop-gap */
+  const std::vector<std::string> Aria_backup::data_exts {".MAD"s, ".MAI", ".frm"s};
 
   std::unique_ptr<Aria_backup> aria_backup;
 }
 
-int aria_backup_start(THD *thd, IF_WIN(const char*,int) target) noexcept
+int aria_backup_start(THD *thd, target_dir_t target) noexcept
 {
   aria_backup= std::make_unique<Aria_backup>(thd, target);
   return 0;
@@ -286,4 +319,3 @@ int aria_backup_end(THD *thd, bool abort) noexcept
   aria_backup.reset();
   return ret_val;
 }
-

@@ -19,14 +19,15 @@
 #include "sql_class.h"
 #include "sql_backup.h"
 #include "sql_parse.h"
+#include "my_backup.h"
+
+using namespace backup;
 
 static my_bool backup_start(THD *thd, plugin_ref plugin, void *dst) noexcept
 {
   handlerton *hton= plugin_hton(plugin);
   if (hton->backup_start)
-    return hton->backup_start(thd,
-                              IF_WIN(static_cast<const char*>(dst),
-                                     int(reinterpret_cast<uintptr_t>(dst))));
+    return hton->backup_start(thd, to_target_dir(dst));
   return false;
 }
 
@@ -53,9 +54,7 @@ static my_bool backup_finalize(THD *thd, plugin_ref plugin, void *dst) noexcept
 {
   handlerton *hton= plugin_hton(plugin);
   if (hton->backup_finalize)
-    return hton->backup_finalize
-      (thd, IF_WIN(static_cast<const char*>(dst),
-                   int(reinterpret_cast<uintptr_t>(dst))));
+    return hton->backup_finalize(thd, to_target_dir(dst));
   return 0;
 }
 
@@ -97,13 +96,14 @@ bool Sql_cmd_backup::execute(THD *thd)
     my_error(EE_CANT_MKDIR, MYF(ME_BELL), target.str, errno);
     goto err_exit;
   }
+#else
+  const char *const dir= target.str;
 #endif
 
   bool fail= plugin_foreach_with_mask(thd, backup_start,
                                       MYSQL_STORAGE_ENGINE_PLUGIN,
                                       PLUGIN_IS_DELETED|PLUGIN_IS_READY,
-                                      IF_WIN(const_cast<char*>(target.str),
-                                             reinterpret_cast<void*>(dir)));
+                                      to_void_ptr(dir));
 
   /* The backup_step may be invoked in multiple concurrent threads.
   At the time backup_end is invoked, all backup_step will have to complete. */
@@ -123,8 +123,7 @@ bool Sql_cmd_backup::execute(THD *thd)
   thd->mdl_context.release_lock(mdl_request.ticket);
   plugin_foreach_with_mask(thd, backup_finalize, MYSQL_STORAGE_ENGINE_PLUGIN,
                            PLUGIN_IS_DELETED|PLUGIN_IS_READY,
-                           IF_WIN(const_cast<char*>(target.str),
-                                  reinterpret_cast<void*>(dir)));
+                           to_void_ptr(dir));
 #ifndef _WIN32
   close(dir);
 #endif

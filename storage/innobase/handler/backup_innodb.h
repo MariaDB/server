@@ -13,6 +13,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#include <my_backup.h>
+
 /**
    Start of BACKUP SERVER: collect all files to be backed up
    @param thd     current session
@@ -20,7 +22,7 @@
    @return error code
    @retval 0 on success
 */
-int innodb_backup_start(THD *thd, IF_WIN(const char*,int) target) noexcept;
+int innodb_backup_start(THD *thd, backup::target_dir_t target) noexcept;
 
 /**
    Process a file that was collected in backup_start().
@@ -46,7 +48,7 @@ int innodb_backup_end(THD *thd, bool abort) noexcept;
    @return error code
    @retval 0 on success
 */
-int innodb_backup_finalize(THD *thd, IF_WIN(const char*,int) target) noexcept;
+int innodb_backup_finalize(THD *thd, backup::target_dir_t target) noexcept;
 
 /**
    Complete the first checkpoint in a new archive log file.
