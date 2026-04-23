@@ -209,6 +209,8 @@ int ask_from_videx_http(VidexJsonItem &request, VidexStringMap &res_json,
   CURL *curl;
   CURLcode res_code;
   std::string readBuffer;
+  struct curl_slist *headers= nullptr;
+  int rc= 1;
 
   curl= curl_easy_init();
   if (curl)
@@ -221,7 +223,6 @@ int ask_from_videx_http(VidexJsonItem &request, VidexStringMap &res_json,
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_str.c_str());
 
     // Set the headers
-    struct curl_slist *headers= NULL;
     headers= curl_slist_append(headers, "Content-Type: application/json");
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
@@ -243,7 +244,7 @@ int ask_from_videx_http(VidexJsonItem &request, VidexStringMap &res_json,
       sql_print_warning(
           "VIDEX: access videx_server failed res_code != curle_ok: %s",
           host_ip);
-      return 1;
+      goto cleanup;
     }
     else
     {
@@ -254,21 +255,22 @@ int ask_from_videx_http(VidexJsonItem &request, VidexStringMap &res_json,
       if (error)
       {
         sql_print_warning("VIDEX: JSON parse error: %s", message.c_str());
-        return 1;
+        goto cleanup;
       }
       else
       {
         if (message == "OK")
         {
           DBUG_PRINT("info", ("access videx_server success: %s", host_ip));
-          return 0;
+          rc= 0;
+          goto cleanup;
         }
         else
         {
           sql_print_warning(
               "VIDEX: access videx_server success but msg != OK: %s",
               readBuffer.c_str());
-          return 1;
+          goto cleanup;
         }
       }
     }
@@ -276,6 +278,11 @@ int ask_from_videx_http(VidexJsonItem &request, VidexStringMap &res_json,
   sql_print_warning("VIDEX: access videx_server failed curl = false: %s",
                     host_ip);
   return 1;
+
+cleanup:
+  curl_slist_free_all(headers);
+  curl_easy_cleanup(curl);
+  return rc;
 }
 
 /**
@@ -934,9 +941,9 @@ maria_declare_plugin(videx){
     PLUGIN_LICENSE_GPL,
     videx_init,                          /* Plugin Init */
     NULL,                                /* Plugin Deinit */
-    0x0001,                              /* version number (0.1) */
+    0x0002,                              /* version number (0.2) */
     NULL,                   /* status variables */
     videx_system_variables,              /* system variables */
-    "0.1",                               /* string version */
+    "0.2",                               /* string version */
     MariaDB_PLUGIN_MATURITY_EXPERIMENTAL /* maturity */
 } maria_declare_plugin_end;
