@@ -1474,6 +1474,13 @@ public:
   double cond_selectivity;
   List<st_cond_statistic> *cond_selectivity_sampling_explain;
 
+
+  inline double matching_rows_in_table()
+  {
+    return MY_MIN(rows2double(opt_range_condition_rows),
+                  rows2double(stat_records()) * cond_selectivity);
+  }
+
   table_map	map;                    /* ID bit of table (1,2,4,8,16...) */
 
   uint          lock_position;          /* Position in MYSQL_LOCK.table */

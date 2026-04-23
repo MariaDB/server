@@ -2632,9 +2632,7 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
             TABLE *table= join->best_positions[i].table->table;
             if (map & (1ULL << table->tablenr))
             {
-              ha_rows opt_rows= MY_MIN(table->opt_range_condition_rows,
-                                       table->stat_records() *
-                                       table->cond_selectivity);
+              double opt_rows= table->matching_rows_in_table();
               rows= COST_MULT(rows, opt_rows);
             }
           }
@@ -3834,10 +3832,8 @@ void Duplicate_weedout_picker::get_inner_outer_fanouts(JOIN *join,
           rows= p->records_out;
         }
         else
-        {
-          TABLE *tbl= p->table->table;
-          rows= tbl->cond_selectivity * rows2double(tbl->stat_records());
-        }
+          rows= p->table->table->matching_rows_in_table();
+
         outer_fanout= COST_MULT(outer_fanout, rows);
       }
     }
