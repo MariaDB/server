@@ -633,6 +633,25 @@ protected:
   virtual ~Create_func_crc32c() = default;
 };
 
+class Create_func_xxh32 : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override;
+  static Create_func_xxh32 s_singleton;
+protected:
+  Create_func_xxh32() = default;
+  ~Create_func_xxh32() override = default;
+};
+
+class Create_func_xxh3 : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override;
+  static Create_func_xxh3 s_singleton;
+protected:
+  Create_func_xxh3() = default;
+  ~Create_func_xxh3() override = default;
+};
 
 class Create_func_datediff : public Create_func_arg2
 {
@@ -3682,6 +3701,19 @@ Create_func_crc32c::create_native(THD *thd, const LEX_CSTRING *name,
     : new (thd->mem_root) Item_func_crc32(thd, true, arg1);
 }
 
+Create_func_xxh32 Create_func_xxh32::s_singleton;
+
+Item *Create_func_xxh32::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_xxh32(thd, arg1);
+}
+
+Create_func_xxh3 Create_func_xxh3::s_singleton;
+
+Item *Create_func_xxh3::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_xxh3(thd, arg1);
+}
 
 Create_func_datediff Create_func_datediff::s_singleton;
 
@@ -6551,6 +6583,8 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("WSREP_LAST_SEEN_GTID") }, BUILDER(Create_func_wsrep_last_seen_gtid)},
   { { STRING_WITH_LEN("WSREP_SYNC_WAIT_UPTO_GTID") }, BUILDER(Create_func_wsrep_sync_wait_upto)},
 #endif /* WITH_WSREP */
+  { { STRING_WITH_LEN("XXH3") }, BUILDER(Create_func_xxh3) },
+  { { STRING_WITH_LEN("XXH32") }, BUILDER(Create_func_xxh32) },
   { { STRING_WITH_LEN("YEARWEEK") }, BUILDER(Create_func_year_week)}
 };
 
