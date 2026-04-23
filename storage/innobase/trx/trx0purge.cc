@@ -1326,7 +1326,7 @@ void purge_sys_t::batch_cleanup(const purge_sys_t::iterator &head)
   m_active= false;
 
   /* Release the undo pages. */
-  for (auto p : pages)
+  for (auto &p : pages)
     p.second->unfix();
   pages.clear();
   pages.reserve(srv_purge_batch_size);
