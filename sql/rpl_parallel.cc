@@ -1507,6 +1507,14 @@ handle_rpl_parallel_thread(void *arg)
           else
             rgi->mark_start_commit();
           DEBUG_SYNC(thd, "rpl_parallel_after_mark_start_commit");
+#ifdef ENABLED_DEBUG_SYNC
+          DBUG_EXECUTE_IF("halt_past_mark_start_commit",
+          {
+            DBUG_ASSERT(!debug_sync_set_action
+                        (thd, STRING_WITH_LEN("now WAIT_FOR past_mark_continue")));
+            DBUG_SET_INITIAL("-d,halt_past_mark_start_commit");
+          };);
+#endif
         }
       }
 
