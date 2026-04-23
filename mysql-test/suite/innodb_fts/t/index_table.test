@@ -18,7 +18,7 @@ CREATE TABLE articles (
 	) ENGINE= InnoDB;
 
 --error ER_GET_ERRNO
-SET STATEMENT debug_dbug='+d,innodb_report_deadlock' FOR
+SET STATEMENT debug_dbug='+d,fts_load_stopword_fail' FOR
 CREATE FULLTEXT INDEX idx ON articles (title, content);
 CREATE FULLTEXT INDEX idx ON articles (title, content);
 

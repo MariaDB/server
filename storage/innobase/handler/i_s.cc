@@ -49,6 +49,7 @@ Created July 18, 2007 Vasil Dimov
 #include "fts0types.h"
 #include "fts0opt.h"
 #include "fts0priv.h"
+#include "fts0exec.h"
 #include "btr0btr.h"
 #include "page0zip.h"
 #include "fil0fil.h"
@@ -2204,7 +2205,6 @@ i_s_fts_deleted_generic_fill(
 	Field**			fields;
 	TABLE*			table = (TABLE*) tables->table;
 	trx_t*			trx;
-	fts_table_t		fts_table;
 	fts_doc_ids_t*		deleted;
 	dict_table_t*		user_table;
 
@@ -2235,12 +2235,12 @@ i_s_fts_deleted_generic_fill(
 	trx = trx_create();
 	trx->op_info = "Select for FTS DELETE TABLE";
 
-	FTS_INIT_FTS_TABLE(&fts_table,
-			   (being_deleted) ? "BEING_DELETED" : "DELETED",
-			   FTS_COMMON_TABLE, user_table);
+	FTSQueryExecutor executor(trx, user_table);
+	fts_table_fetch_doc_ids(
+		&executor, user_table,
+                being_deleted ? "BEING_DELETED" : "DELETED", deleted);
 
-	fts_table_fetch_doc_ids(trx, &fts_table, deleted);
-
+	trx_commit_for_mysql(trx);
 	dict_table_close(user_table, thd, mdl_ticket);
 
 	trx->free();
@@ -2660,100 +2660,36 @@ struct st_maria_plugin	i_s_innodb_ft_index_cache =
 	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
-/*******************************************************************//**
-Go through a FTS index auxiliary table, fetch its rows and fill
+/** Go through a FTS index auxiliary table, fetch its rows and fill
 FTS word cache structure.
+@param executor  FTS query executor
+@param reader    record reader for processing auxiliary table records
+@param selected  auxiliary index
+@param word      word to select
 @return DB_SUCCESS on success, otherwise error code */
 static
-dberr_t
-i_s_fts_index_table_fill_selected(
-/*==============================*/
-	dict_index_t*		index,		/*!< in: FTS index */
-	ib_vector_t*		words,		/*!< in/out: vector to hold
-						fetched words */
-	ulint			selected,	/*!< in: selected FTS index */
-	fts_string_t*		word)		/*!< in: word to select */
+dberr_t i_s_fts_index_table_fill_selected(
+  FTSQueryExecutor *executor, AuxRecordReader& reader,
+  uint8_t selected, fts_string_t *word)
 {
-	pars_info_t*		info;
-	fts_table_t		fts_table;
-	trx_t*			trx;
-	que_t*			graph;
-	dberr_t			error;
-	fts_fetch_t		fetch;
-	char			table_name[MAX_FULL_NAME_LEN];
+  dberr_t error= DB_SUCCESS;
+  DBUG_EXECUTE_IF("fts_instrument_result_cache_limit",
+                  fts_result_cache_limit = 8192;);
+  /* Fetch words from auxiliary index. If no starting word is specified,
+  fetch all words. Otherwise, fetch words starting from the given word.
+  This supports pagination when memory limits are exceeded. */
+  if (word->f_str == nullptr)
+    error= executor->read_aux_all(selected, reader);
+  else
+    error= executor->read_aux(
+      selected,
+      reinterpret_cast<const char*>(word->f_str),
+      PAGE_CUR_GE, reader);
 
-	info = pars_info_create();
+  if (error == DB_RECORD_NOT_FOUND)
+    error= DB_SUCCESS;
 
-	fetch.read_arg = words;
-	fetch.read_record = fts_optimize_index_fetch_node;
-	fetch.total_memory = 0;
-
-	DBUG_EXECUTE_IF("fts_instrument_result_cache_limit",
-	        fts_result_cache_limit = 8192;
-	);
-
-	trx = trx_create();
-
-	trx->op_info = "fetching FTS index nodes";
-
-	pars_info_bind_function(info, "my_func", fetch.read_record, &fetch);
-	pars_info_bind_varchar_literal(info, "word", word->f_str, word->f_len);
-
-	FTS_INIT_INDEX_TABLE(&fts_table, fts_get_suffix(selected),
-			     FTS_INDEX_TABLE, index);
-	fts_get_table_name(&fts_table, table_name);
-	pars_info_bind_id(info, "table_name", table_name);
-
-	graph = fts_parse_sql(
-		&fts_table, info,
-		"DECLARE FUNCTION my_func;\n"
-		"DECLARE CURSOR c IS"
-		" SELECT word, doc_count, first_doc_id, last_doc_id,"
-		" ilist\n"
-		" FROM $table_name WHERE word >= :word;\n"
-		"BEGIN\n"
-		"\n"
-		"OPEN c;\n"
-		"WHILE 1 = 1 LOOP\n"
-		"  FETCH c INTO my_func();\n"
-		"  IF c % NOTFOUND THEN\n"
-		"    EXIT;\n"
-		"  END IF;\n"
-		"END LOOP;\n"
-		"CLOSE c;");
-
-	for (;;) {
-		error = fts_eval_sql(trx, graph);
-
-		if (UNIV_LIKELY(error == DB_SUCCESS)) {
-			fts_sql_commit(trx);
-
-			break;
-		} else {
-			fts_sql_rollback(trx);
-
-			if (error == DB_LOCK_WAIT_TIMEOUT) {
-				ib::warn() << "Lock wait timeout reading"
-					" FTS index. Retrying!";
-
-				trx->error_state = DB_SUCCESS;
-			} else {
-				ib::error() << "Error occurred while reading"
-					" FTS index: " << error;
-				break;
-			}
-		}
-	}
-
-	que_graph_free(graph);
-
-	trx->free();
-
-	if (fetch.total_memory >= fts_result_cache_limit) {
-		error = DB_FTS_EXCEED_RESULT_CACHE_LIMIT;
-	}
-
-	return(error);
+  return error;
 }
 
 /*******************************************************************//**
@@ -2890,6 +2826,91 @@ i_s_fts_index_table_fill_one_fetch(
 	DBUG_RETURN(ret);
 }
 
+/** Read words from a single auxiliary index with retry logic
+@param executor		FTS query executor
+@param reader		record reader
+@param selected		auxiliary index number
+@param thd		thread
+@param tables		tables to fill
+@param conv_str		conversion buffer
+@param heap		memory heap
+@param words		words vector
+@return 0 on success, 1 on failure */
+static
+int i_s_fts_read_aux_index_words(
+      FTSQueryExecutor *executor, AuxRecordReader &reader,
+      uint8_t selected, THD *thd, TABLE_LIST *tables,
+      fts_string_t *conv_str, mem_heap_t *heap,
+      ib_vector_t *words)
+{
+  fts_string_t	word;
+  bool		has_more = false;
+  int		ret = 0;
+
+  word.f_str = NULL;
+  word.f_len = 0;
+  word.f_n_char = 0;
+
+  do
+  {
+    /* Fetch from index with retry logic for lock timeouts */
+    for (;;)
+    {
+      trx_t *trx= executor->trx();
+      dberr_t error = i_s_fts_index_table_fill_selected(
+        executor, reader, selected, &word);
+
+      if (UNIV_LIKELY(error == DB_SUCCESS ||
+                      error == DB_FTS_EXCEED_RESULT_CACHE_LIMIT))
+      {
+        fts_sql_commit(trx);
+        has_more = error == DB_FTS_EXCEED_RESULT_CACHE_LIMIT;
+        break;
+      }
+      else
+      {
+        fts_sql_rollback(trx);
+        if (error == DB_LOCK_WAIT_TIMEOUT)
+        {
+          sql_print_warning("InnoDB: Lock wait timeout"
+                            " while reading FTS index. Retrying!");
+          trx->error_state = DB_SUCCESS;
+	  /* Clear words and retry */
+	  i_s_fts_index_table_free_one_fetch(words);
+	  reader.reset_total_memory();  /* Reset memory counter on retry */
+	}
+	else
+	{
+	  sql_print_error("InnoDB: Error occurred while reading"
+                      " FTS index: %s", ut_strerr(error));
+	  i_s_fts_index_table_free_one_fetch(words);
+	  return 1;
+	}
+      }
+    }
+    
+    if (has_more)
+    {
+      fts_word_t *last_word;
+      /* Prepare start point for next fetch */
+      last_word = static_cast<fts_word_t*>(ib_vector_last(words));
+      ut_ad(last_word != NULL);
+      fts_string_dup(&word, &last_word->text, heap);
+      reader.reset_total_memory();  /* Reset memory counter for next fetch */
+    }
+
+    /* Fill into tables */
+    ret= i_s_fts_index_table_fill_one_fetch(
+           fts_index_get_charset(const_cast<dict_index_t*>(executor->index())),
+           thd, tables, words,conv_str, has_more);
+    i_s_fts_index_table_free_one_fetch(words);
+    if (ret != 0)
+      return ret;
+  } while (has_more);
+
+  return 0;
+}
+
 /*******************************************************************//**
 Go through a FTS index and its auxiliary tables, fetch rows in each table
 and fill INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE.
@@ -2905,8 +2926,6 @@ i_s_fts_index_table_fill_one_index(
 {
 	ib_vector_t*		words;
 	mem_heap_t*		heap;
-	CHARSET_INFO*		index_charset;
-	dberr_t			error;
 	int			ret = 0;
 
 	DBUG_ENTER("i_s_fts_index_table_fill_one_index");
@@ -2917,59 +2936,34 @@ i_s_fts_index_table_fill_one_index(
 	words = ib_vector_create(ib_heap_allocator_create(heap),
 				 sizeof(fts_word_t), 256);
 
-	index_charset = fts_index_get_charset(index);
+	trx_t* trx= trx_create();
+	trx->op_info= "fetching FTS index nodes";
+        FTSQueryExecutor executor(trx, index->table);
+        dberr_t error= executor.open_all_aux_tables(index);
 
-	/* Iterate through each auxiliary table as described in
-	fts_index_selector */
-	for (ulint selected = 0; selected < FTS_NUM_AUX_INDEX; selected++) {
-		fts_string_t	word;
-		bool		has_more = false;
+	if (error) return 1;
+	ulint total_memory= 0;
+	AuxRecordReader reader(words, &total_memory);
 
-		word.f_str = NULL;
-		word.f_len = 0;
-		word.f_n_char = 0;
+	for (uint8_t selected = 0; selected < FTS_NUM_AUX_INDEX; selected++) {
+		reader.reset_total_memory(); 
+		ret = i_s_fts_read_aux_index_words(
+			&executor, reader, selected,
+			thd, tables, conv_str, heap, words);
 
-		do {
-			/* Fetch from index */
-			error = i_s_fts_index_table_fill_selected(
-				index, words, selected, &word);
-
-			if (error == DB_SUCCESS) {
-				has_more = false;
-			} else if (error == DB_FTS_EXCEED_RESULT_CACHE_LIMIT) {
-				has_more = true;
-			} else {
-				i_s_fts_index_table_free_one_fetch(words);
-				ret = 1;
-				goto func_exit;
-			}
-
-			if (has_more) {
-				fts_word_t*	last_word;
-
-				/* Prepare start point for next fetch */
-				last_word = static_cast<fts_word_t*>(ib_vector_last(words));
-				ut_ad(last_word != NULL);
-				fts_string_dup(&word, &last_word->text, heap);
-			}
-
-			/* Fill into tables */
-			ret = i_s_fts_index_table_fill_one_fetch(
-				index_charset, thd, tables, words, conv_str,
-				has_more);
-			i_s_fts_index_table_free_one_fetch(words);
-
-			if (ret != 0) {
-				goto func_exit;
-			}
-		} while (has_more);
+		if (ret != 0) {
+			goto func_exit;
+		}
 	}
 
 func_exit:
+	trx->free();
 	mem_heap_free(heap);
 
 	DBUG_RETURN(ret);
 }
+
+
 /*******************************************************************//**
 Fill the dynamic table INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE
 @return 0 on success, 1 on failure */
@@ -3116,7 +3110,6 @@ i_s_fts_config_fill(
 	Field**			fields;
 	TABLE*			table = (TABLE*) tables->table;
 	trx_t*			trx;
-	fts_table_t		fts_table;
 	dict_table_t*		user_table;
 	ulint			i = 0;
 	dict_index_t*		index = NULL;
@@ -3149,9 +3142,7 @@ i_s_fts_config_fill(
 
 	trx = trx_create();
 	trx->op_info = "Select for FTS CONFIG TABLE";
-
-	FTS_INIT_FTS_TABLE(&fts_table, "CONFIG", FTS_COMMON_TABLE, user_table);
-
+	FTSQueryExecutor executor(trx, user_table);
 	if (!ib_vector_is_empty(user_table->fts->indexes)) {
 		index = (dict_index_t*) ib_vector_getp_const(
 				user_table->fts->indexes, 0);
@@ -3178,7 +3169,7 @@ i_s_fts_config_fill(
 			key_name = (char*) fts_config_key[i];
 		}
 
-		fts_config_get_value(trx, &fts_table, key_name, &value);
+		fts_config_get_value(&executor, user_table, key_name, &value);
 
 		if (allocated) {
 			ut_free(key_name);
