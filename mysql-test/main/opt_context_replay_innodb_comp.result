@@ -1,7 +1,6 @@
 set @opt_context_schema='$opt_context_schema';
-set session use_stat_tables='PREFERABLY';
+set session use_stat_tables='COMPLEMENTARY';
 set optimizer_record_context=OFF;
-set optimizer_trace=1;
 create database db1;
 use db1;
 create function round_cost(explain_output text)

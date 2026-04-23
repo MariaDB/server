@@ -7,6 +7,10 @@ set @records=
     (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
 select *from json_table(@records,
                         '$[*]' columns(num_of_records text path '$')) as jt;
+set @file_stat_records=
+    (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
+select *from json_table(@file_stat_records,
+                        '$[*]' columns(file_stat_records text path '$')) as jt;
 set @indexes=
     (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
 select *from json_table(

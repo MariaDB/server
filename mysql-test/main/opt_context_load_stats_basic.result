@@ -1,6 +1,5 @@
-#enable both optimizer_trace, and optimizer_record_context
+#enable optimizer_record_context
 set optimizer_record_context=ON;
-set optimizer_trace=1;
 set @saved_opt_context_var_name_1= 'saved_opt_context_1';
 set @saved_opt_context_var_name_2= 'saved_opt_context_2';
 set @opt_context_var_name= 'opt_context';
@@ -37,6 +36,12 @@ set @records=
 select *from json_table(@records,
 '$[*]' columns(num_of_records text path '$')) as jt;
 num_of_records
+20
+set @file_stat_records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
+select *from json_table(@file_stat_records,
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 20
 set @indexes=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
@@ -196,30 +201,10 @@ select @opt_context;
 @opt_context
 NULL
 #
-# with optimizer_trace OFF,
-# nothing gets printed to the trace
-#
-set optimizer_trace=0;
-select * from t1 where a < 3 and b > 6;
-a	b
-0	7
-0	7
-2	7
-2	7
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-select @opt_context;
-@opt_context
-NULL
-#
-# Now, after re-enabling optimizer_trace, and optimizer_record_context,
+# Now, after re-enabling optimizer_record_context,
 # Loaded stats should be picked by the planner instead of the analyzed table stats,
 # as the optimizer_replay_context is still set to a valid json containing other stats
 #
-set optimizer_trace=1;
 set optimizer_record_context=ON;
 select * from t1 where a < 3 and b > 6;
 a	b
@@ -370,6 +355,11 @@ select * from t1 where a > 10;
 a	b
 Warnings:
 Warning	4253	Failed to parse saved optimizer context: "num_of_records" element not present at offset 1405.
+set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].file_stat_records');
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4253	Failed to parse saved optimizer context: "file_stat_records" element not present at offset 1402.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].indexes[0].index_name');
 select * from t1 where a > 10;
 a	b
