@@ -8512,21 +8512,22 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
         /* Execute the query */
         if (mysql_real_query(replay_server_mysql, query_start, query_len))
         {
-          fprintf(stdout, "ReplayTest: Query failed on replay server: %d %s\n",
-                  mysql_errno(replay_server_mysql),
-                  mysql_error(replay_server_mysql));
-          fprintf(stdout, "ReplayTest: Failed query was: %.*s\n", (int)query_len, query_start);
+          char buf[512];
+          int len= my_snprintf(buf, sizeof(buf),
+                               "ReplayTest: Query error: %s\n",
+                               mysql_error(replay_server_mysql));
+          fputs(buf, stdout);
           print_replay_test_location(stdout);
-          
+
           /* If this was an EXPLAIN query, add failure marker to result output */
           if (is_explain)
           {
-            dynstr_append_mem(&result, "*** REPLAY FAILED ***\n", 22);
+            dynstr_append_mem(&result, buf, len);
           }
-          
+
           goto cleanup;
         }
-        
+
         /* Process results */
         do
         {
@@ -8558,6 +8559,16 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
             }
             mysql_free_result(res);
           }
+          if (mysql_errno(replay_server_mysql))
+          {
+            char buf[512];
+            int len= my_snprintf(buf, sizeof(buf),
+                                 "ReplayTest: Query error: %s\n",
+                                 mysql_error(replay_server_mysql));
+            fputs(buf, stdout);
+            if (is_explain)
+              dynstr_append_mem(&result, buf, len);
+          }
         } while (mysql_next_result(replay_server_mysql) == 0);
 
         /* Collect warnings from the EXPLAIN query (replay server) */
@@ -8577,7 +8588,7 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
         if (is_explain)
         {
           found_explain= TRUE;
-          verbose_msg("ReplayTest: Found EXPLAIN FORMAT=JSON, stopping script execution");
+          verbose_msg("ReplayTest: Found EXPLAIN, stopping script execution");
           break;
         }
       }
@@ -8722,12 +8733,15 @@ static void run_explain_directly_on_replay(const char *query, size_t query_len,
 
   if (mysql_real_query(replay_server_mysql, query, (ulong)query_len))
   {
-    fprintf(stdout,
-            "ReplayTest: Direct EXPLAIN failed on replay server: %d %s\n",
-            mysql_errno(replay_server_mysql),
-            mysql_error(replay_server_mysql));
+    char buf[512];
+    int len= my_snprintf(buf, sizeof(buf),
+                         "ReplayTest: Direct EXPLAIN failed on replay server: %d %s\n",
+                         mysql_errno(replay_server_mysql),
+                         mysql_error(replay_server_mysql));
+    fputs(buf, stdout);
     fprintf(stdout, "ReplayTest: Failed query was: %.*s\n",
             (int)query_len, query);
+    dynstr_append_mem(ds, buf, len);
     DBUG_VOID_RETURN;
   }
 
