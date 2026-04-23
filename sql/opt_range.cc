@@ -9072,6 +9072,13 @@ SEL_ARG *Field_num::get_mm_leaf(RANGE_OPT_PARAM *prm, KEY_PART *key_part,
   if (can_optimize_scalar_range(prm, key_part, cond, op, value) !=
       Data_type_compatibility::OK)
     DBUG_RETURN(0);
+  /* Pre-check to detect lossy REAL -> INT conversions */
+  if (cmp_type() == INT_RESULT && value->result_type() == REAL_RESULT)
+  {
+    double val= value->val_real();
+    if (!value->null_value && val != (double) (longlong) val)
+      DBUG_RETURN(stored_field_make_mm_leaf_truncated(prm, op, value));
+  }
   int err= value->save_in_field_no_warnings(this, 1);
   if ((op != SCALAR_CMP_EQUAL && is_real_null()) || err < 0)
     DBUG_RETURN(&null_element);

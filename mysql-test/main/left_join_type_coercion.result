@@ -1,0 +1,20 @@
+#
+# MDEV-39199: Fix incorrect LEFT JOIN result with INT UNIQUE key and DOUBLE literal
+#
+# Main bug: 0.1 truncates to 0, right side must be NULL.
+SELECT t1.id, t2.id FROM t1 LEFT JOIN t2 ON t2.id = 0.1;
+id    id
+1    NULL
+# Exact integer match still works.
+SELECT t1.id, t2.id FROM t1 LEFT JOIN t2 ON t2.id = 0;
+id    id
+1    0
+# Negative double truncating to 0 must also yield NULL.
+SELECT t1.id, t2.id FROM t1 LEFT JOIN t2 ON t2.id = -0.9;
+id    id
+1    NULL
+# Double that exactly equals an integer (1.0) should match.
+SELECT t1.id, t2.id FROM t1 LEFT JOIN t2 ON t2.id = 1.0;
+id    id
+1    1
+# End of MDEV-39199 tests
