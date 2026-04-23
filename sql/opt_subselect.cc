@@ -2611,24 +2611,20 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
         */
         SELECT_LEX *subq_select= sj_nest->sj_subq_pred->unit->first_select();
         {
-          for (uint i=0 ; i < join->const_tables + sjm->tables ; i++)
-          {
-            JOIN_TAB *tab= join->best_positions[i].table;
-            join->map2table[tab->table->tablenr]= tab;
-          }
           table_map map= 0;
+          double rows= 1.0;
           for (uint i=0; i < subq_select->item_list.elements; i++)
             map|= subq_select->ref_pointer_array[i]->used_tables();
-          map= map & ~PSEUDO_TABLE_BITS;
-          Table_map_iterator tm_it(map);
-          int tableno;
-          double rows= 1.0;
-          while ((tableno = tm_it.next_bit()) != Table_map_iterator::BITMAP_END)
+          for (uint i=0 ; i < join->const_tables + sjm->tables ; i++)
           {
-            ha_rows tbl_rows=join->map2table[tableno]->
-                             table->opt_range_condition_rows;
-
-            rows= COST_MULT(rows, rows2double(tbl_rows));
+            TABLE *table= join->best_positions[i].table->table;
+            if (map & (1ULL << table->tablenr))
+            {
+              ha_rows opt_rows= MY_MIN(table->opt_range_condition_rows,
+                                       table->stat_records() *
+                                       table->cond_selectivity);
+              rows= COST_MULT(rows, opt_rows);
+            }
           }
           sjm->rows= MY_MIN(sjm->rows, rows);
         }
