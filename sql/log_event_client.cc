@@ -18,6 +18,7 @@
 
 
 #include "log_event.h"
+#include <algorithm>
 #ifndef MYSQL_CLIENT
 #error MYSQL_CLIENT must be defined here
 #endif
@@ -284,45 +285,6 @@ static bool hexdump_data_to_io_cache(IO_CACHE *file,
   return 0;
 err:
   return 1;
-}
-
-static inline bool is_numeric_type(uint type)
-{
-  switch (type)
-  {
-  case MYSQL_TYPE_TINY:
-  case MYSQL_TYPE_SHORT:
-  case MYSQL_TYPE_INT24:
-  case MYSQL_TYPE_LONG:
-  case MYSQL_TYPE_LONGLONG:
-  case MYSQL_TYPE_NEWDECIMAL:
-  case MYSQL_TYPE_FLOAT:
-  case MYSQL_TYPE_DOUBLE:
-    return true;
-  default:
-    return false;
-  }
-  return false;
-}
-
-static inline bool is_character_type(uint type)
-{
-  switch (type)
-  {
-  case MYSQL_TYPE_STRING:
-  case MYSQL_TYPE_VAR_STRING:
-  case MYSQL_TYPE_VARCHAR:
-  case MYSQL_TYPE_BLOB:
-  // Base class is blob for geom type
-  case MYSQL_TYPE_GEOMETRY:
-    return true;
-  default:
-    return false;
-  }
-}
-
-static inline bool is_enum_or_set_type(uint type) {
-  return type == MYSQL_TYPE_ENUM || type == MYSQL_TYPE_SET;
 }
 
 
@@ -3174,7 +3136,10 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     {
       MEM_ROOT root;
       init_alloc_root(0, &root, 4096, 0, 0);
-      Optional_metadata_fields fields(&root, m_colcnt,
+      Optional_metadata_fields fields(&root,
+                                      m_colcnt,
+                                      m_coltype,
+                                      m_field_metadata,
                                       m_optional_metadata,
                                       m_optional_metadata_len,
                                       0);
@@ -3215,93 +3180,7 @@ bool Table_map_log_event::print_body(PRINT_EVENT_INFO *print_event_info)
   return 0;
 }
 
-/**
-  Interface for iterator over charset columns.
-*/
-class Table_map_log_event::Charset_iterator
-{
- public:
-  typedef Table_map_log_event::Optional_metadata_fields::Default_charset
-      Default_charset;
-  virtual const CHARSET_INFO *next()= 0;
-  virtual ~Charset_iterator(){};
-  /**
-    Factory method to create an instance of the appropriate subclass.
-  */
-  static std::unique_ptr<Charset_iterator> create_charset_iterator(
-      const Default_charset &default_charset,
-      const std::vector<uint> &column_charset);
-};
 
-/**
-  Implementation of charset iterator for the DEFAULT_CHARSET type.
-*/
-class Table_map_log_event::Default_charset_iterator : public Charset_iterator
-{
- public:
-  Default_charset_iterator(const Default_charset &default_charset)
-      : m_iterator(default_charset.charset_pairs.begin()),
-        m_end(default_charset.charset_pairs.end()),
-        m_column_index(0),
-        m_default_charset_info(
-            get_charset(default_charset.default_charset, 0)) {}
-
-  const CHARSET_INFO *next() override {
-    const CHARSET_INFO *ret;
-    if (m_iterator != m_end && m_iterator->first == m_column_index) {
-      ret = get_charset(m_iterator->second, 0);
-      m_iterator++;
-    } else
-      ret = m_default_charset_info;
-    m_column_index++;
-    return ret;
-  }
-  ~Default_charset_iterator(){};
-
- private:
-  std::vector<Optional_metadata_fields::uint_pair>::const_iterator m_iterator,
-      m_end;
-  uint m_column_index;
-  const CHARSET_INFO *m_default_charset_info;
-};
-//Table_map_log_event::Default_charset_iterator::~Default_charset_iterator(){int a=8;a++; a--;};
-/**
-  Implementation of charset iterator for the COLUMNT_CHARSET type.
-*/
-class Table_map_log_event::Column_charset_iterator : public Charset_iterator
-{
- public:
-  Column_charset_iterator(const std::vector<uint> &column_charset)
-      : m_iterator(column_charset.begin()), m_end(column_charset.end()) {}
-
-  const CHARSET_INFO *next() override {
-    const CHARSET_INFO *ret = nullptr;
-    if (m_iterator != m_end) {
-      ret = get_charset(*m_iterator, 0);
-      m_iterator++;
-    }
-    return ret;
-  }
-
- ~Column_charset_iterator(){};
- private:
-  std::vector<uint>::const_iterator m_iterator;
-  std::vector<uint>::const_iterator m_end;
-};
-//Table_map_log_event::Column_charset_iterator::~Column_charset_iterator(){int a=8;a++; a--;};
-
-std::unique_ptr<Table_map_log_event::Charset_iterator>
-Table_map_log_event::Charset_iterator::create_charset_iterator(
-    const Default_charset &default_charset,
-    const std::vector<uint> &column_charset)
-{
-  if (!default_charset.empty())
-    return std::unique_ptr<Charset_iterator>(
-        new Default_charset_iterator(default_charset));
-  else
-    return std::unique_ptr<Charset_iterator>(
-        new Column_charset_iterator(column_charset));
-}
 /**
    return the string name of a type.
 
@@ -3336,43 +3215,36 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
     my_snprintf(typestr, typestr_length, "BIGINT");
     break;
   case MYSQL_TYPE_NEWDECIMAL:
-      my_snprintf(typestr, typestr_length, "DECIMAL(%d,%d)",
-                  (*meta_ptr)[0], (*meta_ptr)[1]);
-      (*meta_ptr)+= 2;
-      break;
+    my_snprintf(typestr, typestr_length, "DECIMAL(%d,%d)",
+                (*meta_ptr)[0], (*meta_ptr)[1]);
+    break;
   case MYSQL_TYPE_FLOAT:
     my_snprintf(typestr, typestr_length, "FLOAT");
-    (*meta_ptr)++;
     break;
   case MYSQL_TYPE_DOUBLE:
     my_snprintf(typestr, typestr_length, "DOUBLE");
-    (*meta_ptr)++;
     break;
   case MYSQL_TYPE_BIT:
     my_snprintf(typestr, typestr_length, "BIT(%d)",
                 (((*meta_ptr)[0])) + (*meta_ptr)[1]*8);
-    (*meta_ptr)+= 2;
     break;
   case MYSQL_TYPE_TIMESTAMP2:
     if (**meta_ptr != 0)
       my_snprintf(typestr, typestr_length, "TIMESTAMP(%d)", **meta_ptr);
     else
       my_snprintf(typestr, typestr_length, "TIMESTAMP");
-    (*meta_ptr)++;
     break;
   case MYSQL_TYPE_DATETIME2:
     if (**meta_ptr != 0)
       my_snprintf(typestr, typestr_length, "DATETIME(%d)", **meta_ptr);
     else
       my_snprintf(typestr, typestr_length, "DATETIME");
-    (*meta_ptr)++;
     break;
   case MYSQL_TYPE_TIME2:
     if (**meta_ptr != 0)
       my_snprintf(typestr, typestr_length, "TIME(%d)", **meta_ptr);
     else
       my_snprintf(typestr, typestr_length, "TIME");
-    (*meta_ptr)++;
     break;
   case MYSQL_TYPE_NEWDATE:
   case MYSQL_TYPE_DATE:
@@ -3383,11 +3255,9 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
     break;
   case MYSQL_TYPE_ENUM:
     my_snprintf(typestr, typestr_length, "ENUM");
-    (*meta_ptr)+= 2;
     break;
   case MYSQL_TYPE_SET:
     my_snprintf(typestr, typestr_length, "SET");
-    (*meta_ptr)+= 2;
     break;
   case MYSQL_TYPE_BLOB:
     {
@@ -3406,8 +3276,6 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
         my_snprintf(typestr, typestr_length, "INVALID_%s(%d)", type_name, size);
       else
         my_snprintf(typestr, typestr_length, "%s%s", names[size], type_name);
-
-      (*meta_ptr)++;
     }
     break;
   case MYSQL_TYPE_VARCHAR:
@@ -3418,8 +3286,6 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
     else
       my_snprintf(typestr, typestr_length, "VARBINARY(%d)",
                   uint2korr(*meta_ptr));
-
-    (*meta_ptr)+= 2;
     break;
   case MYSQL_TYPE_STRING:
     {
@@ -3431,8 +3297,6 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
         my_snprintf(typestr, typestr_length, "CHAR(%d)", len/cs->mbmaxlen);
       else
         my_snprintf(typestr, typestr_length, "BINARY(%d)", len);
-
-      (*meta_ptr)+= 2;
     }
     break;
   case MYSQL_TYPE_GEOMETRY:
@@ -3446,43 +3310,26 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
       else
         my_snprintf(typestr, typestr_length, "INVALID_GEOMETRY_TYPE(%u)",
                     geometry_type);
-      (*meta_ptr)++;
     }
     break;
   default:
     *typestr= 0;
     break;
   }
+  advance_field_metadata_ptr(type, (const uchar**) meta_ptr);
 }
 
 void Table_map_log_event::print_columns(IO_CACHE *file,
                                         const Optional_metadata_fields &fields)
 {
   unsigned char* field_metadata_ptr= m_field_metadata;
-  std::vector<bool>::const_iterator signedness_it= fields.m_signedness.begin();
-
-  std::unique_ptr<Charset_iterator> charset_it =
-      Charset_iterator::create_charset_iterator(fields.m_default_charset,
-                                                fields.m_column_charset);
-  std::unique_ptr<Charset_iterator> enum_and_set_charset_it =
-      Charset_iterator::create_charset_iterator(
-          fields.m_enum_and_set_default_charset,
-          fields.m_enum_and_set_column_charset);
-  std::vector<Optional_metadata_fields::str_vector>::const_iterator
-    set_str_values_it= fields.m_set_str_value.begin();
-  std::vector<Optional_metadata_fields::str_vector>::const_iterator
-    enum_str_values_it= fields.m_enum_str_value.begin();
-  std::vector<unsigned int>::const_iterator geometry_type_it=
-    fields.m_geometry_type.begin();
-  LEX_CSTRING *col_names= fields.m_column_name;
-
-  uint geometry_type= 0;
 
   my_b_printf(file, "# Columns(");
 
   for (unsigned long i= 0; i < m_colcnt; i++)
   {
-    uint real_type = m_coltype[i];
+    const Optional_metadata_fields::Column_metadata& column_metadata= fields.m_column_metadata.at(i);
+    uint real_type= m_coltype[i];
     if (real_type == MYSQL_TYPE_STRING &&
         (*field_metadata_ptr == MYSQL_TYPE_ENUM ||
          *field_metadata_ptr == MYSQL_TYPE_SET))
@@ -3490,32 +3337,36 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
 
     // Get current column's collation id if it is a character, enum,
     // or set column
-    const CHARSET_INFO *cs = NULL;
+    const CHARSET_INFO *cs= NULL;
     if (is_character_type(real_type))
-      cs = charset_it->next();
-    else if (is_enum_or_set_type(real_type))
-      cs = enum_and_set_charset_it->next();
-
-    // Print column name
-    if (col_names && col_names->str)
     {
-      pretty_print_identifier(file, col_names->str, col_names->length);
-      my_b_printf(file, " ");
-      col_names++;
+      const auto& cs_num= column_metadata.charset.has_value() ?
+          column_metadata.charset : fields.m_default_charset;
+      if (cs_num.has_value())
+        cs= get_charset(*cs_num, 0);
+    }
+    else if (is_enum_or_set_type(real_type))
+    {
+      const auto& cs_num= column_metadata.enum_and_set_column_charset.has_value() ?
+          column_metadata.enum_and_set_column_charset :
+          fields.m_enum_and_set_default_charset;
+      if (cs_num.has_value())
+        cs= get_charset(*cs_num, 0);
     }
 
-    // update geometry_type for geometry columns
-    if (real_type == MYSQL_TYPE_GEOMETRY)
+    // Print column name
+    const LEX_CSTRING& col_name= column_metadata.column_name;
+    if (col_name.str)
     {
-      geometry_type= (geometry_type_it != fields.m_geometry_type.end()) ?
-        *geometry_type_it++ : 0;
+      pretty_print_identifier(file, col_name.str, col_name.length);
+      my_b_printf(file, " ");
     }
 
     // print column type
     const uint TYPE_NAME_LEN = 100;
     char type_name[TYPE_NAME_LEN];
     get_type_name(real_type, &field_metadata_ptr, cs, type_name,
-                  TYPE_NAME_LEN, geometry_type);
+                  TYPE_NAME_LEN, column_metadata.geometry_type);
 
     if (type_name[0] == '\0')
     {
@@ -3525,12 +3376,10 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
     my_b_printf(file, "%s", type_name);
 
     // Print UNSIGNED for numeric column
-    if (is_numeric_type(real_type) &&
-        signedness_it != fields.m_signedness.end())
+    if (is_numeric_type(real_type))
     {
-      if (*signedness_it == true)
+      if (column_metadata.is_unsigned == true)
         my_b_printf(file, " UNSIGNED");
-      signedness_it++;
     }
 
     // if the column is not marked as 'null', print 'not null'
@@ -3539,27 +3388,23 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
 
     // Print string values of SET and ENUM column
     const Optional_metadata_fields::str_vector *str_values= NULL;
-    if (real_type == MYSQL_TYPE_ENUM &&
-        enum_str_values_it != fields.m_enum_str_value.end())
+    if (real_type == MYSQL_TYPE_ENUM && !column_metadata.enum_str_values.empty())
     {
-      str_values= &(*enum_str_values_it);
-      enum_str_values_it++;
+      str_values= &column_metadata.enum_str_values;
     }
-    else if (real_type == MYSQL_TYPE_SET &&
-             set_str_values_it != fields.m_set_str_value.end())
+    else if (real_type == MYSQL_TYPE_SET && !column_metadata.set_str_values.empty())
     {
-      str_values= &(*set_str_values_it);
-      set_str_values_it++;
+      str_values= &column_metadata.set_str_values;
     }
 
     if (str_values != NULL)
     {
       const char *separator= "(";
-      for (Optional_metadata_fields::str_vector::const_iterator it=
-             str_values->begin(); it != str_values->end(); it++)
+      for (const LEX_CSTRING *it= str_values->front(); it != str_values->end();
+           it++)
       {
         my_b_printf(file, "%s", separator);
-        pretty_print_str(file, it->c_str(), it->size());
+        pretty_print_str(file, it->str, it->length);
         separator= ",";
       }
       my_b_printf(file, ")");
@@ -3578,27 +3423,36 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
 void Table_map_log_event::print_primary_key
   (IO_CACHE *file,const Optional_metadata_fields &fields)
 {
-  if (!fields.m_primary_key.empty())
+  auto& col_metadata= fields.m_column_metadata;
+  bool has_pk= std::any_of(col_metadata.front(), col_metadata.end(), [](const auto& col){
+    return col.primary_key.has_value();
+  });
+
+  if (has_pk)
   {
     my_b_printf(file, "# Primary Key(");
 
-    std::vector<Optional_metadata_fields::uint_pair>::const_iterator it=
-      fields.m_primary_key.begin();
-
-    for (; it != fields.m_primary_key.end(); it++)
+    bool printed_first_key= false;
+    for (uint col_idx= 0; col_idx < col_metadata.size(); col_idx++)
     {
-      if (it != fields.m_primary_key.begin())
+      const auto& col= col_metadata.at(col_idx);
+      if (!col.primary_key.has_value())
+        continue;
+
+      if (printed_first_key)
         my_b_printf(file, ", ");
 
       // Print column name or column index
-      if (!fields.m_column_name)
-        my_b_printf(file, "%u", it->first);
+      const LEX_CSTRING& column_name= col.column_name;
+      if (column_name.str)
+        my_b_printf(file, "%s", column_name.str);
       else
-        my_b_printf(file, "%s", fields.m_column_name[it->first].str);
+        my_b_printf(file, "%u", col_idx);
 
       // Print prefix length
-      if (it->second != 0)
-        my_b_printf(file, "(%u)", it->second);
+      if (col.primary_key.value() != 0)
+        my_b_printf(file, "(%u)", col.primary_key.value());
+      printed_first_key= true;
     }
 
     my_b_printf(file, ")\n");
