@@ -2724,7 +2724,9 @@ Item_func_nullif::fix_length_and_dec(THD *thd)
     Check it here to be a valid returned type for a hybrid function.
     args[1] will be checked below, to be comparable to args[0],
     its data type does not affect the returned data type.
+    Set type handler for the hybrid function before calling fix_attributes.
   */
+  set_handler(args[0]->type_handler());
   if (args[0]->type_handler()->
          Item_hybrid_func_fix_attributes(current_thd, func_name_cstring(),
                                          this, this, &args[0], 1))

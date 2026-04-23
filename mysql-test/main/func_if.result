@@ -238,3 +238,37 @@ First	Second	Third
 2.0	1	2
 NULL	1	2
 drop table t1;
+#
+# MDEV-36763: Assertion failed in `Type_handler_json_common::json_type_handler_from_generic`
+#
+# Test for NULLIF()
+SELECT NULLIF(CASE WHEN 1 THEN NULL ELSE JSON_ARRAY() END, 1);
+NULLIF(CASE WHEN 1 THEN NULL ELSE JSON_ARRAY() END, 1)
+NULL
+SELECT NULLIF(JSON_OBJECT(), 1);
+NULLIF(JSON_OBJECT(), 1)
+{}
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '{}'
+SELECT NULLIF(JSON_ARRAY(), NULL);
+NULLIF(JSON_ARRAY(), NULL)
+[]
+# Tests for IF()
+DO IF(JSON_DEPTH(0), JSON_OBJECT(), NULL);
+SELECT IF(1, JSON_ARRAY(), NULL);
+IF(1, JSON_ARRAY(), NULL)
+[]
+SELECT IF(1, NULL, JSON_ARRAY());
+IF(1, NULL, JSON_ARRAY())
+NULL
+# Tests for NVL2 (ORACLE mode)
+SET @save_sql_mode=@@sql_mode;
+SET sql_mode=ORACLE;
+SELECT NVL2(1, JSON_ARRAY(), NULL);
+NVL2(1, JSON_ARRAY(), NULL)
+[]
+SELECT NVL2(1, NULL, JSON_ARRAY());
+NVL2(1, NULL, JSON_ARRAY())
+NULL
+SET sql_mode=@save_sql_mode;
+# End of 12.3 tests

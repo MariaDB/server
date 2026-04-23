@@ -1308,12 +1308,12 @@ protected:
 
   bool cache_type_info(THD *thd, Item *source, bool maybe_null_arg)
   {
+    set_handler(source->type_handler());
     if (source->type_handler()->
           Item_hybrid_func_fix_attributes(thd, func_name_cstring(),
                                           this, this, &source, 1))
       return true;
     Type_std_attributes::set(source);
-    set_handler(source->type_handler());
     set_maybe_null(maybe_null_arg);
     return false;
   }
