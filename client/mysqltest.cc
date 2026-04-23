@@ -8438,6 +8438,34 @@ static void log_replay_query(const char *query, size_t query_len)
 }
 
 /*
+  Print the current test-file location (file, line, and include stack) to the
+  given stream. Mirrors the format used by make_error_message() for regular
+  mysqltest errors, but prefixed with "ReplayTest: " to group with surrounding
+  replay diagnostics.
+*/
+static void print_replay_test_location(FILE *f)
+{
+  if (cur_file && cur_file != file_stack)
+  {
+    /* Enough for the full 16-entry include stack. */
+    char buf[4096];
+    buf[0]= '\0';
+    fprintf(f, "ReplayTest: In included file \"%s\":\n",
+            cur_file->file_name);
+    print_file_stack(buf, buf + sizeof(buf));
+    if (buf[0])
+      fprintf(f, "ReplayTest: %s", buf);
+  }
+  else if (cur_file && cur_file->file_name)
+  {
+    fprintf(f, "ReplayTest: In file \"%s\"\n", cur_file->file_name);
+  }
+  if (start_lineno > 0)
+    fprintf(f, "ReplayTest: At line %u\n", start_lineno);
+}
+
+
+/*
   Execute queries from SQL script on replay server
   Split by ";\n" and execute each query
   Append output from last query to ds
@@ -8488,6 +8516,7 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
                   mysql_errno(replay_server_mysql),
                   mysql_error(replay_server_mysql));
           fprintf(stdout, "ReplayTest: Failed query was: %.*s\n", (int)query_len, query_start);
+          print_replay_test_location(stdout);
           goto cleanup;
         }
         
@@ -8580,6 +8609,7 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
                 mysql_errno(replay_server_mysql),
                 mysql_error(replay_server_mysql));
         fprintf(stdout, "ReplayTest: Failed query was: %.*s\n", (int)query_len, query_start);
+        print_replay_test_location(stdout);
         goto cleanup;
       }
       
