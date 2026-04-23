@@ -17773,7 +17773,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "true",
+    "const_condition": true,
     "nested_loop": [
       {
         "table": {
@@ -19063,7 +19063,7 @@ EXPLAIN
             "lateral": 1,
             "query_block": {
               "select_id": 3,
-              "const_condition": "true",
+              "const_condition": true,
               "outer_ref_condition": "t4.c is not null",
               "nested_loop": [
                 {

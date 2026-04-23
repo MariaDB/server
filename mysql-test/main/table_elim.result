@@ -746,7 +746,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "true",
+    "const_condition": true,
     "nested_loop": [
       {
         "table": {
@@ -778,7 +778,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "true",
+    "const_condition": true,
     "nested_loop": [
       {
         "table": {
@@ -803,7 +803,7 @@ EXPLAIN
           "materialized": {
             "query_block": {
               "select_id": 2,
-              "const_condition": "true",
+              "const_condition": true,
               "filesort": {
                 "sort_key": "t11.a",
                 "temporary_table": {
@@ -840,7 +840,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "true",
+    "const_condition": true,
     "nested_loop": [
       {
         "table": {
@@ -866,7 +866,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "true",
+    "const_condition": true,
     "nested_loop": [
       {
         "table": {
@@ -891,7 +891,7 @@ EXPLAIN
           "materialized": {
             "query_block": {
               "select_id": 2,
-              "const_condition": "true",
+              "const_condition": true,
               "filesort": {
                 "sort_key": "t11.a",
                 "temporary_table": {
