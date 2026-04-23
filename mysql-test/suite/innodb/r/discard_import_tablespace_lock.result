@@ -1,0 +1,196 @@
+#
+# MDEV-39184: Assertion failure in TDC_element::flush()
+# when LOCK TABLE WRITE + ALTER TABLE DISCARD/IMPORT TABLESPACE
+#
+call mtr.add_suppression("InnoDB: Tablespace for table test/t");
+call mtr.add_suppression("InnoDB: Cannot open datafile for read-write");
+#
+# ============================================================
+# SECTION 1: DISCARD TABLESPACE UNDER LOCK TABLE
+# ============================================================
+#
+CREATE TABLE t (s INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2),(3);
+SELECT * FROM t ORDER BY s;
+s
+1
+2
+3
+#
+# Scenario 1.1: Original bug
+# LOCK TABLE WRITE + DISCARD TABLESPACE
+# Previously crashed server with assertion failure in
+# TDC_element::flush() — MDL_EXCLUSIVE was not held
+#
+LOCK TABLE t WRITE;
+ALTER TABLE t DISCARD TABLESPACE;
+UNLOCK TABLES;
+DROP TABLE IF EXISTS t;
+#
+# Scenario 1.2: DISCARD without LOCK TABLE
+# Normal flow — regression check
+#
+CREATE TABLE t (s INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2),(3);
+ALTER TABLE t DISCARD TABLESPACE;
+DROP TABLE IF EXISTS t;
+#
+# Scenario 1.3: LOCK TABLE READ + DISCARD
+# Should give lock error not crash
+#
+CREATE TABLE t (s INT) ENGINE=InnoDB;
+LOCK TABLE t READ;
+ALTER TABLE t DISCARD TABLESPACE;
+ERROR HY000: Table 't' was locked with a READ lock and can't be updated
+UNLOCK TABLES;
+DROP TABLE IF EXISTS t;
+#
+# Scenario 1.4: Session still usable after DISCARD under LOCK TABLE
+# Lock state and other tables must be preserved
+#
+CREATE TABLE t  (s INT) ENGINE=InnoDB;
+CREATE TABLE t2 (s INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2),(3);
+LOCK TABLE t WRITE, t2 WRITE;
+ALTER TABLE t DISCARD TABLESPACE;
+# t2 should still be accessible — session not broken
+SELECT * FROM t2 ORDER BY s;
+s
+1
+2
+3
+UNLOCK TABLES;
+DROP TABLE IF EXISTS t;
+DROP TABLE IF EXISTS t2;
+#
+# Scenario 1.5: Multiple tables DISCARD in same locked session
+#
+CREATE TABLE t  (s INT) ENGINE=InnoDB;
+CREATE TABLE t2 (s INT) ENGINE=InnoDB;
+LOCK TABLE t WRITE, t2 WRITE;
+ALTER TABLE t  DISCARD TABLESPACE;
+ALTER TABLE t2 DISCARD TABLESPACE;
+UNLOCK TABLES;
+DROP TABLE IF EXISTS t;
+DROP TABLE IF EXISTS t2;
+#
+# ============================================================
+# SECTION 2: IMPORT TABLESPACE UNDER LOCK TABLE
+# Uses real .ibd file copy like reference test
+# ============================================================
+#
+#
+# Scenario 2.1: Full DISCARD + IMPORT cycle under LOCK TABLE
+# Create valid .ibd via FLUSH TABLE FOR EXPORT
+# then DISCARD and IMPORT under LOCK TABLE
+#
+CREATE TABLE t (s INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (10),(20),(30);
+SELECT * FROM t ORDER BY s;
+s
+10
+20
+30
+FLUSH TABLE t FOR EXPORT;
+UNLOCK TABLES;
+LOCK TABLE t WRITE;
+ALTER TABLE t DISCARD TABLESPACE;
+UNLOCK TABLES;
+LOCK TABLE t WRITE;
+ALTER TABLE t IMPORT TABLESPACE;
+UNLOCK TABLES;
+SELECT * FROM t ORDER BY s;
+s
+10
+20
+30
+DROP TABLE IF EXISTS t;
+#
+# Scenario 2.2: DISCARD then IMPORT in same locked session
+# Both operations under same LOCK TABLE
+#
+CREATE TABLE t (s INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2),(3);
+FLUSH TABLE t FOR EXPORT;
+UNLOCK TABLES;
+LOCK TABLE t WRITE;
+ALTER TABLE t DISCARD TABLESPACE;
+ALTER TABLE t IMPORT TABLESPACE;
+UNLOCK TABLES;
+SELECT * FROM t ORDER BY s;
+s
+1
+2
+3
+DROP TABLE IF EXISTS t;
+#
+# Scenario 2.3: IMPORT without LOCK TABLE
+# Normal path — regression check
+#
+CREATE TABLE t (s INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2),(3);
+FLUSH TABLE t FOR EXPORT;
+UNLOCK TABLES;
+ALTER TABLE t DISCARD TABLESPACE;
+ALTER TABLE t IMPORT TABLESPACE;
+SELECT * FROM t ORDER BY s;
+s
+1
+2
+3
+DROP TABLE IF EXISTS t;
+#
+# Scenario 2.4: Session intact after IMPORT under LOCK TABLE
+#
+CREATE TABLE t  (s INT) ENGINE=InnoDB;
+CREATE TABLE t2 (s INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2),(3);
+FLUSH TABLE t FOR EXPORT;
+UNLOCK TABLES;
+LOCK TABLE t WRITE, t2 WRITE;
+ALTER TABLE t DISCARD TABLESPACE;
+ALTER TABLE t IMPORT TABLESPACE;
+# t2 still accessible after IMPORT — session not broken
+SELECT * FROM t2 ORDER BY s;
+s
+1
+2
+3
+UNLOCK TABLES;
+DROP TABLE IF EXISTS t;
+DROP TABLE IF EXISTS t2;
+#
+# ============================================================
+# SECTION 3: TEMPORARY TABLE HANDLING
+# ============================================================
+#
+#
+# Scenario 3.1: DISCARD on temporary table without LOCK TABLE
+# InnoDB does not support DISCARD on temp tables
+#
+CREATE TEMPORARY TABLE tmp (s INT) ENGINE=InnoDB;
+ALTER TABLE tmp DISCARD TABLESPACE;
+ERROR HY000: Cannot DISCARD/IMPORT tablespace associated with temporary table
+DROP TEMPORARY TABLE tmp;
+#
+# Scenario 3.2: DISCARD on temporary table under LOCK TABLE
+# Must not crash — wait_while_table_is_used() has internal
+# DBUG_ASSERT(!tmp_table) which crashes without the guard
+# added in the fix (tmp_table == NO_TMP_TABLE check)
+#
+CREATE TEMPORARY TABLE tmp (s INT) ENGINE=InnoDB;
+LOCK TABLE tmp WRITE;
+ALTER TABLE tmp DISCARD TABLESPACE;
+ERROR HY000: Cannot DISCARD/IMPORT tablespace associated with temporary table
+UNLOCK TABLES;
+DROP TEMPORARY TABLE tmp;
+#
+# Scenario 3.3: IMPORT on temporary table under LOCK TABLE
+# Same guard must protect IMPORT path too
+#
+CREATE TEMPORARY TABLE tmp (s INT) ENGINE=InnoDB;
+LOCK TABLE tmp WRITE;
+ALTER TABLE tmp IMPORT TABLESPACE;
+ERROR HY000: Cannot DISCARD/IMPORT tablespace associated with temporary table
+UNLOCK TABLES;
+DROP TEMPORARY TABLE tmp;

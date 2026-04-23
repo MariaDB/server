@@ -1,0 +1,243 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39184: Assertion failure in TDC_element::flush()
+--echo # when LOCK TABLE WRITE + ALTER TABLE DISCARD/IMPORT TABLESPACE
+--echo #
+
+# Get datadir for file operations
+let $MYSQLD_DATADIR = `SELECT @@datadir`;
+
+# Suppress expected warnings
+call mtr.add_suppression("InnoDB: Tablespace for table test/t");
+call mtr.add_suppression("InnoDB: Cannot open datafile for read-write");
+
+--echo #
+--echo # ============================================================
+--echo # SECTION 1: DISCARD TABLESPACE UNDER LOCK TABLE
+--echo # ============================================================
+--echo #
+
+CREATE TABLE t (s INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2),(3);
+SELECT * FROM t ORDER BY s;
+
+--echo #
+--echo # Scenario 1.1: Original bug
+--echo # LOCK TABLE WRITE + DISCARD TABLESPACE
+--echo # Previously crashed server with assertion failure in
+--echo # TDC_element::flush() — MDL_EXCLUSIVE was not held
+--echo #
+LOCK TABLE t WRITE;
+ALTER TABLE t DISCARD TABLESPACE;
+UNLOCK TABLES;
+DROP TABLE IF EXISTS t;
+
+--echo #
+--echo # Scenario 1.2: DISCARD without LOCK TABLE
+--echo # Normal flow — regression check
+--echo #
+CREATE TABLE t (s INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2),(3);
+ALTER TABLE t DISCARD TABLESPACE;
+DROP TABLE IF EXISTS t;
+
+--echo #
+--echo # Scenario 1.3: LOCK TABLE READ + DISCARD
+--echo # Should give lock error not crash
+--echo #
+CREATE TABLE t (s INT) ENGINE=InnoDB;
+LOCK TABLE t READ;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+ALTER TABLE t DISCARD TABLESPACE;
+UNLOCK TABLES;
+DROP TABLE IF EXISTS t;
+
+
+--echo #
+--echo # Scenario 1.4: Session still usable after DISCARD under LOCK TABLE
+--echo # Lock state and other tables must be preserved
+--echo #
+CREATE TABLE t  (s INT) ENGINE=InnoDB;
+CREATE TABLE t2 (s INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2),(3);
+
+LOCK TABLE t WRITE, t2 WRITE;
+ALTER TABLE t DISCARD TABLESPACE;
+--echo # t2 should still be accessible — session not broken
+SELECT * FROM t2 ORDER BY s;
+UNLOCK TABLES;
+
+DROP TABLE IF EXISTS t;
+DROP TABLE IF EXISTS t2;
+
+--echo #
+--echo # Scenario 1.5: Multiple tables DISCARD in same locked session
+--echo #
+CREATE TABLE t  (s INT) ENGINE=InnoDB;
+CREATE TABLE t2 (s INT) ENGINE=InnoDB;
+
+LOCK TABLE t WRITE, t2 WRITE;
+ALTER TABLE t  DISCARD TABLESPACE;
+ALTER TABLE t2 DISCARD TABLESPACE;
+UNLOCK TABLES;
+
+DROP TABLE IF EXISTS t;
+DROP TABLE IF EXISTS t2;
+
+
+--echo #
+--echo # ============================================================
+--echo # SECTION 2: IMPORT TABLESPACE UNDER LOCK TABLE
+--echo # Uses real .ibd file copy like reference test
+--echo # ============================================================
+--echo #
+
+--echo #
+--echo # Scenario 2.1: Full DISCARD + IMPORT cycle under LOCK TABLE
+--echo # Create valid .ibd via FLUSH TABLE FOR EXPORT
+--echo # then DISCARD and IMPORT under LOCK TABLE
+--echo #
+
+# Step 1: create table and get a valid .ibd backup
+CREATE TABLE t (s INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (10),(20),(30);
+SELECT * FROM t ORDER BY s;
+
+# Export to get consistent .ibd + .cfg
+FLUSH TABLE t FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t.cfg $MYSQLD_DATADIR/t_backup.cfg
+--copy_file $MYSQLD_DATADIR/test/t.ibd $MYSQLD_DATADIR/t_backup.ibd
+UNLOCK TABLES;
+
+# Step 2: DISCARD under LOCK TABLE — main fix being tested
+LOCK TABLE t WRITE;
+ALTER TABLE t DISCARD TABLESPACE;
+UNLOCK TABLES;
+
+# Step 3: restore the backed up .ibd and .cfg
+--move_file $MYSQLD_DATADIR/t_backup.cfg $MYSQLD_DATADIR/test/t.cfg
+--move_file $MYSQLD_DATADIR/t_backup.ibd $MYSQLD_DATADIR/test/t.ibd
+
+# Step 4: IMPORT under LOCK TABLE
+LOCK TABLE t WRITE;
+ALTER TABLE t IMPORT TABLESPACE;
+UNLOCK TABLES;
+
+# Step 5: verify data is restored
+SELECT * FROM t ORDER BY s;
+
+DROP TABLE IF EXISTS t;
+
+--echo #
+--echo # Scenario 2.2: DISCARD then IMPORT in same locked session
+--echo # Both operations under same LOCK TABLE
+--echo #
+CREATE TABLE t (s INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2),(3);
+
+FLUSH TABLE t FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t.cfg $MYSQLD_DATADIR/t_backup.cfg
+--copy_file $MYSQLD_DATADIR/test/t.ibd $MYSQLD_DATADIR/t_backup.ibd
+UNLOCK TABLES;
+
+# Both DISCARD and IMPORT in same locked session
+LOCK TABLE t WRITE;
+ALTER TABLE t DISCARD TABLESPACE;
+
+--move_file $MYSQLD_DATADIR/t_backup.cfg $MYSQLD_DATADIR/test/t.cfg
+--move_file $MYSQLD_DATADIR/t_backup.ibd $MYSQLD_DATADIR/test/t.ibd
+
+ALTER TABLE t IMPORT TABLESPACE;
+UNLOCK TABLES;
+
+SELECT * FROM t ORDER BY s;
+DROP TABLE IF EXISTS t;
+
+--echo #
+--echo # Scenario 2.3: IMPORT without LOCK TABLE
+--echo # Normal path — regression check
+--echo #
+CREATE TABLE t (s INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2),(3);
+
+FLUSH TABLE t FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t.cfg $MYSQLD_DATADIR/t_backup.cfg
+--copy_file $MYSQLD_DATADIR/test/t.ibd $MYSQLD_DATADIR/t_backup.ibd
+UNLOCK TABLES;
+
+ALTER TABLE t DISCARD TABLESPACE;
+
+--move_file $MYSQLD_DATADIR/t_backup.cfg $MYSQLD_DATADIR/test/t.cfg
+--move_file $MYSQLD_DATADIR/t_backup.ibd $MYSQLD_DATADIR/test/t.ibd
+
+ALTER TABLE t IMPORT TABLESPACE;
+SELECT * FROM t ORDER BY s;
+DROP TABLE IF EXISTS t;
+
+--echo #
+--echo # Scenario 2.4: Session intact after IMPORT under LOCK TABLE
+--echo #
+CREATE TABLE t  (s INT) ENGINE=InnoDB;
+CREATE TABLE t2 (s INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2),(3);
+
+FLUSH TABLE t FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t.cfg $MYSQLD_DATADIR/t_backup.cfg
+--copy_file $MYSQLD_DATADIR/test/t.ibd $MYSQLD_DATADIR/t_backup.ibd
+UNLOCK TABLES;
+
+LOCK TABLE t WRITE, t2 WRITE;
+ALTER TABLE t DISCARD TABLESPACE;
+
+--move_file $MYSQLD_DATADIR/t_backup.cfg $MYSQLD_DATADIR/test/t.cfg
+--move_file $MYSQLD_DATADIR/t_backup.ibd $MYSQLD_DATADIR/test/t.ibd
+
+ALTER TABLE t IMPORT TABLESPACE;
+
+--echo # t2 still accessible after IMPORT — session not broken
+SELECT * FROM t2 ORDER BY s;
+UNLOCK TABLES;
+
+DROP TABLE IF EXISTS t;
+DROP TABLE IF EXISTS t2;
+
+
+--echo #
+--echo # ============================================================
+--echo # SECTION 3: TEMPORARY TABLE HANDLING
+--echo # ============================================================
+--echo #
+
+--echo #
+--echo # Scenario 3.1: DISCARD on temporary table without LOCK TABLE
+--echo # InnoDB does not support DISCARD on temp tables
+--echo #
+CREATE TEMPORARY TABLE tmp (s INT) ENGINE=InnoDB;
+--error ER_CANNOT_DISCARD_TEMPORARY_TABLE
+ALTER TABLE tmp DISCARD TABLESPACE;
+DROP TEMPORARY TABLE tmp;
+
+--echo #
+--echo # Scenario 3.2: DISCARD on temporary table under LOCK TABLE
+--echo # Must not crash — wait_while_table_is_used() has internal
+--echo # DBUG_ASSERT(!tmp_table) which crashes without the guard
+--echo # added in the fix (tmp_table == NO_TMP_TABLE check)
+--echo #
+CREATE TEMPORARY TABLE tmp (s INT) ENGINE=InnoDB;
+LOCK TABLE tmp WRITE;
+--error ER_CANNOT_DISCARD_TEMPORARY_TABLE
+ALTER TABLE tmp DISCARD TABLESPACE;
+UNLOCK TABLES;
+DROP TEMPORARY TABLE tmp;
+
+--echo #
+--echo # Scenario 3.3: IMPORT on temporary table under LOCK TABLE
+--echo # Same guard must protect IMPORT path too
+--echo #
+CREATE TEMPORARY TABLE tmp (s INT) ENGINE=InnoDB;
+LOCK TABLE tmp WRITE;
+--error ER_CANNOT_DISCARD_TEMPORARY_TABLE
+ALTER TABLE tmp IMPORT TABLESPACE;
+UNLOCK TABLES;
+DROP TEMPORARY TABLE tmp;
