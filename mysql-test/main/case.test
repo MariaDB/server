@@ -524,3 +524,21 @@ SELECT NULLIF(NULL, ROW(1,2));
 SELECT NULLIF(ROW(1,2), NULL);
 
 --echo # End of 12.0 tests
+
+--echo #
+--echo # MDEV-37534: Assertion `a == &type_handler_row || a == &type_handler_null` failed on `CREATE TABLE ... ROW()`
+--echo #
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CREATE TABLE t (c INT CHECK(c=CASE c WHEN ROW(1, 1) THEN c=0 END IN (c)=1));
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+select CASE 1 WHEN ROW(1, 2) THEN 0 END from dual;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+select CASE WHEN NULLIF(1, ROW(1,1)) THEN 0 ELSE 1 END from dual;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+select NULLIF(1, ROW(1,2));
+
+--echo # End of 12.3 tests

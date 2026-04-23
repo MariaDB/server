@@ -46,10 +46,11 @@ public:
       Allowed combinations:
         ROW+ROW, NULL+ROW, ROW+NULL
     */
-    DBUG_ASSERT(a == &type_handler_row || a == &type_handler_null);
-    DBUG_ASSERT(b == &type_handler_row || b == &type_handler_null);
-    DBUG_ASSERT(a == &type_handler_row || b == &type_handler_row);
-    return &type_handler_row;
+    if ((a == &type_handler_row || a == &type_handler_null) &&
+        (b == &type_handler_row || b == &type_handler_null) &&
+        (a == &type_handler_row || b == &type_handler_row))
+      return &type_handler_row;
+    return NULL;
   }
   const Type_handler *aggregate_for_min_max(const Type_handler *a,
                                             const Type_handler *b)
