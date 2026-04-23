@@ -20,17 +20,16 @@ insert into t2 values (1),(2);
 create view view1 as (select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a);
 
 --echo #
---echo # disable both optimizer_trace and optimizer_record_context
---echo # there should be no trace
+--echo # disable optimizer_record_context
+--echo # there should be no context
 --echo #
-set optimizer_trace=0;
 set optimizer_record_context=OFF;
 
 select * from t1 where t1.a = 3;
 --source include/get_names_ddls_from_opt_ctx.inc
 
 --echo #
---echo # disable optimizer_trace, but enable optimizer_record_context
+--echo # enable optimizer_record_context
 --echo # The context will be recorded.
 --echo #
 
@@ -41,10 +40,9 @@ select * from t1 where t1.a = 3;
 --source include/get_names_ddls_from_opt_ctx.inc
 
 --echo #
---echo # enable optimizer_trace, but disable optimizer_record_context
---echo # trace result should be empty
+--echo # disable again optimizer_record_context
+--echo # context result should be empty
 --echo #
-set optimizer_trace=1;
 set optimizer_record_context=OFF;
 
 select * from t1 where t1.a = 3;
@@ -52,10 +50,9 @@ select * from t1 where t1.a = 3;
 --source include/get_names_ddls_from_opt_ctx.inc
 
 --echo #
---echo # enable both optimizer_trace and optimizer_record_context
---echo # trace result should have 1 ddl statement for table t1
+--echo # enable optimizer_record_context
+--echo # context result should have 1 ddl statement for table t1
 --echo #
-set optimizer_trace=1;
 set optimizer_record_context=ON;
 
 select * from t1 where t1.a = 3;
@@ -63,9 +60,8 @@ select * from t1 where t1.a = 3;
 --source include/get_names_ddls_from_opt_ctx.inc
 
 --echo #
---echo # enable both optimizer_trace and optimizer_record_context
 --echo # test for view
---echo # trace result should have 3 ddl statements
+--echo # context result should have 3 ddl statements
 --echo #
 set optimizer_record_context=ON;
 
@@ -74,9 +70,8 @@ select * from view1 where view1.a = 3;
 --source include/get_names_ddls_from_opt_ctx.inc
 
 --echo #
---echo # enable both optimizer_trace and optimizer_record_context
 --echo # test for temp table
---echo # trace result should have 1 ddl statement for table t1
+--echo # context result should have 1 ddl statement for table t1
 --echo #
 create temporary table temp1(col1 int);
 insert into temp1 select * from t2;
@@ -101,7 +96,7 @@ select * from view1 where view1.a = 3 union select * from view1 where view1.a = 
 
 --echo #
 --echo # test for insert
---echo # there should be no trace for insert with values
+--echo # there should be no context for insert with values
 --echo #
 insert into t1 values ((select max(t2.a) from t2), (select min(t2.a) from t2));
 
@@ -109,7 +104,7 @@ insert into t1 values ((select max(t2.a) from t2), (select min(t2.a) from t2));
 
 --echo #
 --echo # test for delete
---echo # trace result should have 1 ddl statement for table t1
+--echo # context result should have 1 ddl statement for table t1
 --echo #
 delete from t1 where t1.a=3;
 
@@ -117,7 +112,7 @@ delete from t1 where t1.a=3;
 
 --echo #
 --echo # test for update
---echo # trace result should have 1 ddl statement for table t1
+--echo # context result should have 1 ddl statement for table t1
 --echo #
 update t1 set t1.b = t1.a;
 
@@ -125,7 +120,7 @@ update t1 set t1.b = t1.a;
 
 --echo #
 --echo # test for insert as select
---echo # trace result should have 2 ddl statements for tables t1, t2
+--echo # context result should have 2 ddl statements for tables t1, t2
 --echo #
 insert into t1 (select t2.a as a, t2.a as b from t2);
 
@@ -139,7 +134,7 @@ insert into t1 values (1),(2),(3);
 --echo #
 --echo # use database db1
 --echo # test to select 2 tables with same name from 2 databases
---echo # trace result should have 2 ddl statements for tables db1.t1, db2.t1
+--echo # context result should have 2 ddl statements for tables db1.t1, db2.t1
 --echo #
 use db1;
 select db1_t1.b
@@ -152,7 +147,7 @@ WHERE db1_t1.a = db2_t1.a AND db1_t1.a >= 3;
 --echo #
 --echo # use database db2
 --echo # test to select 2 tables with same name but from 2 databases
---echo # trace result should have 2 ddl statements for tables db1.t1, db2.t1
+--echo # context result should have 2 ddl statements for tables db1.t1, db2.t1
 --echo #
 use db2;
 
@@ -167,7 +162,7 @@ WHERE db1_t1.a = db2_t1.a AND db1_t1.a >= 3;
 --echo # use database db2
 --echo # test to select from 2 tables from 2 different databases,
 --echo # of which one is a mysql table, and other is a db1 table
---echo # trace result should have only 1 ddl
+--echo # context result should have only 1 ddl
 --echo #
 select t1.b
 FROM db1.t1 AS t1, mysql.db AS t2
@@ -198,7 +193,7 @@ drop table t2;
 
 --echo #
 --echo # query failure test
---echo # trace should not contain the failed query result
+--echo # context should not contain the failed query result
 --echo # no table definitions for t10, and t11 should be present
 --echo #
 create table t10 (a int, b int);
@@ -216,7 +211,7 @@ drop table t11;
 
 --echo #
 --echo # partitioned table test
---echo # trace result should have 1 ddl
+--echo # context result should have 1 ddl
 --echo #
 create table t1 (
     pk int primary key,
@@ -241,7 +236,7 @@ drop table t1;
 --echo #
 --echo # test with insert delayed
 --echo # test shouldn't fail
---echo # Also, trace result shouldn't have any ddls
+--echo # Also, context result shouldn't have any ddls
 --echo #
 
 CREATE TABLE t1 (
@@ -263,7 +258,7 @@ drop table t1;
 
 --echo #
 --echo # test primary, and foreign key tables
---echo # trace result should have the ddls in correct order
+--echo # context result should have the ddls in correct order
 --echo #
 
 CREATE TABLE t1 (
@@ -290,7 +285,7 @@ drop table t2;
 
 --echo #
 --echo # MDEV-37207: test multi delete of 2 tables
---echo # trace result should have the ddls for both the tables
+--echo # context result should have the ddls for both the tables
 --echo #
 
 create table t1(id1 int not null auto_increment primary key);
@@ -304,7 +299,7 @@ delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
 --source include/get_names_ddls_from_opt_ctx.inc
 
 --echo # rerun the same delete query
---echo # Now, trace result should have the ddls for all 2 tables,
+--echo # Now, context result should have the ddls for all 2 tables,
 --echo # even though no data is deleted
 delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
 

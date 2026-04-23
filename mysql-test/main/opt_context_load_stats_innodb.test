@@ -9,7 +9,6 @@
 --echo #
 set session use_stat_tables='PREFERABLY_FOR_QUERIES';
 set optimizer_record_context=ON;
-set optimizer_trace=1;
 set optimizer_replay_context="";
 
 create database db1;

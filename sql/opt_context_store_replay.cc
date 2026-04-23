@@ -56,6 +56,7 @@ using namespace json_reader;
         {
           "name": "table_name",
           "num_of_records": n,
+          "file_stat_records": n,
           "read_cost_io": n,
           "read_cost_cpu": n,
           "indexes": [ //optional
@@ -1875,6 +1876,8 @@ void Optimizer_context_replay::dbug_print_read_stats()
     DBUG_PRINT("info", ("-----------------"));
     DBUG_PRINT("info", ("name: %s", tbl_ctx->name));
     DBUG_PRINT("info", ("num_of_records: %llx", tbl_ctx->total_rows));
+    DBUG_PRINT("info",
+               ("file_stat_records: %llx", tbl_ctx->file_stat_records));
 
     List_iterator<index_context_for_replay> index_itr(tbl_ctx->index_list);
 

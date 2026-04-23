@@ -1,6 +1,5 @@
-#enable both optimizer_trace, and optimizer_record_context
+#enable optimizer_record_context
 set optimizer_record_context=ON;
-set optimizer_trace=1;
 create database db1;
 use db1;
 create table t1
@@ -69,7 +68,7 @@ SET optimizer_selectivity_sampling_limit=100;
 
 SET optimizer_switch='index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,duplicateweedout=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,cset_narrowing=on,sargable_casefold=on';
 
-SET optimizer_trace='enabled=on';
+SET optimizer_trace='enabled=off';
 
 SET optimizer_trace_max_mem_size=1048576;
 
@@ -114,7 +113,7 @@ SET optimizer_scan_setup_cost=10.000000;
 SET optimizer_search_depth=62;
 SET optimizer_selectivity_sampling_limit=100;
 SET optimizer_switch='index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,duplicateweedout=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,cset_narrowing=on,sargable_casefold=on';
-SET optimizer_trace='enabled=on';
+SET optimizer_trace='enabled=off';
 SET optimizer_trace_max_mem_size=1048576;
 SET optimizer_use_condition_selectivity=4;
 SET optimizer_where_cost=0.032000;

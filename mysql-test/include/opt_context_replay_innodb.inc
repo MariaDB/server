@@ -1,5 +1,4 @@
 set optimizer_record_context=OFF;
-set optimizer_trace=1;
 
 create database db1;
 use db1;

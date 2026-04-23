@@ -1,6 +1,5 @@
-#enable both optimizer_trace, and optimizer_record_context
+#enable optimizer_record_context
 set optimizer_record_context=ON;
-set optimizer_trace=1;
 create database db1;
 use db1;
 create table t1
@@ -46,6 +45,12 @@ select *from json_table(@records,
 '$[*]' columns(num_of_records text path '$')) as jt;
 num_of_records
 0
+set @file_stat_records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
+select *from json_table(@file_stat_records,
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
+20
 set @indexes=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
 select *from json_table(
@@ -84,6 +89,13 @@ set @records=
 select *from json_table(@records,
 '$[*]' columns(num_of_records text path '$')) as jt;
 num_of_records
+30
+20
+set @file_stat_records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
+select *from json_table(@file_stat_records,
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 30
 20
 set @indexes=
@@ -128,6 +140,11 @@ set @records=
 select *from json_table(@records,
 '$[*]' columns(num_of_records text path '$')) as jt;
 num_of_records
+set @file_stat_records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
+select *from json_table(@file_stat_records,
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 set @indexes=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
 select *from json_table(
@@ -160,6 +177,13 @@ set @records=
 select *from json_table(@records,
 '$[*]' columns(num_of_records text path '$')) as jt;
 num_of_records
+30
+20
+set @file_stat_records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
+select *from json_table(@file_stat_records,
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 30
 20
 set @indexes=
@@ -206,6 +230,12 @@ select *from json_table(@records,
 '$[*]' columns(num_of_records text path '$')) as jt;
 num_of_records
 20
+set @file_stat_records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
+select *from json_table(@file_stat_records,
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
+20
 set @indexes=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
 select *from json_table(
@@ -242,6 +272,13 @@ set @records=
 select *from json_table(@records,
 '$[*]' columns(num_of_records text path '$')) as jt;
 num_of_records
+30
+20
+set @file_stat_records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
+select *from json_table(@file_stat_records,
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 30
 20
 set @indexes=
@@ -291,6 +328,12 @@ select *from json_table(@records,
 '$[*]' columns(num_of_records text path '$')) as jt;
 num_of_records
 50
+set @file_stat_records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
+select *from json_table(@file_stat_records,
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
+50
 set @indexes=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
 select *from json_table(
@@ -332,6 +375,12 @@ set @records=
 select *from json_table(@records,
 '$[*]' columns(num_of_records text path '$')) as jt;
 num_of_records
+50
+set @file_stat_records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
+select *from json_table(@file_stat_records,
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 50
 set @indexes=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
@@ -380,6 +429,11 @@ set @records=
 select *from json_table(@records,
 '$[*]' columns(num_of_records text path '$')) as jt;
 num_of_records
+set @file_stat_records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
+select *from json_table(@file_stat_records,
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 set @indexes=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
 select *from json_table(
@@ -414,6 +468,12 @@ set @records=
 select *from json_table(@records,
 '$[*]' columns(num_of_records text path '$')) as jt;
 num_of_records
+50
+set @file_stat_records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
+select *from json_table(@file_stat_records,
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 50
 set @indexes=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
