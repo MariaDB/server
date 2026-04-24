@@ -2754,6 +2754,7 @@ bool Rotate_log_event::write(Log_event_writer *writer)
   int8store(buf + R_POS_OFFSET, pos);
   return (write_header(writer, ROTATE_HEADER_LEN + ident_len) ||
           write_data(writer, buf, ROTATE_HEADER_LEN) ||
+          DBUG_IF("fail_rotate_mid_write") ||
           write_data(writer, new_log_ident, (uint) ident_len) ||
           write_footer(writer));
 }

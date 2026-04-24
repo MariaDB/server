@@ -1175,9 +1175,6 @@ static binlog_file_entry *
 get_binlog_list(MEM_ROOT *memroot, bool reverse= true,
                 bool already_locked= false)
 {
-  IO_CACHE *index_file;
-  char *fname, *buff, *end_pos;
-  binlog_file_entry *current_list= NULL, *current_link= NULL, *e;
   DBUG_ENTER("get_binlog_list");
 
   if (opt_binlog_engine_hton)
@@ -1194,9 +1191,17 @@ get_binlog_list(MEM_ROOT *memroot, bool reverse= true,
     my_error(ER_NO_BINARY_LOGGING, MYF(0));
     DBUG_RETURN(NULL);
   }
+  DBUG_RETURN(mysql_bin_log.get_list(memroot, reverse, already_locked));
+}
+
+binlog_file_entry *MYSQL_BIN_LOG::get_list
+  (MEM_ROOT *memroot, bool reverse, bool already_locked)
+{
+  char *fname, *buff, *end_pos;
+  binlog_file_entry *current_list= nullptr, *current_link= nullptr, *e;
   if (!already_locked)
-    mysql_bin_log.lock_index();
-  index_file=mysql_bin_log.get_index_file();
+    lock_index();
+  IO_CACHE *index_file= get_index_file();
   reinit_io_cache(index_file, READ_CACHE, (my_off_t) 0, 0, 0);
 
   if (!(buff= (char*) alloc_root(memroot,
@@ -1209,7 +1214,7 @@ get_binlog_list(MEM_ROOT *memroot, bool reverse= true,
     goto err;
   }
   buff[index_file->end_of_file]= 0;             // For strchr
-  mysql_bin_log.unlock_index();
+  unlock_index();
 
   /* The file ends with EOF or empty line */
   for (fname= buff;
@@ -1218,7 +1223,7 @@ get_binlog_list(MEM_ROOT *memroot, bool reverse= true,
   {
     end_pos[0]= '\0';				// remove the newline
     if (!(e= (binlog_file_entry *) alloc_root(memroot, sizeof(*e))))
-      DBUG_RETURN(NULL);
+      return nullptr;
     if (reverse)
     {
       e->next= current_list;
@@ -1236,11 +1241,11 @@ get_binlog_list(MEM_ROOT *memroot, bool reverse= true,
     e->name.str=    fname;
     e->name.length= (size_t) (end_pos - fname);
   }
-  DBUG_RETURN(current_list);
+  return current_list;
 
 err:
-  mysql_bin_log.unlock_index();
-  DBUG_RETURN(0);
+  unlock_index();
+  return nullptr;
 }
 
 

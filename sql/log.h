@@ -1049,7 +1049,8 @@ public:
 	    ulong max_size,
             bool null_created,
             bool need_mutex,
-            bool commit_by_rotate = false);
+            bool commit_by_rotate= false,
+            bool do_recovery= true);
   bool open_engine(handlerton *hton, ulong max_size, const char *dir);
   bool open_index_file(const char *index_file_name_arg,
                        const char *log_name, bool need_mutex);
@@ -1163,6 +1164,19 @@ public:
   void close_engine();
   void clear_inuse_flag_when_closing(File file);
 
+  // Exposed from `sql_repl.cc`
+  /**
+    Read all logs and return as a list
+    @param memroot        Use this for mem_root calls
+    @param reverse        If set filenames returned in latest first order
+                          (reverse order than in the index file)
+    @param already_locked If set, index file is already locked.
+    @return nullptr   error
+            otherwise pointer to list
+    @note index_file is always unlocked at return
+  */
+  binlog_file_entry *get_list(
+    MEM_ROOT *memroot, bool reverse= true, bool already_locked= false);
   // iterating through the log index file
   int find_log_pos(LOG_INFO* linfo, const char* log_name,
 		   bool need_mutex);
