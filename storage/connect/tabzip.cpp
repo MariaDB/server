@@ -226,10 +226,10 @@ void ZIPCOL::ReadColumn(PGLOBAL g)
 {
 	switch (flag) {
 	case 1:
-		Value->SetValue(Tdbz->finfo.compressed_size);
+		Value->SetValue((ulonglong)Tdbz->finfo.compressed_size);
 		break;
 	case 2:
-		Value->SetValue(Tdbz->finfo.uncompressed_size);
+		Value->SetValue((ulonglong)Tdbz->finfo.uncompressed_size);
 		break;
 	case 3:
 		Value->SetValue((int)Tdbz->finfo.compression_method);

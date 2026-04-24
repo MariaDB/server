@@ -242,7 +242,7 @@ int GZFAM::GetPos(void)
 /***********************************************************************/
 int GZFAM::GetNextPos(void)
   {
-  return gztell(Zfile);
+  return (int)gztell(Zfile);
   } // end of GetNextPos
 
 /***********************************************************************/
