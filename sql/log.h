@@ -1186,6 +1186,7 @@ File open_binlog(IO_CACHE *log, const char *log_file_name,
 
 void make_default_log_name(char **out, const char* log_ext, bool once);
 void binlog_reset_cache(THD *thd);
+void binlog_clear_incident(THD *thd);
 bool write_annotated_row(THD *thd);
 
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
