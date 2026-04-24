@@ -724,8 +724,9 @@ public:
 
   /** Write checkpoint information and invoke latch.wr_unlock().
   @param checkpoint the new checkpoint LSN
-  @param end_lsn    start LSN of the FILE_CHECKPOINT mini-transaction */
-  inline void write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept;
+  @param end_lsn    start LSN of the FILE_CHECKPOINT mini-transaction
+  @return whether a call to archive_create(false) is desirable */
+  inline bool write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept;
 
   /** Wait for write_checkpoint() if necessary. */
   ATTRIBUTE_COLD void checkpoint_margin() noexcept;
