@@ -588,7 +588,8 @@ public:
 private:
   void create_unique_pseudo_key_if_needed(TABLE_LIST *table_list,
                                           Dep_value_table *tbl_dep);
-  int find_field_in_list(List<Item> &fields_list, Item *field);
+  bool find_field_in_list(List<Item> &fields_list, Item *field,
+                          MY_BITMAP *bitmap);
 };
 
 
@@ -1764,8 +1765,9 @@ void Dep_analysis_context::create_unique_pseudo_key_if_needed(
         valid= false;
         break;
       }
-      auto field_no= find_field_in_list(first_select->join->fields_list, elem);
-      if (field_no == -1)
+      bool found= find_field_in_list(first_select->join->fields_list,
+                                       elem, exposed_fields);
+      if (!found)
       {
         /*
           This GROUP BY element is not present in the select list. This is a
@@ -1778,7 +1780,6 @@ void Dep_analysis_context::create_unique_pseudo_key_if_needed(
         valid= false;
         break;
       }
-      bitmap_set_bit(exposed_fields, field_no);
       exposed_fields_count++;
     }
     if (valid)
@@ -1794,22 +1795,29 @@ void Dep_analysis_context::create_unique_pseudo_key_if_needed(
 
 /*
   Iterate the list of fields and look for the given field.
-  Returns the index of the field if it is found on the list
-  and -1 otherwise
+  Set bitmap bits for ALL matching positions in the list.
+  A GROUP BY field may appear multiple times in the SELECT list
+  under different aliases (e.g. "SELECT a, a as a2 ... GROUP BY a").
+  Returns true if at least one match was found, false otherwise.
 */
 
-int Dep_analysis_context::find_field_in_list(List<Item> &fields_list,
-                                             Item *field)
+bool Dep_analysis_context::find_field_in_list(List<Item> &fields_list,
+                                              Item *field,
+                                              MY_BITMAP *bitmap)
 {
   List_iterator<Item> it(fields_list);
   int field_idx= 0;
+  bool found= false;
   while (auto next_field= it++)
   {
     if (next_field->eq(field, false))
-      return field_idx;
+    {
+      bitmap_set_bit(bitmap, field_idx);
+      found= true;
+    }
     field_idx++;
   }
-  return -1; /*not found*/
+  return found;
 }
 
 
