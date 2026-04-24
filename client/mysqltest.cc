@@ -277,6 +277,8 @@ static const char *replay_server_socket= NULL;
 static my_bool replay_test_mode= FALSE;
 static FILE *replay_log_file= NULL;
 static const char *replay_log_path= NULL;
+static my_bool disable_replay_next_query= FALSE;
+static char disable_replay_reason[512]= {0};
 
 /* Precompiled re's */
 static regex_t ps_re;     /* the query can be run using PS protocol */
@@ -430,6 +432,7 @@ enum enum_commands {
   Q_PS_BIND,
   Q_PS_EXECUTE,
   Q_PS_CLOSE,
+  Q_DISABLE_REPLAY,
   Q_UNKNOWN,			       /* Unknown command.   */
   Q_COMMENT,			       /* Comments, ignored. */
   Q_COMMENT_WITH_COMMAND,
@@ -555,6 +558,7 @@ const char *command_names[]=
   "PS_bind",
   "PS_execute",
   "PS_close",
+  "disable_replay",
   0
 };
 
@@ -8466,6 +8470,68 @@ static void print_replay_test_location(FILE *f)
 
 
 /*
+  Handle "disable_replay next_query <reason>" command.
+
+  Syntax:
+    disable_replay next_query <arbitrary reason text>
+
+  The first token after the command must be the literal word "next_query".
+  Everything after "next_query" is the reason string (spaces allowed).
+  Sets a one-shot flag consumed by the next SQL query executed via
+  run_query_normal(); if that query is EXPLAIN, replay-server processing is
+  skipped and the EXPLAIN runs normally against the test server.
+
+  Any syntax violation is a hard error (die).
+*/
+static void do_disable_replay(struct st_command *command)
+{
+  const char *p= command->first_argument;
+  const char *end= command->end;
+  const char *tok;
+  size_t tok_len;
+  size_t reason_len;
+  DBUG_ENTER("do_disable_replay");
+
+  /* Skip leading whitespace */
+  while (p < end && my_isspace(charset_info, *p))
+    p++;
+
+  tok= p;
+  while (p < end && !my_isspace(charset_info, *p))
+    p++;
+  tok_len= (size_t)(p - tok);
+
+  if (tok_len != 10 || strncmp(tok, "next_query", 10) != 0)
+    die("Syntax: disable_replay next_query <reason>");
+
+  /* Skip whitespace between "next_query" and the reason */
+  while (p < end && my_isspace(charset_info, *p))
+    p++;
+
+  if (p >= end)
+    die("Syntax: disable_replay next_query <reason>  (reason missing)");
+
+  /* Copy reason, trim trailing whitespace */
+  reason_len= (size_t)(end - p);
+  while (reason_len > 0 &&
+         my_isspace(charset_info, p[reason_len - 1]))
+    reason_len--;
+
+  if (reason_len >= sizeof(disable_replay_reason))
+    reason_len= sizeof(disable_replay_reason) - 1;
+  memcpy(disable_replay_reason, p, reason_len);
+  disable_replay_reason[reason_len]= '\0';
+
+  disable_replay_next_query= TRUE;
+  command->last_argument= command->end;
+
+  verbose_msg("disable_replay: next query will bypass replay server (reason: %s)",
+              disable_replay_reason);
+  DBUG_VOID_RETURN;
+}
+
+
+/*
   Execute queries from SQL script on replay server
   Split by ";\n" and execute each query
   Append output from last query to ds
@@ -8844,29 +8910,44 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
     break;
   }
 
-  /* ReplayTest mode: Set optimizer_record_context BEFORE sending EXPLAIN query */
-  if (replay_test_mode && (flags & QUERY_SEND_FLAG) && (flags & QUERY_REAP_FLAG) &&
-      is_explain_query(query, query_len))
+  /* Consume the one-shot "disable_replay next_query" flag: it applies to
+     exactly one SQL query executed via this function, whether or not it is
+     an EXPLAIN. */
   {
-    replay_mode_active= TRUE;
-    verbose_msg("ReplayTest: Detected EXPLAIN FORMAT=JSON query, activating replay mode");
-
-    /* Clear any previously-recorded context left over from an earlier query
-       (e.g. a prior EXPLAIN whose context must not leak into this one). */
-    (void) mysql_real_query(mysql, "SET optimizer_record_context=0", 30);
-
-    /* Step 1: Set optimizer_record_context=1 */
-    if (mysql_real_query(mysql, "SET optimizer_record_context=1", 30))
+    my_bool skip_replay_this_query= disable_replay_next_query;
+    if (disable_replay_next_query)
     {
-      fprintf(stdout, "ReplayTest: Failed to set optimizer_record_context: %d %s\n",
-              mysql_errno(mysql), mysql_error(mysql));
-      replay_mode_active= FALSE;
+      verbose_msg("ReplayTest: replay disabled for this query (reason: %s)",
+                  disable_replay_reason);
+      disable_replay_next_query= FALSE;
+      disable_replay_reason[0]= '\0';
     }
-    else
+
+    /* ReplayTest mode: Set optimizer_record_context BEFORE sending EXPLAIN query */
+    if (replay_test_mode && !skip_replay_this_query &&
+        (flags & QUERY_SEND_FLAG) && (flags & QUERY_REAP_FLAG) &&
+        is_explain_query(query, query_len))
     {
-      MYSQL_RES *tmp_res= mysql_store_result(mysql);
-      if (tmp_res)
-        mysql_free_result(tmp_res);
+      replay_mode_active= TRUE;
+      verbose_msg("ReplayTest: Detected EXPLAIN FORMAT=JSON query, activating replay mode");
+
+      /* Clear any previously-recorded context left over from an earlier query
+         (e.g. a prior EXPLAIN whose context must not leak into this one). */
+      (void) mysql_real_query(mysql, "SET optimizer_record_context=0", 30);
+
+      /* Step 1: Set optimizer_record_context=1 */
+      if (mysql_real_query(mysql, "SET optimizer_record_context=1", 30))
+      {
+        fprintf(stdout, "ReplayTest: Failed to set optimizer_record_context: %d %s\n",
+                mysql_errno(mysql), mysql_error(mysql));
+        replay_mode_active= FALSE;
+      }
+      else
+      {
+        MYSQL_RES *tmp_res= mysql_store_result(mysql);
+        if (tmp_res)
+          mysql_free_result(tmp_res);
+      }
     }
   }
 
@@ -11281,6 +11362,9 @@ int main(int argc, char **argv)
         break;
       case Q_OPTIMIZER_TRACE:
         enable_optimizer_trace(cur_con);
+        break;
+      case Q_DISABLE_REPLAY:
+        do_disable_replay(command);
         break;
       case Q_SEND_SHUTDOWN:
         handle_command_error(command,
