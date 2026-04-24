@@ -675,6 +675,7 @@ add_ext_keyuse_for_splitting(Dynamic_array<KEYUSE_EXT> *ext_keyuses,
   keyuse_ext.needed_in_prefix= added_key_field->val->used_tables() &
                               ~(OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);
   keyuse_ext.validity_var= false;
+  keyuse_ext.num_distinct_values= 0;
   return ext_keyuses->push(keyuse_ext);
 }
 
