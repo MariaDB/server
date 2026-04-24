@@ -1943,7 +1943,7 @@ static int mysql_test_show_grants(Prepared_statement *stmt)
   char buff[1024];
   const char *username= NULL, *hostname= NULL, *rolename= NULL, *end;
 
-  if (get_show_user(thd, thd->lex->grant_user, &username, &hostname, &rolename))
+  if (get_show_user(thd, thd->lex->grant_user, &username, &hostname, &rolename, NULL))
     DBUG_RETURN(1);
 
   if (username)

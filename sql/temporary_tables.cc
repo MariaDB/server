@@ -1238,7 +1238,7 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
   }
 
   table->reginfo.lock_type= TL_WRITE;           /* Simulate locked */
-  table->grant.privilege= TMP_TABLE_ACLS;
+  table->grant.privilege= access_t(TMP_TABLE_ACLS);
   table->query_id= query_id;
   share->tmp_table= (table->file->has_transaction_manager() ?
                      TRANSACTIONAL_TMP_TABLE : NON_TRANSACTIONAL_TMP_TABLE);
