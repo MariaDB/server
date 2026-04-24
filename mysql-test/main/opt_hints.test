@@ -1,6 +1,5 @@
 --source include/have_sequence.inc
 --enable_prepare_warnings
---disable_view_protocol # Since optimizer hints are not supported inside views
 SET NAMES utf8mb4;
 
 --echo # Testing that index names in hints are accent sensitive case insensitive
@@ -12,9 +11,15 @@ SELECT /*+ NO_MRR(t1 idx_A) */ a FROM t1;
 # Warnings "Unresolved table/index name..." are generated during both prepare
 # and execution stages. So disable PS protocol to avoid duplication
 --disable_ps_protocol
+
+# Warnings during views creation have different format: query block names are stripped.
+# So disable view protocol here
+--disable_view_protocol
+
 SELECT /*+ NO_MRR(t1 idx_å) */ a FROM t1;
 SELECT /*+ NO_MRR(t1 idx_a, idx_å, idx_A) */ a FROM t1;
 --enable_ps_protocol
+--enable_view_protocol
 DROP TABLE t1;
 
 --echo # Testing that query block names are accent sensitive case insensitive
@@ -555,9 +560,15 @@ SELECT /*+ BKA(a b) */   1 FROM t1 a, t1 b;
 # Warnings "Unresolved table/index name..." are generated during both prepare
 # and execution stages. So disable PS protocol to avoid duplication
 --disable_ps_protocol
+
+# Warnings during views creation have different format: query block names are stripped.
+# So disable view protocol here
+--disable_view_protocol
+
 SELECT /*+ NO_ICP(i1) */ 1 FROM t1;
 SELECT /*+ NO_ICP(i1 i2) */ 1 FROM t1;
 --enable_ps_protocol
+--enable_view_protocol
 SELECT /*+ NO_ICP(@qb ident) */ 1 FROM t1;
 
 --echo
@@ -586,6 +597,11 @@ CREATE INDEX 3rd_index ON t1(i, j);
 # Warnings "Unresolved table/index name..." are generated during both prepare
 # and execution stages. So disable PS protocol to avoid duplication
 --disable_ps_protocol
+
+# Warnings during views creation have different format: query block names are stripped.
+# So disable view protocol here
+--disable_view_protocol
+
 SELECT /*+ NO_ICP(3rd_index) */ 1 FROM t1;
 
 CREATE INDEX $index ON t1(j, i);
@@ -614,6 +630,7 @@ SELECT /*+ BKA(" quoted name test") */ 1 FROM t1;
 DROP TABLE ` quoted name test`;
 DROP TABLE `test1``test2```;
 --enable_ps_protocol
+--enable_view_protocol
 
 --echo # Valid hints, no warning:
 EXPLAIN EXTENDED SELECT /*+ QB_NAME(`*`) */ 1;
@@ -640,6 +657,11 @@ CREATE TABLE tableТ (i INT);
 # Warnings "Unresolved table/index name..." are generated during both prepare
 # and execution stages. So disable PS protocol to avoid duplication
 --disable_ps_protocol
+
+# Warnings during views creation have different format: query block names are stripped.
+# So disable view protocol here
+--disable_view_protocol
+
 SELECT /*+ BKA(tableТ) */ 1 FROM t1;
 SELECT /*+ BKA(test@tableТ) */ 1 FROM t1;
 DROP TABLE tableТ;
@@ -654,6 +676,7 @@ SELECT /*+ NO_ICP(`\D1`) */ 1 FROM t1;
 
 DROP TABLE таблица;
 --enable_ps_protocol
+--enable_view_protocol
 
 --echo
 --echo # derived tables and other subqueries:
@@ -938,7 +961,7 @@ CREATE VIEW v2 AS SELECT /*+ JOIN_ORDER(@qb2 twenty,ten) */ * FROM (SELECT /*+ Q
 EXPLAIN SELECT * FROM v2;
 SHOW CREATE VIEW v2;
 --echo # This next CREATE VIEW statement should match the output of SHOW CREATE VIEW v2.  The following EXPLAIN output should match EXPLAIN SELECT * FROM v2 as a way to demonstrate that the output of SHOW CREATE VIEW is correct.
-CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select /*+ JOIN_ORDER(@`qb2` `twenty`,`ten`) */ `t`.`a` AS `a` from (select /*+ QB_NAME(`qb2`) */ `ten`.`a` AS `a` from (`ten` join `twenty`) where `ten`.`a` = `twenty`.`a` limit 1000) `t`;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t`.`a` AS `a` from (select /*+ QB_NAME(`qb2`) JOIN_ORDER(@`qb2` `twenty`,`ten`) */ `ten`.`a` AS `a` from (`ten` join `twenty`) where `ten`.`a` = `twenty`.`a` limit 1000) `t`;
 EXPLAIN SELECT * FROM v3;
 
 --echo # Named hint example.
@@ -1054,3 +1077,59 @@ DROP VIEW v1;
 --echo # End Examples from QA
 
 --echo # End of 12.2 tests
+
+--echo #
+--echo # MDEV-39349 NO_INDEX hint using QB_NAME doesn't work inside VIEWs
+--echo #
+CREATE TABLE t1 (
+  a INT,
+  b INT,
+  INDEX(a),
+  INDEX(b)
+);
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_1000;
+
+CREATE VIEW v1 AS SELECT /*+ QB_NAME(foo) NO_INDEX(t1@foo) */ a, b FROM t1 WHERE a<3 LIMIT 10;
+
+SHOW CREATE VIEW v1;
+
+--echo # Should use full scan of t1 (`ALL`)
+EXPLAIN EXTENDED SELECT * FROM v1;
+
+CREATE VIEW v2 AS
+SELECT * FROM (SELECT /*+ QB_NAME(foo) NO_INDEX(t1@foo) */ a,b FROM t1 WHERE a<3 LIMIT 10) dt
+   WHERE a+b < 1000 ;
+
+SHOW CREATE VIEW v2;
+
+--echo # Should use full scan of t1 (`ALL`)
+EXPLAIN EXTENDED SELECT * FROM v2;
+
+CREATE VIEW v3 AS
+  SELECT * FROM
+  (SELECT a+b AS sumab, COUNT(*) AS cnt
+   FROM  (SELECT /*+ NO_INDEX(t1) */ a,b FROM t1 WHERE a<3 LIMIT 10) dt
+   WHERE a+b < 1000
+   GROUP BY a+b) aggr
+  WHERE sumab < cnt;
+
+SHOW CREATE VIEW v3;
+
+EXPLAIN EXTENDED SELECT * FROM v3 WHERE sumab < 2;
+
+CREATE VIEW v4 AS
+  SELECT * FROM
+  (SELECT /*+ NO_INDEX(t1@inner_qb)*/ a+b AS sumab, COUNT(*) AS cnt
+   FROM  (SELECT /*+ QB_NAME(inner_qb)*/ a,b FROM t1 WHERE a<3 LIMIT 10) dt
+   WHERE a+b < 1000
+   GROUP BY a+b) aggr
+  WHERE sumab < cnt;
+
+SHOW CREATE VIEW v4;
+
+EXPLAIN EXTENDED SELECT * FROM v4 WHERE sumab < 2;
+
+DROP VIEW v1, v2, v3, v4;
+DROP TABLE t1;
+
+--echo # End of 12.3 tests
