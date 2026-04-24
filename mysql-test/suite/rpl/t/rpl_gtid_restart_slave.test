@@ -1,0 +1,60 @@
+# MDEV-4698: If all slave threads are stopped,
+# START SLAVE (either or both threads) deletes the existing relay logs.
+# This limitation was to work a crash incompatibility around,
+# which are covered by other existing crash tests, such as `rpl.rpl_gtid_crash`.
+
+--source include/master-slave.inc
+CREATE TABLE t (a TINYTEXT UNIQUE);
+
+# Prepare some *non-repeatable* events before the restart position
+RENAME TABLE t TO t1; # DDL
+INSERT INTO t1 VALUES ('initial state'); #DML
+--sync_slave_with_master
+--source include/stop_slave_sql.inc
+
+# Let the IO thread queue some unexecuted relay log content
+--connection master
+RENAME TABLE t1 TO t; # DDL
+INSERT INTO t VALUES ('before restart'); # DML
+--source include/save_master_gtid.inc
+--echo \$master_pos= $master_pos
+--source include/sync_slave_io_with_master.inc
+
+
+# Reboot the entire server to test restoring the threads' positions
+--let $rpl_server_number= 2
+--source include/rpl_restart_server.inc
+SET @@GLOBAL.relay_log_purge= OFF;
+
+# The IO thread should restore `Gtid_IO_Pos`.
+--let status_items= Gtid_IO_Pos
+--source include/show_slave_status.inc
+
+
+--source include/start_slave.inc
+# The slave should not execution events before the restart position,
+# both of which will lead to errors such as `1062 ER_DUP_ENTRY`.
+--source include/sync_with_master_gtid.inc
+
+# This should not be recreated, which would exclude the pre-restart events.
+--let $binlog_file= slave-relay-bin.000002
+--source include/show_relaylog_events.inc
+
+# Double-check the contents
+SELECT * FROM t;
+
+--connection master
+# MDEV-33645:
+# The IO thread should reconnect with `Gtid_IO_Pos`, not `Gtid_Slave_Pos`.
+--let SEARCH_FILE= `SELECT @@general_log_file`
+--let SEARCH_PATTERN= SET @slave_connect_state='$master_pos'
+--let SEARCH_OUTPUT= count
+--source include/search_pattern_in_file.inc
+
+
+# Cleanup
+DROP TABLE t;
+--connection slave
+SET @@GLOBAL.relay_log_purge= ON;
+
+--source include/rpl_end.inc

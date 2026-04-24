@@ -12,7 +12,7 @@
 #   $master_use_gtid_option
 #     Sets the context for the reset slave. When No, execute
 #     CHANGE MASTER TO MASTER_USE_GTID=No after the RESET SLAVE. When
-#     Slave_Pos, execute set gtid_slave_pos= "" after RESET SLAVE.
+#     Slave_Pos, execute set gtid_slave_pos= "" before RESET SLAVE.
 #
 #   $reset_slave_keep_gtid_state
 #     When master_use_gtid_option is Slave_Pos, this defines whether or not
@@ -44,11 +44,11 @@ if (`SELECT strcmp("$master_use_gtid_option","Slave_Pos") != 0 AND strcmp("$mast
   die Invalid option provided as master_use_gtid_option, Slave_Pos or No are the only allowed options;
 }
 
-RESET SLAVE;
 if (`SELECT strcmp("$master_use_gtid_option","Slave_Pos") = 0 AND NOT $reset_slave_keep_gtid_state`)
 {
   SET @@GLOBAL.gtid_slave_pos= "";
 }
+RESET SLAVE;
 if (`SELECT strcmp("$master_use_gtid_option","No") = 0`)
 {
   CHANGE MASTER TO MASTER_USE_GTID=No;

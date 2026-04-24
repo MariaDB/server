@@ -106,6 +106,8 @@ LOCK TABLES t1 WRITE;
 
 --echo # SQL delay has no impact for the rest of the test case, so ignore it
 --let $slave_sync_method= none
+# MDEV-4698 x MDEV-38826 = need to ignore the two already applied groups as well
+--let $num_event_groups= 3
 --source include/sync_with_master_sql_delay_debug_sync.inc
 
 --echo # Waiting for replica to get blocked by the table lock

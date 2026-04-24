@@ -40,8 +40,8 @@ stop slave 'master1';
 --let $datadir = `SELECT @@datadir`
 
 let read_master_log_pos=`select $binlog_start_pos + 608`;
-let relay_log_pos=`select 2*$binlog_start_pos + 652`;
-let relay_log_space=`select 3*$binlog_start_pos + 714`;
+let relay_log_pos=`select 2*$binlog_start_pos + 681`;
+let relay_log_space=`select 3*$binlog_start_pos + 743`;
 
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space <relay_log_space>
 show slave 'master1' status;

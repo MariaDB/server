@@ -801,7 +801,8 @@ my_bool Log_event::need_checksum()
                */
                get_type_code() == ROTATE_EVENT ||
                get_type_code() == START_ENCRYPTION_EVENT ||
-               /* FD is always checksummed */
+               // FD is always checksummed, and so is GL when accompanying it.
+               get_type_code() == GTID_LIST_EVENT ||
                get_type_code() == FORMAT_DESCRIPTION_EVENT) && 
                checksum_alg != BINLOG_CHECKSUM_ALG_OFF));
 
