@@ -1519,6 +1519,13 @@ static Sys_var_ulonglong Sys_join_buffer_size(
        SESSION_VAR(join_buff_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(128, SIZE_T_MAX), DEFAULT(256*1024), BLOCK_SIZE(128));
 
+static Sys_var_mybool Sys_json_schema_format_validation(
+       "json_schema_format_validation",
+       "Enable format validation for JSON_SCHEMA_VALID(). "
+       "When OFF (default), the format keyword is treated as an annotation only",
+       SESSION_VAR(json_schema_format_validation), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE));
+
 static Sys_var_keycache Sys_key_buffer_size(
        "key_buffer_size", "The size of the buffer used for "
        "index blocks for MyISAM tables. Increase this to get faster index "

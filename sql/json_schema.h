@@ -134,14 +134,31 @@ class Json_schema_annotation : public Json_schema_keyword
                         List<Json_schema_keyword> *all_keywords) override;
 };
 
+enum json_schema_format_type {
+  JSON_SCHEMA_FORMAT_NONE= 0,
+  JSON_SCHEMA_FORMAT_DATETIME, JSON_SCHEMA_FORMAT_DATE,
+  JSON_SCHEMA_FORMAT_TIME, JSON_SCHEMA_FORMAT_DURATION,
+  JSON_SCHEMA_FORMAT_EMAIL, JSON_SCHEMA_FORMAT_IDN_EMAIL,
+  JSON_SCHEMA_FORMAT_HOSTNAME, JSON_SCHEMA_FORMAT_IDN_HOSTNAME,
+  JSON_SCHEMA_FORMAT_IPV4, JSON_SCHEMA_FORMAT_IPV6,
+  JSON_SCHEMA_FORMAT_URI, JSON_SCHEMA_FORMAT_URI_REFERENCE,
+  JSON_SCHEMA_FORMAT_IRI, JSON_SCHEMA_FORMAT_IRI_REFERENCE,
+  JSON_SCHEMA_FORMAT_UUID, JSON_SCHEMA_FORMAT_JSON_POINTER,
+  JSON_SCHEMA_FORMAT_RELATIVE_JSON_POINTER, JSON_SCHEMA_FORMAT_REGEX
+};
+
 class Json_schema_format : public Json_schema_keyword
 {
-  public:
-    bool handle_keyword(THD *thd, MEM_ROOT *current_mem_root,
-                        json_engine_t *je,
-                        const char* key_start,
-                        const char* key_end,
-                        List<Json_schema_keyword> *all_keywords) override;
+  enum json_schema_format_type format_type;
+public:
+  Json_schema_format() : format_type(JSON_SCHEMA_FORMAT_NONE) {}
+  bool validate(const json_engine_t *je, MEM_ROOT *current_mem_root,
+                const uchar *k_start= NULL,
+                const uchar *k_end= NULL) override;
+  bool handle_keyword(THD *thd, MEM_ROOT *current_mem_root,
+                      json_engine_t *je, const char* key_start,
+                      const char* key_end,
+                      List<Json_schema_keyword> *all_keywords) override;
 };
 
 typedef List<Json_schema_keyword> List_schema_keyword;
