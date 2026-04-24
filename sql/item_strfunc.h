@@ -2319,7 +2319,7 @@ protected:
 
 class Item_func_xxh32 : public Item_long_func
 {
-  String value;
+  String buffer;
 public:
   Item_func_xxh32(THD *thd, Item *arg) : Item_long_func(thd, arg)
   {
@@ -2350,7 +2350,7 @@ public:
 
 class Item_func_xxh3 : public Item_longlong_func
 {
-  String value;
+  String buffer;
 public:
   Item_func_xxh3(THD *thd, Item *arg) : Item_longlong_func(thd, arg)
   {

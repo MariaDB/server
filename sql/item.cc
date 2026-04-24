@@ -1148,6 +1148,13 @@ bool Item::check_type_can_return_text(const LEX_CSTRING &opname) const
 }
 
 
+void Item::hash_val_str(Hasher *hasher, String *buffer)
+{
+  if (String *res= val_str(buffer))
+    hasher->add(res->charset(), res->ptr(), res->length());
+}
+
+
 bool Item::check_type_scalar(const LEX_CSTRING &opname) const
 {
   /*
