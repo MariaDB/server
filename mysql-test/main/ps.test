@@ -4989,6 +4989,7 @@ CREATE TABLE t1 (c int);
 CREATE TABLE t2 (d int);
 
 --echo # EXPLAIN EXTENDED in regular way (not PS mode)
+--disable_replay testfile Need to preserve warnings
 EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1;
 SHOW WARNINGS;
 

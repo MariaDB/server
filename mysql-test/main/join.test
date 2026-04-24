@@ -663,6 +663,7 @@ flush status;
 --disable_ps2_protocol
 select * from t1, t2, t3 where t3.a=t1.a and t2.a=t1.b;
 --enable_ps2_protocol
+--disable_replay testfile Need to preserve counters
 explain select * from t1, t2, t3 where t3.a=t1.a and t2.a=t1.b;
 --echo We expect rnd_next=5, and read_key must be 0 because of short-cutting:
 show status like 'Handler_read%'; 
@@ -695,6 +696,7 @@ insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t2 (a int, b int, primary key(a));
 insert into t2 select @v:=A.a+10*B.a, @v  from t1 A, t1 B;
 
+--disable_replay testfile Need to preserve counters
 explain select * from t1;
 show status like 'Last_query_cost';
 select 'The cost of accessing t1 (dont care if it changes' '^';
@@ -703,6 +705,7 @@ select 'vv: Following query must use ALL(t1), eq_ref(A), eq_ref(B): vv' Z;
 
 select @@myisam.optimizer_disk_read_ratio;
 set global myisam.optimizer_disk_read_ratio=0;
+--disable_replay testfile Need to preserve counters
 explain select * from t1, t2 A, t2 B where A.a = t1.a and B.a=A.b;
 show status like 'Last_query_cost';
 select '^^: The above should be ~= 40 + cost(select * from t1). Value less than 40 is an error' Z;

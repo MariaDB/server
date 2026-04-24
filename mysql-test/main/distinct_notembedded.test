@@ -45,6 +45,7 @@ eval $trace;
 SELECT AVG(DISTINCT b / a) FROM t1;
 eval $trace;
 
+--disable_replay next_query Need to preserve optimizer trace
 EXPLAIN SELECT COUNT(DISTINCT (SELECT a)) FROM t1;
 eval $trace;
 

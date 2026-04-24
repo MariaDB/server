@@ -258,6 +258,7 @@ eval $get_handler_status_counts;
 EXPLAIN PARTITIONS SELECT * FROM t1 PARTITION (pNonexistent);
 EXPLAIN PARTITIONS SELECT * FROM t1 PARTITION (subp2);
 FLUSH STATUS;
+--disable_replay testfile Need to preserve counters
 EXPLAIN PARTITIONS SELECT * FROM t1 PARTITION (subp2,pNeg) AS TableAlias;
 eval $get_handler_status_counts;
 --echo # 8 locks (1 ha_partition + 3 ha_innobase) x 2 (lock/unlock)

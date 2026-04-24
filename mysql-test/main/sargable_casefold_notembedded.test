@@ -6,6 +6,7 @@
 --source include/not_embedded.inc
 --source include/have_sequence.inc
 
+--disable_replay testfile Need to preserve optimizer trace
 
 create table t1 (
   col1 varchar(32), 

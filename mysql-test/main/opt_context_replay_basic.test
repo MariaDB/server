@@ -4,6 +4,8 @@
 --echo #enable optimizer_record_context
 set optimizer_record_context=ON;
 
+--disable_replay testfile Don't replay a replay test
+
 create database db1;
 use db1;
 
