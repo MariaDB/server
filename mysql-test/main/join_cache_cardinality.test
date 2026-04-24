@@ -1,5 +1,7 @@
 --source include/have_sequence.inc
 
+--disable_replay testfile Uses Optimizer Trace for most queries.
+
 # Embedded doesn't have optimizer trace:
 --source include/not_embedded.inc
 

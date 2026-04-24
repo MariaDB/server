@@ -1,6 +1,9 @@
 --source include/not_embedded.inc
 --source include/have_sequence.inc
 --echo #enable optimizer_record_context
+
+--disable_replay testfile Don't replay a replay test
+
 set optimizer_record_context=ON;
 
 create database db1;

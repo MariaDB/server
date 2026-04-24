@@ -59,6 +59,7 @@ FLUSH STATUS;
 SHOW SESSION STATUS LIKE 'Sort%';
 
 --disable_ps2_protocol
+--disable_replay next_query Needs to preserve counters
 explain SELECT * FROM t1 ORDER BY f2 LIMIT 100;
 SELECT * FROM t1 ORDER BY f2 LIMIT 100;
 --enable_ps2_protocol
