@@ -27,6 +27,7 @@ INSERT INTO t1 VALUES (2, REPEAT('2', 200000));
 
 --let $no_checkpoint_flush= 1
 --let no_checkpoint_kill= 1
+--source ../../suite/innodb/include/no_checkpoint_prepare.inc
 --source ../../suite/innodb/include/no_checkpoint_start.inc
 
 # Then fill up rest of binlog-000000.ibb, and some but not all of

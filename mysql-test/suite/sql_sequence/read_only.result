@@ -1,5 +1,5 @@
 create sequence s1 cache 2 engine=innodb;
-# restart: --innodb-read-only
+# restart: --innodb-read-only --innodb-log-recovery-start=0
 connection default;
 show global variables like 'innodb_read_only';
 Variable_name	Value

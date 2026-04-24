@@ -776,6 +776,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_DROP_SERVER]=        CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_BACKUP]=             CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_BACKUP_LOCK]=        CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_BACKUP_SERVER]=      CF_AUTO_COMMIT_TRANS;
 
   /*
     The following statements can deal with temporary tables,
@@ -5899,6 +5900,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_CALL:
   case SQLCOM_REVOKE:
   case SQLCOM_GRANT:
+  case SQLCOM_BACKUP_SERVER:
     if (thd->variables.option_bits & OPTION_IF_EXISTS)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
     DBUG_ASSERT(lex->m_sql_cmd != NULL);
@@ -10252,7 +10254,7 @@ int test_if_data_home_dir(const char *dir)
   if (!dir)
     DBUG_RETURN(0);
 
-  (void) fn_format(path, dir, "", "", MY_RETURN_REAL_PATH);
+  (void) fn_format(path, dir, "", "", MY_RETURN_REAL_PATH|MY_RESOLVE_SYMLINKS);
   DBUG_RETURN(path_starts_from_data_home_dir(path));
 }
 

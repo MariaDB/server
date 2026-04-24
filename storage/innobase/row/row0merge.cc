@@ -3713,6 +3713,7 @@ row_merge_insert_index_tuples(
 	DBUG_ENTER("row_merge_insert_index_tuples");
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	ut_ad(!(index->type & DICT_FTS));
 	ut_ad(!dict_index_is_spatial(index));
 
@@ -3886,6 +3887,7 @@ row_merge_drop_index_dict(
 	pars_info_t*	info;
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	ut_ad(trx->dict_operation_lock_mode);
 	ut_ad(trx->dict_operation);
 	ut_ad(dict_sys.locked());
@@ -3949,6 +3951,7 @@ row_merge_drop_indexes_dict(
 	pars_info_t*	info;
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	ut_ad(trx->dict_operation_lock_mode);
 	ut_ad(trx->dict_operation);
 	ut_ad(dict_sys.locked());
@@ -4023,6 +4026,7 @@ row_merge_drop_indexes(
 	dict_index_t*	next_index;
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	ut_ad(trx->dict_operation_lock_mode);
 	ut_ad(trx->dict_operation);
 	ut_ad(dict_sys.locked());
@@ -4426,6 +4430,7 @@ row_merge_file_destroy(
 	merge_file_t*	merge_file)	/*!< in/out: merge file structure */
 {
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	if (merge_file->fd != OS_FILE_CLOSED) {
 		row_merge_file_destroy_low(merge_file->fd);
@@ -4503,6 +4508,7 @@ row_merge_create_index(
 	DBUG_ENTER("row_merge_create_index");
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	/* Create the index prototype, using the passed in def, this is not
 	a persistent operation. We pass 0 as the space id, and determine at
@@ -4639,6 +4645,7 @@ row_merge_build_indexes(
 	DBUG_ENTER("row_merge_build_indexes");
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	ut_ad((old_table == new_table) == !col_map);
 	ut_ad(!defaults || col_map);
 

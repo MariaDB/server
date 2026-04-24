@@ -5,6 +5,8 @@
 
 --source include/innodb_page_size.inc
 --source include/not_embedded.inc
+--source include/skip_innodb_log_archive.inc
+--source include/no_checkpoint_prepare.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Data file .* uses page size .* but the innodb_page_size start-up parameter is");
@@ -19,7 +21,7 @@ call mtr.add_suppression("InnoDB: Inconsistent tablespace ID in .*t1\\.ibd");
 call mtr.add_suppression("\\[Warning\\] Found 1 prepared XA transactions");
 call mtr.add_suppression("InnoDB: Header page consists of zero bytes in datafile:");
 call mtr.add_suppression("InnoDB: Page \\[page id: space=[1-9][0-9]*, page number=3\\] log sequence number 18446744073709551615 is in the future!");
-call mtr.add_suppression("InnoDB: Your database may be corrupt or you may have copied the InnoDB tablespace but not the ib_logfile0");
+call mtr.add_suppression("InnoDB: Your database may be corrupt or you may have copied the InnoDB tablespaces but not the log");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 --enable_query_log
 

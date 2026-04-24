@@ -76,6 +76,7 @@ thread de-initialization. */
 static void dict_stats_recalc_pool_deinit()
 {
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	recalc_pool.clear();
         /*
@@ -102,6 +103,7 @@ then it will be removed from the pool and skipped. */
 static void dict_stats_recalc_pool_add(table_id_t id)
 {
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
   ut_ad(id);
   bool schedule = false;
   mysql_mutex_lock(&recalc_pool_mutex);
@@ -199,6 +201,7 @@ no statistics are being updated on it. */
 void dict_stats_recalc_pool_del(table_id_t id, bool have_mdl_exclusive)
 {
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
   ut_ad(id);
 
   mysql_mutex_lock(&recalc_pool_mutex);
@@ -245,6 +248,7 @@ Must be called before dict_stats_thread() is started. */
 void dict_stats_init()
 {
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
   mysql_mutex_init(recalc_pool_mutex_key, &recalc_pool_mutex, nullptr);
   pthread_cond_init(&recalc_pool_cond, nullptr);
   stats_initialised= true;
@@ -260,6 +264,8 @@ void dict_stats_deinit()
 	}
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
+
 	stats_initialised = false;
 
 	dict_stats_recalc_pool_deinit();
@@ -275,6 +281,7 @@ update its stats.
 static bool dict_stats_process_entry_from_recalc_pool(THD *thd)
 {
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
   table_id_t table_id;
   mysql_mutex_lock(&recalc_pool_mutex);
 next_table_id_with_mutex:

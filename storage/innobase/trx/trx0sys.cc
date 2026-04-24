@@ -54,6 +54,7 @@ void rw_trx_hash_t::validate_element(trx_t *trx)
   switch (trx->state) {
   case TRX_STATE_NOT_STARTED:
   case TRX_STATE_ABORTED:
+  case TRX_STATE_BACKUP:
     ut_error;
   case TRX_STATE_PREPARED:
   case TRX_STATE_PREPARED_RECOVERED:
@@ -380,6 +381,7 @@ size_t trx_sys_t::any_active_transactions(size_t *prepared)
     switch (trx.state) {
     case TRX_STATE_NOT_STARTED:
     case TRX_STATE_ABORTED:
+    case TRX_STATE_BACKUP:
       break;
     case TRX_STATE_ACTIVE:
       if (!trx.id)

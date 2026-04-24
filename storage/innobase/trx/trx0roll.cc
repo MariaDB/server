@@ -174,6 +174,7 @@ dberr_t trx_t::rollback(const undo_no_t *savept) noexcept
   case TRX_STATE_PREPARED:
   case TRX_STATE_PREPARED_RECOVERED:
   case TRX_STATE_COMMITTED_IN_MEMORY:
+  case TRX_STATE_BACKUP:
     ut_ad("invalid state" == 0);
     /* fall through */
   case TRX_STATE_ACTIVE:
@@ -259,6 +260,8 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		ut_ad(!trx->is_autocommit_non_locking());
+		break;
+	case TRX_STATE_BACKUP:
 		break;
 	}
 
@@ -491,6 +494,7 @@ Note: this is done in a background thread. */
 void trx_rollback_all_recovered(void*)
 {
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	if (trx_sys.rw_trx_hash.size()) {
 		ib::info() << "Starting in background the rollback of"
