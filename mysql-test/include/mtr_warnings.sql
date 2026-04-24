@@ -103,7 +103,6 @@ INSERT INTO global_suppressions VALUES
    computer is loaded.
  */
 
- ("Got error [0-9]* when reading table"),
  ("Incorrect information in file"),
  ("InnoDB: Warning: we did not need to do crash recovery"),
  /*("Invalid \\(old\\?\\) table or database name"),*/
