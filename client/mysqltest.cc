@@ -8617,13 +8617,11 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
                                mysql_error(replay_server_mysql));
           fputs(buf, stdout);
           print_replay_test_location(stdout);
+          verbose_msg("%s", buf);
 
-          /* If this was an EXPLAIN query, add failure marker to result output */
-          if (is_explain)
-          {
-            dynstr_append_mem(&result, buf, len);
-          }
-
+          /* Add failure marker to result output */
+          dynstr_append_mem(&result, buf, len);
+          
           goto cleanup;
         }
 
