@@ -232,9 +232,15 @@ public:
                                                const Type_handler *b)
                                                const override
   {
-    DBUG_ASSERT(a == &type_handler_row);
-    DBUG_ASSERT(b == &type_handler_row);
-    return &type_handler_row;
+    /*
+      The 11.8 changes for MDEV-36792 not to be merged to 12.3,
+      as MDEV-36792 is already fixed in 12.3. See sql_type_row.cc.
+    */
+    if ((a == &type_handler_row || a == &type_handler_null) &&
+        (b == &type_handler_row || b == &type_handler_null) &&
+        (a == &type_handler_row || b == &type_handler_row))
+      return &type_handler_row;
+    return NULL;
   }
   const Type_handler *aggregate_for_min_max(const Type_handler *a,
                                             const Type_handler *b)

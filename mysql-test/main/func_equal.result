@@ -54,3 +54,13 @@ c1
 0
 DROP TABLE t0;
 # End of 10.5 tests
+#
+# MDEV-36792: UBSAN load of null pointer and Assertion `b == &type_handler_row || b == &type_handler_null` in `Arg_comparator::set_cmp_func when using ROW()`
+#
+CREATE FUNCTION f() RETURNS ROW TYPE OF t RETURN 1;
+CREATE TABLE t (a INT);
+SELECT ROW(f(),1)=ROW(1,1) AS eq;
+ERROR HY000: Illegal parameter data types row and int for operation '='
+DROP FUNCTION f;
+DROP TABLE t;
+# End of 11.8 tests

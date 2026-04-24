@@ -59,3 +59,16 @@ DROP TABLE t0;
 
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-36792: UBSAN load of null pointer and Assertion `b == &type_handler_row || b == &type_handler_null` in `Arg_comparator::set_cmp_func when using ROW()`
+--echo #
+
+CREATE FUNCTION f() RETURNS ROW TYPE OF t RETURN 1;
+CREATE TABLE t (a INT);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT ROW(f(),1)=ROW(1,1) AS eq;
+DROP FUNCTION f;
+DROP TABLE t;
+
+--echo # End of 11.8 tests
