@@ -1056,7 +1056,18 @@ static void trx_purge_close_tables(purge_node_t *node, THD *thd) noexcept
     {
       t.second.first= reinterpret_cast<dict_table_t*>(-1);
       if (t.second.second != nullptr)
-        thd->mdl_context.release_lock(t.second.second);
+      {
+        try
+        {
+          thd->mdl_context.release_lock(t.second.second);
+        }
+        catch (const std::bad_alloc&)
+        {
+          sql_print_warning(
+            "InnoDB: trx_purge_close_tables():"
+            " memory allocation failure");
+        }
+      }
     }
   }
 }
@@ -1111,8 +1122,18 @@ static dict_table_t *trx_purge_table_acquire(dict_table_t *table,
     MDL_request request;
     MDL_REQUEST_INIT(&request,MDL_key::TABLE, db_buf, tbl_buf, MDL_SHARED,
                      MDL_EXPLICIT);
-    if (mdl_context->try_acquire_lock(&request))
+    try
+    {
+      if (mdl_context->try_acquire_lock(&request))
+        goto must_wait;
+    }
+    catch (const std::bad_alloc&)
+    {
+      sql_print_warning(
+        "InnoDB: trx_purge_table_acquire():"
+        " memory allocation failure");
       goto must_wait;
+    }
     *mdl= request.ticket;
     if (!*mdl)
       goto must_wait;

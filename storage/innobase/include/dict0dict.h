@@ -1495,6 +1495,14 @@ public:
   /** Create or check system tables on startup */
   dberr_t create_or_check_sys_tables() noexcept;
 
+private:
+  /** Implementation of create_or_check_sys_tables(),
+  separated to allow the noexcept caller to catch
+  exceptions. */
+  dberr_t create_or_check_sys_tables_impl();
+
+public:
+
   bool is_sys_table(table_id_t table_id) const noexcept
   {
     return (table_id > 0 && table_id <= 4) ||
@@ -1658,6 +1666,11 @@ public:
 
   dict_table_t *table() const noexcept { return table_stats; }
   dict_table_t *index() const noexcept { return index_stats; }
+
+private:
+  /** Implementation of open(), separated to allow
+  the noexcept caller to catch exceptions. */
+  bool open_impl();
 };
 
 #include "dict0dict.inl"

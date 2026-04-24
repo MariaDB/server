@@ -11,6 +11,7 @@
 #include <mysqld.h>
 #include <mysqld_error.h>
 #include <mysql.h>
+#include <m_string.h>
 #include <sql_error.h>
 #include <stdio.h>
 #include <cassert>
@@ -1987,10 +1988,10 @@ char* bsonvalue(UDF_INIT* initid, UDF_ARGS* args, char* result,
 			PBVAL bvp = bnx.MakeValue(args, 0, true);
 
 			if (!(str = bnx.Serialize(g, bvp, NULL, 0)))
-				str = strcpy(result, g->Message);
+				safe_strcpy(result, 255, g->Message), str = result;
 
 		} else
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? str : NULL;
@@ -2035,10 +2036,10 @@ char* bson_make_array(UDF_INIT* initid, UDF_ARGS* args, char* result,
 			} // endfor i
 
 			if (!(str = bnx.Serialize(g, arp, NULL, 0)))
-				str = strcpy(result, g->Message);
+				safe_strcpy(result, 255, g->Message), str = result;
 
 		} else
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? str : NULL;
@@ -2356,7 +2357,7 @@ char *bson_make_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		} // endif CheckMemory
 
 		if (!str)
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? str : NULL;
@@ -2406,7 +2407,7 @@ char *bson_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		} // endif CheckMemory
 
 		if (!str)
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? str : NULL;
@@ -2459,7 +2460,7 @@ char *bson_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		} // endif CheckMemory
 
 		if (!str)
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? str : NULL;
@@ -2946,7 +2947,7 @@ char *bson_array_grp(UDF_INIT *initid, UDF_ARGS *, char *result,
 		PUSH_WARNING("Result truncated to json_grp_size values");
 
 	if (!arp || !(str = bxp->Serialize(g, arp, NULL, 0)))
-		str = strcpy(result, g->Message);
+		safe_strcpy(result, 255, g->Message), str = result;
 
 	*res_length = strlen(str);
 	return str;
@@ -3019,7 +3020,7 @@ char *bson_object_grp(UDF_INIT *initid, UDF_ARGS *, char *result,
 		PUSH_WARNING("Result truncated to json_grp_size values");
 
 	if (!bop || !(str = bxp->Serialize(g, bop, NULL, 0)))
-		str = strcpy(result, g->Message);
+		safe_strcpy(result, 255, g->Message), str = result;
 
 	*res_length = strlen(str);
 	return str;
@@ -4760,9 +4761,9 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		FILE *fin;
 
 		if (!(fin = global_fopen(g, msgid, fn, "rt")))
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 		else if (!(fout = global_fopen(g, msgid, ofn, "wb")))
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 		else if ((buf = (char*)malloc(lrecl))) {
 			try {
 				do {
@@ -4773,7 +4774,7 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 						if (!feof(fin)) {
 							snprintf(g->Message, sizeof(g->Message), "Error %d reading %zu bytes from %s",
 								errno, lrecl, fn);
-							str = strcpy(result, g->Message);
+							safe_strcpy(result, 255, g->Message), str = result;
 						}	else
 							str = strcpy(result, ofn);
 
@@ -4785,16 +4786,16 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 							if (fwrite(&binszp, sizeof(binszp), 1, fout) != 1) {
 								snprintf(g->Message, sizeof(g->Message), "Error %d writing %zu bytes to %s",
 									errno, sizeof(binszp), ofn);
-								str = strcpy(result, g->Message);
+								safe_strcpy(result, 255, g->Message), str = result;
 							} else if (fwrite(jsp, binszp, 1, fout) != 1) {
 								snprintf(g->Message, sizeof(g->Message), "Error %d writing %zu bytes to %s",
 									errno, binszp, ofn);
-								str = strcpy(result, g->Message);
+								safe_strcpy(result, 255, g->Message), str = result;
 							} else
 								loop = true;
 
 						} else {
-							str = strcpy(result, g->Message);
+							safe_strcpy(result, 255, g->Message), str = result;
 						}	// endif jsp
 
 					} else
@@ -4803,7 +4804,7 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 				} while (loop);
 
 			} catch (int) {
-				str = strcpy(result, g->Message);
+				safe_strcpy(result, 255, g->Message), str = result;
 			} catch (const char* msg) {
 				str = strcpy(result, msg);
 			} // end catch
@@ -4820,7 +4821,7 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	if (!str) {
 		if (g->Message[0] != '\0')
-			str = strcpy(result, g->Message);
+			safe_strcpy(result, 255, g->Message), str = result;
 		else
 			str = strcpy(result, "Unexpected error");
 
@@ -4864,7 +4865,7 @@ char *bson_serialize(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 //		if (!(str = bnx.Serialize(g, bvp, bsp->Filename, bsp->Pretty)))
 			if (!(str = bnx.Serialize(g, bvp, NULL, 0)))
-				str = strcpy(result, g->Message);
+				safe_strcpy(result, 255, g->Message), str = result;
 
 			// Keep result of constant function
 			g->Xchk = (initid->const_item) ? str : NULL;
