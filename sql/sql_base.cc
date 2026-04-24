@@ -54,6 +54,7 @@
 #include "rpl_filter.h"
 #include "sql_table.h"                          // build_table_filename
 #include "datadict.h"   // dd_frm_is_view()
+#include "rpl_mi.h"   // Master_info_index
 #include "rpl_rli.h"   // rpl_group_info
 #ifdef  _WIN32
 #include <io.h>
@@ -3305,6 +3306,34 @@ static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
                             FALSE, TRUE, TRUE, 0);
       if (mysql_bin_log.write(&qinfo))
         return TRUE;
+#ifdef HAVE_REPLICATION
+      // Verbosity Level "Binlog/Replication"
+      if (opt_readonly && global_system_variables.log_warnings >= 1)
+      {
+        extern Master_info_index *master_info_index;
+        extern Master_info *active_mi;
+        /*
+          Use the count to tell whether this server is a slave (candidate).
+          Though currently this count is always at least 1,
+          with a permanent @ref active_mi entry that's invalidated when
+          @ref Master_info::host is empty.
+          The atomicity of this check is not important here, since results are
+          influenced by the timing of any concurrent CHANGE MASTER regardless.
+        */
+        if (active_mi->host[0] ||
+            master_info_index->master_info_hash.records > 1)
+        {
+          rpl_gtid gtid= thd->get_last_commit_gtid();
+          sql_print_warning(
+            "A server restart has recreated the memory table %`s.%`s; "
+            "a TRUNCATE query is written to the binary log at GTID %u-%u-%llu. "
+            "As this server is a read-only slave, "
+            "this event may diverge replication in domain %u.",
+            share->db.str, share->table_name.str,
+            PARAM_GTID(gtid), gtid.domain_id);
+        }
+      }
+#endif
     }
   }
   return FALSE;
