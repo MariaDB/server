@@ -1953,6 +1953,7 @@ explain format=json select * from v1 where if( a1 regexp 'def', 'foo', a2 )
 create function f1(a int) returns int DETERMINISTIC return (a+1);
 create view v9 as select * from
   (select c1, f1(c2), sum(c3) from t1 group by c1, f1(c2)) as f (c1, c2, c3);
+--disable_replay next_query Don't support SPs.
 explain format=json select * from v9 where (c3+1) > 10 and c1 > 1 and c2 > 123;
 drop function f1;
 
