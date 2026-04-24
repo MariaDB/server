@@ -66,7 +66,7 @@ ST_SCHEMA_TABLE *i_s_feedback; ///< table descriptor for our I_S table
 static ST_FIELD_INFO feedback_fields[] =
 {
   Show::Column("VARIABLE_NAME",  Show::Varchar(255),  NOT_NULL),
-  Show::Column("VARIABLE_VALUE", Show::Varchar(1024), NOT_NULL),
+  Show::Column("VARIABLE_VALUE", Show::Varchar(4096), NOT_NULL),
   Show::CEnd()
 };
 
