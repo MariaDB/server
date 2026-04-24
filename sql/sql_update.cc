@@ -971,6 +971,15 @@ update_begin:
   THD_STAGE_INFO(thd, stage_updating);
   fix_rownum_pointers(thd, thd->lex->current_select, &updated_or_same);
   thd->get_stmt_da()->reset_current_row_for_warning(1);
+
+  if (thd->lex->has_returning())
+  {
+    if (unlikely(returning_result->send_result_set_metadata(
+                            thd->lex->returning()->returning_list,
+                            Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)))
+      error= 1;
+  }
+
   while (!(error=info.read_record()) && !thd->killed)
   {
     explain->tracker.on_record_read();
@@ -1063,6 +1072,13 @@ update_begin:
           /* Non-batched update */
           error= table->file->ha_update_row(table->record[1],
                                             table->record[0]);
+        }
+
+        if (likely(!error) && thd->lex->has_returning() &&
+            returning_result->send_data(thd->lex->returning()->returning_list) < 0)
+        {
+          error= 1;
+          break;
         }
 
         record_was_same= error == HA_ERR_RECORD_IS_THE_SAME;
@@ -1300,8 +1316,11 @@ update_end:
   }
   if (!binlogged)
     table->mark_as_not_binlogged();
-
   DBUG_ASSERT(transactional_table || !updated || thd->transaction->stmt.modified_non_trans_table);
+
+  if (unlikely(thd->lex->analyze_stmt))
+    goto send_nothing_and_leave;
+
   free_underlaid_joins(thd, select_lex);
   delete file_sort;
   if (table->file->pushed_cond)
@@ -1314,7 +1333,7 @@ update_end:
   id= thd->arg_of_last_insert_id_function ?
     thd->first_successful_insert_id_in_prev_stmt : 0;
 
-  if (likely(error < 0) && likely(!thd->lex->analyze_stmt))
+  if (likely(error < 0))
   {
     char buff[MYSQL_ERRMSG_SIZE];
     if (!table->versioned(VERS_TIMESTAMP) && !table_list->has_period())
@@ -1329,8 +1348,13 @@ update_end:
     thd->collect_unit_results(
             id,
             (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated);
-    my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
-          id, buff);
+
+    if (thd->lex->has_returning())
+      returning_result->send_eof();
+    else
+      my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ?
+                  found : updated, id, buff);
+
     if (thd->get_stmt_da()->is_bulk_op())
     {
       /*
@@ -1358,11 +1382,9 @@ update_end:
   ((multi_update *)result)->set_found(found);
   ((multi_update *)result)->set_updated(updated);
 
-  if (unlikely(thd->lex->analyze_stmt))
-    goto emit_explain_and_leave;
-
   DBUG_RETURN((error >= 0 || thd->is_error()) ? 1 : 0);
 
+send_nothing_and_leave:
 err:
   delete select;
   delete file_sort;
@@ -1374,7 +1396,7 @@ err:
   if (table->file->pushed_cond)
     table->file->cond_pop();
   thd->abort_on_warning= 0;
-  DBUG_RETURN(1);
+  DBUG_RETURN((error >= 0 || thd->is_error()) ? 1 : 0);
 
 produce_explain_and_leave:
   /* 
@@ -1384,16 +1406,13 @@ produce_explain_and_leave:
   if (unlikely(!query_plan.save_explain_update_data(thd, query_plan.mem_root)))
     goto err;
 
-emit_explain_and_leave:
   if (!thd->is_error() && need_to_optimize &&
       select_lex->optimize_unflattened_subqueries(false))
     DBUG_RETURN(TRUE);
-  bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
-  int err2= thd->lex->explain->send_explain(thd, extended);
 
   delete select;
   free_underlaid_joins(thd, select_lex);
-  DBUG_RETURN((err2 || thd->is_error()) ? 1 : 0);
+  DBUG_RETURN((thd->is_error()) ? 1 : 0);
 }
 
 
@@ -1684,6 +1703,10 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
   List<Item> *fields= &lex->first_select_lex()->item_list;
   if (setup_fields_with_no_wrap(thd, Ref_ptr_array(), *fields,
                                 MARK_COLUMNS_WRITE, 0, 0, THD_WHERE::SET_LIST))
+    DBUG_RETURN(1);
+
+  if (thd->lex->has_returning() &&
+      setup_returning_fields(thd, select_lex->get_table_list()))
     DBUG_RETURN(1);
 
   // Check if we have a view in the list ...
@@ -3232,6 +3255,30 @@ bool Sql_cmd_update::execute_inner(THD *thd)
   bool res= 0;
   Running_stmt_guard guard(thd, active_dml_stmt::UPDATING_STMT);
 
+  if (!multitable)
+  {
+    if (lex->has_returning())
+    {
+      /* This is UPDATE ... RETURNING.  It will return output to the client */
+      if (thd->lex->analyze_stmt)
+      {
+        returning_result= new (thd->mem_root) select_send_analyze(thd);
+        save_protocol= thd->protocol;
+        thd->protocol= new Protocol_discard(thd);
+      }
+      else
+      {
+        if (!(returning_result= new
+                        (thd->mem_root) select_send(thd)))
+        {
+          return true;
+        }
+      }
+      if (thd->lex->has_returning())
+        (void) returning_result->prepare(thd->lex->returning()->returning_list, NULL);
+    }
+  }
+
   thd->get_stmt_da()->reset_current_row_for_warning(1);
   if (!multitable)
     res= update_single_table(thd);
@@ -3242,17 +3289,23 @@ bool Sql_cmd_update::execute_inner(THD *thd)
   }
 
   res|= thd->is_error();
-  if (multitable)
+
+  if (save_protocol)
   {
-    if (unlikely(res))
+    delete thd->protocol;
+    thd->protocol= save_protocol;
+  }
+  if (unlikely(res))
+  {
+    if (multitable)
       result->abort_result_set();
-    else
+  }
+  else
+  {
+    if (thd->lex->describe || thd->lex->analyze_stmt)
     {
-      if (thd->lex->describe || thd->lex->analyze_stmt)
-      {
-        bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
-        res= thd->lex->explain->send_explain(thd, extended);
-      }
+      bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+      res= thd->lex->explain->send_explain(thd, extended);
     }
   }
 

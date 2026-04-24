@@ -1284,7 +1284,7 @@ TABLE_LIST* find_dup_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
 TABLE_LIST* unique_table_in_select_list(THD *thd, TABLE_LIST *table, SELECT_LEX *sel)
 {
   subselect_table_finder_param param= {thd, table, NULL};
-  List_iterator_fast<Item> it(sel->item_list);
+  List_iterator_fast<Item> it(sel->returning_list);
   Item *item;
   while ((item= it++))
   {
@@ -6330,6 +6330,28 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
         DBUG_RETURN(0);
       if (!ref)
         DBUG_RETURN((Field*) view_ref_found);
+
+      /*
+        If we are fixing fields for items in the RETURNING clause for
+        UPDATE statement, we might have OLD_VALUE() in returning list.
+        If we are updating a view, then the real item will start pointing
+        to select item list used while creating the view. Hence it will be of
+        type Item::FIELD_ITEM even for OLD_VALUE() instead of Item::FIELD_OLD_ITEM.
+        This will eventually result in calling the incorrect ::send() function.
+        So, we need to correct its type.
+      */
+      if (thd->is_setting_returning &&
+          (*ref)->is_old_value_reference)
+      {
+        Item *real = item->real_item();
+        if (real->type() == Item::FIELD_ITEM)
+        {
+          Item_old_field *old =
+               new (thd->mem_root) Item_old_field(thd, (Item_field*) real);
+          item = old;
+        }
+      }
+
       /*
        *ref != NULL means that *ref contains the item that we need to
        replace. If the item was aliased by the user, set the alias to
@@ -8070,8 +8092,9 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
   Item *item;
   List_iterator<Item> it(fields);
   Query_arena *arena, backup;
-  uint *with_wild= returning_field ? &(thd->lex->returning()->with_wild) :
-                                     &(select_lex->with_wild);
+  uint *with_wild= returning_field ?
+                   &(thd->lex->returning()->with_wild_returning) :
+                   &(select_lex->with_wild);
   DBUG_ENTER("setup_wild");
 
   if (!(*with_wild))
@@ -8274,12 +8297,17 @@ int setup_returning_fields(THD* thd, TABLE_LIST* table_list)
   saved_grant= &table_list->table->grant;
   table_list->table->grant.want_privilege|= SELECT_ACL;
 
-  res= setup_wild(thd, table_list, thd->lex->returning()->item_list, NULL,
-                     thd->lex->returning(), true)
-       || setup_fields(thd, Ref_ptr_array(), thd->lex->returning()->item_list,
-                       MARK_COLUMNS_READ, NULL, NULL, 0, THD_WHERE::RETURNING);
+  thd->is_setting_returning= true;
+
+  res= setup_wild(thd, table_list, thd->lex->returning()->returning_list,
+                  NULL, thd->lex->returning(), true)
+       || setup_fields(thd, Ref_ptr_array(),
+                       thd->lex->returning()->returning_list,
+                       MARK_COLUMNS_READ, NULL, NULL, 0,
+                       THD_WHERE::RETURNING);
 
   table_list->table->grant= *saved_grant;
+  thd->is_setting_returning= false;
 
   return res;
 }

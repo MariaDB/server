@@ -637,6 +637,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> NTILE_SYM
 %token  <kwd> NULL_SYM                      /* SQL-2003-R */
 %token  <kwd> NUMERIC_SYM                   /* SQL-2003-R */
+%token  <kwd> OLD_VALUE_SYM
 %token  <kwd> ON                            /* SQL-2003-R */
 %token  <kwd> OPTIMIZE
 %token  <kwd> OPTIONALLY
@@ -9705,7 +9706,10 @@ select_item_list:
               MYSQL_YYABORT;
             if (unlikely(add_item_to_list(thd, item)))
               MYSQL_YYABORT;
-            correct_select->with_wild++;
+            if (is_parsing_returning)
+              correct_select->with_wild_returning++;
+            else
+              correct_select->with_wild++;
           }
         ;
 
@@ -9923,6 +9927,22 @@ expr:
               MYSQL_YYABORT;
           }
         | boolean_test %prec PREC_BELOW_NOT
+        | OLD_VALUE_SYM '(' ident ')'
+          {
+            LEX *lex= thd->lex;
+
+            if (!(lex->sql_command == SQLCOM_UPDATE ||
+                lex->sql_command == SQLCOM_UPDATE_MULTI))
+            {
+              my_error(ER_WRONG_USAGE, MYF(0), "OLD_VALUE", "non-UPDATE");
+            }
+            $$= new (thd->mem_root)
+                                Item_old_field(thd,
+                                               &lex->current_select->context,
+                                               $3);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
         ;
 
 boolean_test:
@@ -14345,7 +14365,9 @@ update:
           {
             if ($12)
               Select->order_list= *($12);
-          } stmt_end {}
+          }
+          opt_returning
+          stmt_end {}
         ;
 
 update_list:
@@ -14551,7 +14573,18 @@ opt_returning:
           }
         | RETURNING_SYM
           {
+            LEX *lex= thd->lex;
+            SELECT_LEX *slex= lex->first_select_lex();
+
             DBUG_ASSERT(!Lex->has_returning());
+
+            if ((thd->lex->sql_command == SQLCOM_UPDATE_MULTI) &&
+                slex->table_list.elements > 1)
+            {
+              my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+                         "RETURNING for multi-table UPDATE");
+            }
+
             /*
               When parsing_place is IN_RETURNING, we push select items to
               item_list of builtin_select instead of current_select.
@@ -14574,12 +14607,15 @@ opt_returning:
 
             thd->lex->current_select->parsing_place= IN_RETURNING;
             thd->lex->push_context(&thd->lex->returning()->context);
-            thd->lex->has_returning_list= true;
+            std::swap(thd->lex->returning()->returning_list,
+                      thd->lex->returning()->item_list);
           }
           select_item_list
           {
             thd->lex->pop_context();
             thd->lex->current_select->parsing_place= NO_MATTER;
+            std::swap(thd->lex->returning()->returning_list,
+                      thd->lex->returning()->item_list);
           }
         ;
 
@@ -17155,6 +17191,7 @@ keyword_sp_var_and_label:
         | MINUTE_SYM
         | MONTH_SYM
         | NEXTVAL_SYM
+        | OLD_VALUE_SYM
         | OVERLAPS_SYM
         | RECORD_SYM
 %ifdef MARIADB

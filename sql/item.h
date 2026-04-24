@@ -125,6 +125,7 @@ void item_init(void);			/* Init item functions */
 class Item_basic_value;
 class Item_result_field;
 class Item_field;
+class Item_old_field;
 class Item_ref;
 class Item_param;
 class user_var_entry;
@@ -858,7 +859,7 @@ public:
              PROC_ITEM,COND_ITEM, REF_ITEM, FIELD_STD_ITEM,
              FIELD_VARIANCE_ITEM, INSERT_VALUE_ITEM,
              SUBSELECT_ITEM, ROW_ITEM, CACHE_ITEM, TYPE_HOLDER,
-             PARAM_ITEM, TRIGGER_FIELD_ITEM,
+             PARAM_ITEM, TRIGGER_FIELD_ITEM, FIELD_OLD_ITEM,
              EXPR_CACHE_ITEM};
 
   enum cond_result { COND_UNDEF,COND_OK,COND_TRUE,COND_FALSE };
@@ -993,7 +994,7 @@ protected:
     return rc;
   }
 public:
-
+    bool is_old_value_reference;
   /*
     Cache val_str() into the own buffer, e.g. to evaluate constant
     expressions with subqueries in the ORDER/GROUP clauses.
@@ -3822,10 +3823,10 @@ public:
   Item_field(THD *thd, Name_resolution_context *context_arg,
              const LEX_CSTRING &field_name_arg)
    :Item_field(thd, context_arg, null_clex_str, null_clex_str, field_name_arg)
-  { }
+  {}
   Item_field(THD *thd, Name_resolution_context *context_arg)
    :Item_field(thd, context_arg, null_clex_str, null_clex_str, null_clex_str)
-  { }
+  {}
   /*
     Constructor needed to process subselect with temporary tables (see Item)
   */
@@ -3842,6 +3843,7 @@ public:
     reset_field() before fix_fields() for all fields created this way.
   */
   Item_field(THD *thd, Field *field);
+
   Type type() const override { return FIELD_ITEM; }
   /*
     Resolve the data type from a cursor.
@@ -4077,6 +4079,46 @@ protected:
   { return shallow_copy_with_checks(thd); }
 };
 
+
+class Item_old_field: public Item_field
+{
+public:
+  Item_old_field(THD *thd,
+                 Name_resolution_context *context_arg,
+                 const LEX_CSTRING &db_arg,
+                 const LEX_CSTRING &table_name_arg,
+                 const LEX_CSTRING &field_name_arg)
+    : Item_field(thd, context_arg, db_arg, table_name_arg, field_name_arg)
+  { is_old_value_reference= true; }
+
+  Item_old_field(THD *thd,
+                 Name_resolution_context *context_arg,
+                 const LEX_CSTRING &field_name_arg)
+    : Item_field(thd, context_arg, field_name_arg)
+  { is_old_value_reference= true; }
+
+  Item_old_field(THD *thd, Item_field *item)
+    : Item_field(thd, item)
+  { is_old_value_reference= true; }
+
+  Item_old_field(THD *thd,
+                 Name_resolution_context *context_arg,
+                 Field *field)
+    : Item_field(thd, context_arg, field)
+  { is_old_value_reference= true; }
+
+  Item_old_field(THD *thd, Field *field)
+    : Item_field(thd, field)
+  { is_old_value_reference= true; }
+
+  bool send(Protocol *protocol, st_value *buffer) override;
+  Type type() const override { return FIELD_OLD_ITEM; }
+  bool fix_fields(THD *, Item **) override;
+  void change_field_ptr();
+
+private:
+  uchar *saved_row_ref;
+};
 
 /**
   Item_field for the ROW data type

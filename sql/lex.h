@@ -448,6 +448,7 @@ SYMBOL symbols[] = {
   { "OF",		SYM(OF_SYM)},
   { "OFFSET",		SYM(OFFSET_SYM)},
   { "OLD_PASSWORD",	SYM(OLD_PASSWORD_SYM)},
+  { "OLD_VALUE",	SYM(OLD_VALUE_SYM)},
   { "ON",		SYM(ON)},
   { "ONE",              SYM(ONE_SYM)},
   { "ONLINE",		SYM(ONLINE_SYM)},
