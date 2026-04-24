@@ -2093,4 +2093,12 @@ SELECT JSON_VALID('{ "A": [0,] }');
 SELECT JSON_EXTRACT('{a:true}','$.a')=TRUE;
 SELECT JSON_EXTRACT('0E+0','$');
 
---echo # End of 10.11 Test
+--echo #
+--echo # MDEV-28649 json_array(false) in the definition of view return 0 instead of "true"
+--echo #
+
+create view v1 as select json_array(false) as ja_false, json_array(true) as ja_true;
+select * from v1;
+drop view v1;
+
+--echo # End of 10.11 Tests

@@ -17764,7 +17764,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	9	100.00	Using where
 2	DERIVED	t2	ALL	idx_a	NULL	NULL	NULL	90	100.00	Using temporary; Using filesort
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t1` left join (/* select#2 */ select `test`.`t2`.`a` AS `a`,max(`test`.`t2`.`b`) AS `max`,min(`test`.`t2`.`b`) AS `min` from `test`.`t2` group by `test`.`t2`.`a`) `t` on(`t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` is not null) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t1` left join (/* select#2 */ select `test`.`t2`.`a` AS `a`,max(`test`.`t2`.`b`) AS `max`,min(`test`.`t2`.`b`) AS `min` from `test`.`t2` group by `test`.`t2`.`a`) `t` on(`t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` is not null) where true
 explain format=json select t1.a,t.max,t.min
 from t1 left join
 (select a, max(t2.b) max, min(t2.b) min from t2 group by t2.a) t
@@ -17773,7 +17773,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "1",
+    "const_condition": true,
     "nested_loop": [
       {
         "table": {
@@ -19063,7 +19063,7 @@ EXPLAIN
             "lateral": 1,
             "query_block": {
               "select_id": 3,
-              "const_condition": "1",
+              "const_condition": true,
               "outer_ref_condition": "t4.c is not null",
               "nested_loop": [
                 {
@@ -19278,7 +19278,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
-Note	1003	/* select#1 */ select NULL AS `f`,`v2`.`f` AS `f` from `test`.`t1` `a` straight_join `test`.`t1` `b` join `test`.`v2` where 0
+Note	1003	/* select#1 */ select NULL AS `f`,`v2`.`f` AS `f` from `test`.`t1` `a` straight_join `test`.`t1` `b` join `test`.`v2` where false
 DROP VIEW v1,v2;
 DROP TABLE t1;
 #

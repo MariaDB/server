@@ -720,7 +720,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "1",
+    "const_condition": true,
     "nested_loop": [
       {
         "table": {
@@ -1481,7 +1481,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "1",
+    "const_condition": true,
     "nested_loop": [
       {
         "table": {
@@ -1515,7 +1515,7 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "const_condition": "1",
+    "const_condition": true,
     "nested_loop": [
       {
         "table": {
