@@ -6147,57 +6147,6 @@ EXPLAIN
     }
   }
 }
-SET SESSION debug_dbug="+d,clone_failure";
-SELECT t2.b, t1.a, t1.b
-FROM t2 STRAIGHT_JOIN t1
-GROUP BY t2.b, t1.a, t1.b
-HAVING t1.b < t2.b;
-b	a	b
-4	1	2
-6	1	2
-explain format=json SELECT t2.b, t1.a, t1.b
-FROM t2 STRAIGHT_JOIN t1
-GROUP BY t2.b, t1.a, t1.b
-HAVING t1.b < t2.b;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "filesort": {
-      "sort_key": "t2.b, t1.a, t1.b",
-      "temporary_table": {
-        "nested_loop": [
-          {
-            "table": {
-              "table_name": "t2",
-              "access_type": "index",
-              "key": "b",
-              "key_length": "5",
-              "used_key_parts": ["b"],
-              "rows": 2,
-              "filtered": 100,
-              "using_index": true
-            }
-          },
-          {
-            "block-nl-join": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 1,
-                "filtered": 100
-              },
-              "buffer_type": "flat",
-              "buffer_size": "65",
-              "join_type": "BNL"
-            }
-          }
-        ]
-      }
-    }
-  }
-}
-SET GLOBAL debug_dbug=@orig_debug;
 SELECT b, a, b1
 FROM (
 SELECT
@@ -6264,7 +6213,8 @@ EXPLAIN
                         },
                         "buffer_type": "flat",
                         "buffer_size": "65",
-                        "join_type": "BNL"
+                        "join_type": "BNL",
+                        "attached_condition": "t1.b < t2.b <> 0"
                       }
                     }
                   ]

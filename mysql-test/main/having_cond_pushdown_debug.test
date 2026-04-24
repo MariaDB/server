@@ -1,0 +1,32 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-38819: Logic Inconsistency between Direct HAVING Query and Derived Table Relocation
+--echo #
+
+
+CREATE TABLE t1(a INT, b INT UNIQUE);
+CREATE TABLE t2 LIKE t1;
+ 
+INSERT INTO t1 VALUES (1, 2);
+INSERT INTO t2 VALUES (3, 4);
+INSERT INTO t2 VALUES (5, 6);
+
+let $q=
+SELECT t2.b, t1.a, t1.b
+FROM t2 STRAIGHT_JOIN t1
+GROUP BY t2.b, t1.a, t1.b
+HAVING t1.b < t2.b;
+eval $q;
+eval explain format=json $q;
+
+# Optimization and aborted on clone failure
+SET SESSION debug_dbug="+d,clone_failure";
+
+eval $q;
+eval explain format=json $q;
+
+SET GLOBAL debug_dbug=@orig_debug;
+
+DROP TABLE t1;
+DROP TABLE t2;

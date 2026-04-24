@@ -1677,13 +1677,6 @@ HAVING t1.b < t2.b;
 eval $q;
 eval explain format=json $q;
 
-SET SESSION debug_dbug="+d,clone_failure";
-
-eval $q;
-eval explain format=json $q;
-
-SET GLOBAL debug_dbug=@orig_debug;
-
 let $q=
 SELECT b, a, b1
 FROM (
