@@ -1,0 +1,12 @@
+#
+# MDEV-38904: latin7 collation corruption
+#
+CREATE TABLE t1 (
+c1 VARCHAR(10) CHARACTER SET latin7 COLLATE latin7_general_ci, 
+KEY(c1)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('a-b'), ('a b');
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
