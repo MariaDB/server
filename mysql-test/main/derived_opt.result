@@ -595,13 +595,37 @@ select * from
 t2,
 (select max(value), grp_id from t1 group by grp_id) DT
 where
-t2.a= DT.grp_id;
+t2.a = DT.grp_id;
 a	max(value)	grp_id
 1	100	1
 2	100	2
 3	100	3
 4	100	4
 5	100	5
+select
+json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
+from information_schema.optimizer_trace;
+t
+[
+    {
+        "table_alias": "DT",
+        "key_name": "key0",
+        "key_parts": 1,
+        "select": 
+        ["group_list_in_key"],
+        "rec_per_key_estimate": 1
+    }
+]
+explain
+with DT as 
+(
+select max(value), 1/grp_id as fn from t1 group by 2
+)
+select * from t2, DT where t2.a = DT.fn;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	4	test.t2.a	1	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10000	Using temporary; Using filesort
 select
 json_detailed(json_extract(trace, '$**.infer_derived_key_statistics')) as t
 from information_schema.optimizer_trace;
@@ -623,7 +647,7 @@ t2,
 union all
 select max(value), grp_id from t1 group by grp_id) DT
 where
-t2.a= DT.grp_id;
+t2.a = DT.grp_id;
 a	max(value)	grp_id
 1	100	1
 1	100	1
@@ -660,7 +684,7 @@ t2,
 union all
 select max(value), grp_id from t1 group by MOD(grp_id,2)) DT
 where
-t2.a= DT.grp_id;
+t2.a = DT.grp_id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	101	
@@ -689,7 +713,7 @@ select * from
 t2,
 (select grp_id, max(value) as maxval from v1 group by grp_id) DT
 where
-t2.a= DT.grp_id;
+t2.a = DT.grp_id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	
@@ -701,7 +725,7 @@ select * from
 t2,
 (select grp_id, max(value) as maxval from cte1 group by grp_id) DT
 where
-t2.a= DT.grp_id;
+t2.a = DT.grp_id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
 1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.a	1	
@@ -718,7 +742,7 @@ where t1.grp_id = t3.b
 group by grp_id
 ) DT
 where
-t2.a= DT.grp_id;
+t2.a = DT.grp_id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	
@@ -733,7 +757,7 @@ t2,
 (select max(value) as maxval, grp_id from t1 group by grp_id) DT
 where
 t2.col2=maxval and
-t2.a= DT.grp_id;
+t2.a = DT.grp_id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.col2,test.t2.a	1	
@@ -757,12 +781,29 @@ select * from
 t2,
 (select grp_id, max(value) as maxval from t1 group by grp_id) DT
 where
-t2.col2=maxval and
-t2.a= DT.grp_id;
+t2.col2 = maxval and
+t2.a = DT.grp_id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.col2	1	
 2	DERIVED	t1	ALL	grp_id	NULL	NULL	NULL	10000	Using temporary; Using filesort
+explain
+select * from
+t2 join
+(
+select max(value) as X, grp_id from t1 group by grp_id
+union all
+select distinct 'Total' as X, b as grp_id from t3
+) DT
+on t2.a = DT.grp_id
+where DT.X = 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10000	Using temporary; Using filesort
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'Total'
 delete from t1;
 insert into t1 select 1, a.seq from seq_1_to_10 a;
 analyze table t1;
@@ -1060,6 +1101,48 @@ t
     }
 ]
 drop table t1, t2, t3, t4;
+create table t1 (
+grp_id int, 
+value int,
+index (grp_id)
+);
+insert into t1 select 
+A.seq, B.seq
+from 
+seq_1_to_100 A, 
+seq_1_to_100 B;
+create table t1a(
+grp_id_2 int, 
+value int,
+index (grp_id_2)
+);
+insert into t1a select * from t1;
+create table t2 (a int);
+insert into t2 select seq from seq_1_to_5;
+analyze table t1,t1a, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+test.t1a	analyze	status	Engine-independent statistics collected
+test.t1a	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+# <derived2> must have type=ref, rows=2 (not 10):
+explain
+select * from
+t2,
+(
+select max(value), grp_id from t1 group by grp_id
+union all
+select max(value), grp_id_2 from t1a group by grp_id_2
+)  DT
+where t2.a= DT.grp_id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10000	Using temporary; Using filesort
+3	UNION	t1a	ALL	NULL	NULL	NULL	NULL	10000	Using temporary; Using filesort
+drop table t1, t1a, t2;
 #
 # End of 11.4 tests
 #
