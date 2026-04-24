@@ -48,7 +48,9 @@ RESET SLAVE;
 --source include/restart_mysqld.inc
 
 --connection node_3
-RESET MASTER;
+--source include/kill_binlog_dump_threads.inc
+--source include/reset_master.inc
 --disconnect node_3
 
 --source include/auto_increment_offset_restore.inc
+--source include/galera_end.inc

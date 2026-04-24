@@ -19,5 +19,8 @@ SET GLOBAL DEBUG_DBUG = "";
 STOP SLAVE;
 RESET SLAVE;
 connection node_3;
-RESET MASTER;
+include/kill_binlog_dump_threads.inc
+include/reset_master.inc
 disconnect node_3;
+disconnect node_2;
+disconnect node_1;

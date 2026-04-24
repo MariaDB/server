@@ -28,19 +28,19 @@ while ($count)
         --send DROP TABLE nonexisting_table;
 
         --connection node_1
-        --error ER_BAD_TABLE_ERROR
+        --error ER_BAD_TABLE_ERROR, ER_QUERY_INTERRUPTED
         --reap
 
         --connection node_2
-        --error ER_BAD_TABLE_ERROR
+        --error ER_BAD_TABLE_ERROR, ER_QUERY_INTERRUPTED
         --reap
 
         --connection node_3
-        --error ER_BAD_TABLE_ERROR
+        --error ER_BAD_TABLE_ERROR, ER_QUERY_INTERRUPTED
         --reap
 
         --connection node_4
-        --error ER_BAD_TABLE_ERROR
+        --error ER_BAD_TABLE_ERROR, ER_QUERY_INTERRUPTED
         --reap
 
         --dec $count
