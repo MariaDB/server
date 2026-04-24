@@ -6348,11 +6348,11 @@ ER_SP_RECURSION_LIMIT
         ger "Rekursionsgrenze %d (durch Variable max_sp_recursion_depth gegeben) wurde für Routine %.192s überschritten"
         spa "El límite recursivo %d (según se indica mediante la variable max_sp_recursion_depth) se ha excedido para la rutina %.192s"
 ER_SP_PROC_TABLE_CORRUPT
-        chi "无法加载常规%-.192s（内部代码%d）。有关更多详细信息，请运行SHOW WARNINGS"
-        eng "Failed to load routine %-.192s (internal code %d). For more details, run SHOW WARNINGS"
-        ger "Routine %-.192s (interner Code %d) konnte nicht geladen werden. Weitere Einzelheiten erhalten Sie, wenn Sie SHOW WARNINGS ausführen"
-        ukr "Невдала спроба завантажити процедуру %-.192s (внутрішний код %d). Для отримання детальної інформації використовуйте SHOW WARNINGS"
-        spa "No pude cargar la rutina %-.192s (código interno %d). Para más detalles, ejecute SHOW WARNINGS"
+        chi "无法加载常规%-.192s（%s）。有关更多详细信息，请运行SHOW WARNINGS"
+        eng "Failed to load routine %-.192s (%s). For more details, run SHOW WARNINGS"
+        ger "Routine %-.192s (%s) konnte nicht geladen werden. Weitere Einzelheiten erhalten Sie, wenn Sie SHOW WARNINGS ausführen"
+        ukr "Невдала спроба завантажити процедуру %-.192s (%s). Для отримання детальної інформації використовуйте SHOW WARNINGS"
+        spa "No pude cargar la rutina %-.192s (%s). Para más detalles, ejecute SHOW WARNINGS"
 ER_SP_WRONG_NAME 42000
         chi "常规名称错误不正确'%-.192s'"
         eng "Incorrect routine name '%-.192s'"

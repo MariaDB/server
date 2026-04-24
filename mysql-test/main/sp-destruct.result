@@ -71,49 +71,49 @@ values
 'alksj wpsj sa ^#!@ '
 );
 select bug14233_1();
-ERROR HY000: Failed to load routine test.bug14233_1 (internal code -6). For more details, run SHOW WARNINGS
+ERROR HY000: Failed to load routine test.bug14233_1 (Parser error). For more details, run SHOW WARNINGS
 show warnings;
 Level	Code	Message
 Warning	1601	Creation context of stored routine `test`.`bug14233_1` is invalid
 Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'select count(*) from mysql.user' at line 3
-Error	1457	Failed to load routine test.bug14233_1 (internal code -6). For more details, run SHOW WARNINGS
+Error	1457	Failed to load routine test.bug14233_1 (Parser error). For more details, run SHOW WARNINGS
 create view v1 as select bug14233_1();
-ERROR HY000: Failed to load routine test.bug14233_1 (internal code -6). For more details, run SHOW WARNINGS
+ERROR HY000: Failed to load routine test.bug14233_1 (Parser error). For more details, run SHOW WARNINGS
 show warnings;
 Level	Code	Message
 Warning	1601	Creation context of stored routine `test`.`bug14233_1` is invalid
 Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'select count(*) from mysql.user' at line 3
-Error	1457	Failed to load routine test.bug14233_1 (internal code -6). For more details, run SHOW WARNINGS
+Error	1457	Failed to load routine test.bug14233_1 (Parser error). For more details, run SHOW WARNINGS
 select bug14233_2();
-ERROR HY000: Failed to load routine test.bug14233_2 (internal code -6). For more details, run SHOW WARNINGS
+ERROR HY000: Failed to load routine test.bug14233_2 (Parser error). For more details, run SHOW WARNINGS
 show warnings;
 Level	Code	Message
 Warning	1601	Creation context of stored routine `test`.`bug14233_2` is invalid
 Error	1320	No RETURN found in FUNCTION test.bug14233_2
-Error	1457	Failed to load routine test.bug14233_2 (internal code -6). For more details, run SHOW WARNINGS
+Error	1457	Failed to load routine test.bug14233_2 (Parser error). For more details, run SHOW WARNINGS
 create view v1 as select bug14233_2();
-ERROR HY000: Failed to load routine test.bug14233_2 (internal code -6). For more details, run SHOW WARNINGS
+ERROR HY000: Failed to load routine test.bug14233_2 (Parser error). For more details, run SHOW WARNINGS
 show warnings;
 Level	Code	Message
 Warning	1601	Creation context of stored routine `test`.`bug14233_2` is invalid
 Error	1320	No RETURN found in FUNCTION test.bug14233_2
-Error	1457	Failed to load routine test.bug14233_2 (internal code -6). For more details, run SHOW WARNINGS
+Error	1457	Failed to load routine test.bug14233_2 (Parser error). For more details, run SHOW WARNINGS
 call bug14233_3();
-ERROR HY000: Failed to load routine test.bug14233_3 (internal code -6). For more details, run SHOW WARNINGS
+ERROR HY000: Failed to load routine test.bug14233_3 (Parser error). For more details, run SHOW WARNINGS
 show warnings;
 Level	Code	Message
 Warning	1601	Creation context of stored routine `test`.`bug14233_3` is invalid
 Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'wpsj sa ^#!@ ' at line 3
-Error	1457	Failed to load routine test.bug14233_3 (internal code -6). For more details, run SHOW WARNINGS
+Error	1457	Failed to load routine test.bug14233_3 (Parser error). For more details, run SHOW WARNINGS
 drop trigger t1_ai;
 create trigger t1_ai after insert on t1 for each row call bug14233_3();
 insert into t1 values (0);
-ERROR HY000: Failed to load routine test.bug14233_3 (internal code -6). For more details, run SHOW WARNINGS
+ERROR HY000: Failed to load routine test.bug14233_3 (Parser error). For more details, run SHOW WARNINGS
 show warnings;
 Level	Code	Message
 Warning	1601	Creation context of stored routine `test`.`bug14233_3` is invalid
 Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'wpsj sa ^#!@ ' at line 3
-Error	1457	Failed to load routine test.bug14233_3 (internal code -6). For more details, run SHOW WARNINGS
+Error	1457	Failed to load routine test.bug14233_3 (Parser error). For more details, run SHOW WARNINGS
 drop trigger t1_ai;
 drop table t1;
 drop function bug14233_1;
@@ -140,11 +140,11 @@ test	p1	PROCEDURE	root@localhost	0000-00-00 00:00:00	0000-00-00 00:00:00	DEFINER
 ALTER TABLE mysql.proc MODIFY comment CHAR (32);
 CREATE PROCEDURE p2()
 SET @foo = 10;
-ERROR HY000: Cannot load from mysql.proc. The table is probably corrupted
+ERROR HY000: Failed to CREATE PROCEDURE p2
 # Procedure loaded from the cache
 CALL p1();
 SHOW PROCEDURE STATUS;
-ERROR HY000: Cannot load from mysql.proc. The table is probably corrupted
+ERROR HY000: Failed to load routine (any) (Open table failed). For more details, run SHOW WARNINGS
 DROP TABLE mysql.proc;
 RENAME TABLE proc_backup TO mysql.proc;
 FLUSH TABLE mysql.proc;
@@ -192,8 +192,6 @@ CREATE PROCEDURE db1.p1() SET @foo = 10;
 # Modify a field of the table.
 ALTER TABLE mysql.proc MODIFY comment CHAR (32);
 DROP DATABASE db1;
-Warnings:
-Error	1728	Cannot load from mysql.proc. The table is probably corrupted
 # Restore mysql.proc
 DROP TABLE mysql.proc;
 RENAME TABLE proc_backup TO mysql.proc;
@@ -204,7 +202,7 @@ drop database mysqltest1;
 create procedure p1() set @foo = 10;
 alter table mysql.proc drop primary key;
 drop procedure p1;
-ERROR HY000: Cannot load from mysql.proc. The table is probably corrupted
+ERROR HY000: Failed to DROP PROCEDURE test.p1
 alter table mysql.proc add primary key (db,name,type);
 drop procedure p1;
 # Start of 10.3 tests

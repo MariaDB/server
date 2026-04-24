@@ -78,6 +78,7 @@ extern SYMBOL sql_functions[];
 extern size_t sql_functions_length;
 
 extern Native_func_registry_array native_func_registry_array;
+extern const char *SP_ERROR_STRING[];
 
 /*
   This is needed for gcc 15.1.1 as it also count static structures in
@@ -6712,6 +6713,8 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
   if (!(proc_table= open_proc_table_for_read(thd)))
   {
     new_trans.restore_old_transaction();
+    my_error(ER_SP_PROC_TABLE_CORRUPT, MYF(0), "(any)",
+             SP_ERROR_STRING[-SP_OPEN_TABLE_FAILED]);
     DBUG_RETURN(1);
   }
 
