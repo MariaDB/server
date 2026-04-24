@@ -185,5 +185,70 @@ SELECT * FROM t1 GROUP BY a WITH ROLLUP;
 drop table t1;
 
 --echo #
---echo # End of 12.1 tests
+--echo # MDEV-38752: Wrong result upon GROUP BY on a table with indexed virtual column after INSERT IGNORE
 --echo #
+
+--echo # Case 1: Unsafe narrowing substitution (INT -> TINYINT)
+CREATE TABLE t1 (a INT PRIMARY KEY, va TINYINT AS (a), KEY(va));
+INSERT IGNORE INTO t1 (a) VALUES (100),(150),(200);
+--echo # Should return 3 rows (fix: substitution disallowed)
+--echo # EXPLAIN should show that va index is NOT used
+--replace_column 9 #
+EXPLAIN SELECT a, va, COUNT(*) FROM t1 GROUP BY a;
+SHOW WARNINGS;
+SELECT a, va, COUNT(*) FROM t1 GROUP BY a;
+
+--echo # Case: Persistence after restart (MDEV-38752 Issue 4)
+--source include/restart_mysqld.inc
+--echo # Must still return correct results after restart
+--replace_column 9 #
+EXPLAIN SELECT a, va, COUNT(*) FROM t1 GROUP BY a;
+SELECT a, va, COUNT(*) FROM t1 GROUP BY a;
+DROP TABLE t1;
+
+--echo # Case 2: Safe substitution (INT -> INT)
+CREATE TABLE t2 (a INT PRIMARY KEY, va INT AS (a), KEY(va));
+INSERT INTO t2 (a) VALUES (100),(150),(200);
+--echo # Should return 3 rows (substitution allowed, uses va index)
+--echo # EXPLAIN should show that va index is used
+--replace_column 9 #
+EXPLAIN SELECT va, COUNT(*) FROM t2 GROUP BY a;
+SHOW WARNINGS;
+SELECT va, COUNT(*) FROM t2 GROUP BY a;
+DROP TABLE t2;
+
+--echo # Case 3: Unsafe narrowing for VARCHAR
+CREATE TABLE t3 (a VARCHAR(20) PRIMARY KEY, va VARCHAR(5) AS (a), KEY(va));
+INSERT IGNORE INTO t3 (a) VALUES ('apple'),('banana'),('apricot');
+--echo # 'apple' and 'apricot' both truncate to 'apple' in va
+--echo # Should return 3 rows
+--echo # EXPLAIN should show that va index is NOT used
+--replace_column 9 #
+EXPLAIN SELECT a, va, COUNT(*) FROM t3 GROUP BY a;
+SHOW WARNINGS;
+SELECT a, va, COUNT(*) FROM t3 GROUP BY a;
+DROP TABLE t3;
+
+--echo # Case 4: Unsafe narrowing for DECIMAL
+CREATE TABLE t4 (a DECIMAL(10,5) PRIMARY KEY, va DECIMAL(10,2) AS (a), KEY(va));
+INSERT IGNORE INTO t4 (a) VALUES (1.12345), (1.12346), (1.12999);
+--echo # All three values truncate to 1.12 in va
+--echo # Should return 3 rows
+--echo # EXPLAIN should show that va index is NOT used
+--replace_column 9 #
+EXPLAIN SELECT a, va, COUNT(*) FROM t4 GROUP BY a;
+SHOW WARNINGS;
+SELECT a, va, COUNT(*) FROM t4 GROUP BY a;
+DROP TABLE t4;
+
+--echo # Case: Type widening overflow (TINYINT -> MEDIUMINT AS (a*a*a*a))
+--echo # The vcol is wider but the expression can overflow MEDIUMINT
+CREATE TABLE t (a TINYINT PRIMARY KEY, va MEDIUMINT AS (a * a * a * a), KEY(va));
+INSERT IGNORE INTO t (a) VALUES (-101),(100);
+--replace_column 9 #
+EXPLAIN SELECT a, COUNT(*) FROM t GROUP BY a * a * a * a;
+SHOW WARNINGS;
+SELECT a, COUNT(*) FROM t GROUP BY a * a * a * a;
+DROP TABLE t;
+
+--echo End of 12.3 tests.

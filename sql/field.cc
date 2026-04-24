@@ -11436,6 +11436,9 @@ Field::set_warning(Sql_condition::enum_warning_level level, uint code,
     push_warning_printf(thd, level, code, ER_THD(thd, code), field_name.str,
                         current_row ? current_row
                         : thd->get_stmt_da()->current_row_for_warning());
+    if (vcol_info &&
+        (code == ER_WARN_DATA_OUT_OF_RANGE || code == ER_WARN_DATA_TRUNCATED))
+      vcol_info->flags |= VCOL_TRUNCATION_UNSAFE;
     return 0;
   }
   return level >= Sql_condition::WARN_LEVEL_WARN;

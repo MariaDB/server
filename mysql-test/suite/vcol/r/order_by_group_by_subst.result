@@ -236,5 +236,108 @@ SELECT * FROM t1 GROUP BY a WITH ROLLUP;
 a	b	a1
 drop table t1;
 #
-# End of 12.1 tests
+# MDEV-38752: Wrong result upon GROUP BY on a table with indexed virtual column after INSERT IGNORE
 #
+# Case 1: Unsafe narrowing substitution (INT -> TINYINT)
+CREATE TABLE t1 (a INT PRIMARY KEY, va TINYINT AS (a), KEY(va));
+INSERT IGNORE INTO t1 (a) VALUES (100),(150),(200);
+Warnings:
+Warning	1264	Out of range value for column 'va' at row 2
+Warning	1264	Out of range value for column 'va' at row 3
+# Should return 3 rows (fix: substitution disallowed)
+# EXPLAIN should show that va index is NOT used
+EXPLAIN SELECT a, va, COUNT(*) FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	#	Using index
+SHOW WARNINGS;
+Level	Code	Message
+SELECT a, va, COUNT(*) FROM t1 GROUP BY a;
+a	va	COUNT(*)
+100	100	1
+150	127	1
+200	127	1
+# Case: Persistence after restart (MDEV-38752 Issue 4)
+# Must still return correct results after restart
+EXPLAIN SELECT a, va, COUNT(*) FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	#	Using index
+SELECT a, va, COUNT(*) FROM t1 GROUP BY a;
+a	va	COUNT(*)
+100	100	1
+150	127	1
+200	127	1
+DROP TABLE t1;
+# Case 2: Safe substitution (INT -> INT)
+CREATE TABLE t2 (a INT PRIMARY KEY, va INT AS (a), KEY(va));
+INSERT INTO t2 (a) VALUES (100),(150),(200);
+# Should return 3 rows (substitution allowed, uses va index)
+# EXPLAIN should show that va index is used
+EXPLAIN SELECT va, COUNT(*) FROM t2 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	va	5	NULL	#	Using index
+SHOW WARNINGS;
+Level	Code	Message
+SELECT va, COUNT(*) FROM t2 GROUP BY a;
+va	COUNT(*)
+100	1
+150	1
+200	1
+DROP TABLE t2;
+# Case 3: Unsafe narrowing for VARCHAR
+CREATE TABLE t3 (a VARCHAR(20) PRIMARY KEY, va VARCHAR(5) AS (a), KEY(va));
+INSERT IGNORE INTO t3 (a) VALUES ('apple'),('banana'),('apricot');
+Warnings:
+Warning	1265	Data truncated for column 'va' at row 2
+Warning	1265	Data truncated for column 'va' at row 3
+# 'apple' and 'apricot' both truncate to 'apple' in va
+# Should return 3 rows
+# EXPLAIN should show that va index is NOT used
+EXPLAIN SELECT a, va, COUNT(*) FROM t3 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	index	PRIMARY	PRIMARY	22	NULL	#	Using index
+SHOW WARNINGS;
+Level	Code	Message
+SELECT a, va, COUNT(*) FROM t3 GROUP BY a;
+a	va	COUNT(*)
+apple	apple	1
+apricot	apric	1
+banana	banan	1
+DROP TABLE t3;
+# Case 4: Unsafe narrowing for DECIMAL
+CREATE TABLE t4 (a DECIMAL(10,5) PRIMARY KEY, va DECIMAL(10,2) AS (a), KEY(va));
+INSERT IGNORE INTO t4 (a) VALUES (1.12345), (1.12346), (1.12999);
+Warnings:
+Warning	1265	Data truncated for column 'va' at row 1
+Warning	1265	Data truncated for column 'va' at row 2
+Warning	1265	Data truncated for column 'va' at row 3
+# All three values truncate to 1.12 in va
+# Should return 3 rows
+# EXPLAIN should show that va index is NOT used
+EXPLAIN SELECT a, va, COUNT(*) FROM t4 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	index	PRIMARY	PRIMARY	7	NULL	#	Using index
+SHOW WARNINGS;
+Level	Code	Message
+SELECT a, va, COUNT(*) FROM t4 GROUP BY a;
+a	va	COUNT(*)
+1.12345	1.12	1
+1.12346	1.12	1
+1.12999	1.12	1
+DROP TABLE t4;
+# Case: Type widening overflow (TINYINT -> MEDIUMINT AS (a*a*a*a))
+# The vcol is wider but the expression can overflow MEDIUMINT
+CREATE TABLE t (a TINYINT PRIMARY KEY, va MEDIUMINT AS (a * a * a * a), KEY(va));
+INSERT IGNORE INTO t (a) VALUES (-101),(100);
+Warnings:
+Warning	1264	Out of range value for column 'va' at row 1
+EXPLAIN SELECT a, COUNT(*) FROM t GROUP BY a * a * a * a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	PRIMARY	PRIMARY	1	NULL	#	Using index
+SHOW WARNINGS;
+Level	Code	Message
+SELECT a, COUNT(*) FROM t GROUP BY a * a * a * a;
+a	COUNT(*)
+-101	1
+100	1
+DROP TABLE t;
+End of 12.3 tests.

@@ -389,7 +389,7 @@ void print_vcol_subst_warning(THD *thd, Field *field, Item *expr,
 
   expr->print(&expr_buffer, QT_EXPLAIN);
   expr_length= Well_formed_prefix(expr_buffer.charset(),
-                                  expr_buffer.ptr(),
+                                  expr_buffer.c_ptr_safe(),
                                   MY_MIN(expr_buffer.length(), 64)).length();
 
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
@@ -449,7 +449,10 @@ void subst_vcol_if_compatible(Vcol_subst_context *ctx,
   THD *thd= ctx->thd;
 
   const char *fail_cause= NULL;
-  if (vcol_expr->type_handler_for_comparison() !=
+  if (vcol_field->vcol_info &&
+      vcol_field->vcol_info->flags & VCOL_TRUNCATION_UNSAFE)
+    fail_cause= "truncation occurred";
+  else if (vcol_expr->type_handler_for_comparison() !=
       vcol_field->type_handler_for_comparison() ||
       (vcol_expr->maybe_null() && !vcol_field->maybe_null()))
     fail_cause="type mismatch";
