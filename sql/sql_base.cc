@@ -7562,8 +7562,15 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
 
     /*
       Create non-fixed fully qualified field and let fix_fields to
-      resolve it.
+      resolve it.  Clear the natural_full_join_field pointer--we recursed
+      on the nested join tree (store_top_level_join_columns) and picked
+      new common columns, so these natural_full_join_field items are invalid.
+      They will be updated to valid fields shortly, on the next call to
+      coalesce_natural_full_join via store_natural_using_join_columns
+      (case of NATURAL FULL JOIN only).
     */
+    nj_col_1->natural_full_join_field= nullptr;
+    nj_col_2->natural_full_join_field= nullptr;
     Item *item_1=   nj_col_1->create_item(thd);
     Item *item_2=   nj_col_2->create_item(thd);
     Item_ident *item_ident_1, *item_ident_2;
@@ -7648,6 +7655,56 @@ err:
 }
 
 
+/*
+  For some pair of tables (t1, t2) such that
+    t1 NATURAL FULL JOIN t2
+  generate a set of output columns
+    COALESCE(t1.x_1, t2.y_1), ..., COALESCE(t1.x_n, t2.y_n)
+  such that NULL results won't appear in the NATURAL FULL JOIN.
+
+  @parma thd                 the current thread
+  @param left_join_columns   common columns originating in t1
+  @param right_join_columns  common columns originating in t2
+ */
+void coalesce_natural_full_join(THD *thd,
+                                List<Natural_join_column> *left_join_columns,
+                                List<Natural_join_column> *right_join_columns)
+{
+  /*
+    It's a NATURAL JOIN so the number of columns from the left table better
+    match the number from the right table.
+  */
+  DBUG_ASSERT(left_join_columns->elements == right_join_columns->elements);
+
+  /*
+    Walk the left table and right table columns in lock-step, creating a
+    new COALESCE() over each pair of columns.  The calling function relies
+    on the state of left_join_columns, so set the COALESCE() item instance
+    on members of that list.
+   */
+  List_iterator<Natural_join_column> left(*left_join_columns);
+  List_iterator<Natural_join_column> right(*right_join_columns);
+  Natural_join_column *left_col= left++;
+  Natural_join_column *right_col= right++;
+  while (!left.at_end() && !right.at_end())
+  {
+    Item *left_field= left_col->get_item();
+    Item *right_field= right_col->get_item();
+    Item_func_coalesce *coal= new (thd->mem_root) Item_func_coalesce
+      (thd, left_field, right_field);
+    DBUG_ASSERT(coal);
+
+    // Makes the field `COALESCE(left, right) AS left`.
+    coal->set_name(thd, left_field->name);
+
+    // Save the result into the set of left_join_columns.
+    left_col->natural_full_join_field= coal;
+
+    left_col= left++;
+    right_col= right++;
+  }
+}
+
 
 /*
   Materialize and store the row type of NATURAL/USING join.
@@ -7696,7 +7753,8 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   Query_arena *arena, backup;
   bool result= TRUE;
   List<Natural_join_column> *non_join_columns;
-  List<Natural_join_column> *join_columns;
+  List<Natural_join_column> *left_join_columns;
+  List<Natural_join_column> *right_join_columns;
   DBUG_ENTER("store_natural_using_join_columns");
 
   DBUG_ASSERT(!natural_using_join->join_columns);
@@ -7704,7 +7762,8 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
   if (!(non_join_columns= new List<Natural_join_column>) ||
-      !(join_columns= new List<Natural_join_column>))
+      !(left_join_columns= new List<Natural_join_column>) ||
+      !(right_join_columns= new List<Natural_join_column>))
     goto err;
 
   /* Append the columns of the first join operand. */
@@ -7713,7 +7772,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
     nj_col_1= it_1.get_natural_column_ref();
     if (nj_col_1->is_common)
     {
-      join_columns->push_back(nj_col_1, thd->mem_root);
+      left_join_columns->push_back(nj_col_1, thd->mem_root);
       /* Reset the common columns for the next call to mark_common_columns. */
       nj_col_1->is_common= FALSE;
     }
@@ -7733,7 +7792,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
     while ((using_field_name= using_fields_it++))
     {
       List_iterator_fast<Natural_join_column>
-        it(*join_columns);
+        it(*left_join_columns);
       Natural_join_column *common_field;
 
       for (;;)
@@ -7760,14 +7819,24 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
       non_join_columns->push_back(nj_col_2, thd->mem_root);
     else
     {
+      right_join_columns->push_back(nj_col_2, thd->mem_root);
+
       /* Reset the common columns for the next call to mark_common_columns. */
       nj_col_2->is_common= FALSE;
     }
   }
 
+  /*
+    If this is a NATURAL FULL JOIN, then create a COALESCE() for each pair of
+    columns from the two joined tables.
+  */
+  if ((table_ref_1->outer_join & JOIN_TYPE_FULL) &&
+      (table_ref_2->outer_join & JOIN_TYPE_FULL))
+    coalesce_natural_full_join(thd, left_join_columns, right_join_columns);
+
   if (non_join_columns->elements > 0)
-    join_columns->append(non_join_columns);
-  natural_using_join->join_columns= join_columns;
+    left_join_columns->append(non_join_columns);
+  natural_using_join->join_columns= left_join_columns;
   natural_using_join->is_join_columns_complete= TRUE;
 
   result= FALSE;
@@ -7858,7 +7927,8 @@ store_top_level_join_columns(THD *thd, TABLE_LIST *table_ref,
         swapped in the first loop.
       */
       if (same_level_left_neighbor &&
-          cur_table_ref->outer_join & JOIN_TYPE_RIGHT)
+          (cur_table_ref->outer_join & JOIN_TYPE_RIGHT) &&
+          !(cur_table_ref->outer_join & JOIN_TYPE_FULL))
       {
         /* This can happen only for JOIN ... ON. */
         DBUG_ASSERT(table_ref->nested_join->join_list.elements == 2);
@@ -8796,23 +8866,38 @@ insert_fields(THD *thd, Name_resolution_context *context,
       {
         DBUG_ASSERT((tables->field_translation == NULL && table) ||
                     tables->is_natural_join);
-        DBUG_ASSERT(item->type() == Item::FIELD_ITEM);
-        Item_field *fld= (Item_field*) item;
-        const char *field_db_name= field_iterator.get_db_name().str;
-        const char *field_table_name= field_iterator.get_table_name().str;
-
-        if (!tables->schema_table && 
-            !(fld->have_privileges=
-              (get_column_grant(thd, field_iterator.grant(),
-                                field_db_name,
-                                field_table_name, fld->field_name) &
-               VIEW_ANY_ACL)))
+        if (item->type() == Item::FIELD_ITEM)
         {
-          my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "ANY",
-                   thd->security_ctx->priv_user,
-                   thd->security_ctx->host_or_ip,
-                   field_db_name, field_table_name);
-          DBUG_RETURN(TRUE);
+          Item_field *fld= (Item_field*) item;
+          const char *field_db_name= field_iterator.get_db_name().str;
+          const char *field_table_name= field_iterator.get_table_name().str;
+
+          if (!tables->schema_table &&
+              !(fld->have_privileges=
+                (get_column_grant(thd, field_iterator.grant(),
+                                  field_db_name,
+                                  field_table_name, fld->field_name) &
+                 VIEW_ANY_ACL)))
+          {
+            my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "ANY",
+                     thd->security_ctx->priv_user,
+                     thd->security_ctx->host_or_ip,
+                     field_db_name, field_table_name);
+            DBUG_RETURN(TRUE);
+          }
+        }
+        else
+        {
+          /*
+            For NATURAL FULL JOIN, common columns are represented
+            as COALESCE expressions rather than plain Item_field.  The
+            per-column privilege check is skipped because the underlying
+            fields already had their privileges verified during name
+            resolution.  Assert that this is indeed a FULL JOIN context.
+          */
+          DBUG_ASSERT(tables->is_natural_join && tables->nested_join &&
+                      (tables->nested_join->join_list.head()->outer_join &
+                       JOIN_TYPE_FULL));
         }
       }
 #endif

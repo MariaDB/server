@@ -43,6 +43,8 @@
 
 const LEX_CSTRING view_type= { STRING_WITH_LEN("VIEW") };
 
+extern bool check_full_join_base_tables(List<TABLE_LIST> *);
+
 static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
                                TABLE_LIST *view, enum_view_create_mode mode,
                                char *backup_file_name);
@@ -567,6 +569,20 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     */
     res= TRUE;
     goto err;
+  }
+
+  /*
+    Reject VIEW definitions that put a FULL JOIN on the right side of a
+    LEFT or RIGHT JOIN.  CREATE VIEW only prepares the body (doesn't optimize),
+    so the same check that runs in JOIN::optimize_inner doesn't run here.
+  */
+  for (sl= select_lex; sl; sl= sl->next_select())
+  {
+    if (check_full_join_base_tables(&sl->top_join_list))
+    {
+      res= TRUE;
+      goto err;
+    }
   }
 
   /* view list (list of view fields names) */
@@ -1686,7 +1702,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
     parent_query_lex->set_stmt_unsafe_flags(view_query_lex->get_stmt_unsafe_flags());
 
     view_is_mergeable= (view_table_alias->algorithm != VIEW_ALGORITHM_TMPTABLE &&
-                        view_query_lex->can_be_merged());
+                        view_query_lex->can_be_merged() &&
+                        !view_table_alias->contains_full_join());
 
     if (view_is_mergeable)
     {
@@ -1915,6 +1932,7 @@ ok2:
   DBUG_ASSERT(view_query_lex == thd->lex);
   thd->lex= parent_query_lex;                            // Needed for prepare_security
   result= !view_table_alias->prelocking_placeholder && view_table_alias->prepare_security(thd);
+  parent_query_lex->full_join_count+= view_query_lex->full_join_count;
 
   lex_end(view_query_lex);
 end:

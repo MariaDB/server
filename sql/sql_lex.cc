@@ -1346,6 +1346,7 @@ void LEX::start(THD *thd_arg)
 
   memset(&trg_chistics, 0, sizeof(trg_chistics));
   selects_for_hint_resolution.empty();
+  full_join_count= 0;
   DBUG_VOID_RETURN;
 }
 
@@ -4903,11 +4904,26 @@ static void fix_prepare_info_in_table_list(THD *thd, TABLE_LIST *tbl)
 {
   for (; tbl; tbl= tbl->next_local)
   {
-    if (tbl->on_expr && !tbl->prep_on_expr)
+    /*
+      Walk up the nested JOINs so that upper-level ON expressions also
+      get saved into their respective prep_on_expr's.
+
+      We must do this to support PS:
+        prepare st from
+          'select ... from t1 full join t2 on t1.a = t2.a';
+    */
+    TABLE_LIST *embedding= tbl;
+    do
     {
-      thd->check_and_register_item_tree(&tbl->prep_on_expr, &tbl->on_expr);
-      tbl->on_expr= tbl->on_expr->copy_andor_structure(thd);
+      if (embedding->on_expr && !embedding->prep_on_expr)
+      {
+        thd->check_and_register_item_tree(&embedding->prep_on_expr,
+                                          &embedding->on_expr);
+        embedding->on_expr= embedding->on_expr->copy_andor_structure(thd);
+      }
     }
+    while ((embedding= embedding->embedding));
+
     if (tbl->is_view_or_derived() && tbl->is_merged_derived())
     {
       SELECT_LEX *sel= tbl->get_single_select();

@@ -2247,9 +2247,11 @@ class IS_table_read_plan;
 #define VIEW_ALGORITHM_MERGE_FRM      1U
 #define VIEW_ALGORITHM_TMPTABLE_FRM   2U
 
-#define JOIN_TYPE_LEFT	1U
-#define JOIN_TYPE_RIGHT	2U
-#define JOIN_TYPE_OUTER 4U	/* Marker that this is an outer join */
+#define JOIN_TYPE_LEFT     1U
+#define JOIN_TYPE_RIGHT    2U
+#define JOIN_TYPE_FULL     4U
+#define JOIN_TYPE_OUTER    8U   /* Marker that this is an outer join */
+#define JOIN_TYPE_NATURAL 16U
 
 /* view WITH CHECK OPTION parameter options */
 #define VIEW_CHECK_NONE       0
@@ -2298,12 +2300,14 @@ struct Field_translator
   Field (for tables), or a Field_translator (for views).
 */
 
+class Item_func_coalesce;
 class Natural_join_column: public Sql_alloc
 {
 public:
   Field_translator *view_field;  /* Column reference of merge view. */
   Item_field       *table_field; /* Column reference of table or temp view. */
   TABLE_LIST *table_ref; /* Original base table/view reference. */
+  Item_func_coalesce *natural_full_join_field;
   /*
     True if a common join column of two NATURAL/USING join operands. Notice
     that when we have a hierarchy of nested NATURAL/USING joins, a column can
@@ -2317,6 +2321,7 @@ public:
   Natural_join_column(Item_field *field_param, TABLE_LIST *tab);
   const Lex_ident_column name();
   Item *create_item(THD *thd);
+  Item *get_item();
   Field *field();
   const Lex_ident_table safe_table_name() const;
   const Lex_ident_db safe_db_name() const;
@@ -3067,7 +3072,7 @@ struct TABLE_LIST
   bool set_insert_values(MEM_ROOT *mem_root);
   void replace_view_error_with_generic(THD *thd);
   TABLE_LIST *find_underlying_table(TABLE *table);
-  TABLE_LIST *first_leaf_for_name_resolution();
+  TABLE_LIST *first_leaf_for_name_resolution() const;
   TABLE_LIST *last_leaf_for_name_resolution();
 
   /* System Versioning */
@@ -3100,7 +3105,14 @@ struct TABLE_LIST
     return tbl;
   }
   TABLE *get_real_join_table();
-  bool is_leaf_for_name_resolution();
+
+  /*
+    returns true when *this represents either a VIEW,
+    derived table, or join nest which contains a FULL JOIN.
+   */
+  bool contains_full_join() const;
+
+  bool is_leaf_for_name_resolution() const;
   inline TABLE_LIST *top_table()
     { return belong_to_view ? belong_to_view : this; }
   inline bool prepare_check_option(THD *thd)
@@ -3299,6 +3311,13 @@ struct TABLE_LIST
     tabledef_version.str= (const uchar *) version->str;
     tabledef_version.length= version->length;
   }
+
+  /*
+    If not nullptr, then foj_partner points to the other
+    table in a FULL OUTER JOIN.  For example,
+      SELECT ... FROM *this FULL OUTER JOIN foj_partner ...
+  */
+  TABLE_LIST *foj_partner{nullptr};
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
   bool prep_where(THD *thd, Item **conds, bool no_where_clause);

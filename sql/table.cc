@@ -6831,7 +6831,7 @@ bool TABLE_LIST::set_insert_values(MEM_ROOT *mem_root)
   RETURN
     TRUE if a leaf, FALSE otherwise.
 */
-bool TABLE_LIST::is_leaf_for_name_resolution()
+bool TABLE_LIST::is_leaf_for_name_resolution() const
 {
   return (is_merged_derived() || is_natural_join || is_join_columns_complete ||
           !nested_join);
@@ -6861,13 +6861,13 @@ bool TABLE_LIST::is_leaf_for_name_resolution()
     else return 'this'
 */
 
-TABLE_LIST *TABLE_LIST::first_leaf_for_name_resolution()
+TABLE_LIST *TABLE_LIST::first_leaf_for_name_resolution() const
 {
   TABLE_LIST *UNINIT_VAR(cur_table_ref);
   NESTED_JOIN *cur_nested_join;
 
   if (is_leaf_for_name_resolution())
-    return this;
+    return const_cast<TABLE_LIST*>(this);
   DBUG_ASSERT(nested_join);
 
   for (cur_nested_join= nested_join;
@@ -6882,7 +6882,8 @@ TABLE_LIST *TABLE_LIST::first_leaf_for_name_resolution()
       already at the front of the list. Otherwise the first operand
       is in the end of the list of join operands.
     */
-    if (!(cur_table_ref->outer_join & JOIN_TYPE_RIGHT))
+    if (!(cur_table_ref->outer_join & JOIN_TYPE_RIGHT) ||
+        (cur_table_ref->outer_join & JOIN_TYPE_FULL))
     {
       TABLE_LIST *next;
       while ((next= it++))
@@ -6937,7 +6938,8 @@ TABLE_LIST *TABLE_LIST::last_leaf_for_name_resolution()
       'join_list' are in reverse order, thus the last operand is in the
       end of the list.
     */
-    if ((cur_table_ref->outer_join & JOIN_TYPE_RIGHT))
+    if ((cur_table_ref->outer_join & JOIN_TYPE_RIGHT) &&
+        !(cur_table_ref->outer_join & JOIN_TYPE_FULL))
     {
       List_iterator_fast<TABLE_LIST> it(cur_nested_join->join_list);
       TABLE_LIST *next;
@@ -7239,13 +7241,52 @@ TABLE *TABLE_LIST::get_real_join_table()
 }
 
 
+/*
+  Return true when this view/derived table contains a FULL JOIN.
+*/
+static bool join_list_contains_full_join(List<TABLE_LIST> *join_list)
+{
+  List_iterator<TABLE_LIST> it(*join_list);
+  TABLE_LIST *tbl;
+
+  while ((tbl= it++))
+  {
+    if (tbl->outer_join & JOIN_TYPE_FULL)
+      return true;
+    if (tbl->nested_join &&
+        join_list_contains_full_join(&tbl->nested_join->join_list))
+      return true;
+  }
+
+  return false;
+}
+
+
+bool TABLE_LIST::contains_full_join() const
+{
+  List<TABLE_LIST> *join_list= nullptr;
+
+  if (view)
+    join_list= &view->first_select_lex()->top_join_list;
+  else if (derived)
+    join_list= &derived->first_select()->top_join_list;
+  else if (nested_join)
+    join_list= &nested_join->join_list;
+  else
+    return false;
+
+  return join_list_contains_full_join(join_list);
+}
+
+
 Natural_join_column::Natural_join_column(Field_translator *field_param,
                                          TABLE_LIST *tab)
 {
   DBUG_ASSERT(tab->field_translation);
   view_field= field_param;
-  table_field= NULL;
+  table_field= nullptr;
   table_ref= tab;
+  natural_full_join_field= nullptr;
   is_common= FALSE;
 }
 
@@ -7257,12 +7298,16 @@ Natural_join_column::Natural_join_column(Item_field *field_param,
   table_field= field_param;
   view_field= NULL;
   table_ref= tab;
+  natural_full_join_field= nullptr;
   is_common= FALSE;
 }
 
 
 const Lex_ident_column Natural_join_column::name()
 {
+  if (natural_full_join_field)
+    return natural_full_join_field->name;
+
   if (view_field)
   {
     DBUG_ASSERT(table_field == NULL);
@@ -7275,12 +7320,25 @@ const Lex_ident_column Natural_join_column::name()
 
 Item *Natural_join_column::create_item(THD *thd)
 {
+  if (natural_full_join_field)
+    return natural_full_join_field;
+
   if (view_field)
   {
     DBUG_ASSERT(table_field == NULL);
     return create_view_field(thd, table_ref, &view_field->item,
                              &view_field->name);
   }
+
+  return table_field;
+}
+
+
+Item *Natural_join_column::get_item()
+{
+  if (view_field)
+    return view_field->item;
+
   return table_field;
 }
 
@@ -10221,6 +10279,8 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
         hint_table_state(thd, this, MERGE_HINT_ENUM,
             optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE));
 
+    DBUG_ASSERT(!(outer_join & JOIN_TYPE_FULL) || foj_partner);
+
     if (!is_materialized_derived() && unit->can_be_merged() &&
         /*
           Following is special case of
@@ -10248,7 +10308,13 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
            (thd->lex->sql_command == SQLCOM_DELETE &&
             (((Sql_cmd_delete *) thd->lex->m_sql_cmd)->is_multitable() ||
              thd->lex->query_tables->is_multitable())))) &&
-        !is_recursive_with_table())
+        !is_recursive_with_table() &&
+        /*
+          Derived tables that participate in a FULL JOIN must not be
+          merged because the FULL JOIN null-complement logic only
+          works when the physical table is available.
+        */
+        !foj_partner)
       set_merged_derived();
     else
       set_materialized_derived();

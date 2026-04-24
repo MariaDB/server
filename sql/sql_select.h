@@ -249,10 +249,34 @@ class AGGR_OP;
 class Filesort;
 struct SplM_plan_info;
 class SplM_opt_info;
+class full_join_duplicate_filter;
 
 typedef struct st_join_table {
-  TABLE		*table;
-  TABLE_LIST    *tab_list;
+  /*
+    Non-NULL only on the right side of a FULL JOIN.  Tracks right-side
+    rowids matched during the LEFT JOIN pass so the null-complement
+    rescan can skip them.
+  */
+  full_join_duplicate_filter *fj_dups;
+
+  /*
+    True when sending null-complemented rows to the result sink when
+    evaluating the right side of a FULL JOIN.
+  */
+  bool writing_null_complements{false};
+
+  /*
+    Set to true once this tab's FULL JOIN null-complement rescan has
+    finished.  Used to (a) suppress a second rescan triggered by
+    repeated end_of_records propagation in chained FULL JOIN plans,
+    and (b) make fj_null_complement_pending() report "done" rather
+    than "pending" for tabs whose rescan already ran.
+  */
+  bool fj_null_complement_done{false};
+
+  TABLE         *table;        /**< pointer to table cursor */
+  TABLE_LIST    *tab_list;     /**< pointer to query table, e.g. `t1` */
+
   KEYUSE	*keyuse;       /**< pointer to first used key */
   KEY           *hj_key;       /**< descriptor of the used best hash join key
                                     not supported by any index               */
@@ -1193,6 +1217,14 @@ public:
   {};
 
   enum_nested_loop_state put_record() { return put_record(false); };
+
+  /*
+    Flush the last pending group to the temp table without reading or
+    sending accumulated rows.  Used when a FULL JOIN null-complement
+    pass is still pending and we need to keep accumulating rows.
+  */
+  enum_nested_loop_state flush_record() { return put_record(true); };
+
   /*
     Send the result of operation further (to a next operation/client)
     This function is called after all records were put into tmp table.
@@ -1414,6 +1446,12 @@ public:
   table_map eq_ref_tables;
 
   table_map allowed_top_level_tables;
+
+  /*
+    Tables in nests that contain FULL JOINs, along with their nest siblings.
+  */
+  table_map full_join_nest_tables;
+
   ha_rows  send_records,found_records, accepted_rows;
 
   /*

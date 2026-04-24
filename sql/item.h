@@ -6647,6 +6647,27 @@ class Item_direct_view_ref :public Item_direct_ref
     if (!view->is_inner_table_of_outer_join() ||
         !(null_ref_table= view->get_real_join_table()))
       null_ref_table= NO_NULL_TABLE;
+
+    if (view->is_inner_table_of_outer_join() &&
+        view->contains_full_join())
+    {
+      /*
+        For a derived table containing a FULL JOIN, every column
+        reference into the merged table share the same null_ref_table,
+        leading to a missing null-complement result from the right
+        side of the FULL JOIN.  Prefer the field's underlying actual
+        table for null_ref_table instead of the derived table's
+        leftmost real table.
+      */
+      Item *real= ref ? (*ref)->real_item() : nullptr;
+      if (real && real->type() == FIELD_ITEM &&
+          ((Item_field*) real)->field &&
+          ((Item_field*) real)->field->table)
+        null_ref_table= ((Item_field*) real)->field->table;
+      else if (TABLE *t= view->get_real_join_table())
+        null_ref_table= t;
+    }
+
     if (null_ref_table && null_ref_table != NO_NULL_TABLE)
       set_maybe_null();
   }

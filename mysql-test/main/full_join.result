@@ -1,0 +1,2960 @@
+#
+# MDEV-37932 / MDEV-39014: FULL [OUTER] JOIN
+#
+# Tests are grouped by feature.  Within each group, a FULL JOIN
+# query is generally paired with an equivalent LEFT JOIN UNION
+# RIGHT JOIN formulation to verify correctness.
+#
+# ========================================================
+# Section 1: Parser and syntax acceptance
+#
+# FULL JOIN, FULL OUTER JOIN, NATURAL FULL [OUTER] JOIN, and
+# their appearance inside views, derived tables, UNIONs, and
+# CTEs.
+# ========================================================
+create table t1 (a int);
+insert into t1 (a) values (1),(2);
+create table t2 (a int);
+insert into t2 (a) values (1),(3);
+create table t3 (a int);
+insert into t3 (a) values (1),(4);
+# Basic FULL [OUTER] JOIN syntax.
+select * from t1 full join t2 on t1.a = t2.a;
+a	a
+1	1
+2	NULL
+NULL	3
+select * from t1 left join t2 on t1.a = t2.a union select * from t1 right join t2 on t1.a = t2.a;
+a	a
+1	1
+2	NULL
+NULL	3
+explain extended select * from t1 full join t2 on t1.a = t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) where 1
+select * from t1 full outer join t2 on t1.a = t2.a;
+a	a
+1	1
+2	NULL
+NULL	3
+select * from t1 left outer join t2 on t1.a = t2.a union select * from t1 right outer join t2 on t1.a = t2.a;
+a	a
+1	1
+2	NULL
+NULL	3
+explain extended select * from t1 full outer join t2 on t1.a = t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) where 1
+# NATURAL FULL [OUTER] JOIN.
+select * from t1 natural full outer join t2;
+a
+1
+2
+3
+select * from t1 natural left outer join t2 union select * from t1 natural right outer join t2;
+a
+1
+2
+3
+explain extended select * from t1 natural full outer join t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select coalesce(`test`.`t1`.`a`,`test`.`t2`.`a`) AS `a` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) where 1
+select * from t1 natural full join t2;
+a
+1
+2
+3
+select * from t1 natural left join t2 union select * from t1 natural right join t2;
+a
+1
+2
+3
+explain extended select * from t1 natural full join t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select coalesce(`test`.`t1`.`a`,`test`.`t2`.`a`) AS `a` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) where 1
+# FULL JOIN inside a view.
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 full join t2 on t1.a = t2.a;
+select * from v1;
+t1a	t2a
+1	1
+2	NULL
+NULL	3
+select t1.a as t1a, t2.a as t2a from t1 left join t2 on t1.a = t2.a union select t1.a as t1a, t2.a as t2a from t1 right join t2 on t1.a = t2.a;
+t1a	t2a
+1	1
+2	NULL
+NULL	3
+explain extended select * from v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `v1`.`t1a` AS `t1a`,`v1`.`t2a` AS `t2a` from `test`.`v1`
+drop view v1;
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 full outer join t2 on t1.a = t2.a;
+select * from v1;
+t1a	t2a
+1	1
+2	NULL
+NULL	3
+select t1.a as t1a, t2.a as t2a from t1 left outer join t2 on t1.a = t2.a union select t1.a as t1a, t2.a as t2a from t1 right outer join t2 on t1.a = t2.a;
+t1a	t2a
+1	1
+2	NULL
+NULL	3
+explain extended select * from v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `v1`.`t1a` AS `t1a`,`v1`.`t2a` AS `t2a` from `test`.`v1`
+drop view v1;
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 natural full join t2;
+select * from v1;
+t1a	t2a
+1	1
+2	NULL
+NULL	3
+select t1.a as t1a, t2.a as t2a from t1 natural left join t2 union select t1.a as t1a, t2.a as t2a from t1 natural right join t2;
+t1a	t2a
+1	1
+2	NULL
+NULL	3
+explain extended select * from v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `v1`.`t1a` AS `t1a`,`v1`.`t2a` AS `t2a` from `test`.`v1`
+drop view v1;
+create view v1 as select t1.a as t1a, t2.a as t2a from t1 natural full outer join t2;
+select * from v1;
+t1a	t2a
+1	1
+2	NULL
+NULL	3
+select t1.a as t1a, t2.a as t2a from t1 natural left outer join t2 union select t1.a as t1a, t2.a as t2a from t1 natural right outer join t2;
+t1a	t2a
+1	1
+2	NULL
+NULL	3
+explain extended select * from v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `v1`.`t1a` AS `t1a`,`v1`.`t2a` AS `t2a` from `test`.`v1`
+drop view v1;
+# FULL JOIN inside a derived table combined with UNION.
+select * from (select t1.a from t1 full join t2 on t1.a = t2.a union select * from t1) dt;
+a
+1
+2
+NULL
+select * from (select t1.a from t1 left join t2 on t1.a = t2.a union select t1.a from t1 right join t2 on t1.a = t2.a union select * from t1) dt;
+a
+1
+2
+NULL
+select * from (select t1.a from t1 full outer join t2 on t1.a = t2.a union select * from t1) dt;
+a
+1
+2
+NULL
+select * from (select t1.a from t1 left outer join t2 on t1.a = t2.a union select t1.a from t1 right outer join t2 on t1.a = t2.a union select * from t1) dt;
+a
+1
+2
+NULL
+select * from (select t1.a from t1 natural full join t2 union select * from t1) dt;
+a
+1
+2
+NULL
+select * from (select t1.a from t1 natural left join t2 union select t1.a from t1 natural right join t2 union select * from t1) dt;
+a
+1
+2
+NULL
+explain extended select * from (select t1.a from t1 natural full join t2 union select * from t1) dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	6	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select `dt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) where 1 union /* select#3 */ select `test`.`t1`.`a` AS `a` from `test`.`t1`) `dt`
+select * from (select t1.a from t1 natural full outer join t2 union select * from t1) dt;
+a
+1
+2
+NULL
+select * from (select t1.a from t1 natural left outer join t2 union select t1.a from t1 natural right outer join t2 union select * from t1) dt;
+a
+1
+2
+NULL
+explain extended select * from (select t1.a from t1 natural full outer join t2 union select * from t1) dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	6	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select `dt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) where 1 union /* select#3 */ select `test`.`t1`.`a` AS `a` from `test`.`t1`) `dt`
+# FULL JOIN inside a CTE.
+with cte as (select t1.a from t1 natural full join t2) select * from cte;
+a
+1
+2
+NULL
+with cte as (select t1.a from t1 natural left join t2 union select t1.a from t1 natural right join t2) select * from cte;
+a
+1
+2
+NULL
+explain extended with cte as (select t1.a from t1 natural full join t2) select * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	with cte as (select `test`.`t1`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`))select `test`.`t1`.`a` AS `a` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) where 1
+# FULL JOIN referencing a missing table must error cleanly.
+select * from t1, t2 full join t_not_exist on t2.c=t_not_exist.e and t_not_exist.f=t1.a;
+ERROR 42S02: Table 'test.t_not_exist' doesn't exist
+select * from t1, t2 full outer join t_not_exist on t2.c=t_not_exist.e and t_not_exist.f=t1.a;
+ERROR 42S02: Table 'test.t_not_exist' doesn't exist
+select * from t1, t2 natural full join t_not_exist;
+ERROR 42S02: Table 'test.t_not_exist' doesn't exist
+select * from t1, t2 natural full outer join t_not_exist;
+ERROR 42S02: Table 'test.t_not_exist' doesn't exist
+# FULL JOIN where one operand is a derived table (on the left).
+select * from (select * from t1) dt natural full join t2;
+a
+1
+2
+3
+select * from (select * from t1) dt natural left join t2 union select * from (select * from t1) dt natural right join t2;
+a
+1
+2
+3
+select * from (select * from t2) du natural full join t1;
+a
+1
+3
+2
+select * from (select * from t2) du natural left join t1 union select * from (select * from t2) du natural right join t1;
+a
+1
+3
+2
+# FULL JOIN with a constant ON clause.
+select * from t1 full join t2 on true;
+a	a
+1	1
+1	3
+2	1
+2	3
+select * from t1 left join t2 on true union select * from t1 right join t2 on true;
+a	a
+1	1
+2	1
+1	3
+2	3
+# ========================================================
+# Section 2: Basic FULL JOIN with nested joins on the left
+#
+# Each FULL JOIN query is followed by an equivalent
+# LEFT/RIGHT/UNION formulation; the two must match.
+# ========================================================
+select * from t1 inner join t2 full join t3 on t1.a=t3.a;
+a	a	a
+1	1	1
+1	3	1
+2	1	NULL
+2	3	NULL
+NULL	NULL	4
+select * from t1 inner join t2 left join t3 on t1.a=t3.a union select * from t1 inner join t2 right join t3 on t1.a=t3.a;
+a	a	a
+1	1	1
+1	3	1
+2	1	NULL
+2	3	NULL
+NULL	NULL	4
+select * from t1 inner join t2 on t1.a=t2.a full join t3 on t1.a=t3.a;
+a	a	a
+1	1	1
+NULL	NULL	4
+select * from t1 inner join t2 on t1.a=t2.a left join t3 on t1.a=t3.a union select * from t1 inner join t2 on t1.a=t2.a right join t3 on t1.a=t3.a;
+a	a	a
+1	1	1
+NULL	NULL	4
+select * from t1 cross join t2 full join t3 on t1.a=t3.a;
+a	a	a
+1	1	1
+1	3	1
+2	1	NULL
+2	3	NULL
+NULL	NULL	4
+select * from t1 cross join t2 left join t3 on t1.a=t3.a union select * from t1 cross join t2 right join t3 on t1.a=t3.a;
+a	a	a
+1	1	1
+1	3	1
+2	1	NULL
+2	3	NULL
+NULL	NULL	4
+select * from t1 cross join t2 on t1.a=t2.a full join t3 on t1.a=t3.a;
+a	a	a
+1	1	1
+NULL	NULL	4
+select * from t1 cross join t2 on t1.a=t2.a left join t3 on t1.a=t3.a union select * from t1 cross join t2 on t1.a=t2.a right join t3 on t1.a=t3.a;
+a	a	a
+1	1	1
+NULL	NULL	4
+select * from (t1 left join t2 on t1.a=t2.a) full join t3 on t1.a=t3.a;
+a	a	a
+1	1	1
+2	NULL	NULL
+NULL	NULL	4
+select * from (t1 left join t2 on t1.a=t2.a) left join t3 on t1.a=t3.a union select * from (t1 left join t2 on t1.a=t2.a) right join t3 on t1.a=t3.a;
+a	a	a
+1	1	1
+2	NULL	NULL
+NULL	NULL	4
+select * from (t1 right join t2 on t1.a=t2.a) full join t3 on t1.a=t3.a;
+a	a	a
+1	1	1
+NULL	3	NULL
+NULL	NULL	4
+select * from (t1 right join t2 on t1.a=t2.a) left join t3 on t1.a=t3.a union select * from (t1 right join t2 on t1.a=t2.a) right join t3 on t1.a=t3.a;
+a	a	a
+1	1	1
+NULL	3	NULL
+NULL	NULL	4
+# Nested NATURAL JOIN on the left of FULL JOIN.
+select * from (t1 natural join t2) full join t3 on t1.a=t3.a;
+a	a
+1	1
+NULL	4
+select * from (t1 natural join t2) left join t3 on t1.a=t3.a union select * from (t1 natural join t2) right join t3 on t1.a=t3.a;
+a	a
+1	1
+NULL	4
+# Nested FULL JOIN on the left of FULL JOIN.
+# The inner FULL JOIN's unmatched right-side rows must appear
+# in the result even when the outer FULL JOIN condition does
+# not reference the inner right-side table.
+# Data: t1(1,2) t2(1,3) t3(1,4)
+select * from (t1 full join t2 on t1.a=t2.a) full join t3 on t1.a=t3.a;
+a	a	a
+1	1	1
+2	NULL	NULL
+NULL	3	NULL
+NULL	NULL	4
+select * from (t1 left join t2 on t1.a=t2.a) left join t3 on t1.a=t3.a union select * from (t1 right join t2 on t1.a=t2.a) left join t3 on t1.a=t3.a union select * from (t1 right join t2 on t1.a=t2.a) right join t3 on t1.a=t3.a;
+a	a	a
+1	1	1
+2	NULL	NULL
+NULL	3	NULL
+NULL	NULL	4
+# Chained FULL JOINs with the second ON referencing the middle table.
+select * from t1 full join t2 on t1.a=t2.a full join t3 on t2.a=t3.a;
+a	a	a
+1	1	1
+2	NULL	NULL
+NULL	3	NULL
+NULL	NULL	4
+select * from t1 left join t2 on t1.a=t2.a left join t3 on t2.a=t3.a union select * from t1 right join t2 on t1.a=t2.a left join t3 on t2.a=t3.a union select * from (t1 left join t2 on t1.a=t2.a) right join t3 on t2.a=t3.a union select * from (t1 right join t2 on t1.a=t2.a) right join t3 on t2.a=t3.a;
+a	a	a
+1	1	1
+2	NULL	NULL
+NULL	3	NULL
+NULL	NULL	4
+# Nested FULL JOIN with duplicate rows.
+create table d1 (a int);
+insert into d1 values (1),(1),(2);
+create table d2 (a int);
+insert into d2 values (1),(3),(3);
+select * from (d1 full join d2 on d1.a=d2.a) full join t3 on d1.a=t3.a;
+a	a	a
+1	1	1
+1	1	1
+2	NULL	NULL
+NULL	3	NULL
+NULL	3	NULL
+NULL	NULL	4
+select * from (d1 left join d2 on d1.a=d2.a) left join t3 on d1.a=t3.a union all select * from (d1 right join d2 on d1.a=d2.a) left join t3 on d1.a=t3.a where d1.a is null union all select * from (d1 right join d2 on d1.a=d2.a) right join t3 on d1.a=t3.a where d1.a is null and d2.a is null;
+a	a	a
+1	1	1
+1	1	1
+2	NULL	NULL
+NULL	3	NULL
+NULL	3	NULL
+NULL	NULL	4
+drop table d1, d2;
+drop table t1, t2, t3;
+# ========================================================
+# Section 3: FULL JOIN rewrites to LEFT, RIGHT, and INNER
+#
+# When a NULL-rejecting WHERE predicate selects one or both
+# sides, simplify_joins() rewrites the FULL JOIN accordingly.
+# The (re)written form must produce the same result as the
+# direct LEFT/RIGHT/INNER formulation.
+# ========================================================
+create table t1 (pk int auto_increment, x int, y int, primary key (pk));
+create table t2 (pk int auto_increment, x int, y int, primary key (pk));
+insert into t1 (x, y) values (-5,-5),(-4,-4),(-3,-3),(-2,-2),(-1,-1),(0,0),(1,1),(2,2),(3,3),(4,4),(5,5);
+insert into t2 (x, y) values (-5,25),(-4,16),(-3,9),(-2,4),(-1,1),(0,0),(1,1),(2,4),(3,9),(4,16),(5,25);
+# FULL to RIGHT JOIN, these two queries should be equal:
+select * from t1  full join t2 on t1.y = t2.y where t2.pk is not null;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+7	1	1	5	-1	1
+7	1	1	7	1	1
+10	4	4	4	-2	4
+10	4	4	8	2	4
+NULL	NULL	NULL	1	-5	25
+NULL	NULL	NULL	2	-4	16
+NULL	NULL	NULL	3	-3	9
+NULL	NULL	NULL	9	3	9
+NULL	NULL	NULL	10	4	16
+NULL	NULL	NULL	11	5	25
+select * from t1 right join t2 on t1.y = t2.y;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+7	1	1	5	-1	1
+7	1	1	7	1	1
+10	4	4	4	-2	4
+10	4	4	8	2	4
+NULL	NULL	NULL	1	-5	25
+NULL	NULL	NULL	2	-4	16
+NULL	NULL	NULL	3	-3	9
+NULL	NULL	NULL	9	3	9
+NULL	NULL	NULL	10	4	16
+NULL	NULL	NULL	11	5	25
+# FULL to RIGHT JOIN, these two queries should be equal:
+select * from t1  full join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1 where t2.pk is not null;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+6	0	0	7	1	1
+7	1	1	6	0	0
+7	1	1	7	1	1
+NULL	NULL	NULL	1	-5	25
+NULL	NULL	NULL	2	-4	16
+NULL	NULL	NULL	3	-3	9
+NULL	NULL	NULL	4	-2	4
+NULL	NULL	NULL	5	-1	1
+NULL	NULL	NULL	8	2	4
+NULL	NULL	NULL	9	3	9
+NULL	NULL	NULL	10	4	16
+NULL	NULL	NULL	11	5	25
+select * from t1 right join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+6	0	0	7	1	1
+7	1	1	6	0	0
+7	1	1	7	1	1
+NULL	NULL	NULL	1	-5	25
+NULL	NULL	NULL	2	-4	16
+NULL	NULL	NULL	3	-3	9
+NULL	NULL	NULL	4	-2	4
+NULL	NULL	NULL	5	-1	1
+NULL	NULL	NULL	8	2	4
+NULL	NULL	NULL	9	3	9
+NULL	NULL	NULL	10	4	16
+NULL	NULL	NULL	11	5	25
+# FULL to INNER JOIN, these two queries should be equal:
+select * from t1  full join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1 where t1.pk is not null and t2.pk is not null;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+7	1	1	6	0	0
+6	0	0	7	1	1
+7	1	1	7	1	1
+select * from t1 inner join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+7	1	1	6	0	0
+6	0	0	7	1	1
+7	1	1	7	1	1
+# FULL to LEFT JOIN, these two queries should be equal:
+select * from t1 full join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1 where t1.pk is not null;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+7	1	1	6	0	0
+6	0	0	7	1	1
+7	1	1	7	1	1
+1	-5	-5	NULL	NULL	NULL
+2	-4	-4	NULL	NULL	NULL
+3	-3	-3	NULL	NULL	NULL
+4	-2	-2	NULL	NULL	NULL
+5	-1	-1	NULL	NULL	NULL
+8	2	2	NULL	NULL	NULL
+9	3	3	NULL	NULL	NULL
+10	4	4	NULL	NULL	NULL
+11	5	5	NULL	NULL	NULL
+select * from t1 left join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+7	1	1	6	0	0
+6	0	0	7	1	1
+7	1	1	7	1	1
+1	-5	-5	NULL	NULL	NULL
+2	-4	-4	NULL	NULL	NULL
+3	-3	-3	NULL	NULL	NULL
+4	-2	-2	NULL	NULL	NULL
+5	-1	-1	NULL	NULL	NULL
+8	2	2	NULL	NULL	NULL
+9	3	3	NULL	NULL	NULL
+10	4	4	NULL	NULL	NULL
+11	5	5	NULL	NULL	NULL
+# FULL NATURAL to INNER JOIN, these two queries should be equal:
+select * from t1 natural full join t2 where t1.pk is not null and t2.pk is not null;
+pk	x	y
+6	0	0
+7	1	1
+select * from t1 inner join t2 on t1.x = t2.x and t1.y = t2.y;
+pk	x	y	pk	x	y
+6	0	0	6	0	0
+7	1	1	7	1	1
+# FULL NATURAL to LEFT JOIN, these two queries should be equal:
+select * from t1 natural full join t2 where t1.pk is not null;
+pk	x	y
+1	-5	-5
+2	-4	-4
+3	-3	-3
+4	-2	-2
+5	-1	-1
+6	0	0
+7	1	1
+8	2	2
+9	3	3
+10	4	4
+11	5	5
+select * from t1 left join t2 on t2.pk = t1.pk and t2.x = t1.x and t2.y = t1.y;
+pk	x	y	pk	x	y
+1	-5	-5	NULL	NULL	NULL
+2	-4	-4	NULL	NULL	NULL
+3	-3	-3	NULL	NULL	NULL
+4	-2	-2	NULL	NULL	NULL
+5	-1	-1	NULL	NULL	NULL
+6	0	0	6	0	0
+7	1	1	7	1	1
+8	2	2	NULL	NULL	NULL
+9	3	3	NULL	NULL	NULL
+10	4	4	NULL	NULL	NULL
+11	5	5	NULL	NULL	NULL
+# FULL NATURAL to RIGHT JOIN
+select * from t1 natural full join t2 where t2.pk is not null;
+pk	x	y
+1	-5	25
+2	-4	16
+3	-3	9
+4	-2	4
+5	-1	1
+6	0	0
+7	1	1
+8	2	4
+9	3	9
+10	4	16
+11	5	25
+select * from t1 right join t2 on t1.pk = t2.pk and t1.x = t2.x and t1.y = t2.y;
+pk	x	y	pk	x	y
+NULL	NULL	NULL	1	-5	25
+NULL	NULL	NULL	2	-4	16
+NULL	NULL	NULL	3	-3	9
+NULL	NULL	NULL	4	-2	4
+NULL	NULL	NULL	5	-1	1
+6	0	0	6	0	0
+7	1	1	7	1	1
+NULL	NULL	NULL	8	2	4
+NULL	NULL	NULL	9	3	9
+NULL	NULL	NULL	10	4	16
+NULL	NULL	NULL	11	5	25
+select * from t1 full join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1;
+pk	x	y	pk	x	y
+1	-5	-5	NULL	NULL	NULL
+10	4	4	NULL	NULL	NULL
+11	5	5	NULL	NULL	NULL
+2	-4	-4	NULL	NULL	NULL
+3	-3	-3	NULL	NULL	NULL
+4	-2	-2	NULL	NULL	NULL
+5	-1	-1	NULL	NULL	NULL
+6	0	0	6	0	0
+6	0	0	7	1	1
+7	1	1	6	0	0
+7	1	1	7	1	1
+8	2	2	NULL	NULL	NULL
+9	3	3	NULL	NULL	NULL
+NULL	NULL	NULL	1	-5	25
+NULL	NULL	NULL	10	4	16
+NULL	NULL	NULL	11	5	25
+NULL	NULL	NULL	2	-4	16
+NULL	NULL	NULL	3	-3	9
+NULL	NULL	NULL	4	-2	4
+NULL	NULL	NULL	5	-1	1
+NULL	NULL	NULL	8	2	4
+NULL	NULL	NULL	9	3	9
+select * from t1 left join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1 union select * from t1 right join t2 on t1.x >= 0 and t1.x <= 1 and t2.x >= 0 and t2.x <= 1;
+pk	x	y	pk	x	y
+1	-5	-5	NULL	NULL	NULL
+10	4	4	NULL	NULL	NULL
+11	5	5	NULL	NULL	NULL
+2	-4	-4	NULL	NULL	NULL
+3	-3	-3	NULL	NULL	NULL
+4	-2	-2	NULL	NULL	NULL
+5	-1	-1	NULL	NULL	NULL
+6	0	0	6	0	0
+6	0	0	7	1	1
+7	1	1	6	0	0
+7	1	1	7	1	1
+8	2	2	NULL	NULL	NULL
+9	3	3	NULL	NULL	NULL
+NULL	NULL	NULL	1	-5	25
+NULL	NULL	NULL	10	4	16
+NULL	NULL	NULL	11	5	25
+NULL	NULL	NULL	2	-4	16
+NULL	NULL	NULL	3	-3	9
+NULL	NULL	NULL	4	-2	4
+NULL	NULL	NULL	5	-1	1
+NULL	NULL	NULL	8	2	4
+NULL	NULL	NULL	9	3	9
+select * from t1 natural full join t2;
+pk	x	y
+1	-5	-5
+1	-5	25
+10	4	16
+10	4	4
+11	5	25
+11	5	5
+2	-4	-4
+2	-4	16
+3	-3	-3
+3	-3	9
+4	-2	-2
+4	-2	4
+5	-1	-1
+5	-1	1
+6	0	0
+7	1	1
+8	2	2
+8	2	4
+9	3	3
+9	3	9
+select * from t1 natural left join t2 union select * from t1 natural right join t2;
+pk	x	y
+1	-5	-5
+1	-5	25
+10	4	16
+10	4	4
+11	5	25
+11	5	5
+2	-4	-4
+2	-4	16
+3	-3	-3
+3	-3	9
+4	-2	-2
+4	-2	4
+5	-1	-1
+5	-1	1
+6	0	0
+7	1	1
+8	2	2
+8	2	4
+9	3	3
+9	3	9
+drop table t1, t2;
+# Rewrites with nested joins.
+create table t1 (v int);
+insert into t1 (v) values (1);
+create table t2 (v int);
+insert into t2 (v) values (2);
+create table t3 (v int);
+insert into t3 (v) values (3);
+# (FULL)FULL to (INNER)INNER JOIN
+select * from t1 full join t2 on t1.v = t2.v full join t3 on t2.v = t3.v where t1.v is not null and t2.v is not null and t3.v is not null;
+v	v	v
+select * from t1 inner join t2 on t1.v = t2.v inner join t3 on t2.v = t3.v;
+v	v	v
+# (FULL)FULL to (RIGHT)LEFT JOIN
+select * from t1 full join t2 on t1.v = t2.v full join t3 on t1.v = t3.v where t2.v is not null;
+v	v	v
+NULL	2	NULL
+select * from t1 right join t2 on t1.v = t2.v left join t3 on t1.v = t3.v;
+v	v	v
+NULL	2	NULL
+# (FULL)FULL to (LEFT)LEFT JOIN
+select * from t1 full join t2 on t1.v = t2.v full join t3 on t1.v = t3.v where t1.v is not null;
+v	v	v
+1	NULL	NULL
+select * from t1 left join t2 on t2.v = t1.v left join t3 on t3.v = t1.v;
+v	v	v
+1	NULL	NULL
+# (FULL)LEFT to (LEFT)LEFT JOIN
+select * from t1 full join t2 on t1.v = t2.v left join t3 on t2.v = t3.v where t1.v is not null;
+v	v	v
+1	NULL	NULL
+select * from t1 left join t2 on t1.v = t2.v left join t3 on t2.v = t3.v;
+v	v	v
+1	NULL	NULL
+# (FULL)LEFT to (RIGHT)LEFT JOIN
+select * from t1 full join t2 on t1.v = t2.v left join t3 on t2.v = t3.v where t2.v is not null;
+v	v	v
+NULL	2	NULL
+select * from t1 right join t2 on t1.v = t2.v left join t3 on t3.v = t2.v;
+v	v	v
+NULL	2	NULL
+# (LEFT)FULL to (LEFT)RIGHT JOIN
+select * from t1 left join t2 on t1.v = t2.v full join t3 on t2.v = t3.v where t3.v is not null;
+v	v	v
+NULL	NULL	3
+select * from t1 left join t2 on t1.v = t2.v right join t3 on t2.v = t3.v;
+v	v	v
+NULL	NULL	3
+# (LEFT)FULL to (LEFT)LEFT JOIN
+insert into t1 (v) values (2),(3);
+insert into t2 (v) values (1);
+truncate t3;
+insert into t3 (v) values (1);
+select * from t1;
+v
+1
+2
+3
+select * from t2;
+v
+2
+1
+select * from t3;
+v
+1
+select * from t1 left join t2 on t1.v = t2.v full join t3 on t2.v = t3.v where t3.v = 1;
+v	v	v
+1	1	1
+select * from t3 left join t1 on t1.v = 1 left join t2 on t2.v = 1;
+v	v	v
+1	1	1
+# FULL to INNER, two variables.
+select * from (select t1.v from t1 full join t2 on t1.v = t2.v where t1.v > 1 and t2.v > 1) as dt;
+v
+2
+select t1.v from t2 inner join t1 where t2.v = t1.v and t1.v > 1 and t1.v > 1;
+v
+2
+# FULL to INNER with a UNION.
+select t1.v from t1 full join t2 on t1.v = t2.v where t1.v > 1 and t2.v > 1 union select * from t1;
+v
+2
+1
+3
+select t1.v from t2 inner join t1 where t1.v = t2.v and t2.v > 1 and t2.v > 1 union select * from t1;
+v
+2
+1
+3
+drop table t1, t2, t3;
+# ========================================================
+# Section 4: NATURAL FULL JOIN and COALESCE
+#
+# Common columns surface as COALESCE expressions rather than
+# plain fields.
+# ========================================================
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+create table t3 (a int, b int);
+insert into t1 (a,b) values (1,1),(2,2);
+insert into t2 (a,b) values (1,1),(3,3);
+insert into t3 (a,b) values (3,3),(4,4);
+select * from t1 natural full join t2 where
+t1.a is not null and t1.b is not null and
+t2.a is not null and t2.b is not null;
+a	b
+1	1
+select * from t1 natural left join t2 where
+t1.a is not null and t1.b is not null and
+t2.a is not null and t2.b is not null
+union
+select * from t1 natural right join t2 where
+t1.a is not null and t1.b is not null and
+t2.a is not null and t2.b is not null;
+a	b
+1	1
+explain extended
+select * from t1 natural full join t2 where
+t1.a is not null and t1.b is not null and
+t2.a is not null and t2.b is not null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select coalesce(`test`.`t1`.`a`,`test`.`t2`.`a`) AS `a`,coalesce(`test`.`t1`.`b`,`test`.`t2`.`b`) AS `b` from `test`.`t2` join `test`.`t1` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t2`.`b` = `test`.`t1`.`b` and `test`.`t1`.`a` is not null and `test`.`t1`.`b` is not null and `test`.`t1`.`a` is not null and `test`.`t1`.`b` is not null
+select coalesce(t1.a, t2.a) AS a, coalesce(t1.b, t2.b) AS b from
+t2 join t1 where
+t2.a = t1.a and t2.b = t1.b and
+t1.a is not null and t1.b is not null;
+a	b
+1	1
+select * from t1 natural full join t2 where t1.a is not null;
+a	b
+1	1
+2	2
+select * from t1 natural left join t2 where t1.a is not null
+union
+select * from t1 natural right join t2 where t1.a is not null;
+a	b
+1	1
+2	2
+explain extended select * from t1 natural full join t2 where t1.a is not null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select coalesce(`test`.`t1`.`a`,`test`.`t2`.`a`) AS `a`,coalesce(`test`.`t1`.`b`,`test`.`t2`.`b`) AS `b` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t2`.`b` = `test`.`t1`.`b`) where `test`.`t1`.`a` is not null
+select coalesce(t1.a, t2.a) AS a, coalesce(t1.b, t2.b) AS b from
+t1 left join t2 on t2.a = t1.a and t2.b = t1.b where t1.a is not null;
+a	b
+1	1
+2	2
+select * from t1 natural full join t2 where t2.a is not null;
+a	b
+1	1
+3	3
+select * from t1 natural left join t2 where t2.a is not null
+union
+select * from t1 natural right join t2 where t2.a is not null;
+a	b
+1	1
+3	3
+explain extended select * from t1 natural full join t2 where t2.a is not null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select coalesce(`test`.`t1`.`a`,`test`.`t2`.`a`) AS `a`,coalesce(`test`.`t1`.`b`,`test`.`t2`.`b`) AS `b` from `test`.`t2` left join `test`.`t1` on(`test`.`t1`.`a` = `test`.`t2`.`a` and `test`.`t1`.`b` = `test`.`t2`.`b`) where `test`.`t2`.`a` is not null
+select coalesce(t1.a, t2.a) AS a, coalesce(t1.b, t2.b) AS b from
+t2 left join t1 on t1.a = t2.a and t1.b = t2.b where t2.a is not null;
+a	b
+1	1
+3	3
+select * from (t1 natural join t2) right join t2 t3 on t1.a=t3.a;
+a	b	a	b
+1	1	1	1
+NULL	NULL	3	3
+select * from (t1 natural full join t2) right join t2 t3 on t1.a=t3.a;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+select t1.a from t1 natural full join (t2 natural join t3) where
+t1.a is not null;
+a
+1
+2
+select t1.a from t1 natural left join (t2 natural join t3) where t1.a is not null
+union
+select t1.a from t1 natural right join (t2 natural join t3) where t1.a is not null;
+a
+1
+2
+explain extended select t1.a from
+t1 natural full join (t2 natural join t3) where t1.a is not null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t3`.`a` = `test`.`t1`.`a` and `test`.`t2`.`b` = `test`.`t1`.`b` and `test`.`t3`.`b` = `test`.`t1`.`b`) where `test`.`t1`.`a` is not null
+select t1.a AS a from t1 left join (t2 join t3) on
+t2.a = t1.a and t3.a = t1.a and t2.b = t1.b and t3.b = t1.b where
+t1.a is not null;
+a
+1
+2
+explain extended select *, avg(t2.a) from t1 natural full join t2 group by t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select coalesce(`test`.`t1`.`a`,`test`.`t2`.`a`) AS `a`,coalesce(`test`.`t1`.`b`,`test`.`t2`.`b`) AS `b`,avg(`test`.`t2`.`a`) AS `avg(t2.a)` from `test`.`t1` full join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t2`.`b` = `test`.`t1`.`b`) where 1 group by `test`.`t1`.`a`
+select *, avg(t2.a) from t1 natural full join t2 where t1.a is not null group by t1.a;
+a	b	avg(t2.a)
+1	1	1.0000
+2	2	NULL
+# UNION equivalent of the aggregate above.
+select dt.a, dt.b, avg(dt.t2a) as `avg(t2.a)` from (
+select t1.a as a, t1.b as b, t2.a as t2a from t1 natural left join t2
+union
+select t1.a, t1.b, t2.a from t1 natural right join t2) dt
+where dt.a is not null group by dt.a;
+a	b	avg(t2.a)
+1	1	1.0000
+2	2	NULL
+explain extended select *, avg(t2.a) from t1 natural full join t2 where
+t1.a is not null group by t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select coalesce(`test`.`t1`.`a`,`test`.`t2`.`a`) AS `a`,coalesce(`test`.`t1`.`b`,`test`.`t2`.`b`) AS `b`,avg(`test`.`t2`.`a`) AS `avg(t2.a)` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t2`.`b` = `test`.`t1`.`b`) where `test`.`t1`.`a` is not null group by `test`.`t1`.`a`
+select coalesce(t1.a, t2.a) AS a, coalesce(t1.b, t2.b) AS b,
+avg(t2.a) AS avg_t2_a from
+t1 left join t2 on t2.a = t1.a and t2.b = t1.b where
+t1.a is not null group by t1.a;
+a	b	avg_t2_a
+1	1	1.0000
+2	2	NULL
+drop table t1, t2, t3;
+# ========================================================
+# Section 5: NULL handling
+#
+# NULL = NULL is false, so rows whose join key is NULL never
+# match and must surface from their side unmatched.  The
+# NULL-safe <=> operator matches NULL to NULL.
+# ========================================================
+create table t1 (a int, b int);
+insert into t1 values (NULL, NULL), (1, 10), (NULL, NULL);
+create table t2 (a int, b int);
+insert into t2 values (NULL, NULL), (2, 20), (NULL, NULL);
+# Both sides have all-NULL rows; no match possible.
+select * from t1 full join t2 on t1.a = t2.a;
+a	b	a	b
+1	10	NULL	NULL
+NULL	NULL	2	20
+NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL
+# The UNION formulation eliminates duplicate all-NULL rows; this
+# is expected to differ.  PostgreSQL agrees with the FULL JOIN
+# result above.
+select * from t1 left join t2 on t1.a = t2.a union select * from t1 right join t2 on t1.a = t2.a;
+a	b	a	b
+NULL	NULL	NULL	NULL
+1	10	NULL	NULL
+NULL	NULL	2	20
+# IS NULL in the ON clause — all-NULL rows now match.
+select * from t1 full join t2 on t1.a is null and t2.a is null;
+a	b	a	b
+1	10	NULL	NULL
+NULL	NULL	2	20
+NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL
+select * from t1 left join t2 on t1.a is null and t2.a is null union select * from t1 right join t2 on t1.a is null and t2.a is null;
+a	b	a	b
+1	10	NULL	NULL
+NULL	NULL	2	20
+NULL	NULL	NULL	NULL
+# NULL-safe equality operator (<=>).
+select * from t1 full join t2 on t1.a <=> t2.a;
+a	b	a	b
+1	10	NULL	NULL
+NULL	NULL	2	20
+NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL
+select * from t1 left join t2 on t1.a <=> t2.a union select * from t1 right join t2 on t1.a <=> t2.a;
+a	b	a	b
+1	10	NULL	NULL
+NULL	NULL	2	20
+NULL	NULL	NULL	NULL
+# Table with only all-NULL rows on one side.
+create table t3 (a int, b int);
+insert into t3 values (NULL, NULL), (NULL, NULL);
+select * from t1 full join t3 on t1.a = t3.a;
+a	b	a	b
+1	10	NULL	NULL
+NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL
+select * from t1 left join t3 on t1.a = t3.a union select * from t1 right join t3 on t1.a = t3.a;
+a	b	a	b
+1	10	NULL	NULL
+NULL	NULL	NULL	NULL
+drop table t1, t2, t3;
+# ========================================================
+# Section 6: Deeply nested FULL JOINs
+# ========================================================
+create table t1 (a int);
+insert into t1 values (1), (2);
+create table t2 (a int);
+insert into t2 values (2), (3);
+create table t3 (a int);
+insert into t3 values (3), (4);
+create table t4 (a int);
+insert into t4 values (1), (4);
+create table t5 (a int);
+insert into t5 values (2), (5);
+# The LEFT/RIGHT-permutation UNION form is not a valid oracle
+# for chained FULL JOINs: it over-approximates by emitting a
+# right-side null-complement row for C rows that were already
+# matched against the inner FJ's own null-complement row.  Per
+# SQL:2016 §7.10, (A FJ B) FJ C is left-associative and treats
+# R1 = (A FJ B) as a single relation; a C row matched against
+# any R1 row (including a null-complement row) is matched, and
+# must not appear again as unmatched.  Therefore the chained
+# cases below have no UNION companion; the recorded result is
+# the oracle.
+# Three-level nested FULL JOINs.
+select * from t1
+full join t2 on t1.a = t2.a
+full join t3 on t2.a = t3.a;
+a	a	a
+1	NULL	NULL
+2	2	NULL
+NULL	3	3
+NULL	NULL	4
+# Four-level chained FULL JOINs.
+select * from t1
+full join t2 on t1.a = t2.a
+full join t3 on t2.a = t3.a
+full join t4 on t3.a = t4.a;
+a	a	a	a
+1	NULL	NULL	NULL
+2	2	NULL	NULL
+NULL	3	3	NULL
+NULL	NULL	4	4
+NULL	NULL	NULL	1
+# Mixed FULL and INNER joins, deeply nested.
+select * from t1
+inner join t2 on t1.a = t2.a
+full join t3 on t2.a = t3.a
+full join t4 on t3.a = t4.a;
+a	a	a	a
+2	2	NULL	NULL
+NULL	NULL	3	NULL
+NULL	NULL	4	4
+NULL	NULL	NULL	1
+drop table t1, t2, t3, t4, t5;
+# ========================================================
+# Section 7: Mixed data types
+# ========================================================
+create table t1 (
+id int,
+str_val varchar(20),
+dec_val decimal(10,2),
+dt_val date
+);
+insert into t1 values
+(1, 'hello', 10.50, '2024-01-01'),
+(2, 'world', 20.75, '2024-06-15'),
+(3, NULL, NULL, NULL);
+create table t2 (
+id int,
+str_val varchar(20),
+dec_val decimal(10,2),
+dt_val date
+);
+insert into t2 values
+(2, 'WORLD', 20.75, '2024-06-15'),
+(4, 'test', 99.99, '2025-12-31'),
+(NULL, NULL, NULL, NULL);
+# FULL JOIN on integer column with mixed-type rows.
+select * from t1 full join t2 on t1.id = t2.id;
+id	str_val	dec_val	dt_val	id	str_val	dec_val	dt_val
+1	hello	10.50	2024-01-01	NULL	NULL	NULL	NULL
+2	world	20.75	2024-06-15	2	WORLD	20.75	2024-06-15
+3	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL	4	test	99.99	2025-12-31
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+select * from t1 left join t2 on t1.id = t2.id union select * from t1 right join t2 on t1.id = t2.id;
+id	str_val	dec_val	dt_val	id	str_val	dec_val	dt_val
+1	hello	10.50	2024-01-01	NULL	NULL	NULL	NULL
+2	world	20.75	2024-06-15	2	WORLD	20.75	2024-06-15
+3	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL	4	test	99.99	2025-12-31
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+# FULL JOIN on varchar column (case-sensitive match depends on collation).
+select t1.id as id1, t1.str_val as sv1, t2.id as id2, t2.str_val as sv2
+from t1 full join t2 on t1.str_val = t2.str_val;
+id1	sv1	id2	sv2
+1	hello	NULL	NULL
+2	world	2	WORLD
+3	NULL	NULL	NULL
+NULL	NULL	4	test
+NULL	NULL	NULL	NULL
+select t1.id as id1, t1.str_val as sv1, t2.id as id2, t2.str_val as sv2
+from t1 left join t2 on t1.str_val = t2.str_val
+union
+select t1.id as id1, t1.str_val as sv1, t2.id as id2, t2.str_val as sv2
+from t1 right join t2 on t1.str_val = t2.str_val;
+id1	sv1	id2	sv2
+1	hello	NULL	NULL
+2	world	2	WORLD
+3	NULL	NULL	NULL
+NULL	NULL	4	test
+NULL	NULL	NULL	NULL
+# FULL JOIN on decimal column.
+select t1.id as id1, t1.dec_val as d1, t2.id as id2, t2.dec_val as d2
+from t1 full join t2 on t1.dec_val = t2.dec_val;
+id1	d1	id2	d2
+1	10.50	NULL	NULL
+2	20.75	2	20.75
+3	NULL	NULL	NULL
+NULL	NULL	4	99.99
+NULL	NULL	NULL	NULL
+select t1.id as id1, t1.dec_val as d1, t2.id as id2, t2.dec_val as d2
+from t1 left join t2 on t1.dec_val = t2.dec_val
+union
+select t1.id as id1, t1.dec_val as d1, t2.id as id2, t2.dec_val as d2
+from t1 right join t2 on t1.dec_val = t2.dec_val;
+id1	d1	id2	d2
+1	10.50	NULL	NULL
+2	20.75	2	20.75
+3	NULL	NULL	NULL
+NULL	NULL	4	99.99
+NULL	NULL	NULL	NULL
+# FULL JOIN on date column.
+select t1.id as id1, t1.dt_val as dt1, t2.id as id2, t2.dt_val as dt2
+from t1 full join t2 on t1.dt_val = t2.dt_val;
+id1	dt1	id2	dt2
+1	2024-01-01	NULL	NULL
+2	2024-06-15	2	2024-06-15
+3	NULL	NULL	NULL
+NULL	NULL	4	2025-12-31
+NULL	NULL	NULL	NULL
+select t1.id as id1, t1.dt_val as dt1, t2.id as id2, t2.dt_val as dt2
+from t1 left join t2 on t1.dt_val = t2.dt_val
+union
+select t1.id as id1, t1.dt_val as dt1, t2.id as id2, t2.dt_val as dt2
+from t1 right join t2 on t1.dt_val = t2.dt_val;
+id1	dt1	id2	dt2
+1	2024-01-01	NULL	NULL
+2	2024-06-15	2	2024-06-15
+3	NULL	NULL	NULL
+NULL	NULL	4	2025-12-31
+NULL	NULL	NULL	NULL
+# FULL JOIN with cross-type comparison (int vs decimal).
+create table t3 (a int);
+insert into t3 values (1), (2), (3);
+create table t4 (a decimal(5,1));
+insert into t4 values (1.0), (2.5), (3.0);
+select * from t3 full join t4 on t3.a = t4.a;
+a	a
+1	1.0
+2	NULL
+3	3.0
+NULL	2.5
+select * from t3 left join t4 on t3.a = t4.a union select * from t3 right join t4 on t3.a = t4.a;
+a	a
+1	1.0
+2	NULL
+3	3.0
+NULL	2.5
+# FULL JOIN with cross-type comparison (int vs varchar).
+create table t5 (a varchar(10));
+insert into t5 values ('1'), ('2'), ('four');
+select * from t3 full join t5 on t3.a = t5.a;
+a	a
+1	1
+2	2
+3	NULL
+NULL	four
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'four'
+Warning	1292	Truncated incorrect DECIMAL value: 'four'
+Warning	1292	Truncated incorrect DECIMAL value: 'four'
+select * from t3 left join t5 on t3.a = t5.a union select * from t3 right join t5 on t3.a = t5.a;
+a	a
+1	1
+2	2
+3	NULL
+NULL	four
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'four'
+Warning	1292	Truncated incorrect DECIMAL value: 'four'
+Warning	1292	Truncated incorrect DECIMAL value: 'four'
+Warning	1292	Truncated incorrect DECIMAL value: 'four'
+Warning	1292	Truncated incorrect DECIMAL value: 'four'
+Warning	1292	Truncated incorrect DECIMAL value: 'four'
+# FULL JOIN on multiple mixed-type columns simultaneously.
+select * from t1 full join t2
+on t1.id = t2.id and t1.dec_val = t2.dec_val;
+id	str_val	dec_val	dt_val	id	str_val	dec_val	dt_val
+1	hello	10.50	2024-01-01	NULL	NULL	NULL	NULL
+2	world	20.75	2024-06-15	2	WORLD	20.75	2024-06-15
+3	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL	4	test	99.99	2025-12-31
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+select * from t1 left join t2
+on t1.id = t2.id and t1.dec_val = t2.dec_val
+union
+select * from t1 right join t2
+on t1.id = t2.id and t1.dec_val = t2.dec_val;
+id	str_val	dec_val	dt_val	id	str_val	dec_val	dt_val
+1	hello	10.50	2024-01-01	NULL	NULL	NULL	NULL
+2	world	20.75	2024-06-15	2	WORLD	20.75	2024-06-15
+3	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL	4	test	99.99	2025-12-31
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+drop table t1, t2, t3, t4, t5;
+# ========================================================
+# Section 8: Aggregates with FULL JOIN
+# ========================================================
+create table t1 (grp char(1), val int);
+insert into t1 values ('a',10), ('a',20), ('b',30), ('c',40);
+create table t2 (grp char(1), val int);
+insert into t2 values ('b',100), ('c',200), ('c',300), ('d',400);
+# COUNT and SUM over a FULL JOIN.
+select coalesce(t1.grp, t2.grp) as grp,
+count(*) as cnt,
+sum(t1.val) as s1,
+sum(t2.val) as s2
+from t1 full join t2 on t1.grp = t2.grp
+group by coalesce(t1.grp, t2.grp);
+grp	cnt	s1	s2
+a	2	30	NULL
+b	1	30	100
+c	2	80	500
+d	1	NULL	400
+select coalesce(dt.grp1, dt.grp2) as grp,
+count(*) as cnt,
+sum(dt.val1) as s1,
+sum(dt.val2) as s2
+from (select t1.grp as grp1, t1.val as val1, t2.grp as grp2, t2.val as val2
+from t1 left join t2 on t1.grp = t2.grp
+union
+select t1.grp, t1.val, t2.grp, t2.val
+from t1 right join t2 on t1.grp = t2.grp) dt
+group by coalesce(dt.grp1, dt.grp2);
+grp	cnt	s1	s2
+a	2	30	NULL
+b	1	30	100
+c	2	80	500
+d	1	NULL	400
+# AVG and MAX over a FULL JOIN.
+select coalesce(t1.grp, t2.grp) as grp,
+avg(t1.val) as avg1,
+max(t2.val) as max2
+from t1 full join t2 on t1.grp = t2.grp
+group by coalesce(t1.grp, t2.grp);
+grp	avg1	max2
+a	15.0000	NULL
+b	30.0000	100
+c	40.0000	300
+d	NULL	400
+select coalesce(dt.grp1, dt.grp2) as grp,
+avg(dt.val1) as avg1,
+max(dt.val2) as max2
+from (select t1.grp as grp1, t1.val as val1, t2.grp as grp2, t2.val as val2
+from t1 left join t2 on t1.grp = t2.grp
+union
+select t1.grp, t1.val, t2.grp, t2.val
+from t1 right join t2 on t1.grp = t2.grp) dt
+group by coalesce(dt.grp1, dt.grp2);
+grp	avg1	max2
+a	15.0000	NULL
+b	30.0000	100
+c	40.0000	300
+d	NULL	400
+# HAVING clause with FULL JOIN aggregate.
+select coalesce(t1.grp, t2.grp) as grp,
+count(*) as cnt
+from t1 full join t2 on t1.grp = t2.grp
+group by coalesce(t1.grp, t2.grp)
+having count(*) > 1;
+grp	cnt
+a	2
+c	2
+select coalesce(t1.grp, t2.grp) as grp,
+count(*) as cnt from t1
+left join t2 on t1.grp = t2.grp group by
+coalesce(t1.grp, t2.grp) having count(*) > 1
+union
+select coalesce(t1.grp, t2.grp) as grp,
+count(*) as cnt from t1
+right join t2 on t1.grp = t2.grp group by
+coalesce(t1.grp, t2.grp) having count(*) > 1;
+grp	cnt
+a	2
+c	2
+# COUNT(*) with no GROUP BY — total row count of the FULL JOIN.
+select count(*) from t1 full join t2 on t1.grp = t2.grp;
+count(*)
+6
+select count(*) from (select t1.grp as g1, t1.val as v1, t2.grp as g2, t2.val as v2
+from t1 left join t2 on t1.grp = t2.grp
+union
+select t1.grp, t1.val, t2.grp, t2.val
+from t1 right join t2 on t1.grp = t2.grp) dt;
+count(*)
+6
+# GROUP_CONCAT over a FULL JOIN.
+select coalesce(t1.grp, t2.grp) as grp,
+group_concat(t1.val order by t1.val) as vals1,
+group_concat(t2.val order by t2.val) as vals2
+from t1 full join t2 on t1.grp = t2.grp
+group by coalesce(t1.grp, t2.grp);
+grp	vals1	vals2
+a	10,20	NULL
+b	30	100
+c	40,40	200,300
+d	NULL	400
+select coalesce(dt.grp1, dt.grp2) as grp,
+group_concat(dt.val1 order by dt.val1) as vals1,
+group_concat(dt.val2 order by dt.val2) as vals2
+from (select t1.grp as grp1, t1.val as val1, t2.grp as grp2, t2.val as val2
+from t1 left join t2 on t1.grp = t2.grp
+union
+select t1.grp, t1.val, t2.grp, t2.val
+from t1 right join t2 on t1.grp = t2.grp) dt
+group by coalesce(dt.grp1, dt.grp2);
+grp	vals1	vals2
+a	10,20	NULL
+b	30	100
+c	40,40	200,300
+d	NULL	400
+drop table t1, t2;
+# ========================================================
+# Section 9: Window functions with FULL JOIN
+#
+# Adapted from main.win: ROW_NUMBER, RANK, DENSE_RANK,
+# LEAD/LAG, and aggregate windows (SUM/COUNT with frames)
+# applied to FULL JOIN result sets.
+# ========================================================
+create table t1 (a int, grp int, val int);
+insert into t1 values (1,10,100), (2,10,200), (3,20,300), (4,20,400);
+create table t2 (a int, grp int, val int);
+insert into t2 values (3,20,3000), (4,20,4000), (5,30,5000), (6,30,6000);
+# ROW_NUMBER() over a FULL JOIN ordered by the coalesced key.
+select coalesce(t1.a, t2.a) as a,
+row_number() over (order by coalesce(t1.a, t2.a)) as rn
+from t1 full join t2 on t1.a = t2.a
+order by a;
+a	rn
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+# Equivalent: row-number over LEFT UNION RIGHT.
+select a, row_number() over (order by a) as rn
+from (select coalesce(t1.a, t2.a) as a
+from t1 left join t2 on t1.a = t2.a
+union
+select coalesce(t1.a, t2.a)
+from t1 right join t2 on t1.a = t2.a) u
+order by a;
+a	rn
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+# RANK() with PARTITION BY over FULL JOIN.
+select coalesce(t1.grp, t2.grp) as grp,
+coalesce(t1.val, 0) + coalesce(t2.val, 0) as v,
+rank() over (partition by coalesce(t1.grp, t2.grp)
+order by coalesce(t1.val, 0) + coalesce(t2.val, 0)) as rk
+from t1 full join t2 on t1.a = t2.a;
+grp	v	rk
+10	100	1
+10	200	2
+20	3300	1
+20	4400	2
+30	5000	1
+30	6000	2
+select coalesce(t1grp, t2grp) as grp,
+coalesce(t1val, 0) + coalesce(t2val, 0) as v,
+rank() over (partition by coalesce(t1grp, t2grp)
+order by coalesce(t1val, 0) + coalesce(t2val, 0)) as rk
+from (select t1.a as t1a, t1.grp as t1grp, t1.val as t1val,
+t2.a as t2a, t2.grp as t2grp, t2.val as t2val
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a, t1.grp, t1.val, t2.a, t2.grp, t2.val
+from t1 right join t2 on t1.a = t2.a) u;
+grp	v	rk
+10	100	1
+10	200	2
+20	3300	1
+20	4400	2
+30	5000	1
+30	6000	2
+# DENSE_RANK() over FULL JOIN.
+select coalesce(t1.grp, t2.grp) as grp,
+dense_rank() over (order by coalesce(t1.grp, t2.grp)) as dr
+from t1 full join t2 on t1.a = t2.a;
+grp	dr
+10	1
+10	1
+20	2
+20	2
+30	3
+30	3
+select coalesce(t1grp, t2grp) as grp,
+dense_rank() over (order by coalesce(t1grp, t2grp)) as dr
+from (select t1.a as t1a, t1.grp as t1grp, t1.val as t1val,
+t2.a as t2a, t2.grp as t2grp, t2.val as t2val
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a, t1.grp, t1.val, t2.a, t2.grp, t2.val
+from t1 right join t2 on t1.a = t2.a) u;
+grp	dr
+10	1
+10	1
+20	2
+20	2
+30	3
+30	3
+# LEAD() and LAG() over FULL JOIN.
+select coalesce(t1.a, t2.a) as a,
+lag(coalesce(t1.a, t2.a))
+over (order by coalesce(t1.a, t2.a)) as prev_a,
+lead(coalesce(t1.a, t2.a))
+over (order by coalesce(t1.a, t2.a)) as next_a
+from t1 full join t2 on t1.a = t2.a
+order by a;
+a	prev_a	next_a
+1	NULL	2
+2	1	3
+3	2	4
+4	3	5
+5	4	6
+6	5	NULL
+select coalesce(t1a, t2a) as a,
+lag(coalesce(t1a, t2a))
+over (order by coalesce(t1a, t2a)) as prev_a,
+lead(coalesce(t1a, t2a))
+over (order by coalesce(t1a, t2a)) as next_a
+from (select t1.a as t1a, t1.grp as t1grp, t1.val as t1val,
+t2.a as t2a, t2.grp as t2grp, t2.val as t2val
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a, t1.grp, t1.val, t2.a, t2.grp, t2.val
+from t1 right join t2 on t1.a = t2.a) u
+order by a;
+a	prev_a	next_a
+1	NULL	2
+2	1	3
+3	2	4
+4	3	5
+5	4	6
+6	5	NULL
+# SUM() window with rows-BETWEEN frame over FULL JOIN.
+select coalesce(t1.a, t2.a) as a,
+coalesce(t1.val, 0) + coalesce(t2.val, 0) as v,
+sum(coalesce(t1.val, 0) + coalesce(t2.val, 0))
+over (order by coalesce(t1.a, t2.a)
+rows between 1 preceding and 1 following) as window_sum
+from t1 full join t2 on t1.a = t2.a
+order by a;
+a	v	window_sum
+1	100	300
+2	200	3600
+3	3300	7900
+4	4400	12700
+5	5000	15400
+6	6000	11000
+select coalesce(t1a, t2a) as a,
+coalesce(t1val, 0) + coalesce(t2val, 0) as v,
+sum(coalesce(t1val, 0) + coalesce(t2val, 0))
+over (order by coalesce(t1a, t2a)
+rows between 1 preceding and 1 following) as window_sum
+from (select t1.a as t1a, t1.grp as t1grp, t1.val as t1val,
+t2.a as t2a, t2.grp as t2grp, t2.val as t2val
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a, t1.grp, t1.val, t2.a, t2.grp, t2.val
+from t1 right join t2 on t1.a = t2.a) u
+order by a;
+a	v	window_sum
+1	100	300
+2	200	3600
+3	3300	7900
+4	4400	12700
+5	5000	15400
+6	6000	11000
+# COUNT() window partitioned by group, ordered within group.
+select coalesce(t1.grp, t2.grp) as grp,
+coalesce(t1.a, t2.a) as a,
+count(*) over (partition by coalesce(t1.grp, t2.grp)
+order by coalesce(t1.a, t2.a)
+rows between unbounded preceding and current row) as cnt
+from t1 full join t2 on t1.a = t2.a;
+grp	a	cnt
+10	1	1
+10	2	2
+20	3	1
+20	4	2
+30	5	1
+30	6	2
+select coalesce(t1grp, t2grp) as grp,
+coalesce(t1a, t2a) as a,
+count(*) over (partition by coalesce(t1grp, t2grp)
+order by coalesce(t1a, t2a)
+rows between unbounded preceding and current row) as cnt
+from (select t1.a as t1a, t1.grp as t1grp, t1.val as t1val,
+t2.a as t2a, t2.grp as t2grp, t2.val as t2val
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a, t1.grp, t1.val, t2.a, t2.grp, t2.val
+from t1 right join t2 on t1.a = t2.a) u;
+grp	a	cnt
+10	1	1
+10	2	2
+20	3	1
+20	4	2
+30	5	1
+30	6	2
+# Window function combined with GROUP BY on the FULL JOIN.
+# Exercises the AGGR_OP::end_send path after the null-complement
+# pass completes (this previously asserted in create_sort_index).
+select coalesce(t1.grp, t2.grp) as grp,
+sum(coalesce(t1.val, 0) + coalesce(t2.val, 0)) as s,
+rank() over (order by sum(coalesce(t1.val, 0) + coalesce(t2.val, 0))) as rk
+from t1 full join t2 on t1.a = t2.a
+group by coalesce(t1.grp, t2.grp);
+grp	s	rk
+10	300	1
+20	7700	2
+30	11000	3
+select coalesce(t1grp, t2grp) as grp,
+sum(coalesce(t1val, 0) + coalesce(t2val, 0)) as s,
+rank() over (order by sum(coalesce(t1val, 0) + coalesce(t2val, 0))) as rk
+from (select t1.a as t1a, t1.grp as t1grp, t1.val as t1val,
+t2.a as t2a, t2.grp as t2grp, t2.val as t2val
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a, t1.grp, t1.val, t2.a, t2.grp, t2.val
+from t1 right join t2 on t1.a = t2.a) u
+group by coalesce(t1grp, t2grp);
+grp	s	rk
+10	300	1
+20	7700	2
+30	11000	3
+drop table t1, t2;
+# ========================================================
+# Section 10: CTEs
+# ========================================================
+create table t1 (id int, val varchar(10));
+insert into t1 values (1,'a'), (2,'b'), (3,'c');
+create table t2 (id int, val varchar(10));
+insert into t2 values (2,'x'), (3,'y'), (4,'z');
+# Simple CTE wrapping a FULL JOIN.
+with fj as (
+select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+from t1 full join t2 on t1.id = t2.id
+)
+select * from fj;
+id1	v1	id2	v2
+1	a	NULL	NULL
+2	b	2	x
+3	c	3	y
+NULL	NULL	4	z
+select * from t1 left join t2 on t1.id = t2.id union select * from t1 right join t2 on t1.id = t2.id;
+id	val	id	val
+1	a	NULL	NULL
+2	b	2	x
+3	c	3	y
+NULL	NULL	4	z
+# CTE on the left side of a FULL JOIN.
+with vals as (select id, val from t1 where id <= 2)
+select v1.id as id1, v1.val as val1, t2.id as id2, t2.val as val2
+from vals v1 full join t2 on v1.id = t2.id;
+id1	val1	id2	val2
+1	a	NULL	NULL
+2	b	2	x
+NULL	NULL	3	y
+NULL	NULL	4	z
+with vals as (select id, val from t1 where id <= 2)
+select v1.id as id1, v1.val as val1, t2.id as id2, t2.val as val2
+from vals v1 left join t2 on v1.id = t2.id
+union
+select v1.id as id1, v1.val as val1, t2.id as id2, t2.val as val2
+from vals v1 right join t2 on v1.id = t2.id;
+id1	val1	id2	val2
+1	a	NULL	NULL
+2	b	2	x
+NULL	NULL	3	y
+NULL	NULL	4	z
+# Recursive CTE used in a FULL JOIN.
+with recursive seq as (
+select 1 as n
+union all
+select n + 1 from seq where n < 4
+)
+select s1.n as n1, s2.id as n2
+from seq s1 full join t2 s2 on s1.n = s2.id;
+n1	n2
+1	NULL
+2	2
+3	3
+4	4
+with recursive seq as (
+select 1 as n
+union all
+select n + 1 from seq where n < 4
+)
+select s1.n as n1, s2.id as n2
+from seq s1 left join t2 s2 on s1.n = s2.id
+union
+select s1.n as n1, s2.id as n2
+from seq s1 right join t2 s2 on s1.n = s2.id;
+n1	n2
+1	NULL
+2	2
+3	3
+4	4
+# CTE on the left side of a FULL JOIN with filtering.
+with left_cte as (select * from t1 where id in (1,2))
+select l.id as lid, l.val as lval, t2.id as rid, t2.val as rval
+from left_cte l full join t2 on l.id = t2.id;
+lid	lval	rid	rval
+1	a	NULL	NULL
+2	b	2	x
+NULL	NULL	3	y
+NULL	NULL	4	z
+with left_cte as (select * from t1 where id in (1,2))
+select l.id as lid, l.val as lval, t2.id as rid, t2.val as rval
+from left_cte l left join t2 on l.id = t2.id
+union
+select l.id as lid, l.val as lval, t2.id as rid, t2.val as rval
+from left_cte l right join t2 on l.id = t2.id;
+lid	lval	rid	rval
+1	a	NULL	NULL
+2	b	2	x
+NULL	NULL	3	y
+NULL	NULL	4	z
+drop table t1, t2;
+# ========================================================
+# Section 11: Views over FULL JOIN
+# ========================================================
+create table t1 (a int, b int);
+insert into t1 values (1,10), (2,20), (3,30);
+create table t2 (a int, b int);
+insert into t2 values (2,200), (3,300), (4,400);
+# Simple view over a FULL JOIN.
+create view v_full as
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 full join t2 on t1.a = t2.a;
+select * from v_full;
+a1	b1	a2	b2
+1	10	NULL	NULL
+2	20	2	200
+3	30	3	300
+NULL	NULL	4	400
+select * from t1 left join t2 on t1.a = t2.a union select * from t1 right join t2 on t1.a = t2.a;
+a	b	a	b
+1	10	NULL	NULL
+2	20	2	200
+3	30	3	300
+NULL	NULL	4	400
+# Query the view with additional filtering.
+select * from v_full where a1 is not null and a2 is not null;
+a1	b1	a2	b2
+2	20	2	200
+3	30	3	300
+select * from t1 inner join t2 on t1.a = t2.a;
+a	b	a	b
+2	20	2	200
+3	30	3	300
+# View joined with another table via FULL JOIN.
+create table t3 (a int, c varchar(10));
+insert into t3 values (1,'x'), (2,'y'), (4,'z');
+select v_full.a1, v_full.a2, t3.c
+from v_full full join t3 on coalesce(v_full.a1, v_full.a2) = t3.a;
+a1	a2	c
+1	NULL	x
+2	2	y
+3	3	NULL
+NULL	4	z
+# The LEFT JOIN is allowed (v_full is the outer side, so the
+# FULL JOIN inside v_full is on the outer side of the LEFT JOIN).
+# The RIGHT JOIN is equivalent to
+# `t3 LEFT JOIN v_full`, which puts v_full (the FULL JOIN) on the
+# inner side -- rejected.
+select v_full.a1, v_full.a2, t3.c
+from v_full left join t3 on coalesce(v_full.a1, v_full.a2) = t3.a;
+a1	a2	c
+1	NULL	x
+2	2	y
+3	3	NULL
+NULL	4	z
+select v_full.a1, v_full.a2, t3.c
+from v_full right join t3 on coalesce(v_full.a1, v_full.a2) = t3.a;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+# View that filters the FULL JOIN result.
+create view v_full_filtered as
+select t1.a as a1, t2.a as a2
+from t1 full join t2 on t1.a = t2.a
+where t1.a is not null;
+select * from v_full_filtered;
+a1	a2
+1	NULL
+2	2
+3	3
+select t1.a as a1, t2.a as a2 from t1 left join t2 on t1.a = t2.a;
+a1	a2
+1	NULL
+2	2
+3	3
+drop view v_full, v_full_filtered;
+drop table t1, t2, t3;
+# ========================================================
+# Section 12: Prepared statements
+# ========================================================
+create table t1 (a int, b varchar(10));
+insert into t1 values (1,'one'), (2,'two'), (3,'three');
+create table t2 (a int, b varchar(10));
+insert into t2 values (2,'TWO'), (3,'THREE'), (4,'FOUR');
+# Basic prepared statement with FULL JOIN.
+prepare stmt1 from
+'select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+   from t1 full join t2 on t1.a = t2.a';
+execute stmt1;
+a1	b1	a2	b2
+1	one	NULL	NULL
+2	two	2	TWO
+3	three	3	THREE
+NULL	NULL	4	FOUR
+select * from t1 left join t2 on t1.a = t2.a union select * from t1 right join t2 on t1.a = t2.a;
+a	b	a	b
+1	one	NULL	NULL
+2	two	2	TWO
+3	three	3	THREE
+NULL	NULL	4	FOUR
+# Re-execute to verify PS re-execution stability.
+execute stmt1;
+a1	b1	a2	b2
+1	one	NULL	NULL
+2	two	2	TWO
+3	three	3	THREE
+NULL	NULL	4	FOUR
+deallocate prepare stmt1;
+# Parameter in the ON clause.
+prepare stmt2 from
+'select t1.a as a1, t2.a as a2
+   from t1 full join t2 on t1.a = t2.a and t1.a > ?';
+set @threshold = 1;
+execute stmt2 using @threshold;
+a1	a2
+1	NULL
+2	2
+3	3
+NULL	4
+select t1.a as a1, t2.a as a2
+from t1 left join t2 on t1.a = t2.a and t1.a > 1
+union
+select t1.a as a1, t2.a as a2
+from t1 right join t2 on t1.a = t2.a and t1.a > 1;
+a1	a2
+1	NULL
+2	2
+3	3
+NULL	4
+# Re-execute with a different parameter value.
+set @threshold = 2;
+execute stmt2 using @threshold;
+a1	a2
+1	NULL
+2	NULL
+3	3
+NULL	2
+NULL	4
+select t1.a as a1, t2.a as a2
+from t1 left join t2 on t1.a = t2.a and t1.a > 2
+union
+select t1.a as a1, t2.a as a2
+from t1 right join t2 on t1.a = t2.a and t1.a > 2;
+a1	a2
+1	NULL
+2	NULL
+3	3
+NULL	2
+NULL	4
+deallocate prepare stmt2;
+# Parameter in the WHERE clause.
+prepare stmt3 from
+'select t1.a, t2.a
+   from t1 full join t2 on t1.a = t2.a
+   where t1.a is not null or t2.a > ?';
+set @minval = 3;
+execute stmt3 using @minval;
+a	a
+1	NULL
+2	2
+3	3
+NULL	4
+execute stmt3 using @minval;
+a	a
+1	NULL
+2	2
+3	3
+NULL	4
+deallocate prepare stmt3;
+drop table t1, t2;
+# ========================================================
+# Section 13: Stored procedures
+# ========================================================
+create table t1 (a int, b varchar(20));
+insert into t1 values (1,'alpha'), (2,'beta'), (3,'gamma');
+create table t2 (a int, b varchar(20));
+insert into t2 values (2,'BETA'), (4,'DELTA'), (5,'EPSILON');
+# SP that performs a FULL JOIN.
+create procedure sp_full_join()
+begin
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 full join t2 on t1.a = t2.a;
+end|
+# SP with a FULL JOIN and a parameter.
+create procedure sp_full_join_param(in min_a int)
+begin
+select t1.a as a1, t2.a as a2
+from t1 full join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) >= min_a;
+end|
+# SP using FULL JOIN with INSERT ... SELECT.
+create procedure sp_full_join_insert()
+begin
+create temporary table t3 (a1 int, b1 varchar(20), a2 int, b2 varchar(20));
+insert into t3
+select t1.a, t1.b, t2.a, t2.b
+from t1 full join t2 on t1.a = t2.a;
+select * from t3;
+drop temporary table t3;
+end|
+call sp_full_join();
+a1	b1	a2	b2
+1	alpha	NULL	NULL
+2	beta	2	BETA
+3	gamma	NULL	NULL
+NULL	NULL	4	DELTA
+NULL	NULL	5	EPSILON
+select * from t1 left join t2 on t1.a = t2.a union select * from t1 right join t2 on t1.a = t2.a;
+a	b	a	b
+1	alpha	NULL	NULL
+2	beta	2	BETA
+3	gamma	NULL	NULL
+NULL	NULL	4	DELTA
+NULL	NULL	5	EPSILON
+call sp_full_join_param(3);
+a1	a2
+3	NULL
+NULL	4
+NULL	5
+select t1.a as a1, t2.a as a2
+from t1 left join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) >= 3
+union
+select t1.a as a1, t2.a as a2
+from t1 right join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) >= 3;
+a1	a2
+3	NULL
+NULL	4
+NULL	5
+# Call the SPs twice to test re-execution.
+call sp_full_join();
+a1	b1	a2	b2
+1	alpha	NULL	NULL
+2	beta	2	BETA
+3	gamma	NULL	NULL
+NULL	NULL	4	DELTA
+NULL	NULL	5	EPSILON
+call sp_full_join_param(1);
+a1	a2
+1	NULL
+2	2
+3	NULL
+NULL	4
+NULL	5
+call sp_full_join_insert();
+a1	b1	a2	b2
+1	alpha	NULL	NULL
+2	beta	2	BETA
+3	gamma	NULL	NULL
+NULL	NULL	4	DELTA
+NULL	NULL	5	EPSILON
+drop procedure sp_full_join;
+drop procedure sp_full_join_param;
+drop procedure sp_full_join_insert;
+drop table t1, t2;
+# ========================================================
+# Section 14: Subqueries and semijoins with FULL JOIN
+# ========================================================
+create table t1 (a int, b int);
+insert into t1 values (1,10), (2,20), (3,30);
+create table t2 (a int, b int);
+insert into t2 values (2,200), (3,300), (4,400);
+create table t3 (a int);
+insert into t3 values (1), (3), (5);
+# IN subquery (semijoin) on the result of a FULL JOIN.
+select * from t1 full join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) in (select a from t3);
+a	b	a	b
+1	10	NULL	NULL
+3	30	3	300
+select * from t1 left join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) in (select a from t3)
+union
+select * from t1 right join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) in (select a from t3);
+a	b	a	b
+1	10	NULL	NULL
+3	30	3	300
+# EXISTS subquery filtering a FULL JOIN.
+select * from t1 full join t2 on t1.a = t2.a
+where exists (select 1 from t3 where t3.a = coalesce(t1.a, t2.a));
+a	b	a	b
+1	10	NULL	NULL
+3	30	3	300
+select * from t1 left join t2 on t1.a = t2.a
+where exists (select 1 from t3 where t3.a = coalesce(t1.a, t2.a))
+union
+select * from t1 right join t2 on t1.a = t2.a
+where exists (select 1 from t3 where t3.a = coalesce(t1.a, t2.a));
+a	b	a	b
+1	10	NULL	NULL
+3	30	3	300
+# NOT IN (anti-semijoin) with a FULL JOIN.
+select * from t1 full join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) not in (select a from t3);
+a	b	a	b
+2	20	2	200
+NULL	NULL	4	400
+select * from t1 left join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) not in (select a from t3)
+union
+select * from t1 right join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) not in (select a from t3);
+a	b	a	b
+2	20	2	200
+NULL	NULL	4	400
+# FULL JOIN inside a subquery used as a semijoin predicate.
+select * from t3
+where t3.a in (
+select coalesce(t1.a, t2.a)
+from t1 full join t2 on t1.a = t2.a
+);
+a
+1
+3
+select * from t3
+where t3.a in (
+select coalesce(t1.a, t2.a)
+from t1 left join t2 on t1.a = t2.a
+union
+select coalesce(t1.a, t2.a)
+from t1 right join t2 on t1.a = t2.a
+);
+a
+1
+3
+# Correlated subquery with FULL JOIN.
+select * from t3
+where exists (
+select 1 from t1 full join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) = t3.a
+);
+a
+1
+3
+select * from t3
+where exists (
+select 1 from t1 left join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) = t3.a
+union
+select 1 from t1 right join t2 on t1.a = t2.a
+where coalesce(t1.a, t2.a) = t3.a
+);
+a
+1
+3
+drop table t1, t2, t3;
+# ========================================================
+# Section 15: Indexed access (PK, secondary, composite, unique)
+#
+# Exercises JT_EQ_REF / JT_REF access paths on the right
+# side of a FULL JOIN, including NULLable unique keys.
+# ========================================================
+# Primary key join (JT_EQ_REF).
+create table t1 (id int primary key, val varchar(10));
+insert into t1 values (1,'a'), (2,'b'), (3,'c');
+create table t2 (id int primary key, val varchar(10));
+insert into t2 values (2,'x'), (3,'y'), (4,'z');
+select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+from t1 full join t2 on t1.id = t2.id;
+id1	v1	id2	v2
+1	a	NULL	NULL
+2	b	2	x
+3	c	3	y
+NULL	NULL	4	z
+select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+from t1 left join t2 on t1.id = t2.id
+union
+select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+from t1 right join t2 on t1.id = t2.id;
+id1	v1	id2	v2
+1	a	NULL	NULL
+2	b	2	x
+3	c	3	y
+NULL	NULL	4	z
+# PK join with WHERE filter.
+select t1.id as id1, t2.id as id2
+from t1 full join t2 on t1.id = t2.id
+where coalesce(t1.id, t2.id) > 2;
+id1	id2
+3	3
+NULL	4
+select t1.id as id1, t2.id as id2
+from t1 left join t2 on t1.id = t2.id
+where coalesce(t1.id, t2.id) > 2
+union
+select t1.id as id1, t2.id as id2
+from t1 right join t2 on t1.id = t2.id
+where coalesce(t1.id, t2.id) > 2;
+id1	id2
+3	3
+NULL	4
+# PK join with aggregate.
+select count(*) from t1 full join t2 on t1.id = t2.id;
+count(*)
+4
+select count(*) from (select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+from t1 left join t2 on t1.id = t2.id
+union
+select t1.id, t1.val, t2.id, t2.val
+from t1 right join t2 on t1.id = t2.id) dt;
+count(*)
+4
+drop table t1, t2;
+# Secondary index join (JT_REF) with duplicates.
+create table t1 (id int, grp int, val varchar(10), key(grp));
+insert into t1 values (1,10,'a'), (2,20,'b'), (3,20,'c'), (4,30,'d');
+create table t2 (id int, grp int, val varchar(10), key(grp));
+insert into t2 values (5,20,'x'), (6,30,'y'), (7,30,'z'), (8,40,'w');
+select t1.id as id1, t1.grp as g1, t2.id as id2, t2.grp as g2
+from t1 full join t2 on t1.grp = t2.grp;
+id1	g1	id2	g2
+1	10	NULL	NULL
+2	20	5	20
+3	20	5	20
+4	30	6	30
+4	30	7	30
+NULL	NULL	8	40
+select t1.id as id1, t1.grp as g1, t2.id as id2, t2.grp as g2
+from t1 left join t2 on t1.grp = t2.grp
+union
+select t1.id as id1, t1.grp as g1, t2.id as id2, t2.grp as g2
+from t1 right join t2 on t1.grp = t2.grp;
+id1	g1	id2	g2
+1	10	NULL	NULL
+2	20	5	20
+3	20	5	20
+4	30	6	30
+4	30	7	30
+NULL	NULL	8	40
+select count(*) from t1 full join t2 on t1.grp = t2.grp;
+count(*)
+6
+select count(*) from (select t1.id as id1, t1.grp as g1, t1.val as v1,
+t2.id as id2, t2.grp as g2, t2.val as v2
+from t1 left join t2 on t1.grp = t2.grp
+union
+select t1.id, t1.grp, t1.val, t2.id, t2.grp, t2.val
+from t1 right join t2 on t1.grp = t2.grp) dt;
+count(*)
+6
+drop table t1, t2;
+# Composite index join.
+create table t1 (a int, b int, val varchar(10), primary key(a, b));
+insert into t1 values (1,1,'p'), (1,2,'q'), (2,1,'r');
+create table t2 (a int, b int, val varchar(10), primary key(a, b));
+insert into t2 values (1,2,'s'), (2,1,'t'), (2,2,'u');
+select t1.a as a1, t1.b as b1, t1.val as v1,
+t2.a as a2, t2.b as b2, t2.val as v2
+from t1 full join t2 on t1.a = t2.a and t1.b = t2.b;
+a1	b1	v1	a2	b2	v2
+1	1	p	NULL	NULL	NULL
+1	2	q	1	2	s
+2	1	r	2	1	t
+NULL	NULL	NULL	2	2	u
+select t1.a as a1, t1.b as b1, t1.val as v1,
+t2.a as a2, t2.b as b2, t2.val as v2
+from t1 left join t2 on t1.a = t2.a and t1.b = t2.b
+union
+select t1.a as a1, t1.b as b1, t1.val as v1,
+t2.a as a2, t2.b as b2, t2.val as v2
+from t1 right join t2 on t1.a = t2.a and t1.b = t2.b;
+a1	b1	v1	a2	b2	v2
+1	1	p	NULL	NULL	NULL
+1	2	q	1	2	s
+2	1	r	2	1	t
+NULL	NULL	NULL	2	2	u
+# Composite index: join on partial key (first column only).
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 full join t2 on t1.a = t2.a;
+a1	b1	a2	b2
+1	1	1	2
+1	2	1	2
+2	1	2	1
+2	1	2	2
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 right join t2 on t1.a = t2.a;
+a1	b1	a2	b2
+1	1	1	2
+1	2	1	2
+2	1	2	1
+2	1	2	2
+drop table t1, t2;
+# UNIQUE index with NULLable column.
+create table t1 (id int auto_increment primary key, val int, unique key(val));
+insert into t1 (val) values (1), (NULL), (3), (NULL);
+create table t2 (id int auto_increment primary key, val int, unique key(val));
+insert into t2 (val) values (2), (3), (NULL), (NULL);
+select t1.val as v1, t2.val as v2
+from t1 full join t2 on t1.val = t2.val;
+v1	v2
+1	NULL
+3	3
+NULL	2
+NULL	NULL
+NULL	NULL
+NULL	NULL
+NULL	NULL
+select t1.val as v1, t2.val as v2
+from t1 left join t2 on t1.val = t2.val
+union
+select t1.val as v1, t2.val as v2
+from t1 right join t2 on t1.val = t2.val;
+v1	v2
+1	NULL
+3	3
+NULL	2
+NULL	NULL
+drop table t1, t2;
+# ========================================================
+# Section 16: Storage engines (MyISAM, Aria, mixed)
+#
+# The null-complement rescan must work regardless of
+# underlying storage engine and across mixed-engine joins
+# (different rowid formats in the weedout temp table).
+# ========================================================
+# Both sides MyISAM.
+create table t1 (a int, b varchar(10)) engine=MyISAM;
+insert into t1 values (1,'a'), (2,'b'), (3,'c');
+create table t2 (a int, b varchar(10)) engine=MyISAM;
+insert into t2 values (2,'x'), (3,'y'), (4,'z');
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 full join t2 on t1.a = t2.a;
+a1	b1	a2	b2
+1	a	NULL	NULL
+2	b	2	x
+3	c	3	y
+NULL	NULL	4	z
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 right join t2 on t1.a = t2.a;
+a1	b1	a2	b2
+1	a	NULL	NULL
+2	b	2	x
+3	c	3	y
+NULL	NULL	4	z
+select count(*) from t1 full join t2 on t1.a = t2.a;
+count(*)
+4
+select count(*) from (select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a, t1.b, t2.a, t2.b
+from t1 right join t2 on t1.a = t2.a) dt;
+count(*)
+4
+drop table t1, t2;
+# Both sides Aria.
+create table t1 (a int, b varchar(10)) engine=Aria;
+insert into t1 values (1,'a'), (2,'b'), (3,'c');
+create table t2 (a int, b varchar(10)) engine=Aria;
+insert into t2 values (2,'x'), (3,'y'), (4,'z');
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 full join t2 on t1.a = t2.a;
+a1	b1	a2	b2
+1	a	NULL	NULL
+2	b	2	x
+3	c	3	y
+NULL	NULL	4	z
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 right join t2 on t1.a = t2.a;
+a1	b1	a2	b2
+1	a	NULL	NULL
+2	b	2	x
+3	c	3	y
+NULL	NULL	4	z
+select count(*) from t1 full join t2 on t1.a = t2.a;
+count(*)
+4
+select count(*) from (select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a, t1.b, t2.a, t2.b
+from t1 right join t2 on t1.a = t2.a) dt;
+count(*)
+4
+drop table t1, t2;
+# Mixed engines: InnoDB and MyISAM.
+create table t1 (a int, b varchar(10)) engine=InnoDB;
+insert into t1 values (1,'a'), (2,'b'), (3,'c');
+create table t2 (a int, b varchar(10)) engine=MyISAM;
+insert into t2 values (2,'x'), (3,'y'), (4,'z');
+# InnoDB on left, MyISAM on right.
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 full join t2 on t1.a = t2.a;
+a1	b1	a2	b2
+1	a	NULL	NULL
+2	b	2	x
+3	c	3	y
+NULL	NULL	4	z
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 right join t2 on t1.a = t2.a;
+a1	b1	a2	b2
+1	a	NULL	NULL
+2	b	2	x
+3	c	3	y
+NULL	NULL	4	z
+# MyISAM on left, InnoDB on right.
+select t2.a as a1, t2.b as b1, t1.a as a2, t1.b as b2
+from t2 full join t1 on t2.a = t1.a;
+a1	b1	a2	b2
+2	x	2	b
+3	y	3	c
+4	z	NULL	NULL
+NULL	NULL	1	a
+select t2.a as a1, t2.b as b1, t1.a as a2, t1.b as b2
+from t2 left join t1 on t2.a = t1.a
+union
+select t2.a as a1, t2.b as b1, t1.a as a2, t1.b as b2
+from t2 right join t1 on t2.a = t1.a;
+a1	b1	a2	b2
+2	x	2	b
+3	y	3	c
+4	z	NULL	NULL
+NULL	NULL	1	a
+drop table t1, t2;
+# Mixed engines: InnoDB and Aria.
+create table t1 (a int, b varchar(10)) engine=InnoDB;
+insert into t1 values (1,'a'), (2,'b'), (3,'c');
+create table t2 (a int, b varchar(10)) engine=Aria;
+insert into t2 values (2,'x'), (3,'y'), (4,'z');
+# InnoDB on left, Aria on right.
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 full join t2 on t1.a = t2.a;
+a1	b1	a2	b2
+1	a	NULL	NULL
+2	b	2	x
+3	c	3	y
+NULL	NULL	4	z
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 left join t2 on t1.a = t2.a
+union
+select t1.a as a1, t1.b as b1, t2.a as a2, t2.b as b2
+from t1 right join t2 on t1.a = t2.a;
+a1	b1	a2	b2
+1	a	NULL	NULL
+2	b	2	x
+3	c	3	y
+NULL	NULL	4	z
+# Aria on left, InnoDB on right.
+select t2.a as a1, t2.b as b1, t1.a as a2, t1.b as b2
+from t2 full join t1 on t2.a = t1.a;
+a1	b1	a2	b2
+2	x	2	b
+3	y	3	c
+4	z	NULL	NULL
+NULL	NULL	1	a
+select t2.a as a1, t2.b as b1, t1.a as a2, t1.b as b2
+from t2 left join t1 on t2.a = t1.a
+union
+select t2.a as a1, t2.b as b1, t1.a as a2, t1.b as b2
+from t2 right join t1 on t2.a = t1.a;
+a1	b1	a2	b2
+2	x	2	b
+3	y	3	c
+4	z	NULL	NULL
+NULL	NULL	1	a
+drop table t1, t2;
+# Three-way mixed engine FULL JOIN.
+# No UNION companion: see the note above the chained-FULL-JOIN
+# section — the LEFT/RIGHT permutation UNION over-approximates
+# for chained FULL JOINs.
+create table t1 (a int) engine=InnoDB;
+insert into t1 values (1), (2), (3);
+create table t2 (a int) engine=MyISAM;
+insert into t2 values (2), (3), (4);
+create table t3 (a int) engine=Aria;
+insert into t3 values (3), (4), (5);
+select t1.a as a1, t2.a as a2, t3.a as a3
+from t1
+full join t2 on t1.a = t2.a
+full join t3 on t2.a = t3.a;
+a1	a2	a3
+1	NULL	NULL
+2	2	NULL
+3	3	3
+NULL	4	4
+NULL	NULL	5
+drop table t1, t2, t3;
+# Indexed mixed-engine FULL JOIN chain.
+create table t1 (id int primary key, val varchar(10)) engine=InnoDB;
+insert into t1 values (1,'a'), (2,'b'), (3,'c');
+create table t2 (id int primary key, val varchar(10)) engine=MyISAM;
+insert into t2 values (2,'x'), (3,'y'), (4,'z');
+create table t3 (id int primary key, val varchar(10)) engine=Aria;
+insert into t3 values (3,'p'), (4,'q'), (5,'r');
+# InnoDB PK full join MyISAM PK.
+select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+from t1 full join t2 on t1.id = t2.id;
+id1	v1	id2	v2
+1	a	NULL	NULL
+2	b	2	x
+3	c	3	y
+NULL	NULL	4	z
+select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+from t1 left join t2 on t1.id = t2.id
+union
+select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+from t1 right join t2 on t1.id = t2.id;
+id1	v1	id2	v2
+1	a	NULL	NULL
+2	b	2	x
+3	c	3	y
+NULL	NULL	4	z
+# MyISAM PK full join Aria PK.
+select t2.id as id1, t2.val as v1, t3.id as id2, t3.val as v2
+from t2 full join t3 on t2.id = t3.id;
+id1	v1	id2	v2
+2	x	NULL	NULL
+3	y	3	p
+4	z	4	q
+NULL	NULL	5	r
+select t2.id as id1, t2.val as v1, t3.id as id2, t3.val as v2
+from t2 left join t3 on t2.id = t3.id
+union
+select t2.id as id1, t2.val as v1, t3.id as id2, t3.val as v2
+from t2 right join t3 on t2.id = t3.id;
+id1	v1	id2	v2
+2	x	NULL	NULL
+3	y	3	p
+4	z	4	q
+NULL	NULL	5	r
+# Three-way: InnoDB PK, MyISAM PK, Aria PK.
+# No UNION companion: see the note above the chained-FULL-JOIN
+# section — the LEFT/RIGHT permutation UNION over-approximates
+# for chained FULL JOINs.
+select t1.id as id1, t2.id as id2, t3.id as id3
+from t1
+full join t2 on t1.id = t2.id
+full join t3 on t2.id = t3.id;
+id1	id2	id3
+1	NULL	NULL
+2	2	NULL
+3	3	3
+NULL	4	4
+NULL	NULL	5
+# Indexed mixed-engine with WHERE filter.
+select t1.id as id1, t2.id as id2
+from t1 full join t2 on t1.id = t2.id
+where coalesce(t1.id, t2.id) between 2 and 3;
+id1	id2
+2	2
+3	3
+select t1.id as id1, t2.id as id2
+from t1 left join t2 on t1.id = t2.id
+where coalesce(t1.id, t2.id) between 2 and 3
+union
+select t1.id as id1, t2.id as id2
+from t1 right join t2 on t1.id = t2.id
+where coalesce(t1.id, t2.id) between 2 and 3;
+id1	id2
+2	2
+3	3
+# Indexed mixed-engine with aggregate.
+select count(*) from t1 full join t2 on t1.id = t2.id;
+count(*)
+4
+select count(*) from (select t1.id as id1, t1.val as v1, t2.id as id2, t2.val as v2
+from t1 left join t2 on t1.id = t2.id
+union
+select t1.id, t1.val, t2.id, t2.val
+from t1 right join t2 on t1.id = t2.id) dt;
+count(*)
+4
+drop table t1, t2, t3;
+# ========================================================
+# Section 17: Complex feature combinations
+#
+# Queries that stress FULL JOIN alongside other features at
+# the same time: semi-joins with ranges, FULL-JOIN-in-FULL-
+# JOIN inside a semi-join, CTEs combined with window
+# functions, and HAVING over aggregates with FULL JOIN.
+# ========================================================
+create table t3O (x int);
+insert into t3O values (1), (2), (3), (4), (5), (6), (7);
+create table t3L (k int, tag varchar(8));
+insert into t3L values (1,'L1'), (2,'L2'), (3,'L3'), (4,'L4');
+create table t3R (k int, tag varchar(8));
+insert into t3R values (3,'R3'), (4,'R4'), (5,'R5'), (6,'R6');
+create table t3M (k int, tag varchar(8));
+insert into t3M values (2,'M2'), (5,'M5'), (7,'M7');
+# 17.1 FULL JOIN inside a materialized semijoin.
+# Exercises get_allowed_nj_tables() with emb_sjm_nest set:
+# the FULL JOIN adjacency check must apply inside the SJM
+# nest so that siblings cannot interleave between partners.
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='materialization=on,semijoin=on';
+select * from t3O
+where t3O.x in (
+select coalesce(t3L.k, t3R.k) from t3L full join t3R on t3L.k = t3R.k
+);
+x
+1
+2
+3
+4
+5
+6
+select * from t3O
+where t3O.x in (
+select coalesce(t3L.k, t3R.k) from t3L left join t3R on t3L.k = t3R.k
+union
+select coalesce(t3L.k, t3R.k) from t3L right join t3R on t3L.k = t3R.k
+);
+x
+1
+2
+3
+4
+5
+6
+# 17.2 FULL JOIN in semijoin with a range predicate on the
+# FULL JOIN's coalesced key.
+select * from t3O
+where t3O.x in (
+select coalesce(t3L.k, t3R.k) c
+from t3L full join t3R on t3L.k = t3R.k
+where coalesce(t3L.k, t3R.k) between 2 and 5
+);
+x
+2
+3
+4
+5
+select * from t3O
+where t3O.x in (
+select coalesce(t3L.k, t3R.k) c
+from t3L left join t3R on t3L.k = t3R.k
+where coalesce(t3L.k, t3R.k) between 2 and 5
+union
+select coalesce(t3L.k, t3R.k) c
+from t3L right join t3R on t3L.k = t3R.k
+where coalesce(t3L.k, t3R.k) between 2 and 5
+);
+x
+2
+3
+4
+5
+# 17.3 Nested FULL JOINs (a FULL JOIN of a FULL JOIN) inside
+# a semijoin.
+select * from t3O
+where t3O.x in (
+select coalesce(coalesce(t3L.k, t3R.k), t3M.k)
+from (t3L full join t3R on t3L.k = t3R.k)
+full join t3M on coalesce(t3L.k, t3R.k) = t3M.k
+);
+x
+1
+2
+3
+4
+5
+6
+7
+select * from t3O
+where t3O.x in (
+select coalesce(coalesce(t3L.k, t3R.k), t3M.k)
+from (t3L left join t3R on t3L.k = t3R.k)
+left join t3M on coalesce(t3L.k, t3R.k) = t3M.k
+union
+select coalesce(coalesce(t3L.k, t3R.k), t3M.k)
+from (t3L right join t3R on t3L.k = t3R.k)
+left join t3M on coalesce(t3L.k, t3R.k) = t3M.k
+union
+select coalesce(coalesce(t3L.k, t3R.k), t3M.k)
+from (t3L left join t3R on t3L.k = t3R.k)
+right join t3M on coalesce(t3L.k, t3R.k) = t3M.k
+union
+select coalesce(coalesce(t3L.k, t3R.k), t3M.k)
+from (t3L right join t3R on t3L.k = t3R.k)
+right join t3M on coalesce(t3L.k, t3R.k) = t3M.k
+);
+x
+1
+2
+3
+4
+5
+6
+7
+set optimizer_switch= @save_optimizer_switch;
+# 17.4 CTE that produces a FULL JOIN result, consumed by a
+# window function in the outer query.
+with fj as (
+select coalesce(t3L.k, t3R.k) as k,
+t3L.tag as ltag,
+t3R.tag as rtag
+from t3L full join t3R on t3L.k = t3R.k
+)
+select k, ltag, rtag,
+row_number() over (order by k) as rn,
+count(*) over (order by k rows between unbounded preceding and current row) as running_cnt
+from fj;
+k	ltag	rtag	rn	running_cnt
+1	L1	NULL	1	1
+2	L2	NULL	2	2
+3	L3	R3	3	3
+4	L4	R4	4	4
+5	NULL	R5	5	5
+6	NULL	R6	6	6
+with fj as (
+select coalesce(t3L.k, t3R.k) as k, t3L.tag as ltag, t3R.tag as rtag
+from t3L left join t3R on t3L.k = t3R.k
+union
+select coalesce(t3L.k, t3R.k), t3L.tag, t3R.tag
+from t3L right join t3R on t3L.k = t3R.k
+)
+select k, ltag, rtag,
+row_number() over (order by k) as rn,
+count(*) over (order by k rows between unbounded preceding and current row) as running_cnt
+from fj;
+k	ltag	rtag	rn	running_cnt
+1	L1	NULL	1	1
+2	L2	NULL	2	2
+3	L3	R3	3	3
+4	L4	R4	4	4
+5	NULL	R5	5	5
+6	NULL	R6	6	6
+# 17.5 FULL JOIN + HAVING + ORDER BY + aggregate window.
+select coalesce(t3L.k, t3R.k) as k,
+count(*) as cnt,
+rank() over (order by count(*) desc) as rk
+from t3L full join t3R on t3L.k = t3R.k
+group by coalesce(t3L.k, t3R.k)
+having count(*) >= 1
+order by rk, k;
+k	cnt	rk
+1	1	1
+2	1	1
+3	1	1
+4	1	1
+5	1	1
+6	1	1
+select coalesce(t3Lk, t3Rk) as k,
+count(*) as cnt,
+rank() over (order by count(*) desc) as rk
+from (select t3L.k as t3Lk, t3L.tag as ltag, t3R.k as t3Rk, t3R.tag as rtag
+from t3L left join t3R on t3L.k = t3R.k
+union
+select t3L.k, t3L.tag, t3R.k, t3R.tag
+from t3L right join t3R on t3L.k = t3R.k) dt
+group by coalesce(t3Lk, t3Rk)
+having count(*) >= 1
+order by rk, k;
+k	cnt	rk
+1	1	1
+2	1	1
+3	1	1
+4	1	1
+5	1	1
+6	1	1
+# 17.6 FULL JOIN + EXISTS subquery that itself contains a
+# FULL JOIN, all filtered by a range condition.
+select coalesce(t3L.k, t3R.k) as k, t3L.tag as ltag, t3R.tag as rtag
+from t3L full join t3R on t3L.k = t3R.k
+where coalesce(t3L.k, t3R.k) between 1 and 5
+and exists (
+select 1 from t3L l2 full join t3M on l2.k = t3M.k
+where coalesce(l2.k, t3M.k) = coalesce(t3L.k, t3R.k)
+);
+k	ltag	rtag
+1	L1	NULL
+2	L2	NULL
+3	L3	R3
+4	L4	R4
+5	NULL	R5
+select coalesce(t3L.k, t3R.k) as k, t3L.tag as ltag, t3R.tag as rtag
+from t3L full join t3R on t3L.k = t3R.k
+where coalesce(t3L.k, t3R.k) between 1 and 5
+and coalesce(t3L.k, t3R.k) in (
+select coalesce(l2.k, t3M.k) from t3L l2 left join t3M on l2.k = t3M.k
+union
+select coalesce(l2.k, t3M.k) from t3L l2 right join t3M on l2.k = t3M.k
+);
+k	ltag	rtag
+1	L1	NULL
+2	L2	NULL
+3	L3	R3
+4	L4	R4
+5	NULL	R5
+drop table t3O, t3L, t3R, t3M;
+# ========================================================
+# Section 18: Regressions
+#
+# Specific bugs that were fixed; kept as targeted cases so
+# they don't silently regress.
+# ========================================================
+# FULL JOIN with GROUP BY: previously crashed on the
+# create_sort_index assertion (filesort_result != 0) when
+# AGGR_OP::end_send was called twice.
+create table t1 (grp char(1), val int);
+insert into t1 values ('a',10), ('a',20), ('b',30), ('c',40);
+create table t2 (grp char(1), val int);
+insert into t2 values ('b',100), ('c',200), ('c',300), ('d',400);
+select coalesce(t1.grp, t2.grp) as grp,
+count(*) as cnt,
+sum(t1.val) as s1,
+sum(t2.val) as s2
+from t1 full join t2 on t1.grp = t2.grp
+group by coalesce(t1.grp, t2.grp);
+grp	cnt	s1	s2
+a	2	30	NULL
+b	1	30	100
+c	2	80	500
+d	1	NULL	400
+select coalesce(dt.grp1, dt.grp2) as grp,
+count(*) as cnt,
+sum(dt.val1) as s1,
+sum(dt.val2) as s2
+from (select t1.grp as grp1, t1.val as val1, t2.grp as grp2, t2.val as val2
+from t1 left join t2 on t1.grp = t2.grp
+union
+select t1.grp, t1.val, t2.grp, t2.val
+from t1 right join t2 on t1.grp = t2.grp) dt
+group by coalesce(dt.grp1, dt.grp2);
+grp	cnt	s1	s2
+a	2	30	NULL
+b	1	30	100
+c	2	80	500
+d	1	NULL	400
+drop table t1, t2;
+# simplify_joins: do not flatten an FULL JOIN nest when
+# it is not at the top level.
+#
+# simplify_joins moves ON into WHERE and clears on_expr on the 
+# nest, which would normally make the nest eligible for flattening.
+# Flattening here would expose t1 and t2 at top level next to 
+# t3, allow the optimizer pick a plan that interleaves t3 between
+# the FULL JOIN tables.
+create table t1 (a int);
+insert into t1 values (2), (1), (7), (1), (2);
+create table t2 (b int);
+insert into t2 values (4),(5),(9), (4),(1),(7);
+create table t3 (c int);
+insert into t3 values (3),(1),(3),(9);
+create index idx_a on t1(a);
+select * from t3 inner join (t1 full join t2 on t1.a=t2.b)
+on (t3.c=t1.a or t2.b=5);
+c	a	b
+1	1	1
+1	1	1
+1	NULL	5
+3	NULL	5
+3	NULL	5
+9	NULL	5
+select * from t3 inner join (t1 left join t2 on t1.a=t2.b)
+on (t3.c=t1.a or t2.b=5)
+union all
+select * from t3 inner join (t1 right join t2 on t1.a=t2.b)
+on (t3.c=t1.a or t2.b=5)
+where t1.a is null;
+c	a	b
+1	1	1
+1	1	1
+1	NULL	5
+3	NULL	5
+3	NULL	5
+9	NULL	5
+drop table t1, t2, t3;
+# simplify_joins: DO flatten an FJ-containing nest when it is the
+# sole nest of its embedding.
+#
+# Allow the fj-nest to flatten `t1 FULL JOIN t2 ...` when it
+# has no siblings, because adjacency is then trivially preserved.
+create table t1 (a int, b int);
+insert into t1 values (1,10), (2,20), (3,30);
+create table t2 (a int, b int);
+insert into t2 values (2,200), (3,300), (4,400);
+create table t3 (a int, c varchar(10));
+insert into t3 values (1,'x'), (2,'y'), (4,'z');
+select dt.a1, dt.a2, t3.c
+from (select t1.a as a1, t2.a as a2 from t1 full join t2 on t1.a=t2.a) dt
+inner join t3 on coalesce(dt.a1, dt.a2) = t3.a;
+a1	a2	c
+1	NULL	x
+2	2	y
+NULL	4	z
+select dt.a1, dt.a2, t3.c
+from (select t1.a as a1, t2.a as a2 from t1 left join t2 on t1.a=t2.a
+union
+select t1.a as a1, t2.a as a2 from t1 right join t2 on t1.a=t2.a) dt
+inner join t3 on coalesce(dt.a1, dt.a2) = t3.a;
+a1	a2	c
+1	NULL	x
+2	2	y
+NULL	4	z
+drop table t1, t2, t3;
+# simplify_joins: do not flatten a nest that carries JOIN_TYPE_FULL
+# on itself.
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2 (a int);
+insert into t2 values (2),(3),(4);
+create table t3 (a int);
+insert into t3 values (3),(4),(5);
+select t1.a as a1, t2.a as a2, t3.a as a3
+from (t1 join t2 on t1.a=t2.a) full join t3 on t2.a=t3.a;
+a1	a2	a3
+2	2	NULL
+3	3	3
+NULL	NULL	4
+NULL	NULL	5
+select t1.a as a1, t2.a as a2, t3.a as a3
+from (t1 join t2 on t1.a=t2.a) left join t3 on t2.a=t3.a
+union all
+select t1.a as a1, t2.a as a2, t3.a as a3
+from (t1 join t2 on t1.a=t2.a) right join t3 on t2.a=t3.a
+where t2.a is null;
+a1	a2	a3
+2	2	NULL
+3	3	3
+NULL	NULL	4
+NULL	NULL	5
+drop table t1, t2, t3;
+# INNER / CROSS JOIN of an outer table with a FULL JOIN must not
+# interleave the outer table between the FULL JOIN tables.
+create table t1 (a int);
+insert into t1 values (2), (1), (7), (1), (2);
+create table t2 (b int);
+insert into t2 values (4),(5),(9), (4),(1),(7);
+create table t3 (c int);
+insert into t3 values (3),(1),(3),(9);
+create index idx_a on t1(a);
+select * from t3 inner join (t1 full join t2 on t1.a=t2.b)
+on (t3.c=t1.a or t2.b=5);
+c	a	b
+1	1	1
+1	1	1
+1	NULL	5
+3	NULL	5
+3	NULL	5
+9	NULL	5
+select * from t3 cross join (t1 full join t2 on t1.a=t2.b);
+c	a	b
+1	1	1
+1	1	1
+1	2	NULL
+1	2	NULL
+1	7	7
+1	NULL	4
+1	NULL	4
+1	NULL	5
+1	NULL	9
+3	1	1
+3	1	1
+3	1	1
+3	1	1
+3	2	NULL
+3	2	NULL
+3	2	NULL
+3	2	NULL
+3	7	7
+3	7	7
+3	NULL	4
+3	NULL	4
+3	NULL	4
+3	NULL	4
+3	NULL	5
+3	NULL	5
+3	NULL	9
+3	NULL	9
+9	1	1
+9	1	1
+9	2	NULL
+9	2	NULL
+9	7	7
+9	NULL	4
+9	NULL	4
+9	NULL	5
+9	NULL	9
+select * from t3 left join (t1 full join t2 on t1.a=t2.b)
+on (t3.c=t1.a or t2.b=5) and t3.c != 9;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+select * from t3 right join (t1 full join t2 on t1.a=t2.b)
+on (t3.c=t1.a or t2.b=5) and t3.c != 9;
+c	a	b
+1	1	1
+1	1	1
+1	NULL	5
+3	NULL	5
+3	NULL	5
+NULL	2	NULL
+NULL	2	NULL
+NULL	7	7
+NULL	NULL	4
+NULL	NULL	4
+NULL	NULL	9
+drop table t1, t2, t3;
+# ====================================================================
+# Section 19: Right side of FULL JOIN must be a base table
+# ====================================================================
+#
+# Derived tables, views, and subqueries on the right side of a FULL
+# JOIN are not supported and must produce an error.
+create table t1 (a int);
+create table t2 (a int);
+# Derived table on the right side of a simple FULL JOIN
+select * from t1 full join (select * from t2) dt on t1.a = dt.a;
+ERROR HY000: FULL JOIN is only supported with base tables on the right side; 'dt' is not a base table
+# View on the right side of a simple FULL JOIN
+create view v1 as select * from t2;
+select * from t1 full join v1 on t1.a = v1.a;
+ERROR HY000: FULL JOIN is only supported with base tables on the right side; 'v1' is not a base table
+drop view v1;
+# Derived table on the right side of a nested FULL JOIN
+create table t3 (a int);
+select * from t1 full join t2 on t1.a = t2.a
+full join (select * from t3) dt on t2.a = dt.a;
+ERROR HY000: FULL JOIN is only supported with base tables on the right side; 'dt' is not a base table
+drop table t1, t2, t3;
+# ====================================================================
+# Section 20: FULL JOIN not allowed on the inner side of a
+#             LEFT or RIGHT JOIN
+# ====================================================================
+#
+# The FULL JOIN null-complement pass emits right-unmatched rows at
+# the end of its right partner's scan; it has no mechanism to pair
+# those rows with each outer row of an enclosing LEFT/RIGHT JOIN
+# when the FULL JOIN sits on that join's inner (null-complemented)
+# side.  Rather than silently return wrong results, reject such
+# queries.
+#
+# MariaDB's convert_right_join rewrites every RIGHT JOIN into an
+# equivalent LEFT JOIN at parse time, so the notion of "inner" is
+# unambiguous in the post-conversion shape -- it is the side that
+# gets null-complemented.  The equivalences the check relies on:
+#
+#   t3 LEFT  JOIN (FJ)  : (FJ) is inner        -> rejected
+#   t3 RIGHT JOIN (FJ)  : (FJ) LEFT JOIN t3    -> t3 is inner,
+#                                                 FJ is outer
+#                                              -> allowed
+#   (FJ) LEFT  JOIN t3  : t3 is inner          -> allowed
+#   (FJ) RIGHT JOIN t3  : t3 LEFT JOIN (FJ)    -> (FJ) is inner
+#                                              -> rejected
+#
+# INNER JOIN has no inner/outer distinction; a FULL JOIN on either
+# side of an INNER JOIN is allowed.
+create table t1 (a int);
+insert into t1 values (1), (2);
+create table t2 (b int);
+insert into t2 values (1), (3);
+create table t3 (c int);
+insert into t3 values (1), (4);
+# t3 LEFT JOIN (FJ) -- FJ is inner -- rejected.
+select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+on t3.c = t1.a;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+# t3 RIGHT JOIN (FJ) -- canonicalizes to (FJ) LEFT JOIN t3;
+# t3 is inner, FJ is outer -- allowed.
+select * from t3 right join (t1 full join t2 on t1.a = t2.b)
+on t3.c = t1.a;
+c	a	b
+1	1	1
+NULL	2	NULL
+NULL	NULL	3
+# t3 INNER JOIN (FJ) -- allowed.
+select * from t3 inner join (t1 full join t2 on t1.a = t2.b)
+on t3.c = t1.a;
+c	a	b
+1	1	1
+# t3 , (FJ) (comma = inner) -- allowed.
+select * from t3, (t1 full join t2 on t1.a = t2.b)
+where t3.c = t1.a;
+c	a	b
+1	1	1
+# (FJ) LEFT JOIN t3 -- t3 is inner -- allowed.
+select * from (t1 full join t2 on t1.a = t2.b) left join t3
+on t1.a = t3.c;
+a	b	c
+1	1	1
+2	NULL	NULL
+NULL	3	NULL
+# (FJ) RIGHT JOIN t3 -- canonicalizes to t3 LEFT JOIN (FJ);
+# FJ is inner -- rejected.
+select * from (t1 full join t2 on t1.a = t2.b) right join t3
+on t1.a = t3.c;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+# Derived table with FULL JOIN on the inner side -- rejected.
+select dt.a1, dt.a2, t3.c
+from (select t1.a as a1, t2.b as a2 from t1 full join t2 on t1.a=t2.b) dt
+right join t3 on coalesce(dt.a1, dt.a2) = t3.c;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+# FULL JOIN in a more deeply nested LEFT JOIN's inner side --
+# rejected.  Ensures the check descends through intermediate
+# INNER JOIN nesting.
+select * from t3 left join ((t1 full join t2 on t1.a = t2.b) join t3 t3b)
+on t3.c = t1.a;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+# CREATE VIEW must reject the same offending queries at VIEW
+# creation time, not just at execution.
+create view v_bad_left as
+select * from t3 left join (t1 full join t2 on t1.a = t2.b)
+on t3.c = t1.a;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+create view v_bad_fjright as
+select * from (t1 full join t2 on t1.a = t2.b) right join t3
+on t1.a = t3.c;
+ERROR HY000: FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN
+# CREATE VIEW with allowed FULL JOIN shapes.
+create view v_ok_left as
+select * from (t1 full join t2 on t1.a = t2.b) left join t3
+on t1.a = t3.c;
+create view v_ok_right as
+select * from t3 right join (t1 full join t2 on t1.a = t2.b)
+on t3.c = t1.a;
+create view v_ok_inner as
+select * from t3 inner join (t1 full join t2 on t1.a = t2.b)
+on t3.c = t1.a;
+drop view v_ok_left, v_ok_right, v_ok_inner;
+drop table t1, t2, t3;
+# End of 12.3 tests

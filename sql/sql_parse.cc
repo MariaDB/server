@@ -8631,7 +8631,8 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
         left_op->first_leaf_for_name_resolution();
     }
 
-    if (!(tbl->outer_join & JOIN_TYPE_RIGHT))
+    if (!(tbl->outer_join & JOIN_TYPE_RIGHT) ||
+        (tbl->outer_join & JOIN_TYPE_FULL))
     {
       pair_tbl= tbl;
       tbl= li++;
@@ -8648,6 +8649,15 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
     cj_nest->on_expr= tbl->on_expr;
     cj_nest->embedding= tbl->embedding;
     cj_nest->join_list= jl;
+    /*
+      Transfer FULL JOIN state to the new nest: tbl is being replaced
+      by cj_nest in the join tree, so the partner pointer must follow
+      (and the partner's back-pointer must be retargeted).
+    */
+    cj_nest->foj_partner= tbl->foj_partner;
+    cj_nest->on_context= tbl->on_context;
+    if (cj_nest->foj_partner)
+      cj_nest->foj_partner->foj_partner= cj_nest;
     cj_nest->alias.str= "(nest_last_join)";
     cj_nest->alias.length= sizeof("(nest_last_join)")-1;
     li.replace(cj_nest);
@@ -8673,6 +8683,8 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
   tbl->on_expr= 0;
   tbl->straight= straight_fl;
   tbl->natural_join= 0;
+  tbl->foj_partner= 0;
+  tbl->on_context= 0;
   tbl->embedding= cj_nest;
   tbl->join_list= cjl;
 
@@ -8726,12 +8738,10 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
 
 TABLE_LIST *st_select_lex::convert_right_join()
 {
-  TABLE_LIST *tab2= join_list->pop();
-  TABLE_LIST *tab1= join_list->pop();
   DBUG_ENTER("convert_right_join");
-
-  join_list->push_front(tab2, parent_lex->thd->mem_root);
-  join_list->push_front(tab1, parent_lex->thd->mem_root);
+  List_iterator<TABLE_LIST> li(*join_list);
+  li++; // points iterator at first element and returns it
+  TABLE_LIST* tab1= li.swap_next();
   tab1->outer_join|= JOIN_TYPE_RIGHT;
 
   DBUG_RETURN(tab1);
@@ -8996,9 +9006,7 @@ Item *normalize_cond(THD *thd, Item *cond)
 
 
 /**
-  Add an ON condition to the second operand of a JOIN ... ON.
-
-    Add an ON condition to the right operand of a JOIN ... ON clause.
+  Add an ON condition to the second (right) operand of a JOIN ... ON.
 
   @param b     the second operand of a JOIN ... ON
   @param expr  the condition to be added to the ON clause
@@ -9026,6 +9034,7 @@ void add_join_on(THD *thd, TABLE_LIST *b, Item *expr)
       b->on_expr= new (thd->mem_root) Item_cond_and(thd, b->on_expr,expr);
     }
     b->on_expr->top_level_item();
+    b->on_expr->base_flags|= item_base_t::IS_COND;
   }
 }
 

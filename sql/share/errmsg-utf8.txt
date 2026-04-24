@@ -12392,3 +12392,7 @@ ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
         eng "Cannot cast '%s' as '%s' in assignment of %sQ for operation %s"
 ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION
         eng "Cannot cast '%s' as '%s' in assignment of %sQ.%sQ for operation %s"
+ER_FULL_JOIN_BASE_TABLES_ONLY
+        eng "FULL JOIN is only supported with base tables on the right side; '%s' is not a base table"
+ER_FULL_JOIN_NOT_ALLOWED_IN_OUTER_JOIN
+        eng "FULL JOIN is not allowed on the inner side of a LEFT or RIGHT JOIN"
