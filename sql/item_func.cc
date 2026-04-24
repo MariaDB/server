@@ -380,6 +380,18 @@ Item_func::fix_fields(THD *thd, Item **ref)
     cleanup();
     return TRUE;
   }
+  if (m_exec_stack_size >= sizeof(VDec2_lazy))
+  {
+    uchar extra_buff[STACK_BUFF_HEAVY];
+    if (check_stack_overrun(thd, STACK_MIN_SIZE * 2, extra_buff))
+      return TRUE;
+  }
+  else
+  {
+    uchar extra_buff[STACK_BUFF_LIGHT];
+    if (check_stack_overrun(thd, STACK_MIN_SIZE * 2, extra_buff))
+      return TRUE;
+  }
   base_flags|= item_base_t::FIXED;
   return FALSE;
 }
