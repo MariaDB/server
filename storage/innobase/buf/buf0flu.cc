@@ -1791,7 +1791,7 @@ static ulint buf_flush_LRU(ulint max_n) noexcept
 # include "cache.h"
 #endif
 
-inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
+inline bool log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
   ut_ad(!recv_sys.rpo);
@@ -2115,15 +2115,7 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
     writer_update(false);
   }
 
-  const my_bool archive{log_sys.archive};
   log_resize_release();
-  if (archive)
-  {
-    log_sys.latch.rd_lock();
-    if (UNIV_LIKELY(log_sys.archive))
-      log_sys.archive_create(false);
-    log_sys.latch.rd_unlock();
-  }
 
   if (UNIV_LIKELY(resizing <= 1));
   else if (resizing > checkpoint)
@@ -2133,12 +2125,15 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
       << "; start LSN=" << resizing;
   else
     buf_flush_ahead(end_lsn + 1, false);
+
+  return archive_header_was_reset;
 }
 
 /** Initiate a log checkpoint, discarding the start of the log.
 @param oldest_lsn   the checkpoint LSN
-@param end_lsn      log_sys.get_lsn() */
-static void log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
+@param end_lsn      log_sys.get_lsn()
+@return whether a call to log_t::archive_create(false) is desirable */
+static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
   ut_ad(!recv_no_log_write);
@@ -2156,7 +2151,7 @@ static void log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
       /* Do nothing, because nothing was logged (other than a
       FILE_CHECKPOINT record) since the previous checkpoint. */
       log_sys.latch.wr_unlock();
-      return;
+      return false;
     }
 
   ut_ad(oldest_lsn > log_sys.last_checkpoint_lsn ||
@@ -2193,14 +2188,15 @@ static void log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
         oldest_lsn == log_sys.get_first_lsn());
   ut_ad(log_sys.get_flushed_lsn() >= flush_lsn);
 
-  log_sys.write_checkpoint(oldest_lsn, end_lsn);
+  return log_sys.write_checkpoint(oldest_lsn, end_lsn);
 }
 
 /** Make a checkpoint. Note that this function does not flush dirty
 blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
-log file. Use log_make_checkpoint() to flush also the pool. */
-static void log_checkpoint() noexcept
+log file. Use log_make_checkpoint() to flush also the pool.
+@return whether a call to log_t::archive_create(false) is desirable */
+static bool log_checkpoint() noexcept
 {
   ut_ad(!recv_recovery_is_on());
 
@@ -2215,14 +2211,14 @@ static void log_checkpoint() noexcept
   fil_flush_file_spaces();
 
   if (UNIV_UNLIKELY(recv_sys.rpo != 0))
-    return;
+    return false;
 
   log_sys.latch.wr_lock();
   const lsn_t end_lsn= log_sys.get_lsn();
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   const lsn_t oldest_lsn= buf_pool.get_oldest_modification(end_lsn);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-  log_checkpoint_low(oldest_lsn, end_lsn);
+  return log_checkpoint_low(oldest_lsn, end_lsn);
 }
 
 /** Wait for all dirty pages up to an LSN to be written out.
@@ -2333,9 +2329,10 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious) noexcept
 
 /** Conduct checkpoint-related flushing for innodb_flush_sync=ON,
 and try to initiate checkpoints until the target is met.
-@param lsn   target checkpoint */
+@param lsn   target checkpoint
+@return whether a call to log_t::archive_create(false) is desirable */
 ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
-static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
+static bool buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
   mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
@@ -2387,7 +2384,7 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
   os_aio_wait_until_no_pending_writes(false);
 
   if (UNIV_UNLIKELY(recv_recovery_is_on() || recv_sys.rpo))
-    return;
+    return false;
 
   fil_flush_file_spaces();
   log_sys.latch.wr_lock();
@@ -2395,12 +2392,13 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   lsn_t measure= buf_pool.get_oldest_modification(0);
   const lsn_t checkpoint_lsn= measure ? measure : newest_lsn;
+  bool create_spare_archive= false;
 
   if (checkpoint_lsn > log_sys.last_checkpoint_lsn +
       SIZE_OF_FILE_CHECKPOINT + 8 * log_sys.is_encrypted())
   {
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-    log_checkpoint_low(checkpoint_lsn, newest_lsn);
+    create_spare_archive= log_checkpoint_low(checkpoint_lsn, newest_lsn);
     log_sys.latch.wr_lock();
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
     measure= buf_pool.get_oldest_modification(0);
@@ -2424,6 +2422,7 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
   /* wake up buf_flush_wait() */
   pthread_cond_broadcast(&buf_pool.done_flush_list);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+  return create_spare_archive;
 }
 
 /** Check if the adaptive flushing threshold is recommended based on
@@ -2638,6 +2637,22 @@ bool buf_pool_t::need_LRU_eviction() const noexcept
                         UT_LIST_GET_LEN(free) < LRU_scan_depth / 2));
 }
 
+/** Invoke log_t::archive_create() when needed.
+@param create whether to try to invoke log_t::archive_create()
+@return false (always) */
+static bool buf_flush_archive_create(bool create) noexcept
+{
+  mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
+  if (UNIV_UNLIKELY(create))
+  {
+    log_sys.latch.rd_lock();
+    if (log_sys.archive)
+      log_sys.archive_create(false);
+    log_sys.latch.rd_unlock();
+  }
+  return false;
+}
+
 #if defined __aarch64__&&defined __GNUC__&&__GNUC__==4&&!defined __clang__
 /* Avoid GCC 4.8.5 internal compiler error "could not split insn". */
 __attribute__((optimize(0)))
@@ -2659,6 +2674,7 @@ static void buf_flush_page_cleaner() noexcept
 
   lsn_t lsn_limit;
   ulint last_activity_count= srv_get_activity_count();
+  bool create_spare_archive{false};
 
   for (;;)
   {
@@ -2676,7 +2692,8 @@ static void buf_flush_page_cleaner() noexcept
     if (UNIV_UNLIKELY(lsn_limit != 0) && UNIV_LIKELY(srv_flush_sync))
     {
     furious_flush:
-      buf_flush_sync_for_checkpoint(lsn_limit);
+      buf_flush_archive_create(create_spare_archive);
+      create_spare_archive= buf_flush_sync_for_checkpoint(lsn_limit);
       last_pages= 0;
       set_timespec(abstime, 1);
       continue;
@@ -2693,14 +2710,18 @@ static void buf_flush_page_cleaner() noexcept
            srv_max_dirty_pages_pct_lwm == 0.0))
       {
         buf_pool.LRU_warned_clear();
+        if (UNIV_UNLIKELY(create_spare_archive))
+          goto timed_wait;
         /* We are idle; wait for buf_pool.page_cleaner_wakeup() */
         my_cond_wait(&buf_pool.do_flush_list,
                      &buf_pool.flush_list_mutex.m_mutex);
       }
       else
+      timed_wait:
         my_cond_timedwait(&buf_pool.do_flush_list,
                           &buf_pool.flush_list_mutex.m_mutex, &abstime);
     }
+
     set_timespec(abstime, 1);
 
     lsn_limit= buf_flush_sync_lsn;
@@ -2723,6 +2744,7 @@ static void buf_flush_page_cleaner() noexcept
       {
         if (recv_recovery_is_on())
           continue;
+        create_spare_archive= buf_flush_archive_create(create_spare_archive);
         IF_DBUG(if (log_sys.last_checkpoint_lsn > log_sys.get_first_lsn() &&
                     srv_shutdown_state < SRV_SHUTDOWN_CLEANUP &&
                     (_db_keyword_(nullptr, "ib_log_checkpoint_avoid", 1) ||
@@ -2731,7 +2753,7 @@ static void buf_flush_page_cleaner() noexcept
         if (log_sys.check_for_checkpoint() ||
             (!srv_startup_is_before_trx_rollback_phase &&
              srv_operation <= SRV_OPERATION_EXPORT_RESTORED))
-          log_checkpoint();
+          create_spare_archive= log_checkpoint();
       }
       while (false);
 
