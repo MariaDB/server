@@ -632,6 +632,7 @@ SELECT ST_ASTEXT(ST_POINTFROMGEOHASH(hash_value,0)) FROM geohashes;
 
 --echo # Test create table from SELECT statement
 CREATE TABLE t1 AS SELECT ST_POINTFROMGEOHASH("0123", 4326);
+--disable_replay next_query This is EXPLAIN TABLE.
 EXPLAIN t1;
 DROP TABLE t1;
 

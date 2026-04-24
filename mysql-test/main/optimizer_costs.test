@@ -147,12 +147,14 @@ create table t1 (l_orderkey int(11) NOT NULL,
                  l_suppkey int(11) DEFAULT NULL,
                  PRIMARY KEY (l_orderkey)) engine=aria;
 insert into t1 select seq,seq,seq from seq_1_to_1000;
+--disable_replay next_query Will try to create table for sequence engine
 explain select straight_join count(*) from seq_1_to_10000,t1 where seq=l_orderkey;
 show status like "last_query_cost";
 set @org_cost=@@aria.optimizer_key_next_find_cost;
 # Set cost for t1 high so that we cannot use it for index scans
 set global aria.optimizer_key_next_find_cost=1000;
 flush tables;
+--disable_replay next_query Will try to create table for sequence engine
 explain select count(*) from seq_1_to_10000,t1 where seq=l_orderkey;
 show status like "last_query_cost";
 set global aria.optimizer_key_next_find_cost=@org_cost;
