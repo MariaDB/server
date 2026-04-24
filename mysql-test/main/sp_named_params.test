@@ -1,0 +1,71 @@
+--echo #
+--echo # MDEV-38329: Named Parameters in Invocation of Stored Routines
+--echo #
+
+--echo # Test setup
+delimiter $$;
+CREATE PROCEDURE p1(a INT, b INT, c INT)
+BEGIN
+  SELECT a, b, c;
+END;
+$$
+delimiter ;$$
+
+--echo # All positional (existing behavior)
+CALL p1(1, 2, 3);
+
+--echo # All named
+CALL p1(a => 1, b => 2, c => 3);
+
+--echo # Named in different order
+CALL p1(c => 3, a => 1, b => 2);
+
+--echo # Mixed positional and named
+CALL p1(1, b => 2, c => 3);
+
+--echo # Mixed: first two positional, last named
+CALL p1(1, 2, c => 3);
+
+--echo # Positional after named should fail
+--error ER_PARSE_ERROR
+CALL p1(a => 1, 2, 3);
+
+--echo # Unknown parameter name
+--error ER_SP_UNDECLARED_VAR
+CALL p1(a => 1, b => 2, x => 3);
+
+--echo # Duplicate parameter name
+--error ER_SP_UNDECLARED_VAR
+CALL p1(a => 1, a => 2, b => 3);
+
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Test with default values
+--echo #
+delimiter $$;
+CREATE PROCEDURE p2(a INT, b INT DEFAULT 20, c INT DEFAULT 30)
+BEGIN
+  SELECT a, b, c;
+END;
+$$
+delimiter ;$$
+
+--echo # Skip middle param (use default for b)
+CALL p2(a => 1, c => 3);
+
+--echo # Only required param
+CALL p2(a => 1);
+
+--echo # All named with defaults overridden
+CALL p2(a => 10, b => 20, c => 30);
+
+--echo # Missing required param should fail
+--error ER_SP_WRONG_NO_OF_ARGS
+CALL p2(b => 2, c => 3);
+
+DROP PROCEDURE p2;
+
+--echo #
+--echo # End of tests
+--echo #
