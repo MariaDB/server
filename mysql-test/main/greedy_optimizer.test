@@ -1,5 +1,7 @@
 --source include/have_innodb.inc
 
+--disable_replay testfile Uses Last_query_cost and counters for most queries.
+
 #
 # A simple test of the greedy query optimization algorithm and the switches that
 # controls the optimization process.

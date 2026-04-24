@@ -5,6 +5,7 @@
 # the library are.
 #
 
+--disable_replay testfile Don't support UDFs
 
 --disable_warnings
 drop table if exists t1;
