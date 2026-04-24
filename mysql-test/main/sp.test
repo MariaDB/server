@@ -2,6 +2,8 @@
 --source include/have_partition.inc
 --source include/have_sequence.inc
 
+--disable_replay testfile Don't support SPs. 
+
 #
 # Basic stored PROCEDURE tests
 #
