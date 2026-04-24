@@ -3305,6 +3305,12 @@ public:
   Table_type table_type;                        /* Used for SHOW CREATE */
   List<Key_part_spec> ref_list;
   List<LEX_USER>      users_list;
+  /** One argument to CALL: optional parameter name (empty if positional) and value. */
+  struct Call_param {
+    LEX_CSTRING name;   /* empty (str==NULL or length==0) if positional */
+    Item *value;
+  };
+  List<Call_param>    call_param_list;
   List<Item>          *insert_list= nullptr,field_list,value_list,update_list;
   List<List_item>     many_values;
   List<set_var_base>  var_list;
@@ -3997,6 +4003,8 @@ public:
   bool call_statement_start(THD *thd, const Qualified_ident *ident);
   bool call_statement_start_or_lvalue_assign(THD *thd,
                                              Qualified_ident *ident);
+  /** Build value_list from call_param_list (for execution/prepare). No-op if call_param_list is empty. */
+  void build_value_list_from_call_params(THD *thd);
   /*
     Create instructions for a direct call (without the CALL keyword):
       sp1;               - a schema procedure call

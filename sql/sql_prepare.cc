@@ -2484,6 +2484,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     break;
 
   case SQLCOM_CALL:
+    lex->build_value_list_from_call_params(thd);
     res= mysql_test_call_fields(stmt, tables, &lex->value_list);
     break;
   case SQLCOM_SET_OPTION:

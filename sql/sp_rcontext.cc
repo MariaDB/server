@@ -227,9 +227,13 @@ bool Row_definition_list::
   List_iterator<Item> it_args(*args);
   DBUG_ASSERT(elements >= args->elements );
   Spvar_definition *def;
-  Item *arg;
-  while ((def= it++) && (arg= it_args++))
+  uint i= 0;
+  while ((def= it++))
   {
+    Item *arg= (i < args->elements) ? it_args++ : nullptr;
+    i++;
+    if (!arg)
+      continue;
     if (def->type_handler()->adjust_spparam_type(def, arg))
       return true;
   }

@@ -3069,6 +3069,96 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
   thd->lex->in_sum_func= 0;                     // For Item_field::fix_fields()
 
   /*
+    Single-pass resolution of call_param_list into value_list.
+
+    Purely positional calls: value_list is built directly, no allocation.
+    On the first named argument, lazily allocate arg_array, backfill it
+    with the positional arguments seen so far, then continue placing named
+    arguments into their formal slots. After the loop, fill defaults for
+    any unset formals and error on missing required parameters.
+  */
+  if (thd->lex->call_param_list.elements > 0)
+  {
+    sp_pcontext *pctx= sp->get_parse_context();
+    const uint param_count= pctx->context_var_count();
+    const uint call_count= thd->lex->call_param_list.elements;
+    Item **arg_array= nullptr;
+    uint positional_idx= 0;
+
+    thd->lex->value_list.empty();
+
+    List_iterator_fast<LEX::Call_param> it(thd->lex->call_param_list);
+    LEX::Call_param *cp;
+    while ((cp= it++))
+    {
+      if (!cp->name.length)
+      {
+        if (arg_array)
+        {
+          my_error(ER_WRONG_ARGUMENTS, MYF(0), "CALL");
+          return 1;
+        }
+        if (positional_idx >= param_count)
+        {
+          my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "PROCEDURE",
+                   ErrConvDQName(sp).ptr(), param_count, call_count);
+          return 1;
+        }
+        thd->lex->value_list.push_back(cp->value, thd->mem_root);
+        positional_idx++;
+      }
+      else
+      {
+        if (!arg_array)
+        {
+          arg_array= (Item **)thd->alloc(param_count * sizeof(Item *));
+          if (!arg_array)
+            return 1;
+          memset(arg_array, 0, param_count * sizeof(Item *));
+          uint k= 0;
+          List_iterator_fast<Item> vit(thd->lex->value_list);
+          Item *vi;
+          while ((vi= vit++))
+            arg_array[k++]= vi;
+        }
+        sp_variable *spvar= pctx->find_variable(&cp->name, false);
+        if (!spvar)
+        {
+          my_error(ER_SP_UNDECLARED_VAR, MYF(0), cp->name.str);
+          return 1;
+        }
+        if (arg_array[spvar->offset])
+        {
+          my_error(ER_SP_DUP_PARAM, MYF(0), cp->name.str);
+          return 1;
+        }
+        arg_array[spvar->offset]= cp->value;
+      }
+    }
+
+    if (arg_array)
+    {
+      for (uint i= 0; i < param_count; i++)
+      {
+        if (!arg_array[i])
+        {
+          sp_variable *spvar= pctx->get_context_variable(i);
+          arg_array[i]= spvar->default_value;
+        }
+        if (!arg_array[i])
+        {
+          my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "PROCEDURE",
+                   ErrConvDQName(sp).ptr(), param_count, call_count);
+          return 1;
+        }
+      }
+      thd->lex->value_list.empty();
+      for (uint i= 0; i < param_count; i++)
+        thd->lex->value_list.push_back(arg_array[i], thd->mem_root);
+    }
+  }
+
+  /*
     We never write CALL statements into binlog:
      - If the mode is non-prelocked, each statement will be logged
        separately.
