@@ -210,12 +210,14 @@ INSERT INTO t1 VALUES (1), (2);
 SELECT a FROM t1 LIMIT 1;
 SHOW SESSION STATUS LIKE 'Last_query_cost';
 
+--disable_replay next_query Needs to preserve counters
 EXPLAIN SELECT a FROM t1;
 SHOW SESSION STATUS LIKE 'Last_query_cost';
 
 SELECT a FROM t1 UNION SELECT a FROM t1 ORDER BY a;
 SHOW SESSION STATUS LIKE 'Last_query_cost';
 
+--disable_replay next_query Needs to preserve counters
 EXPLAIN SELECT a FROM t1 UNION SELECT a FROM t1 ORDER BY a;
 SHOW SESSION STATUS LIKE 'Last_query_cost';
 

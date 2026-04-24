@@ -3,6 +3,8 @@
 --source include/have_partition.inc
 --source include/no_view_protocol.inc
 
+--disable_replay testfile Don't replay a replay test
+
 set optimizer_record_context=ON;
 show variables like 'optimizer_record_context';
 
