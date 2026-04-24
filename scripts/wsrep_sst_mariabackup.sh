@@ -25,7 +25,11 @@ set -ue
 # https://mariadb.com/kb/en/mariabackup-overview/
 # Make sure to read that before proceeding!
 
-. $(dirname "$0")/wsrep_sst_common
+wsrep_sst_common_dir=$(dirname "$0")
+if [ ! -f "$wsrep_sst_common_dir/wsrep_sst_common" ]; then
+    wsrep_sst_common_dir="@INSTALL_MYSQLSHAREDIRABS@"
+fi
+. "$wsrep_sst_common_dir/wsrep_sst_common"
 
 BACKUP_BIN=$(commandex 'mariadb-backup')
 if [ -z "$BACKUP_BIN" ]; then

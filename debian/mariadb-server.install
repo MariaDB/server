@@ -30,7 +30,6 @@ usr/bin/myisam_ftdump
 usr/bin/myisamchk
 usr/bin/myisamlog
 usr/bin/myisampack
-usr/bin/wsrep_sst_common
 usr/bin/wsrep_sst_mariabackup
 usr/bin/wsrep_sst_mysqldump
 usr/bin/wsrep_sst_rsync
@@ -84,3 +83,4 @@ usr/share/man/man1/wsrep_sst_rsync_wan.1
 usr/share/mariadb/mini-benchmark
 usr/share/mariadb/wsrep.cnf
 usr/share/mariadb/wsrep_notify
+usr/share/mariadb/wsrep_sst_common

@@ -317,7 +317,8 @@ ELSE()
       wsrep_sst_backup
     )
     # The following script is sourced from other SST scripts, so it should
-    # not be made executable.
+    # not be made executable. Install it to the shared data directory
+    # rather than bindir, since it is a function library, not a command.
     SET(WSREP_SOURCE
       wsrep_sst_common
     )
@@ -331,7 +332,7 @@ ELSE()
       ENDIF()
       INSTALL(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/${file}
-        DESTINATION ${INSTALL_BINDIR}
+        DESTINATION ${INSTALL_MYSQLSHAREDIR}
         COMPONENT ${${file}_COMPONENT}
       )
     ENDFOREACH()
