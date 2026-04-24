@@ -1658,7 +1658,7 @@ execute stmt;
 drop table t1, t2;
 
 --echo #
---echo # MDEV-38819: Logic Inconsistency between Direct HAVING Query and Derived Table Relocation
+--echo # MDEV-38819: Wrong result of "Range checked for each record" after pushdown from HAVING
 --echo #
 
 

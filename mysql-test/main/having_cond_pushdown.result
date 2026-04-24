@@ -6091,7 +6091,7 @@ EXPLAIN
 }
 drop table t1, t2;
 #
-# MDEV-38819: Logic Inconsistency between Direct HAVING Query and Derived Table Relocation
+# MDEV-38819: Wrong result of "Range checked for each record" after pushdown from HAVING
 #
 CREATE TABLE t1(a INT, b INT UNIQUE);
 CREATE TABLE t2 LIKE t1;
