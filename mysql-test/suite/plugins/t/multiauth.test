@@ -1,5 +1,3 @@
---source include/not_ubsan.inc
-
 let $REGEX_VERSION_ID=/$mysql_get_server_version/VERSION_ID/;
 let $REGEX_PASSWORD_LAST_CHANGED=/password_last_changed": [0-9]*/password_last_changed": #/;
 let $REGEX_GLOBAL_PRIV=$REGEX_PASSWORD_LAST_CHANGED $REGEX_VERSION_ID;
