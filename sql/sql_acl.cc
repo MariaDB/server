@@ -13823,7 +13823,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
     {
       ulonglong len= safe_net_field_length_ll((uchar**)&passwd,
                                               end - passwd);
-      if (len > (ulonglong)(end - passwd))
+      if (!passwd || len > (ulonglong)(end - passwd))
       {
         my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
                    MYF(0));

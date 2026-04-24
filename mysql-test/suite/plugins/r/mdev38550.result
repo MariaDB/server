@@ -1,9 +1,6 @@
 #
 # Setup
 #
-INSTALL PLUGIN IF NOT EXISTS cleartext_plugin_server SONAME '';
-Warnings:
-Note	1968	Plugin 'cleartext_plugin_server' already installed
 CREATE DATABASE mdev38550_db;
 #
 # Test 1: COM_CHANGE_USER with short password
@@ -32,13 +29,15 @@ mdev38550_db
 # Connection uses cleartext directly, password goes in first packet
 # Requires LENENC support in both client and server for COM_CHANGE_USER
 #
-# TODO: libmariadb does not yet support LENENC for COM_CHANGE_USER
-# (see mariadb-corporation/mariadb-connector-c#298).
-# In debug builds, the client hits DBUG_ASSERT(data_len <= 255) and crashes,
-# so we skip the test. In non-debug builds, it returns error 2027.
-# Once the client fix is merged and the submodule updated, this test should
-# be updated to expect success instead of error.
-#
+connect  cleartext_con, 127.0.0.1, changeuserlongpwd, $change_pwd, mdev38550_db, $MASTER_MYPORT, , , mysql_clear_password;
+SELECT DATABASE() AS db, CURRENT_USER() AS user;
+db	user
+mdev38550_db	changeuserlongpwd@%
+SELECT DATABASE() AS db, CURRENT_USER() AS user;
+db	user
+mdev38550_db	changeuserlongpwd@%
+connection default;
+disconnect cleartext_con;
 #
 # Cleanup
 #

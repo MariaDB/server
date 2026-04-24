@@ -14,7 +14,6 @@
 --echo #
 --echo # Setup
 --echo #
-eval INSTALL PLUGIN IF NOT EXISTS cleartext_plugin_server SONAME '$PLUGIN_AUTH';
 CREATE DATABASE mdev38431_db;
 
 --echo #

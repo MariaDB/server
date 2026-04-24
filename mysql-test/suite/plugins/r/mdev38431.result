@@ -1,9 +1,6 @@
 #
 # Setup
 #
-INSTALL PLUGIN IF NOT EXISTS cleartext_plugin_server SONAME '';
-Warnings:
-Note	1968	Plugin 'cleartext_plugin_server' already installed
 CREATE DATABASE mdev38431_db;
 #
 # Test 1: Short password - baseline test
