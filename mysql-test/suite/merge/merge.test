@@ -314,6 +314,7 @@ EXPLAIN SELECT * FROM t2 WHERE fileset_id = 2
 AND file_code BETWEEN '0000000115' AND '0000000120' LIMIT 1;
 EXPLAIN SELECT * FROM t1 WHERE fileset_id = 2
 AND file_code BETWEEN '0000000115' AND '0000000120' LIMIT 1;
+--disable_replay next_query With MRG_MyISAM tables, one needs to know to INSERT into different table.
 EXPLAIN SELECT * FROM t2 WHERE fileset_id = 2
 AND file_code = '0000000115' LIMIT 1;
 DROP TABLE t2, t1;
