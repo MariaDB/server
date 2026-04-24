@@ -288,6 +288,8 @@ static regex_t ps2_re;    /* the query can be run using PS protocol with second 
 static regex_t sp_re;     /* the query can be run as a SP */
 static regex_t view_re;   /* the query can be run as a view*/
 static regex_t cursor_re;    /* the query can be run with cursor protocol*/
+static regex_t explain_re;            /* the query is EXPLAIN (any variant) */
+static regex_t explain_for_conn_re;   /* the query is EXPLAIN ... FOR CONNECTION ... */
 
 static void init_re(void);
 static int match_re(regex_t *, char *);
@@ -8387,36 +8389,39 @@ static int ensure_replay_server_connection()
 }
 
 /*
-  Check if query starts with "EXPLAIN"
-  Returns TRUE if it matches, FALSE otherwise.
-  Returns FALSE for "EXPLAIN FOR ..." (e.g. EXPLAIN FOR CONNECTION), since that
-  form does not trigger query optimization/recording.
+  Check if query is of the form "EXPLAIN ..." that we want to handle via the
+  replay server.
+
+  Returns TRUE if the query starts with the EXPLAIN keyword.
+  Returns FALSE for "EXPLAIN ... FOR CONNECTION ..." forms (e.g.
+  "EXPLAIN FOR CONNECTION <id>" or "EXPLAIN FORMAT=JSON FOR CONNECTION <id>"),
+  since that form does not trigger query optimization/recording.
+
+  Uses the precompiled regexes explain_re / explain_for_conn_re (see init_re).
 */
 static my_bool is_explain_query(const char *query, size_t query_len)
 {
-  const char *p= query;
-  const char *end= query + query_len;
-  
-  while (p < end && my_isspace(charset_info, *p))
-    p++;
-  
-  if (end - p < 7 || strncasecmp(p, "EXPLAIN", 7) != 0)
-    return FALSE;
-  p += 7;
-  
-  if (p >= end || !my_isspace(charset_info, *p))
-    return FALSE;
+  /* match_re / regexec need a null-terminated string; query isn't guaranteed
+     to be null-terminated at query_len. Copy into a temp buffer. */
+  char stack_buf[512];
+  char *buf;
+  my_bool result;
 
-  /* Skip whitespace between EXPLAIN and the next token */
-  while (p < end && my_isspace(charset_info, *p))
-    p++;
-
-  /* Reject "EXPLAIN FOR ..." (token "FOR" followed by whitespace or end) */
-  if (end - p >= 3 && strncasecmp(p, "FOR", 3) == 0 &&
-      (end - p == 3 || my_isspace(charset_info, p[3])))
+  if (query_len + 1 <= sizeof(stack_buf))
+    buf= stack_buf;
+  else
+    buf= (char*) my_malloc(PSI_NOT_INSTRUMENTED, query_len + 1, MYF(MY_WME));
+  if (!buf)
     return FALSE;
 
-  return TRUE;
+  memcpy(buf, query, query_len);
+  buf[query_len]= '\0';
+
+  result= match_re(&explain_re, buf) && !match_re(&explain_for_conn_re, buf);
+
+  if (buf != stack_buf)
+    my_free(buf);
+  return result;
 }
 
 /*
@@ -10586,11 +10591,31 @@ void init_re(void)
     "^("
     "[[:space:]]*SELECT[[:space:]])";
 
+  /*
+    Filter: query starts with the EXPLAIN keyword.
+  */
+  const char *explain_re_str =
+    "^[[:space:]]*EXPLAIN([[:space:]]|$)";
+
+  /*
+    Filter: EXPLAIN ... FOR CONNECTION ... (any EXPLAIN options between).
+    Matches forms like:
+      EXPLAIN FOR CONNECTION <id>
+      EXPLAIN FORMAT=JSON FOR CONNECTION <id>
+      EXPLAIN EXTENDED FOR CONNECTION <id>
+    The query body of a real EXPLAIN never ends with "FOR CONNECTION", so a
+    plain substring-style match is safe in practice.
+  */
+  const char *explain_for_conn_re_str =
+    "^[[:space:]]*EXPLAIN[[:space:]](.*[[:space:]])?FOR[[:space:]]+CONNECTION([[:space:]]|$)";
+
   init_re_comp(&ps_re, ps_re_str);
   init_re_comp(&ps2_re, ps2_re_str);
   init_re_comp(&sp_re, sp_re_str);
   init_re_comp(&view_re, view_re_str);
   init_re_comp(&cursor_re, cursor_re_str);
+  init_re_comp(&explain_re, explain_re_str);
+  init_re_comp(&explain_for_conn_re, explain_for_conn_re_str);
 }
 
 
@@ -10629,6 +10654,8 @@ void free_re(void)
   regfree(&sp_re);
   regfree(&view_re);
   regfree(&cursor_re);
+  regfree(&explain_re);
+  regfree(&explain_for_conn_re);
 }
 
 /****************************************************************************/
