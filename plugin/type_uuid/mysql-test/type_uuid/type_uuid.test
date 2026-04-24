@@ -1697,3 +1697,15 @@ INSERT INTO t1 VALUES ('00000000-0000-0000-0000-000000000000');
 SELECT * FROM t1 WHERE a IN ('','00000000-0000-0000-0000-000000000001');
 SELECT * FROM t1 WHERE a='';
 DROP TABLE t1;
+
+--echo #
+--echo # Begin 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-31053 UUID(size) should be disallowed
+--echo #
+--error ER_NO_LENGTH_PRECISION_ALLOWED
+CREATE TABLE t1 (a UUID(24));
+
+--echo # End 10.11 tests
