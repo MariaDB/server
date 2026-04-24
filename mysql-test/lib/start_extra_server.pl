@@ -83,6 +83,7 @@ my @mysqld_args = (
     "--key-buffer-size=1M",
     "--sort-buffer-size=256K",
     "--max-heap-table-size=1M",
+    "--gdb",
 );
 
 print "Starting mysqld on port $port with socket $socket...\n";
