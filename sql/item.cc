@@ -9396,11 +9396,45 @@ my_decimal *Item_cache_wrapper::val_decimal(my_decimal* decimal_value)
 {
   Item *cached_value;
   DBUG_ENTER("Item_cache_wrapper::val_decimal");
+
+  /*
+    The cache is not in use, typically because of reasons given in
+    Item_subselect::expr_cache_is_needed.
+
+    expr_cache_is_needed is a virtual method whose default is to
+    indicate that the cache is not needed, Item_subselect implements
+    an override.
+   */
   if (!expr_cache)
   {
     my_decimal *tmp= orig_item->val_decimal(decimal_value);
     null_value= orig_item->null_value;
     DBUG_RETURN(tmp);
+  }
+
+  /*
+    (At this point in time, the only concrete implementation of the
+    Expression_cache interface is Expression_cache_tmptable).
+
+    Expression_cache_tmptable::init() creates its temporary table's
+    result field from the metadata provided by the
+    Type_numeric_attributes parent class (which is where
+    expr_value->decimals lives, the precision of the decimal result),
+    so we must ensure that expr_value->decimals has the correct width
+    before we initialize the cache.  If we don't do this, then the
+    temporary table's result field in the cache may have a narrower
+    width than what is needed which computes a wrong result.  Evaluate
+    orig_item once here so expr_value->decimals reflects the actual
+    width of the first value that will be cached.
+  */
+  DBUG_ASSERT(expr_cache);  // We only make it here if the cache is in use.
+  DBUG_ASSERT(expr_value);  // Presumed to exist.
+  if (!expr_cache->is_inited() &&
+      expr_value->result_type() == DECIMAL_RESULT)
+  {
+    my_decimal *tmp= orig_item->val_decimal(decimal_value);
+    if (!(null_value= orig_item->null_value))
+      expr_value->decimals= tmp->frac;
   }
 
   if ((cached_value= check_cache()))
