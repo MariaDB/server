@@ -117,6 +117,7 @@ simple_thread_local ha_handler_stats *mariadb_stats;
 #include <myisamchk.h>                          // TT_FOR_UPGRADE
 
 extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all);
+extern "C" int thd_need_wait_reports(const MYSQL_THD thd);
 unsigned long long thd_get_query_id(const MYSQL_THD thd);
 void thd_clear_error(MYSQL_THD thd);
 
@@ -2816,6 +2817,7 @@ innobase_trx_allocate(
 
 	trx = trx_create();
 
+        trx->need_wait_report = thd_need_wait_reports(thd);
 	trx->mysql_thd = thd;
 
 	innobase_trx_init(thd, trx);
