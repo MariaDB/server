@@ -324,8 +324,7 @@ static buf_block_t* row_undo_rec_get(undo_node_t* node)
 
 	buf_block_t* prev_page = undo_page;
 	if (trx_undo_rec_t* prev_rec = trx_undo_get_prev_rec(
-		    prev_page, offset, undo->hdr_page_no, undo->hdr_offset,
-		    true, &mtr)) {
+		    prev_page, *undo, offset, &mtr)) {
 		if (prev_page != undo_page) {
 			trx->pages_undone++;
 		}

@@ -399,6 +399,10 @@ public:
 	int multi_range_read_explain_info(uint mrr_mode,
 					  char *str, size_t size) override;
 
+	/** Configure MRR read-ahead optimization based on LIMIT value.
+	@param max_pages  Maximum number of pages to read ahead (0 = disable) */
+	void configure_mrr_readahead(uint max_pages) override;
+
 	/** Attempt to push down an index condition.
 	@param[in] keyno MySQL key number
 	@param[in] idx_cond Index condition to be checked
@@ -442,6 +446,7 @@ public:
 	@param ib_table InnoDB table definition
 	@retval true if not errors were found */
 	bool check_index_consistency(const dict_table_t* ib_table) noexcept;
+
 protected:
 	bool
 	can_convert_string(const Field_string* field,
@@ -534,6 +539,11 @@ protected:
 	/** If true, disable the Rowid Filter. It is disabled when
 	the engine is intialized for making rnd_pos() calls */
 	bool                    m_disable_rowid_filter;
+
+	/** MRR read-ahead configuration */
+	uint		m_mrr_readahead_pages;
+	bool		m_mrr_readahead_enabled;
+	bool		m_mrr_readahead_triggered;
 };
 
 
