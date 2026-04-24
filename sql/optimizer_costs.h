@@ -127,17 +127,22 @@ extern OPTIMIZER_COSTS heap_optimizer_costs, tmp_table_optimizer_costs;
 
 #define COST_MAX (DBL_MAX * (1.0 - DBL_EPSILON))
 
+static inline bool is_double_zero(double c)
+{
+  return (c >= -DBL_EPSILON && c <= DBL_EPSILON);
+}
+
 static inline double COST_ADD(double c, double d)
 {
-  DBUG_ASSERT(c >= 0);
-  DBUG_ASSERT(d >= 0);
+  DBUG_ASSERT(is_double_zero(c) || c > 0);
+  DBUG_ASSERT(is_double_zero(d) || d > 0);
   return (COST_MAX - (d) > (c) ? (c) + (d) : COST_MAX);
 }
 
 static inline double COST_MULT(double c, double f)
 {
-  DBUG_ASSERT(c >= 0);
-  DBUG_ASSERT(f >= 0);
+  DBUG_ASSERT(is_double_zero(c) || c > 0);
+  DBUG_ASSERT(is_double_zero(f) || f > 0);
   return (COST_MAX / (f) > (c) ? (c) * (f) : COST_MAX);
 }
 
