@@ -6077,6 +6077,128 @@ struct btr_blob_log_check_t {
 };
 
 /*******************************************************************//**
+Stores all metadata BLOB fields from big_rec_vec using btr_mtr directly.
+Handles BLOBs for metadata records.
+Does not commit btr_mtr - caller is responsible for mtr management.
+@return DB_SUCCESS or error code */
+static dberr_t
+btr_store_big_rec_extern_metadata_record(
+  btr_pcur_t      *pcur,        /*!< in: persistent cursor */
+  rec_offs        *offsets,     /*!< in: rec_get_offsets() */
+  const big_rec_t *big_rec_vec, /*!< in: vector of fields to store */
+  mtr_t           *btr_mtr)     /*!< in/out: btr_mtr */
+{
+  dberr_t error=            DB_SUCCESS;
+  dict_index_t *index=      pcur->index();
+  buf_block_t *rec_block=   btr_pcur_get_block(pcur);
+  rec_t *rec=               btr_pcur_get_rec(pcur);
+  ulint space_id=           rec_block->page.id().space();
+  const ulint payload_size= rec_block->physical_size() - FIL_PAGE_DATA
+                            - BTR_BLOB_HDR_SIZE - FIL_PAGE_DATA_END;
+
+  DBUG_EXECUTE_IF("crash_before_row_ins_extern_metadata", {sleep(5); DBUG_SUICIDE();});
+  for (ulint i= 0; i < big_rec_vec->n_fields; i++)
+  {
+    const ulint field_no= big_rec_vec->fields[i].field_no;
+    byte* field_ref= btr_rec_get_field_ref(rec, offsets, field_no);
+    ulint extern_len= big_rec_vec->fields[i].len;
+    ulint store_len;
+    uint32_t prev_page_no= FIL_NULL;
+
+    ut_a(extern_len > 0);
+    MEM_CHECK_DEFINED(big_rec_vec->fields[i].data, extern_len);
+
+    for (ulint blob_npages= 0;; ++blob_npages)
+    {
+      buf_block_t *block;
+      uint32_t hint_page_no;
+
+      if (prev_page_no == FIL_NULL)
+        hint_page_no= rec_block->page.id().page_no();
+      else
+        hint_page_no= prev_page_no;
+
+      /* Allocate a BLOB page */
+      block= btr_page_alloc(index, hint_page_no + 1, FSP_NO_DIR, 0, btr_mtr,
+                            btr_mtr, &error);
+
+      if (!block)
+        goto func_exit;
+
+      const uint32_t page_no= block->page.id().page_no();
+
+      /* Update next page pointer in previous page */
+      if (prev_page_no != FIL_NULL) {
+        buf_block_t* prev_block= buf_page_get_gen(page_id_t(space_id,
+                                                            prev_page_no),
+                                                  rec_block->zip_size(),
+                                                  RW_X_LATCH, nullptr,
+                                                  BUF_GET, btr_mtr, &error);
+        if (!prev_block)
+          goto func_exit;
+
+        btr_mtr->write<4>(*prev_block, BTR_BLOB_HDR_NEXT_PAGE_NO
+                          + FIL_PAGE_DATA + prev_block->page.frame,
+                          page_no);
+      }
+
+      btr_mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->page.frame,
+                        FIL_PAGE_TYPE_BLOB);
+
+      if (extern_len > payload_size)
+        store_len= payload_size;
+      else
+        store_len= extern_len;
+
+      btr_mtr->memcpy<mtr_t::MAYBE_NOP>(*block, FIL_PAGE_DATA
+                                        + BTR_BLOB_HDR_SIZE
+                                        + block->page.frame,
+                                        static_cast<const byte*>(
+                                                big_rec_vec->fields[i].data)
+                                        + big_rec_vec->fields[i].len
+                                        - extern_len,
+                                        store_len);
+
+      btr_mtr->write<4>(*block, BTR_BLOB_HDR_PART_LEN + FIL_PAGE_DATA
+                        + block->page.frame, store_len);
+
+      compile_time_assert(FIL_NULL == 0xffffffff);
+      btr_mtr->memset(block, BTR_BLOB_HDR_NEXT_PAGE_NO + FIL_PAGE_DATA,
+                      4, 0xff);
+
+      extern_len-= store_len;
+
+      btr_mtr->write<4>(*rec_block, BTR_EXTERN_LEN + 4 + field_ref,
+                        big_rec_vec->fields[i].len - extern_len);
+
+      if (prev_page_no == FIL_NULL)
+      {
+        ut_ad(blob_npages == 0);
+        btr_mtr->write<4,mtr_t::MAYBE_NOP>(*rec_block,
+					   field_ref + BTR_EXTERN_SPACE_ID,
+					   space_id);
+
+        btr_mtr->write<4>(*rec_block, field_ref + BTR_EXTERN_PAGE_NO,
+                          page_no);
+
+        btr_mtr->write<4>(*rec_block, field_ref + BTR_EXTERN_OFFSET,
+                          FIL_PAGE_DATA);
+      }
+
+      prev_page_no= page_no;
+
+      if (extern_len == 0)
+        break;
+    }
+    DBUG_EXECUTE_IF ("crash_after_row_ins_extern_metadata_blob",
+                     {sleep(5); DBUG_SUICIDE();});
+    rec_offs_make_nth_extern(offsets, field_no);
+  }
+func_exit:
+  return error;
+}
+
+/*******************************************************************//**
 Stores the fields in big_rec_vec to the tablespace and puts pointers to
 them in rec.  The extern flags in rec will have to be set beforehand.
 The fields are stored on pages allocated from leaf node
@@ -6116,6 +6238,7 @@ btr_store_big_rec_extern_fields(
 	dict_index_t*	index		= pcur->index();
 	buf_block_t*	rec_block	= btr_pcur_get_block(pcur);
 	rec_t*		rec		= btr_pcur_get_rec(pcur);
+	const bool	is_metadata	= rec_is_metadata(rec, *index);
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(rec_offs_any_extern(offsets));
@@ -6130,6 +6253,15 @@ btr_store_big_rec_extern_fields(
 		if (op != BTR_STORE_INSERT_BULK) {
 			return DB_PAGE_CORRUPTED;
 		}
+	}
+
+	/* Metadata BLOBs: Use multi-page storage with btr_mtr */
+	if (is_metadata) {
+		/* INSTANT ALTER doesn't support ROW_FORMAT=COMPRESSED */
+		ut_ad(!buf_block_get_page_zip(rec_block));
+
+		return btr_store_big_rec_extern_metadata_record(
+			 pcur, offsets, big_rec_vec, btr_mtr);
 	}
 
 	btr_blob_log_check_t redo_log(pcur, btr_mtr, offsets, &rec_block,
