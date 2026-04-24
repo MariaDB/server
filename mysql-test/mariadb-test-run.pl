@@ -3374,8 +3374,17 @@ sub start_replay_server_manual {
     "--key-buffer-size=1M",
     "--sort-buffer-size=256K",
     "--max-heap-table-size=1M",
+    "--gdb",
   );
   
+  # Write a gdb init file so the user can run:
+  #   gdb -x var/tmp/gdbinit-replay <mysqld>
+  # The file contains a single "set args ..." line with all mysqld arguments
+  # (excluding the mysqld binary itself, which gdb takes separately).
+  my $gdbinit_file = "$opt_vardir/tmp/gdbinit-replay";
+  mtr_tofile($gdbinit_file,
+             "set args " . join(" ", @mysqld_args[1 .. $#mysqld_args]) . "\n");
+
   # Print command line for user
   mtr_report("=" x 70);
   mtr_report("REPLAY SERVER MANUAL MODE");
@@ -3387,6 +3396,9 @@ sub start_replay_server_manual {
   mtr_report("");
   mtr_report("Or run under gdb:");
   mtr_report("gdb --args " . join(" \\\n  ", @mysqld_args));
+  mtr_report("");
+  mtr_report("gdb init file written to: $gdbinit_file");
+  mtr_report("    gdb -x $gdbinit_file $mysqld");
   mtr_report("");
   mtr_report("Waiting for socket file to appear: $socket");
   mtr_report("(Timeout: 300 seconds)");
