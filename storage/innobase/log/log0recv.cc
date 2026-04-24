@@ -5813,9 +5813,10 @@ read_only_recovery:
 			goto func_exit;
 		}
 		if (recv_sys.is_corrupt_log()) {
+corrupt_log:
 			sql_print_error("InnoDB: Log scan aborted at LSN "
 					LSN_PF, recv_sys.lsn);
-                        goto err_exit;
+			goto err_exit;
 		}
 		if (recv_sys.is_corrupt_fs()) {
 			goto err_exit;
@@ -5828,6 +5829,9 @@ read_only_recovery:
 			recv_sys.len = 0;
 			log_sys.recovery_rewind(log_sys.last_checkpoint_lsn);
 			mysql_mutex_unlock(&recv_sys.mutex);
+			if (recv_sys.is_corrupt_log()) {
+				goto corrupt_log;
+			}
 		}
 		rescan = recv_scan_log(false, parser);
 
@@ -5838,8 +5842,10 @@ read_only_recovery:
 			}
 		}
 
-		if ((recv_sys.is_corrupt_log() && !srv_force_recovery)
-		    || recv_sys.is_corrupt_fs()) {
+		if (recv_sys.is_corrupt_log() && !srv_force_recovery) {
+			goto corrupt_log;
+		}
+		if (recv_sys.is_corrupt_fs()) {
 			goto err_exit;
 		}
 	}
