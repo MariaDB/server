@@ -96,6 +96,7 @@ flush tables;
 
 set @tmp=@@optimizer_trace;
 set optimizer_trace=1;
+--disable_replay next_query Need to preserve optimizer trace
 explain select * from t10  where a in (91303);
 
 #Enable after fix MDEV-32034
@@ -240,6 +241,7 @@ from
 analyze table t1;
 
 set optimizer_trace=1;
+--disable_replay next_query  Need to preserve optimizer trace
 explain select * from t1
 where
   pk in (1,2,3,4,5) and

@@ -3,6 +3,7 @@
 
 --source include/default_optimizer_switch.inc
 
+--disable_replay testfile Optimizer Context doesn't include SPs that query uses.
 --disable_ps2_protocol
 
 flush status;
