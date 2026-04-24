@@ -279,6 +279,8 @@ static FILE *replay_log_file= NULL;
 static const char *replay_log_path= NULL;
 static my_bool disable_replay_next_query= FALSE;
 static char disable_replay_reason[512]= {0};
+static my_bool disable_replay_testfile= FALSE;
+static char disable_replay_testfile_reason[512]= {0};
 
 /* Precompiled re's */
 static regex_t ps_re;     /* the query can be run using PS protocol */
@@ -8470,16 +8472,20 @@ static void print_replay_test_location(FILE *f)
 
 
 /*
-  Handle "disable_replay next_query <reason>" command.
+  Handle "disable_replay <scope> <reason>" command.
 
   Syntax:
     disable_replay next_query <arbitrary reason text>
+    disable_replay testfile   <arbitrary reason text>
 
-  The first token after the command must be the literal word "next_query".
-  Everything after "next_query" is the reason string (spaces allowed).
-  Sets a one-shot flag consumed by the next SQL query executed via
-  run_query_normal(); if that query is EXPLAIN, replay-server processing is
-  skipped and the EXPLAIN runs normally against the test server.
+  The first token after the command must be "next_query" or "testfile".
+  Everything after the scope token is the reason string (spaces allowed).
+
+  - "next_query": one-shot; the next SQL query executed via run_query_normal()
+    bypasses replay-server processing (if it is EXPLAIN). The flag is consumed
+    by that one query regardless of whether it is EXPLAIN.
+  - "testfile": sticky; disables replay-server processing for every EXPLAIN
+    until mysqltest exits.
 
   Any syntax violation is a hard error (die).
 */
@@ -8490,6 +8496,9 @@ static void do_disable_replay(struct st_command *command)
   const char *tok;
   size_t tok_len;
   size_t reason_len;
+  my_bool is_testfile;
+  char *reason_buf;
+  size_t reason_buf_size;
   DBUG_ENTER("do_disable_replay");
 
   /* Skip leading whitespace */
@@ -8501,15 +8510,30 @@ static void do_disable_replay(struct st_command *command)
     p++;
   tok_len= (size_t)(p - tok);
 
-  if (tok_len != 10 || strncmp(tok, "next_query", 10) != 0)
-    die("Syntax: disable_replay next_query <reason>");
+  if (tok_len == 10 && strncmp(tok, "next_query", 10) == 0)
+    is_testfile= FALSE;
+  else if (tok_len == 8 && strncmp(tok, "testfile", 8) == 0)
+    is_testfile= TRUE;
+  else
+    die("Syntax: disable_replay next_query|testfile <reason>");
 
-  /* Skip whitespace between "next_query" and the reason */
+  /* Skip whitespace between the scope token and the reason */
   while (p < end && my_isspace(charset_info, *p))
     p++;
 
   if (p >= end)
-    die("Syntax: disable_replay next_query <reason>  (reason missing)");
+    die("Syntax: disable_replay next_query|testfile <reason>  (reason missing)");
+
+  if (is_testfile)
+  {
+    reason_buf= disable_replay_testfile_reason;
+    reason_buf_size= sizeof(disable_replay_testfile_reason);
+  }
+  else
+  {
+    reason_buf= disable_replay_reason;
+    reason_buf_size= sizeof(disable_replay_reason);
+  }
 
   /* Copy reason, trim trailing whitespace */
   reason_len= (size_t)(end - p);
@@ -8517,16 +8541,25 @@ static void do_disable_replay(struct st_command *command)
          my_isspace(charset_info, p[reason_len - 1]))
     reason_len--;
 
-  if (reason_len >= sizeof(disable_replay_reason))
-    reason_len= sizeof(disable_replay_reason) - 1;
-  memcpy(disable_replay_reason, p, reason_len);
-  disable_replay_reason[reason_len]= '\0';
+  if (reason_len >= reason_buf_size)
+    reason_len= reason_buf_size - 1;
+  memcpy(reason_buf, p, reason_len);
+  reason_buf[reason_len]= '\0';
 
-  disable_replay_next_query= TRUE;
+  if (is_testfile)
+  {
+    disable_replay_testfile= TRUE;
+    verbose_msg("disable_replay: replay disabled for the rest of this test "
+                "file (reason: %s)", disable_replay_testfile_reason);
+  }
+  else
+  {
+    disable_replay_next_query= TRUE;
+    verbose_msg("disable_replay: next query will bypass replay server "
+                "(reason: %s)", disable_replay_reason);
+  }
+
   command->last_argument= command->end;
-
-  verbose_msg("disable_replay: next query will bypass replay server (reason: %s)",
-              disable_replay_reason);
   DBUG_VOID_RETURN;
 }
 
@@ -8925,6 +8958,7 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 
     /* ReplayTest mode: Set optimizer_record_context BEFORE sending EXPLAIN query */
     if (replay_test_mode && !skip_replay_this_query &&
+        !disable_replay_testfile &&
         (flags & QUERY_SEND_FLAG) && (flags & QUERY_REAP_FLAG) &&
         is_explain_query(query, query_len))
     {
