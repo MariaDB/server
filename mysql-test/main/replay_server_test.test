@@ -62,4 +62,16 @@ SELECT * FROM t1 WHERE b < 22;
 
 explain extended select LENGTH(CONCAT('aa','bbb'));
 
+#
+# Check if disable replay works
+#
+create function add1(i int) returns int deterministic
+  return i+1;
+
+# The following would give this error:
+#    ReplayTest: Query error: FUNCTION test.add1 does not exist
+--disable_replay next_query Don't support SPs.
+explain select * from t1 where b< add1(b);
+
+drop function add1;
 DROP TABLE t1;
