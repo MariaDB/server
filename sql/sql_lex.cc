@@ -11635,18 +11635,29 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   while ((item=it++))
   {
     Item *cloned_item= item->deep_copy_with_checks(thd);
+    DBUG_EXECUTE_IF("clone_failure", cloned_item= NULL;);
     if (!cloned_item)
-      cloned_item= item;
-    item= cloned_item->transform(
+    {
+      bool has_subquery= item->walk(&Item::is_subquery_processor, 0, NULL);
+      if (has_subquery)
+        cloned_item= item;
+      else
+      {
+        attach_to_conds.empty();
+        goto exit;
+      }
+    }
+    cloned_item= cloned_item->transform(
         thd, &Item::field_transformer_for_having_pushdown, (uchar *) this);
 
-    if (item->walk(&Item::cleanup_excluding_immutables_processor, 0, STOP_PTR)
-        || item->fix_fields(thd, NULL))
+    if (cloned_item->walk(&Item::cleanup_excluding_immutables_processor, 0,
+                          STOP_PTR) ||
+        cloned_item->fix_fields(thd, NULL))
     {
       attach_to_conds.empty();
       goto exit;
     }
-    it.replace(item);
+    it.replace(cloned_item);
   }
 
   /*
