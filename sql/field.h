@@ -4012,6 +4012,7 @@ public:
   longlong val_datetime_packed(THD *thd) override;
   uint size_of() const override { return sizeof *this; }
   Binlog_type_info binlog_type_info() const override;
+  bool hash_join_is_possible() override { return !null_bit; };      //MDEV-39369
 };
 
 

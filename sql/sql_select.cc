@@ -7365,22 +7365,40 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
     */
     if (!field->compression_method() &&
         field->hash_join_is_possible() &&
-        (key_field->optimize & KEY_OPTIMIZE_EQ) &&
-        key_field->val->used_tables())
+        (key_field->optimize & KEY_OPTIMIZE_EQ))
     {
-      if (field->can_optimize_hash_join(key_field->cond, key_field->val) !=
-          Data_type_compatibility::OK)
-        return false;
-      if (form->is_splittable())
-        form->add_splitting_info_for_key_field(key_field);
-      /* 
-        If a key use is extracted from an equi-join predicate then it is
-        added not only as a key use for every index whose component can
-        be evalusted utilizing this key use, but also as a key use for
-        hash join. Such key uses are marked with a special key number. 
-      */    
-      if (add_keyuse(keyuse_array, key_field, get_hash_join_key_no(), 0))
-        return TRUE;
+      bool not_derived_grouped= true;
+      TABLE_LIST *tl= key_field->field->table->pos_in_table_list;
+      /*
+        Check that a key built on a derived table isn't grouped
+      */
+      if (tl->is_materialized_derived())
+      {
+        st_select_lex_unit *unit= tl->derived;
+        for( st_select_lex *sl= unit->first_select();
+             sl;
+             sl= sl->next_select())
+        {
+          if (sl->group_list.elements)
+            not_derived_grouped= false;
+        }
+      }
+      if (not_derived_grouped || key_field->val->used_tables())
+      {
+        if (field->can_optimize_hash_join(key_field->cond, key_field->val) !=
+            Data_type_compatibility::OK)
+          return false;
+        if (form->is_splittable())
+          form->add_splitting_info_for_key_field(key_field);
+        /*
+          If a key use is extracted from an equi-join predicate then it is
+          added not only as a key use for every index whose component can
+          be evalusted utilizing this key use, but also as a key use for
+          hash join. Such key uses are marked with a special key number.
+        */
+        if (add_keyuse(keyuse_array, key_field, get_hash_join_key_no(), 0))
+          return TRUE;
+      }
     }
   }
   return FALSE;
@@ -9002,8 +9020,15 @@ best_access_path(JOIN      *join,
                 table->opt_range[key].get_costs(&tmp);
                 goto got_cost2;
               }
-              /* quick_range couldn't use key! */
-              records= (double) s->records/rec;
+              /*
+               quick_range couldn't use key!
+               Check records per key, it may have been inferred from
+               derived table characteristics, so there will be no table map.
+              */
+
+              if (!(records=
+                    keyinfo->rec_per_key_null_aware(key_parts-1, notnull_part)))
+                records= (double) s->records/rec;
               if (unlikely(trace_access_idx.trace_started()))
                 trace_access_idx.
                   add("used_range_estimates", false).
