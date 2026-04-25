@@ -1657,4 +1657,43 @@ execute stmt;
 
 drop table t1, t2;
 
+--echo #
+--echo # MDEV-38819: Wrong result of "Range checked for each record" after pushdown from HAVING
+--echo #
+
+
+CREATE TABLE t1(a INT, b INT UNIQUE);
+CREATE TABLE t2 LIKE t1;
+ 
+INSERT INTO t1 VALUES (1, 2);
+INSERT INTO t2 VALUES (3, 4);
+INSERT INTO t2 VALUES (5, 6);
+
+let $q=
+SELECT t2.b, t1.a, t1.b
+FROM t2 STRAIGHT_JOIN t1
+GROUP BY t2.b, t1.a, t1.b
+HAVING t1.b < t2.b;
+eval $q;
+eval explain format=json $q;
+
+let $q=
+SELECT b, a, b1
+FROM (
+  SELECT
+  t2.b AS b,
+  t1.a AS a,
+  t1.b AS b1,
+  t1.b < t2.b AS ref1
+  FROM t2 STRAIGHT_JOIN t1
+  GROUP BY t2.b, t1.a, t1.b
+) AS s
+WHERE ref1;
+
+eval $q;
+eval explain format=json $q;
+
+
+drop table t1, t2;
+
 --echo # End of 10.11 tests
