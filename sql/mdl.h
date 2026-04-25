@@ -394,10 +394,6 @@ public:
     Note that although there isn't metadata locking on triggers,
     it's necessary to have a separate namespace for them since
     MDL_key is also used outside of the MDL subsystem.
-
-    TODO (newbie): NOT_INITIALIZED=0 as default bzero() sets wrongly type to
-    BACKUP. But dozens switch() cases for NOT_INITIALIZED must be added to
-    pacify the compiler.
   */
   enum enum_mdl_namespace { BACKUP=0,
                             SCHEMA,
