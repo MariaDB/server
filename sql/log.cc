@@ -7222,7 +7222,13 @@ err:
           mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
           mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-          if (repl_semisync_master.report_binlog_update(thd, thd,
+          /*
+            MDEV-38486: Do not await a semi-sync ACK for events marked with
+            LOG_EVENT_SKIP_REPLICATION_F. Such events are filtered by replicas
+            and never ACKed, causing the primary to hang until timeout.
+          */
+          if (!(event_info->flags & LOG_EVENT_SKIP_REPLICATION_F) &&
+              repl_semisync_master.report_binlog_update(thd, thd,
                                                         log_file_name, offset))
           {
             sql_print_error("Failed to run 'after_flush' hooks");
@@ -8839,7 +8845,13 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
                           SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT)
                              ? current->thd
                              : leader->thd;
+        /*
+          MDEV-38486: Do not await a semi-sync ACK for transactions committed
+          with @@skip_replication=1. Such transactions are filtered by the dump
+          thread and never sent to replicas, so an ACK can never arrive.
+        */
         if (likely(!current->error) &&
+            !(current->thd->variables.option_bits & OPTION_SKIP_REPLICATION) &&
             unlikely(repl_semisync_master.
                      report_binlog_update(current->thd, waiter_thd,
                                           current->cache_mngr->

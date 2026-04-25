@@ -1,0 +1,80 @@
+--source include/have_binlog_format_row.inc
+--source include/not_embedded.inc
+--source include/master-slave.inc
+
+# Suppress expected warnings that semi-sync may emit when timing out
+--connection master
+call mtr.add_suppression("Timeout waiting for reply of binlog");
+call mtr.add_suppression("Semi-sync master.*waiting for slave reply");
+
+--echo #
+--echo # MDEV-38486: Semi-sync must not await ACK for transactions marked
+--echo # with @@skip_replication=1. The replica never receives such events
+--echo # so an ACK can never arrive, hanging the primary until timeout.
+--echo #
+
+--connection master
+SET @old_timeout= @@global.rpl_semi_sync_master_timeout;
+SET GLOBAL rpl_semi_sync_master_timeout= 2000;
+
+--echo # Enable FILTER_ON_MASTER on slave so the dump thread stops sending
+--echo # skip_replication events to the replica (triggering the hang condition).
+--connection slave
+--source include/stop_slave.inc
+SET @old_skip= @@global.replicate_events_marked_for_skip;
+SET GLOBAL replicate_events_marked_for_skip= FILTER_ON_MASTER;
+--source include/start_slave.inc
+
+--connection master
+
+--let $master_ss_status= query_get_value(SHOW STATUS LIKE 'Rpl_semi_sync_master_status', Value, 1)
+if (`SELECT strcmp("$master_ss_status", "ON") != 0`)
+{
+  SHOW STATUS LIKE 'Rpl_semi_sync_master_status';
+  --die rpl_semi_sync_master_status should be ON to start the test
+}
+
+--echo #
+--echo # Step 1: Normal (replicated) transaction — ACKed by replica normally.
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--echo #
+--echo # Step 2: Transaction with @@skip_replication=1.
+--echo # This must NOT hang waiting for an ACK.
+--echo #
+--connection master
+SET @old_skip= @@session.skip_replication;
+SET SESSION skip_replication= 1;
+CREATE DATABASE db_skip;
+SET SESSION skip_replication= @old_skip;
+
+--echo # Semi-sync status must remain ON (no timeout / degradation occurred).
+--let $master_ss_status= query_get_value(SHOW STATUS LIKE 'Rpl_semi_sync_master_status', Value, 1)
+if (`SELECT strcmp("$master_ss_status", "ON") != 0`)
+{
+  SHOW STATUS LIKE 'Rpl_semi_sync_master_status';
+  --die semi-sync degraded to async: primary waited for ACK that can never arrive
+}
+--echo # Rpl_semi_sync_master_status is ON -- PASS
+
+--echo #
+--echo # Cleanup
+--echo #
+--connection master
+SET GLOBAL rpl_semi_sync_master_timeout= @old_timeout;
+DROP DATABASE IF EXISTS db_skip;
+DROP TABLE t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL replicate_events_marked_for_skip= @old_skip;
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
