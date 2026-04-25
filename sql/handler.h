@@ -38,6 +38,7 @@
 #include "sql_analyze_stmt.h" // for Exec_time_tracker 
 
 #include <my_compare.h>
+#include <my_backup.h>
 #include <ft_global.h>
 #include <keycache.h>
 #include <mysql/psi/mysql_table.h>
@@ -1905,7 +1906,7 @@ struct handlerton : public transaction_participant
      @return error code
      @retval 0 on success
   */
-  int (*backup_start)(THD *thd, IF_WIN(const char*,int) target);
+  int (*backup_start)(THD *thd, backup::target_dir_t target);
   /**
      Process a file that was collected in backup_start().
      @param thd   current session
@@ -1928,7 +1929,7 @@ struct handlerton : public transaction_participant
      @return error code
      @retval 0 on success
   */
-  int (*backup_finalize)(THD *thd, IF_WIN(const char*,int) target);
+  int (*backup_finalize)(THD *thd, backup::target_dir_t target);
 
   /**********************************************************************
    WSREP specific

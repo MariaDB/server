@@ -13,7 +13,9 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#include <my_backup.h>
+#pragma once
+
+/* BACKUP SERVER support for Aria engine. */
 
 /**
    Start of BACKUP SERVER: collect all files to be backed up
@@ -22,7 +24,7 @@
    @return error code
    @retval 0 on success
 */
-int innodb_backup_start(THD *thd, backup::target_dir_t target) noexcept;
+int aria_backup_start(THD *thd, IF_WIN(const char*,int) target) noexcept;
 
 /**
    Process a file that was collected in backup_start().
@@ -30,7 +32,7 @@ int innodb_backup_start(THD *thd, backup::target_dir_t target) noexcept;
    @return number of files remaining, or negative on error
    @retval 0 on completion
 */
-int innodb_backup_step(THD *thd) noexcept;
+int aria_backup_step(THD *thd) noexcept;
 
 /**
    Finish copying and determine the logical time of the backup snapshot.
@@ -39,18 +41,4 @@ int innodb_backup_step(THD *thd) noexcept;
    @return error code
    @retval 0 on success
 */
-int innodb_backup_end(THD *thd, bool abort) noexcept;
-
-/**
-   Clean up after innodb_backup_end().
-   @param thd     the parameter on which innodb_backup_end() had been invoked
-   @param target  target directory
-   @return error code
-   @retval 0 on success
-*/
-int innodb_backup_finalize(THD *thd, backup::target_dir_t target) noexcept;
-
-/**
-   Complete the first checkpoint in a new archive log file.
-*/
-void innodb_backup_checkpoint() noexcept;
+int aria_backup_end(THD *thd, bool abort) noexcept;

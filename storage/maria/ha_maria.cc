@@ -23,6 +23,7 @@
 #include <myisampack.h>
 #include <my_bit.h>
 #include "ha_maria.h"
+#include "ma_backup.h"
 #include "trnman_public.h"
 #include "trnman.h"
 
@@ -3941,6 +3942,9 @@ static int ha_maria_init(void *p)
   maria_hton->prepare_for_backup= maria_prepare_for_backup;
   maria_hton->end_backup= maria_end_backup;
   maria_hton->update_optimizer_costs= aria_update_optimizer_costs;
+  maria_hton->backup_start= aria_backup_start;
+  maria_hton->backup_step= aria_backup_step;
+  maria_hton->backup_end= aria_backup_end;
 
   /* TODO: decide if we support Maria being used for log tables */
   maria_hton->flags= (HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES |
