@@ -1,0 +1,415 @@
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/have_sequence.inc
+--source include/count_sessions.inc
+
+--echo #
+--echo # MDEV-37974 Improper deadlock with DELETE/DELETE/INSERT
+--echo #
+--echo # Test that TX1, which already holds X locks on child rows from a DELETE,
+--echo # does not incorrectly enter lock_wait() when INSERTing a new child row.
+--echo # With innodb_deadlock_detect=OFF, if TX1 enters lock_wait() it will get
+--echo # ER_LOCK_WAIT_TIMEOUT instead of ER_LOCK_DEADLOCK, cleanly proving the
+--echo # root cause: lock conflict detection treats TX2's WAITING lock as a
+--echo # blocking conflict.
+--echo #
+--echo # REPEATABLE READ: TX1's DELETE acquires X next-key locks (LOCK_ORDINARY)
+--echo # on child records, covering both the record and the gap before it.
+--echo # lock_rec_insert_check_and_lock() should recognize TX1's existing gap-
+--echo # covering lock as sufficient and skip the INSERT_INTENTION conflict check.
+--echo #
+
+CREATE TABLE parent (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY
+) ENGINE=InnoDB;
+
+CREATE TABLE child (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  parent_id BIGINT NOT NULL,
+  CONSTRAINT fk_parent FOREIGN KEY (parent_id) REFERENCES parent (id)
+    ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE=InnoDB;
+
+INSERT INTO parent (id) VALUES (1), (2), (3);
+INSERT INTO child (parent_id) VALUES (1), (2), (3);
+
+--connect(con1, localhost, root,,)
+
+--echo #
+--echo # TX1: Delete all child rows. Acquires X next-key locks on child records
+--echo # with parent_id 1, 2, 3 in both PRIMARY and fk_parent indexes.
+--echo #
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+DELETE FROM child WHERE parent_id IN (1, 2, 3);
+
+--echo #
+--echo # TX2: Delete child rows with parent_id 2, 3.
+--echo # TX2 will block in lock_wait() waiting for TX1's X locks.
+--echo #
+--connection default
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SET DEBUG_SYNC='lock_wait_start SIGNAL tx2_waiting';
+--send DELETE FROM child WHERE parent_id IN (2, 3)
+
+--echo #
+--echo # TX1: Wait for TX2 to enter lock_wait(), then INSERT.
+--echo # TX1 already holds X next-key locks covering parent_id=1 in the child
+--echo # table's fk_parent index. The INSERT's insert-intention gap lock on the
+--echo # successor record should be recognized as redundant because TX1's
+--echo # existing next-key lock already covers the gap.
+--echo #
+--connection con1
+SET DEBUG_SYNC='now WAIT_FOR tx2_waiting';
+INSERT INTO child (parent_id) VALUES (1);
+COMMIT;
+
+--echo #
+--echo # TX2: Reap. TX1 committed and released locks, so TX2 can proceed.
+--echo # The rows TX2 wanted to delete were already deleted by TX1.
+--echo #
+--connection default
+--reap
+COMMIT;
+
+--disconnect con1
+SET DEBUG_SYNC='RESET';
+
+SELECT * FROM child;
+
+DROP TABLE child, parent;
+
+--echo #
+--echo # Test 2: TX2 uses SELECT ... FOR UPDATE (same X next-key locks as DELETE in RR)
+--echo # TX1's INSERT should still succeed without entering lock_wait().
+--echo #
+
+CREATE TABLE parent (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY
+) ENGINE=InnoDB;
+
+CREATE TABLE child (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  parent_id BIGINT NOT NULL,
+  CONSTRAINT fk_parent FOREIGN KEY (parent_id) REFERENCES parent (id)
+    ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE=InnoDB;
+
+INSERT INTO parent (id) VALUES (1), (2), (3);
+INSERT INTO child (parent_id) VALUES (1), (2), (3);
+
+--connect(con1, localhost, root,,)
+
+--echo #
+--echo # TX1: Delete all child rows.
+--echo #
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+DELETE FROM child WHERE parent_id IN (1, 2, 3);
+
+--echo #
+--echo # TX2: SELECT ... FOR UPDATE on child rows with parent_id 2, 3.
+--echo # TX2 will block in lock_wait() waiting for TX1's X locks.
+--echo #
+--connection default
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SET DEBUG_SYNC='lock_wait_start SIGNAL tx2_waiting';
+BEGIN;
+--send SELECT * FROM child WHERE parent_id IN (2, 3) FOR UPDATE
+
+--echo #
+--echo # TX1: Wait for TX2 to enter lock_wait(), then INSERT.
+--echo #
+--connection con1
+SET DEBUG_SYNC='now WAIT_FOR tx2_waiting';
+INSERT INTO child (parent_id) VALUES (1);
+COMMIT;
+
+--echo #
+--echo # TX2: Reap. TX1 committed, TX2 proceeds. Rows were deleted by TX1.
+--echo #
+--connection default
+--reap
+COMMIT;
+
+--disconnect con1
+SET DEBUG_SYNC='RESET';
+
+SELECT * FROM child;
+
+DROP TABLE child, parent;
+
+--echo #
+--echo # Test 3: TX2 uses UPDATE (same X next-key locks as DELETE in RR)
+--echo # TX1's INSERT should still succeed without entering lock_wait().
+--echo #
+
+CREATE TABLE parent (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY
+) ENGINE=InnoDB;
+
+CREATE TABLE child (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  parent_id BIGINT NOT NULL,
+  val INT NOT NULL DEFAULT 0,
+  CONSTRAINT fk_parent FOREIGN KEY (parent_id) REFERENCES parent (id)
+    ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE=InnoDB;
+
+INSERT INTO parent (id) VALUES (1), (2), (3);
+INSERT INTO child (parent_id, val) VALUES (1, 10), (2, 20), (3, 30);
+
+--connect(con1, localhost, root,,)
+
+--echo #
+--echo # TX1: Delete all child rows.
+--echo #
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+DELETE FROM child WHERE parent_id IN (1, 2, 3);
+
+--echo #
+--echo # TX2: UPDATE child rows with parent_id 2, 3.
+--echo # TX2 will block in lock_wait() waiting for TX1's X locks.
+--echo #
+--connection default
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SET DEBUG_SYNC='lock_wait_start SIGNAL tx2_waiting';
+BEGIN;
+--send UPDATE child SET val = val + 1 WHERE parent_id IN (2, 3)
+
+--echo #
+--echo # TX1: Wait for TX2 to enter lock_wait(), then INSERT.
+--echo #
+--connection con1
+SET DEBUG_SYNC='now WAIT_FOR tx2_waiting';
+INSERT INTO child (parent_id, val) VALUES (1, 100);
+COMMIT;
+
+--echo #
+--echo # TX2: Reap. TX1 committed, TX2 proceeds. 0 rows affected (deleted by TX1).
+--echo #
+--connection default
+--reap
+COMMIT;
+
+--disconnect con1
+SET DEBUG_SYNC='RESET';
+
+SELECT * FROM child;
+
+DROP TABLE child, parent;
+
+--echo #
+--echo # Test 4: Cross-page (infimum) predecessor -- INSERT lands at the start
+--echo # of a non-first secondary index page, triggering the cross-page code
+--echo # path that walks TX2's trx_locks to verify TX2 has no locks on the
+--echo # previous page.
+--echo #
+--echo # Uses a secondary index with large records (~762 bytes each, with a
+--echo # pad(750) BLOB prefix) so each 16KB page holds ~21 records. With 42
+--echo # rows, the sorted rebuild produces 2 leaf pages. Records near the page
+--echo # boundary are deleted and purged, creating a stale node pointer in the
+--echo # B-tree non-leaf page: btr_cur_optimistic_delete (used by purge for
+--echo # secondary index leaf records) does NOT update the parent node pointer
+--echo # when removing the leftmost record. TX1's INSERT routes to the second
+--echo # page via the stale pointer, positioning the cursor at infimum
+--echo # (predecessor is on the previous page).
+--echo #
+
+CREATE TABLE t4 (
+  pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  k INT NOT NULL,
+  pad BLOB NOT NULL,
+  KEY idx_k (k, pad(750))
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+--disable_query_log
+INSERT INTO t4 (k, pad) SELECT seq, REPEAT('a', 8192) FROM seq_1_to_42;
+--enable_query_log
+
+ALTER TABLE t4 FORCE;
+
+--echo #
+--echo # Delete records spanning the likely page boundary and wait for purge.
+--echo # The page boundary is around k=19-22 depending on exact record overhead.
+--echo # After purge, page 2 starts with k=25. The stale node pointer still
+--echo # references the original first key on page 2 (some k <= 22).
+--echo #
+DELETE FROM t4 WHERE k BETWEEN 19 AND 24;
+--source include/wait_all_purged.inc
+
+--echo #
+--echo # Verify idx_k secondary index has exactly 2 leaf pages after purge,
+--echo # each with 18 records (the non-leaf root page has <= 2 records and
+--echo # is excluded by the NUMBER_RECORDS > 2 filter).
+--echo #
+SELECT COUNT(*) AS idx_k_leaf_pages,
+       GROUP_CONCAT(NUMBER_RECORDS ORDER BY PAGE_NUMBER) AS records_per_page
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_PAGE
+WHERE SPACE = (SELECT SPACE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
+               WHERE NAME = 'test/t4')
+AND INDEX_NAME = 'idx_k'
+AND PAGE_TYPE = 'INDEX'
+AND NUMBER_RECORDS > 2;
+
+--connect(con1, localhost, root,,)
+
+--echo #
+--echo # TX1: Delete k=16 (page 1) and k=25 (first remaining record on page 2).
+--echo #
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+DELETE FROM t4 WHERE k IN (16, 25);
+
+--echo #
+--echo # TX2: Point-lookup DELETE on k=25, k=26 (both on page 2).
+--echo # TX2 hits k=25 first in the idx_k secondary index, blocks on TX1.
+--echo # TX2 has NO locks on page 1 -- only a waiting lock on page 2.
+--echo #
+--connection default
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SET DEBUG_SYNC='lock_wait_start SIGNAL tx2_waiting';
+--send DELETE FROM t4 WHERE k IN (25, 26)
+
+--echo #
+--echo # TX1: Wait for TX2 to enter lock_wait(), then verify the lock layout.
+--echo #
+--connection con1
+SET DEBUG_SYNC='now WAIT_FOR tx2_waiting';
+
+--echo #
+--echo # Verify: lock wait involves exactly 2 locks on idx_k RECORD type.
+--echo #
+SELECT lock_index, lock_mode, lock_type, COUNT(*) AS lock_count
+FROM INFORMATION_SCHEMA.INNODB_LOCKS
+WHERE lock_table LIKE '%t4%'
+GROUP BY lock_index, lock_mode, lock_type;
+
+--echo #
+--echo # Verify: the lock wait page is the SECOND idx_k leaf page (not the
+--echo # first). This proves TX1's lock on k=16 (first page) and the wait
+--echo # on k=25 (second page) are on different pages -- the cross-page
+--echo # scenario.
+--echo #
+SELECT (SELECT MIN(lock_page)
+        FROM INFORMATION_SCHEMA.INNODB_LOCKS
+        WHERE lock_table LIKE '%t4%' AND lock_index = 'idx_k')
+       <>
+       (SELECT MIN(PAGE_NUMBER)
+        FROM INFORMATION_SCHEMA.INNODB_BUFFER_PAGE
+        WHERE SPACE = (SELECT SPACE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
+                       WHERE NAME = 'test/t4')
+        AND INDEX_NAME = 'idx_k' AND PAGE_TYPE = 'INDEX'
+        AND NUMBER_RECORDS > 2)
+       AS lock_is_not_on_first_leaf_page;
+
+--echo #
+--echo # TX1: INSERT k=23 into the gap between pages.
+--echo # B-tree descent routes to page 2 via the stale node pointer
+--echo # (which still references the purged key <= k=22).
+--echo # On page 2, the first record is k=25. Since k=23 < k=25, the B-tree
+--echo # cursor positions at infimum (pred_heap_no == PAGE_HEAP_NO_INFIMUM).
+--echo #
+--echo # The cross-page code path fires:
+--echo # 1. prev_page_no != FIL_NULL (page 1 exists)
+--echo # 2. Walk TX2's trx_locks: TX2 has no lock on page 1 -> pred_ok = true
+--echo # 3. Scan for granted conflicting locks on k=25: none -> skip lock_wait
+--echo # INSERT succeeds without entering lock_wait.
+--echo #
+INSERT INTO t4 (k, pad) VALUES (23, REPEAT('a', 8192));
+COMMIT;
+
+--echo #
+--echo # TX2: Reap. TX1 committed, TX2 proceeds. k=25 already deleted by TX1.
+--echo #
+--connection default
+--reap
+COMMIT;
+
+--disconnect con1
+SET DEBUG_SYNC='RESET';
+
+SELECT k FROM t4 WHERE k BETWEEN 14 AND 28 ORDER BY k;
+
+DROP TABLE t4;
+
+--echo #
+--echo # Test 5: Predecessor check prevents phantom — TX2 range scan locks predecessor
+--echo #
+--echo # TX2 does a range scan (BETWEEN) that locks the predecessor record before
+--echo # blocking on the successor. The predecessor check should detect TX2's
+--echo # granted lock on the predecessor and correctly BLOCK the optimization,
+--echo # forcing TX1's INSERT to enter lock_wait().
+--echo #
+--echo # This is a negative test: the INSERT must NOT skip lock_wait().
+--echo # With a 1-second lock_wait_timeout for TX1, the INSERT gets
+--echo # ER_LOCK_WAIT_TIMEOUT, proving the predecessor check works.
+--echo #
+
+CREATE TABLE parent (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY
+) ENGINE=InnoDB;
+
+CREATE TABLE child (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  parent_id BIGINT NOT NULL,
+  CONSTRAINT fk_parent FOREIGN KEY (parent_id) REFERENCES parent (id)
+    ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE=InnoDB;
+
+INSERT INTO parent (id) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+INSERT INTO child (parent_id) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+
+--connect(con1, localhost, root,,)
+
+--echo #
+--echo # TX1: Delete child rows with parent_id 5 and 6.
+--echo #
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+DELETE FROM child WHERE parent_id IN (5, 6);
+
+--echo #
+--echo # TX2: Range scan DELETE covering parent_id 4 through 6.
+--echo # TX2 scans the fk_parent secondary index sequentially:
+--echo #   1. Locks parent_id=4 -> GRANTED (no conflict)
+--echo #   2. Locks parent_id=5 -> WAITING (TX1 holds this lock)
+--echo # TX2 now has a GRANTED lock on parent_id=4 (the predecessor).
+--echo #
+--connection default
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SET DEBUG_SYNC='lock_wait_start SIGNAL tx2_waiting';
+BEGIN;
+--send DELETE FROM child WHERE parent_id BETWEEN 4 AND 6
+
+--echo #
+--echo # TX1: INSERT parent_id=4 (a second row with the same FK value).
+--echo # In the fk_parent index, the new record goes between
+--echo # (parent_id=4, old_id) and (parent_id=5, old_id).
+--echo # The predecessor check detects TX2's GRANTED lock on parent_id=4
+--echo # and correctly blocks the optimization. TX1 enters lock_wait()
+--echo # and gets ER_LOCK_WAIT_TIMEOUT, proving the predecessor check works.
+--echo #
+--connection con1
+SET DEBUG_SYNC='now WAIT_FOR tx2_waiting';
+SET SESSION innodb_lock_wait_timeout=1;
+--error ER_LOCK_WAIT_TIMEOUT
+INSERT INTO child (parent_id) VALUES (4);
+ROLLBACK;
+
+--echo #
+--echo # TX2: TX1 rolled back, TX2 proceeds and deletes parent_id 4, 5, 6.
+--echo #
+--connection default
+--reap
+COMMIT;
+
+--disconnect con1
+SET DEBUG_SYNC='RESET';
+
+SELECT * FROM child ORDER BY parent_id;
+
+DROP TABLE child, parent;
+
+--source include/wait_until_count_sessions.inc
