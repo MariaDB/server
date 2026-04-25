@@ -55,6 +55,9 @@
 #endif
 #include "log_event.h"           // MAX_TABLE_MAP_ID
 #include "sql_class.h"
+#include "item_windowfunc.h"
+#include "sql_statistics.h"
+#include "opt_window_function_cardinality.h"
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -8603,6 +8606,7 @@ bool TABLE::check_tmp_key(uint key, uint key_parts,
   return key_len <= MI_MAX_KEY_LENGTH;
 }
 
+
 /**
   @brief
   Add one key to a temporary table
@@ -8633,7 +8637,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   char buf[NAME_CHAR_LEN];
   KEY *keyinfo= key_info + key;
   KEY_PART_INFO *key_part_info;
-  Field **reg_field;
+  Field *reg_field[MAX_REF_PARTS];
   uint i;
   bool key_start= TRUE;
 
@@ -8667,13 +8671,13 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   for (i= 0; i < key_parts; i++)
   {
     uint fld_idx= next_field_no(arg); 
-    reg_field= field + fld_idx;
+    reg_field[i]= field[fld_idx];
     if (key_start)
-      (*reg_field)->key_start.set_bit(key);
-    (*reg_field)->part_of_key.set_bit(key);
-    create_key_part_by_field(key_part_info, *reg_field, fld_idx+1);
+      reg_field[i]->key_start.set_bit(key);
+    reg_field[i]->part_of_key.set_bit(key);
+    create_key_part_by_field(key_part_info, reg_field[i], fld_idx+1);
     keyinfo->key_length += key_part_info->store_length;
-    (*reg_field)->flags|= PART_KEY_FLAG;
+    reg_field[i]->flags|= PART_KEY_FLAG;
     key_start= FALSE;
     key_part_info++;
   }
@@ -8695,11 +8699,26 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   {
     st_select_lex* first= derived->first_select();
     uint select_list_items= first->get_item_list()->elements;
+    /*
+      If our key parts match the select list, we know that there will be
+      one record per key
+    */
     if (key_parts == select_list_items)
     {
       if ((!first->is_part_of_union() && (first->options & SELECT_DISTINCT)) ||
           derived->check_distinct_in_union())
         keyinfo->rec_per_key[key_parts - 1]= 1;
+    }
+    /*
+      If we have only one select in our unit and
+        we have a window function in our select
+    */
+    if (!first->next_select() && first->with_sum_func)
+    {
+      est_derived_window_fn_cardinality(first,
+                                        &keyinfo->rec_per_key[key_parts-1],
+                                        reg_field,
+                                        key_parts);
     }
   }
 

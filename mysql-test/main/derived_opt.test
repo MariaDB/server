@@ -1,4 +1,5 @@
 # Initialize
+--source include/have_sequence.inc
 --disable_warnings
 drop table if exists t0,t1,t2,t3;
 drop database if exists test1;
@@ -438,6 +439,138 @@ DROP TABLE t1, t2;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+
+#
+# MENT-2483 Degrading performance with CTE query with spatial index
+#
+
+set @save_use_stat_tables=@@use_stat_tables;
+set use_stat_tables='preferably';
+create table t1 (a int, b int) engine=MyISAM;
+insert into t1 select seq, seq from seq_1_to_1000;
+analyze table t1 persistent for all;
+
+let $q0=
+explain
+with i1 (c1, c2, c3) AS
+(
+  values (1, 2, 4), (2, 3, 5), (4, 3, 4)
+),
+ranked_table as
+(
+  select * from
+  (
+    select c1, t1.a,
+           ROW_NUMBER() OVER (ORDER BY ABS(c3-b)) as ranked
+      from i1 join t1
+      where ABS(c1)=ABS(a)
+  ) as dt
+  where ranked = 1
+)
+select * from ranked_table;
+
+let $q1=
+explain
+with i1 (c1, c2, c3) AS
+(
+  values (1, 2, 4), (2, 3, 5), (4, 3, 4)
+),
+ranked_table as
+(
+  select * from
+  (
+    select c1, t1.a,
+           ROW_NUMBER() OVER (PARTITION BY a order by ABS(c3-b)) as ranked
+      from i1 join t1
+      where ABS(c1)=ABS(a)
+  ) as dt
+  where ranked = 1
+)
+select * from ranked_table;
+
+let $q2=
+explain
+with i1 (c1, c2, c3) AS
+(
+  values (1, 2, 4), (2, 3, 5), (4, 3, 4)
+),
+ranked_table as
+(
+  select * from
+  (
+    select c1, t1.a,
+           ROW_NUMBER() OVER (PARTITION BY c1 order by ABS(c3-b)) as ranked
+      from i1 join t1
+      where ABS(c1)=ABS(a)
+  ) as dt
+  where ranked = 1
+)
+select * from ranked_table;
+
+let $q3=
+explain
+with i1 (c1, c2, c3) AS
+(
+  values (1, 2, 4), (2, 3, 5), (4, 3, 4)
+),
+ranked_table as
+(
+  select * from
+  (
+    select c1, t1.a,
+           ROW_NUMBER() OVER (PARTITION BY a, c1 order by ABS(c3-b)) as ranked
+      from i1 join t1
+      where ABS(c1)=ABS(a)
+  ) as dt
+  where ranked = 1
+)
+select * from ranked_table;
+
+eval $q0;
+eval $q1;
+eval $q2;
+eval $q3;
+
+truncate t1;
+insert into t1 select seq/2, seq/2 from seq_1_to_1000;
+analyze table t1 persistent for all;
+
+eval $q0;
+eval $q1;
+eval $q2;
+eval $q3;
+
+truncate t1;
+insert into t1 select seq/10, seq/10 from seq_1_to_1000;
+analyze table t1 persistent for all;
+
+eval $q0;
+eval $q1;
+eval $q2;
+eval $q3;
+
+explain
+with i1 (c1, c2, c3) AS
+(
+  values (1, 2, 4), (2, 3, 5), (4, 3, 4), (1, 2, 40), (2, 3, 50), (4, 3, 40),
+ (1, 2, 400), (2, 3, 500), (4, 3, 400), (1, 2, 4000), (2, 3, 5000), (4, 3, 4000)
+),
+ranked_table as
+(
+  select * from
+  (
+    select c1,c2,c3, t1.a,
+      lead(a) OVER (PARTITION BY c1 order by c1) as lead,
+      lag(a) OVER (PARTITION BY c1 order by c3) as lag,
+      sum(a) OVER (PARTITION BY c1 order by c3 desc) as sum,
+      count(a) OVER (PARTITION BY c1 order by c1) as count
+      from i1 join t1
+  ) as dt
+)
+select * from ranked_table;
+drop table t1;
+set use_stat_tables=@save_use_stat_tables;
 
 # The following command must be the last one the file 
 set optimizer_switch=@exit_optimizer_switch;

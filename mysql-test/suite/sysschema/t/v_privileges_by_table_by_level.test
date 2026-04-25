@@ -14,6 +14,7 @@ GRANT ALL PRIVILEGES ON test1.* TO test1_user;
 
 --echo # Grant all table privileges
 GRANT ALL ON t1 to test1_user;
+--sorted_result
 SELECT table_schema, table_name,
        CASE WHEN grantee LIKE '\'root%' THEN '<some-root-user>' ELSE GRANTEE END,
        privilege, level
@@ -21,6 +22,7 @@ SELECT table_schema, table_name,
 
 --echo # Revoke some table privileges
 REVOKE REFERENCES, DELETE, ALTER, DROP ON t1 FROM test1_user;
+--sorted_result
 SELECT table_schema, table_name,
        CASE WHEN grantee LIKE '\'root%' THEN '<some-root-user>' ELSE GRANTEE END,
        privilege, level
@@ -30,18 +32,22 @@ CREATE ROLE test1_role;
 GRANT SELECT, UPDATE, DELETE, DROP, INDEX ON t1 to test1_role;
 
 --echo # Must show both the user and the role
+--sorted_result
 SELECT * FROM sys.privileges_by_table_by_level
   WHERE table_schema='test1' AND table_name='t1' AND grantee LIKE '%test1%';
 
 CREATE VIEW v1 AS SELECT * FROM t1;
+--sorted_result
 SELECT * FROM sys.privileges_by_table_by_level
   WHERE table_schema='test1' AND table_name='v1' AND grantee LIKE '%test1%';
 
 GRANT SELECT ON v1 TO test1_role;
+--sorted_result
 SELECT * FROM sys.privileges_by_table_by_level
   WHERE table_schema='test1' AND table_name='v1' AND grantee LIKE '%test1%';
 
 GRANT ALL ON v1 TO test1_user;
+--sorted_result
 SELECT * FROM sys.privileges_by_table_by_level
   WHERE table_schema='test1' AND table_name='v1' AND grantee LIKE '%test1%';
 
