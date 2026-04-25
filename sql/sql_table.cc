@@ -12776,16 +12776,26 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
 
   /*
-    Mark the end of the default field list. Note that this is a temporary
-    state; fields with ON UPDATE defaults will be added back to this list
-    after the data copy is complete.
+    Temporarily finalize the state of the default fields list. At this point
+    (i.e. during the copy of the values), only newly added fields with default
+    values should exist in the list. dfield_ptr is effectively a tail pointer
+    into to->default_field. If dfield_ptr (tail) and to->default_field (head)
+    point to the same point, it means the list is empty and there were no newly
+    added fields with default values. In such case, nullify to->default_field
+    (dfield_ptr remains pointing to the old list, as it will be used to restore
+    to->default_field later). Otherwise, if dfield_ptr (tail) is after the
+    head, then we nullify its current position to mark the end of the list.
+
+    Note that this is a temporary state; new/existing fields with either ON
+    UPDATE defaults and existing fields with default values will be added back
+    to this list after the data copy is complete.
   */
   if (dfield_ptr)
   {
     if (dfield_ptr == to->default_field)
-      to->default_field= NULL; // No default fields left
+      to->default_field= NULL;
     else
-      *dfield_ptr= NULL; // Mark end of default field pointers
+      *dfield_ptr= NULL;
   }
 
   if (order)
@@ -13073,16 +13083,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     for new fields added to the table (i.e those which should get new default
     values). Now that the data copy is done, the to->default_field list needs
     to be restored to include all fields that have default values to fill.
-
-    First, if to->default_field is NULL, it means it was nullified to prevent
-    trying to update any default values during the copy process because there
-    were no new fields added with default values to fill in. The list needs to
-    be restored to the original location so future records in this session can
-    get default values.
-
-    Then, because to->default_field was reset and now only considers new
-    fields, it is missing fields that have ON UPDATE clauses (i.e. TIMESTAMP
-    and DATETIME). So add those back in.
+    Either:
+      1) to->default_field is NULL, in which case either dfield_ptr is also
+         NULL or the pre-alter table has fields with default values and the
+         alter doesn't add any new fields with default values. In either case,
+         simply restore the original default_field list.
+      2) Otherwise, to->default_field has been modified in-place and needs to
+         be manually restored. I.e., it is missing fields that have ON UPDATE
+         clauses (i.e. TIMESTAMP and DATETIME). So add those back in.
 
     Notes:
      * The code is similar to the dfield_ptr modification earlier in the
@@ -13091,26 +13099,39 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
        data, which requires the table's default_fields to be set up
   */
   if (!to->default_field)
+  {
     to->default_field= dfield_ptr;
-#ifndef DBUG_OFF
+  }
   else
   {
     /*
-      If to->default_field exists, dfield_ptr should point to the NULL list
-      terminator in the default_field list.
+      to->default_field was modified in-place, so we need to check to manually
+      add back missing fields.
     */
-    DBUG_ASSERT(dfield_ptr && !*dfield_ptr);
-  }
-#endif
-  if (dfield_ptr)
-  {
     it.rewind();
     for (Field **ptr= to->field; *ptr; ptr++)
     {
       def= it++;
-      if (def->field && def->field->has_update_default_function())
+
+      /*
+        New fields with a default_value already exist in to->default_field.
+        Here add the rest back: existing fields with any default, and new
+        fields with only ON UPDATE.
+      */
+      const bool is_new_field= def->field == nullptr;
+      const bool has_default= (*ptr)->default_value;
+      const bool has_update_default= (*ptr)->has_update_default_function();
+      const bool should_append= is_new_field
+                                    ? (!has_default && has_update_default)
+                                    : (has_default || has_update_default);
+      if (should_append)
         *(dfield_ptr++)= *ptr;
     }
+
+    /*
+      Finalize the default_field list. See the comment earlier in this function
+      where this same pattern is followed for an explanation.
+    */
     if (dfield_ptr == to->default_field)
       to->default_field= NULL; // No default fields
     else

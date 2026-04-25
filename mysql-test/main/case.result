@@ -676,3 +676,15 @@ ERROR 21000: Operand should contain 1 column(s)
 SELECT NULLIF(ROW(1,2), NULL);
 ERROR HY000: Illegal parameter data type row for operation 'nullif'
 # End of 12.0 tests
+#
+# MDEV-37534: Assertion `a == &type_handler_row || a == &type_handler_null` failed on `CREATE TABLE ... ROW()`
+#
+CREATE TABLE t (c INT CHECK(c=CASE c WHEN ROW(1, 1) THEN c=0 END IN (c)=1));
+ERROR HY000: Illegal parameter data types int and row for operation 'case..when'
+select CASE 1 WHEN ROW(1, 2) THEN 0 END from dual;
+ERROR HY000: Illegal parameter data types int and row for operation 'case..when'
+select CASE WHEN NULLIF(1, ROW(1,1)) THEN 0 ELSE 1 END from dual;
+ERROR HY000: Illegal parameter data types int and row for operation 'nullif'
+select NULLIF(1, ROW(1,2));
+ERROR HY000: Illegal parameter data types int and row for operation 'nullif'
+# End of 12.3 tests
