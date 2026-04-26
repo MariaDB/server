@@ -2657,6 +2657,7 @@ create table t3 as select * from t1;
 analyze table t1,t2,t3;
 select @@expensive_subquery_limit < 200 as DEFAULTS_ARE_SUITABLE;
 flush status;
+--disable_replay testfile Need to preserve counter
 explain select * from t1 where a<3 or (select max(a) from t2) in (select b from t3);
 --echo # Must show 0. If this shows 200, this means subquery was executed and you have a bug:
 show status like 'Handler_read_rnd_next%';
