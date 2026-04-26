@@ -534,6 +534,7 @@ select @const_table_inserts;
 @const_table_inserts
 REPLACE INTO db1.t1(a, b) VALUES (5, 0);
 
+SET STATEMENT sql_mode=REPLACE(REPLACE(@@sql_mode,'STRICT_ALL_TABLES',''),'STRICT_TRANS_TABLES','') FOR
 REPLACE INTO db1.t1(a, b) VALUES (4, 4);
 
 REPLACE INTO mysql.table_stats VALUES ('db1', 't1', 20);
