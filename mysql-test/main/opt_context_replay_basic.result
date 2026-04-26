@@ -158,6 +158,8 @@ set @opt_context='
 }
 ';
 set optimizer_replay_context='opt_context';
+SET character_set_client=latin1;
+SET NAMES latin1 COLLATE latin1_swedish_ci;
 select count(*) from t1;
 count(*)
 0
