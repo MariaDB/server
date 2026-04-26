@@ -79,7 +79,7 @@ select * from t1 where a < 3 and b > 6;
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
 set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 
@@ -88,7 +88,7 @@ set @saved_indexes_2 = @indexes;
 set @saved_list_ranges_2 = @list_ranges;
 
 select JSON_EQUALS(@saved_records_2, @saved_records_1);
-select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+select * from json_table(@records, '$[*]' columns(file_stat_records text path '$')) as jt;
 select JSON_EQUALS(@saved_indexes_2, @saved_indexes_1);
 select JSON_EQUALS(@saved_list_ranges_2, @saved_list_ranges_1);
 select * from json_table(
@@ -153,7 +153,7 @@ select * from t1 where a < 3 and b > 6;
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
 set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 
@@ -174,7 +174,7 @@ select * from t1 where a < 3 and b > 6;
 
 --source include/get_opt_context.inc
 
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
 set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 
@@ -223,7 +223,7 @@ select * from t1 where a > 10;
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].ddl');
 select * from t1 where a > 10;
 
-set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].num_of_records');
+set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].file_stat_records');
 select * from t1 where a > 10;
 
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].file_stat_records');

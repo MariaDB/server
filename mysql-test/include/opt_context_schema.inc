@@ -14,7 +14,7 @@ let $opt_context_schema=
             "type": "string",
             "minLength": 1
           },
-          "num_of_records": {
+          "file_stat_records": {
             "type": "number"
           },
           "file_stat_records": {

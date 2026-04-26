@@ -4132,6 +4132,12 @@ void set_statistics_for_table(THD *thd, TABLE *table)
   Table_statistics *read_stats= stats_cb ? stats_cb->table_stats : 0;
 
   /*
+    Infuse the table->file->stats.records.
+    We will set table->used_stat_records right below.
+  */
+  if (thd->opt_ctx_replay)
+    thd->opt_ctx_replay->infuse_table_rows(table);
+  /*
     The MAX below is to ensure that we don't return 0 rows for a table if it
     not guaranteed to be empty.
   */
@@ -4188,6 +4194,10 @@ void set_statistics_for_table(THD *thd, TABLE *table)
       }
     }
   }
+  /*
+    TODO: infuse_table_rows() call above is done before the EITS-based
+    adjustments. Should this be moved up, too?
+  */
   if (thd->opt_ctx_replay)
     thd->opt_ctx_replay->infuse_table_stats(table);
 }

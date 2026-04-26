@@ -4,9 +4,9 @@ set @opt_context=
          '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
          from information_schema.optimizer_context);
 set @records=
-    (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+    (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 select *from json_table(@records,
-                        '$[*]' columns(num_of_records text path '$')) as jt;
+                        '$[*]' columns(file_stat_records text path '$')) as jt;
 set @file_stat_records=
     (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 select *from json_table(@file_stat_records,

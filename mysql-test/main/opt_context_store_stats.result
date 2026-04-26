@@ -40,11 +40,11 @@ context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
 set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 select *from json_table(@records,
-'$[*]' columns(num_of_records text path '$')) as jt;
-num_of_records
-0
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
+20
 set @file_stat_records=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 select *from json_table(@file_stat_records,
@@ -85,10 +85,10 @@ context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
 set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 select *from json_table(@records,
-'$[*]' columns(num_of_records text path '$')) as jt;
-num_of_records
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 30
 20
 set @file_stat_records=
@@ -136,10 +136,10 @@ context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
 set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 select *from json_table(@records,
-'$[*]' columns(num_of_records text path '$')) as jt;
-num_of_records
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 set @file_stat_records=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 select *from json_table(@file_stat_records,
@@ -173,10 +173,10 @@ context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
 set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 select *from json_table(@records,
-'$[*]' columns(num_of_records text path '$')) as jt;
-num_of_records
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 30
 20
 set @file_stat_records=
@@ -225,10 +225,10 @@ context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
 set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 select *from json_table(@records,
-'$[*]' columns(num_of_records text path '$')) as jt;
-num_of_records
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 20
 set @file_stat_records=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
@@ -268,10 +268,10 @@ context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
 set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 select *from json_table(@records,
-'$[*]' columns(num_of_records text path '$')) as jt;
-num_of_records
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 30
 20
 set @file_stat_records=
@@ -323,10 +323,10 @@ context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
 set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 select *from json_table(@records,
-'$[*]' columns(num_of_records text path '$')) as jt;
-num_of_records
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 50
 set @file_stat_records=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
@@ -371,10 +371,10 @@ context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
 set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 select *from json_table(@records,
-'$[*]' columns(num_of_records text path '$')) as jt;
-num_of_records
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 50
 set @file_stat_records=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
@@ -425,10 +425,10 @@ context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
 set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 select *from json_table(@records,
-'$[*]' columns(num_of_records text path '$')) as jt;
-num_of_records
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 set @file_stat_records=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 select *from json_table(@file_stat_records,
@@ -464,10 +464,10 @@ context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
 set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.num_of_records')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
 select *from json_table(@records,
-'$[*]' columns(num_of_records text path '$')) as jt;
-num_of_records
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
 50
 set @file_stat_records=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));

@@ -136,7 +136,6 @@ set @opt_context='
   "list_contexts": [
     {
       "name": "db1.t1",
-      "num_of_records": 0,
       "file_stat_records": 20,
       "read_cost_io": 0,
       "read_cost_cpu": 0.0100356,
@@ -234,5 +233,22 @@ EXPLAIN
     ]
   }
 }
+set optimizer_replay_context='';
+drop table t1;
+#
+# MDEV-39435: Server crash : Assertion `table_records || !head->file->stats.records' failed
+#
+CREATE TABLE t1 (a INT, PRIMARY KEY(a));
+INSERT INTO t1 VALUES (1),(2),(3);
+set optimizer_record_context=ON;
+EXPLAIN SELECT * FROM t1 WHERE a IN
+((SELECT MAX(a) FROM t1), (SELECT MAX(a) FROM t1));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+drop table t1;
 drop table t1;
 drop database db1;

@@ -55,7 +55,7 @@ using namespace json_reader;
       "list_contexts": [
         {
           "name": "table_name",
-          "num_of_records": n,
+          "file_stat_records" : n
           "file_stat_records": n,
           "read_cost_io": n,
           "read_cost_cpu": n,
@@ -349,7 +349,6 @@ static void dump_table_stats(THD *thd, TABLE_LIST *tbl, uchar *tbl_name,
   ha_rows records= table->stat_records();
   IO_AND_CPU_COST cost= table->file->ha_scan_time(records);
   ctx_wrapper.add("name", (char *) tbl_name, tbl_name_len);
-  ctx_wrapper.add("num_of_records", records);
   ctx_wrapper.add("file_stat_records", table->file->stats.records);
   ctx_wrapper.add("read_cost_io", cost.io);
   ctx_wrapper.add("read_cost_cpu", cost.cpu);
@@ -976,9 +975,10 @@ class Saved_Table_stats : public Sql_alloc
 {
 public:
   TABLE *table;
-  ha_rows original_rows; // this is table->used_stat_records
-  /* saved table->file->stats.records */ 
-  ha_rows original_file_stats_records;
+  /*
+    We do not restore table->file->stats.records, they are read from the
+    storage engine for every query anyway.
+  */
   List<Saved_Index_stats> saved_indexstats_list;
 };
 
@@ -1214,9 +1214,6 @@ static int parse_table_context(THD *thd, json_engine_t *je, String *err_buf,
 
   Read_named_member array[]= {
       {"name", Read_string(thd, &table_ctx->name), false},
-      {"num_of_records",
-       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->total_rows),
-       false},
       {"file_stat_records",
        Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->file_stat_records),
        false},
@@ -1646,9 +1643,12 @@ bool Optimizer_context_replay::infuse_index_read_cost(const TABLE *tbl,
   return true;
 }
 
+
 /*
   @brief
-    Save the current stats of the table and its associated table.
+    Infuse saved table statistics for a given table.
+    Current table statistics are saved away to be restored later.
+    #records is not handled by this function, see infuse_table_rows().
 */
 void Optimizer_context_replay::infuse_table_stats(TABLE *table)
 {
@@ -1661,66 +1661,61 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
     return; // OOM
 
   saved_ts->table= table;
-  saved_ts->original_rows= table->used_stat_records;
-  saved_ts->original_file_stats_records= table->file->stats.records;
 
   if (saved_table_stats.push_back(saved_ts))
     return;
 
-  if (!infuse_table_rows(table))
+  KEY *key_info, *key_info_end;
+  for (key_info= table->key_info, key_info_end= key_info + table->s->keys;
+       key_info < key_info_end; key_info++)
   {
-    KEY *key_info, *key_info_end;
-    for (key_info= table->key_info, key_info_end= key_info + table->s->keys;
-         key_info < key_info_end; key_info++)
+    List<ha_rows> *index_freq_list=
+        get_index_rec_per_key_list(table, key_info->name.str);
+
+    if (!index_freq_list || index_freq_list->is_empty())
+      continue;
+
+    Saved_Index_stats *saved_is= new Saved_Index_stats();
+
+    if (unlikely(!saved_is))
+      return; // OOM
+
+    uint i= 0;
+    uint num_key_parts= key_info->user_defined_key_parts;
+    Index_statistics *original_read_stats= key_info->read_stats;
+    bool original_is_statistics_from_stat_tables=
+        key_info->is_statistics_from_stat_tables;
+    Index_statistics *new_read_stats= new Index_statistics();
+
+    if (unlikely(!new_read_stats))
+      return; // OOM
+
+    ulonglong *frequencies=
+        (ulonglong *) thd->alloc(sizeof(ulonglong) * num_key_parts);
+
+    if (unlikely(!frequencies))
+      return; // OOM
+
+    new_read_stats->init_avg_frequency(frequencies);
+    List_iterator li(*index_freq_list);
+    ha_rows *freq= li++;
+    key_info->read_stats= new_read_stats;
+
+    while (freq && i < num_key_parts)
     {
-      List<ha_rows> *index_freq_list=
-          get_index_rec_per_key_list(table, key_info->name.str);
-
-      if (index_freq_list && !index_freq_list->is_empty())
-      {
-        Saved_Index_stats *saved_is= new Saved_Index_stats();
-
-        if (unlikely(!saved_is))
-          return; // OOM
-
-        uint i= 0;
-        uint num_key_parts= key_info->user_defined_key_parts;
-        Index_statistics *original_read_stats= key_info->read_stats;
-        bool original_is_statistics_from_stat_tables=
-            key_info->is_statistics_from_stat_tables;
-        Index_statistics *new_read_stats= new Index_statistics();
-
-        if (unlikely(!new_read_stats))
-          return; // OOM
-
-        ulonglong *frequencies=
-            (ulonglong *) thd->alloc(sizeof(ulonglong) * num_key_parts);
-
-        if (unlikely(!frequencies))
-          return; // OOM
-
-        new_read_stats->init_avg_frequency(frequencies);
-        List_iterator li(*index_freq_list);
-        ha_rows *freq= li++;
-        key_info->read_stats= new_read_stats;
-
-        while (freq && i < num_key_parts)
-        {
-          // Apparently this can be=0 for prefix indexes.
-          //DBUG_ASSERT(*freq > 0);
-          key_info->read_stats->set_avg_frequency(i, (double) *freq);
-          freq= li++;
-          i++;
-        }
-
-        key_info->is_statistics_from_stat_tables= true;
-        saved_is->key_info= key_info;
-        saved_is->original_is_statistics_from_stat_tables=
-            original_is_statistics_from_stat_tables;
-        saved_is->original_read_stats= original_read_stats;
-        saved_ts->saved_indexstats_list.push_back(saved_is);
-      }
+      // Apparently this can be=0 for prefix indexes.
+      //DBUG_ASSERT(*freq > 0);
+      key_info->read_stats->set_avg_frequency(i, (double) *freq);
+      freq= li++;
+      i++;
     }
+
+    key_info->is_statistics_from_stat_tables= true;
+    saved_is->key_info= key_info;
+    saved_is->original_is_statistics_from_stat_tables=
+        original_is_statistics_from_stat_tables;
+    saved_is->original_read_stats= original_read_stats;
+    saved_ts->saved_indexstats_list.push_back(saved_is);
   }
 }
 
@@ -1780,9 +1775,6 @@ void Optimizer_context_replay::restore_modified_table_stats()
   List_iterator<Saved_Table_stats> table_li(saved_table_stats);
   while (Saved_Table_stats *saved_ts= table_li++)
   {
-    saved_ts->table->used_stat_records= saved_ts->original_rows;
-    saved_ts->table->file->stats.records= saved_ts->original_file_stats_records;
-
     List_iterator<Saved_Index_stats> index_li(saved_ts->saved_indexstats_list);
     while (Saved_Index_stats *saved_is= index_li++)
     {
@@ -1890,7 +1882,6 @@ void Optimizer_context_replay::dbug_print_read_stats()
     DBUG_PRINT("info", ("New Table Context"));
     DBUG_PRINT("info", ("-----------------"));
     DBUG_PRINT("info", ("name: %s", tbl_ctx->name));
-    DBUG_PRINT("info", ("num_of_records: %llx", tbl_ctx->total_rows));
     DBUG_PRINT("info",
                ("file_stat_records: %llx", tbl_ctx->file_stat_records));
 
@@ -1994,7 +1985,7 @@ bool Optimizer_context_replay::infuse_table_rows(TABLE *tbl)
   if (table_context_for_replay *tbl_ctx=
           find_table_context(tbl_name.c_ptr_safe()))
   {
-    tbl->used_stat_records= tbl_ctx->total_rows;
+    // Only infuse this one. table->used_stat_records are set by te SQL layer.
     tbl->file->stats.records= tbl_ctx->file_stat_records;
     return false;
   }
