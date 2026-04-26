@@ -110,6 +110,7 @@ class Optimizer_context_replay
 public:
   Optimizer_context_replay(THD *thd);
 
+  bool infuse_table_rows(TABLE *tbl);
   /* Save table's statistics and replace it with data from the context.  */
   void infuse_table_stats(TABLE *table);
   /* Restore the saved statistics back (to be done at query end) */
@@ -149,7 +150,6 @@ private:
                                             const char *idx_name);
   void store_range_contexts(const TABLE *tbl, const char *idx_name,
                             List<Multi_range_read_const_call_record> *list);
-  bool infuse_table_rows(TABLE *tbl);
   table_context_for_replay *find_table_context(const char *name);
 };
 
