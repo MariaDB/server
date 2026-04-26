@@ -127,7 +127,7 @@ static my_bool print_row_count_used= 0, print_row_event_positions_used= 0;
 static my_bool debug_info_flag, debug_check_flag;
 static my_bool force_if_open_opt= 1;
 static my_bool opt_raw_mode= 0, opt_stop_never= 0;
-my_bool opt_gtid_strict_mode= true;
+my_bool opt_gtid_strict_mode= false;
 static ulong opt_stop_never_slave_server_id= 0;
 static my_bool opt_verify_binlog_checksum= 1;
 static ulonglong offset = 0;
@@ -1885,7 +1885,7 @@ static struct my_option my_options[] =
    "start < stop comparison condition. Sequence numbers of any gtid domain "
    "must comprise monotically growing sequence",
    &opt_gtid_strict_mode, &opt_gtid_strict_mode, 0,
-   GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
+   GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"stop-datetime", OPT_STOP_DATETIME,
    "Stop reading the binlog at first event having a datetime equal or "
    "posterior to the argument; the argument must be a date and time "
