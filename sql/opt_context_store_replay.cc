@@ -883,12 +883,12 @@ void Optimizer_context_recorder::record_records_in_range(
   table_ctx->rir_list.push_back(rec_in_range_ctx, mem_root);
 }
 
-void Optimizer_context_recorder::record_const_table_row(TABLE *tbl)
+void Optimizer_context_recorder::record_table_row(TABLE *tbl, int row_index)
 {
   StringBuffer<512> output(&my_charset_utf8mb4_bin);
   output.append(STRING_WITH_LEN("REPLACE INTO "));
   append_full_table_name(tbl->pos_in_table_list, &output);
-  format_and_store_row(tbl, tbl->record[1], true, " VALUES ", false, output);
+  format_and_store_row(tbl, tbl->record[row_index], true, " VALUES ", false, output);
   table_context_for_store *table_ctx=
       get_table_context(tbl->pos_in_table_list);
 
