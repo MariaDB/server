@@ -249,6 +249,26 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 select context into dumpfile "../../tmp/dump1.sql"
 from information_schema.optimizer_context;
+set optimizer_record_context=OFF;
 drop table t1;
+drop table t1;
+#
+# MDEV-39409: Context replay doesnt handle MIN/MAX optimization
+#
+CREATE TABLE t1 (a int PRIMARY KEY, b int);
+INSERT INTO t1 VALUES (2,20), (3,10), (1,10), (0,30), (5,10);
+set optimizer_record_context=1;
+EXPLAIN SELECT MAX(a) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain:
+EXPLAIN SELECT MAX(a) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 drop table t1;
 drop database db1;

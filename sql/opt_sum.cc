@@ -52,6 +52,7 @@
 #include "sql_priv.h"
 #include "key.h"                                // key_cmp_if_same
 #include "sql_select.h"
+#include "opt_context_store_replay.h"
 
 static bool find_key_for_maxmin(bool max_fl, TABLE_REF *ref, Field* field,
                                 COND *cond, uint *range_fl,
@@ -434,6 +435,12 @@ int opt_sum_query(THD *thd,
               reckey_in_range(is_max, &ref, item_field->field,
                               conds, range_fl, prefix_len))
 	    error= HA_ERR_KEY_NOT_FOUND;
+
+          if (!error)
+          {
+            if (Optimizer_context_recorder *rec= thd->opt_ctx_recorder)
+              rec->record_current_table_row(table);
+          }
           if (!table->const_table)
           {
             table->file->ha_end_keyread();
