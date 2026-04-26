@@ -83,6 +83,7 @@ EXPLAIN SELECT * FROM t1 WHERE a IN
   ((SELECT MAX(a) FROM t1), (SELECT MAX(a) FROM t1));
 select context into dumpfile "../../tmp/dump1.sql"
 from information_schema.optimizer_context;
+set optimizer_record_context=OFF;
 drop table t1;
 
 --disable_query_log
@@ -91,6 +92,31 @@ drop table t1;
 --enable_query_log
 --enable_result_log
 
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table t1;
+
+--echo #
+--echo # MDEV-39409: Context replay doesnt handle MIN/MAX optimization
+--echo #
+CREATE TABLE t1 (a int PRIMARY KEY, b int);
+INSERT INTO t1 VALUES (2,20), (3,10), (1,10), (0,30), (5,10);
+
+set optimizer_record_context=1;
+EXPLAIN SELECT MAX(a) FROM t1;
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+EXPLAIN SELECT MAX(a) FROM t1;
+
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
 drop table t1;
 
 drop database db1;
