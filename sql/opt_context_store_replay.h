@@ -62,12 +62,22 @@ public:
                                const KEY_PART_INFO *key_part, uint keynr,
                                const key_range *min_range,
                                const key_range *max_range, ha_rows records);
-  void record_const_table_row(TABLE *tbl);
+  void record_const_table_row(TABLE *tbl)
+  {
+    /* use table->record[1] */
+    record_table_row(tbl, 1);
+  }
+  void record_current_table_row(TABLE *tbl)
+  {
+    /* use table->record[0] */
+    record_table_row(tbl, 0);
+  }
 
   bool has_records();
   table_context_for_store *search(uchar *tbl_name, size_t tbl_name_len);
 
 private:
+  void record_table_row(TABLE *tbl, int row_index);
   MEM_ROOT *mem_root;
   /*
     Hash table mapping "dbname.table_name" -> pointer to
