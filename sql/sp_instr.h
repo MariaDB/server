@@ -400,7 +400,8 @@ public:
   sp_lex_instr(uint ip, sp_pcontext *ctx, LEX *lex, bool is_lex_owner)
   : sp_instr(ip, ctx),
     m_lex_keeper(lex, is_lex_owner),
-    m_mem_root_for_reparsing(nullptr)
+    m_mem_root_for_reparsing(nullptr),
+    m_sp{lex->sphead}
   {}
 
   ~sp_lex_instr() override
@@ -418,7 +419,9 @@ public:
       */
       free_items();
       m_lex_keeper.~sp_lex_keeper();
-      free_root(m_mem_root_for_reparsing, MYF(0));
+
+      m_sp->register_instr_mem_root_for_deallocation(m_mem_root_for_reparsing);
+
       m_mem_root_for_reparsing= nullptr;
     }
   }
@@ -507,6 +510,7 @@ private:
   */
   List<Item_param> cleanup_before_parsing(enum_sp_type sp_type);
 
+  sp_head *m_sp;
 
   /**
     Set up field object for every NEW/OLD item of the trigger and

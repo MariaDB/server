@@ -2886,5 +2886,46 @@ DROP PROCEDURE p3;
 DROP PROCEDURE p4;
 DROP TABLE t1;
 
-SET sql_mode = default;
+--echo #
+--echo # MDEV-38561: ASAN heap-use-after-free in Query_arena::free_items/sp_lex_cursor::~sp_lex_cursor
+--echo #
+SET @save_sql_mode=@@sql_mode;
+SET sql_mode='oracle';
+
+--delimiter $
+
+CREATE OR REPLACE PACKAGE pkg1 AS
+PROCEDURE p1 ();
+PROCEDURE p2 ();
+END pkg1;
+$
+
+CREATE OR REPLACE PACKAGE BODY pkg1 AS
+PROCEDURE p1() IS
+  CURSOR c1 IS SELECT a FROM t1;
+  va c1%ROWTYPE;
+BEGIN
+  SELECT 1;
+END p1;
+
+PROCEDURE p2() is
+BEGIN
+  FOR i IN 1..2
+  LOOP
+    SELECT i;
+    CREATE OR REPLACE temporary TABLE t1 (a INT);
+    CALL pkg1.p1;
+  END loop;
+END p2;
+END pkg1
+$
+
+--delimiter ;
+CALL pkg1.p2();
+
+DROP PACKAGE BODY pkg1;
+DROP PACKAGE pkg1;
+
+SET sql_mode=@save_sql_mode;
+
 --enable_ps2_protocol
