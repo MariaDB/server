@@ -333,6 +333,12 @@ private:
   */
   const char *m_cpp_body_begin;
 
+  /**
+    List of pointers to MEM_ROOT objects created when re-parsing failing
+    SP instructions.
+  */
+  List<MEM_ROOT> m_mem_roots_to_release;
+
 public:
   /*
     Security context for stored routine which should be run under
@@ -345,6 +351,11 @@ protected:
           enum_sp_aggregate_type agg_type);
   virtual ~sp_head();
 public:
+
+  void deallocate_sp_instrs_mem_roots();
+
+  void register_instr_mem_root_for_deallocation(MEM_ROOT *mem_root);
+
   static void destroy(sp_head *sp);
   static sp_head *create(sp_package *parent, const Sp_handler *handler,
                          enum_sp_aggregate_type agg_type,

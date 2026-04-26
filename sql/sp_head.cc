@@ -904,6 +904,8 @@ sp_head::~sp_head()
   delete m_pcont;
   free_items();
 
+  deallocate_sp_instrs_mem_roots();
+
   /*
     If we have non-empty LEX stack then we just came out of parser with
     error. Now we should delete all auxilary LEXes and restore original
@@ -918,6 +920,36 @@ sp_head::~sp_head()
   sp_head::destroy(m_next_cached_sp);
 
   DBUG_VOID_RETURN;
+}
+
+
+/**
+  Iterate along a list of mem_roots created for reparsing of failed
+  SP instructions. There are as many mem_roots in this list as a number of
+  failed sp instructions.
+*/
+
+void sp_head::deallocate_sp_instrs_mem_roots()
+{
+  List_iterator_fast<MEM_ROOT> it(m_mem_roots_to_release);
+  MEM_ROOT *sp_instr_mem_root;
+
+  while ((sp_instr_mem_root= it++))
+  {
+    free_root(sp_instr_mem_root, MYF(0));
+  }
+  m_mem_roots_to_release.empty();
+}
+
+
+void sp_head::register_instr_mem_root_for_deallocation(MEM_ROOT *mem_root)
+{
+  DBUG_ASSERT(mem_root != nullptr);
+
+  if (unlikely(mem_root == nullptr))
+    return;
+
+  m_mem_roots_to_release.push_back(mem_root);
 }
 
 
