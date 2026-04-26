@@ -1,11 +1,11 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+
 --echo #
 --echo # MDEV-37977 InnoDB deadlock report incorrectly reports
 --echo #            rolled back transaction number
 --echo #
-
---source include/not_embedded.inc
---source include/have_innodb.inc
---source include/count_sessions.inc
 
 SET @save_print_all_deadlocks= @@GLOBAL.innodb_print_all_deadlocks;
 SET GLOBAL innodb_print_all_deadlocks= ON;
