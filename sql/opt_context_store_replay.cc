@@ -886,6 +886,17 @@ void Optimizer_context_recorder::record_records_in_range(
 void Optimizer_context_recorder::record_table_row(TABLE *tbl, int row_index)
 {
   StringBuffer<512> output(&my_charset_utf8mb4_bin);
+
+  /*
+    The table could have fields that do not have a default value
+    but are not in the table->read_set.
+    The record doesn't have values for those.
+    Use a relaxed sql_mode setting so that REPLACE INTO doesn't fail.
+  */
+  output.append(
+    STRING_WITH_LEN("SET STATEMENT sql_mode="
+                    "REPLACE(REPLACE(@@sql_mode,'STRICT_ALL_TABLES',''),"
+                    "'STRICT_TRANS_TABLES','') FOR\n"));
   output.append(STRING_WITH_LEN("REPLACE INTO "));
   append_full_table_name(tbl->pos_in_table_list, &output);
   format_and_store_row(tbl, tbl->record[row_index], true, " VALUES ", false, output);
