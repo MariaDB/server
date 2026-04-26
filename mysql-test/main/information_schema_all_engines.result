@@ -73,6 +73,7 @@ TRIGGERS
 USERS
 USER_PRIVILEGES
 USER_STATISTICS
+VECTOR_INDEXES
 VIEWS
 SELECT t.table_name, c1.column_name
 FROM information_schema.tables t
@@ -161,6 +162,7 @@ TRIGGERS	TRIGGER_SCHEMA
 USERS	USER
 USER_PRIVILEGES	GRANTEE
 USER_STATISTICS	USER
+VECTOR_INDEXES	TABLE_SCHEMA
 VIEWS	TABLE_SCHEMA
 SELECT t.table_name, c1.column_name
 FROM information_schema.tables t
@@ -249,6 +251,7 @@ TRIGGERS	TRIGGER_SCHEMA
 USERS	USER
 USER_PRIVILEGES	GRANTEE
 USER_STATISTICS	USER
+VECTOR_INDEXES	TABLE_SCHEMA
 VIEWS	TABLE_SCHEMA
 select 1 as "must be 1" from information_schema.tables  where "ACCOUNTS"=
 (select cast(table_name as char)  from information_schema.tables
@@ -336,6 +339,7 @@ TRIGGERS	information_schema.TRIGGERS	1
 USERS	information_schema.USERS	1
 USER_PRIVILEGES	information_schema.USER_PRIVILEGES	1
 USER_STATISTICS	information_schema.USER_STATISTICS	1
+VECTOR_INDEXES	information_schema.VECTOR_INDEXES	1
 VIEWS	information_schema.VIEWS	1
 +---------------------------------------+
 +---------------------------------------+
@@ -414,6 +418,7 @@ Database: information_schema
 | USERS                                 |
 | USER_PRIVILEGES                       |
 | USER_STATISTICS                       |
+| VECTOR_INDEXES                        |
 | VIEWS                                 |
 +---------------------------------------+
 +---------------------------------------+
@@ -492,6 +497,7 @@ Database: INFORMATION_SCHEMA
 | USERS                                 |
 | USER_PRIVILEGES                       |
 | USER_STATISTICS                       |
+| VECTOR_INDEXES                        |
 | VIEWS                                 |
 +--------------------+
 +--------------------+
@@ -501,5 +507,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	73
+information_schema	74
 mysql	31
