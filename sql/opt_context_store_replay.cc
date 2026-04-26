@@ -691,6 +691,17 @@ bool store_optimizer_context(THD *thd)
     sql_script.append(STRING_WITH_LEN("\n\';#opt_context_ends\n\n"));
     sql_script.append(SET_REPLAY_CONTEXT_VAR, strlen(SET_REPLAY_CONTEXT_VAR));
     sql_script.append(STRING_WITH_LEN(";\n\n"));
+
+    sql_script.append(STRING_WITH_LEN("SET character_set_client="));
+    sql_script.append(thd->variables.character_set_client->cs_name);
+    sql_script.append(STRING_WITH_LEN(";\n"));
+
+    sql_script.append(STRING_WITH_LEN("SET NAMES "));
+    sql_script.append(thd->variables.collation_connection->cs_name);
+    sql_script.append(STRING_WITH_LEN(" COLLATE "));
+    sql_script.append(thd->variables.collation_connection->coll_name);
+    sql_script.append(STRING_WITH_LEN(";\n"));
+
     sql_script.append(thd->query(), thd->query_length());
     sql_script.append(STRING_WITH_LEN(";\n\n"));
     sql_script.append(STRING_WITH_LEN("set optimizer_replay_context='';\n\n"));
