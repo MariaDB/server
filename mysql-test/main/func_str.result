@@ -5686,4 +5686,14 @@ foo
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 drop table t0;
+#
+# MDEV-39235 Incorrect result with LEFT JOIN and QUOTE
+#
+create table t1 (a int, b int);
+insert t1 values (1,1),(2,3);
+select * from t1 left join t1 t2 on (t1.a=t2.b) where quote(t2.b)>'';
+a	b	a	b
+1	1	1	1
+2	3	NULL	NULL
+drop table t1;
 # End of 10.11 tests

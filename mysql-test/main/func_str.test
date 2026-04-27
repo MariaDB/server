@@ -2625,4 +2625,12 @@ select c0 from t0 where lpad('123', 2-c0, c0);
 select c0 from t0 where rpad('123', 2-c0, c0);
 drop table t0;
 
+--echo #
+--echo # MDEV-39235 Incorrect result with LEFT JOIN and QUOTE
+--echo #
+create table t1 (a int, b int);
+insert t1 values (1,1),(2,3);
+select * from t1 left join t1 t2 on (t1.a=t2.b) where quote(t2.b)>'';
+drop table t1;
+
 --echo # End of 10.11 tests
