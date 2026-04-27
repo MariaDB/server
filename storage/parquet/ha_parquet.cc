@@ -699,7 +699,7 @@ int ha_parquet::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *creat
   if (!parquet::ValidateCatalogConfig(metadata, &error) ||
       !parquet::ValidateObjectStoreConfig(metadata, true, &error)) {
     raise_unknown_error(error);
-    return HA_ERR_INTERNAL_ERROR;
+    return HA_ERR_UNSUPPORTED; //changed this so error flag is more accurate
   }
 
   std::string table_path(name);

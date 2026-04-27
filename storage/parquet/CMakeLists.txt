@@ -18,7 +18,6 @@ MYSQL_ADD_PLUGIN(parquet
   parquet_object_store.cc
   parquet_transaction.cc
   STORAGE_ENGINE
-  MANDATORY
 )
 
 if(TARGET parquet)
@@ -27,7 +26,7 @@ if(TARGET parquet)
     ${CMAKE_SOURCE_DIR}/storage/duckdb/duckdb
     ${CMAKE_SOURCE_DIR}/storage/duckdb/duckdb/third_parties/duckdb/src/include
   )
-  target_link_libraries(parquet PRIVATE
+  target_link_libraries(parquet
     libduckdb
     CURL::libcurl
   )

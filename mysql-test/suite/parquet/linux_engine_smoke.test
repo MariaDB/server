@@ -1,3 +1,0 @@
-SELECT COUNT(*) AS parquet_engine_registered
-FROM information_schema.engines
-WHERE engine = 'PARQUET' AND support IN ('YES', 'DEFAULT');

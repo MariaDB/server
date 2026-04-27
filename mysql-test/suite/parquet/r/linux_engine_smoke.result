@@ -1,2 +1,8 @@
-parquet_engine_registered
-1
+# Parquet engine startup smoke test
+INSTALL PLUGIN parquet SONAME 'ha_parquet.so';
+SELECT ENGINE, SUPPORT
+FROM information_schema.ENGINES
+WHERE ENGINE = 'PARQUET';
+ENGINE	SUPPORT
+PARQUET	YES
+UNINSTALL PLUGIN parquet;

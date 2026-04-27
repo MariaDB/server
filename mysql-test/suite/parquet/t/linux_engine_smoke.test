@@ -1,0 +1,9 @@
+--echo # Parquet engine startup smoke test
+
+eval INSTALL PLUGIN parquet SONAME '$HA_PARQUET_SO';
+
+SELECT ENGINE, SUPPORT
+FROM information_schema.ENGINES
+WHERE ENGINE = 'PARQUET';
+
+UNINSTALL PLUGIN parquet;
