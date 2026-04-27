@@ -1267,7 +1267,8 @@ public:
     update_nullability_post_fix_fields();
     if (aggregate_for_result(func_name_cstring(), args, arg_count, true))
       return TRUE;
-    fix_attributes(args, arg_count);
+    if (fix_attributes(args, arg_count))
+      return TRUE;
     return FALSE;
   }
   bool add_maybe_null_after_ora_join_processor(void *arg) override

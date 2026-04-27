@@ -54,3 +54,23 @@ c1
 0
 DROP TABLE t0;
 # End of 10.5 tests
+#
+# MDEV-36964: Infinite loop in `cmp_row_type`, SIGABRT in `Type_handler_composite::Item_update_null_value`
+#
+CREATE FUNCTION f() RETURNS ROW TYPE OF t RETURN 1;
+CREATE TABLE t (c INT KEY,c2 INT,UNIQUE (c2));
+SELECT ROW(COALESCE(f()),1)=ROW(1,1) AS eq;
+ERROR HY000: Illegal parameter data type row for operation 'coalesce'
+SELECT ROW(COALESCE(ROW(1,1)),1)=ROW(1,1) AS eq;
+ERROR HY000: Illegal parameter data type row for operation 'coalesce'
+SELECT ROW(1,1)=ROW(COALESCE(f()),1) AS eq;
+ERROR HY000: Illegal parameter data type row for operation 'coalesce'
+SELECT ROW(1,1)=ROW(COALESCE(ROW(1,1)),1) AS eq;
+ERROR HY000: Illegal parameter data type row for operation 'coalesce'
+SELECT ROW(COALESCE(f()),1)=ROW(COALESCE(f()),1) AS eq;
+ERROR HY000: Illegal parameter data type row for operation 'coalesce'
+SELECT ROW(1, COALESCE(f()), 1)=ROW(1, COALESCE(f()), 1) AS eq;
+ERROR HY000: Illegal parameter data type row for operation 'coalesce'
+DROP FUNCTION f;
+DROP TABLE t;
+# End of 12.3 tests
