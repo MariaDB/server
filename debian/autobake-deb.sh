@@ -18,6 +18,10 @@ export DEB_BUILD_OPTIONS="nocheck $DEB_BUILD_OPTIONS"
 
 # shellcheck source=/dev/null
 source ./VERSION
+
+architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
+uname_machine=$(uname -m)
+
 # General CI optimizations to keep build output smaller
 if [[ $GITLAB_CI ]]
 then
@@ -63,9 +67,6 @@ replace_uring_with_aio()
   sed -e '/-DIGNORE_AIO_CHECK=ON/d' \
       -e '/-DWITH_URING=ON/d' -i debian/rules
 }
-
-architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
-uname_machine=$(uname -m)
 
 # Parse release name and number from Linux standard base release
 # Example:
