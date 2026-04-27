@@ -105,6 +105,18 @@ ulint	btr_cur_n_sea_old;
 #ifdef UNIV_DEBUG
 /* Flag to limit optimistic insert records */
 uint	btr_cur_limit_optimistic_insert_debug;
+/** Number of times index lock was upgraded from SX to X */
+Atomic_counter<size_t> btr_cur_n_index_lock_upgrades;
+/** Number of times btr_cur_pessimistic_insert() was called */
+Atomic_counter<size_t> btr_cur_pessimistic_insert_calls;
+/** Number of times btr_cur_pessimistic_update() was called */
+Atomic_counter<size_t> btr_cur_pessimistic_update_calls;
+/** Number of times btr_cur_pessimistic_delete() was called */
+Atomic_counter<size_t> btr_cur_pessimistic_delete_calls;
+/** Number of times DB_UNDERFLOW was returned as optimistic update error in btr_cur_pessimistic_update() */
+Atomic_counter<size_t> btr_cur_pessimistic_update_optim_err_underflows;
+/** Number of times DB_OVERFLOW was returned as optimistic update error in btr_cur_pessimistic_update() */
+Atomic_counter<size_t> btr_cur_pessimistic_update_optim_err_overflows;
 #endif /* UNIV_DEBUG */
 
 /** In the optimistic insert, if the insert does not fit, but this much space
@@ -1599,6 +1611,7 @@ ATTRIBUTE_COLD void mtr_t::index_lock_upgrade()
   index_lock *lock= static_cast<index_lock*>(slot.object);
   lock->u_x_upgrade(SRW_LOCK_CALL);
   slot.type= MTR_MEMO_X_LOCK;
+  ut_d(++btr_cur_n_index_lock_upgrades);
 }
 
 /** Mark a non-leaf page "least recently used", but avoid invoking
@@ -2572,6 +2585,8 @@ btr_cur_pessimistic_insert(
 	big_rec_t*	big_rec_vec	= NULL;
 	bool		inherit = false;
 	uint32_t	n_reserved	= 0;
+
+	ut_d(++btr_cur_pessimistic_insert_calls);
 
 	ut_ad(dtuple_check_typed(entry));
 	ut_ad(thr || !(~flags & (BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG)));
@@ -3602,10 +3617,10 @@ any_extern:
 		goto func_exit;
 	}
 
-	if (UNIV_UNLIKELY(page_get_data_size(page)
+	if (UNIV_UNLIKELY((new_rec_size < old_rec_size) && page_get_data_size(page)
 			  - old_rec_size + new_rec_size
 			  < BTR_CUR_PAGE_COMPRESS_LIMIT(index))) {
-		/* The page would become too empty */
+		/* The page would become too empty due to record shrinkage */
 		err = DB_UNDERFLOW;
 		goto func_exit;
 	}
@@ -3797,6 +3812,8 @@ btr_cur_pessimistic_update(
 	block = btr_cur_get_block(cursor);
 	index = cursor->index();
 
+	ut_d(++btr_cur_pessimistic_update_calls);
+
 	ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK |
 					 MTR_MEMO_SX_LOCK));
 	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
@@ -3821,6 +3838,9 @@ btr_cur_pessimistic_update(
 		flags,
 		cursor, offsets, offsets_heap, update,
 		cmpl_info, thr, trx_id, mtr);
+
+	ut_d(btr_cur_pessimistic_update_optim_err_underflows += (err == DB_UNDERFLOW));
+	ut_d(btr_cur_pessimistic_update_optim_err_overflows += (err == DB_OVERFLOW));
 
 	switch (err) {
 	case DB_ZIP_OVERFLOW:
@@ -3992,8 +4012,17 @@ btr_cur_pessimistic_update(
 		goto return_after_reservations;
 	}
 
-	rec = btr_cur_insert_if_possible(cursor, new_entry,
-					 offsets, offsets_heap, n_ext, mtr);
+	if (optim_err == DB_OVERFLOW
+	    && !buf_block_get_page_zip(block)
+	    && page_get_max_insert_size_after_reorganize(
+	        block->page.frame, 1) < BTR_CUR_PAGE_REORGANIZE_LIMIT) {
+		/* The page is too full: force a split instead of
+		reinserting on the same page. */
+		rec = NULL;
+	} else {
+		rec = btr_cur_insert_if_possible(cursor, new_entry,
+						 offsets, offsets_heap, n_ext, mtr);
+	}
 
 	if (rec) {
 		page_cursor->rec = rec;
@@ -4326,7 +4355,7 @@ btr_cur_optimistic_delete(
 				delete; cursor stays valid: if deletion
 				succeeds, on function exit it points to the
 				successor of the deleted record */
-	ulint		flags,	/*!< in: BTR_CREATE_FLAG or 0 */
+	ulint		flags,	/*!< in: BTR_CREATE_FLAG or BTR_PURGE_DELETE_FLAG or 0 */
 	mtr_t*		mtr)	/*!< in: mtr; if this function returns
 				TRUE on a leaf page of a secondary
 				index, the mtr must be committed
@@ -4339,7 +4368,9 @@ btr_cur_optimistic_delete(
 	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
-	ut_ad(flags == 0 || flags == BTR_CREATE_FLAG);
+	ut_ad(flags == 0 || flags == BTR_CREATE_FLAG
+	      || flags == BTR_PURGE_DELETE_FLAG);
+	ut_ad(!(flags & BTR_PURGE_DELETE_FLAG) || cursor->index()->is_btree());
 	ut_ad(mtr->memo_contains_flagged(btr_cur_get_block(cursor),
 					 MTR_MEMO_PAGE_X_FIX));
 	ut_ad(mtr->is_named_space(cursor->index()->table->space));
@@ -4366,9 +4397,12 @@ btr_cur_optimistic_delete(
 		err = DB_FAIL; goto func_exit;);
 
 	if (rec_offs_any_extern(offsets)
-	    || !btr_cur_can_delete_without_compress(cursor,
-						    rec_offs_size(offsets),
-						    mtr)) {
+	    || (!(flags & BTR_PURGE_DELETE_FLAG)
+	        && !btr_cur_can_delete_without_compress(
+	               cursor, rec_offs_size(offsets), mtr))
+	    || ((flags & BTR_PURGE_DELETE_FLAG)
+	        && page_get_n_recs(block->page.frame) == 1
+	        && block->page.id().page_no() != cursor->index()->page)) {
 		/* prefetch siblings of the leaf for the pessimistic
 		operation. */
 		btr_cur_prefetch_siblings(block, cursor->index(), mtr->trx);
@@ -4407,7 +4441,7 @@ btr_cur_optimistic_delete(
 			|| (first_rec != rec
 			    && rec_is_add_metadata(first_rec, *index));
 		if (UNIV_LIKELY(empty_table)) {
-			if (UNIV_LIKELY(!is_metadata && !flags)) {
+			if (UNIV_LIKELY(!is_metadata && !(flags & BTR_CREATE_FLAG))) {
 				lock_update_delete(block, rec);
 			}
 			btr_page_empty(block, buf_block_get_page_zip(block),
@@ -4444,7 +4478,7 @@ btr_cur_optimistic_delete(
 						  mtr);
 			goto func_exit;
 		} else {
-			if (!flags) {
+			if (!(flags & BTR_CREATE_FLAG)) {
 				lock_update_delete(block, rec);
 			}
 
@@ -4500,6 +4534,7 @@ btr_cur_pessimistic_delete(
 	uint32_t	n_reserved	= 0;
 	ibool		ret		= FALSE;
 	mem_heap_t*	heap;
+
 	rec_offs*	offsets;
 #ifdef UNIV_DEBUG
 	bool		parent_latched	= false;
@@ -4508,6 +4543,8 @@ btr_cur_pessimistic_delete(
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
 	index = btr_cur_get_index(cursor);
+
+	ut_d(++btr_cur_pessimistic_delete_calls);
 
 	ut_ad(flags == 0 || flags == BTR_CREATE_FLAG);
 	ut_ad(!dict_index_is_online_ddl(index)
