@@ -801,11 +801,14 @@ bool Aggregator_distinct::setup(THD *thd)
     table->file->extra(HA_EXTRA_NO_ROWS);		// Don't update rows
     table->no_rows=1;
 
-    if (table->s->db_type() == heap_hton)
+    if (table->s->db_type() == heap_hton && !table->s->blob_fields)
     {
       /*
-        No blobs, otherwise it would have been MyISAM: set up a compare
-        function and its arguments to use with Unique.
+        Unique tree compares raw record bytes (simple_raw_key_cmp or
+        composite_key_cmp).  Blob fields store only a pointer in the
+        record, so raw comparison would compare pointer values, not
+        actual blob data.  Skip the Unique tree path for blob tables
+        and fall through to the ha_write_tmp_row path below.
       */
       qsort_cmp2 compare_key;
       void* cmp_arg;
@@ -1002,9 +1005,23 @@ bool Aggregator_distinct::add()
       */
       return tree->unique_add(table->record[0] + table->s->null_bytes);
     }
-    if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))) &&
-        table->file->is_fatal_error(error, HA_CHECK_DUP))
-      return TRUE;
+    if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
+    {
+      if (!table->file->is_fatal_error(error, HA_CHECK_DUP))
+        return FALSE;                           // duplicate, not an error
+      /*
+        Non-duplicate write error.  If the table is HEAP and the error
+        is HA_ERR_RECORD_FILE_FULL, create_internal_tmp_table_from_heap()
+        converts it to an on-disk engine and copies all rows plus the
+        overflow row (record[0]).  For any other error it reports a
+        fatal error and returns 1.
+      */
+      if (create_internal_tmp_table_from_heap(table->in_use, table,
+                                              tmp_table_param->start_recinfo,
+                                              &tmp_table_param->recinfo,
+                                              error, 0, NULL))
+        return TRUE;
+    }
     return FALSE;
   }
   else

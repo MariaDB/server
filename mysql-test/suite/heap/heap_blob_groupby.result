@@ -1,0 +1,43 @@
+#
+# MDEV-38975: GROUP BY on blob columns in HEAP internal temp tables
+# Verify that GROUP BY correctly groups by blob/text content,
+# not by internal pointer representation.
+#
+CREATE TABLE t1 (a TEXT, b INT);
+INSERT INTO t1 VALUES ('foo', 1), ('foo', 2), ('bar', 3), ('bar', 4), ('baz', 5);
+# GROUP BY on TEXT column should group by content
+SELECT a, COUNT(*), SUM(b) FROM t1 GROUP BY a ORDER BY a;
+a	COUNT(*)	SUM(b)
+bar	2	7
+baz	1	5
+foo	2	3
+# GROUP BY with HAVING
+SELECT a, COUNT(*) AS cnt FROM t1 GROUP BY a HAVING cnt > 1 ORDER BY a;
+a	cnt
+bar	2
+foo	2
+DROP TABLE t1;
+#
+# GROUP BY on multiple blob columns
+#
+CREATE TABLE t1 (a TEXT, b TEXT, c INT);
+INSERT INTO t1 VALUES ('x', 'p', 1), ('x', 'p', 2),
+('x', 'q', 3), ('y', 'p', 4);
+SELECT a, b, COUNT(*), SUM(c) FROM t1 GROUP BY a, b ORDER BY a, b;
+a	b	COUNT(*)	SUM(c)
+x	p	2	3
+x	q	1	3
+y	p	1	4
+DROP TABLE t1;
+#
+# GROUP BY blob with NULL values
+#
+CREATE TABLE t1 (a TEXT, b INT);
+INSERT INTO t1 VALUES (NULL, 1), (NULL, 2), ('foo', 3), ('foo', 4), ('bar', 5);
+SELECT a, COUNT(*), SUM(b) FROM t1 GROUP BY a ORDER BY a;
+a	COUNT(*)	SUM(b)
+NULL	2	3
+bar	1	5
+foo	2	7
+DROP TABLE t1;
+# End of MDEV-38975 GROUP BY blob tests

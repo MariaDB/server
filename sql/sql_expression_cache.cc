@@ -138,6 +138,36 @@ void Expression_cache_tmptable::init()
     goto error;
   }
 
+  /*
+    Expression cache is HEAP-only by design (the heap_hton check above).
+    Disable it when the temp table contains blob columns.
+
+    Why this is needed in the SQL layer:
+    HEAP hash indexes on blob columns use a pointer-based key format
+    (4-byte length + data pointer stored in a HA_KEYSEG with flag
+    HA_BLOB_PART). This is incompatible with the SQL layer's key
+    format (2-byte length + inline data) because Field_blob::
+    new_key_field() returns a Field_varstring, and the ref lookup
+    machinery (join_read_key2, etc.) builds keys in that SQL format.
+
+    Before HEAP blob support, blobs forced the temp table to Aria,
+    which failed the heap_hton check above and effectively disabled the
+    cache. With HEAP now accepting blobs, we must check explicitly.
+
+    This is HEAP-specific SQL-layer code, analogous to how Aria has its
+    own engine-specific SQL-layer handling in create_internal_tmp_table()
+    for blob key segments via MARIA_UNIQUEDEF.
+
+    This check is slightly conservative: a blob only in the result
+    value (not the key) would not cause a problem. But it matches the
+    pre-blob effective behavior and avoids subtle key-format mismatches.
+  */
+  if (cache_table->s->blob_fields)
+  {
+    DBUG_PRINT("error", ("blob fields not supported in heap expression cache"));
+    goto error;
+  }
+
   field_counter= 1;
 
   if (cache_table->alloc_keys(1) ||

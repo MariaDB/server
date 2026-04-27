@@ -324,30 +324,30 @@ Handler_mrr_key_refills	0
 Handler_mrr_rowid_refills	0
 Handler_prepare	0
 Handler_read_first	0
-Handler_read_key	9
+Handler_read_key	13
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
-Handler_read_rnd	7
-Handler_read_rnd_deleted	0
+Handler_read_rnd	6
+Handler_read_rnd_deleted	3
 Handler_read_rnd_next	23
 Handler_rollback	0
 Handler_savepoint	0
 Handler_savepoint_rollback	0
 Handler_tmp_delete	0
 Handler_tmp_update	2
-Handler_tmp_write	7
+Handler_tmp_write	6
 Handler_update	0
 Handler_write	4
 show status like '%tmp%';
 Variable_name	Value
-Created_tmp_disk_tables	1
+Created_tmp_disk_tables	0
 Created_tmp_files	0
 Created_tmp_tables	2
 Handler_tmp_delete	0
 Handler_tmp_update	2
-Handler_tmp_write	7
+Handler_tmp_write	6
 Rows_tmp_read	44
 drop table t1;
 CREATE TABLE t1 (i int(11) DEFAULT NULL, KEY i (i) ) ENGINE=MyISAM;

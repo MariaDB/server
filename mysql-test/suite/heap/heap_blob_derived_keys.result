@@ -1,0 +1,224 @@
+#
+# HEAP blob derived_with_keys: promoted VARCHAR→BLOB columns
+# must support ref access on materialized derived tables.
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=off,derived_with_keys=on';
+#
+# Test 1: Promoted BLOB ref access on I_S derived table
+# TABLE_SCHEMA is VARCHAR(64) promoted to BLOB in HEAP.
+# derived_with_keys must create a hash key for ref access.
+#
+CREATE TABLE t1 (c1 int PRIMARY KEY, c2 char(5));
+EXPLAIN
+SELECT COUNT(*) > 0
+FROM INFORMATION_SCHEMA.COLUMNS
+INNER JOIN
+(SELECT TABLE_SCHEMA,
+GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX ASC) AS COL_NAMES
+FROM INFORMATION_SCHEMA.STATISTICS
+GROUP BY TABLE_SCHEMA) AS UNIQUES
+ON ( COLUMNS.TABLE_SCHEMA = UNIQUES.TABLE_SCHEMA);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	COLUMNS	ALL	NULL	NULL	NULL	NULL	NULL	Open_frm_only; Scanned all databases
+1	PRIMARY	<derived2>	ref	key0	key0	2	blob_ref	2	
+2	DERIVED	STATISTICS	ALL	NULL	NULL	NULL	NULL	NULL	Open_frm_only; Scanned all databases; Using filesort
+SELECT COUNT(*) > 0
+FROM INFORMATION_SCHEMA.COLUMNS
+INNER JOIN
+(SELECT TABLE_SCHEMA,
+GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX ASC) AS COL_NAMES
+FROM INFORMATION_SCHEMA.STATISTICS
+GROUP BY TABLE_SCHEMA) AS UNIQUES
+ON ( COLUMNS.TABLE_SCHEMA = UNIQUES.TABLE_SCHEMA);
+COUNT(*) > 0
+1
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+DROP TABLE t1;
+#
+# Test 2: TEXT/BLOB columns get ref access on derived tables via
+# heap_store_key_blob_ref (direct-to-record[0] path).
+#
+CREATE TABLE t1 (c1 text, c2 int);
+INSERT INTO t1 VALUES ('a',1), ('c',3), ('g',7), ('d',4), ('c',3);
+CREATE TABLE t2 (c1 text, c2 int);
+INSERT INTO t2 VALUES ('b',2), ('c',3);
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+# v1.c1 (TEXT) gets ref access via heap_store_key_blob_ref
+EXPLAIN EXTENDED
+SELECT v1.c1, v1.c2 FROM v1, t2 WHERE v1.c1=t2.c1 AND v1.c2=t2.c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	8	blob_ref,test.t2.c2	2	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `v1`.`c1` AS `c1`,`v1`.`c2` AS `c2` from `test`.`v1` join `test`.`t2` where `v1`.`c1` = `test`.`t2`.`c1` and `v1`.`c2` = `test`.`t2`.`c2`
+SELECT v1.c1, v1.c2 FROM v1, t2 WHERE v1.c1=t2.c1 AND v1.c2=t2.c2;
+c1	c2
+c	3
+c	3
+# Hash join on TEXT column: key_len should be small (based on key_length()=0)
+SET SESSION optimizer_switch='derived_merge=off,derived_with_keys=on';
+SET SESSION join_cache_level=4;
+EXPLAIN
+SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	3	blob_ref	2	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	
+SET SESSION join_cache_level=default;
+DROP VIEW v1;
+DROP TABLE t1, t2;
+#
+# Test 3: Promoted BLOB ref access with data verification
+# Create a derived table with a wide VARCHAR column that gets
+# promoted to BLOB in HEAP, join on it, verify correct results.
+#
+CREATE TABLE t_outer (id int, schema_name VARCHAR(64));
+INSERT INTO t_outer VALUES (1, 'test'), (2, 'mysql'), (3, 'nonexistent');
+EXPLAIN
+SELECT t_outer.id, dt.schema_name, dt.cnt
+FROM t_outer
+JOIN (SELECT TABLE_SCHEMA AS schema_name, COUNT(*) AS cnt
+FROM INFORMATION_SCHEMA.TABLES
+GROUP BY TABLE_SCHEMA) dt
+ON t_outer.schema_name = dt.schema_name;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t_outer	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	<derived2>	ref	key0	key0	2	blob_ref	2	Using where
+2	DERIVED	TABLES	ALL	NULL	NULL	NULL	NULL	NULL	Skip_open_table; Scanned all databases; Using temporary; Using filesort
+SELECT t_outer.id, dt.schema_name, dt.cnt
+FROM t_outer
+JOIN (SELECT TABLE_SCHEMA AS schema_name, COUNT(*) AS cnt
+FROM INFORMATION_SCHEMA.TABLES
+GROUP BY TABLE_SCHEMA) dt
+ON t_outer.schema_name = dt.schema_name
+ORDER BY t_outer.id;
+id	schema_name	cnt
+1	test	1
+2	mysql	31
+DROP TABLE t_outer;
+#
+# Test 4: LONGTEXT ref access on derived tables
+# LONGTEXT has field_length > UINT16_MAX (4294967295).
+# heap_store_key_blob_ref bypasses the key buffer entirely,
+# so the uint16 KEY_PART_INFO::length limit does not apply.
+#
+CREATE TABLE t_long (id int, data LONGTEXT);
+INSERT INTO t_long VALUES (1, 'alpha'), (2, 'beta'), (3, 'gamma');
+CREATE TABLE t_lookup_long (data LONGTEXT);
+INSERT INTO t_lookup_long VALUES ('alpha'), ('gamma');
+# EXPLAIN should show ref access on the derived table
+EXPLAIN
+SELECT dt.id, dt.data
+FROM t_lookup_long
+JOIN (SELECT id, data FROM t_long) dt
+ON t_lookup_long.data = dt.data;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t_lookup_long	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	3	blob_ref	2	
+2	DERIVED	t_long	ALL	NULL	NULL	NULL	NULL	3	
+# Verify correct results
+SELECT dt.id, dt.data
+FROM t_lookup_long
+JOIN (SELECT id, data FROM t_long) dt
+ON t_lookup_long.data = dt.data
+ORDER BY dt.id;
+id	data
+1	alpha
+3	gamma
+DROP TABLE t_long, t_lookup_long;
+#
+# Test 5: JSON (LONGTEXT alias) ref access on derived tables
+# JSON is an alias for LONGTEXT in MariaDB. Verify ref access
+# works for JSON columns in derived table joins.
+#
+CREATE TABLE t_json (id int, doc JSON);
+INSERT INTO t_json VALUES
+(1, '{"name": "Alice", "age": 30}'),
+(2, '{"name": "Bob", "age": 25}'),
+(3, '{"name": "Charlie", "age": 35}');
+CREATE TABLE t_json_lookup (doc JSON);
+INSERT INTO t_json_lookup VALUES
+('{"name": "Alice", "age": 30}'),
+('{"name": "Charlie", "age": 35}');
+# EXPLAIN should show ref access on the derived table
+EXPLAIN
+SELECT dt.id, dt.doc
+FROM t_json_lookup
+JOIN (SELECT id, doc FROM t_json) dt
+ON t_json_lookup.doc = dt.doc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t_json_lookup	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	3	blob_ref	2	
+2	DERIVED	t_json	ALL	NULL	NULL	NULL	NULL	3	
+# Verify correct results
+SELECT dt.id, dt.doc
+FROM t_json_lookup
+JOIN (SELECT id, doc FROM t_json) dt
+ON t_json_lookup.doc = dt.doc
+ORDER BY dt.id;
+id	doc
+1	{"name": "Alice", "age": 30}
+3	{"name": "Charlie", "age": 35}
+DROP TABLE t_json, t_json_lookup;
+#
+# Test 6: Multi-column key with LONGTEXT + INT on derived table
+# Verify mixed BLOB + non-BLOB key parts work correctly.
+#
+CREATE TABLE t_multi (id int, category int, name LONGTEXT);
+INSERT INTO t_multi VALUES
+(1, 10, 'foo'), (2, 20, 'bar'), (3, 10, 'foo'), (4, 30, 'baz');
+CREATE TABLE t_multi_lookup (category int, name LONGTEXT);
+INSERT INTO t_multi_lookup VALUES (10, 'foo'), (30, 'baz');
+# EXPLAIN should show ref access with both key parts
+EXPLAIN
+SELECT dt.id, dt.category, dt.name
+FROM t_multi_lookup
+JOIN (SELECT id, category, name FROM t_multi) dt
+ON t_multi_lookup.category = dt.category AND t_multi_lookup.name = dt.name;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t_multi_lookup	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	8	test.t_multi_lookup.category,blob_ref	2	
+2	DERIVED	t_multi	ALL	NULL	NULL	NULL	NULL	4	
+# Verify correct results
+SELECT dt.id, dt.category, dt.name
+FROM t_multi_lookup
+JOIN (SELECT id, category, name FROM t_multi) dt
+ON t_multi_lookup.category = dt.category AND t_multi_lookup.name = dt.name
+ORDER BY dt.id;
+id	category	name
+1	10	foo
+3	10	foo
+4	30	baz
+DROP TABLE t_multi, t_multi_lookup;
+#
+# Test 7: Const BLOB ref access (lookup value is a constant)
+# The early-const optimization is skipped for HEAP BLOB key parts
+# because record[0] is overwritten during materialization.
+# Verify correct results with constant lookup values.
+#
+CREATE TABLE t_const (id int, data LONGTEXT);
+INSERT INTO t_const VALUES (1, 'hello'), (2, 'world'), (3, 'hello');
+EXPLAIN
+SELECT dt.id, dt.data
+FROM (SELECT id, data FROM t_const) dt
+WHERE dt.data = 'hello';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using where
+2	DERIVED	t_const	ALL	NULL	NULL	NULL	NULL	3	Using where
+SELECT dt.id, dt.data
+FROM (SELECT id, data FROM t_const) dt
+WHERE dt.data = 'hello'
+ORDER BY dt.id;
+id	data
+1	hello
+3	hello
+DROP TABLE t_const;
+SET SESSION optimizer_switch= @save_optimizer_switch;

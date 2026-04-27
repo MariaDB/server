@@ -1739,14 +1739,14 @@ drop table t1;
 SHOW CREATE TABLE information_schema.geometry_columns;
 Table	Create Table
 GEOMETRY_COLUMNS	CREATE TEMPORARY TABLE `GEOMETRY_COLUMNS` (
-  `F_TABLE_CATALOG` varchar(512) NOT NULL,
-  `F_TABLE_SCHEMA` varchar(64) NOT NULL,
-  `F_TABLE_NAME` varchar(64) NOT NULL,
-  `F_GEOMETRY_COLUMN` varchar(64) NOT NULL,
-  `G_TABLE_CATALOG` varchar(512) NOT NULL,
-  `G_TABLE_SCHEMA` varchar(64) NOT NULL,
-  `G_TABLE_NAME` varchar(64) NOT NULL,
-  `G_GEOMETRY_COLUMN` varchar(64) NOT NULL,
+  `F_TABLE_CATALOG` longtext NOT NULL,
+  `F_TABLE_SCHEMA` longtext NOT NULL,
+  `F_TABLE_NAME` longtext NOT NULL,
+  `F_GEOMETRY_COLUMN` longtext NOT NULL,
+  `G_TABLE_CATALOG` longtext NOT NULL,
+  `G_TABLE_SCHEMA` longtext NOT NULL,
+  `G_TABLE_NAME` longtext NOT NULL,
+  `G_GEOMETRY_COLUMN` longtext NOT NULL,
   `STORAGE_TYPE` tinyint(2) NOT NULL,
   `GEOMETRY_TYPE` int(7) NOT NULL,
   `COORD_DIMENSION` tinyint(2) NOT NULL,
@@ -1757,9 +1757,9 @@ SHOW CREATE TABLE information_schema.spatial_ref_sys;
 Table	Create Table
 SPATIAL_REF_SYS	CREATE TEMPORARY TABLE `SPATIAL_REF_SYS` (
   `SRID` smallint(5) NOT NULL,
-  `AUTH_NAME` varchar(512) NOT NULL,
+  `AUTH_NAME` longtext NOT NULL,
   `AUTH_SRID` int(5) NOT NULL,
-  `SRTEXT` varchar(2048) NOT NULL
+  `SRTEXT` longtext NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 create table t1(g GEOMETRY, pt POINT);
 create table t2(g LINESTRING, pl POLYGON);

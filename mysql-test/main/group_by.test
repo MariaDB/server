@@ -1671,14 +1671,14 @@ DROP TABLE t1, t2;
 --disable_ps2_protocol
 --disable_view_protocol
 --disable_cursor_protocol
-FLUSH STATUS; # this test case *must* use Aria temp tables
+FLUSH STATUS;
 
 CREATE TABLE t1 (f1 INT, f2 decimal(20,1), f3 blob);
 INSERT INTO t1 values(11,NULL,'blob'),(11,NULL,'blob');
 SELECT f3, MIN(f2) FROM t1 GROUP BY f1 LIMIT 1;
 DROP TABLE t1;
 
---echo the value below *must* be 1
+--echo the value below *must* be 0 (HEAP supports blobs)
 show status like 'Created_tmp_disk_tables';
 --enable_cursor_protocol
 --enable_view_protocol

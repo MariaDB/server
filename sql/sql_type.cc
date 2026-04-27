@@ -1446,12 +1446,21 @@ Type_handler::string_type_handler(uint max_octet_length)
 }
 
 
+static thread_local bool creating_heap_tmp_table= false;
+
+void Type_handler::set_creating_heap_tmp_table(bool is_heap)
+{
+  creating_heap_tmp_table= is_heap;
+}
+
 const Type_handler *
 Type_handler::varstring_type_handler(const Item *item)
 {
   if (!item->max_length)
     return &type_handler_string;
-  if (item->too_big_for_varchar())
+  if ((creating_heap_tmp_table &&
+       item->max_length > HEAP_CONVERT_IF_BIGGER_TO_BLOB) ||
+      item->too_big_for_varchar())
     return blob_type_handler(item->max_length);
   return &type_handler_varchar;
 }

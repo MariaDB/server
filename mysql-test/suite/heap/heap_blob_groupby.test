@@ -1,0 +1,41 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-38975: GROUP BY on blob columns in HEAP internal temp tables
+--echo # Verify that GROUP BY correctly groups by blob/text content,
+--echo # not by internal pointer representation.
+--echo #
+
+CREATE TABLE t1 (a TEXT, b INT);
+INSERT INTO t1 VALUES ('foo', 1), ('foo', 2), ('bar', 3), ('bar', 4), ('baz', 5);
+
+--echo # GROUP BY on TEXT column should group by content
+SELECT a, COUNT(*), SUM(b) FROM t1 GROUP BY a ORDER BY a;
+
+--echo # GROUP BY with HAVING
+SELECT a, COUNT(*) AS cnt FROM t1 GROUP BY a HAVING cnt > 1 ORDER BY a;
+
+DROP TABLE t1;
+
+--echo #
+--echo # GROUP BY on multiple blob columns
+--echo #
+CREATE TABLE t1 (a TEXT, b TEXT, c INT);
+INSERT INTO t1 VALUES ('x', 'p', 1), ('x', 'p', 2),
+                       ('x', 'q', 3), ('y', 'p', 4);
+
+SELECT a, b, COUNT(*), SUM(c) FROM t1 GROUP BY a, b ORDER BY a, b;
+
+DROP TABLE t1;
+
+--echo #
+--echo # GROUP BY blob with NULL values
+--echo #
+CREATE TABLE t1 (a TEXT, b INT);
+INSERT INTO t1 VALUES (NULL, 1), (NULL, 2), ('foo', 3), ('foo', 4), ('bar', 5);
+
+SELECT a, COUNT(*), SUM(b) FROM t1 GROUP BY a ORDER BY a;
+
+DROP TABLE t1;
+
+--echo # End of MDEV-38975 GROUP BY blob tests

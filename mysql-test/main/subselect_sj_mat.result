@@ -716,7 +716,7 @@ from t1_16
 where a1 in (select group_concat(b1) from t2_16 group by b2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	260	test.t1_16.a1	1	100.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	65537	test.t1_16.a1	1	100.00	Using where
 2	MATERIALIZED	t2_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
 Note	1003	/* select#1 */ select left(`test`.`t1_16`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_16`.`a2`,7) AS `left(a2,7)` from  <materialize> (/* select#2 */ select group_concat(`test`.`t2_16`.`b1` separator ',') from `test`.`t2_16` group by `test`.`t2_16`.`b2`) join `test`.`t1_16` where `test`.`t1_16`.`a1` = `<subquery2>`.`group_concat(b1)`
@@ -801,7 +801,7 @@ from t1_512
 where a1 in (select substring(b1,1,512) from t2_512 where b1 > '0');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_512	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	516	func	1	100.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	65537	func	1	100.00	Using where
 2	MATERIALIZED	t2_512	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select left(`test`.`t1_512`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_512`.`a2`,7) AS `left(a2,7)` from `test`.`t1_512` semi join (`test`.`t2_512`) where `test`.`t2_512`.`b1` > '0' and `test`.`t1_512`.`a1` = substr(`test`.`t2_512`.`b1`,1,512)
@@ -816,10 +816,10 @@ from t1_512
 where a1 in (select group_concat(b1) from t2_512 group by b2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_512	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	260	test.t1_512.a1	1	100.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	65537	test.t1_512.a1	1	100.00	
 2	MATERIALIZED	t2_512	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_512`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_512`.`a2`,7) AS `left(a2,7)` from  <materialize> (/* select#2 */ select group_concat(`test`.`t2_512`.`b1` separator ',') from `test`.`t2_512` group by `test`.`t2_512`.`b2`) join `test`.`t1_512` where `test`.`t1_512`.`a1` = `<subquery2>`.`group_concat(b1)`
+Note	1003	/* select#1 */ select left(`test`.`t1_512`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_512`.`a2`,7) AS `left(a2,7)` from  <materialize> (/* select#2 */ select group_concat(`test`.`t2_512`.`b1` separator ',') from `test`.`t2_512` group by `test`.`t2_512`.`b2`) join `test`.`t1_512` where `<subquery2>`.`group_concat(b1)` = `test`.`t1_512`.`a1`
 select left(a1,7), left(a2,7)
 from t1_512
 where a1 in (select group_concat(b1) from t2_512 group by b2);
@@ -834,10 +834,10 @@ from t1_512
 where a1 in (select group_concat(b1) from t2_512 group by b2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_512	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	260	test.t1_512.a1	1	100.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	65537	test.t1_512.a1	1	100.00	
 2	MATERIALIZED	t2_512	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_512`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_512`.`a2`,7) AS `left(a2,7)` from  <materialize> (/* select#2 */ select group_concat(`test`.`t2_512`.`b1` separator ',') from `test`.`t2_512` group by `test`.`t2_512`.`b2`) join `test`.`t1_512` where `test`.`t1_512`.`a1` = `<subquery2>`.`group_concat(b1)`
+Note	1003	/* select#1 */ select left(`test`.`t1_512`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_512`.`a2`,7) AS `left(a2,7)` from  <materialize> (/* select#2 */ select group_concat(`test`.`t2_512`.`b1` separator ',') from `test`.`t2_512` group by `test`.`t2_512`.`b2`) join `test`.`t1_512` where `<subquery2>`.`group_concat(b1)` = `test`.`t1_512`.`a1`
 select left(a1,7), left(a2,7)
 from t1_512
 where a1 in (select group_concat(b1) from t2_512 group by b2);
@@ -919,10 +919,10 @@ from t1_1024
 where a1 in (select group_concat(b1) from t2_1024 group by b2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_1024	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	260	test.t1_1024.a1	1	100.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	65537	test.t1_1024.a1	1	100.00	
 2	MATERIALIZED	t2_1024	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_1024`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1024`.`a2`,7) AS `left(a2,7)` from  <materialize> (/* select#2 */ select group_concat(`test`.`t2_1024`.`b1` separator ',') from `test`.`t2_1024` group by `test`.`t2_1024`.`b2`) join `test`.`t1_1024` where `test`.`t1_1024`.`a1` = `<subquery2>`.`group_concat(b1)`
+Note	1003	/* select#1 */ select left(`test`.`t1_1024`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1024`.`a2`,7) AS `left(a2,7)` from  <materialize> (/* select#2 */ select group_concat(`test`.`t2_1024`.`b1` separator ',') from `test`.`t2_1024` group by `test`.`t2_1024`.`b2`) join `test`.`t1_1024` where `<subquery2>`.`group_concat(b1)` = `test`.`t1_1024`.`a1`
 select left(a1,7), left(a2,7)
 from t1_1024
 where a1 in (select group_concat(b1) from t2_1024 group by b2);
@@ -937,10 +937,10 @@ from t1_1024
 where a1 in (select group_concat(b1) from t2_1024 group by b2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_1024	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	260	test.t1_1024.a1	1	100.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	65537	test.t1_1024.a1	1	100.00	
 2	MATERIALIZED	t2_1024	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_1024`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1024`.`a2`,7) AS `left(a2,7)` from  <materialize> (/* select#2 */ select group_concat(`test`.`t2_1024`.`b1` separator ',') from `test`.`t2_1024` group by `test`.`t2_1024`.`b2`) join `test`.`t1_1024` where `test`.`t1_1024`.`a1` = `<subquery2>`.`group_concat(b1)`
+Note	1003	/* select#1 */ select left(`test`.`t1_1024`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1024`.`a2`,7) AS `left(a2,7)` from  <materialize> (/* select#2 */ select group_concat(`test`.`t2_1024`.`b1` separator ',') from `test`.`t2_1024` group by `test`.`t2_1024`.`b2`) join `test`.`t1_1024` where `<subquery2>`.`group_concat(b1)` = `test`.`t1_1024`.`a1`
 select left(a1,7), left(a2,7)
 from t1_1024
 where a1 in (select group_concat(b1) from t2_1024 group by b2);
@@ -1022,10 +1022,10 @@ from t1_1025
 where a1 in (select group_concat(b1) from t2_1025 group by b2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_1025	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	260	test.t1_1025.a1	1	100.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	65537	test.t1_1025.a1	1	100.00	
 2	MATERIALIZED	t2_1025	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_1025`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1025`.`a2`,7) AS `left(a2,7)` from  <materialize> (/* select#2 */ select group_concat(`test`.`t2_1025`.`b1` separator ',') from `test`.`t2_1025` group by `test`.`t2_1025`.`b2`) join `test`.`t1_1025` where `test`.`t1_1025`.`a1` = `<subquery2>`.`group_concat(b1)`
+Note	1003	/* select#1 */ select left(`test`.`t1_1025`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1025`.`a2`,7) AS `left(a2,7)` from  <materialize> (/* select#2 */ select group_concat(`test`.`t2_1025`.`b1` separator ',') from `test`.`t2_1025` group by `test`.`t2_1025`.`b2`) join `test`.`t1_1025` where `<subquery2>`.`group_concat(b1)` = `test`.`t1_1025`.`a1`
 select left(a1,7), left(a2,7)
 from t1_1025
 where a1 in (select group_concat(b1) from t2_1025 group by b2);
@@ -1040,10 +1040,10 @@ from t1_1025
 where a1 in (select group_concat(b1) from t2_1025 group by b2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1_1025	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	260	test.t1_1025.a1	1	100.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	65537	test.t1_1025.a1	1	100.00	
 2	MATERIALIZED	t2_1025	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 Warnings:
-Note	1003	/* select#1 */ select left(`test`.`t1_1025`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1025`.`a2`,7) AS `left(a2,7)` from  <materialize> (/* select#2 */ select group_concat(`test`.`t2_1025`.`b1` separator ',') from `test`.`t2_1025` group by `test`.`t2_1025`.`b2`) join `test`.`t1_1025` where `test`.`t1_1025`.`a1` = `<subquery2>`.`group_concat(b1)`
+Note	1003	/* select#1 */ select left(`test`.`t1_1025`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1_1025`.`a2`,7) AS `left(a2,7)` from  <materialize> (/* select#2 */ select group_concat(`test`.`t2_1025`.`b1` separator ',') from `test`.`t2_1025` group by `test`.`t2_1025`.`b2`) join `test`.`t1_1025` where `<subquery2>`.`group_concat(b1)` = `test`.`t1_1025`.`a1`
 select left(a1,7), left(a2,7)
 from t1_1025
 where a1 in (select group_concat(b1) from t2_1025 group by b2);
@@ -2236,9 +2236,8 @@ mysqltest1
 EXPLAIN EXTENDED
 SELECT db FROM t1 WHERE db IN (SELECT SCHEMA_NAME FROM information_schema.schemata) ORDER BY db DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
-1	PRIMARY	t1	eq_ref	db	db	764	information_schema.schemata.SCHEMA_NAME	1	100.00	Using where; Using index
-2	MATERIALIZED	schemata	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	schemata	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Start temporary; Using temporary; Using filesort
+1	PRIMARY	t1	eq_ref	db	db	764	information_schema.schemata.SCHEMA_NAME	1	100.00	Using where; Using index; End temporary
 Warnings:
 Note	1003	select `test`.`t1`.`db` AS `db` from `test`.`t1` semi join (`information_schema`.`schemata`) where `test`.`t1`.`db` = `information_schema`.`schemata`.`SCHEMA_NAME` order by `test`.`t1`.`db` desc
 drop table t1;

@@ -1,9 +1,9 @@
 DESC sys.schema_auto_increment_columns;
 Field	Type	Null	Key	Default	Extra
-table_schema	varchar(64)	NO		NULL	
-table_name	varchar(64)	NO		NULL	
-column_name	varchar(64)	NO		NULL	
-data_type	varchar(64)	NO		NULL	
+table_schema	longtext	NO		NULL	
+table_name	longtext	NO		NULL	
+column_name	longtext	NO		NULL	
+data_type	longtext	NO		NULL	
 column_type	longtext	NO		NULL	
 is_signed	int(1)	NO		0	
 is_unsigned	int(1)	NO		0	

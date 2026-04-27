@@ -30,10 +30,7 @@ Note	1051	Unknown table 'test.t1,test.t2'
 create table t1 (b char(0) not null, index(b));
 ERROR 42000: The storage engine MyISAM can't index column `b`
 create table t1 (a int not null,b text) engine=heap;
-ERROR 42000: Storage engine MEMORY doesn't support BLOB/TEXT columns
-drop table if exists t1;
-Warnings:
-Note	1051	Unknown table 'test.t1'
+drop table t1;
 create table t1 (ordid int(8) not null auto_increment, ord  varchar(50) not null, primary key (ord,ordid)) engine=heap;
 ERROR 42000: Incorrect table definition; there can be only one auto column and it must be defined as a key
 create table not_existing_database.test (a int);
@@ -1072,12 +1069,12 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `ID` bigint(4) NOT NULL,
-  `USER` varchar(128) NOT NULL,
-  `HOST` varchar(64) NOT NULL,
-  `DB` varchar(64),
-  `COMMAND` varchar(16) NOT NULL,
+  `USER` longtext NOT NULL,
+  `HOST` longtext NOT NULL,
+  `DB` longtext,
+  `COMMAND` longtext NOT NULL,
   `TIME` int(7) NOT NULL,
-  `STATE` varchar(64),
+  `STATE` longtext,
   `INFO` longtext,
   `TIME_MS` decimal(22,3) NOT NULL,
   `STAGE` tinyint(2) NOT NULL,
@@ -1089,19 +1086,19 @@ t1	CREATE TABLE `t1` (
   `QUERY_ID` bigint(4) NOT NULL,
   `INFO_BINARY` blob,
   `TID` bigint(4) NOT NULL
-)  DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 drop table t1;
 create temporary table t1 like information_schema.processlist;
 show create table t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `ID` bigint(4) NOT NULL,
-  `USER` varchar(128) NOT NULL,
-  `HOST` varchar(64) NOT NULL,
-  `DB` varchar(64),
-  `COMMAND` varchar(16) NOT NULL,
+  `USER` longtext NOT NULL,
+  `HOST` longtext NOT NULL,
+  `DB` longtext,
+  `COMMAND` longtext NOT NULL,
   `TIME` int(7) NOT NULL,
-  `STATE` varchar(64),
+  `STATE` longtext,
   `INFO` longtext,
   `TIME_MS` decimal(22,3) NOT NULL,
   `STAGE` tinyint(2) NOT NULL,
@@ -1113,15 +1110,15 @@ t1	CREATE TEMPORARY TABLE `t1` (
   `QUERY_ID` bigint(4) NOT NULL,
   `INFO_BINARY` blob,
   `TID` bigint(4) NOT NULL
-)  DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 drop table t1;
 create table t1 like information_schema.character_sets;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `CHARACTER_SET_NAME` varchar(32) NOT NULL,
-  `DEFAULT_COLLATE_NAME` varchar(64) NOT NULL,
-  `DESCRIPTION` varchar(60) NOT NULL,
+  `CHARACTER_SET_NAME` longtext NOT NULL,
+  `DEFAULT_COLLATE_NAME` longtext NOT NULL,
+  `DESCRIPTION` longtext NOT NULL,
   `MAXLEN` bigint(3) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 drop table t1;

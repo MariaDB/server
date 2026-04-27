@@ -69,6 +69,8 @@ int heap_rkey(HP_INFO *info, uchar *record, int inx, const uchar *key,
       memcpy(info->lastkey, key, (size_t) keyinfo->length);
   }
   memcpy(record, pos, (size_t) share->reclength);
+  if (share->blob_count && hp_read_blobs(info, record, pos))
+    DBUG_RETURN(my_errno);
   info->update= HA_STATE_AKTIV;
   DBUG_RETURN(0);
 }

@@ -493,8 +493,8 @@ ANALYZE TABLE t1;
 -- enable_result_log
 -- enable_query_log
 
-SELECT * FROM t1 ORDER BY MATCH(a,b) AGAINST ('aac') DESC;
-SELECT * FROM t1 ORDER BY MATCH(a,b) AGAINST ('aab') DESC; 
+SELECT * FROM t1 ORDER BY MATCH(a,b) AGAINST ('aac') DESC, id;
+SELECT * FROM t1 ORDER BY MATCH(a,b) AGAINST ('aab') DESC, id;
 
 --echo "----------Test7---------"
 select * from t1 where match(a,b) against ('aaa')
@@ -1347,17 +1347,17 @@ database database','foo database database database'),('Database article
 title','body with lots of words.'),('myfulltext database', 'my test fulltext
 database');  
 
-SELECT id, title, body FROM articles ORDER BY MATCH (title,body)  AGAINST ('database' IN BOOLEAN MODE) DESC;
+SELECT id, title, body FROM articles ORDER BY MATCH (title,body)  AGAINST ('database' IN BOOLEAN MODE) DESC, id;
 DELETE from articles WHERE title like "myfulltext database";
 
 INSERT INTO articles (title,body) VALUES ('myfulltext database', 'my test fulltext database');
 
-SELECT id, title, body FROM articles ORDER BY MATCH (title,body)  AGAINST ('database' IN BOOLEAN MODE) DESC;
+SELECT id, title, body FROM articles ORDER BY MATCH (title,body)  AGAINST ('database' IN BOOLEAN MODE) DESC, id;
 DELETE from articles WHERE title like "myfulltext database";
 
 INSERT INTO articles (title,body) VALUES ('myfulltext database', 'my test fulltext database');
 
-SELECT id, title, body FROM articles ORDER BY MATCH (title,body)  AGAINST ('database' IN BOOLEAN MODE) DESC;
+SELECT id, title, body FROM articles ORDER BY MATCH (title,body)  AGAINST ('database' IN BOOLEAN MODE) DESC, id;
 
 DROP TABLE articles;
 

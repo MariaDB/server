@@ -6553,11 +6553,11 @@ add_key_field(JOIN *join,
   uint optimize= 0;  
   if (eq_func &&
       ((join->is_allowed_hash_join_access() &&
-        field->hash_join_is_possible() && 
+        field->hash_join_is_possible() &&
         !(field->table->pos_in_table_list->is_materialized_derived() &&
           field->table->is_created())) ||
        (field->table->pos_in_table_list->is_materialized_derived() &&
-        !field->table->is_created() && !(field->flags & BLOB_FLAG))))
+        !field->table->is_created())))
   {
     optimize= KEY_OPTIMIZE_EQ;
   }   
@@ -12750,17 +12750,37 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       */
       if (!keyuse->val->used_tables() && !thd->lex->describe)
       {					// Compare against constant
-        store_key_item tmp(thd,
-                           keyinfo->key_part[i].field,
-                           key_buff + maybe_null,
-                           maybe_null ?  key_buff : 0,
-                           keyinfo->key_part[i].length,
-                           keyuse->val,
-                           FALSE);
-        if (unlikely(thd->is_error()))
-          DBUG_RETURN(TRUE);
-        tmp.copy(thd);
-        j->ref.const_ref_part_map |= key_part_map(1) << i ;
+        /*
+          HEAP BLOB key parts: skip the early-const optimization.
+          record[0] is overwritten during derived table materialization
+          (rows inserted via write_row(record[0])), so a const BLOB
+          value stored there at optimization time would be lost.
+          Fall through to create a heap_store_key_blob_ref that
+          re-stores the value at every lookup.
+        */
+        if ((keyinfo->key_part[i].key_part_flag & HA_BLOB_PART) &&
+            keyinfo->key_part[i].length == 0 &&
+            keyinfo->key_part[i].field->table->s->db_type() == heap_hton)
+        {
+          *ref_key++= new heap_store_key_blob_ref(thd,
+                                                   keyinfo->key_part[i].field,
+                                                   keyuse->val, FALSE);
+          /* Don't set const_ref_part_map — force re-copy every lookup */
+        }
+        else
+        {
+          store_key_item tmp(thd,
+                             keyinfo->key_part[i].field,
+                             key_buff + maybe_null,
+                             maybe_null ?  key_buff : 0,
+                             keyinfo->key_part[i].length,
+                             keyuse->val,
+                             FALSE);
+          if (unlikely(thd->is_error()))
+            DBUG_RETURN(TRUE);
+          tmp.copy(thd);
+          j->ref.const_ref_part_map |= key_part_map(1) << i ;
+        }
       }
       else
       {
@@ -12781,6 +12801,16 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
 	null_ref_key= key_buff;
         null_ref_part= i;
       }
+      /*
+        HEAP BLOB key parts: disable the ref cache.  cmp_buffer_with_ref()
+        does a memcmp on the key buffer, which has no BLOB data (only
+        metadata placeholders).  Two lookups differing only in the BLOB
+        value would appear identical, returning stale results.
+      */
+      if ((keyinfo->key_part[i].key_part_flag & HA_BLOB_PART) &&
+          keyinfo->key_part[i].length == 0 &&
+          keyinfo->key_part[i].field->table->s->db_type() == heap_hton)
+        j->ref.disable_cache= TRUE;
       key_buff+= keyinfo->key_part[i].store_length;
     }
   } /* not ftkey */
@@ -12837,6 +12867,20 @@ static store_key *
 get_store_key(THD *thd, KEYUSE *keyuse, table_map used_tables,
 	      KEY_PART_INFO *key_part, uchar *key_buff, uint maybe_null)
 {
+  /*
+    HEAP BLOB key parts with length=0: direct-to-record[0] path.
+    add_tmp_key() leaves BLOB key parts with length=0; the key buffer
+    has only metadata placeholders.  Write the lookup value directly
+    into record[0]'s Field_blob via heap_store_key_blob_ref.
+    Non-zero length means the key buffer has space for data (e.g.
+    SJ-materialize path) — use the normal store_key mechanism.
+  */
+  if ((key_part->key_part_flag & HA_BLOB_PART) &&
+      key_part->length == 0 &&
+      key_part->field->table->s->db_type() == heap_hton)
+    return new heap_store_key_blob_ref(thd, key_part->field,
+                                       keyuse->val, FALSE);
+
   if (!((~used_tables) & keyuse->used_tables))		// if const item
   {
     return new store_key_const_item(thd,
@@ -12850,7 +12894,7 @@ get_store_key(THD *thd, KEYUSE *keyuse, table_map used_tables,
            (keyuse->val->type() == Item::REF_ITEM &&
 	    ((((Item_ref*)keyuse->val)->ref_type() == Item_ref::OUTER_REF &&
               (*(Item_ref**)((Item_ref*)keyuse->val)->ref)->ref_type() ==
-              Item_ref::DIRECT_REF) || 
+              Item_ref::DIRECT_REF) ||
              ((Item_ref*)keyuse->val)->ref_type() == Item_ref::VIEW_REF) &&
             keyuse->val->real_item()->type() == Item::FIELD_ITEM))
     return new store_key_field(thd,
@@ -15805,16 +15849,26 @@ bool TABLE_REF::tmp_table_index_lookup_init(THD *thd,
     DBUG_ASSERT(item);
     items[i]= item;
     int null_count= MY_TEST(cur_key_part->field->real_maybe_null());
-    *ref_key= new store_key_item(thd, cur_key_part->field,
-                                 /* TIMOUR:
-                                    the NULL byte is taken into account in
-                                    cur_key_part->store_length, so instead of
-                                    cur_ref_buff + MY_TEST(maybe_null), we could
-                                    use that information instead.
-                                 */
-                                 cur_ref_buff + null_count,
-                                 null_count ? cur_ref_buff : 0,
-                                 cur_key_part->length, items[i], value);
+    /*
+      HEAP BLOB key parts: write lookup value directly into record[0]'s
+      Field_blob, bypassing the key buffer.
+    */
+    if ((cur_key_part->key_part_flag & HA_BLOB_PART) &&
+        cur_key_part->length == 0 &&
+        cur_key_part->field->table->s->db_type() == heap_hton)
+      *ref_key= new heap_store_key_blob_ref(thd, cur_key_part->field,
+                                             items[i], value);
+    else
+      *ref_key= new store_key_item(thd, cur_key_part->field,
+                                   /* TIMOUR:
+                                      the NULL byte is taken into account in
+                                      cur_key_part->store_length, so instead of
+                                      cur_ref_buff + MY_TEST(maybe_null), we could
+                                      use that information instead.
+                                   */
+                                   cur_ref_buff + null_count,
+                                   null_count ? cur_ref_buff : 0,
+                                   cur_key_part->length, items[i], value);
     cur_ref_buff+= cur_key_part->store_length;
   }
   *ref_key= NULL; /* End marker. */
@@ -20502,11 +20556,12 @@ Field *create_tmp_field(TABLE *table, Item *item,
                         Field **default_field,
                         bool group, bool modify_item,
                         bool table_cant_handle_bit_fields,
-                        bool make_copy_field)
+                        bool make_copy_field,
+                        bool is_heap_engine= false)
 {
   Tmp_field_src src;
   Tmp_field_param prm(group, modify_item, table_cant_handle_bit_fields,
-                      make_copy_field);
+                      make_copy_field, is_heap_engine);
   Field *result= item->create_tmp_field_ex(table->in_use->mem_root,
                                            table, &src, &prm);
   if (is_json_type(item) && make_json_valid_expr(table, result))
@@ -20561,6 +20616,7 @@ Create_tmp_table::Create_tmp_table(ORDER *group, bool distinct,
                                    ha_rows rows_limit)
    :m_alloced_field_count(0),
     m_using_unique_constraint(false),
+    m_heap_expected(false),
     m_temp_pool_slot(MY_BIT_NONE),
     m_group(group),
     m_distinct(distinct),
@@ -20688,6 +20744,22 @@ TABLE *Create_tmp_table::start(THD *thd,
   */
   fn_format(path, path, mysql_tmpdir, "", MY_REPLACE_EXT|MY_UNPACK_FILENAME);
 
+  /*
+    Early engine prediction: reclength is not known yet (fields haven't been
+    added), so pass 0 — this is safe because pick_engine()'s only reclength
+    check is "> HA_MAX_REC_LENGTH", which 0 never triggers.  Returns
+    heap_hton unless session-level overrides (big_tables,
+    tmp_memory_table_size=0, etc.) force a disk-based engine.  We use this
+    to avoid the too_big_for_varchar() / group_length >= MAX_BLOB_WIDTH
+    bail-outs that would force m_using_unique_constraint for HEAP tables
+    that natively support blob keys.
+
+    Note: pick_engine() also reads m_using_unique_constraint, which is
+    false at this point.  The guards below that set it to true are gated
+    by !m_heap_expected, so there is no circular dependency in practice.
+  */
+  m_heap_expected= (pick_engine(thd, 0) == heap_hton);
+
   if (m_group)
   {
     ORDER **prev= &m_group;
@@ -20711,14 +20783,23 @@ TABLE *Create_tmp_table::start(THD *thd,
           can't index BIT fields.
       */
       (*tmp->item)->marker= MARKER_NULL_KEY; // Store null in key
-      if ((*tmp->item)->too_big_for_varchar())
+      if (!m_heap_expected && (*tmp->item)->too_big_for_varchar())
         m_using_unique_constraint= true;
     }
-    if (param->group_length >= MAX_BLOB_WIDTH)
+    if (!m_heap_expected && param->group_length >= MAX_BLOB_WIDTH)
       m_using_unique_constraint= true;
     if (m_group)
       m_distinct= 0;                           // Can't use distinct
   }
+
+  /*
+    Early engine prediction: reclength is not yet known (fields not added),
+    so pass 0.  pick_engine() with reclength=0 only skips the
+    reclength > HA_MAX_REC_LENGTH check, which choose_engine() will
+    verify later with the real value.  Since HEAP promotion reduces
+    reclength, this is conservative.
+  */
+  m_heap_expected= (pick_engine(thd, 0) == heap_hton);
 
   m_alloced_field_count= param->field_count+param->func_count+param->sum_func_count;
   DBUG_ASSERT(m_alloced_field_count);
@@ -20847,6 +20928,8 @@ bool Create_tmp_table::add_fields(THD *thd,
       distinct_record_structure= true;
     }
   li.rewind();
+  if (m_heap_expected)
+    Type_handler::set_creating_heap_tmp_table(true);
   while ((item=li++))
   {
     uint uneven_delta;
@@ -20897,7 +20980,8 @@ bool Create_tmp_table::add_fields(THD *thd,
             create_tmp_field(table, arg, &copy_func,
                              tmp_from_field, &m_default_field[fieldnr],
                              m_group != 0, not_all_columns,
-                             distinct_record_structure , false);
+                             distinct_record_structure, false,
+                             m_heap_expected);
           if (!new_field)
             goto err;					// Should be OOM
           tmp_from_field++;
@@ -20961,7 +21045,8 @@ bool Create_tmp_table::add_fields(THD *thd,
                          */
                          item->marker == MARKER_NULL_KEY ||
                          param->bit_fields_as_long,
-                         param->force_copy_fields);
+                         param->force_copy_fields,
+                         m_heap_expected);
       if (unlikely(!new_field))
       {
         if (unlikely(thd->is_fatal_error))
@@ -21012,6 +21097,7 @@ bool Create_tmp_table::add_fields(THD *thd,
 
   DBUG_ASSERT(fieldnr == m_field_count[other] + m_field_count[distinct]);
   DBUG_ASSERT(m_blob_count == m_blobs_count[other] + m_blobs_count[distinct]);
+  Type_handler::set_creating_heap_tmp_table(false);
   share->fields= fieldnr;
   share->blob_fields= m_blob_count;
   table->field[fieldnr]= 0;                     // End marker
@@ -21026,8 +21112,29 @@ bool Create_tmp_table::add_fields(THD *thd,
   DBUG_RETURN(false);
 
 err:
+  Type_handler::set_creating_heap_tmp_table(false);
   thd->mem_root= mem_root_save;
   DBUG_RETURN(true);
+}
+
+
+/*
+  Predict which engine a temporary table will use, based on session
+  variables and the current m_using_unique_constraint / m_select_options
+  state.  Called early (before fields are added) with reclength=0 to set
+  m_heap_expected, and again from choose_engine() with the real reclength.
+*/
+
+handlerton *Create_tmp_table::pick_engine(THD *thd, uint reclength)
+{
+  if (m_using_unique_constraint ||
+      reclength > HA_MAX_REC_LENGTH ||
+      (thd->variables.big_tables &&
+       !(m_select_options & SELECT_SMALL_RESULT)) ||
+      (m_select_options & TMP_TABLE_FORCE_MYISAM) ||
+      thd->variables.tmp_memory_table_size == 0)
+    return TMP_ENGINE_HTON;
+  return heap_hton;
 }
 
 
@@ -21036,31 +21143,22 @@ bool Create_tmp_table::choose_engine(THD *thd, TABLE *table,
 {
   TABLE_SHARE *share= table->s;
   DBUG_ENTER("Create_tmp_table::choose_engine");
-  /*
-    If result table is small; use a heap, otherwise TMP_TABLE_HTON (Aria)
-    In the future we should try making storage engine selection more dynamic
-  */
 
-  if (share->blob_fields || m_using_unique_constraint ||
-      (thd->variables.big_tables &&
-       !(m_select_options & SELECT_SMALL_RESULT)) ||
-      (m_select_options & TMP_TABLE_FORCE_MYISAM) ||
-      thd->variables.tmp_memory_table_size == 0)
-  {
-    share->db_plugin= ha_lock_engine(0, TMP_ENGINE_HTON);
-    table->file= get_new_handler(share, &table->mem_root,
-                                 share->db_type());
-    if (m_group &&
-	(param->group_parts > table->file->max_key_parts() ||
-	 param->group_length > table->file->max_key_length()))
-      m_using_unique_constraint= true;
-  }
-  else
-  {
-    share->db_plugin= ha_lock_engine(0, heap_hton);
-    table->file= get_new_handler(share, &table->mem_root,
-                                 share->db_type());
-  }
+  handlerton *engine= pick_engine(thd, share->reclength);
+  share->db_plugin= ha_lock_engine(0, engine);
+  table->file= get_new_handler(share, &table->mem_root, share->db_type());
+
+  /*
+    When a disk engine was chosen for reasons other than key limits
+    (e.g. big_tables, TMP_TABLE_FORCE_MYISAM, tmp_memory_table_size=0),
+    the GROUP BY key may still exceed the disk engine's max_key_parts()
+    or max_key_length().  Fall back to unique constraint hash dedup.
+  */
+  if (engine == TMP_ENGINE_HTON && m_group &&
+      (param->group_parts > table->file->max_key_parts() ||
+       param->group_length > table->file->max_key_length()))
+    m_using_unique_constraint= true;
+
   DBUG_RETURN(!table->file);
 }
 
@@ -21105,9 +21203,14 @@ bool Create_tmp_table::finalize(THD *thd,
   if (!m_using_unique_constraint)
     share->reclength+= m_group_null_items; // null flag is stored separately
 
-  if (share->blob_fields == 0)
+  if (share->blob_fields == 0 || share->db_type() == heap_hton)
   {
-    /* We need to ensure that first byte is not 0 for the delete link */
+    /*
+      We need to ensure that first byte is not 0 for the delete link.
+      HEAP uses fixed-width rows even with blobs (blob data lives in
+      separate continuation records within the same HP_BLOCK, not
+      inline in the primary record), so it still needs this guard.
+    */
     if (m_field_count[other])
       m_null_count[other]++;
     else
@@ -21126,11 +21229,17 @@ bool Create_tmp_table::finalize(THD *thd,
   if (!share->reclength)
     share->reclength= 1;                // Dummy select
   share->stored_rec_length= share->reclength;
-  /* Use packed rows if there is blobs or a lot of space to gain */
-  if (share->blob_fields ||
-      (string_total_length() >= STRING_TOTAL_LENGTH_TO_PACK_ROWS &&
-       (share->reclength / string_total_length() <= RATIO_TO_PACK_ROWS ||
-        string_total_length() / string_count() >= AVG_STRING_LENGTH_TO_PACK_ROWS)))
+  /*
+    HEAP-specific: skip packed row format.
+    HEAP uses fixed-width base records (blob data is stored separately
+    in continuation chains), so use packed rows only for disk-based
+    engines when there are blobs or enough space to gain.
+  */
+  if (share->db_type() != heap_hton &&
+      (share->blob_fields ||
+       (string_total_length() >= STRING_TOTAL_LENGTH_TO_PACK_ROWS &&
+        (share->reclength / string_total_length() <= RATIO_TO_PACK_ROWS ||
+         string_total_length() / string_count() >= AVG_STRING_LENGTH_TO_PACK_ROWS))))
     use_packed_rows= 1;
 
   {
@@ -21161,8 +21270,13 @@ bool Create_tmp_table::finalize(THD *thd,
     share->null_bytes= share->null_bytes_for_compare= whole_null_pack_length;
   }
 
-  if (share->blob_fields == 0)
+  if (share->blob_fields == 0 || share->db_type() == heap_hton)
   {
+    /*
+      Same first-byte guard as above: HEAP with blobs still uses
+      fixed-width rows and needs a non-zero first byte for the
+      delete-link mechanism.
+    */
     null_counter[(m_field_count[other] ? other : distinct)]++;
   }
 
@@ -21316,7 +21430,6 @@ bool Create_tmp_table::finalize(THD *thd,
 	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT1 ||
 	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT2) ?
 	0 : FIELDFLAG_BINARY;
-      m_key_part_info->key_part_flag= 0;
       if (!m_using_unique_constraint)
       {
         cur_group->buff=(char*) m_group_buff;
@@ -21334,13 +21447,58 @@ bool Create_tmp_table::finalize(THD *thd,
           (*cur_group->item)->base_flags&= ~item_base_t::MAYBE_NULL;
         }
 
+        /*
+          For blob/geometry GROUP BY keys, field->key_length() returns
+          0 (blobs) or packlength (geometry), both too small to hold
+          actual data.  Use the item's max_length capped to
+          MAX_BLOB_WIDTH so new_key_field gets a usable size.
+        */
+        uint32 key_field_length= m_key_part_info->length;
+        if ((field->flags & BLOB_FLAG) &&
+            key_field_length <= ((Field_blob*)field)->pack_length_no_ptr())
+        {
+          key_field_length= MY_MIN((*cur_group->item)->max_length,
+                                   (uint32)(MAX_BLOB_WIDTH - HA_KEY_BLOB_LENGTH));
+          /*
+            Check that the group buffer has room for this blob key field.
+            calc_group_buffer() may have sized the buffer before the field
+            was promoted to blob in the tmp table.  If the promoted blob
+            doesn't fit, fall back to m_using_unique_constraint.
+          */
+          uint32 need= key_field_length + 2 /* length_bytes */ +
+                        MY_TEST(maybe_null);
+          if (m_group_buff + need >
+              param->group_buff + param->group_length)
+          {
+            m_using_unique_constraint= true;
+            break;
+          }
+        }
+        /*
+          Set key_part_flag from the actual field type AFTER the overflow
+          check.  This ensures that if we break out due to a promoted
+          blob overflowing the group buffer, key_part_flag retains the
+          original SQL-layer value (HA_VAR_LENGTH_PART for varchar),
+          not HA_BLOB_PART.  This prevents rebuild_key_from_group_buff() from being
+          called on a key buffer that has varchar format.
+        */
+        m_key_part_info->key_part_flag= field->key_part_flag();
+
 	if (!(cur_group->field= field->new_key_field(thd->mem_root,table,
                                                      m_group_buff +
                                                      MY_TEST(maybe_null),
-                                                     m_key_part_info->length,
+                                                     key_field_length,
                                                      field->null_ptr,
                                                      field->null_bit)))
 	  goto err; /* purecov: inspected */
+
+        /*
+          Set store_length for all GROUP BY key parts so
+          rebuild_key_from_group_buff() can advance through the key buffer.
+          store_length = key field pack_length + null flag byte.
+        */
+        m_key_part_info->store_length=
+            cur_group->field->pack_length() + MY_TEST(maybe_null);
 
 	if (maybe_null)
 	{
@@ -21391,8 +21549,17 @@ bool Create_tmp_table::finalize(THD *thd,
       */
       share->uniques= 1;
     }
+    /*
+      HEAP-specific: skip null-bits helper key part.
+      HEAP handles NULLs per-segment in its hash index, so it does not
+      need the extra null-key-part that MyISAM/Aria use for unique blob
+      constraints.
+    */
+    bool need_null_key_part= share->uniques &&
+                             share->db_type() != heap_hton &&
+                             null_pack_length[distinct];
     keyinfo->user_defined_key_parts= m_field_count[distinct] +
-       (share->uniques ? MY_TEST(null_pack_length[distinct]) : 0);
+       MY_TEST(need_null_key_part);
     keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
     keyinfo->usable_key_parts= keyinfo->user_defined_key_parts;
     table->distinct= 1;
@@ -21435,17 +21602,24 @@ bool Create_tmp_table::finalize(THD *thd,
       blobs can distinguish NULL from 0. This extra field is not needed
       when we do not use UNIQUE indexes for blobs.
     */
-    if (null_pack_length[distinct] && share->uniques)
+    if (need_null_key_part)
     {
       m_key_part_info->null_bit=0;
       m_key_part_info->offset= null_pack_base[distinct];
       m_key_part_info->length= null_pack_length[distinct];
+      /*
+        Use empty_clex_str (not null_clex_str) for the field name:
+        HEAP keeps share->keys visible to EXPLAIN, which iterates
+        key parts and calls strlen() on the name.  A NULL name from
+        null_clex_str causes SIGSEGV in Explain_index_use::set().
+        Empty string keeps the implicit field invisible in output.
+      */
       m_key_part_info->field= new Field_string(table->record[0],
                                              (uint32) m_key_part_info->length,
                                              (uchar*) 0,
                                              (uint) 0,
                                              Field::NONE,
-                                             &null_clex_str, &my_charset_bin);
+                                             &empty_clex_str, &my_charset_bin);
       if (!m_key_part_info->field)
         goto err;
       m_key_part_info->field->init(table);
@@ -21555,7 +21729,37 @@ bool Create_tmp_table::add_schema_fields(THD *thd, TABLE *table,
     const ST_FIELD_INFO &def= defs[fieldnr];
     Record_addr addr(def.nullable());
     const Type_handler *h= def.type_handler();
-    Field *field= h->make_schema_field(&table->mem_root, table, addr, def);
+    Field *field;
+    /*
+      HEAP varchar→blob promotion for I_S tables: HEAP uses fixed-width
+      rows, so wide VARCHARs waste their full declared octet_length per
+      row.  BLOBs store only actual data in continuation chains.  This
+      is the same promotion that type_handler_for_tmp_table() does at
+      CONVERT_IF_BIGGER_TO_BLOB (512 chars), just at a lower threshold
+      for HEAP.
+    */
+    if (m_heap_expected && h == &type_handler_varchar &&
+        def.char_length() * system_charset_info->mbmaxlen >
+          HEAP_CONVERT_IF_BIGGER_TO_BLOB)
+    {
+      /*
+        Match Type_handler_varchar::make_schema_field() blob creation:
+        packlength=4, system_charset_info, octet_length = char_length *
+        mbmaxlen.  field_length stores the original octet_length so that
+        create_tmp_field_from_item_field() can de-promote back to VARCHAR
+        for CREATE TABLE ... AS SELECT.
+      */
+      LEX_CSTRING name= def.name();
+      uint32 octet_length= (uint32) def.char_length() *
+                            system_charset_info->mbmaxlen;
+      field= new (&table->mem_root)
+        Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(), Field::NONE,
+                   &name, share, 4, system_charset_info);
+      if (field)
+        field->field_length= octet_length;
+    }
+    else
+      field= h->make_schema_field(&table->mem_root, table, addr, def);
     if (!field)
     {
       thd->mem_root= mem_root_save;
@@ -24754,6 +24958,38 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   if (unlikely(copy_funcs(join_tab->tmp_table_param->items_to_copy,
                           join->thd)))
     DBUG_RETURN(NESTED_LOOP_ERROR);           /* purecov: inspected */
+  /*
+    HEAP-specific: restore group key values after copy_funcs().
+    For blob GROUP BY keys, copy_funcs() overwrites record[0]'s blob
+    pointers with new expression results, but the GROUP BY key was
+    built from the group buffer's Field_varstring (not record[0]).
+    Restore the group buffer values into record[0] so hp_make_key()
+    in ha_write_tmp_row() builds the correct key.
+    Non-blob fields are unaffected: copy_funcs() writes directly into
+    the record[0] field slots that hp_make_key() reads from.
+  */
+  if (table->s->db_type() == heap_hton)
+  {
+    if (table->s->blob_fields)
+    {
+      String tmp_str;
+      for (group= table->group; group; group= group->next)
+      {
+        Field *tbl_field= (*group->item)->get_tmp_table_field();
+        if (tbl_field && tbl_field != group->field)
+        {
+          if (group->field->is_null())
+            tbl_field->set_null();
+          else
+          {
+            String *val= group->field->val_str(&tmp_str);
+            tbl_field->set_notnull();
+            tbl_field->store(val->ptr(), val->length(), val->charset());
+          }
+        }
+      }
+    }
+  }
   if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
   {
     if (create_internal_tmp_table_from_heap(join->thd, table,
@@ -26804,8 +27040,15 @@ JOIN_TAB::remove_duplicates()
   table->file->info(HA_STATUS_VARIABLE);
   table->reginfo.lock_type=TL_WRITE;
 
-  if (table->s->db_type() == heap_hton ||
-      (!table->s->blob_fields &&
+  /*
+    remove_dup_with_hash_index() copies field data into a flat key buffer
+    via field->make_sort_key() and compares with memcmp.  Blob fields
+    store only a pointer in the record, so memcmp would compare pointer
+    values instead of blob content.  Fall back to the row-by-row compare
+    path for tables with blobs.
+  */
+  if (!table->s->blob_fields &&
+      (table->s->db_type() == heap_hton ||
        ((ALIGN_SIZE(keylength) + HASH_OVERHEAD) * table->file->stats.records <
 	thd->variables.sortbuff_size)))
     error= remove_dup_with_hash_index(join->thd, table, field_count,
@@ -27824,7 +28067,7 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
     if (field)
     {
       enum_field_types type;
-      if ((type= field->type()) == MYSQL_TYPE_BLOB)
+      if (is_any_blob_field_type(type= field->type()))
 	key_length+=MAX_BLOB_WIDTH;		// Can't be used as a key
       else if (type == MYSQL_TYPE_VARCHAR || type == MYSQL_TYPE_VAR_STRING)
         key_length+= field->field_length + HA_KEY_BLOB_LENGTH;
@@ -27863,7 +28106,7 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
       case STRING_RESULT:
       {
         enum enum_field_types type= group_item->field_type();
-        if (type == MYSQL_TYPE_BLOB)
+        if (is_any_blob_field_type(type))
           key_length+= MAX_BLOB_WIDTH;		// Can't be used as a key
         else
         {
@@ -31782,8 +32025,24 @@ test_if_cheaper_ordering(bool in_join_optimizer,
           and as result we'll choose an index scan when using ref/range
           access + filesort will be cheaper.
         */
-        select_limit= (ha_rows) (select_limit < fanout ?
-                                 1 : select_limit/fanout);
+        /*
+          fanout can be extremely small (close to 0) when
+          cond_selectivity values are tiny, making select_limit/fanout
+          overflow to infinity or a value exceeding HA_POS_ERROR.
+          Casting such a double to ha_rows (unsigned long long) is
+          undefined behavior.  Cap at HA_POS_ERROR to avoid UB.
+          Note: (double) HA_POS_ERROR rounds up to 2^64 (double can't
+          represent 2^64-1 exactly), so the >= comparison is safe —
+          any double that reaches 2^64 is genuinely out of range.
+        */
+        {
+          double adjusted= (select_limit < fanout) ?
+                           1.0 : select_limit / fanout;
+          if (adjusted >= (double) HA_POS_ERROR)
+            select_limit= HA_POS_ERROR;
+          else
+            select_limit= (ha_rows) adjusted;
+        }
 
         /*
           refkey_rows_estimate is E(#rows) produced by the table access

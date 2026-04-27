@@ -42,11 +42,21 @@ int heap_delete(HP_INFO *info, const uchar *record)
       goto err;
   }
 
+  /*
+    Free blob continuation chains first (if any), then free the head
+    record slot.  Both hp_free_run_chain() and the code below maintain
+    the scan-boundary invariant:
+        total_records + deleted == block.last_allocated
+    by doing total_records-- and deleted++ for each freed slot.
+  */
+  if (share->blob_count)
+    hp_free_blobs(share, pos);
   info->update=HA_STATE_DELETED;
   *((uchar**) pos)=share->del_link;
   share->del_link=pos;
   pos[share->visible]=0;		/* Record deleted */
   share->deleted++;
+  share->total_records--;
   share->key_version++;
 #if !defined(DBUG_OFF) && defined(EXTRA_HEAP_DEBUG)
   DBUG_EXECUTE("check_heap",heap_check_heap(info, 0););
@@ -104,7 +114,7 @@ int hp_rb_delete_key(HP_INFO *info, register HP_KEYDEF *keyinfo,
 int hp_delete_key(HP_INFO *info, register HP_KEYDEF *keyinfo,
 		  const uchar *record, uchar *recpos, int flag)
 {
-  ulong blength, pos2, pos_hashnr, lastpos_hashnr, key_pos;
+  ulong blength, pos2, pos_hashnr, lastpos_hashnr, key_pos, rec_hash;
   HASH_INFO *lastpos,*gpos,*pos,*pos3,*empty,*last_ptr;
   HP_SHARE *share=info->s;
   DBUG_ENTER("hp_delete_key");
@@ -116,14 +126,17 @@ int hp_delete_key(HP_INFO *info, register HP_KEYDEF *keyinfo,
   last_ptr=0;
 
   /* Search after record with key */
-  key_pos= hp_mask(hp_rec_hashnr(keyinfo, record), blength, share->records + 1);
+  rec_hash= hp_rec_hashnr(keyinfo, record);
+  key_pos= hp_mask(rec_hash, blength, share->records + 1);
   pos= hp_find_hash(&keyinfo->block, key_pos);
 
   gpos = pos3 = 0;
 
   while (pos->ptr_to_rec != recpos)
   {
-    if (flag && !hp_rec_key_cmp(keyinfo, record, pos->ptr_to_rec))
+    /* Hash pre-check avoids expensive blob materialization for non-matching entries */
+    if (flag && pos->hash_of_key == rec_hash &&
+        !hp_rec_key_cmp(keyinfo, record, pos->ptr_to_rec, info))
       last_ptr=pos;				/* Previous same key */
     gpos=pos;
     if (!(pos=pos->next_key))

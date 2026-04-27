@@ -1109,8 +1109,8 @@ INSERT INTO t2 VALUES ('b',2), ('c',3);
 CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 explain SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	3	blob_ref	2	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	
 SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
 c1	c2	c1	c2
@@ -1121,7 +1121,7 @@ set @@join_cache_level=4;
 explain SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived2>	hash_ALL	NULL	#hash#$hj	3	test.t2.c1	5	Using where; Using join buffer (flat, BNLH join)
+1	PRIMARY	<derived2>	ref	key0	key0	3	blob_ref	2	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	
 SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
 c1	c2	c1	c2

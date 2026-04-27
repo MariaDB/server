@@ -40,6 +40,7 @@ int hp_close(register HP_INFO *info)
     heap_open_list=list_delete(heap_open_list,&info->open_list);
   if (!--info->s->open_count && info->s->delete_on_close)
     hp_free(info->s);				/* Table was deleted */
+  my_free(info->blob_buff);
   my_free(info);
   DBUG_RETURN(error);
 }

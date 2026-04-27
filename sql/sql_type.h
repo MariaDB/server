@@ -3717,6 +3717,7 @@ public:
     @param item - the Item to get the handler to.
   */
   static const Type_handler *varstring_type_handler(const Item *item);
+  static void set_creating_heap_tmp_table(bool is_heap);
   static const Type_handler *blob_type_handler(const Item *item);
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
   static const Type_handler *get_handler_by_real_type(enum_field_types type);

@@ -522,6 +522,17 @@ inline bool is_temporal_type_with_date(enum_field_types type)
 }
 
 
+/*
+  Check for blob field types, including GEOMETRY (which extends Field_blob).
+*/
+static inline bool is_any_blob_field_type(enum_field_types type)
+{
+  return type == MYSQL_TYPE_BLOB || type == MYSQL_TYPE_TINY_BLOB ||
+         type == MYSQL_TYPE_MEDIUM_BLOB || type == MYSQL_TYPE_LONG_BLOB ||
+         type == MYSQL_TYPE_GEOMETRY;
+}
+
+
 enum enum_vcol_info_type
 {
   VCOL_GENERATED_VIRTUAL, VCOL_GENERATED_STORED,
