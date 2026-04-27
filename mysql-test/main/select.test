@@ -4144,6 +4144,7 @@ SET @cnt := 0;
 SELECT * FROM t1 WHERE a = f1();
 --enable_ps2_protocol
 SELECT @cnt;
+--disable_replay next_query Don't support SPs
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a = f1();
 DROP TABLE t1, t2;
 DROP FUNCTION f1;

@@ -2323,6 +2323,7 @@ select * from t1
     where f2(t1.id, '1980-01-01') in (select id from t2 where x=1);
 
 eval $q2;
+--disable_replay next_query Don't support SPs
 eval explain extended $q2;
 
 let $q3=
@@ -2332,6 +2333,7 @@ select t1.*, t4.*,
     where f2(t1.id, '1980-01-01') in (select id from t2 where x=1);
 
 eval $q3;
+--disable_replay next_query Don't support SPs
 eval explain extended $q3;
 
 drop function f1;
