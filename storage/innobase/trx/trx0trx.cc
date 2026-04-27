@@ -723,7 +723,7 @@ corrupted:
 
 	if (trx_sys.is_undo_empty()) {
 func_exit:
-		purge_sys.clone_oldest_view<true>();
+		purge_sys.clone_oldest_view<true>(nullptr);
 		return DB_SUCCESS;
 	}
 

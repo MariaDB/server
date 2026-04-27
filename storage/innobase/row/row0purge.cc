@@ -50,6 +50,7 @@ Created 3/14/1997 Heikki Tuuri
 #include "debug_sync.h"
 #include <mysql/service_thd_mdl.h>
 
+void reset_thd(MYSQL_THD thd);
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
 is enough space in the redo log before for that operation. This is
@@ -81,7 +82,7 @@ row_purge_reposition_pcur(
 
 	} else {
 		node->found_clust = row_search_on_row_ref(
-			&node->pcur, mode, node->table, node->ref, mtr);
+			&node->pcur, mode, node->pt.table, node->ref, mtr);
 
 		if (node->found_clust) {
 			btr_pcur_store_position(&node->pcur, mtr);
@@ -107,7 +108,7 @@ row_purge_remove_clust_if_poss_low(
 	purge_node_t*	node,	/*!< in/out: row purge node */
 	btr_latch_mode	mode)	/*!< in: BTR_MODIFY_LEAF or BTR_PURGE_TREE */
 {
-	dict_index_t* index = dict_table_get_first_index(node->table);
+	dict_index_t* index = dict_table_get_first_index(node->pt.table);
 	table_id_t table_id = 0;
 	index_id_t index_id = 0;
 	dict_table_t *table = nullptr;
@@ -146,7 +147,7 @@ close_and_exit:
 		return success;
 	}
 
-	if (node->table->id == DICT_INDEXES_ID) {
+	if (node->pt.table->id == DICT_INDEXES_ID) {
 		/* If this is a record of the SYS_INDEXES table, then
 		we have to free the file segments of the index tree
 		associated with the index */
@@ -504,14 +505,11 @@ static bool row_purge_is_unsafe(const purge_node_t &node,
 	dtuple_t*	cur_vrow = NULL;
 
 	ut_ad(index->table == clust_index->table);
+	ut_ad(node.pt.table == index->table);
 	heap = mem_heap_create(1024);
 	clust_offsets = rec_get_offsets(rec, clust_index, NULL,
 					clust_index->n_core_fields,
 					ULINT_UNDEFINED, &heap);
-
-	if (dict_index_has_virtual(index)) {
-		v_heap = mem_heap_create(100);
-	}
 
 	if (!rec_get_deleted_flag(rec, rec_offs_comp(clust_offsets))) {
 		row_ext_t*	ext;
@@ -549,7 +547,8 @@ static bool row_purge_is_unsafe(const purge_node_t &node,
 			    || dbug_v_purge) {
 
 				if (!row_vers_build_clust_v_col(
-					    row, clust_index, index, heap)) {
+					    row, clust_index, index, heap,
+					    node.pt.get_maria_table())) {
 					goto unsafe_to_purge;
 				}
 
@@ -625,10 +624,12 @@ unsafe_to_purge:
 		deleted, but the previous version of it might not. We will
 		need to get the virtual column data from undo record
 		associated with current cluster index */
+		v_heap = mem_heap_create(100);
 
 		cur_vrow = row_vers_build_cur_vrow(
 			rec, clust_index, &clust_offsets,
-			index, trx_id, roll_ptr, heap, v_heap, mtr);
+			index, trx_id, roll_ptr, heap, v_heap, mtr,
+			node.pt.get_maria_table());
 	}
 
 	version = rec;
@@ -670,7 +671,11 @@ unsafe_to_purge:
 				}
 				/* Keep the virtual row info for the next
 				version, unless it is changed */
-				mem_heap_empty(v_heap);
+				if (v_heap) {
+					mem_heap_empty(v_heap);
+				} else {
+					v_heap = mem_heap_create(100);
+				}
 				cur_vrow = dtuple_copy(vrow, v_heap);
 				dtuple_dup_v_fld(cur_vrow, v_heap);
 			}
@@ -916,7 +921,7 @@ static trx_id_t row_purge_remove_sec_if_poss_leaf(purge_node_t *node,
 	trx_id_t		page_max_trx_id = 0;
 
 	log_free_check();
-	ut_ad(index->table == node->table);
+	ut_ad(index->table == node->pt.table);
 	ut_ad(!index->table->is_temporary());
 	mtr.start();
 	index->set_modified(mtr);
@@ -1095,7 +1100,7 @@ row_purge_upd_exist_or_extern_func(
 {
 	mem_heap_t*	heap;
 
-	ut_ad(!node->table->skip_alter_undo);
+	ut_ad(!node->pt.table->skip_alter_undo);
 
 	if (node->rec_type == TRX_UNDO_UPD_DEL_REC
 	    || (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)
@@ -1123,7 +1128,7 @@ row_purge_upd_exist_or_extern_func(
 				heap, ROW_BUILD_FOR_PURGE);
 			row_purge_remove_sec_if_poss(node, node->index, entry);
 
-			ut_ad(node->table);
+			ut_ad(node->pt.table);
 
 			mem_heap_empty(heap);
 		}
@@ -1133,7 +1138,7 @@ row_purge_upd_exist_or_extern_func(
 
 skip_secondaries:
 	mtr_t		mtr;
-	dict_index_t*	index = dict_table_get_first_index(node->table);
+	dict_index_t*	index = dict_table_get_first_index(node->pt.table);
 	/* Free possible externally stored fields */
 	for (ulint i = 0; i < upd_get_n_fields(node->update); i++) {
 
@@ -1402,27 +1407,20 @@ row_purge_parse_undo_rec(
 		break;
 	}
 
-	auto &tables_entry= node->tables[table_id];
-	node->table = tables_entry.first;
-	if (!node->table) {
+	node->pt = node->tables[table_id];
+	if (!node->pt.table) {
 		return false;
 	}
 
-#ifndef DBUG_OFF
-	if (MDL_ticket* mdl = tables_entry.second) {
-		static_cast<MDL_context*>(thd_mdl_context(current_thd))
-			->lock_warrant = mdl->get_ctx();
-	}
-#endif
-	ut_ad(!node->table->is_temporary());
+	ut_ad(!node->pt.table->is_temporary());
 
-	clust_index = dict_table_get_first_index(node->table);
+	clust_index = dict_table_get_first_index(node->pt.table);
 
 	if (clust_index->is_corrupted()) {
 		/* The table was corrupt in the data dictionary.
 		dict_set_corrupted() works on an index, and
 		we do not have an index to call it with. */
-		DBUG_ASSERT(table_id == node->table->id);
+		DBUG_ASSERT(table_id == node->pt.table->id);
 		return false;
 	}
 
@@ -1476,11 +1474,11 @@ row_purge_record_func(
 	bool		updated_extern)
 {
 	ut_ad(!node->found_clust);
-	ut_ad(!node->table->skip_alter_undo);
+	ut_ad(!node->pt.table->skip_alter_undo);
 	ut_ad(!trx_undo_roll_ptr_is_insert(node->roll_ptr));
 
 	node->index = dict_table_get_next_index(
-		dict_table_get_first_index(node->table));
+		dict_table_get_first_index(node->pt.table));
 
 	bool purged = true;
 
@@ -1490,10 +1488,10 @@ row_purge_record_func(
 	case TRX_UNDO_DEL_MARK_REC:
 		purged = row_purge_del_mark(node);
 		if (purged) {
-			if (node->table->stat_initialized()
+			if (node->pt.table->stat_initialized()
 			    && srv_stats_include_delete_marked) {
 				dict_stats_update_if_needed(
-					node->table, *thr->graph->trx);
+					node->pt.table, *thr->graph->trx);
 			}
 			MONITOR_INC(MONITOR_N_DEL_ROW_PURGE);
 		}
@@ -1575,6 +1573,22 @@ inline void purge_node_t::start()
   cmpl_info= 0;
 }
 
+inline void purge_sys_t::reset_worker_thd(THD *thd) const noexcept
+{
+  /* Only reset THD for worker threads, not the coordinator.
+  The coordinator thread opens TABLE* objects in
+  trx_purge_attach_undo_recs() and stores them in
+  purge_node_t->tables. These TABLE* objects must remain open until
+  the entire purge batch completes. Coordinator thread could
+  close the tables prematurely if it calls reset_thd()
+  The coordinator handles cleanup centrally in trx_purge() after all
+  purge_node_t entries are processed. Worker threads have their own
+  THD lifecycle and must call reset_thd() to clean up their
+  thread-local resources. */
+  if (thd != coordinator_thd)
+    reset_thd(thd);
+}
+
 /** Reset the state at end
 @return the query graph parent */
 inline que_node_t *purge_node_t::end(THD *thd)
@@ -1582,7 +1596,7 @@ inline que_node_t *purge_node_t::end(THD *thd)
   DBUG_ASSERT(common.type == QUE_NODE_PURGE);
   ut_ad(undo_recs.empty());
   ut_d(in_progress= false);
-  innobase_reset_background_thd(thd);
+  purge_sys.reset_worker_thd(thd);
 #ifndef DBUG_OFF
   static_cast<MDL_context*>(thd_mdl_context(thd))->lock_warrant= nullptr;
 #endif

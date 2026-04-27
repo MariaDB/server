@@ -67,6 +67,48 @@ row_purge_step(
 	que_thr_t*	thr)	/*!< in: query thread */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+/** Table context for purge operations. Uses pointer to store
+either TABLE* or MDL_ticket* in a single union
+For tables WITH indexed virtual columns:
+- Opens TABLE* via open_purge_table()
+- Stores TABLE* with LSB=1 flag in mariadb_table
+- MDL_ticket* is accessed via TABLE->mdl_ticket
+- get_ticket() returns TABLE->mdl_ticket
+
+For tables WITHOUT indexed virtual columns:
+- Only acquires MDL_ticket* (no TABLE* needed)
+- Stores MDL_ticket* with LSB=0 in the union
+- get_ticket() returns the stored ticket directly */
+class purge_table
+{
+  union
+  {
+    /** TABLE* with the least signficant bit set */
+    uintptr_t mariadb_table;
+    /** metadata lock when !get_mariadb_table() */
+    MDL_ticket *ticket;
+  };
+public:
+  dict_table_t *table;
+
+  purge_table() : ticket(nullptr), table(nullptr) {}
+
+  inline TABLE *get_maria_table() const noexcept
+  {
+    return UNIV_UNLIKELY(mariadb_table & 1)
+      ? reinterpret_cast<TABLE*>(mariadb_table & ~uintptr_t{1})
+      : nullptr;
+  }
+
+  /** @return whether we must wait for MDL on the table */
+  bool must_wait() const noexcept
+  { return table == reinterpret_cast<dict_table_t*>(-1); }
+
+  inline MDL_ticket *get_ticket() const noexcept;
+  inline void set_mariadb_table(TABLE *t) noexcept;
+  inline void set_ticket(MDL_ticket *t) noexcept;
+};
+
 /** Purge worker context */
 struct purge_node_t
 {
@@ -93,8 +135,8 @@ struct purge_node_t
   /** whether the operation is in progress */
   bool in_progress= false;
 #endif
-  /** table where purge is done */
-  dict_table_t *table= nullptr;
+  /** purge table handle */
+  purge_table pt;
   /** update vector for a clustered index record */
   upd_t *update;
   /** row reference to the next row to handle, or nullptr */
@@ -111,8 +153,9 @@ struct purge_node_t
   /** Undo recs to purge */
   std::queue<trx_purge_rec_t> undo_recs;
 
-  /** map of table identifiers to table handles and meta-data locks */
-  std::unordered_map<table_id_t, std::pair<dict_table_t*,MDL_ticket*>> tables;
+  /** map of table identifiers to table handles and TABLE* object,
+  which is set by purge co-ordinator thread */
+  std::unordered_map<table_id_t, purge_table> tables;
 
   /** Constructor */
   explicit purge_node_t(que_thr_t *parent) :

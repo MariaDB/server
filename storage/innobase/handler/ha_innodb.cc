@@ -137,10 +137,11 @@ TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 			  const char *table, size_t table_len);
 MYSQL_THD create_background_thd();
 void reset_thd(MYSQL_THD thd);
-TABLE *get_purge_table(THD *thd);
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
-			const char *tb, size_t tblen);
-void close_thread_tables(THD* thd);
+			const char *tb, size_t tblen,
+			MDL_ticket *mdl_ticket) noexcept;
+int close_thread_tables(THD* thd) noexcept;
+MDL_ticket *get_mdl_ticket(TABLE *table) noexcept;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 #define tc_size  400
@@ -1709,25 +1710,6 @@ MYSQL_THD innobase_create_background_thd(const char* name)
 	thd_proc_info(thd, name);
 	THDVAR(thd, background_thread) = true;
 	return thd;
-}
-
-
-/** Close opened tables, free memory, delete items for a MYSQL_THD.
-@param[in]	thd	MYSQL_THD to reset */
-void
-innobase_reset_background_thd(MYSQL_THD thd)
-{
-	if (!thd) {
-		thd = current_thd;
-	}
-
-	ut_ad(thd);
-	ut_ad(THDVAR(thd, background_thread));
-
-	/* background purge thread */
-	const char *proc_info= thd_proc_info(thd, "reset");
-	reset_thd(thd);
-	thd_proc_info(thd, proc_info);
 }
 
 /******************************************************************//**
@@ -8484,7 +8466,7 @@ ATTRIBUTE_COLD bool wsrep_append_table_key(MYSQL_THD thd,
 {
   char db_buf[NAME_LEN + 1];
   char tbl_buf[NAME_LEN + 1];
-  ulint db_buf_len, tbl_buf_len;
+  size_t db_buf_len, tbl_buf_len;
 
   if (!table.parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len))
   {
@@ -20334,37 +20316,28 @@ ha_innobase::multi_range_read_explain_info(
 for purge thread */
 static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 {
-	TABLE *mysql_table;
-	const bool  bg_thread = THDVAR(thd, background_thread);
-
-	if (bg_thread) {
-		if ((mysql_table = get_purge_table(thd))) {
-			return mysql_table;
-		}
-	} else {
-		if (table->vc_templ->mysql_table_query_id
-		    == thd_get_query_id(thd)) {
-			return table->vc_templ->mysql_table;
-		}
+	table->lock_mutex_lock();
+	TABLE *maria_table = table->vc_templ->mysql_table;
+	const uint64_t cached_id = table->vc_templ->mysql_table_query_id;
+	table->lock_mutex_unlock();
+	if (cached_id == thd_get_query_id(thd)) {
+		return maria_table;
 	}
 
+	TABLE *mysql_table;
 	char	db_buf[NAME_LEN + 1];
 	char	tbl_buf[NAME_LEN + 1];
-	ulint	db_buf_len, tbl_buf_len;
+	size_t	db_buf_len, tbl_buf_len;
 
 	if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
 		return NULL;
 	}
-
-	if (bg_thread) {
-		return open_purge_table(thd, db_buf, db_buf_len,
-					tbl_buf, tbl_buf_len);
-	}
-
 	mysql_table = find_fk_open_table(thd, db_buf, db_buf_len,
 					 tbl_buf, tbl_buf_len);
+	table->lock_mutex_lock();
 	table->vc_templ->mysql_table = mysql_table;
 	table->vc_templ->mysql_table_query_id = thd_get_query_id(thd);
+	table->lock_mutex_unlock();
 	return mysql_table;
 }
 
