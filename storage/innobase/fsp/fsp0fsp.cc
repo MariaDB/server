@@ -45,6 +45,8 @@ Created 11/29/1995 Heikki Tuuri
 #include <unordered_map>
 #include <unordered_set>
 #include "trx0undo.h"
+#include <functional>
+#include "lock0lock.h"
 
 /** Returns the first extent descriptor for a segment.
 We think of the extent lists of the segment catenated in the order
@@ -5698,50 +5700,76 @@ dberr_t IndexDefragmenter::defragment(SpaceDefragmenter *space_defrag) noexcept
   return err;
 }
 
-/** check whether any user table exist in system tablespace
-@retval DB_SUCCESS_LOCKED_REC if user table exist
-@retval DB_SUCCESS if no user table exist
-@retval DB_CORRUPTION if any error encountered */
-static dberr_t user_tables_exists() noexcept
+/** Callback function for scanning system tablespace tables */
+using sysCallback= std::function<dberr_t(table_id_t, st_::span<const char>)>;
+
+/** Scan system tablespace metadata tables and invoke callback
+@param table         system table to scan (sys_tables or sys_indexes)
+@param callback      function to call for each non-system entry found
+@return DB_SUCCESS, DB_CORRUPTION, or error code */
+static dberr_t scan_system_tablespace_metadata(dict_table_t *table,
+                                               sysCallback callback) noexcept
 {
   mtr_t mtr{nullptr};
   btr_pcur_t pcur;
   dberr_t err= DB_SUCCESS;
+  const bool scan_indexes= (table == dict_sys.sys_indexes);
+
   mtr.start();
-  for (const rec_t *rec= dict_startscan_system(&pcur, &mtr,
-                                               dict_sys.sys_tables);
+
+  for (const rec_t *rec= dict_startscan_system(&pcur, &mtr, table);
        rec; rec= dict_getnext_system(&pcur, &mtr))
   {
     const byte *field= nullptr;
+    ulint field_no= 0;
     ulint len= 0;
+    table_id_t table_id= 0;
+
     if (rec_get_deleted_flag(rec, 0))
     {
 corrupt:
-      sql_print_error("InnoDB: Encountered corrupted record in SYS_TABLES");
+      sql_print_error("InnoDB: Encountered corrupted record in %s",
+                      scan_indexes ? "SYS_INDEXES" : "SYS_TABLES");
       err= DB_CORRUPTION;
       goto func_exit;
     }
-    field= rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__SPACE, &len);
+
+    field_no= scan_indexes ? ulint(DICT_FLD__SYS_INDEXES__SPACE)
+                           : ulint(DICT_FLD__SYS_TABLES__SPACE);
+
+    field= rec_get_nth_field_old(rec, field_no, &len);
     if (len != 4)
       goto corrupt;
     if (mach_read_from_4(field) != 0)
       continue;
-    field= rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__ID, &len);
+
+    field_no= scan_indexes ? ulint(DICT_FLD__SYS_INDEXES__TABLE_ID)
+                           : ulint(DICT_FLD__SYS_TABLES__ID);
+
+    field= rec_get_nth_field_old(rec, field_no, &len);
     if (len != 8)
       goto corrupt;
-    if (!dict_sys.is_sys_table(mach_read_from_8(field)))
+
+    table_id= mach_read_from_8(field);
+    if (dict_sys.is_sys_table(table_id))
+      continue;
+
+    if (scan_indexes)
+      err= callback(table_id, {});
+    else
     {
-      const byte *name_field = rec_get_nth_field_old(
-        rec, DICT_FLD__SYS_TABLES__NAME, &len);
-      if (len != UNIV_SQL_NULL && len > 0)
-      {
-        sql_print_information(
-          "InnoDB: Found unexpected table in system tablespace: %.*s",
-          (int)len, (const char *)name_field);
-      }
-      err= DB_SUCCESS_LOCKED_REC;
+      /* For tables, get the name */
+      field= rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__NAME, &len);
+      if (len == UNIV_SQL_NULL || len == 0)
+        goto corrupt;
+
+      err= callback(table_id, {reinterpret_cast<const char*>(field), len});
+    }
+
+    if (err)
+    {
       btr_pcur_close(&pcur);
-      goto func_exit;
+      break;
     }
   }
 func_exit:
@@ -5749,10 +5777,100 @@ func_exit:
   return err;
 }
 
+/** Identify the legacy tables in the system tablespace
+and delete the table id from innodb system tables. A table is
+considered a legacy/unknown table if the table name does
+not contain '/' (indicating it's not a proper database/table name).
+Also delete the orphaned indexes from SYS_INDEXES in system
+tablespace.
+@retval DB_SUCCESS_LOCKED_REC if legacy table exists
+@return error code or DB_SUCCESS */
+static dberr_t drop_all_orphaned_tables()
+{
+  /* SELECT table_id,to_drop FROM SYS_TABLES WHERE SPACE=0 AND ... */
+  std::unordered_map<table_id_t,bool> system_tables;
+
+  /* Step 1: Scan SYS_TABLES for legacy tables */
+  dberr_t err= scan_system_tablespace_metadata(dict_sys.sys_tables,
+    [&](table_id_t table_id, st_::span<const char> name) -> dberr_t
+    {
+      const bool to_drop{!memchr(name.data(), '/', name.size())};
+      if (to_drop)
+        sql_print_information("InnoDB: Found an unknown table %.*s",
+                              int(name.size()), name.data());
+      system_tables.emplace(table_id, to_drop);
+      return DB_SUCCESS;
+    });
+
+  if (err != DB_SUCCESS)
+    return err;
+
+  /* Step 2: Scan SYS_INDEXES for orphaned indexes not in orphaned_tbl */
+  err= scan_system_tablespace_metadata(dict_sys.sys_indexes,
+    [&](table_id_t table_id, st_::span<const char>) -> dberr_t
+    {
+      if (!system_tables.emplace(table_id, true).second)
+        sql_print_information("InnoDB: Found orphaned index for table_id "
+                              UINT64PF, table_id);
+      return DB_SUCCESS;
+    });
+
+  if (err != DB_SUCCESS)
+    return err;
+
+  size_t count{0};
+  for (const auto &td : system_tables)
+    count+= td.second;
+  if (!count)
+    return DB_SUCCESS;
+
+  sql_print_information("InnoDB: Dropping %zu orphaned table(s)", count);
+
+  trx_t *trx= trx_create();
+  trx_start_for_ddl(trx);
+  err= lock_sys_tables(trx);
+  if (err)
+    goto err_exit;
+
+  dict_sys.lock(SRW_LOCK_CALL);
+
+  for (auto &td : system_tables)
+    if (td.second &&
+        (err= dict_drop_table_metadata(td.first, trx)) != DB_SUCCESS)
+      break;
+
+  dict_sys.unlock();
+
+  if (err == DB_SUCCESS)
+  {
+    trx->commit();
+    err= DB_SUCCESS_LOCKED_REC;
+  }
+  else
+  {
+err_exit:
+    trx->rollback();
+  }
+
+  trx->clear_and_free();
+  return err;
+}
+
 dberr_t fil_space_t::defragment() noexcept
 {
   ut_ad(this == fil_system.sys_space);
-  dberr_t err= user_tables_exists();
+  dberr_t err= DB_SUCCESS;
+
+  /* Check whether any user table exists in system tablespace */
+  err= scan_system_tablespace_metadata(dict_sys.sys_tables,
+    [](table_id_t, st_::span<const char> name) -> dberr_t
+  {
+    sql_print_information(
+      "InnoDB: Found unexpected table in system tablespace: %.*s",
+      int(name.size()), name.data());
+    return DB_SUCCESS_LOCKED_REC;
+  });
+
   if (err == DB_SUCCESS_LOCKED_REC)
   {
     sql_print_information(
@@ -5789,7 +5907,20 @@ void fsp_system_tablespace_truncate(bool shutdown)
 
   if (!shutdown)
   {
-    err= space->defragment();
+    err= drop_all_orphaned_tables();
+    if (err == DB_SUCCESS_LOCKED_REC)
+    {
+      /* Skip defragmentation when orphaned tables are delete-marked.
+      Both defragment() and purge would attempt to drop legacy tables,
+      causing double-free of segments. Proceed to shrinking only. */
+      sql_print_information("InnoDB: Defragmentation before "
+                            "autoshrink was skipped due to orphaned "
+                            "table removal.");
+      err= DB_SUCCESS;
+    }
+    else if (err == DB_SUCCESS)
+      err= space->defragment();
+
     if (err)
     {
       srv_sys_space.set_shrink_fail();

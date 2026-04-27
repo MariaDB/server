@@ -1459,6 +1459,28 @@ err_exit:
     }
   }
 
+  DBUG_EXECUTE_IF("create_sys_tablespaces",
+                  {
+                    error= que_eval_sql(
+                      nullptr, "PROCEDURE CREATE_DUMMY_1() IS\n"
+                      "BEGIN\n"
+                      "CREATE TABLE\n"
+                      "SYS_TABLESPACES(DUMMY_ID BIGINT, POS INT);\n"
+                      "CREATE UNIQUE CLUSTERED INDEX DUMMY_IND"
+                      " ON SYS_TABLESPACES(DUMMY_ID, POS);\n"
+                      "CREATE TABLE\n"
+                      "SYS_METADATA(DUMMY_ID_1 BIGINT, POS INT);\n"
+                      "CREATE UNIQUE CLUSTERED INDEX DUMMY_IND_1"
+                      " ON SYS_METADATA(DUMMY_ID_1, POS);\n"
+                      "DELETE FROM SYS_TABLES WHERE NAME= 'SYS_METADATA';"
+                      "END;\n", trx);
+                    if (error)
+                    {
+                      tablename = "DUMMY";
+                      goto err_exit;
+                    }
+                  });
+
   trx->commit();
   row_mysql_unlock_data_dictionary(trx);
   trx->clear_and_free();
