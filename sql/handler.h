@@ -92,6 +92,17 @@ class select_result;
 #define HA_ADMIN_COMMIT_ERROR   -14
 
 /**
+   Return values for ha_create_table().
+
+   @see ha_create_table() for description of the individual values.
+*/
+enum ha_create_status {
+  HA_CREATE_SUCCESS,
+  HA_CREATE_FAILED_EARLY,
+  HA_CREATE_FAILED_SECONDARY
+};
+
+/**
    Return values for check_if_supported_inplace_alter().
 
    @see check_if_supported_inplace_alter() for description of
@@ -5641,9 +5652,10 @@ void ha_signal_tc_log_recovery_done();
 bool ha_flush_logs();
 void ha_drop_database(const char* path);
 void ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *));
-int ha_create_table(THD *thd, const char *path, const char *db,
-                    const char *table_name, HA_CREATE_INFO *create_info,
-                    LEX_CUSTRING *frm, bool skip_frm_file);
+ha_create_status ha_create_table(THD *thd, const char *path, const char *db,
+                                 const char *table_name,
+                                 HA_CREATE_INFO *create_info,
+                                 LEX_CUSTRING *frm, bool skip_frm_file);
 int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
                     const LEX_CSTRING *db, const LEX_CSTRING *alias,
                     bool generate_warning);

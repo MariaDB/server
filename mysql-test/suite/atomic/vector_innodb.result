@@ -1816,3 +1816,20 @@ count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+#
+#  MDEV-38842 Assertion `!commit_lsn' failed in void trx_t::free()
+#
+CREATE DATABASE test_1;
+CREATE TABLE test_1.t (a INT,b VECTOR (5) NOT NULL,
+VECTOR INDEX (b)) ENGINE=INNODB;
+DROP TABLE test_1.t;
+call mtr.add_suppression("InnoDB: (Operating system )?[Ee]rror number");
+call mtr.add_suppression("InnoDB: Error number 17 means 'File exists'");
+call mtr.add_suppression("InnoDB: The file '.*t1#i#00\\.ibd' already exists though the corresponding table did not exist in the InnoDB data dictionary.");
+CREATE TABLE test_1.t1(a INT, b VECTOR(5) NOT NULL,
+VECTOR INDEX(b))ENGINE=InnoDB;
+ERROR HY000: Can't create table `test_1`.`t1` (errno: 184 "Tablespace already exists")
+# Print the files exist in test_1 directory
+db.opt
+t1#i#00.ibd
+DROP DATABASE test_1;

@@ -1,3 +1,24 @@
 let $skip_vector=1;
 let $extra_fields=, v vector(5) not null default x'e360d63ebe554f3fcdbc523f4522193f5236083d', vector index(v);
 --source alter_table_innodb.test
+
+--echo #
+--echo #  MDEV-38842 Assertion `!commit_lsn' failed in void trx_t::free()
+--echo #
+let $MYSQLD_DATADIR= `select @@datadir`;
+CREATE DATABASE test_1;
+CREATE TABLE test_1.t (a INT,b VECTOR (5) NOT NULL,
+                       VECTOR INDEX (b)) ENGINE=INNODB;
+--copy_file $MYSQLD_DATADIR/test_1/t#i#00.ibd $MYSQLD_DATADIR/test_1/t1#i#00.ibd
+DROP TABLE test_1.t;
+call mtr.add_suppression("InnoDB: (Operating system )?[Ee]rror number");
+call mtr.add_suppression("InnoDB: Error number 17 means 'File exists'");
+call mtr.add_suppression("InnoDB: The file '.*t1#i#00\\.ibd' already exists though the corresponding table did not exist in the InnoDB data dictionary.");
+
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE test_1.t1(a INT, b VECTOR(5) NOT NULL,
+                       VECTOR INDEX(b))ENGINE=InnoDB;
+--echo # Print the files exist in test_1 directory
+--list_files $MYSQLD_DATADIR/test_1
+--remove_file $MYSQLD_DATADIR/test_1/t1#i#00.ibd
+DROP DATABASE test_1;

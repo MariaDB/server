@@ -6485,16 +6485,17 @@ static int ha_create_table_from_share(THD *thd, TABLE_SHARE *share,
   @param frm            an frm image or NULL (meaning, read it from the file)
   @param skip_frm_file  do not write the frm image to the .frm file
 
-  @retval
-   0  ok
-  @retval
-   1  error
+  @retval HA_CREATE_SUCCESS successfully created the table
+  @retval HA_CREATE_FAILED_EARLY create table failed before file creation
+  @retval HA_CREATE_FAILED_SECONDARY create table failed during secondary
+table creation
 */
-int ha_create_table(THD *thd, const char *path, const char *db,
-                    const char *table_name, HA_CREATE_INFO *create_info,
-                    LEX_CUSTRING *frm, bool skip_frm_file)
+ha_create_status
+ha_create_table(THD *thd, const char *path, const char *db,
+                const char *table_name, HA_CREATE_INFO *create_info,
+                LEX_CUSTRING *frm, bool skip_frm_file)
 {
-  int error= 1;
+  ha_create_status error= HA_CREATE_SUCCESS;
   uint ref_length;
   TABLE_SHARE share;
   Abort_on_warning_instant_set old_abort_on_warning(thd, 0);
@@ -6506,15 +6507,19 @@ int ha_create_table(THD *thd, const char *path, const char *db,
 
   if (frm)
   {
-    bool write_frm_now= (!create_info->db_type->discover_table &&
-                         !create_info->tmp_table() && !skip_frm_file);
-
     share.frm_image= frm;
 
     // open an frm image
-    if (share.init_from_binary_frm_image(thd, write_frm_now,
+    if (share.init_from_binary_frm_image(thd,
+                                         (!create_info->db_type->discover_table
+                                          && !create_info->tmp_table()
+                                          && !skip_frm_file),
                                          frm->str, frm->length))
+    {
+early_fail:
+      error= HA_CREATE_FAILED_EARLY;
       goto err;
+    }
   }
   else
   {
@@ -6522,15 +6527,15 @@ int ha_create_table(THD *thd, const char *path, const char *db,
     share.db_plugin= ha_lock_engine(thd, create_info->db_type);
 
     if (open_table_def(thd, &share))
-      goto err;
+      goto early_fail;
   }
 
   share.m_psi= PSI_CALL_get_table_share(is_tmp, &share);
-  if ((error= ha_create_table_from_share(thd, &share, create_info, &ref_length)))
+  if (ha_create_table_from_share(thd, &share, create_info, &ref_length))
   {
     PSI_CALL_drop_table_share(is_tmp, share.db.str, (uint)share.db.length,
                         share.table_name.str, (uint)share.table_name.length);
-    goto err;
+    goto early_fail;
   }
 
   /* create secondary tables for high level indexes */
@@ -6556,8 +6561,11 @@ int ha_create_table(THD *thd, const char *path, const char *db,
       index_cinfo.data_file_name= index_file_name;
     }
 
-    if ((error= share.path.length > sizeof(file_name) - HLINDEX_BUF_LEN))
+    if (share.path.length > sizeof(file_name) - HLINDEX_BUF_LEN)
+    {
+      error= HA_CREATE_FAILED_SECONDARY;
       goto err;
+    }
 
     enum_sql_command old_sql_command= thd->lex->sql_command;
     for (uint i= share.keys; i < share.total_keys; i++)
@@ -6569,18 +6577,22 @@ int ha_create_table(THD *thd, const char *path, const char *db,
       init_tmp_table_share(thd, &index_share, db, 0, table_name, file_name, 1);
       index_share.db_plugin= share.db_plugin;
       LEX_CSTRING sql= mhnsw_hlindex_table_def(thd, ref_length);
-      error= !sql.length ||
-        index_share.init_from_sql_statement_string(thd, 0, sql.str, sql.length);
-      if (error)
+      if (!sql.length ||
+          index_share.init_from_sql_statement_string(thd, 0, sql.str,
+                                                     sql.length))
       {
         index_share.db_plugin= NULL;
+        error= HA_CREATE_FAILED_SECONDARY;
         break;
       }
 
       uint unused;
-      if ((error= ha_create_table_from_share(thd, &index_share, &index_cinfo,
-                                             &unused)))
+      if (ha_create_table_from_share(thd, &index_share, &index_cinfo,
+                                     &unused))
+      {
+        error= HA_CREATE_FAILED_SECONDARY;
         break;
+      }
     }
     thd->lex->sql_command= old_sql_command;
     free_table_share(&index_share);
@@ -6588,7 +6600,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
 
 err:
   free_table_share(&share);
-  DBUG_RETURN(error != 0);
+  DBUG_RETURN(error);
 }
 
 void st_ha_check_opt::init()
