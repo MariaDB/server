@@ -1,0 +1,155 @@
+MariaDB frm parser test - Default Values
+Testing various DEFAULT expressions and values
+CREATE TABLE t_basic_defaults (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(50) DEFAULT 'Anonymous',
+status VARCHAR(20) DEFAULT 'pending',
+priority INT DEFAULT 1,
+score DECIMAL(5,2) DEFAULT 0.00,
+is_active BOOLEAN DEFAULT TRUE,
+is_deleted BOOLEAN DEFAULT FALSE
+);
+CREATE TABLE `t_basic_defaults` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(50) DEFAULT 'Anonymous',
+  `status` varchar(20) DEFAULT 'pending',
+  `priority` int(11) DEFAULT 1,
+  `score` decimal(5,2) DEFAULT 0.00,
+  `is_active` tinyint(1) DEFAULT 1,
+  `is_deleted` tinyint(1) DEFAULT 0,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_basic_defaults;
+CREATE TABLE t_numeric_defaults (
+tiny_val TINYINT DEFAULT 127,
+small_val SMALLINT DEFAULT -32768,
+int_val INT DEFAULT 2147483647,
+big_val BIGINT DEFAULT 9223372036854775807,
+float_val FLOAT DEFAULT 3.14159,
+double_val DOUBLE DEFAULT 2.718281828,
+decimal_val DECIMAL(10,3) DEFAULT 999.999
+);
+CREATE TABLE `t_numeric_defaults` (
+  `tiny_val` tinyint(4) DEFAULT 127,
+  `small_val` smallint(6) DEFAULT -32768,
+  `int_val` int(11) DEFAULT 2147483647,
+  `big_val` bigint(20) DEFAULT 9223372036854775807,
+  `float_val` float DEFAULT 3.14159,
+  `double_val` double DEFAULT 2.718281828,
+  `decimal_val` decimal(10,3) DEFAULT 999.999
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_numeric_defaults;
+CREATE TABLE t_timestamp_defaults (
+id INT AUTO_INCREMENT PRIMARY KEY,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+modified_time TIMESTAMP DEFAULT NOW(),
+current_date_col DATE DEFAULT CURRENT_DATE,
+current_time_col TIME DEFAULT CURRENT_TIME
+);
+CREATE TABLE `t_timestamp_defaults` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `created_at` timestamp NULL DEFAULT current_timestamp(0),
+  `updated_at` timestamp NULL DEFAULT current_timestamp(0) ON UPDATE current_timestamp(),
+  `modified_time` timestamp NULL DEFAULT current_timestamp(0),
+  `current_date_col` date DEFAULT curdate(),
+  `current_time_col` time DEFAULT curtime(),
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_timestamp_defaults;
+CREATE TABLE t_expression_defaults (
+id INT,
+calculated INT DEFAULT (1 + 2 * 3),
+random_val INT DEFAULT (FLOOR(RAND() * 100)),
+uuid_val VARCHAR(36) DEFAULT (UUID()),
+connection_id_val INT DEFAULT (CONNECTION_ID()),
+math_result DECIMAL(10,4) DEFAULT (PI() * 2)
+);
+Warnings:
+Note	1265	Data truncated for column 'math_result' at row 0
+CREATE TABLE `t_expression_defaults` (
+  `id` int(11) DEFAULT NULL,
+  `calculated` int(11) DEFAULT 1 + 2 * 3,
+  `random_val` int(11) DEFAULT floor(rand() * 100),
+  `uuid_val` varchar(36) DEFAULT uuid(),
+  `connection_id_val` int(11) DEFAULT connection_id(),
+  `math_result` decimal(10,4) DEFAULT pi() * 2
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_expression_defaults;
+CREATE TABLE t_string_defaults (
+simple_text VARCHAR(50) DEFAULT 'Hello World',
+quoted_text VARCHAR(100) DEFAULT 'It''s a "quoted" string',
+empty_string VARCHAR(10) DEFAULT '',
+null_default VARCHAR(50) DEFAULT NULL,
+json_default TEXT DEFAULT '{"status": "new", "count": 0}',
+multiline_default TEXT DEFAULT 'Line 1\nLine 2\nLine 3'
+);
+CREATE TABLE `t_string_defaults` (
+  `simple_text` varchar(50) DEFAULT 'Hello World',
+  `quoted_text` varchar(100) DEFAULT 'It''s a "quoted" string',
+  `empty_string` varchar(10) DEFAULT '',
+  `null_default` varchar(50) DEFAULT NULL,
+  `json_default` text DEFAULT '{"status": "new", "count": 0}',
+  `multiline_default` text DEFAULT 'Line 1\nLine 2\nLine 3'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_string_defaults;
+CREATE TABLE t_enum_set_defaults (
+status ENUM('draft', 'published', 'archived') DEFAULT 'draft',
+permissions SET('read', 'write', 'delete', 'admin') DEFAULT 'read',
+priority ENUM('low', 'medium', 'high') DEFAULT 'medium',
+flags SET('flag1', 'flag2', 'flag3') DEFAULT 'flag1,flag2'
+);
+CREATE TABLE `t_enum_set_defaults` (
+  `status` enum('draft','published','archived') DEFAULT 'draft',
+  `permissions` set('read','write','delete','admin') DEFAULT 'read',
+  `priority` enum('low','medium','high') DEFAULT 'medium',
+  `flags` set('flag1','flag2','flag3') DEFAULT 'flag1,flag2'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_enum_set_defaults;
+CREATE TABLE t_datetime_defaults (
+birth_date DATE DEFAULT '1970-01-01',
+appointment_time TIME DEFAULT '09:00:00',
+event_datetime DATETIME DEFAULT '2024-01-01 00:00:00',
+year_val YEAR DEFAULT 2024,
+created_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+zero_date DATE DEFAULT '0000-00-00',
+zero_datetime DATETIME DEFAULT '0000-00-00 00:00:00'
+);
+CREATE TABLE `t_datetime_defaults` (
+  `birth_date` date DEFAULT '1970-01-01',
+  `appointment_time` time DEFAULT '09:00:00',
+  `event_datetime` datetime DEFAULT '2024-01-01 00:00:00',
+  `year_val` year(4) DEFAULT 2024,
+  `created_ts` timestamp NULL DEFAULT current_timestamp(0),
+  `zero_date` date DEFAULT '0000-00-00',
+  `zero_datetime` datetime DEFAULT '0000-00-00 00:00:00'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_datetime_defaults;
+CREATE TABLE t_auto_increment_defaults (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(50) DEFAULT 'Item'
+) AUTO_INCREMENT = 1000;
+CREATE TABLE `t_auto_increment_defaults` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(50) DEFAULT 'Item',
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_auto_increment_defaults;
+CREATE TABLE t_complex_defaults (
+id INT,
+hash_val VARCHAR(64) DEFAULT (SHA2(RAND(), 256)),
+formatted_date VARCHAR(20) DEFAULT (DATE_FORMAT(NOW(), '%Y-%m-%d')),
+case_result VARCHAR(10) DEFAULT (CASE WHEN RAND() > 0.5 THEN 'HIGH' ELSE 'LOW' END),
+conditional_val INT DEFAULT (IF(RAND() > 0.5, 100, 0)),
+substr_result VARCHAR(10) DEFAULT (SUBSTRING('HelloWorld', 1, 5))
+);
+CREATE TABLE `t_complex_defaults` (
+  `id` int(11) DEFAULT NULL,
+  `hash_val` varchar(64) DEFAULT sha2(rand(),256),
+  `formatted_date` varchar(20) DEFAULT date_format(current_timestamp(),'%Y-%m-%d'),
+  `case_result` varchar(10) DEFAULT case when rand() > 0.5 then 'HIGH' else 'LOW' end,
+  `conditional_val` int(11) DEFAULT if(rand() > 0.5,100,0),
+  `substr_result` varchar(10) DEFAULT substr('HelloWorld',1,5)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_complex_defaults;
+Default values test completed
