@@ -105,6 +105,14 @@ ulint	btr_cur_n_sea_old;
 #ifdef UNIV_DEBUG
 /* Flag to limit optimistic insert records */
 uint	btr_cur_limit_optimistic_insert_debug;
+/** Number of times index lock was upgraded from SX to X */
+Atomic_counter<size_t> btr_cur_n_index_lock_upgrades;
+/** Number of times btr_cur_pessimistic_update() was called */
+Atomic_counter<size_t> btr_cur_pessimistic_update_calls;
+/** Number of times DB_UNDERFLOW was returned as optimistic update error in btr_cur_pessimistic_update() */
+Atomic_counter<size_t> btr_cur_pessimistic_update_optim_err_underflows;
+/** Number of times DB_OVERFLOW was returned as optimistic update error in btr_cur_pessimistic_update() */
+Atomic_counter<size_t> btr_cur_pessimistic_update_optim_err_overflows;
 #endif /* UNIV_DEBUG */
 
 /** In the optimistic insert, if the insert does not fit, but this much space
@@ -1599,6 +1607,7 @@ ATTRIBUTE_COLD void mtr_t::index_lock_upgrade()
   index_lock *lock= static_cast<index_lock*>(slot.object);
   lock->u_x_upgrade(SRW_LOCK_CALL);
   slot.type= MTR_MEMO_X_LOCK;
+  ut_d(++btr_cur_n_index_lock_upgrades);
 }
 
 /** Mark a non-leaf page "least recently used", but avoid invoking
@@ -3602,10 +3611,10 @@ any_extern:
 		goto func_exit;
 	}
 
-	if (UNIV_UNLIKELY(page_get_data_size(page)
+	if (UNIV_UNLIKELY((new_rec_size < old_rec_size) && page_get_data_size(page)
 			  - old_rec_size + new_rec_size
 			  < BTR_CUR_PAGE_COMPRESS_LIMIT(index))) {
-		/* The page would become too empty */
+		/* The page would become too empty due to record shrinkage */
 		err = DB_UNDERFLOW;
 		goto func_exit;
 	}
@@ -3797,6 +3806,8 @@ btr_cur_pessimistic_update(
 	block = btr_cur_get_block(cursor);
 	index = cursor->index();
 
+	ut_d(++btr_cur_pessimistic_update_calls);
+
 	ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK |
 					 MTR_MEMO_SX_LOCK));
 	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
@@ -3821,6 +3832,9 @@ btr_cur_pessimistic_update(
 		flags,
 		cursor, offsets, offsets_heap, update,
 		cmpl_info, thr, trx_id, mtr);
+
+	ut_d(btr_cur_pessimistic_update_optim_err_underflows += (err == DB_UNDERFLOW));
+	ut_d(btr_cur_pessimistic_update_optim_err_overflows += (err == DB_OVERFLOW));
 
 	switch (err) {
 	case DB_ZIP_OVERFLOW:
@@ -3992,8 +4006,17 @@ btr_cur_pessimistic_update(
 		goto return_after_reservations;
 	}
 
-	rec = btr_cur_insert_if_possible(cursor, new_entry,
-					 offsets, offsets_heap, n_ext, mtr);
+	if (optim_err == DB_OVERFLOW
+	    && !buf_block_get_page_zip(block)
+	    && page_get_max_insert_size_after_reorganize(
+	        block->page.frame, 1) < BTR_CUR_PAGE_REORGANIZE_LIMIT) {
+		/* The page is too full: force a split instead of
+		reinserting on the same page. */
+		rec = NULL;
+	} else {
+		rec = btr_cur_insert_if_possible(cursor, new_entry,
+						 offsets, offsets_heap, n_ext, mtr);
+	}
 
 	if (rec) {
 		page_cursor->rec = rec;

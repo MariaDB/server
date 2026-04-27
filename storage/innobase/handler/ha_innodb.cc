@@ -1071,6 +1071,17 @@ static SHOW_VAR innodb_status_variables[]= {
   /* InnoDB bulk operations */
   {"bulk_operations", &export_vars.innodb_bulk_operations, SHOW_SIZE_T},
 
+#ifdef UNIV_DEBUG
+  {"btr_cur_n_index_lock_upgrades",
+   &btr_cur_n_index_lock_upgrades, SHOW_SIZE_T},
+  {"btr_cur_pessimistic_update_calls",
+   &btr_cur_pessimistic_update_calls, SHOW_SIZE_T},
+  {"btr_cur_pessimistic_update_optim_err_underflows",
+   &btr_cur_pessimistic_update_optim_err_underflows, SHOW_SIZE_T},
+  {"btr_cur_pessimistic_update_optim_err_overflows",
+   &btr_cur_pessimistic_update_optim_err_overflows, SHOW_SIZE_T},
+#endif /* UNIV_DEBUG */
+
   {NullS, NullS, SHOW_LONG}
 };
 
