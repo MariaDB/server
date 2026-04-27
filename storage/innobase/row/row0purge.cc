@@ -1361,6 +1361,7 @@ MY_ATTRIBUTE((nonnull,warn_unused_result))
 @param[in]	node		row undo node
 @param[in]	undo_rec	record to purge
 @param[in]	thr		query thread
+@param[in]	thd		worker thread
 @param[out]	updated_extern	true if an externally stored field was
 				updated
 @return true if purge operation required */
@@ -1370,6 +1371,7 @@ row_purge_parse_undo_rec(
 	purge_node_t*		node,
 	const trx_undo_rec_t*	undo_rec,
 	que_thr_t*		thr,
+	const THD*		thd,
 	bool*			updated_extern)
 {
 	dict_index_t*	clust_index;
@@ -1413,6 +1415,10 @@ row_purge_parse_undo_rec(
 	}
 
 	ut_ad(!node->pt.table->is_temporary());
+
+	if (TABLE *maria_table = node->pt.get_maria_table()) {
+		maria_table->in_use = (THD*)thd;
+	}
 
 	clust_index = dict_table_get_first_index(node->pt.table);
 
@@ -1537,13 +1543,14 @@ row_purge(
 /*======*/
 	purge_node_t*	node,		/*!< in: row purge node */
 	const trx_undo_rec_t*	undo_rec,	/*!< in: record to purge */
-	que_thr_t*	thr)		/*!< in: query thread */
+	que_thr_t*	thr,			/*!< in: query thread */
+	const THD*	thd)			/*!< in: Worker thread */
 {
 	if (undo_rec != reinterpret_cast<trx_undo_rec_t*>(-1)) {
 		bool	updated_extern;
 
-		while (row_purge_parse_undo_rec(
-			       node, undo_rec, thr, &updated_extern)) {
+		while (row_purge_parse_undo_rec(node, undo_rec, thr,
+						thd, &updated_extern)) {
 
 			bool purged = row_purge_record(
 				node, undo_rec, thr, updated_extern);
@@ -1613,6 +1620,7 @@ row_purge_step(
 /*===========*/
 	que_thr_t*	thr)	/*!< in: query thread */
 {
+	const THD *thd = current_thd;
 	purge_node_t*	node;
 
 	node = static_cast<purge_node_t*>(thr->run_node);
@@ -1623,8 +1631,7 @@ row_purge_step(
 		trx_purge_rec_t purge_rec = node->undo_recs.front();
 		node->undo_recs.pop();
 		node->roll_ptr = purge_rec.roll_ptr;
-
-		row_purge(node, purge_rec.undo_rec, thr);
+		row_purge(node, purge_rec.undo_rec, thr, thd);
 	}
 
 	thr->run_node = node->end(current_thd);
@@ -1679,4 +1686,5 @@ purge_node_t::validate_pcur()
 
 	return(true);
 }
+
 #endif /* UNIV_DEBUG */

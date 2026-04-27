@@ -89,11 +89,15 @@ class purge_table
     MDL_ticket *ticket;
   };
 public:
+  /** Pointer to the InnoDB table, or nullptr if the table
+  no longer exists, or -1 if we failed to acquire a metadata lock */
   dict_table_t *table;
 
   purge_table() : ticket(nullptr), table(nullptr) {}
 
-  inline TABLE *get_maria_table() const noexcept
+  /** Get the TABLE pointer for virtual column computation.
+  @return TABLE* if the LSB flag is set, nullptr otherwise */
+  TABLE *get_maria_table() const noexcept
   {
     return UNIV_UNLIKELY(mariadb_table & 1)
       ? reinterpret_cast<TABLE*>(mariadb_table & ~uintptr_t{1})
@@ -105,8 +109,11 @@ public:
   { return table == reinterpret_cast<dict_table_t*>(-1); }
 
   inline MDL_ticket *get_ticket() const noexcept;
-  inline void set_mariadb_table(TABLE *t) noexcept;
-  inline void set_ticket(MDL_ticket *t) noexcept;
+  inline void set_mariadb_table(TABLE *t) noexcept
+  { mariadb_table= reinterpret_cast<uintptr_t>(t) | 1; }
+
+  inline void set_ticket(MDL_ticket *t) noexcept
+  { ticket= t; }
 };
 
 /** Purge worker context */
