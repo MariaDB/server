@@ -256,7 +256,12 @@ static void dump_range_stats(THD *thd, table_context_for_store *context,
     Json_writer_array ranges_wrapper(ctx_writer, "ranges");
     while (const char *range_str= rc_li++)
     {
-      ranges_wrapper.add(range_str, strlen(range_str));
+      const String range_info(range_str, strlen(range_str),
+                              system_charset_info);
+      StringBuffer<128> escaped_range_info;
+      json_escape_to_string(&range_info, &escaped_range_info);
+      ranges_wrapper.add(escaped_range_info.c_ptr_safe(),
+                         escaped_range_info.length());
     }
     ranges_wrapper.end();
 

@@ -232,4 +232,33 @@ EXPLAIN
   }
 }
 drop table t1;
+#
+# MDEV-39412: Failed to parse saved optimizer context: error reading ranges value
+#
+set optimizer_record_context=0;
+set optimizer_replay_context='';
+CREATE TABLE t1(
+a VARCHAR(8),
+b VARCHAR(8),
+KEY(A),
+KEY(B)
+);
+INSERT INTO t1 SELECT REPEAT('a',8), REPEAT('b',8) FROM seq_1_to_10;
+set optimizer_record_context=1;
+EXPLAIN 
+SELECT * FROM t1 FORCE INDEX(a,b) WHERE a LIKE 'a%' OR b LIKE 'b%' 
+ORDER BY a,b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	a,b	a,b	35,35	NULL	10	Using sort_union(a,b); Using where; Using filesort
+select context into dumpfile "../../tmp/dump1.sql" 
+from information_schema.optimizer_context;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain:
+EXPLAIN 
+SELECT * FROM t1 FORCE INDEX(a,b) WHERE a LIKE 'a%' OR b LIKE 'b%' 
+ORDER BY a,b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	a,b	a,b	35,35	NULL	10	Using sort_union(a,b); Using where; Using filesort
+drop table t1;
 drop database db1;

@@ -66,5 +66,42 @@ set optimizer_replay_context='opt_context';
 --echo # Same query as above, must have same explain:
 EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a = 1;
 
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table t1;
+
+--echo #
+--echo # MDEV-39412: Failed to parse saved optimizer context: error reading ranges value
+--echo #
+set optimizer_record_context=0;
+set optimizer_replay_context='';
+
+CREATE TABLE t1(
+    a VARCHAR(8),
+    b VARCHAR(8),
+    KEY(A),
+    KEY(B)
+);
+INSERT INTO t1 SELECT REPEAT('a',8), REPEAT('b',8) FROM seq_1_to_10;
+
+set optimizer_record_context=1;
+EXPLAIN 
+SELECT * FROM t1 FORCE INDEX(a,b) WHERE a LIKE 'a%' OR b LIKE 'b%' 
+ORDER BY a,b;
+
+select context into dumpfile "../../tmp/dump1.sql" 
+from information_schema.optimizer_context;
+drop table t1;
+
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+EXPLAIN 
+SELECT * FROM t1 FORCE INDEX(a,b) WHERE a LIKE 'a%' OR b LIKE 'b%' 
+ORDER BY a,b;
+
 drop table t1;
 drop database db1;
