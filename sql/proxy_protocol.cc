@@ -28,6 +28,12 @@
 #define PROXY_PROTOCOL_V1_SIGNATURE "PROXY"
 #define PROXY_PROTOCOL_V2_SIGNATURE "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A"
 #define MAX_PROXY_HEADER_LEN 256
+#define PROXY_V2_HEADER_LEN 16
+
+/* Minimum address-data sizes per the PROXY protocol v2 spec */
+#define PROXY_V2_ADDR_LEN_INET  12 /* 4+4+2+2: src/dst addr + src/dst port */
+#define PROXY_V2_ADDR_LEN_INET6 36 /* 16+16+2+2 */
+#define PROXY_V2_ADDR_LEN_UNIX  216 /* 108+108 */
 
 static mysql_rwlock_t lock;
 
@@ -95,10 +101,11 @@ static int parse_v1_header(char *hdr, size_t len, proxy_peer_info *peer_info)
 /*
   Parse proxy protocol V2 (binary) header
 */
-static int parse_v2_header(uchar *hdr, size_t len,proxy_peer_info *peer_info)
+static int parse_v2_header(uchar *hdr, size_t len, proxy_peer_info *peer_info)
 {
   /* V2 Signature */
-  if (memcmp(hdr, PROXY_PROTOCOL_V2_SIGNATURE, 12))
+  if (len < PROXY_V2_HEADER_LEN ||
+      memcmp(hdr, PROXY_PROTOCOL_V2_SIGNATURE, 12))
     return -1;
 
   /* version  + command */
@@ -129,16 +136,22 @@ static int parse_v2_header(uchar *hdr, size_t len,proxy_peer_info *peer_info)
   switch (fam)
   {
     case 0x11:  /* TCPv4 */
+      if (len < PROXY_V2_HEADER_LEN + PROXY_V2_ADDR_LEN_INET)
+        return -1;
       sin->sin_family= AF_INET;
       memcpy(&(sin->sin_addr), hdr + 16, 4);
       peer_info->port= (hdr[24] << 8) + hdr[25];
       break;
     case 0x21:  /* TCPv6 */
+      if (len < PROXY_V2_HEADER_LEN + PROXY_V2_ADDR_LEN_INET6)
+        return -1;
       sin6->sin6_family= AF_INET6;
       memcpy(&(sin6->sin6_addr), hdr + 16, 16);
       peer_info->port= (hdr[48] << 8) + hdr[49];
       break;
     case 0x31: /* AF_UNIX, stream */
+      if (len < PROXY_V2_HEADER_LEN + PROXY_V2_ADDR_LEN_UNIX)
+        return -1;
       peer_info->peer_addr.ss_family= AF_UNIX;
       break;
     default:
@@ -211,20 +224,30 @@ int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
   }
   else // if (have_v2_header)
   {
-#define PROXY_V2_HEADER_LEN 16
-    /* read off 16 bytes of the header.*/
-    ssize_t len= vio_read(vio, hdr + pos, PROXY_V2_HEADER_LEN - pos);
-    if (len < 0)
-      return -1;
-    // 2 last bytes are the length in network byte order of the part following header
-    ushort trail_len= ((ushort)hdr[PROXY_V2_HEADER_LEN-2] >> 8) + hdr[PROXY_V2_HEADER_LEN-1];
+    /* Read remaining bytes of the 16-byte fixed header. */
+    while (pos < PROXY_V2_HEADER_LEN)
+    {
+      ssize_t len= vio_read(vio, hdr + pos, PROXY_V2_HEADER_LEN - pos);
+      if (len <= 0)
+        return -1;
+      pos+= (size_t)len;
+    }
+    /*
+      Bytes 14-15 are the length in network byte order (big-endian)
+      of the address/TLV data following the 16-byte header.
+    */
+    ushort trail_len= ((ushort)hdr[14] << 8) | hdr[15];
     if (trail_len > sizeof(hdr) - PROXY_V2_HEADER_LEN)
       return -1;
-    if (trail_len > 0)
+    /* Read the trailing address + TLV data, handling short reads. */
+    size_t trail_pos= 0;
+    while (trail_pos < trail_len)
     {
-      len= vio_read(vio,  hdr + PROXY_V2_HEADER_LEN, trail_len);
-      if (len < 0)
+      ssize_t len= vio_read(vio, hdr + PROXY_V2_HEADER_LEN + trail_pos,
+                            trail_len - trail_pos);
+      if (len <= 0)
         return -1;
+      trail_pos+= (size_t)len;
     }
     pos= PROXY_V2_HEADER_LEN + trail_len;
     if (parse_v2_header(hdr, pos, peer_info))

@@ -1,0 +1,15 @@
+#
+# Test A: Truncated V2 fixed header (only signature, no command/length bytes)
+#
+Test A: server did not crash after truncated V2 header
+#
+# Test B: V2 header declares trail_len=36 but we only send 4 bytes of trailing data
+#
+Test B: server did not crash after short trailing data
+#
+# Test C: V2 header claims TCPv6 but trail_len is too short for IPv6 addresses
+#
+Test C: server did not crash after AF mismatch (TCPv6 with short payload)
+server_alive
+1
+# End of proxy_protocol_v2_malformed tests
