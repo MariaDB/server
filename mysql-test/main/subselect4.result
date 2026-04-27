@@ -1392,7 +1392,7 @@ EXPLAIN
 SELECT i FROM t1 WHERE (1) NOT IN (SELECT i FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t2	index_subquery	k	k	5	const	2	Using index
+2	SUBQUERY	t2	index_subquery	k	k	5	const	2	Using index; Using where
 DROP TABLE t2;
 DROP TABLE t1;
 #
