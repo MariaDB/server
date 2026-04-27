@@ -1699,7 +1699,7 @@ int init_strvar_from_file(char *var, int max_size, IO_CACHE *f,
   DBUG_RETURN(1);
 }
 
-/* Check if numeric string parsing has trailing gaarbage */
+/* Check if numeric string parsing has trailing garbage */
 static bool is_numeric_line_corrupted(const char *endptr, int error)
 {
   if (error)
