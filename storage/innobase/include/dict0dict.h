@@ -1670,6 +1670,14 @@ public:
   dict_table_t *index() const noexcept { return index_stats; }
 };
 
+/** Delete the given table id entries from InnoDB system tables
+(like SYS_TABLES, SYS_COLUMNS, SYS_FIELDS, SYS_INDEXES)
+@param table_id table identifier to be removed
+@param trx      transaction
+@return DB_SUCCESS or error code */
+dberr_t dict_drop_table_metadata(table_id_t table_id,
+                                 trx_t *trx) noexcept;
+
 #include "dict0dict.inl"
 
 #endif
