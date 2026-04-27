@@ -359,7 +359,7 @@ set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].file_stat
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4253	Failed to parse saved optimizer context: "file_stat_records" element not present at offset 1402.
+Warning	4253	Failed to parse saved optimizer context: "file_stat_records" element not present at offset 1380.
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].indexes[0].index_name');
 select * from t1 where a > 10;
 a	b
