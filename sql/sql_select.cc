@@ -8045,6 +8045,221 @@ const char* dbug_print_join_prefix(const POSITION *join_positions,
   else
     return "Couldn't fit into buffer";
 }
+
+/*
+  Debugger helper function for visualizing a JOIN_TAB and its context.
+
+  Shows the tab's identity, neighbors in the join_tab array, the
+  JOIN::return_tab pointer, the writing_null_complements flag, and
+  the logical execution call chain from do_select() down to this tab.
+
+    (gdb)  p dbug_print(join_tab)
+
+
+  NOTE: for nice formatting in gdb:
+    (gdb) printf "%s", dbug_print(join_tab-1)
+
+  NOTE: for nice formatting in lldb:
+    (lldb) p printf("%s", dbug_print(join_tab))
+*/
+
+static const char *dbug_next_select_func_name(Next_select_func func)
+{
+  if (!func)                              return "(null)";
+  if (func == sub_select)                 return "sub_select";
+  if (func == sub_select_cache)           return "sub_select_cache";
+  if (func == sub_select_postjoin_aggr)   return "sub_select_postjoin_aggr";
+  if (func == end_send)                   return "end_send";
+  if (func == end_send_group)             return "end_send_group";
+  if (func == end_write)                  return "end_write";
+  if (func == end_write_group)            return "end_write_group";
+  if (func == end_update)                 return "end_update";
+  if (func == end_unique_update)          return "end_unique_update";
+  return "(unknown)";
+}
+
+static void dbug_str_append_tab_brief(String *out, const JOIN_TAB *t)
+{
+  char tmp[64];
+  size_t len= (size_t)snprintf(tmp, sizeof(tmp), "[%p]", t);
+  out->append(tmp, len);
+  if (t && t->table)
+  {
+    out->append(" \"", 2);
+    out->append(t->table->alias);
+    out->append('"');
+  }
+}
+
+static char dbug_join_tab_print_buf[16384];
+
+const char *dbug_print_join_tab(const JOIN_TAB *tab)
+{
+  char *buf= dbug_join_tab_print_buf;
+  String str(buf, sizeof(dbug_join_tab_print_buf), &my_charset_bin);
+  str.length(0);
+  char tmp[64];
+  size_t len;
+
+  if (!tab)
+    return "(JOIN_TAB*)NULL";
+
+  JOIN *join= tab->join;
+
+  /* Compute position in the join_tab array */
+  int tab_idx= -1;
+  int total_tabs= 0;
+  if (join && join->join_tab)
+  {
+    tab_idx= (int)(tab - join->join_tab);
+    total_tabs= join->top_join_tab_count + join->aggr_tables;
+  }
+
+  /* Header */
+  str.append("JOIN_TAB ", 9);
+  dbug_str_append_tab_brief(&str, tab);
+  str.append('\n');
+
+  /* Position in array */
+  if (tab_idx >= 0)
+  {
+    str.append("  position: #", 13);
+    len= (size_t)snprintf(tmp, sizeof(tmp), "%d of %u", tab_idx+1, total_tabs);
+    str.append(tmp, len);
+    str.append(" (join_tab array ", 17);
+    len= (size_t)snprintf(tmp, sizeof(tmp), "[%p]", join->join_tab);
+    str.append(tmp, len);
+    str.append(")\n", 2);
+  }
+
+  /* Access type */
+  str.append("  type: ", 8);
+  str.append(join_type_str[tab->type], strlen(join_type_str[tab->type]));
+  str.append('\n');
+
+  /* Neighbors */
+  if (tab_idx > 0)
+  {
+    str.append("  prev: ", 8);
+    dbug_str_append_tab_brief(&str, tab - 1);
+    str.append(" (", 2);
+    str.append(join_type_str[(tab - 1)->type], strlen(join_type_str[(tab - 1)->type]));
+    str.append(")\n", 2);
+  }
+  else
+    str.append("  prev: (none)\n", 15);
+
+  if (tab_idx >= 0 && (tab_idx + 1) < total_tabs)
+  {
+    str.append("  next: ", 8);
+    dbug_str_append_tab_brief(&str, tab + 1);
+    str.append(" (", 2);
+    str.append(join_type_str[(tab + 1)->type], strlen(join_type_str[(tab + 1)->type]));
+    str.append(")\n", 2);
+  }
+  else
+    str.append("  next: (none)\n", 15);
+
+  /* return_tab */
+  str.append("  return_tab: ", 14);
+  if (join && join->return_tab)
+  {
+    dbug_str_append_tab_brief(&str, join->return_tab);
+    if (join->join_tab)
+    {
+      int ret_idx= (int)(join->return_tab - join->join_tab);
+      len= (size_t)snprintf(tmp, sizeof(tmp), " (#%d)", ret_idx+1);
+      str.append(tmp, len);
+    }
+    str.append('\n');
+  }
+  else
+    str.append("(null)\n", 7);
+
+  /* next_select function pointer */
+  str.append("  next_select: ", 15);
+  str.append(dbug_next_select_func_name(tab->next_select), strlen(dbug_next_select_func_name(tab->next_select)));
+  str.append('\n');
+
+  /* Outer join pointers */
+  if (tab->first_inner)
+  {
+    str.append("  first_inner: ", 15);
+    dbug_str_append_tab_brief(&str, tab->first_inner);
+    str.append('\n');
+  }
+  if (tab->last_inner)
+  {
+    str.append("  last_inner: ", 14);
+    dbug_str_append_tab_brief(&str, tab->last_inner);
+    str.append('\n');
+  }
+  if (tab->first_upper)
+  {
+    str.append("  first_upper: ", 15);
+    dbug_str_append_tab_brief(&str, tab->first_upper);
+    str.append('\n');
+  }
+
+  /* select_cond */
+  str.append("  select_cond: ", 15);
+  if (tab->select_cond)
+  {
+    len= (size_t)snprintf(tmp, sizeof(tmp), "[%p]", tab->select_cond);
+    str.append(tmp, len);
+    str.append("  ", 2);
+    const char* item_buf= nullptr;
+    item_buf= dbug_print_item(tab->select_cond);
+    str.append(item_buf, strlen(item_buf));
+    str.append('\n');
+  }
+  else
+  {
+    str.append("(none)", 6);
+    str.append('\n');
+  }
+
+  /*
+    Logical call chain from do_select() to this tab.
+
+    do_select() calls join->first_select(join, join_tab[const_tables], ...),
+    which is typically sub_select.  Each tab's next_select is then used to
+    advance to the next tab in the nested loop.
+  */
+  if (join && join->join_tab && tab_idx >= 0)
+  {
+    int start= (int)join->const_tables;
+
+    for (int i= start; i < total_tabs; i++)
+    {
+      const JOIN_TAB *t= &join->join_tab[i];
+      str.append("    #", 5);
+      len= (size_t)snprintf(tmp, sizeof(tmp), "%d ", i+1);
+      str.append(tmp, len);
+      dbug_str_append_tab_brief(&str, t);
+      str.append(" (", 2);
+      str.append(join_type_str[t->type], strlen(join_type_str[t->type]));
+      str.append(')');
+
+      str.append("  next_select=", 14);
+      str.append(dbug_next_select_func_name(t->next_select), strlen(dbug_next_select_func_name(t->next_select)));
+
+      if (i == tab_idx)
+        str.append("  <-- current", 13);
+
+      str.append('\n');
+    }
+  }
+
+  if (str.c_ptr_safe() == buf)
+    return buf;
+  else
+    return "Couldn't fit into buffer";
+}
+
+
+const char *dbug_print(const JOIN_TAB *x)    { return dbug_print_join_tab(x); }
+
 #endif
 
 /**
