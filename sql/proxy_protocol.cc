@@ -42,7 +42,7 @@ static int parse_v1_header(char *hdr, size_t len, proxy_peer_info *peer_info)
   int client_port;
   int server_port;
 
-  int ret = sscanf(hdr, "PROXY %s %s %s %d %d",
+  int ret = sscanf(hdr, "PROXY %256s %256s %256s %d %d",
     address_family, client_address, server_address,
     &client_port, &server_port);
 
@@ -174,7 +174,7 @@ bool has_proxy_protocol_header(NET *net)
 */
 int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
 {
-  uchar hdr[MAX_PROXY_HEADER_LEN];
+  uchar hdr[MAX_PROXY_HEADER_LEN + 1];
   size_t pos= 0;
 
   DBUG_ASSERT(!net->compress);
@@ -195,12 +195,12 @@ int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
   if (have_v1_header)
   {
     /* Read until end of header (newline character)*/
-    while(pos < sizeof(hdr))
+    while(pos < sizeof(hdr) - 1)
     {
       long len= (long)vio_read(vio, hdr + pos, 1);
-      if (len < 0)
+      if (len <= 0)
         return -1;
-      pos++;
+      pos+= len;
       if (hdr[pos-1] == '\n')
         break;
     }
@@ -525,7 +525,7 @@ bool is_proxy_protocol_allowed(const sockaddr *addr)
 
   /*
    Non-TCP addresses (unix domain socket, windows pipe and shared memory
-   gets tranlated to TCP4 localhost address.
+   gets translated to TCP4 localhost address.
 
    Note, that vio remote addresses are initialized with binary zeros
    for these protocols (which is AF_UNSPEC everywhere).

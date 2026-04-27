@@ -1,0 +1,11 @@
+#
+# Test A: V1 header longer than MAX_PROXY_HEADER_LEN (256 bytes) without newline
+#
+Test A: server did not crash after long V1 header
+#
+# Test B: V1 header with excessively long fields
+#
+Test B: server did not crash after excessively long fields in V1 header
+server_alive
+1
+# End of proxy_protocol_v1_malformed tests
