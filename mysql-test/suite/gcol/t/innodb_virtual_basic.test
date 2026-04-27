@@ -42,6 +42,7 @@ INSERT INTO t VALUES (128, 22, DEFAULT, "xx");
 INSERT INTO t VALUES (1290, 212, DEFAULT, "xmx");
 ROLLBACK;
 
+--sorted_result
 SELECT c FROM t;
 SELECT * FROM t;
 
@@ -356,13 +357,16 @@ END|
 delimiter ;|
 
 CALL UPDATE_t();
+--sorted_result
 SELECT c FROM t;
 
 CALL DELETE_insert_t();
+--sorted_result
 SELECT c FROM t;
 
 DROP INDEX idx ON t;
 CALL UPDATE_t();
+--sorted_result
 SELECT c FROM t;
 
 DROP PROCEDURE DELETE_insert_t;
@@ -537,6 +541,7 @@ START TRANSACTION;
 UPDATE t SET m =10 WHERE m = 1;
 UPDATE t SET h = "e" WHERE h="a";
 ROLLBACK;
+--sorted_result
 SELECT a, c, h FROM t;
 
 DROP TABLE t;
