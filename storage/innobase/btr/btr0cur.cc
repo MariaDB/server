@@ -105,6 +105,10 @@ ulint	btr_cur_n_sea_old;
 #ifdef UNIV_DEBUG
 /* Flag to limit optimistic insert records */
 uint	btr_cur_limit_optimistic_insert_debug;
+/** Number of times index lock was upgraded from SX to X */
+Atomic_counter<size_t> btr_cur_n_index_lock_upgrades;
+/** Number of times btr_cur_need_opposite_intention() was called on the root */
+Atomic_counter<size_t> btr_cur_n_need_opposite_intention_root;
 #endif /* UNIV_DEBUG */
 
 /** In the optimistic insert, if the insert does not fit, but this much space
@@ -777,22 +781,43 @@ btr_cur_will_modify_tree(
 /** Detects whether the modifying record might need a opposite modification
 to the intention.
 @param bpage             buffer pool page
-@param is_clust          whether this is a clustered index
+@param index             index tree
 @param lock_intention    lock intention for the tree operation
 @param node_ptr_max_size the maximum size of a node pointer
 @param compress_limit    BTR_CUR_PAGE_COMPRESS_LIMIT(index)
 @param rec               record (current node_ptr)
 @return true if tree modification is needed */
 static bool btr_cur_need_opposite_intention(const buf_page_t &bpage,
-                                            bool is_clust,
+                                            const dict_index_t &index,
                                             btr_intention_t lock_intention,
                                             ulint node_ptr_max_size,
                                             ulint compress_limit,
                                             const rec_t *rec)
 {
   ut_ad(bpage.frame == page_align(rec));
+  /* Every check below detects whether a structural change at this
+  page (e.g. a page split inserting a node pointer into the parent,
+  a merge with a sibling removing one, or a boundary change updating
+  one) could cascade into its parent.  Handling such a structural change
+  would also require latching sibling pages at this level, which cannot
+  be safely acquired under SX without risking deadlock with concurrent
+  readers; hence the caller must upgrade the index lock from SX to X.
+
+  The root has no parent and no siblings, so none of those cascades
+  apply and no sibling latches are needed.
+
+  A root page split (btr_root_raise_and_insert()) is a special case
+  that changes the tree height, but it never cascades upward into a
+  parent.  See the comment and assertion in
+  btr_cur_search_to_nth_level() for why cascades cannot reach the
+  unlatched root under SX. */
+  if (bpage.id().page_no() == index.page)
+  {
+    ut_d(++btr_cur_n_need_opposite_intention_root);
+    return false;
+  }
   if (UNIV_LIKELY_NULL(bpage.zip.data) &&
-      !page_zip_available(&bpage.zip, is_clust, node_ptr_max_size, 1))
+      !page_zip_available(&bpage.zip, index.is_clust(), node_ptr_max_size, 1))
     return true;
   const page_t *const page= bpage.frame;
   if (lock_intention != BTR_INTENTION_INSERT)
@@ -1416,7 +1441,7 @@ release_tree:
     ut_ad(low_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
 
     if (latch_mode == BTR_MODIFY_TREE &&
-        btr_cur_need_opposite_intention(block->page, index()->is_clust(),
+        btr_cur_need_opposite_intention(block->page, *index(),
                                         lock_intention,
                                         node_ptr_max_size, compress_limit,
                                         page_cur.rec))
@@ -1449,7 +1474,7 @@ release_tree:
   default:
     break;
   case BTR_MODIFY_TREE:
-    if (btr_cur_need_opposite_intention(block->page, index()->is_clust(),
+    if (btr_cur_need_opposite_intention(block->page, *index(),
                                         lock_intention,
                                         node_ptr_max_size, compress_limit,
                                         page_cur.rec))
@@ -1599,6 +1624,7 @@ ATTRIBUTE_COLD void mtr_t::index_lock_upgrade()
   index_lock *lock= static_cast<index_lock*>(slot.object);
   lock->u_x_upgrade(SRW_LOCK_CALL);
   slot.type= MTR_MEMO_X_LOCK;
+  ut_d(++btr_cur_n_index_lock_upgrades);
 }
 
 /** Mark a non-leaf page "least recently used", but avoid invoking
@@ -1803,14 +1829,21 @@ search_loop:
   if (buf_block_t *b=
       mtr->get_already_latched(page_id, mtr_memo_type_t(rw_latch)))
     block= b;
-  else if (!(block= buf_page_get_gen(page_id, zip_size, rw_latch,
-                                     block, BUF_GET, mtr, &err)))
-  {
-    btr_read_failed(err, *index);
-    goto func_exit;
-  }
   else
   {
+    /* Freshly acquiring the root page is only permitted under X-lock
+    or when no page latch is held (brand-new descent).  Under SX with
+    existing page latches, the root must already be latched in the
+    mtr, retained from the original search_leaf() descent. */
+    ut_ad(height != ULINT_UNDEFINED ||
+          mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK) ||
+          (mtr->get_savepoint() == 1 && !mtr->block_at_savepoint(0)));
+    if (!(block= buf_page_get_gen(page_id, zip_size, rw_latch,
+                                   block, BUF_GET, mtr, &err)))
+    {
+      btr_read_failed(err, *index);
+      goto func_exit;
+    }
     btr_search_drop_page_hash_index(block, index);
     btr_cur_nonleaf_make_young(&block->page);
   }
@@ -1992,7 +2025,7 @@ index_locked:
             break;
 
           if (!index->lock.have_x() &&
-              btr_cur_need_opposite_intention(block->page, index->is_clust(),
+              btr_cur_need_opposite_intention(block->page, *index,
                                               lock_intention,
                                               node_ptr_max_size,
                                               compress_limit, page_cur.rec))
@@ -2040,7 +2073,7 @@ index_locked:
       if (!height && first && first_access)
         buf_read_ahead_linear(page_id_t(block->page.id().space(), page));
     }
-    else if (btr_cur_need_opposite_intention(block->page, index->is_clust(),
+    else if (btr_cur_need_opposite_intention(block->page, *index,
                                              lock_intention,
                                              node_ptr_max_size, compress_limit,
                                              page_cur.rec))

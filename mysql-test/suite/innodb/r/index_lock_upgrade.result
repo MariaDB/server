@@ -1,0 +1,49 @@
+#
+# MDEV-38814: btr_cur_need_opposite_intention() should not
+# trigger index lock upgrade on the root page
+#
+# Test with simple table structure:
+# Single INT primary key
+# DATETIME column dt that starts NULL and gets updated to a
+# distinct timestamp per row
+#
+# The NULL-to-DATETIME growth makes btr_cur_optimistic_update()
+# return DB_UNDERFLOW (TODO: Why? DB_OVERFLOW was expected),
+# falling through to the pessimistic path (BTR_MODIFY_TREE).
+CREATE TABLE t1 (
+id INT NOT NULL,
+dt DATETIME NULL,
+PRIMARY KEY (id)
+) ENGINE=InnoDB;
+INSERT INTO t1 (id, dt) SELECT seq, NULL FROM seq_1_to_1000;
+# Rows inserted with NULL DATETIME
+SELECT COUNT(*) AS rows_inserted FROM t1;
+rows_inserted
+1000
+SELECT COUNT(DISTINCT dt) AS distinct_timestamps FROM t1;
+distinct_timestamps
+0
+# Index lock upgrades during inserts (no reduction w.r.t. root page checks)
+SELECT @u01 AS index_lock_upgrades_insert;
+index_lock_upgrades_insert
+5
+SELECT @r01 AS need_opposite_intention_root_insert;
+need_opposite_intention_root_insert
+5
+# Now update all rows (batch update)
+# This changes DATETIME from NULL to a distinct timestamp per row,
+# triggering the pessimistic path due to record size change.
+UPDATE t1 JOIN seq_1_to_1000 s ON t1.id = s.seq
+SET t1.dt = '2025-01-01' + INTERVAL s.seq SECOND;
+# Rows updated
+SELECT COUNT(DISTINCT dt) AS distinct_timestamps FROM t1;
+distinct_timestamps
+1000
+# Index lock upgrades during updates (with reduction w.r.t. root page checks)
+SELECT @u12 AS index_lock_upgrades_update;
+index_lock_upgrades_update
+120
+SELECT @r12 AS need_opposite_intention_root_update;
+need_opposite_intention_root_update
+414
+DROP TABLE t1;
