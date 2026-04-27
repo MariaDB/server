@@ -22,7 +22,7 @@ EOF
 fi
 
 echo _WSREP_NEW_CLUSTER='--wsrep-new-cluster' > "@INSTALL_RUNDATADIR@/wsrep-new-cluster" && \
-    systemctl restart mariadb.service
+    systemctl restart "${1:-mariadb.service}"
 
 extcode=$?
 
