@@ -355,7 +355,11 @@ unpack_row(rpl_group_info *rgi,
             {
               if (likely(seconds >= 0 && seconds <= TIMESTAMP_MAX_VALUE))
                 break;
-              else if (likely(seconds == UINT_MAX32)) // They are both signed.
+              /*
+                `my_time_t` is signed, whereas `UINT_MAX32` is
+                unsigned if `long` is 32-bit and signed otherwise.
+              */
+              else if (likely(seconds == static_cast<my_time_t>(UINT_MAX32)))
               {
                 // Normalize MariaDB 11.5.1+ Epochalypse
                 f->store_timestamp(TIMESTAMP_MAX_VALUE, microseconds);
