@@ -1,0 +1,27 @@
+--echo #
+--echo # MDEV-20749 corrupted BLOB metadata should report bad field length
+--echo # The server-side DBUG hook corrupts the BLOB metadata written in
+--echo # the table map event so mariadb-binlog --flashback cannot determine the
+--echo # field length while decoding the row image.
+--echo #
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/have_debug.inc
+
+create table t1 (a int, b blob) engine=innodb;
+
+set @old_dbug= @@debug_dbug;
+set debug_dbug= "+d,flashback_corrupt_blob_metadata";
+insert into t1 values (1, repeat("a",3104));
+set debug_dbug= @old_dbug;
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+--let $BINLOG_FILE= query_get_value(SHOW MASTER STATUS, File, 1)
+flush binary logs;
+--let $RESULT_FILE= $MYSQLTEST_VARDIR/tmp/mariadb_binlog_out.sql
+--echo # MYSQL_BINLOG --result-file=RESULT_FILE -vvv --flashback MYSQLD_DATADIR/BINLOG_FILE 2>&1
+--error 1
+--exec $MYSQL_BINLOG --result-file=$RESULT_FILE -vvv --flashback $MYSQLD_DATADIR/$BINLOG_FILE 2>&1
+
+DROP TABLE t1;

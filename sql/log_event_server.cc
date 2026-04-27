@@ -5845,6 +5845,35 @@ bool Rows_log_event::write_data_body_rows(Log_event_writer *writer,
 {
   uchar *from_ptr= m_rows_buf + from_offset;
   my_ptrdiff_t const data_size= len_to_write ? len_to_write : m_rows_cur - m_rows_buf;
+
+#ifndef DBUG_OFF
+  if (DBUG_IF("flashback_corrupt_blob_length_prefix") && from_offset == 0 &&
+      get_general_type_code() == WRITE_ROWS_EVENT)
+  {
+    /*
+      Test-specific corruption for:
+
+        create table t1 (a int, b blob) engine=innodb;
+        insert into t1 values (1, repeat("a", 3104));
+
+      Row image layout:
+        1 byte null-bitmap
+        4 bytes INT
+        2 bytes BLOB length prefix
+        blob payload
+
+      Bump the BLOB length prefix without changing the event length. This keeps
+      the event parseable but makes the client think the field extends past
+      m_rows_end during flashback decoding.
+    */
+    uchar *p= from_ptr;
+    p+= 1; /* null bitmap */
+    p+= 4; /* INT field */
+    uint16 len= uint2korr(p);
+    int2store(p, len + 4);
+  }
+#endif
+
   DBUG_DUMP("rows", from_ptr, data_size);
   return write_data(writer, from_ptr, (size_t) data_size);
 }
@@ -6849,18 +6878,30 @@ bool Table_map_log_event::write_data_body(Log_event_writer *writer)
   uchar mbuf[MAX_INT_WIDTH];
   uchar *const mbuf_end= net_store_length(mbuf, m_field_metadata_size);
 
-  return write_data(writer, dbuf,      sizeof(dbuf)) ||
-         write_data(writer, m_dbnam,   m_dblen+1) ||
-         write_data(writer, tbuf,      sizeof(tbuf)) ||
-         write_data(writer, m_tblnam,  m_tbllen+1) ||
+#ifndef DBUG_OFF
+  DBUG_EXECUTE_IF("flashback_corrupt_blob_metadata", {
+    if (m_dbnam && m_tblnam && m_dblen == 4 &&
+        memcmp(m_dbnam, "test", 4) == 0 && m_tbllen == 2 &&
+        memcmp(m_tblnam, "t1", 2) == 0 && m_colcnt == 2 &&
+        m_field_metadata_size >= 1 && m_coltype[1] == MYSQL_TYPE_BLOB)
+    {
+      m_field_metadata[0]= 5;
+    }
+  });
+#endif
+
+  return write_data(writer, dbuf, sizeof(dbuf)) ||
+         write_data(writer, m_dbnam, m_dblen + 1) ||
+         write_data(writer, tbuf, sizeof(tbuf)) ||
+         write_data(writer, m_tblnam, m_tbllen + 1) ||
          write_data(writer, cbuf, (size_t) (cbuf_end - cbuf)) ||
          write_data(writer, m_coltype, m_colcnt) ||
          write_data(writer, mbuf, (size_t) (mbuf_end - mbuf)) ||
-         write_data(writer, m_field_metadata, m_field_metadata_size),
+         write_data(writer, m_field_metadata, m_field_metadata_size) ||
          write_data(writer, m_null_bits, (m_colcnt + 7) / 8) ||
-         write_data(writer, (const uchar*) m_metadata_buf.ptr(),
-                                           m_metadata_buf.length());
- }
+         write_data(writer, (const uchar *) m_metadata_buf.ptr(),
+                    m_metadata_buf.length());
+}
 
 /**
    stores an integer into packed format.
