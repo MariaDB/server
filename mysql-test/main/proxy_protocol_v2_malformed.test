@@ -1,0 +1,114 @@
+#
+# Test: Malformed PROXY protocol V2 headers must be rejected without crashing.
+#
+# This test sends crafted binary proxy protocol V2 headers over raw TCP
+# to verify that the server correctly rejects:
+#   A) Truncated fixed V2 headers (short reads)
+#   B) Trailing data shorter than declared length
+#   C) Address family payload too short for claimed type (e.g. TCPv6 with
+#      insufficient address data)
+#
+# The server must close the connection gracefully in all cases (no crash).
+#
+
+--source include/not_embedded.inc
+# Raw socket tests use alarm() which is not available on Windows.
+--source include/not_windows.inc
+
+# Need proxy_protocol_networks enabled for the server to enter the
+# proxy protocol parsing path.
+SET @save_proxy= @@global.proxy_protocol_networks;
+SET GLOBAL proxy_protocol_networks='*';
+
+# Use a short connect_timeout so truncated-header tests don't hang
+SET @save_timeout= @@global.connect_timeout;
+SET GLOBAL connect_timeout=5;
+
+--echo #
+--echo # Test A: Truncated V2 fixed header (only signature, no command/length bytes)
+--echo #
+--perl
+use Socket;
+
+# Build a truncated V2 header: only the 12-byte signature + 1 byte,
+# missing bytes 13-15 entirely. Server should reject after connect_timeout.
+my $v2_sig = "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A";
+my $partial_hdr = $v2_sig . "\x21"; # version=2, cmd=PROXY, but no AF/length
+
+socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname("tcp"))
+  or die "socket: $!\n";
+connect(SOCK, pack_sockaddr_in($ENV{MASTER_MYPORT}, inet_aton("127.0.0.1")))
+  or die "connect: $!\n";
+# Send partial header and immediately close (End-Of-File triggers short read)
+syswrite(SOCK, $partial_hdr);
+# Give server a moment to process, then close to trigger End-Of-File on vio_read
+select(undef, undef, undef, 0.5);
+close(SOCK);
+print "Test A: server did not crash after truncated V2 header\n";
+EOF
+
+--echo #
+--echo # Test B: V2 header declares trail_len=36 but we only send 4 bytes of trailing data
+--echo #
+--perl
+use Socket;
+
+# Build a complete 16-byte V2 header claiming TCPv6 (fam=0x21)
+# with trail_len=36 (the correct size for IPv6), but only send 4 bytes
+# of trailing data and then close the connection.
+my $v2_sig = "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A";
+my $ver_cmd = "\x21";    # version=2, cmd=PROXY
+my $fam     = "\x21";    # TCPv6
+my $len     = "\x00\x24"; # trail_len=36 in network byte order
+my $hdr = $v2_sig . $ver_cmd . $fam . $len;
+
+socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname("tcp"))
+  or die "socket: $!\n";
+connect(SOCK, pack_sockaddr_in($ENV{MASTER_MYPORT}, inet_aton("127.0.0.1")))
+  or die "connect: $!\n";
+# Send complete 16-byte header, then only 4 bytes of the expected 36
+syswrite(SOCK, $hdr);
+syswrite(SOCK, "\x00\x00\x00\x00");
+select(undef, undef, undef, 0.5);
+close(SOCK);
+print "Test B: server did not crash after short trailing data\n";
+EOF
+
+--echo #
+--echo # Test C: V2 header claims TCPv6 but trail_len is too short for IPv6 addresses
+--echo #
+--perl
+use Socket;
+
+# Build a V2 header with fam=0x21 (TCPv6) but trail_len=12 (only enough
+# for TCPv4). parse_v2_header() must reject this because TCPv6 requires
+# at least 36 bytes of address data.
+my $v2_sig = "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A";
+my $ver_cmd = "\x21";    # version=2, cmd=PROXY
+my $fam     = "\x21";    # TCPv6
+my $len     = "\x00\x0C"; # trail_len=12 (too short for TCPv6, need 36)
+my $hdr = $v2_sig . $ver_cmd . $fam . $len;
+# 12 bytes of dummy address data
+my $addr_data = "\x00" x 12;
+
+socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname("tcp"))
+  or die "socket: $!\n";
+connect(SOCK, pack_sockaddr_in($ENV{MASTER_MYPORT}, inet_aton("127.0.0.1")))
+  or die "connect: $!\n";
+syswrite(SOCK, $hdr . $addr_data);
+# Wait briefly for the server to process and close the connection
+select(undef, undef, undef, 0.5);
+close(SOCK);
+print "Test C: server did not crash after AF mismatch (TCPv6 with short payload)\n";
+EOF
+
+# Allow time for the server to clean up aborted connections
+--sleep 1
+
+# Verify the server is still alive and accepting connections
+SELECT 1 AS server_alive;
+
+SET GLOBAL connect_timeout= @save_timeout;
+SET GLOBAL proxy_protocol_networks= @save_proxy;
+
+--echo # End of proxy_protocol_v2_malformed tests
