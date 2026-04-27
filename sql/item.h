@@ -1012,6 +1012,7 @@ public:
   {
     return null_to_empty ? val_str_null_to_empty(to) : val_str(to);
   }
+  void hash_val_str(Hasher *hasher, String *buffer);
   virtual Item_func *get_item_func() { return NULL; }
 
   const MY_LOCALE *locale_from_val_str();

@@ -1,0 +1,61 @@
+SELECT XXH32('abc') = 2154901205 AS xxh32_expected;
+xxh32_expected
+1
+SELECT XXH32('abc') = XXH32('abc') AS xxh32_eq;
+xxh32_eq
+1
+SELECT XXH32(NULL) IS NULL AS xxh32_null;
+xxh32_null
+1
+SELECT XXH32('') = 0 AS xxh32_empty;
+xxh32_empty
+1
+SELECT XXH32(11223344);
+ERROR HY000: Illegal parameter data type int for operation 'XXH32'
+SELECT XXH32(FROM_DAYS(735000));
+ERROR HY000: Illegal parameter data type date for operation 'XXH32'
+SELECT XXH3('abc') = 2615927343983396622 AS xxh3_expected;
+xxh3_expected
+1
+SELECT XXH3('abc') = XXH3('abc') AS xxh3_eq;
+xxh3_eq
+1
+SELECT XXH3(NULL) IS NULL AS xxh3_null;
+xxh3_null
+1
+SELECT XXH3('') = 0 AS xxh3_empty;
+xxh3_empty
+1
+SELECT XXH3(11223344);
+ERROR HY000: Illegal parameter data type int for operation 'XXH3'
+SELECT XXH3(FROM_DAYS(735000));
+ERROR HY000: Illegal parameter data type date for operation 'XXH3'
+CREATE TABLE t (c INT, d VARCHAR(3)) DEFAULT CHARSET=latin1;
+INSERT INTO t VALUES (11223344, 'abc');
+SELECT XXH32(d) = XXH32('abc') AS xxh32_str_col_eq
+FROM t;
+xxh32_str_col_eq
+1
+SELECT XXH3(d) = XXH3('abc') AS xxh3_str_col_eq
+FROM t;
+xxh3_str_col_eq
+1
+SELECT XXH32(c) FROM t;
+ERROR HY000: Illegal parameter data type int for operation 'XXH32'
+SELECT XXH3(c) FROM t;
+ERROR HY000: Illegal parameter data type int for operation 'XXH3'
+DROP TABLE t;
+SELECT XXH32(' ') = XXH32('    ') AS xxh32_space_eq;
+xxh32_space_eq
+1
+SELECT XXH3(' ') = XXH3('    ') AS xxh3_space_eq;
+xxh3_space_eq
+1
+SELECT XXH32(_koi8u 0x20 COLLATE koi8u_general_ci) =
+XXH32(_koi8u 0x60 COLLATE koi8u_general_ci) AS xxh32_koi8u_eq;
+xxh32_koi8u_eq
+1
+SELECT XXH3(_koi8u 0x20 COLLATE koi8u_general_ci) =
+XXH3(_koi8u 0x60 COLLATE koi8u_general_ci) AS xxh3_koi8u_eq;
+xxh3_koi8u_eq
+1
