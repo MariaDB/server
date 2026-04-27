@@ -12388,3 +12388,5 @@ ER_SLAVE_INCOMPATIBLE_TABLE_DEF
         eng "Table structure for binlog event is not compatible with the table definition on this slave: %s"
 ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
         eng "Data type '%-.64s' doesn't support %s attribute."
+ER_CANT_CREATE_TMP_ALTER_TABLE
+        eng "Can't create temporary table for ALTER TABLE %sQ.%sQ (errno: %iE)"

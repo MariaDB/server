@@ -73,7 +73,7 @@ ALTER TABLE `t4` PARTITION BY RANGE(id) (
 PARTITION pt1 VALUES LESS THAN (100) ENCRYPTED="YES" ENCRYPTION_KEY_ID=2,
 PARTITION pt2 VALUES LESS THAN MAXVALUE ENCRYPTED="DEFAULT"
 );
-ERROR HY000: Can't create table `test`.`t4` (errno: 140 "Wrong create options")
+ERROR HY000: Can't create temporary table for ALTER TABLE `test`.`t4` (errno: 140 "Wrong create options")
 DROP TABLE `t4`;
 # subpartitioned tables
 CREATE TABLE `t5` (
