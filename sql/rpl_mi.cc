@@ -1412,6 +1412,11 @@ Domain_id_filter::Domain_id_filter() : m_filter(false)
   }
 }
 
+const LEX_CSTRING Domain_id_filter::var_name_ignore=
+  { STRING_WITH_LEN("slave_connect_state_domain_ids_ignore") };
+const LEX_CSTRING Domain_id_filter::var_name_do=
+  { STRING_WITH_LEN("slave_connect_state_domain_ids_do") };
+
 Domain_id_filter::~Domain_id_filter()
 {
   for (int i= DO_DOMAIN_IDS; i <= IGNORE_DOMAIN_IDS; i ++)

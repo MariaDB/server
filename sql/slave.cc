@@ -1640,6 +1640,40 @@ bool is_network_error(uint errorno)
   2       transient network problem, the caller should try to reconnect
 */
 
+
+/*
+  Build a SET @var_name='id1,id2,...' query string from a DYNAMIC_ARRAY
+  of ulong domain IDs.
+
+  @param[in,out] query_str  String to write the query into (reset first)
+  @param[in]     ids        Array of ulong domain IDs
+  @param[in]     var_name   User variable name (without '@')
+
+  @retval false  success
+  @retval true   out of memory
+*/
+static bool
+build_domain_ids_query(String *query_str, const DYNAMIC_ARRAY *ids,
+                       const char *var_name)
+{
+  query_str->length(0);
+  if (query_str->append(STRING_WITH_LEN("SET @"), system_charset_info) ||
+      query_str->append(var_name, strlen(var_name), system_charset_info) ||
+      query_str->append(STRING_WITH_LEN("='"), system_charset_info))
+    return true;
+  for (uint i= 0; i < ids->elements; i++)
+  {
+    ulong domain_id;
+    get_dynamic((DYNAMIC_ARRAY *) ids, (void *) &domain_id, i);
+    if (i > 0)
+      query_str->append(',');
+    query_str->append_ulonglong(domain_id);
+  }
+  query_str->append(STRING_WITH_LEN("'"), system_charset_info);
+  return false;
+}
+
+
 static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
 {
   char err_buff[MAX_SLAVE_ERRMSG], err_buff2[MAX_SLAVE_ERRMSG];
@@ -2538,6 +2572,75 @@ after_set_capability:
             "encountered when it tries to set @slave_gtid_until_before_gtids.";
           sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
           goto err;
+        }
+      }
+    }
+
+    /*
+      Send the slave's domain ID filter to the master, so it can skip GTID
+      state validation for domains the slave doesn't care about. See
+      MDEV-28213.
+
+      Only one of IGNORE_DOMAIN_IDS or DO_DOMAIN_IDS can be active at a
+      time, so we determine which is configured and send only that one.
+
+      This is done as a user variable so that older masters that don't know
+      about it simply ignore it (backwards compatible).
+    */
+    {
+      const DYNAMIC_ARRAY *ids= NULL;
+      const LEX_CSTRING *var_name= NULL;
+
+      if (mi->domain_id_filter.m_domain_ids[
+            Domain_id_filter::IGNORE_DOMAIN_IDS].elements > 0)
+      {
+        ids= &mi->domain_id_filter.m_domain_ids[
+               Domain_id_filter::IGNORE_DOMAIN_IDS];
+        var_name= &Domain_id_filter::var_name_ignore;
+      }
+      else if (mi->domain_id_filter.m_domain_ids[
+                 Domain_id_filter::DO_DOMAIN_IDS].elements > 0)
+      {
+        ids= &mi->domain_id_filter.m_domain_ids[
+               Domain_id_filter::DO_DOMAIN_IDS];
+        var_name= &Domain_id_filter::var_name_do;
+      }
+
+      if (ids)
+      {
+        if (build_domain_ids_query(&query_str, ids, var_name->str))
+        {
+          err_code= ER_OUTOFMEMORY;
+          errmsg= "The slave I/O thread stops because a fatal out-of-memory "
+            "error is encountered when it tries to set @";
+          sprintf(err_buff, "%s%.*s. Error: Out of memory",
+                  errmsg, (int) var_name->length, var_name->str);
+          goto err;
+        }
+
+        rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
+        if (unlikely(rc))
+        {
+          if (check_io_slave_killed(mi, NULL))
+            goto slave_killed_err;
+          err_code= mysql_errno(mysql);
+          if (is_network_error(err_code))
+          {
+            mi->report(ERROR_LEVEL, err_code, NULL,
+                       "Setting @%.*s failed with error: %s",
+                       (int) var_name->length, var_name->str,
+                       mysql_error(mysql));
+            goto network_err;
+          }
+          else
+          {
+            errmsg= "The slave I/O thread stops because a fatal error is "
+              "encountered when it tries to set @";
+            sprintf(err_buff, "%s%.*s. Error: %s",
+                    errmsg, (int) var_name->length, var_name->str,
+                    mysql_error(mysql));
+            goto err;
+          }
         }
       }
     }

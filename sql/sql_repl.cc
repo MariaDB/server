@@ -195,7 +195,10 @@ struct binlog_send_info {
     bzero(&error_gtid, sizeof(error_gtid));
     until_binlog_state.init();
   }
-  ~binlog_send_info() { delete engine_binlog_reader; }
+  ~binlog_send_info()
+  {
+    delete engine_binlog_reader;
+  }
 };
 
 // prototype
@@ -1065,6 +1068,84 @@ get_slave_gtid_until_before_gtids(THD *thd)
 
 
 /*
+  Retrieve a user variable value as a string.
+
+  Looks up the specified user variable in the THD's user_vars hash and
+  writes its string representation into out_str.
+
+  @param[in]  thd       Current thread
+  @param[in]  name      Name of the user variable (without '@')
+  @param[in]  name_len  Length of the name
+  @param[out] out_str   Output string
+
+  @retval false  Variable not found or NULL
+  @retval true   Success (value written to out_str)
+*/
+static bool
+get_user_var_string(THD *thd, const char *name, size_t name_len,
+                    String *out_str)
+{
+  bool null_value;
+  user_var_entry *entry=
+    (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name,
+                                     name_len);
+  return entry && entry->val_str(&null_value, out_str, 0) && !null_value;
+}
+
+
+/*
+  Parse a comma-separated list of domain IDs from a string and load them
+  into a DYNAMIC_ARRAY of uint32 elements. Used to populate a Domain_id_filter
+  from the slave's user variables sent before COM_BINLOG_DUMP.
+
+  @retval  false  success
+  @retval  true   error (parse error or out of memory)
+*/
+static bool
+load_domain_ids_from_string(const char *str, size_t len, DYNAMIC_ARRAY *ids)
+{
+  const char *p= str;
+  const char *end= str + len;
+
+  while (p < end)
+  {
+    /* Skip whitespace */
+    while (p < end && *p == ' ')
+      p++;
+    if (p >= end)
+      break;
+
+    /* Parse one domain ID using MariaDB's internal function for consistency */
+    char *q= (char *) end;
+    int err= 0;
+    uint64 v= (uint64) my_strtoll10(p, &q, &err);
+    if (err != 0 || v > (uint32) 0xffffffff || q == p)
+      return true;  /* Parse error or overflow */
+    /*
+      Domain_id_filter's DYNAMIC_ARRAY stores ulong elements (matching
+      do_filter's argument type), so cast here after 32-bit range validation.
+    */
+    ulong domain_id= (ulong) v;
+    if (insert_dynamic(ids, (uchar *) &domain_id))
+      return true;  /* Out of memory */
+    p= q;
+
+    /* Skip whitespace after number */
+    while (p < end && *p == ' ')
+      p++;
+
+    if (p >= end)
+      break;
+    if (*p != ',')
+      return true;  /* Parse error: expected a comma */
+    p++;
+  }
+
+  return false;
+}
+
+
+/*
   Function prepares and sends repliation heartbeat event.
 
   @param net                net object of THD
@@ -1263,6 +1344,11 @@ err:
   Gtid_list_log_event where D is not present in the requested slave state at
   all. Since if D is not in requested slave state, it means that slave needs
   to start at the very first GTID in domain D.
+
+  The filter parameter (MDEV-28213) allows domains that the slave has
+  configured to ignore to be skipped during this check. Without this, a slave
+  that ignores a domain would fail to connect if the master's oldest binlog
+  references that domain but the slave has no position for it.
 */
 static bool
 contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
@@ -1276,6 +1362,16 @@ contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
     if (!gtid)
     {
       /*
+        If the slave is configured to ignore this domain, skip the check.
+        The slave doesn't need events from this domain at all (MDEV-28213).
+      */
+      if (st->domain_filter)
+      {
+        st->domain_filter->do_filter(gl_domain_id);
+        if (st->domain_filter->is_group_filtered())
+          continue;
+      }
+      /*
         The slave needs to start from the very beginning of this domain, which
         is in an earlier binlog file. So we need to search back further.
       */
@@ -1284,6 +1380,16 @@ contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
     if (gtid->server_id == glev->list[i].server_id &&
         gtid->seq_no <= glev->list[i].seq_no)
     {
+      /*
+        If the slave is configured to ignore this domain, skip the check
+        even if the slave's position is behind the master's (MDEV-28213).
+      */
+      if (st->domain_filter)
+      {
+        st->domain_filter->do_filter(gl_domain_id);
+        if (st->domain_filter->is_group_filtered())
+          continue;
+      }
       /*
         The slave needs to start after gtid, but it is contained in an earlier
         binlog file. So we need to search back further, unless it was the very
@@ -1365,6 +1471,20 @@ check_slave_start_position(binlog_send_info *info, const char **errormsg,
     rpl_gtid master_gtid;
     rpl_gtid master_replication_gtid;
     rpl_gtid start_gtid;
+
+    /*
+      If the slave has configured this domain to be ignored (MDEV-28213),
+      skip validation for it entirely. The slave doesn't care about this
+      domain's events so there's no point requiring the master to have
+      the right binlog position for it.
+    */
+    if (st->domain_filter)
+    {
+      st->domain_filter->do_filter(slave_gtid->domain_id);
+      if (st->domain_filter->is_group_filtered())
+        continue;
+    }
+
     bool start_at_own_slave_pos=
       rpl_global_gtid_slave_state->domain_to_gtid(slave_gtid->domain_id,
                                                   &master_replication_gtid) &&
@@ -1568,6 +1688,11 @@ gtid_check_binlog_file(slave_connection_state *state,
     Try to lookup the GTID position in the gtid index.
     If that doesn't work, read the Gtid_list_log_event at the start of the
     binlog file to get the binlog state.
+
+    When the slave has configured IGNORE_DOMAIN_IDS or DO_DOMAIN_IDS
+    (MDEV-28213), the Domain_id_filter stored in state->domain_filter is used
+    by is_before_pos() and contains_all_slave_gtid() so that domains the slave
+    does not care about are skipped during the search.
   */
   if (normalize_binlog_name(buf, list->name.str, false))
   {
@@ -1769,7 +1894,19 @@ gtid_find_binlog_pos(slave_connection_state *state, char *out_name,
           their UNTIL condition.
         */
         for (i= 0; i < count; ++i)
+        {
+          /*
+            Skip filtered domains (MDEV-28213): the slave does not track
+            these, so found_pos_check_gtid() would hit DBUG_ASSERT(0).
+          */
+          if (state->domain_filter)
+          {
+            state->domain_filter->do_filter(gtids[i].domain_id);
+            if (state->domain_filter->is_group_filtered())
+              continue;
+          }
           found_pos_check_gtid(&(gtids[i]), state, until_gtid_state);
+        }
       }
 
       goto end;
@@ -1807,6 +1944,16 @@ gtid_find_engine_pos(binlog_send_info *info)
     return gtid_too_old_errmsg;
   until_binlog_state->iterate(
     [pos, until_gtid_pos] (const rpl_gtid *gtid) -> bool {
+      /*
+        Skip filtered domains (MDEV-28213): the slave does not track these,
+        so found_pos_check_gtid() would hit DBUG_ASSERT(0).
+      */
+      if (pos->domain_filter)
+      {
+        pos->domain_filter->do_filter(gtid->domain_id);
+        if (pos->domain_filter->is_group_filtered())
+          return false;
+      }
       found_pos_check_gtid(gtid, pos, until_gtid_pos);
       return false;
     });
@@ -2585,6 +2732,8 @@ static int init_binlog_sender(binlog_send_info *info,
   String connect_gtid_state(str_buf, sizeof(str_buf), system_charset_info);
   char str_buf2[128];
   String slave_until_gtid_str(str_buf2, sizeof(str_buf2), system_charset_info);
+  char str_buf3[128];
+  String domain_ids_str(str_buf3, sizeof(str_buf3), system_charset_info);
   connect_gtid_state.length(0);
 
   if (opt_binlog_engine_hton &&
@@ -2620,6 +2769,56 @@ static int init_binlog_sender(binlog_send_info *info,
     {
       info->until_gtid_state= &info->until_gtid_state_obj;
       info->is_until_before_gtids= get_slave_gtid_until_before_gtids(thd);
+    }
+    /*
+      Read the slave's domain ID filter list, if sent (MDEV-28213).
+      Lazy-initialized: the Domain_id_filter is only allocated if the slave
+      actually sends IGNORE_DOMAIN_IDS or DO_DOMAIN_IDS. Older slaves won't
+      send these, so the filter stays NULL and all domains are validated.
+
+      Only one of IGNORE_DOMAIN_IDS or DO_DOMAIN_IDS can be active at a time,
+      so we check for the configured one and handle it directly.
+    */
+    {
+      const LEX_CSTRING *var_name= NULL;
+      int list_type;
+
+      if (get_user_var_string(thd, Domain_id_filter::var_name_ignore.str,
+                              Domain_id_filter::var_name_ignore.length,
+                              &domain_ids_str))
+      {
+        var_name= &Domain_id_filter::var_name_ignore;
+        list_type= Domain_id_filter::IGNORE_DOMAIN_IDS;
+      }
+      else if (get_user_var_string(thd, Domain_id_filter::var_name_do.str,
+                                   Domain_id_filter::var_name_do.length,
+                                   &domain_ids_str))
+      {
+        var_name= &Domain_id_filter::var_name_do;
+        list_type= Domain_id_filter::DO_DOMAIN_IDS;
+      }
+
+      if (var_name)
+      {
+        info->gtid_state.domain_filter= new Domain_id_filter();
+        if (!info->gtid_state.domain_filter)
+        {
+          info->errmsg= "Out of memory allocating domain ID filter";
+          info->error= ER_OUTOFMEMORY;
+          return 1;
+        }
+        DYNAMIC_ARRAY *ids=
+          &info->gtid_state.domain_filter->m_domain_ids[list_type];
+        if (load_domain_ids_from_string(domain_ids_str.ptr(),
+                                        domain_ids_str.length(), ids))
+        {
+          info->errmsg= "Out of memory or malformed slave request when "
+            "obtaining domain ID filter";
+          info->error= ER_UNKNOWN_ERROR;
+          return 1;
+        }
+        sort_dynamic(ids, change_master_id_cmp);
+      }
     }
   }
   else if (opt_binlog_engine_hton)
