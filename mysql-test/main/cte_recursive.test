@@ -2640,7 +2640,9 @@ where (dt.a1) in (with recursive cte as (select a2 from t2 where a2='2'
 select a2 from cte);
 
 eval $q;
+--disable_replay next_query Dont support SPs
 eval explain $q;
+--disable_replay next_query Dont support SPs
 --source include/analyze-format.inc
 eval analyze format=json $q;
 
