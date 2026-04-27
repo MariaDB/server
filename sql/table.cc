@@ -51,6 +51,7 @@
 #endif
 #include "log_event.h"           // MAX_TABLE_MAP_ID
 #include "sql_class.h"
+#include "sql_test.h"            // dbug_print_table_row()
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -10324,8 +10325,9 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
 #define newx new (thd->mem_root)
 bool TR_table::query(ulonglong trx_id)
 {
+  DBUG_ENTER("query(trx)");
   if (!table && open())
-    return false;
+    DBUG_RETURN(false);
   SQL_SELECT_auto select;
   READ_RECORD info;
   int error;
@@ -10350,16 +10352,24 @@ bool TR_table::query(ulonglong trx_id)
   while (!(error= info.read_record()) && !thd->killed && !thd->is_error())
   {
     if (select->skip_record(thd) > 0)
-      return true;
+      DBUG_RETURN(true);
   }
   my_error(ER_VERS_NO_TRX_ID, MYF(0), (longlong) trx_id);
-  return false;
+  DBUG_RETURN(false);
 }
 
 bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
 {
+  DBUG_ENTER("query(ts)");
+
+#ifndef DBUG_OFF
+  char dbug_commit_time[MAX_DATE_STRING_REP_LENGTH];
+  my_time_to_str(&commit_time, dbug_commit_time, 6);
+#endif /* DBUG_OFF */
+
+
   if (!table && open())
-    return false;
+    DBUG_RETURN(false);
   SQL_SELECT_auto select;
   READ_RECORD info;
   int error;
@@ -10375,11 +10385,11 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
   else
     conds= newx Item_func_le(thd, field, value);
   if (unlikely((error= setup_conds(thd, this, dummy, &conds))))
-    return false;
+    DBUG_RETURN(false);
   // FIXME: (performance) force index 'commit_timestamp'
   select= make_select(table, 0, 0, conds, NULL, 0, &error);
   if (unlikely(error || !select))
-    return false;
+    DBUG_RETURN(false);
   error= init_read_record(&info, thd, table, select, NULL,
                           1 /* use_record_cache */, true /* print_error */,
                           false /* disable_rr_cache */);
@@ -10416,10 +10426,22 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
       found= false;
       break;
     }
- }
+  }
   if (found)
+  {
     restore_record(table, record[1]);
-  return found;
+    DBUG_LOCK_FILE;
+    DBUG_PRINT("vers_trx_id", ("%s%s: %s", dbug_commit_time,
+                               (backwards ? "(b)" : ""),
+                               dbug_print_table_row(table)));
+    DBUG_UNLOCK_FILE;
+  }
+  else
+    DBUG_PRINT("vers_trx_id", ("%s%s: %s", dbug_commit_time,
+                               (backwards ? "(b)" : ""),
+                               "Not found!"));
+
+  DBUG_RETURN(found);
 }
 #undef newx
 
@@ -10427,27 +10449,34 @@ bool TR_table::query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
                           ulonglong commit_id1, enum_tx_isolation iso_level1,
                           ulonglong commit_id0)
 {
+  DBUG_ENTER("query_sees");
   if (trx_id1 == trx_id0)
   {
-    return false;
+    DBUG_PRINT("vers_trx_id", ("%llu == %llu (result depends on accept_eq)", trx_id1, trx_id0));
+    DBUG_RETURN(false);
   }
 
   if (trx_id1 == ULONGLONG_MAX || trx_id0 == 0)
   {
+    DBUG_PRINT("vers_trx_id", ("%llu sees %llu (border values)", trx_id1, trx_id0));
     result= true;
-    return false;
+    DBUG_RETURN(false);
   }
 
   if (trx_id0 == ULONGLONG_MAX || trx_id1 == 0)
   {
+    DBUG_PRINT("vers_trx_id", ("%llu sees NOT %llu (border values)", trx_id1, trx_id0));
     result= false;
-    return false;
+    DBUG_RETURN(false);
   }
 
   if (!commit_id1)
   {
     if (!query(trx_id1))
-      return true;
+    {
+      DBUG_PRINT("vers_trx_id", ("query(%llu) failed", trx_id1));
+      DBUG_RETURN(true);
+    }
 
     commit_id1= (*this)[FLD_COMMIT_ID]->val_int();
     iso_level1= iso_level();
@@ -10456,7 +10485,10 @@ bool TR_table::query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
   if (!commit_id0)
   {
     if (!query(trx_id0))
-      return true;
+    {
+      DBUG_PRINT("vers_trx_id", ("query(%llu) failed", trx_id0));
+      DBUG_RETURN(true);
+    }
 
     commit_id0= (*this)[FLD_COMMIT_ID]->val_int();
   }
@@ -10466,14 +10498,19 @@ bool TR_table::query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
       // Concurrent transactions: TX1 committed after TX0 and TX1 is read (un)committed
       || (commit_id1 > commit_id0 && iso_level1 < ISO_REPEATABLE_READ))
   {
+    DBUG_PRINT("vers_trx_id", ("(%llu, %llu) sees (%llu, %llu); %s; iso_level: %d",
+                               trx_id1, commit_id1, trx_id0, commit_id0,
+                               (trx_id1 > commit_id0 ? "trivial" : "concurrent"), iso_level1));
     result= true;
   }
   else // All other cases: TX1 does not see TX0
   {
+    DBUG_PRINT("vers_trx_id", ("(%llu, %llu) sees NOT (%llu, %llu); iso_level: %d",
+                               trx_id1, commit_id1, trx_id0, commit_id0, iso_level1));
     result= false;
   }
 
-  return false;
+  DBUG_RETURN(false);
 }
 
 void TR_table::warn_schema_incorrect(const char *reason)
