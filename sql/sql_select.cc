@@ -7209,6 +7209,25 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
       if (field->can_optimize_hash_join(key_field->cond, key_field->val) !=
           Data_type_compatibility::OK)
         return false;
+      /*
+        MDEV-24931: For materialized derived tables, don't add hash-join
+        KEYUSE entries beyond max_key_parts(). Excess entries would cause
+        generate_derived_keys_for_table() to build a key with more parts
+        than key_part_map (64 bits) or Bitmap<64> can represent.
+      */
+      if (form->pos_in_table_list &&
+          form->pos_in_table_list->is_materialized_derived())
+      {
+        uint existing= 0;
+        for (uint k= 0; k < keyuse_array->elements; k++)
+        {
+          KEYUSE *ku= dynamic_element(keyuse_array, k, KEYUSE*);
+          if (ku->table == form && is_hash_join_key_no(ku->key))
+            existing++;
+        }
+        if (existing >= form->file->max_key_parts())
+          return FALSE;
+      }
       if (form->is_splittable())
         form->add_splitting_info_for_key_field(key_field);
       /* 
@@ -14078,7 +14097,7 @@ bool generate_derived_keys_for_table(KEYUSE *keyuse, uint count, uint keys)
     do
     {
       keyuse->key= table->s->keys;
-      keyuse->keypart_map= (key_part_map) (1 << parts);     
+      keyuse->keypart_map= (key_part_map) 1 << parts;     
       keyuse++;
       i++;
     } 
