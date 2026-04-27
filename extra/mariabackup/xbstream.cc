@@ -320,6 +320,11 @@ file_entry_new(extract_ctxt_t *ctxt, const char *path, uint pathlen,
 	file_entry_t	*entry;
 	ds_file_t	*file;
 
+        if (*path == '.' || *path == '/' || strstr(path, "/../")) {
+		msg("%s: invalid filename %s", my_progname, path);
+                return NULL;
+        }
+
 	entry = (file_entry_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(file_entry_t),
 					   MYF(MY_WME | MY_ZEROFILL));
 	if (entry == NULL) {

@@ -2418,6 +2418,32 @@ alter table t1 drop constraint t1_fk_t2_id, drop t2_id, drop t2_id;
 drop table t1, t2;
 
 --echo #
+--echo # MDEV-34951: InnoDB index corruption when renaming key name with same letter to upper case.
+--echo #
+
+CREATE TABLE t (a INT, b INT, KEY(a), KEY(b)) ENGINE=INNODB;
+ALTER TABLE t RENAME KEY b TO B;
+SELECT * FROM t;
+DROP TABLE t;
+
+CREATE TABLE t (c INT UNIQUE) ENGINE=InnoDB;
+ALTER TABLE t RENAME KEY c TO C;
+SELECT * FROM t;
+DROP TABLE t;
+
+CREATE TABLE t (c POINT GENERATED ALWAYS AS (POINT(1,1)) UNIQUE) ENGINE=InnoDB;
+ALTER TABLE t RENAME KEY c to C;
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+INSERT INTO t VALUES (1);
+DROP TABLE t;
+
+CREATE TABLE t (c POINT GENERATED ALWAYS AS (POINT(1,1)) UNIQUE) ENGINE=InnoDB;
+ALTER TABLE t RENAME KEY c to C;
+--error ER_WRONG_VALUE_COUNT_ON_ROW
+INSERT INTO t VALUES (1,1);
+DROP TABLE t;
+
+--echo #
 --echo # MDEV-29001 DROP DEFAULT makes SHOW CREATE non-idempotent
 --echo #
 SET @save_sql_mode=@@sql_mode;

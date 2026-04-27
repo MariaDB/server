@@ -29,6 +29,15 @@ if [ "$OS" != 'Darwin' ]; then
     export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}/usr/local/lib:/lib:/usr/lib:/opt/lib"
 fi
 
+safe()
+{
+  if [[ "${!1}" = *[\ \'\`]* ]]; then
+    wsrep_log_error "Invalid value for $1: ${!1}"
+    exit 21
+  fi
+  echo "${!1}"
+}
+
 commandex()
 {
     if [ -n "$BASH_VERSION" ]; then

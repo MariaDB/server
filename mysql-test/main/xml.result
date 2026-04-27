@@ -1323,7 +1323,10 @@ foo
 # Start of 10.5 tests
 #
 #
-# ExtractValue/UpdateXML crash
+# Start of 10.6 tests
+#
+#
+# MDEV-39210 ExtractValue/UpdateXML crash
 #
 SELECT ExtractValue('<!a/><!b/>', '/a');
 ExtractValue('<!a/><!b/>', '/a')
@@ -1411,6 +1414,3 @@ ExtractValue(@xml, '/employee/dt3')
 NULL
 Warnings:
 Warning	1525	Incorrect XML value: 'parse error at line 10 pos 27: unexpected END-OF-INPUT'
-#
-# Start of 10.6 tests
-#

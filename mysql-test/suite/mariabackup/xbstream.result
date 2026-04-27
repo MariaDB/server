@@ -35,3 +35,8 @@ i
 4
 DROP TABLE t;
 DROP TABLE mysql.mariadb_backup_history;
+#
+# MDEV-39408 mbstream insufficient path validation
+#
+[00] mbstream: invalid filename ../../data.dat
+# End of 10.6 tests

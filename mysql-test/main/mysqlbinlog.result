@@ -1329,3 +1329,23 @@ FOUND 1 /Number of rows: 2/ in mdev24959_2.txt
 FOUND 1 /DROP TABLE/ in mdev24959_2.txt
 FOUND 1 /INSERT INTO .* VALUES/ in mdev24959_2.txt
 FOUND 1 /SET /[*] no columns [*]// in mdev24959_2.txt
+#
+# MDEV-39404 Gtid_log_event crash
+#
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# at 4
+#260422 10:44:37 server id 1  end_log_pos 256 CRC32 0xcb5fac99 	Start: binlog v 4, server v 10.6.26-MariaDB-debug-log created 260422 10:44:37 at startup
+ROLLBACK/*!*/;
+BINLOG '
+laboaQ8BAAAA/AAAAAABAAAAAAQAMTAuNi4yNi1NYXJpYURCLWRlYnVnLWxvZwAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAACVpuhpEzgNAAgAEgAEBAQEEgAA5AAEGggAAAAICAgCAAAACgoKAAAAAAAA
+CgoKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAEEwQADQgICAoKCgGZrF/L
+'/*!*/;
+ERROR: Error in Log_event::read_log_event(): 'Found invalid event in binary log', data_len: 401, event_type: 162
+ERROR: Could not read entry at offset 256: Error in log format or read error.
+# End of 10.6 tests
