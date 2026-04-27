@@ -1,3 +1,4 @@
+
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
@@ -34,6 +35,7 @@ Created 3/26/1996 Heikki Tuuri
 #include <queue>
 #include <unordered_map>
 
+struct TABLE;
 /** Prepend the history list with an undo log.
 Remove the undo log segment from the rseg slot if it is too big for reuse.
 @param[in]	trx		transaction
@@ -232,13 +234,16 @@ public:
 					record to purge */
 private:
 	/** Coordinator thread's THD during batch processing.
-	The coordinator thread sets this at the start of trx_purge()
-	and clears it at the end. This is being used in
-	purge_node_t::end() to determine whether InnoDB should
-	call reset_thd(). The coordinator skips this call
-	because it manages table cleanup centrally in
-	trx_purge() after all workers complete. */
-	THD* coordinator_thd= nullptr;
+	Set by the coordinator at the start of trx_purge() and cleared
+	at the end. This serves two purposes:
+	1. Identifies the coordinator thread in reset_worker_thd()
+	which skips THD reset for the coordinator since it manages
+	cleanup centrally in trx_purge() after all workers complete.
+
+	2. Used to set TABLE::in_use when opening tables for purge
+	operations with virtual columns, ensuring proper table
+	ownership tracking during the purge batch. */
+	THD *coordinator_thd= nullptr;
 
 	uint32_t	page_no;	/*!< Page number for the next undo
 					record to purge, page number of the
@@ -328,9 +333,11 @@ public:
 
   /** Close and reopen all tables in case of a MDL conflict with DDL
   @param id   table identifier that triggered reopen
+  @param pt   last purge_table entry processed
   @param thd  coordinator thread
   @return purge_table for the reopened table, or empty on error */
-  purge_table close_and_reopen(table_id_t id, THD *thd) noexcept;
+  purge_table close_and_reopen(table_id_t id, purge_table pt,
+                               THD *thd) noexcept;
 
 private:
   /** Suspend purge during a DDL operation on FULLTEXT INDEX tables */
@@ -352,6 +359,8 @@ public:
   { ut_d(const auto p=) m_FTS_paused.fetch_sub(1); ut_ad(p & ~PAUSED_SYS); }
   /** @return whether stop_SYS() is in effect */
   bool must_wait_FTS() const { return m_FTS_paused & ~PAUSED_SYS; }
+  /** Reset coordinator thread back to table->in_use */
+  inline void reset_in_use(TABLE *table) const noexcept;
 
 private:
   /**
@@ -433,6 +442,10 @@ public:
   template<bool also_end_view= false>
   void clone_oldest_view(THD *thd)
   {
+    ut_ad(also_end_view == !thd);
+    ut_ad(!thd || !coordinator_thd);
+    coordinator_thd= thd;
+
     if (!also_end_view)
       wait_FTS(true);
     latch.wr_lock(SRW_LOCK_CALL);
@@ -441,7 +454,6 @@ public:
       (end_view= view).
         clamp_low_limit_id(head.trx_no ? head.trx_no : tail.trx_no);
     latch.wr_unlock();
-    coordinator_thd= thd;
   }
 
   /** Wake up the purge threads if there is work to do. */
@@ -494,9 +506,6 @@ public:
 
   /** Reset the state of a purge_worker_task at the end of a batch */
   inline void reset_worker_thd(THD *thd) const noexcept;
-
-  /** Set coordinator thread */
-  inline void set_coordinator_thd(THD *thd) noexcept;
 };
 
 /** The global data structure coordinating a purge */
