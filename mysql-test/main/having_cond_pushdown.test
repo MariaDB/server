@@ -255,6 +255,7 @@ GROUP BY t1.a
 HAVING (t1.a>1) AND (a=test.f1());
 eval $no_pushdown $query;
 eval $query;
+--disable_replay next_query Dont support SPs
 eval explain $query;
 --source include/explain-no-costs.inc
 eval explain format=json $query;
@@ -264,6 +265,7 @@ FROM t1
 WHERE (t1.a>1)
 GROUP BY t1.a
 HAVING (a=test.f1());
+--disable_replay next_query Dont support SPs
 --source include/explain-no-costs.inc
 eval $no_pushdown explain format=json $query;
 
