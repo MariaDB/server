@@ -23,7 +23,7 @@ set @@global.rpl_semi_sync_slave_enabled= OFF;
 set debug_sync='now signal io_thread_continue_read_event';
 # Waiting for the slave to stop with the error from corrupt_queue_event
 connection slave;
-include/wait_for_slave_io_error.inc [errno=1595,1743]
+include/wait_for_slave_io_error.inc [errno=1743]
 # Sleep 1 to give time for Ack_receiver to receive COM_QUIT
 include/assert_grep.inc [Check that there is no 'Read semi-sync reply magic number error' in error log.]
 #
