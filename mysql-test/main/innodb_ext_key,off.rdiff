@@ -1,11 +1,11 @@
---- main/innodb_ext_key.result
-+++ main/innodb_ext_key,off.reject
+--- innodb_ext_key.result
++++ innodb_ext_key,OFF.result
 @@ -9,7 +9,7 @@
  explain
  select count(*) from lineitem where l_orderkey=130 and l_shipdate='1992-07-01';
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 -1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	8	const,const	1	Using index
-+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	4	const	6	Using where; Using index
++1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	const	5	Using where
  flush status;
  select count(*) from lineitem where l_orderkey=130 and l_shipdate='1992-07-01';
  count(*)
@@ -14,7 +14,7 @@
  Handler_read_key	1
  Handler_read_last	0
 -Handler_read_next	1
-+Handler_read_next	6
++Handler_read_next	5
  Handler_read_prev	0
  Handler_read_retry	0
  Handler_read_rnd	0
@@ -95,7 +95,7 @@
  where l_shipdate='1992-07-01' and l_orderkey=130;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 -1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
-+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	4	const	6	Using where; Using index
++1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	const	5	Using where
  flush status;
  select max(l_linenumber) from lineitem 
  where l_shipdate='1992-07-01' and l_orderkey=130;
@@ -104,7 +104,7 @@
  Handler_read_key	1
  Handler_read_last	0
 -Handler_read_next	0
-+Handler_read_next	6
++Handler_read_next	5
  Handler_read_prev	0
  Handler_read_retry	0
  Handler_read_rnd	0
@@ -249,7 +249,7 @@
  drop table t1,t2,t3;
  #
  # Bug mdev-4340: performance regression with extended_keys=on   
-@@ -714,13 +714,13 @@
+@@ -725,13 +725,13 @@
  select * from t1 force index(index_date_updated) 
  where index_date_updated= 10 and index_id < 800;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

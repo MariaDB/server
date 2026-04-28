@@ -1,0 +1,75 @@
+--- stats_method.result
++++ stats_method,NULL_UNEQUAL.result
+@@ -26,9 +26,9 @@
+ WHERE table_schema = 'test'
+   AND table_name = 't_stats_method';
+ stats_method	index_name	est_rows
+-nulls_equal	PRIMARY	100
+-nulls_equal	idx_col1	11
+-nulls_equal	idx_col2	6
++nulls_unequal	PRIMARY	100
++nulls_unequal	idx_col1	100
++nulls_unequal	idx_col2	100
+ SELECT index_name, stat_name, stat_description, stat_value
+ FROM mysql.innodb_index_stats
+ WHERE table_name='t_stats_method'
+@@ -76,12 +76,12 @@
+ where table_name="t1" and index_name="PRIMARY"
+ and stat_name="n_diff_pfx01";
+ stat_name	stat_description
+-n_diff_pfx01	c01꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵
++n_diff_pfx01	c01꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵ NULLS_UNEQUAL
+ SELECT stat_name, stat_description FROM mysql.innodb_index_stats
+ where table_name="t1" and index_name="idx_all"
+ and stat_name="n_diff_pfx07";
+ stat_name	stat_description
+-n_diff_pfx07	c33꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c34꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c35꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c36꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c37꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵
++n_diff_pfx07	c33꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c34꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c35꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c36꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵,c37꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵꠵ NULLS_UNEQUAL
+ DROP TABLE t1;
+ CREATE TABLE t_multilevel (
+ id INT AUTO_INCREMENT PRIMARY KEY,
+@@ -111,15 +111,15 @@
+ AND stat_name IN ('n_diff_pfx01', 'n_nonnull_fld01', 'n_leaf_pages')
+ ORDER BY index_name, stat_name;
+ stats_method	index_name	stat_name	stat_value
+-nulls_equal	idx_col1	n_diff_pfx01	501
+-nulls_equal	idx_col1	n_leaf_pages	8
+-nulls_equal	idx_col1	n_nonnull_fld01	2000
+-nulls_equal	idx_col2	n_diff_pfx01	4001
+-nulls_equal	idx_col2	n_leaf_pages	14
+-nulls_equal	idx_col2	n_nonnull_fld01	8000
+-nulls_equal	idx_col3	n_diff_pfx01	2501
+-nulls_equal	idx_col3	n_leaf_pages	11
+-nulls_equal	idx_col3	n_nonnull_fld01	5000
++nulls_unequal	idx_col1	n_diff_pfx01	8500
++nulls_unequal	idx_col1	n_leaf_pages	8
++nulls_unequal	idx_col1	n_nonnull_fld01	2000
++nulls_unequal	idx_col2	n_diff_pfx01	6000
++nulls_unequal	idx_col2	n_leaf_pages	14
++nulls_unequal	idx_col2	n_nonnull_fld01	8000
++nulls_unequal	idx_col3	n_diff_pfx01	7500
++nulls_unequal	idx_col3	n_leaf_pages	11
++nulls_unequal	idx_col3	n_nonnull_fld01	5000
+ SELECT @@global.innodb_stats_method AS stats_method,
+ index_name,
+ cardinality
+@@ -129,9 +129,9 @@
+   AND index_name IN ('idx_col1', 'idx_col2', 'idx_col3')
+ ORDER BY index_name;
+ stats_method	index_name	cardinality
+-nulls_equal	idx_col1	525
+-nulls_equal	idx_col2	4990
+-nulls_equal	idx_col3	3326
++nulls_unequal	idx_col1	9980
++nulls_unequal	idx_col2	9980
++nulls_unequal	idx_col3	9980
+ DROP TABLE t_multilevel;
+ CREATE TABLE t_not_null (
+ id INT AUTO_INCREMENT PRIMARY KEY,
+@@ -156,5 +156,5 @@
+ index_name	stat_name	stat_value
+ PRIMARY	n_diff_pfx01	100
+ idx_not_null	n_diff_pfx01	10
+-idx_nullable	n_diff_pfx01	11
++idx_nullable	n_diff_pfx01	60
+ DROP TABLE t_not_null;
