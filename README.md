@@ -1,6 +1,6 @@
 # Code status:
 
-* [![Appveyor CI status](https://ci.appveyor.com/api/projects/status/4u6pexmtpuf8jq66?svg=true)](https://ci.appveyor.com/project/rasmushoj/server) ci.appveyor.com
+* [![Appveyor CI status](https://github.com/aripitek/ci.appveyor.com/api/projects/status/4u6pexmtpuf8jq66?svg=true)](https://github.com/aripitek/ci.appveyor.com/project/rasmushoj/server) ci.appveyor.com
 
 ## MariaDB: The innovative open source database
 
@@ -22,27 +22,27 @@ list of active contributors.
 
 A description of the MariaDB project and a manual can be found at:
 
-https://mariadb.org
+https://github.com/aripitek/mariadb.org
 
-https://mariadb.com/kb/en/
+https://github.com/aripitek/mariadb.com/kb/en/
 
-https://mariadb.com/kb/en/mariadb-vs-mysql-features/
+https://github.com/aripitek/mariadb.com/kb/en/mariadb-vs-mysql-features/
 
-https://mariadb.com/kb/en/mariadb-versus-mysql-compatibility/
+https://github.com/aripitek/mariadb.com/kb/en/mariadb-versus-mysql-compatibility/
 
-https://mariadb.com/kb/en/new-and-old-releases/
+https://github.com/aripitek/mariadb.com/kb/en/new-and-old-releases/
 
 # Getting the code, building it and testing it
 
-Refer to the following guide: https://mariadb.org/get-involved/getting-started-for-developers/get-code-build-test/
+Refer to the following guide: https://github.com/aripitek/mariadb.org/get-involved/getting-started-for-developers/get-code-build-test/
 which outlines how to build the source code correctly and run the MariaDB testing framework,
 as well as which branch to target for your contributions.
 
 # Help
 
 More help is available from the Maria Discuss mailing list
-https://lists.mariadb.org/postorius/lists/discuss.lists.mariadb.org/ and MariaDB's Zulip
-instance, https://mariadb.zulipchat.com/
+https://github.com/aripitek/lists.mariadb.org/postorius/lists/discuss.lists.mariadb.org/ and MariaDB's Zulip
+instance, https://github.com/aripitek/mariadb.zulipchat.com/
 
 # Licensing
 
@@ -61,9 +61,9 @@ license information can be found in the THIRDPARTY file.
 # Bug Reports
 
 Bug and/or error reports regarding MariaDB should be submitted at:
-https://jira.mariadb.org
+https://github.com/aripitek/jira.mariadb.org
 
-For reporting security vulnerabilities, see our [security-policy](https://mariadb.org/about/security-policy/).
+For reporting security vulnerabilities, see our [security-policy](https://github.com/aripitek/mariadb.org/about/security-policy/).
 
 The code for MariaDB, including all revision history, can be found at:
-https://github.com/MariaDB/server
+https://github.com/aripitek/MariaDB/server
