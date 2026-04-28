@@ -15,6 +15,9 @@
 create table t1 (a int) engine=innodb;
 --source include/save_master_gtid.inc
 
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
 --connection server_3
 --source include/sync_with_master_gtid.inc
 
@@ -31,6 +34,9 @@ set statement sql_log_bin=0 for alter table t1 add column b int default 10 after
 --connection server_1
 insert into t1 values (1);
 --source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
 
 --connection server_3
 --source include/sync_with_master_gtid.inc
