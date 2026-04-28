@@ -20726,6 +20726,32 @@ static void test_proxy_header_ignore()
   myquery(rc);
 }
 
+static void test_proxy_header_limits()
+{
+  MYSQL *m;
+  char text_header[256];
+  const char *prefix = "PROXY TCP4 1.2.3.4 5.6.7.8 1234 5678";
+  size_t prefix_len;
+
+  myheader("test_proxy_header_limits");
+
+  /* Test maximum length PROXY header (256 bytes) to ensure no overflow */
+  memset(text_header, ' ', sizeof(text_header));
+
+  prefix_len = strlen(prefix);
+
+  memcpy(text_header, prefix, prefix_len);
+  text_header[sizeof(text_header) - 1] = '\n';
+
+  m = mysql_client_init(NULL);
+  DIE_UNLESS(m);
+
+  mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, text_header, sizeof(text_header));
+
+  DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == NULL);
+  mysql_close(m);
+}
+
 
 static void test_proxy_header()
 {
@@ -20735,6 +20761,7 @@ static void test_proxy_header()
   test_proxy_header_tcp("::ffff:192.0.2.1",2222);
   test_proxy_header_localhost();
   test_proxy_header_ignore();
+  test_proxy_header_limits();
 }
 
 
