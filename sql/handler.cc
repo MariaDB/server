@@ -6694,8 +6694,15 @@ static int ha_create_table_from_share(THD *thd, TABLE_SHARE *share,
   if (error)
   {
     if (!thd->is_error())
-      my_error(ER_CANT_CREATE_TABLE, MYF(0), share->db.str,
-               share->table_name.str, error);
+    {
+      if (create_info->options & HA_CREATE_TMP_ALTER)
+        my_printf_error(ER_CANT_CREATE_TABLE,
+                        ER_THD(thd, ER_CANT_CREATE_TMP_ALTER_TABLE),
+                        MYF(0), share->db.str, share->table_name.str, error);
+      else
+        my_error(ER_CANT_CREATE_TABLE, MYF(0), share->db.str,
+                 share->table_name.str, error);
+    }
     table.file->print_error(error, MYF(ME_WARNING));
   }
   *ref_length= table.file->ref_length; // for hlindexes
