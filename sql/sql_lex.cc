@@ -1564,6 +1564,49 @@ LEX_CSTRING Lex_input_stream::get_token(uint skip, uint length)
   return tmp;
 }
 
+/* Wrapper for get_token that handles underscores in numeric literals */
+LEX_CSTRING Lex_input_stream::get_numeric_token(uint skip, uint length)
+{
+  const char *str= m_tok_start + skip;
+  if (memchr(str, '_', length))
+    return strip_underscores(str, length);
+  return get_token(skip, length);
+}
+
+
+LEX_CSTRING Lex_input_stream::strip_underscores(const char *str,
+                                                uint length)
+{
+  LEX_CSTRING res;
+  char *to;
+  yyUnget();
+
+  /* 
+    Allocate memory for the new string with length size (at least 1 
+    underscore will be removed. We can iterate over str to count
+    exact size of the new string, but that may be slower.
+  */
+  if (!(to= m_thd->alloc<char>(length)))
+  {
+    res.str= 0;
+    res.length= 0;
+    return res;
+  }
+  res.str= to;
+  for (uint i= 0; i < length; i++)
+  {
+    if (str[i] != '_')
+      *to++= str[i];
+  }
+  *to= 0;
+  res.length= to - res.str;
+
+  m_cpp_text_start= m_cpp_tok_start + (str - m_tok_start);
+  m_cpp_text_end= m_cpp_text_start + length;
+
+  return res;
+}
+
 
 static size_t
 my_unescape(CHARSET_INFO *cs, char *to, const char *str, const char *end,
@@ -2203,11 +2246,22 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         c= yyGet();
         if (c == 'x')
         {
-          while (my_isxdigit(cs, (c = yyGet()))) ;
+          if (my_isxdigit(cs, (c= yyGet())) ||
+              (c == '_' && my_isxdigit(cs, yyPeek())))
+          {
+            while (my_isxdigit(cs, (c= yyGet())) ||
+                   (c == '_' && my_isxdigit(cs, yyPeek()))) ;
+          }
+          else
+          {
+            yyUnget(); // Unget character
+            state= MY_LEX_IDENT_START;
+            break;
+          }
           if ((yyLength() >= 3) && !ident_map[c])
           {
             /* skip '0x' */
-            yylval->lex_str= get_token(2, yyLength() - 2);
+            yylval->lex_str= get_numeric_token(2, yyLength() - 2);
             return (HEX_NUM);
           }
           yyUnget();
@@ -2216,12 +2270,22 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         }
         else if (c == 'b')
         {
-          while ((c= yyGet()) == '0' || c == '1')
-            ;
+          if ((c= yyGet()) == '0' || c == '1' ||
+              (c == '_' && ((c= yyPeek()) == '0' || c == '1')))
+          {
+            while ((c= yyGet()) == '0' || c == '1' ||
+                   (c == '_' && ((c= yyPeek()) == '0' || c == '1'))) ;
+          }
+          else
+          {
+            yyUnget();
+            state= MY_LEX_IDENT_START;
+            break;
+          }
           if ((yyLength() >= 3) && !ident_map[c])
           {
             /* Skip '0b' */
-            yylval->lex_str= get_token(2, yyLength() - 2);
+            yylval->lex_str= get_numeric_token(2, yyLength() - 2);
             return (BIN_NUM);
           }
           yyUnget();
@@ -2231,7 +2295,8 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         yyUnget();
       }
 
-      while (my_isdigit(cs, (c= yyGet()))) ;
+      while (my_isdigit(cs, (c= yyGet())) ||
+             (c == '_' && my_isdigit(cs, yyPeek()))) ;
       if (!ident_map[c])
       {                                        // Can't be identifier
         state=MY_LEX_INT_OR_REAL;
@@ -2246,8 +2311,9 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
           if (my_isdigit(cs, yyPeek()))         // Number must have digit after sign
           {
             yySkip();
-            while (my_isdigit(cs, yyGet())) ;
-            yylval->lex_str= get_token(0, yyLength());
+            while (my_isdigit(cs, (c= yyGet())) ||
+                   (c == '_' && my_isdigit(cs, yyPeek()))) ;
+            yylval->lex_str= get_numeric_token(0, yyLength());
             return(FLOAT_NUM);
           }
         }
@@ -2286,12 +2352,16 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
           - the number is either not followed by a dot at all, or
           - the number is followed by a double dot as in: FOR i IN 1..10
         */
-        yylval->lex_str= get_token(0, yyLength());
+        yylval->lex_str= get_numeric_token(0, yyLength());
         return int_token(yylval->lex_str.str, (uint) yylval->lex_str.length);
       }
       // fall through
     case MY_LEX_REAL:                           // Incomplete real number
-      while (my_isdigit(cs, c= yyGet())) ;
+      if (my_isdigit(cs, (c= yyGet())))
+      {
+        while (my_isdigit(cs, (c= yyGet())) ||
+               (c == '_' && my_isdigit(cs, yyPeek()))) ;
+      }
 
       if (c == 'e' || c == 'E')
       {
@@ -2300,11 +2370,12 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
           c= yyGet();                           // Skip sign
         if (!my_isdigit(cs, c))
 	  return ABORT_SYM; // No digit after sign
-        while (my_isdigit(cs, yyGet())) ;
-        yylval->lex_str= get_token(0, yyLength());
+        while (my_isdigit(cs, (c= yyGet())) ||
+               (c == '_' && my_isdigit(cs, yyPeek()))) ;
+        yylval->lex_str= get_numeric_token(0, yyLength());
         return(FLOAT_NUM);
       }
-      yylval->lex_str= get_token(0, yyLength());
+      yylval->lex_str= get_numeric_token(0, yyLength());
       return(DECIMAL_NUM);
 
     case MY_LEX_HEX_NUMBER:             // Found x'hexstring'

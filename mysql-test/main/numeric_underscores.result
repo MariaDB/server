@@ -1,0 +1,262 @@
+#
+# MDEV-34228: Underscores in numeric literals
+#
+# Standard integers
+SELECT 1_000;
+1000
+1000
+SELECT 1_234_567;
+1234567
+1234567
+SELECT +1_000, -1_000;
+1000	-1_000
+1000	-1000
+# Consecutive underscores -> Identifier
+CREATE TABLE t1 (1__000 INT);
+INSERT INTO t1 VALUES (5);
+SELECT 1__000 AS val FROM t1;
+val
+5
+DROP TABLE t1;
+# Hexadecimal
+SELECT 0x_FF;
+0x_FF
+ÿ
+SELECT 0x_FFFF_FFFF;
+0x_FFFF_FFFF
+ÿÿÿÿ
+SELECT 0x1_F;
+0x1_F
+
+SELECT 0xABCD_EF01;
+0xABCD_EF01
+«Íï
+# Binary
+SELECT 0b_1010;
+0b_1010
+
+
+SELECT 0b_1111_0000;
+0b_1111_0000
+ð
+SELECT 0b1_0;
+0b1_0
+
+SELECT 0b1111_0000;
+0b1111_0000
+ð
+# Decimal
+SELECT 1_000.001;
+1000.001
+1000.001
+SELECT 1000.000_5;
+1000.0005
+1000.0005
+SELECT 1_000.000_001;
+1000.000001
+1000.000001
+# Floating point
+SELECT 1_2.3_4e1_0;
+12.34e10
+123400000000
+SELECT 1.2e+1_0;
+1.2e+10
+12000000000
+SELECT 1.2e-1_0;
+1.2e-10
+0.00000000012
+# Digit start, contains letter -> Identifier
+CREATE TABLE t1 (1a INT);
+INSERT INTO t1 VALUES (3);
+SELECT 1a FROM t1;
+1a
+3
+DROP TABLE t1;
+# This should fail because 1_000 is now a number, not an identifier
+CREATE TABLE t1 (1_000 INT);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '1_000 INT)' at line 1
+# Mixed tests
+SELECT 1_000 + 0x_FF;
+1_000 + 0x_FF
+1255
+SELECT 1_2.3_4e1 + 1_0;
+1_2.3_4e1 + 1_0
+133.4
+#
+# Boundary cases and negative tests
+#
+# Underscore adjacent to decimal point (should NOT be a single number)
+SELECT (1._0);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '_0)' at line 1
+SELECT (1_.0);
+ERROR 42S02: Unknown table '1_' in SELECT
+# Hex and Binary prefixes (leading underscore is valid per T662)
+SELECT 0x_FF, 0b_1010;
+0x_FF	0b_1010
+ÿ	
+
+# 1_e10 -> should be an identifier, so (1_e10) fails if no such column
+SELECT (1_e10);
+ERROR 42S22: Unknown column '1_e10' in 'SELECT'
+# 1.0_e10 -> (1.0_e10) should fail as syntax error if split
+SELECT (1.0_e10);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '_e10)' at line 1
+# 1e_10 -> identifier or error
+SELECT (1e_10);
+ERROR 42S22: Unknown column '1e_10' in 'SELECT'
+# Start with underscore
+SELECT _1.0;
+Got one of the listed errors
+# Valid cases for comparison
+SELECT 1_0.0_1e1_0;
+10.01e10
+100100000000
+SELECT 0x1_F, 0b1_0;
+0x1_F	0b1_0
+	
+#
+# MDEV-34228: Underscores in CAST and string-to-number conversions
+#
+# =========================================
+# CAST to UNSIGNED â€” reuse literal patterns
+# =========================================
+SELECT CAST('1_000' AS UNSIGNED);
+CAST('1_000' AS UNSIGNED)
+1000
+SELECT CAST('1_234_567' AS UNSIGNED);
+CAST('1_234_567' AS UNSIGNED)
+1234567
+SELECT CAST('+1_000' AS UNSIGNED);
+CAST('+1_000' AS UNSIGNED)
+1000
+# CAST to SIGNED
+SELECT CAST('-1_000' AS SIGNED);
+CAST('-1_000' AS SIGNED)
+-1000
+SELECT CAST('1_000' AS SIGNED);
+CAST('1_000' AS SIGNED)
+1000
+SELECT CAST('+1_234_567' AS SIGNED);
+CAST('+1_234_567' AS SIGNED)
+1234567
+# CAST to DECIMAL â€” from the decimal/float literals above
+SELECT CAST('1_000.001' AS DECIMAL(10,3));
+CAST('1_000.001' AS DECIMAL(10,3))
+1000.001
+SELECT CAST('1000.000_5' AS DECIMAL(10,4));
+CAST('1000.000_5' AS DECIMAL(10,4))
+1000.0005
+SELECT CAST('1_000.000_001' AS DECIMAL(13,6));
+CAST('1_000.000_001' AS DECIMAL(13,6))
+1000.000001
+# CAST to DOUBLE â€” from the float literals above
+SELECT CAST('1_2.3_4e1_0' AS DOUBLE);
+CAST('1_2.3_4e1_0' AS DOUBLE)
+123400000000
+SELECT CAST('1.2e+1_0' AS DOUBLE);
+CAST('1.2e+1_0' AS DOUBLE)
+12000000000
+SELECT CAST('1.2e-1_0' AS DOUBLE);
+CAST('1.2e-1_0' AS DOUBLE)
+0.00000000012
+# =================================
+# Invalid underscores in CAST input
+# =================================
+# Consecutive underscores â€” should truncate after first digit group
+SELECT CAST('1__234' AS UNSIGNED);
+CAST('1__234' AS UNSIGNED)
+1
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '1__234'
+SELECT CAST('1__234' AS SIGNED);
+CAST('1__234' AS SIGNED)
+1
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '1__234'
+SELECT CAST('1__234' AS DECIMAL(10,0));
+CAST('1__234' AS DECIMAL(10,0))
+1
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '1__234'
+SELECT CAST('1__234' AS DOUBLE);
+CAST('1__234' AS DOUBLE)
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '1__234'
+# Trailing underscore â€” should truncate
+SELECT CAST('1000_' AS UNSIGNED);
+CAST('1000_' AS UNSIGNED)
+1000
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '1000_'
+# Leading underscore â€” should be 0 with warning
+SELECT CAST('_1000' AS UNSIGNED);
+CAST('_1000' AS UNSIGNED)
+0
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '_1000'
+# Underscore adjacent to decimal point
+SELECT CAST('1_.0' AS DECIMAL(10,1));
+CAST('1_.0' AS DECIMAL(10,1))
+1.0
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '1_.0'
+SELECT CAST('1._0' AS DECIMAL(10,1));
+CAST('1._0' AS DECIMAL(10,1))
+1.0
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '1._0'
+# Underscore adjacent to exponent marker
+SELECT CAST('1.0_e10' AS DOUBLE);
+CAST('1.0_e10' AS DOUBLE)
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '1.0_e10'
+SELECT CAST('1.0e_10' AS DOUBLE);
+CAST('1.0e_10' AS DOUBLE)
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '1.0e_10'
+# ============================
+# Implicit string-to-number
+# ============================
+SELECT '1_000' + 0;
+'1_000' + 0
+1000
+SELECT '1_234_567' + 0;
+'1_234_567' + 0
+1234567
+SELECT '-1_000' + 0;
+'-1_000' + 0
+-1000
+SELECT '1_000.50' + 0.0;
+'1_000.50' + 0.0
+1000.5
+SELECT '1_2.3_4e1_0' + 0e0;
+'1_2.3_4e1_0' + 0e0
+123400000000
+# Invalid underscore in implicit conversion
+SELECT '1__234' + 0;
+'1__234' + 0
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '1__234'
+SELECT '1000_' + 0;
+'1000_' + 0
+1000
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '1000_'
+SELECT '_1000' + 0;
+'_1000' + 0
+0
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '_1000'
+# ============================
+# Hex/Binary strings via CAST
+# ============================
+# Note: CAST('0xFF' as UNSIGNED) itself returns 0, hence CAST('0x_FF' AS UNSIGNED) also doesn't work yet.
+SELECT CAST('0x_FF' AS UNSIGNED);
+CAST('0x_FF' AS UNSIGNED)
+0
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '0x_FF'
