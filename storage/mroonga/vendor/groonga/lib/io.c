@@ -559,7 +559,6 @@ grn_io_open(grn_ctx *ctx, const char *path, grn_io_mode mode)
   grn_io *io;
   struct stat s;
   fileinfo fi;
-  uint32_t flags = 0;
   uint32_t b;
   uint32_t header_size = 0, segment_size = 0, max_segment = 0, bs;
   if (!path || !*path) {
@@ -624,7 +623,6 @@ grn_io_open(grn_ctx *ctx, const char *path, grn_io_mode mode)
     header_size = h.header_size;
     segment_size = h.segment_size;
     max_segment = h.max_segment;
-    flags = h.flags;
     grn_close(fd);
     if (segment_size == 0) {
       ERR(GRN_INCOMPATIBLE_FILE_FORMAT, "failed to open: segment size is 0");
