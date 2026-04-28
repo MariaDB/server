@@ -2508,14 +2508,14 @@ of a clustered index entry.
 @param[in]	big_rec	externally stored fields
 @param[in,out]	offsets	rec_get_offsets()
 @param[in,out]	heap	memory heap
-@param[in]	thd	client connection, or NULL
 @param[in]	index	clustered index
+@param[in]	thd	client connection, or NULL
 @return	error code
 @retval	DB_SUCCESS
 @retval DB_OUT_OF_FILE_SPACE */
 static
 dberr_t
-row_ins_index_entry_big_rec(
+row_ins_index_entry_big_rec_regular(
 	const dtuple_t*		entry,
 	const big_rec_t*	big_rec,
 	rec_offs*		offsets,
@@ -2558,6 +2558,41 @@ row_ins_index_entry_big_rec(
 
 	ut_free(pcur.old_rec_buf);
 	return(error);
+}
+
+/** Insert the externally stored fields (off-page columns)
+of an instant metadata entry.
+@return	error code
+@retval	DB_SUCCESS
+@retval DB_OUT_OF_FILE_SPACE */
+static dberr_t
+row_ins_index_entry_big_rec_metadata(
+  const big_rec_t *big_rec,     /*!< in: externally stored fields */
+  rec_offs        *offsets,     /*!< in/out: rec_get_offsets() */
+  mem_heap_t      **heap,       /*!< in/out: memory heap */
+  dict_index_t    *index,       /*!< in: clustered index */
+  btr_pcur_t      *pcur,        /*!< in: persistent cursor positioned
+                                         on the inserted record */
+  mtr_t           *mtr,         /*!< in/out: mini-transaction */
+  const void      *thd __attribute__((unused))) /*!< in: client connection, or NULL */
+{
+  rec_t *rec;
+
+  ut_ad(index->is_primary());
+  ut_ad(pcur != NULL);
+  ut_ad(mtr != NULL);
+  ut_ad(mtr->is_active());
+
+  rec= btr_pcur_get_rec(pcur);
+  offsets= rec_get_offsets(rec, index, offsets, index->n_core_fields,
+                           ULINT_UNDEFINED, heap);
+
+  DEBUG_SYNC_C_IF_THD(thd, "before_row_ins_extern");
+  dberr_t error= btr_store_big_rec_extern_fields(pcur, offsets, big_rec,
+                                                 mtr, BTR_STORE_INSERT);
+  DEBUG_SYNC_C_IF_THD(thd, "after_row_ins_extern");
+
+  return error;
 }
 
 /** Parse the integer data from specified data, which could be
@@ -2910,9 +2945,20 @@ do_insert:
 			}
 		}
 
-		mtr.commit();
+		if (big_rec && entry->is_metadata()) {
+			ut_ad(err == DB_SUCCESS);
+			/* Store metadata BLOBs before committing mtr.
+			Metadata BLOBs don't commit mtr internally. */
 
-		if (big_rec) {
+			btr_pcur_move_to_next_user_rec(&pcur, &mtr);
+			err = row_ins_index_entry_big_rec_metadata(
+				big_rec, offsets, &offsets_heap, index,
+				&pcur, &mtr, trx->mysql_thd);
+			dtuple_convert_back_big_rec(index, entry, big_rec);
+		}
+
+		mtr.commit();
+		if (big_rec && !entry->is_metadata()) {
 			ut_ad(err == DB_SUCCESS);
 			/* Online table rebuild could read (and
 			ignore) the incomplete record at this point.
@@ -2922,7 +2968,7 @@ do_insert:
 			DBUG_EXECUTE_IF(
 				"row_ins_extern_checkpoint",
 				log_write_up_to(mtr.commit_lsn(), true););
-			err = row_ins_index_entry_big_rec(
+			err = row_ins_index_entry_big_rec_regular(
 				entry, big_rec, offsets, &offsets_heap, index,
 				trx->mysql_thd);
 			dtuple_convert_back_big_rec(index, entry, big_rec);

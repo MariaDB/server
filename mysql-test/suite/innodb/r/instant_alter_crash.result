@@ -201,4 +201,46 @@ CHECK TABLE t2;
 Table	Op	Msg_type	Msg_text
 test.t2	check	status	OK
 DROP TABLE t1,t2;
+#
+# MDEV-37467 InnoDB Instant ALTER TABLE is not crash safe
+#
+CREATE TABLE t1(
+id INT PRIMARY KEY,
+c1 INT,
+c2 VARCHAR(100),
+c3 TEXT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 100, 'test1', 'data1');
+INSERT INTO t1 VALUES(2, 200, 'test2', 'data2');
+INSERT INTO t1 VALUES(3, 300, 'test3', 'data3');
+SET SESSION debug = 'd,crash_before_row_ins_extern_metadata';
+ALTER TABLE t1 DROP COLUMN c2, ALGORITHM=INSTANT;
+ERROR HY000: Lost connection to server during query
+# Startup the server after the crash
+# restart
+INSERT INTO t1 VALUES(4, 400, 'test4', 'data4');
+SELECT * FROM t1;
+id	c1	c2	c3
+1	100	test1	data1
+2	200	test2	data2
+3	300	test3	data3
+4	400	test4	data4
+DROP TABLE t1;
+CREATE TABLE t1(
+id INT PRIMARY KEY,
+c1 INT,
+c2 VARCHAR(100)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 100, 'test1');
+INSERT INTO t1 VALUES(2, 200, 'test2');
+SET SESSION debug = 'd,crash_after_row_ins_extern_metadata_blob';
+ALTER TABLE t1 DROP COLUMN c2, ADD COLUMN c3 BLOB DEFAULT (REPEAT(0x41, 50000)), ALGORITHM=INSTANT;
+ERROR HY000: Lost connection to server during query
+# Startup the server after the crash
+# restart
+INSERT INTO t1 VALUES(3, 300, 'test3');
+SELECT * FROM t1;
+id	c1	c2
+1	100	test1
+2	200	test2
+3	300	test3
+DROP TABLE t1;
 db.opt
