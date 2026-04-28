@@ -79,6 +79,8 @@ bool Sql_cmd_backup::execute(THD *thd)
                                     thd->variables.lock_wait_timeout))
     return true;
 
+  DEBUG_SYNC(thd, "after_backup_server_lock_acquired");
+
   if (my_mkdir(target.str, 0755, MYF(MY_WME)))
   {
 #ifndef _WIN32
@@ -115,6 +117,9 @@ bool Sql_cmd_backup::execute(THD *thd)
   /* The final part will not interfere with the use of the server datadir.
   Release the locks. */
   thd->mdl_context.release_lock(mdl_request.ticket);
+
+  DEBUG_SYNC(thd, "backup_server_finalizing");
+
   plugin_foreach_with_mask(thd, backup_finalize, MYSQL_STORAGE_ENGINE_PLUGIN,
                            PLUGIN_IS_DELETED|PLUGIN_IS_READY, nullptr);
 #ifndef _WIN32

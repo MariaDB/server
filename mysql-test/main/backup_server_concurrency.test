@@ -1,0 +1,150 @@
+# BACKUP SERVER acquires Bacup Lock, disallowing concurrent backup either
+# by another instance of BACKUP SERVER or using BACKUP STAGE.
+
+# Using DEBUG_SYNC facility in debug configuration we directly test
+# that while one instance of BACKUP SERVER has already acquired the
+# backup lock, a second instance running on another connection will
+# block waiting on that lock. BACKUP SERVER releases the lock before
+# it returns, when it reaches its finalization stage, as actions
+# taken in that stage affect only the backup directory and may be
+# performed concurrently with other backup processes.
+
+--source include/not_embedded.inc
+--source include/maybe_debug.inc
+if ($have_debug) {
+
+--source include/have_debug_sync.inc
+--connect (blocking,localhost,root,,test)
+# Simulate long-running backup by blocking it on a debug sync point
+SET DEBUG_SYNC='after_backup_server_lock_acquired SIGNAL blocking WAIT_FOR unblock';
+SET DEBUG_SYNC='backup_server_finalizing SIGNAL finalizing WAIT_FOR finish';
+--replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
+--send_eval BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory'
+
+--connect (blocked,localhost,root,,test)
+# Wait for the "long-running" backup to lock the system
+SET DEBUG_SYNC='now WAIT_FOR blocking';
+let $blocked_conn_id= `SELECT CONNECTION_ID()`;
+# Attempt a backup while the other backup is running
+--replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
+--send_eval BACKUP SERVER TO '$MYSQLTEST_VARDIR/other_directory'
+
+--connection default
+# Check that the backup on "blocked" connection is waiting for the blocking
+# backup to finish
+evalp SET @blocked_conn_id = $blocked_conn_id;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+    WHERE ID = @blocked_conn_id AND State = 'Waiting for backup lock';
+--source include/wait_condition.inc
+--replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
+SELECT COMMAND, STATE, INFO FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE ID = @blocked_conn_id;
+
+SET DEBUG_SYNC='now SIGNAL unblock';
+SET DEBUG_SYNC='now WAIT_FOR finalizing';
+# The blocking backup is still running, but no longer blocking
+
+--connection blocked
+# Original blocked backup can complete now
+--reap
+# No blocked backup process at this point
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE Info LIKE 'BACKUP SERVER TO %' AND State = 'Waiting for backup lock';
+# Run new BACKUP SERVER while the old one is finalizing
+--evalp BACKUP SERVER TO '$MYSQLTEST_VARDIR/another_directory'
+
+--disconnect blocked
+
+--connection default
+SET DEBUG_SYNC='now SIGNAL finish';
+
+--connection blocking
+--reap
+--disconnect blocking
+
+--connection default
+SET DEBUG_SYNC='RESET';
+
+--rmdir $MYSQLTEST_VARDIR/some_directory
+--rmdir $MYSQLTEST_VARDIR/other_directory
+--rmdir $MYSQLTEST_VARDIR/another_directory
+
+}
+
+# To test that BACKUP SERVER blocks itself on a release server we rely
+# on timing: a BACKUP SERVER set up to fail because the target directory
+# exists will fail with error code 21 if it is not blocked, but if
+# blocked will time out if max_statement_time is sufficiently short.
+#
+# This is a heuristic test that might fail depending on how long it takes
+# the initial backup to fail; it may give false positives or false
+# negatives, and does not test that the lcok is released in the
+# finalization phase, but it may uncover bugs that the DEBUG_SYNC test
+# would miss.
+
+
+--mkdir $MYSQLTEST_VARDIR/some_directory
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error 21
+evalp BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+
+BACKUP STAGE START;
+--connect (backup,localhost,root)
+--error ER_STATEMENT_TIMEOUT
+evalp SET STATEMENT max_statement_time=0.1 FOR
+BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+
+--connection default
+
+--error ER_BACKUP_LOCK_IS_ACTIVE
+evalp BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+
+BACKUP STAGE END;
+--connection backup
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error 21
+evalp SET STATEMENT max_statement_time=0.1 FOR
+BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+--disconnect backup
+--connection default
+
+--rmdir $MYSQLTEST_VARDIR/some_directory
+
+# Test that BACKUP SERVER blocks when a BACKUP STAGE process is in progress
+
+BACKUP STAGE START;
+
+--connect (con1,localhost,root,,test)
+let $con1_id= `SELECT CONNECTION_ID()`;
+--replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
+--send_eval BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory'
+
+--connection default
+--replace_result $con1_id <con1_id>
+eval SET @con1_id = $con1_id;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE ID = @con1_id AND State = 'Waiting for backup lock';
+--source include/wait_condition.inc
+--replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
+SELECT COMMAND, STATE, INFO FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID = @con1_id;
+
+BACKUP STAGE END;
+
+# BACKUP SERVER is no longer blocked
+
+--connection con1
+--reap
+--disconnect con1
+
+--connection default
+--rmdir $MYSQLTEST_VARDIR/some_directory
+
+# Test that BACKUP SERVER will fail when ran on a connection which is
+# between BACKUP STAGE START and BACKUP STAGE END
+
+BACKUP STAGE START;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+--evalp BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory'
+BACKUP STAGE END;
