@@ -1,0 +1,147 @@
+###############################################################################
+# MDEV-39223: Reversed executable comments incorrectly written in binlog
+#
+# Mirrors rpl_conditional_comments.test for reversed executable comments
+# (/*!!version */ and /*M!!version */ syntax).
+#
+# Uses chain replication (1->2->3) to verify that binlog transformations
+# survive re-binlogging through an intermediate server.
+#
+#  - Use ' ' instead of '!' in the conditional comments which are not applied on
+#  the source. So they become common comments and will not be applied on replica.
+#
+#  - Example:
+#  'INSERT INTO t1 VALUES (1) /*!!10000, (2)*/ /*!!999999 ,(3)*/
+#  will be binlogged as
+#  'INSERT INTO t1 VALUES (1) /*  10000, (2)*/ /*!!999999 ,(3)*/'.
+###############################################################################
+source include/have_binlog_format_statement.inc;
+--let $rpl_topology=1->2, 2->3
+--source include/rpl_init.inc
+
+--connection server_1
+CREATE TABLE t1(c1 INT);
+source include/show_binlog_events.inc;
+let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+
+--echo
+--echo # Case 1:
+--echo # ------------------------------------------------------------------
+--echo # Mix of applied and not-applied reversed CCs in a single statement.
+--echo # /*!!999999 ... */ executes (server version < 999999).
+--echo # /*!!100000 ... */ does not execute (server version >= 100000).
+--echo # The not-applied ones must become plain comments in the binlog.
+
+/*!!100000 --- */INSERT /*!!999999 INTO*/ /*!10000 t1 */ VALUES(10) /*!!100000 ,(11)*/;
+
+source include/show_binlog_events.inc;
+let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+--source include/save_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+--let $diff_tables= server_1:t1,server_3:t1
+--source include/diff_tables.inc
+
+--echo
+--echo # Case 2:
+--echo # -----------------------------------------------------------------
+--echo # Prepared statements with reversed executable comments.
+
+--connection server_1
+PREPARE stmt FROM 'INSERT INTO /*!!100000 blabla*/ t1 VALUES(60) /*!!100000 ,(61)*/';
+EXECUTE stmt;
+DROP TABLE t1;
+CREATE TABLE t1(c1 INT);
+EXECUTE stmt;
+
+--source include/save_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+--let $diff_tables= server_1:t1,server_3:t1
+--source include/diff_tables.inc
+
+--connection server_1
+--echo
+SET @value=62;
+PREPARE stmt FROM 'INSERT INTO /*!!100000 blabla */ t1 VALUES(?) /*!!100000 ,(63)*/';
+EXECUTE stmt USING @value;
+DROP TABLE t1;
+CREATE TABLE t1(c1 INT);
+EXECUTE stmt USING @value;
+
+source include/show_binlog_events.inc;
+let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+
+--source include/save_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+--let $diff_tables= server_1:t1,server_3:t1
+--source include/diff_tables.inc
+
+--echo
+--echo # Case 3:
+--echo # -----------------------------------------------------------------
+--echo # Unclosed reversed executable comment — the '!!' must be restored
+--echo # so the parser produces a proper syntax error.
+
+--connection server_1
+--error 1064
+SELECT c1 FROM /*!!100000 t1 WHEREN; #*/
+
+--echo
+--echo # Case 4:
+--echo # -----------------------------------------------------------------
+--echo # Nested comments inside reversed executable comments.
+
+insert t1 values (/*!!999999 1 /* foo */ */ + 2);
+insert t1 values (/*!!100000 10 /* foo */ */ + 20);
+source include/show_binlog_events.inc;
+--source include/save_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+select * from t1;
+--connection server_1
+
+--echo
+--echo # Case 5:
+--echo # -----------------------------------------------------------------
+--echo # Delimiter change with reversed executable comment. A parse error
+--echo # must not cause source/replica divergence.
+
+delimiter //;
+--error ER_PARSE_ERROR
+insert t1 values /*!! (100);insert t1 values */ (200) //
+delimiter ;//
+select * from t1;
+--source include/save_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+select * from t1;
+--connection server_1
+
+--echo
+--echo # Case 6:
+--echo # -----------------------------------------------------------------
+--echo # MariaDB-specific reversed comments /*M!!version */
+--echo # /*M!!100000 */ does not execute (server >= 100000), must be plain
+--echo # comment in binlog. /*M!!999999 */ executes (server < 999999).
+
+DROP TABLE t1;
+CREATE TABLE t1(c1 INT);
+let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+INSERT /*M!!100000 blabla */ INTO t1 VALUES(70);
+INSERT INTO t1 VALUES(/*M!!999999 80 + */ 1);
+source include/show_binlog_events.inc;
+--source include/save_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+--let $diff_tables= server_1:t1,server_3:t1
+--source include/diff_tables.inc
+
+--connection server_1
+DROP TABLE t1;
+--source include/save_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc

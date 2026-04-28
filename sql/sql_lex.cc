@@ -2479,6 +2479,17 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
                (version < 50700 || version > 99999 || maria_comment_syntax)) ||
               (reversed_comment && MYSQL_VERSION_ID < version))
           {
+            if (reversed_comment)
+            {
+              /*
+                Overwrite the version digits with spaces in the raw query
+                buffer so the binlog contains a non-versioned reversed
+                executable comment that the replica always executes.
+              */
+              char *p= (char *) get_ptr();
+              for (uint i= 0; i < length; i++)
+                p[i]= ' ';
+            }
             /* Accept 'M' 'm' 'm' 'd' 'd' */
             yySkipn(length);
             /* Expand the content of the special comment as real code */
@@ -2504,10 +2515,14 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
               being propagated infinitely (eg. to a slave).
             */
             char *pcom= yyUnput(' ');
+            if (reversed_comment)
+              *(pcom - 1)= ' ';
             comment_closed= ! consume_comment(1);
             if (! comment_closed)
             {
               *pcom= '!';
+              if (reversed_comment)
+                *(pcom - 1)= '!';
             }
             /* version allowed to have one level of comment inside. */
           }
