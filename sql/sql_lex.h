@@ -1507,6 +1507,7 @@ public:
   void mark_as_belong_to_derived(TABLE_LIST *derived);
   void increase_derived_records(ha_rows records);
   void update_used_tables();
+  ulong count_null_only_columns();
   void update_correlated_cache();
   void mark_const_derived(bool empty);
 

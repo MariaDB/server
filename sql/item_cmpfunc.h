@@ -841,6 +841,41 @@ protected:
   { return get_item_copy<Item_func_nop_all>(thd, this); }
 };
 
+static inline Field *null_predicate_field(Item *item)
+{
+  Item *real_item= item->real_item();
+  if (real_item->type() != Item::FIELD_ITEM)
+    return NULL;
+  Item_field *item_field= static_cast<Item_field *>(real_item);
+  Field *field= item_field->field;
+  if (!field || !field->stored_in_db())
+    return NULL;
+  return field;
+}
+
+static inline bool mark_null_only_field(Field *field, void *arg)
+{
+  if (!field || !field->table || !field->real_maybe_null())
+    return false;
+  bitmap_set_bit(&field->table->isnull_only_set, field->field_index);
+  if (arg)
+    *static_cast<bool *>(arg)= true;
+  return true;
+}
+
+/* Recognize predicates like field <=> NULL (or NULL <=> field). */
+static inline Field *null_safe_equal_field(Item *left, Item *right)
+{
+  Item *left_real= left->real_item();
+  Item *right_real= right->real_item();
+
+  if (left_real->type() == Item::NULL_ITEM)
+    return null_predicate_field(right);
+  if (right_real->type() == Item::NULL_ITEM)
+    return null_predicate_field(left);
+  return NULL;
+}
+
 class Item_func_eq :public Item_bool_rowready_func2
 {
 public:
@@ -922,6 +957,19 @@ protected:
   // block standard processor for never null
   bool add_maybe_null_after_ora_join_processor(void *arg) override
   { return 0; }
+  bool mark_null_only_fields_processor(void *arg) override
+  {
+    mark_null_only_field(null_safe_equal_field(args[0], args[1]), arg);
+    return 0;
+  }
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override
+  {
+    if ((flags & WALK_SKIP_NULL_PREDICATE_ARGS)
+        && null_safe_equal_field(args[0], args[1]))
+      return (this->*processor)(arg);
+    return Item_func_or_sum::walk(processor, arg, flags);
+  }
 };
 
 
@@ -2919,7 +2967,6 @@ public:
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
 };
 
-
 class Item_func_isnull :public Item_func_null_predicate
 {
 public:
@@ -2972,6 +3019,19 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_isnull>(thd, this); }
+  bool mark_null_only_fields_processor(void *arg) override
+  {
+    mark_null_only_field(null_predicate_field(args[0]), arg);
+    return 0;
+  }
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override
+  {
+    if ((flags & WALK_SKIP_NULL_PREDICATE_ARGS)
+        && null_predicate_field(args[0]))
+      return (this->*processor)(arg);
+    return Item_func_or_sum::walk(processor, arg, flags);
+  }
 };
 
 /* Functions used by HAVING for rewriting IN subquery */
@@ -3027,6 +3087,19 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_isnotnull>(thd, this); }
+  bool mark_null_only_fields_processor(void *arg) override
+  {
+    mark_null_only_field(null_predicate_field(args[0]), arg);
+    return 0;
+  }
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override
+  {
+    if ((flags & WALK_SKIP_NULL_PREDICATE_ARGS)
+        && null_predicate_field(args[0]))
+      return (this->*processor)(arg);
+    return Item_func_or_sum::walk(processor, arg, flags);
+  }
 };
 
 

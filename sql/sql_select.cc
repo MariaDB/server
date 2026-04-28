@@ -2019,6 +2019,12 @@ int JOIN::optimize()
   {
     if (!res && have_query_plan != QEP_DELETED)
       res= build_explain();
+    if (!res && !(select_options & SELECT_DESCRIBE))
+    {
+      ulong null_only_columns= select_lex->count_null_only_columns();
+      if (null_only_columns)
+        status_var_add(thd->status_var.null_only_columns, null_only_columns);
+    }
     optimization_state= JOIN::OPTIMIZATION_DONE;
   }
 
@@ -2049,6 +2055,12 @@ int JOIN::optimize_stage2_and_finish()
   {
     if (have_query_plan != JOIN::QEP_DELETED)
       res= build_explain();
+    if (!res && !(select_options & SELECT_DESCRIBE))
+    {
+      ulong null_only_columns= select_lex->count_null_only_columns();
+      if (null_only_columns)
+        status_var_add(thd->status_var.null_only_columns, null_only_columns);
+    }
     optimization_state= JOIN::OPTIMIZATION_DONE;
   }
   return res;
@@ -21949,6 +21961,10 @@ setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps, uint field_count)
   my_bitmap_init(&table->cond_set,
                  (my_bitmap_map*) bitmaps, field_count);
   bitmaps+= bitmap_size;
+  my_bitmap_init(&table->isnull_only_set,
+                 (my_bitmap_map*) bitmaps, field_count);
+  bitmaps+= bitmap_size;
+  bitmap_clear_all(&table->isnull_only_set);
   my_bitmap_init(&table->has_value_set,
                  (my_bitmap_map*) bitmaps, field_count);
   /* write_set and all_set are copies of read_set */
@@ -22159,7 +22175,7 @@ TABLE *Create_tmp_table::start(THD *thd,
                         &tmpname, (uint) strlen(path)+1,
                         &m_group_buff, (m_group && ! m_using_unique_constraint ?
                                       param->group_length : 0),
-                        &m_bitmaps, bitmap_buffer_size(field_count)*6,
+                        &m_bitmaps, bitmap_buffer_size(field_count)*7,
                         &const_key_parts, sizeof(*const_key_parts),
                         NullS))
   {

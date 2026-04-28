@@ -423,8 +423,9 @@ struct mysql_row_templ_t {
 					row format */
 	ulint	mysql_null_byte_offset;	/*!< MySQL NULL bit byte offset in a
 					MySQL record */
-	ulint	mysql_null_bit_mask;	/*!< bit mask to get the NULL bit,
+	byte	mysql_null_bit_mask;	/*!< bit mask to get the NULL bit,
 					zero if column cannot be NULL */
+	bool	null_only;		/*!< only NULL status is required */
 	ulint	type;			/*!< column type in Innobase mtype
 					numbers DATA_CHAR... */
 	ulint	mysql_type;		/*!< MySQL type code; this is always
