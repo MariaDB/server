@@ -452,6 +452,20 @@ bool dbug_user_var_equals_str(THD *thd, const char *name, const char* value)
 }
 #endif /* DBUG_OFF */
 
+
+JOIN_TAB_RANGE *JOIN_TAB_RANGE::create(THD *thd, uint count)
+{
+  JOIN_TAB *jt;
+  JOIN_TAB_RANGE *jt_range;
+  if (!(jt= thd->alloc<JOIN_TAB>(count)) ||
+      !(jt_range= new JOIN_TAB_RANGE))
+    return nullptr;
+  jt_range->start= jt;
+  jt_range->end= jt + count;
+  return jt_range;
+}
+
+
 /*
   Intialize POSITION structure.
 */
@@ -13413,21 +13427,16 @@ bool JOIN::get_best_combination()
       j->cond_selectivity= 1.0;
       j->join_read_time= 0.0; /* Not saved currently */
       j->join_loops= 0.0;
-      JOIN_TAB *jt;
-      JOIN_TAB_RANGE *jt_range;
-      if (!(jt= thd->alloc<JOIN_TAB>(sjm->tables)) ||
-          !(jt_range= new JOIN_TAB_RANGE))
+      j->bush_children= JOIN_TAB_RANGE::create(thd, sjm->tables);
+      if (!j->bush_children)
         goto error;
-      jt_range->start= jt;
-      jt_range->end= jt + sjm->tables;
-      join_tab_ranges.push_back(jt_range, thd->mem_root);
-      j->bush_children= jt_range;
-      sjm_nest_end= jt + sjm->tables;
+      join_tab_ranges.push_back(j->bush_children, thd->mem_root);
+      sjm_nest_end= j->bush_children->end;
       sjm_nest_root= j;
 
-      j= jt;
+      j= j->bush_children->start;
     }
-    
+
     *j= *cur_pos->table;
 
     j->bush_root_tab= sjm_nest_root;

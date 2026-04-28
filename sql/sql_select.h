@@ -1158,8 +1158,30 @@ typedef struct st_rollup
 class JOIN_TAB_RANGE: public Sql_alloc
 {
 public:
-  JOIN_TAB *start;
-  JOIN_TAB *end;
+  // Points to the first JOIN_TAB in this range.
+  JOIN_TAB *start{nullptr};
+
+  /*
+    end should point one after the last.  For example, if we have
+    two JOIN_TABs in this range, then start and end will look like
+    this:
+
+      +---------------+---------------+
+      | JOIN_TAB jt_1 | JOIN_TAB jt_2 |
+      +---------------+---------------+
+       ^               ^               ^
+       |               |               |
+       start           start+1         end
+                       end-1
+
+  */
+  JOIN_TAB *end{nullptr};
+
+  /*
+    Create a new JOIN_TAB_RANGE containing `count` JOIN_TABs
+    laid out linearly in memory.
+  */
+  static JOIN_TAB_RANGE *create(THD *thd, uint count);
 };
 
 class Pushdown_query;
