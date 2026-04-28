@@ -510,8 +510,7 @@ TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 	     || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)
 	     || (trx_state_eq(trx, TRX_STATE_ACTIVE)
 		 && (!srv_was_started
-		     || srv_operation == SRV_OPERATION_RESTORE
-		     || srv_operation == SRV_OPERATION_RESTORE_EXPORT
+		     || is_mariabackup_restore_or_export()
 		     || srv_read_only_mode
 		     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
 		     || (!srv_is_being_started
@@ -701,7 +700,7 @@ dberr_t trx_lists_init_at_db_start()
 	ut_a(srv_is_being_started);
 	ut_ad(!srv_was_started);
 
-	if (srv_operation == SRV_OPERATION_RESTORE) {
+	if (is_mariabackup_restore()) {
 		/* mariabackup --prepare only deals with
 		the redo log and the data files, not with
 		transactions or the data dictionary. */
