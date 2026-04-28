@@ -15,9 +15,13 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#include "my_virtual_mem.h"
 #include "mysys_priv.h"
 #include "mysys_err.h"
 #include <m_string.h>
+
+#define VM_ALLOC_THRESHOLD 262144
+#define VM_ALLOC_FLAG 4
 
 struct my_memory_header
 {
@@ -255,3 +259,113 @@ char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf my_fla
   DBUG_RETURN(ptr);
 }
 
+/*
+  Allocate a block of memory by memory mapping.
+
+  @param  key    Key to register instrumented memory
+  @param  size   The size of the memory block in bytes.
+  @param  flags  Failure action modifiers (bitmasks).
+
+  @return A pointer to the allocated memory block, or NULL on failure.
+
+  @note   Allocated memory block is zero-filled. This implementation does not
+          guarantee page alignment.
+ */
+void *my_vmalloc(PSI_memory_key key, size_t size, myf my_flags)
+{
+  my_memory_header *mh;
+  void *ptr;
+  int flag;
+  DBUG_ENTER("my_vmalloc");
+  DBUG_PRINT("my",("size: %zu flags: %lu", size, my_flags));
+
+  compile_time_assert(sizeof(my_memory_header) <= HEADER_SIZE);
+
+  if (size < VM_ALLOC_THRESHOLD)
+    DBUG_RETURN(my_malloc(key, size, my_flags));
+
+  if (!(my_flags & (MY_WME | MY_FAE)))
+    my_flags|= my_global_flags;
+
+  if (!size)
+    size= 1;
+
+  size= ALIGN_SIZE(size);
+  if (size + HEADER_SIZE > SIZE_T_MAX - 1024L*1024L*16L)
+    DBUG_RETURN(0);
+
+  if (DBUG_IF("simulate_out_of_memory"))
+    mh= NULL;
+  else
+  {
+    mh= (my_memory_header*) my_virtual_mem_alloc(size + HEADER_SIZE);
+
+#if !defined(_WIN32) && defined(HAVE_MMAP)
+    if (mh == (void *) -1)
+      mh= NULL;
+#endif
+  }
+
+  if (mh == NULL)
+  {
+#ifdef _WIN32
+    my_errno= GetLastError();
+#else
+    my_errno= errno;
+#endif
+    my_printf_error(EE_OUTOFMEMORY,
+                    "Couldn't allocate %zu bytes with my_virtual_mem_alloc, "
+                    "failed with error: %d, falling back to my_malloc.",
+                    MYF(ME_WARNING | ME_ERROR_LOG_ONLY), (size + HEADER_SIZE),
+                    my_errno);
+
+    /* If virtual memory allocation fails, fallback to my_malloc */
+    DBUG_RETURN(my_malloc(key, size, my_flags));
+  }
+  else
+  {
+    flag= MY_TEST(my_flags & MY_THREAD_SPECIFIC);
+    mh->m_size= size | flag;
+    mh->m_key= PSI_CALL_memory_alloc(key, size, &mh->m_owner);
+    mh->m_size |= (2 | VM_ALLOC_FLAG);
+
+    update_malloc_size(size + HEADER_SIZE, flag);
+    ptr= HEADER_TO_USER(mh);
+  }
+
+  DBUG_PRINT("exit",("ptr: %p", ptr));
+  DBUG_RETURN(ptr);
+}
+
+/*
+  Release a block of memory.
+
+  @param  ptr  Pointer to memory allocated by my_vmalloc.
+ */
+void my_vmrelease(void *ptr)
+{
+  my_memory_header *mh;
+  size_t size;
+  my_bool flags;
+  DBUG_ENTER("my_vmrelease");
+
+  if (ptr == NULL)
+    DBUG_VOID_RETURN;
+
+  mh= USER_TO_HEADER(ptr);
+  if (!(mh->m_size & VM_ALLOC_FLAG))
+  {
+    my_free(ptr);
+    DBUG_VOID_RETURN;
+  }
+
+  size= mh->m_size & ~(VM_ALLOC_FLAG | 3);
+  flags= mh->m_size & 3;
+  PSI_CALL_memory_free(mh->m_key, size, mh->m_owner);
+
+  if (flags & 2)
+    update_malloc_size(-(longlong) size - HEADER_SIZE, flags & 1);
+
+  my_virtual_mem_release((char *) mh, size + HEADER_SIZE);
+  DBUG_VOID_RETURN;
+}
