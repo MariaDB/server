@@ -34,8 +34,17 @@ Slave_heartbeat_period	25.000
 SET @@global.slave_net_timeout=@restore_slave_net_timeout;
 include/reset_slave.inc
 
-*** Warning if updated slave_net_timeout < slave_heartbeat_timeout ***
+*** No warning if slave_net_timeout lowered with default heartbeat_period ***
 SET @@global.slave_net_timeout=FLOOR(SLAVE_HEARTBEAT_TIMEOUT)-1;
+SET @@global.slave_net_timeout=@restore_slave_net_timeout;
+RESET SLAVE;
+
+*** Warning if slave_net_timeout set below explicit heartbeat_period ***
+SET @@global.slave_net_timeout=60;
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=40;
+SET @@global.slave_net_timeout=20;
+Warnings:
+Warning	1704	The requested value for the heartbeat period exceeds the value of `slave_net_timeout' seconds. A sensible value for the period should be less than the timeout
 SET @@global.slave_net_timeout=@restore_slave_net_timeout;
 RESET SLAVE;
 

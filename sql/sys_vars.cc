@@ -6126,13 +6126,40 @@ static Sys_var_uint Sys_opt_binlog_partial_rows_event_max_size(
       CMD_LINE(REQUIRED_ARG), VALID_RANGE(1024, MAX_MAX_ALLOWED_PACKET),
       DEFAULT(MAX_MAX_ALLOWED_PACKET), BLOCK_SIZE(1024));
 
+static bool fix_slave_net_timeout(sys_var *self, THD *thd, enum_var_type type)
+{
+  uint timeout= slave_net_timeout;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (master_info_index)
+  {
+    for (uint i= 0; i < master_info_index->master_info_hash.records; i++)
+    {
+      Master_info *mi= (Master_info *)
+        my_hash_element(&master_info_index->master_info_hash, i);
+      if ((uint32_t) mi->master_heartbeat_period > timeout * 1000ULL)
+      {
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                     ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX,
+                     ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX));
+        break;
+      }
+    }
+  }
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  return false;
+}
+
 static Sys_var_on_access_global<Sys_var_uint,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_NET_TIMEOUT>
 Sys_slave_net_timeout(
        "slave_net_timeout", "Number of seconds to wait for more data "
        "from any master/slave connection before aborting the read",
        GLOBAL_VAR(slave_net_timeout), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, LONG_TIMEOUT), DEFAULT(SLAVE_NET_TIMEOUT), BLOCK_SIZE(1));
+       VALID_RANGE(1, LONG_TIMEOUT), DEFAULT(SLAVE_NET_TIMEOUT), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_slave_net_timeout));
 
 
 /*
