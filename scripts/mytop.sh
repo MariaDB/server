@@ -72,6 +72,11 @@ sub cmd_s;
 sub cmd_S;
 sub cmd_q;
 
+## Default username, matching mysql/mariadb on Unix
+my $default_db_user = $WIN
+    ? 'root'
+    : ((getpwuid($<))[0] || $ENV{LOGNAME} || $ENV{USER} || 'root');
+
 ## Default Config Values
 
 my %config = (
@@ -99,7 +104,7 @@ my %config = (
     slow          => 10,        ## slow query time
     socket        => '',
     sort          => 1,         ## default or reverse sort ("s")
-    user          => 'root',
+    user          => $default_db_user,
     fullqueries   => 0,         ## shows untruncated queries
     usercol_width => 8,         ## User column width
     dbcol_width   => 9,         ## DB column width
@@ -285,7 +290,7 @@ if (not ref $dbh)
 Cannot connect to MariaDB/MySQL server. Please check the:
 
   * database you specified "$config{db}" (default is "")
-  * username you specified "$config{user}" (default is "root")
+  * username you specified "$config{user}" (default is "$default_db_user")
   * password you specified "$config{pass}" (default is "")
   * hostname you specified "$config{host}" (default is "localhost")
   * port you specified "$config{port}" (default is 3306)
@@ -2252,7 +2257,9 @@ have two dashes `--'. Short arguments only have one '-'.
 
 =item B<-u> or B<--user> username
 
-Username to use when logging in to the MariaDB server. Default: ``B<root>''.
+Username to use when logging in to the MariaDB server. On Unix, the default
+is your login name (same as the C<mysql>/C<mariadb> client). On Windows, the
+default is ``B<root>''.
 
 =item B<-p> or B<--pass> or B<--password> I<password>
 
@@ -2386,8 +2393,9 @@ command-line arguments are processed, so your command-line arguments
 will override directives in the config file.
 
 
-Here is a sample config file C<~/.mytop> which implements the defaults
-described above.
+Here is a sample config file C<~/.mytop>. Omit C<user> to keep the built-in
+default (Unix login on non-Windows, same as C<mysql>/C<mariadb>), the line
+below is only if you want to connect as C<root> explicitly.
 
   user=root
   pass=
