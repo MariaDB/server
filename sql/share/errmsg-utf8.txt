@@ -12392,3 +12392,7 @@ ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
         eng "Cannot cast '%s' as '%s' in assignment of %sQ for operation %s"
 ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION
         eng "Cannot cast '%s' as '%s' in assignment of %sQ.%sQ for operation %s"
+ER_UNKNOWN_SYSTEM_VARIABLE_SUGGESTION
+        chi "未知系统变量 '%-.*s'；你是想输入 %.*sQ 吗？"
+        eng "Unknown system variable '%-.*s'; did you mean %.*sQ?"
+        hindi "अज्ञात सिस्टम वेरिएबल '%-.*s'; क्या आपका मतलब %.*sQ था?"
