@@ -5467,7 +5467,7 @@ String* Item_func_json_array_intersect::val_str(String *str)
     prepare_json_and_create_hash(&je1, js1);
   }
 
-  if (null_value || args[1]->null_value)
+  if (!is_array || args[1]->null_value)
     goto null_return;
 
   str->set_charset(js2->charset());
@@ -5523,12 +5523,12 @@ bool Item_func_json_array_intersect::prepare_json_and_create_hash(json_engine_t 
     init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
   root_inited= true;
 
-  if (json_read_value(je1) || je1->value_type != JSON_VALUE_ARRAY ||
+  if (json_read_value(je1)
+     || !(is_array= (je1->value_type == JSON_VALUE_ARRAY)) ||
       create_hash(je1, &items, item_hash_inited, &hash_root))
     {
       if (je1->s.error)
         report_json_error(js, je1, 0);
-      null_value= 1;
     }
 
     max_length= 2*(args[0]->max_length < args[1]->max_length ?

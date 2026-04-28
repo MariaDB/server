@@ -4286,4 +4286,15 @@ SELECT JSON_SCHEMA_VALID('{"properties": "a_string": {"pattern": "^[5-9]$"}}}', 
 --echo #
 select json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'));
 
+--echo #
+--echo # MDEV-36808 json_array_intersect incorrect results after returning NULL in table scan
+--echo #
+
+CREATE TABLE t1 (full text, overlap text);
+INSERT INTO t1 VALUES ('["2"]', '["2"]'), ('["2"]', '["0"]'),  ('["2"]', '["2"]');
+
+SELECT full, overlap, json_array_intersect(full, overlap) from t1;
+
+DROP TABLE t1;
+
 --echo # End of 11.4 Test
