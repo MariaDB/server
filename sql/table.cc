@@ -10474,6 +10474,9 @@ bool TR_table::open()
   All_tmp_tables_list *temporary_tables= thd->temporary_tables;
   bool error= !open_log_table(thd, this, open_tables_backup);
   thd->temporary_tables= temporary_tables;
+  /* Force Item_field to be non-const in query() */
+  if (!error)
+    table->map= 1;
 
   if (use_transaction_registry == MAYBE)
     error= check(error);
@@ -10546,6 +10549,7 @@ bool TR_table::query(ulonglong trx_id)
   SELECT_LEX &slex= *(thd->lex->first_select_lex());
   Name_resolution_context_backup backup(slex.context, *this);
   Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_TRX_ID]);
+  DBUG_ASSERT(!field->const_item());
   Item *value= newx Item_int(thd, trx_id);
   COND *conds= newx Item_func_eq(thd, field, value);
   if (unlikely((error= setup_conds(thd, this, dummy, &conds))))
@@ -10588,6 +10592,7 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
   SELECT_LEX &slex= *(thd->lex->first_select_lex());
   Name_resolution_context_backup backup(slex.context, *this);
   Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_COMMIT_TS]);
+  DBUG_ASSERT(!field->const_item());
   Datetime dt(&commit_time);
   Item *value= newx Item_datetime_literal(thd, &dt, 6);
   COND *conds;

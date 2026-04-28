@@ -665,4 +665,43 @@ select * from t where row_end > current_time();
 
 drop table t;
 
+--echo #
+--echo # MDEV-39384 Wrong result when selecting from precise-versioned table
+--echo #
+create or replace table t1 (
+  x int primary key,
+  sys_trx_start bigint(20) unsigned as row start invisible,
+  sys_trx_end bigint(20) unsigned as row end invisible,
+  period for system_time (sys_trx_start, sys_trx_end)
+) with system versioning engine innodb;
+
+create or replace table t2 (
+  x int primary key,
+  sys_trx_start timestamp(6) as row start invisible,
+  sys_trx_end timestamp(6) as row end invisible,
+  period for system_time (sys_trx_start, sys_trx_end)
+) with system versioning engine innodb;
+
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert into t1 values (1);
+insert into t2 values (1);
+set timestamp= unix_timestamp('2000-01-01 00:00:10');
+delete from t1;
+delete from t2;
+set timestamp= unix_timestamp('2000-01-01 00:00:20');
+insert into t1 values (2);
+insert into t2 values (2);
+
+--echo # TRX result
+select * from t1 for system_time all;
+select * from t1 for system_time as of '2000-01-01 00:00:09';
+select * from t1 for system_time as of '2000-01-01 00:00:10';
+
+--echo # Timestamp result
+select * from t2 for system_time all;
+select * from t2 for system_time as of '2000-01-01 00:00:09';
+select * from t2 for system_time as of '2000-01-01 00:00:10';
+
+drop tables t1, t2;
+
 --echo # End of 10.11 tests
