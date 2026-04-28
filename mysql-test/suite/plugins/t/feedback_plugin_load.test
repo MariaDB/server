@@ -18,20 +18,28 @@ select plugin_status from information_schema.plugins where plugin_name='feedback
 # so lets get back to it if it ever happens.
 
 # Lets say the plugin was used X times before this SELECT
+# Under --ssl, Ssl_cipher_list exceeds VARCHAR(1024) in the feedback table,
+# producing truncation warnings on every SELECT.  Suppress them.
+--disable_warnings
 --disable_cursor_protocol
 SELECT variable_value INTO @feedback_used FROM information_schema.feedback where variable_name = 'FEEDBACK used';
 --enable_cursor_protocol
+--enable_warnings
 
 # Now $feedback_used == X+1, and 'FEEDBACK used' is also X+1. And variable_value is increased again when we run the next SELECT
+--disable_warnings
 SELECT variable_value = @feedback_used + 1 as 'MUST BE 1' FROM information_schema.feedback where variable_name = 'FEEDBACK used';
+--enable_warnings
 
 # Now when we are happy with 'FEEDBACK used', we can check everything else
 
 --replace_result https http
 --sorted_result
+--disable_warnings
 select * from information_schema.feedback where variable_name like 'feed%'
        and variable_name not like '%_uid' and variable_name not like 'FEEDBACK used'
        and variable_name not like '%debug%';
+--enable_warnings
 
 # Embedded server does not use the table mysqld.user and thus
 # does not automatically use utf8mb4 on startup. Use it manually.
@@ -41,13 +49,17 @@ if (`SELECT VERSION() LIKE '%embedded%'`)
   create temporary table t1 (a json);
 }
 --enable_query_log
+--disable_warnings
 SELECT VARIABLE_VALUE>0, VARIABLE_NAME FROM INFORMATION_SCHEMA.FEEDBACK
 WHERE VARIABLE_NAME LIKE 'Collation used %'
 ORDER BY VARIABLE_NAME;
+--enable_warnings
 
+--disable_warnings
 prepare stmt from "SELECT VARIABLE_VALUE>0, VARIABLE_NAME FROM INFORMATION_SCHEMA.FEEDBACK WHERE VARIABLE_NAME LIKE 'Collation used %' ORDER BY VARIABLE_NAME";
 
 execute stmt;
 execute stmt;
+--enable_warnings
 
 deallocate prepare stmt;

@@ -145,7 +145,7 @@ uninstall plugin server_audit;
 
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 # replace the timestamp and the hostname with constant values
---replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\,[^,]*\,/TIME,HOSTNAME,/ /\,[1-9][0-9]*\,/,1,/ /\,[1-9][0-9]*/,ID/
+--replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\,[^,]*\,/TIME,HOSTNAME,/ /\,[1-9][0-9]*\,/,1,/ /\,[1-9][0-9]*/,ID/ /,TLSv[0-9.]+,/,,/
 cat_file $MYSQLD_DATADIR/server_audit.log;
 remove_file $MYSQLD_DATADIR/server_audit.log;
 

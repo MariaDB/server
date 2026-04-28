@@ -18,7 +18,7 @@ eval KILL $conid;
 --enable_query_log
 --connection con1
 --disable_warnings
---error 0,2006,2013,ER_CONNECTION_KILLED
+--error 0,2006,2013,2026,ER_CONNECTION_KILLED
 reap;
 --enable_warnings
 --connection default
@@ -38,7 +38,7 @@ eval KILL $conid;
 --enable_query_log
 --connection con1
 --disable_warnings
---error 0,2006,2013,ER_CONNECTION_KILLED
+--error 0,2006,2013,2026,ER_CONNECTION_KILLED
 reap;
 --enable_warnings
 --connection default

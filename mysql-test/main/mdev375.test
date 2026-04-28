@@ -24,7 +24,7 @@ SELECT 1;
 --connect (con2,localhost,root,,)
 SELECT 2;
 --disable_query_log
---error ER_CON_COUNT_ERROR
+--error ER_CON_COUNT_ERROR,2002
 --connect (con3,localhost,root,,)
 --enable_query_log
 

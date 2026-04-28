@@ -33,6 +33,14 @@
 --source include/no_valgrind_without_big.inc
 --source include/have_perfschema.inc
 
+# SSL/TLS bypasses PFS socket I/O instrumentation
+# (SSL_read/SSL_write instead of recv/send)
+--let $have_ssl= `SELECT VARIABLE_VALUE != '' FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher'`
+if ($have_ssl)
+{
+  --skip Socket I/O not available over SSL/TLS
+}
+
 # The values in the performance_schema tables depend on how much communication
 # happens per SQL statement within our MTR tests. And there is a significant
 # difference between standard statement execution and execution via
