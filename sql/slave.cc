@@ -900,6 +900,32 @@ bool init_slave_skip_errors(const char* arg)
                       "by the slave.", ER_CONNECTION_KILLED);
     goto end;
   }
+  
+  if (!system_charset_info->strnncoll((uchar*)arg,sizeof("ddl_exist_errors")-1,
+                                               (const uchar*)STRING_WITH_LEN("ddl_exist_errors")))
+  {
+    static const uint ddl_errors[]= {
+      ER_DB_CREATE_EXISTS,    
+      ER_DB_DROP_EXISTS,   
+      ER_TABLE_EXISTS_ERROR,   
+      ER_BAD_TABLE_ERROR,  
+      ER_BAD_FIELD_ERROR,
+      ER_DUP_FIELDNAME,
+      ER_DUP_KEYNAME,
+      ER_MULTIPLE_PRI_KEY,
+      ER_CANT_DROP_FIELD_OR_KEY,
+      ER_NO_SUCH_TABLE
+    };
+    for (uint i= 0; i < array_elements(ddl_errors); i++)
+    {
+      bitmap_set_bit(&slave_error_mask, ddl_errors[i]);
+    }
+    if (strlen(arg) > strlen("ddl_exist_errors"))
+    {
+      arg+= strlen("ddl_exist_errors") + 1;
+    }
+  }
+  
   for (p= arg ; *p; )
   {
     long err_code;
