@@ -2081,7 +2081,7 @@ static int process_defaults(const char *conf_file,
       fprintf(stderr,
               "Cannot execute '%s' to test if the new option files "
               "works (error %d)\n"
-              "Try specifiying the full path for the MariaDB server with "
+              "Try specifying the full path for the MariaDB server with "
               "--mariadbd=...\n",
               used_name, (int) errno);
       finish_updated_files(&ctx, 1);
