@@ -158,6 +158,8 @@ SET (SQL_SOURCE
                sql_signal.cc mdl.cc sql_admin.cc
                transaction.cc sys_vars.cc sql_truncate.cc datadict.cc
                sql_reload.cc
+               removed_option_registry.cc
+               removed_option_sql.cc
 
                # added in MariaDB:
                grant.cc

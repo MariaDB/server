@@ -166,6 +166,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/opt_hints.cc ../sql/opt_hints.h
 	   ../sql/opt_trace_ddl_info.cc ../sql/opt_trace_ddl_info.h
            ../sql/sql_path.cc
+           ../sql/removed_option_registry.cc
+           ../sql/removed_option_sql.cc
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )
