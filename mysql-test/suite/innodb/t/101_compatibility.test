@@ -99,7 +99,7 @@ convert_to_mariadb_101("$dd/test/ti.ibd", $ps);
 convert_to_mariadb_101("$ENV{MYSQL_TMP_DIR}/test/tdd.ibd", $ps);
 EOF
 
---let $restart_parameters=--innodb-read-only
+--let $restart_parameters=--innodb-read-only --innodb-log-recovery-start=0
 --source include/start_mysqld.inc
 CHECK TABLE tr,tc,td,tz,tdd,tp,ti;
 --source include/shutdown_mysqld.inc

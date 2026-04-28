@@ -1240,6 +1240,8 @@ row_insert_for_mysql(
 	mem_heap_t*	blob_heap = NULL;
 
 	ut_ad(trx);
+	ut_ad(!high_level_read_only);
+	ut_ad(!recv_sys.rpo);
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->magic_n2 == ROW_PREBUILT_ALLOCATED);
 
@@ -1251,8 +1253,6 @@ row_insert_for_mysql(
 		return(DB_TABLESPACE_DELETED);
 	} else if (!table->is_readable()) {
 		return row_mysql_get_table_error(trx, table);
-	} else if (high_level_read_only) {
-		return(DB_READ_ONLY);
 	} else if (UNIV_UNLIKELY(table->corrupted)
 		   || dict_table_get_first_index(table)->is_corrupted()) {
 		return DB_TABLE_CORRUPT;
@@ -1611,6 +1611,8 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	DBUG_ENTER("row_update_for_mysql");
 
 	ut_ad(trx);
+	ut_ad(!high_level_read_only);
+	ut_ad(!recv_sys.rpo);
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->magic_n2 == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->template_type == ROW_MYSQL_WHOLE_ROW);
@@ -1618,10 +1620,6 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 
 	if (!table->is_readable()) {
 		return row_mysql_get_table_error(trx, table);
-	}
-
-	if (high_level_read_only) {
-		return(DB_READ_ONLY);
 	}
 
 	DEBUG_SYNC_C("innodb_row_update_for_mysql_begin");
@@ -2263,8 +2261,10 @@ row_discard_tablespace_foreign_key_checks(
 	const trx_t*		trx,	/*!< in: transaction handle */
 	const dict_table_t*	table)	/*!< in: table to be discarded */
 {
+	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
-	if (srv_read_only_mode || !trx->check_foreigns) {
+	if (!trx->check_foreigns) {
 		return(DB_SUCCESS);
 	}
 
@@ -2562,10 +2562,8 @@ row_rename_table_for_mysql(
 	ut_a(new_name != NULL);
 	ut_ad(trx->state == TRX_STATE_ACTIVE);
 	ut_ad(trx->dict_operation_lock_mode);
-
-	if (high_level_read_only) {
-		return(DB_READ_ONLY);
-	}
+	ut_ad(!high_level_read_only);
+	ut_ad(!recv_sys.rpo);
 
 	trx->op_info = "renaming table";
 

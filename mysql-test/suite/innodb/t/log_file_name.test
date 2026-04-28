@@ -2,6 +2,7 @@
 # Test the detection of duplicate tablespaces.
 
 --source include/have_innodb.inc
+--source include/no_checkpoint_prepare.inc
 --source include/no_valgrind_without_big.inc
 
 # Embedded server does not support crashing
@@ -12,6 +13,7 @@ FLUSH TABLES;
 
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 
+--let $restart_parameters=--innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 --source include/no_checkpoint_start.inc
 CREATE TABLE t3(a INT PRIMARY KEY) ENGINE=InnoDB;
@@ -187,7 +189,7 @@ EOF
 
 --copy_file $MYSQLD_DATADIR/test/u6.ibd $MYSQLD_DATADIR/test/u4.ibd
 
---let $restart_parameters= --innodb-force-recovery=1
+--let $restart_parameters= --innodb-force-recovery=1 --innodb-log-recovery-start=0
 --source include/start_mysqld.inc
 DROP TABLE u1,u2,u3,u6;
 

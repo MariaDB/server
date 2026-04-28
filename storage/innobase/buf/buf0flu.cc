@@ -1791,51 +1791,187 @@ static ulint buf_flush_LRU(ulint max_n) noexcept
 # include "cache.h"
 #endif
 
-
-inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
+inline bool log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
+  ut_ad(archive || checkpoint >= first_lsn);
   ut_ad(end_lsn >= checkpoint);
   ut_d(const lsn_t current_lsn{get_lsn()});
   ut_ad(end_lsn <= current_lsn);
   ut_ad(end_lsn + SIZE_OF_FILE_CHECKPOINT +
         8 * is_encrypted() <= current_lsn ||
         srv_shutdown_state > SRV_SHUTDOWN_INITIATED);
+  ut_ad(this->end_lsn <= end_lsn);
+  ut_ad(checkpoint_buf != buf);
+  ut_ad(!checkpoint_buf || checkpoint_buf != resize_buf);
+  ut_ad(buf != resize_buf);
+  ut_ad(latch_have_wr());
 
-  auto n= next_checkpoint_no;
-  const size_t offset{(n & 1) ? CHECKPOINT_2 : CHECKPOINT_1};
+  size_t offset;
   static_assert(CPU_LEVEL1_DCACHE_LINESIZE >= 64, "efficiency");
   static_assert(CPU_LEVEL1_DCACHE_LINESIZE <= 4096, "compatibility");
-  byte* c= my_assume_aligned<CPU_LEVEL1_DCACHE_LINESIZE>
-    (is_mmap() ? buf + offset : checkpoint_buf);
-  memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(c, 0, CPU_LEVEL1_DCACHE_LINESIZE);
+  lsn_t resizing{resize_lsn.load(std::memory_order_relaxed)};
+  byte *c= checkpoint_buf;
+  bool archive_header_was_reset{false};
+
+  if (archive)
+  {
+    ut_ad(!resizing);
+    ut_ad(is_opened());
+#ifdef HAVE_PMEM
+    ut_ad(!resize_buf || !checkpoint_buf);
+    ut_ad(!resize_buf || resize_log.is_opened());
+#else
+    ut_ad(!resize_buf);
+#endif
+    if (end_lsn >= first_lsn + (
+#ifdef HAVE_PMEM
+                                c && is_mmap() ? 0 :
+#endif
+                                capacity()))
+    {
+#ifdef HAVE_PMEM
+      if (resize_buf)
+      {
+        ut_ad(is_mmap());
+        /* @see archived_mmap_switch_complete() */
+        ut_ad(!c);
+        const lsn_t lsn{get_lsn()};
+        ut_ad(lsn == current_lsn);
+        persist(lsn);
+        checkpoint_buf= buf;
+        buf= resize_buf;
+        resize_buf= nullptr;
+        first_lsn+= capacity();
+        file_size= resize_target;
+        goto unmap_old_checkpoint;
+      }
+      else if (c && is_mmap())
+      {
+      unmap_old_checkpoint:
+        checkpoint_buf= nullptr;
+        my_munmap(c, lseek(resize_log.m_file, 0, SEEK_END));
+        goto first_checkpoint_in_new_archive;
+      }
+      else
+#endif
+      if (resize_log.is_opened())
+      {
+#ifdef HAVE_PMEM
+        ut_ad(!c == is_mmap());
+#endif
+        first_lsn+= capacity();
+
+        file_size= resize_target;
+
+#ifdef HAVE_PMEM
+        if (!c)
+        {
+        first_checkpoint_in_new_archive:
+          c= buf;
+          ut_ad(!memcmp_aligned<512>(c, field_ref_zero, START_OFFSET));
+        }
+        else
+#endif
+          memset_aligned<512>(c, 0, write_size);
+
+        ut_ad(current_lsn >= first_lsn);
+        ut_ad(current_lsn < first_lsn + capacity());
+        circular_recovery_from_sequence_bit_0= false;
+        next_checkpoint_no= uint16_t(4 * is_encrypted());
+        archive_header_was_reset= true;
+
+        if (is_encrypted())
+          log_crypt_write_header(c, true);
+
+#ifdef HAVE_PMEM
+        c= checkpoint_buf;
+#endif
+      }
+    }
+
+    ut_ad(end_lsn >= first_lsn);
+    offset= next_checkpoint_no * 8;
+    ut_ad(offset >= 4 * is_encrypted());
+    if (UNIV_UNLIKELY(offset >= START_OFFSET))
+      /* In case all slots are filled up, overwrite the last slot. */
+      offset= START_OFFSET - 8, next_checkpoint_no= START_OFFSET / 8 - 1;
+    const lsn_t d{end_lsn - first_lsn + START_OFFSET};
+    ut_ad(c == checkpoint_buf);
+
+#ifdef HAVE_PMEM
+    if (!c)
+    {
+      ut_ad(is_mmap());
+      c= buf;
+      goto archived_mmap;
+    }
+    else if (is_mmap())
+    {
+    archived_mmap:
+      c+= offset;
+      uint64_t* C= reinterpret_cast<uint64_t*>(c);
+      c= reinterpret_cast<byte*>(uintptr_t(c) & ~63);
+      ut_ad(next_checkpoint_no == uint16_t(4 * is_encrypted()) ||
+            (C[-1] && my_betoh64(C[-1]) < d));
+      ut_ad(!*C || offset == START_OFFSET - 8);
+      *C= my_htobe64(d);
+      goto persist_checkpoint;
+    }
+    else
+#endif
+    {
+      const size_t o{offset & (write_size - 1)};
+      uint64_t *C= reinterpret_cast<uint64_t*>(c + o);
+      offset&= ~size_t(write_size - 1);
+      if (!o)
+        memset_aligned<512>(c, 0, write_size);
+      else
+        ut_ad(next_checkpoint_no == uint16_t(4 * is_encrypted()) ||
+              (C[-1] && my_betoh64(C[-1]) < d));
+      ut_ad(!*C || offset + o == START_OFFSET - 8);
+      *C= my_htobe64(d);
+      if (resize_log.m_file == OS_FILE_CLOSED)
+        resize_log= log; /* Block concurrent set_archive() */
+      goto write_checkpoint;
+    }
+
+    goto wrote_checkpoint;
+  }
+
+  static_assert(CHECKPOINT_1 << 1 == CHECKPOINT_2, "");
+  offset= CHECKPOINT_1 << (next_checkpoint_no & 1);
+  c= is_mmap() ? buf + offset : checkpoint_buf;
+  circular_recovery_from_sequence_bit_0= !get_sequence_bit(checkpoint);
+  memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(c, 0,
+                                             CPU_LEVEL1_DCACHE_LINESIZE);
   mach_write_to_8(my_assume_aligned<8>(c), checkpoint);
   mach_write_to_8(my_assume_aligned<8>(c + 8), end_lsn);
   mach_write_to_4(my_assume_aligned<4>(c + 60), my_crc32c(0, c, 60));
-
-  lsn_t resizing;
 
 #ifdef HAVE_PMEM
   if (is_mmap())
   {
     ut_ad(!is_opened());
-    resizing= resize_lsn.load(std::memory_order_relaxed);
-
     if (resizing > 1 && resizing <= checkpoint)
     {
       memcpy_aligned<64>(resize_buf + CHECKPOINT_1, c, 64);
       header_write(resize_buf, resizing, is_encrypted());
       pmem_persist(resize_buf, resize_target);
     }
+  persist_checkpoint:
     pmem_persist(c, 64);
   }
   else
 #endif
   {
+  write_checkpoint:
     ut_ad(!is_mmap());
     latch.wr_unlock();
     log_write_and_flush_prepare();
     resizing= resize_lsn.load(std::memory_order_relaxed);
+    ut_ad(!resizing || !archive);
     ut_ad(ut_is_2pow(write_size));
     ut_ad(write_size >= 512);
     ut_ad(write_size <= 4096);
@@ -1856,8 +1992,41 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
     resizing= resize_lsn.load(std::memory_order_relaxed);
   }
 
+ wrote_checkpoint:
+  ut_ad(!resizing || !archive);
   next_checkpoint_no++;
   last_checkpoint_lsn= checkpoint;
+  this->end_lsn= end_lsn;
+  if (!archive)
+    archived_lsn= end_lsn;
+  else if (archive_header_was_reset)
+  {
+    ut_ad(resize_log.m_file != log.m_file);
+    /* Make the previous archived log file read-only */
+#ifdef _WIN32
+    resize_log.close();
+    SetFileAttributesA(get_archive_path().c_str(),
+                       FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_ARCHIVE);
+#else
+    struct stat st;
+    if (!fstat(resize_log.m_file, &st))
+      st.st_mode&= 0444;
+    else
+      st.st_mode= 0444;
+    if (fchmod(resize_log.m_file, st.st_mode))
+      my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG),
+               get_archive_path().c_str(), errno);
+    resize_log.close();
+#endif
+  }
+  else if (resize_log.m_file == log.m_file)
+  {
+    /* We may have assigned resize_log= log to keep set_archived() out. */
+#ifdef HAVE_PMEM
+    ut_ad(!is_mmap());
+#endif
+    resize_log.m_file= OS_FILE_CLOSED;
+  }
 
   DBUG_PRINT("ib_log", ("checkpoint ended at " LSN_PF ", flushed to " LSN_PF,
                         checkpoint, get_flushed_lsn()));
@@ -1874,6 +2043,7 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
 
   if (resizing > 1 && resizing <= checkpoint)
   {
+    ut_ad(!archive);
     ut_ad(is_mmap() == !resize_flush_buf);
     ut_ad(is_mmap() == !resize_log.is_opened());
 
@@ -1903,7 +2073,7 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
         ut_ad(!log.is_opened());
         bool success;
         log.m_file=
-          os_file_create_func(get_log_file_path().c_str(), OS_FILE_OPEN,
+          os_file_create_func(get_circular_path().c_str(), OS_FILE_OPEN,
                               OS_LOG_FILE, false, &success);
         ut_a(success);
         ut_a(log.is_opened());
@@ -1919,8 +2089,7 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
         ut_ad(!is_opened());
         my_munmap(buf, file_size);
         buf= resize_buf;
-        buf_size= unsigned(std::min<uint64_t>(resize_target - START_OFFSET,
-                                              buf_size_max));
+        buf_size= unsigned(resize_target - START_OFFSET);
       }
       else
 #endif
@@ -1956,14 +2125,18 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
       << "; start LSN=" << resizing;
   else
     buf_flush_ahead(end_lsn + 1, false);
+
+  return archive_header_was_reset;
 }
 
 /** Initiate a log checkpoint, discarding the start of the log.
 @param oldest_lsn   the checkpoint LSN
-@param end_lsn      log_sys.get_lsn() */
-static void log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
+@param end_lsn      log_sys.get_lsn()
+@return whether a call to log_t::archive_create(false) is desirable */
+static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_no_log_write);
   ut_ad(log_sys.latch_have_wr());
   ut_ad(oldest_lsn <= end_lsn);
   ut_ad(end_lsn == log_sys.get_lsn());
@@ -1973,15 +2146,16 @@ static void log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
        !log_sys.resize_in_progress() &&
        oldest_lsn == log_sys.last_checkpoint_lsn +
        log_sys.is_encrypted() * 8 + SIZE_OF_FILE_CHECKPOINT))
-  {
-    /* Do nothing, because nothing was logged (other than a
-    FILE_CHECKPOINT record) since the previous checkpoint. */
-    log_sys.latch.wr_unlock();
-    return;
-  }
+    if (oldest_lsn != log_sys.get_first_lsn())
+    {
+      /* Do nothing, because nothing was logged (other than a
+      FILE_CHECKPOINT record) since the previous checkpoint. */
+      log_sys.latch.wr_unlock();
+      return false;
+    }
 
-  ut_ad(!recv_no_log_write);
-  ut_ad(oldest_lsn > log_sys.last_checkpoint_lsn);
+  ut_ad(oldest_lsn > log_sys.last_checkpoint_lsn ||
+        oldest_lsn == log_sys.get_first_lsn());
   /* Repeat the FILE_MODIFY records after the checkpoint, in case some
   log records between the checkpoint and log_sys.lsn need them.
   Finally, write a FILE_CHECKPOINT record. Redo log apply expects to
@@ -2010,17 +2184,19 @@ static void log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
     log_sys.latch.wr_lock();
   }
 
-  ut_ad(oldest_lsn > log_sys.last_checkpoint_lsn);
+  ut_ad(oldest_lsn > log_sys.last_checkpoint_lsn ||
+        oldest_lsn == log_sys.get_first_lsn());
   ut_ad(log_sys.get_flushed_lsn() >= flush_lsn);
 
-  log_sys.write_checkpoint(oldest_lsn, end_lsn);
+  return log_sys.write_checkpoint(oldest_lsn, end_lsn);
 }
 
 /** Make a checkpoint. Note that this function does not flush dirty
 blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
-log file. Use log_make_checkpoint() to flush also the pool. */
-static void log_checkpoint() noexcept
+log file. Use log_make_checkpoint() to flush also the pool.
+@return whether a call to log_t::archive_create(false) is desirable */
+static bool log_checkpoint() noexcept
 {
   ut_ad(!recv_recovery_is_on());
 
@@ -2034,12 +2210,15 @@ static void log_checkpoint() noexcept
 
   fil_flush_file_spaces();
 
+  if (UNIV_UNLIKELY(recv_sys.rpo != 0))
+    return false;
+
   log_sys.latch.wr_lock();
   const lsn_t end_lsn= log_sys.get_lsn();
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   const lsn_t oldest_lsn= buf_pool.get_oldest_modification(end_lsn);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-  log_checkpoint_low(oldest_lsn, end_lsn);
+  return log_checkpoint_low(oldest_lsn, end_lsn);
 }
 
 /** Wait for all dirty pages up to an LSN to be written out.
@@ -2050,6 +2229,7 @@ ATTRIBUTE_COLD void buf_flush_wait(lsn_t lsn, bool checkpoint) noexcept
 {
   mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
   ut_ad(log_sys.latch_have_wr());
+  ut_ad(!checkpoint || !recv_sys.rpo);
 
   lsn_t oldest_lsn;
   if (!checkpoint);
@@ -2110,8 +2290,10 @@ ATTRIBUTE_COLD void buf_flush_wait(lsn_t lsn, bool checkpoint) noexcept
 ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious) noexcept
 {
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
 
-  DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", return;);
+  DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard",
+                  if (!log_sys.archive) return;);
 
   Atomic_relaxed<lsn_t> &limit= furious
     ? buf_flush_sync_lsn : buf_flush_async_lsn;
@@ -2147,9 +2329,10 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious) noexcept
 
 /** Conduct checkpoint-related flushing for innodb_flush_sync=ON,
 and try to initiate checkpoints until the target is met.
-@param lsn   target checkpoint */
+@param lsn   target checkpoint
+@return whether a call to log_t::archive_create(false) is desirable */
 ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
-static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
+static bool buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
   mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
@@ -2199,20 +2382,23 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
   }
 
   os_aio_wait_until_no_pending_writes(false);
-  fil_flush_file_spaces();
 
+  if (UNIV_UNLIKELY(recv_recovery_is_on() || recv_sys.rpo))
+    return false;
+
+  fil_flush_file_spaces();
   log_sys.latch.wr_lock();
   const lsn_t newest_lsn= log_sys.get_lsn();
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   lsn_t measure= buf_pool.get_oldest_modification(0);
   const lsn_t checkpoint_lsn= measure ? measure : newest_lsn;
+  bool create_spare_archive= false;
 
-  if (!recv_recovery_is_on() &&
-      checkpoint_lsn > log_sys.last_checkpoint_lsn +
+  if (checkpoint_lsn > log_sys.last_checkpoint_lsn +
       SIZE_OF_FILE_CHECKPOINT + 8 * log_sys.is_encrypted())
   {
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-    log_checkpoint_low(checkpoint_lsn, newest_lsn);
+    create_spare_archive= log_checkpoint_low(checkpoint_lsn, newest_lsn);
     log_sys.latch.wr_lock();
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
     measure= buf_pool.get_oldest_modification(0);
@@ -2236,6 +2422,7 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
   /* wake up buf_flush_wait() */
   pthread_cond_broadcast(&buf_pool.done_flush_list);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+  return create_spare_archive;
 }
 
 /** Check if the adaptive flushing threshold is recommended based on
@@ -2450,6 +2637,22 @@ bool buf_pool_t::need_LRU_eviction() const noexcept
                         UT_LIST_GET_LEN(free) < LRU_scan_depth / 2));
 }
 
+/** Invoke log_t::archive_create() when needed.
+@param create whether to try to invoke log_t::archive_create()
+@return false (always) */
+static bool buf_flush_archive_create(bool create) noexcept
+{
+  mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
+  if (UNIV_UNLIKELY(create))
+  {
+    log_sys.latch.rd_lock();
+    if (log_sys.archive)
+      log_sys.archive_create(false);
+    log_sys.latch.rd_unlock();
+  }
+  return false;
+}
+
 #if defined __aarch64__&&defined __GNUC__&&__GNUC__==4&&!defined __clang__
 /* Avoid GCC 4.8.5 internal compiler error "could not split insn". */
 __attribute__((optimize(0)))
@@ -2471,6 +2674,7 @@ static void buf_flush_page_cleaner() noexcept
 
   lsn_t lsn_limit;
   ulint last_activity_count= srv_get_activity_count();
+  bool create_spare_archive{false};
 
   for (;;)
   {
@@ -2488,7 +2692,8 @@ static void buf_flush_page_cleaner() noexcept
     if (UNIV_UNLIKELY(lsn_limit != 0) && UNIV_LIKELY(srv_flush_sync))
     {
     furious_flush:
-      buf_flush_sync_for_checkpoint(lsn_limit);
+      buf_flush_archive_create(create_spare_archive);
+      create_spare_archive= buf_flush_sync_for_checkpoint(lsn_limit);
       last_pages= 0;
       set_timespec(abstime, 1);
       continue;
@@ -2505,14 +2710,18 @@ static void buf_flush_page_cleaner() noexcept
            srv_max_dirty_pages_pct_lwm == 0.0))
       {
         buf_pool.LRU_warned_clear();
+        if (UNIV_UNLIKELY(create_spare_archive))
+          goto timed_wait;
         /* We are idle; wait for buf_pool.page_cleaner_wakeup() */
         my_cond_wait(&buf_pool.do_flush_list,
                      &buf_pool.flush_list_mutex.m_mutex);
       }
       else
+      timed_wait:
         my_cond_timedwait(&buf_pool.do_flush_list,
                           &buf_pool.flush_list_mutex.m_mutex, &abstime);
     }
+
     set_timespec(abstime, 1);
 
     lsn_limit= buf_flush_sync_lsn;
@@ -2535,7 +2744,8 @@ static void buf_flush_page_cleaner() noexcept
       {
         if (recv_recovery_is_on())
           continue;
-        IF_DBUG(if (log_sys.last_checkpoint_lsn &&
+        create_spare_archive= buf_flush_archive_create(create_spare_archive);
+        IF_DBUG(if (log_sys.last_checkpoint_lsn > log_sys.get_first_lsn() &&
                     srv_shutdown_state < SRV_SHUTDOWN_CLEANUP &&
                     (_db_keyword_(nullptr, "ib_log_checkpoint_avoid", 1) ||
                      _db_keyword_(nullptr, "ib_log_checkpoint_avoid_hard", 1)))
@@ -2543,7 +2753,7 @@ static void buf_flush_page_cleaner() noexcept
         if (log_sys.check_for_checkpoint() ||
             (!srv_startup_is_before_trx_rollback_phase &&
              srv_operation <= SRV_OPERATION_EXPORT_RESTORED))
-          log_checkpoint();
+          create_spare_archive= log_checkpoint();
       }
       while (false);
 
@@ -2724,7 +2934,7 @@ static void buf_flush_page_cleaner() noexcept
   }
   ut_ad(log_sys.get_lsn_approx() == log_sys.last_checkpoint_lsn +
         SIZE_OF_FILE_CHECKPOINT + 8 * log_sys.is_encrypted() ||
-        srv_fast_shutdown == 2 || srv_read_only_mode || !srv_was_started);
+        srv_fast_shutdown == 2 || recv_sys.rpo || !srv_was_started);
   buf_page_cleaner_is_active= false;
   pthread_cond_broadcast(&buf_pool.done_flush_list);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);

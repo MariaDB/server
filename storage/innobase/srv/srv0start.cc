@@ -138,6 +138,9 @@ std::unique_ptr<tpool::timer> srv_master_timer;
 mysql_pfs_key_t	thread_pool_thread_key;
 #endif /* UNIV_PFS_THREAD */
 
+/** Only created if !srv_read_only_mode. Protected by lock_sys.latch. */
+extern FILE *lock_latest_err_file;
+
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Array of all InnoDB stage events for monitoring activities via
 performance schema. */
@@ -157,18 +160,18 @@ static PSI_stage_info*	srv_stages[] =
 static void delete_log_files()
 {
   for (size_t i= 1; i < 102; i++)
-    delete_log_file(std::to_string(i).c_str());
+    os_file_delete_if_exists_func(log_sys.get_circular_path(i).c_str(), nullptr);
 }
 
 /** Creates log file.
 @param create_new_db   whether the database is being initialized
 @param lsn             log sequence number
-@param logfile0        name of the log file
 @return DB_SUCCESS or error code */
 static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
 {
 	ut_ad(log_sys.latch_have_wr());
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	ut_ad(!buf_pool.get_oldest_modification(0));
 
 	/* We will retain ib_logfile0 until we have written a new logically
@@ -187,7 +190,7 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
 
 	log_sys.set_capacity();
 
-	std::string logfile0{get_log_file_path("ib_logfile101")};
+	const std::string logfile0{log_sys.get_circular_path(101)};
 	bool ret;
 	os_file_t file{
           os_file_create_func(logfile0.c_str(),
@@ -214,7 +217,7 @@ close_and_exit:
 	}
 
 	log_sys.set_latest_format(srv_encrypt_log);
-	if (!log_sys.attach(file, srv_log_file_size)) {
+	if (!log_sys.attach(file, srv_log_file_size, log_t::READ_WRITE)) {
 		goto close_and_exit;
 	}
 
@@ -251,14 +254,20 @@ close_and_exit:
 
 /** Rename the redo log file after resizing.
 @return whether an error occurred */
-bool log_t::resize_rename() noexcept
+ATTRIBUTE_COLD bool log_t::resize_rename() noexcept
 {
-  std::string old_name{get_log_file_path("ib_logfile101")};
-  std::string new_name{get_log_file_path()};
+  return rename(get_circular_path(101));
+}
+
+/** Rename the redo log file after resizing.
+@return whether an error occurred */
+ATTRIBUTE_COLD bool log_t::rename(const std::string &old_name) noexcept
+{
+  const std::string new_name{log_sys.get_path()};
 
   if (IF_WIN(MoveFileEx(old_name.c_str(), new_name.c_str(),
                         MOVEFILE_REPLACE_EXISTING),
-             !rename(old_name.c_str(), new_name.c_str())))
+             !::rename(old_name.c_str(), new_name.c_str())))
     return false;
 
   sql_print_error("InnoDB: Failed to rename log from %.*s to %.*s (error %d)",
@@ -779,7 +788,7 @@ srv_check_undo_redo_logs_exists()
 	}
 
 	/* Check if redo log file exists */
-	auto logfilename = get_log_file_path();
+	std::string logfilename{log_sys.get_circular_path()};
 
 	fh = os_file_create_func(logfilename.c_str(),
 				 OS_FILE_OPEN_RETRY_SILENT,
@@ -788,6 +797,7 @@ srv_check_undo_redo_logs_exists()
 
 	if (ret) {
 		os_file_close_func(fh);
+found_log:
 		ib::error() << "redo log file '" << logfilename
 			    << "' exists. Creating system tablespace with"
 			       " existing redo log file is not recommended."
@@ -795,6 +805,41 @@ srv_check_undo_redo_logs_exists()
 			       " creating new system tablespace.";
 		return DB_ERROR;
 	}
+
+#ifdef _WIN32
+	logfilename.assign(srv_log_group_home_dir);
+	switch (logfilename.back()) {
+	case '\\': case '/':
+		break;
+	default:
+		logfilename.push_back('/');
+	}
+	logfilename.append("ib_????????????????.log");
+	WIN32_FIND_DATAA entry;
+	HANDLE d = FindFirstFileA(logfilename.c_str(), &entry);
+	if (d != INVALID_HANDLE_VALUE) {
+		FindClose(d);
+		goto found_log;
+	}
+#else
+	if (DIR* d = opendir(srv_log_group_home_dir)) {
+		while (dirent* e = readdir(d)) {
+			lsn_t lsn;
+			int n{0};
+			const char* fn{e->d_name};
+			if (1 != sscanf(fn, LOG_ARCHIVE_NAME "%n", &lsn, &n)
+			    || fn[n] || lsn < log_t::FIRST_LSN) {
+				continue;
+			}
+			logfilename.assign(srv_log_group_home_dir);
+			logfilename.push_back('/');
+			log_sys.append_archive_name(logfilename, lsn);
+			closedir(d);
+			goto found_log;
+		}
+		closedir(d);
+	}
+#endif
 
 	return(DB_SUCCESS);
 }
@@ -1008,6 +1053,7 @@ static void srv_shutdown_bg_undo_sources()
   if (srv_undo_sources)
   {
     ut_ad(!srv_read_only_mode);
+    ut_ad(!recv_sys.rpo);
     fts_optimize_shutdown();
     dict_stats_shutdown();
     srv_undo_sources= false;
@@ -1153,12 +1199,16 @@ ATTRIBUTE_COLD static dberr_t srv_log_rebuild() noexcept
 /** Rebuild the redo log if needed. */
 static dberr_t srv_log_rebuild_if_needed() noexcept
 {
+  ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
   if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO)
     /* Completely ignore the redo log. */
     return DB_SUCCESS;
-  if (srv_read_only_mode)
+  if (recv_sys.rpo)
     /* Leave the redo log alone. */
     return DB_SUCCESS;
+  if (log_sys.archive)
+    return DB_SUCCESS; /* Never rebuild archived log files. */
 
   if (log_sys.file_size == srv_log_file_size &&
       log_sys.format ==
@@ -1319,61 +1369,12 @@ dberr_t srv_start(bool create_new_db)
 
 	ib::info() << my_crc32c_implementation();
 
-	if (!srv_read_only_mode) {
-		mysql_mutex_init(srv_monitor_file_mutex_key,
-				 &srv_monitor_file_mutex, nullptr);
-		mysql_mutex_init(srv_misc_tmpfile_mutex_key,
-				 &srv_misc_tmpfile_mutex, nullptr);
-	}
-
-	if (!srv_read_only_mode) {
-		if (srv_innodb_status) {
-
-			srv_monitor_file_name = static_cast<char*>(
-				ut_malloc_nokey(
-					strlen(fil_path_to_mysql_datadir)
-					+ 20 + sizeof "/innodb_status."));
-
-			sprintf(srv_monitor_file_name,
-				"%s/innodb_status." ULINTPF,
-				fil_path_to_mysql_datadir,
-				static_cast<ulint>
-				(IF_WIN(GetCurrentProcessId(), getpid())));
-
-			srv_monitor_file = my_fopen(srv_monitor_file_name,
-						    O_RDWR|O_TRUNC|O_CREAT,
-						    MYF(MY_WME));
-
-			if (!srv_monitor_file) {
-				ib::error() << "Unable to create "
-					<< srv_monitor_file_name << ": "
-					<< strerror(errno);
-				if (err == DB_SUCCESS) {
-					err = DB_ERROR;
-				}
-			}
-		} else {
-
-			srv_monitor_file_name = NULL;
-			srv_monitor_file = os_file_create_tmpfile();
-
-			if (!srv_monitor_file && err == DB_SUCCESS) {
-				err = DB_ERROR;
-			}
-		}
-
-		srv_misc_tmpfile = os_file_create_tmpfile();
-
-		if (!srv_misc_tmpfile && err == DB_SUCCESS) {
-			err = DB_ERROR;
-		}
-	}
-
-	if (err != DB_SUCCESS) {
-		return(srv_init_abort(err));
-	}
-
 	if (os_aio_init()) {
+		return(srv_init_abort(DB_ERROR));
+	}
+
+	if (!srv_read_only_mode
+	    && !(lock_latest_err_file = os_file_create_tmpfile())) {
 		return(srv_init_abort(DB_ERROR));
 	}
 
@@ -1411,6 +1412,10 @@ dberr_t srv_start(bool create_new_db)
 		      || srv_operation == SRV_OPERATION_RESTORE
 		      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 		ut_ad(!recv_sys.recovery_on);
+		/* Suppress warnings in fil_space_t::create() for files
+		that are being read before dict_boot() has recovered
+		DICT_HDR_MAX_SPACE_ID. */
+		fil_system.space_id_reuse_warned = true;
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 			log_sys.latch.wr_lock();
@@ -1454,6 +1459,11 @@ dberr_t srv_start(bool create_new_db)
 		log_sys.latch.wr_lock();
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
+		if (log_sys.archive) {
+			log_sys.file_size = srv_log_file_size;
+			log_sys.archive_set_size();
+		}
+
 		err = create_log_file(true, flushed_lsn);
 
 		if (err != DB_SUCCESS) {
@@ -1475,7 +1485,6 @@ dberr_t srv_start(bool create_new_db)
 		? DB_SUCCESS : DB_ERROR;
 	mysql_mutex_unlock(&recv_sys.mutex);
 
-
 	if (err == DB_SUCCESS) {
 		mtr.start();
 		err= srv_undo_tablespaces_init(create_new_db, &mtr);
@@ -1492,12 +1501,6 @@ dberr_t srv_start(bool create_new_db)
 	    && srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN) {
 
 		return(srv_init_abort(err));
-	}
-
-	/* Initialize objects used by dict stats gathering thread, which
-	can also be used by recovery if it tries to drop some table */
-	if (!srv_read_only_mode) {
-		dict_stats_init();
 	}
 
 	trx_sys.create();
@@ -1558,11 +1561,6 @@ dberr_t srv_start(bool create_new_db)
 			return(srv_init_abort(DB_ERROR));
 		}
 	} else {
-		/* Suppress warnings in fil_space_t::create() for files
-		that are being read before dict_boot() has recovered
-		DICT_HDR_MAX_SPACE_ID. */
-		fil_system.space_id_reuse_warned = true;
-
 		/* We always try to do a recovery, even if the database had
 		been shut down normally: this is the normal startup path */
 
@@ -1660,25 +1658,23 @@ dberr_t srv_start(bool create_new_db)
 
 		fil_system.space_id_reuse_warned = false;
 
-		if (srv_operation > SRV_OPERATION_EXPORT_RESTORED) {
-			ut_ad(srv_operation == SRV_OPERATION_RESTORE_EXPORT
-			      || srv_operation == SRV_OPERATION_RESTORE);
-			return(err);
-		}
-
 		/* Upgrade or resize or rebuild the redo logs before
 		generating any dirty pages, so that the old redo log
 		file will not be written to. */
 
-		err = srv_log_rebuild_if_needed();
+		if (srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
+			err = srv_log_rebuild_if_needed();
 
-		if (err != DB_SUCCESS) {
-			return srv_init_abort(err);
+			if (err != DB_SUCCESS) {
+				return srv_init_abort(err);
+			}
 		}
 
 		recv_sys.debug_free();
 
-		if (!srv_read_only_mode) {
+		if (log_sys.archive) log_sys.archive_set_size();
+
+		if (!recv_sys.rpo) {
 			const uint32_t flags = FSP_FLAGS_PAGE_SSIZE();
 			for (uint32_t id = srv_undo_space_id_start;
 			     id <= srv_undo_tablespaces; id++) {
@@ -1767,6 +1763,56 @@ dberr_t srv_start(bool create_new_db)
 	ut_ad(err == DB_SUCCESS);
 	ut_a(sum_of_new_sizes != ULINT_UNDEFINED);
 
+	if (!recv_sys.rpo && srv_operation != SRV_OPERATION_RESTORE) {
+		if (srv_innodb_status) {
+
+			srv_monitor_file_name = static_cast<char*>(
+				ut_malloc_nokey(
+					strlen(fil_path_to_mysql_datadir)
+					+ 20 + sizeof "/innodb_status."));
+
+			sprintf(srv_monitor_file_name,
+				"%s/innodb_status." ULINTPF,
+				fil_path_to_mysql_datadir,
+				static_cast<ulint>
+				(IF_WIN(GetCurrentProcessId(), getpid())));
+
+			srv_monitor_file = my_fopen(srv_monitor_file_name,
+						    O_RDWR|O_TRUNC|O_CREAT,
+						    MYF(MY_WME));
+
+			if (!srv_monitor_file) {
+				ib::error() << "Unable to create "
+					<< srv_monitor_file_name << ": "
+					<< strerror(errno);
+			}
+		} else {
+			srv_monitor_file_name = NULL;
+			srv_monitor_file = os_file_create_tmpfile();
+		}
+
+		if (!srv_monitor_file) {
+			return srv_init_abort(DB_ERROR);
+		} else {
+			mysql_mutex_init(srv_monitor_file_mutex_key,
+					 &srv_monitor_file_mutex, nullptr);
+		}
+
+		if (!(srv_misc_tmpfile = os_file_create_tmpfile())) {
+			return srv_init_abort(DB_ERROR);
+		}
+
+		mysql_mutex_init(srv_misc_tmpfile_mutex_key,
+				 &srv_misc_tmpfile_mutex, nullptr);
+
+	}
+
+	if (srv_operation > SRV_OPERATION_EXPORT_RESTORED) {
+		ut_ad(srv_operation == SRV_OPERATION_RESTORE_EXPORT
+		      || srv_operation == SRV_OPERATION_RESTORE);
+		return(DB_SUCCESS);
+	}
+
 	/* Create the doublewrite buffer to a new tablespace */
 	if (!srv_read_only_mode && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
 	    && !buf_dblwr.create()) {
@@ -1774,7 +1820,7 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	/* Recreate the undo tablespaces */
-	if (!high_level_read_only) {
+	if (!high_level_read_only && !recv_sys.rpo) {
 		err = srv_undo_tablespaces_reinitialize();
 		if (err) {
 			return srv_init_abort(err);
@@ -1803,7 +1849,7 @@ dberr_t srv_start(bool create_new_db)
 		ut_ad(high_level_read_only
 		      || srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN);
 
-		if (!high_level_read_only
+		if (!high_level_read_only && !recv_sys.rpo
 		    && srv_sys_space.can_auto_shrink()) {
 			fsp_system_tablespace_truncate(false);
 			DBUG_EXECUTE_IF("crash_after_sys_truncate",
@@ -1812,7 +1858,7 @@ dberr_t srv_start(bool create_new_db)
 
 		/* Validate a few system page types that were left
 		uninitialized before MySQL or MariaDB 5.5. */
-		if (!high_level_read_only
+		if (!high_level_read_only && !recv_sys.rpo
 		    && !fil_system.sys_space->full_crc32()) {
 			buf_block_t*	block;
 			mtr.start();
@@ -1861,7 +1907,7 @@ dberr_t srv_start(bool create_new_db)
 		be free of any locks.  The data dictionary latch
 		should guarantee that there is at most one data
 		dictionary transaction active at a time. */
-		if (!high_level_read_only
+		if (!high_level_read_only && !recv_sys.rpo
 		    && srv_force_recovery <= SRV_FORCE_NO_TRX_UNDO) {
 			/* If the following call is ever removed, the
 			first-time ha_innobase::open() must hold (or
@@ -1881,7 +1927,7 @@ dberr_t srv_start(bool create_new_db)
 		}
 
 		if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
-		    && !srv_read_only_mode) {
+		    && !recv_sys.rpo) {
 			/* Drop partially created indexes. */
 			row_merge_drop_temp_indexes();
 			/* Rollback incomplete non-DDL transactions */
@@ -1904,7 +1950,8 @@ skip_monitors:
 		ut_ad(srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN
 		      || !purge_sys.enabled());
 
-		if (srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
+		if (srv_force_recovery < SRV_FORCE_NO_BACKGROUND
+		    && !recv_sys.rpo) {
 			srv_undo_sources = true;
 			/* Create the dict stats gathering task */
 			dict_stats_start();
@@ -1956,7 +2003,9 @@ skip_monitors:
 				      trx_sys.get_max_trx_id());
 	}
 
-	if (!srv_read_only_mode) {
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
+	if (!recv_sys.rpo) {
 		if (create_new_db) {
 			srv_buffer_pool_load_at_startup = FALSE;
 		}
@@ -1980,6 +2029,8 @@ skip_monitors:
 		}
 #endif /* WITH_WSREP */
 
+		dict_stats_init();
+
 		/* Create thread(s) that handles key rotation. This is
 		needed already here as log_preflush_pool_modified_pages
 		will flush dirty pages and that might need e.g.
@@ -2000,12 +2051,13 @@ PRAGMA_REENABLE_CHECK_STACK_FRAME
 */
 void innodb_preshutdown()
 {
+  ut_ad(!srv_read_only_mode || recv_sys.rpo);
   static bool first_time= true;
   if (!first_time)
     return;
   first_time= false;
 
-  if (srv_read_only_mode)
+  if (recv_sys.rpo)
     return;
   if (!srv_fast_shutdown && srv_operation <= SRV_OPERATION_EXPORT_RESTORED)
     if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO && srv_was_started)
@@ -2022,6 +2074,7 @@ void innodb_preshutdown()
 /** Shut down InnoDB. */
 void innodb_shutdown()
 {
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
 	innodb_preshutdown();
 	ut_ad(!srv_undo_sources);
 	const lsn_t lsn{logs_empty_and_mark_files_at_shutdown()};
@@ -2031,35 +2084,21 @@ void innodb_shutdown()
 	ut_ad(!buf_page_cleaner_is_active);
 	srv_shutdown_threads();
 
-	if (srv_monitor_file) {
-		my_fclose(srv_monitor_file, MYF(MY_WME));
-		srv_monitor_file = 0;
-		if (srv_monitor_file_name) {
-			unlink(srv_monitor_file_name);
-			ut_free(srv_monitor_file_name);
-		}
-	}
-
-	if (srv_misc_tmpfile) {
-		my_fclose(srv_misc_tmpfile, MYF(MY_WME));
-		srv_misc_tmpfile = 0;
-	}
-
 	ut_ad(dict_sys.is_initialised() || !srv_was_started);
 	ut_ad(trx_sys.is_initialised() || !srv_was_started);
 	ut_ad(buf_dblwr.is_created() || !srv_was_started
-	      || srv_read_only_mode
+	      || recv_sys.rpo
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys.is_initialised() || !srv_was_started);
 	ut_ad(log_sys.is_initialised() || !srv_was_started);
 
-	dict_stats_deinit();
-
 	if (srv_started_redo) {
 		ut_ad(!srv_read_only_mode);
+		ut_ad(!recv_sys.rpo);
 		/* srv_shutdown_bg_undo_sources() already invoked
 		fts_optimize_shutdown(); dict_stats_shutdown(); */
 
+		dict_stats_deinit();
 		fil_crypt_threads_cleanup();
 	}
 
@@ -2078,10 +2117,33 @@ void innodb_shutdown()
 	lock_sys.close();
 	trx_pool_close();
 
-	if (!srv_read_only_mode) {
-		mysql_mutex_destroy(&srv_monitor_file_mutex);
-		mysql_mutex_destroy(&srv_misc_tmpfile_mutex);
+	if (lock_latest_err_file) {
+		my_fclose(lock_latest_err_file, MYF(MY_WME));
+		lock_latest_err_file = nullptr;
 	}
+
+	if (!recv_sys.rpo && srv_operation != SRV_OPERATION_RESTORE) {
+		if (srv_monitor_file) {
+			my_fclose(srv_monitor_file, MYF(MY_WME));
+			srv_monitor_file = nullptr;
+			if (srv_monitor_file_name) {
+				unlink(srv_monitor_file_name);
+				ut_free(srv_monitor_file_name);
+				srv_monitor_file_name = nullptr;
+			}
+			mysql_mutex_destroy(&srv_monitor_file_mutex);
+		}
+
+		if (srv_misc_tmpfile) {
+			my_fclose(srv_misc_tmpfile, MYF(MY_WME));
+			srv_misc_tmpfile = nullptr;
+			mysql_mutex_destroy(&srv_misc_tmpfile_mutex);
+		}
+	}
+
+	ut_ad(!srv_monitor_file_name);
+	ut_ad(!srv_monitor_file);
+	ut_ad(!srv_misc_tmpfile);
 
 	dict_sys.close();
 	btr_search_sys_free();

@@ -1,1 +1,2 @@
 --innodb_buffer_pool_size=1073741824
+--innodb-log-archive --skip-innodb-log-file-mmap

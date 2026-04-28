@@ -2,6 +2,7 @@ call mtr.add_suppression("InnoDB: Cannot shrink the system tablespace");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("InnoDB: A copy of page \\[page id: space=0, page number=.*\\] in the doublewrite buffer slot .* is beyond the end");
 SET GLOBAL INNODB_LIMIT_OPTIMISTIC_INSERT_DEBUG=2;
 SET GLOBAL INNODB_FILE_PER_TABLE= 0;
 Warnings:

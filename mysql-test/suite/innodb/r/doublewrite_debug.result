@@ -23,7 +23,7 @@ commit work;
 # Test Begin: Test if recovery works if 1st page and 2nd page
 # of system tablespace is full of zeroes.
 SET GLOBAL innodb_fast_shutdown = 0;
-# restart: --debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0
+# restart: --debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0 --innodb-log-recovery-start=0
 begin;
 insert into t1 values (6, repeat('%', 400));
 SET GLOBAL innodb_max_dirty_pages_pct_lwm=0, innodb_max_dirty_pages_pct=0;
@@ -36,7 +36,7 @@ set global innodb_fil_make_page_dirty_debug = 0;
 # Kill the server
 # Make the 1st page (page_no=0) and 2nd page (page_no=1)
 # of the system tablespace all zeroes.
-# restart
+# restart: --innodb-log-recovery-start=0
 FOUND 1 /InnoDB: Recovered page \[page id: space=0, page number=0\]/ in mysqld.1.err
 FOUND 1 /InnoDB: Recovered page \[page id: space=0, page number=1\]/ in mysqld.1.err
 check table t1;
@@ -53,7 +53,7 @@ f1	f2
 # ---------------------------------------------------------------
 # Test Begin: Test if recovery works if 1st page of
 # system tablespace is corrupted and 2nd page as corrupted.
-# restart: --debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0
+# restart: --innodb-log-recovery-start=0 --debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0
 begin;
 insert into t1 values (6, repeat('%', 400));
 # Make the first page dirty for system tablespace
@@ -65,7 +65,7 @@ set global innodb_fil_make_page_dirty_debug = 0;
 set global innodb_buf_flush_list_now = 1;
 # Kill the server
 # Corrupt the 1st page (page_no=0) and 2nd page of the system tablespace.
-# restart
+# restart: --innodb-log-recovery-start=0
 FOUND 2 /InnoDB: Recovered page \[page id: space=0, page number=0\]/ in mysqld.1.err
 FOUND 2 /InnoDB: Recovered page \[page id: space=0, page number=1\]/ in mysqld.1.err
 check table t1;
@@ -85,10 +85,10 @@ drop table t1;
 # MDEV-12600 crash during install_db with innodb_page_size=32K
 # and ibdata1=3M
 #
-# restart: --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/doublewrite --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/doublewrite --innodb-undo-tablespaces=0 --innodb-data-file-path=ibdata1:1M;ibdata2:1M:autoextend
+# restart: --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/doublewrite --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/doublewrite --innodb-undo-tablespaces=0 --innodb-log-recovery-start=0 --innodb-data-file-path=ibdata1:1M;ibdata2:1M:autoextend
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND 1 /\[ERROR\] InnoDB: Cannot create doublewrite buffer/ in mysqld.1.err
-# restart
+# restart: --innodb-log-recovery-start=0

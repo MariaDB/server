@@ -29,7 +29,7 @@ CREATE TABLE t1 (pk INT PRIMARY KEY, f VARCHAR(8)) ENGINE=InnoDB
 ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
 INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
 
---let $restart_parameters=--plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
+--let $restart_parameters=--plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt --innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 
 --error ER_TABLE_CORRUPT
@@ -60,7 +60,7 @@ ib_backup_tablespaces("test", "t1");
 EOF
 UNLOCK TABLES;
 
---let $restart_parameters=--plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
+--let $restart_parameters=--plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt --innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 
 --error ER_TABLE_CORRUPT

@@ -513,13 +513,15 @@ inline void trx_t::release_locks()
 TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 {
 	ut_ad(trx->is_recovered);
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
 	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED)
 	     || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)
 	     || (trx_state_eq(trx, TRX_STATE_ACTIVE)
 		 && (!srv_was_started
 		     || srv_operation == SRV_OPERATION_RESTORE
 		     || srv_operation == SRV_OPERATION_RESTORE_EXPORT
-		     || srv_read_only_mode
+		     || recv_sys.rpo
 		     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
 		     || (!srv_is_being_started
 		         && !srv_undo_sources && srv_fast_shutdown))));
@@ -955,7 +957,7 @@ trx_start_low(
 	    && (!trx->mysql_thd || read_write || trx->dict_operation)) {
 		/* Temporary rseg is assigned only if the transaction
 		updates a temporary table */
-		if (!high_level_read_only) {
+		if (!high_level_read_only && !recv_sys.rpo) {
 			trx_assign_rseg_low(trx);
 		}
 	} else {
@@ -966,7 +968,7 @@ trx_start_low(
 			to write to the temporary table. */
 
 			if (read_write) {
-				ut_ad(!srv_read_only_mode);
+				ut_ad(!recv_sys.rpo);
 				trx_sys.register_rw(trx);
 			}
 		} else {
@@ -2246,7 +2248,7 @@ trx_set_rw_mode(
 	ut_ad(!trx->read_only);
 	ut_ad(trx->id == 0);
 
-	if (high_level_read_only) {
+	if (high_level_read_only || recv_sys.rpo) {
 		return;
 	}
 

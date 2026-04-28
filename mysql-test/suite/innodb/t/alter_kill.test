@@ -3,6 +3,7 @@
 -- source include/not_embedded.inc
 -- source include/no_valgrind_without_big.inc
 -- source include/innodb_checksum_algorithm.inc
+--source include/no_checkpoint_prepare.inc
 
 let MYSQLD_DATADIR=`select @@datadir`;
 let PAGE_SIZE=`select @@innodb_page_size`;
@@ -76,9 +77,9 @@ syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
 close(FILE) || die "Unable to close $file";
 EOF
 
--- let $restart_parameters=--innodb-flush-method=O_DIRECT
+-- let $restart_parameters=--innodb-flush-method=O_DIRECT --innodb-log-recovery-start=0
 -- source include/start_mysqld.inc
--- let $restart_parameters=
+-- let $restart_parameters=--innodb-log-recovery-start=0
 
 SELECT @@innodb_doublewrite;
 --error ER_TABLE_CORRUPT
@@ -160,6 +161,7 @@ XA END 'x';
 XA PREPARE 'x';
 --connection default
 --let CLEANUP_IF_CHECKPOINT=XA ROLLBACK 'x';DROP TABLE bug16735660;
+
 --source ../include/no_checkpoint_end.inc
 
 -- disconnect con1

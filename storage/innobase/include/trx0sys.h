@@ -414,7 +414,7 @@ class rw_trx_hash_t
             trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED) ||
             (trx_state_eq(trx, TRX_STATE_ACTIVE) &&
              (!srv_was_started ||
-              srv_read_only_mode ||
+              recv_sys.rpo ||
               srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)));
       trx_free_at_shutdown(trx);
     }

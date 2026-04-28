@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 --source include/have_debug.inc
+--source include/skip_innodb_log_archive.inc
 
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("plugin 'InnoDB' registration as a STORAGE ENGINE failed.");

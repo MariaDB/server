@@ -369,16 +369,6 @@ ATTRIBUTE_COLD
 void innodb_fk_error(const trx_t *trx, dberr_t err, const char *name,
                      const dict_foreign_t& foreign);
 
-/********************************************************************//**
-Helper function to push warnings from InnoDB internals to SQL-layer. */
-void
-ib_foreign_warn(
-	trx_t*		trx,	/*!< in: trx */
-	dberr_t		error,	/*!< in: error code to push as warning */
-	const char	*table_name,
-	const char	*format,/*!< in: warning message */
-	...);
-
 /** Normalizes a table name string.
 A normalized name consists of the database name catenated to '/'
 and table name. For example: test/mytable.
