@@ -15,3 +15,19 @@ BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
 ERROR HY000: Can't create directory 'MYSQLTEST_VARDIR/some_directory' (Errcode: 17 "File exists")
 disconnect backup;
 connection default;
+BACKUP STAGE START;
+connect  con1,localhost,root,,test;
+BACKUP SERVER TO '<MYSQLTEST_VARDIR>/some_directory';
+connection default;
+SET @con1_id = <con1_id>;
+SELECT COMMAND, STATE, INFO FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID = @con1_id;
+COMMAND	STATE	INFO
+Query	Waiting for backup lock	BACKUP SERVER TO '<MYSQLTEST_VARDIR>/some_directory'
+BACKUP STAGE END;
+connection con1;
+disconnect con1;
+connection default;
+BACKUP STAGE START;
+BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+BACKUP STAGE END;

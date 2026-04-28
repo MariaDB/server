@@ -1,0 +1,34 @@
+--- main/backup_server_locking.result
++++ main/backup_server_locking.reject
+@@ -1,3 +1,31 @@
++connect  blocking,localhost,root,,test;
++SET DEBUG_SYNC='after_backup_server_lock_acquired SIGNAL blocking WAIT_FOR unblock';
++SET DEBUG_SYNC='backup_server_finalizing SIGNAL finalizing WAIT_FOR finish';
++BACKUP SERVER TO '<MYSQLTEST_VARDIR>/some_directory';
++connect  blocked,localhost,root,,test;
++SET DEBUG_SYNC='now WAIT_FOR blocking';
++BACKUP SERVER TO '<MYSQLTEST_VARDIR>/other_directory';
++connection default;
++SET @blocked_conn_id = $blocked_conn_id;
++SELECT COMMAND, STATE, INFO FROM INFORMATION_SCHEMA.PROCESSLIST
++WHERE ID = @blocked_conn_id;
++COMMAND	STATE	INFO
++Query	Waiting for backup lock	BACKUP SERVER TO '<MYSQLTEST_VARDIR>/other_directory'
++SET DEBUG_SYNC='now SIGNAL unblock';
++SET DEBUG_SYNC='now WAIT_FOR finalizing';
++connection blocked;
++SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST
++WHERE Info LIKE 'BACKUP SERVER TO %' AND State = 'Waiting for backup lock';
++COUNT(*)
++0
++BACKUP SERVER TO '$MYSQLTEST_VARDIR/another_directory';
++disconnect blocked;
++connection default;
++SET DEBUG_SYNC='now SIGNAL finish';
++connection blocking;
++disconnect blocking;
++connection default;
++SET DEBUG_SYNC='RESET';
+ BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+ ERROR HY000: Can't create directory 'MYSQLTEST_VARDIR/some_directory' (Errcode: 17 "File exists")
+ BACKUP STAGE START;
