@@ -4162,6 +4162,18 @@ include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
 connection server_1;
 DROP TABLE t;
 include/rpl_sync.inc
+#
+# MDEV-38899: Assert in prepare_record() with binlog_row_image=NOBLOB
+# and UNIQUE constraint on BLOB NOT NULL column
+#
+# Verify data replicated correctly on replica
+id	b
+1	hello
+2	world
+# Verify UPDATE replicates without assertion failure
+id	b
+2	world
+10	hello
 ### engines: InnoDB, InnoDB, InnoDB
 connection server_1;
 connection server_1;
@@ -4780,5 +4792,64 @@ FLUSH TABLES;
 SHOW VARIABLES LIKE 'binlog_row_image';
 Variable_name	Value
 binlog_row_image	FULL
+#
+# MDEV-38899: Assert !((f->flags & NO_DEFAULT_VALUE_FLAG) && f->vcol_info)
+# in prepare_record() with binlog_row_image=NOBLOB and UNIQUE BLOB column
+#
 connection server_1;
+CREATE TABLE t1 (
+  id INT NOT NULL,
+  b  BLOB NOT NULL,
+  UNIQUE KEY (b(64))
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'hello');
+INSERT INTO t1 VALUES (2, 'world');
+include/rpl_sync.inc
+connection server_1;
+SELECT id, CONVERT(b USING utf8) AS b FROM t1 ORDER BY id;
+id	b
+1	hello
+2	world
+connection server_1;
+UPDATE t1 SET id = 10 WHERE id = 1;
+UPDATE t1 SET id = 20 WHERE id = 2;
+include/rpl_sync.inc
+connection server_1;
+SELECT id, CONVERT(b USING utf8) AS b FROM t1 ORDER BY id;
+id	b
+10	hello
+20	world
+connection server_1;
+DROP TABLE t1;
+include/rpl_sync.inc
+#
+# MDEV-38899: Assert !((f->flags & NO_DEFAULT_VALUE_FLAG) && f->vcol_info)
+# in prepare_record() with binlog_row_image=NOBLOB and UNIQUE BLOB column
+#
+connection server_1;
+CREATE TABLE t1 (
+  id INT NOT NULL,
+  b  BLOB NOT NULL,
+  UNIQUE KEY (b(64))
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'hello');
+INSERT INTO t1 VALUES (2, 'world');
+include/rpl_sync.inc
+connection server_1;
+SELECT id, CONVERT(b USING utf8) AS b FROM t1 ORDER BY id;
+id	b
+1	hello
+2	world
+connection server_1;
+UPDATE t1 SET id = 10 WHERE id = 1;
+UPDATE t1 SET id = 20 WHERE id = 2;
+include/rpl_sync.inc
+connection server_1;
+SELECT id, CONVERT(b USING utf8) AS b FROM t1 ORDER BY id;
+id	b
+10	hello
+20	world
+connection server_1;
+DROP TABLE t1;
+include/rpl_sync.inc
 include/rpl_end.inc
