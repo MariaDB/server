@@ -1017,6 +1017,7 @@ void MDL_request::init_with_source(MDL_key::enum_mdl_namespace mdl_namespace,
                        uint src_line)
 {
   key.mdl_key_init(mdl_namespace, db_arg, name_arg);
+  DBUG_ASSERT(mdl_type_arg != MDL_NOT_INITIALIZED);
   type= mdl_type_arg;
   duration= mdl_duration_arg;
   ticket= NULL;
@@ -1041,6 +1042,7 @@ void MDL_request::init_by_key_with_source(const MDL_key *key_arg,
                        uint src_line)
 {
   key.mdl_key_init(key_arg);
+  DBUG_ASSERT(mdl_type_arg != MDL_NOT_INITIALIZED);
   type= mdl_type_arg;
   duration= mdl_duration_arg;
   ticket= NULL;

@@ -353,4 +353,17 @@ drop view v;
 drop table t;
 drop sequence s;
 
+--echo #
+--echo # MDEV-39063 Server crashes at Item_func_lastval::val_int and Item_func_setval::val_int with CTE alias
+--echo #
+create sequence s;
+--error ER_NOT_SEQUENCE2
+select (with x(x) as (select 1) select * from x where (lastval(x)));
+drop sequence s;
+
+create sequence s;
+--error ER_NOT_SEQUENCE2
+select (with x(x) as (select 1) select * from x where (setval(x,1)));
+drop sequence s;
+
 --echo # End of 10.11 tests

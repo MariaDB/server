@@ -1,0 +1,11 @@
+#
+# MDEV-27569 Valgrind/MSAN errors in ha_partition::swap_blobs
+#
+create table t (id int, a int, b text, key(a), primary key (id)) engine=innodb
+partition by hash(id) partitions 2;
+insert into t (id,a) select seq, seq%10 from seq_1_to_20;
+select * from t where id >= 1900 or a in (2,4) limit 1;
+id	a	b
+2	2	NULL
+drop table t;
+# End of 10.11 tests

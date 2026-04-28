@@ -5408,7 +5408,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
         if (!(thd->col_access & TABLE_ACLS))
         {
           TABLE_LIST table_acl_check;
-          table_acl_check.reset();
           table_acl_check.db= *db_name;
           table_acl_check.table_name= *table_name;
           table_acl_check.grant.privilege= thd->col_access;
@@ -7166,7 +7165,6 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
         else
         {
           TABLE_LIST table_list;
-          table_list.reset();
           table_list.db= tables->db;
           table_list.table_name= tables->table_name;
           table_list.grant.privilege= thd->col_access;
@@ -10560,7 +10558,7 @@ TABLE_LIST *get_trigger_table(THD *thd, const sp_name *trg_name)
   if (db.str == NULL || tbl_name.str == NULL)
     return NULL;
 
-  table->init_one_table(&db, &tbl_name, 0, TL_IGNORE);
+  table->init_one_tab_r(&db, &tbl_name, 0, TL_IGNORE);
 
   return table;
 }
