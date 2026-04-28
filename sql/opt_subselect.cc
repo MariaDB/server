@@ -2688,11 +2688,15 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
     }
 
     /*
-      Prepare data for Duplicate_weedout_picker::get_inner_outer_fanouts(), if
-      SJ-Materialization code didn't produce it already.
+      For queries that could be executed with SJ-Materialization, we've have
+      computed sj_nest->sj_fanout_ratio right above (together with Materialization
+      cost).
+      Now, produce sj_nest->sj_fanout_ratio for the new logic in
+      Duplicate_weedout_picker::get_inner_outer_fanouts().
     */
-    if (optimizer_new_mode(thd, NEW_MODE_FIX_SEMIJOIN_DUPS_WEEDOUT_CHECK) &&
-        !sj_nest_handled && (sj_nest->sj_inner_tables & ~join->const_table_map))
+    if (!sj_nest_handled &&
+        optimizer_new_mode(thd, NEW_MODE_FIX_SEMIJOIN_DUPS_WEEDOUT_CHECK) &&
+        (sj_nest->sj_inner_tables & ~join->const_table_map))
     {
       Json_writer_object trace_one_nest(thd);
       Json_writer_array trace_steps_array(thd, "steps");
@@ -3925,9 +3929,9 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
     
     table_map dups_removed_fanout= 0;
     /*
-      Note: the below computation is incorrect and can produce wildly
-      inaccurate numbers! See get_inner_outer_fanouts() below for correct
-      computation.
+      Note: the below computation of sj_inner_fanout and sj_outer_fanout is
+      incorrect and can produce wildly inaccurate numbers!
+      See get_inner_outer_fanouts() below for correct computation.
     */
     for (uint j= first_dupsweedout_table; j <= idx; j++)
     {

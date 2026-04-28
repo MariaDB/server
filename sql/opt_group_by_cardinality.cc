@@ -75,6 +75,11 @@ double estimate_distinct_cardinality(JOIN *join, TABLE_LIST *sj_nest,
   Dynamic_array<Item*> group_cols(join->thd->mem_root);
 
   Item **item;
+  /*
+    Walk the select list of the subquery. That is, in the subquery
+      outer_exprs IN (SELECT a, b, c FROM ...)
+    walk though {a,b,c}.
+  */
   List_iterator<Item_ptr> it(sj_nest->sj_inner_expr_list);
 
   while ((item = it++))
