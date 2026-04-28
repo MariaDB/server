@@ -1,0 +1,74 @@
+#
+# Test: Malformed PROXY protocol V1 headers must be rejected without crashing.
+#
+# This test sends crafted proxy protocol V1 headers over raw TCP
+# to verify that the server correctly rejects:
+#   A) Headers longer than MAX_PROXY_HEADER_LEN without a newline
+#   B) Fields longer than MAX_PROXY_HEADER_LEN
+#
+# The server must close the connection gracefully in all cases (no crash).
+#
+
+--source include/not_embedded.inc
+--source include/not_windows.inc
+
+# Need proxy_protocol_networks enabled for the server to enter the
+# proxy protocol parsing path.
+SET @save_proxy= @@global.proxy_protocol_networks;
+SET GLOBAL proxy_protocol_networks='*';
+
+# Use a short connect_timeout so tests don't hang
+SET @save_timeout= @@global.connect_timeout;
+SET GLOBAL connect_timeout=5;
+
+--echo #
+--echo # Test A: V1 header longer than MAX_PROXY_HEADER_LEN (256 bytes) without newline
+--echo #
+--perl
+use Socket;
+
+# Build a V1 header that exceeds the 256 byte buffer limit
+my $v1_sig = "PROXY";
+my $long_hdr = $v1_sig . ("A" x 260); 
+
+socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname("tcp"))
+  or die "socket: $!\n";
+connect(SOCK, pack_sockaddr_in($ENV{MASTER_MYPORT}, inet_aton("127.0.0.1")))
+  or die "connect: $!\n";
+# Send long header and immediately close
+syswrite(SOCK, $long_hdr);
+select(undef, undef, undef, 0.5);
+close(SOCK);
+print "Test A: server did not crash after long V1 header\n";
+EOF
+
+--echo #
+--echo # Test B: V1 header with excessively long fields
+--echo #
+--perl
+use Socket;
+
+my $v1_sig = "PROXY";
+my $long_field = "A" x 300;
+my $hdr = "$v1_sig $long_field $long_field $long_field 123 456\n";
+
+socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname("tcp"))
+  or die "socket: $!\n";
+connect(SOCK, pack_sockaddr_in($ENV{MASTER_MYPORT}, inet_aton("127.0.0.1")))
+  or die "connect: $!\n";
+syswrite(SOCK, $hdr);
+select(undef, undef, undef, 0.5);
+close(SOCK);
+print "Test B: server did not crash after excessively long fields in V1 header\n";
+EOF
+
+# Allow time for the server to clean up aborted connections
+--sleep 1
+
+# Verify the server is still alive and accepting connections
+SELECT 1 AS server_alive;
+
+SET GLOBAL connect_timeout= @save_timeout;
+SET GLOBAL proxy_protocol_networks= @save_proxy;
+
+--echo # End of proxy_protocol_v1_malformed tests
