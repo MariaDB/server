@@ -5842,12 +5842,8 @@ int compare_log_name(const char *log_1, const char *log_2) {
   return res;
 }
 
-bool Item_func_gtid_check_pos::val_bool()
+bool rpl_gtid_pos_check_reachable(String *gtid_str, bool *is_reachable)
 {
-  DBUG_ASSERT(fixed());
-  String *gtid_str= args[0]->val_str(&tmp_value);
-  if ((null_value= args[0]->null_value))
-    return 0;
 
   slave_connection_state state;
   char buf[FN_REFLEN] = {0};
@@ -5856,8 +5852,7 @@ bool Item_func_gtid_check_pos::val_bool()
   if (!mysql_bin_log.is_open())
   {
     my_error(ER_NO_BINARY_LOGGING, MYF(0));
-    null_value= 1;
-    return 0;
+    return true;
   }
 
   if (state.load(gtid_str->ptr(), gtid_str->length()))
@@ -5867,8 +5862,7 @@ bool Item_func_gtid_check_pos::val_bool()
       ill-formed string, state.load throws ER_INCORRECT_GTID_STATE which 
       will correctly abort the statement and notify the user.
     */
-    null_value= 1;
-    return 0;
+    return true;
   }
 
   /*
@@ -5896,12 +5890,12 @@ bool Item_func_gtid_check_pos::val_bool()
   
   if (errormsg)
   {
-    null_value= 0;
-    return 0; // At least one requested GTID has been purged.
+    *is_reachable= false;
+    return false; // At least one requested GTID has been purged.
   }
 
-  null_value= 0;
-  return 1; // All requested GTIDs are currently viable/reachable.
+  *is_reachable= true;
+  return false; // All requested GTIDs are currently viable/reachable.
 }
 
 #endif /* HAVE_REPLICATION */

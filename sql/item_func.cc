@@ -825,7 +825,6 @@ String *Item_int_func::val_str(String *str)
 }
 
 
-#ifndef HAVE_REPLICATION
 bool Item_func_gtid_check_pos::val_bool()
 {
   DBUG_ASSERT(fixed());
@@ -833,11 +832,21 @@ bool Item_func_gtid_check_pos::val_bool()
   if ((null_value= args[0]->null_value))
     return 0;
 
+#ifndef HAVE_REPLICATION
   my_error(ER_NOT_SUPPORTED_YET, MYF(0), "GTID_CHECK_POS");
   null_value= 1;
   return 0;
-}
+#else
+  bool is_reachable= false;
+  if (rpl_gtid_pos_check_reachable(gtid_str, &is_reachable))
+  {
+    null_value= 1;
+    return 0;
+  }
+  null_value= 0;
+  return is_reachable;
 #endif
+}
 
 
 bool Item_func_connection_id::fix_length_and_dec(THD *thd)
