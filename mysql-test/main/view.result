@@ -3277,13 +3277,13 @@ from table_24532;
 describe view_24532_b;
 Field	Type	Null	Key	Default	Extra
 a IS TRUE	int(1)	NO		0	
-old_istrue	int(1)	NO		0	
+old_istrue	int(2)	NO		0	
 a IS NOT TRUE	int(1)	NO		0	
-old_isnottrue	int(1)	NO		0	
+old_isnottrue	int(2)	NO		0	
 a IS FALSE	int(1)	NO		0	
-old_isfalse	int(1)	NO		0	
+old_isfalse	int(2)	NO		0	
 a IS NOT FALSE	int(1)	NO		0	
-old_isnotfalse	int(1)	NO		0	
+old_isnotfalse	int(2)	NO		0	
 show create view view_24532_b;
 View	Create View	character_set_client	collation_connection
 view_24532_b	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `view_24532_b` AS select `table_24532`.`a` is true AS `a IS TRUE`,if(ifnull(`table_24532`.`a`,0),1,0) AS `old_istrue`,`table_24532`.`a` is not true AS `a IS NOT TRUE`,if(ifnull(`table_24532`.`a`,0),0,1) AS `old_isnottrue`,`table_24532`.`a` is false AS `a IS FALSE`,if(ifnull(`table_24532`.`a`,1),0,1) AS `old_isfalse`,`table_24532`.`a` is not false AS `a IS NOT FALSE`,if(ifnull(`table_24532`.`a`,1),1,0) AS `old_isnotfalse` from `table_24532`	latin1	latin1_swedish_ci

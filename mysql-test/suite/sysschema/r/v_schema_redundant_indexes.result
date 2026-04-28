@@ -8,7 +8,7 @@ redundant_index_non_unique	bigint(1)	YES		NULL
 dominant_index_name	varchar(64)	NO		NULL	
 dominant_index_columns	mediumtext	YES		NULL	
 dominant_index_non_unique	bigint(1)	YES		NULL	
-subpart_exists	int(1)	YES		NULL	
+subpart_exists	int(2)	YES		NULL	
 sql_drop_index	varchar(223)	YES		NULL	
 SELECT * FROM sys.schema_redundant_indexes;
 DESC sys.x$schema_flattened_keys;
@@ -17,7 +17,7 @@ table_schema	varchar(64)	NO		NULL
 table_name	varchar(64)	NO		NULL	
 index_name	varchar(64)	NO		NULL	
 non_unique	bigint(1)	YES		NULL	
-subpart_exists	bigint(1)	YES		NULL	
+subpart_exists	bigint(2)	YES		NULL	
 index_columns	mediumtext	YES		NULL	
 SELECT * FROM sys.x$schema_flattened_keys;
 CREATE DATABASE rkey;
