@@ -921,8 +921,6 @@ static time_t log_close_warn_time;
 making the server crash-unsafe. */
 ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t lsn)
 {
-  ut_ad(!log_sys.archive); /* we hope that this is unreachable */
-
   if (log_sys.overwrite_warned || log_sys.archive)
     return;
 
@@ -1440,32 +1438,22 @@ wrote_trailer:
 #endif
 
   mtr->m_commit_lsn= start.first + len;
+  lsn_t wait_lsn{log_close(mtr->m_commit_lsn)};
 
   switch (mode) {
   case log_t::ARCHIVED_MMAP:
+    ut_ad(log_sys.archive);
     ut_ad(!log_sys.resize_in_progress());
-    return {start.first, (log_sys.get_first_lsn() > log_sys.last_checkpoint_lsn
-                          ? log_sys.get_first_lsn() : 0)};
+    /* commit_log_release<true>() will invoke buf_flush_ahead() if needed */
+    break;
   case log_t::CIRCULAR_MMAP:
     log_sys.resize_write<true>(start.first, start.second, len, size);
-    return {start.first, log_close(mtr->m_commit_lsn)};
+    break;
   case log_t::WRITE_NORMAL:
-    log_sys.resize_write<false>(start.first, start.second, len, size);
-  }
-
-  lsn_t wait_lsn;
-
-  if (!log_sys.archive)
-    wait_lsn= log_close(mtr->m_commit_lsn);
-  else
-  {
-    wait_lsn= log_sys.get_first_lsn();
-    if (UNIV_LIKELY(wait_lsn <= log_sys.last_checkpoint_lsn))
-    {
-      wait_lsn+= log_sys.capacity();
-      if (UNIV_LIKELY(wait_lsn >= mtr->m_commit_lsn))
-        wait_lsn= 0;
-    }
+    if (!log_sys.archive)
+      log_sys.resize_write<false>(start.first, start.second, len, size);
+    else
+      wait_lsn= log_sys.archive_flush_ahead(wait_lsn);
   }
 
   return {start.first, wait_lsn};

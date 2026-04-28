@@ -539,6 +539,19 @@ public:
     return UNIV_UNLIKELY(archive && resize_buf);
   }
 
+  /** Adjust a buf_flush_ahead() target if we are switching log files.
+  @param lsn  buf_flush_ahead() target, or 0
+  @return adjusted target */
+  lsn_t archive_flush_ahead(lsn_t lsn) const noexcept
+  {
+    ut_ad(latch_have_any());
+    ut_ad(archive);
+    ut_ad(!resize_in_progress());
+    if (resize_log.is_opened())
+      lsn= std::max(lsn, first_lsn + capacity());
+    return lsn;
+  }
+
   /** Try to create an archive log file.
   @param ex whether we are holding exclusive latch (and must succeed) */
   ATTRIBUTE_COLD void archive_create(bool ex) noexcept;
