@@ -1568,6 +1568,14 @@ bool Item_func_spatial_precise_rel::val_bool()
       func.repeat_expression(shape_a);
       func.repeat_expression(shape_b);
       break;
+    case SP_COVEREDBY_FUNC:
+      if (!g1.mbr.coveredby(&g2.mbr))
+        goto exit;
+      func.add_operation(Gcalc_function::v_find_f |
+                         Gcalc_function::op_not |
+                         Gcalc_function::op_difference, 2);
+      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
+      break;
     default:
       DBUG_ASSERT(FALSE);
       break;
