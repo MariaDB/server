@@ -939,11 +939,11 @@ protected:
   bool item_hash_inited, seen_hash_inited, root_inited;
   HASH items, seen;
   MEM_ROOT hash_root;
-  bool parse_for_each_row;
+  bool parse_for_each_row, is_array;
 public:
   Item_func_json_array_intersect(THD *thd, Item *a, Item *b):
     Item_str_func(thd, a, b)
-    { item_hash_inited= seen_hash_inited= root_inited= parse_for_each_row= false; }
+    { item_hash_inited= seen_hash_inited= root_inited= parse_for_each_row= is_array= false; }
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override

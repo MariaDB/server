@@ -5331,7 +5331,7 @@ SET @obj1= '[1, 2, 3, 3, 3.0, "abc", true, true, {"key1":"val1" ]';
 SET @obj2= '[3.0, 3, 5, "abc", "abc", true, {"key2":"val2"}, {"key1":"val1"}, {"key1":"val2"}]';
 select json_array_intersect(@obj1, @obj2);
 json_array_intersect(@obj1, @obj2)
-NULL
+[3.0, 3, "abc", true]
 Warnings:
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array_intersect' at position 53
 # Checking incorrect type for input
@@ -5489,4 +5489,15 @@ ERROR HY000: Invalid value for keyword properties
 select json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'));
 json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'))
 0
+#
+# MDEV-36808 json_array_intersect incorrect results after returning NULL in table scan
+#
+CREATE TABLE t1 (full text, overlap text);
+INSERT INTO t1 VALUES ('["2"]', '["2"]'), ('["2"]', '["0"]'),  ('["2"]', '["2"]');
+SELECT full, overlap, json_array_intersect(full, overlap) from t1;
+full	overlap	json_array_intersect(full, overlap)
+["2"]	["2"]	["2"]
+["2"]	["0"]	NULL
+["2"]	["2"]	["2"]
+DROP TABLE t1;
 # End of 11.4 Test
