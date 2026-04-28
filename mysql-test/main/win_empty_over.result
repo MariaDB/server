@@ -37,33 +37,22 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "cost": "COST_REPLACED",
-    "window_functions_computation": {
-      "sorts": [
-        {
-          "filesort": {
-            "sort_key": "pk"
-          }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "index",
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["pk"],
+          "loops": 1,
+          "rows": 11,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "using_index": true
         }
-      ],
-      "temporary_table": {
-        "nested_loop": [
-          {
-            "table": {
-              "table_name": "t1",
-              "access_type": "index",
-              "key": "PRIMARY",
-              "key_length": "4",
-              "used_key_parts": ["pk"],
-              "loops": 1,
-              "rows": 11,
-              "cost": "COST_REPLACED",
-              "filtered": 100,
-              "using_index": true
-            }
-          }
-        ]
       }
-    }
+    ]
   }
 }
 explain FORMAT=JSON select row_number() over (), pk from t1;
@@ -72,33 +61,22 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "cost": "COST_REPLACED",
-    "window_functions_computation": {
-      "sorts": [
-        {
-          "filesort": {
-            "sort_key": "`row_number() over ()`"
-          }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "index",
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["pk"],
+          "loops": 1,
+          "rows": 11,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "using_index": true
         }
-      ],
-      "temporary_table": {
-        "nested_loop": [
-          {
-            "table": {
-              "table_name": "t1",
-              "access_type": "index",
-              "key": "PRIMARY",
-              "key_length": "4",
-              "used_key_parts": ["pk"],
-              "loops": 1,
-              "rows": 11,
-              "cost": "COST_REPLACED",
-              "filtered": 100,
-              "using_index": true
-            }
-          }
-        ]
       }
-    }
+    ]
   }
 }
 select row_number() over () from (select 4) as t;

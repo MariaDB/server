@@ -1567,6 +1567,7 @@ public:
   bool add_window_func(Item_window_func *win_func);
 
   bool have_window_funcs() const { return (window_funcs.elements !=0); }
+  bool have_streaming_window_funcs_candidates() const;
   ORDER *find_common_window_func_partition_fields(THD *thd);
 
   bool cond_pushdown_is_allowed() const
