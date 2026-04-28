@@ -1,0 +1,88 @@
+--source include/not_windows.inc
+--source include/check_ipv6.inc
+
+# Reverse DNS tests (getnameinfo with NI_NAMEREQD) require:
+#   - /etc/hosts entries for 127.0.0.1 and ::1 (or working DNS PTR records)
+#   - "hosts: files ..." in /etc/nsswitch.conf (or equivalent resolver config)
+#   - glibc nss_files backend mapping ::ffff:127.0.0.1 to the 127.0.0.1 entry
+#   - - musl libc (Alpine) may behave differently from glibc for mapped addresses
+# If reverse lookups fail, check: getent hosts 127.0.0.1 ::1 ::ffff:127.0.0.1
+
+--echo #
+--echo # MDEV-39169: resolveip IPv6 support
+--echo #
+
+--echo #
+--echo # IPv4 special addresses (deterministic, no DNS needed)
+--echo #
+--exec $MYSQL_RESOLVEIP 255.255.255.255
+--exec $MYSQL_RESOLVEIP 0.0.0.0
+
+--echo #
+--echo # IPv4 reverse lookup
+--echo #
+--exec $MYSQL_RESOLVEIP 127.0.0.1 2>&1 | sed 's/Host name of 127\.0\.0\.1 is .*/Host name of 127.0.0.1 is HOSTNAME/'
+
+--echo #
+--echo # IPv4 reverse lookup (silent mode)
+--echo #
+--exec $MYSQL_RESOLVEIP -s 127.0.0.1 2>&1 | sed 's/.*/HOSTNAME/'
+
+--echo #
+--echo # IPv6 special address (deterministic, no DNS needed)
+--echo #
+--exec $MYSQL_RESOLVEIP ::
+
+--echo #
+--echo # IPv6 unspecified address (full form)
+--echo #
+--exec $MYSQL_RESOLVEIP 0000:0000:0000:0000:0000:0000:0000:0000
+
+--echo #
+--echo # IPv6 reverse lookup
+--echo #
+--exec $MYSQL_RESOLVEIP ::1 2>&1 | sed 's/Host name of ::1 is .*/Host name of ::1 is HOSTNAME/'
+
+--echo #
+--echo # IPv6 reverse lookup (silent mode)
+--echo #
+--exec $MYSQL_RESOLVEIP -s ::1 2>&1 | sed 's/.*/HOSTNAME/'
+
+--echo #
+--echo # IPv6 IPv4-mapped address
+--echo #
+--exec $MYSQL_RESOLVEIP ::ffff:127.0.0.1 2>&1 | sed 's/Host name of ::ffff:127\.0\.0\.1 is .*/Host name of ::ffff:127.0.0.1 is HOSTNAME/'
+
+--echo #
+--echo # IPv6 full form address
+--echo #
+--exec $MYSQL_RESOLVEIP 0000:0000:0000:0000:0000:0000:0000:0001 2>&1 | sed 's/Host name of 0000:0000:0000:0000:0000:0000:0000:0001 is .*/Host name of 0000:0000:0000:0000:0000:0000:0000:0001 is HOSTNAME/'
+
+--echo #
+--echo # Multiple addresses in one call
+--echo #
+--exec $MYSQL_RESOLVEIP 255.255.255.255 0.0.0.0
+
+--echo #
+--echo # Mixed IPv4 and IPv6 addresses
+--echo #
+--exec $MYSQL_RESOLVEIP 255.255.255.255 ::
+
+--echo #
+--echo # Mixed IP address and hostname
+--echo #
+--exec $MYSQL_RESOLVEIP -s 127.0.0.1 localhost | sed 's/.*/REPLACED/'
+
+--echo #
+--echo # Invalid hostname
+--echo #
+--exec $MYSQL_RESOLVEIP nonexistent.invalid 2>&1 | sed "s|.*Unable to find hostid for 'nonexistent.invalid': .*|resolveip: Unable to find hostid for 'nonexistent.invalid': NAME_RESOLUTION_ERROR|"
+
+--echo #
+--echo # Invalid address mixed with valid address
+--echo #
+--exec $MYSQL_RESOLVEIP 255.255.255.255 nonexistent.invalid 2>&1 | sed "s|.*Unable to find hostid for 'nonexistent.invalid': .*|resolveip: Unable to find hostid for 'nonexistent.invalid': NAME_RESOLUTION_ERROR|"
+
+--echo #
+--echo # End of 13.0 tests
+--echo #
