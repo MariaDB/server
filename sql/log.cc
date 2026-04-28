@@ -7917,6 +7917,18 @@ bool THD::binlog_write_table_maps()
                                  variables.option_bits & OPTION_GTID_BEGIN))
     DBUG_RETURN(1);
 
+  /*
+    When binlog_sequential_table_ids is ON, assign 1-based sequential IDs
+    to each table's Table_map event within this statement group.  This
+    replaces the default TABLE_SHARE::table_map_id (which can be large
+    and sparse) with compact IDs (1, 2, 3, ...) enabling O(1) array
+    lookup on the slave instead of hash lookup.  The counter resets to
+    1 at each call to binlog_write_table_maps(), i.e. per statement.
+  */
+  bool use_sequential= variables.binlog_sequential_table_ids;
+  if (use_sequential)
+    binlog_sequential_table_id_counter= 1;
+
   for (MYSQL_LOCK **cur_lock= locks ; cur_lock < locks_end ; cur_lock++)
   {
     TABLE **const end_ptr= (*cur_lock)->table + (*cur_lock)->table_count;
@@ -7927,6 +7939,16 @@ bool THD::binlog_write_table_maps()
       TABLE *table= *table_ptr;
       if (table->current_lock != F_WRLCK || ! table->file->row_logging)
         continue;
+      /*
+        Store the chosen ID in binlog_sequential_id so that
+        write_table_map() and prepare_pending_rows_event() can
+        use it uniformly without needing to branch on the mode.
+      */
+      if (use_sequential)
+        table->binlog_sequential_id=
+          (ulonglong) binlog_sequential_table_id_counter++;
+      else
+        table->binlog_sequential_id= table->s->table_map_id;
       if (mysql_bin_log.write_table_map(this, table))
         DBUG_RETURN(1);
       if (table->restore_row_logging)
@@ -7966,18 +7988,22 @@ bool MYSQL_BIN_LOG::write_table_map(THD *thd, TABLE *table)
   DBUG_ENTER("THD::binlog_write_table_map");
   DBUG_PRINT("enter", ("table: %p  (%s: #%llu)",
                        table, table->s->table_name.str,
-                       table->s->table_map_id));
+                       table->binlog_sequential_id));
 
-  /* Pre-conditions */
-  DBUG_ASSERT((table->s->table_map_id & MAX_TABLE_MAP_ID) != UINT32_MAX &&
-              (table->s->table_map_id & MAX_TABLE_MAP_ID) != 0);
+  /*
+    Pre-condition: binlog_sequential_id was set by
+    binlog_write_table_maps() — either to a 1-based sequential
+    counter or to the original table_map_id.
+  */
+  DBUG_ASSERT(table->binlog_sequential_id != UINT32_MAX);
 
   /* Ensure that all events in a GTID group are in the same cache */
   if (thd->variables.option_bits & OPTION_GTID_BEGIN)
     is_transactional= 1;
 
+  /* Use binlog_sequential_id as the table_id in the Table_map event */
   Table_map_log_event
-    the_event(thd, table, table->s->table_map_id, is_transactional);
+    the_event(thd, table, table->binlog_sequential_id, is_transactional);
 
   binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
   binlog_cache_data *cache_data= (cache_mngr->
@@ -8251,8 +8277,12 @@ Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
                                       Rows_event_factory event_factory)
 {
   DBUG_ENTER("MYSQL_BIN_LOG::prepare_pending_rows_event");
-  /* Pre-conditions */
-  DBUG_ASSERT(table->s->table_map_id != ~0UL);
+  /*
+    The table_id used in Rows events must match the one written in
+    the preceding Table_map event (binlog_sequential_id), so that
+    the slave can correlate them.
+  */
+  DBUG_ASSERT(table->binlog_sequential_id != UINT32_MAX);
 
   /*
     There is no good place to set up the transactional data, so we
@@ -8275,14 +8305,14 @@ Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
   */
   if (!pending ||
       pending->server_id != serv_id ||
-      pending->get_table_id() != table->s->table_map_id ||
+      pending->get_table_id() != table->binlog_sequential_id ||
       pending->get_general_type_code() != event_factory.type_code ||
       pending->get_data_size() + needed > opt_binlog_rows_event_max_size ||
       pending->read_write_bitmaps_cmp(table) == FALSE)
   {
     /* Create a new RowsEventT... */
     Rows_log_event* const
-            ev= event_factory.create(thd, table, table->s->table_map_id,
+            ev= event_factory.create(thd, table, table->binlog_sequential_id,
                                      is_transactional);
     if (unlikely(!ev))
       DBUG_RETURN(NULL);
@@ -8379,6 +8409,14 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, binlog_cache_data *cache_data,
   Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone, cache_type,
                             LOG_EVENT_SUPPRESS_USE_F, is_transactional,
                             commit_id, has_xid, is_ro_1pc);
+
+  /*
+    Signal to the slave that this GTID group uses sequential table IDs,
+    so the slave can use O(1) array-based table lookup instead of hash.
+  */
+  if (thd->variables.binlog_sequential_table_ids)
+    gtid_event.flags_extra|= Gtid_log_event::FL_EXTRA_SEQUENTIAL_TABLE_IDS;
+
   /*
     Check that any binlogging during DDL recovery preserves the FL_DLL flag
     on the GTID event.

@@ -3294,6 +3294,12 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
 
   rgi->gtid_ev_flags_extra= flags_extra;
   rgi->gtid_ev_sa_seq_no= sa_seq_no;
+  /*
+    If the master wrote sequential table IDs for this GTID group,
+    enable array-based O(1) table lookup for the upcoming Rows events.
+  */
+  rgi->m_use_sequential_table_ids=
+    (flags_extra & FL_EXTRA_SEQUENTIAL_TABLE_IDS) != 0;
   thd->reset_for_next_command();
 
   if (opt_gtid_strict_mode && opt_bin_log && opt_log_slave_updates)
@@ -5277,6 +5283,41 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         continue;
       rgi->m_table_map.set_table(ptr->table_id, ptr->table);
       /*
+        When sequential table IDs are enabled, also populate a flat
+        array for O(1) lookup in Rows_log_event::do_apply_event().
+        The hash map is still populated for fallback and other code paths.
+      */
+      if (rgi->m_use_sequential_table_ids &&
+          ptr->table_id > 0)
+      {
+        /* Convert 1-based table_id to 0-based array index */
+        uint idx= (uint)(ptr->table_id - 1);
+        if (idx >= rgi->m_table_array_size)
+        {
+          uint new_size= idx + 1;
+          /*
+            MY_ALLOW_ZERO_PTR is required here because m_table_array
+            starts as NULL.  Without it, my_realloc() dereferences the
+            NULL pointer via USER_TO_HEADER(old_point) before checking,
+            causing a crash on the first replication event that uses
+            sequential table IDs.
+            MY_ZEROFILL ensures any new slots beyond the old size are
+            initialized to NULL.
+          */
+          TABLE **new_arr= (TABLE**) my_realloc(
+            PSI_INSTRUMENT_ME, rgi->m_table_array,
+            new_size * sizeof(TABLE*),
+            MYF(MY_WME | MY_ALLOW_ZERO_PTR | MY_ZEROFILL));
+          if (new_arr)
+          {
+            rgi->m_table_array= new_arr;
+            rgi->m_table_array_size= new_size;
+          }
+        }
+        if (idx < rgi->m_table_array_size)
+          rgi->m_table_array[idx]= ptr->table;
+      }
+      /*
         Following is passing flag about triggers on the server. The problem was
         to pass it between table map event and row event. I do it via extended
         TABLE_LIST (RPL_TABLE_LIST) but row event uses only TABLE so I need to
@@ -5298,7 +5339,22 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
   }
 
-  table= m_table= rgi->m_table_map.get_table(m_table_id);
+  /*
+    When sequential table IDs are active, use O(1) direct array
+    indexing instead of hash lookup.  Fall back to the hash map for
+    non-sequential events or if the ID is out of the array's range
+    (defensive — should not happen with well-formed binlog).
+  */
+  if (rgi->m_use_sequential_table_ids &&
+      m_table_id > 0 &&
+      m_table_id <= rgi->m_table_array_size)
+  {
+    table= m_table= rgi->m_table_array[m_table_id - 1];
+  }
+  else
+  {
+    table= m_table= rgi->m_table_map.get_table(m_table_id);
+  }
 
   DBUG_PRINT("debug", ("m_table:%p, m_table_id: %llu%s",
                        m_table, m_table_id,
