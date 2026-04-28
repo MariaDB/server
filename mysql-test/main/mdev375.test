@@ -24,8 +24,13 @@ SELECT 1;
 --connect (con2,localhost,root,,)
 SELECT 2;
 --disable_query_log
---error ER_CON_COUNT_ERROR
+--disable_result_log
+# CR_SERVER_LOST (2013) is accepted because on macOS the client may
+# fail to read the ER_CON_COUNT_ERROR packet before the server closes
+# the rejected connection.
+--error ER_CON_COUNT_ERROR, 2013
 --connect (con3,localhost,root,,)
+--enable_result_log
 --enable_query_log
 
 --connection default
