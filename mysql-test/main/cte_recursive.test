@@ -3212,6 +3212,8 @@ show create table t2;
 --eval insert ignore into t2 $query;
 drop table t2;
 set @@sql_mode="";
+# Rows with identical (level, mid) due to overflow have non-deterministic order
+--sorted_result
 --eval $query
 --eval create table t2 as $query;
 show create table t2;

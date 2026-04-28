@@ -32,6 +32,7 @@ class ha_heap final : public handler
   key_map btree_keys;
   /* number of records changed since last statistics update */
   ulong   records_changed;
+  ulong   saved_current_record;  /* for remember_rnd_pos() / restart_rnd_next() */
   uint    key_stat_version;
   my_bool internal_table;
 public:
@@ -47,11 +48,12 @@ public:
   enum row_type get_row_type() const override { return ROW_TYPE_FIXED; }
   ulonglong table_flags() const override
   {
-    return (HA_FAST_KEY_READ | HA_NO_BLOBS | HA_NULL_IN_KEY |
+    return (HA_FAST_KEY_READ | HA_NULL_IN_KEY |
             HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
             HA_CAN_SQL_HANDLER | HA_CAN_ONLINE_BACKUPS |
             HA_REC_NOT_IN_SEQ | HA_CAN_INSERT_DELAYED | HA_NO_TRANSACTIONS |
-            HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT | HA_CAN_HASH_KEYS);
+            HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT | HA_CAN_HASH_KEYS |
+            HA_CAN_GEOMETRY);
   }
   ulong index_flags(uint inx, uint part, bool all_parts) const override
   {
@@ -94,6 +96,8 @@ public:
   int rnd_next(uchar *buf) override;
   int rnd_pos(uchar * buf, uchar *pos) override;
   void position(const uchar *record) override;
+  int remember_rnd_pos() override;
+  int restart_rnd_next(uchar *buf) override;
   int can_continue_handler_scan() override;
   int info(uint) override;
   int extra(enum ha_extra_function operation) override;
@@ -122,4 +126,12 @@ public:
   int find_unique_row(uchar *record, uint unique_idx) override;
 private:
   void update_key_stats();
+  void materialize_heap_key_if_needed(uint key_index, const uchar *&key);
+  void rebuild_key_from_group_buff(HP_KEYDEF *keydef, const uchar *&key,
+                                   uint active_key_index);
+#ifdef HEAP_UNIT_TESTS
+  friend void test_rebuild_key_from_group_buff(ha_heap *, TABLE *, HP_INFO *,
+                                    HP_KEYDEF *, const uchar *, uint,
+                                    const uchar **);
+#endif
 };

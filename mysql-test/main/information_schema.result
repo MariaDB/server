@@ -709,7 +709,7 @@ select TABLE_NAME,TABLE_TYPE,ENGINE
 from information_schema.tables
 where table_schema='information_schema' limit 2;
 TABLE_NAME	TABLE_TYPE	ENGINE
-ALL_PLUGINS	SYSTEM VIEW	Aria
+ALL_PLUGINS	SYSTEM VIEW	MEMORY
 APPLICABLE_ROLES	SYSTEM VIEW	MEMORY
 show tables from information_schema like "T%";
 Tables_in_information_schema (T%)

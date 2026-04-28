@@ -1,0 +1,65 @@
+--source include/have_geometry.inc
+
+--echo #
+--echo # Test GEOMETRY columns in MEMORY tables
+--echo # Reproduces blob data corruption during INSERT...SELECT doublings
+--echo #
+
+set @save_max_heap_table_size= @@max_heap_table_size;
+set max_heap_table_size= 128*1024*1024;
+
+create table t1 (c1 int, c2 geometry not null) engine=MEMORY;
+
+--echo # Verify table is using MEMORY engine
+select engine from information_schema.tables
+  where table_schema=database() and table_name='t1';
+
+INSERT INTO t1 VALUES (1, ST_GeomFromText('LineString(2 2, 150 150)'));
+INSERT INTO t1 VALUES (2, ST_GeomFromText('LineString(3 3, 160 160)'));
+INSERT INTO t1 VALUES (3, ST_GeomFromText('LineString(4 4, 170 170)'));
+INSERT INTO t1 VALUES (4, ST_GeomFromText('LineString(5 5, 180 180)'));
+INSERT INTO t1 VALUES (5, ST_GeomFromText('LineString(6 6, 190 190)'));
+INSERT INTO t1 VALUES (6, ST_GeomFromText('LineString(7 7, 200 200)'));
+INSERT INTO t1 VALUES (7, ST_GeomFromText('LineString(8 8, 210 210)'));
+
+--echo # 7 rows, all valid
+select count(*) from t1;
+select count(*) as null_count from t1 where ST_AsText(c2) is null;
+
+--echo # Doublings 1-8: no corruption expected
+--let $i= 8
+--disable_query_log
+while ($i)
+{
+  insert into t1 select * from t1;
+  --dec $i
+}
+--enable_query_log
+select count(*) as 'expect 1792' from t1;
+select count(*) as 'expect 0' from t1 where ST_AsText(c2) is null;
+
+--echo # Doubling 9
+insert into t1 select * from t1;
+select count(*) as 'expect 3584' from t1;
+select count(*) as 'expect 0' from t1 where ST_AsText(c2) is null;
+
+--echo # Doubling 10
+insert into t1 select * from t1;
+select count(*) as 'expect 7168' from t1;
+select count(*) as 'expect 0' from t1 where ST_AsText(c2) is null;
+
+--echo # Doubling 11
+insert into t1 select * from t1;
+select count(*) as 'expect 14336' from t1;
+select count(*) as 'expect 0' from t1 where ST_AsText(c2) is null;
+
+--echo # Verify all geometry values present with correct counts
+select ST_AsText(c2) as geom, count(*) as cnt from t1
+  group by geom order by geom;
+
+--echo # MBRWithin check
+set @g1 = ST_GeomFromText('Polygon((0 0,0 200,200 200,200 0,0 0))');
+select count(*) as 'expect 12288' from t1 where MBRWithin(t1.c2, @g1);
+
+drop table t1;
+set max_heap_table_size= @save_max_heap_table_size;
