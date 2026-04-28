@@ -60,43 +60,34 @@ typedef struct {
 #define PTR(V)      (LF_SLIST *)((V) & (~(intptr)1))
 #define DELETED(V)  ((V) & 1)
 
-/** walk the list, searching for an element or invoking a callback
+/** walk the list, searching for an element
 
     Search for hashnr/key/keylen in the list starting from 'head' and
     position the cursor. The list is ORDER BY hashnr, key
 
     @param head         start walking the list from this node
-    @param cs           charset for comparing keys, NULL if callback is used
+    @param cs           charset for comparing keys
     @param hashnr       hash number to search for
-    @param key          key to search for OR data for the callback
-    @param keylen       length of the key to compare, 0 if callback is used
+    @param key          key to search for
+    @param keylen       length of the key to compare
     @param cursor       for returning the found element
     @param pins         see lf_alloc-pin.c
-    @param callback     callback action, invoked for every element
 
   @note
-    cursor is positioned in either case
+    cursor is positioned
     pins[0..2] are used, they are NOT removed on return
-    callback might see some elements twice (because of retries)
 
-  @return
-    if find: 0 - not found
-             1 - found
-    if callback:
-             0 - ok
-             1 - error (callbck returned 1)
+  @retval 0  not found
+  @retval 1  found
 */
 static int l_find(LF_SLIST **head, CHARSET_INFO *cs, uint32 hashnr,
-                 const uchar *key, size_t keylen, CURSOR *cursor, LF_PINS *pins,
-                 my_hash_walk_action callback)
+                  const uchar *key, size_t keylen,
+                  CURSOR *cursor, LF_PINS *pins) noexcept
 {
   uint32       cur_hashnr;
   const uchar  *cur_key;
   size_t       cur_keylen;
   intptr       link;
-
-  DBUG_ASSERT(!cs || !callback);        /* should not be set both */
-  DBUG_ASSERT(!keylen || !callback);    /* should not be set both */
 
 retry:
   cursor->prev= (intptr *) my_assume_aligned<sizeof(intptr)>(head);
@@ -129,12 +120,7 @@ retry:
 
     if (!DELETED(link))
     {
-      if (unlikely(callback))
-      {
-        if (cur_hashnr & 1 && callback(cursor->curr + 1, (void*)key))
-          return 1;
-      }
-      else if (cur_hashnr >= hashnr)
+      if (cur_hashnr >= hashnr)
       {
         int r= 1;
         if (cur_hashnr > hashnr ||
@@ -163,6 +149,79 @@ retry:
   }
 }
 
+/** walk the list, invoking a callback
+
+    Search for hashnr/key/keylen in the list starting from 'head' and
+    position the cursor. The list is ORDER BY hashnr, key
+
+    @param head         start walking the list from this node
+    @param argument     data for the callback
+    @param pins         see lf_alloc-pin.c
+    @param callback     callback action, invoked for every element
+
+  @note
+    cursor is positioned
+    pins[0..2] are used, they are NOT removed on return
+    callback might see some elements twice (because of retries)
+
+  @retval 0 ok
+  @retval 1 error (callback returned nonzero)
+*/
+static inline int l_find(LF_SLIST **head, void *argument, LF_PINS *pins,
+                         my_hash_walk_action callback) noexcept
+{
+  CURSOR cursor;
+  intptr       link;
+
+retry:
+  cursor.prev= (intptr *) my_assume_aligned<sizeof(intptr)>(head);
+  do { /* PTR() isn't necessary below, head is a dummy node */
+    cursor.curr= my_assume_aligned<sizeof(LF_SLIST *)>((LF_SLIST *)(*cursor.prev));
+    lf_pin(pins, 1, cursor.curr);
+  } while (my_atomic_loadptr(
+           (void **)my_assume_aligned<sizeof(LF_SLIST *)>(cursor.prev))
+             != cursor.curr && LF_BACKOFF());
+  for (;;)
+  {
+    if (unlikely(!cursor.curr))
+      return 0; /* end of the list */
+
+    uint32 cur_hashnr= cursor.curr->hashnr;
+
+    do {
+      /* attempting to my_assume_aligned onlink below broke the implementation */
+      link= (intptr) my_atomic_loadptr_explicit((void **) &cursor.curr->link,
+                                                MY_MEMORY_ORDER_RELAXED);
+      cursor.next= my_assume_aligned<sizeof(LF_SLIST *)>(PTR(link));
+      lf_pin(pins, 0, cursor.next);
+    } while (link != (intptr) my_atomic_loadptr((void *volatile *) &cursor.curr->link)
+             && LF_BACKOFF());
+
+    if (!DELETED(link))
+    {
+      if (cur_hashnr & 1 && callback(cursor.curr + 1, argument))
+        return 1;
+      cursor.prev= &(cursor.curr->link);
+      if (!(cur_hashnr & 1)) /* dummy node */
+        head= (LF_SLIST **)cursor.prev;
+      lf_pin(pins, 2, cursor.curr);
+    }
+    else
+    {
+      /*
+        we found a deleted node - be nice, help the other thread
+        and remove this deleted node
+      */
+      if (my_atomic_casptr((void **) cursor.prev,
+                           (void **) &cursor.curr, cursor.next) && LF_BACKOFF())
+        lf_alloc_free(pins, cursor.curr);
+      else
+        goto retry;
+    }
+    cursor.curr= cursor.next;
+    lf_pin(pins, 1, cursor.curr);
+  }
+}
 
 /* static l_find is the only user my_assume_aligned, keep the rest as c scoped */
 C_MODE_START
@@ -181,7 +240,7 @@ C_MODE_START
     if there're nodes with the same key value, a new node is added before them.
 */
 static LF_SLIST *l_insert(LF_SLIST **head, CHARSET_INFO *cs,
-                         LF_SLIST *node, LF_PINS *pins, uint flags)
+                          LF_SLIST *node, LF_PINS *pins, uint flags) noexcept
 {
   CURSOR         cursor;
   int            res;
@@ -189,7 +248,7 @@ static LF_SLIST *l_insert(LF_SLIST **head, CHARSET_INFO *cs,
   for (;;)
   {
     if (l_find(head, cs, node->hashnr, node->key, node->keylen,
-              &cursor, pins, 0) &&
+               &cursor, pins) &&
         (flags & LF_HASH_UNIQUE))
     {
       res= 0; /* duplicate found */
@@ -233,14 +292,14 @@ static LF_SLIST *l_insert(LF_SLIST **head, CHARSET_INFO *cs,
     it uses pins[0..2], on return all pins are removed.
 */
 static int l_delete(LF_SLIST **head, CHARSET_INFO *cs, uint32 hashnr,
-                   const uchar *key, uint keylen, LF_PINS *pins)
+                    const uchar *key, uint keylen, LF_PINS *pins) noexcept
 {
   CURSOR cursor;
   int res;
 
   for (;;)
   {
-    if (!l_find(head, cs, hashnr, key, keylen, &cursor, pins, 0))
+    if (!l_find(head, cs, hashnr, key, keylen, &cursor, pins))
     {
       res= 1; /* not found */
       break;
@@ -264,7 +323,7 @@ static int l_delete(LF_SLIST **head, CHARSET_INFO *cs, uint32 hashnr,
             (to ensure the number of "set DELETED flag" actions
             is equal to the number of "remove from the list" actions)
           */
-          l_find(head, cs, hashnr, key, keylen, &cursor, pins, 0);
+          l_find(head, cs, hashnr, key, keylen, &cursor, pins);
         }
         res= 0;
         break;
@@ -291,11 +350,11 @@ static int l_delete(LF_SLIST **head, CHARSET_INFO *cs, uint32 hashnr,
     all other pins are removed.
 */
 static LF_SLIST *l_search(LF_SLIST **head, CHARSET_INFO *cs,
-                         uint32 hashnr, const uchar *key, uint keylen,
-                         LF_PINS *pins)
+                          uint32 hashnr, const uchar *key, uint keylen,
+                          LF_PINS *pins) noexcept
 {
   CURSOR cursor;
-  int res= l_find(head, cs, hashnr, key, keylen, &cursor, pins, 0);
+  int res= l_find(head, cs, hashnr, key, keylen, &cursor, pins);
   if (res)
     lf_pin(pins, 2, cursor.curr);
   else
@@ -517,7 +576,6 @@ void *lf_hash_search_using_hash_value(LF_HASH *hash, LF_PINS *pins,
 int lf_hash_iterate(LF_HASH *hash, LF_PINS *pins,
                     my_hash_walk_action action, void *argument)
 {
-  CURSOR cursor;
   uint bucket= 0;
   int res;
   LF_SLIST **el;
@@ -528,7 +586,7 @@ int lf_hash_iterate(LF_HASH *hash, LF_PINS *pins,
   if (*el == NULL && unlikely(initialize_bucket(hash, el, bucket, pins)))
     return 0; /* if there's no bucket==0, the hash is empty */
 
-  res= l_find(el, 0, 0, (uchar*)argument, 0, &cursor, pins, action);
+  res= l_find(el, argument, pins, action);
 
   lf_unpin(pins, 2);
   lf_unpin(pins, 1);
