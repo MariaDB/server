@@ -185,6 +185,63 @@ SET GLOBAL aria_max_sort_file_size= @max_size.save;
 # End of 10.4 test
 #
 #
+# MDEV-33660 Add warning when setting AUTO_INCREMENT lower than max value
+#
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY) ENGINE=Aria;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+# Attempt to set AUTO_INCREMENT to a lower value
+ALTER TABLE t1 AUTO_INCREMENT=3;
+Warnings:
+Warning	1088	Can not set AUTO_INCREMENT to 3 which is lower than the next AUTO_INCREMENT value of 6
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1088	Can not set AUTO_INCREMENT to 3 which is lower than the next AUTO_INCREMENT value of 6
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`id`)
+) ENGINE=Aria AUTO_INCREMENT=6 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+# Verify that next insert uses the correct value
+INSERT INTO t1 VALUES (NULL);
+SELECT * FROM t1;
+id
+1
+2
+3
+4
+5
+6
+DROP TABLE t1;
+# Test with CREATE TABLE and explicit AUTO_INCREMENT value
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY) AUTO_INCREMENT=3 ENGINE=Aria;
+INSERT INTO t1 VALUES (NULL), (NULL);
+SELECT * FROM t1;
+id
+3
+4
+# Attempt to set AUTO_INCREMENT to a lower value
+ALTER TABLE t1 AUTO_INCREMENT=3;
+Warnings:
+Warning	1088	Can not set AUTO_INCREMENT to 3 which is lower than the next AUTO_INCREMENT value of 5
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1088	Can not set AUTO_INCREMENT to 3 which is lower than the next AUTO_INCREMENT value of 5
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`id`)
+) ENGINE=Aria AUTO_INCREMENT=5 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+# Verify that next insert uses the correct value
+INSERT INTO t1 VALUES (NULL);
+SELECT * FROM t1;
+id
+3
+4
+5
+DROP TABLE t1;
+#
 # MDEV-25505 Assertion `old_flags == ((my_flags & 0x10000U) ? 1 : 0)'
 # failed in my_realloc
 #

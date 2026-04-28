@@ -104,22 +104,30 @@ select table_schema, table_name, auto_increment from information_schema.tables w
 table_schema	table_name	auto_increment
 test	t	1000
 alter table t auto_increment = 1;
+Warnings:
+Warning	1088	Can not set AUTO_INCREMENT to 1 which is lower than the next AUTO_INCREMENT value of 124
 include/rpl_restart_server.inc [server_number=1]
 select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
 table_schema	table_name	auto_increment
 test	t	124
 alter table t drop primary key, add key (i), auto_increment = 1;
+Warnings:
+Warning	1088	Can not set AUTO_INCREMENT to 1 which is lower than the next AUTO_INCREMENT value of 124
 include/rpl_restart_server.inc [server_number=1]
 select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
 table_schema	table_name	auto_increment
 test	t	124
 alter table t add key (j), auto_increment = 1;
+Warnings:
+Warning	1088	Can not set AUTO_INCREMENT to 1 which is lower than the next AUTO_INCREMENT value of 124
 include/rpl_restart_server.inc [server_number=1]
 select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
 table_schema	table_name	auto_increment
 test	t	124
 alter table t modify i int;
 alter table t add column (k int auto_increment), add key(k), auto_increment=15;
+Warnings:
+Warning	1088	Can not set AUTO_INCREMENT to 15 which is lower than the next AUTO_INCREMENT value of 16
 include/rpl_restart_server.inc [server_number=1]
 select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
 table_schema	table_name	auto_increment
