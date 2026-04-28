@@ -158,7 +158,7 @@ Note	1003	select coalesce(1) AS `COALESCE(1)`,coalesce(1.0) AS `COALESCE(1.0)`,c
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `COALESCE(1)` int(1) NOT NULL,
+  `COALESCE(1)` int(2) NOT NULL,
   `COALESCE(1.0)` decimal(2,1) NOT NULL,
   `COALESCE('a')` varchar(1) NOT NULL,
   `COALESCE(1,1.0)` decimal(2,1) NOT NULL,

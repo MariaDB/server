@@ -5052,7 +5052,7 @@ Warning	1264	Out of range value for column 'mid' at row 5
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `level` int(1) DEFAULT NULL,
+  `level` int(2) DEFAULT NULL,
   `id` int(11) DEFAULT NULL,
   `mid` int(11) DEFAULT NULL,
   `name` text DEFAULT NULL,
@@ -5133,7 +5133,7 @@ Warning	1264	Out of range value for column 'mid' at row 5
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `level` int(1) DEFAULT NULL,
+  `level` int(2) DEFAULT NULL,
   `id` int(11) DEFAULT NULL,
   `mid` int(11) DEFAULT NULL,
   `name` text DEFAULT NULL,

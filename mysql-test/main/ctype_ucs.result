@@ -2211,7 +2211,7 @@ create table t1 as select concat(least(1,2)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(1) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `c1` varchar(2) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 select hex(concat(greatest(1,2)));
@@ -2221,7 +2221,7 @@ create table t1 as select concat(greatest(1,2)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(1) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `c1` varchar(2) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 select hex(concat(case when 11 then 22 else 33 end));
@@ -2231,7 +2231,7 @@ create table t1 as select concat(case when 11 then 22 else 33 end) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(2) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `c1` varchar(3) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 select hex(concat(coalesce(1,2)));
@@ -2241,7 +2241,7 @@ create table t1 as select concat(coalesce(1,2)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(1) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `c1` varchar(2) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 select hex(concat_ws(1,2,3));
@@ -2672,7 +2672,7 @@ create table t1 as select concat(ifnull(1,1)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(1) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `c1` varchar(2) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 select hex(concat(ifnull(1.1,1.1)));
@@ -2712,7 +2712,7 @@ create table t1 as select concat(if(1,1,1)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(1) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `c1` varchar(2) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 select hex(concat(nullif(1,2)));
