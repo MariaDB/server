@@ -1,0 +1,57 @@
+--source include/have_mariabackup.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39468: mariabackup log copy race under write load
+--echo #
+
+# Use a moderately small redo log to expose the race without causing the log
+# to wrap around faster than mariabackup can read it.
+SET GLOBAL innodb_log_file_size= 10485760;
+
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY, v LONGBLOB)
+  ENGINE=InnoDB;
+
+DELIMITER //;
+CREATE PROCEDURE fill_t1(IN n INT)
+BEGIN
+  DECLARE i INT DEFAULT 0;
+  WHILE i < n DO
+    INSERT INTO t1(v) VALUES (REPEAT('x', 2048));
+    SET i = i + 1;
+  END WHILE;
+END//
+DELIMITER ;//
+
+# Open a second connection that writes continuously while mariabackup runs.
+connect(writer, localhost, root,,);
+--send CALL fill_t1(5000)
+
+connection default;
+# Give the writer a moment to generate LSN pressure before backup starts.
+--sleep 1
+
+let $targetdir= $MYSQLTEST_VARDIR/tmp/mdev39468;
+--mkdir $targetdir
+
+--echo # Taking backup ...
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+
+--file_exists $targetdir/xtrabackup_checkpoints
+
+--echo # Preparing backup ...
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --prepare --target-dir=$targetdir;
+--enable_result_log
+
+# Collect the background writer.
+connection writer;
+--reap
+disconnect writer;
+connection default;
+
+--source include/restart_and_restore.inc
+DROP PROCEDURE fill_t1;
+DROP TABLE t1;

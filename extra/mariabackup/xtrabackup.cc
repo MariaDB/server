@@ -4890,7 +4890,6 @@ static bool backup_wait_for_commit_lsn()
 
   recv_sys.lsn= last_lsn;
   ut_ad(metadata_to_lsn);
-  metadata_last_lsn= lsn;
 
   last_lsn= backup_wait_for_lsn_low(lsn);
 
