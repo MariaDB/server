@@ -527,10 +527,13 @@ set global max_connections= 10;
 --let $n= 12
 while ($n)
 {
-  --error 0,ER_CON_COUNT_ERROR
+  # CR_SERVER_LOST (2013) is accepted because on macOS the client may
+  # fail to read the ER_CON_COUNT_ERROR packet before the server closes
+  # the rejected connection.
+  --error 0, ER_CON_COUNT_ERROR, 2013
   --connect (con$n,localhost,root)
   if ($mysql_errno) {
-    --echo # ERROR $mysql_errno
+    --echo # ERROR
   }
   --dec $n
 }
