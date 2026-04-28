@@ -1,4 +1,5 @@
 /* Copyright (C) 2013-2025 Codership Oy <info@codership.com>
+   Copyright (C) 2025-2026 MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -111,6 +112,8 @@ extern bool wsrep_gtid_domain_id_update      UPDATE_ARGS;
 
 extern bool wsrep_mode_check                 CHECK_ARGS;
 extern bool wsrep_forced_binlog_format_check CHECK_ARGS;
+
+extern void wsrep_sst_tmp_dir_check(void);
 #else  /* WITH_WSREP */
 
 #define wsrep_provider_init(X)

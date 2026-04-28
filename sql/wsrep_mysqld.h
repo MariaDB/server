@@ -1,4 +1,5 @@
 /* Copyright 2008-2025 Codership Oy <http://www.codership.com>
+   Copyright 2025-2026 MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -92,6 +93,8 @@ extern uint32      wsrep_gtid_domain_id;
 extern std::atomic <bool > wsrep_thread_create_failed;
 extern ulonglong   wsrep_mode;
 extern uint        wsrep_applier_retry_count;
+extern char *wsrep_sst_tmp_dir_real;
+extern const char *wsrep_sst_tmp_dir;
 
 enum enum_wsrep_reject_types {
   WSREP_REJECT_NONE,    /* nothing rejected */
