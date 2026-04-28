@@ -1,0 +1,30 @@
+#
+# MDEV-39468: mariabackup log copy race under write load
+#
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY, v LONGBLOB) ENGINE=InnoDB;
+CREATE TABLE t2 AS SELECT REPEAT('x', 2048) AS d;
+CREATE PROCEDURE fill_t1(IN n INT)
+BEGIN
+DECLARE start_time DATETIME;
+SET start_time = NOW();
+INSERT INTO t2 SELECT d FROM t2;
+WHILE ROW_COUNT() > 0 AND TIMESTAMPDIFF(SECOND, start_time, NOW()) < n DO
+INSERT INTO t1(v) SELECT d FROM t2;
+END WHILE;
+END//
+connect writer, localhost, root,,;
+CALL fill_t1(30);
+connection default;
+# Taking backup ...
+TRUNCATE TABLE t2;
+# Preparing backup ...
+connection writer;
+disconnect writer;
+connection default;
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+DROP PROCEDURE fill_t1;
+DROP TABLE t1, t2;
+End of 10.11 tests.

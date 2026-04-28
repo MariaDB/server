@@ -1,0 +1,65 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39468: mariabackup log copy race under write load
+--echo #
+
+# innodb_log_file_size=96MB set via innodb_redo_log_large.opt
+
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY, v LONGBLOB) ENGINE=InnoDB;
+CREATE TABLE t2 AS SELECT REPEAT('x', 2048) AS d;
+
+DELIMITER //;
+CREATE PROCEDURE fill_t1(IN n INT)
+BEGIN
+  DECLARE start_time DATETIME;
+  SET start_time = NOW();
+  INSERT INTO t2 SELECT d FROM t2;
+  WHILE ROW_COUNT() > 0 AND TIMESTAMPDIFF(SECOND, start_time, NOW()) < n DO
+    INSERT INTO t1(v) SELECT d FROM t2;
+  END WHILE;
+END//
+DELIMITER ;//
+
+# Open a second connection that writes continuously while mariabackup runs.
+connect(writer, localhost, root,,);
+send CALL fill_t1(30);
+
+connection default;
+--sleep 2
+
+let $targetdir= $MYSQLTEST_VARDIR/tmp/innodb_redo_log_large;
+
+# Clean up from any previous run (e.g. when using --repeat)
+--error 0,1
+--rmdir $targetdir
+
+--mkdir $targetdir
+
+--echo # Taking backup ...
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+
+TRUNCATE TABLE t2;
+
+--file_exists $targetdir/xtrabackup_checkpoints
+
+--echo # Preparing backup ...
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --prepare --target-dir=$targetdir;
+--enable_result_log
+
+connection writer;
+reap;
+disconnect writer;
+connection default;
+
+--source include/restart_and_restore.inc
+DROP PROCEDURE fill_t1;
+DROP TABLE t1, t2;
+
+# Cleanup
+--rmdir $targetdir
+
+--echo End of 10.11 tests.
