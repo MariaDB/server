@@ -25,11 +25,13 @@
 #include <mysql/plugin_auth.h>
 #include <mysql/plugin.h>
 #include <mysqld_error.h>
+#include <mysql/service_thd.h>
 #include "scope.h"
-
+#include "my_bit.h"
 #include <cstring>
 
 typedef unsigned char uchar;
+typedef unsigned int parsec_iterations_t;
 constexpr size_t CHALLENGE_SCRAMBLE_LENGTH= 32;
 constexpr size_t CHALLENGE_SALT_LENGTH= 18;
 constexpr size_t ED25519_SIG_LENGTH= 64;
@@ -37,6 +39,42 @@ constexpr size_t ED25519_KEY_LENGTH= 32;
 constexpr size_t PBKDF2_HASH_LENGTH= ED25519_KEY_LENGTH;
 constexpr size_t CLIENT_RESPONSE_LENGTH= CHALLENGE_SCRAMBLE_LENGTH
                                          + ED25519_SIG_LENGTH;
+
+constexpr parsec_iterations_t ITER_FACTOR_BASE_VAL= 10u;
+constexpr parsec_iterations_t ITER_BASE_VAL= 1u << ITER_FACTOR_BASE_VAL;
+constexpr parsec_iterations_t PARSEC_ITERATIONS_MAX= 1u << 31;
+
+static inline uchar base62_to_uchar(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'Z') return c - 'A' + 10;
+    if (c >= 'a' && c <= 'z') return c - 'a' + 36;
+    return 255;
+}
+
+const char parsec_dig_vec_base62[] =
+  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+static void update_parsec_iterations(MYSQL_THD thd,
+              struct st_mysql_sys_var *var, void *var_ptr, const void *save)
+{
+  parsec_iterations_t iterations_user_input= *static_cast<const parsec_iterations_t *>(save);
+  parsec_iterations_t iterations= my_round_up_to_next_power(iterations_user_input);
+  if (iterations != iterations_user_input)
+    my_printf_error(ER_WRONG_VALUE_FOR_VAR, "parsec_iterations rounded up to %d",
+      ME_WARNING, iterations);
+  *static_cast<parsec_iterations_t*>(var_ptr)= iterations;
+}
+
+static MYSQL_THDVAR_UINT(iterations, PLUGIN_VAR_NOCMDOPT,
+       "Number of iterations to be used when generating the key corresponding to the password. "
+       "Will be rounded up to a power of two",
+       NULL, update_parsec_iterations, ITER_BASE_VAL, ITER_BASE_VAL,
+       PARSEC_ITERATIONS_MAX, 1);
+
+static struct st_mysql_sys_var* system_vars[] = {
+    MYSQL_SYSVAR(iterations),
+    NULL
+};
 
 constexpr size_t base64_length(size_t input_length)
 {
@@ -95,7 +133,7 @@ int compute_derived_key(const char* password, size_t pass_len,
 {
   assert(params->algorithm == 'P');
   int ret = PKCS5_PBKDF2_HMAC(password, (int)pass_len, params->salt,
-                              sizeof(params->salt), 1024 << params->iterations,
+                              sizeof(params->salt), ITER_BASE_VAL << params->iterations,
                               EVP_sha512(), PBKDF2_HASH_LENGTH, derived_key);
   if(ret == 0)
     return print_ssl_error();
@@ -174,9 +212,10 @@ int hash_password(const char *password, size_t password_length,
   auto stored= (Passwd_as_stored*)hash;
   assert(*hash_length >= sizeof(*stored) + 2); // it should fit the buffer
 
+  MYSQL_THD thd = get_current_thd();
   Passwd_in_memory memory;
   memory.algorithm= 'P';
-  memory.iterations= 0;
+  memory.iterations= my_bit_log2_uint32(THDVAR(thd, iterations)) - ITER_FACTOR_BASE_VAL;
   my_random_bytes(memory.salt, sizeof(memory.salt));
 
   uchar derived_key[PBKDF2_HASH_LENGTH];
@@ -187,7 +226,7 @@ int hash_password(const char *password, size_t password_length,
     return 1;
 
   stored->algorithm= memory.algorithm;
-  stored->iterations= memory.iterations + '0';
+  stored->iterations= parsec_dig_vec_base62[memory.iterations];
   my_base64_encode(memory.salt, sizeof(memory.salt), stored->salt);
   my_base64_encode(memory.pub_key, sizeof(memory.pub_key), stored->pub_key);
   stored->colon= stored->colon2= ':';
@@ -198,16 +237,19 @@ int hash_password(const char *password, size_t password_length,
   return 0;
 }
 
+
 static
 int digest_to_binary(const char *hash, size_t hash_length,
                     unsigned char *out, size_t *out_length)
 {
   auto stored= (Passwd_as_stored*)hash;
   auto memory= (Passwd_in_memory*)out;
+  const uchar ITER_MAX_VAL= parsec_dig_vec_base62[my_bit_log2_uint32(PARSEC_ITERATIONS_MAX) - ITER_FACTOR_BASE_VAL];
+  assert(ITER_MAX_VAL == 'L');
 
   if (hash_length != sizeof (*stored) || *out_length < sizeof(*memory) ||
       stored->algorithm != 'P' ||
-      stored->iterations < '0' || stored->iterations > '3' ||
+      stored->iterations < '0' || stored->iterations > ITER_MAX_VAL ||
       stored->colon != ':' || stored->colon2 != ':')
   {
     my_printf_error(ER_PASSWD_LENGTH, "Wrong ext-salt format", 0);
@@ -216,7 +258,8 @@ int digest_to_binary(const char *hash, size_t hash_length,
 
   *out_length = sizeof(*memory);
   memory->algorithm= stored->algorithm;
-  memory->iterations= stored->iterations - '0';
+
+  memory->iterations= base62_to_uchar(stored->iterations);
 
   static_assert(base64_length(CHALLENGE_SALT_LENGTH) == base64_length_raw(CHALLENGE_SALT_LENGTH),
                 "Salt is base64-aligned");
@@ -313,7 +356,7 @@ maria_declare_plugin(auth_parsec)
   NULL,
   0x0100,
   NULL,
-  NULL,
+  system_vars,
   "1.0",
   MariaDB_PLUGIN_MATURITY_GAMMA
 }

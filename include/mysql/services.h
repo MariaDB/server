@@ -32,6 +32,7 @@ extern "C" {
 #include <mysql/service_progress_report.h>
 #include <mysql/service_sha1.h>
 #include <mysql/service_sha2.h>
+#include <mysql/service_thd.h>
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_autoinc.h>
 #include <mysql/service_thd_error_context.h>
