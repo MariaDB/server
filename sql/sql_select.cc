@@ -32596,29 +32596,32 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
   // PROCEDURE unsupported here
 }
 
-
-void st_select_lex::print_hints(THD *thd,
-                                String *str)
+void st_select_lex::print_hints(THD *thd, String *str)
 {
+  if (!parent_lex->opt_hints_global)
+    return;
+
+  const bool is_view= parent_lex->sql_command == SQLCOM_CREATE_VIEW ||
+                      parent_lex->sql_command == SQLCOM_SHOW_CREATE;
   constexpr LEX_CSTRING header={STRING_WITH_LEN("/*+ ")};
   str->append(header);
   const uint32 len_before_hints= str->length();
 
   if (opt_hints_qb)
     opt_hints_qb->append_qb_hint(thd, str);
-
-  if (thd->lex->sql_command == SQLCOM_CREATE_VIEW ||
-      thd->lex->sql_command == SQLCOM_SHOW_CREATE)
+  if (this == parent_lex->unit.first_select() && !is_view)
   {
-    if (str->length() <= len_before_hints &&
-        opt_hints_qb && opt_hints_qb->get_parent())
-      opt_hints_qb->get_parent()->print(thd, str);
+    /*
+      For normal queries (not views creation/show) opt_hints_global will
+      print itself and all children recursively into the first select.
+      Global hints are not supported inside views, so it is safe to skip them
+    */
+    parent_lex->opt_hints_global->print(thd, str);
   }
-  else
+  if (is_view && opt_hints_qb)
   {
-    if (thd->lex->opt_hints_global &&
-        select_number == 1)  // toplevel SELECT
-      thd->lex->opt_hints_global->print(thd, str);
+    // For views print hints related to a QB right into the QB they target
+    opt_hints_qb->print(thd, str);
   }
 
   // If no hints were added, then rollback the previouly added header.

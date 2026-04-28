@@ -579,7 +579,6 @@ private:
     using OR2C::OR2C;
   };
 
-
   /*
     at_query_block_name_opt_table_name_list ::=
       @ query_block_name opt_table_name_list
@@ -592,7 +591,6 @@ private:
   public:
     using AND2::AND2;
   };
-
 
   /*
     table_level_hint_body:   @ query_block_name opt_table_name_list
@@ -619,8 +617,7 @@ private:
 
     bool resolve(Parse_context *pc) const;
   };
-
-
+  
   // index_level_hint_body ::= hint_param_table_ext opt_hint_param_index_list
   class Index_level_hint_body: public AND2<Parser,
                                            Hint_param_table_ext,
@@ -898,6 +895,93 @@ public:
              id == TokenID::keyword_JOIN_SUFFIX;
     }
   };
+
+  //
+  // Structures required for join order hints
+  //
+  //  table_name_ext ::= table_name opt_qb_name
+  class Table_name_ext: public AND2<Parser, Table_name, Opt_qb_name>
+  {
+  public:
+    using AND2::AND2;
+  };
+
+  class Table_name_ext_container: public List<Table_name_ext>
+  {
+  public:
+    Table_name_ext_container()
+    { }
+    bool add(Optimizer_hint_parser *p, Table_name_ext &&table);
+    size_t count() const { return elements; }
+  };
+
+  /*
+    table_name_ext_list ::= table_name_ext [ {, table_name_ext}... ]
+  */
+  class Table_name_ext_list: public LIST<Parser,
+                                         Table_name_ext_container,
+                                         Table_name_ext,
+                                         TokenID::tCOMMA, 0>
+  {
+    using LIST::LIST;
+  };
+
+  /*
+    at_query_block_name_table_name_ext_list ::= @ query_block_name table_name_ext_list
+  */
+  class At_query_block_name_table_name_ext_list: public AND2<
+                                                    Parser,
+                                                    At_query_block_name,
+                                                    Table_name_ext_list>
+  {
+  public:
+    using AND2::AND2;
+  };
+
+  class Table_level_hint_body_extended_container
+  {
+  public:
+    At_query_block_name m_qb_name;
+    Table_name_ext_list m_tables;
+
+    Table_level_hint_body_extended_container() = default;
+    Table_level_hint_body_extended_container(
+      At_query_block_name_table_name_ext_list &&src) :
+      m_qb_name(std::move(static_cast<At_query_block_name&>(src))),
+      m_tables(std::move(static_cast<Table_name_ext_list&>(src)))
+    {}
+    Table_level_hint_body_extended_container(Table_name_ext_list &&tables) :
+      m_tables(std::move(tables))
+    {}
+    Table_level_hint_body_extended_container &operator=(
+      At_query_block_name_table_name_ext_list &&src)
+    {
+      m_qb_name= std::move(static_cast<At_query_block_name&>(src));
+      m_tables= std::move(static_cast<Table_name_ext_list&>(src));
+      return *this;
+    }
+    Table_level_hint_body_extended_container &operator=(
+      Table_name_ext_list &&tables)
+    {
+      m_tables= std::move(tables);
+      return *this;
+    }
+    operator bool() const
+    {
+      return (bool) m_qb_name || (bool) m_tables;
+    }
+  };
+
+  class Table_level_hint_body_extended: public OR2C<
+                                        Parser,
+                                        Table_level_hint_body_extended_container,
+                                        At_query_block_name_table_name_ext_list,
+                                        Table_name_ext_list>
+  {
+  public:
+    using OR2C::OR2C;
+  };
+
   class Join_order_hint_type: public TokenChoice<Parser,
                                                  Join_order_hint_type_cond>
   {
@@ -930,7 +1014,7 @@ public:
   class Join_order_hint: public AND4<Parser,
                                    Join_order_hint_type,
                                    LParen,
-                                   Table_level_hint_body,
+                                   Table_level_hint_body_extended,
                                    RParen>,
                          public Printable_parser_rule
   {
@@ -949,7 +1033,9 @@ public:
     */
     List<Table_name_and_Qb> table_names;
   };
-
+  //
+  // End of structures required for join order hints
+  //
 
   /*
     hint ::=   index_level_hint

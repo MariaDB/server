@@ -307,6 +307,17 @@ Parser::Table_name_list_container::add(Optimizer_hint_parser *p,
 }
 
 
+bool Parser::Table_name_ext_container::add(Optimizer_hint_parser *p,
+                                           Table_name_ext &&elem)
+{
+  Table_name_ext *pe= (Table_name_ext*) p->m_thd->alloc(sizeof(*pe));
+  if (!pe)
+    return true;
+  *pe= std::move(elem);
+  return push_back(pe, p->m_thd->mem_root);
+}
+
+
 bool Parser::Hint_param_table_list_container::add(Optimizer_hint_parser *p,
                                                   Hint_param_table &&elem)
 {
@@ -1144,17 +1155,20 @@ bool Parser::Join_order_hint::resolve(Parse_context *pc)
 
   Opt_hints_qb *qb= nullptr;
   Lex_ident_sys qb_name;
-  if (const At_query_block_name_opt_table_name_list &at_qb_tab_list= *this)
+  const Table_level_hint_body_extended_container &body= *this;
+  if (body.m_qb_name)
   {
-    // this is @ query_block_name opt_table_name_list
-    qb_name= Query_block_name::to_ident_sys(pc->thd);
+    /*
+      This is @ query_block_name opt_table_name_ext_list,
+      for example JOIN_PREFIX(@q1 t3, t2, t2@subq2)
+    */
+    qb_name= static_cast<const Query_block_name&>(body.m_qb_name).to_ident_sys(pc->thd);
     qb= find_qb_hints(pc, qb_name, hint_type, true);
-    // Compose `tables_names` list for warnings and final hints resolving
-    const Opt_table_name_list &opt_table_name_list= at_qb_tab_list;
-    for (const Table_name &table : opt_table_name_list)
+    for (const Table_name_ext &table : body.m_tables)
     {
       Parser::Table_name_and_Qb *tbl_qb= new (pc->mem_root)
-        Parser::Table_name_and_Qb(table.to_ident_sys(pc->thd), Lex_ident_sys());
+        Parser::Table_name_and_Qb(table.Table_name::to_ident_sys(pc->thd),
+                                  table.Query_block_name::to_ident_sys(pc->thd));
       if (!tbl_qb)
         return true;
       table_names.push_back(tbl_qb, pc->mem_root);
@@ -1162,10 +1176,9 @@ bool Parser::Join_order_hint::resolve(Parse_context *pc)
   }
   else
   {
-    // this is opt_hint_param_table_list, query block name is not specified
+    // global QB name is not specified, for example JOIN_ORDER(t3, t2, t2@subq2)
     qb= find_qb_hints(pc, Lex_ident_sys(), hint_type, true);
-    const Opt_hint_param_table_list &opt_hint_param_table_list= *this;
-    for (const Hint_param_table &table : opt_hint_param_table_list)
+    for (const Table_name_ext &table : body.m_tables)
     {
       // e.g. JOIN_ORDER(t1@qb1, t2@qb2, t3)
       Parser::Table_name_and_Qb *tbl_qb=

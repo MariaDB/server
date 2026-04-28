@@ -1848,9 +1848,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	DERIVED	ten	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 SHOW CREATE VIEW v2;
 View	Create View	character_set_client	collation_connection
-v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select /*+ JOIN_ORDER(@`qb2` `twenty`,`ten`) */ `t`.`a` AS `a` from (select /*+ QB_NAME(`qb2`) */ `ten`.`a` AS `a` from (`ten` join `twenty`) where `ten`.`a` = `twenty`.`a` limit 1000) `t`	utf8mb3	utf8mb3_uca1400_ai_ci
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t`.`a` AS `a` from (select /*+ QB_NAME(`qb2`) JOIN_ORDER(@`qb2` `twenty`,`ten`) */ `ten`.`a` AS `a` from (`ten` join `twenty`) where `ten`.`a` = `twenty`.`a` limit 1000) `t`	utf8mb3	utf8mb3_uca1400_ai_ci
 # This next CREATE VIEW statement should match the output of SHOW CREATE VIEW v2.  The following EXPLAIN output should match EXPLAIN SELECT * FROM v2 as a way to demonstrate that the output of SHOW CREATE VIEW is correct.
-CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select /*+ JOIN_ORDER(@`qb2` `twenty`,`ten`) */ `t`.`a` AS `a` from (select /*+ QB_NAME(`qb2`) */ `ten`.`a` AS `a` from (`ten` join `twenty`) where `ten`.`a` = `twenty`.`a` limit 1000) `t`;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t`.`a` AS `a` from (select /*+ QB_NAME(`qb2`) JOIN_ORDER(@`qb2` `twenty`,`ten`) */ `ten`.`a` AS `a` from (`ten` join `twenty`) where `ten`.`a` = `twenty`.`a` limit 1000) `t`;
 EXPLAIN SELECT * FROM v3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	200	
@@ -1928,7 +1928,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	DERIVED	t7	ALL	NULL	NULL	NULL	NULL	256	Using where
 SHOW CREATE VIEW v7;
 View	Create View	character_set_client	collation_connection
-v7	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v7` AS select /*+ NO_INDEX(`t7`@`qb`) NO_MERGE(`dt`) */ `dt`.`a` AS `a` from (select /*+ QB_NAME(`qb`) */ `t7`.`a` AS `a` from `t7` where `t7`.`a` > 1 and `t7`.`a` < 3) `dt` where `dt`.`a` = 2	utf8mb3	utf8mb3_uca1400_ai_ci
+v7	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v7` AS select /*+ NO_MERGE(`dt`) */ `dt`.`a` AS `a` from (select /*+ QB_NAME(`qb`) NO_INDEX(`t7`@`qb`) */ `t7`.`a` AS `a` from `t7` where `t7`.`a` > 1 and `t7`.`a` < 3) `dt` where `dt`.`a` = 2	utf8mb3	utf8mb3_uca1400_ai_ci
 # End INDEX/JOIN_INDEX example
 # Example of many nested derived tables are not merged.
 EXPLAIN SELECT /*+ NO_MERGE(da) */ * FROM (SELECT /*+ NO_MERGE(db) */ * FROM (SELECT /*+ NO_MERGE(dc) */ * FROM (SELECT /*+ NO_MERGE(dd) */ * FROM (SELECT /*+ NO_MERGE(de) */ * FROM (SELECT /*+ NO_MERGE(df) */ * FROM (SELECT /*+ NO_MERGE(dg) */ * FROM (SELECT /*+ NO_MERGE(dh) */ * FROM (SELECT /*+ NO_MERGE(di) */ * FROM (SELECT /*+ NO_MERGE(dj) */ * FROM (SELECT /*+ NO_MERGE(dk) */ * FROM (SELECT /*+ NO_MERGE(dl) */ * FROM (SELECT * FROM ten) dl) dk) dj) di) dh) dg) df) de) dd) dc) db) da;
@@ -2108,3 +2108,74 @@ DROP TABLE t1;
 DROP VIEW v1;
 # End Examples from QA
 # End of 12.2 tests
+#
+# MDEV-39349 NO_INDEX hint using QB_NAME doesn't work inside VIEWs
+#
+CREATE TABLE t1 (
+a INT,
+b INT,
+INDEX(a),
+INDEX(b)
+);
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_1000;
+CREATE VIEW v1 AS SELECT /*+ QB_NAME(foo) NO_INDEX(t1@foo) */ a, b FROM t1 WHERE a<3 LIMIT 10;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select /*+ QB_NAME(`foo`) NO_INDEX(`t1`@`foo`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where `t1`.`a` < 3 limit 10	utf8mb3	utf8mb3_uca1400_ai_ci
+# Should use full scan of t1 (`ALL`)
+EXPLAIN EXTENDED SELECT * FROM v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	1000	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `v1`.`a` AS `a`,`v1`.`b` AS `b` from `test`.`v1`
+CREATE VIEW v2 AS
+SELECT * FROM (SELECT /*+ QB_NAME(foo) NO_INDEX(t1@foo) */ a,b FROM t1 WHERE a<3 LIMIT 10) dt
+WHERE a+b < 1000 ;
+SHOW CREATE VIEW v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `dt`.`a` AS `a`,`dt`.`b` AS `b` from (select /*+ QB_NAME(`foo`) NO_INDEX(`t1`@`foo`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where `t1`.`a` < 3 limit 10) `dt` where `dt`.`a` + `dt`.`b` < 1000	utf8mb3	utf8mb3_uca1400_ai_ci
+# Should use full scan of t1 (`ALL`)
+EXPLAIN EXTENDED SELECT * FROM v2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	1000	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `dt`.`a` AS `a`,`dt`.`b` AS `b` from (/* select#3 */ select /*+ QB_NAME(`foo`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` < 3 limit 10) `dt` where `dt`.`a` + `dt`.`b` < 1000
+CREATE VIEW v3 AS
+SELECT * FROM
+(SELECT a+b AS sumab, COUNT(*) AS cnt
+FROM  (SELECT /*+ NO_INDEX(t1) */ a,b FROM t1 WHERE a<3 LIMIT 10) dt
+WHERE a+b < 1000
+GROUP BY a+b) aggr
+WHERE sumab < cnt;
+SHOW CREATE VIEW v3;
+View	Create View	character_set_client	collation_connection
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `aggr`.`sumab` AS `sumab`,`aggr`.`cnt` AS `cnt` from (select `dt`.`a` + `dt`.`b` AS `sumab`,count(0) AS `cnt` from (select /*+ NO_INDEX(`t1`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where `t1`.`a` < 3 limit 10) `dt` where `dt`.`a` + `dt`.`b` < 1000 group by `dt`.`a` + `dt`.`b`) `aggr` where `aggr`.`sumab` < `aggr`.`cnt`	utf8mb3	utf8mb3_uca1400_ai_ci
+EXPLAIN EXTENDED SELECT * FROM v3 WHERE sumab < 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+3	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Using temporary; Using filesort
+4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	1000	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `aggr`.`sumab` AS `sumab`,`aggr`.`cnt` AS `cnt` from (/* select#3 */ select `dt`.`a` + `dt`.`b` AS `sumab`,count(0) AS `cnt` from (/* select#4 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` < 3 limit 10) `dt` where `dt`.`a` + `dt`.`b` < 1000 and `dt`.`a` + `dt`.`b` < 2 group by `dt`.`a` + `dt`.`b`) `aggr` where `aggr`.`sumab` < 2 and `aggr`.`sumab` < `aggr`.`cnt`
+CREATE VIEW v4 AS
+SELECT * FROM
+(SELECT /*+ NO_INDEX(t1@inner_qb)*/ a+b AS sumab, COUNT(*) AS cnt
+FROM  (SELECT /*+ QB_NAME(inner_qb)*/ a,b FROM t1 WHERE a<3 LIMIT 10) dt
+WHERE a+b < 1000
+GROUP BY a+b) aggr
+WHERE sumab < cnt;
+SHOW CREATE VIEW v4;
+View	Create View	character_set_client	collation_connection
+v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `aggr`.`sumab` AS `sumab`,`aggr`.`cnt` AS `cnt` from (select `dt`.`a` + `dt`.`b` AS `sumab`,count(0) AS `cnt` from (select /*+ QB_NAME(`inner_qb`) NO_INDEX(`t1`@`inner_qb`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where `t1`.`a` < 3 limit 10) `dt` where `dt`.`a` + `dt`.`b` < 1000 group by `dt`.`a` + `dt`.`b`) `aggr` where `aggr`.`sumab` < `aggr`.`cnt`	utf8mb3	utf8mb3_uca1400_ai_ci
+EXPLAIN EXTENDED SELECT * FROM v4 WHERE sumab < 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+3	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Using temporary; Using filesort
+4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	1000	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `aggr`.`sumab` AS `sumab`,`aggr`.`cnt` AS `cnt` from (/* select#3 */ select `dt`.`a` + `dt`.`b` AS `sumab`,count(0) AS `cnt` from (/* select#4 */ select /*+ QB_NAME(`inner_qb`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` < 3 limit 10) `dt` where `dt`.`a` + `dt`.`b` < 1000 and `dt`.`a` + `dt`.`b` < 2 group by `dt`.`a` + `dt`.`b`) `aggr` where `aggr`.`sumab` < 2 and `aggr`.`sumab` < `aggr`.`cnt`
+DROP VIEW v1, v2, v3, v4;
+DROP TABLE t1;
+# End of 12.3 tests
