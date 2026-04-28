@@ -73,6 +73,11 @@ IF(GIT_EXECUTABLE)
   IF(NOT RESULT EQUAL 0)
     SET(GIT_EXECUTABLE)
   ENDIF()
+  EXECUTE_PROCESS(
+    COMMAND "${GIT_EXECUTABLE}" submodule foreach "${GIT_EXECUTABLE} checkout-index --all --prefix=${PACKAGE_DIR}/storage/duckdb/duckdb/$path/"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/storage/duckdb/duckdb
+    RESULT_VARIABLE RESULT
+  )
 ENDIF()
 
 CONFIGURE_FILE(${CMAKE_BINARY_DIR}/include/source_revision.h
