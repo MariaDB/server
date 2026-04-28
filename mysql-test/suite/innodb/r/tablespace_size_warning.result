@@ -1,0 +1,68 @@
+#
+# MDEV-38936: Proactive handling of InnoDB tablespace full condition
+#
+SET @old_threshold = @@global.innodb_tablespace_size_warning_threshold;
+SET @old_pct = @@global.innodb_tablespace_size_warning_pct;
+# Test system variables
+SHOW VARIABLES LIKE 'innodb_tablespace_size_warning_threshold';
+Variable_name	Value
+innodb_tablespace_size_warning_threshold	0
+SHOW VARIABLES LIKE 'innodb_tablespace_size_warning_pct';
+Variable_name	Value
+innodb_tablespace_size_warning_pct	85
+# Test basic warning emission
+SET GLOBAL innodb_tablespace_size_warning_threshold = 10485760;
+SET GLOBAL innodb_tablespace_size_warning_pct = 70;
+CREATE TABLE t1 (
+id INT AUTO_INCREMENT PRIMARY KEY,
+data LONGBLOB
+) ENGINE=InnoDB;
+FOUND 4 /Tablespace 'test/t1' size [^\n]* bytes reached [^\n]*% of configured threshold/ in mysqld.1.err
+DROP TABLE t1;
+# Test configurable warning percentage
+SET GLOBAL innodb_tablespace_size_warning_threshold = 10485760;
+SET GLOBAL innodb_tablespace_size_warning_pct = 80;
+CREATE TABLE t1b (
+id INT AUTO_INCREMENT PRIMARY KEY,
+data LONGBLOB
+) ENGINE=InnoDB;
+FOUND 2 /Tablespace 'test/t1b' size [^\n]* bytes reached [^\n]*% of configured threshold/ in mysqld.1.err
+DROP TABLE t1b;
+# Test threshold set to zero disables warnings
+SET GLOBAL innodb_tablespace_size_warning_threshold = 0;
+CREATE TABLE t2 (
+id INT AUTO_INCREMENT PRIMARY KEY,
+data LONGBLOB
+) ENGINE=InnoDB;
+NOT FOUND /Tablespace 'test/t2' size [^\n]* bytes reached [^\n]*% of configured threshold/ in mysqld.1.err
+DROP TABLE t2;
+# Test disable via threshold=0 then re-enable
+SET GLOBAL innodb_tablespace_size_warning_threshold = 0;
+SET GLOBAL innodb_tablespace_size_warning_pct = 70;
+CREATE TABLE t3 (
+id INT AUTO_INCREMENT PRIMARY KEY,
+data LONGBLOB
+) ENGINE=InnoDB;
+SET GLOBAL innodb_tablespace_size_warning_threshold = 10485760;
+FOUND 1 /Tablespace 'test/t3' size [^\n]* bytes reached [^\n]*% of configured threshold/ in mysqld.1.err
+DROP TABLE t3;
+# Test TRUNCATE TABLE resets warning state
+CREATE TABLE t4 (
+id INT AUTO_INCREMENT PRIMARY KEY,
+data LONGBLOB
+) ENGINE=InnoDB;
+FOUND 4 /Tablespace 'test/t4' size [^\n]* bytes reached [^\n]*% of configured threshold/ in mysqld.1.err
+TRUNCATE TABLE t4;
+FOUND 8 /Tablespace 'test/t4' size [^\n]* bytes reached [^\n]*% of configured threshold/ in mysqld.1.err
+DROP TABLE t4;
+# Test behavior when tablespace exceeds 100% of threshold
+SET GLOBAL innodb_tablespace_size_warning_threshold = 5242880;
+SET GLOBAL innodb_tablespace_size_warning_pct = 70;
+CREATE TABLE t5 (
+id INT AUTO_INCREMENT PRIMARY KEY,
+data LONGBLOB
+) ENGINE=InnoDB;
+FOUND 1 /Tablespace 'test/t5' size [^\n]* bytes reached 100% of configured threshold/ in mysqld.1.err
+DROP TABLE t5;
+SET GLOBAL innodb_tablespace_size_warning_threshold = @old_threshold;
+SET GLOBAL innodb_tablespace_size_warning_pct = @old_pct;
