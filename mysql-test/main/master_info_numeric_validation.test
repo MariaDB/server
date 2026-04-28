@@ -1,0 +1,85 @@
+#
+# MDEV-38010: Trailing garbage in master.info numeric fields leads to corruption.
+# This test verifis that the server strictly validates numeric lines in master.info.
+# If trailing non-whitespace characters are found, the line is rejected as corrupted.
+#
+
+--source include/master-slave.inc
+--source include/have_binlog_format_mixed.inc
+
+--connection slave
+
+# Step1: Capture the current working replication state.
+# We need these to restore a clean environment after we've intentionally
+# "broken" the master.info file for the test.
+--let $master_host= query_get_value(SHOW SLAVE STATUS, Master_Host, 1)
+--let $master_port= query_get_value(SHOW SLAVE STATUS, Master_Port, 1)
+--let $master_user= query_get_value(SHOW SLAVE STATUS, Master_User, 1)
+
+# Suppress the err we expect to see in the log during this test.
+# The server will log these when it hits our new strict validation logic.
+call mtr.add_suppression("Error reading master configuration");
+call mtr.add_suppression("Failed to initialize the master info structure");
+call mtr.add_suppression("error connecting to master");
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+
+--let $rpl_server_number= 2
+--source include/rpl_stop_server.inc
+
+# Step2: Simulate a corrupted master.info file.
+# The server is now fully stopped, preventing it from flushing its clean
+# in-memory state and overwriting our manually hacked file on shutdown.
+--remove_file $MYSQLD_DATADIR/master.info
+--write_file $MYSQLD_DATADIR/master.info
+17
+master-bin.000001
+4
+127.0.0.1
+root
+
+9999 60
+60
+0
+0
+
+
+
+0
+
+60.000abcdefghijklm
+1 1
+EOF
+
+# Step3: Start the server to force it to parse the corrupted file.
+--let $rpl_server_number= 2
+--source include/rpl_start_server.inc
+
+--connection slave
+
+--echo # Verifying that trailing garbage causes parsing to fail.
+--let $port= query_get_value(SHOW SLAVE STATUS, Master_Port, 1)
+
+if ($port == 9999) {
+  --echo Error: The garbage in master.info was silently accepted! Port evaluated to $port.
+  --die "Test failed: Fix is not preventing garbage parsing."
+}
+
+--echo # Rejection successful. The server refused to parse the garbage.
+
+# Step4: Cleanup and Restoration.
+# We remove the bad master.info and use CHANGE MASTER TO with our saved
+# parameters to restore the slave to its original state.
+--remove_file $MYSQLD_DATADIR/master.info
+
+--echo # Restoring the slave to original replication state
+--let $rpl_server_number= 2
+--source include/rpl_restart_server.inc
+
+--replace_result $master_port MASTER_PORT $master_host MASTER_HOST $master_user MASTER_USER
+--eval CHANGE MASTER TO MASTER_HOST='$master_host', MASTER_PORT=$master_port, MASTER_USER='$master_user'
+--source include/start_slave.inc
+
+--connection master
+--source include/rpl_end.inc
+

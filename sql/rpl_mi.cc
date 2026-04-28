@@ -49,6 +49,8 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
 {
   char *tmp;
   host[0] = 0; user[0] = 0; password[0] = 0;
+  master_log_pos = 0;
+  master_log_name[0] = 0;
   ssl_ca[0]= 0; ssl_capath[0]= 0; ssl_cert[0]= 0;
   ssl_cipher[0]= 0; ssl_key[0]= 0;
   ssl_crl[0]= 0; ssl_crlpath[0]= 0;
