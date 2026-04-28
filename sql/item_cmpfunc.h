@@ -2920,6 +2920,29 @@ public:
 };
 
 
+class Item_func_gtid_check_pos :public Item_bool_func
+{
+  String tmp_value;
+public:
+  Item_func_gtid_check_pos(THD *thd, Item *a): Item_bool_func(thd, a) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("gtid_check_pos") };
+    return name;
+  }
+  bool val_bool() override;
+  bool fix_length_and_dec(THD *thd) override
+  {
+    set_maybe_null();
+    return FALSE;
+  }
+
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_gtid_check_pos>(thd, this); }
+};
+
+
 class Item_func_isnull :public Item_func_null_predicate
 {
 public:

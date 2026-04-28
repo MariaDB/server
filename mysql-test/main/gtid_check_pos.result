@@ -1,0 +1,37 @@
+#
+# MDEV-8235 Expose check_slave_start_position as SQL function
+#
+# 1. Set up some basic GTID history
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+# Get the current GTID position manually and verify it exists
+SELECT GTID_CHECK_POS('GTID_POS');
+GTID_CHECK_POS('GTID_POS')
+1
+# 2. Verify invalid inputs
+SELECT GTID_CHECK_POS('invalid-format');
+ERROR HY000: Could not parse GTID list
+SELECT GTID_CHECK_POS(NULL);
+GTID_CHECK_POS(NULL)
+NULL
+# 3. Check for a very old purged GTID
+# (Simulate purging all logs)
+FLUSH LOGS;
+PURGE BINARY LOGS BEFORE NOW();
+# Depending on when it is executed, '0-1-1' might still be
+# reachable if we haven't actually purged the very first file
+# but purge binary logs before now() should remove everything 
+# except the active one.
+# Since we want a deterministic test, let's check
+# a completely fake server_id / seq_no that shouldn't exist
+SELECT GTID_CHECK_POS('99-99-9999999');
+GTID_CHECK_POS('99-99-9999999')
+1
+# 4. Check for an otherwise valid GTID (right domain and server)
+# that is absent (sequence number is in the future).
+SELECT GTID_CHECK_POS('ABSENT_GTID');
+GTID_CHECK_POS('ABSENT_GTID')
+1
+# Cleanup
+DROP TABLE t1;

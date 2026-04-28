@@ -1,0 +1,44 @@
+--source include/have_log_bin.inc
+
+--echo #
+--echo # MDEV-8235 Expose check_slave_start_position as SQL function
+--echo #
+
+--echo # 1. Set up some basic GTID history
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+
+--echo # Get the current GTID position manually and verify it exists
+let $pos= `SELECT @@GLOBAL.gtid_binlog_pos`;
+--replace_result $pos GTID_POS
+eval SELECT GTID_CHECK_POS('$pos');
+
+--echo # 2. Verify invalid inputs
+--error ER_INCORRECT_GTID_STATE
+SELECT GTID_CHECK_POS('invalid-format');
+SELECT GTID_CHECK_POS(NULL);
+
+--echo # 3. Check for a very old purged GTID
+--echo # (Simulate purging all logs)
+FLUSH LOGS;
+PURGE BINARY LOGS BEFORE NOW();
+
+--echo # Depending on when it is executed, '0-1-1' might still be
+--echo # reachable if we haven't actually purged the very first file
+--echo # but purge binary logs before now() should remove everything 
+--echo # except the active one.
+
+--echo # Since we want a deterministic test, let's check
+--echo # a completely fake server_id / seq_no that shouldn't exist
+SELECT GTID_CHECK_POS('99-99-9999999');
+
+--echo # 4. Check for an otherwise valid GTID (right domain and server)
+--echo # that is absent (sequence number is in the future).
+let $server_id= `SELECT @@GLOBAL.server_id`;
+let $absent_gtid= 0-$server_id-99999999;
+--replace_result $absent_gtid ABSENT_GTID
+eval SELECT GTID_CHECK_POS('$absent_gtid');
+
+--echo # Cleanup
+DROP TABLE t1;

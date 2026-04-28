@@ -72,6 +72,8 @@ int rpl_append_gtid_state(String *dest, bool use_binlog);
 int rpl_load_gtid_state(slave_connection_state *state, bool use_binlog);
 bool rpl_gtid_pos_check(THD *thd, char *str, size_t len);
 bool rpl_gtid_pos_update(THD *thd, char *str, size_t len);
+bool rpl_gtid_pos_check_reachable(String *gtid_str, bool *is_reachable);
+
 #else
 
 struct LOAD_FILE_IO_CACHE : public IO_CACHE { };
