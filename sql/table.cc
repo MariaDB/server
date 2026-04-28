@@ -10335,6 +10335,9 @@ bool TR_table::query(ulonglong trx_id)
   SELECT_LEX &slex= *(thd->lex->first_select_lex());
   Name_resolution_context_backup backup(slex.context, *this);
   Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_TRX_ID]);
+  /* Force Item_field to be non-const */
+  SCOPE_VALUE(table->map, (table_map) 1);
+  DBUG_ASSERT(!field->const_item());
   Item *value= newx Item_int(thd, trx_id);
   COND *conds= newx Item_func_eq(thd, field, value);
   if (unlikely((error= setup_conds(thd, this, dummy, &conds))))
@@ -10377,6 +10380,9 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
   SELECT_LEX &slex= *(thd->lex->first_select_lex());
   Name_resolution_context_backup backup(slex.context, *this);
   Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_COMMIT_TS]);
+  /* Force Item_field to be non-const */
+  SCOPE_VALUE(table->map, (table_map) 1);
+  DBUG_ASSERT(!field->const_item());
   Datetime dt(&commit_time);
   Item *value= newx Item_datetime_literal(thd, &dt, 6);
   COND *conds;
