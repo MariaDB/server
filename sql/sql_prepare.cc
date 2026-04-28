@@ -401,38 +401,46 @@ static bool send_prep_stmt(Prepared_statement *stmt,
 static ulong get_param_length(uchar **packet, ulong len)
 {
   uchar *pos= *packet;
+  ulong length;
+
   if (len < 1)
     return 0;
   if (*pos < 251)
   {
     (*packet)++;
-    return (ulong) *pos;
+    length= *pos;
   }
-  if (len < 3)
-    return 0;
-  if (*pos == 252)
+  else if (*pos == 252)
   {
+    if (len < 3)
+      return 0;
     (*packet)+=3;
-    return (ulong) uint2korr(pos+1);
+    length= uint2korr(pos+1);
   }
-  if (len < 4)
-    return 0;
-  if (*pos == 253)
+  else if (*pos == 253)
   {
+    if (len < 4)
+      return 0;
     (*packet)+=4;
-    return (ulong) uint3korr(pos+1);
+    length= uint3korr(pos+1);
   }
-  if (len < 5)
+  else
+  {
+    if (len < 9)
+      return 0;
+    (*packet)+=9; // Must be 254 when here
+    /*
+      In our client-server protocol all numbers bigger than 2^24
+      stored as 8 bytes with uint8korr. Here we always know that
+      parameter length is less than 2^32 so don't look at the second
+      4 bytes. But still we need to obey the protocol hence 9 in the
+      assignment above.
+    */
+    length= uint4korr(pos+1);
+  }
+  if (pos + len < *packet + length)
     return 0;
-  (*packet)+=9; // Must be 254 when here
-  /*
-    In our client-server protocol all numbers bigger than 2^24
-    stored as 8 bytes with uint8korr. Here we always know that
-    parameter length is less than 2^4 so don't look at the second
-    4 bytes. But still we need to obey the protocol hence 9 in the
-    assignment above.
-  */
-  return (ulong) uint4korr(pos+1);
+  return length;
 }
 #else
 #define get_param_length(packet, len) len
@@ -647,7 +655,12 @@ void Item_param::set_param_date(uchar **pos, ulong len)
 */
 void Item_param::set_param_time(uchar **pos, ulong len)
 {
-  MYSQL_TIME tm= *((MYSQL_TIME*)*pos);
+  MYSQL_TIME tm;
+  if (len >= sizeof (MYSQL_TIME))
+    tm= *((MYSQL_TIME*)*pos);
+  else
+    set_zero_time(&tm, MYSQL_TIMESTAMP_TIME);
+
   tm.hour+= tm.day * 24;
   tm.day= tm.year= tm.month= 0;
   if (tm.hour > 838)
@@ -662,14 +675,22 @@ void Item_param::set_param_time(uchar **pos, ulong len)
 
 void Item_param::set_param_datetime(uchar **pos, ulong len)
 {
-  MYSQL_TIME tm= *((MYSQL_TIME*)*pos);
+  MYSQL_TIME tm;
+  if (len >= sizeof (MYSQL_TIME))
+    tm= *((MYSQL_TIME*)*pos);
+  else
+    set_zero_time(&tm, MYSQL_TIMESTAMP_DATETIME);
   tm.neg= 0;
   set_time(&tm, MYSQL_TIMESTAMP_DATETIME, MAX_DATETIME_WIDTH);
 }
 
 void Item_param::set_param_date(uchar **pos, ulong len)
 {
-  MYSQL_TIME *to= (MYSQL_TIME*)*pos;
+  MYSQL_TIME tm;
+  if (len >= sizeof (MYSQL_TIME))
+    tm= *((MYSQL_TIME*)*pos);
+  else
+    set_zero_time(&tm, MYSQL_TIMESTAMP_DATE);
   set_time(to, MYSQL_TIMESTAMP_DATE, MAX_DATE_WIDTH);
 }
 #endif /*!EMBEDDED_LIBRARY*/
@@ -682,8 +703,6 @@ void Item_param::set_param_str(uchar **pos, ulong len)
     set_null();
   else
   {
-    if (length > len)
-      length= len;
     /*
       We use &my_charset_bin here. Conversion and setting real character
       sets will be done in Item_param::convert_str_value(), after the
