@@ -1,0 +1,22 @@
+#
+# MDEV-39196: INFORMATION_SCHEMA query must succeed with a
+# warning when a FederatedX remote table is unreachable.
+#
+# Verify the federated table works before dropping remote table.
+SELECT * FROM federated.t1;
+id	name
+1	foo
+# Drop the remote table to simulate unreachable/missing table.
+# INFORMATION_SCHEMA query must succeed and issue a warning.
+SELECT TABLE_NAME, TABLE_ROWS
+  FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = 'federated'
+    AND TABLE_NAME = 't1';
+TABLE_NAME	TABLE_ROWS
+t1	1
+# Warning must be present.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1430	FederatedX: Table 't1' is inaccessible: 1146 : Remote table does not exist
+# Cleanup.
+DROP TABLE IF EXISTS federated.t1;

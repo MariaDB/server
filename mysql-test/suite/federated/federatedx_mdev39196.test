@@ -1,0 +1,51 @@
+# MDEV-39196: SELECT from information_schema fails when FederatedX
+# loses underlying table.
+--source include/not_embedded.inc
+--source include/federated.inc
+
+--echo #
+--echo # MDEV-39196: INFORMATION_SCHEMA query must succeed with a
+--echo # warning when a FederatedX remote table is unreachable.
+--echo #
+
+# Create the remote table on the slave
+--connection slave
+USE federated;
+CREATE TABLE t1 (
+  id INT NOT NULL,
+  name VARCHAR(64)
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1, 'foo');
+
+# Create the federated table on the master pointing to slave
+--connection master
+USE federated;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 (
+  id INT NOT NULL,
+  name VARCHAR(64)
+) ENGINE=FEDERATED
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+--echo # Verify the federated table works before dropping remote table.
+SELECT * FROM federated.t1;
+
+--echo # Drop the remote table to simulate unreachable/missing table.
+--connection slave
+USE federated;
+DROP TABLE t1;
+
+--connection master
+--echo # INFORMATION_SCHEMA query must succeed and issue a warning.
+SELECT TABLE_NAME, TABLE_ROWS
+  FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = 'federated'
+    AND TABLE_NAME = 't1';
+
+--echo # Warning must be present.
+SHOW WARNINGS;
+
+--echo # Cleanup.
+DROP TABLE IF EXISTS federated.t1;
+
+--source include/federated_cleanup.inc
