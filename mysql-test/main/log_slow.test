@@ -259,3 +259,24 @@ connection default;
 disconnect con1;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-33463 Add an option to truncate excessively long queries in the slow log
+--echo #
+select @@log_slow_max_query_length;
+set log_slow_max_query_length=31;
+set long_query_time=0.00001;
+--disable_cursor_protocol
+--disable_view_protocol
+--disable_ps2_protocol
+select sleep(0.1), 'MDEV-33463';
+--enable_ps2_protocol
+--enable_view_protocol
+--enable_cursor_protocol
+select sleep(0.1), 'MDEV-33463+';
+set long_query_time=default;
+set log_slow_max_query_length=default;
+let SEARCH_PATTERN= MDEV-33463;
+source include/search_pattern_in_file.inc;
+
+--echo # End of 13.1 tests

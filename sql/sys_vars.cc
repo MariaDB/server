@@ -2869,6 +2869,12 @@ static Sys_var_ulong Sys_log_slow_min_examined_row_limit(
        SESSION_VAR(min_examined_row_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 
+static Sys_var_uint Sys_log_slow_max_query_length(
+       "log_slow_max_query_length",
+       "Don't write queries to slow log that are longer than that",
+       SESSION_VAR(log_slow_max_query_length), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, UINT_MAX), DEFAULT(UINT_MAX), BLOCK_SIZE(1));
+
 #ifdef _WIN32
 static Sys_var_mybool Sys_named_pipe(
        "named_pipe", "Enable the named pipe (NT)",

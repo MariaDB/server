@@ -14,6 +14,7 @@ log_slow_admin_statements	ON
 log_slow_always_query_time	31536000.000000
 log_slow_disabled_statements	sp
 log_slow_filter	admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+log_slow_max_query_length	4294967295
 log_slow_max_warnings	10
 log_slow_min_examined_row_limit	0
 log_slow_query	ON
@@ -244,3 +245,21 @@ set long_query_time=0.0, log_slow_verbosity='engine';
 connection default;
 disconnect con1;
 # End of 10.6 tests
+#
+# MDEV-33463 Add an option to truncate excessively long queries in the slow log
+#
+select @@log_slow_max_query_length;
+@@log_slow_max_query_length
+4294967295
+set log_slow_max_query_length=31;
+set long_query_time=0.00001;
+select sleep(0.1), 'MDEV-33463';
+sleep(0.1)	MDEV-33463
+0	MDEV-33463
+select sleep(0.1), 'MDEV-33463+';
+sleep(0.1)	MDEV-33463+
+0	MDEV-33463+
+set long_query_time=default;
+set log_slow_max_query_length=default;
+MDEV-33463
+# End of 13.1 tests

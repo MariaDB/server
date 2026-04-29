@@ -597,6 +597,8 @@ The following specify which files/extra groups are read (specified before remain
  full_join, full_scan, not_using_index, query_cache, query_cache_miss,
  tmp_table, tmp_table_on_disk, or ALL to set all
  combinations
+ --log-slow-max-query-length=# 
+ Don't write queries to slow log that are longer than that
  --log-slow-max-warnings=# 
  Max numbers of warnings printed to slow query log per
  statement
@@ -1882,6 +1884,7 @@ log-slow-admin-statements TRUE
 log-slow-always-query-time 31536000
 log-slow-disabled-statements sp
 log-slow-filter admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+log-slow-max-query-length 18446744073709551615
 log-slow-max-warnings 10
 log-slow-min-examined-row-limit 0
 log-slow-query FALSE
