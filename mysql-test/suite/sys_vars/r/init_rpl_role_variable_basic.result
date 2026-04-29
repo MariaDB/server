@@ -1,0 +1,17 @@
+#
+# MDEV-38202: add init_rpl_role in output of "show variables"
+#
+# It should show SLAVE as it is set in the .opt file.
+SELECT @@GLOBAL.init_rpl_role;
+@@GLOBAL.init_rpl_role
+SLAVE
+SHOW GLOBAL VARIABLES LIKE 'init_rpl_role';
+Variable_name	Value
+init_rpl_role	SLAVE
+# Verify that it's a global scope only.
+SELECT @@SESSION.init_rpl_role;
+ERROR HY000: Variable 'init_rpl_role' is a GLOBAL variable
+# Verify it's read-only.
+SET @@GLOBAL.init_rpl_role = 'MASTER';
+ERROR HY000: Variable 'init_rpl_role' is a read only variable
+# End of 13.0 tests
