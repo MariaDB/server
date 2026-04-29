@@ -2611,6 +2611,9 @@ void log_slow_statement(THD *thd)
     if (slow_filter_masked(thd, thd->query_plan_flags))
       goto end;
 
+    if (thd->query_length() > thd->variables.log_slow_max_query_length)
+      goto end;
+
     THD_STAGE_INFO(thd, stage_logging_slow_query);
     slow_log_print(thd, thd->query(), thd->query_length(), 
                    thd->utime_after_query);

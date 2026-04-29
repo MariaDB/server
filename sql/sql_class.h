@@ -761,6 +761,7 @@ typedef struct system_variables
   ulonglong max_statement_time;
   ulonglong optimizer_switch;
   ulonglong optimizer_trace;
+  ulonglong optimizer_join_limit_pref_ratio;
   sql_mode_t sql_mode; ///< which non-standard SQL behaviour should be enabled
   sql_mode_t old_behavior; ///< which old SQL behaviour should be enabled
   sql_mode_t new_behavior; ///< which new SQL behaviour should be enabled
@@ -828,7 +829,6 @@ typedef struct system_variables
   ulong net_wait_timeout;
   ulong net_write_timeout;
   ulong optimizer_extra_pruning_depth;
-  ulonglong optimizer_join_limit_pref_ratio;
   ulong optimizer_prune_level;
   ulong optimizer_search_depth;
   ulong optimizer_selectivity_sampling_limit;
@@ -898,6 +898,7 @@ typedef struct system_variables
   uint column_compression_threshold;
   uint column_compression_zlib_level;
   uint in_subquery_conversion_threshold;
+  uint log_slow_max_query_length;
   uint max_open_cursors;
   int max_user_connections;
 
