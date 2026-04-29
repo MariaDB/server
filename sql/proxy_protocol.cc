@@ -172,29 +172,6 @@ bool has_proxy_protocol_header(NET *net)
 }
 
 
-/**
-  Read a specific number of bytes from the network with retry logic.
-  This copies the retry logic from my_real_read() in net_serv.cc.
-
-  @return 0 on success, -1 on failure
-*/
-static int proxy_vio_read_retry(NET *net, uchar *pos, size_t remain)
-{
-  uint retry_count= 0;
-  while (remain > 0)
-  {
-    ssize_t length= vio_read(net->vio, pos, remain);
-    if (length <= 0)
-    {
-      if (vio_should_retry(net->vio) && retry_count++ < net->retry_count)
-        continue;
-      return -1;
-    }
-    remain-= (size_t)length;
-    pos+= length;
-  }
-  return 0;
-}
 
 /**
   Try to parse proxy header.
@@ -249,7 +226,8 @@ int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
   else // if (have_v2_header)
   {
     /* Read remaining bytes of the 16-byte fixed header. */
-    if (proxy_vio_read_retry(net, hdr + pos, PROXY_V2_HEADER_LEN - pos) < 0)
+    size_t to_read= PROXY_V2_HEADER_LEN - pos;
+    if (vio_read(vio, hdr + pos, to_read) != (ssize_t)to_read)
       return -1;
     pos= PROXY_V2_HEADER_LEN;
     /*
@@ -259,10 +237,10 @@ int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
     ushort trail_len= ((ushort)hdr[14] << 8) | hdr[15];
     if (trail_len > sizeof(hdr) - PROXY_V2_HEADER_LEN)
       return -1;
-    /* Read the trailing address + TLV data, handling short reads. */
-    if (proxy_vio_read_retry(net, hdr + PROXY_V2_HEADER_LEN, trail_len) < 0)
+    /* Read the trailing address + TLV data. */
+    if (trail_len > 0 && vio_read(vio, hdr + pos, trail_len) != (ssize_t)trail_len)
       return -1;
-    pos= PROXY_V2_HEADER_LEN + trail_len;
+    pos+= trail_len;
     if (parse_v2_header(hdr, pos, peer_info))
       return -1;
   }
