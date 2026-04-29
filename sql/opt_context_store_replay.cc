@@ -156,6 +156,7 @@ public:
 
 namespace Show
 {
+extern ST_FIELD_INFO optimizer_costs_fields_info[];
 
 ST_FIELD_INFO optimizer_context_capture_info[]= {
     Column("QUERY", Longtext(65535), NOT_NULL),
@@ -397,6 +398,12 @@ static const char *opt_related_sys_vars[]= {"join_cache_level",
 static const char *excluded_sys_vars[]= {"optimizer_replay_context",
                                          "optimizer_record_context", NULL};
 
+struct sys_vars_ctx
+{
+  HASH *engines_hash;
+  String *writer;
+};
+
 static bool is_optimizer_related_var(const char **sys_vars,
                                      const char *var_name)
 {
@@ -408,14 +415,63 @@ static bool is_optimizer_related_var(const char **sys_vars,
   return false;
 }
 
+static void store_optimizer_costs(const char *engine,
+                                  const OPTIMIZER_COSTS *costs,
+                                  String &sql_script)
+{
+  char buf[64];
+  for (uint i= 0; Show::optimizer_costs_fields_info[i + 1].name(); i++)
+  {
+    String var_name;
+    double cost_val= ((double *) costs)[i];
+    const ST_FIELD_INFO *field_info= &Show::optimizer_costs_fields_info[i + 1];
+
+    sql_script.append(STRING_WITH_LEN("SET "));
+    sql_script.append(STRING_WITH_LEN("GLOBAL "));
+
+    var_name.append(engine, strlen(engine));
+    var_name.append(STRING_WITH_LEN("."));
+    var_name.append(field_info->name());
+
+    sql_script.append(var_name);
+    sql_script.append(STRING_WITH_LEN("="));
+
+    if (strcmp(field_info->name().str, "OPTIMIZER_DISK_READ_RATIO") != 0)
+      cost_val= ((double *) costs)[i] * 1000.0;
+
+    size_t len= my_snprintf(buf, sizeof(buf), "%-.11lg", cost_val);
+    sql_script.append(buf, len);
+    sql_script.append(STRING_WITH_LEN(";\n\n"));
+  }
+}
+
+static my_bool store_engine_costs_callback(THD *thd, plugin_ref plugin,
+                                           void *arg)
+{
+  struct sys_vars_ctx *ctx= (struct sys_vars_ctx *) arg;
+  handlerton *hton= plugin_hton(plugin);
+  if (hton->optimizer_costs &&
+      my_hash_search(ctx->engines_hash,
+                     (const uchar *) plugin_name(plugin)->str,
+                     plugin_name(plugin)->length))
+  {
+    store_optimizer_costs(plugin_name(plugin)->str,
+                          (OPTIMIZER_COSTS *) hton->optimizer_costs,
+                          *ctx->writer);
+  }
+  return 0;
+}
+
 /*
   @brief
-    Save current values of optimizer variables: append to sql_script
+    Save current values of optimizer variables: append to sys_vars_script
     a set of "SET variable=value" statements.
 */
-static void store_system_variables(THD *thd, String &sql_script)
+static void store_system_variables(THD *thd, struct sys_vars_ctx *ctx)
 {
   CHARSET_INFO *charset_info= system_charset_info;
+  String *sys_vars_script= ctx->writer;
+
   // hold the lock until the end of this method.
   // follows the same pattern as in sql_show.cc#fill_variables()
   mysql_prlock_rdlock(&LOCK_system_variables_hash);
@@ -427,6 +483,14 @@ static void store_system_variables(THD *thd, String &sql_script)
   size_t len;
   StringBuffer<1024> buf;
   const char *pos;
+
+  // store all plugin-engines optimizer cost values
+  plugin_foreach_with_mask(thd, store_engine_costs_callback,
+                           MYSQL_STORAGE_ENGINE_PLUGIN, PLUGIN_IS_READY, ctx);
+  store_optimizer_costs("heap", &heap_optimizer_costs, *sys_vars_script);
+  store_optimizer_costs("temp_table", &tmp_table_optimizer_costs,
+                        *sys_vars_script);
+
   for (SHOW_VAR *show_var= all_session_vars; show_var->name != NULL;
        show_var++)
   {
@@ -440,13 +504,13 @@ static void store_system_variables(THD *thd, String &sql_script)
       pos= get_one_variable(thd, show_var, SHOW_OPT_SESSION, show_var->type,
                             NULL, &charset_info, buf.c_ptr_safe(), &len);
       mysql_mutex_unlock(&LOCK_global_system_variables);
-      sql_script.append(STRING_WITH_LEN("SET "));
+      sys_vars_script->append(STRING_WITH_LEN("SET "));
 
       if (var->check_type(SHOW_OPT_SESSION))
-        sql_script.append(STRING_WITH_LEN("GLOBAL "));
+        sys_vars_script->append(STRING_WITH_LEN("GLOBAL "));
 
-      sql_script.append(show_var->name, strlen(show_var->name));
-      sql_script.append(STRING_WITH_LEN("="));
+      sys_vars_script->append(show_var->name, strlen(show_var->name));
+      sys_vars_script->append(STRING_WITH_LEN("="));
       switch (var->show_type())
       {
       case SHOW_DOUBLE:
@@ -458,15 +522,15 @@ static void store_system_variables(THD *thd, String &sql_script)
       case SHOW_SLONG:
       case SHOW_SLONGLONG:
       case SHOW_SIZE_T:
-        sql_script.append(pos, len);
+        sys_vars_script->append(pos, len);
         break;
       default:
-        sql_script.append(STRING_WITH_LEN("'"));
-        sql_script.append(pos, len);
-        sql_script.append(STRING_WITH_LEN("'"));
+        sys_vars_script->append(STRING_WITH_LEN("'"));
+        sys_vars_script->append(pos, len);
+        sys_vars_script->append(STRING_WITH_LEN("'"));
         break;
       }
-      sql_script.append(STRING_WITH_LEN(";\n\n"));
+      sys_vars_script->append(STRING_WITH_LEN(";\n\n"));
     }
   }
   mysql_prlock_unlock(&LOCK_system_variables_hash);
@@ -551,13 +615,14 @@ bool store_optimizer_context(THD *thd)
     return false;
   }
   String sql_script;
+  String qry_ctx_script;
   sql_script.set_charset(system_charset_info);
   Json_writer ctx_writer;
   Json_writer_object context(&ctx_writer);
   Json_writer_array context_list(&ctx_writer, "list_contexts");
   sql_script.append(STRING_WITH_LEN("SET NAMES utf8mb4;\n\n "));
-  store_system_variables(thd, sql_script);
   HASH table_name_hash;
+  HASH storage_engine_hash;
   HASH db_name_hash;
   List<TABLE_LIST> tables_list;
 
@@ -582,12 +647,27 @@ bool store_optimizer_context(THD *thd)
   if (my_hash_init(key_memory_trace_ddl_info, &table_name_hash,
                    system_charset_info, 16, 0, 0, get_table_name_key, NULL,
                    HASH_UNIQUE) ||
+      my_hash_init(key_memory_trace_ddl_info, &storage_engine_hash,
+                   system_charset_info, 16, 0, 0, get_db_name_key, NULL,
+                   HASH_UNIQUE) ||
       my_hash_init(key_memory_trace_ddl_info, &db_name_hash,
                    system_charset_info, 16, 0, 0, get_db_name_key, NULL,
                    HASH_UNIQUE) ||
-      store_db_ddl(thd, &db_name_hash, sql_script, thd->get_db(), true))
+      store_db_ddl(thd, &db_name_hash, qry_ctx_script, thd->get_db(), true))
   {
     return true;
+  }
+
+  {
+    const char *engine_name= plugin_name(thd->variables.table_plugin)->str;
+    size_t engine_name_len= strlen(engine_name);
+    DB_NAME_KEY *engine_name_key;
+    if (!(engine_name_key= (DB_NAME_KEY *) thd->alloc(sizeof(DB_NAME_KEY))))
+      return true; // OOM
+    engine_name_key->name= engine_name;
+    engine_name_key->name_len= engine_name_len;
+    if (my_hash_insert(&storage_engine_hash, (uchar *) engine_name_key))
+      return true; // OOM
   }
 
   bool res= false;
@@ -607,8 +687,8 @@ bool store_optimizer_context(THD *thd)
                        full_tbl_name.length()))
       continue;
 
-    if (store_db_ddl(thd, &db_name_hash, sql_script, tbl->get_db_name().str,
-                     false))
+    if (store_db_ddl(thd, &db_name_hash, qry_ctx_script,
+                     tbl->get_db_name().str, false))
     {
       res= true;
       break;
@@ -620,8 +700,8 @@ bool store_optimizer_context(THD *thd)
       drop.append(STRING_WITH_LEN("DROP VIEW IF EXISTS "));
       drop.append(full_tbl_name);
       drop.append(STRING_WITH_LEN(";\n"));
-      sql_script.append(drop);
-      
+      qry_ctx_script.append(drop);
+
       create_view_def(thd, tbl, &full_tbl_name, &ddl);
     }
     else
@@ -630,7 +710,7 @@ bool store_optimizer_context(THD *thd)
       drop.append(STRING_WITH_LEN("DROP TABLE IF EXISTS "));
       drop.append(full_tbl_name);
       drop.append(STRING_WITH_LEN(";\n"));
-      sql_script.append(drop);
+      qry_ctx_script.append(drop);
 
       if (show_create_table(thd, tbl, &ddl, NULL, WITH_DB_NAME))
       {
@@ -655,8 +735,8 @@ bool store_optimizer_context(THD *thd)
       break;
     }
 
-    sql_script.append(ddl);
-    sql_script.append(STRING_WITH_LEN(";\n\n"));
+    qry_ctx_script.append(ddl);
+    qry_ctx_script.append(STRING_WITH_LEN(";\n\n"));
 
     if (!tbl->is_view())
     {
@@ -668,23 +748,48 @@ bool store_optimizer_context(THD *thd)
         List_iterator inserts_li(table_context->const_tbl_ins_stmt_list);
         while (char *stmt= inserts_li++)
         {
-          sql_script.append(stmt, strlen(stmt));
-          sql_script.append(STRING_WITH_LEN(";\n\n"));
+          qry_ctx_script.append(stmt, strlen(stmt));
+          qry_ctx_script.append(STRING_WITH_LEN(";\n\n"));
         }
       }
       dump_table_stats(thd, tbl, (uchar *) tbl_name_key->name,
                        tbl_name_key->name_len, ctx_wrapper, &ctx_writer);
     }
     uniq_tables_list.push_front(tbl);
+
+    if (is_base_table(tbl))
+    {
+      const char *engine_name= plugin_name(tbl->table->s->db_plugin)->str;
+      size_t engine_name_len= strlen(engine_name);
+      if (!my_hash_search(&storage_engine_hash, (uchar *) engine_name,
+                          engine_name_len))
+      {
+        DB_NAME_KEY *engine_name_key;
+        if (!(engine_name_key=
+                  (DB_NAME_KEY *) thd->alloc(sizeof(DB_NAME_KEY))))
+          return true; // OOM
+        engine_name_key->name= engine_name;
+        engine_name_key->name_len= engine_name_len;
+        if (my_hash_insert(&storage_engine_hash, (uchar *) engine_name_key))
+          return true; // OOM
+      }
+    }
   }
   context_list.end();
   context.end();
 
   if (!res)
-    res= dump_eits_stats(thd, &uniq_tables_list, sql_script);
+    res= dump_eits_stats(thd, &uniq_tables_list, qry_ctx_script);
 
   if (!res)
   {
+    String sys_vars_script;
+    struct sys_vars_ctx ctx;
+    ctx.engines_hash= &storage_engine_hash;
+    ctx.writer= &sys_vars_script;
+    store_system_variables(thd, &ctx);
+    sql_script.append(sys_vars_script);
+    sql_script.append(qry_ctx_script);
     const char *SET_OPT_CONTEXT_VAR= "set @opt_context=\'\n";
     const char *SET_REPLAY_CONTEXT_VAR=
         "set optimizer_replay_context=\'opt_context\'";
@@ -713,6 +818,7 @@ bool store_optimizer_context(THD *thd)
       return true; // OOM
   }
   my_hash_free(&table_name_hash);
+  my_hash_free(&storage_engine_hash);
   my_hash_free(&db_name_hash);
   return res;
 }
