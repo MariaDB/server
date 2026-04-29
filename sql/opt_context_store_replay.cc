@@ -156,6 +156,7 @@ public:
 
 namespace Show
 {
+extern ST_FIELD_INFO optimizer_costs_fields_info[];
 
 ST_FIELD_INFO optimizer_context_capture_info[]= {
     Column("QUERY", Longtext(65535), NOT_NULL),
@@ -187,40 +188,16 @@ static char *strdup_root(MEM_ROOT *root, const String *str)
   return strmake_root(root, str->ptr(), str->length());
 }
 
-struct TABLE_NAME_KEY
-{
-  char *name; // full name of the table or view
-  size_t name_len;
-};
-
-struct DB_NAME_KEY
-{
-  const char *name; // database name
-  size_t name_len;
-};
-
 /*
   helper function to know the key portion of the record
   that is stored in hash.
 */
-static const uchar *get_table_name_key(const void *entry_, size_t *length,
-                                       my_bool flags)
+static const uchar *get_hash_key(const void *entry_, size_t *length,
+                                 my_bool flags)
 {
-  auto entry= static_cast<const TABLE_NAME_KEY *>(entry_);
-  *length= entry->name_len;
-  return reinterpret_cast<const uchar *>(entry->name);
-}
-
-/*
-  helper function to know the key portion of the record
-  that is stored in hash.
-*/
-static const uchar *get_db_name_key(const void *entry_, size_t *length,
-                                    my_bool flags)
-{
-  auto entry= static_cast<const DB_NAME_KEY *>(entry_);
-  *length= entry->name_len;
-  return reinterpret_cast<const uchar *>(entry->name);
+  auto entry= static_cast<const LEX_CSTRING *>(entry_);
+  *length= entry->length;
+  return reinterpret_cast<const uchar *>(entry->str);
 }
 
 /*
@@ -408,14 +385,39 @@ static bool is_optimizer_related_var(const char **sys_vars,
   return false;
 }
 
+static void store_optimizer_costs(const char *engine,
+                                  const OPTIMIZER_COSTS *costs, String &script)
+{
+  char buf[64];
+  for (uint i= 0; Show::optimizer_costs_fields_info[i + 1].name().str; i++)
+  {
+    const ST_FIELD_INFO *field_info= &Show::optimizer_costs_fields_info[i + 1];
+    double cost_val= ((double *) costs)[i];
+
+    if (strcmp(field_info->name().str, "OPTIMIZER_DISK_READ_RATIO") != 0)
+      cost_val*= 1000.0;
+
+    script.append(STRING_WITH_LEN("SET GLOBAL "));
+    script.append(engine, strlen(engine));
+    script.append(STRING_WITH_LEN("."));
+    script.append(field_info->name());
+    script.append(STRING_WITH_LEN("="));
+
+    size_t len= my_snprintf(buf, sizeof(buf), "%-.11lg", cost_val);
+    script.append(buf, len);
+    script.append(STRING_WITH_LEN(";\n"));
+  }
+}
+
 /*
   @brief
-    Save current values of optimizer variables: append to sql_script
+    Save current values of optimizer variables: append to script
     a set of "SET variable=value" statements.
 */
-static void store_system_variables(THD *thd, String &sql_script)
+static void store_system_variables(THD *thd, String &script)
 {
   CHARSET_INFO *charset_info= system_charset_info;
+
   // hold the lock until the end of this method.
   // follows the same pattern as in sql_show.cc#fill_variables()
   mysql_prlock_rdlock(&LOCK_system_variables_hash);
@@ -427,6 +429,7 @@ static void store_system_variables(THD *thd, String &sql_script)
   size_t len;
   StringBuffer<1024> buf;
   const char *pos;
+
   for (SHOW_VAR *show_var= all_session_vars; show_var->name != NULL;
        show_var++)
   {
@@ -440,13 +443,13 @@ static void store_system_variables(THD *thd, String &sql_script)
       pos= get_one_variable(thd, show_var, SHOW_OPT_SESSION, show_var->type,
                             NULL, &charset_info, buf.c_ptr_safe(), &len);
       mysql_mutex_unlock(&LOCK_global_system_variables);
-      sql_script.append(STRING_WITH_LEN("SET "));
+      script.append(STRING_WITH_LEN("SET "));
 
       if (var->check_type(SHOW_OPT_SESSION))
-        sql_script.append(STRING_WITH_LEN("GLOBAL "));
+        script.append(STRING_WITH_LEN("GLOBAL "));
 
-      sql_script.append(show_var->name, strlen(show_var->name));
-      sql_script.append(STRING_WITH_LEN("="));
+      script.append(show_var->name, strlen(show_var->name));
+      script.append(STRING_WITH_LEN("="));
       switch (var->show_type())
       {
       case SHOW_DOUBLE:
@@ -458,15 +461,15 @@ static void store_system_variables(THD *thd, String &sql_script)
       case SHOW_SLONG:
       case SHOW_SLONGLONG:
       case SHOW_SIZE_T:
-        sql_script.append(pos, len);
+        script.append(pos, len);
         break;
       default:
-        sql_script.append(STRING_WITH_LEN("'"));
-        sql_script.append(pos, len);
-        sql_script.append(STRING_WITH_LEN("'"));
+        script.append(STRING_WITH_LEN("'"));
+        script.append(pos, len);
+        script.append(STRING_WITH_LEN("'"));
         break;
       }
-      sql_script.append(STRING_WITH_LEN(";\n\n"));
+      script.append(STRING_WITH_LEN(";\n\n"));
     }
   }
   mysql_prlock_unlock(&LOCK_system_variables_hash);
@@ -474,7 +477,7 @@ static void store_system_variables(THD *thd, String &sql_script)
 
 /*
   @brief
-    Append the "create database db_name" DDL statement to sql_script, if it is
+    Append the "create database db_name" DDL statement to script, if it is
     not already present in the db_name_hash.
     Also, append "use database db_name" if the flag req_use_db_stmt is set.
 
@@ -482,7 +485,7 @@ static void store_system_variables(THD *thd, String &sql_script)
     0  OK
     1  OOM error
 */
-static bool store_db_ddl(THD *thd, HASH *db_name_hash, String &sql_script,
+static bool store_db_ddl(THD *thd, HASH *db_name_hash, String &script,
                          const char *db_name, bool req_use_db_stmt)
 {
   size_t db_name_len= strlen(db_name);
@@ -490,25 +493,25 @@ static bool store_db_ddl(THD *thd, HASH *db_name_hash, String &sql_script,
   if (db_name_len &&
       !my_hash_search(db_name_hash, (uchar *) db_name, db_name_len))
   {
-    DB_NAME_KEY *db_name_key;
-    if (!(db_name_key= (DB_NAME_KEY *) thd->alloc(sizeof(DB_NAME_KEY))))
+    LEX_CSTRING *db_name_key;
+    if (!(db_name_key= (LEX_CSTRING *) thd->alloc(sizeof(LEX_CSTRING))))
       return true; // OOM
 
-    db_name_key->name= db_name;
-    db_name_key->name_len= db_name_len;
+    db_name_key->str= db_name;
+    db_name_key->length= db_name_len;
 
     if (my_hash_insert(db_name_hash, (uchar *) db_name_key))
       return true; // OOM
 
-    sql_script.append(STRING_WITH_LEN("CREATE DATABASE IF NOT EXISTS "));
-    sql_script.append(db_name, db_name_len);
-    sql_script.append(STRING_WITH_LEN(";\n\n"));
+    script.append(STRING_WITH_LEN("CREATE DATABASE IF NOT EXISTS "));
+    script.append(db_name, db_name_len);
+    script.append(STRING_WITH_LEN(";\n\n"));
 
     if (req_use_db_stmt)
     {
-      sql_script.append(STRING_WITH_LEN("USE "));
-      sql_script.append(db_name, db_name_len);
-      sql_script.append(STRING_WITH_LEN(";\n\n"));
+      script.append(STRING_WITH_LEN("USE "));
+      script.append(db_name, db_name_len);
+      script.append(STRING_WITH_LEN(";\n\n"));
     }
   }
 
@@ -551,15 +554,18 @@ bool store_optimizer_context(THD *thd)
     return false;
   }
   String sql_script;
+  String qry_ctx_script;
+  String sys_vars_script;
   sql_script.set_charset(system_charset_info);
   Json_writer ctx_writer;
   Json_writer_object context(&ctx_writer);
   Json_writer_array context_list(&ctx_writer, "list_contexts");
-  sql_script.append(STRING_WITH_LEN("SET NAMES utf8mb4;\n\n "));
-  store_system_variables(thd, sql_script);
+  sql_script.append(STRING_WITH_LEN("SET NAMES utf8mb4;\n\n"));
   HASH table_name_hash;
+  HASH used_storage_engines;
   HASH db_name_hash;
   List<TABLE_LIST> tables_list;
+  bool res= false;
 
   /*
     lex->query_tables lists the VIEWs before their underlying tables.
@@ -580,23 +586,25 @@ bool store_optimizer_context(THD *thd)
   clean_captured_ctx(thd);
 
   if (my_hash_init(key_memory_trace_ddl_info, &table_name_hash,
-                   system_charset_info, 16, 0, 0, get_table_name_key, NULL,
+                   system_charset_info, 16, 0, 0, get_hash_key, NULL,
+                   HASH_UNIQUE) ||
+      my_hash_init(key_memory_trace_ddl_info, &used_storage_engines,
+                   system_charset_info, 16, 0, 0, get_hash_key, NULL,
                    HASH_UNIQUE) ||
       my_hash_init(key_memory_trace_ddl_info, &db_name_hash,
-                   system_charset_info, 16, 0, 0, get_db_name_key, NULL,
+                   system_charset_info, 16, 0, 0, get_hash_key, NULL,
                    HASH_UNIQUE) ||
-      store_db_ddl(thd, &db_name_hash, sql_script, thd->get_db(), true))
+      store_db_ddl(thd, &db_name_hash, qry_ctx_script, thd->get_db(), true))
   {
-    return true;
+    res= true; // OOM
   }
 
-  bool res= false;
   List<TABLE_LIST> uniq_tables_list;
-  for (TABLE_LIST *tbl= li++; tbl; tbl= li++)
+  for (TABLE_LIST *tbl= li++; !res && tbl; tbl= li++)
   {
     String ddl;
     String full_tbl_name;
-    TABLE_NAME_KEY *tbl_name_key;
+    LEX_CSTRING *tbl_name_key;
     append_full_table_name(tbl, &full_tbl_name);
 
     /*
@@ -607,8 +615,8 @@ bool store_optimizer_context(THD *thd)
                        full_tbl_name.length()))
       continue;
 
-    if (store_db_ddl(thd, &db_name_hash, sql_script, tbl->get_db_name().str,
-                     false))
+    if (store_db_ddl(thd, &db_name_hash, qry_ctx_script,
+                     tbl->get_db_name().str, false))
     {
       res= true;
       break;
@@ -620,8 +628,8 @@ bool store_optimizer_context(THD *thd)
       drop.append(STRING_WITH_LEN("DROP VIEW IF EXISTS "));
       drop.append(full_tbl_name);
       drop.append(STRING_WITH_LEN(";\n"));
-      sql_script.append(drop);
-      
+      qry_ctx_script.append(drop);
+
       create_view_def(thd, tbl, &full_tbl_name, &ddl);
     }
     else
@@ -630,7 +638,7 @@ bool store_optimizer_context(THD *thd)
       drop.append(STRING_WITH_LEN("DROP TABLE IF EXISTS "));
       drop.append(full_tbl_name);
       drop.append(STRING_WITH_LEN(";\n"));
-      sql_script.append(drop);
+      qry_ctx_script.append(drop);
 
       if (show_create_table(thd, tbl, &ddl, NULL, WITH_DB_NAME))
       {
@@ -639,15 +647,14 @@ bool store_optimizer_context(THD *thd)
       }
     }
 
-    if (!(tbl_name_key=
-              (TABLE_NAME_KEY *) thd->alloc(sizeof(TABLE_NAME_KEY))) ||
-        !(tbl_name_key->name= strdup_root(thd->mem_root, &full_tbl_name)))
+    if (!(tbl_name_key= (LEX_CSTRING *) thd->alloc(sizeof(LEX_CSTRING))) ||
+        !(tbl_name_key->str= strdup_root(thd->mem_root, &full_tbl_name)))
     {
       res= true;
       break;
     }
 
-    tbl_name_key->name_len= strlen(tbl_name_key->name);
+    tbl_name_key->length= strlen(tbl_name_key->str);
 
     if (my_hash_insert(&table_name_hash, (uchar *) tbl_name_key))
     {
@@ -655,36 +662,60 @@ bool store_optimizer_context(THD *thd)
       break;
     }
 
-    sql_script.append(ddl);
-    sql_script.append(STRING_WITH_LEN(";\n\n"));
+    qry_ctx_script.append(ddl);
+    qry_ctx_script.append(STRING_WITH_LEN(";\n\n"));
 
     if (!tbl->is_view())
     {
       Json_writer_object ctx_wrapper(&ctx_writer);
       table_context_for_store *table_context= thd->opt_ctx_recorder->search(
-          (uchar *) tbl_name_key->name, tbl_name_key->name_len);
+          (uchar *) tbl_name_key->str, tbl_name_key->length);
       if (table_context)
       {
         List_iterator inserts_li(table_context->const_tbl_ins_stmt_list);
         while (char *stmt= inserts_li++)
         {
-          sql_script.append(stmt, strlen(stmt));
-          sql_script.append(STRING_WITH_LEN(";\n\n"));
+          qry_ctx_script.append(stmt, strlen(stmt));
+          qry_ctx_script.append(STRING_WITH_LEN(";\n\n"));
         }
       }
-      dump_table_stats(thd, tbl, (uchar *) tbl_name_key->name,
-                       tbl_name_key->name_len, ctx_wrapper, &ctx_writer);
+      dump_table_stats(thd, tbl, (uchar *) tbl_name_key->str,
+                       tbl_name_key->length, ctx_wrapper, &ctx_writer);
     }
     uniq_tables_list.push_front(tbl);
+
+    if (is_base_table(tbl))
+    {
+      handlerton *hton= tbl->table->file->partition_ht();
+      const LEX_CSTRING *engine_name= hton_name(hton);
+      if (!my_hash_search(&used_storage_engines, (uchar *) engine_name->str,
+                          engine_name->length))
+      {
+        if (my_hash_insert(&used_storage_engines, (uchar *) engine_name))
+        {
+          res= true; // OOM
+          break;
+        }
+        store_optimizer_costs(engine_name->str,
+                              (OPTIMIZER_COSTS *) hton->optimizer_costs,
+                              sys_vars_script);
+      }
+    }
   }
   context_list.end();
   context.end();
 
   if (!res)
-    res= dump_eits_stats(thd, &uniq_tables_list, sql_script);
+    res= dump_eits_stats(thd, &uniq_tables_list, qry_ctx_script);
 
   if (!res)
   {
+    store_optimizer_costs("heap", &heap_optimizer_costs, sys_vars_script);
+    store_optimizer_costs("temp_table", &tmp_table_optimizer_costs,
+                          sys_vars_script);
+    store_system_variables(thd, sys_vars_script);
+    sql_script.append(sys_vars_script);
+    sql_script.append(qry_ctx_script);
     const char *SET_OPT_CONTEXT_VAR= "set @opt_context=\'\n";
     const char *SET_REPLAY_CONTEXT_VAR=
         "set optimizer_replay_context=\'opt_context\'";
@@ -710,9 +741,10 @@ bool store_optimizer_context(THD *thd)
     sql_script.append(STRING_WITH_LEN("set optimizer_replay_context='';\n\n"));
     thd->captured_opt_ctx= new Optimizer_context_capture(thd, sql_script);
     if (!thd->captured_opt_ctx)
-      return true; // OOM
+      res= true; // OOM
   }
   my_hash_free(&table_name_hash);
+  my_hash_free(&used_storage_engines);
   my_hash_free(&db_name_hash);
   return res;
 }
