@@ -195,7 +195,7 @@ CREATE TABLE t1 (c CHAR(1)) ENGINE=InnoDB;
 ALTER TABLE t1 PAGE_COMPRESSED=1, ALGORITHM=INPLACE;
 ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'PAGE_COMPRESSED'
 ALTER TABLE t1 PAGE_COMPRESSED=1, ALGORITHM=COPY;
-ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+ERROR HY000: Can't create temporary table for ALTER TABLE `test`.`t1` (errno: 140 "Wrong create options")
 SET GLOBAL INNODB_DEFAULT_ROW_FORMAT=compact;
 ALTER TABLE t1 PAGE_COMPRESSED=1, ALGORITHM=COPY;
 DROP TABLE t1;

@@ -2470,3 +2470,40 @@ ALTER TABLE t2 COMMENT 'x', LOCK=SHARED;
 DROP TABLE t2,t1;
 
 --echo # End of 11.5 tests
+
+--echo #
+--echo # MDEV-33814 Wrong error message "Can't create table" on "ALTER TABLE"
+--echo #
+
+CREATE TABLE utilisateur (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE cluster_t (id INT, owner_id VARCHAR(10)) ENGINE=InnoDB;
+
+--echo # ALTER TABLE that fails while creating the shadow table should report
+--echo # "Can't create temporary table for ALTER TABLE ...", not the plain
+--echo # "Can't create table" message. Use ALGORITHM=COPY with a type-mismatched
+--echo # FK under FOREIGN_KEY_CHECKS=0 to force the failure through
+--echo # ha_create_table_from_share() with HA_CREATE_TMP_ALTER set.
+SET @saved_fk_checks = @@SESSION.foreign_key_checks;
+SET SESSION foreign_key_checks = 0;
+--error ER_CANT_CREATE_TABLE
+ALTER TABLE cluster_t
+  ADD CONSTRAINT fk_utilisateur_cluster FOREIGN KEY (owner_id) REFERENCES utilisateur (id),
+  ALGORITHM=COPY;
+SET SESSION foreign_key_checks = @saved_fk_checks;
+
+--echo # Verify CREATE TABLE still says "Can't create table"
+DROP TABLE cluster_t;
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE cluster_t (
+  id INT PRIMARY KEY,
+  owner_id INT,
+  CONSTRAINT fk_utilisateur_cluster FOREIGN KEY (owner_id) REFERENCES utilisateur (id),
+  CONSTRAINT fk_utilisateur_cluster FOREIGN KEY (owner_id) REFERENCES utilisateur (id)
+) ENGINE=InnoDB;
+
+--echo # Clean up
+DROP TABLE utilisateur;
+
+--echo #
+--echo # End of 12.3 tests
+--echo #
