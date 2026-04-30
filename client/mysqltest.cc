@@ -1534,12 +1534,12 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
       }
       else
       {
-	if (!(v= var_get(p, &p, 0, 0)))
+        if (!(v= var_get(p, &p, 0, 0)) || !v->str_val)
         {
           report_or_die( "Bad variable in eval");
           DBUG_VOID_RETURN;
         }
-	dynstr_append_mem(query_eval, v->str_val, v->str_val_len);
+        dynstr_append_mem(query_eval, v->str_val, v->str_val_len);
       }
       break;
     case '\\':
@@ -9228,8 +9228,9 @@ void do_block(enum block_cmd cmd, struct st_command* command)
 
   /* Parse and evaluate test expression */
   expr_start= strchr(p, '(');
-  if (!expr_start++)
+  if (!expr_start)
     die("missing '(' in %s", cmd_name);
+  expr_start++;
 
   while (my_isspace(charset_info, *expr_start))
     expr_start++;
