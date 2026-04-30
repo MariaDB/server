@@ -584,25 +584,25 @@ drop table t1;
 #
 create table t1(a bit not null);
 insert ignore into t1 values (), (), ();
-select group_concat(distinct a+0) from t1;
-select group_concat(distinct a+0 order by a) from t1;
+select hex(group_concat(distinct a)) from t1;
+select hex(group_concat(distinct a order by a)) from t1;
 drop table t1;
 
 create table t1(a bit(2) not null);
 insert into t1 values (1), (0), (0), (3), (1);
-select group_concat(distinct a+0) from t1;
-select group_concat(distinct a+0 order by a) from t1;
-select group_concat(distinct a+0 order by a desc) from t1;
+select hex(group_concat(distinct a)) from t1;
+select hex(group_concat(distinct a order by a)) from t1;
+select hex(group_concat(distinct a order by a desc)) from t1;
 drop table t1;
 
 create table t1(a bit(2), b varchar(10), c bit);
 insert into t1 values (1, 'a', 0), (0, 'b', 1), (0, 'c', 0), (3, 'd', 1),
 (1, 'e', 1), (3, 'f', 1), (0, 'g', 1);
-select group_concat(distinct a+0, c+0) from t1;
-select group_concat(distinct a+0, c+0 order by a) from t1;
-select group_concat(distinct a+0, c+0) from t1;
-select group_concat(distinct a+0, c+0 order by a, c) from t1;
-select group_concat(distinct a+0, c+0 order by a desc, c desc) from t1;
+select hex(group_concat(distinct a, c)) from t1;
+select hex(group_concat(distinct a, c order by a)) from t1;
+select hex(group_concat(distinct a, c)) from t1;
+select hex(group_concat(distinct a, c order by a, c)) from t1;
+select hex(group_concat(distinct a, c order by a desc, c desc)) from t1;
 
 drop table t1;
 
@@ -1142,70 +1142,45 @@ connection default;
 --echo # MDEV-39397 GROUP_CONCAT(BIT ... ORDER BY ...) returns decimal-string
 --echo #            instead of bit byte representation
 --echo #
---echo # This test runs the same query but in two shapes that must
---echo # agree: a SELECT with GROUP BY, and then the same query but
---echo # wrapped in a VIEW.  Before the fix the first form returned the
---echo # decimal-stringified value (e.g., 38 for BIT(8) value 0x08) while
---echo # the VIEW form returned the expected result 0x08.
+--echo # The same query is run in two shapes that must agree.  The first
+--echo # reads a BIT column through a derived table with GROUP BY, the
+--echo # second wraps that derived table in a view.  Before the fix the
+--echo # derived table form returned the value as a decimal string while
+--echo # the view form returned the packed bit bytes.  HEX() keeps the
+--echo # packed bytes readable in the recorded result.
 --echo #
 
-DELIMITER $$;
-CREATE PROCEDURE run_pair()
-BEGIN
-  WITH wf_anchor AS (
-    SELECT seed.grp_id, seed.ord_id, ROW_NUMBER() OVER w_main AS wf_rn
-    FROM (SELECT 1 AS grp_id, 1 AS ord_id
-          UNION ALL
-          SELECT 1, 2) AS seed
-    WINDOW w_main AS (PARTITION BY seed.grp_id ORDER BY seed.ord_id)
-  )
-  SELECT HEX(GROUP_CONCAT(cte.col_4 ORDER BY cte.col_4)) AS col_1_hex
-  FROM (SELECT c12 AS col_4 FROM t1 GROUP BY c12) AS cte
-  WHERE EXISTS (SELECT 1 FROM wf_anchor
-                WHERE grp_id = 1 AND wf_rn = 1);
-
-  DROP VIEW IF EXISTS v1;
-  CREATE VIEW v1 AS
-    SELECT * FROM (SELECT c12 AS col_4 FROM t1 GROUP BY c12) AS cte;
-
-  WITH wf_anchor AS (
-    SELECT seed.grp_id, seed.ord_id, ROW_NUMBER() OVER w_main AS wf_rn
-    FROM (SELECT 1 AS grp_id, 1 AS ord_id
-          UNION ALL
-          SELECT 1, 2) AS seed
-    WINDOW w_main AS (PARTITION BY seed.grp_id ORDER BY seed.ord_id)
-  )
-  SELECT HEX(GROUP_CONCAT(v1.col_4 ORDER BY v1.col_4)) AS col_1_hex
-  FROM v1
-  WHERE EXISTS (SELECT 1 FROM wf_anchor
-                WHERE grp_id = 1 AND wf_rn = 1);
-END$$
-DELIMITER ;$$
-
---echo # BIT(8): both forms must give 012C022C082C80.
-CREATE TABLE t1 (c12 BIT(8) NULL);
+--echo # BIT(8) width.  Both forms must give 012C022C082C80.
+CREATE TABLE t1 (a BIT(8) NULL);
 INSERT INTO t1 VALUES (b'00000001'), (b'00001000'),
                       (b'00000010'), (b'10000000');
-CALL run_pair();
+SELECT HEX(GROUP_CONCAT(a ORDER BY a))
+  FROM (SELECT a FROM t1 GROUP BY a) AS dt;
+CREATE VIEW v1 AS SELECT * FROM (SELECT a FROM t1 GROUP BY a) AS dt;
+SELECT HEX(GROUP_CONCAT(a ORDER BY a)) FROM v1;
 DROP VIEW v1;
 DROP TABLE t1;
 
---echo # BIT(7): width that is not a multiple of 8.  Both forms must give 012C022C402C7F.
-CREATE TABLE t1 (c12 BIT(7) NULL);
+--echo # BIT(7) is not a multiple of 8 bits.  Both forms must give 012C022C402C7F.
+CREATE TABLE t1 (a BIT(7) NULL);
 INSERT INTO t1 VALUES (b'0000001'), (b'1000000'),
                       (b'0000010'), (b'1111111');
-CALL run_pair();
+SELECT HEX(GROUP_CONCAT(a ORDER BY a))
+  FROM (SELECT a FROM t1 GROUP BY a) AS dt;
+CREATE VIEW v1 AS SELECT * FROM (SELECT a FROM t1 GROUP BY a) AS dt;
+SELECT HEX(GROUP_CONCAT(a ORDER BY a)) FROM v1;
 DROP VIEW v1;
 DROP TABLE t1;
 
---echo # BIT(16): multibyte width.  Both forms must give 00012C00022C01002C1000.
-CREATE TABLE t1 (c12 BIT(16) NULL);
+--echo # BIT(16) spans two bytes.  Both forms must give 00012C00022C01002C1000.
+CREATE TABLE t1 (a BIT(16) NULL);
 INSERT INTO t1 VALUES (b'0000000000000001'), (b'0000000100000000'),
                       (b'0000000000000010'), (b'0001000000000000');
-CALL run_pair();
-
+SELECT HEX(GROUP_CONCAT(a ORDER BY a))
+  FROM (SELECT a FROM t1 GROUP BY a) AS dt;
+CREATE VIEW v1 AS SELECT * FROM (SELECT a FROM t1 GROUP BY a) AS dt;
+SELECT HEX(GROUP_CONCAT(a ORDER BY a)) FROM v1;
 DROP VIEW v1;
 DROP TABLE t1;
-DROP PROCEDURE run_pair;
 
 --echo # End of 10.11 tests
