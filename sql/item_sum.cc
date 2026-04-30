@@ -53,6 +53,10 @@ size_t Item_sum::ram_limitation(THD *thd)
   This is needed because BIT fields store parts of their data in table's
   null bits, and we don't have methods to compare two table records with
   bit fields.
+
+  A BIT column reaching GROUP_CONCAT through a view or a nested derived
+  table arrives as an Item_ref rather than an Item_field, so the BIT
+  field is found behind real_item().
 */
 
 static void store_bit_fields_as_bigint_in_tempory_table(List<Item> *list)
@@ -61,8 +65,9 @@ static void store_bit_fields_as_bigint_in_tempory_table(List<Item> *list)
   Item *item;
   while ((item= li++))
   {
-    if (item->type() == Item::FIELD_ITEM &&
-        ((Item_field*) item)->field->type() == FIELD_TYPE_BIT)
+    Item *real= item->real_item();
+    if (real->type() == Item::FIELD_ITEM &&
+        ((Item_field*) real)->field->type() == FIELD_TYPE_BIT)
       item->marker= MARKER_NULL_KEY;
   }
 }
@@ -3817,6 +3822,54 @@ void Item_func_group_concat::cut_max_length(String *result,
                                       ptr + max_length,
                                       result->length()).length();
   result->length(old_length + add_length);
+}
+
+
+String *Item_func_group_concat::get_str_from_field(Item *i, Field *f,
+                                                   String *tmp,
+                                                   const uchar *key,
+                                                   size_t offset)
+{
+  /*
+    Whenever the argument is BIT, emit the packed bytes of its bit value,
+    matching what Field_bit::val_str() returns.
+
+    store_bit_fields_as_bigint_in_tempory_table() converts direct BIT
+    Item_field arguments to LONG or LONGLONG in that temp table so the
+    records can be compared by memcmp; reading the value back via
+    val_str() on the converted field would emit a decimal string instead
+    of the packed bytes.
+  */
+  if (i->field_type() == MYSQL_TYPE_BIT)
+  {
+    // Pack the bits into the buffer, byte by byte.
+    ulonglong bits= f->val_int(key + offset);
+    char buff[sizeof(ulonglong)];
+    for (int b= sizeof(buff) - 1; b >= 0; b--)
+    {
+      buff[b]= static_cast<char>(bits & 0xff);
+      bits>>= 8;
+    }
+
+    // Copy the buffer into the output String tmp.
+    uint length= MY_MIN((uint) ((i->max_length + 7) / 8),
+                        (uint) sizeof(longlong));
+    DBUG_ASSERT(length <= table->s->reclength);
+    memcpy(const_cast<char*>(tmp->ptr()),
+           buff + (sizeof(longlong) - length),
+           length);
+
+    /*
+      The length was zeroed-out by the caller, so update it to reflect
+      the data stored into tmp.
+    */
+    tmp->length(length);
+    tmp->set_charset(&my_charset_bin);
+
+    return tmp;
+  }
+
+  return f->val_str(tmp, key + offset);
 }
 
 
