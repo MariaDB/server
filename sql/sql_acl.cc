@@ -14495,6 +14495,8 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   }
   else if (!(thd->client_capabilities & CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA))
   {
+    /* Packet buffer is null-terminated by the network layer, so strend(user)
+       stays within bounds and passwd remains within the packet. */
     passwd_len= (uchar)(*passwd++);
     db= thd->client_capabilities & CLIENT_CONNECT_WITH_DB ?
       passwd + passwd_len : 0;

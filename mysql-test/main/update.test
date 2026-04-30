@@ -878,3 +878,131 @@ select * from t3;
 drop table t1, t2, t3;
 
 --echo # End of MariaDB 11.8 tests
+
+--echo # Beginning of 13.0 test
+
+--echo #
+--echo # MDEV-5092: Implement UPDATE with result set (UPDATE ... RETURNING)
+--echo #
+
+CREATE TABLE t1(
+  id INT PRIMARY KEY,
+  a  INT,
+  b  VARCHAR(5)
+);
+
+CREATE TABLE t2(
+  id INT PRIMARY KEY,
+  a  INT
+);
+
+INSERT INTO t1 VALUES (1, 10, 'x'), (2, 20, 'y'), (3, 30, 'z');
+INSERT INTO t2 VALUES (1, 100), (2, 200);
+
+CREATE VIEW v1 AS SELECT id, a, b FROM t1;
+
+DELIMITER |;
+CREATE FUNCTION f(x INT) RETURNS INT
+BEGIN
+  RETURN x*2;
+END|
+DELIMITER ;|
+
+UPDATE t1 SET a = a + 1
+  RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+            a AS new_a, OLD_VALUE(a) as old_a,
+            b AS new_b, OLD_VALUE(b) as old_b;
+
+UPDATE v1 SET a = a + 5 WHERE id = 3
+  RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+  a AS new_a, OLD_VALUE(a) AS old_a,
+  b AS new_b, OLD_VALUE(b) AS old_b;
+
+CREATE TRIGGER trg BEFORE UPDATE ON t1 FOR EACH ROW SET NEW.a = NEW.a + 100;
+
+UPDATE t1 SET a = 1 WHERE id = 1
+  RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+  a AS new_a, OLD_VALUE(a) AS old_a,
+  b AS new_b, OLD_VALUE(b) AS old_b;
+
+DROP TRIGGER trg;
+
+PREPARE s FROM
+"UPDATE t1 SET a = a + 10 WHERE id = 2
+ RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+           a AS new_a, OLD_VALUE(a) AS old_a,
+           b AS new_b, OLD_VALUE(b) AS old_b";
+
+EXECUTE s;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+
+--error ER_NOT_SUPPORTED_YET
+UPDATE t1 JOIN t2 ON t1.id=t2.id SET t1.a=t2.a
+    RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+              a AS new_a, OLD_VALUE(a) AS old_a,
+              b AS new_b, OLD_VALUE(b) AS old_b;
+
+--error ER_WRONG_USAGE
+SELECT OLD_VALUE(a) FROM t1;
+
+--error ER_BAD_FIELD_ERROR
+UPDATE t1 SET a=1 WHERE id=1
+  RETURNING OLD_VALUE(nonexistent);
+
+EXPLAIN UPDATE t1 SET a = a + 1
+  RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+            a AS new_a, OLD_VALUE(a) AS old_a,
+            b AS new_b, OLD_VALUE(b) AS old_b;
+
+EXPLAIN EXTENDED UPDATE t1 SET a = a + 1
+  RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+            a AS new_a, OLD_VALUE(a) AS old_a,
+            b AS new_b, OLD_VALUE(b) AS old_b;
+
+SHOW WARNINGS;
+
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON UPDATE t1 SET a = a + 1
+  RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+            a AS new_a, OLD_VALUE(a) AS old_a,
+            b AS new_b, OLD_VALUE(b) AS old_b;
+
+DROP VIEW v1;
+DROP FUNCTION f;
+DROP TABLE t1;
+DROP TABLE t2;
+
+--echo #
+--echo # MDEV-39127: UBSAN : downcast of address X which does not point to an object of type
+--echo # 'multi_update' in sql/sql_update.cc | Sql_cmd_update::update_single_table
+--echo #
+--echo #
+
+CREATE OR REPLACE TABLE t3(a INT);
+INSERT INTO t3 VALUES (1);
+UPDATE t3 SET a = 10 RETURNING a;
+
+DROP TABLE t3;
+
+--echo #
+--echo # MDEV-39119: Improve error handling when using OLD_VALUE as alias name
+--echo #
+
+CREATE OR REPLACE TABLE t3(a INT);
+INSERT INTO t3 VALUES (1);
+UPDATE t3 SET a = 10 RETURNING OLD_VALUE(a) AS old_value;
+
+DROP TABLE t3;
+
+--echo #
+--echo # MDEV-39179: Incorrect NULL handling in UPDATE ... RETURNING result
+--echo #
+
+CREATE OR REPLACE TABLE t1(a VARCHAR(10));
+
+INSERT INTO t1 VALUES('') RETURNING *;
+UPDATE t1 SET a=NULL RETURNING OLD_VALUE(a) AS old, a AS new;
+DROP TABLE t1;
+
+--echo # End of 13.0 test

@@ -34,7 +34,6 @@
 #include "pfs_timer.h"
 #include "sp_head.h" /* TYPE_ENUM_FUNCTION, ... */
 #include "table_helper.h"
-#include "my_md5.h"
 #include "pfs_buffer_container.h"
 
 THR_LOCK table_events_statements_current::m_table_lock;
@@ -368,10 +367,10 @@ void table_events_statements_common::make_row_part_2(const sql_digest_storage *d
   if (safe_byte_count > 0 &&
       safe_byte_count <= pfs_max_digest_length)
   {
-    /* Generate the DIGEST string from the MD5 digest  */
-    MD5_HASH_TO_STRING(digest->m_md5,
+    /* Generate the DIGEST string from the digest */
+    DIGEST_HASH_TO_STRING(digest->m_hash,
                        m_row.m_digest.m_digest);
-    m_row.m_digest.m_digest_length= MD5_HASH_TO_STRING_LENGTH;
+    m_row.m_digest.m_digest_length= DIGEST_HASH_TO_STRING_LENGTH;
 
     /* Generate the DIGEST_TEXT string from the token array */
     compute_digest_text(digest, &m_row.m_digest.m_digest_text);

@@ -156,14 +156,14 @@ public:
 };
 
 
-class Yes_or_empty: public Varchar
+class Yes_or_no: public Varchar
 {
 public:
-  Yes_or_empty(): Varchar(3) { }
+  Yes_or_no(): Varchar(3) { }
   static LEX_CSTRING value(bool val)
   {
-    return val ? Lex_cstring(STRING_WITH_LEN("Yes")) :
-                 Lex_cstring();
+    return val ? Lex_cstring(STRING_WITH_LEN("YES")) :
+                 Lex_cstring(STRING_WITH_LEN("NO"));
   }
 };
 

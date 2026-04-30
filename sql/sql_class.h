@@ -3191,6 +3191,7 @@ private:
   { DBUG_ASSERT(0); return Statement::is_conventional(); }
 
 public:
+  bool is_setting_returning;
   MDL_context mdl_context;
 
   /* Used to execute base64 coded binlog events in MySQL server */

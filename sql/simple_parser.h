@@ -1188,6 +1188,35 @@ protected:
                     ELEMENT_PARSER, SEP, 0/*no elements is OK*/>;
   };
 
+  /*
+    Generic container for parser list elements that handles memory allocation.
+
+    This template provides a reusable container for LIST<> parsers, replacing
+    the need for individual *_list_container classes with custom add() methods.
+
+    ELEM_TYPE: The type of elements stored in the list
+    PARSER:    The parser class (must provide thd() method for memory allocation)
+
+    Elements are allocated on the THD's memory pool and moved into place,
+    ensuring proper lifetime management within the parser's memory context.
+  */
+  template<typename ELEM_TYPE, typename PARSER>
+  class List_container : public List<ELEM_TYPE>
+  {
+  public:
+    bool add(PARSER *p, ELEM_TYPE &&elem)
+    {
+      // Allocate memory for the new list element
+      ELEM_TYPE *new_elem= (ELEM_TYPE*) p->thd()->alloc(sizeof(ELEM_TYPE));
+      if (!new_elem)
+        return true;
+      // Move-construct the new element in the preallocated memory
+      ::new (new_elem) ELEM_TYPE(std::move(elem));
+      return List<ELEM_TYPE>::push_back(new_elem, p->thd()->mem_root);
+    }
+
+    size_t count() const { return List<ELEM_TYPE>::elements; }
+  };
 };
 
 #endif // SIMPLE_PARSER_H

@@ -439,6 +439,18 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ref	f1	f1	8	test.t3.f1,test.t3.f2	2	50.00	Using where; FirstMatch(t3)
 Warnings:
 Note	1003	update /*+ BKA(`t2`@`select#2`) NO_BNL(`t1`@`select#2`) NO_RANGE_OPTIMIZATION(`t3`@`select#1` `PRIMARY`) */ `test`.`t3` semi join (`test`.`t1` join `test`.`t2`) set `test`.`t3`.`f3` = 'mnbv' where `test`.`t1`.`f1` = `test`.`t3`.`f1` and `test`.`t2`.`f1` = `test`.`t3`.`f1` and `test`.`t2`.`f2` = `test`.`t3`.`f2` and `test`.`t3`.`f1` > 30 and `test`.`t3`.`f1` < 33 and `test`.`t3`.`f2` between `test`.`t3`.`f1` and `test`.`t1`.`f2` and `test`.`t3`.`f2` + 1 >= `test`.`t3`.`f1` + 1 and `test`.`t3`.`f3` = `test`.`t2`.`f3`
+# Same as above but addressing tables with QB name
+EXPLAIN EXTENDED
+UPDATE /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY) BKA(t2@QB1) NO_BNL(t1@QB1)*/ t3
+SET f3 = 'mnbv' WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
+(SELECT /*+ QB_NAME(QB1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
+t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	range	PRIMARY,f2_idx,f3_idx	f2_idx	4	NULL	2	100.00	Using index condition; Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	3.33	Using where
+1	PRIMARY	t2	ref	f1	f1	8	test.t3.f1,test.t3.f2	2	50.00	Using where; FirstMatch(t3)
+Warnings:
+Note	1003	update /*+ BKA(`t2`@`QB1`) NO_BNL(`t1`@`QB1`) NO_RANGE_OPTIMIZATION(`t3`@`select#1` `PRIMARY`) */ `test`.`t3` semi join (`test`.`t1` join `test`.`t2`) set `test`.`t3`.`f3` = 'mnbv' where `test`.`t1`.`f1` = `test`.`t3`.`f1` and `test`.`t2`.`f1` = `test`.`t3`.`f1` and `test`.`t2`.`f2` = `test`.`t3`.`f2` and `test`.`t3`.`f1` > 30 and `test`.`t3`.`f1` < 33 and `test`.`t3`.`f2` between `test`.`t3`.`f1` and `test`.`t1`.`f2` and `test`.`t3`.`f2` + 1 >= `test`.`t3`.`f1` + 1 and `test`.`t3`.`f3` = `test`.`t2`.`f3`
 # Turn off range access for all keys.
 EXPLAIN EXTENDED UPDATE /*+ NO_RANGE_OPTIMIZATION(t3) */ t3
 SET f3 = 'mnbv' WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
@@ -450,6 +462,31 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	eq_ref	PRIMARY,f2_idx,f3_idx	PRIMARY	4	test.t2.f1	1	100.00	Using where; End temporary
 Warnings:
 Note	1003	update /*+ NO_RANGE_OPTIMIZATION(`t3`@`select#1`) */ `test`.`t3` semi join (`test`.`t1` join `test`.`t2`) set `test`.`t3`.`f3` = 'mnbv' where `test`.`t1`.`f1` = `test`.`t2`.`f1` and `test`.`t3`.`f1` = `test`.`t2`.`f1` and `test`.`t3`.`f2` = `test`.`t2`.`f2` and `test`.`t2`.`f1` > 30 and `test`.`t2`.`f1` < 33 and `test`.`t2`.`f2` between `test`.`t2`.`f1` and `test`.`t1`.`f2` and `test`.`t2`.`f2` + 1 >= `test`.`t2`.`f1` + 1 and `test`.`t3`.`f3` = `test`.`t2`.`f3`
+# Multi-table UPDATE with a derived table
+EXPLAIN EXTENDED
+UPDATE /*+ NO_RANGE_OPTIMIZATION(t2@dt)*/ t3,
+(SELECT /*+ qb_name(dt)*/ t1.* FROM t1, t2 WHERE t1.f1 > t2.f1) AS dt
+SET t3.f3 = 'mnbv' WHERE t3.f1 = dt.f1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	PRIMARY,f2_idx	NULL	NULL	NULL	56	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.f1	8	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	t2	index	f1	f1	8	NULL	28	100.00	Using where; Using index; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ update /*+ NO_RANGE_OPTIMIZATION(`t2`@`dt`) */ `test`.`t3` join (/* select#2 */ select /*+ QB_NAME(`dt`) */ `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`f1` > `test`.`t2`.`f1`) `dt` set `test`.`t3`.`f3` = 'mnbv' where `dt`.`f1` = `test`.`t3`.`f1`
+# Multi-table UPDATE with a derived table and both table-level and
+# query block-level hints
+EXPLAIN EXTENDED
+UPDATE /*+ NO_RANGE_OPTIMIZATION(t2@dt) NO_BNL(@dt)*/ t3,
+(SELECT /*+ qb_name(dt)*/ t1.* FROM t1, t2 WHERE t1.f1 > t2.f1) AS dt
+SET t3.f3 = 'mnbv' WHERE t3.f1 = dt.f1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	PRIMARY,f2_idx	NULL	NULL	NULL	56	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.f1	8	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	t2	index	f1	f1	8	NULL	28	100.00	Using where; Using index
+Warnings:
+Note	1003	/* select#1 */ update /*+ NO_BNL(@`dt`) NO_RANGE_OPTIMIZATION(`t2`@`dt`) */ `test`.`t3` join (/* select#2 */ select /*+ QB_NAME(`dt`) */ `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`f1` > `test`.`t2`.`f1`) `dt` set `test`.`t3`.`f3` = 'mnbv' where `dt`.`f1` = `test`.`t3`.`f1`
 EXPLAIN EXTENDED DELETE FROM t3
 WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
 (SELECT /*+ QB_NAME(qb1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
@@ -500,7 +537,7 @@ Warnings:
 Note	1003	(insert into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#1`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
 # Turn off ICP for a particular table and a key
 EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
-(SELECT /*+ QB_NAME(qb1) NO_ICP(t5@QB1 x_idx)*/ t4.x, t5.y, 'filler' FROM t4, t4 t5
+(SELECT /*+ NO_ICP(t5@QB1 x_idx) QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
 WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
@@ -550,15 +587,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Warning	4219	Hint QB_NAME(`qb1`) is ignored as conflicting/duplicated
 Note	1003	select /*+ QB_NAME(`qb1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t2`
-# Should issue warning
-EXPLAIN EXTENDED SELECT /*+ BKA(@qb1) QB_NAME(qb1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2
+# QB_NAME may appear after the hint, but the hint is still resolved
+EXPLAIN EXTENDED SELECT /*+ NO_BNL(@qb1) QB_NAME(qb1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2
 WHERE t1.f1=t2.f1 AND t2.f2 BETWEEN t1.f1 and t1.f2 and t2.f2 + 1 >= t1.f1 + 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	f1	NULL	NULL	NULL	28	25.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	f1	NULL	NULL	NULL	28	25.00	Using where
 Warnings:
-Warning	4220	Query block name `qb1` is not found for BKA hint
-Note	1003	select /*+ QB_NAME(`qb1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f2` between `test`.`t1`.`f1` and `test`.`t1`.`f2` and `test`.`t2`.`f2` + 1 >= `test`.`t1`.`f1` + 1
+Note	1003	select /*+ QB_NAME(`qb1`) NO_BNL(@`qb1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f2` between `test`.`t1`.`f1` and `test`.`t1`.`f2` and `test`.`t2`.`f2` + 1 >= `test`.`t1`.`f1` + 1
 # Should not crash
 PREPARE stmt1 FROM "SELECT /*+ BKA(t2) */ t2.f1, t2.f2, t2.f3 FROM t1,t2
 WHERE t1.f1=t2.f1 AND t2.f2 BETWEEN t1.f1 and t1.f2 and t2.f2 + 1 >= t1.f1 + 1";
