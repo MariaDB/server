@@ -65,13 +65,23 @@
 extern "C" {
 #endif
 
-#ifdef DBUG_OFF
 #if defined(HAVE_STPCPY) && defined(__GNUC__) && !defined(__INTEL_COMPILER)
 #define strmov(A,B) __builtin_stpcpy((A),(B))
 #elif defined(HAVE_STPCPY)
 #define strmov(A,B) stpcpy((A),(B))
-#endif
-#endif
+#else
+__attribute__((nonnull))
+static inline char *strmov(char *dst, const char *src)
+{
+  size_t l;
+  DBUG_ASSERT(dst != NULL);
+  DBUG_ASSERT(src != NULL);
+
+  l= strlen(src);
+  memmove(dst, src, l + 1);
+  return dst + l;
+}
+#endif /* strmov */
 
 /* Declared in int2str() */
 extern const char _dig_vec_upper[];

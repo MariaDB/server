@@ -24,7 +24,7 @@ SET(STRINGS_SOURCES bchange.c bmove_upp.c ctype-big5.c ctype-bin.c ctype-cp932.c
                 ctype-ucs2.c ctype-ujis.c ctype-utf8.c ctype-win1250ch.c ctype.c decimal.c dtoa.c int2str.c
                 ctype-unidata.c
                 is_prefix.c llstr.c longlong2str.c my_strtoll10.c my_vsnprintf.c
-                str2int.c strcend.c strend.c strfill.c strmake.c strmov.c strnmov.c
+                str2int.c strcend.c strend.c strfill.c strmake.c strnmov.c
                 strxmov.c strxnmov.c xml.c
                 strmov_overlapp.c
 		my_strchr.c strcont.c strappend.c json_lib.c json_normalize.c)
