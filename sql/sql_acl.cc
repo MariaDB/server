@@ -6360,6 +6360,7 @@ struct PRIVS_TO_MERGE
     ALL, GLOBAL, DB, TABLE_COLUMN, PROC, FUNC, PACKAGE_SPEC, PACKAGE_BODY
   } what;
   const char *db, *name;
+  bool initial_load; // acl_reload(): grants are calculated, not updated
 };
 
 
@@ -6414,7 +6415,7 @@ static void propagate_role_grants(ACL_ROLE *role,
     return;
 
   mysql_mutex_assert_owner(&acl_cache->lock);
-  PRIVS_TO_MERGE data= { what, db, name };
+  PRIVS_TO_MERGE data= { what, db, name, false };
 
   /*
      Before updating grants to roles that inherit from this role, ensure that
@@ -7223,7 +7224,7 @@ static int merge_role_privileges(ACL_USER_BASE *,
     changed|= merge_role_routine_grant_privileges(grantee,
                             data->db, data->name, &role_hash,
                             &package_body_priv_hash);
-  return !changed; // don't recurse into the subgraph if privs didn't change
+  return !changed && !data->initial_load;
 }
 
 static
@@ -8312,7 +8313,7 @@ static my_bool propagate_role_grants_action(void *role_ptr,
     return 0;
 
   mysql_mutex_assert_owner(&acl_cache->lock);
-  PRIVS_TO_MERGE data= { PRIVS_TO_MERGE::ALL, 0, 0 };
+  PRIVS_TO_MERGE data= { PRIVS_TO_MERGE::ALL, 0, 0, true };
   traverse_role_graph_up(role, &data, NULL, merge_role_privileges);
   return 0;
 }

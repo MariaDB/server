@@ -175,6 +175,34 @@ GRANT USAGE ON *.* TO `a`
 GRANT SELECT (`i`) ON `test`.`t1` TO `a`
 drop role a;
 drop table t1;
-#
 # End of 10.3 tests
 #
+# MDEV-28743 Roles without grants are handled wrong
+#
+create database mysqltest1;
+create table mysqltest1.t2 (a int);
+create role app_role_1;
+create role app_role_2;
+grant select on mysqltest1.t2 to app_role_2;
+create role org_role_1;
+create role org_role_2;
+grant app_role_1 to org_role_1;
+grant app_role_2 to org_role_2;
+create role user_role_1;
+grant org_role_1 to user_role_1;
+grant org_role_2 to user_role_1;
+create user user_1 identified by 'user_1';
+grant user_role_1 to user_1;
+flush privileges;
+connect con1,localhost,user_1,'user_1';
+set role user_role_1;
+use mysqltest1;
+show tables;
+Tables_in_mysqltest1
+t2
+disconnect con1;
+connection default;
+drop user user_1;
+drop role user_role_1, org_role_1, org_role_2, app_role_1, app_role_2;
+drop database mysqltest1;
+# End of 10.11 tests
