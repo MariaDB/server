@@ -623,7 +623,7 @@ static uint parse_input_file(const char *file_name, struct errors **top_error,
 
 static uint parse_error_offset(char *str)
 {
-  char *soffset, *end;
+  char *soffset;
   int error;
   uint ioffset;
 
@@ -651,8 +651,7 @@ static uint parse_error_offset(char *str)
   }
   DBUG_PRINT("info", ("str: %s", str));
 
-  end= 0;
-  ioffset= (uint) my_strtoll10(soffset, &end, &error);
+  ioffset= (uint) my_strtoll10(soffset, NULL, &error);
   my_free(soffset);
   DBUG_RETURN(ioffset);
 }
