@@ -539,7 +539,7 @@ class String;
 #define OPTIONS_WRITTEN_TO_BIN_LOG (OPTION_EXPLICIT_DEF_TIMESTAMP |\
    OPTION_AUTO_IS_NULL | OPTION_NO_FOREIGN_KEY_CHECKS |  \
    OPTION_RELAXED_UNIQUE_CHECKS | OPTION_NOT_AUTOCOMMIT | OPTION_IF_EXISTS |\
-   OPTION_INSERT_HISTORY)
+   OPTION_INSERT_HISTORY | OPTION_NO_CHECK_CONSTRAINT_CHECKS)
 
 #define CHECKSUM_CRC32_SIGNATURE_LEN 4
 /**
@@ -3230,8 +3230,8 @@ private:
   @return  the value of the buffer pointer
 */
 
-inline char *serialize_xid(char *buf, long fmt, long gln, long bln,
-                           const char *dat)
+inline char *serialize_xid(char *buf, size_t bufsize, long fmt, long gln,
+                           long bln, const char *dat)
 {
   int i;
   char *c= buf;
@@ -3263,7 +3263,7 @@ inline char *serialize_xid(char *buf, long fmt, long gln, long bln,
     c+= 2;
   }
   c[0]= '\'';
-  sprintf(c+1, ",%lu", fmt);
+  snprintf(c + 1, bufsize - (size_t)(c + 1 - buf), ",%lu", fmt);
 
  return buf;
 }
@@ -3284,7 +3284,8 @@ struct event_mysql_xid_t :  MYSQL_XID
   char buf[ser_buf_size];
   char *serialize()
   {
-    return serialize_xid(buf, formatID, gtrid_length, bqual_length, data);
+    return serialize_xid(buf, sizeof(buf), formatID, gtrid_length,
+                         bqual_length, data);
   }
 };
 
@@ -3295,7 +3296,8 @@ struct event_xid_t : XID
 
   char *serialize(char *buf_arg)
   {
-    return serialize_xid(buf_arg, formatID, gtrid_length, bqual_length, data);
+    return serialize_xid(buf_arg, ser_buf_size, formatID, gtrid_length,
+                         bqual_length, data);
   }
   char *serialize()
   {
@@ -3347,9 +3349,9 @@ private:
   int do_commit() override;
   const char* get_query() override
   {
-    sprintf(query,
-            (one_phase ? "XA COMMIT %s ONE PHASE" : "XA PREPARE %s"),
-            m_xid.serialize());
+    snprintf(query, sizeof(query),
+             (one_phase ? "XA COMMIT %s ONE PHASE" : "XA PREPARE %s"),
+             m_xid.serialize());
     return query;
   }
 #endif

@@ -767,6 +767,7 @@ public:
   int reuse_tmp_table_and_sql_for_bka() override;
   void create_tmp_bka_table_name(
     char *tmp_table_name,
+    size_t tmp_table_name_size,
     int *tmp_table_name_length,
     int link_idx
   );

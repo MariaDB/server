@@ -68,6 +68,10 @@ typedef struct xml_stack_st
   int  (*enter)(struct xml_stack_st *st,const char *val, size_t len);
   int  (*value)(struct xml_stack_st *st,const char *val, size_t len);
   int  (*leave_xml)(struct xml_stack_st *st,const char *val, size_t len);
+
+  int  (*processing_instruction)(struct xml_stack_st *st,
+                                 const char *target, size_t target_len,
+                                 const char *value, size_t value_len);
 } MY_XML_PARSER;
 
 void my_xml_parser_create(MY_XML_PARSER *st);
@@ -83,6 +87,8 @@ void my_xml_set_enter_handler(MY_XML_PARSER *st, int (*)(MY_XML_PARSER *,
 void my_xml_set_leave_handler(MY_XML_PARSER *st, int (*)(MY_XML_PARSER *,
 							 const char *,
 							 size_t len));
+void my_xml_set_processing_instruction_handler(MY_XML_PARSER *st,
+    int (*)(MY_XML_PARSER *, const char *, size_t, const char *, size_t));
 void my_xml_set_user_data(MY_XML_PARSER *st, void *);
 
 size_t my_xml_error_pos(MY_XML_PARSER *st);

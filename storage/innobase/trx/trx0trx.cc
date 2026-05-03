@@ -723,7 +723,7 @@ corrupted:
 
 	if (trx_sys.is_undo_empty()) {
 func_exit:
-		purge_sys.clone_oldest_view<true>();
+		purge_sys.clone_oldest_view<true>(nullptr);
 		return DB_SUCCESS;
 	}
 
@@ -1421,6 +1421,7 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
         ut_ad(!l);
 #endif /* UNIV_DEBUG */
     commit_state();
+    DEBUG_SYNC_C("trx_after_commit_state");
 
     if (id)
     {

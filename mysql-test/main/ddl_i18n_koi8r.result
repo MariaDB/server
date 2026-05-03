@@ -751,7 +751,8 @@ COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c6,
 @@character_set_client AS c8;
 SET парам1 = 'a';
 SET парам2 = 'b';
-END ;;
+END
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -785,7 +786,8 @@ COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c6,
 @@character_set_client AS c8;
 SET парам1 = 'a';
 SET парам2 = 'b';
-END ;;
+END
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -828,7 +830,8 @@ COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c6,
 @@character_set_client AS c8;
 SET парам1 = 'a';
 SET парам2 = 'b';
-END ;;
+END
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -862,7 +865,8 @@ COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c6,
 @@character_set_client AS c8;
 SET парам1 = 'a';
 SET парам2 = 'b';
-END ;;
+END
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -1768,7 +1772,8 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @a1 = 'текст';
 SET @a1 = _koi8r    'текст';
 SET @a2 = _utf8 'я┌п╣п╨я│я┌';
-END */;;
+END 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -1797,7 +1802,8 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @b1 = 'текст';
 SET @b1 = _koi8r    'текст';
 SET @b2 = _utf8 'я┌п╣п╨я│я┌';
-END */;;
+END 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -1851,7 +1857,8 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @a1 = 'текст';
 SET @a1 = _koi8r    'текст';
 SET @a2 = _utf8 'я┌п╣п╨я│я┌';
-END */;;
+END 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -1880,7 +1887,8 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @b1 = 'текст';
 SET @b1 = _koi8r    'текст';
 SET @b2 = _utf8 'я┌п╣п╨я│я┌';
-END */;;
+END 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -2522,7 +2530,8 @@ COLLATION(_koi8r    'текст') AS c3,
 COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END */ ;;
+END 
+*/ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
@@ -2550,7 +2559,8 @@ COLLATION(_koi8r    'текст') AS c3,
 COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END */ ;;
+END 
+*/ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
@@ -2590,7 +2600,8 @@ COLLATION(_koi8r    'текст') AS c3,
 COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END */ ;;
+END 
+*/ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
@@ -2618,7 +2629,8 @@ COLLATION(_koi8r    'текст') AS c3,
 COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END */ ;;
+END 
+*/ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;

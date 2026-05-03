@@ -4,12 +4,14 @@ t1	CREATE TABLE `t1` (
   `Attributes` varchar(256) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`='ODBC' `CATFUNC`='Drivers'
 SET NAMES utf8;
-CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC SRCDEF='SELECT %s, %d FROM t1' CONNECTION='Driver=SQLite3;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;;
+ERROR HY000: SQLExecDirect: [SQLite]near "%": syntax error (1)
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(64) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci CONNECTION='Driver=SQLite3 ODBC Driver;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' `TABLE_TYPE`='ODBC' `DATA_CHARSET`='utf8'
+) ENGINE=CONNECT DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci CONNECTION='Driver=SQLite3;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' `TABLE_TYPE`='ODBC' `DATA_CHARSET`='utf8'
 SELECT * FROM t1;
 a
 test1
@@ -21,7 +23,7 @@ CREATE TABLE t2 AS SELECT * FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` varchar(64) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+  `a` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 a
@@ -41,17 +43,17 @@ test2
 ÆÇÈÉË
 DROP VIEW v1;
 DROP TABLE t1;
-CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Columns TABNAME='t1' TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
+CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Columns TABNAME='t1' TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
 SELECT * FROM t1;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
 		t1	a	12	varchar(64)	64	64	10	0	1	NULL
 DROP TABLE t1;
-CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Tables TABNAME='t1' TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
+CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Tables TABNAME='t1' TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
 SELECT * FROM t1;
 Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
 NULL	NULL	t1	TABLE	NULL
 DROP TABLE t1;
-CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Columns TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
+CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Columns TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
 SELECT * FROM t1 ORDER BY Table_name;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
 		t000	a	4	INT	9	10	10	0	1	NULL
@@ -2056,7 +2058,7 @@ Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Bu
 		t399	d	4	INT	9	10	10	0	1	NULL
 		t399	e	4	INT	9	10	10	0	1	NULL
 DROP TABLE t1;
-CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Tables TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
+CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Tables TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
 SELECT * FROM t1 ORDER BY Table_name;
 Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
 NULL	NULL	t000	TABLE	NULL

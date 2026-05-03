@@ -2066,3 +2066,16 @@ SHOW CREATE DATABASE `#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭�
 ERROR 42000: Incorrect database name '#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭...'
 SET NAMES DEFAULT;
 # End of 10.5 Test
+#
+# MDEV-39002: Diagnostics area assertion failure upon CREATE TABLE
+#
+CREATE TABLE t1 (a INT, b VARCHAR(8) DEFAULT (IFNULL(a,''))) CHARSET swe7;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,NUMERIC) and (swe7_swedish_ci,COERCIBLE) for operation 'ifnull'
+# Test Item_func_case_abbreviation2 (IF, NVL2, IFNULL) with collation mismatch in DEFAULT
+CREATE TABLE t1 (a VARCHAR(8) CHARSET latin1, b VARCHAR(8) DEFAULT (IFNULL(_latin1'x', _swe7'y'))) CHARSET utf8;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (swe7_swedish_ci,COERCIBLE) for operation 'ifnull'
+CREATE TABLE t1 (a VARCHAR(8) CHARSET latin1, b VARCHAR(8) DEFAULT (IF(1, _latin1'x', _swe7'y'))) CHARSET utf8;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (swe7_swedish_ci,COERCIBLE) for operation 'if'
+CREATE TABLE t1 (a VARCHAR(8) CHARSET latin1, b VARCHAR(8) DEFAULT (NVL2(1, _latin1'x', _swe7'y'))) CHARSET utf8;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (swe7_swedish_ci,COERCIBLE) for operation 'nvl2'
+End of 10.11 tests

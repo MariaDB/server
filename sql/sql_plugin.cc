@@ -4189,9 +4189,14 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
   struct st_bookmark *var;
   size_t len=0, count= EXTRA_OPTIONS;
   st_ptr_backup *tmp_backup= 0;
+  const char *plugin_name= tmp->plugin->name;
+  size_t plugin_name_len= strlen(plugin_name);
   DBUG_ENTER("test_plugin_options");
   DBUG_ASSERT(tmp->plugin && tmp->name.str);
 
+  char *plugin_name_ptr= static_cast<char*>(alloc_root(mem_root, plugin_name_len + 1));
+  safe_strcpy(plugin_name_ptr, plugin_name_len + 1, plugin_name);
+  my_casedn_str(&my_charset_latin1, plugin_name_ptr);
   if (tmp->plugin->system_vars || (*argc > 1))
   {
     for (opt= tmp->plugin->system_vars; opt && *opt; opt++)
@@ -4227,7 +4232,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
         sys_var *v;
 
         tmp_backup[tmp->nbackups++].save(&o->name);
-        if ((var= find_bookmark(tmp->name.str, o->name, o->flags)))
+        if ((var= find_bookmark(plugin_name_ptr, o->name, o->flags)))
         {
           varname= var->key + 1;
           var->loaded= TRUE;

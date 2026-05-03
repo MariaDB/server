@@ -92,7 +92,7 @@ void log_t::create() noexcept
   ut_ad(this == &log_sys);
   ut_ad(!is_initialised());
 
-  latch.SRW_LOCK_INIT(log_latch_key);
+  latch.init();
   write_lsn_offset= 0;
   /* LSN 0 and 1 are reserved; @see buf_page_t::oldest_modification_ */
   base_lsn.store(FIRST_LSN, std::memory_order_relaxed);
@@ -504,7 +504,7 @@ void log_t::close_file(bool really_close) noexcept
 /** @return the current log sequence number (may be stale) */
 lsn_t log_get_lsn() noexcept
 {
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock();
   lsn_t lsn= log_sys.get_lsn();
   log_sys.latch.wr_unlock();
   return lsn;
@@ -523,7 +523,7 @@ static void log_resize_acquire() noexcept
            group_commit_lock::ACQUIRED);
   }
 
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock();
 }
 
 /** Release the latches that protect the log. */
@@ -924,7 +924,7 @@ void log_t::persist(lsn_t lsn) noexcept
 ATTRIBUTE_NOINLINE
 static void log_write_persist(lsn_t lsn) noexcept
 {
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock();
   log_sys.persist(lsn);
   log_sys.latch.wr_unlock();
 }
@@ -1167,7 +1167,7 @@ repeat:
   if (write_lock.acquire(lsn, durable ? nullptr : callback) ==
       group_commit_lock::ACQUIRED)
   {
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock();
     pending_write_lsn= write_lock.release(log_sys.writer());
   }
 
@@ -1231,7 +1231,7 @@ void log_t::clear_mmap() noexcept
 #ifdef HAVE_PMEM
   if (!is_opened())
   {
-    ut_d(latch.wr_lock(SRW_LOCK_CALL));
+    ut_d(latch.wr_lock());
     ut_ad(!resize_in_progress());
     ut_ad(get_lsn() == get_flushed_lsn(std::memory_order_relaxed));
     ut_d(latch.wr_unlock());
@@ -1299,7 +1299,7 @@ ATTRIBUTE_COLD void log_t::checkpoint_margin() noexcept
 
   while (check_for_checkpoint())
   {
-    latch.wr_lock(SRW_LOCK_CALL);
+    latch.wr_lock();
     ut_ad(!recv_no_log_write);
 
     if (!check_for_checkpoint())
@@ -1509,7 +1509,7 @@ log_print(
 /*======*/
 	FILE*	file)	/*!< in: file where to print */
 {
-	log_sys.latch.wr_lock(SRW_LOCK_CALL);
+	log_sys.latch.wr_lock();
 
 	const lsn_t lsn= log_sys.get_lsn();
 	mysql_mutex_lock(&buf_pool.flush_list_mutex);

@@ -2053,12 +2053,44 @@ SELECT JSON_VALUE('{"a":[1,2]}', '$.a[*]');
 --echo # MDEV-37640: Crash at String::append with json_normalize
 --echo #
 
-SELECT ( WITH x AS ( WITH x AS ( SELECT 1.000000 ) SELECT ( REPEAT ( ( json_normalize ( ' 	-1' ) ) , 357 ) ) x ) SELECT x FROM x WHERE x IN ( x , x ) );
+SELECT ( WITH x AS ( WITH x AS ( SELECT 1.000000 ) SELECT ( REPEAT ( ( json_normalize ( ' 	-1' ) ) , 357 ) ) x ) SELECT x FROM x WHERE x IN ( x , x ) ) x;
 
 --echo #
 --echo # MDEV-37640: Crash in JSON_KEYS
 --echo #
 
 SELECT JSON_SET('{"c":4}', '$.a', 5) AS x HAVING (x IN (JSON_KEYS(x), ','));
+
+--echo #
+--echo # MDEV-38264 Assertion in json_find_path() fails after computing
+--echo # array size of invalid json structure
+--echo #
+
+SELECT JSON_QUERY('{ "A": [0,] }', '$.A[-1]');
+SELECT JSON_VALUE('{ "A": [0,] }', '$.A[-1]');
+SELECT JSON_VALUE('{ "A": [5,] }', '$.A[-2]');
+SELECT JSON_VALUE('{ "A": [5] }', '$.A[-2]');
+SELECT JSON_LENGTH('{ "A": [0,] }', '$.A');
+SELECT JSON_VALID('{ "A": [0,] }');
+
+--echo #
+--echo # MDEV-38264 Assertion in json_find_path() fails after computing
+--echo # array size of invalid json structure
+--echo #
+
+SELECT JSON_QUERY('{ "A": [0,] }', '$.A[-1]');
+SELECT JSON_VALUE('{ "A": [0,] }', '$.A[-1]');
+SELECT JSON_VALUE('{ "A": [5,] }', '$.A[-2]');
+SELECT JSON_VALUE('{ "A": [5] }', '$.A[-2]');
+SELECT JSON_LENGTH('{ "A": [0,] }', '$.A');
+SELECT JSON_VALID('{ "A": [0,] }');
+
+--echo #
+--echo # MDEV-35548 UBSAN: runtime error: index -1 out of bounds for type 'json_path_step_t[32]'
+--echo # (aka 'struct st_json_path_step_t[32]')
+--echo #
+
+SELECT JSON_EXTRACT('{a:true}','$.a')=TRUE;
+SELECT JSON_EXTRACT('0E+0','$');
 
 --echo # End of 10.11 Test

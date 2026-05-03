@@ -1425,7 +1425,7 @@ code_name(int code)
   case Q_XID: return "XID";
   case Q_GTID_FLAGS3: return "Q_GTID_FLAGS3";
   }
-  sprintf(buf, "CODE#%d", code);
+  snprintf(buf, sizeof(buf), "CODE#%d", code);
   return buf;
 }
 #endif
@@ -2392,7 +2392,7 @@ void Format_description_log_event::deduct_options_written_to_bin_log()
 {
   options_written_to_bin_log= OPTION_AUTO_IS_NULL | OPTION_NOT_AUTOCOMMIT |
               OPTION_NO_FOREIGN_KEY_CHECKS | OPTION_RELAXED_UNIQUE_CHECKS |
-              OPTION_INSERT_HISTORY;
+              OPTION_INSERT_HISTORY | OPTION_NO_CHECK_CONSTRAINT_CHECKS;
   if (!server_version_split.version_is_valid() ||
       server_version_split.kind == master_version_split::KIND_MYSQL ||
       server_version_split < Version(10,5,2))

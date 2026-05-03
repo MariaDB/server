@@ -2,9 +2,7 @@
 #define fts0tHEADER_H 1
 #define fts0tIN_HEADER 1
 
-#line 6 "../include/fts0tlex.h"
 
-#line 8 "../include/fts0tlex.h"
 
 #define  YY_INT_ALIGNED short int
 
@@ -694,9 +692,7 @@ extern int yylex (yyscan_t yyscanner);
 #undef yyTABLES_NAME
 #endif
 
-#line 69 "fts0tlex.l"
 
 
-#line 701 "../include/fts0tlex.h"
 #undef fts0tIN_HEADER
 #endif /* fts0tHEADER_H */

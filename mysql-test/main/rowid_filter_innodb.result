@@ -4020,7 +4020,7 @@ ANALYZE
             "r_filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "8Kb",
+          "buffer_size": "8KiB",
           "join_type": "BKA",
           "mrr_type": "Rowid-ordered scan",
           "attached_condition": "a.atp = 1",
@@ -4051,7 +4051,7 @@ ANALYZE
             "r_filtered": 100
           },
           "buffer_type": "incremental",
-          "buffer_size": "4Kb",
+          "buffer_size": "4KiB",
           "join_type": "BKA",
           "mrr_type": "Rowid-ordered scan",
           "attached_condition": "fi.fh in (6311439873746261694,-397087483897438286,8518228073041491534,-5420422472375069774)",

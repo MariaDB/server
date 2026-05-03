@@ -767,7 +767,8 @@ extern int wild_compare(const char *str,const char *wildstr,
                         pbool str_is_pattern);
 extern my_bool array_append_string_unique(const char *str,
                                           const char **array, size_t size);
-extern void get_date(char * to,int timeflag,time_t use_time);
+extern void get_date(char * to, size_t to_len, int timeflag,
+                     time_t use_time);
 extern void soundex(CHARSET_INFO *, char * out_pntr, char * in_pntr,
                     pbool remove_garbage);
 extern int init_record_cache(RECORD_CACHE *info,size_t cachesize,File file,

@@ -1101,9 +1101,6 @@ struct fil_node_t final
   /** size of the file in database pages (0 if not known yet);
   the possible last incomplete megabyte may be ignored if space->id == 0 */
   uint32_t size;
-  /** initial size of the file in database pages;
-  FIL_IBD_FILE_INITIAL_SIZE by default */
-  uint32_t init_size;
   /** maximum size of the file in database pages (0 if unlimited) */
   uint32_t max_size;
   /** whether the file is currently being extended */

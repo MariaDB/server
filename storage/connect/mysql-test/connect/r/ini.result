@@ -40,8 +40,8 @@ SELECT * FROM t1 WHERE contact='UK2';
 contact	name	forename	hired	address	city	zipcode	tel
 UK2	NULL	John	NULL	NULL	NULL	NULL	NULL
 DROP TABLE t1;
-SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');;
-REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n')
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n') AS file_contents;;
+file_contents
 [BER]
 name=Bertrand
 forename=Olivier
@@ -100,8 +100,8 @@ UK1	city	London
 UK1	zipcode	NW1 2BP
 UK2	forename	Paul
 DROP TABLE t1;
-SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');;
-REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n')
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n') AS file_contents;;
+file_contents
 [BER]
 name=Bertrand
 forename=Olivier
@@ -145,8 +145,8 @@ contact	c2
 4000	4000
 a b	c d
 DROP TABLE t1;
-SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/tmp.ini'),'\r\n','\n'),'\n\n','\n');;
-REPLACE(REPLACE(LOAD_FILE('DATADIR/test/tmp.ini'),'\r\n','\n'),'\n\n','\n')
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/tmp.ini'),'\r\n','\n'),'\n\n','\n') AS file_contents;;
+file_contents
 [10]
 c2=10
 [20]
@@ -236,8 +236,8 @@ SELECT sec2 AS s, val2 AS v FROM t1;
 s	v
 sec1	val11
 sec2	val22
-SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n');;
-REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n')
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n') AS file_contents;;
+file_contents
 [sec1]
 val2=val11
 [sec2]
@@ -258,8 +258,8 @@ SELECT sec AS s, val AS v FROM t1;
 s	v
 1sec1	1val1
 1sec2	1val2
-SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n');;
-REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n')
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n') AS file_contents;;
+file_contents
 [1sec1]
 val=1val1
 [1sec2]
@@ -269,8 +269,8 @@ SELECT sec AS s, val AS v FROM t2;
 s	v
 2sec1	2val1
 2sec2	2val2
-SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t2.ini'),'\r\n','\n'),'\n\n','\n');;
-REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t2.ini'),'\r\n','\n'),'\n\n','\n')
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t2.ini'),'\r\n','\n'),'\n\n','\n') AS file_contents;;
+file_contents
 [2sec1]
 val=2val1
 [2sec2]

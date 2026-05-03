@@ -403,6 +403,7 @@ char *opt_defaults_group;
 char *opt_socket;
 uint opt_port;
 char *opt_log_bin;
+char *opt_login_path;
 
 const char *query_type_names[] = { "ALL", "UPDATE", "SELECT", NullS};
 
@@ -1846,6 +1847,11 @@ struct my_option xb_client_options[]= {
      "corrupted pages and can not be considered as consistent.",
      &opt_log_innodb_page_corruption, &opt_log_innodb_page_corruption, 0,
      GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+
+    {"login-path", 0, 0, &opt_login_path, &opt_login_path, 0,
+      GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+    {"apply-log", 0, 0, &xtrabackup_prepare, &xtrabackup_prepare,
+      0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
 #define MYSQL_CLIENT
 #include "sslopt-longopts.h"
@@ -4141,13 +4147,15 @@ next_file:
 
 	strcpy(info->name, ent->d_name);
 
+	size_t full_path_size= strlen(dirname) + strlen(ent->d_name) + 10;
 	full_path = static_cast<char*>(
-		ut_malloc_nokey(strlen(dirname) + strlen(ent->d_name) + 10));
+		ut_malloc_nokey(full_path_size));
 	if (!full_path) {
 		return -1;
 	}
 
-	sprintf(full_path, "%s/%s", dirname, ent->d_name);
+	snprintf(full_path, full_path_size,
+		 "%s/%s", dirname, ent->d_name);
 
 	ret = stat(full_path, &statinfo);
 
@@ -4949,14 +4957,14 @@ bool Backup_datasinks::backup_low()
 	if (xtrabackup_extra_lsndir) {
 		char	filename[FN_REFLEN];
 
-		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
+		snprintf(filename, sizeof(filename), "%s/%s", xtrabackup_extra_lsndir,
 			XTRABACKUP_METADATA_FILENAME);
 		if (!xtrabackup_write_metadata(filename)) {
 			msg("Error: failed to write metadata "
 			    "to '%s'.", filename);
 			return false;
 		}
-		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
+		snprintf(filename, sizeof(filename), "%s/%s", xtrabackup_extra_lsndir,
 			XTRABACKUP_INFO);
 		if (!write_xtrabackup_info(m_data,
 		                           mysql_connection, filename, false, false)) {
@@ -5515,7 +5523,7 @@ fail:
 
 	/* get current checkpoint_lsn */
 	{
-		log_sys.latch.wr_lock(SRW_LOCK_CALL);
+		log_sys.latch.wr_lock();
 		mysql_mutex_lock(&recv_sys.mutex);
 		dberr_t err = recv_sys.find_checkpoint();
 		log_sys.latch.wr_unlock();
@@ -6820,8 +6828,8 @@ static bool xtrabackup_prepare_func(char** argv)
 	/*
 	  read metadata of target
 	*/
-	sprintf(metadata_path, "%s/%s", xtrabackup_target_dir,
-		XTRABACKUP_METADATA_FILENAME);
+	snprintf(metadata_path, sizeof(metadata_path), "%s/%s",
+		 xtrabackup_target_dir, XTRABACKUP_METADATA_FILENAME);
 
 	if (!xtrabackup_read_metadata(metadata_path)) {
 		msg("Error: failed to read metadata from '%s'\n",
@@ -6931,7 +6939,7 @@ error:
         if (xtrabackup_incremental)
         {
           char inc_filename[FN_REFLEN];
-          sprintf(inc_filename, "%s/%s", xtrabackup_incremental_dir,
+          snprintf(inc_filename, sizeof(inc_filename), "%s/%s", xtrabackup_incremental_dir,
                   MB_CORRUPTED_PAGES_FILE);
           corrupted_pages.read_from_file(inc_filename);
         }
@@ -7000,14 +7008,14 @@ error:
 			metadata_last_lsn = incremental_last_lsn;
 		}
 
-		sprintf(filename, "%s/%s", xtrabackup_target_dir, XTRABACKUP_METADATA_FILENAME);
+		snprintf(filename, sizeof(filename), "%s/%s", xtrabackup_target_dir, XTRABACKUP_METADATA_FILENAME);
 		if (!xtrabackup_write_metadata(filename)) {
 
 			msg("mariabackup: Error: failed to write metadata "
 			    "to '%s'", filename);
 			ok = false;
 		} else if (xtrabackup_extra_lsndir) {
-			sprintf(filename, "%s/%s", xtrabackup_extra_lsndir, XTRABACKUP_METADATA_FILENAME);
+			snprintf(filename, sizeof(filename), "%s/%s", xtrabackup_extra_lsndir, XTRABACKUP_METADATA_FILENAME);
 			if (!xtrabackup_write_metadata(filename)) {
 				msg("mariabackup: Error: failed to write "
 				    "metadata to '%s'", filename);
@@ -7284,6 +7292,13 @@ void setup_error_messages()
 	  die("could not initialize error messages");
 }
 
+
+my_bool xb_early_options(const struct my_option *opt, const char *argument,
+                         const char *)
+{
+  return 0;
+}
+
 /** Handle mariabackup options. The options are handled with the following
 order:
 
@@ -7344,7 +7359,6 @@ void handle_options(int argc, char **argv, char ***argv_server,
         mysqld_args.push_back(argv[0]);
         mariabackup_args.push_back(argv[0]);
 
-        /* scan options for group and config file to load defaults from */
         for (i= 1; i < argc; i++)
         {
           char *optend= strcend(argv[i], '=');
@@ -7356,40 +7370,44 @@ void handle_options(int argc, char **argv, char ***argv_server,
           }
           else
             mariabackup_args.push_back(argv[i]);
-
-          if (strncmp(argv[i], "--defaults-group", optend - argv[i]) == 0)
-          {
-            defaults_group= optend + 1;
-            server_default_groups.push_back(defaults_group);
-          }
-          else if (strncmp(argv[i], "--login-path", optend - argv[i]) == 0)
-          {
-            append_defaults_group(optend + 1, xb_client_default_groups,
-                                  array_elements(xb_client_default_groups));
-          }
-          else if (!strncmp(argv[i], "--prepare", optend - argv[i]))
-          {
-            prepare= true;
-          }
-          else if (!strncmp(argv[i], "--apply-log", optend - argv[i]))
-          {
-            prepare= true;
-          }
-          else if (!strncmp(argv[i], "--incremental-dir", optend - argv[i]) &&
-                   *optend)
-          {
-            target_dir= optend + 1;
-          }
-          else if (!strncmp(argv[i], "--target-dir", optend - argv[i]) &&
-                   *optend && !target_dir)
-          {
-            target_dir= optend + 1;
-          }
-          else if (!*optend && argv[i][0] != '-' && !target_dir)
-          {
-            target_dir= argv[i];
-          }
         }
+
+        mariabackup_args.push_back(nullptr);
+        *argv_client= *argv_server= *argv_backup= &mariabackup_args[0];
+        int argc_backup= static_cast<int>(mariabackup_args.size() - 1);
+        int argc_client= argc_backup;
+        int argc_server= argc_backup;
+
+        auto early_args= mariabackup_args;
+        char **argv_early= &early_args[0];
+        int argc_early= argc_backup;
+
+	/* We want xtrabackup to ignore unknown options, because it only
+	recognizes a small subset of server variables */
+	my_getopt_skip_unknown = TRUE;
+
+        handle_options(&argc_early, &argv_early, xb_server_options,
+                                     xb_early_options);
+        argv_early--; argc_early++;
+        handle_options(&argc_early, &argv_early, xb_client_options,
+                                     xb_early_options);
+
+        if (defaults_group)
+          server_default_groups.push_back(defaults_group);
+
+        if (xtrabackup_prepare)
+          prepare= true;
+
+        if (opt_login_path)
+          append_defaults_group(opt_login_path, xb_client_default_groups,
+                                array_elements(xb_client_default_groups));
+
+        if (xtrabackup_incremental_dir)
+          target_dir= xtrabackup_incremental_dir;
+        else if (xtrabackup_target_dir !=  xtrabackup_real_target_dir)
+          target_dir= xtrabackup_target_dir;
+        else if (argc_early > 0)
+            target_dir= argv_early[0];
 
         server_default_groups.push_back(NULL);
 	snprintf(conf_file, sizeof(conf_file), "my");
@@ -7408,12 +7426,6 @@ void handle_options(int argc, char **argv, char ***argv_server,
 			}
 	}
 
-        mariabackup_args.push_back(nullptr);
-        *argv_client= *argv_server= *argv_backup= &mariabackup_args[0];
-        int argc_backup= static_cast<int>(mariabackup_args.size() - 1);
-        int argc_client= argc_backup;
-        int argc_server= argc_backup;
-
         /* 1) Load server groups and process server options, ignore unknown
          options */
 
@@ -7428,10 +7440,6 @@ void handle_options(int argc, char **argv, char ***argv_server,
 	print_param_str <<
 		"# This MySQL options file was generated by XtraBackup.\n"
 		"[" << defaults_group << "]\n";
-
-	/* We want xtrabackup to ignore unknown options, because it only
-	recognizes a small subset of server variables */
-	my_getopt_skip_unknown = TRUE;
 
 	/* Reset u_max_value for all options, as we don't want the
 	--maximum-... modifier to set the actual option values */
@@ -7781,7 +7789,9 @@ static int main_low(char** argv)
 	} else if (xtrabackup_backup && xtrabackup_incremental_basedir) {
 		char	filename[FN_REFLEN];
 
-		sprintf(filename, "%s/%s", xtrabackup_incremental_basedir, XTRABACKUP_METADATA_FILENAME);
+		snprintf(filename, sizeof(filename), "%s/%s",
+			 xtrabackup_incremental_basedir,
+			 XTRABACKUP_METADATA_FILENAME);
 
 		if (!xtrabackup_read_metadata(filename)) {
 			msg("mariabackup: error: failed to read metadata from "
@@ -7794,7 +7804,9 @@ static int main_low(char** argv)
 	} else if (xtrabackup_prepare && xtrabackup_incremental_dir) {
 		char	filename[FN_REFLEN];
 
-		sprintf(filename, "%s/%s", xtrabackup_incremental_dir, XTRABACKUP_METADATA_FILENAME);
+		snprintf(filename, sizeof(filename), "%s/%s",
+			 xtrabackup_incremental_dir,
+			 XTRABACKUP_METADATA_FILENAME);
 
 		if (!xtrabackup_read_metadata(filename)) {
 			msg("mariabackup: error: failed to read metadata from "

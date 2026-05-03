@@ -13307,12 +13307,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         {
           Json_writer_object trace_const_cond(thd);
           trace_const_cond.add("condition_on_constant_tables", const_cond);
-          if (const_cond->is_expensive())
-          {
-            trace_const_cond.add("evaluated", "false")
-                            .add("cause", "expensive cond");
-          }
-          else
+          if (const_cond->can_eval_in_optimize())
           {
             bool const_cond_result;
             {
@@ -13327,6 +13322,11 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               join->exec_const_cond= NULL;
               DBUG_RETURN(1);
             }
+          }
+          else
+          {
+            trace_const_cond.add("evaluated", "false")
+                            .add("cause", "expensive cond");
           }
           join->exec_const_cond= const_cond;
         }
@@ -20672,13 +20672,14 @@ TABLE *Create_tmp_table::start(THD *thd,
     m_temp_pool_slot = temp_pool_set_next();
 
   if (m_temp_pool_slot != MY_BIT_NONE) // we got a slot
-    sprintf(path, "%s-%s-%lx-%i", tmp_file_prefix, param->tmp_name,
-            current_pid, m_temp_pool_slot);
+    snprintf(path, sizeof(path), "%s-%s-%lx-%i", tmp_file_prefix, param->tmp_name,
+             current_pid, m_temp_pool_slot);
   else
   {
     /* if we run out of slots or we are not using tempool */
-    sprintf(path, "%s-%s-%lx-%llx-%x", tmp_file_prefix, param->tmp_name,
-            current_pid, thd->thread_id, thd->tmp_table++);
+    snprintf(path, sizeof(path), "%s-%s-%lx-%llx-%x",
+             tmp_file_prefix, param->tmp_name,
+             current_pid, thd->thread_id, thd->tmp_table++);
   }
 
   /*
@@ -31875,9 +31876,18 @@ test_if_cheaper_ordering(bool in_join_optimizer,
         }
         possible_key.add("index_scan_time", index_scan_time);
 
-        if ((ref_key < 0 &&
-             (group_forces_index_usage || table->force_index || is_covering)) ||
-            index_scan_time < read_time)
+        /*
+          (1A) - The plan we've picked w/o regard to ORDER BY was a full scan.
+          (1B) - Non-cost based criteria when to consider current index 'nr'.
+          OR
+          (2) - Reading #LIMIT rows with index 'nr' (index_scan_time) is
+                cheaper than read_time, which is either:
+                  * old behavior: cost of plan that produces no ordering.
+                  * new behavior: cost of any plan known so far
+        */
+        if ((ref_key < 0 &&  // (1A)
+             (group_forces_index_usage || table->force_index || is_covering)) || // (1B)
+            index_scan_time < read_time) // (2)
         {
           ha_rows quick_records= table_records;
           ha_rows refkey_select_limit= (ref_key >= 0 &&
@@ -31885,7 +31895,11 @@ test_if_cheaper_ordering(bool in_join_optimizer,
                                         table->covering_keys.is_set(ref_key)) ?
                                         refkey_rows_estimate :
                                         HA_POS_ERROR;
-          if (is_best_covering && !is_covering)
+          bool fix_orderby_choice=
+              MY_TEST(thd->variables.optimizer_adjust_secondary_key_costs &
+                      OPTIMIZER_ADJ_FIX_ORDER_BY_INDEX_CHOICE);
+
+          if (is_best_covering && !is_covering && !fix_orderby_choice)
           {
             possible_key.add("chosen", false);
             possible_key.add("cause", "covering index already found");
@@ -31902,11 +31916,34 @@ test_if_cheaper_ordering(bool in_join_optimizer,
           if (table->opt_range_keys.is_set(nr))
             quick_records= table->opt_range[nr].rows;
           possible_key.add("records", quick_records);
-          if (best_key < 0 ||
+
+          bool pick_this_index= false;
+
+          /*
+            Old-style criteria:
+             1. There is no candidate index that matches ORDER BY, OR
+             2.1 If we can short-cut using LIMIT, use the index with
+                 smallest # of key parts (odd criteria)
+             2.2 Otherwise, just compare the best index that matches ORDER
+                 BY and current index by scanned records (not costs, for some
+                 reason), OR
+             3. Index 'nr' is covering while the best one is not.
+          */
+          if (best_key < 0 ||  // (1)
               (select_limit <= MY_MIN(quick_records,best_records) ?
-               keyinfo->user_defined_key_parts < best_key_parts :
-               quick_records < best_records) ||
-              (!is_best_covering && is_covering))
+               keyinfo->user_defined_key_parts < best_key_parts : // (2.1)
+               quick_records < best_records) ||                   // (2.2)
+              (!is_best_covering && is_covering))  // (3)
+            pick_this_index=true;
+
+          /*
+            New-style criteria: cost of access method using current index
+            is better than other available option.
+          */
+          if (fix_orderby_choice)
+            pick_this_index= (best_key < 0 || index_scan_time < read_time);
+
+          if (pick_this_index)
           {
             possible_key.add("chosen", true);
             best_key= nr;
@@ -31919,6 +31956,9 @@ test_if_cheaper_ordering(bool in_join_optimizer,
             best_select_limit= select_limit;
             if ((thd->variables.optimizer_adjust_secondary_key_costs &
                  OPTIMIZER_ADJ_DISABLE_FORCE_INDEX_GROUP_BY) && group)
+              set_if_smaller(read_time, index_scan_time);
+
+            if (fix_orderby_choice)
               set_if_smaller(read_time, index_scan_time);
           }
           else

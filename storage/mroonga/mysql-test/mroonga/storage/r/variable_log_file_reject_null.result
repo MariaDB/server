@@ -1,0 +1,7 @@
+SET GLOBAL mroonga_log_file = NULL;
+ERROR HY000: NULL value can't be used for mroonga_log_file
+SET GLOBAL mroonga_log_file = '';
+ERROR HY000: NULL value can't be used for mroonga_log_file
+SHOW GLOBAL VARIABLES LIKE 'mroonga_log_file';
+Variable_name	Value
+mroonga_log_file	groonga.log

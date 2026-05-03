@@ -143,7 +143,7 @@ bool VCTDEF::Erase(char *filename)
     MakeFnPattern(fpat);
 
     for (i = 1, cdp = To_Cols; cdp; i++, cdp = cdp->GetNext()) {
-      sprintf(filename, fpat, i);
+      snprintf(filename, _MAX_PATH, fpat, i);
 //#if defined(_WIN32)
 //      rc |= !DeleteFile(filename);
 //#else    // UNIX
@@ -189,7 +189,7 @@ int VCTDEF::MakeFnPattern(char *fpat)
 
   for (n = 1, m = ncol; m /= 10; n++) ;
 
-  sprintf(pat, "%%0%dd", n);
+  snprintf(pat, sizeof(pat), "%%0%dd", n);
   _splitpath(Fn, drive, direc, fname, ftype);
   strcat(fname, pat);
   _makepath(fpat, drive, direc, fname, ftype);

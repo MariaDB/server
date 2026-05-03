@@ -17,3 +17,11 @@ id	name	username	email	address_street	address_suite	address_city	address_zipcode
 9	Glenna Reichert	Delphine	Chaim_McDermott@dana.io	Dayna Park	Suite 449	Bartholomebury	76495-3109	24.6463	-168.8889	(775)976-6794 x41206	conrad.com	Yost and Sons	Switchable contextually-based project	aggregate real-time technologies
 10	Clementina DuBuque	Moriah.Stanton	Rey.Padberg@karina.biz	Kattie Turnpike	Suite 198	Lebsackbury	31428-2261	-38.2386	57.2232	024-648-3804	ambrose.net	Hoeger LLC	Centralized empowering task-force	target end-to-end models
 DROP TABLE t1;
+#
+# MDEV-39289 CONNECT REST support on Windows doesn't escape the url
+#
+CREATE TABLE t1
+ENGINE=CONNECT DATA_CHARSET=utf8 TABLE_TYPE=JSON FILE_NAME='users.json'
+HTTP='http://jsonplaceholder.typicode.com/users" "-Dhead.log';
+Got one of the listed errors
+# End of 10.6 tests

@@ -287,10 +287,10 @@ MRN_API my_bool mroonga_highlight_html_init(UDF_INIT *init,
       info->use_shared_db = false;
     }
     if (!info->db) {
-      sprintf(message,
-              "mroonga_highlight_html(): failed to %s: %s",
-              action,
-              info->ctx->errbuf);
+      snprintf(message, MYSQL_ERRMSG_SIZE,
+               "mroonga_highlight_html(): failed to %s: %s",
+               action,
+               info->ctx->errbuf);
       goto error;
     }
   }

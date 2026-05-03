@@ -135,7 +135,7 @@ bool st_append_json(String *s,
   Appends arbitrary String to the JSON string taking charsets in
   consideration.
 */
-static int st_append_escaped(String *s, const String *a)
+int st_append_escaped(String *s, const String *a)
 {
   /*
     In the worst case one character from the 'a' string

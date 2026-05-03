@@ -373,10 +373,11 @@ static void get_service_config()
     */
     sprintf_s(service_properties.inifile, MAX_PATH, "%s\\my.ini", service_properties.datadir);
   }
-  sprintf(defaults_file_param, "--defaults-file=%s", service_properties.inifile);
+  snprintf(defaults_file_param, sizeof(defaults_file_param),
+           "--defaults-file=%s", service_properties.inifile);
 }
 /*
-  Change service configuration (binPath) to point to mysqld from 
+  Change service configuration (binPath) to point to mysqld from
   this installation.
 */
 static void change_service_config()
@@ -407,7 +408,8 @@ static void change_service_config()
   */
   WritePrivateProfileString("mysqld", "basedir",NULL, service_properties.inifile);
 
-  sprintf(defaults_file_param,"--defaults-file=%s", service_properties.inifile);
+  snprintf(defaults_file_param, sizeof(defaults_file_param),
+           "--defaults-file=%s", service_properties.inifile);
   sprintf_s(commandline, "\"%s\" \"%s\" \"%s\"", mysqld_path, 
    defaults_file_param, opt_service);
   if (!ChangeServiceConfig(service, SERVICE_NO_CHANGE, SERVICE_NO_CHANGE, 

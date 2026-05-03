@@ -1293,12 +1293,12 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
 	   (int) share->state.header.file_version[3]);
     if (share->state.create_time)
     {
-      get_date(buff,1,share->state.create_time);
+      get_date(buff,sizeof(buff),1,share->state.create_time);
       printf("Creation time:       %s\n",buff);
     }
     if (share->state.check_time)
     {
-      get_date(buff,1,share->state.check_time);
+      get_date(buff,sizeof(buff),1,share->state.check_time);
       printf("Recover time:        %s\n",buff);
     }
     pos=buff;
@@ -1495,7 +1495,7 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
 	  end=strmov(end,"no empty, ");
 	if (share->rec[field].pack_type & PACK_TYPE_ZERO_FILL)
 	{
-	  sprintf(end,"zerofill(%d), ",share->rec[field].space_length_bits);
+	  snprintf(end, buff + sizeof(buff) - end, "zerofill(%d), ",share->rec[field].space_length_bits);
 	  end=strend(end);
 	}
       }
@@ -1505,8 +1505,8 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
       null_bit[0]=null_pos[0]=0;
       if (share->rec[field].null_bit)
       {
-	sprintf(null_bit,"%d",share->rec[field].null_bit);
-	sprintf(null_pos,"%d",share->rec[field].null_pos+1);
+	snprintf(null_bit, sizeof(null_bit), "%d",share->rec[field].null_bit);
+	snprintf(null_pos, sizeof(null_pos), "%d",share->rec[field].null_pos+1);
       }
       printf("%-6d%-6d%-7s%-8s%-8s%-35s",field+1,start,length,
 	     null_pos, null_bit, buff);

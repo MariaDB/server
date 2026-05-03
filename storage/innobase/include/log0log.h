@@ -195,14 +195,14 @@ public:
   /** log file size in bytes, including the header */
   lsn_t file_size;
 
-#ifdef LOG_LATCH_DEBUG
-  typedef srw_lock_debug log_rwlock;
+#if defined LOG_LATCH_DEBUG && defined UNIV_DEBUG
+  typedef srw_lock_debug_simple log_rwlock;
 
   bool latch_have_wr() const { return latch.have_wr(); }
   bool latch_have_rd() const { return latch.have_rd(); }
   bool latch_have_any() const { return latch.have_any(); }
 #else
-  typedef srw_lock log_rwlock;
+  typedef srw_lock_low log_rwlock;
 # ifndef UNIV_DEBUG
 # elif defined SUX_LOCK_GENERIC
   bool latch_have_wr() const { return true; }

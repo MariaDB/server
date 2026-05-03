@@ -1,4 +1,5 @@
 /* Copyright (C) 2015-2024 Codership Oy <info@codership.com>
+   Copyright (C) 2025-2026 MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -169,6 +170,12 @@ class Wsrep_schema
   Wsrep_schema(const Wsrep_schema&);
   Wsrep_schema& operator=(const Wsrep_schema&);
 };
+
+#define WSREP_SCHEMA          "mysql"
+#define WSREP_STREAMING_TABLE "wsrep_streaming_log"
+#define WSREP_CLUSTER_TABLE   "wsrep_cluster"
+#define WSREP_MEMBERS_TABLE   "wsrep_cluster_members"
+#define WSREP_ALLOWLIST_TABLE "wsrep_allowlist"
 
 extern Wsrep_schema* wsrep_schema;
 

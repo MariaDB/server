@@ -64,9 +64,9 @@ MRN_API my_bool mroonga_normalize_init(UDF_INIT *init, UDF_ARGS *args,
   }
 
   if (!(1 <= args->arg_count && args->arg_count <= 2)) {
-    sprintf(message,
-            "mroonga_normalize(): Incorrect number of arguments: %u for 1..2",
-            args->arg_count);
+    snprintf(message, MYSQL_ERRMSG_SIZE,
+             "mroonga_normalize(): Incorrect number of arguments: %u for 1..2",
+             args->arg_count);
     goto error;
   }
   if (args->arg_type[0] != STRING_RESULT) {
@@ -111,10 +111,10 @@ MRN_API my_bool mroonga_normalize_init(UDF_INIT *init, UDF_ARGS *args,
       info->use_shared_db = false;
     }
     if (!info->db) {
-      sprintf(message,
-              "mroonga_normalize(): failed to %s: %s",
-              action,
-              info->ctx->errbuf);
+      snprintf(message, MYSQL_ERRMSG_SIZE,
+               "mroonga_normalize(): failed to %s: %s",
+               action,
+               info->ctx->errbuf);
       goto error;
     }
   }
@@ -125,8 +125,9 @@ MRN_API my_bool mroonga_normalize_init(UDF_INIT *init, UDF_ARGS *args,
     info->normalizer = grn_ctx_get(info->ctx, args->args[1], args->lengths[1]);
   }
   if (!info->normalizer) {
-    sprintf(message, "mroonga_normalize(): nonexistent normalizer %.*s",
-            (int)args->lengths[1], args->args[1]);
+    snprintf(message, MYSQL_ERRMSG_SIZE,
+             "mroonga_normalize(): nonexistent normalizer %.*s",
+             (int)args->lengths[1], args->args[1]);
     goto error;
   }
   info->flags = 0;

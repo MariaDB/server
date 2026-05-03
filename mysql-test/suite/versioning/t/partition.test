@@ -2814,6 +2814,22 @@ Select * from t1 for system_time as of '2000-01-01 00:59:59';
 drop table t1;
 
 --echo #
+--echo # MDEV-36362 MariaDB crashes when parsing fuzzer generated PARTITION
+--echo #
+--error ER_SUBQUERIES_NOT_SUPPORTED
+create table t
+partition by system_time
+interval setval(a, 1) second_microsecond;
+
+--error ER_SUBQUERIES_NOT_SUPPORTED
+create table t (x int) with system versioning
+partition by system_time interval nextval(s) hour;
+
+--error ER_SUBQUERIES_NOT_SUPPORTED
+create table t (x int) with system versioning
+partition by system_time interval lastval(s) hour;
+
+--echo #
 --echo # MDEV-33289 INTERVAL partitioning by system time does not work close to
 --echo #            the end of timestamp range
 --echo #

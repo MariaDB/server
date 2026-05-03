@@ -177,7 +177,7 @@ int JDBCDEF::ParseURL(PGLOBAL g, char *url, bool b)
 			if (server->port) {
 				char buf[16];
 
-				sprintf(buf, "%ld", server->port);
+				snprintf(buf, sizeof(buf), "%ld", server->port);
 				strcat(strcat(Url, ":"), buf);
 			} // endif port
 

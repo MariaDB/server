@@ -588,7 +588,7 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
       {
         if (i == 1)
 	{
-          sprintf(col_name, "_col_%i", j+1);
+          snprintf(col_name, sizeof(col_name), "_col_%i", j+1);
           row_list->element_index(j)->set_name(thd, col_name, strlen(col_name),
                                                thd->charset());
         }
@@ -601,7 +601,7 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
     {
       if (i == 1)
       {
-        sprintf(col_name, "_col_%i", 1);
+        snprintf(col_name, sizeof(col_name), "_col_%i", 1);
         args[i]->set_name(thd, col_name, strlen(col_name), thd->charset());
       }
       if (tvc_value->push_back(args[i]))

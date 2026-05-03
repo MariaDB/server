@@ -1418,8 +1418,9 @@ SELECT * FROM t2;
 id	val
 1	test1
 2	test2
-3	test3
-4	test4
+3	test2
+4	test3
+5	test4
 DROP TRIGGER trg27006_a_insert;
 DROP TRIGGER trg27006_a_update;
 drop table t1,t2;

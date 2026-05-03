@@ -1,0 +1,35 @@
+# MDEV-33070 Thread pool starvation at oversubscribe threshold
+CREATE TABLE t1 (a INT);
+connect  c1, localhost, root,,;
+connect  c2, localhost, root,,;
+connect  c3, localhost, root,,;
+connect  extra_con, 127.0.0.1, root,,test,$MASTER_EXTRA_PORT,;
+connection c1;
+SELECT SLEEP(1000);
+connection extra_con;
+connection c2;
+SELECT SLEEP(1000);
+connection extra_con;
+connection c3;
+INSERT INTO t1 VALUES (1);
+connection extra_con;
+KILL QUERY c1_id;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+connection c1;
+disconnect c1;
+connection extra_con;
+KILL QUERY c2_id;
+connection c2;
+disconnect c2;
+connection c3;
+disconnect c3;
+connection extra_con;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+disconnect extra_con;
+connection default;
+DROP TABLE t1;
+# End of MDEV-33070 tests

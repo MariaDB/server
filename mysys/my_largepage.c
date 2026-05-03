@@ -495,10 +495,7 @@ char *my_large_virtual_alloc(size_t *size)
   ptr= mmap(NULL, *size, PROT_NONE, MAP_PRIVATE | OS_MAP_ANON, -1, 0);
 # endif
   if (ptr == MAP_FAILED)
-  {
-    my_error(EE_OUTOFMEMORY, MYF(ME_BELL + ME_ERROR_LOG), *size);
     ptr= NULL;
-  }
 
   DBUG_RETURN(ptr);
 }
