@@ -168,7 +168,7 @@ fi
 
 # If running autobake-debs.sh inside docker/podman host machine which
 # has 64 bits cpu but container image is 32 bit make sure that we set
-# correct arch with linux32 for 32 bit enviroment
+# correct arch with linux32 for 32 bit environment
 if [ "$architecture" = "i386" ] && [ "$uname_machine" = "x86_64" ]
 then
   BUILDPACKAGE_DPKGCMD+=("linux32")

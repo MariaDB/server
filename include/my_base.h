@@ -267,7 +267,7 @@ enum ha_base_keytype {
   Note that these can only be up to 16 bits!
 */
 
-#define HA_NOSAME		 1U	/* Set if not dupplicated records */
+#define HA_NOSAME		 1U	/* Set if not duplicated records */
 #define HA_PACK_KEY		 2U	/* Pack string key to previous key */
 #define HA_AUTO_KEY		 16U    /* MEMORY/MyISAM/Aria internal */
 #define HA_BINARY_PACK_KEY	 32U	/* Packing of all keys to prev key */

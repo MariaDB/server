@@ -213,7 +213,7 @@ static struct my_option my_long_options[] =
 	 GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"swift-auth-version", OPT_SWIFT_AUTH_VERSION,
-	 "Swift authentication verison to use.",
+	 "Swift authentication version to use.",
 	 &opt_swift_auth_version, &opt_swift_auth_version, 0,
 	 GET_STR_ALLOC, REQUIRED_ARG,
 	 0, 0, 0, 0, 0, 0},
@@ -1364,7 +1364,7 @@ conn_buffer_updated(connection_info *conn)
 		ready_for_upload = true;
 	}
 
-	/* start upload once recieved the size of the chunk */
+	/* start upload once received the size of the chunk */
 	if (!conn->upload_started && ready_for_upload) {
 		conn->chunk_no = file_chunk_count[conn->name]++;
 		conn_upload_prepare(conn);

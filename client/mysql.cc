@@ -2294,7 +2294,7 @@ static COMMANDS *find_command(char cmd_char)
 
   /*
     In binary-mode, we disallow all client commands except '\C',
-    DELIMITER (see long comand finding find_command(char *))
+    DELIMITER (see long command finding find_command(char *))
     and  '\-' (sandbox, see following comment).
   */
   if (real_binary_mode)

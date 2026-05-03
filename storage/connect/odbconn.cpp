@@ -281,7 +281,7 @@ static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, PCSZ db,
 		cap->Status = (UWORD *)PlugSubAlloc(g, NULL, m * sizeof(UWORD));
 
 	} catch (int n) {
-		htrc("Exeption %d: %s\n", n, g->Message);
+		htrc("Exception %d: %s\n", n, g->Message);
 		cap = NULL;
 	} catch (const char *msg) {
 		htrc(g->Message, msg);
