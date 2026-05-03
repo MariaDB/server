@@ -472,7 +472,7 @@ Geometry *Geometry::create_from_wkb(Geometry_buffer *buffer,
   uint32 geom_type;
   Geometry *geom;
 
-  if (len < WKB_HEADER_SIZE)
+  if (len < WKB_HEADER_SIZE || (uchar) wkb[0] > wkb_ndr)
     return NULL;
   wkbByteOrder bo= (wkbByteOrder)wkb[0];
   geom_type= wkb_get_uint(wkb+1, bo);
@@ -2907,8 +2907,9 @@ uint Gis_multi_polygon::init_from_wkb(const char *wkb, uint len,
     Gis_polygon p;
     int p_len;
 
-    if (len < WKB_HEADER_SIZE ||
-        res->reserve(WKB_HEADER_SIZE, 512))
+    if (len < WKB_HEADER_SIZE
+        || (uchar) wkb[0] > wkb_ndr
+        || res->reserve(WKB_HEADER_SIZE, 512))
       return 0;
     res->q_append((char) wkb_ndr);
     res->q_append((uint32) wkb_polygon);
@@ -3424,8 +3425,9 @@ uint Gis_geometry_collection::init_from_wkb(const char *wkb, uint len,
     int g_len;
     uint32 wkb_type;
 
-    if (len < WKB_HEADER_SIZE ||
-        res->reserve(WKB_HEADER_SIZE, 512))
+    if (len < WKB_HEADER_SIZE
+        || (uchar) wkb[0] > wkb_ndr
+        || res->reserve(WKB_HEADER_SIZE, 512))
       return 0;
 
     wkbByteOrder bo= (wkbByteOrder)wkb[0];
