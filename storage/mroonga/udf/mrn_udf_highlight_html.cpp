@@ -257,6 +257,7 @@ MRN_API my_bool mroonga_highlight_html_init(UDF_INIT *init,
   }
 
   init->maybe_null = 0;
+  init->max_length = 640;
 
   info =
     reinterpret_cast<mrn_highlight_html_info *>(

@@ -8,9 +8,7 @@ INSERT INTO diaries VALUES('It is Groonga');
 INSERT INTO diaries VALUES('It is Mroonga');
 SELECT mroonga_command('select',
 'table', 'diaries',
-'filter', 'title @ "Groonga"');
-mroonga_command('select',
-'table', 'diaries',
-'filter', 'title @ "Groonga"')
+'filter', 'title @ "Groonga"') c;
+c
 [[[1],[["_id","UInt32"],["title","LongText"]],[1,"It is Groonga"]]]
 DROP TABLE diaries;

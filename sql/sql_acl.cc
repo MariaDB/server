@@ -1745,15 +1745,15 @@ class User_table_json: public User_table
     const char *value_start;
     if (get_value(key, JSV_STRING, &value_start, &value_len))
       return "";
-    char *ptr= (char*)alloca(value_len);
+    char *ptr= (char*)my_safe_alloca(value_len);
     int len= json_unescape(m_table->field[2]->charset(),
                            (const uchar*)value_start,
                            (const uchar*)value_start + value_len,
                            system_charset_info,
                            (uchar*)ptr, (uchar*)ptr + value_len);
-    if (len < 0)
-      return NULL;
-    return strmake_root(root, ptr, len);
+    const char *js= len < 0 ? NULL : strmake_root(root, ptr, len);
+    my_safe_afree(ptr, value_len);
+    return js;
   }
   longlong get_int_value(const char *key, longlong def_val= 0) const
   {

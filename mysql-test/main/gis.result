@@ -5577,4 +5577,10 @@ INSERT INTO t1 VALUES (10,'');
 ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 DROP TABLE t1;
 set sql_mode= @orig_sql_mode;
+#
+# MDEV-39481 ASAN error on malformed WKB polygon
+#
+select st_astext(st_geomfromwkb(x'0103000000020000000400000000000000000000000000000000000000000000000000f03f0000000000000000000000000000f03f000000000000f03f0000000000000000000000000000000005000000000000000000e03f000000000000e03f')) 'no asan error here';
+no asan error here
+NULL
 # End of 10.6 tests

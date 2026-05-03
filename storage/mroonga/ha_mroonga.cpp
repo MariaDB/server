@@ -1710,6 +1710,7 @@ static bool mrn_parse_grn_index_column_flags(THD *thd,
                           ER_MRN_INVALID_INDEX_FLAG_NUM,
                           ER_MRN_INVALID_INDEX_FLAG_STR,
                           invalid_flag_name);
+      break;
     }
   }
   return found;

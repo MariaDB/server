@@ -1,4 +1,4 @@
-# Copyright(C) 2016 Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2026
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -14,40 +14,21 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
+--echo #
+--echo # MDEV-39479 Mroonga: avoid hang on invalid index flags
+--echo #
+
 --source ../../include/mroonga/have_mroonga.inc
 --source ../../include/mroonga/load_mroonga_functions.inc
 
---disable_warnings
-DROP TABLE IF EXISTS users;
---enable_warnings
+CREATE TABLE memos (
+  content VARCHAR(64) NOT NULL,
+  FULLTEXT INDEX (content) COMMENT 'flags "COMPRESS_ZSTD"'
+);
 
---disable_query_log
-DROP DATABASE test;
-CREATE DATABASE test;
-USE test;
---enable_query_log
+SELECT mroonga_command("dump --dump_plugins no --dump_schema no");
 
-SET NAMES cp932;
-
-CREATE TABLE users (
-  id int PRIMARY KEY
-) DEFAULT CHARSET=cp932;
-ALTER TABLE users
-  ADD COLUMN –¼‘O text,
-  ADD FULLTEXT INDEX (–¼‘O);
-
-INSERT INTO users VALUES (1, "‚â‚Ü‚¾");
-INSERT INTO users VALUES (2, "‚½‚È‚©");
-INSERT INTO users VALUES (3, "‚·‚¸‚«");
-
-SELECT * FROM users;
-
-SELECT * FROM users
-         WHERE MATCH (–¼‘O) AGAINST ('+‚½‚È‚©' IN BOOLEAN MODE);
-
-SELECT mroonga_command("dump --dump_plugins no --dump_records no");
-
-DROP TABLE users;
+DROP TABLE memos;
 
 --source ../../include/mroonga/unload_mroonga_functions.inc
 --source ../../include/mroonga/have_mroonga_deinit.inc

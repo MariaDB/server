@@ -84,6 +84,7 @@ MRN_API my_bool mroonga_normalize_init(UDF_INIT *init, UDF_ARGS *args,
   }
 
   init->maybe_null = 1;
+  init->max_length = args->lengths[0]*2;
 
   info = (st_mrn_normalize_info *)mrn_my_malloc(sizeof(st_mrn_normalize_info),
                                                 MYF(MY_WME | MY_ZEROFILL));

@@ -1650,6 +1650,7 @@ uint Gis_polygon::init_from_wkb(const char *wkb, uint len, wkbByteOrder bo,
     if (ls.is_closed(&closed) || !closed)
       return 0;
     wkb+= ls_len;
+    len-= ls_len;
   }
 
   return (uint) (wkb - wkb_orig);
