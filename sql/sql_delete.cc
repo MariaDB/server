@@ -851,7 +851,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   */
   if (returning && !thd->get_stmt_da()->is_set())
   {
-    if (result->send_result_set_metadata(returning->item_list,
+    if (result->send_result_set_metadata(returning->returning_list,
                                 Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
       goto cleanup;
   }
@@ -945,7 +945,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
         continue;
 
       // no LIMIT / OFFSET
-      if (returning && result->send_data(returning->item_list) < 0)
+      if (returning && result->send_data(returning->returning_list) < 0)
       {
         error=1;
         break;
@@ -2114,7 +2114,7 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
   free_join= false;
 
   if (returning)
-    (void) result->prepare(returning->item_list, NULL);
+    (void) result->prepare(returning->returning_list, NULL);
 
 err:
 

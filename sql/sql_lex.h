@@ -1140,6 +1140,7 @@ public:
   Group_list_ptrs        *group_list_ptrs;
 
   List<Item>          item_list;  /* list of fields & expressions */
+  List<Item>          returning_list;
   List<Item>          pre_fix;    /* above list before fix_fields */
   List<Item>          fix_after_optimize;
   SQL_I_List<ORDER> order_list;   /* ORDER clause */
@@ -1268,6 +1269,7 @@ public:
   uint in_sum_expr;
   uint select_number; /* number of select (used for EXPLAIN) */
   uint with_wild;     /* item list contain '*' ; Counter */
+  uint with_wild_returning;
   /* Number of Item_sum-derived objects in this SELECT */
   uint n_sum_items;
   /* Number of Item_sum-derived objects in children and descendant SELECTs */
@@ -3616,8 +3618,6 @@ public:
     in the query.
   */
 
-  bool has_returning_list;
-
   void set_limit_rows_examined()
   {
     if (limit_rows_examined)
@@ -5066,7 +5066,7 @@ public:
   SELECT_LEX *returning()
   { return &builtin_select; }
   bool has_returning()
-  { return has_returning_list; }
+  { return !builtin_select.returning_list.is_empty(); }
 
 private:
   bool stmt_create_routine_start(const DDL_options_st &options)
