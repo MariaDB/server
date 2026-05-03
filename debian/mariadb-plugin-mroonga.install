@@ -1,5 +1,13 @@
 usr/lib/mysql/plugin/ha_mroonga.so
+usr/share/groonga/onigmo/AUTHORS
+usr/share/groonga/onigmo/COPYING
+usr/share/groonga/onigmo/HISTORY
+usr/share/groonga/onigmo/README
+usr/share/groonga/rapidjson/CHANGELOG.md
+usr/share/groonga/rapidjson/license.txt
+usr/share/groonga/rapidjson/readme.md
 usr/share/mariadb/mroonga/AUTHORS
 usr/share/mariadb/mroonga/COPYING
 usr/share/mariadb/mroonga/install.sql
 usr/share/mariadb/mroonga/uninstall.sql
+usr/share/mariadb/mroonga/update.sql

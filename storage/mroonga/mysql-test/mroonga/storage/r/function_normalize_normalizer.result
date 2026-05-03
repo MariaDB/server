@@ -1,3 +1,0 @@
-SELECT mroonga_normalize('aBcＡｂＣ㍑', "NormalizerAuto");
-mroonga_normalize('aBcＡｂＣ㍑', "NormalizerAuto")
-abcabcリットル

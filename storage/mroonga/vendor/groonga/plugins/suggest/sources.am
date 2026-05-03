@@ -1,2 +1,0 @@
-suggest_la_SOURCES =				\
-	suggest.c

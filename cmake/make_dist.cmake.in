@@ -73,6 +73,14 @@ IF(GIT_EXECUTABLE)
   IF(NOT RESULT EQUAL 0)
     SET(GIT_EXECUTABLE)
   ENDIF()
+  EXECUTE_PROCESS(
+    COMMAND "${GIT_EXECUTABLE}" submodule foreach "${GIT_EXECUTABLE} checkout-index --all --prefix=${PACKAGE_DIR}/extra/groonga/$path/"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/extra/groonga
+    RESULT_VARIABLE RESULT
+  )
+  IF(NOT RESULT EQUAL 0)
+    SET(GIT_EXECUTABLE)
+  ENDIF()
 ENDIF()
 
 CONFIGURE_FILE(${CMAKE_BINARY_DIR}/include/source_revision.h
