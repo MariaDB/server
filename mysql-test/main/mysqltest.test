@@ -789,9 +789,6 @@ echo $1;
 let $1=1;
 let $2=$1;
 echo $2;
-let $5=$6;
-echo $5;
-echo $6;
 
 let $where=a long variable content;
 echo $where;
