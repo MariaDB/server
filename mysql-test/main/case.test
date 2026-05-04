@@ -416,4 +416,41 @@ select case 'X' when null then 1 when 'X' then 2 else 3 end;
 select case 'X' when 1/1 then 1 when 'X' then 2 else 3 end;
 select case 'X' when 1/0 then 1 when 'X' then 2 else 3 end;
 
+--echo #
+--echo # MDEV-23278: Incorrect Calculation with AVG() Function
+--echo #
+create table avg_calc_test (
+  id int(11) not null auto_increment,
+  name varchar(255) default null,
+  primary key (id)
+) auto_increment=1 default charset=latin1;
+insert into avg_calc_test (name) values ('orange'), ('blue'), ('black'), ('orange'), ('black');
+
+select * from (
+  select
+    avg(case when name = 'orange' then 3 when name = 'blue' then 2 when name = 'black' then 1 else 0 end) as metric_val
+  from avg_calc_test
+) t;
+
+create table t1 as
+  select
+    avg(case when name = 'orange' then 3 when name = 'blue' then 2 when name = 'black' then 1 else 0 end) as metric_val
+  from avg_calc_test;
+
+select * from t1;
+
+create or replace table t1 as
+  select
+    avg(least(1,2)) as metric_val
+  from avg_calc_test;
+
+select * from t1;
+
+create or replace table t1 as
+  select avg(coalesce(1,2)) as metric_val from avg_calc_test;
+
+select * from t1;
+
+drop table avg_calc_test, t1;
+
 --echo # End of 10.11 test
