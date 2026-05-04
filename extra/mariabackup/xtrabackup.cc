@@ -5416,7 +5416,7 @@ class BackupStages {
 				 xtrabackup. */
 			if (opt_galera_info) {
                           if (!write_galera_info(backup_datasinks.m_data,
-                                                 mysql_connection)) {
+                                                 m_bs_con)) {
 					return(false);
 				}
 			}

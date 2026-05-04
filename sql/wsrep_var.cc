@@ -1,4 +1,5 @@
 /* Copyright 2008-2025 Codership Oy <http://www.codership.com>
+   Copyright 2025-2026 MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -29,6 +30,10 @@
 #include "wsrep_server_state.h"
 #include "wsrep_plugin.h" /* wsrep_provider_plugin_enabled() */
 #include "wsrep_schema.h"
+#include "wsrep_mysqld.h"
+
+#include <sys/types.h> // statinfo
+#include <sys/stat.h> // stat
 
 ulong   wsrep_reject_queries;
 
@@ -1220,4 +1225,55 @@ bool wsrep_slave_threads_check (sys_var *self, THD* thd, set_var* var)
   }
 
   return false;
+}
+
+/** Function is used to check if user given sst temporary directory
+is valid. Function allows nullptr or empty string i.e. no directory
+given. If something real is given it must be an path that exists,
+short enough, path must be a directory and it must not be
+same as datadir. If proper path was not given actual used
+parameter value remains as nullptr. If proper path was given
+it is copied to wsrep_sst_tmp_dir_real and used on SST. */
+void wsrep_sst_tmp_dir_check(void)
+{
+  if (wsrep_sst_tmp_dir == nullptr || strlen(wsrep_sst_tmp_dir) == 0)
+    return; // DEFAULT is ok
+
+  if (strlen(wsrep_sst_tmp_dir) >= FN_REFLEN)
+  {
+    WSREP_ERROR("Option --wsrep-sst-tmp-dir value %s is too long", wsrep_sst_tmp_dir);
+    return;
+  }
+
+  struct stat statinfo;
+  int ret = stat(wsrep_sst_tmp_dir, &statinfo);
+
+  if (!ret)
+  {
+    /* path exists, ok */
+  } else  {
+    /* path does not exist */
+    WSREP_WARN("SST temporary path %s does not exists, path not used.",
+	       wsrep_sst_tmp_dir);
+    return;
+  }
+
+  if (!S_ISDIR(statinfo.st_mode))
+  {
+    WSREP_WARN("SST temporary path %s is not a directory, path not used.",
+	       wsrep_sst_tmp_dir);
+    return;
+  }
+
+  /* If path is almost same i.e. prefix is same do not allow it. */
+  if (!strncmp(wsrep_sst_tmp_dir, mysql_real_data_home_ptr, strlen(wsrep_sst_tmp_dir)))
+  {
+    WSREP_WARN("SST temporary path %s is same prefix as datadir %s, path not used.",
+	       wsrep_sst_tmp_dir, mysql_real_data_home_ptr);
+    return;
+  }
+
+  wsrep_sst_tmp_dir_real= my_strdup(PSI_INSTRUMENT_ME, wsrep_sst_tmp_dir, MYF(0));
+  if (wsrep_sst_tmp_dir_real)
+    WSREP_INFO("SST temporary path set to %s", wsrep_sst_tmp_dir_real);
 }
