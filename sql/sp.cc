@@ -212,22 +212,22 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   },
   {
     { STRING_WITH_LEN("character_set_client") },
-    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("char(32)") + CAN_BE_NULL },
     { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("collation_connection") },
-    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("char(") + CAN_BE_NULL },
     { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("db_collation") },
-    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("char(") + CAN_BE_NULL },
     { STRING_WITH_LEN("utf8mb") }
   },
   {
     { STRING_WITH_LEN("body_utf8") },
-    { STRING_WITH_LEN("longblob") },
+    { STRING_WITH_LEN("longblob") + CAN_BE_NULL },
     { NULL, 0 }
   },
   {

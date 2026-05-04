@@ -190,7 +190,7 @@ CREATE TABLE mysql.proc LIKE proc_backup;
 CREATE DATABASE db1;
 CREATE PROCEDURE db1.p1() SET @foo = 10;
 # Modify a field of the table.
-ALTER TABLE mysql.proc MODIFY comment CHAR (32);
+ALTER TABLE mysql.proc MODIFY comment CHAR (32) not null;
 DROP DATABASE db1;
 Warnings:
 Error	1728	Cannot load from mysql.proc. The table is probably corrupted
