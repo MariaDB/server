@@ -764,7 +764,10 @@ static bool pack_expression(String *buf, Virtual_column_info *vcol,
   if (buf->reserve(FRM_VCOL_NEW_HEADER_SIZE + vcol->name.length))
     return 1;
 
-  buf->q_append((char) type);
+  uchar type_byte = (uchar) type;
+  if (vcol->flags & VCOL_TRUNCATION_UNSAFE)
+    type_byte |= 128;
+  buf->q_append((char) type_byte);
   buf->q_append2b(field_nr);
   size_t len_off= buf->length();
   buf->q_append2b(0); // to be added later
