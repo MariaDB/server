@@ -5486,8 +5486,8 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
         the new table definition is backward compatible with the
         original one.
        */
-      if (strncmp(sql_type.c_ptr_safe(), field_def->type.str,
-                  field_def->type.length - 1))
+      size_t type_len= field_def->type.length & ~CAN_BE_NULL;
+      if (strncmp(sql_type.c_ptr_safe(), field_def->type.str, type_len - 1))
       {
         report_error(0, "Incorrect definition of table %s.%s: "
                      "expected column '%s' at position %d to have type "
@@ -5518,6 +5518,16 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
                      table->alias.c_ptr(),
                      field_def->name.str, i, field_def->cset.str,
                      field->charset()->cs_name.str);
+        error= TRUE;
+      }
+      bool col_can_be_null= field_def->type.length & CAN_BE_NULL;
+      if (col_can_be_null != field->real_maybe_null())
+      {
+        report_error(0, "Incorrect definition of table %s.%s: "
+                     "expected column '%s' at position %d to be %s.",
+                     table->s->db.str, table->alias.c_ptr(),
+                     field_def->name.str, i,
+                     col_can_be_null ? "nullable" : "NOT NULL");
         error= TRUE;
       }
     }

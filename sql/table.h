@@ -542,6 +542,12 @@ TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
                                   const Lex_ident_table &name);
 
 
+/*
+  Set this bit in TABLE_FIELD_TYPE::type.length to mark a column as nullable.
+  The actual type string length is type.length & ~CAN_BE_NULL.
+*/
+#define CAN_BE_NULL (1UL << 31)
+
 typedef struct st_table_field_type
 {
   LEX_CSTRING name;
