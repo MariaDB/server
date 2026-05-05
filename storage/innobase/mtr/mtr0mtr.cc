@@ -44,6 +44,15 @@ void (*mtr_t::commit_logger)(mtr_t *, std::pair<lsn_t,lsn_t>);
 
 std::pair<lsn_t,lsn_t> (*mtr_t::finisher)(mtr_t *, size_t);
 
+#ifdef UNIV_DEBUG
+/** Number of times mtr_s_lock_index() was called */
+Atomic_counter<size_t> mtr_n_index_s_lock_calls;
+/** Number of times mtr_x_lock_index() was called */
+Atomic_counter<size_t> mtr_n_index_x_lock_calls;
+/** Number of times mtr_sx_lock_index() was called */
+Atomic_counter<size_t> mtr_n_index_sx_lock_calls;
+#endif
+
 void mtr_t::finisher_update()
 {
   ut_ad(log_sys.latch_have_wr());

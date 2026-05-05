@@ -1,0 +1,233 @@
+--source include/have_innodb.inc
+--source include/have_innodb_4k.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-38814: High rate of index_lock_upgrades due to
+--echo # btr_cur_need_opposite_intention() mostly returning true
+--echo #
+
+--disable_query_log
+SET @save_stats_persistent= @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent= 0;
+SET GLOBAL innodb_monitor_enable= 'module_index';
+--enable_query_log
+
+--echo # Test with table t1 (primary key only)
+CREATE TABLE t1 (
+  id INT NOT NULL,
+  dt DATETIME NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB;
+
+--echo # Insert rows with NULL DATETIME
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+
+INSERT INTO t1 (id, dt) SELECT seq, NULL FROM seq_1_to_1000;
+
+--echo # Rows inserted with NULL DATETIME
+SELECT COUNT(*) AS rows_inserted FROM t1;
+SELECT COUNT(DISTINCT dt) AS distinct_timestamps FROM t1;
+
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+let $delta_suffix= t1_insert;
+--source suite/innodb/include/innodb_index_stats_delta.inc
+
+--echo # Update all rows: NULL to DATETIME
+UPDATE t1 SET dt= '2025-01-01' + INTERVAL id SECOND;
+
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+let $delta_suffix= t1_update_null_to_notnull;
+--source suite/innodb/include/innodb_index_stats_delta.inc
+
+--echo # Update all rows: 2025 to 2026 (inplace update)
+UPDATE t1 SET dt= '2026-01-01' + INTERVAL id SECOND;
+
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+let $delta_suffix= t1_update_inplace;
+--source suite/innodb/include/innodb_index_stats_delta.inc
+
+--echo # Update all rows: DATETIME to NULL
+UPDATE t1 SET dt= NULL;
+
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+let $delta_suffix= t1_update_notnull_to_null;
+--source suite/innodb/include/innodb_index_stats_delta.inc
+
+--echo # Delete upper half of rows
+DELETE FROM t1 WHERE id > (SELECT MAX(id) FROM t1) / 2;
+
+--echo # Rows remaining
+SELECT COUNT(*) AS rows_remaining FROM t1;
+
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+let $delta_suffix= t1_delete_upper_half;
+--source suite/innodb/include/innodb_index_stats_delta.inc
+
+--echo # Delete even-numbered rows
+DELETE FROM t1 WHERE id % 2 = 0;
+
+--echo # Rows remaining
+SELECT COUNT(*) AS rows_remaining FROM t1;
+
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+let $delta_suffix= t1_delete_even;
+--source suite/innodb/include/innodb_index_stats_delta.inc
+
+--echo # Delete rows in random order
+--disable_query_log
+DELIMITER |;
+CREATE PROCEDURE delete_random_t1()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE del_id INT;
+  DECLARE cur CURSOR FOR SELECT id FROM t1 ORDER BY RAND(42);
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done= TRUE;
+  START TRANSACTION;
+  OPEN cur;
+  read_loop: LOOP
+    FETCH cur INTO del_id;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    DELETE FROM t1 WHERE id = del_id;
+  END LOOP;
+  CLOSE cur;
+  COMMIT;
+END|
+DELIMITER ;|
+CALL delete_random_t1();
+DROP PROCEDURE delete_random_t1;
+--enable_query_log
+
+--echo # Rows remaining
+SELECT COUNT(*) AS rows_remaining FROM t1;
+
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+let $delta_suffix= t1_delete_random;
+--source suite/innodb/include/innodb_index_stats_delta.inc
+
+DROP TABLE t1;
+
+--echo # Test with table t2 (primary key + secondary index on dt)
+CREATE TABLE t2 (
+  id INT NOT NULL,
+  dt DATETIME NULL,
+  PRIMARY KEY (id),
+  KEY (dt)
+) ENGINE=InnoDB;
+
+--echo # Insert rows with NULL DATETIME
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+
+INSERT INTO t2 (id, dt) SELECT seq, NULL FROM seq_1_to_1000;
+
+--echo # Rows inserted with NULL DATETIME
+SELECT COUNT(*) AS rows_inserted FROM t2;
+SELECT COUNT(DISTINCT dt) AS distinct_timestamps FROM t2;
+
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+let $delta_suffix= t2_insert;
+--source suite/innodb/include/innodb_index_stats_delta.inc
+
+--echo # Update all rows: NULL to DATETIME
+UPDATE t2 SET dt= '2025-01-01' + INTERVAL id SECOND;
+
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+let $delta_suffix= t2_update_null_to_notnull;
+--source suite/innodb/include/innodb_index_stats_delta.inc
+
+--echo # Update all rows: 2025 to 2026 (inplace update)
+UPDATE t2 SET dt= '2026-01-01' + INTERVAL id SECOND;
+
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+let $delta_suffix= t2_update_inplace;
+--source suite/innodb/include/innodb_index_stats_delta.inc
+
+--echo # Update all rows: DATETIME to NULL
+UPDATE t2 SET dt= NULL;
+
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+let $delta_suffix= t2_update_notnull_to_null;
+--source suite/innodb/include/innodb_index_stats_delta.inc
+
+--echo # Delete upper half of rows
+DELETE FROM t2 WHERE id > (SELECT MAX(id) FROM t2) / 2;
+
+--echo # Rows remaining
+SELECT COUNT(*) AS rows_remaining FROM t2;
+
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+let $delta_suffix= t2_delete_upper_half;
+--source suite/innodb/include/innodb_index_stats_delta.inc
+
+--echo # Delete even-numbered rows
+DELETE FROM t2 WHERE id % 2 = 0;
+
+--echo # Rows remaining
+SELECT COUNT(*) AS rows_remaining FROM t2;
+
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+let $delta_suffix= t2_delete_even;
+--source suite/innodb/include/innodb_index_stats_delta.inc
+
+--echo # Delete rows in random order
+--disable_query_log
+DELIMITER |;
+CREATE PROCEDURE delete_random_t2()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE del_id INT;
+  DECLARE cur CURSOR FOR SELECT id FROM t2 ORDER BY RAND(42);
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done= TRUE;
+  START TRANSACTION;
+  OPEN cur;
+  read_loop: LOOP
+    FETCH cur INTO del_id;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    DELETE FROM t2 WHERE id = del_id;
+  END LOOP;
+  CLOSE cur;
+  COMMIT;
+END|
+DELIMITER ;|
+CALL delete_random_t2();
+DROP PROCEDURE delete_random_t2;
+--enable_query_log
+
+--echo # Rows remaining
+SELECT COUNT(*) AS rows_remaining FROM t2;
+
+--source include/wait_all_purged.inc
+--source suite/innodb/include/innodb_index_stats_capture.inc
+let $delta_suffix= t2_delete_random;
+--source suite/innodb/include/innodb_index_stats_delta.inc
+
+DROP TABLE t2;
+
+--disable_query_log
+SET GLOBAL innodb_stats_persistent= @save_stats_persistent;
+SET GLOBAL innodb_monitor_disable= 'module_index';
+--disable_warnings
+SET GLOBAL innodb_monitor_disable= default;
+SET GLOBAL innodb_monitor_enable= default;
+--enable_warnings
+--enable_query_log

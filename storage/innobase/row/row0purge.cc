@@ -96,6 +96,28 @@ row_purge_reposition_pcur(
 	return(node->found_clust);
 }
 
+/** Handle a B-tree page for deferred compression after purge.
+@tparam btree  if true, assume B-tree
+@tparam erase  allow erasing
+@param  node   purge node
+@param  index  index the page belongs to
+@param  cursor btr cursor positioned on the page
+@param  mtr    mini-transaction */
+template<bool btree, bool erase>
+static inline void row_purge_handle_deferred_page(
+	purge_node_t *node, dict_index_t *index,
+	btr_cur_t *cursor, mtr_t *mtr)
+{
+	if constexpr (btree)
+		ut_ad(index->is_btree());
+	else if (!index->is_btree())
+		return;
+	if (btr_cur_compress_recommendation(cursor, mtr))
+		node->deferred_pages.emplace(index, btr_cur_get_block(cursor)->page.id());
+	else if constexpr (erase)
+		node->deferred_pages.erase({index, btr_cur_get_block(cursor)->page.id()});
+}
+
 /***********************************************************//**
 Removes a delete marked clustered index record if possible.
 @retval true if the row was not found, or it was successfully removed
@@ -223,8 +245,12 @@ close_and_exit:
                   );
 #endif
 	if (mode == BTR_MODIFY_LEAF) {
+		/* The clustered index is always a B-tree. */
 		success = DB_FAIL != btr_cur_optimistic_delete(
-			btr_pcur_get_btr_cur(&node->pcur), 0, &mtr);
+			btr_pcur_get_btr_cur(&node->pcur), BTR_PURGE_DELETE_FLAG, &mtr);
+		if (success)
+			row_purge_handle_deferred_page<true, false>(
+				node, index, btr_pcur_get_btr_cur(&node->pcur), &mtr);
 	} else {
 		dberr_t	err;
 		ut_ad(mode == BTR_PURGE_TREE);
@@ -232,6 +258,9 @@ close_and_exit:
 			&err, FALSE, btr_pcur_get_btr_cur(&node->pcur), 0,
 			false, &mtr);
 		success = err == DB_SUCCESS;
+		if (success)
+			row_purge_handle_deferred_page<true, true>(
+				node, index, btr_pcur_get_btr_cur(&node->pcur), &mtr);
 	}
 
 func_exit:
@@ -842,6 +871,8 @@ static bool row_purge_remove_sec_if_poss_tree(purge_node_t *node,
 					   0, false, &mtr);
 		switch (UNIV_EXPECT(err, DB_SUCCESS)) {
 		case DB_SUCCESS:
+			row_purge_handle_deferred_page<false, true>(
+				node, index, &pcur.btr_cur, &mtr);
 			break;
 		case DB_OUT_OF_FILE_SPACE:
 			success = FALSE;
@@ -946,11 +977,15 @@ found:
 				}
 			}
 
-			if (btr_cur_optimistic_delete(&pcur.btr_cur, 0, &mtr)
-			    == DB_FAIL) {
+			if (btr_cur_optimistic_delete(
+				    &pcur.btr_cur,
+				    index->is_btree() ? BTR_PURGE_DELETE_FLAG : 0,
+				    &mtr) == DB_FAIL) {
 				page_max_trx_id = row_purge_check(
 					btr_pcur_get_page(&pcur));
-			}
+			} else
+				row_purge_handle_deferred_page<false, false>(
+					node, index, &pcur.btr_cur, &mtr);
 		}
 	}
 
@@ -1522,6 +1557,83 @@ inline que_node_t *purge_node_t::end(THD *thd)
 }
 
 
+/** Process deferred page compressions collected during the purge batch.
+Peek at each recorded page to build a search tuple, then descend from
+root with X-latch to attempt merging underfull pages.
+@param node  purge node with deferred_pages to process */
+static inline void row_purge_deferred_compress(purge_node_t *node)
+{
+	for (const auto &entry : node->deferred_pages) {
+		dict_index_t *index= entry.first;
+		const page_id_t page_id= entry.second;
+		const ulint zip_size= index->table->space->zip_size();
+
+		ut_ad(page_id.page_no() != index->page);
+
+		/* Peek at the page in a separate mtr to build
+		a search tuple from the first user record */
+		mem_heap_empty(node->heap);
+		dtuple_t *tuple;
+		{
+			mtr_t peek_mtr{node->trx};
+			peek_mtr.start();
+			buf_block_t *block= buf_page_get_gen(
+				page_id, zip_size,
+				RW_S_LATCH, nullptr,
+				BUF_GET_POSSIBLY_FREED,
+				&peek_mtr);
+			if (!block
+			    || btr_page_get_index_id(block->page.frame) != index->id
+			    || !page_get_n_recs(block->page.frame)
+			    || (page_has_siblings(block->page.frame)
+			        && page_get_data_size(block->page.frame)
+			           >= BTR_CUR_PAGE_COMPRESS_LIMIT(index))) {
+				ut_ad(!block
+				      || btr_page_get_index_id(block->page.frame) != index->id
+				      || page_get_n_recs(block->page.frame) > 0);
+				peek_mtr.commit();
+				continue;
+			}
+			const ulint n_fields= index->n_uniq;
+			ut_ad(n_fields > 0);
+			const rec_t *rec= page_rec_get_next_const(
+				page_get_infimum_rec(block->page.frame));
+			tuple= dtuple_create(node->heap, n_fields);
+			dict_index_copy_types(tuple, index, n_fields);
+			rec_copy_prefix_to_dtuple(
+				tuple, rec, index,
+				n_fields, n_fields, node->heap);
+			peek_mtr.commit();
+		}
+
+		/* Descend from root with X-latch to attempt
+		compression. Each page gets its own mtr to
+		avoid modified-page conflicts during descent. */
+		mtr_t mtr{node->trx};
+		log_free_check();
+		mtr.start();
+		index->set_modified(mtr);
+		mtr_x_lock_index(index, &mtr);
+
+		btr_pcur_t pcur;
+		pcur.btr_cur.page_cur.index= index;
+		dberr_t err= btr_pcur_open_with_no_init(
+			tuple, PAGE_CUR_LE,
+			BTR_MODIFY_TREE_ALREADY_LATCHED,
+			&pcur, &mtr);
+		if (err == DB_SUCCESS) {
+			if (btr_cur_compress_if_useful(&pcur.btr_cur, false, &mtr)) {
+				/* Compressed */
+			}
+			btr_pcur_close(&pcur);
+		}
+
+		mtr.commit();
+	}
+
+	node->deferred_pages.clear();
+}
+
 /***********************************************************//**
 Does the purge operation.
 @return query thread to run next */
@@ -1543,6 +1655,8 @@ row_purge_step(
 
 		row_purge(node, purge_rec.undo_rec, thr);
 	}
+
+	row_purge_deferred_compress(node);
 
 	thr->run_node = node->end(current_thd);
 	return(thr);
