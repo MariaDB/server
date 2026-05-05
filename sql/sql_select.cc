@@ -26,6 +26,7 @@
 */
 
 #include "mariadb.h"
+#include "mysqld_error.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_select.h"
@@ -70,6 +71,7 @@
 #include "derived_handler.h"
 #include "opt_hints.h"
 #include "opt_group_by_cardinality.h"
+#include "sql_parallel_workers.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -4371,8 +4373,6 @@ bool JOIN::make_aggr_tables_info()
   DBUG_RETURN(false);
 }
 
-
-
 bool
 JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
                                  ORDER *table_group,
@@ -4405,13 +4405,20 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   if (tmp_table_keep_current_rowid)
     add_fields_for_current_rowid(tab, table_fields);
   tab->tmp_table_param->skip_create_table= true;
+
   TABLE* table= create_tmp_table(thd, tab->tmp_table_param, *table_fields,
                                  table_group, distinct,
                                  save_sum_fields, select_options,
                                  table_rows_limit,
                                  &empty_clex_str, true, keep_row_order);
   if (!table)
-    DBUG_RETURN(true);
+    goto err;
+  // instantiate this now so the parallel worker manager can write to it
+  if (instantiate_tmp_table(table, tab->tmp_table_param->keyinfo,
+                                tab->tmp_table_param->start_recinfo,
+                                &tab->tmp_table_param->recinfo,
+                                select_options))
+    goto err;
   tmp_table_param.using_outer_summary_function=
     tab->tmp_table_param->using_outer_summary_function;
   tab->join= this;
@@ -4909,9 +4916,13 @@ int JOIN::exec()
                                                select_lex->select_number))
                         dbug_serve_apcs(thd, 1);
                  );
+
   ANALYZE_START_TRACKING(thd, &explain->time_tracker);
   res= exec_inner();
   ANALYZE_STOP_TRACKING(thd, &explain->time_tracker);
+
+  if (parallel_work_manager)
+    parallel_work_manager->finalize_parallel_workers(thd, this);
 
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
                   if (dbug_user_var_equals_int(thd, 
@@ -8752,6 +8763,12 @@ struct best_plan
 };
 
 
+/* Defined in sql_parallel_workers.cc */
+extern bool table_can_be_parallel_scanned(TABLE *table);
+extern bool scale_cost_for_parallel_scan(THD *thd, TABLE *table,
+                                         ALL_READ_COST *cost);
+
+
 void
 best_access_path(JOIN      *join,
                  JOIN_TAB  *s,
@@ -9931,6 +9948,17 @@ best_access_path(JOIN      *join,
         s->cached_forced_index= forced_index;
       }
     }
+
+    /*
+      A full table scan of the driving table can be shared across
+      parallel_worker_threads workers (see make_join_readinfo). Discount its
+      row-read/copy cost accordingly so the optimizer accounts for the
+      parallelism. Only the driving table (idx == const_tables) is ever
+      parallel-scanned, and 'cost' is a local copy, so the cached per-table
+      estimate is untouched.
+    */
+    if (type == JT_ALL && idx == join->const_tables)
+      scale_cost_for_parallel_scan(thd, table, &cost);
 
      /*
        Note: the condition checked here is very out of date and incorrect.
@@ -13454,7 +13482,9 @@ bool JOIN::get_best_combination()
         j->index= cur_pos->forced_index;
       }
       else
+      {
         j->type= JT_ALL;
+      }
       if (cur_pos->use_join_buffer &&
           tablenr != const_tables)
 	full_join= 1;
@@ -16327,6 +16357,8 @@ void JOIN_TAB::remove_redundant_bnl_scan_conds()
 }
 
 
+extern int parallel_init_read_record(JOIN_TAB *tab);
+
 /*
   Plan refinement stage: do various setup things for the executor
 
@@ -16575,6 +16607,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
 	    tab->read_first_record= join_read_first;
             /* Read with index_first / index_next */
 	    tab->type= tab->type == JT_ALL ? JT_NEXT : JT_HASH_NEXT;
+            tab->use_parallel_scan= false;
 	  }
 	}
         if (have_quick_select &&
@@ -16660,6 +16693,32 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
         }
       }
       break;
+    }
+  }
+  /*
+    Leverage parallel scan for the first join table if possible.
+    Engine-intrinsic constraints (consistent-read-only / locking reads,
+    record format, discarded tablespace, ...) are enforced inside
+    pscan_init_coordinator(), which declines with HA_ERR_UNSUPPORTED and we
+    fall back to the serial reader. Here we only check what needs the SQL-layer
+    JOIN context.
+  */
+  JOIN_TAB *first= first_linear_tab(join, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
+  if (join->thd->variables.parallel_worker_threads > 0 &&
+    first && first->type == JT_ALL &&
+    first->read_first_record == join_init_read_record &&
+    !(first->select && first->select->quick) && // no range quick select
+    first->table->s->tmp_table == NO_TMP_TABLE &&
+    (first->table->file->ha_table_flags() & HA_CAN_PARALLEL_SCAN) &&
+    !first->table->part_info)
+  {
+    first->use_parallel_scan= true;
+    first->read_first_record= parallel_init_read_record;
+    if (unlikely(join->thd->trace_started()))
+    {
+      Json_writer_object trace_pscan(join->thd);
+      trace_pscan.add("chosen_for_parallel_scan",
+                      first->table->alias.c_ptr());
     }
   }
 
@@ -16799,6 +16858,7 @@ void JOIN_TAB::cleanup()
     else
       table->file->ha_index_or_rnd_end();
     preread_init_done= FALSE;
+
     if (table->pos_in_table_list && table->pos_in_table_list->jtbm_subselect)
     {
       if (table->pos_in_table_list->jtbm_subselect->is_jtbm_const_tab)
@@ -17244,6 +17304,16 @@ void JOIN::join_free()
   bool can_unlock= full;
   DBUG_ENTER("JOIN::join_free");
 
+  /*
+    Parallel-scan workers read this join's source and batch tables. cleanup()
+    below frees those tables, so the workers must be stopped and reaped first
+    -- otherwise a worker that has not yet seen the stop request dereferences a
+    freed table->file. On normal completion the workers have already finished,
+    so this is a cheap no-op.
+  */
+  if (parallel_work_manager)
+    parallel_work_manager->quiesce_workers();
+
   cleanup(full);
 
   for (tmp_unit= select_lex->first_inner_unit();
@@ -17424,6 +17494,12 @@ void JOIN::cleanup(bool full)
   if (current_ref_ptrs != items0)
   {
     set_items_ref_array(items0);
+  }
+
+  if (parallel_work_manager)
+  {
+    delete parallel_work_manager;
+    parallel_work_manager= NULL;
   }
   DBUG_VOID_RETURN;
 }
@@ -23309,12 +23385,13 @@ bool Virtual_tmp_table::check_assignability_from(const TABLE &table,
 }
 
 
-bool open_tmp_table(TABLE *table)
+bool open_tmp_table(TABLE *table, bool cross_thread)
 {
   int error;
   if (unlikely((error= table->file->ha_open(table, table->s->path.str, O_RDWR,
                                             HA_OPEN_TMP_TABLE |
-                                            HA_OPEN_INTERNAL_TABLE |
+                                            (cross_thread? 0 :
+                                                       HA_OPEN_INTERNAL_TABLE) |
                                             HA_OPEN_SIZE_TRACKING))))
   {
     table->file->print_error(error, MYF(0)); /* purecov: inspected */
@@ -24321,7 +24398,8 @@ do_select(JOIN *join, Procedure *procedure)
 bool instantiate_tmp_table(TABLE *table, KEY *keyinfo, 
                            TMP_ENGINE_COLUMNDEF *start_recinfo,
                            TMP_ENGINE_COLUMNDEF **recinfo,
-                           ulonglong options)
+                           ulonglong options,
+                           bool cross_thread)
 {
   DBUG_ASSERT(table->s->keys == 0 || table->key_info == keyinfo);
   DBUG_ASSERT(table->s->keys <= 1);
@@ -24339,7 +24417,7 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
     empty_record(table);
     table->status= STATUS_NO_RECORD;
   }
-  if (open_tmp_table(table))
+  if (open_tmp_table(table, cross_thread))
     return TRUE;
 
   return FALSE;
@@ -31192,6 +31270,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       tab_type= type == JT_HASH ? JT_HASH_RANGE : JT_RANGE;
   }
   eta->type= tab_type;
+  eta->use_parallel_scan= use_parallel_scan;
 
   /* Build "possible_keys" value */
   // psergey-todo: why does this use thd MEM_ROOT??? Doesn't this 

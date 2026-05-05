@@ -3751,6 +3751,7 @@ public:
     DBUG_RETURN(rnd_end());
   }
   int ha_rnd_init_with_error(bool scan) __attribute__ ((warn_unused_result));
+
   int ha_reset();
   /* this is necessary in many places, e.g. in HANDLER command */
   int ha_index_or_rnd_end()
