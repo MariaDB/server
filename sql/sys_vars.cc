@@ -2746,6 +2746,22 @@ static Sys_var_charptr_fscs Sys_binlog_storage_engine(
        DEFAULT(0));
 #endif
 
+#ifndef EMBEDDED_LIBRARY
+/*
+  Parallel query is not offered by the embedded server: without this variable
+  a session there can never ask for workers, and the parallel-scan costing
+  below (optimizer_parallel_setup_cost) is left out with it.
+*/
+static Sys_var_on_access_global<Sys_var_ulong,
+                             PRIV_SET_SYSTEM_GLOBAL_VAR_PARALLEL_WORKER_THREADS>
+Sys_parallel_worker_threads(
+       "parallel_worker_threads",
+       "Number of worker threads available for parallel query execution. "
+       "0 means parallel execution is disabled",
+       SESSION_VAR(parallel_worker_threads), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,100), DEFAULT(0), BLOCK_SIZE(1));
+#endif
+
 
 static Sys_var_on_access_global<Sys_var_ulong,
                            PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_COMMIT_WAIT_COUNT>
